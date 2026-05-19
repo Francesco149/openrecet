@@ -349,3 +349,44 @@ or parallelize via subagents per AGENT-WORKFLOW.md):
 - Wire up `tools/ghidra-headless.sh` for batch decompilation.
 - Confirm DirectX version from unpacked imports.
 - First extractor: `xfile.py` (validate pipeline against known format).
+
+---
+
+## 2026-05-19 — First real rendering: TGA + screen-aligned quad
+
+**What landed:** `src/tga.{c,h}` (uncompressed truecolor TGA Type 2, 24/32-bit,
+bottom-up or top-down → BGRA), `src/sprite.{c,h}` (`IDirect3DTexture8` via
+`CreateTexture(D3DPOOL_MANAGED) + LockRect + memcpy`, screen-aligned quad
+via `D3DFVF_XYZRHW | DIFFUSE | TEX1` + `DrawPrimitiveUP`, with
+`SRCALPHA/INVSRCALPHA` blending and the standard half-pixel offset).
+Wired into `src/main.c` behind a `--show-tga <path>` CLI flag.
+
+**Verification.** Ran `openrecet.exe --show-tga bmp/window.tga
+--capture-to <dir> --capture-every-ms 500` for 4 seconds via WSLInterop;
+captured 8 BMPs showing the 64×64 `window.tga` (a rounded UI button)
+correctly alpha-blended over the debug-magenta clear. Math check on
+frame 4: TGA pixel `(32,32) = (23,23,47, α=133)` blended over
+`(160,32,96)` predicts `(88, 27, 70)`; captured pixel reads `(89, 27,
+70)` — agrees to within rounding.
+
+**Engine-accuracy gap recorded** in
+[`findings/texture-loader.md`](findings/texture-loader.md). `FUN_0047193c`
+(the original's loader) hands work to `D3DXCreateTextureFromFileInMemoryEx`
+(identified by 15-arg call site + D3DXERR_INVALIDDATA error path). For
+BMPs it applies the green color-key `0xFF00FF00`; TGAs use native alpha.
+We deliberately bypass d3dx8 (not in nixpkgs, deprecated) and will grow
+our own decoders to match the engine's output. Current `tga.c` handles
+Type 2 only — BMP-with-color-key and RLE-TGA come next.
+
+**Next milestones (unchanged from prior stop point except #6 done):**
+
+1. Translate `FUN_004341d4` (file-size helper).
+2. Translate `FUN_0047af52` (DInput8 init chain).
+3. Translate `FUN_00475270` (`bmpdata.bin` LZW loader; cross-ref
+   `recettear-repacker/bmp_unpack.py`).
+4. Translate `FUN_00454e69` + neighbours (D3D8 device creation, for
+   matching the original's present parameters and initial render states).
+5. Port `FUN_0047193c` properly — read assets via `storage_*`, accept
+   BMPs with the green color-key, add RLE-TGA. Replaces `--show-tga`'s
+   direct-file path.
+6. ~~First real rendering~~ — done (this entry).

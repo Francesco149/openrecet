@@ -20,6 +20,8 @@
 #include <stdint.h>
 
 #include "storage.h"
+#include "tga.h"
+#include "sprite.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
 #define AZUMANGA_CLASS  "Azumanga Main Window"
@@ -53,6 +55,12 @@ static char            *g_capture_dir       = NULL;
 static unsigned         g_capture_every_ms  = 1000;
 static unsigned         g_capture_last_ms   = 0;     /* timeGetTime() of last capture */
 static unsigned         g_capture_count     = 0;     /* monotonic capture index */
+
+/* --show-tga <path>: load a TGA at startup and draw it as a sprite at (0,0)
+ * every tick. First-rendering milestone — proves the texture upload + quad
+ * + alpha-blend path before we tackle any of the engine's real draw paths. */
+static char            *g_show_tga_path     = NULL;
+static sprite_t         g_show_tga_sprite   = {0};
 
 /* Dynamically-resolved DX entry point — matches the original's
  * LoadLibraryA("d3d8.dll") + GetProcAddress("Direct3DCreate8") pattern. */
@@ -112,6 +120,23 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     }
     /* "init render ok" — FUN_00454e69 */
 
+    if (g_show_tga_path) {
+        tga_image img = {0};
+        if (!tga_load_file(g_show_tga_path, &img)) {
+            MessageBoxA(g_hwnd, g_show_tga_path,
+                        "openrecet: failed to load TGA", MB_OK | MB_ICONERROR);
+            return 0;
+        }
+        if (!sprite_create(g_dev, img.pixels, img.width, img.height,
+                           &g_show_tga_sprite)) {
+            tga_free(&img);
+            MessageBoxA(g_hwnd, g_show_tga_path,
+                        "openrecet: CreateTexture failed", MB_OK | MB_ICONERROR);
+            return 0;
+        }
+        tga_free(&img);
+    }
+
     /* TODO "init indexfile ok"  — FUN_00475270
      * TODO "init fontsys ok"    — FUN_0047c228
      * TODO "init daoudio ok"    — FUN_00498ef4
@@ -141,6 +166,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     }
 
     /* ─── shutdown ──────────────────────────────────────────────────────── */
+    sprite_destroy(&g_show_tga_sprite);
     storage_shutdown();
     shutdown_render();
     timeEndPeriod(10);
@@ -292,7 +318,9 @@ static void tick_and_present(void)
         D3DCOLOR_XRGB(160, 32, 96),                  /* debug magenta */
         1.0f, 0);
     IDirect3DDevice8_BeginScene(g_dev);
-    /* TODO: real rendering — for now just clear+present. */
+    if (g_show_tga_sprite.tex) {
+        sprite_draw(g_dev, &g_show_tga_sprite, 32.0f, 32.0f);
+    }
     IDirect3DDevice8_EndScene(g_dev);
 
     /* Frame capture must run BEFORE Present — with D3DSWAPEFFECT_DISCARD
@@ -342,6 +370,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
             if (val) {
                 unsigned n = (unsigned)strtoul(val, NULL, 10);
                 if (n > 0) g_capture_every_ms = n;
+            }
+        } else if (lstrcmpA(tok, "--show-tga") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char path_buf[MAX_PATH];
+                lstrcpynA(path_buf, val, (int)sizeof(path_buf));
+                g_show_tga_path = path_buf;
             }
         }
         tok = strtok(NULL, " ");
