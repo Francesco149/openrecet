@@ -3,6 +3,41 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Sanitizer-instrumented unit tests
+
+**Subsystems landed:**
+- `tests/Makefile` — Linux-native test harness. Host gcc +
+  `-fsanitize=address,undefined -fno-sanitize-recover=all`. Run with
+  `make -C tests run`.
+- `tests/t.h` — dependency-free assertion macros (T_ASSERT, T_FAIL,
+  T_SKIP) + UBSan-safe byte writers.
+- `tests/test_main.c` — runs registered tests, supports name-substring
+  filter via `argv[1]`, exits non-zero on any failure (skips don't
+  count).
+- `tests/test_{bmp,tga,bmp_lzw,lnkdatas_hash}.c` — 21 tests covering
+  every audited code path in the four portable decoders.
+
+**Why now:** the Win32 sprite loader just landed, and every decoder
+ingests user-controlled bytes (BMP/TGA from `bmpdata.bin`, LZW slices,
+CRC over the whole lnkdatas blob). Memory bugs in these can pass
+pixel-equality checks while still being broken. Valgrind/ASan can't
+run Win32 PE binaries, so the natural split is "Linux test target for
+the portable .c files". The Win32 layer stays exercised by smoke
+tests.
+
+**Doc fix discovered during test writing:** `src/lnkdatas_hash.{c,h}`
+called the engine's hash "CRC-16/CCITT-FALSE". It's *shaped* like
+CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflect, final invert) but
+the feedback step uses **subtraction** instead of XOR. The standard
+CCITT-FALSE check value for "123456789" is 0x29B1; ours is 0xF5B7
+because of borrow propagation. Cross-checked against
+`/opt/src/recettear-repacker/crc.py`.
+
+**Sanity check the harness catches real bugs:** temporarily injected
+a 1-byte OOB read past the BMP pixel buffer and reran. ASan
+pinpointed the exact `bmp.c:77` line with the heap region details.
+Reverted; all 21 tests pass green.
+
 ## 2026-05-20 — `FUN_0047193c` ported — engine-style sprite loader
 
 **Subsystems landed:**
