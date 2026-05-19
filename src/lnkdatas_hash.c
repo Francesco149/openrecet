@@ -3,11 +3,21 @@
  *
  * Faithful translation of the 58-byte Ghidra decompilation.
  *
- * Algorithm: CRC-16/CCITT-FALSE variant.
- *   - Polynomial : 0x1021
+ * Algorithm: CCITT-FALSE-shaped, with one wrinkle — the feedback step
+ * is a SUBTRACTION, not the canonical XOR. The bit-level recurrence
+ * is:
+ *
+ *     crc = (crc & 0x8000) ? ((crc << 1) - 0x1021) : (crc << 1)
+ *
+ * For input bytes whose CRC trajectory never produces a borrow, this
+ * coincides with the standard CCITT-FALSE XOR. Real inputs do
+ * produce borrows, so the engine's hash diverges from the standard:
+ * "123456789" → 0xF5B7 here vs 0x29B1 for canonical CCITT-FALSE.
+ *
+ *   - Polynomial / subtracted constant: 0x1021
  *   - Init value : 0xFFFF
  *   - Input/output reflection: none
- *   - Final XOR  : 0xFFFF (i.e. bitwise NOT of the running CRC)
+ *   - Final transform: bitwise NOT
  *
  * The engine operates on a 32-bit register (uint uVar1) and never explicitly
  * masks it to 16 bits inside the bit loop, but — because the initial value
@@ -69,15 +79,13 @@ int16_t lnkdatas_hash(const void *buf, size_t size)
  *   i686-w64-mingw32-gcc -std=c11 -O2 -DLNKDATAS_HASH_TEST \
  *       -DLNKDATAS_HASH_TEST_UNIT lnkdatas_hash.c -o unit.exe
  *
- * Known unit vectors (from CRC-16/CCITT-FALSE, init=0xFFFF, poly=0x1021):
- *   ""        (empty)  -> 0x1D0F  (NOT(0xFFFF ^ 0) = final XOR only... actually
- *                                  for empty: ~0xFFFF & 0xFFFF = 0x0000? NO:
- *                                  empty loop => crc stays 0xFFFF => ~0xFFFF = 0x0000
- *                                  but cast to int16_t => 0x0000)
- *   "123456789" (9 bytes ASCII) -> depends on variant; for CCITT-FALSE:
- *   The canonical "check value" for CRC-16/CCITT-FALSE on "123456789" is 0x29B1.
- *   ~0x29B1 & 0xFFFF = 0xD64E.  Our function returns (int16_t)0xD64E = -0x29B2.
- *   Use the real file for end-to-end validation.
+ * Known unit vectors (engine variant — XOR replaced by subtraction):
+ *   ""           (empty)         -> 0x0000   (empty loop, init inverted)
+ *   "123456789"  (9 bytes ASCII) -> 0xF5B7   (NOT 0x29B1; differs from
+ *                                             canonical CCITT-FALSE
+ *                                             because of the subtraction)
+ * Both are covered by tests/test_lnkdatas_hash.c; the second is also
+ * cross-checked against /opt/src/recettear-repacker/crc.py.
  */
 
 #ifdef LNKDATAS_HASH_TEST

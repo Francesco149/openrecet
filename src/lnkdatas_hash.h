@@ -1,9 +1,18 @@
 /*
  * lnkdatas_hash.h — Integrity hash for lnkdatas.bin (FUN_00474f14)
  *
- * CRC-16/CCITT-FALSE variant: polynomial 0x1021, init 0xFFFF, no reflect,
- * result bitwise-inverted.  A return value of -0x7456 (0x8BAA as uint16)
- * means the file is valid.
+ * CCITT-FALSE-shaped: polynomial 0x1021, init 0xFFFF, no reflect,
+ * result bitwise-inverted. BUT the feedback step uses SUBTRACTION
+ * (`crc = (crc << 1) - 0x1021`) rather than the standard XOR
+ * (`crc = (crc << 1) ^ 0x1021`), so the engine's hash does *not*
+ * match published CCITT-FALSE check values (e.g. "123456789" hashes
+ * to 0xF5B7 here, not the standard 0x29B1). Cross-reference:
+ * /opt/src/recettear-repacker/crc.py — independent port, same
+ * behavior.
+ *
+ * A return value of -0x7456 (0x8BAA as uint16) means the English
+ * Steam build's lnkdatas.bin is valid; the JP build hashes to a
+ * different sentinel (-0x3a1f / 0xC5E1).
  *
  * Signature mirrors the engine call in FUN_004341fe:
  *   hash = FUN_00474f14(n, buffer);
