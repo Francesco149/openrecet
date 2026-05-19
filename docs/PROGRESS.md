@@ -3,6 +3,51 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — `bmpdata.bin` LZW decoder + storage_read overlay path
+
+**Subsystems landed:**
+- `src/bmp_lzw.{c,h}` — 12-bit MSB-first LZW decompressor. Translation
+  of `FUN_00434b32` (main loop), `FUN_00434c2c` (bit reader), and
+  `FUN_00434ca9` (dict-chain walker). Dictionary frozen at 3839 entries,
+  matches `recettear-repacker/bmp_unpack.py` exactly.
+- `src/storage.{c,h}` extended — now also opens `bmpdata.bin`, slurps
+  it into memory, validates the hash sentinel `0x21dc`, and exposes
+  `storage_get_size(name)` + `storage_read(name, dst)`. Mirrors
+  `FUN_00434585` (size lookup) and `FUN_004346bf` (read into buffer) for
+  the bmpdata branch.
+
+**Identification fix:** `FUN_00475270` (originally pinned as "likely
+bmpdata.bin LZW loader" in PROGRESS) turned out to be the global
+gameplay-text-table loader — a 3965-line parser for `data/item.txt`,
+`data/chara.txt`, the `idx/stage.idx` chain, etc. The real LZW lives in
+the much smaller `FUN_00434b32` + helpers, called lazily from the
+storage read path. Plan annotation corrected.
+
+**Engine deviation, by design:** the engine's `FUN_00434b32` doesn't
+handle code 256 (LZW reset/EOS) — it walks past the dict base on the
+sentinel and emits a few garbage bytes past the caller's `dsize`
+buffer. Benign in the shipping game (callers tolerate the overrun) but
+we'd rather not write past the asked-for size, so our decoder honors
+256 explicitly. End result: byte-for-byte identical with
+`bmp_unpack.py` output, not byte-for-byte identical with the engine's
+overrun-prone output.
+
+**Validation:** all 22 entries in the shipping Steam `bmpdata.bin`
+round-trip through `storage_init → storage_read → stdout` to
+byte-equal output vs the Python reference (see `/tmp/storage_diff.py`).
+Boot smoke (`tools/smoke-test.py`) still green — exit signal, 3 frames
+captured, no early-exit error from the now-stricter `storage_init`
+(which is required to find `bmpdata.bin`).
+
+**New format spec:** `docs/formats/bmpdata.md` — 84-byte names, 3 ×
+int32 (dsize/offset/csize) per entry, 96-byte stride, 12-bit LZW
+payload, hash sentinel `0x21dc`.
+
+Next-milestone candidates (unchanged): `FUN_0047193c` (proper sprite
+loader using `storage_*` with BMP + green-key + RLE-TGA — now possible
+because `bmpdata` lookups work), `FUN_004341d4` standalone port, or
+diving into the `FUN_00475270` gameplay-data parser.
+
 ## 2026-05-19 — Render-layer init ported (`FUN_00454e69` + `FUN_004038e4`)
 
 **Subsystem landed:** `src/layers.{c,h}`. The "init render ok" hand-off

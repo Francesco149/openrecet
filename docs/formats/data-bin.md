@@ -99,12 +99,9 @@ void lzss_decompress(const uint8_t *in, uint8_t *out, size_t *out_len) {
 
 ## `bmpdata.bin` — LZW update overlay
 
-Separate format. Contains both metadata and data (self-describing index).
-Compressed with **LZW** (variable-width codes; details in
-`recettear-repacker/bmp_unpack.py`).
-
-We'll add a `bmp-bin.md` spec doc when we cover that path in detail. For
-now, refer to the upstream Python.
+Separate format with a self-describing 84-byte-name + 3 × int32 header,
+12-bit LZW payload. See **[`bmpdata.md`](bmpdata.md)** for the full spec
+and our reimplementation in `src/bmp_lzw.c` + `src/storage.c`.
 
 ## File-tree contents
 
