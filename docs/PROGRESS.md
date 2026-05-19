@@ -43,6 +43,16 @@ expected_h)` is still skipped. Every audited asset ships at native
 resolution, so this matters mainly for forward-compat / mod paths
 that intentionally scale.
 
+**Lifecycle fix (orphan-window cleanup, follow-up commit):** ad-hoc
+`timeout 3 openrecet.exe …` runs kept leaving the host's Windows
+side with orphan windows because `g_paused` blocks the main loop in
+`WaitMessage` when the window loses focus — any deadline check
+inside `tick_and_present` is never reached. Added `--max-duration-ms
+<ms>` (also taken up by `tools/smoke-test.py`) that registers
+`SetTimer` → `WM_TIMER` → `DestroyWindow`, which fires regardless of
+pause state. Smoke harness now reaches `exit=0` gracefully instead
+of falling through to SIGTERM/taskkill.
+
 Next-milestone candidates: lnkdatas content-read path (so `storage_read`
 also services `bin/data_NNN.bin` + the LZSS decompressor at
 `FUN_004349e5`); `FUN_004341d4` standalone port (mostly mechanical);

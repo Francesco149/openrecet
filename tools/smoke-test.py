@@ -171,6 +171,15 @@ def run(target: str, scenario: Scenario, args: argparse.Namespace) -> Path:
     if args.capture and target == "openrecet":
         cmd += ["--capture-to", wslpath_w(frames),
                 "--capture-every-ms", str(args.capture_every_ms)]
+    if target == "openrecet":
+        # Self-terminate via SetTimer → WM_TIMER → DestroyWindow instead of
+        # relying on SIGTERM/taskkill — that path leaves orphan windows on
+        # the host because the modal MessageBox or paused-window state can
+        # swallow the signal. Set the in-exe limit shorter than proc.wait's
+        # deadline so the graceful path wins the race; the TimeoutExpired
+        # fallback still catches anything that goes wrong.
+        graceful_ms = max(500, int(scenario.duration_s * 1000) - 500)
+        cmd += ["--max-duration-ms", str(graceful_ms)]
 
     t0 = time.time()
     with stdout_path.open("wb") as so, stderr_path.open("wb") as se:

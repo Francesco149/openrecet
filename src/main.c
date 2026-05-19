@@ -64,6 +64,17 @@ static unsigned         g_capture_count     = 0;     /* monotonic capture index 
 static char            *g_show_sprite_name  = NULL;
 static sprite_t         g_show_sprite       = {0};
 
+/* --max-duration-ms <ms>: PostQuitMessage after this many milliseconds.
+ * Lets the harness (and ad-hoc smoke runs) get a clean shutdown — the
+ * normal message-pump exit path — instead of SIGTERM/taskkill leaving
+ * orphan windows on the host. 0 = no limit.
+ *
+ * Implemented via SetTimer so it also fires while g_paused=TRUE (window
+ * inactive → main loop sits in WaitMessage instead of ticking). Without
+ * the timer the pump would never wake to check the deadline. */
+#define AUTO_EXIT_TIMER_ID  1
+static unsigned         g_max_duration_ms   = 0;
+
 /* Dynamically-resolved DX entry point — matches the original's
  * LoadLibraryA("d3d8.dll") + GetProcAddress("Direct3DCreate8") pattern. */
 typedef IDirect3D8 *(WINAPI *PFN_Direct3DCreate8)(UINT);
@@ -130,8 +141,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     if (g_show_sprite_name) {
         if (!sprite_load(g_dev, g_show_sprite_name, 0, 0, &g_show_sprite)) {
-            MessageBoxA(g_hwnd, g_show_sprite_name,
-                        "openrecet: sprite_load failed", MB_OK | MB_ICONERROR);
+            /* Skip the modal MessageBox under --max-duration-ms so smoke
+             * harnesses don't block on a dialog that has no human to
+             * dismiss it; emit to stderr instead. */
+            if (g_max_duration_ms == 0) {
+                MessageBoxA(g_hwnd, g_show_sprite_name,
+                            "openrecet: sprite_load failed", MB_OK | MB_ICONERROR);
+            } else {
+                fprintf(stderr, "openrecet: sprite_load failed: %s\n",
+                        g_show_sprite_name);
+            }
             return 0;
         }
     }
@@ -148,6 +167,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     ShowWindow(g_hwnd, nCmdShow);
     UpdateWindow(g_hwnd);
+
+    if (g_max_duration_ms > 0) {
+        SetTimer(g_hwnd, AUTO_EXIT_TIMER_ID, g_max_duration_ms, NULL);
+    }
 
     /* ─── main loop — mirrors the PeekMessage/WaitMessage idle pattern ─── */
     MSG msg = {0};
@@ -233,11 +256,23 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
 
     case WM_CLOSE:
-        if (g_windowed) {
+        /* The "do you really want to quit?" prompt is the original engine's
+         * windowed-mode behavior. Skip it when --max-duration-ms is set —
+         * that flag exists precisely so smoke runs can shut down without
+         * any human interaction. */
+        if (g_windowed && g_max_duration_ms == 0) {
             int r = MessageBoxA(hwnd,
                 "Do you really want to quit the game?",
                 "EXIT?", MB_OKCANCEL);
             if (r != IDOK) return 0;
+        }
+        return DefWindowProcA(hwnd, msg, wParam, lParam);
+
+    case WM_TIMER:
+        if (wParam == AUTO_EXIT_TIMER_ID) {
+            KillTimer(hwnd, AUTO_EXIT_TIMER_ID);
+            DestroyWindow(hwnd);    /* → WM_DESTROY → PostQuitMessage(0) */
+            return 0;
         }
         return DefWindowProcA(hwnd, msg, wParam, lParam);
 
@@ -414,6 +449,12 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char name_buf[MAX_PATH];
                 lstrcpynA(name_buf, val, (int)sizeof(name_buf));
                 g_show_sprite_name = name_buf;
+            }
+        } else if (lstrcmpA(tok, "--max-duration-ms") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                unsigned n = (unsigned)strtoul(val, NULL, 10);
+                if (n > 0) g_max_duration_ms = n;
             }
         }
         tok = strtok(NULL, " ");
