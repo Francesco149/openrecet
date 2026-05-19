@@ -126,6 +126,31 @@ smoke runs, multi-subsystem trace + writeup.
   Sonnet executes).
 - ❌ Don't let a subagent commit or push.
 
+## Commits
+
+**Commit in logical units as you go**, don't let the working tree pile up.
+A good unit is "one subsystem ported", "one extractor + its format spec",
+"one harness fix + the test that proves it", "one finding documented with
+its supporting Ghidra reads". When in doubt, commit at every natural
+stop-and-report point (see below).
+
+Conventions:
+
+- Use the user's global git identity (`headpats <loli@headpats.uk>`).
+  Never `git config --local user.email` something else.
+- **Every commit Claude makes must include the co-author trailer**:
+
+      Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+
+  (Adjust model version if running on a different Claude.) Use a HEREDOC
+  to pass the message so the trailer lands on its own line.
+- Commit only what was asked. Never `git add -A` and sweep in stray files.
+- Never `git push` unless the user explicitly asks.
+- Never amend (`--amend`) or rebase (`-i`) without explicit request — a
+  new commit is almost always safer.
+- Never bypass hooks (`--no-verify`) without explicit request — fix the
+  underlying issue.
+
 ## Stop conditions
 
 Opus should **stop and wait for sign-off** when:
