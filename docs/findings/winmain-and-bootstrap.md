@@ -206,6 +206,11 @@ standard MSDN pattern.
 
 ## DirectInput 8 init (`FUN_0047af52` — "init dinput ok")
 
+**Status:** ✅ ported — `src/input.{c,h}`. Sequence below is the corrected
+read after porting (the original transcription had `DIPROP_RANGE = ±5000`
+on the joystick — that was wrong; ±1000 is set per-axis by the EnumObjects
+callback, and the outer per-device SetProperty calls are AXISMODE+BUFFERSIZE).
+
 ```
 DirectInput8Create(hInst, 0x800, IID_IDirectInput8A, &g_di, NULL)
   ↓ stored in DAT_073dfcc0
@@ -213,25 +218,70 @@ g_di->CreateDevice(GUID_SysKeyboard, &g_di_keyboard, NULL)   // vtbl+0x0C
   ↓ stored in DAT_073dfcc4
 g_di_keyboard->SetDataFormat(c_dfDIKeyboard)                 // vtbl+0x2C
 g_di_keyboard->SetCooperativeLevel(hwnd, 6)                  // FOREGROUND|NONEXCLUSIVE
-g_di_keyboard->SetProperty(DIPROP_BUFFERSIZE = 100)          // vtbl+0x18
+g_di_keyboard->SetProperty(DIPROP_BUFFERSIZE = 100)          // vtbl+0x18, prop=1
 g_di_keyboard->Acquire()                                     // vtbl+0x1C
 
-g_di->EnumDevices(DI8DEVCLASS_GAMECTRL=4, FUN_0047b167 cb,
+g_di->EnumDevices(DI8DEVCLASS_GAMECTRL=4, LAB_0047b167 cb,
                   NULL, DIEDFL_ATTACHEDONLY=1)               // vtbl+0x10
-for each enumerated joystick (count in DAT_073dfcd8):
+for each enumerated joystick (count capped at 4, in DAT_073dfcd8):
+    DAT_073dfcdc = i;                                        // selects target for FUN_0047b1f2
     g_di_joy[i]->SetDataFormat(c_dfDIJoystick)
     g_di_joy[i]->SetCooperativeLevel(hwnd, 6)
     g_di_joy[i]->EnumObjects(FUN_0047b1f2, NULL, 3=DIDFT_AXIS|DIDFT_POV)
-    g_di_joy[i]->SetProperty(DIPROP_RANGE = ±5000)           // axis 2
-    g_di_joy[i]->SetProperty(DIPROP_DEADZONE = 100)          // axis 1
+        // cb sets DIPROP_RANGE = ±1000 per object via DIPH_BYID
+    g_di_joy[i]->SetProperty(DIPROP_AXISMODE = DIPROPAXISMODE_ABS) // prop=2, DIPH_DEVICE
+    g_di_joy[i]->SetProperty(DIPROP_BUFFERSIZE = 100)              // prop=1, DIPH_DEVICE
     g_di_joy[i]->Acquire()
 ```
+
+### Joystick enumeration callback — `LAB_0047b167`
+
+Ghidra did not decompile this — it shows up as a code label, not a
+function. Read directly from objdump:
+
+```c
+BOOL CALLBACK enum_joy_cb(LPCDIDEVICEINSTANCEA lpddi, LPVOID pvRef) {
+    if (FAILED(g_di->CreateDevice(&lpddi->guidInstance,
+                                  &g_joys[g_joy_count], NULL)))
+        return DIENUM_CONTINUE;            // CreateDevice failed → next
+
+    g_caps.dwSize = sizeof(DIDEVCAPS);     // 0x2C in DAT_073de3e8
+    if (FAILED(g_joys[g_joy_count]->GetCapabilities(&g_caps))) {
+        g_joys[g_joy_count]->Release();
+        g_joys[g_joy_count] = NULL;
+        return DIENUM_CONTINUE;            // probe failed → release & next
+    }
+    g_joy_count++;
+    return (g_joy_count < 4) ? DIENUM_CONTINUE : DIENUM_STOP;
+}
+```
+
+Max of 4 joysticks is hard-coded in the `cmp 4; setl` final test —
+explains the static layout of `DAT_073dfcc8..ccd`.
+
+### Per-axis range callback — `FUN_0047b1f2`
+
+```c
+BOOL CALLBACK enum_obj_cb(LPCDIDEVICEOBJECTINSTANCEA lpdoi, LPVOID pvRef) {
+    DIPROPRANGE r = { .diph = { .dwSize=0x18, .dwHeaderSize=0x10,
+                                .dwObj=lpdoi->dwType,
+                                .dwHow=DIPH_BYID },
+                      .lMin=-1000, .lMax=1000 };
+    g_joys[g_joy_cur]->SetProperty(DIPROP_RANGE, &r.diph);
+    return DIENUM_CONTINUE;
+}
+```
+
+`DAT_073dfcdc` (`g_joy_cur`) is the "current target joystick" written by
+the outer init loop before each `EnumObjects` call.
 
 Globals:
 - `DAT_073dfcc0` — `IDirectInput8 *`
 - `DAT_073dfcc4` — `IDirectInputDevice8 *` (keyboard)
-- `DAT_073dfcc8…` — `IDirectInputDevice8 *[]` (joysticks)
+- `DAT_073dfcc8…ccd` — `IDirectInputDevice8 *[4]` (joysticks)
 - `DAT_073dfcd8` — joystick count
+- `DAT_073dfcdc` — current-joystick index (for the EnumObjects callback)
+- `DAT_073de3e8` — `DIDEVCAPS` scratch buffer used during enumeration
 
 ## Storage init (`FUN_004341fe` — "init strage ok")
 

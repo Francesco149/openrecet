@@ -13,7 +13,7 @@ CFLAGS    ?= -std=c11 -O2 -g \
              -DUNICODE=0 -D_UNICODE=0 \
              -DWINVER=0x0500 -D_WIN32_WINNT=0x0500
 LDFLAGS   ?= -mwindows -static-libgcc
-LIBS      ?= -ld3d8 -ldinput8 -ldsound -lwinmm \
+LIBS      ?= -ld3d8 -ldinput8 -ldxguid -ldsound -lwinmm \
              -lgdi32 -luser32 -lkernel32 -lole32 -ladvapi32 -lshell32
 
 SRCS      := $(wildcard *.c)

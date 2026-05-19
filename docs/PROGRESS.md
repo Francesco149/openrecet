@@ -393,6 +393,55 @@ Type 2 only — BMP-with-color-key and RLE-TGA come next.
 
 ---
 
+## 2026-05-19 — DirectInput 8 init ported (keyboard + joysticks)
+
+**Subsystem landed:** `src/input.{c,h}` — full port of `FUN_0047af52`
+("init dinput ok") plus its cleanup at `FUN_0047b0ef` and the
+WM_ACTIVATE Acquire/Unacquire dance. Wired into `main.c` after
+`init_render` and into `WndProc:WM_ACTIVATE` so deactivation correctly
+releases device focus (matches the original's behavior).
+
+**Pieces traced and ported:**
+- `FUN_0047af52` — outer init: `DirectInput8Create`, keyboard create +
+  `SetDataFormat(c_dfDIKeyboard)` + `SetCooperativeLevel(FOREGROUND|NONEXCLUSIVE)`
+  + `SetProperty(DIPROP_BUFFERSIZE = 100)` + `Acquire`; then
+  `EnumDevices(DI8DEVCLASS_GAMECTRL, ATTACHEDONLY)` followed by per-joystick
+  `SetProperty(DIPROP_AXISMODE = ABS)` + `DIPROP_BUFFERSIZE = 100` + `Acquire`.
+- `LAB_0047b167` — joystick enumeration callback. Ghidra never decompiled
+  this (came up as a label, not a function); read directly from objdump on
+  `vendor/unpacked/recettear.unpacked.exe`. Calls
+  `IDirectInput8::CreateDevice(lpddi->guidInstance, ...)` into a 4-slot
+  array, then `GetCapabilities` as a liveness probe — failure releases the
+  device and zeroes the slot. Caps the joystick count at 4
+  (`cmp 4; setl` — explains the static `g_joys[INPUT_MAX_JOYS]` layout).
+- `FUN_0047b1f2` — per-object enum callback for `IDirectInputDevice8::EnumObjects`
+  with filter `DIDFT_AXIS|DIDFT_POV`. Sets each enumerated object's
+  `DIPROP_RANGE` to ±1000 via `DIPH_BYID`. (Earlier writeup said ±5000 — that
+  was wrong; bytes are `0xFFFFFC18` = −1000 and `0x03E8` = 1000.)
+- `FUN_0047b0ef` — symmetric shutdown: Unacquire+Release for the keyboard,
+  each joystick slot, then Release the `IDirectInput8` factory.
+
+**Other corrections to the bootstrap findings:**
+- Keyboard `SetProperty` is `DIPROP_BUFFERSIZE=100`, not "DIPROP_RANGE ±5000"
+  as I'd transcribed initially. The ±5000 number was never in the binary.
+- The `WM_ACTIVATE` decision uses both `LOWORD(wParam)` (active/inactive)
+  and `HIWORD(wParam)` (minimized flag): paused = inactive OR minimized.
+
+**Toolchain note:** had to add `-ldxguid` to `src/Makefile` so the linker
+resolves `IID_IDirectInput8A`, `GUID_SysKeyboard`, and the data-format
+GUIDs that `c_dfDIKeyboard` / `c_dfDIJoystick` reference internally.
+
+**Verified:** `tools/smoke-test.py --target openrecet --scenario boot
+--capture` runs cleanly for 5 frames — debug-magenta still reads
+`(160, 32, 96)` flat across the back-buffer, no crash on init or
+shutdown, no MessageBox.
+
+Next-milestone candidates (unchanged ordering from the session-starter
+memo): `FUN_004341d4` (file-size helper), `FUN_00475270` (bmpdata.bin
+LZW loader), `FUN_00454e69` ("init render ok" — post-device render-state
+init), or porting `FUN_0047193c` properly to read assets through
+`storage_*` and accept BMP+green-key in addition to TGA.
+
 ## 2026-05-19 — D3D8 device creation properly identified + matched
 
 **Correction:** the bootstrap doc previously labeled `FUN_0047ac6a` as

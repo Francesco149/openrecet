@@ -22,6 +22,7 @@
 #include "storage.h"
 #include "tga.h"
 #include "sprite.h"
+#include "input.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
 #define AZUMANGA_CLASS  "Azumanga Main Window"
@@ -109,9 +110,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         return 0;
     }
 
-    /* TODO "init print ok"   — FUN_00451863
-     * TODO "init dinput ok"  — FUN_0047af52
-     */
+    /* TODO "init print ok"   — FUN_00451863 */
 
     if (!load_d3d8() || !init_render(g_hwnd)) {
         MessageBoxA(g_hwnd, "Failed to initialize Direct3D 8",
@@ -119,6 +118,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         return 0;
     }
     /* "init render ok" — FUN_00454e69 */
+
+    /* "init dinput ok" — FUN_0047af52 — keyboard + up to 4 joysticks. */
+    input_init(g_hInstance, g_hwnd);
 
     if (g_show_tga_path) {
         tga_image img = {0};
@@ -167,6 +169,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     /* ─── shutdown ──────────────────────────────────────────────────────── */
     sprite_destroy(&g_show_tga_sprite);
+    input_shutdown();
     storage_shutdown();
     shutdown_render();
     timeEndPeriod(10);
@@ -220,9 +223,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
 
     case WM_ACTIVATE:
-        /* HIWORD(wParam) == 0 means "active" (not minimized);
-         * original sets paused = !active and un/acquires DInput devices. */
-        g_paused = (HIWORD(wParam) != 0);
+        /* LOWORD(wParam) is the WA_* code (0=inactive); HIWORD is the
+         * minimized flag. Original: paused = inactive-or-minimized, then
+         * un/acquire all DInput devices accordingly. */
+        if (LOWORD(wParam) == WA_INACTIVE || HIWORD(wParam) != 0) {
+            g_paused = TRUE;
+            input_unacquire_all();
+        } else {
+            g_paused = FALSE;
+            input_acquire_all();
+        }
         return 0;
 
     case WM_CLOSE:
