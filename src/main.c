@@ -23,6 +23,7 @@
 #include "tga.h"
 #include "sprite.h"
 #include "input.h"
+#include "layers.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
 #define AZUMANGA_CLASS  "Azumanga Main Window"
@@ -117,10 +118,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                     "openrecet", MB_OK | MB_ICONERROR);
         return 0;
     }
-    /* "init render ok" — FUN_00454e69 */
+    /* "init start" — section marker logged by FUN_0047ac6a on success. */
 
     /* "init dinput ok" — FUN_0047af52 — keyboard + up to 4 joysticks. */
     input_init(g_hInstance, g_hwnd);
+
+    /* "init render ok" — FUN_00454e69 — fan out caps + back-buffer-desc
+     * to the 24 engine render-layer objects. Must run after the device
+     * exists; original ordering puts it right after DInput init. */
+    layers_init(g_d3d, g_dev);
 
     if (g_show_tga_path) {
         tga_image img = {0};
@@ -314,11 +320,10 @@ static BOOL init_render(HWND hwnd)
         pp.Flags = D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
     }
 
-    /* GetDeviceCaps call in the original — we don't use the caps, but
-     * matching the call sequence keeps any driver-side state warm-up
-     * identical in the rare cases where it matters. */
-    D3DCAPS8 caps = {0};
-    IDirect3D8_GetDeviceCaps(g_d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
+    /* The original calls GetDeviceCaps later (inside FUN_00454e69 — see
+     * layers_init) using the caps to seed the 24 render-layer objects.
+     * Earlier skeletons had a redundant call here; removed now that the
+     * real owner is in place. */
 
     /* Behavior-flag fallback chain — same order as FUN_0047ac6a:
      * HARDWARE+MULTITHREADED, then MIXED, then SOFTWARE. */

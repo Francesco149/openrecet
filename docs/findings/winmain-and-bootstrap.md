@@ -40,7 +40,7 @@ self-documenting log strings:
 |11 | `FUN_0047ac6a`       | —                      | **D3D8 device creation** — `Direct3DCreate8` + `CreateDevice` (see §"D3D8 device creation" below). On failure, shows a MessageBox and skips the rest. On success, logs `"init start"` as a section marker. |
 |12 | `FUN_00451863`       | `"init print ok"`      | text/print system                                  |
 |13 | `FUN_0047af52`       | `"init dinput ok"`     | **DirectInput 8: keyboard + multi-joystick**       |
-|14 | `FUN_00454e69(d3d, dev)` | `"init render ok"` | **post-device render-state init** — calls `IDirect3D8::GetDeviceCaps`, iterates a range of per-layer state structures (`DAT_073da2f0..DAT_073dddb0`, stride 0x2f0) and zeros them via `FUN_004038e4`. Despite the "init render" label, the *device* itself is already created by step 11. |
+|14 | `FUN_00454e69(d3d, dev)` | `"init render ok"` | **render-layer init** — fans `IDirect3DDevice8` + back-buffer-desc + `D3DCAPS8` out into the 24 engine "render layer" objects (4 + 20, each 0x2f0 bytes). See §"Render-layer init" below. Despite the label, the *device* itself is already created by step 11. |
 |15 | `FUN_00475270`       | `"init indexfile ok"`  | index-file load                                    |
 |16 | `FUN_0047c228`       | `"init fontsys ok"`    | font system init                                   |
 |17 | `FUN_00498ef4`       | `"init daoudio ok"` *(sic)* | **audio init**                                |
@@ -282,6 +282,73 @@ Globals:
 - `DAT_073dfcd8` — joystick count
 - `DAT_073dfcdc` — current-joystick index (for the EnumObjects callback)
 - `DAT_073de3e8` — `DIDEVCAPS` scratch buffer used during enumeration
+
+## Render-layer init (`FUN_00454e69` — "init render ok")
+
+**Function:** `FUN_00454e69` @ `0x454e69` (154 bytes), called as
+`FUN_00454e69(DAT_073dfcb8, DAT_073dfcbc)` = `(IDirect3D8*, IDirect3DDevice8*)`.
+Despite the "init render" log string, **the device is already created** by
+step 11; this function only seeds per-layer engine state.
+
+### What it does
+
+1. `g_d3d->GetDeviceCaps(0, D3DDEVTYPE_HAL, &local_caps)` — fills a
+   212-byte (`0xD4`) `D3DCAPS8` on the stack. (Vtable index 13 / offset
+   `0x34` on `IDirect3D8`.)
+2. Walks two arrays of "render layer" objects (each 0x2f0 bytes), calling
+   the per-layer init helper `FUN_004038e4(this=layer, 0, dev, &caps)`:
+   - **20 elements at `DAT_073da2f0`** (loop, stride `0x2f0`, stops at
+     `DAT_073dddb0`)
+   - **4 elements at `DAT_073cba20`** (unrolled in asm — `0x073cba20`,
+     `0x073cbd10`, `0x073cc000`, `0x073cc2f0`)
+
+Total: 24 layer objects. Why split into 4+20 is unclear yet — likely a
+"system layers" vs "scene layers" partition; later code that names them
+will tell us.
+
+### Per-layer init — `FUN_004038e4` @ `0x4038e4`
+
+Thiscall (`this` in ECX), 3 stack args (`__userpurge` 0/dev/caps_ptr):
+
+```c
+void layer_init(layer *this, void *user_ptr, IDirect3DDevice8 *dev,
+                const D3DCAPS8 *caps) {
+    this->_200 = user_ptr;        // always 0 from this call site
+    this->_108 = dev;
+    if (!dev) return;             // paranoia branch; never taken in practice
+    IDirect3DSurface8 *bb;
+    dev->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &bb);
+    bb->GetDesc(&this->_10c);     // D3DSURFACE_DESC = 32 bytes
+    bb->Release();
+    memcpy(&this->_12c, caps, 0x35 * 4);  // 212 bytes — D3DCAPS8
+}
+```
+
+### Layer struct (known offsets)
+
+| offset  | size | field                | notes                               |
+|--------:|-----:|----------------------|-------------------------------------|
+| `0x000` | 264  | (unknown)            | TBD                                 |
+| `0x108` |   4  | `IDirect3DDevice8 *` | set by init                         |
+| `0x10c` |  32  | `D3DSURFACE_DESC`    | back-buffer description             |
+| `0x12c` | 212  | `D3DCAPS8`           | full caps blob (copied verbatim)    |
+| `0x200` |   4  | `void *`             | nulled at init — usage TBD          |
+| `0x204` | 236  | (unknown)            | TBD                                 |
+|   —     | 752  | total `0x2f0`        |                                     |
+
+### Globals
+
+| name               | type                 | role                              |
+|--------------------|----------------------|-----------------------------------|
+| `DAT_073cba20[4]`  | `render_layer_t[4]`  | "system" layers (4 unrolled inits)|
+| `DAT_073da2f0[20]` | `render_layer_t[20]` | "scene" layers (20-element loop)  |
+
+### Ported to
+
+`src/layers.{c,h}`. The struct uses real `D3DCAPS8` / `D3DSURFACE_DESC`
+fields with `_Static_assert` guards on the four known offsets +
+`sizeof()` = `0x2f0`, so any mingw header drift in DX struct sizes fails
+the build instead of silently corrupting the layout.
 
 ## Storage init (`FUN_004341fe` — "init strage ok")
 

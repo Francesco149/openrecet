@@ -3,6 +3,51 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-19 — Render-layer init ported (`FUN_00454e69` + `FUN_004038e4`)
+
+**Subsystem landed:** `src/layers.{c,h}`. The "init render ok" hand-off
+isn't device creation (that's step 11) — it's the engine fanning
+`GetDeviceCaps` + back-buffer-desc + the live device pointer out into
+its 24 per-layer state objects (each 0x2f0 bytes). Two arrays:
+`g_layers_b[20]` (loop, `DAT_073da2f0` stride 0x2f0) and `g_layers_a[4]`
+(unrolled in asm at `DAT_073cba20`/`+0x2f0`×3). See
+`docs/findings/winmain-and-bootstrap.md` §"Render-layer init" for the
+RE writeup + offset table.
+
+**Layout corrections from the earlier guess:**
+- The previous notes claimed the loop "zeros" the structs via
+  `FUN_004038e4`. It doesn't — it actively writes `device` (`+0x108`),
+  the back-buffer `D3DSURFACE_DESC` (`+0x10c`, 32 bytes), and a copy of
+  `D3DCAPS8` (`+0x12c`, 212 bytes), then nulls `+0x200`.
+- The 20-element loop is only *one* of two arrays; the 4 unrolled
+  trailing calls operate on a *separate* 4-element array — easy to miss
+  from the decompiler output because Ghidra strips the ECX setup before
+  each thiscall.
+
+**Skeleton wiring (`main.c`):**
+- Removed the placeholder `IDirect3D8_GetDeviceCaps` from `init_render`
+  — the real owner is now `layers_init`.
+- `layers_init(g_d3d, g_dev)` slotted in after `input_init`, matching
+  the original's `…dinput ok → init render ok` ordering (the previous
+  comment had this misplaced).
+- Bootstrap-order comments now mirror the actual call sequence.
+
+**Why the struct is field-by-field (not a byte blob):** mingw's `d3d8.h`
+ships `D3DCAPS8 = 212`/`D3DSURFACE_DESC = 32` — exact match to the
+original's `rep movsl 0x35` and `0x12c−0x10c = 0x20`. Five
+`_Static_assert`s on the known offsets + total size catch any future
+header drift at build time.
+
+**Verified:** `tools/smoke-test.py --target openrecet --scenario boot
+--duration 4 --capture` — debug magenta `(160, 32, 96)` reads flat
+across all 4 captured frames; no crash on init or shutdown.
+
+Next-milestone candidates (unchanged): `FUN_00475270` ("init indexfile
+ok" — likely `bmpdata.bin` LZW loader, cross-ref
+`/opt/src/recettear-repacker/bmp_unpack.py`), `FUN_004341d4` (file-size
+helper, quick mechanical port), or porting `FUN_0047193c` properly to
+read assets via `storage_*` with BMP+green-key + RLE-TGA support.
+
 ## 2026-05-19 — Project bootstrap
 
 **What landed**
