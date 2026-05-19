@@ -1,13 +1,16 @@
 /*
- * Minimal TGA reader for OpenRecet — uncompressed truecolor (type 2),
- * 24- or 32-bit, top-down or bottom-up. RLE (type 10) intentionally
- * not supported yet: the assets we've audited so far are all type 2.
+ * Minimal TGA reader for OpenRecet.
+ *
+ * Supports the two types the engine actually loads:
+ *   - Type 2  (uncompressed truecolor)
+ *   - Type 10 (RLE truecolor)
+ * Both at 24- or 32-bit, top-down or bottom-up. Colormapped (type 1)
+ * and grayscale (type 3) are not used by any audited asset.
  *
  * The original engine uses D3DXCreateTextureFromFileInMemoryEx (d3dx8)
- * for its textures — see FUN_0047193c in
- * docs/findings/winmain-and-bootstrap.md. We bypass d3dx8 here because
- * it's deprecated and not in nixpkgs; pixel-identical loader behavior
- * (including .bmp green-key) is a later milestone.
+ * for its textures — see FUN_0047193c in docs/findings/texture-loader.md.
+ * We bypass d3dx8 because it's deprecated and not in nixpkgs; pixel-
+ * identical loader behavior under resampling is a later milestone.
  */
 #ifndef OPENRECET_TGA_H
 #define OPENRECET_TGA_H
@@ -24,9 +27,15 @@ typedef struct {
     uint8_t  *pixels;
 } tga_image;
 
-/* Returns 1 on success, 0 on failure. Reads the whole file into memory.
- * On failure *img is left untouched. */
+/* Decode a TGA blob already in memory (e.g. from storage_read). Returns
+ * 1 on success, 0 on any header/length error. On failure *img is left
+ * untouched. */
+int  tga_load_mem(const void *buf, size_t size, tga_image *img);
+
+/* Convenience: open `path` from disk and run tga_load_mem on it.
+ * Returns 1 on success. */
 int  tga_load_file(const char *path, tga_image *img);
+
 void tga_free(tga_image *img);
 
 #endif

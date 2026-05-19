@@ -3,6 +3,52 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — `FUN_0047193c` ported — engine-style sprite loader
+
+**Subsystems landed:**
+- `src/bmp.{c,h}` — 24-/32-bit BI_RGB DIB decoder with color-key
+  application (engine passes `0xFF00FF00` to D3DX → we test exact-match
+  pure-green and zero the alpha). Top-down + bottom-up.
+- `src/tga.c` extended — now also handles Type 10 RLE, plus an
+  `tga_load_mem(buf,size,*img)` variant so the loader can decode
+  storage-fetched bytes without round-tripping through disk.
+- `src/sprite.c` — new `sprite_load(dev, name, w, h, *out)` entry
+  point. Mirrors `FUN_0047193c`: tries `fopen(name,"rb")` first, falls
+  back to `storage_read(name)`, sniffs `'BM'` → BMP-with-key vs TGA,
+  decodes, uploads via the existing `sprite_create`.
+- `src/main.c` — replaced `--show-tga <path>` (direct-file shim) with
+  `--show-sprite <name>` that routes through the new `sprite_load`.
+
+**Identification fix carried into `docs/findings/texture-loader.md`:**
+the earlier write-up had the disk and storage calls swapped (claimed
+the engine tried storage first with disk as fallback). Re-reading
+`FUN_005038b0` as a thin `fopen` wrapper (forwards to `FUN_00503890`
+with a `0x40` buffer-size hint) flipped it — **disk is tried first,
+storage second**. The user-facing implication: external/mod overrides
+on disk take precedence over the packed asset, consistent with how
+`recettear-repacker` works.
+
+**Validation (pixel-perfect, max diff 0/255 in all four cases):**
+- Storage path: `--show-sprite bmp/ivent/ed_kasi11.tga` (resolves via
+  `storage_read` from `bmpdata.bin`) renders byte-identical to a
+  reference Python decode composited over the debug-magenta clear
+  color, across all 512×32 pixels.
+- Synthetic disk fixtures (built in-place, then cleaned up): a 64×64
+  Type-2 TGA, a 64×64 Type-10 RLE TGA, and a 64×64 24-bit BMP with one
+  half pure-green keyed and the other half opaque blue. All three
+  round-trip 0 mismatches against the expected composite.
+
+**Not yet engine-accurate:** D3DX-style resampling to `(expected_w,
+expected_h)` is still skipped. Every audited asset ships at native
+resolution, so this matters mainly for forward-compat / mod paths
+that intentionally scale.
+
+Next-milestone candidates: lnkdatas content-read path (so `storage_read`
+also services `bin/data_NNN.bin` + the LZSS decompressor at
+`FUN_004349e5`); `FUN_004341d4` standalone port (mostly mechanical);
+diving into `FUN_00475270` (gameplay-text-table parser, 3965 lines —
+needs splitting across commits).
+
 ## 2026-05-20 — `bmpdata.bin` LZW decoder + storage_read overlay path
 
 **Subsystems landed:**

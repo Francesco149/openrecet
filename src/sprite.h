@@ -1,8 +1,19 @@
 /*
- * Bare-minimum textured-quad path for OpenRecet — enough to render a
- * single sprite over the back buffer. Not engine-accurate yet (the
- * original uses d3dx8's sprite helper); good enough as a first visible
- * milestone confirming texture upload + alpha blending work.
+ * Sprite path for OpenRecet — texture upload + textured-quad draw.
+ *
+ * Two entry points:
+ *   - sprite_create(): low-level, takes raw BGRA pixels you already
+ *     decoded (e.g. one of the test harnesses).
+ *   - sprite_load():   engine-accurate, mirrors FUN_0047193c. Takes a
+ *     filename, tries it on disk first, falls back to the storage
+ *     overlay (bmpdata) like the original. Auto-detects BMP vs TGA
+ *     from the buffer's magic, applies the engine's BMP green color
+ *     key, decodes via src/bmp.c or src/tga.c, then uploads.
+ *
+ * Not yet engine-accurate: D3DX-style resampling to (expected_w,
+ * expected_h) is skipped — every audited asset ships at native
+ * resolution. The expected_w/expected_h args are still stored on the
+ * sprite for future fan-out (matches the original's slot layout).
  */
 #ifndef OPENRECET_SPRITE_H
 #define OPENRECET_SPRITE_H
@@ -23,6 +34,22 @@ typedef struct {
 int  sprite_create(IDirect3DDevice8 *dev,
                    const uint8_t *bgra, uint32_t w, uint32_t h,
                    sprite_t *out);
+
+/* Engine-style load — mirrors FUN_0047193c.
+ *
+ *   1. Try fopen(name, "rb").
+ *   2. If that fails, fall back to storage_read(name, ...) (bmpdata
+ *      overlay, eventually lnkdatas too).
+ *   3. Sniff the buffer: 'BM' → BMP with green color key (0x00FF00);
+ *      otherwise → TGA (uncompressed or RLE).
+ *   4. Upload via sprite_create.
+ *
+ * `expected_w`/`expected_h` are stored on the sprite for future fan-
+ * out; we don't yet resample to match them. Returns 1 on success;
+ * on failure the sprite_t is left zeroed. */
+int  sprite_load(IDirect3DDevice8 *dev, const char *name,
+                 uint32_t expected_w, uint32_t expected_h,
+                 sprite_t *out);
 
 void sprite_destroy(sprite_t *s);
 
