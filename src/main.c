@@ -261,10 +261,17 @@ static BOOL load_d3d8(void)
 }
 
 /* ─── Direct3D 8 device creation ──────────────────────────────────────────
- * Mirrors `Direct3DCreate8(D3D_SDK_VERSION) → CreateDevice(...)`. The
- * original's specific D3DPRESENT_PARAMETERS layout is TBD (we'll trace
- * the FUN_00454e69 surroundings next). For now use a vanilla windowed
- * config that's enough to clear+present.
+ * Mirrors FUN_0047ac6a — see docs/findings/winmain-and-bootstrap.md
+ * §"D3D8 device creation" for the full present-params field map and the
+ * unusual windowed=DISCARD / fullscreen=COPY+VSYNC swap-effect choice.
+ *
+ * Deliberate deviations from the original (all behaviorally compatible):
+ *   - hDeviceWindow set explicitly to hwnd; the original leaves it NULL
+ *     and lets D3D fall back to the focus window (same hwnd anyway).
+ *   - Flags = D3DPRESENTFLAG_LOCKABLE_BACKBUFFER when --capture-to is on;
+ *     the original never sets Flags, so this is a capture-only toggle.
+ *   - Resolution: hardcoded to the screen=1 default (800x600) until we
+ *     parse recet.ini's [setup] screen / winmode keys.
  */
 static BOOL init_render(HWND hwnd)
 {
@@ -277,23 +284,47 @@ static BOOL init_render(HWND hwnd)
     }
 
     D3DPRESENT_PARAMETERS pp = {0};
-    pp.Windowed               = TRUE;
-    pp.SwapEffect             = D3DSWAPEFFECT_DISCARD;
-    pp.BackBufferFormat       = mode.Format;
     pp.BackBufferWidth        = DEFAULT_WIDTH;
     pp.BackBufferHeight       = DEFAULT_HEIGHT;
+    pp.BackBufferFormat       = mode.Format;
+    pp.BackBufferCount        = 1;
+    pp.MultiSampleType        = D3DMULTISAMPLE_NONE;
+    pp.Windowed               = g_windowed ? TRUE : FALSE;
     pp.EnableAutoDepthStencil = TRUE;
     pp.AutoDepthStencilFormat = D3DFMT_D16;
     pp.hDeviceWindow          = hwnd;
-    /* Enable LockRect on the back buffer when frame capture is requested.
-     * Tiny perf cost; not enabled in release runs (g_capture_dir unset). */
+    if (g_windowed) {
+        pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+    } else {
+        pp.SwapEffect                      = D3DSWAPEFFECT_COPY;
+        pp.FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_ONE;
+        pp.FullScreen_RefreshRateInHz      = 0;
+    }
     if (g_capture_dir) {
-        pp.Flags = 1;   /* D3DPRESENTFLAG_LOCKABLE_BACKBUFFER */
+        pp.Flags = D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
     }
 
-    HRESULT hr = IDirect3D8_CreateDevice(
-        g_d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd,
-        D3DCREATE_SOFTWARE_VERTEXPROCESSING, &pp, &g_dev);
+    /* GetDeviceCaps call in the original — we don't use the caps, but
+     * matching the call sequence keeps any driver-side state warm-up
+     * identical in the rare cases where it matters. */
+    D3DCAPS8 caps = {0};
+    IDirect3D8_GetDeviceCaps(g_d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
+
+    /* Behavior-flag fallback chain — same order as FUN_0047ac6a:
+     * HARDWARE+MULTITHREADED, then MIXED, then SOFTWARE. */
+    static const DWORD bf[] = {
+        D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED, /* 0x44 */
+        D3DCREATE_MIXED_VERTEXPROCESSING,                              /* 0x80 */
+        D3DCREATE_SOFTWARE_VERTEXPROCESSING,                           /* 0x20 */
+        0
+    };
+    HRESULT hr = E_FAIL;
+    for (int i = 0; bf[i]; i++) {
+        hr = IDirect3D8_CreateDevice(
+            g_d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd,
+            bf[i], &pp, &g_dev);
+        if (SUCCEEDED(hr)) break;
+    }
     return SUCCEEDED(hr);
 }
 

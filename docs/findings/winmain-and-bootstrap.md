@@ -37,10 +37,10 @@ self-documenting log strings:
 | 8 | `FUN_0047aa8b(hInst, nCmdShow)` | —          | **window class register + CreateWindowEx**         |
 | 9 | `ShowWindow` + `UpdateWindow` | —             | show the main window                               |
 |10 | `FUN_004341fe`       | `"init strage ok"` *(sic)* | **storage init** — opens `lnkdata.bin` / `lnkdatas.bin` |
-|11 | `FUN_0047ac6a`       | —                      | second-stage init                                  |
+|11 | `FUN_0047ac6a`       | —                      | **D3D8 device creation** — `Direct3DCreate8` + `CreateDevice` (see §"D3D8 device creation" below). On failure, shows a MessageBox and skips the rest. On success, logs `"init start"` as a section marker. |
 |12 | `FUN_00451863`       | `"init print ok"`      | text/print system                                  |
 |13 | `FUN_0047af52`       | `"init dinput ok"`     | **DirectInput 8: keyboard + multi-joystick**       |
-|14 | `FUN_00454e69`       | `"init render ok"`     | per-layer render state init                        |
+|14 | `FUN_00454e69(d3d, dev)` | `"init render ok"` | **post-device render-state init** — calls `IDirect3D8::GetDeviceCaps`, iterates a range of per-layer state structures (`DAT_073da2f0..DAT_073dddb0`, stride 0x2f0) and zeros them via `FUN_004038e4`. Despite the "init render" label, the *device* itself is already created by step 11. |
 |15 | `FUN_00475270`       | `"init indexfile ok"`  | index-file load                                    |
 |16 | `FUN_0047c228`       | `"init fontsys ok"`    | font system init                                   |
 |17 | `FUN_00498ef4`       | `"init daoudio ok"` *(sic)* | **audio init**                                |
@@ -87,14 +87,122 @@ When the loop exits:
 
 ## Direct3D 8 device creation
 
-`Direct3DCreate8(0xdc)` is called from `all.c:77975` — `0xdc = 220 =
-D3D_SDK_VERSION` (the value DX8's headers macro-define). The return value
-is stored in **`DAT_073dfcb8`** (the global `IDirect3D8 *`).
+**Function: `FUN_0047ac6a` at `0x47ac6a` (507 bytes).** Called from
+`WinMain` right after the storage init succeeds; emits no log string of
+its own (failure shows a MessageBox; success is followed by the
+`"init start"` log line which gates the rest of the subsystem init).
 
-The `d3d8.dll` / `d3d8d.dll` dynamic load is at `all.c:143472-143479`
-(two paired `LoadLibraryA` calls) — the classic primary + debug-fallback
-pattern. The function containing that block is the d3d8 wrapper / loader;
-we'll trace it next session for the full `CreateDevice` call.
+### Sequence
+
+```c
+DAT_073dfcb8 = Direct3DCreate8(0xDC);       // D3D_SDK_VERSION (220)
+if (!DAT_073dfcb8) return 0;
+if (IDirect3D8::GetAdapterDisplayMode(0, &DAT_073dfc90) < 0) return 0;
+//                              ^^^^^^^^^^^^
+//                              global D3DDISPLAYMODE — DAT_073dfc9c is its Format field
+
+memset(&DAT_073de268, 0, 13 * sizeof(uint32_t));   // 52 bytes = sizeof(D3DPRESENT_PARAMETERS)
+
+if (DAT_0438b164 != 1) {                     // winmode != 1 → fullscreen
+    pp.SwapEffect                    = D3DSWAPEFFECT_COPY;   // 3
+    pp.FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_ONE; // 1 = vsync
+    pp.FullScreen_RefreshRateInHz    = 0;
+} else {                                     // winmode == 1 → windowed
+    pp.SwapEffect                    = D3DSWAPEFFECT_DISCARD; // 1
+}
+pp.Windowed               = (DAT_0438b164 == 1);
+pp.BackBufferFormat       = DAT_073dfc9c;        // from the display mode above
+pp.BackBufferWidth        = DAT_005cbc04;        // see "Resolution lookup" below
+pp.BackBufferHeight       = DAT_005cbc08;
+pp.BackBufferCount        = 1;
+pp.MultiSampleType        = D3DMULTISAMPLE_NONE; // 0
+pp.EnableAutoDepthStencil = TRUE;                // unconditional
+pp.AutoDepthStencilFormat = 0x50;                // D3DFMT_D16
+// pp.hDeviceWindow = NULL  (never set — D3D falls back to the focus window)
+// pp.Flags         = 0
+
+IDirect3D8::GetDeviceCaps(0, D3DDEVTYPE_HAL, &caps);   // result ignored apart from existence
+
+// Try behavior-flag fallback chain until CreateDevice succeeds.
+DWORD bf[] = { 0x44, 0x80, 0x20, 0 };
+for (int i = 0; bf[i]; ++i) {
+    if (SUCCEEDED(IDirect3D8::CreateDevice(
+            0, D3DDEVTYPE_HAL,
+            DAT_073dfc7c,                // hwnd
+            bf[i],                       // BehaviorFlags
+            &DAT_073de268,               // pPresentationParameters
+            &DAT_073dfcbc))) break;      // → global IDirect3DDevice8 *
+}
+FUN_0047ac1d();                          // viewport-like float globals (default camera?)
+// then zero 26 dwords from DAT_073de334 and seed a material-like struct with
+// 1.0, 0.5, 0.4 diffuse/ambient/specular defaults.
+return 1;
+```
+
+### `D3DPRESENT_PARAMETERS` field map
+
+| field                            | offset | original value                                |
+|----------------------------------|-------:|-----------------------------------------------|
+| BackBufferWidth                  | 0x00   | `DAT_005cbc04` (from `screen` ini key)         |
+| BackBufferHeight                 | 0x04   | `DAT_005cbc08` (from `screen` ini key)         |
+| BackBufferFormat                 | 0x08   | `DAT_073dfc9c` (from `GetAdapterDisplayMode`) |
+| BackBufferCount                  | 0x0C   | 1                                              |
+| MultiSampleType                  | 0x10   | 0 (`D3DMULTISAMPLE_NONE`)                      |
+| SwapEffect                       | 0x14   | windowed → 1 (DISCARD); fullscreen → 3 (COPY) |
+| hDeviceWindow                    | 0x18   | NULL (uses focus window from `CreateDevice`)  |
+| Windowed                         | 0x1C   | `winmode == 1`                                 |
+| EnableAutoDepthStencil           | 0x20   | TRUE (unconditional)                           |
+| AutoDepthStencilFormat           | 0x24   | 0x50 (`D3DFMT_D16`)                            |
+| Flags                            | 0x28   | 0                                              |
+| FullScreen_RefreshRateInHz       | 0x2C   | 0 (default)                                    |
+| FullScreen_PresentationInterval  | 0x30   | fullscreen → 1 (`INTERVAL_ONE`/VSYNC); else 0  |
+
+Note the **unusual fullscreen choice**: COPY + VSYNC. DISCARD would be
+the conventional fullscreen pick. We have to match for compatibility but
+should flag this if it ever shows up in pixel diffs.
+
+### `CreateDevice` behavior-flag fallback chain
+
+The engine tries `BehaviorFlags` in this order until one succeeds:
+
+| value | meaning                                                       |
+|------:|---------------------------------------------------------------|
+| 0x44  | `D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED` |
+| 0x80  | `D3DCREATE_MIXED_VERTEXPROCESSING`                            |
+| 0x20  | `D3DCREATE_SOFTWARE_VERTEXPROCESSING`                         |
+
+Note `D3DCREATE_FPU_PRESERVE` is **not** set — the engine accepts the
+DX8 default of single-precision FPU mode.
+
+### Resolution lookup — `[setup] screen` ini key
+
+The `recet.ini` `[setup] screen` integer indexes a fixed table:
+
+| `screen` value | width × height (decimal) |
+|---------------:|--------------------------|
+| 0              | 640 × 480                |
+| 1              | 800 × 600 *(default)*    |
+| 2              | 1024 × 768               |
+| 3+             | 1280 × 960               |
+
+Width/height stored in `DAT_005cbc04` / `DAT_005cbc08`, used by both
+`CreateDevice` (above) and the window-rect calculation in
+`FUN_0047aa8b`. The `[setup] winmode` int (default 1) drives windowed
+vs fullscreen via `DAT_0438b164`.
+
+### Globals after success
+
+| global         | type                  | role                          |
+|----------------|-----------------------|-------------------------------|
+| `DAT_073dfcb8` | `IDirect3D8 *`        | the factory                   |
+| `DAT_073dfcbc` | `IDirect3DDevice8 *`  | **the device** (used everywhere) |
+| `DAT_073dfc7c` | `HWND`                | game window                   |
+| `DAT_073dfc90` | `D3DDISPLAYMODE`      | adapter display mode (queried once) |
+| `DAT_073de268` | `D3DPRESENT_PARAMETERS` | the present params (kept around for Reset) |
+
+The dynamic `d3d8.dll` / `d3d8d.dll` load lives at
+`all.c:143472-143479` — primary then debug-runtime fallback, the
+standard MSDN pattern.
 
 ## DirectInput 8 init (`FUN_0047af52` — "init dinput ok")
 

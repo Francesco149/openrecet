@@ -390,3 +390,37 @@ Type 2 only — BMP-with-color-key and RLE-TGA come next.
    BMPs with the green color-key, add RLE-TGA. Replaces `--show-tga`'s
    direct-file path.
 6. ~~First real rendering~~ — done (this entry).
+
+---
+
+## 2026-05-19 — D3D8 device creation properly identified + matched
+
+**Correction:** the bootstrap doc previously labeled `FUN_0047ac6a` as
+"second-stage init" and `FUN_00454e69` as "init render ok". After
+reading the `WinMain` dispatch carefully, **`FUN_0047ac6a` is the actual
+D3D8 device-creation function** (`Direct3DCreate8` + `CreateDevice`,
+present-params, behavior-flag fallback) and `FUN_00454e69` is post-device
+render-state init that runs the "init render ok" log on completion.
+
+**Findings updated** in
+[`winmain-and-bootstrap.md`](findings/winmain-and-bootstrap.md): full
+present-params field map, the unusual fullscreen=COPY+VSYNC swap-effect
+choice (vs. windowed=DISCARD), the CreateDevice behavior-flag fallback
+chain `0x44 (HW+MT) → 0x80 (MIXED) → 0x20 (SW)`, and the
+`[setup] screen` resolution-lookup table
+(0=640×480, 1=800×600 default, 2=1024×768, 3+=1280×960).
+
+**Skeleton updated** — `src/main.c init_render()` now mirrors the
+present-params layout (windowed/fullscreen split, COPY+VSYNC for
+fullscreen) and walks the same `0x44 → 0x80 → 0x20` BehaviorFlags
+fallback. Deliberate deviations recorded in code comments:
+`hDeviceWindow=hwnd` (original leaves NULL → focus-window fallback,
+behaviorally equivalent), `Flags=LOCKABLE_BACKBUFFER` only when
+`--capture-to` is set (capture-only toggle), and hardcoded 800×600 until
+the `recet.ini` parser lands.
+
+**Verified:** smoke test runs cleanly with the new HW+MT-first chain;
+sprite blend pixel still reads `(89,27,70)` — no regression.
+
+Next: port `FUN_0047af52` (DInput8) — next subsystem in the bootstrap
+order, contained scope.
