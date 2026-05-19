@@ -1,0 +1,54 @@
+# ─── Game assets (never committed) ────────────────────────────────────────
+# Symlinks to and copies of the original game, the Steamless-unpacked exe,
+# extracted asset bytes, golden screenshots derived from running the original.
+vendor/
+docs/decompiled/
+docs/findings/**/golden/
+tests/golden/**/*.png
+tests/golden/**/*.jpg
+tests/golden/**/*.bin
+tests/golden/**/*.wav
+
+# ─── Ghidra projects (large, contain analysis state derived from original) ─
+ghidra/projects/
+ghidra/*.rep/
+ghidra/*.gpr
+ghidra/*.lock
+*.gpr.lock
+*.gpr.lock~
+
+# ─── Build outputs ────────────────────────────────────────────────────────
+build/
+result
+result-*
+*.o
+*.obj
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.map
+
+# ─── Python caches ────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Wine/.NET runtime state ──────────────────────────────────────────────
+*.wineprefix/
+.cache/
+
+# ─── Test runs (output of tools/smoke-test.py) ────────────────────────────
+runs/
+
+# ─── Per-user Claude Code permission grants ───────────────────────────────
+.claude/settings.local.json
+
+# ─── Editor/OS ────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

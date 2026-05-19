@@ -1,0 +1,141 @@
+# Agent workflow — model split & autonomy conventions
+
+How Claude should structure its work on OpenRecet. Read this at the start
+of every new session.
+
+## TL;DR
+
+- **Opus** = orchestrator. Keeps planning context across the session,
+  reads small focused slices of decompiled output, decides what to do next.
+- **Sonnet** = mechanical worker, invoked **as a subagent via the `Agent`
+  tool**, not as a separate session.
+- Stay on Opus by default. Spawn Sonnet when the next step is mechanical
+  + parallelizable + has a clean input/output contract.
+
+The deciding question is: **"Does this require judgment or just careful
+execution?"** Judgment → Opus. Execution → Sonnet.
+
+## Why subagents, not a separate Sonnet session
+
+- The user shouldn't have to model-switch and orchestrate manually.
+- A subagent's transcript is summarized back to Opus on completion.
+  Opus's context stays clean even after 6 MB of decompiled C was read.
+- Parallel: multiple Sonnet agents in one message for independent
+  subsystems.
+- No state leakage between tasks — each subagent starts cold with the
+  exact briefing we choose.
+
+The cost: each subagent starts with zero context. So the briefing must
+be **self-contained** — paths, addresses, what to write, where, and
+length cap.
+
+## When to spawn a Sonnet subagent
+
+✅ **Good fits** (high mechanicalness, low judgment):
+
+1. **Translate one decompiled function to C.** Pass it the `FUN_XXX` and
+   the target `src/` file; brief on naming convention; cap response at
+   200 words for the report.
+2. **Scan `docs/decompiled/all.c` for a specific pattern** (e.g., "list
+   every `LoadLibraryA` call with its caller and the literal arg").
+3. **Run a smoke test against a target and report on diff** ("run the
+   harness on scenario X, contact-sheet the result, summarize visual
+   differences in 100 words").
+4. **Write one file-format extractor from a known spec.** Pass the spec
+   path; require it to validate against a reference if one exists.
+5. **Read a sister project** (Chantelise, the cross-ref repos) and pull
+   out 5–10 facts relevant to a specific subsystem.
+
+❌ **Bad fits** (Opus territory):
+
+1. Choosing what to work on next.
+2. Deciding whether a test failure represents a real bug or a wine quirk.
+3. Reading a 100k-line decompiled file looking for "anything interesting"
+   (too unscoped — Opus chunks first).
+4. Anything that requires synthesizing across multiple subsystems.
+5. Anything that might need to escalate destructive actions or modify
+   `vendor/`.
+
+## Briefing template (Opus → Sonnet via `Agent` tool)
+
+A good Sonnet brief mirrors how you'd onboard a colleague to a tiny task:
+
+```
+GOAL
+One sentence on what success looks like.
+
+CONTEXT (background — read this, don't ask)
+- Project: OpenRecet, /opt/src/openrecet.
+- Read docs/AGENT-WORKFLOW.md if you need conventions.
+- Relevant prior findings: docs/findings/<X>.md.
+
+INPUT
+- Source file: docs/decompiled/by-address/<addr>.c
+- Reference impl: /opt/src/recettear-repacker/<file>.py
+
+OUTPUT
+- Write to: src/<file>.c
+- Update: docs/findings/<file>.md (append section)
+- Do NOT touch: vendor/, ghidra/projects/, anything outside /opt/src/openrecet
+
+CONSTRAINTS
+- Match Ghidra's naming for unidentified callees (FUN_XXX) until renamed.
+- Use C99/C11 — see docs/PLAN.md §3 for style.
+- No new abstractions; mirror the decompiler output.
+
+REPORT (back to Opus)
+- ≤200 words.
+- Include: the C symbol(s) you added, the file path(s), one tricky
+  decision you made, anything you couldn't figure out.
+```
+
+## Conventions for Sonnet subagents
+
+- Always use **Read** for paths in `/opt/src/openrecet/docs/decompiled/`
+  — they're git-ignored but large; you must read, not grep, for full
+  function bodies.
+- Always use **Edit** for incremental changes to source/docs.
+- Never run **wine** without an explicit reason — that touches a
+  `vendor/wineprefix/` you might not understand.
+- Never commit. Never push. Report the diff in your final message.
+- If you can't complete the task, say so explicitly and describe what
+  you tried.
+
+## Parallel patterns
+
+When Opus has N independent mechanical tasks:
+
+```
+<single message with N Agent invocations>
+  Agent[1]: translate FUN_A in subsystem 1 → src/foo.c
+  Agent[2]: translate FUN_B in subsystem 2 → src/bar.c
+  Agent[3]: scan all.c for all DAT_073dXXX globals used by ≥3 funcs
+```
+
+Opus then merges the three reports and decides the next step. Good
+candidates for parallel: format extractors (each independent), per-scene
+smoke runs, multi-subsystem trace + writeup.
+
+## Anti-patterns
+
+- ❌ Don't spawn a subagent and then **also** do the same work yourself.
+- ❌ Don't spawn a subagent with "read the codebase and tell me what's
+  interesting" — too unscoped, Sonnet will flounder.
+- ❌ Don't spawn a subagent to make a single small edit — just edit it.
+- ❌ Don't tell a subagent to invoke another subagent (Opus orchestrates;
+  Sonnet executes).
+- ❌ Don't let a subagent commit or push.
+
+## Stop conditions
+
+Opus should **stop and wait for sign-off** when:
+
+- A planning decision is needed (language/license/scope).
+- A risky action is about to happen (git commit, force-push, destructive
+  shell operation).
+- A subsystem milestone is complete and the next milestone is a fresh
+  scope worth talking about.
+- The agent has nothing actionable left without input.
+
+These are *natural* stop points — the user doesn't have to interrupt;
+Opus pauses on its own and reports.

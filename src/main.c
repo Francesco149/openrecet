@@ -1,0 +1,429 @@
+/*
+ * OpenRecet — drop-in replacement for recettear.exe (skeleton).
+ *
+ * Boots, registers the "Azumanga Main Window" class, creates the window
+ * titled "RECETTEAR Ver 1.108", dynamically loads d3d8.dll, creates an
+ * IDirect3DDevice8, runs the message pump, presents a clear color, and
+ * exits cleanly. Every subsystem is a stub — see docs/findings/winmain-
+ * and-bootstrap.md for the addresses being shadowed.
+ *
+ * Build: `make -C src` (uses i686-w64-mingw32-gcc from the nix dev shell).
+ */
+
+#define WIN32_LEAN_AND_MEAN
+#define COBJMACROS                    /* IDirect3D8_CreateDevice etc. */
+#define CINTERFACE                    /* C-style COM vtables */
+#include <windows.h>
+#include <d3d8.h>
+#include <mmsystem.h>                 /* timeBeginPeriod */
+#include <stdio.h>
+#include <stdint.h>
+
+#include "storage.h"
+
+/* ─── original-engine constants (from RE) ───────────────────────────────── */
+#define AZUMANGA_CLASS  "Azumanga Main Window"
+#define AZUMANGA_TITLE  "RECETTEAR Ver 1.108"
+#define ICON_RES_ID     0x67
+#define MENU_RES_ID     0xB7          /* used when windowed; we have no menu yet */
+
+/* Default window size — will be replaced by recet.ini values once parsed. */
+#define DEFAULT_WIDTH   800
+#define DEFAULT_HEIGHT  600
+
+/* ─── globals matching the original's named "DAT_*" engine state ─────────
+ * Names mirror the role of the original's globals (see docs/findings/
+ * winmain-and-bootstrap.md). When we trace subsystems we'll relocate them.
+ */
+static HINSTANCE        g_hInstance;            /* DAT_073de628 */
+static HWND             g_hwnd;                 /* DAT_073dfc7c */
+static IDirect3D8      *g_d3d;                  /* DAT_073dfcb8 */
+static IDirect3DDevice8 *g_dev;
+static BOOL             g_paused = FALSE;       /* DAT_073dfca0 */
+static BOOL             g_windowed = TRUE;      /* DAT_0438b164 */
+
+/* ─── frame-capture globals ─────────────────────────────────────────────
+ * CLI: --capture-to <dir> --capture-every-ms <millis>
+ * Time-based sampling: write a BMP if at least <every_ms> have elapsed
+ * since the previous capture. Default 1000ms = 1 capture/sec — enough for
+ * rough smoke tests without flooding the filesystem.  We can add
+ * fps-bucketed or frame-indexed modes later if a test needs them.
+ */
+static char            *g_capture_dir       = NULL;
+static unsigned         g_capture_every_ms  = 1000;
+static unsigned         g_capture_last_ms   = 0;     /* timeGetTime() of last capture */
+static unsigned         g_capture_count     = 0;     /* monotonic capture index */
+
+/* Dynamically-resolved DX entry point — matches the original's
+ * LoadLibraryA("d3d8.dll") + GetProcAddress("Direct3DCreate8") pattern. */
+typedef IDirect3D8 *(WINAPI *PFN_Direct3DCreate8)(UINT);
+static HMODULE              g_d3d8_dll;
+static PFN_Direct3DCreate8  g_pDirect3DCreate8;
+
+/* ─── forward decls ──────────────────────────────────────────────────────── */
+static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+static BOOL  create_main_window(HINSTANCE hInst, int nCmdShow);
+static BOOL  load_d3d8(void);
+static BOOL  init_render(HWND hwnd);
+static void  shutdown_render(void);
+static void  tick_and_present(void);
+static void  parse_cmdline(LPSTR lpCmdLine);
+static void  capture_backbuffer(void);
+
+/* ─── WinMain — mirrors FUN_0047bfb3 ─────────────────────────────────────── */
+int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdShow)
+{
+    (void)hPrev;
+
+    g_hInstance = hInst;
+    parse_cmdline(lpCmdLine);
+
+    /* High-resolution timer (matches the original's TIMECAPS dance). */
+    TIMECAPS tc;
+    timeGetDevCaps(&tc, sizeof(tc));
+    timeBeginPeriod(tc.wPeriodMin);
+    timeBeginPeriod(10);
+
+    /* TODO subsystem stubs — see docs/findings/winmain-and-bootstrap.md:
+     *   FUN_00451790()          — very early init
+     *   FUN_00471050()          — early init (thunks to FUN_005041ec)
+     *   read recet.ini          — TODO src/recet_ini.c
+     *   FUN_0047a474()          — pre-window init
+     */
+
+    if (!create_main_window(hInst, nCmdShow)) {
+        return 0;
+    }
+
+    /* "init strage ok" — FUN_004341fe (lnkdatas loader). MessageBoxA
+     * already shown on failure inside storage_init. */
+    if (!storage_init()) {
+        return 0;
+    }
+
+    /* TODO "init print ok"   — FUN_00451863
+     * TODO "init dinput ok"  — FUN_0047af52
+     */
+
+    if (!load_d3d8() || !init_render(g_hwnd)) {
+        MessageBoxA(g_hwnd, "Failed to initialize Direct3D 8",
+                    "openrecet", MB_OK | MB_ICONERROR);
+        return 0;
+    }
+    /* "init render ok" — FUN_00454e69 */
+
+    /* TODO "init indexfile ok"  — FUN_00475270
+     * TODO "init fontsys ok"    — FUN_0047c228
+     * TODO "init daoudio ok"    — FUN_00498ef4
+     * TODO "fontsystem ok"      — FUN_0047c3a5
+     * TODO "read systemtex ok"  — FUN_00472f5d
+     * TODO "load savefile ok"   — FUN_004902fe
+     * TODO "read titletex ok"   — FUN_0043609b + FUN_004733d5
+     * TODO bootstrap done       — FUN_0049a3a3 (enters main loop)
+     */
+
+    ShowWindow(g_hwnd, nCmdShow);
+    UpdateWindow(g_hwnd);
+
+    /* ─── main loop — mirrors the PeekMessage/WaitMessage idle pattern ─── */
+    MSG msg = {0};
+    for (;;) {
+        while (!PeekMessageA(&msg, NULL, 0, 0, PM_NOREMOVE)) {
+            if (g_paused) {
+                WaitMessage();
+            } else {
+                tick_and_present();          /* FUN_0047be92 — the game tick */
+            }
+        }
+        if (!GetMessageA(&msg, NULL, 0, 0)) break;
+        TranslateMessage(&msg);
+        DispatchMessageA(&msg);
+    }
+
+    /* ─── shutdown ──────────────────────────────────────────────────────── */
+    storage_shutdown();
+    shutdown_render();
+    timeEndPeriod(10);
+    timeEndPeriod(tc.wPeriodMin);
+    return (int)msg.wParam;
+}
+
+/* ─── window class register + create — mirrors FUN_0047aa8b ──────────────── */
+static BOOL create_main_window(HINSTANCE hInst, int nCmdShow)
+{
+    (void)nCmdShow;
+
+    WNDCLASSEXA wc = {0};
+    wc.cbSize        = sizeof(wc);
+    wc.style         = CS_OWNDC;                          /* 0x40 */
+    wc.lpfnWndProc   = WndProc;
+    wc.hInstance     = hInst;
+    wc.hIcon         = LoadIconA(hInst, MAKEINTRESOURCEA(ICON_RES_ID));
+    wc.hCursor       = LoadCursorA(NULL, MAKEINTRESOURCEA(32512)); /* IDC_ARROW = 0x7F00 */
+    wc.hbrBackground = NULL;
+    wc.lpszMenuName  = g_windowed ? MAKEINTRESOURCEA(MENU_RES_ID) : NULL;
+    wc.lpszClassName = AZUMANGA_CLASS;
+
+    if (!RegisterClassExA(&wc)) {
+        return FALSE;
+    }
+
+    RECT rc = {0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT};
+    DWORD style = WS_OVERLAPPEDWINDOW;                    /* 0xCF0000 */
+    AdjustWindowRect(&rc, style, /*hasMenu=*/g_windowed ? TRUE : FALSE);
+
+    g_hwnd = CreateWindowExA(
+        0, AZUMANGA_CLASS, AZUMANGA_TITLE, style,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        rc.right - rc.left, rc.bottom - rc.top,
+        NULL, NULL, hInst, NULL);
+    return g_hwnd != NULL;
+}
+
+/* ─── WndProc — mirrors FUN_0047b2e7 (skeleton subset) ───────────────────── */
+static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg) {
+    case WM_CREATE:
+        /* original: FUN_0040110f(); optional CheckMenuItem(0x9C44, ...) */
+        return 0;
+
+    case WM_DESTROY:
+        /* original: save window pos, FUN_0040112a(), PostQuitMessage(0) */
+        PostQuitMessage(0);
+        return 0;
+
+    case WM_ACTIVATE:
+        /* HIWORD(wParam) == 0 means "active" (not minimized);
+         * original sets paused = !active and un/acquires DInput devices. */
+        g_paused = (HIWORD(wParam) != 0);
+        return 0;
+
+    case WM_CLOSE:
+        if (g_windowed) {
+            int r = MessageBoxA(hwnd,
+                "Do you really want to quit the game?",
+                "EXIT?", MB_OKCANCEL);
+            if (r != IDOK) return 0;
+        }
+        return DefWindowProcA(hwnd, msg, wParam, lParam);
+
+    case WM_KEYDOWN:
+        if (wParam == VK_ESCAPE) {
+            /* original: FUN_00452911() — open in-game pause menu.
+             * Skeleton: just close on ESC for now. */
+            PostMessageA(hwnd, WM_CLOSE, 0, 0);
+        }
+        return 0;
+
+    default:
+        return DefWindowProcA(hwnd, msg, wParam, lParam);
+    }
+}
+
+/* ─── d3d8.dll dynamic load — mirrors the original's LoadLibrary pattern ─── */
+static BOOL load_d3d8(void)
+{
+    g_d3d8_dll = LoadLibraryA("d3d8.dll");
+    if (!g_d3d8_dll) {
+        g_d3d8_dll = LoadLibraryA("d3d8d.dll");        /* debug runtime fallback */
+        if (!g_d3d8_dll) return FALSE;
+    }
+    g_pDirect3DCreate8 = (PFN_Direct3DCreate8)(void(*)(void))
+        GetProcAddress(g_d3d8_dll, "Direct3DCreate8");
+    return g_pDirect3DCreate8 != NULL;
+}
+
+/* ─── Direct3D 8 device creation ──────────────────────────────────────────
+ * Mirrors `Direct3DCreate8(D3D_SDK_VERSION) → CreateDevice(...)`. The
+ * original's specific D3DPRESENT_PARAMETERS layout is TBD (we'll trace
+ * the FUN_00454e69 surroundings next). For now use a vanilla windowed
+ * config that's enough to clear+present.
+ */
+static BOOL init_render(HWND hwnd)
+{
+    g_d3d = g_pDirect3DCreate8(D3D_SDK_VERSION);
+    if (!g_d3d) return FALSE;
+
+    D3DDISPLAYMODE mode = {0};
+    if (FAILED(IDirect3D8_GetAdapterDisplayMode(g_d3d, D3DADAPTER_DEFAULT, &mode))) {
+        return FALSE;
+    }
+
+    D3DPRESENT_PARAMETERS pp = {0};
+    pp.Windowed               = TRUE;
+    pp.SwapEffect             = D3DSWAPEFFECT_DISCARD;
+    pp.BackBufferFormat       = mode.Format;
+    pp.BackBufferWidth        = DEFAULT_WIDTH;
+    pp.BackBufferHeight       = DEFAULT_HEIGHT;
+    pp.EnableAutoDepthStencil = TRUE;
+    pp.AutoDepthStencilFormat = D3DFMT_D16;
+    pp.hDeviceWindow          = hwnd;
+    /* Enable LockRect on the back buffer when frame capture is requested.
+     * Tiny perf cost; not enabled in release runs (g_capture_dir unset). */
+    if (g_capture_dir) {
+        pp.Flags = 1;   /* D3DPRESENTFLAG_LOCKABLE_BACKBUFFER */
+    }
+
+    HRESULT hr = IDirect3D8_CreateDevice(
+        g_d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd,
+        D3DCREATE_SOFTWARE_VERTEXPROCESSING, &pp, &g_dev);
+    return SUCCEEDED(hr);
+}
+
+static void shutdown_render(void)
+{
+    if (g_dev) { IDirect3DDevice8_Release(g_dev); g_dev = NULL; }
+    if (g_d3d) { IDirect3D8_Release(g_d3d); g_d3d = NULL; }
+    if (g_d3d8_dll) { FreeLibrary(g_d3d8_dll); g_d3d8_dll = NULL; }
+}
+
+/* ─── game tick — placeholder for FUN_0047be92 ───────────────────────────
+ * Clear to a distinctive debug magenta so we can visually distinguish a
+ * working openrecet skeleton from a black-screen failure mode. Once the
+ * real renderer comes online this will be replaced.
+ */
+static void tick_and_present(void)
+{
+    if (!g_dev) return;
+    IDirect3DDevice8_Clear(
+        g_dev, 0, NULL,
+        D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
+        D3DCOLOR_XRGB(160, 32, 96),                  /* debug magenta */
+        1.0f, 0);
+    IDirect3DDevice8_BeginScene(g_dev);
+    /* TODO: real rendering — for now just clear+present. */
+    IDirect3DDevice8_EndScene(g_dev);
+
+    /* Frame capture must run BEFORE Present — with D3DSWAPEFFECT_DISCARD
+     * the post-Present back buffer contents are explicitly undefined.
+     * Sampling is time-based: at least g_capture_every_ms between writes.
+     * timeGetTime() wraps at ~49 days; the (now - last) subtraction is
+     * still correct under modular arithmetic. */
+    if (g_capture_dir) {
+        unsigned now_ms = timeGetTime();
+        if (g_capture_last_ms == 0 ||
+            (now_ms - g_capture_last_ms) >= g_capture_every_ms) {
+            capture_backbuffer();
+            g_capture_last_ms = now_ms;
+            g_capture_count++;
+        }
+    }
+
+    IDirect3DDevice8_Present(g_dev, NULL, NULL, NULL, NULL);
+}
+
+/* ─── CLI parsing — hand-tokenize lpCmdLine on ASCII spaces ──────────────
+ * Supports:  --capture-to <dir>        (next token, may contain backslashes)
+ *            --capture-every-ms <ms>   (next token, decimal unsigned int)
+ * No quoting support needed for the smoke harness (paths injected by the
+ * test runner are known-simple).
+ */
+static void parse_cmdline(LPSTR lpCmdLine)
+{
+    if (!lpCmdLine || *lpCmdLine == '\0') return;
+
+    /* Duplicate so we can tokenize in-place with strtok. */
+    static char buf[4096];
+    lstrcpynA(buf, lpCmdLine, (int)sizeof(buf));
+
+    char *tok = strtok(buf, " ");
+    while (tok) {
+        if (lstrcmpA(tok, "--capture-to") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                /* Persist in a static buffer — lives for the process lifetime. */
+                static char dir_buf[MAX_PATH];
+                lstrcpynA(dir_buf, val, (int)sizeof(dir_buf));
+                g_capture_dir = dir_buf;
+            }
+        } else if (lstrcmpA(tok, "--capture-every-ms") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                unsigned n = (unsigned)strtoul(val, NULL, 10);
+                if (n > 0) g_capture_every_ms = n;
+            }
+        }
+        tok = strtok(NULL, " ");
+    }
+}
+
+/* ─── BMP back-buffer capture ────────────────────────────────────────────
+ * Writes a 32-bit top-down BMP to <g_capture_dir>\frame_NNNNN.bmp.
+ * Layout: BITMAPFILEHEADER (14 bytes) + BITMAPINFOHEADER (40 bytes) + pixels.
+ * Negative biHeight → top-down; stride = w*4 (X8R8G8B8 is already BGRA-ish).
+ */
+static void capture_backbuffer(void)
+{
+    IDirect3DSurface8 *surf = NULL;
+    if (FAILED(IDirect3DDevice8_GetBackBuffer(
+            g_dev, 0, D3DBACKBUFFER_TYPE_MONO, &surf))) return;
+
+    D3DSURFACE_DESC desc = {0};
+    if (FAILED(IDirect3DSurface8_GetDesc(surf, &desc))) {
+        IDirect3DSurface8_Release(surf);
+        return;
+    }
+
+    D3DLOCKED_RECT lr = {0};
+    if (FAILED(IDirect3DSurface8_LockRect(surf, &lr, NULL, D3DLOCK_READONLY))) {
+        IDirect3DSurface8_Release(surf);
+        return;
+    }
+
+    DWORD w = desc.Width, h = desc.Height;
+    DWORD row_bytes = w * 4;
+    DWORD img_size  = row_bytes * h;
+
+    /* 14-byte BITMAPFILEHEADER */
+    uint8_t fhdr[14];
+    DWORD file_size = 14 + 40 + img_size;
+    fhdr[0]  = 'B';  fhdr[1]  = 'M';
+    fhdr[2]  = (uint8_t)(file_size);
+    fhdr[3]  = (uint8_t)(file_size >> 8);
+    fhdr[4]  = (uint8_t)(file_size >> 16);
+    fhdr[5]  = (uint8_t)(file_size >> 24);
+    fhdr[6]  = 0; fhdr[7]  = 0;           /* reserved */
+    fhdr[8]  = 0; fhdr[9]  = 0;           /* reserved */
+    fhdr[10] = 54; fhdr[11] = 0;          /* pixel data offset = 54 */
+    fhdr[12] = 0;  fhdr[13] = 0;
+
+    /* 40-byte BITMAPINFOHEADER — negative height = top-down */
+    int32_t  neg_h   = -(int32_t)h;
+    uint8_t  ihdr[40] = {0};
+    ihdr[0]  = 40;                         /* biSize */
+    ihdr[4]  = (uint8_t)(w);
+    ihdr[5]  = (uint8_t)(w >> 8);
+    ihdr[6]  = (uint8_t)(w >> 16);
+    ihdr[7]  = (uint8_t)(w >> 24);
+    ihdr[8]  = (uint8_t)(neg_h);
+    ihdr[9]  = (uint8_t)((uint32_t)neg_h >> 8);
+    ihdr[10] = (uint8_t)((uint32_t)neg_h >> 16);
+    ihdr[11] = (uint8_t)((uint32_t)neg_h >> 24);
+    ihdr[12] = 1;  ihdr[13] = 0;          /* biPlanes = 1 */
+    ihdr[14] = 32; ihdr[15] = 0;          /* biBitCount = 32 */
+    /* biCompression = BI_RGB = 0 (already zeroed) */
+    ihdr[20] = (uint8_t)(img_size);
+    ihdr[21] = (uint8_t)(img_size >> 8);
+    ihdr[22] = (uint8_t)(img_size >> 16);
+    ihdr[23] = (uint8_t)(img_size >> 24);
+    /* biXPelsPerMeter, biYPelsPerMeter, biClrUsed, biClrImportant = 0 */
+
+    char path[MAX_PATH];
+    wsprintfA(path, "%s\\frame_%05u.bmp", g_capture_dir, g_capture_count);
+
+    FILE *fp = fopen(path, "wb");
+    if (fp) {
+        fwrite(fhdr, 1, 14, fp);
+        fwrite(ihdr, 1, 40, fp);
+        /* Write row by row in case pitch > row_bytes */
+        const uint8_t *src = (const uint8_t *)lr.pBits;
+        for (DWORD row = 0; row < h; row++) {
+            fwrite(src + row * (DWORD)lr.Pitch, 1, row_bytes, fp);
+        }
+        fclose(fp);
+    }
+
+    IDirect3DSurface8_UnlockRect(surf);
+    IDirect3DSurface8_Release(surf);
+}
