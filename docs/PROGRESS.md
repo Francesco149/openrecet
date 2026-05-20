@@ -3,6 +3,84 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [13/15]: `data/event.txt` parser
+
+**Subsystems landed:**
+- `src/tables_event.{c,h}` — pure-C parser for FUN_00475270 block #10
+  (`docs/decompiled/by-address/475270.c` L1521..L2235). 4 in-town
+  location categories (広場/市場/教会/酒場), each with up to 100
+  records (50-dword stride = 200 bytes); each record carries an
+  event id, a "flag to set on trigger", 4 hex-encoded prereq slots
+  (lowercase `0..9/a..f`, with sticky `-` → -1), first/max weekday-
+  of-day index (NOT a bitmask like kyaku.txt — single 0..3 indices
+  for 朝/昼/夕/夜), 20 day-range pairs, a `loop_min` gate, and a
+  `decay_or_max` field that pre-bakes to 100000 for the seed record
+  and 0 for all parsed records. `_Static_assert` guards on every
+  field offset so the layout stays byte-identical to the consumer
+  `FUN_0045de68`'s negative-offset reads.
+- `src/tables.c` — replaced the event.txt stub with the real loader.
+  Boot trace logs
+  `(hiroba=H ichiba=I kyokai=K sakaba=S with_prereqs=N)`. No
+  resolver wiring needed — `event.txt` has no cross-table lookups.
+- `docs/formats/data-text.md` — appended full event.txt section:
+  category-header table, record layout with field offsets, data-line
+  shape annotated, prereq encoding (hex + sticky -), weekday-of-day
+  tag table with the 1-byte-mismatch quirk, day-pair format,
+  pre-baked default record, all faithfully-reproduced quirks,
+  vendor file shape.
+- `docs/findings/engine-quirks.md` — added quirk #26 ("`event.txt`'s
+  weekday-tag mismatch advances 1 byte, not 2") with the engine
+  decomp snippet and dormant-but-real explanation.
+- `tests/test_tables_event.c` — 15 cases: empty-seeds-default,
+  byte-offset layout sanity, comments/blanks, basic 広場 record,
+  prereq hex+minus, time_first/max tracking, time_max clamps to
+  no-higher, unknown-only tokens leave 0/0, loop_min atoi, 20-pair
+  cap, all 4 categories dispatched, pre-header data-line goes to
+  広場, decay_or_max=100000 only for seed, no-trailing-newline,
+  vendor-shape integration smoke.
+
+**Behavioral validation:**
+- 187 unit tests pass under ASan/UBSan (was 172).
+- Boot smoke: `data/event.txt — 8901 bytes (hiroba=39 ichiba=9
+  kyokai=9 sakaba=19 with_prereqs=76)`. The four counts match an
+  independent Python re-count of the vendor file's headered
+  sections + data lines, including the pre-baked seed contributing
+  1 to 広場. Every record has `prereq[0] >= 0` (vendor convention:
+  the "must NOT be set" flag is always populated).
+
+**Engine quirks documented (and faithfully reproduced):**
+- **Pre-baked record 0 of category 0.** Before parsing, the engine
+  hand-writes a "default 広場 event" with id=0x0b, prereq[0]=0xa3,
+  time 0..1, day range (0,40), loop_min=0, decay_or_max=100000.
+  Sets `counts[0] = 1`, so the first parsed 広場 line lands at
+  slot 1.
+- **Lines before any header dispatch to 広場.** Init leaves
+  `local_18 = 0` (= 広場). Vendor data has 広場 as the first
+  header so this is dormant.
+- **Hex-only prereq with sticky `-`.** `:`-delimited fields accept
+  lowercase `0..9/a..f` only; any byte that's not hex/`-`/`:` is
+  silently skipped (e.g. leading spaces). A `-` anywhere in a
+  field's tail nukes that field to -1 regardless of any hex value
+  accumulated before it. So `100` = 0x100 = 256, `-1`/`-2`/`f-f`
+  all = -1.
+- **Weekday-tag mismatch advances 1 byte, not 2.** New quirk #26.
+  Unknown 2-byte SJIS chars get scanned twice (once at byte 0,
+  once at byte 1). Dormant in vendor data thanks to full-width-
+  space padding `81 40`.
+- **`time_first == 0` is overloaded.** "No matched token" and
+  "first matched token was 朝" both result in `time_first = 0`.
+  Consumer interprets as "morning-only" in both cases.
+- **End-of-list sentinel.** Loader writes `id = -1` to the slot
+  one past `counts[cat]` for each category — the consumer's loop
+  terminator.
+
+**Note for the next milestone:**
+- Phase B 14: `news.txt` (6342 bytes, ~330 C lines in 475270.c
+  block #11) — pre-categorised by `対象者:`/`時期:` headers, then
+  `品名,カテゴリ,価格-高値,日数-日数` data lines (5 fields with
+  comma + dash separators). Larger than event.txt, but still
+  smaller than the average tables file.
+
 ## 2026-05-20 — Phase B [12/15]: `data/kyaku.txt` parser
 
 **Subsystems landed:**

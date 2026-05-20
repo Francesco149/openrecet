@@ -215,7 +215,23 @@ struct test_case {
     X(tables_kyaku_no_trailing_newline) \
     X(tables_kyaku_multi_customer_threading) \
     X(tables_kyaku_resolves_via_item_category) \
-    X(tables_kyaku_vendor_shape)
+    X(tables_kyaku_vendor_shape) \
+    \
+    X(tables_event_empty_seeds_default) \
+    X(tables_event_layout_byte_offsets) \
+    X(tables_event_comments_and_blanks_skipped) \
+    X(tables_event_basic_hiroba_record) \
+    X(tables_event_prereq_hex_and_minus) \
+    X(tables_event_time_first_and_max) \
+    X(tables_event_time_max_clamps_to_first_no_higher) \
+    X(tables_event_time_unknown_tokens_only) \
+    X(tables_event_loop_min_atoi) \
+    X(tables_event_day_pairs_up_to_20) \
+    X(tables_event_category_dispatch) \
+    X(tables_event_data_line_before_header_goes_to_hiroba) \
+    X(tables_event_decay_or_max_zero_for_parsed) \
+    X(tables_event_no_trailing_newline) \
+    X(tables_event_vendor_shape)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

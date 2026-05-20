@@ -666,6 +666,58 @@ singular[11] gets re-NUL'd. Net: harmless.
 > "kyaku.txt" section ("Singular NUL at off-by-five"),
 > `docs/decompiled/by-address/475270.c` L545..L548.
 
+## 26. `event.txt`'s weekday-tag mismatch advances 1 byte, not 2
+
+The in-town vignette table at `data/event.txt` carries a weekday-of-
+day tag block per line, e.g. `朝昼　　` for "morning or noon". The
+parser scans this block 2 bytes at a time, comparing the current
+cursor against the 4 known 2-byte SJIS tokens 朝/昼/夕/夜 in turn.
+On a successful match it advances the cursor by 2. On a 4-way
+mismatch — the obvious thing to do is advance by 2 (one SJIS char
+worth) and try again. The engine advances by **1**.
+
+Concretely (from `docs/decompiled/by-address/475270.c` L2076..L2175):
+
+```c
+LAB_004786bc:
+  // try 朝 (offsets piVar4 then local_10/local_28/local_1c each step)
+  // ... all four matches use a 2-byte memcmp, but on miss:
+LAB_004787a4:
+  pcVar18 = pcVar18 + 1;     // cursor += 1, not 2
+  iVar6 = -1;
+  local_10 = (int *)((int)local_10 + -1);
+  local_28 = (int *)((int)local_28 + -1);
+  local_1c = (int *)((int)local_1c + -1);
+  local_14 = (char *)((int)local_14 + -1);
+  goto LAB_004786f9;
+```
+
+The four `local_NN` offsets are pcVar18-relative pointers to the
+four token literals; the parallel `-1` decrement keeps them
+pointing at the right literals as the cursor advances 1 byte at a
+time.
+
+The consequence: an unrecognised 2-byte SJIS char (e.g. the full-
+width space `0x81 0x40` that vendor lines use for padding) gets
+scanned **twice** — once starting at its first byte (`0x81`), once
+starting at its second (`0x40`). If, hypothetically, the second
+byte of one ignorable char and the first byte of the next happened
+to spell `0x92 0xa9` (朝), the parser would record a false match.
+
+In vendor data it's dormant: the unrecognised tokens are full-width
+spaces, and `0x40` followed by anything doesn't spell any of the
+4 known tokens. But it's a real bug in the same family as the
+"unbounded `:` hunt" in `gousei.txt` (quirk #23) — a parser
+optimised for the happy-path with no robustness against ill-formed
+inputs.
+
+The port reproduces it byte-for-byte: a 4-way mismatch advances
+the cursor by 1; a successful match advances by 2.
+
+> 📍 `src/tables_event.c` (port — `parse_time_tags`),
+> `docs/formats/data-text.md` "event.txt" section,
+> `docs/decompiled/by-address/475270.c` L2076..L2175.
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of

@@ -28,6 +28,7 @@
 #include "tables_chara.h"
 #include "tables_config.h"
 #include "tables_enemy.h"
+#include "tables_event.h"
 #include "tables_gousei.h"
 #include "tables_item.h"
 #include "tables_kyaku.h"
@@ -294,7 +295,34 @@ static void load_model_txt(void)
             sz, defined, max_points);
     free(buf);
 }
-DEFINE_STUB(load_event_txt,     "data/event.txt")
+/* event.txt — ported. Real parser in src/tables_event.c. Four-way
+ * location dispatch (広場/市場/教会/酒場) into 100-slot record arrays;
+ * each line is id-flag : 4 hex prereqs : weekday tags : loop_min :
+ * day-range pairs. Pre-seeds record 0 of 広場 with a hard-coded default
+ * event (id=0x0b, prereq[0]=0xa3) so 広場 starts with count=1. */
+static void load_event_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/event.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_event(buf, sz, &g_event);
+    int with_prereqs = 0;
+    for (int c = 0; c < EVENT_CATEGORY_COUNT; c++) {
+        for (int i = 0; i < g_event.counts[c]; i++) {
+            if (g_event.records[c][i].prereq[0] >= 0) with_prereqs++;
+        }
+    }
+    fprintf(stderr,
+            "tables: data/event.txt — %zu bytes "
+            "(hiroba=%d ichiba=%d kyokai=%d sakaba=%d with_prereqs=%d)\n",
+            sz,
+            g_event.counts[EVENT_CAT_HIROBA],
+            g_event.counts[EVENT_CAT_ICHIBA],
+            g_event.counts[EVENT_CAT_KYOKAI],
+            g_event.counts[EVENT_CAT_SAKABA],
+            with_prereqs);
+    free(buf);
+}
 DEFINE_STUB(load_news_txt,      "data/news.txt")
 /* snews.txt — ported. Real parser in src/tables_snews.c. Two unrelated
  * globals: a 64-slot name table and a 10×30 grid of floor-range

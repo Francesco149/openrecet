@@ -1553,3 +1553,229 @@ This is a different lookup path from `tables_parse_enemy` /
 singular` for individual items). Kyaku resolves against the
 **category-name** table — populated by `:Category#(tag)` headers in
 `item.txt` — not the item table itself.
+
+---
+
+## `data/event.txt`
+
+**Engine block:** `FUN_00475270` block #10
+(`docs/decompiled/by-address/475270.c:1521..2235`).
+
+**Identity:** referenced via `s_data_event_txt_005caff4` (size path)
+and `s_data_event_txt_005cb004` (read path) — same spelling both
+sides; no path-mismatch quirk.
+
+**Port:** `src/tables_event.{c,h}`, parser entry point
+`tables_parse_event(data, size, out)`. Engine-global instance
+`g_event`. Tests in `tests/test_tables_event.c` (15 cases — empty
+seed, layout, comments, basic record, hex/-1 prereqs, time-first/max
+tracking, unknown time tokens, loop_min, 20-pair cap, category
+dispatch, pre-header fall-through to 広場, decay_or_max sentinel,
+no-trailing-newline, vendor shape).
+
+**Purpose:** *in-town vignette trigger table* — drives the
+spawn-conditions for short bystander/character cutscenes the player
+sees when entering one of the four town locations 広場 (plaza),
+市場 (market), 教会 (church), or 酒場 (saloon). Each record carries
+a calendar window (day-range pairs + loop_min), a time-of-day band,
+a "set this flag when triggered" tag, and up to four flag-state
+prerequisites. The consumer `FUN_0045de68` walks the per-location
+record list, picks the first that satisfies all gates, marks the
+"already seen" flag, and returns the event id to the in-town
+scene-runner.
+
+### Categories
+
+The file's only structural keys are the four 4-byte SJIS location
+headers (bytes at `DAT_005cb014`..`DAT_005cb02c`):
+
+| header (SJIS) | bytes        | parser cat | constant            |
+|---------------|--------------|------------|---------------------|
+| `広場`        | `8d 4c 8f ea` | 0          | `EVENT_CAT_HIROBA`  |
+| `市場`        | `8e 73 8f ea` | 1          | `EVENT_CAT_ICHIBA`  |
+| `教会`        | `8b b3 89 ef` | 2          | `EVENT_CAT_KYOKAI`  |
+| `酒場`        | `8e f0 8f ea` | 3          | `EVENT_CAT_SAKABA`  |
+
+Header lines must match exactly the 4 bytes — no surrounding
+whitespace, no extra suffix. The engine doesn't reset `local_18`
+on a non-header non-data line; data lines after a comment block
+still go to the most recent matched category.
+
+### Record layout (50 dwords = 200 bytes)
+
+The four categories occupy contiguous 100-record regions in BSS at
+`&DAT_06a49b80` (広場), `&DAT_06a4e9a0` (市場), `&DAT_06a537c0`
+(教会), `&DAT_06a585e0` (酒場); record stride is `0x32 * 4 = 200`
+bytes and category stride is `100 * 200 = 0x4e20` bytes. The port
+mirrors the byte layout exactly via `event_record_t` (`_Static_assert`
+guards on every offset):
+
+| offset | size | field                | source              |
+|--------|------|----------------------|---------------------|
+| +0     | 4    | `id`                 | atoi of first int   |
+| +4     | 4    | `flag_on_trigger`    | atoi after `-`      |
+| +8     | 16   | `prereq[0..3]`       | 4 hex-or-FF prereqs |
+| +24    | 4    | `time_first`         | first matched tag idx |
+| +28    | 4    | `time_max`           | max matched tag idx |
+| +32    | 160  | `day_pairs[20][2]`   | (start,end) ranges  |
+| +192   | 4    | `loop_min`           | atoi (post-tags)    |
+| +196   | 4    | `decay_or_max`       | 0 for parsed; 100000 for pre-baked seed |
+
+### Data line shape
+
+```
+14- 4:  100:-1:-1:-1  :朝昼　　:  0:  3-9,36-999:   //comment tail
+ ││  │   │  │  │  │   │         │  │
+ ││  │   │  │  │  │   │         │  └─ day_pairs (1..20 of `start-end`, ',' sep, ':' terminator)
+ ││  │   │  │  │  │   │         └─── loop_min (atoi)
+ ││  │   │  │  │  │   └──────────── weekday tags (朝昼夕夜 mix, ':' terminator)
+ ││  │   │  │  │  └──────────────── prereq[3]
+ ││  │   │  │  └──────────────── prereq[2]
+ ││  │   │  └──────────────── prereq[1]
+ ││  │   └──────────────── prereq[0]   (first numeric after the leading id-flag pair)
+ ││  └───────── flag_on_trigger (atoi after '-')
+ └└────────── id (atoi)
+```
+
+### Prereq encoding
+
+Each prereq field is a hex value built char-by-char (lowercase
+`0`..`9`/`a`..`f` only) terminated by `:`. A `-` byte anywhere in a
+field's tail sets a sticky "this field is -1" flag for the field's
+commit write, so `-1`, `-2`, `0-`, `f-f` all parse as -1. The
+accumulated hex value is discarded when the flag fires.
+
+The 4 prereqs play different roles in the consumer
+`FUN_0045de68`:
+
+- `prereq[0]` — "must NOT be set" flag (the consumer tests
+  `flags[prereq[0]] == 0` as part of category-eligibility, so this
+  is typically a "this exact event was already seen" tag).
+- `prereq[1..3]` — "must be set" flags (consumer tests
+  `prereq[k] == -1 || flags[prereq[k]] != 0`).
+
+A `:` terminator after the 4th field is required for the parser to
+exit the prereq block. The cursor scan caps at 50 chars total
+across all 4 fields.
+
+### Weekday-of-day tags
+
+A 2-byte SJIS token block, scanned left-to-right; up to 40 cursor
+steps. Recognised tokens:
+
+| token | bytes  | index |
+|-------|--------|-------|
+| 朝    | `92 a9` | 0     |
+| 昼    | `92 8b` | 1     |
+| 夕    | `97 5b` | 2     |
+| 夜    | `96 e9` | 3     |
+
+The parser records both the **first** matched index (writes to
+`time_first` only when no prior match has landed) and the **max**
+matched index (writes to `time_max` only when the new index is
+strictly greater). On a 2-byte mismatch against all four tokens,
+the cursor advances by **1 byte** (NOT 2 — quirk). Full-width
+spaces `81 40` therefore advance the cursor twice each.
+
+For the consumer, `time_first <= current_time_of_day <= time_max`
+gates the event by time band. With both fields at 0 (no recognised
+tokens) the gate degenerates to "morning only".
+
+### Day-range pairs and loop_min
+
+After the second `:` past the tag block, the line carries the
+loop-count gate (`loop_min`, atoi) then another `:` then a list of
+1..20 `start-end` pairs separated by `,`. The list is terminated
+by `:` (or by exhaustion of the 20-pair cap). `end == 999` is a
+calendar-day wildcard the consumer treats as "no upper bound".
+
+Each pair is initialised to `(-1, -1)` before parsing; consumer
+stops walking pairs at the first `start == -1`.
+
+### Pre-baked default record
+
+Before parsing the file, the engine hand-writes a "default" record
+into slot 0 of category 0 (広場) and sets the 広場 count to 1:
+
+```
+records[広場][0]:
+  id              = 0x0b
+  flag_on_trigger = 1
+  prereq[0]       = 0xa3       (must NOT be set — エウリア flag)
+  prereq[1..3]    = -1
+  time_first      = 0          (朝)
+  time_max        = 1          (昼)
+  day_pairs[0]    = (0, 40)
+  day_pairs[1]    = (-1, -1)   (and pairs[2..19] BSS-zero, dormant)
+  loop_min        = 0
+  decay_or_max    = 100000
+```
+
+So the very first **parsed** 広場 line lands at slot 1, not slot 0.
+The vendor file's first 広場 line `14- 4:  100:-1:-1:-1...` is the
+slot-1 record.
+
+### Engine quirks faithfully reproduced
+
+- **Hex-only prereq accumulator with sticky `-`.** Described above.
+  Side effects of the loose grammar: any non-hex/`-`/`:` byte (e.g.
+  space) is silently skipped; multi-digit hex values like `1b5`,
+  `0xa3` (without the `0x`) parse correctly; a stray `-` anywhere
+  in a field's tail nukes the field to -1.
+
+- **Weekday tag mismatch advances 1 byte.** Described above.
+  Dormant in vendor data thanks to full-width-space padding.
+
+- **`time_first == 0` is overloaded.** "No matched token" and
+  "first matched token was 朝" both leave `time_first = 0`. Same
+  for `time_max == 0`. The consumer is happy with the resulting
+  "morning-only" gate when a record's tag list is empty.
+
+- **Pre-baked record 0 of category 0.** Described above. The seed
+  has `decay_or_max = 100000` while parsed records get
+  `decay_or_max = 0`; the consumer tests `decay_or_max <=
+  some-counter`, so the seed only fires once the counter has
+  ramped past 100000 (probably a "game progression" milestone we
+  haven't identified yet).
+
+- **End-of-list sentinel.** The loader writes `id = -1` to the
+  slot one past each category's `counts[cat]`, mirroring the
+  engine's 4 post-loop writes. The consumer's loop terminator is
+  this sentinel.
+
+- **No bounds check on per-category capacity.** The engine doesn't
+  guard `local_4c[i] < 100`; an overflow would smash the next
+  category's record region (or, for category 3, run into the news.
+  txt globals). Vendor data tops out at 38 parsed records in 広場
+  → comfortable margin. Port hard-caps at
+  `EVENT_RECORDS_PER_CATEGORY = 100` and logs to stderr.
+
+- **Day-pair `:` terminator is required.** The pair-loop's inner
+  scan for `,`/`:` is unbounded — if the line ends without either,
+  the engine walks off the line buffer into stack junk. Vendor
+  data always has the trailing `:`. Port stops at the line's NUL
+  terminator for safety.
+
+### Vendor file shape
+
+| stat                                       | value |
+|--------------------------------------------|-------|
+| Bytes via `storage_read`                   | 8901  |
+| 広場 records (incl. pre-baked seed)        | 39    |
+| 市場 records                               | 9     |
+| 教会 records                               | 9     |
+| 酒場 records                               | 19    |
+| Total                                      | 76    |
+| Records with `prereq[0]` set (not -1)      | 76    |
+
+Boot trace logs `(hiroba=H ichiba=I kyokai=K sakaba=S
+with_prereqs=N)`. Every vendor record has a non-`-1` prereq[0] —
+the "must not be set" flag is mandatory across the board, since
+the engine uses it to ensure each event fires at most once.
+
+### Resolver hook
+
+None — `event.txt` has no cross-table lookups. The `flag_on_trigger`
+and `prereq[]` values are bare integers that index into the engine's
+global flag bitmap at `&DAT_044e3798` (per-loop) and don't need
+resolver wiring against `g_item` or `g_kyaku`.
