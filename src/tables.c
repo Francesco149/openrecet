@@ -28,6 +28,7 @@
 #include "tables_chara.h"
 #include "tables_config.h"
 #include "tables_enemy.h"
+#include "tables_enemylist.h"
 #include "tables_event.h"
 #include "tables_gousei.h"
 #include "tables_item.h"
@@ -439,7 +440,63 @@ static void load_gousei_txt(void)
             outputs_resolved, ingredients_resolved);
     free(buf);
 }
-DEFINE_STUB(load_enemylist_txt, "data/enemylist.txt")
+/* enemylist.txt — ported. Real parser in src/tables_enemylist.c.
+ * Two engine globals are populated: a 10×60 grid of 752-byte floor
+ * sections and a 10-slot wisp drop table. Cross-table dependencies:
+ *   - `g_enemy` (populated by load_enemy_txt) supplies the pre-baked
+ *     enemy-name table for the per-line longest-prefix lookup.
+ *   - `g_item` (populated by load_item_txt) supplies the item table
+ *     for `wispN:` and per-enemy drop name → item id resolution.
+ * Both load earlier in the dispatch order, so the resolver is wired
+ * unconditionally here. */
+static void load_enemylist_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/enemylist.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_enemylist(buf, sz, &g_enemylist,
+                           g_enemy, ENEMY_COUNT,
+                           resolve_via_item_state, &g_item);
+
+    int total_sections = 0;
+    int total_enemies  = 0;
+    int total_drops    = 0;
+    int drops_resolved = 0;
+    int wisps          = 0;
+    int wisps_resolved = 0;
+    for (int d = 0; d < ENEMYLIST_DUNGEON_SLOTS; d++) {
+        total_sections += g_enemylist.section_counts[d];
+        for (int s = 0; s < g_enemylist.section_counts[d]; s++) {
+            const enemylist_section_t *sec = &g_enemylist.sections[d][s];
+            for (int k = 0; k < ENEMYLIST_ENEMY_SLOTS_PER_SECTION; k++) {
+                if (sec->enemies[k].enemy_id < 0) continue;
+                total_enemies++;
+                for (int j = 0; j < ENEMYLIST_DROPS_PER_ENEMY; j++) {
+                    int32_t id = sec->drops[k].item_id[j];
+                    if (id != -1) {
+                        total_drops++;
+                        if (id >= 0) drops_resolved++;
+                    }
+                }
+            }
+        }
+    }
+    for (int w = 0; w < ENEMYLIST_WISP_SLOTS; w++) {
+        if (g_enemylist.wisp_drops[w] != -1) {
+            wisps++;
+            if (g_enemylist.wisp_drops[w] >= 0) wisps_resolved++;
+        }
+    }
+
+    fprintf(stderr,
+            "tables: data/enemylist.txt — %zu bytes "
+            "(sections=%d enemies=%d drops=%d resolved=%d "
+            "wisps=%d wisp_resolved=%d)\n",
+            sz, total_sections, total_enemies,
+            total_drops, drops_resolved,
+            wisps, wisps_resolved);
+    free(buf);
+}
 
 /* tuto1.txt / tuto2.txt / tuto3.txt — ported. Real parser in
  * src/tables_tuto.c. The engine hard-codes the loop to three files

@@ -3,6 +3,94 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [15/15]: `data/enemylist.txt` parser
+
+**Subsystems landed:**
+- `src/tables_enemylist.{c,h}` — pure-C parser for FUN_00475270
+  block #14 (`docs/decompiled/by-address/475270.c` L2581..L2899).
+  Two engine globals populated: a 10×60 grid of 752-byte
+  `enemylist_section_t` at `&DAT_0053f8e8` (451200 bytes), and a
+  10-dword wisp drop table at `&DAT_073d8630`. Each section carries
+  `floor_lo`/`floor_hi` + 31 enemy slots (`{enemy_id, variant,
+  count}`) + 31 drop slots (`int32_t item_id[3]`). `_Static_assert`
+  guards on all four major byte offsets + the total 0x2f0 stride.
+- `src/tables.c` — replaced the enemylist.txt stub with the real
+  loader. Reuses the existing `resolve_via_item_state` adapter
+  (already wired for enemy.txt and gousei.txt drop resolution).
+  Boot trace logs `(sections=S enemies=E drops=D resolved=R
+  wisps=W wisp_resolved=WR)`.
+- `docs/formats/data-text.md` — appended full enemylist.txt
+  section: 5-way line dispatch, sticky state semantics
+  (dungeon-slot / section index / enemy slot), section byte-layout
+  table, longest-prefix enemy-name lookup vs the pre-baked
+  `g_enemy[]`, item-name → id resolution via `tables_item_resolve`,
+  faithfully-reproduced quirks (#21 reused, plus new #31/32/33),
+  vendor file shape.
+- `docs/findings/engine-quirks.md` — added quirks #31 (10 dungeon
+  slots reserved, only 6 keyed), #32 (`wisp10:` lands on the `:`
+  byte and silent-drops), and #33 (slot-30 terminator hazard
+  clobbers slot-0 drop ID — dormant in vendor).
+- `tests/test_tables_enemylist.c` — 22 cases: byte-offset
+  layout sanity, empty input, comments/blanks, wisp basic /
+  empty / wisp10 silent-drop / unknown-item, dungeon-header
+  resets section index, `f:N` single-floor, `f:` empty +
+  loop-err-16 path, multiple `f:` lines thread sections, enemy
+  basic (one drop), multi-drops (up to 3), variant `(N)` suffix,
+  count `xN` suffix, longest-prefix wins, unknown enemy name
+  skipped, per-line drop reset, NULL resolver yields -1, no-
+  trailing-newline EOF, enemies thread across consecutive `f:`
+  blocks, end-to-end vendor-shape integration smoke.
+
+**Behavioral validation:**
+- 229 unit tests pass under ASan/UBSan (was 207).
+- Boot smoke: `data/enemylist.txt — 28281 bytes (sections=100
+  enemies=696 drops=1118 resolved=1118 wisps=4 wisp_resolved=4)`.
+  100 floor-sections matches the 100 `f:` lines in the vendor
+  file. 4 populated wisps = vendor's `wisp3..wisp6` (the parser
+  honours `wisp1:`/`wisp2:` ship-empty by leaving slots 0/1 at -1).
+  All 1118 drop references resolved to real item ids via the
+  shared `g_item` table.
+
+**Engine quirks documented (and faithfully reproduced):**
+- **10 dungeon slots, only 6 keyed (#31).** Init scrubs all
+  10×60 = 600 sections to `floor_lo = -1`, but the SJIS key
+  chain at L2690..L2702 only matches `ダンジョン１..６`. Slots
+  6..9 are dead storage with no possible writer.
+- **`wisp10:` silent-drops (#32).** Init reserves 10 wisp dwords,
+  but the name-copy loop reads from `line[6]` — which is the
+  trailing `:` for `wisp10`, terminating the copy immediately.
+  Slot 9 storage exists but no `wispN:` line can populate it.
+  Vendor only ships `wisp1..wisp6`.
+- **Slot-30 terminator hazard (#33).** Engine writes `enemy_id
+  = -1` to slot `local_18 + 1` after each enemy line. If a
+  section hits 30 enemies, the terminator lands at slot 31's
+  enemy_id field — which is the first drop dword of slot 0.
+  Vendor never gets close (max ~12 per f-block). Port logs
+  overflow + skips the line rather than clobbering drops[0].
+- **Per-line drop reset.** drops[slot].item_id[0..2] reset to
+  -1 at line start so a line with fewer drops than the previous
+  one doesn't inherit stale ids.
+- **State sticky across lines.** Dungeon slot, section index,
+  enemy slot all persist until the next header. An enemy line
+  emitted before any `ダンジョン`/`f:` lands in dungeon 0 /
+  section 0 — vendor never does this.
+- **`f:N` (no dash) → `floor_hi = floor_lo`.** Dash-scan stops
+  on `\r`/`\n`; the second atoi never runs.
+- **`f:` (empty) → "loop err 16" + line skipped.** Engine writes
+  `atoi("") - 1 = -1` to floor_lo BEFORE bailing — leaving the
+  section in a half-init state. Port preserves the write.
+- **Effective-exact item-name lookup.** Engine's double-`FUN_00479f4d`
+  pattern (memcmp twice, once with each side's strlen) behaves
+  like exact match. Port routes through `tables_item_resolve`
+  which is strncmp-up-to-32.
+
+**Phase B complete.** All 14 file parsers (counting the 3-file
+tutorial loop as one) plus the resolver-wiring follow-up are
+landed. Remaining `tables` work for OpenRecet's surface mapping:
+`stage.idx` (still a stub at `load_stage_idx`, 22434 bytes —
+likely Phase C). Phase 3 next milestone candidates to confirm
+with user at session start.
+
 ## 2026-05-20 — Phase B [14/15]: `data/news.txt` parser
 
 **Subsystems landed:**

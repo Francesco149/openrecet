@@ -252,7 +252,30 @@ struct test_case {
     X(tables_news_body_strips_on_lf_only) \
     X(tables_news_no_resolver_misses_silently) \
     X(tables_news_max_records_cap) \
-    X(tables_news_vendor_shape)
+    X(tables_news_vendor_shape) \
+    \
+    X(tables_enemylist_layout_byte_offsets) \
+    X(tables_enemylist_empty) \
+    X(tables_enemylist_comments_and_blanks_skipped) \
+    X(tables_enemylist_wisp_basic) \
+    X(tables_enemylist_wisp_empty_value) \
+    X(tables_enemylist_wisp10_silent_drop) \
+    X(tables_enemylist_wisp_unknown_resolves_minus_one) \
+    X(tables_enemylist_dungeon_header_resets_section) \
+    X(tables_enemylist_f_no_dash_single_floor) \
+    X(tables_enemylist_f_empty_skips) \
+    X(tables_enemylist_multiple_f_lines_thread) \
+    X(tables_enemylist_enemy_basic_one_drop) \
+    X(tables_enemylist_enemy_multi_drops) \
+    X(tables_enemylist_variant_suffix) \
+    X(tables_enemylist_count_suffix) \
+    X(tables_enemylist_longest_prefix_wins) \
+    X(tables_enemylist_unknown_enemy_skipped) \
+    X(tables_enemylist_drop_reset_per_line) \
+    X(tables_enemylist_no_resolver_drops_minus_one) \
+    X(tables_enemylist_no_trailing_newline) \
+    X(tables_enemylist_enemies_thread_across_f_blocks) \
+    X(tables_enemylist_vendor_shape)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

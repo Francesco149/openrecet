@@ -1912,3 +1912,155 @@ Both depend on `load_item_txt` having run first (which it has, by
 the engine's load order). Empty-singular slots are skipped so the
 unpopulated 100-slot category array doesn't generate false
 positives on an all-NUL prefix.
+
+## `data/enemylist.txt`
+
+The per-dungeon, per-floor-range enemy spawn roster — plus a small
+"wisp drop" item table at the top of the file. Vendor: **28281
+bytes** (largest of the gameplay-table files), CRLF, SJIS.
+
+### File shape
+
+Five line kinds are dispatched in this order (engine: `FUN_00475270`
+L2581..L2899):
+
+| Pattern               | Effect                                                            |
+|-----------------------|-------------------------------------------------------------------|
+| `// …` / blank / `/…` | comment — skipped (`line[0] in {/, \r, \n}`)                      |
+| `wispN:<item-name>`   | wisp drop table — slot N-1 (1..9 only — see quirk #32)            |
+| `ダンジョン１..６`     | dungeon header — switches dungeon-slot to 0..5; resets section index |
+| `f:N` or `f:N-M`      | floor header — opens the next section in the current dungeon       |
+| `<enemy>[(<v>)][x<n>]:<d1>[#<d2>[#<d3>]]` | enemy line — spawns an enemy in the current section |
+
+State carries between lines:
+
+- `local_20` — dungeon-slot index (0..5 set via key match; 0 default).
+- `local_14` — section index within current dungeon, 0..59.
+  Incremented on every `f:` line, reset on every dungeon header.
+- `local_18` — enemy slot index within current section, 0..30.
+  Reset on every `f:` line.
+
+### Engine globals populated
+
+| Global               | Address              | Shape                                  |
+|----------------------|----------------------|----------------------------------------|
+| sections grid        | `&DAT_0053f8e8`      | `enemylist_section_t [10][60]` — 451200 bytes |
+| wisp drop table      | `&DAT_073d8630`      | `int32_t [10]`                         |
+
+Only 6 of the 10 dungeon slots are addressable (no keys exist for
+`ダンジョン７..10`); the trailing 4 stay at their post-init `floor_lo
+= -1` / `enemy_id = -1` sentinels (quirk #31).
+
+### Section layout (`enemylist_section_t`, 752 bytes = 0x2f0)
+
+| Offset | Size | Field                  | Notes                                          |
+|--------|------|------------------------|------------------------------------------------|
+| +0x000 | 4    | `floor_lo` (int32)     | `atoi(line+2) - 1` after `f:`                  |
+| +0x004 | 4    | `floor_hi` (int32)     | `atoi(line+dash+1) - 1`; = `floor_lo` if no '-'|
+| +0x008 | 12×31 | `enemies[31]`         | Per-slot: `{enemy_id, variant, count}`         |
+| +0x17c | 12×31 | `drops[31]`           | Per-slot: `int32_t item_id[3]`                 |
+
+Per-enemy slot (12 bytes):
+
+| Field      | Init  | Set by                                  |
+|------------|-------|-----------------------------------------|
+| `enemy_id` | -1    | Per-line longest-prefix lookup → index into `g_enemy[]` |
+| `variant`  | 0     | `atoi(line+pos+1)` after `(`            |
+| `count`    | 1     | `atoi(line+pos+1)` after `x`            |
+
+Per-drop slot (12 bytes): `item_id[0..2]` each init to -1 per-line;
+populated by the `:`/`#` field walker, resolved through the
+caller-supplied `tables_item_resolve` callback.
+
+### Enemy-name lookup
+
+Same "longest common prefix" rule as `enemy.txt`: walk the 64
+pre-baked records in `g_enemy[]`, match each record name as a
+prefix of the line's leading bytes, keep the record whose name is
+the **longest** such prefix. Records whose name is empty (or whose
+`flags == 2` sentinel fires) are skipped.
+
+Pre-baked names live in `tables_enemy.c`; the enemylist parser
+references the same table (loaded earlier via `load_enemy_txt`).
+Lines whose leading bytes do not prefix any record are silently
+dropped — the engine pops `MessageBoxA("無効な敵ネーム")` (quirk #21
+applies here too); the port stays quiet.
+
+### Wisp / drop item lookup
+
+The `<item-name>` field of `wispN:` lines, and the `:`/`#`-separated
+`<dN>` fields of enemy lines, are resolved to item ids by
+`tables_item_resolve(g_item, name)`. The engine implements this as
+a double-`FUN_00479f4d` (`memcmp` once with each side's strlen),
+which behaves like an exact-string match for any well-formed input.
+
+Unknown names yield -1; engine emits `MessageBoxA("不明なアイテム4")`
+or `("不明なアイテム6")`; port silently stores -1.
+
+### Faithfully-reproduced quirks
+
+- **Slots 6..9 are dead storage (#31).** Init zeros all 10×60
+  sections, but no SJIS dungeon key dispatches to them. Trailing 4
+  dungeons stay at their post-init sentinel state forever.
+
+- **`wisp10:` silent-drops (#32).** The name-copy loop reads from
+  `line[0x26]` (`line+6`). For `wisp1..wisp9`, that's the colon
+  (well, the byte after the digit) — actually, that's the digit's
+  *next* byte. For `wisp10:`, byte 6 is the `:` and the name-copy
+  terminates immediately. Vendor only ships wisp1..wisp6 so this
+  is dormant. (Note: vendor `wisp1:` and `wisp2:` are empty-value
+  lines, deliberately leaving slots 0/1 at -1.)
+
+- **Slot-30 terminator hazard (#33).** Engine writes `enemy_id = -1`
+  to slot `local_18 + 1` after each enemy line. If a section ever
+  pushes `local_18` to 30 (max writable), the terminator lands at
+  slot 31's `enemy_id` — which is the **first drop dword of slot 0**
+  in the same section. Dormant in vendor (no `f:` block exceeds
+  ~12 enemies). The port logs the overflow to stderr and skips
+  the line rather than clobbering drops[0].
+
+- **Per-line drop reset.** `drops[slot].item_id[0..2]` are set to
+  -1 at the start of each line's enemy write — so a line that
+  omits a drop column ends with that slot at -1 rather than the
+  previous value.
+
+- **State sticky across lines.** Dungeon slot, section index, and
+  enemy slot persist until the next header overrides them. An
+  enemy line before any `ダンジョン` header lands in dungeon 0; an
+  enemy line before any `f:` lands in section 0. Vendor data never
+  emits enemies in that position.
+
+- **Empty `(` / `x` → atoi(0).** Variant/count parsers do not
+  guard against missing digits. Vendor always supplies them.
+
+- **`f:N` (no dash) → `floor_hi = floor_lo`.** Dash-scan terminates
+  on `\r`/`\n` without finding `-`; the second atoi never runs and
+  the floor-lo value is reused for floor_hi.
+
+- **`f:` (no digits) → "loop err 16" + line skipped.** Engine
+  writes `atoi("") - 1 = -1` to `floor_lo` BEFORE detecting the
+  empty value, then prints loop err and bails — leaving the
+  section in a half-initialised state. Port mirrors the write
+  + skip.
+
+### Resolver hook
+
+- `resolve_via_item_state(name, &g_item)` — same adapter used by
+  `enemy.txt` and `gousei.txt` (both already wired). Calls
+  `tables_item_resolve(g_item, name)` which is an exact-string
+  match on `g_item.records[i].singular`.
+
+### Vendor file shape
+
+| stat                                       | value |
+|--------------------------------------------|-------|
+| Bytes via `storage_read`                   | 28281 |
+| `wisp` lines                               | 6 (`wisp1:`/`wisp2:` empty; 3..6 populate slots 2..5) |
+| Dungeon headers                            | 6 (`ダンジョン１..６`) |
+| `f:` lines                                 | 100   |
+| Enemy lines parsed (matching pre-baked record) | ~696   |
+| Enemy lines silently dropped (unknown name)| ~50 — same quirk #21 cohort as enemy.txt |
+
+Boot trace logs `(sections=S enemies=E drops=D resolved=R wisps=W
+wisp_resolved=WR)`. With g_item live, R should equal D and WR
+should equal W (every name in vendor data is a real item).
