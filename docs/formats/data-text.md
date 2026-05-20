@@ -459,3 +459,161 @@ because `no:` sets the current index for subsequent writes; parse
 order does not determine record order.
 
 The boot trace confirms `(models=17 max_points=8)` matches.
+
+---
+
+## `data/chara.txt`
+
+**Engine block:** `FUN_00475270` block #6 — outer block at
+`docs/decompiled/by-address/475270.c:1030..1146`, with the
+continuation block reached via `LAB_00477931` that the decompiler
+emits non-adjacent at `docs/decompiled/all.c:76547..76593`.
+
+**Identity:** referenced via `s_data_chara_txt_005cae6c` (size path)
+and `s_data_chara_txt_005cae7c` (read path). Both interned copies
+hold the same spelling `"data/chara.txt"` — no path-mismatch quirk.
+
+**Port:** `src/tables_chara.{c,h}`, parser entry point
+`tables_parse_chara(data, size, out[CHARA_COUNT])`. Engine-global
+instance `g_chara[8]`. Tests in `tests/test_tables_chara.c` (9 cases
+— empty, defaults bit-exact, basic record, lv100 alone, both blocks
+combined, comments skipped, OOR-index guard, lv100 field
+permutation, vendor-shape end-to-end).
+
+**Purpose:** *adventurer base + endpoint stats.* Defines the eight
+playable companions Recette can dispatch into dungeons (Louie,
+Charme, Caillou, Tielle, Elan, Nagi, Griff, Arma). Each record holds
+level-1 base stats plus level-100 endpoint stats; the engine
+interpolates per-level growth between the two. The first CSV column
+in the base block is the unlock level threshold — Griff (index 6)
+unlocks at 30, the rest between 1 and 20.
+
+### Line shape
+
+The file contains **two interleaved parser sub-blocks** that target
+the same 8 records:
+
+| line                        | role                                          |
+|-----------------------------|-----------------------------------------------|
+| `//…`, `/…`, blank          | comment / skipped (first byte `/`, `\r`, `\n`) |
+| `NNN:` where `NNN` ∈ 000–007 | base stats — 10 CSV fields (7 ints + 3 floats) |
+| `NNN:` where `NNN` ∈ 100–107 | level-100 endpoint — 6 CSV ints                |
+
+The engine fast-skips with a 1-byte pre-check that `line[0] == '0'`
+(base) or `line[0] == '1'` (lv100), then exact-matches 4 bytes
+against `sprintf("%03d:", idx)` to identify the record. Both
+sub-blocks iterate idx 0..9 in the engine even though only 8 records
+exist (see engine bug below).
+
+### Record layout (engine stride 0x40)
+
+| offset | size | C-field          | source                                  |
+|--------|------|------------------|-----------------------------------------|
+| +0x00  | 4    | `level_threshold` | `atoi(file_field_1) - 1` (base block)  |
+| +0x04  | 4    | `hp_base`        | base block file field 6 (HP column)     |
+| +0x08  | 4    | `sp_base`        | base block file field 7 (SP)            |
+| +0x0c  | 4    | `at_base`        | base block file field 2 (AT)            |
+| +0x10  | 4    | `df_base`        | base block file field 3 (DF)            |
+| +0x14  | 4    | `mt_base`        | base block file field 4 (MT)            |
+| +0x18  | 4    | `mf_base`        | base block file field 5 (MF)            |
+| +0x1c  | 4    | `move_speed` (f) | base block file field 8                 |
+| +0x20  | 4    | `dash_speed` (f) | base block file field 9                 |
+| +0x24  | 4    | `crit_rate`  (f) | base block file field 10                |
+| +0x28  | 4    | `hp_lv100`       | lv100 block file field 5                |
+| +0x2c  | 4    | `sp_lv100`       | lv100 block file field 6                |
+| +0x30  | 4    | `at_lv100`       | lv100 block file field 1                |
+| +0x34  | 4    | `df_lv100`       | lv100 block file field 2                |
+| +0x38  | 4    | `mt_lv100`       | lv100 block file field 3                |
+| +0x3c  | 4    | `mf_lv100`       | lv100 block file field 4                |
+
+Total: 0x40 (64) bytes × 8 records = 0x200 bytes. Base address in
+the engine: `&DAT_073ae058`. The 20 `model.txt` records start
+immediately after at `&DAT_073ae258` (= `0x73ae058 + 8 * 0x40`).
+
+### Field-order permutation
+
+**Neither** sub-block writes fields in the order they appear on
+disk:
+
+- Base block file order: `level, AT, DF, MT, MF, HP, SP, move,
+  dash, crit`. In-memory: `level, HP, SP, AT, DF, MT, MF, move,
+  dash, crit`. The engine reorders by writing each field to its
+  named offset (e.g. `piVar13[3] = atoi(field2)` puts AT into
+  `at_base` at +0x0c).
+- Lv100 block file order: `AT, DF, MT, MF, HP, SP`. In-memory:
+  `HP, SP, AT, DF, MT, MF`. The engine writes field5 to `[10]`
+  (offset 0x28 = `hp_lv100`) and field6 to `[0xb]` (offset 0x2c =
+  `sp_lv100`), with field1..4 going to the higher offsets.
+
+The port re-implements both permutations explicitly. Consumers
+always see the canonical in-memory order in `struct chara_def_t`.
+
+### Defaults (engine init loop, L1035..L1047)
+
+| field          | default |
+|----------------|---------|
+| level_threshold| 1       |
+| hp_base        | 50      |
+| sp_base        | 30      |
+| at_base        | 10      |
+| df_base        | 13      |
+| mt_base        | 5       |
+| mf_base        | 10      |
+| move_speed     | 0.15f (0x3e19999a) |
+| dash_speed     | 0.20f (0x3e4ccccd) |
+| crit_rate      | 0  (not init'd by engine; port memsets to 0) |
+| hp_lv100..mf_lv100 | 0  (not init'd by engine; port memsets to 0) |
+
+The two float bit patterns in the engine's init exactly match
+IEEE 754 single-precision `0.15f` and `0.20f`, so the port's `0.15f`
+/ `0.20f` initializers are byte-identical to the engine's writes.
+
+### Engine quirks reproduced
+
+- **Two-block parse over same records:** each adventurer has both a
+  base block entry (`NNN:` with NNN < 10) and an optional lv100
+  block entry (`NNN:` with 100 ≤ NNN < 110); they accumulate.
+- **`field1 - 1` for level_threshold:** the leading CSV column in
+  the base block is the unlock level (1, 8, 10, 20, 15, 15, 30, 1
+  for the vendor adventurers); the engine subtracts 1 to store a
+  0-based threshold. The default of `1` is therefore *not*
+  equivalent to file_field1 = 1 (which would store 0) — they
+  diverge and we use this to detect parsed records.
+- **All 10 keys tested per line** — engine doesn't break out of
+  the inner per-record loop after a match. Port breaks early for
+  efficiency (prefixes are disjoint).
+- **`atoi` / `atof`** are the CRT versions: skip leading
+  whitespace, stop at first non-numeric.
+
+### Engine bug: parse loop iterates 10× but only 8 records exist
+
+The init loop covers exactly 8 records (puVar12 from `&DAT_073ae060`
+to `&DAT_073ae260`, stride 0x40). The parse loop iterates **10**
+times (piVar13 from `&DAT_073ae058` to `&DAT_073ae2d8`, stride 0x40)
+— so a `008:` / `009:` / `108:` / `109:` line in chara.txt would
+write 64 bytes past the end of the chara array, **directly into the
+adjacent `g_models[0..1]` globals** at `&DAT_073ae258`. The vendor
+file ships only `000:`..`007:` and `100:`..`107:`, so the overrun is
+dormant. The port caps the inner match loop at `CHARA_COUNT` (8)
+and silently drops out-of-range indices.
+
+### Vendor file shape
+
+Shipping `data/chara.txt` (1868 bytes, CRLF, SJIS comments). The
+boot trace confirms `(adventurers=8 lv100=8)` — all eight base and
+all eight lv100 rows parsed.
+
+| idx | name      | LV→stored | HP | SP | AT | DF | MT | MF | move | dash | crit | HP100 | SP100 | AT100 | DF100 | MT100 | MF100 |
+|-----|-----------|-----------|----|----|----|----|----|----|------|------|------|-------|-------|-------|-------|-------|-------|
+| 0   | Louie     | 1→0       | 20 | 10 | 10 | 10 | 4  | 4  | .175 | .2625| .05  | 460   | 100   | 93    | 95    | 50    | 68    |
+| 1   | Charme    | 8→7       | 16 | 15 | 9  | 8  | 8  | 9  | .195 | .2925| .07  | 340   | 250   | 88    | 82    | 68    | 79    |
+| 2   | Caillou   | 10→9      | 10 | 50 | 6  | 6  | 12 | 14 | .155 | .2025| .04  | 190   | 700   | 52    | 68    | 100   | 95    |
+| 3   | Tielle    | 20→19     | 13 | 18 | 7  | 7  | 8  | 10 | .175 | .2625| .05  | 280   | 350   | 81    | 78    | 70    | 86    |
+| 4   | Elan      | 15→14     | 22 | 16 | 13 | 11 | 8  | 9  | .185 | .2775| .06  | 600   | 150   | 99    | 104   | 52    | 65    |
+| 5   | Nagi      | 15→14     | 16 | 12 | 8  | 9  | 5  | 7  | .155 | .2325| .05  | 380   | 300   | 87    | 86    | 65    | 77    |
+| 6   | Griff     | 30→29     | 18 | 20 | 12 | 7  | 11 | 13 | .175 | .2625| .06  | 300   | 500   | 90    | 76    | 88    | 106   |
+| 7   | Arma      | 1→0       | 25 | 30 | 11 | 13 | 9  | 11 | .175 | .2625| .00  | 500   | 990   | 94    | 96    | 80    | 90    |
+
+The file also contains a commented-out `1.0` block at the bottom
+preserving the pre-balance-patch values — those lines all start with
+`/` so the parser skips them entirely.

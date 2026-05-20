@@ -24,6 +24,7 @@
 
 #include "storage.h"
 #include "tables_buysell.h"
+#include "tables_chara.h"
 #include "tables_config.h"
 #include "tables_model.h"
 #include "tables_oder.h"
@@ -96,7 +97,34 @@ static void load_config_idx(void)
 DEFINE_STUB(load_item_txt,      "data/item.txt")
 DEFINE_STUB(load_kyaku_txt,     "data/kyaku.txt")
 DEFINE_STUB(load_enemy_txt,     "data/enemy.txt")
-DEFINE_STUB(load_chara_txt,     "data/chara.txt")
+/* chara.txt — ported. Real parser in src/tables_chara.c. Two parser
+ * sub-blocks share the same 8 records: "000:".."007:" populates base
+ * stats (10 CSV fields, 7 ints + 3 floats); "100:".."107:" populates
+ * the level-100 endpoints (6 CSV ints, permuted into the upper half
+ * of the record). Engine's parse loop iterates 10× per sub-block —
+ * a 2-record overrun bug that would clobber the adjacent g_models
+ * globals; port caps matching at CHARA_COUNT. */
+static void load_chara_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/chara.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_chara(buf, sz, g_chara);
+    /* Default level_threshold is 1 (engine init); a parsed record
+     * stores (file_field1 - 1). Every vendor adventurer has file_lv
+     * ∈ {1, 8, 10, 15, 20, 30} → stored ∈ {0, 7, 9, 14, 19, 29},
+     * none of which equal 1, so this is a clean parse marker. */
+    int defined = 0, lv100 = 0;
+    for (int i = 0; i < CHARA_COUNT; i++) {
+        if (g_chara[i].level_threshold != 1) defined++;
+        if (g_chara[i].hp_lv100 != 0) lv100++;
+    }
+    fprintf(stderr,
+            "tables: data/chara.txt — %zu bytes "
+            "(adventurers=%d lv100=%d)\n",
+            sz, defined, lv100);
+    free(buf);
+}
 /* buysell.txt — ported. Real parser in src/tables_buysell.c. */
 static void load_buysell_txt(void)
 {

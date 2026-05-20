@@ -3,6 +3,54 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [5/15]: `data/chara.txt` parser
+
+**Subsystems landed:**
+- `src/tables_chara.{c,h}` — pure-C parser for FUN_00475270 block #6
+  (L1030..L1146 outer + L76547..L76593 LAB_00477931 continuation).
+  Two interleaved CSV sub-blocks share the same 8 records:
+  `000:`..`007:` populates base stats (10 fields, 7 ints + 3 floats);
+  `100:`..`107:` populates the level-100 endpoints (6 ints, permuted
+  AT/DF/MT/MF/HP/SP → hp_lv100/sp_lv100/at_lv100/.../mf_lv100).
+  Engine init seeds nine of the ten base fields per record (LV=1,
+  HP=50, SP=30, AT=10, DF=13, MT=5, MF=10, move=0.15f, dash=0.20f);
+  the port memsets to zero first so crit_rate and all lv100 stats
+  start at 0 — a harmless superset.
+- `src/tables.c` — replaced the chara.txt stub with a real loader.
+  Heuristic for the boot trace: `level_threshold != 1` flags a
+  parsed record (default is 1; vendor unlock-levels 1/8/10/15/20/30
+  store as 0/7/9/14/19/29, none equal to 1). Boot trace now logs
+  `(adventurers=N lv100=M)`.
+- `docs/formats/data-text.md` — appended a chara.txt section with
+  line-shape table, record layout, field-order permutation
+  (file order vs in-memory layout for both sub-blocks), defaults
+  table with bit-exact float values, engine quirks, the 10×8
+  parse-loop overrun bug, and full vendor-shape table for the 8
+  adventurers (Louie through Arma).
+- `tests/test_tables_chara.c` — 9 cases: empty (defaults only),
+  defaults bit-exact (0x3e19999a / 0x3e4ccccd match `0.15f` / `0.20f`
+  byte-for-byte), basic record, lv100 alone, both blocks combined,
+  comments skipped, OOR-index 008/009/108/109 guarded (no OOB
+  write), lv100 field permutation with distinct sentinels,
+  vendor-shape end-to-end with spot checks on Louie/Griff/Arma.
+
+**Engine fidelity divergence (documented):** the engine's parse
+loop iterates 10 times per sub-block even though only 8 records are
+initialized — a 2-record overrun bug that would write into the
+adjacent `g_models[0..1]` globals at `&DAT_073ae258` if chara.txt
+contained any `008:` / `009:` / `108:` / `109:` lines. Vendor data
+ships only `000:`..`007:` and `100:`..`107:`, so the bug is
+dormant. The port caps the inner match loop at `CHARA_COUNT` and
+silently drops out-of-range indices.
+
+**Boot verification:** stderr now shows
+`tables: data/chara.txt — 1868 bytes (adventurers=8 lv100=8)`,
+matching the vendor file's 8 adventurer rows + 8 lv100 endpoint
+rows. All other stubs continue to log as before; tutorial loop
+still stops correctly at `tuto4.txt`.
+
+**Test status:** 71 tests pass (up from 62), no fails, no skips.
+
 ## 2026-05-20 — Phase B [4/15]: `data/model.txt` parser
 
 **Subsystems landed:**
