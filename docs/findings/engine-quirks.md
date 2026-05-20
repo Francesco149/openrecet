@@ -1023,6 +1023,107 @@ notice in QA.
 
 ---
 
+## 34. `stage.idx` unknown ID silently aliases to `1-16`
+
+The `stage:X-Y` header dispatcher at L93..L240 is a 21-entry chain
+that maps each known ID literal to a small-integer dungeon code
+(`uVar5`):
+
+```c
+uVar5 = 0x14;             // chain-default — pre-loaded BEFORE "0-1" probe
+// 21 sequential prefix-compares, each overwriting uVar5 on match:
+//   "0-1" → 0, "0-2" → 1, ..., "1-15" → 0x13, "1-16" → 0x14
+```
+
+The default `0x14` (= 20) is the same value the last entry (`1-16`)
+writes on match. So a `stage:foo` header for any ID the table doesn't
+recognise opens a record with `dungeon_id = 0x14`, indistinguishable
+from a legitimate `stage:1-16`. There's no diagnostic.
+
+Dormant in vendor data: every `stage:` header in the shipping
+`idx/stage.idx` matches a known ID. But if someone hand-edited the
+file with a typo (e.g. `stage:1-7G`), the engine would silently
+duplicate the `1-16` record's purpose with the typo'd record's
+content — or, if `1-16` was defined too, both definitions overwrite
+the *same* dungeon code over consecutive header opens (since the
+parser allocates a new record per `stage:` header regardless of
+dungeon code).
+
+The port reproduces the fallback exactly; the boot trace logs total
+`stages=N` without distinguishing matched vs fallback IDs.
+
+> 📍 `src/tables_stage.c:dispatch_stage_id`,
+> `docs/decompiled/by-address/475270.c` L93..L240.
+
+---
+
+## 35. `moonpos:` shares X/Y/Z with `sunpos:`/`sunset:` but not the mode flag
+
+A stage record has exactly **one** trio of `sun_pos[3]` floats at
++0x1a7c — and three different keys write to those same three floats:
+
+- `sunpos:X:Y:Z` → writes coords, sets `sunpos_mode = 1`.
+- `sunset:X:Y:Z` → writes coords, sets `sunpos_mode = 2`.
+- `moonpos:X:Y:Z` → writes coords, sets `moonpos_set = 1` (at
+  +0x1a8c, a distinct flag), **does NOT touch** `sunpos_mode`.
+
+So a stage with both `sunpos:` and `moonpos:` lines ends up with
+the moonpos coords (whichever fired last) and `sunpos_mode = 1`
+(from the earlier `sunpos:`) — the engine then renders the sun at
+the moon's coordinates. The intent was almost certainly that
+moonpos is a per-stage moon location for night scenes, but the
+storage was crammed into the existing sun fields rather than given
+its own. Vendor never defines `moonpos:` so this is dormant.
+
+> 📍 `src/tables_stage.c:dispatch_field_line` (`moonpos:` block),
+> `docs/decompiled/by-address/475270.c` L3838..L3865.
+
+---
+
+## 36. `sunset:off` is broken — the engine checks for `"sunpos:off"` instead
+
+The `sunpos:` and `sunset:` parsers both have a short-circuit for an
+`off` sentinel that bypasses the numeric parse and writes the mode
+flag directly (mode=0 for sunpos:off; mode=0 was likely intended for
+sunset:off too).
+
+The implementation, at L3811..L3814 inside the `sunset:` branch:
+
+```c
+iVar1 = 0;
+while (local_47c[iVar1] == s_sunpos_off_005cab80[iVar1]) {
+    iVar1 = iVar1 + 1;
+    if (iVar1 == 10) goto code_r0x00476682;  // mode = 0
+}
+```
+
+`s_sunpos_off_005cab80` is the *literal string `"sunpos:off"`*, NOT
+`"sunset:off"`. The binary has two interned copies of `"sunpos:off"`
+(at `0x005cab4c` and `0x005cab80`); there is no `"sunset:off"` string
+anywhere. So the comparison against `local_47c` (which holds the
+line bytes — beginning with `"sunset:"` for any line that reached
+this branch) fails at byte 3 (`s` vs `p`), the while loop exits
+immediately, and execution falls through to the numeric path.
+
+The numeric path then calls `atof("off")` → 0.0f for the first
+component, then scans forward for the next `:` separator — which it
+never finds in `"sunset:off\0"`. In the engine, the scan walks past
+the buffer terminator into adjacent stack bytes from the previous
+line; the subsequent atofs read whatever happens to be there. In
+our port, the scan respects the line NUL and leaves Y/Z at their
+defaults.
+
+End state: `sunset:off` produces `sunpos_mode = 2` (sunset, NOT off),
+`sun_pos[0] = 0`, and whatever was in `sun_pos[1..2]` before. The
+copy-paste hazard probably went undetected because no vendor file
+uses `sunset:off` — every `sunset:` line we'd expect to see uses
+numeric coords or simply isn't written at all.
+
+> 📍 `src/tables_stage.c:dispatch_field_line` (`sunset:` block),
+> `docs/decompiled/by-address/475270.c` L3811..L3814.
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an
