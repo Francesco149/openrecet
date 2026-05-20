@@ -3,6 +3,33 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [2/15]: `data/config.idx` parser
+
+**Subsystems landed:**
+- `src/tables_config.{c,h}` — pure-C parser for FUN_00475270 block #2.
+  Five live keys (`kanjioff`, `edgewi`, `effectmode`, `edgedel`, `font`)
+  + one dead key (`makefont` — the engine matches 8 bytes against the
+  bare word but assigns to nothing; we mirror the dead check). The
+  `font:` value is copied as raw bytes into a 256-byte fixed buffer
+  with safe truncation on overlong input.
+- `src/tables.c` — replaced the config.idx stub with a real loader.
+  Path-mismatch quirk still sidestepped via the read-side spelling
+  (`"data/config.idx"`) for both `storage_get_size` and `storage_read`.
+- `docs/formats/data-text.md` — appended a config.idx section with
+  full key table, dead-makefont quirk, and the line-terminator
+  handling difference from buysell.txt.
+- `tests/test_tables_config.c` — 7 cases: empty input, all five
+  live keys parsed together, `makefont:` no-op, SJIS font name
+  (`ＭＳ Ｐゴシック`), font over-length truncation at the 256-byte
+  cap, comment-only file (everything `/`-prefixed → all defaults),
+  vendor-shape end-to-end (only `edgewi=2 edgedel=6` active).
+
+**Boot verification:** stderr now shows
+`tables: data/config.idx — 950 bytes (kanjioff=0 edgewi=2 edgedel=6 effectmode=0 font=(default))`,
+matching the shipping vendor file's active key set exactly.
+
+**Test status:** 44 tests pass (up from 37), no fails, no skips.
+
 ## 2026-05-20 — Phase B [1/15]: `data/buysell.txt` parser
 
 **Subsystems landed:**

@@ -63,6 +63,14 @@ extern int test_tables_buysell_no_trailing_newline(void);
 extern int test_tables_buysell_embedded_null_terminates(void);
 extern int test_tables_buysell_vendor_shape(void);
 
+extern int test_tables_config_empty(void);
+extern int test_tables_config_all_live_keys(void);
+extern int test_tables_config_makefont_is_noop(void);
+extern int test_tables_config_font_sjis(void);
+extern int test_tables_config_font_overlong_truncates(void);
+extern int test_tables_config_commented_lines_ignored(void);
+extern int test_tables_config_vendor_shape(void);
+
 /* ─── registry ─────────────────────────────────────────────────────────── */
 static struct test_case g_tests[] = {
     {"bmp_basic_24bit",                  test_bmp_basic_24bit},
@@ -107,6 +115,14 @@ static struct test_case g_tests[] = {
     {"tables_buysell_no_trailing_newline",    test_tables_buysell_no_trailing_newline},
     {"tables_buysell_embedded_null_terminates", test_tables_buysell_embedded_null_terminates},
     {"tables_buysell_vendor_shape",           test_tables_buysell_vendor_shape},
+
+    {"tables_config_empty",                   test_tables_config_empty},
+    {"tables_config_all_live_keys",           test_tables_config_all_live_keys},
+    {"tables_config_makefont_is_noop",        test_tables_config_makefont_is_noop},
+    {"tables_config_font_sjis",               test_tables_config_font_sjis},
+    {"tables_config_font_overlong_truncates", test_tables_config_font_overlong_truncates},
+    {"tables_config_commented_lines_ignored", test_tables_config_commented_lines_ignored},
+    {"tables_config_vendor_shape",            test_tables_config_vendor_shape},
 };
 
 int main(int argc, char *argv[])

@@ -112,3 +112,76 @@ So the vendor file is effectively inert — it expresses a debug
 target (customer 14, kind 2) but with `ok:` commented and all
 overrides set to 0. Removing the `/` on the `ok:` line is what
 activates the override path.
+
+---
+
+## `data/config.idx`
+
+**Engine block:** `FUN_00475270` block #2
+(`docs/decompiled/by-address/475270.c:330..425`).
+
+**Identity:** referenced via `s_config_idx_005cac78` (size path) and
+`s_config_idx_005cac84` (read path). The two strings have **different
+spellings** — `"config.idx"` (size side, no folder prefix) vs
+`"data/config.idx"` (read side) — which causes a 940-byte heap overrun
+in the original engine on every boot. Documented in
+`docs/findings/tables-loader.md`; our port uses the read-side spelling
+for both calls and sidesteps the bug.
+
+**Port:** `src/tables_config.{c,h}`, parser entry point
+`tables_parse_config(data, size, out)`. Engine-global instance
+`g_config`. Tests in `tests/test_tables_config.c` (7 cases — empty,
+all five live keys at once, makefont no-op, SJIS font name, font
+over-length truncation, comment-only file, vendor-shape end-to-end).
+
+**Purpose:** font + text-rendering configuration. Most keys are flags
+that toggle behavior; only `edgewi` / `edgedel` carry numeric values.
+The shipping vendor file enables only `edgewi=2` and `edgedel=6` —
+the rest are commented out with `/` so the engine uses its built-in
+defaults.
+
+### Keys
+
+| key (bytes)    | length | type  | global              | C-field                  |
+|----------------|--------|-------|---------------------|--------------------------|
+| `kanjioff:`    | 9      | flag  | `DAT_005cbc70`      | `kanjioff = 1`           |
+| `edgewi:`      | 7      | int   | `_DAT_005cbc74`     | `edgewi = atoi(…)`       |
+| `effectmode:`  | 11     | flag  | `DAT_073dddb4`      | `effectmode = 1`         |
+| `edgedel:`     | 8      | int   | `_DAT_005cbc78`     | `edgedel = atoi(…)`      |
+| `makefont`     | 8      | —     | **dead**            | match-then-no-op         |
+| `font:`        | 5      | str   | `DAT_073de168[256]` + `DAT_073dfd00` | font name + `font_set = 1` |
+
+- `kanjioff` (when set) tells the font generator to skip kanji glyph
+  generation — useful as a speed-up on slow machines circa 2007.
+- `edgewi` ∈ [0..4] — width in pixels of the black edge / outline.
+- `edgedel` ∈ [0..15] — how fast the outline's per-pixel alpha
+  decays toward the edge.
+- `effectmode` switches between two text-rendering pipelines (specific
+  semantics not yet investigated).
+- `font:` sets the GDI font face name. The value bytes start at line
+  offset 5 (right after the colon) and are copied as raw bytes (no
+  encoding conversion) into a 256-byte fixed buffer. The shipping
+  comment block suggests `ＭＳ 明朝`, `ＭＳ Ｐゴシック`, `Terminal`,
+  or `Lucida Sans Unicode` as alternatives.
+
+### Engine quirk: dead `makefont` check
+
+The `makefont` string in the binary is the bare 8-letter word — no
+trailing colon, no NUL counted in the match. The engine matches 8
+bytes against it but assigns to no global — the matched-true branch
+falls through to the next prefix check (`font:`) without setting
+anything. Most likely a stub for a feature that was never implemented
+(a "regenerate the font texture cache" trigger). Our port mirrors
+the check for documentation; a `makefont:…` line is parsed but does
+nothing.
+
+### Engine quirk: line-terminator handling differs from buysell.txt
+
+The config.idx parser overwrites the `\r` / `\n` at the end of each
+line with `\0` in place (so that the inline-strcpy of the font name
+sees a clean C string). The buysell.txt parser only writes `\0` one
+byte AFTER the terminator. Both behaviors are equivalent for atoi
+(which stops at non-digits anyway) but matter for the `font:` strcpy.
+Our port's line reader excludes the `\r`/`\n` from the buffer
+entirely, achieving the same effect for both files with less
+ceremony.

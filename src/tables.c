@@ -24,6 +24,7 @@
 
 #include "storage.h"
 #include "tables_buysell.h"
+#include "tables_config.h"
 
 /* Load one file via storage_read and report the size. Returns the
  * size, or 0 on miss / OOM. Output buffer is owned by the caller and
@@ -70,12 +71,26 @@ static size_t load_via_storage(const char *path, unsigned char **out_buf)
     }
 
 DEFINE_STUB(load_stage_idx,     "idx/stage.idx")
-/* config.idx: the engine has two interned copies of the path — the
- * get_size site uses bare "config.idx" (storage miss → malloc(10)
- * silently undersized!) and the read site uses "data/config.idx".
- * Use the read-side spelling, which is the one that actually resolves
- * in the lnkdatas index. See docs/findings/tables-loader.md. */
-DEFINE_STUB(load_config_idx,    "data/config.idx")
+/* config.idx — ported. Real parser in src/tables_config.c. The engine
+ * has two interned copies of the path; the get_size site uses bare
+ * "config.idx" (storage miss → malloc(10) silently undersized!) and
+ * the read site uses "data/config.idx". We use the read-side spelling
+ * for both, sidestepping the 940-byte overrun. See
+ * docs/findings/tables-loader.md. */
+static void load_config_idx(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/config.idx", &buf);
+    if (sz == 0) return;
+    tables_parse_config(buf, sz, &g_config);
+    fprintf(stderr,
+            "tables: data/config.idx — %zu bytes "
+            "(kanjioff=%d edgewi=%d edgedel=%d effectmode=%d font=%s)\n",
+            sz, g_config.kanjioff, g_config.edgewi, g_config.edgedel,
+            g_config.effectmode,
+            g_config.font_set ? g_config.font_name : "(default)");
+    free(buf);
+}
 DEFINE_STUB(load_item_txt,      "data/item.txt")
 DEFINE_STUB(load_kyaku_txt,     "data/kyaku.txt")
 DEFINE_STUB(load_enemy_txt,     "data/enemy.txt")
