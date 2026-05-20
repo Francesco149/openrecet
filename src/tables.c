@@ -26,6 +26,7 @@
 #include "tables_buysell.h"
 #include "tables_chara.h"
 #include "tables_config.h"
+#include "tables_enemy.h"
 #include "tables_model.h"
 #include "tables_oder.h"
 #include "tables_snews.h"
@@ -97,7 +98,34 @@ static void load_config_idx(void)
 }
 DEFINE_STUB(load_item_txt,      "data/item.txt")
 DEFINE_STUB(load_kyaku_txt,     "data/kyaku.txt")
-DEFINE_STUB(load_enemy_txt,     "data/enemy.txt")
+/* enemy.txt — ported. Real parser in src/tables_enemy.c. The 64
+ * records ship pre-baked in .data with their NAMES; enemy.txt only
+ * supplies stats + drop refs, which are matched into records by
+ * longest-prefix name lookup. Drop-name → item-id resolution is
+ * deferred until item.txt parses (slot #3, which is still a stub) —
+ * for now drops stay at -1. */
+static void load_enemy_txt(void)
+{
+    tables_enemy_init(g_enemy);
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/enemy.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_enemy(buf, sz, g_enemy);
+    /* Parsed marker: at-least-one of {hp, at, md} non-zero. Covers
+     * outlier vendor rows like `岩とマグロ:0#0#20#0#0#0` (only AT)
+     * and `ゴーストＯ:20#25#0#16#20#10` (zero AT but non-zero HP/MD). */
+    int parsed = 0, bosses = 0;
+    for (int i = 0; i < ENEMY_COUNT; i++) {
+        if (g_enemy[i].hp != 0 || g_enemy[i].at != 0
+            || g_enemy[i].md != 0) parsed++;
+        if (g_enemy[i].flags == 1) bosses++;
+    }
+    fprintf(stderr,
+            "tables: data/enemy.txt — %zu bytes "
+            "(enemies=%d bosses=%d)\n",
+            sz, parsed, bosses);
+    free(buf);
+}
 /* chara.txt — ported. Real parser in src/tables_chara.c. Two parser
  * sub-blocks share the same 8 records: "000:".."007:" populates base
  * stats (10 CSV fields, 7 ints + 3 floats); "100:".."107:" populates

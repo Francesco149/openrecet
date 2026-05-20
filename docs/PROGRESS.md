@@ -3,6 +3,58 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [7/15]: `data/enemy.txt` parser
+
+**Subsystems landed:**
+- `src/tables_enemy.{c,h}` — pure-C parser for FUN_00475270 block #5
+  (L834..L1026). 64 fixed enemy records at `&DAT_005c23f0` (stride
+  0x68 = 104 bytes). Per-line **longest-common-prefix** match
+  against the pre-baked record names, then 6 ints (HP/EXP/AT/DF/MA/MD)
+  + 2 drop-item name lookups; both drops reset to -1 at line start.
+  Pre-baked NAMES + boss flags live in `.data` (extracted from
+  `vendor/unpacked/recettear.unpacked.exe` at file offset
+  `0x1c0bf0`) and are populated via `tables_enemy_init` before the
+  parser runs.
+- `src/tables.c` — replaced the enemy.txt stub with a real loader.
+  Init-then-parse pattern: call `tables_enemy_init(g_enemy)` to
+  copy the 64 names + flags from `.data`, then `tables_parse_enemy`
+  to overlay the stats. Boot trace logs `(enemies=N bosses=M)` with
+  a counter that handles outlier vendor rows.
+- `docs/formats/data-text.md` — appended a full enemy.txt section:
+  line shape, 0x68-byte record layout, longest-prefix lookup with
+  worked examples, pre-baked-record metadata, engine quirks, and
+  lnkdatas-vs-overlay vendor shape (2801 vs 3589 bytes).
+- `docs/findings/engine-quirks.md` — added quirk #21 (`enemy.txt`
+  unmatched lines fire MessageBoxA on every boot of the original
+  exe; `アルマ*` lines collapse onto a single record via the
+  alias-prefix path).
+- `tests/test_tables_enemy.c` — 10 cases: pre-baked init, basic
+  record, longest-prefix wins (アーリマン緑 over アーリマン), shorter
+  prefix when no longer match available, comments + blank lines
+  skipped, per-line drop reset, unknown-name silently skipped,
+  placeholder records (`name = " "`) skip match, no-trailing-newline,
+  vendor-shape end-to-end with mixed-prefix routing.
+
+**Engine fidelity divergences (documented):** the port silently
+skips unmatched lines (engine pops a blocking MessageBoxA on every
+one — vendor data triggers this 9 times per boot via the overlay
+file's late-content lines). Drop-name → item-id resolution is
+deferred until `item.txt` lands (slot #3, still a stub) — drops
+resolve to -1 unconditionally. The seven runtime floats at
++0x44..+0x5f (collision/sprite-scale data, populated by
+not-yet-ported runtime code) are left at zero in the port; the
+engine ships them with a baked snapshot in `.data` that the parser
+overwrites for stats but not these.
+
+**Boot verification:** stderr now shows
+`tables: data/enemy.txt — 3589 bytes (enemies=54 bosses=6)` against
+the bmpdata overlay (which `storage_read` picks first). The 54
+records match the count of unique pre-baked record names that the
+overlay's 67 data lines route into via longest-prefix match. The
+6 bosses come straight from the pre-baked flags table.
+
+**Test status:** 91 tests pass (up from 81), no fails, no skips.
+
 ## 2026-05-20 — Phase B [6/15]: `data/snews.txt` parser
 
 **Subsystems landed:**

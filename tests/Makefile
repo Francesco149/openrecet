@@ -20,9 +20,11 @@ LDFLAGS := $(SAN)
 
 SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash.c ../src/lnk_lzss.c \
                  ../src/tables_buysell.c ../src/tables_chara.c ../src/tables_config.c \
+                 ../src/tables_enemy.c \
                  ../src/tables_oder.c ../src/tables_model.c ../src/tables_snews.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
                  test_tables_buysell.c test_tables_chara.c test_tables_config.c \
+                 test_tables_enemy.c \
                  test_tables_oder.c test_tables_model.c test_tables_snews.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))

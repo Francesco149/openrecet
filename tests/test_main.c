@@ -73,6 +73,17 @@ extern int test_tables_chara_out_of_range_index_guarded(void);
 extern int test_tables_chara_lv100_field_permutation(void);
 extern int test_tables_chara_vendor_shape(void);
 
+extern int test_tables_enemy_init_pre_baked_names(void);
+extern int test_tables_enemy_basic_record(void);
+extern int test_tables_enemy_longest_prefix_wins(void);
+extern int test_tables_enemy_shorter_prefix_when_no_longer_match(void);
+extern int test_tables_enemy_comments_and_blanks_skipped(void);
+extern int test_tables_enemy_per_line_drop_reset(void);
+extern int test_tables_enemy_unknown_name_silently_skipped(void);
+extern int test_tables_enemy_placeholder_records_skip_match(void);
+extern int test_tables_enemy_no_trailing_newline(void);
+extern int test_tables_enemy_vendor_shape(void);
+
 extern int test_tables_config_empty(void);
 extern int test_tables_config_all_live_keys(void);
 extern int test_tables_config_makefont_is_noop(void);
@@ -166,6 +177,17 @@ static struct test_case g_tests[] = {
     {"tables_chara_out_of_range_index_guarded",  test_tables_chara_out_of_range_index_guarded},
     {"tables_chara_lv100_field_permutation",     test_tables_chara_lv100_field_permutation},
     {"tables_chara_vendor_shape",                test_tables_chara_vendor_shape},
+
+    {"tables_enemy_init_pre_baked_names",            test_tables_enemy_init_pre_baked_names},
+    {"tables_enemy_basic_record",                    test_tables_enemy_basic_record},
+    {"tables_enemy_longest_prefix_wins",             test_tables_enemy_longest_prefix_wins},
+    {"tables_enemy_shorter_prefix_when_no_longer_match", test_tables_enemy_shorter_prefix_when_no_longer_match},
+    {"tables_enemy_comments_and_blanks_skipped",     test_tables_enemy_comments_and_blanks_skipped},
+    {"tables_enemy_per_line_drop_reset",             test_tables_enemy_per_line_drop_reset},
+    {"tables_enemy_unknown_name_silently_skipped",   test_tables_enemy_unknown_name_silently_skipped},
+    {"tables_enemy_placeholder_records_skip_match",  test_tables_enemy_placeholder_records_skip_match},
+    {"tables_enemy_no_trailing_newline",             test_tables_enemy_no_trailing_newline},
+    {"tables_enemy_vendor_shape",                    test_tables_enemy_vendor_shape},
 
     {"tables_config_empty",                   test_tables_config_empty},
     {"tables_config_all_live_keys",           test_tables_config_all_live_keys},

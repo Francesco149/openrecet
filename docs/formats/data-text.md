@@ -754,3 +754,154 @@ parsed state — because no subsequent dungeon's first `f:` exists to
 "write" to it. Vendor data is structured such that this corruption
 is benign (corrupted floor_end values still bracket the
 in-game-range floors of the dungeon's main play loop).
+
+---
+
+## `data/enemy.txt`
+
+**Engine block:** `FUN_00475270` block #5
+(`docs/decompiled/by-address/475270.c:834..1026`).
+
+**Identity:** referenced via `s_data_enemy_txt_005cae2c` (size path)
+and `s_data_enemy_txt_005cae3c` (read path) — same spelling both
+sides, so no path-mismatch quirk.
+
+**Port:** `src/tables_enemy.{c,h}`, parser entry point
+`tables_parse_enemy(data, size, records)`. Engine-global instance
+`g_enemy[ENEMY_COUNT]`. Tests in `tests/test_tables_enemy.c` (10
+cases — pre-baked init, basic record, longest-prefix wins, shorter
+prefix when no longer match, comments/blanks skipped, per-line drop
+reset, unknown-name silently skipped, placeholder records skip
+match, no-trailing-newline, vendor-shape end-to-end).
+
+**Purpose:** configures HP/EXP/AT/DF/MA/MD stats and common/rare
+drop-item references for the 64 enemy templates the engine spawns
+across dungeons. The 64 NAMES are pre-baked into the binary's
+`.data` segment at `&DAT_005c23f0` (file offset `0x1c0bf0` in
+`vendor/unpacked/recettear.unpacked.exe`); enemy.txt only updates
+the stats.
+
+### Line shape
+
+```text
+<name>:<HP># <EXP># <AT># <DF># <MA># <MD># <common_drop> # <rare_drop>
+```
+
+Field delimiters recognized: `:`, `,`, `;`, `#`. The first delimiter
+terminates the name match; the next six fields are atoi'd into HP,
+EXP, AT, DF, MA, MD; the last two are looked up by name in the
+`item.txt` table (`&DAT_095d381a`, stride 0x2cc, count
+`_DAT_005c80ac`) and stored as item ids. Blank lines and lines
+whose first byte is `/` or ` ` (space) are skipped.
+
+The rare-drop column is optional — both drop slots are reset to -1
+at the start of every line, so a line that omits the rare drop ends
+up with `drop_rare = -1` rather than the previous line's value.
+
+### Record layout (stride 0x68 / 104 bytes)
+
+| offset | C field           | type | written by | meaning                            |
+|-------:|-------------------|------|------------|------------------------------------|
+| +0x00  | `name[0x20]`      | SJIS | .data init | record name (pre-baked, immutable) |
+| +0x20  | `flags`           | i32  | .data init | 0=normal, 1=boss; (2=sentinel)     |
+| +0x24  | `unknown_24`      | i32  | runtime    | sprite/animation index? not parsed |
+| +0x28  | `unknown_28`      | f32  | runtime    | runtime scale (often 1.0); not parsed |
+| +0x2c  | `hp`              | i32  | enemy.txt  | file field 1 (HP)                  |
+| +0x30  | `exp_reward`      | i32  | enemy.txt  | file field 2 (EXP)                 |
+| +0x34  | `at`              | i32  | enemy.txt  | file field 3 (AT)                  |
+| +0x38  | `df`              | i32  | enemy.txt  | file field 4 (DF)                  |
+| +0x3c  | `ma`              | i32  | enemy.txt  | file field 5 (MA)                  |
+| +0x40  | `md`              | i32  | enemy.txt  | file field 6 (MD)                  |
+| +0x44  | `runtime_floats`  | f32×7| runtime    | collision/render data; not parsed  |
+| +0x60  | `drop_common`     | i32  | enemy.txt  | item id from "drop name" lookup    |
+| +0x64  | `drop_rare`       | i32  | enemy.txt  | item id from "rare drop" lookup    |
+
+### Record-name lookup: longest common prefix
+
+The engine walks all 64 records per data line and keeps the record
+whose stored name is the longest prefix of the line. Concretely,
+for each record (skipped if `strlen(name) == 0`):
+
+1. Compare `line[0..nlen]` byte-by-byte against `record->name`.
+2. If all `nlen` bytes match AND `nlen > best_len`, this record
+   becomes the new best.
+
+So:
+
+- A line beginning with `"アーリマン緑"` (12 bytes) matches both
+  record 6 (`"アーリマン"`, 10 bytes) and record 7 (`"アーリマン緑"`,
+  12 bytes); record 7 wins (longest prefix).
+- A line beginning with `"アーリマン "` (with a trailing space)
+  matches only record 6 — records 7..9 (`緑/青/赤`) all have a
+  non-space byte at position 10 that differs from the line's space.
+- A line beginning with `"ダークゴーレム"` matches no record
+  (record 61's `"ゴーレム"` starts with `\x83\x53`, not `\x83\x5f`).
+
+The seven "placeholder" records (slots 29/31/32/33/56/57/58) ship
+with `name = " "` (single space, length 1). Real data lines never
+begin with a space (the parser filters those out earlier), so the
+placeholders never match.
+
+### Pre-baked record table (extracted from .data)
+
+64 records × 0x68 stride at file offset `0x1c0bf0` of
+`vendor/unpacked/recettear.unpacked.exe`. Bosses (`flags == 1`) at
+slots 24 (`ねずみバール`), 59-60 (`ねずみハリセン/マグロ`), 61-63
+(`ゴーレム/右/左`). Placeholder slots at 29, 30 (`アルエット` — name
+present but no enemy.txt line), 31-33, 42 (`ヒドラ` — no line), 43
+(`親父` — no line), 56-58. All bytes beyond the name+flags region
+are zero-initialized in our port; the engine ships them with a
+parsed snapshot (so a fresh boot has working stats even before the
+parse) plus runtime floats at +0x44..+0x5f that get used elsewhere.
+
+The port populates only `name` and `flags` from .data (via
+`tables_enemy_init`); enemy.txt overwrites stats and drop ids. The
+runtime floats stay zero until the relevant engine-spawn code is
+ported.
+
+### Engine quirks
+
+- **Sentinel `flags == 2` never present.** L821 of the parser
+  breaks on a record with `flags == 2`, but no shipping record uses
+  that value. The port honours the sentinel for fidelity even
+  though it's dead code.
+- **Aliased writes via prefix matching.** Vendor overlay file
+  (`bmpdata.bin` enemy.txt, 3589 bytes) has 5 lines starting with
+  `"アルマ"` (`アルマ`, `アルマゴーレム`, `アルマゴーレムコア`,
+  `アルマゴーレム右手`, `アルマゴーレム左手`). All match record 41
+  via the prefix rule; **last line wins**, so record 41 ends up
+  with the stats of `アルマゴーレム左手` (HP=100, AT=20), not the
+  `アルマ` line.
+- **Lines with no matching record fire MessageBoxA.** Lines like
+  `ダークゴーレム…`, `オーム…`, `カニ…`, `黒カニ…`, `クラゲ…`,
+  `赤クラゲ…`, `魔王の手…` have no prefix match → engine pops a
+  blocking dialog. Vendor ships these lines anyway, so any factory
+  boot of recettear.exe shows the dialog chain unless the overlay
+  is bypassed. Port silently skips.
+- **Item lookup uses prefix match too** (L975..L1008): the drop
+  name is compared as a prefix of the item-table name, not a full
+  equality. So a drop name of `"Slime"` would match `Slime Fluid`
+  (or `Slime Stone`, whichever appears first). Vendor drop names
+  are full item names, so this is unobservable.
+- **Per-line drop reset (L925..L926).** Both drop slots reset to -1
+  at the start of every line, before field walking. So a line that
+  only specifies the common drop ends up with `drop_rare = -1`.
+
+### Vendor file shape
+
+| version              | bytes | data lines | matched records | unmatched lines |
+|----------------------|-------|------------|-----------------|-----------------|
+| lnkdatas (raw)       | 2801  | 53         | 53              | 0               |
+| bmpdata overlay      | 3589  | 67         | 54 (some aliased)| 9               |
+
+The overlay version adds late-game / unused-content entries
+(`ダークゴーレム`, `カニ`, `クラゲ`, `魔王の手`,
+`アルマゴーレム*`) — most of which have no matching pre-baked
+record and trigger the engine's MessageBoxA chain. The post-parse
+state of `g_enemy` is identical between the two for the records
+both files cover.
+
+Boot trace logs `(enemies=N bosses=M)` where `enemies` counts
+records with any of `{hp, at, md}` non-zero (covering outliers like
+`岩とマグロ:0#0#20#0#0#0` and `ゴーストＯ:20#25#0#16#20#10`), and
+`bosses` is the count of pre-baked `flags == 1` records (always 6).
