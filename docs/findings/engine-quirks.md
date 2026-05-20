@@ -351,6 +351,60 @@ even if it's deeper than fashion would dictate.
 
 ---
 
+## 19. `chara.txt` parses two records into the next array
+
+`FUN_00475270` block #6 (the `chara.txt` loader, ported to
+`src/tables_chara.c`) sets up an 8-record array and then runs a
+parse loop that iterates *ten* times.  The init loop walks
+`&DAT_073ae060 → &DAT_073ae260` in 0x40-byte strides — 8 iterations.
+The parse loop walks `&DAT_073ae058 → &DAT_073ae2d8` in 0x40-byte
+strides — 10 iterations.  Same stride, different end pointer, off by
+exactly two records.
+
+The catch: `g_chara` is **byte-adjacent** to `g_models`.
+
+```text
+&DAT_073ae058    g_chara[0]  ── start of 8-record adventurer array
+…
+&DAT_073ae058 + 8 * 0x40
+&DAT_073ae258    g_models[0]  ── start of 20-record 3D-model array
+```
+
+The parse loop's end pointer `0x73ae2d8 = 0x73ae258 + 2 * 0x40`
+lands two model records *into* `g_models[]`.  Each iteration calls
+`sprintf("%03d:", iVar1)` against the current line — so any
+`008:` or `009:` line in chara.txt silently overwrites
+`g_models[0]` (which holds the first kine model's `.x` filename and
+bone-attachment names), and any `108:` / `109:` line writes six ints
+into the second kine model's name field starting at offset 0x28
+within the 0x2b8-byte record.
+
+There's no `MessageBoxA`, no error path, no length check — the
+parser is happily walking off the end into a different global.  In a
+language with bounds checks this would be a tidy little overflow CVE.
+In raw x86 it's just two extra `cmp`/`jne` instructions away from
+correctness.
+
+Vendor `data/chara.txt` ships only indices `000`-`007` and
+`100`-`107`, so the bug is dormant in production.  Our port caps the
+inner match loop at `CHARA_COUNT` (8) and silently drops out-of-range
+lines, which is what the engine *would have* done if the loop bound
+had matched the init.
+
+The init loop and the parse loop are both about ten lines apart in
+the decompiled output — likely the developer extended the parse
+range (perhaps planning to add Recette herself as record `008`, or
+to support a future expansion) and forgot to extend the init loop in
+lockstep.  We'll never know.  But it's a great illustration of why
+"the array has N entries" is not a property the engine knows about
+itself: there's no `count` field, no header, no `#define` — just two
+hardcoded address constants that have to agree by hand.
+
+> 📍 `src/tables_chara.c`, `docs/formats/data-text.md` "chara.txt"
+> section.
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an
