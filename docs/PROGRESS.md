@@ -3,6 +3,65 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [8/15]: `data/tuto[123].txt` parser
+
+**Subsystems landed:**
+- `src/tables_tuto.{c,h}` — pure-C parser for FUN_00475270 block #15
+  (L2898..L3123). The three tutorial scripts (`tuto1.txt` /
+  `tuto2.txt` / `tuto3.txt`) share a single 296-byte-per-record
+  array (`g_tuto[600]`). Per-line CSV with a 16-token opcode
+  dispatch (ASCII tokens `CHR0`/`CHR1`/`TAGD`/`PRID`/`PRIA`/`BUN0`/
+  `GOTO`/`TAGN`/`TOUT` and SJIS keywords `値段`/`高く`/`値引`/`値上`/
+  `アイテム`/`剣選択`/`初期金額決定`). Two payload families: 1 int +
+  text for CHR0/CHR1, 7 ints for the price/branch opcodes, none for
+  the rest. Handles the `id == -1` sentinel and `id <= -2`
+  text-only branches faithfully.
+- `src/tables.c` — replaced the tuto stub-loop with a real loader.
+  Mirrors the engine's hard-coded 3-file iteration (no early-exit
+  on miss) and logs `(records=N)` with a ⚠ when N exceeds the
+  50-slot parser cap (which it does on all three vendor files).
+- `docs/formats/data-text.md` — appended a full tuto section:
+  opcode table, record layout, the parser-vs-consumer stride
+  mismatch, vendor-data overflow numbers, and the final
+  cross-overwritten array state.
+- `docs/findings/engine-quirks.md` — added quirk #22 (parser stride
+  50 vs consumer stride 200, both pointing at `&DAT_005d1fc8`;
+  three of four `FUN_00461bf6` callers push `2` so the consumer
+  reads a never-written region).
+- `tests/test_tables_tuto.c` — 18 cases covering empty input,
+  blank/comment skipping, every ASCII opcode, every SJIS opcode,
+  the `id < 0` branches, the 7-int reader with short-arg fallback,
+  the file_index×50 stride, the 50-slot overflow, and a vendor-
+  shape integration test.
+
+**New persistent tooling:** `tools/analyze/pe.py` — PE32 helper
+module + CLI for the unpacked vendor exe, used for VA → file offset
+mapping, NUL-terminated cp932 string dumps, raw byte / blob
+extraction, and call-site discovery with PUSH-imm decoding.
+Replaces the ad-hoc inline Python scripts that kept getting
+reinvented for each RE session. `docs/AGENT-WORKFLOW.md` got a new
+"Persistent analysis tooling" section pointing at it.
+
+**Engine fidelity divergences (documented):** the 7-int reader on
+short lines reads stack garbage in the engine; our port zeros the
+line buffer between records so missing args read as 0 (benign —
+gameplay code only uses `args[0]` for `GOTO`). The parser-vs-
+consumer stride mismatch (quirk #22) is preserved on the parser
+side; the consumer port will inherit whatever the engine actually
+does at runtime.
+
+**Boot trace** (smoke test, vendor data):
+```
+tables: data/tuto1.txt — 8978 bytes (records=135 ⚠ overflows 50-slot cap)
+tables: data/tuto2.txt — 5828 bytes (records=90 ⚠ overflows 50-slot cap)
+tables: data/tuto3.txt — 4064 bytes (records=60 ⚠ overflows 50-slot cap)
+tables: tuto overflow — 3/3 files exceed the 50-slot parser cap (engine quirk: stride mismatch vs consumer)
+```
+
+**Tests:** 109 pass (was 91), 0 fail, 0 skip.
+
+**Remaining Phase B order:** `gousei.txt → kyaku.txt → event.txt → news.txt → stage.idx → enemylist.txt → item.txt`.
+
 ## 2026-05-20 — Phase B [7/15]: `data/enemy.txt` parser
 
 **Subsystems landed:**

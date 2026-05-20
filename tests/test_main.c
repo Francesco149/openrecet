@@ -123,6 +123,25 @@ extern int test_tables_snews_name_overlong_truncates(void);
 extern int test_tables_snews_entry_slot_overflow_dropped(void);
 extern int test_tables_snews_vendor_shape(void);
 
+extern int test_tables_tuto_empty(void);
+extern int test_tables_tuto_blanks_and_comments(void);
+extern int test_tables_tuto_chr0_basic(void);
+extern int test_tables_tuto_chr1_basic(void);
+extern int test_tables_tuto_no_arg_opcodes(void);
+extern int test_tables_tuto_goto_7_ints(void);
+extern int test_tables_tuto_goto_short_args_zero(void);
+extern int test_tables_tuto_bun0_7_ints(void);
+extern int test_tables_tuto_nedan_alias_takaku(void);
+extern int test_tables_tuto_nebiki_neage(void);
+extern int test_tables_tuto_shoki_kingaku_kettei(void);
+extern int test_tables_tuto_aitemu(void);
+extern int test_tables_tuto_kensen_7_ints(void);
+extern int test_tables_tuto_id_minus_one_sentinel(void);
+extern int test_tables_tuto_id_below_minus_one_text_only(void);
+extern int test_tables_tuto_file_index_stride(void);
+extern int test_tables_tuto_overflows_cap(void);
+extern int test_tables_tuto_vendor_like_shape(void);
+
 /* ─── registry ─────────────────────────────────────────────────────────── */
 static struct test_case g_tests[] = {
     {"bmp_basic_24bit",                  test_bmp_basic_24bit},
@@ -227,6 +246,25 @@ static struct test_case g_tests[] = {
     {"tables_snews_name_overlong_truncates",            test_tables_snews_name_overlong_truncates},
     {"tables_snews_entry_slot_overflow_dropped",        test_tables_snews_entry_slot_overflow_dropped},
     {"tables_snews_vendor_shape",                       test_tables_snews_vendor_shape},
+
+    {"tables_tuto_empty",                       test_tables_tuto_empty},
+    {"tables_tuto_blanks_and_comments",         test_tables_tuto_blanks_and_comments},
+    {"tables_tuto_chr0_basic",                  test_tables_tuto_chr0_basic},
+    {"tables_tuto_chr1_basic",                  test_tables_tuto_chr1_basic},
+    {"tables_tuto_no_arg_opcodes",              test_tables_tuto_no_arg_opcodes},
+    {"tables_tuto_goto_7_ints",                 test_tables_tuto_goto_7_ints},
+    {"tables_tuto_goto_short_args_zero",        test_tables_tuto_goto_short_args_zero},
+    {"tables_tuto_bun0_7_ints",                 test_tables_tuto_bun0_7_ints},
+    {"tables_tuto_nedan_alias_takaku",          test_tables_tuto_nedan_alias_takaku},
+    {"tables_tuto_nebiki_neage",                test_tables_tuto_nebiki_neage},
+    {"tables_tuto_shoki_kingaku_kettei",        test_tables_tuto_shoki_kingaku_kettei},
+    {"tables_tuto_aitemu",                      test_tables_tuto_aitemu},
+    {"tables_tuto_kensen_7_ints",               test_tables_tuto_kensen_7_ints},
+    {"tables_tuto_id_minus_one_sentinel",       test_tables_tuto_id_minus_one_sentinel},
+    {"tables_tuto_id_below_minus_one_text_only", test_tables_tuto_id_below_minus_one_text_only},
+    {"tables_tuto_file_index_stride",           test_tables_tuto_file_index_stride},
+    {"tables_tuto_overflows_cap",               test_tables_tuto_overflows_cap},
+    {"tables_tuto_vendor_like_shape",           test_tables_tuto_vendor_like_shape},
 };
 
 int main(int argc, char *argv[])

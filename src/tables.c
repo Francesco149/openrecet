@@ -30,6 +30,7 @@
 #include "tables_model.h"
 #include "tables_oder.h"
 #include "tables_snews.h"
+#include "tables_tuto.h"
 
 /* Load one file via storage_read and report the size. Returns the
  * size, or 0 on miss / OOM. Output buffer is owned by the caller and
@@ -240,27 +241,37 @@ static void load_snews_txt(void)
 DEFINE_STUB(load_gousei_txt,    "data/gousei.txt")
 DEFINE_STUB(load_enemylist_txt, "data/enemylist.txt")
 
-/* Tutorial files: the engine loops over data/tuto_%d.txt starting at
- * index 1 and stops at the first missing file (we picked 1..32 as a
- * generous cap; vendor/original ships tuto_1..tuto_3). When a parser
- * lands here it'll need the index too — for now just log presence. */
+/* tuto1.txt / tuto2.txt / tuto3.txt — ported. Real parser in
+ * src/tables_tuto.c. The engine hard-codes the loop to three files
+ * (local_38 == 3 → return) using format string "data/tuto%d.txt" at
+ * 0x005cb38c — no early-exit on miss. We mirror that fixed-count
+ * approach. */
 static void load_tuto_loop(void)
 {
     char path[64];
-    for (int i = 1; i <= 32; i++) {
-        /* Engine format string at 0x005cb38c is "data/tuto%d.txt"
-         * (no underscore) — vendor ships tuto1.txt, tuto2.txt, tuto3.txt. */
+    int total = 0;
+    int overflow = 0;
+    for (int i = 1; i <= TUTO_FILE_COUNT; i++) {
         snprintf(path, sizeof path, "data/tuto%d.txt", i);
         unsigned char *buf;
         size_t sz = load_via_storage(path, &buf);
-        if (sz == 0) {
-            /* First miss ends the loop — matches the engine pattern of
-             * stopping when storage_get_size returns 0. */
-            break;
-        }
-        fprintf(stderr, "tables: %s — %zu bytes (parser stub)\n", path, sz);
+        if (sz == 0) continue;
+
+        int n = tables_parse_tuto(i - 1, buf, sz, g_tuto);
+        total += n;
+        if (n > TUTO_PARSER_STRIDE) overflow++;
+        fprintf(stderr, "tables: %s — %zu bytes (records=%d%s)\n",
+                path, sz, n,
+                n > TUTO_PARSER_STRIDE ? " ⚠ overflows 50-slot cap" : "");
         free(buf);
     }
+    if (overflow > 0) {
+        fprintf(stderr,
+                "tables: tuto overflow — %d/%d files exceed the 50-slot "
+                "parser cap (engine quirk: stride mismatch vs consumer)\n",
+                overflow, TUTO_FILE_COUNT);
+    }
+    (void)total;
 }
 
 void tables_load_all(void)

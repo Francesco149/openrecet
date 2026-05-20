@@ -905,3 +905,140 @@ Boot trace logs `(enemies=N bosses=M)` where `enemies` counts
 records with any of `{hp, at, md}` non-zero (covering outliers like
 `岩とマグロ:0#0#20#0#0#0` and `ゴーストＯ:20#25#0#16#20#10`), and
 `bosses` is the count of pre-baked `flags == 1` records (always 6).
+
+
+## `data/tuto1.txt` / `data/tuto2.txt` / `data/tuto3.txt`
+
+**Parser:** `src/tables_tuto.c` (block #15 of FUN_00475270 /
+`tables_load_all`). Three files, loaded in sequence via a 3-iter
+hard-coded loop. All three populate the **same** record array
+(`&DAT_005d1fc8`), a single 200-slot × 296-byte buffer per file region
+in the consumer's view.
+
+The three files are a small **script** for the in-shop selling /
+buying / recommendation tutorials. Each non-blank, non-`/`-prefixed
+line is one record: an `id` (used as a jump target by `GOTO`) and an
+opcode that selects what kind of dialogue or UI cue it is.
+
+### Line shape
+
+Lines are Shift-JIS, CR/LF/CRLF terminated. The engine's outer
+line scanner skips lines whose first byte is `\r`, `\n`, or `/`. The
+parser then sees:
+
+```text
+<id-int>,<opcode-token>[,<opcode-payload...>]
+```
+
+`<id-int>` is parsed by atoi from the start of the line. Three id
+ranges have special meaning:
+
+| `id`            | meaning                                                |
+|-----------------|--------------------------------------------------------|
+| `0` or positive | regular record; opcode dispatch follows                |
+| `-1`            | sentinel record: opcode set to `-1`, no further reads  |
+| `<= -2`         | text-only record: text copied from `line+3`, **opcode untouched** (BSS-zero = `CHR0`) — used for "retry" messages picked up by negative-id dispatch on the gameplay side |
+
+### Opcode dispatch
+
+Opcode tokens are matched **in this fixed order** against bytes
+immediately after the first comma (the engine's nested `if/else`
+chain at L2977..L3067 of `docs/decompiled/by-address/475270.c`):
+
+| Opcode | Token (bytes) | Length | Payload |
+|--------|---------------|--------|---------|
+| 0      | `CHR0`        | 4      | 1 int (`chr_arg`) + `text` after the next comma |
+| 1      | `CHR1`        | 4      | same as `CHR0`                                  |
+| 2      | `TAGD`        | 4      | none (target window: show)                      |
+| 3      | `PRID`        | 4      | none (price window: show)                       |
+| 4      | `PRIA`        | 4      | none (price input wait)                         |
+| 5      | `BUN0`        | 4      | 7 ints                                          |
+| 6      | `GOTO`        | 4      | 7 ints (`args[0]` = target id)                  |
+| 8      | `TAGN`        | 4      | none (target window: hide)                      |
+| 9      | `TOUT`        | 4      | none (NPC exits scene)                          |
+| 10     | `アイテム`     | 8      | none (item window)                              |
+| 11     | `剣選択`       | 6      | 7 ints                                          |
+| 12     | `値段` or `高く` | 4    | 7 ints — **shared opcode** for the two SJIS tokens |
+| 13     | `値引`        | 4      | 7 ints                                          |
+| 14     | `値上`        | 4      | 7 ints                                          |
+| 20     | `初期金額決定` | 12     | none (set initial offer amount)                 |
+
+Opcode value `7` is unused — the dispatch chain has no token that
+maps there. Unknown tokens trigger `MessageBoxA(... "syntax error", ...)`
+in the engine; our port logs to stderr and continues.
+
+### Record layout (stride `0x128`)
+
+```
+offset  type          field          notes
+0x000   int           id             first int on the line
+0x004   int           opcode         see table above; -1 = sentinel
+0x008   char[256]     text           CHR0/CHR1 dialogue or -N retry text
+0x108   int[7]        args           BUN0/GOTO/剣選択/値段/高く/値引/値上
+0x124   int           chr_arg        single int for CHR0/CHR1 only
+```
+
+The four field offsets are pinned by `_Static_assert` in
+`src/tables_tuto.h`.
+
+### Engine quirks reproduced
+
+- **Parser stride 50 vs consumer stride 200** — major. The parser
+  computes the destination slot as `local_8 + local_c * 50`, but the
+  gameplay-side reader at `FUN_00461c00` indexes with stride 200
+  (`DAT_005c6bb0 * 0xe740`, `0xe740 = 200 * 0x128`). The two
+  disagree by a factor of 4, so the parser **only** ever fills the
+  first 200 slots of the array. Three of four call sites for the
+  file-index setter `FUN_00461bf6` push the immediate `2`, so the
+  consumer routinely reads from file 2's region — which the parser
+  never writes — returning BSS-zero records (all `CHR0`, empty text).
+  How the game tolerates this in practice is unanswered for now;
+  the port preserves the behaviour and we'll revisit when the
+  gameplay-side dispatcher gets ported.
+- **Vendor data overflows the parser cap on every file.** tuto1.txt
+  has 135 records, tuto2.txt 90, tuto3.txt 60 — all far past the
+  50-slot stride. The records sequentially overwrite each other's
+  ranges; tuto3.txt walks 10 slots past the 150-slot array. Our
+  port sizes `g_tuto` at 600 to absorb the overflow safely.
+- **`id < -1` text-only branch does NOT set `opcode`.** Lines like
+  `-2,Let us try again.` write only `id` and `text`; opcode is left
+  at whatever the BSS-zero default was (= `CHR0`). The gameplay
+  dispatcher addresses these records by negative id, not by opcode,
+  so the wrong-looking opcode is benign.
+- **7-int reader walks past line-end NUL.** For short lines like
+  `0,GOTO,9,\t//comment` the engine's per-arg `for`-loop scans for
+  `,` `\r` `\n` — none of which `\0` matches — so it walks into
+  stack garbage and atoi's whatever bytes happen to be there. Our
+  port uses a zeroed-between-lines buffer, so missing args read as
+  0. Benign because gameplay code uses `args[0]` only for `GOTO`.
+- **No comma → "loop err 17".** A line with no comma (e.g.
+  `\t//comment` with leading whitespace that parses to id 0) makes
+  the engine's comma-find loop run unbounded. The engine logs
+  `loop err 17` via its debug pipe and moves on; we log to stderr
+  with the offending line.
+- **Sentinel write at end-of-file** — after consuming the file, the
+  engine writes opcode = -1 at the **next** (unwritten) slot. Our
+  port mirrors this so the gameplay-side `opcode == -1` early-exit
+  trigger works.
+
+### Vendor file shape
+
+| file       | bytes | records | slot range (parser) | overflow? |
+|------------|-------|---------|---------------------|-----------|
+| tuto1.txt  | 8978  | 135     | 0..134              | yes (85)  |
+| tuto2.txt  | 5828  | 90      | 50..139             | yes (40)  |
+| tuto3.txt  | 4064  | 60      | 100..159            | yes (10)  |
+
+After all three loads, the **final array state** is:
+
+| slots      | content                                                   |
+|------------|-----------------------------------------------------------|
+| 0..49      | tuto1[0..49] (intact)                                     |
+| 50..99     | tuto2[0..49] (overwrites tuto1's overflow 50..99)         |
+| 100..149   | tuto3[0..49] (overwrites tuto1's overflow 100..134 + tuto2's overflow 100..139) |
+| 150..159   | tuto3[50..59] (overflow — only this region escapes overwrites) |
+| 160..      | sentinel + BSS-zero                                       |
+
+Boot trace logs `(records=N)` per file plus a one-line warning when
+the count exceeds the 50-slot cap, so the engine's behaviour is
+observable at startup.
