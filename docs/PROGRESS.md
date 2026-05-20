@@ -3,6 +3,39 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [1/15]: `data/buysell.txt` parser
+
+**Subsystems landed:**
+- `src/tables_buysell.{c,h}` — pure-C parser for FUN_00475270 block #7.
+  Mirrors the engine's "match every prefix on every non-comment line"
+  structure with five key forms: `ok:` (debug flag), `客番号:` / `種類:`
+  (SJIS scalars), and `msg%02d:` / `rmsg%02d:` (two 20-int arrays).
+  Engine-global instance `g_buysell`; tests use the out-parameter form.
+- `src/tables.c` — replaced the buysell stub with a real loader that
+  storage_reads the file, calls `tables_parse_buysell`, and logs the
+  three scalars to the boot trace.
+- `docs/formats/data-text.md` — new format-spec doc for the
+  `data/*.txt` + `idx/*.idx` group. Documents shared conventions
+  (Shift-JIS, CRLF, leading-`/` comments, two format families) plus a
+  full section for buysell.txt (key table with byte-level SJIS
+  identification, engine-side global addresses, the
+  rmsg-before-msg in-memory layout quirk, vendor file sample).
+- `tests/test_tables_buysell.c` — 8 cases covering empty input,
+  comment-only files, the `ok:` toggle, the two SJIS scalar keys
+  (using the exact byte sequences from the engine's `.data`),
+  msg/rmsg arrays at boundary indices 0 and 19, EOF-without-newline,
+  embedded-`\0` early-termination, and a vendor-shape end-to-end
+  fixture that reproduces the actual file's CRLF + SJIS + comment
+  layout with non-zero values.
+
+**Boot verification:** stderr now shows
+`tables: data/buysell.txt — 504 bytes (debug=0 kyaku=14 kind=2)`,
+matching the vendor file's expected values (debug commented, customer
+14, kind "about"=2). All other 16 stubs continue to log size lines as
+before; tutorial loop still stops correctly at `tuto4.txt`.
+
+**Test status:** 37 tests pass (up from 29), no fails, no skips.
+
 ## 2026-05-20 — FUN_00475270 ("init indexfile ok") skeleton + Phase A discovery
 
 **Subsystems landed:**

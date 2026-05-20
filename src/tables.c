@@ -23,6 +23,7 @@
 #include <stdlib.h>
 
 #include "storage.h"
+#include "tables_buysell.h"
 
 /* Load one file via storage_read and report the size. Returns the
  * size, or 0 on miss / OOM. Output buffer is owned by the caller and
@@ -79,7 +80,20 @@ DEFINE_STUB(load_item_txt,      "data/item.txt")
 DEFINE_STUB(load_kyaku_txt,     "data/kyaku.txt")
 DEFINE_STUB(load_enemy_txt,     "data/enemy.txt")
 DEFINE_STUB(load_chara_txt,     "data/chara.txt")
-DEFINE_STUB(load_buysell_txt,   "data/buysell.txt")
+/* buysell.txt — ported. Real parser in src/tables_buysell.c. */
+static void load_buysell_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/buysell.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_buysell(buf, sz, &g_buysell);
+    fprintf(stderr,
+            "tables: data/buysell.txt — %zu bytes "
+            "(debug=%d kyaku=%d kind=%d)\n",
+            sz, g_buysell.debug_mode,
+            g_buysell.kyaku_number, g_buysell.kind);
+    free(buf);
+}
 DEFINE_STUB(load_oder_txt,      "data/oder.txt")
 DEFINE_STUB(load_model_txt,     "data/model.txt")
 DEFINE_STUB(load_event_txt,     "data/event.txt")

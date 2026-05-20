@@ -54,6 +54,15 @@ extern int test_lnk_lzss_back_high_bits(void);
 extern int test_lnk_lzss_mixed_flags(void);
 extern int test_lnk_lzss_vendor_round_trip(void);
 
+extern int test_tables_buysell_empty(void);
+extern int test_tables_buysell_comments_only(void);
+extern int test_tables_buysell_ok_toggle(void);
+extern int test_tables_buysell_sjis_scalars(void);
+extern int test_tables_buysell_msg_arrays(void);
+extern int test_tables_buysell_no_trailing_newline(void);
+extern int test_tables_buysell_embedded_null_terminates(void);
+extern int test_tables_buysell_vendor_shape(void);
+
 /* ─── registry ─────────────────────────────────────────────────────────── */
 static struct test_case g_tests[] = {
     {"bmp_basic_24bit",                  test_bmp_basic_24bit},
@@ -89,6 +98,15 @@ static struct test_case g_tests[] = {
     {"lnk_lzss_back_high_bits",          test_lnk_lzss_back_high_bits},
     {"lnk_lzss_mixed_flags",             test_lnk_lzss_mixed_flags},
     {"lnk_lzss_vendor_round_trip",       test_lnk_lzss_vendor_round_trip},
+
+    {"tables_buysell_empty",                  test_tables_buysell_empty},
+    {"tables_buysell_comments_only",          test_tables_buysell_comments_only},
+    {"tables_buysell_ok_toggle",              test_tables_buysell_ok_toggle},
+    {"tables_buysell_sjis_scalars",           test_tables_buysell_sjis_scalars},
+    {"tables_buysell_msg_arrays",             test_tables_buysell_msg_arrays},
+    {"tables_buysell_no_trailing_newline",    test_tables_buysell_no_trailing_newline},
+    {"tables_buysell_embedded_null_terminates", test_tables_buysell_embedded_null_terminates},
+    {"tables_buysell_vendor_shape",           test_tables_buysell_vendor_shape},
 };
 
 int main(int argc, char *argv[])
