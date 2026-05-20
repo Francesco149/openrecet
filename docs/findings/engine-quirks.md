@@ -885,6 +885,144 @@ The port copies up to `NEWS_BODY_LEN - 1` bytes and stops on
 
 ---
 
+## 31. `enemylist.txt` reserves 10 dungeon slots, only 6 are keyed
+
+The init loop at L2592..L2607 walks the engine's 10×60 floor-section
+grid (at `&DAT_0053f8e8`, 451200 bytes total) and stamps every section
+with the `floor_lo = -1` / `enemy_id[k] = -1` sentinel. That's 10
+dungeons' worth of storage scrubbed at every boot.
+
+But the parser's dungeon-key chain at L2690..L2702 only matches **6**
+SJIS keys:
+
+```text
+ダンジョン１ → local_20 = 0
+ダンジョン２ → local_20 = 1
+ダンジョン３ → local_20 = 2
+ダンジョン４ → local_20 = 3
+ダンジョン５ → local_20 = 4
+ダンジョン６ → local_20 = 5
+```
+
+There is no SJIS string for `ダンジョン７..0` in `.data`. `local_20`
+can ONLY take values 0..5. The trailing 4 dungeon slots (indices 6..9)
+are pre-initialised storage with no possible writer.
+
+Either the developer planned 10 dungeons and shipped 6 (Pensee shipped
+the same 6 in DLC) or they over-allocated and never trimmed the init.
+Vendor data uses dungeons 1..6 (Slime Hutch / Jade Way / Amber Garden
+/ Crystal Nightmare / Tempest Plain / Pygmy Hugs), so it's the 6 that
+made the release.
+
+> 📍 `src/tables_enemylist.c`, `docs/decompiled/by-address/475270.c`
+> L2592..L2607, L2690..L2702.
+
+---
+
+## 32. `wisp10:` lands on `:` and silent-drops
+
+The init loop at L2608..L2612 reserves **10** dwords at `&DAT_073d8630`
+for the wisp drop table:
+
+```c
+puVar12 = &DAT_073d8630;
+for (iVar1 = 10; iVar1 != 0; iVar1 = iVar1 + -1) {
+  *puVar12 = 0xffffffff;
+  puVar12 = puVar12 + 1;
+}
+```
+
+Storage for slots 0..9. So far so good. The parse path is:
+
+```c
+iVar1 = FUN_00479f4d(line + 0x20, "wisp", 4);  // prefix match "wisp"
+if (iVar1 != 0) {
+  iVar1 = FUN_00503d03(local_27c + 0x24);  // atoi(line + 4)
+  local_24 = (int *)(iVar1 + -1);           // slot index = N - 1
+  // copy item name from line + 0x26 (= line[6]):
+  iVar1 = 0;
+  do {
+    cVar11 = local_27c[iVar1 + 0x26];
+    if (cVar11 == '\r' || cVar11 == '\n' || cVar11 == ':' ||
+        cVar11 == '#' || cVar11 == ';') break;
+    local_27c[iVar1] = cVar11;
+    iVar1++;
+  } while (iVar1 != 0x100);
+```
+
+The item-name copy starts at **`line[6]`**. That's:
+
+- `wisp1:` → byte 6 is `\r` (terminator) — but byte 5 was `:`, so
+  actually `wisp1:item-text` has byte 6 = `i` of `item-text`. ✓
+- `wisp9:item-text` → byte 6 = `i`. ✓
+- `wisp10:item-text` → byte 5 is `0`, byte 6 is **`:`** — the name
+  copy terminates immediately. iVar1 = 0 → the `if (0 < iVar1)` gate
+  at L2648 short-circuits → the lookup never runs.
+
+So `wispN:` only works for N ∈ {1..9}. A `wisp10:` line would
+correctly compute slot index 9, but never actually populate it. The
+slot 9 storage is therefore dead storage — the engine reserves it
+but can't write to it.
+
+Dormant in vendor data — only `wisp1:..wisp6:` ship.
+
+> 📍 `src/tables_enemylist.c`, `docs/decompiled/by-address/475270.c`
+> L2608..L2612 (init), L2634..L2688 (parse).
+
+---
+
+## 33. `enemylist.txt` slot-30 terminator can clobber slot-0's drops
+
+Each floor-section is 752 bytes, laid out as:
+
+```
++0x000  floor_lo (int32)
++0x004  floor_hi (int32)
++0x008  enemies[0..30]  — 31 × 12 bytes  (slot k: enemy_id, variant, count)
++0x17c  drops[0..30]    — 31 × 12 bytes  (slot k: item_id[0..2])
+```
+
+Engine init writes `enemy_id = -1` to all 31 slots. The per-line
+parser, after writing slot `local_18`, advances `local_18 += 1` and
+writes:
+
+```c
+piVar4[(int)pvVar2 * 3 + 2] = -1;  // terminator at slot local_18's enemy_id
+```
+
+Where `pvVar2 = local_18 + 1` (i.e. the OLD value plus one — but
+`local_18 = pvVar2` ran just before this, so `pvVar2` is now equal
+to the new `local_18`). At L2842, an overflow check fires when
+`local_3c > 30`:
+
+```c
+if (0x1e < (int)local_3c) {
+  FUN_0048a348(&DAT_005cb374, local_3c);  // MessageBoxA "敵リスト登録オーバー"
+}
+piVar4[(int)pvVar2 * 3 + 2] = -1;  // terminator STILL fires
+```
+
+The overflow MessageBoxA pops up, but the terminator write **still
+happens**. For `local_18 == 30` (i.e. just wrote into the 31st slot
+— the absolute last enemy_id storage), the terminator targets slot
+31's enemy_id field. But slot 31 doesn't exist — its address is the
+**first byte of `drops[0].item_id[0]`** (offset 0x17c).
+
+So a 31st enemy on a single `f:` block would silently overwrite the
+first drop ID of the first enemy on that block. The dropped item
+would change. Dormant in vendor data (no `f:` block has more than
+about a dozen enemies — far from the cap).
+
+The port logs the overflow to stderr and skips the line rather than
+performing the writes, since the player-visible misbehaviour
+(wrong drops) is the kind of subtle thing the game would never
+notice in QA.
+
+> 📍 `src/tables_enemylist.c` (port — `write_terminator`),
+> `docs/decompiled/by-address/475270.c` L2840..L2845.
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an
