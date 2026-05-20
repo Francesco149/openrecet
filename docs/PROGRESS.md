@@ -3,6 +3,88 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [14/15]: `data/news.txt` parser
+
+**Subsystems landed:**
+- `src/tables_news.{c,h}` — pure-C parser for FUN_00475270 block
+  #11 (`docs/decompiled/by-address/475270.c` L1583..L2236). One
+  global at `&DAT_056e0e00`, stride 0xbc (188 bytes), no engine
+  cap on count (port reserves 100 slots). Each record carries a
+  128-byte body, 16-byte name (parser CAN write 20 → overflows
+  into rate, quirk #27), `rate` / `price_lo` / `price_hi`, the
+  three lookup results (`attr_mask` / `category` / `item_id`)
+  with their sentinel values, the sticky `target_group` from
+  `対象者:`, optional `days_lo` / `days_hi`, and the sticky
+  `period_start` / `period_end` from `時期:`. `_Static_assert`
+  guards on all 13 field offsets.
+- `src/tables.c` — replaced the news.txt stub with the real
+  loader. Two new resolver adapters `news_resolve_category` and
+  `news_resolve_item` prefix-match (engine `FUN_00479f4d`-style)
+  against `g_item.categories[].singular` and
+  `g_item.records[].singular` respectively, both wired through
+  `tables_parse_news`. Boot trace logs
+  `(news=N dash=D special=S attr=A category=C item=I)`.
+- `docs/formats/data-text.md` — appended full news.txt section:
+  file shape, sticky-header semantics, data-row layout with
+  optional days range, name-resolution lookup chain (special →
+  attr → category → item), record byte-offset table, all faithfully-
+  reproduced quirks, vendor file shape.
+- `docs/findings/engine-quirks.md` — added quirks #27 (name buffer
+  overflow into rate), #28 (prefix-by-name-length lookup, not
+  exact match), #29 ("-" rows leave target_group / item_id /
+  days_lo / days_hi at BSS-zero), and #30 (body retains trailing
+  `\r` on CRLF lines).
+- `tests/test_tables_news.c` — 20 cases: empty input, byte-offset
+  layout sanity, comments/blanks, `特殊` sentinel, SJIS attr-mask
+  hit (`武器` / `防具`), category resolver hit (`Daggers`), item
+  resolver hit (`Candy`), lookup-chain precedence (attr wins over
+  cat over item), days-range optional, `-` row with all the BSS-
+  zero defaults, sticky `target_group` across rows, sticky
+  `period_start` / `period_end` across rows, period defaults
+  (0, 100) before any header, malformed `時期,A` (no `-`) leaves
+  `period_end` unchanged, no-trailing-newline EOF, body retains
+  `\r` on CRLF, body strips on LF-only, resolver miss is silent
+  (logs but counts), max-records cap, end-to-end vendor-shape
+  integration smoke.
+
+**Behavioral validation:**
+- 207 unit tests pass under ASan/UBSan (was 187).
+- Boot smoke: `data/news.txt — 6342 bytes (news=80 dash=43
+  special=2 attr=22 category=12 item=1)`. Each bucket
+  cross-checked against an independent Python re-count of the
+  vendor file, with the only discrepancy being `アクセサリー` —
+  it matches the SJIS attr tag `アク` (0x83 0x41 0x83 0x4e, bit
+  0x0010), which the Python re-count's curated attr-tag list
+  initially missed. Port matches the engine.
+
+**Engine quirks documented (and faithfully reproduced):**
+- **Name buffer can overflow into rate.** Parser caps the
+  name-write loop at 20 bytes, but the structural field is 16
+  bytes (rate follows at +0x90). For names ≥ 16 bytes the NUL
+  terminator lands in rate / price_lo / category. Dormant in
+  vendor (longest name = `アクセサリー` at 12 bytes).
+- **Lookup chain is prefix-by-name-length.** All three name
+  lookups (special / attr / category / item) use
+  `memcmp(name, candidate, name_len)`. A short news.txt name
+  matches any candidate it's a prefix of. Vendor names always
+  fully equal their candidate.
+- **`-` rows leave BSS-zero fields.** The `-` branch skips the
+  `target_group` / `item_id` / `days_lo` / `days_hi` writes,
+  leaving them at memset-zero. Consumers that expect -1 for "no
+  match" see 0 for "-" rows.
+- **CRLF body keeps trailing `\r`.** Line-collect stores the
+  terminating `\r` in the line buffer; body-copy stops at `\0` /
+  `\n` but not `\r`. Vendor file is CRLF so every body has a
+  trailing `\r` byte.
+- **`時期,A` (no `-`) leaves `period_end` unchanged.** Engine
+  "loop err 6"; port skips the second atoi via `strchr` miss.
+
+**Note for the next milestone:**
+- Phase B 15: `enemylist.txt` (28281 bytes — substantially
+  larger than news.txt). Confirm with user at session start —
+  enemylist.txt's parser block is much further down in the
+  binary and may need its own discovery doc.
+
 ## 2026-05-20 — Phase B [13/15]: `data/event.txt` parser
 
 **Subsystems landed:**

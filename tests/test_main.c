@@ -231,7 +231,28 @@ struct test_case {
     X(tables_event_data_line_before_header_goes_to_hiroba) \
     X(tables_event_decay_or_max_zero_for_parsed) \
     X(tables_event_no_trailing_newline) \
-    X(tables_event_vendor_shape)
+    X(tables_event_vendor_shape) \
+    \
+    X(tables_news_empty) \
+    X(tables_news_layout_byte_offsets) \
+    X(tables_news_comments_and_blanks_skipped) \
+    X(tables_news_special_attr_basic) \
+    X(tables_news_sjis_attr_mask) \
+    X(tables_news_category_resolver_hit) \
+    X(tables_news_item_resolver_hit) \
+    X(tables_news_lookup_chain_precedence) \
+    X(tables_news_days_range_optional) \
+    X(tables_news_dash_row) \
+    X(tables_news_target_group_sticky) \
+    X(tables_news_period_sticky) \
+    X(tables_news_period_defaults_apply_before_header) \
+    X(tables_news_period_missing_dash_leaves_end_unchanged) \
+    X(tables_news_no_trailing_newline) \
+    X(tables_news_body_keeps_trailing_cr_on_crlf) \
+    X(tables_news_body_strips_on_lf_only) \
+    X(tables_news_no_resolver_misses_silently) \
+    X(tables_news_max_records_cap) \
+    X(tables_news_vendor_shape)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

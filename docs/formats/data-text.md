@@ -1779,3 +1779,136 @@ None — `event.txt` has no cross-table lookups. The `flag_on_trigger`
 and `prereq[]` values are bare integers that index into the engine's
 global flag bitmap at `&DAT_044e3798` (per-loop) and don't need
 resolver wiring against `g_item` or `g_kyaku`.
+
+## `data/news.txt`
+
+The random-news ticker — every line describes one in-game news
+message that can fire on a given day, optionally bumping the price
+or audience interest for a named item / category / attribute.
+
+### File shape (vendor: 6342 bytes, CRLF, SJIS)
+
+Two sticky-state header lines and three data-row shapes interleave
+freely (engine parser at `docs/decompiled/by-address/475270.c`
+L1583..L2236). Comment / blank lines are dispatched by
+`line[0] in {'/', '\r', '\n'}`; all other lines are dispatched in
+this order:
+
+| Pattern        | Effect                                                          |
+|----------------|-----------------------------------------------------------------|
+| `対象者,N`      | sets sticky `target_group = N` for subsequent non-"-" data rows |
+| `時期,A-B`      | sets sticky `period_start = A`, `period_end = B` for subsequent rows |
+| `-,-,body`     | "generic" news row — no item-effect; body lives after 2 commas  |
+| `<name>,…`     | data row — name + rate + price range [+ days range] + body      |
+
+`対象者` is 6 SJIS bytes, `時期` is 4 SJIS bytes; the atoi for `N`
+reads from `line + 7` and `line + 5` respectively.
+
+### Data-row shape
+
+```
+<name>,<rate>,<price_lo>-<price_hi>[,<days_lo>-<days_hi>],<body>
+```
+
+The days range is **optional** — the engine detects it by peeking
+the first byte after the price comma: if it's `'0'..'9'`, parse as
+days; otherwise treat as the start of body text. So:
+
+- `武器,1,3-1,The price of weapons has increased.` — no days
+- `武器,0,3-1,0-1000,Men of character seek <I>.` — days 0-1000
+
+### `<name>` field resolution
+
+Looked up in this order, **stopping at the first hit**:
+
+1. Special sentinel `特殊` (4 SJIS bytes) → `attr_mask = -1`; no further lookup.
+2. SJIS attribute-tag hash (`oder_attr_hash`; engine `FUN_0049e9a7`)
+   → `attr_mask = (1u << tag_index)`. Only fires if the field is
+   ≥ 4 bytes and its first 4 bytes match one of the 16 attr tags
+   listed under `oder.txt` above.
+3. Category resolver — prefix-match against `g_item.categories[i].singular`
+   → `category = i`.
+4. Item resolver — prefix-match against `g_item.records[j].singular`
+   → `item_id = records[j].item_id`.
+5. Miss → engine pops `MessageBoxA("syn error")`; port logs to stderr.
+
+All three resolvers (special, category, item) use the engine's
+`memcmp(name, candidate, name_len)` — i.e. **the news.txt field is
+a prefix of the candidate up to its own length**, not exact-equal.
+Vendor data always fully matches so the distinction is dormant —
+see engine-quirks #28.
+
+### Record layout — `news_record_t` (0xbc bytes = 188 bytes)
+
+| Offset | Size | Field          | Notes                                               |
+|--------|------|----------------|-----------------------------------------------------|
+| +0x00  | 128  | `body[128]`    | News message; CRLF source leaves trailing `\r` (#30) |
+| +0x80  | 16   | `name[16]`     | Parsed name; parser can write up to 20 → overflow (#27) |
+| +0x90  | 4    | `rate`         | `atoi` of field 2; +N price up, -N down, 0 customers up |
+| +0x94  | 4    | `price_lo`     | `atoi` of field 3 before `-`                        |
+| +0x98  | 4    | `price_hi`     | `atoi` of field 3 after `-`                         |
+| +0x9c  | 4    | `attr_mask`    | `oder_attr_hash`; -1 for `特殊`; 0 for `-` / no attr |
+| +0xa0  | 4    | `category`     | Category index; -100 for `-` rows; -1 if no match   |
+| +0xa4  | 4    | `item_id`      | Item id (NOT slot); -1 if no match; 0 for `-` rows  |
+| +0xa8  | 4    | `target_group` | Sticky `対象者:`; 0 for `-` rows (engine never writes) |
+| +0xac  | 4    | `days_lo`      | `atoi` if optional days present; -1 absent; 0 for `-` |
+| +0xb0  | 4    | `days_hi`      | `atoi`; same defaults as `days_lo`                  |
+| +0xb4  | 4    | `period_start` | Sticky `時期:` start (default 0)                    |
+| +0xb8  | 4    | `period_end`   | Sticky `時期:` end (default 100)                    |
+
+Boot trace logs `(news=N dash=D special=S attr=A category=C item=I)`.
+
+### Faithfully-reproduced quirks
+
+- **Name buffer can overflow into rate (#27).** Parser writes up to
+  20 bytes at +0x80, but the field is structurally 16. The NUL
+  terminator at `name[name_len]` can land in `rate` / `price_lo` /
+  `category` for names 16..20 bytes long. Dormant in vendor data
+  (longest name = 12 bytes).
+
+- **Prefix-by-name-length lookup (#28).** All three name resolvers
+  use `memcmp(name, candidate, name_len)`; a short news.txt name
+  matches any candidate it's a prefix of. Vendor names always
+  exactly equal their candidate.
+
+- **"-" data rows leave fields at BSS-zero (#29).** The "-" branch
+  doesn't write `target_group` / `item_id` / `days_lo` / `days_hi`,
+  so they stay at 0 (the `memset` default), not -1 like a non-"-"
+  row's "no match" sentinel. Vendor data sidesteps this by always
+  emitting `対象者,0` before its "-" rows.
+
+- **Body retains trailing `\r` on CRLF (#30).** Line-collect stores
+  the terminating `\r` in the line buffer; body-copy stops at `\0`
+  / `\n` but not `\r`. Every CRLF-source body has a trailing `\r`
+  byte before its NUL — preserved for byte-identical behaviour.
+
+- **`時期,A` (no '-') keeps `period_end` unchanged.** Engine emits
+  "loop err 6" and continues without writing `local_20`. Port
+  matches via `strchr(line+5, '-')` — null pointer → skip the
+  second `atoi`.
+
+- **Empty name vacuously matches anything.** `FUN_00479f4d(name,
+  candidate, 0)` returns 1 with no comparison. Dormant in vendor
+  data (the parser only enters the name-write loop after confirming
+  `line[0] != '-'`, and an empty name field starting with `,` would
+  also have to dodge the "must have a `,`" check downstream).
+
+- **`対象者,N` polarity.** "対象者" is 6 SJIS bytes (3 chars); the
+  atoi for N reads at offset 7 (skipping the comma). `時期,A-B`
+  reads A at offset 5 (4 bytes + 1 comma) and B after `strchr(line,
+  '-') + 1`.
+
+### Resolver hook
+
+Two callbacks wired in `src/tables.c`:
+
+- `news_resolve_category(name, name_len, g_item)` — prefix-match
+  against `g_item.categories[i].singular`.
+- `news_resolve_item(name, name_len, g_item)` — prefix-match
+  against `g_item.records[j].singular`; returns the item's id,
+  not its slot.
+
+Both depend on `load_item_txt` having run first (which it has, by
+the engine's load order). Empty-singular slots are skipped so the
+unpopulated 100-slot category array doesn't generate false
+positives on an all-NUL prefix.

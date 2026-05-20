@@ -33,6 +33,7 @@
 #include "tables_item.h"
 #include "tables_kyaku.h"
 #include "tables_model.h"
+#include "tables_news.h"
 #include "tables_oder.h"
 #include "tables_snews.h"
 #include "tables_tuto.h"
@@ -323,7 +324,64 @@ static void load_event_txt(void)
             with_prereqs);
     free(buf);
 }
-DEFINE_STUB(load_news_txt,      "data/news.txt")
+/* news.txt — ported. Real parser in src/tables_news.c. Resolves the
+ * `<name>` field on data rows through two adapters against `g_item`:
+ *   `news_resolve_category` — prefix-match name vs categories[i].singular
+ *   `news_resolve_item`     — prefix-match name vs records[j].singular,
+ *                              returns item_id (not slot).
+ * Both mirror the engine's `FUN_00479f4d(name, candidate, name_len)`
+ * prefix-by-length compare; see tables_news.c quirk #28 for why this
+ * differs from exact-match. */
+static int32_t news_resolve_category(const char *name, size_t name_len,
+                                     void *user)
+{
+    const item_state_t *state = (const item_state_t *)user;
+    for (int c = 0; c < ITEM_CATEGORY_COUNT; c++) {
+        const char *cand = state->categories[c].singular;
+        if (cand[0] == '\0') continue;
+        size_t clen = strlen(cand);
+        if (clen >= name_len && memcmp(name, cand, name_len) == 0) {
+            return (int32_t)c;
+        }
+    }
+    return -1;
+}
+static int32_t news_resolve_item(const char *name, size_t name_len,
+                                 void *user)
+{
+    const item_state_t *state = (const item_state_t *)user;
+    for (int i = 0; i < state->count; i++) {
+        const char *cand = state->records[i].singular;
+        if (cand[0] == '\0') continue;
+        size_t clen = strlen(cand);
+        if (clen >= name_len && memcmp(name, cand, name_len) == 0) {
+            return state->records[i].item_id;
+        }
+    }
+    return -1;
+}
+static void load_news_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/news.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_news(buf, sz, &g_news,
+                      news_resolve_category, news_resolve_item, &g_item);
+    int dash_rows = 0, special_rows = 0, attr_hits = 0, cat_hits = 0, item_hits = 0;
+    for (int i = 0; i < g_news.count; i++) {
+        const news_record_t *r = &g_news.records[i];
+        if (r->category == NEWS_CATEGORY_DASH)            dash_rows++;
+        else if (r->attr_mask == -1)                      special_rows++;
+        else if (r->attr_mask != 0)                       attr_hits++;
+        else if (r->category >= 0)                        cat_hits++;
+        else if (r->item_id >= 0)                         item_hits++;
+    }
+    fprintf(stderr,
+            "tables: data/news.txt — %zu bytes "
+            "(news=%d dash=%d special=%d attr=%d category=%d item=%d)\n",
+            sz, g_news.count, dash_rows, special_rows, attr_hits, cat_hits, item_hits);
+    free(buf);
+}
 /* snews.txt — ported. Real parser in src/tables_snews.c. Two unrelated
  * globals: a 64-slot name table and a 10×30 grid of floor-range
  * sections (only 6×N reachable via the SJIS dungeon keys). */

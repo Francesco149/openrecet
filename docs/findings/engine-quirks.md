@@ -720,6 +720,171 @@ the cursor by 1; a successful match advances by 2.
 
 ---
 
+## 27. `news.txt`'s name buffer can overflow into `rate`
+
+The news.txt data-row parser writes the `<name>,` field into the
+record's name buffer at +0x80. The structural name field is **16
+bytes** (the next field, `rate`, sits at +0x90), but the parser caps
+its char-copy loop at **20** iterations and writes a NUL terminator
+at `name[name_len]` afterwards:
+
+```c
+local_24 = 0;
+do {
+  if (*pcVar16 == ',') break;
+  (&DAT_056e0e80)[(int)local_24 + iVar17] = *pcVar16;
+  local_24++;
+  pcVar16++;
+} while (local_24 != 0x14);
+(&DAT_056e0e80)[(int)local_24 + iVar17] = 0;
+```
+
+So a 16-char name would put its NUL terminator on byte 0 of `rate`,
+and a 20-char name would put both 4 content bytes AND its NUL well
+into `price_lo` / `category`. The engine then overwrites `rate` /
+`price_lo` / `price_hi` from the subsequent CSV fields anyway, so
+the overflow self-cleans — but only because vendor data is
+well-formed.
+
+Vendor news.txt names are all ≤ 12 bytes (`アクセサリー` is the
+longest at 12). The overflow is dormant but real.
+
+The port reproduces it via a `uint8_t *` write into the record,
+keeping the engine's stride exact:
+
+```c
+uint8_t *rec_bytes = (uint8_t *)rec;
+for (i = 0; i < NEWS_NAME_PARSE_CAP && *p != ','; i++, p++) {
+    rec_bytes[0x80 + i] = (uint8_t)*p;
+}
+rec_bytes[0x80 + i] = 0;
+```
+
+> 📍 `src/tables_news.c` (port),
+> `docs/decompiled/by-address/475270.c` L1625..L1640.
+
+---
+
+## 28. `news.txt` name lookup is "prefix-by-name-length", not exact-match
+
+All three name lookups in news.txt — special-sentinel check, SJIS
+attribute-tag match (`FUN_0049e9a7`), and the category / item
+fallback resolvers — call `FUN_00479f4d(name, candidate, name_len)`,
+which is `memcmp(name, candidate, name_len) == 0`. **`name_len` is
+the byte count of the news.txt field, not the candidate.**
+
+This means a short name is a prefix-of-candidate match. A
+hypothetical news.txt row with `武,1,3-1,...` (just the first SJIS
+char of `武器`) would match:
+
+- The `武器` attr tag (since `武` is 2 bytes = first 2 bytes of `武器`).
+- The `武器屋` item category (if it existed) and any item whose
+  singular starts with `武`.
+
+Vendor names always exactly equal their candidate (e.g. `武器,…`,
+`Daggers,…`, `Candy,…`), so the prefix vs exact distinction is
+unobservable. But it's a real precedence trap if you ever ship a
+short-prefix name that's a substring of multiple candidates — the
+first match in lookup order (attr → category → item) wins, even if
+a longer match exists deeper in the chain.
+
+The port mirrors the engine: each resolver does `memcmp(name,
+candidate, name_len) == 0 && strlen(candidate) >= name_len` (the
+`>=` guard avoids reading past candidate's NUL the way the engine
+does, while preserving the match semantics — over-read would
+typically mismatch anyway).
+
+> 📍 `src/tables_news.c` (port — `resolve_name` + `prefix_match`),
+> `src/tables.c` (port — `news_resolve_category` / `news_resolve_item`),
+> `docs/decompiled/by-address/475270.c` L1616, L1640, L1648, L1661.
+
+---
+
+## 29. `news.txt` "-" data rows leave per-row fields at BSS-zero
+
+The `-,-,body` data-row shape ("generic news; no item effect") skips
+the entire name-resolution and price-parsing pipeline. Only two
+fields are explicitly written by the "-" branch:
+
+```c
+(&DAT_056e0ea0)[iVar1 * 0x2f] = 0xffffff9c;  // +0xa0 category = -100
+(&DAT_056e0e9c)[iVar1 * 0x2f] = 0;           // +0x9c attr_mask = 0
+```
+
+Then body text + `period_start` / `period_end`. Notably **not** set:
+
+- `+0xa8 target_group` — the sticky "対象者:" value (set only by the
+  non-"-" branch at LAB_00478d0a, via `local_14`).
+- `+0xa4 item_id` — defaults to BSS-zero, NOT the -1 sentinel that
+  the non-"-" branch writes at the top.
+- `+0xac days_lo` / `+0xb0 days_hi` — same as above: BSS-zero, NOT
+  -1.
+
+Consumers that distinguish "no item" (`item_id == -1`) from "item id
+0" therefore see "-" rows as referencing item 0. Vendor data avoids
+the confusion because:
+
+- Vendor "-" rows always appear under `対象者,0` headers, so the
+  unset `target_group` happens to equal the most-recent `local_14`.
+- Vendor "-" rows are emitted only for purely flavour-text news that
+  never references an item.
+
+The port reproduces all four omissions: the "-" branch skips the
+`target_group` / `item_id` / `days_lo` / `days_hi` writes, leaving
+them at the `memset(out, 0, ...)` zero state.
+
+> 📍 `src/tables_news.c` (port — `if (line[0] == '-')` branch),
+> `docs/decompiled/by-address/475270.c` L1759..L1795.
+
+---
+
+## 30. `news.txt` body text retains the trailing `\r` of CRLF lines
+
+The line-collect loop in the news.txt parser stores the terminating
+`\r` or `\n` in the line buffer along with the line's content:
+
+```c
+do {
+  // ...
+  local_27c[iVar6 + 0x20] = cVar11;   // store char, including '\r' / '\n'
+  if (cVar11 == '\r' || cVar11 == '\n') goto LAB_00478975;
+  // ...
+} while (cVar11 != '\0');
+LAB_00478975:
+  local_27c[iVar1 + 0x21] = '\0';     // NUL right after the terminator
+```
+
+The body-copy loop, by contrast, only stops at `\0` or `\n` — **not**
+`\r`:
+
+```c
+do {
+  cVar11 = *pcVar18;
+  if (cVar11 == '\0' || cVar11 == '\n') break;
+  (&DAT_056e0e00)[iVar6 + iVar17] = cVar11;
+  iVar6++;
+  pcVar18++;
+} while (iVar6 != 0x80);
+```
+
+For a CRLF-terminated line, the line buffer ends with `…<text>\r\0`,
+and the body-copy reads the `\r` as content. So every body in a
+CRLF-source vendor file ends with a trailing `\r` byte before its
+NUL.
+
+This is faithful behaviour, not a bug per se — the consumer's
+rendering code happily ignores the trailing `\r` (it's a no-op in
+both the engine's font renderer and `MessageBoxA`). But the bytes
+ARE there, and a byte-identical port must include them.
+
+The port copies up to `NEWS_BODY_LEN - 1` bytes and stops on
+`\0` or `\n`, preserving any embedded `\r`.
+
+> 📍 `src/tables_news.c` (port — `copy_body`),
+> `docs/decompiled/by-address/475270.c` L1606, L1719..L1726, L1779..L1786.
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an
