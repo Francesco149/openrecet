@@ -487,6 +487,62 @@ to what actually runs.
 > 📍 `src/tables_enemy.c` (port), `docs/formats/data-text.md`
 > "enemy.txt" section (alias and miss tables).
 
+## 22. The tutorial loader's parser stride is 1/4 of what the consumer reads
+
+`FUN_00475270` loads three tutorial scripts (`data/tuto1.txt`,
+`tuto2.txt`, `tuto3.txt`) into a shared 296-byte-per-record array at
+`&DAT_005d1fc8`. The parser writes each record at slot
+
+```c
+local_8 + local_c * 0x32      // record index + (file index × 50)
+```
+
+— i.e. it reserves a **50-record stride per file**. The gameplay-
+side dispatcher (`FUN_00461c00`, L59759 of `all.c`) reads with stride
+**200**:
+
+```c
+iVar9 = (DAT_005c6bb0 * 200 + _DAT_0730b604) * 0x128;
+```
+
+The two strides disagree by a factor of 4. So tuto2/tuto3 data
+*never lands at the address the consumer reads from*; the consumer
+sees BSS-zero records (everything looks like a `CHR0` opcode with id
+0 and empty text).
+
+That alone would be merely awkward. The kicker is that **every
+shipping tuto file overflows the parser's 50-record cap**:
+
+| file       | records | spills to slots |
+|------------|---------|-----------------|
+| tuto1.txt  | 135     | overwrites tuto2's parser region (50..99) and most of tuto3's (100..134) |
+| tuto2.txt  | 90      | overwrites tuto3's parser region (100..139)             |
+| tuto3.txt  | 60      | walks 10 slots past the 150-slot array entirely         |
+
+So after all three files load, the parser has filled slots 0..159
+with a *cascade* of overwrites — and the consumer, indexing with the
+×200 stride, has to choose between reading file 0's region (slots
+0..199, partially populated) or files 1/2 (slots 200..599, entirely
+empty).
+
+Three of the four call sites for the file-index setter
+`FUN_00461bf6` push the immediate `2` (the new
+`tools/analyze/pe.py callers` subcommand confirms this), so the
+consumer is routinely reading from a never-written region. How the
+tutorial visibly plays at all is not yet answered — possibly the
+dispatcher short-circuits on the BSS-zero `opcode == 0 && text[0] ==
+0` combination, or there's a parallel state machine we haven't
+traced yet.
+
+Whichever it is, our port faithfully reproduces the parser side:
+50-stride writes, overflow into adjacent regions, and a final
+sentinel that lands wherever it lands. The 600-slot array is sized
+generously so the writes are well-defined.
+
+> 📍 `src/tables_tuto.c` (port), `docs/formats/data-text.md`
+> "tuto1/2/3.txt" section, `docs/decompiled/by-address/475270.c`
+> L2898..L3123 (parser), L59759 of `all.c` (consumer).
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of
