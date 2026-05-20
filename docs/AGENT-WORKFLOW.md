@@ -126,6 +126,31 @@ smoke runs, multi-subsystem trace + writeup.
   Sonnet executes).
 - ❌ Don't let a subagent commit or push.
 
+## Note engine quirks as you find them
+
+When porting a function or chasing a bug, you will routinely stumble on
+small things the original engine does that are weird, charming, or
+inexplicable — non-standard hash variants, hand-rolled obfuscation,
+hard-coded retry loops, deliberate-looking buffer over-allocations,
+load-bearing-by-accident behavior, etc.
+
+**Append a short entry to `docs/findings/engine-quirks.md`** before
+moving on.  Even one paragraph.  Even if you're not sure it's interesting
+— it almost certainly is once you write it down.
+
+Why this lives here, not in code comments: each quirk is a one-paragraph
+story about *why* the engine does the weird thing, and that story rots
+quickly if it's scattered across `// note:` comments next to faithful
+ports.  Collecting them in one file gives the user a fun read, signposts
+future debugging ("oh right, this is the function with the
+subtract-instead-of-XOR hash"), and lets you cite a single anchor in
+commit messages instead of restating the quirk every time it's relevant.
+
+Format: numbered entry, 1-3 short paragraphs, optional code snippet, and
+a `> 📍` pointer to the source location (Ghidra address, our port, or
+the relevant `docs/findings/*.md` section).  Don't overthink it — the
+file is supposed to be entertaining, not exhaustive.
+
 ## Commits
 
 **Commit in logical units as you go**, don't let the working tree pile up.
