@@ -3,6 +3,53 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [4/15]: `data/model.txt` parser
+
+**Subsystems landed:**
+- `src/tables_model.{c,h}` — pure-C parser for FUN_00475270 block #9
+  (L1422..L1520). Fixed array of 20 records at `&DAT_073ae258` (stride
+  0x2b8 bytes). Per-line dispatch: `no:N` sets current model index
+  (atoi), `fname:` copies the `.x` filename, `NN:` (00..19) copies a
+  bone/attachment-point name and increments `count`. Engine quirks
+  faithfully reproduced: `local_c` defaults to 0 (writes before `no:`
+  go to record 0); `used[slot] = 1` and `count++` fire unconditionally
+  on every matching `NN:` line (no gate on `!used[slot]`); all 20 slot
+  prefixes checked on every line. Safety divergences: fname + point
+  names truncated at 31 chars + NUL to prevent field-overflow into
+  adjacent record fields; out-of-range `no:N` (N < 0 or N ≥ 20) skips
+  subsequent writes rather than computing an out-of-bounds pointer.
+- `src/tables.c` — replaced the model.txt stub with a real loader.
+  Counts `defined` (records with `count > 0`) and `max_points` (max
+  `count` value across all records). Boot trace now logs
+  `(models=N max_points=M)`.
+- `docs/formats/data-text.md` — appended a model.txt section with
+  line-shape table, record layout, engine quirks and safety
+  divergences, and vendor-file shape including the out-of-order
+  indices (17/18 appear swapped in the file).
+- `tests/test_tables_model.c` — 9 cases: empty, basic one record,
+  index threading (records 0 and 5), comments/blanks skipped, fname
+  before any no:, repeated-slot count increment, overlong fname
+  truncation (count field not corrupted), out-of-range no: skipped
+  (no OOB write), vendor-shape end-to-end fixture with all 17 models
+  and spot-checks on fname, point names, and gap indices 9/16/19.
+
+**Engine fidelity divergence (documented):** the engine's write cap
+for both fname and point names is 0x100, but the fname field is only
+0x20 bytes before the `count` field — an overlong fname would
+silently corrupt adjacent fields. Our port truncates at
+`MODEL_DEF_NAME_MAX - 1 = 31` chars. Out-of-range `no:N` indices
+are also guarded (engine would compute an out-of-bounds pointer on
+`no:25` etc.). Vendor data has fnames ≤ 12 chars and indices 0..18,
+so both guards are dormant against real input.
+
+**Boot verification:** stderr now shows
+`tables: data/model.txt — 1758 bytes (models=17 max_points=8)`,
+matching the vendor file's 17 defined records and 8-point maximum
+(kani models at indices 10 and 11). All other stubs continue to log
+as before; tutorial loop still stops correctly at `tuto4.txt`.
+
+**Test status:** 62 tests pass (up from 53), no fails, no skips.
+
 ## 2026-05-20 — Phase B [3/15]: `data/oder.txt` parser
 
 **Subsystems landed:**

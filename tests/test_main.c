@@ -71,6 +71,16 @@ extern int test_tables_config_font_overlong_truncates(void);
 extern int test_tables_config_commented_lines_ignored(void);
 extern int test_tables_config_vendor_shape(void);
 
+extern int test_tables_model_basic_one_record(void);
+extern int test_tables_model_comments_skipped(void);
+extern int test_tables_model_empty(void);
+extern int test_tables_model_fname_default_record_zero(void);
+extern int test_tables_model_no_index_threads(void);
+extern int test_tables_model_out_of_range_index_skipped(void);
+extern int test_tables_model_overlong_fname_truncates(void);
+extern int test_tables_model_repeated_slot_increments_count(void);
+extern int test_tables_model_vendor_shape(void);
+
 extern int test_tables_oder_empty(void);
 extern int test_tables_oder_one_record(void);
 extern int test_tables_oder_level_threads_through(void);
@@ -133,6 +143,16 @@ static struct test_case g_tests[] = {
     {"tables_config_font_overlong_truncates", test_tables_config_font_overlong_truncates},
     {"tables_config_commented_lines_ignored", test_tables_config_commented_lines_ignored},
     {"tables_config_vendor_shape",            test_tables_config_vendor_shape},
+
+    {"tables_model_empty",                        test_tables_model_empty},
+    {"tables_model_basic_one_record",             test_tables_model_basic_one_record},
+    {"tables_model_no_index_threads",             test_tables_model_no_index_threads},
+    {"tables_model_comments_skipped",             test_tables_model_comments_skipped},
+    {"tables_model_fname_default_record_zero",    test_tables_model_fname_default_record_zero},
+    {"tables_model_repeated_slot_increments_count", test_tables_model_repeated_slot_increments_count},
+    {"tables_model_overlong_fname_truncates",     test_tables_model_overlong_fname_truncates},
+    {"tables_model_out_of_range_index_skipped",   test_tables_model_out_of_range_index_skipped},
+    {"tables_model_vendor_shape",                 test_tables_model_vendor_shape},
 
     {"tables_oder_empty",                     test_tables_oder_empty},
     {"tables_oder_one_record",                test_tables_oder_one_record},

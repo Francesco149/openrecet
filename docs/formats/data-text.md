@@ -340,3 +340,122 @@ The boot trace confirms `(orders=24 max_lv=5)` matches.
 top of every block (oder.txt, model.txt, event.txt, …) so each
 block uses it as scratch storage. The port encapsulates this per-
 parser via `struct oder_table.count`.
+
+---
+
+## `data/model.txt`
+
+**Engine block:** `FUN_00475270` block #9
+(`docs/decompiled/by-address/475270.c:1422..1520`).
+
+**Identity:** referenced via `s_data_model_txt_005cafc0` (size path)
+and `s_data_model_txt_005cafd0` (read path). Both interned copies
+hold the same spelling `"data/model.txt"` — no path-mismatch quirk
+(unlike `config.idx`).
+
+**Port:** `src/tables_model.{c,h}`, parser entry point
+`tables_parse_model(data, size, out[MODEL_DEF_COUNT])`.
+Engine-global instance `g_models[20]`. Tests in
+`tests/test_tables_model.c` (9 cases — empty, basic one record,
+index threading, comments/blanks skipped, fname before any no:,
+repeated-slot count increment, overlong fname truncation, out-of-range
+no: skipped, vendor-shape end-to-end).
+
+**Purpose:** *3D model asset registry.* Each record maps a numeric
+index (0..19) to the `.x` DirectX mesh filename (`fname`) and up to
+20 named bone / attachment-point identifiers. The rendering and
+animation code uses these attachment-point names to position
+sub-meshes, weapons, or effects relative to a parent model. Indices
+9, 16, and 19 are unassigned in the vendor file and remain all-zero
+after parse.
+
+### Line shape
+
+| line                        | role                                          |
+|-----------------------------|-----------------------------------------------|
+| `//…`, `/ …`, blank         | comment / skipped (first byte `/`, `\r`, `\n`) |
+| `no:N`                      | sets current model index to `atoi(line+3)`    |
+| `fname:…`                   | sets `.x` filename for current record         |
+| `NN:…` (`00:`..`19:`)       | sets attachment-point name for slot NN        |
+
+`no:N` only updates the current index; subsequent `fname:` and `NN:`
+checks against the same line simply do not match the `no:` prefix and
+fall through harmlessly. The current index defaults to 0 (engine:
+`local_c` initialised to 0 at L1429), so a `fname:` or slot line
+before any `no:` writes to record 0.
+
+### Record layout (engine stride 0x2b8)
+
+| offset | size    | C-field             | written by             |
+|--------|---------|---------------------|------------------------|
+| +0x000 | 0x20    | `fname[32]`         | `fname:` line          |
+| +0x020 | 4       | `count` (u32)       | incremented per `NN:` match |
+| +0x024 | 20×0x20 | `point[20][32]`     | `NN:` lines (slot stride 0x20) |
+| +0x2a4 | 20      | `used[20]` (u8)     | set to 1 on each `NN:` match |
+
+Total: 0x2b8 (696) bytes per record, 20 records = 0x3660 bytes. Base
+address in the engine: `&DAT_073ae258`.
+
+### Engine quirks reproduced
+
+- **Init loop** zeros only `count` (offset 0x20) and `used[]`
+  (offsets 0x2a4..0x2b7) in every record; `fname` and `point[]`
+  buffers are NOT zeroed. The port uses `memset(out, 0, …)` which
+  also zeroes the name fields — a harmless superset.
+- **`no:` fall-through:** a `no:N` line updates `local_c` and then
+  falls through to the `fname:` and `NN:` checks, which harmlessly
+  fail to match.
+- **Unconditional `used[slot] = 1` and `count++`** on every `NN:`
+  match, regardless of whether the slot was already populated. If the
+  same slot is written twice, `count` increments twice and the last
+  write's value is stored. Engine does not gate on `!used[slot]`.
+- **All 20 slot prefixes** (`"00:"` .. `"19:"`) are tested against
+  every non-comment line; at most one matches in practice (disjoint
+  prefixes). The port breaks early after a match for efficiency while
+  producing identical observable results.
+- **atoi for `no:` index** — standard CRT behaviour: skips leading
+  whitespace, stops at first non-digit.
+
+### Safety divergences (not in engine)
+
+- **Overlong `fname`:** engine write cap is 0x100, but the fname field
+  is only 0x20 bytes before `count` at offset 0x20. An `fname:` value
+  of ≥ 0x20 bytes (incl. NUL) would corrupt `count` and the point
+  slots in the engine. The port truncates fname at
+  `MODEL_DEF_NAME_MAX - 1 = 31` data chars + NUL at `fname[31]`.
+  Vendor data has fnames ≤ 12 chars; this divergence is dormant.
+- **Overlong point names:** same issue — engine cap 0x100, slot stride
+  0x20; an overlong point name would spill into the next slot. Port
+  truncates at 31 data chars + NUL.
+- **Out-of-range `no:N`:** `N < 0` or `N >= 20` would cause the
+  engine to compute an out-of-bounds pointer and corrupt heap or stack.
+  The port treats an out-of-range index as a sentinel (`current = -1`)
+  and skips all subsequent `fname:` / `NN:` writes until the next
+  valid `no:` line. Engine has no such guard.
+
+### Vendor file shape
+
+Shipping `data/model.txt` (1758 bytes, CRLF, mostly ASCII — the
+`//` comment lines contain SJIS Japanese but those lines start with
+`/` and are skipped by the parser):
+
+- 17 defined models across indices 0–8, 10–15, 17–18
+- Gaps at indices 9, 16, 19 (remain all-zero)
+- kine models (0, 1, 2): `g_lat_0{6,7,8}.x`, 2 points each
+  (`point_01`, `bone_kine`)
+- golem models (3–8): `golem_g0{1,2,3}.x`, 7 points each
+  (`point_01`..`point_07`)
+- kani models (10, 11): `kani01.X`, 8 points each (`point_01`..`point_08`)
+- kurage models (12, 13): `kurage_01.x`, 3 points each
+  (`bone1_body`, `point_01`, `point_02`)
+- maou (14): `maou_02.X`, 6 points (`bone03_arm_body_r`, `point_10`..`point_14`)
+- cyg body (15): `cyg_body.X`, 3 points (`point_01`, `point_20`, `point_21`)
+- cyg right arm (17): `cyg_r.X`, 6 points (`bone03_arm_body_r`, `point_10`..`point_14`)
+- cyg left arm (18): `cyg_l.X`, 6 points (`bone03_arm_body_l`, `point_15`..`point_19`)
+
+Note: indices 17 and 18 appear **in reverse order** in the file
+(`no:15` → `no:18` → `no:17`). The parser handles this correctly
+because `no:` sets the current index for subsequent writes; parse
+order does not determine record order.
+
+The boot trace confirms `(models=17 max_points=8)` matches.

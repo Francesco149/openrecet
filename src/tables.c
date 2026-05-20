@@ -25,6 +25,7 @@
 #include "storage.h"
 #include "tables_buysell.h"
 #include "tables_config.h"
+#include "tables_model.h"
 #include "tables_oder.h"
 
 /* Load one file via storage_read and report the size. Returns the
@@ -130,7 +131,27 @@ static void load_oder_txt(void)
             sz, g_oder.count, max_lv);
     free(buf);
 }
-DEFINE_STUB(load_model_txt,     "data/model.txt")
+/* model.txt — ported. Real parser in src/tables_model.c. */
+static void load_model_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/model.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_model(buf, sz, g_models);
+    int defined = 0, max_points = 0;
+    for (int i = 0; i < MODEL_DEF_COUNT; i++) {
+        if (g_models[i].count > 0) {
+            defined++;
+            if ((int)g_models[i].count > max_points)
+                max_points = (int)g_models[i].count;
+        }
+    }
+    fprintf(stderr,
+            "tables: data/model.txt — %zu bytes "
+            "(models=%d max_points=%d)\n",
+            sz, defined, max_points);
+    free(buf);
+}
 DEFINE_STUB(load_event_txt,     "data/event.txt")
 DEFINE_STUB(load_news_txt,      "data/news.txt")
 DEFINE_STUB(load_snews_txt,     "data/snews.txt")
