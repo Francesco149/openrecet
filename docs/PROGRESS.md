@@ -3,6 +3,58 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — lnkdatas content read + LZSS
+
+**Subsystems landed:**
+- `src/lnk_lzss.{c,h}` — port of FUN_004349e5 (the lnkdatas LZSS decoder).
+  Pure C, no Win32 surface.  ~50 LOC. Stream is self-delimiting via the
+  back==0 sentinel, so no input size is required.
+- `src/storage.c` — extended `storage_get_size` and `storage_read` to fall
+  back to the lnkdatas index when the asset isn't in the bmpdata overlay.
+  Adds a 1-deep `bin/data%03d.bin` FILE* cache and a 10 MiB chunk-spanning
+  reader (handles entries that straddle a `bin/data*.bin` boundary).
+  Skips the original engine's 3× `Sleep(500ms)` retry loop around the
+  fopen — that was robustness against transient I/O on 2007 spinning
+  drives, not load-bearing for a modern Steam install.
+- `tests/test_lnk_lzss.c` — 7 synthetic unit tests covering single
+  literals, short / extended back-references, self-overlap RLE, the
+  end-of-stream sentinel mid-control-byte, high-bit back-distances, and
+  mixed flags within one control byte. Plus a vendor round-trip that
+  iterates every entry in `vendor/original/lnkdatas.bin`, reads its
+  slice (across chunk boundaries as needed), decompresses, and verifies
+  the result length matches the declared `dsize` + that a one-byte
+  output canary is intact.
+
+**Two case-sensitivity quirks worth knowing:** the bmpdata branch of
+`FUN_00434585` / `FUN_004346bf` does case-insensitive name matching
+(A..Z folded to a..z) over 88 bytes; the **lnkdatas branch does a
+straight byte compare** over 128 bytes — no fold. Our port mirrors
+both. Callers relying on case-insensitive lookup must hit through the
+bmpdata path.
+
+**Pixel-exact validation:** rebuilt the standalone harness
+`/tmp/storage_extract.exe` (built from `src/storage.c` with
+`-DSTORAGE_TEST_EXTRACT`) and confirmed byte-identical output vs the
+Python reference (`tools/extract/data-bin.py`) on 5 entries including
+4 chunk-straddling ones (`xfile/koku_last/mahoujin.tga`,
+`xfile/wall/kabe_check.bmp`, `bmp/chr/chr31.bmp`,
+`bmp/worldmap_yugata.bmp`). Hashes match (SHA-256).
+
+**Test status:** 29 tests pass (up from 21), no fails, no skips.
+Sanitizer-clean. ASan caught two bugs while writing tests — both in
+the *test fixtures*, not in the decoder: a mis-computed control byte
+in `test_lnk_lzss_self_overlap` (0x28 should have been 0x30) and a
+use-after-free on the canary value in the vendor round-trip. Good
+ASan-pays-for-itself moment.
+
+**Engine smoke:** boot scenario `tools/smoke-test.py` still exits 0
+in ~4s on the rebuilt exe, debug-magenta clear color unchanged.
+
+**Next pin (per session-start):** `FUN_00475270` is the big one —
+3965 decompiled lines of `data/*.txt` parsing (item / kyaku / chara
+/ enemy gameplay tables) plus `idx/stage.idx` and `idx/config.idx`.
+Will likely need splitting across multiple commits.
+
 ## 2026-05-20 — Sanitizer-instrumented unit tests
 
 **Subsystems landed:**
