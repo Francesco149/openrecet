@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "storage.h"
 #include "tables_buysell.h"
@@ -29,6 +30,7 @@
 #include "tables_enemy.h"
 #include "tables_gousei.h"
 #include "tables_item.h"
+#include "tables_kyaku.h"
 #include "tables_model.h"
 #include "tables_oder.h"
 #include "tables_snews.h"
@@ -140,7 +142,45 @@ static void load_item_txt(void)
             sz, g_item.count, max_id, equippable, categories);
     free(buf);
 }
-DEFINE_STUB(load_kyaku_txt,     "data/kyaku.txt")
+/* kyaku.txt — ported. Real parser in src/tables_kyaku.c. The
+ * `好き種類:` lines resolve through `resolve_via_item_category` against
+ * `g_item.categories[]` (populated by load_item_txt earlier in the
+ * load order); resolver misses fall back to -1. */
+static int32_t resolve_via_item_category(const char *name, void *user)
+{
+    const item_state_t *state = (const item_state_t *)user;
+    for (int c = 0; c < ITEM_CATEGORY_COUNT; c++) {
+        if (state->categories[c].singular[0] == '\0') continue;
+        size_t nlen = strlen(state->categories[c].singular);
+        if (memcmp(name, state->categories[c].singular, nlen) == 0
+            && (name[nlen] == '\0' || name[nlen] == '\r'
+                || name[nlen] == '\n')) {
+            return (int32_t)c;
+        }
+    }
+    return -1;
+}
+static void load_kyaku_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/kyaku.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_kyaku(buf, sz, &g_kyaku,
+                       resolve_via_item_category, &g_item);
+    int defined = 0, total_likes = 0, with_budget = 0;
+    for (int i = 0; i < KYAKU_COUNT; i++) {
+        if (g_kyaku.records[i].active) {
+            defined++;
+            total_likes += g_kyaku.records[i].like_count;
+            if (g_kyaku.records[i].budget_high > 0) with_budget++;
+        }
+    }
+    fprintf(stderr,
+            "tables: data/kyaku.txt — %zu bytes "
+            "(customers=%d like_kinds=%d with_budget=%d)\n",
+            sz, defined, total_likes, with_budget);
+    free(buf);
+}
 /* enemy.txt — ported. Real parser in src/tables_enemy.c. The 64
  * records ship pre-baked in .data with their NAMES; enemy.txt only
  * supplies stats + drop refs, which are matched into records by

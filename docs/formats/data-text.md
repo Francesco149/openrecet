@@ -1367,3 +1367,189 @@ A follow-up commit will thread this through `tables.c` into the
 deferred resolver hooks of `tables_parse_enemy` (drop refs) and
 `tables_parse_gousei` (ingredient refs), retiring the `-1`
 placeholders those parsers currently produce.
+
+## `data/kyaku.txt`
+
+The 50-slot customer roster (kyaku = 客 = "customer"). Each record
+holds a singular/plural name, a name-table index, a 2-axis SJIS
+attribute pair, a list of preferred item categories (English names,
+resolved through item.txt's category table), a preferred-attribute
+SJIS-bitmask, a budget range, an activity-time-of-day mask, a handful
+of haggle-tuning ints, and a per-character dialog-file path. Vendor
+file populates 18 active slots out of 50.
+
+The engine struct is enormous (0x2c670 bytes / 181 KB per record)
+because most of it is dialog-buffer scratch for the customer's `file:`
+script content. The table loader only writes the ~18 meaningful
+fields below; the dialog text gets wired in by an unrelated subsystem.
+
+### Per-line shape
+
+```text
+013:Woman#Women                   ← header: NNN:Singular[#Plural]
+名前番号:13                       ← name-table index
+属性:0,4                          ← attr X,Y (two signed ints)
+好き属性:食品派手貴金             ← preferred-attribute SJIS tokens, 4 bytes each
+好き種類:Medicines                ← preferred item category (English; repeatable, ≤ 20)
+好き種類:Rings
+嫌い:                             ← matched but DISCARDED — see quirks
+予算:3000-300000                  ← budget range "L-H"
+活動時間:夕夜                     ← activity time SJIS tokens (朝/昼/夕/夜)
+疑:                               ← suspicion (atoi, empty = 0)
+ランダム:3
+初回:120
+騙:20
+上昇１:10
+上昇２:10
+file:kyaku/f3.txt                 ← per-customer dialog file (relative path)
+```
+
+Lines starting with `/`, `\r`, or `\n` are comments / blanks. Other
+characters before the first `NNN:` header silently drop (no current
+record).
+
+### Field-key table
+
+All key bytes are exact prefix matches against the line buffer at
+offset 0 (the engine's `local_27c + 0x20`); the body starts
+immediately after the matched key (no whitespace skip).
+
+| key        | bytes | body              | engine field write                  |
+|------------|-------|-------------------|-------------------------------------|
+| `NNN:`     | 4     | `S[#P]`           | active=1, singular, joint           |
+| `名前番号:`| 9     | atoi              | name_index                          |
+| `属性:`    | 5     | `X,Y` (atoi×2)    | attr_x, attr_y                      |
+| `好き属性:`| 9     | up to 10 4-byte chunks | like_attr_mask (OR-of-tag-bits)|
+| `好き種類:`| 9     | English category  | append like_kinds[], like_count++   |
+| `嫌い:`    | 5     | *discarded*       | — (see quirk)                       |
+| `予算:`    | 5     | `L-H` (atoi×2)    | budget_low, budget_high             |
+| `活動時間:`| 9     | up to 4 2-byte SJIS tokens | activity_time_mask (bits 1/2/4/8) |
+| `疑:`      | 3     | atoi              | suspicion                           |
+| `騙:`      | 3     | atoi              | gullibility (`騙される度`)          |
+| `上昇１:`  | 7     | atoi              | rise1                               |
+| `上昇２:`  | 7     | atoi              | rise2                               |
+| `初回:`    | 5     | atoi              | initial                             |
+| `ランダム:`| 9     | atoi              | random                              |
+| `file:`    | 5     | path (≤ 0x100 bytes) | file_path                        |
+
+### Header line: `NNN:Singular[#Plural]`
+
+Two write cursors run in parallel as bytes are consumed from the line
+tail:
+
+- `singular[iVar6]` and `joint[iVar6]` both get each pre-'#' byte
+  (the `iVar6 + 4` and `iVar6 + 0x24` writes in the decompilation).
+- At `#`, `iVar6` resets to 0 and a `post_hash` flag is set. From
+  then on the singular write is gated off; the joint write resumes
+  at `joint[0]`, overwriting the shared prefix.
+
+Net result: singular holds the pre-'#' text, joint holds the
+post-'#' text — but joint is only physically rewritten in the bytes
+the plural actually covers. If the plural is shorter than the
+singular, the tail of the singular leaks into joint. Vendor data
+never triggers that case (all plurals are at least as long as their
+singulars: `Woman#Women`, `Man#Men`, `Old Man#Old Men`, etc.).
+
+### Activity-time tokens
+
+Four 2-byte SJIS tokens map to bit positions; the parser advances
+the cursor by 2 bytes per iteration and stops after 4 iterations.
+
+| token | bytes        | bit   |
+|-------|--------------|-------|
+| 朝    | `92 a9`      | `0x1` |
+| 昼    | `92 8b`      | `0x2` |
+| 夕    | `97 5b`      | `0x4` |
+| 夜    | `96 e9`      | `0x8` |
+
+Tokens not in this set (e.g. `本人` for Recette, `試` for Tear) match
+nothing and leave the mask at 0. The parser is happy to step 2 bytes
+into the middle of an unknown 2-byte SJIS char — vendor data avoids
+that ambiguity.
+
+### Preferred-attribute tokens
+
+Each 4-byte cursor chunk is fed through two helpers (engine
+`FUN_0049e9a7` and `FUN_0049eb2a`) and OR'd into `like_attr_mask`. The
+first helper is the 16-tag SJIS table shared with `oder.txt` and
+`item.txt`. The second is the English category-name helper; it
+requires `name[tag_len] == '\0'` which is never true for a 4-byte
+SJIS slice in vendor data, so it always returns 0 in practice.
+
+The loop is hard-capped at 10 iterations (40 bytes). Vendor lines
+use 6..10 tokens.
+
+### Engine quirks faithfully reproduced
+
+- **`嫌い:` is an orphan match.** The 5-byte key match against
+  `嫌い:` (DAT_005caddc) has an empty body — the do-while just
+  `break`s on mismatch and falls through to the next key on a hit.
+  No field write, no atoi, no string copy. Almost certainly a
+  dialled-back feature; the data file still ships dozens of `嫌い:`
+  lines but nothing consumes them. Cost is 5 char-compares per
+  non-comment line.
+
+- **Header singular/joint write-position reset.** On `NNN:S#P`, the
+  joint cursor resets to offset 0 at the `#`, so the plural
+  *overwrites* joint[0..] starting from the beginning instead of
+  appending. Documented in detail above.
+
+- **Singular NUL at off-by-five.** The EOL-detect inside the header
+  loop writes `puVar14[iVar17 + 5] = 0` — that's `singular[iVar17 +
+  1]`, NOT `singular[iVar6 + 1]`. For lines without `#` it lands one
+  past the singular's last content byte (correct). For lines with
+  `#` it lands several bytes past singular's end. Harmless because
+  the record was memset'd to zero at boot.
+
+- **Header gated by leading `0`.** The line dispatcher only tries
+  the 50-iteration `%03d:` match if the line's first byte is `0`.
+  Records 0..49 all have IDs ≤ 49 so the leading digit is always
+  `0`, but a hypothetical record `100:` would be silently ignored.
+
+- **`属性:` and `予算:` unbounded delimiter scans.** Once the first
+  numeric is parsed, the engine walks forward looking for `,` (attr)
+  or `-` (budget) with NO upper bound — past the line buffer if the
+  delimiter is missing. Vendor data always has both. The port stops
+  at NUL too for safety.
+
+- **`好き種類:` cap of 20.** The engine guards with `if
+  (DAT_06a63c38[...] < 0x14)`; the 21st like-kind triggers
+  `MessageBoxA "好き種類登録数オーバー"` and is dropped. Vendor
+  customer Alouette tops out at 11.
+
+- **`好き種類:` MessageBoxA on unknown category.** Engine pops
+  `MessageBoxA "不明なアイテム1" + name`. Port logs to stderr.
+
+- **Lines before any header are silently dropped.** The engine's
+  `local_14 < 0` branch sprintf's an error to a local that's
+  immediately discarded — equivalent to a no-op. Port does the same.
+
+### Vendor file shape
+
+| stat                                  | value     |
+|---------------------------------------|-----------|
+| Bytes via `storage_read`              | 7603      |
+| Active customer slots                 | 18        |
+| Total `好き種類:` entries (sum)       | 111       |
+| Customers with non-empty `予算:`      | 15        |
+| Max like-kinds in one customer        | 11 (Alouette) |
+| Customers with plural form (`#`)      | 4 (`Woman`,`Man`,`Old Man`,`Girl`) |
+
+Boot trace logs `(customers=N like_kinds=K with_budget=B)`. The
+record array at `&DAT_06a5ea90` (stride 0x2c670) holds all 50 slots;
+the port's flat struct lifts the ~18 meaningful fields out of that
+181-KB engine record and discards the dialog-buffer tail.
+
+### Resolver hook
+
+`好き種類:` is the only field that needs cross-table resolution.
+`tables.c` wires it through a small adapter `resolve_via_item_category`
+that linearly probes `g_item.categories[].singular` against the line
+tail (exact match with EOL/NUL guard). The first matching slot's
+index is stored; a miss returns -1 and the line is dropped.
+
+This is a different lookup path from `tables_parse_enemy` /
+`tables_parse_gousei` (which resolve against `g_item.records[].
+singular` for individual items). Kyaku resolves against the
+**category-name** table — populated by `:Category#(tag)` headers in
+`item.txt` — not the item table itself.

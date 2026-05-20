@@ -191,7 +191,31 @@ struct test_case {
     X(tables_gousei_max_records_cap) \
     X(tables_gousei_embedded_nul_early_exit) \
     X(tables_gousei_vendor_shape) \
-    X(tables_gousei_resolves_via_item_state)
+    X(tables_gousei_resolves_via_item_state) \
+    \
+    X(tables_kyaku_empty) \
+    X(tables_kyaku_comments_and_blanks_skipped) \
+    X(tables_kyaku_header_singular_only) \
+    X(tables_kyaku_header_with_plural) \
+    X(tables_kyaku_attr_x_y) \
+    X(tables_kyaku_attr_empty_value_keeps_defaults) \
+    X(tables_kyaku_budget_range) \
+    X(tables_kyaku_budget_empty_no_write) \
+    X(tables_kyaku_like_kind_resolver_hit) \
+    X(tables_kyaku_like_kind_null_resolver_skips) \
+    X(tables_kyaku_like_kind_cap_at_20) \
+    X(tables_kyaku_like_attr_mask_sjis_tokens) \
+    X(tables_kyaku_dislikes_orphan_match_is_noop) \
+    X(tables_kyaku_file_path) \
+    X(tables_kyaku_activity_time_mask_four_tokens) \
+    X(tables_kyaku_activity_time_partial_tokens) \
+    X(tables_kyaku_activity_time_unknown_token_ignored) \
+    X(tables_kyaku_atoi_scalars) \
+    X(tables_kyaku_lines_before_header_dropped) \
+    X(tables_kyaku_no_trailing_newline) \
+    X(tables_kyaku_multi_customer_threading) \
+    X(tables_kyaku_resolves_via_item_category) \
+    X(tables_kyaku_vendor_shape)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

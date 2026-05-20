@@ -594,6 +594,78 @@ never know.
 > "gousei.txt" section (`#count` at EOL with no trailing ':'),
 > `docs/decompiled/by-address/475270.c` L2447..L2477.
 
+## 24. `data/kyaku.txt` matches `嫌い:` then immediately discards it
+
+The customer table's per-line parser has 14 field-key blocks; one of
+them matches `嫌い:` (dislike: 5 SJIS bytes plus `:`) — and does
+absolutely nothing with the body. The do-while just `break`s on a
+mismatch and falls through to the next key on a hit:
+
+```c
+LAB_004771ee:
+  iVar1 = 0;
+  do {
+    if (local_27c[iVar1 + 0x20] != (&DAT_005caddc)[iVar1]) break;
+    iVar1 = iVar1 + 1;
+  } while (iVar1 != 5);
+  /* (no field write here — fall straight through to 活動時間:) */
+```
+
+No atoi, no string copy, no flag set, no MessageBoxA. The empty body
+is almost certainly the residue of a dialled-back feature: design
+note `kyaku.txt` opens with a long Japanese comment describing all
+the per-customer parameters and explicitly calls out `嫌いなもの`
+("dislikes"): *"地雷、コレを薦めるとお得意様度大幅ダウン、虫が苦手
+な人に虫系アイテム薦めたりするとヤバイ"* — a landmine; recommending
+a disliked item to a customer tanks their loyalty. The data file
+still ships dozens of `嫌い:` lines (all with empty bodies in the
+shipping version, but the field's existence implies it once held
+content) — but the engine ignores them, so a disliked-item recommend
+never gets penalised.
+
+Cost: 5 char-compares per non-comment line. We faithfully reproduce
+the orphan match in the port as `apply_dislikes_noop` so the dispatch
+chain stays semantically identical.
+
+> 📍 `src/tables_kyaku.c` (port — `apply_dislikes_noop`),
+> `docs/formats/data-text.md` "kyaku.txt" section,
+> `docs/decompiled/by-address/475270.c` L713..L718.
+
+## 25. `kyaku.txt` header writes singular's NUL into the wrong slot when '#' is present
+
+The `NNN:Singular#Plural` header parse uses two cursors:
+- `iVar6` — write position into both singular[] and joint[], resets
+  to 0 at `#`.
+- `iVar17` — total chars consumed from the line tail (does NOT reset
+  at `#`).
+
+When the loop detects an EOL on the next byte, it writes a NUL
+terminator — but at `puVar14[iVar17 + 5] = 0`, which is
+`singular[iVar17 + 1]`, NOT `singular[iVar6 + 1]`. For lines without
+`#` the two counters are equal and the NUL lands one past the
+singular's last content byte (correct). For lines with `#`, iVar17 has
+been ticking past the `#` while iVar6 reset to 0 — so the NUL lands
+several bytes past singular's actual end, sometimes well into joint
+territory.
+
+The bug doesn't manifest because the record was memset'd to 0 at boot
+(it's BSS-resident), so the bytes between the singular's content end
+and the misplaced NUL are already 0; the misplaced NUL is just
+overwriting a NUL that was already there. If the engine ever parsed
+kyaku.txt twice (it doesn't), or if it were called on non-zero
+memory, the singular field would be properly NUL-terminated only by
+luck.
+
+For `013:Woman#Women\r\n` specifically: iVar17 = 10 at EOL detect, so
+the NUL lands at singular[11]. Singular content ends at singular[4]
+('n' of "Woman"); singular[5..10] are already 0 from BSS, and
+singular[11] gets re-NUL'd. Net: harmless.
+
+> 📍 `src/tables_kyaku.c` (port — `parse_header` mirrors the
+> off-by-five with a bound check), `docs/formats/data-text.md`
+> "kyaku.txt" section ("Singular NUL at off-by-five"),
+> `docs/decompiled/by-address/475270.c` L545..L548.
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of

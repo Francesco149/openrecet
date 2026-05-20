@@ -3,6 +3,85 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [12/15]: `data/kyaku.txt` parser
+
+**Subsystems landed:**
+- `src/tables_kyaku.{c,h}` — pure-C parser for FUN_00475270 block #4
+  (`docs/decompiled/by-address/475270.c` L469..L832). 18 active
+  records out of 50 in vendor data; each record carries a
+  singular/plural name, name-table index, 2-axis attribute pair,
+  up-to-20 preferred item categories, preferred-attribute bitmask
+  (uses the same 16-tag SJIS table as oder/item), budget range,
+  activity-time mask (朝/昼/夕/夜 → bits 1/2/4/8), 6 haggle-tuning
+  ints, and a per-customer dialog-file path.
+- `src/tables.c` — replaced the kyaku.txt stub with the real loader.
+  New `resolve_via_item_category` adapter resolves `好き種類:` lines
+  against `g_item.categories[].singular` (populated earlier by
+  item.txt's category headers). Boot trace logs
+  `(customers=N like_kinds=K with_budget=B)`.
+- `docs/formats/data-text.md` — appended full kyaku.txt section: per-
+  line dispatcher table, header singular/joint quirk details, the
+  activity-time and preferred-attribute token tables, all 8
+  faithfully-reproduced quirks, vendor file shape.
+- `tests/test_tables_kyaku.c` — 23 cases covering: empty input,
+  comments / blanks, header singular-only + with-plural, attr X/Y
+  (full + empty), budget range (full + empty), like-kind resolver
+  hit / null-resolver-skip / 20-cap, like-attr SJIS mask, the
+  `嫌い:` orphan-noop, file_path copy, activity-time (all 4 tokens,
+  partial, unknown token), atoi scalars, lines-before-header
+  dropped, no-trailing-newline, multi-customer threading,
+  resolves-via-item-category end-to-end with a hand-populated
+  `item_state_t`, and a vendor-shape integration smoke.
+
+**Behavioral validation:**
+- 172 unit tests pass under ASan/UBSan (was 149).
+- Boot smoke: `data/kyaku.txt — 7603 bytes (customers=18
+  like_kinds=111 with_budget=15)` matches the vendor file (manual
+  count of `好き種類:` lines totals 111; only Recette / Tear /
+  Euria have empty `予算:` → 18 - 3 = 15 with-budget).
+
+**Engine quirks documented (and faithfully reproduced):**
+- **`嫌い:` is an orphan match.** The 5-byte `嫌い:` key match has
+  an empty body — match-but-discard. Almost certainly a dialled-back
+  feature; vendor data still ships dozens of `嫌い:` lines but nothing
+  consumes them.
+- **Header singular/joint write-position reset.** On `NNN:S#P` the
+  joint cursor resets to offset 0 at the `#`, so the plural
+  *overwrites* joint[0..] starting from the beginning. If plural is
+  shorter than singular, the tail of singular leaks into joint —
+  but vendor data never triggers (all plurals ≥ singular length).
+- **Singular NUL at off-by-five.** Engine's `puVar14[iVar17 + 5] = 0`
+  writes NUL at `singular[iVar17 + 1]`, NOT `singular[iVar6 + 1]`.
+  For `#`-containing headers it lands several bytes past singular's
+  end. Harmless thanks to BSS zero-init.
+- **Header gated by leading `0`.** Dispatcher only tries the 50-iter
+  `%03d:` match if `line[0] == '0'`. Records 0..49 always start
+  with `0` so this is a perf optimisation in practice; record IDs
+  ≥ 100 would be silently ignored.
+- **`属性:` / `予算:` unbounded delimiter scans.** Once the first
+  numeric is parsed, the engine walks forward looking for `,` /
+  `-` with NO upper bound. Vendor data always has the delimiter;
+  the port also stops at NUL.
+- **`好き種類:` cap of 20** + MessageBoxA on overflow / unknown
+  category. Port logs to stderr.
+- **Lines before any header are silently dropped** (engine's
+  `local_14 < 0` sprintf-to-discarded-local branch).
+
+**Resolver wiring:**
+- `好き種類:` resolves through `resolve_via_item_category` (new in
+  `src/tables.c`) — different from the existing `resolve_via_item_state`
+  (which probes `g_item.records[].singular` for full item names).
+  Kyaku resolves against the **category-name** table at
+  `g_item.categories[].singular`, populated by item.txt's
+  `:Category#(tag)` headers. The 111 vendor `好き種類:` lines all
+  resolve successfully against the populated category table.
+
+**Note for the next milestone:**
+- Phase B 13: `event.txt` (8901 bytes, ~62 C lines in 475270.c
+  block #10) — likely the next-easiest remaining file. Or `news.txt`
+  (6342 bytes, 655 C lines — larger but more boxed-in to a single
+  format). Confirm priority with the user.
+
 ## 2026-05-20 — Phase B [11/15]: resolver-wiring follow-up
 
 **Subsystems touched:**
