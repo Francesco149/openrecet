@@ -142,6 +142,22 @@ extern int test_tables_tuto_file_index_stride(void);
 extern int test_tables_tuto_overflows_cap(void);
 extern int test_tables_tuto_vendor_like_shape(void);
 
+extern int test_tables_gousei_empty(void);
+extern int test_tables_gousei_comments_and_blanks_skipped(void);
+extern int test_tables_gousei_basic_recipe(void);
+extern int test_tables_gousei_rank_header(void);
+extern int test_tables_gousei_recipe_before_rank_is_rank_zero(void);
+extern int test_tables_gousei_prefix_discarded(void);
+extern int test_tables_gousei_three_ingredients(void);
+extern int test_tables_gousei_five_ingredients(void);
+extern int test_tables_gousei_null_resolver_yields_minus_one(void);
+extern int test_tables_gousei_unknown_name_resolves_to_empty(void);
+extern int test_tables_gousei_count_at_eol_no_trailing_colon(void);
+extern int test_tables_gousei_no_trailing_newline(void);
+extern int test_tables_gousei_max_records_cap(void);
+extern int test_tables_gousei_embedded_nul_early_exit(void);
+extern int test_tables_gousei_vendor_shape(void);
+
 /* ─── registry ─────────────────────────────────────────────────────────── */
 static struct test_case g_tests[] = {
     {"bmp_basic_24bit",                  test_bmp_basic_24bit},
@@ -265,6 +281,22 @@ static struct test_case g_tests[] = {
     {"tables_tuto_file_index_stride",           test_tables_tuto_file_index_stride},
     {"tables_tuto_overflows_cap",               test_tables_tuto_overflows_cap},
     {"tables_tuto_vendor_like_shape",           test_tables_tuto_vendor_like_shape},
+
+    {"tables_gousei_empty",                          test_tables_gousei_empty},
+    {"tables_gousei_comments_and_blanks_skipped",    test_tables_gousei_comments_and_blanks_skipped},
+    {"tables_gousei_basic_recipe",                   test_tables_gousei_basic_recipe},
+    {"tables_gousei_rank_header",                    test_tables_gousei_rank_header},
+    {"tables_gousei_recipe_before_rank_is_rank_zero",test_tables_gousei_recipe_before_rank_is_rank_zero},
+    {"tables_gousei_prefix_discarded",               test_tables_gousei_prefix_discarded},
+    {"tables_gousei_three_ingredients",              test_tables_gousei_three_ingredients},
+    {"tables_gousei_five_ingredients",               test_tables_gousei_five_ingredients},
+    {"tables_gousei_null_resolver_yields_minus_one", test_tables_gousei_null_resolver_yields_minus_one},
+    {"tables_gousei_unknown_name_resolves_to_empty", test_tables_gousei_unknown_name_resolves_to_empty},
+    {"tables_gousei_count_at_eol_no_trailing_colon", test_tables_gousei_count_at_eol_no_trailing_colon},
+    {"tables_gousei_no_trailing_newline",            test_tables_gousei_no_trailing_newline},
+    {"tables_gousei_max_records_cap",                test_tables_gousei_max_records_cap},
+    {"tables_gousei_embedded_nul_early_exit",        test_tables_gousei_embedded_nul_early_exit},
+    {"tables_gousei_vendor_shape",                   test_tables_gousei_vendor_shape},
 };
 
 int main(int argc, char *argv[])

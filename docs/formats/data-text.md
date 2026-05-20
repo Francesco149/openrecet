@@ -1042,3 +1042,151 @@ After all three loads, the **final array state** is:
 Boot trace logs `(records=N)` per file plus a one-line warning when
 the count exceeds the 50-slot cap, so the engine's behaviour is
 observable at startup.
+
+
+## `data/gousei.txt`
+
+**Parser:** `src/tables_gousei.c` (block #13 of FUN_00475270 /
+`tables_load_all`, starting at LAB_004790cd /
+`docs/decompiled/by-address/475270.c:2402..2579`). Tests in
+`tests/test_tables_gousei.c` (15 cases — empty, comments-only, basic
+recipe, rank header, recipe-before-any-rank, prefix-discarded,
+three- and five-ingredient widths, null-resolver, unknown name,
+EOL-without-trailing-':', no-trailing-newline, max-records cap,
+embedded-NUL early-exit, vendor-shape end-to-end).
+
+**Purpose:** *item synthesis (合成) recipes* — defines how the shop's
+workshop UI crafts higher-tier items from lower-tier inputs. Each
+recipe pairs one output item with up to 5 named ingredients, each
+with a quantity. Recipes are grouped under `ランク:N` rank headers
+(crafting rank gates which recipes are unlocked).
+
+### Per-line shape
+
+```
+0004:Gilded Sword:Longsword#1:Water Crystal#1:
+^^^^                                          ^
+4-digit prefix — discarded                    trailing ':'
+```
+
+Field separator: `:`. Ingredient quantity: `#count` appended to the
+ingredient name. The output item (column 0) has no `#count`.
+
+### Per-record layout (12 dwords, stride 0x30)
+
+The engine writes records into a contiguous array starting at
+`&DAT_09640650`, with the populated-count counter at `&DAT_09642bf0`.
+Each record:
+
+| offset | engine symbol     | C field             | meaning             |
+|--------|-------------------|---------------------|---------------------|
+| +0x00  | DAT_09640650      | output_id           | item id (col 0)     |
+| +0x04  | DAT_09640654      | rank                | current `ランク:N`  |
+| +0x08  | DAT_09640658      | ingredient_id[0]    | ing1 item id        |
+| +0x0c  | DAT_0964065c      | ingredient_id[1]    | ing2 item id        |
+| +0x10  | DAT_09640660      | ingredient_id[2]    | ing3 item id        |
+| +0x14  | DAT_09640664      | ingredient_id[3]    | ing4 item id        |
+| +0x18  | DAT_09640668      | ingredient_id[4]    | ing5 item id        |
+| +0x1c  | DAT_0964066c      | ingredient_count[0] | ing1 count          |
+| +0x20  | DAT_09640670      | ingredient_count[1] | ing2 count          |
+| +0x24  | DAT_09640674      | ingredient_count[2] | ing3 count          |
+| +0x28  | DAT_09640678      | ingredient_count[3] | ing4 count          |
+| +0x2c  | DAT_0964067c      | ingredient_count[4] | ing5 count          |
+
+### Header dispatch
+
+| line pattern   | action                                              |
+|----------------|-----------------------------------------------------|
+| `/...`         | comment — skipped                                   |
+| empty          | skipped                                             |
+| `ランク:N`     | `current_rank = atoi(N)` (7-byte SJIS prefix)       |
+| `NNNN:...`     | recipe row (NNNN parsed but discarded)              |
+
+Recipes encountered before any `ランク:` header get rank=0.
+
+### Engine quirks
+
+- **The 4-digit `NNNN:` prefix is discarded.** Engine: `pcVar16 =
+  local_27c + 0x25` skips 5 bytes. The output item is keyed by NAME,
+  not by the numeric prefix. The digits appear to be a sprite-slot
+  hint for the data designers (first 2 digits = category, last 2 =
+  sub-index) but the engine never reads them.
+
+- **`ing1` write stamps `ing2..ing5` to -1.** When the parser writes
+  the column-1 ingredient ID (engine: L2533..L2538), it also writes
+  0xffffffff to the ing2..ing5 ID slots. This is the ONLY place those
+  slots get pre-initialised — counts stay at BSS-zero unless written
+  by `#N`. Unused ingredient IDs therefore read as -1 (assuming ing1
+  was set), unused ingredient counts as 0.
+
+- **Item lookup is exact-name, not longest-prefix.** Engine
+  L2491..L2519 does length-equality + strncmp(strlen) — names must
+  match exactly. (Contrast `enemy.txt`, which uses longest-prefix.)
+
+- **Index-0 match still pops MessageBox.** Engine bug: a name that
+  matches the FIRST entry in the item table (index 0) takes the
+  `break` path instead of `goto skip_messagebox`, so MessageBoxA
+  "{name} に不明なアイテム" fires anyway. The resolved ID *does* land
+  in the record correctly. Port doesn't pop MessageBox at all, so
+  this quirk is moot in the port.
+
+- **Resolver miss = 0 in engine, -1 in port.** Engine: name-not-found
+  → `piVar4 = 0` (the loop-init value) is what gets stored. Port:
+  unresolved → -1 (matches the convention used in oder.txt and
+  enemy.txt drops). Both are dormant until `item.txt` has been
+  parsed.
+
+- **`#0` count and "stale count" both warn (no-op).** Engine pops
+  MessageBox for zero counts (`#0`) and for ingredient slots with no
+  `#count` modifier. Vendor data never trips either; the port logs
+  to stderr instead of pop-up.
+
+- **Record cap at 200 with overrun.** Engine `MessageBoxA "合成
+  アイテム登録オーバー"` fires when count crosses 200, but the record
+  has already been written — the engine writes-then-warns. By address
+  math, the array runs out of room around slot 200 (next adjacent
+  symbol `&DAT_09642bf0` sits at `base + 0x25a0`), so the overrun
+  bleeds into neighbouring globals. The port refuses to write past
+  slot 199 (count reaches 200) and drops the remaining recipes.
+  Vendor data ships 101 recipes.
+
+### `#count` at EOL with no trailing ':'
+
+One vendor recipe is malformed:
+
+```
+1215:Master's Plate:Barrier Plate#1:Plate of Grief#1:Wind Emblem#1
+                                                                  ^ no ':'
+```
+
+Engine's `#` handler does an UNBOUNDED scan for ':' after the count
+digits — on this line it walks past `\r\n` and into the rest of the
+parse buffer, eventually hitting some unrelated ':' far away. The
+record IS still committed (count++); all four ingredients get the
+correct IDs and counts; only the parser's cursor ends up in an
+undefined location, briefly. The next line's processing eventually
+re-aligns (the outer loop reads `pos` from the line-collect cursor,
+not the inner `pcVar16`).
+
+Port behaviour: detects EOL/EOF inside the `:` hunt and finalises the
+last ingredient cleanly (resolves the name, writes the ID, breaks out
+of the inner loop). End-state of the record is identical to the
+engine's; we just skip the undefined-behaviour scan.
+
+### Vendor file shape
+
+| stat                              | value                            |
+|-----------------------------------|----------------------------------|
+| Bytes via `storage_read`          | 6252                             |
+| Total non-comment/blank lines     | 106 (5 rank headers + 101 recipes) |
+| Recipes per rank                  | 22 / 22 / 17 / 19 / 21 (ranks 1..5) |
+| Recipes with 4 ingredients (col=3 lookups) | 65                      |
+| Recipes with 3 ingredients (col=2 final)   | 36                      |
+| Recipes with 5 ingredients                 | 0 (max width unused)    |
+| Malformed-trailing-':' recipes             | 1 (rank-4 Master's Plate) |
+
+Boot trace logs `(recipes=N max_rank=M)`. The cross-table dependency
+on `item.txt`'s name table means every ingredient and output ID
+currently resolves to -1; once item.txt's parser lands, tables.c can
+plumb a real resolver into `tables_parse_gousei` and the IDs will
+resolve correctly without touching the parser itself.

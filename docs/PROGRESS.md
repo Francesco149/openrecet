@@ -3,6 +3,58 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [9/15]: `data/gousei.txt` parser
+
+**Subsystems landed:**
+- `src/tables_gousei.{c,h}` — pure-C parser for FUN_00475270 block
+  #13 (LAB_004790cd / `docs/decompiled/by-address/475270.c`
+  L2402..L2579). 12-dword (0x30-byte) record layout: output_id, rank,
+  ingredient_id[5], ingredient_count[5]. Header-vs-recipe dispatch
+  on the 7-byte SJIS `ランク:` prefix. Recipe lines skip the 5-byte
+  `NNNN:` prefix wholesale (engine: `pcVar16 = local_27c + 0x25`),
+  then walk colon-separated fields with `#N` count modifiers.
+- `src/tables.c` — replaced the gousei stub with a real loader.
+  Threads a NULL item-name resolver for now (item.txt parser hasn't
+  landed); when it does, tables.c will pass a real callback into
+  `tables_parse_gousei` without touching the parser. Boot trace
+  logs `(recipes=N max_rank=M)`.
+- `docs/formats/data-text.md` — appended a full gousei section:
+  per-record layout, header dispatch, the discarded 4-digit prefix,
+  the ing1-write quirk, the exact-name lookup, the index-0
+  MessageBox quirk, the 200-record cap, vendor file shape.
+- `docs/findings/engine-quirks.md` — added quirk #23: the
+  `Master's Plate` recipe line ships without a trailing `:`, which
+  trips the engine's unbounded `:` hunt past the line terminator and
+  into surrounding memory. Record still commits; port detects EOL
+  in the hunt and finalises the column cleanly.
+- `tests/test_tables_gousei.c` — 15 cases covering empty input,
+  comment/blank skipping, basic recipes, rank header dispatch,
+  rank-0 recipes preceding any header, prefix-discarded behaviour,
+  3- and 5-ingredient widths, NULL-resolver fall-through, unknown-
+  name → -1, the EOL-without-trailing-':' recovery, no-trailing-
+  newline, the 200-record cap, embedded-NUL early-exit, and a
+  vendor-shape integration test.
+
+**Behavioral validation:**
+- 124 unit tests pass under ASan/UBSan (was 109).
+- Boot smoke: `data/gousei.txt — 6252 bytes (recipes=101 max_rank=5)`
+  matches the vendor file's actual recipe count (22+22+17+19+21 = 101
+  across ranks 1..5). Pre-fix, my parser was reporting 100 — the
+  missing recipe was the Master's-Plate-without-trailing-':' line,
+  which my -1-return path was silently dropping; chased it down via
+  per-line debug instrumentation, then replaced the bail with an
+  EOL-aware fall-through.
+
+**Note for the next milestone:**
+- Item resolver hook is now the gating dependency for *several* of
+  the already-ported parsers (oder.txt attribute lookup, enemy.txt
+  drop refs, gousei.txt output/ingredient IDs). Once item.txt's
+  parser is in, a single resolver callback wired into each loader
+  will populate the long-deferred ID fields without re-touching the
+  parsers.
+
+---
+
 ## 2026-05-20 — Phase B [8/15]: `data/tuto[123].txt` parser
 
 **Subsystems landed:**

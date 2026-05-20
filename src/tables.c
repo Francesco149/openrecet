@@ -27,6 +27,7 @@
 #include "tables_chara.h"
 #include "tables_config.h"
 #include "tables_enemy.h"
+#include "tables_gousei.h"
 #include "tables_model.h"
 #include "tables_oder.h"
 #include "tables_snews.h"
@@ -238,7 +239,27 @@ static void load_snews_txt(void)
             sz, names, sections);
     free(buf);
 }
-DEFINE_STUB(load_gousei_txt,    "data/gousei.txt")
+/* gousei.txt — ported. Real parser in src/tables_gousei.c. Item-name
+ * → item-id resolution requires the item.txt table; until that loader
+ * lands (slot #3, still a stub), every name resolves to -1. */
+static void load_gousei_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/gousei.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_gousei(buf, sz, &g_gousei, NULL, NULL);
+    int max_rank = 0;
+    for (int i = 0; i < g_gousei.count; i++) {
+        if (g_gousei.records[i].rank > max_rank) {
+            max_rank = g_gousei.records[i].rank;
+        }
+    }
+    fprintf(stderr,
+            "tables: data/gousei.txt — %zu bytes "
+            "(recipes=%d max_rank=%d)\n",
+            sz, g_gousei.count, max_rank);
+    free(buf);
+}
 DEFINE_STUB(load_enemylist_txt, "data/enemylist.txt")
 
 /* tuto1.txt / tuto2.txt / tuto3.txt — ported. Real parser in
