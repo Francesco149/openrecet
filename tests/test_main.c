@@ -71,6 +71,16 @@ extern int test_tables_config_font_overlong_truncates(void);
 extern int test_tables_config_commented_lines_ignored(void);
 extern int test_tables_config_vendor_shape(void);
 
+extern int test_tables_oder_empty(void);
+extern int test_tables_oder_one_record(void);
+extern int test_tables_oder_level_threads_through(void);
+extern int test_tables_oder_sjis_attrs_all_16(void);
+extern int test_tables_oder_english_attr_falls_through(void);
+extern int test_tables_oder_tabs_are_skipped(void);
+extern int test_tables_oder_line_cap_truncates(void);
+extern int test_tables_oder_no_trailing_newline(void);
+extern int test_tables_oder_vendor_shape(void);
+
 /* ─── registry ─────────────────────────────────────────────────────────── */
 static struct test_case g_tests[] = {
     {"bmp_basic_24bit",                  test_bmp_basic_24bit},
@@ -123,6 +133,16 @@ static struct test_case g_tests[] = {
     {"tables_config_font_overlong_truncates", test_tables_config_font_overlong_truncates},
     {"tables_config_commented_lines_ignored", test_tables_config_commented_lines_ignored},
     {"tables_config_vendor_shape",            test_tables_config_vendor_shape},
+
+    {"tables_oder_empty",                     test_tables_oder_empty},
+    {"tables_oder_one_record",                test_tables_oder_one_record},
+    {"tables_oder_level_threads_through",     test_tables_oder_level_threads_through},
+    {"tables_oder_sjis_attrs_all_16",         test_tables_oder_sjis_attrs_all_16},
+    {"tables_oder_english_attr_falls_through", test_tables_oder_english_attr_falls_through},
+    {"tables_oder_tabs_are_skipped",          test_tables_oder_tabs_are_skipped},
+    {"tables_oder_line_cap_truncates",        test_tables_oder_line_cap_truncates},
+    {"tables_oder_no_trailing_newline",       test_tables_oder_no_trailing_newline},
+    {"tables_oder_vendor_shape",              test_tables_oder_vendor_shape},
 };
 
 int main(int argc, char *argv[])

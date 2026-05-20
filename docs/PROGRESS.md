@@ -3,6 +3,48 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [3/15]: `data/oder.txt` parser
+
+**Subsystems landed:**
+- `src/tables_oder.{c,h}` — pure-C parser for FUN_00475270 block #8
+  (dispatch L1378..L1421 + inner CSV loop reached via
+  `goto LAB_00477ffe` at L1813..L1931). Two parse phases plus a
+  `LV:`-header dispatch: each data row is `<singular>,<plural>,
+  <attribute>`, where field 1 writes at column position into the
+  record (engine quirk faithfully reproduced with a safe truncation
+  guard), field 2 writes sequentially after the first comma, and
+  field 3 is hashed against a 16-tag SJIS attribute table at
+  `&DAT_005fd7fc`. Record stride 0x4c (76 bytes) matching the engine.
+- `src/tables.c` — replaced the oder.txt stub with a real loader.
+  Boot trace now logs `(orders=N max_lv=M)`.
+- `docs/formats/data-text.md` — appended an oder.txt section with
+  line-shape table, record layout, the full 16-tag attribute table
+  (SJIS bytes + kanji + romaji + meaning), inner-loop quirks
+  (100-char cap, tab skipping, column-position writes), and the
+  fallback name-table lookup that we intentionally suppressed
+  until `item.txt` lands.
+- `tests/test_tables_oder.c` — 9 cases: empty, single record, LV
+  threading across data lines, all 16 SJIS tags → expected bits,
+  English fallback (mask=0, attr_index=-1), tab skipping inside
+  fields, 100-char inner-loop cap, no-trailing-newline EOF,
+  vendor-shape end-to-end fixture with mixed SJIS/English rows
+  across LV groups 1, 2, and 5.
+
+**Engine fidelity divergence (documented):** the engine's fallback
+linear search through `&DAT_0963e5f8` (item-name table, populated
+by item.txt) is deferred — populated as `attr_index = -1`. When
+item.txt parses we'll add a name-lookup callback hook. The
+engine's MessageBoxA on unknown attributes is intentionally
+suppressed so the port doesn't pop up "属性不明な登録" on boot.
+
+**Boot verification:** stderr now shows
+`tables: data/oder.txt — 1686 bytes (orders=24 max_lv=5)`,
+matching the vendor file's 24 records across LV groups 1-5. All
+other 16 stubs continue to log as before; tutorial loop still
+stops correctly at `tuto4.txt`.
+
+**Test status:** 53 tests pass (up from 44), no fails, no skips.
+
 ## 2026-05-20 — Phase B [2/15]: `data/config.idx` parser
 
 **Subsystems landed:**

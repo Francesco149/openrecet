@@ -185,3 +185,158 @@ byte AFTER the terminator. Both behaviors are equivalent for atoi
 Our port's line reader excludes the `\r`/`\n` from the buffer
 entirely, achieving the same effect for both files with less
 ceremony.
+
+---
+
+## `data/oder.txt`
+
+**Engine block:** `FUN_00475270` block #8 — dispatch wrapper at
+`docs/decompiled/by-address/475270.c:1378..1421`, inner CSV loop
+reached via `goto LAB_00477ffe` at lines 1813..1931. The two blocks
+are physically non-adjacent in the decompiled output because the
+inner loop is shared structurally with other CSV parsers, but only
+oder.txt enters it through this particular goto.
+
+**Identity:** referenced via `s_data_oder_txt_005caf7c` (size path)
+and `s_data_oder_txt_005caf8c` (read path) — same spelling both
+sides, so unlike `config.idx` there is no path-mismatch quirk to
+mirror.
+
+**Port:** `src/tables_oder.{c,h}`, parser entry point
+`tables_parse_oder(data, size, out)`. Engine-global instance
+`g_oder`. Tests in `tests/test_tables_oder.c` (9 cases — empty,
+single record, LV threading, all 16 SJIS attribute tags, English
+fallback, tab handling, 100-char line cap, no-trailing-newline,
+vendor-shape end-to-end).
+
+**Purpose:** *customer order requests.* When a customer enters Recet's
+shop with an order, the engine picks an `oder.txt` entry whose
+`LV` matches the current game difficulty, then displays the
+singular/plural phrasing ("she wants **a bracelet** / she wants
+**bracelets**") and uses the attribute tag to filter the shop
+inventory for matching items.
+
+### Line shape
+
+The file is **not** in the `/key:value` family — it's a hybrid of
+two line types intermixed:
+
+| line                                       | role                       |
+|--------------------------------------------|----------------------------|
+| `//…` or blank or `/…`                     | comment / skipped          |
+| `LV:N`                                     | sets pending difficulty    |
+| `<singular>,<plural>,<attribute>`          | data row → one record      |
+
+Each data row uses the most-recently-seen `LV:` value. The engine
+stores `level_minus_1 = LV - 1` in the record — the `-1` shift makes
+the level a 0-based array index.
+
+### Record layout (engine stride 0x4c)
+
+| offset | size | C-field          | written by         |
+|--------|------|------------------|--------------------|
+| +0x00  | 32   | `name_singular`  | phase 0 (in-place at column position) |
+| +0x20  | 32   | `name_plural`    | phase 1 (sequential after first `,`)  |
+| +0x40  | 4    | `attr_mask`      | `oder_attr_hash()` over field 3       |
+| +0x44  | 4    | `attr_index`     | item-name lookup (suppressed — see below) |
+| +0x48  | 4    | `level_minus_1`  | pending `LV` minus 1                  |
+
+Record base in the engine: `&DAT_06a5db98` + `count * 0x4c`. The
+port's `struct oder_entry` matches this byte layout, though we
+present it as named fields rather than a packed buffer.
+
+### Inner-loop quirks
+
+- **Per-line cap:** 100 chars (`local_14 == 0x64` break at L1842).
+  Anything past 100 bytes on a single data row is silently
+  truncated.
+- **Tab skipping:** an embedded `\t` is the only byte type that does
+  *not* advance any field position. In phase 0 this leaves a hole
+  at the tab's column (the byte at that record offset stays at its
+  pre-parse value — usually 0). In phase 1 / phase 2 the tab is
+  simply omitted from the output.
+- **Column-position writes for field 1:** unlike fields 2 and 3
+  which write sequentially, field 1 writes each byte at *column
+  position within the line*. A comma at column N overwrites with
+  `\0` at offset N in the record. With memset 0 at parse-start
+  this still produces a clean C string for the common case
+  (well-formed input, field width ≤ 31).
+- **Over-32-char field 1:** the engine would spill bytes past
+  offset 0x1F into the +0x20 plural slot, corrupting it. The
+  port truncates at offset 31 to avoid the spill. The vendor file
+  has no field over 16 chars so this divergence is dormant.
+
+### 16-tag attribute table (`FUN_0049e9a7`)
+
+The third field is hashed via a 4-byte memcmp against 16 SJIS tags
+at `&DAT_005fd7fc` (stride 8: 4 chars + 4 zero-padding). The
+returned mask sets bit `(1 << N)` for index N's tag, or 0 if no
+match. The 16 tags in declaration order:
+
+| bit    | SJIS bytes               | kanji  | romaji      | meaning             |
+|--------|--------------------------|--------|-------------|---------------------|
+| 0x0001 | `95 90 8a ed`            | 武器   | bukI        | weapon              |
+| 0x0002 | `96 68 8b ef`            | 防具   | bougu       | armor               |
+| 0x0004 | `92 b2 93 78`            | 調度   | choudo      | decor               |
+| 0x0008 | `95 9e 8f fc`            | 服飾   | fukushoku   | clothing            |
+| 0x0010 | `83 41 83 4e`            | アク   | aku         | accessory           |
+| 0x0020 | `8b 4d 8b e0`            | 貴金   | kikin       | precious metal      |
+| 0x0040 | `8b e0 91 ae`            | 金属   | kinzoku     | metal               |
+| 0x0080 | `97 5b 94 d1`            | 夕飯   | yuuhan      | dinner              |
+| 0x0100 | `8a c3 82 a2`            | 甘い   | amai        | sweet               |
+| 0x0200 | `94 68 8e e8`            | 派手   | hade        | fancy               |
+| 0x0400 | `92 6e 96 a1`            | 地味   | jimi        | plain               |
+| 0x0800 | `92 bf 95 69`            | 珍品   | chinpin     | rare                |
+| 0x1000 | `96 68 8a a6`            | 防寒   | boukan      | cold-weather        |
+| 0x2000 | `90 48 95 69`            | 食品   | shokuhin    | food                |
+| 0x4000 | `90 b9 91 ae`            | 聖属   | seizoku     | holy                |
+| 0x8000 | `96 82 91 ae`            | 魔属   | mazoku      | sinister            |
+
+The engine's lookup runs all 16 comparisons unconditionally and
+overwrites the result with the *last* match's bit — but the 16 tags
+are byte-disjoint in their first 4 bytes, so at most one match ever
+fires in practice. The port mirrors "last match wins" anyway.
+
+### Engine fallback: item-name table lookup
+
+When `attr_mask == 0` (the attribute field didn't match any of the
+16 SJIS tags), the engine linearly searches the `&DAT_0963e5f8`
+item-name table (256 × 32-byte SJIS strings, populated by `item.txt`
+during block #3). If a match is found, the index is stored at
+`record + 0x44`. If not, two `MessageBoxA` dialogs fire with the
+error string `属性不明な登録` ("unknown attribute registration").
+
+This fallback is **intentionally suppressed in the port** for now
+because:
+
+1. `item.txt` hasn't been ported yet — the name table is empty so
+   every lookup would miss and MessageBoxA on boot.
+2. The fallback's natural shape is a callback / late-bound hook
+   that we'll wire up cleanly when `item.txt` lands.
+
+For now the port stores `attr_index = -1` unconditionally when the
+SJIS hash misses. Vendor file behavior is preserved: SJIS-attr
+rows like `…,武器` resolve to `attr_mask=1<<0` immediately;
+English-name rows like `…,Treasures` get `attr_mask=0, attr_index=-1`
+without a popup.
+
+### Vendor file shape
+
+Shipping `data/oder.txt` (1686 bytes, CRLF, SJIS):
+
+- 5 LV groups (LV:1 through LV:5)
+- 24 data rows total, distributed across groups
+- A mix of English fallback rows (`Treasures`, `Bracelets`,
+  `Hats`, `Scarves`, `Food`, `Books`, `Rings`, `Swords`,
+  `Ingredients`) and SJIS-tag rows (the 14 attribute names)
+- An ASCII comment block at the top enumerating the 16 attribute
+  meanings — the same set this parser hashes against
+
+The boot trace confirms `(orders=24 max_lv=5)` matches.
+
+### Engine quirk: shared count global
+
+`DAT_06a5d448` is the record-count cursor; it's set to 0 at the
+top of every block (oder.txt, model.txt, event.txt, …) so each
+block uses it as scratch storage. The port encapsulates this per-
+parser via `struct oder_table.count`.

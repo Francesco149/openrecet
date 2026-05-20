@@ -19,9 +19,9 @@ CFLAGS  := -std=c11 -g -O1 -Wall -Wextra -Wno-unused-parameter \
 LDFLAGS := $(SAN)
 
 SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash.c ../src/lnk_lzss.c \
-                 ../src/tables_buysell.c ../src/tables_config.c
+                 ../src/tables_buysell.c ../src/tables_config.c ../src/tables_oder.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
-                 test_tables_buysell.c test_tables_config.c
+                 test_tables_buysell.c test_tables_config.c test_tables_oder.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))
 OUT  := build/run_tests

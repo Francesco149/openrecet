@@ -25,6 +25,7 @@
 #include "storage.h"
 #include "tables_buysell.h"
 #include "tables_config.h"
+#include "tables_oder.h"
 
 /* Load one file via storage_read and report the size. Returns the
  * size, or 0 on miss / OOM. Output buffer is owned by the caller and
@@ -109,7 +110,26 @@ static void load_buysell_txt(void)
             g_buysell.kyaku_number, g_buysell.kind);
     free(buf);
 }
-DEFINE_STUB(load_oder_txt,      "data/oder.txt")
+/* oder.txt — ported. Real parser in src/tables_oder.c. The engine's
+ * fallback name-table lookup (DAT_0963e5f8, populated by item.txt) is
+ * intentionally skipped here — see docs/formats/data-text.md. */
+static void load_oder_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/oder.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_oder(buf, sz, &g_oder);
+    int max_lv = 0;
+    for (int i = 0; i < g_oder.count; i++) {
+        int lv = g_oder.entries[i].level_minus_1 + 1;
+        if (lv > max_lv) max_lv = lv;
+    }
+    fprintf(stderr,
+            "tables: data/oder.txt — %zu bytes "
+            "(orders=%d max_lv=%d)\n",
+            sz, g_oder.count, max_lv);
+    free(buf);
+}
 DEFINE_STUB(load_model_txt,     "data/model.txt")
 DEFINE_STUB(load_event_txt,     "data/event.txt")
 DEFINE_STUB(load_news_txt,      "data/news.txt")
