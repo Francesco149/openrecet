@@ -126,6 +126,22 @@ smoke runs, multi-subsystem trace + writeup.
   Sonnet executes).
 - ❌ Don't let a subagent commit or push.
 
+## Persistent analysis tooling
+
+Inline one-off Python (PE-string lookups, VA → file-offset conversions,
+fixed-table dumps from the unpacked exe) lives at
+**`tools/analyze/`**. Grow it instead of pasting throwaway scripts:
+
+- `tools/analyze/pe.py` — PE32 helper (lists sections, maps
+  VA → file offset, dumps cp932 NUL-terminated strings or raw bytes
+  at a VA, extracts blobs). Reusable as both a CLI and a module
+  (`from pe import PE`). Defaults to `vendor/unpacked/recettear.unpacked.exe`.
+
+When you write a new ad-hoc analysis script that you'd plausibly want
+again, either add a subcommand to an existing tool here or drop a new
+file alongside it (one-purpose-per-file is fine — match the
+`tools/extract/*.py` style).
+
 ## Note engine quirks as you find them
 
 When porting a function or chasing a bug, you will routinely stumble on
