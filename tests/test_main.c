@@ -92,6 +92,7 @@ struct test_case {
     X(tables_enemy_placeholder_records_skip_match) \
     X(tables_enemy_no_trailing_newline) \
     X(tables_enemy_vendor_shape) \
+    X(tables_enemy_drop_resolves_via_callback) \
     \
     X(tables_config_empty) \
     X(tables_config_all_live_keys) \
@@ -189,7 +190,8 @@ struct test_case {
     X(tables_gousei_no_trailing_newline) \
     X(tables_gousei_max_records_cap) \
     X(tables_gousei_embedded_nul_early_exit) \
-    X(tables_gousei_vendor_shape)
+    X(tables_gousei_vendor_shape) \
+    X(tables_gousei_resolves_via_item_state)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

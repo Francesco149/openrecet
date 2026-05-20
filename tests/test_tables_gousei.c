@@ -9,7 +9,9 @@
 
 #include "t.h"
 #include "tables_gousei.h"
+#include "tables_item.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 /* SJIS bytes for the "ランク:" header prefix.
@@ -414,5 +416,55 @@ int test_tables_gousei_vendor_shape(void)
     T_ASSERT_EQ_I(out.records[3].ingredient_id[2], 7);  /* Foo */
     T_ASSERT_EQ_I(out.records[3].ingredient_count[2], 2);
 
+    return 0;
+}
+
+/* Adapter that lets tables_item_resolve satisfy the (name, user) → id
+ * callback shape. Mirrors `resolve_via_item_state` in src/tables.c —
+ * keeping a copy here so the unit test isn't coupled to tables.c. */
+static int32_t resolve_via_item_state(const char *name, void *user)
+{
+    return tables_item_resolve((const item_state_t *)user, name);
+}
+
+int test_tables_gousei_resolves_via_item_state(void)
+{
+    /* End-to-end resolver-wiring smoke: hand-populate a tiny
+     * item_state_t (as if item.txt had parsed three records), then
+     * parse a recipe through the same `tables_item_resolve` callback
+     * that tables.c uses at boot. */
+    item_state_t *state = (item_state_t *)calloc(1, sizeof *state);
+    if (!state) T_FAIL("OOM allocating item_state_t");
+
+    /* Three items, valid=1, distinct singular + item_id. */
+    state->records[0].valid   = 1;
+    state->records[0].item_id = 42;
+    strcpy(state->records[0].singular, "Gilded Sword");
+
+    state->records[1].valid   = 1;
+    state->records[1].item_id = 17;
+    strcpy(state->records[1].singular, "Longsword");
+
+    state->records[2].valid   = 1;
+    state->records[2].item_id = 99;
+    strcpy(state->records[2].singular, "Water Crystal");
+
+    state->count = 3;
+
+    static const unsigned char input[] =
+        "0004:Gilded Sword:Longsword#1:Water Crystal#1:\r\n";
+
+    gousei_state_t out;
+    tables_parse_gousei(input, sizeof input - 1, &out,
+                        resolve_via_item_state, state);
+
+    T_ASSERT_EQ_I(out.count, 1);
+    T_ASSERT_EQ_I(out.records[0].output_id, 42);          /* Gilded Sword */
+    T_ASSERT_EQ_I(out.records[0].ingredient_id[0], 17);   /* Longsword */
+    T_ASSERT_EQ_I(out.records[0].ingredient_id[1], 99);   /* Water Crystal */
+    T_ASSERT_EQ_I(out.records[0].ingredient_count[0], 1);
+    T_ASSERT_EQ_I(out.records[0].ingredient_count[1], 1);
+
+    free(state);
     return 0;
 }

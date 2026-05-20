@@ -125,6 +125,22 @@ extern enemy_record_t g_enemy[ENEMY_COUNT];
 void tables_enemy_init(enemy_record_t records[ENEMY_COUNT]);
 
 /*
+ * Drop-name → item-id resolver callback. The engine resolves drop
+ * names against the `item.txt`-populated table at `&DAT_095d381a`
+ * (stride 0x2cc, count `_DAT_005c80ac`) via exact-string match.
+ *
+ * `name` is a NUL-terminated SJIS string from the drop field (the
+ * parser's own scratch buffer, capped at ENEMY_DROP_NAME_LEN-1 bytes).
+ * `user` is the opaque value passed through from `tables_parse_enemy`.
+ *
+ * Returns the resolved item id (>= 0) on success, or -1 on miss /
+ * "table not loaded yet". When `tables_parse_enemy` is invoked with
+ * a NULL resolver, every drop name resolves to -1 — the convention
+ * used by tests and during early Phase B before item.txt landed.
+ */
+typedef int32_t (*enemy_resolve_fn)(const char *name, void *user);
+
+/*
  * Parse an enemy.txt buffer into `records`. Records must already
  * carry their pre-baked names (see tables_enemy_init). For each data
  * line, finds the longest-prefix matching record by name and updates
@@ -146,11 +162,13 @@ void tables_enemy_init(enemy_record_t records[ENEMY_COUNT]);
  * names at ENEMY_DROP_NAME_LEN-1 chars. Vendor data fits well under
  * both caps.
  *
- * **Cross-table dependency:** drop-name → item-id resolution requires
- * `item.txt` to have been parsed first. Until that loader lands in
- * Phase B, drops resolve to -1 unconditionally. See tables_enemy.c
- * for the lookup callback hook. The engine's MessageBoxA on a
- * missing drop name is intentionally suppressed.
+ * **Cross-table dependency:** drop-name → item-id resolution is
+ * delegated to the caller-supplied `resolve` callback. tables.c binds
+ * this to `tables_item_resolve` against `g_item` (populated earlier
+ * in the load order). Passing a NULL resolver collapses every drop
+ * to -1 — useful for unit tests and for early-Phase-B traces before
+ * item.txt landed. The engine's MessageBoxA on a missing drop name
+ * is intentionally suppressed.
  *
  * **Cross-record dependency:** the per-line name match is a
  * **longest common prefix** lookup against records[].name. Records
@@ -159,6 +177,7 @@ void tables_enemy_init(enemy_record_t records[ENEMY_COUNT]);
  * they stay at their pre-init values.
  */
 void tables_parse_enemy(const unsigned char *data, size_t size,
-                        enemy_record_t records[ENEMY_COUNT]);
+                        enemy_record_t records[ENEMY_COUNT],
+                        enemy_resolve_fn resolve, void *user);
 
 #endif /* OPENRECET_TABLES_ENEMY_H */

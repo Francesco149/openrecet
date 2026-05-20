@@ -62,7 +62,7 @@ int test_tables_enemy_basic_record(void)
     static const unsigned char input[] =
         E_SLIME_GREEN "     :15# 1# 25# 4# 0# 10# Slime Fluid#Worn Sword\r\n";
 
-    tables_parse_enemy(input, sizeof input - 1, recs);
+    tables_parse_enemy(input, sizeof input - 1, recs, NULL, NULL);
 
     T_ASSERT_EQ_I(recs[0].hp,          15);
     T_ASSERT_EQ_I(recs[0].exp_reward,   1);
@@ -91,7 +91,7 @@ int test_tables_enemy_longest_prefix_wins(void)
     static const unsigned char input[] =
         E_ARRIMAN_GRN "   :99#88#77#66#55#44# foo#bar\r\n";
 
-    tables_parse_enemy(input, sizeof input - 1, recs);
+    tables_parse_enemy(input, sizeof input - 1, recs, NULL, NULL);
 
     /* Record 7 = アーリマン緑 — should be populated. */
     T_ASSERT_EQ_I(recs[7].hp, 99);
@@ -115,7 +115,7 @@ int test_tables_enemy_shorter_prefix_when_no_longer_match(void)
     static const unsigned char input[] =
         E_ARRIMAN "     :10#20#30#40#50#60# X#Y\r\n";
 
-    tables_parse_enemy(input, sizeof input - 1, recs);
+    tables_parse_enemy(input, sizeof input - 1, recs, NULL, NULL);
 
     T_ASSERT_EQ_I(recs[6].hp, 10);
     T_ASSERT_EQ_I(recs[6].md, 60);
@@ -138,7 +138,7 @@ int test_tables_enemy_comments_and_blanks_skipped(void)
         "  / indented (also skipped via leading-space rule)\r\n"
         E_USAGI "             :42# 9# 8# 7# 6# 5# Fur Ball\r\n";
 
-    tables_parse_enemy(input, sizeof input - 1, recs);
+    tables_parse_enemy(input, sizeof input - 1, recs, NULL, NULL);
 
     /* Record 22 = 兎 — should be the only one populated. */
     T_ASSERT_EQ_I(recs[22].hp, 42);
@@ -165,7 +165,7 @@ int test_tables_enemy_per_line_drop_reset(void)
         E_SLIME_GREEN "     :15# 1# 25# 4# 0# 10# Slime Fluid#Worn Sword\r\n"
         E_SLIME_RED   "     :20# 4# 30#16# 0# 10# Slime Fluid\r\n";
 
-    tables_parse_enemy(input, sizeof input - 1, recs);
+    tables_parse_enemy(input, sizeof input - 1, recs, NULL, NULL);
 
     /* Record 0 — has both drops (resolved to -1 until item.txt). */
     T_ASSERT_EQ_I(recs[0].drop_common, -1);
@@ -190,7 +190,7 @@ int test_tables_enemy_unknown_name_silently_skipped(void)
         "TotallyMadeUpName:99#99#99#99#99#99# Stuff#MoreStuff\r\n"
         E_USAGI "             :42# 9# 8# 7# 6# 5# Fur Ball\r\n";
 
-    tables_parse_enemy(input, sizeof input - 1, recs);
+    tables_parse_enemy(input, sizeof input - 1, recs, NULL, NULL);
 
     /* 兎 still parses normally despite the preceding bogus line. */
     T_ASSERT_EQ_I(recs[22].hp, 42);
@@ -211,7 +211,7 @@ int test_tables_enemy_placeholder_records_skip_match(void)
     static const unsigned char input[] =
         E_SLIME_GREEN "     :15# 1# 25# 4# 0# 10# x#y\r\n";
 
-    tables_parse_enemy(input, sizeof input - 1, recs);
+    tables_parse_enemy(input, sizeof input - 1, recs, NULL, NULL);
 
     T_ASSERT_EQ_I(recs[29].hp, 0);
     T_ASSERT_EQ_I(recs[31].hp, 0);
@@ -234,7 +234,7 @@ int test_tables_enemy_no_trailing_newline(void)
     static const unsigned char input[] =
         E_USAGI "             :42# 9# 8# 7# 6# 5# Fur Ball";  /* no \r\n */
 
-    tables_parse_enemy(input, sizeof input - 1, recs);
+    tables_parse_enemy(input, sizeof input - 1, recs, NULL, NULL);
 
     T_ASSERT_EQ_I(recs[22].hp, 42);
     T_ASSERT_EQ_I(recs[22].md,  5);
@@ -261,7 +261,7 @@ int test_tables_enemy_vendor_shape(void)
         "// ---- ボス ----\r\n"
         E_NEZUMI_BARU "   : 150#25# 20#30# 0# 10# Tail\r\n";
 
-    tables_parse_enemy(input, sizeof input - 1, recs);
+    tables_parse_enemy(input, sizeof input - 1, recs, NULL, NULL);
 
     /* Spot-check stats. */
     T_ASSERT_EQ_I(recs[ 0].hp, 15);  T_ASSERT_EQ_I(recs[ 0].at, 25);
@@ -277,5 +277,40 @@ int test_tables_enemy_vendor_shape(void)
     /* All drops resolve to -1 (no item.txt yet). */
     T_ASSERT_EQ_I(recs[ 0].drop_common, -1);
     T_ASSERT_EQ_I(recs[24].drop_common, -1);
+    return 0;
+}
+
+/* Stub resolver used by the resolver-wiring test below. Mirrors the
+ * shape of tables_item_resolve but against a small in-test name → id
+ * map. Trailing/leading spaces on the drop name aren't trimmed by the
+ * parser, so the test inputs use bare names without padding. */
+static int32_t stub_drop_resolve(const char *name, void *user)
+{
+    (void)user;
+    if (strcmp(name, "Slime Fluid") == 0) return 100;
+    if (strcmp(name, "Worn Sword")  == 0) return 200;
+    if (strcmp(name, "Fur Ball")    == 0) return 300;
+    return -1;
+}
+
+int test_tables_enemy_drop_resolves_via_callback(void)
+{
+    /* When a non-NULL resolver is wired up, drop names get translated
+     * to item ids; an unknown name still resolves to -1. */
+    enemy_record_t recs[ENEMY_COUNT];
+    tables_enemy_init(recs);
+
+    static const unsigned char input[] =
+        E_SLIME_GREEN "     :15# 1# 25# 4# 0# 10#Slime Fluid#Worn Sword\r\n"
+        E_USAGI       "             :42# 9# 8# 7# 6# 5#Fur Ball#NotAnItem\r\n";
+
+    tables_parse_enemy(input, sizeof input - 1, recs,
+                       stub_drop_resolve, NULL);
+
+    /* Resolved hits land on drop_common / drop_rare. */
+    T_ASSERT_EQ_I(recs[ 0].drop_common, 100);  /* Slime Fluid */
+    T_ASSERT_EQ_I(recs[ 0].drop_rare,   200);  /* Worn Sword  */
+    T_ASSERT_EQ_I(recs[22].drop_common, 300);  /* Fur Ball    */
+    T_ASSERT_EQ_I(recs[22].drop_rare,   -1);   /* NotAnItem   */
     return 0;
 }

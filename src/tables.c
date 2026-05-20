@@ -64,6 +64,17 @@ static size_t load_via_storage(const char *path, unsigned char **out_buf)
     return got;
 }
 
+/* Adapter that lets `tables_item_resolve` satisfy the
+ * `(name, user) -> id` callback shape used by enemy.txt and gousei.txt.
+ * `user` is the `item_state_t *` to probe. Engine reference: both
+ * parsers inline the exact-name probe against the item.txt table; we
+ * factor it out so the resolver lives in one place. */
+static int32_t resolve_via_item_state(const char *name, void *user)
+{
+    const item_state_t *state = (const item_state_t *)user;
+    return tables_item_resolve(state, name);
+}
+
 /* Each loader stub does: storage size+read, log, free. The real
  * parsers will replace the printf with the per-file parse loop. */
 #define DEFINE_STUB(fnname, path_literal)                                 \
@@ -133,29 +144,31 @@ DEFINE_STUB(load_kyaku_txt,     "data/kyaku.txt")
 /* enemy.txt — ported. Real parser in src/tables_enemy.c. The 64
  * records ship pre-baked in .data with their NAMES; enemy.txt only
  * supplies stats + drop refs, which are matched into records by
- * longest-prefix name lookup. Drop-name → item-id resolution is
- * deferred until item.txt parses (slot #3, which is still a stub) —
- * for now drops stay at -1. */
+ * longest-prefix name lookup. Drop-name → item-id resolution is wired
+ * through `resolve_via_item_state` against `g_item` (populated by
+ * load_item_txt earlier in the load order). */
 static void load_enemy_txt(void)
 {
     tables_enemy_init(g_enemy);
     unsigned char *buf;
     size_t sz = load_via_storage("data/enemy.txt", &buf);
     if (sz == 0) return;
-    tables_parse_enemy(buf, sz, g_enemy);
+    tables_parse_enemy(buf, sz, g_enemy, resolve_via_item_state, &g_item);
     /* Parsed marker: at-least-one of {hp, at, md} non-zero. Covers
      * outlier vendor rows like `岩とマグロ:0#0#20#0#0#0` (only AT)
      * and `ゴーストＯ:20#25#0#16#20#10` (zero AT but non-zero HP/MD). */
-    int parsed = 0, bosses = 0;
+    int parsed = 0, bosses = 0, drops_resolved = 0;
     for (int i = 0; i < ENEMY_COUNT; i++) {
         if (g_enemy[i].hp != 0 || g_enemy[i].at != 0
             || g_enemy[i].md != 0) parsed++;
         if (g_enemy[i].flags == 1) bosses++;
+        if (g_enemy[i].drop_common >= 0) drops_resolved++;
+        if (g_enemy[i].drop_rare   >= 0) drops_resolved++;
     }
     fprintf(stderr,
             "tables: data/enemy.txt — %zu bytes "
-            "(enemies=%d bosses=%d)\n",
-            sz, parsed, bosses);
+            "(enemies=%d bosses=%d drops_resolved=%d)\n",
+            sz, parsed, bosses, drops_resolved);
     free(buf);
 }
 /* chara.txt — ported. Real parser in src/tables_chara.c. Two parser
@@ -270,24 +283,34 @@ static void load_snews_txt(void)
     free(buf);
 }
 /* gousei.txt — ported. Real parser in src/tables_gousei.c. Item-name
- * → item-id resolution requires the item.txt table; until that loader
- * lands (slot #3, still a stub), every name resolves to -1. */
+ * → item-id resolution is wired through `resolve_via_item_state`
+ * against `g_item` (populated by load_item_txt earlier in the load
+ * order); resolver misses fall back to -1. */
 static void load_gousei_txt(void)
 {
     unsigned char *buf;
     size_t sz = load_via_storage("data/gousei.txt", &buf);
     if (sz == 0) return;
-    tables_parse_gousei(buf, sz, &g_gousei, NULL, NULL);
-    int max_rank = 0;
+    tables_parse_gousei(buf, sz, &g_gousei,
+                        resolve_via_item_state, &g_item);
+    int max_rank = 0, outputs_resolved = 0, ingredients_resolved = 0;
     for (int i = 0; i < g_gousei.count; i++) {
         if (g_gousei.records[i].rank > max_rank) {
             max_rank = g_gousei.records[i].rank;
         }
+        if (g_gousei.records[i].output_id >= 0) outputs_resolved++;
+        for (int k = 0; k < GOUSEI_INGREDIENT_COUNT; k++) {
+            if (g_gousei.records[i].ingredient_id[k] >= 0) {
+                ingredients_resolved++;
+            }
+        }
     }
     fprintf(stderr,
             "tables: data/gousei.txt — %zu bytes "
-            "(recipes=%d max_rank=%d)\n",
-            sz, g_gousei.count, max_rank);
+            "(recipes=%d max_rank=%d outputs_resolved=%d "
+            "ingredients_resolved=%d)\n",
+            sz, g_gousei.count, max_rank,
+            outputs_resolved, ingredients_resolved);
     free(buf);
 }
 DEFINE_STUB(load_enemylist_txt, "data/enemylist.txt")

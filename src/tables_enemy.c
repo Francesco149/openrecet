@@ -58,13 +58,13 @@
  *     aren't ported yet. enemy.txt does not write them; neither does
  *     the port.
  *
- *   - **Item-table dependency.** Drop-name resolution requires the
- *     item.txt table at `&DAT_095d381a` (stride 0x2cc, count at
- *     `_DAT_005c80ac`) to be populated. item.txt loads earlier in
- *     `tables_load_all` (block #3 vs #5) so the engine's lookup
- *     succeeds; the port's item.txt parser is not yet implemented,
- *     so drop_common / drop_rare resolve to -1. See `lookup_item_id`
- *     in this file for the future hook.
+ *   - **Item-table dependency.** Drop-name resolution is delegated
+ *     to a caller-supplied callback (`enemy_resolve_fn`). tables.c
+ *     binds this to `tables_item_resolve` against `g_item`, which is
+ *     populated earlier in the load order (block #3 vs #5). A NULL
+ *     resolver collapses every drop to -1 — that path is exercised
+ *     by the unit tests and was the only behaviour available before
+ *     item.txt's parser landed.
  *
  * Safety divergences (documented, not present in the engine):
  *
@@ -186,14 +186,16 @@ void tables_enemy_init(enemy_record_t records[ENEMY_COUNT])
     }
 }
 
-/* Future hook: when item.txt lands, this becomes a lookup against the
- * item-name table at `&DAT_095d381a`. Until then it unconditionally
- * returns -1, mirroring "name not found" without the engine's
- * MessageBoxA. Engine reference: L975..L1008 of FUN_00475270. */
-static int32_t lookup_item_id(const char *name)
+/* Resolve a drop name to an item id via the caller-supplied callback.
+ * NULL resolver → -1 (the convention used by unit tests and during
+ * early Phase B before item.txt's parser landed). Engine reference:
+ * L975..L1008 of FUN_00475270 — the engine inlines the resolver as a
+ * direct probe of the item.txt table. */
+static int32_t resolve_drop(const char *name,
+                            enemy_resolve_fn resolve, void *user)
 {
-    (void)name;
-    return -1;
+    if (resolve == NULL || name == NULL || name[0] == '\0') return -1;
+    return resolve(name, user);
 }
 
 /* Longest-common-prefix record finder. Returns the index of the
@@ -223,7 +225,8 @@ static int find_record_by_name(const enemy_record_t records[ENEMY_COUNT],
  * NUL-terminated, `line[0..name_len)` is the record's name (already
  * matched by caller). Walks the line char-by-char, mirroring the
  * engine state machine at L931..L1024. */
-static void apply_line(enemy_record_t *rec, const char *line)
+static void apply_line(enemy_record_t *rec, const char *line,
+                       enemy_resolve_fn resolve, void *user)
 {
     rec->drop_common = -1;
     rec->drop_rare   = -1;
@@ -258,7 +261,7 @@ static void apply_line(enemy_record_t *rec, const char *line)
                     p++;
                 }
                 drop_name[k] = '\0';
-                int32_t id = lookup_item_id(drop_name);
+                int32_t id = resolve_drop(drop_name, resolve, user);
                 if (field_idx == 6) rec->drop_common = id;
                 else                rec->drop_rare   = id;
                 break;
@@ -281,7 +284,8 @@ static void apply_line(enemy_record_t *rec, const char *line)
 }
 
 void tables_parse_enemy(const unsigned char *data, size_t size,
-                        enemy_record_t records[ENEMY_COUNT])
+                        enemy_record_t records[ENEMY_COUNT],
+                        enemy_resolve_fn resolve, void *user)
 {
     /* Line buffer matches the engine's stack-local layout: the engine
      * reads into local_27c[0x20..], which can hold ~0x25c bytes of
@@ -315,6 +319,6 @@ void tables_parse_enemy(const unsigned char *data, size_t size,
             continue;
         }
 
-        apply_line(&records[idx], line);
+        apply_line(&records[idx], line, resolve, user);
     }
 }

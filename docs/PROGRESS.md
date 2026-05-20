@@ -3,6 +3,38 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [11/15]: resolver-wiring follow-up
+
+**Subsystems touched:**
+- `src/tables_enemy.{c,h}` — `tables_parse_enemy` gains an
+  `enemy_resolve_fn (resolve, user)` pair, replacing the dead-stub
+  `lookup_item_id` that always returned -1. NULL resolver collapses
+  to the previous behaviour (tests use this).
+- `src/tables_gousei.*` — already accepted the resolver; no change.
+- `src/tables.c` — new `resolve_via_item_state` adapter wires
+  `tables_item_resolve(&g_item, name)` into both `load_enemy_txt`
+  and `load_gousei_txt`. Boot trace now reports resolution counters
+  (`drops_resolved`, `outputs_resolved`, `ingredients_resolved`).
+- `tests/test_main.c` — registry is X-macro-driven now (separate
+  cleanup commit). 149 tests pass (was 147): two new tests cover
+  the resolver wiring end-to-end (`tables_enemy_drop_resolves_via_callback`
+  via stub; `tables_gousei_resolves_via_item_state` via a real
+  hand-populated `item_state_t`).
+
+**Observed boot deltas** (vendor data):
+- `enemy.txt — drops_resolved=70` (was 0 — 54 enemies × ≤2 drops).
+- `gousei.txt — outputs_resolved=101 ingredients_resolved=268`
+  (was 0 — every recipe output name has a matching item.txt singular,
+  so 100% of outputs resolve).
+
+**Out of scope (still deferred):**
+- `oder.txt` attribute-table fallback — its name table at
+  `&DAT_0963e5f8` is populated by item.txt's category-header path,
+  so the lookup already works; no rewire needed.
+- Drop-name → item-id misses for the ~38 enemy slots that still
+  resolve to -1. These are vendor-data spelling mismatches and need
+  per-name investigation; out of scope for the wiring pass.
+
 ## 2026-05-20 — Phase B [10/15]: `data/item.txt` parser
 
 **Subsystems landed:**
