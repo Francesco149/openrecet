@@ -9,6 +9,11 @@
  *   0 pass, 1 fail (printed message), 2 skip (missing vendor data, etc.)
  *
  * Process exit is 0 iff zero failures. Skips do not count as failures.
+ *
+ * Registration: add one X(name) line per test to TESTS below. The X-macro
+ * expands twice — once to emit the extern decl, once to populate the
+ * dispatch table — so the test name appears exactly once in this file
+ * and the registry can't drift from the declarations.
  */
 #include "t.h"
 
@@ -19,332 +24,181 @@ struct test_case {
     test_fn     fn;
 };
 
-/* ─── forward decls — keep alphabetized per file ───────────────────────── */
-extern int test_bmp_basic_24bit(void);
-extern int test_bmp_color_key(void);
-extern int test_bmp_color_key_disabled(void);
-extern int test_bmp_top_down(void);
-extern int test_bmp_32bit(void);
-extern int test_bmp_reject_bad_magic(void);
-extern int test_bmp_reject_truncated(void);
-extern int test_bmp_reject_unsupported_compression(void);
-extern int test_bmp_reject_palettized(void);
+/* ─── test list ────────────────────────────────────────────────────────────
+ * Each X(n) declares `extern int test_##n(void);` and registers it as
+ * {"n", test_##n}. Group blank lines are cosmetic only.
+ */
+#define TESTS(X) \
+    X(bmp_basic_24bit) \
+    X(bmp_color_key) \
+    X(bmp_color_key_disabled) \
+    X(bmp_top_down) \
+    X(bmp_32bit) \
+    X(bmp_reject_bad_magic) \
+    X(bmp_reject_truncated) \
+    X(bmp_reject_unsupported_compression) \
+    X(bmp_reject_palettized) \
+    \
+    X(tga_type2_24bit_bottom_up) \
+    X(tga_type2_32bit_top_down) \
+    X(tga_type10_rle_single_run) \
+    X(tga_type10_rle_mixed) \
+    X(tga_type10_rle_split_pixel) \
+    X(tga_reject_unsupported_type) \
+    X(tga_reject_truncated_uncompressed) \
+    X(tga_reject_truncated_rle) \
+    \
+    X(bmp_lzw_round_trip_vendor) \
+    \
+    X(lnkdatas_hash_empty) \
+    X(lnkdatas_hash_test_vector) \
+    X(lnkdatas_hash_vendor) \
+    \
+    X(lnk_lzss_single_literal) \
+    X(lnk_lzss_back_reference_short) \
+    X(lnk_lzss_back_reference_extended) \
+    X(lnk_lzss_self_overlap) \
+    X(lnk_lzss_end_of_stream_mid_ctrl) \
+    X(lnk_lzss_back_high_bits) \
+    X(lnk_lzss_mixed_flags) \
+    X(lnk_lzss_vendor_round_trip) \
+    \
+    X(tables_buysell_empty) \
+    X(tables_buysell_comments_only) \
+    X(tables_buysell_ok_toggle) \
+    X(tables_buysell_sjis_scalars) \
+    X(tables_buysell_msg_arrays) \
+    X(tables_buysell_no_trailing_newline) \
+    X(tables_buysell_embedded_null_terminates) \
+    X(tables_buysell_vendor_shape) \
+    \
+    X(tables_chara_empty) \
+    X(tables_chara_defaults_bit_exact) \
+    X(tables_chara_basic_record) \
+    X(tables_chara_lv100_alone) \
+    X(tables_chara_both_blocks_combined) \
+    X(tables_chara_comments_skipped) \
+    X(tables_chara_out_of_range_index_guarded) \
+    X(tables_chara_lv100_field_permutation) \
+    X(tables_chara_vendor_shape) \
+    \
+    X(tables_enemy_init_pre_baked_names) \
+    X(tables_enemy_basic_record) \
+    X(tables_enemy_longest_prefix_wins) \
+    X(tables_enemy_shorter_prefix_when_no_longer_match) \
+    X(tables_enemy_comments_and_blanks_skipped) \
+    X(tables_enemy_per_line_drop_reset) \
+    X(tables_enemy_unknown_name_silently_skipped) \
+    X(tables_enemy_placeholder_records_skip_match) \
+    X(tables_enemy_no_trailing_newline) \
+    X(tables_enemy_vendor_shape) \
+    \
+    X(tables_config_empty) \
+    X(tables_config_all_live_keys) \
+    X(tables_config_makefont_is_noop) \
+    X(tables_config_font_sjis) \
+    X(tables_config_font_overlong_truncates) \
+    X(tables_config_commented_lines_ignored) \
+    X(tables_config_vendor_shape) \
+    \
+    X(tables_model_empty) \
+    X(tables_model_basic_one_record) \
+    X(tables_model_no_index_threads) \
+    X(tables_model_comments_skipped) \
+    X(tables_model_fname_default_record_zero) \
+    X(tables_model_repeated_slot_increments_count) \
+    X(tables_model_overlong_fname_truncates) \
+    X(tables_model_out_of_range_index_skipped) \
+    X(tables_model_vendor_shape) \
+    \
+    X(tables_oder_empty) \
+    X(tables_oder_one_record) \
+    X(tables_oder_level_threads_through) \
+    X(tables_oder_sjis_attrs_all_16) \
+    X(tables_oder_english_attr_falls_through) \
+    X(tables_oder_tabs_are_skipped) \
+    X(tables_oder_line_cap_truncates) \
+    X(tables_oder_no_trailing_newline) \
+    X(tables_oder_vendor_shape) \
+    \
+    X(tables_snews_empty) \
+    X(tables_snews_name_table_basic) \
+    X(tables_snews_comments_and_blanks_skipped) \
+    X(tables_snews_dungeon_and_section) \
+    X(tables_snews_multiple_sections_in_dungeon) \
+    X(tables_snews_dungeon_transition_corrupts_prev) \
+    X(tables_snews_name_empty_value) \
+    X(tables_snews_name_overlong_truncates) \
+    X(tables_snews_entry_slot_overflow_dropped) \
+    X(tables_snews_vendor_shape) \
+    \
+    X(tables_tuto_empty) \
+    X(tables_tuto_blanks_and_comments) \
+    X(tables_tuto_chr0_basic) \
+    X(tables_tuto_chr1_basic) \
+    X(tables_tuto_no_arg_opcodes) \
+    X(tables_tuto_goto_7_ints) \
+    X(tables_tuto_goto_short_args_zero) \
+    X(tables_tuto_bun0_7_ints) \
+    X(tables_tuto_nedan_alias_takaku) \
+    X(tables_tuto_nebiki_neage) \
+    X(tables_tuto_shoki_kingaku_kettei) \
+    X(tables_tuto_aitemu) \
+    X(tables_tuto_kensen_7_ints) \
+    X(tables_tuto_id_minus_one_sentinel) \
+    X(tables_tuto_id_below_minus_one_text_only) \
+    X(tables_tuto_file_index_stride) \
+    X(tables_tuto_overflows_cap) \
+    X(tables_tuto_vendor_like_shape) \
+    \
+    X(tables_item_empty) \
+    X(tables_item_comments_and_blanks_skipped) \
+    X(tables_item_basic_record_no_plural) \
+    X(tables_item_basic_record_with_plural) \
+    X(tables_item_full_stat_fields) \
+    X(tables_item_category_header_then_record) \
+    X(tables_item_category_threads_to_correct_index) \
+    X(tables_item_attr_mask_with_category) \
+    X(tables_item_audience_all_via_zen) \
+    X(tables_item_audience_male_composite) \
+    X(tables_item_audience_recette_only) \
+    X(tables_item_audience_empty_field_is_all) \
+    X(tables_item_stock_zaiko_basic) \
+    X(tables_item_stock_da_x10_quirk) \
+    X(tables_item_indent_space_line_skipped) \
+    X(tables_item_unknown_line_skipped) \
+    X(tables_item_out_of_range_id_dropped) \
+    X(tables_item_no_trailing_newline) \
+    X(tables_item_description_in_line1_and_line2) \
+    X(tables_item_description_slash_terminates_line2) \
+    X(tables_item_resolver_finds_singular) \
+    X(tables_item_max_records_cap) \
+    X(tables_item_vendor_shape) \
+    \
+    X(tables_gousei_empty) \
+    X(tables_gousei_comments_and_blanks_skipped) \
+    X(tables_gousei_basic_recipe) \
+    X(tables_gousei_rank_header) \
+    X(tables_gousei_recipe_before_rank_is_rank_zero) \
+    X(tables_gousei_prefix_discarded) \
+    X(tables_gousei_three_ingredients) \
+    X(tables_gousei_five_ingredients) \
+    X(tables_gousei_null_resolver_yields_minus_one) \
+    X(tables_gousei_unknown_name_resolves_to_empty) \
+    X(tables_gousei_count_at_eol_no_trailing_colon) \
+    X(tables_gousei_no_trailing_newline) \
+    X(tables_gousei_max_records_cap) \
+    X(tables_gousei_embedded_nul_early_exit) \
+    X(tables_gousei_vendor_shape)
 
-extern int test_tga_type2_24bit_bottom_up(void);
-extern int test_tga_type2_32bit_top_down(void);
-extern int test_tga_type10_rle_single_run(void);
-extern int test_tga_type10_rle_mixed(void);
-extern int test_tga_type10_rle_split_pixel(void);
-extern int test_tga_reject_unsupported_type(void);
-extern int test_tga_reject_truncated_uncompressed(void);
-extern int test_tga_reject_truncated_rle(void);
+#define T_DECL(n) extern int test_##n(void);
+TESTS(T_DECL)
+#undef T_DECL
 
-extern int test_bmp_lzw_round_trip_vendor(void);
-
-extern int test_lnkdatas_hash_empty(void);
-extern int test_lnkdatas_hash_test_vector(void);
-extern int test_lnkdatas_hash_vendor(void);
-
-extern int test_lnk_lzss_single_literal(void);
-extern int test_lnk_lzss_back_reference_short(void);
-extern int test_lnk_lzss_back_reference_extended(void);
-extern int test_lnk_lzss_self_overlap(void);
-extern int test_lnk_lzss_end_of_stream_mid_ctrl(void);
-extern int test_lnk_lzss_back_high_bits(void);
-extern int test_lnk_lzss_mixed_flags(void);
-extern int test_lnk_lzss_vendor_round_trip(void);
-
-extern int test_tables_buysell_empty(void);
-extern int test_tables_buysell_comments_only(void);
-extern int test_tables_buysell_ok_toggle(void);
-extern int test_tables_buysell_sjis_scalars(void);
-extern int test_tables_buysell_msg_arrays(void);
-extern int test_tables_buysell_no_trailing_newline(void);
-extern int test_tables_buysell_embedded_null_terminates(void);
-extern int test_tables_buysell_vendor_shape(void);
-
-extern int test_tables_chara_empty(void);
-extern int test_tables_chara_defaults_bit_exact(void);
-extern int test_tables_chara_basic_record(void);
-extern int test_tables_chara_lv100_alone(void);
-extern int test_tables_chara_both_blocks_combined(void);
-extern int test_tables_chara_comments_skipped(void);
-extern int test_tables_chara_out_of_range_index_guarded(void);
-extern int test_tables_chara_lv100_field_permutation(void);
-extern int test_tables_chara_vendor_shape(void);
-
-extern int test_tables_enemy_init_pre_baked_names(void);
-extern int test_tables_enemy_basic_record(void);
-extern int test_tables_enemy_longest_prefix_wins(void);
-extern int test_tables_enemy_shorter_prefix_when_no_longer_match(void);
-extern int test_tables_enemy_comments_and_blanks_skipped(void);
-extern int test_tables_enemy_per_line_drop_reset(void);
-extern int test_tables_enemy_unknown_name_silently_skipped(void);
-extern int test_tables_enemy_placeholder_records_skip_match(void);
-extern int test_tables_enemy_no_trailing_newline(void);
-extern int test_tables_enemy_vendor_shape(void);
-
-extern int test_tables_config_empty(void);
-extern int test_tables_config_all_live_keys(void);
-extern int test_tables_config_makefont_is_noop(void);
-extern int test_tables_config_font_sjis(void);
-extern int test_tables_config_font_overlong_truncates(void);
-extern int test_tables_config_commented_lines_ignored(void);
-extern int test_tables_config_vendor_shape(void);
-
-extern int test_tables_model_basic_one_record(void);
-extern int test_tables_model_comments_skipped(void);
-extern int test_tables_model_empty(void);
-extern int test_tables_model_fname_default_record_zero(void);
-extern int test_tables_model_no_index_threads(void);
-extern int test_tables_model_out_of_range_index_skipped(void);
-extern int test_tables_model_overlong_fname_truncates(void);
-extern int test_tables_model_repeated_slot_increments_count(void);
-extern int test_tables_model_vendor_shape(void);
-
-extern int test_tables_oder_empty(void);
-extern int test_tables_oder_one_record(void);
-extern int test_tables_oder_level_threads_through(void);
-extern int test_tables_oder_sjis_attrs_all_16(void);
-extern int test_tables_oder_english_attr_falls_through(void);
-extern int test_tables_oder_tabs_are_skipped(void);
-extern int test_tables_oder_line_cap_truncates(void);
-extern int test_tables_oder_no_trailing_newline(void);
-extern int test_tables_oder_vendor_shape(void);
-
-extern int test_tables_snews_empty(void);
-extern int test_tables_snews_name_table_basic(void);
-extern int test_tables_snews_comments_and_blanks_skipped(void);
-extern int test_tables_snews_dungeon_and_section(void);
-extern int test_tables_snews_multiple_sections_in_dungeon(void);
-extern int test_tables_snews_dungeon_transition_corrupts_prev(void);
-extern int test_tables_snews_name_empty_value(void);
-extern int test_tables_snews_name_overlong_truncates(void);
-extern int test_tables_snews_entry_slot_overflow_dropped(void);
-extern int test_tables_snews_vendor_shape(void);
-
-extern int test_tables_tuto_empty(void);
-extern int test_tables_tuto_blanks_and_comments(void);
-extern int test_tables_tuto_chr0_basic(void);
-extern int test_tables_tuto_chr1_basic(void);
-extern int test_tables_tuto_no_arg_opcodes(void);
-extern int test_tables_tuto_goto_7_ints(void);
-extern int test_tables_tuto_goto_short_args_zero(void);
-extern int test_tables_tuto_bun0_7_ints(void);
-extern int test_tables_tuto_nedan_alias_takaku(void);
-extern int test_tables_tuto_nebiki_neage(void);
-extern int test_tables_tuto_shoki_kingaku_kettei(void);
-extern int test_tables_tuto_aitemu(void);
-extern int test_tables_tuto_kensen_7_ints(void);
-extern int test_tables_tuto_id_minus_one_sentinel(void);
-extern int test_tables_tuto_id_below_minus_one_text_only(void);
-extern int test_tables_tuto_file_index_stride(void);
-extern int test_tables_tuto_overflows_cap(void);
-extern int test_tables_tuto_vendor_like_shape(void);
-
-extern int test_tables_item_empty(void);
-extern int test_tables_item_comments_and_blanks_skipped(void);
-extern int test_tables_item_basic_record_no_plural(void);
-extern int test_tables_item_basic_record_with_plural(void);
-extern int test_tables_item_full_stat_fields(void);
-extern int test_tables_item_category_header_then_record(void);
-extern int test_tables_item_category_threads_to_correct_index(void);
-extern int test_tables_item_attr_mask_with_category(void);
-extern int test_tables_item_audience_all_via_zen(void);
-extern int test_tables_item_audience_male_composite(void);
-extern int test_tables_item_audience_recette_only(void);
-extern int test_tables_item_audience_empty_field_is_all(void);
-extern int test_tables_item_stock_zaiko_basic(void);
-extern int test_tables_item_stock_da_x10_quirk(void);
-extern int test_tables_item_indent_space_line_skipped(void);
-extern int test_tables_item_unknown_line_skipped(void);
-extern int test_tables_item_out_of_range_id_dropped(void);
-extern int test_tables_item_no_trailing_newline(void);
-extern int test_tables_item_description_in_line1_and_line2(void);
-extern int test_tables_item_description_slash_terminates_line2(void);
-extern int test_tables_item_resolver_finds_singular(void);
-extern int test_tables_item_max_records_cap(void);
-extern int test_tables_item_vendor_shape(void);
-
-extern int test_tables_gousei_empty(void);
-extern int test_tables_gousei_comments_and_blanks_skipped(void);
-extern int test_tables_gousei_basic_recipe(void);
-extern int test_tables_gousei_rank_header(void);
-extern int test_tables_gousei_recipe_before_rank_is_rank_zero(void);
-extern int test_tables_gousei_prefix_discarded(void);
-extern int test_tables_gousei_three_ingredients(void);
-extern int test_tables_gousei_five_ingredients(void);
-extern int test_tables_gousei_null_resolver_yields_minus_one(void);
-extern int test_tables_gousei_unknown_name_resolves_to_empty(void);
-extern int test_tables_gousei_count_at_eol_no_trailing_colon(void);
-extern int test_tables_gousei_no_trailing_newline(void);
-extern int test_tables_gousei_max_records_cap(void);
-extern int test_tables_gousei_embedded_nul_early_exit(void);
-extern int test_tables_gousei_vendor_shape(void);
-
-/* ─── registry ─────────────────────────────────────────────────────────── */
 static struct test_case g_tests[] = {
-    {"bmp_basic_24bit",                  test_bmp_basic_24bit},
-    {"bmp_color_key",                    test_bmp_color_key},
-    {"bmp_color_key_disabled",           test_bmp_color_key_disabled},
-    {"bmp_top_down",                     test_bmp_top_down},
-    {"bmp_32bit",                        test_bmp_32bit},
-    {"bmp_reject_bad_magic",             test_bmp_reject_bad_magic},
-    {"bmp_reject_truncated",             test_bmp_reject_truncated},
-    {"bmp_reject_unsupported_compression", test_bmp_reject_unsupported_compression},
-    {"bmp_reject_palettized",            test_bmp_reject_palettized},
-
-    {"tga_type2_24bit_bottom_up",        test_tga_type2_24bit_bottom_up},
-    {"tga_type2_32bit_top_down",         test_tga_type2_32bit_top_down},
-    {"tga_type10_rle_single_run",        test_tga_type10_rle_single_run},
-    {"tga_type10_rle_mixed",             test_tga_type10_rle_mixed},
-    {"tga_type10_rle_split_pixel",       test_tga_type10_rle_split_pixel},
-    {"tga_reject_unsupported_type",      test_tga_reject_unsupported_type},
-    {"tga_reject_truncated_uncompressed", test_tga_reject_truncated_uncompressed},
-    {"tga_reject_truncated_rle",         test_tga_reject_truncated_rle},
-
-    {"bmp_lzw_round_trip_vendor",        test_bmp_lzw_round_trip_vendor},
-
-    {"lnkdatas_hash_empty",              test_lnkdatas_hash_empty},
-    {"lnkdatas_hash_test_vector",        test_lnkdatas_hash_test_vector},
-    {"lnkdatas_hash_vendor",             test_lnkdatas_hash_vendor},
-
-    {"lnk_lzss_single_literal",          test_lnk_lzss_single_literal},
-    {"lnk_lzss_back_reference_short",    test_lnk_lzss_back_reference_short},
-    {"lnk_lzss_back_reference_extended", test_lnk_lzss_back_reference_extended},
-    {"lnk_lzss_self_overlap",            test_lnk_lzss_self_overlap},
-    {"lnk_lzss_end_of_stream_mid_ctrl",  test_lnk_lzss_end_of_stream_mid_ctrl},
-    {"lnk_lzss_back_high_bits",          test_lnk_lzss_back_high_bits},
-    {"lnk_lzss_mixed_flags",             test_lnk_lzss_mixed_flags},
-    {"lnk_lzss_vendor_round_trip",       test_lnk_lzss_vendor_round_trip},
-
-    {"tables_buysell_empty",                  test_tables_buysell_empty},
-    {"tables_buysell_comments_only",          test_tables_buysell_comments_only},
-    {"tables_buysell_ok_toggle",              test_tables_buysell_ok_toggle},
-    {"tables_buysell_sjis_scalars",           test_tables_buysell_sjis_scalars},
-    {"tables_buysell_msg_arrays",             test_tables_buysell_msg_arrays},
-    {"tables_buysell_no_trailing_newline",    test_tables_buysell_no_trailing_newline},
-    {"tables_buysell_embedded_null_terminates", test_tables_buysell_embedded_null_terminates},
-    {"tables_buysell_vendor_shape",           test_tables_buysell_vendor_shape},
-
-    {"tables_chara_empty",                       test_tables_chara_empty},
-    {"tables_chara_defaults_bit_exact",          test_tables_chara_defaults_bit_exact},
-    {"tables_chara_basic_record",                test_tables_chara_basic_record},
-    {"tables_chara_lv100_alone",                 test_tables_chara_lv100_alone},
-    {"tables_chara_both_blocks_combined",        test_tables_chara_both_blocks_combined},
-    {"tables_chara_comments_skipped",            test_tables_chara_comments_skipped},
-    {"tables_chara_out_of_range_index_guarded",  test_tables_chara_out_of_range_index_guarded},
-    {"tables_chara_lv100_field_permutation",     test_tables_chara_lv100_field_permutation},
-    {"tables_chara_vendor_shape",                test_tables_chara_vendor_shape},
-
-    {"tables_enemy_init_pre_baked_names",            test_tables_enemy_init_pre_baked_names},
-    {"tables_enemy_basic_record",                    test_tables_enemy_basic_record},
-    {"tables_enemy_longest_prefix_wins",             test_tables_enemy_longest_prefix_wins},
-    {"tables_enemy_shorter_prefix_when_no_longer_match", test_tables_enemy_shorter_prefix_when_no_longer_match},
-    {"tables_enemy_comments_and_blanks_skipped",     test_tables_enemy_comments_and_blanks_skipped},
-    {"tables_enemy_per_line_drop_reset",             test_tables_enemy_per_line_drop_reset},
-    {"tables_enemy_unknown_name_silently_skipped",   test_tables_enemy_unknown_name_silently_skipped},
-    {"tables_enemy_placeholder_records_skip_match",  test_tables_enemy_placeholder_records_skip_match},
-    {"tables_enemy_no_trailing_newline",             test_tables_enemy_no_trailing_newline},
-    {"tables_enemy_vendor_shape",                    test_tables_enemy_vendor_shape},
-
-    {"tables_config_empty",                   test_tables_config_empty},
-    {"tables_config_all_live_keys",           test_tables_config_all_live_keys},
-    {"tables_config_makefont_is_noop",        test_tables_config_makefont_is_noop},
-    {"tables_config_font_sjis",               test_tables_config_font_sjis},
-    {"tables_config_font_overlong_truncates", test_tables_config_font_overlong_truncates},
-    {"tables_config_commented_lines_ignored", test_tables_config_commented_lines_ignored},
-    {"tables_config_vendor_shape",            test_tables_config_vendor_shape},
-
-    {"tables_model_empty",                        test_tables_model_empty},
-    {"tables_model_basic_one_record",             test_tables_model_basic_one_record},
-    {"tables_model_no_index_threads",             test_tables_model_no_index_threads},
-    {"tables_model_comments_skipped",             test_tables_model_comments_skipped},
-    {"tables_model_fname_default_record_zero",    test_tables_model_fname_default_record_zero},
-    {"tables_model_repeated_slot_increments_count", test_tables_model_repeated_slot_increments_count},
-    {"tables_model_overlong_fname_truncates",     test_tables_model_overlong_fname_truncates},
-    {"tables_model_out_of_range_index_skipped",   test_tables_model_out_of_range_index_skipped},
-    {"tables_model_vendor_shape",                 test_tables_model_vendor_shape},
-
-    {"tables_oder_empty",                     test_tables_oder_empty},
-    {"tables_oder_one_record",                test_tables_oder_one_record},
-    {"tables_oder_level_threads_through",     test_tables_oder_level_threads_through},
-    {"tables_oder_sjis_attrs_all_16",         test_tables_oder_sjis_attrs_all_16},
-    {"tables_oder_english_attr_falls_through", test_tables_oder_english_attr_falls_through},
-    {"tables_oder_tabs_are_skipped",          test_tables_oder_tabs_are_skipped},
-    {"tables_oder_line_cap_truncates",        test_tables_oder_line_cap_truncates},
-    {"tables_oder_no_trailing_newline",       test_tables_oder_no_trailing_newline},
-    {"tables_oder_vendor_shape",              test_tables_oder_vendor_shape},
-
-    {"tables_snews_empty",                              test_tables_snews_empty},
-    {"tables_snews_name_table_basic",                   test_tables_snews_name_table_basic},
-    {"tables_snews_comments_and_blanks_skipped",        test_tables_snews_comments_and_blanks_skipped},
-    {"tables_snews_dungeon_and_section",                test_tables_snews_dungeon_and_section},
-    {"tables_snews_multiple_sections_in_dungeon",       test_tables_snews_multiple_sections_in_dungeon},
-    {"tables_snews_dungeon_transition_corrupts_prev",   test_tables_snews_dungeon_transition_corrupts_prev},
-    {"tables_snews_name_empty_value",                   test_tables_snews_name_empty_value},
-    {"tables_snews_name_overlong_truncates",            test_tables_snews_name_overlong_truncates},
-    {"tables_snews_entry_slot_overflow_dropped",        test_tables_snews_entry_slot_overflow_dropped},
-    {"tables_snews_vendor_shape",                       test_tables_snews_vendor_shape},
-
-    {"tables_tuto_empty",                       test_tables_tuto_empty},
-    {"tables_tuto_blanks_and_comments",         test_tables_tuto_blanks_and_comments},
-    {"tables_tuto_chr0_basic",                  test_tables_tuto_chr0_basic},
-    {"tables_tuto_chr1_basic",                  test_tables_tuto_chr1_basic},
-    {"tables_tuto_no_arg_opcodes",              test_tables_tuto_no_arg_opcodes},
-    {"tables_tuto_goto_7_ints",                 test_tables_tuto_goto_7_ints},
-    {"tables_tuto_goto_short_args_zero",        test_tables_tuto_goto_short_args_zero},
-    {"tables_tuto_bun0_7_ints",                 test_tables_tuto_bun0_7_ints},
-    {"tables_tuto_nedan_alias_takaku",          test_tables_tuto_nedan_alias_takaku},
-    {"tables_tuto_nebiki_neage",                test_tables_tuto_nebiki_neage},
-    {"tables_tuto_shoki_kingaku_kettei",        test_tables_tuto_shoki_kingaku_kettei},
-    {"tables_tuto_aitemu",                      test_tables_tuto_aitemu},
-    {"tables_tuto_kensen_7_ints",               test_tables_tuto_kensen_7_ints},
-    {"tables_tuto_id_minus_one_sentinel",       test_tables_tuto_id_minus_one_sentinel},
-    {"tables_tuto_id_below_minus_one_text_only", test_tables_tuto_id_below_minus_one_text_only},
-    {"tables_tuto_file_index_stride",           test_tables_tuto_file_index_stride},
-    {"tables_tuto_overflows_cap",               test_tables_tuto_overflows_cap},
-    {"tables_tuto_vendor_like_shape",           test_tables_tuto_vendor_like_shape},
-
-    {"tables_item_empty",                            test_tables_item_empty},
-    {"tables_item_comments_and_blanks_skipped",      test_tables_item_comments_and_blanks_skipped},
-    {"tables_item_basic_record_no_plural",           test_tables_item_basic_record_no_plural},
-    {"tables_item_basic_record_with_plural",         test_tables_item_basic_record_with_plural},
-    {"tables_item_full_stat_fields",                 test_tables_item_full_stat_fields},
-    {"tables_item_category_header_then_record",      test_tables_item_category_header_then_record},
-    {"tables_item_category_threads_to_correct_index",test_tables_item_category_threads_to_correct_index},
-    {"tables_item_attr_mask_with_category",          test_tables_item_attr_mask_with_category},
-    {"tables_item_audience_all_via_zen",             test_tables_item_audience_all_via_zen},
-    {"tables_item_audience_male_composite",          test_tables_item_audience_male_composite},
-    {"tables_item_audience_recette_only",            test_tables_item_audience_recette_only},
-    {"tables_item_audience_empty_field_is_all",      test_tables_item_audience_empty_field_is_all},
-    {"tables_item_stock_zaiko_basic",                test_tables_item_stock_zaiko_basic},
-    {"tables_item_stock_da_x10_quirk",               test_tables_item_stock_da_x10_quirk},
-    {"tables_item_indent_space_line_skipped",        test_tables_item_indent_space_line_skipped},
-    {"tables_item_unknown_line_skipped",             test_tables_item_unknown_line_skipped},
-    {"tables_item_out_of_range_id_dropped",          test_tables_item_out_of_range_id_dropped},
-    {"tables_item_no_trailing_newline",              test_tables_item_no_trailing_newline},
-    {"tables_item_description_in_line1_and_line2",   test_tables_item_description_in_line1_and_line2},
-    {"tables_item_description_slash_terminates_line2", test_tables_item_description_slash_terminates_line2},
-    {"tables_item_resolver_finds_singular",          test_tables_item_resolver_finds_singular},
-    {"tables_item_max_records_cap",                  test_tables_item_max_records_cap},
-    {"tables_item_vendor_shape",                     test_tables_item_vendor_shape},
-
-    {"tables_gousei_empty",                          test_tables_gousei_empty},
-    {"tables_gousei_comments_and_blanks_skipped",    test_tables_gousei_comments_and_blanks_skipped},
-    {"tables_gousei_basic_recipe",                   test_tables_gousei_basic_recipe},
-    {"tables_gousei_rank_header",                    test_tables_gousei_rank_header},
-    {"tables_gousei_recipe_before_rank_is_rank_zero",test_tables_gousei_recipe_before_rank_is_rank_zero},
-    {"tables_gousei_prefix_discarded",               test_tables_gousei_prefix_discarded},
-    {"tables_gousei_three_ingredients",              test_tables_gousei_three_ingredients},
-    {"tables_gousei_five_ingredients",               test_tables_gousei_five_ingredients},
-    {"tables_gousei_null_resolver_yields_minus_one", test_tables_gousei_null_resolver_yields_minus_one},
-    {"tables_gousei_unknown_name_resolves_to_empty", test_tables_gousei_unknown_name_resolves_to_empty},
-    {"tables_gousei_count_at_eol_no_trailing_colon", test_tables_gousei_count_at_eol_no_trailing_colon},
-    {"tables_gousei_no_trailing_newline",            test_tables_gousei_no_trailing_newline},
-    {"tables_gousei_max_records_cap",                test_tables_gousei_max_records_cap},
-    {"tables_gousei_embedded_nul_early_exit",        test_tables_gousei_embedded_nul_early_exit},
-    {"tables_gousei_vendor_shape",                   test_tables_gousei_vendor_shape},
+#define T_ENTRY(n) { #n, test_##n },
+    TESTS(T_ENTRY)
+#undef T_ENTRY
 };
 
 int main(int argc, char *argv[])
