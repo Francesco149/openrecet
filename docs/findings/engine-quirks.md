@@ -449,6 +449,44 @@ depends on the shift.
 > section, and the `test_tables_snews_dungeon_transition_corrupts_prev`
 > unit test which is dedicated entirely to pinning this behavior down.
 
+## 21. `enemy.txt` lines without a matching record pop a MessageBoxA
+
+The shipping `bmpdata.bin` overlay version of `data/enemy.txt`
+(3589 bytes, replacing the lnkdatas 2801-byte version) contains 67
+data lines, but only 54 unique pre-baked records can absorb them.
+Lines like `ダークゴーレム`, `オーム`, `カニ`, `黒カニ`, `クラゲ`,
+`赤クラゲ`, `魔王の手`, plus three `ダークゴーレム…` variants, have
+no record name that prefix-matches them — and the engine's
+fall-through path at L920 of `FUN_00475270` is:
+
+```c
+if (pcVar16 == (char *)0xffffffff) {
+  MessageBoxA((HWND)0x0, line, &DAT_005cae4c, 0);  // "no_match"
+}
+```
+
+So a factory boot of the original `recettear.exe` should pop ~9
+modal dialogs in sequence before the title screen appears — each
+listing one of these orphaned enemy names. Either nobody noticed
+in 2007, the QA pass missed it, or there's a path that suppresses
+MessageBoxA in release builds that we haven't tracked down yet.
+
+The matching path also has a separate "aliased writes" issue: the
+five lines starting with `"アルマ"` (`アルマ`, `アルマゴーレム`,
+`アルマゴーレムコア`, `アルマゴーレム右手`, `アルマゴーレム左手`) all
+prefix-match the single `"アルマ"` record (slot 41). Last line
+wins, so record 41 ends up with the stats of `アルマゴーレム左手`
+(HP=100, AT=20), not `アルマ` itself. The intermediate writes are
+silently lost.
+
+Port silently skips unmatched lines and accepts the last-write-wins
+behavior for aliased lines — both because the engine's MessageBoxA
+isn't useful here and because reproducing the alias is byte-faithful
+to what actually runs.
+
+> 📍 `src/tables_enemy.c` (port), `docs/formats/data-text.md`
+> "enemy.txt" section (alias and miss tables).
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of
