@@ -3,6 +3,45 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — FUN_00475270 ("init indexfile ok") skeleton + Phase A discovery
+
+**Subsystems landed:**
+- `docs/findings/tables-loader.md` — discovery doc for the gameplay
+  tables loader: caller context (it's the boot trace step right after
+  `init render ok`), full file list with sizes and per-block C-line
+  ranges, helper identities (storage_get_size / storage_read / atoi /
+  atof / free), the two format families observed (`/key:value` for
+  `config.idx`; CSV-with-comments for the `data/*.txt` files), and
+  the proposed one-commit-per-file Phase B plan.
+- `src/tables.{c,h}` — skeleton dispatcher `tables_load_all()` calling
+  fourteen stub loaders (one per file) plus a tutorial-loop stub. Each
+  stub exercises `storage_get_size` + `storage_read` end-to-end and
+  logs the byte count to stderr; the real parsers will replace the
+  printf in Phase B without touching the dispatcher.
+- `src/main.c` — wired `tables_load_all()` into the boot chain at the
+  TODO marker that was already pinned for `FUN_00475270`. Position
+  matches the engine's `init render ok → [HERE] → init fontsys ok`
+  ordering.
+
+**Engine quirks documented this turn:**
+1. `FUN_00475270` calls `storage_get_size` and `storage_read` with
+   different `.data` addresses in every block — usually two interned
+   copies of the same path string. For `config.idx` the developer
+   accidentally typed two **different** spellings (get_size with
+   `"config.idx"`, read with `"data/config.idx"`), so the original
+   silently `malloc(0+10) = 10` and overruns by 940 bytes on every
+   boot. Our stub uses the read-side spelling to avoid the bug.
+2. Tutorial format string is `"data/tuto%d.txt"` (no underscore).
+
+**Boot verification:** stderr trace from `openrecet.exe
+--max-duration-ms 2000` shows all 17 storage reads succeed (14 fixed
++ 3 tutorials), and the loop correctly stops at `tuto4.txt`. Several
+files come back larger than the lnkdatas size because they have a
+bmpdata-overlay patched version (e.g. `enemy.txt`: 2801 → 3589).
+
+**Test status:** 29 tests pass (no new tests yet — Phase B will add
+per-file fixture tests as each parser lands). Boot smoke clean.
+
 ## 2026-05-20 — FUN_004341d4 bookkeeping (file-size helper)
 
 Pinned candidate #2 closed as already-done. `FUN_004341d4` is the

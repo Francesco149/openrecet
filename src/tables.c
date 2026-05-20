@@ -1,0 +1,134 @@
+/*
+ * tables.c — gameplay-table loader skeleton.
+ *
+ * Mirrors FUN_00475270 ("init indexfile ok"). Each load_X stub exercises
+ * the storage subsystem (size + read) for one of the 14 fixed asset
+ * files but does no parsing yet — that lands one commit per file in the
+ * Phase B work tracked by docs/PROGRESS.md.
+ *
+ * Each stub logs `tables: <path> — <N> bytes (parser stub)` to stderr
+ * on success, or `tables: <path> — missing` on a storage lookup miss.
+ * This makes a partial port observable in the boot trace, and gives the
+ * test harness an early signal if a fixture file goes missing under
+ * vendor/original/.
+ *
+ * Engine behavior on missing files is to MessageBoxA and continue, so
+ * we likewise continue past failures here — the game will run
+ * (possibly badly) with empty tables.
+ */
+
+#include "tables.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "storage.h"
+
+/* Load one file via storage_read and report the size. Returns the
+ * size, or 0 on miss / OOM. Output buffer is owned by the caller and
+ * must be free()'d when no longer needed.                              */
+static size_t load_via_storage(const char *path, unsigned char **out_buf)
+{
+    *out_buf = NULL;
+
+    size_t sz = storage_get_size(path);
+    if (sz == 0) {
+        fprintf(stderr, "tables: %s — missing\n", path);
+        return 0;
+    }
+
+    unsigned char *buf = (unsigned char *)malloc(sz);
+    if (!buf) {
+        fprintf(stderr, "tables: %s — OOM (%zu bytes)\n", path, sz);
+        return 0;
+    }
+
+    size_t got = storage_read(path, buf);
+    if (got == 0) {
+        fprintf(stderr, "tables: %s — read failed\n", path);
+        free(buf);
+        return 0;
+    }
+
+    *out_buf = buf;
+    return got;
+}
+
+/* Each loader stub does: storage size+read, log, free. The real
+ * parsers will replace the printf with the per-file parse loop. */
+#define DEFINE_STUB(fnname, path_literal)                                 \
+    static void fnname(void)                                              \
+    {                                                                     \
+        unsigned char *buf;                                               \
+        size_t sz = load_via_storage(path_literal, &buf);                 \
+        if (sz != 0) {                                                    \
+            fprintf(stderr, "tables: %s — %zu bytes (parser stub)\n",     \
+                    path_literal, sz);                                    \
+            free(buf);                                                    \
+        }                                                                 \
+    }
+
+DEFINE_STUB(load_stage_idx,     "idx/stage.idx")
+/* config.idx: the engine has two interned copies of the path — the
+ * get_size site uses bare "config.idx" (storage miss → malloc(10)
+ * silently undersized!) and the read site uses "data/config.idx".
+ * Use the read-side spelling, which is the one that actually resolves
+ * in the lnkdatas index. See docs/findings/tables-loader.md. */
+DEFINE_STUB(load_config_idx,    "data/config.idx")
+DEFINE_STUB(load_item_txt,      "data/item.txt")
+DEFINE_STUB(load_kyaku_txt,     "data/kyaku.txt")
+DEFINE_STUB(load_enemy_txt,     "data/enemy.txt")
+DEFINE_STUB(load_chara_txt,     "data/chara.txt")
+DEFINE_STUB(load_buysell_txt,   "data/buysell.txt")
+DEFINE_STUB(load_oder_txt,      "data/oder.txt")
+DEFINE_STUB(load_model_txt,     "data/model.txt")
+DEFINE_STUB(load_event_txt,     "data/event.txt")
+DEFINE_STUB(load_news_txt,      "data/news.txt")
+DEFINE_STUB(load_snews_txt,     "data/snews.txt")
+DEFINE_STUB(load_gousei_txt,    "data/gousei.txt")
+DEFINE_STUB(load_enemylist_txt, "data/enemylist.txt")
+
+/* Tutorial files: the engine loops over data/tuto_%d.txt starting at
+ * index 1 and stops at the first missing file (we picked 1..32 as a
+ * generous cap; vendor/original ships tuto_1..tuto_3). When a parser
+ * lands here it'll need the index too — for now just log presence. */
+static void load_tuto_loop(void)
+{
+    char path[64];
+    for (int i = 1; i <= 32; i++) {
+        /* Engine format string at 0x005cb38c is "data/tuto%d.txt"
+         * (no underscore) — vendor ships tuto1.txt, tuto2.txt, tuto3.txt. */
+        snprintf(path, sizeof path, "data/tuto%d.txt", i);
+        unsigned char *buf;
+        size_t sz = load_via_storage(path, &buf);
+        if (sz == 0) {
+            /* First miss ends the loop — matches the engine pattern of
+             * stopping when storage_get_size returns 0. */
+            break;
+        }
+        fprintf(stderr, "tables: %s — %zu bytes (parser stub)\n", path, sz);
+        free(buf);
+    }
+}
+
+void tables_load_all(void)
+{
+    /* Order matches FUN_00475270 exactly. Some later loaders may
+     * depend on globals populated by earlier ones (not yet confirmed
+     * per-file — flagged for verification during Phase B). */
+    load_stage_idx();
+    load_config_idx();
+    load_item_txt();
+    load_kyaku_txt();
+    load_enemy_txt();
+    load_chara_txt();
+    load_buysell_txt();
+    load_oder_txt();
+    load_model_txt();
+    load_event_txt();
+    load_news_txt();
+    load_snews_txt();
+    load_gousei_txt();
+    load_enemylist_txt();
+    load_tuto_loop();
+}

@@ -23,6 +23,7 @@
 #include "sprite.h"
 #include "input.h"
 #include "layers.h"
+#include "tables.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
 #define AZUMANGA_CLASS  "Azumanga Main Window"
@@ -155,8 +156,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
     }
 
-    /* TODO "init indexfile ok"  — FUN_00475270
-     * TODO "init fontsys ok"    — FUN_0047c228
+    /* "init indexfile ok" — FUN_00475270 — gameplay-table loader.
+     * Currently skeleton only: dispatcher fires all 14 storage reads
+     * (proving the assets resolve) but the per-file parsers are stubs
+     * that just log the size. Parsers land one per commit in Phase B
+     * — see docs/findings/tables-loader.md. */
+    tables_load_all();
+
+    /* TODO "init fontsys ok"    — FUN_0047c228
      * TODO "init daoudio ok"    — FUN_00498ef4
      * TODO "fontsystem ok"      — FUN_0047c3a5
      * TODO "read systemtex ok"  — FUN_00472f5d
