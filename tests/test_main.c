@@ -275,7 +275,36 @@ struct test_case {
     X(tables_enemylist_no_resolver_drops_minus_one) \
     X(tables_enemylist_no_trailing_newline) \
     X(tables_enemylist_enemies_thread_across_f_blocks) \
-    X(tables_enemylist_vendor_shape)
+    X(tables_enemylist_vendor_shape) \
+    \
+    X(tables_stage_layout_byte_offsets) \
+    X(tables_stage_empty) \
+    X(tables_stage_lines_before_first_header_dropped) \
+    X(tables_stage_comments_and_blanks_skipped) \
+    X(tables_stage_defaults_applied_on_open) \
+    X(tables_stage_id_dispatch_short_keys) \
+    X(tables_stage_id_dispatch_long_keys) \
+    X(tables_stage_id_unknown_falls_back_to_1_16) \
+    X(tables_stage_int_fields) \
+    X(tables_stage_float_fields) \
+    X(tables_stage_flag_fields) \
+    X(tables_stage_string_fields) \
+    X(tables_stage_map_slots_thread) \
+    X(tables_stage_map_overflow_safe) \
+    X(tables_stage_mapcamera_slots_thread) \
+    X(tables_stage_fog_pair) \
+    X(tables_stage_fog_one_value_keeps_default_second) \
+    X(tables_stage_int_triples) \
+    X(tables_stage_float_triples_colon) \
+    X(tables_stage_maplight_d_a_space_pairs) \
+    X(tables_stage_sunpos_numeric_sets_mode_1) \
+    X(tables_stage_sunpos_off_sets_mode_0) \
+    X(tables_stage_sunset_numeric_sets_mode_2) \
+    X(tables_stage_sunset_off_broken_quirk_36) \
+    X(tables_stage_moonpos_quirk_35_shares_coords_keeps_sun_mode) \
+    X(tables_stage_multiple_records_thread) \
+    X(tables_stage_no_trailing_newline) \
+    X(tables_stage_vendor_shape_minified)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

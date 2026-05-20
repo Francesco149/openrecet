@@ -3,6 +3,87 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Phase B [+1]: `idx/stage.idx` parser
+
+**Subsystems landed:**
+- `src/tables_stage.{c,h}` — pure-C parser for FUN_00475270
+  block #1 (`docs/decompiled/by-address/475270.c` L55..L329 +
+  L3174..L3957 — the largest table parser in the loader by far,
+  ~1000 lines of decomp). Defines the 21-record stage table
+  (`stage:0-1`..`0-5` + `stage:1-1`..`1-16`) at base `&DAT_068dd2f8`,
+  stride 0x1b3c = 6972 bytes. `_Static_assert` guards on 24 critical
+  field offsets + total record size.
+- `src/tables.c` — replaced the stage.idx stub with the real
+  loader. No new resolver wiring (stage.idx is self-contained —
+  no cross-table refs). Boot trace logs `(stages=S maps=M
+  mapcameras=MC sunpos=S1 sunset=S2 moonpos=MP)`.
+- `tests/test_tables_stage.c` — 28 unit tests covering: byte-offset
+  layout, empty input, comments/blanks, lines-before-header
+  dropped, all 21 stage-ID dispatch entries (both 3-byte and
+  4-byte forms), unknown-ID fallback (quirk #34), every shape
+  class (int / int→float / float / flag / string / slot string /
+  int×3 / float×3 / float×2-colon / float×2-space), sunpos numeric,
+  sunpos:off short-circuit, sunset numeric, **sunset:off broken
+  (quirk #36)**, **moonpos shared coords (quirk #35)**, multi-record
+  threading, no-trailing-newline EOF, map[] slot overflow safety,
+  mapcamera[] threading, and a vendor-shape miniature integration
+  smoke.
+
+**Field key inventory:** 57 fully-dispatched keys covering map
+geometry, camera, lighting (directional + ambient + maplight pairs),
+water surfaces, weather flags, fog/colour ramp, and misc. ints. All
+documented with their byte offset, type, default value, and source
+key in `docs/formats/data-text.md`.
+
+**Behavioral validation:**
+- 257 unit tests pass under ASan/UBSan (was 229).
+- Boot smoke: `idx/stage.idx — 22434 bytes (stages=20 maps=219
+  mapcameras=0 sunpos=15 sunset=0 moonpos=0)`. Cross-checked:
+  vendor file has exactly 20 `stage:` headers, 219 uncommented
+  `map:` lines (`/map:...` comment lines correctly skipped), 15
+  `sunpos:N:N:N` numeric lines, 5 `sunpos:off` short-circuits
+  (mode=0, not counted in the sunpos= tally), 0 `sunset:` or
+  `moonpos:` lines.
+
+**Engine quirks documented (and faithfully reproduced):**
+- **Unknown stage IDs alias to `1-16` (#34).** The chain-default
+  `uVar5 = 0x14` collides with the last entry's index, so a
+  typo'd `stage:foo` opens a record indistinguishable from a
+  real `stage:1-16` on read-back. Dormant in vendor.
+- **`moonpos:` shares X/Y/Z storage with `sunpos:`/`sunset:` but
+  not the mode flag (#35).** Only `sunpos:`/`sunset:` touch
+  `sunpos_mode`; `moonpos:` sets a separate `moonpos_set` flag and
+  overwrites the sun coords. A record with both sunpos and moonpos
+  ends up with sunpos's mode and moonpos's coords. Dormant in vendor.
+- **`sunset:off` is broken (#36).** The "off" short-circuit
+  compares against the literal string `"sunpos:off"` (the binary
+  has two interned copies of `"sunpos:off"` at 0x005cab4c and
+  0x005cab80 — but no `"sunset:off"` anywhere), so a real
+  `sunset:off` line falls through to the numeric path. Dormant
+  in vendor.
+
+**Safety divergences (documented, not present in engine):**
+- `map:` slot cap (engine bumps count unconditionally; port stops
+  writing past slot 19 to avoid clobbering the minimap field).
+- `mapcamera:` slot cap (engine bumps count unconditionally; port
+  stops writing past slot 1 to avoid clobbering mapcamera_count).
+- Post-loop unrelated globals (13 writes to `_DAT_0438cc6c..`) are
+  player-inventory defaults, not stage state — deferred to the
+  gameplay-state init port.
+
+**Files:**
+- new `src/tables_stage.{c,h}`, `tests/test_tables_stage.c`
+- updated `src/tables.c`, `tests/Makefile`, `tests/test_main.c`
+- new docs section in `docs/formats/data-text.md`
+- new entries (#34, #35, #36) in `docs/findings/engine-quirks.md`
+
+**Phase B fully complete.** All 15 of the originally-tracked Phase B
+files (14 named + the tuto loop counted as 1) had parsers landed
+in the 2026-05-20 sweep; this commit closes out the remaining
+`stage.idx` stub — file 0 of the engine's load order, deferred at
+the time because of its size. The full loader chain is now end-
+to-end real: no stubs remain in `tables.c`.
+
 ## 2026-05-20 — Phase B [15/15]: `data/enemylist.txt` parser
 
 **Subsystems landed:**

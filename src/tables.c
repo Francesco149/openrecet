@@ -37,6 +37,7 @@
 #include "tables_news.h"
 #include "tables_oder.h"
 #include "tables_snews.h"
+#include "tables_stage.h"
 #include "tables_tuto.h"
 
 /* Load one file via storage_read and report the size. Returns the
@@ -94,7 +95,35 @@ static int32_t resolve_via_item_state(const char *name, void *user)
         }                                                                 \
     }
 
-DEFINE_STUB(load_stage_idx,     "idx/stage.idx")
+/* stage.idx — ported. Real parser in src/tables_stage.c. Defines the
+ * 21 stage records (`stage:0-1`..`0-5` + `stage:1-1`..`1-16`); each is
+ * a flat key:value bag for map geometry, camera, lighting, water,
+ * weather, and fog/colour. See docs/formats/data-text.md for the
+ * full key list and docs/findings/engine-quirks.md (#34..#36) for
+ * the field-shared / fallback-ID / sunset-off-broken behaviour. */
+static void load_stage_idx(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("idx/stage.idx", &buf);
+    if (sz == 0) return;
+    tables_parse_stage(buf, sz, &g_stage);
+    int total_maps = 0, total_mapcameras = 0;
+    int with_sunpos = 0, with_sunset = 0, with_moonpos = 0;
+    for (int i = 0; i < g_stage.count; i++) {
+        total_maps        += g_stage.records[i].map_count;
+        total_mapcameras  += g_stage.records[i].mapcamera_count;
+        if (g_stage.records[i].sunpos_mode == STAGE_SUN_SUNPOS) with_sunpos++;
+        if (g_stage.records[i].sunpos_mode == STAGE_SUN_SUNSET) with_sunset++;
+        if (g_stage.records[i].moonpos_set)                     with_moonpos++;
+    }
+    fprintf(stderr,
+            "tables: idx/stage.idx — %zu bytes "
+            "(stages=%d maps=%d mapcameras=%d "
+            "sunpos=%d sunset=%d moonpos=%d)\n",
+            sz, g_stage.count, total_maps, total_mapcameras,
+            with_sunpos, with_sunset, with_moonpos);
+    free(buf);
+}
 /* config.idx — ported. Real parser in src/tables_config.c. The engine
  * has two interned copies of the path; the get_size site uses bare
  * "config.idx" (storage miss → malloc(10) silently undersized!) and

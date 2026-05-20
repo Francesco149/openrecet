@@ -2064,3 +2064,195 @@ or `("不明なアイテム6")`; port silently stores -1.
 Boot trace logs `(sections=S enemies=E drops=D resolved=R wisps=W
 wisp_resolved=WR)`. With g_item live, R should equal D and WR
 should equal W (every name in vendor data is a real item).
+
+
+---
+
+## `idx/stage.idx`
+
+The per-stage environment table — defines the geometry, camera,
+lighting, water, fog, and weather toggles for every gameplay scene.
+Vendor: **22434 bytes**, CRLF, SJIS. Block #1 of `FUN_00475270`
+(`tables_load_all`).
+
+### File shape
+
+Two-level structure:
+
+1. **`stage:X-Y`** — opens (or re-opens) a record. The `X-Y`
+   suffix is a literal ID dispatched against a 21-entry table:
+   `0-1`..`0-5` (town shop interiors) and `1-1`..`1-16` (dungeon
+   floors). Unknown IDs silently alias to `1-16` (quirk #34).
+2. **`key:value`** — sets a field on the currently-open record.
+   The engine tests every line against all 57 keys (sequential
+   fall-through dispatch); the `:` terminator makes the prefixes
+   disjoint, so at most one key matches per line.
+
+Comments and blank lines:
+- Lines starting `/` (incl. `// …`) — skipped.
+- Lines starting `\r` or `\n` — blank, skipped.
+- Lines before any `stage:` header — silently dropped.
+
+### Stage-ID dispatch
+
+| Idx | ID    | Vendor | Notes                              |
+|-----|-------|--------|------------------------------------|
+| 0   | `0-1` | yes    | Town shop level 1                  |
+| 1   | `0-2` | yes    | Town shop level 2                  |
+| 2   | `0-3` | yes    | Town shop level 3                  |
+| 3   | `0-4` | yes    | Town shop level 4                  |
+| 4   | `0-5` | —      | Reserved; not in vendor data       |
+| 5..13 | `1-1`..`1-9`     | yes | Dungeons 1..9                |
+| 14..20 | `1-10`..`1-16`  | yes | Dungeons 10..16               |
+
+Quirk #34: unknown IDs (e.g. `stage:7-7`) fall back to dungeon_id
+`0x14` (= 20, = `1-16`) silently.
+
+### Record layout (`stage_record_t`, 6972 bytes = 0x1b3c)
+
+Offsets are byte offsets within one record. Engine record base:
+`&DAT_068dd2f8`, stride `0x1b3c`.
+
+| Offset  | Size  | Field             | Default | Set by                         |
+|---------|-------|-------------------|---------|--------------------------------|
+| +0x000  | 4     | `maptype`         | 0       | `maptype:N`                    |
+| +0x004  | 256   | `mapbg[256]`      | ""      | `mapbg:F` (also sets `mapbg_set=1`) |
+| +0x104  | 4     | `dungeon_id`      | —       | `stage:X-Y` header             |
+| +0x108  | 4     | `mapbg_set`       | 0       | side-effect of `mapbg:`        |
+| +0x10c  | 2×256 | `mapcamera[2]`    | ""      | `mapcamera:F` (slot append)    |
+| +0x30c  | 4     | `mapcamera_count` | 0       | bumped by `mapcamera:`         |
+| +0x310  | 4     | `loopcamera`      | 0       | `loopcamera:` (flag → 1)       |
+| +0x314  | 20×256 | `map[20]`        | ""      | `map:F` (slot append)          |
+| +0x1714 | 256   | `minimap[256]`    | ""      | `minimap:F`                    |
+| +0x1814 | 256   | `fishmap[256]`    | ""      | `fishmap:F`                    |
+| +0x1914 | 4×3   | `startpos[3]`     | 0,0,0   | `startpos:X:Y:Z`               |
+| +0x1920 | 256   | `waterfile[256]`  | ""      | `waterfile:F`                  |
+| +0x1a20 | 4     | `wateranimnum`    | 1       | `wateranimnum:N`               |
+| +0x1a24 | 4     | `wateranimspeed`  | 4       | `wateranimspeed:N`             |
+| +0x1a28 | 4     | `watersize`       | 64      | `watersize:N`                  |
+| +0x1a2c | 4     | `map_count`       | 0       | bumped by `map:`               |
+| +0x1a30 | 4     | `mapx` (float)    | 0.0     | `mapx:N` (atoi → float)        |
+| +0x1a34 | 4     | `mapz` (float)    | 0.0     | `mapz:N` (atoi → float)        |
+| +0x1a38 | 4×2   | `fog[2]` (float)  | 1.0,1.0 | `fog:near:far`                 |
+| +0x1a40 | 4     | `drawcode`        | 0       | `drawcode:N`                   |
+| +0x1a44 | 4     | `waterdrawcode`   | 0       | `waterdrawcode:N`              |
+| +0x1a48 | 4     | `wateralpha`      | 127     | `wateralpha:N`                 |
+| +0x1a4c | 4     | `wateralpha_fish` | -1      | `wateralpha_fish:N`            |
+| +0x1a50 | 4     | `wateradd`        | 0       | `wateradd:N`                   |
+| +0x1a54 | 4     | `hikaridrawcode`  | 0       | `hikaridrawcode:N`             |
+| +0x1a58 | 4     | `hikarialpha`     | 0       | `hikarialpha:N`                |
+| +0x1a5c | 4     | `hikariadd`       | 0       | `hikariadd:N`                  |
+| +0x1a60 | 4     | `farclip`         | 600     | `farclip:N`                    |
+| +0x1a64 | 4     | `mapnumx`         | 0       | `mapnumx:N`                    |
+| +0x1a68 | 4     | `mapnumz`         | 0       | `mapnumz:N`                    |
+| +0x1a6c | 4     | `scroll` (float)  | 0.0     | `scroll:F` (atof)              |
+| +0x1a70 | 4     | `mapposy` (float) | 0.0     | `mapposy:F` (atof)             |
+| +0x1a74 | 4     | `waterheight` (float) | -1000.0 | `waterheight:N` (atoi → float) |
+| +0x1a78 | 4     | `mapviewarea`     | 0       | `mapviewarea:N`                |
+| +0x1a7c | 4×3   | `sun_pos[3]`      | 0,0,0   | `sunpos:` / `sunset:` / `moonpos:` (shared — see quirks #35, #36) |
+| +0x1a88 | 4     | `sunpos_mode`     | 0       | `sunpos:`→1, `sunset:`→2, `sunpos:off`→0 |
+| +0x1a8c | 4     | `moonpos_set`     | 0       | `moonpos:` (independent of sunpos_mode) |
+| +0x1a90 | 4×3   | `fogcolor[3]`     | 0,0,0   | `fogcolor:R:G:B`               |
+| +0x1a9c | 4×3   | `smokecolor[3]`   | 255,204,178 | `smokecolor:R:G:B`         |
+| +0x1aa8 | 4×3   | `backcolor[3]`    | 0,0,0   | `backcolor:R:G:B`              |
+| +0x1ab4 | 4×3   | `lightdir[3]` (float) | 1,1,1 | `lightdir:X:Y:Z`             |
+| +0x1ac0 | 4×3   | `lightcolor[3]` (float) | 0,0,0 | `lightcolor:R:G:B`         |
+| +0x1acc | 4×3   | `lightamb[3]` (float) | 0,0,0 | `lightamb:R:G:B`             |
+| +0x1ad8 | 4     | `gakecheck`       | 0       | `gakecheck:` (flag → 1)        |
+| +0x1adc | 4     | `chrlightoffset` (float) | 0 | `chrlightoffset:F`            |
+| +0x1ae0 | 4     | `maplight`        | 0       | `maplight:N`                   |
+| +0x1ae4 | 4     | `chrlight`        | 0       | `chrlight:N`                   |
+| +0x1ae8 | 4     | `maplightspeed` (float) | 0 | `maplightspeed:F`              |
+| +0x1aec | 4×6   | `maplight_d[3][2]` (float) | all 1.0 | `maplight_dr/dg/db:F F` (space-sep pair) |
+| +0x1b04 | 4×6   | `maplight_a[3][2]` (float) | all 1.0 | `maplight_ar/ag/ab:F F` (space-sep pair) |
+| +0x1b1c | 4     | `deathheight`     | -70     | `deathheight:N`                |
+| +0x1b20 | 4     | `unk_b20`         | 1       | (no key writes it — engine flag of unknown purpose) |
+| +0x1b24 | 4     | `windlerf`        | 0       | flag                           |
+| +0x1b28 | 4     | `windsnow`        | 0       | flag                           |
+| +0x1b2c | 4     | `houshi`          | 0       | flag                           |
+| +0x1b30 | 4     | `windbouble`      | 0       | flag                           |
+| +0x1b34 | 4     | `windfire`        | 0       | flag                           |
+| +0x1b38 | 4     | `smallwater`      | 0       | flag                           |
+
+Total: 0x1b3c (6972) bytes per record × 21 records = 146412 bytes
+of engine global state.
+
+### Key categories
+
+The 57 field keys factor into 9 shape classes:
+
+| Class               | Count | Format                       | Keys |
+|---------------------|-------|------------------------------|------|
+| `int`               | 19    | `key:N` → atoi               | maptype, drawcode, waterdrawcode, wateralpha, wateralpha_fish, wateradd, hikaridrawcode, hikarialpha, hikariadd, farclip, mapnumx, mapnumz, watersize, wateranimnum, wateranimspeed, deathheight, maplight, chrlight, mapviewarea |
+| `int → float`       | 3     | `key:N` → atoi then cast     | mapx, mapz, waterheight |
+| `float` (atof)      | 3     | `key:F` → atof               | scroll, mapposy, chrlightoffset, maplightspeed |
+| `flag` (set to 1)   | 8     | `key:` (no value)            | loopcamera, gakecheck, windlerf, windbouble, windsnow, houshi, windfire, smallwater |
+| `string[256]`       | 4     | `key:S` → copy-until-EOL     | mapbg (+set flag), minimap, fishmap, waterfile |
+| `string[256] slot`  | 2     | `key:S` → slot[N++]          | map (20 slots), mapcamera (2 slots) |
+| `int×3 colon`       | 4     | `key:N:N:N` (EOL-bailout)    | startpos, fogcolor, smokecolor, backcolor |
+| `float×3 colon`     | 3     | `key:F:F:F`                  | lightdir, lightcolor, lightamb |
+| `float×2 colon`     | 1     | `key:F:F`                    | fog |
+| `float×2 space`     | 6     | `key:F F` (space separator!) | maplight_dr, maplight_dg, maplight_db, maplight_ar, maplight_ag, maplight_ab |
+| sun family          | 3     | special (shared coords)      | sunpos, sunset, moonpos |
+
+Total: 57 field keys + 1 header (`stage:`).
+
+### Faithfully-reproduced quirks
+
+- **Unknown stage IDs alias to `1-16` (#34).** The dispatcher's
+  default `uVar5 = 0x14` is pre-loaded before any key compare;
+  if nothing matches, the value stays at `0x14` — which IS the
+  legitimate dungeon_id for `1-16`. Indistinguishable on read-back.
+
+- **Sun / sunset / moonpos share the same X/Y/Z storage (#35).**
+  All three keys write `sun_pos[3]` at +0x1a7c. Only `sunpos:` /
+  `sunset:` touch `sunpos_mode`; `moonpos:` sets its own
+  `moonpos_set` flag at +0x1a8c. A stage with `sunpos:` followed
+  by `moonpos:` keeps the sun's mode flag but loses its coords.
+
+- **`sunset:off` is broken (#36).** The "off" short-circuit
+  compares the line bytes against the *literal string `"sunpos:off"`*
+  (the binary has two interned copies of `"sunpos:off"` but none
+  of `"sunset:off"`). A real `sunset:off` line falls through to
+  the numeric path: `atof("off")` → 0.0, and the colon-scan walks
+  past the line terminator. Dormant in vendor (no `sunset:` keys
+  shipped at all).
+
+### Safety divergences (documented, not in engine)
+
+- **`map:` and `mapcamera:` slot caps.** Engine bumps the slot
+  counter on every line and indexes by `count * 0x100` from the
+  array base — no overflow check. A 21st `map:` would clobber the
+  `minimap` field at +0x1714; a 3rd `mapcamera:` would clobber
+  `mapcamera_count` at +0x30c. The port caps writes at the array
+  bounds while still bumping the counter (so callers see the
+  intended count). Vendor maxes out at ~12 maps per stage, 0
+  mapcameras, so this divergence is dormant.
+
+### Post-loop side-effects (deferred)
+
+After the outer parse loop, the engine performs 13 unrelated writes
+at L317..L329:
+
+```c
+_DAT_0438cc6c = 0xffffffff;   _DAT_0438cc70 = 0xffffffff;
+_DAT_0438cc74 = 0;            _DAT_0438cc78 = 0;
+_DAT_0438cc7c = 0xffffffff;   DAT_0438ccb8  = 0x23;
+_DAT_0438ccbc = 0x1e;         _DAT_0438ccb0 = 0;
+DAT_0438ccb4 = 0;             _DAT_0438ccc0 = 0xffffffff;
+DAT_0438ccc4 = 0x7f;          DAT_0438ccc8 = 0;
+_DAT_073a3de8 = 1;            DAT_0438b8dc  = local_10 + 1;
+```
+
+These look like player inventory / equip defaults plus a stage_count
+mirror (`DAT_0438b8dc`). They are NOT stage record state and are
+deferred to the gameplay-state init port. `g_stage.count` carries
+the stage count instead.
+
+### Boot trace
+
+`tables: idx/stage.idx — 22434 bytes (stages=20 maps=219 mapcameras=0
+sunpos=15 sunset=0 moonpos=0)`. Matches the vendor file: 20 `stage:`
+headers, 219 uncommented `map:` lines, 15 `sunpos:NNN:NNN:NNN` lines
+(5 more `sunpos:off` lines push `sunpos_mode` back to 0 → not
+counted), no `sunset:` or `moonpos:` lines.
