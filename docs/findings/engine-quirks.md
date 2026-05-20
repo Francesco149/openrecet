@@ -543,6 +543,57 @@ generously so the writes are well-defined.
 > "tuto1/2/3.txt" section, `docs/decompiled/by-address/475270.c`
 > L2898..L3123 (parser), L59759 of `all.c` (consumer).
 
+## 23. The Master's Plate recipe trips an unbounded ':' scan
+
+`data/gousei.txt` has one line that's missing the trailing `:` that
+every other recipe carries:
+
+```
+1215:Master's Plate:Barrier Plate#1:Plate of Grief#1:Wind Emblem#1
+                                                                  ^
+                                              (every other line: ':')
+```
+
+`FUN_00475270`'s gousei parser handles `#N` as "atoi the count, then
+advance forward until you find a ':'". The advance is implemented as
+
+```c
+do { pcVar16 = pcVar16 + 1; } while (*pcVar16 != ':');
+```
+
+— **unbounded**. On this one line the loop walks past `\r\n`, past
+the line buffer's NUL terminator (the engine pre-padded it with four
+extra zero bytes after the file content), and into whatever comes
+next in process memory. It scans until it stumbles into some byte
+that happens to be `:` — which it always will, eventually.
+
+The record IS still committed (the `DAT_09642bf0++` happens after the
+inner field walker exits). All four ingredients of Master's Plate
+get their correct IDs and counts. Only the parser's cursor is
+briefly off in the weeds; the outer loop's `pcVar16` gets reset on
+the next iteration by `pcVar16 = local_14`, which was last anchored
+to the runaway `:`. Whatever bytes lived between line-end and the
+runaway colon get fed to the next field accumulator — but since the
+outer line-collect loop reads `data[pos]` from the buffer base (not
+the inner `pcVar16`), the next line's processing recovers cleanly.
+
+The port detects EOL/EOF inside the `:` hunt and finalises the
+last ingredient there: resolves the accumulated name, writes the ID,
+breaks out of the inner loop. End-state of the record is identical
+to the engine's; we just skip the undefined-behaviour scan.
+
+That this misformed line ships in the retail game is itself a small
+delight — it survived QA, it survived the EN localization pass that
+rewrote every name, and it survived all the patches. The vendor file
+literally cannot be regenerated from the recipe schema as the
+designers presumably wrote it without removing that trailing colon
+somewhere; whether by accident or by a one-time hand-edit, we'll
+never know.
+
+> 📍 `src/tables_gousei.c` (port), `docs/formats/data-text.md`
+> "gousei.txt" section (`#count` at EOL with no trailing ':'),
+> `docs/decompiled/by-address/475270.c` L2447..L2477.
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of
