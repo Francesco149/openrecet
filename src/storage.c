@@ -33,6 +33,7 @@
 
 #include "lnkdatas_hash.h"   /* int16_t lnkdatas_hash(const void *buf, size_t size) */
 #include "bmp_lzw.h"         /* size_t bmp_lzw_decompress(const void *src, size_t csize, void *dst) */
+#include "lnk_lzss.h"        /* size_t lnk_lzss_decompress(const uint8_t *src, uint8_t *dst) */
 
 /* ─── module-level globals (mirror DAT_0438abcc / DAT_0438abd4 / etc.) ───── */
 
@@ -98,6 +99,38 @@ static size_t    g_bmpdata_data_start = 0;
 #define BMPDATA_OFF_DSIZE      0x54
 #define BMPDATA_OFF_OFFSET     0x58
 #define BMPDATA_OFF_CSIZE      0x5c
+
+/* ─── lnkdatas.bin index layout ────────────────────────────────────────────
+ *
+ * Header:      int32 n_items (big-endian)
+ * Per entry:   uint8 name[128] (NUL-padded ASCII)
+ *              int32 dsize   (big-endian — decompressed bytes)
+ *              int32 offset  (big-endian — byte offset into the logical
+ *                             concatenation of bin/data*.bin files)
+ *              int32 csize   (big-endian — compressed bytes in the stream)
+ *
+ * Engine references: FUN_00434585 and FUN_004346bf walk 0x8c-stride
+ * entries starting at offset 4, comparing up to 0x80 (128) bytes
+ * case-sensitively (the lnkdatas branch — unlike bmpdata — does NOT
+ * fold case), and read the +0x80, +0x84, +0x88 fields as big-endian
+ * i32s.  We mirror those offsets exactly.                                 */
+#define LNKDATAS_ENTRY_STRIDE  0x8c   /* 140 bytes */
+#define LNKDATAS_NAME_MAX      0x80   /* 128 — engine's strncmp bound      */
+#define LNKDATAS_OFF_DSIZE     0x80
+#define LNKDATAS_OFF_OFFSET    0x84
+#define LNKDATAS_OFF_CSIZE     0x88
+
+/* Per-chunk size of bin/data*.bin (10 MiB).  Engine constant DAT_00a00000 —
+ * see FUN_004346bf: `iVar2 / 0xa00000` picks the file index, `iVar2 %`
+ * picks the in-file offset, and the `0xa00000 - offset` arithmetic
+ * tests for a cross-boundary read.                                        */
+#define LNKDATAS_CHUNK_SIZE    ((size_t)0xa00000u)
+
+/* Cached FILE* for the currently-open bin/data%03d.bin chunk.  -1 means
+ * "no file open".  The engine reopens on each storage_read; we cache so
+ * back-to-back reads from the same chunk skip the fopen.                  */
+static FILE *g_data_fp        = NULL;
+static int   g_data_fp_index  = -1;
 
 /* ─── internal helper: get file size (mirrors FUN_004341d4) ─────────────── */
 /* FUN_004341d4 does: fseek(fp,0,SEEK_END); n=ftell(fp); fseek(fp,0,SEEK_SET)
@@ -368,39 +401,177 @@ static const uint8_t *bmpdata_find(const char *name)
     return NULL;
 }
 
-/* ─── storage_get_size — mirrors FUN_00434585 (bmpdata branch only) ─────── */
+/* ─── lnkdatas index lookup (case-SENSITIVE) ──────────────────────────────
+ *
+ * Mirrors the lnkdatas branch of FUN_00434585 / FUN_004346bf.  Unlike
+ * the bmpdata branch, the engine does a straight byte compare here:
+ *
+ *   if ((int)name[i] != entry_name[i]) break;
+ *
+ * No toupper/tolower fold.  We do the same — assets are stored with
+ * exact-case names ("bmp/title01.tga", not "BMP/title01.tga"), and
+ * any caller relying on case-insensitive match should be looking up
+ * through bmpdata.  Returns a pointer to the 140-byte entry, or NULL.
+ */
+static int lnkdatas_name_eq(const char *name, const uint8_t *entry_name)
+{
+    for (int i = 0; i < LNKDATAS_NAME_MAX; ++i) {
+        char c = name[i];
+        if (c == '\0') return 1;          /* short name — match suffix-pad */
+        if ((uint8_t)c != entry_name[i]) return 0;
+    }
+    return 1;                             /* hit the max-name bound */
+}
+
+static const uint8_t *lnkdatas_find(const char *name)
+{
+    if (g_lnkdatas_buf == NULL) return NULL;
+
+    const uint8_t *entry = (const uint8_t *)g_lnkdatas_buf + 4;
+    for (int32_t i = 0; i < g_lnkdatas_count; ++i) {
+        if (lnkdatas_name_eq(name, entry)) {
+            return entry;
+        }
+        entry += LNKDATAS_ENTRY_STRIDE;
+    }
+    return NULL;
+}
+
+/* ─── read N bytes from the logical data*.bin stream ─────────────────────
+ *
+ * The engine treats bin/data000.bin, data001.bin, … as a single 10 MiB-
+ * striped byte stream.  An asset that straddles a chunk boundary is read
+ * with a partial fread on the current chunk, then a continuation read
+ * on the next chunk.  We mirror that behavior with a 1-deep FILE* cache
+ * so back-to-back reads within the same chunk skip the fopen.
+ *
+ * Returns 1 on success (all `length` bytes read), 0 on any failure.
+ *
+ * Engine reference: FUN_004346bf's loop around LAB_004348bc:
+ *     iVar2 % 0xa00000           → in-file offset
+ *     iVar2 / 0xa00000           → chunk index
+ *     fread(buf, 1, MIN(rem, 0xa00000 - off), fp)
+ *     rem  -= read; off = 0; chunk_index++
+ *     repeat until rem == 0                                                */
+static int data_stream_read(size_t offset, size_t length, void *dst_)
+{
+    uint8_t *dst       = (uint8_t *)dst_;
+    size_t   remaining = length;
+    size_t   cur       = offset;
+
+    while (remaining > 0) {
+        int    file_idx = (int)(cur / LNKDATAS_CHUNK_SIZE);
+        size_t file_off = cur % LNKDATAS_CHUNK_SIZE;
+
+        /* Open (or reuse) the chunk file. */
+        if (g_data_fp == NULL || g_data_fp_index != file_idx) {
+            if (g_data_fp != NULL) {
+                fclose(g_data_fp);
+                g_data_fp       = NULL;
+                g_data_fp_index = -1;
+            }
+            char path[64];
+            wsprintfA(path, "bin/data%03d.bin", file_idx);
+            g_data_fp = fopen(path, "rb");
+            if (g_data_fp == NULL) return 0;
+            g_data_fp_index = file_idx;
+        }
+
+        if (fseek(g_data_fp, (long)file_off, SEEK_SET) != 0) return 0;
+
+        size_t chunk_avail = LNKDATAS_CHUNK_SIZE - file_off;
+        size_t take        = remaining < chunk_avail ? remaining : chunk_avail;
+
+        size_t got = fread(dst, 1, take, g_data_fp);
+        if (got != take) return 0;
+
+        dst       += got;
+        remaining -= got;
+        cur       += got;
+    }
+    return 1;
+}
+
+/* ─── storage_get_size — mirrors FUN_00434585 ────────────────────────────
+ *
+ * bmpdata first (engine order), lnkdatas as the fallback.
+ */
 size_t storage_get_size(const char *name)
 {
     const uint8_t *entry = bmpdata_find(name);
-    if (entry == NULL) return 0;
-    return (size_t)be32(entry + BMPDATA_OFF_DSIZE);
+    if (entry != NULL) {
+        return (size_t)be32(entry + BMPDATA_OFF_DSIZE);
+    }
+
+    entry = lnkdatas_find(name);
+    if (entry != NULL) {
+        return (size_t)be32(entry + LNKDATAS_OFF_DSIZE);
+    }
+
+    return 0;
 }
 
-/* ─── storage_read — mirrors FUN_004346bf (bmpdata branch only) ───────────
+/* ─── storage_read — mirrors FUN_004346bf ─────────────────────────────────
  *
- * Engine logic at LAB_0043476e:
- *   src   = data_section + entry.offset
+ * Engine path A (bmpdata, LAB_0043476e):
+ *   src   = bmpdata_data_section + entry.offset
  *   csize = entry.csize
- *   dst   = param_2 (caller buffer)
- *   FUN_00434b32(src, dst, csize);   ← LZW decompress
+ *   FUN_00434b32(src, dst, csize);          ← LZW decompress
  *   return entry.dsize;
+ *
+ * Engine path B (lnkdatas, LAB_004348bc / LAB_00434969):
+ *   file_idx = entry.offset / 0xa00000
+ *   file_off = entry.offset % 0xa00000
+ *   open bin/data%03d.bin
+ *   read entry.csize bytes (may straddle a chunk into file_idx+1)
+ *   FUN_004349e5(buf, dst, dsize);          ← LZSS decompress
+ *   free(buf); return entry.dsize;
+ *
+ * We skip the original's 3× Sleep(500ms) retry loop around the fopen —
+ * that was robustness against transient I/O failures on 2007 spinning
+ * drives.  On a modern install the file is either there or not.
  */
 size_t storage_read(const char *name, void *dst)
 {
+    /* ── Path A: bmpdata overlay ── */
     const uint8_t *entry = bmpdata_find(name);
+    if (entry != NULL) {
+        size_t dsize  = (size_t)be32(entry + BMPDATA_OFF_DSIZE);
+        size_t offset = (size_t)be32(entry + BMPDATA_OFF_OFFSET);
+        size_t csize  = (size_t)be32(entry + BMPDATA_OFF_CSIZE);
+
+        size_t slice_start = g_bmpdata_data_start + offset;
+        if (slice_start + csize > g_bmpdata_size) {
+            return 0;                       /* truncated archive */
+        }
+
+        bmp_lzw_decompress(g_bmpdata_buf + slice_start, csize, dst);
+        return dsize;
+    }
+
+    /* ── Path B: lnkdatas + bin/data*.bin ── */
+    entry = lnkdatas_find(name);
     if (entry == NULL) return 0;
 
-    size_t dsize  = (size_t)be32(entry + BMPDATA_OFF_DSIZE);
-    size_t offset = (size_t)be32(entry + BMPDATA_OFF_OFFSET);
-    size_t csize  = (size_t)be32(entry + BMPDATA_OFF_CSIZE);
+    size_t dsize  = (size_t)be32(entry + LNKDATAS_OFF_DSIZE);
+    size_t offset = (size_t)be32(entry + LNKDATAS_OFF_OFFSET);
+    size_t csize  = (size_t)be32(entry + LNKDATAS_OFF_CSIZE);
 
-    size_t slice_start = g_bmpdata_data_start + offset;
-    if (slice_start + csize > g_bmpdata_size) {
-        /* Truncated archive — refuse rather than read past the buffer. */
+    /* Defensive: a zero-csize entry would still be valid LZSS input
+     * only if the very first byte is an end-of-stream marker, which
+     * the encoder never produces.  Treat it as "nothing to read". */
+    if (csize == 0) return 0;
+
+    uint8_t *cbuf = (uint8_t *)malloc(csize);
+    if (cbuf == NULL) return 0;
+
+    if (!data_stream_read(offset, csize, cbuf)) {
+        free(cbuf);
         return 0;
     }
 
-    bmp_lzw_decompress(g_bmpdata_buf + slice_start, csize, dst);
+    lnk_lzss_decompress(cbuf, (uint8_t *)dst);
+    free(cbuf);
     return dsize;
 }
 
@@ -432,6 +603,12 @@ void storage_shutdown(void)
     g_bmpdata_size       = 0;
     g_bmpdata_count      = 0;
     g_bmpdata_data_start = 0;
+
+    if (g_data_fp != NULL) {
+        fclose(g_data_fp);
+        g_data_fp = NULL;
+    }
+    g_data_fp_index = -1;
 }
 
 /* ─── standalone test harness ────────────────────────────────────────────
@@ -453,10 +630,11 @@ void storage_shutdown(void)
  *
  * Build:
  *   i686-w64-mingw32-gcc -DSTORAGE_TEST_EXTRACT -O2 -Wall -Wextra -std=c11 \
- *       src/storage.c src/lnkdatas_hash.c src/bmp_lzw.c \
+ *       src/storage.c src/lnkdatas_hash.c src/bmp_lzw.c src/lnk_lzss.c \
  *       -o /tmp/storage_extract.exe -luser32
  *
- * Usage (from a directory containing lnkdatas.bin + bmpdata.bin):
+ * Usage (from a directory containing lnkdatas.bin + bmpdata.bin
+ * and a bin/ tree with data000.bin, data001.bin, …):
  *   /tmp/storage_extract.exe NAME > out.bin
  *
  * Returns 0 on success, non-zero on error.  Writes the decompressed asset
@@ -478,7 +656,7 @@ int main(int argc, char **argv)
 
     size_t dsize = storage_get_size(argv[1]);
     if (dsize == 0) {
-        fprintf(stderr, "not found in bmpdata: %s\n", argv[1]);
+        fprintf(stderr, "not found in storage: %s\n", argv[1]);
         storage_shutdown();
         return 3;
     }

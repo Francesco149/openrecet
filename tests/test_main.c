@@ -45,6 +45,15 @@ extern int test_lnkdatas_hash_empty(void);
 extern int test_lnkdatas_hash_test_vector(void);
 extern int test_lnkdatas_hash_vendor(void);
 
+extern int test_lnk_lzss_single_literal(void);
+extern int test_lnk_lzss_back_reference_short(void);
+extern int test_lnk_lzss_back_reference_extended(void);
+extern int test_lnk_lzss_self_overlap(void);
+extern int test_lnk_lzss_end_of_stream_mid_ctrl(void);
+extern int test_lnk_lzss_back_high_bits(void);
+extern int test_lnk_lzss_mixed_flags(void);
+extern int test_lnk_lzss_vendor_round_trip(void);
+
 /* ─── registry ─────────────────────────────────────────────────────────── */
 static struct test_case g_tests[] = {
     {"bmp_basic_24bit",                  test_bmp_basic_24bit},
@@ -71,6 +80,15 @@ static struct test_case g_tests[] = {
     {"lnkdatas_hash_empty",              test_lnkdatas_hash_empty},
     {"lnkdatas_hash_test_vector",        test_lnkdatas_hash_test_vector},
     {"lnkdatas_hash_vendor",             test_lnkdatas_hash_vendor},
+
+    {"lnk_lzss_single_literal",          test_lnk_lzss_single_literal},
+    {"lnk_lzss_back_reference_short",    test_lnk_lzss_back_reference_short},
+    {"lnk_lzss_back_reference_extended", test_lnk_lzss_back_reference_extended},
+    {"lnk_lzss_self_overlap",            test_lnk_lzss_self_overlap},
+    {"lnk_lzss_end_of_stream_mid_ctrl",  test_lnk_lzss_end_of_stream_mid_ctrl},
+    {"lnk_lzss_back_high_bits",          test_lnk_lzss_back_high_bits},
+    {"lnk_lzss_mixed_flags",             test_lnk_lzss_mixed_flags},
+    {"lnk_lzss_vendor_round_trip",       test_lnk_lzss_vendor_round_trip},
 };
 
 int main(int argc, char *argv[])

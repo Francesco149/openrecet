@@ -27,9 +27,9 @@
  *   - bmpdata.bin (LZW-compressed update overlay) — full file into memory,
  *     hash-validated against sentinel 0x21dc
  *
- * Out of scope for this build (storage_read returns 0 for these paths):
- *   - bin/data_NNN.bin payloads accessed via the lnkdatas index
- *   - bmp/chr_formdata.bin / formdata.bin
+ * Content reads via the lnkdatas index open `bin/data%03d.bin` on demand
+ * (one cached FILE*, reopened across chunk boundaries — matches the
+ * engine's behavior in FUN_004346bf).
  */
 int  storage_init(void);
 
@@ -44,23 +44,26 @@ void storage_shutdown(void);
 /*
  * storage_get_size(name) — mirrors FUN_00434585.
  *
- * Returns the decompressed size of `name` if it's listed in the bmpdata
- * overlay index, otherwise 0.  Name comparison is case-insensitive (the
- * engine accepts e.g. "BMP/window.tga" for an entry stored as
- * "bmp/window.tga").
- *
- * lnkdatas fallback is intentionally not wired (see header comment).
+ * Looks up `name` in the bmpdata overlay first (case-insensitive over
+ * up to 88 chars), then falls back to the lnkdatas index (case-sensitive
+ * over up to 128 chars — matching the engine's exact byte-compare loop
+ * for the lnkdatas branch).  Returns the decompressed size, or 0 if
+ * the asset is in neither index.
  */
 size_t storage_get_size(const char *name);
 
 /*
  * storage_read(name, dst) — mirrors FUN_004346bf.
  *
- * Decompresses the bmpdata entry for `name` into `dst`.  Caller must
- * provide a buffer of at least storage_get_size(name) bytes.
+ * Decompresses the asset for `name` into `dst`.  Caller must provide a
+ * buffer of at least storage_get_size(name) bytes.
  *
- * Returns the number of bytes written (== decompressed size), or 0 if
- * the name is not in the bmpdata overlay.
+ *   - bmpdata hit  → LZW decompress (bmp_lzw_decompress).
+ *   - lnkdatas hit → read `compressed_size` bytes from the data*.bin
+ *                    stream (may straddle a 10 MiB chunk boundary),
+ *                    then LZSS-decompress (lnk_lzss_decompress).
+ *
+ * Returns the decompressed size on success, 0 on lookup miss / I/O error.
  */
 size_t storage_read(const char *name, void *dst);
 
