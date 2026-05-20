@@ -142,6 +142,30 @@ extern int test_tables_tuto_file_index_stride(void);
 extern int test_tables_tuto_overflows_cap(void);
 extern int test_tables_tuto_vendor_like_shape(void);
 
+extern int test_tables_item_empty(void);
+extern int test_tables_item_comments_and_blanks_skipped(void);
+extern int test_tables_item_basic_record_no_plural(void);
+extern int test_tables_item_basic_record_with_plural(void);
+extern int test_tables_item_full_stat_fields(void);
+extern int test_tables_item_category_header_then_record(void);
+extern int test_tables_item_category_threads_to_correct_index(void);
+extern int test_tables_item_attr_mask_with_category(void);
+extern int test_tables_item_audience_all_via_zen(void);
+extern int test_tables_item_audience_male_composite(void);
+extern int test_tables_item_audience_recette_only(void);
+extern int test_tables_item_audience_empty_field_is_all(void);
+extern int test_tables_item_stock_zaiko_basic(void);
+extern int test_tables_item_stock_da_x10_quirk(void);
+extern int test_tables_item_indent_space_line_skipped(void);
+extern int test_tables_item_unknown_line_skipped(void);
+extern int test_tables_item_out_of_range_id_dropped(void);
+extern int test_tables_item_no_trailing_newline(void);
+extern int test_tables_item_description_in_line1_and_line2(void);
+extern int test_tables_item_description_slash_terminates_line2(void);
+extern int test_tables_item_resolver_finds_singular(void);
+extern int test_tables_item_max_records_cap(void);
+extern int test_tables_item_vendor_shape(void);
+
 extern int test_tables_gousei_empty(void);
 extern int test_tables_gousei_comments_and_blanks_skipped(void);
 extern int test_tables_gousei_basic_recipe(void);
@@ -281,6 +305,30 @@ static struct test_case g_tests[] = {
     {"tables_tuto_file_index_stride",           test_tables_tuto_file_index_stride},
     {"tables_tuto_overflows_cap",               test_tables_tuto_overflows_cap},
     {"tables_tuto_vendor_like_shape",           test_tables_tuto_vendor_like_shape},
+
+    {"tables_item_empty",                            test_tables_item_empty},
+    {"tables_item_comments_and_blanks_skipped",      test_tables_item_comments_and_blanks_skipped},
+    {"tables_item_basic_record_no_plural",           test_tables_item_basic_record_no_plural},
+    {"tables_item_basic_record_with_plural",         test_tables_item_basic_record_with_plural},
+    {"tables_item_full_stat_fields",                 test_tables_item_full_stat_fields},
+    {"tables_item_category_header_then_record",      test_tables_item_category_header_then_record},
+    {"tables_item_category_threads_to_correct_index",test_tables_item_category_threads_to_correct_index},
+    {"tables_item_attr_mask_with_category",          test_tables_item_attr_mask_with_category},
+    {"tables_item_audience_all_via_zen",             test_tables_item_audience_all_via_zen},
+    {"tables_item_audience_male_composite",          test_tables_item_audience_male_composite},
+    {"tables_item_audience_recette_only",            test_tables_item_audience_recette_only},
+    {"tables_item_audience_empty_field_is_all",      test_tables_item_audience_empty_field_is_all},
+    {"tables_item_stock_zaiko_basic",                test_tables_item_stock_zaiko_basic},
+    {"tables_item_stock_da_x10_quirk",               test_tables_item_stock_da_x10_quirk},
+    {"tables_item_indent_space_line_skipped",        test_tables_item_indent_space_line_skipped},
+    {"tables_item_unknown_line_skipped",             test_tables_item_unknown_line_skipped},
+    {"tables_item_out_of_range_id_dropped",          test_tables_item_out_of_range_id_dropped},
+    {"tables_item_no_trailing_newline",              test_tables_item_no_trailing_newline},
+    {"tables_item_description_in_line1_and_line2",   test_tables_item_description_in_line1_and_line2},
+    {"tables_item_description_slash_terminates_line2", test_tables_item_description_slash_terminates_line2},
+    {"tables_item_resolver_finds_singular",          test_tables_item_resolver_finds_singular},
+    {"tables_item_max_records_cap",                  test_tables_item_max_records_cap},
+    {"tables_item_vendor_shape",                     test_tables_item_vendor_shape},
 
     {"tables_gousei_empty",                          test_tables_gousei_empty},
     {"tables_gousei_comments_and_blanks_skipped",    test_tables_gousei_comments_and_blanks_skipped},

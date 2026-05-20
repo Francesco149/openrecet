@@ -28,6 +28,7 @@
 #include "tables_config.h"
 #include "tables_enemy.h"
 #include "tables_gousei.h"
+#include "tables_item.h"
 #include "tables_model.h"
 #include "tables_oder.h"
 #include "tables_snews.h"
@@ -98,7 +99,36 @@ static void load_config_idx(void)
             g_config.font_set ? g_config.font_name : "(default)");
     free(buf);
 }
-DEFINE_STUB(load_item_txt,      "data/item.txt")
+/* item.txt — ported. Real parser in src/tables_item.c. Master item
+ * catalog: dispatcher fans lines into category headers (':' prefix,
+ * via FUN_00491044) and item records (4-digit id prefix, via
+ * FUN_004912de). Populates the per-category name globals at
+ * &DAT_0963e5f8 / &DAT_0963c5f8 and the per-record table at
+ * &DAT_095d37d0 (stride 0x2cc). Gating dependency for the deferred
+ * resolvers in oder.txt / enemy.txt / gousei.txt — resolver wiring
+ * lands in a follow-up commit. */
+static void load_item_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/item.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_item(buf, sz, &g_item);
+    int max_id = 0, equippable = 0;
+    int categories = 0;
+    for (int i = 0; i < g_item.count; i++) {
+        if (g_item.records[i].item_id > max_id)
+            max_id = g_item.records[i].item_id;
+        if (g_item.records[i].equip_class != 0) equippable++;
+    }
+    for (int c = 0; c < ITEM_CATEGORY_COUNT; c++) {
+        if (g_item.categories[c].singular[0] != 0) categories++;
+    }
+    fprintf(stderr,
+            "tables: data/item.txt — %zu bytes "
+            "(items=%d max_id=%d equippable=%d cats=%d)\n",
+            sz, g_item.count, max_id, equippable, categories);
+    free(buf);
+}
 DEFINE_STUB(load_kyaku_txt,     "data/kyaku.txt")
 /* enemy.txt — ported. Real parser in src/tables_enemy.c. The 64
  * records ship pre-baked in .data with their NAMES; enemy.txt only

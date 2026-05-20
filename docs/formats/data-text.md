@@ -1190,3 +1190,180 @@ on `item.txt`'s name table means every ingredient and output ID
 currently resolves to -1; once item.txt's parser lands, tables.c can
 plumb a real resolver into `tables_parse_gousei` and the IDs will
 resolve correctly without touching the parser itself.
+
+---
+
+## `data/item.txt`
+
+The master item catalog: every weapon, armour, accessory, consumable,
+food, book, furniture, etc. that the shop deals in. 571 records
+across 33 categories. Source-of-truth for the `singular[]` /
+`plural[]` / `attr_mask` / `price` / etc. fields that every other
+gameplay table (oder.txt, enemy.txt, gousei.txt) ultimately resolves
+through.
+
+Parser source: `src/tables_item.c`. Engine source: FUN_00475270
+block #3 (475270.c L428..L468) + cross-block record dispatch at
+L815..L829, FUN_00491044 (category header), FUN_004912de (item
+record). Full discovery: `docs/findings/item-table.md`.
+
+### Per-line dispatcher
+
+Each line is classified by its first byte:
+
+| First byte | Meaning                          | Engine routing                       |
+|------------|----------------------------------|---------------------------------------|
+| `\r` `\n` `/` | Blank line or comment           | Skipped                              |
+| `:`        | Category header                  | `FUN_00491044(line+1, cat_idx)`       |
+| ` `        | Defensive indent-skip            | Silently dropped                     |
+| `0`–`9`    | Item record (4-digit ID prefix)  | `FUN_004912de(line+5, item_id, slot)` |
+| anything else | Unknown line                  | Engine pops MessageBoxA "不明な行"; port logs to stderr |
+
+### Category header (`:Name#Tag`)
+
+```
+:Swords#(Equippable)
+```
+
+Splits on the first `#`. Up to 32 chars total. Result lands in two
+scratch buffers (engine globals `&DAT_09642bd0` for singular, `&DAT_09640604`
+for tag) that the NEXT item-record parse picks up. The header itself
+doesn't index into the category table — the record does that based
+on `item_id / 100`.
+
+### Item record (`NNNN:R#name+plural#price#atk#def#mt#mf#attr#stock#aud##desc1#desc2`)
+
+```
+0001:1#Worn Sword+Worn Swords#               200#  8#  0#  0#  0# 金属地味         #在庫(1)ギ(1)市(0)買(0)ダ(11)        ##A worn-out, dented, chipped sword. Still better than#going into the wild bare-handed, though.
+```
+
+Fields (all `#`-separated, 10 separators total):
+
+| # | Field        | Type              | Notes                                        |
+|---|--------------|-------------------|----------------------------------------------|
+| 1 | RANK         | int (atoi)        | Rank/level digit; written before name parse  |
+| 2 | NAME+PLURAL  | SJIS text         | Optional `+` splits singular and plural      |
+| 3 | PRICE        | int               |                                              |
+| 4 | ATK          | int               |                                              |
+| 5 | DEF          | int               |                                              |
+| 6 | MT           | int               | "Magic attack"                               |
+| 7 | MF           | int               | "Magic defense"                              |
+| 8 | ATTR         | space-sep SJIS    | Up to 10 × 4-byte tags (shared with oder.txt) |
+| 9 | STOCK        | tag-sequence      | `在庫(N)ギ(N)市(N)買(N)ダ(N)(N)(N)卸(N)持(N)` |
+| 10| AUD          | tag-sequence      | Up to 10 × 2-byte target-audience tags       |
+| 11| DESC1        | SJIS text         | Description line 1 (often empty via `##`)    |
+| 12| DESC2        | SJIS text         | Description line 2; `/` truncates           |
+
+### Name + plural
+
+Phase 0 of `FUN_004912de` writes each name character to BOTH
+`singular[]` AND `plural[]`. On encountering `+`, the column counter
+resets and only `plural[]` continues to accumulate. Net effect:
+
+- `Sword` — no `+` → singular = plural = "Sword"
+- `Worn Sword+Worn Swords` — singular = "Worn Sword", plural = "Worn Swords"
+
+Both buffers are 64 bytes (NUL-terminated).
+
+### Attribute tags
+
+The ATTR field uses the same 16-tag table as `oder.txt`
+(`oder_attr_hash` — see oder.txt section above for the SJIS byte
+values and bit assignments). Up to 10 tags per field; space-separated.
+Per-record `attr_mask` is the OR of all matched tag bits.
+
+Additionally, the parser OR's in *category bits* (`FUN_0049eb2a`)
+based on the singular category name:
+
+| Category name(s)                                          | Bit       |
+|-----------------------------------------------------------|-----------|
+| Swords, Daggers, Staves, Bows, Spears, Gloves, Claws, Arm Parts | `0x00001` (weapon) |
+| Clothes, Robes, Breastplates, Armor, Shields, Bracelets, Helms, Hats | `0x00002` (armour) |
+| Flooring, Wallpapers, Counters, Carpets                   | `0x10000` (furniture) |
+
+### Stock-info tags
+
+`STOCK_TAG(N)` format — 7 distinct tags scanned in 5 rounds:
+
+| SJIS tag | Stored at | Notes                                |
+|----------|-----------|--------------------------------------|
+| `在庫(N)` | `stock_info[0]` | Stock count                    |
+| `ギ(N)`   | `stock_info[1]` | Guild submission               |
+| `市(N)`   | `stock_info[2]` | Market visibility              |
+| `買(N)`   | `stock_info[3]` | Buy-back preference            |
+| `ダ(N)(M)(K)` | `stock_info[4..6]` | Dungeon spawn ×3; values < 10 are stored as `value*10` |
+| `卸(N)`   | `stock_info[7]` | Wholesale (default 200)        |
+| `持(N)`   | `stock_info[8]` | Hold slot                      |
+
+Multi-digit `在庫`, `ギ`, etc. values are an engine quirk: the parser
+advances by a hard-coded 7 or 5 bytes (single-digit assumption), so a
+two-digit value silently desyncs subsequent tag scans within the same
+round. Vendor data is all single-digit for these slots. `ダ` is the
+only tag with variable advance.
+
+### Audience tags
+
+11 × 2-byte SJIS tags, each OR'ing a bit into `aud_mask`:
+
+| Tag (SJIS) | Hex bytes   | Bit(s)             | Maps to NPC          |
+|------------|-------------|---------------------|----------------------|
+| 全         | `91 53`     | `0xff` (all)        | All customers        |
+| リ         | `83 8a`     | `0x01`              | Recette              |
+| シ         | `83 56`     | `0x02`              |                      |
+| カ         | `83 4a`     | `0x04`              | Caillou              |
+| テ         | `83 65`     | `0x08`              | Tielle               |
+| エ         | `83 47`     | `0x10`              | Elan                 |
+| ナ         | `83 69`     | `0x20`              | Nagi                 |
+| グ         | `83 4f`     | `0x40`              | Guildmaster          |
+| ア         | `83 41`     | `0x80`              | Arma                 |
+| 男         | `92 6a`     | `0x55` (composite)  | All male NPCs        |
+| 女         | `8f 97`     | `0xaa` (composite)  | All female NPCs      |
+
+Special case: an audience field whose *first character* is `#`
+(i.e. the empty field between `##` in vendor data) triggers an
+unconditional `aud_mask |= 0xff` — items default to "visible to all"
+when the AUD field is omitted.
+
+### Description lines
+
+The `##` after AUD in vendor data is the AUD→DESC1 separator with
+an empty audience field. Phase 0 consumes 9 `#` advances; after the
+9th, the parser is past the SECOND `#` of `##` and phase 1 begins
+reading the first DESC1 byte. Phase 1 captures bytes until the next
+`#` (DESC1→DESC2 boundary), then phase 2 takes over and captures
+until `/`, `\r`, or `\n`.
+
+Engine init at `FUN_004912de:28-31`: both `desc_line1` and
+`desc_line2` are seeded with `" "` (single space + NUL) before
+parsing. If phase 1 or phase 2 never writes a byte, the field
+remains as that single-space sentinel.
+
+### Vendor file shape
+
+| stat                                  | value     |
+|---------------------------------------|-----------|
+| Bytes via `storage_read`              | 122010    |
+| Total lines (CRLF-split)              | 781       |
+| Comment lines (`//`)                  | 66        |
+| Blank lines                           | 111       |
+| Category headers (`:`)                | 33        |
+| Item records (digit-prefix)           | 571       |
+| Unique category indices               | 33        |
+| Category index range                  | 0..54     |
+| Item-id range                         | 0..5408   |
+
+Boot trace logs `(items=N max_id=M equippable=K cats=C)`. The
+table at `&DAT_095d37d0` (stride 0x2cc) holds all 571 records; the
+category-name globals at `&DAT_0963e5f8` (singular) and
+`&DAT_0963c5f8` (tag) carry the per-category text.
+
+### Resolver hook
+
+`tables_item_resolve(state, name)` performs exact-match lookup
+against record `singular[]` fields and returns the matching record's
+`item_id` (NOT slot index). Mismatch / NULL inputs → -1.
+
+A follow-up commit will thread this through `tables.c` into the
+deferred resolver hooks of `tables_parse_enemy` (drop refs) and
+`tables_parse_gousei` (ingredient refs), retiring the `-1`
+placeholders those parsers currently produce.

@@ -3,6 +3,93 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [10/15]: `data/item.txt` parser
+
+**Subsystems landed:**
+- `src/tables_item.{c,h}` — pure-C parser for FUN_00475270 block #3
+  (`docs/decompiled/by-address/475270.c` L428..L468 main dispatch +
+  L815..L829 cross-block record fallback reached via
+  `goto LAB_00476d04`). The two sub-parsers are FUN_00491044
+  (category header, 81 bytes) and FUN_004912de (item record, 820
+  bytes). 716-byte record layout (stride 0x2cc) populated end-to-end:
+  rank, price, atk, def, mt, mf, attr_mask (incl. category-class OR
+  via FUN_0049eb2a), equip_class (FUN_0049ed75), stock_info[9]
+  (FUN_00491095 — 7 SJIS tags incl. `ダ`'s ×10-if-<10 quirk),
+  aud_mask (FUN_0049e849 — 11 SJIS audience tags including `男`/`女`
+  composites), singular[64], plural[64], desc_line1[256],
+  desc_line2[256]. Static asserts validate every offset.
+- `src/tables.c` — replaced the item.txt stub with the real loader.
+  Boot trace logs `(items=N max_id=M equippable=K cats=C)`.
+- `docs/findings/item-table.md` — captures the chained-dispatcher
+  discovery (the cross-block `goto LAB_00476d04` is real, not a
+  decompiler artifact), the scratch-buffer flow (FUN_00491044 writes
+  scratch consumed by FUN_004912de's sprintf copies), the per-record
+  byte layout, and the resolver implications for the three already-
+  ported parsers that defer item-name lookup (oder, enemy, gousei).
+- `docs/formats/data-text.md` — appended a full item.txt section:
+  per-line dispatcher table, 12-field record format, attribute /
+  stock / audience tag tables, the `##`-makes-desc1-the-real-content
+  semantics, vendor file shape.
+- `tests/test_tables_item.c` — 23 cases covering: empty input,
+  comment/blank/indent-space skipping, basic record (with and without
+  `+` plural), full stat fields, category header routing,
+  multi-category index threading, attribute-mask + category-class
+  OR, audience tags (全 → 0xff, 男 → 0x55, リ → 0x01,
+  empty-field → 0xff), stock tags (在庫(N) basic + ダ(N) ×10 quirk),
+  out-of-range item_id dropped, no-trailing-newline, description-
+  line1+line2 split on embedded `#`, phase-2 `/` truncation,
+  unknown-line stderr fallback, resolver lookup, slot cap, and a
+  vendor-shape integration test against
+  `/tmp/openrecet-extract/data/item.txt`.
+- `tools/analyze/pe.py` — added the `bytes` subcommand earlier;
+  reused here to identify the dispatcher sentinels `':'` at
+  `0x5cacf0` and `' '` at `0x5cacf4`, plus the stock-info /
+  audience SJIS tag tables.
+
+**Behavioral validation:**
+- 147 unit tests pass under ASan/UBSan (was 124).
+- Boot smoke: `data/item.txt — 121998 bytes (items=571 max_id=5408
+  equippable=331 cats=33)` matches the vendor file's actual counts
+  (Python analysis: 571 records, 33 categories, IDs 0..5408).
+- ASan caught one early-iteration bug: `item_class_bits` had a
+  hand-written length table (`{ "Arm Parts", 12, ... }`) that
+  memcmp'd past the C string literal's bounds. Fixed by switching to
+  `strlen(.name)` + exact-NUL terminator check. Test for this is
+  implicit in the vendor-shape run, which would crash under ASan if
+  the OOB read reappeared.
+
+**Engine quirks documented:**
+- **Cross-block dispatcher goto.** The non-`:` line path inside
+  item.txt's loop is reached via `goto LAB_00476d04` that physically
+  lands inside the next block's (kyaku.txt) function body. Real code
+  layout, not a decompiler artifact — the port linearises it.
+- **Most-recent-header semantics.** Category headers don't index
+  into the per-category table directly; the next item record copies
+  the scratch buffer into `categories[item_id/100]`. Vendor files
+  respect the convention; an adversarial reorder would scramble the
+  category-name lookup.
+- **Phase-1-immediate-`#` empties desc_line1.** Vendor `##` between
+  AUD and DESC means AUD is empty (engine ORs `aud_mask |= 0xff`)
+  and DESC1 starts AT the byte after the second `#`. desc_line1
+  ends up with the first half of the description; desc_line2 gets
+  the second half after the `#` between them.
+- **Description phase 2 ends on `/`.** A literal `/` in the second
+  description line truncates the field. Phase 1 has no such check.
+
+**Note for the next milestone:**
+- Resolver wiring (Phase B 11 follow-up) is now unblocked. A single
+  pass through `src/tables.c` can wire `tables_item_resolve` into
+  the deferred hooks of `tables_parse_enemy` (drop refs, currently -1)
+  and `tables_parse_gousei` (ingredient/output IDs, currently -1).
+  `oder.txt`'s attribute-table lookup doesn't actually need
+  resolution — its `attr_index = -1` placeholder was a misread; the
+  oder parser already references the singular-name table via
+  `oder_attr_hash`, and the table will be populated automatically
+  now that item.txt has been parsed. Cleanup is mostly removing the
+  TODO comments from `src/tables.c`.
+
+---
+
 ## 2026-05-20 — Phase B [9/15]: `data/gousei.txt` parser
 
 **Subsystems landed:**
