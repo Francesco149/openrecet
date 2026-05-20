@@ -3,6 +3,24 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — FUN_004341d4 bookkeeping (file-size helper)
+
+Pinned candidate #2 closed as already-done. `FUN_004341d4` is the
+trivial `fseek(0,SEEK_END); ftell; fseek(0,SEEK_SET)` file-size
+helper, and it was already faithfully translated as
+`storage_file_size` in `src/storage.c:139` during the
+`storage_init`/`FUN_004341fe` port (with an in-file comment naming
+the original). All four in-engine call sites we've ported (the ones
+inside `storage_init` itself) route through it.
+
+The other three inlined `fseek/ftell/rewind` idioms in `src/tga.c`,
+`src/sprite.c`, and `src/lnkdatas_hash.c` were written by us, not
+ports — they intentionally check the fseek/ftell return values
+(the original doesn't). Left untouched so the defensive coverage
+stays in place; promoting a 5-line static into a shared util module
+would have been premature abstraction. Dropped from the
+session-starter pin list.
+
 ## 2026-05-20 — lnkdatas content read + LZSS
 
 **Subsystems landed:**
