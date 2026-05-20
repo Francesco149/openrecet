@@ -403,6 +403,52 @@ hardcoded address constants that have to agree by hand.
 > 📍 `src/tables_chara.c`, `docs/formats/data-text.md` "chara.txt"
 > section.
 
+## 20. `snews.txt` floor-range writes land on the previous dungeon
+
+Tied with quirk #19 for "best argument for not writing pointer-juggling
+parsers in C," this one's a classic write-then-advance mistake.  The
+snews.txt parser maintains four locals: `local_20` (current dungeon
+index, 0-5), `local_14` (sections-into-current-dungeon counter),
+`local_18` (entries-into-current-section), and `local_c` (a raw pointer
+into the `&DAT_073b2108` section grid where the next floor-range +
+entries are about to land).
+
+When a `ダンジョン{1..6}` line matches, the engine resets `local_14`
+and `local_20` — but **not `local_c`**.  When the next `f:N-M` line
+arrives, the handler:
+
+1. Writes `(N, M)` to `local_c[+0..+7]` (the floor_start / floor_end
+   pair) — using the **old** value of `local_c`, which is still
+   pointing at the last section the previous dungeon wrote into.
+2. Recomputes `local_c = base + (local_14 + local_20 * 30) * 0xa8`.
+3. Increments `local_14`.
+
+So on a dungeon transition, the very first `f:` line of the new
+dungeon **overwrites the floor info of the LAST section of the old
+dungeon**.  Specifically, every dungeon except the last (dungeon 6,
+which has no successor) loses its trailing section's `floor_end` to
+whatever the next dungeon's first `f:` line happens to specify.
+
+In production, vendor `data/snews.txt` happens to dodge this neatly:
+the corrupted `floor_end` values are still close enough to the
+dungeon's actual floor count that the in-game floor-range probe
+(`FUN_004364bc`, looking for "first section whose floor_start ≤
+current_floor+1 ≤ floor_end") still matches sensibly.  Dungeon 1's
+floor 5 — the boss floor — falls past the corrupted `(1, 4)` range
+and so silently gets no news-event roll, which is plausibly intended
+behavior anyway.
+
+The port reproduces the bug faithfully (writes to old `local_c`
+before advancing) so that any consumer that's been written against
+the corrupted layout keeps working.  The fix-instead-of-reproduce
+choice would have been to reset `local_c` on dungeon match, but the
+engine ships with this and we can't tell whether downstream code
+depends on the shift.
+
+> 📍 `src/tables_snews.c`, `docs/formats/data-text.md` "snews.txt"
+> section, and the `test_tables_snews_dungeon_transition_corrupts_prev`
+> unit test which is dedicated entirely to pinning this behavior down.
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of
