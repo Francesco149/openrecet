@@ -617,3 +617,140 @@ all eight lv100 rows parsed.
 The file also contains a commented-out `1.0` block at the bottom
 preserving the pre-balance-patch values — those lines all start with
 `/` so the parser skips them entirely.
+
+## `data/snews.txt`
+
+Short news / "戦闘ニュース" — the random in-dungeon status broadcasts
+that appear at the start of certain floors ("SP consumption
+halved!", "Adventurer movement speed increased!", and so on). The
+file has two unrelated parts: a flat name table indexed by 3-digit
+ID, and a per-dungeon list of weighted spawn tables keyed by SJIS
+dungeon names. Parsed by `FUN_00475270` block #12
+(`docs/decompiled/by-address/475270.c` L2238..L2401); port at
+`src/tables_snews.{c,h}`.
+
+### Line shape (engine: L2272..L2401)
+
+| line pattern               | dispatch                                 |
+|----------------------------|------------------------------------------|
+| empty                      | skipped                                  |
+| starts with `/`            | comment, skipped                         |
+| `ダンジョン{1..6}` (SJIS, 12 bytes) | switch active dungeon to 0..5; reset section counter |
+| `f:N-M`                    | open new floor-range section (see quirk below) |
+| `NON,W`                    | append entry (id=-2, weight=W) to current section |
+| `NNN,W`                    | append entry (id=atoi(NNN), weight=W)    |
+| `NNN<sep><text>`           | populate names[atoi(NNN)] = text (skipping the 1-byte separator at `<sep>`, typically `:`) |
+| anything else              | engine: MessageBoxA "不明なニュース"; port: skip |
+
+The 6 dungeon-key SJIS bytes (each 12 bytes / 6 codepoints):
+
+| dungeon | SJIS bytes                                                  | meaning |
+|---------|-------------------------------------------------------------|---------|
+| 1       | `83 5f 83 93 83 57 83 87 83 93 82 50`                       | ダンジョン１ |
+| 2       | `83 5f 83 93 83 57 83 87 83 93 82 51`                       | ダンジョン２ |
+| 3       | `83 5f 83 93 83 57 83 87 83 93 82 52`                       | ダンジョン３ |
+| 4       | `83 5f 83 93 83 57 83 87 83 93 82 53`                       | ダンジョン４ |
+| 5       | `83 5f 83 93 83 57 83 87 83 93 82 54`                       | ダンジョン５ |
+| 6       | `83 5f 83 93 83 57 83 87 83 93 82 55`                       | ダンジョン６ |
+
+### Record layout
+
+The engine maintains two unrelated globals, far apart in `.bss`:
+
+**Name table** at `&DAT_073d8ee0` (stride 0x44, 64 entries):
+
+| offset  | bytes | field   | notes                                   |
+|---------|-------|---------|-----------------------------------------|
+| `+0x00` | 4     | `active`| 0 = empty, 1 = populated                |
+| `+0x04` | 64    | `name`  | text (engine: may not be NUL-terminated on 64-char overflow — see below) |
+
+Total: 0x44 (68) bytes per entry × 64 entries = 0x1100 bytes.
+
+**Section grid** at `&DAT_073b2108` (stride 0xa8, 10 × 30 sections):
+
+| offset  | bytes | field         | notes                                   |
+|---------|-------|---------------|-----------------------------------------|
+| `+0x00` | 4     | `floor_start` | inclusive lower bound; -1 if unset      |
+| `+0x04` | 4     | `floor_end`   | inclusive upper bound; -1 if unset      |
+| `+0x08` | 160   | `entries[20]` | id/weight pairs (8 bytes each, id at +0, weight at +4) |
+
+Entry slots use `id == -1` to mark unwritten, `id == -2` for "NON"
+sentinel, and `id == 0..63` for a name-table reference. The engine
+init writes 0xffffffff to every id field but leaves weights
+uninitialised; the consumer (`FUN_004364bc`) only reads `weight`
+when `id != -1`, so the divergence is unobservable.
+
+Total: 0xa8 (168) bytes per section × 30 sections × 10 outer slots =
+0xc4e0 bytes (50400). Only the first six outer slots are reachable
+via the SJIS dungeon keys; slots 6..9 stay all-empty.
+
+### Engine quirks reproduced
+
+- **Off-by-one in `f:` writes** (load-bearing for the section
+  layout!): the engine's `f:` handler writes
+  `(floor_start, floor_end)` to the OLD `local_c` pointer BEFORE
+  advancing to the new section position. Within a single dungeon
+  this is fine — the first `f:N-M` line happens to advance to the
+  same position it just wrote to (because the dungeon-key handler
+  resets `local_14` to 0 but does NOT touch `local_c`). But on a
+  dungeon transition, the previous dungeon's last `local_c` value
+  is reused, and the next dungeon's first `f:` line **OVERWRITES
+  the floor info of the last section of the previous dungeon**
+  with its own `(N, M)`. Entries are not touched (writes happen
+  via separate sub-record offsets). Documented as
+  [engine-quirks #20](../findings/engine-quirks.md).
+
+- **`local_c` / `local_18` not reset on dungeon-key match**: the
+  engine only resets `local_14` (sections-within-current-dungeon
+  counter) and `local_20` (dungeon index). The off-by-one above
+  is the visible consequence.
+
+- **Name table starts at `pcVar16 + 1`**: the engine skips a 1-byte
+  separator at `line[3]` (`pcVar16[0]`) and reads the name proper
+  starting at `line[4]`. Vendor data uses `:` as the separator.
+  Lines like `001 name` (space) or `001-name` (dash) would have
+  the separator byte stripped and the rest written verbatim.
+
+- **Name char-copy bug**: the char loop iterates exactly 0x40 = 64
+  times. The post-write EOL check writes a NUL at `name[k+1]`,
+  with `k` ∈ [0, 64). On the 64th iteration `name[64]` (= the next
+  entry's `active` byte) gets stomped with NUL — a 1-byte overrun
+  into the adjacent table entry. Vendor names are all well under
+  64 chars; the port caps at 63 + always-NUL for safety.
+
+- **`NON` without comma**: the engine takes the name-table path
+  with `id = -2`, computing `&DAT_073d8ee0 + (-2)*0x44 =
+  DAT_073d8ee0 - 0x88`, somewhere in the snews `.bss` region.
+  Vendor data always has `NON,W` (with a comma), so this is
+  dormant. Port guards with `id >= 0 && id < SNEWS_NAME_COUNT`.
+
+- **Unknown lines**: the engine calls
+  `MessageBoxA(... line, "不明なニュース", 0)` — a blocking dialog
+  on each malformed line. Vendor data is well-formed. Port
+  silently skips.
+
+### Vendor file shape
+
+`data/snews.txt` (2230 bytes, CRLF, SJIS). The boot trace confirms
+`(names=25 sections=10)`.
+
+- 25 name entries (IDs 1..25), all in English.
+- 6 dungeons with the following per-dungeon section counts:
+
+| dungeon | f: lines | floor ranges in file        | "NON" weights    |
+|---------|----------|-----------------------------|------------------|
+| 1       | 1        | 1-5                         | 300              |
+| 2       | 3        | 1-4, 6-9, 11-14             | 300, 400, 300    |
+| 3       | 3        | 1-10, 11-20, 21-30          | 200, 150, 100    |
+| 4       | 2        | 1-30, 31-60                 | 50, 50           |
+| 5       | 1        | 1-100                       | 20               |
+| 6       | 1        | 1-30                        | 0                |
+
+Total: 11 f: lines across 6 dungeons. Due to the dungeon-transition
+off-by-one, 5 of these writes land in the previous dungeon's last
+section (corrupting its `floor_end`), and the 6th (dungeon 6's last
+f:) leaves dungeon 6's section [5][0] with floor_start = -1 in the
+parsed state — because no subsequent dungeon's first `f:` exists to
+"write" to it. Vendor data is structured such that this corruption
+is benign (corrupted floor_end values still bracket the
+in-game-range floors of the dungeon's main play loop).

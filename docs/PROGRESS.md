@@ -3,6 +3,54 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-20 — Phase B [6/15]: `data/snews.txt` parser
+
+**Subsystems landed:**
+- `src/tables_snews.{c,h}` — pure-C parser for FUN_00475270 block #12
+  (L2238..L2401). Two unrelated globals populated from one file: a
+  flat 64-slot name table keyed by 3-digit ID (`NNN:<text>` lines)
+  and a 10×30 grid of floor-range sections keyed by SJIS dungeon
+  names (`ダンジョン1`..`ダンジョン6`) with per-section weighted
+  entry lists (`NNN,W` and `NON,W`). Only 6 of the 10 outer dungeon
+  slots are reachable; the other 4 stay empty.
+- `src/tables.c` — replaced the snews.txt stub with a real loader.
+  Boot trace logs `(names=N sections=M)`, where `sections` counts
+  records with non-sentinel `floor_start`.
+- `docs/formats/data-text.md` — appended a full snews.txt section
+  with line-shape table, the SJIS dungeon-key bytes, record layout
+  for both globals, engine quirks (including the dungeon-transition
+  off-by-one), and vendor-file shape with per-dungeon f: counts and
+  weights.
+- `docs/findings/engine-quirks.md` — added quirk #20 (snews.txt
+  dungeon-transition floor-range corruption) with the full
+  pointer-juggling story.
+- `tests/test_tables_snews.c` — 10 cases: empty (sentinel init),
+  name table (basic, empty value, overlong→truncated), comments +
+  blanks skipped, single dungeon + section (with engine off-by-one
+  verified), multiple sections within one dungeon, dungeon
+  transition floor-end corruption (the quirk pinned in a dedicated
+  test), entry-slot overflow dropped at port cap, and a full
+  vendor-shape end-to-end with spot checks on every f:-line's
+  landing position.
+
+**Engine fidelity divergences (documented):** the dungeon-transition
+floor-range corruption (quirk #20) is reproduced faithfully — the
+first `f:N-M` line of every new dungeon writes its floor info to the
+*previous* dungeon's last section before advancing. Vendor data is
+structured so this is benign; consumers querying floor ranges still
+see plausible matches. Port adds safety caps for overlong names
+(>= 64 chars), name-table OOB IDs, and per-section entry-slot
+overflow (>20 entries).
+
+**Boot verification:** stderr now shows
+`tables: data/snews.txt — 2230 bytes (names=25 sections=10)`. The 10
+sections matches the trace: 11 `f:` lines across 6 dungeons, with
+the off-by-one shifting the last-section-of-each-dungeon writes onto
+the next-dungeon's first section, leaving dungeon 6's section [5][0]
+with floor_start = -1 (no successor to write over it).
+
+**Test status:** 81 tests pass (up from 71), no fails, no skips.
+
 ## 2026-05-20 — Phase B [5/15]: `data/chara.txt` parser
 
 **Subsystems landed:**

@@ -28,6 +28,7 @@
 #include "tables_config.h"
 #include "tables_model.h"
 #include "tables_oder.h"
+#include "tables_snews.h"
 
 /* Load one file via storage_read and report the size. Returns the
  * size, or 0 on miss / OOM. Output buffer is owned by the caller and
@@ -182,7 +183,32 @@ static void load_model_txt(void)
 }
 DEFINE_STUB(load_event_txt,     "data/event.txt")
 DEFINE_STUB(load_news_txt,      "data/news.txt")
-DEFINE_STUB(load_snews_txt,     "data/snews.txt")
+/* snews.txt — ported. Real parser in src/tables_snews.c. Two unrelated
+ * globals: a 64-slot name table and a 10×30 grid of floor-range
+ * sections (only 6×N reachable via the SJIS dungeon keys). */
+static void load_snews_txt(void)
+{
+    unsigned char *buf;
+    size_t sz = load_via_storage("data/snews.txt", &buf);
+    if (sz == 0) return;
+    tables_parse_snews(buf, sz, &g_snews);
+    /* Count populated names and sections for the boot trace. */
+    int names = 0;
+    for (int i = 0; i < SNEWS_NAME_COUNT; i++) {
+        if (g_snews.names[i].active) names++;
+    }
+    int sections = 0;
+    for (int d = 0; d < SNEWS_DUNGEON_KEY_COUNT; d++) {
+        for (int s = 0; s < SNEWS_SECTION_COUNT; s++) {
+            if (g_snews.sections[d][s].floor_start != -1) sections++;
+        }
+    }
+    fprintf(stderr,
+            "tables: data/snews.txt — %zu bytes "
+            "(names=%d sections=%d)\n",
+            sz, names, sections);
+    free(buf);
+}
 DEFINE_STUB(load_gousei_txt,    "data/gousei.txt")
 DEFINE_STUB(load_enemylist_txt, "data/enemylist.txt")
 

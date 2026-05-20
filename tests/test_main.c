@@ -101,6 +101,17 @@ extern int test_tables_oder_line_cap_truncates(void);
 extern int test_tables_oder_no_trailing_newline(void);
 extern int test_tables_oder_vendor_shape(void);
 
+extern int test_tables_snews_empty(void);
+extern int test_tables_snews_name_table_basic(void);
+extern int test_tables_snews_comments_and_blanks_skipped(void);
+extern int test_tables_snews_dungeon_and_section(void);
+extern int test_tables_snews_multiple_sections_in_dungeon(void);
+extern int test_tables_snews_dungeon_transition_corrupts_prev(void);
+extern int test_tables_snews_name_empty_value(void);
+extern int test_tables_snews_name_overlong_truncates(void);
+extern int test_tables_snews_entry_slot_overflow_dropped(void);
+extern int test_tables_snews_vendor_shape(void);
+
 /* ─── registry ─────────────────────────────────────────────────────────── */
 static struct test_case g_tests[] = {
     {"bmp_basic_24bit",                  test_bmp_basic_24bit},
@@ -183,6 +194,17 @@ static struct test_case g_tests[] = {
     {"tables_oder_line_cap_truncates",        test_tables_oder_line_cap_truncates},
     {"tables_oder_no_trailing_newline",       test_tables_oder_no_trailing_newline},
     {"tables_oder_vendor_shape",              test_tables_oder_vendor_shape},
+
+    {"tables_snews_empty",                              test_tables_snews_empty},
+    {"tables_snews_name_table_basic",                   test_tables_snews_name_table_basic},
+    {"tables_snews_comments_and_blanks_skipped",        test_tables_snews_comments_and_blanks_skipped},
+    {"tables_snews_dungeon_and_section",                test_tables_snews_dungeon_and_section},
+    {"tables_snews_multiple_sections_in_dungeon",       test_tables_snews_multiple_sections_in_dungeon},
+    {"tables_snews_dungeon_transition_corrupts_prev",   test_tables_snews_dungeon_transition_corrupts_prev},
+    {"tables_snews_name_empty_value",                   test_tables_snews_name_empty_value},
+    {"tables_snews_name_overlong_truncates",            test_tables_snews_name_overlong_truncates},
+    {"tables_snews_entry_slot_overflow_dropped",        test_tables_snews_entry_slot_overflow_dropped},
+    {"tables_snews_vendor_shape",                       test_tables_snews_vendor_shape},
 };
 
 int main(int argc, char *argv[])
