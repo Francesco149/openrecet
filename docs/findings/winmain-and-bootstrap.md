@@ -30,10 +30,10 @@ self-documenting log strings:
 | 1 | `timeGetDevCaps` + `timeBeginPeriod(10)` | — | high-resolution timer via WINMM       |
 | 2 | `FUN_00451790`       | —                      | very early init (TBD)                              |
 | 3 | `FUN_00471050`       | —                      | thunk → `FUN_005041ec` (early init step)           |
-| 4 | `FUN_00504384`/`wsprintfA` | —                | builds path → reads `recet.ini`                    |
+| 4 | `FUN_00504384`/`wsprintfA` | —                | builds `recet.ini` path (`_splitpath(argv[0])` + `wsprintfA "%s%s/recet.ini"`) — ported into `src/recet_ini.c:recet_ini_default_path` with CWD-first fallback for the dev workflow |
 | 5 | `FUN_0047aa30`       | —                      | (TBD)                                              |
 | 6 | `FUN_0047aa31`       | `"start"`              | log no-op                                          |
-| 7 | `FUN_0047a474`       | —                      | (TBD — pre-window init)                            |
+| 7 | `FUN_0047a474`       | —                      | **pre-window init: read `recet.ini`** — 28 input bindings + 25 setup scalars + 1 debug + 2 [config] keys; `screen` dispatches to (width, height). Ported as `src/recet_ini.{c,h}`; see `docs/formats/recet-ini.md` |
 | 8 | `FUN_0047aa8b(hInst, nCmdShow)` | —          | **window class register + CreateWindowEx**         |
 | 9 | `ShowWindow` + `UpdateWindow` | —             | show the main window                               |
 |10 | `FUN_004341fe`       | `"init strage ok"` *(sic)* | **storage init** — opens `lnkdata.bin` / `lnkdatas.bin` |

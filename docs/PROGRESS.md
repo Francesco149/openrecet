@@ -3,6 +3,99 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — `recet.ini` reader ported (FUN_0047a474, pre-window init)
+
+**Subsystems landed:**
+- `src/recet_ini.{c,h}` — pure-C parser for FUN_0047a474
+  (`docs/decompiled/by-address/47a474.c`). Handles 33 keys: a
+  2×9 pad grid + 2×5 skill grid under `[option]` (formatted-key
+  match on `padNM`/`skillNM`), 22 `[setup]` scalars (`winmode`,
+  `screen`, `fps`, `windowpos`, etc.), 1 `[debug]` key (`camfree`),
+  and 2 `[config]` keys (`se`/`mu`, clamped to `[0,9]`).
+  Pre-baked defaults match the byte tables at `0x005c81d8` (pad)
+  and `0x005c8204` (skill) in the unpacked binary, with the engine's
+  `+1` adjustment baked in.
+- Win32 entrypoints `recet_ini_default_path()` (mirrors the engine's
+  `_splitpath(argv[0]) + wsprintfA "%s%s/recet.ini"` dance via
+  `GetModuleFileNameA` + tail-strip) and `recet_ini_load()` (fopen+
+  fread+parse). Parser stays pure-C so ASan tests run on Linux.
+- `src/main.c` — `recet.ini` now loaded in `WinMain` **before**
+  `create_main_window` (matching engine step 7 in `winmain-and-
+  bootstrap.md`). `g_windowed` and the window's initial RECT now
+  come from `g_ini.winmode` / `g_ini.width` / `g_ini.height`;
+  same with the D3D `BackBufferWidth`/`Height`. Boot trace logs
+  `recet.ini: winmode=1 screen=2 (1024x768) se=9 mu=9` against the
+  vendor file.
+- `tests/test_recet_ini.c` — 14 unit tests covering: empty-input
+  defaults, default pad/skill tables byte-for-byte, all four
+  `screen`→(w,h) branches incl. fallthrough, every `[setup]`
+  scalar in engine order, `[option]` grid override, case-insensitive
+  section+key match, `;`/`#` comments + blank lines, whitespace
+  around `=`, **bgnodisp auto-derives from easydisp (quirk #37)**,
+  se/mu clamp [0,9] (over + under), unknown keys/sections ignored,
+  no-trailing-newline parse, vendor recet.ini round-trip.
+
+**Behavioral validation:**
+- 271 unit tests pass under ASan/UBSan (was 257).
+- Boot smoke (`./tools/smoke-test.py --target openrecet --scenario boot
+  --duration 3 --capture`): `exit=0, 3 frames`. Window now opens at
+  1024×768 instead of the hardcoded 800×600 — matches what the
+  original Recettear opens at on this user's machine.
+- Path resolution: CWD-first (matches our dev convention of
+  `cd vendor/original` before invoking the exe), falls back to
+  next-to-exe via `GetModuleFileNameA` for the eventual deployment
+  shape where `openrecet.exe` lives alongside the data files.
+
+**Engine quirks documented (and faithfully reproduced):**
+- **`bgnodisp` is dead text — overwritten from `easydisp` (#37).**
+  Vendor `recet.ini` carries `bgnodisp=0` under `[setup]` but the
+  loader doesn't read it; instead, after the main read loop,
+  `DAT_0438b18c = DAT_0438b19c` unconditionally aliases the field to
+  `easydisp`. Any explicit value in the ini is dropped.
+- **`[debug] camfree` is read twice with the same section+key (#38).**
+  Two adjacent `GetPrivateProfileIntA` calls write to the same
+  global; second value sticks but both calls hit the same ini
+  entry. Dead duplicate code from a refactor. Port reads once.
+- **Three more keys never read anywhere in the binary (#39).**
+  `pfnouse`/`fontmode1`/`fontmode2` ship in vendor `recet.ini` but
+  no `GetPrivateProfile*` call touches them. Likely vestigial from
+  earlier engine revisions. Port silently ignores (matches Win32
+  semantics for missing keys).
+
+**Deliberate divergences:**
+- Path resolution adds a CWD-relative `recet.ini` lookup before the
+  engine's next-to-exe path build. Required for our dev workflow
+  (exe in `build/`, data in `vendor/original/`); behaviour identical
+  for a deployment where the exe sits alongside its data.
+- `recet_ini_parse` uses an in-process INI tokenizer instead of
+  per-key `GetPrivateProfileIntA` calls — same semantics for every
+  key in the engine's read set (case-insensitive lookups, `atoi`
+  parsing, defaults on missing key). The only edge case we don't
+  match is Win32's `0x` / `0` → hex/octal prefix handling; not used
+  anywhere in vendor `recet.ini`.
+
+**Not in this commit (deferred):**
+- **`FUN_0047a804` shutdown save-back** (`[config] se`/`mu` always,
+  `[setup] winx`/`winy` when `windowpos != 0`). Belongs to the
+  shutdown chain — lands when that whole chain is ported.
+- **Consumption of `pad[]`/`skill[]`** by the input subsystem. The
+  values are loaded into `g_ini` but `src/input.c` currently only
+  initialises DInput devices; wiring lands with the input-poll port.
+- **`FUN_00451790`** (early camera/particle math init, step 2 of
+  WinMain). Sized small in decomp (36L) but pulls in
+  lookat/perspective/matmul/normalize/RNG helpers — deferred to a
+  later milestone where those helpers earn their keep with real
+  rendering.
+
+**Files:**
+- new `src/recet_ini.{c,h}`, `tests/test_recet_ini.c`
+- updated `src/main.c` (load + wire into window/D3D init order),
+  `src/Makefile` (picks up `*.c` automatically — no edit needed),
+  `tests/Makefile`, `tests/test_main.c`
+- new `docs/formats/recet-ini.md`
+- new entries (#37, #38, #39) in `docs/findings/engine-quirks.md`
+- updated `docs/findings/winmain-and-bootstrap.md` step 7
+
 ## 2026-05-21 — Phase B [+1]: `idx/stage.idx` parser
 
 **Subsystems landed:**

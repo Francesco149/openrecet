@@ -304,7 +304,22 @@ struct test_case {
     X(tables_stage_moonpos_quirk_35_shares_coords_keeps_sun_mode) \
     X(tables_stage_multiple_records_thread) \
     X(tables_stage_no_trailing_newline) \
-    X(tables_stage_vendor_shape_minified)
+    X(tables_stage_vendor_shape_minified) \
+    \
+    X(recet_ini_empty_applies_defaults) \
+    X(recet_ini_default_pad_skill_tables) \
+    X(recet_ini_screen_lookup_all_branches) \
+    X(recet_ini_screen_drives_width_height) \
+    X(recet_ini_all_setup_scalars) \
+    X(recet_ini_option_pad_grid) \
+    X(recet_ini_section_and_key_case_insensitive) \
+    X(recet_ini_comments_and_blanks_skipped) \
+    X(recet_ini_whitespace_around_equals) \
+    X(recet_ini_bgnodisp_mirrors_easydisp) \
+    X(recet_ini_volume_clamp) \
+    X(recet_ini_unknown_keys_and_sections_ignored) \
+    X(recet_ini_no_trailing_newline) \
+    X(recet_ini_vendor_shape)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

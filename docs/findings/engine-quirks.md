@@ -1124,6 +1124,83 @@ numeric coords or simply isn't written at all.
 
 ---
 
+## 37. `recet.ini` `bgnodisp` key is dead text — overwritten by `easydisp`
+
+The shipping `recet.ini` includes `bgnodisp=0` under `[setup]`, but
+`FUN_0047a474` (the loader) doesn't read it. Instead, after the read
+loop finishes, the engine unconditionally does:
+
+```c
+DAT_0438b18c = 0;                   // earlier in the loop
+...                                 // (other keys read in between)
+DAT_0438b18c = DAT_0438b19c;        // post-loop: bgnodisp = easydisp
+```
+
+So whatever the player puts in `recet.ini` for `bgnodisp` is silently
+ignored — only `easydisp` matters. Port mirrors this: `struct
+recet_ini` has a `bgnodisp` field, but `recet_ini_parse` overwrites
+it from `easydisp` after the iteration. A direct `bgnodisp=42` in
+the test fixture is dropped on the floor (see
+`test_recet_ini_bgnodisp_mirrors_easydisp`).
+
+The probable history: an earlier engine revision exposed both as
+independent switches; the simplification kept `easydisp` and folded
+`bgnodisp` to mirror it, but nobody removed the (now-redundant) key
+from the shipped ini.
+
+> 📍 `src/recet_ini.c:recet_ini_parse` (post-loop fixup),
+> `docs/decompiled/by-address/47a474.c` L77714 + L77722.
+
+---
+
+## 38. `recet.ini` `[debug] camfree` is read twice (same key, same section)
+
+```c
+_DAT_0438cd5c = GetPrivateProfileIntA(s_debug_005cba2c, s_camfree_005cba24, 0, ...);
+_DAT_0438cd5c = GetPrivateProfileIntA(s_debug_005cba3c, s_camfree_005cba34, 0, ...);
+```
+
+Both calls use distinct string addresses but those addresses point
+to byte-identical content (`"debug"` and `"camfree"`). The two calls
+write to the same target global. The second value sticks, but it's
+always the same value since both calls hit the same ini entry. Just
+dead duplicate code from a refactor — the port reads `camfree`
+once.
+
+> 📍 `src/recet_ini.c:g_field_rows` (single `camfree` row),
+> `docs/decompiled/by-address/47a474.c` L77700-77701.
+
+---
+
+## 39. `recet.ini` ships three more keys the engine never reads anywhere
+
+In addition to `bgnodisp` (#37, which gets overwritten), the shipping
+`recet.ini` carries three keys that don't appear in *any*
+`GetPrivateProfile*` call in the binary:
+
+| key       | section  | value in vendor ini |
+|-----------|----------|--------------------:|
+| pfnouse   | [setup]  | 0 |
+| fontmode1 | [setup]  | 0 |
+| fontmode2 | [setup]  | 0 |
+
+Greppable: only `FUN_0047a474` (read) and `FUN_0047a444`/`FUN_0047a804`
+(write-back of `se`/`mu`/`winx`/`winy`) ever touch
+`GetPrivateProfile`/`WritePrivateProfile` in the binary — 33 +
+4 calls total — and the keys above aren't in either set. So they're
+truly dead text in the ini.
+
+Likely vestigial: earlier engine revisions probably exposed these
+as toggles for the print/font subsystems (`pfnouse` parallels the
+live `sfnouse`; `fontmode1`/`2` parallel the `[config] font:` key
+read by `tables_config.c`). Our `recet_ini_parse` silently ignores
+them, matching `GetPrivateProfileIntA`'s missing-key behaviour.
+
+> 📍 Counterpart for the dead read is `src/recet_ini.c:visit`
+> "Unknown key/section: silently ignored" branch.
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an

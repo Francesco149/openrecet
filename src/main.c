@@ -24,16 +24,13 @@
 #include "input.h"
 #include "layers.h"
 #include "tables.h"
+#include "recet_ini.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
 #define AZUMANGA_CLASS  "Azumanga Main Window"
 #define AZUMANGA_TITLE  "RECETTEAR Ver 1.108"
 #define ICON_RES_ID     0x67
 #define MENU_RES_ID     0xB7          /* used when windowed; we have no menu yet */
-
-/* Default window size — will be replaced by recet.ini values once parsed. */
-#define DEFAULT_WIDTH   800
-#define DEFAULT_HEIGHT  600
 
 /* ─── globals matching the original's named "DAT_*" engine state ─────────
  * Names mirror the role of the original's globals (see docs/findings/
@@ -44,7 +41,8 @@ static HWND             g_hwnd;                 /* DAT_073dfc7c */
 static IDirect3D8      *g_d3d;                  /* DAT_073dfcb8 */
 static IDirect3DDevice8 *g_dev;
 static BOOL             g_paused = FALSE;       /* DAT_073dfca0 */
-static BOOL             g_windowed = TRUE;      /* DAT_0438b164 */
+static BOOL             g_windowed = TRUE;      /* DAT_0438b164 — overwritten from g_ini after load */
+static struct recet_ini g_ini;                  /* recet.ini contents, populated in WinMain pre-window */
 
 /* ─── frame-capture globals ─────────────────────────────────────────────
  * CLI: --capture-to <dir> --capture-every-ms <millis>
@@ -107,11 +105,40 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     timeBeginPeriod(10);
 
     /* TODO subsystem stubs — see docs/findings/winmain-and-bootstrap.md:
-     *   FUN_00451790()          — very early init
+     *   FUN_00451790()          — very early init (camera/particle math)
      *   FUN_00471050()          — early init (thunks to FUN_005041ec)
-     *   read recet.ini          — TODO src/recet_ini.c
-     *   FUN_0047a474()          — pre-window init
+     *   FUN_0047aa30()          — pre-window init (TBD)
      */
+
+    /* "pre-window init" — FUN_0047a474. Must run before create_main_window:
+     * `screen` selects the requested back-buffer size, `winmode` selects
+     * windowed vs fullscreen.
+     *
+     * Path resolution: the engine looks next to the exe via _splitpath(argv[0]).
+     * Our dev workflow puts the exe in build/ and data (including recet.ini)
+     * in vendor/original/ — and runs from inside vendor/original/ so
+     * storage_init's relative lookups for lnkdatas.bin work. So we look in
+     * CWD first, then fall back to next-to-exe for the eventual deployment
+     * shape where openrecet.exe sits alongside the data files. */
+    {
+        FILE *probe = fopen("recet.ini", "rb");
+        if (probe) {
+            fclose(probe);
+            recet_ini_load("recet.ini", &g_ini);
+        } else {
+            char ini_path[MAX_PATH];
+            if (recet_ini_default_path(ini_path, sizeof ini_path) == 0) {
+                recet_ini_load(ini_path, &g_ini);
+            } else {
+                recet_ini_set_defaults(&g_ini);
+            }
+        }
+        g_windowed = (g_ini.winmode == 1);
+        fprintf(stderr,
+            "recet.ini: winmode=%d screen=%d (%dx%d) se=%d mu=%d\n",
+            g_ini.winmode, g_ini.screen, g_ini.width, g_ini.height,
+            g_ini.se, g_ini.mu);
+    }
 
     if (!create_main_window(hInst, nCmdShow)) {
         return 0;
@@ -224,7 +251,7 @@ static BOOL create_main_window(HINSTANCE hInst, int nCmdShow)
         return FALSE;
     }
 
-    RECT rc = {0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT};
+    RECT rc = {0, 0, g_ini.width, g_ini.height};
     DWORD style = WS_OVERLAPPEDWINDOW;                    /* 0xCF0000 */
     AdjustWindowRect(&rc, style, /*hasMenu=*/g_windowed ? TRUE : FALSE);
 
@@ -319,8 +346,8 @@ static BOOL load_d3d8(void)
  *     and lets D3D fall back to the focus window (same hwnd anyway).
  *   - Flags = D3DPRESENTFLAG_LOCKABLE_BACKBUFFER when --capture-to is on;
  *     the original never sets Flags, so this is a capture-only toggle.
- *   - Resolution: hardcoded to the screen=1 default (800x600) until we
- *     parse recet.ini's [setup] screen / winmode keys.
+ *   - Resolution + windowed/fullscreen are pulled from `g_ini` (recet.ini
+ *     [setup] screen / winmode), loaded in WinMain before this runs.
  */
 static BOOL init_render(HWND hwnd)
 {
@@ -333,8 +360,8 @@ static BOOL init_render(HWND hwnd)
     }
 
     D3DPRESENT_PARAMETERS pp = {0};
-    pp.BackBufferWidth        = DEFAULT_WIDTH;
-    pp.BackBufferHeight       = DEFAULT_HEIGHT;
+    pp.BackBufferWidth        = g_ini.width;
+    pp.BackBufferHeight       = g_ini.height;
     pp.BackBufferFormat       = mode.Format;
     pp.BackBufferCount        = 1;
     pp.MultiSampleType        = D3DMULTISAMPLE_NONE;
