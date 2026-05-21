@@ -3,6 +3,79 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Autonomous session: 6 audio + harness tasks landed
+
+Worked the queue at `docs/autonomous-session-tasks.md` end to end.
+Six commits, ASan/UBSan clean, Win32 build clean, smoke run clean.
+Test count 413 → 452.
+
+1. **Per-pixel diff overlay** (`tools/smoke-test.py`). `diff_runs`
+   now emits `<run>/diff/frame_NNNNN.png` (new frame with red-tint
+   on pixels where any RGB channel diverged ≥ 4) + a tiled
+   `<run>/diff-overlay.png` via contact-sheet. Synthetic tests in
+   `tools/test_smoke_diff.py` cover self-diff (zero mask),
+   hand-modified rect (mask matches exactly), and size-mismatch
+   clipping. Mean SSIM self-diff = 1.0000.
+
+2. **MCI debug command recorder** (`src/audio_mci.{c,h}`). Faithful
+   port of FUN_00451874 + FUN_00451863. 60×80 buffer at
+   `&DAT_06a47aac` (size derived from the dword-zero loop —
+   880-byte-per-row arithmetic in earlier notes was wrong; actual
+   is 4800 bytes total). 10 new tests including the
+   channel-spans-into-next-row engine quirk.
+
+3. **Volume cos-curve fade — math half** (`src/audio_fade.{c,h}`).
+   Reverse-engineered: FUN_00503994 is actually a CRT cos() wrapper
+   (Ghidra showed it as a 9-byte stub but the disassembly is full
+   FPU plumbing). The actual fade math is
+   `cos(angle) * (target_centibel + 9600) - 9600`, with frame 0
+   short-circuited to hard -10000 (the engine's math curve only
+   asymptotes to -9600 — preserved as engine inconsistency).
+   `tools/plot/curve.py` + `tools/plot/render_audio_fade_curve.py`
+   write `runs/audio-fade-curve.png` (the C tests pin endpoints
+   + monotonicity in 1..8 + one hand-computed spot value).
+   SetVolume hookup deferred to SE phase 2.
+
+4. **`--audio-trace` JSONL emitter** (`src/audio.{c,h}` +
+   `src/main.c` + `tools/smoke-test.py`). Opt-in NDJSON log of
+   audio events. Schema:
+   `{"t_ms":<u32>,"kind":"bgm_swap"|"se_play","track":<int>|"slot":<int>,"name":<str>}`.
+   `audio_trace_json_escape` exposed as a pure-C helper (test
+   build doesn't need windows.h). `--audio-trace` flag on the
+   smoke harness writes to `runs/.../audio-trace.jsonl`. Verified
+   end-to-end against the title-music boot — one line, parses as
+   valid JSON.
+
+5. **SE backend phase A** (`src/audio_se_names.{c,h}` +
+   `src/audio.c::audio_play_se` + `tools/extract/se-wavs.py`).
+   **Major correction**: the autonomous-session brief said "27
+   SE entries under RT_RCDATA"; the engine ships **110 entries**
+   under a custom *named* resource type `"WAVE"` (string type
+   name at `&DAT_005d1ac8`). Two disjoint ID ranges
+   (`0x13d..0x182` and `0x29d..0x2c6`) with documented out-of-order
+   pairs at slots 2 and 39/40 plus a missing ID at slot 107/108.
+   The C table reproduces all the quirks; the extractor walks the
+   PE `.rsrc` tree (custom-type-aware) and dumps 109 of 110 WAVs
+   (slot 2's id 0x0135 is referenced but absent from `.rsrc` —
+   handled by FindResourceA returning NULL). Vendor cross-check
+   test re-reads the table from the exe at boot. `audio_play_se`
+   is a trace-only shell for now (bounds + se_play emit + return 1);
+   **defers** the windres .rc + 2 SE AudioPaths + FUN_00499c63
+   live PlaySegmentEx to a follow-up.
+
+6. **Audio-backend doc refresh** (`docs/findings/audio-backend.md`).
+   Fade-curve formula + per-frame centibel table, SE resource
+   layout (110 entries, custom WAVE type, the two disjoint ranges),
+   `--audio-trace` schema + JSON escape rules, constants table
+   gained the four fade/SE-type addresses, next-steps list rewritten
+   around what actually remains (SE phase 2 dominates).
+
+**Carries to next session:** SE phase B is the unblock for any
+in-game SFX. The extractor + table + trace surface are all in place,
+so phase B is mechanical Win32 wiring + windres glue. The
+`audio_fade_apply` SetVolume hookup naturally lands at the same
+time (its second consumer is SE volume blending).
+
 ## 2026-05-21 — Harness: auto contact-sheet on smoke runs + ranked roadmap
 
 Small harness commit that lands ahead of the SE-backend port. Two halves:
