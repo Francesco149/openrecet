@@ -3,6 +3,86 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Input poll ported (FUN_0047b73c)
+
+First of the four tick callees now lands real code instead of a NULL
+stub. `tick_callbacks.input_poll` is wired to `input_poll` in
+`src/input.c`, which mirrors the engine's keyboard + multi-joystick
+DInput poll, decodes raw button state, and OR's it through the
+recet.ini binding table into `g_input_state[0].buttons` each frame.
+
+**What landed:**
+
+- **`src/input.c` — three new pure-C decoders.** `input_joystick_decode`
+  fans a `DIJOYSTATE2`-like input into a 20-bit "pressed" array
+  (4 D-pad bits OR'd from POV-hat + stick axes, 16 buttons). POV is
+  the standard DInput angle-times-100 encoding with explicit cases
+  for all 8 cardinals and diagonals; centered (-1 / 0xFFFFFFFF) gives
+  zero. Stick dead-zone is fixed ±500 on `lX`/`lY` (range was set to
+  ±1000 in init, so 50% deflection). `input_apply_joystick_block`
+  matches binding values against a per-joystick virtual-button range
+  (`0x27 + joy_idx * 0x14`) and OR's the slot's bit into the output
+  mask; `input_apply_keyboard_block` does the equivalent via the
+  41-byte DIK lookup at `0x005cbc2f`.
+- **`src/input.c:input_dik_table[40]` + `input_binding_mask[14]`.**
+  Bytes extracted via `tools/analyze/pe.py bytes 0x005cbc2f 41`.
+  Binding-slot bit layout (UP=0x04, RIGHT=0x01, DOWN=0x08, LEFT=0x02,
+  A=0x10..E=0x100, skill0..4=0x200..0x2000) matches downstream
+  readers — verified the camera-cursor code at lines 50410-50420 of
+  `all.c` reads exactly these bits.
+- **`src/input.c:input_bindings_load`.** Flattens
+  `recet_ini.pad[2][9]` + `skill[2][5]` into the engine's
+  interleaved per-controller layout (`pad[N][0..8]` then
+  `skill[N][0..4]`, 14 shorts per controller block). 4 blocks total —
+  blocks 2..3 stay zero (the engine's outer joystick loop reads BSS
+  past the 2-controller end; see quirk #41).
+- **`src/input.c:input_poll`.** Win32 wrapper that queries each
+  acquired DI device, decodes raw state via the helpers above, and
+  walks the 4 (joystick) / 2 (keyboard) binding blocks. Pre-clears
+  the button accumulator at poll start — at the default
+  `speed=0 / 60FPS` path this is bit-identical to the engine's
+  "clear after render" pattern; at higher speeds the engine
+  accumulates multiple polls per render and we don't. Revisit when
+  the FUN_004547ab render port lands a post-render clear hook.
+- **Init-side fix.** Switched the joystick `SetDataFormat` from
+  `c_dfDIJoystick` (80 bytes) to `c_dfDIJoystick2` (272 bytes) to
+  match the engine's custom DIDATAFORMAT at `0x0051c4cc`
+  (`dwDataSize = 0x110`). The 80-byte format would have made
+  `GetDeviceState(sizeof(DIJOYSTATE2), &st)` fail with
+  `DIERR_INVALIDPARAM` — the previous boot smoke didn't hit this
+  because nobody was calling GetDeviceState yet.
+- **`src/main.c`.** Wires `input_bindings_load(&g_ini)` after
+  `input_init`, and replaces the NULL `tick_cb.input_poll` with the
+  real `input_poll` function. 4 engine quirks documented (#40-43).
+- **Tests.** 20 new tests in `tests/test_input_poll.c` cover POV-hat
+  all 8 directions, stick dead-zone, button-high-bit-only decoding,
+  binding application with per-joystick virtual base, keyboard DIK
+  mapping (with default vendor bindings), and the recet.ini
+  flattening round-trip. Total: 336 passing (was 316).
+- **Smoke boot.** `tools/smoke-test.py --scenario boot --duration 4
+  --capture`: exit=0, 4 frames captured, all solid debug magenta —
+  unchanged from the pre-input-poll baseline.
+
+**Engine quirks documented (#40-43):**
+- #40: both controllers' bindings funnel into player-0's single
+  output slot (`(local_8 / 2) * 0x2a` integer divide).
+- #41: joystick scan iterates 4 outer binding blocks but only 2 are
+  populated; blocks 2..3 read BSS zero bindings and never match.
+- #42: Poll-failure retry loop checks Acquire's return against
+  `DIERR_NOTACQUIRED`, a code Acquire never produces; effectively a
+  single-iteration loop.
+- #43: each joystick is `Poll()`'d four times per frame (once per
+  binding block); port collapses to one Poll + per-block apply for
+  the same bit-for-bit output.
+
+**Deferred until the next big port:**
+- Post-render input clear with multi-poll accumulation semantics —
+  needs `tick.c` to grow a callback hook; lands with `FUN_004547ab`
+  (frame render).
+- Sim halves `FUN_004536cb` / `FUN_0049966a` — they're the first
+  readers of `g_input_state[0].buttons` and will exercise this
+  port end-to-end.
+
 ## 2026-05-21 — Game-tick scheduler ported (FUN_0047be92 + FUN_0047be2f)
 
 Heart of the engine's main loop is now driven by our own code instead

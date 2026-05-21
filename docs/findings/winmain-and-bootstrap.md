@@ -595,12 +595,152 @@ so tests can mock them under ASan). The Win32 wrapper
 cover the time math, sleep branches, state-machine transitions, and
 the no-device early-return path.
 
+## Input poll (`FUN_0047b73c`)
+
+First of the four tick callees to land. Polls the keyboard + up to 4
+joystick DInput devices, decodes POV-hat / stick axes / button
+bytes, maps each "pressed" hardware input through a binding table
+(populated from `recet.ini` `[option] padNM=...` / `skillNM=...`)
+into a 14-bit output mask, OR'd into `DAT_073dddd0`. The pressed
+bits get cleared at the bottom of `FUN_0047be92` after the render
+callback returns — that gives the engine a per-frame accumulator
+that captures input across multiple polls per render (relevant when
+`speed > 0`).
+
+### Output bit layout — `DAT_073dddd0`
+
+| binding slot | source ini key | mask        | role                     |
+|-------------:|:---------------|------------:|:-------------------------|
+|   0          | `pad[N][0]`    | `0x0004`    | D-pad UP                 |
+|   1          | `pad[N][1]`    | `0x0001`    | D-pad RIGHT              |
+|   2          | `pad[N][2]`    | `0x0008`    | D-pad DOWN               |
+|   3          | `pad[N][3]`    | `0x0002`    | D-pad LEFT               |
+|   4          | `pad[N][4]`    | `0x0010`    | button A                 |
+|   5          | `pad[N][5]`    | `0x0020`    | button B                 |
+|   6          | `pad[N][6]`    | `0x0040`    | button C                 |
+|   7          | `pad[N][7]`    | `0x0080`    | button D                 |
+|   8          | `pad[N][8]`    | `0x0100`    | button E                 |
+|   9          | `skill[N][0]`  | `0x0200`    | skill 0                  |
+|  10          | `skill[N][1]`  | `0x0400`    | skill 1                  |
+|  11          | `skill[N][2]`  | `0x0800`    | skill 2                  |
+|  12          | `skill[N][3]`  | `0x1000`    | skill 3                  |
+|  13          | `skill[N][4]`  | `0x2000`    | skill 4                  |
+
+Note the D-pad mask order (`0x04`/`0x01`/`0x08`/`0x02`) doesn't
+follow a binary-rotation pattern — that's just where the original
+chained `if`s landed, and downstream readers (camera cursor at
+`FUN_004540ae`, lines 50410-50420 of `all.c`) use these exact bits.
+
+### Virtual-button number space
+
+Every binding value compares against a *virtual* button id that
+laces 4 joysticks × 20 buttons + the 1-based 40-entry kbd DIK table
+into a single integer:
+
+| range          | source                                |
+|---------------:|:--------------------------------------|
+|  `1..40`       | keyboard, via `DAT_005cbc2f` DIK table |
+|  `0x27..0x3a`  | joystick 0 — D-pad 0..3, buttons 4..19 |
+|  `0x3b..0x4e`  | joystick 1                            |
+|  `0x4f..0x62`  | joystick 2                            |
+|  `0x63..0x76`  | joystick 3                            |
+
+A `pad[0][0] = 1` binding therefore matches the keyboard's DIK_UP
+(table entry 1 = `0xc8`), and a `pad[1][0] = 40` matches joystick 0
+button index 0 (D-pad UP, virtual code `0x27`). The `+ -1` in
+`binding[k] + -1 == iVar6` is what biases the table to a 1-based
+index.
+
+### POV-hat decoder
+
+DirectInput reports the POV value as angle × 100 in degrees, with
+`-1` (`0xFFFFFFFF`) meaning "centered". The engine recognises 8
+discrete positions via equality checks:
+
+| value (decimal) | hex      | D-pad bits |
+|----------------:|:--------:|:----------:|
+|             0   | `0x0000` | UP         |
+|          4500   | `0x1194` | UP + RIGHT |
+|          9000   | `0x2328` | RIGHT      |
+|         13500   | `0x34bc` | RIGHT + DOWN |
+|         18000   | `0x4650` | DOWN       |
+|         22500   | `0x57e4` | DOWN + LEFT  |
+|         27000   | `0x6978` | LEFT       |
+|         31500   | `0x7b0c` | UP + LEFT  |
+
+No tolerance band — a non-snapped POV (e.g. `4501`) reads as
+"centered" (no bit). Most game pads snap natively; the engine
+relies on that.
+
+### Stick axes — ±500 dead-zone
+
+After the POV decode, the engine OR's in stick-derived D-pad bits:
+
+```c
+if (lY < -500) bits[UP] = 1;
+if (lX >  500) bits[RIGHT] = 1;
+if (lY >  500) bits[DOWN] = 1;
+if (lX < -500) bits[LEFT] = 1;
+```
+
+`DIPROP_RANGE` was set to ±1000 in init, so 500 = 50% deflection.
+Only `lX` and `lY` are checked — `lZ`, rotation axes, and sliders
+are unused.
+
+### Button decoding
+
+Reads `rgbButtons[0..15]` and tests bit 7 (DI's "pressed" flag).
+16 buttons is exactly half of a `c_dfDIJoystick2.rgbButtons[32]`
+array; the engine doesn't expose buttons 16..31 to the binding
+system.
+
+### Keyboard DIK table at `0x005cbc2f`
+
+A 41-byte table (index 0 = `0x00` sentinel, indices 1..40 are valid
+DIK codes). Extracted via
+`python3 tools/analyze/pe.py bytes 0x005cbc2f 41`:
+
+| binding index | DIK code | key       |
+|--------------:|---------:|:----------|
+|   1           | `0xc8`   | DIK_UP    |
+|   2           | `0xcd`   | DIK_RIGHT |
+|   3           | `0xd0`   | DIK_DOWN  |
+|   4           | `0xcb`   | DIK_LEFT  |
+|   5           | `0x36`   | DIK_RSHIFT |
+|   6           | `0x9d`   | DIK_RCONTROL |
+|   7           | `0x39`   | DIK_SPACE |
+|   8           | `0x2a`   | DIK_LSHIFT |
+|   9           | `0x1d`   | DIK_LCONTROL |
+|  10           | `0x48`   | DIK_NUMPAD8 |
+|  11           | `0x4d`   | DIK_NUMPAD6 |
+|  12           | `0x50`   | DIK_NUMPAD2 |
+|  13           | `0x4b`   | DIK_NUMPAD4 |
+|  14..39       | ...      | A..Z (skipping 0x2c=Z at index 39) |
+|  40           | `0x00`   | unused (dead last byte)            |
+
+### Quirks documented
+
+- #40: both controllers funnel into single output slot
+- #41: 4 outer joystick iterations but only 2 populated bindings
+- #42: Poll-failure retry checks Acquire's return for a code Acquire never sets
+- #43: each joystick is re-Poll'd four times per frame
+
+### Ported to
+
+`src/input.{c,h}` (added pure-C decoders alongside the existing
+init/shutdown). Twenty new unit tests cover POV-hat (all 8
+directions), stick dead-zone, button decoding, keyboard DIK
+mapping, binding application with per-joystick virtual base, and
+the `recet_ini` → `g_input_bindings` flattening. Wired into
+`src/main.c` as the `tick_callbacks.input_poll` function pointer.
+Smoke boot remains clean (debug magenta unchanged).
+
 ## Open subsystems to investigate next
 
 | function       | tag                | priority                                |
 |----------------|--------------------|-----------------------------------------|
 | `FUN_0047be92` | game tick scheduler | ✅ ported — `src/tick.{c,h}` (callees still stubbed) |
-| `FUN_0047b73c` | input poll          | ⭐⭐⭐ — keyboard + 4 joysticks, POV-hat decode |
+| `FUN_0047b73c` | input poll          | ✅ ported — `src/input.{c,h}` (poll added next to init) |
 | `FUN_004536cb` | sim step A          | ⭐⭐ — per-tick (1 of 2)                 |
 | `FUN_0049966a` | sim step B          | ⭐⭐ — per-tick (2 of 2)                 |
 | `FUN_004547ab` | frame render        | ⭐⭐⭐ — replaces the magenta clear stub |

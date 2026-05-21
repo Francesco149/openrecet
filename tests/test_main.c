@@ -368,7 +368,28 @@ struct test_case {
     X(tick_null_callbacks_are_safe) \
     X(tick_adaptive_sleep_scales_with_remaining) \
     X(tick_steady_state_60fps_carries_residue) \
-    X(tick_pending_speed_latches_at_top_of_frame)
+    X(tick_pending_speed_latches_at_top_of_frame) \
+    \
+    X(input_joy_decode_centered_pov_no_axes_no_buttons) \
+    X(input_joy_decode_pov_eight_directions) \
+    X(input_joy_decode_stick_axes_set_dpad) \
+    X(input_joy_decode_pov_axes_or_together) \
+    X(input_joy_decode_buttons_only_high_bit_matters) \
+    X(input_apply_joystick_block_default_pad_one) \
+    X(input_apply_joystick_block_virtual_base_offsets_per_joy) \
+    X(input_apply_joystick_block_skill_slots_set_byte_plus_one) \
+    X(input_apply_joystick_block_zero_binding_never_matches) \
+    X(input_apply_joystick_block_ors_into_existing_mask) \
+    X(input_apply_keyboard_block_default_pad_zero) \
+    X(input_apply_keyboard_block_z_key_for_button_a) \
+    X(input_apply_keyboard_block_low_bit_set_does_not_count) \
+    X(input_apply_keyboard_block_out_of_range_binding_skipped) \
+    X(input_apply_keyboard_block_skill_slots) \
+    X(input_bindings_load_default_ini_matches_engine_layout) \
+    X(input_bindings_load_round_trips_modified_ini) \
+    X(input_dik_table_matches_vendor_dump) \
+    X(input_binding_mask_dpad_face_buttons_layout) \
+    X(input_state_stride_matches_engine)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

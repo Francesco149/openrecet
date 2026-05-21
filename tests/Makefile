@@ -19,7 +19,7 @@ CFLAGS  := -std=c11 -g -O1 -Wall -Wextra -Wno-unused-parameter \
 LDFLAGS := $(SAN)
 
 SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash.c ../src/lnk_lzss.c \
-                 ../src/recet_ini.c \
+                 ../src/recet_ini.c ../src/input.c \
                  ../src/rng.c ../src/math3d.c ../src/prewindow.c ../src/tick.c \
                  ../src/tables_buysell.c ../src/tables_chara.c ../src/tables_config.c \
                  ../src/tables_enemy.c ../src/tables_enemylist.c ../src/tables_event.c \
@@ -27,7 +27,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/tables_kyaku.c ../src/tables_news.c ../src/tables_oder.c ../src/tables_model.c \
                  ../src/tables_snews.c ../src/tables_stage.c ../src/tables_tuto.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
-                 test_recet_ini.c \
+                 test_recet_ini.c test_input_poll.c \
                  test_rng.c test_math3d.c test_prewindow.c test_tick.c \
                  test_tables_buysell.c test_tables_chara.c test_tables_config.c \
                  test_tables_enemy.c test_tables_enemylist.c test_tables_event.c \

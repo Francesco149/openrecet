@@ -175,6 +175,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     /* "init dinput ok" — FUN_0047af52 — keyboard + up to 4 joysticks. */
     input_init(g_hInstance, g_hwnd);
 
+    /* Flatten recet.ini pad/skill into the engine's per-controller
+     * binding-block layout that input_poll walks each frame. Must run
+     * after recet_ini_load + input_init (the latter sets g_joy_count
+     * which the poll loop guards on). */
+    input_bindings_load(&g_ini);
+
     /* "init render ok" — FUN_00454e69 — fan out caps + back-buffer-desc
      * to the 24 engine render-layer objects. Must run after the device
      * exists; original ordering puts it right after DInput init. */
@@ -225,7 +231,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * three (input poll, sim A, sim B) are NULL stubs; the scheduler
      * tolerates that and the four big ports land one per commit. */
     const struct tick_callbacks tick_cb = {
-        .input_poll = NULL,
+        .input_poll = input_poll,
         .sim_a      = NULL,
         .sim_b      = NULL,
         .render     = frame_render_stub,

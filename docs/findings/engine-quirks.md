@@ -1201,6 +1201,132 @@ them, matching `GetPrivateProfileIntA`'s missing-key behaviour.
 
 ---
 
+## 40. The input poll funnels both controllers into a single player slot
+
+The output target address in `FUN_0047b73c` is computed as
+`(&DAT_073dddd0)[(local_8 / 2) * 0x2a]`, where `local_8` is the
+outer-loop binding-block index (4 iterations for joysticks, plus an
+inner loop that reuses `iVar3` for keyboard). `local_8 / 2` is an
+*integer* divide:
+
+| local_8 | controller | output slot |
+|--------:|:-----------|:-----------:|
+|       0 | controller 0 joystick bindings | 0 (`DAT_073dddd0`)   |
+|       1 | controller 1 joystick bindings | 0 (`DAT_073dddd0`)   |
+|       2 | (dead block 2 — see quirk #41) | `0x2a` (`DAT_073dddfa`) |
+|       3 | (dead block 3 — see quirk #41) | `0x2a`               |
+
+And in the keyboard pass, `iVar3` is the inner-loop counter that walks
+the same binding-block array, but only over the first two blocks
+(stop condition `psVar8 != &DAT_0438cd22`, distance from base
+= 56 bytes = 2 × 28-byte blocks). The two keyboard iterations give
+`iVar3 / 2 == 0` for both — same slot 0 for both controllers.
+
+End state: regardless of which controller's bindings match (kbd or
+joystick), every press OR's into the *one* `DAT_073dddd0` slot. The
+`DAT_073dddfa` slot only ever receives writes from the dead blocks
+(quirk #41), which read all-zero bindings and never match anything,
+so it stays at BSS-zero unless some other module writes it directly
+(line 78916 in `FUN_0047be92` clears both at frame end — that's the
+only other writer found).
+
+Likely a vestige of an earlier two-player splitscreen layout that
+got folded down to single-player without anyone removing the second
+slot. The port preserves the funnelling exactly: both populated
+binding blocks OR into `g_input_state[0].buttons`.
+
+> 📍 `src/input.c:input_poll`,
+> `docs/decompiled/by-address/47b73c.c` lines 105..158.
+
+---
+
+## 41. The joystick poll iterates 4 binding blocks but only 2 exist
+
+`FUN_0047a474` populates exactly 2 controller blocks at
+`0x0438cce8` (pad+skill per controller, 28 bytes × 2 = 56 bytes,
+ending at `0x0438cd20`). But the poll's outer loop runs `psVar8`
+from `0x0438ccea` to `0x0438cd5a` in 28-byte strides — that's 4
+outer iterations, reading 56 bytes *past* the end of the populated
+bindings.
+
+The trailing 56 bytes (`0x0438cd20`..`0x0438cd5a`) sit in BSS and
+contain unrelated globals (`DAT_0438cce0`, ...) that the ini loader
+never touches with binding values, plus a stretch of all-zero
+padding. Since every binding-match condition is
+`binding[k] - 1 == iVar6` with `iVar6 ≥ 0x27`, an all-zero binding
+gives `-1 == 0x27` → never matches.
+
+So the dead iterations are functionally no-ops. The port still
+iterates `INPUT_BINDINGS_BLOCKS = 4` so the player-slot indexing
+matches the original (and so quirk #40's slot-1 path is reachable
+under instrumentation), but blocks 2..3 always hold zero.
+
+The keyboard scan correctly walks only 2 blocks
+(`psVar8 != &DAT_0438cd22`); the joystick scan didn't get the same
+upper bound, hence this quirk.
+
+> 📍 `src/input.c:input_poll` (`for b in 0..INPUT_BINDINGS_BLOCKS`),
+> `docs/decompiled/by-address/47b73c.c` L26-30 and L166-167.
+
+---
+
+## 42. Poll-failure retry checks Acquire's return for a code Acquire never sets
+
+The joystick-poll error path is:
+
+```c
+iVar3 = device->Poll();                     // vtable +100
+if (iVar3 < 0) {
+    do {
+        piVar2 = *piVar4;
+        iVar3 = (**(code **)(*piVar2 + 0x1c))(piVar2);    // Acquire (vtable +0x1c)
+        if (DAT_005cbc24 == 0) break;
+    } while (iVar3 == -0x7ff8ffe2);                       // == 0x8007001E (DIERR_NOTACQUIRED)
+}
+```
+
+`-0x7ff8ffe2` is `DIERR_NOTACQUIRED` (`HRESULT_FROM_WIN32(ERROR_NOT_READY)`)
+— but that's a code returned by `GetDeviceState`/`GetDeviceData`,
+*not* by `Acquire`. `Acquire` returns `DI_OK`, `S_FALSE`
+(already-acquired), `DIERR_INPUTLOST`, or `DIERR_OTHERAPPHASPRIO`.
+
+So the loop's continuation condition is never true in practice — it
+exits after a single Acquire attempt. The intended semantics were
+probably "retry Acquire until the device is back" but the wrong
+error code was used. The port mirrors the (broken) loop structure
+exactly; it's effectively dead code that runs at most once.
+
+The same code-shape appears in the keyboard path (`local_178` /
+`GetDeviceData` block) where it's *correct* — `GetDeviceState` does
+return DIERR_NOTACQUIRED, and that branch does fall through to
+`Acquire` and re-try. So this looks like a copy-paste of the kbd
+path into the joystick path without adjusting which call's error
+code drives the retry.
+
+> 📍 `src/input.c:poll_one_joystick`,
+> `docs/decompiled/by-address/47b73c.c` L34-43.
+
+---
+
+## 43. Every joystick gets Poll'd four times per frame
+
+The poll's outer loop is over binding blocks (4 iterations) and its
+inner loop over joysticks (`g_joy_count` iterations). The
+`device->Poll()` + `GetDeviceState` calls sit *inside* both loops,
+so each joystick is queried four times per frame — once per binding
+block. The decoded data is identical across all four calls (the
+real-time delta is microseconds, far below joystick refresh
+granularity), so the only effect is wasted DInput round-trips.
+
+Port reorganises the loops to query each joystick exactly once and
+then apply all four binding blocks against the cached pressed-bit
+array. Bit-for-bit identical output, fewer DI calls.
+
+> 📍 `src/input.c:input_poll` (separate poll / apply phases),
+> `docs/decompiled/by-address/47b73c.c` L34-46 (poll inside both loops).
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an
