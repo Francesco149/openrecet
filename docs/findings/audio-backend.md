@@ -1,7 +1,14 @@
 # Audio backend — DirectMusic 8
 
-**Status:** init + BGM track-swap ported (2026-05-21). SE / volume-fade
-/ MCI debug bridge still stubbed.
+**Status (2026-05-21):**
+- init + BGM track-swap ported
+- MCI debug command recorder ported (FUN_00451874, dormant in shipped data)
+- volume sin-curve fade ported (math half; SetVolume hookup defers to SE phase 2)
+- SE phase A: 110-entry resource ID table + `audio_play_se()` trace shell
+- `--audio-trace` opt-in JSONL emitter live (bgm_swap + se_play)
+- **Still stubbed:** SE phase B (Win32 init for the 2 SE AudioPaths +
+  windres-embed of the 109 WAV blobs + FUN_00499c63's channel
+  arbitration + PlaySegmentEx)
 
 The engine uses DirectMusic 8 (not DirectSound directly). All WAV files
 are loaded as **DirectMusic segments** through `IDirectMusicLoader8`,
@@ -16,9 +23,10 @@ channels and `DMUS_AUDIOF_ALL`.
 |-------------------|--------------------------------------------|---------------|
 | `FUN_00498ef4`    | "init daoudio ok" — full init, preload     | `src/audio.c:audio_init` |
 | `FUN_00499200`    | Track-swap (Stop + Load + PlaySegmentEx)   | `src/audio.c:audio_play_track` |
-| `FUN_00499583`    | Volume-apply (sin-curve fade)              | **stubbed** |
-| `FUN_00499c63`    | SE start/stop on per-channel SE AudioPaths | **stubbed** |
-| `FUN_00451874`    | MCI "VOL %d" debug ringbuffer write        | **stubbed** (only fires when `DAT_0438ccb4 != 0`) |
+| `FUN_00499583`    | Volume-apply (cos-curve fade)              | `src/audio_fade.c:audio_fade_compute` (math; SetVolume hookup TODO) |
+| `FUN_00499c63`    | SE start/stop on per-channel SE AudioPaths | `src/audio.c:audio_play_se` (trace-only shell; live PlaySegmentEx in phase 2) |
+| `FUN_00451874`    | MCI debug command recorder                 | `src/audio_mci.c` (dormant — `DAT_0438ccb4` zero in shipped data) |
+| `FUN_00503994`    | CRT-style cos() wrapper                    | replaced by libc `cos()` in `audio_fade.c` |
 | `FUN_0049a558`    | Title-music language-table lookup          | inlined in `src/music.c::title_bgm_select` |
 | `FUN_0049966a`    | Per-tick selector (sim_b)                  | `src/music.c::music_step` |
 
@@ -35,8 +43,17 @@ DAT_0964310c   IDirectMusicAudioPath*    // SE path A
 DAT_09643110   IDirectMusicAudioPath*    // SE path B
 DAT_09643038[21]  IDirectMusicSegment8*  // BGM segments (indexed by track ID)
 DAT_09642e24[21]  IDirectMusicSegmentState*  // currently-playing segment-state per BGM slot
-DAT_09642e7c[27]  IDirectMusicSegment8*  // SE segments (from PE resources)
-DAT_09642c6c[27]  IDirectMusicSegmentState*  // SE segment-states
+DAT_09642e7c[110] IDirectMusicSegment8*  // SE segments (from PE resources)
+DAT_09642c6c[110] IDirectMusicSegmentState*  // SE segment-states
+```
+
+**Sizing correction (2026-05-21):** earlier notes (and the autonomous
+session brief) said "27 SE entries". The actual count is **110**,
+addressed by the ID table at `&DAT_005d1584..&DAT_005d18f4` (880 bytes
+÷ 8-byte stride). See "SE resource layout" below for the full
+breakdown.
+
+```
 ```
 
 The port (`src/audio.c`) groups them into a single static struct, but
@@ -69,9 +86,11 @@ the slot semantics are identical.
      except for one-shot indices `{10, 11, 13, 19}` (treasure /
      fanfare / clear / staff) which get `0` (play once).
    - `seg->Download(performance)`.
-9. Loop the SE table (`DAT_005d1584[27]` → `DAT_005d18f4`):
-   - `FindResourceA(NULL, MAKEINTRESOURCE(rid), MAKEINTRESOURCE(0xa))`
-     (`RT_RCDATA` = 10).
+9. Loop the SE table (`DAT_005d1584[110]` → `DAT_005d18f4`):
+   - `FindResourceA(NULL, MAKEINTRESOURCE(rid), (LPCSTR)&DAT_005d1ac8)`
+     — the third arg is `"WAVE"` (a **custom named** resource type
+     stored at `&DAT_005d1ac8`), not the standard `RT_WAVE` (25) or
+     `RT_RCDATA` (10) numeric type. windres-side: `<id> WAVE "<file>"`.
    - `LoadResource` → `LockResource` → `SizeofResource`.
    - Fill `DMUS_OBJECTDESC` (`dwSize = 0x350`, `dwValidData = DMUS_OBJ_CLASS
      | DMUS_OBJ_MEMORY = 0x402`, `guidClass = CLSID_DirectMusicSegment` —
@@ -117,6 +136,116 @@ deviations:
 - `FUN_00499583` (volume-apply) is stubbed for this commit. PlaySegmentEx
   still works at default volume.
 
+## Volume sin-curve fade (`FUN_00499583`)
+
+Cos-arc ramp from "silence" up to a target volume across 10 frame
+counter values (9 → 0). Hot loop:
+
+```c
+if (frame_counter == 0) {
+    audio_path_bgm->SetVolume(-10000, 0);   // hard silence
+    return;
+}
+float angle = (9.0f - frame_counter) * 1.2566371f / 9.0f;   // 1.2566371 = 2π/5
+float ratio = FUN_00503994(angle);                          // cos()
+int32_t centibel = ftol(ratio * target_vol_normalized * 9600.0f - 9600.0f);
+audio_path_bgm->SetVolume(centibel, 0);
+```
+
+Constants verified at `&DAT_005196b4 = 9.0f`, `&DAT_00519ff4 = 9600.0f`,
+`&DAT_00519ff8 = 1.2566371f`. The `target_vol_normalized` factor
+(`&DAT_005d1580`, a [0,1] float) is the music-system master volume
+the user sets in `recet.ini` (`mu=0..9` → divided by 9 by the ini
+parser). For our port (`src/audio_fade.c`) the signature is reframed
+in centibel space:
+
+```c
+result = cos(angle) * (target_centibel + 9600) - 9600;
+```
+
+so that frame 9 returns `target_centibel` unchanged. Algebraically
+equivalent to the engine math when
+`target_centibel = target_vol_normalized * 9600 - 9600`.
+
+**9-frame ramp shape** (target=0):
+
+| frame | angle (rad) | cos(angle) | centibel |
+|------:|------------:|-----------:|---------:|
+|     0 |    n/a      |    n/a     |   -10000 |   (engine's frame-0 fast path; the math curve's asymptote is only -9600)
+|     1 |     1.117   |    0.438   |    -5391 |
+|     2 |     0.977   |    0.560   |    -4220 |
+|     3 |     0.838   |    0.668   |    -3185 |
+|     4 |     0.698   |    0.766   |    -2246 |
+|     5 |     0.559   |    0.848   |    -1459 |
+|     6 |     0.419   |    0.914   |     -827 |
+|     7 |     0.279   |    0.961   |     -374 |
+|     8 |     0.140   |    0.990   |      -94 |
+|     9 |     0.000   |    1.000   |        0 |
+
+Plotted at `runs/audio-fade-curve.png` via
+`tools/plot/render_audio_fade_curve.py`.
+
+**Engine inconsistency note:** the frame-0 fast path uses -10000
+hard-silence while the math curve's asymptote is only -9600. The
+port preserves the difference. Not sure if intentional, but other
+DirectMusic players accept either value equivalently for the
+"silent" end of the perceptual range.
+
+`FUN_00503994` is decompiled as a 9-byte stub but the actual function
+is a CRT-style `cos()` with FPU control-word juggling and full
+NaN/edge-case handling. Behaviorally equivalent to libc `cosf()`;
+our port skips the FPU plumbing and calls `cos(double)` directly.
+
+## SE resource layout
+
+The 110-entry ID table at `&DAT_005d1584..&DAT_005d18f4` is two
+disjoint ID ranges:
+
+- Slots **0..68**: IDs `0x013d..0x0182` with two out-of-order
+  pairs — slot 2 is `0x0135` (the rest of the [0x13d..] range comes
+  in order after it), and slots 39/40 are `0x0166`/`0x0165` (swapped
+  relative to neighbors). Slot 13 skips `0x0149`.
+- Slots **69..109**: IDs `0x029d..0x02c6` in order, with `0x02c3`
+  skipped between slots 107 and 108.
+
+The C copy of the table is at `src/audio_se_names.c::audio_se_resource_ids[]`,
+sourced from `tools/extract/se-wavs.py` which both writes the table
+and dumps every found WAV to `vendor/unpacked/se-extracted/`. The
+vendor cross-check test (`test_audio_se_table_matches_vendor_bytes`)
+re-reads the table from the exe at boot and diffs against the C
+copy, so any future drift gets caught at test time.
+
+Per-slot AudioPath assignment + segment-state slots (`DAT_0964310c`
+vs `DAT_09643110`) are TODO; the engine alternates them as a
+poor-man's voice-stealing mitigation (so two concurrent SE triggers
+don't auto-stop each other).
+
+## Audio trace (opt-in JSONL)
+
+Off by default. When `--audio-trace <path>` is set on the exe (or
+the `--audio-trace` flag is passed to `tools/smoke-test.py`), one
+NDJSON line is appended per audio event:
+
+```json
+{"t_ms":198,"kind":"bgm_swap","track":0,"name":"bgm/retitle2010.wav"}
+{"t_ms":342,"kind":"se_play","slot":12,"name":"se_012_id0148"}
+```
+
+- `t_ms` — `timeGetTime()` ms since `audio_trace_open()`. The trace
+  opens *before* `audio_init`, so the first BGM swap typically logs
+  near zero.
+- `kind` — string discriminator. Currently `"bgm_swap"` and
+  `"se_play"`; `"fade_start"` lands once `audio_fade_apply`'s live
+  `SetVolume` wires in.
+- `name` — JSON-escaped per `audio_trace_json_escape()`:  `\"`, `\\`,
+  `\n`, `\r`, `\t` mapped explicitly; other non-ASCII bytes become
+  `\u00XX`. Filenames in our tables are ASCII so the escape stays
+  small in practice.
+
+Schema is locked in `src/audio.h`. The harness writes the log to
+`runs/<scenario>/<run_id>/audio-trace.jsonl`, parsable line-by-line
+with `json.loads()`.
+
 ## Music-bridge handshake
 
 `music.c` exposes a `music_swap_fn_t g_music_swap_fn` pointer. The
@@ -148,7 +277,11 @@ Extracted via `tools/analyze/pe.py` against `vendor/unpacked/recettear.unpacked.
 | VA          | symbol                              | value                                  |
 |-------------|-------------------------------------|----------------------------------------|
 | `0x005d190c`| BGM filename pointer table (21×4 B) | → `bgm/retitle2010.wav` etc.            |
-| `0x005d1584`| SE resource-id table (27×8 B)       | RIDs 309..341 (RT_RCDATA)              |
+| `0x005d1584`| SE resource-id table (110×8 B)      | IDs 0x13d..0x182 + 0x29d..0x2c6 — custom "WAVE" type |
+| `0x005d1ac8`| SE resource type-name string         | `"WAVE"` — passed to FindResourceA     |
+| `0x005196b4`| audio fade divisor                   | `9.0f`                                 |
+| `0x00519ff4`| audio fade scale                     | `9600.0f`                              |
+| `0x00519ff8`| audio fade angle scale               | `1.2566371f` (= 2π/5 rad)              |
 | `0x0051a0b0`| `IID_IDirectMusicSegmentState8`     | `{A50E4730-0AE4-48A7-9839-BC04BFE07772}`|
 | `0x0051a0c0`| `IID_IDirectMusicSegment8`          | `{C6784488-41A3-418F-AA15-B35093BA42D4}`|
 | `0x0051a0d0`| `IID_IDirectMusicPerformance8`      | `{679C4137-C62E-4147-B2B4-9D569ACB254C}`|
@@ -166,13 +299,23 @@ links against `-ldxguid` (already in `LIBS` in `src/Makefile`).
 
 In rough order of impact:
 
-1. **SE backend** — port the SE-init loop (27 `RT_RCDATA` resources) +
-   two SE AudioPaths + `FUN_00499c63` (per-channel start/stop).
-   Unblocks UI sound cues (cursor moves, button clicks).
-2. **Volume animation** — port `FUN_00499583` sin-curve fade. Needed
-   for the title-screen fade-out band (frames 0x1b6d..0x1ba7) and any
-   in-game fade transitions. Hooks into `g_music.target_volume` which
-   the selector already computes.
+1. **SE backend phase 2** — wire the Win32 half:
+   - 2× `CreateStandardAudioPath` calls for the SE paths
+     (`DAT_0964310c`, `DAT_09643110`).
+   - windres `.rc` that embeds every blob in
+     `vendor/unpacked/se-extracted/` under custom type `WAVE`
+     keyed by the engine's original IDs. Total payload is ~3.2 MB;
+     gitignored extraction is already in place.
+   - Per-slot `FindResourceA` + `LoadResource`/`LockResource`/
+     `SizeofResource` + `DMUS_OBJECTDESC` (`dwSize=0x350`,
+     `dwValidData=DMUS_OBJ_CLASS|DMUS_OBJ_MEMORY=0x402`) +
+     `IDirectMusicLoader::GetObject` for the 110 segments.
+   - `FUN_00499c63`'s body: round-robin between the two SE paths,
+     volume from `audio_fade_compute`, `PlaySegmentEx`.
+2. **Volume animation hookup** — `audio_fade_apply` is currently a
+   no-op stub. Wire `IDirectMusicAudioPath8::SetVolume` once the SE
+   port (which calls `audio_fade_compute` during SE volume blend)
+   gives us a second consumer. Add a `fade_start` trace event then.
 3. **Shutdown save-back** — `FUN_0047a804` writes `se` / `mu` / `winx` /
    `winy` back to `recet.ini` via `WritePrivateProfileStringA`. Lands
    with the full shutdown-chain port.
