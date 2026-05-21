@@ -43,6 +43,7 @@
 #include "audio.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 /* ─── BGM filename table (extracted from .data via tools/analyze/pe.py) ───
@@ -91,6 +92,112 @@ const char *audio_bgm_filename(int track)
     return audio_bgm_filenames[track];
 }
 
+/* ─── audio-trace JSONL emitter ─────────────────────────────────────────
+ *
+ * See audio.h for the schema + rationale. Lives outside the _WIN32
+ * guard so tests can exercise it without windows.h. The boot-clock
+ * anchor uses timeGetTime() on Win32 (matches the engine's audio
+ * clock) and stays at 0 in the test build.
+ */
+
+static FILE    *g_audio_trace_fp      = NULL;
+static uint32_t g_audio_trace_boot_ms = 0;
+
+/* timeGetTime is in winmm; declared in the _WIN32 backend block below. */
+#ifdef _WIN32
+static uint32_t audio_trace_platform_now_ms(void);   /* forward */
+#else
+static uint32_t audio_trace_platform_now_ms(void) { return 0; }
+#endif
+
+static uint32_t audio_trace_now_ms(void)
+{
+    return audio_trace_platform_now_ms() - g_audio_trace_boot_ms;
+}
+
+int audio_trace_open(const char *path)
+{
+    if (!path) return 0;
+    if (g_audio_trace_fp) {
+        fclose(g_audio_trace_fp);
+        g_audio_trace_fp = NULL;
+    }
+    /* Append mode so re-opens during a run don't truncate prior data;
+     * the smoke harness opens a fresh path per run anyway. */
+    g_audio_trace_fp = fopen(path, "a");
+    if (!g_audio_trace_fp) return 0;
+    g_audio_trace_boot_ms = audio_trace_platform_now_ms();
+    return 1;
+}
+
+void audio_trace_close(void)
+{
+    if (g_audio_trace_fp) {
+        fflush(g_audio_trace_fp);
+        fclose(g_audio_trace_fp);
+        g_audio_trace_fp = NULL;
+    }
+}
+
+int audio_trace_is_open(void)
+{
+    return g_audio_trace_fp != NULL;
+}
+
+size_t audio_trace_json_escape(const char *src, char *dst, size_t cap)
+{
+    if (!dst || cap == 0) return 0;
+    size_t o = 0;
+    if (!src) {
+        dst[0] = '\0';
+        return 0;
+    }
+    /* Reserve one byte for the terminator. */
+    size_t budget = cap - 1;
+    for (size_t i = 0; src[i] != '\0'; i++) {
+        unsigned char c = (unsigned char)src[i];
+        const char *e = NULL;
+        if      (c == '"')  e = "\\\"";
+        else if (c == '\\') e = "\\\\";
+        else if (c == '\n') e = "\\n";
+        else if (c == '\r') e = "\\r";
+        else if (c == '\t') e = "\\t";
+
+        if (e) {
+            if (o + 2 > budget) break;
+            dst[o++] = e[0];
+            dst[o++] = e[1];
+        } else if (c < 0x20 || c >= 0x7f) {
+            /* \uXXXX is 6 bytes. */
+            if (o + 6 > budget) break;
+            /* Hand-roll instead of snprintf to keep the hot path tiny. */
+            static const char hex[] = "0123456789abcdef";
+            dst[o++] = '\\';
+            dst[o++] = 'u';
+            dst[o++] = '0';
+            dst[o++] = '0';
+            dst[o++] = hex[(c >> 4) & 0xf];
+            dst[o++] = hex[c & 0xf];
+        } else {
+            if (o + 1 > budget) break;
+            dst[o++] = (char)c;
+        }
+    }
+    dst[o] = '\0';
+    return o;
+}
+
+void audio_trace_emit_bgm_swap(int track, const char *name)
+{
+    if (!g_audio_trace_fp) return;
+    char esc[512];
+    audio_trace_json_escape(name ? name : "", esc, sizeof esc);
+    fprintf(g_audio_trace_fp,
+            "{\"t_ms\":%u,\"kind\":\"bgm_swap\",\"track\":%d,\"name\":\"%s\"}\n",
+            (unsigned)audio_trace_now_ms(), track, esc);
+    fflush(g_audio_trace_fp);
+}
+
 /* ─── Win32 / DirectMusic 8 backend ────────────────────────────────── */
 
 #ifdef _WIN32
@@ -99,9 +206,15 @@ const char *audio_bgm_filename(int track)
 #define CINTERFACE
 #include <objbase.h>
 #include <dmusici.h>
+#include <mmsystem.h>
 #include <stdio.h>
 
 #include "music.h"   /* g_music_swap_fn — bridge into music.c */
+
+static uint32_t audio_trace_platform_now_ms(void)
+{
+    return (uint32_t)timeGetTime();
+}
 
 /* Engine globals (see music.h comment block for the original DAT_*
  * names). Carried here as a single struct for tidiness. */
@@ -325,6 +438,9 @@ int audio_play_track(int32_t track)
         return 0;
     }
     g_audio.segment_states[track] = new_state;
+
+    /* Opt-in JSONL trace. No-op if --audio-trace wasn't set. */
+    audio_trace_emit_bgm_swap(track, audio_bgm_filenames[track]);
     return 1;
 }
 

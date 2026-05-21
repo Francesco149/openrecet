@@ -171,6 +171,12 @@ def run(target: str, scenario: Scenario, args: argparse.Namespace) -> Path:
     if args.capture and target == "openrecet":
         cmd += ["--capture-to", wslpath_w(frames),
                 "--capture-every-ms", str(args.capture_every_ms)]
+    if args.audio_trace and target == "openrecet":
+        # Append-mode log of BGM swaps (and later SE/fade events) lands
+        # at <run_dir>/audio-trace.jsonl. Cross-readable from the Linux
+        # side after the run finishes.
+        trace_path = run_dir / "audio-trace.jsonl"
+        cmd += ["--audio-trace", wslpath_w(trace_path)]
     if target == "openrecet":
         # Self-terminate via SetTimer → WM_TIMER → DestroyWindow instead of
         # relying on SIGTERM/taskkill — that path leaves orphan windows on
@@ -448,6 +454,10 @@ def main() -> int:
     ap.add_argument(
         "--no-contact-sheet", action="store_true",
         help="skip the auto contact.png composition after --capture",
+    )
+    ap.add_argument(
+        "--audio-trace", action="store_true",
+        help="forward --audio-trace <run_dir>/audio-trace.jsonl to the exe",
     )
     args = ap.parse_args()
 

@@ -59,6 +59,47 @@ const char *audio_bgm_filename(int track);
  * FUN_00499200(param_1 == -2) → Performance::Stop branch. */
 #define AUDIO_TRACK_STOP   (-2)
 
+/* ─── Audio trace log (opt-in JSONL) ─────────────────────────────────────
+ *
+ * Off by default. When --audio-trace <path> is set on the CLI, every
+ * BGM swap (and later SE trigger + fade event) emits one JSON line.
+ * Schema:
+ *
+ *   {"t_ms":<uint>, "kind":"bgm_swap", "track":<int>, "name":<str>}
+ *   {"t_ms":<uint>, "kind":"se_play",  "channel":<int>, "name":<str>}
+ *   (fade_start lands with task #5/#6)
+ *
+ * t_ms is timeGetTime()-since-boot (matches the engine's clock).
+ * name is JSON-escaped per audio_trace_json_escape() — \", \\, \n,
+ * \r, \t mapped explicitly; other non-printable / non-ASCII bytes
+ * become \uXXXX. Filenames in our table are pure ASCII so the
+ * escape stays small in practice.
+ *
+ * Pure C — present in both Win32 and test builds. timeGetTime() is
+ * #ifdef-guarded; tests get t_ms=0.
+ */
+
+/* Opens the trace file in append mode and stashes the FILE* + a
+ * boot-time anchor. Returns 1 on success, 0 if path is NULL/fopen
+ * fails. Idempotent: closing a stale FILE* before reopening. */
+int  audio_trace_open(const char *path);
+
+/* Flushes + closes the trace file. Safe to call when no trace is
+ * open. */
+void audio_trace_close(void);
+
+/* Emits one JSONL line if a trace is open. No-op otherwise. */
+void audio_trace_emit_bgm_swap(int track, const char *name);
+
+/* Test hook: returns whether the trace is currently open. */
+int  audio_trace_is_open(void);
+
+/* JSON-escape `src` into `dst` (cap bytes total, NUL-terminated on
+ * return). Returns the number of bytes written excluding the NUL.
+ * Truncates cleanly if `dst` is too small — never overruns. */
+#include <stddef.h>
+size_t audio_trace_json_escape(const char *src, char *dst, size_t cap);
+
 #ifdef _WIN32
 #include <windows.h>
 

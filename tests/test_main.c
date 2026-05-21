@@ -491,7 +491,19 @@ struct test_case {
     X(audio_fade_intermediate_value_matches_reference) \
     X(audio_fade_target_threading_at_frame_five) \
     X(audio_fade_out_of_range_clamps) \
-    X(audio_fade_apply_is_noop)
+    X(audio_fade_apply_is_noop) \
+    \
+    X(audio_trace_json_escape_passthrough_ascii) \
+    X(audio_trace_json_escape_quote) \
+    X(audio_trace_json_escape_backslash) \
+    X(audio_trace_json_escape_newlines_and_tabs) \
+    X(audio_trace_json_escape_non_ascii_to_u_form) \
+    X(audio_trace_json_escape_truncates_safely) \
+    X(audio_trace_json_escape_null_safe) \
+    X(audio_trace_open_close_idempotent) \
+    X(audio_trace_open_rejects_null) \
+    X(audio_trace_emit_bgm_swap_writes_one_line) \
+    X(audio_trace_emit_when_closed_is_noop)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

@@ -88,6 +88,11 @@ static sprite_t         g_show_sprite       = {0};
 #define AUTO_EXIT_TIMER_ID  1
 static unsigned         g_max_duration_ms   = 0;
 
+/* --audio-trace <path>: opt-in JSONL log of audio events (BGM swap so
+ * far, SE/fade once those ports land). One line per event, schema in
+ * src/audio.h. Tracking is initialised in audio_trace_open(). */
+static char            *g_audio_trace_path  = NULL;
+
 /* Dynamically-resolved DX entry point — matches the original's
  * LoadLibraryA("d3d8.dll") + GetProcAddress("Direct3DCreate8") pattern. */
 typedef IDirect3D8 *(WINAPI *PFN_Direct3DCreate8)(UINT);
@@ -246,6 +251,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     sim_init();
     music_init();
 
+    /* Open the audio trace file (opt-in via --audio-trace) BEFORE
+     * audio_init so the boot-time anchor lines up with the first
+     * PlaySegmentEx; the first BGM swap that follows logs t_ms close
+     * to zero. Non-fatal if the path is bad. */
+    if (g_audio_trace_path && audio_trace_open(g_audio_trace_path)) {
+        fprintf(stderr, "openrecet: audio trace → %s\n", g_audio_trace_path);
+    } else if (g_audio_trace_path) {
+        fprintf(stderr, "openrecet: failed to open audio trace %s\n",
+                g_audio_trace_path);
+    }
+
     /* "init daoudio ok" — FUN_00498ef4 — DirectMusic 8: Performance +
      * Loader + BGM AudioPath + preload all 21 segments. Sound-effect
      * path (2 more AudioPaths + 27 resource-loaded WAVs) lands in the
@@ -343,6 +359,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     /* ─── shutdown ──────────────────────────────────────────────────────── */
     audio_shutdown();
+    audio_trace_close();
     sprite_destroy(&g_show_sprite);
     scene_title_unload_assets();
     input_shutdown();
@@ -624,6 +641,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
             if (val) {
                 unsigned n = (unsigned)strtoul(val, NULL, 10);
                 if (n > 0) g_max_duration_ms = n;
+            }
+        } else if (lstrcmpA(tok, "--audio-trace") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char trace_buf[MAX_PATH];
+                lstrcpynA(trace_buf, val, (int)sizeof(trace_buf));
+                g_audio_trace_path = trace_buf;
             }
         }
         tok = strtok(NULL, " ");
