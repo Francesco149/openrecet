@@ -210,6 +210,8 @@ void audio_trace_emit_se_play(int slot, const char *name)
     fflush(g_audio_trace_fp);
 }
 
+static int audio_play_se_win32(int slot);   /* forward — defined in the _WIN32 block */
+
 int audio_play_se(int slot)
 {
     if (slot < 0 || slot >= AUDIO_SE_COUNT) return 0;
@@ -221,13 +223,11 @@ int audio_play_se(int slot)
              slot, audio_se_resource_ids[slot]);
     audio_trace_emit_se_play(slot, name);
 
-    /* TODO(SE port phase 2): the real engine path here mirrors
-     * FUN_00499c63 — alternate between DAT_0964310c / DAT_09643110
-     * (the two SE AudioPaths), pull g_audio.se_segments[slot] from
-     * the resource-loaded segment table, PlaySegmentEx with the
-     * computed volume (audio_fade_compute() output). Currently a
-     * no-op past the trace emit. */
+#ifdef _WIN32
+    return audio_play_se_win32(slot);
+#else
     return 1;
+#endif
 }
 
 /* ─── Win32 / DirectMusic 8 backend ────────────────────────────────── */
@@ -251,14 +251,19 @@ static uint32_t audio_trace_platform_now_ms(void)
 /* Engine globals (see music.h comment block for the original DAT_*
  * names). Carried here as a single struct for tidiness. */
 static struct {
-    IDirectMusicPerformance8 *performance;       /* DAT_09643100 */
-    IDirectMusicLoader8      *loader;            /* DAT_09643104 */
-    IDirectMusicAudioPath    *path_bgm;          /* DAT_09643108 */
-    IDirectMusicSegment8     *segments[AUDIO_BGM_TRACK_COUNT];      /* DAT_09643038[] */
-    IDirectMusicSegmentState *segment_states[AUDIO_BGM_TRACK_COUNT];/* DAT_09642e24[] */
-    int32_t                   current_track;     /* DAT_005d1960 (mirror) */
-    int                       com_initialized;
-    int                       all_loaded;        /* DAT_096430fc */
+    IDirectMusicPerformance8  *performance;       /* DAT_09643100 */
+    IDirectMusicLoader8       *loader;            /* DAT_09643104 */
+    IDirectMusicAudioPath     *path_bgm;          /* DAT_09643108 */
+    IDirectMusicAudioPath     *path_se_a;         /* DAT_0964310c */
+    IDirectMusicAudioPath     *path_se_b;         /* DAT_09643110 — dead in vendor data, created for engine fidelity */
+    IDirectMusicSegment8      *segments[AUDIO_BGM_TRACK_COUNT];        /* DAT_09643038[] */
+    IDirectMusicSegmentState  *segment_states[AUDIO_BGM_TRACK_COUNT];  /* DAT_09642e24[] */
+    IDirectMusicSegment8      *se_segments[AUDIO_SE_COUNT];            /* DAT_09642e7c[] */
+    IDirectMusicSegmentState8 *se_states[AUDIO_SE_COUNT];              /* DAT_09642c6c[] (QI-upgraded) */
+    int                        se_loaded_count;
+    int32_t                    current_track;     /* DAT_005d1960 (mirror) */
+    int                        com_initialized;
+    int                        all_loaded;        /* DAT_096430fc */
 } g_audio;
 
 /* music.c installs a swap function pointer — audio_play_track is the
@@ -312,8 +317,11 @@ int audio_init(HWND hwnd)
         return 0;
     }
 
-    /* 3. Create the BGM AudioPath. Engine creates three (BGM + 2× SE);
-     *    SE paths land with the SE port. */
+    /* 3. Create the three AudioPaths the engine carries: BGM, SE-A, SE-B.
+     *    Per engine-quirks #46 the SE-B path is dead at runtime because
+     *    every SE table entry has channel_flag=0 → SE-A only. We still
+     *    create both for fidelity (and so a future modded build with a
+     *    populated +4 column would Just Work). */
     hr = IDirectMusicPerformance8_CreateStandardAudioPath(
         g_audio.performance,
         DMUS_APATH_DYNAMIC_STEREO, 64, TRUE,
@@ -323,6 +331,35 @@ int audio_init(HWND hwnd)
                 (unsigned long)hr);
         return 0;
     }
+    hr = IDirectMusicPerformance8_CreateStandardAudioPath(
+        g_audio.performance,
+        DMUS_APATH_DYNAMIC_STEREO, 64, TRUE,
+        &g_audio.path_se_a);
+    if (FAILED(hr)) {
+        fprintf(stderr, "audio: CreateStandardAudioPath(SE-A) failed (hr=0x%08lx)\n",
+                (unsigned long)hr);
+        return 0;
+    }
+    hr = IDirectMusicPerformance8_CreateStandardAudioPath(
+        g_audio.performance,
+        DMUS_APATH_DYNAMIC_STEREO, 64, TRUE,
+        &g_audio.path_se_b);
+    if (FAILED(hr)) {
+        fprintf(stderr, "audio: CreateStandardAudioPath(SE-B) failed (hr=0x%08lx)\n",
+                (unsigned long)hr);
+        return 0;
+    }
+
+    /* SetVolume(0 = 0 dB, 0 = no fade) on both SE paths up front. The
+     * engine touches SetVolume on every audio_play_se call (cos-curve
+     * fade or -10000 hard silence per quirk #46); the fade-counter
+     * producer that drives those calls isn't ported yet, so without
+     * an explicit set here the path stays at whatever volume
+     * CreateStandardAudioPath leaves it at — observed to be inaudible
+     * on at least one Windows host. 0 dB matches the engine's
+     * "fade complete" steady state. */
+    IDirectMusicAudioPath_SetVolume(g_audio.path_se_a, 0, 0);
+    IDirectMusicAudioPath_SetVolume(g_audio.path_se_b, 0, 0);
 
     /* 4. Create the Loader. */
     hr = CoCreateInstance(&CLSID_DirectMusicLoader, NULL,
@@ -402,13 +439,78 @@ int audio_init(HWND hwnd)
         loaded++;
     }
 
+    /* ── SE resource-load loop ───────────────────────────────────────────
+     * Mirrors FUN_00498ef4's second loop: for each of the 110 SE table
+     * entries, FindResourceA(NULL, MAKEINTRESOURCE(id), "WAVE"),
+     * LoadResource/LockResource/SizeofResource, then
+     * IDirectMusicLoader::GetObject with a DMUS_OBJECTDESC that points
+     * at the in-memory blob. The custom resource type "WAVE" matches
+     * what windres embedded via tools/extract/se-rc.py.
+     *
+     * Slot 2's ID 0x0135 is in the table but absent from the engine's
+     * (and our) .rsrc — FindResourceA returns NULL and we leave the
+     * slot's segment pointer NULL. audio_play_se(2) silently no-ops. */
+    int se_loaded = 0;
+    int se_missing = 0;
+    for (int slot = 0; slot < AUDIO_SE_COUNT; slot++) {
+        uint16_t rid = audio_se_resource_ids[slot];
+        HRSRC rsrc = FindResourceA(NULL, MAKEINTRESOURCEA(rid),
+                                   AUDIO_SE_RESOURCE_TYPE);
+        if (!rsrc) {
+            se_missing++;
+            continue;
+        }
+        HGLOBAL hres = LoadResource(NULL, rsrc);
+        void   *blob = hres ? LockResource(hres) : NULL;
+        DWORD   size = SizeofResource(NULL, rsrc);
+        if (!blob || !size) {
+            se_missing++;
+            continue;
+        }
+
+        /* DMUS_OBJECTDESC: load a Segment from the in-memory WAV blob.
+         * dwValidData = DMUS_OBJ_CLASS | DMUS_OBJ_MEMORY (0x402)
+         * dwSize must be sizeof(DMUS_OBJECTDESC) = 0x350. */
+        DMUS_OBJECTDESC desc;
+        memset(&desc, 0, sizeof desc);
+        desc.dwSize       = sizeof desc;
+        desc.dwValidData  = DMUS_OBJ_CLASS | DMUS_OBJ_MEMORY;
+        desc.guidClass    = CLSID_DirectMusicSegment;
+        desc.pbMemData    = (BYTE *)blob;
+        desc.llMemLength  = (LONGLONG)size;
+
+        hr = IDirectMusicLoader8_GetObject(
+            g_audio.loader, &desc,
+            &IID_IDirectMusicSegment8,
+            (void **)&g_audio.se_segments[slot]);
+        if (FAILED(hr) || !g_audio.se_segments[slot]) {
+            fprintf(stderr,
+                    "audio: SE GetObject(slot=%d id=0x%04x) failed "
+                    "(hr=0x%08lx)\n",
+                    slot, rid, (unsigned long)hr);
+            g_audio.se_segments[slot] = NULL;
+            se_missing++;
+            continue;
+        }
+
+        hr = IDirectMusicSegment8_Download(
+            g_audio.se_segments[slot], (IUnknown *)g_audio.performance);
+        /* Same engine policy as BGM: Download failure is non-fatal. */
+        (void)hr;
+        se_loaded++;
+    }
+    g_audio.se_loaded_count = se_loaded;
+
     g_audio.all_loaded = 1;
 
     /* Bridge into music.c: install our swap callback. From here on
      * every selector swap_call_count++ also triggers a real play. */
     g_music_swap_fn = audio_play_track_adapter;
 
-    fprintf(stderr, "audio: init ok — %d BGM segments preloaded\n", loaded);
+    fprintf(stderr,
+            "audio: init ok — %d BGM segments + %d/%d SE segments preloaded"
+            " (%d missing/skipped)\n",
+            loaded, se_loaded, AUDIO_SE_COUNT, se_missing);
     return 1;
 }
 
@@ -476,6 +578,97 @@ int audio_play_track(int32_t track)
     return 1;
 }
 
+/* ── audio_play_se Win32 body — mirrors FUN_00499c63's bare path ─────
+ *
+ * Engine FUN_00499c63 is gated by the table's +4 channel_flag column,
+ * which is all-zero in vendor data (engine-quirks #46). So the only
+ * branches that ever fire in practice are:
+ *
+ *   1. Guard: if (DAT_096430fc == 0 || se_segments[slot] == NULL) return 0
+ *   2. Release any prior SegmentState8 stored at DAT_09642c6c[slot]
+ *   3. Stop any prior playback of THIS segment on the performance
+ *      (engine emits an extra explicit Stop before the new PlaySegmentEx
+ *       to defeat queueing for repeat-same-slot triggers — see Q-D)
+ *   4. PlaySegmentEx(seg, NULL, NULL, DMUS_SEGF_QUEUE=0x80, 0, &state,
+ *                    NULL, path_se_a)
+ *   5. state->QueryInterface(IID_IDirectMusicSegmentState8, &se_states[slot])
+ *   6. state->Release()
+ *
+ * Volume application would call audio_fade_compute(0, DAT_056e5774) →
+ * IDirectMusicAudioPath::SetVolume on path_se_a. We omit it for now
+ * (no fade-counter producer wired yet — the next audio_fade_apply
+ * commit will hook it in for both BGM and SE). The path's default
+ * volume is 0 dB, so SE plays at full volume until the fade pass lands.
+ */
+static int audio_play_se_win32(int slot)
+{
+    if (!g_audio.all_loaded || !g_audio.performance) return 0;
+
+    IDirectMusicSegment8 *seg = g_audio.se_segments[slot];
+    if (!seg) return 0;     /* slot 2 / missing-resource case */
+
+    /* Release the prior SegmentState8 from the last play on this slot.
+     * Storing the QI-upgraded type matches the engine — see audio.h
+     * and engine-quirks #46 for why we Q.I. instead of holding the
+     * raw SegmentState pointer. */
+    if (g_audio.se_states[slot]) {
+        IDirectMusicSegmentState8_Release(g_audio.se_states[slot]);
+        g_audio.se_states[slot] = NULL;
+    }
+
+    /* Engine: explicit Stop on this segment before PlaySegmentEx.
+     * Defeats DMUS_SEGF_QUEUE's same-path queueing when the player
+     * re-triggers the same slot in quick succession.
+     * Stop's first segment arg is typed as IDirectMusicSegment* — pass
+     * the un-upgraded interface (Segment8 is a Segment by inheritance). */
+    IDirectMusicPerformance8_Stop(
+        g_audio.performance, (IDirectMusicSegment *)seg, NULL, 0, 0);
+
+    IDirectMusicSegmentState *state = NULL;
+    /* dwFlags:
+     *   DMUS_SEGF_SECONDARY (0x8000) — play alongside BGM rather than
+     *      preempting it. Without SECONDARY, PlaySegmentEx defaults to
+     *      "primary segment" semantics that stop any other primary
+     *      segment on the same Performance — which would mute the BGM
+     *      every time an SE fires.
+     *
+     * Engine deviation: the original FUN_00499c63 uses DMUS_SEGF_QUEUE
+     * (0x80) without SECONDARY. The engine sidesteps the preemption via
+     * its per-call SetVolume on the SE path (which we haven't ported —
+     * the fade-counter producer doesn't exist yet) plus QUEUE's specific
+     * "queue after currently-playing on this path" semantics. Until
+     * audio_fade_apply lands and we can verify the queue path actually
+     * plays + doesn't preempt, SECONDARY is the clean fix that matches
+     * observable behavior (SEs over BGM, BGM keeps going). */
+    HRESULT hr = IDirectMusicPerformance8_PlaySegmentEx(
+        g_audio.performance,
+        (IUnknown *)seg,
+        NULL,                       /* segment name (unused) */
+        NULL,                       /* transition */
+        DMUS_SEGF_SECONDARY,        /* see comment block above */
+        0,                          /* start time = now */
+        &state,
+        NULL,                       /* from */
+        (IUnknown *)g_audio.path_se_a);
+    if (FAILED(hr) || !state) {
+        fprintf(stderr,
+                "audio: PlaySegmentEx(SE slot=%d) failed (hr=0x%08lx)\n",
+                slot, (unsigned long)hr);
+        return 0;
+    }
+
+    /* QI-upgrade SegmentState → SegmentState8 (engine fidelity). The
+     * upgraded interface adds GetObjectInPath / SetTrackConfig that
+     * we don't use today, but storing the upgraded type matches what
+     * the engine writes into DAT_09642c6c[]. Release the un-upgraded
+     * pointer once the upgrade lands. */
+    IDirectMusicSegmentState_QueryInterface(
+        state, &IID_IDirectMusicSegmentState8,
+        (void **)&g_audio.se_states[slot]);
+    IDirectMusicSegmentState_Release(state);
+    return 1;
+}
+
 void audio_shutdown(void)
 {
     /* Detach the music bridge first so any in-flight tick can't reach
@@ -500,6 +693,26 @@ void audio_shutdown(void)
             IDirectMusicSegment8_Release(g_audio.segments[i]);
             g_audio.segments[i] = NULL;
         }
+    }
+    for (int i = 0; i < AUDIO_SE_COUNT; i++) {
+        if (g_audio.se_states[i]) {
+            IDirectMusicSegmentState8_Release(g_audio.se_states[i]);
+            g_audio.se_states[i] = NULL;
+        }
+        if (g_audio.se_segments[i]) {
+            IDirectMusicSegment8_Unload(g_audio.se_segments[i],
+                                        (IUnknown *)g_audio.performance);
+            IDirectMusicSegment8_Release(g_audio.se_segments[i]);
+            g_audio.se_segments[i] = NULL;
+        }
+    }
+    if (g_audio.path_se_b) {
+        IDirectMusicAudioPath_Release(g_audio.path_se_b);
+        g_audio.path_se_b = NULL;
+    }
+    if (g_audio.path_se_a) {
+        IDirectMusicAudioPath_Release(g_audio.path_se_a);
+        g_audio.path_se_a = NULL;
     }
     if (g_audio.path_bgm) {
         IDirectMusicAudioPath_Release(g_audio.path_bgm);

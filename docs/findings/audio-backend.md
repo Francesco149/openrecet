@@ -3,12 +3,23 @@
 **Status (2026-05-21):**
 - init + BGM track-swap ported
 - MCI debug command recorder ported (FUN_00451874, dormant in shipped data)
-- volume sin-curve fade ported (math half; SetVolume hookup defers to SE phase 2)
+- volume sin-curve fade ported (math half; SetVolume hookup defers
+  until a per-tick fade-counter producer wires in)
 - SE phase A: 110-entry resource ID table + `audio_play_se()` trace shell
+- **SE phase B live**: 2 SE AudioPaths created in `audio_init`, 109 WAV
+  blobs embedded via windres custom-type `WAVE` + loaded via
+  `IDirectMusicLoader::GetObject(DMUS_OBJ_MEMORY)`, `audio_play_se`
+  drives a real PlaySegmentEx with QueryInterface upgrade to
+  `IDirectMusicSegmentState8`. User-verified audible.
 - `--audio-trace` opt-in JSONL emitter live (bgm_swap + se_play)
-- **Still stubbed:** SE phase B (Win32 init for the 2 SE AudioPaths +
-  windres-embed of the 109 WAV blobs + FUN_00499c63's channel
-  arbitration + PlaySegmentEx)
+- **Engine deviations introduced by phase B** (see "Next steps" below):
+  - SE PlaySegmentEx uses `DMUS_SEGF_SECONDARY` (0x8000) instead of
+    the engine's `DMUS_SEGF_QUEUE` (0x80) — without SECONDARY,
+    primary-segment semantics duck BGM under every SE.
+  - Explicit `SetVolume(0, 0)` on both SE paths in `audio_init` —
+    the engine touches SetVolume on every audio_play_se call (cos
+    fade), but our fade-counter producer isn't wired yet.
+  - Both revert to engine behavior once `audio_fade_apply` is live.
 
 The engine uses DirectMusic 8 (not DirectSound directly). All WAV files
 are loaded as **DirectMusic segments** through `IDirectMusicLoader8`,
@@ -320,34 +331,30 @@ links against `-ldxguid` (already in `LIBS` in `src/Makefile`).
 
 In rough order of impact:
 
-1. **SE backend phase 2** — wire the Win32 half:
-   - 2× `CreateStandardAudioPath` calls for the SE paths
-     (`DAT_0964310c`, `DAT_09643110`). Path B stays unused for vendor
-     data (see engine-quirks #46) but the engine creates both, so we
-     do too.
-   - windres `.rc` that embeds every blob in
-     `vendor/unpacked/se-extracted/` under custom type `WAVE`
-     keyed by the engine's original IDs. Total payload is ~3.2 MB;
-     gitignored extraction is already in place. Slot 2's `0x0135`
-     ID is in the lookup table but missing from `.rsrc` — handle
-     gracefully (segment slot stays NULL, `audio_play_se(2)` no-ops).
-   - Per-slot `FindResourceA` + `LoadResource`/`LockResource`/
-     `SizeofResource` + `DMUS_OBJECTDESC` (`dwSize=0x350`,
-     `dwValidData=DMUS_OBJ_CLASS|DMUS_OBJ_MEMORY=0x402`) +
-     `IDirectMusicLoader::GetObject` for the 110 segments.
-   - `FUN_00499c63`'s body: route every SE to path A (the path-B
-     branch is dead code in vendor data), volume from
-     `audio_fade_compute(DAT_056e5774)`, `PlaySegmentEx` with
-     `DMUS_SEGF_QUEUE=0x80`. Store the QI-upgraded `SegmentState8*`
-     into `DAT_09642c6c[slot]`.
-2. **Volume animation hookup** — `audio_fade_apply` is currently a
-   no-op stub. Wire `IDirectMusicAudioPath8::SetVolume` once the SE
-   port (which calls `audio_fade_compute` during SE volume blend)
-   gives us a second consumer. Add a `fade_start` trace event then.
-3. **Shutdown save-back** — `FUN_0047a804` writes `se` / `mu` / `winx` /
+1. **Volume animation hookup + revert phase-B deviations** —
+   `audio_fade_apply` is currently a no-op stub. Wire
+   `IDirectMusicAudioPath::SetVolume` against `audio_fade_compute`'s
+   centibel output (engine: per-frame for both BGM and SE paths
+   driven by `DAT_056e5774` / `DAT_056e577c` counters that decay
+   each tick). Once the per-tick fade producer exists, revert the
+   two phase-B engine deviations (`src/audio.c::audio_play_se_win32`):
+   a. **`DMUS_SEGF_SECONDARY` (0x8000) → `DMUS_SEGF_QUEUE` (0x80)**
+      in PlaySegmentEx. The engine's queue semantics + per-call
+      SetVolume keep BGM playing while SE fires; without the fade
+      hookup, queue+default-volume duck BGM, so we substituted
+      SECONDARY which doesn't preempt. The retail behavior is
+      observable QUEUE; revert + verify after fade lands.
+   b. **Drop the explicit `SetVolume(0, 0)` on `path_se_a`/
+      `path_se_b`** at the end of `audio_init`. Defensive nudge
+      against an apparently-non-zero default volume on at least one
+      Windows host; the engine never relies on the default because
+      it always SetVolumes per call. Once we SetVolume per call too,
+      the init nudge becomes redundant.
+   Add a `fade_start` trace event with the same revert.
+2. **Shutdown save-back** — `FUN_0047a804` writes `se` / `mu` / `winx` /
    `winy` back to `recet.ini` via `WritePrivateProfileStringA`. Lands
    with the full shutdown-chain port.
-4. **Engine bug-for-bug compatibility** — the EN-build `SetParam(
+3. **Engine bug-for-bug compatibility** — the EN-build `SetParam(
    GUID_StandardMIDIFile, ...)` call (gated on `DAT_0438b170 == 1`)
    never fires in the current Steam build. If a future build sets that
    flag, the port needs to add the call back; for now it's a documented

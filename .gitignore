@@ -52,3 +52,4 @@ runs/
 *.swp
 *.swo
 .DS_Store
+src/se.rc

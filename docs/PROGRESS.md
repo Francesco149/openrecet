@@ -3,6 +3,95 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Audio: SE backend phase B (live SE playback)
+
+Picks up where the autonomous session left off. Phase A had the
+110-entry SE resource table + a trace-only `audio_play_se` shell; phase
+B wires the Win32 backend end to end. User-verified audible on the
+Windows host: BGM continues uninterrupted while a sequence of SE plays
+fires over it.
+
+Four commits land the work:
+
+1. **Mojibake fix** (`main.c`, commit `4740a96`).
+   `SetConsoleOutputCP(CP_UTF8)` at WinMain entry. Source files use
+   literal `—`/`→`/`⚠` in log strings; the default Windows console
+   was decoding them as CP437 (`ΓÇö` etc.) on most hosts. One-line
+   fix; no-op for the GUI build (no attached console).
+
+2. **SE table column 2 quirk** (commit `83a3cb5`).
+   Reading FUN_00499c63 revealed the +4 column of the 110-entry SE
+   table at `&DAT_005d1584` is actually a voice-group / SE-AudioPath
+   selector, not "zero padding" as earlier notes claimed. In vendor
+   data every +4 cell is zero (verified by re-reading the table from
+   the unpacked exe), so path B + the cross-slot voice-stealing scan
+   are dead code at runtime — every SE in vendor data routes to path
+   A. New engine-quirks #46 documents the dormant routing; the C
+   port keeps a single-column resource-ID table since +4 is constant
+   zero. `audio.h` schema doc + SE-trigger header comment refreshed.
+
+3. **`--play-se <slots>` harness flag** (`main.c`, commit `e134361`).
+   Comma-separated SE slot indices fired post-boot via SetTimer at a
+   configurable delay + interval
+   (`--play-se-after-ms` / `--play-se-interval-ms`, defaults 1000 / 250).
+   Bad indices rejected; cap 16 slots per invocation. Gives phase B
+   an in-isolation tester without needing to wire SE calls into the
+   title scene's still-unported sim_a body.
+
+4. **SE phase B: live `audio_play_se`** (the main course; this commit).
+   - `tools/extract/se-rc.py`: walks `vendor/unpacked/se-extracted/`
+     and emits a windres `.rc` with one `<id> WAVE "<abs_path>"`
+     entry per WAV (109 entries — slot 2's `0x0135` is in the
+     lookup table but absent from `.rsrc`, faithful to engine).
+     Gitignored output (`src/se.rc`).
+   - `src/Makefile`: regenerates `se.rc` → `se.res.o` via
+     `i686-w64-mingw32-windres -O coff -c 65001`; both .exe outputs
+     now embed the 3.1 MB SE blob payload (binary grew ~2 MB → ~4 MB).
+   - `src/audio.c`: `audio_init` gains 2× `CreateStandardAudioPath`
+     for SE-A / SE-B paths (per engine-quirks #46 path B is dead in
+     vendor data but the engine creates both, so we do too), plus
+     a per-slot `FindResourceA`/`LoadResource`/`LockResource`/
+     `IDirectMusicLoader::GetObject(DMUS_OBJ_MEMORY)` loop for the
+     110 SE segments. Missing-resource slots silently skip (slot 2
+     case). `audio_play_se` gains a Win32 body that mirrors
+     `FUN_00499c63`'s bare path: Release prior SegmentState8 →
+     explicit Stop → PlaySegmentEx → QueryInterface-upgrade to
+     `IDirectMusicSegmentState8` → Release the un-upgraded pointer.
+   - Boot log gains the SE preload count:
+     `audio: init ok — 21 BGM segments + 109/110 SE segments preloaded`
+     `(1 missing/skipped)`.
+   - **Two documented engine deviations** (revert when
+     `audio_fade_apply` lands — see `audio-backend.md` "Next steps"):
+     1. PlaySegmentEx uses `DMUS_SEGF_SECONDARY` (0x8000) instead
+        of the engine's `DMUS_SEGF_QUEUE` (0x80). Without SECONDARY,
+        primary-segment semantics duck BGM under every SE — Recettear
+        doesn't do that. The engine sidesteps via a per-call
+        SetVolume that we haven't ported yet.
+     2. Explicit `SetVolume(0, 0)` on both SE paths at the tail of
+        `audio_init`. Defensive nudge after observing inaudible SE
+        on at least one Windows host; the engine never relies on
+        path defaults because it SetVolumes per call.
+
+Test count unchanged at 452/452 — phase B's Win32 body is `#ifdef _WIN32`
+so the Linux unit suite can't exercise it directly; the trace-shell
+tests cover the slot-bounds + JSON escape path that runs unconditionally.
+
+Smoke trace from the final run (`--play-se 0,12,2,69`):
+```
+{"t_ms":107, "kind":"bgm_swap","track":0,"name":"bgm/retitle2010.wav"}
+{"t_ms":1099,"kind":"se_play","slot":0,"name":"se_000_id013d"}
+{"t_ms":1714,"kind":"se_play","slot":12,"name":"se_012_id0148"}
+{"t_ms":2325,"kind":"se_play","slot":2,"name":"se_002_id0135"}   ← traced; PlaySegmentEx skipped (NULL segment)
+{"t_ms":2930,"kind":"se_play","slot":69,"name":"se_069_id029d"}
+```
+
+**Carries to next session:** `audio_fade_apply` is the unlock for both
+reverting the two engine deviations AND making the per-tick BGM/SE
+fade animations real. Need a per-tick fade-counter producer (decay
+the path-A/B and BGM fade counters each frame, fire SetVolume against
+`audio_fade_compute`). Probably lands next to a wider sim/render
+ticker port.
+
 ## 2026-05-21 — Autonomous session: 6 audio + harness tasks landed
 
 Worked the queue at `docs/autonomous-session-tasks.md` end to end.

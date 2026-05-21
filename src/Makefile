@@ -19,6 +19,17 @@ LIBS      ?= -ld3d8 -ldinput8 -ldxguid -ldsound -lwinmm \
 SRCS      := $(wildcard *.c)
 OBJS      := $(SRCS:.c=.o)
 
+# SE WAVs are embedded as a custom-named ("WAVE") PE resource type so
+# audio_init's FindResourceA path finds them at runtime — same shape as
+# the original engine. The .rc is auto-generated from
+# vendor/unpacked/se-extracted/ by tools/extract/se-rc.py (which expects
+# that directory to be populated by tools/extract/se-wavs.py first).
+# The .rc and the .res.o are gitignored; both regenerate as needed.
+SE_RC     := se.rc
+SE_RES_O  := se.res.o
+RCFLAGS   ?= -O coff -c 65001
+OBJS      += $(SE_RES_O)
+
 # Two PE outputs from the same .o set:
 #   openrecet.exe       — GUI subsystem (linker flag -mwindows). The
 #                         distributable binary. No console window pops up
@@ -47,5 +58,15 @@ $(OUT_DEBUG): $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+# SE WAV embedding: regenerate .rc when the generator changes; rebuild
+# .res.o when the .rc or any source WAV changes (windres tracks file
+# mtimes on the LHS but not the WAVs it pulls in, so list one as a
+# proxy dep to force re-link when the extract dir is updated).
+$(SE_RC): ../tools/extract/se-rc.py
+	python3 $< $@
+
+$(SE_RES_O): $(SE_RC) ../tools/extract/se-rc.py
+	$(WINDRES) $(RCFLAGS) -i $< -o $@
+
 clean:
-	rm -f $(OBJS) $(OUT) $(OUT_DEBUG)
+	rm -f $(OBJS) $(SE_RC) $(SE_RES_O) $(OUT) $(OUT_DEBUG)
