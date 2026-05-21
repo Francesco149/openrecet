@@ -26,7 +26,9 @@
 #include "tables.h"
 #include "recet_ini.h"
 #include "prewindow.h"
+#include "render_quad.h"
 #include "rng.h"
+#include "scene_title.h"
 #include "tick.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
@@ -66,6 +68,16 @@ static unsigned         g_capture_count     = 0;     /* monotonic capture index 
 static char            *g_show_sprite_name  = NULL;
 static sprite_t         g_show_sprite       = {0};
 
+/* ─── scene-0 (title) state — mirrors the engine's DAT_09643358.. block ───
+ * The menu items table + cursor + Y layout get built once at startup via
+ * scene_title_menu_init_fresh (FUN_0049a43d in the engine, called via
+ * FUN_004733d5's caller). The anim counters tick once per frame; until
+ * the sim port (FUN_0049a59e) lands we advance frame_counter from the
+ * render path so the BG at least scrolls. */
+static scene_title_menu_t  g_title_menu;     /* DAT_09643358..0x09643510 */
+static scene_title_anim_t  g_title_anim;     /* DAT_09643518.. counters */
+static int                 g_title_assets_loaded = 0;
+
 /* --max-duration-ms <ms>: PostQuitMessage after this many milliseconds.
  * Lets the harness (and ad-hoc smoke runs) get a clean shutdown — the
  * normal message-pump exit path — instead of SIGTERM/taskkill leaving
@@ -89,7 +101,7 @@ static BOOL  create_main_window(HINSTANCE hInst, int nCmdShow);
 static BOOL  load_d3d8(void);
 static BOOL  init_render(HWND hwnd);
 static void  shutdown_render(void);
-static void  frame_render_stub(void);
+static void  render_dispatch(void);
 static void  parse_cmdline(LPSTR lpCmdLine);
 static void  capture_backbuffer(void);
 
@@ -209,12 +221,25 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * — see docs/findings/tables-loader.md. */
     tables_load_all();
 
+    /* 2D quad batcher — one-time vbuf prefill + screen-width-scale. */
+    render_quad_init((uint32_t)g_ini.width);
+
+    /* "read titletex ok" — FUN_004733d5 — load the 7 title-scene
+     * textures (bg2, 01, fuki, waku + pause/result/dungeon). */
+    g_title_assets_loaded = (scene_title_load_assets(g_dev)
+                             == SCENE_TITLE_TEX_COUNT);
+
+    /* Build the menu items table (FUN_0049a43d). Fresh boot = no
+     * saves; 4 items: New Game / Ranking / Options / Exit. */
+    scene_title_menu_init_fresh(&g_title_menu);
+    g_title_anim.cursor_pos = (uint32_t)g_title_menu.default_cursor;
+
     /* TODO "init fontsys ok"    — FUN_0047c228
      * TODO "init daoudio ok"    — FUN_00498ef4
      * TODO "fontsystem ok"      — FUN_0047c3a5
      * TODO "read systemtex ok"  — FUN_00472f5d
      * TODO "load savefile ok"   — FUN_004902fe
-     * TODO "read titletex ok"   — FUN_0043609b + FUN_004733d5
+     * TODO "read titletex ok"   — FUN_0043609b
      * TODO bootstrap done       — FUN_0049a3a3 (enters main loop)
      */
 
@@ -227,14 +252,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     /* ─── main loop — mirrors the PeekMessage/WaitMessage idle pattern ─── */
     MSG msg = {0};
-    /* Game-tick callbacks. Only `render` is wired up so far — the other
-     * three (input poll, sim A, sim B) are NULL stubs; the scheduler
-     * tolerates that and the four big ports land one per commit. */
+    /* Game-tick callbacks. Input poll + render are wired up; sim_a
+     * (FUN_004536cb) and sim_b (FUN_0049966a) remain NULL stubs. The
+     * scheduler tolerates that. Title-scene anim counters advance from
+     * render_dispatch until the sim ports land. */
     const struct tick_callbacks tick_cb = {
         .input_poll = input_poll,
         .sim_a      = NULL,
         .sim_b      = NULL,
-        .render     = frame_render_stub,
+        .render     = render_dispatch,
     };
     tick_init();
     for (;;) {
@@ -252,6 +278,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     /* ─── shutdown ──────────────────────────────────────────────────────── */
     sprite_destroy(&g_show_sprite);
+    scene_title_unload_assets();
     input_shutdown();
     storage_shutdown();
     shutdown_render();
@@ -439,35 +466,45 @@ static void shutdown_render(void)
     if (g_d3d8_dll) { FreeLibrary(g_d3d8_dll); g_d3d8_dll = NULL; }
 }
 
-/* ─── frame render — placeholder for FUN_0047be92's call to FUN_004547ab ─
- * Driven by tick_step_win32 as the `render` callback. Clears to a
- * distinctive debug magenta so we can visually distinguish a working
- * openrecet skeleton from a black-screen failure mode. Once the real
- * FUN_004547ab port lands this stub goes away.
+/* ─── frame render — partial FUN_004547ab port ──────────────────────────
+ * Driven by tick_step_win32 as the `render` callback. Currently only the
+ * scene==0 (title) dispatch path is wired up; other scene states fall
+ * through to a blank clear. The full FUN_004547ab dispatch + per-state
+ * fan-out lands as the other scene ports come online.
  *
- * Note: BeginScene/EndScene/Present and the screen-capture sample point
- * all live here for now. The capture has to run before Present because
+ * Engine clear color for state-0 is 0xff17f0ff (pink-blue) — visible
+ * only at the edges before bg2.bmp fully covers the framebuffer.
+ *
+ * BeginScene/EndScene/Present + the screen-capture sample point all
+ * live here. The capture has to run before Present because
  * D3DSWAPEFFECT_DISCARD leaves the post-Present back buffer undefined.
  */
-static void frame_render_stub(void)
+static void render_dispatch(void)
 {
     if (!g_dev) return;
+
+    /* Engine's title-state clear color: ARGB(0xff, 0x17, 0xf0, 0xff). */
     IDirect3DDevice8_Clear(
         g_dev, 0, NULL,
         D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
-        D3DCOLOR_XRGB(160, 32, 96),                  /* debug magenta */
+        0xff17f0ff,
         1.0f, 0);
     IDirect3DDevice8_BeginScene(g_dev);
+
+    if (g_title_assets_loaded) {
+        scene_title_render(g_dev, &g_title_menu, &g_title_anim);
+        /* Sim port hasn't landed yet — advance the BG-scroll counter
+         * here so the title at least animates. Move to the sim port
+         * (FUN_0049a59e) when it lands; that's also where the cursor
+         * pulse and selection-fold counters belong. */
+        g_title_anim.frame_counter++;
+    }
+
     if (g_show_sprite.tex) {
         sprite_draw(g_dev, &g_show_sprite, 32.0f, 32.0f);
     }
     IDirect3DDevice8_EndScene(g_dev);
 
-    /* Frame capture must run BEFORE Present — with D3DSWAPEFFECT_DISCARD
-     * the post-Present back buffer contents are explicitly undefined.
-     * Sampling is time-based: at least g_capture_every_ms between writes.
-     * timeGetTime() wraps at ~49 days; the (now - last) subtraction is
-     * still correct under modular arithmetic. */
     if (g_capture_dir) {
         unsigned now_ms = timeGetTime();
         if (g_capture_last_ms == 0 ||

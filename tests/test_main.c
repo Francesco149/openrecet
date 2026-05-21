@@ -394,7 +394,7 @@ struct test_case {
     X(render_quad_init_seeds_z_rhw_specular) \
     X(render_quad_add_one_emits_six_vertices) \
     X(render_quad_uv_half_texel_inset_asymmetry) \
-    X(render_quad_scale_widens_but_not_position) \
+    X(render_quad_scale_widens_and_offsets) \
     X(render_quad_offset_shifts_top_left) \
     X(render_quad_top_left_truncated_to_int) \
     X(render_quad_returns_zero_when_full) \

@@ -122,9 +122,9 @@ int test_render_quad_uv_half_texel_inset_asymmetry(void)
     return 0;
 }
 
-/* ─── resolution scaling — width/height only, not top-left ───────────── */
+/* ─── resolution scaling — all four dst components scale ─────────────── */
 
-int test_render_quad_scale_widens_but_not_position(void)
+int test_render_quad_scale_widens_and_offsets(void)
 {
     /* 1024-wide screen → scale 1024/640 = 1.6. */
     render_quad_init(1024);
@@ -133,13 +133,17 @@ int test_render_quad_scale_widens_but_not_position(void)
     render_quad_add(dst, src, 64, 32, 0xFFFFFFFF);
 
     const render_quad_vtx_t *v = render_quad_buffer();
-    /* top-left x stays 100 (NOT scaled), but width grows to 64 * 1.6 = 102.4
-     * → right edge = 100 + 102.4 = 202.4. y likewise stays 200; height
-     * grows to 32 * 1.6 = 51.2 → bottom = 251.2. */
-    T_ASSERT_FEQ(v[4].x, 100.0f);              /* TL x */
-    T_ASSERT_FEQ(v[4].y, 200.0f);              /* TL y */
-    T_ASSERT_FEQ(v[0].x, 100.0f + 102.4f);     /* BR x */
-    T_ASSERT_FEQ(v[0].y, 200.0f +  51.2f);     /* BR y */
+    /* All four dst components scale by 1.6, with the top-left
+     * components additionally truncated to int.
+     *   TL.x = trunc(100 * 1.6) = trunc(160.0) = 160
+     *   TL.y = trunc(200 * 1.6) = trunc(320.0) = 320
+     *   width  =  64 * 1.6 = 102.4 → BR.x = 160 + 102.4 = 262.4
+     *   height =  32 * 1.6 =  51.2 → BR.y = 320 +  51.2 = 371.2
+     */
+    T_ASSERT_FEQ(v[4].x, 160.0f);              /* TL x */
+    T_ASSERT_FEQ(v[4].y, 320.0f);              /* TL y */
+    T_ASSERT_FEQ(v[0].x, 160.0f + 102.4f);     /* BR x */
+    T_ASSERT_FEQ(v[0].y, 320.0f +  51.2f);     /* BR y */
     return 0;
 }
 
@@ -147,7 +151,7 @@ int test_render_quad_scale_widens_but_not_position(void)
 
 int test_render_quad_offset_shifts_top_left(void)
 {
-    render_quad_init(640);
+    render_quad_init(640);   /* scale = 1.0 — keeps the offset math obvious */
     render_quad_set_offset(7.0f, -3.0f);
     const float dst[4] = { 100.0f, 200.0f, 64.0f, 32.0f };
     const float src[4] = {   0.0f,   0.0f, 64.0f, 32.0f };
@@ -156,7 +160,7 @@ int test_render_quad_offset_shifts_top_left(void)
     const render_quad_vtx_t *v = render_quad_buffer();
     T_ASSERT_FEQ(v[4].x, 107.0f);   /* TL: 100 + 7 */
     T_ASSERT_FEQ(v[4].y, 197.0f);   /* TL: 200 - 3 */
-    T_ASSERT_FEQ(v[0].x, 171.0f);   /* BR: 107 + 64 (size unscaled at 640) */
+    T_ASSERT_FEQ(v[0].x, 171.0f);   /* BR: 107 + 64 (scale 1.0) */
     T_ASSERT_FEQ(v[0].y, 229.0f);   /* BR: 197 + 32 */
     return 0;
 }

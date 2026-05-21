@@ -97,15 +97,18 @@ int render_quad_add(const float dst[4], const float src[4],
         return 0;
     }
 
-    /* Scale dst width/height by screen-width / 640. dst top-left is
-     * truncated to integer (matches engine's __ftol pattern) and
-     * then offset by the global screen-shake. */
+    /* Scale ALL FOUR dst components by screen-width / 640 (positions
+     * too — not just sizes). Top-left is then truncated to integer
+     * pixel after scaling, matching the engine's __ftol pattern.
+     * Two of those scale multiplications are hidden inside Ghidra's
+     * `__ftol` artifact in FUN_00404efc; recovered by comparison
+     * against the stock title-screen layout at 1024x768. */
     const float scale = g_screen_w / 640.0f;
     const float dst_w = scale * dst[2];
     const float dst_h = scale * dst[3];
 
-    const float left   = g_offset_x + (float)(int)dst[0];
-    const float top    = g_offset_y + (float)(int)dst[1];
+    const float left   = g_offset_x + (float)(int)(scale * dst[0]);
+    const float top    = g_offset_y + (float)(int)(scale * dst[1]);
     const float right  = left + dst_w;
     const float bottom = top  + dst_h;
 

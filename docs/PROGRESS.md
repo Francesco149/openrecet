@@ -3,6 +3,63 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Title scene wired into main loop (partial FUN_004547ab)
+
+Fifth and final commit of the title-screen port. The render
+dispatcher now drives `scene_title_render` on every frame — debug
+magenta gone, actual title art on screen. Also includes a critical
+correction to `render_quad_add`'s screen-resolution scaling.
+
+**What landed:**
+
+- **`render_dispatch` in `src/main.c`.** Replaces `frame_render_stub`
+  as the tick scheduler's `.render` callback. Clears to the engine's
+  state-0 ARGB `0xff17f0ff` (pink-blue, visible only at the edges
+  before bg2.bmp covers everything), BeginScene, calls
+  `scene_title_render`, EndScene, frame-capture sample, Present.
+  The full FUN_004547ab dispatch (state 1..16 + device-loss recovery
+  + the inner-scene sub-block) lands as those scenes port; for now
+  state==0 is the only path.
+- **`scene_title_load_assets` + `scene_title_menu_init_fresh` now
+  wired** into WinMain after `tables_load_all`. `render_quad_init`
+  runs once before that to prefill the static vbuf.
+- **Position-scaling bug fixed in `render_quad_add`.** Ghidra's
+  decomp of FUN_00404efc hides two FPU multiplications inside its
+  `__ftol` artifact calls; the engine actually scales ALL FOUR dst
+  components by `screen_w / 640`, not just the width/height. Caught
+  by visual comparison against the stock title at 1024×768: with
+  positions un-scaled, the menu items + corner element + copyright
+  ribbon all sat ~150 px too high. Fix: scale + truncate `dst.x` and
+  `dst.y` the same way as `dst.w/h`. One existing test
+  (`render_quad_scale_widens_but_not_position`) renamed and updated
+  to assert the new, correct scaling. The PROGRESS entry from the
+  earlier render-quad commit had the wrong claim — superseded.
+- **Animation hack.** `g_title_anim.frame_counter` advances from
+  `render_dispatch` so the BG-scroll counter keeps ticking until
+  the sim port (FUN_0049a59e) lands and takes over. As a result,
+  the BG stops scrolling when the window loses focus
+  (`g_paused → WaitMessage → tick scheduler idle`); harmless and
+  self-resolves with the sim port.
+- **Tests still 356/356.**
+
+**Visible result.** Stock-equivalent title-screen layout at 1024×768:
+RECETTEAR logo + scrolling town background + "An Item Shop's Tale"
+ribbon + scrolling fuki band + "Start a new game" bubble + NEW
+GAME / ITEM ENCYCLOPEDIA / OPTIONS / EXIT menu + EasyGameStation
+copyright at the bottom. Positions match the retail build pixel-
+for-pixel on the static frame.
+
+**Known visual differences (deferred to sim port):**
+- Non-selected menu items render slightly different from stock —
+  likely a missing texture-stage SPECULAR overlay or a per-item
+  outline pass. Engine's `D3DTSS_COLOROP = D3DTOP_ADD` blend is
+  matched, but there may be a second draw pass we haven't found.
+- Selected-item brightness is frozen at 0x9f (frame 0 of the
+  pulse) — the sin-driven pulse will animate once sim ticks
+  `select_phase` / `pulse_phase`.
+- Cursor-anim slide (`cursor_anim` counter) is frozen at 0 —
+  the menu-fold-in tween needs sim wiring.
+
 ## 2026-05-21 — Title scene render ported (FUN_0049c644 — bare path)
 
 Fourth commit of the title-screen path. The actual draw routine —

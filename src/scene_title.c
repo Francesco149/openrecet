@@ -214,11 +214,13 @@ void scene_title_render(IDirect3DDevice8 *dev,
                0xFFFFFFFF);
 
     /* ── title01 animated band ────────────────────────────────────────
-     * dst.x = 64 + (-cursor_anim * 64). On a fresh frame (cursor_anim
-     * == 0) it sits at x = 64. The full 512x256 texture is sampled. */
-    const float band_x = 64.0f - (float)(int)anim->cursor_anim * 64.0f;
+     * The engine derives a base offset `local_14 = -cursor_anim * 64`
+     * once and reuses it for the band, the menu items, and the
+     * selected-row decoration tiles. At fresh boot (cursor_anim == 0)
+     * `slide` is 0. */
+    const float slide = -(float)(int)anim->cursor_anim * 64.0f;
     title_quad(dev, SCENE_TITLE_TEX_01,
-               band_x, 0.0f, 512.0f, 256.0f,
+               slide + 64.0f, 0.0f, 512.0f, 256.0f,
                0.0f, 0.0f, 512.0f, 256.0f,
                0xFFFFFFFF);
 
@@ -257,7 +259,7 @@ void scene_title_render(IDirect3DDevice8 *dev,
 
         const uint32_t color = 0xff000000u
                              | (bright << 16) | (bright << 8) | bright;
-        const float dst_x = 320.0f - scale * 80.0f;
+        const float dst_x = slide + 320.0f - scale * 80.0f;
         const float dst_y = (float)i * menu->y_stride + menu->y_origin
                           + 288.0f - scale * 16.0f;
         title_quad(dev, SCENE_TITLE_TEX_FUKI,
@@ -284,25 +286,30 @@ void scene_title_render(IDirect3DDevice8 *dev,
         const int lut = (code >= 0 && code < 9)
                           ? title_cursor_glyph_lut[code] : 0;
 
-        /* Top strip — decorative outline around the highlighted row. */
+        /* Tile 1 — decorative outline frame (224×112) pulled from
+         * (0, 0)..(224, 112) of fuki. dst.x = slide + 32. */
         title_quad(dev, SCENE_TITLE_TEX_FUKI,
-                   band_x + 32.0f, sy + 216.0f, 224.0f, 112.0f,
-                    0.0f, 32.0f, 224.0f, 64.0f,
+                   slide + 32.0f, sy + 216.0f, 224.0f, 112.0f,
+                    0.0f,  0.0f, 224.0f, 112.0f,
                    0xFFFFFFFF);
 
-        /* Big cursor-glyph (label like "New Game" / "Continue"). */
+        /* Tile 2 — the BIG label glyph (e.g. "New Game") via the
+         * 9-entry LUT at PE 0x005d1cd4. fuki has a 4-column grid of
+         * 224×128 tiles starting at y = 0x150 (336). dst overlaps
+         * tile 1 at the same (x, y) — modulate blend stacks them. */
         const float glyph_x0 = (float)((lut / 4) * 0xe0);
         const float glyph_y0 = (float)((lut % 4) * 0x80 + 0x150);
         const float glyph_x1 = (float)(((lut / 4) + 1) * 0xe0);
         const float glyph_y1 = (float)((lut % 4) * 0x80 + 0x1d0);
         title_quad(dev, SCENE_TITLE_TEX_FUKI,
-                   band_x + 32.0f, sy + 216.0f, 224.0f, 128.0f,
+                   slide + 32.0f, sy + 216.0f, 224.0f, 128.0f,
                    glyph_x0, glyph_y0, glyph_x1, glyph_y1,
                    0xFFFFFFFF);
 
-        /* Bottom decoration. */
+        /* Tile 3 — small 192×16 ribbon below the label at
+         * (slide + 224, sy + 296). Source (0, 144)..(192, 160). */
         title_quad(dev, SCENE_TITLE_TEX_FUKI,
-                   band_x + 224.0f, sy + 296.0f, 192.0f, 16.0f,
+                   slide + 224.0f, sy + 296.0f, 192.0f, 16.0f,
                    0.0f, 144.0f, 192.0f, 160.0f,
                    0xFFFFFFFF);
     }
