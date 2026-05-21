@@ -5,10 +5,16 @@ exe's .rsrc section.
 
 The engine ships 110 sound-effect WAVs as a *custom* PE resource type
 named "WAVE" (NOT the standard RT_WAVE / RT_RCDATA). At boot it walks
-a 110-entry ID table at &DAT_005d1584 (8-byte stride: u32 id + u32
-zero pad) and FindResourceA's each one out of itself before handing
-the resulting blob to IDirectMusicLoader::GetObject as a memory-
-backed segment.
+a 110-entry ID table at &DAT_005d1584 (8-byte stride: u32 resource_id
+at +0 + u32 channel_flag at +4) and FindResourceA's each one out of
+itself before handing the resulting blob to IDirectMusicLoader::
+GetObject as a memory-backed segment.
+
+The +4 column is the SE voice-group / AudioPath router that FUN_00499c63
+reads at playback time — see engine-quirks.md #46. In shipped vendor
+data every +4 cell is zero, so this extractor only consumes the +0
+column. If a future build populates +4 we'll resurrect the second
+column then.
 
 This tool:
   1. Parses the .rsrc tree of vendor/unpacked/recettear.unpacked.exe

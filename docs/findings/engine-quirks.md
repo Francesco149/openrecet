@@ -1443,6 +1443,68 @@ read the OOB value but the gate almost always blocks the call first.
 
 ---
 
+## 46. The SE table's "channel flag" column is all-zero in vendor data — voice-stealing and SE path B are dead code
+
+The 110-entry SE table at `&DAT_005d1584` is laid out as 8-byte rows of
+`(u32 resource_id, u32 channel_flag)`. The `audio_play_se` dispatch
+(`FUN_00499c63`) treats the +4 column as a routing/voice-group selector:
+
+```c
+piVar1 = &DAT_005d1588 + (int)slot * 2;     /* &row.channel_flag */
+if ((&DAT_005d1588)[(int)slot * 2] != 0) {
+    /* Cross-slot voice stealing: scan all 110 entries, Stop every
+     * currently-playing SE whose channel_flag matches this slot's. */
+    for (i = 0; i < 110; i++)
+        if (table[i].channel_flag == this.channel_flag)
+            performance->Stop(se_segments[i], 0, 0, 0);
+}
+
+if (*piVar1 == 0) play_on_path = path_se_a;   /* DAT_0964310c */
+else              play_on_path = path_se_b;   /* DAT_09643110 */
+```
+
+Two independent fade counters at `DAT_056e5774` (path A) and
+`DAT_056e577c` (path B) feed the same cos-curve we already ported
+(`audio_fade_compute`). The `PlaySegmentEx` call uses
+`DMUS_SEGF_QUEUE = 0x80` rather than BGM's default-flags (`0`), so
+same-path SE plays queue behind the prior segment unless voice-stealing
+fires.
+
+The reader does all the right things. The problem is the *data* —
+every one of the 110 `channel_flag` cells in vendor data is `0`:
+
+```
+$ python3 -c '...read SE table from .data...'
+nonzero col2 entries: 0/110
+flag distribution: {0: 110}
+```
+
+Net effect at runtime:
+
+- **Voice-stealing never fires** (gated on `flag != 0`).
+- **SE path B is created by `audio_init` but never used as a playback
+  target** — every `PlaySegmentEx` picks path A.
+- **The path-B fade counter at `DAT_056e577c` never decays** — the
+  branch reading it is dead.
+
+The dormant path could have been the engine's voice-grouping plan for,
+e.g., a "footsteps" group and a "UI clicks" group sharing path A, with
+"alarm sirens" preempting on path B. Someone presumably planned it,
+wired the dispatch, and then never populated the second column. The
+queue-flag (`DMUS_SEGF_QUEUE`) only matters when two same-path SEs
+collide without voice-stealing — which the data prevents.
+
+The port keeps a single-column resource-ID table (`audio_se_names.c`)
+and routes every SE to path A. The path-B path + voice-stealing scan
+will land if we ever observe a modded or alternate-release binary
+where the second column is non-zero.
+
+> 📍 `docs/decompiled/by-address/499c63.c`,
+> `src/audio_se_names.h` (header comment),
+> `docs/findings/audio-backend.md` ("SE resource layout").
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an

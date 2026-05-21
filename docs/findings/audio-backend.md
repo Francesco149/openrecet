@@ -215,10 +215,31 @@ vendor cross-check test (`test_audio_se_table_matches_vendor_bytes`)
 re-reads the table from the exe at boot and diffs against the C
 copy, so any future drift gets caught at test time.
 
-Per-slot AudioPath assignment + segment-state slots (`DAT_0964310c`
-vs `DAT_09643110`) are TODO; the engine alternates them as a
-poor-man's voice-stealing mitigation (so two concurrent SE triggers
-don't auto-stop each other).
+Per-slot AudioPath assignment is **data-driven** via the +4 column of
+each row in the engine, not round-robin: `FUN_00499c63` routes to path
+A when `row.channel_flag == 0` and path B otherwise, plus runs a
+cross-slot voice-stealing scan that Stops every SE sharing the same
+non-zero flag. In shipped vendor data the +4 column is all-zero for
+all 110 rows (verified by reading `&DAT_005d1584..&DAT_005d18f4` from
+the unpacked exe — 880 bytes, every `u32` at offset +4 is `0`). So
+the path-B route + the voice-stealing scan are **dead code at runtime**
+— every SE in vendor data routes to path A. See engine-quirks #46 for
+the full writeup. Phase B will still create both SE AudioPaths to
+match `audio_init`'s shape (engine fidelity), but the live
+`audio_play_se` will only ever dispatch onto path A.
+
+`PlaySegmentEx` is invoked with `dwFlags = DMUS_SEGF_QUEUE = 0x80`
+(vs BGM's default `0`), which would queue same-path SEs if the
+voice-stealing scan didn't preempt them. Since the scan never fires,
+the queueing flag is also effectively dormant in vendor data — the
+per-slot Stop right before each PlaySegmentEx (`Stop(performance,
+se_segments[slot], 0, 0, 0)`) handles repeat-trigger reset on its own.
+
+The `IDirectMusicSegmentState` returned by PlaySegmentEx is
+`QueryInterface`-upgraded to `IDirectMusicSegmentState8` and stored at
+`DAT_09642c6c[slot]`. The original pointer is `Release`d immediately
+afterwards. Phase B must mirror this — storing the un-upgraded type
+would leak the QI'd reference on the next trigger.
 
 ## Audio trace (opt-in JSONL)
 
@@ -301,17 +322,24 @@ In rough order of impact:
 
 1. **SE backend phase 2** — wire the Win32 half:
    - 2× `CreateStandardAudioPath` calls for the SE paths
-     (`DAT_0964310c`, `DAT_09643110`).
+     (`DAT_0964310c`, `DAT_09643110`). Path B stays unused for vendor
+     data (see engine-quirks #46) but the engine creates both, so we
+     do too.
    - windres `.rc` that embeds every blob in
      `vendor/unpacked/se-extracted/` under custom type `WAVE`
      keyed by the engine's original IDs. Total payload is ~3.2 MB;
-     gitignored extraction is already in place.
+     gitignored extraction is already in place. Slot 2's `0x0135`
+     ID is in the lookup table but missing from `.rsrc` — handle
+     gracefully (segment slot stays NULL, `audio_play_se(2)` no-ops).
    - Per-slot `FindResourceA` + `LoadResource`/`LockResource`/
      `SizeofResource` + `DMUS_OBJECTDESC` (`dwSize=0x350`,
      `dwValidData=DMUS_OBJ_CLASS|DMUS_OBJ_MEMORY=0x402`) +
      `IDirectMusicLoader::GetObject` for the 110 segments.
-   - `FUN_00499c63`'s body: round-robin between the two SE paths,
-     volume from `audio_fade_compute`, `PlaySegmentEx`.
+   - `FUN_00499c63`'s body: route every SE to path A (the path-B
+     branch is dead code in vendor data), volume from
+     `audio_fade_compute(DAT_056e5774)`, `PlaySegmentEx` with
+     `DMUS_SEGF_QUEUE=0x80`. Store the QI-upgraded `SegmentState8*`
+     into `DAT_09642c6c[slot]`.
 2. **Volume animation hookup** — `audio_fade_apply` is currently a
    no-op stub. Wire `IDirectMusicAudioPath8::SetVolume` once the SE
    port (which calls `audio_fade_compute` during SE volume blend)
