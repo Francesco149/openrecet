@@ -3,6 +3,31 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Harness: auto contact-sheet on smoke runs + ranked roadmap
+
+Small harness commit that lands ahead of the SE-backend port. Two halves:
+
+**Auto contact-sheet.** `tools/smoke-test.py` now invokes the existing
+`tools/contact-sheet.py` after a `--capture` run and writes
+`runs/<...>/contact.png` (single-source grid) — and additionally
+`diff-contact.png` (golden | new, side-by-side rows) when
+`--diff-against` is set. Subprocess-shells so behavior matches running
+the script by hand. Default cadence unchanged (still 1 fps); the new
+PNG is what makes a smoke run multimodally inspectable from inside
+assistant conversations. `--no-contact-sheet` for opt-out.
+
+**Roadmap doc.** `docs/harness-roadmap.md` captures the ranked
+graphics/audio tooling plan (Tier 1 immediate wins → Tier 3 heavier
+work). Notable Tier 3 entry: retail-side Frida instrumentation with
+**state-forcing hooks** — inject save / scene state into the
+unmodified retail exe so deterministic golden frames can be produced
+without an interactive play-through. Cross-link added to `PLAN.md` §6.
+
+**No source code changed.** Existing `--capture` still works exactly as
+before; the contact sheet is an additive output. Verified end-to-end
+with a back-to-back boot run + self-diff (SSIM 0.9996, both contact
+PNGs render cleanly).
+
 ## 2026-05-21 — Engine quirk #44 filed (button auto-repeat double-fire)
 
 Retro doc entry into `docs/findings/engine-quirks.md`. Quirk was

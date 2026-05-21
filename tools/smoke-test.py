@@ -269,6 +269,78 @@ def diff_runs(new_run: Path, golden_run: Path) -> Path:
     return report
 
 
+# ─── contact-sheet integration ────────────────────────────────────────────
+
+
+CONTACT_SHEET = ROOT / "tools" / "contact-sheet.py"
+
+
+def _frames_in(d: Path) -> list[Path]:
+    if not d.is_dir():
+        return []
+    return sorted(list(d.glob("*.bmp")) + list(d.glob("*.png")))
+
+
+def make_contact_sheets(run_dir: Path, diff_against: Path | None) -> None:
+    """Compose contact sheets from a smoke run's frames.
+
+    - Always emits <run_dir>/contact.png when frames exist (a single-source
+      grid of the new run).
+    - When `diff_against` is given, additionally emits
+      <run_dir>/diff-contact.png as a side-by-side grid (golden | new).
+
+    The PNG output is what makes a smoke run multimodally inspectable —
+    assistant `Read`s the PNG and forms an actual picture of the boot
+    sequence instead of relying on the SSIM number.
+
+    Failures here are non-fatal; the run itself already succeeded.
+    """
+    frames = run_dir / "frames"
+    new_frames = _frames_in(frames)
+    if not new_frames:
+        print("contact-sheet: skipped — no frames captured", file=sys.stderr)
+        return
+
+    out_single = run_dir / "contact.png"
+    cmd = [
+        sys.executable, str(CONTACT_SHEET),
+        "--src", str(frames),
+        "--out", str(out_single),
+    ]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print(
+            f"contact-sheet (single) failed: {r.stderr.strip()}",
+            file=sys.stderr,
+        )
+    else:
+        print(f"contact: {out_single.relative_to(ROOT)}")
+
+    if diff_against is not None:
+        golden_frames = diff_against / "frames"
+        if not _frames_in(golden_frames):
+            print(
+                "contact-sheet (diff): skipped — golden run has no frames",
+                file=sys.stderr,
+            )
+            return
+        out_diff = run_dir / "diff-contact.png"
+        cmd = [
+            sys.executable, str(CONTACT_SHEET),
+            "--left", str(golden_frames),
+            "--right", str(frames),
+            "--out", str(out_diff),
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            print(
+                f"contact-sheet (diff) failed: {r.stderr.strip()}",
+                file=sys.stderr,
+            )
+        else:
+            print(f"diff-contact: {out_diff.relative_to(ROOT)}")
+
+
 # ─── cli ──────────────────────────────────────────────────────────────────
 
 
@@ -292,6 +364,10 @@ def main() -> int:
         "--diff-against", type=Path, default=None,
         help="path to a previous run dir to SSIM-diff against",
     )
+    ap.add_argument(
+        "--no-contact-sheet", action="store_true",
+        help="skip the auto contact.png composition after --capture",
+    )
     args = ap.parse_args()
 
     yaml_path = ROOT / "tests/scenarios" / f"{args.scenario}.yaml"
@@ -309,6 +385,9 @@ def main() -> int:
         if not args.diff_against.exists():
             raise SystemExit(f"--diff-against not found: {args.diff_against}")
         diff_runs(run_dir, args.diff_against)
+
+    if args.capture and not args.no_contact_sheet:
+        make_contact_sheets(run_dir, args.diff_against)
 
     return 0
 

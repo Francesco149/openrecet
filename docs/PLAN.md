@@ -260,6 +260,12 @@ For every screen / scene change OpenRecet renders:
 For contact sheets, default to 320×240 per tile. Add `--zoom <rect>` to
 crop a region at full resolution when small differences need inspection.
 
+Ranked harness-improvements plan lives in `docs/harness-roadmap.md`
+(auto contact-sheet on smoke runs, per-pixel diff overlays,
+`--audio-trace` JSON, retail-side Frida instrumentation including
+state-forcing hooks for deterministic golden frames without an
+interactive play-through).
+
 ### Always-reproducible
 
 Every artifact derived from the original game (decompiled C, unpacked exe,
