@@ -3,6 +3,133 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Harness: pre-resume state-forcing + first differential test (LCG + cos-curve fade)
+
+Phase B's deferred half — calling vendor functions with forced state to
+diff against our ports — lands as MVP infra plus one end-to-end test.
+The two pure-math subsystems we picked first (RNG and audio_fade) both
+come back **bit-exact** to retail across the full input range. No
+divergence, no need for tolerance. The RPC + oracle plumbing generalises
+to any future pure-fn diff (LZSS/LZW decoders, lnkdatas_hash CRC, input
+mask decoder, tick scheduler).
+
+### What landed
+
+1. **`tools/frida/openrecet-agent.js` — state-forcing RPC surface.**
+   Five new RPC methods alongside the existing capture-side hooks:
+   - `readMemory(va, len)` / `writeMemory(va, hex)` — generic
+     byte-window access keyed on Ghidra VAs (preferred ImageBase
+     0x00400000, recomputed against actual load base on every call).
+   - `readU32(va)` / `writeU32(va, val)` — primitive shortcuts; the
+     two used by the LCG diff.
+   - `callU32NoArgs(va)` — invoke a u32-returning, no-arg cdecl
+     function via `NativeFunction`. Used to drive `FUN_005041f6`.
+   - `captureFadeCentibel(slider)` — purpose-built for the audio_fade
+     diff: plants a fake `IDirectMusicAudioPath` in `DAT_09643108`
+     whose vtable[5] (SetVolume) is a `NativeCallback` that records the
+     centibel argument before returning S_OK. Forces `DAT_056e5778`
+     (BGM slider) to the requested value, calls `FUN_00499583`,
+     restores both globals. Side-effect-free — host audio is never
+     touched.
+
+   Two breakages found and fixed along the way:
+   - `rpc.exports` keys must be **camelCase** in JS (not snake_case as
+     the original `queue_capture` / `get_frame` were). Frida-Python
+     auto-converts snake_case Python method calls to camelCase before
+     dispatch, so `write_u32` on the Python side maps to `writeU32` on
+     the JS side. The two existing exports were silently broken from
+     day 1; Phase B's driver only ever called `init` (no underscores),
+     so it never tripped. Filed as a project memory.
+   - `NativeFunction` rejects `'cdecl'` as an explicit ABI on x86 — the
+     valid token would be `'mscdecl'`, but the platform default does the
+     right thing for no-arg / void-return calls so we omit the argument.
+
+   `init({install_hooks: false})` skips the Phase B capture hooks —
+   the state-forcing tests never resume the main thread, so the
+   D3D/audio/input interceptors would never fire anyway.
+
+2. **`tools/state_diff/oracle.c` + Makefile — local "ground truth".**
+   Tiny host binary linking `src/rng.c` + `src/audio_fade.c`. Stdin
+   protocol:
+   - `rng_seq <seed_hex> <n>` → prints `n` post-step seed values
+     (raw `DAT_006023a0` state after each LCG call — directly
+     comparable to what `readU32(DAT_006023a0)` reads after
+     `callU32NoArgs(FUN_005041f6)`).
+   - `fade_compute <slider>` → prints
+     `audio_fade_compute(slider, 0)` for the BGM diff.
+   Built with host gcc, no sanitizers (it's not a unit test).
+   `audio_trace_emit_fade_start` stubbed in-file so we don't drag in
+   the 700-line `audio.c`.
+
+3. **`tools/state_diff/lcg_fade.py` — driver.** Spawns retail under
+   Frida in `CREATE_SUSPENDED` state and **never resumes the main
+   thread**. The Frida helper thread that runs the agent is independent
+   of the target's threads — it can invoke `NativeFunction` calls and
+   read/write process memory without any engine code executing. No
+   races against `FUN_00451790` (engine particle init advances the LCG)
+   or against the real audio backend. The oracle runs concurrently as a
+   long-lived stdin subprocess.
+
+### Results (cutestation.soy:27042, retail unpacked exe)
+
+```
+# LCG step (FUN_005041f6, DAT_006023a0)
+  pass seed=0x00000001  (256 steps bit-exact)
+  pass seed=0x00003039  (256 steps bit-exact)
+  pass seed=0xdeadbeef  (256 steps bit-exact)
+  pass seed=0x80000000  (256 steps bit-exact)
+  pass seed=0xfffffff0  (256 steps bit-exact)
+  pass seed=0x00000000  (256 steps bit-exact)
+
+# BGM fade curve (FUN_00499583)
+  pass slider=0  retail=-10000  ours=-10000  Δ=+0cb
+  pass slider=1  retail= -5391  ours= -5391  Δ=+0cb
+  pass slider=2  retail= -4231  ours= -4231  Δ=+0cb
+  pass slider=3  retail= -3176  ours= -3176  Δ=+0cb
+  pass slider=4  retail= -2245  ours= -2245  Δ=+0cb
+  pass slider=5  retail= -1458  ours= -1458  Δ=+0cb
+  pass slider=6  retail=  -829  ours=  -829  Δ=+0cb
+  pass slider=7  retail=  -371  ours=  -371  Δ=+0cb
+  pass slider=8  retail=   -93  ours=   -93  Δ=+0cb
+  pass slider=9  retail=     0  ours=     0  Δ=+0cb
+
+16 passed, 0 failed
+```
+
+- LCG: 6 seeds × 256 steps = 1536 individual u32 comparisons, all
+  bit-exact. Expected — the LCG is one `imul` + `add`, no FP, no
+  platform variation.
+- Fade: 10 slider values, all bit-exact (the `±1 centibel` tolerance
+  in the driver was never tripped). libm `cos()` and MSVC's
+  `FUN_00503994` round to the same `int32` after `__ftol` truncation
+  for every (slider, target=0) point on this curve.
+
+Deterministic across re-runs.
+
+### Follow-up candidates (same harness, same agent surface)
+
+The plumbing is generic — any pure or near-pure ported function gets a
+short driver script:
+
+1. **`lnkdatas_hash` CRC** — call `FUN_00474f14` with arbitrary buffers
+   via `Memory.alloc` + `writeMemory` + a `callU32_ptr_u32` variant.
+   Targets `src/lnkdatas_hash.c`.
+2. **LZSS decompress (`FUN_004349e5`)** — write a compressed buffer +
+   output buffer, call, `readMemory` the result; diff against
+   `src/lnk_lzss.c`. Already validated vs `recettear-repacker` Python.
+3. **LZW decompress (`FUN_00434b32`)** — same pattern; diff against
+   `src/bmp_lzw.c`. Already validated vs `recettear-repacker`.
+4. **Input mask decoder (`FUN_0047b73c`)** — synthesize a raw
+   DI keyboard buffer + joystick state + per-binding table, call,
+   `readU16(DAT_073dddd0)`; diff against `src/input.c` decoders.
+5. **Tick scheduler (`FUN_0047be92`)** — fixture engine ms-clock global,
+   tick once, observe state advance; diff against `src/tick.c`.
+
+The remaining audio-backend "Next steps" item (settings-menu slider
+producer `FUN_0047fc44`) and the splash/title-bootstrap port don't need
+state-forcing tests yet but will benefit from this surface once they
+land.
+
 ## 2026-05-22 — Harness Phase B: retail capture via Frida
 
 Phase B lands as planned at the bottom of yesterday's Phase A entry:

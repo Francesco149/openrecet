@@ -69,9 +69,42 @@ intentionally separated to keep each session focused:
   Auto-start helper for `frida-server.exe` via elevated
   Start-Process if the port isn't reachable.
 
-  **Deferred to a follow-up session: state-forcing** (save inject →
-  "drop me into shop day 5" + scene-dispatch jump). Same hook surface
-  but a separate scope; landing it now would have bounced the
+  **Save-inject + scene-dispatch state-forcing still deferred** —
+  separate scope from the Phase B+ pure-fn diff that landed below.
+
+- **Phase B+ — state-forcing for differential tests.** ✅ MVP landed
+  2026-05-22. Distinct from the save-inject / scene-jump effort above:
+  this branch targets *pure or near-pure* functions we've already
+  ported, calling them directly via `NativeFunction` and diffing the
+  output against an in-process oracle that links the matching `src/*.c`.
+  Pipeline:
+  - `tools/frida/openrecet-agent.js` gains 5 camelCase RPCs:
+    `readMemory` / `writeMemory` / `readU32` / `writeU32` /
+    `callU32NoArgs`, plus a purpose-built `captureFadeCentibel(slider)`
+    that plants a fake `IDirectMusicAudioPath` (vtable[5] =
+    `NativeCallback`) and forces the BGM slider to record what
+    `FUN_00499583` would have sent to `SetVolume`.
+  - `init({install_hooks: false})` skips the Phase B capture hooks
+    when we're only state-forcing — no main-thread resume needed.
+  - `tools/state_diff/oracle.c` links `src/rng.c` + `src/audio_fade.c`,
+    stdin protocol `rng_seq <seed_hex> <n>` + `fade_compute <slider>`.
+  - `tools/state_diff/lcg_fade.py` spawns retail `CREATE_SUSPENDED`
+    via Frida, **never resumes the main thread** (Frida's helper
+    thread runs the agent independently — `NativeFunction` calls
+    + memory ops work without the engine executing), forces seed /
+    slider, captures, diffs.
+  - Results: 6 seeds × 256 LCG steps (1536 u32 comparisons) + 10
+    fade slider values, all **bit-exact** to retail. cf. PROGRESS
+    2026-05-22 entry for the full log.
+
+  Same agent surface generalises to LZSS / LZW / lnkdatas_hash CRC /
+  input mask decoder / tick scheduler — one driver per subsystem,
+  reusing the same oracle pattern. See PROGRESS for the ranked
+  follow-up list.
+
+  **Deferred to a follow-up session** (the original save-inject /
+  scene-jump effort): same hook surface but a separate scope; landing
+  the bigger version now would have bounced the
   capture-pipeline session between two unfinished pieces.
 
 - **Phase C — PCM diff (deferred until needed).** Once both pipelines
