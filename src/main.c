@@ -30,6 +30,7 @@
 #include "rng.h"
 #include "scene_title.h"
 #include "sim.h"
+#include "music.h"
 #include "tick.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
@@ -234,6 +235,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     g_scene_title_anim.cursor_pos =
         (uint32_t)g_scene_title_menu.default_cursor;
     sim_init();
+    music_init();
 
     /* TODO "init fontsys ok"    — FUN_0047c228
      * TODO "init daoudio ok"    — FUN_00498ef4
@@ -253,13 +255,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     /* ─── main loop — mirrors the PeekMessage/WaitMessage idle pattern ─── */
     MSG msg = {0};
-    /* Game-tick callbacks. sim_a (FUN_004536cb, button ring + scene
-     * dispatch) is wired; sim_b (FUN_0049966a, music selector) is still
-     * a NULL stub — the scheduler tolerates that. */
+    /* Game-tick callbacks. sim_b (FUN_0049966a, music selector) picks
+     * a track each frame and would dispatch a swap; the actual audio
+     * backend (DirectMusic) is stubbed — current_track is updated but
+     * no sound plays. See src/music.{c,h}. */
     const struct tick_callbacks tick_cb = {
         .input_poll = input_poll,
         .sim_a      = sim_step_a,
-        .sim_b      = NULL,
+        .sim_b      = music_step_default,
         .render     = render_dispatch,
     };
     tick_init();

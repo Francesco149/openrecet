@@ -1327,6 +1327,56 @@ array. Bit-for-bit identical output, fewer DI calls.
 
 ---
 
+## 45. The music selector's title BGM lookup masks -1 to 0
+
+(Quirk #44 is the button auto-repeat double-fire, documented in the
+sim-port PROGRESS.md entry but not yet retro'd into this file.)
+
+The sim_b music selector (`FUN_0049966a`) calls `FUN_0049a558` once per
+frame to look up the title-screen track. That helper is gated:
+
+```c
+if (DAT_09643520 == 10 && DAT_09643524 == 4) {
+    return title_bgm_table[language * 2];   // .rdata 0x5d1be0
+}
+return -1;
+```
+
+Both flags stay at zero throughout the title's bare path (`cursor_anim`
+sits at 0 with `menu_folding_out=1`, no submenu open → `submenu_state`
+stays at 0). So the helper returns `-1` on every frame of a fresh boot.
+
+The caller in `FUN_0049966a` then masks that `-1` to `0`:
+
+```c
+uVar5 = FUN_0049a558();
+uVar5 = -(uint)(uVar5 != 0xffffffff) & uVar5;
+```
+
+When `uVar5 == 0xffffffff`, `(uVar5 != -1)` evaluates to `0`,
+`-(uint)0 == 0`, and `0 & 0xffffffff == 0`. So `-1 → 0`. The selector
+then hands `0` to the swap dispatcher, which queues
+`bgm/retitle2010.wma` — the title music. The lookup table is never
+consulted at all in this boot path.
+
+The fall-back-to-zero is deliberate: it guarantees the title screen
+always has music even when the gate doesn't fire. The actual table at
+`0x5d1be0` only gets read when the player opens a submenu (cursor
+folds out fully → `cursor_anim == 10`; submenu enters state `4`).
+
+The `language` global (`DAT_005d1bd8`) is also init'd to `-1`, so even
+*if* the gate ever passed before `recet.ini` set the language, the
+indexing arithmetic `lang * 8 + 0x5d1be0` would walk 8 bytes *before*
+the table — landing on `language` itself + a few bytes of garbage.
+Our port adds a defensive `[0, 8)` guard; the engine would happily
+read the OOB value but the gate almost always blocks the call first.
+
+> 📍 `src/music.c:title_bgm_select`,
+> `docs/decompiled/by-address/49966a.c` L60-62 (caller mask),
+> `docs/decompiled/by-address/49a558.c` (the gate + lookup).
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an

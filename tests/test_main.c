@@ -433,7 +433,35 @@ struct test_case {
     X(sim_button_ring_multiple_bits_independent) \
     X(sim_init_zeros_state) \
     X(sim_step_a_advances_frame_count) \
-    X(sim_step_a_pipes_input_into_ring)
+    X(sim_step_a_pipes_input_into_ring) \
+    \
+    X(music_init_engine_data_defaults) \
+    X(music_select_title_bare_returns_track_zero) \
+    X(music_select_title_bare_holds_until_fade_band) \
+    X(music_select_title_fade_band_returns_none) \
+    X(music_select_title_stop_sentinel) \
+    X(music_select_title_post_stop_no_change) \
+    X(music_select_title_submenu_open_uses_table_lookup) \
+    X(music_select_title_invalid_language_falls_back_to_zero) \
+    X(music_select_forced_override_wins) \
+    X(music_select_pause_modal_routes_to_over) \
+    X(music_select_pause_modal_other_b_not_one_skips_override) \
+    X(music_select_state_7_returns_none) \
+    X(music_select_state_9_no_quest_returns_none) \
+    X(music_select_state_9_quest_pending_returns_fanfare) \
+    X(music_select_town_states_return_track_one) \
+    X(music_step_increments_frame_count) \
+    X(music_step_title_bare_dispatches_track_zero_once) \
+    X(music_step_speed_drops_to_0_75_at_state_10) \
+    X(music_step_global_pause_blocks_dispatch) \
+    X(music_step_se_stop_pending_sweeps_and_clears) \
+    X(music_step_pending_fade_phase_latches) \
+    X(music_step_no_modal_clears_fade_and_forced) \
+    X(music_step_paused_b_keeps_forced_track) \
+    X(music_step_target_volume_default_is_one) \
+    X(music_step_target_volume_fade_band_decreases) \
+    X(music_step_stop_sentinel_dispatches_track_minus_two) \
+    X(music_step_forced_override_dispatches_overridden_track)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

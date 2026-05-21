@@ -3,6 +3,118 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — sim_b music selector ported (FUN_0049966a)
+
+Second half of the per-frame sim, the music-track selector. Wired into
+`tick_cb.sim_b` so the scheduler now drives both halves. No audible
+output — the actual DirectMusic backend (FUN_00499200 load+play,
+FUN_00499583 volume apply, FUN_00499c63 SE stop) is still stubbed —
+but the selector picks the same track index the engine would on every
+frame, and a Win32 boot still renders the title pixel-identically to
+the prior commit.
+
+**What landed:**
+
+- **`src/music.{c,h}` — full FUN_0049966a port.** Pure-C
+  `music_select_track(state, ctx)` returns the desired track index
+  (or `-1` keep / `-2` stop sentinel) for any combination of
+  `scene_state` + `title_frame_counter` + pause/modal flags +
+  forced override. Pure-C `music_step(state, ctx)` runs the whole
+  body: SE-stop sweep (110 slots), fade-phase latch, music-speed
+  update (0.75 at state 10, 1.0 elsewhere), frame-count advance,
+  pause-modal-clear, target-volume curve for the title fade band,
+  selector dispatch, and the stubbed swap call.
+- **Title-screen specifics:** state 0 + `frame_counter ∈ [0, 0x1b6d)`
+  → track 0 (`bgm/retitle2010.wma`) via the `-1 → 0` masking quirk;
+  `[0x1b6d, 0x1ba7)` → fade-out volume ramp (1.0 → ~0.90 over 59
+  frames, formula `1.0 - (f - 0x1b6c) / 600.0`); `f == 0x1ba7` →
+  STOP sentinel (-2); `f > 0x1ba7` → no change.
+- **Non-title state branches ported faithfully:** state 7 returns
+  NONE (no change); state 9 + `quest_pending != 0` → FANFARE (0xb);
+  states 6/8/0xb/0xd/0xe/0xf/0x10 → TOWN (1); pause-modal-override
+  (`pause_modal_state != 0 && pause_modal_a == 0 && pause_modal_b
+  == 1`) → OVER (7). Stage-dispatch branch (states 1..5, 10, 11, 12
+  reading `&DAT_068dd3fc[stage * 0x6cf]`) is stubbed to NONE — lands
+  when the stage descriptor table loads.
+- **Track-table extracted:** `tools/analyze/pe.py` pulled the 12
+  music filenames from .rdata 0x5d1ae4..0x5d1b98 and the 8-entry
+  title BGM table at 0x5d1be0 (entries 0/1/3/4/5/6/7/8 — track id
+  in low dword, `1` in high dword as some kind of mode flag).
+  Stable across rebuilds; embedded in `src/music.c` as constants.
+- **Wired into the scheduler.** `tick_cb.sim_b = music_step_default`
+  in `src/main.c`. The default wrapper pins scene state to 0 and
+  reads `title_frame_counter` / `title_cursor_anim` from
+  `g_scene_title_anim`. `title_submenu_state` is hardcoded to 0
+  (the press-dispatch branches of FUN_0049a59e that would mutate
+  it haven't ported yet — for now the title BGM lookup gate never
+  fires and we stay on track 0 forever, matching the engine).
+
+**Stubbed (with comments at each cut-point):**
+
+- The track-swap call (`FUN_00499200`) — would normally load the
+  DirectMusic segment from the per-track filename pointer at
+  `DAT_09643038[track]` and start playback. Stubbed to just update
+  `current_track` and bump `swap_call_count`. When the audio
+  backend lands, replace the increment with a real swap.
+- The SE-stop call (`FUN_00499c63`) — clears the slot and bumps a
+  counter; backend would actually stop the SE channel.
+- The volume-animation tail (`FUN_00499583` + `FUN_00451874` MCI
+  "VOL %d" command + `DAT_09643108->SetVolume`) — short-circuited
+  the same way the engine does it (`DAT_09643108 == 0`).
+
+**Engine quirk #45 — title BGM lookup masks `-1` to `0`.**
+`FUN_0049a558` returns `-1` when the cursor-anim+submenu gate fails
+(which is always at boot). The caller in `FUN_0049966a` does
+`uVar5 = -(uint)(uVar5 != -1) & uVar5`, which masks `-1 → 0`. So
+the title screen always plays track 0 (`bgm/retitle2010.wma`)
+regardless of language. The table at `0x5d1be0` only gets consulted
+once the player opens a submenu (cursor folds fully out,
+submenu enters state 4). Documented as
+`docs/findings/engine-quirks.md` §45. Faithfully reproduced by
+`src/music.c:title_bgm_select` + the `(pick == -1) ? 0 : pick`
+conditional in `music_select_track`.
+
+**Tests.** 27 new (total 403, was 376):
+- `test_music.c`:
+  - `music_init_engine_data_defaults` — initial values match
+    .rdata writers (current=-1, forced=-1, duration=0x258, vol=1.0,
+    speed=1.0, language=-1, pending_swap_clear=1).
+  - 8× selector cases (title bare/fade-band/stop/post-stop,
+    submenu-open with valid + invalid language, forced override,
+    pause-modal-override on/off, state 7/8/9 quirks, town states
+    sweep).
+  - 12× step cases (frame-count advance, bare-path dispatches
+    track 0 once, state-10 drops speed to 0.75, global pause
+    blocks dispatch, SE-stop sweep clears and counts, pending
+    fade-phase latches, no-modal clears fade + override, paused_b
+    preserves override, target_volume default + fade band ramp,
+    stop sentinel dispatches -2, forced override dispatches with
+    modal active).
+
+**Visible result.** Boot trace unchanged from the previous commit
+(all 17 tables load, recet.ini reads, title BG renders at 1024x768,
+exit clean). No audio output yet — backend isn't ported. The
+`current_track` global progresses from -1 → 0 → 0 → 0 → … silently;
+once the audio backend lands, `bgm/retitle2010.wma` will start
+playing on the second sim_b tick.
+
+**Still deferred from the prior commit (this one didn't fix):** the
+non-selected menu items still look washed out vs retail — needs an
+RE pass on FUN_0049c644's draw block (likely a missing SPECULAR
+texture-stage overlay). Unrelated to sim_b.
+
+**Not yet ported (per sim_b's contract):**
+- The actual DirectMusic backend (FUN_004902fe init,
+  FUN_00498ef4/FUN_00499200 segment load+play, MCI volume bridge).
+  Bigger separate concern; needs DirectSound + WMM glue.
+- The stage-dispatch branch (states 1..5/10..12 with per-stage
+  music ID via `&DAT_068dd3fc[stage * 0x6cf]`). Gated on stage
+  scenes porting — the stage descriptor table at `DAT_068dd3fc`
+  has stride 0x6cf bytes per entry; data loader not ported.
+- The title submenu carrier (`DAT_09643524`). Gated on the
+  press-dispatch branches of FUN_0049a59e. Until then, the
+  music_step wrapper hardcodes submenu_state = 0.
+
 ## 2026-05-21 — Title sim ported (FUN_0049a59e bare path + minimal sim_a)
 
 The title menu now animates: BG scroll keeps going under focus loss
