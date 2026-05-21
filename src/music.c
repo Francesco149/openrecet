@@ -24,6 +24,7 @@
 
 #include "music.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "scene_title.h"   /* g_scene_title_anim — for music_step_default */
@@ -240,6 +241,8 @@ void music_step(music_state_t            *m,
         /* Real-backend path: call (stubbed) FUN_00499200. */
         m->swap_call_count++;
         m->last_requested_track = desired;
+        fprintf(stderr, "music: swap #%d → track %d (frame %d)\n",
+                (int)m->swap_call_count, (int)desired, (int)m->frame_count);
         m->current_track = desired;
         m->pending_swap_clear = 0;
         /* TODO: FUN_00499200(desired) — load + start DirectMusic segment. */
@@ -249,6 +252,8 @@ void music_step(music_state_t            *m,
          * inside the switch in the engine; we mirror it. */
         m->swap_call_count++;
         m->last_requested_track = desired;
+        fprintf(stderr, "music: swap #%d → track %d (frame %d, debug-path)\n",
+                (int)m->swap_call_count, (int)desired, (int)m->frame_count);
         m->current_track = desired;
         m->pending_swap_clear = 0;
     }
