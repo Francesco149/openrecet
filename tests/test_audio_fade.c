@@ -221,3 +221,176 @@ int test_audio_fade_apply_rejects_invalid_channel(void)
     audio_fade_reset();
     return 0;
 }
+
+/* ─── per-tick fade animation (FUN_0049966a tail) ──────────────────────
+ *
+ * Phase 1 (fade-OUT): cos(angle_progress) = cos(progress*π/2/duration),
+ *   so at progress=0 the cos is 1.0 (loud) and at progress=duration it's
+ *   0.0 (silence). With slider=9 (cos(0)=1), result spans
+ *   [0, -9600].
+ * Phase 2 (fade-IN): cos(angle_progress) = cos((duration-progress)*π/2/
+ *   duration), so at progress=0 cos is 0.0 (silence) and at
+ *   progress=duration cos is 1.0 (loud). */
+
+int test_audio_fade_progress_phase1_starts_loud(void)
+{
+    /* Phase 1, progress=0, slider=9: cos(0)*cos(0)*9600 - 9600 = 0 (loud). */
+    int32_t got = audio_fade_progress_centibel(1, 0, 600, 9);
+    T_ASSERT_EQ_I(got, 0);
+    return 0;
+}
+
+int test_audio_fade_progress_phase1_ends_silent(void)
+{
+    /* Phase 1, progress=duration, slider=9: cos(π/2)*cos(0)*9600 - 9600
+     * ≈ 0 * 1 * 9600 - 9600 = -9600 (math-floor silence). */
+    int32_t got = audio_fade_progress_centibel(1, 600, 600, 9);
+    /* Allow 2-centibel slack on the cosine asymptote. */
+    T_ASSERT(got <= -9598);
+    T_ASSERT(got >= -9600);
+    return 0;
+}
+
+int test_audio_fade_progress_phase1_monotonic_decreasing(void)
+{
+    /* Phase 1 with slider=9 — cos(progress) is monotonically decreasing
+     * over [0, π/2], so the centibel walks loud → silent. Sample every
+     * 50 frames over duration=600. */
+    int32_t prev = audio_fade_progress_centibel(1, 0, 600, 9);
+    for (int32_t p = 50; p <= 600; p += 50) {
+        int32_t cur = audio_fade_progress_centibel(1, p, 600, 9);
+        if (cur >= prev) {
+            T_FAIL("progress %d centibel %d not strictly < prev %d",
+                   (int)p, (int)cur, (int)prev);
+        }
+        prev = cur;
+    }
+    return 0;
+}
+
+int test_audio_fade_progress_phase2_starts_silent(void)
+{
+    /* Phase 2, progress=0: angle_progress = (duration-0)*π/2/duration =
+     * π/2, cos=0, centibel = 0*cos(slider_angle)*9600 - 9600 = -9600. */
+    int32_t got = audio_fade_progress_centibel(2, 0, 600, 9);
+    T_ASSERT(got <= -9598);
+    T_ASSERT(got >= -9600);
+    return 0;
+}
+
+int test_audio_fade_progress_phase2_ends_loud(void)
+{
+    /* Phase 2, progress=duration: angle_progress=0, cos=1, centibel=0. */
+    int32_t got = audio_fade_progress_centibel(2, 600, 600, 9);
+    T_ASSERT_EQ_I(got, 0);
+    return 0;
+}
+
+int test_audio_fade_progress_phase2_monotonic_increasing(void)
+{
+    int32_t prev = audio_fade_progress_centibel(2, 0, 600, 9);
+    for (int32_t p = 50; p <= 600; p += 50) {
+        int32_t cur = audio_fade_progress_centibel(2, p, 600, 9);
+        if (cur <= prev) {
+            T_FAIL("progress %d centibel %d not > prev %d",
+                   (int)p, (int)cur, (int)prev);
+        }
+        prev = cur;
+    }
+    return 0;
+}
+
+int test_audio_fade_progress_lower_slider_attenuates_peak(void)
+{
+    /* Phase 2 at progress=duration is the loudest point of the fade-in.
+     * Lower slider → more attenuation even at the peak.
+     *
+     * slider=9: peak = 0
+     * slider=0: peak = cos(0)*cos(2π/5)*9600 - 9600
+     *                 ≈ 1 * 0.309 * 9600 - 9600 ≈ -6633 */
+    int32_t loud   = audio_fade_progress_centibel(2, 600, 600, 9);
+    int32_t quiet0 = audio_fade_progress_centibel(2, 600, 600, 0);
+    T_ASSERT(loud > quiet0);
+    T_ASSERT(quiet0 < -6600);
+    T_ASSERT(quiet0 > -6700);
+
+    /* Same for phase 1 at progress=0 (the loudest point of fade-OUT). */
+    loud   = audio_fade_progress_centibel(1, 0, 600, 9);
+    quiet0 = audio_fade_progress_centibel(1, 0, 600, 0);
+    T_ASSERT(loud > quiet0);
+    return 0;
+}
+
+int test_audio_fade_progress_slider_clamped(void)
+{
+    /* slider <0 clamps to 0; slider >9 clamps to 9. */
+    int32_t a = audio_fade_progress_centibel(1, 0, 600, -5);
+    int32_t b = audio_fade_progress_centibel(1, 0, 600,  0);
+    T_ASSERT_EQ_I(a, b);
+    a = audio_fade_progress_centibel(1, 0, 600, 50);
+    b = audio_fade_progress_centibel(1, 0, 600,  9);
+    T_ASSERT_EQ_I(a, b);
+    return 0;
+}
+
+int test_audio_fade_progress_progress_clamped_and_overshoot(void)
+{
+    /* progress > duration clamps to duration. */
+    int32_t at_end       = audio_fade_progress_centibel(1, 600, 600, 9);
+    int32_t at_overshoot = audio_fade_progress_centibel(1, 999, 600, 9);
+    T_ASSERT_EQ_I(at_end, at_overshoot);
+
+    /* progress < 0 clamps to 0. */
+    int32_t at_start     = audio_fade_progress_centibel(2, 0, 600, 9);
+    int32_t at_neg       = audio_fade_progress_centibel(2, -42, 600, 9);
+    T_ASSERT_EQ_I(at_start, at_neg);
+    return 0;
+}
+
+int test_audio_fade_progress_degenerate_duration_falls_back_to_slider(void)
+{
+    /* duration<=0 returns the slider-only baseline. */
+    T_ASSERT_EQ_I(audio_fade_progress_centibel(1, 0,  0, 9),
+                  audio_fade_compute(9, 0));
+    T_ASSERT_EQ_I(audio_fade_progress_centibel(2, 0, -1, 4),
+                  audio_fade_compute(4, 0));
+    /* phase==0 likewise falls back. */
+    T_ASSERT_EQ_I(audio_fade_progress_centibel(0, 100, 600, 5),
+                  audio_fade_compute(5, 0));
+    return 0;
+}
+
+int test_audio_fade_apply_progress_drives_hook(void)
+{
+    audio_fade_reset();
+    audio_fade_set_apply_hook(test_apply_hook);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, 9);
+    g_apply_hook_calls = 0;
+
+    /* Phase 1, progress=0, slider=9 → centibel 0. */
+    int32_t got = audio_fade_apply_progress(AUDIO_FADE_CHANNEL_BGM, 1, 0, 600);
+    T_ASSERT_EQ_I(g_apply_hook_calls, 1);
+    T_ASSERT_EQ_I(g_apply_hook_last_channel, AUDIO_FADE_CHANNEL_BGM);
+    T_ASSERT_EQ_I(g_apply_hook_last_centibel, 0);
+    T_ASSERT_EQ_I(got, 0);
+
+    /* Phase 1, progress=duration → silence-ish. */
+    got = audio_fade_apply_progress(AUDIO_FADE_CHANNEL_BGM, 1, 600, 600);
+    T_ASSERT_EQ_I(g_apply_hook_calls, 2);
+    T_ASSERT(g_apply_hook_last_centibel <= -9598);
+
+    audio_fade_reset();
+    return 0;
+}
+
+int test_audio_fade_apply_progress_rejects_invalid_channel(void)
+{
+    audio_fade_reset();
+    audio_fade_set_apply_hook(test_apply_hook);
+    g_apply_hook_calls = 0;
+    audio_fade_apply_progress(-1, 1, 100, 600);
+    audio_fade_apply_progress(AUDIO_FADE_CHANNEL_COUNT, 1, 100, 600);
+    T_ASSERT_EQ_I(g_apply_hook_calls, 0);
+    audio_fade_reset();
+    return 0;
+}

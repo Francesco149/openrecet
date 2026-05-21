@@ -115,6 +115,50 @@ int  audio_fade_get_slider(int channel);
  * site. */
 int32_t audio_fade_channel_centibel(int channel);
 
+/* Per-tick fade animation centibel (FUN_0049966a LAB_00499a00 — the
+ * two-axis cos product). Computes one frame's volume during an
+ * in-progress fade:
+ *
+ *   angle_progress = (phase == 1 ? progress : duration - progress)
+ *                    * π/2 / duration
+ *   angle_slider   = (9 - slider) * 2π/5 / 9
+ *   centibel       = cos(angle_progress) * cos(angle_slider) * 9600 - 9600
+ *
+ * Phase semantics (per the assembly — the two branches at 0x499a2b /
+ * 0x499a9e of FUN_0049966a):
+ *   phase == 1: cos(angle_progress) goes 1.0 → 0.0 as progress
+ *               advances 0 → duration  ⇒ audible fade-OUT
+ *   phase != 1 (and != 0): cos(angle_progress) goes 0.0 → 1.0
+ *                          ⇒ audible fade-IN
+ *
+ * Clamping (defensive — engine never sees out-of-range, but a defined
+ * result is friendlier than UB):
+ *   - slider     clamped to [0, 9]
+ *   - progress   clamped to [0, duration]
+ *   - duration <= 0 returns the slider's baseline centibel (i.e.,
+ *     audio_fade_compute(slider, 0) — equivalent to "fade complete"
+ *     for fade-in, "fade just started" for fade-out).
+ *   - phase == 0 returns the slider's baseline centibel; callers should
+ *     not invoke this with phase==0 (it's the "idle" sentinel).
+ */
+int32_t audio_fade_progress_centibel(int phase,
+                                     int32_t progress,
+                                     int32_t duration,
+                                     int slider);
+
+/* Per-tick fade-application: combines `audio_fade_progress_centibel`
+ * with the channel's current slider, then forwards the result to the
+ * apply hook (no trace event — the per-tick fade fires up to
+ * `duration` times so per-frame tracing would swamp the JSONL log).
+ *
+ * Returns the centibel that was sent to the hook (or would have been
+ * sent if no hook is installed). Invalid channel returns 0 + no-op.
+ */
+int32_t audio_fade_apply_progress(int channel,
+                                  int phase,
+                                  int32_t progress,
+                                  int32_t duration);
+
 /* Apply `channel`'s current slider to whatever output that channel
  * drives. Pure C — emits a `fade_start` trace event (audio.h) and then
  * delegates the platform call (IDirectMusicAudioPath::SetVolume on

@@ -8,6 +8,7 @@
  */
 
 #include "t.h"
+#include "audio_fade.h"
 #include "music.h"
 
 /* Construct a default-engine-state context with state==0 (title) and
@@ -418,5 +419,157 @@ int test_music_step_forced_override_dispatches_overridden_track(void)
     T_ASSERT_EQ_I(m.swap_call_count,      1);
     /* Forced override is NOT cleared while modal is active. */
     T_ASSERT_EQ_I(m.forced_track,         MUSIC_TRACK_BOSS);
+    return 0;
+}
+
+/* ─── step: per-tick fade animation (FUN_0049966a tail) ──────────────── */
+
+/* Hook capture shared by the music-step fade tests. Lives in this TU so
+ * test_audio_fade.c's identically-named statics don't clash. */
+static int     g_fade_apply_calls   = 0;
+static int32_t g_fade_apply_last_cb = 0;
+static void music_test_apply_hook(int channel, int32_t centibel)
+{
+    (void)channel;
+    g_fade_apply_calls++;
+    g_fade_apply_last_cb = centibel;
+}
+
+int test_music_step_fade_phase_advances_progress(void)
+{
+    /* fade_phase != 0 + pause_modal_state != 0 (so step-5 doesn't reset
+     * the phase) → each step increments fade_progress, apply hook fires
+     * once per step. */
+    audio_fade_reset();
+    audio_fade_set_apply_hook(music_test_apply_hook);
+    g_fade_apply_calls = 0;
+
+    music_state_t m; music_init(); m = g_music;
+    m.fade_phase         = 1;         /* fade-OUT */
+    m.fade_duration      = 600;
+    m.pause_modal_state  = 1;         /* keep step-5 from clearing phase */
+    music_select_ctx_t c = ctx_title_bare(0);
+
+    music_step(&m, &c);
+    T_ASSERT_EQ_I(m.fade_progress, 1);
+    T_ASSERT_EQ_I(m.fade_apply_count, 1);
+    T_ASSERT_EQ_I(g_fade_apply_calls, 1);
+
+    music_step(&m, &c);
+    music_step(&m, &c);
+    T_ASSERT_EQ_I(m.fade_progress, 3);
+    T_ASSERT_EQ_I(g_fade_apply_calls, 3);
+
+    audio_fade_reset();
+    return 0;
+}
+
+int test_music_step_fade_phase_one_walks_to_silence(void)
+{
+    /* Short duration so we can run the fade to completion in a unit
+     * test (default 600 would be slow). Phase 1 = fade-OUT → centibel
+     * trends downward from 0 toward the math floor. */
+    audio_fade_reset();
+    audio_fade_set_apply_hook(music_test_apply_hook);
+    g_fade_apply_calls = 0;
+
+    music_state_t m; music_init(); m = g_music;
+    m.fade_phase         = 1;
+    m.fade_duration      = 10;
+    m.pause_modal_state  = 1;
+    m.pending_swap_clear = 0;
+    music_select_ctx_t c = ctx_title_bare(0);
+
+    /* First step: progress 0→1, centibel near full target (0). */
+    music_step(&m, &c);
+    int32_t cb_first = m.last_fade_centibel;
+
+    /* Run to completion. */
+    for (int i = 0; i < 12; i++) music_step(&m, &c);
+
+    /* Last computed centibel was at progress=duration → near -9600.
+     * Then phase cleared & progress reset; pending_swap_clear set. */
+    T_ASSERT(cb_first > -3000);                   /* started loud */
+    T_ASSERT_EQ_I(m.fade_phase, 0);
+    T_ASSERT_EQ_I(m.fade_progress, 0);
+    T_ASSERT_EQ_I(m.pending_swap_clear, 1);
+    T_ASSERT(m.last_fade_centibel <= -9598);      /* ended silent */
+
+    audio_fade_reset();
+    return 0;
+}
+
+int test_music_step_fade_phase_two_walks_to_loud(void)
+{
+    /* Phase 2 = fade-IN → centibel trends UP from silence toward target. */
+    audio_fade_reset();
+    audio_fade_set_apply_hook(music_test_apply_hook);
+    g_fade_apply_calls = 0;
+
+    music_state_t m; music_init(); m = g_music;
+    m.fade_phase         = 2;
+    m.fade_duration      = 10;
+    m.pause_modal_state  = 1;
+    music_select_ctx_t c = ctx_title_bare(0);
+
+    music_step(&m, &c);
+    int32_t cb_first = m.last_fade_centibel;
+
+    for (int i = 0; i < 12; i++) music_step(&m, &c);
+
+    T_ASSERT(cb_first < -6000);                   /* started silent */
+    T_ASSERT_EQ_I(m.fade_phase, 0);
+    T_ASSERT_EQ_I(m.fade_progress, 0);
+    T_ASSERT_EQ_I(m.pending_swap_clear, 1);
+    T_ASSERT_EQ_I(m.last_fade_centibel, 0);       /* ended at full target */
+
+    audio_fade_reset();
+    return 0;
+}
+
+int test_music_step_no_fade_skips_apply_hook(void)
+{
+    /* fade_phase == 0 → tail is a no-op, no hook calls, no progress
+     * advance. */
+    audio_fade_reset();
+    audio_fade_set_apply_hook(music_test_apply_hook);
+    g_fade_apply_calls = 0;
+
+    music_state_t m; music_init(); m = g_music;
+    /* fade_phase already 0 from init. */
+    music_select_ctx_t c = ctx_title_bare(0);
+
+    music_step(&m, &c);
+    music_step(&m, &c);
+    T_ASSERT_EQ_I(g_fade_apply_calls, 0);
+    T_ASSERT_EQ_I(m.fade_apply_count, 0);
+    T_ASSERT_EQ_I(m.fade_progress,    0);
+
+    audio_fade_reset();
+    return 0;
+}
+
+int test_music_step_pending_fade_phase_drives_animation(void)
+{
+    /* Engine pattern: external code sets pending_fade_phase + duration
+     * via FUN_00499538/c, sim_b latches it on the next step, and the
+     * tail begins applying volumes. */
+    audio_fade_reset();
+    audio_fade_set_apply_hook(music_test_apply_hook);
+    g_fade_apply_calls = 0;
+
+    music_state_t m; music_init(); m = g_music;
+    m.pending_fade_phase = 1;
+    m.fade_duration      = 10;
+    m.pause_modal_state  = 1;        /* keep step-5 from clearing */
+    music_select_ctx_t c = ctx_title_bare(0);
+
+    music_step(&m, &c);
+    /* pending was latched, phase active, first frame applied. */
+    T_ASSERT_EQ_I(m.pending_fade_phase, 0);
+    T_ASSERT_EQ_I(m.fade_phase,         1);
+    T_ASSERT_EQ_I(g_fade_apply_calls,   1);
+
+    audio_fade_reset();
     return 0;
 }

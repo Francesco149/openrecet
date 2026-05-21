@@ -3,6 +3,51 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Audio: per-tick fade animation (FUN_0049966a tail)
+
+Closes item #2 from `audio-backend.md` "Next steps". The volume tail at
+LAB_00499a00 walks a two-axis cosine product over `DAT_005d1964`
+(=600 by default) frames; this commit ports it end-to-end and wires it
+into `music_step`.
+
+- **Pure math** in `src/audio_fade.{c,h}`:
+  `audio_fade_progress_centibel(phase, progress, duration, slider)` is
+  the two-cos product
+  `cos(angle_progress) * cos(angle_slider) * 9600 - 9600` with the
+  slider angle reused from the existing per-frame cos arc and a new
+  per-progress angle that spans `[0, π/2]`. Defensive clamping on
+  slider/progress/duration so call sites stay simple.
+- **Hook wrapper**: `audio_fade_apply_progress(channel, phase,
+  progress, duration)` mirrors the existing `audio_fade_apply` but
+  bypasses the trace emit (the per-tick path can fire up to 600 times
+  per fade — a per-frame `fade_start` event would swamp the JSONL).
+- **Integration** in `src/music.c::music_step`: replaces the stubbed
+  volume-animation tail with the real flow — advance `fade_progress`,
+  call `audio_fade_apply_progress` against the BGM channel, set
+  `pending_swap_clear = 1` at fade end, reset `fade_progress` on
+  phase clear. Engine's `DAT_0438cd70` "carry-over" gate is BSS-zero
+  in every observed boot/play trace, so the port pins it to
+  "always clear" (annotated; revisit if a future scene flips it).
+- **Phase semantics correction**: the music.h comment had
+  `1=in, 2=out`. Re-reading the assembly at 0x499a2b (phase==1) vs
+  0x499a9e (else) showed the opposite — phase 1's cos(angle_progress)
+  starts at 1.0 and decays to 0.0 across `progress`, i.e. audible
+  fade-OUT; phase 2 is the inverse. Comment fixed. Setter call
+  signature also lines up: `FUN_00499538(duration)` takes a duration
+  arg and sets phase 1, `FUN_0049954c()` takes no args and sets
+  phase 2 — "here's how long to fade out" + "now fade back in".
+- **Tests**: 17 new (475 total, was 458). Pure-math coverage of both
+  phases at endpoints + monotonicity, slider/progress clamping,
+  degenerate-duration fallback. music_step integration tests run
+  short-duration fades to completion under a captured apply hook,
+  asserting per-tick centibel direction + final `pending_swap_clear`
+  + progress reset.
+
+Smoke boot: title BGM still audible, exe exits 0, no warnings. The
+fade tail itself is dormant at boot because nothing yet sets
+`pending_fade_phase` — that comes with the title→submenu transition
+or the settings-menu producer (item #3 on the queue).
+
 ## 2026-05-21 — Audio: `audio_fade_apply` live + revert phase-B deviations
 
 Closes the audio-cleanup track that was queued after SE phase B landed.

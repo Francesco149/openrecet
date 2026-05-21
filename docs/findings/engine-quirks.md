@@ -1503,6 +1503,44 @@ where the second column is non-zero.
 > `src/audio_se_names.h` (header comment),
 > `docs/findings/audio-backend.md` ("SE resource layout").
 
+## 47. Per-tick fade phase 1/2 produce the opposite of their intuitive labels
+
+**Severity:** documentation footgun (not a runtime bug).
+
+The fade-animation tail at `FUN_0049966a` LAB_00499a00 selects between
+two cosine schedules based on `DAT_09643114` ("fade_phase"):
+
+- **phase 1** (assembly at 0x499a2b): `angle_progress = progress * π/2
+  / duration`. As `progress` advances 0 → duration, `cos(angle_progress)`
+  goes **1.0 → 0.0**. The final centibel goes from `~slider_target`
+  down to `-9600` (math-floor silence) — i.e. audible **fade-OUT**.
+- **phase 2** (the `else` branch at 0x499a9e): `angle_progress =
+  (duration - progress) * π/2 / duration`. `cos(angle_progress)`
+  goes **0.0 → 1.0** — audible **fade-IN**.
+
+The setters line up with this reading: `FUN_00499538(duration)` takes
+an explicit duration and sets phase 1 ("start fading out, here's how
+long"); `FUN_0049954c()` takes no arg and sets phase 2 (re-using the
+duration the prior phase-1 left in `DAT_005d1964` — "now fade back
+in over the same window").
+
+The first version of `src/music.h` labeled the field `1 = in, 2 = out`,
+guessed from the setter names alone. The math says the opposite. The
+port's comment + the audio-backend doc now match the assembly.
+
+Easy to get wrong because:
+
+- "Fade in" and "fade out" don't have a universal canonical numeric
+  ordering across engines.
+- The decompilation shows the FPU multiplications hidden inside
+  `__ftol()` — you only see the last cos() result in Ghidra's variable
+  output, so the `cos(progress) * cos(slider)` product isn't visible
+  without reading the raw assembly.
+
+> 📍 `docs/decompiled/by-address/49966a.c` (LAB_00499a00),
+> `src/audio_fade.h::audio_fade_progress_centibel`,
+> `src/music.h::music_state.fade_phase`.
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of

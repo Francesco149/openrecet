@@ -466,6 +466,11 @@ struct test_case {
     X(music_step_target_volume_fade_band_decreases) \
     X(music_step_stop_sentinel_dispatches_track_minus_two) \
     X(music_step_forced_override_dispatches_overridden_track) \
+    X(music_step_fade_phase_advances_progress) \
+    X(music_step_fade_phase_one_walks_to_silence) \
+    X(music_step_fade_phase_two_walks_to_loud) \
+    X(music_step_no_fade_skips_apply_hook) \
+    X(music_step_pending_fade_phase_drives_animation) \
     \
     X(audio_bgm_table_has_21_entries) \
     X(audio_bgm_table_well_known_indices) \
@@ -497,6 +502,18 @@ struct test_case {
     X(audio_fade_apply_calls_hook_with_centibel) \
     X(audio_fade_apply_skips_hook_when_unset) \
     X(audio_fade_apply_rejects_invalid_channel) \
+    X(audio_fade_progress_phase1_starts_loud) \
+    X(audio_fade_progress_phase1_ends_silent) \
+    X(audio_fade_progress_phase1_monotonic_decreasing) \
+    X(audio_fade_progress_phase2_starts_silent) \
+    X(audio_fade_progress_phase2_ends_loud) \
+    X(audio_fade_progress_phase2_monotonic_increasing) \
+    X(audio_fade_progress_lower_slider_attenuates_peak) \
+    X(audio_fade_progress_slider_clamped) \
+    X(audio_fade_progress_progress_clamped_and_overshoot) \
+    X(audio_fade_progress_degenerate_duration_falls_back_to_slider) \
+    X(audio_fade_apply_progress_drives_hook) \
+    X(audio_fade_apply_progress_rejects_invalid_channel) \
     \
     X(audio_trace_json_escape_passthrough_ascii) \
     X(audio_trace_json_escape_quote) \

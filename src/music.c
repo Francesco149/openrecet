@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "audio_fade.h"    /* audio_fade_apply_progress for the per-tick fade tail */
 #include "scene_title.h"   /* g_scene_title_anim — for music_step_default */
 
 music_state_t g_music;
@@ -265,23 +266,42 @@ void music_step(music_state_t            *m,
         m->pending_swap_clear = 0;
     }
 
-    /* 9. Volume-animation tail stubbed: DAT_09643108 (music interface)
-     *    is NULL today so the tail body short-circuits exactly the way
-     *    the engine does. When the audio backend lands, this becomes:
+    /* 9. Volume-animation tail (FUN_0049966a LAB_00499a00).
+     *    When fade_phase != 0, advance fade_progress by one frame
+     *    (clamped to fade_duration), compute the two-axis cos-product
+     *    centibel via audio_fade_apply_progress, and let the backend
+     *    apply hook drive the BGM AudioPath's SetVolume.
      *
-     *        if (fade_phase != 0) {
-     *            fade_progress = min(fade_progress + 1, fade_duration);
-     *            int vol_q = compute_volume_curve(...);
-     *            FUN_00451874(0, 0xe, "VOL %d", vol_q);
-     *            if (DAT_0438ccb4 != 0) [recompute vol_q with target];
-     *            if (fade_progress >= fade_duration) {
-     *                if (DAT_0438cd70 == 0) fade_phase = 0;
-     *                pending_swap_clear = 1;
-     *            }
-     *            if (DAT_09643108 != 0) DAT_09643108->SetVolume(vol_q);
-     *            if (fade_phase == 0) fade_progress = 0;
-     *        }
-     */
+     *    When progress reaches duration, clear the phase and signal
+     *    pending_swap_clear = 1. The engine gates the phase-clear on
+     *    DAT_0438cd70 ("carry-over" flag, currently un-modeled — it's
+     *    BSS-zero in all observed boot/play traces, so the port pins
+     *    it to "always clear"). If a future scene flips that flag,
+     *    add a port-side mirror. */
+    if (m->fade_phase != 0) {
+        if (m->fade_progress < m->fade_duration) {
+            m->fade_progress++;
+        }
+        if (m->fade_progress > m->fade_duration) {
+            m->fade_progress = m->fade_duration;
+        }
+
+        m->last_fade_centibel = audio_fade_apply_progress(
+            AUDIO_FADE_CHANNEL_BGM,
+            m->fade_phase,
+            m->fade_progress,
+            m->fade_duration);
+        m->fade_apply_count++;
+
+        if (m->fade_progress >= m->fade_duration) {
+            /* DAT_0438cd70 == 0 in vendor: clear phase. */
+            m->fade_phase         = 0;
+            m->pending_swap_clear = 1;
+        }
+        if (m->fade_phase == 0) {
+            m->fade_progress = 0;
+        }
+    }
 }
 
 /* ─── tick-scheduler entry ───────────────────────────────────────────── */

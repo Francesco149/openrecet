@@ -100,6 +100,61 @@ int32_t audio_fade_channel_centibel(int channel)
     return audio_fade_compute(audio_fade_get_slider(channel), 0);
 }
 
+/* ─── per-tick fade animation ───────────────────────────────────────── */
+
+#define AUDIO_FADE_HALF_PI  1.5707963267948966   /* &DAT_00519434 */
+
+int32_t audio_fade_progress_centibel(int phase,
+                                     int32_t progress,
+                                     int32_t duration,
+                                     int slider)
+{
+    if (slider < 0) slider = 0;
+    if (slider > 9) slider = 9;
+
+    /* Idle / degenerate duration → fall back to the slider-only ramp's
+     * full-target value. Defensive: callers gate phase != 0 + duration > 0
+     * before calling. */
+    if (phase == 0 || duration <= 0) {
+        return audio_fade_compute(slider, 0);
+    }
+
+    if (progress < 0) progress = 0;
+    if (progress > duration) progress = duration;
+
+    /* angle_slider = (9 - slider) * 2π/5 / 9  — same as the slider-only
+     * fade's angle for frame=slider. */
+    double angle_slider = ((double)(9 - slider) * AUDIO_FADE_ANGLE_MAX)
+                          / AUDIO_FADE_FRAME_DIVISOR;
+
+    /* angle_progress depends on phase. For phase 1 the engine reads
+     * `progress` directly (cos starts at 1.0, decays to 0 → fade-OUT).
+     * For any other non-zero phase it reads `(duration - progress)`
+     * (cos starts at 0, grows to 1.0 → fade-IN). */
+    double prog_arg = (phase == 1)
+                        ? (double)progress
+                        : (double)(duration - progress);
+    double angle_progress = (prog_arg * AUDIO_FADE_HALF_PI) / (double)duration;
+
+    double cos_product = cos(angle_progress) * cos(angle_slider);
+    double centibel = cos_product * AUDIO_FADE_SCALE - AUDIO_FADE_SCALE;
+    return (int32_t)centibel;
+}
+
+int32_t audio_fade_apply_progress(int channel,
+                                  int phase,
+                                  int32_t progress,
+                                  int32_t duration)
+{
+    if (channel < 0 || channel >= AUDIO_FADE_CHANNEL_COUNT) return 0;
+    int32_t centibel = audio_fade_progress_centibel(
+        phase, progress, duration, g_sliders[channel]);
+    if (g_apply_hook) {
+        g_apply_hook(channel, centibel);
+    }
+    return centibel;
+}
+
 void audio_fade_set_apply_hook(audio_fade_apply_hook_t hook)
 {
     g_apply_hook = hook;

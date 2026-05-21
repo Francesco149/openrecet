@@ -89,8 +89,13 @@ typedef struct music_state {
     int32_t  current_track;        /* DAT_005d1960 — init -1                */
     int32_t  forced_track;         /* DAT_005d1968 — init -1; non-(-1) wins */
 
-    /* Fade-in/out animation (only relevant once backend lands). */
-    int32_t  fade_phase;           /* DAT_09643114 — 0 idle, 1 in, 2 out    */
+    /* Fade-in/out animation. Phase semantics come from the assembly at
+     * 0x499a2b (phase==1) vs 0x499a9e (else):
+     *   0 = idle, 1 = fade-OUT (cos 1→0 over progress), 2 = fade-IN
+     *       (cos 0→1). The two phase setters callers see — FUN_00499538
+     *       sets 1, FUN_0049954c sets 2 — pass a duration only to phase 1,
+     *       which lines up: "start fading out, here's how long". */
+    int32_t  fade_phase;           /* DAT_09643114 — 0 idle, 1 out, 2 in    */
     int32_t  fade_progress;        /* DAT_09643130 — counts 0..fade_duration */
     int32_t  fade_duration;        /* DAT_005d1964 — init 0x258 (600)       */
     int32_t  pending_fade_phase;   /* DAT_0964311c — applied at top of step  */
@@ -123,6 +128,8 @@ typedef struct music_state {
     int32_t  se_stops_fired;       /* sum of SE-stop call-outs this step    */
     int32_t  swap_call_count;      /* number of track-swaps this run        */
     int32_t  last_requested_track; /* track passed to the (stubbed) swap fn */
+    int32_t  fade_apply_count;     /* per-tick fade SetVolume invocations   */
+    int32_t  last_fade_centibel;   /* centibel handed to the apply hook last */
 } music_state_t;
 
 extern music_state_t g_music;

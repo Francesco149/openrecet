@@ -6,6 +6,15 @@
 - volume sin-curve fade ported — `audio_fade_compute` + `audio_fade_apply`
   with per-channel slider state (BGM / SE-A / SE-B); the Win32 backend
   installs a hook that calls `IDirectMusicAudioPath::SetVolume`.
+- **per-tick fade animation ported** (FUN_0049966a LAB_00499a00):
+  `audio_fade_progress_centibel(phase, progress, duration, slider)`
+  + `audio_fade_apply_progress(channel, ...)` in `src/audio_fade.{c,h}`;
+  `src/music.c::music_step` advances `fade_progress` per tick, calls
+  the new helper, sets `pending_swap_clear = 1` at fade end. Phase
+  semantics corrected (the previous comment had 1/2 swapped): **phase 1
+  = audible fade-OUT** (cos 1→0 across `progress`), **phase 2 = audible
+  fade-IN** (cos 0→1). No trace event per frame to avoid swamping the
+  JSONL log; the apply hook drives SetVolume directly.
 - SE phase A: 110-entry resource ID table + `audio_play_se()` trace shell
 - **SE phase B**: 2 SE AudioPaths created in `audio_init`, 109 WAV
   blobs embedded via windres custom-type `WAVE` + loaded via
@@ -45,10 +54,12 @@ channels and `DMUS_AUDIOF_ALL`.
 | `FUN_00499200`    | Track-swap (Stop + Load + PlaySegmentEx)   | `src/audio.c:audio_play_track` |
 | `FUN_00499583`    | Volume-apply (cos-curve fade)              | `src/audio_fade.c:audio_fade_compute` + `audio_fade_apply` (Win32 hook in `src/audio.c:audio_fade_apply_hook_win32`) |
 | `FUN_00499c63`    | SE start/stop on per-channel SE AudioPaths | `src/audio.c:audio_play_se` (full path: pre-PlaySegmentEx Stop + SetVolume + QUEUE-flag play + QI upgrade) |
+| `FUN_00499538`    | Phase-1 setter (fade-OUT + duration)       | exposed via `music_state_t::pending_fade_phase = 1` + `.fade_duration` |
+| `FUN_0049954c`    | Phase-2 setter (fade-IN, keeps duration)   | exposed via `music_state_t::pending_fade_phase = 2` |
 | `FUN_00451874`    | MCI debug command recorder                 | `src/audio_mci.c` (dormant — `DAT_0438ccb4` zero in shipped data) |
 | `FUN_00503994`    | CRT-style cos() wrapper                    | replaced by libc `cos()` in `audio_fade.c` |
 | `FUN_0049a558`    | Title-music language-table lookup          | inlined in `src/music.c::title_bgm_select` |
-| `FUN_0049966a`    | Per-tick selector (sim_b)                  | `src/music.c::music_step` |
+| `FUN_0049966a`    | Per-tick selector (sim_b) + fade tail      | `src/music.c::music_step` (tail: per-tick fade via `audio_fade_apply_progress`) |
 
 ## Object layout
 
@@ -368,11 +379,18 @@ In rough order of impact:
    ini said at boot — saveback faithfulness requires both (a) the
    shutdown chain port and (b) a slider→`g_ini` mirror that the engine
    itself lacks. Park the mirror until settings-menu producer lands.
-2. **Per-tick fade animation** — the volume-tail at `FUN_0049966a`
-   LAB_00499a00 walks a two-axis cos product (`cos(fade_progress) *
-   cos(slider)`) and ramps SetVolume over `DAT_005d1964` frames
-   (=600 by default). Triggered when `DAT_09643114 != 0`. Pre-req for
-   the title-exit BGM fade and any future cross-fade effects.
+2. ~~**Per-tick fade animation**~~ **Done 2026-05-21** —
+   `audio_fade_progress_centibel(phase, progress, duration, slider)`
+   in `src/audio_fade.{c,h}` is the pure two-axis cos product
+   (`cos(angle_progress) * cos(angle_slider) * 9600 - 9600`).
+   `music_step` calls `audio_fade_apply_progress` per tick when
+   `fade_phase != 0`, increments `fade_progress`, clears phase + sets
+   `pending_swap_clear` at the end. Phase-clear gate `DAT_0438cd70`
+   (carry-over flag) is BSS-zero in observed boot/play traces —
+   port pins it to "always clear"; revisit if a future scene flips it.
+   17 new tests (475 total). Engine-quirk: the music.h comment had
+   phase 1/2 labels swapped (said 1=in, 2=out); the assembly at
+   0x499a2b vs 0x499a9e shows the opposite. Corrected.
 3. **Settings menu (FUN_0047fc44) slider producer** — once the
    sound-config menu ports, player input on BGM/SE-A/SE-B/swap-rate
    sliders feeds `audio_fade_set_slider` + re-applies via
