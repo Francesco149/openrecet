@@ -1,0 +1,376 @@
+/*
+ * audio.c — DirectMusic 8 BGM backend.
+ *
+ * Mirrors FUN_00498ef4 (init) + FUN_00499200 (track-swap) for the BGM
+ * path. See header for scope notes.
+ *
+ * Engine vtable offsets used (verified against mingw-w64 dmusici.h):
+ *
+ *   IDirectMusicPerformance8:
+ *     0x14  Stop                  (5)
+ *     0xb0  InitAudio             (44)
+ *     0xb4  PlaySegmentEx         (45)
+ *     0xc4  CreateStandardAudioPath (49)
+ *
+ *   IDirectMusicLoader8:
+ *     0x14  SetSearchDirectory    (5)
+ *     0x38  LoadObjectFromFile    (14)
+ *
+ *   IDirectMusicSegment8:
+ *     0x18  SetRepeats            (6)
+ *     0x4c  SetParam              (19)   — EN-build extra call; never
+ *                                          fires at boot (DAT_0438b170=0)
+ *     0x74  Download              (29)
+ *
+ * Engine quirks faithfully reproduced (or intentionally skipped):
+ *
+ *   #46: SetSearchDirectory is given the *current working directory*
+ *        wide-char. That works fine for our dev workflow where the exe
+ *        is launched from inside `vendor/original/`. If the user ever
+ *        runs from a different cwd, BGM files won't load — same as
+ *        the engine.
+ *   #47: All 21 segments are preloaded into RAM (~277 MB total). Lazy
+ *        loading would cut boot RAM substantially but the engine
+ *        chooses eager-load; we preserve it.
+ *
+ * COBJMACROS + CINTERFACE → C-style vtable accessors:
+ *
+ *     IDirectMusicPerformance8_PlaySegmentEx(perf, src, ...)
+ *
+ * is the same as the C++ form `perf->PlaySegmentEx(src, ...)`.
+ */
+
+#include "audio.h"
+
+#include <stdint.h>
+#include <string.h>
+
+/* ─── BGM filename table (extracted from .data via tools/analyze/pe.py) ───
+ *
+ *   tools/analyze/pe.py str $(seq 0x005d1970 0x14 0x005d1ab8) [...]
+ *
+ * 21 entries. Pure data; lives outside the _WIN32 guard so tests can
+ * verify the table directly.
+ */
+const char *const audio_bgm_filenames[AUDIO_BGM_TRACK_COUNT] = {
+    "bgm/retitle2010.wav",   /*  0 — title screen */
+    "bgm/town.wav",          /*  1 — town / shop idle */
+    "bgm/sougen.wav",        /*  2 — grasslands */
+    "bgm/cave.wav",          /*  3 */
+    "bgm/forest.wav",        /*  4 */
+    "bgm/ruins.wav",         /*  5 */
+    "bgm/boss.wav",          /*  6 */
+    "bgm/over.wav",          /*  7 — pause modal / game over */
+    "bgm/open.wav",          /*  8 — shop open jingle (loops?) */
+    "bgm/close.wav",         /*  9 — shop close */
+    "bgm/treasure.wav",      /* 10 — one-shot chest-open jingle */
+    "bgm/fanfare.wav",       /* 11 — one-shot quest-cleared jingle */
+    "bgm/ed.wav",            /* 12 — ending */
+    "bgm/clear.wav",         /* 13 — one-shot stage-clear */
+    "bgm/night02.wav",       /* 14 */
+    "bgm/rival.wav",         /* 15 */
+    "bgm/lastboss02.wav",    /* 16 */
+    "bgm/lastd01.wav",       /* 17 */
+    "bgm/feaver.wav",        /* 18 — "fever" sale music */
+    "bgm/staff.wav",         /* 19 — one-shot staff credits */
+    "bgm/water.wav",         /* 20 */
+};
+
+int audio_is_one_shot_track(int track)
+{
+    /* Indices 10, 11, 13, 19. Engine source: the
+     * `(iVar5 == 0x28 || 0x2c || 0x34 || 0x4c)` test in FUN_00498ef4.
+     * iVar5 is the byte offset (track * 4), so the indices are
+     * 0x28/4=10, 0x2c/4=11, 0x34/4=13, 0x4c/4=19. */
+    return track == 10 || track == 11 || track == 13 || track == 19;
+}
+
+const char *audio_bgm_filename(int track)
+{
+    if (track < 0 || track >= AUDIO_BGM_TRACK_COUNT) return NULL;
+    return audio_bgm_filenames[track];
+}
+
+/* ─── Win32 / DirectMusic 8 backend ────────────────────────────────── */
+
+#ifdef _WIN32
+
+#define COBJMACROS
+#define CINTERFACE
+#include <objbase.h>
+#include <dmusici.h>
+#include <stdio.h>
+
+#include "music.h"   /* g_music_swap_fn — bridge into music.c */
+
+/* Engine globals (see music.h comment block for the original DAT_*
+ * names). Carried here as a single struct for tidiness. */
+static struct {
+    IDirectMusicPerformance8 *performance;       /* DAT_09643100 */
+    IDirectMusicLoader8      *loader;            /* DAT_09643104 */
+    IDirectMusicAudioPath    *path_bgm;          /* DAT_09643108 */
+    IDirectMusicSegment8     *segments[AUDIO_BGM_TRACK_COUNT];      /* DAT_09643038[] */
+    IDirectMusicSegmentState *segment_states[AUDIO_BGM_TRACK_COUNT];/* DAT_09642e24[] */
+    int32_t                   current_track;     /* DAT_005d1960 (mirror) */
+    int                       com_initialized;
+    int                       all_loaded;        /* DAT_096430fc */
+} g_audio;
+
+/* music.c installs a swap function pointer — audio_play_track is the
+ * one we hand it. Adapter to keep music.c free of windows.h. */
+static void audio_play_track_adapter(int32_t track)
+{
+    (void)audio_play_track(track);
+}
+
+/* Wide-char copy of an ASCII string into a fixed-size WCHAR buffer.
+ * Used for the cwd path and the BGM filenames going into the Loader.
+ * Mirrors the engine's MultiByteToWideChar(CP_ACP) calls. */
+static int audio_a_to_w(const char *src, WCHAR *dst, int dst_cap_w)
+{
+    int n = MultiByteToWideChar(CP_ACP, 0, src, -1, dst, dst_cap_w);
+    return n > 0;
+}
+
+int audio_init(HWND hwnd)
+{
+    memset(&g_audio, 0, sizeof g_audio);
+    g_audio.current_track = -1;
+
+    HRESULT hr = CoInitialize(NULL);
+    if (FAILED(hr) && hr != RPC_E_CHANGED_MODE && hr != S_FALSE) {
+        fprintf(stderr, "audio: CoInitialize failed (hr=0x%08lx)\n", (unsigned long)hr);
+        return 0;
+    }
+    g_audio.com_initialized = 1;
+
+    /* 1. Create the Performance. */
+    hr = CoCreateInstance(&CLSID_DirectMusicPerformance, NULL,
+                          CLSCTX_INPROC_SERVER,
+                          &IID_IDirectMusicPerformance8,
+                          (void **)&g_audio.performance);
+    if (FAILED(hr) || !g_audio.performance) {
+        fprintf(stderr, "audio: CoCreateInstance(Performance) failed (hr=0x%08lx)\n",
+                (unsigned long)hr);
+        return 0;
+    }
+
+    /* 2. InitAudio. Engine args: (NULL, NULL, hwnd, DMUS_APATH_DYNAMIC_STEREO,
+     *    64 channels, DMUS_AUDIOF_ALL, NULL). */
+    hr = IDirectMusicPerformance8_InitAudio(
+        g_audio.performance,
+        NULL, NULL, hwnd,
+        DMUS_APATH_DYNAMIC_STEREO, 64, DMUS_AUDIOF_ALL,
+        NULL);
+    if (FAILED(hr)) {
+        fprintf(stderr, "audio: InitAudio failed (hr=0x%08lx)\n", (unsigned long)hr);
+        return 0;
+    }
+
+    /* 3. Create the BGM AudioPath. Engine creates three (BGM + 2× SE);
+     *    SE paths land with the SE port. */
+    hr = IDirectMusicPerformance8_CreateStandardAudioPath(
+        g_audio.performance,
+        DMUS_APATH_DYNAMIC_STEREO, 64, TRUE,
+        &g_audio.path_bgm);
+    if (FAILED(hr)) {
+        fprintf(stderr, "audio: CreateStandardAudioPath(BGM) failed (hr=0x%08lx)\n",
+                (unsigned long)hr);
+        return 0;
+    }
+
+    /* 4. Create the Loader. */
+    hr = CoCreateInstance(&CLSID_DirectMusicLoader, NULL,
+                          CLSCTX_INPROC_SERVER,
+                          &IID_IDirectMusicLoader8,
+                          (void **)&g_audio.loader);
+    if (FAILED(hr) || !g_audio.loader) {
+        fprintf(stderr, "audio: CoCreateInstance(Loader) failed (hr=0x%08lx)\n",
+                (unsigned long)hr);
+        return 0;
+    }
+
+    /* 5. SetSearchDirectory(cwd). Engine passes GUID_DirectMusicAllTypes
+     *    so the search dir applies to every object class. */
+    char cwd_a[MAX_PATH];
+    DWORD cwd_len = GetCurrentDirectoryA(MAX_PATH, cwd_a);
+    if (cwd_len == 0 || cwd_len >= MAX_PATH) {
+        fprintf(stderr, "audio: GetCurrentDirectoryA failed (len=%lu)\n",
+                (unsigned long)cwd_len);
+        return 0;
+    }
+    WCHAR cwd_w[MAX_PATH];
+    if (!audio_a_to_w(cwd_a, cwd_w, MAX_PATH)) {
+        fprintf(stderr, "audio: MultiByteToWideChar(cwd) failed\n");
+        return 0;
+    }
+    hr = IDirectMusicLoader8_SetSearchDirectory(
+        g_audio.loader, &GUID_DirectMusicAllTypes, cwd_w, FALSE);
+    if (FAILED(hr)) {
+        fprintf(stderr, "audio: SetSearchDirectory failed (hr=0x%08lx)\n",
+                (unsigned long)hr);
+        return 0;
+    }
+
+    /* 6. For each BGM file: LoadObjectFromFile → SetRepeats → Download.
+     *    Engine loops 0..0x54 in 4-byte strides; we do the same 21 iters. */
+    int loaded = 0;
+    for (int i = 0; i < AUDIO_BGM_TRACK_COUNT; i++) {
+        const char *fname = audio_bgm_filenames[i];
+        WCHAR fname_w[MAX_PATH];
+        if (!audio_a_to_w(fname, fname_w, MAX_PATH)) continue;
+
+        hr = IDirectMusicLoader8_LoadObjectFromFile(
+            g_audio.loader,
+            &CLSID_DirectMusicSegment,
+            &IID_IDirectMusicSegment8,
+            fname_w,
+            (void **)&g_audio.segments[i]);
+        if (FAILED(hr) || !g_audio.segments[i]) {
+            fprintf(stderr, "audio: LoadObjectFromFile(%s) failed (hr=0x%08lx)\n",
+                    fname, (unsigned long)hr);
+            /* Engine returns 0 here. We mirror — partial init is
+             * unrecoverable: caller treats this as a hard failure. */
+            return 0;
+        }
+
+        /* Engine: looping tracks get SetRepeats(0xffffffff); one-shot
+         * jingles (treasure/fanfare/clear/staff) get 0. */
+        DWORD repeats = audio_is_one_shot_track(i) ? 0u : 0xffffffffu;
+        hr = IDirectMusicSegment8_SetRepeats(g_audio.segments[i], repeats);
+        if (FAILED(hr)) {
+            fprintf(stderr, "audio: SetRepeats(%s) failed (hr=0x%08lx)\n",
+                    fname, (unsigned long)hr);
+            return 0;
+        }
+
+        /* Engine: Download(performance) — preloads waves into the
+         *    output buffers so PlaySegmentEx doesn't stall on first play. */
+        hr = IDirectMusicSegment8_Download(
+            g_audio.segments[i], (IUnknown *)g_audio.performance);
+        if (FAILED(hr)) {
+            fprintf(stderr, "audio: Download(%s) failed (hr=0x%08lx)\n",
+                    fname, (unsigned long)hr);
+            /* Non-fatal in the engine — Download failure just means
+             * dynamic-load fallback. Continue. */
+        }
+        loaded++;
+    }
+
+    g_audio.all_loaded = 1;
+
+    /* Bridge into music.c: install our swap callback. From here on
+     * every selector swap_call_count++ also triggers a real play. */
+    g_music_swap_fn = audio_play_track_adapter;
+
+    fprintf(stderr, "audio: init ok — %d BGM segments preloaded\n", loaded);
+    return 1;
+}
+
+int audio_play_track(int32_t track)
+{
+    if (!g_audio.all_loaded || !g_audio.performance) return 0;
+
+    /* Engine guard #1: DAT_096430fc != 0 → check covered above. */
+    /* Engine guard #2: DAT_005d1960 != param_1 → no-op if same track. */
+    if (track == g_audio.current_track) return 1;
+
+    /* Engine STOP path: param_1 == -2 → Stop(NULL,NULL,0,0). The
+     * engine also assembles a debug-log path string via FUN_005038ff
+     * + sprintf; we don't have a debug logger. */
+    if (track == AUDIO_TRACK_STOP || track == -1) {
+        HRESULT hr = IDirectMusicPerformance8_Stop(
+            g_audio.performance, NULL, NULL, 0, 0);
+        g_audio.current_track = -1;
+        return SUCCEEDED(hr);
+    }
+
+    if (track < 0 || track >= AUDIO_BGM_TRACK_COUNT) {
+        fprintf(stderr, "audio: play_track: bad index %d\n", (int)track);
+        return 0;
+    }
+    IDirectMusicSegment8 *seg = g_audio.segments[track];
+    if (!seg) {
+        fprintf(stderr, "audio: play_track: segment %d not loaded\n", (int)track);
+        return 0;
+    }
+
+    /* Engine stops the currently-playing segment-state explicitly before
+     * the new PlaySegmentEx (via segment-state->Release on the stored
+     * DAT_09642e24[idx]). PlaySegmentEx will Stop the previous segment
+     * implicitly when the new one is on the same AudioPath, so we just
+     * release any prior segment-state to avoid leaks. */
+    int32_t prev = g_audio.current_track;
+    if (prev >= 0 && prev < AUDIO_BGM_TRACK_COUNT && g_audio.segment_states[prev]) {
+        IDirectMusicSegmentState_Release(g_audio.segment_states[prev]);
+        g_audio.segment_states[prev] = NULL;
+    }
+
+    g_audio.current_track = track;
+
+    IDirectMusicSegmentState *new_state = NULL;
+    HRESULT hr = IDirectMusicPerformance8_PlaySegmentEx(
+        g_audio.performance,
+        (IUnknown *)seg,
+        NULL,                       /* segment name (unused) */
+        NULL,                       /* transition */
+        DMUS_SEGF_DEFAULT,
+        0,                          /* start time = now */
+        &new_state,
+        NULL,                       /* from */
+        (IUnknown *)g_audio.path_bgm);
+    if (FAILED(hr)) {
+        fprintf(stderr, "audio: PlaySegmentEx(track=%d) failed (hr=0x%08lx)\n",
+                (int)track, (unsigned long)hr);
+        return 0;
+    }
+    g_audio.segment_states[track] = new_state;
+    return 1;
+}
+
+void audio_shutdown(void)
+{
+    /* Detach the music bridge first so any in-flight tick can't reach
+     * back into a half-torn-down backend. */
+    g_music_swap_fn = NULL;
+
+    if (g_audio.performance) {
+        /* Stop whatever's playing. CloseDown shuts down the performance
+         * synth, releases ports, etc. — same as the engine's shutdown
+         * (which we haven't ported yet but will need eventually). */
+        IDirectMusicPerformance8_Stop(g_audio.performance, NULL, NULL, 0, 0);
+        IDirectMusicPerformance8_CloseDown(g_audio.performance);
+    }
+    for (int i = 0; i < AUDIO_BGM_TRACK_COUNT; i++) {
+        if (g_audio.segment_states[i]) {
+            IDirectMusicSegmentState_Release(g_audio.segment_states[i]);
+            g_audio.segment_states[i] = NULL;
+        }
+        if (g_audio.segments[i]) {
+            IDirectMusicSegment8_Unload(g_audio.segments[i],
+                                        (IUnknown *)g_audio.performance);
+            IDirectMusicSegment8_Release(g_audio.segments[i]);
+            g_audio.segments[i] = NULL;
+        }
+    }
+    if (g_audio.path_bgm) {
+        IDirectMusicAudioPath_Release(g_audio.path_bgm);
+        g_audio.path_bgm = NULL;
+    }
+    if (g_audio.loader) {
+        IDirectMusicLoader8_Release(g_audio.loader);
+        g_audio.loader = NULL;
+    }
+    if (g_audio.performance) {
+        IDirectMusicPerformance8_Release(g_audio.performance);
+        g_audio.performance = NULL;
+    }
+    if (g_audio.com_initialized) {
+        CoUninitialize();
+        g_audio.com_initialized = 0;
+    }
+    g_audio.all_loaded = 0;
+    g_audio.current_track = -1;
+}
+
+#endif /* _WIN32 */

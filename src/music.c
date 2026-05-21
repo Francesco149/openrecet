@@ -31,6 +31,11 @@
 
 music_state_t g_music;
 
+/* Audio-backend swap bridge. NULL in the test build (host gcc, no
+ * audio.c) and at boot before audio_init runs. audio_init installs
+ * its own adapter here once the DirectMusic backend is ready. */
+music_swap_fn_t g_music_swap_fn = NULL;
+
 /* ── titles BGM table at .rdata 0x5d1be0 ────────────────────────────────
  * 8 entries × 8 bytes (low dword = track id, high dword = unused/flag).
  * Indexed by `language` (DAT_005d1bd8). Init value of `language` is -1,
@@ -238,14 +243,16 @@ void music_step(music_state_t            *m,
         m->current_track = MUSIC_TRACK_NONE;
         m->pending_swap_clear = 0;
     } else if (m->music_engine_debug == 0) {
-        /* Real-backend path: call (stubbed) FUN_00499200. */
+        /* Real-backend path: call FUN_00499200 via the audio bridge. */
         m->swap_call_count++;
         m->last_requested_track = desired;
         fprintf(stderr, "music: swap #%d → track %d (frame %d)\n",
                 (int)m->swap_call_count, (int)desired, (int)m->frame_count);
         m->current_track = desired;
         m->pending_swap_clear = 0;
-        /* TODO: FUN_00499200(desired) — load + start DirectMusic segment. */
+        if (g_music_swap_fn) {
+            g_music_swap_fn(desired);
+        }
     } else {
         /* Debug-log path (DAT_0438ccb4 != 0): just record + log via
          * FUN_0040cf88 (noop stub). The current_track update happens

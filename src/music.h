@@ -171,4 +171,17 @@ void music_step(music_state_t            *m,
  * carrier global lands and this wrapper updates accordingly. */
 void music_step_default(void);
 
+/* ─── audio-backend bridge ────────────────────────────────────────────
+ * When the DirectMusic backend (src/audio.c) is wired in, it installs
+ * its `audio_play_track` adapter here. The selector's swap-dispatch
+ * branch calls this pointer (when non-NULL) on each track change so
+ * the real audio backend fires.
+ *
+ * Lives in music.c rather than audio.c so the test build (which doesn't
+ * link audio.c) keeps the stubbed swap behavior: pointer stays NULL,
+ * the engine call-out is skipped, but swap_call_count / current_track
+ * still update for assertions. */
+typedef void (*music_swap_fn_t)(int32_t track);
+extern music_swap_fn_t g_music_swap_fn;
+
 #endif /* OPENRECET_MUSIC_H */

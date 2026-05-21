@@ -31,6 +31,7 @@
 #include "scene_title.h"
 #include "sim.h"
 #include "music.h"
+#include "audio.h"
 #include "tick.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
@@ -245,8 +246,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     sim_init();
     music_init();
 
+    /* "init daoudio ok" — FUN_00498ef4 — DirectMusic 8: Performance +
+     * Loader + BGM AudioPath + preload all 21 segments. Sound-effect
+     * path (2 more AudioPaths + 27 resource-loaded WAVs) lands in the
+     * next commit. On failure, log + continue silently — boot still
+     * works, just without music. */
+    if (!audio_init(g_hwnd)) {
+        fprintf(stderr, "openrecet: audio_init failed — running muted\n");
+    }
+
     /* TODO "init fontsys ok"    — FUN_0047c228
-     * TODO "init daoudio ok"    — FUN_00498ef4
      * TODO "fontsystem ok"      — FUN_0047c3a5
      * TODO "read systemtex ok"  — FUN_00472f5d
      * TODO "load savefile ok"   — FUN_004902fe
@@ -264,9 +273,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     /* ─── main loop — mirrors the PeekMessage/WaitMessage idle pattern ─── */
     MSG msg = {0};
     /* Game-tick callbacks. sim_b (FUN_0049966a, music selector) picks
-     * a track each frame and would dispatch a swap; the actual audio
-     * backend (DirectMusic) is stubbed — current_track is updated but
-     * no sound plays. See src/music.{c,h}. */
+     * a track each frame and dispatches a real DirectMusic swap via
+     * the g_music_swap_fn bridge that audio_init installs (see
+     * src/audio.{c,h} + src/music.{c,h}). */
     const struct tick_callbacks tick_cb = {
         .input_poll = input_poll,
         .sim_a      = sim_step_a,
@@ -333,6 +342,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     }
 
     /* ─── shutdown ──────────────────────────────────────────────────────── */
+    audio_shutdown();
     sprite_destroy(&g_show_sprite);
     scene_title_unload_assets();
     input_shutdown();

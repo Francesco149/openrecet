@@ -3,6 +3,82 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — DirectMusic 8 audio backend: init + BGM playback (FUN_00498ef4 + FUN_00499200)
+
+Title music is now audible. The selector's stubbed swap-dispatch (from
+the sim_b port two commits ago) now drives real `PlaySegmentEx` calls
+on a `DMUS_APATH_DYNAMIC_STEREO` audio path. User confirms `bgm/
+retitle2010.wav` plays on Windows host via WSLInterop. SE / volume-fade
+/ MCI debug bridge still stubbed — next commit.
+
+**What landed:**
+
+- **`src/audio.{c,h}` — DirectMusic 8 backend (BGM-only slice).** Mirrors
+  `FUN_00498ef4` (init: CoInitialize → CoCreateInstance Performance →
+  InitAudio → CreateStandardAudioPath BGM → CoCreateInstance Loader →
+  SetSearchDirectory → preload all 21 BGM segments with SetRepeats +
+  Download) and `FUN_00499200` (track-swap: guard duplicate, release
+  prior segment-state, PlaySegmentEx with the new segment).
+- **21-entry BGM filename table** extracted from `.data` at `0x005d190c`
+  via `tools/analyze/pe.py`. Lives in `audio_bgm_filenames[]` as a pure-C
+  array so tests can verify track indices.
+- **One-shot lookup** — `audio_is_one_shot_track(int)` reproduces the
+  engine's `(iVar5 == 0x28 || 0x2c || 0x34 || 0x4c)` guard. Treasure,
+  fanfare, clear, staff get `SetRepeats(0)`; everything else gets
+  `0xffffffff` (infinite).
+- **Music-bridge** — `src/music.{c,h}` exposes a new
+  `music_swap_fn_t g_music_swap_fn` pointer. `audio_init` installs
+  `audio_play_track_adapter`; `audio_shutdown` clears it. Test builds
+  (host gcc, no `_WIN32`) leave the pointer NULL → selector still does
+  bookkeeping (`swap_call_count++`, etc.) but doesn't fire a real play.
+  This keeps the test build free of `windows.h`/`dmusici.h`.
+- **`src/main.c` wiring** — `audio_init(g_hwnd)` slot 17 in the WinMain
+  bootstrap (per `docs/findings/winmain-and-bootstrap.md`), right after
+  `tables_load_all()` + `scene_title_*_init`. Shutdown call before
+  `timeEndPeriod`. Failure is non-fatal (logs to stderr and continues
+  muted) — matches the engine's behavior.
+
+**Identified GUIDs (extracted via pe.py + matched against mingw-w64
+`dmusici.h`):** see `docs/findings/audio-backend.md` for the full table.
+The mingw-w64 `libdxguid.a` exports them natively so the build links
+against the standard symbols (no inline GUID definitions needed).
+
+**Tests.** 6 new (total 413, was 407):
+- `audio_bgm_table_has_21_entries` — table size + every slot non-NULL +
+  every filename has a `bgm/` prefix.
+- `audio_bgm_table_well_known_indices` — track 0=retitle2010, 1=town,
+  7=over, 11=fanfare, 20=water.
+- `audio_bgm_filename_bounds` — bounds-check the indexing helper.
+- `audio_one_shot_set_is_exact` — every index `i ∈ [0,21)` correctly
+  classified.
+- `audio_music_bridge_fires_on_swap` — installing a stub fn into
+  `g_music_swap_fn` causes it to fire on a track change (selector ran
+  → bridge called with `MUSIC_TRACK_TITLE`).
+- `audio_music_bridge_skipped_when_null` — with NULL pointer, selector
+  still bookkeeps but doesn't call out.
+
+**Verified at boot:**
+
+```
+audio: init ok — 21 BGM segments preloaded
+music: swap #1 → track 0 (frame 1)
+```
+
+**Not yet ported (next-commit candidates):**
+
+- **SE backend** — port the SE-init loop (27 `RT_RCDATA` resources via
+  `FindResourceA` + `loader->GetObject` with `DMUS_OBJ_MEMORY`) + two
+  SE AudioPaths + `FUN_00499c63` (per-channel start/stop). Unblocks all
+  UI sound cues (cursor move, button click, etc.).
+- **Volume animation** — `FUN_00499583` sin-curve fade. Needed for the
+  title-screen fade-out band (frames `0x1b6d..0x1ba7`) and in-game fade
+  transitions. The selector already computes `g_music.target_volume`;
+  the apply call is what's missing.
+- **`DMUS_AUDIOF_3D` warning under Wine** — DirectMusic with full audio
+  flags can be brittle on some Wine builds (we run on native Windows
+  via WSLInterop, so this isn't a current issue, but documenting for
+  the Wine port).
+
 ## 2026-05-21 — title menu A-press → real EXIT (FUN_0049a59e press-dispatch, item==3)
 
 The smallest scene-transition slice: the EXIT menu item now actually

@@ -465,7 +465,14 @@ struct test_case {
     X(music_step_target_volume_default_is_one) \
     X(music_step_target_volume_fade_band_decreases) \
     X(music_step_stop_sentinel_dispatches_track_minus_two) \
-    X(music_step_forced_override_dispatches_overridden_track)
+    X(music_step_forced_override_dispatches_overridden_track) \
+    \
+    X(audio_bgm_table_has_21_entries) \
+    X(audio_bgm_table_well_known_indices) \
+    X(audio_bgm_filename_bounds) \
+    X(audio_one_shot_set_is_exact) \
+    X(audio_music_bridge_fires_on_swap) \
+    X(audio_music_bridge_skipped_when_null)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
