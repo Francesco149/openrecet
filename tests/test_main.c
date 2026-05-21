@@ -472,7 +472,18 @@ struct test_case {
     X(audio_bgm_filename_bounds) \
     X(audio_one_shot_set_is_exact) \
     X(audio_music_bridge_fires_on_swap) \
-    X(audio_music_bridge_skipped_when_null)
+    X(audio_music_bridge_skipped_when_null) \
+    \
+    X(audio_mci_buffer_size_is_4800_bytes) \
+    X(audio_mci_clear_zeroes_buffer) \
+    X(audio_mci_basic_copy_at_row_zero_col_zero) \
+    X(audio_mci_nul_early_exit_writes_nothing) \
+    X(audio_mci_row_and_column_indexing) \
+    X(audio_mci_stops_at_first_nul_in_source) \
+    X(audio_mci_full_80_byte_fill_no_terminator) \
+    X(audio_mci_source_longer_than_cap_truncates) \
+    X(audio_mci_repeated_record_at_same_slot_overwrites) \
+    X(audio_mci_channel_offset_spans_into_next_row)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
