@@ -1,0 +1,5 @@
+# Hold A (bit 0x10) for exactly one frame at index 30.
+# Mask 0x10 = button A = Z under the recet.ini defaults.
+{"frame":0,"buttons":"0x0000"}
+{"frame":30,"buttons":"0x0010"}
+{"frame":31,"buttons":"0x0000"}

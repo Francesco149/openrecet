@@ -1,0 +1,26 @@
+# Phase A scenario: title boot → press Z (button A) at frame 30.
+#
+# This was the user-visible symptom of the 2026-05-21 input-bypass bug
+# fixed by 520a349 (build-system header dep tracking): arrows + Z did
+# nothing in the title menu. With this scenario in place, that class
+# of failure (sim consumes input → never sets select_phase) shows up
+# as a pixel mismatch on the dispatch frame.
+#
+# Default cursor on a fresh boot is item 0 (NEW GAME). The select
+# countdown takes 14 frames to reach 0xf, so the dispatch frame is
+# 30 + 14 = 44. main.c's pending_action handler logs "menu item 0
+# selected — destination scene not ported yet" and snaps select_phase
+# back to 0; subsequent frames show the BG scroll continuing.
+#
+# Captures:
+#   0   — baseline title-screen identical to boot-idle
+#   30  — A just pressed, select_phase=1
+#   35  — mid-countdown, cursor brightness fading
+#   44  — dispatch frame, cursor brightness near silent
+#   50  — post-dispatch snap-back, select_phase=0 again
+
+description: Z (button A) press at frame 30 → select countdown → dispatch at frame 44
+rng_seed: 1
+max_frames: 60
+capture_frames: [0, 30, 35, 44, 50]
+duration_ceiling_ms: 30000

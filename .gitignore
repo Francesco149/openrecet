@@ -8,6 +8,12 @@ tests/golden/**/*.png
 tests/golden/**/*.jpg
 tests/golden/**/*.bin
 tests/golden/**/*.wav
+# Phase A scenario goldens — rendered by openrecet.exe but contain
+# vendor textures (title bg, RECETTEAR logo, …). The trace + yaml are
+# safe to ship; the golden/ subtree is regenerated locally via
+# `tools/scenario-test.py <name> --bless`. See
+# tests/scenarios/README.md.
+tests/scenarios/**/golden/
 
 # ─── Ghidra projects (large, contain analysis state derived from original) ─
 ghidra/projects/

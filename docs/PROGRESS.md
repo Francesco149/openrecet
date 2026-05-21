@@ -3,6 +3,82 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Harness Phase A: input-trace record/replay + scenario runner
+
+Closes the "build-system regression hid between commits" gap that
+prompted the harness roadmap two days ago (see "Build-system header
+dep tracking" entry below). End-to-end pipeline now lands and locks
+in the two scenarios that cover the original failure mode.
+
+Five pieces, three commits:
+
+1. **`src/input_trace.{c,h}` + 20 unit tests (514 total, was 494).**
+   Sparse-JSONL parser + writer + lookup. Schema:
+   `{"frame":N,"buttons":"0xNNNN"}` — one line per mask change, with
+   "the most recent entry's mask holds until the next entry"
+   semantics. Strictly-increasing frame order enforced at parse.
+   Comments + blank lines tolerated. Pure C; tests cover happy path,
+   sparse hold, malformed input, file round-trip, record/replay
+   behavior.
+
+2. **`src/main.c` CLI integration.** Five new flags:
+   - `--input-trace-record <file>` wraps `tick_cb.input_poll` to
+     snapshot `g_input_state[0].buttons` each frame.
+   - `--input-trace-replay <file>` replaces `input_poll` with a
+     trace lookup, skips `input_init` / DirectInput entirely, pins
+     `g_paused=FALSE`, drives a 20 ms virtual clock so the tick
+     scheduler always returns TICKED (no Sleep, no DELAYED).
+   - `--rng-seed <n>` pins the LCG seed (skipping
+     `rng_seed_from_now()`) so title BG scroll + cursor pulse phase
+     stay frame-identical across replays.
+   - `--max-frames <n>` PostQuitMessage after n rendered frames.
+   - `--capture-frames i,j,k` captures ONLY at the listed sim-frame
+     indices; filename `frame_<sim_frame>.bmp` so the scenario
+     runner can match by number. Legacy `--capture-every-ms`
+     untouched when this isn't set.
+
+3. **`tools/scenario-test.py`** Phase A regression harness.
+   Discovers `tests/scenarios/<name>/`, runs the exe with the right
+   flags, **bit-exact** diffs captured BMPs against `golden/`.
+   Mismatches emit a red-tinted overlay PNG so visual review is one
+   `Read` away. `--bless` regenerates goldens from a fresh run; that
+   path doesn't fail.
+
+4. **`tests/scenarios/boot-idle/`** (3 captures @ 0/30/60, 60-frame
+   idle). The trivial baseline — title boots, nothing pressed, cursor
+   pulse + BG scroll roll on under the pinned RNG seed.
+
+5. **`tests/scenarios/title-z-press/`** (5 captures @ 0/30/35/44/50).
+   Z held for one frame at index 30 → 14-frame select countdown →
+   dispatch on frame 44 ("Start a new game" tooltip visible) → main.c
+   logs "destination scene not ported yet" + snaps `select_phase=0`
+   → frame 50 shows the post-snap pulse. This is the exact failure
+   mode of the 2026-05-21 input-bypass bug: a stale `main.o` would
+   miss the dispatch entirely, frame 44 would still look like
+   frame 30, the diff would land loud.
+
+Pixel-diff strictness decision: **bit-exact**. The smoke validation
+showed 3/3 boot-idle frames and 5/5 title-z-press frames bit-exact
+across two back-to-back replay runs AND across record-mode vs
+replay-mode capture. Mismatch produces a red-tinted overlay PNG;
+re-bless after intentional behavior changes. SSIM was rejected
+because threshold tuning hides single-pixel offset bugs.
+
+Goldens are gitignored — they're rendered output that embeds vendor
+textures (RECETTEAR logo, BG art). `scenario.yaml` + `trace.jsonl`
+ship; `golden/` is regenerated locally on first checkout via
+`--bless`. See `tests/scenarios/README.md`.
+
+Determinism pins under `--input-trace-replay`:
+- RNG seed forced via `--rng-seed`
+- DirectInput init skipped (live keypresses can't bleed in)
+- WM_ACTIVATE pause pinned off (focus loss can't stall replay)
+- Tick scheduler bypassed for a manual 20-ms-per-iter virtual clock
+
+Phase B (Frida hooks on retail exe for ground-truth comparison)
+shares this scenario layout — same JSON/PNG schemas — and is the
+next session's target if priorities don't shift.
+
 ## 2026-05-21 — Build-system header dep tracking (input-bypass regression fix)
 
 The user reported on RDP that arrows + Z had stopped doing anything in

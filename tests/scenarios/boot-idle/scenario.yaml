@@ -1,0 +1,13 @@
+# Phase A scenario: boot to title, no input, hold 60 frames.
+#
+# This is the regression target for the 2026-05-21 input-bypass bug
+# (header dep tracking, master commit 520a349). With a stale main.o the
+# title menu's input gate failed every frame; goldens here freeze the
+# expected title cursor pulse + BG scroll so any future build-staleness
+# class of bug shows up as a pixel mismatch.
+
+description: title boots, no input, hold 60 frames — captures cursor pulse + BG scroll
+rng_seed: 1
+max_frames: 65          # +5 frames of margin so frame 60 actually captures
+capture_frames: [0, 30, 60]
+duration_ceiling_ms: 30000

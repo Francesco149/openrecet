@@ -20,17 +20,39 @@ mid-port regressions can hide between commits when no integration test
 exercises the live-pipeline path. The plan is a two-session split,
 intentionally separated to keep each session focused:
 
-- **Phase A — our-exe integration loop.** No Frida, no retail
-  instrumentation. Adds `--input-trace <file.jsonl>` recorder + player
-  to `build/openrecet.exe`, deterministic frame capture by frame index,
-  and a `tests/scenarios/<name>/` directory layout with `trace.jsonl`
-  + golden frame PNGs + golden audio-event JSON. Test runner replays
-  the trace into our exe, pixel-diffs against goldens, asserts audio
-  events. Starter scenarios cover the regression we just hit: "boot 60
-  frames idle" + "press Z at frame 30, expect dispatch within 16
-  frames and the cursor brightness pulse." Self-hosted goldens —
-  regenerated on intentional behavior changes via `--bless` flag.
-  Catches regressions between *our* commits.
+- **Phase A — our-exe integration loop.** ✅ **Landed 2026-05-21**
+  (commits `2ef4e2b` input_trace module + tests, `4df9292` main.c
+  flag wiring + replay loop, follow-up commit for the scenario runner
+  + first two scenarios). No Frida, no retail instrumentation.
+  Pipeline:
+  - `src/input_trace.{c,h}` sparse-JSONL parser + writer + lookup.
+    Schema: `{"frame":N,"buttons":"0xNNNN"}` — one line per change.
+  - `--input-trace-record <file>` snapshots `g_input_state[0].buttons`
+    each frame; sparse-emit only on transitions.
+  - `--input-trace-replay <file>` skips DirectInput entirely, drives
+    a 20 ms virtual clock so the tick scheduler never delays, pins
+    `g_paused=FALSE`, and writes the recorded mask directly into
+    `g_input_state[0].buttons` each frame.
+  - `--rng-seed <n>` / `--max-frames <n>` / `--capture-frames i,j,k`
+    pin determinism + cap budget + sample only at the listed sim
+    frames (filename `frame_<sim_frame>.bmp`).
+  - `tools/scenario-test.py` discovers `tests/scenarios/<name>/`,
+    runs the exe with the right flags, **bit-exact** diffs captured
+    BMPs against `golden/`. Mismatches emit a red-tint overlay PNG
+    so the regression is multimodally inspectable. `--bless` mode
+    regenerates goldens from a fresh run.
+  - Starter scenarios: `boot-idle` (3 captures, 60 frames idle) and
+    `title-z-press` (5 captures, Z at frame 30 → dispatch at
+    frame 44). Both bit-exact deterministic across re-runs.
+  - Goldens are gitignored (vendor-texture redistribution risk); the
+    `scenario.yaml` + `trace.jsonl` ship, golden/ is `--bless`-local.
+    See `tests/scenarios/README.md`.
+
+  Pixel-diff strictness decision (was the open question): **bit-exact
+  + red-tint overlay on mismatch**. Determinism holds across two
+  back-to-back replay runs in the smoke validation (3/3 frames
+  bit-exact for boot-idle, 5/5 for title-z-press). Cross-host /
+  cross-GPU portability is open — re-bless after switching hosts.
 
 - **Phase B — retail capture via Frida (DLL inject).** Same JSON/PNG
   format as Phase A so the two pipelines share schemas. Hooks D3D8
@@ -53,18 +75,12 @@ intentionally separated to keep each session focused:
   audio buffer, render as waveform + spectrogram PNG, diff visually.
   Implement when the first such bug actually bites — don't pre-build.
 
-Open question (deferred to start of Phase A): pixel-diff strictness.
-Options under consideration:
-- **Bit-exact.** Cleanest pass/fail. Brittle to driver / GPU /
-  compositor diffs across hosts.
-- **SSIM > threshold.** Standard image-similarity. Tunable but
-  threshold tuning hides subtle regressions.
-- **Per-pixel red-tint diff overlay, eyeball-driven.** Visual review,
-  no auto fail. Lowest authority, but the existing `tools/smoke-test.py
-  --diff` already produces this.
-- Likely answer: bit-exact for *deterministic* scenarios (idle title
-  menu, controlled input) + tinted overlay for the rest. Same harness
-  emits both.
+Open question (resolved at start of Phase A, 2026-05-21): pixel-diff
+strictness → **bit-exact + red-tint overlay on mismatch**. The
+overlay is auto-generated per mismatch frame at
+`runs/scenarios/<run>/diff/frame_NNNNN.png`. SSIM was rejected
+because threshold tuning hides single-pixel offset bugs (e.g. the
+`render_quad_add` scaling miss from 2026-05-21 was a 1-2 px shift).
 
 ## Why this exists
 
