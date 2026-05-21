@@ -579,7 +579,13 @@ struct test_case {
     X(audio_play_se_rejects_out_of_range) \
     X(audio_play_se_emits_trace_event) \
     X(audio_play_se_no_trace_when_closed) \
-    X(audio_se_table_matches_vendor_bytes)
+    X(audio_se_table_matches_vendor_bytes) \
+    \
+    X(font_init_zeros_state) \
+    X(font_init_is_idempotent) \
+    X(font_age_tick_advances_in_use_only) \
+    X(font_age_tick_all_free_is_noop) \
+    X(font_age_tick_does_not_touch_other_fields)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

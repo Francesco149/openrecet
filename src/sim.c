@@ -18,8 +18,8 @@
  *
  * Not yet ported:
  *   - FUN_0049966a (sim_b) entirely — the scheduler tolerates NULL.
- *   - Side-effect callouts inside the ring loop (DAT_0438b1e0 visit
- *     counter, FUN_0047c29d) — both empty at boot.
+ *   - Side-effect callouts inside the ring loop: DAT_0438b1e0 visit
+ *     counter is still a stub. FUN_0047c29d is wired (font_age_tick).
  *
  * See docs/findings/winmain-and-bootstrap.md §"Sim halves" (TBD) and
  * docs/decompiled/by-address/4536cb.c.
@@ -29,6 +29,7 @@
 
 #include <string.h>
 
+#include "font.h"         /* font_age_tick — engine's per-frame LRU bump */
 #include "input.h"        /* g_input_state for cur-buttons read */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
 
@@ -110,6 +111,11 @@ void sim_step_a(void)
                                &g_sim_buttons[i].held);
         g_sim_buttons[i].cur = cur;
     }
+
+    /* FUN_0047c29d — age every in-use glyph cache slot. Per engine
+     * ordering this fires *after* the button ring and *before* the
+     * scene dispatch. */
+    font_age_tick();
 
     /* Scene dispatch. Only state 0 (title) is wired up.
      *

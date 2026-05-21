@@ -34,6 +34,7 @@
 #include "music.h"
 #include "audio.h"
 #include "audio_fade.h"
+#include "font.h"
 #include "tick.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
@@ -322,6 +323,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * that just log the size. Parsers land one per commit in Phase B
      * — see docs/findings/tables-loader.md. */
     tables_load_all();
+
+    /* "init fontsys ok" — FUN_0047c228 — clear the 200-slot LRU cache
+     * + parallel texture-pointer table, seed default font height. The
+     * atlas loader/builder + draw_text land in subsequent commits;
+     * this is the engine's first font touch and matches the WinMain
+     * ordering (tables → fontsys → audio). */
+    font_init();
+    fprintf(stderr, "font: cache initialized (%d slots)\n", FONT_SLOT_COUNT);
 
     /* 2D quad batcher — one-time vbuf prefill + screen-width-scale. */
     render_quad_init((uint32_t)g_ini.width);
