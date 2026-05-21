@@ -430,6 +430,26 @@ struct test_case {
     X(scene_title_sim_frame_counter_clamps_at_pre_movie_window) \
     X(scene_title_sim_null_guards) \
     \
+    X(settings_a_on_options_transitions_to_state_2) \
+    X(settings_input_gated_during_slide_in) \
+    X(settings_down_wraps_cursor_mod_six) \
+    X(settings_up_wraps_cursor_backwards) \
+    X(settings_left_decrements_bgm) \
+    X(settings_left_clamps_bgm_floor) \
+    X(settings_right_clamps_bgm_ceiling) \
+    X(settings_each_row_targets_correct_state) \
+    X(settings_clear_row_consumes_a_press_no_exit) \
+    X(settings_a_exits_clean_with_dirty_3) \
+    X(settings_a_exits_dirty_with_dirty_2) \
+    X(settings_b_also_exits) \
+    X(settings_dirty_flag_cleared_on_re_entry) \
+    X(settings_options_dispatch_does_not_set_pending_action) \
+    X(settings_main_menu_other_actions_still_publish) \
+    X(settings_reset_seeds_engine_defaults) \
+    X(settings_slider3_clamps_to_range) \
+    X(settings_slider4_clamps_to_range) \
+    X(settings_round_trip_each_legal_value) \
+    \
     X(sim_button_ring_first_press_sets_pressed) \
     X(sim_button_ring_held_clears_pressed_next_frame) \
     X(sim_button_ring_repeat_pulses_after_settle) \

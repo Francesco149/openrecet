@@ -249,6 +249,13 @@ int audio_play_se(int slot)
 #endif
 }
 
+int audio_play_se_by_id(uint16_t id)
+{
+    const int slot = audio_se_slot_for_id(id);
+    if (slot < 0) return 0;
+    return audio_play_se(slot);
+}
+
 /* ─── Win32 / DirectMusic 8 backend ────────────────────────────────── */
 
 #ifdef _WIN32

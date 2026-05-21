@@ -56,4 +56,11 @@ extern const uint16_t audio_se_resource_ids[AUDIO_SE_COUNT];
  * out of range. (No valid SE has ID 0 — the table starts at 0x13d.) */
 uint16_t audio_se_resource_id(int slot);
 
+/* Reverse lookup — returns the slot in [0, AUDIO_SE_COUNT) whose
+ * resource ID matches `id`, or -1 if none. The engine's call sites
+ * (FUN_00499519 etc.) name SEs by resource ID, not by slot index;
+ * this helper bridges them. Used by gameplay/menu code that hard-codes
+ * IDs (0x143 = confirm/back, 0x146 = cursor tick, etc.). */
+int audio_se_slot_for_id(uint16_t id);
+
 #endif /* OPENRECET_AUDIO_SE_NAMES_H */

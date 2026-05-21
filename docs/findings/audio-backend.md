@@ -391,14 +391,34 @@ In rough order of impact:
    17 new tests (475 total). Engine-quirk: the music.h comment had
    phase 1/2 labels swapped (said 1=in, 2=out); the assembly at
    0x499a2b vs 0x499a9e shows the opposite. Corrected.
-3. **Settings menu (FUN_0047fc44) slider producer** — once the
-   sound-config menu ports, player input on BGM/SE-A/SE-B/swap-rate
-   sliders feeds `audio_fade_set_slider` + re-applies via
-   `audio_fade_apply`.
+3. ~~**Settings menu slider producer**~~ **Done 2026-05-21** — title-
+   menu Options submenu (FUN_0049a59e state 2, *not* the in-game
+   pause variant FUN_0047fc44) ports as part of the title scene.
+   `src/scene_title.c::scene_title_sim` gains a settings-step
+   submodule that maps row 0/1/2 to BGM/SE-A/SE-B via
+   `audio_fade_set_slider`; row 0 also calls `audio_fade_apply(BGM)`
+   to re-attenuate the running music. New `audio_play_se_by_id`
+   helper bridges the engine's SE-id call sites (0x143 / 0x146) to
+   the existing slot-indexed `audio_play_se`. 19 new tests (513
+   total). Settings render is deferred until font-system lands —
+   see `docs/findings/title-settings-submenu.md` "What's deferred".
+   The in-game pause variant (FUN_0047fc44) shares the same slider
+   state and will reuse the same audio_fade infrastructure when the
+   in-game scenes port.
 4. **Shutdown save-back** — `FUN_0047a804` writes `se` / `mu` / `winx` /
    `winy` back to `recet.ini` via `WritePrivateProfileStringA`. Lands
-   with the full shutdown-chain port.
-5. **Engine bug-for-bug compatibility** — the EN-build `SetParam(
+   with the full shutdown-chain port. Companion to the settings-menu
+   producer above — the engine's save-back never reads live slider
+   values, just whatever the ini said at boot, so persistent volume
+   changes need both (a) this saveback and (b) a slider→`g_ini`
+   mirror call from the settings exit-save handler.
+5. **Filename-based SE feedback (FUN_0049933c)** — the SE-B slider
+   row plays a separate filename-loaded SE (`re_sys01a_b` w/ inc/dec
+   variants) instead of the resource-baked 0x146 cursor tick. Port
+   substitutes 0x146 for both directions; resurrecting the filename
+   path requires a DirectMusicLoader::LoadObjectFromFile shim that
+   parallels the resource-based SE load chain.
+6. **Engine bug-for-bug compatibility** — the EN-build `SetParam(
    GUID_StandardMIDIFile, ...)` call (gated on `DAT_0438b170 == 1`)
    never fires in the current Steam build. If a future build sets that
    flag, the port needs to add the call back; for now it's a documented

@@ -162,4 +162,11 @@ int  audio_play_track(int32_t track);
  * Pure C — no _WIN32 guard — so the trace event is testable directly. */
 int audio_play_se(int slot);
 
+/* Resource-ID variant of `audio_play_se`. The engine's menu/game code
+ * names SEs by resource ID (e.g. 0x143 = confirm, 0x146 = cursor tick)
+ * via FUN_00499519; we mirror that for call sites that hard-code IDs.
+ * Returns 0 if the ID doesn't appear in the table, otherwise forwards
+ * to `audio_play_se(slot)`. */
+int audio_play_se_by_id(uint16_t id);
+
 #endif /* OPENRECET_AUDIO_H */

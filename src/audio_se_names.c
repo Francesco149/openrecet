@@ -31,3 +31,11 @@ uint16_t audio_se_resource_id(int slot)
     if (slot < 0 || slot >= AUDIO_SE_COUNT) return 0;
     return audio_se_resource_ids[slot];
 }
+
+int audio_se_slot_for_id(uint16_t id)
+{
+    for (int i = 0; i < AUDIO_SE_COUNT; i++) {
+        if (audio_se_resource_ids[i] == id) return i;
+    }
+    return -1;
+}

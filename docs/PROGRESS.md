@@ -3,6 +3,72 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Title settings submenu producer (FUN_0049a59e state 2)
+
+Ports the bare-path slider producer inside FUN_0049a59e — the title-
+screen "Options" submenu that the engine reaches by selecting OPTIONS
+on the main menu and pressing A. Lands the input/state-machine half
+of the audio-cleanup track's "settings menu slider producer" item.
+
+Result: pressing A on the OPTIONS row of the title menu now (a)
+transitions the title sim into submenu state 2 with cursor on row 0,
+(b) accepts UP/DOWN/LEFT/RIGHT to navigate the 6-row sliders, (c)
+fires SE feedback (0x143 for confirm, 0x146 for cursor/slider tick)
+via a new `audio_play_se_by_id` helper, (d) calls
+`audio_fade_apply(BGM)` on every BGM-slider change so the running
+music re-attenuates immediately, (e) accepts A or B to exit; the
+exit handler folds back to main with the cursor seeded on the
+OPTIONS row.
+
+- **Module shape:** the producer lives inside `src/scene_title.c`
+  (the engine's FUN_0049a59e is the title sim, all submenus
+  included). Two static helpers + one new exit-handler call from
+  the top of `scene_title_sim`. Non-audio rows 3 & 4 live in a new
+  module `src/settings.{c,h}` so other subsystems can read
+  text-speed / boolean state without pulling `scene_title.h`.
+- **New audio helper:** `audio_play_se_by_id(uint16_t)` in audio.c
+  walks the existing 110-entry SE table, finds the slot for the
+  resource ID, and delegates to `audio_play_se(slot)`. Pure C, used
+  by the title scene to mirror the engine's SE-by-id call sites
+  (FUN_00499519). Sibling `audio_se_slot_for_id` exposed for tests.
+- **One-shot dispatch fix:** the main-menu select pulse now only
+  dispatches on the *first* frame `select_phase` reaches 0xf (was:
+  dispatched every subsequent frame, relying on a pending_action
+  guard to mask re-publication). The behaviour difference is visible
+  for the new OPTIONS branch — without the fix, every frame after
+  the select pulse would re-enter the settings submenu.
+- **Engine deviations documented** (`docs/findings/title-settings-submenu.md`):
+  - Row 2 (SE-B) inc/dec plays SE 0x146 instead of the engine's
+    filename-based `re_sys01a_b` SE pair (FUN_0049933c). Filename-
+    based SE loading isn't ported yet; cursor SE keeps the user in
+    audible feedback.
+  - "Clear all data" modal (row 5 + A) is gated but the modal flow
+    itself isn't implemented — no save IO to clear. Engine fidelity
+    holds: A on row 5 consumes the press + plays SE 0x143 but does
+    not exit settings.
+  - Save-on-exit (FUN_004905a8) is stubbed; slider state persists
+    in the audio_fade module and `settings.{c,h}` for the lifetime
+    of the process. Engine saves to `save.dat` + `_save.dat` on the
+    exit-dirty path — lands with the save-IO milestone.
+- **Tests:** 19 new (513 total, was 494). Coverage: state transitions
+  (A on OPTIONS → state=2, exit handler → state=0), 6-row cursor
+  wrap mod 6, per-row slider targeting (BGM/SE-A/SE-B/slider3/slider4),
+  bounds clamping at both ends, dirty-flag transitions (0→1→2 vs
+  0→3), B-also-exits, re-entry clears dirty + cursor, OPTIONS does
+  NOT publish to `pending_action`, regression guard that other menu
+  items (EXIT etc.) still do.
+- **Render deferred:** `FUN_0049c050` (1001 bytes — the settings
+  panel renderer) depends on `FUN_0047ca05` (text helper / font
+  system). Without the font system the per-row slider values can't
+  be drawn. Slated for the font-system milestone — see
+  `docs/findings/title-settings-submenu.md` "What's deferred".
+
+Visible verification: smoke boot still clean, exit 0, BGM unchanged.
+Settings interactivity verifiable via audio_trace JSONL (paired
+`fade_start` + `se_play` lines fire on slider adjust); a manual test
+on the user's host where the player navigates to Options will
+audibly hear BGM volume drop / restore via LEFT/RIGHT on row 0.
+
 ## 2026-05-21 — Audio: per-tick fade animation (FUN_0049966a tail)
 
 Closes item #2 from `audio-backend.md` "Next steps". The volume tail at

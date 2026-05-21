@@ -21,7 +21,10 @@
 #include <math.h>
 #include <string.h>
 
-#include "sim.h"   /* g_sim_buttons for scene_title_sim_default */
+#include "audio.h"        /* audio_play_se_by_id for settings SE feedback */
+#include "audio_fade.h"   /* slider get/set + apply for BGM/SE-A/SE-B rows */
+#include "settings.h"     /* non-audio rows 3 & 4 */
+#include "sim.h"          /* g_sim_buttons for scene_title_sim_default */
 
 scene_title_menu_t  g_scene_title_menu;
 scene_title_anim_t  g_scene_title_anim;
@@ -128,14 +131,213 @@ void scene_title_anim_init_fresh(scene_title_anim_t *out)
     /* `pending_action` lives outside the engine's BSS-zero region — our
      * own outbox field. -1 = no action pending. */
     out->pending_action   = SCENE_TITLE_ACTION_NONE;
+    /* Submenu fields land in their BSS-zero engine defaults: state=0
+     * (main menu), cursor=0, dirty=0. memset above already zeroes
+     * them — listed here for documentation. */
 }
 
 /* Engine button-mask bits (see input.h "input_binding_mask" docs):
  *   0x04 = UP, 0x08 = DOWN, 0x10 = A. The sim reads UP/DOWN from
  *   `held` (auto-repeat) and A from `pressed` (rising edge). */
-#define TITLE_INPUT_UP    0x04
-#define TITLE_INPUT_DOWN  0x08
-#define TITLE_INPUT_A     0x10
+#define TITLE_INPUT_RIGHT  SCENE_TITLE_INPUT_RIGHT
+#define TITLE_INPUT_LEFT   SCENE_TITLE_INPUT_LEFT
+#define TITLE_INPUT_UP     SCENE_TITLE_INPUT_UP
+#define TITLE_INPUT_DOWN   SCENE_TITLE_INPUT_DOWN
+#define TITLE_INPUT_A      SCENE_TITLE_INPUT_A
+#define TITLE_INPUT_B      SCENE_TITLE_INPUT_B
+
+/* SE resource IDs used by the title scene (FUN_00499519 call sites in
+ * FUN_0049a59e). 0x143 = confirm / back, 0x146 = cursor tick. */
+#define TITLE_SE_CONFIRM   0x0143
+#define TITLE_SE_CURSOR    0x0146
+
+/* Settings submenu — 6 rows. Codes match the per-row dispatch in
+ * FUN_0049a59e lines 371-475. */
+#define SETTINGS_ROW_BGM       0
+#define SETTINGS_ROW_SE_A      1
+#define SETTINGS_ROW_SE_B      2
+#define SETTINGS_ROW_SLIDER3   3
+#define SETTINGS_ROW_SLIDER4   4
+#define SETTINGS_ROW_CLEAR     5
+#define SETTINGS_ROW_COUNT     6
+
+/* ── settings submenu producer (FUN_0049a59e lines 371-475) ──────────
+ *
+ * Runs once per frame while `submenu_state == 2 && cursor_anim == 10`.
+ * Reads the per-frame input masks, mutates the slider state, plays SE
+ * feedback. Returns nothing — all state lives in `anim` + audio_fade
+ * module + settings module.
+ *
+ * Bit-for-bit behaviour:
+ *   - A or B pressed (rising edge): exit. Sets dirty=2 if was 1 (save
+ *     on exit) else 3 (no-save exit). SE 0x143. Engine: line 379-386.
+ *   - Row 5 + A: would open the "Clear all data?" modal. Modal flow
+ *     isn't ported (no save IO yet); we play the entry SE (0x143)
+ *     and consume the press but don't actually exit — engine fidelity
+ *     for the input gate, deferred for the modal itself.
+ *   - UP held (auto-repeat): cursor = (cursor + 5) % 6. SE 0x146.
+ *   - DOWN held: cursor = (cursor + 7) % 6. SE 0x146.
+ *   - LEFT held: dec slider at current row, clamped to 0 floor. Plays
+ *     SE 0x146 (rows 1/3/4) or the filename feedback (row 2; engine
+ *     uses FUN_0049933c on a specific path. Deferred — we play 0x146
+ *     instead. See findings/title-settings-submenu.md #50). For row
+ *     0 (BGM) NO SE plays; instead `audio_fade_apply(BGM)` re-applies
+ *     the running music volume (engine line 457: FUN_00499583).
+ *   - RIGHT held: symmetric inc, max 9 (audio rows) / 2 (slider3)
+ *     / 1 (slider4).
+ *   - Any successful slider change: set dirty = 1.
+ *
+ * The engine processes LEFT then RIGHT in an if/else (LEFT takes
+ * precedence); we keep that ordering.
+ */
+static void scene_title_settings_apply_slider(int row, int delta, int *out_changed)
+{
+    *out_changed = 0;
+    switch (row) {
+    case SETTINGS_ROW_BGM: {
+        int v = audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM);
+        int nv = v + delta;
+        if (nv < 0 || nv > 9) return;
+        audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, nv);
+        audio_fade_apply(AUDIO_FADE_CHANNEL_BGM);
+        *out_changed = 1;
+        return;
+    }
+    case SETTINGS_ROW_SE_A: {
+        int v = audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_A);
+        int nv = v + delta;
+        if (nv < 0 || nv > 9) return;
+        audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, nv);
+        audio_play_se_by_id(TITLE_SE_CURSOR);
+        *out_changed = 1;
+        return;
+    }
+    case SETTINGS_ROW_SE_B: {
+        int v = audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_B);
+        int nv = v + delta;
+        if (nv < 0 || nv > 9) return;
+        audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B, nv);
+        /* Engine plays a filename-based SE here (FUN_0049933c against
+         * "re_sys01a_b" w/ inc-vs-dec path variants). Filename SE
+         * loading isn't ported (separate from the resource-baked SE
+         * table). Fall back to the universal cursor SE so the user
+         * gets *some* feedback. Documented deviation. */
+        audio_play_se_by_id(TITLE_SE_CURSOR);
+        *out_changed = 1;
+        return;
+    }
+    case SETTINGS_ROW_SLIDER3: {
+        int v = settings_get_slider3();
+        int nv = v + delta;
+        if (nv < 0 || nv > SETTINGS_SLIDER3_MAX) return;
+        settings_set_slider3(nv);
+        audio_play_se_by_id(TITLE_SE_CURSOR);
+        *out_changed = 1;
+        return;
+    }
+    case SETTINGS_ROW_SLIDER4: {
+        int v = settings_get_slider4();
+        int nv = v + delta;
+        if (nv < 0 || nv > SETTINGS_SLIDER4_MAX) return;
+        settings_set_slider4(nv);
+        audio_play_se_by_id(TITLE_SE_CURSOR);
+        *out_changed = 1;
+        return;
+    }
+    case SETTINGS_ROW_CLEAR:
+        /* No slider on the clear-data row. */
+        return;
+    }
+}
+
+static void scene_title_settings_step(scene_title_anim_t *anim,
+                                      uint16_t pressed,
+                                      uint16_t held)
+{
+    const int row = (int)anim->submenu_cursor;
+
+    /* Row 5 + A: clear-data prompt. Engine opens a modal via
+     * FUN_00434def; we play the entry SE and consume the press but
+     * don't actually trigger any clear (no save IO). The next frame
+     * will re-check `pressed` — A is a rising edge so it doesn't
+     * re-fire. */
+    if (row == SETTINGS_ROW_CLEAR && (pressed & TITLE_INPUT_A)) {
+        audio_play_se_by_id(TITLE_SE_CONFIRM);
+        return;
+    }
+
+    /* A or B pressed: exit. Engine sets dirty 1→2 (exit-save) or
+     * 0→3 (exit-no-save). The actual save + slide-out runs the
+     * NEXT frame from the top-of-sim dispatch (`settings_dirty != 0`
+     * branch). */
+    if (pressed & (TITLE_INPUT_A | TITLE_INPUT_B)) {
+        audio_play_se_by_id(TITLE_SE_CONFIRM);
+        anim->settings_dirty = (anim->settings_dirty == 1) ? 2 : 3;
+        return;
+    }
+
+    /* Cursor move. Engine checks UP and DOWN independently (not
+     * else-if). On a real D-pad they're mutually exclusive, but we
+     * mirror the engine's structure. */
+    if (held & TITLE_INPUT_UP) {
+        anim->submenu_cursor = (anim->submenu_cursor + 5) % SETTINGS_ROW_COUNT;
+        audio_play_se_by_id(TITLE_SE_CURSOR);
+    }
+    if (held & TITLE_INPUT_DOWN) {
+        anim->submenu_cursor = (anim->submenu_cursor + 7) % SETTINGS_ROW_COUNT;
+        audio_play_se_by_id(TITLE_SE_CURSOR);
+    }
+
+    /* LEFT precedence over RIGHT (engine line 398). */
+    int changed = 0;
+    if (held & TITLE_INPUT_LEFT) {
+        scene_title_settings_apply_slider((int)anim->submenu_cursor, -1, &changed);
+    } else if (held & TITLE_INPUT_RIGHT) {
+        scene_title_settings_apply_slider((int)anim->submenu_cursor, +1, &changed);
+    }
+    if (changed) {
+        anim->settings_dirty = 1;
+    }
+}
+
+/* ── settings exit handler (FUN_0049a59e top + LAB_0049a5d3) ────────
+ *
+ * Runs at the top of every sim tick. When `settings_dirty == 2 or 3`,
+ * fold back to the main menu. Dirty=2 also triggers save-back (which
+ * is stubbed — no save IO). Cursor on main menu seeks to the OPTIONS
+ * row so the user lands where they came from. */
+static void scene_title_settings_exit_handler(scene_title_anim_t *anim,
+                                              const scene_title_menu_t *menu)
+{
+    if (anim->submenu_state != 2) return;
+    if (anim->settings_dirty != 2 && anim->settings_dirty != 3) return;
+
+    if (anim->settings_dirty == 2) {
+        /* Engine: FUN_004905a8(-1) writes save.dat + _save.dat. Save
+         * IO not ported yet — sliders are kept in audio_fade module
+         * state and rebuild from recet.ini next boot. Documented as
+         * a deferred follow-up. */
+    }
+
+    anim->select_phase     = 0;
+    anim->menu_folding_out = 1;        /* start slide-OUT */
+    /* Engine calls FUN_00435612 (cursor sprite off) + FUN_0049a43d
+     * (rebuild main menu). Our menu is pre-built and reused; cursor
+     * sprite isn't rendered yet. Both are no-ops for the bare slice. */
+
+    /* Seek main-menu cursor to the OPTIONS row (code 2). Engine
+     * mirrors this so the user returns to the row they entered from. */
+    anim->cursor_pos = 0;
+    for (int i = 0; i < menu->count; i++) {
+        if (menu->items[i] == SCENE_TITLE_MENU_OPTIONS) {
+            anim->cursor_pos = (uint32_t)i;
+            break;
+        }
+    }
+
+    anim->settings_dirty = 0;
+    anim->submenu_state  = 0;
+}
 
 void scene_title_sim(scene_title_anim_t *anim,
                      const scene_title_menu_t *menu,
@@ -143,6 +345,11 @@ void scene_title_sim(scene_title_anim_t *anim,
                      uint16_t held)
 {
     if (!anim || !menu) return;
+
+    /* Engine FUN_0049a59e top: handle a pending settings exit. Runs
+     * before the cursor_anim ramp so the slide-out animation can
+     * begin on this same frame. */
+    scene_title_settings_exit_handler(anim, menu);
 
     /* FUN_0049a3a3 line 239-250: cursor_anim slides toward 0 when
      * `menu_folding_out` is set, toward 10 when clear. */
@@ -156,17 +363,19 @@ void scene_title_sim(scene_title_anim_t *anim,
         }
     }
 
-    /* The engine's outer `if (DAT_09643520 == 10)` arm is the main-menu
-     * input handler — but only when DAT_09643524 (submenu state) != 0,
-     * which never happens in the bare-path build. For the bare slice
-     * we only need the else arm:
-     *   - DAT_09643550 < 1 (no fade in progress) [BSS-zero — always true]
-     *   - DAT_09643520 == 0  (main menu fully on-screen)
-     *   - DAT_09643544 < 1  (select pulse idle) → frame_counter advance
-     *                                              + input handling
-     *   - otherwise           → tick select_phase up to 0xf, then reset
+    /* Submenu input — gated on cursor_anim == 10 (fully slid in).
+     * Engine: lines 251-475 of 49a59e.c — only state==2 (settings) is
+     * wired here; states 1/3/4 fall through with no input. */
+    if (anim->cursor_anim == 10 && anim->submenu_state == 2) {
+        scene_title_settings_step(anim, pressed, held);
+        anim->pulse_phase++;
+        return;
+    }
+
+    /* Main menu input — gated on cursor_anim == 0 && submenu_state == 0.
+     * Engine: line 491-552 (`else` of all the submenu state branches).
      */
-    if (anim->cursor_anim == 0) {
+    if (anim->cursor_anim == 0 && anim->submenu_state == 0) {
         if (anim->select_phase == 0) {
             anim->frame_counter++;
 
@@ -219,17 +428,31 @@ void scene_title_sim(scene_title_anim_t *anim,
              * starts incrementing, which gates this entire `cursor_anim
              * == 0` block out on subsequent frames.
              *
-             * For our bare slice we cannot dispatch a scene transition
-             * (none of the destination scenes have ported). Instead we
-             * just publish the would-be action into `pending_action`
-             * and let the consumer (main.c) decide what to do. */
-            anim->select_phase++;
-            if (anim->select_phase >= 0xf) {
-                anim->select_phase = 0xf;          /* stay at 0xf, match engine */
-                if (anim->pending_action == SCENE_TITLE_ACTION_NONE
+             * OPTIONS (code 2) is handled inline: state→2, cursor=0,
+             * menu_folding_out=0 (start slide-in). Other codes publish
+             * to `pending_action` for main.c.
+             *
+             * Dispatch is one-shot: fires on the frame select_phase
+             * crosses 0→0xf (i.e., reaches 15 for the first time). After
+             * that the phase pins at 0xf and the dispatch path is
+             * skipped — the engine increments past 0xf instead of
+             * pinning, but it gates the dispatch on `== 0xf` so the
+             * net effect is the same. The pin is a port choice so
+             * consumers can read the latched 0xf value any time. */
+            if (anim->select_phase < 0xf) {
+                anim->select_phase++;
+                if (anim->select_phase == 0xf
                     && menu->count > 0
                     && anim->cursor_pos < (uint32_t)menu->count) {
-                    anim->pending_action = menu->items[anim->cursor_pos];
+                    const int code = menu->items[anim->cursor_pos];
+                    if (code == SCENE_TITLE_MENU_OPTIONS) {
+                        /* Engine FUN_0049a59e L534-543: enter settings. */
+                        anim->submenu_state    = 2;
+                        anim->submenu_cursor   = 0;
+                        anim->menu_folding_out = 0;   /* slide submenu in */
+                    } else if (anim->pending_action == SCENE_TITLE_ACTION_NONE) {
+                        anim->pending_action = code;
+                    }
                 }
             }
         }

@@ -61,13 +61,38 @@ typedef struct {
                                  *                a submenu). FUN_0049a3a3
                                  *                ("bootstrap done") seeds 1. */
 
+    /* ── Submenu state (only "settings"/state 2 is wired) ──
+     *
+     * `submenu_state` mirrors DAT_09643524: 0 = main title menu,
+     * 2 = settings/options. (States 1/3/4 — load-game / confirm /
+     * ranking — are valid in the engine but their producers haven't
+     * ported; setting them is a no-op here.)
+     *
+     * `submenu_cursor` is the row within the active submenu
+     * (DAT_09643530). Settings has 6 rows: 0..2 = BGM/SE-A/SE-B
+     * volumes, 3..4 = non-audio sliders, 5 = "Clear all data" button.
+     *
+     * `settings_dirty` mirrors DAT_09643560 — the settings-exit
+     * state machine: 0 = clean (no changes yet), 1 = dirty (a slider
+     * moved), 2 = exit-with-save (A/B pressed while dirty),
+     * 3 = exit-no-save (A/B pressed while clean). The transition
+     * 2→0 / 3→0 runs the save-back + slide-out flow on the next
+     * frame's top-of-sim. */
+    int      submenu_state;     /* DAT_09643524 */
+    uint32_t submenu_cursor;    /* DAT_09643530 */
+    int      settings_dirty;    /* DAT_09643560 */
+
     /* Press-dispatch outbox. The pure sim sets `pending_action` to the
      * menu item code (SCENE_TITLE_MENU_*) on the frame `select_phase`
      * reaches 0xf — the moment the engine dispatches a scene transition.
      * NOT cleared by the sim; consumer (main.c's Win32 wrapper) is
      * responsible for reading + handling + clearing it (along with
      * resetting `select_phase` to 0 so the player can try again).
-     * Default value: SCENE_TITLE_ACTION_NONE (-1). */
+     * Default value: SCENE_TITLE_ACTION_NONE (-1).
+     *
+     * Important: OPTIONS (code 2) is NOT routed through `pending_action`
+     * — it's handled inline by the sim (state transition to
+     * submenu_state=2). Consumer code never sees OPTIONS here. */
     int32_t pending_action;     /* see SCENE_TITLE_ACTION_* below */
 } scene_title_anim_t;
 
@@ -160,11 +185,29 @@ void scene_title_menu_init_fresh(scene_title_menu_t *out);
  *
  * Side-effect callouts the engine makes here (sound effects 0x143/
  * 0x146 via FUN_00499519, intro-movie attempt at frame == 0x1be4)
- * are *not* invoked; they wait for the audio + video subsystems. */
+ * are *not* invoked; they wait for the audio + video subsystems.
+ *
+ * When `submenu_state == 2` (settings submenu), the sim runs the
+ * settings producer instead of the main-menu input handler. See
+ * docs/findings/title-settings-submenu.md. SE feedback for the
+ * settings submenu IS invoked (via audio_play_se_by_id) — the
+ * audio backend's pure-C trace event fires either way; the actual
+ * platform playback is gated on _WIN32 inside audio_play_se. */
 void scene_title_sim(scene_title_anim_t *anim,
                      const scene_title_menu_t *menu,
                      uint16_t pressed,
                      uint16_t held);
+
+/* ── Settings submenu input bits ──
+ * Buttons B and the LEFT/RIGHT D-pad bits are read by the settings sim
+ * (in addition to the main-menu UP/DOWN/A bits). Exposed for the test
+ * harness which builds raw masks. */
+#define SCENE_TITLE_INPUT_RIGHT  0x0001
+#define SCENE_TITLE_INPUT_LEFT   0x0002
+#define SCENE_TITLE_INPUT_UP     0x0004
+#define SCENE_TITLE_INPUT_DOWN   0x0008
+#define SCENE_TITLE_INPUT_A      0x0010
+#define SCENE_TITLE_INPUT_B      0x0020
 
 /* ─── module globals (engine memory mapping) ─────────────────────────── */
 
