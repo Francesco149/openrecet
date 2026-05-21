@@ -122,6 +122,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * handles. Use the debug binary for interactive log inspection. */
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IOLBF, 0);
+
+    /* Source files are UTF-8, so `—`/`→`/`⚠` in log strings emit as UTF-8
+     * bytes. Default Windows consoles (cmd/PowerShell with no locale tweak)
+     * decode stderr as CP437/CP932 and mojibake them ("ΓÇö" etc.). Tell the
+     * console to interpret bytes as UTF-8 — no-op for the GUI build, which
+     * has no attached console, and harmless when invoked under WSLInterop. */
+    SetConsoleOutputCP(CP_UTF8);
+
     parse_cmdline(lpCmdLine);
 
     /* High-resolution timer (matches the original's TIMECAPS dance). */
