@@ -225,8 +225,43 @@ def run(target: str, scenario: Scenario, args: argparse.Namespace) -> Path:
 # ─── diff (frame-based) ───────────────────────────────────────────────────
 
 
+def _rel(p: Path) -> str:
+    """Display path relative to the project root if possible, else absolute.
+    The repo-relative form is friendlier in normal runs; tests use tmpdirs
+    outside the tree and need the absolute fallback.
+    """
+    try:
+        return str(p.relative_to(ROOT))
+    except ValueError:
+        return str(p)
+
+
+def _diff_overlay(golden_rgb, new_rgb, threshold: int = 4):
+    """Return a new RGB image with pixels where |new-golden| ≥ threshold
+    (across any RGB channel) blended 50/50 with pure red. Inputs are
+    H×W×3 uint8 numpy arrays of identical shape. Used by diff_runs.
+    """
+    import numpy as np
+
+    diff = np.abs(new_rgb.astype(np.int16) - golden_rgb.astype(np.int16))
+    mask = (diff.max(axis=2) >= threshold)  # H×W bool
+
+    out = new_rgb.copy()
+    if mask.any():
+        red = np.array([255, 0, 0], dtype=np.int16)
+        blended = (out[mask].astype(np.int16) + red) // 2
+        out[mask] = blended.astype(np.uint8)
+    return out, mask
+
+
 def diff_runs(new_run: Path, golden_run: Path) -> Path:
-    """Pairwise SSIM between matching frame numbers; write a markdown report."""
+    """Pairwise SSIM + per-pixel diff overlay between matching frames.
+
+    Writes:
+      - <new_run>/diff.md (markdown SSIM report)
+      - <new_run>/diff/frame_NNNNN.png (per-frame red-tinted overlay)
+      - <new_run>/diff-overlay.png (contact-sheet of the overlays)
+    """
     from skimage.metrics import structural_similarity as ssim
     from PIL import Image
     import numpy as np
@@ -237,6 +272,14 @@ def diff_runs(new_run: Path, golden_run: Path) -> Path:
     nframes = frames_in(new_run / "frames")
     gframes = frames_in(golden_run / "frames")
     pairs = list(zip(gframes, nframes))
+
+    overlay_dir = new_run / "diff"
+    overlay_dir.mkdir(exist_ok=True)
+    # Wipe any stale overlays from a previous diff run so the contact sheet
+    # only reflects the current pair set.
+    for p in overlay_dir.glob("frame_*.png"):
+        p.unlink()
+
     lines = [
         f"# diff: {new_run.name} vs {golden_run.name}",
         "",
@@ -244,28 +287,66 @@ def diff_runs(new_run: Path, golden_run: Path) -> Path:
         f"- new frames:    {len(nframes)}",
         f"- compared:      {len(pairs)}",
         "",
-        "| frame | ssim | size match |",
-        "|------:|-----:|:----------:|",
+        "| frame | ssim | diff px | size match |",
+        "|------:|-----:|--------:|:----------:|",
     ]
     avg = 0.0
+    total_diff_px = 0
     for g, n in pairs:
-        gi = np.asarray(Image.open(g).convert("L"))
-        ni = np.asarray(Image.open(n).convert("L"))
-        size_match = gi.shape == ni.shape
+        g_img = Image.open(g).convert("RGB")
+        n_img = Image.open(n).convert("RGB")
+        gi_rgb = np.asarray(g_img)
+        ni_rgb = np.asarray(n_img)
+        size_match = gi_rgb.shape == ni_rgb.shape
         if not size_match:
-            h = min(gi.shape[0], ni.shape[0])
-            w = min(gi.shape[1], ni.shape[1])
-            gi, ni = gi[:h, :w], ni[:h, :w]
-        s = ssim(gi, ni, data_range=255)
+            h = min(gi_rgb.shape[0], ni_rgb.shape[0])
+            w = min(gi_rgb.shape[1], ni_rgb.shape[1])
+            gi_rgb, ni_rgb = gi_rgb[:h, :w, :], ni_rgb[:h, :w, :]
+
+        gi_l = np.asarray(Image.fromarray(gi_rgb).convert("L"))
+        ni_l = np.asarray(Image.fromarray(ni_rgb).convert("L"))
+        s = ssim(gi_l, ni_l, data_range=255)
         avg += s
-        lines.append(f"| {n.stem} | {s:.4f} | {'✓' if size_match else '✗'} |")
+
+        overlay, mask = _diff_overlay(gi_rgb, ni_rgb)
+        diff_px = int(mask.sum())
+        total_diff_px += diff_px
+        Image.fromarray(overlay).save(overlay_dir / f"{n.stem}.png")
+
+        lines.append(
+            f"| {n.stem} | {s:.4f} | {diff_px} | "
+            f"{'✓' if size_match else '✗'} |"
+        )
     if pairs:
         avg /= len(pairs)
-    lines += ["", f"**mean SSIM: {avg:.4f}**", ""]
+    lines += [
+        "",
+        f"**mean SSIM: {avg:.4f}**",
+        f"**total diff pixels (threshold=4): {total_diff_px}**",
+        "",
+    ]
 
     report = new_run / "diff.md"
     report.write_text("\n".join(lines))
-    print(f"diff: {report.relative_to(ROOT)}  mean SSIM={avg:.4f}")
+    print(f"diff: {_rel(report)}  mean SSIM={avg:.4f}")
+
+    overlays = sorted(overlay_dir.glob("frame_*.png"))
+    if overlays:
+        out_overlay = new_run / "diff-overlay.png"
+        cmd = [
+            sys.executable, str(CONTACT_SHEET),
+            "--src", str(overlay_dir),
+            "--out", str(out_overlay),
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            print(
+                f"diff-overlay sheet failed: {r.stderr.strip()}",
+                file=sys.stderr,
+            )
+        else:
+            print(f"diff-overlay: {_rel(out_overlay)}")
+
     return report
 
 
