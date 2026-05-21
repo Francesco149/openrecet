@@ -3,6 +3,75 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — title menu A-press → real EXIT (FUN_0049a59e press-dispatch, item==3)
+
+The smallest scene-transition slice: the EXIT menu item now actually
+quits the game. Pressing A on the EXIT line plays the 15-frame select
+pulse, then `PostMessageA(hwnd, WM_CLOSE, 0, 0)` fires (the engine's
+literal dispatch for `iVar1 == 3` in FUN_0049a59e L524-528), the main
+loop's `GetMessageA` returns 0, and shutdown runs cleanly.
+
+This is the first real A-press transition out of the title — every
+prior commit landed the player on the title indefinitely.
+
+**What landed:**
+
+- **`scene_title_anim_t.pending_action`** — new outbox field. The
+  pure sim sets it to the menu item code (`SCENE_TITLE_MENU_*`) on
+  the frame `select_phase` reaches 0xf. Default `SCENE_TITLE_ACTION_NONE
+  = -1`. Consumer (main.c) clears it after handling.
+- **`scene_title_sim` select-pulse tail rewritten.** Previously
+  resetting `select_phase` to 0 at 0xf; now matches the engine —
+  pins at 0xf and writes `menu->items[cursor_pos]` into
+  `pending_action`. Subsequent frames don't replace the latched
+  value (so consumer sees the same action on every poll until
+  cleared).
+- **`main.c` press-dispatch consumer.** After each
+  `tick_step_win32` call, polls `g_scene_title_anim.pending_action`:
+    - `SCENE_TITLE_MENU_EXIT` (3) → `PostMessageA(g_hwnd, WM_CLOSE, 0, 0)`,
+       leaves `select_phase` at 0xf (window's closing anyway).
+    - Anything else → log "menu item N selected — destination scene
+      not ported yet" once per item per session, snap `select_phase`
+      back to 0 so the player can pick a different item.
+- **Engine fidelity for EXIT is bit-for-bit:** same window handle
+  (the engine's `DAT_073dfc7c` is our `g_hwnd`), same `WM_CLOSE`
+  (0x10) message, same source line in `FUN_0049a59e:526`. The
+  engine's `DAT_0964356c = 1` set before the PostMessage is a
+  flag we don't need (`scene_title.c` doesn't have any reader of
+  it yet; will land if/when we find one).
+
+**Tests.** 4 new (total 407, was 403):
+- `test_scene_title_sim_select_phase_pins_at_fifteen` — replaces the
+  old "resets at fifteen" test; verifies new pin behavior.
+- `test_scene_title_sim_pending_action_default_is_none` — init seed.
+- `test_scene_title_sim_pending_action_set_on_select_complete` —
+  full pulse cycle latches `pending_action = items[cursor_pos]`.
+- `test_scene_title_sim_pending_action_exit_on_exit_item` — move
+  cursor to EXIT via DOWN×3, run pulse, assert
+  `pending_action == SCENE_TITLE_MENU_EXIT`.
+- `test_scene_title_sim_pending_action_set_once_not_replaced` —
+  subsequent frames preserve the latch.
+
+**Boot trace unchanged** (same 17-table init, same recet.ini values).
+EXIT verification requires synthetic input which the smoke harness
+doesn't support yet — covered by the unit tests instead.
+
+**Not yet ported (every other A-press destination):**
+- `SCENE_TITLE_MENU_NEW_GAME` (0) / `NEW_HAS_SAVE` (4): engine sets
+  `DAT_0964351c = 1` + `DAT_0438bed4 = 1` (loading transition that
+  spins for 30 frames then jumps to scene 1 "town"). Needs the town
+  scene at minimum.
+- `SCENE_TITLE_MENU_OPTIONS` (2): engine sets `DAT_09643524 = 2` +
+  `menu_folding_out = 0` (options submenu slides in). Needs the
+  options-submenu render branch of FUN_0049c644 + an "options" sub-
+  state machine.
+- `SCENE_TITLE_MENU_RANKING` (7): engine sets `DAT_09643524 = 3` +
+  calls FUN_0049f012(1). Score/ranking persistence not ported.
+- `SCENE_TITLE_MENU_CONTINUE_ANY` (1) / `CONT_HAS_SAVE` (5): save-
+  bank reader → scene 1 with restored state. Needs save-bank port.
+- `SCENE_TITLE_MENU_SURVIVAL` (6) / `HIDDEN_CHAR` (8): even further
+  out; both gate on unlock flags we don't simulate.
+
 ## 2026-05-21 — sim_b music selector ported (FUN_0049966a)
 
 Second half of the per-frame sim, the music-track selector. Wired into

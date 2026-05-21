@@ -144,7 +144,7 @@ int test_scene_title_sim_a_pressed_starts_select_phase(void)
     return 0;
 }
 
-int test_scene_title_sim_select_phase_resets_at_fifteen(void)
+int test_scene_title_sim_select_phase_pins_at_fifteen(void)
 {
     scene_title_anim_t a;
     scene_title_menu_t m;
@@ -155,12 +155,100 @@ int test_scene_title_sim_select_phase_resets_at_fifteen(void)
     scene_title_sim(&a, &m, INPUT_A, 0);
     T_ASSERT_EQ_U(a.select_phase, 1u);
 
-    /* From 1, we increment 14 more frames before it hits 15 and resets.
-     * Engine triggers scene-transition at 15; bare slice resets to 0. */
+    /* From 1, we increment 14 more frames. Engine pins at 0xf and
+     * leaves the dispatch responsibility to the consumer (the engine
+     * relies on cursor_anim slide / window destruction to break out
+     * of the block on subsequent frames). */
     for (int i = 0; i < 14; i++) {
         scene_title_sim(&a, &m, 0, 0);
     }
-    T_ASSERT_EQ_U(a.select_phase, 0u);
+    T_ASSERT_EQ_U(a.select_phase, 0xfu);
+
+    /* Stays at 0xf for additional frames. */
+    scene_title_sim(&a, &m, 0, 0);
+    scene_title_sim(&a, &m, 0, 0);
+    T_ASSERT_EQ_U(a.select_phase, 0xfu);
+    return 0;
+}
+
+int test_scene_title_sim_pending_action_default_is_none(void)
+{
+    scene_title_anim_t a;
+    scene_title_anim_init_fresh(&a);
+    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_ACTION_NONE);
+    return 0;
+}
+
+int test_scene_title_sim_pending_action_set_on_select_complete(void)
+{
+    /* Pressing A on a fresh-boot menu cycles through select_phase 1..15;
+     * at 15, pending_action latches to menu->items[cursor_pos]. Fresh
+     * boot's default cursor is on NEW_GAME (item code 0). */
+    scene_title_anim_t a;
+    scene_title_menu_t m;
+    scene_title_anim_init_fresh(&a);
+    mk_menu(&m);
+
+    scene_title_sim(&a, &m, INPUT_A, 0);          /* select_phase=1 */
+    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_ACTION_NONE);
+
+    /* 14 more frames to reach 0xf. */
+    for (int i = 0; i < 14; i++) {
+        scene_title_sim(&a, &m, 0, 0);
+    }
+    T_ASSERT_EQ_U(a.select_phase,   0xfu);
+    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_MENU_NEW_GAME);
+    return 0;
+}
+
+int test_scene_title_sim_pending_action_exit_on_exit_item(void)
+{
+    /* Move cursor onto EXIT (item 3) then trigger select pulse. */
+    scene_title_anim_t a;
+    scene_title_menu_t m;
+    scene_title_anim_init_fresh(&a);
+    mk_menu(&m);   /* fresh boot: NEW_GAME, OPTIONS, RANKING, EXIT (4 items) */
+
+    /* Move to EXIT (index 3 on the fresh menu — last entry). DOWN three
+     * times. Cursor anim is 0 → can move; menu->count is 4. */
+    scene_title_sim(&a, &m, 0, INPUT_DOWN);  /* 0 → 1 */
+    scene_title_sim(&a, &m, 0, INPUT_DOWN);  /* 1 → 2 */
+    scene_title_sim(&a, &m, 0, INPUT_DOWN);  /* 2 → 3 (EXIT) */
+    T_ASSERT_EQ_U(a.cursor_pos, 3u);
+    T_ASSERT_EQ_I(m.items[3], SCENE_TITLE_MENU_EXIT);
+
+    /* Press A and let the select pulse run to completion. */
+    scene_title_sim(&a, &m, INPUT_A, 0);
+    for (int i = 0; i < 14; i++) {
+        scene_title_sim(&a, &m, 0, 0);
+    }
+    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_MENU_EXIT);
+    return 0;
+}
+
+int test_scene_title_sim_pending_action_set_once_not_replaced(void)
+{
+    /* Once pending_action latches, subsequent frames don't overwrite
+     * it. Consumer is responsible for clearing. This matters because
+     * the engine doesn't naturally exit the dispatch — main.c clears
+     * it after handling. */
+    scene_title_anim_t a;
+    scene_title_menu_t m;
+    scene_title_anim_init_fresh(&a);
+    mk_menu(&m);
+
+    /* Run the full pulse. */
+    scene_title_sim(&a, &m, INPUT_A, 0);
+    for (int i = 0; i < 14; i++) {
+        scene_title_sim(&a, &m, 0, 0);
+    }
+    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_MENU_NEW_GAME);
+
+    /* Cursor wouldn't move (input gated), but if the test forcibly
+     * shifts it the pending_action should NOT update. */
+    a.cursor_pos = 3;   /* simulate manual cursor change */
+    scene_title_sim(&a, &m, 0, 0);
+    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_MENU_NEW_GAME);
     return 0;
 }
 

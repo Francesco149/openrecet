@@ -125,6 +125,9 @@ void scene_title_anim_init_fresh(scene_title_anim_t *out)
     /* FUN_0049a3a3 line-for-line: all counters zero, fold-out flag set. */
     memset(out, 0, sizeof *out);
     out->menu_folding_out = 1;
+    /* `pending_action` lives outside the engine's BSS-zero region — our
+     * own outbox field. -1 = no action pending. */
+    out->pending_action   = SCENE_TITLE_ACTION_NONE;
 }
 
 /* Engine button-mask bits (see input.h "input_binding_mask" docs):
@@ -196,14 +199,38 @@ void scene_title_sim(scene_title_anim_t *anim,
                 }
             }
         } else {
-            /* Select-countdown branch. Engine: `DAT_09643544 += 1`
-             * each frame; at == 0xf, dispatch to a scene based on the
-             * selected menu code. Until those scenes port, we just
-             * snap back to 0 — the player loses the half-second pulse
-             * animation but stays on the title indefinitely. */
+            /* Select-countdown branch. Engine (FUN_0049a59e L521-594):
+             *   DAT_09643544 += 1;
+             *   if (DAT_09643544 != 0xf) return;
+             *   iVar1 = (&DAT_09643358)[DAT_09643540];   // menu item code
+             *   switch (iVar1) {
+             *     case 3:  PostMessageA(hwnd, WM_CLOSE, 0, 0);          // EXIT
+             *     case 2:  DAT_09643524 = 2; DAT_09643528 = 0;          // OPTIONS
+             *     case 7:  FUN_0049f012(1); DAT_09643524 = 3; ...       // RANKING
+             *     case 8:  DAT_09643524 = 4; ...                        // HIDDEN
+             *     case 0, 5: DAT_0964351c += 1; DAT_0438bed4 = 1;       // NEW (loading transition)
+             *     case 1, 4: FUN_0049b537(); DAT_09643524 = 1; ...      // CONTINUE
+             *     case 6:  DAT_09643550 += 1; ...                       // SURVIVAL
+             *   }
+             *
+             * The engine does NOT reset DAT_09643544 here — it stays at
+             * 0xf, but the dispatched action either closes the window
+             * (EXIT) or sets `menu_folding_out = 0` so cursor_anim
+             * starts incrementing, which gates this entire `cursor_anim
+             * == 0` block out on subsequent frames.
+             *
+             * For our bare slice we cannot dispatch a scene transition
+             * (none of the destination scenes have ported). Instead we
+             * just publish the would-be action into `pending_action`
+             * and let the consumer (main.c) decide what to do. */
             anim->select_phase++;
             if (anim->select_phase >= 0xf) {
-                anim->select_phase = 0;
+                anim->select_phase = 0xf;          /* stay at 0xf, match engine */
+                if (anim->pending_action == SCENE_TITLE_ACTION_NONE
+                    && menu->count > 0
+                    && anim->cursor_pos < (uint32_t)menu->count) {
+                    anim->pending_action = menu->items[anim->cursor_pos];
+                }
             }
         }
     }

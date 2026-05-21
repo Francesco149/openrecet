@@ -420,7 +420,11 @@ struct test_case {
     X(scene_title_sim_down_held_wraps_cursor) \
     X(scene_title_sim_up_held_wraps_cursor_backwards) \
     X(scene_title_sim_a_pressed_starts_select_phase) \
-    X(scene_title_sim_select_phase_resets_at_fifteen) \
+    X(scene_title_sim_select_phase_pins_at_fifteen) \
+    X(scene_title_sim_pending_action_default_is_none) \
+    X(scene_title_sim_pending_action_set_on_select_complete) \
+    X(scene_title_sim_pending_action_exit_on_exit_item) \
+    X(scene_title_sim_pending_action_set_once_not_replaced) \
     X(scene_title_sim_cursor_input_ignored_while_select_pending) \
     X(scene_title_sim_cursor_pressed_only_no_held) \
     X(scene_title_sim_frame_counter_clamps_at_pre_movie_window) \

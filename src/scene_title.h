@@ -60,7 +60,20 @@ typedef struct {
                                  *                (main menu sliding off for
                                  *                a submenu). FUN_0049a3a3
                                  *                ("bootstrap done") seeds 1. */
+
+    /* Press-dispatch outbox. The pure sim sets `pending_action` to the
+     * menu item code (SCENE_TITLE_MENU_*) on the frame `select_phase`
+     * reaches 0xf — the moment the engine dispatches a scene transition.
+     * NOT cleared by the sim; consumer (main.c's Win32 wrapper) is
+     * responsible for reading + handling + clearing it (along with
+     * resetting `select_phase` to 0 so the player can try again).
+     * Default value: SCENE_TITLE_ACTION_NONE (-1). */
+    int32_t pending_action;     /* see SCENE_TITLE_ACTION_* below */
 } scene_title_anim_t;
+
+/* Marker for "no action pending". -1 sits outside any valid menu code
+ * (0..8) so it can't collide with a real dispatch. */
+#define SCENE_TITLE_ACTION_NONE  (-1)
 
 /* Initialize `out` to the state FUN_0049a3a3 leaves the engine in at
  * end-of-bootstrap: every counter zero except `menu_folding_out = 1`. */

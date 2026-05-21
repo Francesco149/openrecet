@@ -266,12 +266,51 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         .render     = render_dispatch,
     };
     tick_init();
+    /* "Already-logged" suppression for unimplemented title menu items.
+     * One slot per SCENE_TITLE_MENU_* code (0..8). Without this, an
+     * unimplemented selection re-fires every frame for as long as the
+     * player is on the title screen — the engine's would-be dispatch
+     * left `select_phase` at 0xf and relied on the destination scene's
+     * `menu_folding_out = 0` to break out. Our bare slice has no
+     * destination scenes; we suppress the log + force a snap-back
+     * to `select_phase = 0` so the player can pick a different item. */
+    int title_action_logged[9] = {0};
     for (;;) {
         while (!PeekMessageA(&msg, NULL, 0, 0, PM_NOREMOVE)) {
             if (g_paused) {
                 WaitMessage();
             } else {
                 tick_step_win32(g_d3d != NULL && g_dev != NULL, &tick_cb);
+
+                /* Title press-dispatch outbox: scene_title_sim sets
+                 * `pending_action` to a SCENE_TITLE_MENU_* code on the
+                 * frame select_phase reaches 0xf. Handle it here so the
+                 * pure sim module stays Win32-free. */
+                const int32_t act = g_scene_title_anim.pending_action;
+                if (act != SCENE_TITLE_ACTION_NONE) {
+                    g_scene_title_anim.pending_action = SCENE_TITLE_ACTION_NONE;
+                    switch (act) {
+                    case SCENE_TITLE_MENU_EXIT:
+                        /* Engine: PostMessageA(DAT_073dfc7c, WM_CLOSE, 0, 0).
+                         * Mirrors FUN_0049a59e L526 verbatim. */
+                        PostMessageA(g_hwnd, WM_CLOSE, 0, 0);
+                        /* Leave select_phase at 0xf — window is closing
+                         * anyway, no further frames will run. */
+                        break;
+                    default:
+                        if (act >= 0 && act < 9 && !title_action_logged[act]) {
+                            title_action_logged[act] = 1;
+                            fprintf(stderr,
+                                "title: menu item %d selected — "
+                                "destination scene not ported yet\n",
+                                (int)act);
+                        }
+                        /* Snap select_phase back so the player can pick
+                         * a different item without being stuck. */
+                        g_scene_title_anim.select_phase = 0;
+                        break;
+                    }
+                }
             }
         }
         if (!GetMessageA(&msg, NULL, 0, 0)) break;
