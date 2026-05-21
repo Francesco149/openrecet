@@ -22,6 +22,7 @@
 #include "storage.h"
 #include "sprite.h"
 #include "input.h"
+#include "input_trace.h"
 #include "layers.h"
 #include "tables.h"
 #include "recet_ini.h"
@@ -107,6 +108,52 @@ static int              g_play_se_index       = 0;     /* next slot to fire */
 static unsigned         g_play_se_after_ms    = 1000;  /* delay until first fire */
 static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
 
+/* ─── Phase A harness flags ─────────────────────────────────────────────
+ *
+ *   --input-trace-record <file>  emit a sparse JSONL trace of
+ *                                g_input_state[0].buttons each ticked
+ *                                frame (changes only — see input_trace.h)
+ *   --input-trace-replay <file>  load the same format, replace the
+ *                                tick-callback input_poll with a lookup
+ *                                that writes the recorded mask into
+ *                                g_input_state[0].buttons each frame.
+ *                                Skips input_init / DirectInput. Pins
+ *                                g_paused=FALSE so a window deactivation
+ *                                can't stall the replay. Pairs with
+ *                                --rng-seed for full determinism.
+ *   --rng-seed <n>               replace `rng_seed_from_now()` with
+ *                                `rng_seed(n)` so the title's BG scroll
+ *                                + cursor pulse phase are deterministic
+ *                                across replays.
+ *   --max-frames <n>             PostQuitMessage(0) after n rendered
+ *                                frames; companion to --max-duration-ms
+ *                                for scenarios that want a fixed frame
+ *                                budget instead of a wall-clock budget.
+ *   --capture-frames i,j,k       capture ONLY at the listed sim-frame
+ *                                indices (g_tick.frame_count). Used by
+ *                                the scenario runner for fixed
+ *                                pixel-diff anchors. When set, the
+ *                                older time-based --capture-every-ms
+ *                                is ignored.
+ *
+ * All five flags are independent and additive. Recording does NOT need
+ * --rng-seed (replays don't care about seed match), but a replay you
+ * intend to diff against a golden should pass the same --rng-seed.
+ */
+static char           *g_input_trace_record_path = NULL;
+static char           *g_input_trace_replay_path = NULL;
+static int             g_rng_seed_set            = 0;
+static uint32_t        g_rng_seed_value          = 1;
+static uint32_t        g_max_frames              = 0;
+
+#define CAPTURE_FRAMES_MAX  32
+static uint32_t        g_capture_frames[CAPTURE_FRAMES_MAX];
+static int             g_capture_frames_count    = 0;
+
+/* Populated at boot when --input-trace-replay is set. The replay
+ * stand-in for input_poll reads this each tick. */
+static struct input_trace g_replay_trace = {0};
+
 /* Dynamically-resolved DX entry point — matches the original's
  * LoadLibraryA("d3d8.dll") + GetProcAddress("Direct3DCreate8") pattern. */
 typedef IDirect3D8 *(WINAPI *PFN_Direct3DCreate8)(UINT);
@@ -122,6 +169,15 @@ static void  shutdown_render(void);
 static void  render_dispatch(void);
 static void  parse_cmdline(LPSTR lpCmdLine);
 static void  capture_backbuffer(void);
+
+/* Phase A wrappers. `recording_input_poll` is the wrapping
+ * input-callback when --input-trace-record is set; `replay_input_poll`
+ * replaces it under --input-trace-replay. Both pure-Win32 because they
+ * read/write g_input_state[].buttons which only the Win32 build
+ * sources via DI. */
+static void  recording_input_poll(void);
+static void  replay_input_poll(void);
+static int   capture_frame_is_listed(uint32_t frame);
 
 /* ─── WinMain — mirrors FUN_0047bfb3 ─────────────────────────────────────── */
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdShow)
@@ -159,8 +215,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     /* "rng reseed" — FUN_005045eb → FUN_00471050 → FUN_005041ec.
      * Replaces the boot seed with one derived from wall-clock time so
-     * subsequent rand calls during gameplay are non-deterministic. */
-    rng_seed_from_now();
+     * subsequent rand calls during gameplay are non-deterministic.
+     *
+     * Phase A harness override: --rng-seed pins the seed (skipping the
+     * time-derived path) so the title BG scroll + cursor pulse stay
+     * frame-identical across replays. */
+    if (g_rng_seed_set) {
+        rng_seed(g_rng_seed_value);
+    } else {
+        rng_seed_from_now();
+    }
 
     timeBeginPeriod(10);
 
@@ -217,8 +281,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     }
     /* "init start" — section marker logged by FUN_0047ac6a on success. */
 
-    /* "init dinput ok" — FUN_0047af52 — keyboard + up to 4 joysticks. */
-    input_init(g_hInstance, g_hwnd);
+    /* "init dinput ok" — FUN_0047af52 — keyboard + up to 4 joysticks.
+     * Skipped under --input-trace-replay: a replay drives
+     * g_input_state[0].buttons directly from the trace file, so we
+     * don't want live keypresses leaking into the simulated frame. */
+    if (!g_input_trace_replay_path) {
+        input_init(g_hInstance, g_hwnd);
+    }
 
     /* Flatten recet.ini pad/skill into the engine's per-controller
      * binding-block layout that input_poll walks each frame. Must run
@@ -284,6 +353,34 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                 g_audio_trace_path);
     }
 
+    /* Input-trace record: open the file before the first input_poll
+     * fires so we never miss the seed line. */
+    if (g_input_trace_record_path) {
+        if (input_trace_record_open(g_input_trace_record_path)) {
+            fprintf(stderr, "openrecet: input trace recording → %s\n",
+                    g_input_trace_record_path);
+        } else {
+            fprintf(stderr,
+                "openrecet: failed to open input trace for recording %s\n",
+                g_input_trace_record_path);
+        }
+    }
+
+    /* Input-trace replay: parse the file now (one shot at boot — the
+     * file is small and lookups are binary search at runtime). */
+    if (g_input_trace_replay_path) {
+        if (input_trace_load(g_input_trace_replay_path, &g_replay_trace)) {
+            fprintf(stderr,
+                "openrecet: input trace replaying ← %s (%zu entries)\n",
+                g_input_trace_replay_path, g_replay_trace.count);
+        } else {
+            fprintf(stderr,
+                "openrecet: failed to load input trace %s — replay disabled\n",
+                g_input_trace_replay_path);
+            g_input_trace_replay_path = NULL;
+        }
+    }
+
     /* "init daoudio ok" — FUN_00498ef4 — DirectMusic 8: Performance +
      * Loader + BGM AudioPath + preload all 21 segments. Sound-effect
      * path (2 more AudioPaths + 27 resource-loaded WAVs) lands in the
@@ -334,9 +431,25 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     /* Game-tick callbacks. sim_b (FUN_0049966a, music selector) picks
      * a track each frame and dispatches a real DirectMusic swap via
      * the g_music_swap_fn bridge that audio_init installs (see
-     * src/audio.{c,h} + src/music.{c,h}). */
+     * src/audio.{c,h} + src/music.{c,h}).
+     *
+     * Phase A harness overrides:
+     *   --input-trace-replay sets input_poll = replay_input_poll, which
+     *     bypasses DirectInput entirely and writes the recorded mask
+     *     into g_input_state[0].buttons directly.
+     *   --input-trace-record sets input_poll = recording_input_poll,
+     *     which calls the real input_poll then records the post-poll
+     *     mask.
+     * The two are mutually exclusive (recording during replay would
+     * just dump the trace back out); replay wins if both are passed. */
+    void (*active_input_poll)(void) = input_poll;
+    if (g_input_trace_replay_path) {
+        active_input_poll = replay_input_poll;
+    } else if (g_input_trace_record_path) {
+        active_input_poll = recording_input_poll;
+    }
     const struct tick_callbacks tick_cb = {
-        .input_poll = input_poll,
+        .input_poll = active_input_poll,
         .sim_a      = sim_step_a,
         .sim_b      = music_step_default,
         .render     = render_dispatch,
@@ -353,10 +466,37 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     int title_action_logged[9] = {0};
     for (;;) {
         while (!PeekMessageA(&msg, NULL, 0, 0, PM_NOREMOVE)) {
+            /* Phase A: under --input-trace-replay, pin g_paused=FALSE
+             * each iter so a window-focus loss can't stall the replay
+             * mid-scenario (WM_ACTIVATE inactive would otherwise drop
+             * us into WaitMessage waiting on user input that never
+             * comes). */
+            if (g_input_trace_replay_path) g_paused = FALSE;
+
             if (g_paused) {
                 WaitMessage();
             } else {
-                tick_step_win32(g_d3d != NULL && g_dev != NULL, &tick_cb);
+                /* Under --input-trace-replay, drive virtual time so
+                 * the tick scheduler never returns DELAYED — we want
+                 * exactly one ticked frame per loop iteration, no
+                 * wall-clock gating, no Sleep. 20ms per call >
+                 * threshold[0]=16.67ms so each call is TICKED. */
+                if (g_input_trace_replay_path) {
+                    uint32_t vms = (g_tick.frame_count + 1) * 20u;
+                    tick_step_with_now(vms,
+                                       g_d3d != NULL && g_dev != NULL,
+                                       &tick_cb, NULL);
+                } else {
+                    tick_step_win32(g_d3d != NULL && g_dev != NULL, &tick_cb);
+                }
+
+                /* Frame-budget exit. Checked AFTER tick so the Nth
+                 * frame actually renders + (if listed) captures
+                 * before we quit. */
+                if (g_max_frames > 0 && g_tick.frame_count >= g_max_frames) {
+                    PostMessageA(g_hwnd, WM_CLOSE, 0, 0);
+                    g_skip_quit_prompt = TRUE;
+                }
 
                 /* Title press-dispatch outbox: scene_title_sim sets
                  * `pending_action` to a SCENE_TITLE_MENU_* code on the
@@ -403,9 +543,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     /* ─── shutdown ──────────────────────────────────────────────────────── */
     audio_shutdown();
     audio_trace_close();
+    input_trace_record_close();
     sprite_destroy(&g_show_sprite);
     scene_title_unload_assets();
-    input_shutdown();
+    if (!g_input_trace_replay_path) {
+        input_shutdown();
+    }
     storage_shutdown();
     shutdown_render();
     timeEndPeriod(10);
@@ -642,9 +785,26 @@ static void render_dispatch(void)
     IDirect3DDevice8_EndScene(g_dev);
 
     if (g_capture_dir) {
+        /* Phase A: when --capture-frames is set, capture ONLY at the
+         * listed sim-frame indices. Otherwise fall back to the
+         * existing wall-clock sampler (--capture-every-ms). This keeps
+         * the old smoke-test path working untouched while the
+         * scenario runner gets deterministic anchors.
+         *
+         * The capture decision runs every render call, before
+         * Present, so g_tick.frame_count is the index of the frame
+         * about to be presented. The post-render frame_count++ in
+         * tick.c bumps it AFTER this returns. */
+        int should_capture = 0;
         unsigned now_ms = timeGetTime();
-        if (g_capture_last_ms == 0 ||
-            (now_ms - g_capture_last_ms) >= g_capture_every_ms) {
+        if (g_capture_frames_count > 0) {
+            should_capture =
+                capture_frame_is_listed(g_tick.frame_count);
+        } else if (g_capture_last_ms == 0 ||
+                   (now_ms - g_capture_last_ms) >= g_capture_every_ms) {
+            should_capture = 1;
+        }
+        if (should_capture) {
             capture_backbuffer();
             g_capture_last_ms = now_ms;
             g_capture_count++;
@@ -733,9 +893,85 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 unsigned n = (unsigned)strtoul(val, NULL, 10);
                 if (n > 0) g_play_se_interval_ms = n;
             }
+        } else if (lstrcmpA(tok, "--input-trace-record") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char rec_buf[MAX_PATH];
+                lstrcpynA(rec_buf, val, (int)sizeof(rec_buf));
+                g_input_trace_record_path = rec_buf;
+            }
+        } else if (lstrcmpA(tok, "--input-trace-replay") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char rep_buf[MAX_PATH];
+                lstrcpynA(rep_buf, val, (int)sizeof(rep_buf));
+                g_input_trace_replay_path = rep_buf;
+            }
+        } else if (lstrcmpA(tok, "--rng-seed") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                g_rng_seed_value = (uint32_t)strtoul(val, NULL, 0);
+                g_rng_seed_set   = 1;
+            }
+        } else if (lstrcmpA(tok, "--max-frames") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                unsigned n = (unsigned)strtoul(val, NULL, 10);
+                if (n > 0) g_max_frames = n;
+            }
+        } else if (lstrcmpA(tok, "--capture-frames") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                /* Comma-separated decimal sim-frame indices, capped at
+                 * CAPTURE_FRAMES_MAX. Bad tokens silently skipped. */
+                char *p = val;
+                while (*p && g_capture_frames_count < CAPTURE_FRAMES_MAX) {
+                    char *end = NULL;
+                    long n = strtol(p, &end, 10);
+                    if (end != p && n >= 0) {
+                        g_capture_frames[g_capture_frames_count++] = (uint32_t)n;
+                    }
+                    if (end == NULL || *end == '\0') break;
+                    p = end + (*end == ',' ? 1 : 0);
+                    if (*end != ',') break;
+                }
+            }
         }
         tok = strtok(NULL, " ");
     }
+}
+
+/* ─── Phase A wrappers ─────────────────────────────────────────────────
+ *
+ * Replay: write the recorded mask for the upcoming frame straight into
+ *   g_input_state[0].buttons; player 1 stays zero. This shadows
+ *   input_poll's first two lines (the pre-poll clear) + the keyboard
+ *   accumulator step. No DirectInput call — input_init was skipped.
+ *
+ * Record: call the real input_poll, then snapshot the resulting mask.
+ *   `record_frame(g_tick.frame_count, …)` records under the frame
+ *   index of the frame we're about to render (tick.c bumps frame_count
+ *   AFTER render returns), so trace lines line up with capture indices.
+ */
+static void replay_input_poll(void)
+{
+    g_input_state[0].buttons =
+        input_trace_lookup(&g_replay_trace, g_tick.frame_count);
+    g_input_state[1].buttons = 0;
+}
+
+static void recording_input_poll(void)
+{
+    input_poll();
+    input_trace_record_frame(g_tick.frame_count, g_input_state[0].buttons);
+}
+
+static int capture_frame_is_listed(uint32_t frame)
+{
+    for (int i = 0; i < g_capture_frames_count; i++) {
+        if (g_capture_frames[i] == frame) return 1;
+    }
+    return 0;
 }
 
 /* ─── BMP back-buffer capture ────────────────────────────────────────────
@@ -799,8 +1035,15 @@ static void capture_backbuffer(void)
     ihdr[23] = (uint8_t)(img_size >> 24);
     /* biXPelsPerMeter, biYPelsPerMeter, biClrUsed, biClrImportant = 0 */
 
+    /* Filename: under --capture-frames, name by sim-frame index so the
+     * scenario runner can match against `golden/frame_NNNNN.bmp` by
+     * the same number. Without --capture-frames (legacy time-based
+     * capture), fall back to the monotonic capture counter. */
     char path[MAX_PATH];
-    wsprintfA(path, "%s\\frame_%05u.bmp", g_capture_dir, g_capture_count);
+    unsigned tag = (g_capture_frames_count > 0)
+                       ? (unsigned)g_tick.frame_count
+                       : g_capture_count;
+    wsprintfA(path, "%s\\frame_%05u.bmp", g_capture_dir, tag);
 
     FILE *fp = fopen(path, "wb");
     if (fp) {
