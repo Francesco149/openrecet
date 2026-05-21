@@ -41,6 +41,20 @@ typedef struct {
 
 extern const scene_title_asset_t scene_title_assets[SCENE_TITLE_TEX_COUNT];
 
+/* ─── animation state ────────────────────────────────────────────────── */
+
+/* Mirrors the engine's title-scene counters at DAT_096435.. region.
+ * For commit 4 we only need `frame_counter` (DAT_09643518) — it drives
+ * the BG scroll. The other counters are wired up when the sim port
+ * (FUN_0049a59e) lands; until then they stay at BSS-zero. */
+typedef struct {
+    uint32_t frame_counter;     /* DAT_09643518 — increments per sim tick */
+    uint32_t cursor_pos;        /* DAT_09643540 — current selected menu index */
+    uint32_t cursor_anim;       /* DAT_09643520 — 0..10 menu-fold-in tween */
+    uint32_t select_phase;      /* DAT_09643544 — pulse phase for selected item */
+    uint32_t pulse_phase;       /* DAT_0964352c — slow background pulse */
+} scene_title_anim_t;
+
 /* ─── menu init (FUN_0049a324 + FUN_0049a43d) ────────────────────────── */
 
 /* Engine menu-item codes. The same byte ends up at &DAT_09643358 + N
@@ -119,6 +133,22 @@ const sprite_t *scene_title_get(int slot);
 
 /* Free all 7 textures + zero the slots. Idempotent. */
 void scene_title_unload_assets(void);
+
+/* Bare-title render — FUN_0049c644's BG + menu path. Skips the
+ * sub-menu, sub-screen, and fade-in branches (all gated on engine
+ * counters that stay at BSS-zero until the sim port lands).
+ *
+ * Caller is responsible for BeginScene/EndScene and for clearing
+ * the back buffer. This function only emits quads.
+ *
+ * Requires `scene_title_load_assets` to have been called once and
+ * `render_quad_init` (for the static vbuf) to have been called at
+ * D3D startup. Both invariants are checked at runtime — the func
+ * is a no-op if either is missing.
+ */
+void scene_title_render(IDirect3DDevice8 *dev,
+                        const scene_title_menu_t *menu,
+                        const scene_title_anim_t *anim);
 
 #endif /* _WIN32 */
 

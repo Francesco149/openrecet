@@ -3,6 +3,62 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Title scene render ported (FUN_0049c644 — bare path)
+
+Fourth commit of the title-screen path. The actual draw routine —
+`scene_title_render` in `src/scene_title.c` — emits the BG, frame
+overlay, fuki corner, title01 band, and the menu glyphs (+ selected
+highlight) via the new render_quad batcher. Sub-menu sub-screens,
+the 7110-frame fade-in overlay, and the trailing UI helpers
+(FUN_0043537e/47/17) are intentionally NOT ported here — all gated
+on engine counters that stay at BSS-zero until the sim port lands.
+
+**What landed:**
+
+- **`scene_title_anim_t` struct** (`scene_title.h`) — captures the
+  5 engine counters the render reads from (frame, cursor pos,
+  cursor anim, select pulse phase, slow pulse phase). All five are
+  consumed without any wiring; the sim port will advance them.
+- **`scene_title_render(dev, menu, anim)`** — direct-line port of
+  FUN_0049c644's bare path. Six draw passes:
+  1. `bg2.bmp` 640x480 window vertically scrolled by frame counter
+     (scroll_y = 360 - frame * 360 / 7140)
+  2. `title_waku.tga` full-screen frame overlay
+  3. `title_fuki.tga` 416x32 strip at the bottom (corner element)
+  4. `title01.tga` 512x256 animated band, x = 64 - cursor_anim * 64
+  5. Menu items loop (additive blend, `D3DTSS_COLOROP = ADD`):
+     each item is a 160x32 tile (1.0× selected, 0.8× others) from
+     fuki.tga at (224, code*32)..(384, (code+1)*32). Selected item
+     pulses brightness via two sin()-driven layers (centered on
+     0x7f + 0x20 = 0x9f at BSS-zero); non-selected use the engine's
+     "1.33123e-43 denormal" trick which we resolve to literal 0x95
+     greyscale.
+  6. Selected-row decoration (3 tiles: top strip, big cursor glyph
+     via the 9-entry LUT at PE 0x005d1cd4, bottom strip).
+- **LUT extracted via** `tools/analyze/pe.py bytes 0x005d1cd4 36` —
+  `{0,1,2,3,4,0,7,6,5}` mapping menu code → fuki tile. Embedded
+  in `title_cursor_glyph_lut[]`.
+- **Engine quirks faithfully reproduced.** The selected-item color
+  expression `(((v | 0xffffff00) << 8 | v) << 8 | v)` is the engine
+  literal — equivalent to `0xFF000000 | v<<16 | v<<8 | v` greyscale.
+  Non-selected items get the bit-pattern-as-float trick where
+  Ghidra shows `1.33123e-43` for what is really integer 0x95 stuck
+  into a float-typed slot to defer the float→int conversion.
+- **No call sites yet.** Compiles clean, but `frame_render_stub` in
+  `main.c` still emits debug magenta. The next commit wires the
+  render-dispatcher and replaces magenta with the actual title.
+- **No new tests.** scene_title_render is D3D-bound and tested
+  end-to-end via boot smoke once it's wired up. Existing 356 tests
+  still pass.
+
+**Deferred (lands with sim port FUN_0049a59e):**
+- Sub-menu sub-screens (file-select, options, survival)
+- Fade-in overlay (DAT_09643518 > 0x1bc6)
+- Final UI helpers FUN_0043537e (sub-cursor), FUN_00435747 (frame
+  counter overlay), FUN_00435117 (system-state overlay)
+- Animation: the 5 anim counters stay at 0 until the sim ticks
+  them; rendered title is static-frame-0 until then.
+
 ## 2026-05-21 — Title menu init ported (FUN_0049a324 + FUN_0049a43d)
 
 Third commit of the title-screen path. The engine's menu-items
