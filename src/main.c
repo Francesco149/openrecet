@@ -49,6 +49,7 @@ static IDirect3D8      *g_d3d;                  /* DAT_073dfcb8 */
 static IDirect3DDevice8 *g_dev;
 static BOOL             g_paused = FALSE;       /* DAT_073dfca0 */
 static BOOL             g_windowed = TRUE;      /* DAT_0438b164 — overwritten from g_ini after load */
+static BOOL             g_skip_quit_prompt = FALSE; /* DAT_0964356c — set by EXIT menu before PostMessage(WM_CLOSE) */
 static struct recet_ini g_ini;                  /* recet.ini contents, populated in WinMain pre-window */
 
 /* ─── frame-capture globals ─────────────────────────────────────────────
@@ -108,6 +109,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     (void)hPrev;
 
     g_hInstance = hInst;
+    /* Line-buffer stdio so each fprintf surfaces immediately. Only the
+     * console-subsystem build (`openrecet-debug.exe` — see src/Makefile)
+     * has stdio wired to anything visible; the GUI build silently drops
+     * writes because `-mwindows` strips the inherited stdin/out/err
+     * handles. Use the debug binary for interactive log inspection. */
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    setvbuf(stderr, NULL, _IOLBF, 0);
     parse_cmdline(lpCmdLine);
 
     /* High-resolution timer (matches the original's TIMECAPS dance). */
@@ -291,8 +299,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                     g_scene_title_anim.pending_action = SCENE_TITLE_ACTION_NONE;
                     switch (act) {
                     case SCENE_TITLE_MENU_EXIT:
-                        /* Engine: PostMessageA(DAT_073dfc7c, WM_CLOSE, 0, 0).
-                         * Mirrors FUN_0049a59e L526 verbatim. */
+                        /* Engine FUN_0049a59e L525-526 verbatim:
+                         *   DAT_0964356c = 1;
+                         *   PostMessageA(DAT_073dfc7c, WM_CLOSE, 0, 0);
+                         * The flag tells WndProc's WM_CLOSE arm
+                         * (FUN_0047b2e7 L85-94) to skip the "Do you really
+                         * want to quit?" prompt — the prompt is only meant
+                         * for clicks on the system X button. */
+                        g_skip_quit_prompt = TRUE;
                         PostMessageA(g_hwnd, WM_CLOSE, 0, 0);
                         /* Leave select_phase at 0xf — window is closing
                          * anyway, no further frames will run. */
@@ -388,11 +402,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
 
     case WM_CLOSE:
-        /* The "do you really want to quit?" prompt is the original engine's
-         * windowed-mode behavior. Skip it when --max-duration-ms is set —
-         * that flag exists precisely so smoke runs can shut down without
-         * any human interaction. */
-        if (g_windowed && g_max_duration_ms == 0) {
+        /* Mirror FUN_0047b2e7 L85-94: prompt only when windowed AND the
+         * "skip prompt" flag (DAT_0964356c) is clear. Title-menu EXIT
+         * raises that flag before posting WM_CLOSE, so this branch is
+         * effectively the X-button / Alt-F4 path. Also skipped under
+         * --max-duration-ms so smoke runs need no human interaction. */
+        if (g_windowed && g_max_duration_ms == 0 && !g_skip_quit_prompt) {
             int r = MessageBoxA(hwnd,
                 "Do you really want to quit the game?",
                 "EXIT?", MB_OKCANCEL);
