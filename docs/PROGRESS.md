@@ -3,6 +3,122 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Game-tick scheduler ported (FUN_0047be92 + FUN_0047be2f)
+
+Heart of the engine's main loop is now driven by our own code instead
+of the magenta-clear placeholder. The scheduler dispatches at the
+configured fixed-timestep frame rate (60 FPS by default, selectable
+via the speed table at `0x005cbc58`); the four callees it hands off to
+— input poll, two sim halves, frame render — are stubbed for now and
+land one-per-commit.
+
+**Subsystems landed:**
+
+- **`src/tick.{c,h}` — FUN_0047be92 + FUN_0047be2f.**
+  - `tick_step_with_now(now_ms, has_device, &callbacks, &out_sleep_ms)`
+    is the pure-C dispatcher, taking the four big callees as function
+    pointers so the scheduler can stand alone and tests can mock them
+    under ASan. All arithmetic in 1/3 ms units (matching the engine's
+    `*3` + `% threshold` residue pattern), so sub-ms frame budgets
+    work without floating point.
+  - `tick_step_win32(has_device, &callbacks)` is the Win32 wrapper that
+    bundles QPC + Sleep on top.
+  - `tick_now_ms()` mirrors FUN_0047be2f: `QPC.QuadPart * 1000ull /
+    QPF.QuadPart` truncated to uint32, with `timeGetTime()` fallback
+    when either QPC value reads zero.
+  - Speed-threshold table `g_tick_speed_thresholds[5]` extracted via
+    `tools/analyze/pe.py bytes 0x005cbc58 32` and verified
+    byte-for-byte against the engine.
+  - All scheduler globals (`now_ms`, `prev_ms`, `delta_thirds`,
+    `leftover_thirds`, `speed`, `pending_speed`, `state`, `state_alt`,
+    `state_seed`, `frame_count`, `flag_dddd0`, `flag_dddfa`) live in
+    a `g_tick` struct with named members matching the engine's
+    DAT_073de618.. / DAT_073dfca4.. / DAT_0438ccd8.. globals.
+- **`src/main.c` — main loop now drives the scheduler.** Replaced the
+  `tick_and_present()` placeholder call with
+  `tick_step_win32(g_d3d && g_dev, &tick_cb)`. The old debug-magenta
+  clear/draw/capture/present body now lives in `frame_render_stub`,
+  which is passed as the `render` callback — same visible behaviour,
+  but now exercised through the real dispatcher. The other three
+  callbacks (`input_poll`/`sim_a`/`sim_b`) are NULL until their ports
+  land — the scheduler tolerates NULL callbacks.
+
+**Behavioral validation:**
+
+- 316 unit tests pass under ASan/UBSan (was 298). 18 new tests for
+  `tick.c`:
+  - Speed-threshold table bytes vs `.rdata` dump.
+  - First-frame huge-delta normalisation (prev=0 → one tick + leftover=0).
+  - Sim-loop count vs latched speed (`speed=0` → 1 sim, `speed=4` → 5).
+  - Adaptive-sleep band (delta=29..40 in 1/3 ms steps; sleep_ms = 5, 4,
+    1, 1, 0=busy-spin at the boundary).
+  - Steady-state 60 FPS residue accumulation (delta=51 each frame with
+    threshold=50 carries 1, 2, 3, … in `leftover_thirds`).
+  - Input poll firing at ≥1/60 s delta but NOT when delta is smaller.
+  - State machine: state=1 skips sim/render (but commits leftover/prev),
+    state=2 transitions to 1 after one tick, state_alt mirrors state_seed.
+  - `has_device=0` early-return after sim, before render (engine order).
+  - Per-frame flags clear on tick, persist on delayed pass.
+  - Pending-speed latches at the top of the next frame, not mid-frame.
+  - NULL callbacks are safe (shell-port scaffolding).
+- Boot smoke (`./tools/smoke-test.py --target openrecet --scenario boot
+  --duration 3 --capture`): `exit=0, 3 frames`. Captured frames are
+  solid debug magenta (160,32,96) at 1024×768 — visually identical to
+  the pre-scheduler boot, just driven by `tick_step_win32` now.
+
+**Engine quirks documented:**
+
+- **Speed-threshold lookup is OOB-unsafe.** `(&DAT_005cbc58)[DAT_0438ccd8]`
+  has no bounds check; the engine relies on the unmapped F-key handler
+  only ever writing values in `[0..4]`. Test for `speed = -1`
+  intentionally skipped — would force ASan to read OOB into adjacent
+  globals.
+- **Dead clamp in adaptive sleep.** Inside `if (remaining < 0xb)` the
+  engine has `if (0x1e < remaining) remaining = 0x1e;` — unreachable
+  given the outer guard (remaining is already < 11). Preserved as a
+  comment in `src/tick.c`; harmless leftover from an earlier formula.
+- **`state_alt = state_seed` is a no-op at boot.** Both globals are
+  BSS-zero, so the per-frame copy doesn't do anything in practice. We
+  preserve the write for byte-identical behaviour once whichever code
+  writes `state_seed` lands.
+
+**Deliberate divergences:**
+
+- The four big callees (FUN_0047b73c input poll, FUN_004536cb /
+  FUN_0049966a sim halves, FUN_004547ab frame render) are NULL stubs
+  in this commit. The render callback is filled in by
+  `frame_render_stub` (the old magenta-clear path) to preserve the
+  visual smoke-test signal until FUN_004547ab lands.
+- Pure-C scheduler entry takes callbacks as function pointers, where
+  the engine has direct calls. Necessary for ASan-clean testing and
+  to keep `tick.c` decoupled from the four big functions; once they
+  all land we could fold them into direct calls again, but there's no
+  real upside.
+- Engine writes to `DAT_0438ccd8` and `DAT_0438ccdc` from an unmapped
+  F-key handler. Our `g_tick.pending_speed` stays 0 until that
+  handler lands — meaning we always run at the 60 FPS target.
+
+**Not in this commit (deferred):**
+
+- `FUN_0047b73c` — input poll. 325 lines of keyboard + joystick state
+  read with POV-hat angle decoding (centidegree values 4500/9000/
+  13500/18000/22500/27000/31500 → direction bits). Next.
+- `FUN_004536cb` / `FUN_0049966a` — the two sim halves. 322 / 267
+  lines respectively. Will read decomp before scoping.
+- `FUN_004547ab` — frame render. 303 lines. Replaces the magenta-clear
+  stub with the engine's real Clear+BeginScene+...+Present sequence;
+  likely drives the 24 render-layer objects already initialised in
+  `src/layers.c`.
+
+**Files:**
+
+- new `src/tick.{c,h}`, `tests/test_tick.c`
+- updated `src/main.c` (include tick.h, replace tick_and_present with
+  tick_step_win32 + rename old body to frame_render_stub),
+  `tests/Makefile`, `tests/test_main.c`,
+  `docs/findings/winmain-and-bootstrap.md` (new §"Game tick scheduler"
+  + main-loop annotation + open-subsystems table refresh)
+
 ## 2026-05-21 — Pre-window block closed: RNG + math3d + FUN_00451790
 
 Closes the last three open steps in the WinMain pre-window chain (steps

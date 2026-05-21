@@ -75,8 +75,10 @@ while (true) {
 ```
 
 **`FUN_0047be92` is the game tick** — input poll, simulate, render, present.
-That's the heart of the engine; it'll be one of the bigger functions to
-study.
+**Status: scheduler ported (2026-05-21);** the four callees it dispatches
+to (`FUN_0047b73c` input poll, `FUN_004536cb`/`FUN_0049966a` sim halves,
+`FUN_004547ab` render) still land one-per-commit. See `src/tick.{c,h}`
+and §"Game tick scheduler" below for the full RE writeup.
 
 When the loop exits:
 - `FUN_0047a804` — pre-shutdown
@@ -491,12 +493,118 @@ bits because the init value and both branches only ever add/subtract
 quantities ≤ `0x1020`.  A masked-to-16-bit C implementation is therefore
 equivalent and avoids reliance on unsigned overflow.
 
+## Game tick scheduler
+
+**Function: `FUN_0047be92` at `0x47be92` (289 bytes).** Called from the
+PeekMessage idle loop whenever the game isn't paused. The scheduler is
+a fixed-timestep dispatcher with input running at display rate and sim
+at a selectable rate (60/30/20/12/6 FPS).
+
+### Time arithmetic
+
+All math runs in *thirds of a millisecond* — the engine multiplies
+`now_ms` by 3, carries a `% threshold` residue across iterations, and
+indexes a frame-budget table whose entries are scaled by 3 to match.
+This gives sub-ms precision on the frame budget without floating-point.
+
+`FUN_0047be2f` (the time source) returns `QPC * 1000 / QPF` truncated
+to 32 bits, falling back to `timeGetTime()` if either QPC value is
+zero. Ported as `tick_now_ms` in `src/tick.c`.
+
+### Speed-threshold table — `0x005cbc58`
+
+| index | bytes        | thirds of ms | ms     | FPS  |
+|------:|--------------|-------------:|-------:|-----:|
+|     0 | `32 00 00 00`|         0x32 |  16.67 |   60 |
+|     1 | `64 00 00 00`|         0x64 |  33.33 |   30 |
+|     2 | `96 00 00 00`|         0x96 |  50.00 |   20 |
+|     3 | `fa 00 00 00`|         0xfa |  83.33 |   12 |
+|     4 | `f4 01 00 00`|        0x1f4 | 166.67 |    6 |
+
+(The bytes at `0x005cbc68..0x005cbc70` happen to read `1, 1, 2` but are
+unrelated globals — the engine indexes the table with `DAT_0438ccd8`
+which is set only to `0..4` by the unmapped F-key handler. Don't
+extend the table on the basis of those bytes.)
+
+### Dispatch order
+
+```c
+1. speed = pending_speed                  // latch (DAT_0438ccd8 ← DAT_0438ccdc)
+2. now_ms = tick_now_ms()                 // QPC/QPF*1000 ms
+3. delta_thirds = (now_ms*3) - (prev_ms*3) + leftover_thirds
+4. if delta_thirds >= table[0]:
+       input_poll()                       // FUN_0047b73c — always at ≥60 Hz
+5. threshold = table[speed]
+6. if delta_thirds < threshold:
+       sleep_ms = ?                       // adaptive (below), maybe 0 = busy spin
+       Sleep(sleep_ms); return 1
+7. leftover_thirds = delta_thirds % threshold
+8. prev_ms = now_ms
+9. if state ∈ {0, 2}:
+       state_alt = state_seed             // DAT_073dfca8 ← DAT_073dfcb0
+       for i in 0..speed:
+           sim_a()                        // FUN_004536cb
+           sim_b()                        // FUN_0049966a
+       if !d3d || !device: return 0
+       render()                           // FUN_004547ab
+       frame_count++
+       if state == 2: state = 1           // auto-transition
+       flag_dddd0 = 0
+       flag_dddfa = 0
+10. return 1
+```
+
+### Adaptive sleep when delta < threshold
+
+The engine computes `remaining = (threshold - delta) - 10` (in 1/3 ms):
+
+| condition                       | sleep      |
+|---------------------------------|------------|
+| `delta < threshold - 10` and `remaining < 11` | `remaining/3 + 1` ms (1..4) |
+| `delta < threshold - 10` and `remaining ≥ 11` | `5` ms |
+| `delta ≥ threshold - 10`        | no Sleep — busy-spin |
+
+There's a dead clamp `if (0x1e < remaining) remaining = 0x1e;` inside
+the `remaining < 11` branch — unreachable given the outer guard.
+Probably a leftover from an earlier formula; preserved as a comment
+in `src/tick.c` for the record.
+
+### Engine globals
+
+| name           | role                                                       |
+|----------------|------------------------------------------------------------|
+| `DAT_0438ccd8` | current frame's latched speed (0..4)                       |
+| `DAT_0438ccdc` | pending speed (set by F-key handler, not yet mapped)       |
+| `DAT_073de618` | `now_ms` — last sampled time                               |
+| `DAT_073de61c` | `prev_ms` — time of last successful tick                   |
+| `DAT_073de620` | `delta_thirds` — current frame's accumulated budget        |
+| `DAT_073de624` | `leftover_thirds` — residue carried across iterations      |
+| `DAT_073dfca4` | tick state machine: 0=normal, 1=skip, 2=just-resumed       |
+| `DAT_073dfca8` | "alt" state, written each frame from `state_seed`          |
+| `DAT_073dfcb0` | `state_seed`, source for the above (purpose TBD)           |
+| `DAT_073dfcfc` | global frame counter                                       |
+| `DAT_073dddd0` | per-frame flag, cleared on each ticked frame (purpose TBD) |
+| `DAT_073dddfa` | per-frame flag, cleared on each ticked frame (purpose TBD) |
+
+### Ported to
+
+`src/tick.{c,h}`. The pure-C `tick_step_with_now` takes the four
+callees as function pointers so the dispatcher can stand alone (and
+so tests can mock them under ASan). The Win32 wrapper
+`tick_step_win32` bundles QPC + Sleep on top. Eighteen unit tests
+cover the time math, sleep branches, state-machine transitions, and
+the no-device early-return path.
+
 ## Open subsystems to investigate next
 
 | function       | tag                | priority                                |
 |----------------|--------------------|-----------------------------------------|
-| `FUN_0047be92` | game tick (main loop body) | ⭐⭐⭐ — heart of the engine     |
-| `FUN_00475270` | "init indexfile"   | ⭐⭐ — likely bmpdata.bin loader        |
+| `FUN_0047be92` | game tick scheduler | ✅ ported — `src/tick.{c,h}` (callees still stubbed) |
+| `FUN_0047b73c` | input poll          | ⭐⭐⭐ — keyboard + 4 joysticks, POV-hat decode |
+| `FUN_004536cb` | sim step A          | ⭐⭐ — per-tick (1 of 2)                 |
+| `FUN_0049966a` | sim step B          | ⭐⭐ — per-tick (2 of 2)                 |
+| `FUN_004547ab` | frame render        | ⭐⭐⭐ — replaces the magenta clear stub |
+| `FUN_00475270` | "init indexfile"   | ✅ ported — `src/tables*`               |
 | `FUN_00498ef4` | "init daoudio"     | ⭐⭐ — confirms audio backend (DSOUND?) |
 | `FUN_00474f14` | CRC hash           | ✅ ported — `src/lnkdatas_hash.{c,h}`, `tools/extract/lnkdatas_hash.py` |
 | `FUN_005041ec` | RNG reseed         | ✅ ported — `src/rng.{c,h}` (`rng_seed_from_now`) |

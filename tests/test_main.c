@@ -349,7 +349,26 @@ struct test_case {
     X(prewindow_particle_zero_deterministic_from_seed_1) \
     X(prewindow_advances_rng_by_600) \
     X(prewindow_proj_matrix_is_finite) \
-    X(prewindow_view_is_degenerate_nan_or_inf)
+    X(prewindow_view_is_degenerate_nan_or_inf) \
+    \
+    X(tick_init_zeros_state) \
+    X(tick_speed_thresholds_match_rdata) \
+    X(tick_first_frame_huge_delta_ticks_once) \
+    X(tick_speed_one_runs_sim_twice) \
+    X(tick_speed_four_runs_sim_five_times) \
+    X(tick_delayed_far_from_frame_returns_5ms_sleep) \
+    X(tick_delayed_close_to_frame_busy_spins) \
+    X(tick_delayed_input_polls_after_frame_boundary) \
+    X(tick_state_one_skips_sim_render) \
+    X(tick_state_two_transitions_to_one) \
+    X(tick_no_device_aborts_after_sim_before_render) \
+    X(tick_state_alt_copies_state_seed) \
+    X(tick_per_frame_flags_clear_on_ticked) \
+    X(tick_per_frame_flags_not_cleared_on_delayed) \
+    X(tick_null_callbacks_are_safe) \
+    X(tick_adaptive_sleep_scales_with_remaining) \
+    X(tick_steady_state_60fps_carries_residue) \
+    X(tick_pending_speed_latches_at_top_of_frame)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

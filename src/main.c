@@ -27,6 +27,7 @@
 #include "recet_ini.h"
 #include "prewindow.h"
 #include "rng.h"
+#include "tick.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
 #define AZUMANGA_CLASS  "Azumanga Main Window"
@@ -88,7 +89,7 @@ static BOOL  create_main_window(HINSTANCE hInst, int nCmdShow);
 static BOOL  load_d3d8(void);
 static BOOL  init_render(HWND hwnd);
 static void  shutdown_render(void);
-static void  tick_and_present(void);
+static void  frame_render_stub(void);
 static void  parse_cmdline(LPSTR lpCmdLine);
 static void  capture_backbuffer(void);
 
@@ -220,12 +221,22 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     /* ─── main loop — mirrors the PeekMessage/WaitMessage idle pattern ─── */
     MSG msg = {0};
+    /* Game-tick callbacks. Only `render` is wired up so far — the other
+     * three (input poll, sim A, sim B) are NULL stubs; the scheduler
+     * tolerates that and the four big ports land one per commit. */
+    const struct tick_callbacks tick_cb = {
+        .input_poll = NULL,
+        .sim_a      = NULL,
+        .sim_b      = NULL,
+        .render     = frame_render_stub,
+    };
+    tick_init();
     for (;;) {
         while (!PeekMessageA(&msg, NULL, 0, 0, PM_NOREMOVE)) {
             if (g_paused) {
                 WaitMessage();
             } else {
-                tick_and_present();          /* FUN_0047be92 — the game tick */
+                tick_step_win32(g_d3d != NULL && g_dev != NULL, &tick_cb);
             }
         }
         if (!GetMessageA(&msg, NULL, 0, 0)) break;
@@ -422,12 +433,17 @@ static void shutdown_render(void)
     if (g_d3d8_dll) { FreeLibrary(g_d3d8_dll); g_d3d8_dll = NULL; }
 }
 
-/* ─── game tick — placeholder for FUN_0047be92 ───────────────────────────
- * Clear to a distinctive debug magenta so we can visually distinguish a
- * working openrecet skeleton from a black-screen failure mode. Once the
- * real renderer comes online this will be replaced.
+/* ─── frame render — placeholder for FUN_0047be92's call to FUN_004547ab ─
+ * Driven by tick_step_win32 as the `render` callback. Clears to a
+ * distinctive debug magenta so we can visually distinguish a working
+ * openrecet skeleton from a black-screen failure mode. Once the real
+ * FUN_004547ab port lands this stub goes away.
+ *
+ * Note: BeginScene/EndScene/Present and the screen-capture sample point
+ * all live here for now. The capture has to run before Present because
+ * D3DSWAPEFFECT_DISCARD leaves the post-Present back buffer undefined.
  */
-static void tick_and_present(void)
+static void frame_render_stub(void)
 {
     if (!g_dev) return;
     IDirect3DDevice8_Clear(
