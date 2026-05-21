@@ -41,6 +41,7 @@
  */
 
 #include "audio.h"
+#include "audio_se_names.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -196,6 +197,37 @@ void audio_trace_emit_bgm_swap(int track, const char *name)
             "{\"t_ms\":%u,\"kind\":\"bgm_swap\",\"track\":%d,\"name\":\"%s\"}\n",
             (unsigned)audio_trace_now_ms(), track, esc);
     fflush(g_audio_trace_fp);
+}
+
+void audio_trace_emit_se_play(int slot, const char *name)
+{
+    if (!g_audio_trace_fp) return;
+    char esc[512];
+    audio_trace_json_escape(name ? name : "", esc, sizeof esc);
+    fprintf(g_audio_trace_fp,
+            "{\"t_ms\":%u,\"kind\":\"se_play\",\"slot\":%d,\"name\":\"%s\"}\n",
+            (unsigned)audio_trace_now_ms(), slot, esc);
+    fflush(g_audio_trace_fp);
+}
+
+int audio_play_se(int slot)
+{
+    if (slot < 0 || slot >= AUDIO_SE_COUNT) return 0;
+
+    /* Trace event fires even when the Win32 backend isn't wired —
+     * tests can drive this without windows.h. */
+    char name[32];
+    snprintf(name, sizeof name, "se_%03d_id%04x",
+             slot, audio_se_resource_ids[slot]);
+    audio_trace_emit_se_play(slot, name);
+
+    /* TODO(SE port phase 2): the real engine path here mirrors
+     * FUN_00499c63 — alternate between DAT_0964310c / DAT_09643110
+     * (the two SE AudioPaths), pull g_audio.se_segments[slot] from
+     * the resource-loaded segment table, PlaySegmentEx with the
+     * computed volume (audio_fade_compute() output). Currently a
+     * no-op past the trace emit. */
+    return 1;
 }
 
 /* ─── Win32 / DirectMusic 8 backend ────────────────────────────────── */

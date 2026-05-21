@@ -503,7 +503,19 @@ struct test_case {
     X(audio_trace_open_close_idempotent) \
     X(audio_trace_open_rejects_null) \
     X(audio_trace_emit_bgm_swap_writes_one_line) \
-    X(audio_trace_emit_when_closed_is_noop)
+    X(audio_trace_emit_when_closed_is_noop) \
+    \
+    X(audio_se_table_has_110_entries) \
+    X(audio_se_table_first_and_last_ids) \
+    X(audio_se_table_out_of_order_swap_at_39_40) \
+    X(audio_se_table_jumps_to_high_range_at_slot_69) \
+    X(audio_se_table_skips_2c3) \
+    X(audio_se_resource_id_bounds) \
+    X(audio_se_table_resource_type_is_custom) \
+    X(audio_play_se_rejects_out_of_range) \
+    X(audio_play_se_emits_trace_event) \
+    X(audio_play_se_no_trace_when_closed) \
+    X(audio_se_table_matches_vendor_bytes)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

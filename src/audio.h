@@ -91,6 +91,10 @@ void audio_trace_close(void);
 /* Emits one JSONL line if a trace is open. No-op otherwise. */
 void audio_trace_emit_bgm_swap(int track, const char *name);
 
+/* Same shape, kind="se_play". `slot` is the 0..109 SE table index;
+ * `name` is a short identifier (e.g. "se_012_id0148.wav"). */
+void audio_trace_emit_se_play(int slot, const char *name);
+
 /* Test hook: returns whether the trace is currently open. */
 int  audio_trace_is_open(void);
 
@@ -129,5 +133,17 @@ void audio_shutdown(void);
 int  audio_play_track(int32_t track);
 
 #endif /* _WIN32 */
+
+/* SE trigger — currently a trace-only shell. The full FUN_00499c63
+ * port (volume-blend with the fade curve, alternation between the
+ * two SE AudioPaths at DAT_0964310c/_110, PlaySegmentEx onto the
+ * round-robin path) lands in a follow-up commit. For now this
+ * function:
+ *   - bounds-checks `slot` against AUDIO_SE_COUNT
+ *   - emits an audio_trace `se_play` event if --audio-trace is on
+ *   - returns 1 always (no actual playback yet)
+ *
+ * Pure C — no _WIN32 guard — so the trace event is testable directly. */
+int audio_play_se(int slot);
 
 #endif /* OPENRECET_AUDIO_H */
