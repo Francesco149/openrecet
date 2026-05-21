@@ -11,13 +11,15 @@ STRIP      = i686-w64-mingw32-strip
 CFLAGS    ?= -std=c11 -O2 -g \
              -Wall -Wextra -Wno-unused-parameter \
              -DUNICODE=0 -D_UNICODE=0 \
-             -DWINVER=0x0500 -D_WIN32_WINNT=0x0500
+             -DWINVER=0x0500 -D_WIN32_WINNT=0x0500 \
+             -MMD -MP
 LDFLAGS   ?= -static-libgcc
 LIBS      ?= -ld3d8 -ldinput8 -ldxguid -ldsound -lwinmm \
              -lgdi32 -luser32 -lkernel32 -lole32 -ladvapi32 -lshell32
 
 SRCS      := $(wildcard *.c)
 OBJS      := $(SRCS:.c=.o)
+DEPS      := $(OBJS:.o=.d)
 
 # SE WAVs are embedded as a custom-named ("WAVE") PE resource type so
 # audio_init's FindResourceA path finds them at runtime — same shape as
@@ -69,4 +71,6 @@ $(SE_RES_O): $(SE_RC) ../tools/extract/se-rc.py
 	$(WINDRES) $(RCFLAGS) -i $< -o $@
 
 clean:
-	rm -f $(OBJS) $(SE_RC) $(SE_RES_O) $(OUT) $(OUT_DEBUG)
+	rm -f $(OBJS) $(DEPS) $(SE_RC) $(SE_RES_O) $(OUT) $(OUT_DEBUG)
+
+-include $(DEPS)

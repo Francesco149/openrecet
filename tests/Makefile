@@ -15,7 +15,8 @@ SAN     := -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-fram
 CFLAGS  := -std=c11 -g -O1 -Wall -Wextra -Wno-unused-parameter \
            -I../src \
            -DOPENRECET_ROOT=\"$(abspath ..)\" \
-           $(SAN)
+           $(SAN) \
+           -MMD -MP
 LDFLAGS := $(SAN)
 
 SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash.c ../src/lnk_lzss.c \
@@ -38,6 +39,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_tables_snews.c test_tables_stage.c test_tables_tuto.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))
+DEPS := $(OBJS:.o=.d)
 OUT  := build/run_tests
 
 .PHONY: all run clean
@@ -60,3 +62,5 @@ build:
 
 clean:
 	rm -rf build/
+
+-include $(DEPS)
