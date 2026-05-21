@@ -165,5 +165,42 @@ int test_audio_trace_emit_when_closed_is_noop(void)
     T_ASSERT(!audio_trace_is_open());
     /* Must not crash, must not segfault. */
     audio_trace_emit_bgm_swap(7, "bgm/over.wav");
+    audio_trace_emit_fade_start(0, 9, 0);
+    return 0;
+}
+
+int test_audio_trace_emit_fade_start_writes_one_line(void)
+{
+    char path[80];
+    if (!temp_trace_path(path, sizeof path)) T_SKIP("mkstemp failed");
+
+    T_ASSERT(audio_trace_open(path) == 1);
+    /* Channel 0 (BGM), slider 9, centibel 0 — what a normal full-volume
+     * apply looks like. */
+    audio_trace_emit_fade_start(0, 9, 0);
+    /* And an attenuated case to make sure the centibel field handles
+     * negatives. */
+    audio_trace_emit_fade_start(1, 3, -3185);
+    audio_trace_close();
+
+    FILE *fp = fopen(path, "r");
+    if (!fp) { unlink(path); T_FAIL("could not reopen %s", path); }
+    char line1[512], line2[512];
+    char *got1 = fgets(line1, sizeof line1, fp);
+    char *got2 = fgets(line2, sizeof line2, fp);
+    fclose(fp);
+    unlink(path);
+    T_ASSERT(got1 != NULL);
+    T_ASSERT(got2 != NULL);
+
+    T_ASSERT(strstr(line1, "\"kind\":\"fade_start\"") != NULL);
+    T_ASSERT(strstr(line1, "\"channel\":0") != NULL);
+    T_ASSERT(strstr(line1, "\"slider\":9") != NULL);
+    T_ASSERT(strstr(line1, "\"centibel\":0") != NULL);
+    T_ASSERT(line1[strlen(line1) - 1] == '\n');
+
+    T_ASSERT(strstr(line2, "\"channel\":1") != NULL);
+    T_ASSERT(strstr(line2, "\"slider\":3") != NULL);
+    T_ASSERT(strstr(line2, "\"centibel\":-3185") != NULL);
     return 0;
 }

@@ -117,15 +117,22 @@ int test_audio_play_se_emits_trace_event(void)
 
     FILE *fp = fopen(path, "r");
     if (!fp) { unlink(path); T_FAIL("could not reopen %s", path); }
-    char line[512];
-    char *got = fgets(line, sizeof line, fp);
+    /* audio_play_se fires fade_start first (matching the engine order),
+     * then se_play. Both must land. */
+    char line1[512], line2[512];
+    char *got1 = fgets(line1, sizeof line1, fp);
+    char *got2 = fgets(line2, sizeof line2, fp);
     fclose(fp);
     unlink(path);
-    T_ASSERT(got != NULL);
+    T_ASSERT(got1 != NULL);
+    T_ASSERT(got2 != NULL);
 
-    T_ASSERT(strstr(line, "\"kind\":\"se_play\"") != NULL);
-    T_ASSERT(strstr(line, "\"slot\":12") != NULL);
-    T_ASSERT(strstr(line, "\"name\":\"se_012_id0148\"") != NULL);
+    T_ASSERT(strstr(line1, "\"kind\":\"fade_start\"") != NULL);
+    T_ASSERT(strstr(line1, "\"channel\":1") != NULL);  /* SE-A */
+
+    T_ASSERT(strstr(line2, "\"kind\":\"se_play\"") != NULL);
+    T_ASSERT(strstr(line2, "\"slot\":12") != NULL);
+    T_ASSERT(strstr(line2, "\"name\":\"se_012_id0148\"") != NULL);
     return 0;
 }
 

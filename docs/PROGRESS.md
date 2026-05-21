@@ -3,6 +3,63 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Audio: `audio_fade_apply` live + revert phase-B deviations
+
+Closes the audio-cleanup track that was queued after SE phase B landed.
+Three behaviours converge in one commit:
+
+1. **`audio_fade_apply(channel)` is now real.** Engine call site
+   FUN_00499583 is the cos-curve volume mapper that fires before every
+   BGM swap and SE play. The math half (`audio_fade_compute`) was
+   ported earlier; this commit adds:
+   - **Per-channel slider state** in `src/audio_fade.c` for BGM /
+     SE-A / SE-B. Defaults 9/9/9 (full volume). The engine's BGM=5
+     default in `FUN_004901c2` is a save-data thing — intentionally
+     not mirrored until save-load lands; until then, 9 matches the
+     audible-volume baseline users already heard. Public setters/
+     getters (`audio_fade_set_slider` / `_get_slider`) + a
+     `audio_fade_reset` test affordance.
+   - **Apply hook** — `audio_fade.c` calls a registered function
+     pointer with the computed centibel; the Win32 backend
+     (`src/audio.c::audio_fade_apply_hook_win32`) routes to the
+     matching AudioPath's `IDirectMusicAudioPath::SetVolume`. The
+     indirection keeps `audio_fade.c` test-buildable (no dmusici.h).
+   - **Trace event `fade_start`** added to the JSONL schema —
+     `{"channel":N,"slider":N,"centibel":N}`. Fires from
+     `audio_fade_apply`, so it pairs back-to-back with each
+     `bgm_swap`/`se_play` event.
+
+2. **Phase-B engine deviations reverted.** Both wired into the
+   audio-fade hookup:
+   - `DMUS_SEGF_SECONDARY` → `DMUS_SEGF_QUEUE` in
+     `audio_play_se_win32`'s PlaySegmentEx. Engine fidelity. Queueing
+     is scoped per-AudioPath, so SE on `path_se_a` doesn't preempt
+     BGM on `path_bgm`. The explicit per-trigger Stop right before
+     PlaySegmentEx still defeats same-slot re-trigger queueing.
+   - Init-time `SetVolume(0, 0)` on both SE paths dropped — the
+     per-call `audio_fade_apply(SE_A)` covers it now.
+
+3. **Tests + docs.** 12 new tests (slider get/set, hook capture,
+   invalid-channel guards, fade_start trace round-trip). Total 458 in
+   the host test suite (was 446). `docs/findings/audio-backend.md`
+   updated: status block strips the deviation list, trace schema +
+   call-site table updated, Next-steps rewritten (recet.ini → slider
+   seeding, per-tick fade animation, settings-menu producer).
+
+Smoke test: title BGM continues to play; `--play-se` fires SEs into
+the trace (paired `fade_start`/`se_play` lines per trigger) with
+PlaySegmentEx returning S_OK.
+
+**Audible regression on the user's Windows host:** SEs are inaudible
+after the revert. BGM is unaffected. Trace events fire normally and
+PlaySegmentEx succeeds, so the hooks are wired correctly. The pre-
+revert configuration (init-time SetVolume + SECONDARY flag) was
+audible on the same host. Treating as an open issue rather than
+re-applying the deviation — likely missing a piece of engine init we
+haven't ported (FUN_004901c2 save-arena init / recet.ini → slider
+seeding / something else). Will surface as we port more of the audio
+boot chain.
+
 ## 2026-05-21 — Audio: SE backend phase B (live SE playback)
 
 Picks up where the autonomous session left off. Phase A had the

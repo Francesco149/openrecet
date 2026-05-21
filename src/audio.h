@@ -65,9 +65,10 @@ const char *audio_bgm_filename(int track);
  * BGM swap (and later SE trigger + fade event) emits one JSON line.
  * Schema:
  *
- *   {"t_ms":<uint>, "kind":"bgm_swap", "track":<int>, "name":<str>}
- *   {"t_ms":<uint>, "kind":"se_play",  "slot":<int>,  "name":<str>}
- *   (fade_start lands once audio_fade_apply's SetVolume hookup wires in)
+ *   {"t_ms":<uint>, "kind":"bgm_swap",   "track":<int>,   "name":<str>}
+ *   {"t_ms":<uint>, "kind":"se_play",    "slot":<int>,    "name":<str>}
+ *   {"t_ms":<uint>, "kind":"fade_start", "channel":<int>, "slider":<int>,
+ *                                        "centibel":<int>}
  *
  * t_ms is timeGetTime()-since-boot (matches the engine's clock).
  * name is JSON-escaped per audio_trace_json_escape() — \", \\, \n,
@@ -94,6 +95,12 @@ void audio_trace_emit_bgm_swap(int track, const char *name);
 /* Same shape, kind="se_play". `slot` is the 0..109 SE table index;
  * `name` is a short identifier (e.g. "se_012_id0148.wav"). */
 void audio_trace_emit_se_play(int slot, const char *name);
+
+/* Same shape, kind="fade_start". `channel` is the AUDIO_FADE_CHANNEL_*
+ * index (see audio_fade.h), `slider` the current [0,9] slider value,
+ * `centibel` the SetVolume value that was applied. Emitted by
+ * audio_fade_apply() on every BGM swap and every SE play. */
+void audio_trace_emit_fade_start(int channel, int slider, int32_t centibel);
 
 /* Test hook: returns whether the trace is currently open. */
 int  audio_trace_is_open(void);

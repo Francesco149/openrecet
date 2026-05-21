@@ -1,18 +1,23 @@
 /*
  * audio_fade.c — see audio_fade.h.
  *
- * The engine's FUN_00499583 trampolines a frame counter (DAT_056e5778)
- * through a cos-based attenuation curve and calls
- * IDirectMusicAudioPath8::SetVolume on the BGM path. We split that
- * into:
+ * Three responsibilities:
  *
- *   audio_fade_compute(frame, target)  — pure math (this commit).
- *   audio_fade_apply(channel)          — SetVolume hookup
- *                                        (no-op stub for now;
- *                                        wires in with the SE port).
+ *   1. audio_fade_compute(frame, target) — pure cos-curve math from
+ *      FUN_00499583. Bit-perfect (within a centibel) vs the engine's
+ *      __ftol output across the valid range.
+ *   2. Per-channel slider state (BGM, SE-A, SE-B). Mirrors the engine's
+ *      save-data counters; defaults to 9 (full target) for all three
+ *      until save-load lands. See audio_fade.h header comment for the
+ *      "BGM=9 not 5" deviation note.
+ *   3. audio_fade_apply(channel) — emits a `fade_start` trace event
+ *      and forwards (channel, centibel) to a hook the Win32 audio
+ *      backend installs at init time. Decoupling via the hook keeps
+ *      audio_fade.c free of dmusici.h so it stays in the test build.
  */
 
 #include "audio_fade.h"
+#include "audio.h"     /* audio_trace_emit_fade_start */
 
 #include <math.h>
 
@@ -65,11 +70,56 @@ int32_t audio_fade_compute(int frame_counter, int32_t target_centibel)
     return (int32_t)centibel;
 }
 
-void audio_fade_apply(int channel)
+/* ─── per-channel slider state ─────────────────────────────────────────
+ *
+ * Three [0..9] sliders, defaults 9. Cleared via audio_fade_reset(). */
+
+static int g_sliders[AUDIO_FADE_CHANNEL_COUNT] = { 9, 9, 9 };
+static audio_fade_apply_hook_t g_apply_hook = NULL;
+
+void audio_fade_set_slider(int channel, int value)
 {
-    /* No caller wires this yet. Once the SE port lands we'll add the
-     * IDirectMusicAudioPath8::SetVolume hookup behind #ifdef _WIN32
-     * here, matching the engine's vtable+0x14 call. (void) the param
-     * so -Wunused-parameter stays quiet. */
-    (void)channel;
+    if (channel < 0 || channel >= AUDIO_FADE_CHANNEL_COUNT) return;
+    if (value < 0) value = 0;
+    if (value > 9) value = 9;
+    g_sliders[channel] = value;
+}
+
+int audio_fade_get_slider(int channel)
+{
+    if (channel < 0 || channel >= AUDIO_FADE_CHANNEL_COUNT) return 0;
+    return g_sliders[channel];
+}
+
+int32_t audio_fade_channel_centibel(int channel)
+{
+    /* target_centibel = 0 for now (full target). Once music_step's
+     * target_volume ramp wires in, this becomes
+     *   audio_fade_compute(slider, (target_volume - 1.0f) * 9600).
+     * For BGM that's the title-exit fade band; SE has no equivalent. */
+    return audio_fade_compute(audio_fade_get_slider(channel), 0);
+}
+
+void audio_fade_set_apply_hook(audio_fade_apply_hook_t hook)
+{
+    g_apply_hook = hook;
+}
+
+int32_t audio_fade_apply(int channel)
+{
+    if (channel < 0 || channel >= AUDIO_FADE_CHANNEL_COUNT) return 0;
+    int32_t centibel = audio_fade_compute(g_sliders[channel], 0);
+    audio_trace_emit_fade_start(channel, g_sliders[channel], centibel);
+    if (g_apply_hook) {
+        g_apply_hook(channel, centibel);
+    }
+    return centibel;
+}
+
+void audio_fade_reset(void)
+{
+    for (int i = 0; i < AUDIO_FADE_CHANNEL_COUNT; i++) {
+        g_sliders[i] = 9;
+    }
+    g_apply_hook = NULL;
 }

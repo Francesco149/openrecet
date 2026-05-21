@@ -41,6 +41,7 @@
  */
 
 #include "audio.h"
+#include "audio_fade.h"
 #include "audio_se_names.h"
 
 #include <stdint.h>
@@ -210,11 +211,29 @@ void audio_trace_emit_se_play(int slot, const char *name)
     fflush(g_audio_trace_fp);
 }
 
+void audio_trace_emit_fade_start(int channel, int slider, int32_t centibel)
+{
+    if (!g_audio_trace_fp) return;
+    fprintf(g_audio_trace_fp,
+            "{\"t_ms\":%u,\"kind\":\"fade_start\",\"channel\":%d,"
+            "\"slider\":%d,\"centibel\":%d}\n",
+            (unsigned)audio_trace_now_ms(), channel, slider, (int)centibel);
+    fflush(g_audio_trace_fp);
+}
+
 static int audio_play_se_win32(int slot);   /* forward — defined in the _WIN32 block */
 
 int audio_play_se(int slot)
 {
     if (slot < 0 || slot >= AUDIO_SE_COUNT) return 0;
+
+    /* Apply SE-A slider via SetVolume on path_se_a (Win32) and emit a
+     * `fade_start` trace event. The engine call site is at the top of
+     * FUN_00499c63, before the explicit Stop + PlaySegmentEx; we mirror
+     * that ordering so analyse-time the fade_start lands immediately
+     * before the matching se_play. Pure-C: no-op on non-Win32 except
+     * for the trace emission (the apply hook is NULL). */
+    audio_fade_apply(AUDIO_FADE_CHANNEL_SE_A);
 
     /* Trace event fires even when the Win32 backend isn't wired —
      * tests can drive this without windows.h. */
@@ -271,6 +290,23 @@ static struct {
 static void audio_play_track_adapter(int32_t track)
 {
     (void)audio_play_track(track);
+}
+
+/* audio_fade.c invokes this when audio_fade_apply fires; we route the
+ * centibel to the right AudioPath's SetVolume. Mirrors the engine's
+ * `(*vt[5])(path, centibel, 0)` call at vtable +0x14 in FUN_00499583
+ * (BGM) and FUN_00499c63 (SE). */
+static void audio_fade_apply_hook_win32(int channel, int32_t centibel)
+{
+    IDirectMusicAudioPath *path = NULL;
+    switch (channel) {
+    case AUDIO_FADE_CHANNEL_BGM:   path = g_audio.path_bgm;  break;
+    case AUDIO_FADE_CHANNEL_SE_A:  path = g_audio.path_se_a; break;
+    case AUDIO_FADE_CHANNEL_SE_B:  path = g_audio.path_se_b; break;
+    default: return;
+    }
+    if (!path) return;
+    IDirectMusicAudioPath_SetVolume(path, (long)centibel, 0);
 }
 
 /* Wide-char copy of an ASCII string into a fixed-size WCHAR buffer.
@@ -349,17 +385,6 @@ int audio_init(HWND hwnd)
                 (unsigned long)hr);
         return 0;
     }
-
-    /* SetVolume(0 = 0 dB, 0 = no fade) on both SE paths up front. The
-     * engine touches SetVolume on every audio_play_se call (cos-curve
-     * fade or -10000 hard silence per quirk #46); the fade-counter
-     * producer that drives those calls isn't ported yet, so without
-     * an explicit set here the path stays at whatever volume
-     * CreateStandardAudioPath leaves it at — observed to be inaudible
-     * on at least one Windows host. 0 dB matches the engine's
-     * "fade complete" steady state. */
-    IDirectMusicAudioPath_SetVolume(g_audio.path_se_a, 0, 0);
-    IDirectMusicAudioPath_SetVolume(g_audio.path_se_b, 0, 0);
 
     /* 4. Create the Loader. */
     hr = CoCreateInstance(&CLSID_DirectMusicLoader, NULL,
@@ -503,6 +528,12 @@ int audio_init(HWND hwnd)
 
     g_audio.all_loaded = 1;
 
+    /* Install the fade-apply hook so audio_fade_apply() lands real
+     * IDirectMusicAudioPath::SetVolume calls. Sliders default to 9
+     * (full target) — see audio_fade.h header comment for why we
+     * don't mirror the engine's BGM=5 default. */
+    audio_fade_set_apply_hook(audio_fade_apply_hook_win32);
+
     /* Bridge into music.c: install our swap callback. From here on
      * every selector swap_call_count++ also triggers a real play. */
     g_music_swap_fn = audio_play_track_adapter;
@@ -555,6 +586,14 @@ int audio_play_track(int32_t track)
 
     g_audio.current_track = track;
 
+    /* Engine: FUN_00499200 calls FUN_00499583 (volume-apply) gated on
+     * `DAT_09643114 == 0` — i.e. when no per-tick fade animation is
+     * currently in progress. We don't yet drive the per-tick animation
+     * (DAT_09643114 stays 0), so always apply the current BGM slider
+     * here. The music_step fade-band tail will eventually feed a
+     * dynamic target into this same hook. */
+    audio_fade_apply(AUDIO_FADE_CHANNEL_BGM);
+
     IDirectMusicSegmentState *new_state = NULL;
     HRESULT hr = IDirectMusicPerformance8_PlaySegmentEx(
         g_audio.performance,
@@ -586,19 +625,15 @@ int audio_play_track(int32_t track)
  *
  *   1. Guard: if (DAT_096430fc == 0 || se_segments[slot] == NULL) return 0
  *   2. Release any prior SegmentState8 stored at DAT_09642c6c[slot]
- *   3. Stop any prior playback of THIS segment on the performance
+ *   3. SetVolume on path_se_a per the cos-curve, reading DAT_056e5774
+ *      (the SE-A slider). We route this through audio_fade_apply.
+ *   4. Stop any prior playback of THIS segment on the performance
  *      (engine emits an extra explicit Stop before the new PlaySegmentEx
  *       to defeat queueing for repeat-same-slot triggers — see Q-D)
- *   4. PlaySegmentEx(seg, NULL, NULL, DMUS_SEGF_QUEUE=0x80, 0, &state,
+ *   5. PlaySegmentEx(seg, NULL, NULL, DMUS_SEGF_QUEUE=0x80, 0, &state,
  *                    NULL, path_se_a)
- *   5. state->QueryInterface(IID_IDirectMusicSegmentState8, &se_states[slot])
- *   6. state->Release()
- *
- * Volume application would call audio_fade_compute(0, DAT_056e5774) →
- * IDirectMusicAudioPath::SetVolume on path_se_a. We omit it for now
- * (no fade-counter producer wired yet — the next audio_fade_apply
- * commit will hook it in for both BGM and SE). The path's default
- * volume is 0 dB, so SE plays at full volume until the fade pass lands.
+ *   6. state->QueryInterface(IID_IDirectMusicSegmentState8, &se_states[slot])
+ *   7. state->Release()
  */
 static int audio_play_se_win32(int slot)
 {
@@ -625,27 +660,17 @@ static int audio_play_se_win32(int slot)
         g_audio.performance, (IDirectMusicSegment *)seg, NULL, 0, 0);
 
     IDirectMusicSegmentState *state = NULL;
-    /* dwFlags:
-     *   DMUS_SEGF_SECONDARY (0x8000) — play alongside BGM rather than
-     *      preempting it. Without SECONDARY, PlaySegmentEx defaults to
-     *      "primary segment" semantics that stop any other primary
-     *      segment on the same Performance — which would mute the BGM
-     *      every time an SE fires.
-     *
-     * Engine deviation: the original FUN_00499c63 uses DMUS_SEGF_QUEUE
-     * (0x80) without SECONDARY. The engine sidesteps the preemption via
-     * its per-call SetVolume on the SE path (which we haven't ported —
-     * the fade-counter producer doesn't exist yet) plus QUEUE's specific
-     * "queue after currently-playing on this path" semantics. Until
-     * audio_fade_apply lands and we can verify the queue path actually
-     * plays + doesn't preempt, SECONDARY is the clean fix that matches
-     * observable behavior (SEs over BGM, BGM keeps going). */
+    /* dwFlags = DMUS_SEGF_QUEUE (0x80) — engine fidelity. Queues the
+     * new segment back-to-back on the same AudioPath; with the
+     * explicit Stop just above the queue is always empty so this fires
+     * immediately. BGM lives on a separate AudioPath so SE queueing
+     * doesn't preempt it. */
     HRESULT hr = IDirectMusicPerformance8_PlaySegmentEx(
         g_audio.performance,
         (IUnknown *)seg,
         NULL,                       /* segment name (unused) */
         NULL,                       /* transition */
-        DMUS_SEGF_SECONDARY,        /* see comment block above */
+        DMUS_SEGF_QUEUE,            /* engine value at FUN_00499c63 +0xb4 call */
         0,                          /* start time = now */
         &state,
         NULL,                       /* from */
@@ -672,8 +697,11 @@ static int audio_play_se_win32(int slot)
 void audio_shutdown(void)
 {
     /* Detach the music bridge first so any in-flight tick can't reach
-     * back into a half-torn-down backend. */
+     * back into a half-torn-down backend. Also drop the fade-apply
+     * hook so a stray audio_fade_apply caller doesn't reach into a
+     * torn-down g_audio. */
     g_music_swap_fn = NULL;
+    audio_fade_set_apply_hook(NULL);
 
     if (g_audio.performance) {
         /* Stop whatever's playing. CloseDown shuts down the performance

@@ -491,7 +491,12 @@ struct test_case {
     X(audio_fade_intermediate_value_matches_reference) \
     X(audio_fade_target_threading_at_frame_five) \
     X(audio_fade_out_of_range_clamps) \
-    X(audio_fade_apply_is_noop) \
+    X(audio_fade_slider_defaults_to_nine) \
+    X(audio_fade_slider_set_clamps_to_0_9) \
+    X(audio_fade_channel_centibel_matches_compute) \
+    X(audio_fade_apply_calls_hook_with_centibel) \
+    X(audio_fade_apply_skips_hook_when_unset) \
+    X(audio_fade_apply_rejects_invalid_channel) \
     \
     X(audio_trace_json_escape_passthrough_ascii) \
     X(audio_trace_json_escape_quote) \
@@ -503,6 +508,7 @@ struct test_case {
     X(audio_trace_open_close_idempotent) \
     X(audio_trace_open_rejects_null) \
     X(audio_trace_emit_bgm_swap_writes_one_line) \
+    X(audio_trace_emit_fade_start_writes_one_line) \
     X(audio_trace_emit_when_closed_is_noop) \
     \
     X(audio_se_table_has_110_entries) \

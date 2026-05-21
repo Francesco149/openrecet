@@ -115,10 +115,109 @@ int test_audio_fade_out_of_range_clamps(void)
     return 0;
 }
 
-int test_audio_fade_apply_is_noop(void)
+/* ─── per-channel slider + apply hook ──────────────────────────────── */
+
+int test_audio_fade_slider_defaults_to_nine(void)
 {
-    /* Stub for now — must not crash, must not assert. */
-    audio_fade_apply(0);
-    audio_fade_apply(7);
+    /* Defaults are 9/9/9 (see audio_fade.h header for why BGM=9 not the
+     * engine's 5). Out-of-range channel returns 0. */
+    audio_fade_reset();
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM),  9);
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_A), 9);
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_B), 9);
+    T_ASSERT_EQ_I(audio_fade_get_slider(-1), 0);
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_COUNT), 0);
+    return 0;
+}
+
+int test_audio_fade_slider_set_clamps_to_0_9(void)
+{
+    audio_fade_reset();
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, 3);
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM), 3);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, -2);
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM), 0);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, 99);
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM), 9);
+    /* Per-channel independence. */
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, 5);
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_A), 5);
+    T_ASSERT_EQ_I(audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_B), 9);
+    /* Out-of-range channel is a no-op (asan-clean). */
+    audio_fade_set_slider(-1, 4);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_COUNT, 4);
+    return 0;
+}
+
+int test_audio_fade_channel_centibel_matches_compute(void)
+{
+    audio_fade_reset();
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM,  9);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, 4);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B, 0);
+    T_ASSERT_EQ_I(audio_fade_channel_centibel(AUDIO_FADE_CHANNEL_BGM),
+                  audio_fade_compute(9, 0));
+    T_ASSERT_EQ_I(audio_fade_channel_centibel(AUDIO_FADE_CHANNEL_SE_A),
+                  audio_fade_compute(4, 0));
+    T_ASSERT_EQ_I(audio_fade_channel_centibel(AUDIO_FADE_CHANNEL_SE_B),
+                  AUDIO_FADE_SILENCE_CENTIBEL);
+    return 0;
+}
+
+/* Apply-hook capture: a tiny test hook that records the most recent
+ * (channel, centibel) pair for assertion. */
+static int     g_apply_hook_calls = 0;
+static int     g_apply_hook_last_channel = -1;
+static int32_t g_apply_hook_last_centibel = 0;
+static void test_apply_hook(int channel, int32_t centibel)
+{
+    g_apply_hook_calls++;
+    g_apply_hook_last_channel  = channel;
+    g_apply_hook_last_centibel = centibel;
+}
+
+int test_audio_fade_apply_calls_hook_with_centibel(void)
+{
+    audio_fade_reset();
+    audio_fade_set_apply_hook(test_apply_hook);
+    g_apply_hook_calls = 0;
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, 9);
+    int32_t got = audio_fade_apply(AUDIO_FADE_CHANNEL_BGM);
+    T_ASSERT_EQ_I(g_apply_hook_calls, 1);
+    T_ASSERT_EQ_I(g_apply_hook_last_channel, AUDIO_FADE_CHANNEL_BGM);
+    T_ASSERT_EQ_I(g_apply_hook_last_centibel, 0);   /* full target */
+    T_ASSERT_EQ_I(got, 0);
+
+    /* Lower slider → more attenuation. */
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, 0);
+    got = audio_fade_apply(AUDIO_FADE_CHANNEL_SE_A);
+    T_ASSERT_EQ_I(g_apply_hook_calls, 2);
+    T_ASSERT_EQ_I(g_apply_hook_last_channel, AUDIO_FADE_CHANNEL_SE_A);
+    T_ASSERT_EQ_I(got, AUDIO_FADE_SILENCE_CENTIBEL);
+
+    audio_fade_reset();
+    return 0;
+}
+
+int test_audio_fade_apply_skips_hook_when_unset(void)
+{
+    audio_fade_reset();   /* clears hook + sliders */
+    g_apply_hook_calls = 0;
+    int32_t got = audio_fade_apply(AUDIO_FADE_CHANNEL_BGM);
+    T_ASSERT_EQ_I(g_apply_hook_calls, 0);
+    T_ASSERT_EQ_I(got, 0);   /* slider 9 → 0 dB */
+    return 0;
+}
+
+int test_audio_fade_apply_rejects_invalid_channel(void)
+{
+    audio_fade_reset();
+    audio_fade_set_apply_hook(test_apply_hook);
+    g_apply_hook_calls = 0;
+    audio_fade_apply(-1);
+    audio_fade_apply(AUDIO_FADE_CHANNEL_COUNT);
+    audio_fade_apply(99);
+    T_ASSERT_EQ_I(g_apply_hook_calls, 0);
+    audio_fade_reset();
     return 0;
 }

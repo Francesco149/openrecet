@@ -1,25 +1,34 @@
 # Audio backend — DirectMusic 8
 
 **Status (2026-05-21):**
-- init + BGM track-swap ported
+- init + BGM track-swap ported (BGM audible on Windows host)
 - MCI debug command recorder ported (FUN_00451874, dormant in shipped data)
-- volume sin-curve fade ported (math half; SetVolume hookup defers
-  until a per-tick fade-counter producer wires in)
+- volume sin-curve fade ported — `audio_fade_compute` + `audio_fade_apply`
+  with per-channel slider state (BGM / SE-A / SE-B); the Win32 backend
+  installs a hook that calls `IDirectMusicAudioPath::SetVolume`.
 - SE phase A: 110-entry resource ID table + `audio_play_se()` trace shell
-- **SE phase B live**: 2 SE AudioPaths created in `audio_init`, 109 WAV
+- **SE phase B**: 2 SE AudioPaths created in `audio_init`, 109 WAV
   blobs embedded via windres custom-type `WAVE` + loaded via
   `IDirectMusicLoader::GetObject(DMUS_OBJ_MEMORY)`, `audio_play_se`
   drives a real PlaySegmentEx with QueryInterface upgrade to
-  `IDirectMusicSegmentState8`. User-verified audible.
-- `--audio-trace` opt-in JSONL emitter live (bgm_swap + se_play)
-- **Engine deviations introduced by phase B** (see "Next steps" below):
-  - SE PlaySegmentEx uses `DMUS_SEGF_SECONDARY` (0x8000) instead of
-    the engine's `DMUS_SEGF_QUEUE` (0x80) — without SECONDARY,
-    primary-segment semantics duck BGM under every SE.
-  - Explicit `SetVolume(0, 0)` on both SE paths in `audio_init` —
-    the engine touches SetVolume on every audio_play_se call (cos
-    fade), but our fade-counter producer isn't wired yet.
-  - Both revert to engine behavior once `audio_fade_apply` is live.
+  `IDirectMusicSegmentState8`.
+- **Phase-B engine deviations reverted (2026-05-21):**
+  - SE PlaySegmentEx uses `DMUS_SEGF_QUEUE` (0x80) — engine fidelity.
+    BGM lives on a separate AudioPath so SE queueing doesn't preempt
+    it.
+  - Init-time `SetVolume(0, 0)` on the SE paths dropped.
+  - **Observed regression on the user's Windows host:** SEs are
+    inaudible after the revert (BGM still plays). The previous
+    workaround (init-time SetVolume + SECONDARY flag) was audible.
+    `fade_start` trace events confirm `audio_fade_apply` does fire
+    per SE with centibel=0; PlaySegmentEx returns success. Likely
+    missing: something the engine sets up at boot that we haven't
+    ported yet (candidates: `FUN_004901c2` save-arena init touches
+    `_DAT_056e5780` and other fields that may feed back into audio
+    state; `recet.ini`'s `mu`/`se` aren't wired into the runtime
+    sliders yet). Tracked as an open issue — not patched with a
+    deviation; we'll find the missing piece.
+- `--audio-trace` opt-in JSONL emitter live (bgm_swap + se_play + fade_start)
 
 The engine uses DirectMusic 8 (not DirectSound directly). All WAV files
 are loaded as **DirectMusic segments** through `IDirectMusicLoader8`,
@@ -34,8 +43,8 @@ channels and `DMUS_AUDIOF_ALL`.
 |-------------------|--------------------------------------------|---------------|
 | `FUN_00498ef4`    | "init daoudio ok" — full init, preload     | `src/audio.c:audio_init` |
 | `FUN_00499200`    | Track-swap (Stop + Load + PlaySegmentEx)   | `src/audio.c:audio_play_track` |
-| `FUN_00499583`    | Volume-apply (cos-curve fade)              | `src/audio_fade.c:audio_fade_compute` (math; SetVolume hookup TODO) |
-| `FUN_00499c63`    | SE start/stop on per-channel SE AudioPaths | `src/audio.c:audio_play_se` (trace-only shell; live PlaySegmentEx in phase 2) |
+| `FUN_00499583`    | Volume-apply (cos-curve fade)              | `src/audio_fade.c:audio_fade_compute` + `audio_fade_apply` (Win32 hook in `src/audio.c:audio_fade_apply_hook_win32`) |
+| `FUN_00499c63`    | SE start/stop on per-channel SE AudioPaths | `src/audio.c:audio_play_se` (full path: pre-PlaySegmentEx Stop + SetVolume + QUEUE-flag play + QI upgrade) |
 | `FUN_00451874`    | MCI debug command recorder                 | `src/audio_mci.c` (dormant — `DAT_0438ccb4` zero in shipped data) |
 | `FUN_00503994`    | CRT-style cos() wrapper                    | replaced by libc `cos()` in `audio_fade.c` |
 | `FUN_0049a558`    | Title-music language-table lookup          | inlined in `src/music.c::title_bgm_select` |
@@ -139,13 +148,17 @@ int FUN_00499200(int param_1)
 }
 ```
 
-The port mirrors this in `src/audio.c::audio_play_track`. Two
-deviations:
+The port mirrors this in `src/audio.c::audio_play_track`. One
+deviation:
 
 - The `sprintf` to `local_104` builds a debug-log path (`"%s%d"` style)
   that the engine's no-op logger swallows. Skipped.
-- `FUN_00499583` (volume-apply) is stubbed for this commit. PlaySegmentEx
-  still works at default volume.
+
+The engine's `FUN_00499583` call is now real: `audio_fade_apply(
+AUDIO_FADE_CHANNEL_BGM)` runs ahead of PlaySegmentEx. We always apply
+(the engine's `DAT_09643114 == 0` gate stays true — the per-tick fade
+animation that toggles it lives in `FUN_0049966a`'s tail and isn't
+ported yet).
 
 ## Volume sin-curve fade (`FUN_00499583`)
 
@@ -245,6 +258,9 @@ voice-stealing scan didn't preempt them. Since the scan never fires,
 the queueing flag is also effectively dormant in vendor data — the
 per-slot Stop right before each PlaySegmentEx (`Stop(performance,
 se_segments[slot], 0, 0, 0)`) handles repeat-trigger reset on its own.
+The QUEUE flag is harmless for BGM because BGM lives on a separate
+AudioPath (`path_bgm`) — queueing is scoped per-AudioPath, so SE
+queues on `path_se_a` only.
 
 The `IDirectMusicSegmentState` returned by PlaySegmentEx is
 `QueryInterface`-upgraded to `IDirectMusicSegmentState8` and stored at
@@ -260,19 +276,28 @@ NDJSON line is appended per audio event:
 
 ```json
 {"t_ms":198,"kind":"bgm_swap","track":0,"name":"bgm/retitle2010.wav"}
+{"t_ms":198,"kind":"fade_start","channel":0,"slider":9,"centibel":0}
 {"t_ms":342,"kind":"se_play","slot":12,"name":"se_012_id0148"}
+{"t_ms":342,"kind":"fade_start","channel":1,"slider":9,"centibel":0}
 ```
 
 - `t_ms` — `timeGetTime()` ms since `audio_trace_open()`. The trace
   opens *before* `audio_init`, so the first BGM swap typically logs
   near zero.
-- `kind` — string discriminator. Currently `"bgm_swap"` and
-  `"se_play"`; `"fade_start"` lands once `audio_fade_apply`'s live
-  `SetVolume` wires in.
+- `kind` — string discriminator. `"bgm_swap"`, `"se_play"`, and
+  `"fade_start"` (one per audio_fade_apply call). The fade_start
+  event fires *just before* the matching bgm_swap or se_play, so
+  pairing them is straightforward.
 - `name` — JSON-escaped per `audio_trace_json_escape()`:  `\"`, `\\`,
   `\n`, `\r`, `\t` mapped explicitly; other non-ASCII bytes become
   `\u00XX`. Filenames in our tables are ASCII so the escape stays
   small in practice.
+- `channel` — 0 = BGM, 1 = SE-A, 2 = SE-B (matches
+  `AUDIO_FADE_CHANNEL_*` constants).
+- `slider` — current [0,9] slider value for the channel.
+- `centibel` — the SetVolume value applied; 0 = full target, -10000
+  = hard silence (frame-0 fast path), intermediate values trace the
+  cos curve.
 
 Schema is locked in `src/audio.h`. The harness writes the log to
 `runs/<scenario>/<run_id>/audio-trace.jsonl`, parsable line-by-line
@@ -331,30 +356,27 @@ links against `-ldxguid` (already in `LIBS` in `src/Makefile`).
 
 In rough order of impact:
 
-1. **Volume animation hookup + revert phase-B deviations** —
-   `audio_fade_apply` is currently a no-op stub. Wire
-   `IDirectMusicAudioPath::SetVolume` against `audio_fade_compute`'s
-   centibel output (engine: per-frame for both BGM and SE paths
-   driven by `DAT_056e5774` / `DAT_056e577c` counters that decay
-   each tick). Once the per-tick fade producer exists, revert the
-   two phase-B engine deviations (`src/audio.c::audio_play_se_win32`):
-   a. **`DMUS_SEGF_SECONDARY` (0x8000) → `DMUS_SEGF_QUEUE` (0x80)**
-      in PlaySegmentEx. The engine's queue semantics + per-call
-      SetVolume keep BGM playing while SE fires; without the fade
-      hookup, queue+default-volume duck BGM, so we substituted
-      SECONDARY which doesn't preempt. The retail behavior is
-      observable QUEUE; revert + verify after fade lands.
-   b. **Drop the explicit `SetVolume(0, 0)` on `path_se_a`/
-      `path_se_b`** at the end of `audio_init`. Defensive nudge
-      against an apparently-non-zero default volume on at least one
-      Windows host; the engine never relies on the default because
-      it always SetVolumes per call. Once we SetVolume per call too,
-      the init nudge becomes redundant.
-   Add a `fade_start` trace event with the same revert.
-2. **Shutdown save-back** — `FUN_0047a804` writes `se` / `mu` / `winx` /
+1. **recet.ini → slider seeding.** Currently sliders default to 9/9/9
+   regardless of `mu`/`se` in `recet.ini`. The engine path is
+   indirect: recet.ini's mu/se are read into `g_ini.mu`/`.se` but the
+   runtime sliders live in the save-game arena (initialised to 5/9/9
+   by `FUN_004901c2`, overwritten on save-load). Until save-load lands,
+   the cleanest user-facing behaviour is to seed sliders from
+   `g_ini.mu`/`.se` after `recet_ini_load`. One-liner in `main.c` after
+   `audio_init`. Tiny and unblocks the next item.
+2. **Per-tick fade animation** — the volume-tail at `FUN_0049966a`
+   LAB_00499a00 walks a two-axis cos product (`cos(fade_progress) *
+   cos(slider)`) and ramps SetVolume over `DAT_005d1964` frames
+   (=600 by default). Triggered when `DAT_09643114 != 0`. Pre-req for
+   the title-exit BGM fade and any future cross-fade effects.
+3. **Settings menu (FUN_0047fc44) slider producer** — once the
+   sound-config menu ports, player input on BGM/SE-A/SE-B/swap-rate
+   sliders feeds `audio_fade_set_slider` + re-applies via
+   `audio_fade_apply`.
+4. **Shutdown save-back** — `FUN_0047a804` writes `se` / `mu` / `winx` /
    `winy` back to `recet.ini` via `WritePrivateProfileStringA`. Lands
    with the full shutdown-chain port.
-3. **Engine bug-for-bug compatibility** — the EN-build `SetParam(
+5. **Engine bug-for-bug compatibility** — the EN-build `SetParam(
    GUID_StandardMIDIFile, ...)` call (gated on `DAT_0438b170 == 1`)
    never fires in the current Steam build. If a future build sets that
    flag, the port needs to add the call back; for now it's a documented

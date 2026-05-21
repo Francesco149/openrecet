@@ -1,8 +1,8 @@
 /*
- * audio_fade.h — BGM volume fade-in curve.
+ * audio_fade.h — BGM/SE volume curve + per-channel slider state.
  *
  * Faithful port of FUN_00499583 (231 bytes). The engine's
- * BGM-volume-fade ramps from "silence" up to a target volume across
+ * volume curve ramps from "silence" up to a target volume across
  * 10 ticks (frame counter 9 → 0). The ramp curve is a cosine arc over
  * angles [0, 2π/5]:
  *
@@ -27,13 +27,38 @@
  * control-word juggling; behaviorally just `cosf(angle)`, so we use
  * libc cos() directly here.
  *
+ * ── Per-channel slider state ──
+ *
+ * The engine tracks three independent volume sliders in the save-data
+ * arena at:
+ *   DAT_056e5778 — BGM   (engine init: 5, save-data persisted)
+ *   DAT_056e5774 — SE-A  (engine init: 9)
+ *   DAT_056e577c — SE-B  (engine init: 9, dead in vendor data per
+ *                         engine-quirks #46)
+ *
+ * The settings menu (FUN_0047fc44) and the title sound-config submenu
+ * (FUN_0049a59e tail) bump these counters via player input. Each bump
+ * re-applies the corresponding SetVolume immediately via FUN_00499583
+ * (BGM) or FUN_00499c63 (SE).
+ *
+ * The port keeps the three slider values as module-local state with
+ * `audio_fade_set_slider` / `audio_fade_get_slider` accessors. Defaults
+ * are 9/9/9 (full volume) — that preserves the user-audible "full
+ * volume at boot" we already had pre-revert. The engine's BGM=5 default
+ * is intentionally NOT mirrored: it only takes effect when a save file
+ * loads (FUN_004902fe, not ported yet); until save-load lands, BGM=9
+ * matches what users currently hear.
+ *
  * Engine sources:
  *   docs/decompiled/by-address/499583.c  — fade dispatcher
+ *   docs/decompiled/by-address/4901c2.c  — save-arena init (5/9/9/1)
+ *   docs/decompiled/by-address/47fc44.c  — settings-menu slider producer
  *   docs/decompiled/by-address/503994.c  — cos() wrapper
  *
- * Module shape: pure computation, no DirectMusic dependency. The
- * apply-to-audiopath step (`SetVolume`) is a separate function that
- * the upcoming SE/audio commit will wire into the live audio module.
+ * Module shape: pure computation + tiny state, no DirectMusic
+ * dependency. The apply-to-audiopath step (`SetVolume`) is decoupled
+ * via a hook function pointer that the Win32 backend (audio.c)
+ * installs at init time.
  */
 
 #ifndef OPENRECET_AUDIO_FADE_H
@@ -52,6 +77,14 @@
  * so 10 distinct steps. */
 #define AUDIO_FADE_FRAME_COUNT  10
 
+/* Volume-slider channels. Order matches the engine's per-counter
+ * arrangement (BGM = DAT_056e5778, SE-A = _5774, SE-B = _577c) but as
+ * a stable indexed enum so callers don't need to know the offsets. */
+#define AUDIO_FADE_CHANNEL_BGM    0
+#define AUDIO_FADE_CHANNEL_SE_A   1
+#define AUDIO_FADE_CHANNEL_SE_B   2
+#define AUDIO_FADE_CHANNEL_COUNT  3
+
 /* Map a frame counter in [0, 9] to a centibel volume.
  *
  *   frame 0    → AUDIO_FADE_SILENCE_CENTIBEL  (-10000, hard silence;
@@ -67,11 +100,39 @@
  * but giving a defined result is safer than crashing on a typo. */
 int32_t audio_fade_compute(int frame_counter, int32_t target_centibel);
 
-/* Apply the computed volume to the BGM audiopath. For now this is a
- * no-op stub: no caller wires it yet, and the live audiopath call
- * (`(*vt[5])(path, centibel, 0)` — IDirectMusicAudioPath8::SetVolume
- * via vtable +0x14) needs the same #ifdef _WIN32 guard the rest of
- * audio.c uses. The math + curve plot ride ahead of that. */
-void audio_fade_apply(int channel);
+/* Slider get/set for a channel in [0, AUDIO_FADE_CHANNEL_COUNT).
+ * Set clamps `value` to [0, 9]; out-of-range channel is a no-op (set)
+ * or returns 0 (get). Default value at first read is 9 (full target). */
+void audio_fade_set_slider(int channel, int value);
+int  audio_fade_get_slider(int channel);
+
+/* Compute the centibel for `channel`'s current slider at full target
+ * (target_centibel = 0). Equivalent to
+ * `audio_fade_compute(audio_fade_get_slider(channel), 0)` but stays in
+ * one place so future per-tick fade animation (driven by music_step's
+ * target_volume ramp) can be wired here without touching every call
+ * site. */
+int32_t audio_fade_channel_centibel(int channel);
+
+/* Apply `channel`'s current slider to whatever output that channel
+ * drives. Pure C — emits a `fade_start` trace event (audio.h) and then
+ * delegates the platform call (IDirectMusicAudioPath::SetVolume on
+ * Win32) to a hook function pointer the audio backend installs.
+ *
+ * Returns the centibel that was applied (or would have been applied if
+ * no hook is installed). */
+int32_t audio_fade_apply(int channel);
+
+/* Hook installer. The Win32 audio backend registers a function that
+ * receives (channel, centibel) and calls SetVolume on the matching
+ * AudioPath. Pass NULL to clear. Tests use this to capture applied
+ * volumes without touching DirectMusic. */
+typedef void (*audio_fade_apply_hook_t)(int channel, int32_t centibel);
+void audio_fade_set_apply_hook(audio_fade_apply_hook_t hook);
+
+/* Reset slider state + clear the apply hook. Used by tests to keep
+ * each case isolated; audio_init also calls this so a re-init starts
+ * from a known baseline. */
+void audio_fade_reset(void);
 
 #endif /* OPENRECET_AUDIO_FADE_H */
