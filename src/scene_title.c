@@ -373,8 +373,15 @@ void scene_title_render(IDirect3DDevice8 *dev,
      * is `index * y_stride + y_origin + 288 - 16*scale`. Colour for
      * the selected slot pulses via sin(select_phase*pi/15); other
      * items use the bit-pattern 0x95 (= 149) as a flat grey. Both
-     * paths build a `0xFF | r<<16 | g<<8 | b` greyscale. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADD);
+     * paths build a `0xFF | r<<16 | g<<8 | b` greyscale.
+     *
+     * Blend is D3DTOP_ADDSIGNED (= 8), not D3DTOP_ADD (= 7) — engine
+     * FUN_0049c644 L80 passes 8 as the third arg to
+     * SetTextureStageState(0, D3DTSS_COLOROP, …). D3DTOP_ADD clips
+     * highlights to white and the menu items look washed out;
+     * D3DTOP_ADDSIGNED subtracts 0.5 from one term first, preserving
+     * the per-item contrast the engine intends. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
 
     const int selected_idx = (int)anim->cursor_pos;
     for (int i = 0; i < menu->count; i++) {
@@ -386,15 +393,24 @@ void scene_title_render(IDirect3DDevice8 *dev,
         if (i == selected_idx) {
             scale = 1.0f;
             /* Two sin pulses modulate brightness. Ghidra hides the
-             * FPU scale factor inside __ftol; reconstructed scales
-             * are 127 (centered on 0x7f) and 32 (centered on 0x20).
-             * On a fresh boot (select_phase == pulse_phase == 0)
-             * both sines return 0, yielding 0x7f + 0x20 = 0x9f. */
+             * FPU scale factor inside __ftol; the engine writes
+             * `0x7f - iVar1` and `0x20 - iVar1`, but the hidden
+             * scales are NEGATIVE (-127 and -32) — the press pulse is
+             * a half-sine on [0,π] so `0x7f - sin(a)*127` would
+             * darken the text mid-press, whereas the engine clearly
+             * BRIGHTENS (the engine's clamp branch even pegs to
+             * 0xff). So the effective formulas are:
+             *   v  = 0x7f + 127 * sin(select_phase * π / 15)
+             *   v += 0x20 +  32 * sin((pulse_phase % 45) * 2π / 45)
+             * On a fresh boot (both phases zero) v = 0x9f, slightly
+             * brighter than the unselected 0x95 default — enough for
+             * ADDSIGNED to show the item as "selected". At press
+             * midpoint sin(a)=1 → v peaks near 0xff (clamped). */
             const float a = (float)anim->select_phase * 3.1415927f / 15.0f;
             const float b = (float)(anim->pulse_phase % 0x2d)
                           * 6.2831855f / 45.0f;
-            int v = 0x7f - (int)(sinf(a) * 127.0f);
-            v +=    0x20 - (int)(sinf(b) *  32.0f);
+            int v = 0x7f + (int)(sinf(a) * 127.0f);
+            v +=    0x20 + (int)(sinf(b) *  32.0f);
             if (v > 0xff) v = 0xff;
             if (v < 0)    v = 0;
             bright = (uint32_t)v;
