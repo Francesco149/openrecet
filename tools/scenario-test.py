@@ -28,6 +28,9 @@ Usage:
     scenario-test.py boot-idle --bless        # regenerate openrecet goldens
     scenario-test.py boot-idle --target retail --bless
                                               # regenerate retail goldens via Frida
+    scenario-test.py boot-idle --target both  # run openrecet + retail back-to-back,
+                                              # diff each against its own golden, AND
+                                              # drop a ours|retail side-by-side PNG
 
 Exit code: 0 on all-pass, 1 on any frame mismatch. --bless always 0.
 
@@ -36,7 +39,8 @@ documented in docs/harness-roadmap.md). Any mismatched frame additionally
 emits a red-tinted overlay PNG so the change is multimodally inspectable.
 
 Cross-target diff (retail vs openrecet) is NOT bit-exact and is left to
-contact-sheet.py + audio.jsonl comparisons.
+the auto side-by-side contact sheet + audio.jsonl comparisons. --target both
+exists to make that comparison one-command instead of two-runs-plus-tooling.
 """
 
 from __future__ import annotations
@@ -59,12 +63,25 @@ SCENARIOS  = ROOT / "tests" / "scenarios"
 BUILD_EXE  = ROOT / "build" / "openrecet.exe"
 ASSET_CWD  = ROOT / "vendor" / "original"
 
-TARGETS = ("openrecet", "retail")
+TARGETS = ("openrecet", "retail", "both")
+
+# Sub-targets that 'both' fans out into, in run order.
+BOTH_SUBTARGETS = ("openrecet", "retail")
 
 
 def golden_subdir(target: str) -> str:
     """Per-target golden directory name."""
     return "golden" if target == "openrecet" else f"golden-{target}"
+
+
+def load_contact_sheet_module():
+    """Import tools/contact-sheet.py by path (hyphen in name blocks plain import)."""
+    import importlib.util
+    csm_path = ROOT / "tools" / "contact-sheet.py"
+    spec = importlib.util.spec_from_file_location("openrecet_contact_sheet", csm_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────
@@ -185,6 +202,51 @@ def run_scenario_capture(scen: Scenario, run_dir: Path) -> dict:
     }
     (run_dir / "run.json").write_text(json.dumps(meta, indent=2))
     return meta
+
+
+# ─── cross-target side-by-side ────────────────────────────────────────────
+
+
+def render_sidebyside(left_frames: Path, right_frames: Path,
+                      out_path: Path,
+                      left_label: str = "openrecet",
+                      right_label: str = "retail",
+                      tile_wh: tuple[int, int] = (320, 240)) -> Path | None:
+    """Drop a per-frame ours|retail PNG at `out_path`. Returns the path
+    on success, None if either side captured nothing.
+
+    Pairs frames by *filename* (not by sorted-index position), so a
+    missing capture on one side becomes a placeholder tile rather than a
+    silent off-by-one across the whole sheet. The first row is a label
+    strip identifying which column is which target.
+    """
+    from PIL import Image
+
+    csm = load_contact_sheet_module()
+
+    lefts  = {p.name: p for p in csm.list_images(left_frames)}
+    rights = {p.name: p for p in csm.list_images(right_frames)}
+    names  = sorted(set(lefts) | set(rights))
+    if not names:
+        return None
+
+    tw, th = tile_wh
+    placeholder = Image.new("RGB", (tw, th), (40, 0, 0))
+
+    tiles:  list[Image.Image] = []
+    labels: list[str] = []
+    for n in names:
+        lp = lefts.get(n)
+        rp = rights.get(n)
+        tiles.append(csm.thumb(lp, tw, th) if lp else placeholder)
+        labels.append(f"{left_label} · {n}" if lp else f"{left_label} · (missing)")
+        tiles.append(csm.thumb(rp, tw, th) if rp else placeholder)
+        labels.append(f"{right_label} · {n}" if rp else f"{right_label} · (missing)")
+
+    sheet = csm.grid(tiles, labels, cols=2)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(out_path, optimize=True)
+    return out_path
 
 
 # ─── diff ──────────────────────────────────────────────────────────────────
@@ -325,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
                          "(default: runs/scenarios/)")
     args = ap.parse_args(argv)
 
-    if args.target == "openrecet":
+    if args.target in ("openrecet", "both"):
         if not BUILD_EXE.exists():
             raise SystemExit(f"exe missing: {BUILD_EXE}. Build: `make -C src`.")
 
@@ -348,6 +410,46 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n# scenario: {scen.name} [target: {args.target}]")
         if scen.description:
             print(f"  desc: {scen.description}")
+
+        if args.target == "both":
+            # Fan out into per-subtarget subdirs so each pipeline gets
+            # the same {frames/, audio.jsonl, trace.jsonl, run.json}
+            # layout it would have under a single-target run. Avoids
+            # filename collisions and keeps the existing diff/bless
+            # helpers usable unchanged.
+            sub_meta: dict[str, dict] = {}
+            for sub in BOTH_SUBTARGETS:
+                sub_dir = run_dir / sub
+                print(f"  ── {sub} ──")
+                if sub == "retail":
+                    m = run_scenario_capture_retail(scen, sub_dir, args.frida_remote)
+                else:
+                    m = run_scenario_capture(scen, sub_dir)
+                print(f"    exit={m['exit_code']} elapsed_ms={m['elapsed_ms']} "
+                      f"captured={len(m['captured_frames'])}/{len(scen.capture_frames)}")
+                sub_meta[sub] = m
+
+            sbs = render_sidebyside(
+                left_frames=run_dir / "openrecet" / "frames",
+                right_frames=run_dir / "retail"    / "frames",
+                out_path=run_dir / "sidebyside.png",
+            )
+            if sbs is not None:
+                print(f"  side-by-side: {sbs.relative_to(ROOT)}")
+            else:
+                print(f"  side-by-side: SKIPPED (no frames captured on at least one side)")
+
+            if args.bless:
+                for sub in BOTH_SUBTARGETS:
+                    bless(scen, run_dir / sub, sub)
+                continue
+
+            for sub in BOTH_SUBTARGETS:
+                p, f = diff_against_golden(scen, run_dir / sub, sub)
+                total_pass += p
+                total_fail += f
+            continue
+
         if args.target == "retail":
             meta = run_scenario_capture_retail(scen, run_dir, args.frida_remote)
         else:
