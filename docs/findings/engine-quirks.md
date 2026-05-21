@@ -1327,10 +1327,76 @@ array. Bit-for-bit identical output, fewer DI calls.
 
 ---
 
-## 45. The music selector's title BGM lookup masks -1 to 0
+## 44. Button auto-repeat double-fires across each reload
 
-(Quirk #44 is the button auto-repeat double-fire, documented in the
-sim-port PROGRESS.md entry but not yet retro'd into this file.)
+The button-state ring at the top of `FUN_004536cb` keeps a 16-element
+`short` array at `DAT_073dddda` — one counter per bit of the input
+mask. Every frame, after deriving `pressed = ~prev & cur` and the
+initial `held = cur`, the ring walks all 16 bits and decides whether
+to gate each one out of `held` so it doesn't auto-fire on every frame
+of a hold:
+
+```c
+for (int i = 0; i < 16; i++) {
+    if (((cur ^ prev) >> i) & 1) {
+        repeat[i] = 0xc;                 /* edge: arm 12-frame settle */
+    } else {
+        if (repeat[i] > 0xc) repeat[i] = 0xc;
+        if (repeat[i] < 1) {
+            repeat[i] = 4;               /* reload — no decrement, no gate */
+        } else {
+            repeat[i]--;
+            if (repeat[i] > 0) held &= ~(1 << i);   /* gate while > 0 */
+        }
+    }
+}
+```
+
+The `< 1 → 4` reload and the `else { decrement; if > 0 gate }` are
+written as mutually exclusive branches, but they each fail to gate
+the bit:
+
+- On the frame the counter hits `1`, the decrement lands on `0`, and
+  the `repeat[i] > 0` test fails — so the bit is *not* masked out.
+  The bit fires.
+- On the *next* frame the counter is `0` going in, the `< 1` branch
+  reloads to `4`, and the entire `else { decrement; gate }` block is
+  skipped. The bit fires again.
+
+So every time the counter wraps, the bit fires twice back-to-back
+before the next three frames of gating. After the initial 12-frame
+settle, the steady-state auto-repeat pattern is:
+
+```
+frame:  1   2..12   13 14   15 16 17   18 19   20 21 22 …
+fire?:  F   . . .   F  F    .  .  .    F  F    .  .  .  …
+        ^   gated    ^^     gated     ^^     gated
+        rising       reload pair       reload pair
+        edge
+```
+
+That's a 5-frame period with **two** firing frames per period
+(40% duty cycle), not the 1-in-5 a normal `if (counter == 0)`
+construction would produce. The double-fire is almost certainly
+unintentional — the author probably wanted the `< 1` reload to
+also set the gate — but it doesn't visibly misbehave: cursor
+moves under a held UP/DOWN look "fast" but not runaway, and the
+title menu's pulse animation samples at 60 Hz so any 1-frame
+quirk in the input ring washes out long before it reaches the
+draw call.
+
+Port reproduces the pattern exactly — the gate condition is left
+inside the `else` branch on purpose, not lifted out. The test
+`test_sim_button_ring_repeat_pulses_after_settle` walks 19 frames
+and asserts the fire/fire/gate/gate/gate cadence.
+
+> 📍 `src/sim.c:sim_button_ring_update`,
+> `docs/decompiled/by-address/4536cb.c` L42-70 (the ring loop),
+> `tests/test_sim.c:test_sim_button_ring_repeat_pulses_after_settle`.
+
+---
+
+## 45. The music selector's title BGM lookup masks -1 to 0
 
 The sim_b music selector (`FUN_0049966a`) calls `FUN_0049a558` once per
 frame to look up the title-screen track. That helper is gated:

@@ -3,6 +3,17 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Engine quirk #44 filed (button auto-repeat double-fire)
+
+Retro doc entry into `docs/findings/engine-quirks.md`. Quirk was
+already cited in the title-sim port commit (`c2b144c`) and reproduced
+by `test_sim_button_ring_repeat_pulses_after_settle`, but the engine-
+quirks tour was missing the writeup. Now between #43 and #45 with the
+fire/fire/gate/gate/gate steady-state pattern explained, the
+unintentionality argument, and refs to `src/sim.c` + the test. The
+"(Quirk #44 not yet retro'd)" placeholder note at the top of #45 is
+removed.
+
 ## 2026-05-21 — DirectMusic 8 audio backend: init + BGM playback (FUN_00498ef4 + FUN_00499200)
 
 Title music is now audible. The selector's stubbed swap-dispatch (from
