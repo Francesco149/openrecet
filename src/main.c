@@ -32,6 +32,7 @@
 #include "sim.h"
 #include "music.h"
 #include "audio.h"
+#include "audio_fade.h"
 #include "tick.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
@@ -291,6 +292,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     if (!audio_init(g_hwnd)) {
         fprintf(stderr, "openrecet: audio_init failed — running muted\n");
     }
+
+    /* Seed BGM/SE-A volume sliders from recet.ini. Engine doesn't do this —
+     * it owns sliders in the save-arena (FUN_004901c2 inits 5/9/9, save-load
+     * FUN_004902fe overwrites). Until save-load lands, recet.ini is the
+     * closest persistent user-configurable source. SE-B is dormant in vendor
+     * data (engine-quirks #46), no recet.ini key for it. */
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM,  g_ini.mu);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, g_ini.se);
+    fprintf(stderr, "audio: sliders seeded from recet.ini — bgm=%d se-a=%d\n",
+            g_ini.mu, g_ini.se);
 
     /* TODO "init fontsys ok"    — FUN_0047c228
      * TODO "fontsystem ok"      — FUN_0047c3a5

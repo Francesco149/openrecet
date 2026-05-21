@@ -43,11 +43,12 @@
  *
  * The port keeps the three slider values as module-local state with
  * `audio_fade_set_slider` / `audio_fade_get_slider` accessors. Defaults
- * are 9/9/9 (full volume) — that preserves the user-audible "full
- * volume at boot" we already had pre-revert. The engine's BGM=5 default
- * is intentionally NOT mirrored: it only takes effect when a save file
- * loads (FUN_004902fe, not ported yet); until save-load lands, BGM=9
- * matches what users currently hear.
+ * are 9/9/9 (full volume); main.c overwrites BGM/SE-A from recet.ini's
+ * `mu`/`se` keys immediately after audio_init. The engine's BGM=5
+ * save-arena default is intentionally NOT mirrored: it only takes
+ * effect on save-load (FUN_004902fe, not ported yet); until save-load
+ * lands, recet.ini is the user-configurable source of truth and
+ * SE-B stays at the default 9 (dormant per engine-quirks #46).
  *
  * Engine sources:
  *   docs/decompiled/by-address/499583.c  — fade dispatcher

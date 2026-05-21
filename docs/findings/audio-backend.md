@@ -356,14 +356,18 @@ links against `-ldxguid` (already in `LIBS` in `src/Makefile`).
 
 In rough order of impact:
 
-1. **recet.ini → slider seeding.** Currently sliders default to 9/9/9
-   regardless of `mu`/`se` in `recet.ini`. The engine path is
-   indirect: recet.ini's mu/se are read into `g_ini.mu`/`.se` but the
-   runtime sliders live in the save-game arena (initialised to 5/9/9
-   by `FUN_004901c2`, overwritten on save-load). Until save-load lands,
-   the cleanest user-facing behaviour is to seed sliders from
-   `g_ini.mu`/`.se` after `recet_ini_load`. One-liner in `main.c` after
-   `audio_init`. Tiny and unblocks the next item.
+1. ~~**recet.ini → slider seeding.**~~ **Done 2026-05-21** in `src/main.c`
+   immediately after `audio_init`: `g_ini.mu` → BGM slider, `g_ini.se` →
+   SE-A slider, SE-B left at default 9 (dormant in vendor data, no
+   recet.ini key for it). Did NOT resolve the SE-inaudible regression
+   on user host — vendor recet.ini ships `se=9` so the slider value
+   doesn't move, the regression has another root cause. Engine-quirk
+   to note: `FUN_0047a804` writes `g_ini.mu`/`.se` back to recet.ini
+   on shutdown but the engine never copies live slider values into
+   `g_ini.*`, so retail's saveback is just write-back of whatever the
+   ini said at boot — saveback faithfulness requires both (a) the
+   shutdown chain port and (b) a slider→`g_ini` mirror that the engine
+   itself lacks. Park the mirror until settings-menu producer lands.
 2. **Per-tick fade animation** — the volume-tail at `FUN_0049966a`
    LAB_00499a00 walks a two-axis cos product (`cos(fade_progress) *
    cos(slider)`) and ramps SetVolume over `DAT_005d1964` frames
