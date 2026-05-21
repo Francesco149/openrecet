@@ -391,6 +391,27 @@ struct test_case {
     X(input_binding_mask_dpad_face_buttons_layout) \
     X(input_state_stride_matches_engine) \
     \
+    X(input_trace_parse_single_line) \
+    X(input_trace_parse_sparse_three_lines) \
+    X(input_trace_parse_decimal_buttons) \
+    X(input_trace_parse_skips_comments_and_blank_lines) \
+    X(input_trace_parse_buttons_key_first_also_works) \
+    X(input_trace_parse_rejects_out_of_order_frames) \
+    X(input_trace_parse_rejects_duplicate_frames) \
+    X(input_trace_parse_rejects_unknown_key) \
+    X(input_trace_parse_rejects_missing_buttons) \
+    X(input_trace_parse_rejects_mask_above_16_bit) \
+    X(input_trace_parse_empty_buffer) \
+    X(input_trace_lookup_before_first_returns_zero) \
+    X(input_trace_lookup_holds_between_entries) \
+    X(input_trace_lookup_empty_trace) \
+    X(input_trace_load_round_trips_real_file) \
+    X(input_trace_load_missing_file_returns_zero) \
+    X(input_trace_record_emits_first_frame_and_changes) \
+    X(input_trace_record_reopen_truncates) \
+    X(input_trace_record_when_closed_is_noop) \
+    X(input_trace_record_open_rejects_null) \
+    \
     X(render_quad_init_seeds_z_rhw_specular) \
     X(render_quad_add_one_emits_six_vertices) \
     X(render_quad_uv_half_texel_inset_asymmetry) \
