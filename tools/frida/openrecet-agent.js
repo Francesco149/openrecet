@@ -51,10 +51,20 @@ const ADDR = {
     // input poll (see docs/findings/winmain-and-bootstrap.md §"Input poll").
     fn_input_poll:       0x0047b73c,
 
+    // pure-math functions used by the state-forcing differential tests.
+    // see docs/decompiled/by-address/{5041f6,499583}.c
+    fn_lcg_step:         0x005041f6,  // void→u15 (output in low 15 bits of u32)
+    fn_audio_fade_apply: 0x00499583,  // BGM cos-curve fade dispatcher
+
     // globals.
     var_d3d_device:      0x073dfcbc,  // IDirect3DDevice8 *
     var_input_mask:      0x073dddd0,  // u16 — per-frame buttons (player 0)
     var_frame_counter:   0x073dfcfc,  // u32 — global tick frame counter
+    var_lcg_seed:        0x006023a0,  // u32 — engine RNG state
+    var_bgm_slider:      0x056e5778,  // u32 — BGM volume slider 0..9
+    var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
+    var_mci_debug_gate:  0x0438ccb4,  // u32 — non-zero recomputes fade
+                                       // through MCI bridge (BSS zero default)
 };
 
 // ─── COM vtable indices ─────────────────────────────────────────────────
@@ -365,6 +375,119 @@ function installInitHook() {
     log('d3d init hook installed @ ' + rva(ADDR.fn_d3d_init_wrapper));
 }
 
+// ─── state-forcing helpers (used by tools/state_diff/) ─────────────────
+//
+// These run before the target's main thread is resumed — Frida's helper
+// thread is alive in the suspended process from script.load() onward, so
+// NativeFunction calls work without ever advancing engine code.
+//
+// All addresses are passed in as Ghidra VAs and translated through rva()
+// against the actual module base picked by the loader.
+
+function hexToBytes(hex) {
+    if (typeof hex !== 'string') throw new Error('hexToBytes: not a string');
+    if (hex.length & 1) throw new Error('hexToBytes: odd length');
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) {
+        out[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return out;
+}
+
+function bytesToHex(arr) {
+    const view = new Uint8Array(arr);
+    let s = '';
+    for (let i = 0; i < view.length; i++) {
+        const b = view[i];
+        s += (b < 16 ? '0' : '') + b.toString(16);
+    }
+    return s;
+}
+
+function ensureBase() {
+    if (g_base) return;
+    const mod = Process.findModuleByName(MODULE_NAME);
+    if (!mod) throw new Error('module not found: ' + MODULE_NAME);
+    g_base = mod.base;
+}
+
+// Capture FUN_00499583's would-be SetVolume argument for a given BGM
+// slider value, without touching real audio output.
+//
+// Strategy: FUN_00499583 reads the slider from DAT_056e5778, computes
+// the centibel via cos curve, and calls `(*pAudioPath->vtable[5])(pAudioPath,
+// centibel, 0)`. We swap DAT_09643108 to a fake AudioPath whose
+// vtable[5] is a NativeCallback that records the centibel and returns
+// S_OK. Frame-0 (slider 0) takes the early-return path with -10000.
+//
+// Side-effect-free: saves and restores both globals around the call.
+// MCI debug gate (DAT_0438ccb4) is checked + temporarily zeroed so the
+// duplicate-recompute branch is suppressed even on a host where it
+// happened to be set (BSS-zero by default, but defensive).
+function captureFadeCentibel(slider) {
+    ensureBase();
+
+    const slotPtr = rva(ADDR.var_bgm_audiopath);
+    const sliderPtr = rva(ADDR.var_bgm_slider);
+    const mciGatePtr = rva(ADDR.var_mci_debug_gate);
+
+    const savedSlot   = slotPtr.readPointer();
+    const savedSlider = sliderPtr.readU32();
+    const savedGate   = mciGatePtr.readU32();
+
+    // Fake AudioPath: { vtable_ptr } pointing to a 6-slot vtable. Only
+    // slot 5 (SetVolume, offset 0x14) is dereferenced by the engine on
+    // this path — IUnknown slots 0..2 and the four IDirectMusicAudioPath
+    // methods at 3..5 aren't all touched, but we fill the whole vtable
+    // with a "should-not-be-called" stub to fail loud if the engine
+    // calls something unexpected.
+    const fakeObj    = Memory.alloc(Process.pointerSize);
+    const fakeVtable = Memory.alloc(Process.pointerSize * 8);
+    fakeObj.writePointer(fakeVtable);
+
+    let captured = 0x7fffffff;       // sentinel — must be overwritten
+    let captureCount = 0;
+
+    const captureCb = new NativeCallback(function (this_, lVolume, dwDuration) {
+        captured = lVolume;
+        captureCount++;
+        return 0;  // S_OK
+    }, 'uint32', ['pointer', 'int32', 'uint32'], 'stdcall');
+
+    const trapCb = new NativeCallback(function () {
+        send({kind: 'error', where: 'fake_audiopath',
+              msg: 'unexpected vtable slot called'});
+        return 0x80004001;  // E_NOTIMPL
+    }, 'uint32', ['pointer'], 'stdcall');
+
+    for (let i = 0; i < 8; i++) {
+        fakeVtable.add(i * Process.pointerSize).writePointer(trapCb);
+    }
+    // SetVolume — IDirectMusicAudioPath::SetVolume vtable slot index 5
+    // (3 IUnknown + GetObjectInPath + SetVolume).
+    fakeVtable.add(5 * Process.pointerSize).writePointer(captureCb);
+
+    slotPtr.writePointer(fakeObj);
+    sliderPtr.writeU32(slider >>> 0);
+    mciGatePtr.writeU32(0);
+
+    try {
+        // No abi argument → Frida picks the platform default
+        // (MSVC cdecl on Windows x86). Explicit 'cdecl' is rejected by
+        // gum_native_function_call_abi; the valid token would be
+        // 'mscdecl' but the default has equivalent behaviour for our
+        // no-arg / void-return cases.
+        const fn = new NativeFunction(rva(ADDR.fn_audio_fade_apply), 'void', []);
+        fn();
+    } finally {
+        slotPtr.writePointer(savedSlot);
+        sliderPtr.writeU32(savedSlider);
+        mciGatePtr.writeU32(savedGate);
+    }
+
+    return {centibel: captured, calls: captureCount};
+}
+
 // ─── rpc surface ────────────────────────────────────────────────────────
 
 rpc.exports = {
@@ -376,9 +499,7 @@ rpc.exports = {
         g_capture_all = !!config.capture_all;
         g_max_frames  = config.max_frames | 0;
 
-        const mod = Process.findModuleByName(MODULE_NAME);
-        if (!mod) throw new Error('module not found: ' + MODULE_NAME);
-        g_base = mod.base;
+        ensureBase();
         g_boot_ms = nowMs();
         g_start_real_ms = Date.now();
 
@@ -389,16 +510,78 @@ rpc.exports = {
               capture_all: g_capture_all,
               max_frames: g_max_frames});
 
-        installInitHook();
-        installAudioHooks();
-        installInputHook();
+        // The capture-side hooks expect to fire on a running engine.
+        // State-forcing tests skip resume() entirely, so we make the
+        // hook installation opt-in via config.install_hooks (default
+        // true to preserve the Phase B capture pipeline behavior).
+        const install = config.install_hooks !== false;
+        if (install) {
+            installInitHook();
+            installAudioHooks();
+            installInputHook();
+        }
     },
 
-    queue_capture: function (frame) {
+    // Note on naming: frida-python's RPC layer converts snake_case method
+    // names to camelCase before dispatch (`script.exports_sync.read_u32(va)`
+    // → JS lookup of `readU32`). So *all* exports here must be camelCase,
+    // even though the rest of the file uses snake_case. The capture-side
+    // entry points (queueCapture, getFrame) were previously `queue_capture`
+    // / `get_frame` and silently broken — Phase B's driver only ever
+    // called `init`, which has no underscores.
+    queueCapture: function (frame) {
         g_capture_pending.add(frame | 0);
     },
 
-    get_frame: function () {
+    getFrame: function () {
         return frameNo();
+    },
+
+    // ── state-forcing surface ──
+    // All RPCs use Ghidra VAs (preferred ImageBase 0x00400000); the
+    // agent translates to the actual load base on every call.
+
+    readMemory: function (va, len) {
+        ensureBase();
+        const bytes = rva(va).readByteArray(len | 0);
+        return bytesToHex(bytes);
+    },
+
+    writeMemory: function (va, hex) {
+        ensureBase();
+        const bytes = hexToBytes(hex);
+        const buf = Memory.alloc(bytes.length);
+        buf.writeByteArray(Array.from(bytes));
+        Memory.copy(rva(va), buf, bytes.length);
+        return bytes.length;
+    },
+
+    readU32: function (va) {
+        ensureBase();
+        return rva(va).readU32();
+    },
+
+    writeU32: function (va, val) {
+        ensureBase();
+        rva(va).writeU32(val >>> 0);
+    },
+
+    // Invoke a cdecl function returning u32, no args. Used for the LCG
+    // step (FUN_005041f6) and as the simplest call-function building
+    // block. Add overloads as needed (we don't need a fully generic
+    // call_function until a test demands non-trivial arg lists).
+    callU32NoArgs: function (va) {
+        ensureBase();
+        const fn = new NativeFunction(rva(va), 'uint32', []);
+        return fn();
+    },
+
+    // BGM-fade centibel capture for slider value `slider` ∈ [0, 9].
+    // Returns {centibel, calls} where `calls` is the number of times
+    // the engine called our fake SetVolume (expected 1 on every code
+    // path — frame-0 hits the early-return SetVolume, frames 1..9 hit
+    // the main-path SetVolume).
+    captureFadeCentibel: function (slider) {
+        return captureFadeCentibel(slider | 0);
     },
 };
