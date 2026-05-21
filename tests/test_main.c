@@ -483,7 +483,15 @@ struct test_case {
     X(audio_mci_full_80_byte_fill_no_terminator) \
     X(audio_mci_source_longer_than_cap_truncates) \
     X(audio_mci_repeated_record_at_same_slot_overwrites) \
-    X(audio_mci_channel_offset_spans_into_next_row)
+    X(audio_mci_channel_offset_spans_into_next_row) \
+    \
+    X(audio_fade_frame_zero_is_hard_silence) \
+    X(audio_fade_frame_nine_is_target) \
+    X(audio_fade_frames_one_to_eight_monotonic_increasing) \
+    X(audio_fade_intermediate_value_matches_reference) \
+    X(audio_fade_target_threading_at_frame_five) \
+    X(audio_fade_out_of_range_clamps) \
+    X(audio_fade_apply_is_noop)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
