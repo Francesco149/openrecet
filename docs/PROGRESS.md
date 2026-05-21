@@ -3,6 +3,42 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Title scene texture loader ported (FUN_004733d5)
+
+Second commit of the title-screen path. The engine's scene-0
+asset-prepare function — called by FUN_004547ab's render dispatcher
+the first time it sees `DAT_0438b1c0 == 0` — lands as
+`scene_title_load_assets` in a new `src/scene_title.{c,h}` module.
+
+**What landed:**
+
+- **`src/scene_title.{c,h}`.** 7 sprite_t slots and a constant
+  asset table (`scene_title_assets[]`) listing `(path, expected_w,
+  expected_h)` for each:
+  - `bmp/title_bg2.bmp`     1024×1024 — scrolling background panel
+  - `bmp/title01.tga`        512×256  — animated band sprite
+  - `bmp/title_fuki.tga`     512×1024 — menu glyph atlas
+  - `bmp/title_waku.tga`    1024×512  — frame overlay
+  - `bmp/pause.tga`         1024×512  — pause-menu submenu (loaded
+                                        here, consumed elsewhere)
+  - `bmp/result_bord01.tga`  512×256  — result screen
+  - `bmp/dungeonbord.tga`   1024×512  — dungeon banner
+  Asset paths verified byte-for-byte against PE rdata at
+  VA 0x005c8688..0x005c86fc via `tools/analyze/pe.py str`. Texture
+  sizes match the literal arguments passed to `FUN_0047193c` in the
+  engine; all 7 are powers of two (engine convention).
+- **Two-layer split.** Asset table is pure-C and unit-testable on
+  Linux. The Win32 layer (`scene_title_load_assets`,
+  `scene_title_get`, `scene_title_unload_assets`) wraps `sprite_load`
+  and holds the 7 static `sprite_t` slots.
+- **No wiring yet.** The render dispatcher port (later commit)
+  will call `scene_title_load_assets` on first transition into
+  state 0; until then nothing invokes it. Boot smoke direct exit=0,
+  magenta clear unchanged.
+- **4 new tests** in `tests/test_scene_title.c`: slot count, path
+  match against the PE rdata strings, power-of-two sizes, and exact
+  (w, h) match against the engine call sites. Total: 350 passing.
+
 ## 2026-05-21 — Render-quad primitives ported (FUN_00404efc + FUN_00405354 + FUN_0049b425 + FUN_00404e44)
 
 First commit of the title-screen port path. The engine's 2D draw is

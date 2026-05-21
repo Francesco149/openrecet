@@ -400,7 +400,12 @@ struct test_case {
     X(render_quad_returns_zero_when_full) \
     X(render_quad_rejects_zero_tex_dim) \
     X(render_quad_reset_keeps_z_rhw_prefill) \
-    X(render_quad_init_zero_screen_w_defaults_640)
+    X(render_quad_init_zero_screen_w_defaults_640) \
+    \
+    X(scene_title_assets_count_is_seven) \
+    X(scene_title_assets_paths_match_pe) \
+    X(scene_title_assets_sizes_power_of_two) \
+    X(scene_title_assets_sizes_match_engine)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
