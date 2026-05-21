@@ -126,6 +126,33 @@ smoke runs, multi-subsystem trace + writeup.
   Sonnet executes).
 - ❌ Don't let a subagent commit or push.
 
+## Build outputs
+
+`make -C src` produces **two** PE binaries from the same `.o` set:
+
+- `build/openrecet.exe` — GUI subsystem (`-mwindows`). The shippable
+  binary. No console pops up on launch and fprintf to stdout/stderr is
+  silently dropped (Windows GUI subsystem doesn't wire stdio to anything
+  visible — `AttachConsole` is unreliable under WSL interop too).
+- `build/openrecet-debug.exe` — console subsystem (no `-mwindows`).
+  Same code, different PE header. Windows hooks stdin/stdout/stderr to
+  the launching shell's TTY, so any `fprintf` line surfaces in real
+  time.
+
+**Always prefer the debug binary for interactive runs when you want to
+read the log lines** ("did the music selector fire?", "did the table
+parser warn?", etc.). The shippable binary is fine for `tools/smoke-
+test.py` since the harness pipes stdio explicitly via `Popen`.
+
+```fish
+# interactive — block + see logs
+cd vendor/original
+../../build/openrecet-debug.exe
+
+# ad-hoc smoke — `--max-duration-ms` still applies (see feedback memory)
+../../build/openrecet-debug.exe --max-duration-ms 3000
+```
+
 ## Persistent analysis tooling
 
 Inline one-off Python (PE-string lookups, VA → file-offset conversions,
