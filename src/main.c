@@ -25,6 +25,8 @@
 #include "layers.h"
 #include "tables.h"
 #include "recet_ini.h"
+#include "prewindow.h"
+#include "rng.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
 #define AZUMANGA_CLASS  "Azumanga Main Window"
@@ -102,13 +104,23 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     TIMECAPS tc;
     timeGetDevCaps(&tc, sizeof(tc));
     timeBeginPeriod(tc.wPeriodMin);
+
+    /* "very early init" — FUN_00451790. Seeds camera/projection matrices
+     * and a 100-particle table from the deterministic boot RNG (seed=1).
+     * Runs before the RNG-from-time reseed below — the engine relies on
+     * that ordering so the particle table is identical every boot. */
+    prewindow_init();
+
+    /* "rng reseed" — FUN_005045eb → FUN_00471050 → FUN_005041ec.
+     * Replaces the boot seed with one derived from wall-clock time so
+     * subsequent rand calls during gameplay are non-deterministic. */
+    rng_seed_from_now();
+
     timeBeginPeriod(10);
 
-    /* TODO subsystem stubs — see docs/findings/winmain-and-bootstrap.md:
-     *   FUN_00451790()          — very early init (camera/particle math)
-     *   FUN_00471050()          — early init (thunks to FUN_005041ec)
-     *   FUN_0047aa30()          — pre-window init (TBD)
-     */
+    /* FUN_0047aa30 is a 1-byte empty stub in the original (return;) —
+     * presumably a removed log call between init phases. Intentionally
+     * omitted here. */
 
     /* "pre-window init" — FUN_0047a474. Must run before create_main_window:
      * `screen` selects the requested back-buffer size, `winmode` selects

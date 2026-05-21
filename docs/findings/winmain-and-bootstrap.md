@@ -28,10 +28,10 @@ self-documenting log strings:
 | # | function             | log string             | what it does                                       |
 |--:|----------------------|------------------------|----------------------------------------------------|
 | 1 | `timeGetDevCaps` + `timeBeginPeriod(10)` | — | high-resolution timer via WINMM       |
-| 2 | `FUN_00451790`       | —                      | very early init (TBD)                              |
-| 3 | `FUN_00471050`       | —                      | thunk → `FUN_005041ec` (early init step)           |
+| 2 | `FUN_00451790`       | —                      | **pre-window math init** — writes 6 named globals (camera at (10, 61, -203) + 5 flags), fills 8544-entry object table with `(0, 1.0, 0)`, randomizes 100 particles using the deterministic boot RNG (seed=1), and builds view+projection matrices via D3DXMatrixLookAtRH (degenerate eye=(0,0,0) — engine quirk) / D3DXMatrixPerspectiveFovRH (fov=π/4, aspect=4/3, near=10, far=2000). Ported as `src/prewindow.{c,h}` with helpers in `src/math3d.{c,h}`. |
+| 3 | `FUN_00471050` → `FUN_005041ec` | —          | **RNG reseed from wall-clock time** — `FUN_005045eb` computes a custom 32-bit value from `GetLocalTime` + DST flag (via `GetTimeZoneInformation`), stored in `DAT_006023a0` (the LCG state). Engine uses MSVC-classic LCG (0x343fd / 0x269ec3) with its own state global. Ported as `src/rng.{c,h}` + `rng_seed_from_now`. |
 | 4 | `FUN_00504384`/`wsprintfA` | —                | builds `recet.ini` path (`_splitpath(argv[0])` + `wsprintfA "%s%s/recet.ini"`) — ported into `src/recet_ini.c:recet_ini_default_path` with CWD-first fallback for the dev workflow |
-| 5 | `FUN_0047aa30`       | —                      | (TBD)                                              |
+| 5 | `FUN_0047aa30`       | —                      | 1-byte empty stub (`return;`) — vestigial; intentionally omitted in the port |
 | 6 | `FUN_0047aa31`       | `"start"`              | log no-op                                          |
 | 7 | `FUN_0047a474`       | —                      | **pre-window init: read `recet.ini`** — 28 input bindings + 25 setup scalars + 1 debug + 2 [config] keys; `screen` dispatches to (width, height). Ported as `src/recet_ini.{c,h}`; see `docs/formats/recet-ini.md` |
 | 8 | `FUN_0047aa8b(hInst, nCmdShow)` | —          | **window class register + CreateWindowEx**         |
@@ -499,7 +499,7 @@ equivalent and avoids reliance on unsigned overflow.
 | `FUN_00475270` | "init indexfile"   | ⭐⭐ — likely bmpdata.bin loader        |
 | `FUN_00498ef4` | "init daoudio"     | ⭐⭐ — confirms audio backend (DSOUND?) |
 | `FUN_00474f14` | CRC hash           | ✅ ported — `src/lnkdatas_hash.{c,h}`, `tools/extract/lnkdatas_hash.py` |
-| `FUN_005041ec` | early init         | ⭐                                       |
-| `FUN_00451790` | very early init    | ⭐                                       |
+| `FUN_005041ec` | RNG reseed         | ✅ ported — `src/rng.{c,h}` (`rng_seed_from_now`) |
+| `FUN_00451790` | pre-window init    | ✅ ported — `src/prewindow.{c,h}` + `src/math3d.{c,h}` |
 | `FUN_0040110f` | WM_CREATE handler  | ⭐                                       |
 | `FUN_00452911` | ESC-key handler    | ⭐                                       |

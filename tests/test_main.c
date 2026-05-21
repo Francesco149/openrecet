@@ -319,7 +319,37 @@ struct test_case {
     X(recet_ini_volume_clamp) \
     X(recet_ini_unknown_keys_and_sections_ignored) \
     X(recet_ini_no_trailing_newline) \
-    X(recet_ini_vendor_shape)
+    X(recet_ini_vendor_shape) \
+    \
+    X(rng_initial_seed_is_one) \
+    X(rng_msvc_rand_sequence_from_seed_1) \
+    X(rng_seed_resets_state) \
+    X(rng_next_unit_range_zero_to_just_under_one) \
+    X(rng_next_unit_seed_1_first_values) \
+    X(rng_compute_seed_year_2000_jan_1) \
+    X(rng_compute_seed_year_range_rejects) \
+    X(rng_compute_seed_leap_bump_post_february) \
+    X(rng_compute_seed_is_deterministic) \
+    \
+    X(math_vec3_normalize_3_4_0) \
+    X(math_vec3_normalize_in_place) \
+    X(math_lookat_z_back_camera) \
+    X(math_lookat_off_axis) \
+    X(math_perspective_fov_pi_over_2_aspect_1) \
+    X(math_perspective_aspect_changes_w_only) \
+    X(math_mul_identity_identity_is_identity) \
+    X(math_mul_handles_output_alias) \
+    X(math_mul_diagonal_scaling) \
+    \
+    X(prewindow_named_globals_set) \
+    X(prewindow_object_table_y_set_first_last) \
+    X(prewindow_object_table_other_fields_zero) \
+    X(prewindow_particles_alive_flag_all_one) \
+    X(prewindow_particles_pos_within_expected_range) \
+    X(prewindow_particle_zero_deterministic_from_seed_1) \
+    X(prewindow_advances_rng_by_600) \
+    X(prewindow_proj_matrix_is_finite) \
+    X(prewindow_view_is_degenerate_nan_or_inf)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

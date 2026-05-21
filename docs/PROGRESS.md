@@ -3,6 +3,135 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Pre-window block closed: RNG + math3d + FUN_00451790
+
+Closes the last three open steps in the WinMain pre-window chain (steps
+2, 3, and 5 from `docs/findings/winmain-and-bootstrap.md`). After this
+commit, every call between `timeBeginPeriod` and `create_main_window` is
+either ported or documented as a deliberate no-op.
+
+**Subsystems landed:**
+
+- **`src/rng.{c,h}` — engine LCG + time-to-seed.** Reimplements
+  FUN_005041f6 (`x = x * 0x343fd + 0x269ec3; return (x >> 16) & 0x7fff`),
+  FUN_00471089 (`rand / 32768.0` unit float), FUN_0050bcff (time → seed
+  scalar with tzset-style constants pulled from `DAT_006038d0`: TZ
+  offset 28800s, DST bias -3600s, epoch literal 0x7c558180), and a Win32
+  wrapper for FUN_005045eb that bundles `GetLocalTime` +
+  `GetTimeZoneInformation` → DST flag → seed write. The engine's RNG
+  constants are bit-identical to MSVC's `rand()` so the first values
+  from seed=1 are the canonical 41 / 18467 / 6334 / 26500 / 19169
+  sequence — covered by a unit test (one of those compiler-fingerprint
+  facts that's nice to have pinned).
+- **`src/math3d.{c,h}` — vec3/mat4 helpers.** Portable C
+  implementations of `vec3_normalize` (FUN_004a1f67),
+  `mat4_lookat_rh` (FUN_004a3b52), `mat4_perspective_fov_rh`
+  (FUN_004a3ee8), and `mat4_mul` with internal-temp aliasing support
+  (thunk_FUN_004a2a03 = D3DXMatrixMultiply). The engine reaches D3DX
+  through `FUN_004cdd9f`'s indirect-dispatch table (x87 / MMX / SSE
+  backends selected at boot); we use a single portable implementation
+  since algebraic equivalence is what matters at this layer.
+- **`src/prewindow.{c,h}` — FUN_00451790 (WinMain step 2).** Writes the
+  six named globals: `flag_b1c4=0, flag_b8cc=0, camera=(10,61,-203),
+  flag_b1c0=1, flag_bf84=0, flag_bf88=0`. Then runs FUN_00404e44
+  (8544-entry object table — each 32-byte entry gets field0=0, y=1.0,
+  field12=0 written; other 5 dwords stay BSS-zero) and FUN_00452569
+  (100 randomized particles, 6 rand calls + alive=1 per particle =
+  600 LCG steps total). Finally constructs the boot view+projection
+  matrices: lookat with degenerate eye=target=(0,0,0) (`DAT_06a47110`
+  is BSS-zero at this point in WinMain — see the engine quirk note
+  below) and perspective with fov=π/4, aspect=4/3, near=10, far=2000.
+- **`src/main.c` — wiring.** Pre-window block now reads:
+
+  ```c
+  timeGetDevCaps + timeBeginPeriod(min);
+  prewindow_init();      // step 2 — particle table from seed=1
+  rng_seed_from_now();   // step 3 — reseed for game-tick randomness
+  timeBeginPeriod(10);
+  // step 4: recet.ini path build (already done)
+  // step 5: FUN_0047aa30 — empty stub (intentionally omitted)
+  // step 6: log no-op
+  recet_ini_load(...);   // step 7
+  create_main_window();  // step 8
+  ```
+
+**Behavioral validation:**
+
+- 298 unit tests pass under ASan/UBSan (was 271). New tests:
+  - 9× rng — sequence vs MSVC, time-seed determinism, year-range
+    rejects ([0x46, 0x8a] = 1970..2038), leap-year bumps (Feb→Mar +86400s).
+  - 9× math3d — lookat translation correctness, perspective field map,
+    matmul with output aliasing.
+  - 9× prewindow — named globals, object table first/last + zeros at
+    untouched fields, particle alive flags, value-range checks
+    (pos.x/y ∈ (-5,5), pos.z ∈ (-17.5,-12.5), rot ∈ ±π/20), particle 0
+    bit-exact against hand-computed seed-1 reference, post-init RNG
+    state matches 600 manual LCG steps, proj-matrix field values, view
+    contains NaN/inf (degenerate-input documentation).
+- Boot smoke: exit=0, all 17 tables load, recet.ini loads, window
+  1024×768. No visible regression on the magenta-clear+sprite tick.
+
+**Engine quirks documented (and faithfully reproduced):**
+
+- **Particle randomization runs before the time-based reseed.** WinMain
+  step 2 (FUN_00451790) consumes the RNG with its `.data` initial value
+  of 1 *before* step 3 (FUN_005045eb) replaces the seed. So the 100
+  particles end up identical every boot — same sub-pixel jitter on
+  whatever effect ends up consuming them. Almost certainly deliberate:
+  developers wanted the deterministic boot scene without wiring a
+  separate RNG.
+- **Lookat eye position `&DAT_06a47110` is in the BSS-uninitialised
+  region of .data.** Raw size in the unpacked binary (0xdbe00) doesn't
+  cover that VA — so the vector reads as (0, 0, 0) when FUN_00451790
+  runs. Combined with target=(0,0,0) that makes the lookat
+  mathematically degenerate (zaxis tries to normalise (0,0,0) →
+  divide-by-zero → NaN/inf). Engine produces a garbage view matrix at
+  this point and never reads it — a later in-game camera setup
+  overwrites it before any vertex transform consumes it. Port
+  reproduces the call as-is; one prewindow test pins the
+  NaN-or-inf-somewhere expectation so a future "let's clean up the
+  garbage matrix" refactor would have to deliberately stomp on it.
+- **FUN_0047aa30 is a 1-byte empty stub.** Vestigial leftover from a
+  removed log call between init phases (FUN_0047aa31 is similarly
+  empty — the one documented as the release-build logger). Port
+  intentionally omits the call.
+
+**Deliberate divergences:**
+
+- The engine's `FUN_005045eb` caches the last-checked UTC year/month/
+  day/hour/minute and skips `GetTimeZoneInformation` when unchanged
+  — an optimisation that mattered when GTZI was slow. Port doesn't
+  cache: it's called once per boot.
+- The engine's matmul dispatcher (`FUN_004cdd9f`) picks between x87,
+  MMX, and SSE backends at startup. Port uses a single portable C
+  implementation; bit-exact match with the engine's per-CPU path
+  isn't pursued (the engine itself drifts across CPUs).
+- `mat4_mul` adds an internal temporary so `mat4_mul(view, view, proj)`
+  works. D3DXMatrixMultiply in the official D3DX runtime does the same;
+  the engine's per-CPU paths may or may not. Safer to do it
+  unconditionally.
+
+**Not in this commit (deferred):**
+
+- Consumers of the camera globals (`DAT_0438cd64..6c`) and the
+  particle table. We've found the initialiser but no reader of the
+  particle pos/rot/alive arrays yet — they likely feed an as-yet-
+  unported render path (title screen effect? loading-screen flair?).
+  When that reader lands, it will reuse `g_prewindow.particle_*`
+  directly and rename the field accessors at that point.
+- Consumers of the 8544-entry object table at `DAT_00605214`. Same
+  story — initialiser-only port; `struct prewindow_object` has named
+  fields for the three writes but the other 5 dwords stay as `pad08`
+  / `pad16_28` until we find a real consumer.
+
+**Files:**
+
+- new `src/rng.{c,h}`, `src/math3d.{c,h}`, `src/prewindow.{c,h}`
+- new `tests/test_rng.c`, `tests/test_math3d.c`, `tests/test_prewindow.c`
+- updated `src/main.c` (call order before create_main_window),
+  `tests/Makefile`, `tests/test_main.c`
+- updated `docs/findings/winmain-and-bootstrap.md` (steps 2/3/5 closed)
+
 ## 2026-05-21 — `recet.ini` reader ported (FUN_0047a474, pre-window init)
 
 **Subsystems landed:**
