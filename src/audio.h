@@ -66,8 +66,8 @@ const char *audio_bgm_filename(int track);
  * Schema:
  *
  *   {"t_ms":<uint>, "kind":"bgm_swap", "track":<int>, "name":<str>}
- *   {"t_ms":<uint>, "kind":"se_play",  "channel":<int>, "name":<str>}
- *   (fade_start lands with task #5/#6)
+ *   {"t_ms":<uint>, "kind":"se_play",  "slot":<int>,  "name":<str>}
+ *   (fade_start lands once audio_fade_apply's SetVolume hookup wires in)
  *
  * t_ms is timeGetTime()-since-boot (matches the engine's clock).
  * name is JSON-escaped per audio_trace_json_escape() — \", \\, \n,
@@ -135,13 +135,22 @@ int  audio_play_track(int32_t track);
 #endif /* _WIN32 */
 
 /* SE trigger — currently a trace-only shell. The full FUN_00499c63
- * port (volume-blend with the fade curve, alternation between the
- * two SE AudioPaths at DAT_0964310c/_110, PlaySegmentEx onto the
- * round-robin path) lands in a follow-up commit. For now this
- * function:
+ * port (volume-blend with the fade curve via audio_fade_compute,
+ * PlaySegmentEx onto the SE AudioPath with DMUS_SEGF_QUEUE=0x80,
+ * QueryInterface-upgrade of the returned SegmentState to
+ * SegmentState8) lands in a follow-up commit. Per engine-quirks #46
+ * every SE in vendor data routes to path A (DAT_0964310c); path B
+ * and the cross-slot voice-stealing scan are dead-code branches
+ * driven by the all-zero +4 column of the SE ID table.
+ *
+ * For now this function:
  *   - bounds-checks `slot` against AUDIO_SE_COUNT
  *   - emits an audio_trace `se_play` event if --audio-trace is on
  *   - returns 1 always (no actual playback yet)
+ *
+ * Driven by `--play-se <slot[,slot,...]>` on the CLI for smoke tests
+ * (main.c arms a SetTimer that walks the slot list at a configurable
+ * interval; see --play-se-after-ms / --play-se-interval-ms).
  *
  * Pure C — no _WIN32 guard — so the trace event is testable directly. */
 int audio_play_se(int slot);

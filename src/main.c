@@ -93,6 +93,19 @@ static unsigned         g_max_duration_ms   = 0;
  * src/audio.h. Tracking is initialised in audio_trace_open(). */
 static char            *g_audio_trace_path  = NULL;
 
+/* --play-se <slot[,slot,...]>: comma-separated SE slot indices to fire
+ * post-boot. Phase A audio_play_se() is a trace-only shell so this only
+ * exercises the dispatch shell + JSONL emit today; phase B's live
+ * PlaySegmentEx will audibly fire them. Both flags default to "off" /
+ * sensible smoke values. */
+#define PLAY_SE_MAX_SLOTS       16
+#define PLAY_SE_TIMER_ID        2
+static int              g_play_se_slots[PLAY_SE_MAX_SLOTS];
+static int              g_play_se_count       = 0;
+static int              g_play_se_index       = 0;     /* next slot to fire */
+static unsigned         g_play_se_after_ms    = 1000;  /* delay until first fire */
+static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
+
 /* Dynamically-resolved DX entry point — matches the original's
  * LoadLibraryA("d3d8.dll") + GetProcAddress("Direct3DCreate8") pattern. */
 typedef IDirect3D8 *(WINAPI *PFN_Direct3DCreate8)(UINT);
@@ -294,6 +307,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         SetTimer(g_hwnd, AUTO_EXIT_TIMER_ID, g_max_duration_ms, NULL);
     }
 
+    /* --play-se: arm the first-fire timer. The WM_TIMER handler walks
+     * g_play_se_slots[] and re-arms itself per interval until done. */
+    if (g_play_se_count > 0) {
+        fprintf(stderr,
+                "openrecet: --play-se will fire %d slot%s starting at "
+                "+%u ms (interval %u ms)\n",
+                g_play_se_count, g_play_se_count == 1 ? "" : "s",
+                g_play_se_after_ms, g_play_se_interval_ms);
+        SetTimer(g_hwnd, PLAY_SE_TIMER_ID, g_play_se_after_ms, NULL);
+    }
+
     /* ─── main loop — mirrors the PeekMessage/WaitMessage idle pattern ─── */
     MSG msg = {0};
     /* Game-tick callbacks. sim_b (FUN_0049966a, music selector) picks
@@ -454,6 +478,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         if (wParam == AUTO_EXIT_TIMER_ID) {
             KillTimer(hwnd, AUTO_EXIT_TIMER_ID);
             DestroyWindow(hwnd);    /* → WM_DESTROY → PostQuitMessage(0) */
+            return 0;
+        }
+        if (wParam == PLAY_SE_TIMER_ID) {
+            KillTimer(hwnd, PLAY_SE_TIMER_ID);
+            if (g_play_se_index < g_play_se_count) {
+                int slot = g_play_se_slots[g_play_se_index++];
+                fprintf(stderr, "openrecet: --play-se → slot %d\n", slot);
+                audio_play_se(slot);
+            }
+            if (g_play_se_index < g_play_se_count) {
+                SetTimer(hwnd, PLAY_SE_TIMER_ID, g_play_se_interval_ms, NULL);
+            }
             return 0;
         }
         return DefWindowProcA(hwnd, msg, wParam, lParam);
@@ -656,6 +692,35 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char trace_buf[MAX_PATH];
                 lstrcpynA(trace_buf, val, (int)sizeof(trace_buf));
                 g_audio_trace_path = trace_buf;
+            }
+        } else if (lstrcmpA(tok, "--play-se") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                /* Comma-separated decimal slot indices, capped at
+                 * PLAY_SE_MAX_SLOTS. Bad tokens silently skipped. */
+                char *p = val;
+                while (*p && g_play_se_count < PLAY_SE_MAX_SLOTS) {
+                    char *end = NULL;
+                    long n = strtol(p, &end, 10);
+                    if (end != p && n >= 0 && n < 110) {
+                        g_play_se_slots[g_play_se_count++] = (int)n;
+                    }
+                    if (end == NULL || *end == '\0') break;
+                    p = end + (*end == ',' ? 1 : 0);
+                    if (*end != ',') break;
+                }
+            }
+        } else if (lstrcmpA(tok, "--play-se-after-ms") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                unsigned n = (unsigned)strtoul(val, NULL, 10);
+                if (n > 0) g_play_se_after_ms = n;
+            }
+        } else if (lstrcmpA(tok, "--play-se-interval-ms") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                unsigned n = (unsigned)strtoul(val, NULL, 10);
+                if (n > 0) g_play_se_interval_ms = n;
             }
         }
         tok = strtok(NULL, " ");
