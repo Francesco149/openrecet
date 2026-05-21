@@ -14,6 +14,9 @@ tests/golden/**/*.wav
 # `tools/scenario-test.py <name> --bless`. See
 # tests/scenarios/README.md.
 tests/scenarios/**/golden/
+# Phase B retail goldens — rendered by recettear.unpacked.exe via the
+# Frida agent. Same redistribution concern: vendor texture bytes.
+tests/scenarios/**/golden-retail/
 
 # ─── Ghidra projects (large, contain analysis state derived from original) ─
 ghidra/projects/

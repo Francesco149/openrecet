@@ -3,6 +3,85 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Harness Phase B: retail capture via Frida
+
+Phase B lands as planned at the bottom of yesterday's Phase A entry:
+`tools/scenario-test.py --target retail <name> --bless` drives the
+SteamStub-decrypted retail exe (`vendor/unpacked/recettear.unpacked.exe`)
+through the same scenario plumbing and writes BMPs / audio.jsonl /
+trace.jsonl into a per-target `golden-retail/` directory. Output schemas
+match Phase A exactly so the bless + bit-exact diff path is shared.
+
+Five pieces:
+
+1. **`tools/frida/openrecet-agent.js`** — Frida JS agent. Hooks the
+   D3D8 init wrapper (`FUN_0047ac6a`) to capture the
+   `IDirect3DDevice8*` (`DAT_073dfcbc`) once it's live, then installs:
+   - `IDirect3DDevice8::Present` (vtable[15]) — frame capture
+   - `FUN_00499200` (BGM swap)            — `{kind:bgm_swap, track}`
+   - `FUN_00499c63` (SE play)             — `{kind:se_play, slot}`
+   - `FUN_0047b73c` (input poll) onLeave — reads `DAT_073dddd0`,
+     emits `{kind:input_state, buttons:0xNNNN}`
+   The frame number for each event is read from `DAT_073dfcfc`
+   (engine global frame counter), so capture filenames match the
+   scenario's `capture_frames:` list bit-for-bit.
+
+2. **Sysmem-bounce frame capture.** First cut hit `D3DERR_INVALIDCALL`
+   on `IDirect3DSurface8::LockRect` — the retail back buffer is
+   *non*-lockable (no `D3DPRESENTFLAG_LOCKABLE_BACKBUFFER`). Workaround:
+   `CreateImageSurface(w, h, fmt, &sys)` + `CopyRects(bb → sys)`,
+   then lock the sysmem surface (lockable by construction) and copy out
+   the BGRA pixels. The captured format echoes whatever
+   D3DFMT_X8R8G8B8 / A8R8G8B8 the engine asked for — both are
+   compatible with our BMP layout.
+
+3. **`tools/frida_capture.py`** — Python driver. Connects to a remote
+   `frida-server.exe` (default `127.0.0.1:27042`; overridable via
+   `--frida-remote` or `$OPENRECET_FRIDA_REMOTE`), spawns retail
+   suspended via `device.spawn()`, installs the agent + hooks, then
+   resumes. Emits BMPs bit-identical to `src/main.c::capture_backbuffer`
+   so the shared diff path works. Includes `ensure_frida_server()`
+   helper that auto-launches `frida-server.exe -l 0.0.0.0:<port>` via
+   `powershell.exe Start-Process -Verb runAs` (UAC prompt) when the
+   port isn't already reachable. Server exe location pulled from
+   `$OPENRECET_FRIDA_SERVER_EXE` with a sensible default.
+
+4. **`tools/scenario-test.py --target {openrecet,retail}`**. Per-target
+   golden dirs: `golden/` (openrecet, unchanged) vs `golden-retail/`
+   (Phase B). Bit-exact diff within a target; cross-target diff is
+   out of scope (different draw call ordering / font system — never
+   bit-comparable, deferred to a future contact-sheet tool).
+
+5. **`tests/scenarios/boot-idle` blessed under retail.** First retail
+   golden: 3/3 frames captured at the engine's 640×480 back-buffer
+   (window stretches it to 1024×768), audio trace caught the title
+   BGM swap on frame 0 (`{track:0}`), input trace recorded the
+   all-zero idle mask. Re-running without `--bless` shows 3/3
+   bit-exact pass — retail's boot-idle path is deterministic enough
+   to gate against under the same NAT-mode wall-clock conditions.
+
+WSL2 networking note: NAT mode (the default) doesn't expose Windows
+`127.0.0.1` to WSL. `frida-server.exe` therefore needs
+`-l 0.0.0.0:27042` (the auto-start helper passes this), and the WSL
+side connects via the host's actual IP or hostname. The user's
+`cutestation.soy` works; the default `127.0.0.1` does not. Mirrored
+networking would let `127.0.0.1` work both ways — left as a user
+preference, not a project requirement.
+
+Known limitations / what Phase B intentionally **doesn't** do:
+
+- **No input injection.** Retail's recorded `trace.jsonl` reflects
+  what the engine polled (i.e. live keyboard); the scenario's input
+  `trace.jsonl` is unused under `--target retail`. Anything beyond
+  the title-idle scene requires a human at the keyboard.
+- **No RNG / pause / clock pinning.** Retail's title-idle happens to
+  be deterministic across runs (no RNG reads during the idle window);
+  scenes that touch RNG would drift. Cross-run stability evaluated
+  scene-by-scene as new retail goldens land.
+- **State-forcing (save inject + scene jump) is deferred.** Same hook
+  surface, separate session per the scope decision in the harness
+  roadmap.
+
 ## 2026-05-21 — Harness Phase A: input-trace record/replay + scenario runner
 
 Closes the "build-system regression hid between commits" gap that

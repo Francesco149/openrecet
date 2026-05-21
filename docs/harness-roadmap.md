@@ -54,18 +54,25 @@ intentionally separated to keep each session focused:
   bit-exact for boot-idle, 5/5 for title-z-press). Cross-host /
   cross-GPU portability is open — re-bless after switching hosts.
 
-- **Phase B — retail capture via Frida (DLL inject).** Same JSON/PNG
-  format as Phase A so the two pipelines share schemas. Hooks D3D8
-  `IDirect3DDevice8::Present` for back-buffer dumps, the engine's
-  `audio_play_track` / SE call sites for audio events, and
-  `DAT_073dddd0` for the per-frame button bits. Ground truth for new
-  scenes as they port; also a debugging probe for "what is the running
-  retail engine actually doing right now" questions that no amount of
-  static decomp answers. Hook addresses largely already identified —
-  scene dispatcher `FUN_004547ab`, save-load, audio entry points — so
-  the RE work is "wire up known anchors", not new discovery. The
-  state-forcing role (save-injection → "drop me into shop day 5") is
-  the same hook surface and lands in the same session.
+- **Phase B — retail capture via Frida.** ✅ **Landed 2026-05-22**
+  (capture half only; state-forcing deferred). `tools/frida_capture.py`
+  + `tools/frida/openrecet-agent.js` + `tools/scenario-test.py --target
+  retail`. Same JSON/PNG schemas as Phase A; per-target golden dir
+  `tests/scenarios/<name>/golden-retail/`. Hooks:
+  `IDirect3DDevice8::Present` (vtable[15], frame capture via sysmem
+  bounce because retail's back-buffer is non-lockable),
+  `FUN_00499200` BGM swap, `FUN_00499c63` SE play, `FUN_0047b73c`
+  input poll reading `DAT_073dddd0`. Frame numbers come from
+  `DAT_073dfcfc` (engine global frame counter) so capture filenames
+  match the scenario `capture_frames:` list.
+  `boot-idle/golden-retail/` blessed; 3/3 bit-exact on re-run.
+  Auto-start helper for `frida-server.exe` via elevated
+  Start-Process if the port isn't reachable.
+
+  **Deferred to a follow-up session: state-forcing** (save inject →
+  "drop me into shop day 5" + scene-dispatch jump). Same hook surface
+  but a separate scope; landing it now would have bounced the
+  capture-pipeline session between two unfinished pieces.
 
 - **Phase C — PCM diff (deferred until needed).** Once both pipelines
   capture matching JSON event traces, the next class of bug (subtle

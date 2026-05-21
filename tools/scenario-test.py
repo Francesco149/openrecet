@@ -1,32 +1,42 @@
 #!/usr/bin/env python3
 """
-tools/scenario-test.py — Phase A regression harness.
+tools/scenario-test.py — Phase A + B regression harness.
 
-Drives `build/openrecet.exe` through a deterministic input trace and
-diffs the captured frames against a per-scenario golden directory.
+Drives a target binary through a deterministic input trace (Phase A,
+--target openrecet) or instruments the retail unpacked exe via Frida
+(Phase B, --target retail) and lays the captured frames + audio trace
+down next to a per-scenario golden directory.
 
 Layout:
 
     tests/scenarios/<name>/
-        scenario.yaml      # capture_frames, max_frames, rng_seed, etc.
-        trace.jsonl        # sparse input trace (input_trace.h format)
-        golden/
+        scenario.yaml         # capture_frames, max_frames, rng_seed, etc.
+        trace.jsonl           # sparse input trace (input_trace.h format)
+        golden/               # --target openrecet golden frames + audio
             frame_00000.bmp
             frame_00030.bmp
             ...
-            audio.jsonl    # optional — golden audio-event log
+            audio.jsonl       # optional — golden audio-event log
+        golden-retail/        # --target retail golden, populated by --bless
+            frame_NNNNN.bmp   #   BMPs are NOT bit-comparable across targets
+            audio.jsonl
+            trace.jsonl       # recorded input mask per engine frame
 
 Usage:
-    scenario-test.py                  # run all scenarios under tests/scenarios/
-    scenario-test.py boot-idle        # run a single scenario by name
-    scenario-test.py boot-idle --bless
-                                      # regenerate goldens from a fresh run
+    scenario-test.py                          # run all scenarios, target openrecet
+    scenario-test.py boot-idle                # single scenario, target openrecet
+    scenario-test.py boot-idle --bless        # regenerate openrecet goldens
+    scenario-test.py boot-idle --target retail --bless
+                                              # regenerate retail goldens via Frida
 
 Exit code: 0 on all-pass, 1 on any frame mismatch. --bless always 0.
 
-Pixel diff: bit-exact (per the Phase A decision documented in
-docs/harness-roadmap.md). Any mismatched frame additionally emits a
-red-tinted overlay PNG so the change is multimodally inspectable.
+Pixel diff (within a target): bit-exact (per the Phase A decision
+documented in docs/harness-roadmap.md). Any mismatched frame additionally
+emits a red-tinted overlay PNG so the change is multimodally inspectable.
+
+Cross-target diff (retail vs openrecet) is NOT bit-exact and is left to
+contact-sheet.py + audio.jsonl comparisons.
 """
 
 from __future__ import annotations
@@ -48,6 +58,13 @@ ROOT       = Path(__file__).resolve().parent.parent
 SCENARIOS  = ROOT / "tests" / "scenarios"
 BUILD_EXE  = ROOT / "build" / "openrecet.exe"
 ASSET_CWD  = ROOT / "vendor" / "original"
+
+TARGETS = ("openrecet", "retail")
+
+
+def golden_subdir(target: str) -> str:
+    """Per-target golden directory name."""
+    return "golden" if target == "openrecet" else f"golden-{target}"
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────
@@ -114,6 +131,19 @@ def _ensure_trace_exists(scen: Scenario) -> Path:
     return p
 
 
+def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
+                                remote: str) -> dict:
+    """Drive the retail unpacked exe via Frida; capture matching artifacts.
+
+    Delegates to tools/frida_capture.run_capture. No input replay yet —
+    the recorded trace.jsonl reflects what the engine actually polled,
+    not a forced sequence; the scenario.yaml's trace.jsonl is only used
+    by --target openrecet today.
+    """
+    import frida_capture  # late import: only needed for --target retail
+    return frida_capture.run_capture(scen, run_dir, remote=remote)
+
+
 def run_scenario_capture(scen: Scenario, run_dir: Path) -> dict:
     """Drive the exe through this scenario; capture frames + audio trace."""
     frames_dir   = run_dir / "frames"
@@ -173,7 +203,7 @@ def _red_tint_overlay(golden_rgb, new_rgb, threshold: int = 1):
     return out, mask
 
 
-def diff_against_golden(scen: Scenario, run_dir: Path) -> tuple[int, int]:
+def diff_against_golden(scen: Scenario, run_dir: Path, target: str) -> tuple[int, int]:
     """Bit-exact diff per frame. Returns (pass_count, fail_count).
 
     Mismatches additionally emit a red-tint overlay PNG at
@@ -183,9 +213,9 @@ def diff_against_golden(scen: Scenario, run_dir: Path) -> tuple[int, int]:
     import numpy as np
     from PIL import Image
 
-    golden_dir = scen.path / "golden"
+    golden_dir = scen.path / golden_subdir(target)
     if not golden_dir.is_dir():
-        print(f"  scenario '{scen.name}': no golden directory at {golden_dir}")
+        print(f"  scenario '{scen.name}' [{target}]: no golden directory at {golden_dir}")
         print(f"  re-run with --bless to create one from this run.")
         return 0, len(scen.capture_frames)
 
@@ -235,10 +265,12 @@ def diff_against_golden(scen: Scenario, run_dir: Path) -> tuple[int, int]:
 # ─── bless ────────────────────────────────────────────────────────────────
 
 
-def bless(scen: Scenario, run_dir: Path) -> int:
-    """Copy a fresh run's captured frames + audio trace into golden/."""
+def bless(scen: Scenario, run_dir: Path, target: str) -> int:
+    """Copy a fresh run's captured frames + audio trace into the per-target
+    golden dir. Under --target retail we also persist the recorded
+    trace.jsonl (the engine's actual per-frame input mask)."""
     import shutil
-    golden_dir = scen.path / "golden"
+    golden_dir = scen.path / golden_subdir(target)
     golden_dir.mkdir(parents=True, exist_ok=True)
 
     copied = 0
@@ -254,6 +286,12 @@ def bless(scen: Scenario, run_dir: Path) -> int:
     audio_src = run_dir / "audio.jsonl"
     if audio_src.exists():
         shutil.copyfile(audio_src, golden_dir / "audio.jsonl")
+
+    if target == "retail":
+        trace_src = run_dir / "trace.jsonl"
+        if trace_src.exists():
+            shutil.copyfile(trace_src, golden_dir / "trace.jsonl")
+
     print(f"  blessed: {copied} frame(s) → {golden_dir.relative_to(ROOT)}")
     return copied
 
@@ -275,13 +313,21 @@ def main(argv: list[str] | None = None) -> int:
                          "omit to run all")
     ap.add_argument("--bless", action="store_true",
                     help="regenerate golden frames from this run instead of diffing")
+    ap.add_argument("--target", choices=TARGETS, default="openrecet",
+                    help="which binary to drive: our reimplementation "
+                         "(openrecet, default) or the retail unpacked exe "
+                         "instrumented via Frida (retail)")
+    ap.add_argument("--frida-remote", default="127.0.0.1:27042",
+                    help="frida-server host:port used by --target retail "
+                         "(default %(default)s)")
     ap.add_argument("--run-dir-root", type=Path, default=ROOT / "runs" / "scenarios",
                     help="where to write per-scenario run artifacts "
                          "(default: runs/scenarios/)")
     args = ap.parse_args(argv)
 
-    if not BUILD_EXE.exists():
-        raise SystemExit(f"exe missing: {BUILD_EXE}. Build: `make -C src`.")
+    if args.target == "openrecet":
+        if not BUILD_EXE.exists():
+            raise SystemExit(f"exe missing: {BUILD_EXE}. Build: `make -C src`.")
 
     if args.scenario:
         scen_path = SCENARIOS / args.scenario
@@ -298,19 +344,22 @@ def main(argv: list[str] | None = None) -> int:
     total_pass = total_fail = 0
     for sp in scenarios:
         scen = Scenario.load(sp)
-        run_dir = args.run_dir_root / f"{scen.name}-{rid}"
-        print(f"\n# scenario: {scen.name}")
+        run_dir = args.run_dir_root / f"{scen.name}-{args.target}-{rid}"
+        print(f"\n# scenario: {scen.name} [target: {args.target}]")
         if scen.description:
             print(f"  desc: {scen.description}")
-        meta = run_scenario_capture(scen, run_dir)
+        if args.target == "retail":
+            meta = run_scenario_capture_retail(scen, run_dir, args.frida_remote)
+        else:
+            meta = run_scenario_capture(scen, run_dir)
         print(f"  exit={meta['exit_code']} elapsed_ms={meta['elapsed_ms']} "
               f"captured={len(meta['captured_frames'])}/{len(scen.capture_frames)}")
 
         if args.bless:
-            bless(scen, run_dir)
+            bless(scen, run_dir, args.target)
             continue
 
-        p, f = diff_against_golden(scen, run_dir)
+        p, f = diff_against_golden(scen, run_dir, args.target)
         total_pass += p
         total_fail += f
 
