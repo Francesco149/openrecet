@@ -3,6 +3,48 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Build-system header dep tracking (input-bypass regression fix)
+
+The user reported on RDP that arrows + Z had stopped doing anything in
+the title menu. Bisecting from the last verified-good commit
+(`c2b144c`, title sim port) walked through five known-good intermediate
+builds and isolated `d34079e` (settings submenu) as the regression.
+
+Smoke-runs of master here showed a spurious "title: menu item 0
+selected" log at boot with no keypress, which led to a per-frame stderr
+trace inside `scene_title_sim`: `submenu_state` was reading `-1`
+(`0xFFFFFFFF`) by the second sim call even though the init memset had
+just set it to 0. A clean `rm -f *.o && make` made the corruption stop
+— diagnostic of a stale object file.
+
+Root cause: `src/Makefile` and `tests/Makefile` only declared `%.o:
+%.c`, with no header-dep tracking. `d34079e` inserted three fields
+(`submenu_state`, `submenu_cursor`, `settings_dirty`) into
+`scene_title_anim_t` ahead of `pending_action`. `main.c` was not
+touched by that commit, so `make` did not rebuild `main.o`; the stale
+object kept writing the action sentinel `-1` to the *old*
+`pending_action` offset, which is now occupied by `submenu_state`.
+With `submenu_state == -1`, the `scene_title_sim` main-menu input gate
+(`cursor_anim == 0 && submenu_state == 0`) failed every frame → arrows
+and Z were dead but the dispatch leg fired phantom selections via the
+same offset confusion clobbering `select_phase`.
+
+Fix (`520a349`): add `-MMD -MP` to CFLAGS in both Makefiles and
+`-include $(DEPS)` so each `.o` declares its real header deps via
+generated `.d` files. Touch-test confirms `scene_title.h` →
+`main.o`, `music.o`, `sim.o`, `scene_title.o` all rebuild. `*.d`
+added to `.gitignore`. 494 tests still pass.
+
+Lesson: every C build for this repo needs header dep tracking from
+day one — the cost of `-MMD -MP` is one CFLAGS flag and one
+`-include`, and the failure mode (offset corruption on header
+extension) is silent. Next time `tests/Makefile` or any new build
+unit gets created, copy the pattern.
+
+Follow-up (next two sessions, see `docs/harness-roadmap.md`): set up a
+deterministic input-trace harness so this class of regression can't
+hide between commits again.
+
 ## 2026-05-21 — Title settings submenu producer (FUN_0049a59e state 2)
 
 Ports the bare-path slider producer inside FUN_0049a59e — the title-

@@ -2,13 +2,69 @@
 
 > Living document. Sub-plan of `PLAN.md`; cross-linked from its §6.
 
-The Linux-side unit suite (`tests/`) covers portable decoders (~376 tests
+The Linux-side unit suite (`tests/`) covers portable decoders (494 tests
 under ASan/UBSan as of 2026-05-21). What it can't reach: render-path
-correctness, audio sequencing, and full-pipeline behavior vs. retail.
-`tools/smoke-test.py` + `tools/contact-sheet.py` already capture frames
-and tile them, but the loop has gaps that show up the moment a render or
-audio commit lands and an assistant has to verify it without the user
-manually eyeballing files. This doc lists the gaps and a ranked plan.
+correctness, audio sequencing, full-pipeline behavior vs. retail, and
+the integration-level "did the latest commit silently break something
+the unit tests don't observe" question. `tools/smoke-test.py` +
+`tools/contact-sheet.py` already capture frames and tile them, but the
+loop has gaps that show up the moment a render or audio commit lands
+and an assistant has to verify it without the user manually eyeballing
+files. This doc lists the gaps and a ranked plan.
+
+## Active plan (next two sessions)
+
+Decided 2026-05-21 after the title-menu input regression (see
+`PROGRESS.md` "Build-system header dep tracking") demonstrated that
+mid-port regressions can hide between commits when no integration test
+exercises the live-pipeline path. The plan is a two-session split,
+intentionally separated to keep each session focused:
+
+- **Phase A — our-exe integration loop.** No Frida, no retail
+  instrumentation. Adds `--input-trace <file.jsonl>` recorder + player
+  to `build/openrecet.exe`, deterministic frame capture by frame index,
+  and a `tests/scenarios/<name>/` directory layout with `trace.jsonl`
+  + golden frame PNGs + golden audio-event JSON. Test runner replays
+  the trace into our exe, pixel-diffs against goldens, asserts audio
+  events. Starter scenarios cover the regression we just hit: "boot 60
+  frames idle" + "press Z at frame 30, expect dispatch within 16
+  frames and the cursor brightness pulse." Self-hosted goldens —
+  regenerated on intentional behavior changes via `--bless` flag.
+  Catches regressions between *our* commits.
+
+- **Phase B — retail capture via Frida (DLL inject).** Same JSON/PNG
+  format as Phase A so the two pipelines share schemas. Hooks D3D8
+  `IDirect3DDevice8::Present` for back-buffer dumps, the engine's
+  `audio_play_track` / SE call sites for audio events, and
+  `DAT_073dddd0` for the per-frame button bits. Ground truth for new
+  scenes as they port; also a debugging probe for "what is the running
+  retail engine actually doing right now" questions that no amount of
+  static decomp answers. Hook addresses largely already identified —
+  scene dispatcher `FUN_004547ab`, save-load, audio entry points — so
+  the RE work is "wire up known anchors", not new discovery. The
+  state-forcing role (save-injection → "drop me into shop day 5") is
+  the same hook surface and lands in the same session.
+
+- **Phase C — PCM diff (deferred until needed).** Once both pipelines
+  capture matching JSON event traces, the next class of bug (subtle
+  audio glitches — wrong attenuation curve, mistimed SE, sample-rate
+  artifacts) won't show up in event-log diffs. The cure is the Tier 3
+  #6 PCM-capture hook: record what each engine actually pushed to the
+  audio buffer, render as waveform + spectrogram PNG, diff visually.
+  Implement when the first such bug actually bites — don't pre-build.
+
+Open question (deferred to start of Phase A): pixel-diff strictness.
+Options under consideration:
+- **Bit-exact.** Cleanest pass/fail. Brittle to driver / GPU /
+  compositor diffs across hosts.
+- **SSIM > threshold.** Standard image-similarity. Tunable but
+  threshold tuning hides subtle regressions.
+- **Per-pixel red-tint diff overlay, eyeball-driven.** Visual review,
+  no auto fail. Lowest authority, but the existing `tools/smoke-test.py
+  --diff` already produces this.
+- Likely answer: bit-exact for *deterministic* scenarios (idle title
+  menu, controlled input) + tinted overlay for the rest. Same harness
+  emits both.
 
 ## Why this exists
 
