@@ -3,6 +3,48 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Title menu init ported (FUN_0049a324 + FUN_0049a43d)
+
+Third commit of the title-screen path. The engine's menu-items
+builder lands as `scene_title_menu_init` in the existing
+`src/scene_title.{c,h}` module — pure-C, deterministic, no D3D
+dependency. The function takes a save-bank query (4 booleans) and
+produces the same 1..8-entry menu the engine generates at
+`DAT_09643358..0x09643374`, including the cursor default and the
+count-based Y stride / origin (`DAT_005d1bb4` / `DAT_005d1bb8`).
+
+**What landed:**
+
+- **`scene_title_menu_init(save, out)`** — pure-C builder. Encodes
+  the engine's nine menu-item codes (named via a new enum, e.g.
+  `SCENE_TITLE_MENU_NEW_GAME = 0`, `_RANKING = 7`, etc.), the
+  layered "uVar1 = (adv_any ? 1 : 0) | (adv8_any ? 2 : 0)" check
+  for which New / Continue variant slots in, and the count-based
+  layout switch (counts 6/7/8 each have their own (stride, origin);
+  ≤5 hits the default branch).
+- **`scene_title_menu_init_fresh(out)`** — convenience wrapper for
+  the fresh-boot path (no saves), which is what the wired-up code
+  uses until save loading lands.
+- **Engine quirk reproduced.** The "hidden character" menu slot
+  (item 8, gated on `DAT_056e5788`) is also let in when
+  `(uVar1 & 1) != 0` — i.e. when any save bank has Adventure
+  cleared. That's because the engine's branch is
+  `if ((bVar5) || ((uVar1 & 1) != 0))`, not the conjunction. Port
+  matches.
+- **Tests.** 6 new menu-builder tests, plus the existing 4 asset-
+  table tests:
+  - Fresh boot → 4 items `[0, 7, 2, 3]`, cursor 0, stride 33 / origin -16
+  - Adv-cleared no adv8 → 6 items `[5, 4, 7, 8, 2, 3]`, stride 33 / origin -30
+  - Adv-cleared + populated save → 7 items, cursor 2, stride 30 / origin -36
+  - Full unlock (adv1 + adv8 + score) → 8 items, cursor 3, stride 27 / origin -36
+  - Hidden-char alone → 5 items including item 8
+  - Survival requires `uVar1 == 3` exactly, not just adv8 bit set
+  Total: 356 passing (was 350).
+- **No call sites yet.** Like commits 1 + 2, this lands the
+  building block without wiring. The render-dispatcher port will
+  call `scene_title_menu_init_fresh` on first scene-0 enter.
+  Direct boot smoke exit=0; magenta unchanged.
+
 ## 2026-05-21 — Title scene texture loader ported (FUN_004733d5)
 
 Second commit of the title-screen path. The engine's scene-0

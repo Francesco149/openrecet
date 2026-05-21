@@ -405,7 +405,13 @@ struct test_case {
     X(scene_title_assets_count_is_seven) \
     X(scene_title_assets_paths_match_pe) \
     X(scene_title_assets_sizes_power_of_two) \
-    X(scene_title_assets_sizes_match_engine)
+    X(scene_title_assets_sizes_match_engine) \
+    X(scene_title_menu_fresh_boot_4_items) \
+    X(scene_title_menu_has_save_no_adv8_6_items) \
+    X(scene_title_menu_has_save_and_score_7_items) \
+    X(scene_title_menu_full_unlock_8_items) \
+    X(scene_title_menu_hidden_char_only_5_items) \
+    X(scene_title_menu_survival_requires_both_flags)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

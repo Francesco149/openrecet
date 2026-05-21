@@ -78,3 +78,139 @@ int test_scene_title_assets_sizes_match_engine(void)
     }
     return 0;
 }
+
+/* ─── menu init ──────────────────────────────────────────────────────── */
+
+static int items_eq(const scene_title_menu_t *m,
+                    const int *expected, int n)
+{
+    if (m->count != n) return 0;
+    for (int i = 0; i < n; i++) if (m->items[i] != expected[i]) return 0;
+    return 1;
+}
+
+int test_scene_title_menu_fresh_boot_4_items(void)
+{
+    scene_title_menu_t m;
+    scene_title_menu_init_fresh(&m);
+    const int want[] = {
+        SCENE_TITLE_MENU_NEW_GAME,
+        SCENE_TITLE_MENU_RANKING,
+        SCENE_TITLE_MENU_OPTIONS,
+        SCENE_TITLE_MENU_EXIT,
+    };
+    if (!items_eq(&m, want, 4)) T_FAIL("unexpected menu layout");
+    T_ASSERT_EQ_I(m.default_cursor, 0);
+    /* count == 4 → stride 33, origin -16 (default branch). */
+    if (m.y_stride != 33.0f) T_FAIL("y_stride=%g, want 33", (double)m.y_stride);
+    if (m.y_origin != -16.0f) T_FAIL("y_origin=%g, want -16", (double)m.y_origin);
+    return 0;
+}
+
+int test_scene_title_menu_has_save_no_adv8_6_items(void)
+{
+    /* uVar1 == 1: any-adv-cleared but no adv8 entries. */
+    scene_title_save_t s = { .has_any_adv_cleared = 1 };
+    scene_title_menu_t m;
+    scene_title_menu_init(&s, &m);
+    const int want[] = {
+        SCENE_TITLE_MENU_CONT_HAS_SAVE,  /* 5 */
+        SCENE_TITLE_MENU_NEW_HAS_SAVE,   /* 4 */
+        SCENE_TITLE_MENU_RANKING,        /* 7 */
+        SCENE_TITLE_MENU_HIDDEN_CHAR,    /* 8 — from (uVar1 & 1) implicit */
+        SCENE_TITLE_MENU_OPTIONS,
+        SCENE_TITLE_MENU_EXIT,
+    };
+    if (!items_eq(&m, want, 6)) T_FAIL("unexpected menu layout");
+    /* count == 6 → stride 33, origin -30. */
+    if (m.y_stride != 33.0f) T_FAIL("y_stride=%g, want 33", (double)m.y_stride);
+    if (m.y_origin != -30.0f) T_FAIL("y_origin=%g, want -30", (double)m.y_origin);
+    return 0;
+}
+
+int test_scene_title_menu_has_save_and_score_7_items(void)
+{
+    /* uVar1 == 1, plus a populated save bank → adds item 1 + cursor. */
+    scene_title_save_t s = {
+        .has_any_adv_cleared = 1,
+        .has_any_score       = 1,
+    };
+    scene_title_menu_t m;
+    scene_title_menu_init(&s, &m);
+    const int want[] = {
+        SCENE_TITLE_MENU_CONT_HAS_SAVE,  /* 5 */
+        SCENE_TITLE_MENU_NEW_HAS_SAVE,   /* 4 */
+        SCENE_TITLE_MENU_CONTINUE_ANY,   /* 1 — quick-continue slot */
+        SCENE_TITLE_MENU_RANKING,        /* 7 */
+        SCENE_TITLE_MENU_HIDDEN_CHAR,    /* 8 */
+        SCENE_TITLE_MENU_OPTIONS,
+        SCENE_TITLE_MENU_EXIT,
+    };
+    if (!items_eq(&m, want, 7)) T_FAIL("unexpected menu layout");
+    T_ASSERT_EQ_I(m.default_cursor, 2);  /* points at item 1 */
+    if (m.y_stride != 30.0f) T_FAIL("y_stride=%g, want 30", (double)m.y_stride);
+    if (m.y_origin != -36.0f) T_FAIL("y_origin=%g, want -36", (double)m.y_origin);
+    return 0;
+}
+
+int test_scene_title_menu_full_unlock_8_items(void)
+{
+    /* uVar1 == 3 + populated bank → all 8 menu items in canonical order. */
+    scene_title_save_t s = {
+        .has_any_adv_cleared  = 1,
+        .has_any_adv8_cleared = 1,
+        .has_any_score        = 1,
+    };
+    scene_title_menu_t m;
+    scene_title_menu_init(&s, &m);
+    const int want[] = {
+        SCENE_TITLE_MENU_CONT_HAS_SAVE,  /* 5 */
+        SCENE_TITLE_MENU_NEW_HAS_SAVE,   /* 4 */
+        SCENE_TITLE_MENU_SURVIVAL,       /* 6 — adv-2 cleared */
+        SCENE_TITLE_MENU_CONTINUE_ANY,   /* 1 */
+        SCENE_TITLE_MENU_RANKING,        /* 7 */
+        SCENE_TITLE_MENU_HIDDEN_CHAR,    /* 8 */
+        SCENE_TITLE_MENU_OPTIONS,
+        SCENE_TITLE_MENU_EXIT,
+    };
+    if (!items_eq(&m, want, 8)) T_FAIL("unexpected menu layout");
+    T_ASSERT_EQ_I(m.default_cursor, 3);  /* item 1 is at index 3 */
+    if (m.y_stride != 27.0f) T_FAIL("y_stride=%g, want 27", (double)m.y_stride);
+    if (m.y_origin != -36.0f) T_FAIL("y_origin=%g, want -36", (double)m.y_origin);
+    return 0;
+}
+
+int test_scene_title_menu_hidden_char_only_5_items(void)
+{
+    /* Hidden-char flag alone (no save) → adds item 8 to the fresh menu. */
+    scene_title_save_t s = { .hidden_char_unlocked = 1 };
+    scene_title_menu_t m;
+    scene_title_menu_init(&s, &m);
+    const int want[] = {
+        SCENE_TITLE_MENU_NEW_GAME,
+        SCENE_TITLE_MENU_RANKING,
+        SCENE_TITLE_MENU_HIDDEN_CHAR,
+        SCENE_TITLE_MENU_OPTIONS,
+        SCENE_TITLE_MENU_EXIT,
+    };
+    if (!items_eq(&m, want, 5)) T_FAIL("unexpected menu layout");
+    /* count == 5 → default branch: stride 33, origin -16. */
+    if (m.y_stride != 33.0f) T_FAIL("y_stride=%g, want 33", (double)m.y_stride);
+    if (m.y_origin != -16.0f) T_FAIL("y_origin=%g, want -16", (double)m.y_origin);
+    return 0;
+}
+
+int test_scene_title_menu_survival_requires_both_flags(void)
+{
+    /* has_any_adv8_cleared alone (no has_any_adv_cleared) → uVar1 = 2,
+     * which is NOT 3 — so no Survival entry. */
+    scene_title_save_t s = { .has_any_adv8_cleared = 1 };
+    scene_title_menu_t m;
+    scene_title_menu_init(&s, &m);
+    for (int i = 0; i < m.count; i++) {
+        if (m.items[i] == SCENE_TITLE_MENU_SURVIVAL) {
+            T_FAIL("Survival appeared in menu without adv-2 cleared bit");
+        }
+    }
+    return 0;
+}
