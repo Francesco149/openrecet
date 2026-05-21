@@ -389,7 +389,18 @@ struct test_case {
     X(input_bindings_load_round_trips_modified_ini) \
     X(input_dik_table_matches_vendor_dump) \
     X(input_binding_mask_dpad_face_buttons_layout) \
-    X(input_state_stride_matches_engine)
+    X(input_state_stride_matches_engine) \
+    \
+    X(render_quad_init_seeds_z_rhw_specular) \
+    X(render_quad_add_one_emits_six_vertices) \
+    X(render_quad_uv_half_texel_inset_asymmetry) \
+    X(render_quad_scale_widens_but_not_position) \
+    X(render_quad_offset_shifts_top_left) \
+    X(render_quad_top_left_truncated_to_int) \
+    X(render_quad_returns_zero_when_full) \
+    X(render_quad_rejects_zero_tex_dim) \
+    X(render_quad_reset_keeps_z_rhw_prefill) \
+    X(render_quad_init_zero_screen_w_defaults_640)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

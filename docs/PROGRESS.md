@@ -3,6 +3,84 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Render-quad primitives ported (FUN_00404efc + FUN_00405354 + FUN_0049b425 + FUN_00404e44)
+
+First commit of the title-screen port path. The engine's 2D draw is
+batched: every textured quad is appended to a static 8544-vertex
+buffer at VA `&DAT_00605208`, then a single `DrawPrimitiveUP` call
+emits all triangles at frame flush. This commit lands the batching
+core — pure-C math + Win32 D3D wrappers — with no scene code on top
+of it yet. The magenta debug clear is still the only visible output
+of the boot smoke; that changes once the title texture loader and
+the `FUN_0049c644` render port land in the next two commits.
+
+**Subsystems landed:**
+
+- **`src/render_quad.{c,h}`.** Four engine functions folded into one
+  module:
+  - `render_quad_add` — FUN_00404efc. Appends one quad (6 vertices,
+    2 CCW triangles). `dst[4]` is xywh, `src[4]` is xyxy (engine's
+    asymmetric input convention, faithfully reproduced). Width and
+    height scale by `(screen_w / 640.0)`; top-left x/y do *not*
+    (so UI position stays in 640-relative space while sprite size
+    grows at higher resolutions). Top-left is integer-truncated to
+    match the engine's `__ftol` pattern. UVs apply the +0.5
+    half-texel inset on top/left only, not bottom/right — engine
+    quirk, again reproduced.
+  - `render_quad_flush` — FUN_00405354. Sets vertex shader to FVF
+    `0x1c4` (XYZRHW | DIFFUSE | SPECULAR | TEX1, stride 32) then
+    `DrawPrimitiveUP(TRIANGLELIST, count/3, vbuf, 32)` and zeroes
+    the counter.
+  - `render_quad_state_setup` — FUN_0049b425. Sets the 2D pre-draw
+    states: SetVertexShader 0x142 (overridden by flush), FOG off,
+    ALPHABLEND on, SRCALPHA / INVSRCALPHA. SRCBLEND/DESTBLEND are
+    set *twice* in the original; the dup is reproduced. Texture
+    stage 0 gets ALPHAOP/COLOROP=MODULATE + MIN/MAGFILTER=LINEAR.
+    Engine relies on D3D8 defaults for COLORARG1/2 and ALPHAARG1/2
+    — port does too.
+  - `render_quad_init` — FUN_00404e44. One-shot vbuf initializer:
+    z=0.0, rhw=1.0, specular=0 on all 8544 vertex slots. Render-
+    quad-add never rewrites these fields, just like the engine
+    (which leaves bytes 8..15 + 20..23 of each vertex untouched
+    after the prefill).
+  - `render_quad_bind` — small wrapper around `SetTexture(stage 0)`,
+    matches the engine pattern of `dev->SetTexture(0, tex)` calls
+    sprinkled between quad-add batches.
+- **Two-layer file split.** Top of `render_quad.c`: pure-C math +
+  buffer state (compiles on Linux for the ASan test build). Bottom
+  (`#ifdef _WIN32`): D3D wrappers. Matches the convention from
+  `src/input.c` and `src/tick.c`.
+- **Screen-shake hook.** `render_quad_set_offset(ox, oy)` mirrors
+  the engine's `DAT_0438cc18 / DAT_0438cc1c` global — added to every
+  dst top-left at quad-add time. Untouched in this commit; lands as
+  wired-up state when the camera-shake path ports.
+- **Bounds check.** Engine has no overflow guard at 8544 vertices —
+  a runaway frame would corrupt the global memory immediately past
+  `DAT_00647e14`. Port returns 0 from `render_quad_add` once the
+  buffer is full so a recoverable failure shows up in tests rather
+  than an unrelated crash.
+- **Tests.** 10 new pure-C unit tests in `tests/test_render_quad.c`:
+  vbuf-prefill spot-checks, 6-vertex emission order (BR / BL / TR /
+  BL / TL / TR), UV half-texel-inset asymmetry, screen scaling
+  applied to size but not position, screen-shake offset, dst top-
+  left integer truncation, buffer-full bounds check, zero-tex-dim
+  rejection, reset-keeps-prefill, default-screen-w-zero-means-640.
+  Total: 346 passing (was 336).
+- **No call sites yet.** `main.c` is unchanged — the new module is
+  compiled into `openrecet.exe` (matches `src/Makefile`'s
+  `$(wildcard *.c)`) but no boot code calls it. Boot smoke direct
+  (`build/openrecet.exe --max-duration-ms 3000` from
+  `vendor/original`) exits cleanly with debug magenta unchanged.
+
+**Pre-existing harness flake (unrelated to this commit):**
+`tools/smoke-test.py` uses `preexec_fn=os.setsid` which breaks the
+`SetTimer → WM_TIMER → DestroyWindow` self-termination path —
+reproduced *with the prior input-poll build* (different exe SHA) as
+well as the current build. Direct exe invocation terminates cleanly
+at `--max-duration-ms`. Track-and-fix later; not blocking. Frames
+are still captured and pixel-sampled magenta unchanged, confirming
+no functional regression.
+
 ## 2026-05-21 — Input poll ported (FUN_0047b73c)
 
 First of the four tick callees now lands real code instead of a NULL
