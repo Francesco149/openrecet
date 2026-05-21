@@ -107,6 +107,33 @@ intentionally separated to keep each session focused:
   the bigger version now would have bounced the
   capture-pipeline session between two unfinished pieces.
 
+- **Phase B++ — cross-target visual probe suite.** ✅ Landed 2026-05-22.
+  `tools/scenario-test.py --target both` runs the openrecet and retail
+  pipelines back-to-back for one scenario, diffs each against its own
+  per-target golden, and drops a per-frame ours|retail PNG at
+  `runs/scenarios/<run>/sidebyside.png`. `tools/regen-comparisons.py`
+  fans out across every scenario under `tests/scenarios/`, copies each
+  latest sidebyside.png into `runs/comparisons/<scenario>/`, and emits
+  a static HTML index at `runs/comparisons/index.html`. The index is
+  dark-mode, has a TOC, shows each capture's absolute timestamp + JS-
+  rendered "X ago" age (stale at >1h, very-stale at >24h), and
+  cache-busts each `<img src>` with `?v=<mtime>` so a plain Ctrl-R in
+  the browser always pulls the latest. Output dir is gitignored.
+  Workflow:
+  - regen after each shipped change: `tools/regen-comparisons.py`
+  - view: `file:///opt/src/openrecet/runs/comparisons/index.html`
+  - Ctrl-R to refresh; eyeball-scroll for obvious regressions; click
+    the scenario heading anchor to share/cite a specific test
+  Determinism was explicitly NOT pursued — retail runs organic, so
+  some color delta and animation-phase drift between the two columns
+  is expected (different capture path: our exe writes the back-buffer
+  via Win32 BMP, retail bounces through CopyRects → sysmem surface).
+  The signal is **structural** divergence (missing menu items, wrong
+  positioning, scene-state drift), not per-pixel delta. State-forcing
+  (input/RNG/clock pin on retail) was scoped and rejected as not worth
+  the cost for visual eyeball-regression checks; revisit if a real bug
+  needs it.
+
 - **Phase C — PCM diff (deferred until needed).** Once both pipelines
   capture matching JSON event traces, the next class of bug (subtle
   audio glitches — wrong attenuation curve, mistimed SE, sample-rate
