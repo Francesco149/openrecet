@@ -29,6 +29,7 @@
 #include "render_quad.h"
 #include "rng.h"
 #include "scene_title.h"
+#include "sim.h"
 #include "tick.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
@@ -68,15 +69,10 @@ static unsigned         g_capture_count     = 0;     /* monotonic capture index 
 static char            *g_show_sprite_name  = NULL;
 static sprite_t         g_show_sprite       = {0};
 
-/* ─── scene-0 (title) state — mirrors the engine's DAT_09643358.. block ───
- * The menu items table + cursor + Y layout get built once at startup via
- * scene_title_menu_init_fresh (FUN_0049a43d in the engine, called via
- * FUN_004733d5's caller). The anim counters tick once per frame; until
- * the sim port (FUN_0049a59e) lands we advance frame_counter from the
- * render path so the BG at least scrolls. */
-static scene_title_menu_t  g_title_menu;     /* DAT_09643358..0x09643510 */
-static scene_title_anim_t  g_title_anim;     /* DAT_09643518.. counters */
-static int                 g_title_assets_loaded = 0;
+/* Scene-0 (title) state now lives in scene_title.c as module globals
+ * (`g_scene_title_menu`, `g_scene_title_anim`, `g_scene_title_assets_loaded`).
+ * sim_step_a and render_dispatch both reach in directly via those externs;
+ * main.c only seeds them at boot. */
 
 /* --max-duration-ms <ms>: PostQuitMessage after this many milliseconds.
  * Lets the harness (and ad-hoc smoke runs) get a clean shutdown — the
@@ -225,14 +221,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     render_quad_init((uint32_t)g_ini.width);
 
     /* "read titletex ok" — FUN_004733d5 — load the 7 title-scene
-     * textures (bg2, 01, fuki, waku + pause/result/dungeon). */
-    g_title_assets_loaded = (scene_title_load_assets(g_dev)
-                             == SCENE_TITLE_TEX_COUNT);
+     * textures (bg2, 01, fuki, waku + pause/result/dungeon). Sets
+     * g_scene_title_assets_loaded on full success. */
+    (void)scene_title_load_assets(g_dev);
 
     /* Build the menu items table (FUN_0049a43d). Fresh boot = no
-     * saves; 4 items: New Game / Ranking / Options / Exit. */
-    scene_title_menu_init_fresh(&g_title_menu);
-    g_title_anim.cursor_pos = (uint32_t)g_title_menu.default_cursor;
+     * saves; 4 items: New Game / Ranking / Options / Exit. Then seed
+     * the title sim state the same way FUN_0049a3a3 ("bootstrap done")
+     * does, and park the cursor on the default item. */
+    scene_title_menu_init_fresh(&g_scene_title_menu);
+    scene_title_anim_init_fresh(&g_scene_title_anim);
+    g_scene_title_anim.cursor_pos =
+        (uint32_t)g_scene_title_menu.default_cursor;
+    sim_init();
 
     /* TODO "init fontsys ok"    — FUN_0047c228
      * TODO "init daoudio ok"    — FUN_00498ef4
@@ -252,13 +253,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     /* ─── main loop — mirrors the PeekMessage/WaitMessage idle pattern ─── */
     MSG msg = {0};
-    /* Game-tick callbacks. Input poll + render are wired up; sim_a
-     * (FUN_004536cb) and sim_b (FUN_0049966a) remain NULL stubs. The
-     * scheduler tolerates that. Title-scene anim counters advance from
-     * render_dispatch until the sim ports land. */
+    /* Game-tick callbacks. sim_a (FUN_004536cb, button ring + scene
+     * dispatch) is wired; sim_b (FUN_0049966a, music selector) is still
+     * a NULL stub — the scheduler tolerates that. */
     const struct tick_callbacks tick_cb = {
         .input_poll = input_poll,
-        .sim_a      = NULL,
+        .sim_a      = sim_step_a,
         .sim_b      = NULL,
         .render     = render_dispatch,
     };
@@ -491,13 +491,10 @@ static void render_dispatch(void)
         1.0f, 0);
     IDirect3DDevice8_BeginScene(g_dev);
 
-    if (g_title_assets_loaded) {
-        scene_title_render(g_dev, &g_title_menu, &g_title_anim);
-        /* Sim port hasn't landed yet — advance the BG-scroll counter
-         * here so the title at least animates. Move to the sim port
-         * (FUN_0049a59e) when it lands; that's also where the cursor
-         * pulse and selection-fold counters belong. */
-        g_title_anim.frame_counter++;
+    if (g_scene_title_assets_loaded) {
+        scene_title_render(g_dev,
+                           &g_scene_title_menu,
+                           &g_scene_title_anim);
     }
 
     if (g_show_sprite.tex) {

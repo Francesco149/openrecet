@@ -3,6 +3,100 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-21 — Title sim ported (FUN_0049a59e bare path + minimal sim_a)
+
+The title menu now animates: BG scroll keeps going under focus loss
+(scheduler drives it now, not the render path), the selected item's
+brightness pulses via the slow `pulse_phase` LFO, and UP/DOWN move the
+cursor with auto-repeat. Three new pieces:
+
+**What landed:**
+
+- **`src/sim.{c,h}` — minimal sim_a (FUN_004536cb).** Ports the
+  button-state ring at the top of the function: per-bit
+  current/prev/pressed/held-with-repeat masks for two players (the
+  engine's DAT_073dddd0..d6 quad + the 16-short DAT_073dddda repeat
+  counter array). Pure-C helper `sim_button_ring_update` exposes the
+  per-bit math for tests. Scene dispatch is wired only for state==0
+  → `scene_title_sim_default`; the 16 other scene arms (1..16) and
+  the four mode-escape sub-blocks (DAT_06a499.. flags) are omitted
+  until those scenes port.
+
+  Tail of FUN_004536cb is reduced to `g_sim_frame_count++` — the
+  time-dilation float math and the `FUN_004526ab` post-frame helper
+  it calls were stubbed (no consumers yet in our skeleton).
+
+- **`scene_title_sim` in `src/scene_title.c` (FUN_0049a59e bare path)**.
+  Pure-C; mirrors the path through the function that's actually
+  reached at end of `FUN_0049a3a3` ("bootstrap done"), with no scene
+  transitions pending and no submenu open (DAT_09643524 stays 0,
+  cursor_anim stays clamped at 0 because `menu_folding_out=1`). Runs
+  per frame: `cursor_anim` slide (decrement toward 0), `frame_counter`
+  advance, A-pressed → `select_phase = 1`, UP/DOWN held with
+  auto-repeat → `cursor_pos = (cursor_pos ± 1) mod count`, tail
+  `pulse_phase++`. Once `select_phase` reaches 0xf the engine would
+  dispatch a scene transition — bare-slice resets it to 0 (no scenes
+  to receive control yet, so the player can't actually leave the
+  title).
+
+- **`scene_title_anim_t` extended with `menu_folding_out`** (mirrors
+  DAT_09643528 — the direction flag for `cursor_anim`). New
+  `scene_title_anim_init_fresh` seeds the post-FUN_0049a3a3 state
+  (all zero except `menu_folding_out = 1`). Scene-0 state moved from
+  static locals in `src/main.c` into `g_scene_title_menu` /
+  `g_scene_title_anim` / `g_scene_title_assets_loaded` exports in
+  `src/scene_title.c` so sim.c and main.c both reach them by name.
+  `main.c::render_dispatch` lost its placeholder `frame_counter++`
+  — the sim owns that now.
+
+**Engine quirk #44 — button auto-repeat double-fires across reload.**
+The 16-short repeat counter in FUN_004536cb uses two mutually
+exclusive `if` branches: `(rep < 1) → rep = 4` (no decrement) and the
+`else { rep--; if (rep > 0) clear bit }` gate. So when a held bit's
+counter drops to 0, the bit fires on *that* frame (the `> 0` test
+fails), AND on the next frame (the reload-to-4 path skips the gate
+entirely). Net auto-repeat pattern after the initial 12-frame settle
+is fire/fire/gate/gate/gate, period 5 frames. Reproduced exactly;
+covered by `test_sim_button_ring_repeat_pulses_after_settle`.
+
+**Tests.** 20 new (total 376):
+- `test_sim.c` (8 tests) — button ring rising/held/release/multi-bit,
+  the full auto-repeat cycle including the double-fire quirk,
+  `sim_init` zeroing, `sim_step_a` frame advance + input piping.
+- `test_scene_title_sim.c` (12 tests) — init seeding, idle frame
+  advance, pulse-phase ticking under all `cursor_anim` values,
+  cursor wrap UP/DOWN, A-press select-pulse start + 15-frame reset,
+  input gating during select-pending, A-on-`held`-only is no-op,
+  frame-counter past 0x1bc6 ignores input, NULL guards.
+
+**Visible result.** Title screen at 1024×768 looks the same as the
+prior commit (positions unchanged), but the selected-menu item's
+brightness now visibly oscillates from frame to frame (the engine's
+`pulse_phase / 0x2d` slow LFO), and cursor movement responds to the
+keyboard/pad bindings. BG vertical scroll continues uninterrupted
+when the window loses focus (sim runs from the scheduler at its
+fixed 60 Hz cadence, not piggybacking on render).
+
+**Still open from the render commit (this one didn't fix):** the
+non-selected menu items look washed out compared to the retail
+build — likely a missing texture-stage SPECULAR overlay or per-item
+outline pass we haven't found yet. Not gated on the sim port; needs
+its own RE pass on FUN_0049c644's draw block.
+
+**Not yet ported:**
+- `FUN_0049966a` (sim_b — music track selector). Independent of
+  sim_a; lands as its own commit. Scheduler still tolerates a NULL
+  `.sim_b`.
+- The 16 non-title scene arms of FUN_004536cb (states 1..16) and
+  the mode-escape paths (DAT_06a499.. flags). Each is gated on a
+  scene that hasn't ported.
+- A-press scene transitions out of the title (NEW GAME / OPTIONS /
+  RANKING / etc.). Each is gated on its destination scene's port;
+  for now the player is parked on the title indefinitely (the 15-
+  frame select pulse plays then resets cleanly).
+- The intro-movie attract loop (`recet_op.wmv` at frame_counter ==
+  0x1be4) — waits on a video player port.
+
 ## 2026-05-21 — Title scene wired into main loop (partial FUN_004547ab)
 
 Fifth and final commit of the title-screen port. The render

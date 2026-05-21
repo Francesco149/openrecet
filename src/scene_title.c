@@ -21,6 +21,11 @@
 #include <math.h>
 #include <string.h>
 
+#include "sim.h"   /* g_sim_buttons for scene_title_sim_default */
+
+scene_title_menu_t  g_scene_title_menu;
+scene_title_anim_t  g_scene_title_anim;
+
 const scene_title_asset_t scene_title_assets[SCENE_TITLE_TEX_COUNT] = {
     [SCENE_TITLE_TEX_BG2]     = { "bmp/title_bg2.bmp",     1024, 1024 },
     [SCENE_TITLE_TEX_01]      = { "bmp/title01.tga",        512,  256 },
@@ -113,9 +118,119 @@ void scene_title_menu_init_fresh(scene_title_menu_t *out)
     scene_title_menu_init(&empty, out);
 }
 
+/* ─── sim init + bare-path sim (FUN_0049a3a3 + FUN_0049a59e) ─────────── */
+
+void scene_title_anim_init_fresh(scene_title_anim_t *out)
+{
+    /* FUN_0049a3a3 line-for-line: all counters zero, fold-out flag set. */
+    memset(out, 0, sizeof *out);
+    out->menu_folding_out = 1;
+}
+
+/* Engine button-mask bits (see input.h "input_binding_mask" docs):
+ *   0x04 = UP, 0x08 = DOWN, 0x10 = A. The sim reads UP/DOWN from
+ *   `held` (auto-repeat) and A from `pressed` (rising edge). */
+#define TITLE_INPUT_UP    0x04
+#define TITLE_INPUT_DOWN  0x08
+#define TITLE_INPUT_A     0x10
+
+void scene_title_sim(scene_title_anim_t *anim,
+                     const scene_title_menu_t *menu,
+                     uint16_t pressed,
+                     uint16_t held)
+{
+    if (!anim || !menu) return;
+
+    /* FUN_0049a3a3 line 239-250: cursor_anim slides toward 0 when
+     * `menu_folding_out` is set, toward 10 when clear. */
+    if (anim->menu_folding_out) {
+        if (anim->cursor_anim > 0) {
+            anim->cursor_anim--;
+        }
+    } else {
+        if (anim->cursor_anim < 10) {
+            anim->cursor_anim++;
+        }
+    }
+
+    /* The engine's outer `if (DAT_09643520 == 10)` arm is the main-menu
+     * input handler — but only when DAT_09643524 (submenu state) != 0,
+     * which never happens in the bare-path build. For the bare slice
+     * we only need the else arm:
+     *   - DAT_09643550 < 1 (no fade in progress) [BSS-zero — always true]
+     *   - DAT_09643520 == 0  (main menu fully on-screen)
+     *   - DAT_09643544 < 1  (select pulse idle) → frame_counter advance
+     *                                              + input handling
+     *   - otherwise           → tick select_phase up to 0xf, then reset
+     */
+    if (anim->cursor_anim == 0) {
+        if (anim->select_phase == 0) {
+            anim->frame_counter++;
+
+            /* Past 0x1bc6 (7110) the engine stops accepting cursor
+             * input — input handling sits inside this `<` gate. At
+             * frame == 0x1be4 (7140) the engine would attempt to
+             * play recet_op.wmv (attract loop); on success the scene
+             * transitions, on failure frame_counter is reset to 0.
+             * Neither path is wired in the bare slice — frame_counter
+             * just keeps incrementing past the input window. */
+            if (anim->frame_counter < 0x1bc6) {
+                if (pressed & TITLE_INPUT_A) {
+                    /* Start the select countdown. Engine plays sound
+                     * 0x143 here via FUN_00499519 — stubbed. */
+                    anim->select_phase = 1;
+                } else if (menu->count > 0) {
+                    /* UP / DOWN move the cursor with engine wrap math:
+                     *   UP   → (count - 1 + cursor) % count
+                     *   DOWN → (count + 1 + cursor) % count
+                     * Engine plays sound 0x146 on either move — stubbed. */
+                    if (held & TITLE_INPUT_UP) {
+                        anim->cursor_pos = (anim->cursor_pos
+                                            + (uint32_t)(menu->count - 1))
+                                           % (uint32_t)menu->count;
+                    } else if (held & TITLE_INPUT_DOWN) {
+                        anim->cursor_pos = (anim->cursor_pos
+                                            + (uint32_t)(menu->count + 1))
+                                           % (uint32_t)menu->count;
+                    }
+                }
+            }
+        } else {
+            /* Select-countdown branch. Engine: `DAT_09643544 += 1`
+             * each frame; at == 0xf, dispatch to a scene based on the
+             * selected menu code. Until those scenes port, we just
+             * snap back to 0 — the player loses the half-second pulse
+             * animation but stays on the title indefinitely. */
+            anim->select_phase++;
+            if (anim->select_phase >= 0xf) {
+                anim->select_phase = 0;
+            }
+        }
+    }
+
+    /* LAB_0049b415: tail. Engine increments DAT_0964352c and calls
+     * FUN_004356cd (a 3-line shake-effect helper that's a no-op at
+     * BSS-zero; stubbed). */
+    anim->pulse_phase++;
+}
+
+void scene_title_sim_default(void)
+{
+    /* Dispatch off the global button ring (sim.c wrote it earlier in
+     * the same sim_step_a call). The engine's button masks live at
+     * DAT_073dddd4 / DAT_073dddd6 — player 0 only at this layer; the
+     * second player's mask is never read by the title sim. */
+    scene_title_sim(&g_scene_title_anim,
+                    &g_scene_title_menu,
+                    g_sim_buttons[0].pressed,
+                    g_sim_buttons[0].held);
+}
+
 #ifdef _WIN32
 
 static sprite_t g_tex[SCENE_TITLE_TEX_COUNT];
+
+int g_scene_title_assets_loaded = 0;
 
 int scene_title_load_assets(IDirect3DDevice8 *dev)
 {
@@ -127,6 +242,7 @@ int scene_title_load_assets(IDirect3DDevice8 *dev)
             loaded++;
         }
     }
+    g_scene_title_assets_loaded = (loaded == SCENE_TITLE_TEX_COUNT) ? 1 : 0;
     return loaded;
 }
 

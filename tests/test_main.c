@@ -411,7 +411,29 @@ struct test_case {
     X(scene_title_menu_has_save_and_score_7_items) \
     X(scene_title_menu_full_unlock_8_items) \
     X(scene_title_menu_hidden_char_only_5_items) \
-    X(scene_title_menu_survival_requires_both_flags)
+    X(scene_title_menu_survival_requires_both_flags) \
+    \
+    X(scene_title_anim_init_fresh_seeds_folding_out) \
+    X(scene_title_sim_frame_counter_advances_on_idle) \
+    X(scene_title_sim_pulse_phase_ticks_every_frame) \
+    X(scene_title_sim_cursor_anim_clamps_at_zero) \
+    X(scene_title_sim_down_held_wraps_cursor) \
+    X(scene_title_sim_up_held_wraps_cursor_backwards) \
+    X(scene_title_sim_a_pressed_starts_select_phase) \
+    X(scene_title_sim_select_phase_resets_at_fifteen) \
+    X(scene_title_sim_cursor_input_ignored_while_select_pending) \
+    X(scene_title_sim_cursor_pressed_only_no_held) \
+    X(scene_title_sim_frame_counter_clamps_at_pre_movie_window) \
+    X(scene_title_sim_null_guards) \
+    \
+    X(sim_button_ring_first_press_sets_pressed) \
+    X(sim_button_ring_held_clears_pressed_next_frame) \
+    X(sim_button_ring_repeat_pulses_after_settle) \
+    X(sim_button_ring_release_drops_held) \
+    X(sim_button_ring_multiple_bits_independent) \
+    X(sim_init_zeros_state) \
+    X(sim_step_a_advances_frame_count) \
+    X(sim_step_a_pipes_input_into_ring)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

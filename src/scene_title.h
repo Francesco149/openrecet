@@ -44,16 +44,27 @@ extern const scene_title_asset_t scene_title_assets[SCENE_TITLE_TEX_COUNT];
 /* ─── animation state ────────────────────────────────────────────────── */
 
 /* Mirrors the engine's title-scene counters at DAT_096435.. region.
- * For commit 4 we only need `frame_counter` (DAT_09643518) — it drives
- * the BG scroll. The other counters are wired up when the sim port
- * (FUN_0049a59e) lands; until then they stay at BSS-zero. */
+ *
+ * `frame_counter`, `cursor_pos`, `select_phase`, `pulse_phase` are read
+ * by the render. `cursor_anim` drives the menu slide-in tween;
+ * `menu_folding_out` is the direction flag — both internal to the sim
+ * but kept here so the struct stays the single carrier of title state. */
 typedef struct {
     uint32_t frame_counter;     /* DAT_09643518 — increments per sim tick */
     uint32_t cursor_pos;        /* DAT_09643540 — current selected menu index */
     uint32_t cursor_anim;       /* DAT_09643520 — 0..10 menu-fold-in tween */
-    uint32_t select_phase;      /* DAT_09643544 — pulse phase for selected item */
-    uint32_t pulse_phase;       /* DAT_0964352c — slow background pulse */
+    uint32_t select_phase;      /* DAT_09643544 — fast pulse after A-press */
+    uint32_t pulse_phase;       /* DAT_0964352c — slow steady-state pulse */
+    int      menu_folding_out;  /* DAT_09643528 — 1: cursor_anim ↓ (main menu
+                                 *                visible); 0: cursor_anim ↑
+                                 *                (main menu sliding off for
+                                 *                a submenu). FUN_0049a3a3
+                                 *                ("bootstrap done") seeds 1. */
 } scene_title_anim_t;
+
+/* Initialize `out` to the state FUN_0049a3a3 leaves the engine in at
+ * end-of-bootstrap: every counter zero except `menu_folding_out = 1`. */
+void scene_title_anim_init_fresh(scene_title_anim_t *out);
 
 /* ─── menu init (FUN_0049a324 + FUN_0049a43d) ────────────────────────── */
 
@@ -112,6 +123,50 @@ void scene_title_menu_init(const scene_title_save_t *save,
  * save files loaded. Convenience wrapper around the above. */
 void scene_title_menu_init_fresh(scene_title_menu_t *out);
 
+/* ─── sim (FUN_0049a59e — bare path) ────────────────────────────────── */
+
+/* Pure-C title sim. Mirrors the bare path of FUN_0049a59e — the path
+ * reached at end of `FUN_0049a3a3` ("bootstrap done", scene state 0,
+ * no scene transitions pending). Inputs:
+ *
+ *   pressed: this-frame rising-edge button mask (the engine's
+ *            DAT_073dddd4). Bit 0x10 = A.
+ *   held:    held-with-auto-repeat mask (DAT_073dddd6). Bits 0x04 = UP,
+ *            0x08 = DOWN, used to step the menu cursor.
+ *
+ * What runs:
+ *   - `cursor_anim` is decremented when `menu_folding_out == 1`
+ *     (clamps at 0) and incremented when 0 (clamps at 10).
+ *   - When `cursor_anim == 0`: `frame_counter++`; while
+ *     `frame_counter < 0x1bc6` (7110), A starts the select pulse
+ *     (`select_phase = 1`), UP/DOWN wrap the cursor mod menu->count.
+ *   - When `select_phase > 0`: it increments to 0xf and snaps back
+ *     to 0 (engine dispatches a scene transition there, which we
+ *     stub — no scene yet exists to receive control).
+ *   - Tail: `pulse_phase++`.
+ *
+ * Side-effect callouts the engine makes here (sound effects 0x143/
+ * 0x146 via FUN_00499519, intro-movie attempt at frame == 0x1be4)
+ * are *not* invoked; they wait for the audio + video subsystems. */
+void scene_title_sim(scene_title_anim_t *anim,
+                     const scene_title_menu_t *menu,
+                     uint16_t pressed,
+                     uint16_t held);
+
+/* ─── module globals (engine memory mapping) ─────────────────────────── */
+
+/* Module-level state — the engine carries one of each at globals
+ * DAT_09643358.. (menu) and DAT_09643518.. (anim). Exposed so sim.c
+ * and the Win32 render dispatcher can both reach them without
+ * threading pointers through every function. */
+extern scene_title_menu_t  g_scene_title_menu;
+extern scene_title_anim_t  g_scene_title_anim;
+
+/* Sim entry that uses the module globals + the sim's button ring
+ * (g_sim_buttons[0].pressed / .held). The dispatcher in sim_step_a
+ * calls this when scene state == 0. */
+void scene_title_sim_default(void);
+
 #ifdef _WIN32
 
 #define COBJMACROS
@@ -119,6 +174,10 @@ void scene_title_menu_init_fresh(scene_title_menu_t *out);
 #include <d3d8.h>
 
 #include "sprite.h"
+
+/* Set to non-zero by `scene_title_load_assets` on full success — the
+ * render dispatcher gates `scene_title_render_default` on it. */
+extern int g_scene_title_assets_loaded;
 
 /* Load the 7 title-scene textures via sprite_load (FUN_0047193c).
  * Returns the number of slots that loaded successfully (== 7 on

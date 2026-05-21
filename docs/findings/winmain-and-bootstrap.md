@@ -741,8 +741,9 @@ Smoke boot remains clean (debug magenta unchanged).
 |----------------|--------------------|-----------------------------------------|
 | `FUN_0047be92` | game tick scheduler | ✅ ported — `src/tick.{c,h}` (callees still stubbed) |
 | `FUN_0047b73c` | input poll          | ✅ ported — `src/input.{c,h}` (poll added next to init) |
-| `FUN_004536cb` | sim step A          | ⭐⭐ — per-tick (1 of 2)                 |
+| `FUN_004536cb` | sim step A          | ⭐⭐ — bare-slice ported (`src/sim.{c,h}` button ring + state==0 dispatch). Non-title scenes still stub. |
 | `FUN_0049966a` | sim step B          | ⭐⭐ — per-tick (2 of 2)                 |
+| `FUN_0049a59e` | title sim           | ⭐⭐ — bare path ported (`src/scene_title.c::scene_title_sim`). A-press transitions still stub. |
 | `FUN_004547ab` | frame render        | ⭐⭐⭐ — replaces the magenta clear stub |
 | `FUN_00475270` | "init indexfile"   | ✅ ported — `src/tables*`               |
 | `FUN_00498ef4` | "init daoudio"     | ⭐⭐ — confirms audio backend (DSOUND?) |
