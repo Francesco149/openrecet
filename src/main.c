@@ -34,6 +34,7 @@
 #include "scene.h"
 #include "scene_ingame.h"
 #include "scene_title.h"
+#include "scene_walls.h"
 #include "sysassets.h"
 #include "sim.h"
 #include "music.h"
@@ -424,6 +425,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * engine's exact ordering — both fire before the first
      * scene_title render, which is all that matters for boot. */
     (void)sysassets_load_all(g_dev);
+
+    /* Register the B3E secondary-worker inner body (engine
+     * FUN_0047474e — wall asset loader). The body itself doesn't
+     * run until something calls worker_load_spawn_d85(param), which
+     * the scene-1 stage transition will do once it ports. Wiring
+     * the registration up front means later spawners pick it up
+     * automatically. */
+    scene_walls_init(g_dev);
 
     /* Build the menu items table (FUN_0049a43d). Fresh boot = no
      * saves; 4 items: New Game / Ranking / Options / Exit. Then seed

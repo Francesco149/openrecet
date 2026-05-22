@@ -118,7 +118,7 @@
  *           AAB | 0x452aab    | FUN_0046bf38()                (sc1 inventory/chrname/icon loaders)
  *           AE8 | 0x452ae8    | FUN_0047329b()                (buy phase: per-entry + chrname + shopmode)
  *           B13 | 0x452b13    | FUN_0047333b()                (buy phase alt, per DAT_0730b56c page)
- *           B3E | 0x452b3e    | FUN_0047474e(1)               (wall asset loader, param=1 inverts predicate)
+ *           B3E | 0x452b3e    | FUN_0047474e(param)           (wall asset loader — WIRED, see src/scene_walls.{c,h})
  *           B82 | 0x452b82    | FUN_004747dc(1)               (floor asset loader)
  *           BC6 | 0x452bc6    | FUN_0047486a(1)               (jutan/rug asset loader)
  *           C0A | 0x452c0a    | FUN_004748f8(1)               (table asset loader)
@@ -129,7 +129,9 @@
  *
  *        All 12 targets are scene-1 (INGAME) specific — they'll wire
  *        up via worker_load_set_sec_body() when the respective scene
- *        loaders port.
+ *        loaders port. As of 2026-05-22 only B3E (wall asset loader,
+ *        FUN_0047474e) is wired (src/scene_walls.{c,h}); the other 8
+ *        slots stay NULL until their scene loaders port.
  *     2. Falls into the shared secondary cleanup tail (CloseHandle,
  *        zero handle, zero 4995c, zero 49960).
  *     3. Writes its per-LAB_* "ready=1" state byte.
@@ -173,9 +175,10 @@
  *     +---------+--------------------------+-----------------------+
  *
  * NOT yet ported:
- *   - Inner-body callbacks for the 9 secondary thread procs (the
+ *   - Inner-body callbacks for 8 of the 9 secondary thread procs (the
  *     per-LAB_* scene work — register via `worker_load_set_sec_body`
- *     as scene loaders port).
+ *     as scene loaders port). B3E wired 2026-05-22; AAB/AE8/B13/B82/
+ *     BC6/C0A/C4E/C96 still NULL.
  *   - Pre-spawn for FUN_00452d07 (FUN_0046c01e — register via
  *     `worker_load_set_sec_d07_pre_spawn` when that ports).
  *

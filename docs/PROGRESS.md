@@ -3,6 +3,82 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — scene_walls: B3E secondary inner-body wired (wall asset loader)
+
+First of the 9 secondary worker-thread inner bodies to actually land —
+`src/scene_walls.{c,h}` ports `FUN_0047474e` (142 bytes) end-to-end and
+registers it as `WORKER_LOAD_SEC_BODY_B3E`. The body is functionally
+dormant: no caller invokes `worker_load_spawn_d85()` yet (waits on the
+scene-1 stage transition to port), but the registration plumbing is
+proven by the new unit tests + non-regression on existing scenarios.
+
+### Module
+
+`src/scene_walls.{c,h}` — 142-byte engine fn collapsed to a 15-iteration
+loop with a 1-bit predicate inverted by `param`:
+
+- `param == 0` → load ONLY the slot whose index matches the per-stage
+  wall selector (engine `*(int *)(&DAT_0451057c + DAT_0438b1e0 * 0x2dfc8)`).
+  "Load the destination room's wall."
+- `param != 0` → load every slot EXCEPT the selector. "Load all other
+  variations for snappier room changes."
+
+Selector is exposed as a single int32 (`g_scene_walls_selector`, BSS-zero
+default) until the stage-state record (0x2dfc8 stride) ports. Range
+check is implicit: out-of-range selector (e.g. boot-default 0 is in
+range; -1 or 15+ is out of range) means "no slot matches" — `param=0`
+loads nothing, `param=1` loads everything.
+
+### Filename table
+
+15 entries extracted from `vendor/unpacked/recettear.unpacked.exe` via
+`tools/analyze/pe.py str 0x005ca11c..0x005ca200`:
+
+```
+kabe_sikkui.bmp, kabe_ita.bmp, kabe_hosi.bmp, kabe_umi.bmp,
+kabe_moru.bmp, kabe_renga.bmp, kabe_giseki.bmp, kabe_8bit.bmp,
+kabe_jya.bmp, kabe_iseki.bmp, kabe_euria.bmp, kabe_namako.bmp,
+kabe_chuka.bmp, kabe_kouhaku.bmp, kabe_check.bmp
+```
+
+Engine sprintf format `xfile/wall/%s` (`.rdata` @ 0x5ca210) — `xfile/`
+prefix is shared with the engine's .x mesh tree even though wall assets
+are BMPs.
+
+### Test injection
+
+The pure-C `scene_walls_load_with(load_fn, userdata, param)` takes a
+test-replaceable load callback (just `(path, slot, userdata)` — no
+sprite_t in the signature, so the test build is portable without d3d8).
+On Win32, the body wraps `sprite_load` against `g_scene_walls[slot]`
+(15-entry sprite array). Pre-existing 699-test suite + 12 new tests
+all pass (711 total).
+
+### Wiring
+
+`main.c` calls `scene_walls_init(g_dev)` once at boot, right after
+`sysassets_load_all`, which caches the device and registers the body
+via `worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_B3E, …)`.
+
+### Banner update
+
+`src/worker_load.h` per-slot inner-body table now marks B3E as **WIRED
+— see src/scene_walls.{c,h}**. The other 8 slots stay NULL until their
+scene loaders (FUN_0046bf38, FUN_0047329b, FUN_0047333b, FUN_004747dc,
+FUN_0047486a, FUN_004748f8, FUN_00473a3e, FUN_0049de20+FUN_004735ad)
+port.
+
+### Validation
+
+- `make -C tests run` → 711 passed (+12 new scene_walls tests)
+- `make -C src` builds both `openrecet.exe` + `openrecet-debug.exe`
+- Boot smoke clean (4 s; full table-loader log unchanged)
+- `tools/scenario-test.py boot-idle` → 3/3 bit-exact
+- `tools/scenario-test.py title-z-press` → 14/14 bit-exact
+
+No visual change vs prior commit (B3E body is dormant — no spawner
+caller wired).
+
 ## 2026-05-22 — worker_load secondary inner-body docs + post-body fidelity fixes
 
 Decoded each of the 9 LAB_00452* secondary thread-proc inner bodies via

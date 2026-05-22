@@ -775,7 +775,20 @@ struct test_case {
     X(font_upload_expand_body_pixel_dim) \
     X(font_upload_expand_edge_only_pixel) \
     X(font_upload_expand_alpha_nibble_only) \
-    X(font_upload_expand_edge_nibble_only)
+    X(font_upload_expand_edge_nibble_only) \
+    \
+    X(scene_walls_count_is_fifteen) \
+    X(scene_walls_filename_table_first_and_last) \
+    X(scene_walls_filename_table_full_order) \
+    X(scene_walls_filename_out_of_range_is_null) \
+    X(scene_walls_format_string) \
+    X(scene_walls_load_param0_loads_only_selector) \
+    X(scene_walls_load_param1_loads_everything_except_selector) \
+    X(scene_walls_load_default_selector_zero) \
+    X(scene_walls_load_selector_out_of_range_param0_loads_nothing) \
+    X(scene_walls_load_selector_out_of_range_param1_loads_all) \
+    X(scene_walls_load_without_load_fn_returns_count_only) \
+    X(scene_walls_reset_zeroes_state)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
