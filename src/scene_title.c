@@ -514,6 +514,7 @@ void scene_title_unload_assets(void)
 
 /* ─── render (FUN_0049c644 — bare path only) ─────────────────────────── */
 
+#include "font_draw.h"
 #include "render_quad.h"
 
 /* Lookup table at PE 0x005d1cd4 — 9 dwords mapping menu-code →
@@ -703,6 +704,17 @@ void scene_title_render(IDirect3DDevice8 *dev,
 
     /* Final flush guard — restore additive→modulate already done. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+    /* Smoke test for draw_text: dump the engine version string in the
+     * lower-left so we can visually verify the font path lights up.
+     * Engine ships its own "RECETTEAR Ver 1.108" baked into the window
+     * title; this just proves the atlas + slot allocator + glyph
+     * upload + draw_text quad path renders.
+     *
+     * TODO: replace this with the engine's actual text consumers as
+     * scenes get ported. */
+    font_draw_text(dev, 8.0f, 460.0f, "openrecet 0.1",
+                   0xFFFFFFFFu, 1.0f);
 }
 
 #endif /* _WIN32 */

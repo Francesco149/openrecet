@@ -48,14 +48,21 @@
 #define FONT_SLOT_COUNT 200
 
 struct font_slot {
-    uint32_t slot_id;    /* 0..199, set at init                     */
-    uint8_t  cp_byte0;   /* first SJIS byte of cached codepoint     */
-    uint8_t  cp_byte1;   /* second SJIS byte, 0 if single-byte      */
+    uint32_t slot_id;          /* 0..199, set at init                     */
+    uint8_t  cp_byte0;         /* first SJIS byte of cached codepoint     */
+    uint8_t  cp_byte1;         /* second SJIS byte, 0 if single-byte      */
     uint16_t _pad6;
-    uint32_t in_use;     /* 1 = slot owns a glyph, 0 = free         */
-    uint32_t age;        /* sim_a ticks since last touch            */
-    uint32_t record_id;  /* index into fontidx.bin (filled later)   */
-    uint32_t _pad20;
+    uint32_t in_use;           /* 1 = slot owns a glyph, 0 = free         */
+    uint32_t age;              /* sim_a ticks since last touch            */
+    uint32_t record_id;        /* index into fontidx.bin                  */
+    uint32_t effective_width;  /* max column where both nibbles non-zero  *
+                                * — set by the upload step from the glyph *
+                                * pixels. Engine stores this at slot[i]-8 *
+                                * (overlapping into slot[i-1].pad20).     *
+                                * We give it its own field so consumers   *
+                                * don't have to navigate that pointer     *
+                                * trickery. Used by draw_text to compute  *
+                                * the per-character advance.              */
     uint32_t _pad24;
 };
 

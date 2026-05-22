@@ -123,15 +123,29 @@ int font_slot_upload(int slot_id, struct IDirect3DDevice8 *dev_)
         return 0;
     }
 
+    /* Track the engine's per-glyph "effective width" while writing:
+     * the rightmost column (1-indexed) where the pixel has BOTH a
+     * non-zero alpha nibble AND a non-zero edge nibble. Drives the
+     * per-character advance in draw_text. Engine code at
+     * FUN_0047cf22 lines 83-85. */
+    uint32_t effective_width = 0;
+
     uint8_t *dst_base = (uint8_t *)lr.pBits;
     for (int y = 0; y < tex_h; y++) {
         uint32_t *row = (uint32_t *)(dst_base + (size_t)y * lr.Pitch);
         const uint8_t *src_row = glyph + (size_t)y * tex_w;
         for (int x = 0; x < tex_w; x++) {
-            row[x] = font_upload_expand_pixel(src_row[x]);
+            uint8_t g = src_row[x];
+            row[x] = font_upload_expand_pixel(g);
+            if ((g & 0xf0) != 0 && (g & 0x0f) != 0) {
+                uint32_t col = (uint32_t)x + 1;
+                if (col > effective_width) effective_width = col;
+            }
         }
     }
     IDirect3DTexture8_UnlockRect(tex, 0);
+
+    g_font.slots[slot_id].effective_width = effective_width;
 
     g_font.textures[slot_id] = tex;
     return 1;
