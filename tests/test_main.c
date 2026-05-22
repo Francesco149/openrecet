@@ -585,7 +585,32 @@ struct test_case {
     X(font_init_is_idempotent) \
     X(font_age_tick_advances_in_use_only) \
     X(font_age_tick_all_free_is_noop) \
-    X(font_age_tick_does_not_touch_other_fields)
+    X(font_age_tick_does_not_touch_other_fields) \
+    \
+    X(font_atlas_record_size_is_40) \
+    X(font_atlas_record_field_offsets) \
+    X(font_atlas_special_table_size_is_576) \
+    X(font_atlas_special_table_first_entry_is_fullwidth_space) \
+    X(font_atlas_special_table_known_punctuation) \
+    X(font_atlas_special_table_no_internal_nul) \
+    X(font_atlas_padded_dim_zero_mod_4) \
+    X(font_atlas_padded_dim_one_mod_4) \
+    X(font_atlas_padded_dim_two_mod_4) \
+    X(font_atlas_padded_dim_three_mod_4) \
+    X(font_atlas_blit_zeroes_yield_zeroes) \
+    X(font_atlas_blit_alpha_to_high_nibble_marker_in_low) \
+    X(font_atlas_blit_clamps_alpha_at_15) \
+    X(font_atlas_blit_keeps_alpha_zero_pixels_at_zero) \
+    X(font_atlas_blit_skips_when_dst_too_small) \
+    X(font_atlas_dilate_no_glyph_no_change) \
+    X(font_atlas_dilate_glyph_body_unchanged) \
+    X(font_atlas_dilate_neighbor_gets_intensity_15_within_edgewi) \
+    X(font_atlas_dilate_neighbor_falloff_outside_edgewi) \
+    X(font_atlas_dilate_skip_low_alpha_propagation) \
+    X(font_atlas_dilate_does_not_overwrite_glyph_body) \
+    X(font_atlas_dilate_neighbor_keeps_brighter_existing_halo) \
+    X(font_atlas_pack_record_basic) \
+    X(font_atlas_pack_record_zero_box_zero_pad)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

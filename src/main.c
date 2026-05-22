@@ -35,6 +35,8 @@
 #include "audio.h"
 #include "audio_fade.h"
 #include "font.h"
+#include "font_atlas.h"
+#include "tables_config.h"        /* g_config for font_atlas regen gate */
 #include "tick.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
@@ -325,10 +327,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     tables_load_all();
 
     /* "init fontsys ok" — FUN_0047c228 — clear the 200-slot LRU cache
-     * + parallel texture-pointer table, seed default font height. The
-     * atlas loader/builder + draw_text land in subsequent commits;
-     * this is the engine's first font touch and matches the WinMain
-     * ordering (tables → fontsys → audio). */
+     * + parallel texture-pointer table, seed default font height. */
     font_init();
     fprintf(stderr, "font: cache initialized (%d slots)\n", FONT_SLOT_COUNT);
 
@@ -409,8 +408,47 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     fprintf(stderr, "audio: sliders seeded from recet.ini — bgm=%d se-a=%d\n",
             g_ini.mu, g_ini.se);
 
-    /* TODO "init fontsys ok"    — FUN_0047c228
-     * TODO "fontsystem ok"      — FUN_0047c3a5
+    /* FUN_0047c474 — GDI atlas builder. Writes fontdata.bin + fontidx.bin
+     * into ./font/ (a fresh path, not the vendor dir, so retail and
+     * openrecet don't fight over the same files). Trigger conditions:
+     *
+     *   1. Engine path: g_config.font_set was raised by `font:` in
+     *      config.idx → always regenerate (forces a refresh).
+     *   2. Drop-in path: the atlas files don't exist yet → regenerate
+     *      with a default face name. Lets a fresh user install just
+     *      run openrecet.exe and have text appear.
+     *
+     * edgewi / edgedel are sourced from config.idx (defaults 2.0 / 6.0
+     * from the vendor file). kanji_off comes from config.idx kanjioff:
+     * (vendor: 0 → render kanji).
+     *
+     * The atlas loader (FUN_0047c3a5 port — next commit) reads back
+     * what we wrote here. */
+    {
+        FILE *probe = fopen("font/fontdata.bin", "rb");
+        int need_regen = g_config.font_set || (probe == NULL);
+        if (probe) fclose(probe);
+
+        if (need_regen) {
+            const char *face = (g_config.font_set && g_config.font_name[0])
+                ? g_config.font_name
+                /* MS PGothic is on every Japanese-capable Windows
+                 * install — safe default that matches the engine's
+                 * intent (Shift-JIS rendering at 42px). */
+                : "\x82\x6c\x82\x72 \x82\x6f\x83\x53\x83\x56\x83\x62\x83\x4e";
+            float ew = (g_config.edgewi  > 0) ? (float)g_config.edgewi  : 2.0f;
+            float ed = (g_config.edgedel > 0) ? (float)g_config.edgedel : 6.0f;
+            if (!font_atlas_build_win32("font", face, ew, ed,
+                                        g_config.kanjioff)) {
+                fprintf(stderr,
+                    "font: atlas regen failed — text will be blank\n");
+            }
+        } else {
+            fprintf(stderr, "font: reusing cached atlas at ./font/\n");
+        }
+    }
+
+    /* TODO "fontsystem ok"      — FUN_0047c3a5 (atlas loader)
      * TODO "read systemtex ok"  — FUN_00472f5d
      * TODO "load savefile ok"   — FUN_004902fe
      * TODO "read titletex ok"   — FUN_0043609b
