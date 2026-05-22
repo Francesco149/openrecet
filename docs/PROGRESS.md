@@ -3,6 +3,90 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Post-fade scene transition + placeholder INGAME render
+
+Past-title-fade-out chip — first time openrecet shows anything other
+than the title screen. After NEW GAME, the screen now transitions
+through the black fade-OUT to a placeholder dark-navy clear with a
+debug label, rather than hanging on solid black forever.
+
+Three pieces:
+
+1. **`src/scene.{c,h}` — `scene_post_fade_init()`** — collapses the
+   engine's `DAT_0438b1c0 = 8; FUN_0049de18(); DAT_0438b1c0 = 1;`
+   sequence at FUN_0049a59e L64-77 into one call. Engine writes
+   LOADING then INGAME within the same sim tick so no observer ever
+   sees LOADING mid-flight; the same-tick INGAME write is the
+   observable endpoint. Also kicks `fade_phase_out_start(0, 0x11)`
+   (FUN_0045281c) at FUN_0049a59e L235 polarity, so the alpha quad
+   ramps phase-(-1) over the next 17 sim ticks, revealing the
+   destination scene. Save-bank reset + UI-scratch reset
+   (FUN_004060ff / 4682d0 / 452917 et al, ~150 lines of decomp)
+   intentionally deferred — none of their consumers are ported yet,
+   so writes would land on unread globals.
+
+2. **`src/scene_ingame.{c,h}` — placeholder INGAME renderer** — clears
+   to `0xff203050` (dark navy, intentionally distinct from the title
+   clear `0xff17f0ff`) plus two `font_draw_text` lines so the
+   scene-state transition is visually unambiguous. Replaces with the
+   real engine's per-stage palette clear + scene-1 render functions
+   (FUN_0045bbf9 / FUN_0040a765 / FUN_00417504 / FUN_0045404b /
+   FUN_0040c962 / FUN_004358cc / FUN_00453d9c) as they port one
+   subsystem at a time.
+
+3. **`src/scene_title.c` + `src/main.c` — wire-up** — scene_title_sim
+   calls scene_post_fade_init() when fade_is_done() returns 1
+   (replacing the prior bare `g_scene_state = LOADING` write).
+   render_dispatch in main.c picks the per-state clear color and
+   routes to scene_ingame_render when scene_state == INGAME. The
+   old "holding on black" log line is replaced with "menu item N →
+   INGAME (placeholder)".
+
+`tests/test_scene.c` adds 4 unit tests covering the transition
+endpoint, substate clear, and fade-phase flip. 582 tests total
+(was 578).
+
+`tests/scenarios/title-z-press/scenario.yaml` extended from 11
+captures (last at frame 95, max_frames=100) to 14 captures (last at
+frame 115, max_frames=120) covering the new fade-IN → placeholder
+arc:
+
+| frame | g_fade_counter | phase | alpha | scene_state | visual |
+|------:|---------------:|------:|------:|------------:|--------|
+| 90 | 1 | -1 | 255 (clamped) | INGAME | solid black (quad fully opaque) |
+| 92 | 3 | -1 | 238 | INGAME | placeholder showing through faintly |
+| 100 | 11 | -1 | 119 | INGAME | placeholder ~50% visible |
+| 108 | 0 | 0 | (no quad) | INGAME | clean placeholder visible |
+| 115 | 0 | 0 | (no quad) | INGAME | steady-state |
+
+openrecet golden re-blessed (14/14 bit-exact on re-run). Retail
+golden also re-blessed at the new frame indices, but cross-target
+divergence is by design: retail shows solid black with a faint
+"Now Loading…" overlay (FUN_00453147) at frames 92-115 because the
+worker thread is loading scene-1 assets; ours skips that thread and
+jumps straight to the placeholder. Captured at
+`runs/comparisons/title-z-press/sidebyside.png` for visual reference.
+
+All other scenarios (boot-idle / title-down-press / title-options)
+re-pass bit-exact.
+
+### Deferred — gated on this milestone
+
+- **Save bank init** (FUN_004901c2 + FUN_0049001c + the ~150-line save-
+  bank reset chain inside FUN_0049a59e L64-211) — needed before any
+  scene-1 sim/render reads from the 188232-byte bank. The audio
+  slider defaults at DAT_056e5774/_5778/_577c (9/5/9) are nominally
+  set here, but our audio_fade defaults of 9/9/9 + recet.ini override
+  cover the visible behaviour today.
+- **Now Loading… overlay** (FUN_00453147) — gated on DAT_06a49958 /
+  06a49960 BSS-zero flags, which only the loader worker thread sets.
+  Lands with the worker-thread port.
+- **Worker thread + asset loader** (FUN_0049de18's downstream — the
+  engine's CreateThread / LAB_0049de24 / FUN_0049dfd2 chain that
+  loads scene-1 BMPs/TGAs/.x meshes). Big chunk.
+- **Scene-1 sim + render** — actual gameplay. Mt. Everest scope. The
+  placeholder gets replaced one render fn at a time as these port.
+
 ## 2026-05-22 — Title fade-out lands (port of the RE writeup)
 
 Acted on the title-fade-out findings doc — three small commits:

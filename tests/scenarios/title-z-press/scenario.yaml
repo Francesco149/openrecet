@@ -8,9 +8,10 @@
 #
 # Default cursor on a fresh boot is item 0 (NEW GAME). The select
 # countdown takes 14 frames to reach 0xf, so the dispatch frame is
-# 30 + 14 = 44. main.c's pending_action handler logs "menu item 0
-# selected — destination scene not ported yet" and snaps select_phase
-# back to 0; subsequent frames show the BG scroll continuing.
+# 30 + 14 = 44. From there the title freezes for 30 frames, then the
+# black fade-OUT plays for 17 ticks, then scene_post_fade_init flips
+# scene_state to INGAME and kicks the phase-(-1) fade-IN which reveals
+# the placeholder ingame scene over the next ~17 sim ticks.
 #
 # Captures:
 #   0   — baseline title-screen identical to boot-idle
@@ -21,28 +22,37 @@
 #   73  — fade-quad init: title.fade_counter hits 0x1e → fade_phase1_start(0, 0x11);
 #         end-of-sim fade_tick advances g_fade_counter to 2 → alpha ≈ 34
 #   74  — alpha ≈ 51 (counter=3)
-#   80  — mid-fade, alpha ≈ 153 (counter=9)   — dmean vs frame 50 ≈ 124
-#   85  — late fade, alpha ≈ 239 (counter=14) — dmean ≈ 193
-#   90  — fully clamped, alpha = 255           — dmean ≈ 207 (solid black)
-#   95  — post-transition: g_scene_state = LOADING; fade quad keeps drawing
-#         (counter pinned at duration+1 = 18) so screen stays solid black
+#   80  — mid-fade, alpha ≈ 153 (counter=9)
+#   85  — late fade, alpha ≈ 239 (counter=14)
+#   90  — fade-OUT done: scene_title_sim calls scene_post_fade_init()
+#         → scene_state = INGAME, fade flips to phase=-1 with counter=0,
+#         end-of-sim fade_tick advances counter to 1 → alpha clamped 255
+#         (placeholder scene rendered but still hidden under opaque black quad)
+#   92  — counter=3, alpha = 238 — placeholder starts showing through
+#   100 — counter=11, alpha ≈ 119 — placeholder mostly visible
+#         (dark navy clear + white debug label)
+#   108 — counter=18 → fade_tick wraps to counter=0, phase=0; alpha quad
+#         not drawn; clean placeholder visible
+#   115 — placeholder steady-state with the fade fully retired
 #
 # Alpha formula (FUN_00453e8f, recovered from objdump — Ghidra mis-decomp drops
-# the `256.0 / (duration-2)` factor): alpha = (int)(256/15 * counter), clamped
-# to [0, 255]. See docs/findings/title-fade-out.md.
+# the `256.0 / (duration-2)` factor):
+#   phase  1: alpha = (int)(256/15 * counter), clamped to [0, 255]
+#   phase -1: alpha = 255 - (int)(256/15 * (counter - 2)), clamped to [0, 255]
+# See docs/findings/title-fade-out.md.
 #
 # Frame-count math: A-press at 30 → 14 ticks for select_phase 1..0xf → dispatch
 # at 44 → title.fade_counter (DAT_0964351c) ticks 1..30 across frames 44..73 →
 # scene_title_sim calls fade_phase1_start(0, 0x11) on frame 73 → g_fade_counter
-# (DAT_0438bf78) ticked by sim_step_a tail (FUN_004526ab); per-frame value lands
-# at counter=2 on frame 73 and rises by 1/frame until clamped at 18. fade_is_done
-# returns 1 when counter == 17 → g_scene_state transitions to LOADING (engine
-# would then dispatch destination scene init; not ported).
+# (DAT_0438bf78) ticked by sim_step_a tail (FUN_004526ab); fade_is_done returns
+# 1 when counter == 17 → scene_post_fade_init flips to INGAME +
+# fade_phase_out_start(0, 0x11). Phase -1 ramps the alpha back down over the
+# next ~17 sim ticks revealing the placeholder ingame scene.
 
-description: Z (button A) press at frame 30 → select countdown → dispatch at frame 44 → fade-out to in-game
+description: Z (button A) press at frame 30 → select countdown → dispatch at 44 → fade-OUT, then placeholder INGAME fades in
 rng_seed: 1
-max_frames: 100
-capture_frames: [0, 30, 35, 44, 50, 73, 74, 80, 85, 90, 95]
+max_frames: 120
+capture_frames: [0, 30, 35, 44, 50, 73, 74, 80, 85, 90, 92, 100, 108, 115]
 duration_ceiling_ms: 30000
 
 # Zoomed-text companion: crop the right half of the screen — the
