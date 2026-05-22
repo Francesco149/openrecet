@@ -614,7 +614,23 @@ struct test_case {
     X(font_atlas_load_missing_returns_zero) \
     X(font_atlas_load_basic_roundtrip) \
     X(font_atlas_load_rejects_bad_idx_size) \
-    X(font_atlas_free_is_idempotent)
+    X(font_atlas_free_is_idempotent) \
+    \
+    X(font_codepoint_ascii_is_byte_value) \
+    X(font_codepoint_high_byte_below_table_returns_none_if_missing) \
+    X(font_codepoint_special_table_first_entry) \
+    X(font_codepoint_special_table_known_punctuation) \
+    X(font_codepoint_sjis_double_byte_at_boundary) \
+    X(font_codepoint_sjis_double_byte_high_kanji) \
+    X(font_slot_alloc_first_call_gets_slot_zero) \
+    X(font_slot_alloc_match_returns_existing_resets_age) \
+    X(font_slot_alloc_distinct_codepoints_get_distinct_slots) \
+    X(font_slot_alloc_unknown_codepoint_returns_none) \
+    X(font_slot_alloc_double_byte_codepoint_stores_both_bytes) \
+    X(font_slot_alloc_match_double_byte_requires_both) \
+    X(font_slot_alloc_eviction_via_age_gate) \
+    X(font_slot_alloc_release_callback_fires_on_evict) \
+    X(font_slot_alloc_no_callback_still_nulls_texture)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
