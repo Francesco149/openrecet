@@ -592,6 +592,11 @@ struct test_case {
     X(fade_is_done_phase_out_never_returns_one) \
     X(fade_is_done_mode2_uses_0x1f_pin) \
     \
+    X(scene_set_title_writes_title_and_zero_substate) \
+    X(scene_post_fade_init_lands_in_ingame) \
+    X(scene_post_fade_init_clears_substate) \
+    X(scene_post_fade_init_starts_fade_in) \
+    \
     X(font_init_zeros_state) \
     X(font_init_is_idempotent) \
     X(font_age_tick_advances_in_use_only) \

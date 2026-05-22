@@ -63,4 +63,36 @@ enum {
  * asset/menu/anim init. Idempotent. */
 void scene_state_set_title(void);
 
+/* Engine FUN_0049a59e L63-77 — post-fade scene-transition out of the
+ * title. Called on the sim tick where `fade_is_done()` first returns 1
+ * (after NEW GAME / NEW_HAS_SAVE / CONT_HAS_SAVE were committed and the
+ * 17-tick black fade quad completed).
+ *
+ * Engine writes (in order):
+ *   _DAT_0438b1e4 = 0;
+ *   DAT_0438b1c0  = 8;            // LOADING
+ *   FUN_0049de18();                // DAT_09643684 = 0 (worker-thread gate)
+ *   DAT_0438b1c0  = 1;            // INGAME
+ *   DAT_0438b4e0  = 0;
+ *   _DAT_0438b7d4 = 0.0;
+ *   DAT_0438b4dc  = 0;
+ *   DAT_0438b928  = 0;
+ *   FUN_004060ff();                // UI/hit-test scratch reset (16 globals)
+ *   FUN_004682d0();                // DAT_0734b9a0 = 0
+ *   DAT_0438cc04  = 0;
+ *   FUN_00452917();                // close worker-thread handle if any
+ *   DAT_0438b1c8  = 0;
+ *
+ * The follow-up engine block (~150 lines) does save-bank init via the
+ * pre-baked starting inventory tables + per-adventurer stat seed.  That
+ * piece is deferred — none of its consumers are ported yet.  The
+ * minimal port that lands here drops the LOADING marker (engine never
+ * lingers there) and sets INGAME so the render dispatch flips to the
+ * placeholder ingame scene.
+ *
+ * The intermediate LOADING write is preserved as an observable for
+ * tests: scene_post_fade_init() returns the prior state so callers
+ * (today only scene_title_sim) can assert the order if needed. */
+void scene_post_fade_init(void);
+
 #endif /* OPENRECET_SCENE_H */
