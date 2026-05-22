@@ -98,8 +98,26 @@ typedef struct {
      *
      * Important: OPTIONS (code 2) is NOT routed through `pending_action`
      * — it's handled inline by the sim (state transition to
-     * submenu_state=2). Consumer code never sees OPTIONS here. */
+     * submenu_state=2). Neither are NEW_GAME/NEW_HAS_SAVE/CONT_HAS_SAVE
+     * (codes 0/4/5) — those start the `fade_counter` instead. Consumer
+     * code never sees those four codes here. */
     int32_t pending_action;     /* see SCENE_TITLE_ACTION_* below */
+
+    /* Fade-out countdown (DAT_0964351c) — set to 1 by the sim when the
+     * player selects NEW GAME / NEW_HAS_SAVE / CONT_HAS_SAVE. Increments
+     * once per frame; at 0x1e (30) the engine fires the scene fade-out
+     * particle animation (FUN_004526f5) and the counter keeps ticking
+     * until the destination scene init completes. While > 0, the sim
+     * gates out menu input + the cursor_anim ramp — only `pulse_phase`
+     * keeps advancing, so the BG scroll continues during the freeze.
+     *
+     * Today: the visual fade + destination init aren't ported, so
+     * main.c watches for `fade_counter >= 0x1e` and snaps back to a
+     * recoverable title state (logs "destination not ported" once per
+     * code). The counter is the canonical engine-faithful trigger
+     * point — consumers will switch to scene_state transitions as
+     * post-fade scenes land. */
+    uint32_t fade_counter;
 } scene_title_anim_t;
 
 /* Marker for "no action pending". -1 sits outside any valid menu code

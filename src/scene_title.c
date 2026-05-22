@@ -353,6 +353,21 @@ void scene_title_sim(scene_title_anim_t *anim,
      * begin on this same frame. */
     scene_title_settings_exit_handler(anim, menu);
 
+    /* Engine FUN_0049a59e L53-77: fade-out countdown. Once the player
+     * commits to NEW GAME / CONTINUE, `fade_counter` ticks every frame.
+     * Menu input and cursor_anim ramp are gated out — only pulse_phase
+     * continues (BG scroll keeps going). At 0x1e the engine fires the
+     * scene-transition particle animation (FUN_004526f5); the counter
+     * keeps ticking until the destination init completes
+     * (FUN_004528b3 returns 1). Neither the animation nor the
+     * destination init is ported; main.c watches for fade_counter >=
+     * 0x1e and snaps back for recovery. */
+    if (anim->fade_counter > 0) {
+        anim->fade_counter++;
+        anim->pulse_phase++;
+        return;
+    }
+
     /* FUN_0049a3a3 line 239-250: cursor_anim slides toward 0 when
      * `menu_folding_out` is set, toward 10 when clear. */
     if (anim->menu_folding_out) {
@@ -452,6 +467,17 @@ void scene_title_sim(scene_title_anim_t *anim,
                         anim->submenu_state    = 2;
                         anim->submenu_cursor   = 0;
                         anim->menu_folding_out = 0;   /* slide submenu in */
+                    } else if (code == SCENE_TITLE_MENU_NEW_GAME
+                            || code == SCENE_TITLE_MENU_NEW_HAS_SAVE
+                            || code == SCENE_TITLE_MENU_CONT_HAS_SAVE) {
+                        /* Engine FUN_0049a59e L529-532: start scene
+                         * fade-out. Counter ticks at the top of every
+                         * subsequent sim frame until the destination
+                         * init completes. The engine also sets
+                         * DAT_0438bed4 = 1 here (NEW-vs-CONTINUE flag
+                         * read by the post-fade init branch) — not
+                         * wired yet because no destination is ported. */
+                        anim->fade_counter = 1;
                     } else if (anim->pending_action == SCENE_TITLE_ACTION_NONE) {
                         anim->pending_action = code;
                     }

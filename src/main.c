@@ -644,6 +644,34 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         break;
                     }
                 }
+
+                /* NEW GAME / NEW_HAS_SAVE / CONT_HAS_SAVE route through
+                 * the fade-out counter instead of `pending_action`. The
+                 * engine spends 30 frames freezing the title before
+                 * firing the scene fade animation; the destination init
+                 * runs after that. Neither is ported. Detect the
+                 * counter reaching 0x1e, log once, and snap back so the
+                 * player can recover (clears fade_counter +
+                 * select_phase). The menu code is recovered from the
+                 * cursor position. */
+                if (g_scene_title_anim.fade_counter >= 0x1e) {
+                    int code = -1;
+                    if (g_scene_title_menu.count > 0
+                        && g_scene_title_anim.cursor_pos
+                           < (uint32_t)g_scene_title_menu.count) {
+                        code = g_scene_title_menu.items[
+                            g_scene_title_anim.cursor_pos];
+                    }
+                    if (code >= 0 && code < 9 && !title_action_logged[code]) {
+                        title_action_logged[code] = 1;
+                        fprintf(stderr,
+                            "title: menu item %d selected — "
+                            "destination scene not ported yet\n",
+                            code);
+                    }
+                    g_scene_title_anim.fade_counter = 0;
+                    g_scene_title_anim.select_phase = 0;
+                }
             }
         }
         if (!GetMessageA(&msg, NULL, 0, 0)) break;

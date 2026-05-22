@@ -179,11 +179,14 @@ int test_scene_title_sim_pending_action_default_is_none(void)
     return 0;
 }
 
-int test_scene_title_sim_pending_action_set_on_select_complete(void)
+int test_scene_title_sim_fade_counter_set_on_new_game(void)
 {
-    /* Pressing A on a fresh-boot menu cycles through select_phase 1..15;
-     * at 15, pending_action latches to menu->items[cursor_pos]. Fresh
-     * boot's default cursor is on NEW_GAME (item code 0). */
+    /* Pressing A on a fresh-boot menu cycles through select_phase 1..15.
+     * Fresh boot's default cursor is on NEW_GAME (item code 0). NEW
+     * GAME / NEW_HAS_SAVE / CONT_HAS_SAVE route through the engine's
+     * `fade_counter` (DAT_0964351c) instead of `pending_action` — at
+     * select_phase=0xf the counter latches to 1 and the title freezes
+     * for the engine's pre-fade countdown. */
     scene_title_anim_t a;
     scene_title_menu_t m;
     scene_title_anim_init_fresh(&a);
@@ -191,13 +194,15 @@ int test_scene_title_sim_pending_action_set_on_select_complete(void)
 
     scene_title_sim(&a, &m, INPUT_A, 0);          /* select_phase=1 */
     T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_ACTION_NONE);
+    T_ASSERT_EQ_U(a.fade_counter,   0u);
 
     /* 14 more frames to reach 0xf. */
     for (int i = 0; i < 14; i++) {
         scene_title_sim(&a, &m, 0, 0);
     }
     T_ASSERT_EQ_U(a.select_phase,   0xfu);
-    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_MENU_NEW_GAME);
+    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_ACTION_NONE);
+    T_ASSERT_EQ_U(a.fade_counter,   1u);
     return 0;
 }
 
@@ -226,29 +231,30 @@ int test_scene_title_sim_pending_action_exit_on_exit_item(void)
     return 0;
 }
 
-int test_scene_title_sim_pending_action_set_once_not_replaced(void)
+int test_scene_title_sim_fade_counter_advances_after_set(void)
 {
-    /* Once pending_action latches, subsequent frames don't overwrite
-     * it. Consumer is responsible for clearing. This matters because
-     * the engine doesn't naturally exit the dispatch — main.c clears
-     * it after handling. */
+    /* Once `fade_counter` latches, subsequent frames advance it one
+     * tick per frame. The cursor_anim ramp and menu input are gated
+     * out — only `pulse_phase` keeps ticking (BG scroll continues
+     * during the freeze). */
     scene_title_anim_t a;
     scene_title_menu_t m;
     scene_title_anim_init_fresh(&a);
     mk_menu(&m);
 
-    /* Run the full pulse. */
+    /* Run the full pulse to latch fade_counter. */
     scene_title_sim(&a, &m, INPUT_A, 0);
     for (int i = 0; i < 14; i++) {
         scene_title_sim(&a, &m, 0, 0);
     }
-    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_MENU_NEW_GAME);
+    T_ASSERT_EQ_U(a.fade_counter, 1u);
 
-    /* Cursor wouldn't move (input gated), but if the test forcibly
-     * shifts it the pending_action should NOT update. */
-    a.cursor_pos = 3;   /* simulate manual cursor change */
-    scene_title_sim(&a, &m, 0, 0);
-    T_ASSERT_EQ_I(a.pending_action, SCENE_TITLE_MENU_NEW_GAME);
+    /* 10 more frames — counter should be at 11, regardless of input. */
+    for (int i = 0; i < 10; i++) {
+        scene_title_sim(&a, &m, INPUT_DOWN, INPUT_DOWN);
+    }
+    T_ASSERT_EQ_U(a.fade_counter, 11u);
+    T_ASSERT_EQ_U(a.cursor_pos,    0u);   /* cursor frozen */
     return 0;
 }
 
