@@ -3,6 +3,121 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Asset-load worker thread (first half)
+
+Worker-thread infrastructure for the scene-transition asset loader
+lands. The engine spawns a one-shot worker on every cross-scene
+transition that dispatches a per-scene loader callback against
+`g_scene_state`; this chip ports the spawn + dispatcher + busy +
+close machinery, leaving the per-scene loader callbacks unregistered
+(every case is a no-op until each scene's loader ports).
+
+Single file pair: **`src/worker_load.{c,h}` + `tests/test_worker_load.c`**.
+
+### What landed
+
+- **`worker_load_spawn`** — ports FUN_00452cde (41 bytes @ 0x452cde).
+  Win32 build: raises busy + nowloading gates, then `CreateThread`
+  on the internal thread proc which reads `g_scene_state`, calls
+  `worker_load_dispatch_pure`, and cleans up. Non-Win32 unit-test
+  build: raises the gates only (no real thread) so unit tests can
+  observe the "busy + nowloading set" window without threading.
+
+- **`worker_load_dispatch_pure`** — ports the 17-entry jump table
+  at LAB_0045293d (~302 bytes @ 0x45293d). Engine table at 0x452a27
+  isn't decompiled as a function (Ghidra leaves the LAB targets as
+  raw bytes); decoded via `objdump` + a Python dword reader. Map:
+
+  | case | target(s)                          | ported? |
+  |-----:|------------------------------------|---------|
+  |  0   | FUN_004733d5 + FUN_0049a3a3 (title)| no (callback) |
+  |  1   | FUN_00474a9a + FUN_00436f97 (ingame)| no    |
+  |  2   | FUN_0047355d                       | no      |
+  |  3   | FUN_004736bd + FUN_0041edf1        | no      |
+  |  4   | (engine no-op, jump to cleanup)    | n/a     |
+  |  5   | FUN_0046c01e + FUN_0046bf38        | no      |
+  |  6   | FUN_00473769                       | no      |
+  |  7   | FUN_00473585                       | no      |
+  |  8   | FUN_0049de20 + FUN_004735ad        | no      |
+  |  9   | sub-dispatch on DAT_06a4997c       | no      |
+  | 10   | FUN_0047347d                       | no      |
+  | 11   | FUN_0045bdc2 + FUN_00473874        | no      |
+  | 12   | (engine no-op, jump to cleanup)    | n/a     |
+  | 13   | FUN_00473972                       | no      |
+  | 14   | FUN_00473991                       | no      |
+  | 15   | FUN_004739fb                       | no      |
+  | 16   | FUN_004739dc                       | no      |
+
+  Per-case wiring uses `worker_load_set_cb(N, fn)` registration so
+  worker_load stays decoupled from scene-specific modules. Cases
+  without a callback are no-ops — exactly matching the engine's
+  cleanup-only behaviour at cases 4 and 12, and what we want for the
+  14 other cases pending their loader ports.
+
+- **`worker_load_busy`** — ports FUN_00452911 (6 bytes @ 0x452911,
+  just `return DAT_06a49954`). Used by the engine at the top of
+  FUN_004547ab to early-exit the per-tick render dispatch while a
+  worker is still loading.
+
+- **`worker_load_close`** — ports FUN_00452917 (38 bytes @ 0x452917).
+  Closes the worker thread handle if any + zeros it. Idempotent.
+  Engine also clears the secondary worker's busy + gate flags here;
+  we don't have the secondary worker yet, so just the primary handle.
+
+- **`scene_post_fade_init` re-wired** — the LOADING→INGAME transition
+  now calls `worker_load_spawn()` instead of `nowloading_set_active(1)`
+  directly. Same observable: the nowloading gate stays raised after
+  the worker completes because the engine's per-tick "clear if worker
+  done" lives at the top of FUN_004547ab (not ported yet). The
+  `title-z-press` scenario re-passes 14/14 bit-exact across the
+  transition window.
+
+- **15 unit tests** covering: case count == 17, reset zeroes all
+  state, begin raises both gates, end clears busy but NOT nowloading,
+  callback round-trip + out-of-range guard + overwrite semantics,
+  dispatch invokes registered cb / no-ops the unregistered slots /
+  returns 0 for out-of-range scene_state, dispatch doesn't touch
+  busy, close idempotent, spawn (non-Win32) only raises gates, and
+  a full-cycle simulation of the thread proc body. **654 tests
+  total (was 639).**
+
+### Engine fidelity notes
+
+- The engine has a latent race: `CreateThread` can return + the
+  thread can start before the spawner assigns the handle to
+  `DAT_06a49950`, so the thread's self-close may stale-read. Match
+  preserves this; in practice real case-0..16 loaders take ms so the
+  race never bites.
+
+- The engine clears busy AFTER closing the handle (`andl $0x0` on
+  `0x6a49950` THEN on `0x6a49954`). Our thread proc mirrors the order.
+
+- Case 9's sub-dispatch on `DAT_06a4997c` (0/1/2/default) is treated
+  as a single callback slot — when the case-9 loader ports, its
+  callback will internally do the sub-dispatch. Same shape.
+
+### Deferred (the "second half" of the worker system)
+
+- **Six DAT_06a49960-gated spawners** (FUN_00452d07 / d3e / d85 / dc1
+  / dfd / e39) + their **7 thread routines** (LAB_00452aab / ae8 /
+  b13 / b3e / b82 / bc6 / c0a) — alternate worker family for
+  non-loading scene transitions (dungeon-rest, etc.). Same close/busy
+  machinery; lands when any of those transition consumers ports.
+
+- **Alternate DAT_06a49958 worker** at FUN_00452eed + LAB_00452a6b —
+  simpler routine (5 calls + cleanup) shared with the primary's
+  busy/nowloading flags.
+
+- **Per-tick gate clear** at top of FUN_004547ab — "if `worker_busy
+  == 0` then clear nowloading gate". Lives in the render dispatcher,
+  not the worker module. Until that ports, the gate stays raised
+  after the worker completes — same observable as the previous
+  `nowloading_set_active(1)` stub.
+
+- **Per-case loader callbacks** — every case slot is unregistered.
+  Each scene's loader port will end with a `worker_load_set_cb(N,
+  scene_X_load)` line wired from the appropriate module init.
+
 ## 2026-05-22 — Save-back (FUN_004905a8 simplified) + settings persistence
 
 Persistence loop closes: settings-menu slider changes now survive

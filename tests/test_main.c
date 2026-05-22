@@ -638,6 +638,22 @@ struct test_case {
     X(nowloading_tick_idle_does_not_advance_rotation) \
     X(nowloading_tick_returns_previous_gate_state) \
     \
+    X(worker_load_case_count_is_seventeen) \
+    X(worker_load_reset_zeroes_all_state) \
+    X(worker_load_begin_raises_busy_and_nowloading) \
+    X(worker_load_end_clears_busy_only) \
+    X(worker_load_set_cb_round_trip) \
+    X(worker_load_set_cb_out_of_range_silently_ignored) \
+    X(worker_load_set_cb_overwrites_existing) \
+    X(worker_load_dispatch_invokes_registered_cb) \
+    X(worker_load_dispatch_unregistered_slot_is_noop) \
+    X(worker_load_dispatch_out_of_range_returns_zero) \
+    X(worker_load_dispatch_each_slot_independent) \
+    X(worker_load_dispatch_does_not_touch_busy) \
+    X(worker_load_close_is_idempotent_without_handle) \
+    X(worker_load_spawn_non_win32_only_raises_gates) \
+    X(worker_load_engine_dispatch_full_cycle_simulation) \
+    \
     X(save_io_scan_fresh_arena_zero_flags) \
     X(save_io_scan_score_in_bank_set) \
     X(save_io_scan_adv_cleared_requires_score_and_flag) \

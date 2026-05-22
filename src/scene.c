@@ -3,6 +3,7 @@
 #include "fade.h"
 #include "nowloading.h"
 #include "save_bank.h"
+#include "worker_load.h"
 
 int32_t g_scene_state    = SCENE_STATE_TITLE;
 int32_t g_scene_substate = 0;
@@ -40,13 +41,25 @@ void scene_post_fade_init(void)
      * fully-opaque black quad forever. */
     fade_phase_out_start(0, 0x11);
 
-    /* Engine FUN_0049a59e L77: FUN_0049de18() — sets DAT_06a49958 = 1
-     * via the asset-worker-thread spawn. We don't have the worker yet,
-     * so fake the gate directly. The overlay then draws until the
-     * worker would have cleared the flag (currently never — stays on
-     * forever until a future port of the worker or a manual reset).
+    /* Engine FUN_0049a59e L298: FUN_00452cde() — spawn the asset-load
+     * worker thread, which (a) sets DAT_06a49954 = 1 (busy), (b) sets
+     * DAT_06a49958 = 1 (nowloading overlay gate), (c) creates a
+     * one-shot worker thread that dispatches LAB_0045293d against the
+     * current g_scene_state (= 1 / INGAME here).
      *
-     * Position note: the engine's worker-spawn happens BEFORE the
-     * INGAME state flip, but the gate is identical either way. */
-    nowloading_set_active(1);
+     * The case-1 INGAME loader callback isn't registered yet — its
+     * target functions (FUN_00474a9a + FUN_00436f97) are unported —
+     * so the worker enters, finds no callback for slot 1, and cleans
+     * up immediately. Same observable as the previous stub:
+     *
+     *   - busy briefly = 1 then 0 (Win32) / stays 1 until the test
+     *     harness calls worker_load_end (non-Win32);
+     *   - nowloading gate stays raised because the engine's per-tick
+     *     "clear the gate if busy==0" lives at the top of
+     *     FUN_004547ab, which we haven't ported yet.
+     *
+     * Position note: the engine's worker-spawn happens AFTER the
+     * INGAME state flip and AFTER fade_phase_out_start (both above);
+     * the worker reads g_scene_state to decide what to load. */
+    worker_load_spawn();
 }
