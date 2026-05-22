@@ -71,12 +71,19 @@ const ADDR = {
     var_d3d_device:      0x073dfcbc,  // IDirect3DDevice8 *
     var_input_mask:      0x073dddd0,  // u16 — per-frame buttons (player 0)
     var_frame_counter:   0x073dfcfc,  // u32 — title-scene BG-scroll tick.
-                                       // Stops advancing once the title scene
-                                       // dispatches into a sub-scene (settings,
-                                       // shop, dungeon, …). See engine-quirks
-                                       // §"Frame counter pauses on scene
-                                       // transition (Phase B)" for the full
-                                       // writeup + workaround options.
+                                       // NOT a global frame counter: stops
+                                       // advancing once the title scene
+                                       // dispatches into a sub-scene
+                                       // (settings, shop, dungeon, …). The
+                                       // agent maintains its own manual
+                                       // counter (g_manual_frame_counter,
+                                       // bumped on every Present onEnter)
+                                       // for scene-agnostic frame numbering.
+                                       // This address is kept here for
+                                       // state-forcing / diagnostics only.
+                                       // See engine-quirks §"Frame counter
+                                       // pauses on scene transition (Phase
+                                       // B)".
     var_lcg_seed:        0x006023a0,  // u32 — engine RNG state
     var_bgm_slider:      0x056e5778,  // u32 — BGM volume slider 0..9
     var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
@@ -137,6 +144,32 @@ let g_max_frames = 0;               // 0 = no cap; stop = die after that many si
 let g_boot_ms = 0;
 let g_start_real_ms = Date.now();
 
+// Manual frame counter. Engine-side DAT_073dfcfc is the title-scene
+// BG-scroll tick — it freezes the moment the title hands off to a
+// sub-scene (settings, shop, etc.), so it can't be used for any
+// scenario that crosses a scene boundary. Instead the agent bumps
+// `g_manual_frame_counter` once per Present (the only call site the
+// engine guarantees runs every rendered frame), and every event
+// emitted by the agent — frame captures, audio events, input_state,
+// input-injection trace lookup — uses this counter via frameNo().
+//
+// Semantics:
+//   - Counter starts at 0 before the first Present.
+//   - input_poll / sim / audio events that fire during the cycle
+//     leading to Present N read frameNo() == N (counter hasn't bumped
+//     yet — bump happens at the END of Present onEnter).
+//   - Present onEnter for the Nth Present captures frame=N, then
+//     bumps to N+1.
+//
+// This matches Phase A's per-sim counter semantics: frame 0 is the
+// first sim/render cycle, frame N is the (N+1)th. Goldens authored
+// against `DAT_073dfcfc` (pre-2026-05-22 retail goldens) will need
+// re-blessing if there are any pre-title Presents on the host — the
+// engine's BG-scroll tick starts at 0 when the title scene's sim
+// first runs, which may not be the very first Present in the
+// pipeline.
+let g_manual_frame_counter = 0;
+
 // Input injection. When g_input_force_active is true, the input_poll
 // onLeave hook overwrites DAT_073dddd0 (var_input_mask) with the
 // sticky-trace mask for the current engine frame, then re-emits the
@@ -163,7 +196,15 @@ function vtableSlot(thisPtr, idx) {
     return vtable.add(idx * Process.pointerSize).readPointer();
 }
 
+// Manual, scene-agnostic frame counter (bumped in Present onEnter).
 function frameNo() {
+    return g_manual_frame_counter;
+}
+
+// The engine's own counter at DAT_073dfcfc. Reflects the title scene's
+// BG-scroll tick; freezes on scene transition. Exposed for diagnostics
+// + state-forcing tests, but NOT used for capture / event timing.
+function engineFrameNo() {
     return rva(ADDR.var_frame_counter).readU32();
 }
 
@@ -313,9 +354,10 @@ function installPresentHook(devicePtr) {
 
     Interceptor.attach(presentAddr, {
         onEnter: function (args) {
-            // Capture BEFORE the buffer flips to the front. We read the
-            // engine's frame counter rather than counting Presents so the
-            // numbering matches the scenario.yaml capture_frames list.
+            // Capture BEFORE the buffer flips to the front. `fn` is the
+            // manual counter (g_manual_frame_counter), bumped at the end
+            // of this onEnter — see the comment on g_manual_frame_counter
+            // for why we don't trust engine-side DAT_073dfcfc here.
             const fn = frameNo();
             const want = g_capture_all || g_capture_pending.has(fn);
             if (want) {
@@ -329,6 +371,11 @@ function installPresentHook(devicePtr) {
             if (g_max_frames > 0 && fn >= g_max_frames) {
                 send({kind: 'max_frames_reached', frame: fn});
             }
+            // Bump AFTER the capture decision. Audio/input events that
+            // fired during the cycle leading to this Present have
+            // already observed frameNo() == fn (this is the desired
+            // alignment — see g_manual_frame_counter comment).
+            g_manual_frame_counter++;
         },
     });
 
@@ -567,6 +614,10 @@ rpc.exports = {
         g_input_trace_i      = 0;
         g_input_last_forced  = 0;
         g_input_force_active = !!config.force_input;
+
+        // Defensive reset — driver creates a fresh agent per spawn so
+        // this is a no-op in practice, but keeps init self-contained.
+        g_manual_frame_counter = 0;
 
         ensureBase();
         g_boot_ms = nowMs();

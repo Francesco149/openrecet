@@ -1645,28 +1645,34 @@ behavior the moment a scenario crossed a scene boundary.
 
 Practical impact today: scenarios that want to capture frames
 *after* a scene transition need a different frame source on Phase B.
-Workarounds, in order of effort:
 
-- Cap Phase B's `capture_frames:` to pre-transition values, leave
-  post-transition frames as Phase A-only goldens (what
-  `title-options` does now).
-- Wrap Present on the agent side with a manual counter that ticks
-  monotonically across scene changes. Cheap to add (the Present
-  hook already runs), translates scenario frame numbers against
-  scene-agnostic real frames. Loses any "same frame semantics as
-  Phase A" guarantee — Phase A's per-sim counter and a per-Present
-  counter only agree when speed=0 and there's no scene-pause —
-  but unblocks captures.
-- Hunt for a real global tick counter elsewhere (likely sitting
-  inside `FUN_0047be92` somewhere; the scheduler increments
-  `frame_count` at line 550 of the pseudocode in
-  `docs/findings/winmain-and-bootstrap.md` § "Game tick scheduler"
-  but that might be the same `DAT_073dfcfc` we already know about
-  — needs disassembly to confirm).
+**Resolved 2026-05-22** by adding `g_manual_frame_counter` to
+`tools/frida/openrecet-agent.js`. The counter starts at 0 and is
+bumped on every `Present` onEnter (after the capture-decision read,
+so audio/input events that fired during the cycle leading to Present
+N read `frame == N`). `frameNo()` now returns this manual counter
+instead of `DAT_073dfcfc`; the engine address is preserved in
+`ADDR.var_frame_counter` for diagnostics and state-forcing tests
+only.
 
-> 📍 `runs/scenarios/title-options-both-*/retail/agent.log`
-> (the post-transition capture timeout), `tools/frida_capture.py`
-> (the wall-clock budget that ends the run).
+Counter alignment vs Phase A's per-sim counter:
+
+- At `speed == 0` (always the case in current scenarios), the
+  scheduler dispatches input_poll + one sim + render + Present per
+  iteration, so manual `frame N` ≡ Phase A `sim-tick N`.
+- At `speed > 0` Phase A advances multiple sim ticks per render;
+  manual frame numbers would still count Presents, so a sparse trace
+  authored against sim-tick frame numbers needs the per-sim counter
+  on retail too. None of our scenarios run at speed > 0 yet, so
+  defer that to when it's needed.
+
+Goldens authored against the old engine counter may need re-blessing
+once on each scenario the first time the manual counter lands. For
+title-options this is the unlock that lets the retail golden cover
+frames 39 and 60 too.
+
+> 📍 `tools/frida/openrecet-agent.js`
+> (`g_manual_frame_counter`, `frameNo()`, the Present.onEnter bump).
 
 ---
 

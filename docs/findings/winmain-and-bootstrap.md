@@ -582,7 +582,7 @@ in `src/tick.c` for the record.
 | `DAT_073dfca4` | tick state machine: 0=normal, 1=skip, 2=just-resumed       |
 | `DAT_073dfca8` | "alt" state, written each frame from `state_seed`          |
 | `DAT_073dfcb0` | `state_seed`, source for the above (purpose TBD)           |
-| `DAT_073dfcfc` | global frame counter                                       |
+| `DAT_073dfcfc` | title-scene BG-scroll tick (NOT a global counter — see engine-quirks §"Frame counter pauses on scene transition") |
 | `DAT_073dddd0` | per-frame flag, cleared on each ticked frame (purpose TBD) |
 | `DAT_073dddfa` | per-frame flag, cleared on each ticked frame (purpose TBD) |
 
@@ -636,8 +636,11 @@ chained `if`s landed, and downstream readers (camera cursor at
 `tools/frida/openrecet-agent.js` attaches `Interceptor.attach` LEAVE
 to `FUN_0047b73c`. By that point the engine has already populated
 `DAT_073dddd0` from real DInput; the agent then *overwrites* the
-slot with the trace mask for the current `DAT_073dfcfc` (frame
-counter). Two reasons this works without further state-forcing:
+slot with the trace mask for the current `g_manual_frame_counter`
+(the agent's own per-Present counter — see engine-quirks §"Frame
+counter pauses on scene transition (Phase B)" for why we don't use
+the engine's `DAT_073dfcfc`). Two reasons this works without further
+state-forcing:
 
 - LEAVE fires after the function return but before the caller's
   next instruction (`Interceptor` rewrites the prologue trampoline),

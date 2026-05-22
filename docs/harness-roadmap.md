@@ -62,8 +62,13 @@ intentionally separated to keep each session focused:
   `IDirect3DDevice8::Present` (vtable[15], frame capture via sysmem
   bounce because retail's back-buffer is non-lockable),
   `FUN_00499200` BGM swap, `FUN_00499c63` SE play, `FUN_0047b73c`
-  input poll reading `DAT_073dddd0`. Frame numbers come from
-  `DAT_073dfcfc` (engine global frame counter) so capture filenames
+  input poll reading `DAT_073dddd0`. Frame numbers come from the
+  agent-side `g_manual_frame_counter`, bumped once per `Present`
+  onEnter — `DAT_073dfcfc` was originally used here but turned out
+  to be a title-scene-local BG-scroll tick that freezes the moment
+  the title scene dispatches into a sub-scene; the manual counter is
+  the scene-agnostic replacement (see engine-quirks §"Frame counter
+  pauses on scene transition" for diagnosis). Capture filenames
   match the scenario `capture_frames:` list.
   `boot-idle/golden-retail/` blessed; 3/3 bit-exact on re-run.
   Auto-start helper for `frida-server.exe` via elevated

@@ -26,16 +26,16 @@
 #   39  — settings panel fully slid in, cursor on row 0 (BGM)
 #   60  — still showing, no drift
 #
-# RETAIL CAVEAT: `DAT_073dfcfc` (the frame counter Phase B captures
-# against) appears to stop advancing once the title scene transitions
-# to the settings panel — Phase B regen never reaches frames 39/60
-# inside the 40 s wall-clock ceiling even though the engine *is*
-# rendering (user-observed: sat at the options screen for a while).
-# Phase A is unaffected because openrecet drives its own per-sim
-# counter. Tracked in docs/findings/engine-quirks.md
-# §"Frame counter pauses on scene transition (Phase B)". Phase B's
-# golden-retail/ accordingly only ships frames 0/10 until the counter
-# source is figured out; the openrecet golden ships all four.
+# Phase B frame numbering uses the agent's manual Present counter
+# (`g_manual_frame_counter` in tools/frida/openrecet-agent.js), not
+# the engine's `DAT_073dfcfc` which freezes once the title scene
+# hands off to the settings submenu. The manual counter is bumped on
+# every `Present` onEnter, so frame numbers align with Phase A's
+# per-sim counter when the engine runs at speed 0 (no multi-sim-
+# per-render). All four capture frames now reach successfully on
+# retail; golden-retail/ ships them all. See docs/findings/
+# engine-quirks.md §"Frame counter pauses on scene transition
+# (Phase B)" for the diagnosis and the fix commit.
 
 description: Title → DOWN×2 → A → settings panel slides in (FUN_0049c050 render)
 rng_seed: 1
