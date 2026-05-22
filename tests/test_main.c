@@ -486,6 +486,19 @@ struct test_case {
     X(save_bank_header_init_hook_fires_once_per_reset) \
     X(save_bank_header_slider_setters_clamp) \
     \
+    X(sysassets_compute_icon_sizes_empty_state) \
+    X(sysassets_compute_icon_sizes_single_item_minimum_64) \
+    X(sysassets_compute_icon_sizes_eight_items_still_64) \
+    X(sysassets_compute_icon_sizes_nine_items_grows_to_96) \
+    X(sysassets_compute_icon_sizes_seventeen_items_yields_96) \
+    X(sysassets_compute_icon_sizes_invalid_records_skipped) \
+    X(sysassets_compute_icon_sizes_multi_category) \
+    X(sysassets_compute_icon_sizes_out_of_range_category_skipped) \
+    X(sysassets_compute_icon_sizes_max_category_tracker_skips_revisits) \
+    X(sysassets_compute_icon_sizes_large_category_count) \
+    X(sysassets_chara_variant_count_matches_engine_stride) \
+    X(sysassets_item_category_slot_count_matches_table) \
+    \
     X(sim_button_ring_first_press_sets_pressed) \
     X(sim_button_ring_held_clears_pressed_next_frame) \
     X(sim_button_ring_repeat_pulses_after_settle) \

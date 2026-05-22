@@ -33,6 +33,7 @@
 #include "scene.h"
 #include "scene_ingame.h"
 #include "scene_title.h"
+#include "sysassets.h"
 #include "sim.h"
 #include "music.h"
 #include "audio.h"
@@ -397,6 +398,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * textures (bg2, 01, fuki, waku + pause/result/dungeon). Sets
      * g_scene_title_assets_loaded on full success. */
     (void)scene_title_load_assets(g_dev);
+
+    /* System overlay textures — FUN_00472f5d called from FUN_0047b29e
+     * L233 right after FUN_0049a3a3 / FUN_00434dbf / FUN_00491b3f.
+     * Loads the ~30 textures every UI overlay consumes (nowloading,
+     * save/data/item windows, character portraits, HP/MP gauges,
+     * status effects, per-category item icon pages). Wired here even
+     * though our scene_title_load_assets call doesn't match the
+     * engine's exact ordering — both fire before the first
+     * scene_title render, which is all that matters for boot. */
+    (void)sysassets_load_all(g_dev);
 
     /* Build the menu items table (FUN_0049a43d). Fresh boot = no
      * saves; 4 items: New Game / Ranking / Options / Exit. Then seed

@@ -3,6 +3,112 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — System asset loader (FUN_00472f5d)
+
+Next scene-1 chip: ports the engine's shared system-overlay texture
+loader.  Loads the ~30 textures every post-title UI overlay consumes
+— "Now Loading…" panel, save/data/item windows, character portraits,
+HP/MP gauges, status effect sprites, per-category item icon pages.
+None of these are drawn yet (the placeholder INGAME render is
+unchanged), but they're a hard dependency for the next round of port
+work: the Now Loading overlay (FUN_00453147 — uses nowloading.tga),
+the inventory windows, and the scene-1 HUD all consume one or more
+of these.
+
+Single commit: **`src/sysassets.{c,h}` + `tests/test_sysassets.c` +
+wire-up in `src/main.c`**.
+
+The module exposes:
+
+- `g_sysassets` — Win32-gated struct of named sprite slots, one per
+  engine `.data` global at &DAT_073aa188 / &DAT_073d9fe0 / &DAT_073cc770
+  / etc.  Three loop-loaded sub-arrays: `chara_variants[3]` for
+  `bmp/chr/chr%02d.bmp`, `item_icons[100]` for per-category icon pages,
+  and the 20 single-load entries.
+- `sysassets_load_all(IDirect3DDevice8 *dev)` — calls `sprite_load`
+  for each filename in source order, matching FUN_00472f5d L27..L61.
+  Per-category icon pages are loaded only for categories that have at
+  least one valid item record.
+- `sysassets_unload_all()` — releases every D3D texture.  Safe to
+  call on a zero-init struct; safe to call repeatedly.
+- `sysassets_compute_icon_sizes(items, out)` — pure helper that
+  reproduces the per-category page-height math from FUN_00472f5d
+  L73..L97: count valid records per category in pass 1, then return
+  `max(64, ceil(count_per_cat / 8) * 32)` for each category that has
+  any items.  Exposed for tests (the loader's only non-trivial math).
+
+Wired into `src/main.c` at boot, immediately after
+`scene_title_load_assets(g_dev)` — the same relative position
+FUN_00472f5d holds in FUN_0047b29e (the title-bootstrap chain) at L233.
+The post-device-reset reload site at FUN_004547ab L231 is deferred
+until D3D8 lost-device handling lands.
+
+New boot trace line confirming the load (against vendor data):
+
+```
+sysassets: 55 textures loaded (static=20 chara=3 item_categories=33/33)
+```
+
+20 static + 3 chara variants + 33 item categories (one per
+populated 100-id band in item.txt: 100s/200s/300s through 5400s).
+
+### Engine fidelity
+
+- Asset filenames extracted via `tools/analyze/pe.py str` at
+  0x005c84c0..0x005c8634; ordered identically to the engine's source
+  order so the load trace lines up with the original on-the-wire.
+- Texture (w, h) hints recovered directly from the engine's per-call
+  literals (e.g. nowloading.tga is `0x100 × 0x40`). `sprite_load`
+  doesn't yet resample — every audited asset ships at native
+  resolution — so the hints are stored on the sprite but unused
+  today.
+- Chara portrait sub-loop uses a BSS-zero size table at &DAT_0438cec8
+  on a fresh boot (the chara-select scene populates it later).
+  Port matches by passing (0, 0) to `sprite_load`, which loads at
+  native resolution.  When the chara-select port lands, the table
+  will be wired in and the hints become live.
+- Item-icon loop: the engine uses one register (iVar5) as both
+  "max category seen" tracker and the temporary that holds the
+  computed page height — overwriting itself mid-iteration.  Our port
+  uses two named variables for clarity (semantically identical:
+  records are sorted by item_id and hence by category, so the
+  max-tracker fires the load exactly once per category).
+- Two sub-blocks intentionally deferred (both BSS-zero on the boot
+  path, so dormant):
+  - 20-dword zeroing loop at &DAT_068dccc4 (stride 40 bytes) — only
+    needed on the device-reload path, where the consumer state needs
+    a reset.  First-touch-is-zero covers our boot.
+  - `DAT_0076b948`-gated array load (custom-image icon pages added
+    by FUN_00474f4f — vendor never populates them).
+
+12 new unit tests (608 total, was 596).  Tests cover the pure
+icon-size helper across empty/single/eight/nine/seventeen/large
+counts, invalid records, multi-category, out-of-range categories,
+max-category tracker semantics, and the two `_Static_assert`-like
+constant pins (chara variant count, item category slot count).
+Win32 surface (sprite_load → IDirect3DTexture8 upload) is not
+testable from the host driver — same constraint as
+test_scene_title.c.
+
+All 25 captures across 4 scenarios re-pass bit-exact.  No visible
+change today (assets load but aren't drawn yet).
+
+### Deferred (gated on this milestone or related)
+
+- **Now Loading… overlay** (FUN_00453147, 362 bytes) — uses
+  `g_sysassets.nowloading_tga` plus a rotated quad render
+  (FUN_004063c7, 394 bytes).  Gate flag (`DAT_06a49958`) is set by
+  the worker thread; without the worker, the overlay stays invisible.
+  Next chip candidate: port the overlay + fake the gate flag for the
+  17-tick post-fade window.
+- **Device-reset reload path** (FUN_004547ab L228..L231) — re-calls
+  FUN_00472f5d after `IDirect3DDevice8::TestCooperativeLevel` returns
+  `D3DERR_DEVICENOTRESET`.  Lands with general lost-device support.
+- **Chara size table producer** (chara-select scene) — populates
+  &DAT_0438cec8 so the chara portrait loads use real dimensions.
+- **Custom-image array** (`DAT_0076b948` path, FUN_00474f4f) — for
+  user/modder-added portraits; not present in vendor data.
+
 ## 2026-05-22 — Save-arena init (FUN_004901c2 + FUN_0049001c)
 
 Past-the-placeholder foundation chip: ports the engine's full save
