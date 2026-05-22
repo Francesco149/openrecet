@@ -90,62 +90,82 @@ float font_draw_text(struct IDirect3DDevice8 *dev_,
 
             void *tex = g_font.textures[slot];
             if (!skip && tex) {
-                /* Engine constants. The src rect is a fixed 40×40
-                 * window starting at (1,1) in texel space. UV math
-                 * inside render_quad_add divides by tex dimensions —
-                 * for smaller-than-41 textures the engine relies on
-                 * the default WRAP addressing; we preserve that. */
                 uint32_t record_id = (uint32_t)rec_id;
                 if (record_id < g_font_atlas.fontidx_count) {
                     struct font_atlas_record *rec =
                         &g_font_atlas.fontidx[record_id];
 
-                    /* Baseline-aligned glyph placement.
+                    /* Engine geometry (FUN_0047ca05 + the
+                     * elided-by-Ghidra FPU math at FUN_0047cbcb:0x47cd92):
                      *
-                     * Our upload installs the small (tex_w × tex_h)
-                     * glyph bitmap directly — no cell padding. The
-                     * engine pads each glyph into a (cell_inc_x ×
-                     * line_height) cell with the bitmap copied to
-                     * row `ascent - origin_y` and column `origin_x`,
-                     * then samples the whole cell via src=(1,1,41,41)
-                     * into a fixed (cell_inc_x, 42)*fVar2 dst quad.
-                     * That cell pad is what baseline-aligns lowercase
-                     * glyphs: their bitmap is shorter and lives in
-                     * the lower part of the cell, leaving empty rows
-                     * above so they render below cap height.
+                     *   slot[0] = floor(cell_inc_x * 36.0 / 42.0)
+                     *   dst     = (x, y, slot[0] * fVar2, 42 * fVar2)
+                     *   src     = (1, 1, 41, 41)
+                     *   tex_dim = (42, 42)            ← UV reference, not actual
                      *
-                     * Reproducing the cell pad would burn ~3x more
-                     * GPU memory per slot for no visual win, so we
-                     * fold the offset into the dst rect and keep the
-                     * small-texture upload:
-                     *   dst.x = base_x + origin_x  * fVar2
-                     *   dst.y = base_y + (ascent - origin_y) * fVar2
-                     *   dst.w =          tex_w     * fVar2
-                     *   dst.h =          tex_h     * fVar2
-                     * Same on-screen result; src maps the small
-                     * texture 1:1 so we also lose the engine's
-                     * WRAP-edge sampling artifact. */
-                    float dst[4] = {
-                        x + (float)rec->origin_x * fVar2,
-                        y + (float)(rec->ascent - rec->origin_y) * fVar2,
-                        (float)rec->tex_width  * fVar2,
-                        (float)rec->tex_height * fVar2,
-                    };
-                    float src[4] = { 0.0f, 0.0f,
-                                     (float)rec->tex_width,
-                                     (float)rec->tex_height };
+                     * The engine binds a (tex_width × line_height) cell
+                     * texture with the glyph bitmap placed at
+                     * (col 0, row ascent - origin_y) and zero-fill
+                     * everywhere else, then samples the central ~94%
+                     * (UV 1.5/42 → 41/42) into a dst rect whose height
+                     * is FIXED at 42*fVar2 regardless of glyph metrics.
+                     *
+                     * We upload only the glyph bitmap (tex_w × tex_h,
+                     * no cell padding) and emit a quad that matches the
+                     * engine's screen pixels: clip the glyph's cell-row
+                     * extent against the sample window and map the
+                     * visible portion via the cell→dst affine. */
+                    const int stored_cell_inc_x =
+                        (rec->cell_inc_x * 36) / 42;
+                    const float dw_engine =
+                        (float)stored_cell_inc_x * fVar2;
+                    const float dh_engine = 42.0f * fVar2;
 
-                    IDirect3DDevice8_SetTexture(
-                        dev, 0, (IDirect3DBaseTexture8 *)tex);
-                    render_quad_add(dst, src,
-                                    (uint32_t)rec->tex_width,
-                                    (uint32_t)rec->tex_height,
-                                    argb);
-                    /* Flush per-glyph: each glyph uses a different
-                     * texture, and render_quad batches assume a single
-                     * texture binding per flush. Engine's FUN_00405354
-                     * also fires per-glyph. */
-                    render_quad_flush(dev);
+                    const float tex_wf  = (float)rec->tex_width;
+                    const float line_hf = (float)rec->line_height;
+                    const float gy0     = (float)(rec->ascent - rec->origin_y);
+
+                    /* Engine sample window in cell-texel space. */
+                    const float sample_x_lo = 1.5f  / 42.0f * tex_wf;
+                    const float sample_x_hi = 41.0f / 42.0f * tex_wf;
+                    const float sample_y_lo = 1.5f  / 42.0f * line_hf;
+                    const float sample_y_hi = 41.0f / 42.0f * line_hf;
+                    const float sample_y_span = sample_y_hi - sample_y_lo;
+
+                    /* Glyph cell range = [0, tex_w] × [gy0, gy0+tex_h].
+                     * X always fits inside the sample window; Y can
+                     * clip top/bottom for ascenders/descenders. */
+                    float vy_lo = gy0;
+                    float vy_hi = gy0 + (float)rec->tex_height;
+                    if (vy_lo < sample_y_lo) vy_lo = sample_y_lo;
+                    if (vy_hi > sample_y_hi) vy_hi = sample_y_hi;
+
+                    if (vy_hi > vy_lo) {
+                        const float dst_y =
+                            y + (vy_lo - sample_y_lo) / sample_y_span * dh_engine;
+                        const float dst_h =
+                            (vy_hi - vy_lo) / sample_y_span * dh_engine;
+
+                        float dst[4] = { x, dst_y, dw_engine, dst_h };
+                        float src[4] = {
+                            sample_x_lo,
+                            vy_lo - gy0,
+                            sample_x_hi,
+                            vy_hi - gy0,
+                        };
+
+                        IDirect3DDevice8_SetTexture(
+                            dev, 0, (IDirect3DBaseTexture8 *)tex);
+                        render_quad_add(dst, src,
+                                        (uint32_t)rec->tex_width,
+                                        (uint32_t)rec->tex_height,
+                                        argb);
+                        /* Flush per-glyph: each glyph uses a different
+                         * texture, and render_quad batches assume a
+                         * single texture binding per flush. Engine's
+                         * FUN_00405354 also fires per-glyph. */
+                        render_quad_flush(dev);
+                    }
                 }
             }
 
