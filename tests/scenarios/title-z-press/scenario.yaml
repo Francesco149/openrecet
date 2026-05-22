@@ -25,13 +25,14 @@ max_frames: 60
 capture_frames: [0, 30, 35, 44, 50]
 duration_ceiling_ms: 30000
 
-# Zoomed-text companion: crop the speech bubble area (where the
-# cursor-position tooltip text renders via the font system) and
-# nearest-neighbor-scale by 4 for font-glyph comparison against
-# retail. See tools/scenario-test.py::render_sidebyside_zoom.
+# Zoomed-text companion: crop the right half of the screen — the
+# main-menu items (NEW GAME / RANKING / OPTIONS / EXIT) plus the
+# select-pulse highlight on NEW GAME at frame 44. Nearest-neighbor-
+# scaled by 4 for pixel-accurate comparison against retail. See
+# tools/scenario-test.py::render_sidebyside_zoom.
 zoom_text:
-  x: 100
+  x: 480
   y: 300
-  w: 230
-  h: 160
+  w: 360
+  h: 280
   factor: 4

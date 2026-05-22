@@ -173,6 +173,36 @@ def _ensure_trace_exists(scen: Scenario) -> Path:
     return p
 
 
+# Map `screen=N` in recet.ini to (width, height). Mirrors the engine's
+# branch at FUN_0047a474 (DAT_005cbc04/08 assignment) — keep this
+# table in sync with retail's source of truth if the engine changes.
+_SCREEN_SIZES: dict[int, tuple[int, int]] = {
+    0: (640, 480),
+    1: (800, 600),
+    2: (1024, 768),
+    3: (1280, 960),
+}
+
+
+def _openrecet_screen_dims() -> tuple[int, int]:
+    """Return (width, height) openrecet would render at, by reading
+    vendor/original/recet.ini's `screen=` value. Falls back to
+    1024×768 if the file is missing or the value is invalid — the
+    same fallback openrecet's recet_ini_set_defaults uses."""
+    ini = ASSET_CWD / "recet.ini"
+    if not ini.exists():
+        return (1024, 768)
+    try:
+        for raw in ini.read_text().splitlines():
+            line = raw.strip()
+            if line.startswith("screen") and "=" in line:
+                val = int(line.split("=", 1)[1].strip())
+                return _SCREEN_SIZES.get(val, (1024, 768))
+    except (OSError, ValueError):
+        pass
+    return (1024, 768)
+
+
 def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
                                 remote: str, *,
                                 turbo: bool = False,
@@ -189,6 +219,12 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
     described in tools/frida/openrecet-agent.js. Useful when running
     many scenarios back-to-back to regenerate side-by-side comparisons —
     each scenario finishes in a fraction of its real-time duration.
+
+    Resolution is pinned to whatever openrecet would render at (from
+    vendor/original/recet.ini's `screen=` value, default 1024×768) via
+    the agent's force_resolution hook. Without this, retail's empty
+    vendor/unpacked/recet.ini sends it to the default 640×480 and the
+    side-by-side / zoom-text companions can't line up.
     """
     import frida_capture  # late import: only needed for --target retail
     trace_path = _ensure_trace_exists(scen)
@@ -200,6 +236,7 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
         # forcing DAT_073dfca0 = 1.
         hide_window=True,
         turbo=turbo, silent_audio=silent_audio,
+        force_resolution=_openrecet_screen_dims(),
     )
 
 
@@ -377,7 +414,15 @@ def render_sidebyside_zoom(left_frames: Path, right_frames: Path,
         labels.append(f"{right_label} · {n}{suffix}" if rp
                       else f"{right_label} · (missing){suffix}")
 
-    sheet = csm.grid(tiles, labels, cols=2)
+    # The zoom tiles are large (1000+ px per side typical); a default
+    # 18-px label strip with ~10-px bitmap font is unreadable against
+    # them. Scale both proportionally to the tile width so the filename
+    # / coord suffix stays legible at any zoom level.
+    label_font = max(14, out_w // 60)   # ~14 px floor; 1440-wide tile → 24 px
+    label_h    = label_font + 12        # padding above + descender slack
+
+    sheet = csm.grid(tiles, labels, cols=2,
+                     label_h=label_h, font_size=label_font)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(out_path, optimize=True)
     return out_path

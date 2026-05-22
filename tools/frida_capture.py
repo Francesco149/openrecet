@@ -208,6 +208,15 @@ class CaptureConfig:
     # normally — PlaySegmentEx, fade animations, segment-state queueing
     # all happen — only the master attenuation is pinned to silence.
     silent_audio:     bool = False
+    # Force back-buffer resolution. When set to (w, h), the agent
+    # hooks the engine's recet.ini parse exit and overwrites the two
+    # screen-size globals (DAT_005cbc04/08), so retail captures at the
+    # requested dimensions even when its vendor/unpacked/recet.ini is
+    # empty / has a stale `screen=` value. Default None = honor
+    # whatever the engine's recet.ini lookup picks. scenario-test.py's
+    # retail path defaults this to openrecet's resolution so the
+    # side-by-sides line up by construction.
+    force_resolution: tuple[int, int] | None = None
 
 
 @dataclass
@@ -381,7 +390,7 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                     f"{cfg.input_trace_path} (force_input={cfg.force_input})\n")
 
     t0 = time.monotonic()
-    script.exports_sync.init({
+    init_cfg: dict[str, Any] = {
         "capture_frames": list(cfg.capture_frames),
         "max_frames":     cfg.max_frames,
         "input_trace":    trace_entries,
@@ -390,7 +399,11 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         "turbo":          bool(cfg.turbo),
         "turbo_step_ms":  int(cfg.turbo_step_ms),
         "silent_audio":   bool(cfg.silent_audio),
-    })
+    }
+    if cfg.force_resolution is not None:
+        init_cfg["force_resolution"] = [int(cfg.force_resolution[0]),
+                                        int(cfg.force_resolution[1])]
+    script.exports_sync.init(init_cfg)
     device.resume(pid)
 
     # ── wait for max_frames signal or wall-clock ceiling ──
@@ -445,7 +458,8 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 hide_window: bool = False,
                 turbo: bool = False,
                 turbo_step_ms: int = 17,
-                silent_audio: bool = False) -> dict:
+                silent_audio: bool = False,
+                force_resolution: tuple[int, int] | None = None) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
     Returns the meta dict that scenario-test.py writes to run.json.
@@ -470,6 +484,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         hide_window=hide_window,
         turbo=turbo, turbo_step_ms=turbo_step_ms,
         silent_audio=silent_audio,
+        force_resolution=force_resolution,
     )
     result = _run_capture_impl(cfg, run_dir)
     meta = {
@@ -536,7 +551,22 @@ def main(argv: list[str] | None = None) -> int:
                          "PlaySegmentEx / fade animations / segment state "
                          "all run normally — only DirectMusic's master "
                          "attenuation is forced to silence.")
+    ap.add_argument("--force-resolution", default=None,
+                    metavar="WxH",
+                    help="hook the engine's recet.ini parse exit and "
+                         "overwrite DAT_005cbc04/08 (screen width/height) "
+                         "so retail captures at the requested dims even "
+                         "when its vendor/unpacked/recet.ini is empty or "
+                         "stale. Example: --force-resolution 1024x768")
     args = ap.parse_args(argv)
+    fr_tuple: tuple[int, int] | None = None
+    if args.force_resolution:
+        try:
+            w_s, h_s = args.force_resolution.lower().split("x")
+            fr_tuple = (int(w_s), int(h_s))
+        except (ValueError, AttributeError):
+            ap.error(f"--force-resolution: expected WxH, got "
+                     f"{args.force_resolution!r}")
 
     capture_frames = ([int(x) for x in args.capture_frames.split(",") if x]
                       if args.capture_frames else [])
@@ -553,6 +583,7 @@ def main(argv: list[str] | None = None) -> int:
         hide_window=args.hide_window,
         turbo=args.turbo, turbo_step_ms=args.turbo_step_ms,
         silent_audio=args.silent_audio,
+        force_resolution=fr_tuple,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

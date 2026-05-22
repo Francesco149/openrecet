@@ -75,6 +75,18 @@ const ADDR = {
     // mode.
     fn_audio_init:       0x00498ef4,  // FUN_00498ef4 — init daoudio
 
+    // recet.ini parser + back-buffer dimension globals. The parser maps
+    // `screen=0/1/2/3` → 640×480 / 800×600 / 1024×768 / 1280×960 and
+    // writes the result here; downstream window-creation + D3D init
+    // reads these for the present-params back-buffer dims. The
+    // resolution-injection mode hooks the parser's onLeave and
+    // overwrites both globals so retail captures land at the same
+    // dimensions openrecet uses (1024×768 by default), instead of
+    // whatever stale `screen=` value is in vendor/unpacked/recet.ini.
+    fn_recet_ini_parse:   0x0047a474,  // FUN_0047a474
+    var_screen_width:     0x005cbc04,  // u32 — backbuffer width
+    var_screen_height:    0x005cbc08,  // u32 — backbuffer height
+
     // font system globals (see docs/findings/winmain-and-bootstrap.md
     // §"Font system" for the full pipeline).
     fn_font_init:        0x0047c228,  // "init fontsys ok" boundary
@@ -251,6 +263,18 @@ let g_turbo_clock_cb = null;
 // has to exist before we can read its vtable.
 let g_silent_audio_enabled = false;
 let g_silent_audio_hooked  = false;
+
+// Resolution injection. When enabled, the engine's recet.ini parser
+// (FUN_0047a474) is hooked at onLeave to overwrite DAT_005cbc04
+// (width) + DAT_005cbc08 (height) with the requested dimensions
+// before the window-creation + D3D-init paths read them. Lets us
+// pin retail captures at 1024×768 even when its
+// vendor/unpacked/recet.ini is empty / has a stale `screen=` value.
+// Without this, retail falls back to the engine's default 640×480
+// while openrecet runs at the 1024×768 from vendor/original/recet.ini,
+// and the captures don't line up for side-by-side diffs.
+let g_force_resolution_w = 0;
+let g_force_resolution_h = 0;
 
 // ─── helpers ────────────────────────────────────────────────────────────
 
@@ -636,6 +660,26 @@ function installSilentAudioFromPath(audiopathPtr) {
     log('silent-audio: SetVolume vtable hook live (BGM + SE share the same vtable)');
 }
 
+// ─── resolution injection ───────────────────────────────────────────────
+
+function installForceResolutionHook(w, h) {
+    const widthPtr  = rva(ADDR.var_screen_width);
+    const heightPtr = rva(ADDR.var_screen_height);
+    Interceptor.attach(rva(ADDR.fn_recet_ini_parse), {
+        onLeave: function (retval) {
+            try {
+                widthPtr.writeU32(w >>> 0);
+                heightPtr.writeU32(h >>> 0);
+                send({kind: 'log',
+                      msg: 'force_resolution: DAT_005cbc04/08 = ' + w + '×' + h});
+            } catch (e) {
+                err('force_resolution.onLeave', e.message);
+            }
+        },
+    });
+    log('force_resolution: armed on FUN_0047a474 exit (' + w + '×' + h + ')');
+}
+
 function installSilentAudioHook() {
     // Install at the exit of FUN_00498ef4 (audio_init). At that point
     // CreateStandardAudioPath has populated DAT_09643108, so we can
@@ -834,6 +878,16 @@ rpc.exports = {
         g_silent_audio_enabled = !!config.silent_audio;
         g_silent_audio_hooked  = false;
 
+        // force_resolution: [w, h] or null. When set, hook recet.ini
+        // parse exit and overwrite the engine's screen-size globals.
+        g_force_resolution_w = 0;
+        g_force_resolution_h = 0;
+        if (Array.isArray(config.force_resolution) &&
+            config.force_resolution.length === 2) {
+            g_force_resolution_w = config.force_resolution[0] | 0;
+            g_force_resolution_h = config.force_resolution[1] | 0;
+        }
+
         ensureBase();
         g_boot_ms = nowMs();
         g_start_real_ms = Date.now();
@@ -873,6 +927,12 @@ rpc.exports = {
             }
             if (g_silent_audio_enabled) {
                 installSilentAudioHook();
+            }
+            // Resolution injection — must install pre-resume so we
+            // catch the recet.ini parse onLeave before window creation.
+            if (g_force_resolution_w > 0 && g_force_resolution_h > 0) {
+                installForceResolutionHook(g_force_resolution_w,
+                                           g_force_resolution_h);
             }
         }
     },

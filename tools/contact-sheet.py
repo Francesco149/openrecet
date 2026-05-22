@@ -34,14 +34,27 @@ def list_images(d: Path) -> list[Path]:
     return sorted(p for p in d.iterdir() if p.suffix.lower() in exts)
 
 
-def label_strip(text: str, width: int, height: int = 18) -> Image.Image:
+def label_strip(text: str, width: int, height: int = 18,
+                font_size: int | None = None) -> Image.Image:
+    """Strip with the label text. `height` is the strip's pixel height;
+    `font_size` (Pillow 10+) controls the rendered text size — pass it
+    when the strip is taller than the default 18 so the text scales
+    along with the strip instead of staying tiny. None = native default
+    (~10px bitmap font), which matches the legacy small-strip look."""
     img = Image.new("RGB", (width, height), (24, 24, 28))
     draw = ImageDraw.Draw(img)
+    font = None
     try:
-        font = ImageFont.load_default()
+        if font_size:
+            font = ImageFont.load_default(size=font_size)
+        else:
+            font = ImageFont.load_default()
     except Exception:
         font = None
-    draw.text((4, 2), text, fill=(220, 220, 220), font=font)
+    # Top padding scales with font: 2px for the default 10px bitmap,
+    # roughly font_size/8 for the resized vector font.
+    pad_y = 2 if not font_size else max(2, font_size // 8)
+    draw.text((4, pad_y), text, fill=(220, 220, 220), font=font)
     return img
 
 
@@ -59,19 +72,23 @@ def crop_full(path: Path, rect: tuple[int, int, int, int]) -> Image.Image:
     return img.crop((l, t, l + w, t + h))
 
 
-def grid(tiles: list[Image.Image], labels: list[str], cols: int) -> Image.Image:
+def grid(tiles: list[Image.Image], labels: list[str], cols: int,
+         label_h: int = 18, font_size: int | None = None) -> Image.Image:
+    """Compose tiles into a `cols`-wide grid with a per-tile label
+    strip on top. `label_h` (pixels) sizes the strip; `font_size`
+    sizes the rendered label text via PIL.ImageFont.load_default(size).
+    Defaults preserve the small-strip look for legacy callers."""
     if not tiles:
         raise SystemExit("no tiles to compose")
     tw, th = tiles[0].size
     rows = (len(tiles) + cols - 1) // cols
-    label_h = 18
     sheet = Image.new(
         "RGB", (cols * tw, rows * (th + label_h)), (12, 12, 14)
     )
     for i, (tile, lbl) in enumerate(zip(tiles, labels)):
         r, c = divmod(i, cols)
         x, y = c * tw, r * (th + label_h)
-        sheet.paste(label_strip(lbl, tw, label_h), (x, y))
+        sheet.paste(label_strip(lbl, tw, label_h, font_size=font_size), (x, y))
         sheet.paste(tile, (x, y + label_h))
     return sheet
 
