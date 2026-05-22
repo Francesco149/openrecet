@@ -16,19 +16,28 @@
 #   0   — baseline title-screen identical to boot-idle
 #   30  — A just pressed, select_phase=1
 #   35  — mid-countdown, cursor brightness fading
-#   44  — dispatch frame; NEW_GAME selected → fade_counter starts at 1
-#   50  — mid-freeze (fade_counter ≈ 7); identical to dispatch frame, title frozen
-#   73  — last freeze frame before fade init (fade_counter == 30 enters sim)
-#   74  — first visible fade frame: FUN_004526f5(0,17) fired, alpha = 1
-#   80  — fade alpha ≈ 7  (mid-fade — should show subtle white tint in retail)
-#   85  — fade alpha ≈ 12
-#   90  — last fade frame (alpha ≈ 17, max)
-#   95  — post-transition: retail shows in-game scene; ours shows snap-back title
+#   44  — dispatch frame; NEW_GAME selected → title.fade_counter starts at 1
+#   50  — mid-freeze (title.fade_counter ≈ 7); identical to dispatch, title frozen
+#   73  — fade-quad init: title.fade_counter hits 0x1e → fade_phase1_start(0, 0x11);
+#         end-of-sim fade_tick advances g_fade_counter to 2 → alpha ≈ 34
+#   74  — alpha ≈ 51 (counter=3)
+#   80  — mid-fade, alpha ≈ 153 (counter=9)   — dmean vs frame 50 ≈ 124
+#   85  — late fade, alpha ≈ 239 (counter=14) — dmean ≈ 193
+#   90  — fully clamped, alpha = 255           — dmean ≈ 207 (solid black)
+#   95  — post-transition: g_scene_state = LOADING; fade quad keeps drawing
+#         (counter pinned at duration+1 = 18) so screen stays solid black
+#
+# Alpha formula (FUN_00453e8f, recovered from objdump — Ghidra mis-decomp drops
+# the `256.0 / (duration-2)` factor): alpha = (int)(256/15 * counter), clamped
+# to [0, 255]. See docs/findings/title-fade-out.md.
 #
 # Frame-count math: A-press at 30 → 14 ticks for select_phase 1..0xf → dispatch
-# at 44 → fade_counter (DAT_0964351c) ticks 1..30 across frames 44..73 → engine
-# calls FUN_004526f5(0, 0x11) on frame 73 → DAT_0438bf78 ticks 1..17 across
-# frames 74..90 → FUN_004528b3 returns 1 → scene state transitions on frame 91.
+# at 44 → title.fade_counter (DAT_0964351c) ticks 1..30 across frames 44..73 →
+# scene_title_sim calls fade_phase1_start(0, 0x11) on frame 73 → g_fade_counter
+# (DAT_0438bf78) ticked by sim_step_a tail (FUN_004526ab); per-frame value lands
+# at counter=2 on frame 73 and rises by 1/frame until clamped at 18. fade_is_done
+# returns 1 when counter == 17 → g_scene_state transitions to LOADING (engine
+# would then dispatch destination scene init; not ported).
 
 description: Z (button A) press at frame 30 → select countdown → dispatch at frame 44 → fade-out to in-game
 rng_seed: 1

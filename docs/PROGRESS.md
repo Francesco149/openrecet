@@ -3,6 +3,66 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Title fade-out lands (port of the RE writeup)
+
+Acted on the title-fade-out findings doc — three small commits:
+
+1. **`src/fade.{c,h}` + `tests/test_fade.c`** — pure-C counter/phase
+   machinery. Mirrors FUN_004526f5 (phase-1 init), FUN_0045281c
+   (phase-(-1) init), FUN_004526ab (per-tick advance with the
+   `duration+1` clamp on phase 1 and the reset-at-`>duration` on
+   phase -1), FUN_004528b3 (done-query — `counter == duration`,
+   special-cased to `counter == 0x1f` for mode 2). The 100-particle
+   pre-roll inside FUN_004526f5 is omitted — vestigial, no consumer
+   reads `DAT_06a48d6c` / `DAT_06a4921c`. 10 new tests (total 578).
+2. **Wire-up**: `sim_step_a` tail calls `fade_tick()` (mirrors
+   FUN_004536cb LAB_00453cfb line 318). `scene_title_sim`'s
+   `fade_counter == 30` site calls `fade_phase1_start(0, 0x11)` —
+   replacing the prior no-op increment — and when
+   `fade_is_done()` returns 1, transitions `g_scene_state` to
+   `SCENE_STATE_LOADING`. Render dispatch in `main.c` calls
+   `fade_render(g_dev)` after `scene_title_render`. `fade_render`
+   lazy-loads `bmp/system.bmp` (the 128×128 UI sheet with the (9,1)-
+   (15,7) black patch + (1,1)-(7,7) white patch) on first frame and
+   emits a 640×480 alpha-blended quad via the existing
+   `render_quad_add` path. Alpha formula is the recovered
+   `(int)(256/(duration-2) * counter)` clamped to [0,255] — NOT the
+   `alpha = counter` that Ghidra produced.
+3. **Snap-back removed**: previously main.c caught
+   `title.fade_counter >= 0x1e` and reset both fade counter and
+   select_phase so the title would reappear. Replaced with a
+   one-time log when `g_scene_state` transitions to LOADING; the
+   fade quad keeps drawing (counter pinned at `duration+1` = 18,
+   alpha clamped to 255), so the screen stays solid black until
+   --max-duration-ms or user-close terminates the process. This is
+   the engine's behaviour during the gap between fade complete and
+   destination scene init (the worker-thread loader hasn't run yet).
+
+Visual verification against retail (title-z-press scenario, mean-RGB
+delta vs frame 50 reference):
+
+| frame | predicted alpha | ours dmean | retail dmean |
+|-------|-----------------|------------|--------------|
+| 73    | 34              | 28         | 28           |
+| 80    | 153             | 124        | 124          |
+| 85    | 239             | 193        | 193          |
+| 90    | 255 (clamped)   | 207        | 205          |
+
+Side-by-side comparison at
+`runs/comparisons/title-z-press/sidebyside.png` — visually
+indistinguishable in the fade range; retail-only per-frame px
+differences are ~440-491 / 786432 (~0.06%) from non-pinned
+particle/pulse jitter in the un-instrumented retail capture path.
+
+Scenario.yaml comments updated to reflect the actual alpha schedule
+(prior comments referenced 1/7/12/17, which were derived from the
+Ghidra mis-decomp; correct values are 34/153/239/255).
+
+Worker-thread loading overlay (FUN_00453147 "Now Loading…") still
+deferred — it's gated on `DAT_06a49958 != 0 || DAT_06a49960 != 0`
+(both BSS-zero today; only the loader worker thread sets them).
+Lands with the destination scene init.
+
 ## 2026-05-22 — Title fade-out RE: corrects same-day "Deferred — big" misreading
 
 No code change this session — purely a corrective writeup. The
