@@ -3,6 +3,147 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-23 — mesh loader: C2 Python oracle + C3 C parser + C4 D3D8-ready mesh
+
+Three chips on the FUN_00472836 .x mesh-loader family, building on the
+C1 survey landed earlier today. 14 new unit tests (807 total from 793).
+All 242 .x files in `vendor/original/xfile{,2}/` parse + build clean
+under ASan + UBSan.
+
+### C2 — Python parser oracle (commit `4af5fe3`)
+
+`tools/extract/xfile.py` grows from a 130-line stub histogrammer to a
+full recursive-descent parser (~1130 lines, stdlib-only). Templates
+recognised: Mesh / MeshNormals / MeshTextureCoords / MeshMaterialList /
+MeshVertexColors / Material / TextureFilename / Frame /
+FrameTransformMatrix / Header. Skinning + animation templates
+(SkinWeights / XSkinMeshHeader / Animation / AnimationSet /
+AnimationKey) brace-skipped and counted.
+
+Output schema (per-file JSON): `path`, `size`, `header`, `stats`,
+`textures[]`, `global_materials[]`, `meshes[]` (with vertices, faces,
+normals, UVs, material refs, inline materials, face_material_indexes),
+`frames[]` (DFS-flat with `children_names`), `skipped_templates`.
+Two modes: `--full` (default, includes all arrays) and `--brief` (just
+counts + metadata, useful for corpus-wide scans).
+
+Pinned ice01.x assertions in `--self-test`: mesh_count=1,
+total_vertices=41, total_faces=30, total_normals=17, two global
+materials (`xof_default` + `Material__25` with texture `w_ice.bmp`),
+first vertex ≈ [-8.577065, -3.734980, -7.484766], Frame_World hierarchy
+with Frame_Box01 child.
+
+Format quirks surfaced + documented in `docs/formats/xfile.md`
+(commit `d65f885`):
+1. MeshVertexColors per-item separator polymorphism (`cave_dun`
+   `;,` vs `boss_omu`/xfile2 `;;,`).
+2. MeshMaterialList face_indexes terminator variance (`0;;` vs
+   `0,0,...,0;`).
+3. Material reference blocks have no interior `;` (just `{Name}`).
+4. Hyphen-in-identifier stitch (`PDX02_-_Default` round-trips
+   lossy but consistent — `-` drops in tokenizer, IDENTs concat).
+
+Corpus survey output:
+- `xfile/`: 223 files, 17.5 MB, 2347 meshes, 118,897 vertices,
+  87,029 faces, 165 unique textures.
+- `xfile2/`: 19 files, 40 MB, 86 meshes, 8747 vertices, 210
+  SkinWeights instances skipped.
+
+### C3 — pure-C parser (`src/xfile.{c,h}`, commit `6c38622`)
+
+Recursive-descent over a hand-rolled token stream. Same template set
++ same quirk handling as the Python oracle:
+- Tokenizer strips line + block comments preserving line numbers.
+- Numbers: signed int/float, scientific notation, decimal-only and
+  exponent-only forms accepted.
+- Hyphen-stitch via instance-name reader: scans ahead through
+  consecutive IDENTs until LBRACE/UUID, concatenating.
+- Material reference blocks (`{Name}` with no interior `;`):
+  consumes all non-RBR tokens between braces and concats — natural
+  hyphen-stitch fallthrough.
+
+Public API: `xfile_parse(data, len, path) → xfile_t*`,
+`xfile_free(xfile_t*)`. `xfile_t` owns its sub-arrays; partial data
+preserved on parse error (caller still must free). Memory model: lots
+of small mallocs with paired frees in `xfile_free`. ASan-clean across
+the full corpus.
+
+Tests (9, all pass):
+1. bad_header (16+ bytes with bad magic)
+2. empty (header only)
+3. bare Mesh{} (3 verts, 1 triangle)
+4. Mesh + MeshNormals + MeshTextureCoords + MeshMaterialList with
+   referenced + inlined Materials
+5. Frame hierarchy + FrameTransformMatrix + DFS ordering
+6. Hyphen-stitch round-trip (`PDX02_-_Default` → `PDX02__Default`
+   both sides)
+7. Vendor ice01.x pinned to same numbers as Python oracle
+8. Vendor xfile/ corpus walk: all 223 parse clean
+9. Vendor xfile2/ corpus walk: all 19 parse clean (skinning/animation
+   silently skipped)
+
+### C4 — D3D8-ready mesh build (`src/mesh.{c,h}`, commit `d3bf126`)
+
+`mesh_build_from_xfile(xfile_t*) → mesh_t*` flattens the per-Mesh{}
+data into a single (vertices, indices, materials, submeshes) tuple.
+Each submesh = one (Mesh{} block, material) pair so the renderer can
+SetMaterial+SetTexture then DrawIndexedPrimitive on a contiguous
+index range — matches the engine's D3DX attribute-table model
+without reimplementing ID3DXMesh.
+
+Vertex layout: FVF 0x152 (XYZ + NORMAL + DIFFUSE + TEX1, 36 B per
+vertex) — same FVF the engine's D3DXLoadMeshFromXof produces (the
+literal 0x152 compare at FUN_00472836:350).
+
+Triangulation: fan (0,i,i+1) per face. No welding pass — 3 expanded
+vertices per triangle (3 unique (pos, normal, uv) tuples per tri).
+Simple, visually correct, slight memory overhead vs welded. Corpus
+totals: 261,087 expanded verts / 87,029 faces / 3041 submeshes.
+
+`mesh_compute_bounds`: centroid + max-radius pass, mirrors
+FUN_004aaad7. Idempotent.
+
+`mesh_upload_d3d8` (Win32-only, behind `#ifdef _WIN32`):
+CreateVertexBuffer + CreateIndexBuffer (managed pool, write-only)
++ Lock + memcpy. Not unit-tested — verified visually at render time.
+
+Known TODOs deferred to C7:
+- Frame transforms not pre-applied (vertices in Mesh-local space).
+  Most shipping files have identity Frame transforms in the .x
+  itself; positions come from external level/stage data — fine for
+  AAB/C0A unblock.
+- Per-vertex MeshVertexColors not consumed (white diffuse).
+- Material ref-then-inline order assumed in MeshMaterialList
+  (matches ice01.x exporter).
+
+Tests (5, all pass):
+1. empty xfile builds empty mesh
+2. single triangle: 3 verts / 3 indices / 1 submesh / Red material
+3. bounds_cube: 8 verts → centroid at origin, radius == sqrt(3)
+4. vendor ice01.x: 30 faces → 90 verts, 1 submesh,
+   Material__25 with w_ice.bmp, radius ≈ 28
+5. vendor xfile/ corpus walk: all 223 build clean
+
+### Next (C5)
+
+`mesh_load` orchestrator equivalent to FUN_00472836. Adds:
+- Path resolution + the `_s.x` "quality 1" variant + the
+  `xfile2/`-or-fallback path resolution from `DAT_005c8400`.
+- Global texture-name dedupe cache at `&DAT_073be908` (process-wide;
+  shared across all `mesh_load` calls).
+- 10 per-texture mode-flag byte side-tables at `&DAT_073cb10c..814`
+  driven by texture-name prefix scans (water / shop_jutan / `_a` /
+  `_s` / 6 more).
+- `FUN_00471b24` equivalent (texture-load wrapper) wiring our
+  `sprite_load`.
+
+The texture-name flag matching is the engine's most arbitrary-looking
+logic — natural place to do Frida-harness validation against the
+retail exe per user ask 2026-05-23. Plan: hook FUN_00472836 entry
++ exit, capture (material count, texture filename list, per-texture
+side-table bytes) per .x file, diff against our C output across the
+242-file corpus.
+
 ## 2026-05-23 — mesh loader: survey + strategy doc (`docs/findings/mesh-loader.md`)
 
 Opening chip on the FUN_00472836 family — the .x text-format mesh loader
