@@ -42,3 +42,16 @@ rng_seed: 1
 max_frames: 80
 capture_frames: [0, 10, 39, 60]
 duration_ceiling_ms: 40000
+
+# Zoomed-text companion: crop the settings panel where row labels +
+# values (Music/Sound/Voice/Message Speed/Unread Text Skip/Clear Save
+# Data, all font-system rendered) appear, nearest-neighbor-scale by
+# 4. Frames 0/10 capture pre-panel background (still useful to
+# verify no font-overlay regressions there), frames 39/60 show the
+# panel proper.
+zoom_text:
+  x: 360
+  y: 250
+  w: 340
+  h: 370
+  factor: 4

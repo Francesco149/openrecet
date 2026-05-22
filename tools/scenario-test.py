@@ -116,6 +116,20 @@ class Scenario:
     max_frames: int = 60               # default scenario budget
     capture_frames: list[int] = field(default_factory=lambda: [0, 30, 60])
     duration_ceiling_ms: int = 30_000  # wall-clock safety net
+    # Optional zoomed-text companion side-by-side. When set, --target
+    # both also writes `sidebyside-zoom.png` next to `sidebyside.png`,
+    # cropping each frame to the (x,y,w,h) rect and nearest-neighbor-
+    # scaling by `factor` (default 4). Picks up tiny font glyph
+    # differences that are invisible at the 320×240 thumbnail scale of
+    # the main side-by-side. Off by default — only scenarios that
+    # render font glyphs are worth zooming. Schema:
+    #   zoom_text:
+    #     x: 60    # source rect on the 1024×768 captured frame
+    #     y: 280
+    #     w: 320
+    #     h: 200
+    #     factor: 4
+    zoom_text: dict | None = None
 
     @classmethod
     def load(cls, scen_path: Path) -> "Scenario":
@@ -125,6 +139,16 @@ class Scenario:
         if not yaml_path.exists():
             raise SystemExit(f"scenario.yaml missing in {scen_path}")
         data = yaml.safe_load(yaml_path.read_text()) or {}
+        zt_raw = data.get("zoom_text")
+        zoom_text: dict | None = None
+        if zt_raw:
+            zoom_text = {
+                "x":      int(zt_raw["x"]),
+                "y":      int(zt_raw["y"]),
+                "w":      int(zt_raw["w"]),
+                "h":      int(zt_raw["h"]),
+                "factor": int(zt_raw.get("factor", 4)),
+            }
         return cls(
             name=scen_path.name,
             path=scen_path,
@@ -133,6 +157,7 @@ class Scenario:
             max_frames=int(data.get("max_frames", 60)),
             capture_frames=[int(x) for x in data.get("capture_frames", [0, 30, 60])],
             duration_ceiling_ms=int(data.get("duration_ceiling_ms", 30_000)),
+            zoom_text=zoom_text,
         )
 
 
@@ -270,6 +295,87 @@ def render_sidebyside(left_frames: Path, right_frames: Path,
         labels.append(f"{left_label} · {n}" if lp else f"{left_label} · (missing)")
         tiles.append(csm.thumb(rp, tw, th) if rp else placeholder)
         labels.append(f"{right_label} · {n}" if rp else f"{right_label} · (missing)")
+
+    sheet = csm.grid(tiles, labels, cols=2)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(out_path, optimize=True)
+    return out_path
+
+
+def render_sidebyside_zoom(left_frames: Path, right_frames: Path,
+                           out_path: Path,
+                           zoom: dict,
+                           left_label: str = "openrecet",
+                           right_label: str = "retail") -> Path | None:
+    """Same layout as `render_sidebyside`, but each tile is a
+    nearest-neighbor-scaled crop of the captured frame instead of a
+    LANCZOS-fit thumbnail. Useful for inspecting font glyph differences
+    that are below the visual threshold of the 320×240 main
+    side-by-side.
+
+    `zoom` is the dict produced by `Scenario.load`: keys x, y, w, h
+    (source rect in the captured 1024×768 frame) + `factor` (integer
+    scale, default 4). Output tile dimensions are `w*factor × h*factor`.
+
+    Crops outside the captured frame are clipped to the frame bounds
+    (so a too-large rect still produces a tile, just smaller). Mode is
+    always nearest-neighbor — every source pixel maps to a `factor`×
+    `factor` block of output pixels, preserving pixel boundaries the
+    user needs to see when diffing antialiased glyphs.
+    """
+    from PIL import Image
+
+    csm = load_contact_sheet_module()
+
+    crop_x = int(zoom["x"])
+    crop_y = int(zoom["y"])
+    crop_w = int(zoom["w"])
+    crop_h = int(zoom["h"])
+    factor = int(zoom.get("factor", 4))
+    out_w  = crop_w * factor
+    out_h  = crop_h * factor
+
+    lefts  = {p.name: p for p in csm.list_images(left_frames)}
+    rights = {p.name: p for p in csm.list_images(right_frames)}
+    names  = sorted(set(lefts) | set(rights))
+    if not names:
+        return None
+
+    placeholder = Image.new("RGB", (out_w, out_h), (40, 0, 0))
+
+    def zoom_tile(path: Path) -> Image.Image:
+        img = Image.open(path).convert("RGB")
+        # Clip the source rect to the image bounds so a malformed YAML
+        # config produces a (smaller) tile instead of a stack trace.
+        x0 = max(0, min(crop_x, img.width))
+        y0 = max(0, min(crop_y, img.height))
+        x1 = max(x0, min(crop_x + crop_w, img.width))
+        y1 = max(y0, min(crop_y + crop_h, img.height))
+        crop = img.crop((x0, y0, x1, y1))
+        # NEAREST = preserve pixel boundaries; we want to *see* where
+        # individual glyph pixels landed, not a smoothed interpolation.
+        scaled = crop.resize(
+            (max(1, crop.width * factor), max(1, crop.height * factor)),
+            Image.Resampling.NEAREST,
+        )
+        # Pad to the canonical tile size so the grid lays out
+        # consistently across rows even when a frame had a clipped crop.
+        canvas = Image.new("RGB", (out_w, out_h), (0, 0, 0))
+        canvas.paste(scaled, (0, 0))
+        return canvas
+
+    tiles:  list[Image.Image] = []
+    labels: list[str] = []
+    suffix = f" · zoom ×{factor} @ ({crop_x},{crop_y}) {crop_w}×{crop_h}"
+    for n in names:
+        lp = lefts.get(n)
+        rp = rights.get(n)
+        tiles.append(zoom_tile(lp) if lp else placeholder)
+        labels.append(f"{left_label} · {n}{suffix}" if lp
+                      else f"{left_label} · (missing){suffix}")
+        tiles.append(zoom_tile(rp) if rp else placeholder)
+        labels.append(f"{right_label} · {n}{suffix}" if rp
+                      else f"{right_label} · (missing){suffix}")
 
     sheet = csm.grid(tiles, labels, cols=2)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -480,6 +586,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  side-by-side: {sbs.relative_to(ROOT)}")
             else:
                 print(f"  side-by-side: SKIPPED (no frames captured on at least one side)")
+
+            # Optional zoomed-text companion. Only fires for scenarios
+            # whose YAML carries `zoom_text:` — see Scenario.zoom_text.
+            if scen.zoom_text is not None:
+                sbs_zoom = render_sidebyside_zoom(
+                    left_frames=run_dir / "openrecet" / "frames",
+                    right_frames=run_dir / "retail"    / "frames",
+                    out_path=run_dir / "sidebyside-zoom.png",
+                    zoom=scen.zoom_text,
+                )
+                if sbs_zoom is not None:
+                    print(f"  side-by-side (zoom): {sbs_zoom.relative_to(ROOT)}")
 
             if args.bless:
                 for sub in BOTH_SUBTARGETS:

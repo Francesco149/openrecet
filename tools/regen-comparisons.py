@@ -137,6 +137,7 @@ def collect_artifacts(scenarios: list[Path]) -> list[dict]:
             "description":    desc,
             "run_dir":        run_dir,
             "sbs_rel":        None,
+            "sbs_zoom_rel":   None,  # zoom companion present iff scenario has zoom_text
             "captured_at":    None,
             "captured_mtime": None,
             "run_dir_rel":    None,
@@ -153,6 +154,14 @@ def collect_artifacts(scenarios: list[Path]) -> list[dict]:
             item["captured_at"]    = ts.isoformat() if ts else "(unknown)"
             item["captured_mtime"] = int(dest.stat().st_mtime)
             item["run_dir_rel"]    = str(run_dir.relative_to(ROOT))
+
+            # Optional zoomed-text companion — scenario-test.py only
+            # writes this when the scenario's YAML carries `zoom_text:`.
+            zoom_src = run_dir / "sidebyside-zoom.png"
+            if zoom_src.exists():
+                zoom_dest = dest_dir / "sidebyside-zoom.png"
+                shutil.copyfile(zoom_src, zoom_dest)
+                item["sbs_zoom_rel"] = f"{name}/sidebyside-zoom.png"
 
         items.append(item)
     return items
@@ -206,6 +215,8 @@ h1 {{ font-size: 18px; margin: 0; }}
 .meta {{ color: var(--muted); font-size: 11px; margin: 4px 0 6px; font-family: ui-monospace, monospace; }}
 .desc {{ color: #b6bac3; font-size: 13px; margin: 6px 0 10px; line-height: 1.4; white-space: pre-wrap; }}
 img.sbs {{ max-width: 100%; display: block; border: 1px solid #2b2d35; border-radius: 4px; }}
+img.sbs-zoom {{ image-rendering: pixelated; image-rendering: crisp-edges; margin-top: 6px; }}
+.zoom-label {{ color: var(--muted); font-size: 11px; margin: 12px 0 4px; font-family: ui-monospace, monospace; }}
 .missing {{ color: var(--very-stale); font-size: 12px; }}
 .age {{ color: inherit; }}
 .age.stale {{ color: var(--stale); }}
@@ -290,6 +301,14 @@ def render_html(items: list[dict], out_path: Path) -> None:
                 f'<img class="sbs" src="{sbs}?v={mt}" '
                 f'alt="{name} openrecet|retail side-by-side">'
             )
+            if it["sbs_zoom_rel"]:
+                zoom = html.escape(it["sbs_zoom_rel"])
+                body += (
+                    '<div class="zoom-label">↓ zoom-text ×N companion '
+                    '(nearest-neighbor; pixel grid preserved for font diffs)</div>'
+                    f'<img class="sbs sbs-zoom" src="{zoom}?v={mt}" '
+                    f'alt="{name} openrecet|retail zoom-text side-by-side">'
+                )
 
         desc_block = f'<div class="desc">{desc}</div>' if desc else ""
         cards.append(
