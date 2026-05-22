@@ -3,6 +3,96 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — worker_load secondary inner-body docs + post-body fidelity fixes
+
+Decoded each of the 9 LAB_00452* secondary thread-proc inner bodies via
+objdump (Ghidra missed them as code labels inside the asset-load worker
+region). Recorded the call-target map in `src/worker_load.h`'s banner so
+the future scene-1 port knows what to register for each
+`worker_load_set_sec_body(slot, cb)`. While verifying I found two
+dormant fidelity drifts in the existing post-body switch — both fixed
+here.
+
+### Inner-body call targets (objdump @ 0x452aab..0x452cdd)
+
+| slot | LAB         | engine inner-body call(s)                                        |
+|------|-------------|------------------------------------------------------------------|
+| AAB  | 0x452aab    | `FUN_0046bf38()` — sc1 inventory/chrname/icon loaders            |
+| AE8  | 0x452ae8    | `FUN_0047329b()` — buy phase: per-entry + chrname + shopmode     |
+| B13  | 0x452b13    | `FUN_0047333b()` — buy phase alt, per `DAT_0730b56c` page        |
+| B3E  | 0x452b3e    | `FUN_0047474e(1)` — wall asset loader (param=1 inverts predicate)|
+| B82  | 0x452b82    | `FUN_004747dc(1)` — floor asset loader                           |
+| BC6  | 0x452bc6    | `FUN_0047486a(1)` — jutan (rug) asset loader                     |
+| C0A  | 0x452c0a    | `FUN_004748f8(1)` — table asset loader                           |
+| C4E  | 0x452c4e    | unnamed @ 0x435873 (FPU state init) + `FUN_00473a3e()` (pause/status assets) |
+| C96  | 0x452c96    | `FUN_0049de20()` (world-map state machine) + `FUN_004735ad()` (world-map BMPs) |
+
+All 12 targets are scene-1 (INGAME) specific — they'll wire up when the
+respective scene-1 loaders port. None of the inner bodies port today;
+the slots stay NULL by default.
+
+### Fidelity fixes (dormant — no caller invokes these spawners yet)
+
+- **Fade-kick polarity** (b3e/b82/bc6/c0a/c4e/c96, `worker_load_sec_post_body`).
+  Engine pattern at e.g. 0x452b57:
+    ```
+    cmp [DAT_06a49980], esi    ; esi = 1
+    ...
+    jne SKIP_FADE
+    fade_phase_out_start(0, 0x11)
+  SKIP_FADE:
+    ```
+  `jne` is "jump if not equal", so the fade-kick is the **fall-through**
+  branch — engine fires fade when `param == 1`, not `param != 1` as the
+  port had. Both the code and the header banner were inverted; both
+  flipped here.
+
+- **aab audio reset** (`g_worker_sec_state_audio` in `WORKER_LOAD_SEC_BODY_AAB`).
+  Engine assembly @ 0x452abd-0x452ad8:
+    ```
+    push $0x1 ; xor eax,eax ; pop esi    ; esi=1, eax=0
+    mov eax,[handle]                      ; handle=0
+    push eax                              ; push 0 as FUN_00499579 arg
+    ... (zero busy_sec, now_sec; state_1c8=1)
+    call FUN_00499579                     ; DAT_09643120 = 0
+    ```
+  Engine XORs eax to zero **before** pushing it as the arg, so
+  `FUN_00499579(0)` → `DAT_09643120 = 0`. This RESETS the audio LFO
+  context (read by `FUN_0049966a`'s `DAT_09643120 == 0` clause), it
+  doesn't raise it. Port had `audio = 1`; flipped to 0.
+
+### What landed
+
+- **`src/worker_load.c`** — `worker_load_sec_post_body` switch updated:
+  aab audio write 1 → 0; 6 fade-kick gates inverted `!= 1` → `== 1`.
+  Per-case comments updated with engine asm refs.
+- **`src/worker_load.h`** — banner gains the inner-body call-target
+  table; fade-kick + audio polarities corrected; state-bytes
+  description for audio updated.
+- **`tests/test_worker_load.c`** — `aab` audio expected = 0; `b3e/b82/
+  bc6/c0a/c4e/c96` fade-kick expected on `param==1` (test names + body
+  arg latches updated accordingly); full-cycle simulations now pass
+  `param=1` to trigger the fade-kick branch. **699 tests pass**
+  (unchanged count — 4 tests renamed, 0 added/removed).
+- **`tests/test_main.c`** — registry updated for two renamed tests.
+
+### Verified
+
+- `make -C tests run` → 699/699 pass.
+- `make -C src` clean.
+- `tools/scenario-test.py title-z-press` → 14/14 bit-exact (no
+  regression on the only path that currently touches worker_load).
+
+### Still deferred (unchanged)
+
+- The 9 secondary inner-body callbacks themselves (now documented in
+  the banner — each scene-1 loader registers its slot when it ports).
+- FUN_0046c01e (d07's pre-spawn) — register via
+  `worker_load_set_sec_d07_pre_spawn` when it ports.
+- Render-side counter pump at FUN_004547ab L51055.
+- Nowloading gate split (fidelity follow-up; still dormant since no
+  secondary spawner is called yet).
+
 ## 2026-05-22 — sim guard wires worker_load to the loading overlay
 
 Wires the per-tick "if asset-load worker is done, drop the Now Loading

@@ -110,14 +110,38 @@
  *   Nine thread proc bodies (per-LAB_*). Each:
  *     1. Runs the registered inner-body callback (currently NULL for
  *        all 9 slots — scene-specific work, will register as scene
- *        loaders port).
+ *        loaders port). Engine call targets per slot decoded via
+ *        objdump @ 0x452aab..0x452cdd:
+ *
+ *          slot | LAB         | engine inner-body call(s)
+ *          -----+-------------+--------------------------------------
+ *           AAB | 0x452aab    | FUN_0046bf38()                (sc1 inventory/chrname/icon loaders)
+ *           AE8 | 0x452ae8    | FUN_0047329b()                (buy phase: per-entry + chrname + shopmode)
+ *           B13 | 0x452b13    | FUN_0047333b()                (buy phase alt, per DAT_0730b56c page)
+ *           B3E | 0x452b3e    | FUN_0047474e(1)               (wall asset loader, param=1 inverts predicate)
+ *           B82 | 0x452b82    | FUN_004747dc(1)               (floor asset loader)
+ *           BC6 | 0x452bc6    | FUN_0047486a(1)               (jutan/rug asset loader)
+ *           C0A | 0x452c0a    | FUN_004748f8(1)               (table asset loader)
+ *           C4E | 0x452c4e    | (unnamed @ 0x435873)()        (FPU state init — Ghidra missed it)
+ *               |             | + FUN_00473a3e()              (pause menu + adventurer status assets)
+ *           C96 | 0x452c96    | FUN_0049de20()                (world-map state machine entry)
+ *               |             | + FUN_004735ad()              (world map BMP loaders)
+ *
+ *        All 12 targets are scene-1 (INGAME) specific — they'll wire
+ *        up via worker_load_set_sec_body() when the respective scene
+ *        loaders port.
  *     2. Falls into the shared secondary cleanup tail (CloseHandle,
  *        zero handle, zero 4995c, zero 49960).
  *     3. Writes its per-LAB_* "ready=1" state byte.
  *     4. Six of nine (LAB_00452b3e/b82/bc6/c0a/c4e/c96): if
- *        DAT_06a49980 != 1, call `fade_phase_out_start(0, 0x11)`.
+ *        DAT_06a49980 == 1, call `fade_phase_out_start(0, 0x11)`. The
+ *        engine pattern is `cmp [param], 1 ; jne SKIP_FADE ; <fade>`
+ *        — the fade is the FALL-THROUGH branch, fires when param==1.
  *     5. LAB_00452aab only: also writes DAT_06a49984=1 and calls
- *        `FUN_00499579(1)` (= DAT_09643120 = 1).
+ *        `FUN_00499579(0)` (= DAT_09643120 = 0). Engine XORs eax to
+ *        zero and pushes that as the arg — this RESETS the audio LFO
+ *        context, doesn't raise it. (FUN_0049966a's reader checks
+ *        DAT_09643120 == 0 to clear DAT_005d1968.)
  *     6. Return 1.
  *
  *   FUN_00452d07 has one extra pre-spawn slot — the engine calls
@@ -145,7 +169,7 @@
  *     |         |                          |  / b3e|b82|bc6|c0a(=1)|
  *     | 1d8     | DAT_0438b1d8             | eb1 (=2) / c96 (=1)   |
  *     | 984     | DAT_06a49984             | aab (=1)              |
- *     | audio   | DAT_09643120 via 0x499579| aab (=1)              |
+ *     | audio   | DAT_09643120 via 0x499579| aab (=0, resets LFO)  |
  *     +---------+--------------------------+-----------------------+
  *
  * NOT yet ported:

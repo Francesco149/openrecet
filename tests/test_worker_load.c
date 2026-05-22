@@ -599,7 +599,8 @@ int test_worker_load_dispatch_sec_unregistered_slot_is_noop(void)
 
 int test_worker_load_sec_post_body_aab_writes_three_flags(void)
 {
-    /* LAB_00452aab cleanup tail: DAT_0438b1c8=1, DAT_09643120=1,
+    /* LAB_00452aab cleanup tail (objdump @ 0x452abd-0x452ae0):
+     * DAT_0438b1c8=1, FUN_00499579(0) → DAT_09643120=0,
      * DAT_06a49984=1. No fade-kick (param read is suppressed). */
     worker_load_reset();
     fade_reset();
@@ -609,7 +610,7 @@ int test_worker_load_sec_post_body_aab_writes_three_flags(void)
 
     T_ASSERT_EQ_I(g_worker_sec_state_1c8,   1);
     T_ASSERT_EQ_I(g_worker_sec_state_984,   1);
-    T_ASSERT_EQ_I(g_worker_sec_state_audio, 1);
+    T_ASSERT_EQ_I(g_worker_sec_state_audio, 0);   /* engine pushes XOR'd eax = 0 */
     /* No fade started. */
     T_ASSERT_EQ_I(g_fade_phase, 0);
     return 0;
@@ -645,12 +646,13 @@ int test_worker_load_sec_post_body_b13_writes_1cc_no_fade(void)
     return 0;
 }
 
-int test_worker_load_sec_post_body_b3e_writes_1d4_and_fade_kicks_on_param_ne_one(void)
+int test_worker_load_sec_post_body_b3e_writes_1d4_and_fade_kicks_on_param_eq_one(void)
 {
-    /* LAB_00452b3e: DAT_0438b1d4=1; if param != 1 → fade-kick. */
+    /* LAB_00452b3e: DAT_0438b1d4=1; fade-kick fall-through fires when
+     * param == 1 (engine pattern: `cmp [param], 1 ; jne SKIP_FADE`). */
     worker_load_reset();
     fade_reset();
-    g_worker_sec_param = 0;   /* != 1 → fade-kick fires */
+    g_worker_sec_param = 1;   /* == 1 → fall-through → fade-kick fires */
 
     worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_B3E);
 
@@ -662,12 +664,12 @@ int test_worker_load_sec_post_body_b3e_writes_1d4_and_fade_kicks_on_param_ne_one
     return 0;
 }
 
-int test_worker_load_sec_post_body_b3e_no_fade_when_param_eq_one(void)
+int test_worker_load_sec_post_body_b3e_no_fade_when_param_ne_one(void)
 {
-    /* The fade-kick gate is `param != 1` — explicitly skip on 1. */
+    /* jne taken when param != 1 → skips fade. */
     worker_load_reset();
     fade_reset();
-    g_worker_sec_param = 1;   /* gate suppressed */
+    g_worker_sec_param = 0;   /* jne taken */
 
     worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_B3E);
 
@@ -683,7 +685,7 @@ int test_worker_load_sec_post_body_b82_bc6_c0a_share_1d4_fade_pattern(void)
          body_id <= WORKER_LOAD_SEC_BODY_C0A; body_id++) {
         worker_load_reset();
         fade_reset();
-        g_worker_sec_param = 0;
+        g_worker_sec_param = 1;   /* triggers fade-kick fall-through */
         worker_load_sec_post_body(body_id);
         T_ASSERT_EQ_I(g_worker_sec_state_1d4, 1);
         T_ASSERT_EQ_I(g_fade_phase,          -1);
@@ -696,7 +698,7 @@ int test_worker_load_sec_post_body_c4e_writes_1d0_with_fade(void)
     /* LAB_00452c4e: DAT_0438b1d0=1; fade-kick gate same as b3e family. */
     worker_load_reset();
     fade_reset();
-    g_worker_sec_param = 0;
+    g_worker_sec_param = 1;
 
     worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_C4E);
 
@@ -711,7 +713,7 @@ int test_worker_load_sec_post_body_c96_writes_1d8_with_fade(void)
     /* LAB_00452c96: DAT_0438b1d8=1; fade-kick gate same as b3e family. */
     worker_load_reset();
     fade_reset();
-    g_worker_sec_param = 2;   /* != 1 */
+    g_worker_sec_param = 1;   /* == 1 → fall-through */
 
     worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_C96);
 
@@ -883,7 +885,7 @@ int test_worker_load_sec_full_cycle_simulation_b3e(void)
     reset_sec_scratchpad();
     worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_B3E, sec_body_record_b3e);
 
-    worker_load_spawn_d85(0);
+    worker_load_spawn_d85(1);   /* param==1 → fade-kick fall-through */
     T_ASSERT_EQ_I(g_worker_sec_state_1d4,       2);
     T_ASSERT_EQ_I(worker_load_busy_secondary(), 1);
 
@@ -913,7 +915,7 @@ int test_worker_load_sec_full_cycle_simulation_c4e(void)
     reset_sec_scratchpad();
     worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_C4E, sec_body_record_c4e);
 
-    worker_load_spawn_e75(3);
+    worker_load_spawn_e75(1);   /* param==1 → fade-kick fall-through */
     T_ASSERT_EQ_I(g_worker_sec_state_1d0, 2);
 
     worker_load_dispatch_sec_pure(WORKER_LOAD_SEC_BODY_C4E);
@@ -947,11 +949,11 @@ int test_worker_load_sec_full_cycle_simulation_aab_no_fade(void)
     T_ASSERT_EQ_I(g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_AAB], 1);
 
     worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_AAB);
-    /* aab's three writes. */
+    /* aab's three writes — audio=0 (engine RESETS the LFO via XOR'd eax). */
     T_ASSERT_EQ_I(g_worker_sec_state_1c8,   1);
     T_ASSERT_EQ_I(g_worker_sec_state_984,   1);
-    T_ASSERT_EQ_I(g_worker_sec_state_audio, 1);
-    /* No fade-kick even though param=0 (param!=1 gate not consulted). */
+    T_ASSERT_EQ_I(g_worker_sec_state_audio, 0);
+    /* No fade-kick — aab's cleanup tail doesn't consult param. */
     T_ASSERT_EQ_I(g_fade_phase, 0);
 
     worker_load_end_secondary();

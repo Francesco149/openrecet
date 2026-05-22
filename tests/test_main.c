@@ -683,8 +683,8 @@ struct test_case {
     X(worker_load_sec_post_body_aab_writes_three_flags) \
     X(worker_load_sec_post_body_ae8_writes_1cc_no_fade) \
     X(worker_load_sec_post_body_b13_writes_1cc_no_fade) \
-    X(worker_load_sec_post_body_b3e_writes_1d4_and_fade_kicks_on_param_ne_one) \
-    X(worker_load_sec_post_body_b3e_no_fade_when_param_eq_one) \
+    X(worker_load_sec_post_body_b3e_writes_1d4_and_fade_kicks_on_param_eq_one) \
+    X(worker_load_sec_post_body_b3e_no_fade_when_param_ne_one) \
     X(worker_load_sec_post_body_b82_bc6_c0a_share_1d4_fade_pattern) \
     X(worker_load_sec_post_body_c4e_writes_1d0_with_fade) \
     X(worker_load_sec_post_body_c96_writes_1d8_with_fade) \

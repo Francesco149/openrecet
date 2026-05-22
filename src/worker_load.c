@@ -155,13 +155,33 @@ void worker_load_sec_post_body(int body_id)
 {
     /* Per-LAB_* engine cleanup tail (after the shared CloseHandle +
      * zero handle + zero 4995c + zero 49960). The cluster of writes
-     * here matches the byte sequence at each LAB_00452* tail. */
+     * here matches the byte sequence at each LAB_00452* tail.
+     *
+     * Fade-kick polarity (b3e/b82/bc6/c0a/c4e/c96): engine emits
+     *     cmp [DAT_06a49980], 1   ; or `cmp [DAT_06a49980], esi` (esi=1)
+     *     jne SKIP_FADE
+     *     fade_phase_out_start(0, 0x11)
+     *   SKIP_FADE:
+     * jne is "jump if not equal", so the fade kick is the FALL-THROUGH
+     * branch — engine fires fade when param == 1 (not != 1). */
     switch (body_id) {
         case WORKER_LOAD_SEC_BODY_AAB:
-            /* LAB_00452aab: DAT_0438b1c8=1, FUN_00499579(1) (=DAT_09643120=1),
-             * DAT_06a49984=1. No fade-kick. */
+            /* LAB_00452aab: DAT_0438b1c8=1, FUN_00499579(0) (=DAT_09643120=0),
+             * DAT_06a49984=1. No fade-kick.
+             *
+             * Engine assembly @ 0x452abd-0x452ae0:
+             *     push $0x1 ; xor eax,eax ; pop esi      ; esi=1, eax=0
+             *     mov eax,[handle]                        ; handle=0
+             *     push eax                                ; push 0 for FUN_00499579
+             *     mov eax,[busy_sec] ; mov eax,[now_sec]  ; both =0
+             *     mov esi,[0x438b1c8]                     ; state_1c8 = 1
+             *     call FUN_00499579                       ; DAT_09643120 = 0
+             *     pop ecx
+             *     mov esi,[0x6a49984]                     ; state_984 = 1
+             * The pushed-eax-zero is what FUN_00499579 receives — engine
+             * RESETS the audio LFO context, it doesn't raise it. */
             g_worker_sec_state_1c8   = 1;
-            g_worker_sec_state_audio = 1;
+            g_worker_sec_state_audio = 0;
             g_worker_sec_state_984   = 1;
             break;
         case WORKER_LOAD_SEC_BODY_AE8:
@@ -174,19 +194,19 @@ void worker_load_sec_post_body(int body_id)
         case WORKER_LOAD_SEC_BODY_BC6:
         case WORKER_LOAD_SEC_BODY_C0A:
             /* LAB_00452b3e / b82 / bc6 / c0a: DAT_0438b1d4=1, then fade-kick
-             * gated on DAT_06a49980 != 1. */
+             * fall-through gated on DAT_06a49980 == 1. */
             g_worker_sec_state_1d4 = 1;
-            if (g_worker_sec_param != 1) fade_phase_out_start(0, 0x11);
+            if (g_worker_sec_param == 1) fade_phase_out_start(0, 0x11);
             break;
         case WORKER_LOAD_SEC_BODY_C4E:
-            /* LAB_00452c4e: DAT_0438b1d0=1, then fade-kick. */
+            /* LAB_00452c4e: DAT_0438b1d0=1, then fade-kick on param==1. */
             g_worker_sec_state_1d0 = 1;
-            if (g_worker_sec_param != 1) fade_phase_out_start(0, 0x11);
+            if (g_worker_sec_param == 1) fade_phase_out_start(0, 0x11);
             break;
         case WORKER_LOAD_SEC_BODY_C96:
-            /* LAB_00452c96: DAT_0438b1d8=1, then fade-kick. */
+            /* LAB_00452c96: DAT_0438b1d8=1, then fade-kick on param==1. */
             g_worker_sec_state_1d8 = 1;
-            if (g_worker_sec_param != 1) fade_phase_out_start(0, 0x11);
+            if (g_worker_sec_param == 1) fade_phase_out_start(0, 0x11);
             break;
         default:
             /* Out of range — no-op. */
