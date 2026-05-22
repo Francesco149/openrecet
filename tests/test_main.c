@@ -581,6 +581,17 @@ struct test_case {
     X(audio_play_se_no_trace_when_closed) \
     X(audio_se_table_matches_vendor_bytes) \
     \
+    X(fade_reset_zeroes_state) \
+    X(fade_phase1_start_seeds_state) \
+    X(fade_phase_out_start_seeds_state) \
+    X(fade_tick_idle_is_noop) \
+    X(fade_tick_phase1_clamps_at_duration_plus_one) \
+    X(fade_tick_phase_out_resets_at_end) \
+    X(fade_is_done_idle_returns_zero) \
+    X(fade_is_done_phase1_matches_duration) \
+    X(fade_is_done_phase_out_never_returns_one) \
+    X(fade_is_done_mode2_uses_0x1f_pin) \
+    \
     X(font_init_zeros_state) \
     X(font_init_is_idempotent) \
     X(font_age_tick_advances_in_use_only) \
