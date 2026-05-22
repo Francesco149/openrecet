@@ -875,7 +875,17 @@ struct test_case {
     X(scene_worldmap_load_dims_match_metadata) \
     X(scene_worldmap_load_without_load_fn_returns_count) \
     X(scene_worldmap_body_slot_starts_null) \
-    X(scene_worldmap_mappoint_is_tall_unique)
+    X(scene_worldmap_mappoint_is_tall_unique) \
+    \
+    X(xfile_bad_header) \
+    X(xfile_empty) \
+    X(xfile_bare_mesh) \
+    X(xfile_full_mesh) \
+    X(xfile_frame_hierarchy) \
+    X(xfile_hyphen_stitch) \
+    X(xfile_vendor_ice01) \
+    X(xfile_vendor_corpus) \
+    X(xfile_vendor_xfile2_corpus)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
