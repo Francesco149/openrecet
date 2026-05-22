@@ -788,7 +788,22 @@ struct test_case {
     X(scene_walls_load_selector_out_of_range_param0_loads_nothing) \
     X(scene_walls_load_selector_out_of_range_param1_loads_all) \
     X(scene_walls_load_without_load_fn_returns_count_only) \
-    X(scene_walls_reset_zeroes_state)
+    X(scene_walls_reset_zeroes_state) \
+    \
+    X(scene_floor_count_is_fifteen) \
+    X(scene_floor_filename_table_first_and_last) \
+    X(scene_floor_filename_table_full_order) \
+    X(scene_floor_filename_out_of_range_is_null) \
+    X(scene_floor_format_string) \
+    X(scene_floor_load_param0_loads_only_selector) \
+    X(scene_floor_load_param1_loads_everything_except_selector) \
+    X(scene_floor_load_default_selector_zero) \
+    X(scene_floor_load_selector_out_of_range_param0_loads_nothing) \
+    X(scene_floor_load_selector_out_of_range_param1_loads_all) \
+    X(scene_floor_load_without_load_fn_returns_count_only) \
+    X(scene_floor_reset_zeroes_state) \
+    X(scene_floor_load_all_paths_prefixed) \
+    X(scene_floor_selector_independent_from_walls)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

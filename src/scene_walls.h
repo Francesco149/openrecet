@@ -38,9 +38,11 @@
  *   `scene_walls_init(dev)` caches the D3D device and registers
  *   `scene_walls_body` via
  *   `worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_B3E, …)`. The body
- *   re-reads `g_worker_sec_param` to recover the param (worker_load
- *   callbacks are `void (*)(void)`) and dispatches to the test-
- *   injectable pure-C entry point `scene_walls_load_with`.
+ *   calls `scene_walls_load_with(…, 1)` — the engine's LAB_00452b3e
+ *   passes a hard-coded literal `1` to FUN_0047474e (the runtime-
+ *   variable `g_worker_sec_param` is consumed elsewhere for the fade-
+ *   kick gate, not by this loader). See scene_walls.c body comment
+ *   for the asm citation.
  *
  * Test injection:
  *

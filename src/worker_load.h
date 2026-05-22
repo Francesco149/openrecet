@@ -118,8 +118,8 @@
  *           AAB | 0x452aab    | FUN_0046bf38()                (sc1 inventory/chrname/icon loaders)
  *           AE8 | 0x452ae8    | FUN_0047329b()                (buy phase: per-entry + chrname + shopmode)
  *           B13 | 0x452b13    | FUN_0047333b()                (buy phase alt, per DAT_0730b56c page)
- *           B3E | 0x452b3e    | FUN_0047474e(param)           (wall asset loader — WIRED, see src/scene_walls.{c,h})
- *           B82 | 0x452b82    | FUN_004747dc(1)               (floor asset loader)
+ *           B3E | 0x452b3e    | FUN_0047474e(1)               (wall asset loader — WIRED, src/scene_walls.{c,h})
+ *           B82 | 0x452b82    | FUN_004747dc(1)               (floor asset loader — WIRED, src/scene_floor.{c,h})
  *           BC6 | 0x452bc6    | FUN_0047486a(1)               (jutan/rug asset loader)
  *           C0A | 0x452c0a    | FUN_004748f8(1)               (table asset loader)
  *           C4E | 0x452c4e    | (unnamed @ 0x435873)()        (FPU state init — Ghidra missed it)
@@ -127,11 +127,18 @@
  *           C96 | 0x452c96    | FUN_0049de20()                (world-map state machine entry)
  *               |             | + FUN_004735ad()              (world map BMP loaders)
  *
+ *        Note on the literal `1`: each of the four wall/floor/rug/table
+ *        loaders is also called with literal `0` from the main-thread
+ *        scene-1 init path (around line 73066 of decompiled/all.c).
+ *        Param mode is always a compile-time constant at the call site:
+ *        `0` = "load only the selector" (foreground), `1` = "load
+ *        everything except the selector" (background, this worker).
+ *
  *        All 12 targets are scene-1 (INGAME) specific — they'll wire
  *        up via worker_load_set_sec_body() when the respective scene
- *        loaders port. As of 2026-05-22 only B3E (wall asset loader,
- *        FUN_0047474e) is wired (src/scene_walls.{c,h}); the other 8
- *        slots stay NULL until their scene loaders port.
+ *        loaders port. As of 2026-05-22 B3E (walls) and B82 (floors)
+ *        are wired; the other 7 slots stay NULL until their scene
+ *        loaders port.
  *     2. Falls into the shared secondary cleanup tail (CloseHandle,
  *        zero handle, zero 4995c, zero 49960).
  *     3. Writes its per-LAB_* "ready=1" state byte.

@@ -113,11 +113,23 @@ static int win32_load_fn(const char *path, int slot, void *userdata)
 static void scene_walls_body(void)
 {
     /* Engine LAB_00452b3e's inner-body call:
-     *     FUN_0047474e(DAT_06a49980)
-     * — i.e. the latched secondary-worker param. We recover it from
-     * the worker_load module's public global. */
-    scene_walls_load_with(win32_load_fn, g_scene_walls_dev,
-                          g_worker_sec_param);
+     *     FUN_0047474e(1)
+     * objdump @ 0x452b3e..0x452b43:
+     *     push esi ; push $0x1 ; pop esi ; push esi ; call 0x47474e
+     * — the literal `1` is hard-coded at this call site. ESI=1 is
+     * reused for the subsequent `cmp esi, [DAT_06a49980]` fade-kick
+     * gate (worker_load_sec_post_body), which is THE place where the
+     * latched param matters.
+     *
+     * The OTHER call site for FUN_0047474e (in the main-thread scene-1
+     * init around line 73066 of decompiled/all.c) passes literal `0`
+     * — i.e. "load only the selector". Param is always a compile-time
+     * constant for this loader; it's never a runtime variable.
+     *
+     * Earlier port chip passed g_worker_sec_param here — corrected
+     * 2026-05-22 after asm re-read. Dormant bug: no caller of
+     * worker_load_spawn_d85 exists yet so the mismatch never fired. */
+    scene_walls_load_with(win32_load_fn, g_scene_walls_dev, 1);
 }
 
 void scene_walls_init(struct IDirect3DDevice8 *dev)
