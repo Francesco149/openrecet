@@ -3,6 +3,114 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Asset-load worker thread (secondary family, second half)
+
+Completes the worker_load module's "second half" — the 8 secondary
+spawners + 9 secondary thread procs that the prior two chips
+(`worker_load: asset-load worker thread`, `worker_load: alt primary
+worker`) explicitly deferred. The primary worker dispatches on
+`g_scene_state` via a 17-entry jump table; the secondary family is a
+zoo of 8 named spawn entries, each with its own pre-spawn writes,
+post-body cleanup, and (six of nine) conditional fade-kick.
+
+### What landed
+
+- **8 secondary spawn entry points** in `src/worker_load.{c,h}`:
+  `worker_load_spawn_d07/d3e/d85/dc1/dfd/e39/e75/eb1`. Each ports its
+  matching engine FUN_00452XXX (28-78 bytes per spawner @ 0x452d07
+  through 0x452eb1). Shared shape: optional per-kind "pending=2" state
+  byte write, raise secondary gates (4995c+49960) via
+  `worker_load_begin_secondary`, latch param into DAT_06a49980,
+  CreateThread on the picked thread proc. The d3e spawner sub-dispatches
+  between LAB_00452ae8 (param==0) and LAB_00452b13 (param!=0).
+  FUN_00452d07 alone has a pre-spawn hook (engine calls FUN_0046c01e
+  before CreateThread) — exposed as `worker_load_set_sec_d07_pre_spawn`.
+
+- **9 secondary thread proc bodies** factored into:
+  - One shared Win32 thread-proc helper (`worker_load_thread_proc_sec`)
+    that takes a `body_id` and does: dispatch_sec_pure → cleanup tail →
+    sec_post_body → return 1.
+  - Nine thin wrappers (`thread_proc_sec_aab` through `thread_proc_sec_c96`)
+    that pin the body_id for each `LAB_00452*` entry.
+  - One shared `secondary_thread_cleanup` (close handle, zero handle,
+    zero 4995c, zero 49960 — same shape as the engine's per-LAB_* tail,
+    distinct from FUN_00452917's gated three-flag wipe).
+
+- **Per-LAB_* post-body machinery** in `worker_load_sec_post_body` — a
+  switch on `body_id` reproduces each LAB_*'s tail-specific writes:
+  - `AAB` → DAT_0438b1c8=1, DAT_06a49984=1, DAT_09643120=1
+    (last via the inlined FUN_00499579(1)). No fade-kick.
+  - `AE8` / `B13` → DAT_0438b1cc=1. No fade-kick.
+  - `B3E` / `B82` / `BC6` / `C0A` → DAT_0438b1d4=1, fade-kick if
+    DAT_06a49980 != 1.
+  - `C4E` → DAT_0438b1d0=1, fade-kick.
+  - `C96` → DAT_0438b1d8=1, fade-kick.
+
+  Fade-kick is `fade_phase_out_start(0, 0x11)` (FUN_0045281c, already
+  ported in `src/fade.c`).
+
+- **9 inner-body callback slots** + their getter/setter pair
+  (`worker_load_set_sec_body(body_id, cb)`). All slots default NULL —
+  the per-LAB_* "scene work" calls (FUN_0046bf38, FUN_00473*, FUN_00474*,
+  etc.) aren't ported yet, so the bodies are no-ops until consumers wire
+  in. The cleanup + post-body machinery still fires either way.
+
+- **7 named per-kind state byte globals** exposed for observability:
+  `g_worker_sec_state_1c8/1cc/1d0/1d4/1d8/984/audio` (with `audio`
+  serving as DAT_09643120, written via the engine's FUN_00499579(1)
+  call). Plus `g_worker_sec_param` (DAT_06a49980) for the fade-kick
+  gate readers.
+
+- **Non-Win32 spawn stubs** for the 8 spawn entry points — gates-only
+  shape (mirrors how `worker_load_spawn`/`spawn_alt` already split).
+  Pending-flag writes and param latching are observable from tests
+  even though no thread runs.
+
+### Tests
+
+27 new tests under `tests/test_worker_load.c` (662 → 689):
+- Body slot registration: count=9, set/get round-trip, out-of-range
+  guard, NULL clear, last-write-wins.
+- d07 pre-spawn round-trip.
+- begin_secondary/end_secondary gate transitions.
+- dispatch_sec_pure: registered cb, unregistered no-op, out-of-range.
+- sec_post_body: each LAB_*'s state writes + fade-kick gate (per-body
+  param!=1 → fade triggered; param==1 → suppressed).
+- 8 spawn entry points: per-kind pending flag write, gate raise, param
+  latch, d07's pre-spawn invocation.
+- 3 full-cycle simulations end-to-end (d85→B3E with fade-kick, e75→C4E
+  with 1d0 ready, d07→AAB with no fade-kick + three-flag aab writes).
+- Reset zeroes all secondary state.
+
+### Engine cross-references
+
+Caller mapping from `docs/decompiled/all.c`:
+- `FUN_00452d07` — 9+ callers (most "background load" sites).
+- `FUN_00452d3e` — 2 callers in scene transitions.
+- `FUN_00452d85/dc1/dfd/e39` — single iVar6-keyed dispatch at line
+  86961, picking 1/2/3/4 → dc1/d85/dfd/e39 (i.e. the four `1d4`
+  spawners share one caller).
+- `FUN_00452e75 / FUN_00452eb1` — no callers found in decomp. Treated
+  as dead code in the vendor exe; ported for completeness with the
+  same shape as their siblings.
+
+### Deferred (still part of the wider worker-system port)
+
+- Inner-body callbacks for the 9 LAB_*'s — register via
+  `worker_load_set_sec_body` as each scene's loader/post-load code
+  ports (FUN_0046bf38, FUN_0047329b, FUN_00473c15, FUN_004746fc, etc.).
+- FUN_0046c01e (d07's pre-spawn) — register via
+  `worker_load_set_sec_d07_pre_spawn` when that lands.
+- Per-tick clear of DAT_06a49958 at top of FUN_004547ab. Still a
+  render-dispatch concern; unaffected by this chip.
+
+### Smoke + regressions
+
+- 689/689 unit tests pass.
+- title-z-press scenario: 14/14 frames bit-exact.
+- Both `build/openrecet.exe` and `build/openrecet-debug.exe` link
+  cleanly via the Win32 build.
+
 ## 2026-05-22 — Asset-load worker thread (alt primary + close fidelity)
 
 Follow-up chip to the first-half worker landing earlier today. Ports

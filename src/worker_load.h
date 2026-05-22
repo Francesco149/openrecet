@@ -97,16 +97,66 @@
  *   Cleanup is structurally identical to LAB_0045293d (close handle,
  *   clear primary busy, return 1) — we share the thread-end helper.
  *
- * NOT yet ported (the remaining "second half" of the worker system):
- *   - FUN_00452d07 / d3e / d85 / dc1 / dfd / e39 / e75 / eb1
- *     (eight "DAT_06a49960" spawners; original session note said six
- *     but two more lurk past the close-helper at +e75/+eb1) and their
- *     nine thread routines (LAB_00452aab / ae8 / b13 / b3e / b82 /
- *     bc6 / c0a / c4e / c96). All share the same close/busy machinery.
+ * Secondary worker family (FUN_00452d07/d3e/d85/dc1/dfd/e39/e75/eb1
+ * + LAB_00452aab/ae8/b13/b3e/b82/bc6/c0a/c4e/c96):
  *
+ *   Eight spawn entry points (`worker_load_spawn_d07` etc.) — each
+ *   raises the same `secondary` busy + nowloading gates (DAT_06a4995c
+ *   + DAT_06a49960), latches the param into DAT_06a49980, optionally
+ *   pre-writes its per-kind "pending=2" state byte (5 distinct bytes
+ *   across the 8 spawners), and CreateThread's on one of 9 thread
+ *   procs. The shared close/busy machinery is reused.
+ *
+ *   Nine thread proc bodies (per-LAB_*). Each:
+ *     1. Runs the registered inner-body callback (currently NULL for
+ *        all 9 slots — scene-specific work, will register as scene
+ *        loaders port).
+ *     2. Falls into the shared secondary cleanup tail (CloseHandle,
+ *        zero handle, zero 4995c, zero 49960).
+ *     3. Writes its per-LAB_* "ready=1" state byte.
+ *     4. Six of nine (LAB_00452b3e/b82/bc6/c0a/c4e/c96): if
+ *        DAT_06a49980 != 1, call `fade_phase_out_start(0, 0x11)`.
+ *     5. LAB_00452aab only: also writes DAT_06a49984=1 and calls
+ *        `FUN_00499579(1)` (= DAT_09643120 = 1).
+ *     6. Return 1.
+ *
+ *   FUN_00452d07 has one extra pre-spawn slot — the engine calls
+ *   FUN_0046c01e on the main thread before CreateThread; we expose
+ *   that as `worker_load_set_sec_d07_pre_spawn`.
+ *
+ *   FUN_00452e75 and FUN_00452eb1 are unreferenced in the engine's
+ *   decompiled C (no callers found in `docs/decompiled/all.c`); their
+ *   thread procs LAB_00452c4e and LAB_00452c96 are similarly dead
+ *   storage. We port them for completeness — they're real engine
+ *   entries with consistent shape.
+ *
+ * Per-kind state bytes (`g_worker_sec_state_*`):
+ *
+ *   Spawner writes 2 (pending), thread proc writes 1 (ready) — except
+ *   `1c8`/`984`/`audio` which are write-only by LAB_00452aab.
+ *
+ *     +---------+--------------------------+-----------------------+
+ *     | global  | engine addr              | written by            |
+ *     +---------+--------------------------+-----------------------+
+ *     | 1c8     | DAT_0438b1c8             | aab (=1)              |
+ *     | 1cc     | DAT_0438b1cc             | d3e (=2) / ae8|b13(=1)|
+ *     | 1d0     | DAT_0438b1d0             | e75 (=2) / c4e (=1)   |
+ *     | 1d4     | DAT_0438b1d4             | d85|dc1|dfd|e39 (=2)  |
+ *     |         |                          |  / b3e|b82|bc6|c0a(=1)|
+ *     | 1d8     | DAT_0438b1d8             | eb1 (=2) / c96 (=1)   |
+ *     | 984     | DAT_06a49984             | aab (=1)              |
+ *     | audio   | DAT_09643120 via 0x499579| aab (=1)              |
+ *     +---------+--------------------------+-----------------------+
+ *
+ * NOT yet ported:
+ *   - Inner-body callbacks for the 9 secondary thread procs (the
+ *     per-LAB_* scene work — register via `worker_load_set_sec_body`
+ *     as scene loaders port).
+ *   - Pre-spawn for FUN_00452d07 (FUN_0046c01e — register via
+ *     `worker_load_set_sec_d07_pre_spawn` when that ports).
  *   - The per-tick clear of DAT_06a49958 at the top of FUN_004547ab
- *     ("if worker reports done, drop the overlay") isn't here either
- *     — that's a render-dispatch concern.
+ *     ("if worker reports done, drop the overlay") — that's a
+ *     render-dispatch concern.
  *
  * Race notes:
  *
@@ -237,5 +287,90 @@ int  worker_load_dispatch_alt_pure(void);
  * registered alt cb + shared primary cleanup. Non-Win32: gates-only
  * (mirrors worker_load_spawn's split). */
 void worker_load_spawn_alt(void);
+
+/* ─── secondary worker family ────────────────────────────────────────── */
+
+/* Nine thread proc body slots — one per LAB_00452*. Pair these up
+ * with their spawners via the mapping in this header's banner. */
+#define WORKER_LOAD_SEC_BODY_AAB    0   /* LAB_00452aab — paired with d07           */
+#define WORKER_LOAD_SEC_BODY_AE8    1   /* LAB_00452ae8 — paired with d3e param==0 */
+#define WORKER_LOAD_SEC_BODY_B13    2   /* LAB_00452b13 — paired with d3e param!=0 */
+#define WORKER_LOAD_SEC_BODY_B3E    3   /* LAB_00452b3e — paired with d85          */
+#define WORKER_LOAD_SEC_BODY_B82    4   /* LAB_00452b82 — paired with dc1          */
+#define WORKER_LOAD_SEC_BODY_BC6    5   /* LAB_00452bc6 — paired with dfd          */
+#define WORKER_LOAD_SEC_BODY_C0A    6   /* LAB_00452c0a — paired with e39          */
+#define WORKER_LOAD_SEC_BODY_C4E    7   /* LAB_00452c4e — paired with e75          */
+#define WORKER_LOAD_SEC_BODY_C96    8   /* LAB_00452c96 — paired with eb1          */
+#define WORKER_LOAD_SEC_BODY_COUNT  9
+
+/* Register the inner-body callback for `body_id`. Pass NULL to clear.
+ * Out-of-range indices silently ignored. Last write wins. */
+void worker_load_set_sec_body(int body_id, worker_load_cb cb);
+worker_load_cb worker_load_get_sec_body(int body_id);
+
+/* FUN_00452d07's pre-spawn slot — engine calls FUN_0046c01e on the
+ * main thread before CreateThread. Other spawners have no pre-spawn.
+ * NULL = no-op (current state — FUN_0046c01e not yet ported). */
+void worker_load_set_sec_d07_pre_spawn(worker_load_cb cb);
+worker_load_cb worker_load_get_sec_d07_pre_spawn(void);
+
+/* Per-kind state bytes. See header banner for the spawner/body
+ * write-side mapping. Initial value 0; spawners set 2 (pending) and
+ * thread procs set 1 (ready). The aab body's `1c8`/`984`/`audio` are
+ * write-only by aab (no pending → ready transition). */
+extern int32_t g_worker_sec_state_1c8;
+extern int32_t g_worker_sec_state_1cc;
+extern int32_t g_worker_sec_state_1d0;
+extern int32_t g_worker_sec_state_1d4;
+extern int32_t g_worker_sec_state_1d8;
+extern int32_t g_worker_sec_state_984;
+extern int32_t g_worker_sec_state_audio;
+
+/* DAT_06a49980 — param latched by all 8 spawners; read by 6 thread
+ * procs to gate the fade-kick (param != 1 → fade_phase_out_start(0,
+ * 0x11)). Exposed for tests + observability. */
+extern int32_t g_worker_sec_param;
+
+/* Pure-C "begin" — raise the secondary busy + nowloading gates.
+ * Mirrors `worker_load_begin` for the primary. */
+void worker_load_begin_secondary(void);
+
+/* Pure-C "end" — clear secondary busy. Nowloading gate stays raised
+ * (same per-tick-clear quirk as `worker_load_end`). */
+void worker_load_end_secondary(void);
+
+/* Pure-C side of each thread proc's inner-body invocation. Runs the
+ * registered body callback (if any) for `body_id`. Returns 1 if
+ * `body_id` was in range, 0 otherwise. Does NOT touch handle / busy
+ * / gate / state bytes — that's the cleanup + post-body's job. */
+int  worker_load_dispatch_sec_pure(int body_id);
+
+/* Pure-C side of each thread proc's post-body machinery. Writes the
+ * per-LAB_* "ready" state byte, conditionally calls fade-kick (six of
+ * nine bodies), and runs aab's two extra writes. Out-of-range body_id
+ * is a no-op. Called by the thread proc AFTER the shared cleanup
+ * tail and by tests directly. */
+void worker_load_sec_post_body(int body_id);
+
+/* The 8 spawn entry points. Each:
+ *   1. (Optionally) Pre-writes per-kind pending=2 state byte.
+ *   2. Calls worker_load_begin_secondary (busy + nowloading raised).
+ *   3. Latches `param` into g_worker_sec_param (DAT_06a49980).
+ *   4. (d07 only) Calls registered pre-spawn callback.
+ *   5. On Win32: CreateThread on the picked thread proc.
+ *      On non-Win32: no thread spawned — tests drive dispatch + post
+ *      + end explicitly.
+ *
+ * The d3e variant picks LAB_00452ae8 (param==0) or LAB_00452b13
+ * (param!=0) for its thread proc.
+ */
+void worker_load_spawn_d07(int param);
+void worker_load_spawn_d3e(int param);
+void worker_load_spawn_d85(int param);
+void worker_load_spawn_dc1(int param);
+void worker_load_spawn_dfd(int param);
+void worker_load_spawn_e39(int param);
+void worker_load_spawn_e75(int param);
+void worker_load_spawn_eb1(int param);
 
 #endif /* OPENRECET_WORKER_LOAD_H */

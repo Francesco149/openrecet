@@ -6,6 +6,7 @@
  * cleanup-only" branch.
  */
 #include "t.h"
+#include "fade.h"
 #include "nowloading.h"
 #include "scene.h"
 #include "worker_load.h"
@@ -442,6 +443,518 @@ int test_worker_load_engine_dispatch_full_cycle_simulation(void)
     T_ASSERT_EQ_I(worker_load_busy(),     0);
     /* nowloading deliberately still raised — see header. */
     T_ASSERT_EQ_I(nowloading_is_active(), 1);
+    nowloading_reset();
+    return 0;
+}
+
+/* ─── secondary worker family ─────────────────────────────────────────── */
+
+static int g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_COUNT];
+static int g_sec_body_fire_total;
+static int g_sec_body_fire_last;
+static int g_sec_d07_pre_fire_count;
+
+static void sec_body_record_aab(void) { g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_AAB]++; g_sec_body_fire_total++; g_sec_body_fire_last = WORKER_LOAD_SEC_BODY_AAB; }
+static void sec_body_record_ae8(void) { g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_AE8]++; g_sec_body_fire_total++; g_sec_body_fire_last = WORKER_LOAD_SEC_BODY_AE8; }
+static void sec_body_record_b13(void) { g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_B13]++; g_sec_body_fire_total++; g_sec_body_fire_last = WORKER_LOAD_SEC_BODY_B13; }
+static void sec_body_record_b3e(void) { g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_B3E]++; g_sec_body_fire_total++; g_sec_body_fire_last = WORKER_LOAD_SEC_BODY_B3E; }
+static void sec_body_record_c4e(void) { g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_C4E]++; g_sec_body_fire_total++; g_sec_body_fire_last = WORKER_LOAD_SEC_BODY_C4E; }
+static void sec_body_record_c96(void) { g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_C96]++; g_sec_body_fire_total++; g_sec_body_fire_last = WORKER_LOAD_SEC_BODY_C96; }
+static void sec_d07_pre_record(void)  { g_sec_d07_pre_fire_count++; }
+
+static void reset_sec_scratchpad(void)
+{
+    for (int i = 0; i < WORKER_LOAD_SEC_BODY_COUNT; i++) g_sec_body_fire_count[i] = 0;
+    g_sec_body_fire_total    = 0;
+    g_sec_body_fire_last     = -1;
+    g_sec_d07_pre_fire_count = 0;
+}
+
+int test_worker_load_sec_body_count_is_nine(void)
+{
+    /* 8 spawners + 9 thread procs (d3e branches into ae8|b13). */
+    T_ASSERT_EQ_I(WORKER_LOAD_SEC_BODY_COUNT, 9);
+    return 0;
+}
+
+int test_worker_load_sec_body_set_get_round_trip(void)
+{
+    worker_load_reset();
+    worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_AAB, sec_body_record_aab);
+    worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_C96, sec_body_record_c96);
+
+    T_ASSERT(worker_load_get_sec_body(WORKER_LOAD_SEC_BODY_AAB) == sec_body_record_aab);
+    T_ASSERT(worker_load_get_sec_body(WORKER_LOAD_SEC_BODY_C96) == sec_body_record_c96);
+    T_ASSERT(worker_load_get_sec_body(WORKER_LOAD_SEC_BODY_B82) == 0);
+
+    /* NULL clears. */
+    worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_AAB, 0);
+    T_ASSERT(worker_load_get_sec_body(WORKER_LOAD_SEC_BODY_AAB) == 0);
+    return 0;
+}
+
+int test_worker_load_sec_body_out_of_range_silently_ignored(void)
+{
+    worker_load_reset();
+    worker_load_set_sec_body(-1, sec_body_record_aab);
+    worker_load_set_sec_body(9,  sec_body_record_aab);
+    worker_load_set_sec_body(99, sec_body_record_aab);
+    for (int i = 0; i < WORKER_LOAD_SEC_BODY_COUNT; i++) {
+        T_ASSERT(worker_load_get_sec_body(i) == 0);
+    }
+    T_ASSERT(worker_load_get_sec_body(-1) == 0);
+    T_ASSERT(worker_load_get_sec_body(9)  == 0);
+    return 0;
+}
+
+int test_worker_load_sec_d07_pre_spawn_round_trip(void)
+{
+    worker_load_reset();
+    T_ASSERT(worker_load_get_sec_d07_pre_spawn() == 0);
+
+    worker_load_set_sec_d07_pre_spawn(sec_d07_pre_record);
+    T_ASSERT(worker_load_get_sec_d07_pre_spawn() == sec_d07_pre_record);
+
+    worker_load_set_sec_d07_pre_spawn(0);
+    T_ASSERT(worker_load_get_sec_d07_pre_spawn() == 0);
+    return 0;
+}
+
+int test_worker_load_begin_secondary_raises_busy_and_nowloading(void)
+{
+    nowloading_reset();
+    worker_load_reset();
+
+    T_ASSERT_EQ_I(worker_load_busy_secondary(), 0);
+    T_ASSERT_EQ_I(nowloading_is_active(),       0);
+
+    worker_load_begin_secondary();
+
+    T_ASSERT_EQ_I(worker_load_busy_secondary(), 1);
+    T_ASSERT_EQ_I(nowloading_is_active(),       1);
+    /* Primary busy unaffected. */
+    T_ASSERT_EQ_I(worker_load_busy(),           0);
+
+    worker_load_end_secondary();
+    nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_end_secondary_clears_busy_only(void)
+{
+    /* Same per-tick-clear quirk as primary's end(): nowloading stays
+     * raised after the secondary worker finishes. */
+    nowloading_reset();
+    worker_load_reset();
+    worker_load_begin_secondary();
+    T_ASSERT_EQ_I(worker_load_busy_secondary(), 1);
+    T_ASSERT_EQ_I(nowloading_is_active(),       1);
+
+    worker_load_end_secondary();
+
+    T_ASSERT_EQ_I(worker_load_busy_secondary(), 0);
+    T_ASSERT_EQ_I(nowloading_is_active(),       1);   /* still on */
+    nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_dispatch_sec_invokes_registered_cb(void)
+{
+    worker_load_reset();
+    reset_sec_scratchpad();
+    worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_AAB, sec_body_record_aab);
+
+    int ok = worker_load_dispatch_sec_pure(WORKER_LOAD_SEC_BODY_AAB);
+
+    T_ASSERT_EQ_I(ok,                                              1);
+    T_ASSERT_EQ_I(g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_AAB], 1);
+    T_ASSERT_EQ_I(g_sec_body_fire_total,                           1);
+    return 0;
+}
+
+int test_worker_load_dispatch_sec_out_of_range_returns_zero(void)
+{
+    worker_load_reset();
+    reset_sec_scratchpad();
+    worker_load_set_sec_body(0, sec_body_record_aab);
+    worker_load_set_sec_body(8, sec_body_record_c96);
+
+    T_ASSERT_EQ_I(worker_load_dispatch_sec_pure(9),   0);
+    T_ASSERT_EQ_I(worker_load_dispatch_sec_pure(99),  0);
+    T_ASSERT_EQ_I(worker_load_dispatch_sec_pure(-1),  0);
+    T_ASSERT_EQ_I(g_sec_body_fire_total,              0);
+    return 0;
+}
+
+int test_worker_load_dispatch_sec_unregistered_slot_is_noop(void)
+{
+    worker_load_reset();
+    reset_sec_scratchpad();
+    /* No callbacks registered; dispatch is still in range → returns 1. */
+    int ok = worker_load_dispatch_sec_pure(WORKER_LOAD_SEC_BODY_B3E);
+    T_ASSERT_EQ_I(ok,                    1);
+    T_ASSERT_EQ_I(g_sec_body_fire_total, 0);
+    return 0;
+}
+
+int test_worker_load_sec_post_body_aab_writes_three_flags(void)
+{
+    /* LAB_00452aab cleanup tail: DAT_0438b1c8=1, DAT_09643120=1,
+     * DAT_06a49984=1. No fade-kick (param read is suppressed). */
+    worker_load_reset();
+    fade_reset();
+    g_worker_sec_param = 0;   /* would normally fade-kick if checked */
+
+    worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_AAB);
+
+    T_ASSERT_EQ_I(g_worker_sec_state_1c8,   1);
+    T_ASSERT_EQ_I(g_worker_sec_state_984,   1);
+    T_ASSERT_EQ_I(g_worker_sec_state_audio, 1);
+    /* No fade started. */
+    T_ASSERT_EQ_I(g_fade_phase, 0);
+    return 0;
+}
+
+int test_worker_load_sec_post_body_ae8_writes_1cc_no_fade(void)
+{
+    /* LAB_00452ae8 cleanup tail: DAT_0438b1cc=1. No fade-kick. */
+    worker_load_reset();
+    fade_reset();
+    g_worker_sec_param = 0;
+
+    worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_AE8);
+
+    T_ASSERT_EQ_I(g_worker_sec_state_1cc, 1);
+    T_ASSERT_EQ_I(g_worker_sec_state_1c8, 0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4, 0);
+    T_ASSERT_EQ_I(g_fade_phase,           0);
+    return 0;
+}
+
+int test_worker_load_sec_post_body_b13_writes_1cc_no_fade(void)
+{
+    /* LAB_00452b13 cleanup tail: same as ae8 (DAT_0438b1cc=1). */
+    worker_load_reset();
+    fade_reset();
+    g_worker_sec_param = 7;   /* still no fade-kick */
+
+    worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_B13);
+
+    T_ASSERT_EQ_I(g_worker_sec_state_1cc, 1);
+    T_ASSERT_EQ_I(g_fade_phase,           0);
+    return 0;
+}
+
+int test_worker_load_sec_post_body_b3e_writes_1d4_and_fade_kicks_on_param_ne_one(void)
+{
+    /* LAB_00452b3e: DAT_0438b1d4=1; if param != 1 → fade-kick. */
+    worker_load_reset();
+    fade_reset();
+    g_worker_sec_param = 0;   /* != 1 → fade-kick fires */
+
+    worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_B3E);
+
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4, 1);
+    /* fade_phase_out_start(0, 0x11) sets phase=-1, mode=0, duration=0x11. */
+    T_ASSERT_EQ_I(g_fade_phase,           -1);
+    T_ASSERT_EQ_I(g_fade_mode,             0);
+    T_ASSERT_EQ_I(g_fade_duration,      0x11);
+    return 0;
+}
+
+int test_worker_load_sec_post_body_b3e_no_fade_when_param_eq_one(void)
+{
+    /* The fade-kick gate is `param != 1` — explicitly skip on 1. */
+    worker_load_reset();
+    fade_reset();
+    g_worker_sec_param = 1;   /* gate suppressed */
+
+    worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_B3E);
+
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4, 1);
+    T_ASSERT_EQ_I(g_fade_phase,           0);   /* fade untouched */
+    return 0;
+}
+
+int test_worker_load_sec_post_body_b82_bc6_c0a_share_1d4_fade_pattern(void)
+{
+    /* LAB_00452b82/bc6/c0a share the b3e pattern exactly. */
+    for (int body_id = WORKER_LOAD_SEC_BODY_B82;
+         body_id <= WORKER_LOAD_SEC_BODY_C0A; body_id++) {
+        worker_load_reset();
+        fade_reset();
+        g_worker_sec_param = 0;
+        worker_load_sec_post_body(body_id);
+        T_ASSERT_EQ_I(g_worker_sec_state_1d4, 1);
+        T_ASSERT_EQ_I(g_fade_phase,          -1);
+    }
+    return 0;
+}
+
+int test_worker_load_sec_post_body_c4e_writes_1d0_with_fade(void)
+{
+    /* LAB_00452c4e: DAT_0438b1d0=1; fade-kick gate same as b3e family. */
+    worker_load_reset();
+    fade_reset();
+    g_worker_sec_param = 0;
+
+    worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_C4E);
+
+    T_ASSERT_EQ_I(g_worker_sec_state_1d0, 1);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4, 0);  /* separate slot */
+    T_ASSERT_EQ_I(g_fade_phase,          -1);
+    return 0;
+}
+
+int test_worker_load_sec_post_body_c96_writes_1d8_with_fade(void)
+{
+    /* LAB_00452c96: DAT_0438b1d8=1; fade-kick gate same as b3e family. */
+    worker_load_reset();
+    fade_reset();
+    g_worker_sec_param = 2;   /* != 1 */
+
+    worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_C96);
+
+    T_ASSERT_EQ_I(g_worker_sec_state_1d8, 1);
+    T_ASSERT_EQ_I(g_fade_phase,          -1);
+    return 0;
+}
+
+int test_worker_load_sec_post_body_out_of_range_is_noop(void)
+{
+    worker_load_reset();
+    fade_reset();
+    g_worker_sec_param = 0;
+
+    worker_load_sec_post_body(-1);
+    worker_load_sec_post_body(9);
+    worker_load_sec_post_body(99);
+
+    T_ASSERT_EQ_I(g_worker_sec_state_1c8, 0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1cc, 0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d0, 0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4, 0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d8, 0);
+    T_ASSERT_EQ_I(g_fade_phase,            0);
+    return 0;
+}
+
+int test_worker_load_spawn_d07_raises_gates_latches_param_runs_pre_spawn(void)
+{
+    nowloading_reset();
+    worker_load_reset();
+    reset_sec_scratchpad();
+    worker_load_set_sec_d07_pre_spawn(sec_d07_pre_record);
+
+    worker_load_spawn_d07(42);
+
+    T_ASSERT_EQ_I(worker_load_busy_secondary(), 1);
+    T_ASSERT_EQ_I(nowloading_is_active(),       1);
+    T_ASSERT_EQ_I(g_worker_sec_param,          42);
+    T_ASSERT_EQ_I(g_sec_d07_pre_fire_count,     1);
+    /* d07 doesn't pre-write any "pending=2" flag. */
+    T_ASSERT_EQ_I(g_worker_sec_state_1cc, 0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d0, 0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4, 0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d8, 0);
+    /* No body fires under unit-test build (no thread). */
+    T_ASSERT_EQ_I(g_sec_body_fire_total, 0);
+
+    worker_load_end_secondary();
+    nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_spawn_d3e_pending_cc_eq_two(void)
+{
+    /* FUN_00452d3e: pending=2 on 1cc, param latched. */
+    nowloading_reset();
+    worker_load_reset();
+    reset_sec_scratchpad();
+
+    worker_load_spawn_d3e(0);
+
+    T_ASSERT_EQ_I(g_worker_sec_state_1cc,       2);
+    T_ASSERT_EQ_I(worker_load_busy_secondary(), 1);
+    T_ASSERT_EQ_I(g_worker_sec_param,           0);
+
+    worker_load_end_secondary();
+    nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_spawn_d85_dc1_dfd_e39_share_pending_1d4(void)
+{
+    /* All four spawners share the 1d4 pending=2 write. param differs. */
+    static const struct {
+        void (*fn)(int);
+        int  param;
+    } cases[] = {
+        { worker_load_spawn_d85, 100 },
+        { worker_load_spawn_dc1, 101 },
+        { worker_load_spawn_dfd, 102 },
+        { worker_load_spawn_e39, 103 },
+    };
+    for (size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
+        nowloading_reset();
+        worker_load_reset();
+        cases[i].fn(cases[i].param);
+        T_ASSERT_EQ_I(g_worker_sec_state_1d4,       2);
+        T_ASSERT_EQ_I(g_worker_sec_state_1d0,       0);   /* not touched */
+        T_ASSERT_EQ_I(g_worker_sec_state_1d8,       0);
+        T_ASSERT_EQ_I(g_worker_sec_param,           cases[i].param);
+        T_ASSERT_EQ_I(worker_load_busy_secondary(), 1);
+        worker_load_end_secondary();
+        nowloading_reset();
+    }
+    return 0;
+}
+
+int test_worker_load_spawn_e75_pending_1d0(void)
+{
+    nowloading_reset();
+    worker_load_reset();
+    worker_load_spawn_e75(5);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d0, 2);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4, 0);
+    T_ASSERT_EQ_I(g_worker_sec_param,     5);
+    worker_load_end_secondary();
+    nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_spawn_eb1_pending_1d8(void)
+{
+    nowloading_reset();
+    worker_load_reset();
+    worker_load_spawn_eb1(6);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d8, 2);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4, 0);
+    T_ASSERT_EQ_I(g_worker_sec_param,     6);
+    worker_load_end_secondary();
+    nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_reset_zeroes_secondary_state(void)
+{
+    /* Reset must clear all secondary callbacks + state bytes + param. */
+    worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_AAB, sec_body_record_aab);
+    worker_load_set_sec_d07_pre_spawn(sec_d07_pre_record);
+    g_worker_sec_state_1c8   = 9;
+    g_worker_sec_state_1cc   = 9;
+    g_worker_sec_state_1d0   = 9;
+    g_worker_sec_state_1d4   = 9;
+    g_worker_sec_state_1d8   = 9;
+    g_worker_sec_state_984   = 9;
+    g_worker_sec_state_audio = 9;
+    g_worker_sec_param       = 9;
+
+    worker_load_reset();
+
+    for (int i = 0; i < WORKER_LOAD_SEC_BODY_COUNT; i++) {
+        T_ASSERT(worker_load_get_sec_body(i) == 0);
+    }
+    T_ASSERT(worker_load_get_sec_d07_pre_spawn() == 0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1c8,   0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1cc,   0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d0,   0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4,   0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d8,   0);
+    T_ASSERT_EQ_I(g_worker_sec_state_984,   0);
+    T_ASSERT_EQ_I(g_worker_sec_state_audio, 0);
+    T_ASSERT_EQ_I(g_worker_sec_param,       0);
+    return 0;
+}
+
+int test_worker_load_sec_full_cycle_simulation_b3e(void)
+{
+    /* End-to-end simulation of FUN_00452d85 → LAB_00452b3e on non-Win32:
+     *   1. spawn_d85(param) — pending(1d4)=2, busy_sec=1, nowloading=1,
+     *      param latched.
+     *   2. dispatch_sec_pure(B3E) — fires registered inner body.
+     *   3. (Win32: secondary_thread_cleanup) — skipped on Linux.
+     *   4. sec_post_body(B3E) — ready(1d4)=1, fade-kick if param!=1.
+     *   5. end_secondary — busy_sec=0; nowloading STAYS on.
+     */
+    nowloading_reset();
+    worker_load_reset();
+    fade_reset();
+    reset_sec_scratchpad();
+    worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_B3E, sec_body_record_b3e);
+
+    worker_load_spawn_d85(0);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4,       2);
+    T_ASSERT_EQ_I(worker_load_busy_secondary(), 1);
+
+    int ok = worker_load_dispatch_sec_pure(WORKER_LOAD_SEC_BODY_B3E);
+    T_ASSERT_EQ_I(ok,                                              1);
+    T_ASSERT_EQ_I(g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_B3E], 1);
+
+    worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_B3E);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d4, 1);    /* 2 → 1 */
+    T_ASSERT_EQ_I(g_fade_phase,          -1);    /* fade-kick fired */
+
+    worker_load_end_secondary();
+    T_ASSERT_EQ_I(worker_load_busy_secondary(), 0);
+    T_ASSERT_EQ_I(nowloading_is_active(),       1);   /* quirk */
+    nowloading_reset();
+    fade_reset();
+    return 0;
+}
+
+int test_worker_load_sec_full_cycle_simulation_c4e(void)
+{
+    /* End-to-end simulation of FUN_00452e75 → LAB_00452c4e (unreferenced
+     * in vendor but still well-formed). Verifies 1d0 slot + fade-kick. */
+    nowloading_reset();
+    worker_load_reset();
+    fade_reset();
+    reset_sec_scratchpad();
+    worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_C4E, sec_body_record_c4e);
+
+    worker_load_spawn_e75(3);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d0, 2);
+
+    worker_load_dispatch_sec_pure(WORKER_LOAD_SEC_BODY_C4E);
+    T_ASSERT_EQ_I(g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_C4E], 1);
+
+    worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_C4E);
+    T_ASSERT_EQ_I(g_worker_sec_state_1d0, 1);
+    T_ASSERT_EQ_I(g_fade_phase,          -1);
+
+    worker_load_end_secondary();
+    nowloading_reset();
+    fade_reset();
+    return 0;
+}
+
+int test_worker_load_sec_full_cycle_simulation_aab_no_fade(void)
+{
+    /* End-to-end simulation of FUN_00452d07 → LAB_00452aab. d07 has the
+     * pre-spawn hook and aab is one of the three "no fade-kick" bodies. */
+    nowloading_reset();
+    worker_load_reset();
+    fade_reset();
+    reset_sec_scratchpad();
+    worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_AAB, sec_body_record_aab);
+    worker_load_set_sec_d07_pre_spawn(sec_d07_pre_record);
+
+    worker_load_spawn_d07(0);
+    T_ASSERT_EQ_I(g_sec_d07_pre_fire_count, 1);
+
+    worker_load_dispatch_sec_pure(WORKER_LOAD_SEC_BODY_AAB);
+    T_ASSERT_EQ_I(g_sec_body_fire_count[WORKER_LOAD_SEC_BODY_AAB], 1);
+
+    worker_load_sec_post_body(WORKER_LOAD_SEC_BODY_AAB);
+    /* aab's three writes. */
+    T_ASSERT_EQ_I(g_worker_sec_state_1c8,   1);
+    T_ASSERT_EQ_I(g_worker_sec_state_984,   1);
+    T_ASSERT_EQ_I(g_worker_sec_state_audio, 1);
+    /* No fade-kick even though param=0 (param!=1 gate not consulted). */
+    T_ASSERT_EQ_I(g_fade_phase, 0);
+
+    worker_load_end_secondary();
     nowloading_reset();
     return 0;
 }

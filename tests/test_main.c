@@ -661,6 +661,33 @@ struct test_case {
     X(worker_load_alt_full_cycle_simulation) \
     X(worker_load_reset_clears_alt_cb) \
     X(worker_load_engine_dispatch_full_cycle_simulation) \
+    X(worker_load_sec_body_count_is_nine) \
+    X(worker_load_sec_body_set_get_round_trip) \
+    X(worker_load_sec_body_out_of_range_silently_ignored) \
+    X(worker_load_sec_d07_pre_spawn_round_trip) \
+    X(worker_load_begin_secondary_raises_busy_and_nowloading) \
+    X(worker_load_end_secondary_clears_busy_only) \
+    X(worker_load_dispatch_sec_invokes_registered_cb) \
+    X(worker_load_dispatch_sec_out_of_range_returns_zero) \
+    X(worker_load_dispatch_sec_unregistered_slot_is_noop) \
+    X(worker_load_sec_post_body_aab_writes_three_flags) \
+    X(worker_load_sec_post_body_ae8_writes_1cc_no_fade) \
+    X(worker_load_sec_post_body_b13_writes_1cc_no_fade) \
+    X(worker_load_sec_post_body_b3e_writes_1d4_and_fade_kicks_on_param_ne_one) \
+    X(worker_load_sec_post_body_b3e_no_fade_when_param_eq_one) \
+    X(worker_load_sec_post_body_b82_bc6_c0a_share_1d4_fade_pattern) \
+    X(worker_load_sec_post_body_c4e_writes_1d0_with_fade) \
+    X(worker_load_sec_post_body_c96_writes_1d8_with_fade) \
+    X(worker_load_sec_post_body_out_of_range_is_noop) \
+    X(worker_load_spawn_d07_raises_gates_latches_param_runs_pre_spawn) \
+    X(worker_load_spawn_d3e_pending_cc_eq_two) \
+    X(worker_load_spawn_d85_dc1_dfd_e39_share_pending_1d4) \
+    X(worker_load_spawn_e75_pending_1d0) \
+    X(worker_load_spawn_eb1_pending_1d8) \
+    X(worker_load_reset_zeroes_secondary_state) \
+    X(worker_load_sec_full_cycle_simulation_b3e) \
+    X(worker_load_sec_full_cycle_simulation_c4e) \
+    X(worker_load_sec_full_cycle_simulation_aab_no_fade) \
     \
     X(save_io_scan_fresh_arena_zero_flags) \
     X(save_io_scan_score_in_bank_set) \
