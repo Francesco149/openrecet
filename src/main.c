@@ -40,6 +40,7 @@
 #include "audio.h"
 #include "audio_fade.h"
 #include "save_bank.h"
+#include "save_io.h"
 #include "font.h"
 #include "font_alloc.h"
 #include "font_atlas.h"
@@ -510,27 +511,69 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             save_header_get_se_b_slider(),
             save_header_get_slider3());
 
-    /* Overlay recet.ini preferences on the just-initialised header.
-     * Engine doesn't do this; we do, because the user's ini values
-     * are a stand-in for save.dat-persisted sliders until save-load
-     * (FUN_004902fe) ports. SE-B has no ini key (dormant per
-     * engine-quirks #46). */
-    save_header_set_bgm_slider(g_ini.mu);
-    save_header_set_se_slider(g_ini.se);
+    /* Engine FUN_004902fe — try save.dat then _save.dat. If either is
+     * readable, copies its contents into the arena and re-validates
+     * each bank's checksum (re-init'ing any with bad checksum). If
+     * neither file exists, the arena keeps the fresh state from
+     * save_bank_init_all above.
+     *
+     * Engine cwd is the game install dir, where save.dat lives
+     * alongside lnkdatas.bin. We use bare filenames so the engine's
+     * cwd-resolution (storage_init's prior chdir) places us in the
+     * same directory. */
+    if (save_io_try_load("save.dat", "_save.dat")) {
+        /* On a successful load, the audio sliders in the header may
+         * differ from the fresh defaults — re-sync audio_fade and
+         * re-apply the BGM volume so any music already playing picks
+         * up the loaded levels. */
+        audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM,
+                              save_header_get_bgm_slider());
+        audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A,
+                              save_header_get_se_slider());
+        audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B,
+                              save_header_get_se_b_slider());
+        save_bank_apply_bgm_via_audio_fade();
+    }
+
+    /* Re-build the title menu with the (possibly loaded) save state.
+     * has_any_score / has_any_adv_cleared / has_any_adv8_cleared /
+     * hidden_char_unlocked drive which menu items appear — see
+     * scene_title_menu_init for the gating logic. */
+    {
+        scene_title_save_t loaded_save;
+        save_io_scan_for_title_menu(&loaded_save);
+        scene_title_menu_init(&loaded_save, &g_scene_title_menu);
+        g_scene_title_anim.cursor_pos =
+            (uint32_t)g_scene_title_menu.default_cursor;
+        fprintf(stderr,
+                "save_io: title menu rebuilt — items=%d "
+                "(adv_cleared=%d adv8=%d score=%d hidden=%d)\n",
+                g_scene_title_menu.count,
+                loaded_save.has_any_adv_cleared,
+                loaded_save.has_any_adv8_cleared,
+                loaded_save.has_any_score,
+                loaded_save.hidden_char_unlocked);
+    }
 
     /* Sync audio_fade sliders from the save header (one source of
-     * truth). audio_fade still owns the per-channel apply hook
-     * (audio_fade_apply_hook_win32) and SetVolume timing. */
+     * truth). audio_fade owns the per-channel apply hook
+     * (audio_fade_apply_hook_win32) and SetVolume timing.
+     *
+     * Until save-load landed, this block also overlaid recet.ini's
+     * mu/se values on top of the engine defaults (9/5/9/1). The
+     * overlay was a stand-in for save.dat-persisted sliders. With
+     * save_io_try_load above, save.dat is now the authoritative
+     * source — its sliders win regardless of recet.ini. (The engine
+     * itself ignores recet.ini's mu/se at boot; we now match.) */
     audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM,  save_header_get_bgm_slider());
     audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, save_header_get_se_slider());
     audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B, save_header_get_se_b_slider());
     fprintf(stderr,
             "audio: sliders seeded — bgm=%d se-a=%d se-b=%d "
-            "(save_header overlay from recet.ini bgm=%d se=%d)\n",
+            "(authoritative source: save_header)\n",
             audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM),
             audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_A),
-            audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_B),
-            g_ini.mu, g_ini.se);
+            audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_B));
 
     /* FUN_0047c474 — the GDI atlas builder — is **dev-time only**.
      * The EN retail build ships its atlas (fontdata.bin + fontidx.bin)

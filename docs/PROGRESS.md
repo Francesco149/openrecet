@@ -3,6 +3,130 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Save-load probe (FUN_004902fe) + title-menu unlock plumbing
+
+Boot-time save-load probe lands. The engine reads save.dat (then
+_save.dat as backup) at boot and either copies its contents into the
+save arena or, if neither file is readable, leaves the fresh arena
+state intact.  The title menu is then rebuilt against the (possibly
+loaded) save state — CONTINUE_ANY / NEW_HAS_SAVE / CONT_HAS_SAVE /
+SURVIVAL / HIDDEN_CHAR menu items now unlock based on actual bank
+contents rather than the all-zero fresh save we used to assume.
+
+Single commit: **`src/save_io.{c,h}` + `tests/test_save_io.c` + main.c
+wire-up + boot-order refactor**.
+
+### What landed
+
+- **`save_io_try_load(primary, backup)`** — ports FUN_004902fe.
+  Tries `primary` (`save.dat`) first via libc `fopen("rb")`, falls
+  back to `backup` (`_save.dat`).  Three engine size buckets:
+   - `0x011efce0` (modern JP) — legacy-modern path; sets
+     `g_save_loaded_known_format = 1`.  Per-bank parser is stubbed
+     (verbatim-copy fallback); the user's saves don't hit this size.
+   - `0x00f30ae0` (ancient pre-release) — symmetric stub.
+   - **any other size ≤ ARENA_BYTES** — verbatim-copy.  The
+     Carpe Fulgur English Steam release writes saves at exactly
+     `ARENA_BYTES = 0x011f7530` (18,838,832 bytes), so the user's
+     saves land here.  Engine quirk preserved: this path does NOT
+     set `g_save_loaded_known_format`.
+  Each path calls `save_bank_init_all()` after the copy, which
+  per-bank checksum-validates and re-inits any bank whose checksum
+  doesn't match.  Returns 1 if either file was read, 0 if neither.
+
+- **`save_io_scan_for_title_menu(out)`** — fuses FUN_0049a324 +
+  FUN_0049a43d's three reads against the loaded banks into the
+  `scene_title_save_t` struct that `scene_title_menu_init` already
+  consumes.  Drives all four flags:
+   - `has_any_score`        — any bank `[2]` > 0 (the per-bank score)
+   - `has_any_adv_cleared`  — additionally `bank[0xb759] == 3`
+   - `has_any_adv8_cleared` — any item in `bank[6..6+bank[0]-1]`
+                              has `(item >> 6)` in `[0xd49, 0xd50]`
+   - `hidden_char_unlocked` — shared-header dword 6
+                              (engine DAT_056e5788)
+  A safety cap bounds the item-list scan to `STRIDE - 6` dwords so a
+  corrupt `bank[0]` count can't walk past the bank end (the engine
+  has no such cap; we add one because the alternative is an OOB
+  read across 18 MB of arena).
+
+- **main.c boot order refactor**.  Before this chip:
+  `save_bank_init_all → recet.ini overlay → audio_fade sync`.
+  After: `save_bank_init_all → save_io_try_load → audio_fade sync`.
+  The recet.ini mu/se overlay is removed entirely — it was a
+  stand-in for save-persisted sliders until save-load ported.  The
+  engine itself ignores recet.ini's mu/se at boot; we now match.
+  (recet.ini's audio sliders ARE still WRITTEN by FUN_0047a804's
+  shutdown save-back, deferred.)  After save_io, the title menu is
+  rebuilt against the loaded save (`scene_title_menu_init` with
+  scanned flags) so CONTINUE_ANY etc. appear iff the save backs them.
+
+### Engine fidelity notes
+
+- The engine's `DAT_095d3728` is a "skip per-bank checksum
+  revalidation" hint flag, NOT a "save exists" flag.  Set only on
+  the two legacy size buckets.  Title-menu unlocks are independent
+  — they scan the bank contents directly.
+- `save_bank_init_all` post-load behaves exactly like the engine:
+  any bank whose checksum doesn't match `XOR(dwords[0..0xb7f0))`
+  gets re-init'd to a fresh new-game state.  The verbatim-copy from
+  disk + the per-bank re-validation together produce the same
+  end-state as the engine's per-bank parse + checksum stamp.
+- `g_ini.mu` / `g_ini.se` continue to be parsed (recet.ini reader)
+  for future shutdown save-back; they're just not consumed at boot
+  any more.
+- Audio sliders now flow `save.dat → header → audio_fade` cleanly.
+  The user's CF EN save ships with bgm=5 (engine default never
+  adjusted), so the boot bgm slider drops from 9 (recet.ini stand-in)
+  to 5.  This is the new authoritative source.
+
+### Deferred (gated on this chip)
+
+- **Modern JP per-bank parser** (engine FUN_004902fe lines 47-101):
+  reads each bank at disk-stride 0xb7a5 dwords, validates checksum
+  against the stored value, copies only 0xb78d dwords (the in-memory
+  bank has additional scratch fields that aren't on disk).  Stubbed
+  with verbatim copy + `save_bank_init_all` validation today.
+  Lands if a vintage JP save surfaces.
+- **Ancient pre-release per-bank parser** (lines 128-198): symmetric.
+- **Shutdown save-back** (`FUN_0047a804`): writes recet.ini values
+  + a final `FUN_004902aa` `save_clear_all` to disk.  Engine writes
+  the full ARENA_BYTES verbatim — see save_bank.h's "engine call
+  sites" doc block.  Deferred until the shutdown chain ports.
+- **Title-screen save-slot UI** (engine `FUN_0049a59e` L213 reads
+  `DAT_0438b1e0` for the active slot index): currently hardcoded to
+  slot 0 in `scene_post_fade_init`.  Save-slot menu lands when the
+  UI ports.
+
+### Tests + scenarios
+
+15 new unit tests (635 total, was 620): 8 cover the arena-scan path
+(fresh-arena zero flags, score-in-bank, adv_cleared requires both
+score + flag, adv8 range coverage end-to-end, header hidden-char
+read, bank-99 coverage, bogus-count cap), 7 cover the disk-probe
+path (no-files → 0, primary-exists → 1, fall-through-to-backup,
+oversized → re-init, arena-sized verbatim copy survives the
+checksum revalidation pass, known-format flag set on legacy size,
+known-format flag stays 0 on fallback).
+
+Scenarios: `title-options` re-blessed (Music slider visibly steps
+from 9 → 5 because save.dat is now authoritative — the only
+4-pixel-region diff in the settings panel).  Other 3 scenarios
+unchanged (their captures don't enter the audio-slider readout).
+
+Boot trace now logs:
+
+```
+save_bank: arena initialized (header magic=0x341944da, sliders se=9 bgm=5 se-b=9 slider3=1)
+save_io: loaded save.dat (18838832 bytes)
+save_io: title menu rebuilt — items=4 (adv_cleared=0 adv8=0 score=0 hidden=0)
+audio: sliders seeded — bgm=5 se-a=9 se-b=9 (authoritative source: save_header)
+```
+
+User's save file is a fresh new-game state (gold=1000, no
+adventure progress) so the menu still shows 4 base items.  When a
+save with real progress lands, the same code path will surface
+CONTINUE_ANY / NEW_HAS_SAVE / RANKING-with-cursor etc.
+
 ## 2026-05-22 — Now Loading overlay (FUN_00453147 + FUN_004063c7)
 
 Next deferred scene-1 chip from the sysassets entry: the engine's

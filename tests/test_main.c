@@ -638,6 +638,22 @@ struct test_case {
     X(nowloading_tick_idle_does_not_advance_rotation) \
     X(nowloading_tick_returns_previous_gate_state) \
     \
+    X(save_io_scan_fresh_arena_zero_flags) \
+    X(save_io_scan_score_in_bank_set) \
+    X(save_io_scan_adv_cleared_requires_score_and_flag) \
+    X(save_io_scan_adv8_in_items_list) \
+    X(save_io_scan_adv8_range_full_coverage) \
+    X(save_io_scan_hidden_char_from_header) \
+    X(save_io_scan_bank99_also_scanned) \
+    X(save_io_scan_caps_bogus_item_count) \
+    X(save_io_try_load_returns_zero_when_no_files) \
+    X(save_io_try_load_returns_one_when_primary_exists) \
+    X(save_io_try_load_falls_back_to_backup) \
+    X(save_io_try_load_oversized_file_reinits) \
+    X(save_io_try_load_arena_sized_file_copies_verbatim) \
+    X(save_io_known_format_flag_modern) \
+    X(save_io_known_format_flag_stays_zero_on_fallback) \
+    \
     X(font_init_zeros_state) \
     X(font_init_is_idempotent) \
     X(font_age_tick_advances_in_use_only) \
