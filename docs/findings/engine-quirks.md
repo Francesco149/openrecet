@@ -1543,6 +1543,72 @@ Easy to get wrong because:
 
 ---
 
+## Font atlas is shipped, not regenerated (engine quirk #48)
+
+FUN_0047c474 (the GDI atlas builder — "fontsystem ok") is a fully
+functional ~1.4 KB of code that the shipped EN retail build never
+actually runs.
+
+The engine's normal text-rendering pipeline needs fontdata.bin +
+fontidx.bin (a pre-rasterized SJIS glyph atlas with 5×5 edge
+dilation) loaded into RAM by FUN_0047c3a5. That loader's path is:
+
+1. `fopen("fontdata.bin", "rb")` — cwd file, used during the original
+   dev cycle so iterating on font generation didn't require repacking
+   lnkdatas every time
+2. `storage_read("fontdata.bin")` — fallback to the lnkdatas archive
+3. (same for `fontidx.bin`)
+
+The atlas regen (FUN_0047c474) only fires when `DAT_073dfd00 != 0`,
+which is raised by an active `font:` line in `data/config.idx`.
+**Vendor config has `/font:` commented out** — the regen never runs
+under normal play. The shipped game uses the atlas baked into
+lnkdatas during the original 2007 dev cycle.
+
+That shipped atlas was built on the original dev's Japanese-locale
+Windows machine. Trying to regenerate it on an English-locale Windows
+host produces visually-mangled output: GDI's font substitution
+resolves the engine's `face="ＭＳ Ｐゴシック" SJIS +
+lfCharSet=SHIFTJIS_CHARSET` request to a *different* MS Gothic
+variant (TrueType vs. legacy vector, SHIFTJIS vs. ANSI charset), and
+that variant's glyph metrics don't compose cleanly with the engine's
+hardcoded `dst_h = 42 * scale`, src-rect `[1, 1, 41, 41]` draw_text
+math. Text renders as unrecognizable vertical stripes.
+
+We tried hard to reproduce the dev's exact GDI environment.
+`SetThreadLocale(en-US)`, `setlocale`, `SetThreadUILanguage`, ASCII
+vs SJIS face names, ANSI vs SHIFTJIS_CHARSET, OUT_TT_ONLY_PRECIS vs
+OUT_DEFAULT_PRECIS — none of them got GDI to give us a "right" font
+variant. Retail's `recettear.unpacked.exe` running on the same EN
+machine *also* generates an atlas that visually works (MS Gothic +
+tmCharSet=0, non-TrueType, all-tofu kanji), but byte-different from
+the shipped lnkdatas atlas and from anything our process produces.
+The exact resolution mechanism is opaque from outside.
+
+**Practical takeaway:** our port skips FUN_0047c474 entirely in
+main.c and lets FUN_0047c3a5's storage_read fallback
+(`src/font_atlas.c::font_atlas_load`) pull the canonical shipped
+atlas out of lnkdatas. The atlas-builder code stays in
+`src/font_atlas.c` for fidelity + future use; runtime never calls
+it. Worth revisiting if/when we port the JP version of the game —
+that build may actively regen, and the JP dev's machine config might
+be more reproducible.
+
+The whole investigation is captured in `tools/diagnostics/font/` —
+probes that didn't land the fix but mapped the entire problem space.
+The fix in the end was a single one-line addition to
+`font_atlas.c`'s loader: `slurp_storage(...)` as a third
+search-chain pass mirroring the engine's own fallback.
+
+> 📍 `docs/decompiled/by-address/47c474.c`,
+> `docs/decompiled/by-address/47c3a5.c`,
+> `src/font_atlas.c::font_atlas_load`,
+> `src/font_atlas.c::font_atlas_build_win32` (dead code),
+> `src/main.c` (font_atlas_build_win32 call removed),
+> `tools/diagnostics/font/README.md`.
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an

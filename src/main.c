@@ -410,45 +410,28 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     fprintf(stderr, "audio: sliders seeded from recet.ini — bgm=%d se-a=%d\n",
             g_ini.mu, g_ini.se);
 
-    /* FUN_0047c474 — GDI atlas builder. Writes fontdata.bin + fontidx.bin
-     * into ./font/ (a fresh path, not the vendor dir, so retail and
-     * openrecet don't fight over the same files). Trigger conditions:
+    /* FUN_0047c474 — the GDI atlas builder — is **dev-time only**.
+     * The EN retail build ships its atlas (fontdata.bin + fontidx.bin)
+     * INSIDE lnkdatas. The engine's FUN_0047c3a5 loader fopens the
+     * cwd first (legacy path used during the original dev cycle), then
+     * falls back to storage_read which finds the shipped atlas.
      *
-     *   1. Engine path: g_config.font_set was raised by `font:` in
-     *      config.idx → always regenerate (forces a refresh).
-     *   2. Drop-in path: the atlas files don't exist yet → regenerate
-     *      with a default face name. Lets a fresh user install just
-     *      run openrecet.exe and have text appear.
+     * Vendor config.idx has `/font:` commented, so DAT_073dfd00 never
+     * raises and FUN_0047c474 never fires under normal play. The atlas
+     * builder is essentially dead code in the shipped game — preserved
+     * for fidelity in `src/font_atlas.c` but the runtime never calls
+     * it. (Useful again if/when we port the JP version, which may
+     * actively regen.)
      *
-     * edgewi / edgedel are sourced from config.idx (defaults 2.0 / 6.0
-     * from the vendor file). kanji_off comes from config.idx kanjioff:
-     * (vendor: 0 → render kanji).
-     *
-     * The atlas loader (FUN_0047c3a5 port — next commit) reads back
-     * what we wrote here. */
-    {
-        FILE *probe = fopen("font/fontdata.bin", "rb");
-        int need_regen = g_config.font_set || (probe == NULL);
-        if (probe) fclose(probe);
-
-        if (need_regen) {
-            const char *face = (g_config.font_set && g_config.font_name[0])
-                ? g_config.font_name
-                /* MS PGothic is on every Japanese-capable Windows
-                 * install — safe default that matches the engine's
-                 * intent (Shift-JIS rendering at 42px). */
-                : "\x82\x6c\x82\x72 \x82\x6f\x83\x53\x83\x56\x83\x62\x83\x4e";
-            float ew = (g_config.edgewi  > 0) ? (float)g_config.edgewi  : 2.0f;
-            float ed = (g_config.edgedel > 0) ? (float)g_config.edgedel : 6.0f;
-            if (!font_atlas_build_win32("font", face, ew, ed,
-                                        g_config.kanjioff)) {
-                fprintf(stderr,
-                    "font: atlas regen failed — text will be blank\n");
-            }
-        } else {
-            fprintf(stderr, "font: reusing cached atlas at ./font/\n");
-        }
-    }
+     * font_atlas_load below tries ./font/, then ./fontdata.bin, then
+     * storage_read — the third hit is what the shipped EN game uses.
+     * The shipped atlas was built on the original Japanese dev's
+     * locale-correct Windows, with real kanji + correct metrics for
+     * the engine's draw_text math. Our GDI regen on EN-locale Windows
+     * produces visually-mangled output because GDI picks a different
+     * font variant; documented as engine quirk in
+     * docs/findings/engine-quirks.md §"Font atlas is shipped, not
+     * regenerated". */
 
     /* "fontsystem ok" — FUN_0047c3a5 — pull fontdata.bin + fontidx.bin
      * back from disk into g_font_atlas. The slot allocator / glyph

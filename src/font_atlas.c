@@ -22,6 +22,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#  include "storage.h"   /* storage_get_size / storage_read */
+#endif
+
 struct font_atlas g_font_atlas;
 
 /* ─── (1) embedded special-codepoint table ──────────────────────────────
@@ -262,66 +266,126 @@ void font_atlas_free(void)
     memset(&g_font_atlas, 0, sizeof g_font_atlas);
 }
 
+/* Try storage_read fallback (lnkdatas). The EN retail build ships
+ * fontdata.bin + fontidx.bin INSIDE lnkdatas — the engine's
+ * FUN_0047c3a5 loader probes fopen first, then falls back to
+ * storage_read by name. We mirror that path. The shipped atlas was
+ * built on a JP-locale dev machine and works cleanly with the
+ * engine's draw_text math regardless of the user's locale, so it's
+ * the preferred source. */
+#ifdef _WIN32
+static int slurp_storage(const char *name, uint8_t **out_buf, size_t *out_size)
+{
+    *out_buf  = NULL;
+    *out_size = 0;
+    size_t sz = storage_get_size(name);
+    if (sz == 0) return 0;
+    uint8_t *buf = (uint8_t *)malloc(sz);
+    if (!buf) return 0;
+    size_t got = storage_read(name, buf);
+    if (got != sz) { free(buf); return 0; }
+    *out_buf  = buf;
+    *out_size = sz;
+    return 1;
+}
+#endif
+
 int font_atlas_load(const char *atlas_dir)
 {
     font_atlas_free();
 
     const char *dir = atlas_dir ? atlas_dir : FONT_ATLAS_DEFAULT_DIR;
 
-    /* Search chain. Two passes: first look inside atlas_dir, then in
-     * cwd. Each pass loads both files together — partial sets are
-     * rejected (we never want half an atlas). */
-    char p_data[512], p_idx[512];
-    const char *prefixes[2];
     char tmp_data[2][512], tmp_idx[2][512];
-
     snprintf(tmp_data[0], sizeof tmp_data[0], "%s/fontdata.bin", dir);
     snprintf(tmp_idx[0],  sizeof tmp_idx[0],  "%s/fontidx.bin",  dir);
     snprintf(tmp_data[1], sizeof tmp_data[1], "%s", "fontdata.bin");
     snprintf(tmp_idx[1],  sizeof tmp_idx[1],  "%s", "fontidx.bin");
-    (void)prefixes; (void)p_data; (void)p_idx;
 
     uint8_t *data_buf = NULL, *idx_buf = NULL;
     size_t   data_sz  = 0,    idx_sz  = 0;
+    const char *picked_label = NULL;
 
+    /* Pass 1+2: disk paths (atlas_dir then cwd). */
     for (int i = 0; i < 2; i++) {
         if (slurp_file(tmp_data[i], &data_buf, &data_sz) &&
             slurp_file(tmp_idx[i],  &idx_buf,  &idx_sz)) {
-            /* Sanity: fontidx must be a whole multiple of 40. */
-            if (idx_sz == 0 || idx_sz % FONT_ATLAS_RECORD_SIZE != 0) {
-                fprintf(stderr,
-                    "font_atlas: fontidx.bin at %s is %zu bytes (not /%d)\n",
-                    tmp_idx[i], idx_sz, FONT_ATLAS_RECORD_SIZE);
-                free(data_buf); free(idx_buf);
-                return 0;
-            }
-
-            g_font_atlas.fontdata      = data_buf;
-            g_font_atlas.fontdata_size = data_sz;
-            g_font_atlas.fontidx       = (struct font_atlas_record *)idx_buf;
-            g_font_atlas.fontidx_count = idx_sz / FONT_ATLAS_RECORD_SIZE;
-            fprintf(stderr,
-                "font_atlas: loaded %s (%zu glyph bytes, %zu records)\n",
-                tmp_data[i],
-                g_font_atlas.fontdata_size,
-                g_font_atlas.fontidx_count);
-            return 1;
+            picked_label = tmp_data[i];
+            break;
         }
-        /* Free partial buffer and try next prefix. */
         free(data_buf); data_buf = NULL; data_sz = 0;
         free(idx_buf);  idx_buf  = NULL; idx_sz  = 0;
     }
 
+#ifdef _WIN32
+    /* Pass 3: lnkdatas / bmpdata via storage_read. This is where the
+     * EN retail build's shipped atlas lives — and on EN-locale Windows
+     * it's the only reliable source. */
+    if (!picked_label) {
+        if (slurp_storage("fontdata.bin", &data_buf, &data_sz) &&
+            slurp_storage("fontidx.bin",  &idx_buf,  &idx_sz)) {
+            picked_label = "storage:fontdata.bin";
+        } else {
+            free(data_buf); data_buf = NULL; data_sz = 0;
+            free(idx_buf);  idx_buf  = NULL; idx_sz  = 0;
+        }
+    }
+#endif
+
+    if (!picked_label) {
+        fprintf(stderr,
+            "font_atlas: no atlas files found "
+            "(searched '%s/', cwd, storage)\n", dir);
+        return 0;
+    }
+
+    /* Sanity: fontidx must be a whole multiple of 40. */
+    if (idx_sz == 0 || idx_sz % FONT_ATLAS_RECORD_SIZE != 0) {
+        fprintf(stderr,
+            "font_atlas: fontidx.bin from %s is %zu bytes (not /%d)\n",
+            picked_label, idx_sz, FONT_ATLAS_RECORD_SIZE);
+        free(data_buf); free(idx_buf);
+        return 0;
+    }
+
+    g_font_atlas.fontdata      = data_buf;
+    g_font_atlas.fontdata_size = data_sz;
+    g_font_atlas.fontidx       = (struct font_atlas_record *)idx_buf;
+    g_font_atlas.fontidx_count = idx_sz / FONT_ATLAS_RECORD_SIZE;
     fprintf(stderr,
-        "font_atlas: no atlas files found in '%s' or cwd\n", dir);
-    return 0;
+        "font_atlas: loaded %s (%zu glyph bytes, %zu records)\n",
+        picked_label,
+        g_font_atlas.fontdata_size,
+        g_font_atlas.fontidx_count);
+    return 1;
 }
 
-/* ─── (6) Win32 GDI atlas builder ───────────────────────────────────────
+/* ─── (6) Win32 GDI atlas builder — DEAD CODE in the shipped game ──────
  *
- * Mirrors FUN_0047c474 end-to-end. Linux builds get a stub via
- * #ifndef _WIN32 below. The pure-C helpers above can be tested without
- * touching any of this. */
+ * This is a fully working port of FUN_0047c474, but the shipped EN
+ * retail build never actually runs it: vendor config.idx has the
+ * `font:` key commented out, so DAT_073dfd00 stays at 0 and WinMain's
+ * `if (DAT_073dfd00 != 0) FUN_0047c474()` branch is dead. The atlas
+ * the game actually uses (fontdata.bin + fontidx.bin) ships INSIDE
+ * lnkdatas — see docs/findings/engine-quirks.md §"Font atlas is
+ * shipped, not regenerated".
+ *
+ * Why is this here anyway? On the original 2007 dev's Japanese-locale
+ * Windows machine, GDI's font substitution resolved
+ * `face="ＭＳ Ｐゴシック" SJIS + lfCharSet=SHIFTJIS_CHARSET` to a font
+ * variant whose glyph metrics compose cleanly with the engine's
+ * draw_text math (fixed dst_h=42, src rect [1,1,41,41]). We tried to
+ * reproduce that setup on the user's English-locale Windows and
+ * couldn't — every variant we got back from GDI (MS Gothic SHIFTJIS,
+ * MS Gothic ANSI, MS PGothic ANSI, ...) produced visually-mangled
+ * output. The shipped atlas works because the dev's machine had the
+ * exact right font variant available, baked it into the atlas bytes,
+ * and shipped the result.
+ *
+ * The code stays for fidelity + future use (a JP-version port might
+ * end up needing to regen on a JP-locale machine, in which case this
+ * still works). For the EN drop-in case, main.c skips the call
+ * entirely; the loader pulls the atlas from storage. */
 #ifdef _WIN32
 
 #include <windows.h>
@@ -447,8 +511,33 @@ int font_atlas_build_win32(const char *out_dir,
     /* CreateFontIndirectA — same LOGFONTA layout the engine sets up. */
     LOGFONTA lf = {0};
     lf.lfHeight        = 0x2a;          /* 42px — engine constant */
-    lf.lfCharSet       = SHIFTJIS_CHARSET;
-    lf.lfOutPrecision  = OUT_TT_ONLY_PRECIS;  /* 7 — matches engine */
+    (void)0;                            /* placeholder */
+    /* Engine literal: SHIFTJIS_CHARSET (0x80). We override to
+     * ANSI_CHARSET (0) for the drop-in case:
+     *
+     * The engine sends face="ＭＳ Ｐゴシック" SJIS bytes + SHIFTJIS.
+     * On the user's EN Windows, MS PGothic is installed under its
+     * ASCII name; the SJIS byte name doesn't match. GDI falls back
+     * to MS Gothic's SHIFTJIS variant, whose ANSI-codepoint metrics
+     * (gmCellIncX / gmBlackBoxX) don't compose cleanly with the
+     * engine's draw_text math (fixed dst_h = 42, src rect [1,1,41,41])
+     * — text renders as a mangled vertical-bar pattern.
+     *
+     * Caller (main.c) overrides the face name to ASCII "MS PGothic"
+     * which DOES match the installed font. Combined with ANSI_CHARSET
+     * here, GDI returns MS PGothic + tmCharSet=0 — proportional
+     * Japanese font with proper Latin metrics. Text renders cleanly.
+     *
+     * Engine-intent (SHIFTJIS variant with kanji glyphs) deferred to
+     * a future JP-version port; the EN game never renders kanji
+     * regardless. See tools/diagnostics/font/ for the probe history. */
+    lf.lfCharSet       = ANSI_CHARSET;
+    /* Engine literal: OUT_TT_ONLY_PRECIS (7) — restricts to TrueType.
+     * Retail's process gets a NON-TrueType MS Gothic (tmPF=0x02 has
+     * no TMPF_TRUETYPE bit), implying GDI falls through OUT_TT_ONLY
+     * in retail's context. Use OUT_DEFAULT_PRECIS (0) so GDI can
+     * pick the same raster/vector MS Gothic retail picks. */
+    lf.lfOutPrecision  = OUT_DEFAULT_PRECIS;
     lf.lfQuality       = ANTIALIASED_QUALITY; /* 2 */
     /* Engine: 0x31 = FIXED_PITCH (1) | FF_MODERN (0x30), NOT |FF_DONTCARE
      * (0). Wrong family hint here pushes GDI through different font
@@ -478,16 +567,18 @@ int font_atlas_build_win32(const char *out_dir,
     /* Log the actual face name GDI selected. Useful for diagnosing
      * locale-dependent font substitution — the same lfCharSet request
      * resolves to different variants of MS Gothic depending on the
-     * process's default code page. See
-     * docs/findings/engine-quirks.md §"GDI font substitution". */
+     * process's default code page. */
     {
         char actual_face[64] = {0};
         TEXTMETRICA dtm;
         GetTextFaceA(hdc, sizeof actual_face, actual_face);
         GetTextMetricsA(hdc, &dtm);
         fprintf(stderr,
-            "font_atlas: GDI face='%s' tmCharSet=%d\n",
-            actual_face, dtm.tmCharSet);
+            "font_atlas: GDI face='%s' tmCharSet=%d "
+            "tmH=%ld tmAsc=%ld tmDes=%ld tmPF=0x%02x tmFC=%lu\n",
+            actual_face, dtm.tmCharSet,
+            dtm.tmHeight, dtm.tmAscent, dtm.tmDescent,
+            dtm.tmPitchAndFamily, (unsigned long)dtm.tmFirstChar);
     }
 
     /* Build the two output paths. MAX_PATH-safe. */
