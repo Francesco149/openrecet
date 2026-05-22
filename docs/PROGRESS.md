@@ -3,6 +3,114 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Save-arena init (FUN_004901c2 + FUN_0049001c)
+
+Past-the-placeholder foundation chip: ports the engine's full save
+arena bootstrap + per-bank fresh-state initializer.  Largest
+single-module port this session (~1150 lines of C + 14 unit tests),
+and the gating dependency for all further scene-1 work — scene-1 sim
++ render fns read from the 188360-byte-per-slot save bank, which now
+exists with correct field constants.
+
+Two commits:
+
+1. **`src/save_bank.{c,h}` + tests/test_save_bank.c** — pure-C module
+   owning the full 18.84 MB arena (shared header + 100 × bank).
+   Public API: `save_bank_init_all` (= FUN_004901c2), `save_bank_init_one`
+   (= FUN_0049001c), checksum verify/stamp, named-field constants
+   (gold=1000, week=7, rank=100, SE/BGM/SE-B/slider3 defaults
+   9/5/9/1), and shared-header slider get/set accessors.
+
+   Three engine helpers folded in:
+   - `FUN_0048ff93` (starter items) — encoded slot IDs from
+     STARTER_ITEMS[8][5] (DAT_005cf788, 40 dwords extracted via
+     pe.py) written into per-chara inventory windows.
+   - `FUN_0048ffd9` (starter flag-pairs) — 10 pairs per chara from
+     STARTER_FLAG_PAIRS[8][10][2] (DAT_005cf864). **Engine quirk
+     preserved verbatim**: the table is undersized (64 valid pairs
+     of 80 declared); the last 16 overrun into adjacent .data
+     strings ("wb"/"_save.dat" file-mode literals).  Dormant in
+     vendor because NEW GAME only reads chara[0]'s row.
+   - `FUN_0047a8c0` (per-chara stat interpolation) — pure-C
+     equivalent of the FPU sequence at 0x47a8c0 in the unpacked
+     binary, formula `value = base + (lv100 - base) * level / 100`
+     reading from `g_chara[]` (populated by chara.txt parser).
+
+   14 unit tests pin arena geometry, slider defaults, idempotent
+   re-init, checksum tamper detection, RNG state advancement (1 LCG
+   draw per chara × 8 charas × 100 banks = 800 draws at init_all),
+   plus two overlapping-write quirks documented via assertion:
+     - the named mini-block at bank[0xb388..0xb38d] (constants
+       3,3,1,0,0,1) are DEAD writes — fully overwritten by
+       apply_starter_flag_pairs' span [0xb384..0xb397].
+     - chara record dwords [0xb..0xf] are DEAD writes — overwritten
+       by apply_starter_items' encoded slot IDs (id<<6 | 0x20).
+   Total 596 unit tests (was 582).
+
+2. **`src/main.c` + `src/scene.c` wire-up** — promotes save_bank
+   from "compiled but unused" to live in both init paths:
+
+   - **Boot:** `save_bank_init_all()` runs immediately after
+     audio_init, replacing the prior recet.ini-only slider seed.
+     Engine defaults (9/5/9/1) populate the shared header first;
+     recet.ini's mu/se values then overlay on top to preserve user
+     preference until save-load (FUN_004902fe) ports.  audio_fade
+     sliders are then synced from the header so the per-channel
+     apply hook draws from one source of truth.  The engine's
+     FUN_00499583 callback (BGM SetVolume re-apply on header init)
+     is wired via `save_bank_set_header_init_hook` + a tiny
+     `save_bank_apply_bgm_via_audio_fade` bridge so save_bank
+     doesn't link against audio.c.
+
+     New boot trace lines:
+     ```
+     save_bank: arena initialized (header magic=0x341944da,
+                sliders se=9 bgm=5 se-b=9 slider3=1)
+     audio: sliders seeded — bgm=9 se-a=9 se-b=9 (save_header
+                overlay from recet.ini bgm=9 se=9)
+     ```
+
+   - **NEW GAME post-fade:** `scene_post_fade_init()` now calls
+     `save_bank_init_one(0)` between the LOADING and INGAME state
+     writes — mirrors FUN_0049a59e L213's `FUN_0049001c(active_bank)`.
+     Slot index hardcoded to 0 until save-slot UI lands (matches
+     engine on a fresh boot with DAT_0438b1e0 BSS-zero).
+
+All 25 captures across 4 scenarios (boot-idle, title-down-press,
+title-options, title-z-press) re-pass bit-exact.  The placeholder
+INGAME chip is unchanged frame-for-frame — bank-0 reset writes to
+memory no consumer yet reads.
+
+### Engine fidelity notes
+
+- The chara loop and FUN_0047a8c0 collapse: the engine calls
+  FUN_0047a8c0 INSIDE the 8-iter chara loop, but FUN_0047a8c0 itself
+  walks all 8 records each call — 7× redundant work.  Our port
+  collapses to one post-loop call (same final memory state).
+- One RNG step is consumed per chara record per bank, faithfully
+  reproduced via `rng_next15()`. Net result: 800 draws per init_all.
+- The 100-iter scratch loop at bank offset 0x9e78 is a no-op given
+  the preceding memset — kept as a doc comment, not a runtime loop.
+- The conditional carry-over branch gated on DAT_005c80ac is
+  skipped — no upstream sets it pre-NEW-GAME, so the engine takes
+  the false branch at first boot too.
+
+### Deferred (gated on future ports)
+
+- **Worker thread + asset loader** (FUN_0049de18 chain) — still
+  blocks the Now Loading… overlay and real scene-1 init.
+- **Now Loading… overlay** (FUN_00453147) — gated on DAT_06a49958 /
+  06a49960, which only the worker thread sets.
+- **Scene-1 sim + render** — FUN_004547ab state==1 branch (6 render
+  fns: FUN_0045bbf9 / 0040a765 / 00417504 / 0045404b / 0040c962 /
+  004358cc / 00453d9c).  Mt. Everest scope.
+- **save-load (FUN_004902fe)** — 682 bytes; reads save.dat with
+  format migration (older 0x011efce0 vs newer 0x011f7530 layout);
+  unlocks CONTINUE_ANY title menu items.
+- **UI scratch resets** (FUN_004060ff/4682d0/452917/etc) — small
+  named-global setters; deferred until their consumers (scene-1
+  render path) port, otherwise dead code.
+
 ## 2026-05-22 — Post-fade scene transition + placeholder INGAME render
 
 Past-title-fade-out chip — first time openrecet shows anything other
