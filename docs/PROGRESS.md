@@ -3,6 +3,73 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Scene-state global + title fade-out counter
+
+First two steps in the "past the main menu" thread. The skeleton was
+hardcoded to dispatch title sim + render every frame; the engine
+actually fans both halves out of `DAT_0438b1c0`. And the title scene's
+A-press on NEW GAME was insta-snapping back via a `pending_action`
+stub; the engine actually starts a 30-frame countdown
+(`DAT_0964351c`) that gates the title sim out while a fade animation
+plays in the background.
+
+Two commits:
+
+1. **`scene: extract g_scene_state (DAT_0438b1c0) into its own module`**
+   — new `src/scene.{h,c}` owns the global + a `scene_state_set_title()`
+   helper mirroring FUN_0047b29e's first two writes (`DAT_0438b1c0 = 0;
+   DAT_0438b1c8 = 0;`). `prewindow_init()` now also writes 1 to the
+   global, matching FUN_00451790. `sim_step_a` + `render_dispatch`
+   switch on `g_scene_state` — only TITLE has a producer/consumer
+   today, other states drop through. Pure refactor, no behavior change.
+
+2. **`scene_title: port DAT_0964351c fade-out counter; NEW GAME freezes
+   title`** — new `fade_counter` field in `scene_title_anim_t`. At
+   `select_phase == 0xf`, codes 0/4/5 (NEW_GAME / NEW_HAS_SAVE /
+   CONT_HAS_SAVE) latch `fade_counter = 1` instead of routing
+   through `pending_action`. Once set, the counter ticks every
+   frame; `scene_title_sim` gates all menu input + the cursor_anim
+   ramp out while counter > 0 (engine FUN_0049a59e L53-77). Only
+   `pulse_phase` keeps advancing — BG scroll continues during the
+   freeze. `main.c` watches for `fade_counter >= 0x1e` (30 frames),
+   logs "destination not ported" once per code, and snaps back for
+   recovery (fade_counter + select_phase reset to 0).
+
+Visible change in `title-z-press` golden frame 50: previously showed
+the post-snap-back state (NEW GAME dim, default pulse). Now shows the
+mid-freeze state (NEW GAME pinned brightly highlighted at
+select_phase=0xf, frozen for 30 frames). Retail at frame 50 is
+deep into the 3D particle-scatter fade-out — the visible cross-target
+mismatch remains until that's ported (see "Deferred" below).
+
+### Deferred — scene fade-out particle animation (FUN_004526f5 +
+FUN_00452cde thread)
+
+The actual engine fade is a 100-particle 3D mesh fly-off running on
+a worker thread (`FUN_00452cde` spawns `CreateThread` → `LAB_0045293d`,
+ticks `DAT_0438bf78` once per frame). Particles are textured 3D
+quads with per-particle position+rotation transforms; the back buffer
+gets captured to a texture then re-rendered as fly-off tiles over
+~17 ticks. `FUN_00452917` is the thread *cleanup* (CloseHandle), not
+the per-frame tick as the function name might suggest.
+
+Not a one-session task. Needs thread plumbing, back-buffer→texture
+capture, 3D particle quad renderer with per-particle transforms, and
+`FUN_004528b3` completion polling. Filed under "future" for now —
+the existing snap-back covers the UX gap.
+
+### Other deferred (NEW GAME destination)
+
+`FUN_0049a59e` lines 65-200 — the post-fade NEW GAME init block —
+reads/writes the 188448-byte save bank at
+`DAT_044e3798 + DAT_0438b1e0 * 0x2dfc8`, calls FUN_004060ff /
+FUN_004682d0 / FUN_00490e56 (init-from-scratch) / many per-slot
+resets, then transitions `scene_state` through 8 (LOADING) to 6
+(game world entry, via `FUN_00490e16`). Save bank format port +
+in-game scene renderer are both Mt. Everest scope from here.
+
+568 unit tests pass; all 4 scenarios capture bit-exact.
+
 ## 2026-05-22 — Harness turbo mode (frame-limiter bypass + silent audio)
 
 Both the retail Frida agent and `openrecet.exe` gain matching `--turbo`
