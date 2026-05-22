@@ -471,6 +471,21 @@ struct test_case {
     X(settings_slider4_clamps_to_range) \
     X(settings_round_trip_each_legal_value) \
     \
+    X(save_bank_arena_sizing) \
+    X(save_bank_bank_pointer_arithmetic) \
+    X(save_bank_init_all_seeds_header_magic) \
+    X(save_bank_init_all_seeds_slider_defaults) \
+    X(save_bank_init_all_stamps_all_banks) \
+    X(save_bank_init_all_is_idempotent) \
+    X(save_bank_init_one_sets_money_and_objective) \
+    X(save_bank_init_one_fills_item_slot_spans) \
+    X(save_bank_init_one_mini_block) \
+    X(save_bank_init_one_chara_records) \
+    X(save_bank_init_one_consumes_8_rng_steps) \
+    X(save_bank_checksum_detects_tamper) \
+    X(save_bank_header_init_hook_fires_once_per_reset) \
+    X(save_bank_header_slider_setters_clamp) \
+    \
     X(sim_button_ring_first_press_sets_pressed) \
     X(sim_button_ring_held_clears_pressed_next_frame) \
     X(sim_button_ring_repeat_pulses_after_settle) \
