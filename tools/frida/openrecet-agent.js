@@ -131,6 +131,18 @@ let g_max_frames = 0;               // 0 = no cap; stop = die after that many si
 let g_boot_ms = 0;
 let g_start_real_ms = Date.now();
 
+// Input injection. When g_input_force_active is true, the input_poll
+// onLeave hook overwrites DAT_073dddd0 (var_input_mask) with the
+// sticky-trace mask for the current engine frame, then re-emits the
+// `input_state` event reflecting the forced value. The trace is the
+// same sparse {frame, mask} schema Phase A uses; entries hold between
+// transitions. See docs/findings/winmain-and-bootstrap.md §"Input
+// injection".
+let g_input_trace        = [];     // [{frame, mask}, ...] sorted ascending
+let g_input_trace_i      = 0;      // monotonic cursor into g_input_trace
+let g_input_force_active = false;
+let g_input_last_forced  = 0;      // sticky mask between sparse entries
+
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function rva(va) { return g_base.add(va - IMAGE_BASE.toUInt32()); }
@@ -351,10 +363,32 @@ function installInputHook() {
             // for player 0. Word-sized because the binding table tops out
             // at 14 bits.
             try {
+                const fn = frameNo();
+
+                // Injection (optional). Advance the monotonic cursor
+                // through every trace entry with frame <= fn; the last
+                // such mask is the sticky value to apply. If the
+                // engine ran multiple ticks between Presents (shouldn't
+                // — input_poll is called once per tick — but defensive)
+                // this still picks the most-recent applicable entry.
+                if (g_input_force_active) {
+                    while (g_input_trace_i < g_input_trace.length &&
+                           g_input_trace[g_input_trace_i].frame <= fn) {
+                        g_input_last_forced =
+                            g_input_trace[g_input_trace_i].mask & 0xffff;
+                        g_input_trace_i++;
+                    }
+                    // Write u16 — the engine global is a 16-bit slot
+                    // (binding table tops out at bit 0x2000), and
+                    // sim_a / button-state ring are the next readers
+                    // after this onLeave returns.
+                    rva(ADDR.var_input_mask).writeU16(g_input_last_forced);
+                }
+
                 const mask = rva(ADDR.var_input_mask).readU16();
                 send({kind: 'input_state',
                       t_ms: nowMs(),
-                      frame: frameNo(),
+                      frame: fn,
                       buttons: mask});
             } catch (e) {
                 err('input_poll.onLeave', e.message);
@@ -510,6 +544,24 @@ rpc.exports = {
         g_capture_all = !!config.capture_all;
         g_max_frames  = config.max_frames | 0;
 
+        // Input injection setup. The driver passes a pre-sorted list of
+        // {frame, mask} entries (sparse trace, post-dense expansion is
+        // done lazily here via the cursor walk in the input hook). An
+        // empty list with force_input=true forces 0 every frame, which
+        // is a useful "pin all inputs released" mode for repro work.
+        if (Array.isArray(config.input_trace)) {
+            g_input_trace = config.input_trace
+                .map(function (e) {
+                    return {frame: e.frame | 0, mask: (e.mask | 0) & 0xffff};
+                })
+                .sort(function (a, b) { return a.frame - b.frame; });
+        } else {
+            g_input_trace = [];
+        }
+        g_input_trace_i      = 0;
+        g_input_last_forced  = 0;
+        g_input_force_active = !!config.force_input;
+
         ensureBase();
         g_boot_ms = nowMs();
         g_start_real_ms = Date.now();
@@ -519,7 +571,9 @@ rpc.exports = {
               base: g_base,
               capture_pending: Array.from(g_capture_pending),
               capture_all: g_capture_all,
-              max_frames: g_max_frames});
+              max_frames: g_max_frames,
+              input_trace_entries: g_input_trace.length,
+              force_input: g_input_force_active});
 
         // The capture-side hooks expect to fire on a running engine.
         // State-forcing tests skip resume() entirely, so we make the

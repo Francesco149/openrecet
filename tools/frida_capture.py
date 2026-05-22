@@ -177,6 +177,14 @@ class CaptureConfig:
     cwd:            Path = ASSET_CWD
     auto_start_server:    bool = True
     server_exe:           Path = DEFAULT_FRIDA_SERVER_EXE
+    # Input injection. When `force_input` is true the agent overwrites
+    # DAT_073dddd0 (var_input_mask) on every input_poll LEAVE with the
+    # sticky-trace mask for the current engine frame. The trace path
+    # points to a Phase A-format sparse JSONL ({frame, buttons:"0xNNNN"});
+    # an empty / missing file with force_input=True effectively pins
+    # input at 0 every frame.
+    input_trace_path: Path | None = None
+    force_input:      bool = False
 
 
 @dataclass
@@ -331,10 +339,30 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     script.on("message", on_message)
     script.load()
 
+    # Load the input trace, if any. Parsing is forgiving: blank lines
+    # and `#` comments are tolerated (matches Phase A's parser in
+    # src/input_trace.c), and missing file just yields an empty list so
+    # force_input=True still works as a "pin at 0" mode.
+    trace_entries: list[dict[str, int]] = []
+    if cfg.input_trace_path and cfg.input_trace_path.exists():
+        for raw in cfg.input_trace_path.read_text().splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            rec = json.loads(line)
+            mask_val = rec["buttons"]
+            mask = int(mask_val, 16) if isinstance(mask_val, str) else int(mask_val)
+            trace_entries.append({"frame": int(rec["frame"]), "mask": mask})
+        trace_entries.sort(key=lambda r: r["frame"])
+        f_log.write(f"[input] loaded {len(trace_entries)} entries from "
+                    f"{cfg.input_trace_path} (force_input={cfg.force_input})\n")
+
     t0 = time.monotonic()
     script.exports_sync.init({
         "capture_frames": list(cfg.capture_frames),
         "max_frames":     cfg.max_frames,
+        "input_trace":    trace_entries,
+        "force_input":    bool(cfg.force_input),
     })
     device.resume(pid)
 
@@ -384,10 +412,17 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 exe: Path = RETAIL_EXE,
                 cwd: Path = ASSET_CWD,
                 auto_start_server: bool = True,
-                server_exe: Path = DEFAULT_FRIDA_SERVER_EXE) -> dict:
+                server_exe: Path = DEFAULT_FRIDA_SERVER_EXE,
+                input_trace_path: Path | None = None,
+                force_input: bool = False) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
     Returns the meta dict that scenario-test.py writes to run.json.
+
+    `input_trace_path` + `force_input` enable input injection: the agent
+    overwrites the engine's per-frame input mask with the sticky-trace
+    value on every input_poll LEAVE. Default off so legacy callers
+    capture an organic trace.
     """
     cfg = CaptureConfig(
         capture_frames=list(scenario.capture_frames),
@@ -395,6 +430,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         duration_ms=int(getattr(scenario, "duration_ceiling_ms", 30_000)),
         remote=remote, exe=exe, cwd=cwd,
         auto_start_server=auto_start_server, server_exe=server_exe,
+        input_trace_path=input_trace_path, force_input=force_input,
     )
     result = _run_capture_impl(cfg, run_dir)
     meta = {
@@ -436,6 +472,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="WSL path to frida-server.exe used for auto-start "
                          "(default %(default)s; "
                          "env $OPENRECET_FRIDA_SERVER_EXE)")
+    ap.add_argument("--input-trace", type=Path, default=None,
+                    help="sparse JSONL trace ({frame, buttons:'0xNNNN'}) to "
+                         "replay against retail. Implies --force-input.")
+    ap.add_argument("--force-input", action="store_true",
+                    help="overwrite the engine's input mask each frame "
+                         "with the trace value (or 0 if no trace given)")
     args = ap.parse_args(argv)
 
     capture_frames = ([int(x) for x in args.capture_frames.split(",") if x]
@@ -448,6 +490,8 @@ def main(argv: list[str] | None = None) -> int:
         remote=args.remote, exe=args.exe, cwd=args.cwd,
         auto_start_server=not args.no_auto_start,
         server_exe=args.server_exe,
+        input_trace_path=args.input_trace,
+        force_input=args.force_input or args.input_trace is not None,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)
