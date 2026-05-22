@@ -1,9 +1,10 @@
 # Mesh loader — `xfile/*.x` + `xfile2/*.x`
 
-**Status (2026-05-23):** survey only. No code landed yet. This doc captures
-the architecture, the d3dx8/d3dxof availability story, the strategy
-decision (custom text parser; skip D3DX entirely), and the chip-by-chip
-plan to land it.
+**Status (2026-05-23):** **5 of 7 chips landed** — C1 survey, C2 Python
+oracle, C3 C parser (`src/xfile.{c,h}`), C4 mesh build + bounds + D3D8
+upload (`src/mesh.{c,h}`), **C5 orchestrator** (`src/mesh_load.{c,h}`).
+Remaining: C6 wire AAB + C0A worker bodies, C7+ scene-1 render. 821
+unit tests pass under ASan + UBSan (was 807; +14 from C5).
 
 Triggered the port because **AAB** (FUN_0046bf38, scene_walls inner body)
 and **C0A** (FUN_004748f8, scene_floor jutan-table sibling) — two of the
@@ -208,9 +209,41 @@ Smallest-first, each chip self-contained and commit-worthy:
    `IDirect3DVertexBuffer8`/`IndexBuffer8` + FVF 0x152 conversion.
    Texture-loader integration via existing `sprite_load`. Bounds
    computation (`FUN_004aaad7` equivalent — small).
-5. **C5 — `mesh_load` orchestrator** (FUN_00472836 equivalent). Wires
-   path resolution + xfile parse + mesh upload + the texture-name
-   dedupe global + per-texture mode-flag side-tables.
+5. **C5 — `mesh_load` orchestrator ✓ (2026-05-23, `src/mesh_load.{c,h}`).**
+   Ports FUN_00472836 (1609 B) end-to-end as `mesh_load(path, param_3)`
+   + a buffer-input variant `mesh_load_from_buf` used by host tests.
+   The orchestrator:
+   - Resolves the on-disk path (with the easydisp `_s.x` variant when
+     `g_ini.easydisp != 0` — main.c hands the value via
+     `mesh_load_set_easydisp` after recet_ini_load).
+   - Reads via `storage_read` with a disk-fopen fallback (Win32 only —
+     host tests use `mesh_load_from_buf`).
+   - Drives `xfile_parse` → `mesh_build_from_xfile` →
+     `mesh_compute_bounds`.
+   - Per material: runs `mesh_classify_texture_name` (10 mode flags
+     mirroring lines 138..273 of the engine — water/hikari/kabe_/yuka_/
+     shop_jutan + n_/w_ + u-index/v-index + ext_tga), then does a global
+     `mesh_tex_cache_lookup_or_reserve`, writing the slot into
+     `m->texture_slots[i]` (new field parallel to `m->materials[]`).
+
+   Global state (engine: `&DAT_073be908` + count at `DAT_073cb108` +
+   10 side-tables at `&DAT_073cb10c..&DAT_073cb814`) lives in
+   `g_mesh_tex_cache` (200 entries × `mesh_tex_entry { name, flags,
+   sprite }`). Flags freeze on first insert — repeat lookups with
+   different flags do NOT overwrite, matching the engine semantics.
+   Reset via `mesh_tex_cache_reset` on device-reload or between tests.
+
+   Deferred:
+   - 12-byte dynamic-bone scratch at `&DAT_073cc950` (param_3 >= 0
+     path). All static-mesh callers pass -1; dormant.
+   - `.tga → .bmp` on-disk override (FUN_00471b24's internal rewrite).
+     Our `sprite_load` doesn't do this rewrite; the `ext_tga` flag is
+     therefore set strictly from the .x's `TextureFilename` string.
+     Re-port if/when a corpus test catches a miss.
+   - Win32 finalize (`mesh_load_finalize_win32`) creates `sprite_t`s
+     for any cache entry whose `sprite` is still NULL; mesh VB/IB
+     upload via the existing `mesh_upload_d3d8`. Not hooked into the
+     boot path yet — AAB/C0A wiring (C6) does that.
 6. **C6 — wire AAB + C0A worker bodies.** Now-unblocked scene_walls
    inner-body (FUN_0046bf38) + scene_floor/jutan C0A
    (FUN_004748f8) using `mesh_load`. State arrays for the loaded

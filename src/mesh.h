@@ -81,6 +81,13 @@ typedef struct {
     int32_t        material_count;
     xfile_material *materials;     /* materials in MeshMaterialList ref order, with global lookups resolved */
 
+    /* One slot per material, parallel to materials[]. -1 if the material
+     * has no TextureFilename. Otherwise an index into the global texture
+     * cache populated by mesh_load (src/mesh_load.{c,h}); see the
+     * engine's param_1[1] (`texture_indices`) at FUN_00472836:301. Stays
+     * NULL when the mesh is built without going through mesh_load. */
+    int32_t       *texture_slots;
+
     float          centroid[3];
     float          radius;        /* max distance from centroid to any vertex */
     int32_t        has_bounds;    /* 0 = not yet computed by mesh_compute_bounds */

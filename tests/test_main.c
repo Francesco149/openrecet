@@ -891,7 +891,22 @@ struct test_case {
     X(mesh_single_triangle) \
     X(mesh_bounds_cube) \
     X(mesh_vendor_ice01) \
-    X(mesh_vendor_corpus)
+    X(mesh_vendor_corpus) \
+    \
+    X(mesh_load_classify_water) \
+    X(mesh_load_classify_kabe) \
+    X(mesh_load_classify_yuka_n) \
+    X(mesh_load_classify_shop_jutan) \
+    X(mesh_load_classify_hikari) \
+    X(mesh_load_classify_w_prefix) \
+    X(mesh_load_classify_u_index) \
+    X(mesh_load_classify_v_index) \
+    X(mesh_load_classify_empty) \
+    X(mesh_load_cache_dedupe) \
+    X(mesh_load_cache_capacity) \
+    X(mesh_load_from_buf_synthetic) \
+    X(mesh_load_from_buf_no_texture) \
+    X(mesh_load_vendor_corpus)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

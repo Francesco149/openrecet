@@ -3,6 +3,92 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-23 — mesh loader: C5 orchestrator (`src/mesh_load.{c,h}`)
+
+Fifth chip on the FUN_00472836 family, picking up where C4 left off.
+14 new unit tests (821 total from 807). Boot-idle scenario re-passes
+bit-exact 3/3.
+
+`src/mesh_load.{c,h}` ports FUN_00472836 (1609 B) end-to-end:
+
+- **`mesh_classify_texture_name`** — pure function emitting 10 mode
+  flags from a texture filename, mirroring lines 138..273 of the
+  engine. Five prefix checks at offset 0 (water/hikari/kabe_/yuka_/
+  shop_jutan), then a 256-position sweep for `n_`/`w_` boolean
+  matches + `u0_`..`u3_`/`v0_`..`v3_` index matches (last match
+  wins; defaults 0). Includes the engine's dead `.t` 2-char compare
+  at DAT_005c8450 for fidelity. `ext_tga` set from the filename's
+  `.tga` substring (engine checks the dir+name buffer; static-mesh
+  dir prefixes never contain `.`, so the answer is identical).
+
+- **Global texture-name dedupe cache** — `g_mesh_tex_cache` (200
+  entries × `{ name[256], flags, sprite }`), mirroring the engine's
+  `&DAT_073be908` array + count at `DAT_073cb108` + the 10 parallel
+  uint8 side-tables at `&DAT_073cb10c..&DAT_073cb814`. Flags
+  intentionally frozen on first insert (engine writes side-tables
+  only inside the `bVar15` branch, never on a cache hit). Cache
+  layout consolidated into one struct-of-entries — semantically
+  equivalent to the engine's struct-of-arrays.
+
+- **`mesh_load(path, param_3)`** — orchestrator. Resolves path
+  (with the easydisp `_s.x` variant gated by
+  `mesh_load_set_easydisp`, fed from `g_ini.easydisp` in main.c
+  after recet_ini_load), reads via `storage_read` with a disk-fopen
+  fallback, runs `xfile_parse` + `mesh_build_from_xfile` +
+  `mesh_compute_bounds`, then per-material classifies + dedupes
+  into the global cache, writing the slot into a new
+  `m->texture_slots[]` field (parallel to `m->materials[]`, -1 for
+  textureless materials).
+
+- **`mesh_load_from_buf(data, len, path, param_3)`** — buffer-input
+  variant. Skips the storage/disk read; everything else identical.
+  Used by host unit tests (storage.c pulls `<windows.h>` so it
+  doesn't link on the Linux test target).
+
+- **Win32 `mesh_load_finalize_win32(m, dev)`** — VB/IB upload via
+  the existing `mesh_upload_d3d8` + a pass over the cache to create
+  `sprite_t`s (via `sprite_load("{dir-prefix-from-m->path}{name}")`)
+  for any entries whose `sprite` is still NULL. Not hooked into the
+  boot path yet — AAB/C0A wiring (C6) does that.
+
+Engine state deferred:
+- 12-byte dynamic-bone scratch at `&DAT_073cc950 + (param_3*200+i)*0xc`
+  (param_3 >= 0 path; FUN_00472836:118..123). All static-mesh callers
+  pass -1, so dormant.
+- The `.tga → .bmp` on-disk override inside FUN_00471b24 (sprite
+  loader). Our `src/sprite.c` doesn't rewrite the filename; if the
+  vendor's `.tga` lives in the archive as `.bmp` and the override
+  triggers there, we'd diverge. Watch for it during C6 visual
+  validation.
+- The 5-line texture-name flag block FUN_004cd30e takes as
+  `0xff00ff00` color key — we already pass this in our sprite_load
+  for BMPs via `BMP_COLOR_KEY`.
+
+Corpus result: `mesh_load_from_buf` runs across all 223 `xfile/*.x`,
+yields 144 unique textures (corpus survey reports 165 — the delta is
+materials defined in the file but never referenced by a face index;
+both engine and mesh_build_from_xfile drop those). All
+`texture_slots[i]` land in `[-1, cache.count)`.
+
+Unit tests (14):
+1–9. classifier truth-table over the engine's 10 prefixes/tokens.
+10. cache dedupe semantics — same name reuses slot, different name
+    grows slot count, flags frozen on first insert.
+11. cache capacity — fills 200 then rejects (-1) on overflow.
+12. mesh_load_from_buf synthetic — single textured material:
+    `texture_slots[0]==0`, cache count == 1, flags match classifier.
+13. mesh_load_from_buf no-texture mesh — `material_count==0`,
+    `texture_slots == NULL`, cache count unchanged.
+14. vendor corpus walk — 223 files load clean, all slots in range,
+    cache stays ≤ 200.
+
+`mesh_t` extended with `int32_t *texture_slots` (NULL when the mesh
+is built without going through `mesh_load`; freed by `mesh_free`).
+
+Next (C6): wire AAB + C0A worker bodies (FUN_0046bf38 / FUN_004748f8)
+to call `mesh_load` + `mesh_load_finalize_win32`. Per-stage selector
+already in place from the earlier scene_walls/floor/jutan chips.
+
 ## 2026-05-23 — mesh loader: C2 Python oracle + C3 C parser + C4 D3D8-ready mesh
 
 Three chips on the FUN_00472836 .x mesh-loader family, building on the

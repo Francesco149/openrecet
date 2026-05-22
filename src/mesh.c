@@ -369,6 +369,7 @@ void mesh_free(mesh_t *m)
     free(m->indices);
     free(m->submeshes);
     free(m->materials);
+    free(m->texture_slots);
     free(m);
 }
 

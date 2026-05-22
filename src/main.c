@@ -52,6 +52,7 @@
 #include "font_atlas.h"
 #include "font_upload.h"
 #include "tables_config.h"        /* g_config for font_atlas regen gate */
+#include "mesh_load.h"
 #include "tick.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
@@ -334,6 +335,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             }
         }
         g_windowed = (g_ini.winmode == 1);
+        mesh_load_set_easydisp(g_ini.easydisp);
         fprintf(stderr,
             "recet.ini: winmode=%d screen=%d (%dx%d) se=%d mu=%d\n",
             g_ini.winmode, g_ini.screen, g_ini.width, g_ini.height,
