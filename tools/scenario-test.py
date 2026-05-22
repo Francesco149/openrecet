@@ -152,13 +152,18 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
                                 remote: str) -> dict:
     """Drive the retail unpacked exe via Frida; capture matching artifacts.
 
-    Delegates to tools/frida_capture.run_capture. No input replay yet —
-    the recorded trace.jsonl reflects what the engine actually polled,
-    not a forced sequence; the scenario.yaml's trace.jsonl is only used
-    by --target openrecet today.
+    Delegates to tools/frida_capture.run_capture with input injection
+    on: the agent overwrites DAT_073dddd0 each input_poll LEAVE with
+    the sticky-trace mask for the current engine frame. The trace is
+    the same scenario.yaml-adjacent `trace.jsonl` Phase A consumes, so
+    both pipelines walk an identical input sequence.
     """
     import frida_capture  # late import: only needed for --target retail
-    return frida_capture.run_capture(scen, run_dir, remote=remote)
+    trace_path = _ensure_trace_exists(scen)
+    return frida_capture.run_capture(
+        scen, run_dir, remote=remote,
+        input_trace_path=trace_path, force_input=True,
+    )
 
 
 def run_scenario_capture(scen: Scenario, run_dir: Path) -> dict:
