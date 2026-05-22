@@ -1609,6 +1609,59 @@ search-chain pass mirroring the engine's own fallback.
 
 ---
 
+## Frame counter pauses on scene transition (Phase B)
+
+Symptom found 2026-05-22 while landing the Phase B input-injection
+harness. The retail `title-options` scenario navigates from the
+title menu → settings submenu (DOWN, DOWN, A); injection works, the
+engine plays all three menu SE's (slot 10, 10, 7) on the correct
+frames, and the user can visually confirm the scene transitions.
+But the Frida `frame_counter` reader on `DAT_073dfcfc` stops
+advancing after the transition — the harness's 40 s wall-clock
+ceiling expires before the counter reaches frame 39 (the "panel
+fully slid in" target), even though the engine is clearly still
+rendering at 60 Hz.
+
+The Phase A `openrecet` port doesn't show this — it drives its own
+sim counter directly from `src/main.c`'s replay loop and reaches
+frame 39 without issue. So the divergence is purely in *which*
+counter we trust on retail.
+
+Hypotheses (untested as of 2026-05-22):
+
+1. `DAT_073dfcfc` is bumped at the bottom of the tick scheduler
+   (line 550 in the `FUN_0047be92` pseudocode in
+   `docs/findings/winmain-and-bootstrap.md`), gated on
+   `state ∈ {0, 2}`. A scene transition might leave `state` at 3
+   or some other branch we haven't mapped, freezing this specific
+   counter without freezing rendering.
+2. There's a separate per-scene counter that resets on scene
+   change, and the title scene's `DAT_073dfcfc` is one such
+   "live only during scene N" counter.
+3. The variable is shared but writeable from multiple sites — the
+   settings scene takes over via a different write that effectively
+   pins it.
+
+Practical impact today: scenarios that want to capture frames
+*after* a scene transition need a different frame source on Phase B.
+Workarounds, in order of effort:
+
+- Cap Phase B's `capture_frames:` to pre-transition values, leave
+  post-transition frames as Phase A-only goldens (what
+  `title-options` does now).
+- Identify a per-scene counter we can read instead — likely lives
+  in one of the scene-state structures dispatched out of
+  `FUN_004547ab`.
+- Wrap Present in a manual counter on the agent side and translate
+  scenario frame numbers against that. Loses the "same frame
+  semantics as Phase A" guarantee but unblocks captures.
+
+> 📍 `runs/scenarios/title-options-both-*/retail/agent.log`
+> (the post-transition capture timeout), `tools/frida_capture.py`
+> (the wall-clock budget that ends the run).
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an
