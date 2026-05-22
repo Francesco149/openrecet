@@ -89,6 +89,17 @@ const ADDR = {
     var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
     var_mci_debug_gate:  0x0438ccb4,  // u32 — non-zero recomputes fade
                                        // through MCI bridge (BSS zero default)
+    var_pause_flag:      0x073dfca0,  // u32 — engine's "should tick" gate.
+                                       // 0 = WaitMessage / paused, 1 = run
+                                       // FUN_0047be92. Engine init writes 0;
+                                       // WndProc WM_ACTIVATE flips it to 1
+                                       // when the window activates. With the
+                                       // window hidden no WM_ACTIVATE fires,
+                                       // so the agent forces this to 1 in
+                                       // the ShowWindow hook (otherwise the
+                                       // engine sits in WaitMessage forever).
+                                       // See findings/winmain-and-bootstrap.md
+                                       // line 79001.
 };
 
 // ─── COM vtable indices ─────────────────────────────────────────────────
@@ -143,6 +154,16 @@ let g_capture_all = false;          // if true, dump every Present
 let g_max_frames = 0;               // 0 = no cap; stop = die after that many sim frames
 let g_boot_ms = 0;
 let g_start_real_ms = Date.now();
+
+// Window-hide control. When true, the first call to user32!ShowWindow
+// against the engine's main window gets its nCmdShow argument rewritten
+// to SW_HIDE (0). The engine's pause flag (DAT_073dfca0) is also forced
+// to 1 in the same hook — without that the engine's main loop sits in
+// WaitMessage forever (the flag normally flips to 1 via WM_ACTIVATE,
+// which never fires for a window that's never shown). Set via the
+// init RPC's `hide_window` field.
+let g_hide_window         = false;
+let g_show_window_handled = false;  // pin to first call only
 
 // Manual frame counter. Engine-side DAT_073dfcfc is the title-scene
 // BG-scroll tick — it freezes the moment the title hands off to a
@@ -451,6 +472,57 @@ function installInputHook() {
     log('input hook installed');
 }
 
+// ─── window-hide hook ───────────────────────────────────────────────────
+
+// SW_HIDE = 0 per WinUser.h. Documented value, hardcoded everywhere
+// from MSVC's CRT to the SDK.
+const SW_HIDE = 0;
+
+function installShowWindowHook() {
+    // Frida 17.x removed the legacy Module.findExportByName(name, export)
+    // global helper. The per-module instance methods stayed, so resolve
+    // user32.dll first then look up the export off the Module instance.
+    const u32 = Process.findModuleByName('user32.dll');
+    if (!u32) {
+        err('installShowWindowHook', 'user32.dll module not loaded');
+        return;
+    }
+    const showWindow = u32.findExportByName('ShowWindow');
+    if (!showWindow) {
+        err('installShowWindowHook', 'user32!ShowWindow not found');
+        return;
+    }
+    Interceptor.attach(showWindow, {
+        onEnter: function (args) {
+            // Catch the engine's first ShowWindow against its main
+            // window (CreateWindowExA in FUN_0047aa8b populates
+            // DAT_073dfc7c right before the WinMain call site at all.c
+            // line 78958 invokes ShowWindow on it). Pin the substitution
+            // to one call so any later ShowWindow against dialogs / error
+            // boxes / MessageBoxA-spawned popups passes through untouched.
+            if (g_show_window_handled) return;
+            g_show_window_handled = true;
+
+            const originalCmd = args[1].toInt32();
+            args[1] = ptr(SW_HIDE);
+
+            // Compensate for the WM_ACTIVATE that the engine would
+            // normally use to flip its pause flag to 1. Without this
+            // write the engine sits in WaitMessage forever (all.c
+            // line 79001 gates the tick on DAT_073dfca0 != 0).
+            try {
+                rva(ADDR.var_pause_flag).writeU32(1);
+            } catch (e) {
+                err('installShowWindowHook/pause-flag', e.message);
+            }
+            send({kind: 'log',
+                  msg: 'ShowWindow(SW_HIDE) substituted (was nCmdShow=' +
+                       originalCmd + '); var_pause_flag forced to 1'});
+        },
+    });
+    log('ShowWindow hook installed');
+}
+
 // ─── d3d init wrapper hook ──────────────────────────────────────────────
 
 function installInitHook() {
@@ -615,6 +687,9 @@ rpc.exports = {
         g_input_last_forced  = 0;
         g_input_force_active = !!config.force_input;
 
+        g_hide_window         = !!config.hide_window;
+        g_show_window_handled = false;
+
         // Defensive reset — driver creates a fresh agent per spawn so
         // this is a no-op in practice, but keeps init self-contained.
         g_manual_frame_counter = 0;
@@ -630,7 +705,8 @@ rpc.exports = {
               capture_all: g_capture_all,
               max_frames: g_max_frames,
               input_trace_entries: g_input_trace.length,
-              force_input: g_input_force_active});
+              force_input: g_input_force_active,
+              hide_window: g_hide_window});
 
         // The capture-side hooks expect to fire on a running engine.
         // State-forcing tests skip resume() entirely, so we make the
@@ -641,6 +717,12 @@ rpc.exports = {
             installInitHook();
             installAudioHooks();
             installInputHook();
+            // Window-hide hook needs to install BEFORE resume so it can
+            // intercept the engine's first ShowWindow call. Same lifetime
+            // as the other capture-side hooks.
+            if (g_hide_window) {
+                installShowWindowHook();
+            }
         }
     },
 

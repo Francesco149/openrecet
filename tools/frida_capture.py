@@ -185,6 +185,14 @@ class CaptureConfig:
     # input at 0 every frame.
     input_trace_path: Path | None = None
     force_input:      bool = False
+    # Window hide. When true the agent rewrites the engine's first
+    # ShowWindow call to SW_HIDE and writes 1 to DAT_073dfca0 so the
+    # engine's main loop doesn't sit in WaitMessage forever (the flag
+    # normally flips via WM_ACTIVATE, which a never-shown window never
+    # receives). D3D rendering and the back-buffer capture path are
+    # unaffected. Default off here so ad-hoc `frida_capture.py` runs
+    # behave like before; scenario-test.py opts in.
+    hide_window:      bool = False
 
 
 @dataclass
@@ -363,6 +371,7 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         "max_frames":     cfg.max_frames,
         "input_trace":    trace_entries,
         "force_input":    bool(cfg.force_input),
+        "hide_window":    bool(cfg.hide_window),
     })
     device.resume(pid)
 
@@ -414,7 +423,8 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 auto_start_server: bool = True,
                 server_exe: Path = DEFAULT_FRIDA_SERVER_EXE,
                 input_trace_path: Path | None = None,
-                force_input: bool = False) -> dict:
+                force_input: bool = False,
+                hide_window: bool = False) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
     Returns the meta dict that scenario-test.py writes to run.json.
@@ -423,6 +433,11 @@ def run_capture(scenario: "Any", run_dir: Path, *,
     overwrites the engine's per-frame input mask with the sticky-trace
     value on every input_poll LEAVE. Default off so legacy callers
     capture an organic trace.
+
+    `hide_window` toggles the agent's ShowWindow → SW_HIDE rewrite plus
+    the DAT_073dfca0 pause-flag compensation. scenario-test.py opts in
+    so capture runs don't pop a steal-focus window the user might key
+    into.
     """
     cfg = CaptureConfig(
         capture_frames=list(scenario.capture_frames),
@@ -431,6 +446,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         remote=remote, exe=exe, cwd=cwd,
         auto_start_server=auto_start_server, server_exe=server_exe,
         input_trace_path=input_trace_path, force_input=force_input,
+        hide_window=hide_window,
     )
     result = _run_capture_impl(cfg, run_dir)
     meta = {
@@ -478,6 +494,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--force-input", action="store_true",
                     help="overwrite the engine's input mask each frame "
                          "with the trace value (or 0 if no trace given)")
+    ap.add_argument("--hide-window", action="store_true",
+                    help="rewrite the engine's first ShowWindow to SW_HIDE "
+                         "and force its pause flag (DAT_073dfca0) to 1, so "
+                         "the game runs without a window the user could "
+                         "key into. D3D capture path unaffected.")
     args = ap.parse_args(argv)
 
     capture_frames = ([int(x) for x in args.capture_frames.split(",") if x]
@@ -492,6 +513,7 @@ def main(argv: list[str] | None = None) -> int:
         server_exe=args.server_exe,
         input_trace_path=args.input_trace,
         force_input=args.force_input or args.input_trace is not None,
+        hide_window=args.hide_window,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

@@ -163,6 +163,10 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
     return frida_capture.run_capture(
         scen, run_dir, remote=remote,
         input_trace_path=trace_path, force_input=True,
+        # Hide retail's window so the user can't accidentally key into
+        # it mid-capture. Agent compensates the missing WM_ACTIVATE by
+        # forcing DAT_073dfca0 = 1.
+        hide_window=True,
     )
 
 
@@ -186,6 +190,11 @@ def run_scenario_capture(scen: Scenario, run_dir: Path) -> dict:
         "--capture-frames",     capture_frames_csv,
         "--audio-trace",        wslpath_w(audio_jsonl),
         "--max-duration-ms",    str(scen.duration_ceiling_ms),
+        # Hide the openrecet window so a captured run can't be clobbered
+        # by accidental keystrokes / focus steals. D3D renders to a
+        # video-memory back buffer regardless of window visibility, so
+        # the capture path is unaffected.
+        "--hidden",
     ]
 
     t0 = dt.datetime.now(dt.timezone.utc)

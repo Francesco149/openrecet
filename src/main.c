@@ -155,6 +155,16 @@ static uint32_t        g_max_frames              = 0;
 static uint32_t        g_capture_frames[CAPTURE_FRAMES_MAX];
 static int             g_capture_frames_count    = 0;
 
+/* --hidden: ShowWindow(SW_HIDE) instead of nCmdShow. D3D rendering
+ * continues to work on a non-visible window (back buffer is video
+ * memory, decoupled from on-screen visibility), so frame capture +
+ * input replay run unaffected. No WM_ACTIVATE fires for a window
+ * that never becomes visible, so g_paused stays at its default
+ * FALSE — main loop ticks normally. Used by tools/scenario-test.py
+ * so capture runs can't be accidentally clobbered by the user
+ * typing into the game window. */
+static int             g_hidden                  = 0;
+
 /* Populated at boot when --input-trace-replay is set. The replay
  * stand-in for input_poll reads this each tick. */
 static struct input_trace g_replay_trace = {0};
@@ -452,7 +462,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * TODO bootstrap done       — FUN_0049a3a3 (enters main loop)
      */
 
-    ShowWindow(g_hwnd, nCmdShow);
+    ShowWindow(g_hwnd, g_hidden ? SW_HIDE : nCmdShow);
     UpdateWindow(g_hwnd);
 
     if (g_max_duration_ms > 0) {
@@ -980,6 +990,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
                     if (*end != ',') break;
                 }
             }
+        } else if (lstrcmpA(tok, "--hidden") == 0) {
+            g_hidden = 1;
         }
         tok = strtok(NULL, " ");
     }
