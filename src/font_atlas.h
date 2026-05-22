@@ -62,6 +62,7 @@
 #define FONT_ATLAS_RECORD_SIZE 40
 #define FONT_ATLAS_SPECIAL_TABLE_BYTES 576        /* 288 entries × 2 bytes */
 #define FONT_ATLAS_SPECIAL_TABLE_COUNT 288
+#define FONT_ATLAS_DEFAULT_DIR "font"
 
 struct font_atlas_record {
     uint32_t data_offset;     /* +0x00 — into fontdata.bin               */
@@ -183,6 +184,51 @@ void font_atlas_pack_record(struct font_atlas_record *out,
  */
 void font_atlas_padded_dim(int black_box_x, int black_box_y,
                            int *out_tex_w, int *out_tex_h);
+
+/*
+ * Loaded-atlas state. The two buffers correspond to the engine globals
+ * DAT_073dde2c (fontdata.bin) and DAT_073dde30 (fontidx.bin), and stay
+ * resident for the lifetime of the process.
+ *
+ *   fontdata[..fontdata_size)  — flat blob of glyph bytes
+ *   fontidx[..fontidx_count)   — 40-byte records, indexed by codepoint
+ *                                slot (see writer-iteration layout in
+ *                                the top-of-file comment)
+ */
+struct font_atlas {
+    uint8_t                   *fontdata;
+    size_t                     fontdata_size;
+    struct font_atlas_record  *fontidx;
+    size_t                     fontidx_count;
+};
+
+extern struct font_atlas g_font_atlas;
+
+/*
+ * Load fontdata.bin + fontidx.bin into g_font_atlas. Searches, in
+ * order:
+ *
+ *   1. `<atlas_dir>/fontdata.bin` + `<atlas_dir>/fontidx.bin`
+ *   2. `./fontdata.bin` + `./fontidx.bin` (engine's path — covers
+ *      the case where retail already wrote atlas files in the cwd)
+ *
+ * Engine has a third fallback via storage_get_size / storage_read
+ * (FUN_0047c3a5 line 11 / 22) but the vendor ships no fontdata.bin
+ * in lnkdatas — the path is dead. We omit it; if a future build does
+ * ship the atlas through storage, restore the storage_* branch here.
+ *
+ * Returns 1 on success (both files loaded into g_font_atlas), 0 on
+ * any failure (g_font_atlas left zeroed and any partial buffer freed).
+ * Logs progress + outcome to stderr.
+ *
+ * atlas_dir may be NULL to use FONT_ATLAS_DEFAULT_DIR.
+ */
+int  font_atlas_load(const char *atlas_dir);
+
+/*
+ * Free g_font_atlas buffers. Idempotent — safe to call multiple times
+ * and safe before font_atlas_load runs. */
+void font_atlas_free(void);
 
 #ifdef _WIN32
 

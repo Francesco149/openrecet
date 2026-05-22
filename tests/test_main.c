@@ -610,7 +610,11 @@ struct test_case {
     X(font_atlas_dilate_does_not_overwrite_glyph_body) \
     X(font_atlas_dilate_neighbor_keeps_brighter_existing_halo) \
     X(font_atlas_pack_record_basic) \
-    X(font_atlas_pack_record_zero_box_zero_pad)
+    X(font_atlas_pack_record_zero_box_zero_pad) \
+    X(font_atlas_load_missing_returns_zero) \
+    X(font_atlas_load_basic_roundtrip) \
+    X(font_atlas_load_rejects_bad_idx_size) \
+    X(font_atlas_free_is_idempotent)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct font_atlas g_font_atlas;
+
 /* ─── (1) embedded special-codepoint table ──────────────────────────────
  *
  * Two bytes per entry (SJIS high + low). Extracted via
@@ -218,6 +220,101 @@ void font_atlas_pack_record(struct font_atlas_record *out,
     out->tex_width   = black_box_x + 8 + pad;
     out->tex_height  = black_box_y + 8;
     out->reserved    = 0;
+}
+
+/* ─── (5b) atlas loader (disk-only) ─────────────────────────────────────
+ *
+ * Mirrors FUN_0047c3a5 minus the storage_* fallback. Reads two files
+ * into the heap and exposes them via g_font_atlas.
+ *
+ * The engine's loader adds +10 bytes of slack to its malloc (line 9 of
+ * 47c3a5.c — `_malloc(iVar1 + 10)`). We don't need that here since
+ * we're not in the `storage_size` fallback branch; pure fopen/ftell
+ * gives the exact byte count.
+ */
+
+static int slurp_file(const char *path, uint8_t **out_buf, size_t *out_size)
+{
+    *out_buf = NULL;
+    *out_size = 0;
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return 0; }
+    long sz = ftell(f);
+    if (sz < 0) { fclose(f); return 0; }
+    if (fseek(f, 0, SEEK_SET) != 0) { fclose(f); return 0; }
+
+    uint8_t *buf = (uint8_t *)malloc((size_t)sz);
+    if (!buf) { fclose(f); return 0; }
+    size_t got = fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+    if (got != (size_t)sz) { free(buf); return 0; }
+
+    *out_buf  = buf;
+    *out_size = (size_t)sz;
+    return 1;
+}
+
+void font_atlas_free(void)
+{
+    free(g_font_atlas.fontdata);
+    free(g_font_atlas.fontidx);
+    memset(&g_font_atlas, 0, sizeof g_font_atlas);
+}
+
+int font_atlas_load(const char *atlas_dir)
+{
+    font_atlas_free();
+
+    const char *dir = atlas_dir ? atlas_dir : FONT_ATLAS_DEFAULT_DIR;
+
+    /* Search chain. Two passes: first look inside atlas_dir, then in
+     * cwd. Each pass loads both files together — partial sets are
+     * rejected (we never want half an atlas). */
+    char p_data[512], p_idx[512];
+    const char *prefixes[2];
+    char tmp_data[2][512], tmp_idx[2][512];
+
+    snprintf(tmp_data[0], sizeof tmp_data[0], "%s/fontdata.bin", dir);
+    snprintf(tmp_idx[0],  sizeof tmp_idx[0],  "%s/fontidx.bin",  dir);
+    snprintf(tmp_data[1], sizeof tmp_data[1], "%s", "fontdata.bin");
+    snprintf(tmp_idx[1],  sizeof tmp_idx[1],  "%s", "fontidx.bin");
+    (void)prefixes; (void)p_data; (void)p_idx;
+
+    uint8_t *data_buf = NULL, *idx_buf = NULL;
+    size_t   data_sz  = 0,    idx_sz  = 0;
+
+    for (int i = 0; i < 2; i++) {
+        if (slurp_file(tmp_data[i], &data_buf, &data_sz) &&
+            slurp_file(tmp_idx[i],  &idx_buf,  &idx_sz)) {
+            /* Sanity: fontidx must be a whole multiple of 40. */
+            if (idx_sz == 0 || idx_sz % FONT_ATLAS_RECORD_SIZE != 0) {
+                fprintf(stderr,
+                    "font_atlas: fontidx.bin at %s is %zu bytes (not /%d)\n",
+                    tmp_idx[i], idx_sz, FONT_ATLAS_RECORD_SIZE);
+                free(data_buf); free(idx_buf);
+                return 0;
+            }
+
+            g_font_atlas.fontdata      = data_buf;
+            g_font_atlas.fontdata_size = data_sz;
+            g_font_atlas.fontidx       = (struct font_atlas_record *)idx_buf;
+            g_font_atlas.fontidx_count = idx_sz / FONT_ATLAS_RECORD_SIZE;
+            fprintf(stderr,
+                "font_atlas: loaded %s (%zu glyph bytes, %zu records)\n",
+                tmp_data[i],
+                g_font_atlas.fontdata_size,
+                g_font_atlas.fontidx_count);
+            return 1;
+        }
+        /* Free partial buffer and try next prefix. */
+        free(data_buf); data_buf = NULL; data_sz = 0;
+        free(idx_buf);  idx_buf  = NULL; idx_sz  = 0;
+    }
+
+    fprintf(stderr,
+        "font_atlas: no atlas files found in '%s' or cwd\n", dir);
+    return 0;
 }
 
 /* ─── (6) Win32 GDI atlas builder ───────────────────────────────────────

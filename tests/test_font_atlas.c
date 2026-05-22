@@ -317,3 +317,94 @@ int test_font_atlas_pack_record_zero_box_zero_pad(void)
     T_ASSERT_EQ_I(rec.cell_inc_x, 8);
     return 0;
 }
+
+/* ─── loader ────────────────────────────────────────────────────────── */
+
+#include <unistd.h>
+#include <sys/stat.h>
+
+static void write_file(const char *path, const void *buf, size_t n)
+{
+    FILE *f = fopen(path, "wb");
+    if (f) { fwrite(buf, 1, n, f); fclose(f); }
+}
+
+int test_font_atlas_load_missing_returns_zero(void)
+{
+    font_atlas_free();
+    /* Point at a non-existent directory. */
+    int rc = font_atlas_load("/tmp/openrecet_test_nope_does_not_exist_xyz");
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT(g_font_atlas.fontdata == NULL);
+    T_ASSERT(g_font_atlas.fontidx == NULL);
+    T_ASSERT_EQ_U(g_font_atlas.fontdata_size, 0);
+    T_ASSERT_EQ_U(g_font_atlas.fontidx_count, 0);
+    return 0;
+}
+
+int test_font_atlas_load_basic_roundtrip(void)
+{
+    font_atlas_free();
+    /* Build a 2-record atlas in a tmp dir. */
+    char dir[256];
+    snprintf(dir, sizeof dir, "/tmp/openrecet_test_atlas_%d", (int)getpid());
+    mkdir(dir, 0755);
+
+    struct font_atlas_record recs[2] = {0};
+    font_atlas_pack_record(&recs[0], 0,   0, 0,  0, 0, 0,  0, 0, 0);
+    font_atlas_pack_record(&recs[1], 0,  16, 8, 30, 22, 8, 9, 1, 24);
+
+    uint8_t data_blob[16] = {1,2,3,4,5,6,7,8, 9,10,11,12,13,14,15,16};
+    char path_data[512], path_idx[512];
+    snprintf(path_data, sizeof path_data, "%s/fontdata.bin", dir);
+    snprintf(path_idx,  sizeof path_idx,  "%s/fontidx.bin",  dir);
+    write_file(path_data, data_blob, sizeof data_blob);
+    write_file(path_idx, recs, sizeof recs);
+
+    int rc = font_atlas_load(dir);
+    T_ASSERT_EQ_I(rc, 1);
+    T_ASSERT_EQ_U(g_font_atlas.fontdata_size, 16);
+    T_ASSERT_EQ_U(g_font_atlas.fontidx_count, 2);
+    T_ASSERT_MEM_EQ(g_font_atlas.fontdata, data_blob, sizeof data_blob);
+    T_ASSERT_EQ_I(g_font_atlas.fontidx[1].data_size, 16);
+    T_ASSERT_EQ_I(g_font_atlas.fontidx[1].tex_width, 8 + 8 + ((-8) & 3));
+
+    /* Free, cleanup. */
+    font_atlas_free();
+    T_ASSERT(g_font_atlas.fontdata == NULL);
+
+    unlink(path_data); unlink(path_idx); rmdir(dir);
+    return 0;
+}
+
+int test_font_atlas_load_rejects_bad_idx_size(void)
+{
+    font_atlas_free();
+    char dir[256];
+    snprintf(dir, sizeof dir, "/tmp/openrecet_test_atlas_bad_%d", (int)getpid());
+    mkdir(dir, 0755);
+
+    char path_data[512], path_idx[512];
+    snprintf(path_data, sizeof path_data, "%s/fontdata.bin", dir);
+    snprintf(path_idx,  sizeof path_idx,  "%s/fontidx.bin",  dir);
+    uint8_t zero = 0;
+    write_file(path_data, &zero, 1);
+    /* 33 bytes — not a multiple of 40. */
+    uint8_t garbage[33] = {0};
+    write_file(path_idx, garbage, sizeof garbage);
+
+    int rc = font_atlas_load(dir);
+    T_ASSERT_EQ_I(rc, 0);
+    T_ASSERT(g_font_atlas.fontdata == NULL);
+
+    unlink(path_data); unlink(path_idx); rmdir(dir);
+    return 0;
+}
+
+int test_font_atlas_free_is_idempotent(void)
+{
+    font_atlas_free();
+    font_atlas_free();  /* should not crash */
+    T_ASSERT(g_font_atlas.fontdata == NULL);
+    return 0;
+}

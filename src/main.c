@@ -448,8 +448,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
     }
 
-    /* TODO "fontsystem ok"      — FUN_0047c3a5 (atlas loader)
-     * TODO "read systemtex ok"  — FUN_00472f5d
+    /* "fontsystem ok" — FUN_0047c3a5 — pull fontdata.bin + fontidx.bin
+     * back from disk into g_font_atlas. The slot allocator / glyph
+     * uploader / draw_text consumers (next commits) read from there. */
+    if (!font_atlas_load(NULL)) {
+        fprintf(stderr,
+            "font: atlas load failed — text rendering will be a no-op\n");
+    }
+
+    /* TODO "read systemtex ok"  — FUN_00472f5d
      * TODO "load savefile ok"   — FUN_004902fe
      * TODO "read titletex ok"   — FUN_0043609b
      * TODO bootstrap done       — FUN_0049a3a3 (enters main loop)
