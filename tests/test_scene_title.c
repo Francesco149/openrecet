@@ -21,7 +21,12 @@ static int is_pow2(uint32_t v)
 
 int test_scene_title_assets_count_is_seven(void)
 {
-    T_ASSERT_EQ_I(SCENE_TITLE_TEX_COUNT, 7);
+    /* Eight now — slot 7 (item_win.tga) was added when the title
+     * settings submenu render landed, since the header-tab chrome
+     * comes from item_win.tga and the engine loads it at boot-time
+     * (context-1) rather than at title-scene load. Parked here
+     * pragmatically until a boot-time texture module exists. */
+    T_ASSERT_EQ_I(SCENE_TITLE_TEX_COUNT, 8);
     return 0;
 }
 
@@ -38,6 +43,7 @@ int test_scene_title_assets_paths_match_pe(void)
         "bmp/pause.tga",
         "bmp/result_bord01.tga",
         "bmp/dungeonbord.tga",
+        "bmp/item_win.tga",
     };
     for (int i = 0; i < SCENE_TITLE_TEX_COUNT; i++) {
         if (strcmp(scene_title_assets[i].path, expected[i]) != 0) {
@@ -71,6 +77,7 @@ int test_scene_title_assets_sizes_match_engine(void)
         {1024,  512},  /* pause.tga */
         { 512,  256},  /* result_bord01.tga */
         {1024,  512},  /* dungeonbord.tga */
+        {1024, 1024},  /* item_win.tga */
     };
     for (int i = 0; i < SCENE_TITLE_TEX_COUNT; i++) {
         T_ASSERT_EQ_U(scene_title_assets[i].expected_w, expected[i][0]);

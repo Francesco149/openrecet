@@ -62,6 +62,32 @@ float font_draw_text(struct IDirect3DDevice8 *dev,
                      uint32_t argb,
                      float scale);
 
+/*
+ * FUN_0047d14c — centered-text draw. Walks `str` once with
+ * `font_slot_alloc` to measure total advance width using each slot's
+ * `effective_width` (the same value `font_draw_text` consumes for
+ * per-glyph advance), then calls `font_draw_text` at `center_x - w/2`.
+ *
+ * Engine quirk reproduced: the measure walk reads `effective_width`
+ * from each slot BEFORE the upload populates it for newly-allocated
+ * slots, so the first draw of a previously-uncached string is
+ * centered against `(0 - 3) * fVar2 * char_count` instead of the real
+ * width. The follow-up draw walk then sees populated values and lays
+ * out per the real advance — visual mis-center on first frame only,
+ * pixel-perfect thereafter. Same misalignment exists in the engine.
+ *
+ * The legacy "FUN_004054c0" branch of FUN_0047d14c (gated on
+ * `DAT_0438b784 & 1`) is dead in vendor data (the flag is BSS-zero
+ * and never set) so we don't replicate it.
+ *
+ * Returns the measured width (the dx the draw walk would advance by).
+ */
+float font_draw_text_centered(struct IDirect3DDevice8 *dev,
+                              float center_x, float y,
+                              const char *str,
+                              uint32_t argb,
+                              float scale);
+
 #endif /* _WIN32 */
 
 #endif /* OPENRECET_FONT_DRAW_H */

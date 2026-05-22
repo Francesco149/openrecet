@@ -1,0 +1,33 @@
+# Title → Options submenu render coverage.
+#
+# Navigate from fresh-boot title to the Options submenu by pressing
+# DOWN twice (cursor 0 → 1 → 2 = OPTIONS) then A. The settings panel
+# slides in from the right over 10 frames; capture before/during/after.
+#
+# Default title menu on a save-less boot:
+#   slot 0: NEW_GAME   (initial cursor here)
+#   slot 1: RANKING
+#   slot 2: OPTIONS    ← we land here
+#   slot 3: EXIT
+#
+# Timing:
+#   frame  5  — DOWN (cursor 0 → 1, RANKING highlighted)
+#   frame 10  — DOWN (cursor 1 → 2, OPTIONS highlighted)
+#   frame 15  — A    (select_phase = 1; 14 frames to dispatch)
+#   frame 29  — select_phase = 0xf, OPTIONS dispatch:
+#                 submenu_state = 2
+#                 menu_folding_out = 0  (cursor_anim ramps 0 → 10)
+#   frame 30..39 — settings panel slides in from the right
+#   frame 39  — cursor_anim = 10, panel fully visible
+#
+# Captures:
+#   0   — baseline, NEW_GAME selected
+#   10  — OPTIONS highlighted in main menu (after 2× DOWN)
+#   39  — settings panel fully slid in, cursor on row 0 (BGM)
+#   60  — still showing, no drift
+
+description: Title → DOWN×2 → A → settings panel slides in (FUN_0049c050 render)
+rng_seed: 1
+max_frames: 80
+capture_frames: [0, 10, 39, 60]
+duration_ceiling_ms: 40000

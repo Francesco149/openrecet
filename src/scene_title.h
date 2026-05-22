@@ -27,7 +27,13 @@ enum {
     SCENE_TITLE_TEX_PAUSE     = 4,  /* bmp/pause.tga         1024x512  */
     SCENE_TITLE_TEX_RESULT    = 5,  /* bmp/result_bord01.tga  512x256  */
     SCENE_TITLE_TEX_DUNGEON   = 6,  /* bmp/dungeonbord.tga   1024x512  */
-    SCENE_TITLE_TEX_COUNT     = 7,
+    /* item_win.tga is a boot-time "always-loaded" UI atlas in the
+     * engine (FUN_0047193c context=1, alongside system.bmp / fps2.tga
+     * / nowloading.tga / savewindow.tga). Settings submenu uses the
+     * (448, 816)..(688, 896) sub-tile as a header tab. Parked here
+     * pragmatically until a boot-time-textures module exists. */
+    SCENE_TITLE_TEX_ITEM_WIN  = 7,  /* bmp/item_win.tga      1024x1024 */
+    SCENE_TITLE_TEX_COUNT     = 8,
 };
 
 /* One entry of the asset table at PE 0x005c8688..0x005c86fc, paired

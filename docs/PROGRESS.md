@@ -3,6 +3,95 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Settings submenu render (FUN_0049c050)
+
+The "Options" submenu now draws. Producer landed at `d34079e` two days
+ago but the render was gated on the font system; with text rendering up
+since `e2ded60`, the render port now lights up the panel.
+
+### What landed
+
+- **`src/font_draw.{c,h}`** — added `font_draw_text_centered`, port
+  of FUN_0047d14c. Walks the string with `font_slot_alloc` + immediate
+  `font_slot_upload` on each fresh slot, sums per-glyph advance via
+  `effective_width`, then calls `font_draw_text` at
+  `center_x - width/2`. The explicit upload-on-allocate matters:
+  the engine's FUN_0047cbcb is atomically alloc-and-upload-if-new,
+  but our pure-C split separates them — without uploading inside
+  the measure walk, glyphs first-seen by the centered draw end up
+  with no texture installed (font_draw_text's draw walk sees
+  `is_new=0` and skips its own upload). Symptom was missing letters
+  in "Clear Save Data" rendered after the row labels: every char
+  already used in the labels rendered fine, but C / l / v / D —
+  only first-seen in the centered draw — came out invisible. Skips
+  the dead `DAT_0438b784 & 1` legacy branch of FUN_0047d14c.
+
+- **`src/scene_title.{c,h}`** — `scene_title_settings_render_panel`
+  (FUN_0049c050 port) draws the dungeonbord panel BG + 6 row labels
+  + 5 slider value strings + dormant Saving overlay. Wired into the
+  end of `scene_title_render` with the gate
+  `cursor_anim > 0 && submenu_state == 2`, plus the two outer
+  header chrome quads from FUN_0049c644 L234-244 (item_win.tga tab
+  + fuki.tga OPTIONS label) at the engine's
+  `x = 640 - cursor_anim*64` slide offset.
+
+  Row layout (top-down): MUSIC / SOUND / VOICE / MESSAGE SPEED /
+  UNREAD TEXT SKIP / CLEAR SAVE DATA. Numeric sliders show 0-9;
+  Message Speed shows SLOW/MED/FAST; Unread Text Skip shows OFF/ON.
+  Yellow on the cursor row, grey elsewhere; engine's three
+  bit-twiddle inlines for the same yellow/grey pair collapsed to
+  one ternary. Engine writes both `D3DTOP_ADDSIGNED=8` and
+  `D3DTOP_MODULATE2X=5` back-to-back at FUN_0049c050 L35-36, second
+  wins — collapsed to a single MODULATE2X write here.
+
+  Hard-coded 6 rows because this is the title-side caller; engine
+  conditionally drops to 5 when `DAT_0438b1c0 != 0` (in-game pause
+  menu, FUN_0047fc44, not yet ported). Will need a scene-state arg
+  when the pause menu lands.
+
+- **`SCENE_TITLE_TEX_ITEM_WIN` = slot 7** in `scene_title_assets`.
+  Asset list grew 7 → 8 (loader, tests, fixture data all updated).
+  `bmp/item_win.tga` is a boot-time UI atlas in the engine
+  (FUN_0047193c context=1, alongside system.bmp, savewindow.tga,
+  etc.) but parked on the title-scene loader pragmatically until a
+  boot-time-textures module exists.
+
+- **`tests/scenarios/title-options/`** — new scenario covering
+  DOWN×2 → A → slide-in. 4 captures at frames 0 (baseline), 10
+  (OPTIONS highlighted in main menu), 39 (panel fully slid in), 60
+  (held). Bit-exact against blessed goldens.
+
+### Known visual followups (font-system class)
+
+- Lowercase glyphs render at uppercase height ("MUSiC" looked
+  visually all-caps except the 'i' whose `tex_h` matches cap
+  height). Root cause: our font_draw uses the small `(tex_w, tex_h)`
+  texture and stretches to a fixed `42 * fVar2` dst quad height.
+  The engine pads each glyph into a `(cell_inc_x, line_height)`
+  cell at row `ascent - origin_y` and column `origin_x`, then
+  samples the whole cell into the fixed dst — that pad is what
+  baseline-aligns lowercase glyphs so they end up shorter. Fixable
+  by either matching the engine's cell-padding upload OR by folding
+  the `(origin_x, ascent - origin_y) * fVar2` offset into the dst
+  rect while keeping the small-texture upload. Latter saves 3x GPU
+  memory per slot; sketched and reverted in this commit's branch,
+  tracked for follow-up.
+
+- "Clear Save Data" centering is still ~10px off on first draw
+  (engine quirk — measure walk reads `effective_width=0` for fresh
+  slots; engine has the same misalignment).
+
+### Deferred (still)
+
+- Clear-data confirm modal (row 5 + FUN_00434def) — no save IO yet.
+- Filename SE feedback on row 2 inc/dec (engine quirk #50) — uses
+  generic SE 0x146 in the existing sim.
+- Saving overlay visuals — needs `savewindow.tga` loading + actual
+  save IO before the branch ever fires. Wired through as
+  `saving_flag` param but no-op'd in the render.
+- In-game pause sound menu (FUN_0047fc44) — same FUN_0049c050 with
+  5 rows; lands when an in-game scene ports.
+
 ## 2026-05-22 — Font system, end-to-end (FUN_0047c228 / c474 / c3a5 / c29d / cbcb / cf22 / ca05)
 
 Seven functions, six commits, ~1700 lines of new C — the whole text

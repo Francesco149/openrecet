@@ -156,4 +156,50 @@ float font_draw_text(struct IDirect3DDevice8 *dev_,
     return x - start_x;
 }
 
+float font_draw_text_centered(struct IDirect3DDevice8 *dev_,
+                              float center_x, float y,
+                              const char *str,
+                              uint32_t argb,
+                              float scale)
+{
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_;
+    if (!dev || !str) return 0.0f;
+    if (!g_font_atlas.fontidx) return 0.0f;
+
+    const float fVar2 = scale * 0.65f * 0.76f;
+    float width = 0.0f;
+
+    /* Walk the string with font_slot_alloc + immediate font_slot_upload
+     * on `is_new`. The engine's FUN_0047cbcb is atomically
+     * alloc-and-upload-if-new; our pure-C split lets the upload step
+     * lag, so doing it explicitly here keeps the measure walk's
+     * effective_width reads consistent with the follow-up draw walk's
+     * advance — and, more visibly, keeps every glyph's texture pointer
+     * non-NULL so font_draw_text actually emits the quad. Without this,
+     * glyphs first-seen by font_draw_text_centered (and not by an
+     * earlier font_draw_text caller in the same frame) render as
+     * invisible because the draw walk sees is_new=0 and skips upload. */
+    const unsigned char *p = (const unsigned char *)str;
+    while (*p) {
+        unsigned char b0 = p[0];
+        if (b0 < 0x20) { p++; continue; }
+        int is_double_byte = (b0 & 0x80) != 0;
+        unsigned char b1 = is_double_byte ? p[1] : 0;
+
+        int rec_id, is_new;
+        int slot = font_slot_alloc(b0, b1, &rec_id, &is_new);
+        if (slot != FONT_SLOT_NONE) {
+            if (is_new) {
+                font_slot_upload(slot, dev);
+            }
+            uint32_t eff = g_font.slots[slot].effective_width;
+            width += ((float)(int)eff - 3.0f) * fVar2;
+        }
+        p += is_double_byte ? 2 : 1;
+    }
+
+    font_draw_text(dev_, center_x - width * 0.5f, y, str, argb, scale);
+    return width;
+}
+
 #endif /* _WIN32 */
