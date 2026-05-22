@@ -3,6 +3,87 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-23 — mesh loader: survey + strategy doc (`docs/findings/mesh-loader.md`)
+
+Opening chip on the FUN_00472836 family — the .x text-format mesh loader
+that's been the Mt. Everest blocker on scene_walls AAB
+(FUN_0046bf38) and scene_floor/jutan C0A (FUN_004748f8) worker-thread
+bodies, and ultimately on visible scene-1 INGAME geometry. No code
+landed yet; this chip just documents what we found and the path we'll
+take.
+
+### Architecture (in the engine)
+
+- **`FUN_00472836`** (1609 B) — orchestrator. Path build → DirectXFile
+  walk → per-material copy / texture dedupe / sprite_load → bounds →
+  FVF clone.
+- **`FUN_004c8f74`** (704 B) — d3dxof.dll dynamic load,
+  `DirectXFileCreate`, registers two large custom-template decl
+  blocks (XSkinMeshHeader, VertexDuplicationIndices, FaceAdjacency,
+  SkinWeights, Patch, PatchMesh, FVFData, PMAttributeRange,
+  PMVSplitRecord, PMInfo), then walks top-level templates.
+- **`FUN_004c8baa`** (970 B) — recursive Mesh/Frame/Matrix
+  dispatcher. Calls `FUN_004c75e3` for Mesh, recurses for Frame,
+  multiplies for FrameTransformMatrix.
+- **`FUN_004c75e3`** (4634 B) — engine's RE'd `D3DXLoadMeshFromXof`
+  clone. The biggest single chunk in the family.
+- **`FUN_00471b24`** (467 B) — texture-load wrapper (sprite_load
+  equivalent for materials).
+- **`FUN_004aaad7`** (278 B) — bounds (centroid + max radius).
+
+Total ~8400 bytes of engine code.
+
+### Toolchain availability (mingw-w64-i686 13.0.0)
+
+- `<dxfile.h>` + `libd3dxof.a` — DirectXFile available.
+- `libd3dx8d.a` only — **no D3DX8 headers**, so we can't link
+  `D3DXLoadMeshFromXof` directly.
+- D3DX9 exists but targets D3D9 device interfaces, useless to us.
+
+### Strategy decision: custom text parser, no D3DX
+
+- Skip d3dxof + D3DX8 entirely. Write a pure-C `.x` text parser.
+- Upload to raw `IDirect3DVertexBuffer8` / `IndexBuffer8` directly,
+  no `ID3DXMesh` wrapper.
+- Static meshes only at first — `xfile/` (223 files, 17 MB, no
+  skinning, just Mesh / MeshNormals / MeshTextureCoords /
+  MeshMaterialList / Material / TextureFilename / Frame /
+  FrameTransformMatrix). Skinning + animation in `xfile2/` (19
+  files, 40 MB) defer to character-rendering work months out.
+- Trade-off: not byte-identical to FUN_004c75e3 (4.6 KB of D3DX8 we
+  skip). Acceptable per `openrecet_constraints.md` — project goal
+  is drop-in, not byte-identical.
+
+### Corpus survey (via existing `tools/extract/xfile.py --scan`)
+
+- 100% of files are `xof 0303txt 0032` (no bin/tzip/bzip variants).
+- 242 files, 57 MB total. 1.6 M lines of text.
+- Top templates in `xfile/`: Material 5780, TextureFilename 2734,
+  FrameTransformMatrix 2610, Frame 2578, MeshMaterialList 2347,
+  MeshNormals 2347, Mesh 2323, MeshTextureCoords 2071,
+  MeshVertexColors 1860.
+- `xfile2/` adds SkinWeights 210, XSkinMeshHeader 35, Animation 485,
+  AnimationKey 1455, AnimationSet 12.
+
+### Chip plan (smallest-first)
+
+1. **this doc** ← here.
+2. Python parser oracle (`tools/extract/xfile.py` flesh-out) — emit
+   per-file JSON (vertices/faces/materials/textures/transforms).
+   Validate format quirks across all 242 files.
+3. C parser skeleton `src/xfile.{c,h}` — static-mesh only, tested
+   against the Python oracle on 223 `xfile/` files.
+4. `src/mesh.{c,h}` D3D8 upload — vertex/index buffers, FVF 0x152,
+   bounds, sprite_load integration.
+5. `mesh_load` orchestrator (FUN_00472836 equivalent) — texture
+   dedupe global + per-texture mode-flag side-tables.
+6. Wire AAB + C0A worker bodies via `mesh_load`.
+7. Scene-1 render path — Mt. Everest, ports as separate roadmap
+   items.
+
+Full discussion + struct layouts + parser grammar in
+`docs/findings/mesh-loader.md`.
+
 ## 2026-05-23 — scene_buy: B13 secondary inner-body wired (page-indexed)
 
 Sixth of the 9 secondary worker-thread inner bodies — sibling to AE8
