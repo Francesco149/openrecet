@@ -122,8 +122,8 @@
  *           B82 | 0x452b82    | FUN_004747dc(1)               (floor asset loader — WIRED, src/scene_floor.{c,h})
  *           BC6 | 0x452bc6    | FUN_0047486a(1)               (jutan/rug asset loader — WIRED, src/scene_jutan.{c,h})
  *           C0A | 0x452c0a    | FUN_004748f8(1)               (table asset loader)
- *           C4E | 0x452c4e    | (unnamed @ 0x435873)()        (FPU state init — Ghidra missed it)
- *               |             | + FUN_00473a3e()              (pause menu + adventurer status assets)
+ *           C4E | 0x452c4e    | (unnamed @ 0x435873)()        (FPU state init — Ghidra missed it; WIRED, src/scene_pause.{c,h})
+ *               |             | + FUN_00473a3e()              (pause menu + adventurer status assets — WIRED, src/scene_pause.{c,h})
  *           C96 | 0x452c96    | FUN_0049de20()                (world-map state machine entry)
  *               |             | + FUN_004735ad()              (world map BMP loaders)
  *
@@ -136,9 +136,9 @@
  *
  *        All 12 targets are scene-1 (INGAME) specific — they'll wire
  *        up via worker_load_set_sec_body() when the respective scene
- *        loaders port. As of 2026-05-22 B3E (walls), B82 (floors), and
- *        BC6 (jutan/rugs) are wired; the other 6 slots stay NULL until
- *        their scene loaders port.
+ *        loaders port. As of 2026-05-22 B3E (walls), B82 (floors),
+ *        BC6 (jutan/rugs), and C4E (pause+status) are wired; the
+ *        other 5 slots stay NULL until their scene loaders port.
  *     2. Falls into the shared secondary cleanup tail (CloseHandle,
  *        zero handle, zero 4995c, zero 49960).
  *     3. Writes its per-LAB_* "ready=1" state byte.
@@ -182,10 +182,10 @@
  *     +---------+--------------------------+-----------------------+
  *
  * NOT yet ported:
- *   - Inner-body callbacks for 8 of the 9 secondary thread procs (the
+ *   - Inner-body callbacks for 5 of the 9 secondary thread procs (the
  *     per-LAB_* scene work — register via `worker_load_set_sec_body`
- *     as scene loaders port). B3E wired 2026-05-22; AAB/AE8/B13/B82/
- *     BC6/C0A/C4E/C96 still NULL.
+ *     as scene loaders port). B3E/B82/BC6/C4E wired 2026-05-22;
+ *     AAB/AE8/B13/C0A/C96 still NULL.
  *   - Pre-spawn for FUN_00452d07 (FUN_0046c01e — register via
  *     `worker_load_set_sec_d07_pre_spawn` when that ports).
  *

@@ -818,7 +818,29 @@ struct test_case {
     X(scene_jutan_load_without_load_fn_returns_count_only) \
     X(scene_jutan_reset_zeroes_state) \
     X(scene_jutan_load_all_paths_prefixed) \
-    X(scene_jutan_selector_independent_from_siblings)
+    X(scene_jutan_selector_independent_from_siblings) \
+    \
+    X(scene_pause_load_count_is_twenty) \
+    X(scene_pause_slot0_default_is_pause_tga) \
+    X(scene_pause_slot0_selector_2_is_endless) \
+    X(scene_pause_slot0_selector_3_is_endless) \
+    X(scene_pause_slot0_selector_other_values_are_pause) \
+    X(scene_pause_filename_table_full_order) \
+    X(scene_pause_filename_out_of_range_is_null) \
+    X(scene_pause_slot_dims_pause_and_singletons) \
+    X(scene_pause_slot_dims_sousa_all_400x200) \
+    X(scene_pause_slot_dims_status_all_200x200) \
+    X(scene_pause_slot_dims_out_of_range_returns_zero) \
+    X(scene_pause_load_dispatches_all_twenty) \
+    X(scene_pause_load_paths_match_filename_table) \
+    X(scene_pause_load_dims_match_metadata) \
+    X(scene_pause_load_selector_endless_swaps_slot_zero) \
+    X(scene_pause_load_without_load_fn_returns_count_only) \
+    X(scene_pause_state_init_writes_constants) \
+    X(scene_pause_state_init_is_idempotent) \
+    X(scene_pause_state_init_overrides_dirty_state) \
+    X(scene_pause_reset_zeroes_state) \
+    X(scene_pause_selector_independent_from_siblings)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

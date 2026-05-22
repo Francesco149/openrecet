@@ -1,0 +1,188 @@
+/*
+ * scene_pause.h — engine pause + adventurer-status asset loader
+ *                  (FUN_00473a3e @ 0x473a3e, 453 bytes) + the unnamed
+ *                  pause-state FPU init at 0x435873 (86 bytes; Ghidra
+ *                  missed it so the engine source notes call it "unnamed").
+ *
+ * Inner body for the C4E secondary worker thread (LAB_00452c4e), paired
+ * with the FUN_00452e75 spawner. The thread proc calls TWO functions
+ * before falling into the shared cleanup tail (objdump @ 0x452c4e..c53):
+ *
+ *     call 0x435873         ; pause-state FPU init (10 writes)
+ *     call 0x473a3e         ; 20-asset BMP/TGA load
+ *
+ * Both are ported as one module. The body callback registered via
+ * `worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_C4E, ...)` does the
+ * init first, then the asset load.
+ *
+ * ─── FPU init (engine unnamed @ 0x435873) ──────────────────────────────
+ *
+ *   Disassembled bytes (`objdump -d --start-address=0x435873`):
+ *
+ *     flds   [0x519474]            ; load 32.0f
+ *     xor    eax, eax
+ *     mov    [0x438b150], 1        ; DAT_0438b150 = 1   (int)
+ *     fstps  [0x438ac00]           ; DAT_0438ac00 = 32.0f
+ *     flds   [0x519440]            ; load 80.0f
+ *     mov    [0x438ac20], eax      ; DAT_0438ac20 = 0   (int)
+ *     mov    [0x438ac18], eax      ; DAT_0438ac18 = 0   (int)
+ *     fstps  [0x438ac04]           ; DAT_0438ac04 = 80.0f
+ *     flds   [0x519474]            ; load 32.0f
+ *     mov    [0x438b158], eax      ; DAT_0438b158 = 0   (int)
+ *     mov    [0x438b15c], eax      ; DAT_0438b15c = 0   (int)
+ *     fstps  [0x438abf4]           ; DAT_0438abf4 = 32.0f
+ *     flds   [0x519440]            ; load 80.0f
+ *     mov    [0x438ac1c], eax      ; DAT_0438ac1c = 0   (int)
+ *     fstps  [0x438abf8]           ; DAT_0438abf8 = 80.0f
+ *     ret
+ *
+ *   Float constants extracted from .rdata via tools/analyze/pe.py:
+ *     0x00519474: 00 00 00 42  → 32.0f
+ *     0x00519440: 00 00 a0 42  → 80.0f
+ *
+ *   Net effect: 6 floats + 4 zero ints + 1 one int written. The (32,80)
+ *   pairs look like (x,y) origins or (w,h) dimensions for pause-menu
+ *   layout — no consumer is ported yet so the exact semantics will
+ *   surface when the pause UI renderer lands.
+ *
+ * ─── asset load (engine FUN_00473a3e @ 0x473a3e) ──────────────────────
+ *
+ *   20 fixed sprite_load calls. Slot 0 has a selector:
+ *     `bmp/pause_endless.tga` if  ((&DAT_045114fc)[stage_idx*0xb7f2] == 2
+ *                              ||  (&DAT_045114fc)[stage_idx*0xb7f2] == 3)
+ *     `bmp/pause.tga`         otherwise
+ *
+ *   The selector reads a 4-byte int at offset 0x14fc of the current
+ *   stage's 0x2dfc8-byte stage-state record (engine's `int *` indexing
+ *   makes 0xb7f2 elements = 0x2dfc8 bytes; same stage stride as the
+ *   walls/floor/jutan selectors). Stage state isn't ported yet so
+ *   `g_scene_pause_selector` is a standalone int32 (BSS-zero default;
+ *   default load: "bmp/pause.tga").
+ *
+ *   The 20 slots, dest BSS region, dims:
+ *     0  pause / pause_endless  DAT_073d86a8  0x400×0x200
+ *     1  pause_bg_rete          DAT_073d86b8  0x400×0x200
+ *     2  result_bord01          DAT_073d86c8  0x200×0x100
+ *     3  dungeonbord            DAT_073a9b08  0x400×0x200
+ *     4  sousa_lui              DAT_073d84d0  0x400×0x200  ┐
+ *     5  sousa_sya              DAT_073d84e0  0x400×0x200  │ contiguous
+ *     6  sousa_cai              DAT_073d84f0  0x400×0x200  │ stride 0x10:
+ *     7  sousa_tel              DAT_073d8500  0x400×0x200  │   sprite_t[8]
+ *     8  sousa_era              DAT_073d8510  0x400×0x200  │ cursor
+ *     9  sousa_nag              DAT_073d8520  0x400×0x200  │ portraits
+ *    10  sousa_grf              DAT_073d8530  0x400×0x200  │
+ *    11  sousa_arm              DAT_073d8540  0x400×0x200  ┘
+ *    12  st_ryui                DAT_073d8570  0x200×0x200  ┐
+ *    13  st_sya                 DAT_073d8580  0x200×0x200  │ contiguous
+ *    14  st_caillou             DAT_073d8590  0x200×0x200  │ stride 0x10:
+ *    15  st_tiers               DAT_073d85a0  0x200×0x200  │   sprite_t[8]
+ *    16  st_eran                DAT_073d85b0  0x200×0x200  │ status
+ *    17  st_nagi                DAT_073d85c0  0x200×0x200  │ portraits
+ *    18  st_griffe              DAT_073d85d0  0x200×0x200  │
+ *    19  st_aruma               DAT_073d85e0  0x200×0x200  ┘
+ *
+ *   Engine sprite_load format flag is 0xc (vs 3 for walls/floor/jutan
+ *   and 0x10 for buy-phase sprites). openrecet's sprite_load drops the
+ *   format flag — same as all other call sites.
+ *
+ * Worker_load wiring:
+ *
+ *   `scene_pause_init(dev)` caches the D3D device and registers
+ *   `scene_pause_body` via
+ *   `worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_C4E, …)`. The body
+ *   calls `scene_pause_state_init()` first, then `scene_pause_load_with(
+ *   …)` — matching LAB_00452c4e's two-call sequence.
+ */
+
+#ifndef OPENRECET_SCENE_PAUSE_H
+#define OPENRECET_SCENE_PAUSE_H
+
+#include <stdint.h>
+
+#define SCENE_PAUSE_SOUSA_COUNT   8
+#define SCENE_PAUSE_STATUS_COUNT  8
+
+/* Total dispatch slots: 4 singletons (pause, pause_bg_rete,
+ * result_bord01, dungeonbord) + 8 sousa + 8 status = 20. */
+#define SCENE_PAUSE_LOAD_COUNT    20
+
+/* Per-stage pause-variant selector. Engine: 4-byte int at offset 0x14fc
+ * of the current stage's 0x2dfc8-byte stage-state record. Values 2 or
+ * 3 → "bmp/pause_endless.tga"; everything else → "bmp/pause.tga". Zero
+ * by default (BSS) until the stage system writes it. */
+extern int32_t g_scene_pause_selector;
+
+/* Pause-state globals written by the FPU init (engine unnamed @
+ * 0x435873). Exposed for tests + future pause-UI consumers. Zero-init
+ * via BSS until scene_pause_state_init() runs. */
+extern int32_t g_scene_pause_state_b150;  /* DAT_0438b150, set to 1 */
+extern int32_t g_scene_pause_state_b158;  /* DAT_0438b158, zero */
+extern int32_t g_scene_pause_state_b15c;  /* DAT_0438b15c, zero */
+extern int32_t g_scene_pause_state_ac18;  /* DAT_0438ac18, zero */
+extern int32_t g_scene_pause_state_ac1c;  /* DAT_0438ac1c, zero */
+extern int32_t g_scene_pause_state_ac20;  /* DAT_0438ac20, zero */
+extern float   g_scene_pause_state_abf4;  /* DAT_0438abf4, 32.0f */
+extern float   g_scene_pause_state_abf8;  /* DAT_0438abf8, 80.0f */
+extern float   g_scene_pause_state_ac00;  /* DAT_0438ac00, 32.0f */
+extern float   g_scene_pause_state_ac04;  /* DAT_0438ac04, 80.0f */
+
+/* Port of unnamed FUN @ 0x435873 — writes 10 pause-state constants
+ * (6 floats + 4 zeroes + 1 one) in the engine's exact write order.
+ * Idempotent; safe to call multiple times. */
+void scene_pause_state_init(void);
+
+/* Optional injected loader for tests. Receives the asset path, slot
+ * index, and expected dims (engine's sprite_load `expected_w` /
+ * `expected_h`). Return value is ignored — tests use it to record
+ * dispatches. */
+typedef int (*scene_pause_load_fn)(const char *path, int slot,
+                                    int w, int h, void *userdata);
+
+/* Pure-C body — engine FUN_00473a3e end-to-end. Resolves slot 0's
+ * filename via `g_scene_pause_selector`, dispatches `load_fn` for all
+ * 20 slots in slot order. Returns the number of dispatches (always
+ * 20, unconditionally — there's no per-slot predicate). NULL `load_fn`
+ * is a counting-only dry run. */
+int  scene_pause_load_with(scene_pause_load_fn load_fn, void *userdata);
+
+/* Inspection helpers — exposed for tests.
+ *
+ * For slot 0 (pause variant), returns "bmp/pause_endless.tga" if
+ * `g_scene_pause_selector` is 2 or 3, else "bmp/pause.tga". Other
+ * slots return their fixed asset name. NULL if out of range. */
+const char *scene_pause_filename(int slot);
+
+/* Per-slot expected dimensions. Returns 1 on success (w/h written),
+ * 0 if `slot` is out of range. */
+int  scene_pause_slot_dims(int slot, int *out_w, int *out_h);
+
+/* Reset module state — clears the selector + pause-state globals (FPU
+ * init values reset to zero) and (on Win32) zeroes the destination
+ * sprite_t handles. Tests only. */
+void scene_pause_reset(void);
+
+#ifdef _WIN32
+
+#include "sprite.h"
+
+/* Destination sprite slots, named to match the engine's BSS layout.
+ * The "sousa" and "status" arrays are contiguous engine-side (stride
+ * 0x10 = sizeof openrecet's sprite_t + 4 trailing engine bytes); the
+ * four singletons live in distinct named BSS spots. */
+extern sprite_t g_scene_pause_pause;          /* DAT_073d86a8 */
+extern sprite_t g_scene_pause_bg_rete;        /* DAT_073d86b8 */
+extern sprite_t g_scene_pause_result_bord01;  /* DAT_073d86c8 */
+extern sprite_t g_scene_pause_dungeonbord;    /* DAT_073a9b08 */
+extern sprite_t g_scene_pause_sousa[SCENE_PAUSE_SOUSA_COUNT];     /* DAT_073d84d0 */
+extern sprite_t g_scene_pause_status[SCENE_PAUSE_STATUS_COUNT];   /* DAT_073d8570 */
+
+struct IDirect3DDevice8;
+
+/* Cache the D3D device and register the body via
+ * worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_C4E, ...). Call once
+ * at boot, after the device is created. Idempotent. */
+void scene_pause_init(struct IDirect3DDevice8 *dev);
+
+#endif /* _WIN32 */
+
+#endif /* OPENRECET_SCENE_PAUSE_H */
