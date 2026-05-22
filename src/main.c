@@ -31,6 +31,7 @@
 #include "rng.h"
 #include "fade.h"
 #include "scene.h"
+#include "scene_ingame.h"
 #include "scene_title.h"
 #include "sim.h"
 #include "music.h"
@@ -649,14 +650,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                 /* NEW GAME / NEW_HAS_SAVE / CONT_HAS_SAVE route through
                  * the fade-out counter + g_fade_phase1 instead of the
                  * `pending_action` outbox. scene_title_sim flips
-                 * g_scene_state to LOADING once fade_is_done() returns
-                 * 1; we log once when that transition fires. The fade
-                 * keeps running (g_fade_counter pinned at duration+1,
-                 * alpha clamped to 255) so the screen stays solid black
-                 * until --max-duration-ms or user-close terminates the
-                 * process. No snap-back: destination scenes aren't
-                 * ported, so any "recovery" would be incoherent. */
-                if (g_scene_state == SCENE_STATE_LOADING
+                 * g_scene_state to INGAME once fade_is_done() returns 1
+                 * (via scene_post_fade_init, which also kicks the
+                 * phase-(-1) fade-IN so the black quad ramps out over
+                 * the next 17 sim ticks revealing the placeholder
+                 * ingame render). */
+                if (g_scene_state == SCENE_STATE_INGAME
                     && !title_action_logged[0]) {
                     int code = -1;
                     if (g_scene_title_menu.count > 0
@@ -665,13 +664,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         code = g_scene_title_menu.items[
                             g_scene_title_anim.cursor_pos];
                     }
-                    /* Slot 0 doubles as the "fade-out fired" sentinel —
-                     * arbitrary; we just need any of the 9 to latch. */
                     title_action_logged[0] = 1;
                     fprintf(stderr,
-                        "title: menu item %d selected — "
-                        "destination scene not ported yet "
-                        "(holding on black)\n",
+                        "title: menu item %d → INGAME (placeholder)\n",
                         code);
                 }
             }
@@ -891,10 +886,13 @@ static void shutdown_render(void)
 }
 
 /* ─── frame render — partial FUN_004547ab port ──────────────────────────
- * Driven by tick_step_win32 as the `render` callback. Currently only the
- * scene==0 (title) dispatch path is wired up; other scene states fall
- * through to a blank clear. The full FUN_004547ab dispatch + per-state
- * fan-out lands as the other scene ports come online.
+ * Driven by tick_step_win32 as the `render` callback. The engine's
+ * full FUN_004547ab dispatch fans into many per-state render functions
+ * (FUN_0045bbf9 / FUN_0040a765 / FUN_00417504 / FUN_0045404b / etc.) —
+ * we port them one scene at a time. Today:
+ *   SCENE_STATE_TITLE   — scene_title_render
+ *   SCENE_STATE_INGAME  — scene_ingame_render (placeholder)
+ * Other states leave the back buffer at the per-state clear color.
  *
  * Engine clear color for state-0 is 0xff17f0ff (pink-blue) — visible
  * only at the edges before bg2.bmp fully covers the framebuffer.
@@ -907,19 +905,21 @@ static void render_dispatch(void)
 {
     if (!g_dev) return;
 
-    /* Engine's title-state clear color: ARGB(0xff, 0x17, 0xf0, 0xff). */
+    /* Per-state clear color. Engine FUN_004547ab L33-44 derives the
+     * scene-1 clear from DAT_068dd2f0's stage palette; we use a fixed
+     * placeholder until the stage system ports. Title clear stays at
+     * 0xff17f0ff. */
+    DWORD clear_argb = 0xff17f0ff;
+    if (g_scene_state == SCENE_STATE_INGAME) {
+        clear_argb = scene_ingame_clear_argb();
+    }
     IDirect3DDevice8_Clear(
         g_dev, 0, NULL,
         D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
-        0xff17f0ff,
+        clear_argb,
         1.0f, 0);
     IDirect3DDevice8_BeginScene(g_dev);
 
-    /* Scene-render dispatch — mirrors FUN_004547ab. Only state 0
-     * (title) renders today; other states leave the back buffer
-     * cleared (state-0 clear color above is intentionally the engine's
-     * title-scene color, so transient state==1 frames look "loading"-
-     * pink rather than black). */
     switch (g_scene_state) {
     case SCENE_STATE_TITLE:
         if (g_scene_title_assets_loaded) {
@@ -927,6 +927,9 @@ static void render_dispatch(void)
                                &g_scene_title_menu,
                                &g_scene_title_anim);
         }
+        break;
+    case SCENE_STATE_INGAME:
+        scene_ingame_render(g_dev);
         break;
     default:
         break;

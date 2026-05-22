@@ -375,11 +375,13 @@ void scene_title_sim(scene_title_anim_t *anim,
             fade_phase1_start(0, 0x11);
         }
         if (anim->fade_counter >= 0x1e && fade_is_done()) {
-            /* Engine FUN_0049a59e L72: DAT_0438b1c0 = 8. Worker thread
-             * spawn (FUN_0049de18) + the eventual transition to
-             * SCENE_STATE_INGAME (= 1) are deferred. main.c logs once
-             * when this fires. */
-            g_scene_state = SCENE_STATE_LOADING;
+            /* Engine FUN_0049a59e L63-77: LOADING → (save-bank reset
+             * chain) → INGAME, all in one tick. The save-bank chain is
+             * deferred (no readers ported yet); scene_post_fade_init()
+             * collapses the transition to its observable endpoint. The
+             * ingame scene's placeholder renderer takes over in
+             * main.c's render_dispatch on the next frame. */
+            scene_post_fade_init();
         }
         anim->pulse_phase++;
         return;
