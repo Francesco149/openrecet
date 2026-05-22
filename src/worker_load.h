@@ -125,7 +125,7 @@
  *           C4E | 0x452c4e    | (unnamed @ 0x435873)()        (FPU state init — Ghidra missed it; WIRED, src/scene_pause.{c,h})
  *               |             | + FUN_00473a3e()              (pause menu + adventurer status assets — WIRED, src/scene_pause.{c,h})
  *           C96 | 0x452c96    | FUN_0049de20()                (world-map state machine entry)
- *               |             | + FUN_004735ad()              (world map BMP loaders)
+ *               |             | + FUN_004735ad()              (world map BMP loaders — WIRED HALF, src/scene_worldmap.{c,h})
  *
  *        Note on the literal `1`: each of the four wall/floor/rug/table
  *        loaders is also called with literal `0` from the main-thread
@@ -138,8 +138,10 @@
  *        up via worker_load_set_sec_body() when the respective scene
  *        loaders port. As of 2026-05-23 AE8 (buy phase page 0), B13
  *        (buy phase current-page), B3E (walls), B82 (floors), BC6
- *        (jutan/rugs), and C4E (pause+status) are wired; the other
- *        3 slots stay NULL until their scene loaders port.
+ *        (jutan/rugs), C4E (pause+status), and C96 (world-map BMP
+ *        loader HALF — state-machine FUN_0049de20 first call deferred,
+ *        see src/scene_worldmap.h banner) are wired; AAB and C0A stay
+ *        NULL until their .x-mesh-using scene loaders port.
  *     2. Falls into the shared secondary cleanup tail (CloseHandle,
  *        zero handle, zero 4995c, zero 49960).
  *     3. Writes its per-LAB_* "ready=1" state byte.
@@ -183,10 +185,17 @@
  *     +---------+--------------------------+-----------------------+
  *
  * NOT yet ported:
- *   - Inner-body callbacks for 5 of the 9 secondary thread procs (the
+ *   - Inner-body callbacks for 2 of the 9 secondary thread procs (the
  *     per-LAB_* scene work — register via `worker_load_set_sec_body`
  *     as scene loaders port). B3E/B82/BC6/C4E wired 2026-05-22,
- *     AE8+B13 wired 2026-05-23; AAB/C0A/C96 still NULL.
+ *     AE8+B13 wired 2026-05-23, C96 (BMP-loader HALF only —
+ *     state-machine first call deferred) wired 2026-05-23; AAB and
+ *     C0A still NULL (both blocked on the .x mesh loader at
+ *     FUN_00472836).
+ *   - State-machine first-call of the C96 body (FUN_0049de20 —
+ *     world-map state machine init, deep INGAME stage-table deps).
+ *     When it ports, fold into the scene_worldmap body as a
+ *     sequential pre-call before scene_worldmap_load_with.
  *   - Pre-spawn for FUN_00452d07 (FUN_0046c01e — register via
  *     `worker_load_set_sec_d07_pre_spawn` when that ports).
  *

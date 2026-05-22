@@ -863,7 +863,19 @@ struct test_case {
     X(scene_buy_b13_count_overflow_is_clamped) \
     X(scene_buy_b13_null_load_fn_returns_count_only) \
     X(scene_buy_b13_does_not_load_singletons) \
-    X(scene_buy_reset_zeroes_state)
+    X(scene_buy_reset_zeroes_state) \
+    \
+    X(scene_worldmap_count_is_four) \
+    X(scene_worldmap_filename_table_full_order) \
+    X(scene_worldmap_filename_out_of_range_is_null) \
+    X(scene_worldmap_dims_match_engine_calls) \
+    X(scene_worldmap_dims_out_of_range_zeroes_outputs) \
+    X(scene_worldmap_load_dispatches_all_four) \
+    X(scene_worldmap_load_paths_match_filename_table) \
+    X(scene_worldmap_load_dims_match_metadata) \
+    X(scene_worldmap_load_without_load_fn_returns_count) \
+    X(scene_worldmap_body_slot_starts_null) \
+    X(scene_worldmap_mappoint_is_tall_unique)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
