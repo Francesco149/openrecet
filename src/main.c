@@ -35,7 +35,9 @@
 #include "audio.h"
 #include "audio_fade.h"
 #include "font.h"
+#include "font_alloc.h"
 #include "font_atlas.h"
+#include "font_upload.h"
 #include "tables_config.h"        /* g_config for font_atlas regen gate */
 #include "tick.h"
 
@@ -455,6 +457,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         fprintf(stderr,
             "font: atlas load failed — text rendering will be a no-op\n");
     }
+
+    /* Wire the slot allocator's eviction hook to actually Release the
+     * GPU texture. Pure-C font_alloc.c doesn't know about D3D so this
+     * happens at the main.c seam. */
+    g_font_alloc_release_cb = font_slot_release;
 
     /* TODO "read systemtex ok"  — FUN_00472f5d
      * TODO "load savefile ok"   — FUN_004902fe

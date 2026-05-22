@@ -22,7 +22,7 @@ LDFLAGS := $(SAN)
 SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash.c ../src/lnk_lzss.c \
                  ../src/recet_ini.c ../src/input.c ../src/input_trace.c \
                  ../src/rng.c ../src/math3d.c ../src/prewindow.c ../src/tick.c \
-                 ../src/render_quad.c ../src/scene_title.c ../src/sim.c ../src/music.c ../src/audio.c ../src/audio_mci.c ../src/audio_fade.c ../src/audio_se_names.c ../src/settings.c ../src/font.c ../src/font_atlas.c ../src/font_alloc.c \
+                 ../src/render_quad.c ../src/scene_title.c ../src/sim.c ../src/music.c ../src/audio.c ../src/audio_mci.c ../src/audio_fade.c ../src/audio_se_names.c ../src/settings.c ../src/font.c ../src/font_atlas.c ../src/font_alloc.c ../src/font_upload.c \
                  ../src/tables_buysell.c ../src/tables_chara.c ../src/tables_config.c \
                  ../src/tables_enemy.c ../src/tables_enemylist.c ../src/tables_event.c \
                  ../src/tables_gousei.c ../src/tables_item.c \
@@ -31,7 +31,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
                  test_recet_ini.c test_input_poll.c test_input_trace.c \
                  test_rng.c test_math3d.c test_prewindow.c test_tick.c \
-                 test_render_quad.c test_scene_title.c test_scene_title_sim.c test_scene_title_settings.c test_sim.c test_music.c test_audio.c test_audio_mci.c test_audio_fade.c test_audio_trace.c test_audio_se_table.c test_settings.c test_font.c test_font_atlas.c test_font_alloc.c \
+                 test_render_quad.c test_scene_title.c test_scene_title_sim.c test_scene_title_settings.c test_sim.c test_music.c test_audio.c test_audio_mci.c test_audio_fade.c test_audio_trace.c test_audio_se_table.c test_settings.c test_font.c test_font_atlas.c test_font_alloc.c test_font_upload.c \
                  test_tables_buysell.c test_tables_chara.c test_tables_config.c \
                  test_tables_enemy.c test_tables_enemylist.c test_tables_event.c \
                  test_tables_gousei.c test_tables_item.c \

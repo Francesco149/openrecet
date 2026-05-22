@@ -630,7 +630,14 @@ struct test_case {
     X(font_slot_alloc_match_double_byte_requires_both) \
     X(font_slot_alloc_eviction_via_age_gate) \
     X(font_slot_alloc_release_callback_fires_on_evict) \
-    X(font_slot_alloc_no_callback_still_nulls_texture)
+    X(font_slot_alloc_no_callback_still_nulls_texture) \
+    \
+    X(font_upload_expand_transparent_byte) \
+    X(font_upload_expand_body_pixel_white_full) \
+    X(font_upload_expand_body_pixel_dim) \
+    X(font_upload_expand_edge_only_pixel) \
+    X(font_upload_expand_alpha_nibble_only) \
+    X(font_upload_expand_edge_nibble_only)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
