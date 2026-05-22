@@ -16,13 +16,24 @@
 #   0   — baseline title-screen identical to boot-idle
 #   30  — A just pressed, select_phase=1
 #   35  — mid-countdown, cursor brightness fading
-#   44  — dispatch frame, cursor brightness near silent
-#   50  — post-dispatch snap-back, select_phase=0 again
+#   44  — dispatch frame; NEW_GAME selected → fade_counter starts at 1
+#   50  — mid-freeze (fade_counter ≈ 7); identical to dispatch frame, title frozen
+#   73  — last freeze frame before fade init (fade_counter == 30 enters sim)
+#   74  — first visible fade frame: FUN_004526f5(0,17) fired, alpha = 1
+#   80  — fade alpha ≈ 7  (mid-fade — should show subtle white tint in retail)
+#   85  — fade alpha ≈ 12
+#   90  — last fade frame (alpha ≈ 17, max)
+#   95  — post-transition: retail shows in-game scene; ours shows snap-back title
+#
+# Frame-count math: A-press at 30 → 14 ticks for select_phase 1..0xf → dispatch
+# at 44 → fade_counter (DAT_0964351c) ticks 1..30 across frames 44..73 → engine
+# calls FUN_004526f5(0, 0x11) on frame 73 → DAT_0438bf78 ticks 1..17 across
+# frames 74..90 → FUN_004528b3 returns 1 → scene state transitions on frame 91.
 
-description: Z (button A) press at frame 30 → select countdown → dispatch at frame 44
+description: Z (button A) press at frame 30 → select countdown → dispatch at frame 44 → fade-out to in-game
 rng_seed: 1
-max_frames: 60
-capture_frames: [0, 30, 35, 44, 50]
+max_frames: 100
+capture_frames: [0, 30, 35, 44, 50, 73, 74, 80, 85, 90, 95]
 duration_ceiling_ms: 30000
 
 # Zoomed-text companion: crop the right half of the screen — the

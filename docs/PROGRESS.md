@@ -3,6 +3,53 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Title fade-out RE: corrects same-day "Deferred — big" misreading
+
+No code change this session — purely a corrective writeup. The
+"Scene-state global + title fade-out counter" entry below filed the
+title→NEW_GAME fade as "DEFERRED — big" based on a wrong reading of
+FUN_004526f5 + FUN_00452cde. We dug into it expecting a multi-session
+port, then found the real mechanism is ~250 lines of pure C plus
+existing render-quad infrastructure.
+
+Two corrections matter for future sessions:
+
+1. **There are no fade-out particles.** The 100-element float-vec
+   tables at `DAT_06a48d6c` and `DAT_06a4921c` that FUN_004526f5
+   initialises are dead writes — verified via objdump that nothing
+   in the binary reads them. The 30-tick pre-roll loop touches only
+   itself. The "100-particle 3D mesh fly-off running on a worker
+   thread" description in the prior entry was reverse-engineered
+   from the init code without checking whether any consumer existed.
+
+2. **Ghidra mis-decomps FUN_00453e8f's alpha formula.** The decompiled
+   `iVar1 = __ftol()` after a plain `(float)counter` push suggests
+   `alpha = counter` (max 17 ≈ 6.7% opacity). The actual x86 at
+   `0x453ed5..0x453f5b` has a `flds 0x519390 (= 256.0)` + `fdivs` that
+   Ghidra dropped, so the real formula is `alpha = (int)(256 *
+   counter / (duration - 2))`. For NEW_GAME's `(0, 0x11)` that's
+   `256/15 ≈ 17.07` per step → full opacity at counter 15.
+
+The off-screen render target system (`DAT_06a4999c`, FUN_00454191)
+that the investigation initially fixated on is a real engine
+feature, but it's used for in-game scene-to-scene transitions
+(triggered via FUN_00453384 — from WndProc ESC, in-game NPC
+interactions, etc.) — **not** the title→NEW_GAME fade.
+
+Full writeup with the corrected pipeline, the asm of the missing
+multiplier, the dead-particle-table provenance, and the actual port
+plan: `docs/findings/title-fade-out.md`.
+
+`title-z-press` scenario captures extended from 5 frames (0/30/35/
+44/50) to 11 (+73/74/80/85/90/95) so the fade-out is now within the
+captured range. `max_frames` bumped from 60 to 100. Retail goldens
+re-blessed. Our goldens re-blessed too (same snap-back behavior,
+just more frames captured); cross-target diff at frames 73+ is now
+visible in `runs/comparisons/title-z-press/sidebyside.png`.
+
+Updated session-start memory + this PROGRESS entry. No source files
+touched. Port is filed as ~3 small commits when picked up.
+
 ## 2026-05-22 — Scene-state global + title fade-out counter
 
 First two steps in the "past the main menu" thread. The skeleton was
