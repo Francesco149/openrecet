@@ -149,7 +149,18 @@ int font_slot_alloc(uint8_t cp_byte0, uint8_t cp_byte1,
     s->cp_byte1  = (cp_byte0 & 0x80) ? cp_byte1 : 0;
     s->age       = 0;
     s->record_id = (uint32_t)record_id;
-    /* slot_id stays at its init value (== slot index). */
+    /* slot_id stays at its init value (== slot index).
+     *
+     * Engine quirk (FUN_0047cbcb line 79733): for the ASCII space char,
+     * the engine forces effective_width = 0x18 (24) at alloc time —
+     * otherwise the space glyph has no body+edge pixels at all, the
+     * upload's running-max stays at 0, and the per-character advance
+     * `(eff_w - 3) * fVar2` evaluates to a NEGATIVE value. Pin space
+     * to 24 so the advance comes out positive (~10 in 640-space).
+     *
+     * Other zero-effective-width slots (unknown glyphs, blanks the
+     * upload can't measure) get whatever the upload writes. */
+    s->effective_width = (cp_byte0 == ' ') ? 0x18u : 0u;
 
     if (out_record_id) *out_record_id = record_id;
     if (out_is_new)    *out_is_new    = 1;

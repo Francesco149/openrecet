@@ -41,6 +41,13 @@ float font_draw_text(struct IDirect3DDevice8 *dev_,
      * text — D3DTSS_MAGFILTER=0x10 and D3DTSS_MINFILTER=0x11 both = 2. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+    /* Defensive: clear any texture-transform state and address mode
+     * that prior render paths might have left set. UV is normalized
+     * 0..1, no scaling, clamp at the edges. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_TEXCOORDINDEX, 0);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ADDRESSU, D3DTADDRESS_CLAMP);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ADDRESSV, D3DTADDRESS_CLAMP);
 
     const unsigned char *p = (const unsigned char *)str;
     while (*p) {
