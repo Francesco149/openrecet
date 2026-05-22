@@ -430,13 +430,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * scene_title render, which is all that matters for boot. */
     (void)sysassets_load_all(g_dev);
 
-    /* Register the AE8 + B3E + B82 + BC6 + C4E secondary-worker inner
-     * bodies (engine FUN_0047329b buy-phase inventory loader +
+    /* Register the AE8 + B13 + B3E + B82 + BC6 + C4E secondary-worker
+     * inner bodies (engine FUN_0047329b buy-phase page-0 inventory
+     * loader + FUN_0047333b buy-phase current-page loader +
      * FUN_0047474e wall loader + FUN_004747dc floor loader +
      * FUN_0047486a jutan/rug loader + FUN_00473a3e pause+status asset
      * loader plus the unnamed 0x435873 FPU init that precedes it).
-     * None fire until something calls the matching spawner
-     * (worker_load_spawn_d3e(0) / _d85 / _dc1 / _dfd / _e75
+     * scene_buy_init registers BOTH AE8 and B13 in one call (sibling
+     * bodies sharing the same per-page state arrays). None fire until
+     * something calls the matching spawner (worker_load_spawn_d3e(0)
+     * for AE8 / _d3e(non-zero) for B13 / _d85 / _dc1 / _dfd / _e75
      * respectively), which the scene-1 stage transition will do once
      * it ports. */
     scene_buy_init(g_dev);

@@ -843,6 +843,7 @@ struct test_case {
     X(scene_pause_selector_independent_from_siblings) \
     \
     X(scene_buy_slot_count_is_ten) \
+    X(scene_buy_page_count_is_fifty) \
     X(scene_buy_format_string) \
     X(scene_buy_singleton_slots_are_distinct) \
     X(scene_buy_ae8_zero_count_loads_only_singletons) \
@@ -852,8 +853,17 @@ struct test_case {
     X(scene_buy_ae8_dynamic_loop_full_ten_items) \
     X(scene_buy_ae8_dynamic_loop_count_overflow_is_clamped) \
     X(scene_buy_ae8_null_load_fn_returns_count_only) \
-    X(scene_buy_reset_zeroes_state) \
-    X(scene_buy_singleton_paths_match_rdata)
+    X(scene_buy_ae8_singleton_paths_match_rdata) \
+    X(scene_buy_ae8_ignores_current_page_selector) \
+    X(scene_buy_b13_default_page_zero_loads_nothing) \
+    X(scene_buy_b13_page0_with_items) \
+    X(scene_buy_b13_indexes_by_current_page) \
+    X(scene_buy_b13_zero_valid_at_current_page_is_noop) \
+    X(scene_buy_b13_out_of_range_page_is_noop) \
+    X(scene_buy_b13_count_overflow_is_clamped) \
+    X(scene_buy_b13_null_load_fn_returns_count_only) \
+    X(scene_buy_b13_does_not_load_singletons) \
+    X(scene_buy_reset_zeroes_state)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

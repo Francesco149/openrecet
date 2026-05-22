@@ -3,6 +3,80 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-23 — scene_buy: B13 secondary inner-body wired (page-indexed)
+
+Sixth of the 9 secondary worker-thread inner bodies — sibling to AE8
+(landed earlier today). `src/scene_buy.{c,h}` extended to handle BOTH
+bodies; per-page state promoted from page-0-only globals to 50-element
+per-page arrays.
+
+### What changed
+
+`g_scene_buy_page0_valid` / `_count` / `_names` / `_sprites` removed in
+favour of:
+
+- `g_scene_buy_current_page` — engine `DAT_0730b56c` (selector read by
+  B13). Range [0, 50); engine also uses -1 as "no page" sentinel.
+- `g_scene_buy_valid[50]`
+- `g_scene_buy_count[50]`
+- `g_scene_buy_names[50][10][256]`  (125 KiB BSS)
+- `g_scene_buy_sprites[50][10]`     (8 KiB BSS)
+
+AE8 still reads page 0 unconditionally; B13 reads
+`g_scene_buy_current_page`. A new `scene_buy_page_dispatch` helper
+factors the shared dynamic loop.
+
+### B13 body (FUN_0047333b @ 0x47333b, 145 bytes)
+
+Single-phase: same as AE8's phase 1 but page-indexed. Gated on
+`(valid[page] != 0 && count[page] != 0)`. Iterates `count[page]` times
+reading from `names[page]` → `sprites[page]`. Dims 0x200×0x200. Engine
+sprintf format `bmp/%s` (.rdata @ 0x5c8680 — different address from
+AE8's 0x5c864c, same literal). Engine sprite_load format flag 0x11
+(dropped). **No singletons** (unlike AE8).
+
+### Out-of-range page handling
+
+Engine reads `(&DAT_06a63bdc)[page * 0xb19c]` with NO bounds check —
+would OOB for page = -1 or page >= 50. Port clamps via
+`scene_buy_page_dispatch` (page out of range → 0 dispatches, no-op).
+Tests cover -1, 50, and 9999 → all no-op.
+
+### Inner-body call shape
+
+LAB_00452b13 (objdump @ 0x452b13..0x452b3e): bare `call 0x47333b` with
+NO pre-arg push — same shape as AE8. Confirmed via disassembly.
+
+### Wiring
+
+`scene_buy_init` now registers BOTH bodies in one call:
+`worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_AE8, scene_buy_ae8_body)`
++ `(...SEC_BODY_B13, scene_buy_b13_body)`. main.c's init comment
+updated. Two distinct Win32 wrappers: AE8 dispatches via
+`sprites[0][slot]` + the two singletons; B13 dispatches via
+`sprites[current_page][slot]` only.
+
+### Validation
+
+- `make -C tests run` → 782 passed (+10 new B13 tests; AE8 tests
+  refactored to use the per-page array API: 10 → 11 AE8 tests,
+  including a new `_ae8_ignores_current_page_selector` that pins the
+  AE8/B13 distinction)
+- `make -C src` builds both `openrecet.exe` + `openrecet-debug.exe`
+- `tools/scenario-test.py boot-idle` → 3/3 bit-exact
+- `tools/scenario-test.py title-z-press` → 14/14 bit-exact
+
+No visual change vs prior commit (both bodies dormant — no caller
+wired). worker_load.h banner updated to mark B13 as WIRED.
+
+### Deferred
+
+- Per-page state writers (buy-phase customer arrival code) — not
+  reverse-engineered yet; lands with the buy-phase scene loader.
+- AAB / C0A / C96 are the remaining 3 NULL secondary inner-bodies.
+  AAB + C0A both need FUN_00472836 (.x mesh loader, 1609 bytes) first;
+  C96 is the world-map state machine (2067 bytes).
+
 ## 2026-05-23 — scene_buy: AE8 secondary inner-body wired (buy-phase loader)
 
 Fifth of the 9 secondary worker-thread inner bodies to land —

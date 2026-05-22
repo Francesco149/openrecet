@@ -1,7 +1,9 @@
 /*
  * scene_buy.c — see scene_buy.h.
  *
- * Engine source: FUN_0047329b @ 0x47329b (151 bytes).
+ * Engine sources:
+ *   - FUN_0047329b @ 0x47329b (151 bytes) — AE8 body
+ *   - FUN_0047333b @ 0x47333b (145 bytes) — B13 body
  */
 
 #include "scene_buy.h"
@@ -13,12 +15,13 @@
 
 /* ─── module state ────────────────────────────────────────────────────── */
 
-int32_t g_scene_buy_page0_valid = 0;
-int32_t g_scene_buy_page0_count = 0;
-char    g_scene_buy_page0_names[SCENE_BUY_SLOT_COUNT][256];
+int32_t g_scene_buy_current_page = 0;
+int32_t g_scene_buy_valid[SCENE_BUY_PAGE_COUNT];
+int32_t g_scene_buy_count[SCENE_BUY_PAGE_COUNT];
+char    g_scene_buy_names[SCENE_BUY_PAGE_COUNT][SCENE_BUY_SLOT_COUNT][256];
 
-/* Engine s_bmp__s_005c864c (and the B13-side s_bmp__s_005c8680 — same
- * literal at a different .rdata address; B13 will reuse this getter). */
+/* Engine s_bmp__s_005c864c (AE8) and s_bmp__s_005c8680 (B13) — same
+ * "bmp/%s" literal at two .rdata addresses. */
 static const char *const g_scene_buy_path_fmt = "bmp/%s";
 
 const char *scene_buy_format_string(void)
@@ -26,40 +29,44 @@ const char *scene_buy_format_string(void)
     return g_scene_buy_path_fmt;
 }
 
-/* ─── pure-C body ─────────────────────────────────────────────────────── */
+/* ─── shared page-loop helper ────────────────────────────────────────── */
+
+/* Dispatches the per-page dynamic loop common to both AE8 (page=0) and
+ * B13 (page=current). Returns the number of dispatches made; 0 if the
+ * page is out of range, the valid flag is 0, or the count is 0. */
+static int scene_buy_page_dispatch(int page,
+                                    scene_buy_load_fn load_fn,
+                                    void *userdata)
+{
+    if (page < 0 || page >= SCENE_BUY_PAGE_COUNT) return 0;
+    if (g_scene_buy_valid[page] == 0)             return 0;
+    if (g_scene_buy_count[page] == 0)             return 0;
+
+    int n = g_scene_buy_count[page];
+    /* Engine has no cap. Per-page sprite array stride is 0xa0 = 10
+     * slots; counts above 10 overflow into adjacent pages' sprite
+     * memory engine-side. Port clamps for memory safety. */
+    if (n > SCENE_BUY_SLOT_COUNT) n = SCENE_BUY_SLOT_COUNT;
+
+    int loads = 0;
+    for (int i = 0; i < n; i++) {
+        char path[256];
+        snprintf(path, sizeof(path), g_scene_buy_path_fmt,
+                 g_scene_buy_names[page][i]);
+        if (load_fn) load_fn(path, i, 0x200, 0x200, userdata);
+        loads++;
+    }
+    return loads;
+}
+
+/* ─── AE8 body (FUN_0047329b @ 0x47329b) ────────────────────────────── */
 
 int scene_buy_ae8_load_with(scene_buy_load_fn load_fn, void *userdata)
 {
-    int loads = 0;
-
-    /* Phase 1 — dynamic per-item icon loop (page 0).
-     *
-     * Engine: `if ((DAT_06a63bdc != 0) && (DAT_06a63bd4 != 0))`. Both
-     * gates must be non-zero. We then iterate `count` times, reading
-     * each name from the per-page name buffer.
-     *
-     * Clamp: the engine has no cap, but the destination sprite array's
-     * per-page stride is 0xa0 = 10 slots. Counts above 10 overflow
-     * into adjacent pages' sprite memory engine-side; we clamp at
-     * SCENE_BUY_SLOT_COUNT so the name-buffer read stays in bounds.
-     * Tests can observe the full clamped sequence. */
-    if (g_scene_buy_page0_valid != 0 && g_scene_buy_page0_count != 0) {
-        int n = g_scene_buy_page0_count;
-        if (n > SCENE_BUY_SLOT_COUNT) n = SCENE_BUY_SLOT_COUNT;
-        for (int i = 0; i < n; i++) {
-            char path[256];
-            /* Engine: FUN_005038ff = unbounded sprintf-with-NUL. The
-             * snprintf form is safer; longest formatted path is
-             * "bmp/" (4) + 255-byte name + NUL = 260, hits the buffer
-             * boundary but truncation matches engine semantics for
-             * over-long names (engine would write past the local
-             * 256-byte scratch). */
-            snprintf(path, sizeof(path), g_scene_buy_path_fmt,
-                     g_scene_buy_page0_names[i]);
-            if (load_fn) load_fn(path, i, 0x200, 0x200, userdata);
-            loads++;
-        }
-    }
+    /* Phase 1 — dynamic per-item icon loop, page 0. Engine reads
+     * `&DAT_06a63bdc` (no index) and `&DAT_06a63bd4` (no index) —
+     * always page 0, independent of DAT_0730b56c. */
+    int loads = scene_buy_page_dispatch(0, load_fn, userdata);
 
     /* Phase 2 — fixed chrname.tga (always fires).
      * Engine: FUN_0047193c(0x10, &DAT_073cc8d0,
@@ -82,13 +89,27 @@ int scene_buy_ae8_load_with(scene_buy_load_fn load_fn, void *userdata)
     return loads;
 }
 
+/* ─── B13 body (FUN_0047333b @ 0x47333b) ────────────────────────────── */
+
+int scene_buy_b13_load_with(scene_buy_load_fn load_fn, void *userdata)
+{
+    /* Single phase — same as AE8 phase 1 but page-indexed by the
+     * current-page selector. Engine: `(&DAT_06a63bdc)[DAT_0730b56c *
+     * 0xb19c]` etc. Out-of-range page (incl. -1) is a no-op — engine
+     * would OOB but our port bails cleanly via the helper's range
+     * check. */
+    return scene_buy_page_dispatch(g_scene_buy_current_page,
+                                    load_fn, userdata);
+}
+
 /* ─── reset ──────────────────────────────────────────────────────────── */
 
 static void scene_buy_state_clear(void)
 {
-    g_scene_buy_page0_valid = 0;
-    g_scene_buy_page0_count = 0;
-    memset(g_scene_buy_page0_names, 0, sizeof(g_scene_buy_page0_names));
+    g_scene_buy_current_page = 0;
+    memset(g_scene_buy_valid, 0, sizeof(g_scene_buy_valid));
+    memset(g_scene_buy_count, 0, sizeof(g_scene_buy_count));
+    memset(g_scene_buy_names, 0, sizeof(g_scene_buy_names));
 }
 
 /* ─── Win32 worker_load wiring + sprite storage ─────────────────────── */
@@ -97,48 +118,70 @@ static void scene_buy_state_clear(void)
 
 #include <d3d8.h>
 
-sprite_t g_scene_buy_page0_sprites[SCENE_BUY_SLOT_COUNT];
+sprite_t g_scene_buy_sprites[SCENE_BUY_PAGE_COUNT][SCENE_BUY_SLOT_COUNT];
 sprite_t g_scene_buy_chrname;
 sprite_t g_scene_buy_shopmode;
 
 static IDirect3DDevice8 *g_scene_buy_dev = 0;
 
-static sprite_t *scene_buy_slot_dest(int slot)
-{
-    if (slot >= 0 && slot < SCENE_BUY_SLOT_COUNT) {
-        return &g_scene_buy_page0_sprites[slot];
-    }
-    if (slot == SCENE_BUY_AE8_SLOT_CHRNAME)  return &g_scene_buy_chrname;
-    if (slot == SCENE_BUY_AE8_SLOT_SHOPMODE) return &g_scene_buy_shopmode;
-    return 0;
-}
-
-static int win32_load_fn(const char *path, int slot, int w, int h,
-                          void *userdata)
+/* AE8 Win32 wrapper: per-page-0 sprites for the dynamic range, plus
+ * the two AE8-only singletons. */
+static int win32_load_fn_ae8(const char *path, int slot, int w, int h,
+                              void *userdata)
 {
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)userdata;
-    sprite_t *dst = scene_buy_slot_dest(slot);
-    if (!dst) return 0;
+    sprite_t *dst;
+    if (slot >= 0 && slot < SCENE_BUY_SLOT_COUNT) {
+        dst = &g_scene_buy_sprites[0][slot];
+    } else if (slot == SCENE_BUY_AE8_SLOT_CHRNAME) {
+        dst = &g_scene_buy_chrname;
+    } else if (slot == SCENE_BUY_AE8_SLOT_SHOPMODE) {
+        dst = &g_scene_buy_shopmode;
+    } else {
+        return 0;
+    }
     return sprite_load(dev, path, (uint32_t)w, (uint32_t)h, dst);
+}
+
+/* B13 Win32 wrapper: per-page sprites only, indexed by the current
+ * page (already range-checked by scene_buy_page_dispatch before we
+ * get here, so this is defensive). */
+static int win32_load_fn_b13(const char *path, int slot, int w, int h,
+                              void *userdata)
+{
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)userdata;
+    int page = g_scene_buy_current_page;
+    if (page < 0 || page >= SCENE_BUY_PAGE_COUNT)  return 0;
+    if (slot < 0 || slot >= SCENE_BUY_SLOT_COUNT)  return 0;
+    return sprite_load(dev, path, (uint32_t)w, (uint32_t)h,
+                        &g_scene_buy_sprites[page][slot]);
 }
 
 static void scene_buy_ae8_body(void)
 {
-    scene_buy_ae8_load_with(win32_load_fn, g_scene_buy_dev);
+    scene_buy_ae8_load_with(win32_load_fn_ae8, g_scene_buy_dev);
+}
+
+static void scene_buy_b13_body(void)
+{
+    scene_buy_b13_load_with(win32_load_fn_b13, g_scene_buy_dev);
 }
 
 void scene_buy_init(struct IDirect3DDevice8 *dev)
 {
     g_scene_buy_dev = (IDirect3DDevice8 *)dev;
     worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_AE8, scene_buy_ae8_body);
+    worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_B13, scene_buy_b13_body);
 }
 
 void scene_buy_reset(void)
 {
-    for (int i = 0; i < SCENE_BUY_SLOT_COUNT; i++) {
-        g_scene_buy_page0_sprites[i].tex    = 0;
-        g_scene_buy_page0_sprites[i].width  = 0;
-        g_scene_buy_page0_sprites[i].height = 0;
+    for (int p = 0; p < SCENE_BUY_PAGE_COUNT; p++) {
+        for (int s = 0; s < SCENE_BUY_SLOT_COUNT; s++) {
+            g_scene_buy_sprites[p][s].tex    = 0;
+            g_scene_buy_sprites[p][s].width  = 0;
+            g_scene_buy_sprites[p][s].height = 0;
+        }
     }
     g_scene_buy_chrname.tex     = 0;
     g_scene_buy_chrname.width   = 0;
