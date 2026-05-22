@@ -23,11 +23,17 @@ static void cb_record_9(void)  { g_cb_fire_count[9]++;  g_cb_fire_total++; g_cb_
 static void cb_record_12(void) { g_cb_fire_count[12]++; g_cb_fire_total++; g_cb_fire_last = 12; }
 static void cb_record_16(void) { g_cb_fire_count[16]++; g_cb_fire_total++; g_cb_fire_last = 16; }
 
+/* Alt-cb scratchpad — kept separate from the indexed cb counters
+ * because the alt slot has no "case index" of its own. */
+static int g_alt_cb_fire_count;
+static void cb_record_alt(void) { g_alt_cb_fire_count++; }
+
 static void reset_scratchpad(void)
 {
     for (int i = 0; i < WORKER_LOAD_CASE_COUNT; i++) g_cb_fire_count[i] = 0;
-    g_cb_fire_total = 0;
-    g_cb_fire_last  = -1;
+    g_cb_fire_total     = 0;
+    g_cb_fire_last      = -1;
+    g_alt_cb_fire_count = 0;
 }
 
 int test_worker_load_case_count_is_seventeen(void)
@@ -262,6 +268,146 @@ int test_worker_load_spawn_non_win32_only_raises_gates(void)
      * don't see a stale busy=1. */
     worker_load_end();
     nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_secondary_busy_defaults_zero(void)
+{
+    /* Until any DAT_06a49960 spawner ports, the secondary busy slot
+     * is unreachable by any worker code — but the accessor must
+     * exist so callers can be wired today. */
+    worker_load_reset();
+    T_ASSERT_EQ_I(worker_load_busy_secondary(), 0);
+    return 0;
+}
+
+int test_worker_load_alt_cb_round_trip(void)
+{
+    worker_load_reset();
+    T_ASSERT(worker_load_get_alt_cb() == 0);
+
+    worker_load_set_alt_cb(cb_record_alt);
+    T_ASSERT(worker_load_get_alt_cb() == cb_record_alt);
+
+    /* NULL clears. */
+    worker_load_set_alt_cb(0);
+    T_ASSERT(worker_load_get_alt_cb() == 0);
+
+    /* Last write wins. */
+    worker_load_set_alt_cb(cb_record_0);
+    worker_load_set_alt_cb(cb_record_alt);
+    T_ASSERT(worker_load_get_alt_cb() == cb_record_alt);
+    return 0;
+}
+
+int test_worker_load_alt_dispatch_invokes_registered_cb(void)
+{
+    worker_load_reset();
+    reset_scratchpad();
+    worker_load_set_alt_cb(cb_record_alt);
+
+    int ok = worker_load_dispatch_alt_pure();
+
+    /* Engine LAB_00452a6b unconditionally falls through to its
+     * cleanup tail with eax=1 — there's no "out of range" branch. */
+    T_ASSERT_EQ_I(ok,                  1);
+    T_ASSERT_EQ_I(g_alt_cb_fire_count, 1);
+    return 0;
+}
+
+int test_worker_load_alt_dispatch_with_no_cb_returns_one(void)
+{
+    /* No registered cb is the engine's "alt body but everything
+     * unported" state — still returns 1, just doesn't run anything. */
+    worker_load_reset();
+    reset_scratchpad();
+
+    int ok = worker_load_dispatch_alt_pure();
+
+    T_ASSERT_EQ_I(ok,                  1);
+    T_ASSERT_EQ_I(g_alt_cb_fire_count, 0);
+    return 0;
+}
+
+int test_worker_load_alt_dispatch_does_not_touch_busy(void)
+{
+    /* Alt dispatch, like primary dispatch, is busy-flag-agnostic. */
+    worker_load_reset();
+    reset_scratchpad();
+    worker_load_set_alt_cb(cb_record_alt);
+
+    T_ASSERT_EQ_I(worker_load_busy(), 0);
+    worker_load_dispatch_alt_pure();
+    T_ASSERT_EQ_I(worker_load_busy(), 0);
+
+    worker_load_begin();
+    T_ASSERT_EQ_I(worker_load_busy(), 1);
+    worker_load_dispatch_alt_pure();
+    T_ASSERT_EQ_I(worker_load_busy(), 1);
+    return 0;
+}
+
+int test_worker_load_alt_spawn_non_win32_only_raises_gates(void)
+{
+    /* Same as worker_load_spawn — gates rise, but no actual thread
+     * runs the alt cb under the unit-test build. */
+    nowloading_reset();
+    worker_load_reset();
+    reset_scratchpad();
+    worker_load_set_alt_cb(cb_record_alt);
+
+    worker_load_spawn_alt();
+
+    T_ASSERT_EQ_I(worker_load_busy(),       1);
+    T_ASSERT_EQ_I(nowloading_is_active(),   1);
+    T_ASSERT_EQ_I(g_alt_cb_fire_count,      0);
+
+    /* Cleanup. */
+    worker_load_end();
+    nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_alt_full_cycle_simulation(void)
+{
+    /* Simulate what the Win32 alt thread proc does, end-to-end:
+     *   1. spawn_alt (begin) — busy=1, nowloading=1
+     *   2. dispatch_alt_pure — runs registered cb if any
+     *   3. close — handle no-op on non-Win32
+     *   4. end — busy=0; nowloading STAYS on (engine quirk shared
+     *      with the primary worker).
+     */
+    nowloading_reset();
+    worker_load_reset();
+    reset_scratchpad();
+    worker_load_set_alt_cb(cb_record_alt);
+
+    worker_load_begin();
+    T_ASSERT_EQ_I(worker_load_busy(),     1);
+    T_ASSERT_EQ_I(nowloading_is_active(), 1);
+
+    int ok = worker_load_dispatch_alt_pure();
+    T_ASSERT_EQ_I(ok,                  1);
+    T_ASSERT_EQ_I(g_alt_cb_fire_count, 1);
+
+    worker_load_close();
+    worker_load_end();
+
+    T_ASSERT_EQ_I(worker_load_busy(),     0);
+    T_ASSERT_EQ_I(nowloading_is_active(), 1);   /* gate quirk */
+    nowloading_reset();
+    return 0;
+}
+
+int test_worker_load_reset_clears_alt_cb(void)
+{
+    /* Alt cb must clear alongside the 17-slot table on reset. */
+    worker_load_reset();
+    worker_load_set_alt_cb(cb_record_alt);
+    T_ASSERT(worker_load_get_alt_cb() == cb_record_alt);
+
+    worker_load_reset();
+    T_ASSERT(worker_load_get_alt_cb() == 0);
     return 0;
 }
 

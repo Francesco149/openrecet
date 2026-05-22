@@ -652,6 +652,14 @@ struct test_case {
     X(worker_load_dispatch_does_not_touch_busy) \
     X(worker_load_close_is_idempotent_without_handle) \
     X(worker_load_spawn_non_win32_only_raises_gates) \
+    X(worker_load_secondary_busy_defaults_zero) \
+    X(worker_load_alt_cb_round_trip) \
+    X(worker_load_alt_dispatch_invokes_registered_cb) \
+    X(worker_load_alt_dispatch_with_no_cb_returns_one) \
+    X(worker_load_alt_dispatch_does_not_touch_busy) \
+    X(worker_load_alt_spawn_non_win32_only_raises_gates) \
+    X(worker_load_alt_full_cycle_simulation) \
+    X(worker_load_reset_clears_alt_cb) \
     X(worker_load_engine_dispatch_full_cycle_simulation) \
     \
     X(save_io_scan_fresh_arena_zero_flags) \

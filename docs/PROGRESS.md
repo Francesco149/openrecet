@@ -3,6 +3,114 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Asset-load worker thread (alt primary + close fidelity)
+
+Follow-up chip to the first-half worker landing earlier today. Ports
+the alt primary worker (FUN_00452eed + LAB_00452a6b) — sibling of the
+already-ported FUN_00452cde + LAB_0045293d that shares the same primary
+gates but runs a fixed 5-call body instead of jump-table dispatch — and
+closes the close-helper fidelity gap that the first-half chip left open.
+
+### What landed
+
+- **`worker_load_spawn_alt`** — ports FUN_00452eed (41 bytes @ 0x452eed),
+  structurally identical to FUN_00452cde but targeting the alt thread
+  proc (LAB_00452a6b) instead of LAB_0045293d. Same primary gates raised
+  (DAT_06a49954 busy + DAT_06a49958 nowloading); same CreateThread call
+  shape.
+
+- **`worker_load_thread_proc_alt`** (Win32) — ports LAB_00452a6b body
+  (~74 bytes @ 0x452a6b). The engine's body is a fixed sequence:
+
+  ```
+  if (DAT_06a4996c == 0) {
+      FUN_0047472c();  // pre-room-change A
+      FUN_00474681();  // pre-room-change B
+  }
+  FUN_004746fc();
+  FUN_00473c15();
+  FUN_00436f97();
+  <primary cleanup: close handle, busy=0, return 1>
+  ```
+
+  Collapsed into a single registered callback (`worker_load_set_alt_cb`)
+  — the scene module that owns the body decides internally whether to
+  short-circuit on the `DAT_06a4996c` "same room" flag. Same shape, scene
+  logic stays in scene-land.
+
+- **`worker_load_dispatch_alt_pure`** — pure-C side of the alt thread
+  proc, invoked by the Win32 thread proc and by unit tests directly.
+  Always returns 1 (engine LAB_00452a6b never short-circuits — no input
+  to range-check).
+
+- **`primary_thread_cleanup`** helper — extracted from the inline tail
+  of both LAB_0045293d and LAB_00452a6b (engine literally repeats the
+  identical 4-instruction tail at both labels). Close handle, clear
+  primary busy, leaves secondary flags alone. The new alt proc and the
+  pre-existing primary proc share it now.
+
+- **Close-helper fidelity fix** — `worker_load_close` now also clears
+  the secondary flags (DAT_06a4995c + DAT_06a49960) when the handle is
+  non-NULL, exactly matching FUN_00452917's three-flag wipe. The
+  first-half chip explicitly deferred this with `// we don't have those
+  yet, so omitted` — they exist now (declared in worker_load.c, even
+  though no spawner writes them yet). The secondary nowloading gate is
+  served by nowloading.c's collapsed-OR `g_active` so we don't
+  blanket-clear nowloading here; same observable as the engine when only
+  one side is in flight, which the engine's call paths appear never to
+  violate.
+
+- **`worker_load_busy_secondary` accessor** — reads `DAT_06a4995c`.
+  Returns 0 always for now (no spawner raises it yet), but exposes the
+  final shape so any consumer wired today won't break when the
+  secondary spawners port.
+
+- **`worker_load_reset` extended** — now also clears the alt cb slot
+  and the secondary busy flag, alongside the 17-slot table.
+
+- **8 new unit tests** covering: secondary busy defaults to 0; alt cb
+  round-trip + NULL-clears + last-write-wins; alt dispatch with a
+  registered cb / without one (still returns 1) / busy-flag agnosticism;
+  alt spawn on non-Win32 raises gates without dispatching; full alt
+  cycle simulation matches the primary cycle (busy bounces, nowloading
+  gate stays raised); reset clears the alt cb. **662 tests total (was
+  654).** title-z-press scenario re-passes 14/14 bit-exact.
+
+### Engine fidelity notes
+
+- The engine's primary thread proc (LAB_0045293d) and alt thread proc
+  (LAB_00452a6b) share an *identical* cleanup tail — the same four
+  instructions repeated inline at both labels. We extract that into a
+  static helper (`primary_thread_cleanup`) since it's verbatim shared.
+
+- The engine's close-helper (FUN_00452917) clears only the secondary
+  flags, not the primary. The contract appears to be "shut down any
+  in-flight secondary worker; primary may still be running on a
+  parallel transition". We match.
+
+- DAT_06a4996c (the "same room" gate at the alt body's entry) is set
+  by the alt's sole caller in the engine — a fade-driven room
+  transition handler at the FUN_00452f16 surroundings. We don't need
+  it inside worker_load: the registered alt cb is responsible for the
+  internal skip-prelude decision.
+
+### Deferred (the remaining "second half")
+
+- **Eight DAT_06a49960-gated spawners** — the original session note
+  listed six (FUN_00452d07 / d3e / d85 / dc1 / dfd / e39), but
+  disassembly of the 0x4528d0..0x452f50 range turned up two more
+  (FUN_00452e75 + FUN_00452eb1) past the close-helper. **Nine thread
+  routines** (LAB_00452aab / ae8 / b13 / b3e / b82 / bc6 / c0a / c4e /
+  c96) — original count was seven, plus the two newly-found at c4e
+  and c96. Each thread proc clears all three flags
+  (handle + secondary busy + secondary gate); several also call
+  `FUN_0045281c(0, 0x11)` (fade kick) conditional on DAT_06a49980.
+  Lands when any of those transition consumers ports.
+
+- **Per-tick gate clear** at top of FUN_004547ab — "if `worker_busy
+  == 0` then clear nowloading gate". Render-dispatch concern, lands
+  with the scene-1 render port.
+
 ## 2026-05-22 — Asset-load worker thread (first half)
 
 Worker-thread infrastructure for the scene-transition asset loader

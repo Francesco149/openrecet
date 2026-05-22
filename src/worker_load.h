@@ -70,11 +70,39 @@
  * cleanup-targets at cases 4 and 12, and what we want for the 14
  * other cases whose loader targets aren't ported yet.
  *
- * NOT yet ported (the "second half" of the worker system):
- *   - FUN_00452eed + LAB_00452a6b      (alternate "DAT_06a49958" worker)
- *   - FUN_00452d07/d3e/d85/dc1/dfd/e39 (six "DAT_06a49960" spawners)
- *     and their 7 thread routines (LAB_00452aab / ae8 / b13 / b3e /
- *     b82 / bc6 / c0a). All share the same close/busy machinery.
+ * Alt primary worker (FUN_00452eed + LAB_00452a6b @ 0x452eed / 0x452a6b):
+ *
+ *   A sibling of FUN_00452cde — same primary gates (DAT_06a49954 +
+ *   DAT_06a49958), different thread proc target (LAB_00452a6b instead
+ *   of LAB_0045293d). The alt thread proc does NOT dispatch via the
+ *   17-entry table; it runs a fixed body:
+ *
+ *     if (DAT_06a4996c == 0) {
+ *         FUN_0047472c();  // pre-room-change A
+ *         FUN_00474681();  // pre-room-change B
+ *     }
+ *     FUN_004746fc();      // room-load step 1
+ *     FUN_00473c15();      // room-load step 2
+ *     FUN_00436f97();      // shared with case-1 (INGAME) loader
+ *     <primary cleanup>
+ *
+ *   The DAT_06a4996c gate is a "same-room" flag set at the sole
+ *   caller (decompiled at FUN_00452f16 surroundings) and means "skip
+ *   pre-prep, the destination room is the same as the source". The
+ *   port exposes this as a single registered callback
+ *   (`worker_load_set_alt_cb`) — the scene module that owns the body
+ *   decides internally whether to short-circuit. Same shape, scene
+ *   logic stays in scene-land.
+ *
+ *   Cleanup is structurally identical to LAB_0045293d (close handle,
+ *   clear primary busy, return 1) — we share the thread-end helper.
+ *
+ * NOT yet ported (the remaining "second half" of the worker system):
+ *   - FUN_00452d07 / d3e / d85 / dc1 / dfd / e39 / e75 / eb1
+ *     (eight "DAT_06a49960" spawners; original session note said six
+ *     but two more lurk past the close-helper at +e75/+eb1) and their
+ *     nine thread routines (LAB_00452aab / ae8 / b13 / b3e / b82 /
+ *     bc6 / c0a / c4e / c96). All share the same close/busy machinery.
  *
  *   - The per-tick clear of DAT_06a49958 at the top of FUN_004547ab
  *     ("if worker reports done, drop the overlay") isn't here either
@@ -122,6 +150,14 @@ worker_load_cb worker_load_get_cb(int case_idx);
  * executing, else 0. Read of the engine's DAT_06a49954. */
 int  worker_load_busy(void);
 
+/* Engine DAT_06a4995c — the secondary-worker busy flag, raised by the
+ * six (+two-undocumented) DAT_06a49960 spawners and cleared by their
+ * thread procs and by FUN_00452917 (close-helper). Those spawners
+ * aren't ported yet, so this currently only ever reads 0; the
+ * accessor exists so callers can be wired against the final shape
+ * today. */
+int  worker_load_busy_secondary(void);
+
 /* Pure-C dispatcher core — invokes the registered callback for
  * `scene_state` if any. Does NOT touch the busy flag. Used by the
  * thread procedure on Win32 and by unit tests directly.
@@ -146,9 +182,13 @@ void worker_load_begin(void);
 void worker_load_end(void);
 
 /* Port of FUN_00452917 — close the worker thread handle if any, zero
- * the handle. Win32-only effect; on non-Win32 this is a no-op. The
- * engine also clears the SECONDARY worker's busy + gate flags here;
- * we don't have those yet, so we only handle the primary handle.
+ * the handle, and clear the SECONDARY worker's busy + nowloading-gate
+ * flags (DAT_06a4995c / DAT_06a49960). The primary busy + gate are
+ * deliberately untouched: the engine's close-helper exists for the
+ * secondary family's external shutdown path, where the primary state
+ * may legitimately be in flight on a parallel transition. The
+ * secondary nowloading gate share is honoured via nowloading's
+ * collapsed-OR model — see worker_load.c.
  *
  * Idempotent. Safe to call when no worker is running. */
 void worker_load_close(void);
@@ -171,5 +211,31 @@ void worker_load_reset(void);
  * both platforms without spinning up a real thread under the unit
  * test build. */
 void worker_load_spawn(void);
+
+/* ─── alt primary worker (FUN_00452eed + LAB_00452a6b) ──────────────────
+ *
+ * Same primary gates as worker_load_spawn (busy + nowloading raised),
+ * different thread routine. The alt thread proc runs the registered
+ * `alt_cb` (if any) in place of the 17-entry table dispatch, then
+ * shares the primary cleanup. */
+
+/* Register the alt thread proc body. Pass NULL to clear. Last write
+ * wins; safe to overwrite. The callback runs on the worker thread on
+ * Win32 and synchronously under tests via worker_load_dispatch_alt_pure. */
+void worker_load_set_alt_cb(worker_load_cb cb);
+
+/* Inspect the currently-registered alt callback (NULL if none). */
+worker_load_cb worker_load_get_alt_cb(void);
+
+/* Pure-C side of the alt thread proc body — invokes the registered
+ * alt cb if any. Always returns 1 (the engine's LAB_00452a6b never
+ * short-circuits; it always reaches its cleanup tail with eax=1). */
+int  worker_load_dispatch_alt_pure(void);
+
+/* Spawn the alt worker. Win32: port of FUN_00452eed — raises primary
+ * gates, then CreateThread on the alt thread proc which runs the
+ * registered alt cb + shared primary cleanup. Non-Win32: gates-only
+ * (mirrors worker_load_spawn's split). */
+void worker_load_spawn_alt(void);
 
 #endif /* OPENRECET_WORKER_LOAD_H */
