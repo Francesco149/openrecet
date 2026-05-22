@@ -37,6 +37,7 @@
 #include "music.h"
 #include "audio.h"
 #include "audio_fade.h"
+#include "save_bank.h"
 #include "font.h"
 #include "font_alloc.h"
 #include "font_atlas.h"
@@ -222,6 +223,16 @@ static void  capture_backbuffer(void);
 static void  recording_input_poll(void);
 static void  replay_input_poll(void);
 static int   capture_frame_is_listed(uint32_t frame);
+
+/* save_bank header-init hook. Engine calls FUN_00499583
+ * (= audio_fade_apply(BGM)) once during FUN_004901c2 when the shared
+ * header magic flips from 0 → live; we forward that callback through
+ * the existing audio_fade apply hook so save_bank doesn't need a
+ * direct dependency on audio.c. */
+static void save_bank_apply_bgm_via_audio_fade(void)
+{
+    audio_fade_apply(AUDIO_FADE_CHANNEL_BGM);
+}
 
 /* ─── WinMain — mirrors FUN_0047bfb3 ─────────────────────────────────────── */
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdShow)
@@ -460,14 +471,53 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             "audio: --silent-audio active — SetVolume clamped to -10000\n");
     }
 
-    /* Seed BGM/SE-A volume sliders from recet.ini. Engine doesn't do this —
-     * it owns sliders in the save-arena (FUN_004901c2 inits 5/9/9, save-load
-     * FUN_004902fe overwrites). Until save-load lands, recet.ini is the
-     * closest persistent user-configurable source. SE-B is dormant in vendor
-     * data (engine-quirks #46), no recet.ini key for it. */
-    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM,  g_ini.mu);
-    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, g_ini.se);
-    fprintf(stderr, "audio: sliders seeded from recet.ini — bgm=%d se-a=%d\n",
+    /* "load savefile ok" — FUN_004902fe. The full save-load (parse
+     * save.dat into the arena) isn't ported yet, but its always-fires
+     * side-effect IS: FUN_004901c2 = save_bank_init_all, which seeds
+     * the shared header magic + slider defaults (9/5/9/1) and verifies
+     * all 100 banks. Wires up the engine's FUN_00499583 callback via
+     * an init-hook so save_bank doesn't link audio directly.
+     *
+     * Recet.ini's mu/se keys then overlay the engine defaults — the
+     * user's preference takes precedence over the engine's 9/5 baseline
+     * for as long as save-load isn't ported. Once save-load lands,
+     * recet.ini becomes a fresh-init-only seed (engine behavior:
+     * save-load overwrites everything, and ini sliders are only
+     * consulted for the "no save file" path).
+     *
+     * audio_fade slider state is then synced from the save header so
+     * the per-channel apply hook draws from one source of truth. */
+    save_bank_set_header_init_hook(save_bank_apply_bgm_via_audio_fade);
+    save_bank_init_all();
+    fprintf(stderr,
+            "save_bank: arena initialized (header magic=0x%08x, "
+            "sliders se=%d bgm=%d se-b=%d slider3=%d)\n",
+            save_header_magic(),
+            save_header_get_se_slider(),
+            save_header_get_bgm_slider(),
+            save_header_get_se_b_slider(),
+            save_header_get_slider3());
+
+    /* Overlay recet.ini preferences on the just-initialised header.
+     * Engine doesn't do this; we do, because the user's ini values
+     * are a stand-in for save.dat-persisted sliders until save-load
+     * (FUN_004902fe) ports. SE-B has no ini key (dormant per
+     * engine-quirks #46). */
+    save_header_set_bgm_slider(g_ini.mu);
+    save_header_set_se_slider(g_ini.se);
+
+    /* Sync audio_fade sliders from the save header (one source of
+     * truth). audio_fade still owns the per-channel apply hook
+     * (audio_fade_apply_hook_win32) and SetVolume timing. */
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM,  save_header_get_bgm_slider());
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, save_header_get_se_slider());
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B, save_header_get_se_b_slider());
+    fprintf(stderr,
+            "audio: sliders seeded — bgm=%d se-a=%d se-b=%d "
+            "(save_header overlay from recet.ini bgm=%d se=%d)\n",
+            audio_fade_get_slider(AUDIO_FADE_CHANNEL_BGM),
+            audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_A),
+            audio_fade_get_slider(AUDIO_FADE_CHANNEL_SE_B),
             g_ini.mu, g_ini.se);
 
     /* FUN_0047c474 — the GDI atlas builder — is **dev-time only**.
@@ -507,7 +557,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     g_font_alloc_release_cb = font_slot_release;
 
     /* TODO "read systemtex ok"  — FUN_00472f5d
-     * TODO "load savefile ok"   — FUN_004902fe
+     * TODO "load savefile ok"   — FUN_004902fe (parse save.dat;
+     *      the always-fires side-effect, FUN_004901c2, is wired above
+     *      via save_bank_init_all)
      * TODO "read titletex ok"   — FUN_0043609b
      * TODO bootstrap done       — FUN_0049a3a3 (enters main loop)
      */

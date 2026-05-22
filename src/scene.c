@@ -1,6 +1,7 @@
 #include "scene.h"
 
 #include "fade.h"
+#include "save_bank.h"
 
 int32_t g_scene_state    = SCENE_STATE_TITLE;
 int32_t g_scene_substate = 0;
@@ -16,10 +17,17 @@ void scene_post_fade_init(void)
     /* Engine's LOADING marker. The engine writes 8 then 1 in adjacent
      * statements within a single sim tick, so no observer ever sees 8
      * mid-flight; we preserve the write for symmetry but the same-tick
-     * INGAME write below immediately replaces it. The save-bank init
-     * block between the two writes touches state that no ported code
-     * reads yet — deferred until the ingame scene module lands. */
+     * INGAME write below immediately replaces it. */
     g_scene_state    = SCENE_STATE_LOADING;
+
+    /* Engine FUN_0049a59e L213 (the `DAT_0438bed4 != 0` branch — the
+     * NEW GAME path). Reset bank 0 (the active save slot's data) to
+     * its fresh "new game" state. The engine reads the active slot
+     * index from DAT_0438b1e0; until save-slot UI lands, we hardcode
+     * bank 0 — matches the engine's behaviour on a fresh boot where
+     * DAT_0438b1e0 is BSS-zero. */
+    save_bank_init_one(0);
+
     g_scene_state    = SCENE_STATE_INGAME;
     g_scene_substate = 0;
 

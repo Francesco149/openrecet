@@ -84,11 +84,12 @@ void scene_state_set_title(void);
  *   DAT_0438b1c8  = 0;
  *
  * The follow-up engine block (~150 lines) does save-bank init via the
- * pre-baked starting inventory tables + per-adventurer stat seed.  That
- * piece is deferred — none of its consumers are ported yet.  The
- * minimal port that lands here drops the LOADING marker (engine never
- * lingers there) and sets INGAME so the render dispatch flips to the
- * placeholder ingame scene.
+ * pre-baked starting inventory tables + per-adventurer stat seed.
+ * Bank 0 reset (FUN_0049001c) IS wired here via save_bank_init_one(0);
+ * the rest of the block (FUN_004060ff / 4682d0 / 452917 et al — UI
+ * scratch resets) stays deferred until their consumers port.  This
+ * port drops the LOADING marker (engine never lingers there) and sets
+ * INGAME so the render dispatch flips to the placeholder ingame scene.
  *
  * The intermediate LOADING write is preserved as an observable for
  * tests: scene_post_fade_init() returns the prior state so callers
