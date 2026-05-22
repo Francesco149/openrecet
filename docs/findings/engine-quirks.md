@@ -1627,20 +1627,21 @@ sim counter directly from `src/main.c`'s replay loop and reaches
 frame 39 without issue. So the divergence is purely in *which*
 counter we trust on retail.
 
-Hypotheses (untested as of 2026-05-22):
+**Confirmed 2026-05-22**: `DAT_073dfcfc` is the title-scene's
+**BG-scroll tick**, not a global frame counter. User confirmed
+visually: the parallax clouds behind the menu freeze in lockstep with
+the counter stalling once the settings panel slides in. So the
+variable is read only by the title-scene render code as a phase
+input, and presumably written by the same code path; once the title
+scene is no longer the active dispatch target, nothing bumps it.
 
-1. `DAT_073dfcfc` is bumped at the bottom of the tick scheduler
-   (line 550 in the `FUN_0047be92` pseudocode in
-   `docs/findings/winmain-and-bootstrap.md`), gated on
-   `state ∈ {0, 2}`. A scene transition might leave `state` at 3
-   or some other branch we haven't mapped, freezing this specific
-   counter without freezing rendering.
-2. There's a separate per-scene counter that resets on scene
-   change, and the title scene's `DAT_073dfcfc` is one such
-   "live only during scene N" counter.
-3. The variable is shared but writeable from multiple sites — the
-   settings scene takes over via a different write that effectively
-   pins it.
+The previous capture-pipeline writeup (`docs/harness-roadmap.md`
+§"Phase B" and the `var_frame_counter` comment in
+`tools/frida/openrecet-agent.js`) called it "engine global frame
+counter" — which it is *only* during the title scene. The Phase A
+input-trace replay loop also happens to use a per-sim counter that
+*does* tick globally, which is why the two pipelines drifted in
+behavior the moment a scenario crossed a scene boundary.
 
 Practical impact today: scenarios that want to capture frames
 *after* a scene transition need a different frame source on Phase B.
@@ -1649,12 +1650,19 @@ Workarounds, in order of effort:
 - Cap Phase B's `capture_frames:` to pre-transition values, leave
   post-transition frames as Phase A-only goldens (what
   `title-options` does now).
-- Identify a per-scene counter we can read instead — likely lives
-  in one of the scene-state structures dispatched out of
-  `FUN_004547ab`.
-- Wrap Present in a manual counter on the agent side and translate
-  scenario frame numbers against that. Loses the "same frame
-  semantics as Phase A" guarantee but unblocks captures.
+- Wrap Present on the agent side with a manual counter that ticks
+  monotonically across scene changes. Cheap to add (the Present
+  hook already runs), translates scenario frame numbers against
+  scene-agnostic real frames. Loses any "same frame semantics as
+  Phase A" guarantee — Phase A's per-sim counter and a per-Present
+  counter only agree when speed=0 and there's no scene-pause —
+  but unblocks captures.
+- Hunt for a real global tick counter elsewhere (likely sitting
+  inside `FUN_0047be92` somewhere; the scheduler increments
+  `frame_count` at line 550 of the pseudocode in
+  `docs/findings/winmain-and-bootstrap.md` § "Game tick scheduler"
+  but that might be the same `DAT_073dfcfc` we already know about
+  — needs disassembly to confirm).
 
 > 📍 `runs/scenarios/title-options-both-*/retail/agent.log`
 > (the post-transition capture timeout), `tools/frida_capture.py`

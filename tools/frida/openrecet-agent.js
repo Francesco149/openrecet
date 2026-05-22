@@ -70,7 +70,13 @@ const ADDR = {
     // globals.
     var_d3d_device:      0x073dfcbc,  // IDirect3DDevice8 *
     var_input_mask:      0x073dddd0,  // u16 — per-frame buttons (player 0)
-    var_frame_counter:   0x073dfcfc,  // u32 — global tick frame counter
+    var_frame_counter:   0x073dfcfc,  // u32 — title-scene BG-scroll tick.
+                                       // Stops advancing once the title scene
+                                       // dispatches into a sub-scene (settings,
+                                       // shop, dungeon, …). See engine-quirks
+                                       // §"Frame counter pauses on scene
+                                       // transition (Phase B)" for the full
+                                       // writeup + workaround options.
     var_lcg_seed:        0x006023a0,  // u32 — engine RNG state
     var_bgm_slider:      0x056e5778,  // u32 — BGM volume slider 0..9
     var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
