@@ -165,6 +165,32 @@ static int             g_capture_frames_count    = 0;
  * typing into the game window. */
 static int             g_hidden                  = 0;
 
+/* --turbo / --silent-audio. Mirror the retail-side knobs in
+ * tools/frida/openrecet-agent.js so a `--target both` scenario run
+ * can crank both pipelines through their scenarios at host speed.
+ *
+ *   --turbo            Frame-limiter bypass: tick_set_turbo(1, 17),
+ *                      so tick_step_win32 feeds the dispatcher a
+ *                      virtual clock that advances 17 ms per loop
+ *                      iteration and never Sleeps. Engine animations
+ *                      / audio fades / RNG that key off tick_now_ms
+ *                      stay consistent with what they'd be at 60 FPS
+ *                      — wall time just compresses. Independent of
+ *                      --input-trace-replay (replay already has its
+ *                      own per-frame virtual clock; turbo wins on the
+ *                      non-replay path).
+ *   --silent-audio     Install a silencing wrapper around
+ *                      audio_fade_apply_hook_win32 that clamps the
+ *                      centibel passed to SetVolume to -10000
+ *                      regardless of channel. Game's audio code
+ *                      (PlaySegmentEx, fades, etc.) all run normally;
+ *                      only the COM-level master attenuation is
+ *                      pinned to silence. Recommended alongside
+ *                      --turbo since DirectMusic complains about
+ *                      being clocked far above its expected rate. */
+static int             g_turbo                   = 0;
+static int             g_silent_audio            = 0;
+
 /* Populated at boot when --input-trace-replay is set. The replay
  * stand-in for input_poll reads this each tick. */
 static struct input_trace g_replay_trace = {0};
@@ -410,6 +436,20 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         fprintf(stderr, "openrecet: audio_init failed — running muted\n");
     }
 
+    /* --silent-audio: replace audio.c's SetVolume forwarder with one
+     * that clamps every call to -10000 centibel. Game's audio code
+     * (PlaySegmentEx, per-tick fade computation, etc.) still runs
+     * normally — only the master attenuation forwarded to the
+     * IDirectMusicAudioPath is pinned to silence. Audio is silent but
+     * the engine state machine + trace events behave exactly as if
+     * audio were playing. Mirrors the retail-side hook in
+     * tools/frida/openrecet-agent.js installSilentAudioFromPath. */
+    if (g_silent_audio) {
+        audio_fade_set_apply_hook(silent_audio_apply_hook);
+        fprintf(stderr,
+            "audio: --silent-audio active — SetVolume clamped to -10000\n");
+    }
+
     /* Seed BGM/SE-A volume sliders from recet.ini. Engine doesn't do this —
      * it owns sliders in the save-arena (FUN_004901c2 inits 5/9/9, save-load
      * FUN_004902fe overwrites). Until save-load lands, recet.ini is the
@@ -509,6 +549,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         .render     = render_dispatch,
     };
     tick_init();
+    if (g_turbo) {
+        /* Default step 17 ms = one 60 FPS frame budget rounded up.
+         * Engine animations / fades that key off tick_now_ms stay
+         * consistent with what they'd be at 60 FPS; only wall time
+         * compresses (loop runs as fast as the host allows). */
+        tick_set_turbo(1, 17);
+        fprintf(stderr,
+            "tick: --turbo active — virtual 17ms/frame, no Sleep\n");
+    }
     /* "Already-logged" suppression for unimplemented title menu items.
      * One slot per SCENE_TITLE_MENU_* code (0..8). Without this, an
      * unimplemented selection re-fires every frame for as long as the
@@ -992,6 +1041,10 @@ static void parse_cmdline(LPSTR lpCmdLine)
             }
         } else if (lstrcmpA(tok, "--hidden") == 0) {
             g_hidden = 1;
+        } else if (lstrcmpA(tok, "--turbo") == 0) {
+            g_turbo = 1;
+        } else if (lstrcmpA(tok, "--silent-audio") == 0) {
+            g_silent_audio = 1;
         }
         tok = strtok(NULL, " ");
     }

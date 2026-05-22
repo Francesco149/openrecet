@@ -149,7 +149,9 @@ def _ensure_trace_exists(scen: Scenario) -> Path:
 
 
 def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
-                                remote: str) -> dict:
+                                remote: str, *,
+                                turbo: bool = False,
+                                silent_audio: bool = False) -> dict:
     """Drive the retail unpacked exe via Frida; capture matching artifacts.
 
     Delegates to tools/frida_capture.run_capture with input injection
@@ -157,6 +159,11 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
     the sticky-trace mask for the current engine frame. The trace is
     the same scenario.yaml-adjacent `trace.jsonl` Phase A consumes, so
     both pipelines walk an identical input sequence.
+
+    `turbo` + `silent_audio` flip the engine into the fast-capture mode
+    described in tools/frida/openrecet-agent.js. Useful when running
+    many scenarios back-to-back to regenerate side-by-side comparisons —
+    each scenario finishes in a fraction of its real-time duration.
     """
     import frida_capture  # late import: only needed for --target retail
     trace_path = _ensure_trace_exists(scen)
@@ -167,10 +174,13 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
         # it mid-capture. Agent compensates the missing WM_ACTIVATE by
         # forcing DAT_073dfca0 = 1.
         hide_window=True,
+        turbo=turbo, silent_audio=silent_audio,
     )
 
 
-def run_scenario_capture(scen: Scenario, run_dir: Path) -> dict:
+def run_scenario_capture(scen: Scenario, run_dir: Path, *,
+                         turbo: bool = False,
+                         silent_audio: bool = False) -> dict:
     """Drive the exe through this scenario; capture frames + audio trace."""
     frames_dir   = run_dir / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
@@ -196,6 +206,10 @@ def run_scenario_capture(scen: Scenario, run_dir: Path) -> dict:
         # the capture path is unaffected.
         "--hidden",
     ]
+    if turbo:
+        cmd.append("--turbo")
+    if silent_audio:
+        cmd.append("--silent-audio")
 
     t0 = dt.datetime.now(dt.timezone.utc)
     with stdout_log.open("wb") as so, stderr_log.open("wb") as se:
@@ -399,6 +413,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--run-dir-root", type=Path, default=ROOT / "runs" / "scenarios",
                     help="where to write per-scenario run artifacts "
                          "(default: runs/scenarios/)")
+    ap.add_argument("--turbo", action="store_true",
+                    help="bypass the engine's 60 FPS frame limiter and feed "
+                         "it a virtual 16.6 ms timestep — the game runs as "
+                         "fast as the host can chew through it. Affects both "
+                         "targets. Pair with --silent-audio.")
+    ap.add_argument("--silent-audio", action="store_true",
+                    help="force audio paths silent (centibel -10000) while "
+                         "leaving the engine's audio code running normally. "
+                         "Recommended alongside --turbo since DirectMusic "
+                         "complains about being clocked at 200+ fps.")
     args = ap.parse_args(argv)
 
     if args.target in ("openrecet", "both"):
@@ -436,9 +460,13 @@ def main(argv: list[str] | None = None) -> int:
                 sub_dir = run_dir / sub
                 print(f"  ── {sub} ──")
                 if sub == "retail":
-                    m = run_scenario_capture_retail(scen, sub_dir, args.frida_remote)
+                    m = run_scenario_capture_retail(
+                        scen, sub_dir, args.frida_remote,
+                        turbo=args.turbo, silent_audio=args.silent_audio)
                 else:
-                    m = run_scenario_capture(scen, sub_dir)
+                    m = run_scenario_capture(
+                        scen, sub_dir,
+                        turbo=args.turbo, silent_audio=args.silent_audio)
                 print(f"    exit={m['exit_code']} elapsed_ms={m['elapsed_ms']} "
                       f"captured={len(m['captured_frames'])}/{len(scen.capture_frames)}")
                 sub_meta[sub] = m
@@ -465,9 +493,13 @@ def main(argv: list[str] | None = None) -> int:
             continue
 
         if args.target == "retail":
-            meta = run_scenario_capture_retail(scen, run_dir, args.frida_remote)
+            meta = run_scenario_capture_retail(
+                scen, run_dir, args.frida_remote,
+                turbo=args.turbo, silent_audio=args.silent_audio)
         else:
-            meta = run_scenario_capture(scen, run_dir)
+            meta = run_scenario_capture(
+                scen, run_dir,
+                turbo=args.turbo, silent_audio=args.silent_audio)
         print(f"  exit={meta['exit_code']} elapsed_ms={meta['elapsed_ms']} "
               f"captured={len(meta['captured_frames'])}/{len(scen.capture_frames)}")
 

@@ -193,6 +193,21 @@ class CaptureConfig:
     # unaffected. Default off here so ad-hoc `frida_capture.py` runs
     # behave like before; scenario-test.py opts in.
     hide_window:      bool = False
+    # Turbo. Replaces FUN_0047be2f with a virtual clock that advances by
+    # `turbo_step_ms` (default 17) per FUN_0047be92 entry, so the
+    # dispatcher takes the tick branch every iteration with no Sleep.
+    # Game timing stays consistent (everything runs at the engine's 60
+    # FPS budget per loop pass), the wall clock just spins as fast as
+    # the host can. Pair with silent_audio — DirectMusic doesn't enjoy
+    # being clocked at 200+ fps.
+    turbo:            bool = False
+    turbo_step_ms:    int  = 17
+    # Silent audio. Hooks IDirectMusicAudioPath::SetVolume (vtable[5])
+    # on the BGM path (shared vtable across all 3 paths) to clamp
+    # lVolume to -10000 every call. Game's audio code still fires
+    # normally — PlaySegmentEx, fade animations, segment-state queueing
+    # all happen — only the master attenuation is pinned to silence.
+    silent_audio:     bool = False
 
 
 @dataclass
@@ -372,6 +387,9 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         "input_trace":    trace_entries,
         "force_input":    bool(cfg.force_input),
         "hide_window":    bool(cfg.hide_window),
+        "turbo":          bool(cfg.turbo),
+        "turbo_step_ms":  int(cfg.turbo_step_ms),
+        "silent_audio":   bool(cfg.silent_audio),
     })
     device.resume(pid)
 
@@ -424,7 +442,10 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 server_exe: Path = DEFAULT_FRIDA_SERVER_EXE,
                 input_trace_path: Path | None = None,
                 force_input: bool = False,
-                hide_window: bool = False) -> dict:
+                hide_window: bool = False,
+                turbo: bool = False,
+                turbo_step_ms: int = 17,
+                silent_audio: bool = False) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
     Returns the meta dict that scenario-test.py writes to run.json.
@@ -447,6 +468,8 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         auto_start_server=auto_start_server, server_exe=server_exe,
         input_trace_path=input_trace_path, force_input=force_input,
         hide_window=hide_window,
+        turbo=turbo, turbo_step_ms=turbo_step_ms,
+        silent_audio=silent_audio,
     )
     result = _run_capture_impl(cfg, run_dir)
     meta = {
@@ -499,6 +522,20 @@ def main(argv: list[str] | None = None) -> int:
                          "and force its pause flag (DAT_073dfca0) to 1, so "
                          "the game runs without a window the user could "
                          "key into. D3D capture path unaffected.")
+    ap.add_argument("--turbo", action="store_true",
+                    help="bypass the frame limiter: virtualise FUN_0047be2f "
+                         "so the dispatcher sees a 16.6 ms (or --turbo-step-ms) "
+                         "delta every loop iteration and never Sleeps. "
+                         "Pair with --silent-audio.")
+    ap.add_argument("--turbo-step-ms", type=int, default=17,
+                    help="virtual ms per dispatcher entry under --turbo "
+                         "(default %(default)s)")
+    ap.add_argument("--silent-audio", action="store_true",
+                    help="clamp every SetVolume call on the audio paths to "
+                         "-10000 centibel so nothing is audible. Game's "
+                         "PlaySegmentEx / fade animations / segment state "
+                         "all run normally — only DirectMusic's master "
+                         "attenuation is forced to silence.")
     args = ap.parse_args(argv)
 
     capture_frames = ([int(x) for x in args.capture_frames.split(",") if x]
@@ -514,6 +551,8 @@ def main(argv: list[str] | None = None) -> int:
         input_trace_path=args.input_trace,
         force_input=args.force_input or args.input_trace is not None,
         hide_window=args.hide_window,
+        turbo=args.turbo, turbo_step_ms=args.turbo_step_ms,
+        silent_audio=args.silent_audio,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

@@ -169,4 +169,19 @@ int audio_play_se(int slot);
  * to `audio_play_se(slot)`. */
 int audio_play_se_by_id(uint16_t id);
 
+#ifdef _WIN32
+/* Drop-in replacement for the default audio_fade apply hook that
+ * clamps every SetVolume call to -10000 centibel (silence). Engine's
+ * audio code (PlaySegmentEx, fade animations, segment-state queueing)
+ * runs untouched — only the master attenuation forwarded to the
+ * IDirectMusicAudioPath is pinned to silence. Used by `--silent-audio`
+ * to make scenarios capture-only without the BGM cluttering whatever
+ * else is playing on the host. Mirrors the retail-side
+ * `installSilentAudioFromPath` hook in tools/frida/openrecet-agent.js.
+ *
+ * Install via `audio_fade_set_apply_hook(silent_audio_apply_hook)`
+ * AFTER audio_init (which installs the default audible hook). */
+void silent_audio_apply_hook(int channel, int32_t centibel);
+#endif
+
 #endif /* OPENRECET_AUDIO_H */

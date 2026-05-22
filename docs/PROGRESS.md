@@ -3,6 +3,91 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Harness turbo mode (frame-limiter bypass + silent audio)
+
+Both the retail Frida agent and `openrecet.exe` gain matching `--turbo`
+and `--silent-audio` flags. Together they let `tools/scenario-test.py`
+run scenarios at host-CPU speed (no Sleep) while keeping the engine's
+internal wall-clock advancing at exactly the 60 FPS budget per loop
+iteration — so animations / fades / RNG all stay consistent with what
+they'd be at 60 FPS, just compressed in wall time. Goldens regenerated
+under turbo are bit-exact against the non-turbo goldens.
+
+Measured speedup on `title-z-press` retail capture: 1705 ms → 854 ms
+(~2x). Larger scenarios benefit proportionally — the savings scale
+with the number of "idle" frames between capture anchors. `boot-idle`
+is already short enough that startup overhead dominates; gain is small
+there but still positive. `--turbo` works under both
+`--input-trace-replay` (no change — replay already runs at host speed)
+and free-running mode.
+
+### What landed
+
+- **`tools/frida/openrecet-agent.js`** — `installTurboHooks()` replaces
+  `FUN_0047be2f` (the QPC ms reader) with a `NativeCallback` that
+  returns a virtual clock, and attaches `FUN_0047be92` (dispatcher)
+  entry to bump that clock by `g_turbo_step_ms` (default 17) per call.
+  Engine's `delta_thirds` is always 51 ≥ 50 (the 60 FPS threshold), so
+  the sim+render branch fires every loop iteration with no Sleep.
+  `installSilentAudioHook()` waits for `FUN_00498ef4` exit, reads
+  `DAT_09643108` (BGM AudioPath), and `Interceptor.attach`'s its
+  `vtable[5]` (SetVolume) to rewrite `lVolume → -10000`. All three
+  audio paths share a vtable so one hook silences BGM + SE-A + SE-B.
+  RPC `init` accepts `turbo` / `turbo_step_ms` / `silent_audio`.
+
+- **`tools/frida_capture.py`** — `CaptureConfig` gains `turbo` /
+  `turbo_step_ms` / `silent_audio`; `run_capture` + CLI plumbed
+  through (`--turbo`, `--turbo-step-ms`, `--silent-audio`).
+
+- **`tools/scenario-test.py`** — `--turbo` and `--silent-audio` flow
+  to both `run_scenario_capture` (openrecet) and
+  `run_scenario_capture_retail` (Frida). `--target both` honors them
+  on both halves.
+
+- **`src/tick.{c,h}`** — `tick_set_turbo(enabled, step_ms)` /
+  `tick_turbo_enabled()`. When enabled, `tick_step_win32` feeds the
+  pure-C dispatcher a virtual clock advancing by `step_ms` per call
+  and skips Sleep on `TICK_RESULT_DELAYED`. Pure-C
+  `tick_step_with_now` unchanged — the speed-table math and state
+  machine are byte-for-byte identical regardless of clock source.
+
+- **`src/audio.{c,h}`** — new `silent_audio_apply_hook` function
+  matching `audio_fade_apply_hook_t`'s signature; clamps every
+  forwarded centibel to `AUDIO_FADE_SILENCE_CENTIBEL` (-10000)
+  before calling `IDirectMusicAudioPath_SetVolume`. Game's audio
+  code (PlaySegmentEx, fade math, segment-state queueing) runs
+  untouched.
+
+- **`src/main.c`** — `--turbo` and `--silent-audio` parsed in
+  `parse_cmdline`. Turbo applied right after `tick_init()`; silent
+  audio replaces the default apply hook right after `audio_init`.
+
+### Smoke-test results
+
+- openrecet `boot-idle --turbo --silent-audio`: 3/3 bit-exact, 1.3 s.
+- openrecet `title-z-press --turbo --silent-audio`: 5/5 bit-exact,
+  1.7 s.
+- retail `boot-idle --turbo --silent-audio`: 3/3 bit-exact, 0.8 s.
+- retail `title-z-press --turbo --silent-audio`: 5/5 bit-exact, 0.8 s
+  (vs 1.7 s without turbo — ~2x).
+- `boot-idle --target both --turbo --silent-audio`: 6/6 bit-exact,
+  side-by-side renders.
+- 568 unit tests pass.
+
+### Caveats
+
+- Turbo + Frida currently lets the retail process linger ~1 s after
+  scenario completion (still inside `device.kill`'s timeout). Not
+  related to turbo — same pre-turbo behaviour — but the speed-up
+  makes it more noticeable as a fraction of total run time. The
+  belt-and-braces `tasklist | grep -i recettear` after a batch
+  remains a good idea.
+- DirectMusic doesn't love being clocked at 200+ fps; that's exactly
+  why `--silent-audio` is recommended alongside `--turbo`. Without
+  silencing, the audio backend may drop / glitch (cosmetic — game
+  state stays correct because the audio fade math drives off engine
+  ticks, not wall time).
+
 ## 2026-05-22 — Phase B input injection
 
 The retail-capture pipeline now replays the same sparse JSONL trace

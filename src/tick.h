@@ -141,4 +141,23 @@ enum tick_result tick_step_win32(int has_device,
                                  const struct tick_callbacks *cb);
 #endif
 
+/* Turbo mode (frame-limiter bypass).
+ *
+ * When enabled, `tick_step_win32` ignores QPC and feeds the dispatcher
+ * a virtual clock that advances by `step_ms` per call. With step_ms=17
+ * the dispatcher sees delta_thirds = 51 ≥ 50 (the 60 FPS threshold)
+ * on every call, so it always takes the sim+render branch and never
+ * Sleeps — the game runs as fast as the host can chew the loop. The
+ * engine's per-tick wall-clock still advances by exactly the 60 FPS
+ * budget though, so animations / audio fades / RNG that key off
+ * `tick_now_ms` stay consistent with what would have happened at 60
+ * FPS, just compressed in wall time.
+ *
+ * Mirrors the retail-side turbo in tools/frida/openrecet-agent.js so
+ * scenario captures (--target both) can be regenerated quickly without
+ * waiting on real frame budget. step_ms <= 0 keeps the previous value
+ * (default 17). */
+void tick_set_turbo(int enabled, uint32_t step_ms);
+int  tick_turbo_enabled(void);
+
 #endif /* OPENRECET_TICK_H */

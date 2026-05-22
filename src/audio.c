@@ -316,6 +316,20 @@ static void audio_fade_apply_hook_win32(int channel, int32_t centibel)
     IDirectMusicAudioPath_SetVolume(path, (long)centibel, 0);
 }
 
+void silent_audio_apply_hook(int channel, int32_t centibel)
+{
+    (void)centibel;
+    IDirectMusicAudioPath *path = NULL;
+    switch (channel) {
+    case AUDIO_FADE_CHANNEL_BGM:   path = g_audio.path_bgm;  break;
+    case AUDIO_FADE_CHANNEL_SE_A:  path = g_audio.path_se_a; break;
+    case AUDIO_FADE_CHANNEL_SE_B:  path = g_audio.path_se_b; break;
+    default: return;
+    }
+    if (!path) return;
+    IDirectMusicAudioPath_SetVolume(path, (long)AUDIO_FADE_SILENCE_CENTIBEL, 0);
+}
+
 /* Wide-char copy of an ASCII string into a fixed-size WCHAR buffer.
  * Used for the cwd path and the BGM filenames going into the Loader.
  * Mirrors the engine's MultiByteToWideChar(CP_ACP) calls. */

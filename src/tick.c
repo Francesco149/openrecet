@@ -28,9 +28,28 @@ const int32_t g_tick_speed_thresholds[TICK_SPEED_COUNT] = {
 
 struct tick_state g_tick;
 
+/* Turbo state (see tick.h header comment). Defaults: disabled, 17 ms
+ * virtual step per tick — one 60 FPS frame budget rounded up from
+ * 16.67. */
+static int      g_turbo_enabled = 0;
+static uint32_t g_turbo_step_ms = 17;
+static uint32_t g_turbo_virtual_now_ms = 0;
+
+void tick_set_turbo(int enabled, uint32_t step_ms)
+{
+    g_turbo_enabled = enabled ? 1 : 0;
+    if (step_ms > 0) g_turbo_step_ms = step_ms;
+}
+
+int tick_turbo_enabled(void)
+{
+    return g_turbo_enabled;
+}
+
 void tick_init(void)
 {
     g_tick = (struct tick_state){0};
+    g_turbo_virtual_now_ms = 0;
 }
 
 enum tick_result tick_step_with_now(uint32_t now_ms,
@@ -159,10 +178,21 @@ uint32_t tick_now_ms(void)
 enum tick_result tick_step_win32(int has_device,
                                  const struct tick_callbacks *cb)
 {
+    uint32_t now_ms;
+    if (g_turbo_enabled) {
+        /* Advance the virtual clock by one step before dispatching.
+         * The dispatcher sees now_ms = prev_step_ms + step (so delta
+         * = step*3 thirds = 51 ≥ 50 with the default 17 ms step → the
+         * 60 FPS threshold trips every iteration → no Sleep). */
+        g_turbo_virtual_now_ms += g_turbo_step_ms;
+        now_ms = g_turbo_virtual_now_ms;
+    } else {
+        now_ms = tick_now_ms();
+    }
+
     uint32_t sleep_ms = 0;
-    enum tick_result r = tick_step_with_now(tick_now_ms(), has_device,
-                                            cb, &sleep_ms);
-    if (r == TICK_RESULT_DELAYED && sleep_ms > 0) {
+    enum tick_result r = tick_step_with_now(now_ms, has_device, cb, &sleep_ms);
+    if (!g_turbo_enabled && r == TICK_RESULT_DELAYED && sleep_ms > 0) {
         Sleep(sleep_ms);
     }
     return r;

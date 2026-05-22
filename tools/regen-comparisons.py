@@ -79,13 +79,23 @@ def latest_both_run(scen_name: str) -> Path | None:
 # ─── regen ─────────────────────────────────────────────────────────────────
 
 
-def run_one_scenario(name: str, frida_remote: str) -> int:
+def run_one_scenario(name: str, frida_remote: str, *,
+                     turbo: bool = True,
+                     silent_audio: bool = True) -> int:
     """Drive scenario-test.py --target both for `name`. Returns its exit code.
     The diff-against-golden side-effects are unchanged (and will print FAIL
     lines if a scenario has no golden-retail/ yet — harmless: sidebyside.png
-    is still produced)."""
+    is still produced).
+
+    Defaults to `--turbo --silent-audio` since the whole point of this
+    script is to crank through every scenario in sequence — turbo halves
+    each scenario's wall time and silent_audio keeps the host quiet."""
     cmd = [sys.executable, str(SCENARIO_TEST), name, "--target", "both",
            "--frida-remote", frida_remote]
+    if turbo:
+        cmd.append("--turbo")
+    if silent_audio:
+        cmd.append("--silent-audio")
     r = subprocess.run(cmd, cwd=str(ROOT))
     return r.returncode
 
@@ -314,6 +324,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--frida-remote", default=DEFAULT_REMOTE,
                     help="passed through to scenario-test.py "
                          "(default %(default)s; env $OPENRECET_FRIDA_REMOTE)")
+    ap.add_argument("--no-turbo", action="store_true",
+                    help="run each scenario at real-time 60 FPS instead of "
+                         "the default frame-limiter-bypass turbo mode "
+                         "(audible BGM + slower wall-clock per scenario)")
+    ap.add_argument("--no-silent-audio", action="store_true",
+                    help="leave audio output audible. Default silences it "
+                         "since this script is typically a background batch "
+                         "and BGM looping over and over is annoying.")
     args = ap.parse_args(argv)
 
     scenarios = discover_scenarios()
@@ -327,7 +345,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args.html_only:
         for sp in scenarios:
             print(f"\n=== regenerating {sp.name} ===")
-            sub_rc = run_one_scenario(sp.name, args.frida_remote)
+            sub_rc = run_one_scenario(
+                sp.name, args.frida_remote,
+                turbo=not args.no_turbo,
+                silent_audio=not args.no_silent_audio)
             if sub_rc != 0:
                 print(f"  WARN: {sp.name} exited {sub_rc}", file=sys.stderr)
                 rc = max(rc, sub_rc)

@@ -56,6 +56,25 @@ const ADDR = {
     fn_lcg_step:         0x005041f6,  // void→u15 (output in low 15 bits of u32)
     fn_audio_fade_apply: 0x00499583,  // BGM cos-curve fade dispatcher
 
+    // game tick scheduler + clock (see docs/findings/winmain-and-bootstrap.md
+    // §"Game tick scheduler"). Used by the turbo mode: the entry hook on
+    // fn_tick advances a virtual clock by `g_turbo_step_ms` per call, and
+    // fn_clock_ms is `Interceptor.replace`d with a stub that returns that
+    // virtual clock instead of QPC. The engine's dispatcher then sees
+    // delta >= the 60 FPS threshold every iteration, so the inner sim+
+    // render path runs every loop pass with no Sleep — i.e. as fast as
+    // the host can chew through it, but with the timestep the engine
+    // would have honored at 60 FPS.
+    fn_tick:             0x0047be92,  // FUN_0047be92 — main-loop dispatcher
+    fn_clock_ms:         0x0047be2f,  // FUN_0047be2f — QPC*1000/freq fallback timeGetTime
+
+    // BGM audio path. Created in FUN_00498ef4's
+    // CreateStandardAudioPath sequence; same vtable shared with the two
+    // SE paths (DAT_0964310c / DAT_09643110), so one Interceptor on
+    // vtable[5] (SetVolume) silences all three. Used by the silent-audio
+    // mode.
+    fn_audio_init:       0x00498ef4,  // FUN_00498ef4 — init daoudio
+
     // font system globals (see docs/findings/winmain-and-bootstrap.md
     // §"Font system" for the full pipeline).
     fn_font_init:        0x0047c228,  // "init fontsys ok" boundary
@@ -202,6 +221,36 @@ let g_input_trace        = [];     // [{frame, mask}, ...] sorted ascending
 let g_input_trace_i      = 0;      // monotonic cursor into g_input_trace
 let g_input_force_active = false;
 let g_input_last_forced  = 0;      // sticky mask between sparse entries
+
+// Turbo mode. When enabled, the agent fakes the engine's wall-clock
+// reader (FUN_0047be2f) so the dispatcher's `delta_thirds < threshold`
+// check always trips into the tick path (no Sleep). Each entry into
+// FUN_0047be92 advances g_virtual_now_ms by g_turbo_step_ms (default 17,
+// i.e. one 60 FPS frame budget), and the replaced FUN_0047be2f stub
+// returns g_virtual_now_ms. Within a single tick all callers of the
+// clock fn see the same value, so audio fades / animations stay
+// consistent with what the engine would have done at 60 FPS — just
+// crunched into "as fast as the host can run the loop".
+//
+// We have to keep the NativeCallback alive (Frida releases it when GC'd
+// and the engine then crashes calling a freed thunk), so g_turbo_clock_cb
+// is held in module scope after installation.
+let g_turbo_enabled  = false;
+let g_turbo_step_ms  = 17;
+let g_virtual_now_ms = 0;
+let g_turbo_clock_cb = null;
+
+// Silent audio. When enabled, vtable[5] (SetVolume) of the BGM
+// IDirectMusicAudioPath is hooked so every call has lVolume rewritten
+// to -10000 (hard silence). All three audio paths share the same
+// vtable, so the hook silences BGM + SE-A + SE-B in one shot. The
+// engine's audio path is otherwise untouched — PlaySegmentEx still
+// fires, fade animations still tick, segment-states still queue. We
+// install lazily on the FIRST observed `audio_init` exit (when
+// DAT_09643108 first becomes non-null), since the AudioPath instance
+// has to exist before we can read its vtable.
+let g_silent_audio_enabled = false;
+let g_silent_audio_hooked  = false;
 
 // ─── helpers ────────────────────────────────────────────────────────────
 
@@ -523,6 +572,89 @@ function installShowWindowHook() {
     log('ShowWindow hook installed');
 }
 
+// ─── turbo (frame-limiter bypass + virtual 16.6 ms clock) ──────────────
+
+function installTurboHooks() {
+    // 1. Replace FUN_0047be2f with a virtual-clock stub. The engine
+    //    calls this once per tick (and a handful of other places — fade
+    //    animations etc.); all callers see the same value within a
+    //    single dispatcher iteration. cdecl, no args, returns u32 ms in
+    //    EAX — matches the engine's __allmul/__alldiv path.
+    g_turbo_clock_cb = new NativeCallback(function () {
+        return g_virtual_now_ms >>> 0;
+    }, 'uint32', []);
+    Interceptor.replace(rva(ADDR.fn_clock_ms), g_turbo_clock_cb);
+
+    // 2. Bump the virtual clock on every dispatcher entry. With a 17 ms
+    //    step the engine sees delta_thirds = 17*3 = 51 ≥ 50 (the 60 FPS
+    //    threshold), so it always takes the sim+render branch and never
+    //    Sleeps. Increasing the step doesn't speed the game up — it just
+    //    inflates the engine's internal "time per frame" while the loop
+    //    still runs at host speed — so 17 is the right default.
+    Interceptor.attach(rva(ADDR.fn_tick), {
+        onEnter: function (args) {
+            g_virtual_now_ms = (g_virtual_now_ms + g_turbo_step_ms) >>> 0;
+        },
+    });
+
+    log('turbo hooks installed (step_ms=' + g_turbo_step_ms + ')');
+}
+
+// ─── silent audio (downstream SetVolume clamp to -10000) ───────────────
+
+function installSilentAudioFromPath(audiopathPtr) {
+    if (g_silent_audio_hooked) return;
+    if (audiopathPtr.isNull()) {
+        err('installSilentAudio', 'audiopath pointer is NULL — audio init failed?');
+        return;
+    }
+
+    // IDirectMusicAudioPath vtable layout (dmusici.h):
+    //   0..2   IUnknown        (QueryInterface / AddRef / Release)
+    //   3      GetObjectInPath
+    //   4      Activate
+    //   5      SetVolume   <-- engine indexes `*(vt + 0x14)` = vt[5]
+    //                         (FUN_00499583 + FUN_00499c63, also the
+    //                         existing captureFadeCentibel helper).
+    const SETVOLUME_SLOT = 5;
+    const setVolume = vtableSlot(audiopathPtr, SETVOLUME_SLOT);
+    log('silent-audio: AudioPath @ ' + audiopathPtr +
+        '  vtable[' + SETVOLUME_SLOT + '] (SetVolume) @ ' + setVolume);
+
+    Interceptor.attach(setVolume, {
+        onEnter: function (args) {
+            // SetVolume(this, lVolume, dwDuration). args[0] = this,
+            // args[1] = lVolume (LONG, signed centibel), args[2] = dwDuration.
+            // Clamp to -10000 = absolute silence. Engine's fade animation
+            // still runs and still calls SetVolume normally; we just
+            // swallow the magnitude before it reaches DirectMusic.
+            args[1] = ptr(-10000);
+        },
+    });
+
+    g_silent_audio_hooked = true;
+    log('silent-audio: SetVolume vtable hook live (BGM + SE share the same vtable)');
+}
+
+function installSilentAudioHook() {
+    // Install at the exit of FUN_00498ef4 (audio_init). At that point
+    // CreateStandardAudioPath has populated DAT_09643108, so we can
+    // read the BGM audiopath pointer and grab its vtable. Hooking the
+    // path's vtable[5] silences all three paths (they share a vtable).
+    const var_bgm_audiopath = rva(ADDR.var_bgm_audiopath);
+    Interceptor.attach(rva(ADDR.fn_audio_init), {
+        onLeave: function (retval) {
+            try {
+                const path = var_bgm_audiopath.readPointer();
+                installSilentAudioFromPath(path);
+            } catch (e) {
+                err('silent_audio.onLeave', e.message);
+            }
+        },
+    });
+    log('silent-audio: armed on FUN_00498ef4 exit');
+}
+
 // ─── d3d init wrapper hook ──────────────────────────────────────────────
 
 function installInitHook() {
@@ -694,6 +826,14 @@ rpc.exports = {
         // this is a no-op in practice, but keeps init self-contained.
         g_manual_frame_counter = 0;
 
+        // Turbo + silent-audio knobs (off by default — preserves the
+        // capture-pipeline behavior for callers that don't opt in).
+        g_turbo_enabled  = !!config.turbo;
+        g_turbo_step_ms  = (config.turbo_step_ms | 0) || 17;
+        g_virtual_now_ms = 0;
+        g_silent_audio_enabled = !!config.silent_audio;
+        g_silent_audio_hooked  = false;
+
         ensureBase();
         g_boot_ms = nowMs();
         g_start_real_ms = Date.now();
@@ -706,7 +846,10 @@ rpc.exports = {
               max_frames: g_max_frames,
               input_trace_entries: g_input_trace.length,
               force_input: g_input_force_active,
-              hide_window: g_hide_window});
+              hide_window: g_hide_window,
+              turbo: g_turbo_enabled,
+              turbo_step_ms: g_turbo_step_ms,
+              silent_audio: g_silent_audio_enabled});
 
         // The capture-side hooks expect to fire on a running engine.
         // State-forcing tests skip resume() entirely, so we make the
@@ -722,6 +865,14 @@ rpc.exports = {
             // as the other capture-side hooks.
             if (g_hide_window) {
                 installShowWindowHook();
+            }
+            // Turbo + silent-audio. Both install pre-resume so they
+            // catch the very first dispatcher entry / audio_init exit.
+            if (g_turbo_enabled) {
+                installTurboHooks();
+            }
+            if (g_silent_audio_enabled) {
+                installSilentAudioHook();
             }
         }
     },
