@@ -56,6 +56,17 @@ const ADDR = {
     fn_lcg_step:         0x005041f6,  // void→u15 (output in low 15 bits of u32)
     fn_audio_fade_apply: 0x00499583,  // BGM cos-curve fade dispatcher
 
+    // font system globals (see docs/findings/winmain-and-bootstrap.md
+    // §"Font system" for the full pipeline).
+    fn_font_init:        0x0047c228,  // "init fontsys ok" boundary
+    fn_font_atlas_load:  0x0047c3a5,  // atlas loader entry
+    var_atlas_regen_flag:0x073dfd00,  // u32 — set by config.idx `font:` key,
+                                       // gates FUN_0047c474 invocation in WinMain
+    var_font_name:       0x073de168,  // char[256] — face name copied from
+                                       // config.idx for CreateFontIndirectA
+    var_fontdata_ptr:    0x073dde2c,  // u32 ptr — loaded fontdata.bin buffer
+    var_fontidx_ptr:     0x073dde30,  // u32 ptr — loaded fontidx.bin buffer
+
     // globals.
     var_d3d_device:      0x073dfcbc,  // IDirect3DDevice8 *
     var_input_mask:      0x073dddd0,  // u16 — per-frame buttons (player 0)
@@ -574,6 +585,90 @@ rpc.exports = {
         ensureBase();
         const fn = new NativeFunction(rva(va), 'uint32', []);
         return fn();
+    },
+
+    // Force the engine to regenerate its font atlas via the legit
+    // boot-time path (FUN_0047c474). Engine gates the regen call on
+    // `DAT_073dfd00 != 0` (raised by `font:` in config.idx); we set
+    // the flag + face name in a hook on FUN_0047c228 entry, which
+    // fires AFTER tables_load_all has parsed config.idx but BEFORE
+    // the engine reads the regen gate.
+    //
+    // Caller passes the SJIS face name as hex (e.g. "ＭＳ Ｐゴシック"
+    // = "824c8272208246835383568362834e"). We don't validate — invalid
+    // names just produce a CreateFontIndirectA failure inside the
+    // engine's FUN_0047c474.
+    //
+    // Returns nothing immediately; the atlas write happens at engine
+    // boot time, fontdata.bin / fontidx.bin land in retail's cwd.
+    forceAtlasRegen: function (face_name_hex) {
+        ensureBase();
+        const nameBytes = hexToBytes(face_name_hex);
+        if (nameBytes.length > 255) {
+            throw new Error('face name too long: ' + nameBytes.length);
+        }
+
+        Interceptor.attach(rva(ADDR.fn_font_init), {
+            onEnter: function (args) {
+                // Write face name to DAT_073de168 (256-byte buffer,
+                // zero-terminated). Clear the buffer first to match
+                // the engine's "memset 256 + strcpy" sequence in the
+                // config.idx parser.
+                //
+                // NOTE: Memory.alloc returns UNINITIALIZED memory, not
+                // zeroed. Use a directly-written buffer instead so we
+                // don't smear garbage into the engine's face-name
+                // global — which would make CreateFontIndirectA see
+                // "MS PGothic<random>" and fall through GDI's font
+                // substitution to whatever default it picks.
+                const namePtr = rva(ADDR.var_font_name);
+                for (let i = 0; i < 256; i++) {
+                    namePtr.add(i).writeU8(0);
+                }
+                for (let i = 0; i < nameBytes.length; i++) {
+                    namePtr.add(i).writeU8(nameBytes[i]);
+                }
+                // Raise the regen gate so FUN_0047c474 fires.
+                rva(ADDR.var_atlas_regen_flag).writeU32(1);
+                send({kind: 'log',
+                      msg: 'forceAtlasRegen: regen flag raised + face name set'});
+            },
+        });
+        send({kind: 'log',
+              msg: 'forceAtlasRegen: hook installed on FUN_0047c228'});
+    },
+
+    // Read the runtime atlas pointers + their first N bytes. Useful
+    // for confirming the loader populated the buffers after a regen
+    // pass. The buffers are heap-allocated with no embedded size, so
+    // the caller specifies how many bytes to dump per buffer.
+    //
+    // Returns {fontdata_ptr, fontidx_ptr, fontdata_head, fontidx_head}
+    // where the *_ptr fields are hex strings and *_head are hex-encoded
+    // first-`head_len` bytes (or empty string if pointer is null).
+    dumpAtlasPtrs: function (head_len) {
+        ensureBase();
+        head_len = (head_len | 0) || 0;
+        const fdPtrRaw = rva(ADDR.var_fontdata_ptr).readU32();
+        const fiPtrRaw = rva(ADDR.var_fontidx_ptr).readU32();
+        let fontdata_head = '';
+        let fontidx_head = '';
+        if (head_len > 0) {
+            if (fdPtrRaw !== 0) {
+                const bytes = ptr(fdPtrRaw).readByteArray(head_len);
+                fontdata_head = bytesToHex(bytes);
+            }
+            if (fiPtrRaw !== 0) {
+                const bytes = ptr(fiPtrRaw).readByteArray(head_len);
+                fontidx_head = bytesToHex(bytes);
+            }
+        }
+        return {
+            fontdata_ptr: '0x' + fdPtrRaw.toString(16),
+            fontidx_ptr:  '0x' + fiPtrRaw.toString(16),
+            fontdata_head: fontdata_head,
+            fontidx_head:  fontidx_head,
+        };
     },
 
     // BGM-fade centibel capture for slider value `slider` ∈ [0, 9].

@@ -450,7 +450,12 @@ int font_atlas_build_win32(const char *out_dir,
     lf.lfCharSet       = SHIFTJIS_CHARSET;
     lf.lfOutPrecision  = OUT_TT_ONLY_PRECIS;  /* 7 — matches engine */
     lf.lfQuality       = ANTIALIASED_QUALITY; /* 2 */
-    lf.lfPitchAndFamily = FIXED_PITCH | FF_DONTCARE; /* 0x31 */
+    /* Engine: 0x31 = FIXED_PITCH (1) | FF_MODERN (0x30), NOT |FF_DONTCARE
+     * (0). Wrong family hint here pushes GDI through different font
+     * substitution and ends up picking a DIFFERENT face when MS PGothic
+     * is missing the exact glyph — kanji land at 48×49 instead of 16×16,
+     * blowing the atlas to 7× the expected size. */
+    lf.lfPitchAndFamily = FIXED_PITCH | FF_MODERN; /* 0x31 */
     /* Copy face_name into lfFaceName with explicit truncation. */
     strncpy(lf.lfFaceName, face_name, LF_FACESIZE - 1);
     lf.lfFaceName[LF_FACESIZE - 1] = '\0';
@@ -469,6 +474,21 @@ int font_atlas_build_win32(const char *out_dir,
         return 0;
     }
     HGDIOBJ old = SelectObject(hdc, hfont);
+
+    /* Log the actual face name GDI selected. Useful for diagnosing
+     * locale-dependent font substitution — the same lfCharSet request
+     * resolves to different variants of MS Gothic depending on the
+     * process's default code page. See
+     * docs/findings/engine-quirks.md §"GDI font substitution". */
+    {
+        char actual_face[64] = {0};
+        TEXTMETRICA dtm;
+        GetTextFaceA(hdc, sizeof actual_face, actual_face);
+        GetTextMetricsA(hdc, &dtm);
+        fprintf(stderr,
+            "font_atlas: GDI face='%s' tmCharSet=%d\n",
+            actual_face, dtm.tmCharSet);
+    }
 
     /* Build the two output paths. MAX_PATH-safe. */
     char path_data[MAX_PATH], path_idx[MAX_PATH];
