@@ -4,6 +4,7 @@
 
 #include "math3d.h"
 #include "rng.h"
+#include "scene.h"   /* mirrors DAT_0438b1c0 = 1 into the engine-state global */
 
 struct prewindow_state g_prewindow;
 
@@ -14,6 +15,9 @@ void prewindow_init(void)
     g_prewindow.flag_b8cc = 0;
     g_prewindow.camera[0] = 10.0f;       /* _DAT_0438cd64 = 0x41200000 */
     g_prewindow.flag_b1c0 = 1;
+    g_scene_state         = 1;           /* DAT_0438b1c0 — FUN_0047b29e
+                                          * snaps it back to 0 once the
+                                          * title bootstrap runs. */
     g_prewindow.camera[1] = 61.0f;       /* _DAT_0438cd68 = 0x42740000 */
     g_prewindow.camera[2] = -203.0f;     /* _DAT_0438cd6c = 0xc34b0000 */
 

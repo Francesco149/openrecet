@@ -31,6 +31,7 @@
 
 #include "font.h"         /* font_age_tick — engine's per-frame LRU bump */
 #include "input.h"        /* g_input_state for cur-buttons read */
+#include "scene.h"        /* g_scene_state dispatch */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
 
 struct sim_player_buttons g_sim_buttons[SIM_NUM_PLAYERS];
@@ -117,14 +118,16 @@ void sim_step_a(void)
      * scene dispatch. */
     font_age_tick();
 
-    /* Scene dispatch. Only state 0 (title) is wired up.
-     *
-     * The engine global `DAT_0438b1c0` is the active scene index. We
-     * haven't introduced a global for it yet — the title is the only
-     * scene that exists in this build, and main.c never transitions
-     * out of it. When a second scene ports, the carrier global lands
-     * in scene.h alongside the dispatcher case-table. */
-    scene_title_sim_default();
+    /* Scene dispatch by `g_scene_state` (engine global DAT_0438b1c0).
+     * Only state 0 (title) is wired up today; the other states drop
+     * through silently while their producers/consumers port. */
+    switch (g_scene_state) {
+    case SCENE_STATE_TITLE:
+        scene_title_sim_default();
+        break;
+    default:
+        break;
+    }
 
     g_sim_frame_count++;
 }

@@ -29,6 +29,7 @@
 #include "prewindow.h"
 #include "render_quad.h"
 #include "rng.h"
+#include "scene.h"
 #include "scene_title.h"
 #include "sim.h"
 #include "music.h"
@@ -371,6 +372,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     /* 2D quad batcher — one-time vbuf prefill + screen-width-scale. */
     render_quad_init((uint32_t)g_ini.width);
+
+    /* Title-scene bootstrap — mirrors FUN_0047b29e first two writes:
+     * snap scene_state back to 0 (TITLE) after prewindow_init left it
+     * at 1, then load assets + seed menu/anim. The rest of
+     * FUN_0047b29e (FUN_00452917 / FUN_00474e7a / FUN_00453373 et al)
+     * lands as their target ports come online. */
+    scene_state_set_title();
 
     /* "read titletex ok" — FUN_004733d5 — load the 7 title-scene
      * textures (bg2, 01, fuki, waku + pause/result/dungeon). Sets
@@ -876,10 +884,21 @@ static void render_dispatch(void)
         1.0f, 0);
     IDirect3DDevice8_BeginScene(g_dev);
 
-    if (g_scene_title_assets_loaded) {
-        scene_title_render(g_dev,
-                           &g_scene_title_menu,
-                           &g_scene_title_anim);
+    /* Scene-render dispatch — mirrors FUN_004547ab. Only state 0
+     * (title) renders today; other states leave the back buffer
+     * cleared (state-0 clear color above is intentionally the engine's
+     * title-scene color, so transient state==1 frames look "loading"-
+     * pink rather than black). */
+    switch (g_scene_state) {
+    case SCENE_STATE_TITLE:
+        if (g_scene_title_assets_loaded) {
+            scene_title_render(g_dev,
+                               &g_scene_title_menu,
+                               &g_scene_title_anim);
+        }
+        break;
+    default:
+        break;
     }
 
     if (g_show_sprite.tex) {
