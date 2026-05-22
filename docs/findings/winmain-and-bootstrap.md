@@ -631,6 +631,29 @@ follow a binary-rotation pattern — that's just where the original
 chained `if`s landed, and downstream readers (camera cursor at
 `FUN_004540ae`, lines 50410-50420 of `all.c`) use these exact bits.
 
+### Phase B input injection point
+
+`tools/frida/openrecet-agent.js` attaches `Interceptor.attach` LEAVE
+to `FUN_0047b73c`. By that point the engine has already populated
+`DAT_073dddd0` from real DInput; the agent then *overwrites* the
+slot with the trace mask for the current `DAT_073dfcfc` (frame
+counter). Two reasons this works without further state-forcing:
+
+- LEAVE fires after the function return but before the caller's
+  next instruction (`Interceptor` rewrites the prologue trampoline),
+  so `FUN_004536cb` (sim_a) and the button-state ring at the top of
+  the same function see the *forced* value, not the polled one.
+- The pressed-bit clear at the bottom of `FUN_0047be92` still
+  happens, so each frame starts from a clean slate — the trace
+  defines what stays in `DAT_073dddd0` after the LEAVE-hook
+  re-fires next frame. (Implementation: the agent keeps a sticky
+  `g_input_last_forced` between sparse entries, identical to
+  `src/input_trace.c::input_trace_lookup`.)
+
+Writing u16 to the 32-bit-aligned slot leaves the upper 16 bits
+untouched, which doesn't matter — every reader masks `& 0x3fff` or
+narrower (the binding table tops out at bit `0x2000`).
+
 ### Virtual-button number space
 
 Every binding value compares against a *virtual* button id that

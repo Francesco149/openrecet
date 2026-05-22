@@ -72,6 +72,21 @@ intentionally separated to keep each session focused:
   **Save-inject + scene-dispatch state-forcing still deferred** —
   separate scope from the Phase B+ pure-fn diff that landed below.
 
+- **Phase B input injection.** ✅ Landed 2026-05-22. The agent now
+  overwrites `DAT_073dddd0` (`var_input_mask`) on every `FUN_0047b73c`
+  LEAVE with the sticky-trace mask for the current engine frame; the
+  driver passes the Phase A `trace.jsonl` straight through to the
+  agent's `init({input_trace, force_input})` RPC. Sparse semantics
+  match `src/input_trace.c`: the most-recent `entries[i].frame <=
+  current_frame` is the mask in effect, held until the next entry.
+  `tools/scenario-test.py --target retail` enables injection by
+  default so retail walks the same key sequence as openrecet. Audio
+  + visual confirmation on `title-z-press` (SE slot 7 fires at
+  frame 30, NEW GAME button brightens through select_phase) and
+  `title-down-press` (cursor steps NEW GAME → MINIGAME, tooltip
+  swaps). RNG / clock pinning still deferred — the engine drives
+  itself at real time during a capture.
+
 - **Phase B+ — state-forcing for differential tests.** ✅ MVP landed
   2026-05-22. Distinct from the save-inject / scene-jump effort above:
   this branch targets *pure or near-pure* functions we've already

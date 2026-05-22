@@ -39,7 +39,10 @@
 
 ## Task list (execute in order)
 
-### 1. Input injection into Phase B harness (~2-3 hr)
+### 1. Input injection into Phase B harness (~2-3 hr) ✅ landed 2026-05-22
+
+**Status:** Implemented end-to-end. See PROGRESS.md "Phase B input
+injection" entry. The spec below is preserved as the design record.
 
 **Status from previous session:** Spec discussed and agreed; not yet
 implemented. The detailed plan and reasoning lives in this file.

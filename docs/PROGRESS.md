@@ -3,6 +3,70 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Phase B input injection
+
+The retail-capture pipeline now replays the same sparse JSONL trace
+Phase A does, so `tools/scenario-test.py --target retail <name>` drives
+the real game through the scenario's input sequence instead of capturing
+an idle title screen. Unblocks every future retail golden capture that
+needs menu navigation.
+
+### What landed
+
+- **`tools/frida/openrecet-agent.js`** — added `g_input_trace` /
+  `g_input_trace_i` / `g_input_force_active` / `g_input_last_forced`
+  globals. `installInputHook`'s onLeave now advances a monotonic
+  cursor through every entry with `frame <= current_frame`, applies
+  the sticky mask via `writeU16` to `DAT_073dddd0`, then re-reads
+  for the `input_state` event so the recorded trace reflects what
+  the engine actually saw. `init({input_trace, force_input})`
+  accepts the trace as `[{frame, mask}, ...]` from the driver.
+
+- **`tools/frida_capture.py`** — `CaptureConfig` gains
+  `input_trace_path` + `force_input` fields; `_run_capture_impl`
+  loads the JSONL (tolerating `#` comments to match
+  `src/input_trace.c`), passes through to the agent. CLI adds
+  `--input-trace` / `--force-input` for ad-hoc replay.
+
+- **`tools/scenario-test.py`** — `run_scenario_capture_retail`
+  always enables injection, pointing at the scenario's existing
+  `trace.jsonl`. Old "no input replay yet" docstring removed.
+
+- **`tests/scenarios/title-down-press/`** — new scenario: DOWN
+  press at frame 30, cursor steps NEW GAME → MINIGAME. Strictly
+  more visible than `title-z-press` in thumbnail-sized contact
+  sheets (the tooltip text changes; the highlighted row changes),
+  so eyeball regressions are easier to spot.
+
+### Verification
+
+- `boot-idle/golden-retail/` re-blessed: 3/3 frames, no behavioral
+  change vs the previous bless (no input → injection is a no-op).
+- `title-z-press/golden-retail/` re-blessed: agent.log records all
+  three trace transitions (0→0x10→0); engine fires `se_play` slot 7
+  at frame 30 (menu-confirm sound), and the NEW GAME row brightens
+  through frames 30→44 (hottest diff rows 316-328 in a per-pixel
+  delta vs frame 0). User-confirmed visual: NEW GAME button
+  brightens through the select_phase ramp on the right column of
+  a side-by-side render.
+- `title-down-press/golden-retail/` blessed: cursor steps from
+  NEW GAME to MINIGAME between frames 0 and 30, tooltip text
+  on the left swaps, both visible at thumbnail size.
+
+### Out of scope (deferred)
+
+- **RNG / clock pinning.** Retail still runs at real wall-clock pace
+  during capture, so cross-run bit-exactness within retail (and
+  cross-host portability of retail goldens) remain undetermined.
+  Re-bless on each capture host until/unless this gets pinned.
+- **Joystick / mouse injection.** Only the 14-bit `DAT_073dddd0`
+  player-0 mask is forced. Joystick axes / mouse position would
+  need separate hooks.
+- **`force_input=False` regression.** Phase B+ state-forcing
+  drivers (`tools/state_diff/`) already skip the capture hooks via
+  `install_hooks: false`; the injection plumbing defaults to off
+  so they don't accidentally inherit forced input.
+
 ## 2026-05-22 — Settings submenu render (FUN_0049c050)
 
 The "Options" submenu now draws. Producer landed at `d34079e` two days

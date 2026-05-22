@@ -1,0 +1,20 @@
+# Phase A scenario: title boot → press DOWN (D-pad bit 0x08) at frame 30.
+#
+# The cursor starts on item 0 (NEW GAME). DOWN advances to item 1
+# (MINIGAME). Visible delta is large — the highlighted-item glyph moves
+# a whole row down + the left-side tooltip text changes — so the
+# regression is recognizable in even thumbnail-sized contact sheets,
+# unlike title-z-press where the only delta is a brightness ramp on
+# the same item.
+#
+# Captures:
+#   0   — baseline (NEW GAME selected, tooltip "Start a new game")
+#   30  — DOWN just pressed; engine may still show NEW GAME for one frame
+#   35  — cursor on MINIGAME, tooltip swapped
+#   50  — settled on MINIGAME
+
+description: DOWN press at frame 30 — cursor steps NEW GAME → MINIGAME
+rng_seed: 1
+max_frames: 60
+capture_frames: [0, 30, 35, 50]
+duration_ceiling_ms: 30000
