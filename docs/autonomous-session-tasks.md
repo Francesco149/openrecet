@@ -1,6 +1,6 @@
-# Autonomous-session task queue — picked 2026-05-21
+# Autonomous-session task queue — picked 2026-05-22
 
-> Picked for a ~1-hour unattended session. Read in order. Each task has
+> Picked for an unattended session. Read in order. Each task has
 > acceptance criteria the assistant can verify itself (no user
 > screenshot / audio judgement needed). Stop where you stop; don't try
 > to cram every item.
@@ -18,181 +18,203 @@
 
 ## Decisions already made (do not relitigate)
 
-- **SE WAV source:** Embed in our exe via windres at build time
-  (matches engine's `FindResource` path; faithful to FUN_00498ef4
-  resource loop).
-- **Audio trace format:** JSONL via `--audio-trace <path>`, opt-in.
-  Schema: `{"t_ms":<int>, "kind":<"bgm_swap"|"se_play"|"fade_start">,
-  "name":<str>, ...kind-specific fields}`. Off by default.
+- **Trace format:** Phase A's `trace.jsonl` reused as-is — same
+  `{frame: int, buttons: "0xNNNN"}` sparse schema. Phase B injects
+  the same masks into retail.
+- **Inject point:** Hook `FUN_0047b73c` (input_poll) at LEAVE. The
+  engine's natural DInput poll runs first; we then OVERWRITE
+  `DAT_073dddd0` with the trace value for the current frame. This
+  way every observer downstream of input_poll (sim_a, button-state
+  ring, scene transitions) sees the forced mask, AND the `input_state`
+  hook below still emits the truth (what was actually used).
+- **Frame source:** `DAT_073dfcfc` (`var_frame_counter` in
+  `openrecet-agent.js::ADDR`). Increments on every Present. The
+  current `input_state` hook already reads it.
+- **Sparse → dense:** JS-side. Pass the sparse trace as-is to
+  agent.init; agent keeps a "last-seen mask" plus the next-entry
+  pointer. O(1) per frame after init.
+- **Out of scope (defer, document as `BLOCKED:` if asked for):**
+  RNG pinning (`DAT_006023a0`), clock pinning (QPC override),
+  joystick/mouse injection, paused-state forcing.
 
 ## Task list (execute in order)
 
-### 1. Per-pixel diff overlay (small, ~20 min)
+### 1. Input injection into Phase B harness (~2-3 hr)
 
-Extend `tools/smoke-test.py::diff_runs` to also emit per-frame diff
-overlays. For each `(golden, new)` pair, write
-`runs/<...>/diff/frame_NNNNN.png` — the new frame as the base, with
-pixels that differ from golden tinted red (clamp `|new - golden|`
-across RGB, threshold ≥ 4, OR a red overlay at 50% alpha onto those
-pixels). Then call `tools/contact-sheet.py --src <run>/diff/` to tile
-into `runs/<...>/diff-overlay.png`.
+**Status from previous session:** Spec discussed and agreed; not yet
+implemented. The detailed plan and reasoning lives in this file.
 
-**Acceptance:**
-- Self-diff (a run vs itself) → all-zero red mask; overlay PNG is
-  visually identical to the captures.
-- Synthetic diff (write a script-only test that hand-modifies a few
-  pixels in one frame) → red highlights exactly on the modified
-  region.
-- Smoke run vs the prior `runs/boot/openrecet-20260521T130752Z` →
-  overlay PNG generates without errors; mean SSIM still ~0.999.
+**Goal:** `tools/scenario-test.py --target retail <name>` replays the
+same `trace.jsonl` that Phase A reads, so retail walks the same input
+sequence as openrecet. Unblocks every future retail golden capture
+(currently retail captures only idle scenes because there's no
+human at the keyboard).
 
-**Files:** `tools/smoke-test.py` only. No `src/` changes.
+**Engine background (already RE'd, see
+`docs/findings/winmain-and-bootstrap.md` §"Input poll"):**
 
-### 2. MCI debug bridge (small, ~15 min)
+- `FUN_0047b73c` (VA `0x0047b73c`) is `input_poll`. Runs once per
+  frame. DInput keyboard + 2 joysticks → aggregated into
+  `DAT_073dddd0` (u16, player-0 button mask). Already hooked at
+  LEAVE in `openrecet-agent.js::installInputHook` to emit `input_state`.
+- Button bits: UP=0x04, RIGHT=0x01, DOWN=0x08, LEFT=0x02,
+  A=0x10, B=0x20, C=0x40, D=0x80, E=0x100, skill0..4=0x200..0x2000.
+- Frame counter `DAT_073dfcfc` (`ADDR.var_frame_counter`) — u32,
+  bumped on every Present.
 
-Port FUN_00451874 (47 bytes) as `src/audio_mci.{c,h}`. The function is
-a bounded strncpy into a 2D char array at `DAT_06a47aac` (rows of
-0x50=80 bytes each). The two ints `param_1`+`param_2` index the row.
+**Implementation plan:**
 
-**What to do:**
-- Add `audio_mci_record_command(int channel, int row_index, const char *cmd)`.
-- Mirror the engine's stop-on-NUL-or-80-bytes behavior exactly.
-- Inspect callers via `tools/analyze/pe.py callers --target 0x00451874`
-  to confirm the row-count (the global buffer's total size determines
-  it). If callers indicate < 16 rows, hardcode that; otherwise file
-  what was found in PROGRESS.md and pick a sensible default.
-- Tests: `tests/test_audio_mci.c` covering NUL-early-exit, full-fill,
-  and the 0x50 cap. Wire into `tests/Makefile`.
+1. **Agent side** (`tools/frida/openrecet-agent.js`):
+   - Add module globals:
+     ```js
+     let g_input_trace = [];      // [{frame: N, mask: M}, ...] sorted ascending
+     let g_input_trace_i = 0;     // next-entry cursor (advances as frames pass)
+     let g_input_force_active = false;
+     let g_input_last_forced = 0; // last mask we applied (sticky between sparse entries)
+     ```
+   - Extend `init(config)` to accept `input_trace` (array of
+     `{frame: int, mask: int}`) and `force_input` (bool).
+     Sort by frame on receive. Set `g_input_force_active`.
+   - Modify `installInputHook`'s `onLeave`:
+     - Read current frame from `var_frame_counter`.
+     - Walk `g_input_trace` from `g_input_trace_i` forward while
+       `entry.frame <= current_frame` — that's the sticky-mask
+       update. (Don't walk the whole array each frame; advance the
+       cursor monotonically.)
+     - If `g_input_force_active`, write `g_input_last_forced` to
+       `var_input_mask` (which is `DAT_073dddd0`). Use `writeU16`
+       since the mask is u16.
+     - Emit `input_state` as it does today — but now reflecting the
+       FORCED value (since we just wrote it). The driver consumes
+       this for `trace.jsonl` recording, which now becomes a
+       "playback verification" rather than a real polling record.
 
-**Acceptance:** All new tests pass. `make -C tests run` reports green.
-No `src/main.c` wiring needed — the function is gated on
-`DAT_0438ccb4 != 0` (debug flag), which is zero in normal play.
+2. **Driver side** (`tools/frida_capture.py`):
+   - Extend `CaptureConfig` (around line 165) with:
+     ```python
+     input_trace_path: Path | None = None
+     force_input: bool = False
+     ```
+   - In `_run_capture_impl`, before `script.exports_sync.init(...)`,
+     load the trace if path is set:
+     ```python
+     trace_entries = []
+     if cfg.input_trace_path and cfg.input_trace_path.exists():
+         for line in cfg.input_trace_path.read_text().splitlines():
+             if not line.strip(): continue
+             rec = json.loads(line)
+             trace_entries.append({
+                 "frame": int(rec["frame"]),
+                 "mask":  int(rec["buttons"], 16),
+             })
+         trace_entries.sort(key=lambda r: r["frame"])
+     ```
+   - Pass to agent:
+     ```python
+     script.exports_sync.init({
+         "capture_frames": list(cfg.capture_frames),
+         "max_frames":     cfg.max_frames,
+         "input_trace":    trace_entries,
+         "force_input":    cfg.force_input,
+     })
+     ```
+   - Extend `run_capture(...)` kwargs to accept `input_trace_path`
+     and `force_input`. Default both off so existing callers don't
+     change behavior.
 
-### 3. Volume sin-curve fade (medium, ~30 min)
+3. **Plumbing side** (`tools/scenario-test.py`):
+   - `run_scenario_capture_retail` (around line 151):
+     - Build `trace_path = scen.path / "trace.jsonl"` (use the
+       `_ensure_trace_exists(scen)` helper that already exists).
+     - Pass `input_trace_path=trace_path, force_input=True` to
+       `frida_capture.run_capture`.
+   - Update the docstring — remove "No input replay yet".
 
-Port FUN_00499583 (231 bytes) + its callee FUN_00503994 (sin-curve
-helper). The fade formula reads:
-```
-angle = (9 - frame_counter) * 1.2566371 / 9.0      // 1.2566371 = 2π/5 rad
-vol   = FUN_00503994(angle, angle, target_volume)
-```
-FUN_00503994 takes `(angle_as_double, angle_as_float, target_vol)`
-and returns the interpolated SetVolume argument. **First read
-docs/decompiled/by-address/503994.c** to see what the actual
-interpolation formula is — likely `sin(angle) * (target - silence) +
-silence`, but confirm. The output is fed into
-`IDirectMusicAudioPath8::SetVolume` (vtable +0x14).
-
-**Module shape:**
-- `src/audio_fade.{c,h}`
-- `int32_t audio_fade_compute(int frame_counter_0_to_9, int32_t target_centibel);`
-- `void audio_fade_apply(int channel)` — for now a stub that
-  doesn't actually call SetVolume (no callers wired); just exercises
-  the math.
-
-**Tests (`tests/test_audio_fade.c`):**
-- Frame 0 → silence (-10000 centibel).
-- Frame 9 → target volume unchanged.
-- Frames 1..8 → monotonically increasing values (assert each is
-  strictly greater than the previous).
-- Spot-check one intermediate value against a hand-computed reference.
-- Render the 0..9 curve to `runs/audio-fade-curve.png` via
-  `tools/plot/curve.py` (new tiny PIL-based helper, ~30 LOC). PNG
-  goes in `.gitignore` (covered by `runs/`).
-
-**Acceptance:** All new tests pass. `audio-fade-curve.png` exists and
-shows a smooth rising curve.
-
-### 4. `--audio-trace` JSONL emitter (small, ~25 min)
-
-Add the opt-in audio event log per the locked decision above.
-
-**Wiring:**
-- `src/main.c`: parse `--audio-trace <path>` next to `--capture-to`.
-  Open the file in append mode; pass the FILE* (or path) to
-  `audio_init`.
-- `src/audio.{c,h}`: `audio_trace_open(const char *path)` /
-  `audio_trace_emit_bgm_swap(int track, const char *name)` /
-  (placeholder for `_se_play` until task #5 lands).
-- Emit timestamps as `timeGetTime()` ms since boot (matches the rest
-  of the audio code's clock).
-- `tools/smoke-test.py`: pass `--audio-trace
-  <run_dir>/audio-trace.jsonl` when a new CLI flag `--audio-trace` is
-  set on the smoke harness.
-
-**Acceptance:**
-- `./build/openrecet-debug.exe --audio-trace /tmp/at.jsonl
-  --max-duration-ms 3000` produces a JSONL file with at least one
-  `bgm_swap` line (title music) and the line parses as valid JSON.
-- New `tests/test_audio_trace.c` covers the JSON serializer
-  (escape `"`, escape `\`, ASCII only — no need for full UTF-8;
-  filenames are ASCII).
-
-### 5. SE backend port (BIG, ~45 min once started)
-
-Port FUN_00499c63 (SE trigger, 477 bytes) plus the SE half of audio
-init (the second half of FUN_00498ef4 that creates 2 SE audio paths
-and loads 27 RT_RCDATA WAVs).
-
-**Sub-steps (commit each one):**
-
-a. **Resource extraction & embedding** (~15 min).
-   - Write `tools/extract/se-wavs.py`: use pe.py to enumerate the
-     RT_RCDATA resources in `vendor/unpacked/recettear.unpacked.exe`,
-     emit them as `vendor/unpacked/se-extracted/NNN.wav` (gitignored).
-   - Generate `src/se_resources.rc` listing all 27 with their original
-     resource IDs (the engine looks them up by ID, see
-     `498ef4.c` L91 `FindResourceA(NULL, (LPCSTR)(uint)*local_8, ...)`
-     — `local_8` walks the ID table at `&DAT_005d1584`).
-   - Add `windres` invocation to `src/Makefile`.
-   - SE name table extracted to `src/audio_se_names.h` (parallel to
-     `audio_bgm_filenames[]`).
-
-b. **SE init — 2 audio paths + 27 segment loads from resources**
-   (~15 min). Mirror `498ef4.c` L62-122 inside `audio.c`:
-   - Two `CreateStandardAudioPath` calls (DMUS_APATH_DYNAMIC_3D? confirm
-     against vtable). Pointers stashed at the new globals matching
-     `DAT_0964310c` and `DAT_09643110`.
-   - For each of 27 SE entries: build a DMUS_OBJECTDESC with the
-     resource pointer + size, call `IDirectMusicLoader::GetObject`
-     (+0xc) with the GUID at `&DAT_0051a0c0` (DMUS_Segment GUID), then
-     `Download` onto the SE audio path.
-
-c. **`audio_play_se(int channel)`** (~10 min). Port FUN_00499c63
-   straight. The volume blend uses the fade curve from task #3 — if
-   task #3 hasn't landed yet, call SetVolume with `target_centibel`
-   directly (TODO comment).
-
-d. **Wire `--audio-trace`'s `se_play` event** (~5 min). One emit at
-   the top of `audio_play_se`.
+4. **Re-bless retail goldens for active scenarios:**
+   - `./tools/scenario-test.py boot-idle --target retail --bless
+     --frida-remote cutestation.soy:27042` — should be a no-op since
+     boot-idle has no input. Verify no regressions.
+   - `./tools/scenario-test.py title-z-press --target retail --bless
+     --frida-remote cutestation.soy:27042` — Z is pressed at frame 30
+     in the trace; if the engine sees the Z press, the "Start a new
+     game" tooltip should appear in the frame 44/50 captures. Visually
+     inspect.
 
 **Acceptance:**
-- Build clean, smoke run boots clean (no SE callers yet, so audibly
-  identical).
-- New test `test_audio_se_table.c` verifies the 27-entry name table
-  + resource ID list against extracted truth.
-- Manual probe: hand-call `audio_play_se(0)` from somewhere temporary
-  (NOT committed) and confirm via `--audio-trace` JSONL that the
-  se_play event fires. Remove the probe before commit.
 
-### 6. Audio-backend doc refresh (small, ~10 min)
+- `boot-idle` retail capture still produces the unchanged 3 BMPs.
+- `title-z-press` retail capture shows the tooltip text on frames
+  44/50 (matching Phase A's openrecet capture for the same scenario).
+- `tests/scenarios/title-z-press/golden-retail/trace.jsonl` records
+  the FORCED mask each frame (sparse format), matching the input
+  scenario's `trace.jsonl` post-frame-30.
+- `nix develop --command make -C tests run` still passes (no
+  decoder/math files touched, but cheap to verify).
 
-Update `docs/findings/audio-backend.md` to cover:
-- Fade curve formula + the 9-frame ramp shape.
-- SE audio path vtables + the 27-entry resource layout (from task #5).
-- The `--audio-trace` JSONL schema (one-line definition + example).
+**Risk / gotchas:**
 
-**Acceptance:** Doc lines up with `src/audio*.c` as of latest
-commits; cross-refs to FUN_004995xx all resolve.
+- **Hook ordering**: there's a button-state ring update at the top of
+  `FUN_004536cb` (sim_a) that reads `DAT_073dddd0`. Our injection
+  must happen on input_poll's LEAVE *before* sim_a's read. The
+  game's per-frame ordering is `input_poll → sim_a → sim_b → render`
+  (see `src/tick.c`). Frida's `onLeave` for `input_poll` fires
+  between the function return and the caller's next instruction —
+  before sim_a runs. ✓
+- **`writeU16` on a u32 global**: `DAT_073dddd0` is documented as
+  u16 (`ADDR.var_input_mask`). Writing u16 should leave the upper
+  16 bits untouched. If a downstream reader uses u32 — verify they
+  mask `& 0xffff` (the engine bit layout maxes out at 0x2000).
+- **`force_input: false` default**: existing capture flows that
+  don't pass a trace must continue to record real polls.
+- **Pre-resume timing**: the agent's `init()` runs while the
+  process is paused. The trace is set up before `device.resume(pid)`,
+  so frame 0 sees the right mask. ✓
 
-## End-of-session policy
+**Files touched (estimate ~250 LOC):**
 
-When the timer runs out (or after task #6 lands):
-1. Write a fresh `PROGRESS.md` entry summarizing what landed and
-   what's still open from this queue.
-2. If anything blocked, the `BLOCKED:` line you wrote earlier should
-   already be in PROGRESS — confirm the diagnosis briefly.
-3. Don't try to "finalize" half-done work. Either commit a
-   well-bounded slice or revert the WIP cleanly.
-4. Drop a one-line note into the session-starter memory updating
-   "current state" so the next session boots with accurate context.
+- `tools/frida/openrecet-agent.js` (+~60)
+- `tools/frida_capture.py` (+~50)
+- `tools/scenario-test.py` (+~10)
+- `docs/findings/winmain-and-bootstrap.md` (1 paragraph documenting
+  the injection point)
+- `docs/harness-roadmap.md` (mark Phase B input-injection ✅)
+
+**Commit logical units:**
+
+1. Agent-side trace plumbing + hook modification.
+2. Driver-side trace load + RPC wiring.
+3. Scenario-test plumbing + docstring update.
+4. Re-blessed `golden-retail/` for `title-z-press` (gitignored;
+   commit the side-by-side regen-comparisons output as a contact
+   sheet IF the user wants visual archive).
+5. Docs update.
+
+### 2. Font draw_text dst-rect fix (~30 min)
+
+**Status from previous session:** Hypothesis confirmed empirically
+via `tools/diagnostics/font/font_drawrect_probe.py`. Implementation
+written out verbatim in `docs/font-fix-pending.md` — read that file
+end-to-end, then apply the patch to `src/font_draw.c` (and the same
+math change to `font_draw_text_centered`'s measure walk — see file).
+
+**Acceptance:**
+
+- Build + run boots without regression.
+- Title settings panel ("Music"/"Sound"/"Voice"/etc. row) visually
+  matches retail's row height + horizontal extent. Compare against
+  the user-supplied `font-issue2.png` right-half.
+- `make -C tests run` still passes.
+
+**Files:** `src/font_draw.c` (the dst-rect block around line 128),
+maybe `src/font_draw_text_centered` if width calc changes.
+
+### 3. (Optional, only if #1 + #2 land cleanly)
+Frida-probe scene-state forcing — a small RPC that lets the harness
+write to the scene-state global to skip the title menu and drop
+retail straight into settings (or shop, or dungeon, …) without input
+replay. Spec: identify the scene-state offset (`FUN_004547ab` dispatch
+function — check `docs/findings/winmain-and-bootstrap.md`), expose a
+`forceScene(state_id)` RPC in the agent, document the known state IDs.
+
+**Acceptance:** From `scenario-test.py`, can launch retail and have
+it boot directly to the settings panel with no input frames.
