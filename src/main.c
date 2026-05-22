@@ -35,6 +35,7 @@
 #include "scene_ingame.h"
 #include "scene_title.h"
 #include "scene_floor.h"
+#include "scene_jutan.h"
 #include "scene_walls.h"
 #include "sysassets.h"
 #include "sim.h"
@@ -427,14 +428,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * scene_title render, which is all that matters for boot. */
     (void)sysassets_load_all(g_dev);
 
-    /* Register the B3E + B82 secondary-worker inner bodies (engine
-     * FUN_0047474e wall loader + FUN_004747dc floor loader). Neither
-     * fires until something calls worker_load_spawn_d85 (B3E) or
-     * worker_load_spawn_dc1 (B82), which the scene-1 stage transition
-     * will do once it ports. Wiring registrations up front means
-     * later spawners pick them up automatically. */
+    /* Register the B3E + B82 + BC6 secondary-worker inner bodies
+     * (engine FUN_0047474e wall loader + FUN_004747dc floor loader +
+     * FUN_0047486a jutan/rug loader). None fire until something calls
+     * worker_load_spawn_d85 / _dc1 / _dfd respectively, which the
+     * scene-1 stage transition will do once it ports. */
     scene_walls_init(g_dev);
     scene_floor_init(g_dev);
+    scene_jutan_init(g_dev);
 
     /* Build the menu items table (FUN_0049a43d). Fresh boot = no
      * saves; 4 items: New Game / Ranking / Options / Exit. Then seed

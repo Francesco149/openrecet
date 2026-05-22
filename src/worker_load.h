@@ -120,7 +120,7 @@
  *           B13 | 0x452b13    | FUN_0047333b()                (buy phase alt, per DAT_0730b56c page)
  *           B3E | 0x452b3e    | FUN_0047474e(1)               (wall asset loader — WIRED, src/scene_walls.{c,h})
  *           B82 | 0x452b82    | FUN_004747dc(1)               (floor asset loader — WIRED, src/scene_floor.{c,h})
- *           BC6 | 0x452bc6    | FUN_0047486a(1)               (jutan/rug asset loader)
+ *           BC6 | 0x452bc6    | FUN_0047486a(1)               (jutan/rug asset loader — WIRED, src/scene_jutan.{c,h})
  *           C0A | 0x452c0a    | FUN_004748f8(1)               (table asset loader)
  *           C4E | 0x452c4e    | (unnamed @ 0x435873)()        (FPU state init — Ghidra missed it)
  *               |             | + FUN_00473a3e()              (pause menu + adventurer status assets)
@@ -136,9 +136,9 @@
  *
  *        All 12 targets are scene-1 (INGAME) specific — they'll wire
  *        up via worker_load_set_sec_body() when the respective scene
- *        loaders port. As of 2026-05-22 B3E (walls) and B82 (floors)
- *        are wired; the other 7 slots stay NULL until their scene
- *        loaders port.
+ *        loaders port. As of 2026-05-22 B3E (walls), B82 (floors), and
+ *        BC6 (jutan/rugs) are wired; the other 6 slots stay NULL until
+ *        their scene loaders port.
  *     2. Falls into the shared secondary cleanup tail (CloseHandle,
  *        zero handle, zero 4995c, zero 49960).
  *     3. Writes its per-LAB_* "ready=1" state byte.
