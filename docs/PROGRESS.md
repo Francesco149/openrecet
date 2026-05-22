@@ -3,6 +3,77 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Save-back (FUN_004905a8 simplified) + settings persistence
+
+Persistence loop closes: settings-menu slider changes now survive
+across boots when the user opts in via `--save-write`.
+
+Single commit, four pieces:
+
+1. **`save_io_write_arena(primary, backup)`** — simplified port of
+   FUN_004905a8(-1). Writes the in-memory arena (header + 100 banks)
+   to both files unconditionally — matches the engine's
+   no-atomic-temp+rename behaviour. The engine's full FUN_004905a8
+   takes a slot index that triggers a "working-bank → arena bank"
+   copy + checksum re-stamp; we don't have a working-bank scratch
+   yet (no gameplay state to sync), so that branch is omitted. Pass
+   `-1` in the engine for matching semantics.
+
+2. **`scene_title_settings_apply_slider`** — each `audio_fade_set_*`
+   call is now paired with the corresponding `save_header_set_*_slider`
+   write. The header is the persistence source of truth; audio_fade
+   is the runtime slider state synced from it at boot. Settings
+   changes propagate both ways simultaneously.
+
+3. **`--save-write` CLI flag** in main.c (default OFF). When set,
+   shutdown calls `save_io_write_arena("save.dat", "_save.dat")`
+   right before the rest of the shutdown chain. Default OFF so
+   harness/smoke runs don't trample the user's real save with
+   whatever in-memory state they ended in. Manual UX test:
+   ```
+   ./build/openrecet-debug.exe --save-write
+   # ↓ → ↓ → A on Options → adjust Music slider, exit
+   ./build/openrecet-debug.exe
+   # boot trace shows the new slider value
+   ```
+
+4. **Round-trip + write tests** (4 new, 639 total). Covers both files
+   written, NULL paths skipped, one-valid-one-NULL succeeds, and a
+   full `set → write → clear → load → assert` slider round trip.
+
+### Engine fidelity notes
+
+- The engine writes both save.dat AND _save.dat in sequence — no
+  atomic rename. We match. Either file is independently readable on
+  next boot via save_io_try_load.
+- The engine's full FUN_004905a8(N) where N != -1 has a working-bank
+  merge step (DAT_044e3798 + N * STRIDE → bank[N], re-checksum). That
+  scratch region (DAT_044e3798) isn't populated by anything we've
+  ported yet — it's where the active in-play game writes its
+  modifications. Lands with the scene-1 gameplay state machine.
+- The 4 known save-back callers in the engine (FUN_004902aa,
+  FUN_00450a59, FUN_004907cd, FUN_00490a05) all use either -1 (no
+  bank merge) or the active slot index. The -1 path is the one
+  shutdown-save-back uses.
+- The recet.ini overlay was removed in the previous chip (save_io
+  load); audio_fade sliders now flow exclusively through save_header.
+  Combined with this chip, the full persistence loop is:
+  `save.dat (boot) → save_header → audio_fade → settings_apply
+  → save_header (mutation) → save.dat (shutdown)`. Clean.
+
+### Deferred (gated on this chip)
+
+- **Working-bank scratch** (DAT_044e3798) and the bank-merge branch
+  of FUN_004905a8 — lands with the scene-1 gameplay state machine
+  where actual game modifications happen. Until then, only the
+  shared header (sliders) usefully persists; the per-bank dwords
+  remain whatever was loaded from disk.
+- **Periodic auto-save** during gameplay (engine calls FUN_004905a8
+  from various scene-1 sites). Same dependency.
+- **Save-slot UI** — engine has multiple save slots; our shutdown
+  save-back writes the entire arena, so all 100 slots persist, but
+  there's no UI to choose between them yet.
+
 ## 2026-05-22 — Save-load probe (FUN_004902fe) + title-menu unlock plumbing
 
 Boot-time save-load probe lands. The engine reads save.dat (then

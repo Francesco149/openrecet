@@ -85,4 +85,21 @@ int save_io_try_load(const char *primary, const char *backup);
  * Safe to call on an uninitialised arena; output is all-zero. */
 void save_io_scan_for_title_menu(scene_title_save_t *out);
 
+/* Simplified port of FUN_004905a8(-1) — writes the in-memory arena
+ * to disk. The engine's full FUN_004905a8 takes a `param_1` slot
+ * index; when != -1 it first copies a "working bank" scratch
+ * (DAT_044e3798 + active_slot * STRIDE) into the named bank and
+ * re-stamps that bank's checksum. We don't have a working-bank
+ * scratch yet (no gameplay state to sync), so the bank-merge branch
+ * is intentionally omitted — pass param_1 = -1 to the engine and
+ * you get this function's behaviour.
+ *
+ * Writes BOTH primary and backup paths unconditionally (engine
+ * quirk — there's no atomic temp+rename). On failure to open
+ * either file, the function silently skips that one and returns
+ * 0; on success of either, returns 1. NULL paths are skipped.
+ *
+ * Pure-C. Uses libc fopen/fwrite/fclose. */
+int save_io_write_arena(const char *primary, const char *backup);
+
 #endif /* OPENRECET_SAVE_IO_H */

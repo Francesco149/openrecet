@@ -653,6 +653,10 @@ struct test_case {
     X(save_io_try_load_arena_sized_file_copies_verbatim) \
     X(save_io_known_format_flag_modern) \
     X(save_io_known_format_flag_stays_zero_on_fallback) \
+    X(save_io_write_arena_writes_both_files) \
+    X(save_io_write_arena_null_paths_skipped) \
+    X(save_io_write_arena_one_null_succeeds) \
+    X(save_io_write_then_load_round_trip) \
     \
     X(font_init_zeros_state) \
     X(font_init_is_idempotent) \

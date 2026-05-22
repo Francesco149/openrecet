@@ -25,6 +25,7 @@
 #include "audio.h"        /* audio_play_se_by_id for settings SE feedback */
 #include "audio_fade.h"   /* slider get/set + apply for BGM/SE-A/SE-B rows */
 #include "fade.h"         /* scene-fade phase-1 trigger + done query */
+#include "save_bank.h"    /* save_header_set_*_slider for persistence */
 #include "scene.h"        /* g_scene_state transition on fade complete */
 #include "settings.h"     /* non-audio rows 3 & 4 */
 #include "sim.h"          /* g_sim_buttons for scene_title_sim_default */
@@ -203,6 +204,7 @@ static void scene_title_settings_apply_slider(int row, int delta, int *out_chang
         int nv = v + delta;
         if (nv < 0 || nv > 9) return;
         audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, nv);
+        save_header_set_bgm_slider(nv);  /* persist via save_io_write_arena at shutdown */
         audio_fade_apply(AUDIO_FADE_CHANNEL_BGM);
         *out_changed = 1;
         return;
@@ -212,6 +214,7 @@ static void scene_title_settings_apply_slider(int row, int delta, int *out_chang
         int nv = v + delta;
         if (nv < 0 || nv > 9) return;
         audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_A, nv);
+        save_header_set_se_slider(nv);
         audio_play_se_by_id(TITLE_SE_CURSOR);
         *out_changed = 1;
         return;
@@ -221,6 +224,7 @@ static void scene_title_settings_apply_slider(int row, int delta, int *out_chang
         int nv = v + delta;
         if (nv < 0 || nv > 9) return;
         audio_fade_set_slider(AUDIO_FADE_CHANNEL_SE_B, nv);
+        save_header_set_se_b_slider(nv);
         /* Engine plays a filename-based SE here (FUN_0049933c against
          * "re_sys01a_b" w/ inc-vs-dec path variants). Filename SE
          * loading isn't ported (separate from the resource-baked SE

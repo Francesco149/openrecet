@@ -398,3 +398,103 @@ int test_save_io_known_format_flag_stays_zero_on_fallback(void)
     unlink_path(p);
     return 0;
 }
+
+/* ─── disk write (save-back) ────────────────────────────────────────── */
+
+int test_save_io_write_arena_writes_both_files(void)
+{
+    const char *p = tmp_path("write-primary");
+    const char *b = tmp_path("write-backup");
+    unlink_path(p);
+    unlink_path(b);
+
+    save_bank_arena_clear();
+    save_bank_init_all();
+
+    int rc = save_io_write_arena(p, b);
+    T_ASSERT_EQ_I(rc, 1);
+
+    /* Both files should exist + be exactly ARENA_BYTES. */
+    FILE *fp = fopen(p, "rb");
+    T_ASSERT(fp != NULL);
+    fseek(fp, 0, SEEK_END);
+    long size_p = ftell(fp);
+    fclose(fp);
+    T_ASSERT_EQ_I(size_p, (long)SAVE_BANK_ARENA_BYTES);
+
+    fp = fopen(b, "rb");
+    T_ASSERT(fp != NULL);
+    fseek(fp, 0, SEEK_END);
+    long size_b = ftell(fp);
+    fclose(fp);
+    T_ASSERT_EQ_I(size_b, (long)SAVE_BANK_ARENA_BYTES);
+
+    unlink_path(p);
+    unlink_path(b);
+    return 0;
+}
+
+int test_save_io_write_arena_null_paths_skipped(void)
+{
+    /* Both NULL → no writes, return 0. */
+    save_bank_arena_clear();
+    save_bank_init_all();
+    int rc = save_io_write_arena(NULL, NULL);
+    T_ASSERT_EQ_I(rc, 0);
+    return 0;
+}
+
+int test_save_io_write_arena_one_null_succeeds(void)
+{
+    /* One valid path + one NULL → writes the valid one, returns 1. */
+    const char *p = tmp_path("write-one");
+    unlink_path(p);
+
+    save_bank_arena_clear();
+    save_bank_init_all();
+
+    int rc = save_io_write_arena(p, NULL);
+    T_ASSERT_EQ_I(rc, 1);
+
+    /* File exists with arena size. */
+    FILE *fp = fopen(p, "rb");
+    T_ASSERT(fp != NULL);
+    fseek(fp, 0, SEEK_END);
+    T_ASSERT_EQ_I(ftell(fp), (long)SAVE_BANK_ARENA_BYTES);
+    fclose(fp);
+
+    unlink_path(p);
+    return 0;
+}
+
+int test_save_io_write_then_load_round_trip(void)
+{
+    /* Modify a slider, save_io_write, clear arena, save_io_try_load,
+     * verify slider survives the round trip. */
+    const char *p = tmp_path("round-trip");
+    unlink_path(p);
+
+    save_bank_arena_clear();
+    save_bank_init_all();
+
+    /* Mutate: BGM slider from default 5 → 2. */
+    save_header_set_bgm_slider(2);
+    T_ASSERT_EQ_I(save_header_get_bgm_slider(), 2);
+
+    /* Persist to disk. */
+    T_ASSERT_EQ_I(save_io_write_arena(p, NULL), 1);
+
+    /* Clear arena (simulate process restart). */
+    save_bank_arena_clear();
+    save_bank_init_all();
+    T_ASSERT_EQ_I(save_header_get_bgm_slider(), 5);  /* fresh default */
+
+    /* Load saved file. */
+    T_ASSERT_EQ_I(save_io_try_load(p, NULL), 1);
+
+    /* Slider restored. */
+    T_ASSERT_EQ_I(save_header_get_bgm_slider(), 2);
+
+    unlink_path(p);
+    return 0;
+}

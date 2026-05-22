@@ -107,6 +107,20 @@ static unsigned         g_max_duration_ms   = 0;
  * src/audio.h. Tracking is initialised in audio_trace_open(). */
 static char            *g_audio_trace_path  = NULL;
 
+/* --save-write: opt-in shutdown save-back. When set, the in-memory
+ * save arena (header + 100 banks) is written to save.dat and
+ * _save.dat at shutdown — mirrors engine FUN_004905a8(-1). Off by
+ * default so harness runs and ad-hoc smokes don't accidentally
+ * overwrite the user's real save with whatever state happened to be
+ * in memory when the run ended.
+ *
+ * When the user explicitly opts in (e.g., `--save-write` from
+ * openrecet-debug.exe), settings-menu slider changes persist across
+ * boots (slider write → save_header → disk → save_io_try_load on
+ * next boot → audio_fade sync from save_header). Tested manually
+ * by adjusting Music slider, quitting, re-running. */
+static int              g_save_write         = 0;
+
 /* --play-se <slot[,slot,...]>: comma-separated SE slot indices to fire
  * post-boot. Phase A audio_play_se() is a trace-only shell so this only
  * exercises the dispatch shell + JSONL emit today; phase B's live
@@ -784,6 +798,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     }
 
     /* ─── shutdown ──────────────────────────────────────────────────────── */
+
+    /* Save-back (engine FUN_004905a8(-1)): only when explicitly opted
+     * in via --save-write. Writes the in-memory save arena (with any
+     * settings-menu slider changes applied during this run) to BOTH
+     * save.dat and _save.dat. Default is OFF so harness/smoke runs
+     * don't accidentally overwrite the user's real save. */
+    if (g_save_write) {
+        save_io_write_arena("save.dat", "_save.dat");
+    }
+
     audio_shutdown();
     audio_trace_close();
     input_trace_record_close();
@@ -1149,6 +1173,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 lstrcpynA(trace_buf, val, (int)sizeof(trace_buf));
                 g_audio_trace_path = trace_buf;
             }
+        } else if (lstrcmpA(tok, "--save-write") == 0) {
+            g_save_write = 1;
         } else if (lstrcmpA(tok, "--play-se") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {

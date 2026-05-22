@@ -188,3 +188,39 @@ int save_io_try_load(const char *primary, const char *backup)
      * baseline (save_bank_init_all output). */
     return 0;
 }
+
+/* ─── disk write ─────────────────────────────────────────────────────── */
+
+static int write_arena_to(const char *path)
+{
+    if (!path) return 0;
+    FILE *fp = fopen(path, "wb");
+    if (!fp) return 0;
+    size_t wrote = fwrite(save_arena_base(), 1, SAVE_BANK_ARENA_BYTES, fp);
+    fclose(fp);
+    return (wrote == SAVE_BANK_ARENA_BYTES) ? 1 : 0;
+}
+
+int save_io_write_arena(const char *primary, const char *backup)
+{
+    /* Engine FUN_004905a8 writes BOTH files unconditionally — no
+     * atomic temp+rename, just back-to-back fopen("wb"). We match. */
+    int ok_primary = write_arena_to(primary);
+    int ok_backup  = write_arena_to(backup);
+
+    if (ok_primary || ok_backup) {
+        fprintf(stderr,
+                "save_io: wrote arena (%u bytes) → %s%s%s\n",
+                (unsigned)SAVE_BANK_ARENA_BYTES,
+                ok_primary ? (primary ? primary : "?") : "",
+                (ok_primary && ok_backup) ? " + " : "",
+                ok_backup ? (backup ? backup : "?") : "");
+    } else {
+        fprintf(stderr,
+                "save_io: arena write failed — no files written "
+                "(primary=%s backup=%s)\n",
+                primary ? primary : "(null)",
+                backup  ? backup  : "(null)");
+    }
+    return ok_primary || ok_backup;
+}
