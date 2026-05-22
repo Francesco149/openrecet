@@ -512,6 +512,16 @@ struct test_case {
     X(sim_init_zeros_state) \
     X(sim_step_a_advances_frame_count) \
     X(sim_step_a_pipes_input_into_ring) \
+    X(sim_loading_pump_pure_cold_start_is_noop) \
+    X(sim_loading_pump_pure_990_cycles_to_1f_then_wraps) \
+    X(sim_loading_pump_pure_994_wraps_at_threshold) \
+    X(sim_loading_pump_pure_994_threshold_zero_wraps_immediately) \
+    X(sim_loading_pump_pure_998_mode0_cycles_to_13_then_wraps) \
+    X(sim_loading_pump_pure_998_mode1_clamps_at_0xc) \
+    X(sim_loading_pump_module_globals) \
+    X(sim_init_zeros_counter_state) \
+    X(sim_step_a_busy_freezes_input_and_dispatch) \
+    X(sim_step_a_idle_clears_nowloading_gate) \
     \
     X(music_init_engine_data_defaults) \
     X(music_select_title_bare_returns_track_zero) \

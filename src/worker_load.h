@@ -154,9 +154,12 @@
  *     as scene loaders port).
  *   - Pre-spawn for FUN_00452d07 (FUN_0046c01e — register via
  *     `worker_load_set_sec_d07_pre_spawn` when that ports).
- *   - The per-tick clear of DAT_06a49958 at the top of FUN_004547ab
- *     ("if worker reports done, drop the overlay") — that's a
- *     render-dispatch concern.
+ *
+ * Wired (was a deferred item, now landed):
+ *   - Per-tick "if worker done, drop the overlay gate" — lives at the
+ *     top of `sim_step_a` in src/sim.c (engine FUN_004536cb L50363-
+ *     50367). Note: engine inlines this at the top of FUN_004536cb,
+ *     NOT FUN_004547ab as an earlier note in this header claimed.
  *
  * Race notes:
  *

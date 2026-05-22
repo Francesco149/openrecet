@@ -32,11 +32,24 @@
 #include "fade.h"         /* fade_tick — engine's per-frame fade counter advance */
 #include "font.h"         /* font_age_tick — engine's per-frame LRU bump */
 #include "input.h"        /* g_input_state for cur-buttons read */
+#include "nowloading.h"   /* nowloading_set_active(0) — drop the overlay gate */
 #include "scene.h"        /* g_scene_state dispatch */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
+#include "worker_load.h"  /* worker_load_busy — primary asset-load worker gate */
 
 struct sim_player_buttons g_sim_buttons[SIM_NUM_PLAYERS];
 uint32_t                  g_sim_frame_count;
+
+/* ─── scene-effect counters (FUN_004532df state) ────────────────────────
+ *
+ * All BSS-zero on init. See sim.h header banner for what each counter
+ * is read by; they sit dormant today (no setter is wired yet). */
+static int32_t g_sim_counter_990;
+static int32_t g_sim_counter_994;
+static int32_t g_sim_counter_998;
+static int32_t g_sim_counter_99c;
+static int32_t g_sim_mode_9a0;
+static int32_t g_sim_threshold94;   /* DAT_005c5938 — latched by FUN_004532bc */
 
 /* ─── pure-C button-state ring (FUN_004536cb lines 42-70) ────────────── */
 
@@ -86,16 +99,110 @@ void sim_button_ring_update(uint16_t cur,
     *out_held    = held;
 }
 
+/* ─── FUN_004532df scene-effect counter pump ────────────────────────── */
+
+void sim_loading_pump_pure(int32_t *c990,
+                           int32_t *c994,
+                           int32_t *c998,
+                           int32_t  mode,
+                           int32_t  threshold94)
+{
+    /* Engine L50124-50126: 990 cycles 1..0x1f then wraps to 0. */
+    if (*c990 > 0) {
+        *c990 = *c990 + 1;
+        if (*c990 == 0x20) *c990 = 0;
+    }
+
+    /* Engine L50127-50129: 994 cycles 1..(threshold-1) then wraps. The
+     * threshold is the latched DAT_005c5938 (engine FUN_004532bc); if
+     * it's 0 (cold-start BSS-zero) the comparison `0 <= 1` is true
+     * immediately so the counter wraps the very next tick — matches
+     * the engine's behavior when an effect is started before the
+     * threshold is set, which is dormant in vendor data. */
+    if (*c994 > 0) {
+        *c994 = *c994 + 1;
+        if (threshold94 <= *c994) *c994 = 0;
+    }
+
+    /* Engine L50130-50140: 998 has two modes.
+     *
+     *   mode==0: cyclic 1..0x13 → wraps to 0 at 0x14.
+     *   mode!=0: monotone with ceiling at 0xc (engine `if (0xc < v) v = 0xc;`).
+     */
+    if (mode == 0) {
+        if (*c998 > 0) {
+            *c998 = *c998 + 1;
+            if (*c998 == 0x14) *c998 = 0;
+        }
+    } else if (*c998 > 0) {
+        *c998 = *c998 + 1;
+        if (*c998 > 0xc) *c998 = 0xc;
+    }
+}
+
+void sim_loading_pump(void)
+{
+    sim_loading_pump_pure(&g_sim_counter_990,
+                          &g_sim_counter_994,
+                          &g_sim_counter_998,
+                          g_sim_mode_9a0,
+                          g_sim_threshold94);
+    /* DAT_06a4999c is pumped from FUN_004547ab (render side), not from
+     * here — engine inlines that one separately at L51057-51064. We
+     * leave it untouched in this helper so a future render-side port
+     * can drive it without double-pumping. */
+}
+
+int32_t sim_get_counter_990(void)   { return g_sim_counter_990; }
+int32_t sim_get_counter_994(void)   { return g_sim_counter_994; }
+int32_t sim_get_counter_998(void)   { return g_sim_counter_998; }
+int32_t sim_get_counter_99c(void)   { return g_sim_counter_99c; }
+int32_t sim_get_mode_9a0(void)      { return g_sim_mode_9a0;    }
+int32_t sim_get_threshold94(void)   { return g_sim_threshold94; }
+
+void sim_set_counter_990(int32_t v) { g_sim_counter_990 = v; }
+void sim_set_counter_994(int32_t v, int32_t threshold94)
+{
+    g_sim_counter_994 = v;
+    g_sim_threshold94 = threshold94;
+}
+void sim_set_counter_998(int32_t v) { g_sim_counter_998 = v; }
+void sim_set_counter_99c(int32_t v) { g_sim_counter_99c = v; }
+void sim_set_mode_9a0(int32_t v)    { g_sim_mode_9a0    = v; }
+
 /* ─── lifecycle + frame entry ────────────────────────────────────────── */
 
 void sim_init(void)
 {
     memset(g_sim_buttons, 0, sizeof g_sim_buttons);
-    g_sim_frame_count = 0;
+    g_sim_frame_count   = 0;
+    g_sim_counter_990   = 0;
+    g_sim_counter_994   = 0;
+    g_sim_counter_998   = 0;
+    g_sim_counter_99c   = 0;
+    g_sim_mode_9a0      = 0;
+    g_sim_threshold94   = 0;
 }
 
 void sim_step_a(void)
 {
+    /* FUN_0047c29d (font_age_tick) — engine L50362, runs BEFORE the
+     * worker-busy check. Glyph cache aging keeps ticking even during
+     * the loading screen (the engine still draws font on top of the
+     * loading overlay for any UI element that was alive pre-fade). */
+    font_age_tick();
+
+    /* Engine FUN_004536cb L50363-50367: while the primary asset-load
+     * worker is busy, pump the scene-effect counters and short-circuit
+     * the rest of sim. Once the worker drops, clear the primary
+     * nowloading gate — the overlay disappears on the very next
+     * render. See sim.h's sim_step_a banner for full notes. */
+    if (worker_load_busy()) {
+        sim_loading_pump();
+        return;
+    }
+    nowloading_set_active(0);
+
     /* Run the button-state ring for every player. Player N's `cur`
      * comes from g_input_state[N].buttons (written by input_poll).
      *
@@ -113,11 +220,6 @@ void sim_step_a(void)
                                &g_sim_buttons[i].held);
         g_sim_buttons[i].cur = cur;
     }
-
-    /* FUN_0047c29d — age every in-use glyph cache slot. Per engine
-     * ordering this fires *after* the button ring and *before* the
-     * scene dispatch. */
-    font_age_tick();
 
     /* Scene dispatch by `g_scene_state` (engine global DAT_0438b1c0).
      * Only state 0 (title) is wired up today; the other states drop

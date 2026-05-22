@@ -3,6 +3,114 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — sim guard wires worker_load to the loading overlay
+
+Wires the per-tick "if asset-load worker is done, drop the Now Loading
+overlay" behavior into the sim loop. The worker_load module had been
+fully ported across three earlier chips today but its `g_worker_busy`
+flag wasn't observed anywhere — the overlay gate stayed raised forever
+after the first spawn. This chip closes that loop.
+
+### What landed
+
+- **`sim_loading_pump` / `sim_loading_pump_pure`** in `src/sim.{c,h}`:
+  port of FUN_004532df (129 bytes @ 0x4532df). Four scene-effect
+  counters (DAT_06a49990/94/98/9c) + one mode flag (DAT_06a499a0)
+  pumped every frame the worker is busy. All five are BSS-zero on
+  init; counters only advance once their starter (FUN_004532b1 etc.,
+  unported) writes a positive value. Today they sit dormant — ported
+  in this chip so the sim-loop guard matches the engine's control
+  flow shape, ready for scene-1 render to start consuming them.
+  - 990: cyclic 1..0x1f, wraps to 0 at 0x20.
+  - 994: cyclic 1..(threshold-1), threshold latched by FUN_004532bc.
+  - 998 mode==0: cyclic 1..0x13.
+  - 998 mode!=0: monotone with ceiling 0xc.
+  - 99c: pumped by FUN_004547ab (render side), not from here.
+
+- **Per-tick busy guard** at the top of `sim_step_a`:
+  ```
+  font_age_tick();                  // L50362 — runs unconditionally
+  if (worker_load_busy()) {         // L50363
+      sim_loading_pump();           // L50364 — scene-effect counter tick
+      return;                       // L50365 — skip rest of sim
+  }
+  nowloading_set_active(0);         // L50367 — drop the overlay gate
+  ... button ring + scene dispatch + fade_tick + frame++ ...
+  ```
+
+  Two effects:
+  - **Input + scene sim freeze during loading.** Button ring stops
+    advancing, scene dispatch is skipped, `g_sim_frame_count` does
+    not advance. Matches the engine's "no interaction while loading"
+    behavior.
+  - **Overlay drops the tick after the worker thread finishes.** On
+    Win32, `worker_load_thread_proc` completes within milliseconds
+    of CreateThread (case-1 INGAME loader callback is unregistered →
+    immediate cleanup); the very next sim tick reads busy=0 and
+    clears `nowloading.g_active`.
+
+- **font_age_tick reorder.** The engine calls FUN_0047c29d at L50362,
+  *before* the busy check and *before* the button ring. The prior port
+  ran it after the button ring (a wrong-order port from the first
+  font landing). Corrected here — glyph cache aging now ticks during
+  the loading screen too, matching the engine.
+
+- **`sim_init` clears the pump state.** All 5 counters + threshold94
+  + mode reset to 0.
+
+### Tests
+
+10 new tests under `tests/test_sim.c` (689 → 699):
+- `sim_loading_pump_pure` cold-start no-op (all-zero in, all-zero out).
+- 990 cycles 1..0x1f then wraps.
+- 994 wraps at threshold; threshold=0 special case (immediate wrap).
+- 998 mode==0 cycles to 0x13 then wraps.
+- 998 mode!=0 clamps at 0xc (monotone).
+- Module-level `sim_loading_pump` drives globals.
+- `sim_init` zeros all counter state.
+- `sim_step_a` busy → pump fires, ring frozen, frame count NOT advanced.
+- `sim_step_a` idle → nowloading gate cleared on the very tick busy
+  drops to 0.
+
+`test_sim_step_a_advances_frame_count` + `test_sim_step_a_pipes_input_into_ring`
+also gained `worker_load_reset()` calls in setup — sim_step_a now
+depends on worker_load state, and the existing tests would have been
+fragile against cross-test contamination.
+
+### Smoke + regressions
+
+- 699/699 unit tests pass (was 689).
+- title-z-press scenario re-blessed (10 frames re-captured): the
+  Now Loading overlay now correctly drops between frames 85 and 90
+  in our build, where the prior goldens had it raised through frame
+  115. Frames 73/74/80/85 remain bit-exact pass (overlay still up
+  during these — worker thread hadn't finished yet). 14/14 across
+  3 stability runs at exact same pixel-diff counts → timing is
+  deterministic under turbo mode.
+- boot-idle (3/3), title-down-press (4/4) re-pass bit-exact.
+- title-options (4 captures) has 479 px diff at frames 39/60 — that's
+  a pre-existing regression on this branch (the audio slider in the
+  golden shows "5", current local recet.ini state writes "9";
+  reproduces identically against `master`); unrelated to this chip.
+
+### Engine fidelity notes
+
+- The engine pumps FUN_004532df TWICE per frame during loading: once
+  in sim (busy branch, FUN_004536cb L50364) and once in render
+  (FUN_004547ab L51055 — unconditional). Outside loading it's once
+  per frame from render only. We port only the sim-side call; the
+  render-side pump is observably inert (no scene-effect counter has
+  a render consumer today) and will land with FUN_004547ab.
+- The engine's gate-clear is `DAT_06a49958 = 0` (primary nowloading
+  gate only). The secondary gate (DAT_06a49960) is cleared by its
+  thread procs' cleanup tails, not from here. Our `nowloading.g_active`
+  collapses both into one boolean; calling `nowloading_set_active(0)`
+  here clears the collapsed bit. That's a fidelity gap that only
+  bites if a secondary worker is in flight while the primary is not,
+  which doesn't happen in the vendor exe's call paths today
+  (secondary spawners aren't called from anywhere yet — they unlock
+  as scene loaders port). A proper split lives in a follow-up chip.
+
 ## 2026-05-22 — Asset-load worker thread (secondary family, second half)
 
 Completes the worker_load module's "second half" — the 8 secondary
