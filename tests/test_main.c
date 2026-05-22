@@ -885,7 +885,13 @@ struct test_case {
     X(xfile_hyphen_stitch) \
     X(xfile_vendor_ice01) \
     X(xfile_vendor_corpus) \
-    X(xfile_vendor_xfile2_corpus)
+    X(xfile_vendor_xfile2_corpus) \
+    \
+    X(mesh_empty) \
+    X(mesh_single_triangle) \
+    X(mesh_bounds_cube) \
+    X(mesh_vendor_ice01) \
+    X(mesh_vendor_corpus)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
