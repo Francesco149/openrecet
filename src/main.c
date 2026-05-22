@@ -29,6 +29,7 @@
 #include "prewindow.h"
 #include "render_quad.h"
 #include "rng.h"
+#include "fade.h"
 #include "scene.h"
 #include "scene_title.h"
 #include "sim.h"
@@ -646,15 +647,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                 }
 
                 /* NEW GAME / NEW_HAS_SAVE / CONT_HAS_SAVE route through
-                 * the fade-out counter instead of `pending_action`. The
-                 * engine spends 30 frames freezing the title before
-                 * firing the scene fade animation; the destination init
-                 * runs after that. Neither is ported. Detect the
-                 * counter reaching 0x1e, log once, and snap back so the
-                 * player can recover (clears fade_counter +
-                 * select_phase). The menu code is recovered from the
-                 * cursor position. */
-                if (g_scene_title_anim.fade_counter >= 0x1e) {
+                 * the fade-out counter + g_fade_phase1 instead of the
+                 * `pending_action` outbox. scene_title_sim flips
+                 * g_scene_state to LOADING once fade_is_done() returns
+                 * 1; we log once when that transition fires. The fade
+                 * keeps running (g_fade_counter pinned at duration+1,
+                 * alpha clamped to 255) so the screen stays solid black
+                 * until --max-duration-ms or user-close terminates the
+                 * process. No snap-back: destination scenes aren't
+                 * ported, so any "recovery" would be incoherent. */
+                if (g_scene_state == SCENE_STATE_LOADING
+                    && !title_action_logged[0]) {
                     int code = -1;
                     if (g_scene_title_menu.count > 0
                         && g_scene_title_anim.cursor_pos
@@ -662,15 +665,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         code = g_scene_title_menu.items[
                             g_scene_title_anim.cursor_pos];
                     }
-                    if (code >= 0 && code < 9 && !title_action_logged[code]) {
-                        title_action_logged[code] = 1;
-                        fprintf(stderr,
-                            "title: menu item %d selected — "
-                            "destination scene not ported yet\n",
-                            code);
-                    }
-                    g_scene_title_anim.fade_counter = 0;
-                    g_scene_title_anim.select_phase = 0;
+                    /* Slot 0 doubles as the "fade-out fired" sentinel —
+                     * arbitrary; we just need any of the 9 to latch. */
+                    title_action_logged[0] = 1;
+                    fprintf(stderr,
+                        "title: menu item %d selected — "
+                        "destination scene not ported yet "
+                        "(holding on black)\n",
+                        code);
                 }
             }
         }
@@ -684,6 +686,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     audio_trace_close();
     input_trace_record_close();
     sprite_destroy(&g_show_sprite);
+    fade_unload_system_texture();
     scene_title_unload_assets();
     if (!g_input_trace_replay_path) {
         input_shutdown();
@@ -928,6 +931,12 @@ static void render_dispatch(void)
     default:
         break;
     }
+
+    /* Engine FUN_004547ab L202: scene-fade alpha quad. Runs after the
+     * scene-render dispatch so it darkens whatever the scene just drew
+     * (or, in the post-fade frames, draws over the empty back buffer to
+     * keep the screen solid black). No-op when no fade is in progress. */
+    fade_render(g_dev);
 
     if (g_show_sprite.tex) {
         sprite_draw(g_dev, &g_show_sprite, 32.0f, 32.0f);

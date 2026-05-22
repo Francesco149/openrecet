@@ -24,6 +24,8 @@
 
 #include "audio.h"        /* audio_play_se_by_id for settings SE feedback */
 #include "audio_fade.h"   /* slider get/set + apply for BGM/SE-A/SE-B rows */
+#include "fade.h"         /* scene-fade phase-1 trigger + done query */
+#include "scene.h"        /* g_scene_state transition on fade complete */
 #include "settings.h"     /* non-audio rows 3 & 4 */
 #include "sim.h"          /* g_sim_buttons for scene_title_sim_default */
 
@@ -357,13 +359,28 @@ void scene_title_sim(scene_title_anim_t *anim,
      * commits to NEW GAME / CONTINUE, `fade_counter` ticks every frame.
      * Menu input and cursor_anim ramp are gated out — only pulse_phase
      * continues (BG scroll keeps going). At 0x1e the engine fires the
-     * scene-transition particle animation (FUN_004526f5); the counter
-     * keeps ticking until the destination init completes
-     * (FUN_004528b3 returns 1). Neither the animation nor the
-     * destination init is ported; main.c watches for fade_counter >=
-     * 0x1e and snaps back for recovery. */
+     * scene-transition fade quad (FUN_004526f5 → fade_phase1_start);
+     * the title's fade_counter keeps ticking. When fade_is_done()
+     * returns 1, the engine transitions scene_state through 8
+     * (LOADING) into the destination scene's init path. Destination
+     * init isn't ported, so we set LOADING and let fade_render keep
+     * drawing the fully-opaque black quad indefinitely. */
     if (anim->fade_counter > 0) {
         anim->fade_counter++;
+        if (anim->fade_counter == 0x1e) {
+            /* Engine FUN_0049a59e L65: FUN_004526f5(0, 0x11). Engine
+             * also writes DAT_0438b1e0 = 0 + calls FUN_00435c98
+             * (game-state reset for scene 1) — both deferred until
+             * the destination scene lands. */
+            fade_phase1_start(0, 0x11);
+        }
+        if (anim->fade_counter >= 0x1e && fade_is_done()) {
+            /* Engine FUN_0049a59e L72: DAT_0438b1c0 = 8. Worker thread
+             * spawn (FUN_0049de18) + the eventual transition to
+             * SCENE_STATE_INGAME (= 1) are deferred. main.c logs once
+             * when this fires. */
+            g_scene_state = SCENE_STATE_LOADING;
+        }
         anim->pulse_phase++;
         return;
     }

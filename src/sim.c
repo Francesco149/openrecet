@@ -29,6 +29,7 @@
 
 #include <string.h>
 
+#include "fade.h"         /* fade_tick — engine's per-frame fade counter advance */
 #include "font.h"         /* font_age_tick — engine's per-frame LRU bump */
 #include "input.h"        /* g_input_state for cur-buttons read */
 #include "scene.h"        /* g_scene_state dispatch */
@@ -128,6 +129,10 @@ void sim_step_a(void)
     default:
         break;
     }
+
+    /* Engine FUN_004536cb LAB_00453cfb tail (line 318): per-tick fade
+     * counter advance. Runs unconditionally — phase==0 is a no-op. */
+    fade_tick();
 
     g_sim_frame_count++;
 }
