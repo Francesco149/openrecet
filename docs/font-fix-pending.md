@@ -1,35 +1,41 @@
 # Font draw_text size fix — RESOLVED 2026-05-22
 
-**Status:** Applied. See commit on `master` after `387c114`.
-**Visible result:** title menu + settings panel glyphs now match retail's
-horizontal extent and cap height (within sub-pixel half-texel offsets).
+**Status:** Engine-faithful path landed on `master`. Commits:
+- `aaa6cd9` — first pass via screen-space-rect derived from engine's
+  affine. Worked for `cell_inc_x == tex_width` glyphs but stretched
+  narrow glyphs (`i`, `l`, `.`) horizontally — see "Why screen-space
+  didn't work" below.
+- (this commit) — switched to engine-faithful cell-padded texture
+  upload + verbatim engine dst/src/tex_dim block.
 
-This file is kept for the writeup; the patch lives in `src/font_draw.c`.
+This file is kept for the writeup; the patch lives in
+`src/font_upload.c` and `src/font_draw.c`. The dead-code
+small-texture optimization path is gated behind
+`FONT_USE_CELL_PADDED_TEX=0` (off by default).
 
 ## What was wrong
 
-Glyphs rendered ~10% too tall and slightly mis-sized horizontally
-compared to retail. The previous baseline-align commit (`a8ec516`) used
-`dst.h = tex_h * fVar2` and `dst.x = x + origin_x * fVar2`. Both were
-inferences that don't match what the engine actually does.
+Original (pre-`aaa6cd9`) baseline-align used `dst.h = tex_h * fVar2`
+and a synthetic `dst.x = x + origin_x * fVar2`. Neither matches the
+engine. Glyphs rendered ~10% too tall + slightly mis-sized
+horizontally.
 
 ## What the engine actually does (FUN_0047ca05)
 
 ```
-slot[0]      = floor(cell_inc_x * 36.0 / 42.0)   ← from FUN_0047cbcb
+slot[0]      = floor(cell_inc_x * 36.0 / 42.0)   ← hidden FPU math
 dst          = (x, y, slot[0] * fVar2, 42.0f * fVar2)
 src          = (1, 1, 41, 41)
 tex_dim_UV   = (42, 42)              ← UV reference, NOT actual texture
 fVar2        = scale * 0.65 * 0.76
 ```
 
-- `dst.h` is **always** `42 * fVar2 = 20.748` (with `scale=1.0`).
-  Never varies per glyph.
-- `dst.w` is `floor(cell_inc_x * 6/7) * fVar2`. For ASCII at this
-  font that's `{24, 25, 26, 27} * fVar2`.
-- The actual GPU texture bound is a **`tex_width × line_height` cell**
-  with the glyph bitmap at `(col 0, row ascent-origin_y)` and zero-fill
-  everywhere else.
+- `dst.h` is **always** `42 * fVar2 = 20.748` with `scale=1.0`.
+- `dst.w` is `floor(cell_inc_x * 6/7) * fVar2`. For ASCII at this font
+  that's `{24, 25, 26, 27} * fVar2`.
+- The actual GPU texture bound is an **`cell_inc_x × line_height`
+  cell** with the glyph bitmap at `(col 0, row ascent - origin_y)` and
+  zero-fill everywhere else.
 - Engine then samples UV (1.5/42 → 41/42) of that cell.
 
 ## The hidden FPU math (was Ghidra-elided)
@@ -43,7 +49,7 @@ fstp   DWORD PTR [ebp-0xc]
 fld    DWORD PTR [ebp-0xc]
 fmul   DWORD PTR ds:0x519480    ; * 36.0
 fdiv   DWORD PTR ds:0x519d08    ; / 42.0
-call   0x503954                 ; __ftol  →  truncates toward zero
+call   0x503954                 ; __ftol → truncates toward zero
 mov    DWORD PTR [ebx],eax      ; slot+0 = floor(cell_inc_x * 36/42)
 ```
 
@@ -52,68 +58,55 @@ Constants at `.rdata`:
 - `0x519d08 = 42.0f`
 
 So `slot[0] = floor(cell_inc_x * 6/7)`. Verified against the Frida
-probe data: fontidx cell_inc_x ∈ {29,30,31,32} → stored ∈ {24,25,26,27}. ✓
+probe data: fontidx cell_inc_x ∈ {29,30,31,32} → stored ∈ {24,25,26,27}.
 
-## The fix shipped in src/font_draw.c
+## Why screen-space-rect (commit aaa6cd9) didn't fully work
 
-Clip the glyph's cell-row extent against the engine's UV sample window
-in cell-texel space, then map the visible portion to a screen-space
-rect via the cell→dst affine:
+That attempt kept the small `(tex_w × tex_h)` upload and computed
+the on-screen rect via the cell→dst affine, sampling the glyph
+texture directly. It assumed the engine's **cell width was
+`tex_width`**.
 
-```c
-const int stored_cell_inc_x = (rec->cell_inc_x * 36) / 42;
-const float dw_engine = (float)stored_cell_inc_x * fVar2;
-const float dh_engine = 42.0f * fVar2;
+That assumption is wrong. CreateTexture at 0x47cde2 takes
+`local_c = cell_inc_x` for the width (not `tex_width`). For narrow
+glyphs like `i` (cell_inc_x=29, tex_width=16) the engine's cell is
+**29 cols wide** with the glyph bitmap occupying the leftmost 16 and
+**13 cols of transparent zero-fill on the right**. That trailing pad
+is what produces the correctly-thin `i` on retail — sampling
+UV(1.5/42, 41/42) of the 29-wide cell reaches 1..28 in cell texels,
+so cols 16..28 sample the transparent pad.
 
-const float tex_wf  = (float)rec->tex_width;
-const float line_hf = (float)rec->line_height;
-const float gy0     = (float)(rec->ascent - rec->origin_y);
+Without uploading the pad, we have nothing to sample, so the small
+glyph got stretched to fill the engine's dst width. Visible artifact:
+`i` and `l` looked ~2× too wide.
 
-const float sample_x_lo = 1.5f  / 42.0f * tex_wf;
-const float sample_x_hi = 41.0f / 42.0f * tex_wf;
-const float sample_y_lo = 1.5f  / 42.0f * line_hf;
-const float sample_y_hi = 41.0f / 42.0f * line_hf;
-const float sample_y_span = sample_y_hi - sample_y_lo;
+## What's shipped now
 
-float vy_lo = gy0, vy_hi = gy0 + (float)rec->tex_height;
-if (vy_lo < sample_y_lo) vy_lo = sample_y_lo;
-if (vy_hi > sample_y_hi) vy_hi = sample_y_hi;
+**font_upload.c (`FONT_USE_CELL_PADDED_TEX=1`):**
+- `CreateTexture(cell_inc_x, line_height, A8R8G8B8, MANAGED)`
+- Zero-fill the whole cell.
+- Write the glyph bitmap at `(col 0, row y0 = ascent - origin_y)`.
+- Track `effective_width` from the glyph walk same as before.
 
-if (vy_hi > vy_lo) {
-    const float dst_y =
-        y + (vy_lo - sample_y_lo) / sample_y_span * dh_engine;
-    const float dst_h =
-        (vy_hi - vy_lo) / sample_y_span * dh_engine;
-    float dst[4] = { x, dst_y, dw_engine, dst_h };
-    float src[4] = {
-        sample_x_lo, vy_lo - gy0,
-        sample_x_hi, vy_hi - gy0,
-    };
-    /* ... SetTexture + render_quad_add + flush ... */
-}
-```
+**font_draw.c:**
+- `stored_cell_inc_x = (rec->cell_inc_x * 36) / 42`
+- `dst = (x, y, stored_cell_inc_x * fVar2, 42 * fVar2)`
+- `src = (1, 1, 41, 41)`, `render_quad_add(..., 42, 42, argb)`
+- Bind the cell texture, single quad per glyph.
 
-In X, glyph always fully fits inside the cell (cell_width = tex_width),
-so no X clipping is needed — the visible portion is the same `[sample_x_lo,
-sample_x_hi]` range that the engine sees, mapped to the full `dw_engine`
-dst width.
-
-In Y, descenders like "j"/"y"/"g" can clip at the bottom (tex_h+gy0 >
-sample_y_hi). Vendor data places these so they clip by ≤1.2 cell rows —
-the bottom 2-3% of the descender tip is lost on screen, matching retail.
+The dead small-texture path lives under `#if !FONT_USE_CELL_PADDED_TEX`
+in both files — opt-in if someone later wants to tune memory and can
+live with the narrow-glyph stretch.
 
 ## Verified
 
-Side-by-side comparison via `tools/scenario-test.py title-options
---target both`: settings panel ("Music"/"Sound"/"Voice"/"Message
-Speed"/"Unread Text Skip"/"Clear Save Data" rows) renders at the same
-horizontal extent and cap height as retail.
+Side-by-side comparison via
+`tools/scenario-test.py title-options --target both
+--frida-remote cutestation.soy:27042` (turbo+silent harness):
+settings panel + title menu glyphs now match retail pixel-for-pixel
+modulo a state-only `Music` slider value (retail had `5`, ours `9`).
+Narrow `i`/`l` glyphs render at the correct visual width.
 
-Title menu items ("NEW GAME"/"ITEM ENCYCLOPEDIA"/"OPTIONS"/"EXIT") and
-the "openrecet 0.1" smoke text in the corner also resized — all
-post-fix goldens re-blessed under all 4 scenarios.
-
-Sub-pixel half-texel offsets remain (render_quad_add adds 0.5 inset
-on left/top only; the engine inherits the same quirk so cumulatively
-neutral) — visible if you blow the comparison to 8x but invisible at
-native scale.
+Memory cost: ~2× per glyph slot (32×50 cell vs 32×45 glyph for the
+widest ASCII, 29×50 vs 16×45 for the narrowest). Acceptable — 200
+slots × ~6.4 KB worst-case = 1.3 MB peak.
