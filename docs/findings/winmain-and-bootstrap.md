@@ -41,11 +41,11 @@ self-documenting log strings:
 |12 | `FUN_00451863`       | `"init print ok"`      | text/print system                                  |
 |13 | `FUN_0047af52`       | `"init dinput ok"`     | **DirectInput 8: keyboard + multi-joystick**       |
 |14 | `FUN_00454e69(d3d, dev)` | `"init render ok"` | **render-layer init** — fans `IDirect3DDevice8` + back-buffer-desc + `D3DCAPS8` out into the 24 engine "render layer" objects (4 + 20, each 0x2f0 bytes). See §"Render-layer init" below. Despite the label, the *device* itself is already created by step 11. |
-|15 | `FUN_00475270`       | `"init indexfile ok"`  | index-file load                                    |
-|16 | `FUN_0047c228`       | `"init fontsys ok"`    | font system init                                   |
-|17 | `FUN_00498ef4`       | `"init daoudio ok"` *(sic)* | **audio init**                                |
-|18 | `FUN_0047c474` *(conditional on `DAT_073dfd00`)* | — | optional audio path                  |
-|19 | `FUN_0047c3a5`       | `"fontsystem ok"`      | font follow-up                                     |
+|15 | `FUN_00475270`       | `"init indexfile ok"`  | **gameplay-table loader** — see `docs/findings/tables-loader.md` |
+|16 | `FUN_0047c228`       | `"init fontsys ok"`    | **font system: clear 200-slot LRU cache.** Ported as `font_init()` in `src/font.c`. See §"Font system" below. |
+|17 | `FUN_00498ef4`       | `"init daoudio ok"` *(sic)* | **audio init** — DirectMusic 8 perf + loader + 21 BGM segments + 109 SE WAVs. See `docs/findings/audio-backend.md`. |
+|18 | `FUN_0047c474` *(conditional on `DAT_073dfd00`)* | — | **GDI atlas builder** — runs only if `font:` in config.idx raised the regen flag. Walks SJIS codepoints via `GetGlyphOutlineA(GGO_GRAY4_BITMAP)`, edge-dilates, writes `fontdata.bin` + `fontidx.bin`. Ported as `font_atlas_build_win32()` in `src/font_atlas.c`. |
+|19 | `FUN_0047c3a5`       | `"fontsystem ok"`      | **font atlas loader** — reads the two `.bin` files back into `g_font_atlas`. Ported as `font_atlas_load()` in `src/font_atlas.c`. |
 |20 | `FUN_00472f5d`       | `"read systemtex ok"`  | load UI textures                                   |
 |21 | `FUN_004902fe`       | `"load savefile ok"`   | load save data                                     |
 |22 | `FUN_0043609b` + `FUN_004733d5` | `"read titletex ok"` | load title screen textures                  |
@@ -734,6 +734,139 @@ mapping, binding application with per-joystick virtual base, and
 the `recet_ini` → `g_input_bindings` flattening. Wired into
 `src/main.c` as the `tick_callbacks.input_poll` function pointer.
 Smoke boot remains clean (debug magenta unchanged).
+
+## Font system (FUN_0047c228 / 0047c474 / 0047c3a5 / 0047cbcb / 0047cf22 / 0047ca05)
+
+Seven functions form the engine's text rendering pipeline; all seven
+are ported. The pipeline:
+
+```
+WinMain:
+  font_init()                  ← FUN_0047c228   (cache state zero + slot_id seed)
+  audio_init()                 ← FUN_00498ef4
+  font_atlas_build_win32()     ← FUN_0047c474   (conditional regen via g_config.font_set
+                                                 OR ./font/fontdata.bin missing)
+  font_atlas_load()            ← FUN_0047c3a5   (./font/ → cwd search chain)
+
+Scene render:
+  draw_text(x, y, str, argb, scale)            ← FUN_0047ca05
+    for each codepoint:
+       font_slot_alloc(b0, b1)                  ← FUN_0047cbcb   (200-slot LRU, age-gated eviction)
+       if new: font_slot_upload(slot, dev)      ← FUN_0047cf22   (D3D8 CreateTexture + LockRect + ARGB expand)
+       SetTexture(0, g_font.textures[slot])
+       render_quad_add(dst, src, tex_dims, argb)
+       render_quad_flush(dev)
+```
+
+### Atlas format (on-disk byte layout)
+
+| file              | content                                                |
+|-------------------|--------------------------------------------------------|
+| `fontdata.bin`    | flat blob of glyph bytes, variable size per codepoint  |
+| `fontidx.bin`     | fixed-size 40-byte records, one per codepoint slot     |
+
+40-byte record (struct font_atlas_record):
+
+| off  | field       | source                              |
+|------|-------------|-------------------------------------|
+| 0x00 | data_offset | running cursor into fontdata.bin    |
+| 0x04 | data_size   | `cjBuffer` from GetGlyphOutlineA    |
+| 0x08 | cell_inc_x  | `gmCellIncX + 8 + pad-to-4(blackBoxX)` |
+| 0x0c | line_height | `tmHeight + 8`                       |
+| 0x10 | origin_x    | `gmptGlyphOrigin.x`                  |
+| 0x14 | ascent      | `tmAscent`                           |
+| 0x18 | origin_y    | `gmptGlyphOrigin.y`                  |
+| 0x1c | tex_width   | `gmBlackBoxX + 8 + pad-to-4`         |
+| 0x20 | tex_height  | `gmBlackBoxY + 8`                    |
+| 0x24 | reserved    | always zero                          |
+
+Each glyph byte encodes (high nibble = alpha 0..15, low nibble = edge
+intensity 0..15). The texture upload expands this to A8R8G8B8:
+RGB = alpha << 4 (replicated), A = edge << 4. Result: bright white
+body pixels at full alpha + dark edge pixels at partial alpha — the
+familiar outlined-glyph look.
+
+### Codepoint → record-id mapping
+
+The fontidx is indexed by writer-iteration order:
+
+| range            | codepoint id formula                              |
+|------------------|---------------------------------------------------|
+| 0..0xff          | id = byte                                         |
+| 0x100..0x21f     | id = 256 + position in special-codepoint table    |
+| 0x220+           | id = (sjis_value - 0x861f)                        |
+
+The 288-entry special-codepoint table at PE VA 0x005cbc7c contains the
+full-width ASCII + kana that the engine wants reachable via "single
+codepoint" lookup (faster than a SJIS double-byte walk for common
+chars). Embedded byte-for-byte in `src/font_atlas.c`.
+
+### 200-slot LRU cache
+
+Each slot is 28 bytes wide. Engine table at `DAT_073de664..DAT_073dfc44`.
+Parallel `IDirect3DTexture8*` pointer table at `DAT_073dde44` (200 × 4
+bytes).
+
+Engine slot fields (per FUN_0047c228 + readers):
+- `+0`: slot_id (set at init to its own index)
+- `+4`: cp_byte0
+- `+5`: cp_byte1
+- `+8`: in_use (1 = allocated, 0 = free)
+- `+12`: age (incremented every sim_a frame by FUN_0047c29d)
+- `+16..27`: record_id + pad
+
+Allocator's three-phase dance:
+1. Scan for existing match (same cp_byte0/1) → reset age, return
+2. Scan for first free slot → allocate
+3. Scan for first slot with age > 3 → evict, Release texture, allocate
+
+Engine's allocator returns a `slot - 12` pointer for offset-arithmetic
+convenience in draw_text; we drop the trickery and return plain int
+slot indices. Same observable behavior.
+
+Per-frame: `font_age_tick` (FUN_0047c29d) bumps `age` on every in_use
+slot. Wired into `sim_step_a` after the button-state ring update.
+
+### Engine quirks documented
+
+- **Atlas regen polarity** (FUN_0047c474 line 329): Ghidra renders the
+  kanjioff check as `if (DAT_005cbc70 == 0) break;` which would skip
+  all kanji on the vendor default (kanjioff = 0). Vendor retail
+  obviously renders kanji, so the byte-level check must be `!= 0`.
+  Our port matches the sane semantic.
+
+- **Phantom 0x883f glyph**: phase-1 of the atlas walk renders codepoint
+  0x883f as its first iteration. 0x883f isn't a valid SJIS double-byte
+  (low byte 0x3f outside the valid second-byte range), so GDI returns
+  an empty glyph. Slot 544 in fontidx ends up referencing zero bytes.
+  Harmless — no reader ever asks for 0x883f.
+
+- **TGA-then-D3DX upload**: engine wraps each glyph in a 32-bpp TGA
+  with a Truevision XFILE footer and feeds it to
+  `D3DXCreateTextureFromFileInMemoryEx`. We use CreateTexture +
+  LockRect directly with D3DFMT_A8R8G8B8 — same on-GPU result, no
+  D3DX dependency.
+
+- **Slot-overlap return pointer**: allocator returns `slot - 12`, so
+  `piVar4[3]` reads slot[i].slot_id and `piVar4[1]` reads slot[i-1]'s
+  pad20 — which the upload step deliberately writes as slot[i]'s
+  effective_width. Net effect: the last 12 bytes of slot[i-1] act as
+  the first 12 bytes of slot[i]'s render-time scratch.
+
+- **draw_text src rect is constant**: `[1, 1, 41, 41]` regardless of
+  per-glyph texture size. Default ADDRESSU/V is WRAP, so textures
+  smaller than 41×41 (most of them) get tiled. Our port uses
+  `[0, 0, tex_w, tex_h]` (full texture per glyph) — different per-pixel
+  output, identical layout, no wrap artifact.
+
+### Output paths
+
+The atlas regenerator writes to **`./font/`** (relative to cwd), not
+the engine's `./fontdata.bin` + `./fontidx.bin` next to recet.ini.
+This is a deliberate divergence — lets a hybrid install (user running
+retail to generate atlas, then openrecet) avoid file collisions. The
+loader's search chain hits `./font/` first, falls back to `./` for
+the case where retail dropped its own files.
 
 ## Open subsystems to investigate next
 

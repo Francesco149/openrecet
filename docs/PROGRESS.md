@@ -3,6 +3,125 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Font system, end-to-end (FUN_0047c228 / c474 / c3a5 / c29d / cbcb / cf22 / ca05)
+
+Seven functions, six commits, ~1700 lines of new C — the whole text
+rendering pipeline now works. A scene can call `font_draw_text(dev,
+x, y, str, argb, scale)` and pixels come out. Title scene now shows
+"openrecet 0.1" in the bottom-left as a smoke test.
+
+### Architecture
+
+```
+WinMain:
+  font_init()              ← clears 200-slot LRU cache + texture table
+  audio_init()
+  font_atlas_build_win32() ← GDI builder, conditional on g_config.font_set
+                             or missing ./font/fontdata.bin (drop-in path)
+  font_atlas_load()        ← reads back fontdata.bin + fontidx.bin
+
+Per-frame (sim_a):
+  font_age_tick()          ← bumps age on every in_use slot
+
+Per-glyph (in scene render path):
+  font_slot_alloc(b0, b1)  ← 200-slot LRU, age-gated eviction
+  font_slot_upload(slot)   ← D3D8 CreateTexture + LockRect + ARGB expand
+                             (texture release on evict hooked via callback)
+```
+
+### What landed
+
+- **`src/font.{c,h}`** — 200-slot LRU cache state. `font_init` (port
+  of FUN_0047c228) zeros the slot + texture tables, seeds slot_id with
+  each entry's index. `font_age_tick` (port of FUN_0047c29d) increments
+  `age` on every in_use slot — engine's debug-overlay scan is dropped
+  since FUN_00451874 is a release-build stub. Wired into `sim_step_a`
+  after the button ring.
+
+- **`src/font_atlas.{c,h}`** — record format (40 bytes) + GDI atlas
+  builder + disk loader. The builder mirrors FUN_0047c474:
+  CreateFontIndirectA at 42px / SHIFTJIS / ANTIALIASED, walks 256
+  single-byte + 288 special-table 2-byte + SJIS double-byte from 0x88
+  with the engine's gap-skip pattern, rasterizes each via
+  GetGlyphOutlineA(GGO_GRAY4_BITMAP), pads to a 4-pixel border, applies
+  5×5 radial edge dilation, writes both files. Output goes to
+  **`./font/`** (not the vendor dir — fresh path so retail and
+  openrecet don't fight over atlas files). Loader (FUN_0047c3a5)
+  reads them back into `g_font_atlas`. Pure-C parts (record packing,
+  blit, dilation) are Linux-testable; GDI driver behind `_WIN32`.
+
+- **`src/font_alloc.{c,h}`** — codepoint→record-id lookup + 3-phase
+  slot allocator. find_existing → find_free → find_evictable (age > 3).
+  Release callback hook lets the Win32 layer Release the GPU texture
+  on eviction without dragging D3D into the pure-C module.
+
+- **`src/font_upload.{c,h}`** — Win32-only D3D8 texture upload. Skips
+  the engine's TGA-then-D3DX dance; uses CreateTexture + LockRect with
+  D3DFMT_A8R8G8B8 directly. ~150 lines less code, same on-GPU result.
+  Pure-C pixel-expansion helper (`font_upload_expand_pixel`) is
+  Linux-testable.
+
+- **`src/font_draw.{c,h}`** — `draw_text(x, y, str, argb, scale)`
+  port of FUN_0047ca05. Walks the SJIS string, routes each codepoint
+  through alloc → upload (if new) → SetTexture + render_quad_add +
+  render_quad_flush. Per-glyph dst is `(eff_w * scale*0.494,
+  42 * scale*0.494)`, advance is `(eff_w - 3) * scale*0.494` — matches
+  engine math. Departure: src rect uses `[0, 0, tex_w, tex_h]`
+  (full texture) instead of the engine's fixed `[1, 1, 41, 41]`
+  (WRAP-relying for smaller textures). Pixel-exact match isn't a
+  project goal; the eyeball test is "readable text in the right place."
+
+- **`src/scene_title.c`** smoke: draws "openrecet 0.1" at (8, 460,
+  scale=1.0). Visible in the boot-idle golden, blesses applied.
+
+- **Atlas output gitignored**: `./font/` lands under `vendor/original/`
+  in dev workflow, which is already gitignored. Atlas regenerates on
+  first boot of a fresh install (no `font:` in config.idx needed —
+  the loader's "files don't exist" branch triggers regen with a
+  default face name).
+
+### Tests
+
+24 (atlas builder/record) + 6 (pixel expansion) + 15 (codepoint
+lookup + slot allocator) + 5 (cache init/age) + 4 (loader) = 54 new
+unit tests. Total test count 568 from 514. Both boot-idle and
+title-z-press scenarios pass (re-blessed with the smoke text overlay).
+
+### Engine quirks documented
+
+See `docs/findings/winmain-and-bootstrap.md` §"Font system" for the
+full list. Highlights:
+
+- **kanjioff polarity inversion** in FUN_0047c474: Ghidra renders the
+  break check with `== 0` but the byte-level semantic must be `!= 0`
+  (otherwise vendor default would skip all kanji)
+- **Phantom 0x883f glyph**: first phase-1 atlas-walker iter renders
+  the invalid SJIS codepoint 0x883f → GDI returns nothing → fontidx
+  slot 544 = empty record. Harmless.
+- **Slot-overlap return pointer**: FUN_0047cbcb returns `slot - 12`
+  so `piVar4[3]` reads slot.slot_id. The 12-byte "pre-slot" region
+  is actually slot[i-1]'s pad20/pad24 + the start of slot[i] —
+  effective_width gets written into pad20 during upload. We give
+  effective_width its own field and skip the trickery.
+
+### Known follow-ups
+
+- **Visual aspect**: glyphs of varying texture height get stretched
+  into the engine's fixed 42-unit dst height. Text reads as
+  tall-and-narrow vertical bars at scale 1.0. The engine has the
+  same math — possibly the engine's textures are all sized so the
+  WRAP-sampling in [1,1,41,41] produces a consistent visible glyph
+  area. Worth a second look once scene text consumers (settings menu,
+  shop UI) land.
+- **Title menu labels are still sprite-baked** in `fuki.tga` — the
+  draw_text smoke is a separate overlay, not a replacement. Wiring
+  the menu items through draw_text is for a later milestone.
+- **Engine variant of upload** (TGA-in-memory → D3DXCreateTextureFromFileInMemoryEx)
+  isn't byte-identical to our CreateTexture+LockRect path. Doesn't
+  matter for runtime visual but means the texture in GPU memory won't
+  literally match the engine's. Project memory says "not byte-identical"
+  so this is fine.
+
 ## 2026-05-22 — Harness: pre-resume state-forcing + first differential test (LCG + cos-curve fade)
 
 Phase B's deferred half — calling vendor functions with forced state to
