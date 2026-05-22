@@ -840,7 +840,20 @@ struct test_case {
     X(scene_pause_state_init_is_idempotent) \
     X(scene_pause_state_init_overrides_dirty_state) \
     X(scene_pause_reset_zeroes_state) \
-    X(scene_pause_selector_independent_from_siblings)
+    X(scene_pause_selector_independent_from_siblings) \
+    \
+    X(scene_buy_slot_count_is_ten) \
+    X(scene_buy_format_string) \
+    X(scene_buy_singleton_slots_are_distinct) \
+    X(scene_buy_ae8_zero_count_loads_only_singletons) \
+    X(scene_buy_ae8_zero_valid_loads_only_singletons) \
+    X(scene_buy_ae8_default_state_loads_only_singletons) \
+    X(scene_buy_ae8_dynamic_loop_three_items) \
+    X(scene_buy_ae8_dynamic_loop_full_ten_items) \
+    X(scene_buy_ae8_dynamic_loop_count_overflow_is_clamped) \
+    X(scene_buy_ae8_null_load_fn_returns_count_only) \
+    X(scene_buy_reset_zeroes_state) \
+    X(scene_buy_singleton_paths_match_rdata)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

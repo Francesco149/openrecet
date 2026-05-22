@@ -3,6 +3,80 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-23 — scene_buy: AE8 secondary inner-body wired (buy-phase loader)
+
+Fifth of the 9 secondary worker-thread inner bodies to land —
+`src/scene_buy.{c,h}` ports `FUN_0047329b` (151 bytes) end-to-end and
+registers it as `WORKER_LOAD_SEC_BODY_AE8`. Structurally distinct from
+the wall/floor/jutan/pause group: instead of a fixed N-entry .rdata
+table, AE8 walks a runtime name buffer (page 0) for a dynamic count of
+items, then dispatches two fixed singletons unconditionally.
+
+### Three-phase body
+
+1. **Dynamic per-item icon loop (page 0)** — gated on `(valid != 0 &&
+   count != 0)`. Iterates `count` times reading 256-byte names from
+   the per-page name buffer at `&DAT_06a5ead4`, formats `bmp/<name>`,
+   and dispatches each to a sprite slot in `&DAT_073aa7e8` (stride 0x10
+   = sprite_t). Dims `0x200×0x200`. Engine sprintf format `bmp/%s`
+   (`.rdata @ 0x5c864c`); engine sprite_load format flag `0x10`
+   (dropped — openrecet sprite_load doesn't carry format flags).
+
+2. **Fixed `bmp/ivent/chrname.tga`** → `g_scene_buy_chrname`
+   (`DAT_073cc8d0`), dims `0x200×0x200`. Always fires.
+
+3. **Fixed `bmp/shopmode.tga`** → `g_scene_buy_shopmode`
+   (`DAT_073a9580`), dims `0x400×0x200`. Always fires.
+
+### Page-0 scope
+
+AE8 only reads **page 0** of the per-page state — does NOT consult
+`DAT_0730b56c` (current-page selector). The B13 sibling (FUN_0047333b,
+next chip) is the page-indexed variant; this chip exposes page-0
+state as standalone globals (`g_scene_buy_page0_valid` /
+`g_scene_buy_page0_count` / `g_scene_buy_page0_names[10][256]`) and
+the B13 follow-up will promote them to 50-element arrays.
+
+### Slot count + overflow
+
+Sprite-array per-page stride is 0xa0 bytes = 10 sprites/page
+(`SCENE_BUY_SLOT_COUNT`). Engine has no bounds check; counts above 10
+overflow into adjacent pages' sprite memory. Port clamps the dynamic
+loop at 10 for memory safety; tests cover the clamp behaviour
+(`scene_buy_ae8_dynamic_loop_count_overflow_is_clamped`).
+
+### Inner-body call shape
+
+LAB_00452ae8 (objdump @ 0x452ae8..0x452b13) just `call 0x47329b` with
+NO pre-arg push — argument-less call, unlike B3E/B82/BC6/C0A which
+push literal `1` first. Confirmed via disassembly; no fidelity issue
+to fix in our port.
+
+### Wiring
+
+`main.c` calls `scene_buy_init(g_dev)` after `sysassets_load_all`,
+before the wall/floor/jutan/pause inits. Caches the D3D device and
+registers the body via `worker_load_set_sec_body(
+WORKER_LOAD_SEC_BODY_AE8, …)`. Dormant until something calls
+`worker_load_spawn_d3e(0)` — buy-phase scene transition will do this
+once it ports.
+
+### Validation
+
+- `make -C tests run` → 772 passed (+12 new scene_buy tests)
+- `make -C src` builds both `openrecet.exe` + `openrecet-debug.exe`
+- `tools/scenario-test.py boot-idle` → 3/3 bit-exact
+- `tools/scenario-test.py title-z-press` → 14/14 bit-exact
+
+No visual change vs prior commit (body dormant — no caller wired).
+
+### Deferred
+
+- B13 sibling (FUN_0047333b) — page-indexed variant; next chip.
+  Will promote `g_scene_buy_page0_*` to per-page arrays.
+- Per-page state writers (buy-phase customer arrival code) — not
+  reverse-engineered yet; lands with the buy-phase scene loader.
+
 ## 2026-05-22 — scene_walls: B3E secondary inner-body wired (wall asset loader)
 
 First of the 9 secondary worker-thread inner bodies to actually land —
