@@ -100,29 +100,37 @@ float font_draw_text(struct IDirect3DDevice8 *dev_,
                     struct font_atlas_record *rec =
                         &g_font_atlas.fontidx[record_id];
 
-                    /* The slot's `effective_width` was populated by
-                     * the upload pass for this glyph (or by a prior
-                     * upload, if we hit the find_existing path). Falls
-                     * back to fontidx.cell_inc_x when the slot was
-                     * matched by an existing entry but the upload
-                     * never ran (e.g. empty glyph). */
-                    uint32_t eff_w = g_font.slots[slot].effective_width;
-                    if (eff_w == 0) eff_w = (uint32_t)rec->cell_inc_x;
-
+                    /* Baseline-aligned glyph placement.
+                     *
+                     * Our upload installs the small (tex_w × tex_h)
+                     * glyph bitmap directly — no cell padding. The
+                     * engine pads each glyph into a (cell_inc_x ×
+                     * line_height) cell with the bitmap copied to
+                     * row `ascent - origin_y` and column `origin_x`,
+                     * then samples the whole cell via src=(1,1,41,41)
+                     * into a fixed (cell_inc_x, 42)*fVar2 dst quad.
+                     * That cell pad is what baseline-aligns lowercase
+                     * glyphs: their bitmap is shorter and lives in
+                     * the lower part of the cell, leaving empty rows
+                     * above so they render below cap height.
+                     *
+                     * Reproducing the cell pad would burn ~3x more
+                     * GPU memory per slot for no visual win, so we
+                     * fold the offset into the dst rect and keep the
+                     * small-texture upload:
+                     *   dst.x = base_x + origin_x  * fVar2
+                     *   dst.y = base_y + (ascent - origin_y) * fVar2
+                     *   dst.w =          tex_w     * fVar2
+                     *   dst.h =          tex_h     * fVar2
+                     * Same on-screen result; src maps the small
+                     * texture 1:1 so we also lose the engine's
+                     * WRAP-edge sampling artifact. */
                     float dst[4] = {
-                        x,
-                        y,
-                        (float)eff_w * fVar2,
-                        42.0f       * fVar2,
+                        x + (float)rec->origin_x * fVar2,
+                        y + (float)(rec->ascent - rec->origin_y) * fVar2,
+                        (float)rec->tex_width  * fVar2,
+                        (float)rec->tex_height * fVar2,
                     };
-                    /* Engine uses a fixed [1,1,41,41] src rect that
-                     * wraps when the texture is smaller than 41×41
-                     * (default ADDRESSU/V is WRAP). Glyph textures
-                     * here are typically 16..40 px wide / 8..50 px
-                     * tall — wrap with sub-pixel inset doesn't quite
-                     * track the glyph cleanly. For our port we use
-                     * the full texture extent so the glyph maps 1:1
-                     * to the dst quad regardless of texture size. */
                     float src[4] = { 0.0f, 0.0f,
                                      (float)rec->tex_width,
                                      (float)rec->tex_height };

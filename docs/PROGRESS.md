@@ -63,19 +63,18 @@ since `e2ded60`, the render port now lights up the panel.
 
 ### Known visual followups (font-system class)
 
-- Lowercase glyphs render at uppercase height ("MUSiC" looked
-  visually all-caps except the 'i' whose `tex_h` matches cap
-  height). Root cause: our font_draw uses the small `(tex_w, tex_h)`
-  texture and stretches to a fixed `42 * fVar2` dst quad height.
-  The engine pads each glyph into a `(cell_inc_x, line_height)`
-  cell at row `ascent - origin_y` and column `origin_x`, then
-  samples the whole cell into the fixed dst — that pad is what
-  baseline-aligns lowercase glyphs so they end up shorter. Fixable
-  by either matching the engine's cell-padding upload OR by folding
-  the `(origin_x, ascent - origin_y) * fVar2` offset into the dst
-  rect while keeping the small-texture upload. Latter saves 3x GPU
-  memory per slot; sketched and reverted in this commit's branch,
-  tracked for follow-up.
+- ~~Lowercase glyphs render at uppercase height~~ **fixed in
+  follow-up commit**. `font_draw_text` now folds the
+  `(origin_x, ascent - origin_y) * fVar2` baseline offset into
+  the dst rect and uses `(tex_w, tex_h) * fVar2` for the dst size,
+  keeping the small-texture upload. Lowercase glyphs now sit
+  baseline-aligned with proper x-height; capital letters extend
+  above. Visible win across every font draw site (smoke text,
+  settings menu labels + slider values). Skipped the engine's
+  `(cell_inc_x, line_height)` cell-pad approach as it would burn
+  ~3x more GPU memory per slot for the same on-screen result —
+  the cell pad is what the engine uses but we don't need it
+  given we drive baseline via the dst rect instead.
 
 - "Clear Save Data" centering is still ~10px off on first draw
   (engine quirk — measure walk reads `effective_width=0` for fresh
