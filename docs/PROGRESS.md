@@ -3,6 +3,109 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-22 — Now Loading overlay (FUN_00453147 + FUN_004063c7)
+
+Next deferred scene-1 chip from the sysassets entry: the engine's
+"Now Loading…" overlay. Drawn AFTER the scene render and the cross-
+fade alpha quad, every frame the worker-thread gate
+(`DAT_06a49958` / `DAT_06a49960`) is set. Two layers:
+
+- A static 128×64 panel sampling the "Now Loading…" text bitmap from
+  bmp/nowloading.tga's (64, 0)-(192, 64) region, drawn at screen
+  position (512, 400).
+- A rotating 64×64 spinner sampling the (0, 0)-(64, 64) disc graphic
+  from the same texture, centred at (496, 440). Rotation accumulates
+  at 0.3 rad/tick.
+
+Three commits land the chip:
+
+1. **`src/render_quad.{c,h}` — `render_quad_draw_rotated`** (+
+   pure-C `render_quad_fill_rotated_vbuf` helper for testing). Mirrors
+   FUN_004063c7 (394 bytes): writes 4 vertices to slots 0..3 of the
+   static vbuf, calls `DrawPrimitiveUP(TRIANGLESTRIP, 2, …)`, resets
+   the vertex counter. Pure-C inner loop computes per-corner offsets
+   as `x_off = -sin(angle)*r`, `y_off = -cos(angle)*r` with
+   `r = half_size * sqrt(2)` and `angle = (i/4)*2π + rotation + π/4`
+   for `i` in the engine's iteration order `{0, 1, 3, 2}`. UV writes
+   match the engine's hardcoded VA writes at DAT_00605220/240/260/280.
+
+2. **`src/nowloading.{c,h}`** — ports FUN_00453147 (362 bytes) end
+   to end. State module owns the alpha counter (engine
+   `_DAT_06a49988`, decays 32/tick when gate off, clamped at 0), the
+   rotation accumulator (engine `_DAT_06a4998c`, +0.3 rad/tick when
+   gate on), and the active gate. `nowloading_render(dev)` fuses the
+   tick with the per-frame draw exactly like the engine does:
+   defers to `nowloading_tick()` for the pure state update, then
+   either bails (gate off) or sets up alpha-blend + linear-filter
+   state, binds `g_sysassets.nowloading_tga`, draws the static panel
+   via `render_quad_add`+`flush`, and finishes with
+   `render_quad_draw_rotated` for the spinner.
+
+3. **`src/main.c`** wires `nowloading_render(g_dev)` into the per-
+   frame render dispatch immediately after `fade_render(g_dev)`
+   (mirrors FUN_004547ab L203 position). Also adds the
+   `D3DRS_CULLMODE = D3DCULL_NONE` write at the top of render dispatch
+   to mirror FUN_004547ab L60 — without it the TRIANGLESTRIP rotated
+   quad's CCW-in-Y-down winding gets dropped by the default
+   D3DCULL_CCW (the static panel survives because render_quad_add's
+   triangle ordering happens to be the opposite winding). The cull-
+   mode fix is broader than the spinner: any TRIANGLESTRIP drawn from
+   here on inherits the correct face-direction-agnostic behaviour.
+
+4. **`src/scene.c::scene_post_fade_init`** sets
+   `nowloading_set_active(1)` after the INGAME state flip — fakes
+   the engine's FUN_0049de18 worker-thread gate so the overlay
+   actually draws during the LOADING→INGAME transition. The flag
+   never clears in our build (no worker thread yet) so the overlay
+   stays on indefinitely; that's fine while the placeholder scene_1
+   render lives there too.
+
+12 new unit tests (620 total, was 608): 5 cover the rotated-quad
+vertex math (axis-aligned at rotation 0, quarter-turn corner roll,
+screen_w scaling, no-counter-touch, z/rhw/specular preservation),
+7 cover the nowloading state machine (reset, gate normalisation,
+alpha decay clamp at 0, rotation 0.3/tick, decay-and-rotation
+mutual exclusion, tick return-value contract). The D3D render path
+is Win32-only and verified by the harness re-bless.
+
+Title-z-press scenario re-blessed: 14/14 capture frames now include
+the spinner+panel in the post-fade frames (90..115). Other 3
+scenarios (boot-idle, title-down-press, title-options) re-pass
+bit-exact unchanged — they never enter INGAME state.
+
+### Engine fidelity notes
+
+- The engine's render dispatch calls `SetRenderState(D3DRS_CULLMODE,
+  D3DCULL_NONE)` at L60 (right after `BeginScene`), then reverts to
+  `D3DCULL_CW` at L207 (after everything has drawn). We set it once
+  per frame at the top of render dispatch; the revert is dormant
+  because nothing in our render path relies on CW culling.
+- FUN_00453147 fuses the alpha-decay tick with the render path. The
+  port preserves this fusion (the render function calls
+  `nowloading_tick()` internally) but exposes `nowloading_tick()`
+  publicly for the unit tests.
+- Engine `DAT_06a49958` and `DAT_06a49960` are kept as a single OR'd
+  gate in the port (`g_active`). Every consumer takes the OR; growing
+  the port to two fields can wait until FUN_0049de24 (the secondary
+  gate's producer) lands.
+- The engine's `_DAT_06a49988` counter feeds OTHER UI elements that
+  fade out in sync with the loading overlay; the overlay itself is
+  gate-driven, not alpha-driven. The counter is faithfully updated
+  in our port even though no consumer uses it yet.
+
+### Deferred (gated on this milestone)
+
+- **Worker thread + scene asset loader** (FUN_0049de18 + LAB_0049de24
+  + FUN_0049dfd2) — the producer of the gate flag. Without it, the
+  overlay stays active forever in our build. Lands as part of the
+  scene-1 ramp.
+- **`DAT_06a4998c` continuous animation** — works while the gate is
+  set. A future stop-condition (worker done) will pin rotation to the
+  last computed value rather than freezing mid-frame.
+- **Secondary gate `DAT_06a49960`** — set by FUN_0049de24 and several
+  other load paths. Currently collapsed into the primary; teasing
+  apart lands when those callers port.
+
 ## 2026-05-22 — System asset loader (FUN_00472f5d)
 
 Next scene-1 chip: ports the engine's shared system-overlay texture

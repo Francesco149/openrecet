@@ -254,3 +254,115 @@ int test_render_quad_init_zero_screen_w_defaults_640(void)
     T_ASSERT_FEQ(v[0].x, 100.0f);
     return 0;
 }
+
+/* ─── rotated quad (FUN_004063c7) ────────────────────────────────────── */
+
+int test_render_quad_rotated_zero_rotation_axis_aligned(void)
+{
+    /* At rotation 0, the engine's baked-in +π/4 corner offset puts the
+     * four corners at angles π/4, 3π/4, 5π/4, 7π/4 (NE/NW/SW/SE in
+     * math-positive orientation). With X = -sin(angle)*r and
+     * Y = -cos(angle)*r and r = half_size*sqrt(2), each component is
+     * ±half_size. So a half_size of 32 yields a 64×64 axis-aligned
+     * bounding box around (0,0). */
+    render_quad_init(640);
+    const float uv[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+    render_quad_fill_rotated_vbuf(100.0f, 100.0f, 32.0f, 0.0f,
+                                  uv, 0xFFFFFFFFu);
+
+    const render_quad_vtx_t *v = render_quad_buffer();
+    /* corner_index = {0, 1, 3, 2} → angles π/4, 3π/4, 7π/4, 5π/4.
+     *   v[0]: -sin(π/4)*r, -cos(π/4)*r = -32, -32 → (68, 68)
+     *   v[1]: -sin(3π/4)*r,-cos(3π/4)*r = -32, +32 → (68, 132)
+     *   v[2]: -sin(7π/4)*r,-cos(7π/4)*r = +32, -32 → (132, 68)
+     *   v[3]: -sin(5π/4)*r,-cos(5π/4)*r = +32, +32 → (132, 132)
+     */
+    T_ASSERT_FEQ(v[0].x,  68.0f); T_ASSERT_FEQ(v[0].y,  68.0f);
+    T_ASSERT_FEQ(v[1].x,  68.0f); T_ASSERT_FEQ(v[1].y, 132.0f);
+    T_ASSERT_FEQ(v[2].x, 132.0f); T_ASSERT_FEQ(v[2].y,  68.0f);
+    T_ASSERT_FEQ(v[3].x, 132.0f); T_ASSERT_FEQ(v[3].y, 132.0f);
+
+    /* UV layout: v0=(u0,v0), v1=(u0,v1), v2=(u1,v0), v3=(u1,v1). */
+    T_ASSERT_FEQ(v[0].u, 0.0f); T_ASSERT_FEQ(v[0].v, 0.0f);
+    T_ASSERT_FEQ(v[1].u, 0.0f); T_ASSERT_FEQ(v[1].v, 1.0f);
+    T_ASSERT_FEQ(v[2].u, 1.0f); T_ASSERT_FEQ(v[2].v, 0.0f);
+    T_ASSERT_FEQ(v[3].u, 1.0f); T_ASSERT_FEQ(v[3].v, 1.0f);
+
+    /* Diffuse on all 4. */
+    for (int i = 0; i < 4; i++) T_ASSERT_EQ_U(v[i].diffuse, 0xFFFFFFFFu);
+    return 0;
+}
+
+int test_render_quad_rotated_quarter_turn_rolls_corners(void)
+{
+    /* A +π/2 rotation maps each corner to the next one (CCW or CW
+     * depending on convention). With our X = -sin, Y = -cos formula
+     * and the +π/4 baked offset, adding π/2 rotates corners 90°.
+     * Specifically v[0] (was -32,-32) → swings to (-32, +32). */
+    render_quad_init(640);
+    const float uv[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+    const float pi_over_2 = 1.5707963f;
+    render_quad_fill_rotated_vbuf(100.0f, 100.0f, 32.0f, pi_over_2,
+                                  uv, 0xFFFFFFFFu);
+
+    const render_quad_vtx_t *v = render_quad_buffer();
+    /* angle for k=0 is π/4 + π/2 = 3π/4 → X = -sin(3π/4)*r = -32,
+     *                                       Y = -cos(3π/4)*r = +32
+     *   → (100 - 32, 100 + 32) = (68, 132). */
+    T_ASSERT_FEQ(v[0].x,  68.0f); T_ASSERT_FEQ(v[0].y, 132.0f);
+    return 0;
+}
+
+int test_render_quad_rotated_scales_by_screen_w(void)
+{
+    /* At 1280×… screen_w the spinner doubles in size. v[0] at zero
+     * rotation moves from (68,68) at 640 to (136,136) at 1280. */
+    render_quad_init(1280);
+    const float uv[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+    render_quad_fill_rotated_vbuf(100.0f, 100.0f, 32.0f, 0.0f,
+                                  uv, 0xFFFFFFFFu);
+    const render_quad_vtx_t *v = render_quad_buffer();
+    T_ASSERT_FEQ(v[0].x, 136.0f);
+    T_ASSERT_FEQ(v[0].y, 136.0f);
+    return 0;
+}
+
+int test_render_quad_rotated_does_not_touch_vertex_counter(void)
+{
+    /* The engine writes vertices 0..3 directly; the counter is reset
+     * to 0 only by the wrapping draw call. The pure helper must NOT
+     * touch the counter — that's the wrapper's job. */
+    render_quad_init(640);
+    /* Pre-load a regular quad to non-zero counter. */
+    const float dst[4] = { 0, 0, 16, 16 };
+    const float src[4] = { 0, 0, 16, 16 };
+    render_quad_add(dst, src, 16, 16, 0xAABBCCDDu);
+    T_ASSERT_EQ_U(render_quad_vertex_count(), 6u);
+
+    const float uv[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+    render_quad_fill_rotated_vbuf(100.0f, 100.0f, 32.0f, 0.0f,
+                                  uv, 0xFFFFFFFFu);
+    /* Counter unchanged — even though the rotated path clobbered
+     * vertex slots 0..3 (the same ones render_quad_add just wrote).
+     * That's faithful to the engine, which also has this hazard. */
+    T_ASSERT_EQ_U(render_quad_vertex_count(), 6u);
+    return 0;
+}
+
+int test_render_quad_rotated_preserves_z_rhw_specular(void)
+{
+    /* The pure helper writes x/y/diffuse/u/v but must leave
+     * z/rhw/specular intact (they were pre-set by render_quad_init). */
+    render_quad_init(640);
+    const float uv[4] = { 0.5f, 0.25f, 0.75f, 0.875f };
+    render_quad_fill_rotated_vbuf(100.0f, 100.0f, 32.0f, 0.3f,
+                                  uv, 0xDEADBEEFu);
+    const render_quad_vtx_t *v = render_quad_buffer();
+    for (int i = 0; i < 4; i++) {
+        T_ASSERT_FEQ(v[i].z,   0.0f);
+        T_ASSERT_FEQ(v[i].rhw, 1.0f);
+        T_ASSERT_EQ_U(v[i].specular, 0u);
+        T_ASSERT_EQ_U(v[i].diffuse,  0xDEADBEEFu);
+    }
+    return 0;
+}

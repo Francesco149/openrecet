@@ -1,6 +1,7 @@
 #include "scene.h"
 
 #include "fade.h"
+#include "nowloading.h"
 #include "save_bank.h"
 
 int32_t g_scene_state    = SCENE_STATE_TITLE;
@@ -38,4 +39,14 @@ void scene_post_fade_init(void)
      * placeholder scene_ingame_render output would be hidden under a
      * fully-opaque black quad forever. */
     fade_phase_out_start(0, 0x11);
+
+    /* Engine FUN_0049a59e L77: FUN_0049de18() — sets DAT_06a49958 = 1
+     * via the asset-worker-thread spawn. We don't have the worker yet,
+     * so fake the gate directly. The overlay then draws until the
+     * worker would have cleared the flag (currently never — stays on
+     * forever until a future port of the worker or a manual reset).
+     *
+     * Position note: the engine's worker-spawn happens BEFORE the
+     * INGAME state flip, but the gate is identical either way. */
+    nowloading_set_active(1);
 }

@@ -33,6 +33,7 @@
 
 #include "render_quad.h"
 
+#include <math.h>
 #include <string.h>
 
 /* ─── state ──────────────────────────────────────────────────────────── */
@@ -80,6 +81,43 @@ const render_quad_vtx_t *render_quad_buffer(void)
 void render_quad_reset(void)
 {
     g_vcount = 0;
+}
+
+/* ─── rotated-quad vertex fill (FUN_004063c7 inner loop) ─────────────── */
+
+void render_quad_fill_rotated_vbuf(float center_x, float center_y,
+                                   float half_size, float rotation_rad,
+                                   const float uv[4], uint32_t diffuse)
+{
+    /* Diagonal radius — engine uses `sqrt(half_size * half_size +
+     * half_size * half_size)` = half_size * sqrt(2). */
+    const float radius = sqrtf(2.0f * half_size * half_size);
+
+    /* Vertex iteration order [0, 1, 3, 2] mirrors the engine's
+     * piVar5[] table (0x4063c7 L23-26). This sequence lays out the
+     * four corners in the correct rotational order for a CCW-wound
+     * TRIANGLESTRIP. */
+    static const int corner_index[4] = { 0, 1, 3, 2 };
+
+    for (int k = 0; k < 4; k++) {
+        const float frac  = (float)corner_index[k] / 4.0f;
+        const float angle = frac * 6.2831855f + rotation_rad + 0.7853982f;
+        const float s     = sinf(angle);
+        const float c     = cosf(angle);
+        const float x_off = -(s * radius);
+        const float y_off = -(c * radius);
+
+        g_vbuf[k].x       = ((x_off + center_x) * g_screen_w) / 640.0f;
+        g_vbuf[k].y       = ((y_off + center_y) * g_screen_w) / 640.0f;
+        g_vbuf[k].diffuse = diffuse;
+    }
+
+    /* UV writes — engine writes these to vertices 0..3 at hardcoded
+     * VAs DAT_00605220 / 240 / 260 / 280. */
+    g_vbuf[0].u = uv[0]; g_vbuf[0].v = uv[1];
+    g_vbuf[1].u = uv[0]; g_vbuf[1].v = uv[3];
+    g_vbuf[2].u = uv[2]; g_vbuf[2].v = uv[1];
+    g_vbuf[3].u = uv[2]; g_vbuf[3].v = uv[3];
 }
 
 /* ─── add (FUN_00404efc) ─────────────────────────────────────────────── */
@@ -177,6 +215,24 @@ void render_quad_flush(IDirect3DDevice8 *dev)
     IDirect3DDevice8_SetVertexShader(dev, RENDER_QUAD_FVF);
     IDirect3DDevice8_DrawPrimitiveUP(
         dev, D3DPT_TRIANGLELIST, g_vcount / 3,
+        g_vbuf, sizeof(render_quad_vtx_t));
+    g_vcount = 0;
+}
+
+void render_quad_draw_rotated(IDirect3DDevice8 *dev,
+                              float center_x, float center_y,
+                              float half_size, float rotation_rad,
+                              const float uv[4], uint32_t diffuse)
+{
+    /* Engine FUN_004063c7. Fill vertex slots 0..3, draw a 2-triangle
+     * strip, reset counter.  Pure-C math lives in
+     * render_quad_fill_rotated_vbuf() so it can be unit-tested without
+     * D3D. */
+    IDirect3DDevice8_SetVertexShader(dev, RENDER_QUAD_FVF);
+    render_quad_fill_rotated_vbuf(center_x, center_y,
+                                  half_size, rotation_rad, uv, diffuse);
+    IDirect3DDevice8_DrawPrimitiveUP(
+        dev, D3DPT_TRIANGLESTRIP, 2,
         g_vbuf, sizeof(render_quad_vtx_t));
     g_vcount = 0;
 }

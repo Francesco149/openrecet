@@ -30,6 +30,7 @@
 #include "render_quad.h"
 #include "rng.h"
 #include "fade.h"
+#include "nowloading.h"
 #include "scene.h"
 #include "scene_ingame.h"
 #include "scene_title.h"
@@ -983,6 +984,14 @@ static void render_dispatch(void)
         1.0f, 0);
     IDirect3DDevice8_BeginScene(g_dev);
 
+    /* Engine FUN_004547ab L60: SetRenderState(D3DRS_CULLMODE,
+     * D3DCULL_NONE). The engine renders the entire scene + overlays
+     * with culling disabled (it re-sets to CW at L207, but only after
+     * everything has drawn). Our defaults inherit D3DCULL_CCW which
+     * silently drops the rotated "Now Loading…" spinner (its strip
+     * winding is opposite render_quad_add's). */
+    IDirect3DDevice8_SetRenderState(g_dev, D3DRS_CULLMODE, D3DCULL_NONE);
+
     switch (g_scene_state) {
     case SCENE_STATE_TITLE:
         if (g_scene_title_assets_loaded) {
@@ -1003,6 +1012,14 @@ static void render_dispatch(void)
      * (or, in the post-fade frames, draws over the empty back buffer to
      * keep the screen solid black). No-op when no fade is in progress. */
     fade_render(g_dev);
+
+    /* Engine FUN_004547ab L203: "Now Loading…" overlay. Drawn after
+     * the fade quad so the spinner sits on top of any cross-fade
+     * darkening. nowloading_render() is gated internally on
+     * nowloading_set_active() — does only an alpha-counter decay tick
+     * if the gate is 0. Set by scene_post_fade_init() at the moment
+     * the LOADING→INGAME flip happens. */
+    nowloading_render(g_dev);
 
     if (g_show_sprite.tex) {
         sprite_draw(g_dev, &g_show_sprite, 32.0f, 32.0f);

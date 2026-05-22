@@ -81,6 +81,17 @@ const render_quad_vtx_t *render_quad_buffer(void);
  * DrawPrimitiveUP call. */
 void render_quad_reset(void);
 
+/* Pure-C entry: fill vertex slots 0..3 in the static vbuf with the
+ * rotated-quad geometry of FUN_004063c7. Writes ONLY x, y, diffuse,
+ * u, v fields (z/rhw/specular were pre-set by render_quad_init). Does
+ * NOT touch the vertex counter or issue a D3D draw. Exposed for the
+ * Linux unit-test build; the Win32 render_quad_draw_rotated below
+ * wraps this and adds the SetVertexShader + DrawPrimitiveUP + counter-
+ * reset that match the engine call site. */
+void render_quad_fill_rotated_vbuf(float center_x, float center_y,
+                                   float half_size, float rotation_rad,
+                                   const float uv[4], uint32_t diffuse);
+
 #ifdef _WIN32
 
 #define COBJMACROS
@@ -102,6 +113,38 @@ void render_quad_state_setup(IDirect3DDevice8 *dev);
  * DrawPrimitiveUP(TRIANGLELIST, count/3, vbuf, stride=32), then
  * clear the counter. No-op if no vertices pending. */
 void render_quad_flush(IDirect3DDevice8 *dev);
+
+/* FUN_004063c7 — self-contained rotated-quad draw. Writes exactly 4
+ * vertices into the static vbuf at indices 0..3 (CLOBBERING anything
+ * batched there), then DrawPrimitiveUP as TRIANGLESTRIP (2 triangles)
+ * with the texture currently bound to stage 0.
+ *
+ * IMPORTANT: caller must flush any pending batch before calling.
+ * The engine relies on FUN_00405354 having been invoked immediately
+ * before (see FUN_00453147 — the Now Loading overlay). On exit the
+ * vertex counter is reset to 0.
+ *
+ *   (center_x, center_y) — quad centre in 640-relative pixels.
+ *   half_size            — half-edge length of the (unrotated) quad,
+ *                          640-relative pixels. The diagonal radius
+ *                          is sqrt(2) * half_size.
+ *   rotation_rad         — extra rotation around the centre, on top
+ *                          of the engine's baked-in π/4 corner offset.
+ *   uv[4]                — (u0, v0, u1, v1) sampling rectangle in
+ *                          normalised texture coords (0..1). Engine
+ *                          encodes uv in the same order via param_2
+ *                          double-fetches.
+ *   diffuse              — D3DCOLOR (0xAARRGGBB).
+ *
+ * The X/Y position math matches the engine bit-for-bit:
+ *   screen_x = ((-sin(angle) * radius) + center_x) * screen_w / 640
+ *   screen_y = ((-cos(angle) * radius) + center_y) * screen_w / 640
+ * with `angle = (i/4)*2π + rotation + π/4` for the four corners.
+ */
+void render_quad_draw_rotated(IDirect3DDevice8 *dev,
+                              float center_x, float center_y,
+                              float half_size, float rotation_rad,
+                              const float uv[4], uint32_t diffuse);
 
 #endif /* _WIN32 */
 

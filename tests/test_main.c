@@ -422,6 +422,11 @@ struct test_case {
     X(render_quad_rejects_zero_tex_dim) \
     X(render_quad_reset_keeps_z_rhw_prefill) \
     X(render_quad_init_zero_screen_w_defaults_640) \
+    X(render_quad_rotated_zero_rotation_axis_aligned) \
+    X(render_quad_rotated_quarter_turn_rolls_corners) \
+    X(render_quad_rotated_scales_by_screen_w) \
+    X(render_quad_rotated_does_not_touch_vertex_counter) \
+    X(render_quad_rotated_preserves_z_rhw_specular) \
     \
     X(scene_title_assets_count_is_seven) \
     X(scene_title_assets_paths_match_pe) \
@@ -624,6 +629,14 @@ struct test_case {
     X(scene_post_fade_init_lands_in_ingame) \
     X(scene_post_fade_init_clears_substate) \
     X(scene_post_fade_init_starts_fade_in) \
+    \
+    X(nowloading_reset_zeroes_state) \
+    X(nowloading_set_active_normalises_to_zero_one) \
+    X(nowloading_tick_idle_decays_alpha_by_32) \
+    X(nowloading_tick_active_advances_rotation_by_0_3) \
+    X(nowloading_tick_active_does_not_decay_alpha) \
+    X(nowloading_tick_idle_does_not_advance_rotation) \
+    X(nowloading_tick_returns_previous_gate_state) \
     \
     X(font_init_zeros_state) \
     X(font_init_is_idempotent) \
