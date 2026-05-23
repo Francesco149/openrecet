@@ -1,0 +1,89 @@
+/*
+ * scene1_postload — scene-1 INGAME state-entry hooks (Cf.1 MVP).
+ *
+ * Targets the tail of engine FUN_00436f97 (line 690-700 of the
+ * decompile, i.e. the 200-iter ambient-particle spawn loop).  Full
+ * survey: `docs/findings/scene1-postload-init.md`.
+ *
+ * The Cf.1 MVP ports only:
+ *
+ *   - block 11 i=0 case   →  scene1_postload_pose_player()
+ *   - block 23            →  scene1_postload_ambient_spawn()
+ *
+ * Everything else in the 710-line FUN_00436f97 body (spiral terrain-
+ * collision retry, multi-player pose, ~120 BSS resets, the 11 sub-init
+ * helpers, the per-stage-class init dispatch, the alt-stage arm, the
+ * music start, the tail-call epilogue) is intentionally out of scope.
+ *
+ * Stand-in seam: the engine's per-stage default player-spawn-pos
+ * globals at `_DAT_0438b1ec/f0/f4` are written by the per-stage init
+ * dispatch family (not ported yet).  Until that lands we model them as
+ * a static 3-float array with the FUN_0044f13d-observed default
+ * (-40, 0, -60).  Pending-human-check #9: validate via Frida that
+ * those literals match the engine's value at the moment FUN_00436f97
+ * actually runs.
+ */
+#ifndef OPENRECET_SCENE1_POSTLOAD_H
+#define OPENRECET_SCENE1_POSTLOAD_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
+ * Engine analog: `_DAT_0438b1ec/f0/f4`.  Default values match
+ * `FUN_0044f13d:35-38` decompile (0xc2200000 / 0 / 0xc2700000 =
+ * -40.0f / 0.0f / -60.0f).  Reset to defaults by
+ * scene1_postload_init_stage_defaults().
+ */
+extern float g_scene1_stage_player_default_pos[3];
+
+/*
+ * Reset `g_scene1_stage_player_default_pos` to the
+ * FUN_0044f13d-observed defaults.  Idempotent; safe to call multiple
+ * times per scene transition.
+ */
+void scene1_postload_init_stage_defaults(void);
+
+/*
+ * Block-11 i=0 case of engine FUN_00436f97 (L228-243).  Copies
+ * `g_scene1_stage_player_default_pos` into `g_scene1_player_pos`.
+ * Engine also: zeroes `g_scene1_player_vel` (BSS-zero by default in
+ * our port), zeroes the multi-player slots player[1] / player[2]
+ * (no consumer), and runs a spiral terrain-collision retry via
+ * FUN_00432e50 (unported — terrain query is its own chip).  Cf.1
+ * does just the single-player pose copy.
+ */
+void scene1_postload_pose_player(void);
+
+/*
+ * Block-23 of engine FUN_00436f97 (L690-700).  No-op when
+ * `g_stage_palette == NULL` or `g_stage_palette->ambient_spawn_flag
+ * == 0` (the engine gate at `*(DAT_068dd2f0 + 0x1b28) != 0`).  When
+ * the gate is set, runs the 200-iter spawn-and-tick loop:
+ *
+ *   for (i = 200; i > 0; --i) {
+ *     scene1_spawn(0, player.x, player.y + 2.0f, player.z,
+ *                  0x4f, 1.0f, 1);
+ *     scene1_particles_tick();
+ *   }
+ *
+ * Reads player pose from `g_scene1_player_pos[3]` — caller is
+ * expected to have called scene1_postload_pose_player() first
+ * (or set the pose directly).
+ */
+void scene1_postload_ambient_spawn(void);
+
+/*
+ * Test / smoke helper — writes `g_stage_palette->ambient_spawn_flag`
+ * directly.  Safe with `g_stage_palette == NULL` (no-op).  Mirrors
+ * how the engine's per-stage init writers will populate the field
+ * once they port.
+ */
+void scene1_postload_force_ambient_flag(int value);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* OPENRECET_SCENE1_POSTLOAD_H */

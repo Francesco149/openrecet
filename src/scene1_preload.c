@@ -7,6 +7,7 @@
 #include "scene1_preload.h"
 
 #include "mesh_load.h"
+#include "scene1_postload.h"
 #include "scene1_records.h"
 #include "stage_palette.h"
 #include "stage_state.h"
@@ -71,6 +72,20 @@ int scene1_preload_house(void)
      * also touches DAT_044e28fc / DAT_0695e07c / DAT_0064e818 and calls
      * FUN_00414902 — deferred until their consumers port. */
     scene1_records_reset(1);
+
+    /* Cf.1 — engine FUN_00436f97 tail (the 200-iter ambient spawn loop
+     * at L690-700).  Wiring here is a stand-in: the engine doesn't run
+     * FUN_00436f97 on HOUSE entry from title (it's called from sub-
+     * scene transitions via FUN_0048526d / FUN_0049e163, both
+     * unported).  The gate `ambient_spawn_flag` at stage_palette +
+     * 0x1b28 is BSS-zero for HOUSE, so the spawn loop no-ops here
+     * unless tests / a future force-flag CLI trip it.  Pose-player
+     * + init_stage_defaults run unconditionally to mirror the
+     * engine's pre-gate work.  See docs/findings/scene1-postload-
+     * init.md for the 25-block survey + Cf.1 scope. */
+    scene1_postload_init_stage_defaults();
+    scene1_postload_pose_player();
+    scene1_postload_ambient_spawn();
 
     /* Engine guards: top-of-FUN_00474a9a clamps DAT_0438b4dc to the
      * selector table. We seeded selectors in stage_state at boot, so

@@ -1,0 +1,259 @@
+/*
+ * test_scene1_postload.c — Cf.1 MVP coverage for the FUN_00436f97 tail
+ * port.  See `docs/findings/scene1-postload-init.md` for the chip scope.
+ *
+ * Covers:
+ *   - Stage default player pos init (the -40 / 0 / -60 FUN_0044f13d literal)
+ *   - Pose-player copy from stage default → g_scene1_player_pos
+ *   - Ambient-spawn gate: NULL palette + flag=0 are no-ops
+ *   - Ambient-spawn flag=1: 200 spawn+tick iterations populate table A
+ *   - Spawned slots are type 0x4f with PARAM2=100 (the C8i.5c handler's
+ *     anchor-back fingerprint) and AGE staggered by integrator passes
+ *   - Force-helper writes the palette field, NULL-safe
+ *   - Player-pos pose propagates: spawn anchor is centered on
+ *     (player.x, player.y + 2, player.z) per the engine asm
+ *
+ * Resets g_scene1_records_a between tests so slot state is clean.
+ */
+
+#include "t.h"
+
+#include <string.h>
+
+#include "rng.h"
+#include "scene1_particles_tick.h"
+#include "scene1_postload.h"
+#include "scene1_records.h"
+#include "scene1_spawn.h"
+#include "stage_palette.h"
+
+static void reset_world(void)
+{
+    memset(g_scene1_records_a, 0, sizeof g_scene1_records_a);
+    scene1_records_reset(1);
+    scene1_spawn_trace_reset();
+    stage_palette_init_house();
+    /* RNG seed deterministically so spawn handlers that consume the
+     * rng_next15 stream stay reproducible across runs. */
+    rng_seed(0xC0FFEEu);
+    g_scene1_player_pos[0] = 0.0f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 0.0f;
+    g_scene1_camera_yaw     = 0.0f;
+    g_scene1_camera_yaw_alt = 0.0f;
+    scene1_postload_init_stage_defaults();
+}
+
+static int32_t slot_read_i(int i, int off)
+{
+    return g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE + off];
+}
+
+static float slot_read_f(int i, int off)
+{
+    int32_t v = g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE + off];
+    float f;
+    memcpy(&f, &v, sizeof f);
+    return f;
+}
+
+static int count_committed_slots_with_type(int type)
+{
+    int count = 0;
+    for (int i = 0; i < SCENE1_RECORDS_A_COUNT; i++) {
+        if (slot_read_i(i, SCENE1_RECORDS_A_OFF_TYPE) == type) {
+            count++;
+        }
+    }
+    return count;
+}
+
+/* ─── stage default + pose-player ─────────────────────────────────── */
+
+int test_scene1_postload_stage_defaults_match_fun_0044f13d(void)
+{
+    reset_world();
+    /* FUN_0044f13d:35-38 literals: 0xc2200000 / 0 / 0xc2700000 =
+     * (-40.0f, 0.0f, -60.0f).  Pending-human-check #9: validate
+     * via Frida that engine writes the same value here at the time
+     * FUN_00436f97 actually runs. */
+    T_ASSERT(g_scene1_stage_player_default_pos[0] == -40.0f);
+    T_ASSERT(g_scene1_stage_player_default_pos[1] ==   0.0f);
+    T_ASSERT(g_scene1_stage_player_default_pos[2] == -60.0f);
+    return 0;
+}
+
+int test_scene1_postload_init_stage_defaults_is_idempotent(void)
+{
+    reset_world();
+    g_scene1_stage_player_default_pos[0] = 99.0f;
+    g_scene1_stage_player_default_pos[1] = 99.0f;
+    g_scene1_stage_player_default_pos[2] = 99.0f;
+    scene1_postload_init_stage_defaults();
+    T_ASSERT(g_scene1_stage_player_default_pos[0] == -40.0f);
+    T_ASSERT(g_scene1_stage_player_default_pos[2] == -60.0f);
+    return 0;
+}
+
+int test_scene1_postload_pose_player_copies_defaults(void)
+{
+    reset_world();
+    g_scene1_player_pos[0] = 999.0f;
+    g_scene1_player_pos[1] = 999.0f;
+    g_scene1_player_pos[2] = 999.0f;
+
+    scene1_postload_pose_player();
+
+    T_ASSERT(g_scene1_player_pos[0] == -40.0f);
+    T_ASSERT(g_scene1_player_pos[1] ==   0.0f);
+    T_ASSERT(g_scene1_player_pos[2] == -60.0f);
+    return 0;
+}
+
+/* ─── ambient_spawn gate ──────────────────────────────────────────── */
+
+int test_scene1_postload_ambient_spawn_no_palette_is_noop(void)
+{
+    reset_world();
+    g_stage_palette = NULL;
+    scene1_postload_ambient_spawn();
+    /* No spawn calls recorded — trace ring should be empty. */
+    T_ASSERT(g_scene1_spawn_trace_count == 0);
+    /* Restore palette so other tests aren't poisoned. */
+    stage_palette_init_house();
+    return 0;
+}
+
+int test_scene1_postload_ambient_spawn_flag_zero_is_noop(void)
+{
+    reset_world();
+    T_ASSERT(g_stage_palette != NULL);
+    T_ASSERT(g_stage_palette->ambient_spawn_flag == 0);
+    scene1_postload_ambient_spawn();
+    T_ASSERT(g_scene1_spawn_trace_count == 0);
+    return 0;
+}
+
+int test_scene1_postload_force_ambient_flag_writes_palette(void)
+{
+    reset_world();
+    scene1_postload_force_ambient_flag(7);
+    T_ASSERT(g_stage_palette->ambient_spawn_flag == 7);
+    scene1_postload_force_ambient_flag(0);
+    T_ASSERT(g_stage_palette->ambient_spawn_flag == 0);
+    return 0;
+}
+
+int test_scene1_postload_force_ambient_flag_null_safe(void)
+{
+    reset_world();
+    g_stage_palette = NULL;
+    /* Should not crash; the helper exits early on NULL palette. */
+    scene1_postload_force_ambient_flag(1);
+    stage_palette_init_house();
+    return 0;
+}
+
+/* ─── ambient_spawn loop body ─────────────────────────────────────── */
+
+int test_scene1_postload_ambient_spawn_runs_200_iterations(void)
+{
+    reset_world();
+    scene1_postload_force_ambient_flag(1);
+    scene1_postload_ambient_spawn();
+    /* The trace ring records every scene1_spawn call regardless of
+     * commit; the loop runs 200 iterations unconditionally. */
+    T_ASSERT(g_scene1_spawn_trace_count == 200);
+    return 0;
+}
+
+int test_scene1_postload_ambient_spawn_records_type_4f(void)
+{
+    reset_world();
+    scene1_postload_force_ambient_flag(1);
+    scene1_postload_ambient_spawn();
+
+    /* Type 0x4f is implemented in C8i.5c (param_7-count via
+     * LAB_0044aa47); count_index=1 ⇒ 1 particle per call.  The
+     * integrator's handle_type_4f kills the slot when AGE reaches
+     * exactly 0x8c (140) — which is the same constant the spawn
+     * handler writes to PARAM2.
+     *
+     * For iter k of 1..200: the particle is ticked (200-k+1) times,
+     * reaching final age 201-k.  Particles with k <= 61 hit age=140
+     * mid-loop and get killed, leaving 139 surviving slots.  This
+     * matches the engine's intent: the 200-iter loop is designed to
+     * "fill" the ambient layer to its steady-state population
+     * (=PARAM2-ish slots alive at any moment). */
+    T_ASSERT_EQ_I(count_committed_slots_with_type(0x4f), 139);
+    return 0;
+}
+
+int test_scene1_postload_ambient_spawn_param2_is_100(void)
+{
+    reset_world();
+    scene1_postload_force_ambient_flag(1);
+    scene1_postload_ambient_spawn();
+    /* C8i.5c's type 0x4f handler writes PARAM2 = 100 (the anchor-
+     * back distance constant) and AGE = -count_index = -1 at spawn.
+     * The integrator's handle_type_4f kills slots when AGE reaches
+     * 0x8c (140) on the SAME constant, so 60 of the 200 spawns get
+     * killed mid-loop and their slots are re-used for later spawns.
+     * Slot 100 is in the [60..139] "never-killed" range so it still
+     * holds its original first-fit spawn data. */
+    int late_slot = 100;
+    T_ASSERT_EQ_I(slot_read_i(late_slot, SCENE1_RECORDS_A_OFF_TYPE), 0x4f);
+    T_ASSERT_EQ_I(slot_read_i(late_slot, SCENE1_RECORDS_A_OFF_PARAM2), 100);
+    return 0;
+}
+
+int test_scene1_postload_ambient_spawn_uses_player_pos_y_plus_2(void)
+{
+    reset_world();
+    /* Stage default pose is (-40, 0, -60); after pose_player() the
+     * player sits there.  Engine asm at 0x4381d5 adds 2.0 to player.y
+     * once outside the loop. */
+    scene1_postload_pose_player();
+    scene1_postload_force_ambient_flag(1);
+    scene1_postload_ambient_spawn();
+
+    T_ASSERT(g_scene1_spawn_trace_count == 200);
+    /* Every traced call should be centered on (player.x, player.y+2,
+     * player.z) — the loop hoists the y+2 add out of the loop and
+     * reuses constants every iteration.  The trace is a 32-slot
+     * ring; after 200 calls every slot has been overwritten by a
+     * later call with identical args, so checking 0..31 covers the
+     * invariant. */
+    for (int i = 0; i < SCENE1_SPAWN_TRACE_CAPACITY; i++) {
+        T_ASSERT(g_scene1_spawn_trace[i].x == -40.0f);
+        T_ASSERT(g_scene1_spawn_trace[i].y ==   2.0f);
+        T_ASSERT(g_scene1_spawn_trace[i].z == -60.0f);
+        T_ASSERT(g_scene1_spawn_trace[i].type == 0x4f);
+        T_ASSERT(g_scene1_spawn_trace[i].scale == 1.0f);
+        T_ASSERT(g_scene1_spawn_trace[i].param7 == 1);
+        T_ASSERT(g_scene1_spawn_trace[i].slot_hint == 0);
+    }
+    return 0;
+}
+
+int test_scene1_postload_ambient_spawn_tick_advances_records(void)
+{
+    reset_world();
+    scene1_postload_force_ambient_flag(1);
+    scene1_postload_ambient_spawn();
+
+    /* Type 0x4f's position is anchor-back: pos = (anchor) - vel*100.
+     * Since vel is per-particle randomized (sin/cos of a random
+     * angle), no two slots should have exactly the same pos.  Slots
+     * 100 and 130 are both in the [60..139] "never-killed" range —
+     * slot 100 spawned ~iter 101 (~99 ticks of integration), slot
+     * 130 spawned ~iter 131 (~69 ticks).  Both alive, both have
+     * advanced along their (different) random vel vectors, so y
+     * must differ. */
+    float y100 = slot_read_f(100, SCENE1_RECORDS_A_OFF_POS_Y);
+    float y130 = slot_read_f(130, SCENE1_RECORDS_A_OFF_POS_Y);
+    T_ASSERT(slot_read_i(100, SCENE1_RECORDS_A_OFF_TYPE) == 0x4f);
+    T_ASSERT(slot_read_i(130, SCENE1_RECORDS_A_OFF_TYPE) == 0x4f);
+    T_ASSERT(y100 != y130);
+    return 0;
+}

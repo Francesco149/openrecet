@@ -1283,7 +1283,20 @@ struct test_case {
     X(sim_step_a_state_4_skips_integrator) \
     X(sim_step_a_state_5_skips_integrator) \
     X(sim_step_a_state_a_skips_integrator) \
-    X(sim_step_a_state_c_skips_integrator)
+    X(sim_step_a_state_c_skips_integrator) \
+    \
+    X(scene1_postload_stage_defaults_match_fun_0044f13d) \
+    X(scene1_postload_init_stage_defaults_is_idempotent) \
+    X(scene1_postload_pose_player_copies_defaults) \
+    X(scene1_postload_ambient_spawn_no_palette_is_noop) \
+    X(scene1_postload_ambient_spawn_flag_zero_is_noop) \
+    X(scene1_postload_force_ambient_flag_writes_palette) \
+    X(scene1_postload_force_ambient_flag_null_safe) \
+    X(scene1_postload_ambient_spawn_runs_200_iterations) \
+    X(scene1_postload_ambient_spawn_records_type_4f) \
+    X(scene1_postload_ambient_spawn_param2_is_100) \
+    X(scene1_postload_ambient_spawn_uses_player_pos_y_plus_2) \
+    X(scene1_postload_ambient_spawn_tick_advances_records)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

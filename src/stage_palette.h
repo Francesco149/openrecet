@@ -95,7 +95,19 @@ typedef struct stage_palette_s {
     int32_t clear_g;
     int32_t clear_b;
 
-    char _pad_1ab4[STAGE_PALETTE_SIZE - 0x1ab4];
+    char _pad_1ab4[0x1b28 - 0x1ab4];
+
+    /* +0x1b28 — ambient-particle gate. Read at the tail of FUN_00436f97
+     * (scene-1 INGAME state-entry init): if non-zero, the engine kicks
+     * off a 200-iter scene1_spawn(type=0x4f, ...) + scene1_particles_tick
+     * loop centered on the player's spawn pose, pre-populating ambient
+     * effects so the scene comes up mid-flight. HOUSE default: zero —
+     * no ambient layer. Per-stage writer is unported (lives somewhere
+     * in the per-stage init dispatch FUN_0044c88f / d1e4 / d9d3 / e08f
+     * / 0443 / 0ee0 family). See `docs/findings/scene1-postload-init.md`. */
+    int32_t ambient_spawn_flag;
+
+    char _pad_1b2c[STAGE_PALETTE_SIZE - 0x1b2c];
 } stage_palette_t;
 
 _Static_assert(sizeof(stage_palette_t) == STAGE_PALETTE_SIZE,
@@ -119,6 +131,8 @@ _Static_assert(offsetof(stage_palette_t, clear_g)            == 0x1aac,
                "stage_palette_t.clear_g @ +0x1aac");
 _Static_assert(offsetof(stage_palette_t, clear_b)            == 0x1ab0,
                "stage_palette_t.clear_b @ +0x1ab0");
+_Static_assert(offsetof(stage_palette_t, ambient_spawn_flag) == 0x1b28,
+               "stage_palette_t.ambient_spawn_flag @ +0x1b28");
 
 /* Storage. The pointer is the engine analog of DAT_068dd2f0; the
  * static record is the engine analog of `DAT_068dd2f8 + stage_idx *
