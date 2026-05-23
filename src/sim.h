@@ -13,8 +13,11 @@
  *     commit; the scheduler tolerates a NULL `sim_b` callback.
  *
  * What's wired so far:
- *   - state 0 (title) calls `scene_title_sim` (see scene_title.{c,h})
- *   - every other state is a one-time logged no-op
+ *   - state 0 (title)  → `scene_title_sim_default`
+ *   - state 1 (INGAME) → `scene1_ingame_tick` (Cs1, 2026-05-23 — minimal
+ *                        port of FUN_004427d3; drives scene1_particles_tick)
+ *   - every other state is a no-op (Cs2+ chip ladder; see
+ *     docs/findings/sim-step-a-dispatch.md)
  *
  * The button-ring update is the only piece of FUN_004536cb that always
  * runs regardless of scene state, so it lives at the top of `sim_step_a`.

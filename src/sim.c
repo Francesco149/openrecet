@@ -34,6 +34,7 @@
 #include "input.h"        /* g_input_state for cur-buttons read */
 #include "nowloading.h"   /* nowloading_set_active(0) — drop the overlay gate */
 #include "scene.h"        /* g_scene_state dispatch */
+#include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
 #include "worker_load.h"  /* worker_load_busy — primary asset-load worker gate */
 
@@ -222,11 +223,21 @@ void sim_step_a(void)
     }
 
     /* Scene dispatch by `g_scene_state` (engine global DAT_0438b1c0).
-     * Only state 0 (title) is wired up today; the other states drop
-     * through silently while their producers/consumers port. */
+     *
+     * Today only states 0 (title) and 1 (INGAME / HOUSE) are wired.
+     * The other states (2..0x10) fall through to the default arm
+     * until their per-scene tick handlers port — see Cs2 in
+     * docs/findings/sim-step-a-dispatch.md for the LAB_00453bed
+     * mass dispatch that handles states 2-4, 6-8, 0xb, 0xd-0x10. */
     switch (g_scene_state) {
     case SCENE_STATE_TITLE:
         scene_title_sim_default();
+        break;
+    case SCENE_STATE_INGAME:
+        /* Cs1 — minimal port of FUN_004427d3.  The engine's INGAME
+         * path also runs 5 unported siblings (player + NPC + world
+         * tick + UI + camera).  See src/scene1_sim.c header. */
+        scene1_ingame_tick();
         break;
     default:
         break;

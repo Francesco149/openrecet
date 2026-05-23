@@ -1270,7 +1270,12 @@ struct test_case {
     X(particles_tick_type_4a_npc_anchor) \
     X(particles_tick_type_4a_oob_param1_safe) \
     X(particles_tick_type_4a_kills_at_0x18) \
-    X(particles_tick_type_34_rotation_is_applied)
+    X(particles_tick_type_34_rotation_is_applied) \
+    \
+    X(scene1_ingame_tick_runs_integrator) \
+    X(sim_step_a_state_ingame_runs_integrator) \
+    X(sim_step_a_state_title_skips_integrator) \
+    X(sim_step_a_state_ingame_100_ticks)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
