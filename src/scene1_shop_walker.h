@@ -127,6 +127,14 @@
 #ifndef OPENRECET_SCENE1_SHOP_WALKER_H
 #define OPENRECET_SCENE1_SHOP_WALKER_H
 
+#include <stdint.h>
+
+/* Pass D record-emit predicate + matrix composer.  D3D-free helpers,
+ * available on host (Linux) for unit tests.  See
+ * scene1_shop_walker_helpers.c for derivation. */
+int  sw_pass_d_should_emit(const int32_t *slot);
+void sw_pass_d_compose_world(float out[16], const int32_t *slot);
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;

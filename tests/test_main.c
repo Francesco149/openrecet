@@ -1315,7 +1315,15 @@ struct test_case {
     X(scene1_camera_view_matches_lookat_rh_when_z_roll_zero) \
     X(scene1_camera_view_applies_z_roll_when_nonzero) \
     X(scene1_postload_pose_override_replaces_player_pos) \
-    X(scene1_postload_pose_override_disable_restores_player_pos)
+    X(scene1_postload_pose_override_disable_restores_player_pos) \
+    \
+    X(scene1_pass_d_should_emit_rejects_sentinel) \
+    X(scene1_pass_d_should_emit_accepts_match_types) \
+    X(scene1_pass_d_should_emit_rejects_adjacent_types) \
+    X(scene1_pass_d_compose_translation_only) \
+    X(scene1_pass_d_compose_scale_factor_is_point_2) \
+    X(scene1_pass_d_compose_rotation_x_mixes_y_z) \
+    X(scene1_pass_d_compose_scale_field_is_float_not_int)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

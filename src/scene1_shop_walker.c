@@ -18,6 +18,8 @@
 
 #include <stdint.h>
 
+#include "math3d.h"          /* mat4_translation / scaling / rotation_x / mul */
+#include "scene1_emit_record.h" /* scene1_emit_record — per-record draw helper */
 #include "scene1_records.h"  /* per-pass active counts */
 #include "scene1_render.h"   /* scene1_render_push_projection +
                                 scene1_render_apply_palette_combiner_mode */
@@ -250,18 +252,44 @@ static void sw_pass_c(IDirect3DDevice8 *dev)
 }
 
 /* Pass D walks DAT_069b2fb0 table, stride 0x25 dwords.  Type
- * filter {0x74, 0x79, 0x96} with [-1] != -1 active gate.  Per-
- * record: Translation × Scaling × RotationX × Scaling(1,1,1) →
- * emit with &DAT_073a9680 override. */
+ * filter {0x74, 0x79, 0x96} with TYPE != -1 active gate.  Per-
+ * record: Translation × Scaling(-s, s, s) × RotationX → emit with
+ * &DAT_073a9680 override.  Engine FUN_004552d0 L239-L258, asm
+ * @ 0x455bc8..0x455cea.
+ *
+ * Today's wired result: when records of these types populate (e.g.
+ * via `--ambient-spawn-type 0x79`), this loop builds and sets a
+ * world matrix per matching record then calls scene1_emit_record,
+ * which short-circuits inside (em_material_slot_count() == 0 in
+ * HOUSE).  Visible pixels arrive when the scene1_emit_record mesh
+ * bridge lands — see C8e TODO inline. */
 static void sw_pass_d(IDirect3DDevice8 *dev)
 {
     int count = sw_pass_d_count();
     if (count == 0) return;
-    /* TODO C8-followup: walk DAT_069b2fb0 stride 0x25 dwords;
-     * type filter per engine L243; emit via
-     * sw_emit_record_TODO((void *)0x73a9680) per match. */
-    (void)dev;
-    (void)count;
+    if (count > SCENE1_RECORDS_A_COUNT) count = SCENE1_RECORDS_A_COUNT;
+
+    for (int slot_idx = 0; slot_idx < count; slot_idx++) {
+        const int32_t *slot =
+            &g_scene1_records_a[slot_idx * SCENE1_RECORDS_A_STRIDE];
+
+        if (!sw_pass_d_should_emit(slot)) continue;
+
+        float world[16];
+        sw_pass_d_compose_world(world, slot);
+
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                      (const D3DMATRIX *)world);
+
+        /* Engine `FUN_00455191(&DAT_073a9680)` — override is the
+         * Pass-C/D mesh-record stand-in (a static engine global of
+         * the per-mesh shape, address outside our unpacked image).
+         * scene1_emit_record ignores override_table today
+         * (em_material_slot_count() == 0 short-circuits the inner
+         * loop), so NULL is safe.  Future bridge chip should
+         * resolve a real mesh_t for this slot. */
+        scene1_emit_record((struct IDirect3DDevice8 *)dev, NULL, NULL);
+    }
 }
 
 /* Pass E outer × inner = sw_pass_e_outer_count() × 10.  Outer
