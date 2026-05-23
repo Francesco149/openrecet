@@ -20,14 +20,32 @@
 #
 # Walking each IB to materialise the triangle list normalises both
 # representations to the same shape — a list of (pos_a, pos_b, pos_c)
-# triples, position-only — and any divergence then surfaces a real
-# parser issue (wrong Frame composition, dropped face, wrong vertex
+# triples — and any position-level divergence surfaces a real parser
+# issue (wrong Frame composition, dropped face, wrong vertex
 # referenced, etc).
+#
+# Two phases:
+#   1. position-only diff: triangles match modulo winding + welding.
+#      If this fails, the parser's emitting different geometry.
+#   2. per-attribute drill-in: for triangles whose positions match,
+#      compare the corner-level normal / diffuse / uv attributes.
+#      Tells us where the render-side bytes diverge even when the
+#      geometry is shape-equivalent — e.g. MeshVertexColors not
+#      parsed (ours stays 0xffffffff, retail has whatever the .x
+#      block specifies), flat-vs-smooth normals, UV layout drift.
+#
+# Exit code:
+#   0 = byte-equivalent across all channels
+#   1 = positions match, non-position channel diverges
+#   2 = position-level divergence (parser bug)
 #
 # Usage:
 #   tools/diff-mesh.py <ours_dump_dir> <retail_dump_dir>
 #   tools/diff-mesh.py runs/ours-meshes/xfile__shop__shop_1st.x \
 #                      runs/retail-meshes/xfile__shop__shop_1st.x
+#
+# Position-only mode (skip the attribute drill-in):
+#   tools/diff-mesh.py --no-attr <ours> <retail>
 #
 # Single-arg mode (just stats for one dump):
 #   tools/diff-mesh.py <dump_dir>
@@ -120,6 +138,194 @@ def canon_triangles(verts, indices, tol_decimals=3):
     return tris
 
 
+def canon_triangles_full(verts, indices, pos_decimals=3,
+                         normal_decimals=3, uv_decimals=4):
+    """Like canon_triangles but each corner is a full attribute tuple:
+        (pos, normal, diffuse, uv)
+    so the per-attribute diff can ask "for triangles whose positions
+    match, do the other channels match too?".
+
+    Each tri returned has shape ((corner0, corner1, corner2), key3pos)
+    where corner is ((px,py,pz), (nx,ny,nz), diffuse, (u,v)) and the
+    corners are sorted lexicographically (position first), and key3pos
+    is the position-only tuple-of-three (same order as the corners
+    after sort) — used for joining attribute-rich tris back to the
+    position-only multiset.
+    """
+    tris = []
+    for t in range(len(indices) // 3):
+        ia, ib, ic = indices[t*3:t*3+3]
+        corners = []
+        for idx in (ia, ib, ic):
+            x, y, z, nx, ny, nz, diffuse, u, v = verts[idx]
+            pos = (round(x, pos_decimals),
+                   round(y, pos_decimals),
+                   round(z, pos_decimals))
+            nrm = (round(nx, normal_decimals),
+                   round(ny, normal_decimals),
+                   round(nz, normal_decimals))
+            uv  = (round(u, uv_decimals),
+                   round(v, uv_decimals))
+            corners.append((pos, nrm, int(diffuse) & 0xffffffff, uv))
+        corners.sort()  # by position first, then attribute lexorder
+        key3pos = tuple(c[0] for c in corners)
+        tris.append((tuple(corners), key3pos))
+    return tris
+
+
+def diff_attributes(ours_full, retail_full):
+    """For each (position-only) triangle present in both ours and
+    retail, compare the per-corner non-position attributes (normal,
+    diffuse, uv). Reports which channel diverges and where.
+
+    Both inputs are output of canon_triangles_full.
+    """
+    print(f"\n── per-attribute diff (matched-by-position triangles) ──")
+
+    # Group attribute-rich triangles by position-key. A given position
+    # triple may occur multiple times in a mesh (props with identical
+    # cloned faces) — we keep them as a list so multiplicity is
+    # preserved.
+    from collections import defaultdict, Counter
+    by_pos_ours   = defaultdict(list)
+    by_pos_retail = defaultdict(list)
+    for corners, key in ours_full:
+        by_pos_ours[key].append(corners)
+    for corners, key in retail_full:
+        by_pos_retail[key].append(corners)
+
+    shared_keys = set(by_pos_ours) & set(by_pos_retail)
+    print(f"  shared position-keys:           {len(shared_keys)}")
+
+    tris_compared       = 0
+    tris_attr_identical = 0
+    normal_mismatch_tris = 0
+    diffuse_mismatch_tris = 0
+    uv_mismatch_tris = 0
+
+    # Per-corner channel mismatch counters (corners, not triangles)
+    n_corners = 0
+    n_normal_diff = 0
+    n_diffuse_diff = 0
+    n_uv_diff = 0
+
+    # Histogram of (ours_diffuse, retail_diffuse) pairs — surfaces the
+    # MeshVertexColors block being unread (ours stays 0xffffffff while
+    # retail has whatever the .x specifies).
+    diffuse_pairs = Counter()
+    # Max angle delta between paired normals (degrees, approx).
+    import math
+    worst_normal_angle = 0.0
+    worst_normal_example = None
+    # Max UV delta (max over u,v components).
+    worst_uv_delta = 0.0
+    worst_uv_example = None
+
+    # Examples for the report.
+    examples_normal = []
+    examples_diffuse = []
+    examples_uv = []
+
+    for key in shared_keys:
+        o_list = by_pos_ours[key]
+        r_list = by_pos_retail[key]
+        # Pair greedily — if there's multiplicity skew at this position
+        # we'll still compare min(len(o), len(r)) tris and the surplus
+        # surfaces via the position-only diff.
+        for o, r in zip(o_list, r_list):
+            tris_compared += 1
+            # Corners are sorted by position; positions are equal
+            # because the key matched. Walk pairs.
+            tri_normal_bad = False
+            tri_diffuse_bad = False
+            tri_uv_bad = False
+            for (op, on, od, ou), (rp, rn, rd, ru) in zip(o, r):
+                n_corners += 1
+                if on != rn:
+                    tri_normal_bad = True
+                    n_normal_diff += 1
+                    # angle between normals
+                    dot = on[0]*rn[0] + on[1]*rn[1] + on[2]*rn[2]
+                    dot = max(-1.0, min(1.0, dot))
+                    ang = math.degrees(math.acos(dot))
+                    if ang > worst_normal_angle:
+                        worst_normal_angle = ang
+                        worst_normal_example = (op, on, rn, ang)
+                    if len(examples_normal) < 5:
+                        examples_normal.append((op, on, rn, ang))
+                if od != rd:
+                    tri_diffuse_bad = True
+                    n_diffuse_diff += 1
+                    diffuse_pairs[(od, rd)] += 1
+                    if len(examples_diffuse) < 5:
+                        examples_diffuse.append((op, od, rd))
+                if ou != ru:
+                    tri_uv_bad = True
+                    n_uv_diff += 1
+                    dmax = max(abs(ou[0]-ru[0]), abs(ou[1]-ru[1]))
+                    if dmax > worst_uv_delta:
+                        worst_uv_delta = dmax
+                        worst_uv_example = (op, ou, ru, dmax)
+                    if len(examples_uv) < 5:
+                        examples_uv.append((op, ou, ru))
+            if tri_normal_bad: normal_mismatch_tris += 1
+            if tri_diffuse_bad: diffuse_mismatch_tris += 1
+            if tri_uv_bad: uv_mismatch_tris += 1
+            if not (tri_normal_bad or tri_diffuse_bad or tri_uv_bad):
+                tris_attr_identical += 1
+
+    print(f"  triangle-pairs compared:        {tris_compared}")
+    print(f"  attr-identical:                 {tris_attr_identical}")
+    print(f"  normal mismatch (triangles):    {normal_mismatch_tris}")
+    print(f"  diffuse mismatch (triangles):   {diffuse_mismatch_tris}")
+    print(f"  uv mismatch (triangles):        {uv_mismatch_tris}")
+    print(f"  corners walked:                 {n_corners}")
+    print(f"  normal mismatch (corners):      {n_normal_diff}")
+    print(f"  diffuse mismatch (corners):     {n_diffuse_diff}")
+    print(f"  uv mismatch (corners):          {n_uv_diff}")
+
+    if n_normal_diff:
+        print(f"\n  normals — max angle delta:    {worst_normal_angle:.2f}°")
+        if worst_normal_example is not None:
+            op, on, rn, ang = worst_normal_example
+            print(f"    at {op}: ours={on} retail={rn} ({ang:.1f}°)")
+        print(f"  first {len(examples_normal)} normal-mismatch corners:")
+        for op, on, rn, ang in examples_normal:
+            print(f"    {op}: ours={on} retail={rn} ({ang:.1f}°)")
+
+    if n_diffuse_diff:
+        print(f"\n  diffuse — top (ours, retail) pair counts:")
+        for (od, rd), n in diffuse_pairs.most_common(8):
+            print(f"    ours=0x{od:08x} retail=0x{rd:08x}: "
+                  f"{n} corner(s)")
+        print(f"  first {len(examples_diffuse)} diffuse-mismatch corners:")
+        for op, od, rd in examples_diffuse:
+            print(f"    {op}: ours=0x{od:08x} retail=0x{rd:08x}")
+
+    if n_uv_diff:
+        print(f"\n  uvs — max component delta:    {worst_uv_delta:.4f}")
+        if worst_uv_example is not None:
+            op, ou, ru, dmax = worst_uv_example
+            print(f"    at {op}: ours={ou} retail={ru} (Δ={dmax:.4f})")
+        print(f"  first {len(examples_uv)} uv-mismatch corners:")
+        for op, ou, ru in examples_uv:
+            print(f"    {op}: ours={ou} retail={ru}")
+
+    return {
+        "tris_compared":        tris_compared,
+        "tris_attr_identical":  tris_attr_identical,
+        "normal_mismatch_tris": normal_mismatch_tris,
+        "diffuse_mismatch_tris": diffuse_mismatch_tris,
+        "uv_mismatch_tris":     uv_mismatch_tris,
+        "normal_mismatch_corners":  n_normal_diff,
+        "diffuse_mismatch_corners": n_diffuse_diff,
+        "uv_mismatch_corners":      n_uv_diff,
+        "worst_normal_angle_deg":   worst_normal_angle,
+        "worst_uv_delta":           worst_uv_delta,
+        "top_diffuse_pairs":        diffuse_pairs.most_common(8),
+    }
+
+
 def diff_triangle_sets(ours, retail):
     print(f"\n── triangle-set diff (positions only, rounded 0.001) ──")
     rs = set(retail)
@@ -170,7 +376,7 @@ def diff_triangle_sets(ours, retail):
 def main():
     ap = argparse.ArgumentParser(
         description="Compare two retail-format mesh dumps "
-                    "(triangle-set diff, position-only).")
+                    "(triangle-set diff + per-attribute drill-in).")
     ap.add_argument("ours_dir",
                     help="Dump dir for our parser's output (see "
                          "tools/dump-our-mesh/).")
@@ -181,6 +387,15 @@ def main():
     ap.add_argument("--tol-decimals", type=int, default=3,
                     help="Position rounding precision for canonical "
                          "comparison (default 3 = 0.001 unit).")
+    ap.add_argument("--normal-decimals", type=int, default=3,
+                    help="Normal rounding for per-attribute diff "
+                         "(default 3).")
+    ap.add_argument("--uv-decimals", type=int, default=4,
+                    help="UV rounding for per-attribute diff "
+                         "(default 4).")
+    ap.add_argument("--no-attr", action="store_true",
+                    help="Skip per-attribute (normal/diffuse/UV) "
+                         "drill-in; do only the position-only diff.")
     args = ap.parse_args()
 
     ours_dir = Path(args.ours_dir)
@@ -198,14 +413,43 @@ def main():
     tris_b = canon_triangles(verts_b, idx_b, args.tol_decimals)
     result = diff_triangle_sets(tris_a, tris_b)
 
-    # Exit code: 0 if triangle sets match (parser is byte-equivalent
-    # at the geometry level), 1 otherwise.
-    matched = (result["only_ours"] == 0 and
-               result["only_retail"] == 0 and
-               result["multiplicity_skew"] == 0)
-    print(f"\n{'PASS' if matched else 'FAIL'}: "
-          f"{'triangle sets identical' if matched else 'parser divergence detected'}")
-    sys.exit(0 if matched else 1)
+    attr_result = None
+    if not args.no_attr:
+        # Per-attribute drill-in: which triangles match by position
+        # but diverge on normal / diffuse / uv. Use the same position
+        # precision as the position-only diff so the position-key
+        # matches consistently.
+        full_a = canon_triangles_full(verts_a, idx_a,
+                                      args.tol_decimals,
+                                      args.normal_decimals,
+                                      args.uv_decimals)
+        full_b = canon_triangles_full(verts_b, idx_b,
+                                      args.tol_decimals,
+                                      args.normal_decimals,
+                                      args.uv_decimals)
+        attr_result = diff_attributes(full_a, full_b)
+
+    # Exit code:
+    #  0 = full bit-equivalence (positions + normals + diffuse + uvs)
+    #  1 = positions match but some non-position channel diverges
+    #  2 = position-level divergence (parser geometry bug)
+    pos_matched = (result["only_ours"] == 0 and
+                   result["only_retail"] == 0 and
+                   result["multiplicity_skew"] == 0)
+    attr_matched = (attr_result is None or
+                    (attr_result["normal_mismatch_corners"] == 0 and
+                     attr_result["diffuse_mismatch_corners"] == 0 and
+                     attr_result["uv_mismatch_corners"] == 0))
+    if pos_matched and attr_matched:
+        print(f"\nPASS: meshes byte-equivalent across all attributes")
+        sys.exit(0)
+    elif pos_matched:
+        print(f"\nFAIL: positions match but non-position channels "
+              f"diverge (see per-attribute diff above)")
+        sys.exit(1)
+    else:
+        print(f"\nFAIL: position-level divergence (parser geometry bug)")
+        sys.exit(2)
 
 
 if __name__ == "__main__":
