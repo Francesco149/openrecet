@@ -8,13 +8,12 @@
  * a contiguous index range — matching the engine's D3DX attribute-table
  * model without us having to reimplement ID3DXMesh::DrawSubset.
  *
- * Frame transforms are NOT pre-applied yet — vertices are stored in
- * each Mesh's local space. Most shipping .x files in the corpus put
- * vertex positions directly in world space (Frame transforms identity
- * or just translation that the engine reads from level/stage state
- * instead), so this is fine for the AAB/C0A worker-body unblock. TODO
- * for C7 render: accumulate world_transform per Mesh by walking the
- * Frame DFS during parse and apply at mesh_build_from_xfile time.
+ * Frame transforms ARE pre-applied: each xfile_mesh's frame_path is
+ * walked to find its parent Frame chain, an accumulated transform is
+ * composed innermost-first (M_inner * M_next * ... * M_outer in row-
+ * vector convention), and each vertex's position gets the full 4×4
+ * while each normal gets the upper 3×3 + renormalisation. Top-level
+ * meshes (empty frame_path) skip the math via an is_identity flag.
  * Diffuse channel defaults to white (0xFFFFFFFF); per-vertex colours
  * from MeshVertexColors are not consumed yet (the corpus's 1860 vertex
  * colour blocks are all rendered as flat-colour anyway).
