@@ -3,8 +3,25 @@
  *
  * Port of FUN_00447f4f @ 0x447f4f (1449-line Ghidra decomp).  C8i.1
  * landed the outer slot-scan + common preamble + 3 anchor types
- * (0x60, 0x20, 0x66).  C8i.2 added the radial-burst family.  C8i.3d
- * adds 13 orbit/fountain/world-jitter exotics (engine lines 736-975):
+ * (0x60, 0x20, 0x66).  C8i.2 added the radial-burst family.  C8i.5a
+ * adds 23 one-particle types that share a handful of engine tail
+ * labels (LAB_0044ad44 / ad57 / ad6a / ad72 / ad77), plus the sim-deref
+ * group 6/7/8/9 and the 1-particle const-vel handlers (0x11/0x12/0x54/
+ * 0x50).  See the per-handler comments below for the exact label map.
+ *
+ * Resolved pending-human-checks 2026-05-23 (asm-only, no Frida):
+ *
+ *   #3 (C8h.1 scene1_spawn trailing args) — engine pushes 5 args, not
+ *      7.  Raw asm at the integrator's three chain-spawn call sites
+ *      (0x4105f3 / 0x41085c / 0x411aa1) shows `push edi/edx ; push ecx
+ *      x3 (xyz floats) ; push <type> ; call 0x447f4f`.  No scale or
+ *      param_7 is pushed — the callee reads them as stack garbage.  Our
+ *      port defaults (`scale=1.0f, param7=0`) are safe and match the
+ *      engine's intent since 1 / 0x21 / 0x35 don't use scale or param_7.
+ *
+ *   #6 (C8h.3 type-0x34 chain spawn args) — same finding; closed by #3.
+ *
+ * C8i.3d adds 13 orbit/fountain/world-jitter exotics (engine lines 736-975):
  *
  *   - Type 0x3d (20) — string-style rot.x + BASE field set + AGE
  *     biased to -60 - 2*count_index; PARAM1=param_7, PARAM2=count_index.
@@ -1573,6 +1590,173 @@ static void init_type_78(int i, float x, float y, float z, float scale,
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = param7;
 }
 
+/* ============================================================
+ * C8i.5a — 23 one-particle types (engine lines 956-1366 + tails 44ad44..44ad77).
+ *
+ * The engine's tail labels at 0x44ad44 / ad49 / ad57 / ad65 / ad6a /
+ * ad72 / ad77 are tiny epilogues factored across these handlers.  Asm
+ * (objdump --start-address=0x44ad44) shows:
+ *
+ *     0x44ad44 :  mov [ebx+0x44], edi ; jmp ad65    ; PARAM2 = param_7
+ *     0x44ad49 :  call rng; fmul 2π; fstp [ebx+0x1c] ; rot.y = u*2π
+ *                 falls into ad57
+ *     0x44ad57 :  call rng; fmul 2π; fstp [ebx+0x20] ; rot.z = u*2π
+ *                 falls into ad65 epilogue
+ *     0x44ad6a :  push 0xffffffff; call 0x40c90e; pop ecx
+ *                 falls into ad72
+ *     0x44ad72 :  mov [ebx+0x40], edi ; jmp ad65    ; PARAM1 = param_7
+ *     0x44ad77 :  mov eax, ds:0x56dae84; mov [ebx+0x44], eax
+ *                                                   ; PARAM2 = DAT_056dae84
+ *
+ * The 0x24 case at 0x44ad6a calls FUN_0040c90e(-1) — Ghidra dropped the
+ * arg, the raw asm makes it explicit (`push 0xffffffff`).
+ */
+
+int g_scene1_spawn_global_ae84;
+int32_t g_scene1_spawn_50_block_d04[17];
+int32_t g_scene1_spawn_50_rot_y_ea4;
+int g_scene1_spawn_type_24_arm_count;
+
+/* Slot scratch start for type 0x50's 17-dword copy.  Engine writes
+ * `&DAT_069b2fd0 + local_10 * 0x25` — byte offset 0x50 from slot base =
+ * dw 20.  Falls past the named SCENE1_RECORDS_A_OFF_AUX_18 (dw 18); the
+ * intervening dw 19 (`DAT_069b2fcc`) is unused by both 0x50's writer
+ * and any current consumer. */
+#define SCENE1_SPAWN_OFF_50_BLOCK 20
+
+/* ─── trivial-tail group ─────────────────────────────────────────────
+ *
+ * Each of these is "preamble + one or two slot writes + 1-particle
+ * return".  Helpers cover the LAB_0044ad44 / ad57 / ad72 tails. */
+
+/* Engine LAB at 0x44ad44 tail.  Used by 0x1a (and by 0x1d, but 0x1d is
+ * inlined since it does other work first). */
+static void init_type_1a(int i, int param7)
+{
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = param7;
+}
+
+/* Engine LAB_0044ad57 tail — `rot.z = u*2π; return;`.  Used by 0x5f, 4,
+ * 0x70, 0x1c. */
+static void init_type_rot_z_random(int i)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+}
+
+/* Engine LAB_0044ad49 → ad57 — `rot.y = u*2π; rot.z = u*2π; return;`.
+ * Used by 0x42 only.  Engine emits rot.y first (RNG order matters). */
+static void init_type_42(int i)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+}
+
+/* Engine LAB_0044ad72 tail — `PARAM1 = param_7; return;`.  Used by
+ * 0x2a, 0x13, 0x14. */
+static void init_type_param1_param7(int i, int param7)
+{
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = param7;
+}
+
+/* Engine LAB_0044ad6a → ad72 — calls FUN_0040c90e(-1) for its scene-
+ * arm side-effect (engine: DAT_0064828c=1, DAT_00529900=-1), then
+ * PARAM1 = param_7.  The two scene globals aren't read by any particle
+ * path; the port records the call into `g_scene1_spawn_type_24_arm_count`
+ * so tests can observe that the arm-flag fired and a future consumer can
+ * replay the side-effect. */
+static void init_type_24(int i, int param7)
+{
+    g_scene1_spawn_type_24_arm_count++;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = param7;
+}
+
+/* ─── sim-deref group: 6/7/8/9 (engine L1357-1360, tail LAB_0044ad77) ─
+ *
+ *   PARAM2 = DAT_056dae84
+ *
+ * The integrator's handle_type_6_to_9 (C8h.1) orbits the particle around
+ * the camera anchor; the snapshot of DAT_056dae84 stored in PARAM2 here
+ * appears to seed each particle's starting phase within the swarm.
+ * Default 0 — the unported sim writer FUN_00436f97 sets it later. */
+static void init_type_6_to_9(int i)
+{
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = g_scene1_spawn_global_ae84;
+}
+
+/* ─── 1-particle const-vel: 0x11 (engine L1348-1355) ───────────────
+ *
+ *   vel.x  = 0x3ca3d70a              ; fp32 ≈ 0.02
+ *   vel.y  = 0x3b03126f              ; fp32 ≈ 0.002
+ *   vel.z  = 0
+ *   AGE    = -(rng_next15() % 24)    ; small negative stagger
+ *   TYPE   = 0x11                    ; preamble already set this
+ *
+ * Tiny upward-drift particle.  Returns after 1 particle (goto
+ * LAB_0044a985). */
+static void init_type_11(int i)
+{
+    /* Engine writes int literals directly into the float slots — keep
+     * the bit-exact storage (matches the AGE field convention). */
+    *slot_int(i, SCENE1_RECORDS_A_OFF_VEL_X) = 0x3ca3d70a;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_VEL_Y) = 0x3b03126f;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_VEL_Z) = 0;
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = -(int)(r % 24u);
+}
+
+/* ─── 1-particle const: 0x12, 0x54 (engine L1361-1367) ────────────
+ *
+ *   AGE    = 0
+ *   PARAM1 = param_7
+ *   PARAM2 = 0
+ *   TYPE   = param_5                 ; preamble already set this
+ *
+ * Returns after 1 particle.  Engine uses `SBORROW4(local_8 + 1, 1)` —
+ * literal 1, not param_7 — so the post-increment compare `local_8 ==
+ * 0` always returns on the first commit.  Diverges from the survey
+ * doc's "param_7-count" guess; the asm-level comparison resolves it. */
+static void init_type_12_54(int i, int param7)
+{
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = 0;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = param7;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = 0;
+}
+
+/* ─── slot_hint scratch copy: 0x50 (engine L1326-1346) ─────────────
+ *
+ *   for (k = 0; k < 17; k++)
+ *       slot[20 + k] = *(uint *)(slot_hint + 0xd04 + k*4)
+ *   rot.y  = *(uint *)(slot_hint + 0xea4)
+ *   vel.x  = 0x3ca3d70a  (≈ 0.02)
+ *   vel.y  = 0x3b03126f  (≈ 0.002)
+ *   vel.z  = 0
+ *   AGE    = -(rng_next15() % 0x18)
+ *   TYPE   = 0x50
+ *
+ * Engine has an inline `local_8++; if (local_8 == 1) return;` instead of
+ * the usual LAB_0044a985 tail — same observable effect (return after 1).
+ * Returns after 1 particle.
+ *
+ * Reads g_scene1_spawn_50_block_d04 + g_scene1_spawn_50_rot_y_ea4
+ * stand-ins.  See header comment for why slot_hint isn't used directly. */
+static void init_type_50(int i)
+{
+    for (int k = 0; k < 17; k++) {
+        *slot_int(i, SCENE1_SPAWN_OFF_50_BLOCK + k) =
+            g_scene1_spawn_50_block_d04[k];
+    }
+    *slot_int(i, SCENE1_RECORDS_A_OFF_ROT_Y) = g_scene1_spawn_50_rot_y_ea4;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_VEL_X) = 0x3ca3d70a;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_VEL_Y) = 0x3b03126f;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_VEL_Z) = 0;
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = -(int)(r % 0x18u);
+}
+
+/* Preamble-only types (0x19, 0x44, 0x94, 0x2e, 0x1e): no helper needed —
+ * the dispatcher just falls through to the return.  Listed here for
+ * doc completeness so a reader knows they're intentionally bodyless. */
+
 /* ─── per-type init: line-1240 mega-group — generic scatter (L1240-1291) ─
  *
  * One body shared by 34 types: 0x25-0x28, 0x37-0x3a, 0x46-0x49,
@@ -1666,8 +1850,10 @@ static int is_mega_group_type(int type)
  * 0x1d (1).  C8i.4 adds the line-1240 mega-group — 34 types
  * (0x25-0x28, 0x37-0x3a, 0x46-0x49, 0x7a-0x84, 0x86-0x90) that share
  * one generic-scatter init body and commit 12 particles per call.
- * Remaining param_7-driven + table-dep types land in C8i.5.  See
- * scene1-spawn.md for the full table. */
+ * C8i.5a adds 23 one-particle types whose engine bodies are
+ * preamble-only or a single tail-label write (LAB_0044ad44 / ad57 / ad6a
+ * / ad72 / ad77).  Remaining param_7-driven + complex multi-stage types
+ * land in C8i.5b/5c.  See scene1-spawn.md for the full table. */
 static int spawn_count_for_type(int type)
 {
     /* Range-check the mega-group before the explicit switch — saves
@@ -1711,6 +1897,17 @@ static int spawn_count_for_type(int type)
     case 0x23: return 1;
     case 0x22: case 0x3c: case 0x5a: case 0x2d: return 20;
     case 0x1d: return 1;
+    /* C8i.5a — all 1-particle. */
+    case 0x19: case 0x44: case 0x94: case 0x2e: case 0x1e: return 1;
+    case 0x1a: return 1;
+    case 0x5f: case 4: case 0x70: case 0x1c: return 1;
+    case 0x42: return 1;
+    case 0x2a: case 0x13: case 0x14: return 1;
+    case 0x24: return 1;
+    case 6: case 7: case 8: case 9: return 1;
+    case 0x11: return 1;
+    case 0x12: case 0x54: return 1;
+    case 0x50: return 1;
     /* 0x36 / 0x74 / 0x33 / 0x4d / 0x51 / 0x6d / 0x45 use param_7 — see
      * spawn_count_is_param7() + scene1_spawn(). */
     default:   return 0;   /* unimplemented — record trace only */
@@ -1795,6 +1992,25 @@ static void run_type_init(int type, int i, int count_index, float x, float y,
     case 0x5a: init_type_5a(i, count_index); break;
     case 0x2d: init_type_2d(i, count_index, x, y, z); break;
     case 0x1d: init_type_1d(i, scale, param7); break;
+    /* C8i.5a — preamble-only types: fall through to the return.  No
+     * extra writes beyond what commit_slot_preamble already did. */
+    case 0x19: case 0x44: case 0x94: case 0x2e: case 0x1e:
+        break;
+    case 0x1a: init_type_1a(i, param7); break;
+    case 0x5f: case 4: case 0x70: case 0x1c:
+        init_type_rot_z_random(i);
+        break;
+    case 0x42: init_type_42(i); break;
+    case 0x2a: case 0x13: case 0x14:
+        init_type_param1_param7(i, param7);
+        break;
+    case 0x24: init_type_24(i, param7); break;
+    case 6: case 7: case 8: case 9:
+        init_type_6_to_9(i);
+        break;
+    case 0x11: init_type_11(i); break;
+    case 0x12: case 0x54: init_type_12_54(i, param7); break;
+    case 0x50: init_type_50(i); break;
     default: break;
     }
     (void)count_index;  /* anchor types don't need it */

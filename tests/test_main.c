@@ -1081,6 +1081,45 @@ struct test_case {
     X(scene1_spawn_mega_group_rot_x_raw_unit) \
     X(scene1_spawn_mega_group_pos_offsets_param) \
     X(scene1_spawn_mega_group_all_types_share_rng_sequence) \
+    X(scene1_spawn_type_19_commits_1) \
+    X(scene1_spawn_type_44_commits_1) \
+    X(scene1_spawn_type_94_commits_1) \
+    X(scene1_spawn_type_2e_commits_1) \
+    X(scene1_spawn_type_1e_commits_1) \
+    X(scene1_spawn_type_1a_commits_1) \
+    X(scene1_spawn_type_5f_commits_1) \
+    X(scene1_spawn_type_4_commits_1) \
+    X(scene1_spawn_type_70_commits_1) \
+    X(scene1_spawn_type_1c_commits_1) \
+    X(scene1_spawn_type_42_commits_1) \
+    X(scene1_spawn_type_2a_commits_1) \
+    X(scene1_spawn_type_13_commits_1) \
+    X(scene1_spawn_type_14_commits_1) \
+    X(scene1_spawn_type_24_commits_1) \
+    X(scene1_spawn_type_6_commits_1) \
+    X(scene1_spawn_type_7_commits_1) \
+    X(scene1_spawn_type_8_commits_1) \
+    X(scene1_spawn_type_9_commits_1) \
+    X(scene1_spawn_type_11_commits_1) \
+    X(scene1_spawn_type_12_commits_1) \
+    X(scene1_spawn_type_54_commits_1) \
+    X(scene1_spawn_type_50_commits_1) \
+    X(scene1_spawn_type_19_preamble_only) \
+    X(scene1_spawn_type_1a_param2_eq_param7) \
+    X(scene1_spawn_type_5f_rot_z_in_range) \
+    X(scene1_spawn_rot_z_group_shares_body) \
+    X(scene1_spawn_type_42_rot_y_and_z) \
+    X(scene1_spawn_type_2a_param1_eq_param7) \
+    X(scene1_spawn_type_13_param1_eq_param7) \
+    X(scene1_spawn_type_14_param1_eq_param7) \
+    X(scene1_spawn_type_24_param1_and_arm) \
+    X(scene1_spawn_type_6_param2_snapshots_global) \
+    X(scene1_spawn_types_6_to_9_share_body) \
+    X(scene1_spawn_type_11_const_vel) \
+    X(scene1_spawn_type_12_param1_eq_param7) \
+    X(scene1_spawn_type_54_param1_eq_param7) \
+    X(scene1_spawn_type_50_copies_block) \
+    X(scene1_spawn_type_50_block_default_zero) \
     X(scene1_mesh_emit_records_call) \
     X(scene1_mesh_emit_reset_clears) \
     \

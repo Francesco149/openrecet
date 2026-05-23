@@ -1589,6 +1589,276 @@ int test_scene1_spawn_mega_group_all_types_share_rng_sequence(void)
     return 0;
 }
 
+/* ─── C8i.5a: 23 one-particle spawn types ────────────────────────────
+ *
+ * Each handler is `preamble + tiny tail`.  Tests confirm the per-type
+ * tail effect + that all 23 types commit exactly 1 particle. */
+
+/* Spawn-count smoke for every new type. */
+int test_scene1_spawn_type_19_commits_1(void)  { return spawn_burst_count_is(0x19, 1); }
+int test_scene1_spawn_type_44_commits_1(void)  { return spawn_burst_count_is(0x44, 1); }
+int test_scene1_spawn_type_94_commits_1(void)  { return spawn_burst_count_is(0x94, 1); }
+int test_scene1_spawn_type_2e_commits_1(void)  { return spawn_burst_count_is(0x2e, 1); }
+int test_scene1_spawn_type_1e_commits_1(void)  { return spawn_burst_count_is(0x1e, 1); }
+int test_scene1_spawn_type_1a_commits_1(void)  { return spawn_burst_count_is(0x1a, 1); }
+int test_scene1_spawn_type_5f_commits_1(void)  { return spawn_burst_count_is(0x5f, 1); }
+int test_scene1_spawn_type_4_commits_1(void)   { return spawn_burst_count_is(4,    1); }
+int test_scene1_spawn_type_70_commits_1(void)  { return spawn_burst_count_is(0x70, 1); }
+int test_scene1_spawn_type_1c_commits_1(void)  { return spawn_burst_count_is(0x1c, 1); }
+int test_scene1_spawn_type_42_commits_1(void)  { return spawn_burst_count_is(0x42, 1); }
+int test_scene1_spawn_type_2a_commits_1(void)  { return spawn_burst_count_is(0x2a, 1); }
+int test_scene1_spawn_type_13_commits_1(void)  { return spawn_burst_count_is(0x13, 1); }
+int test_scene1_spawn_type_14_commits_1(void)  { return spawn_burst_count_is(0x14, 1); }
+int test_scene1_spawn_type_24_commits_1(void)  { return spawn_burst_count_is(0x24, 1); }
+int test_scene1_spawn_type_6_commits_1(void)   { return spawn_burst_count_is(6,    1); }
+int test_scene1_spawn_type_7_commits_1(void)   { return spawn_burst_count_is(7,    1); }
+int test_scene1_spawn_type_8_commits_1(void)   { return spawn_burst_count_is(8,    1); }
+int test_scene1_spawn_type_9_commits_1(void)   { return spawn_burst_count_is(9,    1); }
+int test_scene1_spawn_type_11_commits_1(void)  { return spawn_burst_count_is(0x11, 1); }
+int test_scene1_spawn_type_12_commits_1(void)  { return spawn_burst_count_is(0x12, 1); }
+int test_scene1_spawn_type_54_commits_1(void)  { return spawn_burst_count_is(0x54, 1); }
+int test_scene1_spawn_type_50_commits_1(void)  { return spawn_burst_count_is(0x50, 1); }
+
+/* Preamble-only types must leave every non-preamble field at its
+ * preamble value.  We pick 0x19 as a representative — same body shape
+ * as 0x44 / 0x94 / 0x2e / 0x1e. */
+int test_scene1_spawn_type_19_preamble_only(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(7, 1.0f, 2.0f, 3.0f, 0x19, 0.5f, 0xdead);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_TYPE), 0x19);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_AUX_18), 7);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_X) == 1.0f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X) == 0.0f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_X) == 0.0f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Y) == 0.0f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Z) == 0.0f);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_AGE), 0);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM2), 0);
+    /* PARAM1 is NOT touched by preamble — preamble-only types leave it
+     * at whatever zero we started with after reset. */
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM1), 0);
+    return 0;
+}
+
+int test_scene1_spawn_type_1a_param2_eq_param7(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x1a, 1.0f, 0x12345678);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM2), 0x12345678);
+    /* No other slot field beyond preamble touched. */
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Z) == 0.0f);
+    return 0;
+}
+
+/* rot.z = u*2π — same body for 0x5f, 4, 0x70, 0x1c.  Verify rot.z lands
+ * in [0, 2π) and no other field is touched.  Tested via 0x5f. */
+int test_scene1_spawn_type_5f_rot_z_in_range(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x5f, 1.0f, 0);
+    float rz = slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Z);
+    T_ASSERT(rz >= 0.0f);
+    T_ASSERT(rz < 6.2831856f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_X) == 0.0f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Y) == 0.0f);
+    return 0;
+}
+
+/* 0x5f / 4 / 0x70 / 0x1c MUST share the same body — verify they emit
+ * identical slot state for a pinned RNG seed.  Catches regressions if
+ * someone splits the dispatch case by accident. */
+int test_scene1_spawn_rot_z_group_shares_body(void)
+{
+    extern uint32_t g_rng_seed;
+    const int types[] = { 0x5f, 4, 0x70, 0x1c };
+    uint32_t saved = g_rng_seed;
+
+    /* Baseline 0x5f. */
+    reset_records_and_trace();
+    g_rng_seed = 0xcafef00d;
+    scene1_spawn(0, 5.0f, 6.0f, 7.0f, types[0], 2.0f, 0);
+    int32_t base[19];
+    for (int j = 0; j < 19; j++) base[j] = slot_read_i(0, j);
+
+    for (int t = 1; t < 4; t++) {
+        reset_records_and_trace();
+        g_rng_seed = 0xcafef00d;
+        scene1_spawn(0, 5.0f, 6.0f, 7.0f, types[t], 2.0f, 0);
+        for (int j = 0; j < 19; j++) {
+            if (j == SCENE1_RECORDS_A_OFF_TYPE) continue;
+            T_ASSERT_EQ_I(slot_read_i(0, j), base[j]);
+        }
+    }
+    g_rng_seed = saved;
+    return 0;
+}
+
+/* 0x42: rot.y AND rot.z both random; verify both are in [0, 2π). */
+int test_scene1_spawn_type_42_rot_y_and_z(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x42, 1.0f, 0);
+    float ry = slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Y);
+    float rz = slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Z);
+    T_ASSERT(ry >= 0.0f && ry < 6.2831856f);
+    T_ASSERT(rz >= 0.0f && rz < 6.2831856f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_X) == 0.0f);
+    return 0;
+}
+
+/* PARAM1 = param_7 — shared by 0x2a / 0x13 / 0x14. */
+int test_scene1_spawn_type_2a_param1_eq_param7(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x2a, 1.0f, 0x4242);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM1), 0x4242);
+    return 0;
+}
+
+int test_scene1_spawn_type_13_param1_eq_param7(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x13, 1.0f, -7);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM1), -7);
+    return 0;
+}
+
+int test_scene1_spawn_type_14_param1_eq_param7(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x14, 1.0f, 99);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM1), 99);
+    return 0;
+}
+
+/* 0x24: PARAM1=param_7 + side-effect arm counter increments. */
+int test_scene1_spawn_type_24_param1_and_arm(void)
+{
+    extern int g_scene1_spawn_type_24_arm_count;
+    reset_records_and_trace();
+    g_scene1_spawn_type_24_arm_count = 0;
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x24, 1.0f, 0x77);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM1), 0x77);
+    T_ASSERT_EQ_I(g_scene1_spawn_type_24_arm_count, 1);
+
+    /* Each subsequent call increments the arm counter.  Provide a free
+     * slot at index 5 via a partial reset. */
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x24, 1.0f, 0);
+    T_ASSERT_EQ_I(g_scene1_spawn_type_24_arm_count, 2);
+    return 0;
+}
+
+/* 6/7/8/9: PARAM2 takes a snapshot of g_scene1_spawn_global_ae84. */
+int test_scene1_spawn_type_6_param2_snapshots_global(void)
+{
+    extern int g_scene1_spawn_global_ae84;
+    reset_records_and_trace();
+    g_scene1_spawn_global_ae84 = 0xabcd;
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 6, 1.0f, 0);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM2), 0xabcd);
+    g_scene1_spawn_global_ae84 = 0;
+    return 0;
+}
+
+int test_scene1_spawn_types_6_to_9_share_body(void)
+{
+    extern int g_scene1_spawn_global_ae84;
+    const int types[] = { 6, 7, 8, 9 };
+    for (int t = 0; t < 4; t++) {
+        reset_records_and_trace();
+        g_scene1_spawn_global_ae84 = 0x55 + t;
+        scene1_spawn(0, 0.0f, 0.0f, 0.0f, types[t], 1.0f, 0);
+        T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_TYPE), types[t]);
+        T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM2), 0x55 + t);
+    }
+    g_scene1_spawn_global_ae84 = 0;
+    return 0;
+}
+
+/* 0x11: const-vel int literals + AGE = -(u%24). */
+int test_scene1_spawn_type_11_const_vel(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x11, 1.0f, 0);
+    /* vel bits are the engine's literal int constants.  Read back via
+     * slot_read_i so we compare bit-exact. */
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_VEL_X), 0x3ca3d70a);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_VEL_Y), 0x3b03126f);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_VEL_Z), 0);
+    int32_t age = slot_read_i(0, SCENE1_RECORDS_A_OFF_AGE);
+    T_ASSERT(age <= 0);
+    T_ASSERT(age > -24);
+    return 0;
+}
+
+/* 0x12, 0x54: AGE=0, PARAM1=param_7, PARAM2=0.  AGE was already 0 from
+ * preamble; the explicit write here is engine-side dead code but the
+ * port mirrors it for cycle-accuracy.  PARAM1 must reflect param_7. */
+int test_scene1_spawn_type_12_param1_eq_param7(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x12, 1.0f, 0x6789);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM1), 0x6789);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM2), 0);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_AGE), 0);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_TYPE), 0x12);
+    return 0;
+}
+
+int test_scene1_spawn_type_54_param1_eq_param7(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x54, 1.0f, -1);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM1), -1);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_TYPE), 0x54);
+    return 0;
+}
+
+/* 0x50: 17-dword scratch copy from g_scene1_spawn_50_block_d04 + rot.y
+ * from g_scene1_spawn_50_rot_y_ea4 + const-vel + AGE=-(u%0x18). */
+int test_scene1_spawn_type_50_copies_block(void)
+{
+    extern int32_t g_scene1_spawn_50_block_d04[17];
+    extern int32_t g_scene1_spawn_50_rot_y_ea4;
+    reset_records_and_trace();
+    for (int k = 0; k < 17; k++) g_scene1_spawn_50_block_d04[k] = 0x100 + k;
+    g_scene1_spawn_50_rot_y_ea4 = 0x44660088;
+
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x50, 1.0f, 0);
+
+    /* Block landed at dw 20..36. */
+    for (int k = 0; k < 17; k++) {
+        T_ASSERT_EQ_I(slot_read_i(0, 20 + k), 0x100 + k);
+    }
+    /* rot.y holds the raw int bits from the ea4 stand-in. */
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_ROT_Y), 0x44660088);
+    /* Const vel + AGE. */
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_VEL_X), 0x3ca3d70a);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_VEL_Y), 0x3b03126f);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_VEL_Z), 0);
+    int32_t age = slot_read_i(0, SCENE1_RECORDS_A_OFF_AGE);
+    T_ASSERT(age <= 0);
+    T_ASSERT(age > -0x18);
+
+    /* Clean up so other tests see zero stand-ins. */
+    for (int k = 0; k < 17; k++) g_scene1_spawn_50_block_d04[k] = 0;
+    g_scene1_spawn_50_rot_y_ea4 = 0;
+    return 0;
+}
+
+int test_scene1_spawn_type_50_block_default_zero(void)
+{
+    /* With both stand-ins zero, the copy writes zeros; rot.y is zero. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x50, 1.0f, 0);
+    for (int k = 0; k < 17; k++) {
+        T_ASSERT_EQ_I(slot_read_i(0, 20 + k), 0);
+    }
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_ROT_Y), 0);
+    return 0;
+}
+
 /* ─── mesh-emit stub (FUN_0044b0f3 placeholder) ────────────────────── */
 
 int test_scene1_mesh_emit_records_call(void)

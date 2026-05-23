@@ -29,11 +29,14 @@
 #ifndef SCENE1_SPAWN_H
 #define SCENE1_SPAWN_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Implemented as of C8i.4 (mega-group + full C8i.3 ladder landed):
+/* Implemented as of C8i.5a (trivial-tail + sim-deref + 1-particle const
+ * types — 23 types added on top of C8i.4):
  *   C8i.1 anchors — 0x60 (no-op reservation), 0x20 (age=0),
  *                   0x66 (vel=(0,0,-1) + random life cap).
  *   C8i.2 radial bursts — 1/2/3/0x52/0x5e/0x65 (8-particle group A),
@@ -84,8 +87,21 @@ extern "C" {
  *                         particles.  Effect: small ground-skew vel,
  *                         world-radial pos jitter, alternating rot.y
  *                         wobble, 10-color cycle in PARAM2.
+ *   C8i.5a one-particle tails — 23 short-bodied types that share a few
+ *                         epilogue label patterns in the engine
+ *                         (LAB_0044ad44 / ad57 / ad6a / ad72 / ad77):
+ *      - preamble-only: 0x19, 0x44, 0x94, 0x2e, 0x1e
+ *      - PARAM2 = param_7: 0x1a (shares engine LAB_0044ad44 with 0x1d)
+ *      - rot.z = u*2π: 0x5f, 4, 0x70, 0x1c (LAB_0044ad57)
+ *      - rot.y = u*2π + rot.z = u*2π: 0x42 (falls through ad49→ad57)
+ *      - PARAM1 = param_7: 0x2a, 0x13, 0x14 (LAB_0044ad72)
+ *      - PARAM1 = param_7 + scene_arm_24 side-effect: 0x24
+ *      - PARAM2 = sim-state (g_scene1_spawn_global_ae84): 6, 7, 8, 9
+ *      - const-vel + AGE = -(u%24): 0x11
+ *      - AGE=0 + PARAM1=param_7 + PARAM2=0: 0x12, 0x54
+ *      - slot_hint scratch copy + const-vel + AGE: 0x50
  * Unimplemented types record a trace but do not allocate or commit a
- * slot — they will become real spawns as C8i.5 lands. */
+ * slot — they will become real spawns as C8i.5b / 5c land. */
 #define SCENE1_SPAWN_TYPE_IMPLEMENTED(t)                                    \
     ((t) == 0x60 || (t) == 0x20 || (t) == 0x66 || (t) == 0x92 ||            \
      (t) == 1    || (t) == 2    || (t) == 3    || (t) == 0x52 ||            \
@@ -101,6 +117,13 @@ extern "C" {
      (t) == 0x6e || (t) == 0x1f || (t) == 100  || (t) == 0x23 ||            \
      (t) == 0x22 || (t) == 0x3c || (t) == 0x5a || (t) == 0x2d ||            \
      (t) == 0x1d ||                                                         \
+     /* C8i.5a one-particle tails (23 types) */                             \
+     (t) == 0x19 || (t) == 0x44 || (t) == 0x94 || (t) == 0x2e ||            \
+     (t) == 0x1e || (t) == 0x1a || (t) == 0x5f || (t) == 4    ||            \
+     (t) == 0x70 || (t) == 0x1c || (t) == 0x42 || (t) == 0x2a ||            \
+     (t) == 0x13 || (t) == 0x14 || (t) == 0x24 || (t) == 6    ||            \
+     (t) == 7    || (t) == 8    || (t) == 9    || (t) == 0x11 ||            \
+     (t) == 0x12 || (t) == 0x54 || (t) == 0x50 ||                           \
      /* C8i.4 mega-group ranges (34 types, all share init_type_mega_group) */ \
      ((t) >= 0x25 && (t) <= 0x28) ||                                        \
      ((t) >= 0x37 && (t) <= 0x3a) ||                                        \
@@ -114,6 +137,30 @@ extern "C" {
  * ports, tests set this global to drive the trig dependency.  Default 0
  * → sin(0)=0, cos(0)=1, so vel.z gets a constant +0.2 bend when unset. */
 extern int g_scene1_spawn_camera_counter_948;
+
+/* Stand-in for types 6/7/8/9's PARAM2 seed.  Engine reads
+ * `DAT_056dae84` directly (a small sim-scene int set by the unported
+ * FUN_00436f97 — same writer family as DAT_056dab58 below).  Default 0
+ * makes the 6..9 swarm orbit start at phase 0.  Tests set it to verify
+ * the snapshot path. */
+extern int g_scene1_spawn_global_ae84;
+
+/* Stand-ins for type 0x50's slot_hint-as-pointer derefs.  Engine reads:
+ *   - `*(uint *)(slot_hint + 0xd04 + k*4)` for k in 0..16  → copied
+ *     verbatim into slot scratch dw 20..36 (byte offset 0x50..0x90).
+ *   - `*(uint *)(slot_hint + 0xea4)`                       → rot.y.
+ * slot_hint is overloaded as a scene-state pointer for 0x50 callers
+ * (only the unported sim caller passes a real pointer; chain-spawn
+ * passes 0).  Stand-ins default to 0 so the dormant case stays benign;
+ * tests set them to verify the copy + the rot.y store. */
+extern int32_t g_scene1_spawn_50_block_d04[17];
+extern int32_t g_scene1_spawn_50_rot_y_ea4;
+
+/* Counts type-0x24's side-effect calls (engine push 0xffffffff; call
+ * 0x40c90e — sets DAT_0064828c=1 and DAT_00529900=-1).  Neither scene-
+ * side flag is referenced by any particle path in the port, so the
+ * counter is the observable proxy that the arm-flag fired. */
+extern int g_scene1_spawn_type_24_arm_count;
 
 /* Stand-in for types 0x1f/100's scene-counter wave.  Engine reads
  * `DAT_056dab58` (a small int set by the sim caller FUN_00436f97 — see
