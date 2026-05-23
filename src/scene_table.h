@@ -80,6 +80,10 @@ struct IDirect3DDevice8;
 extern mesh_t *g_scene_table[SCENE_TABLE_SLOT_COUNT];
 
 void scene_table_init(struct IDirect3DDevice8 *dev);
+
+/* Foreground "load just the selected table mesh" pass — engine
+ * FUN_004748f8(0) from FUN_00474a9a L73069. */
+int  scene_table_load_foreground_win32(struct IDirect3DDevice8 *dev);
 #endif
 
 #endif /* OPENRECET_SCENE_TABLE_H */

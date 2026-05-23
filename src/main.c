@@ -58,6 +58,7 @@
 #include "mesh.h"
 #include "mesh_draw.h"
 #include "mesh_load.h"
+#include "scene1_preload.h"
 #include "stage_palette.h"
 #include "stage_state.h"
 #include "tick.h"
@@ -591,6 +592,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * path in FUN_004547ab and the lighting/fog state in FUN_00459dfd
      * will both read from this record once their porters land. */
     stage_palette_init_house();
+
+    /* C7e: wire FUN_00474a9a (scene-1 pre-load entry, HOUSE branch) as
+     * the worker_load slot-1 INGAME callback. After title fade-out,
+     * scene_post_fade_init → worker_load_spawn() picks the INGAME
+     * slot and now actually fires scene-1 asset loads:
+     *   - leve_win + mood_para singleton sprites
+     *   - 21-entry chr portrait loop (dormant w/h until chara state lands)
+     *   - 4× foreground walls/floor/jutan/table selector loads
+     * Variant-set loading (the OTHER 14 walls, 14 floors, etc.) waits
+     * on the secondary spawners — they fire from stage-change paths
+     * that haven't ported yet. */
+    scene1_preload_init(g_dev);
 
     /* Build the menu items table (FUN_0049a43d). Fresh boot = no
      * saves; 4 items: New Game / Ranking / Options / Exit. Then seed

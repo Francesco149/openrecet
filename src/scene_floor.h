@@ -97,6 +97,10 @@ struct IDirect3DDevice8;
  * at boot, after the device is created. Idempotent. */
 void scene_floor_init(struct IDirect3DDevice8 *dev);
 
+/* Foreground "load just the selected floor" pass — engine
+ * FUN_004747dc(0) from FUN_00474a9a L73067. */
+int  scene_floor_load_foreground_win32(struct IDirect3DDevice8 *dev);
+
 #endif /* _WIN32 */
 
 #endif /* OPENRECET_SCENE_FLOOR_H */

@@ -85,6 +85,10 @@ struct IDirect3DDevice8;
  * at boot, after the device is created. Idempotent. */
 void scene_jutan_init(struct IDirect3DDevice8 *dev);
 
+/* Foreground "load just the selected jutan/rug" pass — engine
+ * FUN_0047486a(0) from FUN_00474a9a L73068. */
+int  scene_jutan_load_foreground_win32(struct IDirect3DDevice8 *dev);
+
 #endif /* _WIN32 */
 
 #endif /* OPENRECET_SCENE_JUTAN_H */

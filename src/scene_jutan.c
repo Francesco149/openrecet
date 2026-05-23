@@ -119,6 +119,11 @@ void scene_jutan_init(struct IDirect3DDevice8 *dev)
     worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_BC6, scene_jutan_body);
 }
 
+int scene_jutan_load_foreground_win32(struct IDirect3DDevice8 *dev)
+{
+    return scene_jutan_load_with(win32_load_fn, dev, 0);
+}
+
 void scene_jutan_reset(void)
 {
     for (int i = 0; i < SCENE_JUTAN_COUNT; i++) {

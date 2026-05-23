@@ -108,6 +108,13 @@ struct IDirect3DDevice8;
  * at boot, after the device is created. Idempotent. */
 void scene_walls_init(struct IDirect3DDevice8 *dev);
 
+/* Foreground "load just the selected wall" pass — engine
+ * FUN_0047474e(0) from FUN_00474a9a L73066. Calls
+ * scene_walls_load_with(win32_load_fn, dev, 0) so only the
+ * selector-matched slot gets sprite_load'd. Returns the number of
+ * dispatches (0 or 1; 0 if the selector is out of range). */
+int  scene_walls_load_foreground_win32(struct IDirect3DDevice8 *dev);
+
 #endif /* _WIN32 */
 
 #endif /* OPENRECET_SCENE_WALLS_H */
