@@ -953,6 +953,24 @@ struct test_case {
     X(scene1_spawn_type_20_age_zero) \
     X(scene1_spawn_type_66_velocity_down) \
     X(scene1_spawn_type_66_param1_distribution) \
+    X(scene1_spawn_type_1_commits_8) \
+    X(scene1_spawn_type_2_commits_8) \
+    X(scene1_spawn_type_3_commits_8) \
+    X(scene1_spawn_type_52_commits_8) \
+    X(scene1_spawn_type_5e_commits_8) \
+    X(scene1_spawn_type_65_commits_8) \
+    X(scene1_spawn_type_92_commits_1) \
+    X(scene1_spawn_type_79_commits_128) \
+    X(scene1_spawn_type_5d_commits_45) \
+    X(scene1_spawn_type_52_vy_positive_bias) \
+    X(scene1_spawn_type_1_vy_can_be_negative) \
+    X(scene1_spawn_type_92_vy_negative) \
+    X(scene1_spawn_type_92_param_ranges) \
+    X(scene1_spawn_type_79_age_stagger) \
+    X(scene1_spawn_type_5d_age_and_param1_negate_index) \
+    X(scene1_spawn_type_5d_pos_uses_4x_velocity) \
+    X(scene1_spawn_type_1_pos_uses_3x_velocity) \
+    X(scene1_spawn_type_65_halves_magnitude) \
     X(scene1_mesh_emit_records_call) \
     X(scene1_mesh_emit_reset_clears) \
     \

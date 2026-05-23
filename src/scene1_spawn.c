@@ -2,10 +2,17 @@
  * scene1_spawn.c — see scene1_spawn.h for the chip writeup.
  *
  * Port of FUN_00447f4f @ 0x447f4f (1449-line Ghidra decomp).  C8i.1
- * implements the outer slot-scan + common preamble + 3 anchor type
- * handlers (0x60, 0x20, 0x66).  Other types record a trace then return
- * without committing a slot — they'll become real spawns as C8i.2..5
- * land.
+ * landed the outer slot-scan + common preamble + 3 anchor types
+ * (0x60, 0x20, 0x66).  C8i.2 adds the radial-burst family:
+ *
+ *   - Group A (types 1, 2, 3, 0x52, 0x5e, 0x65) — 8 particles each,
+ *     radial xz spread with per-type vy variants.
+ *   - Type 0x92 — 1 particle, color-cycle billboard burst (sets rot
+ *     seeds + PARAM1/PARAM2 random scratch).
+ *   - Type 0x79 — 128 particles, narrow xz spread + AGE stagger
+ *     (AGE = -count/2).
+ *   - Type 0x5d — 45 particles, wider xz spread + AGE/PARAM1 stagger
+ *     (AGE = PARAM1 = -count).
  *
  * Translation conventions:
  *
@@ -13,6 +20,8 @@
  *     DAT_069b2f80; TYPE at +12 dw; etc.) — same as the integrator.
  *
  *   - thunk_FUN_005041f6() → rng_next15() (15-bit PRNG int).
+ *   - FUN_00471089()       → rng_next_unit() (float in [0,1)).
+ *   - FUN_00503a44 / FUN_00503994 → sinf / cosf (FPU thunks).
  *
  *   - The engine's outer loop scans slot indices 0..4095 (`do { … }
  *     while(local_10 != 0x1000)`).  We mirror this exactly — the
@@ -22,12 +31,25 @@
  *   - The trace ring is recorded at the top of scene1_spawn() so the
  *     pre-C8i tests (which assert on the trace after type-0x21 calls)
  *     continue to pass while the per-type init body for 0x21 is unported.
+ *
+ * Note on argless `FUN_00503994()` cos calls (engine L82 / L120 / L266 /
+ * etc.): Ghidra drops the FPU-stack arg.  The integrator's matching
+ * pattern (handle_type_21, handle_type_34) treats these as cos(angle)
+ * where `angle` was the most-recent expression pushed for the paired
+ * sin call.  Each radial-burst handler below uses that interpretation,
+ * pre-binding the angle to a local float and passing it explicitly to
+ * both sinf() and cosf().  Logged for raw-asm verification in
+ * openrecet_pending_human_checks.
  */
 
 #include "scene1_spawn.h"
 
+#include <math.h>
+
 #include "rng.h"
 #include "scene1_records.h"
+
+#define TWO_PI_F 6.2831855f  /* matches engine literal at L55/86/100/etc. */
 
 int                 g_scene1_spawn_trace_count;
 scene1_spawn_call_t g_scene1_spawn_trace[SCENE1_SPAWN_TRACE_CAPACITY];
@@ -114,10 +136,178 @@ static void init_type_66(int i)
     *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = 0;
 }
 
+/* ─── per-type init: group A — radial burst (engine L47-L80) ──────────
+ *
+ * Types 1, 2, 3, 0x52, 0x5e, 0x65 — all share this body; each commits 8
+ * particles per spawn call.  Pattern:
+ *
+ *   mag   = u1 + 1.2                              ; mag base (radial scale)
+ *   if (type == 0x65) mag *= 0.5                  ; small-burst variant
+ *   angle = u2 * 2π                                ; xz angle
+ *   vel.x = sin(angle) * SCALE * mag
+ *   if (type == 0x52)
+ *       vel.y = u3 * SCALE * 1.5                  ; upward bias
+ *   else
+ *       vel.y = (u3 - 0.5) * SCALE * 3.0          ; signed bias
+ *   vel.z = cos(angle) * SCALE * mag              ; engine's argless cosf
+ *   pos   = vel * 3.0 + (x,y,z)                   ; nudge along velocity
+ *   PARAM1 = rng_next15() % 100 + 20              ; life cap 20..119
+ *   age   = 0
+ *
+ * RNG ordering matches engine: u1, u2, u3, then PARAM1 LCG step. */
+static void init_type_group_a(int i, float x, float y, float z, float scale,
+                              int type)
+{
+    float u1    = rng_next_unit();
+    float mag   = u1 + 1.2f;
+    if (type == 0x65) mag *= 0.5f;
+
+    float angle = rng_next_unit() * TWO_PI_F;
+    float vx    = sinf(angle) * scale * mag;
+
+    float vy;
+    if (type == 0x52) {
+        vy = rng_next_unit() * scale * 1.5f;
+    } else {
+        vy = (rng_next_unit() - 0.5f) * scale * 3.0f;
+    }
+    float vz = cosf(angle) * scale * mag;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 3.0f + x);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 3.0f + z);
+
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
+    /* AGE already 0 from preamble (engine L77). */
+}
+
+/* ─── per-type init: 0x92 — color-cycle billboard burst (engine L82-L108) ─
+ *
+ *   fVar1  = (u1 + 1.2) * 0.02                    ; tiny mag base
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * SCALE * fVar1
+ *   vel.y  = (u3 + 2.5) * SCALE * -0.2            ; always-negative bias
+ *   vel.z  = cos(angle) * SCALE * fVar1
+ *   pos    = vel * 3.0 + (x,y,z)
+ *   rot.x  = u4 * 2π                              ; random rotation seeds
+ *   rot.y  = u5 * 2π
+ *   rot.z  = u6 * 2π
+ *   PARAM1 = rng_next15() % 1000                  ; color/age scratch
+ *   PARAM2 = rng_next15() % 100 + 100             ; 100..199
+ *   age    = 0
+ *
+ * Returns after 1 particle (LAB_004480f8 → LAB_0044a985). */
+static void init_type_92(int i, float x, float y, float z, float scale)
+{
+    float u1    = rng_next_unit();
+    float fVar1 = (u1 + 1.2f) * 0.02f;
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    float vx = sinf(angle) * scale * fVar1;
+    float u3 = rng_next_unit();
+    float vy = (u3 + 2.5f) * scale * -0.2f;
+    float vz = cosf(angle) * scale * fVar1;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 3.0f + x);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 3.0f + z);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+
+    uint16_t r1 = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r1 % 1000u);
+    uint16_t r2 = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = (int)(r2 % 100u) + 100;
+    /* AGE already 0 from preamble (engine L110). */
+}
+
+/* ─── per-type init: 0x79 — swarm-128 with AGE stagger (engine L120-L141) ──
+ *
+ *   fVar1  = u1 + 0.2                              ; smaller mag base
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * SCALE * fVar1 * 0.5     ; narrowed xz spread
+ *   vel.y  = (u3 - 0.5) * SCALE                   ; mild signed bias
+ *   vel.z  = (cos(angle) * fVar1 - fVar1 * 3.0) * SCALE  ; (-cos-3) bias
+ *   pos    = vel * 3.0 + (x,y,z)
+ *   PARAM1 = rng_next15() % 100 + 20
+ *   AGE    = (int)count_index / -2                ; stagger 0,0,-1,-1,...
+ *
+ * Commits 128 particles per call (local_8 == 0x7f → 128 total). */
+static void init_type_79(int i, int count_index, float x, float y, float z,
+                         float scale)
+{
+    float u1    = rng_next_unit();
+    float fVar1 = u1 + 0.2f;
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    float vx = sinf(angle) * scale * fVar1 * 0.5f;
+    float vy = (rng_next_unit() - 0.5f) * scale;
+    float vz = (cosf(angle) * fVar1 - fVar1 * 3.0f) * scale;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 3.0f + x);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 3.0f + z);
+
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
+    /* Engine: AGE = (int)local_8 / -2.  C99 division truncates toward
+     * zero, so 0/2=0, 1/2=0, 2/2=1, ... and negation gives the desired
+     * 0,0,-1,-1,-2,-2,... stagger. */
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = count_index / -2;
+}
+
+/* ─── per-type init: 0x5d — swarm-45 with AGE/PARAM1 stagger (L266-L287) ──
+ *
+ *   mag    = u1 + 1.2                             ; (captured once for sin+cos)
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * SCALE * mag
+ *   vel.y  = (u3 - 0.5) * SCALE * 3.0             ; signed bias
+ *   vel.z  = cos(angle) * SCALE * mag
+ *   pos    = vel * 4.0 + (x,y,z)                  ; NOTE: 4.0, not 3.0
+ *   AGE    = -count_index                         ; 0,-1,-2,...,-44
+ *   PARAM1 = -count_index                         ; same as AGE
+ *
+ * Commits 45 particles per call (local_8 == 0x2c → 45 total).  No
+ * PRNG-derived life cap (engine sets PARAM1 = -local_8 instead). */
+static void init_type_5d(int i, int count_index, float x, float y, float z,
+                         float scale)
+{
+    float u1    = rng_next_unit();
+    float mag   = u1 + 1.2f;
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    float vx = sinf(angle) * scale * mag;
+    float vy = (rng_next_unit() - 0.5f) * scale * 3.0f;
+    float vz = cosf(angle) * scale * mag;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 4.0f + x);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 4.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 4.0f + z);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = -count_index;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = -count_index;
+}
+
 /* ─── dispatch: returns how many slots to commit for `type`.
  *
- * All C8i.1 anchor types spawn 1.  Higher counts (8 for type 1, 12 for
- * the mega-group, 128 for 0x79, etc.) land in C8i.2-5.  See
+ * C8i.1 anchors spawn 1.  C8i.2 adds the radial-burst family — group A
+ * (8), 0x92 (1), 0x79 (128), 0x5d (45).  Remaining counts (12 for the
+ * mega-group, param_7-driven, etc.) land in C8i.3-5.  See
  * scene1-spawn.md for the full table. */
 static int spawn_count_for_type(int type)
 {
@@ -125,19 +315,35 @@ static int spawn_count_for_type(int type)
     case 0x60: return 1;
     case 0x20: return 1;
     case 0x66: return 1;
+    case 0x92: return 1;
+    case 1: case 2: case 3:
+    case 0x52: case 0x5e: case 0x65:
+        return 8;
+    case 0x79: return 128;
+    case 0x5d: return 45;
     default:   return 0;   /* unimplemented — record trace only */
     }
 }
 
-/* Per-type init dispatch.  Called once per committed slot. */
-static void run_type_init(int type, int i)
+/* Per-type init dispatch.  Called once per committed slot.  count_index
+ * is the engine's `local_8` (0-based particle index within this call). */
+static void run_type_init(int type, int i, int count_index, float x, float y,
+                          float z, float scale)
 {
     switch (type) {
     case 0x60: init_type_60(i); break;
     case 0x20: init_type_20(i); break;
     case 0x66: init_type_66(i); break;
+    case 1: case 2: case 3:
+    case 0x52: case 0x5e: case 0x65:
+        init_type_group_a(i, x, y, z, scale, type);
+        break;
+    case 0x92: init_type_92(i, x, y, z, scale); break;
+    case 0x79: init_type_79(i, count_index, x, y, z, scale); break;
+    case 0x5d: init_type_5d(i, count_index, x, y, z, scale); break;
     default: break;
     }
+    (void)count_index;  /* anchor types don't need it */
 }
 
 void scene1_spawn(int slot_hint, float x, float y, float z, int type,
@@ -176,9 +382,9 @@ void scene1_spawn(int slot_hint, float x, float y, float z, int type,
         if (slot_type(local_10) != -1) continue;
 
         commit_slot_preamble(local_10, slot_hint, x, y, z, type, scale);
-        run_type_init(type, local_10);
-        (void)param7;   /* C8i.1 anchor types don't read param7 — used
-                         * by 0x4a / 0x12 / 0x78 / 0x21 in later chips */
+        run_type_init(type, local_10, got, x, y, z, scale);
+        (void)param7;   /* C8i.1/.2 types don't read param7 — used by
+                         * 0x4a / 0x12 / 0x78 / 0x21 in later chips */
         got++;
         if (got == want) return;
     }
