@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-/* Implemented as of C8i.3a:
+/* Implemented as of C8i.3b:
  *   C8i.1 anchors — 0x60 (no-op reservation), 0x20 (age=0),
  *                   0x66 (vel=(0,0,-1) + random life cap).
  *   C8i.2 radial bursts — 1/2/3/0x52/0x5e/0x65 (8-particle group A),
@@ -45,14 +45,33 @@ extern "C" {
  *                         cos→vy), 0x73+0x77 (2, vel-down + param7-trig
  *                         + world-jitter pos), 99 (1, anchor-back -40×
  *                         w/ BASE set), 0x78 (same as 99 + PARAM2=param7).
+ *   C8i.3b mixed-shape multi-particle radials — 0x53 (1, world-radial
+ *                         xz + positive vy), 0x4a (8, matrix-init w/
+ *                         PARAM1=param7 + AGE=i*-4), 0x43 (24, ring-
+ *                         from-below w/ rot.y = angle), 0x97 (64,
+ *                         spherical w/ scale*=(u+0.5)/2), 0x96 (64,
+ *                         spherical + camera-angle xz bend w/ scale*=
+ *                         (u+0.5)), 0x40 (8, equal-spaced ring w/
+ *                         azimuth = i*2π/8), 0x36+0x74 (param_7-count,
+ *                         re-scaled SCALE), 0x4e (3, narrowed vel +
+ *                         wide pos).
  * Unimplemented types record a trace but do not allocate or commit a
- * slot — they will become real spawns as C8i.3b..5 land. */
+ * slot — they will become real spawns as C8i.3c..5 land. */
 #define SCENE1_SPAWN_TYPE_IMPLEMENTED(t)                                    \
     ((t) == 0x60 || (t) == 0x20 || (t) == 0x66 || (t) == 0x92 ||            \
      (t) == 1    || (t) == 2    || (t) == 3    || (t) == 0x52 ||            \
      (t) == 0x5e || (t) == 0x65 || (t) == 0x79 || (t) == 0x5d ||            \
      (t) == 0x69 || (t) == 0x68 || (t) == 0x73 || (t) == 0x77 ||            \
-     (t) == 99   || (t) == 0x78)
+     (t) == 99   || (t) == 0x78 || (t) == 0x53 || (t) == 0x4a ||            \
+     (t) == 0x43 || (t) == 0x97 || (t) == 0x96 || (t) == 0x40 ||            \
+     (t) == 0x36 || (t) == 0x74 || (t) == 0x4e)
+
+/* Stand-in for type 0x96's camera-angle bend.  Engine reads
+ * `*(int *)(slot_hint + 0x948)` directly (slot_hint is overloaded as a
+ * scene-state pointer for 0x96 callers).  Until the sim-side caller
+ * ports, tests set this global to drive the trig dependency.  Default 0
+ * → sin(0)=0, cos(0)=1, so vel.z gets a constant +0.2 bend when unset. */
+extern int g_scene1_spawn_camera_counter_948;
 
 /*
  * Trace ring — kept for tests + debug instrumentation.  Reset by

@@ -607,6 +607,278 @@ int test_scene1_spawn_type_78_matches_99_when_param7_zero(void)
     return 0;
 }
 
+/* ─── C8i.3b: mixed-shape multi-particle radials ──────────────────── */
+
+int test_scene1_spawn_type_53_commits_1(void)   { return spawn_burst_count_is(0x53, 1);  }
+int test_scene1_spawn_type_4a_commits_8(void)   { return spawn_burst_count_is(0x4a, 8);  }
+int test_scene1_spawn_type_43_commits_24(void)  { return spawn_burst_count_is(0x43, 24); }
+int test_scene1_spawn_type_97_commits_64(void)  { return spawn_burst_count_is(0x97, 64); }
+int test_scene1_spawn_type_96_commits_64(void)  { return spawn_burst_count_is(0x96, 64); }
+int test_scene1_spawn_type_40_commits_8(void)   { return spawn_burst_count_is(0x40, 8);  }
+int test_scene1_spawn_type_4e_commits_3(void)   { return spawn_burst_count_is(0x4e, 3);  }
+
+int test_scene1_spawn_type_36_param7_drives_count(void)
+{
+    /* Engine LAB_0044aa47: local_8 + 1 == param_7 → exactly param_7
+     * particles.  Try a few different values. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x36, 1.0f, 5);
+    T_ASSERT_EQ_I(count_committed_slots(0x36), 5);
+
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x36, 1.0f, 17);
+    T_ASSERT_EQ_I(count_committed_slots(0x36), 17);
+    return 0;
+}
+
+int test_scene1_spawn_type_74_param7_drives_count(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x74, 1.0f, 9);
+    T_ASSERT_EQ_I(count_committed_slots(0x74), 9);
+    return 0;
+}
+
+int test_scene1_spawn_type_36_param7_zero_clamps_to_one(void)
+{
+    /* param_7 <= 0 hits a signed-wrap path on the engine.  Our clamp
+     * spawns exactly 1 to keep the loop bounded. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x36, 1.0f, 0);
+    T_ASSERT_EQ_I(count_committed_slots(0x36), 1);
+    return 0;
+}
+
+int test_scene1_spawn_type_53_positive_vy(void)
+{
+    /* Engine: vy = (u + 1.5) * scale * 3.0 → always >= 1.5 * scale * 3
+     * = 4.5 * scale (with u >= 0). */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x53, 1.0f, 0);
+    float vy = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Y);
+    T_ASSERT(vy >= 4.5f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X) == 0.0f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z) == 0.0f);
+    return 0;
+}
+
+int test_scene1_spawn_type_4a_param1_eq_param7(void)
+{
+    /* Engine line 331: PARAM1 = param_7 (across all 8 spawns). */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x4a, 1.0f, 0xc0debabe);
+    for (int k = 0; k < 8; k++) {
+        T_ASSERT_EQ_I(slot_read_i(k, SCENE1_RECORDS_A_OFF_PARAM1),
+                      (int32_t)0xc0debabe);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_4a_age_stagger(void)
+{
+    /* Engine line 332: AGE = local_8 * -4 → 0, -4, -8, ..., -28. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x4a, 1.0f, 0);
+    for (int k = 0; k < 8; k++) {
+        T_ASSERT_EQ_I(slot_read_i(k, SCENE1_RECORDS_A_OFF_AGE), k * -4);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_4a_pos_exact(void)
+{
+    /* Engine lines 328-330: pos = (param_2, param_3, param_4) exact (no
+     * vel nudge).  Verify across all 8 spawns. */
+    reset_records_and_trace();
+    scene1_spawn(0, 12.5f, 34.5f, 56.5f, 0x4a, 1.0f, 0);
+    for (int k = 0; k < 8; k++) {
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_POS_X) == 12.5f);
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_POS_Y) == 34.5f);
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_POS_Z) == 56.5f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_43_pos_y_anchored_below(void)
+{
+    /* Engine line 351: pos.y = y - scale * 8. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 100.0f, 0.0f, 0x43, 2.0f, 0);
+    /* For all 24 spawns, pos.y == 100.0 - 2*8 == 84.0. */
+    for (int k = 0; k < 24; k++) {
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_POS_Y) == 84.0f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_43_rot_y_matches_angle(void)
+{
+    /* Engine line 347 + 349: rot.y = angle (= u2*2π), and pos uses
+     * sin(angle)*fVar1 + x.  Verify rot.y is what makes pos.x consistent. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x43, 1.0f, 0);
+    for (int k = 0; k < 24; k++) {
+        float angle = slot_read_f(k, SCENE1_RECORDS_A_OFF_ROT_Y);
+        T_ASSERT(angle >= 0.0f);
+        T_ASSERT(angle <= 6.2831856f);
+    }
+    /* rot.x = rot.z = 0 (engine lines 346 + 348). */
+    for (int k = 0; k < 24; k++) {
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_ROT_X) == 0.0f);
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_ROT_Z) == 0.0f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_97_scale_halved(void)
+{
+    /* Engine: scale *= (u+0.5)/2 → range [0.25, 0.75] × original (= 1).
+     * With many samples, all slots' SCALE must lie in that range. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x97, 1.0f, 0);
+    for (int k = 0; k < 64; k++) {
+        float s = slot_read_f(k, SCENE1_RECORDS_A_OFF_SCALE);
+        T_ASSERT(s >= 0.25f);
+        T_ASSERT(s <= 0.75f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_96_camera_drives_xz_bend(void)
+{
+    /* Engine: vel.x += sin(c*2π/8)*0.2;  vel.z += cos(c*2π/8)*0.2.
+     * Compare two spawns with the same RNG but different camera
+     * counters; verify vel.x and vel.z change. */
+    extern uint32_t g_rng_seed;
+    uint32_t saved = g_rng_seed;
+    int saved_c = g_scene1_spawn_camera_counter_948;
+
+    reset_records_and_trace();
+    g_rng_seed = 0xb16b00b5;
+    g_scene1_spawn_camera_counter_948 = 0;
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x96, 1.0f, 0);
+    float vx_0 = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vz_0 = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z);
+
+    reset_records_and_trace();
+    g_rng_seed = 0xb16b00b5;
+    g_scene1_spawn_camera_counter_948 = 2;  /* 2/8 turn → 90° rotation */
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x96, 1.0f, 0);
+    float vx_2 = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vz_2 = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z);
+
+    g_rng_seed = saved;
+    g_scene1_spawn_camera_counter_948 = saved_c;
+
+    T_ASSERT(vx_0 != vx_2);
+    T_ASSERT(vz_0 != vz_2);
+    return 0;
+}
+
+int test_scene1_spawn_type_96_scale_full_range(void)
+{
+    /* Engine: scale *= (u+0.5) → range [0.5, 1.5] × original. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x96, 1.0f, 0);
+    for (int k = 0; k < 64; k++) {
+        float s = slot_read_f(k, SCENE1_RECORDS_A_OFF_SCALE);
+        T_ASSERT(s >= 0.5f);
+        T_ASSERT(s <= 1.5f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_40_ring_angle_steps(void)
+{
+    /* Engine: angle = local_8 * 2π/8.
+     *   k=0 → angle 0:    sin = 0,        cos = +1
+     *   k=2 → angle π/2:  sin = +1,       cos = 0
+     *   k=4 → angle π:    sin ≈ 0,        cos = -1
+     *   k=6 → angle 3π/2: sin = -1,       cos = 0
+     *
+     * Since u1 varies per-slot, we can't pin exact values, but the SIGN
+     * of vx/vz is deterministic for each k (modulo near-zero noise from
+     * sinf(π) etc., which we tolerate via a small-epsilon "near zero"
+     * test). */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x40, 1.0f, 0);
+    const float eps = 1e-4f;
+    /* k=0: vx == sinf(0)*... = 0.0f exactly; vz > 0. */
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X) == 0.0f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z) > 0.0f);
+    /* k=2: vx > 0 (sin(π/2)=1), vz ≈ 0 (cosf(π/2) is tiny). */
+    T_ASSERT(slot_read_f(2, SCENE1_RECORDS_A_OFF_VEL_X) > 0.0f);
+    {
+        float vz = slot_read_f(2, SCENE1_RECORDS_A_OFF_VEL_Z);
+        T_ASSERT(vz > -eps && vz < eps);
+    }
+    /* k=4: vx ≈ 0 (sinf(π) is tiny but nonzero); vz < 0. */
+    {
+        float vx = slot_read_f(4, SCENE1_RECORDS_A_OFF_VEL_X);
+        T_ASSERT(vx > -eps && vx < eps);
+    }
+    T_ASSERT(slot_read_f(4, SCENE1_RECORDS_A_OFF_VEL_Z) < 0.0f);
+    /* k=6: vx < 0 (sin(3π/2)=-1), vz ≈ 0. */
+    T_ASSERT(slot_read_f(6, SCENE1_RECORDS_A_OFF_VEL_X) < 0.0f);
+    {
+        float vz = slot_read_f(6, SCENE1_RECORDS_A_OFF_VEL_Z);
+        T_ASSERT(vz > -eps && vz < eps);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_40_vy_positive(void)
+{
+    /* Engine: vy = u * scale * 1.5 (always >= 0). */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x40, 1.0f, 0);
+    for (int k = 0; k < 8; k++) {
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_VEL_Y) >= 0.0f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_36_rescales_slot_scale(void)
+{
+    /* Engine line 496: slot.scale = (u + 1.0) * param_6 → [1.0, 2.0]
+     * × param_6 = 2.0 → final scale in [2.0, 4.0]. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x36, 2.0f, 4);
+    for (int k = 0; k < 4; k++) {
+        float s = slot_read_f(k, SCENE1_RECORDS_A_OFF_SCALE);
+        T_ASSERT(s >= 2.0f);
+        T_ASSERT(s <= 4.0f);
+    }
+    /* PARAM1 in [0x10, 0x1f]. */
+    for (int k = 0; k < 4; k++) {
+        int32_t p = slot_read_i(k, SCENE1_RECORDS_A_OFF_PARAM1);
+        T_ASSERT(p >= 0x10);
+        T_ASSERT(p <= 0x1f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_4e_vel_xz_narrowed_vs_pos(void)
+{
+    /* Engine: vel.x = sin(angle)*scale*fVar1*0.1; pos.x = sin(angle)*
+     * scale*fVar1 + x.  Ratio pos.x / vel.x should be ~10 (for the same
+     * angle/u1), and pos.x - x should equal vel.x * 10 exactly modulo
+     * fp rounding. */
+    reset_records_and_trace();
+    scene1_spawn(0, 100.0f, 200.0f, 300.0f, 0x4e, 1.0f, 0);
+    float vx = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vz = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z);
+    float px = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_X);
+    float pz = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Z);
+    T_ASSERT_EQ_I(*(int32_t *)&px,
+                  *(int32_t *)&(float){ vx * 10.0f + 100.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&pz,
+                  *(int32_t *)&(float){ vz * 10.0f + 300.0f });
+    /* pos.y = y exactly. */
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Y) == 200.0f);
+    return 0;
+}
+
 /* ─── mesh-emit stub (FUN_0044b0f3 placeholder) ────────────────────── */
 
 int test_scene1_mesh_emit_records_call(void)

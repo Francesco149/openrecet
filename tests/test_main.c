@@ -985,6 +985,29 @@ struct test_case {
     X(scene1_spawn_type_99_anchor_back_40x_and_base) \
     X(scene1_spawn_type_78_sets_param2_param7) \
     X(scene1_spawn_type_78_matches_99_when_param7_zero) \
+    X(scene1_spawn_type_53_commits_1) \
+    X(scene1_spawn_type_4a_commits_8) \
+    X(scene1_spawn_type_43_commits_24) \
+    X(scene1_spawn_type_97_commits_64) \
+    X(scene1_spawn_type_96_commits_64) \
+    X(scene1_spawn_type_40_commits_8) \
+    X(scene1_spawn_type_4e_commits_3) \
+    X(scene1_spawn_type_36_param7_drives_count) \
+    X(scene1_spawn_type_74_param7_drives_count) \
+    X(scene1_spawn_type_36_param7_zero_clamps_to_one) \
+    X(scene1_spawn_type_53_positive_vy) \
+    X(scene1_spawn_type_4a_param1_eq_param7) \
+    X(scene1_spawn_type_4a_age_stagger) \
+    X(scene1_spawn_type_4a_pos_exact) \
+    X(scene1_spawn_type_43_pos_y_anchored_below) \
+    X(scene1_spawn_type_43_rot_y_matches_angle) \
+    X(scene1_spawn_type_97_scale_halved) \
+    X(scene1_spawn_type_96_camera_drives_xz_bend) \
+    X(scene1_spawn_type_96_scale_full_range) \
+    X(scene1_spawn_type_40_ring_angle_steps) \
+    X(scene1_spawn_type_40_vy_positive) \
+    X(scene1_spawn_type_36_rescales_slot_scale) \
+    X(scene1_spawn_type_4e_vel_xz_narrowed_vs_pos) \
     X(scene1_mesh_emit_records_call) \
     X(scene1_mesh_emit_reset_clears) \
     \
