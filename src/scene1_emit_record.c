@@ -3,10 +3,9 @@
  * writeup.
  *
  * C8e port of FUN_00454f7c + FUN_00454fe4 + FUN_00455191.  The two
- * helpers land in full (pure state writes); the third is a
- * scaffold — outer loop structured, per-subset draw body deferred
- * to when the engine mesh-record shape can be bridged to our
- * flat mesh_t.
+ * helpers land verbatim; the third is the C8e.bridge port that
+ * walks g_mesh_tex_cache slots × the supplied mesh_t's submeshes
+ * (option (b) from the original chip plan — see the .h notes).
  */
 
 #include "scene1_emit_record.h"
@@ -18,6 +17,9 @@
 #include <d3d8.h>
 
 #include <stdint.h>
+
+#include "mesh_load.h"   /* g_mesh_tex_cache + mesh_tex_entry */
+#include "sprite.h"      /* sprite_t (resolve from cache entry) */
 
 /* ─── per-material state cache ─────────────────────────────────────────
  *
@@ -38,71 +40,72 @@ static int g_cache_mipfilter   = 0;  /* DAT_06a49b14 */
 static int g_cache_addressu    = 0;  /* DAT_06a49b18 */
 static int g_cache_addressv    = 0;  /* DAT_06a49b1c */
 
-/* ─── TODO accessors for the per-material flag tables ──────────────────
+/* ─── per-material flag accessors (read from g_mesh_tex_cache) ─────────
  *
- * Each table holds one byte per material slot — read by index into
- * the table from FUN_00454fe4's `material_slot` parameter.  Tables
- * are BSS-zero today; HOUSE values are all 0.
+ * C5 mesh_load already populates the 10 mesh_tex_flags fields when a
+ * texture name first hits the cache.  The engine reads 4 of them from
+ * scene1_emit_apply_material_state; the other 6 are read by sibling
+ * render paths (water/hikari/kabe_/yuka_/shop_jutan/ext_tga) elsewhere.
  *
- *   DAT_073cb684 — cull flag       (0 = CCW, 1 = NONE)
- *   DAT_073cb5bc — mipfilter flag  (0 = LINEAR, 1 = NONE)
- *   DAT_073cb74c — addressu key    (0..3 → WRAP/MIRROR/CLAMP/BORDER)
- *   DAT_073cb814 — addressv key    (0..3 → WRAP/MIRROR/CLAMP/BORDER)
+ * Engine → mesh_tex_flags mapping (confirmed from mesh_load.h):
+ *   DAT_073cb684 (cull) ↔ flags.has_w_     ("w_" anywhere in name)
+ *   DAT_073cb5bc (mip)  ↔ flags.has_n_     ("n_" anywhere in name)
+ *   DAT_073cb74c (u)    ↔ flags.u_index    (last "u<k>_" match)
+ *   DAT_073cb814 (v)    ↔ flags.v_index    (last "v<k>_" match)
  *
- * Plus DAT_0438b178 — the recet.ini trilinear-off override.  If
- * the mipfilter flag table is 0 but the recet.ini override is 1,
- * the engine still writes NONE (forces trilinear off).
+ * Out-of-range slots return 0 (zero-init default — matches engine BSS
+ * for unwritten slots past DAT_073cb108).
  */
-
 static int em_cull_flag(int material_slot)
 {
-    /* TODO C8-followup: read (&DAT_073cb684)[material_slot]. */
-    (void)material_slot;
-    return 0;
+    if (material_slot < 0 || material_slot >= g_mesh_tex_cache.count) return 0;
+    return g_mesh_tex_cache.entries[material_slot].flags.has_w_;
 }
 
 static int em_mipfilter_flag(int material_slot)
 {
-    /* TODO C8-followup: read (&DAT_073cb5bc)[material_slot]. */
-    (void)material_slot;
-    return 0;
+    if (material_slot < 0 || material_slot >= g_mesh_tex_cache.count) return 0;
+    return g_mesh_tex_cache.entries[material_slot].flags.has_n_;
 }
 
 static int em_addressu_key(int material_slot)
 {
-    /* TODO C8-followup: read (&DAT_073cb74c)[material_slot]. */
-    (void)material_slot;
-    return 0;
+    if (material_slot < 0 || material_slot >= g_mesh_tex_cache.count) return 0;
+    return g_mesh_tex_cache.entries[material_slot].flags.u_index;
 }
 
 static int em_addressv_key(int material_slot)
 {
-    /* TODO C8-followup: read (&DAT_073cb814)[material_slot]. */
-    (void)material_slot;
-    return 0;
+    if (material_slot < 0 || material_slot >= g_mesh_tex_cache.count) return 0;
+    return g_mesh_tex_cache.entries[material_slot].flags.v_index;
 }
 
 static int em_trilinear_off(void)
 {
-    /* DAT_0438b178 — same accessor shape as scene1_render.c's
-     * scene1_trilinear_off.  recet.ini doesn't expose this yet. */
+    /* DAT_0438b178 — recet.ini trilinear-off override.  Same accessor
+     * shape as scene1_render.c's scene1_trilinear_off.  recet.ini
+     * doesn't expose this yet — defaults to 0 (mipfilter follows
+     * per-material flag verbatim). */
     return 0;
 }
 
-/* DAT_073cb108 — material slot count (outer-loop bound for
- * FUN_00455191).  BSS-zero in HOUSE.  Populated by the per-stage
- * material registration that runs at scene-1 load (not ported). */
+/* DAT_073cb108 — material slot count (outer-loop bound).  Now
+ * g_mesh_tex_cache.count, populated by C5 mesh_load. */
 static int em_material_slot_count(void)
 {
-    return 0;
+    return g_mesh_tex_cache.count;
 }
 
-/* DAT_073be5e8 — texture pointer array, indexed by material slot.
- * BSS-zero (one IDirect3DTexture8* per slot, NULL today). */
-static struct IDirect3DBaseTexture8 *em_texture_for_slot(int material_slot)
+/* DAT_073be5e8[slot] — IDirect3DBaseTexture8* per slot.  The engine
+ * stores one texture pointer per cache slot; our g_mesh_tex_cache
+ * entry holds a sprite_t* with the same underlying texture (created
+ * by mesh_load_finalize_win32's sprite_load pass). */
+static IDirect3DBaseTexture8 *em_texture_for_slot(int material_slot)
 {
-    (void)material_slot;
-    return NULL;
+    if (material_slot < 0 || material_slot >= g_mesh_tex_cache.count) return NULL;
+    sprite_t *spr = (sprite_t *)g_mesh_tex_cache.entries[material_slot].sprite;
+    if (!spr) return NULL;
+    return (IDirect3DBaseTexture8 *)spr->tex;
 }
 
 /* ─── FUN_00454f7c — mid-walker state preamble ─────────────────────── */
@@ -235,28 +238,8 @@ void scene1_emit_apply_material_state(struct IDirect3DDevice8 *dev_in,
 /* ─── FUN_00455191 — per-mesh draw entry ───────────────────────────── */
 
 void scene1_emit_record(struct IDirect3DDevice8 *dev_in,
-                        const void *mesh_record,
-                        const void *override_table)
+                        const mesh_t *mesh)
 {
-    /* Engine `override_table` is read inside FUN_00454f7c / 4fe4 /
-     * 5191 only indirectly — actually, looking at the decomp again,
-     * it's the second parameter passed when the walker calls
-     * FUN_00455191(&DAT_073a9680).  But the engine reads param_1
-     * as the mesh-record (piVar2 = param_1).  The decomp shows the
-     * pointer is reassigned (param_1 = (int *)0x0 inside the inner
-     * loop), then later used as an offset accumulator for material
-     * stride 0x44 — so the engine treats it as both a mesh-record
-     * pointer AND a local material-iteration accumulator.  Ghidra
-     * conflated the two roles.
-     *
-     * For our header API: mesh_record is the mesh struct (engine's
-     * shape with [0]=ID3DXMesh*, [1]=mat-index*, [2]=mat-array*,
-     * [4]=subset-count).  override_table is currently unused (the
-     * engine never actually reads it under the gates that fire for
-     * HOUSE).  Both are opaque void* to avoid leaking the
-     * yet-to-port engine type shapes through our header. */
-    (void)override_table;
-
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
@@ -265,63 +248,88 @@ void scene1_emit_record(struct IDirect3DDevice8 *dev_in,
 
     /* L14-L41: outer loop over material slots [0, em_material_slot_count()).
      *
-     * Engine body per slot:
-     *   if (piVar2[0] != 0) {                  // mesh has an ID3DXMesh*
-     *     FUN_00454fe4(local_8);               // per-material state flip
-     *     for (iVar3 = 0; iVar3 < piVar2[4]; iVar3++) {
-     *       if (piVar2[1][iVar3] == local_8) { // subset's material matches outer slot
-     *         if (!bVar1) {
-     *           bVar1 = true;
-     *           SetTexture(0, &DAT_073be5e8[local_8]);
-     *         }
-     *         SetMaterial(piVar2[2] + iVar3*0x44);
-     *         ((ID3DXMesh*)piVar2[0])->DrawSubset(iVar3);
-     *       }
-     *     }
-     *   }
+     * Engine body per slot (with our mesh_t adapter — see option (b)
+     * in scene1_emit_record.h):
+     *   for slot in [0, count):
+     *     if mesh has VB+IB:
+     *       FUN_00454fe4(slot)              // per-material state flip
+     *       for each submesh sm in mesh:
+     *         mat_idx = sm.material_index
+     *         if mat_idx < 0: continue
+     *         if mesh.texture_slots[mat_idx] != slot: continue
+     *         if !texture_bound_for_slot:
+     *           SetTexture(0, em_texture_for_slot(slot))
+     *           texture_bound_for_slot = true
+     *         SetMaterial(material at mat_idx)
+     *         DrawIndexedPrimitive(sm.range)
      *
-     * For HOUSE: em_material_slot_count() == 0 → outer loop
-     * short-circuits → no draws.  When data populates, the inner
-     * body should bridge to our mesh_t.  See TODO inline.
-     */
+     * The engine's per-slot FUN_00454fe4 fires once regardless of
+     * whether the inner subset loop hits — the state cache makes
+     * this cheap and the next slot starts from a known base. */
     int slot_count = em_material_slot_count();
-    if (mesh_record != NULL && slot_count > 0) {
+    if (mesh && mesh->vb && mesh->ib && mesh->submesh_count > 0 && slot_count > 0) {
+        /* Engine sets the stream once per mesh-record; subsets share
+         * the VB and only swap SetIndices.  Our mesh_t has one VB+IB
+         * for the whole mesh — same shape. */
+        IDirect3DDevice8_SetStreamSource(
+            dev, 0, (IDirect3DVertexBuffer8 *)mesh->vb,
+            (UINT)sizeof(mesh_vertex));
+
         for (int slot = 0; slot < slot_count; slot++) {
-            /* TODO C8-followup: implement the bridge from the
-             * engine's mesh-record shape to our mesh_t.  Two
-             * possible paths:
-             *
-             *  (a) Build an engine-shaped wrapper struct alongside
-             *      mesh_t at mesh-load time (cheap — re-use the
-             *      existing material + texture-slot arrays).
-             *
-             *  (b) Adapt the iteration here: for each slot, walk
-             *      our mesh_t's submeshes and bind matching
-             *      materials, calling DrawIndexedPrimitive per
-             *      submesh.  This mirrors what mesh_draw_d3d8
-             *      already does in one call — but the engine's
-             *      outer-loop-per-slot lets it cache state across
-             *      meshes that share materials, which our
-             *      mesh_draw_d3d8 doesn't exploit.  For a single
-             *      mesh, (a) and (b) produce equivalent draw
-             *      sequences.
-             *
-             * Until data populates, this loop body is reachable
-             * only if a caller passes a non-NULL record AND
-             * em_material_slot_count() returns > 0.  Both gates
-             * are dormant in HOUSE today.
-             *
-             * The per-material state diff fires regardless of
-             * mesh content — useful even without a draw, since
-             * downstream consumers expect the cached cull/mip/
-             * address state to reflect this slot. */
             scene1_emit_apply_material_state(
                 (struct IDirect3DDevice8 *)dev, slot);
 
-            /* Suppress unused-warning while body is TODO: */
-            struct IDirect3DBaseTexture8 *tex = em_texture_for_slot(slot);
-            (void)tex;
-            (void)mesh_record;
+            int texture_bound = 0;
+
+            for (int32_t s = 0; s < mesh->submesh_count; s++) {
+                const mesh_submesh *sm = &mesh->submeshes[s];
+                if (sm->vertex_count <= 0 || sm->index_count < 3) continue;
+                int mat_idx = sm->material_index;
+                if (mat_idx < 0 || mat_idx >= mesh->material_count) continue;
+                if (!mesh->texture_slots) continue;
+                if (mesh->texture_slots[mat_idx] != slot) continue;
+
+                if (!texture_bound) {
+                    texture_bound = 1;
+                    IDirect3DDevice8_SetTexture(
+                        dev, 0, em_texture_for_slot(slot));
+                }
+
+                /* SetIndices with BaseVertexIndex = sm.vertex_offset
+                 * so the submesh's local 0..vertex_count-1 indices
+                 * address the right VB rows.  Mirrors mesh_draw_d3d8. */
+                IDirect3DDevice8_SetIndices(
+                    dev, (IDirect3DIndexBuffer8 *)mesh->ib,
+                    (UINT)sm->vertex_offset);
+
+                /* Material — engine "ambient = diffuse" duplication
+                 * (FUN_004c75e3 D3DXLoadMeshFromXof clone), same
+                 * shape as mesh_draw_d3d8. */
+                D3DMATERIAL8 mat = {0};
+                const xfile_material *mm = &mesh->materials[mat_idx];
+                mat.Diffuse.r  = mm->diffuse.r;
+                mat.Diffuse.g  = mm->diffuse.g;
+                mat.Diffuse.b  = mm->diffuse.b;
+                mat.Diffuse.a  = mm->diffuse.a;
+                mat.Ambient    = mat.Diffuse;
+                mat.Specular.r = mm->specular.r;
+                mat.Specular.g = mm->specular.g;
+                mat.Specular.b = mm->specular.b;
+                mat.Specular.a = 1.0f;
+                mat.Emissive.r = mm->emissive.r;
+                mat.Emissive.g = mm->emissive.g;
+                mat.Emissive.b = mm->emissive.b;
+                mat.Emissive.a = 1.0f;
+                mat.Power      = mm->power;
+                IDirect3DDevice8_SetMaterial(dev, &mat);
+
+                IDirect3DDevice8_DrawIndexedPrimitive(
+                    dev, D3DPT_TRIANGLELIST,
+                    /* MinIndex      */ 0,
+                    /* NumVertices   */ (UINT)sm->vertex_count,
+                    /* StartIndex    */ (UINT)sm->index_offset,
+                    /* PrimitiveCount*/ (UINT)(sm->index_count / 3));
+            }
         }
     }
 

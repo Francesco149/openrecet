@@ -64,6 +64,7 @@
 #include "scene1_preload.h"
 #include "scene1_records.h"
 #include "scene1_render.h"
+#include "scene1_shop_walker.h"
 #include "stage_palette.h"
 #include "stage_state.h"
 #include "tick.h"
@@ -137,6 +138,18 @@ static mesh_t          *g_house_preview_mesh   = NULL;
  * FUN_0040fb3a (the 8071 B integrator) or FUN_00447f4f (the 11826 B
  * spawn API).  See docs/findings/scene1-particles-tick.md "Option A". */
 static int              g_show_pass_f_test     = 0;
+
+/* --force-pass-d-mesh <path>: C8e.bridge visual smoke.  Loads one .x
+ * file via mesh_load + mesh_load_finalize_win32 at boot and hands it
+ * to scene1_shop_walker_set_pass_d_mesh().  Stand-in for the engine's
+ * static &DAT_073a9680 (train_iwa.x — loaded only in FUN_00474a9a's
+ * DUNGEON branch).  Combined with `--force-ambient-spawn
+ * --ambient-spawn-type 0x79`, this surfaces visible Pass D draws for
+ * the {0x74, 0x79, 0x96} record types without first porting the
+ * DUNGEON preload.  Default unset → Pass D stays dormant (engine
+ * HOUSE default). */
+static char            *g_force_pass_d_mesh_path = NULL;
+static mesh_t          *g_force_pass_d_mesh      = NULL;
 
 /* --force-ambient-spawn / --ambient-spawn-type <N>: bypass the
  * stage_palette->ambient_spawn_flag gate in scene1_postload_ambient_spawn
@@ -546,6 +559,47 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         g_house_preview_mesh->centroid[1],
                         g_house_preview_mesh->centroid[2],
                         g_house_preview_mesh->radius);
+            }
+        }
+    }
+
+    /* --force-pass-d-mesh: C8e.bridge visual smoke.  Same load shape
+     * as --show-mesh / --house-preview; on success we hand the mesh
+     * to scene1_shop_walker_set_pass_d_mesh so sw_pass_d's per-record
+     * call to scene1_emit_record draws this mesh at the per-record
+     * world matrix.  Combined with --force-ambient-spawn
+     * --ambient-spawn-type 0x79 (or 0x74 / 0x96), the production spawn
+     * pipeline populates table A records that trip the Pass D filter
+     * and produce visible draws.  Off by default — Pass D stays
+     * dormant (matches engine HOUSE behavior). */
+    if (g_force_pass_d_mesh_path) {
+        g_force_pass_d_mesh = mesh_load(g_force_pass_d_mesh_path, -1);
+        if (!g_force_pass_d_mesh) {
+            fprintf(stderr, "openrecet: force-pass-d-mesh load failed: %s\n",
+                    g_force_pass_d_mesh_path);
+        } else if (g_force_pass_d_mesh->error[0]) {
+            fprintf(stderr, "openrecet: force-pass-d-mesh build error in %s: %s\n",
+                    g_force_pass_d_mesh_path, g_force_pass_d_mesh->error);
+            mesh_free(g_force_pass_d_mesh);
+            g_force_pass_d_mesh = NULL;
+        } else {
+            HRESULT hr = mesh_load_finalize_win32(g_force_pass_d_mesh, g_dev);
+            if (FAILED(hr)) {
+                fprintf(stderr,
+                        "openrecet: force-pass-d-mesh finalize failed: 0x%08lx\n",
+                        (unsigned long)hr);
+                mesh_free(g_force_pass_d_mesh);
+                g_force_pass_d_mesh = NULL;
+            } else {
+                fprintf(stderr,
+                        "force-pass-d-mesh: %s loaded (verts=%d idx=%d "
+                        "submeshes=%d materials=%d)\n",
+                        g_force_pass_d_mesh_path,
+                        g_force_pass_d_mesh->vertex_count,
+                        g_force_pass_d_mesh->index_count,
+                        g_force_pass_d_mesh->submesh_count,
+                        g_force_pass_d_mesh->material_count);
+                scene1_shop_walker_set_pass_d_mesh(g_force_pass_d_mesh);
             }
         }
     }
@@ -1053,6 +1107,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     if (g_house_preview_mesh) {
         mesh_free(g_house_preview_mesh);
         g_house_preview_mesh = NULL;
+    }
+    if (g_force_pass_d_mesh) {
+        scene1_shop_walker_set_pass_d_mesh(NULL);
+        mesh_free(g_force_pass_d_mesh);
+        g_force_pass_d_mesh = NULL;
     }
     mesh_tex_cache_reset();
     fade_unload_system_texture();
@@ -1695,6 +1754,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
             }
         } else if (lstrcmpA(tok, "--show-pass-f-test") == 0) {
             g_show_pass_f_test = 1;
+        } else if (lstrcmpA(tok, "--force-pass-d-mesh") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char path_buf[MAX_PATH];
+                lstrcpynA(path_buf, val, (int)sizeof(path_buf));
+                g_force_pass_d_mesh_path = path_buf;
+            }
         } else if (lstrcmpA(tok, "--force-ambient-spawn") == 0) {
             g_force_ambient_spawn = 1;
         } else if (lstrcmpA(tok, "--ambient-spawn-type") == 0) {

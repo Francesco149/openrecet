@@ -31,35 +31,34 @@
  *                           binds material+texture per slot,
  *                           DrawSubset per matching subset.
  *
- * What this chip lands:
+ * C8e.bridge (2026-05-24):
+ *   - Stub accessors wired to g_mesh_tex_cache.  The engine's
+ *     DAT_073cb108 is our `g_mesh_tex_cache.count`; the four flag
+ *     tables (DAT_073cb684/5bc/74c/814) are the .has_w_ / .has_n_ /
+ *     .u_index / .v_index fields of each entry's mesh_tex_flags;
+ *     DAT_073be5e8[slot] is the entry's sprite_t->tex.  C5 mesh_load
+ *     already populates all of these.
+ *   - Inner draw body implemented via option (b): bridge engine-
+ *     mesh-record → our mesh_t.  Outer loop walks cache slots [0,
+ *     count); inner loop walks our mesh_t's submeshes filtered by
+ *     `m->texture_slots[sm.material_index] == slot`.  Same draw
+ *     sequence as the engine, different iteration source (mesh_t's
+ *     submeshes vs ID3DXMesh subsets).
+ *   - The engine's API takes ONE arg (the mesh-record); our prior
+ *     header speculated an "override_table" second arg that turned
+ *     out to be the mesh-record itself (callers pass &DAT_073a9680
+ *     etc).  Header now matches the engine: `(dev, mesh)`.
  *
- *   - Full port of FUN_00454f7c + FUN_00454fe4.  Pure state-write
- *     helpers — their bodies map 1:1 to D3D8 calls without needing
- *     any engine-side type imports.
- *
- *   - Scaffold port of FUN_00455191.  Outer loop is structured but
- *     the inner per-subset draw body is a TODO comment — it needs
- *     either:
- *       (a) the engine's ID3DXMesh + per-mesh material-index array
- *           shape (we'd have to build an alternate mesh wrapper),
- *       OR
- *       (b) a mapping from "engine mesh record" → our mesh_t, then
- *           a delegate call to scene1_render_emit_frame.
- *
- *     For HOUSE the outer count DAT_073cb108 is BSS-zero (no port
- *     has populated the per-material texture cache yet), so the
- *     loop short-circuits regardless.  When data populates, option
- *     (b) is the right wiring — see the TODO inline.
- *
- * Wiring: none of the four mesh walkers' per-record body actually
- * calls scene1_emit_record yet (each walker's per-record loop is
- * itself a TODO inside scene1_shop_walker.c / scene1_alpha_walker.c).
- * Landing the helpers now means the next walker-body port has a
- * stable target name.
+ * Wiring: scene1_shop_walker.c::sw_pass_d passes a per-pass mesh
+ * via the new scene1_shop_walker_set_pass_d_mesh() setter (default
+ * NULL → dormant).  CLI flag `--force-pass-d-mesh <path>` plumbs a
+ * hand-loaded mesh through main.c, analogous to `--show-pass-f-test`.
  */
 
 #ifndef OPENRECET_SCENE1_EMIT_RECORD_H
 #define OPENRECET_SCENE1_EMIT_RECORD_H
+
+#include "mesh.h"  /* mesh_t */
 
 #ifdef _WIN32
 
@@ -73,38 +72,25 @@ void scene1_emit_preamble(struct IDirect3DDevice8 *dev);
 
 /* FUN_00454fe4 — apply per-material state diff for material slot
  * `material_slot`.  Reads four engine flag tables (cull / mipfilter
- * / address-u / address-v) and writes the device state only when
- * different from the cached value.  No-op when dev is NULL.
- *
- * For HOUSE: every flag table is BSS-zero → first call writes the
- * default state (CULLMODE=CCW, MIPFILTER=LINEAR, ADDRESSU=WRAP,
- * ADDRESSV=WRAP), subsequent calls short-circuit on cache match. */
+ * / address-u / address-v) via g_mesh_tex_cache and writes the
+ * device state only when different from the cached value.  No-op
+ * when dev is NULL or material_slot is out of range. */
 void scene1_emit_apply_material_state(struct IDirect3DDevice8 *dev,
                                       int material_slot);
 
-/* FUN_00455191 — per-mesh draw entry.  Takes the engine's mesh-
- * record pointer (an opaque void* in our header — the engine
- * struct layout is captured in the .c file).  Walks material
- * slots × subsets, binds material+texture, calls DrawSubset per
- * match.
+/* FUN_00455191 — per-mesh draw entry.  Takes a mesh_t (the engine's
+ * mesh-record analog; see C8e.bridge note above).  Walks cache
+ * slots × mesh submeshes, binds material+texture, calls
+ * DrawIndexedPrimitive per matching submesh.
  *
- * For HOUSE the outer-loop count (DAT_073cb108) is BSS-zero, so
- * passing any record results in no draws — the function still
- * issues the preamble + tail state writes though, matching engine.
+ * `mesh` may be NULL — short-circuits the inner draw loop (engine
+ * guards on piVar2[0] != 0; equivalent to our NULL mesh check).
+ * The preamble + tail state writes still fire so the next call's
+ * state diffs see the correct base.
  *
- * `override_table` corresponds to the engine's second-arg variant:
- *   FUN_00455191(0)              — no override
- *   FUN_00455191(&DAT_073a9680)  — pass-C/D override
- *   FUN_00455191(&DAT_073a9658)  — alpha-pass override
- *   FUN_00455191(&DAT_068dcf98)  — initial-asset override
- * Ignored today (passes opaque void* through to where engine
- * reads it; no use site ported).  May be NULL.
- *
- * No-op when dev is NULL.  Records passed as NULL also short-
- * circuit (engine UB; we guard explicitly). */
+ * No-op when dev is NULL. */
 void scene1_emit_record(struct IDirect3DDevice8 *dev,
-                        const void *mesh_record,
-                        const void *override_table);
+                        const mesh_t *mesh);
 
 #endif /* _WIN32 */
 

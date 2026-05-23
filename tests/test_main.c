@@ -1323,7 +1323,10 @@ struct test_case {
     X(scene1_pass_d_compose_translation_only) \
     X(scene1_pass_d_compose_scale_factor_is_point_2) \
     X(scene1_pass_d_compose_rotation_x_mixes_y_z) \
-    X(scene1_pass_d_compose_scale_field_is_float_not_int)
+    X(scene1_pass_d_compose_scale_field_is_float_not_int) \
+    X(scene1_pass_d_mesh_default_is_null) \
+    X(scene1_pass_d_mesh_setter_round_trips) \
+    X(scene1_pass_d_mesh_setter_replaces_previous)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

@@ -257,12 +257,20 @@ static void sw_pass_c(IDirect3DDevice8 *dev)
  * &DAT_073a9680 override.  Engine FUN_004552d0 L239-L258, asm
  * @ 0x455bc8..0x455cea.
  *
- * Today's wired result: when records of these types populate (e.g.
- * via `--ambient-spawn-type 0x79`), this loop builds and sets a
- * world matrix per matching record then calls scene1_emit_record,
- * which short-circuits inside (em_material_slot_count() == 0 in
- * HOUSE).  Visible pixels arrive when the scene1_emit_record mesh
- * bridge lands — see C8e TODO inline. */
+ * The engine's &DAT_073a9680 is a static engine struct populated by
+ * FUN_00472836(&DAT_073a9680, "xfile/etc/train_iwa.x", -1) — but
+ * only in FUN_00474a9a's DUNGEON branch.  HOUSE leaves the slot
+ * BSS-zero, so engine's `if (piVar2[0] != 0)` guard inside
+ * FUN_00455191 short-circuits → Pass D is permanently dormant in
+ * HOUSE by design.
+ *
+ * Port shape: a module-static (in scene1_shop_walker_helpers.c so
+ * host tests can exercise it) substitutes for the engine global.
+ * `--force-pass-d-mesh <path>` loads a mesh at boot and assigns it
+ * via scene1_shop_walker_set_pass_d_mesh, mirroring the engine's
+ * "DUNGEON-loaded mesh-record" state without porting the DUNGEON
+ * preload.  Default NULL preserves byte-identical HOUSE behavior. */
+
 static void sw_pass_d(IDirect3DDevice8 *dev)
 {
     int count = sw_pass_d_count();
@@ -281,14 +289,13 @@ static void sw_pass_d(IDirect3DDevice8 *dev)
         IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
                                       (const D3DMATRIX *)world);
 
-        /* Engine `FUN_00455191(&DAT_073a9680)` — override is the
-         * Pass-C/D mesh-record stand-in (a static engine global of
-         * the per-mesh shape, address outside our unpacked image).
-         * scene1_emit_record ignores override_table today
-         * (em_material_slot_count() == 0 short-circuits the inner
-         * loop), so NULL is safe.  Future bridge chip should
-         * resolve a real mesh_t for this slot. */
-        scene1_emit_record((struct IDirect3DDevice8 *)dev, NULL, NULL);
+        /* Engine `FUN_00455191(&DAT_073a9680)` — the engine's Pass-D
+         * mesh-record (train_iwa.x, loaded in DUNGEON only).  Our
+         * stand-in defaults to NULL (HOUSE-dormant by design); when
+         * --force-pass-d-mesh provides one, scene1_emit_record walks
+         * cache slots × the mesh's submeshes and draws. */
+        scene1_emit_record((struct IDirect3DDevice8 *)dev,
+                           scene1_shop_walker_get_pass_d_mesh());
     }
 }
 

@@ -220,3 +220,47 @@ int test_scene1_pass_d_compose_scale_field_is_float_not_int(void)
     T_ASSERT_NEAR_D(M[5], 0.2f, 1e-6f);
     return 0;
 }
+
+/* ─── Pass D mesh setter/getter (C8e.bridge) ────────────────────────────
+ *
+ * Stand-in for the engine's static &DAT_073a9680 (train_iwa.x mesh-
+ * record).  Default NULL → sw_pass_d's call to scene1_emit_record
+ * short-circuits inside (mirrors engine HOUSE dormancy).  --force-pass-
+ * d-mesh sets the slot via the setter at boot.
+ */
+
+int test_scene1_pass_d_mesh_default_is_null(void)
+{
+    /* Reset to a known state first — other tests in this run might
+     * have set it. */
+    scene1_shop_walker_set_pass_d_mesh(NULL);
+    T_ASSERT(scene1_shop_walker_get_pass_d_mesh() == NULL);
+    return 0;
+}
+
+int test_scene1_pass_d_mesh_setter_round_trips(void)
+{
+    /* The setter takes a borrowed pointer; the getter returns
+     * exactly what was set.  Empty mesh struct is fine — we only
+     * test the pointer round-trip, not the deref. */
+    mesh_t fake = {0};
+    scene1_shop_walker_set_pass_d_mesh(&fake);
+    T_ASSERT(scene1_shop_walker_get_pass_d_mesh() == &fake);
+    /* Tidy up so subsequent tests start from NULL. */
+    scene1_shop_walker_set_pass_d_mesh(NULL);
+    T_ASSERT(scene1_shop_walker_get_pass_d_mesh() == NULL);
+    return 0;
+}
+
+int test_scene1_pass_d_mesh_setter_replaces_previous(void)
+{
+    /* Subsequent sets overwrite — caller owns the lifetime, we just
+     * hold a pointer. */
+    mesh_t a = {0}, b = {0};
+    scene1_shop_walker_set_pass_d_mesh(&a);
+    T_ASSERT(scene1_shop_walker_get_pass_d_mesh() == &a);
+    scene1_shop_walker_set_pass_d_mesh(&b);
+    T_ASSERT(scene1_shop_walker_get_pass_d_mesh() == &b);
+    scene1_shop_walker_set_pass_d_mesh(NULL);
+    return 0;
+}

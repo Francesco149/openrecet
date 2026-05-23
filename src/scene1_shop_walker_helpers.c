@@ -58,3 +58,23 @@ void sw_pass_d_compose_world(float out[16], const int32_t *slot)
     mat4_rotation_x(scratch, rot_x);
     mat4_mul(out, scratch, out);
 }
+
+/* ─── Pass D mesh slot (C8e.bridge) ──────────────────────────────────────
+ *
+ * Module-static stand-in for the engine's `&DAT_073a9680` (train_iwa.x,
+ * populated by FUN_00474a9a's DUNGEON branch only — see the chip notes
+ * inline at sw_pass_d).  Lives in the helpers TU so host tests can
+ * exercise the setter/getter contract without linking <d3d8.h>.
+ */
+
+static const mesh_t *g_pass_d_mesh = NULL;
+
+void scene1_shop_walker_set_pass_d_mesh(const mesh_t *m)
+{
+    g_pass_d_mesh = m;
+}
+
+const mesh_t *scene1_shop_walker_get_pass_d_mesh(void)
+{
+    return g_pass_d_mesh;
+}

@@ -129,11 +129,22 @@
 
 #include <stdint.h>
 
+#include "mesh.h"  /* mesh_t — for the Pass D mesh setter */
+
 /* Pass D record-emit predicate + matrix composer.  D3D-free helpers,
  * available on host (Linux) for unit tests.  See
  * scene1_shop_walker_helpers.c for derivation. */
 int  sw_pass_d_should_emit(const int32_t *slot);
 void sw_pass_d_compose_world(float out[16], const int32_t *slot);
+
+/* Pass D mesh slot.  Stand-in for the engine's static &DAT_073a9680
+ * (train_iwa.x, populated by FUN_00474a9a's DUNGEON branch only).
+ * Default NULL → Pass D dormant inside scene1_emit_record (matches
+ * HOUSE behavior).  Set non-NULL from main.c when --force-pass-d-mesh
+ * provides a hand-loaded mesh.  Caller owns the mesh — the walker
+ * holds a borrowed pointer. */
+void          scene1_shop_walker_set_pass_d_mesh(const mesh_t *m);
+const mesh_t *scene1_shop_walker_get_pass_d_mesh(void);
 
 #ifdef _WIN32
 
