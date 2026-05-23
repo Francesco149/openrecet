@@ -2085,6 +2085,335 @@ int test_scene1_spawn_type_0f_consumes_dead_rng15(void)
     return 0;
 }
 
+/* ─── C8i.5c — camera-yaw trig + aux_15 flag handlers (9 types) ───── */
+
+/* Burst counts via param_7 for all 9 C8i.5c types. */
+int test_scene1_spawn_type_15_param7_drives_count(void) { return spawn_param7_count_is(0x15, 7,  7);  }
+int test_scene1_spawn_type_16_param7_drives_count(void) { return spawn_param7_count_is(0x16, 4,  4);  }
+int test_scene1_spawn_type_18_param7_drives_count(void) { return spawn_param7_count_is(0x18, 5,  5);  }
+int test_scene1_spawn_type_58_param7_drives_count(void) { return spawn_param7_count_is(0x58, 3,  3);  }
+int test_scene1_spawn_type_4f_param7_drives_count(void) { return spawn_param7_count_is(0x4f, 8,  8);  }
+int test_scene1_spawn_type_3f_param7_drives_count(void) { return spawn_param7_count_is(0x3f, 6,  6);  }
+int test_scene1_spawn_type_56_param7_drives_count(void) { return spawn_param7_count_is(0x56, 10, 10); }
+/* `type_h10` = engine type 0x10 (hex); existing test_scene1_spawn_type_10
+ * is for decimal 10 = engine type 0xA — keep names disambiguated. */
+int test_scene1_spawn_type_h10_param7_drives_count(void){ return spawn_param7_count_is(0x10, 4,  4);  }
+int test_scene1_spawn_type_91_param7_drives_count(void) { return spawn_param7_count_is(0x91, 9,  9);  }
+
+/* 0x15: vel.x/z = (u-0.5)*SCALE*0.3 (signed), vel.y = (u+0.5)*SCALE*0.2
+ * (positive); AGE = -i.  Verify scale multiplier by raising scale and
+ * checking the vel range grows proportionally. */
+int test_scene1_spawn_type_15_velocity_uses_scale(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x15, 10.0f, 8);
+    for (int i = 0; i < 8; i++) {
+        float vx = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        /* vx,vz = (u-0.5)*10*0.3 → [-1.5, 1.5). */
+        T_ASSERT(vx >= -1.5f && vx < 1.5f);
+        T_ASSERT(vz >= -1.5f && vz < 1.5f);
+        /* vy = (u+0.5)*10*0.2 → [1.0, 3.0). */
+        T_ASSERT(vy >= 1.0f && vy < 3.0f);
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AGE), -i);
+    }
+    return 0;
+}
+
+/* 0x16: vel.y = 0 explicitly; pos.y gets a 2*(u-0.5) lift around the
+ * spawn y; AGE = -i. */
+int test_scene1_spawn_type_16_vel_y_zero(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 10.0f, 0.0f, 20.0f, 0x16, 1.0f, 6);
+    for (int i = 0; i < 6; i++) {
+        T_ASSERT(slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y) == 0.0f);
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AGE), -i);
+        /* pos.y ∈ y + 2*([0,1)-0.5) = y + [-1, 1).  Note: rounding may
+         * push slightly past on either end — check a wider tolerance. */
+        float py = slot_read_f(i, SCENE1_RECORDS_A_OFF_POS_Y);
+        T_ASSERT(py >= -1.5f && py <= 1.5f);
+    }
+    return 0;
+}
+
+/* 0x16 world-radial xz: pos.x and pos.z move within ±(mag) where
+ * mag = u*6+1 ≤ 7.  Spawning at (0,0,0) should give |px|, |pz| ≤ 7. */
+int test_scene1_spawn_type_16_world_radial_xz(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x16, 1.0f, 12);
+    for (int i = 0; i < 12; i++) {
+        float px = slot_read_f(i, SCENE1_RECORDS_A_OFF_POS_X);
+        float pz = slot_read_f(i, SCENE1_RECORDS_A_OFF_POS_Z);
+        /* mag ≤ 7, sin/cos in [-1,1] → |pos| ≤ 7. */
+        T_ASSERT(px >= -7.001f && px <= 7.001f);
+        T_ASSERT(pz >= -7.001f && pz <= 7.001f);
+    }
+    return 0;
+}
+
+/* 0x18 vel.x positive bias [0.2, 0.3]; vel.y/z stay at preamble 0. */
+int test_scene1_spawn_type_18_vel_x_positive_bias(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x18, 1.0f, 5);
+    for (int i = 0; i < 5; i++) {
+        float vx = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        T_ASSERT(vx >= 0.2f && vx <= 0.3f);
+        T_ASSERT(slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y) == 0.0f);
+        T_ASSERT(slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Z) == 0.0f);
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AGE), -i);
+    }
+    return 0;
+}
+
+/* 0x18/0x58/0x3f/0x56 all read g_scene1_camera_yaw.  Vary it and
+ * confirm pos diverges.  At yaw=0: sin(-0)=0, cos(-0)=1 → only z gets
+ * a +5 (or +15) bend.  At yaw=π/2: sin(-π/2)=-1, cos(-π/2)=0 → only x
+ * gets a -5 bend.  Setting same RNG seed isolates the yaw effect. */
+int test_scene1_spawn_type_18_camera_yaw_drives_pos(void)
+{
+    extern uint32_t g_rng_seed;
+    extern float    g_scene1_camera_yaw;
+    uint32_t saved_seed = g_rng_seed;
+    float    saved_yaw  = g_scene1_camera_yaw;
+
+    /* Yaw = 0: cos(-0)=1 → pos.z gets +5 lift over the no-bend case. */
+    reset_records_and_trace();
+    g_rng_seed = 0xC8C8C8C8;
+    g_scene1_camera_yaw = 0.0f;
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x18, 1.0f, 1);
+    float pz_yaw0 = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Z);
+    float px_yaw0 = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_X);
+
+    /* Yaw = π/2: sin(-π/2)=-1 → pos.x gets -5 nudge (relative to yaw=0). */
+    reset_records_and_trace();
+    g_rng_seed = 0xC8C8C8C8;
+    g_scene1_camera_yaw = 1.5707963f;
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x18, 1.0f, 1);
+    float pz_yaw_pi2 = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Z);
+    float px_yaw_pi2 = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_X);
+
+    /* Difference along z: 5*(cos(-0) - cos(-π/2)) = 5*(1 - 0) = 5. */
+    float dz = pz_yaw0 - pz_yaw_pi2;
+    T_ASSERT(dz > 4.99f && dz < 5.01f);
+    /* Difference along x: 5*(sin(-0) - sin(-π/2)) = 5*(0 - (-1)) = 5. */
+    float dx = px_yaw0 - px_yaw_pi2;
+    T_ASSERT(dx > 4.99f && dx < 5.01f);
+
+    g_rng_seed = saved_seed;
+    g_scene1_camera_yaw = saved_yaw;
+    return 0;
+}
+
+/* 0x58: vel.y is negative biased; PARAM2 ends at 400 OR 200 (50/50 by
+ * rng15).  Sample a population and confirm both values appear. */
+int test_scene1_spawn_type_58_param2_400_or_200(void)
+{
+    reset_records_and_trace();
+    /* 256 particles → should see both p2 outcomes given a uniform rng15
+     * tail bit. */
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x58, 1.0f, 256);
+    int saw_400 = 0, saw_200 = 0;
+    for (int i = 0; i < 256; i++) {
+        int32_t p2 = slot_read_i(i, SCENE1_RECORDS_A_OFF_PARAM2);
+        T_ASSERT(p2 == 400 || p2 == 200);
+        if (p2 == 400) saw_400 = 1;
+        if (p2 == 200) saw_200 = 1;
+    }
+    T_ASSERT(saw_400);
+    T_ASSERT(saw_200);
+    return 0;
+}
+
+/* 0x58: vel.y is negative biased ((u*0.21+0.1)*-0.25 ∈ [-0.0775, -0.025]
+ * before the 50/50 flip).  After the flip, vel.y may be positive.  Just
+ * verify it's bounded in magnitude. */
+int test_scene1_spawn_type_58_vy_bounded(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x58, 1.0f, 64);
+    for (int i = 0; i < 64; i++) {
+        float vy = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        /* |vy| ≤ 0.0775 (regardless of flip).  Tiny FP slack. */
+        T_ASSERT(vy >= -0.0776f && vy <= 0.0776f);
+    }
+    return 0;
+}
+
+/* 0x58 does NOT write AGE — preamble's 0 should stand. */
+int test_scene1_spawn_type_58_no_age_write(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x58, 1.0f, 10);
+    for (int i = 0; i < 10; i++) {
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AGE), 0);
+    }
+    return 0;
+}
+
+/* 0x4f: vel.x = mag (sin(π/2)=1), vel.z ≈ 0 (cos(π/2)≈0).
+ * mag = u*0.015 + 0.0125 ∈ [0.0125, 0.0275). */
+int test_scene1_spawn_type_4f_velx_equals_mag_velz_zero(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x4f, 1.0f, 8);
+    for (int i = 0; i < 8; i++) {
+        float vx = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vz = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        T_ASSERT(vx >= 0.0125f && vx < 0.0276f);
+        T_ASSERT(vz == 0.0f);
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_PARAM2), 100);
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AGE), -i);
+    }
+    return 0;
+}
+
+/* 0x4f: vel.y is always negative ([-0.1, -0.05]). */
+int test_scene1_spawn_type_4f_vy_negative(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x4f, 1.0f, 16);
+    for (int i = 0; i < 16; i++) {
+        float vy = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        T_ASSERT(vy >= -0.1f && vy <= -0.05f);
+    }
+    return 0;
+}
+
+/* 0x3f and 0x56 share the same body — confirm by matching slot state
+ * with a fixed RNG seed (TYPE differs but everything else matches). */
+int test_scene1_spawn_type_3f_56_share_body(void)
+{
+    extern uint32_t g_rng_seed;
+    uint32_t saved = g_rng_seed;
+    extern float g_scene1_camera_yaw;
+    float saved_yaw = g_scene1_camera_yaw;
+    g_scene1_camera_yaw = 0.5f;
+
+    reset_records_and_trace();
+    g_rng_seed = 0x3F3F3F3F;
+    scene1_spawn(0, 1.0f, 2.0f, 3.0f, 0x3f, 1.0f, 4);
+    int32_t a[4][19];
+    for (int s = 0; s < 4; s++)
+        for (int j = 0; j < 19; j++)
+            a[s][j] = slot_read_i(s, j);
+
+    reset_records_and_trace();
+    g_rng_seed = 0x3F3F3F3F;
+    scene1_spawn(0, 1.0f, 2.0f, 3.0f, 0x56, 1.0f, 4);
+    for (int s = 0; s < 4; s++)
+        for (int j = 0; j < 19; j++)
+            if (j != SCENE1_RECORDS_A_OFF_TYPE)
+                T_ASSERT_EQ_I(slot_read_i(s, j), a[s][j]);
+
+    /* Sanity: each writes its own type field. */
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_TYPE), 0x56);
+
+    g_rng_seed = saved;
+    g_scene1_camera_yaw = saved_yaw;
+    return 0;
+}
+
+/* 0x3f/0x56: vel.x = vel.z = 0; vel.y = (u*0.1+0.2)*0.25 ∈ [0.05, 0.075]. */
+int test_scene1_spawn_type_3f_vel_xz_zero_vy_positive(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x3f, 1.0f, 8);
+    for (int i = 0; i < 8; i++) {
+        T_ASSERT(slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_X) == 0.0f);
+        T_ASSERT(slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Z) == 0.0f);
+        float vy = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        T_ASSERT(vy >= 0.05f && vy <= 0.075f);
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AGE), -i);
+    }
+    return 0;
+}
+
+/* 0x10 / 0x91: param_7 < 10 → aux_15 = 0, vel.y is halved by *0.7;
+ * else aux_15 = 1.  Verify both branches. */
+int test_scene1_spawn_type_h10_aux_15_zero_when_param7_lt_10(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x10, 1.0f, 5);  /* param7 = 5 < 10 */
+    for (int i = 0; i < 5; i++) {
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AUX_15), 0);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_h10_aux_15_one_when_param7_ge_10(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x10, 1.0f, 12);  /* param7 = 12 ≥ 10 */
+    for (int i = 0; i < 12; i++) {
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AUX_15), 1);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_91_aux_15_one_when_param7_ge_10(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x91, 1.0f, 10);  /* 10 ≥ 10 */
+    for (int i = 0; i < 10; i++) {
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AUX_15), 1);
+    }
+    return 0;
+}
+
+/* 0x10 / 0x91: vel.y bias depends on param_7.  Engine writes (u+0.5)*0.98
+ * → [0.49, 1.47); then multiplies by 0.7 if param_7 < 10 → [0.343, 1.029).
+ * Both branches keep vel.y positive. */
+int test_scene1_spawn_type_h10_vy_halved_when_param7_lt_10(void)
+{
+    /* Same RNG seed for both branches → vel.y values differ by exactly
+     * 0.7×.  Sample 8 spawns under each branch with the same seed and
+     * verify per-slot ratio. */
+    extern uint32_t g_rng_seed;
+    uint32_t saved = g_rng_seed;
+
+    reset_records_and_trace();
+    g_rng_seed = 0xDEADBEEF;
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x10, 1.0f, 8);  /* < 10 branch */
+    float vy_lo[8];
+    for (int i = 0; i < 8; i++)
+        vy_lo[i] = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+
+    reset_records_and_trace();
+    g_rng_seed = 0xDEADBEEF;
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x10, 1.0f, 15);  /* ≥ 10 branch */
+    for (int i = 0; i < 8; i++) {
+        float vy_hi = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        /* hi * 0.7 == lo  (within tiny FP slack). */
+        float diff = vy_hi * 0.7f - vy_lo[i];
+        T_ASSERT(diff > -1e-5f && diff < 1e-5f);
+    }
+    g_rng_seed = saved;
+    return 0;
+}
+
+/* 0x10 / 0x91: PARAM1 = (rng15 & 0xf) - 2 ∈ [-2, 13]. */
+int test_scene1_spawn_type_h10_param1_signed_range(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x10, 1.0f, 64);
+    int saw_negative = 0;
+    for (int i = 0; i < 64; i++) {
+        int32_t p1 = slot_read_i(i, SCENE1_RECORDS_A_OFF_PARAM1);
+        T_ASSERT(p1 >= -2);
+        T_ASSERT(p1 <= 13);
+        if (p1 < 0) saw_negative = 1;
+    }
+    /* With 64 draws and 2/16 = 12.5% chance of negative, seeing at least
+     * one negative is overwhelmingly likely.  Acts as a guard against
+     * an accidental unsigned port. */
+    T_ASSERT(saw_negative);
+    return 0;
+}
+
 /* ─── mesh-emit stub (FUN_0044b0f3 placeholder) ────────────────────── */
 
 int test_scene1_mesh_emit_records_call(void)

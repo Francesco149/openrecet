@@ -1903,6 +1903,406 @@ static void init_type_71(int i, int count_index, float scale)
     *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = -count_index;
 }
 
+/* ────────────────────────────────────────────────────────────────────
+ * C8i.5c — 9 multi-stage types w/ camera-yaw trig + slot_hint flag.
+ *
+ * 0x15 (L1012-1035) — simple cube + AGE stagger.  No camera trig.
+ * 0x16 (L1037-1067) — cube + world-radial xz pos jitter + pos.y lift.
+ *                     No camera trig.
+ * 0x18 (L1069-1101) — vel.x positive bias + inner-angle pos jitter
+ *                     (u for pos.y between sin/cos) + camera-yaw 5×
+ *                     bend + pos -= vel*60 anchor-back.
+ * 0x58 (L1103-1154) — wider amplitudes than 0x18 + larger 200×
+ *                     anchor-back; PARAM2 = 400 with 50/50 chance
+ *                     to fold into pos shift + flip vel.y + drop
+ *                     PARAM2 to 200.  No AGE write.
+ * 0x4f (L1156-1191) — sin/cos(π/2) constant-angle vel: vel.x = mag,
+ *                     vel.z = 0; inner-angle pos jitter (same u-
+ *                     between-sin/cos pattern as 0x18); pos -= vel*100;
+ *                     PARAM2 = 100.
+ * 0x3f / 0x56 (L1193-1218) — vel.x/z=0 + small positive vy + cube
+ *                     pos jitter + camera-yaw 15× bend.
+ * 0x10 / 0x91 (L1220-1238) — cube vel w/ vy positive bias (×0.98);
+ *                     PARAM1 = (rng15() & 0xf) - 2 (signed);
+ *                     aux_15 = 0 + vel.y *= 0.7 if param_7 < 10
+ *                     else aux_15 = 1.
+ *
+ * All 9 are param_7-count via LAB_0044aa47.  Camera-yaw reads use
+ * g_scene1_camera_yaw (engine _DAT_073de39c) — already exported from
+ * scene1_particles_tick for the integrator's camera-orbit handlers.
+ *
+ * RNG-ordering subtlety: 0x18 and 0x4f consume a `u` for pos.y
+ * BETWEEN the inner sin and cos calls.  Engine ASM stores the angle
+ * in stack-local [ebp-0x1c] across the pos.y draw so the cos at the
+ * resume point reads the same angle (per pending-check #7's general
+ * resolution).  We mirror by computing sin first, doing the pos.y
+ * draw, then computing cos with the same `angle` local.  0x58 and
+ * 0x16 instead do pos.y BEFORE the sin/cos pair — different ordering.
+ * ──────────────────────────────────────────────────────────────── */
+
+/* ─── per-type init: 0x15 — simple cube + AGE stagger (L1012-1035) ──
+ *
+ *   vel.x = (u1 - 0.5) * SCALE * 0.3
+ *   vel.y = (u2 + 0.5) * SCALE * 0.2          ; positive bias
+ *   vel.z = (u3 - 0.5) * SCALE * 0.3
+ *   rot.x = u4 * 2π
+ *   rot.y = u5 * 2π
+ *   rot.z = u6 * 2π
+ *   AGE   = -count_index                       ; negative stagger
+ *
+ * param_7-count.  No camera trig — simplest of the 5c family. */
+static void init_type_15(int i, int count_index, float scale)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
+               (rng_next_unit() - 0.5f) * scale * 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
+               (rng_next_unit() + 0.5f) * scale * 0.2f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z,
+               (rng_next_unit() - 0.5f) * scale * 0.3f);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = -count_index;
+}
+
+/* ─── per-type init: 0x16 — cube vel + world-radial pos jitter (L1037-1067) ─
+ *
+ *   vel.x = (u1 - 0.5) * SCALE * 0.3
+ *   vel.y = 0                                  ; explicit zero
+ *   vel.z = (u2 - 0.5) * SCALE * 0.3
+ *   pos.y += 2 * (u3 - 0.5)                    ; ONE u draw used twice
+ *   mag    = u4 * 6 + 1
+ *   angle  = u5 * 2π
+ *   pos.x += sin(angle) * mag                  ; sin/cos NOT interleaved
+ *                                              ;   with other writes here
+ *   pos.z += cos(angle) * mag                  ; engine's argless cosf
+ *   rot.x = u6 * 2π
+ *   rot.y = u7 * 2π
+ *   rot.z = u8 * 2π
+ *   AGE   = -count_index
+ *
+ * NOTE: engine consumes ONE u for pos.y but uses it twice (`(u-0.5) +
+ * (u-0.5) + pos.y` = `2*(u-0.5) + pos.y`); the order of operations
+ * differs from `2*u-1+pos.y` only in FP rounding (sum of two equal
+ * subtractions vs. one multiplication).  Mirror the engine's two-add
+ * form for exact bit parity. */
+static void init_type_16(int i, int count_index, float scale)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
+               (rng_next_unit() - 0.5f) * scale * 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z,
+               (rng_next_unit() - 0.5f) * scale * 0.3f);
+
+    float u_lift  = rng_next_unit();
+    float lift    = (u_lift - 0.5f) + (u_lift - 0.5f);
+    float py      = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, lift + py);
+
+    float angle   = rng_next_unit() * TWO_PI_F;
+    float mag     = rng_next_unit() * 6.0f + 1.0f;
+
+    float px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
+    float pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, sinf(angle) * mag + px);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, cosf(angle) * mag + pz);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = -count_index;
+}
+
+/* ─── per-type init: 0x18 — inner-angle pos + camera-yaw bend (L1069-1101) ─
+ *
+ *   vel.x  = u * 0.1 + 0.2                     ; positive [0.2, 0.3]
+ *   vel.y  = 0   (preamble)                    ; preamble stands
+ *   vel.z  = 0   (preamble)
+ *   rot.{x,y,z} = u * 2π
+ *   mag    = (u - 0.5) * 20
+ *   angle  = u_angle * 2π
+ *   pos.x += sin(angle) * mag
+ *   pos.y += u * 10                            ; RNG draw BETWEEN sin/cos
+ *   pos.z += cos(angle) * mag                  ; same `angle` local
+ *   pos.x += sin(-camera_yaw) * 5              ; camera-yaw bend
+ *   pos.z += cos(-camera_yaw) * 5              ; engine's argless cosf
+ *   pos.x -= vel.x * 60                        ; anchor-back; vel.y/z = 0
+ *                                              ; so y/z no-op
+ *   AGE    = -count_index
+ *
+ * param_7-count.  SCALE is unused. */
+static void init_type_18(int i, int count_index)
+{
+    float vx = rng_next_unit() * 0.1f + 0.2f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+
+    float mag   = (rng_next_unit() - 0.5f) * 20.0f;
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    /* sin → u(pos.y) → cos: keep the engine's interleaved RNG order. */
+    float sa    = sinf(angle);
+    float px    = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, sa * mag + px);
+
+    float lift  = rng_next_unit() * 10.0f;
+    float py    = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, lift + py);
+
+    float ca    = cosf(angle);
+    float pz    = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, ca * mag + pz);
+
+    /* Camera-yaw bend (engine reads _DAT_073de39c).  sin(-yaw) and
+     * cos(-yaw) — argless cos resolved by pending-check #7's general
+     * proof. */
+    float yaw = g_scene1_camera_yaw;
+    float scy = sinf(-yaw);
+    float ccy = cosf(-yaw);
+    px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, scy * 5.0f + px);
+    pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, ccy * 5.0f + pz);
+
+    /* Anchor-back: pos -= vel * 60.  Only vx is non-zero (preamble
+     * vel.y/z = 0 and we don't write them).  Skip the y/z stores. */
+    px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, px - vx * 60.0f);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = -count_index;
+}
+
+/* ─── per-type init: 0x58 — larger amplitudes + 50/50 phase fold (L1103-1154) ─
+ *
+ *   vel.x  = (u - 0.5) * 0.05                  ; tiny cube vel
+ *   vel.y  = (u * 0.21 + 0.1) * -0.25          ; negative bias
+ *   vel.z  = (u - 0.5) * 0.05
+ *   rot.{x,y,z} = u * 2π
+ *   pos.y += (u - 1.0) * 5.0                   ; y lift centered at 1
+ *   angle  = u_angle * 2π
+ *   mag    = u_mag * 30
+ *   pos.x += sin(angle) * mag                  ; sin/cos NOT interleaved
+ *   pos.z += cos(angle) * mag                  ; engine: explicit cos arg
+ *   pos.x += sin(-camera_yaw) * 15
+ *   pos.z += cos(-camera_yaw) * 15             ; engine's argless cosf
+ *   pos.x -= vel.x * 200
+ *   pos.y -= vel.y * 200
+ *   pos.z -= vel.z * 200
+ *   PARAM2 = 400
+ *   if (rng_next15() & 1) {
+ *       pos += 400 * vel ; vel.y = -vel.y ; PARAM2 = 200
+ *   }
+ *   type   = 0x58       (preamble already set this)
+ *
+ * NO AGE write — preamble's age=0 stands.  param_7-count. */
+static void init_type_58(int i)
+{
+    float vx = (rng_next_unit() - 0.5f) * 0.05f;
+    float vy = (rng_next_unit() * 0.21f + 0.1f) * -0.25f;
+    float vz = (rng_next_unit() - 0.5f) * 0.05f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+
+    float py = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y);
+    py += (rng_next_unit() - 1.0f) * 5.0f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, py);
+
+    float angle = rng_next_unit() * TWO_PI_F;
+    float mag   = rng_next_unit() * 30.0f;
+    float sa    = sinf(angle);
+    float ca    = cosf(angle);
+
+    float px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
+    float pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
+    px += sa * mag;
+    pz += ca * mag;
+
+    /* Camera-yaw bend. */
+    float yaw = g_scene1_camera_yaw;
+    px += sinf(-yaw) * 15.0f;
+    pz += cosf(-yaw) * 15.0f;
+
+    /* Anchor-back 200×. */
+    px -= vx * 200.0f;
+    py  = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y) - vy * 200.0f;
+    pz -= vz * 200.0f;
+
+    /* PARAM2 = 400; rng_next15() & 1 triggers the fold-and-flip path. */
+    int p2 = 400;
+    uint16_t r = rng_next15();
+    if (r & 1u) {
+        px += (float)p2 * vx;
+        py += (float)p2 * vy;
+        pz += (float)p2 * vz;
+        vy = -vy;
+        p2 = 200;
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    }
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, px);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, py);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, pz);
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = p2;
+}
+
+/* ─── per-type init: 0x4f — constant-angle vel + inner-angle pos (L1156-1191) ─
+ *
+ *   mag_v  = u * 0.015 + 0.0125
+ *   vel.x  = sin(π/2) * mag_v = mag_v          ; engine: sin(0x3ff921fb6...)
+ *   vel.z  = cos(π/2) * mag_v ≈ 0              ; cos(π/2) ≈ ±epsilon
+ *   vel.y  = -0.05 - u * 0.05                  ; negative [-0.1, -0.05]
+ *   rot.{x,y,z} = u * 2π
+ *   mag_p  = (u - 0.5) * 40                    ; fVar1 REUSED for pos mag
+ *   angle  = u_angle * 2π
+ *   pos.x += sin(angle) * mag_p
+ *   pos.y += u * 10 - 5                        ; RNG draw between sin/cos
+ *   pos.z += cos(angle) * mag_p                ; argless cos, same angle
+ *   pos -= vel * 100                           ; anchor-back; pos.z stays
+ *                                              ;   put since vel.z = 0
+ *   PARAM2 = 100
+ *   AGE    = -count_index
+ *
+ * SCALE field is unused in vel math (engine's constant-angle simplifies
+ * everything).  param_7-count.
+ *
+ * We skip the actual sin/cos calls on the engine's constant — sin(π/2)
+ * = 1 and cos(π/2) ≈ -4.4e-8 (denormal); writing `vel.x = mag_v` and
+ * `vel.z = 0` is functionally identical and saves two trig calls. */
+static void init_type_4f(int i, int count_index)
+{
+    float mag_v = rng_next_unit() * 0.015f + 0.0125f;
+    float vx    = mag_v;
+    float vz    = 0.0f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+
+    float vy = -0.05f - rng_next_unit() * 0.05f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+
+    float mag_p = (rng_next_unit() - 0.5f) * 40.0f;
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    /* Same sin → u(pos.y) → cos interleave as 0x18. */
+    float sa = sinf(angle);
+    float px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
+    px += sa * mag_p;
+
+    float py = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Y);
+    py += rng_next_unit() * 10.0f - 5.0f;
+
+    float ca = cosf(angle);
+    float pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
+    pz += ca * mag_p;
+
+    /* Anchor-back 100×.  vel.z = 0 so pz term is no-op. */
+    px -= vx * 100.0f;
+    py -= vy * 100.0f;
+    /* pz -= 0 * 100 — no-op */
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, px);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, py);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, pz);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = 100;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = -count_index;
+}
+
+/* ─── per-type init: 0x3f / 0x56 — cube pos jitter + camera bend (L1193-1218) ─
+ *
+ *   vel.x  = 0                                 ; explicit zeros
+ *   vel.y  = (u * 0.1 + 0.2) * 0.25            ; positive [0.05, 0.075]
+ *   vel.z  = 0
+ *   rot.{x,y,z} = u * 2π
+ *   pos.x += (u - 0.5) * 20                    ; cube jitter xz
+ *   pos.z += (u - 0.5) * 20
+ *   pos.x += sin(-camera_yaw) * 15             ; camera-yaw bend
+ *   pos.z += cos(-camera_yaw) * 15             ; engine's argless cosf
+ *   AGE    = -count_index
+ *   type   = param_5                           ; (0x3f or 0x56) — same body
+ *
+ * SCALE unused.  param_7-count. */
+static void init_type_3f_56(int i, int count_index)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
+               (rng_next_unit() * 0.1f + 0.2f) * 0.25f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, 0.0f);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+
+    float px = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_X);
+    float pz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_POS_Z);
+    px += (rng_next_unit() - 0.5f) * 20.0f;
+    pz += (rng_next_unit() - 0.5f) * 20.0f;
+
+    float yaw = g_scene1_camera_yaw;
+    px += sinf(-yaw) * 15.0f;
+    pz += cosf(-yaw) * 15.0f;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, px);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, pz);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = -count_index;
+}
+
+/* ─── per-type init: 0x10 / 0x91 — cube vel + aux_15 flag (L1220-1238) ─
+ *
+ *   vel.x  = (u - 0.5) * 0.7
+ *   vel.y  = (u + 0.5) * 0.97999996            ; ≈ 0.98, positive bias
+ *   vel.z  = (u - 0.5) * 0.7
+ *   AGE    = -count_index
+ *   PARAM1 = (rng15() & 0xf) - 2               ; signed [-2, 13]
+ *   if (param_7 < 10) {
+ *       vel.y *= 0.7
+ *       aux_15 = 0
+ *   } else {
+ *       aux_15 = 1
+ *   }
+ *
+ * SCALE unused.  param_7-count.  This is the only C8i.5c handler that
+ * writes the aux_15 slot field (slot dw 15 = DAT_069b2fbc).
+ *
+ * Engine's `(uVar5 & 0xf) - 2` reads as `uint` after subtraction, which
+ * gives unsigned wrap for the low values (0 → 0xFFFFFFFE).  PARAM1's slot
+ * is int32_t in our table; the cast `(int)(r & 0xfu) - 2` produces the
+ * same bit pattern (-2..13 as signed). */
+static void init_type_10_91(int i, int count_index, int param7)
+{
+    float vx = (rng_next_unit() - 0.5f) * 0.7f;
+    float vy = (rng_next_unit() + 0.5f) * 0.97999996f;
+    float vz = (rng_next_unit() - 0.5f) * 0.7f;
+
+    if (param7 < 10) vy *= 0.7f;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = -count_index;
+
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r & 0xfu) - 2;
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AUX_15) = (param7 < 10) ? 0 : 1;
+}
+
 /* ─── per-type init: line-1240 mega-group — generic scatter (L1240-1291) ─
  *
  * One body shared by 34 types: 0x25-0x28, 0x37-0x3a, 0x46-0x49,
@@ -2058,7 +2458,9 @@ static int spawn_count_for_type(int type)
     case 0xf:  return 8;
     /* 0x36 / 0x74 / 0x33 / 0x4d / 0x51 / 0x6d / 0x45 (C8i.3) and the
      * C8i.5b sin/cos*u/2 family + 0x67 + 0x59 + 0x71 use param_7 — see
-     * spawn_count_is_param7() + scene1_spawn(). */
+     * spawn_count_is_param7() + scene1_spawn().  C8i.5c adds 9 more
+     * param_7-count types: 0x15, 0x16, 0x18, 0x58, 0x4f, 0x3f, 0x56,
+     * 0x10, 0x91 — also in spawn_count_is_param7(). */
     default:   return 0;   /* unimplemented — record trace only */
     }
 }
@@ -2077,7 +2479,11 @@ static int spawn_count_is_param7(int type)
            (type == 10) || (type == 0xb) || (type == 0xc) ||
            (type == 0xe) || (type == 0x2b) || (type == 0x1b) ||
            (type == 0x3b) || (type == 0x76) ||
-           (type == 0x67) || (type == 0x59) || (type == 0x71);
+           (type == 0x67) || (type == 0x59) || (type == 0x71) ||
+           /* C8i.5c: 9 multi-stage types — all jump to LAB_0044aa47. */
+           (type == 0x15) || (type == 0x16) || (type == 0x18) ||
+           (type == 0x58) || (type == 0x4f) || (type == 0x3f) ||
+           (type == 0x56) || (type == 0x10) || (type == 0x91);
 }
 
 /* Per-type init dispatch.  Called once per committed slot.  count_index
@@ -2177,6 +2583,18 @@ static void run_type_init(int type, int i, int count_index, float x, float y,
     case 0x59: init_type_59(i, x, y, z); break;
     case 0xf:  init_type_0f(i, count_index); break;
     case 0x71: init_type_71(i, count_index, scale); break;
+    /* C8i.5c: 9 multi-stage handlers (camera-yaw trig + aux_15 flag). */
+    case 0x15: init_type_15(i, count_index, scale); break;
+    case 0x16: init_type_16(i, count_index, scale); break;
+    case 0x18: init_type_18(i, count_index); break;
+    case 0x58: init_type_58(i); break;
+    case 0x4f: init_type_4f(i, count_index); break;
+    case 0x3f: case 0x56:
+        init_type_3f_56(i, count_index);
+        break;
+    case 0x10: case 0x91:
+        init_type_10_91(i, count_index, param7);
+        break;
     default: break;
     }
     (void)count_index;  /* anchor types don't need it */

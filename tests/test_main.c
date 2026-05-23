@@ -1145,6 +1145,33 @@ struct test_case {
     X(scene1_spawn_type_71_vy_positive) \
     X(scene1_spawn_type_0f_age_stagger) \
     X(scene1_spawn_type_0f_consumes_dead_rng15) \
+    /* C8i.5c — 9 multi-stage handlers (camera-yaw trig + aux_15 flag) */ \
+    X(scene1_spawn_type_15_param7_drives_count) \
+    X(scene1_spawn_type_16_param7_drives_count) \
+    X(scene1_spawn_type_18_param7_drives_count) \
+    X(scene1_spawn_type_58_param7_drives_count) \
+    X(scene1_spawn_type_4f_param7_drives_count) \
+    X(scene1_spawn_type_3f_param7_drives_count) \
+    X(scene1_spawn_type_56_param7_drives_count) \
+    X(scene1_spawn_type_h10_param7_drives_count) \
+    X(scene1_spawn_type_91_param7_drives_count) \
+    X(scene1_spawn_type_15_velocity_uses_scale) \
+    X(scene1_spawn_type_16_vel_y_zero) \
+    X(scene1_spawn_type_16_world_radial_xz) \
+    X(scene1_spawn_type_18_vel_x_positive_bias) \
+    X(scene1_spawn_type_18_camera_yaw_drives_pos) \
+    X(scene1_spawn_type_58_param2_400_or_200) \
+    X(scene1_spawn_type_58_vy_bounded) \
+    X(scene1_spawn_type_58_no_age_write) \
+    X(scene1_spawn_type_4f_velx_equals_mag_velz_zero) \
+    X(scene1_spawn_type_4f_vy_negative) \
+    X(scene1_spawn_type_3f_56_share_body) \
+    X(scene1_spawn_type_3f_vel_xz_zero_vy_positive) \
+    X(scene1_spawn_type_h10_aux_15_zero_when_param7_lt_10) \
+    X(scene1_spawn_type_h10_aux_15_one_when_param7_ge_10) \
+    X(scene1_spawn_type_91_aux_15_one_when_param7_ge_10) \
+    X(scene1_spawn_type_h10_vy_halved_when_param7_lt_10) \
+    X(scene1_spawn_type_h10_param1_signed_range) \
     X(scene1_mesh_emit_records_call) \
     X(scene1_mesh_emit_reset_clears) \
     \

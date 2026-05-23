@@ -35,7 +35,32 @@
 extern "C" {
 #endif
 
-/* Implemented as of C8i.5b (param_7-count radials + 8-particle cube —
+/* Implemented as of C8i.5c (camera-yaw trig + aux_15 flag — 9 types
+ * added on top of C8i.5b, closes the ladder):
+ *   C8i.5c camera-yaw trig (9 types):
+ *      - 0x15: cube vel + AGE stagger; SCALE-driven; no camera trig.
+ *      - 0x16: cube vel + world-radial xz pos jitter + pos.y lift.
+ *      - 0x18: vel.x positive bias + inner-angle pos jitter (u for
+ *        pos.y BETWEEN sin/cos) + sin(-yaw)*5/cos(-yaw)*5 bend +
+ *        pos -= vel*60 anchor-back.  AGE = -i.
+ *      - 0x58: wider amplitudes than 0x18; pos -= vel*200; PARAM2 =
+ *        400 with 50/50 chance to fold pos += 400*vel + flip vel.y +
+ *        drop PARAM2 to 200.  NO AGE write (preamble 0 stands).
+ *      - 0x4f: sin/cos(π/2) constant-angle vel → vel.x = mag, vel.z =
+ *        0; inner-angle pos jitter same as 0x18; pos -= vel*100;
+ *        PARAM2 = 100.
+ *      - 0x3f / 0x56: cube xz pos jitter + sin/cos(-yaw)*15 bend +
+ *        positive vy; SCALE unused.
+ *      - 0x10 / 0x91: cube vel w/ vy ≈ 0.98 bias; PARAM1 = (rng15() &
+ *        0xf) - 2 signed; if (param_7 < 10) vel.y *= 0.7, aux_15 = 0
+ *        else aux_15 = 1.  This is the only C8i.5c handler that writes
+ *        the aux_15 slot field.
+ *
+ * All 9 C8i.5c types are param_7-count (LAB_0044aa47).  Camera-yaw
+ * reads use the existing g_scene1_camera_yaw (engine _DAT_073de39c),
+ * already exported from scene1_particles_tick.h.
+ *
+ * Earlier C8i (as of C8i.5b — param_7-count radials + 8-particle cube,
  * 15 types added on top of C8i.5a):
  *   C8i.1 anchors — 0x60 (no-op reservation), 0x20 (age=0),
  *                   0x66 (vel=(0,0,-1) + random life cap).
@@ -112,8 +137,9 @@ extern "C" {
  *      - 0xf: 8-particle cube — vel.x/z = (u-0.5)*3.2, vel.y =
  *        (u+0.1)*0.8, AGE=-i; consumes one dead rng_next15 between
  *        vel.z and AGE.  Unique among C8i.5b in NOT using param_7.
- * Unimplemented types record a trace but do not allocate or commit a
- * slot — they will become real spawns as C8i.5c lands. */
+ * C8i.5c closes the spawn ladder — all ~134 per-type handlers in
+ * FUN_00447f4f are now covered.  Any future "unimplemented" entries
+ * would be types the survey missed.  No known gaps as of 2026-05-23. */
 #define SCENE1_SPAWN_TYPE_IMPLEMENTED(t)                                    \
     ((t) == 0x60 || (t) == 0x20 || (t) == 0x66 || (t) == 0x92 ||            \
      (t) == 1    || (t) == 2    || (t) == 3    || (t) == 0x52 ||            \
@@ -141,6 +167,10 @@ extern "C" {
      (t) == 0xb  || (t) == 0xc  || (t) == 0xe  || (t) == 0x2b ||            \
      (t) == 0x1b || (t) == 0x3b || (t) == 0x76 || (t) == 0x67 ||            \
      (t) == 0x59 || (t) == 0x71 || (t) == 0xf  ||                           \
+     /* C8i.5c camera-yaw / aux_15 flag (9 types) */                        \
+     (t) == 0x15 || (t) == 0x16 || (t) == 0x18 || (t) == 0x58 ||            \
+     (t) == 0x4f || (t) == 0x3f || (t) == 0x56 || (t) == 0x10 ||            \
+     (t) == 0x91 ||                                                         \
      /* C8i.4 mega-group ranges (34 types, all share init_type_mega_group) */ \
      ((t) >= 0x25 && (t) <= 0x28) ||                                        \
      ((t) >= 0x37 && (t) <= 0x3a) ||                                        \
