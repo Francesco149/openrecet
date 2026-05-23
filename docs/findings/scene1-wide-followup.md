@@ -184,10 +184,12 @@ anything paints.
 
 **If the goal is "draw something for HOUSE":**
 
-1. Port FUN_00459dfd L51-L81 record-counter scan (currently TODO
-   in scene1_render.c::scene1_walk_record_counter_scan_TODO). Tiny
-   — 3 loops, each ~10 lines. Establishes the counter-globals as
-   live data.
+1. ~~Port FUN_00459dfd L51-L81 record-counter scan~~ — landed
+   2026-05-23 as C8g.1 (`src/scene1_records.{c,h}`).  Also ports
+   FUN_0040f64b's 3-table sentinel preamble, called from
+   `scene1_preload_house` at INGAME entry.  Counts (`g_scene1_records_
+   a/b/c_count`, engine DAT_0076b960/4/8) now live data; lands 0/0/0
+   until the populator fills records.
 
 2. Survey FUN_0040fb3a (8071 B). Probably needs to fan into 4-6
    sub-chips. This is the climb.
