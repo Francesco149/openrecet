@@ -1859,6 +1859,232 @@ int test_scene1_spawn_type_50_block_default_zero(void)
     return 0;
 }
 
+/* ─── C8i.5b: param_7-count radial family + 8-particle cube ──────────
+ *
+ * 14 types share `init_type_shared_unit_half` (modulo vy_bias) or one of
+ * the per-type variants (0x59 / 0x71); the 15th — 0xf — is the only
+ * non-param_7 member.  Tests:
+ *
+ *   1. Each type commits the right count (param_7 vs fixed 8 for 0xf).
+ *   2. The 11 LAB_0044a43d types produce identical slot state for a
+ *      pinned RNG seed (catches accidental dispatch splits).
+ *   3. 0x67 diverges only in vy bias (positive vs the shared body's
+ *      signed (u - 0.5)*0.5).
+ *   4. 0x59 anchor-back math is correct.
+ *   5. 0x71 PARAM1 lands in the 20..119 life-cap range; AGE = -i.
+ *   6. 0xf produces an 8-particle scattered cube with -i age stagger.
+ */
+
+/* Burst counts via param_7. */
+static int spawn_param7_count_is(int type, int param7, int want_count)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, type, 1.0f, param7);
+    T_ASSERT_EQ_I(count_committed_slots(type), want_count);
+    T_ASSERT_EQ_I(first_unused_after(type), want_count);
+    return 0;
+}
+
+int test_scene1_spawn_type_5_param7_drives_count(void)    { return spawn_param7_count_is(5,    7,  7);  }
+int test_scene1_spawn_type_5c_param7_drives_count(void)   { return spawn_param7_count_is(0x5c, 3,  3);  }
+int test_scene1_spawn_type_6f_param7_drives_count(void)   { return spawn_param7_count_is(0x6f, 12, 12); }
+int test_scene1_spawn_type_10_param7_drives_count(void)   { return spawn_param7_count_is(10,   4,  4);  }
+int test_scene1_spawn_type_b_param7_drives_count(void)    { return spawn_param7_count_is(0xb,  5,  5);  }
+int test_scene1_spawn_type_c_param7_drives_count(void)    { return spawn_param7_count_is(0xc,  6,  6);  }
+int test_scene1_spawn_type_e_param7_drives_count(void)    { return spawn_param7_count_is(0xe,  8,  8);  }
+int test_scene1_spawn_type_2b_param7_drives_count(void)   { return spawn_param7_count_is(0x2b, 2,  2);  }
+int test_scene1_spawn_type_1b_param7_drives_count(void)   { return spawn_param7_count_is(0x1b, 10, 10); }
+int test_scene1_spawn_type_3b_param7_drives_count(void)   { return spawn_param7_count_is(0x3b, 1,  1);  }
+int test_scene1_spawn_type_76_param7_drives_count(void)   { return spawn_param7_count_is(0x76, 15, 15); }
+int test_scene1_spawn_type_67_param7_drives_count(void)   { return spawn_param7_count_is(0x67, 9,  9);  }
+int test_scene1_spawn_type_59_param7_drives_count(void)   { return spawn_param7_count_is(0x59, 11, 11); }
+int test_scene1_spawn_type_71_param7_drives_count(void)   { return spawn_param7_count_is(0x71, 16, 16); }
+int test_scene1_spawn_type_0f_commits_8(void)             { return spawn_burst_count_is(0xf, 8); }
+
+int test_scene1_spawn_type_5_param7_zero_clamps_to_one(void)
+{
+    /* Same clamp as 0x36 — param_7 <= 0 produces exactly 1. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 5, 1.0f, 0);
+    T_ASSERT_EQ_I(count_committed_slots(5), 1);
+    return 0;
+}
+
+/* All 11 LAB_0044a43d types MUST produce identical slot state for the
+ * same RNG seed.  Same pattern as the mega-group test. */
+int test_scene1_spawn_unit_half_group_shares_body(void)
+{
+    extern uint32_t g_rng_seed;
+    const int types[] = { 5, 0x5c, 0x6f, 10, 0xb, 0xc,
+                          0xe, 0x2b, 0x1b, 0x3b, 0x76 };
+    const int n = (int)(sizeof types / sizeof types[0]);
+    uint32_t saved = g_rng_seed;
+
+    /* Baseline. */
+    reset_records_and_trace();
+    g_rng_seed = 0x12345678;
+    scene1_spawn(0, 1.0f, 2.0f, 3.0f, types[0], 1.5f, 6);
+    int32_t base[6][19];
+    for (int s = 0; s < 6; s++)
+        for (int j = 0; j < 19; j++)
+            base[s][j] = slot_read_i(s, j);
+
+    for (int t = 1; t < n; t++) {
+        reset_records_and_trace();
+        g_rng_seed = 0x12345678;
+        scene1_spawn(0, 1.0f, 2.0f, 3.0f, types[t], 1.5f, 6);
+        for (int s = 0; s < 6; s++) {
+            for (int j = 0; j < 19; j++) {
+                if (j == SCENE1_RECORDS_A_OFF_TYPE) continue;
+                T_ASSERT_EQ_I(slot_read_i(s, j), base[s][j]);
+            }
+        }
+    }
+
+    g_rng_seed = saved;
+    return 0;
+}
+
+/* Shared body: vy = (u - 0.5) * 0.5 → range [-0.25, 0.25).  No scale
+ * dependence (verify that varying scale doesn't change vel). */
+int test_scene1_spawn_type_5_vy_centered(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 5, 100.0f, 64);
+    /* Range check across all 64 spawns. */
+    for (int i = 0; i < 64; i++) {
+        float vy = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        T_ASSERT(vy >= -0.25f);
+        T_ASSERT(vy <  0.25f);
+        /* vel.x is sin(angle) * u * 0.5 — bounded by 0.5 regardless of
+         * scale.  Confirms scale is NOT a factor in this body. */
+        float vx = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        T_ASSERT(vx >= -0.5f);
+        T_ASSERT(vx <= 0.5f);
+    }
+    return 0;
+}
+
+/* 0x67: vy = (u + 0.1) * 0.5 → range [0.05, 0.55).  Distinct from the
+ * shared body's signed vy. */
+int test_scene1_spawn_type_67_vy_positive_bias(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x67, 1.0f, 32);
+    for (int i = 0; i < 32; i++) {
+        float vy = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        T_ASSERT(vy >= 0.05f);
+        T_ASSERT(vy <  0.55f);
+    }
+    return 0;
+}
+
+/* 0x59 anchor-back: pos.xz = (x,z) - vel.xz * 20, pos.y = y + 0.5.
+ * Verify the y-lift is exact and that pos diverges from spawn (x,y,z). */
+int test_scene1_spawn_type_59_pos_anchor_back(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 10.0f, 0.0f, 20.0f, 0x59, 1.0f, 5);
+    for (int i = 0; i < 5; i++) {
+        float px = slot_read_f(i, SCENE1_RECORDS_A_OFF_POS_X);
+        float py = slot_read_f(i, SCENE1_RECORDS_A_OFF_POS_Y);
+        float pz = slot_read_f(i, SCENE1_RECORDS_A_OFF_POS_Z);
+        float vx = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vz = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+
+        T_ASSERT(py == 0.5f);                 /* exact y-lift */
+        T_ASSERT(px == 10.0f - vx * 20.0f);   /* xz anchor-back */
+        T_ASSERT(pz == 20.0f - vz * 20.0f);
+    }
+    return 0;
+}
+
+/* 0x59 also has positive-biased vy = (u + 0.5) * 0.2 → range [0.1, 0.3). */
+int test_scene1_spawn_type_59_vy_positive(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x59, 1.0f, 16);
+    for (int i = 0; i < 16; i++) {
+        float vy = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        T_ASSERT(vy >= 0.1f);
+        T_ASSERT(vy <  0.3f);
+    }
+    return 0;
+}
+
+/* 0x71 PARAM1 = rng_next15 % 100 + 0x14 → [20, 119]; AGE = -i. */
+int test_scene1_spawn_type_71_life_cap_and_age(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x71, 1.0f, 12);
+    for (int i = 0; i < 12; i++) {
+        int32_t p1 = slot_read_i(i, SCENE1_RECORDS_A_OFF_PARAM1);
+        int32_t age = slot_read_i(i, SCENE1_RECORDS_A_OFF_AGE);
+        T_ASSERT(p1 >= 20);
+        T_ASSERT(p1 <= 119);
+        T_ASSERT_EQ_I(age, -i);
+    }
+    return 0;
+}
+
+/* 0x71 vel.y = u * scale * 1.25 → always positive (raw u, not (u-0.5)). */
+int test_scene1_spawn_type_71_vy_positive(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x71, 2.0f, 8);
+    for (int i = 0; i < 8; i++) {
+        float vy = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        T_ASSERT(vy >= 0.0f);
+        T_ASSERT(vy <  2.5f);   /* u < 1 → vy < 2.0 * 1.25 = 2.5 */
+    }
+    return 0;
+}
+
+/* 0xf: 8-particle cube with -i age stagger and positive-bias vy. */
+int test_scene1_spawn_type_0f_age_stagger(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0xf, 1.0f, 0);
+    for (int i = 0; i < 8; i++) {
+        T_ASSERT_EQ_I(slot_read_i(i, SCENE1_RECORDS_A_OFF_AGE), -i);
+        /* vy = (u + 0.1) * 0.8 → [0.08, 0.88) */
+        float vy = slot_read_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        T_ASSERT(vy >= 0.08f);
+        T_ASSERT(vy <  0.88f);
+    }
+    return 0;
+}
+
+/* 0xf consumes one dead rng_next15 per spawn (engine quirk).  Compare the
+ * RNG state after 1 spawn against a manual 3*rng_next_unit + 1*rng_next15
+ * sequence to lock in PRNG-sequence parity — this catches a regression if
+ * someone drops the dead call. */
+int test_scene1_spawn_type_0f_consumes_dead_rng15(void)
+{
+    extern uint32_t g_rng_seed;
+    uint32_t saved = g_rng_seed;
+
+    reset_records_and_trace();
+    g_rng_seed = 0xabcdef01;
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0xf, 1.0f, 0);
+    uint32_t after_spawn = g_rng_seed;
+
+    /* Manual replay: 8 particles, each consumes 3*next_unit + 1*next15. */
+    g_rng_seed = 0xabcdef01;
+    for (int i = 0; i < 8; i++) {
+        (void)rng_next_unit();
+        (void)rng_next_unit();
+        (void)rng_next_unit();
+        (void)rng_next15();
+    }
+    uint32_t after_manual = g_rng_seed;
+
+    T_ASSERT_EQ_I((int)after_spawn, (int)after_manual);
+
+    g_rng_seed = saved;
+    return 0;
+}
+
 /* ─── mesh-emit stub (FUN_0044b0f3 placeholder) ────────────────────── */
 
 int test_scene1_mesh_emit_records_call(void)

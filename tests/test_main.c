@@ -1120,6 +1120,31 @@ struct test_case {
     X(scene1_spawn_type_54_param1_eq_param7) \
     X(scene1_spawn_type_50_copies_block) \
     X(scene1_spawn_type_50_block_default_zero) \
+    X(scene1_spawn_type_5_param7_drives_count) \
+    X(scene1_spawn_type_5c_param7_drives_count) \
+    X(scene1_spawn_type_6f_param7_drives_count) \
+    X(scene1_spawn_type_10_param7_drives_count) \
+    X(scene1_spawn_type_b_param7_drives_count) \
+    X(scene1_spawn_type_c_param7_drives_count) \
+    X(scene1_spawn_type_e_param7_drives_count) \
+    X(scene1_spawn_type_2b_param7_drives_count) \
+    X(scene1_spawn_type_1b_param7_drives_count) \
+    X(scene1_spawn_type_3b_param7_drives_count) \
+    X(scene1_spawn_type_76_param7_drives_count) \
+    X(scene1_spawn_type_67_param7_drives_count) \
+    X(scene1_spawn_type_59_param7_drives_count) \
+    X(scene1_spawn_type_71_param7_drives_count) \
+    X(scene1_spawn_type_0f_commits_8) \
+    X(scene1_spawn_type_5_param7_zero_clamps_to_one) \
+    X(scene1_spawn_unit_half_group_shares_body) \
+    X(scene1_spawn_type_5_vy_centered) \
+    X(scene1_spawn_type_67_vy_positive_bias) \
+    X(scene1_spawn_type_59_pos_anchor_back) \
+    X(scene1_spawn_type_59_vy_positive) \
+    X(scene1_spawn_type_71_life_cap_and_age) \
+    X(scene1_spawn_type_71_vy_positive) \
+    X(scene1_spawn_type_0f_age_stagger) \
+    X(scene1_spawn_type_0f_consumes_dead_rng15) \
     X(scene1_mesh_emit_records_call) \
     X(scene1_mesh_emit_reset_clears) \
     \

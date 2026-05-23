@@ -9,6 +9,25 @@
  * group 6/7/8/9 and the 1-particle const-vel handlers (0x11/0x12/0x54/
  * 0x50).  See the per-handler comments below for the exact label map.
  *
+ * C8i.5b adds the param_7-count radial family (engine L1370-1431) plus
+ * the 8-particle scattered-cube type 0xf:
+ *
+ *   - Shared body via LAB_0044a43d (11 types — 5/0x5c/0x6f/10/0xb/0xc
+ *     main entry + 0xe/0x2b/0x1b/0x3b/0x76 jump-back): xz vel via
+ *     sin/cos*u*0.5, vy = (u-0.5)*0.5, rot.z = u*2π.  No scale factor.
+ *   - Type 0x67 inlines the same body with vy = (u+0.1)*0.5 (positive
+ *     bias).  Identical RNG ordering.
+ *   - Type 0x59 (engine L1387-1404): mag=(u+2)*0.3 + vy=(u+0.5)*0.2,
+ *     pos.{x,z} = (x,z) - vel.{x,z}*20 anchor-back; pos.y = y + 0.5
+ *     y-lift.  Engine does NOT multiply by SCALE anywhere in 0x59.
+ *   - Type 0x71 (engine L1305-1324): centered radial with
+ *     fVar1=2(u+0.2), vel = (sin*fVar1*SCALE*0.5, u*SCALE*1.25,
+ *     cos*fVar1*SCALE*0.5); PARAM1=u%100+0x14 life cap; AGE=-i.
+ *   - Type 0xf (engine L1293-1303): 8 particles via LAB_0044acd2, all
+ *     using (u±0.5)*3.2 xz + (u+0.1)*0.8 vy with AGE=-i.  Engine has
+ *     a dead rng_next15 call between vel.z and AGE — we keep it for
+ *     PRNG-sequence parity.  Unique in this chip in NOT using param_7.
+ *
  * Resolved pending-human-checks 2026-05-23 (asm-only, no Frida):
  *
  *   #3 (C8h.1 scene1_spawn trailing args) — engine pushes 5 args, not
@@ -1757,6 +1776,133 @@ static void init_type_50(int i)
  * the dispatcher just falls through to the return.  Listed here for
  * doc completeness so a reader knows they're intentionally bodyless. */
 
+/* ─── C8i.5b shared body: sin/cos * u*0.5 radial + signed vy (L1370-1386
+ *                          + L1408-1418 jump-back to LAB_0044a43d) ──────
+ *
+ *   u1     = rng_next_unit()                       ; mag scale (kept)
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * (u1 * 0.5)
+ *   vel.y  = (u3 + vy_bias) * 0.5                  ; vy_bias = -0.5 normally
+ *   vel.z  = cos(angle) * (u1 * 0.5)               ; engine's argless cosf
+ *                                                    (same angle slot — see
+ *                                                    file header §"Note on
+ *                                                    argless FUN_00503994")
+ *   age    = 0
+ *   rot.z  = u4 * 2π
+ *
+ * Used by 5/0x5c/0x6f/10/0xb/0xc (engine main body) and by
+ * 0xe/0x2b/0x1b/0x3b/0x76 (jump to LAB_0044a43d after writing vel.x/y).
+ * 0x67 uses the same body with vy_bias = +0.1 (positive bias).
+ *
+ * No scale factor anywhere — vel magnitudes are absolute, not relative
+ * to the spawn-time SCALE field.  Caller decides per-particle count via
+ * param_7 (spawn_count_is_param7 = true). */
+static void init_type_shared_unit_half(int i, float vy_bias)
+{
+    float u1    = rng_next_unit();
+    float angle = rng_next_unit() * TWO_PI_F;
+    float half  = u1 * 0.5f;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, sinf(angle) * half);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
+               (rng_next_unit() + vy_bias) * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, cosf(angle) * half);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = 0;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+}
+
+/* ─── per-type init: 0x59 — anchor-back radial w/ y-lift (engine L1387-1404) ─
+ *
+ *   mag    = (u1 + 2.0) * 0.3                      ; NO scale factor
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * mag
+ *   vel.y  = (u3 + 0.5) * 0.2                      ; positive bias, NO scale
+ *   vel.z  = cos(angle) * mag                      ; argless cosf, same slot
+ *   pos.x  = x - vel.x * 20                        ; xz anchor-back -20×
+ *   pos.y  = y + 0.5                               ; y lift
+ *   pos.z  = z - vel.z * 20
+ *   age    = 0
+ *   rot.z  = u4 * 2π
+ *
+ * param_7-count loop (LAB_0044aa47 fall-through).  No scale anywhere; the
+ * preamble's SCALE write stands but velocity math ignores it. */
+static void init_type_59(int i, float x, float y, float z)
+{
+    float u1    = rng_next_unit();
+    float mag   = (u1 + 2.0f) * 0.3f;
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    float vx = sinf(angle) * mag;
+    float vy = (rng_next_unit() + 0.5f) * 0.2f;
+    float vz = cosf(angle) * mag;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, x - vx * 20.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, y + 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, z - vz * 20.0f);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = 0;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+}
+
+/* ─── per-type init: 0xf — 8-particle scattered cube + age stagger
+ *                          (engine L1293-1303) ──────────────────────────
+ *
+ *   vel.x  = (u1 - 0.5) * 3.2
+ *   vel.y  = (u2 + 0.1) * 0.8                      ; upward bias
+ *   vel.z  = (u3 - 0.5) * 3.2
+ *   (rng_next15)                                   ; dead-call (RNG advance)
+ *   AGE    = -count_index                          ; negative stagger
+ *
+ * Returns after 8 particles (LAB_0044acd2: bVar11 = local_8 == 7).
+ * Unique among C8i.5b in that it does NOT use param_7. */
+static void init_type_0f(int i, int count_index)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
+               (rng_next_unit() - 0.5f) * 3.2f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
+               (rng_next_unit() + 0.1f) * 0.8f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z,
+               (rng_next_unit() - 0.5f) * 3.2f);
+    (void)rng_next15();   /* engine dead-call; kept for RNG-sequence parity */
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = -count_index;
+}
+
+/* ─── per-type init: 0x71 — centered radial w/ life cap (engine L1305-1324) ─
+ *
+ *   u1     = rng_next_unit()
+ *   fVar1  = 2 * (u1 + 0.2)                        ; mag amp
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * fVar1 * SCALE * 0.5
+ *   vel.y  = u3 * SCALE * 1.25                     ; raw [0,1) → upward
+ *   vel.z  = cos(angle) * fVar1 * SCALE * 0.5      ; argless cosf
+ *   pos    = (x,y,z)                               ; redundant w/ preamble
+ *   PARAM1 = rng_next15() % 100 + 0x14             ; life cap 20..119
+ *   AGE    = -count_index                          ; negative stagger
+ *
+ * param_7-count loop (LAB_0044aa47).  Engine writes pos = (x,y,z) again
+ * even though the preamble just did it — we skip the redundant store. */
+static void init_type_71(int i, int count_index, float scale)
+{
+    float u1    = rng_next_unit();
+    float fVar1 = 2.0f * (u1 + 0.2f);
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
+               sinf(angle) * fVar1 * scale * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y,
+               rng_next_unit() * scale * 1.25f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z,
+               cosf(angle) * fVar1 * scale * 0.5f);
+
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 0x14;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = -count_index;
+}
+
 /* ─── per-type init: line-1240 mega-group — generic scatter (L1240-1291) ─
  *
  * One body shared by 34 types: 0x25-0x28, 0x37-0x3a, 0x46-0x49,
@@ -1908,7 +2054,10 @@ static int spawn_count_for_type(int type)
     case 0x11: return 1;
     case 0x12: case 0x54: return 1;
     case 0x50: return 1;
-    /* 0x36 / 0x74 / 0x33 / 0x4d / 0x51 / 0x6d / 0x45 use param_7 — see
+    /* C8i.5b — 0xf is the 8-particle cube; rest are param_7-driven. */
+    case 0xf:  return 8;
+    /* 0x36 / 0x74 / 0x33 / 0x4d / 0x51 / 0x6d / 0x45 (C8i.3) and the
+     * C8i.5b sin/cos*u/2 family + 0x67 + 0x59 + 0x71 use param_7 — see
      * spawn_count_is_param7() + scene1_spawn(). */
     default:   return 0;   /* unimplemented — record trace only */
     }
@@ -1921,7 +2070,14 @@ static int spawn_count_is_param7(int type)
 {
     return (type == 0x36) || (type == 0x74) ||
            (type == 0x33) || (type == 0x4d) || (type == 0x51) ||
-           (type == 0x6d) || (type == 0x45);
+           (type == 0x6d) || (type == 0x45) ||
+           /* C8i.5b: sin/cos*u*0.5 shared body (11 types) + 0x67 (positive
+            * vy variant) + 0x59 (anchor-back) + 0x71 (centered radial). */
+           (type == 5) || (type == 0x5c) || (type == 0x6f) ||
+           (type == 10) || (type == 0xb) || (type == 0xc) ||
+           (type == 0xe) || (type == 0x2b) || (type == 0x1b) ||
+           (type == 0x3b) || (type == 0x76) ||
+           (type == 0x67) || (type == 0x59) || (type == 0x71);
 }
 
 /* Per-type init dispatch.  Called once per committed slot.  count_index
@@ -2011,6 +2167,16 @@ static void run_type_init(int type, int i, int count_index, float x, float y,
     case 0x11: init_type_11(i); break;
     case 0x12: case 0x54: init_type_12_54(i, param7); break;
     case 0x50: init_type_50(i); break;
+    /* C8i.5b: sin/cos*u*0.5 shared body — 11 types via LAB_0044a43d. */
+    case 5: case 0x5c: case 0x6f:
+    case 10: case 0xb: case 0xc:
+    case 0xe: case 0x2b: case 0x1b: case 0x3b: case 0x76:
+        init_type_shared_unit_half(i, -0.5f);
+        break;
+    case 0x67: init_type_shared_unit_half(i, 0.1f); break;
+    case 0x59: init_type_59(i, x, y, z); break;
+    case 0xf:  init_type_0f(i, count_index); break;
+    case 0x71: init_type_71(i, count_index, scale); break;
     default: break;
     }
     (void)count_index;  /* anchor types don't need it */

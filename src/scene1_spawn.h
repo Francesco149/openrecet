@@ -35,8 +35,8 @@
 extern "C" {
 #endif
 
-/* Implemented as of C8i.5a (trivial-tail + sim-deref + 1-particle const
- * types — 23 types added on top of C8i.4):
+/* Implemented as of C8i.5b (param_7-count radials + 8-particle cube —
+ * 15 types added on top of C8i.5a):
  *   C8i.1 anchors — 0x60 (no-op reservation), 0x20 (age=0),
  *                   0x66 (vel=(0,0,-1) + random life cap).
  *   C8i.2 radial bursts — 1/2/3/0x52/0x5e/0x65 (8-particle group A),
@@ -100,8 +100,20 @@ extern "C" {
  *      - const-vel + AGE = -(u%24): 0x11
  *      - AGE=0 + PARAM1=param_7 + PARAM2=0: 0x12, 0x54
  *      - slot_hint scratch copy + const-vel + AGE: 0x50
+ *   C8i.5b param_7-count + 8-particle cube (15 types):
+ *      - sin(angle)*u*0.5 + (u-0.5)*0.5 vy + cos(angle)*u*0.5 +
+ *        rot.z=u*2π shared body (LAB_0044a43d) — 5, 0x5c, 0x6f, 10,
+ *        0xb, 0xc, 0xe, 0x2b, 0x1b, 0x3b, 0x76 (param_7 particles each).
+ *      - 0x67: same shared body but vy = (u+0.1)*0.5 (positive bias).
+ *      - 0x59: anchor-back radial — mag=(u+2)*0.3, vy=(u+0.5)*0.2,
+ *        pos.xz -= vel.xz * 20, pos.y += 0.5; no scale factor anywhere.
+ *      - 0x71: centered radial — fVar1=2(u+0.2), vel scales by SCALE/2,
+ *        vy = u*SCALE*1.25; PARAM1=u%100+0x14 life cap, AGE=-i stagger.
+ *      - 0xf: 8-particle cube — vel.x/z = (u-0.5)*3.2, vel.y =
+ *        (u+0.1)*0.8, AGE=-i; consumes one dead rng_next15 between
+ *        vel.z and AGE.  Unique among C8i.5b in NOT using param_7.
  * Unimplemented types record a trace but do not allocate or commit a
- * slot — they will become real spawns as C8i.5b / 5c land. */
+ * slot — they will become real spawns as C8i.5c lands. */
 #define SCENE1_SPAWN_TYPE_IMPLEMENTED(t)                                    \
     ((t) == 0x60 || (t) == 0x20 || (t) == 0x66 || (t) == 0x92 ||            \
      (t) == 1    || (t) == 2    || (t) == 3    || (t) == 0x52 ||            \
@@ -124,6 +136,11 @@ extern "C" {
      (t) == 0x13 || (t) == 0x14 || (t) == 0x24 || (t) == 6    ||            \
      (t) == 7    || (t) == 8    || (t) == 9    || (t) == 0x11 ||            \
      (t) == 0x12 || (t) == 0x54 || (t) == 0x50 ||                           \
+     /* C8i.5b param_7-count + 8-cube (15 types) */                         \
+     (t) == 5    || (t) == 0x5c || (t) == 0x6f || (t) == 10   ||            \
+     (t) == 0xb  || (t) == 0xc  || (t) == 0xe  || (t) == 0x2b ||            \
+     (t) == 0x1b || (t) == 0x3b || (t) == 0x76 || (t) == 0x67 ||            \
+     (t) == 0x59 || (t) == 0x71 || (t) == 0xf  ||                           \
      /* C8i.4 mega-group ranges (34 types, all share init_type_mega_group) */ \
      ((t) >= 0x25 && (t) <= 0x28) ||                                        \
      ((t) >= 0x37 && (t) <= 0x3a) ||                                        \
