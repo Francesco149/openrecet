@@ -57,6 +57,7 @@
 #include "mesh.h"
 #include "mesh_draw.h"
 #include "mesh_load.h"
+#include "stage_state.h"
 #include "tick.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
@@ -506,6 +507,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     scene_worldmap_init(g_dev);
     scene_table_init(g_dev);
     scene_sc1_init(g_dev);
+
+    /* C7c: seed per-stage runtime state for stage 0 (HOUSE / shop).
+     * Writes the four scene-1 prop selectors to engine fresh-game
+     * defaults (all zero — picks the starter wall / floor / rug /
+     * table from each module's slot-0 entry). Idempotent. Must run
+     * after the scene_*_init calls above so a future test that
+     * resets+re-seeds works. The load chain (worker_load_spawn) is
+     * still NOT kicked yet — that's C7e (FUN_00474a9a port). */
+    stage_init_house();
 
     /* Build the menu items table (FUN_0049a43d). Fresh boot = no
      * saves; 4 items: New Game / Ranking / Options / Exit. Then seed

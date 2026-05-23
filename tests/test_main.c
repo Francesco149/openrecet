@@ -914,6 +914,10 @@ struct test_case {
     X(mesh_draw_resolve_slot_null_inputs) \
     X(mesh_draw_resolve_slot_stale_past_cache) \
     \
+    X(stage_state_house_defaults) \
+    X(stage_state_idempotent) \
+    X(stage_state_overwrites_stale) \
+    \
     X(scene_table_introspection) \
     X(scene_table_param1_loads_non_selector) \
     X(scene_table_param0_loads_only_selector) \

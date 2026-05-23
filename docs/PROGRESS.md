@@ -3,6 +3,49 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-23 — scene-1 render: C7c minimal stage-state seed (`src/stage_state.{c,h}`)
+
+Third chip on the scene-1 render ladder. Adds an explicit
+`stage_init_house()` hook that seeds the four scene-1 prop selectors
+(walls / floor / jutan / table) to engine fresh-game defaults.
+
+Engine layout: a 0x2dfc8-byte (188360-byte) record per stage at
+`&DAT_044e3798`, indexed by `DAT_0438b1e0` (current stage). The
+selectors live in the record's "selector zone" at engine absolute
+addresses `DAT_0451057c` / `0x04510580` / `0x04510584` / `0x04510588`
+(walls / floor / jutan / table). The port currently exposes these as
+four standalone int32 BSS globals (`g_scene_*_selector`) — when the
+full stage record ports, they fold back into the record at the engine
+offsets.
+
+The values themselves are all zero — which IS the right HOUSE default
+(engine quirk: each table's slot 0 happens to be the starter asset,
+`kabe_sikkui.bmp` / `yuka_ki.bmp` / first jutan / `shop_table01`).
+BSS-zero init produces the same observable state, so why have an
+explicit hook?
+
+  1. Documents the "stage 0 defaults are zero" contract so it can't
+     drift silently when tables get reordered.
+  2. Gives future stage-transition code (dungeon exit → shop re-entry)
+     a single place to fan out from save-bank state.
+  3. Worker-body tests get a known-good baseline call to reset before
+     exercising the load chain.
+
+Wired into main.c boot right after the scene_*_init calls
+(`scene_walls/floor/jutan/pause/worldmap/table/sc1_init`) so the
+selectors are seeded before the title scene starts ticking. Idempotent
++ overwrites stale values (verified by tests).
+
+3 new host tests covering defaults + idempotence + overwrite-stale
+(842 total from 839). title-z-press 14/14 bit-exact; the load chain
+is still dormant — that's C7e (`FUN_00474a9a` port).
+
+**Next:** C7d — `DAT_068dd2f0` stage palette stub. Needed for the
+`*DAT_068dd2f0 == 0` HOUSE/DUNGEON branch test at the top of
+FUN_00474a9a, plus the render-side `FUN_00459dfd` reads palette
+fields like fog start/end (`+0x1a38..40`), ambient (`+0x1a40`),
+lighting flag (`+0x1ae0`), backcolor (`+0x1aa8..b0`).
+
 ## 2026-05-23 — scene-1 render: C7b depth + lighting render-state (`src/mesh_draw.{c,h}`)
 
 Second chip on the scene-1 render ladder. C7a got geometry on screen

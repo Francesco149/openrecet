@@ -29,7 +29,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/tables_kyaku.c ../src/tables_news.c ../src/tables_oder.c ../src/tables_model.c \
                  ../src/tables_snews.c ../src/tables_stage.c ../src/tables_tuto.c \
                  ../src/xfile.c ../src/mesh.c ../src/mesh_load.c ../src/mesh_draw.c \
-                 ../src/scene_table.c ../src/scene_sc1.c
+                 ../src/scene_table.c ../src/scene_sc1.c ../src/stage_state.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
                  test_recet_ini.c test_input_poll.c test_input_trace.c \
                  test_rng.c test_math3d.c test_prewindow.c test_tick.c \
@@ -40,7 +40,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_tables_kyaku.c test_tables_news.c test_tables_oder.c test_tables_model.c \
                  test_tables_snews.c test_tables_stage.c test_tables_tuto.c \
                  test_xfile.c test_mesh.c test_mesh_load.c test_mesh_draw.c \
-                 test_scene_table.c test_scene_sc1.c
+                 test_scene_table.c test_scene_sc1.c test_stage_state.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))
 DEPS := $(OBJS:.o=.d)

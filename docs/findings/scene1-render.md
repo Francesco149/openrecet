@@ -146,11 +146,15 @@ composition (C7c+) and Frida cross-validation against retail.
 
 These backfill enough state for the scene-1 load chain to fire.
 
-- **C7c — minimal stage state seed.** A `stage_init_house()` that
-  populates `g_scene_walls_selector` / `_floor_selector` /
-  `_jutan_selector` / `_table_selector` from a hardcoded "stage 0"
-  default. No DAT_068dd2f0 stage palette yet — keep that NULL,
-  defer to C7d.
+- **C7c — minimal stage state seed.** ✅ Landed 2026-05-23
+  (`src/stage_state.{c,h}` + main.c wire). `stage_init_house()`
+  writes engine fresh-game defaults (all zero) into the four
+  selector globals; called from main.c boot right after the
+  scene_*_init batch. 3 new host tests (842 total). title-z-press
+  14/14 bit-exact. The values are identical to BSS-zero init —
+  having the explicit hook lets future stage transitions fan out
+  from one place + documents the slot-0-is-starter-asset
+  contract.
 - **C7d — DAT_068dd2f0 stage palette stub.** Expose a global pointer
   + a static "stage 0" record with the fields scene-1 reads (clear
   color at +0x1aa8/ac/b0, gravity at +0x1a7c/80/84, lighting flags
