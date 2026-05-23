@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-/* Implemented as of C8i.3c:
+/* Implemented as of C8i.3d (full C8i.3 ladder now landed):
  *   C8i.1 anchors — 0x60 (no-op reservation), 0x20 (age=0),
  *                   0x66 (vel=(0,0,-1) + random life cap).
  *   C8i.2 radial bursts — 1/2/3/0x52/0x5e/0x65 (8-particle group A),
@@ -67,8 +67,19 @@ extern "C" {
  *                         (param_7-count strings w/ random rot.x),
  *                         0x57 (1, param_7-sign rot.z + PARAM2=param7),
  *                         0x3e (4, rot.z jitter string).
+ *   C8i.3d orbit/fountain/world-jitter exotics — 0x3d (20, string +
+ *                         BASE), 0x6d/0x45 (param_7, camera-yaw
+ *                         fountain reads g_scene1_camera_yaw_alt),
+ *                         0x6c (1, all-zero noop), 0x6e (1, waypoint
+ *                         homing vel=(target-pos)/100), 0x1f/100 (1,
+ *                         scene-counter wave reads new
+ *                         g_scene1_spawn_scene_counter_dab58), 0x23 (1,
+ *                         preamble-only return), 0x22/0x3c/0x5a/0x2d
+ *                         (20, world-jitter via BASE or pos+=offset),
+ *                         0x1d (1, scattered cube vel + rot.z + PARAM2
+ *                         = param_7).
  * Unimplemented types record a trace but do not allocate or commit a
- * slot — they will become real spawns as C8i.3d / C8i.4-5 land. */
+ * slot — they will become real spawns as C8i.4-5 land. */
 #define SCENE1_SPAWN_TYPE_IMPLEMENTED(t)                                    \
     ((t) == 0x60 || (t) == 0x20 || (t) == 0x66 || (t) == 0x92 ||            \
      (t) == 1    || (t) == 2    || (t) == 3    || (t) == 0x52 ||            \
@@ -79,7 +90,11 @@ extern "C" {
      (t) == 0x36 || (t) == 0x74 || (t) == 0x4e || (t) == 0x34 ||            \
      (t) == 0x35 || (t) == 0x2c || (t) == 0x29 || (t) == 0x32 ||            \
      (t) == 0x4c || (t) == 0x55 || (t) == 0x4b || (t) == 0x33 ||            \
-     (t) == 0x4d || (t) == 0x51 || (t) == 0x57 || (t) == 0x3e)
+     (t) == 0x4d || (t) == 0x51 || (t) == 0x57 || (t) == 0x3e ||            \
+     (t) == 0x3d || (t) == 0x6d || (t) == 0x45 || (t) == 0x6c ||            \
+     (t) == 0x6e || (t) == 0x1f || (t) == 100  || (t) == 0x23 ||            \
+     (t) == 0x22 || (t) == 0x3c || (t) == 0x5a || (t) == 0x2d ||            \
+     (t) == 0x1d)
 
 /* Stand-in for type 0x96's camera-angle bend.  Engine reads
  * `*(int *)(slot_hint + 0x948)` directly (slot_hint is overloaded as a
@@ -87,6 +102,13 @@ extern "C" {
  * ports, tests set this global to drive the trig dependency.  Default 0
  * → sin(0)=0, cos(0)=1, so vel.z gets a constant +0.2 bend when unset. */
 extern int g_scene1_spawn_camera_counter_948;
+
+/* Stand-in for types 0x1f/100's scene-counter wave.  Engine reads
+ * `DAT_056dab58` (a small int set by the sim caller FUN_00436f97 — see
+ * its lines 680/685 for assignments to 2/4).  Default 0 → sin(0)=0,
+ * cos(0)=1, so pos.x gets a constant `(u-0.5) + x` offset and pos.z
+ * collapses to z.  Tests set this to verify the trig dependency. */
+extern int g_scene1_spawn_scene_counter_dab58;
 
 /*
  * Trace ring — kept for tests + debug instrumentation.  Reset by

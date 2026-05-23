@@ -1036,6 +1036,37 @@ struct test_case {
     X(scene1_spawn_type_57_param2_eq_param7) \
     X(scene1_spawn_type_57_rot_z_sign_on_param7) \
     X(scene1_spawn_type_3e_rot_x_steps) \
+    X(scene1_spawn_type_3d_commits_20) \
+    X(scene1_spawn_type_6c_commits_1) \
+    X(scene1_spawn_type_6e_commits_1) \
+    X(scene1_spawn_type_1f_commits_1) \
+    X(scene1_spawn_type_100_commits_1) \
+    X(scene1_spawn_type_23_commits_1) \
+    X(scene1_spawn_type_22_commits_20) \
+    X(scene1_spawn_type_3c_commits_20) \
+    X(scene1_spawn_type_5a_commits_20) \
+    X(scene1_spawn_type_2d_commits_20) \
+    X(scene1_spawn_type_1d_commits_1) \
+    X(scene1_spawn_type_6d_param7_drives_count) \
+    X(scene1_spawn_type_45_param7_drives_count) \
+    X(scene1_spawn_type_3d_age_stagger) \
+    X(scene1_spawn_type_3d_param1_eq_param7) \
+    X(scene1_spawn_type_3d_base_eq_param) \
+    X(scene1_spawn_type_6d_camera_yaw_drives_pos) \
+    X(scene1_spawn_type_6d_param2_in_range) \
+    X(scene1_spawn_type_45_no_param2_tag) \
+    X(scene1_spawn_type_6c_vel_zero) \
+    X(scene1_spawn_type_6e_vel_targets_base) \
+    X(scene1_spawn_type_1f_scene_counter_drives_pos) \
+    X(scene1_spawn_type_100_same_body_as_1f) \
+    X(scene1_spawn_type_23_preamble_only) \
+    X(scene1_spawn_type_22_age_stagger) \
+    X(scene1_spawn_type_3c_base_y_lifted) \
+    X(scene1_spawn_type_5a_age_stagger) \
+    X(scene1_spawn_type_2d_age_stagger) \
+    X(scene1_spawn_type_2d_pos_relative_to_param) \
+    X(scene1_spawn_type_1d_vel_scale_12) \
+    X(scene1_spawn_type_1d_param2_eq_param7) \
     X(scene1_mesh_emit_records_call) \
     X(scene1_mesh_emit_reset_clears) \
     \
