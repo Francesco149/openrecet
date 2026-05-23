@@ -1450,6 +1450,145 @@ int test_scene1_spawn_type_1d_param2_eq_param7(void)
     return 0;
 }
 
+/* ─── C8i.4: line-1240 mega-group (34 types share one body) ──────────
+ *
+ * Predicate match (kept here as a literal — independent of the impl
+ * in scene1_spawn.c so a typo in either fails loudly): types
+ *   0x25..0x28, 0x37..0x3a, 0x46..0x49, 0x7a..0x84, 0x86..0x90.
+ * Each commits 12 particles per call. */
+
+int test_scene1_spawn_mega_group_type_25_commits_12(void) { return spawn_burst_count_is(0x25, 12); }
+int test_scene1_spawn_mega_group_type_37_commits_12(void) { return spawn_burst_count_is(0x37, 12); }
+int test_scene1_spawn_mega_group_type_46_commits_12(void) { return spawn_burst_count_is(0x46, 12); }
+int test_scene1_spawn_mega_group_type_7a_commits_12(void) { return spawn_burst_count_is(0x7a, 12); }
+int test_scene1_spawn_mega_group_type_84_commits_12(void) { return spawn_burst_count_is(0x84, 12); }
+int test_scene1_spawn_mega_group_type_86_commits_12(void) { return spawn_burst_count_is(0x86, 12); }
+int test_scene1_spawn_mega_group_type_90_commits_12(void) { return spawn_burst_count_is(0x90, 12); }
+
+int test_scene1_spawn_mega_group_type_85_not_member(void)
+{
+    /* 0x85 sits between 0x7a-0x84 and 0x86-0x90 but is NOT in the
+     * mega-group predicate — must remain unimplemented (no commits). */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x85, 1.0f, 0);
+    T_ASSERT_EQ_I(count_committed_slots(0x85), 0);
+    return 0;
+}
+
+int test_scene1_spawn_mega_group_type_29_not_member(void)
+{
+    /* 0x29 is a real type (C8i.3c, 14 particles) and would falsely
+     * fall into the >=0x25 prefix if the upper bound were sloppy.
+     * Verify it commits its own count (14), not the mega-group's 12. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x29, 1.0f, 0);
+    T_ASSERT_EQ_I(count_committed_slots(0x29), 14);
+    return 0;
+}
+
+int test_scene1_spawn_mega_group_param2_color_in_range(void)
+{
+    /* Engine: PARAM2 = rng_next15() % 10 → 0..9 color cycle. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x25, 1.0f, 0);
+    for (int k = 0; k < 12; k++) {
+        int32_t c = slot_read_i(k, SCENE1_RECORDS_A_OFF_PARAM2);
+        T_ASSERT(c >= 0);
+        T_ASSERT(c < 10);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_mega_group_rot_y_sign_alternates(void)
+{
+    /* Engine L1282-1284: if (local_8 & 1) rot.y = -rot.y.
+     * Even-index slots store +|fVar1|, odd-index store -|fVar1|.
+     * The MAGNITUDES come from independent RNG draws, but the SIGN is
+     * fully determined by the slot index parity. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x37, 1.0f, 0);
+    for (int k = 0; k < 12; k++) {
+        float ry = slot_read_f(k, SCENE1_RECORDS_A_OFF_ROT_Y);
+        if ((k & 1) == 0) {
+            T_ASSERT(ry >= 0.0f);
+        } else {
+            T_ASSERT(ry <= 0.0f);
+        }
+    }
+    return 0;
+}
+
+int test_scene1_spawn_mega_group_rot_x_raw_unit(void)
+{
+    /* Engine L1277-1278: rot.x = u (raw [0,1)), NOT u*2π like most
+     * other handlers.  Sanity-bound here — a mis-port that wrote
+     * u*2π would put values up to ~6.28. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x7d, 1.0f, 0);
+    for (int k = 0; k < 12; k++) {
+        float rx = slot_read_f(k, SCENE1_RECORDS_A_OFF_ROT_X);
+        T_ASSERT(rx >= 0.0f);
+        T_ASSERT(rx < 1.0f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_mega_group_pos_offsets_param(void)
+{
+    /* Engine writes pos.{x,z} as (param + sin/cos*amp) and pos.y as
+     * (param + u*0.5).  amp = (u+0.2)*0.5 with u in [0,1) → amp in
+     * [0.1, 0.6).  Worst-case xz offset is ±0.6, so pos.{x,z} stays
+     * within [param-0.6, param+0.6].  pos.y is in [param, param+0.5). */
+    reset_records_and_trace();
+    scene1_spawn(0, 100.0f, 200.0f, 300.0f, 0x88, 1.0f, 0);
+    for (int k = 0; k < 12; k++) {
+        float px = slot_read_f(k, SCENE1_RECORDS_A_OFF_POS_X);
+        float py = slot_read_f(k, SCENE1_RECORDS_A_OFF_POS_Y);
+        float pz = slot_read_f(k, SCENE1_RECORDS_A_OFF_POS_Z);
+        T_ASSERT(px >= 100.0f - 0.6f && px <= 100.0f + 0.6f);
+        T_ASSERT(py >= 200.0f && py < 200.5f);
+        T_ASSERT(pz >= 300.0f - 0.6f && pz <= 300.0f + 0.6f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_mega_group_all_types_share_rng_sequence(void)
+{
+    /* All 34 mega-group types must produce byte-identical slot state
+     * (apart from TYPE) for the same RNG seed.  This locks in the
+     * "one shared body" contract — adding a type-specific branch to
+     * the handler later would break this. */
+    extern uint32_t g_rng_seed;
+    const int types[] = { 0x25, 0x28, 0x37, 0x3a, 0x46, 0x49,
+                          0x7a, 0x7f, 0x84, 0x86, 0x8b, 0x90 };
+    const int n = (int)(sizeof types / sizeof types[0]);
+
+    /* Baseline: type 0x25 */
+    uint32_t saved = g_rng_seed;
+    reset_records_and_trace();
+    g_rng_seed = 0xdeadbeef;
+    scene1_spawn(0, 1.0f, 2.0f, 3.0f, types[0], 1.5f, 0);
+    int32_t base[12][19];
+    for (int s = 0; s < 12; s++)
+        for (int j = 0; j < 19; j++)
+            base[s][j] = slot_read_i(s, j);
+
+    for (int t = 1; t < n; t++) {
+        reset_records_and_trace();
+        g_rng_seed = 0xdeadbeef;
+        scene1_spawn(0, 1.0f, 2.0f, 3.0f, types[t], 1.5f, 0);
+        for (int s = 0; s < 12; s++) {
+            for (int j = 0; j < 19; j++) {
+                if (j == SCENE1_RECORDS_A_OFF_TYPE) continue;
+                T_ASSERT_EQ_I(slot_read_i(s, j), base[s][j]);
+            }
+        }
+    }
+
+    g_rng_seed = saved;
+    return 0;
+}
+
 /* ─── mesh-emit stub (FUN_0044b0f3 placeholder) ────────────────────── */
 
 int test_scene1_mesh_emit_records_call(void)

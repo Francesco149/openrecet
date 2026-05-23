@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-/* Implemented as of C8i.3d (full C8i.3 ladder now landed):
+/* Implemented as of C8i.4 (mega-group + full C8i.3 ladder landed):
  *   C8i.1 anchors — 0x60 (no-op reservation), 0x20 (age=0),
  *                   0x66 (vel=(0,0,-1) + random life cap).
  *   C8i.2 radial bursts — 1/2/3/0x52/0x5e/0x65 (8-particle group A),
@@ -78,8 +78,14 @@ extern "C" {
  *                         (20, world-jitter via BASE or pos+=offset),
  *                         0x1d (1, scattered cube vel + rot.z + PARAM2
  *                         = param_7).
+ *   C8i.4 line-1240 mega-group — one generic-scatter body shared by 34
+ *                         types: 0x25-0x28, 0x37-0x3a, 0x46-0x49,
+ *                         0x7a-0x84, 0x86-0x90.  Each commits 12
+ *                         particles.  Effect: small ground-skew vel,
+ *                         world-radial pos jitter, alternating rot.y
+ *                         wobble, 10-color cycle in PARAM2.
  * Unimplemented types record a trace but do not allocate or commit a
- * slot — they will become real spawns as C8i.4-5 land. */
+ * slot — they will become real spawns as C8i.5 lands. */
 #define SCENE1_SPAWN_TYPE_IMPLEMENTED(t)                                    \
     ((t) == 0x60 || (t) == 0x20 || (t) == 0x66 || (t) == 0x92 ||            \
      (t) == 1    || (t) == 2    || (t) == 3    || (t) == 0x52 ||            \
@@ -94,7 +100,13 @@ extern "C" {
      (t) == 0x3d || (t) == 0x6d || (t) == 0x45 || (t) == 0x6c ||            \
      (t) == 0x6e || (t) == 0x1f || (t) == 100  || (t) == 0x23 ||            \
      (t) == 0x22 || (t) == 0x3c || (t) == 0x5a || (t) == 0x2d ||            \
-     (t) == 0x1d)
+     (t) == 0x1d ||                                                         \
+     /* C8i.4 mega-group ranges (34 types, all share init_type_mega_group) */ \
+     ((t) >= 0x25 && (t) <= 0x28) ||                                        \
+     ((t) >= 0x37 && (t) <= 0x3a) ||                                        \
+     ((t) >= 0x46 && (t) <= 0x49) ||                                        \
+     ((t) >= 0x7a && (t) <= 0x84) ||                                        \
+     ((t) >= 0x86 && (t) <= 0x90))
 
 /* Stand-in for type 0x96's camera-angle bend.  Engine reads
  * `*(int *)(slot_hint + 0x948)` directly (slot_hint is overloaded as a

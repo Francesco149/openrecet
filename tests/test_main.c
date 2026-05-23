@@ -1067,6 +1067,20 @@ struct test_case {
     X(scene1_spawn_type_2d_pos_relative_to_param) \
     X(scene1_spawn_type_1d_vel_scale_12) \
     X(scene1_spawn_type_1d_param2_eq_param7) \
+    X(scene1_spawn_mega_group_type_25_commits_12) \
+    X(scene1_spawn_mega_group_type_37_commits_12) \
+    X(scene1_spawn_mega_group_type_46_commits_12) \
+    X(scene1_spawn_mega_group_type_7a_commits_12) \
+    X(scene1_spawn_mega_group_type_84_commits_12) \
+    X(scene1_spawn_mega_group_type_86_commits_12) \
+    X(scene1_spawn_mega_group_type_90_commits_12) \
+    X(scene1_spawn_mega_group_type_85_not_member) \
+    X(scene1_spawn_mega_group_type_29_not_member) \
+    X(scene1_spawn_mega_group_param2_color_in_range) \
+    X(scene1_spawn_mega_group_rot_y_sign_alternates) \
+    X(scene1_spawn_mega_group_rot_x_raw_unit) \
+    X(scene1_spawn_mega_group_pos_offsets_param) \
+    X(scene1_spawn_mega_group_all_types_share_rng_sequence) \
     X(scene1_mesh_emit_records_call) \
     X(scene1_mesh_emit_reset_clears) \
     \

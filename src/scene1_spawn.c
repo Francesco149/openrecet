@@ -1560,6 +1560,84 @@ static void init_type_78(int i, float x, float y, float z, float scale,
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = param7;
 }
 
+/* ─── per-type init: line-1240 mega-group — generic scatter (L1240-1291) ─
+ *
+ * One body shared by 34 types: 0x25-0x28, 0x37-0x3a, 0x46-0x49,
+ * 0x7a-0x84 (contiguous), 0x86-0x90 (contiguous, skipping 0x85).  Looks
+ * like the engine's "generic scatter small particle" — small ground-
+ * skew vel, world-radial pos offset, alternating-sign rot.y wobble,
+ * 10-color cycle in PARAM2.  12 particles per call.
+ *
+ *   vel.x  = (u1 - 0.5) * SCALE * 1.6
+ *   vel.y  = (u2 + 0.1) * SCALE * 0.4              ; upward bias
+ *   vel.z  = (u3 - 0.5) * SCALE * 1.6
+ *   fVar1  = (u4 + 0.2) * 0.5                      ; xz pos amplitude
+ *   angle  = u5 * 2π
+ *   pos.x += sin(angle) * fVar1
+ *   pos.y += u6 * 0.5                              ; raw [0,0.5) lift
+ *   pos.z += cos(angle) * fVar1                    ; engine's argless cosf
+ *   rot.x  = u7                                    ; raw [0,1), NOT scaled
+ *   fVar1  = (u8 + 0.5) * 0.2
+ *   rot.y  = ±fVar1                                ; sign alternates per i
+ *   rot.z  = u9 * 2π
+ *   PARAM2 = rng_next15() % 10                     ; color cycle 0..9
+ *   AGE    = 0                                     ; redundant w/ preamble
+ *
+ * Returns after 12 particles (LAB_0044acd9: bVar11 = local_8 == 0xb).
+ *
+ * Pending human check: the engine's argless `FUN_00503994()` at L1274
+ * is interpreted as cos(angle) with the same `angle` as the paired sin
+ * at L1269.  Same caveat as the C8i.2 radial-burst family — see
+ * `openrecet_pending_human_checks` item #7. */
+static void init_type_mega_group(int i, int count_index, float x, float y,
+                                 float z, float scale)
+{
+    /* RNG order is critical: u1..u9 are consumed in the exact engine
+     * sequence so any future Frida-driven snapshot tests line up. */
+    float u1 = rng_next_unit();
+    float u2 = rng_next_unit();
+    float u3 = rng_next_unit();
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, (u1 - 0.5f) * scale * 1.6f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, (u2 + 0.1f) * scale * 0.4f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, (u3 - 0.5f) * scale * 1.6f);
+
+    float amp   = (rng_next_unit() + 0.2f) * 0.5f;
+    float angle = rng_next_unit() * TWO_PI_F;
+    float sa    = sinf(angle);
+
+    /* pos is preamble-(param)+offset. */
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, x + sa * amp);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, y + rng_next_unit() * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, z + cosf(angle) * amp);
+
+    /* rot.x is the raw RNG draw — engine writes u7 directly (not u7*2π). */
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit());
+
+    float wob = (rng_next_unit() + 0.5f) * 0.2f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y,
+               (count_index & 1) ? -wob : wob);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = (int)(rng_next15() % 10u);
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = 0;
+}
+
+/* Predicate matching the engine's line-1240 if-chain.  Used by both the
+ * count table (returns 12) and the dispatch (calls init_type_mega_group).
+ * Type ranges: 0x25-0x28, 0x37-0x3a, 0x46-0x49 (4-wide blocks),
+ *              0x7a-0x84 (11 contiguous), 0x86-0x90 (11 contiguous,
+ *                                                   note 0x85 is OUT). */
+static int is_mega_group_type(int type)
+{
+    if (type >= 0x25 && type <= 0x28) return 1;
+    if (type >= 0x37 && type <= 0x3a) return 1;
+    if (type >= 0x46 && type <= 0x49) return 1;
+    if (type >= 0x7a && type <= 0x84) return 1;
+    if (type >= 0x86 && type <= 0x90) return 1;
+    return 0;
+}
+
 /* ─── dispatch: returns how many slots to commit for `type`.
  *
  * C8i.1 anchors spawn 1.  C8i.2 adds the radial-burst family — group A
@@ -1572,10 +1650,17 @@ static void init_type_78(int i, float x, float y, float z, float scale,
  * 0x4b (3), 0x33/0x4d/0x51 (param_7), 0x57 (1), 0x3e (4).  C8i.3d adds
  * 13 orbit/fountain/world-jitter exotics — 0x3d (20), 0x6d/0x45 (param_7),
  * 0x6c (1), 0x6e (1), 0x1f/100 (1), 0x23 (1), 0x22/0x3c/0x5a/0x2d (20),
- * 0x1d (1).  Remaining counts (12 for the mega-group, rest of param_7-
- * driven, etc.) land in C8i.4-5.  See scene1-spawn.md for the full table. */
+ * 0x1d (1).  C8i.4 adds the line-1240 mega-group — 34 types
+ * (0x25-0x28, 0x37-0x3a, 0x46-0x49, 0x7a-0x84, 0x86-0x90) that share
+ * one generic-scatter init body and commit 12 particles per call.
+ * Remaining param_7-driven + table-dep types land in C8i.5.  See
+ * scene1-spawn.md for the full table. */
 static int spawn_count_for_type(int type)
 {
+    /* Range-check the mega-group before the explicit switch — saves
+     * spelling out 34 case labels and keeps the per-type cases below
+     * focused on the single-body handlers. */
+    if (is_mega_group_type(type)) return 12;
     switch (type) {
     case 0x60: return 1;
     case 0x20: return 1;
@@ -1636,6 +1721,11 @@ static int spawn_count_is_param7(int type)
 static void run_type_init(int type, int i, int count_index, float x, float y,
                           float z, float scale, int param7)
 {
+    if (is_mega_group_type(type)) {
+        init_type_mega_group(i, count_index, x, y, z, scale);
+        (void)param7;
+        return;
+    }
     switch (type) {
     case 0x60: init_type_60(i); break;
     case 0x20: init_type_20(i); break;
