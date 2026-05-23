@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 
+#include "scene1_records.h"  /* per-pass active counts */
 #include "scene1_render.h"   /* scene1_render_push_projection +
                                 scene1_render_apply_palette_combiner_mode */
 #include "stage_palette.h"   /* palette accessors when they land */
@@ -54,13 +55,15 @@ static uint32_t g_scene1_pass_done_flag = 0;
  */
 
 /* DAT_0076b960 — Pass D record-count.  Bound on the DAT_069b2fb0
- * table loop.  Computed by FUN_00459dfd L52-L70 scan; BSS-zero. */
-static int sw_pass_d_count(void) { return 0; }
+ * table loop.  Computed by scene1_records_counter_scan (C8g.1, was
+ * FUN_00459dfd L52-L70); reads 0 until the populator lands. */
+static int sw_pass_d_count(void) { return g_scene1_records_a_count; }
 
 /* DAT_0076b964 — Pass B + Pass C record-count.  Bound on the
- * DAT_069325b8 / DAT_069324b0 table loops.  Computed by FUN_00459dfd
- * L71-L77 scan; BSS-zero. */
-static int sw_pass_bc_count(void) { return 0; }
+ * DAT_069325b8 / DAT_069324b0 table loops.  Computed by
+ * scene1_records_counter_scan (C8g.1, was FUN_00459dfd L71-L77);
+ * reads 0 until the populator lands. */
+static int sw_pass_bc_count(void) { return g_scene1_records_b_count; }
 
 /* DAT_0438b89c — Pass E outer count, stored as a FLOAT (per engine
  * decomp).  BSS-zero → 0.0f. */

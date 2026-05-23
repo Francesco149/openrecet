@@ -22,6 +22,7 @@
 #include "mesh_draw.h"
 #include "render_quad.h"
 #include "scene1_alpha_walker.h"
+#include "scene1_records.h"
 #include "scene1_shop_walker.h"
 #include "sim.h"
 
@@ -137,27 +138,10 @@ static void scene1_overlay_layer_TODO(int layer)
 
 /* ─── C8a — scene1_render_meshes sub-call stubs ───────────────────── */
 
-/* FUN_00459dfd L51..L81 — three "highest non-sentinel index" scans
- * over the per-record tables.  Outputs go into DAT_0076b960 / 964 /
- * 968.  All three tables are BSS-zero today; the scans land 0
- * everywhere.  Implemented as part of this chip when the tables
- * type so we can declare the strides cleanly. */
-static void scene1_walk_record_counter_scan_TODO(void)
-{
-    /* TODO C8-followup: port the three scans.
-     *
-     *   for (i=0, p=&DAT_069b2fb0; p != &DAT_06a46fb0; p+=0x25, i++)
-     *       if (*p != -1) DAT_0076b960 = i+1;
-     *   for (i=0, p=&DAT_069324b0; p != &DAT_06956cb0; p+=0x49, i++)
-     *       if (*p != 0)  DAT_0076b964 = i+1;
-     *   for (i=0, p=&DAT_06956cd8; p != &DAT_0695e078; p+=0x25, i++)
-     *       if (*p != -1) DAT_0076b968 = i+1;
-     *
-     * The output globals are read by FUN_00459847 / FUN_004552d0 /
-     * FUN_00458bdf to bound their per-record loops.  Until the
-     * walkers themselves port, leaving the counts at 0 is fine —
-     * every loop body short-circuits. */
-}
+/* L51-L81 counter scan lives in scene1_records.c (C8g.1, 2026-05-23)
+ * as scene1_records_counter_scan().  Wired below at the top of
+ * scene1_render_meshes; the tables are sentinel-empty until the sim
+ * populator FUN_0040fb3a lands, so every count lands 0. */
 
 /* FUN_00457714 (5323 B) — per-pass texture / shader sub-init.
  * Called with arg=0 from FUN_004597ad (pre-walker[0]) and arg=1
@@ -535,9 +519,10 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     g_scene1_phase_counter += 0x11u;
 
     /* L52-L81: three "highest non-sentinel index" scans across the
-     * per-record tables.  All tables BSS-zero today; result is 0 in
-     * all three counter globals. */
-    scene1_walk_record_counter_scan_TODO();
+     * per-record tables.  scene1_records_reset (called from
+     * scene1_preload_house) has primed the sentinel state; the scan
+     * lands 0/0/0 until the sim populator FUN_0040fb3a ports. */
+    scene1_records_counter_scan();
 
     /* L86: D3DRS_CULLMODE = D3DCULL_CCW.  Engine starts every frame
      * with back-face culling on CCW-wound faces. */

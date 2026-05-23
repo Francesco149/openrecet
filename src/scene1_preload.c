@@ -7,6 +7,7 @@
 #include "scene1_preload.h"
 
 #include "mesh_load.h"
+#include "scene1_records.h"
 #include "stage_palette.h"
 #include "stage_state.h"
 #include "worker_load.h"
@@ -62,6 +63,15 @@ void scene1_preload_init(struct IDirect3DDevice8 *dev)
 
 int scene1_preload_house(void)
 {
+    /* C8g.1 — engine FUN_0040f64b's 3-table preamble.  Sentinel-resets
+     * the per-record tables read by the scene-1 mesh walkers.  Called
+     * once at scene-1 entry so the counter-scan in scene1_render_meshes
+     * sees a clean sentinel state.  reset_c=1 matches the common engine
+     * call pattern (full reset on scene entry).  The full FUN_0040f64b
+     * also touches DAT_044e28fc / DAT_0695e07c / DAT_0064e818 and calls
+     * FUN_00414902 — deferred until their consumers port. */
+    scene1_records_reset(1);
+
     /* Engine guards: top-of-FUN_00474a9a clamps DAT_0438b4dc to the
      * selector table. We seeded selectors in stage_state at boot, so
      * a no-op here unless future stage-change code wants to refresh. */
