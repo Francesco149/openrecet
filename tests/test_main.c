@@ -1301,7 +1301,21 @@ struct test_case {
     X(scene1_postload_set_force_ambient_null_palette_still_noop) \
     X(scene1_postload_type_override_replaces_4f) \
     X(scene1_postload_type_override_minus_one_restores_default) \
-    X(scene1_postload_ambient_spawn_tick_advances_records)
+    X(scene1_postload_ambient_spawn_tick_advances_records) \
+    \
+    X(scene1_camera_init_clears_orient) \
+    X(scene1_camera_house_default_snaps_to_oracle_pose) \
+    X(scene1_camera_anchor_alias_tracks_lookat) \
+    X(scene1_camera_char_mode_below_2_collapses_offsets) \
+    X(scene1_camera_yaw_orbits_eye) \
+    X(scene1_camera_floor_bias_converges_to_fixed_point) \
+    X(scene1_camera_yaw_change_lerps_eye) \
+    X(scene1_camera_angle_writes_orient_matrix) \
+    X(scene1_camera_angle_singular_dist_skips_write) \
+    X(scene1_camera_view_matches_lookat_rh_when_z_roll_zero) \
+    X(scene1_camera_view_applies_z_roll_when_nonzero) \
+    X(scene1_postload_pose_override_replaces_player_pos) \
+    X(scene1_postload_pose_override_disable_restores_player_pos)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

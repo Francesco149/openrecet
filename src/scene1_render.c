@@ -22,6 +22,7 @@
 #include "mesh_draw.h"
 #include "render_quad.h"
 #include "scene1_alpha_walker.h"
+#include "scene1_camera.h"
 #include "scene1_records.h"
 #include "scene1_shop_walker.h"
 #include "scene1_wide_followup.h"
@@ -70,28 +71,13 @@ void scene1_render_reset_view(void)
 
 /* ─── deferred sub-call stubs ───────────────────────────────────────── */
 
-/* FUN_00441c3e (2217 B) — camera-pose update.  Writes DAT_073de29c.
- * Until this lands, the view matrix stays at whatever the most recent
- * scene1_render_reset_view / scene1_render_view_matrix writer left
- * (identity at boot). */
-static void scene1_camera_pose_TODO(void)
-{
-    /* TODO C7-followup: port FUN_00441c3e.  Reads several player-pose
-     * globals (DAT_073de31c..330 for position, DAT_0438cd78/cdb8 for
-     * Euler angles), composes a D3DXMatrixRotation+Translation, writes
-     * the result into g_scene1_view. */
-}
-
-/* FUN_004424e7 (429 B) — scene-angle / orientation update.  Sibling
- * of the camera-pose helper.  Reads DAT_073de31c..330 (player +
- * camera positions), computes pitch/yaw from differences, writes
- * DAT_0438cd78 / cdb8 + recomputes DAT_0438bfa8 (a sub-frame phase
- * counter). */
-static void scene1_camera_angle_TODO(void)
-{
-    /* TODO C7-followup: port FUN_004424e7.  Outputs feed the camera-
-     * pose helper above + the FX tail's sin-shake formula. */
-}
+/* FUN_00441c3e (2217 B) + FUN_004424e7 (429 B) landed as Cc.1
+ * (2026-05-23) in `src/scene1_camera.{c,h}`.  Default-path HOUSE
+ * faithful: writes g_scene1_camera_eye/lookat + g_scene1_camera_orient
+ * + the existing g_scene1_camera_anchor alias.  Camera shake (block L
+ * of FUN_00441c3e), the cinematic counter ramp (block F), the class-1
+ * post-load transition (block D), and the debug HUD overlays (block J)
+ * are all deferred to Cc.2-4. */
 
 /* FUN_00454191 (1391 B) — screen-effect overlays (per-counter shake +
  * flash + per-stage dim).  Reads DAT_06a49990 / 06a49994 / 06a4999c
@@ -283,17 +269,21 @@ void scene1_render_camera_setup(struct IDirect3DDevice8 *dev_in)
      * pose helper.  counter_998 is sim.c's DAT_06a49998 (cyclic 0..0x14
      * or 1..0xc depending on mode); counter_6fa4 (DAT_06a46fa4) is a
      * separate menu/dialog gate that has no porter yet — stays at 0,
-     * which keeps the gate open. */
+     * which keeps the gate open.
+     *
+     * Cc.1: pose_compute writes eye/lookat; build_view_matrix writes
+     * the D3DTS_VIEW matrix.  The engine inlines the view-matrix build
+     * at the tail of FUN_00441c3e (via FUN_0040120c); we keep it
+     * separate so the gate-closed branch can leave the prior matrix
+     * untouched without rebuilding from a partially-updated state. */
     if (sim_get_counter_998() == 0 /* && counter_6fa4 == 0 */) {
-        scene1_camera_pose_TODO();
+        scene1_camera_pose_compute();
+        scene1_camera_build_view_matrix(g_scene1_view);
     }
     /* L11: unconditional angle update. */
-    scene1_camera_angle_TODO();
+    scene1_camera_angle_compute();
 
-    /* L12: SetTransform(D3DTS_VIEW, &g_scene1_view).  D3DTS_VIEW is
-     * device-vtable index 0x94 / 4 = constant 2; the engine writes the
-     * raw 2.  Until the camera helpers above port, this pushes
-     * identity. */
+    /* L12: SetTransform(D3DTS_VIEW, &g_scene1_view). */
     IDirect3DDevice8_SetTransform(dev, D3DTS_VIEW,
                                   (const D3DMATRIX *)g_scene1_view);
 

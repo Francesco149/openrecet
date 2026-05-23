@@ -1,5 +1,8 @@
 # Scene-1 camera helpers — `FUN_00441c3e` + `FUN_004424e7` (Cc.0 survey)
 
+> **Cc.1 erratum (2026-05-23, post-port):** The "Outputs FUN_00441c3e writes" section below has the eye/look-at labels swapped.  `FUN_0040120c` calls `D3DXMatrixLookAtRH(out, &DAT_073de31c, &DAT_073de328, &up)`; the standard signature is `LookAtRH(out, eye, target, up)`.  So `_DAT_073de31c..324` (the orbital triplet computed via `radius_xz * sin/cos(yaw)`) is the **EYE**, and `_DAT_073de328..330` (the input-bias triplet, no trig math) is the **TARGET / lookat**.  The existing `g_scene1_camera_anchor[2]` extern in `scene1_particles_tick.h` correctly aliases (target.x, target.z) — particles orbit the target (= player anchor), not the eye.  The Cc.1 implementation in `src/scene1_camera.c` uses the corrected names (g_scene1_camera_eye / g_scene1_camera_lookat).  HOUSE camera with char_mode=2 + yaw=0 lands at **eye=(-1, -6.2, -9), lookat=(-1, 3.0, -5)** (NOT the "(0, 0.3, 0) looking at (0, -9, -4)" claim in the original survey — that conflated the labels and missed the `bias_x = -1` clamp + the `bias_z = -5` uVar2>=2 lift).
+
+
 **Engine fns:**
 - `FUN_00441c3e` @ `0x441c3e`, **2217 B** — camera-pose update (eye + look-at).
 - `FUN_004424e7` @ `0x4424e7`, **429 B**  — scene-angle update (yaw + pitch + 8-azimuth orientation matrix).

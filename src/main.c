@@ -58,6 +58,7 @@
 #include "mesh.h"
 #include "mesh_draw.h"
 #include "mesh_load.h"
+#include "scene1_camera.h"
 #include "scene1_pass_f.h"
 #include "scene1_postload.h"
 #include "scene1_preload.h"
@@ -148,6 +149,15 @@ static int              g_show_pass_f_test     = 0;
  * Override value of -1 means "no override (engine default 0x4f)". */
 static int              g_force_ambient_spawn          = 0;
 static int              g_ambient_spawn_type_override  = -1;
+
+/* --ambient-spawn-pose <x>,<y>,<z>: parsed as three comma-separated
+ * decimals (strtof).  Replaces the ambient-spawn anchor (which would
+ * otherwise come from g_scene1_player_pos + (0, 2, 0)) so the smoke
+ * lands inside the HOUSE engine camera frustum.  See Cc.0 survey in
+ * docs/findings/scene1-camera-helpers.md — HOUSE camera anchors near
+ * world origin, not at the player's HOUSE-default (-40, 0, -60). */
+static int              g_ambient_spawn_pose_set       = 0;
+static float            g_ambient_spawn_pose[3]        = {0.0f, 0.0f, 0.0f};
 
 /* Scene-0 (title) state now lives in scene_title.c as module globals
  * (`g_scene_title_menu`, `g_scene_title_anim`, `g_scene_title_assets_loaded`).
@@ -618,15 +628,27 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * will both read from this record once their porters land. */
     stage_palette_init_house();
 
-    /* Apply --force-ambient-spawn / --ambient-spawn-type overrides
-     * before the worker fires scene1_preload_house.  Both are no-ops
-     * unless their CLI flags were given. */
+    /* Apply --force-ambient-spawn / --ambient-spawn-type /
+     * --ambient-spawn-pose overrides before the worker fires
+     * scene1_preload_house.  All three are no-ops unless their CLI
+     * flags were given. */
     if (g_force_ambient_spawn) {
         scene1_postload_set_force_ambient(1);
     }
     if (g_ambient_spawn_type_override >= 0) {
         scene1_postload_set_ambient_type_override(g_ambient_spawn_type_override);
     }
+    if (g_ambient_spawn_pose_set) {
+        scene1_postload_set_ambient_pose_override(1,
+                                                  g_ambient_spawn_pose[0],
+                                                  g_ambient_spawn_pose[1],
+                                                  g_ambient_spawn_pose[2]);
+    }
+
+    /* Cc.1: initialise scene-1 camera state.  Sets the first-frame
+     * snap flag so the first scene1_render_camera_setup pass writes
+     * a real eye/lookat instead of accumulating from BSS-zero. */
+    scene1_camera_init();
 
     /* C7e: wire FUN_00474a9a (scene-1 pre-load entry, HOUSE branch) as
      * the worker_load slot-1 INGAME callback. After title fade-out,
@@ -1682,6 +1704,31 @@ static void parse_cmdline(LPSTR lpCmdLine)
                  * Type ids are byte-wide; clamp into [0, 0xff]. */
                 unsigned long n = strtoul(val, NULL, 0);
                 if (n <= 0xffu) g_ambient_spawn_type_override = (int)n;
+            }
+        } else if (lstrcmpA(tok, "--ambient-spawn-pose") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                /* Parse "x,y,z" as three comma-separated floats.
+                 * Reject the whole spec on the first malformed
+                 * component so a typo doesn't silently land a
+                 * half-set override. */
+                char *p   = val;
+                char *end = NULL;
+                float x = strtof(p, &end);
+                if (end != p && *end == ',') {
+                    p = end + 1;
+                    float y = strtof(p, &end);
+                    if (end != p && *end == ',') {
+                        p = end + 1;
+                        float z = strtof(p, &end);
+                        if (end != p) {
+                            g_ambient_spawn_pose[0] = x;
+                            g_ambient_spawn_pose[1] = y;
+                            g_ambient_spawn_pose[2] = z;
+                            g_ambient_spawn_pose_set = 1;
+                        }
+                    }
+                }
             }
         } else if (lstrcmpA(tok, "--max-duration-ms") == 0) {
             char *val = strtok(NULL, " ");

@@ -105,6 +105,23 @@ void scene1_postload_set_force_ambient(int force);
  */
 void scene1_postload_set_ambient_type_override(int type);
 
+/*
+ * CLI override — when `enable != 0`, the ambient-spawn loop uses
+ * (x, y, z) verbatim as the spawn anchor instead of
+ * (player.x, player.y + 2.0f, player.z).  Pass enable=0 to restore
+ * the engine default (read from g_scene1_player_pos).
+ *
+ * Drives `--ambient-spawn-pose <x>,<y>,<z>`.  The HOUSE engine camera
+ * is anchored near world origin and not driven by player pose (see
+ * docs/findings/scene1-camera-helpers.md), so the engine-default
+ * spawn at the player's HOUSE-default pose (-40, 0, -60) lands
+ * off-frame.  This override places the smoke inside the camera
+ * frustum (e.g. 0,0,-10) so the Pass F billboards become visible
+ * through the production spawn pipeline.
+ */
+void scene1_postload_set_ambient_pose_override(int enable,
+                                               float x, float y, float z);
+
 #ifdef __cplusplus
 }
 #endif
