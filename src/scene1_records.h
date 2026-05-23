@@ -48,14 +48,44 @@ extern "C" {
 
 /*
  * Record storage.  Engine globals:
- *   - DAT_069b2fb0 → g_scene1_records_a (stride 0x25 dw, 4096 slots)
+ *   - DAT_069b2f80 → g_scene1_records_a slot 0 (stride 0x25 dw, 4096 slots)
  *   - DAT_069324b0 → g_scene1_records_b (stride 0x49 dw,  512 slots)
  *   - DAT_06956cd8 → g_scene1_records_c (stride 0x25 dw,  200 slots)
  *
+ * Table A is anchored at DAT_069b2f80 (slot base = first field).  The
+ * engine's Ghidra dump frequently uses DAT_069b2fb0 (= slot_base +
+ * 0x30 = TYPE-field address) and DAT_069b2f8c (= slot_base + 0x0c =
+ * vel.x address) as alternative names for the same storage — we anchor
+ * at the slot base so all field offsets are non-negative.
+ *
  * Sentinel conventions (from FUN_0040f64b):
- *   - A and C: [0] == -1 means slot empty.
+ *   - A and C: TYPE-field == -1 means slot empty.
  *   - B:       [0] ==  0 means slot empty; [2] holds slot index.
+ *
+ * Table A slot layout — 0x25 dwords (148 B) per slot.  See FUN_0040fb3a +
+ * FUN_00447f4f for the per-handler field meanings; the offsets here are
+ * the universal ones read by every consumer.
  */
+#define SCENE1_RECORDS_A_OFF_POS_X     0   /* DAT_069b2f80 */
+#define SCENE1_RECORDS_A_OFF_POS_Y     1   /* DAT_069b2f84 */
+#define SCENE1_RECORDS_A_OFF_POS_Z     2   /* DAT_069b2f88 */
+#define SCENE1_RECORDS_A_OFF_VEL_X     3   /* DAT_069b2f8c */
+#define SCENE1_RECORDS_A_OFF_VEL_Y     4   /* DAT_069b2f90 */
+#define SCENE1_RECORDS_A_OFF_VEL_Z     5   /* DAT_069b2f94 */
+#define SCENE1_RECORDS_A_OFF_ROT_X     6   /* DAT_069b2f98 */
+#define SCENE1_RECORDS_A_OFF_ROT_Y     7   /* DAT_069b2f9c */
+#define SCENE1_RECORDS_A_OFF_ROT_Z     8   /* DAT_069b2fa0 */
+#define SCENE1_RECORDS_A_OFF_BASE_X    9   /* DAT_069b2fa4 */
+#define SCENE1_RECORDS_A_OFF_BASE_Y   10   /* DAT_069b2fa8 */
+#define SCENE1_RECORDS_A_OFF_BASE_Z   11   /* DAT_069b2fac */
+#define SCENE1_RECORDS_A_OFF_TYPE     12   /* DAT_069b2fb0  (-1 = empty) */
+#define SCENE1_RECORDS_A_OFF_AGE      13   /* DAT_069b2fb4  (tick counter) */
+#define SCENE1_RECORDS_A_OFF_SCALE    14   /* DAT_069b2fb8  (spawn param_6, float) */
+#define SCENE1_RECORDS_A_OFF_AUX_15   15   /* DAT_069b2fbc */
+#define SCENE1_RECORDS_A_OFF_PARAM1   16   /* DAT_069b2fc0  (spawn param_7 / scratch) */
+#define SCENE1_RECORDS_A_OFF_PARAM2   17   /* DAT_069b2fc4  (per-type scratch) */
+#define SCENE1_RECORDS_A_OFF_AUX_18   18   /* DAT_069b2fc8 */
+
 extern int32_t g_scene1_records_a[SCENE1_RECORDS_A_COUNT * SCENE1_RECORDS_A_STRIDE];
 extern int32_t g_scene1_records_b[SCENE1_RECORDS_B_COUNT * SCENE1_RECORDS_B_STRIDE];
 extern int32_t g_scene1_records_c[SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE];
@@ -89,6 +119,20 @@ void scene1_records_reset(int reset_c);
  * scene1_render_meshes (FUN_00459dfd in the engine).
  */
 void scene1_records_counter_scan(void);
+
+/*
+ * MVP test helper.  Manually populate table-A slot 0 with a single
+ * type-0x92 (color-cycle billboard) record at the given world position,
+ * then bump g_scene1_records_a_count to 1 so the renderers' count gate
+ * passes.  Used by --show-pass-f-test in main.c to validate the
+ * scene1_pass_f render path without needing the integrator or spawn API
+ * ported yet.
+ *
+ * Writes through SCENE1_RECORDS_A_OFF_* with the field semantics
+ * FUN_004161c7's Pass F (L423-481) expects.
+ */
+void scene1_records_inject_test_type92(float pos_x, float pos_y,
+                                       float pos_z);
 
 #ifdef __cplusplus
 }

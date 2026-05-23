@@ -76,3 +76,54 @@ void mat4_mul(float out[16], const float a[16], const float b[16])
     }
     memcpy(out, tmp, sizeof tmp);
 }
+
+void mat4_identity(float out[16])
+{
+    static const float ident[16] = {
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1,
+    };
+    memcpy(out, ident, sizeof ident);
+}
+
+void mat4_translation(float out[16], float tx, float ty, float tz)
+{
+    mat4_identity(out);
+    out[12] = tx;
+    out[13] = ty;
+    out[14] = tz;
+}
+
+void mat4_scaling(float out[16], float sx, float sy, float sz)
+{
+    mat4_identity(out);
+    out[ 0] = sx;
+    out[ 5] = sy;
+    out[10] = sz;
+}
+
+void mat4_rotation_x(float out[16], float radians)
+{
+    float c = cosf(radians), s = sinf(radians);
+    mat4_identity(out);
+    out[ 5] =  c;  out[ 6] =  s;
+    out[ 9] = -s;  out[10] =  c;
+}
+
+void mat4_rotation_y(float out[16], float radians)
+{
+    float c = cosf(radians), s = sinf(radians);
+    mat4_identity(out);
+    out[ 0] =  c;  out[ 2] = -s;
+    out[ 8] =  s;  out[10] =  c;
+}
+
+void mat4_rotation_z(float out[16], float radians)
+{
+    float c = cosf(radians), s = sinf(radians);
+    mat4_identity(out);
+    out[ 0] =  c;  out[ 1] =  s;
+    out[ 4] = -s;  out[ 5] =  c;
+}

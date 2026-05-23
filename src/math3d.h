@@ -46,4 +46,23 @@ void mat4_perspective_fov_rh(float out[16], float fov_y, float aspect,
  * in the same per-element formula. */
 void mat4_mul(float out[16], const float a[16], const float b[16]);
 
+/* Identity matrix. Matches D3DXMatrixIdentity. */
+void mat4_identity(float out[16]);
+
+/* Translation matrix.  Matches D3DXMatrixTranslation — the engine's
+ * thunk_FUN_004a3462 lands here.  Translation goes in row 3
+ * (m[12..14]) so row-vector × M shifts by (tx, ty, tz). */
+void mat4_translation(float out[16], float tx, float ty, float tz);
+
+/* Scaling matrix.  Matches D3DXMatrixScaling — the engine's
+ * thunk_FUN_004a33d2 lands here.  Diagonal (sx, sy, sz, 1). */
+void mat4_scaling(float out[16], float sx, float sy, float sz);
+
+/* Axis rotations.  Match D3DXMatrixRotationX/Y/Z — the engine's thunks
+ * 35d3 / 3537 / 3670 respectively.  Right-handed (positive angle
+ * rotates +Y toward +Z for X-axis, etc.). */
+void mat4_rotation_x(float out[16], float radians);
+void mat4_rotation_y(float out[16], float radians);
+void mat4_rotation_z(float out[16], float radians);
+
 #endif /* OPENRECET_MATH3D_H */

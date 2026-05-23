@@ -58,7 +58,9 @@
 #include "mesh.h"
 #include "mesh_draw.h"
 #include "mesh_load.h"
+#include "scene1_pass_f.h"
 #include "scene1_preload.h"
+#include "scene1_records.h"
 #include "stage_palette.h"
 #include "stage_state.h"
 #include "tick.h"
@@ -123,6 +125,15 @@ static int              g_house_preview        = 0;
 static char            *g_house_preview_path   = "xfile/shop/shop_1st.x";
 static char            *g_house_preview_dump   = NULL;  /* see --house-preview-dump */
 static mesh_t          *g_house_preview_mesh   = NULL;
+
+/* --show-pass-f-test: MVP visual smoke for the C8c/C8e/wide-followup
+ * draw chain.  When set, injects one type-0x92 record into table A at
+ * scene1_preload_house entry and renders it every INGAME frame via
+ * scene1_pass_f_render under a stand-alone identity-view + RH-perspective
+ * camera.  Validates the Pass F render contract without first porting
+ * FUN_0040fb3a (the 8071 B integrator) or FUN_00447f4f (the 11826 B
+ * spawn API).  See docs/findings/scene1-particles-tick.md "Option A". */
+static int              g_show_pass_f_test     = 0;
 
 /* Scene-0 (title) state now lives in scene_title.c as module globals
  * (`g_scene_title_menu`, `g_scene_title_anim`, `g_scene_title_assets_loaded`).
@@ -1430,6 +1441,38 @@ static void render_dispatch(void)
             } else {
                 scene_ingame_render(g_dev);
             }
+
+            /* --show-pass-f-test: overlay one type-0x92 billboard from
+             * scene1_pass_f_render on top of whatever the INGAME branch
+             * just drew.  Re-injects every frame (idempotent — always
+             * slot 0) so a future scene1_records_reset can't wipe it
+             * out mid-run.  Identity view + RH perspective with the same
+             * fov/aspect as scene1_render's wide projection (z_far=2000).
+             *
+             * Particle placed at world (0, 0, -50) — visible from the
+             * identity view's eye at origin looking down -Z.  Use
+             * pos.y=0 so the gate `piVar11[1] >= 0` (age >= 0) is
+             * satisfied; the y=0 position itself is fine for the view.
+             *
+             * Diverges from the eventual scene1_render_meshes wiring
+             * (which sets camera + walker chain from the engine's
+             * camera helpers); this is a stand-alone path purely for
+             * the Pass F MVP visual smoke. */
+            if (g_show_pass_f_test) {
+                scene1_records_inject_test_type92(0.0f, 0.0f, -50.0f);
+
+                float fov_y  = 45.0f * 3.14159265358979323846f / 180.0f;
+                float aspect = 4.0f / 3.0f;
+                float view[16], proj[16];
+                mat4_identity(view);
+                mat4_perspective_fov_rh(proj, fov_y, aspect, 1.0f, 2000.0f);
+                IDirect3DDevice8_SetTransform(g_dev, D3DTS_VIEW,
+                                              (const D3DMATRIX *)view);
+                IDirect3DDevice8_SetTransform(g_dev, D3DTS_PROJECTION,
+                                              (const D3DMATRIX *)proj);
+
+                scene1_pass_f_render((struct IDirect3DDevice8 *)g_dev);
+            }
             break;
         default:
             break;
@@ -1571,6 +1614,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 g_house_preview_dump = dump_buf;
                 g_house_preview = 1;
             }
+        } else if (lstrcmpA(tok, "--show-pass-f-test") == 0) {
+            g_show_pass_f_test = 1;
         } else if (lstrcmpA(tok, "--max-duration-ms") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {
