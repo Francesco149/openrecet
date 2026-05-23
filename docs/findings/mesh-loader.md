@@ -298,6 +298,85 @@ Smallest-first, each chip self-contained and commit-worthy:
 Skinning + animation (xfile2/) land much later when character
 rendering ports — likely months out.
 
+## Smooth-vs-flat normals: resolved (no welding pass needed)
+
+**TL;DR:** the .x exporter already baked the smooth/hard-edge
+decisions into the MeshNormals array (different normal-indices
+across an edge = hard / flat, shared index = smooth). Our per-face
+emit indexes those directly, so the resulting normals are equivalent
+to what D3DX produces after its position-weld + per-position normal
+average. **No welding pass added.**
+
+**Investigation (2026-05-23, shop_1st.x):**
+
+After landing MeshVertexColors (commit 486de82), the per-attribute
+diff (`tools/diff-mesh.py`) on shop_1st.x reports:
+
+| channel  | mismatch (corners) | notes |
+|----------|------:|-------|
+| position | 62 only-ours + 62 only-retail | sub-mm fp32 jitter (-43.376 vs -43.377) from D3DX weld tolerance |
+| normal   | 0 at decimals=3 (81 at decimals=6, max angle 0.06°) | fp32 LSB |
+| diffuse  | 0 | post-MeshVertexColors port |
+| uv       | 0 | |
+
+The concern was that D3DXLoadMeshFromXof welds shared positions and
+averages contributing face normals (smoothing across faces that
+share a vertex), while our `emit_submesh` emits a fresh vertex per
+face corner and looks up `xm->normals[fn->verts[c]]` directly per
+corner — flat, by construction.
+
+Empirically the two converge anyway. The mechanism: in the
+DirectXFile-native shape, MeshNormals is its OWN indexed array,
+separate from the position array. Each face has BOTH a position-vert
+list (`mesh.faces[f].verts`) and a normal-vert list
+(`mesh.face_normals[f].verts`). The exporter picks which normal
+index each face-corner refers to, and that's where the smooth/hard
+decision actually lives:
+
+- two adjacent faces sharing a smooth edge → both index the SAME
+  entry in MeshNormals at that corner (and D3DX collapses the
+  position-share into one vertex, naturally inheriting that single
+  normal — no averaging needed because both inputs were already the
+  same value)
+- two adjacent faces sharing a hard edge → each indexes a DIFFERENT
+  entry in MeshNormals (and D3DX either keeps the positions distinct
+  per-corner, OR welds the positions and produces one of the two
+  normals, breaking smoothness consistently with the exporter's
+  intent)
+
+Our per-corner emit picks up whichever normal-index the .x file
+specifies, so we land on the same per-vertex normal D3DX picks —
+modulo the float-LSB drift that any weld + recompute round-trip
+introduces.
+
+The earlier "extra plane fused with the window" observation that
+prompted this investigation does not surface in the post-Frame +
+post-MeshVertexColors diff. It likely was either (a) the Frame
+transform issue resolved in commit 2afa8e5, or (b) just visually
+ambiguous before the diffuse channel was darkened to match retail.
+
+**If a future mesh shows real divergence here** — i.e. the
+per-attribute diff reports >0 normal mismatches at decimals=3 — the
+fix is probably one of:
+
+1. The .x file uses **separate** position + normal index pairs in a
+   way our parser doesn't quite capture (e.g. multi-mesh
+   compositions where MeshNormals lives in a different scope than
+   the consuming face). Inspect the `face_normals` array vs `faces`
+   to verify the index lookup is paired correctly.
+2. Triangulation fan ordering: D3DX may fan N-gons differently than
+   our `(0, i, i+1)` for `i = 1 .. fc-2`. The corpus is all
+   triangles, but if any future imported model has quads or N-gons
+   the fan order can rotate which normal-pair each emitted tri picks
+   up. Two reasonable fixes: match D3DX's fan exactly, or test
+   alternate fans and pick the one whose triangle-set diff passes.
+
+**Not in scope for this project:** writing a full position-weld
++ smooth-normal-average pass. The cost (extra pass over the mesh,
+weld tolerance picking, breaking the simple invariant that
+`vertex_offset + index = corner_id`) outweighs any benefit when our
+direct emit already lands within fp32 LSB of D3DX's output.
+
 ## Notes / hazards
 
 - **Texture-name dedupe is global.** `&DAT_073be908` + `DAT_073cb108`
