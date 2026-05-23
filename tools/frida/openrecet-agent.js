@@ -26,6 +26,9 @@
 //   {kind:"input_state",t_ms:T, frame:N, buttons:0xNNNN}
 //   {kind:"log",        msg:"..."}                          // diagnostics
 //   {kind:"error",      where:"...", msg:"..."}
+//   {kind:"mesh_dump",  path:"xfile/...", buffer:"vb"|"ib",  // + binary payload
+//                       num_vertices:N, num_faces:M, fvf:F, vert_size:S,
+//                       index_size:I}
 //
 // The Python driver matches on `kind`, picks up the optional binary
 // payload via the second arg of the on_message callback, writes it as a
@@ -74,6 +77,24 @@ const ADDR = {
     // vtable[5] (SetVolume) silences all three. Used by the silent-audio
     // mode.
     fn_audio_init:       0x00498ef4,  // FUN_00498ef4 — init daoudio
+
+    // mesh loader. FUN_00472836 is the engine's .x asset loader wrapper:
+    // it calls FUN_004c8f74 (D3DXLoadMeshFromXof clone) to parse the file,
+    // then post-processes the result (locks VB once to scan / classify
+    // textures, may CloneMeshFVF to 0x152 if the D3DX-parsed FVF differs).
+    //
+    //   stdcall FUN_00472836(void **mesh_struct_out, const char *fmt_arg,
+    //                        int param3) -> int
+    //
+    // The first arg is filled with an engine mesh struct whose first DWORD
+    // holds the ID3DXMesh interface pointer; the second arg is a path-like
+    // string (either a filename to sprintf into, or an asset id depending
+    // on call site); the return value is 1 on success / 0 on failure.
+    //
+    // We hook this to dump every loaded mesh's VB+IB via the ID3DXMesh
+    // vtable so we can bit-compare against our own xfile + mesh_build
+    // pipeline. See installMeshDumpHook below.
+    fn_mesh_load_wrapper: 0x00472836,
 
     // recet.ini parser + back-buffer dimension globals. The parser maps
     // `screen=0/1/2/3` → 640×480 / 800×600 / 1024×768 / 1280×960 and
@@ -150,6 +171,38 @@ const V_Dev_CopyRects          = 28;
 const V_Surf_GetDesc    = 8;
 const V_Surf_LockRect   = 9;
 const V_Surf_UnlockRect = 10;
+
+// ID3DXBaseMesh (d3dx8mesh.h order, post-IUnknown). The engine's loaded
+// meshes are ID3DXMesh which inherits from ID3DXBaseMesh, so these slot
+// indices apply directly. The full table:
+//
+//   3  DrawSubset
+//   4  GetNumFaces
+//   5  GetNumVertices
+//   6  GetFVF
+//   7  GetDeclaration
+//   8  GetOptions
+//   9  GetDevice
+//  10  CloneMeshFVF
+//  11  CloneMesh
+//  12  GetVertexBuffer
+//  13  GetIndexBuffer
+//  14  LockVertexBuffer
+//  15  UnlockVertexBuffer
+//  16  LockIndexBuffer
+//  17  UnlockIndexBuffer
+//
+const V_Mesh_GetNumFaces       = 4;
+const V_Mesh_GetNumVertices    = 5;
+const V_Mesh_GetFVF            = 6;
+const V_Mesh_GetOptions        = 8;
+const V_Mesh_LockVertexBuffer  = 14;
+const V_Mesh_UnlockVertexBuffer = 15;
+const V_Mesh_LockIndexBuffer   = 16;
+const V_Mesh_UnlockIndexBuffer = 17;
+
+// D3DXMESH option bits we care about (from d3dx8mesh.h).
+const D3DXMESH_32BIT = 0x001;
 
 // D3D constants
 const D3DBACKBUFFER_TYPE_MONO = 0;
@@ -275,6 +328,17 @@ let g_silent_audio_hooked  = false;
 // and the captures don't line up for side-by-side diffs.
 let g_force_resolution_w = 0;
 let g_force_resolution_h = 0;
+
+// Mesh dump runtime state. `g_mesh_dump_filters` is a list of substrings;
+// when set, only paths containing any of them get dumped (case-sensitive
+// substring match). Empty list = dump every .x load.
+// `g_mesh_dump_seen` records sanitized paths already dumped so a single
+// session never emits two payloads for the same file (the engine may load
+// the same mesh twice during a stage transition).
+let g_mesh_dump_enabled = false;
+let g_mesh_dump_filters = [];
+let g_mesh_dump_seen    = new Set();
+let g_mesh_dump_count   = 0;
 
 // ─── helpers ────────────────────────────────────────────────────────────
 
@@ -716,9 +780,230 @@ function installInitHook() {
             } catch (e) {
                 err('installPresentHook', e.message);
             }
+            // Signal "device ready" so RPC callers that depend on the
+            // device being live (invokeMeshLoader, …) know when it's
+            // safe to fire.
+            send({kind: 'd3d_device_ready', device: dev.toString()});
         },
     });
     log('d3d init hook installed @ ' + rva(ADDR.fn_d3d_init_wrapper));
+}
+
+// ─── mesh dump hook ─────────────────────────────────────────────────────
+//
+// Bit-level parser validation. Hooks FUN_00472836 (the engine's .x
+// loader wrapper) onEnter to record which file is about to be loaded
+// (param 2 is the path string pointer), then onLeave to walk the
+// resulting ID3DXMesh interface and emit its VB+IB bytes.
+//
+// We send TWO `mesh_dump` messages per loaded mesh — one for the vertex
+// buffer, one for the index buffer. The vertex bytes are the raw FVF-
+// 0x152 stream (36 bytes per vertex: float3 pos + float3 normal + DWORD
+// diffuse + float2 UV) as D3DXLoadMeshFromXof emitted them, post any
+// engine CloneMeshFVF rewrite. The index bytes are 16-bit unless the
+// mesh was created with D3DXMESH_32BIT — we read GetOptions and tag the
+// `index_size` field accordingly so the host driver can size correctly.
+//
+// Failure modes (logged via `err`, not fatal):
+//   - param_2 unreadable / NULL                 → skip the dump silently
+//   - filename filter set but no match          → skip the dump silently
+//   - ID3DXMesh ptr is NULL after onLeave       → log and skip
+//   - LockVertexBuffer / LockIndexBuffer fails  → log HRESULT and skip
+//
+// We always Unlock on the lock-success path even when read fails, to
+// avoid leaving the engine in a half-locked state that would block
+// downstream render frames.
+function installMeshDumpHook() {
+    const addr = rva(ADDR.fn_mesh_load_wrapper);
+
+    Interceptor.attach(addr, {
+        onEnter: function (args) {
+            this._mesh_path    = null;
+            this._mesh_outptr  = null;
+            if (!g_mesh_dump_enabled) return;
+
+            const meshOutPtr = args[0];        // engine mesh struct (filled by call)
+            const pathArg    = args[1];        // path string (or fmt arg for sprintf)
+            if (meshOutPtr.isNull()) return;
+
+            let path = null;
+            try {
+                path = pathArg.readCString();
+            } catch (e) {
+                /* pathArg might be an integer that the engine sprintfs into
+                 * a format string — see the DUNGEON branch of FUN_00474a9a
+                 * where param_2 IS a string but other call sites may pass an
+                 * integer. We can't read it as a string in those cases; skip. */
+                return;
+            }
+            if (!path || path.length === 0 || path.length > 256) return;
+
+            // Filter by substring if filters were configured.
+            if (g_mesh_dump_filters.length > 0) {
+                const matched = g_mesh_dump_filters.some(function (s) {
+                    return path.indexOf(s) !== -1;
+                });
+                if (!matched) return;
+            }
+
+            // De-dupe: don't emit the same file twice within a session
+            // even if the engine reloads it (stage re-entry, etc.).
+            if (g_mesh_dump_seen.has(path)) return;
+
+            this._mesh_path   = path;
+            this._mesh_outptr = meshOutPtr;
+        },
+
+        onLeave: function (retval) {
+            if (!this._mesh_path || !this._mesh_outptr) return;
+            const path     = this._mesh_path;
+            const meshOut  = this._mesh_outptr;
+
+            // FUN_00472836 returns 1 on success; on failure the engine has
+            // already MessageBoxA'd, but the value at *meshOut may be
+            // garbage — bail unless we explicitly succeeded.
+            const rc = retval.toInt32();
+            if (rc !== 1) {
+                send({kind: 'log',
+                      msg: 'mesh_dump: skipping ' + path + ' (load rc=' + rc + ')'});
+                return;
+            }
+
+            const id3dxmesh = meshOut.readPointer();
+            if (id3dxmesh.isNull()) {
+                err('mesh_dump', 'ID3DXMesh* is NULL after success on ' + path);
+                return;
+            }
+
+            try {
+                dumpMeshBuffers(path, id3dxmesh);
+                g_mesh_dump_seen.add(path);
+                g_mesh_dump_count++;
+            } catch (e) {
+                err('mesh_dump:' + path, e.message);
+            }
+        },
+    });
+    log('mesh dump hook installed @ ' + addr +
+        ' (filters=' + JSON.stringify(g_mesh_dump_filters) + ')');
+}
+
+// Walk the ID3DXMesh interface to extract metadata + locked VB/IB bytes,
+// then emit two `mesh_dump` messages with binary payloads. Throws on any
+// unrecoverable failure (caller logs + continues).
+function dumpMeshBuffers(path, id3dxmesh) {
+    // Metadata via vtable scalars. These have stdcall ABI on Windows
+    // (D3DX8 was always __stdcall); thiscall has the `this` pointer in
+    // ecx but Frida's NativeFunction with stdcall treats first arg as
+    // `this`, which works because the engine's compiled call site does
+    // exactly that — push `this` last, callee pops `this` as the first
+    // arg. (See vtableSlot usage above for IDirect3DDevice8 — same
+    // shape.)
+    const getNumFaces = new NativeFunction(
+        vtableSlot(id3dxmesh, V_Mesh_GetNumFaces),
+        'uint32', ['pointer'], 'stdcall');
+    const getNumVerts = new NativeFunction(
+        vtableSlot(id3dxmesh, V_Mesh_GetNumVertices),
+        'uint32', ['pointer'], 'stdcall');
+    const getFVF = new NativeFunction(
+        vtableSlot(id3dxmesh, V_Mesh_GetFVF),
+        'uint32', ['pointer'], 'stdcall');
+    const getOptions = new NativeFunction(
+        vtableSlot(id3dxmesh, V_Mesh_GetOptions),
+        'uint32', ['pointer'], 'stdcall');
+
+    const numFaces = getNumFaces(id3dxmesh) >>> 0;
+    const numVerts = getNumVerts(id3dxmesh) >>> 0;
+    const fvf      = getFVF(id3dxmesh)      >>> 0;
+    const options  = getOptions(id3dxmesh)  >>> 0;
+
+    // Vertex size from FVF. The engine clones to 0x152 after load
+    // (D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_DIFFUSE | D3DFVF_TEX1):
+    //   D3DFVF_XYZ      0x002 → 12 bytes (3 floats: x, y, z)
+    //   D3DFVF_NORMAL   0x010 → 12 bytes (3 floats: nx, ny, nz)
+    //   D3DFVF_DIFFUSE  0x040 →  4 bytes (DWORD ARGB)
+    //   D3DFVF_SPECULAR 0x080 →  4 bytes (DWORD ARGB)
+    //   tex count       (fvf >> 8) & 0xf, each → 8 bytes (2 floats)
+    let vertSize = 0;
+    if (fvf & 0x002) vertSize += 12;
+    if (fvf & 0x010) vertSize += 12;
+    if (fvf & 0x040) vertSize += 4;
+    if (fvf & 0x080) vertSize += 4;
+    const texCount = (fvf >>> 8) & 0xf;
+    vertSize += texCount * 8;
+
+    if (vertSize === 0) {
+        throw new Error('FVF 0x' + fvf.toString(16) + ' resolves to 0-byte vertices');
+    }
+
+    const indexSize = (options & D3DXMESH_32BIT) ? 4 : 2;
+
+    // Lock + read + unlock the vertex buffer.
+    const lockVB = new NativeFunction(
+        vtableSlot(id3dxmesh, V_Mesh_LockVertexBuffer),
+        'uint32', ['pointer', 'uint32', 'pointer'], 'stdcall');
+    const unlockVB = new NativeFunction(
+        vtableSlot(id3dxmesh, V_Mesh_UnlockVertexBuffer),
+        'uint32', ['pointer'], 'stdcall');
+
+    const vbOut = Memory.alloc(Process.pointerSize);
+    vbOut.writePointer(NULL);
+    const hrVB = lockVB(id3dxmesh, 0, vbOut) >>> 0;
+    if (hrVB !== 0) {
+        throw new Error('LockVertexBuffer failed HRESULT 0x' + hrVB.toString(16));
+    }
+    try {
+        const vbPtr   = vbOut.readPointer();
+        const vbBytes = vbPtr.readByteArray(numVerts * vertSize);
+        send({
+            kind:          'mesh_dump',
+            path:          path,
+            buffer:        'vb',
+            num_vertices:  numVerts,
+            num_faces:     numFaces,
+            fvf:           fvf,
+            options:       options,
+            vert_size:     vertSize,
+            index_size:    indexSize,
+            size_bytes:    numVerts * vertSize,
+        }, vbBytes);
+    } finally {
+        unlockVB(id3dxmesh);
+    }
+
+    // Lock + read + unlock the index buffer.
+    const lockIB = new NativeFunction(
+        vtableSlot(id3dxmesh, V_Mesh_LockIndexBuffer),
+        'uint32', ['pointer', 'uint32', 'pointer'], 'stdcall');
+    const unlockIB = new NativeFunction(
+        vtableSlot(id3dxmesh, V_Mesh_UnlockIndexBuffer),
+        'uint32', ['pointer'], 'stdcall');
+
+    const ibOut = Memory.alloc(Process.pointerSize);
+    ibOut.writePointer(NULL);
+    const hrIB = lockIB(id3dxmesh, 0, ibOut) >>> 0;
+    if (hrIB !== 0) {
+        throw new Error('LockIndexBuffer failed HRESULT 0x' + hrIB.toString(16));
+    }
+    try {
+        const ibPtr   = ibOut.readPointer();
+        const ibLen   = numFaces * 3 * indexSize;
+        const ibBytes = ibPtr.readByteArray(ibLen);
+        send({
+            kind:          'mesh_dump',
+            path:          path,
+            buffer:        'ib',
+            num_vertices:  numVerts,
+            num_faces:     numFaces,
+            fvf:           fvf,
+            options:       options,
+            vert_size:     vertSize,
+            index_size:    indexSize,
+            size_bytes:    ibLen,
+        }, ibBytes);
+    } finally {
+        unlockIB(id3dxmesh);
+    }
 }
 
 // ─── state-forcing helpers (used by tools/state_diff/) ─────────────────
@@ -888,6 +1173,23 @@ rpc.exports = {
             g_force_resolution_h = config.force_resolution[1] | 0;
         }
 
+        // Mesh dump knob. config.dump_meshes is either:
+        //   true             — dump every .x load
+        //   ['xfile/shop/']  — dump only paths containing any of these
+        //                      substrings
+        //   undefined/false  — disabled
+        g_mesh_dump_seen.clear();
+        g_mesh_dump_count = 0;
+        g_mesh_dump_filters = [];
+        g_mesh_dump_enabled = false;
+        if (config.dump_meshes === true) {
+            g_mesh_dump_enabled = true;
+        } else if (Array.isArray(config.dump_meshes)) {
+            g_mesh_dump_enabled = true;
+            g_mesh_dump_filters = config.dump_meshes
+                .filter(function (s) { return typeof s === 'string'; });
+        }
+
         ensureBase();
         g_boot_ms = nowMs();
         g_start_real_ms = Date.now();
@@ -934,7 +1236,93 @@ rpc.exports = {
                 installForceResolutionHook(g_force_resolution_w,
                                            g_force_resolution_h);
             }
+            // Mesh dump — must install pre-resume so we catch every
+            // FUN_00472836 invocation including the first ones during
+            // INGAME bootstrap.
+            if (g_mesh_dump_enabled) {
+                installMeshDumpHook();
+            }
         }
+    },
+
+    // RPC for the host driver to query how many meshes have been dumped
+    // so it can decide when to send the stop signal. Snapshots
+    // g_mesh_dump_count + the seen-paths list.
+    getMeshDumpStatus: function () {
+        return {
+            count: g_mesh_dump_count,
+            paths: Array.from(g_mesh_dump_seen),
+        };
+    },
+
+    // Directly invoke the engine's FUN_00472836 loader with a chosen
+    // path, bypassing the natural scene-1 asset-load chain. Used by
+    // tools/dump-retail-meshes.py to dump any .x file without having
+    // to drive the engine to the corresponding gameplay state — which
+    // for shop_1st.x means clearing the intro cutscene + tutorials.
+    //
+    // The path arg is a relative engine asset path *as it appears
+    // in the engine's call sites* (e.g. "xfile/shop/shop_1st.x"). The
+    // engine's loader prepends nothing — its call sites pass the full
+    // path. FUN_00472836 internally feeds the path to FUN_004c8f74
+    // (the D3DXLoadMeshFromXof clone) which fopens through the
+    // storage system, so the file resolves from lnkdatas.bin / the
+    // vendor data dir like any other engine asset.
+    //
+    // Prereqs (enforced by check at top): D3D device must be live
+    // (DAT_073dfcbc != NULL). Frida's init blocks before device
+    // creation; the driver should wait for a `d3d_device_ready`
+    // event before calling this RPC.
+    invokeMeshLoader: function (path) {
+        if (typeof path !== 'string' || path.length === 0) {
+            err('invokeMeshLoader', 'bad path: ' + path);
+            return null;
+        }
+        ensureBase();
+        const dev = rva(ADDR.var_d3d_device).readPointer();
+        if (dev.isNull()) {
+            err('invokeMeshLoader', 'D3D device not yet initialised');
+            return null;
+        }
+
+        // Engine mesh struct: 10 dwords (0x28 bytes) is what we see
+        // FUN_00472836 fill (param_1[0..9]). Over-allocate to 64 dwords
+        // for safety against any post-write the engine might do via
+        // pointer adjustments we missed.
+        const meshStruct = Memory.alloc(64 * 4);
+        Memory.protect(meshStruct, 64 * 4, 'rw-');
+        // Zero out — defensive; calloc semantics for the engine's
+        // checks at param_1[9] etc.
+        for (let i = 0; i < 16; i++) {
+            meshStruct.add(i * 4).writeU32(0);
+        }
+
+        // Allocate path string in retail address space.
+        const pathBuf = Memory.allocUtf8String(path);
+
+        // Force the dump filter to MATCH this path (otherwise the
+        // hook's filter would suppress it). Save + restore so the
+        // outer filter set isn't mutated permanently.
+        const savedEnabled = g_mesh_dump_enabled;
+        const savedFilters = g_mesh_dump_filters;
+        g_mesh_dump_enabled = true;
+        g_mesh_dump_filters = [path];
+
+        let ok = false;
+        try {
+            const loader = new NativeFunction(
+                rva(ADDR.fn_mesh_load_wrapper),
+                'uint32', ['pointer', 'pointer', 'uint32'], 'stdcall');
+            const rc = loader(meshStruct, pathBuf, 0xffffffff) >>> 0;
+            ok = (rc === 1);
+            log('invokeMeshLoader(' + path + ') → rc=' + rc);
+        } catch (e) {
+            err('invokeMeshLoader:' + path, e.message);
+        } finally {
+            g_mesh_dump_enabled = savedEnabled;
+            g_mesh_dump_filters = savedFilters;
+        }
+        return ok;
     },
 
     // Note on naming: frida-python's RPC layer converts snake_case method
