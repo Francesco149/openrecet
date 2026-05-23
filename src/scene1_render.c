@@ -16,6 +16,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "math3d.h"
 #include "mesh_draw.h"
@@ -132,6 +133,164 @@ static void scene1_overlay_layer_TODO(int layer)
     (void)layer;
 }
 
+/* ─── C8a — scene1_render_meshes sub-call stubs ───────────────────── */
+
+/* FUN_00459dfd L51..L81 — three "highest non-sentinel index" scans
+ * over the per-record tables.  Outputs go into DAT_0076b960 / 964 /
+ * 968.  All three tables are BSS-zero today; the scans land 0
+ * everywhere.  Implemented as part of this chip when the tables
+ * type so we can declare the strides cleanly. */
+static void scene1_walk_record_counter_scan_TODO(void)
+{
+    /* TODO C8-followup: port the three scans.
+     *
+     *   for (i=0, p=&DAT_069b2fb0; p != &DAT_06a46fb0; p+=0x25, i++)
+     *       if (*p != -1) DAT_0076b960 = i+1;
+     *   for (i=0, p=&DAT_069324b0; p != &DAT_06956cb0; p+=0x49, i++)
+     *       if (*p != 0)  DAT_0076b964 = i+1;
+     *   for (i=0, p=&DAT_06956cd8; p != &DAT_0695e078; p+=0x25, i++)
+     *       if (*p != -1) DAT_0076b968 = i+1;
+     *
+     * The output globals are read by FUN_00459847 / FUN_004552d0 /
+     * FUN_00458bdf to bound their per-record loops.  Until the
+     * walkers themselves port, leaving the counts at 0 is fine —
+     * every loop body short-circuits. */
+}
+
+/* FUN_00457714 (5323 B) — per-pass texture / shader sub-init.
+ * Called with arg=0 from FUN_004597ad (pre-walker[0]) and arg=1
+ * from FUN_004597dd (alpha-pass pre-walker).  Likely sets up a
+ * per-pass uniform / pixel-shader-equivalent.  Deferred. */
+static void scene1_walk_pass_init_TODO(int which_pass)
+{
+    /* TODO C8-followup: port FUN_00457714.  Until this lands, the
+     * per-pass shader state stays at whatever the previous frame
+     * (or boot) left it. */
+    (void)which_pass;
+}
+
+/* FUN_00455191 (217 B) — initial transform asset draw.  Called from
+ * L165 when stage palette has 0x108 != 0 AND DAT_068dcf98 != 0 (a
+ * "first asset" pointer).  Small but reads two undocumented globals;
+ * defer until the source ports. */
+static void scene1_walk_initial_asset_TODO(void)
+{
+    /* TODO C8-followup: port FUN_00455191. */
+}
+
+/* FUN_00405d70 (911 B) — depth-generation pre-pass.  Likely emits
+ * the floor's depth-only draw so later passes can Z-reject.  Sized
+ * for a 1-chip port on its own. */
+static void scene1_walk_depth_prepass_TODO(void)
+{
+    /* TODO C8-followup: port FUN_00405d70. */
+}
+
+/* FUN_00458f67 (2118 B) — sub-pass at L199, before any walker fires.
+ * Purpose unknown; possibly a per-frame palette or scratch-texture
+ * regeneration. */
+static void scene1_walk_pre_dispatch_TODO(void)
+{
+    /* TODO C8-followup: port FUN_00458f67. */
+}
+
+/* FUN_00459847 (1444 B) — the engine's "narrow frustum" mesh walker.
+ * Called TWICE per frame: arg=0 (no fog) at L204, arg=1 (fog enabled
+ * by L213-214) at L215.  Reads DAT_0076b960 (record-table active
+ * count) and DAT_069b2fb0 (the per-record table, stride 0x25).
+ * Likely the walls / floor / static room geometry walker. */
+static void scene1_walk_narrow_frustum_TODO(int pass)
+{
+    /* TODO C8-followup: port FUN_00459847.  Until this lands the
+     * shop walls/floor never paint — there will be no visible
+     * scene-1 3D output. */
+    (void)pass;
+}
+
+/* FUN_0045aa36 (4493 B) — sub-pass between FUN_00459847(0) and the
+ * fog-enable branch.  Substantial — multi-chip on its own. */
+static void scene1_walk_narrow_followup_TODO(void)
+{
+    /* TODO C8-followup: port FUN_0045aa36.  May overlap with the
+     * narrow walker; survey first. */
+}
+
+/* FUN_004552d0 (5210 B) — the WIDE-frustum mesh walker (z_far=2000).
+ * The biggest of the four; almost certainly the shop interior +
+ * scenery + chr-stand walker.  Top candidate to port FIRST for any
+ * "make HOUSE visible" milestone. */
+static void scene1_walk_wide_frustum_TODO(void)
+{
+    /* TODO C8-followup: port FUN_004552d0.  Survey suggests this
+     * is what actually draws walls/floor/jutan/table for the shop
+     * interior — the visible 3D surface area is mostly here. */
+}
+
+/* FUN_004161c7 (4925 B) — sub at L219, right after FUN_004552d0.
+ * Substantial.  May be the per-frame transform refresh for the
+ * wide-frustum batch. */
+static void scene1_walk_wide_followup_TODO(void)
+{
+    /* TODO C8-followup: port FUN_004161c7. */
+}
+
+/* FUN_0045672a (1317 B) — sub at L246, before FUN_00458bdf.  Likely
+ * the alpha-pass setup helper. */
+static void scene1_walk_alpha_pre_TODO(void)
+{
+    /* TODO C8-followup: port FUN_0045672a. */
+}
+
+/* FUN_00458bdf (904 B) — alpha-pass mesh walker.  Smallest of the
+ * four — good candidate for the first walker port. */
+static void scene1_walk_alpha_TODO(void)
+{
+    /* TODO C8-followup: port FUN_00458bdf. */
+}
+
+/* FUN_00456f56 (1982 B) — second wide-frustum pass mesh walker.
+ * Likely handles a different draw-order category (transparent
+ * props? particle quads in 3D space?). */
+static void scene1_walk_wide_b_TODO(void)
+{
+    /* TODO C8-followup: port FUN_00456f56. */
+}
+
+/* FUN_004176ff (30395 B) — the chr (character avatar) mesh walker.
+ * The biggest function in scene-1 render.  Will fan into many sub-
+ * chips. */
+static void scene1_walk_chr_TODO(void)
+{
+    /* TODO C8-followup: port FUN_004176ff.  Massive — survey
+     * before any port attempt.  Almost certainly handles Recette,
+     * Tear, and the visiting NPCs' animated meshes. */
+}
+
+/* FUN_00405b1a (598 B) — tail at L257.  Small. */
+static void scene1_walk_tail_TODO(void)
+{
+    /* TODO C8-followup: port FUN_00405b1a. */
+}
+
+/* FUN_00454f03 (120 B) — TSS COLORARG2 from stage-palette mode
+ * integer.  Ported inline — trivial enough that pulling it into a
+ * separate file would cost more than it saves. */
+static void scene1_apply_palette_combiner_mode(IDirect3DDevice8 *dev,
+                                               int mode)
+{
+    /* Engine maps (mode % 7) to a TSS COLORARG2 value.  D3DTA names
+     * (DIFFUSE=0, CURRENT=1, TEXTURE=2, TFACTOR=3, SPECULAR=4,
+     * TEMP=5) only cover 0..5; values 7/8/10/11 fall outside the
+     * documented enum but the engine writes them anyway (D3D8
+     * retail runtime tolerates out-of-range here).  Reproduced
+     * verbatim. */
+    int m = mode % 7;
+    if (m < 0) m += 7;
+    static const DWORD map[7] = { 2, 4, 5, 7, 8, 10, 11 };
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2,
+                                          map[m]);
+}
+
 /* ─── C7f — FUN_0045bbf9 port ───────────────────────────────────────── */
 
 void scene1_render_camera_setup(struct IDirect3DDevice8 *dev_in)
@@ -180,10 +339,390 @@ void scene1_render_camera_setup(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetTransform(dev, D3DTS_PROJECTION,
                                   (const D3DMATRIX *)g_scene1_proj);
 
-    /* L15: FUN_00459dfd = mesh_set_default_render_state (mesh_draw.c).
-     * Ports the full L86..L198 baseline (cull, depth, lighting,
-     * COLORVERTEX routing, ambient, FVF 0x152, sampler defaults). */
-    mesh_set_default_render_state(dev);
+    /* L15: FUN_00459dfd — the actual scene-1 mesh dispatcher.  The
+     * engine doesn't separate "render state setup" from "draw the
+     * meshes" — both happen inside FUN_00459dfd.  Our C7b port of
+     * its L86..L198 prefix lives in mesh_draw.c as
+     * `mesh_set_default_render_state` (still used by --show-mesh);
+     * the full L51..L257 port lives in scene1_render_meshes (C8a)
+     * with all four pass-walker call sites stubbed for follow-up
+     * chips. */
+    scene1_render_meshes(dev);
+}
+
+/* ─── C8a — FUN_00459dfd port ───────────────────────────────────────── */
+
+/* Per-frame counters DAT_06a49b28 / DAT_06a49b24.  Engine bumps these
+ * inside FUN_00459dfd; mirroring them so future ports of consumers
+ * (the per-walker animation index, the per-frame randomness seed)
+ * inherit the same numbers we wrote here. */
+static uint32_t g_scene1_phase_counter = 0;  /* DAT_06a49b28 */
+static uint32_t g_scene1_draw_counter  = 0;  /* DAT_06a49b24 */
+
+uint32_t scene1_render_phase_counter(void) { return g_scene1_phase_counter; }
+uint32_t scene1_render_draw_counter(void)  { return g_scene1_draw_counter; }
+
+/* ─── engine-state TODO accessors ──────────────────────────────────────
+ *
+ * The C8a body reads a half-dozen engine globals + several stage_palette
+ * fields that aren't typed yet.  Putting them behind named accessors
+ * means each typed-field follow-up replaces ONE accessor without
+ * touching the body of scene1_render_meshes — and the names document
+ * what the BSS-zero default does today.
+ *
+ * Every accessor returns the BSS-zero value (zero / 0.0f / NULL) that
+ * makes its caller branch dormant in HOUSE.  A follow-up chip turning
+ * one on touches just the accessor and any global it needs.
+ */
+
+/* palette + 0x1a38 (float fog_start).  Non-zero → enable fog. */
+static float scene1_palette_fog_start(void) { return 0.0f; }
+
+/* palette + 0x1a3c (float fog_end). */
+static float scene1_palette_fog_end(void) { return 0.0f; }
+
+/* palette + 0x1a40 (int combiner mode).  Indexes scene1_apply_palette
+ * _combiner_mode's TSS COLORARG2 table mod 7. */
+static int scene1_palette_combiner_mode(void) { return 0; }
+
+/* palette + 0x1a90/94/98 (int per-channel fog color bytes). */
+static int scene1_palette_fog_color_r(void) { return 0; }
+static int scene1_palette_fog_color_g(void) { return 0; }
+static int scene1_palette_fog_color_b(void) { return 0; }
+
+/* palette + 0x1ae0 (int lighting enable).  Non-zero → enable D3DRS
+ * _LIGHTING + light 0 from DAT_06a49a40. */
+static int scene1_palette_lighting_enabled(void) { return 0; }
+
+/* palette + 0x108 (int initial-asset flag).  Non-zero → run the L160-
+ * L166 initial-asset draw block (needs DAT_068dcf98 too). */
+static int scene1_palette_initial_asset_flag(void) { return 0; }
+
+/* DAT_068dcf98 — initial asset pointer.  Gates L160-L166 alongside
+ * the palette flag above. */
+static void *scene1_initial_asset_ptr(void) { return NULL; }
+
+/* DAT_073dfcec — alpha-pass guard.  Zero = "render in normal mode" =
+ * combiner-mode write proceeds.  No setter ported. */
+static int scene1_alpha_pass_guard(void) { return 0; }
+
+/* DAT_0438b4e4 — texture combiner override.  Non-zero = force
+ * COLORARG2 mode 2 (D3DTA_TEXTURE).  No setter ported. */
+static int scene1_combiner_override(void) { return 0; }
+
+/* DAT_0438cd60 — fog override.  Non-zero (specifically == 1) forces
+ * fog OFF regardless of palette settings.  No setter ported. */
+static int scene1_fog_override(void) { return 0; }
+
+/* DAT_0438b178 — recet.ini trilinear setting.  Zero (default) =
+ * trilinear ON (MIPFILTER=LINEAR + LODBIAS set).  recet.ini layer
+ * doesn't expose this yet. */
+static int scene1_trilinear_off(void) { return 0; }
+
+/* DAT_073dfcf0 — device's preferred LOD bias.  Set once at device
+ * init by the engine; not exposed via our device wrapper. */
+static DWORD scene1_device_lodbias(void) { return 0; }
+
+/* Compute & push the standard scene-1 projection matrix with a
+ * given z_far.  The engine swaps z_far between 350.0 (narrow, for
+ * room geometry) and 2000.0 (wide, for distant scenery / chr) five
+ * times inside FUN_00459dfd; mirroring as a helper keeps the body
+ * readable. */
+static void scene1_push_projection(IDirect3DDevice8 *dev, float z_far)
+{
+    float fov_rad = g_scene1_fov_deg * 0.017453292f;
+    mat4_perspective_fov_rh(g_scene1_proj, fov_rad,
+                            4.0f / 3.0f, 1.0f, z_far);
+    IDirect3DDevice8_SetTransform(dev, D3DTS_PROJECTION,
+                                  (const D3DMATRIX *)g_scene1_proj);
+}
+
+/* Fog enable/setup helper — called three times from FUN_00459dfd
+ * (L170-L184, L206-L214, L233-L241).  The first call writes the full
+ * fog parameters; the later two re-write only FOGENABLE (the
+ * parameters are sticky between calls).  Reproduced as-is. */
+static void scene1_apply_fog_state(IDirect3DDevice8 *dev, BOOL full)
+{
+    BOOL enable = (scene1_palette_fog_start() != 0.0f)
+                  && (scene1_fog_override() != 1);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, enable);
+    if (!enable || !full) return;
+
+    /* SetRenderState takes a DWORD — fog start/end are floats whose
+     * bit pattern goes through verbatim.  memcpy keeps strict
+     * aliasing happy. */
+    float fog_start = scene1_palette_fog_start();
+    float fog_end   = scene1_palette_fog_end();
+    DWORD fog_start_bits, fog_end_bits;
+    memcpy(&fog_start_bits, &fog_start, sizeof fog_start_bits);
+    memcpy(&fog_end_bits,   &fog_end,   sizeof fog_end_bits);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGSTART, fog_start_bits);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGEND,   fog_end_bits);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGTABLEMODE,  0);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGVERTEXMODE, 3);
+    /* Engine packs fog color from three int globals by OR-shift —
+     * each int's low byte ends up at the correct ARGB position with
+     * alpha = 0xff. */
+    DWORD fog_color =
+        (((scene1_palette_fog_color_r() | 0xffffff00) << 8)
+         | (scene1_palette_fog_color_g() & 0xff)) << 8
+        | (scene1_palette_fog_color_b() & 0xff);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGCOLOR, fog_color);
+}
+
+/* FUN_004597ad (48 B) — pre-walker[0] wrapper.  Two gates guard the
+ * combiner-mode write; the inner sub-init runs unconditionally. */
+static void scene1_walk_pre_pass(IDirect3DDevice8 *dev)
+{
+    if (scene1_alpha_pass_guard() == 0) {
+        int mode = (scene1_combiner_override() != 0)
+                       ? 2
+                       : scene1_palette_combiner_mode();
+        scene1_apply_palette_combiner_mode(dev, mode);
+    }
+    scene1_walk_pass_init_TODO(0);
+}
+
+/* FUN_004597dd (106 B) — alpha-pass-pre wrapper.  Same gates as
+ * FUN_004597ad + three render-state writes after the inner sub. */
+static void scene1_walk_alpha_pre(IDirect3DDevice8 *dev)
+{
+    if (scene1_alpha_pass_guard() == 0) {
+        int mode = (scene1_combiner_override() != 0)
+                       ? 2
+                       : scene1_palette_combiner_mode();
+        scene1_apply_palette_combiner_mode(dev, mode);
+        scene1_walk_pass_init_TODO(1);
+    }
+    /* L18-19 of FUN_004597dd: SetTSS(0, ADDRESSU=0xd, WRAP=1) +
+     * SetTSS(0, ADDRESSV=0xe, WRAP=1).  Engine resets the sampler's
+     * address mode every alpha-pass (some menu code may have flipped
+     * it to CLAMP). */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ADDRESSU,
+                                          D3DTADDRESS_WRAP);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ADDRESSV,
+                                          D3DTADDRESS_WRAP);
+    /* L20: D3DRS_CULLMODE=1=D3DCULL_NONE.  Alpha pass disables
+     * culling because alpha-tested foliage etc. is double-sided. */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_NONE);
+}
+
+void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
+{
+    if (!dev_in) return;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+
+    /* L51: bump per-frame phase counter by 0x11.  Read by the chr
+     * walker as an animation phase (probably). */
+    g_scene1_phase_counter += 0x11u;
+
+    /* L52-L81: three "highest non-sentinel index" scans across the
+     * per-record tables.  All tables BSS-zero today; result is 0 in
+     * all three counter globals. */
+    scene1_walk_record_counter_scan_TODO();
+
+    /* L86: D3DRS_CULLMODE = D3DCULL_CCW.  Engine starts every frame
+     * with back-face culling on CCW-wound faces. */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_CCW);
+
+    /* L92, L98: TSS MINFILTER = MAGFILTER = LINEAR. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER,
+                                          D3DTEXF_LINEAR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER,
+                                          D3DTEXF_LINEAR);
+
+    /* L100-L118: trilinear gate.  Engine writes:
+     *   trilinear ON  (DAT_0438b178 == 0):
+     *     SetTSS(0, MIPFILTER, LINEAR);
+     *     SetTSS(0, MIPMAPLODBIAS, DAT_073dfcf0);
+     *   trilinear OFF (DAT_0438b178 != 0):
+     *     SetTSS(0, MIPFILTER, NONE);
+     *
+     * Note: engine default is trilinear ON (recet.ini sets the OFF
+     * value); mesh_set_default_render_state in mesh_draw.c writes
+     * MIPFILTER=NONE for the preview path, which is the OPPOSITE of
+     * the engine default.  Once recet.ini exposes the trilinear
+     * setting we'll reconcile. */
+    if (scene1_trilinear_off() == 0) {
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MIPFILTER,
+                                              D3DTEXF_LINEAR);
+        IDirect3DDevice8_SetTextureStageState(dev, 0,
+                                              D3DTSS_MIPMAPLODBIAS,
+                                              scene1_device_lodbias());
+    } else {
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MIPFILTER,
+                                              D3DTEXF_NONE);
+    }
+
+    /* L122: SetVertexShader(FVF 0x152) — XYZ|NORMAL|DIFFUSE|TEX1. */
+    IDirect3DDevice8_SetVertexShader(dev, 0x152);
+
+    /* L127: LightEnable(0, FALSE) — disable light 0 at frame start. */
+    IDirect3DDevice8_LightEnable(dev, 0, FALSE);
+
+    /* L132-L137: LIGHTING=FALSE, FOGENABLE=FALSE.  Engine disables
+     * FFP lighting + fog for the initial sky pass; both get re-
+     * enabled below based on stage palette. */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING,  FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, FALSE);
+
+    /* L142-L147: ZENABLE=FALSE, ZWRITEENABLE=FALSE.  Initial sky-
+     * pass state — no depth.  Re-enabled at L168-L169 and L242-L243
+     * for the room and alpha passes. */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE,      FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
+
+    /* L148-L153: TSS COLOROP=MODULATE. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                          D3DTOP_MODULATE);
+
+    /* L154-L159: First projection — z_far = 2000.0 for the sky pass
+     * + initial-asset draw. */
+    scene1_push_projection(dev, 2000.0f);
+
+    /* L160-L166: initial transform asset.  Gated on stage palette
+     * + 0x108 != 0 AND DAT_068dcf98 != 0.  When live, composes a
+     * world matrix from MatrixTranslation(0,0,0) * MatrixScaling
+     * (-2.8, 2.8, 2.8) and pushes it as D3DTS_WORLDMATRIX(0) before
+     * FUN_00455191 draws the asset.  Branch dormant in HOUSE. */
+    if (scene1_palette_initial_asset_flag() != 0
+        && scene1_initial_asset_ptr() != NULL) {
+        /* TODO C8-followup: compose world matrix
+         * MatrixTranslation(0,0,0) * MatrixScaling(-2.8, 2.8, 2.8)
+         * and SetTransform(D3DTS_WORLD, &world). */
+        scene1_walk_initial_asset_TODO();
+    }
+
+    /* L167: FUN_00405d70 (911 B) — depth-generation pre-pass. */
+    scene1_walk_depth_prepass_TODO();
+
+    /* L168-L169: re-enable depth for the room pass. */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE,      TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, TRUE);
+
+    /* L170-L184: fog gate.  HOUSE palette has fog_start=0.0; branch
+     * dormant.  scene1_apply_fog_state(dev, TRUE) writes the full
+     * fog setup if enabled, else just FOGENABLE=FALSE. */
+    scene1_apply_fog_state(dev, TRUE);
+
+    /* L185: FUN_00454f03(palette + 0x1a40) — TSS COLORARG2 from
+     * palette mode int. */
+    scene1_apply_palette_combiner_mode(dev, scene1_palette_combiner_mode());
+
+    /* L186-L187: project back to z_far = 350.0 for the room pass. */
+    scene1_push_projection(dev, 350.0f);
+
+    /* L188-L198: per-frame TSS + RS extras.
+     *   TSS(0, ADDRESSU=0xd,    WRAP=1)
+     *   TSS(0, ADDRESSV=0xe,    WRAP=1)
+     *   RS(0x80=PATCHEDGESTYLE, 0)
+     *   RS(0x8b=AMBIENT,        0xff000000)
+     *   RS(0x8d=COLORVERTEX,    1)
+     *   RS(0x19=ALPHAFUNC,      5=D3DCMP_GREATER)
+     *   RS(0x91=DIFFUSEMATERIALSOURCE, 1=COLOR1)
+     *   RS(0x93=AMBIENTMATERIALSOURCE, 1=COLOR1)
+     *   TSS(0, 3=COLORARG2,     2=D3DTA_TEXTURE)
+     *   TSS(0, 2=COLORARG1,     0=D3DTA_DIFFUSE)
+     *   RS(9=SHADEMODE,         2=GOURAUD)
+     */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ADDRESSU, D3DTADDRESS_WRAP);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ADDRESSV, D3DTADDRESS_WRAP);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_PATCHEDGESTYLE,         0);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_AMBIENT,                0xff000000u);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_COLORVERTEX,            TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAFUNC,              D3DCMP_GREATER);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DIFFUSEMATERIALSOURCE,  D3DMCS_COLOR1);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_AMBIENTMATERIALSOURCE,  D3DMCS_COLOR1);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2,    D3DTA_TEXTURE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1,    D3DTA_DIFFUSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SHADEMODE,              D3DSHADE_GOURAUD);
+
+    /* L199: FUN_00458f67 (2118 B) — pre-dispatch sub-pass. */
+    scene1_walk_pre_dispatch_TODO();
+
+    /* L200-L201: re-establish z_far=350 (idempotent — already there). */
+    scene1_push_projection(dev, 350.0f);
+
+    /* L202: bump per-frame draw counter. */
+    g_scene1_draw_counter++;
+
+    /* L203-L205: pre-walker → first narrow-frustum walker → followup. */
+    scene1_walk_pre_pass(dev);
+    scene1_walk_narrow_frustum_TODO(0);
+    scene1_walk_narrow_followup_TODO();
+
+    /* L206-L214: fog gate, this time just FOGENABLE.  Same condition
+     * as L170-L184; engine doesn't re-write the parameters. */
+    scene1_apply_fog_state(dev, FALSE);
+
+    /* L215: second narrow-frustum walker pass. */
+    scene1_walk_narrow_frustum_TODO(1);
+
+    /* L216-L217: WIDE projection (z_far = 2000.0). */
+    scene1_push_projection(dev, 2000.0f);
+
+    /* L218: ★ FUN_004552d0 ★ — the shop-interior walker (5210 B).
+     * Top candidate for the next chip — visually the biggest payoff
+     * since it lays down walls/floor/jutan/table for HOUSE. */
+    scene1_walk_wide_frustum_TODO();
+
+    /* L219: FUN_004161c7 (4925 B) — post-shop sub-pass. */
+    scene1_walk_wide_followup_TODO();
+
+    /* L220-L230: stage-palette lighting gate.  When palette + 0x1ae0
+     * != 0, light 0 is populated from DAT_06a49a40 + enabled;
+     * otherwise disabled.  HOUSE palette has 0 → lights off. */
+    {
+        BOOL lighting_on = (scene1_palette_lighting_enabled() != 0);
+        if (lighting_on) {
+            /* TODO C8-followup: populate light 0 from DAT_06a49a40 —
+             * a per-stage D3DLIGHT8 scratch that a separate helper
+             * (not yet identified) fills from the stage palette.
+             * Until it's ported, LightEnable(0, TRUE) without a
+             * SetLight call leaves whatever light 0 had previously
+             * (or a zero light if never set). */
+            IDirect3DDevice8_LightEnable(dev, 0, TRUE);
+        } else {
+            IDirect3DDevice8_LightEnable(dev, 0, FALSE);
+        }
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, lighting_on);
+    }
+
+    /* L231-L232: project back to z_far = 350. */
+    scene1_push_projection(dev, 350.0f);
+
+    /* L233-L241: fog gate, third instance — same condition. */
+    scene1_apply_fog_state(dev, FALSE);
+
+    /* L242-L243: ZENABLE=TRUE, ZWRITEENABLE=FALSE — alpha pass. */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE,      TRUE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
+
+    /* L244-L246: alpha-pre wrapper + post-write + sub-pass. */
+    scene1_walk_alpha_pre(dev);
+    /* L245: SetTSS(0, MIPFILTER=0x12, 0=NONE).  Engine drops mip-
+     * mapping for the alpha pass — alpha-tested edges look better
+     * without trilinear. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MIPFILTER,
+                                          D3DTEXF_NONE);
+    scene1_walk_alpha_pre_TODO();
+
+    /* L247: FUN_00458bdf (904 B) — alpha-pass walker. */
+    scene1_walk_alpha_TODO();
+
+    /* L248-L251: WIDE projection → second wide walker. */
+    scene1_push_projection(dev, 2000.0f);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MIPFILTER,
+                                          D3DTEXF_NONE);
+    scene1_walk_wide_b_TODO();
+
+    /* L252-L254: WIDE projection (re-set, idempotent) → chr walker. */
+    scene1_push_projection(dev, 2000.0f);
+    scene1_walk_chr_TODO();
+
+    /* L255-L257: project back to z_far=350 → tail. */
+    scene1_push_projection(dev, 350.0f);
+    scene1_walk_tail_TODO();
 }
 
 /* ─── C7g — FUN_0045404b port ───────────────────────────────────────── */
