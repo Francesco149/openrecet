@@ -34,6 +34,8 @@
 #ifndef SCENE1_PARTICLES_TICK_H
 #define SCENE1_PARTICLES_TICK_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -66,6 +68,64 @@ extern float g_scene1_camera_yaw;
 extern float g_scene1_camera_anchor[2];
 extern float g_scene1_player_ground_y;
 extern int   g_scene1_scene_counter;
+
+/*
+ * NPC tables consumed by the C8h.4c anchor-snap handlers.
+ *
+ * Per the docs/findings/scene1-people-table.md survey, the engine's
+ * "people" table at DAT_0076bd54 is 128 entries × 2980 B each (a full
+ * NPC record with AI/sprite/dialog state).  Integrator handlers
+ * 0x1a / 0x78 / 0x75 / 0x93 read only ~10 header fields out of that
+ * 2980 B; modeling those header fields explicitly here keeps BSS to
+ * 4.5 KB (vs. 372 KB for layout-verbatim).  Future ports that need
+ * the AI/sprite state should expand the struct or move to a flat
+ * uint8_t buffer.
+ *
+ *   field name      engine byte off  meaning
+ *   pos[0..2]       +0x00 / 04 / 08  primary world-space position
+ *   target[0..2]    +0x0c / 10 / 14  secondary pos (anchor target)
+ *   alive           +0x44            0 = empty slot; 1/2 alive states
+ *   action          +0x5c            state-machine ID
+ *   state_counter   +0x910           0/1/2 distance-state from FUN_00430c6d
+ *   cooldown        +0x934           decrementing per-frame counter
+ */
+typedef struct {
+    float   pos[3];
+    float   target[3];
+    int32_t alive;
+    int32_t action;
+    int32_t state_counter;
+    int32_t cooldown;
+} scene1_people_entry_t;
+
+#define SCENE1_PEOPLE_COUNT 128                /* engine cap confirmed in C8h.4a */
+extern scene1_people_entry_t g_scene1_people[SCENE1_PEOPLE_COUNT];
+
+/*
+ * Stride-0xf8 NPC table at DAT_056db120 — integrator type 0x4a reads
+ * pos.xyz + yaw.  Cap is unconfirmed (no clear loop bound found); 256
+ * is a generous safety margin.  Bounds-checked on read.
+ *
+ *   pos[0..2]   +0x00 / 04 / 08  (engine: DAT_056db120 / 124 / 128)
+ *   yaw         +0x24            (engine: DAT_056db144)
+ */
+typedef struct {
+    float pos[3];
+    float yaw;
+} scene1_npc_f8_entry_t;
+
+#define SCENE1_NPC_F8_COUNT 256                /* best-guess generous cap */
+extern scene1_npc_f8_entry_t g_scene1_npc_table_f8[SCENE1_NPC_F8_COUNT];
+
+/*
+ * Activation-gate table at DAT_0695f1e0 — integrator types 0x12 / 0x13
+ * / 0x14 gate on this entry's first field.  The engine table has stride
+ * 0xa8 dw (672 B) per entry holding much more state, but the integrator
+ * only reads the gate field; flatten to one int per entry.  Cap = 512
+ * matches FUN_0043a5d9's iteration.  Bounds-checked.
+ */
+#define SCENE1_NPC_ACTIVATION_COUNT 512
+extern int32_t g_scene1_npc_activation[SCENE1_NPC_ACTIVATION_COUNT];
 
 /*
  * Tick the integrator across all 4096 slots of table A.  Mirrors

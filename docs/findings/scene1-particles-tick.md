@@ -573,3 +573,47 @@ Frida verification needed.
 | 0x1a                  | stride-0x2e9 people table; chains spawn type 1 on kill        |
 | 0x78, 0x75, 0x93      | stride-0x2e9 people table (anchor pos to target.x at +0xc)    |
 | 0x12, 0x13, 0x14      | activation gate at DAT_0695f1e0 (stride 0xa8) + people table; both 0x12/0x13 also do scaled drift |
+
+## C8h.4c landed (2026-05-23)
+
+4 handler ports for the people-table (stride 0x2e9) and activation-gate
+(stride 0xa8) consumers in `src/scene1_particles_tick.c`.  Type 0x4a
+deferred to C8h.4d because of its multi-stage matrix transform with
+Ghidra-dropped args.
+
+New BSS in `scene1_particles_tick.h`:
+
+| Symbol                         | Type                              | Size      | Engine source                    |
+|--------------------------------|-----------------------------------|-----------|----------------------------------|
+| `g_scene1_people[128]`         | `scene1_people_entry_t` (struct of integrator-touched header fields) | 4.5 KB    | DAT_0076bd54, stride 0x2e9 dw — see C8h.4a survey for the full 2980 B/entry footprint |
+| `g_scene1_npc_table_f8[256]`   | `scene1_npc_f8_entry_t` (pos[3] + yaw) | 4 KB      | DAT_056db120, stride 0xf8 dw — cap is best-guess generous (no clear iteration bound found in the consumers; bounds-checked on read) |
+| `g_scene1_npc_activation[512]` | `int32_t`                         | 2 KB      | DAT_0695f1e0, gate field only — full entry stride 0xa8 dw not modeled (integrator reads only the first field) |
+
+Total new BSS: 10.5 KB.  Layout deliberately NOT verbatim with the
+engine — the integrator handlers read only a small subset of each
+entry's fields, and modeling the full 2980 B / 992 B / 672 B strides
+would burn ~700 KB of BSS for fields no current consumer reads.
+Future ports that need the AI/sprite/dialog state should expand the
+structs or move to flat `uint8_t` storage.
+
+| Type            | Behavior                                                                                            | Notes                                              |
+|-----------------|-----------------------------------------------------------------------------------------------------|----------------------------------------------------|
+| 0x1a            | Anchor-snap to `g_scene1_people[PARAM2].pos`; chain-spawn type 1 on death when not "still alive"   | Kill gate: `alive != 0 && state_counter < 1 && (action > 0 || cooldown > 0)`.  OOB PARAM2 → "not alive" → chain + kill |
+| 0x78            | Baseline drift + anchor to `g_scene1_people[PARAM2].target` (+Y 2.0); kill 0x18                    | OOB PARAM2 → anchor (0,0,0); pos drifts from own baseline only |
+| 0x75 / 0x93     | Sibling of 0x98 — same shape but anchor is `g_scene1_people[PARAM2].target` instead of player_pos; close-distance kill at len<3 or age==0x40 | Two types share one body |
+| 0x12 / 0x13 / 0x14 | Gated on `g_scene1_npc_activation[PARAM1] == 1`; when open, PARAM2 (active-tick counter) increments.  0x12/0x13 also do scaled-pos.y drift + vel.y gravity (-0.03).  Kill at PARAM2 == 0x3c (60 active ticks) | If gate never opens, particle lives indefinitely (no age kill); only the active-tick counter can kill |
+
+13 new host tests (927 → 940, all pass).  Win32 build links clean.
+
+### Pending human checks added by C8h.4c
+
+None — no argless trig calls in this batch.  The 0x1a chain-spawn at
+L1239 has the same trailing-args caveat as the existing pending check
+#3 (scene1_spawn `scale` and `param7` not in the Ghidra decomp);
+covered by the existing item.
+
+### Still unported (C8h.4d)
+
+| Type | External dep / blocker                                                          |
+|------|----------------------------------------------------------------------------------|
+| 0x4a | Multi-stage matrix transform (RotY × RotZ × RotX chain) with two Ghidra-dropped thunk args; reads `_DAT_056db05c` (camera_yaw alternate — new global needed) + stride-0xf8 NPC table; PARAM1 == -1 branch uses spawn_origin instead |

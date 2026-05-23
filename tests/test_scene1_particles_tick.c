@@ -42,6 +42,9 @@ static void reset_world(void)
         g_scene1_player_pos[i]    = 0.0f;
         g_scene1_spawn_origin[i]  = 0.0f;
     }
+    memset(g_scene1_people,         0, sizeof g_scene1_people);
+    memset(g_scene1_npc_table_f8,   0, sizeof g_scene1_npc_table_f8);
+    memset(g_scene1_npc_activation, 0, sizeof g_scene1_npc_activation);
 }
 
 /* Write float bits into the record table at slot/off. */
@@ -1487,5 +1490,263 @@ int test_particles_tick_type_2d_buoyant_drift(void)
     r[SCENE1_RECORDS_A_OFF_AGE] = 0x3f;
     scene1_particles_tick();
     T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* ─── C8h.4c ─────────────────────────────────────────────────────────
+ *
+ * 4 handler ports + their gating edge cases.  Each handler reads the
+ * stride-0x2e9 "people" table or the stride-0xa8 activation gate.
+ * Type 0x4a (matrix + stride-0xf8 NPC table) is deferred to C8h.4d.
+ */
+
+/* type 0x1a — anchor to people[PARAM2].pos; chain-spawn type 1 when
+ * not "still alive".  Engine L1225-L1242. */
+int test_particles_tick_type_1a_anchors_when_alive(void)
+{
+    reset_world();
+    int p_slot = 5;
+    g_scene1_people[p_slot].alive         = 1;
+    g_scene1_people[p_slot].state_counter = 0;       /* < 1 → anchorable */
+    g_scene1_people[p_slot].action        = 1;       /* > 0 → stay anchored */
+    g_scene1_people[p_slot].pos[0] = 10.0f;
+    g_scene1_people[p_slot].pos[1] = 20.0f;
+    g_scene1_people[p_slot].pos[2] = 30.0f;
+
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x1a;
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = p_slot;
+
+    scene1_particles_tick();
+
+    if (slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) != 10.0f ||
+        slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) != 20.0f ||
+        slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z) != 30.0f) {
+        T_FAIL("type 0x1a didn't snap to people anchor");
+    }
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == 0x1a);
+    /* No chain-spawn fired (still alive). */
+    T_ASSERT(g_scene1_spawn_trace_count == 0);
+    return 0;
+}
+
+int test_particles_tick_type_1a_chains_type_1_when_dead(void)
+{
+    reset_world();
+    /* Empty people table → 0x1a falls through to "not alive" → chain
+     * spawns type 1 at last pos (or 0,0,0 since pos wasn't snapped). */
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x1a;
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = 0;  /* alive == 0 → not anchorable */
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_POS_X, 7.0f);
+
+    scene1_particles_tick();
+
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    T_ASSERT(g_scene1_spawn_trace_count == 1);
+    T_ASSERT(g_scene1_spawn_trace[0].type == 1);
+    if (g_scene1_spawn_trace[0].x != 7.0f)
+        T_FAIL("chain-spawn x didn't preserve last pos");
+    return 0;
+}
+
+int test_particles_tick_type_1a_oob_param2_safe(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x1a;
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = 99999;  /* OOB */
+    scene1_particles_tick();
+    /* OOB falls through to "not alive" path → chain + kill. */
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* type 0x78 — baseline drift + anchor to people[PARAM2].target.
+ * Engine L106-L123. */
+int test_particles_tick_type_78_anchors_to_target(void)
+{
+    reset_world();
+    int p_slot = 3;
+    g_scene1_people[p_slot].target[0] = 10.0f;
+    g_scene1_people[p_slot].target[1] = 5.0f;
+    g_scene1_people[p_slot].target[2] = -1.0f;
+
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x78;
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = p_slot;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_X, 1.0f);
+
+    scene1_particles_tick();
+
+    /* baseline.x += 1.0; pos.x = target.x + baseline.x = 10 + 1 = 11. */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 11.0f) > 1e-6f)
+        T_FAIL("pos.x = %f", (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X));
+    /* pos.y = target.y + baseline.y + 2.0 = 5 + 0 + 2 = 7. */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) - 7.0f) > 1e-6f)
+        T_FAIL("pos.y = %f", (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y));
+    return 0;
+}
+
+int test_particles_tick_type_78_kills_at_0x18(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x78;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0x17;
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = 0;
+    scene1_particles_tick();
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* types 0x75 / 0x93 — drift + steer-to-people-target (sibling of 0x98).
+ * Engine L306-L337. */
+int test_particles_tick_type_75_drift_and_damp(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x75;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 100;  /* steer gate far away */
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_X, 1.0f);
+
+    scene1_particles_tick();
+
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 1.0f) > 1e-6f)
+        T_FAIL("pos.x = %f", (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X) - 0.97f) > 1e-6f)
+        T_FAIL("vel.x not damped");
+    return 0;
+}
+
+int test_particles_tick_type_93_close_distance_kill(void)
+{
+    reset_world();
+    int p_slot = 0;
+    g_scene1_people[p_slot].target[0] = 0.0f;
+    g_scene1_people[p_slot].target[1] = 0.0f;
+    g_scene1_people[p_slot].target[2] = 0.0f;
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x93;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 0;     /* steer immediately */
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = p_slot;
+    /* Pos close to target + (0,2,0) → distance ~2. */
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_POS_Y, 1.0f);
+
+    scene1_particles_tick();
+
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+int test_particles_tick_type_75_kills_at_0x40(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x75;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 9999;
+    r[SCENE1_RECORDS_A_OFF_AGE]    = 0x3f;
+    /* Pos far from people target (0,0,0) so close-kill doesn't fire. */
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_POS_X, 1000.0f);
+    scene1_particles_tick();
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* types 0x12 / 0x13 / 0x14 — gated on activation table entry == 1.
+ * Engine L785-L800. */
+int test_particles_tick_type_12_gate_closed_lives(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x12;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 7;   /* gate slot — defaults to 0 */
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = 0;
+    r[SCENE1_RECORDS_A_OFF_AGE]    = 9999;  /* would normally die from age, but type 0x12 has no age kill */
+    scene1_particles_tick();
+    /* Gate closed → PARAM2 doesn't increment; particle survives. */
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == 0x12);
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_PARAM2) == 0);
+    return 0;
+}
+
+int test_particles_tick_type_12_gate_open_drifts_and_age(void)
+{
+    reset_world();
+    g_scene1_npc_activation[7] = 1;  /* open the gate */
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x12;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 7;
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_SCALE, 1.0f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y, 1.0f);
+
+    scene1_particles_tick();
+
+    /* pos.y += scale * vel.y = 1 * 1 = 1.  vel.y -= 0.03 = 0.97. */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) - 1.0f) > 1e-6f)
+        T_FAIL("pos.y didn't drift");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y) - 0.97f) > 1e-6f)
+        T_FAIL("vel.y = %f", (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y));
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_PARAM2) == 1);
+    return 0;
+}
+
+int test_particles_tick_type_14_no_drift_just_counter(void)
+{
+    /* Type 0x14 is gated like 0x12/0x13 but doesn't update pos/vel —
+     * just increments PARAM2 when gate is open. */
+    reset_world();
+    g_scene1_npc_activation[3] = 1;
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x14;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 3;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y, 99.0f);
+
+    scene1_particles_tick();
+
+    if (slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y) != 99.0f)
+        T_FAIL("type 0x14 must not damp vel");
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_PARAM2) == 1);
+    return 0;
+}
+
+int test_particles_tick_type_12_kills_at_param2_0x3c(void)
+{
+    reset_world();
+    g_scene1_npc_activation[0] = 1;
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x12;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 0;
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = 0x3b;  /* one tick from kill */
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_SCALE, 1.0f);
+    scene1_particles_tick();
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+int test_particles_tick_type_12_oob_param1_safe(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x12;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 99999;
+    scene1_particles_tick();
+    /* OOB → gate treated as closed → particle stays alive, PARAM2 unchanged. */
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == 0x12);
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_PARAM2) == 0);
     return 0;
 }

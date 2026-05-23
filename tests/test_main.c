@@ -1022,7 +1022,21 @@ struct test_case {
     X(particles_tick_type_1d_anchors_to_table_b) \
     X(particles_tick_type_1d_kills_at_0xd) \
     X(particles_tick_type_1d_oob_param2_safe) \
-    X(particles_tick_type_2d_buoyant_drift)
+    X(particles_tick_type_2d_buoyant_drift) \
+    \
+    X(particles_tick_type_1a_anchors_when_alive) \
+    X(particles_tick_type_1a_chains_type_1_when_dead) \
+    X(particles_tick_type_1a_oob_param2_safe) \
+    X(particles_tick_type_78_anchors_to_target) \
+    X(particles_tick_type_78_kills_at_0x18) \
+    X(particles_tick_type_75_drift_and_damp) \
+    X(particles_tick_type_93_close_distance_kill) \
+    X(particles_tick_type_75_kills_at_0x40) \
+    X(particles_tick_type_12_gate_closed_lives) \
+    X(particles_tick_type_12_gate_open_drifts_and_age) \
+    X(particles_tick_type_14_no_drift_just_counter) \
+    X(particles_tick_type_12_kills_at_param2_0x3c) \
+    X(particles_tick_type_12_oob_param1_safe)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

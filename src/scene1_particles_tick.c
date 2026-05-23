@@ -52,6 +52,10 @@ float g_scene1_camera_anchor[2];
 float g_scene1_player_ground_y;
 int   g_scene1_scene_counter;
 
+scene1_people_entry_t  g_scene1_people[SCENE1_PEOPLE_COUNT];
+scene1_npc_f8_entry_t  g_scene1_npc_table_f8[SCENE1_NPC_F8_COUNT];
+int32_t                g_scene1_npc_activation[SCENE1_NPC_ACTIVATION_COUNT];
+
 /* Slot field helpers — TYPE/age are int, everything else is float bits
  * stored in the int slot.  These are local-only to keep call sites
  * close to the engine decomp shape. */
@@ -1456,6 +1460,149 @@ static void handle_type_1d(int i)
     if (slot_age(i) == 0xd) slot_kill(i);
 }
 
+/* ─── C8h.4c: NPC-table-dep anchor-snap handlers ─────────────────────
+ *
+ * 4 handlers reading the stride-0x2e9 "people" table (0x1a / 0x78 /
+ * 0x75 / 0x93) and 1 multi-type handler reading the activation-gate
+ * table (0x12 / 0x13 / 0x14).  Type 0x4a (matrix + stride-0xf8 NPC
+ * table) deferred to C8h.4d due to matrix complexity.
+ *
+ * The people table is fully zeroed at BSS init.  An entry with
+ * alive == 0 satisfies the "empty slot" sentinel; integrator handlers
+ * gracefully degrade to "snap to (0,0,0) + own baseline" when the
+ * populator (the unported FUN_0042b6b7 / FUN_00430c6d) hasn't run. */
+
+/* type 0x1a — engine L1225-L1242.  Anchor-snap to people[PARAM2].pos;
+ * if anchor "still alive" (alive != 0 && state_counter < 1 && (action
+ * > 0 || cooldown > 0)) stay anchored.  Otherwise chain-spawn type 1
+ * at the last snap pos and kill. */
+static void handle_type_1a(int i)
+{
+    int param2 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
+    int alive_anchor = 0;
+
+    if (param2 >= 0 && param2 < SCENE1_PEOPLE_COUNT) {
+        scene1_people_entry_t *p = &g_scene1_people[param2];
+        if (p->alive != 0 && p->state_counter < 1) {
+            slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, p->pos[0]);
+            slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, p->pos[1]);
+            slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, p->pos[2]);
+            if (p->action > 0 || p->cooldown > 0) {
+                alive_anchor = 1;
+            }
+        }
+    }
+    slot_age_inc(i);
+    if (!alive_anchor) {
+        float px = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Z);
+        /* Engine L1239: FUN_00447f4f(0, pos.x, pos.y, pos.z, 1).
+         * Same trailing-args caveat as the other chain-spawn callers
+         * (logged in pending human checks #3). */
+        scene1_spawn(0, px, py, pz, 1, 1.0f, 0);
+        slot_kill(i);
+    }
+}
+
+/* type 0x78 — engine L106-L123.  Baseline drift + anchor to people
+ * target.xyz (with +Y 2.0).  Kill 0x18. */
+static void handle_type_78(int i)
+{
+    int   param2 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_Z, vz);
+    float bx = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_X);
+    float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
+    float bz = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
+    float ax = 0.0f, ay = 0.0f, az = 0.0f;
+    if (param2 >= 0 && param2 < SCENE1_PEOPLE_COUNT) {
+        ax = g_scene1_people[param2].target[0];
+        ay = g_scene1_people[param2].target[1];
+        az = g_scene1_people[param2].target[2];
+    }
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, ax + bx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, ay + by + 2.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, az + bz);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x18) slot_kill(i);
+}
+
+/* types 0x75 / 0x93 — engine L306-L337.  Drift + damp; after age >=
+ * PARAM1, steer toward people[PARAM2].target (with +Y 2.0).  Kill if
+ * within 3 units of the target, or at age 0x40.  Sibling of type 0x98
+ * (player-target) — same shape, different anchor source. */
+static void handle_type_75_93(int i)
+{
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+    vx *= 0.97f;
+    vy *= 0.97f;
+    vz *= 0.97f;
+
+    int param2 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
+    float ax = 0.0f, ay = 0.0f, az = 0.0f;
+    if (param2 >= 0 && param2 < SCENE1_PEOPLE_COUNT) {
+        ax = g_scene1_people[param2].target[0];
+        ay = g_scene1_people[param2].target[1];
+        az = g_scene1_people[param2].target[2];
+    }
+    float px = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_X);
+    float py = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Y);
+    float pz = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Z);
+    float dx = ax          - px;
+    float dy = (ay + 2.0f) - py;
+    float dz = az          - pz;
+    float len = sqrtf(dx * dx + dy * dy + dz * dz);
+
+    int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
+    if (param1 <= slot_age(i)) {
+        vx = vx * 0.97f + dx * 0.02f;
+        vy = vy * 0.97f + dy * 0.02f;
+        vz = vz * 0.97f + dz * 0.02f;
+        if (len < 3.0f) slot_kill(i);
+    }
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x40) slot_kill(i);
+}
+
+/* types 0x12 / 0x13 / 0x14 — engine L785-L800.  Gated on activation
+ * table entry PARAM1 == 1.  When gate is open: PARAM2 (active-tick
+ * counter, distinct from age) increments; 0x12/0x13 additionally do
+ * scaled-pos.y drift with vel.y gravity.  Kill at PARAM2 == 0x3c.
+ * Age always increments. */
+static void handle_type_12_13_14(int i, int type)
+{
+    int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
+    int gate_open = 0;
+    if (param1 >= 0 && param1 < SCENE1_NPC_ACTIVATION_COUNT) {
+        gate_open = (g_scene1_npc_activation[param1] == 1);
+    }
+    if (gate_open) {
+        int32_t *param2_p = slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
+        *param2_p += 1;
+        if (type == 0x12 || type == 0x13) {
+            float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+            float vy    = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+            slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, scale * vy);
+            slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy - 0.03f);
+        }
+        if (*param2_p == 0x3c) slot_kill(i);
+    }
+    slot_age_inc(i);
+}
+
 /* ─── outer loop ─────────────────────────────────────────────────────
  *
  * Engine FUN_0040fb3a L49-L1247.  Walks 0..0x1000-1 and runs every
@@ -1514,7 +1661,8 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 99)          { handle_type_99(i); }
 
-        /* type 0x78 — C8h.4c (reads stride-0x2e9 people table). */
+        type = slot_type(i);
+        if (type == 0x78)        { handle_type_78(i); }
 
         type = slot_type(i);
         if (type == 0x68)        { handle_type_68(i); }
@@ -1543,12 +1691,13 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x5d)        { handle_type_5d(i); }
 
-        /* type 0x4a — C8h.4c (matrix + stride-0xf8 NPC table). */
+        /* type 0x4a — C8h.4d (matrix + stride-0xf8 NPC table). */
 
         type = slot_type(i);
         if (type == 0x98)        { handle_type_98(i); }
 
-        /* types 0x75, 0x93 — C8h.4c (read stride-0x2e9 people table). */
+        type = slot_type(i);
+        if (type == 0x75 || type == 0x93) { handle_type_75_93(i); }
 
         type = slot_type(i);
         if (type == 0x36 || type == 0x74) { handle_type_36_74_4e(i); }
@@ -1637,7 +1786,10 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x2a)        { age_only_kill_at(i, 8); }
 
-        /* types 0x12, 0x13, 0x14 — anchor-gated (C8h.4). */
+        type = slot_type(i);
+        if (type == 0x12 || type == 0x13 || type == 0x14) {
+            handle_type_12_13_14(i, type);
+        }
 
         type = slot_type(i);
         if (type == 0x54)        { age_only_kill_at(i, 0x78); }
@@ -1724,7 +1876,10 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x1d)        { handle_type_1d(i); }
 
-        /* TODO C8h.4c: NPC-table-dep handlers (0x4a, 0x78, 0x75/0x93,
-         * 0x12-0x14, 0x1a) — depend on the people-table stub. */
+        type = slot_type(i);
+        if (type == 0x1a)        { handle_type_1a(i); }
+
+        /* TODO C8h.4d: type 0x4a (matrix transform + stride-0xf8 NPC
+         * table; multi-stage with Ghidra-dropped matrix args). */
     }
 }
