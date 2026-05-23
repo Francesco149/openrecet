@@ -54,6 +54,7 @@
 #include "font_atlas.h"
 #include "font_upload.h"
 #include "tables_config.h"        /* g_config for font_atlas regen gate */
+#include "math3d.h"
 #include "mesh.h"
 #include "mesh_draw.h"
 #include "mesh_load.h"
@@ -108,6 +109,18 @@ static sprite_t         g_show_sprite       = {0};
 static char            *g_show_mesh_path    = NULL;
 static mesh_t          *g_show_mesh         = NULL;
 static float            g_show_mesh_zoom    = 1.0f;
+
+/* --house-preview [--house-preview-path <path>]: C7d throwaway. When
+ * set + scene_state == INGAME, replaces the placeholder ingame screen
+ * with shop_1st.x (or any .x via --house-preview-path) drawn through
+ * mesh_draw_d3d8 + a slow orbital camera. Lets us see house geometry
+ * inside the actual scene-1 dispatch *before* the proper load chain
+ * (C7e) and the FUN_0040a765 walker (C7i+) land. Off by default —
+ * title-z-press stays bit-exact. Gets ripped out when C7n delivers
+ * the real walker. */
+static int              g_house_preview        = 0;
+static char            *g_house_preview_path   = "xfile/shop/shop_1st.x";
+static mesh_t          *g_house_preview_mesh   = NULL;
 
 /* Scene-0 (title) state now lives in scene_title.c as module globals
  * (`g_scene_title_menu`, `g_scene_title_anim`, `g_scene_title_assets_loaded`).
@@ -444,6 +457,44 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         g_show_mesh->submesh_count, g_show_mesh->material_count,
                         g_show_mesh->centroid[0], g_show_mesh->centroid[1],
                         g_show_mesh->centroid[2], g_show_mesh->radius);
+            }
+        }
+    }
+
+    /* --house-preview: C7d throwaway. Same shape as --show-mesh above,
+     * just a separately-tracked mesh that scene_ingame_render swaps in
+     * for the placeholder. Failures here are fatal-to-the-preview but
+     * not to boot — fall back to the placeholder ingame screen. */
+    if (g_house_preview) {
+        g_house_preview_mesh = mesh_load(g_house_preview_path, -1);
+        if (!g_house_preview_mesh) {
+            fprintf(stderr, "openrecet: house-preview mesh_load failed: %s\n",
+                    g_house_preview_path);
+        } else if (g_house_preview_mesh->error[0]) {
+            fprintf(stderr, "openrecet: house-preview build error in %s: %s\n",
+                    g_house_preview_path, g_house_preview_mesh->error);
+            mesh_free(g_house_preview_mesh);
+            g_house_preview_mesh = NULL;
+        } else {
+            HRESULT hr = mesh_load_finalize_win32(g_house_preview_mesh, g_dev);
+            if (FAILED(hr)) {
+                fprintf(stderr, "openrecet: house-preview finalize failed: 0x%08lx\n",
+                        (unsigned long)hr);
+                mesh_free(g_house_preview_mesh);
+                g_house_preview_mesh = NULL;
+            } else {
+                fprintf(stderr,
+                        "house-preview: %s loaded (verts=%d idx=%d submeshes=%d "
+                        "materials=%d centroid=(%.2f, %.2f, %.2f) radius=%.2f)\n",
+                        g_house_preview_path,
+                        g_house_preview_mesh->vertex_count,
+                        g_house_preview_mesh->index_count,
+                        g_house_preview_mesh->submesh_count,
+                        g_house_preview_mesh->material_count,
+                        g_house_preview_mesh->centroid[0],
+                        g_house_preview_mesh->centroid[1],
+                        g_house_preview_mesh->centroid[2],
+                        g_house_preview_mesh->radius);
             }
         }
     }
@@ -914,6 +965,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     input_trace_record_close();
     sprite_destroy(&g_show_sprite);
     if (g_show_mesh) { mesh_free(g_show_mesh); g_show_mesh = NULL; }
+    if (g_house_preview_mesh) {
+        mesh_free(g_house_preview_mesh);
+        g_house_preview_mesh = NULL;
+    }
     mesh_tex_cache_reset();
     fade_unload_system_texture();
     scene_title_unload_assets();
@@ -1145,7 +1200,15 @@ static void render_dispatch(void)
      * 0xff17f0ff. */
     DWORD clear_argb = 0xff17f0ff;
     if (g_scene_state == SCENE_STATE_INGAME) {
-        clear_argb = scene_ingame_clear_argb();
+        if (g_house_preview && g_house_preview_mesh) {
+            /* C7d preview: engine HOUSE clear color is black
+             * (stage_palette_house.clear_r/g/b all zero). Use black so
+             * the preview matches what FUN_004547ab will eventually
+             * emit, rather than the placeholder navy. */
+            clear_argb = 0xff000000u;
+        } else {
+            clear_argb = scene_ingame_clear_argb();
+        }
     }
     IDirect3DDevice8_Clear(
         g_dev, 0, NULL,
@@ -1177,7 +1240,73 @@ static void render_dispatch(void)
             }
             break;
         case SCENE_STATE_INGAME:
-            scene_ingame_render(g_dev);
+            if (g_house_preview && g_house_preview_mesh) {
+                /* C7d throwaway: render the house mesh under a fixed
+                 * 3/4 isometric camera that approximates the engine's
+                 * scene-1 view (FUN_0045bbf9 + FUN_0040120c). The real
+                 * engine camera reads eye/at from DAT_073de31c/328
+                 * (player-relative gameplay state); for the preview we
+                 * pin them to a hardcoded shop interior POV so the
+                 * image is steady and easy to compare against
+                 * Frida-captured retail frames. Replaced by the real
+                 * walker post-C7n.
+                 *
+                 * Projection matches FUN_004a3ee8(fov=45°, aspect=4/3,
+                 * near=1.0, far=350.0) — engine scene-1 defaults
+                 * (DAT_073de3a0 / DAT_073de2dc). Aspect honors the
+                 * actual back buffer so non-4:3 dev runs aren't
+                 * letterboxed. */
+                mesh_set_default_render_state(g_dev);
+                mesh_setup_preview_light(g_dev);
+
+                /* Centroid-relative offset scaled by bound radius so
+                 * the camera always frames the full mesh regardless
+                 * of which house variant is loaded via
+                 * --house-preview-path. The 0.8 factor was tuned for
+                 * shop_1st.x — its centroid sits high on the back
+                 * wall (skybox pulls it up) and the floor is tens of
+                 * units below, so a wide distance + slight downward
+                 * look (target.y -= 0.05·r) gives a 3/4 isometric
+                 * that includes floor + counter + windows. */
+                const float *cn = g_house_preview_mesh->centroid;
+                float r         = g_house_preview_mesh->radius;
+                if (r <= 0.0f) r = 1.0f;
+                float d         = r * 0.8f;
+                float eye[3]    = { cn[0] + d * 0.866f,
+                                    cn[1] + d * 0.500f,
+                                    cn[2] - d * 0.866f };
+                float target[3] = { cn[0], cn[1] - r * 0.05f, cn[2] };
+                float up[3]     = { 0.0f, 1.0f, 0.0f };
+                float view[16], proj[16];
+                mat4_lookat_rh(view, eye, target, up);
+
+                float fov_y  = 45.0f * 3.14159265358979323846f / 180.0f;
+                float aspect = (g_ini.height > 0)
+                                   ? ((float)g_ini.width / (float)g_ini.height)
+                                   : 1.3333333f;
+                /* Loose near/far derived from bound radius so the
+                 * whole mesh fits when --house-preview-path swaps in
+                 * something larger than shop_1st. */
+                float z_near = 0.5f;
+                float z_far  = r * 6.0f + 100.0f;
+                mat4_perspective_fov_rh(proj, fov_y, aspect, z_near, z_far);
+
+                IDirect3DDevice8_SetTransform(g_dev, D3DTS_VIEW,
+                                              (const D3DMATRIX *)view);
+                IDirect3DDevice8_SetTransform(g_dev, D3DTS_PROJECTION,
+                                              (const D3DMATRIX *)proj);
+                float ident[16] = {
+                    1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, 1, 0,
+                    0, 0, 0, 1
+                };
+                IDirect3DDevice8_SetTransform(g_dev, D3DTS_WORLD,
+                                              (const D3DMATRIX *)ident);
+                mesh_draw_d3d8(g_dev, g_house_preview_mesh);
+            } else {
+                scene_ingame_render(g_dev);
+            }
             break;
         default:
             break;
@@ -1300,6 +1429,16 @@ static void parse_cmdline(LPSTR lpCmdLine)
             if (val) {
                 float f = (float)atof(val);
                 if (f > 0.0f) g_show_mesh_zoom = f;
+            }
+        } else if (lstrcmpA(tok, "--house-preview") == 0) {
+            g_house_preview = 1;
+        } else if (lstrcmpA(tok, "--house-preview-path") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char house_buf[MAX_PATH];
+                lstrcpynA(house_buf, val, (int)sizeof(house_buf));
+                g_house_preview_path = house_buf;
+                g_house_preview = 1;
             }
         } else if (lstrcmpA(tok, "--max-duration-ms") == 0) {
             char *val = strtok(NULL, " ");
