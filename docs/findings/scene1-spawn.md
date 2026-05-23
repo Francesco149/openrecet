@@ -175,6 +175,56 @@ all of them and uses the following dwords for type-specific scratch:
 | 17  | param2    | per-type scratch (random color index / counter)  |
 | 18  | aux_18    | param_1 (slot_hint, every type)                  |
 
+## Quirks worth re-reading before porting more
+
+These patterns recur across C8i.3a-d and surprised me on first read.
+Future chips (especially C8i.4) will hit them too.
+
+1. **`*pfVar8` is pos.x.** Ghidra aliases `pfVar8 = &DAT_069b2f80 +
+   local_10 * 0x25` at the top of the outer loop, then uses `*pfVar8`
+   for pos.x writes while the rest of the slot fields use explicit
+   byte-offset addressing (`&DAT_069b2f84 + local_10 * 0x25` for
+   pos.y, etc.).  Easy to misread `*pfVar8 = expr` as a generic store.
+
+2. **Dead-write batches that consume RNG.**  Types 0x34 and 0x1f/100
+   both write a vel or pos triple, then immediately overwrite it.  The
+   intermediate stores are dead-coded but the RNG draws they consume
+   are observable from sibling spawns within the same call.  Port
+   keeps the dead `rng_next_unit()` reads for sequence parity, then
+   only does the live writes.
+
+3. **Sin/cos pairing is sometimes swapped.**  Group A and most radials
+   pair sin→vx, cos→vz (xz-plane).  But type 0x68 writes sin→vx,
+   cos→vy (puts cos into vertical channel and uses a random signed vz).
+   Always re-read each handler's explicit slot offsets — don't assume
+   the canonical pairing.
+
+4. **slot_hint is overloaded.**  Param_1 is `int` per Ghidra, but for
+   some types (0x96 at L414) the engine dereferences it as a pointer:
+   `*(int *)(param_1 + 0x948)`.  Integrator chain-spawns pass 0; sim-
+   side callers (e.g. FUN_00436f97) pass a scene-state pointer.  Until
+   the sim caller ports, those handlers use stand-in globals (see
+   `g_scene1_spawn_camera_counter_948` / `_scene_counter_dab58`).
+
+5. **Some types have NO body — preamble is the entire effect.**  Type
+   0x60 (anchor reservation), 0x23 (pure return — engine returns from
+   FUN_00447f4f without writing more), and 0x6c (explicit zeroes that
+   match preamble) all degenerate to "let the preamble's writes
+   stand."  Marked as want=1 in spawn_count_for_type with no-op or
+   minimal init bodies.
+
+6. **`rot.x` writes are sometimes dead.**  Several string-family types
+   (0x33/0x4d/0x51/0x57) compute `rot.x = local_8 * π + π/4`, store
+   it, then overwrite with `rot.x = u * 2π` two lines later.  Port
+   skips the dead store but keeps the RNG draws.
+
+7. **Loop count is conditional on label, not goto.**  The dispatcher
+   needs to know when to stop.  `spawn_count_for_type` returns a fixed
+   count for most types; `spawn_count_is_param7` returns true for
+   types that goto LAB_0044aa47 (which compares `local_8 + 1 ==
+   param_7`).  Don't try to encode this as a single switch — it's
+   really two predicates.
+
 ## Pending-human-check tie-ins
 
 When C8i.1 lands, the chained-spawn call sites in
