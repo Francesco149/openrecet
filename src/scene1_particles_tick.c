@@ -49,6 +49,8 @@ float g_scene1_spawn_origin[3];
 int   g_scene1_scene_alive;
 float g_scene1_camera_yaw;
 float g_scene1_camera_anchor[2];
+float g_scene1_player_ground_y;
+int   g_scene1_scene_counter;
 
 /* Slot field helpers — TYPE/age are int, everything else is float bits
  * stored in the int slot.  These are local-only to keep call sites
@@ -1107,6 +1109,353 @@ static void handle_type_group_4_70_1c(int i, int type)
     if (slot_age(i) == kill_at) slot_kill(i);
 }
 
+/* ─── C8h.4b: no-table-dep anchor + chained-emit handlers ────────────
+ *
+ * 14 handlers that read only player_pos / spawn_origin / player_ground_y
+ * / scene_counter / table B / per-record scratch — no NPC tables.
+ *
+ * Translation convention: every "if (-1 < age)" gate from the engine is
+ * a tautology for age >= 0 (the spawner inits age to 0); kept verbatim
+ * because chained spawns occasionally seed negative ages to delay activation
+ * (e.g. age = -spawn_delay then count up).
+ *
+ * Engine line numbers reference docs/decompiled/by-address/40fb3a.c. */
+
+/* type 99 (0x63) — engine L91-L104.  Baseline drift + player anchor
+ * with Y+2.0 offset.  No damp on baseline drift — pure accumulate. */
+static void handle_type_99(int i)
+{
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_Z, vz);
+    float bx = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_X);
+    float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
+    float bz = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, g_scene1_player_pos[0] + bx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, g_scene1_player_pos[1] + by + 2.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, g_scene1_player_pos[2] + bz);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x18) slot_kill(i);
+}
+
+/* type 0x23 — engine L690-L698.  Hard snap to player pos with Y+0.1
+ * sit-on-head offset.  No body gating, no baseline.  Kill at age 0x30. */
+static void handle_type_23(int i)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, g_scene1_player_pos[0]);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, g_scene1_player_pos[1] + 0.1f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, g_scene1_player_pos[2]);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x30) slot_kill(i);
+}
+
+/* Shared body for types 0x22 (gravity +0.002, kill 0x20) and 0x3c
+ * (gravity -0.002, kill 0x30).  Engine L699-L719 and L720-L740 are
+ * line-for-line identical apart from the sign and the kill age.
+ *
+ * Shape:
+ *   if (age >= 0):
+ *     baseline += vel
+ *     vel.y += gravity_y
+ *     pos = player_pos + baseline
+ *     vel *= 0.97
+ *   age++
+ *   if (age == kill_at) kill
+ *
+ * Note the engine's `vel.y +=` lands BEFORE the damp pass — gravity
+ * leaks into the damp.  Verbatim. */
+static void handle_type_22_3c(int i, float gravity_y, int kill_at)
+{
+    if (slot_age(i) > -1) {
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_X, vx);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_Y, vy);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_Z, vz);
+        vy += gravity_y;
+        float bx = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_X);
+        float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
+        float bz = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, g_scene1_player_pos[0] + bx);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, g_scene1_player_pos[1] + by);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, g_scene1_player_pos[2] + bz);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.97f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.97f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.97f);
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == kill_at) slot_kill(i);
+}
+
+/* type 0x5a — engine L741-L757.  Like 0x22 but only baseline.y is
+ * integrated (baseline.x/z stay frozen at their spawn values); gravity
+ * is +0.004; kill 0x30.  Pos still reads all three baseline axes so
+ * the spawner-supplied baseline.x/baseline.z anchor offsets persist. */
+static void handle_type_5a(int i)
+{
+    if (slot_age(i) > -1) {
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_BASE_Y, vy);
+        vy += 0.004f;
+        float bx = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_X);
+        float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
+        float bz = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, g_scene1_player_pos[0] + bx);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, g_scene1_player_pos[1] + by);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, g_scene1_player_pos[2] + bz);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.97f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.97f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.97f);
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == 0x30) slot_kill(i);
+}
+
+/* type 0x98 — engine L276-L305.  Drift + damp; after age >= PARAM1
+ * steer toward (player.x, player.y+2.0, player.z) at 0.02 per tick and
+ * kill if within 3 units.  Hard kill at 0x40 either way. */
+static void handle_type_98(int i)
+{
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+    vx *= 0.97f;
+    vy *= 0.97f;
+    vz *= 0.97f;
+    /* L285-L289: distance to (player.x, player.y+2.0, player.z).  Engine
+     * uses FUN_005031e4 (a vec3 length); inlined as sqrtf here. */
+    float px = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_X);
+    float py = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Y);
+    float pz = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Z);
+    float dx = g_scene1_player_pos[0]          - px;
+    float dy = (g_scene1_player_pos[1] + 2.0f) - py;
+    float dz = g_scene1_player_pos[2]          - pz;
+    float len = sqrtf(dx * dx + dy * dy + dz * dz);
+    int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
+    if (param1 <= slot_age(i)) {
+        /* L291-L296: second damp pass + steer toward player. */
+        vx = vx * 0.97f + dx * 0.02f;
+        vy = vy * 0.97f + dy * 0.02f;
+        vz = vz * 0.97f + dz * 0.02f;
+        if (len < 3.0f) slot_kill(i);
+    }
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x40) slot_kill(i);
+}
+
+/* type 0x2c — engine L416-L427.  Reverse-drift (pos -= vel) gated on
+ * age > 0 (NOT >= 0; the first tick is a free pass).  Age++, kill at
+ * 0x18. */
+static void handle_type_2c(int i)
+{
+    if (slot_age(i) > 0) {
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, -vx);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, -vy);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, -vz);
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == 0x18) slot_kill(i);
+}
+
+/* types 0x41 / 0x61 / 0x62 / 0x72 — engine L444-L463.  Multi-type:
+ *   0x41, 0x62: hard-snap to (player.x, player_ground_y, player.z)
+ *               every tick; 0x41 kills at age == 100; 0x62 kills iff
+ *               g_scene1_scene_counter <= 0x2c (the engine's L455 reads
+ *               "if (0x2c < counter) goto skip-kill").
+ *   0x61, 0x72: no snap; just age++ and kill at age == 300.
+ * All four increment age every tick. */
+static void handle_type_41_61_62_72(int i, int type)
+{
+    slot_age_inc(i);
+    int age = slot_age(i);
+
+    int do_kill;
+    if (type == 0x41 || type == 0x62) {
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, g_scene1_player_pos[0]);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, g_scene1_player_ground_y);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, g_scene1_player_pos[2]);
+        if (type == 0x41) {
+            do_kill = (age == 100);
+        } else {
+            /* type 0x62: engine L455 — `if (0x2c < counter) goto LAB...`
+             * means SKIP kill when counter > 44.  So we kill iff
+             * counter <= 44 each tick this slot is processed.  Yes, this
+             * means 0x62 can die on its very first tick if counter is
+             * already <= 44 at spawn — that matches the engine. */
+            do_kill = (g_scene1_scene_counter <= 0x2c);
+        }
+    } else {
+        /* type 0x61 or 0x72: no pos snap, no extra side effects. */
+        do_kill = (age == 300);
+    }
+
+    if (do_kill) slot_kill(i);
+}
+
+/* type 0x3d — engine L561-L586.  Trig orbit: rot.y accumulates from
+ * vel.x; pos.x/z = baseline + sin/cos(angle) * radius; pos.y =
+ * baseline.y + (PARAM2*0.5 + vel.y) * scale.  Kill age depends on
+ * PARAM1: kill at age == (PARAM1 * 270) / 100.
+ *
+ * Engine quirk: line 579's cosf() call has no argument in the Ghidra
+ * decomp (FPU-stack arg dropped).  The angle stored to local_14 on
+ * L569 is on FPU TOS when the cos call fires, identical to the sin
+ * call on L573 — using the same argument here.  High confidence; no
+ * Frida verification expected. */
+static void handle_type_3d(int i)
+{
+    slot_age_inc(i);
+    int age = slot_age(i);
+    if (age >= 0) {
+        float vx     = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, vx);
+        int   param2 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
+        float scale  = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+        float angle  = ((float)age + (float)param2 * -2.0f) * 0.04f;
+        float radius = ((float)param2 * 0.2f + 2.0f) * scale;
+        float bx = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_X);
+        float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
+        float bz = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, sinf(angle) * radius + bx);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+                   ((float)param2 * 0.5f + vy) * scale + by);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, cosf(angle) * radius + bz);
+    }
+    int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
+    if (slot_age(i) == (param1 * 0x10e) / 100) slot_kill(i);
+}
+
+/* type 0x6e — engine L610-L626.  Pure drift for first 100 ticks; at
+ * exactly tick 100 emit one mesh effect at current pos via
+ * scene1_mesh_emit (engine FUN_0044b0f3 stub).  Kill at 0x74 (116). */
+static void handle_type_6e(int i)
+{
+    slot_age_inc(i);
+    int age = slot_age(i);
+    if (age < 0x65) {
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+        if (age == 100) {
+            float px = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_X);
+            float py = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Y);
+            float pz = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Z);
+            int mesh_id = scene1_pick_mesh_id();
+            scene1_mesh_emit(px, py, pz, mesh_id, 1, 0);
+        }
+    }
+    if (age == 0x74) slot_kill(i);
+}
+
+/* type 0x6d — engine L628-L642.  Drift + damp with per-particle
+ * gravity stored in baseline.y (used as a SCALAR, not a coord).  Kill
+ * at age == PARAM2 — the spawner sets per-instance lifetime. */
+static void handle_type_6d(int i)
+{
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+    float by = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Y);
+    vy += by;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.97f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.97f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.97f);
+    slot_age_inc(i);
+    int param2 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
+    if (slot_age(i) == param2) slot_kill(i);
+}
+
+/* type 0x6c — engine L644-L673.  Two-stage trajectory:
+ *   age 0..19 (< 0x14):  pos += vel; vel.y = vel.y * 0.98 + 0.0196
+ *                        (mild buoyancy under damp)
+ *   age 20..119 (< 0x78): pos += vel; vel steered toward (0, 1.5, -1.0)
+ *                         at 1/1200 per tick; damp 0.98
+ * Always age++; kill at 600. */
+static void handle_type_6c(int i)
+{
+    int age = slot_age(i);
+    if (age < 0x14) {
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.98f + 0.0196f);
+    } else if (age < 0x78) {
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+        float px = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Z);
+        vx +=  -px         / 1200.0f;
+        vy += (1.5f - py)  / 1200.0f;
+        vz += (-1.0f - pz) / 1200.0f;
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.98f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.98f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.98f);
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == 600) slot_kill(i);
+}
+
+/* type 0x1d — engine L1187-L1198.  Anchor pos to a referenced
+ * TABLE B record's pos vector + this particle's vel.  Kill at age 0xd
+ * (13 ticks).
+ *
+ * PARAM2 is the table-B index.  Engine performs NO bounds checking;
+ * port mirrors that for in-range indices but treats OOB as "no
+ * anchor" (i.e. pos = vel-only) to avoid an OOB read.  Same
+ * convention as type 0x21's table-B reference. */
+static void handle_type_1d(int i)
+{
+    int   param2 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    float anchor_x = 0.0f, anchor_y = 0.0f, anchor_z = 0.0f;
+    if (param2 >= 0 && param2 < SCENE1_RECORDS_B_COUNT) {
+        int base = param2 * SCENE1_RECORDS_B_STRIDE;
+        int32_t ix = g_scene1_records_b[base + SCENE1_RECORDS_B_OFF_POS_X];
+        int32_t iy = g_scene1_records_b[base + SCENE1_RECORDS_B_OFF_POS_Y];
+        int32_t iz = g_scene1_records_b[base + SCENE1_RECORDS_B_OFF_POS_Z];
+        __builtin_memcpy(&anchor_x, &ix, sizeof anchor_x);
+        __builtin_memcpy(&anchor_y, &iy, sizeof anchor_y);
+        __builtin_memcpy(&anchor_z, &iz, sizeof anchor_z);
+    }
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, anchor_x + vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, anchor_y + vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, anchor_z + vz);
+    slot_age_inc(i);
+    if (slot_age(i) == 0xd) slot_kill(i);
+}
+
 /* ─── outer loop ─────────────────────────────────────────────────────
  *
  * Engine FUN_0040fb3a L49-L1247.  Walks 0..0x1000-1 and runs every
@@ -1162,8 +1511,10 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x53)        { decay_drift_uniform(i, 0.97f, 0x18); }
 
-        /* (type 99 / 0x78 land in C8h.4 — they read player_pos or NPC
-         * table.) */
+        type = slot_type(i);
+        if (type == 99)          { handle_type_99(i); }
+
+        /* type 0x78 — C8h.4c (reads stride-0x2e9 people table). */
 
         type = slot_type(i);
         if (type == 0x68)        { handle_type_68(i); }
@@ -1192,12 +1543,12 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x5d)        { handle_type_5d(i); }
 
-        /* type 0x4a — matrix + NPC table 0xf8 stride.  Deferred to
-         * C8h.4 (needs people-table-0xf8 stub). */
+        /* type 0x4a — C8h.4c (matrix + stride-0xf8 NPC table). */
 
-        /* type 0x98 — C8h.4 (anchor read). */
+        type = slot_type(i);
+        if (type == 0x98)        { handle_type_98(i); }
 
-        /* types 0x75, 0x93 — C8h.4. */
+        /* types 0x75, 0x93 — C8h.4c (read stride-0x2e9 people table). */
 
         type = slot_type(i);
         if (type == 0x36 || type == 0x74) { handle_type_36_74_4e(i); }
@@ -1211,12 +1562,16 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x35)        { handle_type_35(i); }
 
-        /* type 0x2c — C8h.4 (uses anchor). */
+        type = slot_type(i);
+        if (type == 0x2c)        { handle_type_2c(i); }
 
         type = slot_type(i);
         if (type == 0x29)        { handle_type_29(i); }
 
-        /* types 0x41/0x61/0x72/0x62 — C8h.4 (anchor snap). */
+        type = slot_type(i);
+        if (type == 0x41 || type == 0x61 || type == 0x62 || type == 0x72) {
+            handle_type_41_61_62_72(i, type);
+        }
 
         /* type 0x4b — pure field-decay variant. */
         type = slot_type(i);
@@ -1240,7 +1595,8 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x3e)        { handle_type_3e(i); }
 
-        /* type 0x3d — has trig.  C8h.3 (random-sin family). */
+        type = slot_type(i);
+        if (type == 0x3d)        { handle_type_3d(i); }
 
         type = slot_type(i);
         if (type == 0x32)        { handle_type_32(i); }
@@ -1248,14 +1604,32 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x45)        { handle_type_45(i); }
 
-        /* type 0x6e — chained mesh-emit + anchor (C8h.4). */
+        type = slot_type(i);
+        if (type == 0x6e)        { handle_type_6e(i); }
 
-        /* type 0x6d, 0x6c — anchor-related (C8h.4). */
+        type = slot_type(i);
+        if (type == 0x6d)        { handle_type_6d(i); }
+
+        type = slot_type(i);
+        if (type == 0x6c)        { handle_type_6c(i); }
 
         type = slot_type(i);
         if (type == 0x1f || type == 100) { handle_type_1f_100(i); }
 
-        /* types 0x23, 0x22, 0x3c, 0x5a, 0x2d — anchor (C8h.4). */
+        type = slot_type(i);
+        if (type == 0x23)        { handle_type_23(i); }
+
+        type = slot_type(i);
+        if (type == 0x22)        { handle_type_22_3c(i, +0.002f, 0x20); }
+
+        type = slot_type(i);
+        if (type == 0x3c)        { handle_type_22_3c(i, -0.002f, 0x30); }
+
+        type = slot_type(i);
+        if (type == 0x5a)        { handle_type_5a(i); }
+
+        type = slot_type(i);
+        if (type == 0x2d)        { decay_drift_grav_pre(i, 0.97f, 0.002f, 0x40); }
 
         type = slot_type(i);
         if (type == 0x24)        { age_only_kill_at(i, 0x100); }
@@ -1347,10 +1721,10 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x1e)        { scaled_drift_uniform(i, 1.0f, 0x10); }
 
-        /* type 0x1d — anchor (C8h.4 — reads table-B record). */
+        type = slot_type(i);
+        if (type == 0x1d)        { handle_type_1d(i); }
 
-        /* TODO C8h.3-.4: matrix transforms (0x4a, 0x34, 0x35), trig
-         * (0x18, 0x3d, 0x92), and anchor-snap (0x1a/0x12-14/0x78/0x75/
-         * 0x93/many others). */
+        /* TODO C8h.4c: NPC-table-dep handlers (0x4a, 0x78, 0x75/0x93,
+         * 0x12-0x14, 0x1a) — depend on the people-table stub. */
     }
 }

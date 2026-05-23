@@ -946,6 +946,8 @@ struct test_case {
     X(scene1_spawn_first_call_recorded) \
     X(scene1_spawn_ring_wraps) \
     X(scene1_spawn_reset_clears) \
+    X(scene1_mesh_emit_records_call) \
+    X(scene1_mesh_emit_reset_clears) \
     \
     X(particles_tick_empty_tables_noop) \
     X(particles_tick_ignores_unported_types) \
@@ -987,7 +989,40 @@ struct test_case {
     X(particles_tick_type_34_lives_and_orbits) \
     X(particles_tick_type_34_chains_35_on_death) \
     X(particles_tick_type_35_pos_snaps_to_player) \
-    X(particles_tick_type_35_kills_at_0x30)
+    X(particles_tick_type_35_kills_at_0x30) \
+    \
+    X(particles_tick_type_99_baseline_drift_anchor) \
+    X(particles_tick_type_99_kills_at_0x18) \
+    X(particles_tick_type_23_hard_snap) \
+    X(particles_tick_type_23_kills_at_0x30) \
+    X(particles_tick_type_22_drift_and_damp) \
+    X(particles_tick_type_22_kills_at_0x20) \
+    X(particles_tick_type_3c_gravity_and_kill) \
+    X(particles_tick_type_5a_yonly_baseline_drift) \
+    X(particles_tick_type_5a_kills_at_0x30) \
+    X(particles_tick_type_98_drift_and_damp) \
+    X(particles_tick_type_98_kill_on_close_distance) \
+    X(particles_tick_type_98_kills_at_0x40) \
+    X(particles_tick_type_2c_first_tick_no_move) \
+    X(particles_tick_type_2c_reverse_drift) \
+    X(particles_tick_type_41_snap_to_ground) \
+    X(particles_tick_type_41_kills_at_100) \
+    X(particles_tick_type_62_lives_when_counter_high) \
+    X(particles_tick_type_62_dies_when_counter_low) \
+    X(particles_tick_type_61_no_snap_kill_at_300) \
+    X(particles_tick_type_3d_orbit_basic) \
+    X(particles_tick_type_3d_kill_from_param1) \
+    X(particles_tick_type_6e_drifts_then_emits_mesh) \
+    X(particles_tick_type_6e_no_drift_past_101) \
+    X(particles_tick_type_6e_kills_at_0x74) \
+    X(particles_tick_type_6d_baseline_y_as_gravity) \
+    X(particles_tick_type_6d_kills_at_param2) \
+    X(particles_tick_type_6c_early_stage_buoyancy) \
+    X(particles_tick_type_6c_kills_at_600) \
+    X(particles_tick_type_1d_anchors_to_table_b) \
+    X(particles_tick_type_1d_kills_at_0xd) \
+    X(particles_tick_type_1d_oob_param2_safe) \
+    X(particles_tick_type_2d_buoyant_drift)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

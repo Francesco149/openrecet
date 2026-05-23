@@ -63,6 +63,42 @@ void scene1_spawn(int slot_hint, float x, float y, float z, int type,
 
 void scene1_spawn_trace_reset(void);
 
+/*
+ * Stub for FUN_0044b0f3 — the engine's "emit one short-lived mesh
+ * effect" call.  Distinct from scene1_spawn (which writes into the
+ * particle table); this one drops a mesh into a separate "mesh effects"
+ * container at DAT_056da1b8.  The only caller in C8h.4b is the type
+ * 0x6e handler, which emits a mesh at tick=100 then continues as a
+ * particle until age=0x74.
+ *
+ * Engine signature (Ghidra-recovered):
+ *   FUN_0044b0f3(void *container, float x, float y, float z,
+ *                int mesh_id, int slot, int param_7);
+ * where mesh_id comes from FUN_004385fb() — a tiny mesh-ID picker also
+ * stubbed here for the integrator.  Replace both when the mesh-effect
+ * emitter ports as its own chip.
+ */
+#define SCENE1_MESH_EMIT_TRACE_CAPACITY 8
+
+typedef struct {
+    float x, y, z;
+    int   mesh_id;
+    int   slot;
+    int   param7;
+} scene1_mesh_emit_call_t;
+
+extern int                     g_scene1_mesh_emit_trace_count;
+extern scene1_mesh_emit_call_t g_scene1_mesh_emit_trace[SCENE1_MESH_EMIT_TRACE_CAPACITY];
+
+/* Picks a mesh ID for the chained emit.  Engine FUN_004385fb is a
+ * randomized table lookup — stub returns 0 so tests get a stable value. */
+int  scene1_pick_mesh_id(void);
+
+void scene1_mesh_emit(float x, float y, float z, int mesh_id, int slot,
+                      int param7);
+
+void scene1_mesh_emit_trace_reset(void);
+
 #ifdef __cplusplus
 }
 #endif

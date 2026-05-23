@@ -86,6 +86,19 @@ extern "C" {
 #define SCENE1_RECORDS_A_OFF_PARAM2   17   /* DAT_069b2fc4  (per-type scratch) */
 #define SCENE1_RECORDS_A_OFF_AUX_18   18   /* DAT_069b2fc8 */
 
+/*
+ * Table B field offsets — populated as integrator handlers reference
+ * them.  Field-0 is the slot-active flag (B sentinel: == 0 means empty).
+ * Field-2 (engine: DAT_069324b8) holds the slot's own index — set by the
+ * sentinel-init in scene1_records_reset().  The pos vector at +0x5c
+ * (dw 23/24/25) is read by the integrator's type 0x1d handler.
+ */
+#define SCENE1_RECORDS_B_OFF_ACTIVE   0    /* DAT_069324b0 (sentinel) */
+#define SCENE1_RECORDS_B_OFF_SELF_IDX 2    /* DAT_069324b8 */
+#define SCENE1_RECORDS_B_OFF_POS_X    23   /* DAT_0693250c */
+#define SCENE1_RECORDS_B_OFF_POS_Y    24   /* DAT_06932510 */
+#define SCENE1_RECORDS_B_OFF_POS_Z    25   /* DAT_06932514 */
+
 extern int32_t g_scene1_records_a[SCENE1_RECORDS_A_COUNT * SCENE1_RECORDS_A_STRIDE];
 extern int32_t g_scene1_records_b[SCENE1_RECORDS_B_COUNT * SCENE1_RECORDS_B_STRIDE];
 extern int32_t g_scene1_records_c[SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE];

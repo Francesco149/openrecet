@@ -50,12 +50,22 @@ extern "C" {
  *   DAT_056dae8c           → g_scene1_scene_alive        (kill gate; 0 → kill)
  *   _DAT_073de39c          → g_scene1_camera_yaw         (radians)
  *   _DAT_073de328/30       → g_scene1_camera_anchor[2]   (x, z only)
+ *   DAT_056daf88           → g_scene1_player_ground_y    (floor-Y the
+ *                            player is standing on; differs from player_pos.y
+ *                            which is the animated render height — engine
+ *                            snaps player_pos.y = ground_y on landing.
+ *                            Used by C8h.4b types 0x41 / 0x62.)
+ *   DAT_056daff4           → g_scene1_scene_counter      (per-scene int
+ *                            tick counter, reset at scene entry.  Type 0x62
+ *                            kill-gates on `counter <= 0x2c`.)
  */
 extern float g_scene1_player_pos[3];
 extern float g_scene1_spawn_origin[3];
 extern int   g_scene1_scene_alive;
 extern float g_scene1_camera_yaw;
 extern float g_scene1_camera_anchor[2];
+extern float g_scene1_player_ground_y;
+extern int   g_scene1_scene_counter;
 
 /*
  * Tick the integrator across all 4096 slots of table A.  Mirrors

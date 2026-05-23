@@ -55,3 +55,29 @@ int test_scene1_spawn_reset_clears(void)
     T_ASSERT(g_scene1_spawn_trace[0].type == 0);
     return 0;
 }
+
+/* ─── mesh-emit stub (FUN_0044b0f3 placeholder) ────────────────────── */
+
+int test_scene1_mesh_emit_records_call(void)
+{
+    scene1_mesh_emit_trace_reset();
+    T_ASSERT(g_scene1_mesh_emit_trace_count == 0);
+
+    scene1_mesh_emit(1.0f, 2.0f, 3.0f, 42, 1, 0);
+
+    T_ASSERT(g_scene1_mesh_emit_trace_count == 1);
+    T_ASSERT(g_scene1_mesh_emit_trace[0].x == 1.0f);
+    T_ASSERT(g_scene1_mesh_emit_trace[0].mesh_id == 42);
+    T_ASSERT(g_scene1_mesh_emit_trace[0].slot == 1);
+    return 0;
+}
+
+int test_scene1_mesh_emit_reset_clears(void)
+{
+    scene1_mesh_emit(99.0f, 0.0f, 0.0f, 99, 9, 9);
+    scene1_mesh_emit_trace_reset();
+    T_ASSERT(g_scene1_mesh_emit_trace_count == 0);
+    T_ASSERT(g_scene1_mesh_emit_trace[0].x == 0.0f);
+    T_ASSERT(g_scene1_mesh_emit_trace[0].mesh_id == 0);
+    return 0;
+}

@@ -518,3 +518,58 @@ required.
 | 0x4a    | Matrix + NPC table (stride 0xf8) + camera_yaw — multi-branch |
 | 0x3d    | Trig orbit with sin/cos + chained spawn             |
 | All anchor-snap types (~20 of them) | Read player_pos / NPC table / table-B / spawn_origin |
+
+## C8h.4a landed (2026-05-23)
+
+Survey-only chip — `docs/findings/scene1-people-table.md`.  Documents
+the stride-0x2e9 "people" table at `DAT_0076bd54` (flat 128 × 2980 B,
+~93 KB) that the integrator's anchor-snap handlers (0x1a, 0x78,
+0x75/0x93, 0x12-0x14) read.  Unblocks C8h.4c.
+
+## C8h.4b landed (2026-05-23)
+
+14 no-table-dep handlers in `src/scene1_particles_tick.c`.  Two new
+externs in `scene1_particles_tick.h` (`g_scene1_player_ground_y`
+DAT_056daf88 + `g_scene1_scene_counter` DAT_056daff4) and three new
+table-B offset constants in `scene1_records.h`
+(`SCENE1_RECORDS_B_OFF_POS_X/Y/Z` = dw 23/24/25).  Mesh-emit stub
+(`scene1_pick_mesh_id` + `scene1_mesh_emit`) added to
+`scene1_spawn.{h,c}` to stand in for engine `FUN_004385fb` +
+`FUN_0044b0f3` for the type-0x6e chain.
+
+| Type            | Behavior                                                                                | Notes                                              |
+|-----------------|-----------------------------------------------------------------------------------------|----------------------------------------------------|
+| 99 (0x63)       | baseline += vel; pos = player + baseline (+Y 2.0); kill 0x18                            | Pure player anchor                                 |
+| 0x22            | Anchor + baseline drift, buoyancy +0.002, damp 0.97, kill 0x20                          | Shared body with 0x3c                              |
+| 0x23            | Hard-snap to (player.x, player.y+0.1, player.z); kill 0x30                              | No body gating                                     |
+| 0x2c            | Reverse drift (pos -= vel) gated on age > 0; kill 0x18                                  | First tick free                                    |
+| 0x2d            | Buoyant drift (decay_drift_grav_pre 0.97 / +0.002 / 0x40)                               | Helper reuse                                       |
+| 0x3c            | Anchor + baseline drift, gravity -0.002, damp 0.97, kill 0x30                           | Mirror of 0x22                                     |
+| 0x3d            | Trig orbit around baseline; kill at (PARAM1 × 270)/100                                  | cos arg unambiguous (same local_14 as sin)         |
+| 0x41/0x61/0x62/0x72 | Multi-type: 0x41/0x62 snap to (player.x, ground_y, player.z); 0x41 kill at 100, 0x62 kill when scene_counter ≤ 44, 0x61/0x72 kill at 300 | DAT_056daf88 = floor Y, DAT_056daff4 = scene tick counter |
+| 0x5a            | Y-ONLY baseline drift; gravity +0.004; damp 0.97; kill 0x30                             | Baseline.x/z frozen                                |
+| 0x6c            | Two-stage trajectory: ages 0-19 buoyancy, 20-119 steer to (0,1.5,-1); kill 600          | Mild damp shifts between stages                    |
+| 0x6d            | Drift + per-particle gravity = baseline.y (used as scalar); kill at PARAM2               | baseline.y abused as gravity scalar                |
+| 0x6e            | Drift for first 100 ticks; at tick 100 emit one mesh via scene1_mesh_emit stub; kill 0x74 | Stub records mesh-emit for tests                   |
+| 0x98            | Drift + damp; after age ≥ PARAM1, steer toward (player.x, player.y+2, player.z); kill if |delta| < 3 or age == 0x40 | sqrtf inlined for FUN_005031e4                   |
+| 0x1d            | pos = table_B[PARAM2].pos + vel; kill 0xd                                               | OOB PARAM2 → no anchor (safe-default)              |
+
+34 new host tests (893 → 927, all pass): 32 handler tests in
+`tests/test_scene1_particles_tick.c` + 2 mesh-emit stub tests in
+`tests/test_scene1_spawn.c`.  Win32 build links clean.
+
+### Pending human checks added by C8h.4b
+
+None — the only argless `FUN_00503994()` (cos) call in this batch
+is type 0x3d's L579, where the FPU TOS is the same `local_14` angle
+stored on L569 (identical pattern to the sin call on L573).  No
+Frida verification needed.
+
+### Still unported (C8h.4c)
+
+| Type(s)               | External dep                                                  |
+|-----------------------|---------------------------------------------------------------|
+| 0x4a                  | stride-0xf8 NPC table (DAT_056db120) + camera_yaw (DAT_056db05c) — multi-branch |
+| 0x1a                  | stride-0x2e9 people table; chains spawn type 1 on kill        |
+| 0x78, 0x75, 0x93      | stride-0x2e9 people table (anchor pos to target.x at +0xc)    |
+| 0x12, 0x13, 0x14      | activation gate at DAT_0695f1e0 (stride 0xa8) + people table; both 0x12/0x13 also do scaled drift |
