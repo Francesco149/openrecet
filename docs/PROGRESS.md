@@ -3,6 +3,65 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-23 — scene-1 render: C7a `--show-mesh` visual smoke (`src/mesh_draw.{c,h}`)
+
+First chip on the scene-1 render ladder (`docs/findings/scene1-render.md`).
+Wires the C1-C6 mesh pipeline end-to-end to pixels: a `--show-mesh
+<path>` CLI flag that runs the mesh through `mesh_load` +
+`mesh_load_finalize_win32` and orbits a fixed camera around it every
+frame via `DrawIndexedPrimitive`. Visual smoke for everything that
+landed in C1-C6.
+
+- **`src/mesh_draw.{c,h}` (new)** — four pieces:
+  - `mesh_resolve_texture_slot(m, mat_idx)` — pure-C: material index →
+    global cache slot. Host-testable; clamps OOB / NULL / stale-past-
+    cache.count to -1.
+  - `mesh_set_default_render_state(dev)` — Win32-only: FVF 0x152, Z on,
+    lighting OFF (deferred to C7b), cull NONE, modulate-texture stage 0,
+    linear sampler, wrap address. Idempotent.
+  - `mesh_orbital_view_proj(dev, centroid, radius, phase, w, h)` —
+    SetTransform VIEW + PROJECTION via `math3d`'s lookat_rh +
+    perspective_fov_rh. Camera at distance 3·radius, fov_y 60°,
+    z_near 0.05·r, z_far 5·r. Y-axis orbit; phase ∈ [0,1).
+  - `mesh_draw_d3d8(dev, m)` — per-submesh SetStreamSource + SetIndices
+    (BaseVertexIndex=vertex_offset) + SetTexture (via
+    `mesh_resolve_texture_sprite`) + SetMaterial (ambient = diffuse) +
+    DrawIndexedPrimitive(TRIANGLELIST). Falls back to SetTexture(NULL)
+    on materials with no uploaded sprite — geometry still draws against
+    vertex white.
+
+- **`src/main.c` (extended)** — new `--show-mesh <path>` CLI flag.
+  Loads at boot via `mesh_load(path, -1) + mesh_load_finalize_win32`,
+  draws each frame in `render_dispatch` between the scene switch and
+  the fade overlay. When set, the scene render is skipped so the mesh
+  sits on the pink-blue clear color alone (cleaner contact-sheet
+  review). Phase derived from `g_tick.frame_count % 360` → one orbit
+  every 6 s at host pace. Shutdown frees the mesh + clears the global
+  texture cache.
+
+- **Tests** — `tests/test_mesh_draw.c` (5 new tests, 839 total from
+  834) covering the pure-C slot resolver: 3-material happy path,
+  no-texture sentinel, OOB material indices, NULL mesh / NULL
+  texture_slots, stale slot past cache count. The Win32 draw walker
+  itself isn't host-testable (needs a device); validated manually via
+  the smoke below.
+
+- **Smoke (`xfile/etc/ice01.x`)** — captured at frames 5/30/60/90 via
+  `--capture-frames`; output is a rotating textured ice crystal on the
+  pink-blue clear color. End-to-end pipeline (parser → builder →
+  bounds → texture-cache dedupe → VB/IB upload → per-submesh draw)
+  works in one chip on the first run. Captures live in
+  `runs/mesh-ice01/` for review.
+
+- **Regression** — title-z-press 14/14 bit-exact (canary for render-
+  path changes). title-options 2/4 unchanged from the pre-existing
+  baseline. The render mod only activates when `--show-mesh` is set.
+
+**Next:** C7b — depth + lighting render-state for the eventual scene-1
+walker. Today's preview runs unlit (vertex diffuse white modulate
+texture); the engine uses fixed-function lighting via `SetLight` /
+`LightEnable` + a configurable ambient.
+
 ## 2026-05-23 — mesh loader: C6 worker bodies (AAB + C0A, `src/scene_{sc1,table}.{c,h}`)
 
 Sixth chip on the FUN_00472836 family — wires the last two NULL

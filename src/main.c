@@ -54,6 +54,8 @@
 #include "font_atlas.h"
 #include "font_upload.h"
 #include "tables_config.h"        /* g_config for font_atlas regen gate */
+#include "mesh.h"
+#include "mesh_draw.h"
 #include "mesh_load.h"
 #include "tick.h"
 
@@ -94,6 +96,15 @@ static unsigned         g_capture_count     = 0;     /* monotonic capture index 
  * a storage asset name (e.g. "bmp/ivent/ed_kasi11.tga"). */
 static char            *g_show_sprite_name  = NULL;
 static sprite_t         g_show_sprite       = {0};
+
+/* --show-mesh <path>: C7a visual smoke for the mesh pipeline. Loads one
+ * .x file via mesh_load + mesh_load_finalize_win32 at startup, draws it
+ * every frame with an orbital camera. <path> is a storage-relative or
+ * disk path (e.g. "xfile/etc/ice01.x"). Independent of the scene state
+ * — drawn on top of whatever the current scene rendered, before the
+ * fade/nowloading overlays so the mesh sits under fade tints. */
+static char            *g_show_mesh_path    = NULL;
+static mesh_t          *g_show_mesh         = NULL;
 
 /* Scene-0 (title) state now lives in scene_title.c as module globals
  * (`g_scene_title_menu`, `g_scene_title_anim`, `g_scene_title_assets_loaded`).
@@ -395,6 +406,42 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                         g_show_sprite_name);
             }
             return 0;
+        }
+    }
+
+    /* --show-mesh: C7a visual smoke. mesh_load handles storage_read +
+     * xfile_parse + mesh_build + bounds + texture-cache dedupe;
+     * finalize_win32 then uploads VB/IB + sprite_loads every texture.
+     * Failure paths print to stderr and skip the draw — we deliberately
+     * keep the rest of boot alive so a bad --show-mesh path doesn't
+     * brick the title scene. */
+    if (g_show_mesh_path) {
+        g_show_mesh = mesh_load(g_show_mesh_path, -1);
+        if (!g_show_mesh) {
+            fprintf(stderr, "openrecet: mesh_load failed: %s\n",
+                    g_show_mesh_path);
+        } else if (g_show_mesh->error[0]) {
+            fprintf(stderr, "openrecet: mesh build error in %s: %s\n",
+                    g_show_mesh_path, g_show_mesh->error);
+            mesh_free(g_show_mesh);
+            g_show_mesh = NULL;
+        } else {
+            HRESULT hr = mesh_load_finalize_win32(g_show_mesh, g_dev);
+            if (FAILED(hr)) {
+                fprintf(stderr, "openrecet: mesh_load_finalize_win32 failed: 0x%08lx\n",
+                        (unsigned long)hr);
+                mesh_free(g_show_mesh);
+                g_show_mesh = NULL;
+            } else {
+                fprintf(stderr,
+                        "show-mesh: %s loaded (verts=%d idx=%d submeshes=%d "
+                        "materials=%d centroid=(%.2f, %.2f, %.2f) radius=%.2f)\n",
+                        g_show_mesh_path,
+                        g_show_mesh->vertex_count, g_show_mesh->index_count,
+                        g_show_mesh->submesh_count, g_show_mesh->material_count,
+                        g_show_mesh->centroid[0], g_show_mesh->centroid[1],
+                        g_show_mesh->centroid[2], g_show_mesh->radius);
+            }
         }
     }
 
@@ -846,6 +893,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     audio_trace_close();
     input_trace_record_close();
     sprite_destroy(&g_show_sprite);
+    if (g_show_mesh) { mesh_free(g_show_mesh); g_show_mesh = NULL; }
+    mesh_tex_cache_reset();
     fade_unload_system_texture();
     scene_title_unload_assets();
     if (!g_input_trace_replay_path) {
@@ -1093,19 +1142,42 @@ static void render_dispatch(void)
      * winding is opposite render_quad_add's). */
     IDirect3DDevice8_SetRenderState(g_dev, D3DRS_CULLMODE, D3DCULL_NONE);
 
-    switch (g_scene_state) {
-    case SCENE_STATE_TITLE:
-        if (g_scene_title_assets_loaded) {
-            scene_title_render(g_dev,
-                               &g_scene_title_menu,
-                               &g_scene_title_anim);
+    /* --show-mesh skips the scene draw so the mesh sits alone on the
+     * clear color — easier to read in capture sheets and the eventual
+     * contact sheet. The scene transitions still tick in the
+     * background (sim_step_a continues running, audio plays, etc), we
+     * just don't paint the scene's 2D layers. */
+    if (!g_show_mesh) {
+        switch (g_scene_state) {
+        case SCENE_STATE_TITLE:
+            if (g_scene_title_assets_loaded) {
+                scene_title_render(g_dev,
+                                   &g_scene_title_menu,
+                                   &g_scene_title_anim);
+            }
+            break;
+        case SCENE_STATE_INGAME:
+            scene_ingame_render(g_dev);
+            break;
+        default:
+            break;
         }
-        break;
-    case SCENE_STATE_INGAME:
-        scene_ingame_render(g_dev);
-        break;
-    default:
-        break;
+    }
+
+    /* --show-mesh preview: drawn on top of whatever the scene rendered,
+     * before fade/nowloading so those still tint correctly. Camera
+     * orbits the Y axis once every 6 seconds at host pace (frame_count
+     * mod 360 → phase). The scene_*_render functions above only touch
+     * the 2D quad pipeline (FVF 0x142/0x1c4) and leave depth/lighting
+     * in their own state — we re-establish mesh draw state here. */
+    if (g_show_mesh) {
+        mesh_set_default_render_state(g_dev);
+        float phase = (float)(g_tick.frame_count % 360) / 360.0f;
+        mesh_orbital_view_proj(g_dev,
+                               g_show_mesh->centroid, g_show_mesh->radius,
+                               phase,
+                               (int)g_ini.width, (int)g_ini.height);
+        mesh_draw_d3d8(g_dev, g_show_mesh);
     }
 
     /* Engine FUN_004547ab L202: scene-fade alpha quad. Runs after the
@@ -1193,6 +1265,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char name_buf[MAX_PATH];
                 lstrcpynA(name_buf, val, (int)sizeof(name_buf));
                 g_show_sprite_name = name_buf;
+            }
+        } else if (lstrcmpA(tok, "--show-mesh") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char mesh_buf[MAX_PATH];
+                lstrcpynA(mesh_buf, val, (int)sizeof(mesh_buf));
+                g_show_mesh_path = mesh_buf;
             }
         } else if (lstrcmpA(tok, "--max-duration-ms") == 0) {
             char *val = strtok(NULL, " ");

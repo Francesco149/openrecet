@@ -1,8 +1,10 @@
 # C7+ — scene-1 render path (Mt. Everest)
 
-**Status (2026-05-23):** scoping doc. None of C7 landed yet. C1-C6
-(mesh loader + worker bodies) are in; this doc plans the work that
-turns those loaded meshes into pixels on the screen.
+**Status (2026-05-23):** C7a landed (`--show-mesh` CLI flag +
+`src/mesh_draw.{c,h}`). C1-C7a wire the mesh pipeline end-to-end to
+pixels for a single mesh; the remaining chips (C7b onward) build the
+scene state, asset load chain, and the engine's per-stage scene-1
+render functions.
 
 This is the climb that takes us from "openrecet boots, plays title,
 fades to a placeholder ingame screen" to "openrecet renders the
@@ -99,12 +101,16 @@ C1-C6 visually and produce reusable drawing primitives before tackling
 the harder coordination.
 
 - **C7a — `--show-mesh <path>` CLI flag + `mesh_draw_d3d8` helper.**
-  Mirrors the existing `--show-sprite` plumbing. Loads one mesh via
-  `mesh_load(xfile_path, -1)` + `mesh_load_finalize_win32(m, dev)`,
-  centres it via `mesh_compute_bounds` + a fixed orbital camera,
-  draws it. Includes the per-submesh DrawIndexedPrimitive helper
-  every later chip will use. Visual smoke: each vendor `.x` file
-  rendered standalone, contact-sheet review.
+  ✅ Landed 2026-05-23 (`src/mesh_draw.{c,h}` + main.c CLI hook).
+  Smoke against `xfile/etc/ice01.x` produces a rotating textured ice
+  crystal on the pink-blue clear color — see `runs/mesh-ice01/`.
+  Camera at distance 3·radius, fov_y 60°, Y-axis orbit once every 6s
+  at host pace. Lighting OFF (vertex white modulate texture). Pure-C
+  `mesh_resolve_texture_slot` helper covered by 5 new unit tests
+  (839 total from 834). title-z-press 14/14 bit-exact (render path
+  guarded behind `--show-mesh`). The contact-sheet pass over all 242
+  vendor `.x` files is the natural follow-up — postponed until C7b
+  lands lighting so the sheet isn't all flat-textured.
 - **C7b — depth + lighting render-state.** Set up
   `D3DRS_ZENABLE` / `D3DRS_LIGHTING` / `D3DRS_AMBIENT` / FVF /
   texture stage state defaults that the mesh walker will rely on.
