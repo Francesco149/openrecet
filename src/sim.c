@@ -34,6 +34,7 @@
 #include "input.h"        /* g_input_state for cur-buttons read */
 #include "nowloading.h"   /* nowloading_set_active(0) — drop the overlay gate */
 #include "scene.h"        /* g_scene_state dispatch */
+#include "scene1_particles_tick.h"  /* engine FUN_0040fb3a — LAB_00453bed body */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
 #include "worker_load.h"  /* worker_load_busy — primary asset-load worker gate */
@@ -224,11 +225,20 @@ void sim_step_a(void)
 
     /* Scene dispatch by `g_scene_state` (engine global DAT_0438b1c0).
      *
-     * Today only states 0 (title) and 1 (INGAME / HOUSE) are wired.
-     * The other states (2..0x10) fall through to the default arm
-     * until their per-scene tick handlers port — see Cs2 in
-     * docs/findings/sim-step-a-dispatch.md for the LAB_00453bed
-     * mass dispatch that handles states 2-4, 6-8, 0xb, 0xd-0x10. */
+     * Wired today (see docs/findings/sim-step-a-dispatch.md):
+     *   - state 0  (title)  → scene_title_sim_default
+     *   - state 1  (INGAME) → scene1_ingame_tick   (Cs1)
+     *   - states 2, 3, 6, 7, 8, 0xb, 0xd-0x10 → engine LAB_00453bed,
+     *     ported as a bare scene1_particles_tick call.  The engine
+     *     also runs FUN_00406584 (Cs3) and a per-state callee here;
+     *     both stay stubbed.
+     *
+     * States 4, 5, 0xa, 0xc, plus any state >= 0x11, explicitly do
+     * NOT hit the particle tick in the engine (block 21 of the
+     * survey).  State 5 invokes FUN_0046c039 (worldmap, unported);
+     * state 0xa invokes FUN_0047e711 (unported); state 9 has its own
+     * `DAT_06a4997c`-selector path in block 17 (Cs4).
+     */
     switch (g_scene_state) {
     case SCENE_STATE_TITLE:
         scene_title_sim_default();
@@ -239,7 +249,30 @@ void sim_step_a(void)
          * tick + UI + camera).  See src/scene1_sim.c header. */
         scene1_ingame_tick();
         break;
+
+    /* Cs2 — LAB_00453bed mass dispatch.  Per-state callees
+     * (FUN_0049d8a4 / FUN_0041ee24 / FUN_00490e24 / FUN_0049db8a /
+     * FUN_0049e163 / FUN_0045c051 / FUN_0045e053 / FUN_0045e1a5 /
+     * FUN_0045e2dd / FUN_0045e3dc) stay stubbed — they're scene-
+     * specific update routines (cutscene / dialog / dungeon / ending)
+     * with no consumer wired today. */
+    case 2:    /* cutscene  (engine FUN_0049d8a4) */
+    case 3:    /* dialog    (engine FUN_0041ee24) */
+    case 6:    /* (engine FUN_00490e24, 17 B trivial) */
+    case 7:    /* dungeon idle  (engine FUN_0049db8a) */
+    case 8:    /* dungeon combat (engine FUN_0049e163) */
+    case 0xb:  /* (engine FUN_0045c051, 3021 B — biggest scene callee) */
+    case 0xd:  /* ending arm A (engine FUN_0045e3dc) */
+    case 0xe:  /* ending arm B (engine FUN_0045e053) */
+    case 0xf:  /* ending arm C (engine FUN_0045e1a5) */
+    case 0x10: /* ending arm D (engine FUN_0045e2dd) */
+        scene1_particles_tick();
+        break;
+
     default:
+        /* States 4, 5, 9, 0xa, 0xc, and any >= 0x11.  Dormant in our
+         * port — neither the engine nor we run scene1_particles_tick
+         * here. */
         break;
     }
 

@@ -123,3 +123,71 @@ int test_sim_step_a_state_ingame_100_ticks(void)
                (double)rot_x, (double)expected);
     return 0;
 }
+
+/* ─── Cs2: LAB_00453bed mass dispatch ────────────────────────────────── */
+
+static int ticks_advance_age(int state)
+{
+    reset_world();
+    g_scene_state = state;
+    scene1_records_inject_test_type92(0.0f, 0.0f, 0.0f);
+    sim_step_a();
+    return slot_read_i(0, SCENE1_RECORDS_A_OFF_AGE);
+}
+
+int test_sim_step_a_state_2_runs_integrator(void)
+{
+    /* State 2 (cutscene) hits engine LAB_00453bed → particle tick. */
+    T_ASSERT_EQ_I(ticks_advance_age(2), 1);
+    return 0;
+}
+
+int test_sim_step_a_state_3_runs_integrator(void)
+{
+    /* State 3 (dialog) hits engine LAB_00453bed → particle tick. */
+    T_ASSERT_EQ_I(ticks_advance_age(3), 1);
+    return 0;
+}
+
+int test_sim_step_a_state_b_runs_integrator(void)
+{
+    /* State 0xb (the largest >=9 LAB_00453bed entry) → particle tick. */
+    T_ASSERT_EQ_I(ticks_advance_age(0xb), 1);
+    return 0;
+}
+
+int test_sim_step_a_state_10_runs_integrator(void)
+{
+    /* State 0x10 (last ending arm) → particle tick. */
+    T_ASSERT_EQ_I(ticks_advance_age(0x10), 1);
+    return 0;
+}
+
+int test_sim_step_a_state_4_skips_integrator(void)
+{
+    /* State 4 — engine block 21 goto LAB_00453cfb directly, no tick. */
+    T_ASSERT_EQ_I(ticks_advance_age(4), 0);
+    return 0;
+}
+
+int test_sim_step_a_state_5_skips_integrator(void)
+{
+    /* State 5 (worldmap) — engine calls FUN_0046c039 then LAB_00453cfb. */
+    T_ASSERT_EQ_I(ticks_advance_age(5), 0);
+    return 0;
+}
+
+int test_sim_step_a_state_a_skips_integrator(void)
+{
+    /* State 0xa — engine calls FUN_0047e711 then LAB_00453cfb. */
+    T_ASSERT_EQ_I(ticks_advance_age(0xa), 0);
+    return 0;
+}
+
+int test_sim_step_a_state_c_skips_integrator(void)
+{
+    /* State 0xc — engine falls into the (>=9 && !=0xb && (<0xd || >0x10))
+     * exclusion in block 21; goto LAB_00453cfb directly. */
+    T_ASSERT_EQ_I(ticks_advance_age(0xc), 0);
+    return 0;
+}

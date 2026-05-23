@@ -16,7 +16,10 @@
  *   - state 0 (title)  → `scene_title_sim_default`
  *   - state 1 (INGAME) → `scene1_ingame_tick` (Cs1, 2026-05-23 — minimal
  *                        port of FUN_004427d3; drives scene1_particles_tick)
- *   - every other state is a no-op (Cs2+ chip ladder; see
+ *   - states 2, 3, 6, 7, 8, 0xb, 0xd-0x10 → bare `scene1_particles_tick`
+ *     (Cs2, 2026-05-23 — engine LAB_00453bed mass dispatch; per-state
+ *     callees stubbed)
+ *   - states 4, 5, 9, 0xa, 0xc, 0x11+ are no-ops (Cs3+ chip ladder; see
  *     docs/findings/sim-step-a-dispatch.md)
  *
  * The button-ring update is the only piece of FUN_004536cb that always

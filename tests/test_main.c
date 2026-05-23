@@ -1275,7 +1275,15 @@ struct test_case {
     X(scene1_ingame_tick_runs_integrator) \
     X(sim_step_a_state_ingame_runs_integrator) \
     X(sim_step_a_state_title_skips_integrator) \
-    X(sim_step_a_state_ingame_100_ticks)
+    X(sim_step_a_state_ingame_100_ticks) \
+    X(sim_step_a_state_2_runs_integrator) \
+    X(sim_step_a_state_3_runs_integrator) \
+    X(sim_step_a_state_b_runs_integrator) \
+    X(sim_step_a_state_10_runs_integrator) \
+    X(sim_step_a_state_4_skips_integrator) \
+    X(sim_step_a_state_5_skips_integrator) \
+    X(sim_step_a_state_a_skips_integrator) \
+    X(sim_step_a_state_c_skips_integrator)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
