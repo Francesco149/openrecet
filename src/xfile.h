@@ -99,7 +99,19 @@ typedef struct {
     int32_t       uv_count;
     xfile_vec2   *uvs;
 
-    int32_t       vertex_color_count; /* MeshVertexColors header count; data not exposed yet */
+    /*
+     * MeshVertexColors. `vertex_color_count` is the on-disk header
+     * count (the N in `MeshVertexColors { N; … }`); typically equals
+     * `vertex_count` but the spec allows partial coverage.
+     *
+     * `vertex_colors` is sized at `vertex_count` (NOT
+     * vertex_color_count) so the consumer can look up a vertex's
+     * colour by its position-index directly. Vertices not covered by
+     * the block default to opaque white (1,1,1,1). NULL when the .x
+     * has no MeshVertexColors sub-template at all.
+     */
+    int32_t       vertex_color_count;
+    xfile_rgba   *vertex_colors;
 
     /* MeshMaterialList */
     int32_t       material_count;      /* nMaterials header value */

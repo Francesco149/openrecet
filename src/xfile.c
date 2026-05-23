@@ -612,17 +612,42 @@ static int parse_mesh_texture_coords(P *p, xfile_mesh *m)
 
 static int parse_mesh_vertex_colors(P *p, xfile_mesh *m)
 {
-    /* docs/formats/xfile.md "quirk 1": exporter polymorphism between items.
-     * We don't expose the colors yet — just count them and drain. */
+    /* docs/formats/xfile.md "quirk 1": exporter polymorphism between
+     * items. Each record is:
+     *   <vertex_index>; r;g;b;a;;
+     * with the inter-record separator being either ';' or ','.
+     *
+     * Storage is sized at vertex_count (not the on-disk header N) so
+     * the consumer can look up colours by vertex-index directly.
+     * Vertices not touched by the block default to opaque white. */
     skip_optional_uuid(p);
     int32_t n;
     if (!eat_int32(p, &n) || !expect(p, T_SEM, ";")) return 0;
     m->vertex_color_count = n;
+
+    if (m->vertex_count > 0 && m->vertex_colors == NULL) {
+        m->vertex_colors = (xfile_rgba *)calloc((size_t)m->vertex_count,
+                                                sizeof *m->vertex_colors);
+        if (!m->vertex_colors) {
+            set_error(p->out, 0, "oom vertex_colors");
+            return 0;
+        }
+        for (int32_t i = 0; i < m->vertex_count; i++) {
+            m->vertex_colors[i].r = 1.0f;
+            m->vertex_colors[i].g = 1.0f;
+            m->vertex_colors[i].b = 1.0f;
+            m->vertex_colors[i].a = 1.0f;
+        }
+    }
+
     for (int32_t i = 0; i < n; i++) {
         int32_t idx;
         xfile_rgba color;
         if (!eat_int32(p, &idx) || !expect(p, T_SEM, ";")) return 0;
         if (!read_rgba(p, &color)) return 0;
+        if (m->vertex_colors && idx >= 0 && idx < m->vertex_count) {
+            m->vertex_colors[idx] = color;
+        }
         /* drain any trailing SEMIs (the second ; of ;; styles) */
         while (peek(p)->kind == T_SEM) advance(p);
         /* optional inter-item COMMA */
@@ -1067,6 +1092,7 @@ void xfile_free(xfile_t *x)
         free(m->normals);
         free(m->face_normals);
         free(m->uvs);
+        free(m->vertex_colors);
         free(m->face_material_indexes);
         free(m->material_refs);
         free(m->inline_materials);

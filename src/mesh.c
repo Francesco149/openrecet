@@ -273,6 +273,28 @@ static void transform_point_into(float ox[3], const float in[3], const float M[1
     ox[2] = in[0]*M[2] + in[1]*M[6] + in[2]*M[10] + M[14];
 }
 
+/* Pack an RGBA float quad (0..1, clamped) into a D3DCOLOR DWORD
+ * (0xAARRGGBB), the on-disk diffuse layout in `mesh_vertex` (FVF 0x152
+ * D3DFVF_DIFFUSE). Matches D3DXCOLORVALUETOUBYTE: round-to-nearest,
+ * clamp at 0/255. */
+static uint32_t pack_rgba(float r, float g, float b, float a)
+{
+    int ir = (int)(r * 255.0f + 0.5f);
+    int ig = (int)(g * 255.0f + 0.5f);
+    int ib = (int)(b * 255.0f + 0.5f);
+    int ia = (int)(a * 255.0f + 0.5f);
+    if (ir < 0) ir = 0;
+    if (ir > 255) ir = 255;
+    if (ig < 0) ig = 0;
+    if (ig > 255) ig = 255;
+    if (ib < 0) ib = 0;
+    if (ib > 255) ib = 255;
+    if (ia < 0) ia = 0;
+    if (ia > 255) ia = 255;
+    return ((uint32_t)ia << 24) | ((uint32_t)ir << 16)
+         | ((uint32_t)ig <<  8) | (uint32_t)ib;
+}
+
 static void transform_normal_into(float ox[3], const float in[3], const float M[16])
 {
     /* Upper 3x3 only (no translation). Renormalised at the end so the
@@ -369,7 +391,17 @@ static int emit_submesh(mesh_t *m, const xfile_mesh *xm,
                         out->nz = nout[2];
                     }
                 }
-                out->diffuse = 0xFFFFFFFFu;
+                /* MeshVertexColors → D3DCOLOR (0xAARRGGBB). Per-vertex
+                 * lookup by the position-index (vi); xfile parser
+                 * defaults uncovered slots to (1,1,1,1) and leaves
+                 * the pointer NULL only when the .x file has no
+                 * MeshVertexColors block at all. */
+                if (xm->vertex_colors && vi >= 0 && vi < xm->vertex_count) {
+                    const xfile_rgba *c = &xm->vertex_colors[vi];
+                    out->diffuse = pack_rgba(c->r, c->g, c->b, c->a);
+                } else {
+                    out->diffuse = 0xFFFFFFFFu;
+                }
                 m->indices[m->index_count] = (uint16_t)(m->vertex_count - v0);
                 m->vertex_count++;
                 m->index_count++;

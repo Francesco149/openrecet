@@ -889,6 +889,9 @@ struct test_case {
     \
     X(mesh_empty) \
     X(mesh_single_triangle) \
+    X(mesh_vertex_colors_diffuse) \
+    X(mesh_vertex_colors_partial) \
+    X(mesh_vertex_colors_absent) \
     X(mesh_bounds_cube) \
     X(mesh_vendor_ice01) \
     X(mesh_vendor_corpus) \

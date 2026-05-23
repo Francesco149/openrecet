@@ -100,6 +100,154 @@ int test_mesh_single_triangle(void)
     return 0;
 }
 
+/* ─── 2b. MeshVertexColors → per-vertex diffuse ───────────────────────── */
+int test_mesh_vertex_colors_diffuse(void)
+{
+    /* One triangle with three explicit per-vertex colours:
+     *   v0 → 0.578063 grey  → 0xff939393
+     *   v1 → 1.0 0.0 0.0    → 0xffff0000
+     *   v2 → 0.0 1.0 0.0    → 0xff00ff00
+     * Round-to-nearest at *255+0.5 gives 0.578063 → 147 = 0x93. */
+    const char src[] =
+        "xof 0303txt 0032\n"
+        "Material Red {\n"
+        "  1.0;0.0;0.0;1.0;;\n"
+        "  10.0;\n"
+        "  0.5;0.5;0.5;;\n"
+        "  0.1;0.1;0.1;;\n"
+        "}\n"
+        "Mesh Tri {\n"
+        "  3;\n"
+        "  0.0;0.0;0.0;,\n"
+        "  1.0;0.0;0.0;,\n"
+        "  0.0;1.0;0.0;;\n"
+        "  1;\n"
+        "  3;0,1,2;;\n"
+        "  MeshMaterialList {\n"
+        "    1;\n"
+        "    1;\n"
+        "    0;\n"
+        "    {Red}\n"
+        "  }\n"
+        "  MeshVertexColors {\n"
+        "    3;\n"
+        "    0; 0.578063;0.578063;0.578063;1.0;;\n"
+        "    1; 1.0;0.0;0.0;1.0;;\n"
+        "    2; 0.0;1.0;0.0;1.0;;\n"
+        "  }\n"
+        "}\n";
+    xfile_t *xf = xfile_parse(src, sizeof src - 1, "<test>");
+    T_ASSERT(xf != NULL);
+    if (xf->error[0]) { fprintf(stderr, "parse: %s\n", xf->error); xfile_free(xf); return 1; }
+    T_ASSERT_EQ_I(xf->meshes[0].vertex_color_count, 3);
+    T_ASSERT(xf->meshes[0].vertex_colors != NULL);
+
+    mesh_t *m = mesh_build_from_xfile(xf);
+    xfile_free(xf);
+    T_ASSERT(m != NULL);
+    if (m->error[0]) { fprintf(stderr, "build: %s\n", m->error); mesh_free(m); return 1; }
+
+    T_ASSERT_EQ_I(m->vertex_count, 3);
+    T_ASSERT_EQ_U(m->vertices[0].diffuse, 0xff939393u);
+    T_ASSERT_EQ_U(m->vertices[1].diffuse, 0xffff0000u);
+    T_ASSERT_EQ_U(m->vertices[2].diffuse, 0xff00ff00u);
+
+    mesh_free(m);
+    return 0;
+}
+
+/* ─── 2c. Partial-coverage MeshVertexColors fills uncovered with white ─ */
+int test_mesh_vertex_colors_partial(void)
+{
+    /* 3 vertices but only v1 gets a colour; v0 and v2 stay opaque white. */
+    const char src[] =
+        "xof 0303txt 0032\n"
+        "Material Red {\n"
+        "  1.0;0.0;0.0;1.0;;\n"
+        "  10.0;\n"
+        "  0.5;0.5;0.5;;\n"
+        "  0.1;0.1;0.1;;\n"
+        "}\n"
+        "Mesh Tri {\n"
+        "  3;\n"
+        "  0.0;0.0;0.0;,\n"
+        "  1.0;0.0;0.0;,\n"
+        "  0.0;1.0;0.0;;\n"
+        "  1;\n"
+        "  3;0,1,2;;\n"
+        "  MeshMaterialList {\n"
+        "    1;\n"
+        "    1;\n"
+        "    0;\n"
+        "    {Red}\n"
+        "  }\n"
+        "  MeshVertexColors {\n"
+        "    1;\n"
+        "    1; 0.501961;0.501961;0.501961;1.0;;\n"
+        "  }\n"
+        "}\n";
+    xfile_t *xf = xfile_parse(src, sizeof src - 1, "<test>");
+    T_ASSERT(xf != NULL);
+    if (xf->error[0]) { fprintf(stderr, "parse: %s\n", xf->error); xfile_free(xf); return 1; }
+    T_ASSERT_EQ_I(xf->meshes[0].vertex_color_count, 1);
+
+    mesh_t *m = mesh_build_from_xfile(xf);
+    xfile_free(xf);
+    T_ASSERT(m != NULL);
+    if (m->error[0]) { fprintf(stderr, "build: %s\n", m->error); mesh_free(m); return 1; }
+
+    T_ASSERT_EQ_U(m->vertices[0].diffuse, 0xffffffffu);
+    T_ASSERT_EQ_U(m->vertices[1].diffuse, 0xff808080u);
+    T_ASSERT_EQ_U(m->vertices[2].diffuse, 0xffffffffu);
+
+    mesh_free(m);
+    return 0;
+}
+
+/* ─── 2d. No MeshVertexColors block at all → diffuse stays white ───────── */
+int test_mesh_vertex_colors_absent(void)
+{
+    const char src[] =
+        "xof 0303txt 0032\n"
+        "Material Red {\n"
+        "  1.0;0.0;0.0;1.0;;\n"
+        "  10.0;\n"
+        "  0.5;0.5;0.5;;\n"
+        "  0.1;0.1;0.1;;\n"
+        "}\n"
+        "Mesh Tri {\n"
+        "  3;\n"
+        "  0.0;0.0;0.0;,\n"
+        "  1.0;0.0;0.0;,\n"
+        "  0.0;1.0;0.0;;\n"
+        "  1;\n"
+        "  3;0,1,2;;\n"
+        "  MeshMaterialList {\n"
+        "    1;\n"
+        "    1;\n"
+        "    0;\n"
+        "    {Red}\n"
+        "  }\n"
+        "}\n";
+    xfile_t *xf = xfile_parse(src, sizeof src - 1, "<test>");
+    T_ASSERT(xf != NULL);
+    if (xf->error[0]) { fprintf(stderr, "parse: %s\n", xf->error); xfile_free(xf); return 1; }
+    T_ASSERT_EQ_I(xf->meshes[0].vertex_color_count, 0);
+    T_ASSERT(xf->meshes[0].vertex_colors == NULL);
+
+    mesh_t *m = mesh_build_from_xfile(xf);
+    xfile_free(xf);
+    T_ASSERT(m != NULL);
+    if (m->error[0]) { fprintf(stderr, "build: %s\n", m->error); mesh_free(m); return 1; }
+
+    T_ASSERT_EQ_U(m->vertices[0].diffuse, 0xffffffffu);
+    T_ASSERT_EQ_U(m->vertices[1].diffuse, 0xffffffffu);
+    T_ASSERT_EQ_U(m->vertices[2].diffuse, 0xffffffffu);
+
+    mesh_free(m);
+    return 0;
+}
+
 /* ─── 3. bounds: synthetic 2x2x2 cube centred at origin ──────────────── */
 int test_mesh_bounds_cube(void)
 {
