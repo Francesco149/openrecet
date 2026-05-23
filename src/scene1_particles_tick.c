@@ -37,6 +37,7 @@
 #include <math.h>
 #include <stdint.h>
 
+#include "math3d.h"
 #include "scene1_records.h"
 #include "scene1_spawn.h"
 
@@ -908,6 +909,185 @@ static void handle_type_huge_group(int i)
     if (slot_age(i) == 0x20) slot_kill(i);
 }
 
+/* ─── handler: type 0x92 — color-cycle billboard tick (C8h.3 trig) ──
+ *
+ * Engine decomp L171-L189.  Sin-perturb vel.x each tick + standard
+ * position step + 0.015707964 (~π/200) rotation triad bump.  Kill at
+ * 0x100.
+ *
+ * Used by the wide-followup walker's Pass F — the integrator
+ * companion of the C8g.2 MVP that already paints the static record.
+ * Once this lands and 0x92 records get spawned, Pass F will animate
+ * (rotate + drift) instead of holding still.
+ */
+static void handle_type_92(int i)
+{
+    /* L172: phase = (PARAM1 + age) * 0.05 — the per-particle phase
+     * stored in PARAM1 keeps spawn-time entropy across rebirth. */
+    int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
+    int age    = slot_age(i);
+    float phase = (float)(param1 + age) * 0.05f;
+    float perturb = sinf(phase) * 0.001f;
+
+    /* L175-176: vel.x += sin(phase) * 0.001. */
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X) + perturb;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+
+    /* L177-181: pos += vel (using the freshly-perturbed vel.x). */
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+               slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y));
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
+               slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z));
+
+    /* L182-184: rot += π/200 on all three axes (slow spin). */
+    const float spin = 0.015707964f;
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_X, spin);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, spin);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, spin);
+
+    slot_age_inc(i);
+    if (slot_age(i) == 0x100) slot_kill(i);
+}
+
+/* ─── handler: type 0x18 — random-sin (vel.y drives via rot.y phase) ─
+ *
+ * Engine decomp L974-L993.  vel.y is REPLACED each tick by
+ * sin(rot.y) * 0.03; then standard scaled-drift; rot bumps decay
+ * (rot.x -= 0.05, rot.y -= 0.03, rot.z -= 0.05).  Kill at 0x4d8.
+ *
+ * Engine quirk: line 976 has the argless `FUN_00503a44()` —
+ * unambiguous here because line 975 stores `local_8 = rot.y` and
+ * immediately calls sin; the FPU TOS is rot.y.  Confidence: HIGH.
+ */
+static void handle_type_18(int i)
+{
+    float ry = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_Y);
+    float new_vy = sinf(ry) * 0.03f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, new_vy);
+
+    float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = new_vy;
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+
+    /* Rot decay — matches type 0x3f/0x56's per-tick rate. */
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_X, -0.05f);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, -0.03f);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, -0.05f);
+
+    slot_age_inc(i);
+    if (slot_age(i) == 0x4d8) slot_kill(i);
+}
+
+/* ─── handler: type 0x34 — orbiting projectile + chained-spawn 0x35 ──
+ *
+ * Engine decomp L368-L391.  Age-gated; rotates a translation vector
+ * `(0, 0, distance)` by RotX(vel.y) × RotY(vel.z), reads the
+ * translation row (M[12..14]) as a displacement, adds player anchor.
+ * vel.z += 0.05 each tick (the orbit rate increases).
+ *
+ * Kill at age == 0x18; on kill, chain-spawn type 0x35 at the final
+ * position.  Goes through `scene1_spawn` (stub today, real C8i later).
+ */
+static void handle_type_34(int i)
+{
+    int age = slot_age(i);
+    if (age >= 0) {
+        float base_x = g_scene1_player_pos[0];
+        float base_y = g_scene1_player_pos[1] + 2.0f;
+        float base_z = g_scene1_player_pos[2];
+
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+
+        float dist = (float)(0x18 - age) * vx;
+
+        /* Engine chain (L374-L380):  M = T(0,0,0); M = M * RotX(vy);
+         * M = M * RotY(vz); M = M * T(0,0,dist).  Under our
+         * mat4_mul(out, a, b) = a*b convention with row-vector
+         * semantics, this is the standard "rotate then translate"
+         * chain. */
+        float M[16], scratch[16];
+        mat4_translation(M, 0.0f, 0.0f, 0.0f);
+        mat4_rotation_x(scratch, vy);
+        mat4_mul(M, M, scratch);
+        mat4_rotation_y(scratch, vz);
+        mat4_mul(M, M, scratch);
+        mat4_translation(scratch, 0.0f, 0.0f, dist);
+        mat4_mul(M, M, scratch);
+
+        /* M[12..14] is the translation row — the rotated displacement
+         * vector. */
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, M[12] + base_x);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, M[13] + base_y);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, M[14] + base_z);
+
+        /* L384: vel.z += 0.05.  The orbit rate accelerates over the
+         * particle's lifetime. */
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz + 0.05f);
+    }
+
+    slot_age_inc(i);
+    if (slot_age(i) == 0x18) {
+        float px = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_A_OFF_POS_Z);
+        /* Engine call L388: FUN_00447f4f(0, pos.x, pos.y, pos.z, 0x35) —
+         * trailing scale + param7 defaults as in type 0x20's chain. */
+        scene1_spawn(0, px, py, pz, 0x35, 1.0f, 0);
+        slot_kill(i);
+    }
+}
+
+/* ─── handler: type 0x35 — orbital body anchored to player ──────────
+ *
+ * Engine decomp L392-L415.  Age-gated; computes vel from rotated
+ * unit-Z vector by RotX(rot.y) × RotY(rot.z) × T(0,0,1).  Position
+ * snaps to player anchor each tick.  Kill at age == 0x30.
+ *
+ * Pair with 0x34 — this is the secondary orbit that spawns when
+ * 0x34's lifetime ends.
+ */
+static void handle_type_35(int i)
+{
+    int age = slot_age(i);
+    if (age >= 0) {
+        float base_x = g_scene1_player_pos[0];
+        float base_y = g_scene1_player_pos[1] + 2.0f;
+        float base_z = g_scene1_player_pos[2];
+
+        float ry = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_Y);
+        float rz = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_Z);
+
+        float M[16], scratch[16];
+        mat4_translation(M, 0.0f, 0.0f, 0.0f);
+        mat4_rotation_x(scratch, ry);
+        mat4_mul(M, M, scratch);
+        mat4_rotation_y(scratch, rz);
+        mat4_mul(M, M, scratch);
+        mat4_translation(scratch, 0.0f, 0.0f, 1.0f);
+        mat4_mul(M, M, scratch);
+
+        /* vel = M[12..14] — the rotated unit-Z vector. */
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, M[12]);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, M[13]);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, M[14]);
+
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, base_x);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, base_y);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, base_z);
+    }
+
+    slot_age_inc(i);
+    if (slot_age(i) == 0x30) slot_kill(i);
+}
+
 /* ─── handler: types 4, 0x70, 0x1c — scaled drift + rot.z drip ───────
  *
  * Engine decomp L1205-L1224.  pos += vel*scale; rot.z += 0.1; age++.
@@ -1000,8 +1180,8 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x96 || type == 0x97) { handle_type_96_97(i); }
 
-        /* type 0x92 is handled by the integrator under C8h.3 (uses
-         * sinf trig).  Left as a future-chip TODO. */
+        type = slot_type(i);
+        if (type == 0x92)        { handle_type_92(i); }
 
         type = slot_type(i);
         if (type == 0x69)        { decay_drift_uniform(i, 0.98f, 0x80); }
@@ -1012,7 +1192,8 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x5d)        { handle_type_5d(i); }
 
-        /* type 0x4a — C8h.3 (matrix transforms). */
+        /* type 0x4a — matrix + NPC table 0xf8 stride.  Deferred to
+         * C8h.4 (needs people-table-0xf8 stub). */
 
         /* type 0x98 — C8h.4 (anchor read). */
 
@@ -1024,7 +1205,11 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x4e)        { handle_type_36_74_4e(i); }
 
-        /* type 0x34, 0x35 — C8h.3 (matrix + chained spawn). */
+        type = slot_type(i);
+        if (type == 0x34)        { handle_type_34(i); }
+
+        type = slot_type(i);
+        if (type == 0x35)        { handle_type_35(i); }
 
         /* type 0x2c — C8h.4 (uses anchor). */
 
@@ -1116,7 +1301,8 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x71)        { handle_type_71(i); }
 
-        /* type 0x18 — has trig.  C8h.3 (random-sin family). */
+        type = slot_type(i);
+        if (type == 0x18)        { handle_type_18(i); }
 
         type = slot_type(i);
         if (type == 0x4f)        { handle_type_4f(i); }

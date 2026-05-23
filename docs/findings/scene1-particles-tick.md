@@ -487,3 +487,34 @@ links; boot-idle scenario unchanged.
 | 0x4a, 0x34, 0x35 | D3DXMatrix transforms + chained spawn | C8h.3 |
 | 0x18, 0x3d, 0x92 | Trig (sin/cos)                    | C8h.3 |
 | (the surrounding particles_per_frame_open) | FUN_00414929 (separate entity tables) | later |
+
+## C8h.3 landed (2026-05-23)
+
+Adds 4 trig + matrix-transform handlers to
+`src/scene1_particles_tick.c`:
+
+| Type | Behavior                                                | Notes                                  |
+|------|---------------------------------------------------------|----------------------------------------|
+| 0x92 | Sin-perturb vel.x; rot triad bumped by ~π/200 per tick; kill 0x100 | Pairs with Pass F MVP — animates the color-cycle billboard once spawned |
+| 0x18 | vel.y = sin(rot.y) * 0.03; scaled drift; rot decays; kill 0x4d8 | Random-sin family. Sin arg = ROT_Y (high confidence — see resolved pending check below) |
+| 0x34 | Player-anchored orbiting projectile via mat4_rotation_x/y chain; vel.z += 0.05; kill 0x18 + chain-spawn 0x35 | Uses `scene1_spawn` stub for chained spawn |
+| 0x35 | Pos snaps to player + (0,2,0); vel = rotated unit-Z via rot.y/rot.z; kill 0x30 | Paired secondary orbit from 0x34's chain |
+
+7 new host tests (886 → 893, all pass).  Win32 build links clean;
+boot-idle scenario unchanged.
+
+### Pending human check #2 RESOLVED
+
+Type 0x18's argless `FUN_00503a44()` call (line 976 of decomp) was
+unambiguous — only one float (ROT_Y) was on FPU TOS before the call.
+Pending check item #2 from the C8h.1 list ("type-0x21 cos call") is
+similarly high-confidence; both resolved without Frida verification
+required.
+
+### Still unported (handled by C8h.4)
+
+| Type(s) | Reason                                              |
+|---------|-----------------------------------------------------|
+| 0x4a    | Matrix + NPC table (stride 0xf8) + camera_yaw — multi-branch |
+| 0x3d    | Trig orbit with sin/cos + chained spawn             |
+| All anchor-snap types (~20 of them) | Read player_pos / NPC table / table-B / spawn_origin |

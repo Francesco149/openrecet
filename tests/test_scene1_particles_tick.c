@@ -680,6 +680,160 @@ int test_particles_tick_type_4_rot_drip(void)
     return 0;
 }
 
+/* ─── C8h.3 — matrix transforms + trig handlers ──────────────────── */
+
+/* type 0x92 — sinusoidal X-drift + rot triad bump. */
+int test_particles_tick_type_92_rot_spin(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x92;
+    r[SCENE1_RECORDS_A_OFF_AGE]    = 0;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_ROT_X, 0.0f);
+
+    scene1_particles_tick();
+
+    /* rot.x bumped by π/200 ≈ 0.01571. */
+    float rx = slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_X);
+    if (fabsf(rx - 0.015707964f) > 1e-6f)
+        T_FAIL("rot.x = %f, expected ~π/200", (double)rx);
+    /* phase=0 → sin(0)=0 → perturb=0 → vel.x unchanged. */
+    if (slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X) != 0.0f)
+        T_FAIL("vel.x should be 0 (sin(0)=0)");
+    return 0;
+}
+
+int test_particles_tick_type_92_kills_at_0x100(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x92;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0xff;
+    scene1_particles_tick();
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* type 0x18 — vel.y replaced by sin(rot.y) * 0.03. */
+int test_particles_tick_type_18_sin_drives_vy(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x18;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y, 1.5707963f);  /* π/2 → sin=1 */
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_SCALE, 1.0f);
+
+    scene1_particles_tick();
+
+    /* vel.y = sin(π/2) * 0.03 = 0.03. */
+    float vy = slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y);
+    if (fabsf(vy - 0.03f) > 1e-5f)
+        T_FAIL("vel.y = %f, expected 0.03", (double)vy);
+    /* rot.y decayed: 1.5707963 - 0.03 ≈ 1.5407963. */
+    float ry = slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y);
+    if (fabsf(ry - 1.5407963f) > 1e-5f)
+        T_FAIL("rot.y not decayed");
+    return 0;
+}
+
+/* type 0x34 — orbits player, chains 0x35 on death. */
+int test_particles_tick_type_34_lives_and_orbits(void)
+{
+    reset_world();
+    g_scene1_player_pos[0] = 10.0f;
+    g_scene1_player_pos[1] = 5.0f;
+    g_scene1_player_pos[2] = -3.0f;
+
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x34;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_X, 1.0f);  /* unit dist */
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y, 0.0f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z, 0.0f);
+
+    scene1_particles_tick();
+
+    /* age 0 → dist = (0x18 - 0) * 1.0 = 24.  vel.y=0 means no
+     * RotX rotation; vel.z=0 means no RotY.  So M = T(0,0,24);
+     * M[12..14] = (0, 0, 24).  pos = (10+0, 7+0, -3+24) = (10, 7, 21). */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 10.0f) > 1e-5f)
+        T_FAIL("pos.x wrong");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) - 7.0f) > 1e-5f)
+        T_FAIL("pos.y wrong");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z) - 21.0f) > 1e-5f)
+        T_FAIL("pos.z = %f, expected 21",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z));
+
+    /* vel.z incremented by 0.05. */
+    float vz = slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z);
+    if (fabsf(vz - 0.05f) > 1e-6f) T_FAIL("vel.z not incremented");
+    return 0;
+}
+
+int test_particles_tick_type_34_chains_35_on_death(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x34;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0x17;  /* will increment to 0x18 → kill+spawn */
+
+    scene1_particles_tick();
+
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    T_ASSERT(g_scene1_spawn_trace_count == 1);
+    T_ASSERT(g_scene1_spawn_trace[0].type == 0x35);
+    return 0;
+}
+
+/* type 0x35 — orbit body, position snaps to player + (0,2,0). */
+int test_particles_tick_type_35_pos_snaps_to_player(void)
+{
+    reset_world();
+    g_scene1_player_pos[0] = 100.0f;
+    g_scene1_player_pos[1] = 50.0f;
+    g_scene1_player_pos[2] = -30.0f;
+
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x35;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+
+    scene1_particles_tick();
+
+    T_ASSERT(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) == 100.0f);
+    T_ASSERT(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) == 52.0f);
+    T_ASSERT(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z) == -30.0f);
+
+    /* rot.y=0, rot.z=0 → M = T(0,0,1); vel = (0, 0, 1). */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X)) > 1e-6f)
+        T_FAIL("vel.x not zero");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y)) > 1e-6f)
+        T_FAIL("vel.y not zero");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z) - 1.0f) > 1e-6f)
+        T_FAIL("vel.z = %f, expected 1.0",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z));
+    return 0;
+}
+
+int test_particles_tick_type_35_kills_at_0x30(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x35;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0x2f;
+    scene1_particles_tick();
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
 int test_particles_tick_chain_20_to_21_records_spawn(void)
 {
     reset_world();

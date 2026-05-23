@@ -979,7 +979,15 @@ struct test_case {
     X(particles_tick_type_25_huge_group) \
     X(particles_tick_type_50_pure_age) \
     X(particles_tick_type_10_param1_gravity) \
-    X(particles_tick_type_4_rot_drip)
+    X(particles_tick_type_4_rot_drip) \
+    \
+    X(particles_tick_type_92_rot_spin) \
+    X(particles_tick_type_92_kills_at_0x100) \
+    X(particles_tick_type_18_sin_drives_vy) \
+    X(particles_tick_type_34_lives_and_orbits) \
+    X(particles_tick_type_34_chains_35_on_death) \
+    X(particles_tick_type_35_pos_snaps_to_player) \
+    X(particles_tick_type_35_kills_at_0x30)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
