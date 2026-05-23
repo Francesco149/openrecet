@@ -21,6 +21,7 @@
 #include "math3d.h"
 #include "mesh_draw.h"
 #include "render_quad.h"
+#include "scene1_alpha_walker.h"
 #include "scene1_shop_walker.h"
 #include "sim.h"
 
@@ -239,12 +240,10 @@ static void scene1_walk_alpha_pre_TODO(void)
     /* TODO C8-followup: port FUN_0045672a. */
 }
 
-/* FUN_00458bdf (904 B) — alpha-pass mesh walker.  Smallest of the
- * four — good candidate for the first walker port. */
-static void scene1_walk_alpha_TODO(void)
-{
-    /* TODO C8-followup: port FUN_00458bdf. */
-}
+/* FUN_00458bdf (904 B) — alpha-pass mesh walker.  Landed 2026-05-23
+ * as C8d (src/scene1_alpha_walker.{c,h}) with full state-writes +
+ * branch structure.  Two inner FUN_00459847 walker calls stay TODO
+ * (same stub as scene1_walk_narrow_frustum_TODO below). */
 
 /* FUN_00456f56 (1982 B) — second wide-frustum pass mesh walker.
  * Likely handles a different draw-order category (transparent
@@ -727,8 +726,11 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
                                           D3DTEXF_NONE);
     scene1_walk_alpha_pre_TODO();
 
-    /* L247: FUN_00458bdf (904 B) — alpha-pass walker. */
-    scene1_walk_alpha_TODO();
+    /* L247: FUN_00458bdf (904 B) — alpha-pass walker.  C8d
+     * (2026-05-23) ports the structure + state writes; inner
+     * FUN_00459847(2/3) calls remain stubbed (see
+     * scene1_alpha_walker.h). */
+    scene1_alpha_walker((struct IDirect3DDevice8 *)dev);
 
     /* L248-L251: WIDE projection → second wide walker. */
     scene1_push_projection(dev, 2000.0f);
