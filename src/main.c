@@ -61,6 +61,7 @@
 #include "scene1_pass_f.h"
 #include "scene1_preload.h"
 #include "scene1_records.h"
+#include "scene1_render.h"
 #include "stage_palette.h"
 #include "stage_state.h"
 #include "tick.h"
@@ -476,9 +477,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     }
 
     /* --house-preview: C7d throwaway. Same shape as --show-mesh above,
-     * just a separately-tracked mesh that scene_ingame_render swaps in
-     * for the placeholder. Failures here are fatal-to-the-preview but
-     * not to boot — fall back to the placeholder ingame screen.
+     * just a separately-tracked mesh that render_dispatch's INGAME branch
+     * swaps in for the real scene-1 render chain. Failures here are
+     * fatal-to-the-preview but not to boot — fall back to the chain.
      *
      * --house-preview-dump <dir> swaps the mesh_load call for a direct
      * VB+IB read from a retail-format dump dir (vb.bin + ib.bin). This
@@ -1314,7 +1315,9 @@ static mesh_t *house_preview_load_dump(const char *dir, IDirect3DDevice8 *dev)
  * (FUN_0045bbf9 / FUN_0040a765 / FUN_00417504 / FUN_0045404b / etc.) —
  * we port them one scene at a time. Today:
  *   SCENE_STATE_TITLE   — scene_title_render
- *   SCENE_STATE_INGAME  — scene_ingame_render (placeholder)
+ *   SCENE_STATE_INGAME  — scene1_render_camera_setup (Cr.1; calls
+ *                        scene1_render_meshes which has 14 walker stubs,
+ *                        so visible 3D output is dormant today)
  * Other states leave the back buffer at the per-state clear color.
  *
  * Engine clear color for state-0 is 0xff17f0ff (pink-blue) — visible
@@ -1439,7 +1442,38 @@ static void render_dispatch(void)
                                               (const D3DMATRIX *)ident);
                 mesh_draw_d3d8(g_dev, g_house_preview_mesh);
             } else {
-                scene_ingame_render(g_dev);
+                /* Cr.1 (2026-05-23): real scene-1 mesh render chain.
+                 * Engine FUN_004547ab L70-73 (DAT_0438b1c0==1 &&
+                 * DAT_0438b1d0==1, the most common INGAME path):
+                 *
+                 *     FUN_0045bbf9();   scene1_render_camera_setup
+                 *                       (calls scene1_render_meshes
+                 *                        which calls 14 walker stubs)
+                 *     FUN_0040a765();   2D HUD aggregator (C7i — TODO)
+                 *     FUN_00417504();   scene1_render_overlay     (TODO)
+                 *     FUN_0045404b();   scene1_render_fx_tail     (TODO)
+                 *
+                 * Only the camera_setup → scene1_render_meshes pair lands
+                 * in this wiring chip.  scene1_render_overlay sets
+                 * COLORARG2=D3DTA_SPECULAR (engine quirk @ L18 of
+                 * FUN_00417504) which leaks into the subsequent
+                 * fade_render / nowloading_render and forces them to
+                 * render black; the engine compensates via post-overlay
+                 * state writes that aren't ported yet (FUN_00453e8f /
+                 * FUN_00453147).  Until those land, scene1_render_overlay
+                 * is all side-effect (its FUN_00414ee2 layer dispatcher
+                 * is a TODO stub anyway).  scene1_render_fx_tail is
+                 * dormant on BSS-zero counter_994 today and similarly
+                 * waits on the overlay chip.
+                 *
+                 * Today every walker call inside scene1_render_meshes is
+                 * a TODO stub, so visible 3D output remains zero.  The
+                 * wiring lands so that as the walker chips (C8c/d/e/
+                 * wide-followup) port, real records from the integrator
+                 * (C8h) + spawn API (C8i.1-5c) + ambient spawn loop
+                 * (Cf.1) start producing visible pixels without another
+                 * wiring chip. */
+                scene1_render_camera_setup(g_dev);
             }
 
             /* --show-pass-f-test: overlay one type-0x92 billboard from

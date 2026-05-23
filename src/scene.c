@@ -37,7 +37,7 @@ void scene_post_fade_init(void)
      * phase-(-1) fade-IN so the alpha quad ramps from 255 → 0 over the
      * next 17 sim ticks, revealing the destination scene. Without this,
      * the phase-1 fade-OUT counter stays pinned at duration+1 and the
-     * placeholder scene_ingame_render output would be hidden under a
+     * scene-1 render chain output would be hidden under a
      * fully-opaque black quad forever. */
     fade_phase_out_start(0, 0x11);
 
