@@ -120,14 +120,27 @@
  *     pre-C8i tests (which assert on the trace after type-0x21 calls)
  *     continue to pass while the per-type init body for 0x21 is unported.
  *
- * Note on argless `FUN_00503994()` cos calls (engine L82 / L120 / L266 /
- * etc.): Ghidra drops the FPU-stack arg.  The integrator's matching
- * pattern (handle_type_21, handle_type_34) treats these as cos(angle)
- * where `angle` was the most-recent expression pushed for the paired
- * sin call.  Each radial-burst handler below uses that interpretation,
- * pre-binding the angle to a local float and passing it explicitly to
- * both sinf() and cosf().  Logged for raw-asm verification in
- * openrecet_pending_human_checks.
+ * Note on argless `FUN_00503994()` cos calls (engine L82 / L120 / L266
+ * / L1274 / etc.): Ghidra drops the FPU-stack arg, but the asm passes
+ * it via memory.  Raw-asm read of vendor/unpacked/recettear.unpacked.exe
+ * (objdump -d --start-address=0x447f4f) confirms every paired sin+cos
+ * site uses the SAME stack-local slot `[ebp-0x1c]`:
+ *
+ *     ; sin: stash angle in [ebp-0x1c], pass via [esp]
+ *     fstp QWORD PTR [ebp-0x1c]
+ *     fld  QWORD PTR [ebp-0x1c]
+ *     fstp QWORD PTR [esp]
+ *     call 0x503a44                  ; sin
+ *     ...
+ *     ; cos: reload SAME slot
+ *     fld  QWORD PTR [ebp-0x1c]
+ *     fstp QWORD PTR [esp]
+ *     call 0x503994                  ; cos
+ *
+ * `[ebp-0x1c]` is FUN_00447f4f's per-handler "current angle" scratch.
+ * So `cosf(angle)` with the same `angle` as the paired sin is exact —
+ * not a guess.  Verified for all ~10 paired sites in the function.
+ * (Was pending-human-check item #7; resolved 2026-05-23.)
  */
 
 #include "scene1_spawn.h"
@@ -1585,10 +1598,10 @@ static void init_type_78(int i, float x, float y, float z, float scale,
  *
  * Returns after 12 particles (LAB_0044acd9: bVar11 = local_8 == 0xb).
  *
- * Pending human check: the engine's argless `FUN_00503994()` at L1274
- * is interpreted as cos(angle) with the same `angle` as the paired sin
- * at L1269.  Same caveat as the C8i.2 radial-burst family — see
- * `openrecet_pending_human_checks` item #7. */
+ * The argless `FUN_00503994()` at L1274 is resolved by the same asm
+ * proof as the rest of FUN_00447f4f's paired sin+cos sites — see the
+ * file header above ("Note on argless FUN_00503994() cos calls").
+ * cos(angle) with the same `angle` as the paired sin is verbatim. */
 static void init_type_mega_group(int i, int count_index, float x, float y,
                                  float z, float scale)
 {

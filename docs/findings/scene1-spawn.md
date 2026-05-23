@@ -133,7 +133,7 @@ range predicate.
 | C8i.3b | mixed-shape multi-particle radials (lines 289-527): 0x53, 0x4a, 0x43, 0x97, 0x96, 0x40, 0x36, 0x74, 0x4e | ~250 landed | 0x97/0x96 are 64-spawn spherical with secondary u*π/2 elevation; 0x96 adds camera-angle bend via stand-in global `g_scene1_spawn_camera_counter_948` (pending-human-check #8 — engine reads `*(int*)(slot_hint+0x948)` directly). 0x4a writes matrix rot seeds + PARAM1=param_7 + AGE=local_8*-4 (8-spawn via LAB_0044acd2). 0x36/0x74 are param_7-count (dispatcher gained `spawn_count_is_param7` fork). |
 | C8i.3c | local_8-azimuth + chain pair (lines 528-735): 0x34, 0x35, 0x2c, 0x29, 0x32, 0x4c, 0x55, 0x4b, 0x33, 0x4d, 0x51, 0x57, 0x3e | ~400 landed | 0x34 has a dead-coded vel batch overwritten by final vel.y/z = u*2π (engine reuses VEL slots as integrator scratch). 0x35 is the kill-chain target; preamble vel=0 means pos collapses to (x,y,z). 0x29 doesn't write pos/age/PARAM1 at all — preamble values stand. The string family (0x32 / 0x4c / 0x55 / 0x4b / 0x33 / 0x4d / 0x51 / 0x57 / 0x3e) all encode `rot.x = local_8 * π + offset` (offset π/2 for 0x32, π/4 for the rest). 0x33/0x4d/0x51 then overwrite rot.x with random. 28 host tests added (1009 → 1037 total). |
 | C8i.3d | orbit/fountain/world-jitter exotics (lines 736-975): 0x3d, 0x6d, 0x45, 0x6c, 0x6e, 0x1f, 100, 0x23, 0x22, 0x3c, 0x5a, 0x2d, 0x1d | ~500 landed | 0x6d/0x45 share an init_camera_fountain_common helper reading g_scene1_camera_yaw_alt (engine DAT_056db05c). 0x1f/100 read new stub global g_scene1_spawn_scene_counter_dab58 (engine DAT_056dab58 — pending-human-check #8). 0x6e computes vel = (random target on r=15 circle - pos)/100 (lerp into 100 ticks). 0x22/0x3c/0x5a/0x2d are 20-particle world-jitter; 0x2d uniquely uses pos += offset (relative) instead of BASE write. 0x23 is preamble-only (engine just returns after the slot commit). 0x1d returns from FUN_00447f4f directly (no LAB chain) — vel = (u-0.5)*scale*12 cube. spawn_count_is_param7 extended for 0x6d/0x45. 31 host tests added (1037 → 1068 total). |
-| C8i.4 | line-1240 mega-group (34 types in one body) | ~120 landed | `init_type_mega_group()` + `is_mega_group_type()` range-predicate.  Covers 0x25-0x28, 0x37-0x3a, 0x46-0x49, 0x7a-0x84, 0x86-0x90 (note 0x85 is NOT a member).  12 particles per call; small ground-skew vel, world-radial xz pos jitter via sin/cos*amp, raw-unit rot.x, alternating-sign rot.y wobble, PARAM2 = u%10 (color cycle).  Engine's argless `FUN_00503994()` at L1274 treated as cos(angle) — same caveat as C8i.2 pending-human-check #7.  14 new host tests (1068 → 1082 total). |
+| C8i.4 | line-1240 mega-group (34 types in one body) | ~120 landed | `init_type_mega_group()` + `is_mega_group_type()` range-predicate.  Covers 0x25-0x28, 0x37-0x3a, 0x46-0x49, 0x7a-0x84, 0x86-0x90 (note 0x85 is NOT a member).  12 particles per call; small ground-skew vel, world-radial xz pos jitter via sin/cos*amp, raw-unit rot.x, alternating-sign rot.y wobble, PARAM2 = u%10 (color cycle).  Engine's argless `FUN_00503994()` at L1274 = cos(angle) (same `[ebp-0x1c]` stack-local as the paired sin — see "Quirks" §).  14 new host tests (1068 → 1082 total). |
 | C8i.5 | param_7-count + table-dep + activation-gate + chained-spawn tails (0x12/0x54/0x6e/0x75/0x93/0x98 + 6-9 + 0x11 + 0x59/0x67/0xe/0x2b/0x1b/0x3b/0x76 + 0x21 + 0x32 + 0x41/0x61/0x62/0x72 + 0x4f/0x58/0x3f/0x56/0x10/0x91/0xf/0x71/0x50/0x15/0x16/0x18/0x44/0x42/0x94/0x2e/0x1e/0x2a/0x13/0x14/0x24/0x5f/4/0x70/0x1c/0x19/0x1a) | ~300 | resolves pending-human-check items #3 and #6 (5-arg Ghidra sig confirmed once the caller-stack layout for chained spawn is observed in raw asm) |
 
 After C8i.5 lands, all ~95 per-type spawn handlers are covered and
@@ -228,6 +228,17 @@ Future chips (especially C8i.4) will hit them too.
    types that goto LAB_0044aa47 (which compares `local_8 + 1 ==
    param_7`).  Don't try to encode this as a single switch — it's
    really two predicates.
+
+8. **Ghidra's "argless" `FUN_00503994()` (cos) is not really argless.**
+   At every paired sin+cos site (group A, 0x92, 0x79, 0x5d, 0x68,
+   0x73/0x77, 99, 0x78, 0x53, 0x43, 0x97, 0x96, 0x4e, the mega-group
+   at L1274, and the C8i.3d fountain types), the asm stashes the angle
+   in stack-local `[ebp-0x1c]` before the sin call, and the cos call
+   reloads from that same slot.  Ghidra just drops the QWORD load.
+   So `cosf(angle)` with the same `angle` as the paired sin is verbatim
+   — not a guess.  Verified by raw asm via `objdump -d
+   --start-address=0x447f4f` on the unpacked exe (2026-05-23).
+   (Was pending-human-check item #7; resolved.)
 
 ## Pending-human-check tie-ins
 
