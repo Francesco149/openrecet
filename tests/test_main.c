@@ -918,6 +918,13 @@ struct test_case {
     X(stage_state_idempotent) \
     X(stage_state_overwrites_stale) \
     \
+    X(stage_palette_size) \
+    X(stage_palette_offsets) \
+    X(stage_palette_init_house_pointer) \
+    X(stage_palette_init_house_zeroes) \
+    X(stage_palette_init_house_zeroes_padding) \
+    X(stage_palette_init_house_idempotent) \
+    \
     X(scene_table_introspection) \
     X(scene_table_param1_loads_non_selector) \
     X(scene_table_param0_loads_only_selector) \

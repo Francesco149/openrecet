@@ -57,6 +57,7 @@
 #include "mesh.h"
 #include "mesh_draw.h"
 #include "mesh_load.h"
+#include "stage_palette.h"
 #include "stage_state.h"
 #include "tick.h"
 
@@ -516,6 +517,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * resets+re-seeds works. The load chain (worker_load_spawn) is
      * still NOT kicked yet — that's C7e (FUN_00474a9a port). */
     stage_init_house();
+
+    /* C7d: point g_stage_palette at the stage-0 HOUSE palette record
+     * (engine analog: DAT_068dd2f0). Fields scene-1 reads (mode,
+     * gravity vec, lighting flags, clear color) all stay at zero —
+     * matches engine BSS-zero defaults for HOUSE. The clear color
+     * path in FUN_004547ab and the lighting/fog state in FUN_00459dfd
+     * will both read from this record once their porters land. */
+    stage_palette_init_house();
 
     /* Build the menu items table (FUN_0049a43d). Fresh boot = no
      * saves; 4 items: New Game / Ranking / Options / Exit. Then seed

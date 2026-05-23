@@ -155,11 +155,20 @@ These backfill enough state for the scene-1 load chain to fire.
   having the explicit hook lets future stage transitions fan out
   from one place + documents the slot-0-is-starter-asset
   contract.
-- **C7d — DAT_068dd2f0 stage palette stub.** Expose a global pointer
-  + a static "stage 0" record with the fields scene-1 reads (clear
-  color at +0x1aa8/ac/b0, gravity at +0x1a7c/80/84, lighting flags
-  at +0x1a88/8c). Hardcoded values matching the engine's first-house
-  defaults.
+- **C7d — DAT_068dd2f0 stage palette stub.** ✅ Landed 2026-05-23
+  (`src/stage_palette.{c,h}` + main.c wire). `stage_palette_init_house()`
+  zeroes the 0x1b3c-byte HOUSE record and points `g_stage_palette` at
+  it. Engine record stride confirmed from
+  `DAT_068dd2f0 = &DAT_068dd2f8 + DAT_0438b4dc * 0x1b3c` in
+  FUN_00474681 / FUN_00436f97. The struct types the fields scene1
+  reads up to +0x1ab0 (`mode`, `gravity_x/y/z`, `lighting_flag_1a88/8c`,
+  `clear_r/g/b`) with `_Static_assert(offsetof)` on each; the rest is
+  opaque padding awaiting its porter. Other fields visible in scene-1
+  reads (fog start/end @ +0x1a38/3c, fog color @ +0x1a40 and
+  +0x1a90/94/98, vec @ +0x1adc, lighting flag @ +0x1ae0, boot-trigger
+  flag @ +0x1b28) stay typed-as-padding here; each gets named in the
+  chip that ports its reader (C7g/C7h or later). 6 new host tests
+  (848 total from 842). title-z-press 14/14 bit-exact.
 
 ### Pre-load trigger
 

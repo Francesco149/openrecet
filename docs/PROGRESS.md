@@ -3,6 +3,48 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-23 — scene-1 render: C7d stage palette stub (`src/stage_palette.{c,h}`)
+
+Fourth chip on the scene-1 render ladder. Adds the per-stage palette/
+state record (engine `DAT_068dd2f8`-based, stride 0x1b3c) and the
+current-entry pointer (engine `DAT_068dd2f0`). HOUSE-only for now —
+the stage 0 record is statically allocated, zero-initialised, and
+the pointer is parked at it during boot.
+
+Engine layout: `DAT_068dd2f0 = &DAT_068dd2f8 + DAT_0438b4dc * 0x1b3c`
+in FUN_00474681 / FUN_00436f97. The 0x1b3c (7036-byte) record is the
+per-stage palette: scene-1 reads `mode` at +0, the gravity / light
+direction vec at +0x1a7c/80/84, lighting flags at +0x1a88/8c, fog
+state at +0x1a38..40 + +0x1a90..98 + +0x1adc/e0, clear color at
++0x1aa8..b0, and a boot-trigger flag at +0x1b28. Total of ~15 distinct
+typed reads across 459dfd / 4547ab / 405d70 / 458f67 / 4552d0 / 4597ad
+/ 4597dd / 458bdf / 436f97 / 4176ff.
+
+The stub types only the fields scene1-render.md C7d explicitly calls
+out (`mode`, `gravity_x/y/z`, `lighting_flag_1a88/8c`, `clear_r/g/b`).
+The rest stay as opaque `_pad_<offset>` arrays; each gets named when
+its reader ports (C7g/C7h or later). Every typed field has a
+`_Static_assert(offsetof)` so layout drift surfaces at compile time.
+
+HOUSE defaults are all zero — same observable state as engine BSS, so
+nothing renders differently today (and the load chain is still
+dormant; that's C7e). The point is to seat the global so future
+function ports can read `g_stage_palette->clear_r` etc. directly
+instead of inventing yet another local.
+
+Wired into main.c boot right after `stage_init_house()`. Idempotent
++ overwrite-zero contract enforced by tests (same shape as C7c).
+
+6 new host tests covering layout / pointer wiring / zero defaults /
+padding-zone scrub / idempotence (848 total from 842). title-z-press
+14/14 bit-exact.
+
+**Next:** C7e — port `FUN_00474a9a` (760 B, scene-1 pre-load entry).
+With C7c (selectors) + C7d (palette pointer + mode flag) in place the
+function has enough state to read `*DAT_068dd2f0 == 0` and take the
+HOUSE branch. The port will spawn the secondary worker bodies that
+have been registered since C0A but never fired.
+
 ## 2026-05-23 — scene-1 render: C7c minimal stage-state seed (`src/stage_state.{c,h}`)
 
 Third chip on the scene-1 render ladder. Adds an explicit
