@@ -120,6 +120,7 @@ static float            g_show_mesh_zoom    = 1.0f;
  * the real walker. */
 static int              g_house_preview        = 0;
 static char            *g_house_preview_path   = "xfile/shop/shop_1st.x";
+static char            *g_house_preview_dump   = NULL;  /* see --house-preview-dump */
 static mesh_t          *g_house_preview_mesh   = NULL;
 
 /* Scene-0 (title) state now lives in scene_title.c as module globals
@@ -267,6 +268,7 @@ static void  shutdown_render(void);
 static void  render_dispatch(void);
 static void  parse_cmdline(LPSTR lpCmdLine);
 static void  capture_backbuffer(void);
+static mesh_t *house_preview_load_dump(const char *dir, IDirect3DDevice8 *dev);
 
 /* Phase A wrappers. `recording_input_poll` is the wrapping
  * input-callback when --input-trace-record is set; `replay_input_poll`
@@ -464,8 +466,21 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     /* --house-preview: C7d throwaway. Same shape as --show-mesh above,
      * just a separately-tracked mesh that scene_ingame_render swaps in
      * for the placeholder. Failures here are fatal-to-the-preview but
-     * not to boot — fall back to the placeholder ingame screen. */
-    if (g_house_preview) {
+     * not to boot — fall back to the placeholder ingame screen.
+     *
+     * --house-preview-dump <dir> swaps the mesh_load call for a direct
+     * VB+IB read from a retail-format dump dir (vb.bin + ib.bin). This
+     * lets us A/B test render vs parser: if retail's bytes render
+     * correctly through our pipeline but our parser's output doesn't,
+     * the bug is in our parser; if both look the same, parser is fine
+     * and any remaining divergence is in the render path. */
+    if (g_house_preview && g_house_preview_dump) {
+        g_house_preview_mesh = house_preview_load_dump(g_house_preview_dump, g_dev);
+        if (!g_house_preview_mesh) {
+            fprintf(stderr, "openrecet: house-preview-dump load failed: %s\n",
+                    g_house_preview_dump);
+        }
+    } else if (g_house_preview) {
         g_house_preview_mesh = mesh_load(g_house_preview_path, -1);
         if (!g_house_preview_mesh) {
             fprintf(stderr, "openrecet: house-preview mesh_load failed: %s\n",
@@ -1174,6 +1189,101 @@ static void shutdown_render(void)
     if (g_d3d8_dll) { FreeLibrary(g_d3d8_dll); g_d3d8_dll = NULL; }
 }
 
+/* ─── house-preview dump loader ──────────────────────────────────────────
+ *
+ * Reads a retail-format mesh dump (vb.bin + ib.bin from tools/dump-
+ * retail-meshes.py or tools/dump-our-mesh) into a fresh mesh_t,
+ * uploads VB+IB to D3D, computes bounds. The mesh has a single
+ * submesh covering all indices and no materials/textures — meant for
+ * "did the geometry render correctly" smoke tests, not pretty
+ * rendering. mesh_draw_d3d8 with no texture falls back to white
+ * diffuse, so the output is white-shaded geometry under the preview
+ * lighting setup.
+ *
+ * Format assumed (FVF 0x152, 16-bit indices):
+ *   vb.bin   raw mesh_vertex array (36 B/vertex)
+ *   ib.bin   raw uint16 indices, globally addressed into VB
+ *
+ * Returns NULL on any failure (file not found, size mismatch, upload
+ * fail). Caller mesh_free()s the result.
+ */
+static char *house_preview_slurp(const char *path, size_t *out_len)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) { return NULL; }
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    if (sz < 0) { fclose(f); return NULL; }
+    rewind(f);
+    char *buf = (char *)malloc((size_t)sz);
+    if (!buf) { fclose(f); return NULL; }
+    size_t got = fread(buf, 1, (size_t)sz, f);
+    fclose(f);
+    if (got != (size_t)sz) { free(buf); return NULL; }
+    *out_len = (size_t)sz;
+    return buf;
+}
+
+static mesh_t *house_preview_load_dump(const char *dir, IDirect3DDevice8 *dev)
+{
+    char path_vb[MAX_PATH], path_ib[MAX_PATH];
+    snprintf(path_vb, sizeof path_vb, "%s/vb.bin", dir);
+    snprintf(path_ib, sizeof path_ib, "%s/ib.bin", dir);
+
+    size_t vb_len = 0, ib_len = 0;
+    char *vb_buf = house_preview_slurp(path_vb, &vb_len);
+    char *ib_buf = house_preview_slurp(path_ib, &ib_len);
+    if (!vb_buf || !ib_buf) {
+        fprintf(stderr, "house-preview-dump: missing vb.bin or ib.bin in %s\n", dir);
+        free(vb_buf); free(ib_buf);
+        return NULL;
+    }
+    if (vb_len % sizeof(mesh_vertex) != 0 || ib_len % sizeof(uint16_t) != 0) {
+        fprintf(stderr, "house-preview-dump: %s sizes don't divide cleanly "
+                "(vb=%zu ib=%zu)\n", dir, vb_len, ib_len);
+        free(vb_buf); free(ib_buf);
+        return NULL;
+    }
+
+    int32_t vcount = (int32_t)(vb_len / sizeof(mesh_vertex));
+    int32_t icount = (int32_t)(ib_len / sizeof(uint16_t));
+
+    mesh_t *m = (mesh_t *)calloc(1, sizeof *m);
+    if (!m) { free(vb_buf); free(ib_buf); return NULL; }
+    snprintf(m->path, sizeof m->path, "%s (dump)", dir);
+    m->vertices      = (mesh_vertex *)vb_buf;   /* takes ownership */
+    m->vertex_count  = vcount;
+    m->indices       = (uint16_t *)ib_buf;       /* takes ownership */
+    m->index_count   = icount;
+
+    /* Single submesh covering everything. material_index=-1 →
+     * mesh_draw_d3d8 sets texture to NULL (white diffuse). */
+    m->submeshes = (mesh_submesh *)calloc(1, sizeof(mesh_submesh));
+    if (!m->submeshes) { mesh_free(m); return NULL; }
+    m->submeshes[0].vertex_offset  = 0;
+    m->submeshes[0].vertex_count   = vcount;
+    m->submeshes[0].index_offset   = 0;
+    m->submeshes[0].index_count    = icount;
+    m->submeshes[0].material_index = -1;
+    m->submesh_count = 1;
+
+    HRESULT hr = mesh_upload_d3d8(m, dev);
+    if (FAILED(hr)) {
+        fprintf(stderr, "house-preview-dump: mesh_upload_d3d8 failed: 0x%08lx\n",
+                (unsigned long)hr);
+        mesh_free(m);
+        return NULL;
+    }
+
+    mesh_compute_bounds(m);
+    fprintf(stderr,
+            "house-preview-dump: %s loaded (verts=%d idx=%d centroid="
+            "(%.2f, %.2f, %.2f) radius=%.2f)\n",
+            dir, m->vertex_count, m->index_count,
+            m->centroid[0], m->centroid[1], m->centroid[2], m->radius);
+    return m;
+}
+
 /* ─── frame render — partial FUN_004547ab port ──────────────────────────
  * Driven by tick_step_win32 as the `render` callback. The engine's
  * full FUN_004547ab dispatch fans into many per-state render functions
@@ -1438,6 +1548,14 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char house_buf[MAX_PATH];
                 lstrcpynA(house_buf, val, (int)sizeof(house_buf));
                 g_house_preview_path = house_buf;
+                g_house_preview = 1;
+            }
+        } else if (lstrcmpA(tok, "--house-preview-dump") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char dump_buf[MAX_PATH];
+                lstrcpynA(dump_buf, val, (int)sizeof(dump_buf));
+                g_house_preview_dump = dump_buf;
                 g_house_preview = 1;
             }
         } else if (lstrcmpA(tok, "--max-duration-ms") == 0) {
