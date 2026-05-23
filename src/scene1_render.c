@@ -725,6 +725,38 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     scene1_walk_tail_TODO();
 }
 
+/* ─── C8b — per-frame emit adapter ──────────────────────────────────── */
+
+void scene1_render_emit_frame(struct IDirect3DDevice8 *dev_in,
+                              const float world_matrix[16],
+                              const mesh_t *m)
+{
+    if (!dev_in || !m) return;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+
+    /* Engine FUN_004047df L15: SetTransform(D3DTS_WORLDMATRIX(0),
+     * &frame->world_matrix).  D3DTS_WORLDMATRIX(0) == 256 == 0x100,
+     * which D3D8 aliases to D3DTS_WORLD.  Passing NULL skips the
+     * write entirely (the engine never does this; for tests + debug
+     * paths that pre-set the matrix themselves). */
+    if (world_matrix) {
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLDMATRIX(0),
+                                      (const D3DMATRIX *)world_matrix);
+    }
+
+    /* Engine FUN_00403eb7 — per-subset SetMaterial + SetTexture +
+     * ID3DXMesh::DrawSubset.  Our mesh_draw_d3d8 inlines all three
+     * (SetStreamSource once, then per-submesh SetIndices +
+     * SetTexture + SetMaterial + DrawIndexedPrimitive), driven by
+     * our flat mesh_t instead of ID3DXMesh's attribute table.  Same
+     * D3D8 call output, different data source.
+     *
+     * See docs/findings/scene1-leaf-chain.md for the full mapping
+     * + the skinned-mesh branch (FUN_00404209 / 03f23 / 04500 /
+     * 04668) that's deferred to the chr walker chip. */
+    mesh_draw_d3d8(dev, m);
+}
+
 /* ─── C7g — FUN_0045404b port ───────────────────────────────────────── */
 
 void scene1_render_fx_tail(struct IDirect3DDevice8 *dev_in)

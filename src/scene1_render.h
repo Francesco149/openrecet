@@ -73,6 +73,8 @@
 
 #include <stdint.h>
 
+#include "mesh.h"
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;
@@ -245,6 +247,45 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev);
  * these via these accessors. */
 uint32_t scene1_render_phase_counter(void);  /* DAT_06a49b28 (+=0x11/frame) */
 uint32_t scene1_render_draw_counter(void);   /* DAT_06a49b24 (+=1/frame) */
+
+/* ───────────────────────────────────────────────────────────────────────
+ * C8b — per-frame emit adapter.
+ *
+ * Engine analog: FUN_00404a20 / FUN_004047df / FUN_00404757 /
+ * FUN_00403eb7 — see docs/findings/scene1-leaf-chain.md for the full
+ * mapping.  The engine walks a D3DXFRAME scene tree, calls
+ * SetTransform(D3DTS_WORLDMATRIX(0), &frame->world_matrix) per
+ * frame, then loops over the frame's mesh list calling either an
+ * FFP path (mesh+0x20 == 0, static meshes) or one of four
+ * programmable-shader paths (mesh+0x20 != 0, skinned chr).
+ *
+ * For HOUSE — which has zero skinned meshes — only the FFP path is
+ * reachable.  This adapter is the "draw one frame" primitive the
+ * shop walker (next chip, FUN_004552d0) will call once per (frame,
+ * mesh) pair it iterates.
+ *
+ * What it does:
+ *   1. SetTransform(D3DTS_WORLDMATRIX(0), world_matrix)
+ *   2. mesh_draw_d3d8(dev, m)   — equivalent to FUN_00403eb7's
+ *                                 per-subset SetMaterial + SetTexture
+ *                                 + DrawSubset loop, just driven by
+ *                                 our flat mesh_t instead of
+ *                                 ID3DXMesh's attribute table.
+ *
+ * No scene-tree state: the caller owns iteration.  Per-frame state
+ * (cull mode, depth, lighting, fog) is set by scene1_render_meshes
+ * once at frame start — this adapter doesn't touch it.
+ *
+ * world_matrix is a row-major float[16] (same as math3d.h /
+ * mat4_lookat_rh output).  A NULL world_matrix means "leave the
+ * current D3DTS_WORLD untouched"; the engine never does this but
+ * tests / debug paths may want it.
+ *
+ * No-op when dev or m is NULL.
+ */
+void scene1_render_emit_frame(struct IDirect3DDevice8 *dev,
+                              const float world_matrix[16],
+                              const mesh_t *m);
 
 /* ───────────────────────────────────────────────────────────────────────
  * C7g — scene-1 POST-walker tail
