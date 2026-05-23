@@ -393,3 +393,67 @@ correct.
   spawn API (needed for full integrator port — see C8i chip above).
 - `docs/decompiled/by-address/436f97.c`, `4427d3.c`, `442cef.c`,
   `4536cb.c`, `48dbfb.c` — the 5 call sites.
+
+## C8h.1 landed (2026-05-23)
+
+`src/scene1_particles_tick.{c,h}` + `src/scene1_spawn.{c,h}` +
+18 new unit tests.  All 869 host tests pass; Win32 build links;
+boot-idle scenario unchanged.
+
+### Ports in this chip
+
+| Type(s)   | Behavior                                                | Notes                                     |
+|-----------|---------------------------------------------------------|-------------------------------------------|
+| 6, 7, 8, 9| Camera-orbit attract (4-share one body)                  | See "Pending human checks" §1            |
+| 0x20      | Player-snap to spawn-origin; chains 0x21 every 4 ticks   | Chain spawn goes through scene1_spawn()   |
+| 0x21      | Cone-spread vel sampling; table-B-referenced kill gate   | -                                         |
+
+### Unwired status
+
+`scene1_particles_tick()` has **no caller**.  The engine's per-tick caller
+is `FUN_004536cb` (1745 B, INGAME sim branch — unported).  The
+integrator currently runs only from the unit tests; sim integration
+lands when `FUN_004536cb`'s scene-1 case ports.
+
+### Pending human checks (for next-session Frida validation)
+
+These are the items where Ghidra's decomp dropped FPU-stack
+arguments and the port made best-guess reconstructions.  Each needs a
+short Frida read of the retail integrator to confirm the actual arg.
+
+1. **Type 6..9 — line 1120 of FUN_0040fb3a.**
+   Decomp shows `fVar9 = (float10)FUN_00503a44();` with no argument.
+   Our port uses `sinf((float)age)` based on the most-recent FPU
+   load.  The visible effect is "vertical bob" on pos.y.
+   - Verify via: spawn a type-6 particle in retail, snapshot pos.y
+     over 20 ticks, fit against `sinf(age * k)` for various k.
+   - Likely candidates besides age: `age * 0.08`, `local_c - yaw`
+     (the orbit angle from L1107).
+
+2. **Type 0x21 — line 487.**
+   `fVar9 = (float10)FUN_00503994();` with no arg.  Port uses
+   `cosf(angle)` where angle is the just-stored `(age * π/4) / 32`.
+   This one is **less ambiguous** — only one float was on FPU TOS.
+   Confidence: HIGH.  Frida-verify only if a divergence shows up.
+
+3. **scene1_spawn trailing args.**
+   The integrator's chain-spawn calls use `scene1_spawn(0, x, y, z,
+   type, 1.0f, 0)`.  The engine's Ghidra decomp shows only 5 args
+   (e.g. L471: `FUN_00447f4f(0, pos.x, pos.y, pos.z, 0x21)`).  The
+   trailing `scale` + `param7` are dropped by Ghidra.  Defaults of
+   `1.0f` and `0` are MVP-safe; the real values land when the C8i
+   chip ports the spawn API and we can read the engine's actual
+   call-site stack layout.
+
+4. **Type 0x21 — table-B OOB read.**
+   Engine reads `g_scene1_records_b[PARAM2 * 0x49]` without bounds
+   checking.  Our port treats OOB as "scene_alive" rather than
+   crashing.  If a retail test produces an observable crash on OOB
+   PARAM2, we'll revert to the unchecked read; for now safe-default.
+
+### Files added/changed
+- NEW `src/scene1_particles_tick.{c,h}` — the integrator (4 handlers).
+- NEW `src/scene1_spawn.{c,h}` — stub for FUN_00447f4f (record-only).
+- NEW `tests/test_scene1_particles_tick.c` (15 tests).
+- NEW `tests/test_scene1_spawn.c` (3 tests).
+- `tests/Makefile`, `tests/test_main.c` — wire new modules + tests.

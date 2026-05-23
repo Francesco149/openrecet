@@ -941,7 +941,27 @@ struct test_case {
     X(scene_sc1_var_sprite_loop) \
     X(scene_sc1_item_loop_skips_empty) \
     X(scene_sc1_cap_clamps_count) \
-    X(scene_sc1_null_callbacks_count_only)
+    X(scene_sc1_null_callbacks_count_only) \
+    \
+    X(scene1_spawn_first_call_recorded) \
+    X(scene1_spawn_ring_wraps) \
+    X(scene1_spawn_reset_clears) \
+    \
+    X(particles_tick_empty_tables_noop) \
+    X(particles_tick_ignores_unported_types) \
+    X(particles_tick_type_6_initial_position) \
+    X(particles_tick_type_7_8_9_share_body) \
+    X(particles_tick_type_6_kills_on_scene_dead) \
+    X(particles_tick_type_6_interp_saturates) \
+    X(particles_tick_type_20_snaps_to_origin) \
+    X(particles_tick_type_20_spawns_every_4_ticks) \
+    X(particles_tick_type_20_kills_on_scene_dead) \
+    X(particles_tick_type_21_basic_velocity_and_rotation) \
+    X(particles_tick_type_21_kills_at_age_0x20) \
+    X(particles_tick_type_21_no_snap_when_param2_minus1) \
+    X(particles_tick_type_21_kills_when_table_b_empty) \
+    X(particles_tick_type_21_lives_when_table_b_active) \
+    X(particles_tick_chain_20_to_21_records_spawn)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
