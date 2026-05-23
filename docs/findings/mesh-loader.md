@@ -1,10 +1,12 @@
 # Mesh loader — `xfile/*.x` + `xfile2/*.x`
 
-**Status (2026-05-23):** **5 of 7 chips landed** — C1 survey, C2 Python
+**Status (2026-05-23):** **6 of 7 chips landed** — C1 survey, C2 Python
 oracle, C3 C parser (`src/xfile.{c,h}`), C4 mesh build + bounds + D3D8
-upload (`src/mesh.{c,h}`), **C5 orchestrator** (`src/mesh_load.{c,h}`).
-Remaining: C6 wire AAB + C0A worker bodies, C7+ scene-1 render. 821
-unit tests pass under ASan + UBSan (was 807; +14 from C5).
+upload (`src/mesh.{c,h}`), C5 orchestrator (`src/mesh_load.{c,h}`),
+**C6 worker-body wiring** (`src/scene_table.{c,h}` + `src/scene_sc1.{c,h}`).
+Remaining: C7+ scene-1 render (Mt. Everest in its own right; separate
+roadmap). 834 unit tests pass under ASan + UBSan (was 807; +14 C5 + +13
+C6).
 
 Triggered the port because **AAB** (FUN_0046bf38, scene_walls inner body)
 and **C0A** (FUN_004748f8, scene_floor jutan-table sibling) — two of the
@@ -244,10 +246,50 @@ Smallest-first, each chip self-contained and commit-worthy:
      for any cache entry whose `sprite` is still NULL; mesh VB/IB
      upload via the existing `mesh_upload_d3d8`. Not hooked into the
      boot path yet — AAB/C0A wiring (C6) does that.
-6. **C6 — wire AAB + C0A worker bodies.** Now-unblocked scene_walls
-   inner-body (FUN_0046bf38) + scene_floor/jutan C0A
-   (FUN_004748f8) using `mesh_load`. State arrays for the loaded
-   meshes per stage selector.
+6. **C6 — wire AAB + C0A worker bodies ✓ (2026-05-23,
+   `src/scene_table.{c,h}` + `src/scene_sc1.{c,h}`).**
+
+   **C0A — `scene_table`** (FUN_004748f8, 169 B). Direct structural
+   sibling of the wall/floor/jutan loader trio: per-stage selector
+   predicate inverted by `param`, but each matching slot loads a PAIR
+   of `.x` meshes via `mesh_load`. 8 pairs / 16 mesh slots,
+   pre-baked filename table from .rdata 0x5c8018..0x5c8058 (shop_table /
+   shop_danbo / shop_desk / shop_tarudesk / shop_shokutaku /
+   shop_kyoudan / shop_jya / shop_jwel — each in 01/02 variants).
+   Format `"xfile/table/%s"`. Selector at stage offset 0x588. Win32
+   body wires `scene_table_load_with(...)` → `mesh_load(path, -1)` +
+   `mesh_load_finalize_win32`. Pure-C `scene_table_load_with` is the
+   test-injectable entry point (load_fn captures dispatches).
+
+   **AAB — `scene_sc1`** (FUN_0046bf38, 230 B). Last of the 9
+   secondary worker inner bodies, structurally distinct from the
+   wall/floor/jutan/table siblings — runs 4 buckets:
+     1. Two unconditional fixed `sprite_load`s
+        (`bmp/ivent/ive_window.tga` + `bmp/ivent/chrname.tga`, both
+        0x200×0x200).
+     2. Variable `.x` mesh loop gated by `g_scene_sc1_mesh_count`
+        (engine DAT_073a3dfc). Mesh names at
+        `g_scene_sc1_mesh_names[100][256]`, dest at
+        `g_scene_sc1_meshes[100]`. Dormant by default.
+     3. Variable sprite loop gated by `g_scene_sc1_sprite_count`
+        (engine DAT_073a3df0). Names at
+        `g_scene_sc1_sprite_names[100][256]`, dims 0x400×0x200. Dormant
+        by default.
+     4. Fixed 100-slot sprite array (engine DAT_073a3ab8..DAT_073a3dd8
+        size-pair range, 8-byte stride = 100 entries). Each slot
+        loaded only when name is non-empty.
+
+   State arrays exposed as named BSS-zero externs; will populate
+   automatically once item / stage loaders port. Win32 body wires the
+   load_fn callbacks against `g_scene_sc1_{ive_window,chrname,sprites[],
+   items[],meshes[]}`. Body is dormant in practice today (worker AAB
+   has no caller until INGAME starters port).
+
+   Both modules registered via `worker_load_set_sec_body` from
+   `main.c` after the wall/floor/jutan trio. All 9 worker inner-body
+   slots now wired (C96 state-machine FUN_0049de20 first-call still
+   deferred — see src/scene_worldmap.h).
+
 7. **C7+ — actual rendering.** The mesh data exists in GPU memory
    but nothing draws it yet. Wires into the scene-1 render path
    (FUN_004547ab state==1 branch — Mt. Everest in its own right;

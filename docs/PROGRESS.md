@@ -3,6 +3,88 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-23 — mesh loader: C6 worker bodies (AAB + C0A, `src/scene_{sc1,table}.{c,h}`)
+
+Sixth chip on the FUN_00472836 family — wires the last two NULL
+secondary worker inner bodies through C5's `mesh_load`. All 9 worker
+inner-body slots are now bound (modulo the C96 state-machine
+FUN_0049de20 first-call, still deferred). 13 new unit tests (834 total
+from 821). boot-idle 3/3 + title-z-press 14/14 bit-exact.
+
+### C0A — `scene_table` (`src/scene_table.{c,h}`)
+
+Ports FUN_004748f8 (169 B). Direct structural sibling of the
+wall/floor/jutan loader trio — same per-stage selector predicate
+inverted by `param`, but each matching slot now loads a PAIR of `.x`
+meshes via `mesh_load` instead of a single sprite.
+
+- 8 pairs × 2 names = 16 mesh slots in `g_scene_table[16]`.
+- Filename table pre-baked from .rdata 0x5c8018..0x5c8058: shop_table /
+  shop_danbo / shop_desk / shop_tarudesk / shop_shokutaku /
+  shop_kyoudan / shop_jya / shop_jwel — each in 01/02 variants.
+- Format `"xfile/table/%s"`. Selector at stage offset 0x588
+  (`g_scene_table_selector`, standalone int32 until stage state ports).
+- Win32 body: `scene_table_body` → `scene_table_load_with(...)` →
+  `mesh_load(path, -1)` + `mesh_load_finalize_win32`.
+- Pure-C `scene_table_load_with(load_fn, userdata, param)` is the
+  test-injectable entry point — load_fn captures `(path, slot)`
+  dispatches without dragging in mesh_load / D3D.
+
+### AAB — `scene_sc1` (`src/scene_sc1.{c,h}`)
+
+Ports FUN_0046bf38 (230 B). Last of the 9 secondary worker inner
+bodies; structurally distinct from the wall/floor/jutan/table siblings
+— runs 4 buckets:
+
+1. **Two unconditional fixed sprite_loads**: `bmp/ivent/ive_window.tga`
+   and `bmp/ivent/chrname.tga`, both 0x200×0x200, into
+   `g_scene_sc1_ive_window` / `g_scene_sc1_chrname`.
+2. **Variable `.x` mesh loop** gated by `g_scene_sc1_mesh_count`
+   (engine DAT_073a3dfc). Names at `g_scene_sc1_mesh_names[100][256]`
+   (engine DAT_0734fff0, 0x100 stride). Dest at `g_scene_sc1_meshes[100]`
+   (engine DAT_0735dd88, 0x28 stride — the D3DX mesh-dest struct
+   array). Dormant by default.
+3. **Variable sprite loop** gated by `g_scene_sc1_sprite_count`
+   (engine DAT_073a3df0). Names at `g_scene_sc1_sprite_names[100][256]`
+   (engine DAT_07350df0). Dest at `g_scene_sc1_sprites[100]` (engine
+   DAT_073571f0, 0x10 stride). Dims 0x400×0x200. Dormant.
+4. **Fixed 100-slot sprite array** (engine puVar5 range DAT_073a3ab8 ..
+   DAT_073a3dd8 = 100 × 8-byte size pairs). Names at
+   `g_scene_sc1_item_names[100][256]` (engine DAT_07357830), sizes at
+   `g_scene_sc1_item_sizes[100][2]` (engine DAT_073a3ab8, w/h dwords),
+   dest at `g_scene_sc1_items[100]` (engine DAT_0734f9b0). Slot skipped
+   when name is the empty string.
+
+State arrays are named BSS-zero externs — once item-table / scene-1
+init code ports, those writers populate the names + sizes + counts and
+this body picks them up automatically. The body itself is dormant in
+practice today (the AAB spawner has no port-side caller until INGAME
+starters port).
+
+Test entry point: `scene_sc1_load_with(sprite_fn, mesh_fn, userdata)`.
+`sprite_fn(path, kind, slot, w, h, ud)` distinguishes buckets via a
+`SCENE_SC1_KIND_*` enum (IVE_WINDOW / CHRNAME / VAR_SPRITE / ITEM).
+
+### Wiring
+
+Both modules `worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_{AAB,C0A},
+…)` from `main.c` after the existing wall/floor/jutan trio. With C6
+landed, worker_load.h's inner-body table marks AAB + C0A both WIRED;
+the only remaining gap on the worker side is the C96 state-machine
+FUN_0049de20 first-call (deferred — see src/scene_worldmap.h).
+
+### Tests (13)
+
+scene_table (7): introspection (format, filename), param==1 loads 7
+non-selector pairs (14 dispatches), param==0 loads only the selector
+pair (2 dispatches), OOB selector both directions, pair slot ordering
+(pair*2 then pair*2+1), NULL load_fn dry-run.
+
+scene_sc1 (6): dormant default fires only the 2 fixed sprites,
+variable mesh / variable sprite loops fire when count > 0, fixed
+100-slot loop skips empty names (sparse population), cap clamps over-
+sized count, NULL callbacks count-only run.
+
 ## 2026-05-23 — mesh loader: C5 orchestrator (`src/mesh_load.{c,h}`)
 
 Fifth chip on the FUN_00472836 family, picking up where C4 left off.

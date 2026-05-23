@@ -38,6 +38,8 @@
 #include "scene_floor.h"
 #include "scene_jutan.h"
 #include "scene_pause.h"
+#include "scene_sc1.h"
+#include "scene_table.h"
 #include "scene_walls.h"
 #include "scene_worldmap.h"
 #include "sysassets.h"
@@ -454,6 +456,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     scene_jutan_init(g_dev);
     scene_pause_init(g_dev);
     scene_worldmap_init(g_dev);
+    scene_table_init(g_dev);
+    scene_sc1_init(g_dev);
 
     /* Build the menu items table (FUN_0049a43d). Fresh boot = no
      * saves; 4 items: New Game / Ranking / Options / Exit. Then seed

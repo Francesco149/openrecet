@@ -906,7 +906,22 @@ struct test_case {
     X(mesh_load_cache_capacity) \
     X(mesh_load_from_buf_synthetic) \
     X(mesh_load_from_buf_no_texture) \
-    X(mesh_load_vendor_corpus)
+    X(mesh_load_vendor_corpus) \
+    \
+    X(scene_table_introspection) \
+    X(scene_table_param1_loads_non_selector) \
+    X(scene_table_param0_loads_only_selector) \
+    X(scene_table_oob_selector_param0) \
+    X(scene_table_oob_selector_param1) \
+    X(scene_table_pair_slot_order) \
+    X(scene_table_null_loader_dry_run) \
+    \
+    X(scene_sc1_dormant_default) \
+    X(scene_sc1_var_mesh_loop) \
+    X(scene_sc1_var_sprite_loop) \
+    X(scene_sc1_item_loop_skips_empty) \
+    X(scene_sc1_cap_clamps_count) \
+    X(scene_sc1_null_callbacks_count_only)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

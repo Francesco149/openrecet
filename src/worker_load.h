@@ -115,13 +115,13 @@
  *
  *          slot | LAB         | engine inner-body call(s)
  *          -----+-------------+--------------------------------------
- *           AAB | 0x452aab    | FUN_0046bf38()                (sc1 inventory/chrname/icon loaders)
+ *           AAB | 0x452aab    | FUN_0046bf38()                (sc1 inventory/chrname/icon loaders — WIRED, src/scene_sc1.{c,h})
  *           AE8 | 0x452ae8    | FUN_0047329b()                (buy phase: per-entry + chrname + shopmode — WIRED, src/scene_buy.{c,h})
  *           B13 | 0x452b13    | FUN_0047333b()                (buy phase alt, per DAT_0730b56c page — WIRED, src/scene_buy.{c,h})
  *           B3E | 0x452b3e    | FUN_0047474e(1)               (wall asset loader — WIRED, src/scene_walls.{c,h})
  *           B82 | 0x452b82    | FUN_004747dc(1)               (floor asset loader — WIRED, src/scene_floor.{c,h})
  *           BC6 | 0x452bc6    | FUN_0047486a(1)               (jutan/rug asset loader — WIRED, src/scene_jutan.{c,h})
- *           C0A | 0x452c0a    | FUN_004748f8(1)               (table asset loader)
+ *           C0A | 0x452c0a    | FUN_004748f8(1)               (shop-table mesh loader — WIRED, src/scene_table.{c,h})
  *           C4E | 0x452c4e    | (unnamed @ 0x435873)()        (FPU state init — Ghidra missed it; WIRED, src/scene_pause.{c,h})
  *               |             | + FUN_00473a3e()              (pause menu + adventurer status assets — WIRED, src/scene_pause.{c,h})
  *           C96 | 0x452c96    | FUN_0049de20()                (world-map state machine entry)
@@ -136,12 +136,12 @@
  *
  *        All 12 targets are scene-1 (INGAME) specific — they'll wire
  *        up via worker_load_set_sec_body() when the respective scene
- *        loaders port. As of 2026-05-23 AE8 (buy phase page 0), B13
- *        (buy phase current-page), B3E (walls), B82 (floors), BC6
- *        (jutan/rugs), C4E (pause+status), and C96 (world-map BMP
- *        loader HALF — state-machine FUN_0049de20 first call deferred,
- *        see src/scene_worldmap.h banner) are wired; AAB and C0A stay
- *        NULL until their .x-mesh-using scene loaders port.
+ *        loaders port. As of 2026-05-23 all 9 inner-body slots are
+ *        wired (AAB src/scene_sc1.{c,h} + C0A src/scene_table.{c,h}
+ *        landed via the mesh-loader C6 chip; the C96 state-machine
+ *        FUN_0049de20 first-call is still deferred — see
+ *        src/scene_worldmap.h banner — but the LAB_00452c96 BMP-loader
+ *        half is wired).
  *     2. Falls into the shared secondary cleanup tail (CloseHandle,
  *        zero handle, zero 4995c, zero 49960).
  *     3. Writes its per-LAB_* "ready=1" state byte.
