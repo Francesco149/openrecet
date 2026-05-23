@@ -113,11 +113,25 @@ engine writes a 6-vertex strip (96 bytes effective).
 
 ## Where the records come from — FUN_0040fb3a (8071 B, sim-side)
 
-**This is the actual scene-1 record populator.** Bigger than the
-3D walker FUN_0040a765 (7558 B) it feeds. Every per-record table
-the wide-frustum render passes read (DAT_069b2fb0 / 069324b0 /
-06932548 / 06956cd8 / 0076bd94 / 0076bdc0) is written by this
-function on a per-tick cadence.
+> **Erratum (2026-05-23):** This section originally claimed
+> `FUN_0040fb3a` writes "every per-record table the wide-frustum
+> render passes read".  Survey work in
+> `docs/findings/scene1-particles-tick.md` shows that's wrong:
+> `FUN_0040fb3a` writes **only table A** (`DAT_069b2fb0`, 4096 ×
+> 0x25 dw) — the particle table. Tables B
+> (`DAT_069324b0` / `DAT_06932548` / `DAT_06932514`, stride 0x49)
+> and C (`DAT_06956cd8`, stride 0x25), plus the 0x2e9-stride
+> "people" table at `DAT_0076bd60+`, have **separate writers yet
+> to be found**. The MVP recommendation below is left in place but
+> see the particles-tick doc for a corrected, smaller MVP
+> (direct-injection of one type-0x92 slot in table A — bypasses
+> both the integrator and the spawn API).
+
+The (corrected) scope: `FUN_0040fb3a` is the per-tick **integrator**
+for the table-A particle records. Bigger than the 3D walker
+`FUN_0040a765` (7558 B). Inside the wide-followup it serves Pass F
+only (DAT_069b2fb0 type 0x92); Pass D of the C8c shop walker
+(`src/scene1_shop_walker.c` L240) also reads table A.
 
 Call sites for FUN_0040fb3a (sim-side, all unported today):
 
