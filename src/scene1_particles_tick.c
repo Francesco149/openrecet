@@ -78,6 +78,113 @@ static inline int slot_age(int i)   { return g_scene1_records_a[i * SCENE1_RECOR
 
 static inline void slot_kill(int i) { *slot_int(i, SCENE1_RECORDS_A_OFF_TYPE) = -1; }
 static inline void slot_age_inc(int i) { *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) += 1; }
+static inline void slot_add_f(int i, int off, float dv) { slot_set_f(i, off, slot_get_f(i, off) + dv); }
+
+/* ─── shared helpers for C8h.2 cookie-cutter handlers ────────────────
+ *
+ * Every "decay-drift" handler in FUN_0040fb3a follows one of a few
+ * shapes:
+ *
+ *  decay_drift_uniform(damp, kill_age)
+ *      pos += vel; vel *= damp (uniform across x/y/z); age++; kill at K.
+ *
+ *  decay_drift_grav_pre(damp, gravity_y, kill_age)
+ *      pos += vel; vel.y += gravity_y; vel *= damp; age++; kill at K.
+ *      (Gravity is applied BEFORE the damp.  Types 0x29, 0x1f, 100,
+ *       0x36, 0x74, 0x4e use this.)
+ *
+ *  decay_drift_grav_post(damp, gravity_y, kill_age)
+ *      pos += vel; vel *= damp; vel.y += gravity_y; age++; kill at K.
+ *      (Gravity is applied AFTER the damp.  Types 0x96, 0x97 use this.)
+ *
+ *  scaled_drift_uniform(damp, kill_age)
+ *      pos += vel * scale; vel *= damp; age++; kill at K.
+ *      (Scale = SCALE field at slot+14.  Many types use this.)
+ *
+ *  scaled_drift_gated(damp, age_low_gate, kill_age)
+ *      As scaled_drift_uniform but pos += only if age > age_low_gate
+ *      (engine "if (-1 < age)" → age >= 0 gate, etc.).
+ *
+ *  age_only(kill_age)
+ *      age++; kill at K.  Pure-age handlers like 0x44, 0x50.
+ *
+ *  field_decay_x(field_off, mul, kill_age)
+ *      slot[field_off] += vel.x * mul; age++; kill at K.
+ *      Mostly used to accumulate rot.x or rot.y from a "speed" stored
+ *      in vel.x.
+ *
+ *  age_only_kill_at_param1_offset(extra)
+ *      age++; kill at age == PARAM1 + extra.  Only type 0x5d uses this.
+ *
+ * All helpers below take a slot index plus the per-type constants and
+ * return void; callers are expected to gate by type in the outer loop. */
+
+static void decay_drift_uniform(int i, float damp, int kill_age)
+{
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * damp);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * damp);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * damp);
+    slot_age_inc(i);
+    if (slot_age(i) == kill_age) slot_kill(i);
+}
+
+static void decay_drift_grav_pre(int i, float damp, float gravity_y, int kill_age)
+{
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+    vy += gravity_y;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * damp);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * damp);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * damp);
+    slot_age_inc(i);
+    if (slot_age(i) == kill_age) slot_kill(i);
+}
+
+/* decay_drift_grav_post — not used by any landed handler yet; type
+ * 0x96/0x97 (the only post-damp gravity types in C8h.2) need extra rot
+ * bumps so they inline the math.  Will be useful when a later chip
+ * finds a "pure" post-damp variant.  Keep the helper out of the build
+ * for now (commented to avoid -Wunused-function). */
+
+static void scaled_drift_uniform(int i, float damp, int kill_age)
+{
+    float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * damp);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * damp);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * damp);
+    slot_age_inc(i);
+    if (slot_age(i) == kill_age) slot_kill(i);
+}
+
+static void age_only_kill_at(int i, int kill_age)
+{
+    slot_age_inc(i);
+    if (slot_age(i) == kill_age) slot_kill(i);
+}
+
+static void field_decay_x(int i, int field_off, float mul, int kill_age)
+{
+    float v = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    slot_add_f(i, field_off, v * mul);
+    slot_age_inc(i);
+    if (slot_age(i) == kill_age) slot_kill(i);
+}
 
 /* ─── per-frame open (FUN_00414929) ──────────────────────────────────
  *
@@ -299,6 +406,527 @@ static void handle_type_21(int i)
     }
 }
 
+/* ─── handler: type 0x68 — pure pos += vel (no damp), age++, kill ───
+ *
+ * Engine decomp L124-L134.  Unusual — no damp multiplication.  Often
+ * used for ballistic dust that just drifts and dies. */
+static void handle_type_68(int i)
+{
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x30) slot_kill(i);
+}
+
+/* ─── handler: types 0x96 / 0x97 — gravity-fall with rot bumps ──────
+ *
+ * Engine decomp L153-L170.  pos += vel; rot.x += 0.1; rot.y += 0.03;
+ * rot.z += 0.01.  Then damp 0.995 on all axes, vel.y -= 0.03, kill at
+ * 0x40.  Used for "puff" effects (smoke?) that slowly rotate while
+ * settling.
+ *
+ * Order from decomp: pos += vel, rot += ..., vel *= damp,
+ * vel.y -= grav, age++, kill check. */
+static void handle_type_96_97(int i)
+{
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_X, 0.1f);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, 0.03f);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, 0.01f);
+    vx *= 0.995f;  vy *= 0.995f;  vz *= 0.995f;
+    vy -= 0.03f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x40) slot_kill(i);
+}
+
+/* ─── handler: types 0x36 / 0x74 — gravity-fall, kill at PARAM1 ─────
+ *
+ * Engine decomp L338-L352.  damp 0.97 pre-grav, gravity -0.02.  Kill
+ * threshold is the per-record PARAM1 field.
+ *
+ * Type 0x4e (L353-L367) is structurally identical. */
+static void handle_type_36_74_4e(int i)
+{
+    int kill_at = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
+    decay_drift_grav_pre(i, 0.97f, -0.02f, kill_at);
+}
+
+/* ─── handler: type 0x29 — gravity -0.002, damp 0.97, kill 0x28 ─────
+ *
+ * Engine decomp L429-L443.  Note the gravity write order: vel.y -=
+ * 0.002 is between pos-add and the damp, so it qualifies as pre-damp
+ * gravity. */
+static void handle_type_29(int i)
+{
+    decay_drift_grav_pre(i, 0.97f, -0.002f, 0x28);
+}
+
+/* ─── handler: types 0x1f / 100 — gravity -0.001, damp 0.97, kill 0x20 */
+static void handle_type_1f_100(int i)
+{
+    decay_drift_grav_pre(i, 0.97f, -0.001f, 0x20);
+}
+
+/* ─── handler: type 0x45 — anchor-attached vel.y bias ───────────────
+ *
+ * Engine decomp L594-L608.  Unusual: pre-damp gravity reads
+ * BASE_Z (slot+11) and adds it to vel.y BEFORE the damp.  damp 0.97,
+ * kill 0x80.
+ *
+ * Verbatim: `vel.y = BASE_Z + vel.y;` then the standard damp.  Used
+ * for an effect where Z-position acts as a vertical force coupling
+ * (perhaps water-buoyancy or wave-drag). */
+static void handle_type_45(int i)
+{
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz);
+    float base_z = slot_get_f(i, SCENE1_RECORDS_A_OFF_BASE_Z);
+    vy += base_z;
+    vx *= 0.97f;  vy *= 0.97f;  vz *= 0.97f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x80) slot_kill(i);
+}
+
+/* ─── handler: type 0x60 — pure age, capped at 400, kill at 0x960 ───
+ *
+ * Engine decomp L69-L76.  Age stops advancing at 400 but slot only
+ * dies at 0x960.  Suggests "max bloom alpha at 400, hold until kill". */
+static void handle_type_60(int i)
+{
+    if (slot_age(i) < 400) slot_age_inc(i);
+    if (slot_age(i) == 0x960) slot_kill(i);
+}
+
+/* ─── handler: type 0x5d — pure age, kill at PARAM1 + 0x3e ──────────
+ *
+ * Engine decomp L218-L222 — combined into one if/else: age++ then
+ * kill if age == PARAM1 + 0x3e. */
+static void handle_type_5d(int i)
+{
+    slot_age_inc(i);
+    int kill_at = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) + 0x3e;
+    if (slot_age(i) == kill_at) slot_kill(i);
+}
+
+/* ─── handler: types 0x4b / 0x55 / 0x4c — field-decay variants ──────
+ *
+ * Engine decomp L505-L527.  rot.y += vel.x; age++; kill at K (or at
+ * PARAM2 + 0x28 for 0x4b). */
+static void handle_type_4b(int i)
+{
+    float v = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, v);
+    slot_age_inc(i);
+    int kill_at = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) + 0x28;
+    if (slot_age(i) == kill_at) slot_kill(i);
+}
+
+/* ─── handler: types 0x33 / 0x4d — field-decay to ROT_X, kill 0x30 ──
+ *
+ * Engine decomp L529-L536.  rot.x += vel.x; age++; kill 0x30. */
+static void handle_type_33_4d(int i)
+{
+    field_decay_x(i, SCENE1_RECORDS_A_OFF_ROT_X, 1.0f, 0x30);
+}
+
+/* ─── handler: type 0x51 — rot.x += vel.x * 0.5, kill 0x20 ──────────
+ *
+ * Engine decomp L537-L544.  Half-rate field decay. */
+static void handle_type_51(int i)
+{
+    field_decay_x(i, SCENE1_RECORDS_A_OFF_ROT_X, 0.5f, 0x20);
+}
+
+/* ─── handler: type 0x57 — rot.x += vel.x * 0.5, kill 0xa0 ──────────
+ *
+ * Engine decomp L545-L552.  Same shape as 0x51, slower kill. */
+static void handle_type_57(int i)
+{
+    field_decay_x(i, SCENE1_RECORDS_A_OFF_ROT_X, 0.5f, 0xa0);
+}
+
+/* ─── handler: type 0x3e — rot.x += vel.x, kill 0x30 ────────────────
+ *
+ * Engine decomp L553-L560.  Same as 0x33/0x4d but distinct match. */
+static void handle_type_3e(int i)
+{
+    field_decay_x(i, SCENE1_RECORDS_A_OFF_ROT_X, 1.0f, 0x30);
+}
+
+/* ─── handler: type 0x32 — rot.x += 0.2, kill 0x40 ──────────────────
+ *
+ * Engine decomp L587-L593.  Constant rotation rate; no velocity link. */
+static void handle_type_32(int i)
+{
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_X, 0.2f);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x40) slot_kill(i);
+}
+
+/* ─── handler: type 0x11 — vel.x += vel.y, kill 0x30 ────────────────
+ *
+ * Engine decomp L897-L904.  Funky "shear" feedback — vel.x grows from
+ * vel.y.  Unique shape. */
+static void handle_type_11(int i)
+{
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
+               slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y));
+    slot_age_inc(i);
+    if (slot_age(i) == 0x30) slot_kill(i);
+}
+
+/* ─── handler: type 0x71 — pos += 2*vel, damp 0.96040004, age += 2 ──
+ *
+ * Engine decomp L958-L972.  Double-rate position step (twin add of
+ * vel), damp 0.96040004 (= 0.98^2 — squared damp matches the double
+ * time-step semantics).  age += 2 per call; kill when age > 0x7f. */
+static void handle_type_71(int i)
+{
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, 2.0f * vx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, 2.0f * vy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, 2.0f * vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.96040004f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.96040004f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.96040004f);
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) += 2;
+    if (slot_age(i) > 0x7f) slot_kill(i);
+}
+
+/* ─── handler: types 0x10 / 0x91 — scaled drift + PARAM1 gravity ────
+ *
+ * Engine decomp L1078-L1094.  pos += vel*scale; vel.y -= PARAM1*0.003
+ * (gravity strength is the int PARAM1 field); damp 0.92; kill 0x18.
+ * PARAM1 sign convention: positive PARAM1 means downward gravity. */
+static void handle_type_10_91(int i)
+{
+    float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+    int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
+    vy -= (float)param1 * 0.003f;
+    vx *= 0.92f;  vy *= 0.92f;  vz *= 0.92f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x18) slot_kill(i);
+}
+
+/* ─── handler: types 0x15 / 0x16 — scaled drift + rot decay split ───
+ *
+ * Engine decomp L1044-L1077.  pos += vel*scale; vel.y -= 0.01; damp x
+ * 0.95, damp y 0.92, damp z 0.95.  Then rot bumps:
+ *   - 0x15: rot.x -= 0.03; rot.y -= 0.01; rot.z -= 0.03; kill at 0x7c
+ *   - 0x16: rot.x -= 0.05; rot.y -= 0.03; rot.z -= 0.05; kill at 0xe0 */
+static void handle_type_15_16(int i, int type)
+{
+    float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+    vy -= 0.01f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.95f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.92f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.95f);
+
+    float rot_dx, rot_dy, rot_dz;
+    int kill_age;
+    if (type == 0x15) {
+        rot_dx = -0.03f;  rot_dy = -0.01f;  rot_dz = -0.03f;  kill_age = 0x7c;
+    } else {
+        rot_dx = -0.05f;  rot_dy = -0.03f;  rot_dz = -0.05f;  kill_age = 0xe0;
+    }
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rot_dx);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rot_dy);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rot_dz);
+    slot_age_inc(i);
+    if (slot_age(i) == kill_age) slot_kill(i);
+}
+
+/* ─── handler: types 0x3f / 0x56 — scaled drift + rot decay (shared) ─
+ *
+ * Engine decomp L1028-L1042.  pos += vel*scale; rot bumps same as
+ * 0x16 (rot.x -= 0.05; rot.y -= 0.03; rot.z -= 0.05); kill 0x4d8. */
+static void handle_type_3f_56(int i)
+{
+    float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_X, -0.05f);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, -0.03f);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, -0.05f);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x4d8) slot_kill(i);
+}
+
+/* ─── handler: type 0x4f — scaled drift gated by age + PARAM2 ───────
+ *
+ * Engine decomp L994-L1010.  pos += vel*scale ONLY if age < PARAM2-2;
+ * rot.z -= 0.005 inside the same gate.  age++ + kill at 0x8c always.
+ * The gate is on the AGE BEFORE the increment. */
+static void handle_type_4f(int i)
+{
+    int param2 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
+    if (slot_age(i) < param2 - 2) {
+        float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, -0.005f);
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == 0x8c) slot_kill(i);
+}
+
+/* ─── handler: type 0x58 — scaled drift gated by age < PARAM2 ───────
+ *
+ * Engine decomp L1011-L1027.  pos += vel*scale if age < PARAM2; rot.y
+ * += 0.02 in same gate.  Kill at 0x4d8. */
+static void handle_type_58(int i)
+{
+    int param2 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2);
+    if (slot_age(i) < param2) {
+        float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, 0.02f);
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == 0x4d8) slot_kill(i);
+}
+
+/* ─── handler: types 5, 0x5c, 0x6f, 10, 0xb, 0xc — gated scaled-drift ─
+ *
+ * Engine decomp L807-L829.  pos += vel*scale gated by age > 0; damp
+ * 0.95 always.  For types != 0x5c and != 0x6f, also rot.z += 0.1.
+ * Kill at age == 0x18.
+ *
+ * "Gated by age > 0" means age=0 step does the damp and age++ but not
+ * the position add. */
+static void handle_type_group_drift_5_5c(int i, int type)
+{
+    if (slot_age(i) > 0) {
+        float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.95f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.95f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.95f);
+        if (type != 0x5c && type != 0x6f) {
+            slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, 0.1f);
+        }
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == 0x18) slot_kill(i);
+}
+
+/* ─── handler: types 0xe, 0x2b, 0x1b, 0x3b, 0x76 — gated scaled-drift ─
+ *
+ * Engine decomp L852-L872.  Same gate as 5/0x5c, damp 0.95, kill 0x20,
+ * NO rot bump. */
+static void handle_type_group_drift_e_2b(int i)
+{
+    if (slot_age(i) > 0) {
+        float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.95f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.95f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.95f);
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == 0x20) slot_kill(i);
+}
+
+/* ─── handler: type 0x59 — EXPANDING scaled drift, gated by age > 0 ──
+ *
+ * Engine decomp L873-L891.  Same as the above but damp 1.05 (negative
+ * damp — particles accelerate outward).  No rot.  Kill 0x20. */
+static void handle_type_59(int i)
+{
+    if (slot_age(i) > 0) {
+        float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 1.05f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 1.05f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 1.05f);
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == 0x20) slot_kill(i);
+}
+
+/* ─── handler: type 0xf — scaled drift, gated by age >= 0, damp 0.9 ──
+ *
+ * Engine decomp L939-L957.  Kill at 0x10. */
+static void handle_type_f(int i)
+{
+    if (slot_age(i) >= 0) {
+        float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.9f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.9f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.9f);
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == 0x10) slot_kill(i);
+}
+
+/* ─── handler: type 0x67 — scaled drift with z-only soft damp + rot ──
+ *
+ * Engine decomp L830-L851.  pos += vel*scale (gated age > 0); damps
+ * are split: x,y = 0.95, z = 0.99; vel.y += 0.01 (anti-gravity? bias).
+ * rot.z += vel.z * 0.1 (rotation feedback from z-velocity).
+ * Kill at 0x80. */
+static void handle_type_67(int i)
+{
+    if (slot_age(i) > 0) {
+        float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        vx *= 0.95f;  vy *= 0.95f;  vz *= 0.99f;
+        vy += 0.01f;
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, vz * 0.1f);
+    }
+    slot_age_inc(i);
+    if (slot_age(i) == 0x80) slot_kill(i);
+}
+
+/* ─── handler: large group [0x25..0x90] — scaled drift + gravity +
+ *               rot-accumulator
+ *
+ * Engine decomp L905-L938.  ~30 types share one body:
+ *   0x25, 0x26, 0x27, 0x28, 0x37, 0x38, 0x39, 0x3a, 0x46, 0x47, 0x48,
+ *   0x49, 0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f, 0x80, 0x81, 0x82, 0x83,
+ *   0x84, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f,
+ *   0x90.
+ *
+ * Gate: age >= 0.  pos += vel*scale, vel.y -= 0.02, damp 0.95 (all).
+ * Unconditionally (regardless of gate):  rot.z += rot.y; rot.y *= 0.97.
+ * age++ + kill at 0x20.
+ *
+ * Used for the wide-followup walker's particle-spam effects (sparkles
+ * around an action). */
+static int type_in_huge_group(int t)
+{
+    static const unsigned char list[] = {
+        0x25, 0x26, 0x27, 0x28, 0x37, 0x38, 0x39, 0x3a, 0x46, 0x47,
+        0x48, 0x49, 0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f, 0x80, 0x81,
+        0x82, 0x83, 0x84, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c,
+        0x8d, 0x8e, 0x8f, 0x90
+    };
+    for (unsigned k = 0; k < sizeof list; k++) {
+        if ((int)list[k] == t) return 1;
+    }
+    return 0;
+}
+
+static void handle_type_huge_group(int i)
+{
+    if (slot_age(i) >= 0) {
+        float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+        float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+        slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+        vy -= 0.02f;
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx * 0.95f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy * 0.95f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz * 0.95f);
+    }
+    /* rot accumulator runs unconditionally — outside the age gate. */
+    float rot_y = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_Y);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rot_y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rot_y * 0.97f);
+    slot_age_inc(i);
+    if (slot_age(i) == 0x20) slot_kill(i);
+}
+
+/* ─── handler: types 4, 0x70, 0x1c — scaled drift + rot.z drip ───────
+ *
+ * Engine decomp L1205-L1224.  pos += vel*scale; rot.z += 0.1; age++.
+ * Kill at 0x20 for type 0x70, else 0x10. */
+static void handle_type_group_4_70_1c(int i, int type)
+{
+    float scale = slot_get_f(i, SCENE1_RECORDS_A_OFF_SCALE);
+    float vx = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * scale);
+    slot_add_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, 0.1f);
+    slot_age_inc(i);
+    int kill_at = (type == 0x70) ? 0x20 : 0x10;
+    if (slot_age(i) == kill_at) slot_kill(i);
+}
+
 /* ─── outer loop ─────────────────────────────────────────────────────
  *
  * Engine FUN_0040fb3a L49-L1247.  Walks 0..0x1000-1 and runs every
@@ -336,9 +964,207 @@ void scene1_particles_tick(void)
             handle_type_21(i);
         }
 
-        /* TODO C8h.2-.4: the remaining ~91 type handlers land here.
-         * Engine semantics: each handler re-reads the type from
-         * memory, so verbatim placement of new `if` blocks at the
-         * same point in the per-slot loop is the safe convention. */
+        /* ─── C8h.2: cookie-cutter decay-drift / pure-age / field-decay
+         * handlers.  Each block re-reads TYPE because a prior handler
+         * (in the slot's same iteration) may have killed it.
+         *
+         * The if-chain order MATCHES the engine's decomp order from
+         * FUN_0040fb3a — never re-order, because the order interacts
+         * with intra-tick kills.  TYPE == -1 short-circuits every
+         * compare below. */
+
+        type = slot_type(i);
+        if (type == 0x43)        { decay_drift_uniform(i, 0.97f, 0x18); }
+
+        type = slot_type(i);
+        if (type == 0x60)        { handle_type_60(i); }
+
+        type = slot_type(i);
+        if (type == 0x53)        { decay_drift_uniform(i, 0.97f, 0x18); }
+
+        /* (type 99 / 0x78 land in C8h.4 — they read player_pos or NPC
+         * table.) */
+
+        type = slot_type(i);
+        if (type == 0x68)        { handle_type_68(i); }
+
+        /* Group [1, 0x5e, 2, 3, 0x52, 0x40, 0x65, 0x66, 0x73, 0x77]:
+         * decay-drift-uniform, damp 0.97, kill 0x18.  Engine L136-L151. */
+        type = slot_type(i);
+        if (type == 1 || type == 0x5e || type == 2 || type == 3 ||
+            type == 0x52 || type == 0x40 || type == 0x65 || type == 0x66 ||
+            type == 0x73 || type == 0x77) {
+            decay_drift_uniform(i, 0.97f, 0x18);
+        }
+
+        type = slot_type(i);
+        if (type == 0x96 || type == 0x97) { handle_type_96_97(i); }
+
+        /* type 0x92 is handled by the integrator under C8h.3 (uses
+         * sinf trig).  Left as a future-chip TODO. */
+
+        type = slot_type(i);
+        if (type == 0x69)        { decay_drift_uniform(i, 0.98f, 0x80); }
+
+        type = slot_type(i);
+        if (type == 0x79)        { decay_drift_uniform(i, 0.998f, 0x131); }
+
+        type = slot_type(i);
+        if (type == 0x5d)        { handle_type_5d(i); }
+
+        /* type 0x4a — C8h.3 (matrix transforms). */
+
+        /* type 0x98 — C8h.4 (anchor read). */
+
+        /* types 0x75, 0x93 — C8h.4. */
+
+        type = slot_type(i);
+        if (type == 0x36 || type == 0x74) { handle_type_36_74_4e(i); }
+
+        type = slot_type(i);
+        if (type == 0x4e)        { handle_type_36_74_4e(i); }
+
+        /* type 0x34, 0x35 — C8h.3 (matrix + chained spawn). */
+
+        /* type 0x2c — C8h.4 (uses anchor). */
+
+        type = slot_type(i);
+        if (type == 0x29)        { handle_type_29(i); }
+
+        /* types 0x41/0x61/0x72/0x62 — C8h.4 (anchor snap). */
+
+        /* type 0x4b — pure field-decay variant. */
+        type = slot_type(i);
+        if (type == 0x4b)        { handle_type_4b(i); }
+
+        type = slot_type(i);
+        if (type == 0x55)        { field_decay_x(i, SCENE1_RECORDS_A_OFF_ROT_Y, 1.0f, 0x90); }
+
+        type = slot_type(i);
+        if (type == 0x4c)        { field_decay_x(i, SCENE1_RECORDS_A_OFF_ROT_Y, 1.0f, 0x28); }
+
+        type = slot_type(i);
+        if (type == 0x33 || type == 0x4d) { handle_type_33_4d(i); }
+
+        type = slot_type(i);
+        if (type == 0x51)        { handle_type_51(i); }
+
+        type = slot_type(i);
+        if (type == 0x57)        { handle_type_57(i); }
+
+        type = slot_type(i);
+        if (type == 0x3e)        { handle_type_3e(i); }
+
+        /* type 0x3d — has trig.  C8h.3 (random-sin family). */
+
+        type = slot_type(i);
+        if (type == 0x32)        { handle_type_32(i); }
+
+        type = slot_type(i);
+        if (type == 0x45)        { handle_type_45(i); }
+
+        /* type 0x6e — chained mesh-emit + anchor (C8h.4). */
+
+        /* type 0x6d, 0x6c — anchor-related (C8h.4). */
+
+        type = slot_type(i);
+        if (type == 0x1f || type == 100) { handle_type_1f_100(i); }
+
+        /* types 0x23, 0x22, 0x3c, 0x5a, 0x2d — anchor (C8h.4). */
+
+        type = slot_type(i);
+        if (type == 0x24)        { age_only_kill_at(i, 0x100); }
+
+        type = slot_type(i);
+        if (type == 0x2a)        { age_only_kill_at(i, 8); }
+
+        /* types 0x12, 0x13, 0x14 — anchor-gated (C8h.4). */
+
+        type = slot_type(i);
+        if (type == 0x54)        { age_only_kill_at(i, 0x78); }
+
+        type = slot_type(i);
+        if (type == 5 || type == 0x5c || type == 0x6f || type == 10 ||
+            type == 0xb || type == 0xc) {
+            handle_type_group_drift_5_5c(i, type);
+        }
+
+        type = slot_type(i);
+        if (type == 0x67)        { handle_type_67(i); }
+
+        type = slot_type(i);
+        if (type == 0xe || type == 0x2b || type == 0x1b || type == 0x3b ||
+            type == 0x76) {
+            handle_type_group_drift_e_2b(i);
+        }
+
+        type = slot_type(i);
+        if (type == 0x59)        { handle_type_59(i); }
+
+        type = slot_type(i);
+        if (type == 0x50)        { age_only_kill_at(i, 300); }
+
+        type = slot_type(i);
+        if (type == 0x11)        { handle_type_11(i); }
+
+        type = slot_type(i);
+        if (type_in_huge_group(type)) { handle_type_huge_group(i); }
+
+        type = slot_type(i);
+        if (type == 0xf)         { handle_type_f(i); }
+
+        type = slot_type(i);
+        if (type == 0x71)        { handle_type_71(i); }
+
+        /* type 0x18 — has trig.  C8h.3 (random-sin family). */
+
+        type = slot_type(i);
+        if (type == 0x4f)        { handle_type_4f(i); }
+
+        type = slot_type(i);
+        if (type == 0x58)        { handle_type_58(i); }
+
+        type = slot_type(i);
+        if (type == 0x3f || type == 0x56) { handle_type_3f_56(i); }
+
+        type = slot_type(i);
+        if (type == 0x15 || type == 0x16) { handle_type_15_16(i, type); }
+
+        type = slot_type(i);
+        if (type == 0x10 || type == 0x91) { handle_type_10_91(i); }
+
+        type = slot_type(i);
+        if (type == 4 || type == 0x70 || type == 0x1c) {
+            handle_type_group_4_70_1c(i, type);
+        }
+
+        /* type 0x44, 0x5f — pure-age (engine L1143-1147, L1199-1203). */
+        type = slot_type(i);
+        if (type == 0x44)        { age_only_kill_at(i, 0x28); }
+
+        type = slot_type(i);
+        if (type == 0x5f)        { age_only_kill_at(i, 0xd); }
+
+        type = slot_type(i);
+        if (type == 0x42)        { scaled_drift_uniform(i, 1.0f, 0x10); }
+        /* NB: type 0x42 in decomp L1148-1160 has no damp multiplier
+         * inside the body — pos += vel*scale; age++; kill 0x10.  Using
+         * scaled_drift_uniform(damp=1.0) preserves that.  Same for 0x19,
+         * 0x2e, 0x1e below. */
+
+        type = slot_type(i);
+        if (type == 0x19)        { scaled_drift_uniform(i, 1.0f, 0x10); }
+
+        type = slot_type(i);
+        if (type == 0x2e)        { scaled_drift_uniform(i, 1.0f, 0x38); }
+
+        type = slot_type(i);
+        if (type == 0x1e)        { scaled_drift_uniform(i, 1.0f, 0x10); }
+
+        /* type 0x1d — anchor (C8h.4 — reads table-B record). */
+
+        /* TODO C8h.3-.4: matrix transforms (0x4a, 0x34, 0x35), trig
+         * (0x18, 0x3d, 0x92), and anchor-snap (0x1a/0x12-14/0x78/0x75/
+         * 0x93/many others). */
     }
 }

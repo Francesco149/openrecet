@@ -457,3 +457,33 @@ short Frida read of the retail integrator to confirm the actual arg.
 - NEW `tests/test_scene1_particles_tick.c` (15 tests).
 - NEW `tests/test_scene1_spawn.c` (3 tests).
 - `tests/Makefile`, `tests/test_main.c` — wire new modules + tests.
+
+## C8h.2 landed (2026-05-23)
+
+Extended `src/scene1_particles_tick.c` with ~50 more particle-type
+handlers + 6 shared helpers (decay_drift_uniform / decay_drift_grav_pre
+/ scaled_drift_uniform / age_only_kill_at / field_decay_x).  Added 17
+unit tests covering the new shapes (886 total, all pass).  Win32 build
+links; boot-idle scenario unchanged.
+
+### Handler counts after C8h.2
+
+| Shape                                | Count | Examples                  |
+|--------------------------------------|-------|---------------------------|
+| decay_drift_uniform                  | 13    | 0x43, 0x53, 0x69, 0x79, ten-type group |
+| decay_drift_grav_pre                 | 5     | 0x29, 0x1f/100, 0x36/0x74/0x4e |
+| decay_drift_grav_post (inlined)      | 2     | 0x96, 0x97 (with rot bumps) |
+| scaled_drift_uniform                 | 4     | 0x42, 0x19, 0x2e, 0x1e    |
+| scaled_drift_gated (age > 0 or >= 0) | 10+   | 5/0x5c/0x6f/10/0xb/0xc, 0xe/0x2b/0x1b/0x3b/0x76, 0x59, 0xf, 0x67, type_in_huge_group (~34 types), 0x67 |
+| age_only_kill_at                     | 6     | 0x44, 0x5f, 0x24, 0x2a, 0x50, 0x54 |
+| field_decay_x                        | 7     | 0x4b, 0x55, 0x4c, 0x33/0x4d, 0x51, 0x57, 0x3e |
+| Special-shape inlines                | 9     | 0x68 (no damp), 0x96/97 (rot bumps), 0x60 (capped age), 0x5d (PARAM1 kill), 0x32 (constant rot), 0x71 (double-step), 0x10/0x91 (PARAM1 grav), 0x15/0x16 (rot decay), 0x3f/0x56 (long-life rot decay), 0x4f / 0x58 (gated scaled), 4/0x70/0x1c (rot drip), 0x45 (BASE_Z gravity), 0x11 (vel shear) |
+
+### Still unported (handled by later chips)
+
+| Type(s)                        | Reason                            | Chip   |
+|--------------------------------|-----------------------------------|--------|
+| 99 (0x63), 0x78, 0x1a, 0x12-0x14, 0x22, 0x23, 0x2c, 0x2d, 0x3c, 0x5a, 0x6c, 0x6d, 0x6e, 0x75, 0x93, 0x98, 0x41/0x61/0x62/0x72, 0x1d | Read player_pos / NPC table / table-B / spawn_origin | C8h.4 |
+| 0x4a, 0x34, 0x35 | D3DXMatrix transforms + chained spawn | C8h.3 |
+| 0x18, 0x3d, 0x92 | Trig (sin/cos)                    | C8h.3 |
+| (the surrounding particles_per_frame_open) | FUN_00414929 (separate entity tables) | later |

@@ -961,7 +961,25 @@ struct test_case {
     X(particles_tick_type_21_no_snap_when_param2_minus1) \
     X(particles_tick_type_21_kills_when_table_b_empty) \
     X(particles_tick_type_21_lives_when_table_b_active) \
-    X(particles_tick_chain_20_to_21_records_spawn)
+    X(particles_tick_chain_20_to_21_records_spawn) \
+    \
+    X(particles_tick_type_43_decay_drift) \
+    X(particles_tick_type_43_kills_at_0x18) \
+    X(particles_tick_type_68_no_damp) \
+    X(particles_tick_type_29_gravity) \
+    X(particles_tick_type_96_rot_bumps) \
+    X(particles_tick_type_60_age_cap) \
+    X(particles_tick_type_60_kill_at_0x960) \
+    X(particles_tick_type_5d_param1_kill) \
+    X(particles_tick_type_36_kill_at_param1) \
+    X(particles_tick_type_4b_field_decay) \
+    X(particles_tick_type_32_constant_rot) \
+    X(particles_tick_type_71_double_step) \
+    X(particles_tick_type_59_expanding) \
+    X(particles_tick_type_25_huge_group) \
+    X(particles_tick_type_50_pure_age) \
+    X(particles_tick_type_10_param1_gravity) \
+    X(particles_tick_type_4_rot_drip)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

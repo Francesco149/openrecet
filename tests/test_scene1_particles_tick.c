@@ -19,10 +19,16 @@
 #include "scene1_records.h"
 #include "scene1_spawn.h"
 
-/* Reset everything: records sentinel-empty, scene alive (so kills don't
- * fire), camera at origin, player at origin, spawn-trace cleared. */
+/* Reset everything: tables fully zeroed (engine reset only touches TYPE,
+ * but tests cross-pollinate via leftover pos/vel/rot fields when slot 0
+ * is reused — full memset gives every test a clean canvas).  Then
+ * sentinel-init via scene1_records_reset so consumers see the expected
+ * TYPE=-1 (table A and C) and field-0=0 (table B). */
 static void reset_world(void)
 {
+    memset(g_scene1_records_a, 0, sizeof g_scene1_records_a);
+    memset(g_scene1_records_b, 0, sizeof g_scene1_records_b);
+    memset(g_scene1_records_c, 0, sizeof g_scene1_records_c);
     scene1_records_reset(1);
     scene1_spawn_trace_reset();
     g_scene1_scene_alive   = 1;
@@ -74,17 +80,18 @@ int test_particles_tick_empty_tables_noop(void)
 int test_particles_tick_ignores_unported_types(void)
 {
     reset_world();
-    /* Type 0x43 (decay-drift-kill) lands in C8h.2.  C8h.1 must NOT
-     * touch the slot — leave TYPE / pos / age all unchanged. */
+    /* Type 0x4a (matrix-transform — lands in C8h.3) is unported.
+     * C8h.1/.2 must NOT touch the slot — leave TYPE / pos / age all
+     * unchanged. */
     int slot = 17;
     int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
-    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x43;
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x4a;
     slot_write_f(slot, SCENE1_RECORDS_A_OFF_POS_X, 5.0f);
     r[SCENE1_RECORDS_A_OFF_AGE] = 7;
 
     scene1_particles_tick();
 
-    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == 0x43);
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == 0x4a);
     T_ASSERT(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) == 5.0f);
     T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_AGE)  == 7);
     return 0;
@@ -365,6 +372,313 @@ int test_particles_tick_type_21_lives_when_table_b_active(void)
 }
 
 /* ─── chained-spawn observed correctly ─────────────────────────────── */
+
+/* ─── C8h.2 — decay-drift-kill / pure-age / field-decay handlers ─── */
+
+/* type 0x43 — decay-drift-uniform, damp 0.97, kill 0x18. */
+int test_particles_tick_type_43_decay_drift(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x43;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_POS_X, 0.0f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_X, 1.0f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y, 2.0f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z, 3.0f);
+
+    scene1_particles_tick();
+
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 1.0f) > 1e-6f)
+        T_FAIL("pos.x didn't advance by vel.x");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X) - 0.97f) > 1e-6f)
+        T_FAIL("vel.x not damped");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y) - 1.94f) > 1e-6f)
+        T_FAIL("vel.y not damped");
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_AGE) == 1);
+    return 0;
+}
+
+/* type 0x43 — kills at age 0x18. */
+int test_particles_tick_type_43_kills_at_0x18(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x43;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0x17;  /* will become 0x18 → kill */
+    scene1_particles_tick();
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* type 0x68 — no damp; pos += vel; age++; kill 0x30. */
+int test_particles_tick_type_68_no_damp(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x68;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_X, 5.0f);
+
+    scene1_particles_tick();
+
+    if (slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X) != 5.0f)
+        T_FAIL("type 0x68 should NOT damp vel");
+    if (slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) != 5.0f)
+        T_FAIL("pos didn't advance");
+    return 0;
+}
+
+/* type 0x29 — pre-damp gravity, kill 0x28. */
+int test_particles_tick_type_29_gravity(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x29;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y, 1.0f);
+
+    scene1_particles_tick();
+
+    /* vel.y after: (1.0 - 0.002) * 0.97 = 0.998 * 0.97 = 0.96806 */
+    float vy = slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y);
+    if (fabsf(vy - 0.96806f) > 1e-5f)
+        T_FAIL("vel.y wrong: got %f, expected ~0.96806", (double)vy);
+    return 0;
+}
+
+/* type 0x96/0x97 — post-damp gravity + rot bumps. */
+int test_particles_tick_type_96_rot_bumps(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x96;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+
+    scene1_particles_tick();
+
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_X) - 0.1f) > 1e-6f)
+        T_FAIL("rot.x not bumped");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y) - 0.03f) > 1e-6f)
+        T_FAIL("rot.y not bumped");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Z) - 0.01f) > 1e-6f)
+        T_FAIL("rot.z not bumped");
+    /* vel.y after: 0 * 0.995 - 0.03 = -0.03 */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y) + 0.03f) > 1e-6f)
+        T_FAIL("vel.y wrong (post-damp gravity)");
+    return 0;
+}
+
+/* type 0x60 — age caps at 400, kills at 0x960. */
+int test_particles_tick_type_60_age_cap(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x60;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 400;
+    scene1_particles_tick();
+    /* age >= 400 → no increment. */
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_AGE) == 400);
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == 0x60);
+    return 0;
+}
+
+int test_particles_tick_type_60_kill_at_0x960(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x60;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0x960;
+    scene1_particles_tick();
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* type 0x5d — kill at age == PARAM1 + 0x3e. */
+int test_particles_tick_type_5d_param1_kill(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x5d;
+    r[SCENE1_RECORDS_A_OFF_AGE]    = 9;   /* will become 10 */
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 10 - 0x3e; /* kill when age == 10 */
+    scene1_particles_tick();
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* type 0x36 — gravity -0.02, kill at PARAM1. */
+int test_particles_tick_type_36_kill_at_param1(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x36;
+    r[SCENE1_RECORDS_A_OFF_AGE]    = 4;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 5;
+    scene1_particles_tick();
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* type 0x4b — rot.y += vel.x, kill at PARAM2 + 0x28. */
+int test_particles_tick_type_4b_field_decay(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x4b;
+    r[SCENE1_RECORDS_A_OFF_AGE]    = 0;
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = 5;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_X, 0.3f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y, 1.0f);
+
+    scene1_particles_tick();
+
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y) - 1.3f) > 1e-6f)
+        T_FAIL("rot.y not bumped by vel.x");
+    /* Kill at age == PARAM2(5) + 0x28 == 0x2d. */
+    r[SCENE1_RECORDS_A_OFF_AGE] = 0x2c;
+    scene1_particles_tick();
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* type 0x32 — constant rot.x += 0.2, kill 0x40. */
+int test_particles_tick_type_32_constant_rot(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x32;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+
+    scene1_particles_tick();
+
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_X) - 0.2f) > 1e-6f)
+        T_FAIL("rot.x not advanced");
+    return 0;
+}
+
+/* type 0x71 — pos += 2*vel, age += 2. */
+int test_particles_tick_type_71_double_step(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x71;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_X, 1.0f);
+
+    scene1_particles_tick();
+
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 2.0f) > 1e-6f)
+        T_FAIL("pos.x didn't double-step");
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_AGE) == 2);
+    return 0;
+}
+
+/* type 0x59 — EXPANDING (damp 1.05). */
+int test_particles_tick_type_59_expanding(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x59;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 1;  /* > 0 → active gate */
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_X, 1.0f);
+
+    scene1_particles_tick();
+
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X) - 1.05f) > 1e-6f)
+        T_FAIL("vel.x should grow (damp 1.05)");
+    return 0;
+}
+
+/* type 0x25 — huge group: rot accumulator. */
+int test_particles_tick_type_25_huge_group(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x25;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y, 0.5f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_ROT_Z, 0.0f);
+
+    scene1_particles_tick();
+
+    /* rot.z += rot.y (= 0.5); rot.y *= 0.97 (= 0.485). */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Z) - 0.5f) > 1e-6f)
+        T_FAIL("rot.z not bumped");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y) - 0.485f) > 1e-6f)
+        T_FAIL("rot.y not damped");
+    return 0;
+}
+
+/* type 0x50 — pure-age, kill 300. */
+int test_particles_tick_type_50_pure_age(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x50;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 299;
+
+    scene1_particles_tick();
+
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* type 0x10 — PARAM1-driven gravity. */
+int test_particles_tick_type_10_param1_gravity(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x10;
+    r[SCENE1_RECORDS_A_OFF_AGE]    = 0;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 10;  /* gravity = 10 * 0.003 = 0.03 */
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y, 1.0f);
+
+    scene1_particles_tick();
+
+    /* vel.y after: (1.0 - 0.03) * 0.92 = 0.8924 */
+    float vy = slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y);
+    if (fabsf(vy - 0.8924f) > 1e-5f)
+        T_FAIL("vel.y wrong: got %f, expected ~0.8924", (double)vy);
+    return 0;
+}
+
+/* type 4 — scaled drift + rot.z drip; kill 0x10. */
+int test_particles_tick_type_4_rot_drip(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 4;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_SCALE, 2.0f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_X, 1.0f);
+
+    scene1_particles_tick();
+
+    /* pos.x += vel.x * scale = 2.0; rot.z += 0.1. */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 2.0f) > 1e-6f)
+        T_FAIL("pos.x not scaled-stepped");
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Z) - 0.1f) > 1e-6f)
+        T_FAIL("rot.z not dripped");
+    return 0;
+}
 
 int test_particles_tick_chain_20_to_21_records_spawn(void)
 {
