@@ -104,13 +104,38 @@ the harder coordination.
   ✅ Landed 2026-05-23 (`src/mesh_draw.{c,h}` + main.c CLI hook).
   Smoke against `xfile/etc/ice01.x` produces a rotating textured ice
   crystal on the pink-blue clear color — see `runs/mesh-ice01/`.
-  Camera at distance 3·radius, fov_y 60°, Y-axis orbit once every 6s
-  at host pace. Lighting OFF (vertex white modulate texture). Pure-C
-  `mesh_resolve_texture_slot` helper covered by 5 new unit tests
-  (839 total from 834). title-z-press 14/14 bit-exact (render path
-  guarded behind `--show-mesh`). The contact-sheet pass over all 242
-  vendor `.x` files is the natural follow-up — postponed until C7b
-  lands lighting so the sheet isn't all flat-textured.
+  Camera at distance 3·radius, fov_y 60° (later corrected to 45° in
+  C7b), Y-axis orbit once every 6 s at host pace. Lighting OFF.
+  Pure-C `mesh_resolve_texture_slot` covered by 5 new unit tests
+  (839 total from 834). title-z-press 14/14 bit-exact.
+
+- **C7b — depth + lighting render-state.** ✅ Landed 2026-05-23
+  (extends `src/mesh_draw.{c,h}`). `mesh_set_default_render_state`
+  now ports `FUN_00459dfd` L86..L198 line-by-line: CULLMODE=CCW,
+  LIGHTING=TRUE, COLORVERTEX + COLOR1 material sources,
+  AMBIENT=0xff000000, SHADEMODE=GOURAUD, ALPHAFUNC=GREATER,
+  ALPHAOP=DISABLE, MIPFILTER=NONE, ADDRESSU/V=WRAP, fov_y=45°.
+  New `mesh_setup_preview_light` adds a fixed directional light +
+  raises ambient to 0x404040 so the preview shows shaded geometry
+  against the engine's pitch-black baseline. New `--mesh-zoom
+  <factor>` flag dials in the orbital distance for meshes whose
+  bound radius is inflated by outlier vertices (shop_1st: 311 unit
+  bound vs 60 unit visible interior). Smokes:
+  `xfile/etc/ice01.x` (1 submesh) and
+  `xfile/shop/shop_1st.x --mesh-zoom 0.2` (48 submeshes, 19
+  materials) both render shaded with correct Z-ordering.
+  title-z-press 14/14 bit-exact.
+
+**Caveat on per-mesh visual smoke (noted 2026-05-23):** rendering
+single meshes in isolation only validates the *pipeline*, not visual
+correctness. A mesh that looks broken on its own might be perfectly
+fine in the assembled scene — its broken face occluded by an adjacent
+prop, its "missing wall" covered by an overlay sprite, its backface-
+culled side never visible from the player camera. The earlier idea of
+a 242-mesh contact sheet is dropped: it would only catch
+catastrophic parser/build failures (which the corpus walk in
+test_mesh_load already covers). Real validation comes from scene
+composition (C7c+) and Frida cross-validation against retail.
 - **C7b — depth + lighting render-state.** Set up
   `D3DRS_ZENABLE` / `D3DRS_LIGHTING` / `D3DRS_AMBIENT` / FVF /
   texture stage state defaults that the mesh walker will rely on.

@@ -3,6 +3,80 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-23 — scene-1 render: C7b depth + lighting render-state (`src/mesh_draw.{c,h}`)
+
+Second chip on the scene-1 render ladder. C7a got geometry on screen
+with a flat-textured pipeline; C7b makes that pipeline match the
+engine's pre-mesh-draw render state and adds the depth + lighting
+state every later C7 chip will inherit. Visible result: meshes go from
+flat-textured silhouettes to properly shaded 3D geometry with correct
+Z-ordering across submeshes.
+
+- **`mesh_set_default_render_state(dev)`** refactored to match the
+  full state set in `FUN_00459dfd` L86..L198 (`docs/decompiled/
+  by-address/459dfd.c`). Every line annotated with the engine source.
+  Net changes vs C7a:
+  - `D3DRS_CULLMODE` NONE → CCW (val 3 in D3D8's enum, matches engine
+    L86).
+  - `D3DRS_LIGHTING` FALSE → TRUE (engine L132 starts FALSE for the
+    sky pass; L230 turns it on conditionally for the mesh walk — we
+    land at TRUE since the preview always wants shading).
+  - `D3DRS_AMBIENT` = 0xff000000 (engine L191; per-stage palette
+    overrides via `FUN_00454f03` at L185).
+  - `D3DRS_COLORVERTEX` = TRUE, `D3DRS_DIFFUSEMATERIALSOURCE` /
+    `AMBIENTMATERIALSOURCE` = `D3DMCS_COLOR1` (engine L192/194/195 —
+    vertex diffuse drives the material diffuse + ambient channels).
+  - `D3DRS_SHADEMODE` = GOURAUD (L198); `D3DRS_ALPHAFUNC` = GREATER
+    (L193); `D3DRS_WRAP0` = 0 (L190).
+  - `D3DTSS_COLORARG1` flipped to DIFFUSE / `COLORARG2` to TEXTURE
+    (engine L196/L197 — the modulate result is identical but order
+    matches engine fidelity).
+  - `D3DTSS_ALPHAOP` = DISABLE (engine L153 — opaque pass).
+  - `D3DTSS_MIPFILTER` = NONE (engine L106, gated on `DAT_0438b178 == 0`
+    which is the shipped recet.ini default; mipmaps gate deferred).
+
+- **`mesh_setup_preview_light(dev)` (new)** — preview-only D3DLIGHT_
+  DIRECTIONAL setup: light 0 white diffuse, direction normalized
+  `(+0.5, -1.0, -0.3)` so the upper-front-right octant gets the bright
+  side. Bumps `D3DRS_AMBIENT` from the engine's pitch-black 0xff000000
+  to 0xff404040 so shadowed faces stay readable. The eventual
+  `FUN_0040a765` port (C7j+) supplies its own light from
+  `palette + 0x1ae0`; preview helper goes away for non-`--show-mesh`
+  paths when that lands.
+
+- **`mesh_orbital_view_proj` updates** — fov_y switched from 60° to
+  the engine default of 45° (`DAT_073de3a0` initial value =
+  `0x42340000` at `all.c:34225`, used in every `FUN_004a3ee8` call in
+  scene-1 render). Aspect now honors the actual back-buffer dims
+  instead of the engine's hard-coded 4/3 — widescreen runs of
+  `--show-mesh` aren't letterboxed.
+
+- **`--mesh-zoom <factor>` CLI flag** — multiplies the orbital eye
+  distance (default 1.0 = 3·radius). `mesh_compute_bounds` is a
+  centroid+max-radius bound that gets inflated by outlier vertices
+  on real scene-1 props (the shop interior has a horizon marker at
+  ~300 units pulling its radius to 311 even though the visible
+  building is ~60 units across). Passing `--mesh-zoom 0.2` pulls
+  the camera in to actually frame the content. Z-near/far track the
+  same scale.
+
+- **Smoke** —
+  - `xfile/etc/ice01.x` (1 submesh, 1 material): now visibly shaded
+    instead of flat-textured. Light/dark facets clearly distinguished,
+    cull=CCW didn't drop any visible faces. `runs/mesh-ice01/`.
+  - `xfile/shop/shop_1st.x` (48 submeshes, 19 materials, 21 textures)
+    with `--mesh-zoom 0.2`: full shop interior renders — wood floor,
+    walls, doorway, shelves all Z-ordered correctly across 48
+    submeshes. `runs/mesh-shop1st/`.
+  - 839 host tests still pass; title-z-press 14/14 bit-exact (render
+    path still guarded behind `--show-mesh`).
+
+**Next:** C7c — minimal stage state seed (populate the
+`g_scene_*_selector` ints so the worker bodies wired in C6 actually
+have something to fetch). Lighting state for the eventual walker is
+in place; the walker needs ASSETS to draw, which needs the asset
+load chain (C7c → C7d → C7e).
+
 ## 2026-05-23 — scene-1 render: C7a `--show-mesh` visual smoke (`src/mesh_draw.{c,h}`)
 
 First chip on the scene-1 render ladder (`docs/findings/scene1-render.md`).

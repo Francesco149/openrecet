@@ -105,6 +105,7 @@ static sprite_t         g_show_sprite       = {0};
  * fade/nowloading overlays so the mesh sits under fade tints. */
 static char            *g_show_mesh_path    = NULL;
 static mesh_t          *g_show_mesh         = NULL;
+static float            g_show_mesh_zoom    = 1.0f;
 
 /* Scene-0 (title) state now lives in scene_title.c as module globals
  * (`g_scene_title_menu`, `g_scene_title_anim`, `g_scene_title_assets_loaded`).
@@ -1172,6 +1173,8 @@ static void render_dispatch(void)
      * in their own state — we re-establish mesh draw state here. */
     if (g_show_mesh) {
         mesh_set_default_render_state(g_dev);
+        mesh_setup_preview_light(g_dev);
+        mesh_orbital_set_zoom(g_show_mesh_zoom);
         float phase = (float)(g_tick.frame_count % 360) / 360.0f;
         mesh_orbital_view_proj(g_dev,
                                g_show_mesh->centroid, g_show_mesh->radius,
@@ -1272,6 +1275,12 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char mesh_buf[MAX_PATH];
                 lstrcpynA(mesh_buf, val, (int)sizeof(mesh_buf));
                 g_show_mesh_path = mesh_buf;
+            }
+        } else if (lstrcmpA(tok, "--mesh-zoom") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                float f = (float)atof(val);
+                if (f > 0.0f) g_show_mesh_zoom = f;
             }
         } else if (lstrcmpA(tok, "--max-duration-ms") == 0) {
             char *val = strtok(NULL, " ");

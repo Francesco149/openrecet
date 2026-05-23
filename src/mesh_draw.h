@@ -50,21 +50,74 @@ struct IDirect3DDevice8;
 void *mesh_resolve_texture_sprite(const mesh_t *m, int material_index);
 
 /*
- * Configure D3D8 render state for an unlit, textured preview:
- *   D3DRS_ZENABLE        = D3DZB_TRUE
- *   D3DRS_ZWRITEENABLE   = TRUE
- *   D3DRS_LIGHTING       = FALSE         (use vertex diffuse straight)
- *   D3DRS_CULLMODE       = D3DCULL_NONE  (matches engine FUN_004547ab L60)
- *   D3DRS_ALPHABLENDENABLE = FALSE
- *   D3DTSS_COLOROP / COLORARG / ALPHAOP = D3DTOP_MODULATE / SELECTARG1
- *   D3DSAMP_*ADDR        = D3DTADDRESS_WRAP
- *   D3DSAMP_*FILTER      = D3DTEXF_LINEAR
- *   Vertex shader        = FVF 0x152
+ * Configure D3D8 render state to match the engine's pre-mesh-draw
+ * baseline (FUN_00459dfd L86..L198). Idempotent — safe to call every
+ * frame.
  *
- * Lighting + per-light state belong to C7b. Idempotent — safe to call
- * every frame.
+ * The eventual scene-1 walker (C7j+ port of FUN_0040a765) will toggle
+ * these as it draws different passes (fog on/off, Z write off for
+ * alpha, projection swaps between z_far=350/2000, etc.). C7b sets the
+ * floor every later chip will inherit.
+ *
+ * Render states set:
+ *   D3DRS_CULLMODE         = D3DCULL_CCW   (engine L86: state 0x16, val 3)
+ *   D3DRS_LIGHTING         = TRUE          (engine L132 sets 0 — initial
+ *                                           pass; we land at TRUE so the
+ *                                           preview shows shading)
+ *   D3DRS_FOGENABLE        = FALSE         (engine L137; stage palette
+ *                                           re-enables when 0x1a38 != 0)
+ *   D3DRS_ZENABLE          = TRUE          (engine L168 — set AFTER the
+ *                                           initial sky pass; matches the
+ *                                           main scene-1 default)
+ *   D3DRS_ZWRITEENABLE     = TRUE          (engine L169)
+ *   D3DRS_AMBIENT          = 0xff000000    (engine L191 — alpha-only,
+ *                                           RGB black. Stage palette
+ *                                           overrides via FUN_00454f03.)
+ *   D3DRS_COLORVERTEX      = TRUE          (engine L192)
+ *   D3DRS_ALPHAFUNC        = D3DCMP_GREATER(engine L193: val 5)
+ *   D3DRS_DIFFUSEMATERIALSOURCE = D3DMCS_COLOR1 (engine L194)
+ *   D3DRS_AMBIENTMATERIALSOURCE = D3DMCS_COLOR1 (engine L195)
+ *   D3DRS_SHADEMODE        = D3DSHADE_GOURAUD (engine L198: val 2)
+ *   D3DRS_WRAP0            = 0              (engine L190)
+ *
+ * Texture stage 0:
+ *   D3DTSS_COLORARG1       = D3DTA_DIFFUSE (engine L197)
+ *   D3DTSS_COLORARG2       = D3DTA_TEXTURE (engine L196)
+ *   D3DTSS_COLOROP         = D3DTOP_MODULATE (engine relies on default;
+ *                            set explicitly so we don't inherit
+ *                            SELECTARG1 from the sprite path)
+ *   D3DTSS_ALPHAOP         = D3DTOP_DISABLE (engine L153)
+ *   D3DTSS_MAGFILTER       = D3DTEXF_LINEAR (engine L98)
+ *   D3DTSS_MINFILTER       = D3DTEXF_LINEAR (engine L92)
+ *   D3DTSS_MIPFILTER       = D3DTEXF_NONE   (engine L106 when
+ *                            DAT_0438b178 == 0 — the shipped recet.ini
+ *                            default; mipmaps gate deferred)
+ *   D3DTSS_ADDRESSU        = D3DTADDRESS_WRAP (engine L188)
+ *   D3DTSS_ADDRESSV        = D3DTADDRESS_WRAP (engine L189)
+ *
+ * Vertex shader / FVF:
+ *   SetVertexShader(0x152)  (engine L122)
+ *
+ * Fog, projection, view, world transform, per-stage palette ambient,
+ * SetLight/LightEnable — owned by other helpers / the eventual walker.
  */
 void mesh_set_default_render_state(struct IDirect3DDevice8 *dev);
+
+/*
+ * Preview-only directional light + ambient override so the --show-mesh
+ * smoke produces a visibly shaded mesh against the engine's pitch-black
+ * default ambient (D3DRS_AMBIENT = 0xff000000).
+ *
+ * Configures light 0 as D3DLIGHT_DIRECTIONAL with white diffuse and a
+ * direction pointing roughly (+X, -Y, -Z) — from upper-front-right into
+ * the scene. Sets D3DRS_AMBIENT to a soft gray (0xff404040) so the
+ * shadowed side stays readable instead of going black. Enables light 0.
+ *
+ * The eventual scene-1 walker (FUN_0040a765, C7j+) supplies its own
+ * light from stage palette + 0x1ae0 — when it ports, the preview helper
+ * stops being called for non-`--show-mesh` paths.
+ */
+void mesh_setup_preview_light(struct IDirect3DDevice8 *dev);
 
 /*
  * Build an orbital-camera view + perspective projection that frames a
@@ -72,11 +125,18 @@ void mesh_set_default_render_state(struct IDirect3DDevice8 *dev);
  * back buffer, and SetTransform them on `dev` (D3DTS_VIEW + PROJECTION).
  *
  *   phase ∈ [0, 1)   orbit angle around the Y axis (0 = +Z, 0.25 = +X)
- *   eye distance     = radius * 3 (centroid + 8% Y lift so the top
- *                                  of the sphere doesn't hide bottom faces)
- *   fov_y            = 60°
+ *   eye distance     = radius * 3 (centroid + 1.2·radius Y lift so we
+ *                                  see the top of the mesh)
+ *   fov_y            = 45° (matches engine DAT_073de3a0 default —
+ *                           0x42340000 at all.c:34225, used by
+ *                           FUN_0045bbf9 etc.)
+ *   aspect           = viewport_w / viewport_h (engine hard-codes 4/3
+ *                      — 0x3faaaaab — but we honor the actual back
+ *                      buffer so widescreen --show-mesh runs aren't
+ *                      letterboxed)
  *   z_near / z_far   = 0.05 * radius / 5 * radius (sphere always
- *                                                  inside frustum)
+ *                      inside frustum; engine uses fixed 1.0/350.0
+ *                      but that only frames scene-space units)
  *
  * Degenerate radius (≤ 0) gets bumped to 1.0 so the math doesn't NaN.
  * D3DTS_WORLD is left at identity (the mesh's vertices are already in
@@ -86,6 +146,21 @@ void mesh_orbital_view_proj(struct IDirect3DDevice8 *dev,
                             const float centroid[3], float radius,
                             float phase,
                             int viewport_w, int viewport_h);
+
+/*
+ * Override the orbital camera's distance multiplier. Default 1.0 keeps
+ * the documented eye distance of 3·radius. For meshes whose
+ * mesh_compute_bounds radius is inflated by a handful of outlier
+ * vertices (engine-side scene geometry like ground planes / sky
+ * markers), pass a value < 1 to pull the camera closer:
+ *
+ *   --mesh-zoom 0.3   →  eye distance = 0.9·radius (3·r·0.3)
+ *
+ * Z-near/z-far track the same scale so the sphere always stays inside
+ * the frustum even when the camera is inside the engine-radius bound.
+ * Values ≤ 0 are clamped to 1.0.
+ */
+void mesh_orbital_set_zoom(float factor);
 
 /*
  * Draw every submesh of `m`. Must be inside BeginScene; caller is
