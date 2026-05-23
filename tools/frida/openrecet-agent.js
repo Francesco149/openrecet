@@ -96,6 +96,19 @@ const ADDR = {
     // pipeline. See installMeshDumpHook below.
     fn_mesh_load_wrapper: 0x00472836,
 
+    // engine render-thread top-level (FUN_004547ab @ 0x4547ab, 1670 B).
+    // Called by the main message pump per iteration. Owns BeginScene /
+    // scene-state switch (which dispatches to FUN_00474a9a et al) /
+    // EndScene / Present / device-lost recovery. The mesh-render demo
+    // replaces this whole function with a minimal demo loop:
+    //   Clear → BeginScene → SetTransform×3 → SetRenderState batch
+    //   → SetLight + LightEnable → SetMaterial → ID3DXMesh::DrawSubset
+    //   loop → EndScene → Present
+    // The existing Present hook still fires on our self-issued Present
+    // (it's the IDirect3DDevice8 vtable hook, not call-site specific),
+    // so frame capture works unchanged.
+    fn_render_thread_top: 0x004547ab,
+
     // recet.ini parser + back-buffer dimension globals. The parser maps
     // `screen=0/1/2/3` → 640×480 / 800×600 / 1024×768 / 1280×960 and
     // writes the result here; downstream window-creation + D3D init
@@ -203,6 +216,43 @@ const V_Mesh_UnlockIndexBuffer = 17;
 
 // D3DXMESH option bits we care about (from d3dx8mesh.h).
 const D3DXMESH_32BIT = 0x001;
+
+// IDirect3DDevice8 vtable slots used by the render-demo path. Indices
+// counted from the IUnknown methods at slots 0-2.
+const V_Dev_Present_           = 15;
+const V_Dev_BeginScene         = 34;
+const V_Dev_EndScene           = 35;
+const V_Dev_Clear              = 36;
+const V_Dev_SetTransform       = 37;
+const V_Dev_SetMaterial        = 42;
+const V_Dev_SetLight           = 44;
+const V_Dev_LightEnable        = 46;
+const V_Dev_SetRenderState     = 50;
+
+// D3D8 transform-state IDs (D3DTRANSFORMSTATETYPE).
+const D3DTS_VIEW       = 2;
+const D3DTS_PROJECTION = 3;
+const D3DTS_WORLD      = 256;
+
+// D3D8 clear flags + a few render-state IDs we touch from JS. (Full set
+// in d3d8types.h; we only break out what the demo render uses.)
+const D3DCLEAR_TARGET   = 0x01;
+const D3DCLEAR_ZBUFFER  = 0x02;
+const D3DRS_ZENABLE                  = 7;
+const D3DRS_FILLMODE                 = 8;
+const D3DRS_ZWRITEENABLE             = 14;
+const D3DRS_CULLMODE                 = 22;
+const D3DRS_LIGHTING                 = 137;
+const D3DRS_AMBIENT                  = 139;
+const D3DRS_COLORVERTEX              = 140;
+const D3DRS_NORMALIZENORMALS         = 142;
+const D3DRS_DIFFUSEMATERIALSOURCE    = 145;
+const D3DRS_AMBIENTMATERIALSOURCE    = 147;
+const D3DCULL_CCW = 3;
+
+// ID3DXBaseMesh::DrawSubset slot — vtable index 3 in d3dx8mesh.h's
+// ID3DXBaseMesh declaration (after the 3 IUnknown slots).
+const V_Mesh_DrawSubset = 3;
 
 // D3D constants
 const D3DBACKBUFFER_TYPE_MONO = 0;
@@ -339,6 +389,24 @@ let g_mesh_dump_enabled = false;
 let g_mesh_dump_filters = [];
 let g_mesh_dump_seen    = new Set();
 let g_mesh_dump_count   = 0;
+
+// Render-demo state. When `g_demo_active` is true, the
+// Interceptor.replace on FUN_004547ab routes every render-thread tick
+// through the JS demo callback below instead of the engine's normal
+// scene render. `g_demo_mesh_struct` holds the engine-mesh-struct
+// pointer returned by FUN_00472836 for the demo target (the first
+// dword is the ID3DXMesh interface). The view/proj/world/light
+// payloads are pre-allocated in retail memory so the per-frame
+// callback doesn't have to re-allocate.
+let g_demo_active        = false;
+let g_demo_mesh_struct   = null;     // NativePointer to engine mesh struct
+let g_demo_num_subsets   = 0;        // material_count from the mesh struct
+let g_demo_view_ptr      = null;     // float[16] in retail memory
+let g_demo_proj_ptr      = null;     // float[16]
+let g_demo_world_ptr     = null;     // float[16] (identity)
+let g_demo_light_ptr     = null;     // D3DLIGHT8 (104 bytes)
+let g_demo_material_ptr  = null;     // D3DMATERIAL8 (68 bytes)
+let g_demo_keepalive     = [];       // NativeCallback retainer — GC eats them otherwise
 
 // ─── helpers ────────────────────────────────────────────────────────────
 
@@ -1006,6 +1074,256 @@ function dumpMeshBuffers(path, id3dxmesh) {
     }
 }
 
+// ─── render-demo hook ──────────────────────────────────────────────────
+//
+// Replace FUN_004547ab (the engine's render thread top-level) with a
+// minimal "draw one mesh under a fixed camera" loop. Used by
+// tools/render-retail-demo.py to capture retail's rendering of the
+// same geometry openrecet's --house-preview draws, so we can pixel-
+// diff the two and isolate render-code divergences.
+//
+// Why replace instead of attach: the render thread runs Clear / scene
+// dispatch / EndScene / Present all inline; Frida's Interceptor.attach
+// can't abort the original. Replacement lets us own the entire frame.
+// The existing Present hook (vtable-level, not call-site) still fires
+// on our self-issued Present so frame capture is unchanged.
+//
+// Memory layout for the per-frame payloads (all allocated once in
+// setupRenderDemo, reused every callback fire):
+//
+//   view  / proj / world : float[16]  (64 B each)
+//   light                : D3DLIGHT8  (104 B)
+//   material             : D3DMATERIAL8 (68 B)
+//
+// D3DLIGHT8 byte layout (d3d8types.h):
+//   +0   Type (DWORD)                        — 2 = D3DLIGHT_DIRECTIONAL
+//   +4   Diffuse (4 floats: r,g,b,a)         — 16 B
+//   +20  Specular (4 floats)                 — 16 B
+//   +36  Ambient (4 floats)                  — 16 B
+//   +52  Position (3 floats)                 — 12 B
+//   +64  Direction (3 floats)                — 12 B
+//   +76  Range (float)                       —  4 B
+//   +80  Falloff (float)                     —  4 B
+//   +84  Attenuation0/1/2 (3 floats)         — 12 B
+//   +96  Theta (float)                       —  4 B
+//   +100 Phi (float)                         —  4 B
+//   total: 104 B
+//
+// D3DMATERIAL8 byte layout:
+//   +0   Diffuse  (4 floats)
+//   +16  Ambient  (4 floats)
+//   +32  Specular (4 floats)
+//   +48  Emissive (4 floats)
+//   +64  Power    (float)
+//   total: 68 B
+
+function writeMatrix16(ptr, m16) {
+    for (let i = 0; i < 16; i++) ptr.add(i * 4).writeFloat(m16[i]);
+}
+
+function makeLight(diffuse, direction, ambient) {
+    const buf = Memory.alloc(104);
+    /* zero it */
+    for (let i = 0; i < 104; i += 4) buf.add(i).writeU32(0);
+    buf.add(0).writeU32(2);                          /* D3DLIGHT_DIRECTIONAL */
+    buf.add(4).writeFloat(diffuse[0]);
+    buf.add(8).writeFloat(diffuse[1]);
+    buf.add(12).writeFloat(diffuse[2]);
+    buf.add(16).writeFloat(diffuse[3]);
+    /* Specular = (0,0,0,0) — left zeroed */
+    buf.add(36).writeFloat(ambient[0]);
+    buf.add(40).writeFloat(ambient[1]);
+    buf.add(44).writeFloat(ambient[2]);
+    buf.add(48).writeFloat(ambient[3]);
+    /* Position unused for DIRECTIONAL */
+    buf.add(64).writeFloat(direction[0]);
+    buf.add(68).writeFloat(direction[1]);
+    buf.add(72).writeFloat(direction[2]);
+    /* Range/Falloff/Attenuation/Theta/Phi all left at zero — only
+     * Range matters for non-POINT/SPOT lights and DIRECTIONAL ignores
+     * it. */
+    return buf;
+}
+
+function makeMaterial(diffuse, ambient, specular, emissive, power) {
+    const buf = Memory.alloc(68);
+    for (let i = 0; i < 4; i++) buf.add(0  + i * 4).writeFloat(diffuse[i]);
+    for (let i = 0; i < 4; i++) buf.add(16 + i * 4).writeFloat(ambient[i]);
+    for (let i = 0; i < 4; i++) buf.add(32 + i * 4).writeFloat(specular[i]);
+    for (let i = 0; i < 4; i++) buf.add(48 + i * 4).writeFloat(emissive[i]);
+    buf.add(64).writeFloat(power);
+    return buf;
+}
+
+// Build the per-call NativeFunctions for the device + mesh interfaces
+// we use in the demo callback. Stashed under `g_demo_keepalive` so the
+// JS GC doesn't free the underlying trampoline buffers.
+function buildDemoFns(devicePtr, id3dxmeshPtr) {
+    const f = {
+        Clear: new NativeFunction(
+            vtableSlot(devicePtr, V_Dev_Clear),
+            'uint32',
+            ['pointer', 'uint32', 'pointer', 'uint32', 'uint32', 'float', 'uint32'],
+            'stdcall'),
+        BeginScene: new NativeFunction(
+            vtableSlot(devicePtr, V_Dev_BeginScene),
+            'uint32', ['pointer'], 'stdcall'),
+        EndScene: new NativeFunction(
+            vtableSlot(devicePtr, V_Dev_EndScene),
+            'uint32', ['pointer'], 'stdcall'),
+        Present: new NativeFunction(
+            vtableSlot(devicePtr, V_Dev_Present_),
+            'uint32', ['pointer', 'pointer', 'pointer', 'pointer', 'pointer'],
+            'stdcall'),
+        SetTransform: new NativeFunction(
+            vtableSlot(devicePtr, V_Dev_SetTransform),
+            'uint32', ['pointer', 'uint32', 'pointer'], 'stdcall'),
+        SetRenderState: new NativeFunction(
+            vtableSlot(devicePtr, V_Dev_SetRenderState),
+            'uint32', ['pointer', 'uint32', 'uint32'], 'stdcall'),
+        SetLight: new NativeFunction(
+            vtableSlot(devicePtr, V_Dev_SetLight),
+            'uint32', ['pointer', 'uint32', 'pointer'], 'stdcall'),
+        LightEnable: new NativeFunction(
+            vtableSlot(devicePtr, V_Dev_LightEnable),
+            'uint32', ['pointer', 'uint32', 'uint32'], 'stdcall'),
+        SetMaterial: new NativeFunction(
+            vtableSlot(devicePtr, V_Dev_SetMaterial),
+            'uint32', ['pointer', 'pointer'], 'stdcall'),
+        DrawSubset: new NativeFunction(
+            vtableSlot(id3dxmeshPtr, V_Mesh_DrawSubset),
+            'uint32', ['pointer', 'uint32'], 'stdcall'),
+    };
+    g_demo_keepalive.push(f);
+    return f;
+}
+
+function setupRenderDemo(meshPath, viewMatrix16, projMatrix16,
+                        lightDirection3, ambientRgba4)
+{
+    ensureBase();
+    const dev = rva(ADDR.var_d3d_device).readPointer();
+    if (dev.isNull()) {
+        throw new Error('setupRenderDemo: D3D device not yet initialised');
+    }
+
+    // 1. Load the mesh via the existing invokeMeshLoader pipeline
+    //    semantics — except we DON'T fire the mesh dump (the demo is
+    //    a render-side test, not a parser-side one). Allocate the
+    //    engine mesh struct here and call the loader directly.
+    const meshStruct = Memory.alloc(64 * 4);
+    for (let i = 0; i < 16; i++) meshStruct.add(i * 4).writeU32(0);
+    const pathBuf = Memory.allocUtf8String(meshPath);
+    const loader = new NativeFunction(
+        rva(ADDR.fn_mesh_load_wrapper),
+        'uint32', ['pointer', 'pointer', 'uint32'], 'stdcall');
+    const rc = loader(meshStruct, pathBuf, 0xffffffff) >>> 0;
+    if (rc !== 1) {
+        throw new Error('setupRenderDemo: loader rc=' + rc + ' for ' + meshPath);
+    }
+
+    const id3dxmesh = meshStruct.readPointer();
+    if (id3dxmesh.isNull()) {
+        throw new Error('setupRenderDemo: loader returned NULL ID3DXMesh');
+    }
+
+    // Subset count = material_count = meshStruct + 0x10 (param_1[4] in
+    // the engine's struct layout — see FUN_00472836:93).
+    const numSubsets = meshStruct.add(16).readU32() >>> 0;
+
+    g_demo_mesh_struct  = meshStruct;
+    g_demo_num_subsets  = numSubsets;
+
+    // 2. Allocate + populate per-frame payloads in retail memory.
+    g_demo_view_ptr  = Memory.alloc(64);
+    g_demo_proj_ptr  = Memory.alloc(64);
+    g_demo_world_ptr = Memory.alloc(64);
+    writeMatrix16(g_demo_view_ptr,  viewMatrix16);
+    writeMatrix16(g_demo_proj_ptr,  projMatrix16);
+    writeMatrix16(g_demo_world_ptr,
+                  [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+
+    g_demo_light_ptr = makeLight(
+        /*diffuse*/  [1.0, 1.0, 1.0, 1.0],
+        /*direction*/lightDirection3,
+        /*ambient*/  [0.0, 0.0, 0.0, 0.0]);  // global ambient handled via RS_AMBIENT
+    g_demo_material_ptr = makeMaterial(
+        /*diffuse*/  [1.0, 1.0, 1.0, 1.0],
+        /*ambient*/  [1.0, 1.0, 1.0, 1.0],
+        /*specular*/ [0.0, 0.0, 0.0, 0.0],
+        /*emissive*/ [0.0, 0.0, 0.0, 0.0],
+        /*power*/    0.0);
+
+    // 3. Build the device + mesh function pointer cache.
+    const fns = buildDemoFns(dev, id3dxmesh);
+
+    // 4. Encode the global ambient as ARGB DWORD (alpha first, then R,G,B).
+    const ambient_argb =
+        ((Math.round(ambientRgba4[3] * 255) & 0xff) << 24) |
+        ((Math.round(ambientRgba4[0] * 255) & 0xff) << 16) |
+        ((Math.round(ambientRgba4[1] * 255) & 0xff) <<  8) |
+        ((Math.round(ambientRgba4[2] * 255) & 0xff));
+
+    // 5. The replacement function. Signature matches FUN_004547ab:
+    //    `void __cdecl/stdcall()` — no args, no return. We use stdcall
+    //    here; the engine's original is presumably __cdecl (no args
+    //    means no callee pops, so the convention doesn't matter for
+    //    return-stack hygiene).
+    const replacementCb = new NativeCallback(function () {
+        try {
+            // Clear back buffer + Z. Black is the engine HOUSE default
+            // and the same color our --house-preview Z-clears to.
+            fns.Clear(dev, 0, NULL,
+                      D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
+                      0xff000000, 1.0, 0);
+            fns.BeginScene(dev);
+
+            // Render state baseline. Matches the C7b/mesh_draw default
+            // (CULL_CCW + LIGHTING + Z buffer + COLORVERTEX from
+            // material's COLOR1) so the demo's render state is identical
+            // to ours in openrecet.
+            fns.SetRenderState(dev, D3DRS_ZENABLE,            1);
+            fns.SetRenderState(dev, D3DRS_ZWRITEENABLE,       1);
+            fns.SetRenderState(dev, D3DRS_CULLMODE,           D3DCULL_CCW);
+            fns.SetRenderState(dev, D3DRS_LIGHTING,           1);
+            fns.SetRenderState(dev, D3DRS_AMBIENT,            ambient_argb);
+            fns.SetRenderState(dev, D3DRS_COLORVERTEX,        1);
+            fns.SetRenderState(dev, D3DRS_NORMALIZENORMALS,   1);
+            fns.SetRenderState(dev, D3DRS_DIFFUSEMATERIALSOURCE, 1); /* D3DMCS_COLOR1 */
+            fns.SetRenderState(dev, D3DRS_AMBIENTMATERIALSOURCE, 1);
+
+            // Light + transforms.
+            fns.SetLight(dev, 0, g_demo_light_ptr);
+            fns.LightEnable(dev, 0, 1);
+            fns.SetTransform(dev, D3DTS_VIEW,       g_demo_view_ptr);
+            fns.SetTransform(dev, D3DTS_PROJECTION, g_demo_proj_ptr);
+            fns.SetTransform(dev, D3DTS_WORLD,      g_demo_world_ptr);
+            fns.SetMaterial(dev, g_demo_material_ptr);
+
+            // Draw every subset on the loaded mesh.
+            for (let s = 0; s < g_demo_num_subsets; s++) {
+                fns.DrawSubset(id3dxmesh, s);
+            }
+
+            fns.EndScene(dev);
+            // Self-issue Present so the existing Present hook fires
+            // and the capture pipeline grabs the back buffer.
+            fns.Present(dev, NULL, NULL, NULL, NULL);
+        } catch (e) {
+            err('demoRender', e.message + ' ' + e.stack);
+        }
+    }, 'void', [], 'stdcall');
+    g_demo_keepalive.push(replacementCb);
+
+    // 6. Replace FUN_004547ab. Once installed the engine's main loop
+    //    calls our function every iteration instead of the real one.
+    Interceptor.replace(rva(ADDR.fn_render_thread_top), replacementCb);
+    g_demo_active = true;
+
+    log('render-demo: armed (' + meshPath + ', ' + numSubsets + ' subsets, ' +
+        'ambient_argb=0x' + ambient_argb.toString(16) + ')');
+}
+
 // ─── state-forcing helpers (used by tools/state_diff/) ─────────────────
 //
 // These run before the target's main thread is resumed — Frida's helper
@@ -1273,6 +1591,50 @@ rpc.exports = {
     // (DAT_073dfcbc != NULL). Frida's init blocks before device
     // creation; the driver should wait for a `d3d_device_ready`
     // event before calling this RPC.
+    // Wire up the render-demo: load the mesh, populate view/proj/light/
+    // material payloads, and Interceptor.replace FUN_004547ab so every
+    // engine render-thread tick runs the demo callback instead. The
+    // existing Present hook still fires on the self-issued Present so
+    // the capture pipeline (capture_frames in init) works unchanged.
+    //
+    // config = {
+    //   mesh_path:   "xfile/shop/shop_1st.x",
+    //   view:        [16 floats, row-major, row-vector convention],
+    //   proj:        [16 floats, ditto],
+    //   light_dir:   [x, y, z]  -- directional light, gets normalised
+    //                              by D3D
+    //   ambient:     [r, g, b, a]  -- global ambient (0..1)
+    // }
+    setupRenderDemo: function (config) {
+        try {
+            if (!config) throw new Error('config required');
+            const path = config.mesh_path;
+            if (typeof path !== 'string' || !path) {
+                throw new Error('config.mesh_path required');
+            }
+            if (!Array.isArray(config.view) || config.view.length !== 16) {
+                throw new Error('config.view must be 16 floats');
+            }
+            if (!Array.isArray(config.proj) || config.proj.length !== 16) {
+                throw new Error('config.proj must be 16 floats');
+            }
+            const lightDir = (Array.isArray(config.light_dir) &&
+                              config.light_dir.length === 3)
+                                 ? config.light_dir
+                                 : [0.6, -1.0, -0.5];
+            const ambient = (Array.isArray(config.ambient) &&
+                             config.ambient.length === 4)
+                                ? config.ambient
+                                : [0.25, 0.25, 0.25, 1.0];
+
+            setupRenderDemo(path, config.view, config.proj, lightDir, ambient);
+            return true;
+        } catch (e) {
+            err('setupRenderDemo', e.message + ' ' + (e.stack || ''));
+            return false;
+        }
+    },
+
     invokeMeshLoader: function (path) {
         if (typeof path !== 'string' || path.length === 0) {
             err('invokeMeshLoader', 'bad path: ' + path);
