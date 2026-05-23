@@ -24,6 +24,7 @@
 #include "scene1_alpha_walker.h"
 #include "scene1_records.h"
 #include "scene1_shop_walker.h"
+#include "scene1_wide_followup.h"
 #include "sim.h"
 
 /* ─── engine globals — module-local mirrors ─────────────────────────── */
@@ -210,12 +211,11 @@ static void scene1_walk_narrow_followup_TODO(void)
  * record active flags). */
 
 /* FUN_004161c7 (4925 B) — sub at L219, right after FUN_004552d0.
- * Substantial.  May be the per-frame transform refresh for the
- * wide-frustum batch. */
-static void scene1_walk_wide_followup_TODO(void)
-{
-    /* TODO C8-followup: port FUN_004161c7. */
-}
+ * Landed 2026-05-23 as C8f.1 (src/scene1_wide_followup.{c,h}) with full
+ * state-writes + per-pass body stubs + Pass F integration with the
+ * existing scene1_pass_f module.  Per-pass inner draws (A/B/C/D/E)
+ * remain TODO stubs because the engine's wide-followup data populator
+ * for tables B/C is unported — every pass is dormant in HOUSE. */
 
 /* FUN_0045672a (1317 B) — sub at L246, before FUN_00458bdf.  Likely
  * the alpha-pass setup helper. */
@@ -670,8 +670,12 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * scene1_shop_walker.h). */
     scene1_shop_walker((struct IDirect3DDevice8 *)dev);
 
-    /* L219: FUN_004161c7 (4925 B) — post-shop sub-pass. */
-    scene1_walk_wide_followup_TODO();
+    /* L219: ★ FUN_004161c7 ★ — the wide-followup walker (4925 B).
+     * C8f.1 (2026-05-23) ports the structure + state writes; per-record
+     * draws for passes A/B/C/D/E are TODO stubs (dormant in HOUSE —
+     * see scene1_wide_followup.h).  Pass F delegates to the existing
+     * scene1_pass_f module. */
+    scene1_wide_followup((struct IDirect3DDevice8 *)dev);
 
     /* L220-L230: stage-palette lighting gate.  When palette + 0x1ae0
      * != 0, light 0 is populated from DAT_06a49a40 + enabled;
