@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-/* Implemented as of C8i.3b:
+/* Implemented as of C8i.3c:
  *   C8i.1 anchors — 0x60 (no-op reservation), 0x20 (age=0),
  *                   0x66 (vel=(0,0,-1) + random life cap).
  *   C8i.2 radial bursts — 1/2/3/0x52/0x5e/0x65 (8-particle group A),
@@ -55,8 +55,20 @@ extern "C" {
  *                         azimuth = i*2π/8), 0x36+0x74 (param_7-count,
  *                         re-scaled SCALE), 0x4e (3, narrowed vel +
  *                         wide pos).
+ *   C8i.3c local_8-azimuth + chain pair — 0x34 (24, chain-spawner w/
+ *                         vel dead-write + final vel.y/z = rot seeds +
+ *                         pos = param - vel*24), 0x35 (1, chain target
+ *                         w/ rot only), 0x2c (32, small radial w/ AGE
+ *                         = -i), 0x29 (14, raw vel without scale,
+ *                         no pos write), 0x32 (2, π/2 string), 0x4c +
+ *                         0x55 (1, π/4 string w/ alternating vel.x
+ *                         sign + scale decay), 0x4b (3, count-driven
+ *                         vel.x version of 0x4c), 0x33+0x4d+0x51
+ *                         (param_7-count strings w/ random rot.x),
+ *                         0x57 (1, param_7-sign rot.z + PARAM2=param7),
+ *                         0x3e (4, rot.z jitter string).
  * Unimplemented types record a trace but do not allocate or commit a
- * slot — they will become real spawns as C8i.3c..5 land. */
+ * slot — they will become real spawns as C8i.3d / C8i.4-5 land. */
 #define SCENE1_SPAWN_TYPE_IMPLEMENTED(t)                                    \
     ((t) == 0x60 || (t) == 0x20 || (t) == 0x66 || (t) == 0x92 ||            \
      (t) == 1    || (t) == 2    || (t) == 3    || (t) == 0x52 ||            \
@@ -64,7 +76,10 @@ extern "C" {
      (t) == 0x69 || (t) == 0x68 || (t) == 0x73 || (t) == 0x77 ||            \
      (t) == 99   || (t) == 0x78 || (t) == 0x53 || (t) == 0x4a ||            \
      (t) == 0x43 || (t) == 0x97 || (t) == 0x96 || (t) == 0x40 ||            \
-     (t) == 0x36 || (t) == 0x74 || (t) == 0x4e)
+     (t) == 0x36 || (t) == 0x74 || (t) == 0x4e || (t) == 0x34 ||            \
+     (t) == 0x35 || (t) == 0x2c || (t) == 0x29 || (t) == 0x32 ||            \
+     (t) == 0x4c || (t) == 0x55 || (t) == 0x4b || (t) == 0x33 ||            \
+     (t) == 0x4d || (t) == 0x51 || (t) == 0x57 || (t) == 0x3e)
 
 /* Stand-in for type 0x96's camera-angle bend.  Engine reads
  * `*(int *)(slot_hint + 0x948)` directly (slot_hint is overloaded as a

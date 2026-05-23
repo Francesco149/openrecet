@@ -1008,6 +1008,34 @@ struct test_case {
     X(scene1_spawn_type_40_vy_positive) \
     X(scene1_spawn_type_36_rescales_slot_scale) \
     X(scene1_spawn_type_4e_vel_xz_narrowed_vs_pos) \
+    X(scene1_spawn_type_34_commits_24) \
+    X(scene1_spawn_type_35_commits_1) \
+    X(scene1_spawn_type_2c_commits_32) \
+    X(scene1_spawn_type_29_commits_14) \
+    X(scene1_spawn_type_32_commits_2) \
+    X(scene1_spawn_type_4c_commits_1) \
+    X(scene1_spawn_type_55_commits_1) \
+    X(scene1_spawn_type_4b_commits_3) \
+    X(scene1_spawn_type_57_commits_1) \
+    X(scene1_spawn_type_3e_commits_4) \
+    X(scene1_spawn_type_33_param7_drives_count) \
+    X(scene1_spawn_type_4d_param7_drives_count) \
+    X(scene1_spawn_type_51_param7_drives_count) \
+    X(scene1_spawn_type_34_age_stagger) \
+    X(scene1_spawn_type_34_vel_x_equals_mag_times_scale) \
+    X(scene1_spawn_type_34_pos_uses_anchor_back_24x) \
+    X(scene1_spawn_type_35_pos_exact) \
+    X(scene1_spawn_type_2c_age_stagger) \
+    X(scene1_spawn_type_2c_pos_uses_20x_velocity) \
+    X(scene1_spawn_type_29_pos_stays_at_param) \
+    X(scene1_spawn_type_29_vel_no_scale) \
+    X(scene1_spawn_type_32_rot_angle_steps) \
+    X(scene1_spawn_type_4c_vel_x_sign_alternates) \
+    X(scene1_spawn_type_4b_vel_x_count_driven) \
+    X(scene1_spawn_type_4b_scale_decays_per_particle) \
+    X(scene1_spawn_type_57_param2_eq_param7) \
+    X(scene1_spawn_type_57_rot_z_sign_on_param7) \
+    X(scene1_spawn_type_3e_rot_x_steps) \
     X(scene1_mesh_emit_records_call) \
     X(scene1_mesh_emit_reset_clears) \
     \

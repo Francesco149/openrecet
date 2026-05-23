@@ -3,8 +3,35 @@
  *
  * Port of FUN_00447f4f @ 0x447f4f (1449-line Ghidra decomp).  C8i.1
  * landed the outer slot-scan + common preamble + 3 anchor types
- * (0x60, 0x20, 0x66).  C8i.2 added the radial-burst family.  C8i.3b
- * adds 9 mixed-shape multi-particle radials (engine lines 289-527):
+ * (0x60, 0x20, 0x66).  C8i.2 added the radial-burst family.  C8i.3c
+ * adds 13 local_8-azimuth + chain-pair handlers (engine lines 528-735):
+ *
+ *   - Type 0x34 (24) — chain spawner: vel.x/y/z assignments are
+ *     overwritten mid-body (the first batch of sin/cos*scale*mag writes
+ *     is dead).  Final vel.x = mag*scale; vel.y/z = u*2π (rotation
+ *     seeds repurposed as integrator scratch); pos = (x,y,z) - vel*24
+ *     (anchor-back 24×); AGE = -i.  Pairs with 0x35 chain at kill time.
+ *   - Type 0x35 (1)  — chain target: rot.x=0, rot.y/z = u*2π;
+ *     pos = (x,y,z) - vel*24, with vel from the preamble (= 0), so
+ *     pos = (x,y,z) exact.  AGE = -i (= 0 since first spawn).
+ *   - Type 0x2c (32) — small radial mag=0.2*(u+1.2), pos = vel*20 +
+ *     param, AGE = -i (negative stagger).
+ *   - Type 0x29 (14) — direct vel = trig*(u+0.2)*0.6, vy = (u-0.2)*0.8
+ *     (no scale factor!), no pos/age write.
+ *   - Type 0x32 (2)  — string at π/2 offset: rot.x=i*π+π/2, rot.y=0,
+ *     rot.z=π/2; AGE=0; PARAM2 = u & 0xff.
+ *   - Types 0x4c, 0x55 (1) — string at π/4 offset, alternating vel.x
+ *     sign per particle, slot.scale *= (1 - i*0.2).
+ *   - Type 0x4b (3)  — same shape as 0x4c/0x55 with count-driven
+ *     vel.x = (i+1)*0.1 and PARAM2 = i*2.
+ *   - Types 0x33, 0x4d, 0x51 (param_7) — string w/ rot.x overwritten
+ *     to u*2π (random); pos.y = (u-0.5)*scale*4 + y.
+ *   - Type 0x57 (1)  — like 0x33 family but rot.z = ±π/2 based on
+ *     param_7 sign; PARAM2 = param_7 (via LAB_00448f57).
+ *   - Type 0x3e (4)  — like 0x33 family but with rot.z = u*0.2 + π/2
+ *     jitter (no rot.x overwrite); 4 particles total.
+ *
+ * C8i.3b covers 9 mixed-shape multi-particle radials (engine lines 289-527):
  *
  *   - Type 0x53 (1)  — world-radial xz via trig*scale*8(u+2.2); vy =
  *     (u+1.5)*scale*3 (positive bias); xz vel = 0.
@@ -108,6 +135,14 @@ static inline int slot_type(int i)
 {
     return g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE
                               + SCENE1_RECORDS_A_OFF_TYPE];
+}
+
+static inline float slot_read_f_inline(int i, int off)
+{
+    int32_t v = g_scene1_records_a[i * SCENE1_RECORDS_A_STRIDE + off];
+    float f;
+    __builtin_memcpy(&f, &v, sizeof f);
+    return f;
 }
 
 /* ─── common preamble (engine lines 33-46) ──────────────────────────
@@ -674,6 +709,320 @@ static void init_type_4e(int i, float x, float y, float z, float scale)
                (rng_next_unit() + 1.0f) * scale);
 }
 
+/* ─── per-type init: 0x34 — 24-spawn chain spawner (engine L528-551) ──
+ *
+ *   The engine first computes a sin/cos*scale*mag triple into vel, then
+ *   IMMEDIATELY overwrites those values:
+ *     vel.x ← (u1+1.2) * scale          ; was sin(u2*2π)*scale*(u1+1.2)
+ *     vel.y ← u4 * 2π                    ; was (u3-0.5)*scale*3
+ *     vel.z ← u5 * 2π                    ; was cos(u2*2π)*scale*(u1+1.2)
+ *   pos = (x,y,z) - vel*24
+ *   AGE = -count_index
+ *
+ * The first three RNG draws (u1/u2/u3) are kept because the dead writes
+ * still consume them (RNG state is observable from sibling spawns).  The
+ * argless cosf() is dead-coded and gets dropped.
+ *
+ * Pairs with the integrator's handle_type_34 (C8h.3), which chain-spawns
+ * a 0x35 follow-up at age=0x18.  24 particles per call (LAB_00448d0b). */
+static void init_type_34(int i, int count_index, float x, float y, float z,
+                         float scale)
+{
+    /* Engine dead-write batch: consume u1, u2, u3 for RNG-state parity
+     * (downstream type-0x35 chain spawn will see the same PRNG sequence
+     * the engine does).  The cos call is dead-coded since vel.z gets
+     * overwritten before any other consumer reads it. */
+    float u1 = rng_next_unit();
+    float u2 = rng_next_unit();
+    (void)sinf(u2 * TWO_PI_F);  /* dead store to vel.x */
+    (void)rng_next_unit();      /* u3 — dead store to vel.y */
+    /* Engine also calls cosf() here with no arg.  No observable side
+     * effect since the result is dead.  Skip. */
+
+    float mag = u1 + 1.2f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, mag * scale);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, rng_next_unit() * TWO_PI_F);
+
+    float vx = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, x - vx * 24.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, y - vy * 24.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, z - vz * 24.0f);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = -count_index;
+}
+
+/* ─── per-type init: 0x35 — 1-spawn chain target (engine L553-563) ─────
+ *
+ *   rot.x = 0
+ *   rot.y = u * 2π
+ *   rot.z = u * 2π
+ *   pos = (x,y,z) - vel * 24                       ; vel is preamble (= 0)
+ *   AGE = -count_index                              ; = 0 since 1-spawn
+ *
+ * Since the preamble zeroed vel before this handler runs, the pos write
+ * degenerates to pos = (x,y,z).  Spawned by 0x34's kill chain. */
+static void init_type_35(int i, int count_index, float x, float y, float z)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, rng_next_unit() * TWO_PI_F);
+
+    /* vel is 0 from preamble; pos = (x,y,z) - 0*24 = (x,y,z) exact.
+     * Write through anyway to match engine's literal store. */
+    float vx = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_read_f_inline(i, SCENE1_RECORDS_A_OFF_VEL_Z);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, x - vx * 24.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, y - vy * 24.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, z - vz * 24.0f);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = -count_index;
+}
+
+/* ─── per-type init: 0x2c — 32-spawn small radial w/ AGE stagger (L565-585) ─
+ *
+ *   fVar1  = 0.2 * (u1 + 1.2)
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * scale * fVar1
+ *   vel.y  = (u3 - 0.5) * scale * 0.5              ; smaller mult than 0x69
+ *   vel.z  = cos(angle) * scale * fVar1
+ *   pos    = vel * 20 + (x,y,z)                    ; wide forward nudge
+ *   PARAM1 = u%100+20
+ *   AGE    = -count_index                          ; negative stagger
+ *
+ * Commits 32 particles per call (LAB_0044aafa → bVar11 = local_8 == 0x1f). */
+static void init_type_2c(int i, int count_index, float x, float y, float z,
+                         float scale)
+{
+    float u1    = rng_next_unit();
+    float fVar1 = 0.2f * (u1 + 1.2f);
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    float vx = sinf(angle) * scale * fVar1;
+    float vy = (rng_next_unit() - 0.5f) * scale * 0.5f;
+    float vz = cosf(angle) * scale * fVar1;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 20.0f + x);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 20.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 20.0f + z);
+
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = -count_index;
+}
+
+/* ─── per-type init: 0x29 — 14-spawn raw vel (engine L587-598) ────────
+ *
+ *   fVar1  = 0.6 * (u1 + 0.2)
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * fVar1                    ; NO scale factor
+ *   vel.y  = (u3 - 0.2) * 0.8                       ; NO scale, bias 0.2
+ *   vel.z  = cos(angle) * fVar1
+ *
+ * No pos/age/PARAM1 write — preamble values stand (pos = param,
+ * age = 0, PARAM1 = 0).  Commits 14 particles per call (local_8 == 0xd). */
+static void init_type_29(int i)
+{
+    float u1    = rng_next_unit();
+    float fVar1 = 0.6f * (u1 + 0.2f);
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, sinf(angle) * fVar1);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, (rng_next_unit() - 0.2f) * 0.8f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, cosf(angle) * fVar1);
+}
+
+/* ─── per-type init: 0x32 — 2-spawn string at π/2 offset (engine L628-635) ─
+ *
+ *   rot.x  = count_index * π + π/2
+ *   rot.y  = 0
+ *   rot.z  = π/2                                   ; engine literal 0x3fc90fdb
+ *   AGE    = 0
+ *   PARAM2 = u & 0xff
+ *
+ * pos/vel stay at preamble (pos = param, vel = 0).  2 particles
+ * (LAB_0044abe9 → bVar11 = local_8 == 1). */
+static void init_type_32(int i, int count_index)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X,
+               (float)count_index * 3.1415927f + 1.5707964f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, 0.0f);
+    /* 0x3fc90fdb = π/2 single-precision (1.5707964f). */
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, 1.5707964f);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = 0;
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = (int)(r & 0xffu);
+}
+
+/* ─── per-type init: 0x4c, 0x55 — 1-spawn string π/4 alt-sign (L637-656) ─
+ *
+ *   rot.x  = count_index * π + π/4
+ *   rot.y  = 0
+ *   rot.z  = π/2
+ *   pos.y  = (u1 - 1.0) * scale * 0.5 + y
+ *   fVar1  = 0.2 * (u2 + 0.2)
+ *   vel.x  = fVar1; if (count_index & 1) vel.x = -fVar1   ; sign alt
+ *   slot.scale *= (1 - count_index * 0.2)                ; decay
+ *   AGE    = 0
+ *   PARAM2 = u & 0xff
+ *
+ * 1 particle (LAB_0044a985). */
+static void init_type_4c_55(int i, int count_index, float y, float scale)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X,
+               (float)count_index * 3.1415927f + 0.7853982f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, 1.5707964f);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+               (rng_next_unit() - 1.0f) * scale * 0.5f + y);
+
+    float fVar1 = 0.2f * (rng_next_unit() + 0.2f);
+    if (count_index & 1) fVar1 = -fVar1;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, fVar1);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_SCALE,
+               (1.0f - (float)count_index * 0.2f) * scale);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = 0;
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = (int)(r & 0xffu);
+}
+
+/* ─── per-type init: 0x4b — 3-spawn string π/4 count-driven (engine L658-676) ─
+ *
+ *   rot.x  = count_index * π + π/4
+ *   rot.y  = 0
+ *   rot.z  = π/2
+ *   pos.y  = (u - 1.0) * scale * 0.5 + y
+ *   fVar1  = (count_index + 1) * 0.1                ; count-driven, not random
+ *   vel.x  = fVar1; if (count_index & 1) vel.x = -fVar1
+ *   slot.scale *= (1 - count_index * 0.2)
+ *   AGE    = 0
+ *   PARAM2 = count_index * 2                        ; count-driven
+ *
+ * 3 particles (bVar11 = count_index + 1 == 3 → matches). */
+static void init_type_4b(int i, int count_index, float y, float scale)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X,
+               (float)count_index * 3.1415927f + 0.7853982f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, 1.5707964f);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+               (rng_next_unit() - 1.0f) * scale * 0.5f + y);
+
+    float fVar1 = (float)(count_index + 1) * 0.1f;
+    if (count_index & 1) fVar1 = -fVar1;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, fVar1);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_SCALE,
+               (1.0f - (float)count_index * 0.2f) * scale);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = 0;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = count_index * 2;
+}
+
+/* ─── per-type init: 0x33, 0x4d, 0x51 — param_7-count string (L678-695) ─
+ *
+ *   rot.x  = count_index * π + π/4                  ; initial
+ *   rot.y  = 0
+ *   rot.x  = u * 2π                                  ; OVERWRITTEN w/ random
+ *   rot.z  = π/2
+ *   pos.y  = (u - 0.5) * scale * 4 + y
+ *   vel.x  = (u + 0.2) * 0.2
+ *   AGE    = 0
+ *   PARAM2 = u & 0xff
+ *
+ * Commits param_7 particles per call (LAB_0044a8ef → LAB_0044aa47).
+ * The initial rot.x = i*π+π/4 store is dead — engine overwrites
+ * immediately, but the RNG draw still happens between. */
+static void init_type_33_4d_51(int i, float y, float scale)
+{
+    /* Initial rot.x assignment is dead-coded by the immediate
+     * overwrite below; skip. */
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z, 1.5707964f);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+               (rng_next_unit() - 0.5f) * scale * 4.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
+               (rng_next_unit() + 0.2f) * 0.2f);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = 0;
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = (int)(r & 0xffu);
+}
+
+/* ─── per-type init: 0x57 — 1-spawn string w/ param7 sign (L697-717) ───
+ *
+ *   rot.x  = count_index * π + π/4 (dead)
+ *   rot.y  = 0
+ *   rot.x  = u * 2π
+ *   rot.z  = (param_7 == 0) ? π/2 : -π/2            ; sign on param_7
+ *   pos.y  = (u - 0.5) * scale * 4 + y
+ *   vel.x  = (u + 0.2) * 0.2
+ *   AGE    = 0
+ *   <PRNG consumed and discarded>
+ *   PARAM2 = param_7                                ; via LAB_00448f57
+ *
+ * 1 particle (LAB_0044a985). */
+static void init_type_57(int i, float y, float scale, int param7)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rng_next_unit() * TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z,
+               (param7 == 0) ? 1.5707964f : -1.5707964f);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+               (rng_next_unit() - 0.5f) * scale * 4.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
+               (rng_next_unit() + 0.2f) * 0.2f);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = 0;
+    (void)rng_next15();   /* engine consumes and discards a u15 here */
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = param7;
+}
+
+/* ─── per-type init: 0x3e — 4-spawn string w/ rot.z jitter (L719-734) ──
+ *
+ *   rot.x  = count_index * π + π/4                  ; (NO overwrite this time)
+ *   rot.y  = 0
+ *   rot.z  = u * 0.2 + π/2                          ; jitter around π/2
+ *   pos.y  = (u - 0.5) * scale * 4 + y
+ *   vel.x  = (u + 0.2) * 0.2
+ *   AGE    = 0
+ *   PARAM2 = u & 0xff
+ *
+ * 4 particles (bVar11 = count_index == 3). */
+static void init_type_3e(int i, int count_index, float y, float scale)
+{
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X,
+               (float)count_index * 3.1415927f + 0.7853982f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Z,
+               rng_next_unit() * 0.2f + 1.5707964f);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+               (rng_next_unit() - 0.5f) * scale * 4.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X,
+               (rng_next_unit() + 0.2f) * 0.2f);
+
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE) = 0;
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = (int)(r & 0xffu);
+}
+
 /* ─── per-type init: 0x69 — 128-spawn group-A swarm (engine L143-156) ──
  *
  *   mag    = 2*(u1 + 0.2)                          ; wider mag than 0x79
@@ -848,9 +1197,11 @@ static void init_type_78(int i, float x, float y, float z, float scale,
  * radial variants — 0x69 (128), 0x68 (1), 0x73/0x77 (2), 99 (1),
  * 0x78 (1).  C8i.3b adds 9 mixed-shape multi-particle radials — 0x53
  * (1), 0x4a (8), 0x43 (24), 0x97/0x96 (64), 0x40 (8), 0x36/0x74
- * (param_7), 0x4e (3).  Remaining counts (12 for the mega-group,
- * remainder of param_7-driven, etc.) land in C8i.3c-5.  See
- * scene1-spawn.md for the full table. */
+ * (param_7), 0x4e (3).  C8i.3c adds 13 local_8-azimuth + chain pair —
+ * 0x34 (24), 0x35 (1), 0x2c (32), 0x29 (14), 0x32 (2), 0x4c/0x55 (1),
+ * 0x4b (3), 0x33/0x4d/0x51 (param_7), 0x57 (1), 0x3e (4).  Remaining
+ * counts (12 for the mega-group, remainder of param_7-driven, etc.)
+ * land in C8i.3d / C8i.4-5.  See scene1-spawn.md for the full table. */
 static int spawn_count_for_type(int type)
 {
     switch (type) {
@@ -874,7 +1225,17 @@ static int spawn_count_for_type(int type)
     case 0x97: case 0x96: return 64;
     case 0x40: return 8;
     case 0x4e: return 3;
-    /* 0x36 / 0x74 use param_7 as the loop count — see scene1_spawn(). */
+    case 0x34: return 24;
+    case 0x35: return 1;
+    case 0x2c: return 32;
+    case 0x29: return 14;
+    case 0x32: return 2;
+    case 0x4c: case 0x55: return 1;
+    case 0x4b: return 3;
+    case 0x57: return 1;
+    case 0x3e: return 4;
+    /* 0x36 / 0x74 / 0x33 / 0x4d / 0x51 use param_7 — see
+     * spawn_count_is_param7() + scene1_spawn(). */
     default:   return 0;   /* unimplemented — record trace only */
     }
 }
@@ -884,7 +1245,8 @@ static int spawn_count_for_type(int type)
  * spawn_count_for_type() or from param_7 (clamped to >=1). */
 static int spawn_count_is_param7(int type)
 {
-    return (type == 0x36) || (type == 0x74);
+    return (type == 0x36) || (type == 0x74) ||
+           (type == 0x33) || (type == 0x4d) || (type == 0x51);
 }
 
 /* Per-type init dispatch.  Called once per committed slot.  count_index
@@ -922,6 +1284,20 @@ static void run_type_init(int type, int i, int count_index, float x, float y,
         init_type_36_74(i, x, y, z, scale);
         break;
     case 0x4e: init_type_4e(i, x, y, z, scale); break;
+    case 0x34: init_type_34(i, count_index, x, y, z, scale); break;
+    case 0x35: init_type_35(i, count_index, x, y, z); break;
+    case 0x2c: init_type_2c(i, count_index, x, y, z, scale); break;
+    case 0x29: init_type_29(i); break;
+    case 0x32: init_type_32(i, count_index); break;
+    case 0x4c: case 0x55:
+        init_type_4c_55(i, count_index, y, scale);
+        break;
+    case 0x4b: init_type_4b(i, count_index, y, scale); break;
+    case 0x33: case 0x4d: case 0x51:
+        init_type_33_4d_51(i, y, scale);
+        break;
+    case 0x57: init_type_57(i, y, scale, param7); break;
+    case 0x3e: init_type_3e(i, count_index, y, scale); break;
     default: break;
     }
     (void)count_index;  /* anchor types don't need it */

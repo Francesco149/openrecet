@@ -879,6 +879,257 @@ int test_scene1_spawn_type_4e_vel_xz_narrowed_vs_pos(void)
     return 0;
 }
 
+/* ─── C8i.3c: local_8-azimuth + chain pair ────────────────────────── */
+
+int test_scene1_spawn_type_34_commits_24(void)  { return spawn_burst_count_is(0x34, 24); }
+int test_scene1_spawn_type_35_commits_1(void)   { return spawn_burst_count_is(0x35, 1);  }
+int test_scene1_spawn_type_2c_commits_32(void)  { return spawn_burst_count_is(0x2c, 32); }
+int test_scene1_spawn_type_29_commits_14(void)  { return spawn_burst_count_is(0x29, 14); }
+int test_scene1_spawn_type_32_commits_2(void)   { return spawn_burst_count_is(0x32, 2);  }
+int test_scene1_spawn_type_4c_commits_1(void)   { return spawn_burst_count_is(0x4c, 1);  }
+int test_scene1_spawn_type_55_commits_1(void)   { return spawn_burst_count_is(0x55, 1);  }
+int test_scene1_spawn_type_4b_commits_3(void)   { return spawn_burst_count_is(0x4b, 3);  }
+int test_scene1_spawn_type_57_commits_1(void)   { return spawn_burst_count_is(0x57, 1);  }
+int test_scene1_spawn_type_3e_commits_4(void)   { return spawn_burst_count_is(0x3e, 4);  }
+
+int test_scene1_spawn_type_33_param7_drives_count(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x33, 1.0f, 7);
+    T_ASSERT_EQ_I(count_committed_slots(0x33), 7);
+    return 0;
+}
+
+int test_scene1_spawn_type_4d_param7_drives_count(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x4d, 1.0f, 11);
+    T_ASSERT_EQ_I(count_committed_slots(0x4d), 11);
+    return 0;
+}
+
+int test_scene1_spawn_type_51_param7_drives_count(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x51, 1.0f, 3);
+    T_ASSERT_EQ_I(count_committed_slots(0x51), 3);
+    return 0;
+}
+
+int test_scene1_spawn_type_34_age_stagger(void)
+{
+    /* Engine line 550: AGE = -count_index → 0, -1, ..., -23. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x34, 1.0f, 0);
+    for (int k = 0; k < 24; k++) {
+        T_ASSERT_EQ_I(slot_read_i(k, SCENE1_RECORDS_A_OFF_AGE), -k);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_34_vel_x_equals_mag_times_scale(void)
+{
+    /* Engine line 542: vel.x = fVar1 * scale = (u1 + 1.2) * scale.
+     * With scale=2.0, u1 in [0,1), vel.x in [2.4, 4.4). */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x34, 2.0f, 0);
+    for (int k = 0; k < 24; k++) {
+        float vx = slot_read_f(k, SCENE1_RECORDS_A_OFF_VEL_X);
+        T_ASSERT(vx >= 2.4f);
+        T_ASSERT(vx < 4.4f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_34_pos_uses_anchor_back_24x(void)
+{
+    /* Engine lines 547-549: pos = (x,y,z) - vel * 24. */
+    reset_records_and_trace();
+    scene1_spawn(0, 100.0f, 200.0f, 300.0f, 0x34, 1.0f, 0);
+    float vx = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z);
+    float px = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_X);
+    float py = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Y);
+    float pz = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Z);
+    T_ASSERT_EQ_I(*(int32_t *)&px, *(int32_t *)&(float){ 100.0f - vx * 24.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&py, *(int32_t *)&(float){ 200.0f - vy * 24.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&pz, *(int32_t *)&(float){ 300.0f - vz * 24.0f });
+    return 0;
+}
+
+int test_scene1_spawn_type_35_pos_exact(void)
+{
+    /* Engine 0x35: pos = param - vel*24 with vel=0 (preamble). */
+    reset_records_and_trace();
+    scene1_spawn(0, 12.5f, 34.5f, 56.5f, 0x35, 1.0f, 0);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_X) == 12.5f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Y) == 34.5f);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Z) == 56.5f);
+    /* rot.x = 0 (engine line 554). */
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_X) == 0.0f);
+    /* rot.y, rot.z each in [0, 2π]. */
+    float ry = slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Y);
+    float rz = slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Z);
+    T_ASSERT(ry >= 0.0f && ry <= 6.2831856f);
+    T_ASSERT(rz >= 0.0f && rz <= 6.2831856f);
+    return 0;
+}
+
+int test_scene1_spawn_type_2c_age_stagger(void)
+{
+    /* Engine line 584: AGE = -count_index. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x2c, 1.0f, 0);
+    for (int k = 0; k < 32; k++) {
+        T_ASSERT_EQ_I(slot_read_i(k, SCENE1_RECORDS_A_OFF_AGE), -k);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_2c_pos_uses_20x_velocity(void)
+{
+    reset_records_and_trace();
+    scene1_spawn(0, 1.0f, 2.0f, 3.0f, 0x2c, 1.0f, 0);
+    float vx = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X);
+    float px = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_X);
+    T_ASSERT_EQ_I(*(int32_t *)&px, *(int32_t *)&(float){ vx * 20.0f + 1.0f });
+    return 0;
+}
+
+int test_scene1_spawn_type_29_pos_stays_at_param(void)
+{
+    /* Engine: 0x29 doesn't write pos — preamble pos = (param_2,3,4) stands. */
+    reset_records_and_trace();
+    scene1_spawn(0, 7.5f, 8.5f, 9.5f, 0x29, 1.0f, 0);
+    /* Across all 14 spawns. */
+    for (int k = 0; k < 14; k++) {
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_POS_X) == 7.5f);
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_POS_Y) == 8.5f);
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_POS_Z) == 9.5f);
+        /* AGE stays at preamble's 0. */
+        T_ASSERT(slot_read_i(k, SCENE1_RECORDS_A_OFF_AGE) == 0);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_29_vel_no_scale(void)
+{
+    /* Engine: vel.y = (u - 0.2) * 0.8 → range [-0.16, 0.64].  No scale
+     * factor — passing scale=100 should not change the range. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x29, 100.0f, 0);
+    for (int k = 0; k < 14; k++) {
+        float vy = slot_read_f(k, SCENE1_RECORDS_A_OFF_VEL_Y);
+        T_ASSERT(vy >= -0.16f);
+        T_ASSERT(vy <= 0.64f);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_32_rot_angle_steps(void)
+{
+    /* Engine: rot.x = count_index * π + π/2 → π/2 then 3π/2. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x32, 1.0f, 0);
+    float r0 = slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_X);
+    float r1 = slot_read_f(1, SCENE1_RECORDS_A_OFF_ROT_X);
+    T_ASSERT(r0 == 1.5707964f);
+    T_ASSERT(r1 == 3.1415927f + 1.5707964f);
+    /* rot.z = π/2 for both. */
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Z) == 1.5707964f);
+    T_ASSERT(slot_read_f(1, SCENE1_RECORDS_A_OFF_ROT_Z) == 1.5707964f);
+    return 0;
+}
+
+int test_scene1_spawn_type_4c_vel_x_sign_alternates(void)
+{
+    /* Engine: if (count_index & 1) vel.x = -vel.x.  Only 1 particle per
+     * spawn call, so verify by spawning twice (clearing slot in between). */
+    reset_records_and_trace();
+    /* Slot 0 → count_index 0 → positive. */
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x4c, 1.0f, 0);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X) > 0.0f);
+    /* The 0x4c spawn count is 1, so the sign-alt logic isn't actually
+     * exercised within a single call.  Test through 0x4b instead which
+     * spawns 3. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x4b, 1.0f, 0);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X) > 0.0f);  /* k=0: +0.1 */
+    T_ASSERT(slot_read_f(1, SCENE1_RECORDS_A_OFF_VEL_X) < 0.0f);  /* k=1: -0.2 */
+    T_ASSERT(slot_read_f(2, SCENE1_RECORDS_A_OFF_VEL_X) > 0.0f);  /* k=2: +0.3 */
+    return 0;
+}
+
+int test_scene1_spawn_type_4b_vel_x_count_driven(void)
+{
+    /* Engine line 666: fVar1 = (count_index + 1) * 0.1.
+     *   k=0: |vel.x| = 0.1
+     *   k=1: |vel.x| = 0.2
+     *   k=2: |vel.x| = 0.3
+     * Signs alternate. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x4b, 1.0f, 0);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X) == 0.1f);
+    T_ASSERT(slot_read_f(1, SCENE1_RECORDS_A_OFF_VEL_X) == -0.2f);
+    T_ASSERT(slot_read_f(2, SCENE1_RECORDS_A_OFF_VEL_X) == 0.3f);
+    /* PARAM2 = count_index * 2 (engine line 674). */
+    T_ASSERT(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM2) == 0);
+    T_ASSERT(slot_read_i(1, SCENE1_RECORDS_A_OFF_PARAM2) == 2);
+    T_ASSERT(slot_read_i(2, SCENE1_RECORDS_A_OFF_PARAM2) == 4);
+    return 0;
+}
+
+int test_scene1_spawn_type_4b_scale_decays_per_particle(void)
+{
+    /* Engine line 671-672: slot.scale *= (1 - count_index * 0.2).
+     *   k=0: scale *= 1.0    → 2.0
+     *   k=1: scale *= 0.8    → 1.6
+     *   k=2: scale *= 0.6    → 1.2  */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x4b, 2.0f, 0);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_SCALE) == 2.0f);
+    T_ASSERT(slot_read_f(1, SCENE1_RECORDS_A_OFF_SCALE) == 1.6f);
+    T_ASSERT(slot_read_f(2, SCENE1_RECORDS_A_OFF_SCALE) ==
+             (float)(1.0f - 2 * 0.2f) * 2.0f);  /* 0.6 * 2.0 */
+    return 0;
+}
+
+int test_scene1_spawn_type_57_param2_eq_param7(void)
+{
+    /* Engine via LAB_00448f57: PARAM2 = param_7. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x57, 1.0f, 0x12345678);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM2),
+                  (int32_t)0x12345678);
+    return 0;
+}
+
+int test_scene1_spawn_type_57_rot_z_sign_on_param7(void)
+{
+    /* Engine: rot.z = (param_7 == 0) ? π/2 : -π/2. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x57, 1.0f, 0);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Z) == 1.5707964f);
+
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x57, 1.0f, 99);
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_ROT_Z) == -1.5707964f);
+    return 0;
+}
+
+int test_scene1_spawn_type_3e_rot_x_steps(void)
+{
+    /* Engine: rot.x = count_index * π + π/4 → π/4, 5π/4, 9π/4, 13π/4. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x3e, 1.0f, 0);
+    for (int k = 0; k < 4; k++) {
+        float want = (float)k * 3.1415927f + 0.7853982f;
+        T_ASSERT(slot_read_f(k, SCENE1_RECORDS_A_OFF_ROT_X) == want);
+    }
+    return 0;
+}
+
 /* ─── mesh-emit stub (FUN_0044b0f3 placeholder) ────────────────────── */
 
 int test_scene1_mesh_emit_records_call(void)
