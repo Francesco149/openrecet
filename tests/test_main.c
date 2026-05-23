@@ -946,6 +946,13 @@ struct test_case {
     X(scene1_spawn_first_call_recorded) \
     X(scene1_spawn_ring_wraps) \
     X(scene1_spawn_reset_clears) \
+    X(scene1_spawn_type_60_commits_slot_zero) \
+    X(scene1_spawn_busy_slots_skipped) \
+    X(scene1_spawn_full_table_no_crash) \
+    X(scene1_spawn_unimplemented_type_no_commit) \
+    X(scene1_spawn_type_20_age_zero) \
+    X(scene1_spawn_type_66_velocity_down) \
+    X(scene1_spawn_type_66_param1_distribution) \
     X(scene1_mesh_emit_records_call) \
     X(scene1_mesh_emit_reset_clears) \
     \

@@ -1,36 +1,30 @@
 /*
- * scene1_spawn.h — stub for FUN_00447f4f (scene-1 particle spawn API).
+ * scene1_spawn.h — scene-1 particle spawn API (FUN_00447f4f).
  *
- * Chip C8h.1 (2026-05-23).  Provides a placeholder for the spawn API
- * the particle integrator chains into when handlers like type 0x20
- * (player-snap; every 4 ticks chain-spawns type 0x21) and type 0x1a
- * (anchor-snap; on kill chain-spawns type 1) call the engine's
- * FUN_00447f4f.
- *
- * The real port is the C8i chip (11826 B of decomp — single
- * allocate-slot scan + per-type init dispatch).  This stub records the
- * call (slot count + last args) so tests can verify the chained-spawn
- * was triggered, but does not allocate a slot or initialize one.
- *
- * Once C8i lands, this header stays; scene1_spawn() becomes the real
- * entry point and the trace accumulators stay around for tests + opt-in
- * debug instrumentation.
+ * Chip C8i.1 (2026-05-23).  Real port of the per-type spawn dispatcher
+ * begins here.  See `docs/findings/scene1-spawn.md` for the full ladder
+ * and the table-A writer-view column map.
  *
  * Engine signature (Ghidra-recovered):
  *
  *   FUN_00447f4f(int param_1, float x, float y, float z, int type,
  *                float scale, int param_7);
  *
- * param_1 appears to be a "hint slot index" or "force this slot";
- * callers pass 0 for "pick any free slot" and -1 for "use the explicit
- * slot in param_7".  We don't decode that yet — recorded verbatim.
+ * param_1 is a "slot hint" (callers pass 0 for "any free slot") stored
+ * in dword 18 of the allocated slot — engine consumers do not appear to
+ * read it back.  scale (param_6) is the float written to the slot's
+ * SCALE field; param_7 is per-type scratch written into PARAM1 or aux_15
+ * by some types.
  *
- * scale + param_7 are optional; the integrator's chained-spawn calls
- * pass only (param_1, x, y, z, type) per the Ghidra signature — Ghidra
- * dropped the trailing optional args because the FPU/stack-arg flow
- * was hidden by float-on-stack conventions.  We accept the full 7-arg
- * form here and let chained-spawn callers pass 0 / 1.0f / 0 for the
- * missing tail.
+ * Per-call effect: scan table A for a sentinel-empty slot; if found,
+ * commit the slot (write common preamble), then run a per-type init
+ * body.  Some types loop and commit several slots before returning (see
+ * scene1-spawn.md, "Per-type loop count").  C8i.1 only implements 3
+ * anchor types — see SCENE1_SPAWN_TYPE_IMPLEMENTED().
+ *
+ * The trace ring buffer below is kept as opt-in instrumentation — every
+ * call records its args regardless of whether the type's init body is
+ * implemented yet.  Pre-C8i tests that asserted on the trace still pass.
  */
 #ifndef SCENE1_SPAWN_H
 #define SCENE1_SPAWN_H
@@ -39,11 +33,17 @@
 extern "C" {
 #endif
 
+/* Implemented as of C8i.1: 0x60 (no-op slot reservation), 0x20 (age=0),
+ * 0x66 (vel=(0,0,-1) + random life cap).  Unimplemented types record a
+ * trace but do not allocate or commit a slot — they will become real
+ * spawns as C8i.2..5 land. */
+#define SCENE1_SPAWN_TYPE_IMPLEMENTED(t) \
+    ((t) == 0x60 || (t) == 0x20 || (t) == 0x66)
+
 /*
- * Call records — kept for tests / debug instrumentation.  Reset by
- * scene1_spawn_trace_reset().  The buffer is small (32 entries) and
- * wraps; for the real integrator that fires hundreds of spawns per
- * tick this is "last-32" only, not a full audit log.
+ * Trace ring — kept for tests + debug instrumentation.  Reset by
+ * scene1_spawn_trace_reset().  Records every call to scene1_spawn() in
+ * order; oldest entries overwrite when count > capacity.
  */
 #define SCENE1_SPAWN_TRACE_CAPACITY 32
 
@@ -55,7 +55,7 @@ typedef struct {
     int   param7;
 } scene1_spawn_call_t;
 
-extern int                 g_scene1_spawn_trace_count;  /* total calls since reset */
+extern int                 g_scene1_spawn_trace_count;
 extern scene1_spawn_call_t g_scene1_spawn_trace[SCENE1_SPAWN_TRACE_CAPACITY];
 
 void scene1_spawn(int slot_hint, float x, float y, float z, int type,
