@@ -29,6 +29,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "math3d.h"
+
 #ifdef _WIN32
 #include <d3d8.h>
 #endif
@@ -188,10 +190,110 @@ static int grow_submeshes(mesh_t *m, int32_t need, int32_t *cap_inout)
     return 1;
 }
 
+/* ───── Frame transform accumulation ───────────────────────────────────
+ *
+ * .x stores FrameTransformMatrix row-major in source order. The matrix
+ * represents a row-vector multiplication: world_pos = local_pos * M.
+ *
+ * Frames nest: a mesh inside Frame "A/B/C" lives in C's local space, C
+ * is in B's space, B is in A's space, A is in world. So:
+ *
+ *   world_pos = local_pos * M_C * M_B * M_A
+ *
+ * Accumulated matrix is built innermost-first by left-multiplying each
+ * frame's matrix onto an identity:
+ *
+ *   M_acc = M_C * M_B * M_A
+ *
+ * Then each vertex applies as `pos' = pos * M_acc` (and normal applies
+ * with the upper 3x3 part only — see transform_normal_into below).
+ *
+ * Why this matters: shop_1st.x has 48 submeshes laid out via per-frame
+ * translations + scales + occasional rotations (Box02 at (+23, 0, -25)
+ * scaled 2.4×2.2×3.9, Box111 at (+51, +27, +38) with a column-swap
+ * rotation, etc.). Without applying these, every submesh collapses to
+ * origin and the rendered house is a jumble.
+ */
+
+static int find_frame_by_name(const xfile_t *xf, const char *name, int32_t name_len)
+{
+    if (!name || name_len <= 0) return -1;
+    for (int32_t i = 0; i < xf->frame_count; i++) {
+        const char *fn = xf->frames[i].name;
+        if ((int32_t)strlen(fn) == name_len && memcmp(fn, name, (size_t)name_len) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void accumulate_frame_transform(const xfile_t *xf, const char *frame_path,
+                                       float out[16])
+{
+    static const float ident[16] = {
+        1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1
+    };
+    memcpy(out, ident, sizeof ident);
+    if (!frame_path || !frame_path[0]) return;
+
+    /* Walk the path collecting segment offsets. Segments come outermost
+     * → innermost in source order ("World/Box02/InnerThing"). We need
+     * to compose innermost-first, so we record offsets then walk in
+     * reverse. */
+    const char *segs[16];
+    int32_t     segl[16];
+    int n = 0;
+    const char *p = frame_path;
+    while (*p && n < 16) {
+        const char *slash = strchr(p, '/');
+        segs[n] = p;
+        segl[n] = slash ? (int32_t)(slash - p) : (int32_t)strlen(p);
+        n++;
+        if (!slash) break;
+        p = slash + 1;
+    }
+
+    /* Innermost first: start at identity, then out = out * M[seg]
+     * accumulates as M_inner * M_next * ... * M_outer in row-vector
+     * convention. */
+    for (int k = n - 1; k >= 0; k--) {
+        int fi = find_frame_by_name(xf, segs[k], segl[k]);
+        if (fi < 0) continue;        /* unknown frame name → identity */
+        float tmp[16];
+        mat4_mul(tmp, out, xf->frames[fi].transform);
+        memcpy(out, tmp, sizeof tmp);
+    }
+}
+
+static void transform_point_into(float ox[3], const float in[3], const float M[16])
+{
+    /* v=(x,y,z,1) row-vector × row-major M. */
+    ox[0] = in[0]*M[0] + in[1]*M[4] + in[2]*M[8]  + M[12];
+    ox[1] = in[0]*M[1] + in[1]*M[5] + in[2]*M[9]  + M[13];
+    ox[2] = in[0]*M[2] + in[1]*M[6] + in[2]*M[10] + M[14];
+}
+
+static void transform_normal_into(float ox[3], const float in[3], const float M[16])
+{
+    /* Upper 3x3 only (no translation). Renormalised at the end so the
+     * shading magnitude survives non-uniform scales — direction is
+     * approximate under shear/non-uniform scale (proper handling needs
+     * the inverse-transpose of the 3x3 part). For shop_1st.x's mix of
+     * pure rotations + per-frame uniform-ish scales this is good
+     * enough; revisit if normal-mapped models surface in the corpus. */
+    float x = in[0]*M[0] + in[1]*M[4] + in[2]*M[8];
+    float y = in[0]*M[1] + in[1]*M[5] + in[2]*M[9];
+    float z = in[0]*M[2] + in[1]*M[6] + in[2]*M[10];
+    float len = sqrtf(x*x + y*y + z*z);
+    if (len > 1e-12f) { x /= len; y /= len; z /= len; }
+    ox[0] = x; ox[1] = y; ox[2] = z;
+}
+
 /* ───── Build one submesh: (mesh, material) → expanded triangle list ──── */
 
 static int emit_submesh(mesh_t *m, const xfile_mesh *xm,
                         int32_t mat_index, const int32_t *face_mat_map,
+                        const float frame_M[16], int frame_M_is_identity,
                         int32_t *v_cap, int32_t *i_cap, int32_t *s_cap)
 {
     /* Count matching faces (and total tris after triangulation). */
@@ -233,9 +335,18 @@ static int emit_submesh(mesh_t *m, const xfile_mesh *xm,
                 mesh_vertex *out = &m->vertices[m->vertex_count];
                 memset(out, 0, sizeof *out);
                 if (vi >= 0 && vi < xm->vertex_count) {
-                    out->x = xm->vertices[vi].x;
-                    out->y = xm->vertices[vi].y;
-                    out->z = xm->vertices[vi].z;
+                    float pin[3]  = { xm->vertices[vi].x,
+                                      xm->vertices[vi].y,
+                                      xm->vertices[vi].z };
+                    float pout[3];
+                    if (frame_M_is_identity) {
+                        pout[0] = pin[0]; pout[1] = pin[1]; pout[2] = pin[2];
+                    } else {
+                        transform_point_into(pout, pin, frame_M);
+                    }
+                    out->x = pout[0];
+                    out->y = pout[1];
+                    out->z = pout[2];
                 }
                 if (xm->uvs && vi >= 0 && vi < xm->uv_count) {
                     out->u = xm->uvs[vi].u;
@@ -244,9 +355,18 @@ static int emit_submesh(mesh_t *m, const xfile_mesh *xm,
                 if (xm->normals && fn) {
                     int32_t ni = fn->verts[corner];
                     if (ni >= 0 && ni < xm->normal_count) {
-                        out->nx = xm->normals[ni].x;
-                        out->ny = xm->normals[ni].y;
-                        out->nz = xm->normals[ni].z;
+                        float nin[3] = { xm->normals[ni].x,
+                                         xm->normals[ni].y,
+                                         xm->normals[ni].z };
+                        float nout[3];
+                        if (frame_M_is_identity) {
+                            nout[0] = nin[0]; nout[1] = nin[1]; nout[2] = nin[2];
+                        } else {
+                            transform_normal_into(nout, nin, frame_M);
+                        }
+                        out->nx = nout[0];
+                        out->ny = nout[1];
+                        out->nz = nout[2];
                     }
                 }
                 out->diffuse = 0xFFFFFFFFu;
@@ -284,6 +404,21 @@ mesh_t *mesh_build_from_xfile(const xfile_t *xf)
     for (int32_t mi = 0; mi < xf->mesh_count; mi++) {
         const xfile_mesh *xm = &xf->meshes[mi];
 
+        /* Accumulated Frame transform for this mesh. Top-level meshes
+         * (empty frame_path) skip the math entirely via the
+         * is_identity flag. */
+        float frame_M[16];
+        int   frame_M_is_identity = 0;
+        if (xm->frame_path[0]) {
+            accumulate_frame_transform(xf, xm->frame_path, frame_M);
+        } else {
+            static const float ident[16] = {
+                1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1
+            };
+            memcpy(frame_M, ident, sizeof ident);
+            frame_M_is_identity = 1;
+        }
+
         int32_t *face_mat_map = NULL;
         if (!build_face_material_map(m, xf, xm, &mat_cap, &face_mat_map)) return m;
 
@@ -307,6 +442,7 @@ mesh_t *mesh_build_from_xfile(const xfile_t *xf)
 
         for (int32_t s = 0; s < nseen; s++) {
             if (!emit_submesh(m, xm, seen[s], face_mat_map,
+                              frame_M, frame_M_is_identity,
                               &v_cap, &i_cap, &s_cap))
             {
                 free(face_mat_map);
