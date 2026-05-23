@@ -33,19 +33,26 @@
 extern "C" {
 #endif
 
-/* Implemented as of C8i.2:
+/* Implemented as of C8i.3a:
  *   C8i.1 anchors — 0x60 (no-op reservation), 0x20 (age=0),
  *                   0x66 (vel=(0,0,-1) + random life cap).
  *   C8i.2 radial bursts — 1/2/3/0x52/0x5e/0x65 (8-particle group A),
  *                         0x92 (1-particle color-cycle burst),
  *                         0x79 (128-particle swarm w/ AGE stagger),
  *                         0x5d (45-particle swarm w/ AGE=-i, PARAM1=-i).
+ *   C8i.3a world-anchored radial variants — 0x69 (128-particle, wider
+ *                         mag), 0x68 (1, anchor-back -48× w/ swapped
+ *                         cos→vy), 0x73+0x77 (2, vel-down + param7-trig
+ *                         + world-jitter pos), 99 (1, anchor-back -40×
+ *                         w/ BASE set), 0x78 (same as 99 + PARAM2=param7).
  * Unimplemented types record a trace but do not allocate or commit a
- * slot — they will become real spawns as C8i.3..5 land. */
+ * slot — they will become real spawns as C8i.3b..5 land. */
 #define SCENE1_SPAWN_TYPE_IMPLEMENTED(t)                                    \
     ((t) == 0x60 || (t) == 0x20 || (t) == 0x66 || (t) == 0x92 ||            \
      (t) == 1    || (t) == 2    || (t) == 3    || (t) == 0x52 ||            \
-     (t) == 0x5e || (t) == 0x65 || (t) == 0x79 || (t) == 0x5d)
+     (t) == 0x5e || (t) == 0x65 || (t) == 0x79 || (t) == 0x5d ||            \
+     (t) == 0x69 || (t) == 0x68 || (t) == 0x73 || (t) == 0x77 ||            \
+     (t) == 99   || (t) == 0x78)
 
 /*
  * Trace ring — kept for tests + debug instrumentation.  Reset by

@@ -3,7 +3,23 @@
  *
  * Port of FUN_00447f4f @ 0x447f4f (1449-line Ghidra decomp).  C8i.1
  * landed the outer slot-scan + common preamble + 3 anchor types
- * (0x60, 0x20, 0x66).  C8i.2 adds the radial-burst family:
+ * (0x60, 0x20, 0x66).  C8i.2 added the radial-burst family.  C8i.3a
+ * adds 6 world-anchored radial variants (engine lines 143-264):
+ *
+ *   - Type 0x69 — 128 particles, group-A-like body but with mag =
+ *     2*(u+0.2), signed vy = (u-0.5)*scale*3, plus AGE = -count/2
+ *     stagger (shares LAB_004481fa with 0x79).
+ *   - Type 0x68 — 1 particle, "down-shifted" body: mag = 0.2*(u+1.2),
+ *     sin→vx, cos→vy (NOT vz), vz = 2*(u-0.5)*scale*mag, then pos =
+ *     param - vel*48 (large anchor-back).
+ *   - Types 0x73, 0x77 — 2 particles, vel.z=-1 fixed, then vel.x/.z
+ *     overwritten with -sin/-cos using angle = param_7/65536.0,
+ *     pos = param + (u-0.5)*scale*15 jitter (world cube spread).
+ *   - Type 99  — 1 particle, mag = u+1.2, anchor-back pos = param -
+ *     vel*40, BASE = vel*-40 (recovery target).
+ *   - Type 0x78 — same body as 99 plus PARAM2 = param_7.
+ *
+ * C8i.2 covers:
  *
  *   - Group A (types 1, 2, 3, 0x52, 0x5e, 0x65) — 8 particles each,
  *     radial xz spread with per-type vy variants.
@@ -303,12 +319,180 @@ static void init_type_5d(int i, int count_index, float x, float y, float z,
     *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = -count_index;
 }
 
+/* ─── per-type init: 0x69 — 128-spawn group-A swarm (engine L143-156) ──
+ *
+ *   mag    = 2*(u1 + 0.2)                          ; wider mag than 0x79
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * SCALE * mag              ; full radial (no 0.5)
+ *   vel.y  = (u3 - 0.5) * SCALE * 3.0              ; signed bias
+ *   vel.z  = cos(angle) * SCALE * mag
+ *   pos    = vel * 3.0 + (x,y,z)
+ *   PARAM1 = rng_next15() % 100 + 20
+ *   AGE    = (int)count_index / -2                 ; matches 0x79 stagger
+ *
+ * Commits 128 particles per call (shares LAB_004481fa with 0x79). */
+static void init_type_69(int i, int count_index, float x, float y, float z,
+                         float scale)
+{
+    float u1    = rng_next_unit();
+    float mag   = 2.0f * (u1 + 0.2f);
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    float vx = sinf(angle) * scale * mag;
+    float vy = (rng_next_unit() - 0.5f) * scale * 3.0f;
+    float vz = cosf(angle) * scale * mag;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, vx * 3.0f + x);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, vy * 3.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, vz * 3.0f + z);
+
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = count_index / -2;
+}
+
+/* ─── per-type init: 0x68 — single down-shifted radial (engine L158-175) ─
+ *
+ *   fVar1  = 0.2 * (u1 + 1.2)                      ; small mag
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * SCALE * fVar1
+ *   vel.y  = cos(angle) * SCALE * fVar1            ; cos→VY, not VZ
+ *   vel.z  = 2 * (u3 - 0.5) * SCALE * fVar1        ; signed scratter
+ *   pos    = (x,y,z) - vel * 48.0                  ; large anchor-back
+ *   PARAM1 = rng_next15() % 100 + 20
+ *   AGE    = 0
+ *
+ * Note the engine's slot-write order swaps the sin/cos pairing (sin→vx,
+ * cos→vy) instead of the more common sin→vx, cos→vz pattern of group A.
+ * Returns after 1 particle (goto LAB_004480f8). */
+static void init_type_68(int i, float x, float y, float z, float scale)
+{
+    float u1    = rng_next_unit();
+    float fVar1 = 0.2f * (u1 + 1.2f);
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    float vx = sinf(angle) * scale * fVar1;
+    float vy = cosf(angle) * scale * fVar1;
+    float vz = 2.0f * (rng_next_unit() - 0.5f) * scale * fVar1;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, x - vx * 48.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, y - vy * 48.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, z - vz * 48.0f);
+
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = 0;
+}
+
+/* ─── per-type init: 0x73/0x77 — vel-down + param7-trig (engine L186-215) ─
+ *
+ *   vel    = (0, 0, -1.0)                          ; pre-write before overwrite
+ *   fVar1  = 0.2 * (u1 + 1.2)
+ *   angle  = (float)param_7 / 65536.0              ; fixed-point Q16 angle
+ *   vel.x  = -sin(angle) * SCALE * fVar1
+ *   vel.y  = 0   (re-written)
+ *   vel.z  = -cos(angle) * SCALE * fVar1
+ *   pos.x  = (u2 - 0.5) * SCALE * 15.0 + x         ; world cube jitter
+ *   pos.y  = (u3 - 0.5) * SCALE * 15.0 + y
+ *   pos.z  = (u4 - 0.5) * SCALE * 15.0 + z
+ *   PARAM1 = rng_next15() % 100 + 20
+ *   AGE    = 0
+ *
+ * Commits 2 particles per call (LAB_0044abe9 → bVar11 = local_8 == 1).
+ * The vel=(0,0,-1) pre-write is overwritten — kept only because the
+ * engine writes it before the conditional, and matches the slot byte
+ * order for any cycle-accurate dumps. */
+static void init_type_73_77(int i, float x, float y, float z, float scale,
+                            int param7)
+{
+    /* Engine pre-writes vel=(0,0,-1); we go straight to the overwritten
+     * values since they fully clobber the initial set. */
+    float u1    = rng_next_unit();
+    float fVar1 = 0.2f * (u1 + 1.2f);
+    float angle = (float)param7 / 65536.0f;
+
+    float vx = -sinf(angle) * scale * fVar1;
+    float vz = -cosf(angle) * scale * fVar1;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X,
+               (rng_next_unit() - 0.5f) * scale * 15.0f + x);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+               (rng_next_unit() - 0.5f) * scale * 15.0f + y);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
+               (rng_next_unit() - 0.5f) * scale * 15.0f + z);
+
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = 0;
+}
+
+/* ─── per-type init: 99 — anchor-back recovery (engine L217-238) ──────
+ *
+ *   mag    = u1 + 1.2                              ; group-A mag
+ *   angle  = u2 * 2π
+ *   vel.x  = sin(angle) * SCALE * mag
+ *   vel.y  = (u3 - 0.5) * SCALE * 3.0              ; signed bias
+ *   vel.z  = cos(angle) * SCALE * mag
+ *   pos    = (x,y,z) - vel * 40.0                  ; anchor-back 40×
+ *   base   = vel * -40.0                           ; same as displacement
+ *   PARAM1 = rng_next15() % 100 + 20  (via LAB_00448643)
+ *   AGE    = 0
+ *
+ * The BASE field (slot offsets 9/10/11) records the displacement so a
+ * downstream tick handler can interpolate the particle back to the
+ * spawn origin.  Returns after 1 particle. */
+static void init_type_63(int i, float x, float y, float z, float scale)
+{
+    float u1    = rng_next_unit();
+    float mag   = u1 + 1.2f;
+    float angle = rng_next_unit() * TWO_PI_F;
+
+    float vx = sinf(angle) * scale * mag;
+    float vy = (rng_next_unit() - 0.5f) * scale * 3.0f;
+    float vz = cosf(angle) * scale * mag;
+
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, vy);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, vz);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X, x - vx * 40.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y, y - vy * 40.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z, z - vz * 40.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_BASE_X, vx * -40.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_BASE_Y, vy * -40.0f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_BASE_Z, vz * -40.0f);
+
+    uint16_t r = rng_next15();
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1) = (int)(r % 100u) + 20;
+    *slot_int(i, SCENE1_RECORDS_A_OFF_AGE)    = 0;
+}
+
+/* ─── per-type init: 0x78 — anchor-back + PARAM2 = param_7 (L240-264) ──
+ *
+ * Identical to type 99 plus PARAM2 = param_7.  Returns after 1 particle. */
+static void init_type_78(int i, float x, float y, float z, float scale,
+                         int param7)
+{
+    init_type_63(i, x, y, z, scale);
+    *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM2) = param7;
+}
+
 /* ─── dispatch: returns how many slots to commit for `type`.
  *
  * C8i.1 anchors spawn 1.  C8i.2 adds the radial-burst family — group A
- * (8), 0x92 (1), 0x79 (128), 0x5d (45).  Remaining counts (12 for the
- * mega-group, param_7-driven, etc.) land in C8i.3-5.  See
- * scene1-spawn.md for the full table. */
+ * (8), 0x92 (1), 0x79 (128), 0x5d (45).  C8i.3a adds 6 world-anchored
+ * radial variants — 0x69 (128), 0x68 (1), 0x73/0x77 (2), 99 (1),
+ * 0x78 (1).  Remaining counts (12 for the mega-group, param_7-driven,
+ * etc.) land in C8i.3b-5.  See scene1-spawn.md for the full table. */
 static int spawn_count_for_type(int type)
 {
     switch (type) {
@@ -321,14 +505,21 @@ static int spawn_count_for_type(int type)
         return 8;
     case 0x79: return 128;
     case 0x5d: return 45;
+    case 0x69: return 128;
+    case 0x68: return 1;
+    case 0x73: case 0x77: return 2;
+    case 99:   return 1;
+    case 0x78: return 1;
     default:   return 0;   /* unimplemented — record trace only */
     }
 }
 
 /* Per-type init dispatch.  Called once per committed slot.  count_index
- * is the engine's `local_8` (0-based particle index within this call). */
+ * is the engine's `local_8` (0-based particle index within this call).
+ * param7 is the spawn API's 7th positional arg — used by 0x78 / 0x73 /
+ * 0x77 (and later by 0x4a / 0x12 / 0x21 in C8i.3+). */
 static void run_type_init(int type, int i, int count_index, float x, float y,
-                          float z, float scale)
+                          float z, float scale, int param7)
 {
     switch (type) {
     case 0x60: init_type_60(i); break;
@@ -341,9 +532,17 @@ static void run_type_init(int type, int i, int count_index, float x, float y,
     case 0x92: init_type_92(i, x, y, z, scale); break;
     case 0x79: init_type_79(i, count_index, x, y, z, scale); break;
     case 0x5d: init_type_5d(i, count_index, x, y, z, scale); break;
+    case 0x69: init_type_69(i, count_index, x, y, z, scale); break;
+    case 0x68: init_type_68(i, x, y, z, scale); break;
+    case 0x73: case 0x77:
+        init_type_73_77(i, x, y, z, scale, param7);
+        break;
+    case 99:   init_type_63(i, x, y, z, scale); break;
+    case 0x78: init_type_78(i, x, y, z, scale, param7); break;
     default: break;
     }
     (void)count_index;  /* anchor types don't need it */
+    (void)param7;
 }
 
 void scene1_spawn(int slot_hint, float x, float y, float z, int type,
@@ -382,9 +581,7 @@ void scene1_spawn(int slot_hint, float x, float y, float z, int type,
         if (slot_type(local_10) != -1) continue;
 
         commit_slot_preamble(local_10, slot_hint, x, y, z, type, scale);
-        run_type_init(type, local_10, got, x, y, z, scale);
-        (void)param7;   /* C8i.1/.2 types don't read param7 — used by
-                         * 0x4a / 0x12 / 0x78 / 0x21 in later chips */
+        run_type_init(type, local_10, got, x, y, z, scale, param7);
         got++;
         if (got == want) return;
     }

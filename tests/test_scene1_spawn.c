@@ -424,6 +424,189 @@ int test_scene1_spawn_type_65_halves_magnitude(void)
     return 0;
 }
 
+/* ─── C8i.3a: world-anchored radial variants ──────────────────────── */
+
+int test_scene1_spawn_type_69_commits_128(void)  { return spawn_burst_count_is(0x69, 128); }
+int test_scene1_spawn_type_68_commits_1(void)    { return spawn_burst_count_is(0x68, 1);   }
+int test_scene1_spawn_type_73_commits_2(void)    { return spawn_burst_count_is(0x73, 2);   }
+int test_scene1_spawn_type_77_commits_2(void)    { return spawn_burst_count_is(0x77, 2);   }
+int test_scene1_spawn_type_99_commits_1(void)    { return spawn_burst_count_is(99,   1);   }
+int test_scene1_spawn_type_78_commits_1(void)    { return spawn_burst_count_is(0x78, 1);   }
+
+int test_scene1_spawn_type_69_age_stagger(void)
+{
+    /* Engine line 140 (shared LAB_004481fa): AGE = local_8 / -2 → same
+     * stagger as 0x79.  Verify across all 128 spawns. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x69, 1.0f, 0);
+    for (int k = 0; k < 128; k++) {
+        T_ASSERT_EQ_I(slot_read_i(k, SCENE1_RECORDS_A_OFF_AGE), k / -2);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_69_pos_uses_3x_velocity(void)
+{
+    /* Engine line 134-136: pos = vel * 3 + (x,y,z).  Sample slot 0. */
+    reset_records_and_trace();
+    scene1_spawn(0, 1.0f, 2.0f, 3.0f, 0x69, 1.0f, 0);
+    float vx = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z);
+    float px = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_X);
+    float py = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Y);
+    float pz = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Z);
+    T_ASSERT_EQ_I(*(int32_t *)&px, *(int32_t *)&(float){ vx * 3.0f + 1.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&py, *(int32_t *)&(float){ vy * 3.0f + 2.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&pz, *(int32_t *)&(float){ vz * 3.0f + 3.0f });
+    return 0;
+}
+
+int test_scene1_spawn_type_68_anchor_back_48x(void)
+{
+    /* Engine line 172-174: pos = (x,y,z) - vel * 48. */
+    reset_records_and_trace();
+    scene1_spawn(0, 10.0f, 20.0f, 30.0f, 0x68, 1.0f, 0);
+    float vx = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z);
+    float px = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_X);
+    float py = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Y);
+    float pz = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Z);
+    T_ASSERT_EQ_I(*(int32_t *)&px, *(int32_t *)&(float){ 10.0f - vx * 48.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&py, *(int32_t *)&(float){ 20.0f - vy * 48.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&pz, *(int32_t *)&(float){ 30.0f - vz * 48.0f });
+    return 0;
+}
+
+int test_scene1_spawn_type_73_param7_drives_angle(void)
+{
+    /* Engine line 192: angle = (float)param_7 / 65536.0.  Two calls with
+     * param_7 == 0 and param_7 == 0x10000 (= 1.0 radian after divide)
+     * should produce different vel.x (sin) and vel.z (cos). */
+    extern uint32_t g_rng_seed;
+    uint32_t saved = g_rng_seed;
+
+    reset_records_and_trace();
+    g_rng_seed = 0xc0ffee;
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x73, 1.0f, 0);
+    float vx_a = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vz_a = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z);
+
+    reset_records_and_trace();
+    g_rng_seed = 0xc0ffee;
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x73, 1.0f, 0x10000);
+    float vx_b = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vz_b = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z);
+
+    g_rng_seed = saved;
+
+    /* Different angle → different sin and cos. */
+    T_ASSERT(vx_a != vx_b);
+    T_ASSERT(vz_a != vz_b);
+    /* vel.y is always 0 (engine line 195). */
+    T_ASSERT(slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Y) == 0.0f);
+    return 0;
+}
+
+int test_scene1_spawn_type_77_same_body_as_73(void)
+{
+    /* Engine lines 186-215: 0x73 and 0x77 share the same handler.  Seed
+     * identically, spawn once each into a clean table — slot 0 should
+     * match across both types. */
+    extern uint32_t g_rng_seed;
+    uint32_t saved = g_rng_seed;
+
+    reset_records_and_trace();
+    g_rng_seed = 0xfeedface;
+    scene1_spawn(0, 1.0f, 2.0f, 3.0f, 0x73, 0.5f, 0x8000);
+    int32_t snap_73[19];
+    for (int j = 0; j < 19; j++) snap_73[j] = slot_read_i(0, j);
+
+    reset_records_and_trace();
+    g_rng_seed = 0xfeedface;
+    scene1_spawn(0, 1.0f, 2.0f, 3.0f, 0x77, 0.5f, 0x8000);
+    int32_t snap_77[19];
+    for (int j = 0; j < 19; j++) snap_77[j] = slot_read_i(0, j);
+
+    g_rng_seed = saved;
+
+    /* All fields except TYPE (offset 12) must match. */
+    for (int j = 0; j < 19; j++) {
+        if (j == SCENE1_RECORDS_A_OFF_TYPE) continue;
+        T_ASSERT_EQ_I(snap_73[j], snap_77[j]);
+    }
+    return 0;
+}
+
+int test_scene1_spawn_type_99_anchor_back_40x_and_base(void)
+{
+    /* Engine lines 232-237: pos = param - vel*40; base = vel*-40 (= pos
+     * displacement, used by the integrator's recovery handler). */
+    reset_records_and_trace();
+    scene1_spawn(0, 100.0f, 200.0f, 300.0f, 99, 1.0f, 0);
+    float vx = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_X);
+    float vy = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Y);
+    float vz = slot_read_f(0, SCENE1_RECORDS_A_OFF_VEL_Z);
+    float px = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_X);
+    float py = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Y);
+    float pz = slot_read_f(0, SCENE1_RECORDS_A_OFF_POS_Z);
+    float bx = slot_read_f(0, SCENE1_RECORDS_A_OFF_BASE_X);
+    float by = slot_read_f(0, SCENE1_RECORDS_A_OFF_BASE_Y);
+    float bz = slot_read_f(0, SCENE1_RECORDS_A_OFF_BASE_Z);
+    T_ASSERT_EQ_I(*(int32_t *)&px, *(int32_t *)&(float){ 100.0f - vx * 40.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&py, *(int32_t *)&(float){ 200.0f - vy * 40.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&pz, *(int32_t *)&(float){ 300.0f - vz * 40.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&bx, *(int32_t *)&(float){ vx * -40.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&by, *(int32_t *)&(float){ vy * -40.0f });
+    T_ASSERT_EQ_I(*(int32_t *)&bz, *(int32_t *)&(float){ vz * -40.0f });
+    /* PARAM1 (random life cap) in [20, 119]; AGE = 0. */
+    int32_t life = slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM1);
+    T_ASSERT(life >= 20 && life <= 119);
+    T_ASSERT(slot_read_i(0, SCENE1_RECORDS_A_OFF_AGE) == 0);
+    /* PARAM2 stays at preamble's 0. */
+    T_ASSERT(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM2) == 0);
+    return 0;
+}
+
+int test_scene1_spawn_type_78_sets_param2_param7(void)
+{
+    /* Engine line 263: (DAT_069b2fc4)[slot * 0x25] = param_7  →  PARAM2. */
+    reset_records_and_trace();
+    scene1_spawn(0, 0.0f, 0.0f, 0.0f, 0x78, 1.0f, 0xdeadbeef);
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_PARAM2),
+                  (int32_t)0xdeadbeef);
+    return 0;
+}
+
+int test_scene1_spawn_type_78_matches_99_when_param7_zero(void)
+{
+    /* 0x78 is 99's body + PARAM2 = param_7.  With param_7 = 0 the slot
+     * should be byte-equal modulo TYPE.  Seed identical RNG. */
+    extern uint32_t g_rng_seed;
+    uint32_t saved = g_rng_seed;
+
+    reset_records_and_trace();
+    g_rng_seed = 0xa5a5a5a5;
+    scene1_spawn(0, 5.0f, 10.0f, 15.0f, 99, 2.0f, 0);
+    int32_t snap_99[19];
+    for (int j = 0; j < 19; j++) snap_99[j] = slot_read_i(0, j);
+
+    reset_records_and_trace();
+    g_rng_seed = 0xa5a5a5a5;
+    scene1_spawn(0, 5.0f, 10.0f, 15.0f, 0x78, 2.0f, 0);
+    int32_t snap_78[19];
+    for (int j = 0; j < 19; j++) snap_78[j] = slot_read_i(0, j);
+
+    g_rng_seed = saved;
+
+    for (int j = 0; j < 19; j++) {
+        if (j == SCENE1_RECORDS_A_OFF_TYPE) continue;
+        T_ASSERT_EQ_I(snap_99[j], snap_78[j]);
+    }
+    return 0;
+}
+
 /* ─── mesh-emit stub (FUN_0044b0f3 placeholder) ────────────────────── */
 
 int test_scene1_mesh_emit_records_call(void)

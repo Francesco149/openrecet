@@ -971,6 +971,20 @@ struct test_case {
     X(scene1_spawn_type_5d_pos_uses_4x_velocity) \
     X(scene1_spawn_type_1_pos_uses_3x_velocity) \
     X(scene1_spawn_type_65_halves_magnitude) \
+    X(scene1_spawn_type_69_commits_128) \
+    X(scene1_spawn_type_68_commits_1) \
+    X(scene1_spawn_type_73_commits_2) \
+    X(scene1_spawn_type_77_commits_2) \
+    X(scene1_spawn_type_99_commits_1) \
+    X(scene1_spawn_type_78_commits_1) \
+    X(scene1_spawn_type_69_age_stagger) \
+    X(scene1_spawn_type_69_pos_uses_3x_velocity) \
+    X(scene1_spawn_type_68_anchor_back_48x) \
+    X(scene1_spawn_type_73_param7_drives_angle) \
+    X(scene1_spawn_type_77_same_body_as_73) \
+    X(scene1_spawn_type_99_anchor_back_40x_and_base) \
+    X(scene1_spawn_type_78_sets_param2_param7) \
+    X(scene1_spawn_type_78_matches_99_when_param7_zero) \
     X(scene1_mesh_emit_records_call) \
     X(scene1_mesh_emit_reset_clears) \
     \
