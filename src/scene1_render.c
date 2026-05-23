@@ -21,6 +21,7 @@
 #include "math3d.h"
 #include "mesh_draw.h"
 #include "render_quad.h"
+#include "scene1_shop_walker.h"
 #include "sim.h"
 
 /* ─── engine globals — module-local mirrors ─────────────────────────── */
@@ -215,16 +216,13 @@ static void scene1_walk_narrow_followup_TODO(void)
      * narrow walker; survey first. */
 }
 
-/* FUN_004552d0 (5210 B) — the WIDE-frustum mesh walker (z_far=2000).
- * The biggest of the four; almost certainly the shop interior +
- * scenery + chr-stand walker.  Top candidate to port FIRST for any
- * "make HOUSE visible" milestone. */
-static void scene1_walk_wide_frustum_TODO(void)
-{
-    /* TODO C8-followup: port FUN_004552d0.  Survey suggests this
-     * is what actually draws walls/floor/jutan/table for the shop
-     * interior — the visible 3D surface area is mostly here. */
-}
+/* FUN_004552d0 (5210 B) — the WIDE-frustum mesh walker.  Landed
+ * 2026-05-23 as C8c (src/scene1_shop_walker.{c,h}) with all 7
+ * walker passes structured + state writes verbatim; per-record
+ * draw helpers (FUN_00455191 / FUN_00456d48 / FUN_0045a56f /
+ * FUN_00404a20 chain) remain TODO stubs because every walker
+ * pass is dormant in HOUSE today (BSS-zero count globals and
+ * record active flags). */
 
 /* FUN_004161c7 (4925 B) — sub at L219, right after FUN_004552d0.
  * Substantial.  May be the per-frame transform refresh for the
@@ -427,14 +425,35 @@ static DWORD scene1_device_lodbias(void) { return 0; }
  * given z_far.  The engine swaps z_far between 350.0 (narrow, for
  * room geometry) and 2000.0 (wide, for distant scenery / chr) five
  * times inside FUN_00459dfd; mirroring as a helper keeps the body
- * readable. */
-static void scene1_push_projection(IDirect3DDevice8 *dev, float z_far)
+ * readable.  Exposed publicly as scene1_render_push_projection so
+ * the per-walker chip ports (C8c+) can re-use it. */
+void scene1_render_push_projection(struct IDirect3DDevice8 *dev_in, float z_far)
 {
+    if (!dev_in) return;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
     float fov_rad = g_scene1_fov_deg * 0.017453292f;
     mat4_perspective_fov_rh(g_scene1_proj, fov_rad,
                             4.0f / 3.0f, 1.0f, z_far);
     IDirect3DDevice8_SetTransform(dev, D3DTS_PROJECTION,
                                   (const D3DMATRIX *)g_scene1_proj);
+}
+
+/* Internal short alias so the existing scene1_render_meshes body
+ * doesn't need to re-cast the device pointer through the public
+ * entry's NULL guard on every call. */
+static inline void scene1_push_projection(IDirect3DDevice8 *dev, float z_far)
+{
+    scene1_render_push_projection((struct IDirect3DDevice8 *)dev, z_far);
+}
+
+/* Public form of scene1_apply_palette_combiner_mode — same body, just
+ * exposed for the per-walker chips.  Internal callers still use the
+ * static form. */
+void scene1_render_apply_palette_combiner_mode(struct IDirect3DDevice8 *dev_in,
+                                               int mode)
+{
+    if (!dev_in) return;
+    scene1_apply_palette_combiner_mode((IDirect3DDevice8 *)dev_in, mode);
 }
 
 /* Fog enable/setup helper — called three times from FUN_00459dfd
@@ -662,9 +681,10 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     scene1_push_projection(dev, 2000.0f);
 
     /* L218: ★ FUN_004552d0 ★ — the shop-interior walker (5210 B).
-     * Top candidate for the next chip — visually the biggest payoff
-     * since it lays down walls/floor/jutan/table for HOUSE. */
-    scene1_walk_wide_frustum_TODO();
+     * C8c (2026-05-23) ports the structure + state writes; per-
+     * record draws are TODO stubs (dormant in HOUSE — see
+     * scene1_shop_walker.h). */
+    scene1_shop_walker((struct IDirect3DDevice8 *)dev);
 
     /* L219: FUN_004161c7 (4925 B) — post-shop sub-pass. */
     scene1_walk_wide_followup_TODO();

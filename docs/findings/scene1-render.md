@@ -197,6 +197,25 @@ These backfill enough state for the scene-1 load chain to fire.
 - **C7j..C7n — port `FUN_0040a765` per the survey.** Per-mesh draw
   loop; per-light setup; per-stage geometry walk; etc.
 
+- **C8c — `FUN_004552d0` (5210 B) shop walker.** ✅ Landed 2026-05-23
+  (`src/scene1_shop_walker.{c,h}`). Wide-frustum walker called from
+  `scene1_render_meshes` at L218 after the z_far=2000 push. Ports
+  all 7 walker passes structurally + the full top/mid/tail render-
+  state blocks + the projection swap (z_far depends on stage gates;
+  HOUSE BSS-zero → 3025.0). Per-record draw helpers
+  (`FUN_00455191` / `FUN_00456d48` / `FUN_0045a56f` / scene-tree
+  `FUN_00404a20` chain) stay TODO stubs because every walker pass
+  is dormant in HOUSE (BSS-zero count globals `DAT_0076b960/4` +
+  `DAT_0438b89c`, BSS-zero record active flags in `DAT_0076bd94..` /
+  `DAT_0076bdc0..`). Light-setup block (L357-456) also dormant
+  for HOUSE (`palette+0x1ae0 == 0`). Two helpers exported from
+  scene1_render: `scene1_render_push_projection(dev, z_far)` and
+  `scene1_render_apply_palette_combiner_mode(dev, mode)`. title-z-
+  press 14/14 + boot-idle 3/3 bit-exact (the new code path is
+  reachable via scene1_render_meshes but neither bracket is wired
+  into render_dispatch yet, so the captures don't observe the
+  difference). 851/851 host tests unchanged.
+
 ### Composition tail
 
 - **C7o — `FUN_00453d9c` (243 B) + `FUN_00453e8f` (444 B) +

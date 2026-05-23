@@ -411,6 +411,30 @@ void scene1_render_set_fov_deg(float deg);
  * its own pose into the matrix). */
 void scene1_render_reset_view(void);
 
+/* ───────────────────────────────────────────────────────────────────────
+ * Shared helpers for sub-walkers of scene1_render_meshes (C8c+).
+ *
+ * Engine FUN_004552d0 (the shop walker) and its siblings each swap the
+ * projection between narrow (350.0) and wide (2000.0 / 3025.0 / 1100.0)
+ * z_far multiple times per pass, and write the per-stage palette
+ * combiner mode at every state transition.  Centralising the helper
+ * keeps the per-walker port focused on the data dispatch instead of
+ * re-implementing the same matrix push.
+ */
+
+/* Push a fresh perspective projection with the given z_far (z_near
+ * fixed at 1.0, aspect fixed at 4/3, fov from g_scene1_fov_deg).
+ * Updates the module-local projection scratch and SetTransform's the
+ * new matrix into the device.  No-op when dev is NULL. */
+void scene1_render_push_projection(struct IDirect3DDevice8 *dev, float z_far);
+
+/* Apply the engine's per-stage palette combiner mode to TSS COLORARG2
+ * via the mod-7 lookup table (verbatim from FUN_00454f03).  Negative
+ * modes are folded into [0,7) by the same logic the engine uses
+ * implicitly via C-language modulo. */
+void scene1_render_apply_palette_combiner_mode(struct IDirect3DDevice8 *dev,
+                                               int mode);
+
 #endif /* _WIN32 */
 
 #endif /* OPENRECET_SCENE1_RENDER_H */
