@@ -59,6 +59,7 @@
 #include "mesh_draw.h"
 #include "mesh_load.h"
 #include "scene1_pass_f.h"
+#include "scene1_postload.h"
 #include "scene1_preload.h"
 #include "scene1_records.h"
 #include "scene1_render.h"
@@ -135,6 +136,18 @@ static mesh_t          *g_house_preview_mesh   = NULL;
  * FUN_0040fb3a (the 8071 B integrator) or FUN_00447f4f (the 11826 B
  * spawn API).  See docs/findings/scene1-particles-tick.md "Option A". */
 static int              g_show_pass_f_test     = 0;
+
+/* --force-ambient-spawn / --ambient-spawn-type <N>: bypass the
+ * stage_palette->ambient_spawn_flag gate in scene1_postload_ambient_spawn
+ * (the FUN_00436f97 tail port at L690-700) and optionally swap the
+ * hardcoded type 0x4f for `N`.  `--ambient-spawn-type 0x92` is the
+ * postload-path equivalent of `--show-pass-f-test`'s manual injection:
+ * surfaces Pass F pixels through the real spawn API + integrator chain
+ * instead of dropping a single record into the table directly.
+ *
+ * Override value of -1 means "no override (engine default 0x4f)". */
+static int              g_force_ambient_spawn          = 0;
+static int              g_ambient_spawn_type_override  = -1;
 
 /* Scene-0 (title) state now lives in scene_title.c as module globals
  * (`g_scene_title_menu`, `g_scene_title_anim`, `g_scene_title_assets_loaded`).
@@ -604,6 +617,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * path in FUN_004547ab and the lighting/fog state in FUN_00459dfd
      * will both read from this record once their porters land. */
     stage_palette_init_house();
+
+    /* Apply --force-ambient-spawn / --ambient-spawn-type overrides
+     * before the worker fires scene1_preload_house.  Both are no-ops
+     * unless their CLI flags were given. */
+    if (g_force_ambient_spawn) {
+        scene1_postload_set_force_ambient(1);
+    }
+    if (g_ambient_spawn_type_override >= 0) {
+        scene1_postload_set_ambient_type_override(g_ambient_spawn_type_override);
+    }
 
     /* C7e: wire FUN_00474a9a (scene-1 pre-load entry, HOUSE branch) as
      * the worker_load slot-1 INGAME callback. After title fade-out,
@@ -1650,6 +1673,16 @@ static void parse_cmdline(LPSTR lpCmdLine)
             }
         } else if (lstrcmpA(tok, "--show-pass-f-test") == 0) {
             g_show_pass_f_test = 1;
+        } else if (lstrcmpA(tok, "--force-ambient-spawn") == 0) {
+            g_force_ambient_spawn = 1;
+        } else if (lstrcmpA(tok, "--ambient-spawn-type") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                /* strtoul base=0 → accept 0x.., decimal, or octal.
+                 * Type ids are byte-wide; clamp into [0, 0xff]. */
+                unsigned long n = strtoul(val, NULL, 0);
+                if (n <= 0xffu) g_ambient_spawn_type_override = (int)n;
+            }
         } else if (lstrcmpA(tok, "--max-duration-ms") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {

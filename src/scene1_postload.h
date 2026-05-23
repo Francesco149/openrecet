@@ -82,6 +82,29 @@ void scene1_postload_ambient_spawn(void);
  */
 void scene1_postload_force_ambient_flag(int value);
 
+/*
+ * CLI override — when nonzero, scene1_postload_ambient_spawn ignores
+ * `g_stage_palette->ambient_spawn_flag` and runs the 200-iter loop
+ * unconditionally (still skips when `g_stage_palette == NULL`).
+ * Default is 0 (engine-faithful: gated on palette flag).
+ *
+ * Drives `--force-ambient-spawn`.  Set this in lieu of poking the
+ * palette field directly when the override needs to survive a later
+ * `stage_palette_init_house()` reset.
+ */
+void scene1_postload_set_force_ambient(int force);
+
+/*
+ * CLI override — when >= 0, replaces the hardcoded type 0x4f in
+ * the ambient-spawn loop body with the given type id.  Pass -1 to
+ * restore the engine default.
+ *
+ * Drives `--ambient-spawn-type <N>`.  Useful for surfacing Pass F
+ * pixels through the real postload path (override = 0x92) instead
+ * of the `--show-pass-f-test` manual injection.
+ */
+void scene1_postload_set_ambient_type_override(int type);
+
 #ifdef __cplusplus
 }
 #endif

@@ -42,6 +42,10 @@ static void reset_world(void)
     g_scene1_camera_yaw     = 0.0f;
     g_scene1_camera_yaw_alt = 0.0f;
     scene1_postload_init_stage_defaults();
+    /* Clear CLI overrides so prior tests' force/type-override state
+     * doesn't leak into the next. */
+    scene1_postload_set_force_ambient(0);
+    scene1_postload_set_ambient_type_override(-1);
 }
 
 static int32_t slot_read_i(int i, int off)
@@ -232,6 +236,81 @@ int test_scene1_postload_ambient_spawn_uses_player_pos_y_plus_2(void)
         T_ASSERT(g_scene1_spawn_trace[i].scale == 1.0f);
         T_ASSERT(g_scene1_spawn_trace[i].param7 == 1);
         T_ASSERT(g_scene1_spawn_trace[i].slot_hint == 0);
+    }
+    return 0;
+}
+
+/* ─── CLI override setters ────────────────────────────────────────── */
+
+int test_scene1_postload_set_force_ambient_bypasses_palette_gate(void)
+{
+    reset_world();
+    /* Palette flag is zero (HOUSE default), but force override should
+     * still drive the 200-iter loop. */
+    T_ASSERT(g_stage_palette->ambient_spawn_flag == 0);
+    scene1_postload_set_force_ambient(1);
+    scene1_postload_ambient_spawn();
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 200);
+    return 0;
+}
+
+int test_scene1_postload_set_force_ambient_zero_restores_gate(void)
+{
+    reset_world();
+    scene1_postload_set_force_ambient(1);
+    scene1_postload_set_force_ambient(0);
+    scene1_postload_ambient_spawn();
+    /* Both palette flag and override are zero — no spawns. */
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 0);
+    return 0;
+}
+
+int test_scene1_postload_set_force_ambient_null_palette_still_noop(void)
+{
+    reset_world();
+    g_stage_palette = NULL;
+    scene1_postload_set_force_ambient(1);
+    scene1_postload_ambient_spawn();
+    /* NULL palette is an unconditional bail — force override doesn't
+     * override the NULL check (matches engine which derefs the pointer
+     * for the gate check itself; we hoist the NULL guard out). */
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 0);
+    stage_palette_init_house();
+    return 0;
+}
+
+int test_scene1_postload_type_override_replaces_4f(void)
+{
+    reset_world();
+    scene1_postload_set_force_ambient(1);
+    scene1_postload_set_ambient_type_override(0x92);
+    scene1_postload_ambient_spawn();
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 200);
+    /* Every traced spawn call should use the override type — the
+     * trace ring overwrites older entries so all 32 slots end up
+     * with the same type. */
+    for (int i = 0; i < SCENE1_SPAWN_TRACE_CAPACITY; i++) {
+        T_ASSERT_EQ_I(g_scene1_spawn_trace[i].type, 0x92);
+    }
+    /* Type 0x92 is a 1-spawn color-cycle billboard burst (C8i.2);
+     * each spawn commits a slot.  Unlike 0x4f, 0x92 doesn't get
+     * killed mid-loop by AGE==0x8c, so all 200 spawns land — but
+     * table A is 4096 slots wide and the spawn API first-fit-fills
+     * from the start, so the first 200 slots should be type 0x92. */
+    T_ASSERT_EQ_I(count_committed_slots_with_type(0x92), 200);
+    return 0;
+}
+
+int test_scene1_postload_type_override_minus_one_restores_default(void)
+{
+    reset_world();
+    scene1_postload_set_force_ambient(1);
+    scene1_postload_set_ambient_type_override(0x92);
+    scene1_postload_set_ambient_type_override(-1);
+    scene1_postload_ambient_spawn();
+    /* Trace should be type 0x4f (engine default) on every entry. */
+    for (int i = 0; i < SCENE1_SPAWN_TRACE_CAPACITY; i++) {
+        T_ASSERT_EQ_I(g_scene1_spawn_trace[i].type, 0x4f);
     }
     return 0;
 }

@@ -42,6 +42,12 @@
 
 float g_scene1_stage_player_default_pos[3] = {-40.0f, 0.0f, -60.0f};
 
+/* CLI overrides — see scene1_postload.h for the contract.  Module-
+ * static so they survive a later stage_palette_init_house() reset
+ * (which would otherwise wipe a palette-side flag). */
+static int g_force_ambient        = 0;
+static int g_ambient_type_override = -1;
+
 void scene1_postload_init_stage_defaults(void)
 {
     g_scene1_stage_player_default_pos[0] = -40.0f;
@@ -61,16 +67,18 @@ void scene1_postload_ambient_spawn(void)
     if (g_stage_palette == 0) {
         return;
     }
-    if (g_stage_palette->ambient_spawn_flag == 0) {
+    if (!g_force_ambient && g_stage_palette->ambient_spawn_flag == 0) {
         return;
     }
+
+    int type = (g_ambient_type_override >= 0) ? g_ambient_type_override : 0x4f;
 
     float x = g_scene1_player_pos[0];
     float y = g_scene1_player_pos[1] + 2.0f;
     float z = g_scene1_player_pos[2];
 
     for (int i = 200; i > 0; --i) {
-        scene1_spawn(0, x, y, z, 0x4f, 1.0f, 1);
+        scene1_spawn(0, x, y, z, type, 1.0f, 1);
         scene1_particles_tick();
     }
 }
@@ -81,4 +89,14 @@ void scene1_postload_force_ambient_flag(int value)
         return;
     }
     g_stage_palette->ambient_spawn_flag = value;
+}
+
+void scene1_postload_set_force_ambient(int force)
+{
+    g_force_ambient = force;
+}
+
+void scene1_postload_set_ambient_type_override(int type)
+{
+    g_ambient_type_override = type;
 }

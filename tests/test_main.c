@@ -1296,6 +1296,11 @@ struct test_case {
     X(scene1_postload_ambient_spawn_records_type_4f) \
     X(scene1_postload_ambient_spawn_param2_is_100) \
     X(scene1_postload_ambient_spawn_uses_player_pos_y_plus_2) \
+    X(scene1_postload_set_force_ambient_bypasses_palette_gate) \
+    X(scene1_postload_set_force_ambient_zero_restores_gate) \
+    X(scene1_postload_set_force_ambient_null_palette_still_noop) \
+    X(scene1_postload_type_override_replaces_4f) \
+    X(scene1_postload_type_override_minus_one_restores_default) \
     X(scene1_postload_ambient_spawn_tick_advances_records)
 
 #define T_DECL(n) extern int test_##n(void);
