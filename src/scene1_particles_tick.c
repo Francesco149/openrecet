@@ -51,6 +51,7 @@ float g_scene1_camera_yaw;
 float g_scene1_camera_anchor[2];
 float g_scene1_player_ground_y;
 int   g_scene1_scene_counter;
+float g_scene1_camera_yaw_alt;
 
 scene1_people_entry_t  g_scene1_people[SCENE1_PEOPLE_COUNT];
 scene1_npc_f8_entry_t  g_scene1_npc_table_f8[SCENE1_NPC_F8_COUNT];
@@ -1014,19 +1015,31 @@ static void handle_type_34(int i)
 
         float dist = (float)(0x18 - age) * vx;
 
-        /* Engine chain (L374-L380):  M = T(0,0,0); M = M * RotX(vy);
-         * M = M * RotY(vz); M = M * T(0,0,dist).  Under our
-         * mat4_mul(out, a, b) = a*b convention with row-vector
-         * semantics, this is the standard "rotate then translate"
-         * chain. */
+        /* Engine chain at 0x410509..41059f (D3DX Multiply convention is
+         * `Multiply(out, A, B) → out = A × B`; engine pushes (M, scratch, M)
+         * → M_new = scratch × M_prev — LEFT-multiply):
+         *
+         *     M = I
+         *     M = RotX(vy) × M = RotX(vy)
+         *     M = RotY(vz) × M = RotY(vz) × RotX(vy)
+         *     M = T(0,0,dist) × M = T(0,0,dist) × RotY(vz) × RotX(vy)
+         *
+         * Then (0,0,0,1) × M = (0,0,d,1) × RotY × RotX → orbiting
+         * displacement.  vel = (M[12], M[13], M[14]) is the translation
+         * row of M.
+         *
+         * Earlier C8h.3 landing used `mat4_mul(M, M, scratch)`
+         * (right-multiply) which collapses to a pure (0,0,d) translation
+         * with no rotation effect — fixed here as part of C8h.4d (same
+         * matrix subsystem). */
         float M[16], scratch[16];
         mat4_translation(M, 0.0f, 0.0f, 0.0f);
         mat4_rotation_x(scratch, vy);
-        mat4_mul(M, M, scratch);
+        mat4_mul(M, scratch, M);
         mat4_rotation_y(scratch, vz);
-        mat4_mul(M, M, scratch);
+        mat4_mul(M, scratch, M);
         mat4_translation(scratch, 0.0f, 0.0f, dist);
-        mat4_mul(M, M, scratch);
+        mat4_mul(M, scratch, M);
 
         /* M[12..14] is the translation row — the rotated displacement
          * vector. */
@@ -1071,14 +1084,16 @@ static void handle_type_35(int i)
         float ry = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_Y);
         float rz = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_Z);
 
+        /* Same multiply convention as 0x34 (engine L397..L403, same chain
+         * shape).  M_new = scratch × M_prev (LEFT-multiply). */
         float M[16], scratch[16];
         mat4_translation(M, 0.0f, 0.0f, 0.0f);
         mat4_rotation_x(scratch, ry);
-        mat4_mul(M, M, scratch);
+        mat4_mul(M, scratch, M);
         mat4_rotation_y(scratch, rz);
-        mat4_mul(M, M, scratch);
+        mat4_mul(M, scratch, M);
         mat4_translation(scratch, 0.0f, 0.0f, 1.0f);
-        mat4_mul(M, M, scratch);
+        mat4_mul(M, scratch, M);
 
         /* vel = M[12..14] — the rotated unit-Z vector. */
         slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, M[12]);
@@ -1092,6 +1107,103 @@ static void handle_type_35(int i)
 
     slot_age_inc(i);
     if (slot_age(i) == 0x30) slot_kill(i);
+}
+
+/* ─── handler: type 0x4a — matrix-anchored "halo" on the f8 NPC table ─
+ *
+ * Engine decomp L223-L275; raw asm at 0x40ff64..0x41019b — Ghidra dropped
+ * the args on three thunk calls (T3 `Multiply(M, scratch_a, M)`, T8
+ * `Translate(scratch_d, 0, 1, 1)`, T9 `Multiply(M, scratch_d, M)`); all
+ * three reconstructed from the surrounding stack-slot loads.
+ *
+ * Behavior:
+ *
+ *   1. Build M = T(0,1,1) × RotX(ROT_Y) × RotZ(ROT_Z) × RotY(ROT_X)
+ *      using LEFT-multiply (D3DXMatrixMultiply, `out = A × B`,
+ *      engine pushes `(M, scratch, M)`).
+ *   2. ROT_X += PARAM1 * 0.0002;  ROT_Y += PARAM1 * 0.0002.
+ *      (PARAM1 read as int via `fildl 0x40(esi)` then float-multiplied —
+ *      the 0.0002 constant lives at .rdata 0x5198e4.)
+ *   3. vel = (M[12], M[13], M[14])   — translation row, i.e. the offset
+ *      (0,1,1) rotated by the three-axis triad.
+ *   4. pos = (sin(yaw_alt) * 0.5 + spawn_origin.x,
+ *             spawn_origin.y + 1.5,
+ *             cos(yaw_alt) * 0.5 + spawn_origin.z)
+ *      where yaw_alt is DAT_056db05c (the *alternate* camera yaw, not
+ *      the same global as `g_scene1_camera_yaw` @ 073de39c).
+ *   5. If PARAM1 != -1: re-anchor pos to the NPC at
+ *      `g_scene1_npc_table_f8[PARAM1]` — same sin/cos formula but using
+ *      npc.yaw / npc.pos.  Bounds-checked here; engine reads unchecked.
+ *      If PARAM1 == -1 the spawn_origin formula gets recomputed
+ *      identically (engine dead-code redundancy — mirror verbatim).
+ *   6. age++; kill at 0x18.
+ */
+static void handle_type_4a(int i)
+{
+    /* Step 1 — the matrix chain. */
+    float rot_x = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_X);
+    float rot_y = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_Y);
+    float rot_z = slot_get_f(i, SCENE1_RECORDS_A_OFF_ROT_Z);
+
+    float M[16], scratch[16];
+    mat4_translation(M, 0.0f, 0.0f, 0.0f);
+    mat4_rotation_y(scratch, rot_x);
+    mat4_mul(M, scratch, M);
+    mat4_rotation_z(scratch, rot_z);
+    mat4_mul(M, scratch, M);
+    mat4_rotation_x(scratch, rot_y);
+    mat4_mul(M, scratch, M);
+    mat4_translation(scratch, 0.0f, 1.0f, 1.0f);
+    mat4_mul(M, scratch, M);
+
+    /* Step 2 — advance ROT_X / ROT_Y by PARAM1 * 0.0002. */
+    int param1 = *slot_int(i, SCENE1_RECORDS_A_OFF_PARAM1);
+    float advance = (float)param1 * 0.0002f;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_X, rot_x + advance);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_ROT_Y, rot_y + advance);
+
+    /* Step 3 — vel = M's translation row. */
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_X, M[12]);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Y, M[13]);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_VEL_Z, M[14]);
+
+    /* Step 4 — pos relative to spawn_origin via camera_yaw_alt.
+     * The engine recomputes this even when PARAM1 != -1 (the NPC branch
+     * then immediately overwrites it); mirror the wasted write. */
+    float yaw_alt = g_scene1_camera_yaw_alt;
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X,
+               sinf(yaw_alt) * 0.5f + g_scene1_spawn_origin[0]);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+               g_scene1_spawn_origin[1] + 1.5f);
+    slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
+               cosf(yaw_alt) * 0.5f + g_scene1_spawn_origin[2]);
+
+    /* Step 5 — PARAM1 anchoring.  Engine reads `(&DAT_056db144)[PARAM1
+     * * 0xf8]` unchecked; we bounds-check (cap = SCENE1_NPC_F8_COUNT).
+     * In the PARAM1 == -1 case the engine redundantly recomputes the
+     * spawn_origin formula — port verbatim (same final state). */
+    if (param1 == -1) {
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X,
+                   sinf(yaw_alt) * 0.5f + g_scene1_spawn_origin[0]);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+                   g_scene1_spawn_origin[1] + 1.5f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
+                   cosf(yaw_alt) * 0.5f + g_scene1_spawn_origin[2]);
+    } else if (param1 >= 0 && param1 < SCENE1_NPC_F8_COUNT) {
+        const scene1_npc_f8_entry_t *npc = &g_scene1_npc_table_f8[param1];
+        float npc_yaw = npc->yaw;
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_X,
+                   sinf(npc_yaw) * 0.5f + npc->pos[0]);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Y,
+                   npc->pos[1] + 1.5f);
+        slot_set_f(i, SCENE1_RECORDS_A_OFF_POS_Z,
+                   cosf(npc_yaw) * 0.5f + npc->pos[2]);
+    }
+    /* PARAM1 out-of-bounds: spawn_origin write from step 4 sticks. */
+
+    /* Step 6 — age + kill. */
+    slot_age_inc(i);
+    if (slot_age(i) == 0x18) slot_kill(i);
 }
 
 /* ─── handler: types 4, 0x70, 0x1c — scaled drift + rot.z drip ───────
@@ -1691,7 +1803,8 @@ void scene1_particles_tick(void)
         type = slot_type(i);
         if (type == 0x5d)        { handle_type_5d(i); }
 
-        /* type 0x4a — C8h.4d (matrix + stride-0xf8 NPC table). */
+        type = slot_type(i);
+        if (type == 0x4a)        { handle_type_4a(i); }
 
         type = slot_type(i);
         if (type == 0x98)        { handle_type_98(i); }
@@ -1878,8 +1991,5 @@ void scene1_particles_tick(void)
 
         type = slot_type(i);
         if (type == 0x1a)        { handle_type_1a(i); }
-
-        /* TODO C8h.4d: type 0x4a (matrix transform + stride-0xf8 NPC
-         * table; multi-stage with Ghidra-dropped matrix args). */
     }
 }

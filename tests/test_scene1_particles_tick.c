@@ -34,6 +34,7 @@ static void reset_world(void)
     scene1_mesh_emit_trace_reset();
     g_scene1_scene_alive   = 1;
     g_scene1_camera_yaw    = 0.0f;
+    g_scene1_camera_yaw_alt = 0.0f;
     g_scene1_camera_anchor[0] = 0.0f;
     g_scene1_camera_anchor[1] = 0.0f;
     g_scene1_player_ground_y  = 0.0f;
@@ -86,18 +87,21 @@ int test_particles_tick_empty_tables_noop(void)
 int test_particles_tick_ignores_unported_types(void)
 {
     reset_world();
-    /* Type 0x4a (matrix-transform — lands in C8h.3) is unported.
-     * C8h.1/.2 must NOT touch the slot — leave TYPE / pos / age all
-     * unchanged. */
+    /* All known TYPE codes in FUN_0040fb3a are now ported (C8h.1-.4d).
+     * For a TYPE outside the engine's switch (e.g. 0x42 is used; 0xFE is
+     * not — pick anything Ghidra's decomp doesn't compare against): the
+     * integrator's dispatch falls through silently with no handler firing,
+     * leaving pos / age unchanged.  TYPE 0xFE is a safe "definitely
+     * unhandled" pick — not present in the type tables. */
     int slot = 17;
     int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
-    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x4a;
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0xFE;
     slot_write_f(slot, SCENE1_RECORDS_A_OFF_POS_X, 5.0f);
     r[SCENE1_RECORDS_A_OFF_AGE] = 7;
 
     scene1_particles_tick();
 
-    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == 0x4a);
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == 0xFE);
     T_ASSERT(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) == 5.0f);
     T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_AGE)  == 7);
     return 0;
@@ -1748,5 +1752,231 @@ int test_particles_tick_type_12_oob_param1_safe(void)
     /* OOB → gate treated as closed → particle stays alive, PARAM2 unchanged. */
     T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == 0x12);
     T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_PARAM2) == 0);
+    return 0;
+}
+
+/* ─── C8h.4d — type 0x4a (matrix + stride-0xf8 NPC f8 table) ──────────
+ *
+ * Engine asm 0x40ff64..0x41019b.  See handle_type_4a() docstring for
+ * the full chain.
+ */
+
+int test_particles_tick_type_4a_zero_rotation(void)
+{
+    /* All rotations 0 → matrix collapses to T(0,1,1).  M[12..14] = (0,1,1).
+     * pos overridden by sin/cos at yaw_alt=0 → (0+origin.x, origin.y+1.5,
+     *   1.0+origin.z). */
+    reset_world();
+    g_scene1_spawn_origin[0] = 10.0f;
+    g_scene1_spawn_origin[1] = 20.0f;
+    g_scene1_spawn_origin[2] = 30.0f;
+
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x4a;
+    r[SCENE1_RECORDS_A_OFF_AGE]    = 0;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = -1;  /* spawn_origin branch */
+
+    scene1_particles_tick();
+
+    /* vel = rotated (0,1,1) = (0,1,1) when all rots are 0. */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X)) > 1e-6f)
+        T_FAIL("vel.x = %f, expected 0",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y) - 1.0f) > 1e-6f)
+        T_FAIL("vel.y = %f, expected 1.0",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z) - 1.0f) > 1e-6f)
+        T_FAIL("vel.z = %f, expected 1.0",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z));
+
+    /* pos: sin(0)*0.5+10 = 10; 20+1.5 = 21.5; cos(0)*0.5+30 = 30.5. */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 10.0f) > 1e-5f)
+        T_FAIL("pos.x = %f, expected 10",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) - 21.5f) > 1e-5f)
+        T_FAIL("pos.y = %f, expected 21.5",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z) - 30.5f) > 1e-5f)
+        T_FAIL("pos.z = %f, expected 30.5",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z));
+    return 0;
+}
+
+int test_particles_tick_type_4a_rot_y_quarter_turn(void)
+{
+    /* Set ROT_Y = π/2.  M = T(0,1,1) × RotX(π/2) × Rz(0) × Ry(0)
+     *                     = T(0,1,1) × RotX(π/2).
+     * Apply to (0,0,0,1):
+     *   (0,0,0,1) × T(0,1,1) = (0,1,1,1)
+     *   (0,1,1,1) × RotX(π/2) with [c=0,s=1]:
+     *     y_new = 1*0 + 1*(-1) = -1
+     *     z_new = 1*1 + 1*0    =  1
+     *   → (0, -1, 1)
+     * That's vel. */
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x4a;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = -1;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y, (float)(3.141592653589793 / 2.0));
+
+    scene1_particles_tick();
+
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X)) > 1e-6f)
+        T_FAIL("vel.x = %f, expected 0",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_X));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y) - -1.0f) > 1e-5f)
+        T_FAIL("vel.y = %f, expected -1.0",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z) - 1.0f) > 1e-5f)
+        T_FAIL("vel.z = %f, expected 1.0",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z));
+    return 0;
+}
+
+int test_particles_tick_type_4a_advances_rotations(void)
+{
+    /* PARAM1 * 0.0002 added to ROT_X and ROT_Y each tick. */
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x4a;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 50;  /* PARAM1 != -1: stride-0xf8 NPC branch */
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_ROT_X, 1.0f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y, 2.0f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_ROT_Z, 3.0f);
+
+    scene1_particles_tick();
+
+    /* ROT_X = 1.0 + 50 * 0.0002 = 1.01.  Same for ROT_Y.  ROT_Z unchanged. */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_X) - 1.01f) > 1e-6f)
+        T_FAIL("ROT_X = %f, expected 1.01",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_X));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y) - 2.01f) > 1e-6f)
+        T_FAIL("ROT_Y = %f, expected 2.01",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Y));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Z) - 3.0f) > 1e-6f)
+        T_FAIL("ROT_Z = %f, expected 3.0 (unchanged)",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_ROT_Z));
+    return 0;
+}
+
+int test_particles_tick_type_4a_npc_anchor(void)
+{
+    /* PARAM1 != -1 → pos anchors to npc.pos + sin/cos(npc.yaw) * 0.5
+     * (+ 1.5 on Y).  spawn_origin formula is computed first then
+     * overwritten — verify the final state matches NPC anchoring. */
+    reset_world();
+    g_scene1_spawn_origin[0] = 999.0f;  /* deliberately wrong — must NOT win */
+    g_scene1_spawn_origin[1] = 999.0f;
+    g_scene1_spawn_origin[2] = 999.0f;
+    g_scene1_camera_yaw_alt  = 1.234f;  /* deliberately wrong */
+
+    g_scene1_npc_table_f8[5].pos[0] = 100.0f;
+    g_scene1_npc_table_f8[5].pos[1] = 200.0f;
+    g_scene1_npc_table_f8[5].pos[2] = 300.0f;
+    g_scene1_npc_table_f8[5].yaw    = (float)(3.141592653589793 / 2.0);
+
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x4a;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 5;
+
+    scene1_particles_tick();
+
+    /* sin(π/2) * 0.5 + 100 = 100.5; 200 + 1.5 = 201.5; cos(π/2) * 0.5 + 300 = 300. */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 100.5f) > 1e-4f)
+        T_FAIL("pos.x = %f, expected 100.5",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) - 201.5f) > 1e-5f)
+        T_FAIL("pos.y = %f, expected 201.5",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z) - 300.0f) > 1e-4f)
+        T_FAIL("pos.z = %f, expected 300.0",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z));
+    return 0;
+}
+
+int test_particles_tick_type_4a_oob_param1_safe(void)
+{
+    /* Out-of-bounds PARAM1 → NPC branch skipped → spawn_origin formula
+     * from step 4 is the final pos.  Engine reads unchecked; we bounds-
+     * check.  Document this divergence in the test. */
+    reset_world();
+    g_scene1_spawn_origin[0] = 10.0f;
+    g_scene1_spawn_origin[1] = 20.0f;
+    g_scene1_spawn_origin[2] = 30.0f;
+
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x4a;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = 99999;
+
+    scene1_particles_tick();
+
+    /* yaw_alt=0 → spawn_origin formula. */
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X) - 10.0f) > 1e-5f)
+        T_FAIL("oob pos.x = %f",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) - 21.5f) > 1e-5f)
+        T_FAIL("oob pos.y = %f",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z) - 30.5f) > 1e-5f)
+        T_FAIL("oob pos.z = %f",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z));
+    return 0;
+}
+
+int test_particles_tick_type_4a_kills_at_0x18(void)
+{
+    reset_world();
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 0x4a;
+    r[SCENE1_RECORDS_A_OFF_AGE]    = 0x17;
+    r[SCENE1_RECORDS_A_OFF_PARAM1] = -1;
+
+    scene1_particles_tick();
+
+    T_ASSERT(slot_read_i(slot, SCENE1_RECORDS_A_OFF_TYPE) == -1);
+    return 0;
+}
+
+/* Regression for the C8h.3 matrix-order fix that landed alongside this
+ * chip.  Pre-fix, the multiply chain in 0x34 dropped all rotations
+ * because of right-multiply vs the engine's left-multiply.  This test
+ * exercises a non-zero rotation that would have hidden the bug. */
+int test_particles_tick_type_34_rotation_is_applied(void)
+{
+    reset_world();
+    /* player at origin (defaults).  vel = (1, π/2, 0):
+     *   age 0 → dist = 24.  M = T(0,0,24) × RotY(0) × RotX(π/2).
+     *   (0,0,0,1) × T = (0,0,24).
+     *   (0,0,24,1) × RotY(0) = (0,0,24,1).
+     *   (0,0,24,1) × RotX(π/2) [c=0,s=1]:
+     *     y_new = 0*0 + 24*(-1) = -24
+     *     z_new = 0*1 + 24*0    =   0
+     *   → displacement (0, -24, 0).  pos = player + (0, 2 + -24, 0)
+     *                                    = (0, -22, 0). */
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE] = 0x34;
+    r[SCENE1_RECORDS_A_OFF_AGE]  = 0;
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_X, 1.0f);
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_Y, (float)(3.141592653589793 / 2.0));
+    slot_write_f(slot, SCENE1_RECORDS_A_OFF_VEL_Z, 0.0f);
+
+    scene1_particles_tick();
+
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X)) > 1e-4f)
+        T_FAIL("0x34 pos.x = %f, expected 0",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y) - -22.0f) > 1e-4f)
+        T_FAIL("0x34 pos.y = %f, expected -22.0 (rotation applied)",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y));
+    if (fabsf(slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z)) > 1e-4f)
+        T_FAIL("0x34 pos.z = %f, expected 0",
+               (double)slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z));
     return 0;
 }

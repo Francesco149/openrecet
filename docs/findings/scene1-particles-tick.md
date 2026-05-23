@@ -617,3 +617,91 @@ covered by the existing item.
 | Type | External dep / blocker                                                          |
 |------|----------------------------------------------------------------------------------|
 | 0x4a | Multi-stage matrix transform (RotY × RotZ × RotX chain) with two Ghidra-dropped thunk args; reads `_DAT_056db05c` (camera_yaw alternate — new global needed) + stride-0xf8 NPC table; PARAM1 == -1 branch uses spawn_origin instead |
+
+## C8h.4d landed (2026-05-23)
+
+Final per-type handler from FUN_0040fb3a is now ported.  Adds
+`handle_type_4a()` in `src/scene1_particles_tick.c`, a new global
+`g_scene1_camera_yaw_alt` (DAT_056db05c), and a same-chip fix for the
+C8h.3 matrix multiply order in `handle_type_34` / `handle_type_35`.
+7 new host tests (940 → 947, all pass).  Win32 build links clean;
+boot-idle scenario unchanged.
+
+### Type 0x4a behavior
+
+Disambiguation of Ghidra-dropped args confirmed against raw asm at
+`0x40ff64..0x41019b`.  Three dropped-arg sites:
+
+| Asm offset | Call            | Reconstructed args                          |
+|------------|-----------------|---------------------------------------------|
+| `0x40ffa7` | `Multiply(M, scratch_a, M)` | `lea` triplet (M, scratch_a=RotY at ebp-0x328, M) confirmed |
+| `0x410017` | `Translate(scratch_d, 0, 1, 1)` | `fld1; fld1; fldz` confirms (0, 1, 1) tx/ty/tz |
+| `0x41002b` | `Multiply(M, scratch_d, M)` | Same shape as T3 — scratch_d at ebp-0x228   |
+
+Chain (D3DX `Multiply(out, A, B) → out = A × B`):
+
+```
+M = T(0,1,1) × RotX(ROT_Y) × RotZ(ROT_Z) × RotY(ROT_X)
+vel = (M[12], M[13], M[14])    // translation row — rotated (0,1,1) offset
+ROT_X += PARAM1 * 0.0002
+ROT_Y += PARAM1 * 0.0002
+pos = anchor + (sin(yaw_alt) * 0.5, +1.5, cos(yaw_alt) * 0.5)
+  anchor = g_scene1_spawn_origin     if PARAM1 == -1
+         = g_scene1_npc_table_f8[PARAM1]  (with npc.yaw) otherwise
+                                          (OOB PARAM1 → spawn_origin)
+age++; kill at 0x18
+```
+
+Constants verified from `.rdata`: `0x5198e4 = 0.0002` (PARAM1 scale),
+`0x51935c = 0.5` (sin/cos amplitude), `0x5198e0 = 1.5` (Y offset).
+
+### Engine quirk preserved
+
+When PARAM1 == -1, the engine writes pos twice — once from the
+"step 4" spawn_origin block, then identically from the PARAM1 == -1
+branch.  Same final state; port mirrors verbatim (the engine
+trade-off was probably "simpler control flow over a redundant store").
+
+### C8h.3 matrix-order divergence — FIXED in same chip
+
+While surveying T3/T8/T9, found that C8h.3's `handle_type_34` and
+`handle_type_35` used `mat4_mul(M, M, scratch)` (right-multiply:
+`M_new = M_prev × scratch`).  The engine pushes
+`(M, scratch, M)` to `D3DXMatrixMultiply`, which under D3DX's
+`Multiply(out, A, B) → out = A × B` convention is LEFT-multiply:
+`M_new = scratch × M_prev`.
+
+Effect of the pre-fix port: rotations applied to a vector via the
+matrix's translation row collapsed to zero (rotation fixes origin),
+so 0x34's orbiting projectile flew straight along Z with no orbit.
+Wasn't visible because no caller wires the integrator into INGAME
+yet — caught here via raw-asm review.
+
+Fixed by flipping argument order at the three `mat4_mul` sites in
+0x34/0x35 to `mat4_mul(M, scratch, M)`.  Added new regression test
+`test_particles_tick_type_34_rotation_is_applied` that exercises a
+non-zero `vel.y = π/2` rotation; pre-fix this would have produced
+`pos.y = 2.0` (rotation dropped) instead of `-22.0` (rotation
+applied).
+
+### Pending human checks unchanged
+
+The C8h.4d work didn't introduce any new dropped-FPU-arg cases — the
+two `sin`/`cos` calls on `_DAT_056db05c` and `npc.yaw` are unambiguous
+(only one float on FPU TOS before the call in each case).
+
+### Integrator scope-completeness
+
+All ~95 distinct TYPE codes from FUN_0040fb3a's flat if-chain are now
+covered by C8h.1-.4d handlers.  Remaining gaps to making the
+integrator visibly active:
+
+1. Per-frame open `FUN_00414929` (1465 B) — still a no-op in our port;
+   ticks two non-particle entity tables at DAT_00730c30 and
+   DAT_0064e8a0.  Separate concern.
+2. Spawn API `FUN_00447f4f` (11826 B) — still stubbed by
+   `src/scene1_spawn.c`; chain spawns from 0x1a/0x20/0x34 trace-only.
+   C8i chip.
+3. Caller wiring: `FUN_004536cb` (1745 B sim-side INGAME case) is
+   unported.  Until then `scene1_particles_tick` runs only from unit
+   tests.

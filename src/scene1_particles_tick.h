@@ -60,6 +60,10 @@ extern "C" {
  *   DAT_056daff4           → g_scene1_scene_counter      (per-scene int
  *                            tick counter, reset at scene entry.  Type 0x62
  *                            kill-gates on `counter <= 0x2c`.)
+ *   DAT_056db05c           → g_scene1_camera_yaw_alt     (second camera
+ *                            yaw, read by type 0x4a's sin/cos pos calc.
+ *                            Distinct from _DAT_073de39c above — they have
+ *                            different writers; sharing is unsafe.)
  */
 extern float g_scene1_player_pos[3];
 extern float g_scene1_spawn_origin[3];
@@ -68,6 +72,7 @@ extern float g_scene1_camera_yaw;
 extern float g_scene1_camera_anchor[2];
 extern float g_scene1_player_ground_y;
 extern int   g_scene1_scene_counter;
+extern float g_scene1_camera_yaw_alt;
 
 /*
  * NPC tables consumed by the C8h.4c anchor-snap handlers.

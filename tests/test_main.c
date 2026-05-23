@@ -1036,7 +1036,15 @@ struct test_case {
     X(particles_tick_type_12_gate_open_drifts_and_age) \
     X(particles_tick_type_14_no_drift_just_counter) \
     X(particles_tick_type_12_kills_at_param2_0x3c) \
-    X(particles_tick_type_12_oob_param1_safe)
+    X(particles_tick_type_12_oob_param1_safe) \
+    \
+    X(particles_tick_type_4a_zero_rotation) \
+    X(particles_tick_type_4a_rot_y_quarter_turn) \
+    X(particles_tick_type_4a_advances_rotations) \
+    X(particles_tick_type_4a_npc_anchor) \
+    X(particles_tick_type_4a_oob_param1_safe) \
+    X(particles_tick_type_4a_kills_at_0x18) \
+    X(particles_tick_type_34_rotation_is_applied)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
