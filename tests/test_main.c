@@ -1440,7 +1440,21 @@ struct test_case {
     X(records_b_spawn_npc_cluster_b_a6_spawns_8_particles) \
     X(records_b_spawn_npc_cluster_b_per_particle_shifts) \
     X(records_b_spawn_npc_cluster_b_4e_one_particle) \
-    X(records_b_spawn_npc_cluster_b_implemented_macro)
+    X(records_b_spawn_npc_cluster_b_implemented_macro) \
+    X(records_b_spawn_entity_3e_uses_owner_ea4_rot_x) \
+    X(records_b_spawn_entity_5f_uses_owner_ea4_rot_x) \
+    X(records_b_spawn_entity_23_yaw_branch_writes_full_pose) \
+    X(records_b_spawn_entity_23_people_branch_reads_target) \
+    X(records_b_spawn_entity_23_writes_matrix_via_rotation_x) \
+    X(records_b_spawn_entity_29_yaw_branch_pos_no_vel_writes) \
+    X(records_b_spawn_entity_29_people_branch_no_ground_default) \
+    X(records_b_spawn_entity_29_ground_hook_clamps_pos_y) \
+    X(records_b_spawn_entity_30_yaw_branch) \
+    X(records_b_spawn_entity_30_people_branch_normalizes_vel) \
+    X(records_b_spawn_entity_30_people_branch_zero_distance_keeps_vel) \
+    X(records_b_spawn_entity_9b_bend_and_life) \
+    X(records_b_spawn_entity_9d_full_pose_and_explicit_return) \
+    X(records_b_spawn_entity_c8j8_implemented_macro)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

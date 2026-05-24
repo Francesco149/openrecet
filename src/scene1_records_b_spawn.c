@@ -40,7 +40,9 @@
 #include <math.h>
 #include <string.h>
 
+#include "math3d.h"
 #include "rng.h"
+#include "scene1_particles_tick.h"  /* g_scene1_camera_yaw, g_scene1_people */
 
 int g_scene1_record_b_seq_counter;
 
@@ -125,6 +127,24 @@ void scene1_record_b_spawn_trace_reset(void)
     g_scene1_record_b_spawn_trace_count = 0;
     memset(g_scene1_record_b_spawn_trace, 0,
            sizeof g_scene1_record_b_spawn_trace);
+}
+
+/* ─── ground-query hook (FUN_00432e50, used by 0x29) ───────────────── */
+
+static int default_ground_query_b(float x, float y, float *out_y)
+{
+    (void)x; (void)y; (void)out_y;
+    return 0;
+}
+
+static scene1_b_ground_query_fn g_ground_query_b = default_ground_query_b;
+
+scene1_b_ground_query_fn scene1_record_b_spawn_set_ground_query(
+    scene1_b_ground_query_fn fn)
+{
+    scene1_b_ground_query_fn prev = g_ground_query_b;
+    g_ground_query_b = fn ? fn : default_ground_query_b;
+    return prev;
 }
 
 /* ─── entity-allocator preamble (FUN_0044376a L40932-40978) ────────── */
@@ -758,6 +778,364 @@ static int init_entity_mega_cluster_a(int i, const void *owner, int type,
     return cap;
 }
 
+/* ─── C8j.8 — NPC-table + camera-yaw + matrix-init types ─────────── */
+
+/* Types 0x3e, 0x5f — share the 0x60 body (engine L41053-41066 falls
+ * through to LAB_004457db: `fVar2 = *(float *)(param_1 + 0xea4);`
+ * LAB_004457e1: writes ROT_X).  The inner `if (param_2 == 0x82)` test
+ * in the engine's 0x3e/0x5f branch is dead code (param_2 can't be both
+ * 0x3e/0x5f AND 0x82). */
+static int init_entity_3e_5f(int i, const void *owner, int type, int flag,
+                             int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, owner_read_f(owner, 0xea4));
+    return 1;
+}
+
+/* Type 0x23 — matrix-init + camera-yaw + people-table fallback.
+ * 1-particle: tail goes through LAB_00443a5d → LAB_00444230 (DRAG=0) →
+ * LAB_004457e7 (bVar14=(local_8==0)).  Engine's per-particle dispatch
+ * on `local_8 ∈ {1, 2}` is ported verbatim but unreachable in normal
+ * flow (cap=1 means outer loop only ever passes part_idx=0).
+ *
+ * Body (engine L40979-41027):
+ *   - POS_Y += 2 (read-modify-write on top of preamble's owner.y-0.5)
+ *   - VEL = (0, -0.3f, 0)
+ *   - If owner+0xea0 == -1 (people_idx):
+ *       POS_X = sin(-yaw)*15 + owner+0x38
+ *       POS_Y = owner+0x3c + 30        (overwrites the +=2 above)
+ *       POS_Z = cos(-yaw)*15 + owner+0x40
+ *     Else (people-table):
+ *       POS_X = people[idx].target.x   (engine `&DAT_0076bd60` = base+0x0c)
+ *       POS_Y = people[idx].target.y + 20
+ *       POS_Z = people[idx].target.z
+ *   - Per-particle dispatch (dead in normal flow, cap=1):
+ *       part_idx==1: POS_X += sin(-yaw)*8; POS_Y += 10; POS_Z += cos(-yaw)*8
+ *       part_idx==2: POS_X -= sin(-yaw)*8; POS_Y += 20; POS_Z -= cos(-yaw)*8
+ *   - LIFE_MULT = 1.2f
+ *   - u = rng_next_unit(); ROT_Z = u*2π; slot.matrix = RotationX(u*2π)
+ *     (single RNG draw shared between ROT_Z and matrix angle)
+ *   - DRAG = 0 (set explicitly, even though preamble already left it 0)
+ *
+ * Argless cos sites (L40989, L40999, L41003, L41009, L41013) all paired
+ * with the immediately-prior sin call on the same angle (-_DAT_073de39c).
+ * Same PHC #7 pattern. */
+static int init_entity_23(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag;
+
+    int people_idx = owner_read_i(owner, 0xea0);
+
+    /* L40981: POS_Y += 2 (rmw). */
+    float pos_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) + 2.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
+
+    /* L40982-40984: VEL = (0, -0.3f, 0).  Engine raw `0xbe99999a`. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+
+    float neg_yaw = -g_scene1_camera_yaw;
+    float sn_y = sinf(neg_yaw);
+    float cs_y = cosf(neg_yaw);
+
+    if (people_idx == -1) {
+        /* L40986-40990: camera-yaw branch.  Note: pos source is
+         * owner+0x38/0x3c/0x40, NOT the +0x20/0x24/0x28 used by the
+         * preamble (which preamble overwrites here). */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+                   sn_y * 15.0f + owner_read_f(owner, 0x38));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+                   owner_read_f(owner, 0x3c) + 30.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+                   cs_y * 15.0f + owner_read_f(owner, 0x40));
+    } else if (people_idx >= 0 && people_idx < SCENE1_PEOPLE_COUNT) {
+        /* L40993-40996: people-table branch.  Engine `&DAT_0076bd60` is
+         * base+0x0c = people[idx].target. */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+                   g_scene1_people[people_idx].target[0]);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+                   g_scene1_people[people_idx].target[1] + 20.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+                   g_scene1_people[people_idx].target[2]);
+    }
+    /* OOB people_idx → preamble pos retained (engine would crash; we
+     * stay safe). */
+
+    /* L40998-41016: per-particle dispatch (DEAD in cap=1 flow). */
+    if (part_idx == 1) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px + sn_y * 8.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py + 10.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz + cs_y * 8.0f);
+    } else if (part_idx == 2) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px - sn_y * 8.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py + 20.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz - cs_y * 8.0f);
+    }
+
+    /* L41017: LIFE_MULT = 1.2f (engine raw 0x3f99999a). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.2f);
+
+    /* L41018-41020: ROT_Z and matrix share ONE rng draw — engine reuses
+     * fVar15 across both writes. */
+    float u_angle = rng_next_unit() * B_TWO_PI_F;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, u_angle);
+
+    /* Engine `thunk_FUN_004a35d3(&DAT_06932578 + iVar10, u_angle)` is
+     * D3DXMatrixRotationX writing 16 floats at slot.matrix.  Our port
+     * uses math3d's mat4_rotation_x which produces the same row-major
+     * 4x4 matrix layout. */
+    float mat[16];
+    mat4_rotation_x(mat, u_angle);
+    int32_t *slot_mat_ptr = slot_base(i) + SCENE1_RECORDS_B_OFF_MATRIX0;
+    memcpy(slot_mat_ptr, mat, sizeof mat);
+
+    /* LAB_00443a5d → LAB_00444230: DRAG = 0 (explicit, redundant with
+     * preamble but ported verbatim). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
+
+    return 1;
+}
+
+/* Type 0x29 — camera-yaw or people-table pos w/ optional ground-clamp.
+ * 1-particle.  Note differences vs 0x23:
+ *   - No VEL writes (preamble VEL=0 carries).
+ *   - No LIFE_MULT (preamble 1.0 carries).
+ *   - No matrix write.
+ *   - People-table source is `people[idx].pos` (base+0), NOT target.
+ *   - People-table branch has a ground-clamp via FUN_00432e50.
+ *   - Camera-yaw branch pos source is owner+0x20/0x24/0x28, NOT 0x38..0x40.
+ *
+ * Body (engine L41067-41105):
+ *   - If owner+0xea0 == -1:
+ *       POS_X = sin(-yaw)*15 + owner+0x20
+ *       POS_Y = owner+0x24                  (overwrites preamble's -0.5)
+ *       POS_Z = cos(-yaw)*15 + owner+0x28
+ *     Else (people-table):
+ *       POS_X = people[idx].pos.x
+ *       POS_Y = people[idx].pos.y - 5
+ *       POS_Z = people[idx].pos.z
+ *       g_ground_query_b(POS_X, POS_Y, &gy):
+ *         on hit: POS_Y = max(gy, people[idx].pos.y - 5)
+ *   - Per-particle dispatch (DEAD in cap=1 flow):
+ *       part_idx==1: POS_X += sin(-yaw)*8; POS_Z += cos(-yaw)*8 (no POS_Y)
+ *       part_idx==2: POS_X -= sin(-yaw)*8; POS_Z -= cos(-yaw)*8 (no POS_Y)
+ *   - LAB_00443a5d → LAB_00444230: DRAG = 0
+ *
+ * Argless trig sites (L41073, L41092, L41101) all paired with prior
+ * sin call on -_DAT_073de39c; PHC #7 pattern. */
+static int init_entity_29(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag;
+
+    int people_idx = owner_read_i(owner, 0xea0);
+
+    float neg_yaw = -g_scene1_camera_yaw;
+    float sn_y = sinf(neg_yaw);
+    float cs_y = cosf(neg_yaw);
+
+    if (people_idx == -1) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+                   sn_y * 15.0f + owner_read_f(owner, 0x20));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+                   owner_read_f(owner, 0x24));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+                   cs_y * 15.0f + owner_read_f(owner, 0x28));
+    } else if (people_idx >= 0 && people_idx < SCENE1_PEOPLE_COUNT) {
+        float people_y = g_scene1_people[people_idx].pos[1];
+        float anchor_y = people_y - 5.0f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+                   g_scene1_people[people_idx].pos[0]);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, anchor_y);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+                   g_scene1_people[people_idx].pos[2]);
+
+        float gy = 0.0f;
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        if (g_ground_query_b(px, py, &gy)) {
+            /* L41082-41085: POS_Y = max(gy, anchor_y). */
+            float new_y = (gy < anchor_y) ? anchor_y : gy;
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, new_y);
+        }
+    }
+
+    /* L41088-41104: per-particle dispatch (DEAD in cap=1 flow). */
+    if (part_idx == 1) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px + sn_y * 8.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz + cs_y * 8.0f);
+    } else if (part_idx == 2) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px - sn_y * 8.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz - cs_y * 8.0f);
+    }
+
+    /* LAB_00443a5d → LAB_00444230: DRAG = 0. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
+
+    return 1;
+}
+
+/* Type 0x30 — reverse-yaw cone w/ optional people-target normalization.
+ * 1-particle (engine sets iVar10=1 at LAB_00443dbe).
+ *
+ * Body (engine L41472-41510):
+ *   - POS_X = sin(0.31415927 - yaw)*1.5 + owner+0x38
+ *   - POS_Y = owner+0x3c + 1.5
+ *   - POS_Z = owner+0x40 - cos(0.31415927 - yaw)*1.5
+ *   - If owner+0xea0 == -1:
+ *       VEL_X = sin(owner+0xea4)*0.7
+ *       VEL_Y = 0
+ *       VEL_Z = cos(owner+0xea4)*0.7
+ *     Else (people-target):
+ *       dx = people[idx].pos.x - POS_X
+ *       dy = people[idx].pos.y - POS_Y
+ *       dz = people[idx].pos.z - POS_Z
+ *       len = sqrtf(dx² + dy² + dz²)        (engine FUN_005031e4)
+ *       if len > 0: VEL = (dx, dy, dz) * 0.7 / len
+ *       FUN_00503dd0(dx);  // atan2 w/ dropped return — SKIPPED (no
+ *                          // observable side-effect on this slot)
+ *   - LAB_004449b0: ROT_Z = rng_unit() * 2π
+ *   - LAB_004449c1: DRAG = 20.0
+ *   - LAB_00443dbe: AUX_C8 = 1  (iVar10=1 cap, fired automatically)
+ *
+ * Argless trig sites (L41112, L41118, L41131 — wait, those are 0x58/100)...
+ * Actually for 0x30: paired sin/cos calls in the people branch use
+ * normalized distance scalars (not trig); the only argless candidate
+ * is L41131 in the else branch's `cos(owner+0xea4)` (paired with
+ * L41128's sin call). */
+static int init_entity_30(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+
+    /* L41473-41481: pos via reverse-yaw cone. */
+    float ang = 0.31415927f - g_scene1_camera_yaw;
+    float sn = sinf(ang);
+    float cs = cosf(ang);
+
+    float pos_x = sn * 1.5f + owner_read_f(owner, 0x38);
+    float pos_y = owner_read_f(owner, 0x3c) + 1.5f;
+    float pos_z = owner_read_f(owner, 0x40) - cs * 1.5f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z);
+
+    int people_idx = owner_read_i(owner, 0xea0);
+
+    if (people_idx == -1) {
+        /* L41108-41114: trig vel w/ owner+0xea4 angle. */
+        float a = owner_read_f(owner, 0xea4);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(a) * 0.7f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(a) * 0.7f);
+    } else if (people_idx >= 0 && people_idx < SCENE1_PEOPLE_COUNT) {
+        /* L41087-41101: aim-at-people via normalized distance vector. */
+        float dx = g_scene1_people[people_idx].pos[0] - pos_x;
+        float dy = g_scene1_people[people_idx].pos[1] - pos_y;
+        float dz = g_scene1_people[people_idx].pos[2] - pos_z;
+        float len = sqrtf(dx*dx + dy*dy + dz*dz);
+        if (len > 0.0f) {
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, (dx * 0.7f) / len);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, (dy * 0.7f) / len);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, (dz * 0.7f) / len);
+        }
+        /* L41102: FUN_00503dd0(dx) — atan2 with dropped return value.
+         * No observable side-effect on this slot.  Skipped. */
+    }
+
+    /* LAB_004449b0: ROT_Z = rng_unit() * 2π. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rng_next_unit() * B_TWO_PI_F);
+
+    /* LAB_004449c1: DRAG = 20.0. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 20.0f);
+
+    /* LAB_00443dbe: AUX_C8 = 1. */
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+
+    return 1;
+}
+
+/* Type 0x9b — NPC-bend + LIFE_MULT.  1-particle.
+ *
+ * Body (engine L41029-41032):
+ *   - ROT_X = ((float)(owner+0x948) * 2π) / 8     (NPC bend)
+ *   - LIFE_MULT = 1.3f                            (engine raw 0x3fa66666)
+ *   - Falls through to LAB_004457e7 (bVar14=(local_8==0), cap=1). */
+static int init_entity_9b(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.3f);
+    return 1;
+}
+
+/* Type 0x9d — NPC-bend + full pose + radial vel + SCALE_X.  1-particle
+ * (engine returns explicitly after the body; same effect as cap=1 in
+ * our outer loop).
+ *
+ * Body (engine L41034-41051):
+ *   - LIFE_MULT = 1.3f
+ *   - ROT_X = ((float)(owner+0x948) * 2π) / 8     (NPC bend)
+ *   - POS = owner+0x20/0x24/0x28 with +1.0y       (NOT preamble's -0.5y)
+ *   - ALT_POS = owner+0x20/0x24/0x28 with +0.9y
+ *   - VEL_X = sin(ROT_X) * 2
+ *   - VEL_Y = 0
+ *   - VEL_Z = cos(ROT_X) * 2                      (argless paired)
+ *   - SCALE_X = 10.0f                             (engine raw 0x41200000)
+ *   - slot.TYPE = 0x9d  (redundant re-claim, preamble already set this)
+ *   - EXPLICIT RETURN (skips post-body tail; our outer loop's cap=1
+ *     achieves the same observable effect).
+ *
+ * Engine `(float)fVar15 + (float)fVar15` = 2*sin(angle); ported as
+ * sinf(bend)*2.0. */
+static int init_entity_9d(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)flag; (void)part_idx;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.3f);
+
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+
+    float ox = owner_read_f(owner, 0x20);
+    float oy = owner_read_f(owner, 0x24);
+    float oz = owner_read_f(owner, 0x28);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, oy + 0.9f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, oz);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(bend) * 2.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(bend) * 2.0f);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 10.0f);
+
+    /* slot.TYPE = type re-claim (preamble already did this).  Engine
+     * write at L41049: `*piVar13 = 0x9d`. */
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_TYPE, type);
+
+    return 1;
+}
+
 /* Dispatch helper — routes a (slot, type, part_idx) to the right body
  * and returns the cap.  Used by scene1_record_b_spawn_entity's outer
  * loop to know when to stop committing slots. */
@@ -768,6 +1146,9 @@ static int run_entity_body(int slot, const void *owner, int type,
     case 0x24: return init_entity_24(slot, owner, type, flag, part_idx);
     case 0x60: return init_entity_60(slot, owner, type, flag, part_idx);
     case 0x82: return init_entity_82(slot, owner, type, flag, part_idx);
+
+    case 0x3e: case 0x5f:
+        return init_entity_3e_5f(slot, owner, type, flag, part_idx);
 
     case 2: case 3: case 4: case 0x22: case 0x54: case 0x67:
         return init_entity_drift_cluster(slot, owner, type, flag, part_idx);
@@ -780,6 +1161,12 @@ static int run_entity_body(int slot, const void *owner, int type,
     case 0x73: case 0x76: case 0x77: case 0x78:
     case 0x7a: case 0x7b: case 0x7c: case 0x7e:
         return init_entity_mega_cluster_a(slot, owner, type, flag, part_idx);
+
+    case 0x23: return init_entity_23(slot, owner, type, flag, part_idx);
+    case 0x29: return init_entity_29(slot, owner, type, flag, part_idx);
+    case 0x30: return init_entity_30(slot, owner, type, flag, part_idx);
+    case 0x9b: return init_entity_9b(slot, owner, type, flag, part_idx);
+    case 0x9d: return init_entity_9d(slot, owner, type, flag, part_idx);
 
     default:
         /* Unreachable — outer dispatch gated by IMPLEMENTED. */

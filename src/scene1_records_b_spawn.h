@@ -13,6 +13,16 @@
  * refactor for NPC allocator (mirrors C8j.6's entity refactor).
  * 14 new types total.
  *
+ * Chip C8j.8 (2026-05-24) — entity allocator NPC-table + camera-yaw +
+ * matrix-init types (0x23, 0x29, 0x30, 0x9b, 0x9d) + tail-share group
+ * (0x3e, 0x5f).  Reads `g_scene1_camera_yaw` (engine _DAT_073de39c)
+ * for the reverse-yaw poses, `g_scene1_people` (engine DAT_0076bd54
+ * stride 0x2e9) for people-table fallbacks, and uses `mat4_rotation_x`
+ * (engine `thunk_FUN_004a35d3`) for 0x23's matrix init.  Adds the
+ * ground-query hook used by 0x29's people-table branch.  7 new types
+ * total; all 1-particle (engine's per-particle dispatch in 0x23/0x29 is
+ * preserved verbatim but unreachable since cap=1 in the loop).
+ *
  *   FUN_0044376a — "entity allocator", owner shape A: pos at owner+0x20,
  *                  matrix at owner+0xde8, NPC-bend at owner+0x948,
  *                  alt people-table at owner+0x9e0 (stride 0x44),
@@ -122,6 +132,26 @@ extern "C" {
  *     Per-type ROT_X/VEL_Y/SCALE_X/LIFE_MULT/local_10 overrides.
  *     0x7c: POS_X/Z -= 2*VEL (rebound), per-particle alternating
  *     bidirectional ROT_X fan.  0x76 with part>0: PART_IDX = 1.
+ *   C8j.8 tail-share + NPC-table + matrix-init (engine L40979-41106):
+ *   - 0x3e, 0x5f — group with 0x60: ROT_X = owner+0xea4.
+ *   - 0x23 (1 particle) — POS triplet from sin/cos(-yaw)*15 + owner+0x38
+ *     OR people[owner+0xea0].target +20y; VEL_Y = -0.3; LIFE_MULT = 1.2;
+ *     ROT_Z = rng_unit()*2π (reused as ROT_X matrix angle); slot.matrix
+ *     = RotationX(same angle).  DRAG = 0.
+ *   - 0x29 (1 particle) — POS triplet from sin/cos(-yaw)*15 + owner+0x20
+ *     OR people[owner+0xea0].pos -5y with optional ground-clamp via
+ *     scene1_record_b_spawn_set_ground_query hook (default no-op).  No
+ *     VEL/LIFE writes; DRAG = 0.
+ *   - 0x30 (1 particle) — POS via sin/cos(0.31415927-yaw)*1.5 + owner+0x38;
+ *     VEL via sin/cos(owner+0xea4)*0.7 OR (people[owner+0xea0].pos - POS)
+ *     normalized × 0.7.  ROT_Z = rng_unit()*2π; DRAG = 20; AUX_C8 = 1.
+ *     Engine's dropped-return atan2 call (FUN_00503dd0) is skipped (no
+ *     observable side-effect).
+ *   - 0x9b (1 particle) — ROT_X = bend(owner+0x948); LIFE_MULT = 1.3.
+ *   - 0x9d (1 particle) — bend ROT_X + POS = owner.pos + +1.0y (override
+ *     of preamble's -0.5y!) + ALT_POS = owner.pos + +0.9y + radial VEL
+ *     = sin/cos(ROT_X) * 2 + SCALE_X = 10.  Engine returns explicitly;
+ *     our cap=1 outer loop produces the same effect.
  *
  * NPC allocator (FUN_00445a8c):
  *   C8j.5 anchors (1-particle, preamble-only):
@@ -146,7 +176,10 @@ extern "C" {
      (t) == 0xa5 || (t) == 0xa6 || (t) == 99   ||                        \
      (t) == 0x51 || (t) == 0x52 || (t) == 0x53 ||                        \
      (t) == 0x73 || (t) == 0x76 || (t) == 0x77 || (t) == 0x78 ||         \
-     (t) == 0x7a || (t) == 0x7b || (t) == 0x7c || (t) == 0x7e)
+     (t) == 0x7a || (t) == 0x7b || (t) == 0x7c || (t) == 0x7e ||         \
+     (t) == 0x3e || (t) == 0x5f ||                                       \
+     (t) == 0x23 || (t) == 0x29 || (t) == 0x30 ||                        \
+     (t) == 0x9b || (t) == 0x9d)
 #define SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(t)                    \
     ((t) == 0xe  || (t) == 0x97 || (t) == 0x46 ||                        \
      (t) == 0x4d || (t) == 0x4e || (t) == 0x4f || (t) == 0x50 ||         \
@@ -187,6 +220,19 @@ void scene1_record_b_spawn_entity(const void *owner_a, int type, int flag);
 void scene1_record_b_spawn_npc(const void *owner_b, int type, int flag);
 
 void scene1_record_b_spawn_trace_reset(void);
+
+/* Ground-query hook used by type 0x29's people-table branch (engine
+ * FUN_00432e50).  Engine calls with (POS_X, POS_Y) — Ghidra dropped the
+ * trailing engine args (real signature is `(float,float,float,float*)`),
+ * so this 3-arg surface mirrors the Ghidra-visible interface verbatim.
+ * The hook should write the ground height for the (x, y) input to
+ * *out_y and return nonzero on hit, zero on no-hit.  Default stub
+ * returns 0 → 0x29's people-table branch leaves POS_Y at
+ * `people[idx].pos.y - 5` (a benign offset matching the engine when
+ * no ground intersects).  See pending-human-check #15. */
+typedef int (*scene1_b_ground_query_fn)(float x, float y, float *out_y);
+scene1_b_ground_query_fn scene1_record_b_spawn_set_ground_query(
+    scene1_b_ground_query_fn fn);
 
 #ifdef __cplusplus
 }
