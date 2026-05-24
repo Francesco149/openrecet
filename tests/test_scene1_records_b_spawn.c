@@ -2993,3 +2993,25 @@ int test_records_b_spawn_npc_c8j13_implemented_macro(void)
     }
     return 0;
 }
+
+/* ─── C8j.11a — L42831 fall-through group (0xd/0x11/0x15/0xc/0x10) ── */
+
+int test_records_b_spawn_npc_lab_42831_rot_x_only(void)
+{
+    /* All 5 types are ROT_X-only.  bend = bend_idx * 2π / 8.  cap=1. */
+    int types[5] = { 0xd, 0x11, 0x15, 0xc, 0x10 };
+    for (int k = 0; k < 5; k++) {
+        reset_world();
+        seed_owner_b_420_family(2, 0.0f, 0);  /* bend = 2*2π/8 = π/2 */
+        rng_seed(1);
+        scene1_record_b_spawn_npc(g_owner_b, types[k], 0);
+
+        T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), types[k]);
+        T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_X),
+                        1.5707964f));
+        T_ASSERT(SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(types[k]));
+        /* cap=1 — slot 1 free. */
+        T_ASSERT_EQ_I(slot_i(1, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    }
+    return 0;
+}

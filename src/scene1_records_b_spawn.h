@@ -344,7 +344,10 @@ extern "C" {
      (t) == 0x3c || (t) == 0x98 || (t) == 0x5a ||                        \
      (t) == 0xf  || (t) == 0x12 || (t) == 0x9c ||                        \
      (t) == 0x3a || (t) == 0x34 ||                                       \
-     (t) == 0x16 || (t) == 0x17)
+     (t) == 0x16 || (t) == 0x17 ||                                       \
+     /* C8j.11a — L42831 fall-through group (5 types, ROT_X-only).    */ \
+     (t) == 0xd  || (t) == 0x11 || (t) == 0x15 ||                        \
+     (t) == 0xc  || (t) == 0x10)
 
 /* Engine DAT_06a46fb8 — monotonically incremented per slot claim by
  * either allocator.  Snapshot + post-increment pattern means the first

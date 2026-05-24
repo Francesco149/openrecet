@@ -1512,7 +1512,8 @@ struct test_case {
     X(records_b_spawn_npc_34_alt_pos_player_offset) \
     X(records_b_spawn_npc_34_frame_counter_rotates_table) \
     X(records_b_spawn_npc_16_17_part_idx_minus_one) \
-    X(records_b_spawn_npc_c8j13_implemented_macro)
+    X(records_b_spawn_npc_c8j13_implemented_macro) \
+    X(records_b_spawn_npc_lab_42831_rot_x_only)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

@@ -3177,6 +3177,25 @@ static int init_npc_34(int i, const void *owner, int type, int flag,
     return 8;
 }
 
+/* Types 0xd / 0x11 / 0x15 / 0xc / 0x10 — L42831 fall-through group
+ * (engine L42920-42922 → LAB_00446f7d → LAB_00447584).
+ *
+ *   ROT_X = (owner+0x18) * 2π / 8  (NPC bend)
+ *   cap = 1.
+ *
+ * Minimal body — five distinct type IDs share one 3-line tail.  The
+ * engine reaches this body via the negative-test cascade at L42831
+ * ("not 0xd && not 0x11 && not 0x15 && not 0xc && not 0x10"), so this
+ * is the "I am one of these 5 types" sink. */
+static int init_npc_lab_42831_group(int i, const void *owner, int type,
+                                    int flag, int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    return 1;
+}
+
 /* Types 0x16 / 0x17 — 3-particle NPC-bend with PART_IDX = part_idx - 1
  * quirk (engine L42911-42918).
  *
@@ -3255,6 +3274,10 @@ static int run_npc_body(int slot, const void *owner, int type, int flag,
     case 0x34: return init_npc_34   (slot, owner, type, flag, part_idx);
     case 0x16: case 0x17:
         return init_npc_16_17       (slot, owner, type, flag, part_idx);
+
+    /* C8j.11a — L42831 fall-through group (5 types, ROT_X=bend only). */
+    case 0xd: case 0x11: case 0x15: case 0xc: case 0x10:
+        return init_npc_lab_42831_group(slot, owner, type, flag, part_idx);
 
     default:
         /* Unreachable — outer dispatch gated by IMPLEMENTED. */
