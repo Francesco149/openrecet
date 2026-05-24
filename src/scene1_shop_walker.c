@@ -507,8 +507,12 @@ void scene1_shop_walker(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND,        D3DBLEND_INVSRCALPHA);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,         D3DBLEND_SRCALPHA);
 
-    /* L60: TSS ALPHAOP = MODULATE (texture α × vertex α). */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    /* L60: TSS ALPHAOP = SELECTARG1 (alpha = ARG1 = TEXTURE).  Engine
+     * writes the literal value 2 = D3DTOP_SELECTARG1; an earlier port
+     * pass mistranscribed this as D3DTOP_MODULATE (4), which compounded
+     * texture.α with whatever the prior stage left in current and
+     * darkened the alpha of every subsequent draw. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 
     /* L61: COLORVERTEX on (vertex color contributes to material
      * source per the prior DIFFUSEMATERIALSOURCE=COLOR1 setup). */
@@ -526,8 +530,12 @@ void scene1_shop_walker(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING,  FALSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, FALSE);
 
-    /* L67: TSS COLOROP = 4 (MODULATE2X — color × texture × 2). */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    /* L67: TSS COLOROP = MODULATE (texture × diffuse).  Engine writes
+     * literal value 4 = D3DTOP_MODULATE; an earlier port pass wrote
+     * D3DTOP_MODULATE2X (5), which double-bright every textured draw
+     * from the top of the walker.  (The "2X" in the prior comment was
+     * a misread of value 4 as enum-symbol MODULATE2X.) */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 
     /* ─── L68-L96: Pass A ──────────────────────────────────────────── */
     sw_pass_a(dev);
@@ -543,10 +551,15 @@ void scene1_shop_walker(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_LightEnable(dev, 0, TRUE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, TRUE);
 
-    /* L197: TSS COLOROP = 7 (MODULATEALPHA_ADDCOLOR — α × col1 +
-     * col2; engine uses this for the per-record material × tex
-     * blend in passes C and D). */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATEALPHA_ADDCOLOR);
+    /* L197: TSS COLOROP = ADD (texture + ARG2).  Engine writes literal
+     * value 7 = D3DTOP_ADD; an earlier port pass wrote
+     * D3DTOP_MODULATEALPHA_ADDCOLOR (18), confusing the numeric value
+     * with an enum symbol that contains "ADD" in its name.  The bug
+     * killed visible HOUSE Pass D pixels: MODULATEALPHA_ADDCOLOR is
+     * α(ARG1)×ARG1 + ARG2, and with LIGHTING=TRUE + zero stage-light
+     * (HOUSE maplight==0 keeps light 0 unset) the per-vertex diffuse
+     * collapses to zero and ARG1 (default DIFFUSE) goes to zero too. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADD);
 
     /* ─── L198-L237: Pass C ────────────────────────────────────────── */
     sw_pass_c(dev);
