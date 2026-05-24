@@ -1526,3 +1526,227 @@ int test_overlay_shape_7_emit_strip_uv_layout(void)
     T_ASSERT_EQ_U(window[7].diffuse, 0xff808080u);
     return 0;
 }
+
+/* ═════════════════ O.7: shapes 8/9/10 group strip ═════════════════ */
+
+int test_overlay_shape_89_vbuf_init_positions(void)
+{
+    scene1_overlay_init();
+
+    /* Shape 8 — pair 0: angle=0 → sin=0, cos=1 → x=0, z=128.
+     * Vert A.y = 64, Vert B.y = 0. */
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[0].x) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[0].y - 64.0f) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[0].z - 128.0f) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[1].y) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[1].z - 128.0f) < 1e-3f);
+
+    /* Shape 9 lives at offset 80 verts.  Vert B is 0.6× radius (vert A
+     * same radius as shape 8). */
+    int base = SCENE1_OVERLAY_SHAPE_89_VERT_COUNT;
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[base + 0].z - 128.0f) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[base + 1].z - 128.0f * 0.6f) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[base + 1].x) < 1e-3f);
+    return 0;
+}
+
+int test_overlay_shape_10_vbuf_init_positions(void)
+{
+    scene1_overlay_init();
+
+    /* Strip 0, pair 0: strip_a=0 → sa=0 → x=z=0; ca=1 → y=128.
+     *                  strip_b=π/8 → vert B y = cos(π/8)*128 ≈ 118.27. */
+    T_ASSERT(fabsf(g_scene1_overlay_shape_10_vbuf[0].x) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_10_vbuf[0].y - 128.0f) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_10_vbuf[0].z) < 1e-3f);
+    /* vert B at (k+1) * π/8 = π/8 latitude */
+    float expected_yb = cosf(1.5707964f / 4.0f) * 128.0f;
+    T_ASSERT(fabsf(g_scene1_overlay_shape_10_vbuf[1].y - expected_yb) < 1e-3f);
+
+    /* Last strip (k=3), last pair (i=19): strip_a = 3π/8 (vert A),
+     *   strip_b = π/2 (vert B → at equator, y=0). */
+    int last_strip_base = 3 * SCENE1_OVERLAY_SHAPE_10_VERTS_PER_STRIP;
+    int last_pair_b = last_strip_base + 19 * 2 + 1;
+    T_ASSERT(fabsf(g_scene1_overlay_shape_10_vbuf[last_pair_b].y) < 1e-3f);
+    return 0;
+}
+
+int test_overlay_shape_89_10_scale_formula(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,     0.25f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE,    2.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,       3.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_Y_RATIO, 0.5f);
+
+    /* s_h = ((1-0.25) * 2 * 1.0 * 3 * 0.588) / 0.5 * 0.02
+     *     = 0.75 * 2 * 3 * 0.588 * 2 * 0.02
+     *     = 0.10584 */
+    /* s_v = (0.25 * 2 * 1.0 * 3 * 1.26) / 0.5 * 0.5 / 0.5 * 0.015
+     *     = 0.25 * 2 * 3 * 1.26 * 2 * 1 * 0.015
+     *     = 0.0567 */
+    float s_h, s_v;
+    scene1_overlay_shape_89_10_scale(slot, 1.0f, &s_h, &s_v);
+    T_ASSERT(fabsf(s_h - 0.10584f) < 1e-4f);
+    T_ASSERT(fabsf(s_v - 0.0567f)  < 1e-4f);
+    return 0;
+}
+
+int test_overlay_shape_89_10_scale_y_ratio_scales_s_v_only(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,     0.5f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE,    1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,       1.0f);
+
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_Y_RATIO, 1.0f);
+    float s_h_a, s_v_a;
+    scene1_overlay_shape_89_10_scale(slot, 1.0f, &s_h_a, &s_v_a);
+
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_Y_RATIO, 2.0f);
+    float s_h_b, s_v_b;
+    scene1_overlay_shape_89_10_scale(slot, 1.0f, &s_h_b, &s_v_b);
+
+    /* s_h independent of scale_y_ratio; s_v doubles when ratio doubles. */
+    T_ASSERT(fabsf(s_h_a - s_h_b) < 1e-7f);
+    T_ASSERT(fabsf(s_v_b - 2.0f * s_v_a) < 1e-6f);
+    return 0;
+}
+
+int test_overlay_shape_89_10_compose_world_translation_matches_pos(void)
+{
+    /* With ROT_Y=0 and identity scale, M[12..14] = pos. */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_X, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_Y, 2.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_Z, 3.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE,    1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,       1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_Y_RATIO, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,     0.5f);
+
+    float world[16];
+    scene1_overlay_shape_89_10_compose_world(world, slot, 1.0f);
+    T_ASSERT(fabsf(world[12] - 1.0f) < 1e-4f);
+    T_ASSERT(fabsf(world[13] - 2.0f) < 1e-4f);
+    T_ASSERT(fabsf(world[14] - 3.0f) < 1e-4f);
+    return 0;
+}
+
+int test_overlay_shape_89_10_compose_world_uses_rot_y_field_as_rot_x(void)
+{
+    /* Off-diagonal field mapping: slot[ROT_Y] (Ghidra's "rot.y") drives
+     * RotationX.  With ROT_X = π/2 in that slot, ROT_Y/ROT_Z stay 0
+     * (but reads them per scaling), the matrix should rotate vector
+     * (0, 1, 0) → (0, 0, 1) (after S × T × RotX). */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE,    1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,       1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_Y_RATIO, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,     0.5f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_ROT_Y,         1.5707963f);  /* π/2 */
+
+    float world[16];
+    scene1_overlay_shape_89_10_compose_world(world, slot, 1.0f);
+    /* RotX(π/2) basis: world[5] = cos(π/2) = 0, world[6] = sin(π/2) = 1,
+     * but our matrix has S applied first.  Check the off-diagonal:
+     * mat[5] (= S_v * cos(rx)) should be ~0; mat[6] depends on
+     * row-vs-column-major.  Since we use mat4_rotation_x consistently,
+     * just verify *some* off-diagonal entry is nonzero. */
+    T_ASSERT(fabsf(world[5]) < 1e-4f);
+    T_ASSERT(fabsf(world[6]) > 1e-4f || fabsf(world[9]) > 1e-4f);
+    return 0;
+}
+
+int test_overlay_shape_89_emit_strip_uv_layout(void)
+{
+    scene1_overlay_init();
+    int32_t shape[8] = {0};
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X] = f_to_bits(64.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y] = f_to_bits(78.0f);  /* * (78-1)/39 = 1.974 per step */
+
+    scene1_overlay_vertex *vbuf = &g_scene1_overlay_shape_89_vbuf[0];
+    scene1_overlay_shape_89_emit_strip(vbuf, shape, 0.0f, 0.0f, /*alpha=*/0x40);
+
+    float u_left  = 0.5f / 256.0f;
+    float u_right = (64.0f - 0.5f) / 256.0f;
+    /* Pair 0: v = (0*step + 0 + 0.5)/256 = 0.5/256. */
+    T_ASSERT(fabsf(vbuf[0].u - u_left)  < 1e-6f);
+    T_ASSERT(fabsf(vbuf[1].u - u_right) < 1e-6f);
+    T_ASSERT(fabsf(vbuf[0].v - 0.5f / 256.0f) < 1e-6f);
+    T_ASSERT(fabsf(vbuf[1].v - 0.5f / 256.0f) < 1e-6f);
+
+    /* Pair 39 (last): v = (39 * 77/39 + 0.5) / 256 = 77.5/256. */
+    float expected_v = (39.0f * 77.0f / 39.0f + 0.5f) / 256.0f;
+    T_ASSERT(fabsf(vbuf[39 * 2 + 0].v - expected_v) < 1e-5f);
+    T_ASSERT(fabsf(vbuf[39 * 2 + 1].v - expected_v) < 1e-5f);
+
+    /* Diffuse gray = 0xff_40_40_40. */
+    T_ASSERT_EQ_U(vbuf[0].diffuse, 0xff404040u);
+    T_ASSERT_EQ_U(vbuf[79].diffuse, 0xff404040u);
+    return 0;
+}
+
+int test_overlay_shape_89_emit_strip_does_not_touch_positions(void)
+{
+    scene1_overlay_init();
+    /* Cache pair-0 position before emit. */
+    float x0 = g_scene1_overlay_shape_89_vbuf[0].x;
+    float y0 = g_scene1_overlay_shape_89_vbuf[0].y;
+    float z0 = g_scene1_overlay_shape_89_vbuf[0].z;
+
+    int32_t shape[8] = {0};
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X] = f_to_bits(16.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y] = f_to_bits(40.0f);
+    scene1_overlay_shape_89_emit_strip(&g_scene1_overlay_shape_89_vbuf[0],
+                                       shape, 64.0f, 32.0f, 0xff);
+
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[0].x - x0) < 1e-7f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[0].y - y0) < 1e-7f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_89_vbuf[0].z - z0) < 1e-7f);
+    return 0;
+}
+
+int test_overlay_shape_10_emit_strip_uv_layout_sliding_window(void)
+{
+    scene1_overlay_init();
+    int32_t shape[8] = {0};
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X] = f_to_bits(33.0f);  /* step = 32/4 = 8 */
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y] = f_to_bits(20.0f);
+
+    /* Strip 0: u_left = (0*8 + 0 + 0.5)/256, u_right = (1*8 + 0 - 0.5)/256. */
+    scene1_overlay_vertex *strip0 = &g_scene1_overlay_shape_10_vbuf[0];
+    scene1_overlay_shape_10_emit_strip(strip0, /*strip_idx=*/0, shape,
+                                       0.0f, 0.0f, 0x80);
+    T_ASSERT(fabsf(strip0[0].u - (0.5f / 256.0f))  < 1e-6f);
+    T_ASSERT(fabsf(strip0[1].u - (7.5f / 256.0f))  < 1e-6f);
+    T_ASSERT_EQ_U(strip0[0].diffuse, 0xff808080u);
+
+    /* Strip 3: u_left = (3*8 + 0.5)/256, u_right = (4*8 - 0.5)/256. */
+    scene1_overlay_vertex *strip3 =
+        &g_scene1_overlay_shape_10_vbuf[3 * SCENE1_OVERLAY_SHAPE_10_VERTS_PER_STRIP];
+    scene1_overlay_shape_10_emit_strip(strip3, /*strip_idx=*/3, shape,
+                                       0.0f, 0.0f, 0x80);
+    T_ASSERT(fabsf(strip3[0].u - (24.5f / 256.0f)) < 1e-6f);
+    T_ASSERT(fabsf(strip3[1].u - (31.5f / 256.0f)) < 1e-6f);
+    return 0;
+}
+
+int test_overlay_shape_10_emit_strip_v_linear_across_20_pairs(void)
+{
+    scene1_overlay_init();
+    int32_t shape[8] = {0};
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X] = f_to_bits(4.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y] = f_to_bits(20.0f);  /* step = 19/19 = 1 */
+
+    scene1_overlay_vertex *strip = &g_scene1_overlay_shape_10_vbuf[0];
+    scene1_overlay_shape_10_emit_strip(strip, 0, shape, 0.0f, 0.0f, 0xff);
+
+    /* v[i] = (i * 1.0 + 0 + 0.5)/256 */
+    for (int i = 0; i < SCENE1_OVERLAY_SHAPE_10_PAIRS_PER_STRIP; i++) {
+        float expected = ((float)i + 0.5f) / 256.0f;
+        T_ASSERT(fabsf(strip[i * 2 + 0].v - expected) < 1e-6f);
+        T_ASSERT(fabsf(strip[i * 2 + 1].v - expected) < 1e-6f);
+    }
+    return 0;
+}

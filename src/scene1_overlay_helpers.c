@@ -37,6 +37,10 @@
 #include "math3d.h"
 #include "scene1_wide_followup.h"  /* wf_pass_c_get_pre_matrix() — shared pre-matrix stand-in */
 
+#ifndef TWO_PI_F
+#define TWO_PI_F 6.2831855f
+#endif
+
 /* ---- Shape entry accessor ----------------------------------------- */
 
 static const int32_t *overlay_shape_entry(int texture_type)
@@ -682,6 +686,263 @@ void scene1_overlay_shape_7_emit_strip(scene1_overlay_vertex *vbuf_window,
         float v = ((float)i * uv_size_y / n_f + uv_origin_y + 0.5f) / 256.0f;
         scene1_overlay_vertex *va = &vbuf_window[i * 2 + 0];
         scene1_overlay_vertex *vb = &vbuf_window[i * 2 + 1];
+        va->u = u_left;   va->v = v;
+        vb->u = u_right;  vb->v = v;
+        va->diffuse = diffuse;
+        vb->diffuse = diffuse;
+    }
+}
+
+/* ---- Shapes 8/9/10: group strip emit (O.7) ------------------------ */
+
+/* Static vbufs for shapes 8/9 (160 verts total) and shape 10 (160 verts
+ * in 4 strips of 40).  Engine packs shape 8 at &DAT_00648e08 and shape 9
+ * at &DAT_00649588 (+0x780 = 80 verts).  Shape 10 at &DAT_0064c508 with
+ * 4 contiguous 40-vert strips.  Positions baked in by FUN_0040d132. */
+scene1_overlay_vertex
+    g_scene1_overlay_shape_89_vbuf[SCENE1_OVERLAY_SHAPE_89_VERT_COUNT * 2];
+scene1_overlay_vertex
+    g_scene1_overlay_shape_10_vbuf[SCENE1_OVERLAY_SHAPE_10_VERT_COUNT];
+
+void scene1_overlay_shape_89_vbuf_init(void)
+{
+    /* Engine FUN_0040d132:
+     *   Shape 8 (all.c L8286-8305):
+     *     angle = i * 2π / 39  (i = 0..39)
+     *     vert A: pos=(sin(angle)*128, 64, cos(angle)*128), v_placeholder=0.5019531
+     *     vert B: pos=(sin(angle)*128,  0, cos(angle)*128), v_placeholder=0.7480469
+     *     u_placeholder = (i*1.6153846 + 192.5) / 256  (overwritten per draw)
+     *
+     *   Shape 9 (all.c L8262-8284):
+     *     angle = i * 2π / 39
+     *     vert A: pos=(sin(angle)*128, 64, cos(angle)*128), v_placeholder=0.05078125
+     *     vert B: pos=(sin(angle)*128*0.6, 0, cos(angle)*128*0.6), v_placeholder=0.24609375
+     *     u_placeholder = (i*5.3333335 + 72.5) / 256
+     *
+     * The placeholder UVs / diffuse are overwritten in
+     * scene1_overlay_shape_89_emit_strip per draw, but we initialise
+     * them verbatim to mirror engine state. */
+    for (int i = 0; i < SCENE1_OVERLAY_SHAPE_89_PAIR_COUNT; i++) {
+        float angle = (float)i * TWO_PI_F / 39.0f;
+        float sa = sinf(angle);
+        float ca = cosf(angle);
+        float xz_x = sa * 128.0f;
+        float xz_z = ca * 128.0f;
+
+        /* Shape 8 occupies slot 0 (verts 0..79). */
+        {
+            float u_pl = ((float)i * 1.6153846f + 192.5f) / 256.0f;
+            scene1_overlay_vertex *va = &g_scene1_overlay_shape_89_vbuf[i * 2 + 0];
+            scene1_overlay_vertex *vb = &g_scene1_overlay_shape_89_vbuf[i * 2 + 1];
+            va->x = xz_x;  va->y = 64.0f;  va->z = xz_z;
+            vb->x = xz_x;  vb->y =  0.0f;  vb->z = xz_z;
+            va->u = u_pl;  va->v = 0.5019531f;
+            vb->u = u_pl;  vb->v = 0.7480469f;
+            va->diffuse = 0xFFFFFFFFu;
+            vb->diffuse = 0xFFFFFFFFu;
+        }
+
+        /* Shape 9 occupies slot 1 (verts 80..159), vert B at 0.6× radius. */
+        {
+            float u_pl = ((float)i * 5.3333335f + 72.5f) / 256.0f;
+            int base = SCENE1_OVERLAY_SHAPE_89_VERT_COUNT;
+            scene1_overlay_vertex *va = &g_scene1_overlay_shape_89_vbuf[base + i * 2 + 0];
+            scene1_overlay_vertex *vb = &g_scene1_overlay_shape_89_vbuf[base + i * 2 + 1];
+            va->x = xz_x;          va->y = 64.0f;  va->z = xz_z;
+            vb->x = xz_x * 0.6f;   vb->y =  0.0f;  vb->z = xz_z * 0.6f;
+            va->u = u_pl;          va->v = 0.05078125f;
+            vb->u = u_pl;          vb->v = 0.24609375f;
+            va->diffuse = 0xFFFFFFFFu;
+            vb->diffuse = 0xFFFFFFFFu;
+        }
+    }
+}
+
+void scene1_overlay_shape_10_vbuf_init(void)
+{
+    /* Engine FUN_0040d132 (all.c L8233-8261): 4 strips × 20 pairs.
+     *   strip_angle = strip_idx * π/4 / 1  → reads as iStack_10 * π/4 / 4
+     *                                       (verified: fVar3 * 1.5707964 / 4)
+     *   inner_angle = i * 2π/19
+     *
+     * Wait — re-reading the asm: outer iter k has strip_angle = k * π/4 / 4
+     * = k * π/16 for vert A's latitude, (k+1) * π/16 for vert B.  But the
+     * outer loop runs 4 iters and strip_angle uses fVar3 = iStack_10 (the
+     * loop iteration counter) directly.  Let me recompute via all.c lines
+     * 8235-8260:
+     *
+     *   iStack_10 initial = 0;
+     *   do {
+     *     fVar3 = (float)iStack_10;                       // strip_idx
+     *     iStack_10 += 1;
+     *     do {  // inner
+     *       dVar1 = (fVar3 * π/2) / 4;                    // strip_angle = k * π/8
+     *       ...
+     *       dVar2 = (iStack_10 * π/2) / 4;                // (k+1) * π/8
+     *
+     * So vert A is at strip_angle = strip_idx * π/8, vert B at (strip_idx+1)*π/8.
+     * 4 strips cover [0, π/2] in latitude — north pole down to equator. */
+    for (int k = 0; k < SCENE1_OVERLAY_SHAPE_10_STRIP_COUNT; k++) {
+        float strip_a = (float)k * 1.5707964f / 4.0f;          /* k * π/8 */
+        float strip_b = (float)(k + 1) * 1.5707964f / 4.0f;    /* (k+1) * π/8 */
+        float sa = sinf(strip_a), ca = cosf(strip_a);
+        float sb = sinf(strip_b), cb = cosf(strip_b);
+
+        scene1_overlay_vertex *strip_base =
+            &g_scene1_overlay_shape_10_vbuf[k * SCENE1_OVERLAY_SHAPE_10_VERTS_PER_STRIP];
+        for (int i = 0; i < SCENE1_OVERLAY_SHAPE_10_PAIRS_PER_STRIP; i++) {
+            float inner = (float)i * TWO_PI_F / 19.0f;
+            float si = sinf(inner), ci = cosf(inner);
+
+            scene1_overlay_vertex *va = &strip_base[i * 2 + 0];
+            scene1_overlay_vertex *vb = &strip_base[i * 2 + 1];
+
+            /* vert A: lat = strip_a; vert B: lat = strip_b.
+             *   x = sin(inner) * sin(lat) * 128
+             *   y = cos(lat) * 128
+             *   z = cos(inner) * sin(lat) * 128 */
+            va->x = si * sa * 128.0f;
+            va->y = ca * 128.0f;
+            va->z = ci * sa * 128.0f;
+            vb->x = si * sb * 128.0f;
+            vb->y = cb * 128.0f;
+            vb->z = ci * sb * 128.0f;
+
+            /* Placeholder diffuse + UV (overwritten per draw). */
+            va->diffuse = 0xFFFFFFFFu;
+            vb->diffuse = 0xFFFFFFFFu;
+            va->u = 0.0f;  va->v = 0.0f;
+            vb->u = 0.0f;  vb->v = 0.0f;
+        }
+    }
+}
+
+void scene1_overlay_shape_89_10_scale(const int32_t *slot,
+                                      float alpha_mix,
+                                      float *out_s_h, float *out_s_v)
+{
+    float blend_mix     = slot_get_f(slot, SCENE1_OVERLAY_OFF_BLEND_MIX);
+    float scale_base    = slot_get_f(slot, SCENE1_OVERLAY_OFF_SCALE_BASE);
+    float scale_x       = slot_get_f(slot, SCENE1_OVERLAY_OFF_SCALE_X);
+    float scale_y_ratio = slot_get_f(slot, SCENE1_OVERLAY_OFF_SCALE_Y_RATIO);
+
+    /* Engine asm 0x415b20..0x415b44:
+     *   s_h = ((1 - blend_mix) * scale_base * alpha_mix * scale_x * 0.588) / 0.5 * 0.02
+     * .rdata: 0x51993c=0.588, 0x51935c=0.5, 0x5198dc=0.02 */
+    float s_h = ((1.0f - blend_mix) * scale_base * alpha_mix * scale_x
+                 * 0.588f) / 0.5f * 0.02f;
+
+    /* Engine asm 0x415b47..0x415b6e:
+     *   s_v = (blend_mix * scale_base * alpha_mix * scale_x * 1.26) / 0.5
+     *           * scale_y_ratio / 0.5 * 0.015
+     * .rdata: 0x519938=1.26, 0x519940=0.015 */
+    float s_v = (blend_mix * scale_base * alpha_mix * scale_x * 1.26f) / 0.5f
+                * scale_y_ratio / 0.5f * 0.015f;
+
+    if (out_s_h) *out_s_h = s_h;
+    if (out_s_v) *out_s_v = s_v;
+}
+
+void scene1_overlay_shape_89_10_compose_world(float out[16],
+                                              const int32_t *slot,
+                                              float alpha_mix)
+{
+    float pos_x = slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_X);
+    float pos_y = slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_Y);
+    float pos_z = slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_Z);
+    float s_h, s_v;
+    scene1_overlay_shape_89_10_scale(slot, alpha_mix, &s_h, &s_v);
+
+    /* Off-diagonal field mapping: slot[ROT_Y] (Ghidra's "rot.y") feeds
+     * RotationX (engine asm 0x415b8e calls 0x4a35ef = mat4_rotation_x
+     * short-jmp).  Same convention as shapes 3/6/7. */
+    float rx_val = slot_get_f(slot, SCENE1_OVERLAY_OFF_ROT_Y);
+
+    /* Engine multiply cascade (asm 0x415ba9..0x415be2, Multiply(out, A, B)
+     * with B aliased to out → out = A × out):
+     *   out = T
+     *   out = RotX × T
+     *   out = Scale × (RotX × T) = S × RotX × T */
+    float scratch[16];
+    mat4_translation(out, pos_x, pos_y, pos_z);
+    mat4_rotation_x(scratch, rx_val);
+    mat4_mul(out, scratch, out);                  /* RotX × T */
+    mat4_scaling(scratch, s_h, s_v, s_h);         /* sz aliased to sx */
+    mat4_mul(out, scratch, out);                  /* S × RotX × T */
+}
+
+void scene1_overlay_shape_89_emit_strip(scene1_overlay_vertex *vbuf,
+                                        const int32_t *shape_entry,
+                                        float uv_origin_x, float uv_origin_y,
+                                        int alpha_int)
+{
+    if (!vbuf) return;
+
+    float uv_size_x = 0.0f, uv_size_y = 0.0f;
+    if (shape_entry) {
+        uv_size_x = bits_to_f(shape_entry[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X]);
+        uv_size_y = bits_to_f(shape_entry[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y]);
+    }
+
+    /* Engine asm 0x415d97..0x415da6:
+     *   u_left  = (uv_origin_x + 0.5) / 256
+     *   u_right = (uv_origin_x + uv_size_x - 0.5) / 256
+     * v_step = (uv_size_y - 1) / 39  (.rdata 0x5194cc = 39.0) */
+    float u_left  = (uv_origin_x + 0.5f) / 256.0f;
+    float u_right = (uv_origin_x + uv_size_x - 0.5f) / 256.0f;
+    float v_step  = (uv_size_y - 1.0f) / 39.0f;
+
+    uint32_t diffuse = scene1_overlay_diffuse_gray(alpha_int);
+
+    /* Per-pair UV writes — engine asm 0x415dcc..0x415e07 (40 iter, +0x30
+     * stride per pair).  Vert A gets u_left, vert B gets u_right, both
+     * share v.  Positions remain pre-baked. */
+    for (int i = 0; i < SCENE1_OVERLAY_SHAPE_89_PAIR_COUNT; i++) {
+        float v = ((float)i * v_step + uv_origin_y + 0.5f) / 256.0f;
+        scene1_overlay_vertex *va = &vbuf[i * 2 + 0];
+        scene1_overlay_vertex *vb = &vbuf[i * 2 + 1];
+        va->u = u_left;   va->v = v;
+        vb->u = u_right;  vb->v = v;
+        va->diffuse = diffuse;
+        vb->diffuse = diffuse;
+    }
+}
+
+void scene1_overlay_shape_10_emit_strip(scene1_overlay_vertex *strip_vbuf,
+                                        int strip_idx,
+                                        const int32_t *shape_entry,
+                                        float uv_origin_x, float uv_origin_y,
+                                        int alpha_int)
+{
+    if (!strip_vbuf) return;
+
+    float uv_size_x = 0.0f, uv_size_y = 0.0f;
+    if (shape_entry) {
+        uv_size_x = bits_to_f(shape_entry[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X]);
+        uv_size_y = bits_to_f(shape_entry[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y]);
+    }
+
+    /* Engine asm 0x415c68..0x415c8e:
+     *   u_step = (uv_size_x - 1) / 4         (.rdata 0x51939c = 4.0)
+     *   v_step = (uv_size_y - 1) / 19        (.rdata 0x5194c0 = 19.0)
+     *   u_left  = (strip_idx     * u_step + uv_origin_x + 0.5) / 256
+     *   u_right = ((strip_idx+1) * u_step + (uv_origin_x - 0.5)) / 256
+     * Note u_right uses (origin - 0.5) bias (NOT +uv_size_x - 0.5 like
+     * shapes 8/9) — engine asm 0x415c52 stashes local_2c = uv_origin_x
+     * - 0.5 then 415cbe uses it for u_right. */
+    float u_step  = (uv_size_x - 1.0f) / 4.0f;
+    float v_step  = (uv_size_y - 1.0f) / 19.0f;
+    float u_left  = ((float)strip_idx       * u_step + uv_origin_x + 0.5f) / 256.0f;
+    float u_right = ((float)(strip_idx + 1) * u_step + (uv_origin_x - 0.5f)) / 256.0f;
+
+    uint32_t diffuse = scene1_overlay_diffuse_gray(alpha_int);
+
+    /* Per-pair UV writes — engine asm 0x415ccd..0x415d0c (20 iter, +0x30
+     * stride per pair). */
+    for (int i = 0; i < SCENE1_OVERLAY_SHAPE_10_PAIRS_PER_STRIP; i++) {
+        float v = ((float)i * v_step + uv_origin_y + 0.5f) / 256.0f;
+        scene1_overlay_vertex *va = &strip_vbuf[i * 2 + 0];
+        scene1_overlay_vertex *vb = &strip_vbuf[i * 2 + 1];
         va->u = u_left;   va->v = v;
         vb->u = u_right;  vb->v = v;
         va->diffuse = diffuse;

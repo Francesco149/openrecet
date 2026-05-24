@@ -502,6 +502,89 @@ void scene1_overlay_shape_7_emit_strip(scene1_overlay_vertex *vbuf_window,
                                        float uv_origin_x, float uv_origin_y,
                                        int fade_gray);
 
+/* ---- Shapes 8/9/10: group strip emit (O.7) -------------------------
+ *
+ * Shape 8 and shape 9 each emit a single 40-pair (80-vert) triangle
+ * strip from a dedicated 80-vert vbuf.  Shape 10 emits 4 separate
+ * 20-pair (40-vert) strips with a horizontally sliding U-window across
+ * the texture.  Engine vbufs:
+ *   shape 8  vbuf base = &DAT_00648e08 (80 verts)
+ *   shape 9  vbuf base = &DAT_00648e08 + 0x780 = &DAT_00649588 (80 verts)
+ *   shape 10 vbuf base = &DAT_0064c508 (4 × 40 verts = 160 verts)
+ * Static positions initialised by FUN_0040d132 (see all.c L8262-8305 for
+ * shape 8/9, L8233-8261 for shape 10).
+ *
+ * Engine asm 0x415b16..0x415e5b (per-shape branches share scale +
+ * matrix + animated-UV setup; differ in vbuf base / per-strip UV
+ * layout). */
+
+#define SCENE1_OVERLAY_SHAPE_89_PAIR_COUNT  40
+#define SCENE1_OVERLAY_SHAPE_89_VERT_COUNT  (SCENE1_OVERLAY_SHAPE_89_PAIR_COUNT * 2)
+
+/* Shape 8 occupies slot 0 (verts 0..79); shape 9 occupies slot 1
+ * (verts 80..159).  Engine packs them in the same 0x780-stride
+ * register slot. */
+extern scene1_overlay_vertex
+    g_scene1_overlay_shape_89_vbuf[SCENE1_OVERLAY_SHAPE_89_VERT_COUNT * 2];
+
+#define SCENE1_OVERLAY_SHAPE_10_STRIP_COUNT      4
+#define SCENE1_OVERLAY_SHAPE_10_PAIRS_PER_STRIP  20
+#define SCENE1_OVERLAY_SHAPE_10_VERTS_PER_STRIP \
+    (SCENE1_OVERLAY_SHAPE_10_PAIRS_PER_STRIP * 2)
+#define SCENE1_OVERLAY_SHAPE_10_VERT_COUNT \
+    (SCENE1_OVERLAY_SHAPE_10_STRIP_COUNT * SCENE1_OVERLAY_SHAPE_10_VERTS_PER_STRIP)
+
+extern scene1_overlay_vertex
+    g_scene1_overlay_shape_10_vbuf[SCENE1_OVERLAY_SHAPE_10_VERT_COUNT];
+
+/* Initialise the static vbuf positions.  Idempotent.  Called from
+ * scene1_overlay_init. */
+void scene1_overlay_shape_89_vbuf_init(void);
+void scene1_overlay_shape_10_vbuf_init(void);
+
+/* Shape 8/9/10 scale axes — engine asm 0x415b20..0x415b6e.  Mirror of:
+ *   s_h = ((1 - blend_mix) * scale_base * alpha_mix * scale_x * 0.588) / 0.5 * 0.02
+ *   s_v = (blend_mix * scale_base * alpha_mix * scale_x * 1.26) / 0.5
+ *           * scale_y_ratio / 0.5 * 0.015
+ * Engine calls scaling(s_h, s_v, s_h) — sz aliased to sx (horizontal
+ * thickness on both X and Z axes). */
+void scene1_overlay_shape_89_10_scale(const int32_t *slot,
+                                      float alpha_mix,
+                                      float *out_s_h, float *out_s_v);
+
+/* Shape 8/9/10 world matrix — engine asm 0x415b71..0x415be7.
+ *   world = Scale(s_h, s_v, s_h) × RotX(slot[ROT_Y]) × T(pos)
+ * Off-diagonal field mapping (same as shapes 3/6/7): slot[+0x3c] is
+ * Ghidra-named "rot.y" but applied via RotationX. */
+void scene1_overlay_shape_89_10_compose_world(float out[16],
+                                              const int32_t *slot,
+                                              float alpha_mix);
+
+/* Shape 8/9 per-pair UV + diffuse fill — engine asm 0x415d77..0x415e2d.
+ * Writes 40 pairs (80 verts) into vbuf:
+ *   u_left  = (uv_origin_x + 0.5) / 256
+ *   u_right = (uv_origin_x + uv_size_x - 0.5) / 256
+ *   v[i]    = (i * (uv_size_y - 1) / 39 + uv_origin_y + 0.5) / 256
+ * Vert A in each pair gets u_left, vert B gets u_right; both share v.
+ * Positions are NOT touched (pre-initialised). */
+void scene1_overlay_shape_89_emit_strip(scene1_overlay_vertex *vbuf,
+                                        const int32_t *shape_entry,
+                                        float uv_origin_x, float uv_origin_y,
+                                        int alpha_int);
+
+/* Shape 10 per-strip UV + diffuse fill — engine asm 0x415c52..0x415d6c.
+ * Writes one 20-pair (40-vert) strip indexed by strip_idx ∈ [0, 3].
+ * Per-strip UV layout slides horizontally across the texture:
+ *   u_left  = (strip_idx     * (uv_size_x - 1) / 4 + uv_origin_x + 0.5) / 256
+ *   u_right = ((strip_idx+1) * (uv_size_x - 1) / 4 + uv_origin_x - 0.5) / 256
+ *   v[i]    = (i * (uv_size_y - 1) / 19 + uv_origin_y + 0.5) / 256
+ * Vert A in each pair gets u_left, vert B gets u_right; both share v. */
+void scene1_overlay_shape_10_emit_strip(scene1_overlay_vertex *strip_vbuf,
+                                        int strip_idx,
+                                        const int32_t *shape_entry,
+                                        float uv_origin_x, float uv_origin_y,
+                                        int alpha_int);
+
 /* ---- Win32 dispatcher entry (O.3) ---------------------------------- */
 #ifdef _WIN32
 struct IDirect3DDevice8;

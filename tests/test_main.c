@@ -1757,7 +1757,17 @@ struct test_case {
     X(overlay_shape_7_scale_xy_formula) \
     X(overlay_shape_7_compose_world_translation_matches_pos) \
     X(overlay_shape_7_compose_world_off_diagonal_field_mapping) \
-    X(overlay_shape_7_emit_strip_uv_layout)
+    X(overlay_shape_7_emit_strip_uv_layout) \
+    X(overlay_shape_89_vbuf_init_positions) \
+    X(overlay_shape_10_vbuf_init_positions) \
+    X(overlay_shape_89_10_scale_formula) \
+    X(overlay_shape_89_10_scale_y_ratio_scales_s_v_only) \
+    X(overlay_shape_89_10_compose_world_translation_matches_pos) \
+    X(overlay_shape_89_10_compose_world_uses_rot_y_field_as_rot_x) \
+    X(overlay_shape_89_emit_strip_uv_layout) \
+    X(overlay_shape_89_emit_strip_does_not_touch_positions) \
+    X(overlay_shape_10_emit_strip_uv_layout_sliding_window) \
+    X(overlay_shape_10_emit_strip_v_linear_across_20_pairs)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

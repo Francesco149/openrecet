@@ -69,6 +69,8 @@ void scene1_overlay_init(void)
     scene1_overlay_shapes_reset();
     scene1_overlay_layers_reset();
     scene1_overlay_shape_7_vbuf_init();
+    scene1_overlay_shape_89_vbuf_init();
+    scene1_overlay_shape_10_vbuf_init();
 }
 
 /* ---- Layer count + per-layer texture pointers (O.3) ---------------- */
@@ -643,13 +645,51 @@ void scene1_overlay_render(IDirect3DDevice8 *dev, int layer, int mode)
                 continue;
             }
 
-            /* TODO O.7 (shapes 8/9/10 — 5-quad group dual-billboard).
-             *
-             * Skipping is safe today: HOUSE smoke (= no spawn caller)
-             * doesn't populate slots of any shape type yet, so the
-             * stubs are never reached.  When spawn callers wire,
-             * unimplemented shapes silently no-op (better than
-             * crashing on an unported draw path). */
+            /* Shapes 8/9: 80-vert single triangle-strip emit, vbuf
+             * packed adjacent (shape 8 = slot 0, shape 9 = slot 1).
+             * Shape 10: 4 separate 40-vert strips with a horizontally
+             * sliding U-window across the texture.  Engine asm
+             * 0x415b16..0x415e5b. */
+            if (type_shape == 8 || type_shape == 9) {
+                scene1_overlay_shape_89_10_compose_world(world, slot, alpha_mix);
+                IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                              (const D3DMATRIX *)world);
+
+                int slot_offset = (type_shape == 9)
+                    ? SCENE1_OVERLAY_SHAPE_89_VERT_COUNT : 0;
+                scene1_overlay_vertex *vbuf =
+                    &g_scene1_overlay_shape_89_vbuf[slot_offset];
+                scene1_overlay_shape_89_emit_strip(vbuf, shape_entry,
+                                                   uv_origin_x, uv_origin_y,
+                                                   alpha_int);
+
+                IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                                 D3DPT_TRIANGLESTRIP,
+                                                 SCENE1_OVERLAY_SHAPE_89_VERT_COUNT - 2,
+                                                 vbuf,
+                                                 sizeof(scene1_overlay_vertex));
+                continue;
+            }
+
+            if (type_shape == 10) {
+                scene1_overlay_shape_89_10_compose_world(world, slot, alpha_mix);
+                IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                              (const D3DMATRIX *)world);
+
+                for (int k = 0; k < SCENE1_OVERLAY_SHAPE_10_STRIP_COUNT; k++) {
+                    scene1_overlay_vertex *strip =
+                        &g_scene1_overlay_shape_10_vbuf[k * SCENE1_OVERLAY_SHAPE_10_VERTS_PER_STRIP];
+                    scene1_overlay_shape_10_emit_strip(strip, k, shape_entry,
+                                                        uv_origin_x, uv_origin_y,
+                                                        alpha_int);
+                    IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                                     D3DPT_TRIANGLESTRIP,
+                                                     SCENE1_OVERLAY_SHAPE_10_VERTS_PER_STRIP - 2,
+                                                     strip,
+                                                     sizeof(scene1_overlay_vertex));
+                }
+                continue;
+            }
         }
     }
 }
