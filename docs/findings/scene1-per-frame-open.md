@@ -1,15 +1,16 @@
 # Scene-1 per-frame open (FUN_00414929) — survey
 
-**Status (2026-05-24):** PFO.1 (Table A storage + sentinel init),
+**Status (2026-05-25):** PFO.1 (Table A storage + sentinel init),
 PFO.2 (parent template table storage + default-fill init),
 PFO.2.1 (wire `scene1_overlay_reset` into `scene1_records_reset` to
-match engine FUN_00414902's first sentinel-init loop), and PFO.3
+match engine FUN_00414902's first sentinel-init loop), PFO.3
 (Table B per-tick body — anim-cell + per-type integrator +
-drag/gravity/age-kill, type-4 shop-walker body deferred to PFO.4)
-landed.  Renamed `OFF_UNK_7C` → `OFF_ANIM_FRAME_COUNTER` and
-`OFF_RNG_SEED` → `OFF_ANIM_CELL_INDEX` as called out by PHC #3.  The
-survey below stands; PFO.1/PFO.2/PFO.2.1/PFO.3 + PHC #3 rows have
-status updates.  Remaining work: PFO.4 (type-4 body) onward.
+drag/gravity/age-kill), and **PFO.4** (type-4 shop-walker physics
+body + terminal-kill hook for SE 0x29d "thunk" side-effect) landed.
+Renamed `OFF_UNK_7C` → `OFF_ANIM_FRAME_COUNTER` and `OFF_RNG_SEED`
+→ `OFF_ANIM_CELL_INDEX` as called out by PHC #3.  The survey below
+stands; PFO.1..PFO.4 + PHC #3 rows have status updates.  Remaining
+work: PFO.5 (wire FUN_00414929 into the integrator) onward.
 
 ## TL;DR
 
@@ -329,7 +330,7 @@ The full FUN_00414929 port lands in sub-chips.  Recommended order:
 | PFO.2 ✅ | Parent template table storage + (skeleton) tests for the storage layout                    | ~100 | parser not ported; table stays BSS-zero (init helper present but not wired) |
 | PFO.2.1 ✅ | Wire `scene1_overlay_reset` into `scene1_records_reset` (engine FUN_00414902's first sentinel-init loop — was previously dropped on the floor; was the PFO.3 prereq the PFO.0 survey flagged) | ~20 | overlay dispatcher dormant in HOUSE anyway; sets up correct sentinel state for PFO.3's tick |
 | PFO.3 ✅ | Table B tick (anim-cell + per-type integrator + drag/gravity/age-kill); skip type-4 physics body.  Renamed `OFF_UNK_7C` → `OFF_ANIM_FRAME_COUNTER` and `OFF_RNG_SEED` → `OFF_ANIM_CELL_INDEX` per PHC #3.  NOT wired into FUN_00414929 stub (PFO.5 does the wiring). | ~270 | overlay slots stay sentinel-empty in HOUSE; tick body unreachable in production |
-| PFO.4    | Type 4 "shop walker physics" body + SE 0x29d at terminal velocity                         | ~120 | same as PFO.3 |
+| PFO.4 ✅ | Type 4 "shop walker physics" body + terminal-kill hook (engine `FUN_0040656e` SE 0x29d + screen-shake stand-in left as host-installable hook; default no-op). | ~150 | same as PFO.3; no spawn site populates SHAPE_MODE==4 + UNK_48!=0 |
 | PFO.5    | Wire FUN_00414929 into particles_per_frame_open (replace stub) + extend scene1_records_reset to also call Table A init | ~30 | dormant on all gates |
 | PFO.6    | Allocators FUN_004132c1 + FUN_0041331d                                                    | ~80 | no caller until a consumer ports |
 | PFO.7    | Parent table parser FUN_0041276e + boot wiring                                            | ~200 | tick is structurally complete after this |

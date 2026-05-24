@@ -1824,8 +1824,22 @@ struct test_case {
     X(pfo_b_tick_kill_when_age_exceeds_fade_off) \
     X(pfo_b_tick_kill_when_energy_zero_or_below) \
     X(pfo_b_tick_no_kill_when_fade_off_minus_one) \
-    X(pfo_b_tick_type_4_with_unk_48_bypasses_kill) \
-    X(pfo_b_tick_field_renames_match_offsets)
+    X(pfo_b_tick_type_4_with_unk_48_bypasses_age_kill) \
+    X(pfo_b_tick_field_renames_match_offsets) \
+    X(pfo_b_tick_type_4_skipped_when_unk_48_zero) \
+    X(pfo_b_tick_type_4_skipped_below_gate) \
+    X(pfo_b_tick_type_4_per_slot_stagger) \
+    X(pfo_b_tick_type_4_unk_48_decays) \
+    X(pfo_b_tick_type_4_terminal_kill_at_target) \
+    X(pfo_b_tick_type_4_terminal_kill_when_below_target_y) \
+    X(pfo_b_tick_type_4_no_kill_when_far_from_target) \
+    X(pfo_b_tick_type_4_vel_normalized_toward_target) \
+    X(pfo_b_tick_type_4_vel_clamped_to_unit) \
+    X(pfo_b_tick_type_4_drag2_kicks_in_above_age_40) \
+    X(pfo_b_tick_type_4_drag2_clamped_at_0_97) \
+    X(pfo_b_tick_type_4_gravity_cancel_when_below_target_y) \
+    X(pfo_b_tick_type_4_hook_not_fired_without_install) \
+    X(pfo_b_tick_type_4_factor_always_1_2_quirk_50)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

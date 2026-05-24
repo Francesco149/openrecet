@@ -8,13 +8,17 @@
  *          100-quartet RGBA, 1.0 scale_mul, 0 xyz).
  *   PFO.3: FUN_00414929 @ 0x414929 L67-L195 — Table B per-tick body
  *          (anim-cell + per-type integrator + drag/gravity/age-kill).
+ *   PFO.4: FUN_00414929 @ 0x414929 L128-L180 — SHAPE_MODE==4 +
+ *          UNK_48!=0 shop-walker physics body (aim toward
+ *          (11*factor, -9*factor, -520) with terminal kill + SE 0x29d).
  *
- * Other halves of FUN_00414929 land in PFO.4..PFO.7 per the chip
+ * Other halves of FUN_00414929 land in PFO.5..PFO.7 per the chip
  * ladder in docs/findings/scene1-per-frame-open.md.
  */
 
 #include "scene1_per_frame_open.h"
 
+#include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -263,9 +267,132 @@ void scene1_pfo_table_b_tick(void)
                          slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Y) + gravity);
 
             /* PFO.4: SHAPE_MODE==4 + UNK_48 != 0 "shop walker" aim
-             * physics + 50% kill at terminal velocity (engine L128-L180).
-             * Skipped here.  HOUSE-dormant since no spawn populates
-             * type-4 slots with non-zero UNK_48. */
+             * physics (engine L128-L180; asm 0x414bf3..0x414e7e).
+             * Walks toward the fixed off-screen point
+             * (11*factor, -9*factor, -520) where factor is the engine's
+             * clamp-at-1.2 quirk #50 (always 1.2 once the gate opens).
+             * Terminal kill fires on |target-pos|<0.5 or pos.y<target.y;
+             * the engine then calls FUN_0040656e (SE 0x29d + screen
+             * shake), which is host-installable here via the kill hook.
+             *
+             * Dormant in HOUSE — no spawn site populates type-4 with
+             * non-zero UNK_48 today. */
+            if (shape_mode == 4 && slot_b_f(s, SCENE1_OVERLAY_OFF_UNK_48) != 0.0f) {
+                /* Engine L129 / asm 0x414c0f-0x414c20: gate on
+                 * `30 + (slot_idx % 4) < AGE`.  slot_idx is the engine's
+                 * `local_2c` outer iter counter — initialized to 0 at
+                 * function entry, incremented per slot.  Maps 1:1 to
+                 * our loop variable `s`. */
+                int gate = 30 + (s % 4);
+                if (age > gate) {
+                    /* Engine quirk #50: factor = (AGE-30)*0.4 + 1.2,
+                     * clamped at 1.2 max.  AGE>30 → factor≥1.6 → ALWAYS
+                     * clamped to 1.2 in this branch.  We preserve the
+                     * formula verbatim so the post-clamp `factor==1.2`
+                     * test is bit-exact (clamp loads the .rdata 1.2
+                     * constant, so the compare is exact bit equality). */
+                    float factor = (float)(age - 30) * 0.4f + 1.2f;
+                    if (factor > 1.2f) factor = 1.2f;
+                    float target_y = factor * -9.0f;       /* = -10.8 */
+                    float target_x = factor *  11.0f;      /* =  13.2 */
+                    const float target_z = -520.0f;
+
+                    /* UNK_48 *= 0.8 (engine L135 / asm 0x414c75-0x414c7e).
+                     * Subsequent reads of UNK_48 in this iteration must
+                     * see the decayed value (matches engine — the *=0.8
+                     * stores BEFORE the pos.y<target.y vel.y -= UNK_48
+                     * read). */
+                    float unk_48_old = slot_b_f(s, SCENE1_OVERLAY_OFF_UNK_48);
+                    float unk_48     = unk_48_old * 0.8f;
+                    slot_b_set_f(s, SCENE1_OVERLAY_OFF_UNK_48, unk_48);
+
+                    /* Raw deltas (engine L138-L142 / asm 0x414c81-0x414c9c).
+                     * Saved for the post-step terminal distance check. */
+                    float pos_x = slot_b_f(s, SCENE1_OVERLAY_OFF_POS_X);
+                    float pos_y = slot_b_f(s, SCENE1_OVERLAY_OFF_POS_Y);
+                    float pos_z = slot_b_f(s, SCENE1_OVERLAY_OFF_POS_Z);
+                    float dx_raw = target_x - pos_x;
+                    float dy_raw = target_y - pos_y;
+                    float dz_raw = target_z - pos_z;
+
+                    /* Scaled deltas (engine L136-L138 / asm 0x414c9f-0x414cc0).
+                     * Note z uses *0.2 (faster pull on z), x/y use *0.1. */
+                    float dx = dx_raw * 0.1f;
+                    float dy = dy_raw * 0.1f;
+                    float dz = dz_raw * 0.2f;
+
+                    /* Normalize scaled delta to 0.1 if magnitude > 0.1
+                     * (engine L139-L145 / asm 0x414cc3-0x414d24). */
+                    float dmag = sqrtf(dx*dx + dy*dy + dz*dz);
+                    if (dmag > 0.1f) {
+                        dx = (dx * 0.1f) / dmag;
+                        dy = (dy * 0.1f) / dmag;
+                        dz = (dz * 0.1f) / dmag;
+                    }
+
+                    /* vel += delta (engine L146-L148 / asm 0x414d27-0x414d3f). */
+                    slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_X,
+                                 slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_X) + dx);
+                    slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_Y,
+                                 slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Y) + dy);
+                    slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_Z,
+                                 slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Z) + dz);
+
+                    /* AGE > 40 → gradual drag scale (engine L149-L157 /
+                     * asm 0x414d42-0x414d97).  Walks from 1.0 down at
+                     * 0.002/tick to a floor of 0.97. */
+                    if (age > 40) {
+                        float drag2 = 1.0f - (float)(age - 40) * 0.002f;
+                        if (drag2 < 0.97f) drag2 = 0.97f;
+                        slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_X,
+                                     slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_X) * drag2);
+                        slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_Y,
+                                     slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Y) * drag2);
+                        slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_Z,
+                                     slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Z) * drag2);
+                    }
+
+                    /* |vel|² > 0 → if |vel| > 1.0 normalize to unit
+                     * (engine L158-L168 / asm 0x414d9a-0x414e11).  The
+                     * |vel|²>0 gate just dodges divide-by-zero. */
+                    float vx = slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_X);
+                    float vy = slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Y);
+                    float vz = slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Z);
+                    float vsq = vx*vx + vy*vy + vz*vz;
+                    if (vsq > 0.0f) {
+                        float vmag = sqrtf(vsq);
+                        if (vmag > 1.0f) {
+                            slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_X, vx / vmag);
+                            slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_Y, vy / vmag);
+                            slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_Z, vz / vmag);
+                        }
+                    }
+
+                    /* pos.y < target.y → BEND_Y -= UNK_48 (engine L169-L171
+                     * / asm 0x414e14-0x414e25).  Cancels the gravity step
+                     * that already added UNK_48 to BEND_Y, but with the
+                     * decayed UNK_48 — net ~0.2*UNK_48 still acts as
+                     * downward force while below the target. */
+                    if (pos_y < target_y) {
+                        slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_Y,
+                                     slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Y) - unk_48);
+                    }
+
+                    /* Terminal check (engine L172-L178 / asm 0x414e28-0x414e7e).
+                     * factor==1.2 always holds in this branch (quirk #50)
+                     * — the gate is structurally dead in the asm but we
+                     * preserve it for bit-exact behavior. */
+                    if (factor == 1.2f) {
+                        float dist_target = sqrtf(dx_raw*dx_raw +
+                                                  dy_raw*dy_raw +
+                                                  dz_raw*dz_raw);
+                        if (dist_target < 0.5f || pos_y < target_y) {
+                            slot_b_set_i(s, SCENE1_OVERLAY_OFF_ACTIVE, -1);
+                            scene1_pfo_fire_type_4_terminal_kill(s);
+                        }
+                    }
+                }
+            }
 
             /* Energy decay (engine L181): SCALE_X += TEMPLATE11_COPY. */
             float energy = slot_b_f(s, SCENE1_OVERLAY_OFF_SCALE_X);
@@ -289,4 +416,23 @@ void scene1_pfo_table_b_tick(void)
             }
         }
     }
+}
+
+/* ===== PFO.4 — terminal-kill hook (engine FUN_0040656e stand-in) ====== */
+
+static void (*g_pfo_type_4_kill_hook)(int) = NULL;
+
+void scene1_pfo_set_type_4_terminal_kill_hook(void (*hook)(int slot_idx))
+{
+    g_pfo_type_4_kill_hook = hook;
+}
+
+void scene1_pfo_clear_type_4_terminal_kill_hook(void)
+{
+    g_pfo_type_4_kill_hook = NULL;
+}
+
+void scene1_pfo_fire_type_4_terminal_kill(int slot_idx)
+{
+    if (g_pfo_type_4_kill_hook) g_pfo_type_4_kill_hook(slot_idx);
 }

@@ -1733,10 +1733,15 @@ slots with integrator-TYPE 4 and a non-zero "extra force" field
    so four type-4 particles spawned the same frame don't all start
    moving in lockstep.
 2. Aim toward the fixed world point `(11.0 * factor, -9.0 * factor,
-   -520.0)`.  `factor` lerps from `1.2` down based on `(age - 30) *
-   0.4`, then clamps at `1.2` from above — i.e. it walks UP to 1.2
-   and pegs there.  The (11, -9) target slides outward as factor
-   grows.
+   -520.0)`.  `factor` is computed as `(age - 30) * 0.4 + 1.2`, then
+   clamped at `1.2` from above.  Because the AGE gate already
+   guarantees `age > 30`, the formula always produces ≥ 1.6, so the
+   clamp ALWAYS fires — `factor` is structurally constant at 1.2 for
+   the entire branch.  Target is therefore the fixed point
+   `(13.2, -10.8, -520)`.  The post-clamp `factor == 1.2` test
+   later in the body (the kill gate) is technically always true; we
+   preserve the structure verbatim since the .rdata 1.2 constant
+   gives bit-exact equality.
 3. Apply 10% step toward the aimed velocity, decay the extra-force
    field (`*= 0.8`), and clamp speed to 1.0.
 4. Once `factor == 1.2` ("arrived"): roll `rng_next_unit() < 0.5` OR

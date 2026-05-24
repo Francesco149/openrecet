@@ -701,16 +701,20 @@ int test_pfo_b_tick_no_kill_when_fade_off_minus_one(void)
     return 0;
 }
 
-int test_pfo_b_tick_type_4_with_unk_48_bypasses_kill(void)
+int test_pfo_b_tick_type_4_with_unk_48_bypasses_age_kill(void)
 {
-    /* The shop-walker body is skipped in PFO.3, but the kill check's
-     * `!(shape_mode==4 && UNK_48!=0)` gate is preserved.  A slot in this
-     * state should never age-kill, even when FADE_OUT_OFFSET <= age. */
+    /* The age-kill check's `!(shape_mode==4 && UNK_48!=0)` gate routes
+     * kill responsibility to the PFO.4 type-4 body (which only kills on
+     * terminal-distance conditions).  Place the slot far from the
+     * (13.2, -10.8, -520) target so the terminal check doesn't fire,
+     * verify FADE_OUT_OFFSET-based age-kill is bypassed. */
     setup_live_slot(0, /*shape_mode=*/4, /*type_shape=*/0);
     int base = 0;
     g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_UNK_48]          = pfo_f_to_bits(1.0f);
     g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET] = 1;     /* would normally kill */
     g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE]             = 100;
+    /* pos=(0,0,0): |target-pos|≈520, pos.y=0 > target.y=-10.8, no
+     * terminal kill. */
 
     scene1_pfo_table_b_tick();
 
@@ -724,5 +728,366 @@ int test_pfo_b_tick_field_renames_match_offsets(void)
      * must stay the same so the on-disk slot layout is unchanged. */
     T_ASSERT_EQ_I(SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER, 31);
     T_ASSERT_EQ_I(SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX,    32);
+    return 0;
+}
+
+/* ===== PFO.4 — type-4 shop-walker physics body ======================== */
+
+/* Per-slot type-4 setup: SHAPE_MODE=4, UNK_48 non-zero, AGE past the
+ * stagger gate, pos at origin, vel zero, TEMPLATE5_COPY=1 (no drag).
+ * UNK_48 must be non-zero else the type-4 body's outer gate skips it. */
+static void setup_type_4_slot(int s, int32_t age, float unk_48,
+                              float pos_x, float pos_y, float pos_z)
+{
+    setup_live_slot(s, /*shape_mode=*/4, /*type_shape=*/0);
+    int base = s * SCENE1_OVERLAY_SLOT_STRIDE;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_UNK_48] = pfo_f_to_bits(unk_48);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE]    = age;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_X]  = pfo_f_to_bits(pos_x);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_Y]  = pfo_f_to_bits(pos_y);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_Z]  = pfo_f_to_bits(pos_z);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X] = pfo_f_to_bits(0.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y] = pfo_f_to_bits(0.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Z] = pfo_f_to_bits(0.0f);
+    /* FADE_OUT_OFFSET = -1 from setup_live_slot disables age-kill. */
+}
+
+static int g_pfo_type_4_kill_count;
+static int g_pfo_type_4_last_kill_slot;
+static void pfo_type_4_kill_recorder(int slot_idx)
+{
+    g_pfo_type_4_kill_count++;
+    g_pfo_type_4_last_kill_slot = slot_idx;
+}
+
+int test_pfo_b_tick_type_4_skipped_when_unk_48_zero(void)
+{
+    /* SHAPE_MODE==4 alone isn't enough — UNK_48 must also be non-zero.
+     * Place at the terminal-kill spot and confirm no kill fires. */
+    setup_type_4_slot(0, /*age=*/100, /*unk_48=*/0.0f,
+                      /*pos=*/13.2f, -10.8f, -520.0f);
+    g_pfo_type_4_kill_count = 0;
+    scene1_pfo_set_type_4_terminal_kill_hook(pfo_type_4_kill_recorder);
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT_EQ_I(g_pfo_type_4_kill_count, 0);
+    /* The age-kill bypass also requires UNK_48!=0; with UNK_48=0,
+     * fade_off=-1 still keeps it alive, but the type-4 body never
+     * runs.  ACTIVE stays 0. */
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[0 + SCENE1_OVERLAY_OFF_ACTIVE], 0);
+    scene1_pfo_clear_type_4_terminal_kill_hook();
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_skipped_below_gate(void)
+{
+    /* Gate is `AGE > 30 + (slot_idx % 4)`.  For slot 0, gate opens at
+     * AGE > 30.  AGE = 30 should NOT trigger the body — verify by
+     * placing at terminal-kill spot and confirming no kill. */
+    setup_type_4_slot(0, /*age=*/30, /*unk_48=*/1.0f,
+                      /*pos=*/13.2f, -10.8f, -520.0f);
+    g_pfo_type_4_kill_count = 0;
+    scene1_pfo_set_type_4_terminal_kill_hook(pfo_type_4_kill_recorder);
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT_EQ_I(g_pfo_type_4_kill_count, 0);
+    scene1_pfo_clear_type_4_terminal_kill_hook();
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_per_slot_stagger(void)
+{
+    /* Gate is AGE > 30 + (slot_idx % 4).  Slot 0 opens at AGE=31, slot
+     * 1 at 32, slot 2 at 33, slot 3 at 34.  Verify slot 1 with AGE=31
+     * does NOT trigger but slot 0 does.
+     *
+     * setup_type_4_slot calls scene1_overlay_reset internally so it
+     * wipes all slots.  Set up slot 0 via the helper, then inline-set
+     * slot 1's fields without wiping. */
+    setup_type_4_slot(0, /*age=*/31, /*unk_48=*/1.0f,
+                      /*pos=*/13.2f, -10.8f, -520.0f);
+    int base1 = 1 * SCENE1_OVERLAY_SLOT_STRIDE;
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_ACTIVE]          = 0;
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_AGE]             = 31;
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_TEXTURE_TYPE]    = 0;
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_SHAPE_MODE]      = 4;
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_TYPE_SHAPE]      = 0;
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET] = -1;
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_AGE_BIRTH]       = 0;
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_SCALE_X]         = pfo_f_to_bits(1.0f);
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_TEMPLATE5_COPY]  = pfo_f_to_bits(1.0f);
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_TEMPLATE11_COPY] = pfo_f_to_bits(0.0f);
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_UNK_48]          = pfo_f_to_bits(1.0f);
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_POS_X] = pfo_f_to_bits(13.2f);
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_POS_Y] = pfo_f_to_bits(-10.8f);
+    g_scene1_overlay_slots[base1 + SCENE1_OVERLAY_OFF_POS_Z] = pfo_f_to_bits(-520.0f);
+
+    g_pfo_type_4_kill_count = 0;
+    scene1_pfo_set_type_4_terminal_kill_hook(pfo_type_4_kill_recorder);
+
+    scene1_pfo_table_b_tick();
+
+    /* slot 0: gate 30, AGE=31 → open → terminal kill fires.
+     * slot 1: gate 31, AGE=31 → NOT open → no kill. */
+    T_ASSERT_EQ_I(g_pfo_type_4_kill_count, 1);
+    T_ASSERT_EQ_I(g_pfo_type_4_last_kill_slot, 0);
+    scene1_pfo_clear_type_4_terminal_kill_hook();
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_unk_48_decays(void)
+{
+    /* UNK_48 *= 0.8 every tick the type-4 body fires.  Start at 1.0,
+     * AGE=31 (slot 0 gate open).  Place far from target so terminal
+     * kill doesn't fire; only the decay matters. */
+    setup_type_4_slot(0, /*age=*/31, /*unk_48=*/1.0f,
+                      /*pos=*/0.0f, 100.0f, 0.0f);
+
+    scene1_pfo_table_b_tick();
+
+    float u = pfo_bits_to_f(g_scene1_overlay_slots[
+        0 + SCENE1_OVERLAY_OFF_UNK_48]);
+    T_ASSERT(fabsf(u - 0.8f) < 1e-6f);
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_terminal_kill_at_target(void)
+{
+    /* When |target - pos| < 0.5 the slot self-kills.  Target is
+     * (13.2, -10.8, -520).  Place pos AT the target so distance is 0. */
+    setup_type_4_slot(0, /*age=*/31, /*unk_48=*/1.0f,
+                      /*pos=*/13.2f, -10.8f, -520.0f);
+    g_pfo_type_4_kill_count = 0;
+    scene1_pfo_set_type_4_terminal_kill_hook(pfo_type_4_kill_recorder);
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[0 + SCENE1_OVERLAY_OFF_ACTIVE], -1);
+    T_ASSERT_EQ_I(g_pfo_type_4_kill_count, 1);
+    T_ASSERT_EQ_I(g_pfo_type_4_last_kill_slot, 0);
+    scene1_pfo_clear_type_4_terminal_kill_hook();
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_terminal_kill_when_below_target_y(void)
+{
+    /* The terminal check fires on `|dist|<0.5 OR pos.y<target.y`.
+     * Place far from target horizontally but with pos.y just below
+     * target.y (-10.8). */
+    setup_type_4_slot(0, /*age=*/31, /*unk_48=*/1.0f,
+                      /*pos=*/0.0f, /*pos.y=*/-20.0f, 0.0f);
+    g_pfo_type_4_kill_count = 0;
+    scene1_pfo_set_type_4_terminal_kill_hook(pfo_type_4_kill_recorder);
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[0 + SCENE1_OVERLAY_OFF_ACTIVE], -1);
+    T_ASSERT_EQ_I(g_pfo_type_4_kill_count, 1);
+    scene1_pfo_clear_type_4_terminal_kill_hook();
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_no_kill_when_far_from_target(void)
+{
+    /* Place pos at origin: dist≈520, pos.y=0>target.y=-10.8.  Neither
+     * terminal condition fires.  Verify slot survives and ACTIVE
+     * stays 0. */
+    setup_type_4_slot(0, /*age=*/31, /*unk_48=*/1.0f,
+                      /*pos=*/0.0f, 0.0f, 0.0f);
+    g_pfo_type_4_kill_count = 0;
+    scene1_pfo_set_type_4_terminal_kill_hook(pfo_type_4_kill_recorder);
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[0 + SCENE1_OVERLAY_OFF_ACTIVE], 0);
+    T_ASSERT_EQ_I(g_pfo_type_4_kill_count, 0);
+    scene1_pfo_clear_type_4_terminal_kill_hook();
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_vel_normalized_toward_target(void)
+{
+    /* When |target-pos| > 0.1 (always true at origin with target ≈ 520
+     * away), the scaled delta gets normalized to length 0.1.  Verify
+     * the post-tick BEND has |BEND|≈0.1 from origin.  (Note: gravity
+     * adds UNK_48 to BEND_Y first, so we set UNK_48 small to keep the
+     * |vel|>1 normalize path quiet — direction is what we're measuring.) */
+    setup_type_4_slot(0, /*age=*/31, /*unk_48=*/0.001f,
+                      /*pos=*/0.0f, 0.0f, 0.0f);
+    /* AGE=31 with slot 0 gate=30 → body fires.  No drag2 (AGE not > 40). */
+
+    scene1_pfo_table_b_tick();
+
+    float bx = pfo_bits_to_f(g_scene1_overlay_slots[0 + SCENE1_OVERLAY_OFF_BEND_X]);
+    float by = pfo_bits_to_f(g_scene1_overlay_slots[0 + SCENE1_OVERLAY_OFF_BEND_Y]);
+    float bz = pfo_bits_to_f(g_scene1_overlay_slots[0 + SCENE1_OVERLAY_OFF_BEND_Z]);
+    /* After gravity: by += UNK_48 = 0.0008 (after *0.8 decay it's 0.0008,
+     * but gravity uses the PRE-decay 0.001).  Pre-PFO.4: by≈0.001.
+     * Then PFO.4 adds normalized delta of magnitude 0.1 in direction
+     * (target-pos)/dist.  target-pos = (13.2, -10.8, -520),
+     * dist≈520.36; dz dominates.
+     * dx = 13.2*0.1/520.36 ≈ 0.00254
+     * dy = -10.8*0.1/520.36 ≈ -0.00208
+     * dz = -520*0.1/520.36 ≈ -0.0999  (z uses *0.2 raw scale before
+     *   normalize; raw delta is dx_raw*0.1, dy_raw*0.1, dz_raw*0.2)
+     *
+     * Hmm — the raw deltas in the engine are dx*0.1, dy*0.1, dz*0.2
+     * BEFORE normalization.  Normalize uses sqrt of (dx_scaled² +
+     * dy_scaled² + dz_scaled²) which weights z more.  Then divides
+     * each by that magnitude * 0.1.  Net: vel direction matches the
+     * SCALED (not raw) delta direction.
+     *
+     * Just verify |vel| ≈ 0.1 (modulo the tiny gravity addition). */
+    float vmag = sqrtf(bx*bx + by*by + bz*bz);
+    T_ASSERT(fabsf(vmag - 0.1f) < 0.005f);
+    /* And direction is mostly -Z. */
+    T_ASSERT(bz < -0.05f);
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_vel_clamped_to_unit(void)
+{
+    /* When |vel| > 1.0, vel gets normalized to unit.  Pre-set BEND to
+     * (5, 5, 5) which has magnitude ≈ 8.66.  After type-4 body's delta
+     * add (tiny ~0.1 step) and no drag2 (AGE=31), the vel-clamp must
+     * normalize to unit. */
+    setup_type_4_slot(0, /*age=*/31, /*unk_48=*/0.001f,
+                      /*pos=*/0.0f, 0.0f, 0.0f);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X] = pfo_f_to_bits(5.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y] = pfo_f_to_bits(5.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Z] = pfo_f_to_bits(5.0f);
+
+    scene1_pfo_table_b_tick();
+
+    float bx = pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X]);
+    float by = pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y]);
+    float bz = pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Z]);
+    float vmag = sqrtf(bx*bx + by*by + bz*bz);
+    T_ASSERT(fabsf(vmag - 1.0f) < 0.01f);
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_drag2_kicks_in_above_age_40(void)
+{
+    /* AGE > 40 applies a gradual drag scale: max(0.97, 1.0 -
+     * (AGE-40)*0.002).  Set BEND to a known unit-length vector (so the
+     * |vel|>1 normalize doesn't fire) and AGE=50 → drag2 = 1 - 10*0.002
+     * = 0.98 (above 0.97 floor).  Post-tick BEND magnitude should be
+     * ~0.98 (after the small delta add, the drag scale rules). */
+    setup_type_4_slot(0, /*age=*/50, /*unk_48=*/0.001f,
+                      /*pos=*/0.0f, 0.0f, 0.0f);
+    int base = 0;
+    /* Pre-set BEND to (1, 0, 0); after gravity by += 0.001, then the
+     * PFO.4 delta gets added (~0.1 length), then *0.98 drag2, then
+     * |vel|>1 normalize might fire depending on magnitudes. */
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X] = pfo_f_to_bits(1.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y] = pfo_f_to_bits(0.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Z] = pfo_f_to_bits(0.0f);
+
+    scene1_pfo_table_b_tick();
+
+    /* Sanity: BEND mutated.  Detailed magnitude depends on interaction
+     * with normalize step; the precise expected value is what the
+     * engine computes.  Verify BEND_X dropped from 1.0 (drag * 0.98
+     * applied) — even with the small delta-add boost, |vel| stays
+     * close to 1, so the unit-normalize might or might not fire.  Just
+     * confirm vel is not still 1.0 exactly (drag2 has applied). */
+    float bx = pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X]);
+    /* bx is roughly: ((1.0 + 0.00254_delta) * 0.98) ≈ 0.982, then
+     * possibly /|vel| if |vel|>1.  Either way bx < 1.0. */
+    T_ASSERT(bx < 1.0f);
+    T_ASSERT(bx > 0.95f);
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_drag2_clamped_at_0_97(void)
+{
+    /* AGE very high → (AGE-40)*0.002 grows large → 1.0 - x goes below
+     * 0.97 → clamp at 0.97.  AGE=1000 → 1 - 960*0.002 = -0.92 → clamp
+     * to 0.97. */
+    setup_type_4_slot(0, /*age=*/1000, /*unk_48=*/0.001f,
+                      /*pos=*/0.0f, 0.0f, 0.0f);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X] = pfo_f_to_bits(1.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y] = pfo_f_to_bits(0.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Z] = pfo_f_to_bits(0.0f);
+
+    scene1_pfo_table_b_tick();
+
+    float bx = pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X]);
+    /* drag2 = 0.97.  bx_post_drag ≈ (1 + small_delta) * 0.97 ≈ 0.97.
+     * Then |vel| normalize may fire — but |vel| ≈ 0.97 after drag, not
+     * > 1, so no normalize.  Final bx ≈ 0.97. */
+    T_ASSERT(fabsf(bx - 0.97f) < 0.02f);
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_gravity_cancel_when_below_target_y(void)
+{
+    /* When pos.y < target.y (-10.8), BEND_Y -= UNK_48 (decayed value).
+     * Net effect: gravity added UNK_48 (1.0), then type-4 body
+     * subtracts decayed UNK_48 (0.8).  Net BEND_Y = 0 (initial) + 1.0
+     * - 0.8 + delta_y ≈ 0.2 + tiny.
+     *
+     * But pos.y < target.y is also a terminal-kill condition!  So the
+     * slot dies after this tick.  We can still verify the post-tick
+     * BEND_Y state. */
+    setup_type_4_slot(0, /*age=*/31, /*unk_48=*/1.0f,
+                      /*pos=*/0.0f, /*pos.y=*/-20.0f, 0.0f);
+    int base = 0;
+    /* Verify state right after the body runs.  Post-tick: ACTIVE=-1
+     * (terminal kill), BEND_Y = 0.0 (initial) + 1.0 (gravity) +
+     * delta_y (~-0.002) - 0.8 (gravity cancel decayed UNK_48)
+     * ≈ 0.198. */
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ACTIVE], -1);
+    float by = pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y]);
+    /* Approximately: 1.0 - 0.8 + small_delta = 0.2. */
+    T_ASSERT(fabsf(by - 0.2f) < 0.05f);
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_hook_not_fired_without_install(void)
+{
+    /* No hook installed → no fire.  Terminal kill still happens
+     * (ACTIVE=-1) but the host-observable side-effect counter stays 0. */
+    setup_type_4_slot(0, /*age=*/31, /*unk_48=*/1.0f,
+                      /*pos=*/13.2f, -10.8f, -520.0f);
+    scene1_pfo_clear_type_4_terminal_kill_hook();
+    g_pfo_type_4_kill_count = 0;
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[0 + SCENE1_OVERLAY_OFF_ACTIVE], -1);
+    T_ASSERT_EQ_I(g_pfo_type_4_kill_count, 0);
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_factor_always_1_2_quirk_50(void)
+{
+    /* Engine quirk #50: factor = (AGE-30)*0.4 + 1.2 → clamps at 1.2.
+     * AGE>30 → factor ALWAYS = 1.2 in this branch (formula≥1.6 always).
+     * Therefore target = (13.2, -10.8, -520) regardless of AGE.
+     *
+     * Verify: place pos at (13.2, -10.8, -520) for AGE=31 AND AGE=100;
+     * both should terminal-kill (distance to target ≈ 0). */
+    g_pfo_type_4_kill_count = 0;
+    scene1_pfo_set_type_4_terminal_kill_hook(pfo_type_4_kill_recorder);
+
+    setup_type_4_slot(0, /*age=*/31, /*unk_48=*/1.0f,
+                      13.2f, -10.8f, -520.0f);
+    scene1_pfo_table_b_tick();
+    T_ASSERT_EQ_I(g_pfo_type_4_kill_count, 1);
+
+    setup_type_4_slot(0, /*age=*/100, /*unk_48=*/1.0f,
+                      13.2f, -10.8f, -520.0f);
+    scene1_pfo_table_b_tick();
+    T_ASSERT_EQ_I(g_pfo_type_4_kill_count, 2);
+
+    scene1_pfo_clear_type_4_terminal_kill_hook();
     return 0;
 }

@@ -156,7 +156,7 @@ extern int32_t g_scene1_pfo_parent_table[SCENE1_PFO_PARENT_TABLE_COUNT *
 void scene1_pfo_parent_table_init(void);
 
 /* ------------------------------------------------------------------
- * Table B per-tick body (PFO.3) — engine FUN_00414929 L67-L195
+ * Table B per-tick body (PFO.3 + PFO.4) — engine FUN_00414929 L67-L195
  * ------------------------------------------------------------------
  *
  * Iterates all 4096 `g_scene1_overlay_slots`, skipping any with
@@ -179,19 +179,28 @@ void scene1_pfo_parent_table_init(void);
  *      tick's "accum" is OFF_VEL_X/Y/Z.  See scene1_overlay.h field
  *      offsets for the renderer/tick perspective mismatch.
  *
- *      Then: drag (BEND *= TEMPLATE5_COPY); gravity (BEND_Y += UNK_48);
- *      energy decay (SCALE_X += TEMPLATE11_COPY).
+ *      Then: drag (BEND *= TEMPLATE5_COPY); gravity (BEND_Y += UNK_48).
  *
- *      SKIPPED for PFO.3 (PFO.4 lands it): the SHAPE_MODE==4 + UNK_48!=0
- *      "shop walker" aim-toward-(11, -9, -520) physics body + 50% kill
- *      at terminal velocity.  Dormant in HOUSE since no spawner
- *      populates type-4 slots with non-zero UNK_48.
+ *      PFO.4: SHAPE_MODE==4 + UNK_48!=0 "shop walker" aim physics body.
+ *      Gated on AGE > 30 + (slot_idx % 4) — per-slot stagger so 4
+ *      type-4 spawns the same frame don't move in lockstep.  Target is
+ *      `(11.0*factor, -9.0*factor, -520.0)` with `factor` always 1.2
+ *      (formula `(AGE-30)*0.4 + 1.2` clamps at 1.2 max — see engine
+ *      quirk #50).  Per-tick step: UNK_48 *= 0.8 (decay), BEND +=
+ *      normalize(target-pos)*0.1, then AGE>40 → BEND *= max(0.97,
+ *      1.0 - (AGE-40)*0.002), then |BEND|>1 → normalize to unit,
+ *      then pos.y < target.y → BEND_Y -= UNK_48 (cancel gravity
+ *      overshoot).  Terminal kill check: if |target-pos|<0.5 OR pos.y <
+ *      target.y → ACTIVE = -1 and fire the type-4 kill hook (engine
+ *      calls FUN_0040656e which plays SE 0x29d "thunk" + sets screen
+ *      shake counter DAT_00648280 = 4).  Energy decay (SCALE_X +=
+ *      TEMPLATE11_COPY) follows.
  *
  *   3. AGE++ and age-kill check (always run, even for AGE < 0):
  *      Kill (set ACTIVE = -1) when FADE_OUT_OFFSET != -1 AND
  *      (FADE_OUT_OFFSET <= AGE+1 - AGE_BIRTH OR SCALE_X <= 0).
  *      Kill is bypassed when SHAPE_MODE==4 && UNK_48!=0 (the
- *      shop-walker body handles its own kill via random half-kill).
+ *      shop-walker body handles its own kill via terminal check above).
  *
  * NOT wired into any caller in PFO.3 — PFO.5 lands the wiring of
  * FUN_00414929 (Table A + this) into `particles_per_frame_open` in
@@ -200,6 +209,27 @@ void scene1_pfo_parent_table_init(void);
  * unreachable in production.
  */
 void scene1_pfo_table_b_tick(void);
+
+/* PFO.4 terminal-kill hook.  Fires once per slot when the type-4
+ * shop-walker body kills the slot (either via |target-pos|<0.5 or
+ * pos.y<target.y).  Argument is the slot index (0..4095).
+ *
+ * The engine's equivalent is `FUN_0040656e` which sets the screen-shake
+ * counter `DAT_00648280 = 4` and calls `FUN_00499519(0x29d)` (= play
+ * SE id 0x29d "thunk").  Neither of those side-effects is wired in any
+ * port today: DAT_00648280 has no other ported reader/writer, and SE
+ * 0x29d's player has no consumer either.  Win32 builds can wire a hook
+ * that calls audio_play_se_by_id(0x29d) once the rest of the pipeline
+ * lands; for now the default is no-op.  Tests install the hook to
+ * observe firings.
+ *
+ * Pure-C — host-linkable. */
+void scene1_pfo_set_type_4_terminal_kill_hook(void (*hook)(int slot_idx));
+void scene1_pfo_clear_type_4_terminal_kill_hook(void);
+
+/* Internal — called by scene1_pfo_table_b_tick when the type-4 body
+ * triggers terminal kill.  Exposed for direct test use. */
+void scene1_pfo_fire_type_4_terminal_kill(int slot_idx);
 
 #ifdef __cplusplus
 }
