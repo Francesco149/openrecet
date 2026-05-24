@@ -3,18 +3,31 @@
  * integrator (engine FUN_00414929, called at L1 of FUN_0040fb3a).
  *
  * The full FUN_00414929 ticks two unrelated entity tables before the
- * particle integrator runs its per-type handlers.  This header lands
- * Table A — a 256-slot spawn-request queue at engine `DAT_00730c20`
- * (sentinel field aliased at `DAT_00730c30`).  The Table B half is
- * already covered by `scene1_overlay.{c,h}` (chip O.2's slot table).
+ * particle integrator runs its per-type handlers.  This header lands:
  *
- * Chip PFO.1 (this header): typed storage + sentinel init only.  The
- * tick body, the parent-template table at `DAT_007444e0`, and the
- * allocators FUN_004132c1 / FUN_0041331d land in PFO.2..PFO.6.  See
- * `docs/findings/scene1-per-frame-open.md` for the full ladder.
+ *  - Table A (PFO.1): a 256-slot spawn-request queue at engine
+ *    `DAT_00730c20` (sentinel field aliased at `DAT_00730c30`).
  *
- * Dormant in HOUSE today — no allocator caller exists, so all 256
- * slots stay sentinel-empty after the init runs.
+ *  - Parent template table (PFO.2): the 400-slot × 0x5f-dw table at
+ *    `DAT_007444e0` that Table A's tick walks 7 sub-records of per
+ *    live slot.  Populated at boot by `FUN_0041276e` parsing
+ *    `ef/effect%d.dat` (PFO.7).
+ *
+ * The Table B half (overlay slots) is already covered by
+ * `scene1_overlay.{c,h}` (chip O.2's slot table).
+ *
+ * Chip PFO.2 (this header): adds typed storage + default-fill init for
+ * the parent template table.  The init is NOT wired into any caller
+ * yet — it stands ready for PFO.7 (the binary-file parser) to call
+ * before populating real per-record values.  Storage stays BSS-zero
+ * until either init or parser runs.  The tick body, the allocators
+ * FUN_004132c1 / FUN_0041331d, and the parser land in PFO.3..PFO.7.
+ * See `docs/findings/scene1-per-frame-open.md` for the full ladder.
+ *
+ * Dormant in HOUSE today — Table A is sentinel-empty (PFO.1 init), so
+ * the parent template walk inside Table A's "if slot live" branch is
+ * unreachable.  All four ladders (PFO.1..PFO.5) keep goldens
+ * bit-exact.
  */
 #ifndef SCENE1_PER_FRAME_OPEN_H
 #define SCENE1_PER_FRAME_OPEN_H
@@ -60,6 +73,87 @@ extern int32_t g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_COUNT *
  * wired into `scene1_records_reset()` to match.
  */
 void scene1_pfo_table_a_init(void);
+
+/* ------------------------------------------------------------------
+ * Parent template table (PFO.2) — engine `DAT_007444e0`
+ * ------------------------------------------------------------------
+ *
+ * 400 entries × 0x5f dw (= 95 dw / 380 B / 0x17c B) = 38000 B per file
+ * × 4 files (`ef/effect{1..4}.dat`) = 152000 B (0x251c0) total.
+ *
+ * Per-entry layout (in 4-byte dw indices relative to entry start):
+ *
+ *   dw 0..24  : preamble — name string at dw 0 + unidentified extras.
+ *               Engine init writes "<unknown>" via FUN_005038ff at
+ *               entry+0.  The tick (FUN_00414929) does NOT read this
+ *               region; PFO.7 parser overwrites from file.
+ *
+ *   dw 25..31 : sub_rec[0..6].sentinel — struct-of-arrays.  Engine
+ *               init: -1 in every slot.  Tick reads via
+ *               `piVar1 = &DAT_00744544 + entry_id * 0x5f`
+ *               (= entry+25 dw); gate `*piVar1 != -1`.
+ *
+ *   dw 32..38 : sub_rec[0..6].age_match — engine init: 0.  Tick reads
+ *               `piVar1[7]` per sub-record (so dw 32+k for sub k);
+ *               must equal Table A entry's age (`piVar2[5]`) for the
+ *               sub-record to fire.
+ *
+ *   dw 39..66 : sub_rec[0..6].rgba_ints — 4 dw per sub-record (28 dw
+ *               total).  Engine init: 100/100/100/100 per sub-record.
+ *               NOT consumed by the tick — looks like a per-sub-record
+ *               color tint forwarded to the spawn via different
+ *               consumer.
+ *
+ *   dw 67..73 : sub_rec[0..6].scale_mul — engine init: 1.0f.  Tick
+ *               reads `piVar1[0x2a]` per sub-record (= dw 67+k);
+ *               multiplies Table A's scale.
+ *
+ *   dw 74..94 : sub_rec[0..6].xyz — 3 dw per sub-record (21 dw total).
+ *               Engine init: 0 each.  Tick reads via
+ *               `pfVar3 = &DAT_0074460c + entry_id * 0x5f`
+ *               (= entry+75 dw), then `pfVar3[-1..1]` per sub-record
+ *               (sub k spans dw 74+3k .. 76+3k); xyz offsets added
+ *               to Table A pos at spawn time.
+ *
+ * Source: FUN_00412a89 L17-L42 (first init loop) + FUN_00414929
+ * L28-L55 (tick reads).
+ */
+#define SCENE1_PFO_PARENT_TABLE_COUNT          400
+#define SCENE1_PFO_PARENT_TABLE_STRIDE         95  /* dw count; 0x5f */
+
+#define SCENE1_PFO_PARENT_TABLE_SUB_COUNT      7   /* sub-records per entry */
+
+/* Per-entry dw offsets to each sub-record block start (sub k is at
+ * BLOCK + k for 1-dw fields, BLOCK + k*4 / BLOCK + k*3 for arrays). */
+#define SCENE1_PFO_PARENT_OFF_NAME             0   /* dw 0 — char name[]; 25 dw of preamble */
+#define SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0   25  /* sub_rec[k].sentinel  = dw 25+k */
+#define SCENE1_PFO_PARENT_OFF_SUB_AGE_MATCH_0  32  /* sub_rec[k].age_match = dw 32+k */
+#define SCENE1_PFO_PARENT_OFF_SUB_RGBA_0       39  /* sub_rec[k].rgba_ints = dw 39+k*4 .. 42+k*4 */
+#define SCENE1_PFO_PARENT_OFF_SUB_SCALE_MUL_0  67  /* sub_rec[k].scale_mul = dw 67+k */
+#define SCENE1_PFO_PARENT_OFF_SUB_XYZ_0        74  /* sub_rec[k].xyz       = dw 74+k*3 .. 76+k*3 */
+
+extern int32_t g_scene1_pfo_parent_table[SCENE1_PFO_PARENT_TABLE_COUNT *
+                                         SCENE1_PFO_PARENT_TABLE_STRIDE];
+
+/*
+ * Mirrors the FIRST init loop of engine FUN_00412a89 (L17-L42).  For
+ * every entry, sets the 7 sub-record blocks to engine defaults:
+ *
+ *   sub_rec[k].sentinel  = -1
+ *   sub_rec[k].age_match = 0
+ *   sub_rec[k].rgba_ints = (100, 100, 100, 100)
+ *   sub_rec[k].scale_mul = 1.0f
+ *   sub_rec[k].xyz       = (0, 0, 0)
+ *
+ * Does NOT touch the dw 0..24 preamble (the name field gets
+ * "<unknown>" from FUN_005038ff in the engine; we leave it BSS-zero
+ * since the tick doesn't read it and PFO.7's parser will overwrite).
+ *
+ * Idempotent.  Not wired into any caller in PFO.2 — the parser
+ * (PFO.7) is the natural caller, after which it overwrites with
+ * per-record values from `ef/effect%d.dat`.
+ */
+void scene1_pfo_parent_table_init(void);
 
 #ifdef __cplusplus
 }

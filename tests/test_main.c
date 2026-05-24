@@ -1795,7 +1795,17 @@ struct test_case {
     X(pfo_init_does_not_touch_other_fields) \
     X(scene1_records_reset_invokes_pfo_init) \
     X(scene1_records_reset_with_reset_c_zero_still_inits_pfo) \
-    X(pfo_storage_size_matches_engine)
+    X(pfo_storage_size_matches_engine) \
+    \
+    X(pfo_parent_table_storage_size_matches_engine) \
+    X(pfo_parent_init_sentinel_minus_one_every_sub_record) \
+    X(pfo_parent_init_age_match_zero) \
+    X(pfo_parent_init_rgba_quartet_is_100s) \
+    X(pfo_parent_init_scale_mul_is_one_f) \
+    X(pfo_parent_init_xyz_is_zero) \
+    X(pfo_parent_init_preserves_preamble) \
+    X(pfo_parent_init_is_idempotent) \
+    X(pfo_parent_field_offsets_match_engine_layout)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

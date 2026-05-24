@@ -1,9 +1,9 @@
 # Scene-1 per-frame open (FUN_00414929) — survey
 
-**Status (2026-05-24):** Survey only. Reads end-to-end; identifies
-existing typed storage already covered by chip O.2, plus the one
-new sibling table (DAT_00730c20) that needs to land before the tick
-can port.
+**Status (2026-05-24):** PFO.1 (Table A storage + sentinel init) and
+PFO.2 (parent template table storage + default-fill init) landed.
+The survey below stands; only the PFO.1/PFO.2 rows of the chip ladder
+have status updates.  Remaining work: PFO.3 (tick body) onward.
 
 ## TL;DR
 
@@ -319,8 +319,8 @@ The full FUN_00414929 port lands in sub-chips.  Recommended order:
 | Sub-chip | What lands                                                                                | Approx LoC | Dormancy gate |
 |----------|--------------------------------------------------------------------------------------------|------------|---------------|
 | PFO.0    | **This survey doc** + memory updates                                                       | doc only   | n/a |
-| PFO.1    | Table A storage + FUN_00414902 Table A init wired into scene1_records_reset; tick stub for Table A keeps a no-op | ~150 | BSS-zero parent table → tick body never spawns |
-| PFO.2    | Parent template table storage + (skeleton) tests for the storage layout                    | ~100 | parser not ported; table stays BSS-zero |
+| PFO.1 ✅ | Table A storage + FUN_00414902 Table A init wired into scene1_records_reset; tick stub for Table A keeps a no-op | ~150 (commit `c6be22b`) | BSS-zero parent table → tick body never spawns |
+| PFO.2 ✅ | Parent template table storage + (skeleton) tests for the storage layout                    | ~100 | parser not ported; table stays BSS-zero (init helper present but not wired) |
 | PFO.3    | Port Table B tick (anim-cell + per-type integrator + drag/gravity/age-kill); skip type-4 physics body | ~300 | overlay slots stay sentinel-empty in HOUSE |
 | PFO.4    | Type 4 "shop walker physics" body + SE 0x29d at terminal velocity                         | ~120 | same as PFO.3 |
 | PFO.5    | Wire FUN_00414929 into particles_per_frame_open (replace stub) + extend scene1_records_reset to also call Table A init | ~30 | dormant on all gates |
