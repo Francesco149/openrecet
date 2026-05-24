@@ -828,3 +828,233 @@ int test_scene1_pass_c_compose_propagates_matrix0_translation(void)
     T_ASSERT_NEAR_D(M[14],  6.0f, 1e-6f);
     return 0;
 }
+
+/* ─── Pass A (C8c.A) ────────────────────────────────────────────────────
+ *
+ * Shop walker Pass A uses a record layout with ROT_SRC at slot[-0x23] —
+ * fields BEFORE the slot anchor.  Tests must allocate a buffer with
+ * leading padding ≥ 0x23 dw, then offset the slot pointer past it. */
+
+#define SHOP_SLOT_LEAD_PAD  0x23
+#define SHOP_SLOT_TOTAL     SCENE1_RECORDS_SHOP_STRIDE
+
+static void slot_a_init_zero(int32_t buffer[SHOP_SLOT_TOTAL])
+{
+    memset(buffer, 0, sizeof(int32_t) * SHOP_SLOT_TOTAL);
+}
+
+/* Returns the anchor (TYPE-field) pointer inside the buffer. */
+static int32_t *slot_a_anchor(int32_t buffer[SHOP_SLOT_TOTAL])
+{
+    return &buffer[SHOP_SLOT_LEAD_PAD];
+}
+
+static void slot_a_set_float(int32_t *slot, int offset, float value)
+{
+    memcpy(&slot[offset], &value, sizeof(value));
+}
+
+/* predicate */
+
+int test_scene1_pass_a_should_emit_rejects_inactive(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    /* Even with all other gates open, ACTIVE=0 short-circuits. */
+    slot[SCENE1_RECORDS_SHOP_OFF_TYPE]     = 0x3e;
+    slot[SCENE1_RECORDS_SHOP_OFF_SUBGATE]  = 0;   /* != -1 */
+    slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE]   = 0;   /* gate */
+    T_ASSERT(sw_pass_a_should_emit(slot) == 0);
+    return 0;
+}
+
+int test_scene1_pass_a_should_emit_rejects_visible(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE]     = 1;
+    slot[SCENE1_RECORDS_SHOP_OFF_TYPE]       = 0x3e;
+    slot[SCENE1_RECORDS_SHOP_OFF_SUBGATE]    = 0;
+    slot[SCENE1_RECORDS_SHOP_OFF_VISIBILITY] = 1;   /* gate: < 1 required */
+    T_ASSERT(sw_pass_a_should_emit(slot) == 0);
+
+    slot[SCENE1_RECORDS_SHOP_OFF_VISIBILITY] = 0;
+    T_ASSERT(sw_pass_a_should_emit(slot) == 1);
+    return 0;
+}
+
+int test_scene1_pass_a_should_emit_rejects_subgate_minus_1(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE]  = 1;
+    slot[SCENE1_RECORDS_SHOP_OFF_TYPE]    = 0x3e;
+    slot[SCENE1_RECORDS_SHOP_OFF_SUBGATE] = -1;     /* gate */
+    T_ASSERT(sw_pass_a_should_emit(slot) == 0);
+    return 0;
+}
+
+int test_scene1_pass_a_should_emit_accepts_match_types(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE]     = 1;
+    slot[SCENE1_RECORDS_SHOP_OFF_SUBGATE]    = 0;
+    slot[SCENE1_RECORDS_SHOP_OFF_VISIBILITY] = 0;
+
+    int match[] = { 0x3e, 0x3f, 0x41, 0x42 };
+    for (int i = 0; i < (int)(sizeof(match)/sizeof(match[0])); i++) {
+        slot[SCENE1_RECORDS_SHOP_OFF_TYPE] = match[i];
+        if (sw_pass_a_should_emit(slot) != 1)
+            T_FAIL("type 0x%x should emit", match[i]);
+    }
+    return 0;
+}
+
+int test_scene1_pass_a_should_emit_rejects_other_types(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE]     = 1;
+    slot[SCENE1_RECORDS_SHOP_OFF_SUBGATE]    = 0;
+    slot[SCENE1_RECORDS_SHOP_OFF_VISIBILITY] = 0;
+
+    int reject[] = { 0x00, 0x3d, 0x40, 0x43, 0x50, 0xff };
+    for (int i = 0; i < (int)(sizeof(reject)/sizeof(reject[0])); i++) {
+        slot[SCENE1_RECORDS_SHOP_OFF_TYPE] = reject[i];
+        if (sw_pass_a_should_emit(slot) != 0)
+            T_FAIL("type 0x%x should not emit", reject[i]);
+    }
+    return 0;
+}
+
+/* variant */
+
+int test_scene1_pass_a_variant_maps_types_to_0_or_1(void)
+{
+    T_ASSERT(sw_pass_a_variant(0x3e) == 0);
+    T_ASSERT(sw_pass_a_variant(0x41) == 0);
+    T_ASSERT(sw_pass_a_variant(0x3f) == 1);
+    T_ASSERT(sw_pass_a_variant(0x42) == 1);
+    /* Variant selector defaults to 0 for anything else (engine never
+     * reaches here without passing the type filter, but the function
+     * is still defined for the off-list cases). */
+    T_ASSERT(sw_pass_a_variant(0x40) == 0);
+    T_ASSERT(sw_pass_a_variant(0x00) == 0);
+    return 0;
+}
+
+/* compose */
+
+int test_scene1_pass_a_compose_variant_0_reads_first_pos_triplet(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_TYPE]    = 0x3e;   /* variant 0 */
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_X_V0, 1.0f);
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_Y_V0, 2.0f);
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_Z_V0, 3.0f);
+    /* Put garbage in variant-1 slots — must not be read. */
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_X_V1, 99.0f);
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_Y_V1, 99.0f);
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_Z_V1, 99.0f);
+
+    float M[16];
+    sw_pass_a_compose_world(M, slot);
+
+    /* T × S (S = diag(-0.04, 0.04, 0.04), T row 3 = (1, 2, 3)).
+     * Row 3 of (S × T) is T's row 3 unchanged (post-multiplying by S
+     * doesn't shift translation row in row-major D3D convention).
+     * Then Rx(0) × ... leaves translation row alone too. */
+    T_ASSERT_NEAR_D(M[12], 1.0f, 1e-6f);
+    T_ASSERT_NEAR_D(M[13], 2.0f, 1e-6f);
+    T_ASSERT_NEAR_D(M[14], 3.0f, 1e-6f);
+    return 0;
+}
+
+int test_scene1_pass_a_compose_variant_1_reads_second_pos_triplet(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_TYPE]    = 0x42;   /* variant 1 */
+    /* Garbage in variant-0 slots — must not be read. */
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_X_V0, 99.0f);
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_Y_V0, 99.0f);
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_Z_V0, 99.0f);
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_X_V1, 10.0f);
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_Y_V1, 20.0f);
+    slot_a_set_float(slot, SCENE1_RECORDS_SHOP_OFF_POS_Z_V1, 30.0f);
+
+    float M[16];
+    sw_pass_a_compose_world(M, slot);
+
+    T_ASSERT_NEAR_D(M[12], 10.0f, 1e-6f);
+    T_ASSERT_NEAR_D(M[13], 20.0f, 1e-6f);
+    T_ASSERT_NEAR_D(M[14], 30.0f, 1e-6f);
+    return 0;
+}
+
+int test_scene1_pass_a_compose_scale_is_hard_coded_0_04(void)
+{
+    /* Pass A's scale is (-0.04, 0.04, 0.04) regardless of any slot
+     * field — different from B/C/D which scale by LIFE_MULT or SCALE. */
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_TYPE]    = 0x3e;   /* variant 0 */
+    slot[SCENE1_RECORDS_SHOP_OFF_ROT_SRC] = 0;       /* Rx(0) = identity */
+
+    float M[16];
+    sw_pass_a_compose_world(M, slot);
+
+    /* With pos=0 and rot=0, M = Rx(0) × S × T(0) = diag(-0.04, 0.04,
+     * 0.04, 1). */
+    T_ASSERT_NEAR_D(M[0],  -0.04f, 1e-6f);
+    T_ASSERT_NEAR_D(M[5],   0.04f, 1e-6f);
+    T_ASSERT_NEAR_D(M[10],  0.04f, 1e-6f);
+    return 0;
+}
+
+int test_scene1_pass_a_compose_rot_src_is_int_scaled_by_0_05(void)
+{
+    /* ROT_SRC is `fild`-loaded (int → float) then multiplied by 0.05f.
+     * Write ROT_SRC = 31 (int — chosen so 31 * 0.05 = 1.55 rad ≈ π/2
+     * after some accumulation, but here we use a smaller angle for
+     * matrix precision).  Setting ROT_SRC=63 gives angle = 3.15 ≈ π. */
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_TYPE]    = 0x3e;   /* variant 0 */
+    /* angle = 31 * 0.05 = 1.55 rad ≈ 88.8°.  Rx(1.55) ≈
+     *   |1   0          0         0|
+     *   |0   cos(1.55) -sin(1.55) 0|
+     *   |0   sin(1.55)  cos(1.55) 0|
+     *   |0   0          0         1|
+     *  with cos(1.55) ≈ 0.0208, sin(1.55) ≈ 0.99979. */
+    slot[SCENE1_RECORDS_SHOP_OFF_ROT_SRC] = 31;
+
+    float M[16];
+    sw_pass_a_compose_world(M, slot);
+
+    /* mat4_rotation_x: out[5]=cos, out[6]=sin, out[9]=-sin, out[10]=cos.
+     * S × T = diag(-0.04, 0.04, 0.04) (translation row 3 = 0).
+     * Then M = Rx × (S × T).  Row-major D3D convention: row i of M is
+     *   row_i(M) = Σ_k Rx[i][k] · ST[k]
+     * which gives:
+     *   M[5] = cos · 0.04, M[6] = sin · 0.04
+     *   M[9] = -sin · 0.04, M[10] = cos · 0.04 */
+    float cos_a = cosf(1.55f);
+    float sin_a = sinf(1.55f);
+    T_ASSERT_NEAR_D(M[5],  cos_a *  0.04f, 1e-5f);
+    T_ASSERT_NEAR_D(M[6],  sin_a *  0.04f, 1e-5f);
+    T_ASSERT_NEAR_D(M[9], -sin_a *  0.04f, 1e-5f);
+    T_ASSERT_NEAR_D(M[10], cos_a *  0.04f, 1e-5f);
+    return 0;
+}

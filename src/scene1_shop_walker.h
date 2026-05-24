@@ -185,6 +185,51 @@ void sw_pass_b_compose_world_spoke(float out[16], const float outer[16],
 int  sw_pass_c_should_emit(const int32_t *slot);
 void sw_pass_c_compose_world(float out[16], const int32_t *slot);
 
+/* Pass A record-emit predicate + matrix composer (C8c.A).  D3D-free.
+ *
+ * Walks engine's DAT_0076bd94..DAT_007c8f94 range (128 records × stride
+ * 0x2e9 dw = 372 KB; per-stage furniture/NPC instance table — not
+ * ported as a typed global yet).  Slot pointer anchors at TYPE
+ * (engine `piVar8` = slot[0]); some offsets are negative — see
+ * SCENE1_RECORDS_SHOP_OFF_ROT_SRC.
+ *
+ * Per-record gate (4 checks): ACTIVE != 0 AND VISIBILITY < 1 AND TYPE
+ * ∈ {0x3e, 0x3f, 0x41, 0x42} AND SUBGATE != -1.
+ *
+ * Variant selector: TYPE ∈ {0x3f, 0x42} → variant 1; {0x3e, 0x41} →
+ * variant 0.  Variant indexes into two adjacent 3-float position
+ * triplets in the record.
+ *
+ * Matrix chain: Rx(angle) × S(-0.04, 0.04, 0.04) × T(POS_v) where
+ * angle = (float)ROT_SRC * 0.05f.  Scale is hard-coded (not slot-driven)
+ * — unlike Pass B/C/D which scale by LIFE_MULT.  ROT_SRC is read as
+ * `fild` (int → float convert), not `fld` (float-load). */
+int  sw_pass_a_should_emit(const int32_t *slot);
+int  sw_pass_a_variant(int32_t type);
+void sw_pass_a_compose_world(float out[16], const int32_t *slot);
+
+/* Shop record dword offsets used by Pass A (and future Pass F/G).
+ * Slot pointer anchors at TYPE.  Total record stride is 0x2e9 dw.
+ *
+ * ROT_SRC sits at slot[-0x23] (-0x8c bytes from the anchor) — engine's
+ * record layout has fields both before and after the type/active
+ * fields, with piVar8 positioned mid-record.  Callers (and tests)
+ * that construct synthetic slots must allocate enough leading padding
+ * (≥ 0x23 dw before the anchor) to read this field safely. */
+#define SCENE1_RECORDS_SHOP_STRIDE      0x2e9   /* dwords per record */
+
+#define SCENE1_RECORDS_SHOP_OFF_TYPE         0       /* cardinal int */
+#define SCENE1_RECORDS_SHOP_OFF_ACTIVE       1       /* nonzero = active */
+#define SCENE1_RECORDS_SHOP_OFF_ROT_SRC     (-0x23)  /* int, fild → ×0.05 → RotX angle */
+#define SCENE1_RECORDS_SHOP_OFF_POS_X_V0     0xc5    /* float, variant=0 pos triplet */
+#define SCENE1_RECORDS_SHOP_OFF_POS_Y_V0     0xc6
+#define SCENE1_RECORDS_SHOP_OFF_POS_Z_V0     0xc7
+#define SCENE1_RECORDS_SHOP_OFF_POS_X_V1     0xc8    /* float, variant=1 pos triplet */
+#define SCENE1_RECORDS_SHOP_OFF_POS_Y_V1     0xc9
+#define SCENE1_RECORDS_SHOP_OFF_POS_Z_V1     0xca
+#define SCENE1_RECORDS_SHOP_OFF_SUBGATE      0x178   /* != -1 to enable */
+#define SCENE1_RECORDS_SHOP_OFF_VISIBILITY   0x1b4   /* < 1 to enable */
+
 /* Pass D mesh slot.  Stand-in for the engine's static &DAT_073a9680
  * (train_iwa.x, populated by FUN_00474a9a's DUNGEON branch only).
  * Default NULL → Pass D dormant inside scene1_emit_record (matches

@@ -351,3 +351,103 @@ void sw_pass_c_compose_world(float out[16], const int32_t *slot)
     /* Engine then does Multiply(out, Scaling(1,1,1), out) — algebraic
      * no-op, dropped here. */
 }
+
+/* ─── Pass A helpers (C8c.A) ─────────────────────────────────────────────
+ *
+ * Engine FUN_004552d0 L68-L96 / asm @ 0x45548b..0x4555b6.  Iterates the
+ * fixed range DAT_0076bd94..DAT_007c8f94 (= 0x5D200 bytes / stride 0xba4
+ * bytes = 128 records — per-stage furniture/NPC instance table; not
+ * ported as a typed global yet).
+ *
+ * Per-record gate cascade (asm @ 0x455490..0x4554c6):
+ *   slot[1] != 0       (active)
+ *   slot[0x1b4] < 1    (visibility; asm `jg` = signed > 0 skip)
+ *   slot[0] ∈ {0x3e, 0x3f, 0x41, 0x42}   (type filter)
+ *   slot[0x178] != -1  (sub-gate)
+ *
+ * Variant selector (asm @ 0x4554cc..0x4554ec): TYPE ∈ {0x3f, 0x42} →
+ * variant 1; {0x3e, 0x41} → variant 0.  Indexes two adjacent
+ * (pos_x, pos_y, pos_z) triplets at slot[0xc5..0xc7] and slot[0xc8..0xca].
+ *
+ * Matrix chain (asm @ 0x4554ec..0x455598):
+ *   T   = Translation(pos_v)             // thunk 0x4a34b0 (= Translation)
+ *   S   = Scaling(-0.04, 0.04, 0.04)     // thunk 0x4a3400 (= Scaling);
+ *                                         //   .rdata 0x5198c4 = 0.04,
+ *                                         //   .rdata 0x519d70 = -0.04
+ *   T   = S × T                           // Multiply 2-arg form (asm 0x4a2a10);
+ *                                         //   Ghidra dropped 3rd arg =
+ *                                         //   `Multiply(T, S, T)` ⇒
+ *                                         //   T = S × T (left-mul)
+ *   ang = (float)slot[-0x23] * 0.05f     // fild (int→float) then fmul
+ *                                         //   .rdata 0x5198f8 = 0.05
+ *   Rx  = RotationX(ang)                 // thunk 0x4a35ef (= RotationX,
+ *                                         //   verified via Pass B's outer
+ *                                         //   asm at 0x4557d2 paired with
+ *                                         //   `Rx(-rot_x)` in helpers)
+ *   T   = Rx × (S × T)                   // Multiply 3-arg
+ *
+ * Emits via FUN_00455191(0) — null mesh-record arg; engine reads the
+ * default Pass A mesh from a static slot we haven't identified.  HOUSE
+ * leaves the slot NULL so the emit short-circuits inside scene1_emit_record
+ * (mesh-NULL fast path).
+ *
+ * Doubly dormant in HOUSE: (a) the underlying table isn't ported as
+ * typed storage so the iteration uses a count-stub returning 0, and
+ * (b) even if records populate, the active flag is BSS-zero by engine
+ * design.  Helpers landed for testability and to verify the matrix
+ * chain against the asm; iteration wires through when the table ports.
+ *
+ * Note: ROT_SRC is read as `fild` (load-int + convert), unlike Pass
+ * B/C/D's `fld` (float-load) for SCALE / LIFE_MULT.  Engine likely
+ * stores ROT_SRC as a frame counter that's integer-incremented per
+ * tick.  This matters when constructing synthetic slots in tests —
+ * write the int directly, don't memcpy a float bit pattern. */
+
+int sw_pass_a_should_emit(const int32_t *slot)
+{
+    if (slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE] == 0) return 0;
+    /* engine asm `jg` is signed: skip when [0x1b4] > 0 → admit when <= 0,
+     * i.e. < 1 for integers. */
+    if (slot[SCENE1_RECORDS_SHOP_OFF_VISIBILITY] > 0) return 0;
+
+    int32_t type = slot[SCENE1_RECORDS_SHOP_OFF_TYPE];
+    if (type != 0x3e && type != 0x3f && type != 0x41 && type != 0x42)
+        return 0;
+
+    if (slot[SCENE1_RECORDS_SHOP_OFF_SUBGATE] == -1) return 0;
+    return 1;
+}
+
+int sw_pass_a_variant(int32_t type)
+{
+    if (type == 0x3f || type == 0x42) return 1;
+    return 0;
+}
+
+void sw_pass_a_compose_world(float out[16], const int32_t *slot)
+{
+    int32_t type    = slot[SCENE1_RECORDS_SHOP_OFF_TYPE];
+    int     variant = sw_pass_a_variant(type);
+
+    /* Variant 0 reads slot[0xc5..0xc7]; variant 1 reads slot[0xc8..0xca].
+     * Engine asm: `lea ecx, [eax+eax*2]` after `mov eax, [ebp-0xc]`
+     * builds ecx = variant*3, then `lea` with +0x31c/0x318/0x314
+     * resolves to the per-axis dword. */
+    int pos_base = SCENE1_RECORDS_SHOP_OFF_POS_X_V0 + variant * 3;
+    float pos_x = *(const float *)&slot[pos_base];
+    float pos_y = *(const float *)&slot[pos_base + 1];
+    float pos_z = *(const float *)&slot[pos_base + 2];
+
+    int32_t rot_src = slot[SCENE1_RECORDS_SHOP_OFF_ROT_SRC];
+    float   rot_angle = (float)rot_src * 0.05f;
+
+    float scratch[16];
+
+    mat4_translation(out, pos_x, pos_y, pos_z);
+
+    mat4_scaling(scratch, -0.04f, 0.04f, 0.04f);
+    mat4_mul(out, scratch, out);    /* out = S × T */
+
+    mat4_rotation_x(scratch, rot_angle);
+    mat4_mul(out, scratch, out);    /* out = Rx × S × T */
+}

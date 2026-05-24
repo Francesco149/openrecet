@@ -1380,6 +1380,16 @@ struct test_case {
     X(scene1_pass_c_compose_scale_uses_0_2_factor) \
     X(scene1_pass_c_compose_rotation_y_mixes_x_z) \
     X(scene1_pass_c_compose_propagates_matrix0_translation) \
+    X(scene1_pass_a_should_emit_rejects_inactive) \
+    X(scene1_pass_a_should_emit_rejects_visible) \
+    X(scene1_pass_a_should_emit_rejects_subgate_minus_1) \
+    X(scene1_pass_a_should_emit_accepts_match_types) \
+    X(scene1_pass_a_should_emit_rejects_other_types) \
+    X(scene1_pass_a_variant_maps_types_to_0_or_1) \
+    X(scene1_pass_a_compose_variant_0_reads_first_pos_triplet) \
+    X(scene1_pass_a_compose_variant_1_reads_second_pos_triplet) \
+    X(scene1_pass_a_compose_scale_is_hard_coded_0_04) \
+    X(scene1_pass_a_compose_rot_src_is_int_scaled_by_0_05) \
     X(scene1_preload_post_house_cb_default_is_null) \
     X(scene1_preload_post_house_cb_setter_round_trips) \
     X(scene1_preload_post_house_cb_setter_replaces_previous) \

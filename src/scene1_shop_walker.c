@@ -67,6 +67,14 @@ static int sw_pass_d_count(void) { return g_scene1_records_a_count; }
  * reads 0 until the populator lands. */
 static int sw_pass_bc_count(void) { return g_scene1_records_b_count; }
 
+/* DAT_0076bd94..DAT_007c8f94 — Pass A + Pass F per-stage record range
+ * (128 records × stride 0x2e9 dw).  Not ported as a typed global yet;
+ * the count stub returns 0 so the loop is dormant.  When the table
+ * ports, replace with a real count (e.g. derived from a count global
+ * or by walking until a sentinel record). */
+static int           sw_pass_af_count(void)              { return 0;    }
+static const int32_t *sw_pass_af_slot(int idx) { (void)idx; return NULL; }
+
 /* DAT_0438b89c — Pass E outer count, stored as a FLOAT (per engine
  * decomp).  BSS-zero → 0.0f. */
 static float sw_pass_e_outer_count(void) { return 0.0f; }
@@ -178,34 +186,43 @@ static void sw_pass_between_TODO(void)
  */
 static void sw_pass_a(IDirect3DDevice8 *dev)
 {
-    /* Engine L68-L96:
+    /* Engine FUN_004552d0 L68-L96 / asm @ 0x45548b..0x4555b6.  Walks
+     * the fixed range DAT_0076bd94..DAT_007c8f94 (128 records × stride
+     * 0x2e9 dw); the table itself is unported as typed storage so
+     * sw_pass_af_count() returns 0 today.  When the table ports,
+     * swap the count + slot accessors and the body fires through the
+     * helpers verbatim.
      *
-     *   piVar8 = &DAT_0076bd94;
-     *   do {
-     *     iVar4 = *piVar8;
-     *     if (piVar8[1] != 0
-     *         && piVar8[0x1b4] < 1                  // visibility gate
-     *         && (iVar4 == 0x3e || iVar4 == 0x3f
-     *             || iVar4 == 0x41 || iVar4 == 0x42)
-     *         && piVar8[0x178] != -1) {
-     *       local_10 = (iVar4 == 0x3f || iVar4 == 0x42) ? 1 : 0;
-     *       Translation(local_68, piVar8[0xc5 + local_10*3],
-     *                             piVar8[0xc6 + local_10*3],
-     *                             piVar8[0xc7 + local_10*3]);
-     *       Scaling(local_1b4, -0.040f, 0.040f, 0.040f);
-     *       Multiply(local_68, local_1b4);
-     *       RotationY(local_a8, piVar8[-0x23] * 0.05f);
-     *       Multiply(local_68, local_a8, local_68);
-     *       SetTransform(D3DTS_WORLDMATRIX(0), local_68);
-     *       FUN_00455191(0);
-     *     }
-     *     piVar8 += 0x2e9;
-     *   } while (piVar8 != &DAT_007c8f94);
+     * Per-record body asm-verified by C8c.A:
+     *   gate: ACTIVE != 0 && VISIBILITY < 1 && TYPE ∈ {0x3e/0x3f/0x41/0x42}
+     *         && SUBGATE != -1
+     *   variant: 0 for 0x3e/0x41, 1 for 0x3f/0x42
+     *   matrix: Rx(angle) × S(-0.04,0.04,0.04) × T(POS_v)
+     *           where angle = (float)slot[-0x23] * 0.05f
+     *   emit: FUN_00455191(0) — null mesh-record arg, engine reads
+     *         default Pass A mesh from a still-unidentified static slot
+     *         (HOUSE leaves it NULL → scene1_emit_record short-circuits).
      *
-     * Dormant in HOUSE — all 5810 records have piVar8[1] == 0.
-     * Once the table ports, wire the iteration and call
-     * sw_emit_record_TODO(NULL) for each match. */
-    (void)dev;
+     * Doubly dormant in HOUSE: count_stub returns 0 AND the engine's
+     * own active-flag check would reject every record. */
+    int count = sw_pass_af_count();
+    if (count == 0) return;
+
+    for (int i = 0; i < count; i++) {
+        const int32_t *slot = sw_pass_af_slot(i);
+        if (!slot) continue;
+
+        if (!sw_pass_a_should_emit(slot)) continue;
+
+        float world[16];
+        sw_pass_a_compose_world(world, slot);
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                      (const D3DMATRIX *)world);
+        /* Engine: FUN_00455191(0) — null override; engine-default Pass
+         * A mesh-record slot (unidentified, unported).  HOUSE leaves
+         * it NULL → emit no-ops inside scene1_emit_record. */
+        scene1_emit_record((struct IDirect3DDevice8 *)dev, NULL);
+    }
 }
 
 /* Pass B walks the count-bounded g_scene1_records_b table; stride 0x49
