@@ -113,6 +113,14 @@ int scene1_preload_house(void)
      * tick path in production. */
     scene1_postload_smoke_c_spawn();
 
+    /* C8j.fin.b — table B smoke wiring.  Fires `scene1_record_b_spawn_npc`
+     * and/or `_entity` once per HOUSE entry with a fake-owner blob seeded
+     * with the current spawn pose + identity matrix.  Defaults (-1 / -1)
+     * → no-op.  Records sit dormant (FUN_0043ae20 table B tick still
+     * stubbed in scene1_sim) — but the allocator + preamble + per-type
+     * dispatch is exercised end-to-end. */
+    scene1_postload_smoke_b_spawn();
+
     /* Engine guards: top-of-FUN_00474a9a clamps DAT_0438b4dc to the
      * selector table. We seeded selectors in stage_state at boot, so
      * a no-op here unless future stage-change code wants to refresh. */

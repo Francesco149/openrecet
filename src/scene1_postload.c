@@ -36,7 +36,11 @@
 
 #include "scene1_postload.h"
 
+#include <stdint.h>
+#include <string.h>
+
 #include "scene1_particles_tick.h"
+#include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
 #include "scene1_spawn.h"
 #include "stage_palette.h"
@@ -60,6 +64,19 @@ static int   g_force_c_pickup_type     = -1;
 static int   g_force_c_world_drop_type = -1;
 static int   g_force_c_world_drop_count = 8;
 static float g_force_c_world_drop_mag  = 1.0f;
+
+/* C8j.fin.b — table B smoke wiring.  Fake owner blobs back the two
+ * allocators' owner pointers; allocators read pos + matrix from fixed
+ * offsets inside the owner struct (NPC: pos@+0x3f0, matrix@+0x39c;
+ * entity: pos@+0x20, matrix@+0xde8, owner_flag@+0xeac).  Blob size
+ * covers the maximum offset the preamble + anchor-type body touches. */
+#define SMOKE_B_NPC_BLOB_SIZE     1024
+#define SMOKE_B_ENTITY_BLOB_SIZE  3760
+static int   g_force_b_npc_type        = -1;
+static int   g_force_b_entity_type     = -1;
+static uint8_t g_smoke_b_npc_blob[SMOKE_B_NPC_BLOB_SIZE];
+static uint8_t g_smoke_b_entity_blob[SMOKE_B_ENTITY_BLOB_SIZE];
+static int   g_smoke_b_blobs_inited    = 0;
 
 void scene1_postload_init_stage_defaults(void)
 {
@@ -150,6 +167,78 @@ void scene1_postload_set_force_c_world_drop_count(int count)
 void scene1_postload_set_force_c_world_drop_mag(float mag)
 {
     g_force_c_world_drop_mag = mag;
+}
+
+static void smoke_b_init_blobs(void)
+{
+    /* Zero both blobs + populate the identity matrix at the
+     * allocator-read matrix offset (NPC: +0x39c, entity: +0xde8).
+     * Idempotent — every preload entry can call without re-zeroing. */
+    static const float kIdentity[16] = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+    };
+    memset(g_smoke_b_npc_blob,    0, sizeof g_smoke_b_npc_blob);
+    memset(g_smoke_b_entity_blob, 0, sizeof g_smoke_b_entity_blob);
+    memcpy(g_smoke_b_npc_blob    + 0x39c, kIdentity, sizeof kIdentity);
+    memcpy(g_smoke_b_entity_blob + 0xde8, kIdentity, sizeof kIdentity);
+    g_smoke_b_blobs_inited = 1;
+}
+
+static void smoke_b_blob_set_pos(uint8_t *blob, int pos_off,
+                                 float x, float y, float z)
+{
+    memcpy(blob + pos_off + 0, &x, sizeof x);
+    memcpy(blob + pos_off + 4, &y, sizeof y);
+    memcpy(blob + pos_off + 8, &z, sizeof z);
+}
+
+void scene1_postload_set_force_b_npc_type(int type)
+{
+    g_force_b_npc_type = type;
+}
+
+void scene1_postload_set_force_b_entity_type(int type)
+{
+    g_force_b_entity_type = type;
+}
+
+void scene1_postload_smoke_b_spawn(void)
+{
+    if (g_force_b_npc_type < 0 && g_force_b_entity_type < 0) {
+        return;
+    }
+
+    if (!g_smoke_b_blobs_inited) {
+        smoke_b_init_blobs();
+    }
+
+    float x, y, z;
+    if (g_pose_override_set) {
+        x = g_pose_override[0];
+        y = g_pose_override[1];
+        z = g_pose_override[2];
+    } else {
+        x = g_scene1_player_pos[0];
+        y = g_scene1_player_pos[1] + 2.0f;
+        z = g_scene1_player_pos[2];
+    }
+
+    if (g_force_b_npc_type >= 0) {
+        /* NPC allocator reads pos at owner+0x3f0. */
+        smoke_b_blob_set_pos(g_smoke_b_npc_blob, 0x3f0, x, y, z);
+        scene1_record_b_spawn_npc(g_smoke_b_npc_blob,
+                                  g_force_b_npc_type, 0);
+    }
+
+    if (g_force_b_entity_type >= 0) {
+        /* Entity allocator reads pos at owner+0x20 when flag==-1. */
+        smoke_b_blob_set_pos(g_smoke_b_entity_blob, 0x20, x, y, z);
+        scene1_record_b_spawn_entity(g_smoke_b_entity_blob,
+                                     g_force_b_entity_type, -1);
+    }
 }
 
 void scene1_postload_smoke_c_spawn(void)

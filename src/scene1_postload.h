@@ -148,6 +148,40 @@ void scene1_postload_set_force_c_world_drop_count(int count);
 void scene1_postload_set_force_c_world_drop_mag(float mag);
 void scene1_postload_smoke_c_spawn(void);
 
+/*
+ * Chip C8j.fin.b (2026-05-24) — table B smoke wiring.
+ *
+ * Defaults (-1 / -1) make `scene1_postload_smoke_b_spawn()` a no-op.
+ * When either type is set ≥ 0, fires `scene1_record_b_spawn_npc()`
+ * and/or `_entity()` once per HOUSE entry from the preload tail
+ * (after the C8j.fin.c table C runner).
+ *
+ * Owner pointers are backed by static blobs internal to scene1_postload.c
+ * (NPC = 1024 B at +0x3f8 max, entity = 3760 B at +0xeac max).  The
+ * blobs are zeroed once + populated with an identity matrix at the
+ * allocator-read offset (NPC: +0x39c, entity: +0xde8) + pos triplet at
+ * the allocator-read pos offset (NPC: +0x3f0, entity: +0x20).
+ *
+ * Spawn pose reuses `--ambient-spawn-pose` when set; else
+ * (player.x, player.y + 2, player.z) — same as table A/C smoke runners.
+ *
+ * Anchor types: NPC 0xe / 0x97 / 0x46 (preamble-only, LAB_00447584
+ * tail-share); entity 0x24 (preamble-only).  These exercise the
+ * preamble + slot commit path without needing additional owner field
+ * derefs.  More-complex types can be exercised once the chips have
+ * been validated end-to-end.
+ *
+ * The C8j ladder's per-type bodies (C8j.5-13) are validated by direct
+ * unit tests with hand-rolled fake-owner blobs (see
+ * tests/test_scene1_records_b_spawn.c); this chip exercises the SAME
+ * code through the production preload pipeline so the integration
+ * surface is also covered.  Like C8j.fin.c, no visible HOUSE pixels
+ * yet — wide_followup Pass A/B/E walker bodies are TODO stubs.
+ */
+void scene1_postload_set_force_b_npc_type(int type);
+void scene1_postload_set_force_b_entity_type(int type);
+void scene1_postload_smoke_b_spawn(void);
+
 #ifdef __cplusplus
 }
 #endif

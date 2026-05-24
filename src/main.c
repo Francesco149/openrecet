@@ -206,6 +206,25 @@ static int              g_force_c_world_drop_type     = -1;
 static int              g_force_c_world_drop_count    = 8;
 static float            g_force_c_world_drop_mag      = 1.0f;
 
+/* --force-b-npc <type> / --force-b-entity <type>: C8j.fin.b smoke
+ * wiring for the two table B allocators (C8j.5-13).  Spawns one slot
+ * each from a fake-owner blob seeded inside scene1_postload.c (NPC:
+ * 1024 B at +0x3f8 max; entity: 3760 B at +0xeac max), called once
+ * per HOUSE entry from the preload tail.
+ *
+ * Spawn pose reuses --ambient-spawn-pose when set; else
+ * (player.x, player.y + 2, player.z).
+ *
+ * Anchor types: NPC 0xe / 0x97 / 0x46 (LAB_00447584 trivial tail);
+ * entity 0x24 (pure preamble).  More-complex types work too — they
+ * exercise per-type bodies that read additional owner fields the
+ * smoke blob doesn't populate, so the per-type writes get junk inputs
+ * but the allocator + preamble + slot commit still succeed.
+ *
+ * Override of -1 = "no smoke spawn (engine HOUSE default)". */
+static int              g_force_b_npc_type            = -1;
+static int              g_force_b_entity_type         = -1;
+
 /* Scene-0 (title) state now lives in scene_title.c as module globals
  * (`g_scene_title_menu`, `g_scene_title_anim`, `g_scene_title_assets_loaded`).
  * sim_step_a and render_dispatch both reach in directly via those externs;
@@ -877,6 +896,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         scene1_postload_set_force_c_world_drop_type(g_force_c_world_drop_type);
         scene1_postload_set_force_c_world_drop_count(g_force_c_world_drop_count);
         scene1_postload_set_force_c_world_drop_mag(g_force_c_world_drop_mag);
+    }
+
+    /* C8j.fin.b — table B smoke wiring. */
+    if (g_force_b_npc_type >= 0) {
+        scene1_postload_set_force_b_npc_type(g_force_b_npc_type);
+    }
+    if (g_force_b_entity_type >= 0) {
+        scene1_postload_set_force_b_entity_type(g_force_b_entity_type);
     }
 
     /* Cc.1: initialise scene-1 camera state.  Sets the first-frame
@@ -1990,6 +2017,22 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 float f = strtof(val, &end);
                 if (end != val) {
                     g_force_c_world_drop_mag = f;
+                }
+            }
+        } else if (lstrcmpA(tok, "--force-b-npc") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                long n = strtol(val, NULL, 0);
+                if (n >= 0 && n <= 0xff) {
+                    g_force_b_npc_type = (int)n;
+                }
+            }
+        } else if (lstrcmpA(tok, "--force-b-entity") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                long n = strtol(val, NULL, 0);
+                if (n >= 0 && n <= 0xff) {
+                    g_force_b_entity_type = (int)n;
                 }
             }
         } else if (lstrcmpA(tok, "--ambient-spawn-pose") == 0) {

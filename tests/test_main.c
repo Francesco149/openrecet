@@ -1317,6 +1317,13 @@ struct test_case {
     X(scene1_postload_smoke_c_uses_player_pos_y_plus_2_when_no_override) \
     X(scene1_postload_smoke_c_setter_minus_one_restores_default) \
     X(scene1_postload_smoke_c_world_drop_count_zero_is_skip) \
+    X(scene1_postload_smoke_b_default_is_noop) \
+    X(scene1_postload_smoke_b_npc_writes_first_slot) \
+    X(scene1_postload_smoke_b_entity_writes_first_slot) \
+    X(scene1_postload_smoke_b_npc_plus_entity_both_fire) \
+    X(scene1_postload_smoke_b_uses_player_pos_y_plus_2_when_no_override) \
+    X(scene1_postload_smoke_b_setter_minus_one_restores_default) \
+    X(scene1_postload_smoke_b_blob_persists_matrix_across_calls) \
     \
     X(scene1_camera_init_clears_orient) \
     X(scene1_camera_house_default_snaps_to_oracle_pose) \

@@ -24,6 +24,7 @@
 #include "scene1_particles_tick.h"
 #include "scene1_postload.h"
 #include "scene1_records.h"
+#include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
 #include "scene1_records_c_tick.h"
 #include "scene1_spawn.h"
@@ -32,9 +33,12 @@
 static void reset_world(void)
 {
     memset(g_scene1_records_a, 0, sizeof g_scene1_records_a);
+    memset(g_scene1_records_b, 0, sizeof g_scene1_records_b);
     memset(g_scene1_records_c, 0, sizeof g_scene1_records_c);
     scene1_records_reset(1);
     scene1_spawn_trace_reset();
+    scene1_record_b_spawn_trace_reset();
+    g_scene1_record_b_seq_counter = 0;
     stage_palette_init_house();
     /* RNG seed deterministically so spawn handlers that consume the
      * rng_next15 stream stay reproducible across runs. */
@@ -54,6 +58,30 @@ static void reset_world(void)
     scene1_postload_set_force_c_world_drop_type(-1);
     scene1_postload_set_force_c_world_drop_count(8);
     scene1_postload_set_force_c_world_drop_mag(1.0f);
+    scene1_postload_set_force_b_npc_type(-1);
+    scene1_postload_set_force_b_entity_type(-1);
+}
+
+static int32_t slot_b_read_i(int slot, int off)
+{
+    return g_scene1_records_b[slot * SCENE1_RECORDS_B_STRIDE + off];
+}
+
+static float slot_b_read_f(int slot, int off)
+{
+    int32_t v = g_scene1_records_b[slot * SCENE1_RECORDS_B_STRIDE + off];
+    float f;
+    memcpy(&f, &v, sizeof f);
+    return f;
+}
+
+static int count_b_live(void)
+{
+    int n = 0;
+    for (int i = 0; i < SCENE1_RECORDS_B_COUNT; i++) {
+        if (slot_b_read_i(i, SCENE1_RECORDS_B_OFF_TYPE) != 0) n++;
+    }
+    return n;
 }
 
 static int32_t slot_c_read_i(int slot, int off)
@@ -476,5 +504,127 @@ int test_scene1_postload_smoke_c_world_drop_count_zero_is_skip(void)
     scene1_postload_smoke_c_spawn();
     /* count=0 → world-drop branch short-circuits.  No pickup either. */
     T_ASSERT_EQ_I(count_c_live(), 0);
+    return 0;
+}
+
+/* ─── C8j.fin.b — table B smoke wiring ────────────────────────────── */
+
+int test_scene1_postload_smoke_b_default_is_noop(void)
+{
+    reset_world();
+    scene1_postload_smoke_b_spawn();
+    T_ASSERT_EQ_I(count_b_live(), 0);
+    T_ASSERT_EQ_I(g_scene1_record_b_spawn_trace_count, 0);
+    return 0;
+}
+
+int test_scene1_postload_smoke_b_npc_writes_first_slot(void)
+{
+    reset_world();
+    scene1_postload_set_ambient_pose_override(1, 1.5f, 2.5f, 3.5f);
+    /* Anchor type 0xe = LAB_00447584 trivial tail (preamble-only). */
+    scene1_postload_set_force_b_npc_type(0xe);
+    scene1_postload_smoke_b_spawn();
+
+    T_ASSERT_EQ_I(count_b_live(), 1);
+    T_ASSERT_EQ_I(slot_b_read_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xe);
+    /* NPC preamble copies pos from owner+0x3f0 verbatim (no -0.5 bias). */
+    T_ASSERT(slot_b_read_f(0, SCENE1_RECORDS_B_OFF_POS_X) == 1.5f);
+    T_ASSERT(slot_b_read_f(0, SCENE1_RECORDS_B_OFF_POS_Y) == 2.5f);
+    T_ASSERT(slot_b_read_f(0, SCENE1_RECORDS_B_OFF_POS_Z) == 3.5f);
+    /* Trace ring records the call w/ KIND_NPC. */
+    T_ASSERT_EQ_I(g_scene1_record_b_spawn_trace_count, 1);
+    T_ASSERT_EQ_I(g_scene1_record_b_spawn_trace[0].kind,
+                  SCENE1_RECORD_B_SPAWN_KIND_NPC);
+    T_ASSERT_EQ_I(g_scene1_record_b_spawn_trace[0].type, 0xe);
+    return 0;
+}
+
+int test_scene1_postload_smoke_b_entity_writes_first_slot(void)
+{
+    reset_world();
+    scene1_postload_set_ambient_pose_override(1, 4.0f, 5.0f, 6.0f);
+    /* Anchor type 0x24 = pure preamble (LAB_004457e7 tail). */
+    scene1_postload_set_force_b_entity_type(0x24);
+    scene1_postload_smoke_b_spawn();
+
+    T_ASSERT_EQ_I(count_b_live(), 1);
+    T_ASSERT_EQ_I(slot_b_read_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x24);
+    /* Entity preamble pulls pos from owner+0x20 + applies the -0.5y
+     * bias when flag==-1.  Smoke uses flag=-1. */
+    T_ASSERT(slot_b_read_f(0, SCENE1_RECORDS_B_OFF_POS_X) ==  4.0f);
+    T_ASSERT(slot_b_read_f(0, SCENE1_RECORDS_B_OFF_POS_Y) ==  4.5f);  /* 5.0 - 0.5 */
+    T_ASSERT(slot_b_read_f(0, SCENE1_RECORDS_B_OFF_POS_Z) ==  6.0f);
+    T_ASSERT_EQ_I(g_scene1_record_b_spawn_trace_count, 1);
+    T_ASSERT_EQ_I(g_scene1_record_b_spawn_trace[0].kind,
+                  SCENE1_RECORD_B_SPAWN_KIND_ENTITY);
+    T_ASSERT_EQ_I(g_scene1_record_b_spawn_trace[0].type, 0x24);
+    return 0;
+}
+
+int test_scene1_postload_smoke_b_npc_plus_entity_both_fire(void)
+{
+    reset_world();
+    scene1_postload_set_ambient_pose_override(1, 0.0f, 1.0f, 0.0f);
+    scene1_postload_set_force_b_npc_type(0xe);
+    scene1_postload_set_force_b_entity_type(0x24);
+    scene1_postload_smoke_b_spawn();
+
+    /* Both allocators scan from slot 0 sentinel-first.  NPC fires
+     * first and claims slot 0; entity fires second and claims slot 1. */
+    T_ASSERT_EQ_I(count_b_live(), 2);
+    T_ASSERT_EQ_I(slot_b_read_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xe);
+    T_ASSERT_EQ_I(slot_b_read_i(1, SCENE1_RECORDS_B_OFF_TYPE), 0x24);
+    T_ASSERT_EQ_I(g_scene1_record_b_spawn_trace_count, 2);
+    return 0;
+}
+
+int test_scene1_postload_smoke_b_uses_player_pos_y_plus_2_when_no_override(void)
+{
+    reset_world();
+    g_scene1_player_pos[0] =  3.0f;
+    g_scene1_player_pos[1] =  4.0f;
+    g_scene1_player_pos[2] = -7.0f;
+    /* No pose override → smoke anchors on (px, py+2, pz).  Use NPC
+     * (no -0.5 bias) so the assertion is exact. */
+    scene1_postload_set_force_b_npc_type(0xe);
+    scene1_postload_smoke_b_spawn();
+
+    T_ASSERT_EQ_I(count_b_live(), 1);
+    T_ASSERT(slot_b_read_f(0, SCENE1_RECORDS_B_OFF_POS_X) ==  3.0f);
+    T_ASSERT(slot_b_read_f(0, SCENE1_RECORDS_B_OFF_POS_Y) ==  6.0f);
+    T_ASSERT(slot_b_read_f(0, SCENE1_RECORDS_B_OFF_POS_Z) == -7.0f);
+    return 0;
+}
+
+int test_scene1_postload_smoke_b_setter_minus_one_restores_default(void)
+{
+    reset_world();
+    scene1_postload_set_force_b_npc_type(0xe);
+    scene1_postload_set_force_b_npc_type(-1);
+    scene1_postload_set_force_b_entity_type(0x24);
+    scene1_postload_set_force_b_entity_type(-1);
+    scene1_postload_smoke_b_spawn();
+    T_ASSERT_EQ_I(count_b_live(), 0);
+    return 0;
+}
+
+int test_scene1_postload_smoke_b_blob_persists_matrix_across_calls(void)
+{
+    /* The fake-owner blob's identity matrix is seeded once and reused
+     * across HOUSE entries — verify the second call still writes a
+     * valid matrix into the slot (not zero) so the per-type body that
+     * later reads slot+MATRIX0 gets a sane row. */
+    reset_world();
+    scene1_postload_set_ambient_pose_override(1, 0.0f, 0.0f, 0.0f);
+    scene1_postload_set_force_b_npc_type(0xe);
+    scene1_postload_smoke_b_spawn();
+    scene1_postload_smoke_b_spawn();
+
+    T_ASSERT_EQ_I(count_b_live(), 2);
+    /* Both slots' MATRIX0 row should hold the identity-matrix first
+     * float (1.0f).  Decode via slot_b_read_f at the MATRIX0 offset. */
+    T_ASSERT(slot_b_read_f(0, SCENE1_RECORDS_B_OFF_MATRIX0) == 1.0f);
+    T_ASSERT(slot_b_read_f(1, SCENE1_RECORDS_B_OFF_MATRIX0) == 1.0f);
     return 0;
 }
