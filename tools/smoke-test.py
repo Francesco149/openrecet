@@ -62,6 +62,12 @@ TARGETS = {
     },
 }
 
+# Win32 Job-Object launcher that guarantees the child dies with the
+# supervisor (timeout, Ctrl+C, SIGKILL on the WSL proxy — all cleanly
+# reaped by the kernel via JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE). Built
+# by `make -C tools/supervisor`. See tools/supervisor/run-supervised.c.
+SUPERVISOR_EXE = ROOT / "build/openrecet-supervisor.exe"
+
 
 # ─── helpers ──────────────────────────────────────────────────────────────
 
@@ -88,11 +94,41 @@ def wslpath_w(p: Path) -> str:
 
 
 def taskkill(image_name: str) -> None:
-    """Force-kill a Windows process by image name. Idempotent — no error if absent."""
+    """Force-kill a Windows process by image name. Idempotent — no error if absent.
+
+    Last-resort cleanup. With the Job Object supervisor in front of every
+    launch, this should never need to fire — kept as a belt-and-braces
+    backstop for the case where the supervisor itself can't be built
+    (e.g. mid-iteration rebuild) and a raw exe was used instead.
+    """
     subprocess.run(
         ["/mnt/c/WINDOWS/system32/taskkill.exe", "/F", "/IM", image_name],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
+
+
+def supervised_cmd(child_exe: Path, child_args: list[str],
+                   timeout_ms: int) -> list[str]:
+    """Wrap a Windows-exe invocation in the Job-Object supervisor.
+
+    The supervisor enforces an unconditional kill of the child when it
+    itself exits (timeout, Ctrl+C, parent death, anything). Replaces
+    the historic SIGTERM-stub + taskkill-by-image dance with a kernel-
+    guaranteed reap that also targets the PID specifically (so
+    concurrent runs never collateral-kill each other).
+    """
+    if not SUPERVISOR_EXE.exists():
+        raise SystemExit(
+            f"supervisor missing: {SUPERVISOR_EXE}\n"
+            f"build it with: nix develop --command "
+            f"make -C tools/supervisor"
+        )
+    return [
+        str(SUPERVISOR_EXE),
+        str(int(timeout_ms)),
+        wslpath_w(child_exe),
+        *child_args,
+    ]
 
 
 @dataclass
@@ -164,28 +200,33 @@ def run(target: str, scenario: Scenario, args: argparse.Namespace) -> Path:
     env = os.environ.copy()
     env.update(scenario.env)
 
-    # Hand WSLInterop the exe and let it dispatch to Windows. Pass through
-    # any user-supplied args, plus (once supported by our exe) a Windows-
-    # form path to the frame-capture directory.
-    cmd = [str(exe), *scenario.args]
+    # Build the openrecet command line, then wrap it in the supervisor
+    # so the child is guaranteed to be reaped on timeout / Ctrl+C /
+    # parent death. See SUPERVISOR_EXE comment for the design.
+    child_args = list(scenario.args)
     if args.capture and target == "openrecet":
-        cmd += ["--capture-to", wslpath_w(frames),
-                "--capture-every-ms", str(args.capture_every_ms)]
+        child_args += ["--capture-to", wslpath_w(frames),
+                       "--capture-every-ms", str(args.capture_every_ms)]
     if args.audio_trace and target == "openrecet":
         # Append-mode log of BGM swaps (and later SE/fade events) lands
         # at <run_dir>/audio-trace.jsonl. Cross-readable from the Linux
         # side after the run finishes.
         trace_path = run_dir / "audio-trace.jsonl"
-        cmd += ["--audio-trace", wslpath_w(trace_path)]
+        child_args += ["--audio-trace", wslpath_w(trace_path)]
     if target == "openrecet":
-        # Self-terminate via SetTimer → WM_TIMER → DestroyWindow instead of
-        # relying on SIGTERM/taskkill — that path leaves orphan windows on
-        # the host because the modal MessageBox or paused-window state can
-        # swallow the signal. Set the in-exe limit shorter than proc.wait's
-        # deadline so the graceful path wins the race; the TimeoutExpired
-        # fallback still catches anything that goes wrong.
+        # In-engine graceful shutdown via SetTimer → WM_TIMER →
+        # DestroyWindow. Set just under proc.wait's deadline so the
+        # clean path wins; the supervisor's hard timeout is the final
+        # safety net if the message pump is wedged.
         graceful_ms = max(500, int(scenario.duration_s * 1000) - 500)
-        cmd += ["--max-duration-ms", str(graceful_ms)]
+        child_args += ["--max-duration-ms", str(graceful_ms)]
+
+    # Supervisor timeout sits 500 ms past proc.wait's so the supervisor
+    # gets to print its "timeout reached" line before Python's
+    # TimeoutExpired backstop fires. Both will reap, but the order
+    # makes the logs easier to parse.
+    sup_timeout_ms = int(scenario.duration_s * 1000) + 500
+    cmd = supervised_cmd(exe, child_args, sup_timeout_ms)
 
     t0 = time.time()
     with stdout_path.open("wb") as so, stderr_path.open("wb") as se:
@@ -194,25 +235,19 @@ def run(target: str, scenario: Scenario, args: argparse.Namespace) -> Path:
             preexec_fn=os.setsid,
         )
         try:
-            proc.wait(timeout=scenario.duration_s)
+            # Allow another second past the supervisor's own deadline
+            # before we declare the wrapper itself stuck.
+            proc.wait(timeout=scenario.duration_s + 2)
             ran_to_completion = True
         except subprocess.TimeoutExpired:
             ran_to_completion = False
-            # The Linux-side process is a WSLInterop stub; the real exe is
-            # a Windows process. SIGTERM the stub then taskkill on Windows
-            # to be sure.
+            # The supervisor should have reaped the child already; this
+            # only fires if the supervisor itself is hung. Kill its
+            # process group; the Job Object cleanup will catch the rest.
             try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
             except ProcessLookupError:
                 pass
-            try:
-                proc.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                try:
-                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            taskkill(exe.name)
         finally:
             metadata["exit_code"] = proc.returncode
             metadata["duration_s"] = round(time.time() - t0, 3)

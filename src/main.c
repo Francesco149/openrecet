@@ -310,6 +310,16 @@ static int             g_hidden                  = 0;
 static int             g_turbo                   = 0;
 static int             g_silent_audio            = 0;
 
+/* --no-singleton: bypass the cross-process singleton mutex acquired in
+ * WinMain. Off by default — concurrent openrecet instances clobber
+ * each other's save state and leak orphan windows during test
+ * iteration, so a second launch normally refuses with a MessageBox.
+ * The bypass exists for the rare case where two simultaneous runs are
+ * actually intended (e.g. side-by-side visual comparison of two
+ * builds). Equivalent to setting OPENRECET_NO_SINGLETON=1 in the
+ * environment. */
+static int             g_no_singleton            = 0;
+
 /* Populated at boot when --input-trace-replay is set. The replay
  * stand-in for input_poll reads this each tick. */
 static struct input_trace g_replay_trace = {0};
@@ -339,6 +349,67 @@ static mesh_t *house_preview_load_dump(const char *dir, IDirect3DDevice8 *dev);
 static void  recording_input_poll(void);
 static void  replay_input_poll(void);
 static int   capture_frame_is_listed(uint32_t frame);
+
+/* Cross-process singleton lock. A second openrecet instance trying to
+ * boot while one is already running refuses to start so it can't
+ * clobber save state, double-grab DirectInput, or leave behind orphan
+ * windows that confuse the next test run.
+ *
+ * Held for the process lifetime via the kernel mutex object — when the
+ * process exits (clean, crash, TerminateProcess, supervisor-job reap),
+ * the kernel releases all handles and the next launch succeeds. We
+ * intentionally never CloseHandle it.
+ *
+ * Global\\ namespace so the check is per-Windows-host, not per-WSL-
+ * session: two `wsl bash` terminals on the same host count as a
+ * conflict, which is what we want.
+ *
+ * Bypassed by --no-singleton or OPENRECET_NO_SINGLETON=1 in the env. */
+#define OPENRECET_SINGLETON_MUTEX_NAME "Global\\openrecet-singleton"
+static HANDLE g_singleton_mutex = NULL;
+
+static void singleton_acquire_or_die(void)
+{
+    if (g_no_singleton) return;
+    if (GetEnvironmentVariableA("OPENRECET_NO_SINGLETON", NULL, 0) > 0) {
+        g_no_singleton = 1;
+        return;
+    }
+
+    SetLastError(0);
+    g_singleton_mutex = CreateMutexA(NULL, FALSE,
+                                     OPENRECET_SINGLETON_MUTEX_NAME);
+    DWORD err = GetLastError();
+
+    if (g_singleton_mutex == NULL) {
+        /* Couldn't even create the kernel object — most likely a
+         * non-fatal permission/namespace edge case (e.g. Global\\
+         * denied on a locked-down host). Warn and proceed; we'd rather
+         * boot than refuse on a misconfigured but benign system. */
+        fprintf(stderr,
+                "openrecet: CreateMutex(singleton) failed (err=%lu); "
+                "running without singleton guard\n",
+                (unsigned long)err);
+        return;
+    }
+
+    if (err == ERROR_ALREADY_EXISTS) {
+        const char *msg =
+            "Another openrecet instance is already running.\n\n"
+            "Refusing to start a second copy (would clobber save state "
+            "and leak orphan windows during test iteration).\n\n"
+            "Close the other instance first, or pass --no-singleton "
+            "(or set OPENRECET_NO_SINGLETON=1) to bypass.";
+        fprintf(stderr, "openrecet: singleton conflict — %s\n", msg);
+        /* Skip the modal MessageBox in test mode (no human to dismiss
+         * it). --max-duration-ms is the canonical "harness running"
+         * signal; same gate the sprite_load failure path uses. */
+        if (g_max_duration_ms == 0) {
+            MessageBoxA(NULL, msg, "openrecet", MB_ICONERROR | MB_OK);
+        }
+        ExitProcess(2);
+    }
+}
 
 /* save_bank header-init hook. Engine calls FUN_00499583
  * (= audio_fade_apply(BGM)) once during FUN_004901c2 when the shared
@@ -420,6 +491,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     SetConsoleOutputCP(CP_UTF8);
 
     parse_cmdline(lpCmdLine);
+
+    /* Refuse to start a second instance — prevents test iterations
+     * from being silently shadowed by a stray previous run. Must run
+     * after parse_cmdline so --no-singleton is honoured, but before
+     * any window / D3D / save-file init so a refusal is cheap and
+     * side-effect-free. */
+    singleton_acquire_or_die();
 
     /* High-resolution timer (matches the original's TIMECAPS dance). */
     TIMECAPS tc;
@@ -1942,6 +2020,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
             g_turbo = 1;
         } else if (lstrcmpA(tok, "--silent-audio") == 0) {
             g_silent_audio = 1;
+        } else if (lstrcmpA(tok, "--no-singleton") == 0) {
+            g_no_singleton = 1;
         }
         tok = strtok(NULL, " ");
     }

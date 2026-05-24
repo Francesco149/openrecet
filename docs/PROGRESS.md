@@ -3,6 +3,45 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+## 2026-05-24 — Process-supervision: Job-Object launcher + singleton mutex
+
+Closes a long-standing class of test-iteration bugs where openrecet
+children survived their harness (paused-window state blocked the
+in-engine `--max-duration-ms` timer, and `taskkill /F /IM` was too
+blunt to use safely in parallel). New surface:
+
+- `tools/supervisor/run-supervised.c` + Makefile build
+  `build/openrecet-supervisor.exe`. The supervisor wraps any Win32
+  child inside a Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`.
+  When the supervisor exits for any reason (timeout, Ctrl+C, SIGKILL
+  on the WSL stub, parent shell dying), the kernel closes the job
+  handle and unconditionally reaps every process inside it.
+  Targets PID, not image name — concurrent runs never collateral-
+  kill each other. Exit codes: child code on clean exit, 124 on
+  timeout (coreutils convention), 125 on supervisor self-error, 130
+  on Ctrl+C.
+- `tools/run-openrecet.sh` — supervised launcher for ad-hoc bash use.
+  Always `cd`'s to `vendor/original/` (the engine-assets cwd) and
+  injects a default `--max-duration-ms 3000` if the caller didn't
+  pass one.
+- `tools/smoke-test.py` and `tools/scenario-test.py` route every
+  launch through the supervisor. The old SIGTERM-stub + taskkill-by-
+  image dance is gone.
+- `src/main.c` — cross-process singleton via `Global\\openrecet-
+  singleton` mutex acquired in WinMain right after `parse_cmdline`.
+  A second instance refuses to start (stderr + MessageBox), exit
+  code 2. Bypass: `--no-singleton` or `OPENRECET_NO_SINGLETON=1`.
+  Skips the modal MessageBox in test mode (`--max-duration-ms` set)
+  so a CI-style runner doesn't hang on a dialog. Critical for
+  iteration: WSL caching the running exe + a stray instance from a
+  previous run could otherwise mask updated builds.
+
+Smoke verified: supervisor timeout-reaps a `ping -n 20`, SIGKILL on
+the WSL-side proxy reaps both supervisor and child, singleton
+rejection during a 4s background run cleanly exits a concurrent
+attempt with code 2, `tools/scenario-test.py boot-idle` still passes
+3/3 frames through the new path, no orphan processes after any run.
+
 ## 2026-05-23 — scene-1 render: C7d stage palette stub (`src/stage_palette.{c,h}`)
 
 Fourth chip on the scene-1 render ladder. Adds the per-stage palette/

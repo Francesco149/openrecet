@@ -63,6 +63,11 @@ SCENARIOS  = ROOT / "tests" / "scenarios"
 BUILD_EXE  = ROOT / "build" / "openrecet.exe"
 ASSET_CWD  = ROOT / "vendor" / "original"
 
+# Win32 Job-Object supervisor — guarantees the openrecet child dies
+# with the harness even if the message pump wedges in WaitMessage with
+# g_paused=TRUE. See tools/supervisor/run-supervised.c.
+SUPERVISOR_EXE = ROOT / "build" / "openrecet-supervisor.exe"
+
 TARGETS = ("openrecet", "retail", "both")
 
 # Sub-targets that 'both' fans out into, in run order.
@@ -253,8 +258,14 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
     trace_path = _ensure_trace_exists(scen)
     capture_frames_csv = ",".join(str(f) for f in scen.capture_frames)
 
-    cmd = [
-        str(BUILD_EXE),
+    if not SUPERVISOR_EXE.exists():
+        raise SystemExit(
+            f"supervisor missing: {SUPERVISOR_EXE}\n"
+            f"build it with: nix develop --command "
+            f"make -C tools/supervisor"
+        )
+
+    child_args = [
         "--input-trace-replay", wslpath_w(trace_path),
         "--rng-seed",           str(scen.rng_seed),
         "--max-frames",         str(scen.max_frames),
@@ -269,16 +280,30 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
         "--hidden",
     ]
     if turbo:
-        cmd.append("--turbo")
+        child_args.append("--turbo")
     if silent_audio:
-        cmd.append("--silent-audio")
+        child_args.append("--silent-audio")
+
+    # Wrap in the Job-Object supervisor. Supervisor timeout sits 1 s
+    # past the in-engine ceiling so openrecet's clean exit path wins
+    # the race; if the message pump is wedged, the supervisor reaps
+    # via kernel-side job close. Python's subprocess.run timeout is
+    # one further second past that — only fires if the supervisor
+    # itself misbehaves.
+    sup_timeout_ms = scen.duration_ceiling_ms + 1000
+    cmd = [
+        str(SUPERVISOR_EXE),
+        str(int(sup_timeout_ms)),
+        wslpath_w(BUILD_EXE),
+        *child_args,
+    ]
 
     t0 = dt.datetime.now(dt.timezone.utc)
     with stdout_log.open("wb") as so, stderr_log.open("wb") as se:
         proc = subprocess.run(
             cmd, cwd=str(ASSET_CWD),
             stdout=so, stderr=se,
-            timeout=scen.duration_ceiling_ms / 1000 + 5,
+            timeout=scen.duration_ceiling_ms / 1000 + 2,
         )
     elapsed_ms = int((dt.datetime.now(dt.timezone.utc) - t0).total_seconds() * 1000)
 
