@@ -728,6 +728,85 @@ function installShowWindowHook() {
     log('ShowWindow hook installed');
 }
 
+// ─── MessageBox-to-log redirector ───────────────────────────────────────
+//
+// Catches every user32!MessageBoxA / MessageBoxW call from the retail
+// process (engine code AND any DirectX runtime popups), prints the
+// caption + text to the harness log via send(), and auto-returns IDOK
+// so the modal never blocks an autonomous capture run.
+//
+// Pairs with src/msgbox_hook.c for openrecet.exe — same behavior on
+// both sides of the validation pipeline.
+//
+// IDOK = 1 per WinUser.h. Hardcoded everywhere from MSVC's CRT to the
+// SDK.
+const IDOK = 1;
+
+function installMessageBoxHook() {
+    const u32 = Process.findModuleByName('user32.dll');
+    if (!u32) {
+        err('installMessageBoxHook', 'user32.dll module not loaded');
+        return;
+    }
+
+    // Both A and W variants. The retail engine uses A everywhere
+    // (Shift-JIS captions), but DirectX runtime popups may use W.
+    const variants = [
+        {name: 'MessageBoxA', isWide: false},
+        {name: 'MessageBoxW', isWide: true},
+    ];
+
+    for (const v of variants) {
+        const addr = u32.findExportByName(v.name);
+        if (!addr) {
+            err('installMessageBoxHook',
+                'user32!' + v.name + ' not found (skipping)');
+            continue;
+        }
+        // Interceptor.replace (not .attach) so the modal NEVER opens —
+        // attach would let the real fn run and block on the OK button.
+        // Replacement signature: int(HWND, LPCSTR/W, LPCSTR/W, UINT).
+        const cb = new NativeCallback(function (hwnd, textPtr, capPtr, type) {
+            let text = '(null)', cap = '(null)';
+            try {
+                if (!textPtr.isNull()) {
+                    text = v.isWide
+                        ? textPtr.readUtf16String()
+                        : textPtr.readAnsiString();
+                }
+            } catch (e) { text = '(unreadable: ' + e.message + ')'; }
+            try {
+                if (!capPtr.isNull()) {
+                    cap = v.isWide
+                        ? capPtr.readUtf16String()
+                        : capPtr.readAnsiString();
+                }
+            } catch (e) { cap = '(unreadable: ' + e.message + ')'; }
+            send({kind: 'msgbox_redirected',
+                  variant: v.name,
+                  caption: cap,
+                  text: text,
+                  type: type});
+            log('========== ' + v.name + ' REDIRECTED ==========');
+            log('  caption: ' + cap);
+            log('  text:    ' + text);
+            log('  type:    0x' + type.toString(16));
+            log('  return:  IDOK (auto-dismissed; would otherwise block)');
+            log('============================================');
+            return IDOK;
+        }, 'int32', ['pointer', 'pointer', 'pointer', 'uint32'], 'stdcall');
+
+        // Keep a reference so GC doesn't free the trampoline.
+        g_messagebox_callbacks.push(cb);
+        Interceptor.replace(addr, cb);
+        log(v.name + ' redirector installed');
+    }
+}
+
+// Global so Frida's GC doesn't free the NativeCallback trampolines
+// (the Interceptor.replace would dangle).
+const g_messagebox_callbacks = [];
+
 // ─── turbo (frame-limiter bypass + virtual 16.6 ms clock) ──────────────
 
 function installTurboHooks() {
@@ -1531,6 +1610,10 @@ rpc.exports = {
         // true to preserve the Phase B capture pipeline behavior).
         const install = config.install_hooks !== false;
         if (install) {
+            // Install the MessageBox redirector FIRST so any popup from
+            // subsequent installers — or from the engine's own boot path
+            // — gets caught and never blocks the harness.
+            installMessageBoxHook();
             installInitHook();
             installAudioHooks();
             installInputHook();

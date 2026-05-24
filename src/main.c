@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "msgbox_hook.h"
 #include "storage.h"
 #include "sprite.h"
 #include "input.h"
@@ -320,6 +321,14 @@ static int             g_silent_audio            = 0;
  * environment. */
 static int             g_no_singleton            = 0;
 
+/* --no-msgbox-hook: bypass the global MessageBox-to-stderr redirector
+ * installed early in WinMain.  Off by default so autonomous runs never
+ * block on a modal popup (from our own code OR from the DirectX
+ * runtime); flip on when interactively debugging a path that needs the
+ * real popup behaviour.  See src/msgbox_hook.h for the hook's scope
+ * and limitations. */
+static int             g_no_msgbox_hook          = 0;
+
 /* Populated at boot when --input-trace-replay is set. The replay
  * stand-in for input_poll reads this each tick. */
 static struct input_trace g_replay_trace = {0};
@@ -491,6 +500,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     SetConsoleOutputCP(CP_UTF8);
 
     parse_cmdline(lpCmdLine);
+
+    /* Install MessageBox-to-stderr redirector BEFORE singleton check
+     * (whose conflict path itself pops a MessageBoxA) and BEFORE any
+     * window / D3D / DInput / DSound init (so init-failure popups from
+     * those subsystems get caught too).  Off via --no-msgbox-hook. */
+    if (!g_no_msgbox_hook) {
+        msgbox_install_global_hook();
+    }
 
     /* Refuse to start a second instance — prevents test iterations
      * from being silently shadowed by a stray previous run. Must run
@@ -2022,6 +2039,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
             g_silent_audio = 1;
         } else if (lstrcmpA(tok, "--no-singleton") == 0) {
             g_no_singleton = 1;
+        } else if (lstrcmpA(tok, "--no-msgbox-hook") == 0) {
+            g_no_msgbox_hook = 1;
         }
         tok = strtok(NULL, " ");
     }

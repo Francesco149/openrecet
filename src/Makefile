@@ -15,7 +15,8 @@ CFLAGS    ?= -std=c11 -O2 -g \
              -MMD -MP
 LDFLAGS   ?= -static-libgcc
 LIBS      ?= -ld3d8 -ldinput8 -ldxguid -ldsound -lwinmm \
-             -lgdi32 -luser32 -lkernel32 -lole32 -ladvapi32 -lshell32
+             -lgdi32 -luser32 -lkernel32 -lole32 -ladvapi32 -lshell32 \
+             -lpsapi
 
 SRCS      := $(wildcard *.c)
 OBJS      := $(SRCS:.c=.o)
