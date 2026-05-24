@@ -1723,6 +1723,51 @@ frames 39 and 60 too.
 
 ---
 
+## 50. Overlay-particle type 4 walks to a fixed point off-screen and goes "thunk"
+
+In the overlay-particle integrator (`FUN_00414929`, L12684-12734),
+slots with integrator-TYPE 4 and a non-zero "extra force" field
+(slot dw 18) get a body that no other type runs.  Each tick:
+
+1. Gate: `30 + (slot_idx % 4) < age`.  Per-slot stagger 0..3 ticks
+   so four type-4 particles spawned the same frame don't all start
+   moving in lockstep.
+2. Aim toward the fixed world point `(11.0 * factor, -9.0 * factor,
+   -520.0)`.  `factor` lerps from `1.2` down based on `(age - 30) *
+   0.4`, then clamps at `1.2` from above — i.e. it walks UP to 1.2
+   and pegs there.  The (11, -9) target slides outward as factor
+   grows.
+3. Apply 10% step toward the aimed velocity, decay the extra-force
+   field (`*= 0.8`), and clamp speed to 1.0.
+4. Once `factor == 1.2` ("arrived"): roll `rng_next_unit() < 0.5` OR
+   already-past-y-target.  If either: set sentinel to -1 (kill the
+   slot) AND call `FUN_0040656e`, which plays SE id `0x29d`
+   ("thunk") and bumps `DAT_00648280 = 4`.
+
+So this particle "species" is an off-screen exit point.  Spawn one
+and watch it walk toward `(13.2, -10.8, -520)` over ~30 ticks, then
+once-per-tick coin-flip for whether this is the frame it pops with a
+thunk.
+
+The `-520` z component is suggestive — it's the same magic Z used by
+the per-frame open's Table A inner spawn when `DAT_074b2ee4 != 0`
+(see PHC #17), suggesting `-520` is the engine's "way off-screen
+behind the back wall" constant for this scene's projection.  But
+nothing else in the function reads it back, so the particle just
+heads there as a hidden vanishing destination.
+
+We haven't identified an in-game thing this matches yet (HOUSE doesn't
+appear to spawn type-4 overlay records by default), so the actual
+visual is unobserved.  Best guess: a shop NPC "leaving" animation
+that walks out a door and triggers a chime — the SE 0x29d slot is
+in the small-loop UI/footstep range, consistent with that read.
+
+> 📍 `docs/decompiled/all.c::FUN_00414929` L12684-12734,
+> `docs/findings/scene1-per-frame-open.md` §"FUN_00414929 — per-type
+> dispatch summary" step 4.
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an
