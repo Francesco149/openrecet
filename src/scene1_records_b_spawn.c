@@ -2012,6 +2012,237 @@ static int init_npc_cluster_b(int i, const void *owner, int type, int flag,
     return cap;
 }
 
+/* NPC type 0x56 — NPC-bend pos w/ matrix-init (engine L42049-42106).
+ *
+ * Body (raw asm 0x445c20..0x445c97 verified):
+ *
+ *   local_24 = bend = (owner+0x18) * 2π / 8
+ *   POS_X    = sin(bend)*1.5 + owner+0x3f0
+ *   POS_Y    = owner+0x3f4 + 1.8
+ *   POS_Z    = cos(bend)*1.5 + owner+0x3f8
+ *   VEL_X    = sin(bend)*0.3
+ *   VEL_Y    = 0.15                            (= 0x3e19999a)
+ *   VEL_Z    = cos(bend)*0.3
+ *   ROT_SCR  = u1 * 2π                          (random RotX angle)
+ *   ROT_Z    = u2 * 2π                          (random RotY angle)
+ *   slot.MATRIX0 = RotY(ROT_Z) × RotX(ROT_SCR)
+ *     — engine chains mat4_rotation_x(MATRIX0, ROT_SCR),
+ *       mat4_rotation_y(scratch, ROT_Z),
+ *       mat4_mul(MATRIX0, scratch, MATRIX0) — so MATRIX0 ends up as
+ *       scratch * MATRIX0 = RotY * RotX.
+ *   LIFE_MULT = 0.15
+ *   ROT_X     = bend                            (LAB_00445c9a)
+ *   DRAG      = 0.5                             (LAB_004469d2)
+ *   AUX_C8    = 1
+ *   cap = 1
+ *
+ * Engine quirk: thunk_FUN_004a2a03 (D3DXMatrixMultiply) call at
+ * 0x445c86 looks argless in Ghidra but raw asm shows 3 stack pushes
+ * (esi, eax, esi) — out=MATRIX0, a=scratch (local_8c), b=MATRIX0.
+ * math3d.h::mat4_mul handles out==b safely via an internal temporary. */
+static int init_npc_56(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+
+    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    float sa   = sinf(bend);
+    float ca   = cosf(bend);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               sa * 1.5f + owner_read_f(owner, 0x3f0));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               owner_read_f(owner, 0x3f4) + 1.8f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               ca * 1.5f + owner_read_f(owner, 0x3f8));
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.15f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 0.3f);
+
+    float rot_x_angle = rng_next_unit() * B_TWO_PI_F;   /* slot.ROT_SCR */
+    float rot_y_angle = rng_next_unit() * B_TWO_PI_F;   /* slot.ROT_Z   */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rot_x_angle);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,   rot_y_angle);
+
+    /* slot.MATRIX0 = RotY(rot_y_angle) × RotX(rot_x_angle).  Use
+     * float[16] scratch then write into slot via memcpy — slot fields
+     * are int32_t but the bit-pattern is the float matrix. */
+    float matrix_rx[16];
+    float matrix_ry[16];
+    float matrix_out[16];
+    mat4_rotation_x(matrix_rx, rot_x_angle);
+    mat4_rotation_y(matrix_ry, rot_y_angle);
+    mat4_mul(matrix_out, matrix_ry, matrix_rx);
+    int32_t *r = slot_base(i);
+    memcpy(&r[SCENE1_RECORDS_B_OFF_MATRIX0], matrix_out, sizeof matrix_out);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.15f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,     bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      0.5f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8,    1);
+
+    return 1;
+}
+
+/* NPC type 0x53 — low-lift drift body (engine L42107-42129).
+ *
+ *   bend = (owner+0x18) * 2π / 8
+ *   POS_X = sin(bend)*0.3 + owner+0x3f0
+ *   POS_Y = owner+0x3f4 + 0.08             (LOW lift)
+ *   POS_Z = cos(bend)*0.3 + owner+0x3f8
+ *   VEL_X = sin(bend)*0.5
+ *   VEL_Y = 0
+ *   VEL_Z = cos(bend)*0.5                  (argless cos at L122 = PHC #7)
+ *   ROT_X = bend                            (LAB_00447572)
+ *   DRAG  = 0.5                             (LAB_0044757e via uVar2=0x3f000000)
+ *
+ * NO AUX_C8 = 1 here (LAB_0044757e doesn't set it — only LAB_004469d2
+ * does, and 0x53 skips that label).  Preamble's AUX_C8=0 carries. */
+static int init_npc_53(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+
+    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    float sa   = sinf(bend);
+    float ca   = cosf(bend);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               sa * 0.3f + owner_read_f(owner, 0x3f0));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               owner_read_f(owner, 0x3f4) + 0.08f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               ca * 0.3f + owner_read_f(owner, 0x3f8));
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 0.5f);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,  0.5f);
+    return 1;
+}
+
+/* NPC type 0x51 — cluster-B-shaped body w/ +0.7 lift; CAP=1 (engine
+ * L42199-42250).
+ *
+ * Engine computes a per-particle angle shift identical to cluster B's
+ * (4 explicit shifts for part_idx ∈ {1..4}).  Since cap=1, part_idx
+ * is always 0 in normal flow, so the shifts are dead code — but the
+ * engine emits them so we port faithfully for layout-equivalence.
+ *
+ *   bend = (owner+0x18) * 2π / 8
+ *   local_1c = bend + shift[part_idx]    (shift[0]=0, shift[1]=-0.18, ...)
+ *   POS_X = sin(local_1c)*0.3 + owner+0x3f0
+ *   POS_Y = owner+0x3f4 + 0.7
+ *   POS_Z = cos(local_1c)*0.3 + owner+0x3f8
+ *   VEL_X = sin(local_1c)*0.5
+ *   VEL_Y = 0
+ *   VEL_Z = cos(local_1c)*0.5            (argless cos at L245 = PHC #7)
+ *   ROT_X = local_1c                      (LAB_00445c9a)
+ *   DRAG  = 0.5                           (LAB_004469d2)
+ *   AUX_C8 = 1
+ *   cap = 1 */
+static int init_npc_51(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)type; (void)flag;
+
+    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    static const float shifts[5] = {
+        0.0f, -0.18f, +0.18f, -0.36f, +0.36f,
+    };
+    float local_1c = bend;
+    if (part_idx >= 0 && part_idx < 5) local_1c += shifts[part_idx];
+
+    float sa = sinf(local_1c);
+    float ca = cosf(local_1c);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               sa * 0.3f + owner_read_f(owner, 0x3f0));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               owner_read_f(owner, 0x3f4) + 0.7f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               ca * 0.3f + owner_read_f(owner, 0x3f8));
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 0.5f);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,  local_1c);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,   0.5f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+    return 1;
+}
+
+/* NPC type 0x68 — player-aim variant (engine L42164-42217).
+ *
+ * Distinct from entity 0x68: NO people-table scan; alt-target is
+ * unconditionally derived from player_pos (DAT_056da1d8/dc/e0) with a
+ * random RNG ring around it.
+ *
+ *   amp1  = (u + 0.5) * 4.0
+ *   ang1  = u'*2π
+ *   POS_X = sin(ang1)*amp1 + owner+0x3f0
+ *   POS_Y = owner+0x3f4 + 20.0
+ *   POS_Z = cos(ang1)*amp1 + owner+0x3f8
+ *
+ *   amp2  = (u + 0.5) * 8.0
+ *   ang2  = u'*2π
+ *   ALT_X = sin(ang2)*amp2 + player_pos.x
+ *   ALT_Y = player_pos.y
+ *   ALT_Z = cos(ang2)*amp2 + player_pos.z     (argless cos at L205 = PHC #7)
+ *
+ *   VEL = (ALT - POS) / 10
+ *   LIFE_MULT = 0.6
+ *   PART_IDX  = part_idx
+ *   cap = 1
+ *
+ * DRAG stays at preamble 0 (no override — entity 0x68 also leaves it
+ * at 0). */
+static int init_npc_68(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)type; (void)flag;
+
+    /* Primary path — RNG amp + angle around owner. */
+    float u_amp = rng_next_unit();
+    float amp   = (u_amp + 0.5f) * 4.0f;
+    float u_ang = rng_next_unit();
+    float angle = u_ang * B_TWO_PI_F;
+    float sa = sinf(angle);
+    float ca = cosf(angle);
+
+    float pos_x = sa * amp + owner_read_f(owner, 0x3f0);
+    float pos_y = owner_read_f(owner, 0x3f4) + 20.0f;
+    float pos_z = ca * amp + owner_read_f(owner, 0x3f8);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z);
+
+    /* Alt-target ring around player_pos (engine `DAT_056da1d8/dc/e0`). */
+    float u_amp2 = rng_next_unit();
+    float amp2   = (u_amp2 + 0.5f) * 8.0f;
+    float u_ang2 = rng_next_unit();
+    float ang2   = u_ang2 * B_TWO_PI_F;
+    float alt_x  = sinf(ang2) * amp2 + g_scene1_player_pos[0];
+    float alt_y  = g_scene1_player_pos[1];
+    float alt_z  = cosf(ang2) * amp2 + g_scene1_player_pos[2];
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, alt_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, alt_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, alt_z);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, (alt_x - pos_x) / 10.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, (alt_y - pos_y) / 10.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, (alt_z - pos_z) / 10.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.6f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX,  part_idx);
+
+    return 1;
+}
+
 /* Dispatch helper for NPC allocator. */
 static int run_npc_body(int slot, const void *owner, int type, int flag,
                         int part_idx)
@@ -2023,6 +2254,12 @@ static int run_npc_body(int slot, const void *owner, int type, int flag,
     case 0x4d: case 0x4e: case 0x4f: case 0x50:
     case 0xa5: case 0xa6:
         return init_npc_cluster_b(slot, owner, type, flag, part_idx);
+
+    /* C8j.10 — single-spawn NPC types. */
+    case 0x56: return init_npc_56(slot, owner, type, flag, part_idx);
+    case 0x53: return init_npc_53(slot, owner, type, flag, part_idx);
+    case 0x51: return init_npc_51(slot, owner, type, flag, part_idx);
+    case 0x68: return init_npc_68(slot, owner, type, flag, part_idx);
 
     default:
         /* Unreachable — outer dispatch gated by IMPLEMENTED. */

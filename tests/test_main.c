@@ -1441,6 +1441,11 @@ struct test_case {
     X(records_b_spawn_npc_cluster_b_per_particle_shifts) \
     X(records_b_spawn_npc_cluster_b_4e_one_particle) \
     X(records_b_spawn_npc_cluster_b_implemented_macro) \
+    X(records_b_spawn_npc_56_matrix_init_and_lift) \
+    X(records_b_spawn_npc_56_matrix_is_roty_times_rotx) \
+    X(records_b_spawn_npc_53_low_lift) \
+    X(records_b_spawn_npc_51_mid_lift_cap_1) \
+    X(records_b_spawn_npc_68_player_aim_alt_target) \
     X(records_b_spawn_entity_3e_uses_owner_ea4_rot_x) \
     X(records_b_spawn_entity_5f_uses_owner_ea4_rot_x) \
     X(records_b_spawn_entity_23_yaw_branch_writes_full_pose) \

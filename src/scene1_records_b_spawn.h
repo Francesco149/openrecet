@@ -70,6 +70,23 @@
  * local_10 inits to 0 and only counts up; ported faithfully but logic
  * is equivalently a no-op.
  *
+ * Chip C8j.10 (2026-05-24) — first batch of FUN_00445a8c NPC-allocator
+ * single-spawn types: 0x56 (NPC-bend pos + matrix-init RotY×RotX +
+ * +1.8y lift), 0x53 (NPC-bend low-lift drift, +0.08y), 0x51 (NPC-bend
+ * +0.7y lift, cluster-B-shaped shift table ported faithfully despite
+ * dead at cap=1), 0x68 (player-aim variant — RNG ring around
+ * `g_scene1_player_pos` as alt-target; no people-table scan, unlike
+ * entity-allocator 0x68).  0x56's `thunk_FUN_004a2a03` (D3DXMatrix-
+ * Multiply) call appears argless in Ghidra but raw asm at 0x445c86
+ * shows the 3 pushes (out=MATRIX0, a=scratch, b=MATRIX0); we use
+ * math3d's `mat4_mul` which handles aliased out/b safely.
+ *
+ * Deferred from C8j.10 (target C8j.11+): mega-cluster B (0xa0-0xa4 +
+ * 0x73/0x7a/0x7c/0x7e + 0x96 + 0xd/0x11/0x15/0xc/0x10/0x16/0x17/0x9c),
+ * player-aim 0x84/0x96 (needs atan2 = FUN_00503dd0 wrapper), and the
+ * owner+0x6fc alt-field-source family (0x33/0x36/0x38).  These have
+ * the larger shared-body shape that's worth its own chip.
+ *
  * Argless cos sites verified via raw-asm spot-check in the
  * 0x444500-0x444800 range — all reload either `[ebp-0x2c]` (the dVar4
  * angle stash, paired with prior sin call) or `[esi+0xea4]` (the owner
@@ -249,7 +266,9 @@ extern "C" {
 #define SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(t)                    \
     ((t) == 0xe  || (t) == 0x97 || (t) == 0x46 ||                        \
      (t) == 0x4d || (t) == 0x4e || (t) == 0x4f || (t) == 0x50 ||         \
-     (t) == 0xa5 || (t) == 0xa6)
+     (t) == 0xa5 || (t) == 0xa6 ||                                       \
+     /* C8j.10 — NPC single-spawn (matrix-init / drift / player-aim) */  \
+     (t) == 0x56 || (t) == 0x53 || (t) == 0x51 || (t) == 0x68)
 
 /* Engine DAT_06a46fb8 — monotonically incremented per slot claim by
  * either allocator.  Snapshot + post-increment pattern means the first
