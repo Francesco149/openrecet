@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "rng.h"
 #include "scene1_records.h"
 #include "scene1_records_b_spawn.h"
 
@@ -412,5 +413,355 @@ int test_records_b_spawn_drives_counter_scan(void)
     scene1_record_b_spawn_npc(g_owner_b, 0x97, 0);
     scene1_records_counter_scan();
     T_ASSERT_EQ_I(g_scene1_records_b_count, 3);
+    return 0;
+}
+
+/* ─── C8j.6 drift cluster (types 2/3/4/0x22/0x54/0x67) ────────────── */
+
+/* Engine 2π/8. */
+#define DRIFT_BEND(npc_idx) ((float)(npc_idx) * 6.2831855f / 8.0f)
+#define APPROX(a, b) (fabsf((a) - (b)) < 1e-4f)
+
+/* Standard owner setup for drift-cluster + cluster-A tests. */
+static void seed_owner_a_drift(void)
+{
+    /* pos triple at 0x20/0x24/0x28; preamble subtracts 0.5 from POS_Y. */
+    owner_write_f(g_owner_a, 0x20, 10.0f);
+    owner_write_f(g_owner_a, 0x24, 20.0f);
+    owner_write_f(g_owner_a, 0x28, 30.0f);
+    /* NPC bend index (read as int): 2 → bend = 2 * 2π/8 = π/2. */
+    owner_write_i(g_owner_a, 0x948, 2);
+    /* sin/cos angle (read as float): 0 → sin=0, cos=1. */
+    owner_write_f(g_owner_a, 0xea4, 0.0f);
+}
+
+int test_records_b_spawn_entity_drift_writes_rot_x_from_npc_bend(void)
+{
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0x67, -1);
+
+    /* L41597-41598: ROT_X = (owner+0x948) * 2π/8 = 2 * π/4 = π/2. */
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x67);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_X),
+                    DRIFT_BEND(2)));
+    return 0;
+}
+
+int test_records_b_spawn_entity_drift_writes_vel_from_owner_ea4(void)
+{
+    /* ang = π/2 → sin=1, cos≈0.  vel = (3, 0, ~0). */
+    reset_world();
+    seed_owner_a_drift();
+    owner_write_f(g_owner_a, 0xea4, 3.1415927f / 2.0f);
+    scene1_record_b_spawn_entity(g_owner_a, 0x54, -1);
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X), 3.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), 0.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z), 0.0f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_drift_writes_pos_delta_from_preamble(void)
+{
+    /* ang = 0 → sin=0, cos=1.
+     * Preamble: POS = (10, 19.5, 30)  (-0.5 y bias).
+     * Body:     POS.x -= 0  = 10
+     *           POS.y += 1  = 20.5
+     *           POS.z -= 0.5 = 29.5 */
+    reset_world();
+    seed_owner_a_drift();
+    /* Need scale to match: owner+0xea4 = 0. */
+    owner_write_f(g_owner_a, 0xea4, 0.0f);
+    scene1_record_b_spawn_entity(g_owner_a, 4, -1);
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 10.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 20.5f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z), 29.5f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_drift_scale_x_per_type(void)
+{
+    /* 0x22 → 2.0; 0x67 → 1.2; 3 with flag != -1 → 0.5; default → 1.0. */
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0x22, -1);   /* slot 0: SCALE_X=2.0 */
+    scene1_record_b_spawn_entity(g_owner_a, 0x67, -1);   /* slot 1: SCALE_X=1.2 */
+    scene1_record_b_spawn_entity(g_owner_a, 3,    5);    /* slot 2: SCALE_X=0.5 (flag != -1) */
+    scene1_record_b_spawn_entity(g_owner_a, 3,    -1);   /* slot 3: SCALE_X=1.0 (flag == -1) */
+    scene1_record_b_spawn_entity(g_owner_a, 2,    -1);   /* slot 4: SCALE_X=1.0 (preamble default) */
+    scene1_record_b_spawn_entity(g_owner_a, 4,    -1);   /* slot 5: SCALE_X=1.0 */
+    scene1_record_b_spawn_entity(g_owner_a, 0x54, -1);   /* slot 6: SCALE_X=1.0 */
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_SCALE_X), 2.0f));
+    T_ASSERT(APPROX(slot_f(1, SCENE1_RECORDS_B_OFF_SCALE_X), 1.2f));
+    T_ASSERT(APPROX(slot_f(2, SCENE1_RECORDS_B_OFF_SCALE_X), 0.5f));
+    T_ASSERT(APPROX(slot_f(3, SCENE1_RECORDS_B_OFF_SCALE_X), 1.0f));
+    T_ASSERT(APPROX(slot_f(4, SCENE1_RECORDS_B_OFF_SCALE_X), 1.0f));
+    T_ASSERT(APPROX(slot_f(5, SCENE1_RECORDS_B_OFF_SCALE_X), 1.0f));
+    T_ASSERT(APPROX(slot_f(6, SCENE1_RECORDS_B_OFF_SCALE_X), 1.0f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_drift_tail_writes_drag_aux_c8(void)
+{
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0x22, -1);
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 20.0f));
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_AUX_C8), 1);
+    return 0;
+}
+
+int test_records_b_spawn_entity_drift_writes_random_rot_z(void)
+{
+    /* LAB_004449b0: ROT_Z = rng_next_unit() * 2π.  Two back-to-back
+     * spawns should produce DIFFERENT rot_z values (the RNG advances). */
+    reset_world();
+    seed_owner_a_drift();
+    rng_seed(1);
+    scene1_record_b_spawn_entity(g_owner_a, 2, -1);
+    float a = slot_f(0, SCENE1_RECORDS_B_OFF_ROT_Z);
+    scene1_record_b_spawn_entity(g_owner_a, 2, -1);
+    float b = slot_f(1, SCENE1_RECORDS_B_OFF_ROT_Z);
+
+    T_ASSERT(a >= 0.0f && a <= 6.2831855f);
+    T_ASSERT(b >= 0.0f && b <= 6.2831855f);
+    T_ASSERT(!APPROX(a, b));   /* RNG advanced — values differ. */
+    return 0;
+}
+
+int test_records_b_spawn_entity_drift_all_six_types_implemented(void)
+{
+    reset_world();
+    seed_owner_a_drift();
+    int types[6] = {2, 3, 4, 0x22, 0x54, 0x67};
+    for (int k = 0; k < 6; k++) {
+        scene1_record_b_spawn_entity(g_owner_a, types[k], -1);
+    }
+    for (int k = 0; k < 6; k++) {
+        T_ASSERT_EQ_I(slot_i(k, SCENE1_RECORDS_B_OFF_TYPE), types[k]);
+    }
+    return 0;
+}
+
+/* ─── C8j.6 cluster A (types 0x4d-0x50, 0xa5-0xa6, 99, 0x51-0x53) ─── */
+
+int test_records_b_spawn_entity_cluster_a_4d_writes_vel_y_and_life(void)
+{
+    /* 0x4d → LIFE_MULT=0.32, SCALE_X=0.7, VEL_Y=0.07, vel mag = 0.3. */
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0x4d, -1);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x4d);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 0.32f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_SCALE_X), 0.7f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), 0.07f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 0.5f));
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_AUX_C8), 1);
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_main6_overrides_pos(void)
+{
+    /* 0x4e (main-6) overrides pos to sin/cos(local_c)*0.8 + +1.4y.
+     * With bend=π/2 (npc=2) and part_idx=0, local_c = π/2:
+     *   sin(π/2) = 1, cos(π/2) ≈ 0.
+     *   POS_X = 1.0 * 0.8 + 10 = 10.8
+     *   POS_Y = 20.0 + 1.4 = 21.4
+     *   POS_Z ≈ 0 * 0.8 + 30 = 30. */
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0x4e, -1);
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 10.8f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 21.4f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z), 30.0f));
+    /* main-6 LIFE_MULT = 0.4. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 0.4f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_53_pos_y_no_lift_and_byte(void)
+{
+    /* 0x53 sets POS_Y = owner.y (no +0.7 lift), no main-6 override.
+     * Also writes slot byte 0xc0 = 3. */
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0x53, -1);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x53);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 20.0f));
+
+    uint8_t *bytes = (uint8_t *)&g_scene1_records_b[0 * SCENE1_RECORDS_B_STRIDE];
+    T_ASSERT_EQ_I(bytes[0xc0], 3);
+    T_ASSERT_EQ_I(bytes[0xc1], 0);   /* preamble zeroed; not overwritten. */
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_default_types_pos_with_lift(void)
+{
+    /* 99 / 0x51 / 0x52 use default pos: sin/cos(local_c)*0.3 + +0.7y.
+     * With bend=π/2 (npc=2): sin=1, cos≈0.
+     *   POS_X = 1.0*0.3 + 10 = 10.3
+     *   POS_Y = 20.0 + 0.7 = 20.7
+     *   POS_Z ≈ 0*0.3 + 30 = 30. */
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 99, -1);
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 10.3f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 20.7f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z), 30.0f));
+    /* SCALE_X for 99 = 1.8; LIFE_MULT = 1.5. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_SCALE_X), 1.8f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 1.5f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_51_writes_scale_x_1_5(void)
+{
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0x51, -1);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_SCALE_X), 1.5f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_4f_spawns_3_particles(void)
+{
+    /* 0x4f → iVar10 = 3.  Three slots commit in row. */
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0x4f, -1);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x4f);
+    T_ASSERT_EQ_I(slot_i(1, SCENE1_RECORDS_B_OFF_TYPE), 0x4f);
+    T_ASSERT_EQ_I(slot_i(2, SCENE1_RECORDS_B_OFF_TYPE), 0x4f);
+    T_ASSERT_EQ_I(slot_i(3, SCENE1_RECORDS_B_OFF_TYPE), 0);   /* 4th slot stays free */
+    /* Each particle gets its own sequence ID (0, 1, 2). */
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_SEQ_ID), 0);
+    T_ASSERT_EQ_I(slot_i(1, SCENE1_RECORDS_B_OFF_SEQ_ID), 1);
+    T_ASSERT_EQ_I(slot_i(2, SCENE1_RECORDS_B_OFF_SEQ_ID), 2);
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_50_spawns_5_particles(void)
+{
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0x50, -1);
+    for (int k = 0; k < 5; k++) {
+        T_ASSERT_EQ_I(slot_i(k, SCENE1_RECORDS_B_OFF_TYPE), 0x50);
+    }
+    T_ASSERT_EQ_I(slot_i(5, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_a5_spawns_6_particles(void)
+{
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0xa5, -1);
+    for (int k = 0; k < 6; k++) {
+        T_ASSERT_EQ_I(slot_i(k, SCENE1_RECORDS_B_OFF_TYPE), 0xa5);
+    }
+    T_ASSERT_EQ_I(slot_i(6, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_a6_spawns_8_particles(void)
+{
+    reset_world();
+    seed_owner_a_drift();
+    scene1_record_b_spawn_entity(g_owner_a, 0xa6, -1);
+    for (int k = 0; k < 8; k++) {
+        T_ASSERT_EQ_I(slot_i(k, SCENE1_RECORDS_B_OFF_TYPE), 0xa6);
+    }
+    T_ASSERT_EQ_I(slot_i(8, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_per_particle_angle_shifts(void)
+{
+    /* 0x4f has 3 particles.  With bend = 0 (npc index 0) the per-
+     * particle local_c values are:
+     *   particle 0: 0      → sin=0,         cos=1
+     *   particle 1: -0.18  → sin=-0.17903,  cos=0.98384
+     *   particle 2: +0.18  → sin=+0.17903,  cos=0.98384
+     * ROT_X is set to local_c per particle. */
+    reset_world();
+    seed_owner_a_drift();
+    owner_write_i(g_owner_a, 0x948, 0);   /* bend = 0 */
+    scene1_record_b_spawn_entity(g_owner_a, 0x4f, -1);
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_X),  0.0f));
+    T_ASSERT(APPROX(slot_f(1, SCENE1_RECORDS_B_OFF_ROT_X), -0.18f));
+    T_ASSERT(APPROX(slot_f(2, SCENE1_RECORDS_B_OFF_ROT_X), +0.18f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_vel_uses_local_10_0_3_for_4d(void)
+{
+    /* 0x4d has local_10 = 0.3.  With local_c=0 (bend 0, part_idx 0):
+     *   VEL_X = sin(0)*0.3 = 0
+     *   VEL_Z = cos(0)*0.3 = 0.3 */
+    reset_world();
+    seed_owner_a_drift();
+    owner_write_i(g_owner_a, 0x948, 0);
+    scene1_record_b_spawn_entity(g_owner_a, 0x4d, -1);
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X), 0.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z), 0.3f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_vel_uses_local_10_0_5_for_4e(void)
+{
+    /* 0x4e (main-6) has default local_10 = 0.5.
+     *   VEL_X = sin(0)*0.5 = 0
+     *   VEL_Z = cos(0)*0.5 = 0.5 */
+    reset_world();
+    seed_owner_a_drift();
+    owner_write_i(g_owner_a, 0x948, 0);
+    scene1_record_b_spawn_entity(g_owner_a, 0x4e, -1);
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X), 0.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z), 0.5f));
+    /* 0x4e VEL_Y stays at 0 (only 0x4d gets 0.07). */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), 0.0f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_4e_rot_x_equals_local_c(void)
+{
+    /* Sanity check: ROT_X = local_c (the per-particle angle). */
+    reset_world();
+    seed_owner_a_drift();
+    /* bend = 4 * 2π/8 = π. */
+    owner_write_i(g_owner_a, 0x948, 4);
+    scene1_record_b_spawn_entity(g_owner_a, 0x4e, -1);
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_X), 3.1415927f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_cluster_a_implemented_macro(void)
+{
+    /* Sanity check: all 17 new types report as implemented. */
+    int types[17] = {
+        2, 3, 4, 0x22, 0x54, 0x67,
+        0x4d, 0x4e, 0x4f, 0x50, 0xa5, 0xa6, 99, 0x51, 0x52, 0x53,
+        0x24,   /* C8j.5 carryover sanity */
+    };
+    for (int k = 0; k < 17; k++) {
+        T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(types[k]));
+    }
+    /* Unimplemented sanity. */
+    T_ASSERT(!SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x5a));
+    T_ASSERT(!SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0xdead));
     return 0;
 }

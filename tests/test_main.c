@@ -1400,7 +1400,28 @@ struct test_case {
     X(records_b_spawn_npc_all_three_anchor_types_commit) \
     X(records_b_spawn_npc_shares_seq_counter_with_entity) \
     X(records_b_spawn_npc_unimplemented_no_commit) \
-    X(records_b_spawn_drives_counter_scan)
+    X(records_b_spawn_drives_counter_scan) \
+    X(records_b_spawn_entity_drift_writes_rot_x_from_npc_bend) \
+    X(records_b_spawn_entity_drift_writes_vel_from_owner_ea4) \
+    X(records_b_spawn_entity_drift_writes_pos_delta_from_preamble) \
+    X(records_b_spawn_entity_drift_scale_x_per_type) \
+    X(records_b_spawn_entity_drift_tail_writes_drag_aux_c8) \
+    X(records_b_spawn_entity_drift_writes_random_rot_z) \
+    X(records_b_spawn_entity_drift_all_six_types_implemented) \
+    X(records_b_spawn_entity_cluster_a_4d_writes_vel_y_and_life) \
+    X(records_b_spawn_entity_cluster_a_main6_overrides_pos) \
+    X(records_b_spawn_entity_cluster_a_53_pos_y_no_lift_and_byte) \
+    X(records_b_spawn_entity_cluster_a_default_types_pos_with_lift) \
+    X(records_b_spawn_entity_cluster_a_51_writes_scale_x_1_5) \
+    X(records_b_spawn_entity_cluster_a_4f_spawns_3_particles) \
+    X(records_b_spawn_entity_cluster_a_50_spawns_5_particles) \
+    X(records_b_spawn_entity_cluster_a_a5_spawns_6_particles) \
+    X(records_b_spawn_entity_cluster_a_a6_spawns_8_particles) \
+    X(records_b_spawn_entity_cluster_a_per_particle_angle_shifts) \
+    X(records_b_spawn_entity_cluster_a_vel_uses_local_10_0_3_for_4d) \
+    X(records_b_spawn_entity_cluster_a_vel_uses_local_10_0_5_for_4e) \
+    X(records_b_spawn_entity_cluster_a_4e_rot_x_equals_local_c) \
+    X(records_b_spawn_entity_cluster_a_implemented_macro)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

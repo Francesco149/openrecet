@@ -1,10 +1,12 @@
 /*
  * scene1_records_b_spawn.h — table B slot allocators.
  *
- * Chip C8j.5 (2026-05-24).  Skeleton + common preamble + 3 minimal
- * 1-particle types per allocator.  Ports start on the 512-slot
- * DAT_069324b0 ("entity / NPC effect") table consumed by Pass C of
- * the shop walker + Pass A/B/C/D/E of the wide followup.
+ * Chip C8j.5 (2026-05-24) — skeleton + common preamble + 3 minimal
+ * 1-particle types per allocator.
+ *
+ * Chip C8j.6 (2026-05-24) — sin/cos drift cluster (6 types) + cluster A
+ * (10 types) + multi-particle outer-loop infrastructure for the entity
+ * allocator.  17 new entity types total; NPC allocator unchanged.
  *
  *   FUN_0044376a — "entity allocator", owner shape A: pos at owner+0x20,
  *                  matrix at owner+0xde8, NPC-bend at owner+0x948,
@@ -78,26 +80,42 @@
 extern "C" {
 #endif
 
-/* Implemented as of C8j.5 (both allocators share the per-type
+/* Implemented as of C8j.6 (both allocators share the per-type
  * dispatcher pattern but route to allocator-specific switches).
  *
  * Entity allocator (FUN_0044376a):
+ *   C8j.5 anchors (1-particle, no-trig):
  *   - 0x24 — pure preamble; LAB_004457e7 direct.
  *   - 0x60 — preamble + slot.ROT_X = *(float*)(owner + 0xea4).
  *   - 0x82 — preamble + slot.SCALE_X = 2.0f + slot.ROT_X = *(float*)
  *            (owner + 0xea4).
- *
- *   (Survey's plan named 0x66 as an anchor; body inspection of engine
- *    L41843-41866 shows 0x66 actually executes the sin/cos drift
- *    cluster default tail — sin/cos vel + pos shifts + life write.
- *    Substituted 0x82 instead; 0x66 belongs in C8j.6 with the drift
- *    cluster bodies.)
+ *   C8j.6 sin/cos drift cluster (engine L41594-41621, 1-particle each):
+ *   - 2, 3, 4, 0x22, 0x54, 0x67 — NPC-bend ROT_X, sin/cos(owner+0xea4)
+ *     vel*3 + pos shift, per-type SCALE_X (0x22→2.0, 0x67→1.2, 3 if
+ *     flag!=-1 → 0.5), DRAG=20.0, ROT_Z=rng*2π, AUX_C8=1.
+ *   C8j.6 cluster A (engine L41265-41397, MULTI-particle):
+ *   - 0x4d, 0x4e, 99, 0x51, 0x52, 0x53 — 1 particle each.
+ *   - 0x4f — 3 particles.
+ *   - 0x50 — 5 particles.
+ *   - 0xa5 — 6 particles.
+ *   - 0xa6 — 8 particles.
+ *     Per-particle angle = bend + per-particle shift (0/±0.18/±0.36/π/
+ *     π+0.18/π-0.18); pos = sin/cos(angle)*{0.3 default | 0.8 main6} +
+ *     {+0.7y default | +1.4y main6 | owner.y for 0x53}.  Per-type
+ *     SCALE_X + LIFE_MULT + local_10 vel-mag + VEL_Y (0x4d=0.07).
+ *     0x53 also writes byte 0xc0 = 3.
  *
  * NPC allocator (FUN_00445a8c):
  *   - 0xe, 0x97, 0x46 — all preamble-only via LAB_00447584 tail-share.
+ *     (No C8j.6 additions — NPC allocator handlers land in C8j.10+.)
  */
-#define SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(t) \
-    ((t) == 0x24 || (t) == 0x60 || (t) == 0x82)
+#define SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(t)                 \
+    ((t) == 0x24 || (t) == 0x60 || (t) == 0x82 ||                        \
+     (t) == 2    || (t) == 3    || (t) == 4    ||                        \
+     (t) == 0x22 || (t) == 0x54 || (t) == 0x67 ||                        \
+     (t) == 0x4d || (t) == 0x4e || (t) == 0x4f || (t) == 0x50 ||         \
+     (t) == 0xa5 || (t) == 0xa6 || (t) == 99   ||                        \
+     (t) == 0x51 || (t) == 0x52 || (t) == 0x53)
 #define SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(t) \
     ((t) == 0xe || (t) == 0x97 || (t) == 0x46)
 
