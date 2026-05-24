@@ -28,17 +28,15 @@ void scene1_records_reset(int reset_c)
                            + SCENE1_RECORDS_A_OFF_TYPE] = -1;
     }
 
-    /* Table C — same convention as A.  Gated by reset_c so the "soft
-     * reset" call sites (param_1==0) leave dungeon-side particle state
-     * alive across the reset.  HOUSE entry passes 1.
-     *
-     * Table C's slot is also 0x25 dw; for symmetry with A we treat its
-     * TYPE field as at offset 12.  No current consumer reads C slot
-     * fields, so this convention is only verified for the sentinel. */
+    /* Table C — TYPE at offset 10 dw (NOT 12 like table A).  See
+     * scene1_records.h SCENE1_RECORDS_C_OFF_TYPE for the layout note.
+     * Gated by reset_c so the "soft reset" call sites (param_1==0)
+     * leave dungeon-side particle state alive across the reset.  HOUSE
+     * entry passes 1. */
     if (reset_c) {
         for (int i = 0; i < SCENE1_RECORDS_C_COUNT; i++) {
             g_scene1_records_c[i * SCENE1_RECORDS_C_STRIDE
-                               + SCENE1_RECORDS_A_OFF_TYPE] = -1;
+                               + SCENE1_RECORDS_C_OFF_TYPE] = -1;
         }
     }
 
@@ -74,7 +72,7 @@ void scene1_records_counter_scan(void)
     count = 0;
     for (int i = 0; i < SCENE1_RECORDS_C_COUNT; i++) {
         if (g_scene1_records_c[i * SCENE1_RECORDS_C_STRIDE
-                               + SCENE1_RECORDS_A_OFF_TYPE] != -1) {
+                               + SCENE1_RECORDS_C_OFF_TYPE] != -1) {
             count = i + 1;
         }
     }

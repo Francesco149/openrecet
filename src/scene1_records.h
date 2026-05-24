@@ -99,6 +99,17 @@ extern "C" {
 #define SCENE1_RECORDS_B_OFF_POS_Y    24   /* DAT_06932510 */
 #define SCENE1_RECORDS_B_OFF_POS_Z    25   /* DAT_06932514 */
 
+/*
+ * Table C layout differs from A: TYPE is at offset 10 dw (= 0x28
+ * bytes), not 12 like table A.  The engine's "table C base" alias
+ * DAT_06956cd8 IS that type-field address; the slot's true starting
+ * field (pos.x) is 10 dw earlier at DAT_06956cb0.  See
+ * docs/findings/scene1-record-populators.md for the full layout +
+ * allocator FUN_0044aef0 reference.  Other C offsets are in
+ * scene1_records_c_tick.h (consumer module).
+ */
+#define SCENE1_RECORDS_C_OFF_TYPE     10   /* DAT_06956cd8 (sentinel) */
+
 extern int32_t g_scene1_records_a[SCENE1_RECORDS_A_COUNT * SCENE1_RECORDS_A_STRIDE];
 extern int32_t g_scene1_records_b[SCENE1_RECORDS_B_COUNT * SCENE1_RECORDS_B_STRIDE];
 extern int32_t g_scene1_records_c[SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE];

@@ -1332,7 +1332,26 @@ struct test_case {
     X(scene1_debug_pass_d_unlit_normalises_to_0_or_1) \
     X(scene1_preload_post_house_cb_default_is_null) \
     X(scene1_preload_post_house_cb_setter_round_trips) \
-    X(scene1_preload_post_house_cb_setter_replaces_previous)
+    X(scene1_preload_post_house_cb_setter_replaces_previous) \
+    \
+    X(records_c_tick_empty_table_is_noop) \
+    X(records_c_tick_sentinel_slots_skipped) \
+    X(records_c_tick_aux_flag_net_zero_age) \
+    X(records_c_tick_pickup_bob_sparkle_at_age_10) \
+    X(records_c_tick_pickup_bob_lifts_in_range) \
+    X(records_c_tick_pickup_bob_no_lift_outside_range) \
+    X(records_c_tick_pickup_commit_kills_at_age_0x78) \
+    X(records_c_tick_world_drop_drag_and_gravity) \
+    X(records_c_tick_world_drop_attract_to_player) \
+    X(records_c_tick_world_drop_speed_cap) \
+    X(records_c_tick_world_drop_ground_bounce) \
+    X(records_c_tick_world_drop_kill_at_age_0xf0) \
+    X(records_c_tick_world_drop_kill_at_pos_y_below_minus_1) \
+    X(records_c_tick_overflow_eviction_is_dormant) \
+    X(records_c_tick_non_world_drop_type_no_kill_check) \
+    X(records_c_tick_ground_clamp_non_world_drop_advances_state) \
+    X(records_c_offset_type_is_10) \
+    X(records_c_reset_sentinels_at_offset_10)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
