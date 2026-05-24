@@ -438,6 +438,70 @@ void scene1_overlay_shape_1_compose_world(float out[16],
                                           float extra,
                                           const float camera_eye[3]);
 
+/* ---- Shape 7: multi-quad strip trail (O.6) -------------------------
+ *
+ * Variable-vert-count triangle strip drawn from a static 33-pair vbuf
+ * (66 verts) of a 1/4-arc ribbon in YZ (radius 1024, X width ±48).
+ * The per-record active window walks down the static vbuf as AGE
+ * advances (pair_start = max(8, AGE-8) clamp 32), with vert_count
+ * growing then ramping down past AGE=24.
+ *
+ * Engine asm 0x415082..0x4153ac.  Position init at FUN_0040d132
+ * L333-354. */
+
+#define SCENE1_OVERLAY_SHAPE_7_PAIR_COUNT 33
+#define SCENE1_OVERLAY_SHAPE_7_VERT_COUNT (SCENE1_OVERLAY_SHAPE_7_PAIR_COUNT * 2)
+
+extern scene1_overlay_vertex
+    g_scene1_overlay_shape_7_vbuf[SCENE1_OVERLAY_SHAPE_7_VERT_COUNT];
+
+/* Initialise the static vbuf positions.  Idempotent.  Called from
+ * scene1_overlay_init. */
+void scene1_overlay_shape_7_vbuf_init(void);
+
+/* Combined gate + counts + fade calc.  Returns 1 if the strip should
+ * be drawn; 0 to skip.  All out-params written even on skip (set to 0).
+ *
+ *   vert_count   ∈ [4, 32]   number of verts in the DrawPrimitiveUP call
+ *   pair_start   ∈ [8, 32]   pair index into the static vbuf for the head
+ *   fade_gray    ∈ [0, 255]  diffuse gray byte (alpha_int with AGE>24 fade)
+ *
+ * Engine asm 0x415082..0x4150f3. */
+int scene1_overlay_shape_7_compute_strip(const int32_t *slot,
+                                         int alpha_int_in,
+                                         int *out_vert_count,
+                                         int *out_pair_start,
+                                         int *out_fade_gray);
+
+/* Per-record scale — sx/sy axes; sz aliased to sy in the engine's
+ * scaling(sx, sy, sy) call.  Same blend-split shape as 0/5 but with
+ * a base = scale_base*0.01 (vs shape 0/5's *0.003).  */
+void scene1_overlay_shape_7_scale_xy(const int32_t *slot,
+                                     float alpha_mix,
+                                     float *out_sx, float *out_sy);
+
+/* World matrix: S × RotY(rot.x_field) × RotZ(rot.z_field) ×
+ * RotX(rot.y_field) × T.  Same off-diagonal field mapping as shapes
+ * 3/6 (Ghidra's "rot.x" slot drives RotationY, "rot.y" slot drives
+ * RotationX). */
+void scene1_overlay_shape_7_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix);
+
+/* Per-pair UV + diffuse writes into the active window of the static
+ * vbuf.  Positions are NOT touched (pre-initialised by
+ * scene1_overlay_shape_7_vbuf_init).  Engine asm 0x4152f1..0x415392.
+ *
+ *   v[i] = (i * uv_size_y / pair_count + uv_origin_y + 0.5) / 256
+ *
+ * Vert A in each pair gets u_left, vert B gets u_right; both share v
+ * and the same diffuse gray.  */
+void scene1_overlay_shape_7_emit_strip(scene1_overlay_vertex *vbuf_window,
+                                       int pair_count,
+                                       const int32_t *shape_entry,
+                                       float uv_origin_x, float uv_origin_y,
+                                       int fade_gray);
+
 /* ---- Win32 dispatcher entry (O.3) ---------------------------------- */
 #ifdef _WIN32
 struct IDirect3DDevice8;

@@ -1747,7 +1747,17 @@ struct test_case {
     X(overlay_shape_1_scale_xyz_z_is_2y) \
     X(overlay_shape_1_scale_sy_does_not_use_extra) \
     X(overlay_shape_1_world_uses_pos_for_eye) \
-    X(overlay_shape_1_world_translation_matches_pos)
+    X(overlay_shape_1_world_translation_matches_pos) \
+    X(overlay_shape_7_vbuf_init_arc_positions) \
+    X(overlay_shape_7_compute_strip_age_out_of_range_skips) \
+    X(overlay_shape_7_compute_strip_vert_count_growth_and_clamp) \
+    X(overlay_shape_7_compute_strip_ramp_down_past_age_24) \
+    X(overlay_shape_7_compute_strip_pair_start_clamped_to_32) \
+    X(overlay_shape_7_compute_strip_fade_subtract) \
+    X(overlay_shape_7_scale_xy_formula) \
+    X(overlay_shape_7_compose_world_translation_matches_pos) \
+    X(overlay_shape_7_compose_world_off_diagonal_field_mapping) \
+    X(overlay_shape_7_emit_strip_uv_layout)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

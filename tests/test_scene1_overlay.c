@@ -1282,3 +1282,247 @@ int test_overlay_shape_1_world_translation_matches_pos(void)
     T_ASSERT(fabsf(world[14] - test_pos[2]) < 1e-3f);
     return 0;
 }
+
+/* ═════════════════ O.6: shape 7 multi-quad trail ═════════════════ */
+
+int test_overlay_shape_7_vbuf_init_arc_positions(void)
+{
+    /* scene1_overlay_init calls scene1_overlay_shape_7_vbuf_init. */
+    scene1_overlay_init();
+    /* Pair 0: angle=0 → sin=0, cos=1 → pos = (±48, 0, 0). */
+    T_ASSERT(fabsf(g_scene1_overlay_shape_7_vbuf[0].x - 48.0f) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_7_vbuf[0].y) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_7_vbuf[0].z) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_7_vbuf[1].x - -48.0f) < 1e-3f);
+
+    /* Pair 32: angle=π/2 → sin=1, cos=0 → pos = (±48, 1024, -1024). */
+    int last = 32 * 2;
+    T_ASSERT(fabsf(g_scene1_overlay_shape_7_vbuf[last].x - 48.0f) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_7_vbuf[last].y - 1024.0f) < 1e-2f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_7_vbuf[last].z - -1024.0f) < 1e-2f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_7_vbuf[last + 1].x - -48.0f) < 1e-3f);
+    T_ASSERT(fabsf(g_scene1_overlay_shape_7_vbuf[last + 1].y - 1024.0f) < 1e-2f);
+    return 0;
+}
+
+int test_overlay_shape_7_compute_strip_age_out_of_range_skips(void)
+{
+    int32_t *slot = fresh_slot(0);
+    int vc = 99, ps = 99, fg = 99;
+    slot[SCENE1_OVERLAY_OFF_AGE] = -1;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 0);
+    T_ASSERT_EQ_I(vc, 0);
+    T_ASSERT_EQ_I(ps, 0);
+
+    slot[SCENE1_OVERLAY_OFF_AGE] = 0x28;     /* boundary — exclusive */
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 0);
+
+    /* age=1 → vc=2 < 4 → skip via vc-min gate. */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 1;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 0);
+    return 0;
+}
+
+int test_overlay_shape_7_compute_strip_vert_count_growth_and_clamp(void)
+{
+    int32_t *slot = fresh_slot(0);
+    int vc, ps, fg;
+
+    /* AGE=2 → X=4, no clamp (4≤32), no ramp.  pair_start=8 (AGE≤16). */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 2;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 1);
+    T_ASSERT_EQ_I(vc, 4);
+    T_ASSERT_EQ_I(ps, 8);
+
+    /* AGE=16 → X=32, clamped to 32; pair_start = 8 (still AGE<=16). */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 16;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 1);
+    T_ASSERT_EQ_I(vc, 32);
+    T_ASSERT_EQ_I(ps, 8);
+
+    /* AGE=17 → pair_start = AGE-8 = 9. */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 17;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 1);
+    T_ASSERT_EQ_I(vc, 32);
+    T_ASSERT_EQ_I(ps, 9);
+
+    /* AGE=24 → X=32 (no ramp yet); pair_start = 16. */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 24;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 1);
+    T_ASSERT_EQ_I(vc, 32);
+    T_ASSERT_EQ_I(ps, 16);
+    return 0;
+}
+
+int test_overlay_shape_7_compute_strip_ramp_down_past_age_24(void)
+{
+    int32_t *slot = fresh_slot(0);
+    int vc, ps, fg;
+
+    /* AGE=25 → X = 32 + (24-25)*2 = 30. */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 25;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 1);
+    T_ASSERT_EQ_I(vc, 30);
+    T_ASSERT_EQ_I(ps, 17);
+
+    /* AGE=32 → X = 32 + (24-32)*2 = 16. */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 32;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 1);
+    T_ASSERT_EQ_I(vc, 16);
+    T_ASSERT_EQ_I(ps, 24);
+
+    /* AGE=39 → X = 32 + (24-39)*2 = 2 < 4 → skip. */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 39;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 0);
+    return 0;
+}
+
+int test_overlay_shape_7_compute_strip_pair_start_clamped_to_32(void)
+{
+    /* pair_start is clamped to 32.  Reach by AGE = 40+, but AGE>=0x28
+     * skips earlier — so the clamp only fires inside the body when
+     * AGE happens to land in [33, 39] with the ramp keeping vc >= 4.
+     * AGE=33 → ramp X=32-18=14 → fires; pair_start = 33-8 = 25.  Still
+     * <32, doesn't hit clamp.  Verify the clamp constant by injecting
+     * a high pair_start synthetically isn't possible, but the public
+     * formula is documented — so just verify it stays in range. */
+    int32_t *slot = fresh_slot(0);
+    int vc, ps, fg;
+    slot[SCENE1_OVERLAY_OFF_AGE] = 33;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 255,
+                                                      &vc, &ps, &fg), 1);
+    T_ASSERT_EQ_I(ps, 25);
+    T_ASSERT(ps + vc / 2 <= SCENE1_OVERLAY_SHAPE_7_PAIR_COUNT);
+    return 0;
+}
+
+int test_overlay_shape_7_compute_strip_fade_subtract(void)
+{
+    int32_t *slot = fresh_slot(0);
+    int vc, ps, fg;
+
+    /* AGE=24: no fade subtract → fade_gray == alpha_int_in. */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 24;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 100,
+                                                      &vc, &ps, &fg), 1);
+    T_ASSERT_EQ_I(fg, 100);
+
+    /* AGE=25: subtract (25-24)*16 = 16 → fade_gray = 100-16 = 84. */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 25;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 100,
+                                                      &vc, &ps, &fg), 1);
+    T_ASSERT_EQ_I(fg, 84);
+
+    /* AGE=30 starting from low alpha → underflows → skip.
+     * fade = 10 - (30-24)*16 = 10 - 96 = -86 → skip. */
+    slot[SCENE1_OVERLAY_OFF_AGE] = 30;
+    T_ASSERT_EQ_I(scene1_overlay_shape_7_compute_strip(slot, 10,
+                                                      &vc, &ps, &fg), 0);
+    return 0;
+}
+
+int test_overlay_shape_7_scale_xy_formula(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.25f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 2.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    3.0f);
+
+    /* base = 2 * 0.01 = 0.02
+     * sx = (1-0.25) * 0.02 * 1.0 * 3 / 0.5 = 0.75 * 0.02 * 3 / 0.5 = 0.09
+     * sy = 0.25 * 0.02 * 1.0 * 3 / 0.5 = 0.03 */
+    float sx, sy;
+    scene1_overlay_shape_7_scale_xy(slot, 1.0f, &sx, &sy);
+    T_ASSERT(fabsf(sx - 0.09f) < 1e-5f);
+    T_ASSERT(fabsf(sy - 0.03f) < 1e-5f);
+    return 0;
+}
+
+int test_overlay_shape_7_compose_world_translation_matches_pos(void)
+{
+    /* With identity rotations (all rot fields zero), final matrix is
+     * S × T.  M[12..14] = pos.xyz scaled by 1.0 (translation row only
+     * affected by the scaling's bottom-right; for an affine T-on-right
+     * chain, M[12..14] = pos.xyz). */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_X, 5.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_Y, -2.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_Z, 7.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+
+    float world[16];
+    scene1_overlay_shape_7_compose_world(world, slot, 1.0f);
+    T_ASSERT(fabsf(world[12] - 5.0f) < 1e-4f);
+    T_ASSERT(fabsf(world[13] - -2.0f) < 1e-4f);
+    T_ASSERT(fabsf(world[14] - 7.0f) < 1e-4f);
+    return 0;
+}
+
+int test_overlay_shape_7_compose_world_off_diagonal_field_mapping(void)
+{
+    /* Same off-diagonal mapping as shape 3: setting ROT_X to π/2 with
+     * zero ROT_Y/ROT_Z should produce S × RotY(π/2) × T, matching shape
+     * 3's result for the same input (after accounting for shape 3's
+     * uniform-scale vs shape 7's blend-split). */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_ROT_X,      1.5707963f);
+
+    /* With blend_mix=0: sx = 1.0*0.01*1.0*1.0/0.5 = 0.02; sy = 0; sz=sy=0
+     * S = diag(0.02, 0, 0).  RotY(π/2) applied: world[0]=0, world[2]=-0.02
+     * (RotY[0][2] = -sin = -1, times scaling[0][0]=0.02). */
+    float world[16];
+    scene1_overlay_shape_7_compose_world(world, slot, 1.0f);
+    T_ASSERT(fabsf(world[0]) < 1e-6f);
+    T_ASSERT(fabsf(world[2] - -0.02f) < 1e-5f);
+    return 0;
+}
+
+int test_overlay_shape_7_emit_strip_uv_layout(void)
+{
+    /* Verify UV writes for a 4-pair strip with uv_size=(32, 64). */
+    scene1_overlay_init();    /* fills positions */
+    int32_t shape[8] = {0};
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X] = f_to_bits(32.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y] = f_to_bits(64.0f);
+
+    /* Take a window starting at pair 8 (the default pair_start). */
+    scene1_overlay_vertex *window = &g_scene1_overlay_shape_7_vbuf[8 * 2];
+    scene1_overlay_shape_7_emit_strip(window, /*pair_count=*/4,
+                                      shape, 0.0f, 0.0f, /*fade_gray=*/0x80);
+
+    float u_left  = (0.0f + 0.5f) / 256.0f;
+    float u_right = (0.0f + 32.0f - 0.5f) / 256.0f;
+    /* Pair 0 (i=0): v = (0*64/4 + 0 + 0.5) / 256 = 0.5/256. */
+    float v0 = 0.5f / 256.0f;
+    /* Pair 3 (i=3): v = (3*64/4 + 0.5) / 256 = (48.5)/256. */
+    float v3 = 48.5f / 256.0f;
+
+    T_ASSERT(fabsf(window[0].u - u_left)  < 1e-6f);
+    T_ASSERT(fabsf(window[1].u - u_right) < 1e-6f);
+    T_ASSERT(fabsf(window[0].v - v0) < 1e-6f);
+    T_ASSERT(fabsf(window[1].v - v0) < 1e-6f);
+
+    T_ASSERT(fabsf(window[6].u - u_left)  < 1e-6f);
+    T_ASSERT(fabsf(window[7].u - u_right) < 1e-6f);
+    T_ASSERT(fabsf(window[6].v - v3) < 1e-6f);
+    T_ASSERT(fabsf(window[7].v - v3) < 1e-6f);
+
+    /* Diffuse gray = 0xff_80_80_80. */
+    T_ASSERT_EQ_U(window[0].diffuse, 0xff808080u);
+    T_ASSERT_EQ_U(window[7].diffuse, 0xff808080u);
+    return 0;
+}

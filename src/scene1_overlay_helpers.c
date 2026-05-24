@@ -512,3 +512,179 @@ void scene1_overlay_shape_1_compose_world(float out[16],
     mat4_scaling(scratch, sx, sy, sz);
     mat4_mul(out, scratch, out);
 }
+
+/* ---- Shape 7: multi-quad strip trail (O.6) ------------------------ */
+
+/* Static vbuf — 33 pairs (66 verts) of a 1/4-arc strip in YZ, swept
+ * across 0..π/2 in 33 steps, with verts at X = ±48.  Positions from
+ * engine FUN_0040d132 L333-354 .data init.  Diffuse/UV are placeholders
+ * (overwritten by scene1_overlay_shape_7_emit_strip per draw).  */
+scene1_overlay_vertex
+    g_scene1_overlay_shape_7_vbuf[SCENE1_OVERLAY_SHAPE_7_VERT_COUNT];
+
+void scene1_overlay_shape_7_vbuf_init(void)
+{
+    /* Engine FUN_0040d132 L333-354: 33 iterations writing 2 verts each.
+     *   angle = i * (π/2) / 32
+     *   vert A: pos = (+48, sin(angle)*1024, (cos(angle)-1)*1024)
+     *   vert B: pos = (-48, sin(angle)*1024, (cos(angle)-1)*1024)
+     *
+     * Placeholder UV/diffuse from the engine init kept verbatim — they
+     * get overwritten in scene1_overlay_shape_7_emit_strip.  */
+    for (int i = 0; i < SCENE1_OVERLAY_SHAPE_7_PAIR_COUNT; i++) {
+        float angle = (float)i * 1.5707964f / 32.0f;
+        float sa = sinf(angle);
+        float ca = cosf(angle);
+        float y = sa * 1024.0f;
+        float z = (ca - 1.0f) * 1024.0f;
+        scene1_overlay_vertex *va = &g_scene1_overlay_shape_7_vbuf[i * 2 + 0];
+        scene1_overlay_vertex *vb = &g_scene1_overlay_shape_7_vbuf[i * 2 + 1];
+        va->x = 48.0f;  va->y = y; va->z = z;
+        vb->x = -48.0f; vb->y = y; vb->z = z;
+        /* Placeholder UV from engine init (loop variant): vert A uses
+         * (0.5004883, 0.18847656), vert B uses (0.5620117, 0.24902344).
+         * These are overwritten per draw but the init writes them. */
+        va->u = 0.5004883f;  va->v = 0.18847656f;
+        vb->u = 0.5620117f;  vb->v = 0.24902344f;
+        va->diffuse = 0xFFFFFFFFu;
+        vb->diffuse = 0xFFFFFFFFu;
+    }
+}
+
+int scene1_overlay_shape_7_compute_strip(const int32_t *slot,
+                                         int alpha_int_in,
+                                         int *out_vert_count,
+                                         int *out_pair_start,
+                                         int *out_fade_gray)
+{
+    if (out_vert_count) *out_vert_count = 0;
+    if (out_pair_start) *out_pair_start = 0;
+    if (out_fade_gray)  *out_fade_gray  = 0;
+
+    int age = slot[SCENE1_OVERLAY_OFF_AGE];
+
+    /* Engine asm 0x415085..0x415090 — AGE in [0, 0x28). */
+    if (age < 0 || age >= 0x28) return 0;
+
+    /* vert_count = AGE * 2, clamp to 32, then subtract ramp past 24. */
+    int vert_count = age * 2;
+    if (vert_count > 0x20) vert_count = 0x20;
+    if (age > 0x18) {
+        vert_count += (0x18 - age) * 2;   /* negative add */
+    }
+    if (vert_count < 4) return 0;          /* engine `cmp 0x4 / jl skip` */
+
+    /* pair_start (engine local_28) — 8 by default, then AGE-8 when
+     * AGE>16, capped at 32. */
+    int pair_start = 8;
+    if (age > 0x10) {
+        pair_start = age - 8;
+        if (pair_start > 0x20) pair_start = 0x20;
+    }
+
+    /* AGE > 24 fade gate: gray -= (AGE - 24) * 16; skip if < 0. */
+    int fade_gray = alpha_int_in;
+    if (age > 0x18) {
+        fade_gray -= (age - 0x18) * 0x10;
+        if (fade_gray < 0) return 0;
+    }
+
+    if (out_vert_count) *out_vert_count = vert_count;
+    if (out_pair_start) *out_pair_start = pair_start;
+    if (out_fade_gray)  *out_fade_gray  = fade_gray;
+    return 1;
+}
+
+void scene1_overlay_shape_7_scale_xy(const int32_t *slot,
+                                     float alpha_mix,
+                                     float *out_sx, float *out_sy)
+{
+    float blend_mix  = slot_get_f(slot, SCENE1_OVERLAY_OFF_BLEND_MIX);
+    float scale_base = slot_get_f(slot, SCENE1_OVERLAY_OFF_SCALE_BASE);
+    float scale_x    = slot_get_f(slot, SCENE1_OVERLAY_OFF_SCALE_X);
+
+    /* Engine asm 0x415096..0x415129:
+     *   base = scale_base * 0.01            (.rdata 0x5193a4)
+     *   sx = ((1 - blend_mix) * base * alpha_mix * scale_x) / 0.5
+     *   sy = (    blend_mix   * base * alpha_mix * scale_x) / 0.5
+     * The engine calls scaling(sx, sy, sy) — sz aliased to sy.  */
+    float base = scale_base * 0.01f;
+    float sx = ((1.0f - blend_mix) * base * alpha_mix * scale_x) / 0.5f;
+    float sy = (blend_mix * base * alpha_mix * scale_x) / 0.5f;
+    if (out_sx) *out_sx = sx;
+    if (out_sy) *out_sy = sy;
+}
+
+void scene1_overlay_shape_7_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix)
+{
+    float pos_x = slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_X);
+    float pos_y = slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_Y);
+    float pos_z = slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_Z);
+    float sx, sy;
+    scene1_overlay_shape_7_scale_xy(slot, alpha_mix, &sx, &sy);
+
+    /* Off-diagonal field mapping (same as shapes 3/6):
+     *   slot[ROT_X] → RotationY   (asm 0x415167 call 0x4a3553)
+     *   slot[ROT_Y] → RotationX   (asm 0x41517a call 0x4a35ef)
+     *   slot[ROT_Z] → RotationZ   (asm 0x41518d call 0x4a368c — canonical)
+     *
+     * Engine multiply cascade (asm 0x4151b5..0x415236):
+     *   S × RotY → (× RotZ) → (× RotX) → (× T)
+     * Engine Multiply(out, A, B) = our mat4_mul(out, A, B) (= A * B).
+     * mat4_mul is alias-safe; build incrementally via right-multiply. */
+    float ry_val = slot_get_f(slot, SCENE1_OVERLAY_OFF_ROT_X);
+    float rx_val = slot_get_f(slot, SCENE1_OVERLAY_OFF_ROT_Y);
+    float rz_val = slot_get_f(slot, SCENE1_OVERLAY_OFF_ROT_Z);
+
+    float scratch[16];
+    mat4_scaling(out, sx, sy, sy);                 /* S (sz aliased to sy) */
+    mat4_rotation_y(scratch, ry_val);
+    mat4_mul(out, out, scratch);                    /* S × RotY */
+    mat4_rotation_z(scratch, rz_val);
+    mat4_mul(out, out, scratch);                    /* (S×RotY) × RotZ */
+    mat4_rotation_x(scratch, rx_val);
+    mat4_mul(out, out, scratch);                    /* ((S×RotY)×RotZ) × RotX */
+    mat4_translation(scratch, pos_x, pos_y, pos_z);
+    mat4_mul(out, out, scratch);                    /* × T */
+}
+
+void scene1_overlay_shape_7_emit_strip(scene1_overlay_vertex *vbuf_window,
+                                       int pair_count,
+                                       const int32_t *shape_entry,
+                                       float uv_origin_x, float uv_origin_y,
+                                       int fade_gray)
+{
+    if (!vbuf_window || pair_count <= 0) return;
+
+    float uv_size_x = 0.0f, uv_size_y = 0.0f;
+    if (shape_entry) {
+        uv_size_x = bits_to_f(shape_entry[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X]);
+        uv_size_y = bits_to_f(shape_entry[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y]);
+    }
+
+    /* Engine asm 0x4152f1..0x4152fd:
+     *   u_left  = (uv_origin_x + 0.5) / 256
+     *   u_right = (uv_origin_x + uv_size_x - 0.5) / 256
+     *   N       = pair_count = vert_count / 2 */
+    float u_left  = (uv_origin_x + 0.5f) / 256.0f;
+    float u_right = (uv_origin_x + uv_size_x - 0.5f) / 256.0f;
+    float n_f     = (float)pair_count;
+
+    uint32_t diffuse = scene1_overlay_diffuse_gray(fade_gray);
+
+    /* Per-pair UV/diffuse writes — engine asm 0x415348..0x415392.
+     * v varies linearly down the strip: v = (i * uv_size_y / N + base + 0.5)
+     * / 256.  Both verts in a pair share v; vert A gets u_left, B gets
+     * u_right.  */
+    for (int i = 0; i < pair_count; i++) {
+        float v = ((float)i * uv_size_y / n_f + uv_origin_y + 0.5f) / 256.0f;
+        scene1_overlay_vertex *va = &vbuf_window[i * 2 + 0];
+        scene1_overlay_vertex *vb = &vbuf_window[i * 2 + 1];
+        va->u = u_left;   va->v = v;
+        vb->u = u_right;  vb->v = v;
+        va->diffuse = diffuse;
+        vb->diffuse = diffuse;
+    }
+}

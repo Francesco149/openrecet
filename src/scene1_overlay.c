@@ -68,6 +68,7 @@ void scene1_overlay_init(void)
     scene1_overlay_templates_reset();
     scene1_overlay_shapes_reset();
     scene1_overlay_layers_reset();
+    scene1_overlay_shape_7_vbuf_init();
 }
 
 /* ---- Layer count + per-layer texture pointers (O.3) ---------------- */
@@ -614,8 +615,35 @@ void scene1_overlay_render(IDirect3DDevice8 *dev, int layer, int mode)
                 continue;
             }
 
-            /* TODO O.6 (shape 7 — variable-count multi-quad trail).
-             * TODO O.7 (shapes 8/9/10 — 5-quad group dual-billboard).
+            if (type_shape == 7) {
+                int vert_count, pair_start, fade_gray;
+                if (!scene1_overlay_shape_7_compute_strip(slot, alpha_int,
+                                                          &vert_count,
+                                                          &pair_start,
+                                                          &fade_gray)) {
+                    continue;
+                }
+                scene1_overlay_shape_7_compose_world(world, slot, alpha_mix);
+                IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                              (const D3DMATRIX *)world);
+
+                int pair_count = vert_count / 2;
+                scene1_overlay_vertex *window =
+                    &g_scene1_overlay_shape_7_vbuf[pair_start * 2];
+                scene1_overlay_shape_7_emit_strip(window, pair_count,
+                                                  shape_entry,
+                                                  uv_origin_x, uv_origin_y,
+                                                  fade_gray);
+
+                IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                                 D3DPT_TRIANGLESTRIP,
+                                                 vert_count - 2,
+                                                 window,
+                                                 sizeof(scene1_overlay_vertex));
+                continue;
+            }
+
+            /* TODO O.7 (shapes 8/9/10 — 5-quad group dual-billboard).
              *
              * Skipping is safe today: HOUSE smoke (= no spawn caller)
              * doesn't populate slots of any shape type yet, so the
