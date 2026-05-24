@@ -11,12 +11,57 @@ terminal-kill hook for SE 0x29d "thunk" side-effect), PFO.5
 PFO.5a (Table A tick body — 256-slot scan + 7-iter sub-record
 dispatch + scene1_overlay_spawn calls + 300-tick self-clear;
 spawn-hook intercept for tests, alt-mode stand-in for PHC #17),
-and **PFO.6** (Table A allocators FUN_004132c1 + FUN_0041331d —
-projected and passthrough flavors) landed.  Renamed
+PFO.6 (Table A allocators FUN_004132c1 + FUN_0041331d — projected
+and passthrough flavors), and **PFO.7** (parent template binary
+blob loader — see survey correction below) landed.  Renamed
 `OFF_UNK_7C` → `OFF_ANIM_FRAME_COUNTER` and `OFF_RNG_SEED` →
 `OFF_ANIM_CELL_INDEX` as called out by PHC #3.  The survey below
-stands; PFO.1..PFO.6 + PHC #3 rows have status updates.
-Remaining work: PFO.7 (parser).
+stands; PFO.1..PFO.7 + PHC #3 rows have status updates.
+**Ladder structurally complete** — Table A producer (allocators)
++ tick + parent template data + Table B tick are all live; the
+chain is dormant in HOUSE today only because no in-port consumer
+calls the Table A allocators.
+
+## Survey correction (PFO.7, 2026-05-25)
+
+The chip ladder originally listed PFO.7 as "Parent table parser
+`FUN_0041276e` + boot wiring".  Raw-asm inspection of
+`vendor/unpacked/recettear.unpacked.exe` shows `FUN_0041276e`
+(795 B, a text-format parser at 0x41276e that writes individual
+`name=` / `frame=` / `scale=` / `xyz=` fields) has **zero
+callers** anywhere in the binary — it is dead code (likely a
+dev-time parser left over from an earlier text format).  Search:
+
+```
+nix develop --command i686-w64-mingw32-objdump -d -M intel \
+    --no-show-raw-insn vendor/unpacked/recettear.unpacked.exe \
+  | grep -E 'call.*0x41276e\b'
+# (no matches)
+```
+
+The actual data path the shipped engine uses is `FUN_00412a89`
+L70-L86: open `ef/effect{1..4}.dat`, raw-`fread` 17200 B + 38000 B
+into two contiguous regions.  No parsing, just raw binary blob
+copy — the on-disk files are exactly 55200 B each, structured as
+17200 B (secondary table chunk) + 38000 B (parent template chunk
+= 100 entries × 380 B = 100 × 0x17c).  Confirmed by reading
+`vendor/original/ef/effect1.dat` at offset 0x4330: first entry's
+name field reads `unknown` matching the engine init default literal
+`s_unknown_0052b4a8`.
+
+So PFO.7 ports `FUN_00412a89`'s file-loader loop (~50 LoC) and
+not the dead `FUN_0041276e` parser (~200 LoC).  Storage:
+`scene1_pfo_parent_table_load_chunk(file_idx, chunk, len)`
+(pure C, host-testable) + `scene1_pfo_parent_table_load_all()`
+(Win32, disk-first / storage-fallback for all 4 files).  Wired
+into main.c boot right after `scene1_overlay_table_load_all()`
+(same engine caller `FUN_00475270` case-3 dispatch).
+
+The "secondary table" at engine `DAT_00733820` (4 × 17200 B =
+400 entries × 172 B) is NOT ported.  Engine readers exist
+(all.c L10681 / L10940 / L11448 / L11936) but no in-port
+consumer references them yet.  When one ports, extend the
+loader to also store the first chunk.
 
 ## TL;DR
 
@@ -347,7 +392,7 @@ The full FUN_00414929 port lands in sub-chips.  Recommended order:
 | PFO.5 ✅ | Wire `scene1_pfo_table_b_tick` into `particles_per_frame_open` (Table B half of FUN_00414929 now fires every integrator frame).  Table A tick body deferred to PFO.5a — its dormancy is preserved by PFO.1's sentinel-empty init. | ~15 | overlay slots stay sentinel-empty in HOUSE — no in-port spawn site populates them |
 | PFO.5a ✅ | Table A tick body (engine FUN_00414929 L1-43) — `scene1_pfo_table_a_tick()` walks 256 slots, gates on `sub_rec[k].sentinel != -1 && age_match == slot.AGE`, builds spawn args in two modes (passthrough vs projected) and calls scene1_overlay_spawn; age++ per slot and self-clear at age==300.  Wired into `particles_per_frame_open` BEFORE Table B tick to match engine order.  New stand-in `g_scene1_pfo_alt_mode` (PHC #17 `DAT_074b2ee4`).  New host-installable spawn hook for tests.  Asm-verified 10-arg call construction at 0x414991..0x414a6c. | ~180 | Table A sentinel-empty in HOUSE — PFO.1 init keeps all 256 slots at sentinel=-1 until PFO.6 allocators populate |
 | PFO.6 ✅ | Table A allocators FUN_004132c1 (6-arg, "projected" — MODE=1 + fixed slot[3]=-520) and FUN_0041331d (9-arg, "passthrough" — MODE=0).  Both linear-scan for first SENTINEL==-1 slot, fixed-pattern fill, return slot index (-1 if full).  Survey claim "10-arg pose-style" for FUN_004132c1 was wrong — actually 6 args (2 pos floats + template_id + scale + override_dur + param_8).  Asm verified 0x4132c1..0x413315 and 0x41331d..0x413375. | ~100 | dormant — no caller in port; once a producer wires them, the tick produces spawns |
-| PFO.7    | Parent table parser FUN_0041276e + boot wiring                                            | ~200 | tick is structurally complete after this |
+| PFO.7 ✅ | Parent table binary blob loader — **NOT** FUN_0041276e (dead code, zero callers in binary) but FUN_00412a89 L70-L86 (the actual data path: raw `fread` of `ef/effect{1..4}.dat` into the parent table at slot file_idx*100).  Wired into main.c boot right after scene1_overlay_table_load_all (same FUN_00475270 case-3 caller).  Pure-C buffer loader + Win32-only file loader; disk-first / storage-fallback for production paths.  Secondary table (DAT_00733820) NOT ported (no in-port consumer yet). | ~80 | parent template now has real per-stage data; chain still dormant on no Table A allocator caller |
 
 PFO.1-5 are all dormant-in-HOUSE per current data.  Goldens must stay
 bit-exact across each landing.

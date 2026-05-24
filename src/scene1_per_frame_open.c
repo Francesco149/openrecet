@@ -21,7 +21,13 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <stdio.h>
+#include "storage.h"
+#endif
 
 #include "scene1_overlay.h"
 
@@ -677,3 +683,130 @@ int scene1_pfo_table_a_alloc_passthrough(int   template_owner,
     }
     return -1;
 }
+
+/* ===== PFO.7 — parent template binary blob loader ====================
+ *
+ * Port of FUN_00412a89 L70-L86 file-loading loop.  Engine survey claim
+ * (FUN_0041276e parser) corrected to dead-code finding: see header.
+ *
+ * On-disk layout per file:
+ *
+ *   bytes      0 .. 17199   secondary table chunk (172 B × 100 entries).
+ *                            Not ported here — no in-port consumer reads
+ *                            from the engine's `DAT_00733820` table yet.
+ *   bytes  17200 .. 55199   parent template chunk (380 B × 100 entries).
+ *                            Copied verbatim into g_scene1_pfo_parent_table
+ *                            at slot file_idx*100.
+ *
+ * The parent template chunk is binary identical to the in-memory
+ * struct layout (verified: entry 0 of effect1.dat starts with "unknown"
+ * at offset 0, matches engine init default).
+ */
+
+#define PFO_SECONDARY_CHUNK_BYTES  17200u   /* engine fread #1 size: 0x4330 */
+#define PFO_PARENT_CHUNK_BYTES     38000u   /* engine fread #2 size */
+#define PFO_PARENT_FILE_COUNT      4
+
+void scene1_pfo_parent_table_load_chunk(int file_idx,
+                                        const void *chunk,
+                                        size_t chunk_len)
+{
+    if (file_idx < 0 || file_idx >= PFO_PARENT_FILE_COUNT) return;
+    if (chunk == NULL) return;
+
+    /* Clamp to a single file's slice; engine fread caps at 38000. */
+    size_t bytes = chunk_len;
+    if (bytes > PFO_PARENT_CHUNK_BYTES) bytes = PFO_PARENT_CHUNK_BYTES;
+    if (bytes == 0) return;
+
+    /* One file slice = 100 entries × 95 dw × 4 = 38000 B; this is also
+     * exactly 1/4 of the parent_table backing storage.  Compile-time
+     * cross-check: */
+    _Static_assert(PFO_PARENT_CHUNK_BYTES ==
+                       (size_t)SCENE1_PFO_PARENT_TABLE_STRIDE * 4u * 100u,
+                   "PFO chunk size must match 100 entries × 95 dw × 4 B");
+    _Static_assert(PFO_PARENT_FILE_COUNT * 100 ==
+                       SCENE1_PFO_PARENT_TABLE_COUNT,
+                   "PFO parent table sized for 4 × 100 entries");
+
+    uint8_t *dst = (uint8_t *)&g_scene1_pfo_parent_table[
+        file_idx * 100 * SCENE1_PFO_PARENT_TABLE_STRIDE];
+    memcpy(dst, chunk, bytes);
+}
+
+#ifdef _WIN32
+
+/* Load one effect%d.dat file via disk-first / storage-fallback (same
+ * shape as scene1_overlay_table_load).  On success, dispatch its
+ * parent template chunk to scene1_pfo_parent_table_load_chunk.
+ * Returns 1 on a successful read, 0 on lookup miss / I/O error. */
+static int pfo_load_one_file(const char *name, int file_idx)
+{
+    if (!name) return 0;
+
+    uint8_t *buf = NULL;
+    size_t   buf_len = 0;
+
+    /* Disk first (engine FUN_005038b0 fopen). */
+    FILE *f = fopen(name, "rb");
+    if (f) {
+        if (fseek(f, 0, SEEK_END) == 0) {
+            long sz = ftell(f);
+            if (sz >= 0 && fseek(f, 0, SEEK_SET) == 0) {
+                buf = (uint8_t *)malloc((size_t)sz + 10);
+                if (buf) {
+                    size_t n = fread(buf, 1, (size_t)sz, f);
+                    buf_len = n;
+                }
+            }
+        }
+        fclose(f);
+    }
+
+    /* Storage fallback (engine FUN_00434585 + FUN_004346bf). */
+    if (!buf) {
+        size_t sz = storage_get_size(name);
+        if (sz == 0) return 0;
+        buf = (uint8_t *)malloc(sz + 10);
+        if (!buf) return 0;
+        size_t n = storage_read(name, buf);
+        if (n == 0) {
+            free(buf);
+            return 0;
+        }
+        buf_len = n;
+    }
+
+    /* Skip the secondary-table chunk; pass the parent-template chunk
+     * onwards.  If the file is shorter than the secondary chunk size,
+     * there's no parent data to load — leave defaults intact. */
+    if (buf_len > PFO_SECONDARY_CHUNK_BYTES) {
+        scene1_pfo_parent_table_load_chunk(
+            file_idx,
+            buf + PFO_SECONDARY_CHUNK_BYTES,
+            buf_len - PFO_SECONDARY_CHUNK_BYTES);
+    }
+    free(buf);
+    return 1;
+}
+
+int scene1_pfo_parent_table_load_all(void)
+{
+    /* Engine L17-L42 init runs once before the file loop; mirror that
+     * here so missing files leave their slice at canonical defaults. */
+    scene1_pfo_parent_table_init();
+
+    static const char *const files[PFO_PARENT_FILE_COUNT] = {
+        "ef/effect1.dat",
+        "ef/effect2.dat",
+        "ef/effect3.dat",
+        "ef/effect4.dat",
+    };
+    int loaded = 0;
+    for (int i = 0; i < PFO_PARENT_FILE_COUNT; i++) {
+        if (pfo_load_one_file(files[i], i)) loaded++;
+    }
+    return loaded;
+}
+
+#endif /* _WIN32 */

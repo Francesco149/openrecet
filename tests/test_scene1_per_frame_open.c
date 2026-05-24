@@ -1789,3 +1789,244 @@ int test_pfo_alloc_repeated_calls_fill_table_in_order(void)
     }
     return 0;
 }
+
+/* ===== PFO.7 — parent template binary blob loader ==================== */
+
+/* Build a synthetic 38000-byte "parent-template chunk" with one entry's
+ * worth of recognizable data at sub-record offsets the tick reads.  We
+ * populate entry index `entry_in_file` (0..99) so the test can verify
+ * the slice-into-table offset math.
+ *
+ * Returns a heap buffer the caller must free. */
+static uint8_t *pfo_make_synthetic_chunk(int entry_in_file,
+                                         int32_t sentinel_value,
+                                         int32_t age_match_value,
+                                         float   scale_mul_value,
+                                         float   xyz_x, float xyz_y, float xyz_z)
+{
+    const size_t CHUNK = 38000;
+    const size_t STRIDE_B = (size_t)SCENE1_PFO_PARENT_TABLE_STRIDE * 4u;
+    uint8_t *buf = (uint8_t *)calloc(1, CHUNK);
+    if (!buf) return NULL;
+
+    /* Write the targeted entry's sub-record 0 fields at the correct
+     * byte offsets within the chunk.  Sub-record 0 fields the tick
+     * reads: dw 25 (sentinel), dw 32 (age_match), dw 67 (scale_mul),
+     * dw 74/75/76 (xyz_x/y/z).  Sub-records 1..6 are explicitly
+     * sentinel=-1 so the end-to-end test sees exactly one fire. */
+    int32_t *e = (int32_t *)(buf + entry_in_file * STRIDE_B);
+    e[SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0]  = sentinel_value;
+    e[SCENE1_PFO_PARENT_OFF_SUB_AGE_MATCH_0] = age_match_value;
+    memcpy(&e[SCENE1_PFO_PARENT_OFF_SUB_SCALE_MUL_0], &scale_mul_value,
+           sizeof scale_mul_value);
+    memcpy(&e[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0 + 0], &xyz_x, sizeof xyz_x);
+    memcpy(&e[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0 + 1], &xyz_y, sizeof xyz_y);
+    memcpy(&e[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0 + 2], &xyz_z, sizeof xyz_z);
+    for (int k = 1; k < SCENE1_PFO_PARENT_TABLE_SUB_COUNT; k++) {
+        e[SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0 + k] = -1;
+    }
+    return buf;
+}
+
+int test_pfo_parent_load_chunk_copies_into_correct_file_slice(void)
+{
+    /* Load distinct synthetic chunks into all 4 file slices and confirm
+     * each landed at slot file_idx*100. */
+    scene1_pfo_parent_table_init();
+
+    for (int file_idx = 0; file_idx < 4; file_idx++) {
+        /* Put sub-record sentinel = 1000 + file_idx at entry 0 of the
+         * file's chunk → lands at parent_table entry file_idx*100. */
+        uint8_t *chunk = pfo_make_synthetic_chunk(
+            /*entry_in_file=*/0,
+            /*sentinel=*/1000 + file_idx,
+            /*age_match=*/0, /*scale_mul=*/1.0f,
+            0,0,0);
+        T_ASSERT(chunk != NULL);
+        scene1_pfo_parent_table_load_chunk(file_idx, chunk, 38000);
+        free(chunk);
+    }
+
+    for (int file_idx = 0; file_idx < 4; file_idx++) {
+        int entry_id = file_idx * 100;
+        int32_t got = g_scene1_pfo_parent_table[
+            entry_id * SCENE1_PFO_PARENT_TABLE_STRIDE +
+            SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0];
+        T_ASSERT_EQ_I(got, 1000 + file_idx);
+    }
+    return 0;
+}
+
+int test_pfo_parent_load_chunk_full_size_overwrites_init_defaults(void)
+{
+    scene1_pfo_parent_table_init();
+    /* Default init leaves entry 0's sub_rec[0].sentinel == -1.  After
+     * loading a chunk that puts 42 there, the value should be 42. */
+    uint8_t *chunk = pfo_make_synthetic_chunk(0, 42, 0, 1.0f, 0,0,0);
+    T_ASSERT(chunk != NULL);
+    scene1_pfo_parent_table_load_chunk(0, chunk, 38000);
+    free(chunk);
+    int32_t got = g_scene1_pfo_parent_table[
+        0 * SCENE1_PFO_PARENT_TABLE_STRIDE +
+        SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0];
+    T_ASSERT_EQ_I(got, 42);
+    return 0;
+}
+
+int test_pfo_parent_load_chunk_short_buffer_preserves_tail(void)
+{
+    /* If chunk_len is shorter than 38000, only the prefix is copied;
+     * the rest of the slice keeps init defaults (sentinel == -1). */
+    scene1_pfo_parent_table_init();
+
+    /* Build a 38000-byte chunk that would put new sentinel values into
+     * entries 0 AND 50, then truncate to entry 0's bytes only. */
+    uint8_t *chunk = pfo_make_synthetic_chunk(0, 7, 0, 1.0f, 0,0,0);
+    T_ASSERT(chunk != NULL);
+    int32_t *e50 = (int32_t *)(chunk + 50 * SCENE1_PFO_PARENT_TABLE_STRIDE * 4u);
+    e50[SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0] = 99;
+
+    /* Copy only the first entry's worth (380 B). */
+    size_t entry_b = (size_t)SCENE1_PFO_PARENT_TABLE_STRIDE * 4u;
+    scene1_pfo_parent_table_load_chunk(0, chunk, entry_b);
+    free(chunk);
+
+    /* Entry 0's sentinel got overwritten to 7. */
+    int32_t e0 = g_scene1_pfo_parent_table[
+        0 * SCENE1_PFO_PARENT_TABLE_STRIDE +
+        SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0];
+    T_ASSERT_EQ_I(e0, 7);
+    /* Entry 50's sentinel kept init default of -1 (chunk truncated
+     * before reaching it). */
+    int32_t e50v = g_scene1_pfo_parent_table[
+        50 * SCENE1_PFO_PARENT_TABLE_STRIDE +
+        SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0];
+    T_ASSERT_EQ_I(e50v, -1);
+    return 0;
+}
+
+int test_pfo_parent_load_chunk_clamps_oversize_input(void)
+{
+    /* chunk_len > 38000 → copy exactly 38000 bytes, no out-of-slice
+     * write into the next file's slice. */
+    scene1_pfo_parent_table_init();
+
+    /* 76000-byte buffer where the first 38000 bytes write entry 0's
+     * sentinel = 11 and the second 38000 bytes (which would land in
+     * file_idx=1's slice if we didn't clamp) write a sentinel of 99 at
+     * what would be entry 100's location. */
+    size_t big = 76000;
+    uint8_t *buf = (uint8_t *)calloc(1, big);
+    T_ASSERT(buf != NULL);
+    int32_t *e0 = (int32_t *)buf;
+    e0[SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0] = 11;
+    /* This is what would land at entry 100 IF the clamp failed —
+     * mark with 99. */
+    int32_t *e100_in_buf = (int32_t *)(buf + 38000);
+    e100_in_buf[SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0] = 99;
+
+    scene1_pfo_parent_table_load_chunk(0, buf, big);
+    free(buf);
+
+    /* Entry 0 got the 11 write. */
+    int32_t v0 = g_scene1_pfo_parent_table[
+        0 * SCENE1_PFO_PARENT_TABLE_STRIDE +
+        SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0];
+    T_ASSERT_EQ_I(v0, 11);
+    /* Entry 100 (= file_idx=1's first entry) kept its init default. */
+    int32_t v100 = g_scene1_pfo_parent_table[
+        100 * SCENE1_PFO_PARENT_TABLE_STRIDE +
+        SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0];
+    T_ASSERT_EQ_I(v100, -1);
+    return 0;
+}
+
+int test_pfo_parent_load_chunk_ignores_out_of_range_file_idx(void)
+{
+    scene1_pfo_parent_table_init();
+
+    uint8_t *chunk = pfo_make_synthetic_chunk(0, 55, 0, 1.0f, 0,0,0);
+    T_ASSERT(chunk != NULL);
+
+    /* file_idx = -1 and = 4 → no-op (the table only has 4 file slots). */
+    scene1_pfo_parent_table_load_chunk(-1, chunk, 38000);
+    scene1_pfo_parent_table_load_chunk(4,  chunk, 38000);
+    free(chunk);
+
+    /* All 400 entries kept their init defaults. */
+    for (int e = 0; e < SCENE1_PFO_PARENT_TABLE_COUNT; e++) {
+        int32_t s = g_scene1_pfo_parent_table[
+            e * SCENE1_PFO_PARENT_TABLE_STRIDE +
+            SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0];
+        if (s != -1) T_FAIL("entry %d sentinel = %d, want -1", e, s);
+    }
+    return 0;
+}
+
+int test_pfo_parent_load_chunk_null_buf_is_noop(void)
+{
+    scene1_pfo_parent_table_init();
+    scene1_pfo_parent_table_load_chunk(0, NULL, 38000);
+    int32_t s = g_scene1_pfo_parent_table[
+        0 * SCENE1_PFO_PARENT_TABLE_STRIDE +
+        SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0];
+    T_ASSERT_EQ_I(s, -1);
+    return 0;
+}
+
+int test_pfo_parent_load_chunk_zero_len_is_noop(void)
+{
+    scene1_pfo_parent_table_init();
+    uint8_t dummy = 0xaa;
+    scene1_pfo_parent_table_load_chunk(0, &dummy, 0);
+    int32_t s = g_scene1_pfo_parent_table[
+        0 * SCENE1_PFO_PARENT_TABLE_STRIDE +
+        SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0];
+    T_ASSERT_EQ_I(s, -1);
+    return 0;
+}
+
+int test_pfo_parent_load_chunk_then_tick_spawns_from_loaded_data(void)
+{
+    /* End-to-end: load a chunk via the loader, then allocate a
+     * Table A slot whose SENTINEL field points at the loaded entry,
+     * then tick.  Spawn hook should fire with the loaded sub_rec data. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+
+    /* Loaded chunk: entry 5 in file 1 → parent_id = 1*100 + 5 = 105.
+     * Sub-record 0 with age_match=0, scale=2.0, xyz=(10, 20, 30). */
+    uint8_t *chunk = pfo_make_synthetic_chunk(
+        /*entry_in_file=*/5, /*sentinel=*/123, /*age_match=*/0,
+        /*scale_mul=*/2.0f, /*xyz=*/10.0f, 20.0f, 30.0f);
+    T_ASSERT(chunk != NULL);
+    scene1_pfo_parent_table_load_chunk(/*file_idx=*/1, chunk, 38000);
+    free(chunk);
+
+    /* Allocate a passthrough slot pointing at parent_id 105. */
+    int s = scene1_pfo_table_a_alloc_passthrough(
+        /*template_owner=*/0,
+        /*pos_x=*/0.0f, /*pos_y=*/0.0f, /*pos_z=*/0.0f,
+        /*template_id=*/105,
+        /*scale_base=*/1.0f,
+        /*override_dur=*/0,
+        /*override_rot_y_bits=*/0,
+        /*param_8=*/0);
+    T_ASSERT_EQ_I(s, 0);
+
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+    g_scene1_pfo_alt_mode = 0;
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
+    /* Passthrough: pos = slot_pos + sub.xyz, scale = slot_scale * sub.scale_mul. */
+    T_ASSERT(fabsf(g_pfo_spawn_log[0].pos_x - 10.0f) < 1e-6f);
+    T_ASSERT(fabsf(g_pfo_spawn_log[0].pos_y - 20.0f) < 1e-6f);
+    T_ASSERT(fabsf(g_pfo_spawn_log[0].pos_z - 30.0f) < 1e-6f);
+    T_ASSERT(fabsf(g_pfo_spawn_log[0].scale_base - 2.0f) < 1e-6f);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].template_id, 123);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}

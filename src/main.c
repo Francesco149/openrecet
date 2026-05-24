@@ -62,6 +62,7 @@
 #include "scene1_camera.h"
 #include "scene1_overlay_table.h"
 #include "scene1_pass_f.h"
+#include "scene1_per_frame_open.h"
 #include "scene1_postload.h"
 #include "scene1_preload.h"
 #include "scene1_records.h"
@@ -827,6 +828,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * parser writes.  Dormant in the dispatcher until a spawn caller
      * fires, but the table now matches engine state for HOUSE. */
     (void)scene1_overlay_table_load_all();
+
+    /* Parent template table loader (PFO.7) — engine FUN_00412a89's
+     * file-loading loop, called from the same `case 3` dispatch inside
+     * FUN_00475270 right after the four overlay-table parser calls.
+     * Reads `ef/effect{1..4}.dat` and copies each file's parent-template
+     * chunk (bytes 17200..55199) into g_scene1_pfo_parent_table.  This
+     * is the binary blob the Table A tick (PFO.5a) reads to drive
+     * `scene1_overlay_spawn` calls per inner sub-record.  Dormant in
+     * HOUSE today — no PFO.6 allocator consumer fires until per-stage
+     * particle event triggers port. */
+    (void)scene1_pfo_parent_table_load_all();
 
     /* System overlay textures — FUN_00472f5d called from FUN_0047b29e
      * L233 right after FUN_0049a3a3 / FUN_00434dbf / FUN_00491b3f.

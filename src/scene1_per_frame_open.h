@@ -32,6 +32,7 @@
 #ifndef SCENE1_PER_FRAME_OPEN_H
 #define SCENE1_PER_FRAME_OPEN_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -382,6 +383,71 @@ int scene1_pfo_table_a_alloc_passthrough(int   template_owner,
                                          int   override_dur,
                                          int   override_rot_y_bits,
                                          int   param_8);
+
+/* ------------------------------------------------------------------
+ * Parent template file loader (PFO.7) — engine FUN_00412a89 L70-L86
+ * ------------------------------------------------------------------
+ *
+ * **Survey correction** (recorded here vs the original PFO.7 plan in
+ * docs/findings/scene1-per-frame-open.md): the survey called for porting
+ * `FUN_0041276e` (795 B, a text-format parser that writes individual
+ * fields like `name=` / `frame=` / `scale=` / `xyz=` to the parent
+ * table).  Raw-asm inspection of the unpacked exe shows
+ * `FUN_0041276e` has **zero callers** anywhere in the binary — it is
+ * dead code (likely a dev-time parser left over from an earlier text
+ * format).  The actual data path the shipped game uses is the loop in
+ * `FUN_00412a89` that opens four `ef/effect%d.dat` files and `fread`s
+ * each into two contiguous memory regions — no parsing, just raw
+ * binary blob copy.  The on-disk files are 55200 bytes each, structured
+ * as 17200 B (secondary table chunk, unported here) + 38000 B (parent
+ * template chunk, = 100 entries × 380 B = 100 × 0x17c).  Confirmed by
+ * inspecting `vendor/original/ef/effect1.dat` at offset 0x4330: first
+ * entry's name field reads "unknown" matching the engine's default-init
+ * literal `s_unknown_0052b4a8`.
+ *
+ * So PFO.7 ports `FUN_00412a89`'s file-loader loop (L70-L86), not the
+ * dead parser `FUN_0041276e`.
+ *
+ * The secondary table at engine `DAT_00733820` (4 × 17200 B = 68800 B
+ * = 400 entries × 172 B) is NOT ported in this chip — it has readers
+ * elsewhere in the engine (all.c L10681 / L10940 / L11448 / L11936 / ..)
+ * but none of those callers have ported yet.  When a consumer surfaces,
+ * extend the file loader to copy bytes 0..17199 into a new storage
+ * buffer.  Today we just discard the secondary chunk.
+ */
+
+/* Copy a parent template binary blob into the parent table slice for
+ * one `ef/effect%d.dat` file.  `chunk` is the 38000-byte parent-
+ * template-only data (bytes 17200..55199 of one effect%d.dat file).
+ *
+ * file_idx is 0..3 (= engine's `local_14 - 1` for files 1..4).  Out
+ * of range → no-op.  chunk == NULL → no-op.
+ *
+ * If chunk_len < 38000, copies what's available; remaining destination
+ * bytes keep whatever `scene1_pfo_parent_table_init` wrote (or zero
+ * if init wasn't called first).  Matches engine `fread` partial-read
+ * behavior — the engine returns from `fread` with a short count and
+ * leaves trailing bytes unchanged.  chunk_len > 38000 → clamp to 38000.
+ *
+ * Pure C — host-linkable. */
+void scene1_pfo_parent_table_load_chunk(int file_idx,
+                                        const void *chunk,
+                                        size_t chunk_len);
+
+#ifdef _WIN32
+/* Engine-default boot init: call `scene1_pfo_parent_table_init()` then
+ * load the 4 `ef/effect%d.dat` files in order (N=1..4 → file_idx 0..3).
+ * For each file, try the disk-first / storage-fallback path (same shape
+ * as `scene1_overlay_table_load`); on read success, extract the parent
+ * template chunk (bytes 17200..55199) and dispatch to
+ * `scene1_pfo_parent_table_load_chunk`.  Missing files leave their
+ * slice at defaults — engine's `fread` failure silently leaves the
+ * memory at whatever init wrote.
+ *
+ * Returns the number of files successfully loaded (0..4).  Suitable
+ * to call from boot once, near `scene1_overlay_table_load_all`. */
+int scene1_pfo_parent_table_load_all(void);
+#endif
 
 #ifdef __cplusplus
 }

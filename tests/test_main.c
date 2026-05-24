@@ -1864,7 +1864,15 @@ struct test_case {
     X(pfo_alloc_projected_then_tick_fires_projected_spawn) \
     X(pfo_alloc_passthrough_then_tick_fires_passthrough_spawn) \
     X(pfo_alloc_projected_param3_minus_520_bit_pattern) \
-    X(pfo_alloc_repeated_calls_fill_table_in_order)
+    X(pfo_alloc_repeated_calls_fill_table_in_order) \
+    X(pfo_parent_load_chunk_copies_into_correct_file_slice) \
+    X(pfo_parent_load_chunk_full_size_overwrites_init_defaults) \
+    X(pfo_parent_load_chunk_short_buffer_preserves_tail) \
+    X(pfo_parent_load_chunk_clamps_oversize_input) \
+    X(pfo_parent_load_chunk_ignores_out_of_range_file_idx) \
+    X(pfo_parent_load_chunk_null_buf_is_noop) \
+    X(pfo_parent_load_chunk_zero_len_is_noop) \
+    X(pfo_parent_load_chunk_then_tick_spawns_from_loaded_data)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
