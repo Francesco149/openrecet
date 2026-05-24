@@ -1924,13 +1924,83 @@ static int run_entity_body(int slot, const void *owner, int type,
  * comment above init_entity_24).  Body returns the cap; outer loop
  * commits up to `cap` particles. */
 
-/* Types 0xe / 0x97 / 0x46 — pure preamble (engine L42823: direct
- * goto LAB_00447584 → tail-share `local_8 = local_8 + 1; bVar11 =
- * local_8 == 1; goto LAB_00447cbe;`). */
-static int init_npc_e_97_46(int i, const void *owner, int type, int flag,
-                            int part_idx)
+/* LAB_00447584 trivial-tail group — pure preamble (no per-type body).
+ *
+ * Engine routes the following types directly to LAB_00447584 (the loop
+ * tail), so the body is a no-op beyond what the preamble already wrote:
+ *
+ *   Group A (engine L42823, hit via `param_2 == X → goto LAB_00447584`):
+ *     0xe, 0x97, 0x46
+ *
+ *   Group B (engine L42828, hit via 5-way "or" `param_2 == X` chain):
+ *     0x24, 0xa, 0xb, 0x14, 0x13, 0x99
+ *
+ * All 9 types behave identically — slot stays at preamble defaults.
+ * Engine line 951 ends with `bVar11 = local_8 == 1` so cap=1. */
+static int init_npc_lab_00447584(int i, const void *owner, int type, int flag,
+                                 int part_idx)
 {
     (void)i; (void)owner; (void)type; (void)flag; (void)part_idx;
+    return 1;
+}
+
+/* Owner-pos w/ explicit-return group — engine L42835 + the if-cluster
+ * at L854-876.  Types 0x1e, 0x88, 0x89, 0x9a, 0x9e.
+ *
+ * Body shape (engine raw decomp L856-875):
+ *
+ *   ang = owner+0x420                              (NEW owner-angle field)
+ *   POS  = owner+0x3f0..0x3f8 + +1.0y               (override preamble's no-lift)
+ *   ALT  = owner+0x3f0..0x3f8 + +0.9y               (alt-target)
+ *   VEL  = (2*sin(ang), 0, 2*cos(ang))              (sin/cos doubled by engine,
+ *                                                    not *2 — matches asm `fadd st`)
+ *
+ * The engine `goto LAB_00447584` (the loop tail) is replaced by an
+ * EXPLICIT `return` for these types — i.e., they only ever commit ONE
+ * slot regardless of the outer loop state.  In our port the cap=1
+ * outer-loop semantics already produce that behavior.
+ *
+ * 0x9e is the only type that additionally writes LIFE_MULT and
+ * SCALE_X (engine raw 0x3fe66666 / 0x41200000):
+ *   0x9e: LIFE_MULT = 1.8 (= 0x3fe66666),
+ *         SCALE_X   = 10.0 (= 0x41200000).
+ *
+ * owner+0x420 has not been seen in earlier C8j chips; it's the
+ * "NPC current orientation" angle used by ~10 other types (0x1f, 0x33,
+ * 0x6b, etc.) — those land in later chips. */
+static int init_npc_explicit_return(int i, const void *owner, int type,
+                                    int flag, int part_idx)
+{
+    (void)flag; (void)part_idx;
+
+    float ang = owner_read_f(owner, 0x420);
+    float sa = sinf(ang);
+    float ca = cosf(ang);
+
+    float ox = owner_read_f(owner, 0x3f0);
+    float oy = owner_read_f(owner, 0x3f4);
+    float oz = owner_read_f(owner, 0x3f8);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,     ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,     oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,     oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, oy + 0.9f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, oz);
+
+    /* Engine emits `sin + sin` / `cos + cos` (not `sin * 2`) — same
+     * value, but worth noting since some hand-decomp might miss it. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa + sa);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca + ca);
+
+    if (type == 0x9e) {
+        /* 0x3fe66666 — note this is NOT 1.8 exactly: 0x3fe66666 = 1.8
+         * truncated.  Engine's hex literal is what it is. */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.8f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X,   10.0f);
+    }
+
     return 1;
 }
 
@@ -2249,7 +2319,9 @@ static int run_npc_body(int slot, const void *owner, int type, int flag,
 {
     switch (type) {
     case 0xe: case 0x97: case 0x46:
-        return init_npc_e_97_46(slot, owner, type, flag, part_idx);
+    /* C8j.10b — group B of the LAB_00447584 trivial-tail bucket. */
+    case 0x24: case 0xa: case 0xb: case 0x14: case 0x13: case 0x99:
+        return init_npc_lab_00447584(slot, owner, type, flag, part_idx);
 
     case 0x4d: case 0x4e: case 0x4f: case 0x50:
     case 0xa5: case 0xa6:
@@ -2260,6 +2332,10 @@ static int run_npc_body(int slot, const void *owner, int type, int flag,
     case 0x53: return init_npc_53(slot, owner, type, flag, part_idx);
     case 0x51: return init_npc_51(slot, owner, type, flag, part_idx);
     case 0x68: return init_npc_68(slot, owner, type, flag, part_idx);
+
+    /* C8j.10b — owner-pos + explicit-return group. */
+    case 0x1e: case 0x88: case 0x89: case 0x9a: case 0x9e:
+        return init_npc_explicit_return(slot, owner, type, flag, part_idx);
 
     default:
         /* Unreachable — outer dispatch gated by IMPLEMENTED. */

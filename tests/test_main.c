@@ -1446,6 +1446,8 @@ struct test_case {
     X(records_b_spawn_npc_53_low_lift) \
     X(records_b_spawn_npc_51_mid_lift_cap_1) \
     X(records_b_spawn_npc_68_player_aim_alt_target) \
+    X(records_b_spawn_npc_lab_00447584_group_b_preamble_only) \
+    X(records_b_spawn_npc_explicit_return_group) \
     X(records_b_spawn_entity_3e_uses_owner_ea4_rot_x) \
     X(records_b_spawn_entity_5f_uses_owner_ea4_rot_x) \
     X(records_b_spawn_entity_23_yaw_branch_writes_full_pose) \

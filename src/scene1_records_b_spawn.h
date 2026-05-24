@@ -81,6 +81,21 @@
  * shows the 3 pushes (out=MATRIX0, a=scratch, b=MATRIX0); we use
  * math3d's `mat4_mul` which handles aliased out/b safely.
  *
+ * Chip C8j.10b (2026-05-24) — small follow-up to C8j.10:
+ *
+ *   Trivial-tail group B (engine L42828 — 5-way "or" → goto
+ *   LAB_00447584; preamble-only with no per-type body):
+ *     0x24, 0xa, 0xb, 0x14, 0x13, 0x99.
+ *
+ *   Explicit-return group (engine L854-875 — write pos/alt/vel from
+ *   `owner+0x420`, then explicit `return` skipping the loop tail):
+ *     0x1e, 0x88, 0x89, 0x9a, 0x9e (0x9e additionally writes
+ *     LIFE_MULT=1.8 + SCALE_X=10.0).
+ *
+ *   owner+0x420 is the NPC's "current orientation" angle — a NEW
+ *   owner field for this allocator.  Used by ~10 more NPC types
+ *   (0x1f / 0x33 / 0x6b / 0x27 / 0x28 / etc.) — those land in C8j.11+.
+ *
  * Deferred from C8j.10 (target C8j.11+): mega-cluster B (0xa0-0xa4 +
  * 0x73/0x7a/0x7c/0x7e + 0x96 + 0xd/0x11/0x15/0xc/0x10/0x16/0x17/0x9c),
  * player-aim 0x84/0x96 (needs atan2 = FUN_00503dd0 wrapper), and the
@@ -268,7 +283,12 @@ extern "C" {
      (t) == 0x4d || (t) == 0x4e || (t) == 0x4f || (t) == 0x50 ||         \
      (t) == 0xa5 || (t) == 0xa6 ||                                       \
      /* C8j.10 — NPC single-spawn (matrix-init / drift / player-aim) */  \
-     (t) == 0x56 || (t) == 0x53 || (t) == 0x51 || (t) == 0x68)
+     (t) == 0x56 || (t) == 0x53 || (t) == 0x51 || (t) == 0x68 ||         \
+     /* C8j.10b — LAB_00447584 trivial-tail group B + explicit-return */ \
+     (t) == 0x24 || (t) == 0xa  || (t) == 0xb  ||                        \
+     (t) == 0x14 || (t) == 0x13 || (t) == 0x99 ||                        \
+     (t) == 0x1e || (t) == 0x88 || (t) == 0x89 ||                        \
+     (t) == 0x9a || (t) == 0x9e)
 
 /* Engine DAT_06a46fb8 — monotonically incremented per slot claim by
  * either allocator.  Snapshot + post-increment pattern means the first
