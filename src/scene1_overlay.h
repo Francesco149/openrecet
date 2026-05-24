@@ -96,8 +96,8 @@ extern "C" {
 #define SCENE1_OVERLAY_OFF_ACTIVE          28   /* +0x70 — template_id (or -1 = empty) */
 #define SCENE1_OVERLAY_OFF_AGE             29   /* +0x74 — (int)(local_4 * template[7]) */
 #define SCENE1_OVERLAY_OFF_SCALE_BASE      30   /* +0x78 — (int)(param_6 * template[3]) */
-#define SCENE1_OVERLAY_OFF_UNK_7C          31   /* +0x7c — zero-init */
-#define SCENE1_OVERLAY_OFF_RNG_SEED        32   /* +0x80 — zero-init; renderer "rng_seed" */
+#define SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER 31 /* +0x7c — per-frame tick counter; spawn-zeroed, tick increments */
+#define SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX    32 /* +0x80 — per-cell anim index; spawn-zeroed, tick increments at FRAME_PERIOD */
 #define SCENE1_OVERLAY_OFF_LAYER           33   /* +0x84 — sign-extended template byte 0x44 */
 #define SCENE1_OVERLAY_OFF_BLEND_MODE_BYTE 34   /* +0x88 byte 0 — template byte 0x45 */
 #define SCENE1_OVERLAY_OFF_MODE            35   /* +0x8c — param_10 */
@@ -317,15 +317,16 @@ void scene1_overlay_shape_05_compose_world(float out[16],
  *
  *   if frame_count > 1:
  *       frames_per_row = (int)(256.0 / uv_size_x)       (__ftol trunc)
- *       u_origin = (rng_seed % frames_per_row) * uv_size_x + uv_origin_x
- *       v_origin = (rng_seed / frames_per_row) * uv_size_y + uv_origin_y
+ *       u_origin = (anim_cell_index % frames_per_row) * uv_size_x + uv_origin_x
+ *       v_origin = (anim_cell_index / frames_per_row) * uv_size_y + uv_origin_y
  *   else:
  *       (u_origin, v_origin) = (uv_origin_x, uv_origin_y)
  *
  * shape_entry: 8-dw shape table entry (NULL ok → returns zeros).
- * rng_seed: slot[+0x80] (OFF_RNG_SEED), read as signed int.  */
+ * anim_cell_index: slot[+0x80] (OFF_ANIM_CELL_INDEX), read as signed int —
+ * the tick advances this through 0..FRAME_COUNT-1 per FRAME_PERIOD ticks. */
 void scene1_overlay_shape_05_frame_uv(const int32_t *shape_entry,
-                                      int rng_seed,
+                                      int anim_cell_index,
                                       float *out_uv_origin_x,
                                       float *out_uv_origin_y);
 

@@ -872,13 +872,13 @@ int test_overlay_frame_uv_static_when_frame_count_le_1(void)
     shape[SCENE1_OVERLAY_SHAPE_OFF_FRAME_COUNT] = 1;
 
     float u, v;
-    scene1_overlay_shape_05_frame_uv(shape, /*rng_seed=*/123, &u, &v);
+    scene1_overlay_shape_05_frame_uv(shape, /*anim_cell_index=*/123, &u, &v);
     T_ASSERT(fabsf(u - 50.0f) < 1e-5f);
     T_ASSERT(fabsf(v - 40.0f) < 1e-5f);
     return 0;
 }
 
-int test_overlay_frame_uv_animated_picks_tile_via_rng_seed(void)
+int test_overlay_frame_uv_animated_picks_tile_via_anim_cell_index(void)
 {
     int32_t shape[8] = {0};
     shape[SCENE1_OVERLAY_SHAPE_OFF_UV_ORIGIN_X] = f_to_bits(0.0f);
@@ -886,9 +886,9 @@ int test_overlay_frame_uv_animated_picks_tile_via_rng_seed(void)
     shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X]   = f_to_bits(32.0f);
     shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y]   = f_to_bits(32.0f);
     shape[SCENE1_OVERLAY_SHAPE_OFF_FRAME_COUNT] = 4;
-    /* frames_per_row = (int)(256/32) = 8; rng_seed=11 → col=3, row=1. */
+    /* frames_per_row = (int)(256/32) = 8; anim_cell_index=11 → col=3, row=1. */
     float u, v;
-    scene1_overlay_shape_05_frame_uv(shape, /*rng_seed=*/11, &u, &v);
+    scene1_overlay_shape_05_frame_uv(shape, /*anim_cell_index=*/11, &u, &v);
     T_ASSERT(fabsf(u - 96.0f) < 1e-5f);   /* 3 * 32 + 0 */
     T_ASSERT(fabsf(v - 32.0f) < 1e-5f);   /* 1 * 32 + 0 */
     return 0;

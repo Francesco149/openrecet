@@ -358,8 +358,8 @@ void scene1_overlay_spawn(const void *template_owner,
         slot_set_i(slot, SCENE1_OVERLAY_OFF_ACTIVE, template_id);   /* claim */
         slot_set_f(slot, SCENE1_OVERLAY_OFF_SCALE_BASE, scale_base); /* overwritten below */
         slot_set_i(slot, SCENE1_OVERLAY_OFF_SHAPE_MODE, shape_mode);
-        slot_set_i(slot, SCENE1_OVERLAY_OFF_UNK_7C, 0);
-        slot_set_i(slot, SCENE1_OVERLAY_OFF_RNG_SEED, 0);
+        slot_set_i(slot, SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER, 0);
+        slot_set_i(slot, SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX, 0);
         slot_set_i(slot, SCENE1_OVERLAY_OFF_MODE, mode);
 
         /* Template field copies (mix of int mov + float fld/fstp). */
@@ -562,8 +562,8 @@ void scene1_overlay_render(IDirect3DDevice8 *dev, int layer, int mode)
             }
 
             float uv_origin_x, uv_origin_y;
-            int rng_seed = slot[SCENE1_OVERLAY_OFF_RNG_SEED];
-            scene1_overlay_shape_05_frame_uv(shape_entry, rng_seed,
+            int anim_cell_index = slot[SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX];
+            scene1_overlay_shape_05_frame_uv(shape_entry, anim_cell_index,
                                              &uv_origin_x, &uv_origin_y);
 
             float world[16];

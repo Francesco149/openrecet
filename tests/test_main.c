@@ -1727,7 +1727,7 @@ struct test_case {
     X(overlay_shape_05_world_has_translation_row) \
     X(overlay_shape_05_world_uses_pre_matrix) \
     X(overlay_frame_uv_static_when_frame_count_le_1) \
-    X(overlay_frame_uv_animated_picks_tile_via_rng_seed) \
+    X(overlay_frame_uv_animated_picks_tile_via_anim_cell_index) \
     X(overlay_frame_uv_null_shape_returns_zero) \
     X(overlay_diffuse_gray_encodes_correctly) \
     X(overlay_shape_05_emit_even_slot_idx_uv_layout) \
@@ -1807,7 +1807,25 @@ struct test_case {
     X(pfo_parent_init_is_idempotent) \
     X(pfo_parent_field_offsets_match_engine_layout) \
     X(scene1_records_reset_sentinel_inits_overlay_slots) \
-    X(scene1_records_reset_with_reset_c_zero_still_inits_overlay)
+    X(scene1_records_reset_with_reset_c_zero_still_inits_overlay) \
+    \
+    X(pfo_b_tick_skips_inactive_slot) \
+    X(pfo_b_tick_anim_frame_counter_increments) \
+    X(pfo_b_tick_anim_cell_advances_at_period_and_clamps) \
+    X(pfo_b_tick_anim_cell_wraps_when_loop_mode_1) \
+    X(pfo_b_tick_anim_runs_when_age_negative) \
+    X(pfo_b_tick_default_integrator_pos_plus_vel) \
+    X(pfo_b_tick_type_8_9_10_advances_rot_y) \
+    X(pfo_b_tick_type_1_null_owner_uses_zero_matrix) \
+    X(pfo_b_tick_type_6_null_owner_uses_zero_matrix) \
+    X(pfo_b_tick_drag_and_gravity_modify_bend) \
+    X(pfo_b_tick_energy_decay) \
+    X(pfo_b_tick_age_increments_always) \
+    X(pfo_b_tick_kill_when_age_exceeds_fade_off) \
+    X(pfo_b_tick_kill_when_energy_zero_or_below) \
+    X(pfo_b_tick_no_kill_when_fade_off_minus_one) \
+    X(pfo_b_tick_type_4_with_unk_48_bypasses_kill) \
+    X(pfo_b_tick_field_renames_match_offsets)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

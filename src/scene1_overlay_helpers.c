@@ -22,10 +22,11 @@
  * Survey correction landed by O.3: the survey doc claimed shape 0/5 does
  * a "vertical flip if (slot.rng_seed & 1) != 0", but the asm at
  * 0x415a2e is `test [ebp-0x20], 0x1` — and [ebp-0x20] is the inner
- * slot scan counter (local_24), NOT the slot's rng_seed.  It's a
- * HORIZONTAL flip based on the slot's table position (the inner scan
- * idx), which means adjacent slots of the same template alternate
- * facing.  Updated comments in this TU + the spawn API header.
+ * slot scan counter (local_24), NOT the slot's anim_cell_index (which
+ * PFO.0 confirmed isn't an RNG seed at all, just the per-cell anim
+ * counter).  It's a HORIZONTAL flip based on the slot's table position
+ * (the inner scan idx), which means adjacent slots of the same template
+ * alternate facing.  Updated comments in this TU + the spawn API header.
  */
 
 #include "scene1_overlay.h"
@@ -183,7 +184,7 @@ void scene1_overlay_shape_05_compose_world(float out[16],
 /* ---- Frame UV selection ------------------------------------------- */
 
 void scene1_overlay_shape_05_frame_uv(const int32_t *shape_entry,
-                                      int rng_seed,
+                                      int anim_cell_index,
                                       float *out_uv_origin_x,
                                       float *out_uv_origin_y)
 {
@@ -204,14 +205,14 @@ void scene1_overlay_shape_05_frame_uv(const int32_t *shape_entry,
 
     if (frame_count > 1) {
         /* Engine: frames_per_row = (int)(256.0 / uv_size_x).  __ftol
-         * truncates toward zero.  Then rng_seed is partitioned by
-         * idiv (signed) into (col, row).  Negative rng_seed gives
+         * truncates toward zero.  Then anim_cell_index is partitioned by
+         * idiv (signed) into (col, row).  Negative anim_cell_index gives
          * negative column / row offsets — matches the engine's
          * verbatim signed-int division. */
         int frames_per_row = (int)(256.0f / uv_size_x);
         if (frames_per_row != 0) {
-            int col = rng_seed % frames_per_row;
-            int row = rng_seed / frames_per_row;
+            int col = anim_cell_index % frames_per_row;
+            int row = anim_cell_index / frames_per_row;
             u = (float)col * uv_size_x + uv_origin_x;
             v = (float)row * uv_size_y + uv_origin_y;
         }

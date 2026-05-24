@@ -6,12 +6,20 @@
  *   PFO.2: FUN_00412a89 @ 0x412a89 L17-L42 — parent template table
  *          first init loop (per-entry default fill: -1 sentinels,
  *          100-quartet RGBA, 1.0 scale_mul, 0 xyz).
+ *   PFO.3: FUN_00414929 @ 0x414929 L67-L195 — Table B per-tick body
+ *          (anim-cell + per-type integrator + drag/gravity/age-kill).
  *
- * Other halves of FUN_00414929 land in PFO.3..PFO.7 per the chip
+ * Other halves of FUN_00414929 land in PFO.4..PFO.7 per the chip
  * ladder in docs/findings/scene1-per-frame-open.md.
  */
 
 #include "scene1_per_frame_open.h"
+
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+
+#include "scene1_overlay.h"
 
 int32_t g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_COUNT *
                              SCENE1_PFO_TABLE_A_STRIDE];
@@ -71,6 +79,214 @@ void scene1_pfo_parent_table_init(void)
             entry[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0       + k * 3 + 0] = 0;
             entry[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0       + k * 3 + 1] = 0;
             entry[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0       + k * 3 + 2] = 0;
+        }
+    }
+}
+
+/* ===== PFO.3 — Table B per-tick body ====================================
+ *
+ * Direct port of FUN_00414929 L67-L195.  See scene1_per_frame_open.h for
+ * the chip-level writeup.  Engine-side annotations point to specific
+ * decomp lines / asm offsets.
+ *
+ * Field-perspective note: this function uses tick-perspective names for
+ * the slot fields where the renderer/tick disagree:
+ *   - OFF_BEND_X/Y/Z (renderer "bend") = tick "vel"
+ *   - OFF_VEL_X/Y/Z  (renderer "vel")  = tick "accum" for SHAPE_MODE 1/6
+ *   - OFF_POS_X_COPY/Y/Z = type-1/6 base anchor.
+ */
+
+static inline float bits_to_f(int32_t bits)
+{
+    float f;
+    memcpy(&f, &bits, sizeof f);
+    return f;
+}
+
+static inline int32_t f_to_bits(float f)
+{
+    int32_t bits;
+    memcpy(&bits, &f, sizeof bits);
+    return bits;
+}
+
+static inline int32_t slot_b_i(int s, int off)
+{
+    return g_scene1_overlay_slots[s * SCENE1_OVERLAY_SLOT_STRIDE + off];
+}
+static inline void slot_b_set_i(int s, int off, int32_t v)
+{
+    g_scene1_overlay_slots[s * SCENE1_OVERLAY_SLOT_STRIDE + off] = v;
+}
+static inline float slot_b_f(int s, int off)
+{
+    return bits_to_f(slot_b_i(s, off));
+}
+static inline void slot_b_set_f(int s, int off, float v)
+{
+    slot_b_set_i(s, off, f_to_bits(v));
+}
+
+/* Read 3 floats from an int-stored owner pointer at a fixed byte
+ * offset.  Engine convention: OWNER_A/B is a host pointer cast to int32
+ * (target ABI is 32-bit Windows).  On 64-bit host tests, callers that
+ * exercise this path must ensure the buffer's address fits in int32_t
+ * (use static .bss arrays + a non-PIE build, or stub OWNER as 0).  When
+ * the slot's owner field is 0 the matrix add collapses to zero — that
+ * matches the engine behavior for sentinel-empty owner pointers.
+ *
+ * NOTE: the engine's vendor binary genuinely derefs a null pointer when
+ * OWNER is 0 and SHAPE_MODE is 1/6, which would crash — but this only
+ * happens when a SHAPE_MODE-1/6 spawn drops a slot with NULL owner.  No
+ * such spawn site exists in HOUSE today; the guard here is a safety
+ * net, not a behavior divergence in any reachable code path. */
+static void owner_matrix_xyz_read(int32_t owner_int, size_t byte_off,
+                                  float *out_x, float *out_y, float *out_z)
+{
+    if (owner_int == 0) {
+        *out_x = 0.0f;
+        *out_y = 0.0f;
+        *out_z = 0.0f;
+        return;
+    }
+    const char *base = (const char *)(intptr_t)owner_int;
+    memcpy(out_x, base + byte_off + 0, sizeof *out_x);
+    memcpy(out_y, base + byte_off + 4, sizeof *out_y);
+    memcpy(out_z, base + byte_off + 8, sizeof *out_z);
+}
+
+void scene1_pfo_table_b_tick(void)
+{
+    for (int s = 0; s < SCENE1_OVERLAY_SLOT_COUNT; s++) {
+        /* Engine L70: `if (piVar2[-4] != -1)` — slot ACTIVE != -1. */
+        if (slot_b_i(s, SCENE1_OVERLAY_OFF_ACTIVE) == -1) continue;
+
+        /* ── Step 1: anim-cell tick (engine L71-L87, always runs). ──── */
+        int32_t shape_idx = slot_b_i(s, SCENE1_OVERLAY_OFF_TEXTURE_TYPE);
+        int32_t fc_new = slot_b_i(s, SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER) + 1;
+        slot_b_set_i(s, SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER, fc_new);
+
+        /* Engine reads (&DAT_00769768)[iVar10*8] etc. without bounds check;
+         * we add a typed-storage bounds guard.  HOUSE has shape_idx in
+         * range so this never differs in practice. */
+        if (shape_idx >= 0 && shape_idx < SCENE1_OVERLAY_SHAPE_COUNT) {
+            const int32_t *shape = &g_scene1_overlay_shapes[
+                shape_idx * SCENE1_OVERLAY_SHAPE_STRIDE];
+            int32_t period = shape[SCENE1_OVERLAY_SHAPE_OFF_FRAME_PERIOD];
+            /* Engine L74: `0 < frame_period && frame_period <= fc_new`. */
+            if (period > 0 && period <= fc_new) {
+                int32_t cell_count = shape[SCENE1_OVERLAY_SHAPE_OFF_FRAME_COUNT];
+                /* Reset frame counter, advance cell index. */
+                slot_b_set_i(s, SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER, 0);
+                int32_t cell_new = slot_b_i(s, SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX) + 1;
+                slot_b_set_i(s, SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX, cell_new);
+                /* Engine L79: `if (iVar9 <= *piVar2)` — cell_count <= cell_new. */
+                if (cell_count <= cell_new) {
+                    /* L80: LOOP_MODE==1 → wrap to 0; else clamp to last. */
+                    if (shape[SCENE1_OVERLAY_SHAPE_OFF_LOOP_MODE] == 1) {
+                        slot_b_set_i(s, SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX, 0);
+                    } else {
+                        slot_b_set_i(s, SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX,
+                                     cell_count - 1);
+                    }
+                }
+            }
+        }
+
+        /* ── Step 2: type-dispatched integrator (engine L88-L182).
+         * Gated on AGE >= 0 — spawn API plants negative ages for
+         * staggered bursts.  AGE pre-increment is read here. ──── */
+        int32_t age        = slot_b_i(s, SCENE1_OVERLAY_OFF_AGE);
+        int32_t shape_mode = slot_b_i(s, SCENE1_OVERLAY_OFF_SHAPE_MODE);
+        int32_t type_shape = slot_b_i(s, SCENE1_OVERLAY_OFF_TYPE_SHAPE);
+
+        if (age >= 0) {
+            /* "vel" = BEND_X/Y/Z (renderer's "bend" slot fields).
+             * Snapshot at top so type-dispatch and drag-mutate read
+             * consistent pre-drag values. */
+            float bx = slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_X);
+            float by = slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Y);
+            float bz = slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Z);
+
+            if (shape_mode == 1 || shape_mode == 6) {
+                /* Type 1/6: accum (= VEL_X/Y/Z) += vel; pos = base
+                 * (POS_X_COPY/Y/Z) + matrix-row + accum.
+                 * - shape_mode==1: matrix is OWNER_A + 0x20..+0x28.
+                 * - shape_mode==6: matrix is OWNER_B + 0x3f0..+0x3f8.
+                 *
+                 * Engine L90-101 (type 1) / L105-114 (type 6). */
+                float ax = slot_b_f(s, SCENE1_OVERLAY_OFF_VEL_X) + bx;
+                float ay = slot_b_f(s, SCENE1_OVERLAY_OFF_VEL_Y) + by;
+                float az = slot_b_f(s, SCENE1_OVERLAY_OFF_VEL_Z) + bz;
+                slot_b_set_f(s, SCENE1_OVERLAY_OFF_VEL_X, ax);
+                slot_b_set_f(s, SCENE1_OVERLAY_OFF_VEL_Y, ay);
+                slot_b_set_f(s, SCENE1_OVERLAY_OFF_VEL_Z, az);
+
+                int   owner_off = (shape_mode == 1)
+                    ? SCENE1_OVERLAY_OFF_OWNER_A
+                    : SCENE1_OVERLAY_OFF_OWNER_B;
+                size_t mat_off  = (shape_mode == 1) ? 0x20 : 0x3f0;
+                float mx, my, mz;
+                owner_matrix_xyz_read(slot_b_i(s, owner_off), mat_off,
+                                      &mx, &my, &mz);
+
+                slot_b_set_f(s, SCENE1_OVERLAY_OFF_POS_X,
+                             slot_b_f(s, SCENE1_OVERLAY_OFF_POS_X_COPY) + mx + ax);
+                slot_b_set_f(s, SCENE1_OVERLAY_OFF_POS_Y,
+                             slot_b_f(s, SCENE1_OVERLAY_OFF_POS_Y_COPY) + my + ay);
+                slot_b_set_f(s, SCENE1_OVERLAY_OFF_POS_Z,
+                             slot_b_f(s, SCENE1_OVERLAY_OFF_POS_Z_COPY) + mz + az);
+            } else if (type_shape == 8 || type_shape == 9 ||
+                       type_shape == 10) {
+                /* Engine L122: type_shape in {8,9,10} → ROT_Y += BEND_Y. */
+                float ry = slot_b_f(s, SCENE1_OVERLAY_OFF_ROT_Y) + by;
+                slot_b_set_f(s, SCENE1_OVERLAY_OFF_ROT_Y, ry);
+            } else {
+                /* Engine L117-L120: default → pos += BEND. */
+                slot_b_set_f(s, SCENE1_OVERLAY_OFF_POS_X,
+                             slot_b_f(s, SCENE1_OVERLAY_OFF_POS_X) + bx);
+                slot_b_set_f(s, SCENE1_OVERLAY_OFF_POS_Y,
+                             slot_b_f(s, SCENE1_OVERLAY_OFF_POS_Y) + by);
+                slot_b_set_f(s, SCENE1_OVERLAY_OFF_POS_Z,
+                             slot_b_f(s, SCENE1_OVERLAY_OFF_POS_Z) + bz);
+            }
+
+            /* Drag (engine L124-126): BEND *= TEMPLATE5_COPY. */
+            float drag = slot_b_f(s, SCENE1_OVERLAY_OFF_TEMPLATE5_COPY);
+            slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_X, bx * drag);
+            slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_Y, by * drag);
+            slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_Z, bz * drag);
+
+            /* Gravity-like additive (engine L127): BEND_Y += UNK_48. */
+            float gravity = slot_b_f(s, SCENE1_OVERLAY_OFF_UNK_48);
+            slot_b_set_f(s, SCENE1_OVERLAY_OFF_BEND_Y,
+                         slot_b_f(s, SCENE1_OVERLAY_OFF_BEND_Y) + gravity);
+
+            /* PFO.4: SHAPE_MODE==4 + UNK_48 != 0 "shop walker" aim
+             * physics + 50% kill at terminal velocity (engine L128-L180).
+             * Skipped here.  HOUSE-dormant since no spawn populates
+             * type-4 slots with non-zero UNK_48. */
+
+            /* Energy decay (engine L181): SCALE_X += TEMPLATE11_COPY. */
+            float energy = slot_b_f(s, SCENE1_OVERLAY_OFF_SCALE_X);
+            float delta  = slot_b_f(s, SCENE1_OVERLAY_OFF_TEMPLATE11_COPY);
+            slot_b_set_f(s, SCENE1_OVERLAY_OFF_SCALE_X, energy + delta);
+        }
+
+        /* ── Step 3: AGE++ and kill check (engine L183-L188).
+         * BOTH run regardless of the AGE >= 0 gate above. ──── */
+        int32_t age_new = age + 1;
+        slot_b_set_i(s, SCENE1_OVERLAY_OFF_AGE, age_new);
+
+        float unk_48 = slot_b_f(s, SCENE1_OVERLAY_OFF_UNK_48);
+        int   type_4_active = (shape_mode == 4 && unk_48 != 0.0f);
+        int32_t fade_off  = slot_b_i(s, SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET);
+        int32_t age_birth = slot_b_i(s, SCENE1_OVERLAY_OFF_AGE_BIRTH);
+        float   energy    = slot_b_f(s, SCENE1_OVERLAY_OFF_SCALE_X);
+        if (!type_4_active && fade_off != -1) {
+            if (fade_off <= age_new - age_birth || energy <= 0.0f) {
+                slot_b_set_i(s, SCENE1_OVERLAY_OFF_ACTIVE, -1);
+            }
         }
     }
 }

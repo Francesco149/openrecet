@@ -7,6 +7,7 @@
 
 #include "t.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "scene1_overlay.h"
@@ -382,5 +383,346 @@ int test_pfo_parent_field_offsets_match_engine_layout(void)
     T_ASSERT_EQ_I(SCENE1_PFO_PARENT_OFF_SUB_XYZ_0 + 6 * 3 + 2,
                   SCENE1_PFO_PARENT_TABLE_STRIDE - 1);
 
+    return 0;
+}
+
+/* ===== PFO.3 — Table B per-tick body tests ============================ */
+
+static int32_t pfo_f_to_bits(float f)
+{
+    int32_t bits;
+    memcpy(&bits, &f, sizeof bits);
+    return bits;
+}
+static float pfo_bits_to_f(int32_t bits)
+{
+    float f;
+    memcpy(&f, &bits, sizeof f);
+    return f;
+}
+
+/* Setup a single overlay slot at index `s` with the engine's "live"
+ * default state: ACTIVE != -1, AGE = 0, TEXTURE_TYPE = 0, and no kill
+ * gate (FADE_OUT_OFFSET = -1).  Other consumers seed their own fields.
+ * Also resets the shape table to BSS-zero (any prior test's
+ * shapes[0][FRAME_PERIOD] mutation would otherwise leak into the anim
+ * cell tick and surprise downstream tests). */
+static void setup_live_slot(int s, int32_t shape_mode, int32_t type_shape)
+{
+    scene1_overlay_reset();
+    scene1_overlay_shapes_reset();
+    int base = s * SCENE1_OVERLAY_SLOT_STRIDE;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ACTIVE]            = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE]               = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_TEXTURE_TYPE]      = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_SHAPE_MODE]        = shape_mode;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_TYPE_SHAPE]        = type_shape;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET]   = -1;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE_BIRTH]         = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_SCALE_X]           = pfo_f_to_bits(1.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_TEMPLATE5_COPY]    = pfo_f_to_bits(1.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_TEMPLATE11_COPY]   = pfo_f_to_bits(0.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_UNK_48]            = pfo_f_to_bits(0.0f);
+}
+
+int test_pfo_b_tick_skips_inactive_slot(void)
+{
+    scene1_overlay_reset();
+    /* Slot 0's ACTIVE is -1 by default — verify the tick leaves
+     * everything else untouched (no anim-counter increment, no AGE++). */
+    g_scene1_overlay_slots[0 * SCENE1_OVERLAY_SLOT_STRIDE +
+                           SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER] = 0;
+
+    scene1_pfo_table_b_tick();
+
+    int32_t fc = g_scene1_overlay_slots[0 * SCENE1_OVERLAY_SLOT_STRIDE +
+                                        SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER];
+    T_ASSERT_EQ_I(fc, 0);
+    int32_t age = g_scene1_overlay_slots[0 * SCENE1_OVERLAY_SLOT_STRIDE +
+                                         SCENE1_OVERLAY_OFF_AGE];
+    T_ASSERT_EQ_I(age, 0);
+    return 0;
+}
+
+int test_pfo_b_tick_anim_frame_counter_increments(void)
+{
+    setup_live_slot(0, /*shape_mode=*/0, /*type_shape=*/0);
+    /* Shape entry left BSS-zero → FRAME_PERIOD == 0 → no cell advance,
+     * but the frame counter still increments unconditionally each tick. */
+    scene1_pfo_table_b_tick();
+    int32_t fc = g_scene1_overlay_slots[0 * SCENE1_OVERLAY_SLOT_STRIDE +
+                                        SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER];
+    T_ASSERT_EQ_I(fc, 1);
+
+    scene1_pfo_table_b_tick();
+    fc = g_scene1_overlay_slots[0 * SCENE1_OVERLAY_SLOT_STRIDE +
+                                SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER];
+    T_ASSERT_EQ_I(fc, 2);
+    return 0;
+}
+
+int test_pfo_b_tick_anim_cell_advances_at_period_and_clamps(void)
+{
+    setup_live_slot(0, /*shape_mode=*/0, /*type_shape=*/0);
+    /* Shape 0 with FRAME_PERIOD=3, FRAME_COUNT=4, LOOP_MODE=0 (clamp). */
+    g_scene1_overlay_shapes[0 * SCENE1_OVERLAY_SHAPE_STRIDE +
+                            SCENE1_OVERLAY_SHAPE_OFF_FRAME_PERIOD] = 3;
+    g_scene1_overlay_shapes[0 * SCENE1_OVERLAY_SHAPE_STRIDE +
+                            SCENE1_OVERLAY_SHAPE_OFF_FRAME_COUNT]  = 4;
+    g_scene1_overlay_shapes[0 * SCENE1_OVERLAY_SHAPE_STRIDE +
+                            SCENE1_OVERLAY_SHAPE_OFF_LOOP_MODE]    = 0;
+
+    /* Tick 3 times: each tick fc++, at fc==3 reset to 0 and bump cell. */
+    scene1_pfo_table_b_tick(); /* fc 1 */
+    scene1_pfo_table_b_tick(); /* fc 2 */
+    scene1_pfo_table_b_tick(); /* fc==3 → reset to 0; cell 0→1 */
+    int base = 0;
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER], 0);
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX], 1);
+
+    /* 9 more ticks total → cell 1→2→3→clamp at 3. */
+    for (int i = 0; i < 9; i++) scene1_pfo_table_b_tick();
+    /* After 9 more ticks: 3+9 = 12 ticks total since start.  Frame
+     * resets at 3,6,9,12 → 4 cell advances total → cell would be 4,
+     * clamped to FRAME_COUNT-1 = 3. */
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX], 3);
+    return 0;
+}
+
+int test_pfo_b_tick_anim_cell_wraps_when_loop_mode_1(void)
+{
+    setup_live_slot(0, /*shape_mode=*/0, /*type_shape=*/0);
+    g_scene1_overlay_shapes[0 * SCENE1_OVERLAY_SHAPE_STRIDE +
+                            SCENE1_OVERLAY_SHAPE_OFF_FRAME_PERIOD] = 1;
+    g_scene1_overlay_shapes[0 * SCENE1_OVERLAY_SHAPE_STRIDE +
+                            SCENE1_OVERLAY_SHAPE_OFF_FRAME_COUNT]  = 3;
+    g_scene1_overlay_shapes[0 * SCENE1_OVERLAY_SHAPE_STRIDE +
+                            SCENE1_OVERLAY_SHAPE_OFF_LOOP_MODE]    = 1;
+
+    /* 3 ticks → cell goes 0→1→2→wrap to 0 (loop mode 1 wraps). */
+    scene1_pfo_table_b_tick();
+    scene1_pfo_table_b_tick();
+    scene1_pfo_table_b_tick();
+    int base = 0;
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX], 0);
+    return 0;
+}
+
+int test_pfo_b_tick_anim_runs_when_age_negative(void)
+{
+    setup_live_slot(0, /*shape_mode=*/0, /*type_shape=*/0);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE] = -5;
+    scene1_pfo_table_b_tick();
+    /* Anim frame counter increments even for AGE < 0. */
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER], 1);
+    /* But integrator was skipped — pos/bend remain BSS-zero. */
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_X], 0);
+    /* AGE still increments. */
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE], -4);
+    return 0;
+}
+
+int test_pfo_b_tick_default_integrator_pos_plus_vel(void)
+{
+    setup_live_slot(0, /*shape_mode=*/2, /*type_shape=*/2);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_X]  = pfo_f_to_bits(10.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_Y]  = pfo_f_to_bits(20.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_Z]  = pfo_f_to_bits(30.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X] = pfo_f_to_bits(1.5f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y] = pfo_f_to_bits(-2.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Z] = pfo_f_to_bits(0.25f);
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_X]) - 11.5f) < 1e-5f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_Y]) - 18.0f) < 1e-5f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_Z]) - 30.25f) < 1e-5f);
+    return 0;
+}
+
+int test_pfo_b_tick_type_8_9_10_advances_rot_y(void)
+{
+    int base = 0;
+    for (int ts = 8; ts <= 10; ts++) {
+        setup_live_slot(0, /*shape_mode=*/2 /* not 1/6 */, /*type_shape=*/ts);
+        g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_X]  = pfo_f_to_bits(5.0f);
+        g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X] = pfo_f_to_bits(1.0f);
+        g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y] = pfo_f_to_bits(0.5f);
+        g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ROT_Y]  = pfo_f_to_bits(10.0f);
+
+        scene1_pfo_table_b_tick();
+
+        /* ROT_Y += BEND_Y. */
+        T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ROT_Y]) - 10.5f) < 1e-5f);
+        /* POS unchanged (no default add path for 8/9/10). */
+        T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_X]) - 5.0f) < 1e-5f);
+    }
+    return 0;
+}
+
+int test_pfo_b_tick_type_1_null_owner_uses_zero_matrix(void)
+{
+    setup_live_slot(0, /*shape_mode=*/1, /*type_shape=*/0);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_OWNER_A]    = 0;   /* null */
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_X_COPY] = pfo_f_to_bits(7.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_Y_COPY] = pfo_f_to_bits(8.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_Z_COPY] = pfo_f_to_bits(9.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_VEL_X]      = pfo_f_to_bits(1.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_VEL_Y]      = pfo_f_to_bits(2.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_VEL_Z]      = pfo_f_to_bits(3.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X]     = pfo_f_to_bits(0.1f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y]     = pfo_f_to_bits(0.2f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Z]     = pfo_f_to_bits(0.3f);
+
+    scene1_pfo_table_b_tick();
+
+    /* accum (= VEL) += vel (= BEND).  accum = (1.1, 2.2, 3.3). */
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_VEL_X]) - 1.1f) < 1e-5f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_VEL_Y]) - 2.2f) < 1e-5f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_VEL_Z]) - 3.3f) < 1e-5f);
+
+    /* pos = COPY + matrix(0) + accum_NEW = (7+1.1, 8+2.2, 9+3.3). */
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_X]) - 8.1f) < 1e-5f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_Y]) - 10.2f) < 1e-5f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_Z]) - 12.3f) < 1e-5f);
+    return 0;
+}
+
+int test_pfo_b_tick_type_6_null_owner_uses_zero_matrix(void)
+{
+    /* Same as type 1 but shape_mode==6 reads OWNER_B instead.  Verify
+     * a null OWNER_B short-circuits the matrix add the same way. */
+    setup_live_slot(0, /*shape_mode=*/6, /*type_shape=*/0);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_OWNER_B]    = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_X_COPY] = pfo_f_to_bits(1.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_VEL_X]      = pfo_f_to_bits(2.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X]     = pfo_f_to_bits(3.0f);
+
+    scene1_pfo_table_b_tick();
+
+    /* accum_x_new = 2 + 3 = 5; pos_x = 1 + 0 + 5 = 6. */
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_VEL_X]) - 5.0f) < 1e-5f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_POS_X]) - 6.0f) < 1e-5f);
+    return 0;
+}
+
+int test_pfo_b_tick_drag_and_gravity_modify_bend(void)
+{
+    setup_live_slot(0, /*shape_mode=*/2, /*type_shape=*/2);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X]          = pfo_f_to_bits(2.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y]          = pfo_f_to_bits(2.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Z]          = pfo_f_to_bits(2.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_TEMPLATE5_COPY]  = pfo_f_to_bits(0.5f);   /* drag */
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_UNK_48]          = pfo_f_to_bits(-0.1f);  /* gravity */
+
+    scene1_pfo_table_b_tick();
+
+    /* Drag is applied first: BEND *= 0.5 → (1, 1, 1).
+     * Then gravity: BEND_Y += -0.1 → (1, 0.9, 1). */
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_X]) - 1.0f) < 1e-5f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Y]) - 0.9f) < 1e-5f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_BEND_Z]) - 1.0f) < 1e-5f);
+    return 0;
+}
+
+int test_pfo_b_tick_energy_decay(void)
+{
+    setup_live_slot(0, /*shape_mode=*/2, /*type_shape=*/2);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_SCALE_X]         = pfo_f_to_bits(10.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_TEMPLATE11_COPY] = pfo_f_to_bits(-1.5f);
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_SCALE_X]) - 8.5f) < 1e-5f);
+    return 0;
+}
+
+int test_pfo_b_tick_age_increments_always(void)
+{
+    setup_live_slot(0, /*shape_mode=*/2, /*type_shape=*/2);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE] = -3;
+    scene1_pfo_table_b_tick();
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE], -2);
+
+    setup_live_slot(0, /*shape_mode=*/2, /*type_shape=*/2);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE] = 7;
+    scene1_pfo_table_b_tick();
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE], 8);
+    return 0;
+}
+
+int test_pfo_b_tick_kill_when_age_exceeds_fade_off(void)
+{
+    setup_live_slot(0, /*shape_mode=*/2, /*type_shape=*/2);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET] = 5;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE_BIRTH]       = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE]             = 4;   /* AGE+1=5, hits gate */
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_SCALE_X]         = pfo_f_to_bits(1.0f);
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ACTIVE], -1);
+    return 0;
+}
+
+int test_pfo_b_tick_kill_when_energy_zero_or_below(void)
+{
+    setup_live_slot(0, /*shape_mode=*/2, /*type_shape=*/2);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET] = 1000;   /* effectively no age gate */
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_SCALE_X]         = pfo_f_to_bits(-0.1f);
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ACTIVE], -1);
+    return 0;
+}
+
+int test_pfo_b_tick_no_kill_when_fade_off_minus_one(void)
+{
+    setup_live_slot(0, /*shape_mode=*/2, /*type_shape=*/2);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET] = -1;     /* immortal */
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_SCALE_X]         = pfo_f_to_bits(-1.0f);  /* but negative energy */
+
+    scene1_pfo_table_b_tick();
+
+    /* FADE_OUT_OFFSET==-1 unconditionally bypasses kill, even with
+     * negative SCALE_X. */
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ACTIVE], 0);
+    return 0;
+}
+
+int test_pfo_b_tick_type_4_with_unk_48_bypasses_kill(void)
+{
+    /* The shop-walker body is skipped in PFO.3, but the kill check's
+     * `!(shape_mode==4 && UNK_48!=0)` gate is preserved.  A slot in this
+     * state should never age-kill, even when FADE_OUT_OFFSET <= age. */
+    setup_live_slot(0, /*shape_mode=*/4, /*type_shape=*/0);
+    int base = 0;
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_UNK_48]          = pfo_f_to_bits(1.0f);
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET] = 1;     /* would normally kill */
+    g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_AGE]             = 100;
+
+    scene1_pfo_table_b_tick();
+
+    T_ASSERT_EQ_I(g_scene1_overlay_slots[base + SCENE1_OVERLAY_OFF_ACTIVE], 0);
+    return 0;
+}
+
+int test_pfo_b_tick_field_renames_match_offsets(void)
+{
+    /* PFO.3 renamed two O.2 field-name labels.  The numeric offsets
+     * must stay the same so the on-disk slot layout is unchanged. */
+    T_ASSERT_EQ_I(SCENE1_OVERLAY_OFF_ANIM_FRAME_COUNTER, 31);
+    T_ASSERT_EQ_I(SCENE1_OVERLAY_OFF_ANIM_CELL_INDEX,    32);
     return 0;
 }

@@ -155,6 +155,52 @@ extern int32_t g_scene1_pfo_parent_table[SCENE1_PFO_PARENT_TABLE_COUNT *
  */
 void scene1_pfo_parent_table_init(void);
 
+/* ------------------------------------------------------------------
+ * Table B per-tick body (PFO.3) — engine FUN_00414929 L67-L195
+ * ------------------------------------------------------------------
+ *
+ * Iterates all 4096 `g_scene1_overlay_slots`, skipping any with
+ * ACTIVE == -1.  For each live slot, runs:
+ *
+ *   1. Anim-cell tick (not type-gated; runs even for AGE < 0).
+ *      Increments OFF_ANIM_FRAME_COUNTER every call; when it hits the
+ *      shape entry's FRAME_PERIOD, reset to 0 and bump
+ *      OFF_ANIM_CELL_INDEX.  Cell index clamps or wraps at FRAME_COUNT
+ *      based on the shape's LOOP_MODE.
+ *
+ *   2. Type-dispatched integrator (only when AGE >= 0):
+ *        SHAPE_MODE == 1     : accum (VEL_X/Y/Z) += vel (BEND_X/Y/Z);
+ *                              pos = POS_COPY + matrix(OWNER_A) + accum.
+ *        SHAPE_MODE == 6     : same as 1 but matrix is at OWNER_B+0x3f0.
+ *        TYPE_SHAPE in 8/9/10: ROT_Y += BEND_Y; no pos update.
+ *        otherwise           : pos += BEND.
+ *
+ *      Note: the tick's "vel" is OFF_BEND_X/Y/Z (renderer name) and the
+ *      tick's "accum" is OFF_VEL_X/Y/Z.  See scene1_overlay.h field
+ *      offsets for the renderer/tick perspective mismatch.
+ *
+ *      Then: drag (BEND *= TEMPLATE5_COPY); gravity (BEND_Y += UNK_48);
+ *      energy decay (SCALE_X += TEMPLATE11_COPY).
+ *
+ *      SKIPPED for PFO.3 (PFO.4 lands it): the SHAPE_MODE==4 + UNK_48!=0
+ *      "shop walker" aim-toward-(11, -9, -520) physics body + 50% kill
+ *      at terminal velocity.  Dormant in HOUSE since no spawner
+ *      populates type-4 slots with non-zero UNK_48.
+ *
+ *   3. AGE++ and age-kill check (always run, even for AGE < 0):
+ *      Kill (set ACTIVE = -1) when FADE_OUT_OFFSET != -1 AND
+ *      (FADE_OUT_OFFSET <= AGE+1 - AGE_BIRTH OR SCALE_X <= 0).
+ *      Kill is bypassed when SHAPE_MODE==4 && UNK_48!=0 (the
+ *      shop-walker body handles its own kill via random half-kill).
+ *
+ * NOT wired into any caller in PFO.3 — PFO.5 lands the wiring of
+ * FUN_00414929 (Table A + this) into `particles_per_frame_open` in
+ * scene1_particles_tick.c.  Until then, overlay slots stay
+ * sentinel-empty in HOUSE (PFO.2.1's reset wiring) and this tick is
+ * unreachable in production.
+ */
+void scene1_pfo_table_b_tick(void);
+
 #ifdef __cplusplus
 }
 #endif
