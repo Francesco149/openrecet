@@ -32,7 +32,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene_table.c ../src/scene_sc1.c ../src/stage_state.c \
                  ../src/stage_palette.c \
                  ../src/scene1_records.c ../src/scene1_spawn.c ../src/scene1_particles_tick.c \
-                 ../src/scene1_records_c_tick.c \
+                 ../src/scene1_records_c_tick.c ../src/scene1_records_c_spawn.c \
                  ../src/scene1_postload.c ../src/scene1_preload.c ../src/scene1_sim.c ../src/scene1_camera.c \
                  ../src/scene1_shop_walker_helpers.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
@@ -48,7 +48,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene_table.c test_scene_sc1.c test_stage_state.c \
                  test_stage_palette.c \
                  test_scene1_spawn.c test_scene1_particles_tick.c test_scene1_postload.c test_scene1_preload.c test_scene1_sim.c \
-                 test_scene1_records_c_tick.c \
+                 test_scene1_records_c_tick.c test_scene1_records_c_spawn.c \
                  test_scene1_camera.c test_scene1_shop_walker.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))

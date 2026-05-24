@@ -71,6 +71,8 @@ extern "C" {
 #define SCENE1_RECORDS_C_OFF_PICKUP_E1    14
 #define SCENE1_RECORDS_C_OFF_PICKUP_E2    15
 #define SCENE1_RECORDS_C_OFF_STATE        16
+#define SCENE1_RECORDS_C_OFF_EXTRA_AUX    17   /* allocator's param_9 / piVar4[2] */
+#define SCENE1_RECORDS_C_OFF_OWNER        18   /* allocator's param_1 / piVar4[3] */
 #define SCENE1_RECORDS_C_OFF_GROUND_Y     22
 #define SCENE1_RECORDS_C_OFF_AUX          36
 

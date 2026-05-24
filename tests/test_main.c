@@ -1351,7 +1351,27 @@ struct test_case {
     X(records_c_tick_non_world_drop_type_no_kill_check) \
     X(records_c_tick_ground_clamp_non_world_drop_advances_state) \
     X(records_c_offset_type_is_10) \
-    X(records_c_reset_sentinels_at_offset_10)
+    X(records_c_reset_sentinels_at_offset_10) \
+    \
+    X(records_c_spawn_pickup_writes_first_free_slot) \
+    X(records_c_spawn_pickup_skips_alive_slots) \
+    X(records_c_spawn_pickup_table_full_is_noop) \
+    X(records_c_spawn_pickup_does_not_clobber_e1) \
+    X(records_c_spawn_world_drop_count_zero_is_noop) \
+    X(records_c_spawn_world_drop_low_type_caps_at_136) \
+    X(records_c_spawn_world_drop_high_type_scans_all_200) \
+    X(records_c_spawn_world_drop_commits_count_slots) \
+    X(records_c_spawn_world_drop_age_in_0_to_7) \
+    X(records_c_spawn_world_drop_vel_xz_paired_trig) \
+    X(records_c_spawn_world_drop_low_type_skips_e1_write) \
+    X(records_c_spawn_world_drop_high_type_writes_e1) \
+    X(records_c_spawn_world_drop_explicit_override_writes_e2) \
+    X(records_c_spawn_world_drop_ramp_fires_outside_window) \
+    X(records_c_spawn_world_drop_ramp_suppressed_inside_window) \
+    X(records_c_spawn_world_drop_owner_extra_aux_aux_recorded) \
+    X(records_c_spawn_default_wrapper_forces_ramp) \
+    X(records_c_spawn_typed_wrapper_passes_override) \
+    X(records_c_spawn_default_wrapper_aux10_zero)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
