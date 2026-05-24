@@ -1740,7 +1740,14 @@ struct test_case {
     X(overlay_shape_6_uses_rot_x_field) \
     X(overlay_shape_3_off_diagonal_field_mapping) \
     X(overlay_shape_1346_emit_no_flip) \
-    X(overlay_shape_2346_uniform_scale_ignores_blend_mix)
+    X(overlay_shape_2346_uniform_scale_ignores_blend_mix) \
+    X(overlay_shape_1_extra_scale_default) \
+    X(overlay_shape_1_extra_scale_negative_age_returns_zero) \
+    X(overlay_shape_1_extra_scale_ramps_down) \
+    X(overlay_shape_1_scale_xyz_z_is_2y) \
+    X(overlay_shape_1_scale_sy_does_not_use_extra) \
+    X(overlay_shape_1_world_uses_pos_for_eye) \
+    X(overlay_shape_1_world_translation_matches_pos)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

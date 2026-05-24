@@ -387,6 +387,57 @@ void scene1_overlay_shape_1346_emit_quad(scene1_overlay_vertex vbuf[4],
                                          float uv_origin_x, float uv_origin_y,
                                          int alpha_int);
 
+/* ---- Shape 1: lookat billboard (O.5) -------------------------------
+ *
+ * Per-record fade-scale (engine asm 0x4153b8..0x4153fe):
+ *   delta = age - age_birth
+ *   if delta < 0:            skip (return 0)
+ *   extra = 0.02             (.rdata 0x5198dc default)
+ *   if delta > 8:
+ *       extra = 0.02 - (delta - 8) * 0.001    (.rdata 0x5198f4 = 0.001)
+ *       if extra <= 0:       skip (return 0)
+ *   return extra
+ *
+ * Returns 0 when the record should be skipped (age out-of-range or
+ * faded to ≤0).  Returns extra > 0 otherwise.  */
+float scene1_overlay_shape_1_extra_scale(const int32_t *slot);
+
+/* Shape 1 scale axes — engine asm 0x415404..0x415458.
+ *
+ *   sx = (1-blend_mix) * scale_base * alpha_mix * scale_x * 0.0588 / 0.5 * extra
+ *   sy = (  blend_mix) * scale_base * alpha_mix * scale_x * 1.386  / 0.5 * 0.015
+ *   sz = 2 * sy
+ *
+ * Different scale constants from shape 0/5 (0.0588 / 1.386 vs 0.003;
+ * sy also multiplies by extra=0.015) and asymmetric Z=2Y instead of
+ * Z=X.  */
+void scene1_overlay_shape_1_scale_xyz(const int32_t *slot,
+                                      float alpha_mix,
+                                      float extra,
+                                      float *out_sx,
+                                      float *out_sy,
+                                      float *out_sz);
+
+/* Shape 1 world matrix — engine asm 0x41545b..0x41552e.
+ *
+ *   target = pos + bend                       (slot[+0x2c..0x34])
+ *   up     = camera_eye - pos                 (per-arg vector)
+ *   world  = lookat_rh(pos, target, up)
+ *   world  = inverse(world)                   (mat4_inverse, mode=0 affine)
+ *   scale  = scaling(sx, sy, sz)
+ *   roty   = rotation_y(π/2)
+ *   world  = roty × world
+ *   world  = scale × world
+ *
+ * camera_eye triplet is passed in so the helper stays host-testable
+ * without pulling scene1_camera into the host link line.  Production
+ * binds g_scene1_camera_eye.  */
+void scene1_overlay_shape_1_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix,
+                                          float extra,
+                                          const float camera_eye[3]);
+
 /* ---- Win32 dispatcher entry (O.3) ---------------------------------- */
 #ifdef _WIN32
 struct IDirect3DDevice8;

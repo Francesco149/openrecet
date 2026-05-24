@@ -415,3 +415,100 @@ void scene1_overlay_shape_1346_emit_quad(scene1_overlay_vertex vbuf[4],
     vbuf[2].u = u_right; vbuf[2].v = v_top;
     vbuf[3].u = u_right; vbuf[3].v = v_bottom;
 }
+
+/* ---- Shape 1: lookat billboard (O.5) ------------------------------ */
+
+float scene1_overlay_shape_1_extra_scale(const int32_t *slot)
+{
+    int age       = slot[SCENE1_OVERLAY_OFF_AGE];
+    int age_birth = slot[SCENE1_OVERLAY_OFF_AGE_BIRTH];
+    int delta     = age - age_birth;
+
+    if (delta < 0) return 0.0f;
+
+    float extra = 0.02f;
+    if (delta > 8) {
+        extra = 0.02f - (float)(delta - 8) * 0.001f;
+        if (extra <= 0.0f) return 0.0f;
+    }
+    return extra;
+}
+
+void scene1_overlay_shape_1_scale_xyz(const int32_t *slot,
+                                      float alpha_mix,
+                                      float extra,
+                                      float *out_sx,
+                                      float *out_sy,
+                                      float *out_sz)
+{
+    float blend_mix  = slot_get_f(slot, SCENE1_OVERLAY_OFF_BLEND_MIX);
+    float scale_base = slot_get_f(slot, SCENE1_OVERLAY_OFF_SCALE_BASE);
+    float scale_x    = slot_get_f(slot, SCENE1_OVERLAY_OFF_SCALE_X);
+
+    /* sx = (1-mix) * sb * am * sx_slot * 0.0588 / 0.5 * extra
+     * (.rdata 0x519948 = 0.0588; the / 0.5 is the same divisor as shape
+     * 0/5).  The * extra at the tail comes from the asm at 0x415434
+     * (fmul [ebp-0x10]) where [ebp-0x10] is the extra fade-scale. */
+    float sx = (1.0f - blend_mix) * scale_base * alpha_mix * scale_x
+               * 0.0588f / 0.5f * extra;
+
+    /* sy = mix * sb * am * sx_slot * 1.386 / 0.5 * 0.015
+     * (.rdata 0x519944 = 1.386; 0x519940 = 0.015).  Note the trailing
+     * * 0.015 is unconditional (does NOT multiply by extra). */
+    float sy = blend_mix * scale_base * alpha_mix * scale_x
+               * 1.386f / 0.5f * 0.015f;
+
+    if (out_sx) *out_sx = sx;
+    if (out_sy) *out_sy = sy;
+    if (out_sz) *out_sz = sy + sy;   /* engine writes `2 * sy` */
+}
+
+void scene1_overlay_shape_1_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix,
+                                          float extra,
+                                          const float camera_eye[3])
+{
+    float pos[3] = {
+        slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_X),
+        slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_Y),
+        slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_Z),
+    };
+    float bend[3] = {
+        slot_get_f(slot, SCENE1_OVERLAY_OFF_BEND_X),
+        slot_get_f(slot, SCENE1_OVERLAY_OFF_BEND_Y),
+        slot_get_f(slot, SCENE1_OVERLAY_OFF_BEND_Z),
+    };
+    /* target = pos + bend (engine writes local_9c/98/94 from
+     * bend.xyz + pos.xyz at 0x41545b..0x415479) */
+    float target[3] = { pos[0] + bend[0], pos[1] + bend[1], pos[2] + bend[2] };
+
+    /* up = camera_eye - pos (engine asm 0x41547f..0x4154a0) */
+    float up[3] = {
+        camera_eye[0] - pos[0],
+        camera_eye[1] - pos[1],
+        camera_eye[2] - pos[2],
+    };
+
+    /* lookat then inverse — same pattern as Pass E fan billboard
+     * (scene1_wide_followup_helpers.c wf_pass_e_fan_billboard_matrix). */
+    float lookat[16];
+    mat4_lookat_rh(lookat, pos, target, up);
+    mat4_inverse(out, lookat);
+
+    /* scale = scaling(sx, sy, 2*sy) */
+    float sx, sy, sz;
+    scene1_overlay_shape_1_scale_xyz(slot, alpha_mix, extra, &sx, &sy, &sz);
+
+    /* RotY(π/2) — engine asm 0x4154f5..0x415506 (.rdata 0x519434
+     * = 1.5707963f).  Apply BEFORE scale (left-mul order asm shows:
+     *   world = RotY × world (0x415516..0x41551e)
+     *   world = scale × world (0x415527..0x41552e)
+     * so final composition = scale × RotY × inverse(lookat)). */
+    float scratch[16];
+    mat4_rotation_y(scratch, 1.5707963f);
+    mat4_mul(out, scratch, out);
+
+    mat4_scaling(scratch, sx, sy, sz);
+    mat4_mul(out, scratch, out);
+}

@@ -1152,3 +1152,133 @@ int test_overlay_shape_2346_uniform_scale_ignores_blend_mix(void)
     T_ASSERT(fabsf(s_a - s_b) < 1e-9f);
     return 0;
 }
+
+/* ═════════════════ O.5: shape 1 lookat billboard ═════════════════ */
+
+int test_overlay_shape_1_extra_scale_default(void)
+{
+    /* delta=0..8 → extra = 0.02. */
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_AGE]       = 5;
+    slot[SCENE1_OVERLAY_OFF_AGE_BIRTH] = 0;
+    T_ASSERT(fabsf(scene1_overlay_shape_1_extra_scale(slot) - 0.02f) < 1e-6f);
+    slot[SCENE1_OVERLAY_OFF_AGE]       = 8;
+    T_ASSERT(fabsf(scene1_overlay_shape_1_extra_scale(slot) - 0.02f) < 1e-6f);
+    return 0;
+}
+
+int test_overlay_shape_1_extra_scale_negative_age_returns_zero(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_AGE]       = 0;
+    slot[SCENE1_OVERLAY_OFF_AGE_BIRTH] = 5;   /* delta = -5 */
+    T_ASSERT(fabsf(scene1_overlay_shape_1_extra_scale(slot)) < 1e-9f);
+    return 0;
+}
+
+int test_overlay_shape_1_extra_scale_ramps_down(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_AGE_BIRTH] = 0;
+    slot[SCENE1_OVERLAY_OFF_AGE]       = 12;   /* delta=12; ramp = 0.02 - 4*0.001 = 0.016 */
+    T_ASSERT(fabsf(scene1_overlay_shape_1_extra_scale(slot) - 0.016f) < 1e-6f);
+    slot[SCENE1_OVERLAY_OFF_AGE]       = 28;   /* delta=28; ramp = 0.02 - 20*0.001 = 0 → skip */
+    T_ASSERT(fabsf(scene1_overlay_shape_1_extra_scale(slot)) < 1e-9f);
+    slot[SCENE1_OVERLAY_OFF_AGE]       = 30;   /* delta=30; ramp negative → skip */
+    T_ASSERT(fabsf(scene1_overlay_shape_1_extra_scale(slot)) < 1e-9f);
+    return 0;
+}
+
+int test_overlay_shape_1_scale_xyz_z_is_2y(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.5f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+    float sx, sy, sz;
+    scene1_overlay_shape_1_scale_xyz(slot, /*alpha_mix=*/1.0f,
+                                     /*extra=*/0.02f,
+                                     &sx, &sy, &sz);
+    /* sx = 0.5*1*1*1*0.0588/0.5*0.02 = 0.5 * 0.0588 / 0.5 * 0.02 = 0.00118 */
+    T_ASSERT(fabsf(sx - 0.5f * 0.0588f / 0.5f * 0.02f) < 1e-6f);
+    /* sy = 0.5*1*1*1*1.386/0.5*0.015 = 0.5 * 1.386 / 0.5 * 0.015 = 0.02079 */
+    T_ASSERT(fabsf(sy - 0.5f * 1.386f / 0.5f * 0.015f) < 1e-6f);
+    /* sz = 2 * sy */
+    T_ASSERT(fabsf(sz - 2.0f * sy) < 1e-6f);
+    return 0;
+}
+
+int test_overlay_shape_1_scale_sy_does_not_use_extra(void)
+{
+    /* Engine asm shows sy is computed WITHOUT the * extra factor that
+     * sx receives — sy uses the unconditional 0.015 multiplier only. */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.5f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+    float sx_a, sy_a, sz_a;
+    float sx_b, sy_b, sz_b;
+    scene1_overlay_shape_1_scale_xyz(slot, 1.0f, 0.02f, &sx_a, &sy_a, &sz_a);
+    scene1_overlay_shape_1_scale_xyz(slot, 1.0f, 0.01f, &sx_b, &sy_b, &sz_b);
+    /* sy should be identical for different extras. */
+    T_ASSERT(fabsf(sy_a - sy_b) < 1e-9f);
+    /* sx should halve when extra halves. */
+    T_ASSERT(fabsf(sx_b - 0.5f * sx_a) < 1e-6f);
+    return 0;
+}
+
+int test_overlay_shape_1_world_uses_pos_for_eye(void)
+{
+    /* Smoke test: with camera at (0, 10, 0) and pos at (0, 0, 0),
+     * the lookat is degenerate (target-eye = bend, up = camera - pos =
+     * (0, 10, 0)).  Setting bend = (0, 0, 1) and verifying the matrix
+     * inverts cleanly is hard analytically — just check that the
+     * function doesn't crash + produces a finite matrix.  */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_X, 0.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_Y, 0.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_Z, 0.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BEND_X, 0.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BEND_Y, 0.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BEND_Z, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.5f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+    float camera_eye[3] = { 0.0f, 10.0f, 0.0f };
+
+    float world[16];
+    scene1_overlay_shape_1_compose_world(world, slot, 1.0f, 0.02f, camera_eye);
+    /* All 16 entries should be finite. */
+    for (int i = 0; i < 16; i++) {
+        T_ASSERT(world[i] == world[i]);   /* NaN check */
+    }
+    /* M[15] should be 1.0 (affine bottom-right). */
+    T_ASSERT(fabsf(world[15] - 1.0f) < 1e-3f);
+    return 0;
+}
+
+int test_overlay_shape_1_world_translation_matches_pos(void)
+{
+    /* The lookat+inverse should restore the world translation to pos
+     * (engine builds lookat from pos as eye, inverts it; the inverse
+     * lookat moves the local origin to world pos).  Verify M[12..14]
+     * roughly equals pos after the additional RotY × scale layers
+     * (rotations + scales don't move the translation row, so M[12..14]
+     * stays = pos). */
+    int32_t *slot = fresh_slot(0);
+    float test_pos[3] = { 3.0f, -2.5f, 7.0f };
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_X, test_pos[0]);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_Y, test_pos[1]);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_Z, test_pos[2]);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BEND_Z, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+    float camera_eye[3] = { 0.0f, 20.0f, 0.0f };
+
+    float world[16];
+    scene1_overlay_shape_1_compose_world(world, slot, 1.0f, 0.02f, camera_eye);
+    T_ASSERT(fabsf(world[12] - test_pos[0]) < 1e-3f);
+    T_ASSERT(fabsf(world[13] - test_pos[1]) < 1e-3f);
+    T_ASSERT(fabsf(world[14] - test_pos[2]) < 1e-3f);
+    return 0;
+}
