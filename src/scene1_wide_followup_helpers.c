@@ -269,3 +269,75 @@ void wf_pass_a_compose_world(float out[16], const int32_t *slot)
     mat4_rotation_z(scratch, 3.1415927f - rot_x);
     mat4_mul(out, scratch, out);
 }
+
+/* ═══ Pass B: kumonosu.tga billboard walker (C8f.pass-b) ════════════════════
+ *
+ * Engine FUN_004161c7 L93-127.  Walks g_scene1_records_b (stride 0x49)
+ * filtering on type == 0x53 (cardinal-int in TYPE / offset 0).  Engine's
+ * `local_8` pointer is biased to slot+POS_Z (offset 25 — 13 dwords ahead
+ * of Pass A's bias to slot+AGE), so the per-field accesses pick up:
+ *
+ *   local_8[-0x19]  = slot[TYPE]       (type filter source — denormal float
+ *                                       1.16308e-43 = bit-cast 0x53)
+ *   local_8[-2]     = slot[POS_X]      (23; 25-2=23)
+ *   local_8[-1]     = slot[POS_Y]      (24)
+ *   local_8[0]      = slot[POS_Z]      (25)
+ *   local_8[0x29]   = slot[LIFE_MULT]  (66; 25+41=66)
+ *
+ * Same table memory as Pass A (just a different base register bias).
+ * Texture: bmp/kumonosu.tga via g_sysassets.kumonosu_tga.tex (engine slot
+ * DAT_073d8620, loaded by sysassets_load_all at boot, 128×128).  UV inset
+ * 1/256 (0.00390625 / 0.99609375) — half-texel correction on the 128-px
+ * source.  Matrix: T × S × RotY(π/2) (no RotZ — Pass B omits Pass A's
+ * per-record yaw chain; the billboard is fixed-orientation). */
+
+/* Pass B filter: type == 0x53 only.  Engine's `fVar1 != 0.0 && fVar1 ==
+ * 1.16308e-43` short-circuit: the leading 0.0 check skips free slots
+ * (TYPE 0 sentinel); 0x53 satisfies both.  Our allocator writes TYPE as
+ * int, so plain integer compare against 0x53 suffices (0x53 ≠ 0 so the
+ * sentinel guard is implicit). */
+int wf_pass_b_should_emit(const int32_t *slot)
+{
+    int32_t type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    return (type == 0x53);
+}
+
+/* Pass B per-record scale.  Engine L98: `local_c = local_8[0x29]` — direct
+ * read of slot[LIFE_MULT] as a float, no multiplier, no ramp-in clamp.
+ * LIFE_MULT defaults to 1.0 in the allocator preamble, so the default
+ * scale is 1.0 — different from Pass A which multiplies by 0.005 and
+ * ramps over 5 frames.  Pass B's quad is therefore visible from frame 0
+ * at full size whenever a 0x53 slot exists. */
+float wf_pass_b_per_record_scale(const int32_t *slot)
+{
+    return *(const float *)&slot[SCENE1_RECORDS_B_OFF_LIFE_MULT];
+}
+
+/* Pass B per-record world matrix.  Engine L103-107:
+ *
+ *   Translation(M, POS_X, POS_Y, POS_Z);
+ *   Scaling(S, scale, scale, scale);
+ *   M = S * M;                      // Multiply(M, S, M)   → S * T
+ *   RotationY(RY, π/2);             // thunk 3537 = RotY (per math3d.h)
+ *   M = RY * M;                     // Multiply(M, RY, M)  → RY * S * T
+ *
+ * Pass A has an additional RotZ(π - rotX) tail-multiply; Pass B does not.
+ * Same left-multiply convention via mat4_mul (= D3DXMatrixMultiply) as
+ * Pass A and Pass C. */
+void wf_pass_b_compose_world(float out[16], const int32_t *slot)
+{
+    float pos_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_X];
+    float pos_y = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Y];
+    float pos_z = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Z];
+    float scale = wf_pass_b_per_record_scale(slot);
+
+    float scratch[16];
+
+    mat4_translation(out, pos_x, pos_y, pos_z);
+
+    mat4_scaling(scratch, scale, scale, scale);
+    mat4_mul(out, scratch, out);
+
+    mat4_rotation_y(scratch, 1.5707964f /* 0x3fc90fdb = π/2 */);
+    mat4_mul(out, scratch, out);
+}

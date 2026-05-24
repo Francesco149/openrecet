@@ -498,3 +498,116 @@ int test_wf_pass_a_compose_world_rot_x_pi_cancels_rot_z(void)
     T_ASSERT_NEAR_WF(world[5], 0.005f, 1e-5f);
     return 0;
 }
+
+/* ─── Pass B (C8f.pass-b) ─────────────────────────────────────────────
+ *
+ * Same table memory as Pass A; different filter (single type 0x53),
+ * different scale formula (raw LIFE_MULT, no ramp), and a simpler
+ * matrix chain (RotY(π/2) × S × T — no per-record yaw RotZ).
+ */
+
+int test_wf_pass_b_should_emit_accepts_0x53(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x53;
+    T_ASSERT(wf_pass_b_should_emit(slot) == 1);
+    return 0;
+}
+
+int test_wf_pass_b_should_emit_rejects_sentinel_and_others(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    int32_t reject[] = { 0, 1, 0x52, 0x54, 0x77, 0xa2 };
+    for (size_t i = 0; i < sizeof(reject) / sizeof(reject[0]); i++) {
+        slot_init_zero_b(slot);
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = reject[i];
+        if (wf_pass_b_should_emit(slot) != 0) {
+            T_FAIL("type 0x%x should NOT emit but did", reject[i]);
+        }
+    }
+    return 0;
+}
+
+int test_wf_pass_b_scale_reads_life_mult_directly(void)
+{
+    /* No multiplier, no AGE ramp.  scale == LIFE_MULT verbatim. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    T_ASSERT_NEAR_WF(wf_pass_b_per_record_scale(slot), 1.0f, 1e-7f);
+
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.4f);
+    T_ASSERT_NEAR_WF(wf_pass_b_per_record_scale(slot), 0.4f, 1e-7f);
+
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 2.5f);
+    T_ASSERT_NEAR_WF(wf_pass_b_per_record_scale(slot), 2.5f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_b_scale_ignores_age(void)
+{
+    /* Pass A's ramp-in is keyed on AGE<5; Pass B has no such gate.
+     * AGE=0 with LIFE_MULT=1.0 still gives scale=1.0, not 0.  */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_AGE] = 0;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    T_ASSERT_NEAR_WF(wf_pass_b_per_record_scale(slot), 1.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_b_compose_world_translation_in_row_3(void)
+{
+    /* M = RotY(π/2) × S(1.0) × T(10, 20, 30).
+     *
+     * Translation row stays at (10, 20, 30, 1) — scale only touches
+     * rows 0..2's diagonal, RotY has row 3 = (0,0,0,1).  */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x53;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_X,    10.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Y,    20.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Z,    30.0f);
+
+    float world[16];
+    wf_pass_b_compose_world(world, slot);
+
+    T_ASSERT_NEAR_WF(world[12], 10.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[13], 20.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[14], 30.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[15],  1.0f, 1e-6f);
+    return 0;
+}
+
+int test_wf_pass_b_compose_world_roty_pi_over_2(void)
+{
+    /* No translation, LIFE_MULT=1.0:
+     *   M = RotY(π/2) × S(1.0) × T(0) = RotY(π/2).
+     *
+     * mat4_rotation_y(θ) returns the standard right-handed rotation:
+     *   [  cos θ  0  -sin θ  0 ]
+     *   [  0      1   0      0 ]
+     *   [  sin θ  0   cos θ  0 ]
+     *   [  0      0   0      1 ]
+     *
+     * For θ=π/2: cos=0, sin=1 → world[0]=0, world[2]=-1,
+     * world[5]=1, world[8]=1, world[10]=0.  No RotZ tail, so the
+     * matrix doesn't get an extra Z rotation (the distinguishing
+     * feature vs Pass A).  */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x53;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+
+    float world[16];
+    wf_pass_b_compose_world(world, slot);
+
+    T_ASSERT_NEAR_WF(world[0],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[2], -1.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[5],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[8],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[10], 0.0f, 1e-5f);
+    return 0;
+}

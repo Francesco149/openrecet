@@ -1385,6 +1385,12 @@ struct test_case {
     X(wf_pass_a_scale_uses_life_mult) \
     X(wf_pass_a_compose_world_translation_in_row_3) \
     X(wf_pass_a_compose_world_rot_x_pi_cancels_rot_z) \
+    X(wf_pass_b_should_emit_accepts_0x53) \
+    X(wf_pass_b_should_emit_rejects_sentinel_and_others) \
+    X(wf_pass_b_scale_reads_life_mult_directly) \
+    X(wf_pass_b_scale_ignores_age) \
+    X(wf_pass_b_compose_world_translation_in_row_3) \
+    X(wf_pass_b_compose_world_roty_pi_over_2) \
     \
     X(records_c_tick_empty_table_is_noop) \
     X(records_c_tick_sentinel_slots_skipped) \

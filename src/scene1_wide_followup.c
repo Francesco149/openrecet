@@ -161,29 +161,60 @@ static void wf_pass_a(IDirect3DDevice8 *dev)
     }
 }
 
-/* Pass B — DAT_06932514 table, stride 0x49.  Type filter on
- * fVar2 raw-bits {0x53 (1.16308e-43)}.  Texture: DAT_073d8620.
- * 256-tex atlas UV (0.00390625 / 0.99609375). */
+/* Pass B — DAT_06932514 base bias into the same 0x49-stride record
+ * memory as Pass A.  Type filter == 0x53 only.  Texture:
+ * DAT_073d8620 = bmp/kumonosu.tga (128×128; loaded at boot by
+ * sysassets_load_all, slot g_sysassets.kumonosu_tga).  Engine
+ * FUN_004161c7 L93-L127.  Quad is the full 1-tile atlas with
+ * 0.5-texel inset (= 1/256 in normalised UV on a 128-px source).
+ * Matrix is T × S × RotY(π/2) — no per-record yaw chain (Pass A's
+ * extra RotZ(π - rotX) is absent here). */
 static void wf_pass_b(IDirect3DDevice8 *dev)
 {
     int count = wf_pass_abe_count();
     if (count == 0) return;
-    /* TODO C8f-followup: walk DAT_06932514 stride 0x49 dwords;
-     * for each record with raw-bit type == 0x53:
-     *
-     *   1. Bind texture DAT_073d8620.
-     *   2. Per-record scale = pIVar11[0x29] (read as float).
-     *   3. World matrix:
-     *        T(r[-2], r[-1], r[0])
-     *        × S(scale, scale, scale)
-     *        × RotZ(π/2)
-     *      (NB: no RotY — passive billboard.  Engine omits L70
-     *      RotY chain that Pass A has.)
-     *   4. Fill DAT_0064bf68 vbuf — UV box corners
-     *      0.00390625 / 0.99609375 (1/256 texel inset).
-     *   5. DrawPrimitiveUP. */
-    (void)dev;
-    (void)count;
+
+    for (int slot_idx = 0; slot_idx < count; slot_idx++) {
+        const int32_t *slot =
+            &g_scene1_records_b[slot_idx * SCENE1_RECORDS_B_STRIDE];
+
+        if (!wf_pass_b_should_emit(slot)) continue;
+
+        /* Bind texture via L99-102 cache guard. */
+        IDirect3DTexture8 *tex = g_sysassets.kumonosu_tga.tex;
+        if (g_tex_cache_last != (uintptr_t)tex) {
+            g_tex_cache_last = (uintptr_t)tex;
+            IDirect3DDevice8_SetTexture(dev, 0,
+                                        (IDirect3DBaseTexture8 *)tex);
+        }
+
+        /* World matrix: RotY(π/2) × S × T.  Scale read directly from
+         * slot[LIFE_MULT] — no multiplier, no AGE ramp. */
+        float world[16];
+        wf_pass_b_compose_world(world, slot);
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                      (const D3DMATRIX *)world);
+
+        /* Per-slot vbuf writes (engine L108-120):
+         *   diffuse = 0xffffffff per vertex (loop puVar5 = &DAT_0064bf74
+         *                                    to &DAT_0064bfd4, stride 6)
+         *   UV box  = 1/256 .. 255/256 (raw 0x3b800000 = 0.00390625,
+         *             0x3f7f0000 = 0.99609375). */
+        g_wf_pass_abe_vbuf[0].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[1].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[2].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[3].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[0].u = 0.00390625f; g_wf_pass_abe_vbuf[0].v = 0.00390625f; /* TL */
+        g_wf_pass_abe_vbuf[1].u = 0.00390625f; g_wf_pass_abe_vbuf[1].v = 0.99609375f; /* BL */
+        g_wf_pass_abe_vbuf[2].u = 0.99609375f; g_wf_pass_abe_vbuf[2].v = 0.00390625f; /* TR */
+        g_wf_pass_abe_vbuf[3].u = 0.99609375f; g_wf_pass_abe_vbuf[3].v = 0.99609375f; /* BR */
+
+        IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                         D3DPT_TRIANGLESTRIP,
+                                         2,
+                                         g_wf_pass_abe_vbuf,
+                                         sizeof(wf_pass_abe_vertex));
+    }
 }
 
 /* Pass C — DAT_06956cd8 table, stride 0x25.  Type filter on cardinal

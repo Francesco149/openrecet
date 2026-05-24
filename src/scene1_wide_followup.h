@@ -156,6 +156,18 @@ int   wf_pass_a_should_emit(const int32_t *slot);
 float wf_pass_a_per_record_scale(const int32_t *slot);
 void  wf_pass_a_compose_world(float out[16], const int32_t *slot);
 
+/* ─── Pass B helpers (D3D-free, host-linkable) ─────────────────────────
+ *
+ * Walks g_scene1_records_b (same table as Pass A — DAT_06932514 is just a
+ * different base bias into the 0x49-stride record memory) for type ==
+ * 0x53.  Draws via a 1-tile kumonosu.tga (128×128) with 1/256 UV inset.
+ * Matrix chain: RotY(π/2) × S × T — no RotZ (Pass A's per-record yaw is
+ * absent).  Per-record scale = slot[LIFE_MULT] direct (no multiplier,
+ * no ramp).  Engine FUN_004161c7 L93-127.  */
+int   wf_pass_b_should_emit(const int32_t *slot);
+float wf_pass_b_per_record_scale(const int32_t *slot);
+void  wf_pass_b_compose_world(float out[16], const int32_t *slot);
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;
