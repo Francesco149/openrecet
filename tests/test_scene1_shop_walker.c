@@ -264,3 +264,34 @@ int test_scene1_pass_d_mesh_setter_replaces_previous(void)
     scene1_shop_walker_set_pass_d_mesh(NULL);
     return 0;
 }
+
+int test_scene1_debug_pass_d_unlit_default_is_off(void)
+{
+    /* Default 0 keeps goldens bit-exact — sw_pass_d skips the override
+     * block and runs the engine's L548-562 preamble verbatim. */
+    scene1_shop_walker_set_debug_pass_d_unlit(0);
+    T_ASSERT(scene1_shop_walker_get_debug_pass_d_unlit() == 0);
+    return 0;
+}
+
+int test_scene1_debug_pass_d_unlit_setter_round_trips(void)
+{
+    scene1_shop_walker_set_debug_pass_d_unlit(1);
+    T_ASSERT(scene1_shop_walker_get_debug_pass_d_unlit() == 1);
+    scene1_shop_walker_set_debug_pass_d_unlit(0);
+    T_ASSERT(scene1_shop_walker_get_debug_pass_d_unlit() == 0);
+    return 0;
+}
+
+int test_scene1_debug_pass_d_unlit_normalises_to_0_or_1(void)
+{
+    /* Any non-zero input normalises to 1 — keeps the sw_pass_d test
+     * simple (`if (flag)` works regardless of the input bit pattern). */
+    scene1_shop_walker_set_debug_pass_d_unlit(42);
+    T_ASSERT(scene1_shop_walker_get_debug_pass_d_unlit() == 1);
+    scene1_shop_walker_set_debug_pass_d_unlit(-7);
+    T_ASSERT(scene1_shop_walker_get_debug_pass_d_unlit() == 1);
+    scene1_shop_walker_set_debug_pass_d_unlit(0);
+    T_ASSERT(scene1_shop_walker_get_debug_pass_d_unlit() == 0);
+    return 0;
+}

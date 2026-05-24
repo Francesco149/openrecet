@@ -78,3 +78,21 @@ const mesh_t *scene1_shop_walker_get_pass_d_mesh(void)
 {
     return g_pass_d_mesh;
 }
+
+/* ─── Pass D unlit-debug override (C8e.smoke) ────────────────────────────
+ *
+ * Same TU as the mesh setter for the same reason — host tests link this
+ * without dragging in <d3d8.h>.  sw_pass_d (Win32-only) reads the flag
+ * via the getter on every walker entry. */
+
+static int g_debug_pass_d_unlit = 0;
+
+void scene1_shop_walker_set_debug_pass_d_unlit(int on)
+{
+    g_debug_pass_d_unlit = on ? 1 : 0;
+}
+
+int scene1_shop_walker_get_debug_pass_d_unlit(void)
+{
+    return g_debug_pass_d_unlit;
+}

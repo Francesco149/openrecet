@@ -76,4 +76,17 @@ int scene1_preload_house(void);
 
 #endif /* _WIN32 */
 
+/*
+ * Post-house callback hook (C8e.smoke).  Fired at the tail of
+ * scene1_preload_house, AFTER mesh_tex_cache_reset() has wiped any
+ * boot-time cache entries.  Used by --force-pass-d-mesh to re-load
+ * its mesh after the cache reset so scene1_emit_record can find the
+ * texture slots its texture_slots[] indices reference.  Default NULL
+ * → no-op.  Callback runs on the worker thread (same context as the
+ * preload's foreground sprite loads).  Idempotent — pass NULL to
+ * detach.  Outside the Win32 block so host tests can exercise the
+ * setter without linking D3D8. */
+void scene1_preload_set_post_house_callback(void (*cb)(void));
+void (*scene1_preload_get_post_house_callback(void))(void);
+
 #endif /* OPENRECET_SCENE1_PRELOAD_H */

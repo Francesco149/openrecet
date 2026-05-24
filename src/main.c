@@ -151,6 +151,18 @@ static int              g_show_pass_f_test     = 0;
 static char            *g_force_pass_d_mesh_path = NULL;
 static mesh_t          *g_force_pass_d_mesh      = NULL;
 
+/* --debug-pass-d-unlit: C8e.smoke visual smoke.  Brute-force state
+ * override that mirrors the C8e.bridge proof-of-life — forces
+ * LIGHTING=FALSE + LightEnable(0,FALSE) + CULLMODE=NONE +
+ * COLOROP=SELECTARG1 + COLORARG1=DIFFUSE inside sw_pass_d, bypassing
+ * the engine's L548-562 lit preamble.  Surfaces visible Pass D pixels
+ * through the production walker + emit + spawn + camera chain when
+ * combined with --force-pass-d-mesh + --force-ambient-spawn
+ * --ambient-spawn-type 0x79 (or 0x74 / 0x96).  Off by default —
+ * goldens stay bit-exact.  Diverges from engine state; use only to
+ * verify the chain end-to-end, not as a long-lived fidelity option. */
+static int              g_debug_pass_d_unlit     = 0;
+
 /* --force-ambient-spawn / --ambient-spawn-type <N>: bypass the
  * stage_palette->ambient_spawn_flag gate in scene1_postload_ambient_spawn
  * (the FUN_00436f97 tail port at L690-700) and optionally swap the
@@ -336,6 +348,54 @@ static int   capture_frame_is_listed(uint32_t frame);
 static void save_bank_apply_bgm_via_audio_fade(void)
 {
     audio_fade_apply(AUDIO_FADE_CHANNEL_BGM);
+}
+
+/* C8e.smoke — registered as scene1_preload's post-house callback when
+ * --force-pass-d-mesh is set.  Fires once per HOUSE entry, AFTER
+ * scene1_preload_house's mesh_tex_cache_reset() + foreground sprite
+ * loads have settled.  Releases any prior loaded mesh (HOUSE entry can
+ * happen multiple times; each fresh load needs to register its own
+ * texture cache slots) and re-loads from g_force_pass_d_mesh_path. */
+static void force_pass_d_mesh_reload(void)
+{
+    if (g_force_pass_d_mesh) {
+        scene1_shop_walker_set_pass_d_mesh(NULL);
+        mesh_free(g_force_pass_d_mesh);
+        g_force_pass_d_mesh = NULL;
+    }
+    if (!g_force_pass_d_mesh_path) return;
+
+    g_force_pass_d_mesh = mesh_load(g_force_pass_d_mesh_path, -1);
+    if (!g_force_pass_d_mesh) {
+        fprintf(stderr, "openrecet: force-pass-d-mesh load failed: %s\n",
+                g_force_pass_d_mesh_path);
+        return;
+    }
+    if (g_force_pass_d_mesh->error[0]) {
+        fprintf(stderr, "openrecet: force-pass-d-mesh build error in %s: %s\n",
+                g_force_pass_d_mesh_path, g_force_pass_d_mesh->error);
+        mesh_free(g_force_pass_d_mesh);
+        g_force_pass_d_mesh = NULL;
+        return;
+    }
+    HRESULT hr = mesh_load_finalize_win32(g_force_pass_d_mesh, g_dev);
+    if (FAILED(hr)) {
+        fprintf(stderr,
+                "openrecet: force-pass-d-mesh finalize failed: 0x%08lx\n",
+                (unsigned long)hr);
+        mesh_free(g_force_pass_d_mesh);
+        g_force_pass_d_mesh = NULL;
+        return;
+    }
+    fprintf(stderr,
+            "force-pass-d-mesh: %s reloaded (verts=%d idx=%d "
+            "submeshes=%d materials=%d)\n",
+            g_force_pass_d_mesh_path,
+            g_force_pass_d_mesh->vertex_count,
+            g_force_pass_d_mesh->index_count,
+            g_force_pass_d_mesh->submesh_count,
+            g_force_pass_d_mesh->material_count);
+    scene1_shop_walker_set_pass_d_mesh(g_force_pass_d_mesh);
 }
 
 /* ─── WinMain — mirrors FUN_0047bfb3 ─────────────────────────────────────── */
@@ -563,45 +623,36 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
     }
 
-    /* --force-pass-d-mesh: C8e.bridge visual smoke.  Same load shape
-     * as --show-mesh / --house-preview; on success we hand the mesh
-     * to scene1_shop_walker_set_pass_d_mesh so sw_pass_d's per-record
-     * call to scene1_emit_record draws this mesh at the per-record
-     * world matrix.  Combined with --force-ambient-spawn
-     * --ambient-spawn-type 0x79 (or 0x74 / 0x96), the production spawn
-     * pipeline populates table A records that trip the Pass D filter
-     * and produce visible draws.  Off by default — Pass D stays
-     * dormant (matches engine HOUSE behavior). */
+    /* --force-pass-d-mesh: C8e.bridge visual smoke.  Loads one .x file
+     * via mesh_load + mesh_load_finalize_win32 and hands it to
+     * scene1_shop_walker_set_pass_d_mesh so sw_pass_d's per-record call
+     * to scene1_emit_record draws this mesh at the per-record world
+     * matrix.  Combined with --force-ambient-spawn --ambient-spawn-type
+     * 0x79 (or 0x74 / 0x96), the production spawn pipeline populates
+     * table A records that trip the Pass D filter and produce visible
+     * draws.  Off by default — Pass D stays dormant (matches engine
+     * HOUSE behavior).
+     *
+     * C8e.smoke ordering: scene1_preload_house_cb runs
+     * mesh_tex_cache_reset() on every HOUSE entry, which wipes any
+     * boot-time cache slots.  If we loaded the mesh at boot, by the
+     * time Pass D fires its texture_slots[] indices point at stale
+     * cache rows (or past the new count).  Instead we register
+     * force_pass_d_mesh_reload as scene1_preload's post-house hook —
+     * the hook fires AFTER the reset + after the HOUSE foreground
+     * loads, so the mesh's texture slots land in fresh cache rows
+     * the next sw_pass_d frame can resolve correctly. */
     if (g_force_pass_d_mesh_path) {
-        g_force_pass_d_mesh = mesh_load(g_force_pass_d_mesh_path, -1);
-        if (!g_force_pass_d_mesh) {
-            fprintf(stderr, "openrecet: force-pass-d-mesh load failed: %s\n",
-                    g_force_pass_d_mesh_path);
-        } else if (g_force_pass_d_mesh->error[0]) {
-            fprintf(stderr, "openrecet: force-pass-d-mesh build error in %s: %s\n",
-                    g_force_pass_d_mesh_path, g_force_pass_d_mesh->error);
-            mesh_free(g_force_pass_d_mesh);
-            g_force_pass_d_mesh = NULL;
-        } else {
-            HRESULT hr = mesh_load_finalize_win32(g_force_pass_d_mesh, g_dev);
-            if (FAILED(hr)) {
-                fprintf(stderr,
-                        "openrecet: force-pass-d-mesh finalize failed: 0x%08lx\n",
-                        (unsigned long)hr);
-                mesh_free(g_force_pass_d_mesh);
-                g_force_pass_d_mesh = NULL;
-            } else {
-                fprintf(stderr,
-                        "force-pass-d-mesh: %s loaded (verts=%d idx=%d "
-                        "submeshes=%d materials=%d)\n",
-                        g_force_pass_d_mesh_path,
-                        g_force_pass_d_mesh->vertex_count,
-                        g_force_pass_d_mesh->index_count,
-                        g_force_pass_d_mesh->submesh_count,
-                        g_force_pass_d_mesh->material_count);
-                scene1_shop_walker_set_pass_d_mesh(g_force_pass_d_mesh);
-            }
-        }
+        scene1_preload_set_post_house_callback(force_pass_d_mesh_reload);
+    }
+
+    /* --debug-pass-d-unlit: see flag comment above.  Wire the parsed
+     * value into the walker before the first render tick. */
+    if (g_debug_pass_d_unlit) {
+        scene1_shop_walker_set_debug_pass_d_unlit(1);
+        fprintf(stderr,
+                "debug-pass-d-unlit: forcing Pass D state to "
+                "SELECTARG1+DIFFUSE (engine state overridden)\n");
     }
 
     /* "init indexfile ok" — FUN_00475270 — gameplay-table loader.
@@ -1761,6 +1812,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 lstrcpynA(path_buf, val, (int)sizeof(path_buf));
                 g_force_pass_d_mesh_path = path_buf;
             }
+        } else if (lstrcmpA(tok, "--debug-pass-d-unlit") == 0) {
+            g_debug_pass_d_unlit = 1;
         } else if (lstrcmpA(tok, "--force-ambient-spawn") == 0) {
             g_force_ambient_spawn = 1;
         } else if (lstrcmpA(tok, "--ambient-spawn-type") == 0) {

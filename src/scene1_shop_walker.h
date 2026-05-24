@@ -146,6 +146,22 @@ void sw_pass_d_compose_world(float out[16], const int32_t *slot);
 void          scene1_shop_walker_set_pass_d_mesh(const mesh_t *m);
 const mesh_t *scene1_shop_walker_get_pass_d_mesh(void);
 
+/* Pass D unlit-debug override (C8e.smoke, `--debug-pass-d-unlit`).
+ * Default 0 → Pass D uses the engine's LIGHTING=TRUE + COLOROP=ADD
+ * preamble from L548-562 verbatim.  When set to non-zero, sw_pass_d
+ * overrides state to LIGHTING=FALSE + LightEnable(0,FALSE) +
+ * CULLMODE=NONE + COLOROP=SELECTARG1 + COLORARG1=DIFFUSE before its
+ * per-record loop — mirrors the brute-force state used by the
+ * C8e.bridge proof-of-life (runs/c8e-bridge-smoke/
+ * frame_00100_bridge_proof.png), but routes through the production
+ * walker + emit path so the bridge + spawn + camera chain can be
+ * verified end-to-end.  Pass E is permanently dormant in HOUSE so
+ * no restore is needed before the tail block re-asserts state for
+ * Pass G.  Diverges from engine state while set — do not enable
+ * for goldens. */
+void scene1_shop_walker_set_debug_pass_d_unlit(int on);
+int  scene1_shop_walker_get_debug_pass_d_unlit(void);
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;

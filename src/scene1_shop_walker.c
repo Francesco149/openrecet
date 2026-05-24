@@ -277,6 +277,28 @@ static void sw_pass_d(IDirect3DDevice8 *dev)
     if (count == 0) return;
     if (count > SCENE1_RECORDS_A_COUNT) count = SCENE1_RECORDS_A_COUNT;
 
+    /* C8e.smoke `--debug-pass-d-unlit`: brute-force state override that
+     * mirrors the C8e.bridge proof-of-life setup.  The engine's L548-562
+     * preamble (LIGHTING=TRUE + LightEnable(0,TRUE) + COLOROP=ADD) needs
+     * a per-stage SetLight + non-zero stage maplight to produce visible
+     * lit pixels — HOUSE has neither (palette+0x1ae0 == 0 → engine
+     * unlit by design), so even with --force-pass-d-mesh the production
+     * Pass D path collapses to black.  This override forces the same
+     * SELECTARG1+DIFFUSE state the bridge proof used, surfacing texture-
+     * less vertex-diffuse silhouettes through the real walker + emit +
+     * spawn + camera chain.  Diverges from engine; do not enable for
+     * goldens.  Pass E is dormant in HOUSE so no restore is needed —
+     * the tail block at L325-356 re-asserts state for Pass G. */
+    if (scene1_shop_walker_get_debug_pass_d_unlit()) {
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
+        IDirect3DDevice8_LightEnable(dev, 0, FALSE);
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_NONE);
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                              D3DTOP_SELECTARG1);
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1,
+                                              D3DTA_DIFFUSE);
+    }
+
     for (int slot_idx = 0; slot_idx < count; slot_idx++) {
         const int32_t *slot =
             &g_scene1_records_a[slot_idx * SCENE1_RECORDS_A_STRIDE];

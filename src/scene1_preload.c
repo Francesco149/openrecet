@@ -25,6 +25,24 @@ const int32_t g_scene1_chr_portrait_ids[SCENE1_PRELOAD_CHR_PORTRAIT_COUNT] = {
     40, 41, 42, 43,  4,  5, 47, 48, 66, 67,
 };
 
+/* C8e.smoke post-house callback — see scene1_preload.h.  Default NULL
+ * → no-op.  Set non-NULL by main.c when --force-pass-d-mesh needs to
+ * re-load its mesh after mesh_tex_cache_reset().  Storage + setter
+ * live outside #ifdef _WIN32 so host tests can exercise the contract
+ * without linking <d3d8.h>.  The call site (in scene1_preload_house)
+ * is Win32-only. */
+static void (*g_scene1_preload_post_house_cb)(void) = NULL;
+
+void scene1_preload_set_post_house_callback(void (*cb)(void))
+{
+    g_scene1_preload_post_house_cb = cb;
+}
+
+void (*scene1_preload_get_post_house_callback(void))(void)
+{
+    return g_scene1_preload_post_house_cb;
+}
+
 #ifdef _WIN32
 
 #include <d3d8.h>
@@ -171,6 +189,14 @@ int scene1_preload_house(void)
             "scene1_preload: HOUSE branch fired — loads=%d "
             "(leve_win + mood_para + walls/floor/jutan/table selectors)\n",
             loads);
+
+    /* C8e.smoke — post-house hook fires AFTER mesh_tex_cache_reset() and
+     * the foreground asset loads so any consumer (e.g. --force-pass-d-mesh
+     * in main.c) can re-bind cache-dependent state on a clean slate. */
+    if (g_scene1_preload_post_house_cb) {
+        g_scene1_preload_post_house_cb();
+    }
+
     return loads;
 }
 
