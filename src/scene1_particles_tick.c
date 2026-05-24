@@ -201,26 +201,21 @@ static void field_decay_x(int i, int field_off, float mul, int kill_age)
  * per-type particle handlers run:
  *
  *   - Table A — DAT_00730c30 spawn-request queue (256 slots × 11 dw).
- *     Tick body (engine L1-43) walks live slots and spawns up to 7
- *     overlay particles per slot via scene1_overlay_spawn against the
- *     parent template at DAT_007444e0.  NOT PORTED yet (slated for a
- *     follow-up chip after PFO.6 allocators populate Table A).
- *     PFO.1's init keeps Table A sentinel-empty in HOUSE, so the
- *     unported tick body would be a no-op anyway.
+ *     Tick body (engine L1-43) ported as PFO.5a (scene1_pfo_table_a_tick).
+ *     PFO.1's init keeps Table A sentinel-empty in HOUSE, so the body
+ *     skips every slot until PFO.6 allocators populate Table A.
  *
  *   - Table B — g_scene1_overlay_slots (4096 × 55 dw).  Tick body
  *     ported as PFO.3 + PFO.4 (scene1_pfo_table_b_tick).  Wired below.
  *     Dormant in HOUSE on PFO.2.1's sentinel-empty reset state since
  *     no in-port spawn site populates overlay slots today.
  *
- * PFO.5 wires only the Table B half — see chip ladder in
- * docs/findings/scene1-per-frame-open.md.
+ * Engine FUN_00414929 ticks Table A first (L1-L43), then Table B
+ * (L44+).  We preserve that order.
  */
 static void particles_per_frame_open(void)
 {
-    /* TODO: Table A tick body (engine FUN_00414929 L1-43) — pending
-     * follow-up chip alongside PFO.6 allocators.  HOUSE-dormant on
-     * PFO.1's sentinel-empty init. */
+    scene1_pfo_table_a_tick();
     scene1_pfo_table_b_tick();
 }
 

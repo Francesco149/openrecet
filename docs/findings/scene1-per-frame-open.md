@@ -6,14 +6,15 @@ PFO.2.1 (wire `scene1_overlay_reset` into `scene1_records_reset` to
 match engine FUN_00414902's first sentinel-init loop), PFO.3
 (Table B per-tick body — anim-cell + per-type integrator +
 drag/gravity/age-kill), PFO.4 (type-4 shop-walker physics body +
-terminal-kill hook for SE 0x29d "thunk" side-effect), and **PFO.5**
-(wire `scene1_pfo_table_b_tick` into `particles_per_frame_open` —
-Table A tick body deferred to a follow-up alongside the allocators)
-landed.  Renamed `OFF_UNK_7C` → `OFF_ANIM_FRAME_COUNTER` and
-`OFF_RNG_SEED` → `OFF_ANIM_CELL_INDEX` as called out by PHC #3.
-The survey below stands; PFO.1..PFO.5 + PHC #3 rows have status
-updates.  Remaining work: PFO.5a (Table A tick body) + PFO.6
-(allocators) + PFO.7 (parser).
+terminal-kill hook for SE 0x29d "thunk" side-effect), PFO.5
+(wire `scene1_pfo_table_b_tick` into `particles_per_frame_open`),
+and **PFO.5a** (Table A tick body — 256-slot scan + 7-iter
+sub-record dispatch + scene1_overlay_spawn calls + 300-tick
+self-clear; spawn-hook intercept for tests, alt-mode stand-in for
+PHC #17) landed.  Renamed `OFF_UNK_7C` → `OFF_ANIM_FRAME_COUNTER`
+and `OFF_RNG_SEED` → `OFF_ANIM_CELL_INDEX` as called out by PHC #3.
+The survey below stands; PFO.1..PFO.5a + PHC #3 rows have status
+updates.  Remaining work: PFO.6 (allocators) + PFO.7 (parser).
 
 ## TL;DR
 
@@ -298,6 +299,13 @@ person/third-person). Stand-in default 0 leaves the tick in "normal"
 mode. Verify via Frida read of `*(int*)0x74b2ee4` when sub-scene
 transitions fire.
 
+**Stand-in (PFO.5a):** `g_scene1_pfo_alt_mode` int32 in
+`scene1_per_frame_open.c`, default 0.  Read by `scene1_pfo_table_a_tick`
+in the passthrough-mode (slot.MODE==0) arm — when nonzero, adds -520
+to pos_z.  The projected-mode arm hard-codes pos_z=-520 regardless
+(matches engine asm).  Two other readers in the survey (FUN_00413376
++ overlay-side fade tick callers) still TODO.
+
 ### 2. Parent template table source file (RESOLVED)
 `FUN_0041276e` parses `ef/effect%d.dat` files into `DAT_007444e0`.
 Caller identified: `FUN_00412a89` at L76536 (same tables-loader
@@ -335,7 +343,7 @@ The full FUN_00414929 port lands in sub-chips.  Recommended order:
 | PFO.3 ✅ | Table B tick (anim-cell + per-type integrator + drag/gravity/age-kill); skip type-4 physics body.  Renamed `OFF_UNK_7C` → `OFF_ANIM_FRAME_COUNTER` and `OFF_RNG_SEED` → `OFF_ANIM_CELL_INDEX` per PHC #3.  NOT wired into FUN_00414929 stub (PFO.5 does the wiring). | ~270 | overlay slots stay sentinel-empty in HOUSE; tick body unreachable in production |
 | PFO.4 ✅ | Type 4 "shop walker physics" body + terminal-kill hook (engine `FUN_0040656e` SE 0x29d + screen-shake stand-in left as host-installable hook; default no-op). | ~150 | same as PFO.3; no spawn site populates SHAPE_MODE==4 + UNK_48!=0 |
 | PFO.5 ✅ | Wire `scene1_pfo_table_b_tick` into `particles_per_frame_open` (Table B half of FUN_00414929 now fires every integrator frame).  Table A tick body deferred to PFO.5a — its dormancy is preserved by PFO.1's sentinel-empty init. | ~15 | overlay slots stay sentinel-empty in HOUSE — no in-port spawn site populates them |
-| PFO.5a   | Table A tick body (engine FUN_00414929 L1-43) — 256-slot scan + parent-template sub-record dispatch + scene1_overlay_spawn calls.  Probably best landed alongside PFO.6 since they're symmetric.  Needs PHC #17's `DAT_074b2ee4` stand-in. | ~100 | Table A sentinel-empty until PFO.6 allocators wire |
+| PFO.5a ✅ | Table A tick body (engine FUN_00414929 L1-43) — `scene1_pfo_table_a_tick()` walks 256 slots, gates on `sub_rec[k].sentinel != -1 && age_match == slot.AGE`, builds spawn args in two modes (passthrough vs projected) and calls scene1_overlay_spawn; age++ per slot and self-clear at age==300.  Wired into `particles_per_frame_open` BEFORE Table B tick to match engine order.  New stand-in `g_scene1_pfo_alt_mode` (PHC #17 `DAT_074b2ee4`).  New host-installable spawn hook for tests.  Asm-verified 10-arg call construction at 0x414991..0x414a6c. | ~180 | Table A sentinel-empty in HOUSE — PFO.1 init keeps all 256 slots at sentinel=-1 until PFO.6 allocators populate |
 | PFO.6    | Allocators FUN_004132c1 + FUN_0041331d                                                    | ~80 | no caller until a consumer ports |
 | PFO.7    | Parent table parser FUN_0041276e + boot wiring                                            | ~200 | tick is structurally complete after this |
 

@@ -436,3 +436,177 @@ void scene1_pfo_fire_type_4_terminal_kill(int slot_idx)
 {
     if (g_pfo_type_4_kill_hook) g_pfo_type_4_kill_hook(slot_idx);
 }
+
+/* ===== PFO.5a — Table A per-tick body ================================ */
+
+int32_t g_scene1_pfo_alt_mode = 0;  /* PHC #17 stand-in (DAT_074b2ee4). */
+
+static scene1_pfo_spawn_hook_fn g_pfo_spawn_hook = NULL;
+
+void scene1_pfo_set_spawn_hook(scene1_pfo_spawn_hook_fn hook)
+{
+    g_pfo_spawn_hook = hook;
+}
+
+void scene1_pfo_clear_spawn_hook(void)
+{
+    g_pfo_spawn_hook = NULL;
+}
+
+static void pfo_invoke_spawn(const void *template_owner,
+                             float pos_x, float pos_y, float pos_z,
+                             int   template_id,
+                             float scale_base,
+                             int   override_dur,
+                             int   override_rot_y,
+                             int   shape_mode,
+                             int   mode)
+{
+    if (g_pfo_spawn_hook) {
+        g_pfo_spawn_hook(template_owner, pos_x, pos_y, pos_z,
+                         template_id, scale_base,
+                         override_dur, override_rot_y,
+                         shape_mode, mode);
+    } else {
+        scene1_overlay_spawn(template_owner, pos_x, pos_y, pos_z,
+                             template_id, scale_base,
+                             override_dur, override_rot_y,
+                             shape_mode, mode);
+    }
+}
+
+static inline int32_t slot_a_i(int s, int off)
+{
+    return g_scene1_pfo_table_a[s * SCENE1_PFO_TABLE_A_STRIDE + off];
+}
+static inline void slot_a_set_i(int s, int off, int32_t v)
+{
+    g_scene1_pfo_table_a[s * SCENE1_PFO_TABLE_A_STRIDE + off] = v;
+}
+static inline float slot_a_f(int s, int off)
+{
+    return bits_to_f(slot_a_i(s, off));
+}
+
+void scene1_pfo_table_a_tick(void)
+{
+    /* Direct port of engine FUN_00414929 L23-L66 / asm 0x414932..0x414aa1.
+     *
+     * Engine walks at sentinel anchor `piVar2 = &DAT_00730c30` (= slot
+     * dw 4 of slot 0).  Our typed storage is contiguous (slot 0..255);
+     * we iterate slot index `s` and read `slot[OFF_SENTINEL]`. */
+
+    for (int s = 0; s < SCENE1_PFO_TABLE_A_COUNT; s++) {
+        int32_t parent_id = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_SENTINEL);
+        if (parent_id == -1) continue;  /* L24-L25: skip empty. */
+
+        /* Bounds-guard the parent_id read — engine indexes blindly into
+         * the 400-entry parent table.  No real allocator should produce
+         * an out-of-range id; treat OOB as "no live sub-records" so the
+         * age tick still runs (matching engine when sub-record sentinel
+         * happens to be -1). */
+        if (parent_id < 0 ||
+            parent_id >= SCENE1_PFO_PARENT_TABLE_COUNT) {
+            goto age_tick;
+        }
+
+        /* L26-L29: inner sub-record walk anchored at parent_table[parent_id]
+         * dw 25 (= sub_rec[0].sentinel) and dw 75 (= sub_rec[0].xyz_y).
+         * Per iteration k=0..6: read sentinel, age_match, scale_mul, xyz. */
+        int32_t age = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_AGE);
+
+        const int32_t *entry = &g_scene1_pfo_parent_table[
+            parent_id * SCENE1_PFO_PARENT_TABLE_STRIDE];
+
+        for (int k = 0; k < SCENE1_PFO_PARENT_TABLE_SUB_COUNT; k++) {
+            int32_t sub_sentinel  = entry[SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0  + k];
+            int32_t sub_age_match = entry[SCENE1_PFO_PARENT_OFF_SUB_AGE_MATCH_0 + k];
+            /* L30-L31: gate sub_rec[k].sentinel != -1 AND age_match == age. */
+            if (sub_sentinel == -1) continue;
+            if (sub_age_match != age) continue;
+
+            int32_t sub_scale_mul_bits = entry[SCENE1_PFO_PARENT_OFF_SUB_SCALE_MUL_0 + k];
+            float   sub_scale_mul = bits_to_f(sub_scale_mul_bits);
+            float   sub_x = bits_to_f(entry[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0 + k * 3 + 0]);
+            float   sub_y = bits_to_f(entry[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0 + k * 3 + 1]);
+            float   sub_z = bits_to_f(entry[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0 + k * 3 + 2]);
+
+            /* L32-L35: alt_offset (= local_2c) = 0, but -520 when
+             * g_scene1_pfo_alt_mode (= DAT_074b2ee4) != 0.  Only used by
+             * the passthrough (mode==0) arm. */
+            float alt_offset = (g_scene1_pfo_alt_mode != 0) ? -520.0f : 0.0f;
+
+            int32_t mode_flag = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_MODE);
+            float   slot_p1   = slot_a_f(s, SCENE1_PFO_TABLE_A_OFF_PARAM1);
+            float   slot_p2   = slot_a_f(s, SCENE1_PFO_TABLE_A_OFF_PARAM2);
+            float   slot_p3   = slot_a_f(s, SCENE1_PFO_TABLE_A_OFF_PARAM3);
+            float   slot_p5   = slot_a_f(s, SCENE1_PFO_TABLE_A_OFF_PARAM5);
+            int32_t slot_p6   = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM6);
+            int32_t slot_p7   = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM7);
+            int32_t slot_p0   = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM0);
+            int32_t shape_mode_arg = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_MODE);
+
+            float scale_base = slot_p5 * sub_scale_mul;
+            float pos_x, pos_y, pos_z;
+            const void *template_owner;
+            int   override_rot_y_bits;
+            int   mode_arg;
+
+            if (mode_flag == 0) {
+                /* L36-L43: passthrough.
+                 * pos_x = sub.x + slot[1]
+                 * pos_y = slot[2] + sub.y
+                 * pos_z = sub.z + slot[3] + alt_offset
+                 * template_owner = slot[0]
+                 * override_rot_y = slot[7] (as float bits)
+                 * shape_mode arg = slot[10] (= 0 in this branch)
+                 * mode arg       = 0
+                 *
+                 * Asm 0x414a0f..0x414a6c verified push order. */
+                pos_x = sub_x + slot_p1;
+                pos_y = slot_p2 + sub_y;
+                pos_z = sub_z + slot_p3 + alt_offset;
+                template_owner = (const void *)(intptr_t)slot_p0;
+                override_rot_y_bits = slot_p7;
+                mode_arg = 0;
+            } else {
+                /* L45-L52: projected.
+                 * pos_x = 16.5 - (slot[1] + sub.x) / 19.5
+                 * pos_y = 12.4 - (slot[2] + sub.y) / 19.5
+                 * pos_z = -520.0
+                 * template_owner = 0
+                 * override_rot_y = 0.0f
+                 * shape_mode arg = slot[10]
+                 * mode arg       = 1
+                 *
+                 * Asm 0x414991..0x414a0d verified. */
+                pos_x = 16.5f - (slot_p1 + sub_x) / 19.5f;
+                pos_y = 12.4f - (slot_p2 + sub_y) / 19.5f;
+                pos_z = -520.0f;
+                template_owner = NULL;
+                override_rot_y_bits = f_to_bits(0.0f);
+                mode_arg = 1;
+            }
+
+            pfo_invoke_spawn(template_owner,
+                             pos_x, pos_y, pos_z,
+                             /*template_id=*/sub_sentinel,
+                             scale_base,
+                             /*override_dur=*/slot_p6,
+                             /*override_rot_y=*/override_rot_y_bits,
+                             /*shape_mode=*/shape_mode_arg,
+                             /*mode=*/mode_arg);
+        }
+
+    age_tick:
+        /* L60-L63: age++ ; if (age == 300) sentinel = -1 (self-clear).
+         * Engine pre-increments and tests post-inc; mirrored here. */
+        {
+            int32_t age_new = slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_AGE) + 1;
+            slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_AGE, age_new);
+            if (age_new == 300) {
+                slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_SENTINEL, -1);
+            }
+        }
+    }
+}

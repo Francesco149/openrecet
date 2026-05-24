@@ -1839,7 +1839,24 @@ struct test_case {
     X(pfo_b_tick_type_4_drag2_clamped_at_0_97) \
     X(pfo_b_tick_type_4_gravity_cancel_when_below_target_y) \
     X(pfo_b_tick_type_4_hook_not_fired_without_install) \
-    X(pfo_b_tick_type_4_factor_always_1_2_quirk_50)
+    X(pfo_b_tick_type_4_factor_always_1_2_quirk_50) \
+    X(pfo_a_tick_skips_empty_slot) \
+    X(pfo_a_tick_no_spawn_when_parent_table_default) \
+    X(pfo_a_tick_spawn_fires_on_age_match) \
+    X(pfo_a_tick_spawn_skipped_when_age_match_differs) \
+    X(pfo_a_tick_spawn_skipped_when_sub_sentinel_minus_one) \
+    X(pfo_a_tick_multiple_sub_records_fire_same_tick) \
+    X(pfo_a_tick_passthrough_mode_pos_and_args) \
+    X(pfo_a_tick_projected_mode_pos_and_args) \
+    X(pfo_a_tick_passthrough_alt_mode_adds_minus_520_to_z) \
+    X(pfo_a_tick_projected_mode_ignores_alt_mode) \
+    X(pfo_a_tick_age_increments_when_live) \
+    X(pfo_a_tick_self_clears_at_age_300) \
+    X(pfo_a_tick_does_not_self_clear_below_or_above_300) \
+    X(pfo_a_tick_uses_parent_id_from_sentinel) \
+    X(pfo_a_tick_walks_all_live_slots) \
+    X(pfo_a_tick_spawn_hook_intercepts_real_overlay_spawn) \
+    X(pfo_a_tick_default_calls_real_overlay_spawn)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

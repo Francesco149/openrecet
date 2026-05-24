@@ -1091,3 +1091,502 @@ int test_pfo_b_tick_type_4_factor_always_1_2_quirk_50(void)
     scene1_pfo_clear_type_4_terminal_kill_hook();
     return 0;
 }
+
+/* ===== PFO.5a — Table A per-tick body =============================== */
+
+typedef struct {
+    const void *template_owner;
+    float pos_x, pos_y, pos_z;
+    int   template_id;
+    float scale_base;
+    int   override_dur;
+    int   override_rot_y_bits;
+    int   shape_mode;
+    int   mode;
+} pfo_spawn_record_t;
+
+#define PFO_SPAWN_LOG_CAP 16
+static int                 g_pfo_spawn_log_count;
+static pfo_spawn_record_t  g_pfo_spawn_log[PFO_SPAWN_LOG_CAP];
+
+static void pfo_spawn_recorder(const void *template_owner,
+                               float pos_x, float pos_y, float pos_z,
+                               int   template_id,
+                               float scale_base,
+                               int   override_dur,
+                               int   override_rot_y,
+                               int   shape_mode,
+                               int   mode)
+{
+    if (g_pfo_spawn_log_count >= PFO_SPAWN_LOG_CAP) return;
+    pfo_spawn_record_t *r = &g_pfo_spawn_log[g_pfo_spawn_log_count++];
+    r->template_owner    = template_owner;
+    r->pos_x             = pos_x;
+    r->pos_y             = pos_y;
+    r->pos_z             = pos_z;
+    r->template_id       = template_id;
+    r->scale_base        = scale_base;
+    r->override_dur      = override_dur;
+    r->override_rot_y_bits = override_rot_y;
+    r->shape_mode        = shape_mode;
+    r->mode              = mode;
+}
+
+static void pfo_spawn_log_reset(void)
+{
+    g_pfo_spawn_log_count = 0;
+    memset(g_pfo_spawn_log, 0, sizeof g_pfo_spawn_log);
+}
+
+/* Seed a Table A slot to a "live" baseline with predictable param
+ * values; AGE = `age`, MODE = `mode`.  All param dws are set so each
+ * test can pull a recognizable value out of the spawn record. */
+static void setup_pfo_a_slot(int s, int32_t age, int32_t mode)
+{
+    int base = s * SCENE1_PFO_TABLE_A_STRIDE;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM0]   = 0;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM1]   = pfo_f_to_bits(1.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM2]   = pfo_f_to_bits(2.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM3]   = pfo_f_to_bits(3.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_SENTINEL] = 0;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM5]   = pfo_f_to_bits(1.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM6]   = 0;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM7]   = 0;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM8]   = 0;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_AGE]      = age;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_MODE]     = mode;
+}
+
+/* Seed parent_table[parent_id] sub_rec[k] with explicit fields.  Other
+ * sub_recs stay at "default empty" (sentinel=-1) per
+ * scene1_pfo_parent_table_init. */
+static void seed_parent_sub_rec(int parent_id, int k,
+                                int32_t sentinel, int32_t age_match,
+                                float scale_mul,
+                                float xyz_x, float xyz_y, float xyz_z)
+{
+    int32_t *entry = &g_scene1_pfo_parent_table[
+        parent_id * SCENE1_PFO_PARENT_TABLE_STRIDE];
+    entry[SCENE1_PFO_PARENT_OFF_SUB_SENTINEL_0  + k]          = sentinel;
+    entry[SCENE1_PFO_PARENT_OFF_SUB_AGE_MATCH_0 + k]          = age_match;
+    entry[SCENE1_PFO_PARENT_OFF_SUB_SCALE_MUL_0 + k]          = pfo_f_to_bits(scale_mul);
+    entry[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0       + k * 3 + 0]  = pfo_f_to_bits(xyz_x);
+    entry[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0       + k * 3 + 1]  = pfo_f_to_bits(xyz_y);
+    entry[SCENE1_PFO_PARENT_OFF_SUB_XYZ_0       + k * 3 + 2]  = pfo_f_to_bits(xyz_z);
+}
+
+int test_pfo_a_tick_skips_empty_slot(void)
+{
+    /* All slots sentinel=-1 → no spawns, no age changes. */
+    scene1_pfo_table_a_init();
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 0);
+    /* Sentinel-empty slot 0's AGE stays at its BSS default (0 here). */
+    int32_t age0 = g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_AGE];
+    T_ASSERT_EQ_I(age0, 0);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_no_spawn_when_parent_table_default(void)
+{
+    /* Default-fill parent table → all sub_rec[k].sentinel == -1 → gate
+     * never opens → no spawns, but age still increments. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/0);
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 0);
+    /* Age incremented from 0 → 1. */
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_AGE], 1);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_spawn_fires_on_age_match(void)
+{
+    /* sub_rec[0] sentinel=42, age_match=0; slot age=0 → fires. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/0);
+    seed_parent_sub_rec(/*parent_id=*/0, /*k=*/0,
+                        /*sentinel=*/42, /*age_match=*/0,
+                        /*scale_mul=*/1.0f,
+                        0.0f, 0.0f, 0.0f);
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].template_id, 42);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_spawn_skipped_when_age_match_differs(void)
+{
+    /* sub_rec[0] age_match=5, slot age=0 → gate closed. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/0);
+    seed_parent_sub_rec(0, 0, /*sentinel=*/42, /*age_match=*/5,
+                        1.0f, 0.0f, 0.0f, 0.0f);
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 0);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_spawn_skipped_when_sub_sentinel_minus_one(void)
+{
+    /* Engine init leaves sub_sentinel=-1; even if age_match matches the
+     * slot age, the sentinel==-1 gate keeps it shut. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/0);
+    /* Don't seed sub_rec[0] — leave at default (sentinel=-1, age_match=0,
+     * which DOES match the slot's age=0, but sentinel guard wins). */
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 0);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_multiple_sub_records_fire_same_tick(void)
+{
+    /* Three sub_recs match → three spawns this tick. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/3, /*mode=*/0);
+    seed_parent_sub_rec(0, 0, 10, 3, 1.0f, 0,0,0);
+    seed_parent_sub_rec(0, 1, 20, 3, 1.0f, 0,0,0);
+    seed_parent_sub_rec(0, 4, 30, 3, 1.0f, 0,0,0);  /* skip k=2,3 */
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 3);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].template_id, 10);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[1].template_id, 20);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[2].template_id, 30);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_passthrough_mode_pos_and_args(void)
+{
+    /* Mode 0 path.  Slot pos=(1,2,3), sub.xyz=(10,20,30) → passthrough
+     * pos = sub + slot = (11, 22, 33).
+     * Slot PARAM5=5.0 (scale), sub.scale_mul=2.0 → scale_base=10.0.
+     * Slot PARAM0=0x12345 → template_owner cast.
+     * Slot PARAM6=7 → override_dur=7.
+     * Slot PARAM7=0xCAFEBABE → override_rot_y bits passed through.
+     * Mode flag=0 → shape_mode arg=0, mode arg=0. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/0);
+    int base = 0 * SCENE1_PFO_TABLE_A_STRIDE;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM0] = 0x12345;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM1] = pfo_f_to_bits(1.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM2] = pfo_f_to_bits(2.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM3] = pfo_f_to_bits(3.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM5] = pfo_f_to_bits(5.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM6] = 7;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM7] = (int32_t)0xCAFEBABE;
+
+    seed_parent_sub_rec(0, 0, /*sentinel=*/99, /*age_match=*/0,
+                        /*scale_mul=*/2.0f,
+                        /*xyz=*/10.0f, 20.0f, 30.0f);
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+    g_scene1_pfo_alt_mode = 0;
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
+    pfo_spawn_record_t *r = &g_pfo_spawn_log[0];
+    T_ASSERT(fabsf(r->pos_x - 11.0f) < 1e-5f);
+    T_ASSERT(fabsf(r->pos_y - 22.0f) < 1e-5f);
+    T_ASSERT(fabsf(r->pos_z - 33.0f) < 1e-5f);
+    T_ASSERT(fabsf(r->scale_base - 10.0f) < 1e-5f);
+    T_ASSERT_EQ_I(r->template_id, 99);
+    T_ASSERT_EQ_I(r->override_dur, 7);
+    T_ASSERT_EQ_I(r->override_rot_y_bits, (int32_t)0xCAFEBABE);
+    T_ASSERT_EQ_I(r->shape_mode, 0);
+    T_ASSERT_EQ_I(r->mode, 0);
+    T_ASSERT_EQ_U((uintptr_t)r->template_owner, (uintptr_t)0x12345u);
+
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_projected_mode_pos_and_args(void)
+{
+    /* Mode != 0 path.  slot pos=(1,2,3), sub.xyz=(10,20,30):
+     *   pos_x = 16.5 - (1+10)/19.5 = 16.5 - 11/19.5
+     *   pos_y = 12.4 - (2+20)/19.5 = 12.4 - 22/19.5
+     *   pos_z = -520
+     * template_owner = NULL; override_rot_y = 0.0f bits;
+     * shape_mode = slot[10] (= 1 here); mode = 1. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/1);
+    int base = 0 * SCENE1_PFO_TABLE_A_STRIDE;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM0] = 0xDEADBEEF;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM1] = pfo_f_to_bits(1.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM2] = pfo_f_to_bits(2.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM3] = pfo_f_to_bits(3.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM5] = pfo_f_to_bits(4.0f);
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM6] = 11;
+    g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM7] = (int32_t)0x55555555;
+
+    seed_parent_sub_rec(0, 0, /*sentinel=*/77, /*age_match=*/0,
+                        /*scale_mul=*/0.5f,
+                        10.0f, 20.0f, 30.0f);
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+    g_scene1_pfo_alt_mode = 0;
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
+    pfo_spawn_record_t *r = &g_pfo_spawn_log[0];
+    T_ASSERT(fabsf(r->pos_x - (16.5f - 11.0f / 19.5f)) < 1e-5f);
+    T_ASSERT(fabsf(r->pos_y - (12.4f - 22.0f / 19.5f)) < 1e-5f);
+    T_ASSERT(fabsf(r->pos_z - (-520.0f)) < 1e-5f);
+    T_ASSERT(fabsf(r->scale_base - (4.0f * 0.5f)) < 1e-5f);
+    T_ASSERT_EQ_I(r->template_id, 77);
+    T_ASSERT_EQ_I(r->override_dur, 11);
+    T_ASSERT_EQ_I(r->override_rot_y_bits, pfo_f_to_bits(0.0f));
+    T_ASSERT_EQ_I(r->shape_mode, 1);
+    T_ASSERT_EQ_I(r->mode, 1);
+    /* template_owner is forced to NULL in projected mode regardless of
+     * slot PARAM0. */
+    T_ASSERT_EQ_U((uintptr_t)r->template_owner, (uintptr_t)0u);
+
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_passthrough_alt_mode_adds_minus_520_to_z(void)
+{
+    /* PHC #17: when g_scene1_pfo_alt_mode != 0, passthrough adds -520
+     * to pos_z (= sub.z + slot[3] + alt_offset). */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/0);
+    seed_parent_sub_rec(0, 0, /*sentinel=*/1, /*age_match=*/0,
+                        1.0f, 0.0f, 0.0f, 10.0f);
+    /* slot PARAM3 = 3.0 by setup_pfo_a_slot default. */
+
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+    g_scene1_pfo_alt_mode = 1;
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
+    /* z = sub.z + slot.PARAM3 + alt_offset = 10 + 3 - 520 = -507. */
+    T_ASSERT(fabsf(g_pfo_spawn_log[0].pos_z - (-507.0f)) < 1e-5f);
+
+    g_scene1_pfo_alt_mode = 0;
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_projected_mode_ignores_alt_mode(void)
+{
+    /* Projected always uses pos_z=-520 regardless of g_scene1_pfo_alt_mode. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/1);
+    seed_parent_sub_rec(0, 0, 1, 0, 1.0f, 0,0, 99.0f);
+
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+    g_scene1_pfo_alt_mode = 1;
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
+    T_ASSERT(fabsf(g_pfo_spawn_log[0].pos_z - (-520.0f)) < 1e-5f);
+
+    g_scene1_pfo_alt_mode = 0;
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_age_increments_when_live(void)
+{
+    /* Even when no sub_rec fires, age increments. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/5, /*mode=*/0);
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+
+    scene1_pfo_table_a_tick();
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_AGE], 6);
+
+    scene1_pfo_table_a_tick();
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_AGE], 7);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_self_clears_at_age_300(void)
+{
+    /* Engine: if (++age == 300) sentinel = -1.  age=299 → tick →
+     * age=300 + sentinel=-1. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/299, /*mode=*/0);
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+    pfo_spawn_log_reset();
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_AGE], 300);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL], -1);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_does_not_self_clear_below_or_above_300(void)
+{
+    /* age=298 → 299 (no clear); age=300 → 301 (no clear; gate is == only). */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+
+    /* Case 1: age 298 → 299, no clear. */
+    setup_pfo_a_slot(0, 298, /*mode=*/0);
+    scene1_pfo_table_a_tick();
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_AGE], 299);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL], 0);
+
+    /* Case 2: age 300 → 301, no clear (already past the == 300 gate). */
+    setup_pfo_a_slot(0, 300, /*mode=*/0);
+    scene1_pfo_table_a_tick();
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_AGE], 301);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL], 0);
+    return 0;
+}
+
+int test_pfo_a_tick_uses_parent_id_from_sentinel(void)
+{
+    /* The sentinel field IS the parent template id (a non-negative int).
+     * Verify the tick reads parent_table[sentinel], not parent_table[0]. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/0);
+    /* Re-point slot 0's parent id to parent_table[7] instead of [0]. */
+    g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL] = 7;
+    /* Seed parent 0's sub_rec[0] to FIRE — but it should be ignored. */
+    seed_parent_sub_rec(0, 0, 100, 0, 1.0f, 0,0,0);
+    /* Seed parent 7's sub_rec[0] to fire — that's what should win. */
+    seed_parent_sub_rec(7, 0, 200, 0, 1.0f, 0,0,0);
+
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].template_id, 200);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_walks_all_live_slots(void)
+{
+    /* Two live slots both fire: slot 0 (parent 0) and slot 5 (parent 1). */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/0);
+    setup_pfo_a_slot(5, /*age=*/0, /*mode=*/0);
+    g_scene1_pfo_table_a[5 * SCENE1_PFO_TABLE_A_STRIDE +
+                         SCENE1_PFO_TABLE_A_OFF_SENTINEL] = 1;
+    seed_parent_sub_rec(0, 0, 11, 0, 1.0f, 0,0,0);
+    seed_parent_sub_rec(1, 0, 22, 0, 1.0f, 0,0,0);
+
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 2);
+    /* Order: slot 0 first (template_id 11), then slot 5 (template_id 22). */
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].template_id, 11);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[1].template_id, 22);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_spawn_hook_intercepts_real_overlay_spawn(void)
+{
+    /* When the hook is installed, scene1_overlay_spawn must NOT be
+     * called.  Verify by checking that no overlay slot got claimed. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/0);
+    seed_parent_sub_rec(0, 0, /*sentinel=*/0, /*age_match=*/0,
+                        1.0f, 0,0,0);
+    /* Wipe overlay so a real spawn would claim slot 0. */
+    scene1_overlay_reset();
+
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+
+    scene1_pfo_table_a_tick();
+
+    /* Hook fired once. */
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
+    /* No overlay slot got claimed — first slot's ACTIVE still -1. */
+    int32_t s_active = g_scene1_overlay_slots[
+        0 * SCENE1_OVERLAY_SLOT_STRIDE + SCENE1_OVERLAY_OFF_ACTIVE];
+    T_ASSERT_EQ_I(s_active, -1);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_a_tick_default_calls_real_overlay_spawn(void)
+{
+    /* No hook installed → real scene1_overlay_spawn fires → claims slot
+     * 0 of the overlay table (since overlay_reset leaves all -1).
+     * Template 0 with all-default fields is enough to allocate. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    setup_pfo_a_slot(0, /*age=*/0, /*mode=*/0);
+    seed_parent_sub_rec(0, 0, /*sentinel=*/0, /*age_match=*/0,
+                        1.0f, 0,0,0);
+    scene1_overlay_reset();
+    scene1_pfo_clear_spawn_hook();
+
+    scene1_pfo_table_a_tick();
+
+    /* Overlay slot 0 must have been claimed (ACTIVE != -1). */
+    int32_t s_active = g_scene1_overlay_slots[
+        0 * SCENE1_OVERLAY_SLOT_STRIDE + SCENE1_OVERLAY_OFF_ACTIVE];
+    if (s_active == -1) {
+        T_FAIL("real scene1_overlay_spawn not called: overlay slot 0 still -1");
+    }
+    return 0;
+}

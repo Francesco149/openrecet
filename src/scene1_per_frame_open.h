@@ -231,6 +231,83 @@ void scene1_pfo_clear_type_4_terminal_kill_hook(void);
  * triggers terminal kill.  Exposed for direct test use. */
 void scene1_pfo_fire_type_4_terminal_kill(int slot_idx);
 
+/* ------------------------------------------------------------------
+ * Table A per-tick body (PFO.5a) — engine FUN_00414929 L1-L43
+ * ------------------------------------------------------------------
+ *
+ * Walks all 256 g_scene1_pfo_table_a slots.  For each live slot
+ * (SENTINEL != -1), runs an inner 7-iter walk over the parent template
+ * table entry indexed by SENTINEL.  Each sub-record fires an
+ * scene1_overlay_spawn call iff:
+ *
+ *     sub_rec[k].sentinel  != -1  AND
+ *     sub_rec[k].age_match == slot.AGE
+ *
+ * After the inner walk, age is incremented; at age == 300 the slot is
+ * self-cleared (SENTINEL = -1).
+ *
+ * The spawn call uses one of two arg-construction modes selected by
+ * slot.MODE (dw 10):
+ *
+ *   MODE == 0 — "passthrough":
+ *     spawn(template_owner = slot[0],
+ *           pos_x = slot[1] + sub_rec.xyz_x,
+ *           pos_y = slot[2] + sub_rec.xyz_y,
+ *           pos_z = slot[3] + sub_rec.xyz_z + alt_offset,
+ *           template_id = sub_rec.sentinel,
+ *           scale_base  = slot[5] * sub_rec.scale_mul,
+ *           override_dur = slot[6],
+ *           override_rot_y = slot[7]  (as float — bit-pattern passed),
+ *           shape_mode = slot[10] (= 0 in this branch),
+ *           mode       = 0)
+ *
+ *   MODE != 0 — "projected":
+ *     spawn(template_owner = 0,
+ *           pos_x = 16.5 - (slot[1] + sub_rec.xyz_x) / 19.5,
+ *           pos_y = 12.4 - (slot[2] + sub_rec.xyz_y) / 19.5,
+ *           pos_z = -520.0,
+ *           template_id = sub_rec.sentinel,
+ *           scale_base  = slot[5] * sub_rec.scale_mul,
+ *           override_dur = slot[6],
+ *           override_rot_y = 0.0f,
+ *           shape_mode = slot[10],
+ *           mode       = 1)
+ *
+ * `alt_offset` is 0 by default, -520 when g_scene1_pfo_alt_mode != 0
+ * (= engine `DAT_074b2ee4`; PHC #17 stand-in).
+ *
+ * NOT yet reachable in production: PFO.6's allocators (FUN_004132c1 +
+ * FUN_0041331d) populate Table A but haven't ported; PFO.1's init keeps
+ * every slot's SENTINEL at -1 in HOUSE, so the body is dormant.
+ */
+void scene1_pfo_table_a_tick(void);
+
+/* PHC #17 stand-in for engine `DAT_074b2ee4`.  No writers in the
+ * decompile dump; hypothesized per-stage "alt projection" flag set by
+ * unported per-stage init.  When nonzero, the passthrough-mode spawn
+ * arm adds -520 to pos_z (effectively forcing the spawn to a fixed
+ * near-plane Z).  HOUSE default 0.  Exposed for tests + future stage
+ * init writers. */
+extern int32_t g_scene1_pfo_alt_mode;
+
+/* Spawn-call interception for Table A's tick body.  Default behavior
+ * (no hook installed): scene1_pfo_table_a_tick calls
+ * scene1_overlay_spawn directly with the 10 args the engine pushes.
+ * With a hook installed: the hook is called INSTEAD of
+ * scene1_overlay_spawn — useful for tests that want to observe the
+ * spawn-arg construction without setting up a full template table /
+ * shape table state.  Production paths leave the hook NULL. */
+typedef void (*scene1_pfo_spawn_hook_fn)(const void *template_owner,
+                                         float pos_x, float pos_y, float pos_z,
+                                         int   template_id,
+                                         float scale_base,
+                                         int   override_dur,
+                                         int   override_rot_y,
+                                         int   shape_mode,
+                                         int   mode);
+void scene1_pfo_set_spawn_hook(scene1_pfo_spawn_hook_fn hook);
+void scene1_pfo_clear_spawn_hook(void);
+
 #ifdef __cplusplus
 }
 #endif
