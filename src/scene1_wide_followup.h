@@ -183,9 +183,7 @@ void  wf_pass_b_compose_world(float out[16], const int32_t *slot);
  *   M = RotZ(π - rotX) × DAT_0438cdf8 × S × T
  * (one pre-matrix slot vs Pass A's RotY(π/2); pre-matrix is the same
  * stand-in Pass C uses, identity until the engine writer is found —
- * see PHC #16).  Fan group {0x73, 0x7e, 0x78, 0xa0, 0x7a} deferred —
- * needs FUN_00415f2e camera-billboard helper survey first.  Engine
- * FUN_004161c7 L293-L350.  */
+ * see PHC #16).  Engine FUN_004161c7 L293-L350.  */
 int   wf_pass_e_spear_should_emit(const int32_t *slot);
 float wf_pass_e_spear_per_record_scale(const int32_t *slot);
 void  wf_pass_e_spear_tile(const int32_t *slot, float *out_col, float *out_row);
@@ -193,6 +191,44 @@ void  wf_pass_e_spear_uv_box(float col, float row,
                              float *out_u0, float *out_u1,
                              float *out_v0, float *out_v1);
 void  wf_pass_e_spear_compose_world(float out[16], const int32_t *slot);
+
+/* ─── Pass E fan helpers (D3D-free, host-linkable) ─────────────────────
+ *
+ * Walks the same g_scene1_records_b memory as the spear group for
+ * cardinal-int type ∈ {0x73, 0x7e, 0x78, 0xa0, 0x7a} AND slot[AGE] ≥ 0.
+ * Shares the Pass E texture (effect_shot.bmp) and vbuf with the spear
+ * group.  Distinguishing geometry: instead of a static RotZ rotation,
+ * the fan group builds a camera-billboard matrix from POS + VEL +
+ * camera-eye (engine FUN_00415f2e), then multiplies by RotY(π/2) and
+ * a per-type anisotropic scaling.
+ *
+ * Per-record scale: LIFE_MULT × 0.004 baseline; 0x78/0xa0 stretch the
+ * Y/Z axes 2× (taller billboard); 0x7a multiplies baseline by 1.2 then
+ * applies the same Y/Z 2× stretch.  0x73/0x7e use uniform scaling.
+ *
+ * UV: 0x7e plays a 5-frame animation (slot_idx%5 selects a 32×32 tile
+ * arranged 3-wide); the other 4 types use fixed 16×16 (0x73) or 16×32
+ * (0x78/0xa0/0x7a) tiles in the 256×256 atlas.  Engine FUN_004161c7
+ * L352-L409.
+ *
+ * wf_pass_e_fan_billboard_matrix() ports engine FUN_00415f2e (125 B,
+ * 0x415f2e): builds D3DXMatrixLookAtRH(eye=POS, target=POS+VEL,
+ * up=g_scene1_camera_eye-POS) then inverts.  Caller passes the
+ * camera-eye triplet so the helper stays host-testable without
+ * pulling scene1_camera into the link line.  */
+int   wf_pass_e_fan_should_emit(const int32_t *slot);
+float wf_pass_e_fan_per_record_base_scale(const int32_t *slot);
+void  wf_pass_e_fan_per_record_scale_xyz(const int32_t *slot,
+                                         float *out_sx,
+                                         float *out_sy,
+                                         float *out_sz);
+void  wf_pass_e_fan_uv_box(const int32_t *slot, int slot_idx,
+                           float *out_u0, float *out_u1,
+                           float *out_v0, float *out_v1);
+void  wf_pass_e_fan_billboard_matrix(float out[16], const int32_t *slot,
+                                     const float camera_eye[3]);
+void  wf_pass_e_fan_compose_world(float out[16], const int32_t *slot,
+                                  const float camera_eye[3]);
 
 #ifdef _WIN32
 

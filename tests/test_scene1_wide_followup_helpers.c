@@ -940,3 +940,319 @@ int test_wf_pass_e_spear_compose_world_uses_pre_matrix(void)
     wf_pass_c_set_pre_matrix(identity);
     return 0;
 }
+
+/* ═══ Pass E fan group (C8f.pass-e-fan) ═══════════════════════════════════
+ *
+ * Filter: {0x73, 0x7e, 0x78, 0xa0, 0x7a} AND slot[AGE] >= 0.  Per-type
+ * uniform-vs-stretched scaling (0x78/0xa0 → s,2s,2s; 0x7a → 1.2s,2.4s,
+ * 2.4s; others → uniform).  UV: 0x7e plays a 5-frame anim; others use
+ * static atlas tiles.  Billboard matrix orients along velocity.  */
+
+int test_wf_pass_e_fan_should_emit_accepts_fan_types(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    int32_t accept[] = { 0x73, 0x7e, 0x78, 0xa0, 0x7a };
+    for (size_t i = 0; i < sizeof(accept) / sizeof(accept[0]); i++) {
+        slot_init_zero_b(slot);
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = accept[i];
+        slot[SCENE1_RECORDS_B_OFF_AGE]  = 0;
+        if (wf_pass_e_fan_should_emit(slot) != 1)
+            T_FAIL("fan type 0x%x should emit", accept[i]);
+    }
+    return 0;
+}
+
+int test_wf_pass_e_fan_should_emit_rejects_negative_age(void)
+{
+    /* Engine L353 second-gate: `piVar11[0x26] < 0` skips. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x73;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = -1;
+    T_ASSERT(wf_pass_e_fan_should_emit(slot) == 0);
+    return 0;
+}
+
+int test_wf_pass_e_fan_should_emit_rejects_spear_types(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    int32_t reject[] = { 0x71, 0x72, 0x75, 0x77, 0xa2, 0x53, 0 };
+    for (size_t i = 0; i < sizeof(reject) / sizeof(reject[0]); i++) {
+        slot_init_zero_b(slot);
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = reject[i];
+        if (wf_pass_e_fan_should_emit(slot) != 0)
+            T_FAIL("type 0x%x should not be a fan hit", reject[i]);
+    }
+    return 0;
+}
+
+/* ─── per-record scale ──────────────────────────────────────────────── */
+
+int test_wf_pass_e_fan_scale_0x73_uniform(void)
+{
+    /* 0x73 with LIFE_MULT=1.0 → uniform (0.004, 0.004, 0.004), no AGE
+     * ramp. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x73;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 0;  /* not ramped */
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    float sx, sy, sz;
+    wf_pass_e_fan_per_record_scale_xyz(slot, &sx, &sy, &sz);
+    T_ASSERT_NEAR_WF(sx, 0.004f, 1e-7f);
+    T_ASSERT_NEAR_WF(sy, 0.004f, 1e-7f);
+    T_ASSERT_NEAR_WF(sz, 0.004f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_fan_scale_0x78_stretches_yz(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x78;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    float sx, sy, sz;
+    wf_pass_e_fan_per_record_scale_xyz(slot, &sx, &sy, &sz);
+    T_ASSERT_NEAR_WF(sx, 0.004f, 1e-7f);
+    T_ASSERT_NEAR_WF(sy, 0.008f, 1e-7f);
+    T_ASSERT_NEAR_WF(sz, 0.008f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_fan_scale_0xa0_same_as_0x78(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0xa0;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    float sx, sy, sz;
+    wf_pass_e_fan_per_record_scale_xyz(slot, &sx, &sy, &sz);
+    T_ASSERT_NEAR_WF(sx, 0.004f, 1e-7f);
+    T_ASSERT_NEAR_WF(sy, 0.008f, 1e-7f);
+    T_ASSERT_NEAR_WF(sz, 0.008f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_fan_scale_0x7a_applies_1_point_2(void)
+{
+    /* 0x7a: base × 1.2 = 0.0048; then (0.0048, 0.0096, 0.0096). */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x7a;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    float sx, sy, sz;
+    wf_pass_e_fan_per_record_scale_xyz(slot, &sx, &sy, &sz);
+    T_ASSERT_NEAR_WF(sx, 0.0048f, 1e-7f);
+    T_ASSERT_NEAR_WF(sy, 0.0096f, 1e-7f);
+    T_ASSERT_NEAR_WF(sz, 0.0096f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_fan_scale_uses_life_mult(void)
+{
+    /* 0x73 with LIFE_MULT=2.5 → 0.01 uniform. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x73;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 2.5f);
+    float sx, sy, sz;
+    wf_pass_e_fan_per_record_scale_xyz(slot, &sx, &sy, &sz);
+    T_ASSERT_NEAR_WF(sx, 0.01f, 1e-6f);
+    T_ASSERT_NEAR_WF(sy, 0.01f, 1e-6f);
+    T_ASSERT_NEAR_WF(sz, 0.01f, 1e-6f);
+    return 0;
+}
+
+/* ─── UV box ────────────────────────────────────────────────────────── */
+
+int test_wf_pass_e_fan_uv_0x73_static_tile(void)
+{
+    /* 0x73: u ∈ (96.5/256, 111.5/256), v ∈ (160.5/256, 175.5/256). */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x73;
+    float u0, u1, v0, v1;
+    wf_pass_e_fan_uv_box(slot, /*slot_idx*/ 0, &u0, &u1, &v0, &v1);
+    T_ASSERT_NEAR_WF(u0,  96.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(u1, 111.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v0, 160.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v1, 175.5f / 256.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_fan_uv_0x78_tall_tile(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x78;
+    float u0, u1, v0, v1;
+    wf_pass_e_fan_uv_box(slot, 0, &u0, &u1, &v0, &v1);
+    T_ASSERT_NEAR_WF(u0,  96.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(u1, 111.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v0, 128.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v1, 159.5f / 256.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_fan_uv_0x7e_5frame_anim_frame_0(void)
+{
+    /* slot_idx % 5 == 0 → phase=0 → col = (0%3)*32 + 80 = 80, row = 0. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x7e;
+    float u0, u1, v0, v1;
+    wf_pass_e_fan_uv_box(slot, 0, &u0, &u1, &v0, &v1);
+    T_ASSERT_NEAR_WF(u0,  80.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(u1, 111.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v0,   0.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v1,  31.5f / 256.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_fan_uv_0x7e_5frame_anim_frame_3(void)
+{
+    /* slot_idx % 5 == 3 → phase=3 → col = (3%3)*32 + 80 = 80,
+     * row = (3/3) << 5 = 32. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x7e;
+    float u0, u1, v0, v1;
+    wf_pass_e_fan_uv_box(slot, 3, &u0, &u1, &v0, &v1);
+    T_ASSERT_NEAR_WF(u0,  80.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(u1, 111.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v0,  32.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v1,  63.5f / 256.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_fan_uv_0x7e_phase2_wraps_to_col_144(void)
+{
+    /* slot_idx=2 → phase=2 → col=(2%3)*32+80=144, row=(2/3)<<5=0. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x7e;
+    float u0, u1, v0, v1;
+    wf_pass_e_fan_uv_box(slot, 2, &u0, &u1, &v0, &v1);
+    T_ASSERT_NEAR_WF(u0, 144.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(u1, 175.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v0,   0.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v1,  31.5f / 256.0f, 1e-7f);
+    return 0;
+}
+
+/* ─── camera billboard matrix (FUN_00415f2e port) ──────────────────── */
+
+int test_wf_pass_e_fan_billboard_with_vel_along_x(void)
+{
+    /* Particle at origin with VEL=(1,0,0); camera at (0,0,5) (so
+     * up = (0,0,5) - (0,0,0) = (0,0,5)).
+     *
+     * LookAtRH(eye=(0,0,0), target=(1,0,0), up=(0,0,5)):
+     *   zaxis = normalize(eye - target) = (-1, 0, 0)
+     *   xaxis = normalize(up × zaxis) = normalize((0,0,1)×(-1,0,0))
+     *         = normalize((0,-1,0)*(-1)) = (0, 1, 0)         [using up scaled]
+     *     up_scaled × zaxis = (0,0,5) × (-1,0,0)
+     *       = (0*0 - 5*0, 5*(-1) - 0*0, 0*0 - 0*(-1))
+     *       = (0, -5, 0); normalize → (0, -1, 0)
+     *     wait — D3DX LookAtRH uses up × zaxis (not up_scaled × zaxis).
+     *     normalize(up × zaxis):
+     *       (0,0,5) × (-1,0,0) = (0*0 - 5*0, 5*(-1) - 0*0, 0*0 - 0*(-1))
+     *                          = (0, -5, 0)
+     *       normalize → (0, -1, 0)
+     *     so xaxis = (0, -1, 0)
+     *   yaxis = zaxis × xaxis = (-1,0,0) × (0,-1,0)
+     *         = (0*0 - 0*(-1), 0*0 - (-1)*0, (-1)*(-1) - 0*0)
+     *         = (0, 0, 1)
+     *
+     * LookAt matrix is the world→view transform.  Its inverse is the
+     * view→world transform: places a local +Z = -zaxis along the
+     * direction from eye to target, +X = -xaxis along the perpendicular,
+     * +Y = -yaxis along the camera-up.
+     *
+     * We don't pin down exact entries here — testing the matrix is
+     * non-degenerate and that inverting LookAt undoes its effect on the
+     * origin is enough.  See test_math_inverse_inverse_round_trips_to_
+     * identity for the round-trip property; this test just verifies the
+     * helper produces a well-defined non-zero matrix for sane inputs. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_X, 0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Y, 0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Z, 0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_VEL_X, 1.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+
+    float camera_eye[3] = { 0.0f, 0.0f, 5.0f };
+    float out[16];
+    wf_pass_e_fan_billboard_matrix(out, slot, camera_eye);
+
+    /* Bottom row is (0, 0, 0, 1) for any inverse of an affine xform. */
+    T_ASSERT_NEAR_WF(out[ 3], 0.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(out[ 7], 0.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(out[11], 0.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(out[15], 1.0f, 1e-5f);
+
+    /* Translation row must equal `eye` (the origin) for the LookAtRH
+     * inverse — the original LookAt sends `eye` to 0, so its inverse
+     * sends 0 to `eye`. */
+    T_ASSERT_NEAR_WF(out[12], 0.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(out[13], 0.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(out[14], 0.0f, 1e-5f);
+    return 0;
+}
+
+int test_wf_pass_e_fan_billboard_translation_at_pos(void)
+{
+    /* Eye at (10, 20, 30); arbitrary VEL.  Inverse LookAt translation
+     * row should restore the eye position. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_X, 10.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Y, 20.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Z, 30.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_VEL_Y, 1.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+
+    float camera_eye[3] = { 10.0f, 20.0f, 35.0f };
+    float out[16];
+    wf_pass_e_fan_billboard_matrix(out, slot, camera_eye);
+
+    T_ASSERT_NEAR_WF(out[12], 10.0f, 1e-3f);
+    T_ASSERT_NEAR_WF(out[13], 20.0f, 1e-3f);
+    T_ASSERT_NEAR_WF(out[14], 30.0f, 1e-3f);
+    T_ASSERT_NEAR_WF(out[15],  1.0f, 1e-5f);
+    return 0;
+}
+
+int test_wf_pass_e_fan_compose_world_includes_translation(void)
+{
+    /* Full compose_world stack: S × RotY(π/2) × billboard.  Translation
+     * should still land at POS because the billboard matrix is the only
+     * one that touches row 3; the RotY and S left-multiplies preserve
+     * row 3 = (0,0,0,1) under the row-major convention. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x73;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 10;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_X, 5.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Y, 6.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Z, 7.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_VEL_X, 1.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+
+    float camera_eye[3] = { 0.0f, 0.0f, 10.0f };
+    float world[16];
+    wf_pass_e_fan_compose_world(world, slot, camera_eye);
+
+    T_ASSERT_NEAR_WF(world[15], 1.0f, 1e-5f);
+    /* Translation row preserved through S*Ry: S scales row 3 by 1
+     * (homogeneous coord), Ry leaves it untouched, so M[12..14] = POS. */
+    T_ASSERT_NEAR_WF(world[12], 5.0f, 1e-3f);
+    T_ASSERT_NEAR_WF(world[13], 6.0f, 1e-3f);
+    T_ASSERT_NEAR_WF(world[14], 7.0f, 1e-3f);
+    return 0;
+}

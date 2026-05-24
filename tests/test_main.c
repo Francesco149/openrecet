@@ -340,6 +340,10 @@ struct test_case {
     X(math_mul_identity_identity_is_identity) \
     X(math_mul_handles_output_alias) \
     X(math_mul_diagonal_scaling) \
+    X(math_inverse_identity_is_identity) \
+    X(math_inverse_inverse_round_trips_to_identity) \
+    X(math_inverse_singular_returns_nonzero) \
+    X(math_inverse_handles_output_alias) \
     \
     X(prewindow_named_globals_set) \
     X(prewindow_object_table_y_set_first_last) \
@@ -1410,6 +1414,22 @@ struct test_case {
     X(wf_pass_e_spear_compose_world_translation_in_row_3) \
     X(wf_pass_e_spear_compose_world_rot_x_pi_cancels_rot_z) \
     X(wf_pass_e_spear_compose_world_uses_pre_matrix) \
+    X(wf_pass_e_fan_should_emit_accepts_fan_types) \
+    X(wf_pass_e_fan_should_emit_rejects_negative_age) \
+    X(wf_pass_e_fan_should_emit_rejects_spear_types) \
+    X(wf_pass_e_fan_scale_0x73_uniform) \
+    X(wf_pass_e_fan_scale_0x78_stretches_yz) \
+    X(wf_pass_e_fan_scale_0xa0_same_as_0x78) \
+    X(wf_pass_e_fan_scale_0x7a_applies_1_point_2) \
+    X(wf_pass_e_fan_scale_uses_life_mult) \
+    X(wf_pass_e_fan_uv_0x73_static_tile) \
+    X(wf_pass_e_fan_uv_0x78_tall_tile) \
+    X(wf_pass_e_fan_uv_0x7e_5frame_anim_frame_0) \
+    X(wf_pass_e_fan_uv_0x7e_5frame_anim_frame_3) \
+    X(wf_pass_e_fan_uv_0x7e_phase2_wraps_to_col_144) \
+    X(wf_pass_e_fan_billboard_with_vel_along_x) \
+    X(wf_pass_e_fan_billboard_translation_at_pos) \
+    X(wf_pass_e_fan_compose_world_includes_translation) \
     \
     X(records_c_tick_empty_table_is_noop) \
     X(records_c_tick_sentinel_slots_skipped) \

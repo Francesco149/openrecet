@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 
+#include "scene1_camera.h"   /* g_scene1_camera_eye (Pass E fan billboard) */
 #include "scene1_pass_f.h"   /* Pass F is already ported (C8g.2 MVP) */
 #include "scene1_records.h"  /* per-pass active counts */
 #include "scene1_records_c_tick.h" /* SCENE1_RECORDS_C_OFF_* slot offsets */
@@ -409,16 +410,12 @@ static void wf_pass_d(IDirect3DDevice8 *dev)
 }
 
 /* Pass E — DAT_069324b0 table, stride 0x49.  Two type groups:
- *   {0x71, 0x72, 0x75}            — "spear" (cardinal-int compare)
- *   {0x73, 0x7e, 0x78, 0xa0, 0x7a} — "fan"
+ *   {0x71, 0x72, 0x75}            — "spear" (RotZ-anchored static quad)
+ *   {0x73, 0x7e, 0x78, 0xa0, 0x7a} — "fan"   (camera-billboard, vel-aligned)
  * Shared texture: DAT_073cc940 = bmp/effect_shot.bmp 256×256 (bound at
  * L289-292 before this loop) via g_sysassets.effect_shot_bmp.tex.
  * vbuf: g_wf_pass_abe_vbuf (shared with A/B; mirrors engine DAT_0064bf68).
- *
- * This chip (C8f.pass-e-spear) wires the spear half only.  The fan group
- * is deferred to its own chip — needs the FUN_00415f2e (125 B camera-
- * billboard matrix helper) survey + port first; its 5 types fall through
- * silently here for now.  Engine FUN_004161c7 L293-L416. */
+ * Engine FUN_004161c7 L293-L416. */
 static void wf_pass_e(IDirect3DDevice8 *dev)
 {
     int count = wf_pass_abe_count();
@@ -432,17 +429,11 @@ static void wf_pass_e(IDirect3DDevice8 *dev)
          * inactive-slot fast skip before the type dispatch. */
         if (slot[SCENE1_RECORDS_B_OFF_TYPE] == 0) continue;
 
-        /* Spear arm only this chip.  Fan group falls through to the
-         * implicit `goto LAB_00417271` (continue).  Engine texture bind
-         * for Pass E (DAT_073cc940) happens once at L289-292 above this
-         * loop in the engine — we mirror that via the same g_tex_cache_
-         * last guard inside the body so the binding is exercised when
-         * the spear arm actually fires.  Engine binds it unconditionally
-         * before the loop; we keep it adjacent to the draw it serves to
-         * avoid touching the device when no spear slots exist. */
-        if (!wf_pass_e_spear_should_emit(slot)) continue;
+        int is_spear = wf_pass_e_spear_should_emit(slot);
+        int is_fan   = wf_pass_e_fan_should_emit(slot);
+        if (!is_spear && !is_fan) continue;
 
-        /* Bind texture (engine L289-292 cache guard, hoisted in-loop). */
+        /* Texture bind (engine L289-292 cache guard, hoisted in-loop). */
         IDirect3DTexture8 *tex = g_sysassets.effect_shot_bmp.tex;
         if (g_tex_cache_last != (uintptr_t)tex) {
             g_tex_cache_last = (uintptr_t)tex;
@@ -450,19 +441,29 @@ static void wf_pass_e(IDirect3DDevice8 *dev)
                                         (IDirect3DBaseTexture8 *)tex);
         }
 
-        /* World matrix: RotZ(π - rotX) × DAT_0438cdf8 × S × T. */
         float world[16];
-        wf_pass_e_spear_compose_world(world, slot);
+        float u0, u1, v0, v1;
+
+        if (is_spear) {
+            /* World matrix: RotZ(π - rotX) × DAT_0438cdf8 × S × T. */
+            wf_pass_e_spear_compose_world(world, slot);
+            float col, row;
+            wf_pass_e_spear_tile(slot, &col, &row);
+            wf_pass_e_spear_uv_box(col, row, &u0, &u1, &v0, &v1);
+        } else {
+            /* Fan: S × RotY(π/2) × camera-billboard(POS, VEL, camera_eye).
+             * Engine reads camera position from _DAT_073de31c..324 directly;
+             * we route through g_scene1_camera_eye (the same memory under a
+             * named extern from scene1_camera). */
+            wf_pass_e_fan_compose_world(world, slot, g_scene1_camera_eye);
+            wf_pass_e_fan_uv_box(slot, slot_idx, &u0, &u1, &v0, &v1);
+        }
+
         IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
                                       (const D3DMATRIX *)world);
 
-        /* Per-slot vbuf writes (engine L315-348): diffuse 0xffffffff on
-         * all 4 verts; UV box per (col, row) tile origin. */
-        float col, row;
-        wf_pass_e_spear_tile(slot, &col, &row);
-        float u0, u1, v0, v1;
-        wf_pass_e_spear_uv_box(col, row, &u0, &u1, &v0, &v1);
-
+        /* Per-slot vbuf writes (engine L315-348 spear / L400-408 fan):
+         * diffuse 0xffffffff on all 4 verts; UV box per emitter. */
         g_wf_pass_abe_vbuf[0].diffuse = 0xFFFFFFFFu;
         g_wf_pass_abe_vbuf[1].diffuse = 0xFFFFFFFFu;
         g_wf_pass_abe_vbuf[2].diffuse = 0xFFFFFFFFu;

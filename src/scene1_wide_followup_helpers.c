@@ -484,3 +484,194 @@ void wf_pass_e_spear_compose_world(float out[16], const int32_t *slot)
     mat4_rotation_z(scratch, 3.1415927f - rot_x);
     mat4_mul(out, scratch, out);
 }
+
+/* ═══ Pass E fan group (C8f.pass-e-fan) ═══════════════════════════════════
+ *
+ * Engine FUN_004161c7 L352-L409.  Same g_scene1_records_b memory as the
+ * spear group; cardinal-int type filter {0x73, 0x7e, 0x78, 0xa0, 0x7a}
+ * AND slot[AGE] >= 0.  Per-record path builds a camera-aligned billboard
+ * matrix via engine FUN_00415f2e (ported below), pre-multiplies a
+ * RotY(π/2) (engine line `thunk_FUN_004a3537(local_9c, 0x3fc90fdb)` —
+ * thunk 3537 = RotY per math3d.h), then applies a per-type anisotropic
+ * scaling.
+ *
+ * UV: 0x7e is a 5-frame animation (slot_idx % 5 selects a 32×32 tile in
+ * a 3-wide grid starting at (80, 0)); other types use static tiles in
+ * a 256×256 atlas (effect_shot.bmp).  */
+
+int wf_pass_e_fan_should_emit(const int32_t *slot)
+{
+    int32_t type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    if (type != 0x73 && type != 0x7e && type != 0x78 &&
+        type != 0xa0 && type != 0x7a)
+        return 0;
+    /* Engine L353: `|| (piVar11[0x26] < 0) goto LAB_00417271` — AGE>=0
+     * is the second gate.  Negative AGE happens during the staggered
+     * spawn-burst startup for some types. */
+    int32_t age = slot[SCENE1_RECORDS_B_OFF_AGE];
+    return (age >= 0);
+}
+
+float wf_pass_e_fan_per_record_base_scale(const int32_t *slot)
+{
+    /* Engine L355: `local_c = piVar11[0x42] * 0.004` (slot[LIFE_MULT]
+     * × 0.004).  No AGE ramp-in (the fan group skips the spear's L302-305
+     * ramp).  0x7a applies an additional 1.2 multiplier before the
+     * per-type XYZ stretch — that's reflected in scale_xyz, not here. */
+    return *(const float *)&slot[SCENE1_RECORDS_B_OFF_LIFE_MULT] * 0.004f;
+}
+
+void wf_pass_e_fan_per_record_scale_xyz(const int32_t *slot,
+                                        float *out_sx,
+                                        float *out_sy,
+                                        float *out_sz)
+{
+    /* Engine L359-374:
+     *
+     *   if (type == 0x78 || type == 0xa0) {
+     *     S = (base, 2*base, 2*base);            // tall thin billboard
+     *   } else if (type == 0x7a) {
+     *     base *= 1.2;
+     *     S = (base, 2*base, 2*base);            // 1.2× scaled variant
+     *   } else {                                 // 0x73, 0x7e uniform
+     *     S = (base, base, base);
+     *   }
+     */
+    int32_t type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    float base = wf_pass_e_fan_per_record_base_scale(slot);
+    if (type == 0x78 || type == 0xa0) {
+        *out_sx = base;
+        *out_sy = base * 2.0f;
+        *out_sz = base * 2.0f;
+        return;
+    }
+    if (type == 0x7a) {
+        base *= 1.2f;
+        *out_sx = base;
+        *out_sy = base * 2.0f;
+        *out_sz = base * 2.0f;
+        return;
+    }
+    *out_sx = base;
+    *out_sy = base;
+    *out_sz = base;
+}
+
+void wf_pass_e_fan_uv_box(const int32_t *slot, int slot_idx,
+                          float *out_u0, float *out_u1,
+                          float *out_v0, float *out_v1)
+{
+    /* Engine L377-399 — Pass E fan UV dispatch.  Three sub-cases:
+     *
+     *   type == 0x7e — 5-frame animation in a 3-wide grid:
+     *     col = ((slot_idx % 5) % 3) * 32 + 80
+     *     row = ((slot_idx % 5) / 3) * 32
+     *     tile size 32×32 (insets 0.5/31.5 → engine writes both axes
+     *     with the same range).
+     *
+     *   type ∈ {0x78, 0xa0, 0x7a} — fixed tall tile at (96, 128):
+     *     u in (96.5, 111.5) (16-px wide column)
+     *     v in (128.5, 159.5) (32-px tall row)
+     *
+     *   else (0x73) — fixed square tile at (96, 160):
+     *     u in (96.5, 111.5)
+     *     v in (160.5, 175.5) (16-px tall row)
+     *
+     * Raw .rdata constants verified: 0.37695312 = 96.5/256, 0.43554688 =
+     * 111.5/256, 0.5019531 = 128.5/256, 0.6230469 = 159.5/256,
+     * 0.6269531 = 160.5/256, 0.6855469 = 175.5/256.  All in the 256×256
+     * effect_shot.bmp atlas. */
+    int32_t type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+
+    if (type == 0x7e) {
+        int phase = slot_idx % 5;
+        float col = (float)((phase % 3) * 32 + 80);
+        float row = (float)((phase / 3) * 32);
+        *out_u0 = (col +  0.5f) / 256.0f;
+        *out_u1 = (col + 31.5f) / 256.0f;
+        *out_v0 = (row +  0.5f) / 256.0f;
+        *out_v1 = (row + 31.5f) / 256.0f;
+        return;
+    }
+
+    *out_u0 = 96.5f  / 256.0f;     /* 0.37695312 */
+    *out_u1 = 111.5f / 256.0f;     /* 0.43554688 */
+
+    if (type == 0x78 || type == 0xa0 || type == 0x7a) {
+        *out_v0 = 128.5f / 256.0f; /* 0.5019531 */
+        *out_v1 = 159.5f / 256.0f; /* 0.6230469 */
+        return;
+    }
+
+    /* 0x73 default. */
+    *out_v0 = 160.5f / 256.0f;     /* 0.6269531 */
+    *out_v1 = 175.5f / 256.0f;     /* 0.6855469 */
+}
+
+void wf_pass_e_fan_billboard_matrix(float out[16], const int32_t *slot,
+                                    const float camera_eye[3])
+{
+    /* Engine FUN_00415f2e @ 0x415f2e (125 B):
+     *
+     *   eye    = (POS_X,  POS_Y,  POS_Z)              // local_28
+     *   target = (POS_X+VEL_X, POS_Y+VEL_Y, POS_Z+VEL_Z)  // local_1c
+     *   up     = (cam.x-POS_X, cam.y-POS_Y, cam.z-POS_Z)  // local_10
+     *   D3DXMatrixLookAtRH(out, eye, target, up);
+     *   D3DXMatrixInverse(out, NULL, out);
+     *
+     * Byte-offset reading confirms (param_1 + 0x68 = 26 dw = VEL_X, +0x6c
+     * = VEL_Y, +0x70 = VEL_Z; +0x5c = 23 dw = POS_X).  _DAT_073de31c..324
+     * is g_scene1_camera_eye (3 floats) — caller passes it in to keep the
+     * helper testable without scene1_camera linkage.
+     *
+     * Result: world-space matrix that places a local XY-plane quad
+     * oriented to face the camera along the velocity direction (the
+     * billboard's local +Z = velocity direction; +Y axis aligned with
+     * the camera-relative up).  Singular if eye == target (zero velocity)
+     * OR if (camera - pos) is parallel to velocity; the engine doesn't
+     * guard either case — the resulting matrix has NaN/inf entries which
+     * pass through SetTransform fine (the draw is just invisible).  We
+     * preserve that behavior; mat4_inverse's singular-return signal is
+     * ignored. */
+    float pos_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_X];
+    float pos_y = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Y];
+    float pos_z = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Z];
+    float vel_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_VEL_X];
+    float vel_y = *(const float *)&slot[SCENE1_RECORDS_B_OFF_VEL_Y];
+    float vel_z = *(const float *)&slot[SCENE1_RECORDS_B_OFF_VEL_Z];
+
+    float eye[3]    = { pos_x,         pos_y,         pos_z         };
+    float target[3] = { pos_x + vel_x, pos_y + vel_y, pos_z + vel_z };
+    float up[3]     = { camera_eye[0] - pos_x,
+                        camera_eye[1] - pos_y,
+                        camera_eye[2] - pos_z };
+
+    float lookat[16];
+    mat4_lookat_rh(lookat, eye, target, up);
+    (void)mat4_inverse(out, lookat);
+}
+
+void wf_pass_e_fan_compose_world(float out[16], const int32_t *slot,
+                                 const float camera_eye[3])
+{
+    /* Engine L356-376 chained on top of FUN_00415f2e:
+     *
+     *   M = camera_billboard(slot)                      // local_5c
+     *   RY = RotY(π/2)                                  // local_9c
+     *   M  = RY * M                                     // Multiply(M, RY, M)
+     *   S  = per-type scaling                           // local_X
+     *   M  = S * M                                      // Multiply(M, S, M)
+     *
+     * Final world matrix = S × RotY(π/2) × billboard, applied to a local
+     * XY-plane quad.  */
+    wf_pass_e_fan_billboard_matrix(out, slot, camera_eye);
+
+    float scratch[16];
+    mat4_rotation_y(scratch, 1.5707964f /* 0x3fc90fdb = π/2 */);
+    mat4_mul(out, scratch, out);
+
+    float sx, sy, sz;
+    wf_pass_e_fan_per_record_scale_xyz(slot, &sx, &sy, &sz);
+    mat4_scaling(scratch, sx, sy, sz);
+    mat4_mul(out, scratch, out);
+}

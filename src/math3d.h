@@ -65,4 +65,13 @@ void mat4_rotation_x(float out[16], float radians);
 void mat4_rotation_y(float out[16], float radians);
 void mat4_rotation_z(float out[16], float radians);
 
+/* General 4×4 inverse via cofactor expansion.  Matches
+ * D3DXMatrixInverse(out, NULL, in) — the engine's thunk_FUN_004a2f35
+ * lands here (the second arg is `pDeterminant`, always NULL at the
+ * call sites we've seen).  Returns 0 on success, non-zero if the
+ * matrix is singular (|det| <= ~1e-7); the caller is responsible for
+ * handling singular cases (the engine itself does not check).  Safe
+ * with out == in (uses an internal temporary). */
+int mat4_inverse(float out[16], const float in[16]);
+
 #endif /* OPENRECET_MATH3D_H */

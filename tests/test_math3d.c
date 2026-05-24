@@ -204,3 +204,75 @@ int test_math_mul_diagonal_scaling(void)
     T_NEAR(out[15], 1.0f);
     return 0;
 }
+
+int test_math_inverse_identity_is_identity(void)
+{
+    float in[16] = {
+        1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1,
+    };
+    float out[16];
+    int rc = mat4_inverse(out, in);
+    if (rc != 0) T_FAIL("identity should be invertible (rc=%d)", rc);
+    for (int i = 0; i < 16; i++) T_NEAR(out[i], in[i]);
+    return 0;
+}
+
+int test_math_inverse_inverse_round_trips_to_identity(void)
+{
+    /* Compose a translation × scaling × rotation matrix and verify
+     * M × M⁻¹ ≈ identity. */
+    float t[16], s[16], r[16], ts[16], m[16], inv_m[16], product[16];
+    mat4_translation(t, 7.0f, -2.0f, 3.0f);
+    mat4_scaling(s, 2.0f, 0.5f, -1.5f);
+    mat4_rotation_y(r, 0.5f);
+    mat4_mul(ts, s, t);
+    mat4_mul(m, r, ts);
+
+    int rc = mat4_inverse(inv_m, m);
+    if (rc != 0) T_FAIL("non-singular matrix returned rc=%d", rc);
+
+    mat4_mul(product, m, inv_m);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            float expected = (i == j) ? 1.0f : 0.0f;
+            if (!approx(product[i*4 + j], expected, 5e-5f))
+                T_FAIL("M*M^-1[%d,%d] got %f want %f", i, j,
+                       product[i*4 + j], expected);
+        }
+    }
+    return 0;
+}
+
+int test_math_inverse_singular_returns_nonzero(void)
+{
+    /* A row of zeros makes det == 0. */
+    float singular[16] = {
+        1, 2, 3, 4,
+        0, 0, 0, 0,
+        5, 6, 7, 8,
+        9, 0, 1, 1,
+    };
+    float out[16];
+    int rc = mat4_inverse(out, singular);
+    if (rc == 0) T_FAIL("singular matrix should return non-zero rc");
+    return 0;
+}
+
+int test_math_inverse_handles_output_alias(void)
+{
+    /* `mat4_inverse(m, m)` must work — implementation uses an internal
+     * buffer.  Compute the inverse twice: once aliased, once into a
+     * separate output; results should match. */
+    float orig[16];
+    mat4_translation(orig, 3.0f, -1.0f, 4.0f);
+
+    float m_alias[16];
+    for (int i = 0; i < 16; i++) m_alias[i] = orig[i];
+    mat4_inverse(m_alias, m_alias);
+
+    float m_separate[16];
+    mat4_inverse(m_separate, orig);
+
+    for (int i = 0; i < 16; i++) T_NEAR(m_alias[i], m_separate[i]);
+    return 0;
+}
