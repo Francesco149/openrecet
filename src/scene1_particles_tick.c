@@ -38,6 +38,7 @@
 #include <stdint.h>
 
 #include "math3d.h"
+#include "scene1_per_frame_open.h"
 #include "scene1_records.h"
 #include "scene1_spawn.h"
 
@@ -196,16 +197,31 @@ static void field_decay_x(int i, int field_off, float mul, int kill_age)
 
 /* ─── per-frame open (FUN_00414929) ──────────────────────────────────
  *
- * 1465 B sibling that ticks two non-particle entity tables
- * (DAT_00730c30 stride 0xb and DAT_0064e8a0 stride 0x37, with embedded
- * FUN_00414345 / FUN_0040656e / FUN_005031e4 calls).  Provisional
- * no-op for C8h.1 — separate chip when those tables' consumers port.
+ * 1465 B sibling that ticks two unrelated entity tables before the
+ * per-type particle handlers run:
+ *
+ *   - Table A — DAT_00730c30 spawn-request queue (256 slots × 11 dw).
+ *     Tick body (engine L1-43) walks live slots and spawns up to 7
+ *     overlay particles per slot via scene1_overlay_spawn against the
+ *     parent template at DAT_007444e0.  NOT PORTED yet (slated for a
+ *     follow-up chip after PFO.6 allocators populate Table A).
+ *     PFO.1's init keeps Table A sentinel-empty in HOUSE, so the
+ *     unported tick body would be a no-op anyway.
+ *
+ *   - Table B — g_scene1_overlay_slots (4096 × 55 dw).  Tick body
+ *     ported as PFO.3 + PFO.4 (scene1_pfo_table_b_tick).  Wired below.
+ *     Dormant in HOUSE on PFO.2.1's sentinel-empty reset state since
+ *     no in-port spawn site populates overlay slots today.
+ *
+ * PFO.5 wires only the Table B half — see chip ladder in
+ * docs/findings/scene1-per-frame-open.md.
  */
 static void particles_per_frame_open(void)
 {
-    /* Intentionally empty.  See chip ladder in
-     * docs/findings/scene1-particles-tick.md — this lands with a later
-     * chip alongside the two entity tables. */
+    /* TODO: Table A tick body (engine FUN_00414929 L1-43) — pending
+     * follow-up chip alongside PFO.6 allocators.  HOUSE-dormant on
+     * PFO.1's sentinel-empty init. */
+    scene1_pfo_table_b_tick();
 }
 
 /* ─── handler: types 6, 7, 8, 9 — camera-orbit attract ───────────────
