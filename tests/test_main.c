@@ -1856,7 +1856,15 @@ struct test_case {
     X(pfo_a_tick_uses_parent_id_from_sentinel) \
     X(pfo_a_tick_walks_all_live_slots) \
     X(pfo_a_tick_spawn_hook_intercepts_real_overlay_spawn) \
-    X(pfo_a_tick_default_calls_real_overlay_spawn)
+    X(pfo_a_tick_default_calls_real_overlay_spawn) \
+    X(pfo_alloc_projected_claims_first_empty_slot) \
+    X(pfo_alloc_passthrough_claims_first_empty_slot) \
+    X(pfo_alloc_skips_occupied_slots) \
+    X(pfo_alloc_returns_minus_one_when_full) \
+    X(pfo_alloc_projected_then_tick_fires_projected_spawn) \
+    X(pfo_alloc_passthrough_then_tick_fires_passthrough_spawn) \
+    X(pfo_alloc_projected_param3_minus_520_bit_pattern) \
+    X(pfo_alloc_repeated_calls_fill_table_in_order)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

@@ -610,3 +610,70 @@ void scene1_pfo_table_a_tick(void)
         }
     }
 }
+
+/* ===== PFO.6 — Table A allocators ====================================
+ *
+ * Both allocators are short linear scans of Table A for the first
+ * SENTINEL == -1 slot, followed by a fixed-pattern field fill.  Engine
+ * sources at by-address/4132c1.c + by-address/41331d.c.  Asm verified
+ * at 0x4132c1..0x413315 / 0x41331d..0x413375. */
+
+int scene1_pfo_table_a_alloc_projected(float pos_x, float pos_y,
+                                       int   template_id,
+                                       float scale_base,
+                                       int   override_dur,
+                                       int   param_8)
+{
+    /* Engine puVar1 = &DAT_00730c20; do while puVar1 != &DAT_00733820. */
+    for (int s = 0; s < SCENE1_PFO_TABLE_A_COUNT; s++) {
+        if (slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_SENTINEL) != -1) continue;
+
+        /* L11-L24: per-field write pattern.
+         * slot[3] = -520.0f via .rdata constant 0xc4020000.
+         * slot[7] = 0 (engine fldz; fstp → IEEE-754 0.0 = bit-pattern 0).
+         * MODE = 1 (projected). */
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM0,   0);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM1,   f_to_bits(pos_x));
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM2,   f_to_bits(pos_y));
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM3,   (int32_t)0xc4020000);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_SENTINEL, template_id);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM5,   f_to_bits(scale_base));
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM6,   override_dur);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM7,   0);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM8,   param_8);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_AGE,      0);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_MODE,     1);
+        return s;
+    }
+    /* Table full — engine returns without writing.  Mirror via -1. */
+    return -1;
+}
+
+int scene1_pfo_table_a_alloc_passthrough(int   template_owner,
+                                         float pos_x, float pos_y, float pos_z,
+                                         int   template_id,
+                                         float scale_base,
+                                         int   override_dur,
+                                         int   override_rot_y_bits,
+                                         int   param_8)
+{
+    for (int s = 0; s < SCENE1_PFO_TABLE_A_COUNT; s++) {
+        if (slot_a_i(s, SCENE1_PFO_TABLE_A_OFF_SENTINEL) != -1) continue;
+
+        /* All 9 caller-arg fields fill in directly; AGE = 0; MODE = 0
+         * (passthrough). */
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM0,   template_owner);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM1,   f_to_bits(pos_x));
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM2,   f_to_bits(pos_y));
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM3,   f_to_bits(pos_z));
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_SENTINEL, template_id);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM5,   f_to_bits(scale_base));
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM6,   override_dur);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM7,   override_rot_y_bits);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_PARAM8,   param_8);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_AGE,      0);
+        slot_a_set_i(s, SCENE1_PFO_TABLE_A_OFF_MODE,     0);
+        return s;
+    }
+    return -1;
+}

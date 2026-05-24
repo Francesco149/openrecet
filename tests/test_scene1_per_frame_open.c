@@ -1590,3 +1590,202 @@ int test_pfo_a_tick_default_calls_real_overlay_spawn(void)
     }
     return 0;
 }
+
+/* ===== PFO.6 — Table A allocators =================================== */
+
+int test_pfo_alloc_projected_claims_first_empty_slot(void)
+{
+    /* Sentinel-empty table → allocator claims slot 0. */
+    scene1_pfo_table_a_init();
+    int s = scene1_pfo_table_a_alloc_projected(
+        /*pos_x=*/1.0f, /*pos_y=*/2.0f,
+        /*template_id=*/42,
+        /*scale_base=*/0.5f,
+        /*override_dur=*/7,
+        /*param_8=*/0xCAFE);
+    T_ASSERT_EQ_I(s, 0);
+
+    int base = 0 * SCENE1_PFO_TABLE_A_STRIDE;
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM0],   0);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM1]) - 1.0f) < 1e-6f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM2]) - 2.0f) < 1e-6f);
+    /* PARAM3 = -520.0f via the .rdata 0xc4020000 bit-pattern. */
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM3], (int32_t)0xc4020000);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_SENTINEL], 42);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM5]) - 0.5f) < 1e-6f);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM6], 7);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM7], 0);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM8], 0xCAFE);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_AGE], 0);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_MODE], 1);
+    return 0;
+}
+
+int test_pfo_alloc_passthrough_claims_first_empty_slot(void)
+{
+    scene1_pfo_table_a_init();
+    int s = scene1_pfo_table_a_alloc_passthrough(
+        /*template_owner=*/0xABCD,
+        /*pos_x=*/1.0f, /*pos_y=*/2.0f, /*pos_z=*/3.0f,
+        /*template_id=*/77,
+        /*scale_base=*/4.0f,
+        /*override_dur=*/9,
+        /*override_rot_y_bits=*/(int32_t)0xDEADBEEF,
+        /*param_8=*/0xF00D);
+    T_ASSERT_EQ_I(s, 0);
+
+    int base = 0 * SCENE1_PFO_TABLE_A_STRIDE;
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM0],   0xABCD);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM1]) - 1.0f) < 1e-6f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM2]) - 2.0f) < 1e-6f);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM3]) - 3.0f) < 1e-6f);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_SENTINEL], 77);
+    T_ASSERT(fabsf(pfo_bits_to_f(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM5]) - 4.0f) < 1e-6f);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM6], 9);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM7], (int32_t)0xDEADBEEF);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_PARAM8], 0xF00D);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_AGE], 0);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[base + SCENE1_PFO_TABLE_A_OFF_MODE], 0);
+    return 0;
+}
+
+int test_pfo_alloc_skips_occupied_slots(void)
+{
+    /* Slot 0 occupied → allocator claims slot 1. */
+    scene1_pfo_table_a_init();
+    g_scene1_pfo_table_a[0 * SCENE1_PFO_TABLE_A_STRIDE +
+                         SCENE1_PFO_TABLE_A_OFF_SENTINEL] = 5; /* alive */
+
+    int s = scene1_pfo_table_a_alloc_passthrough(0, 0,0,0, 1, 1.0f, 0, 0, 0);
+    T_ASSERT_EQ_I(s, 1);
+
+    /* Slot 0 untouched. */
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[0 * SCENE1_PFO_TABLE_A_STRIDE +
+                                       SCENE1_PFO_TABLE_A_OFF_SENTINEL], 5);
+    return 0;
+}
+
+int test_pfo_alloc_returns_minus_one_when_full(void)
+{
+    /* All 256 slots alive → alloc returns -1 and writes nothing. */
+    for (int i = 0; i < SCENE1_PFO_TABLE_A_COUNT; i++) {
+        g_scene1_pfo_table_a[i * SCENE1_PFO_TABLE_A_STRIDE +
+                             SCENE1_PFO_TABLE_A_OFF_SENTINEL] = 99;
+        /* Seed PARAM0 to a recognizable value so we can prove no
+         * write happened. */
+        g_scene1_pfo_table_a[i * SCENE1_PFO_TABLE_A_STRIDE +
+                             SCENE1_PFO_TABLE_A_OFF_PARAM0] = 0xDEAD0000 + i;
+    }
+
+    int s1 = scene1_pfo_table_a_alloc_projected(0, 0, 1, 1.0f, 0, 0);
+    int s2 = scene1_pfo_table_a_alloc_passthrough(0, 0, 0, 0, 1, 1.0f, 0, 0, 0);
+    T_ASSERT_EQ_I(s1, -1);
+    T_ASSERT_EQ_I(s2, -1);
+
+    /* Slot 0's PARAM0 unchanged. */
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[0 * SCENE1_PFO_TABLE_A_STRIDE +
+                                       SCENE1_PFO_TABLE_A_OFF_PARAM0],
+                  (int32_t)0xDEAD0000);
+    return 0;
+}
+
+int test_pfo_alloc_projected_then_tick_fires_projected_spawn(void)
+{
+    /* End-to-end: alloc-projected then tick should produce a projected-
+     * mode spawn call.  Set up parent_table[42] sub_rec[0] to match. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    seed_parent_sub_rec(/*parent_id=*/42, /*k=*/0,
+                        /*sentinel=*/123, /*age_match=*/0,
+                        /*scale_mul=*/1.0f, 0,0,0);
+
+    int s = scene1_pfo_table_a_alloc_projected(
+        /*pos_x=*/0.0f, /*pos_y=*/0.0f,
+        /*template_id=*/42,
+        /*scale_base=*/1.0f,
+        /*override_dur=*/0,
+        /*param_8=*/0);
+    T_ASSERT_EQ_I(s, 0);
+
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+    g_scene1_pfo_alt_mode = 0;
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
+    /* Projected mode → mode arg = 1, shape_mode = 1, pos_z = -520. */
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].mode, 1);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].shape_mode, 1);
+    T_ASSERT(fabsf(g_pfo_spawn_log[0].pos_z - (-520.0f)) < 1e-5f);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].template_id, 123);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_alloc_passthrough_then_tick_fires_passthrough_spawn(void)
+{
+    /* End-to-end the other way. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_parent_table_init();
+    seed_parent_sub_rec(/*parent_id=*/7, /*k=*/0,
+                        /*sentinel=*/200, /*age_match=*/0,
+                        1.0f, 0,0,0);
+
+    int s = scene1_pfo_table_a_alloc_passthrough(
+        /*template_owner=*/0,  /* keep 0 so template_owner reads NULL */
+        /*pos_x=*/1.0f, /*pos_y=*/2.0f, /*pos_z=*/3.0f,
+        /*template_id=*/7,
+        /*scale_base=*/1.0f,
+        /*override_dur=*/0,
+        /*override_rot_y_bits=*/0,
+        /*param_8=*/0);
+    T_ASSERT_EQ_I(s, 0);
+
+    pfo_spawn_log_reset();
+    scene1_pfo_set_spawn_hook(pfo_spawn_recorder);
+    g_scene1_pfo_alt_mode = 0;
+
+    scene1_pfo_table_a_tick();
+
+    T_ASSERT_EQ_I(g_pfo_spawn_log_count, 1);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].mode, 0);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].shape_mode, 0);
+    /* Passthrough: pos = slot_pos + sub_rec.xyz (=0,0,0 here). */
+    T_ASSERT(fabsf(g_pfo_spawn_log[0].pos_x - 1.0f) < 1e-6f);
+    T_ASSERT(fabsf(g_pfo_spawn_log[0].pos_y - 2.0f) < 1e-6f);
+    T_ASSERT(fabsf(g_pfo_spawn_log[0].pos_z - 3.0f) < 1e-6f);
+    T_ASSERT_EQ_I(g_pfo_spawn_log[0].template_id, 200);
+    scene1_pfo_clear_spawn_hook();
+    return 0;
+}
+
+int test_pfo_alloc_projected_param3_minus_520_bit_pattern(void)
+{
+    /* The .rdata constant 0xc4020000 maps to IEEE-754 binary32 -520.0f.
+     * Verify the bit-pattern survives the int32 store. */
+    scene1_pfo_table_a_init();
+    scene1_pfo_table_a_alloc_projected(0, 0, 1, 1.0f, 0, 0);
+    int32_t p3 = g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_PARAM3];
+    T_ASSERT_EQ_I(p3, (int32_t)0xc4020000);
+    T_ASSERT(fabsf(pfo_bits_to_f(p3) - (-520.0f)) < 1e-5f);
+    return 0;
+}
+
+int test_pfo_alloc_repeated_calls_fill_table_in_order(void)
+{
+    /* Five back-to-back allocations claim slots 0..4. */
+    scene1_pfo_table_a_init();
+    for (int i = 0; i < 5; i++) {
+        int s = scene1_pfo_table_a_alloc_projected(0, 0, /*template_id=*/i + 1,
+                                                   1.0f, 0, 0);
+        T_ASSERT_EQ_I(s, i);
+    }
+    /* Verify each got its own template_id. */
+    for (int i = 0; i < 5; i++) {
+        int32_t sentinel = g_scene1_pfo_table_a[
+            i * SCENE1_PFO_TABLE_A_STRIDE + SCENE1_PFO_TABLE_A_OFF_SENTINEL];
+        T_ASSERT_EQ_I(sentinel, i + 1);
+    }
+    return 0;
+}

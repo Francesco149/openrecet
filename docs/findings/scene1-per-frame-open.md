@@ -8,13 +8,15 @@ match engine FUN_00414902's first sentinel-init loop), PFO.3
 drag/gravity/age-kill), PFO.4 (type-4 shop-walker physics body +
 terminal-kill hook for SE 0x29d "thunk" side-effect), PFO.5
 (wire `scene1_pfo_table_b_tick` into `particles_per_frame_open`),
-and **PFO.5a** (Table A tick body — 256-slot scan + 7-iter
-sub-record dispatch + scene1_overlay_spawn calls + 300-tick
-self-clear; spawn-hook intercept for tests, alt-mode stand-in for
-PHC #17) landed.  Renamed `OFF_UNK_7C` → `OFF_ANIM_FRAME_COUNTER`
-and `OFF_RNG_SEED` → `OFF_ANIM_CELL_INDEX` as called out by PHC #3.
-The survey below stands; PFO.1..PFO.5a + PHC #3 rows have status
-updates.  Remaining work: PFO.6 (allocators) + PFO.7 (parser).
+PFO.5a (Table A tick body — 256-slot scan + 7-iter sub-record
+dispatch + scene1_overlay_spawn calls + 300-tick self-clear;
+spawn-hook intercept for tests, alt-mode stand-in for PHC #17),
+and **PFO.6** (Table A allocators FUN_004132c1 + FUN_0041331d —
+projected and passthrough flavors) landed.  Renamed
+`OFF_UNK_7C` → `OFF_ANIM_FRAME_COUNTER` and `OFF_RNG_SEED` →
+`OFF_ANIM_CELL_INDEX` as called out by PHC #3.  The survey below
+stands; PFO.1..PFO.6 + PHC #3 rows have status updates.
+Remaining work: PFO.7 (parser).
 
 ## TL;DR
 
@@ -344,7 +346,7 @@ The full FUN_00414929 port lands in sub-chips.  Recommended order:
 | PFO.4 ✅ | Type 4 "shop walker physics" body + terminal-kill hook (engine `FUN_0040656e` SE 0x29d + screen-shake stand-in left as host-installable hook; default no-op). | ~150 | same as PFO.3; no spawn site populates SHAPE_MODE==4 + UNK_48!=0 |
 | PFO.5 ✅ | Wire `scene1_pfo_table_b_tick` into `particles_per_frame_open` (Table B half of FUN_00414929 now fires every integrator frame).  Table A tick body deferred to PFO.5a — its dormancy is preserved by PFO.1's sentinel-empty init. | ~15 | overlay slots stay sentinel-empty in HOUSE — no in-port spawn site populates them |
 | PFO.5a ✅ | Table A tick body (engine FUN_00414929 L1-43) — `scene1_pfo_table_a_tick()` walks 256 slots, gates on `sub_rec[k].sentinel != -1 && age_match == slot.AGE`, builds spawn args in two modes (passthrough vs projected) and calls scene1_overlay_spawn; age++ per slot and self-clear at age==300.  Wired into `particles_per_frame_open` BEFORE Table B tick to match engine order.  New stand-in `g_scene1_pfo_alt_mode` (PHC #17 `DAT_074b2ee4`).  New host-installable spawn hook for tests.  Asm-verified 10-arg call construction at 0x414991..0x414a6c. | ~180 | Table A sentinel-empty in HOUSE — PFO.1 init keeps all 256 slots at sentinel=-1 until PFO.6 allocators populate |
-| PFO.6    | Allocators FUN_004132c1 + FUN_0041331d                                                    | ~80 | no caller until a consumer ports |
+| PFO.6 ✅ | Table A allocators FUN_004132c1 (6-arg, "projected" — MODE=1 + fixed slot[3]=-520) and FUN_0041331d (9-arg, "passthrough" — MODE=0).  Both linear-scan for first SENTINEL==-1 slot, fixed-pattern fill, return slot index (-1 if full).  Survey claim "10-arg pose-style" for FUN_004132c1 was wrong — actually 6 args (2 pos floats + template_id + scale + override_dur + param_8).  Asm verified 0x4132c1..0x413315 and 0x41331d..0x413375. | ~100 | dormant — no caller in port; once a producer wires them, the tick produces spawns |
 | PFO.7    | Parent table parser FUN_0041276e + boot wiring                                            | ~200 | tick is structurally complete after this |
 
 PFO.1-5 are all dormant-in-HOUSE per current data.  Goldens must stay

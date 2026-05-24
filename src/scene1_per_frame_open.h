@@ -308,6 +308,81 @@ typedef void (*scene1_pfo_spawn_hook_fn)(const void *template_owner,
 void scene1_pfo_set_spawn_hook(scene1_pfo_spawn_hook_fn hook);
 void scene1_pfo_clear_spawn_hook(void);
 
+/* ------------------------------------------------------------------
+ * Table A allocators (PFO.6) — engine FUN_004132c1 + FUN_0041331d
+ * ------------------------------------------------------------------
+ *
+ * Both allocators do a linear scan of Table A for the first slot with
+ * SENTINEL == -1, then populate it with the caller's args + a few
+ * fixed constants.  When the table is full (no -1 slot), the call is
+ * a no-op (engine returns without writing).  Per-call writes always
+ * include AGE = 0; the two functions differ only in field-fill
+ * pattern + MODE flag.
+ *
+ * **scene1_pfo_table_a_alloc_projected** — engine FUN_004132c1 (6 args,
+ * 92 bytes).  Writes:
+ *
+ *   slot[PARAM0]   = 0
+ *   slot[PARAM1]   = pos_x       (float bits)
+ *   slot[PARAM2]   = pos_y       (float bits)
+ *   slot[PARAM3]   = -520.0f     (= engine .rdata 0xc4020000)
+ *   slot[SENTINEL] = template_id (a non-negative int — gates the slot)
+ *   slot[PARAM5]   = scale_base  (float bits)
+ *   slot[PARAM6]   = override_dur
+ *   slot[PARAM7]   = 0           (= 0.0f bits)
+ *   slot[PARAM8]   = param_8
+ *   slot[AGE]      = 0
+ *   slot[MODE]     = 1           (= projected → tick uses 16.5/12.4
+ *                                  projection branch)
+ *
+ * Called by engine state writers we haven't ported yet; never NULL-
+ * checked.  Race-free in the engine (single-threaded sim).
+ *
+ * **scene1_pfo_table_a_alloc_passthrough** — engine FUN_0041331d (9 args,
+ * 89 bytes).  Writes ALL 9 slot fields directly from the args (no
+ * fixed constants apart from AGE=0 + MODE=0):
+ *
+ *   slot[PARAM0]   = template_owner (an int treated as a pointer by
+ *                                    the spawn API at tick time)
+ *   slot[PARAM1]   = pos_x       (float bits)
+ *   slot[PARAM2]   = pos_y       (float bits)
+ *   slot[PARAM3]   = pos_z       (float bits)
+ *   slot[SENTINEL] = template_id
+ *   slot[PARAM5]   = scale_base  (float bits)
+ *   slot[PARAM6]   = override_dur
+ *   slot[PARAM7]   = override_rot_y_bits (engine fld+fstp — float bits)
+ *   slot[PARAM8]   = param_8
+ *   slot[AGE]      = 0
+ *   slot[MODE]     = 0           (= passthrough → tick uses
+ *                                  slot + sub.xyz addition)
+ *
+ * Both: no caller in the current port.  PFO.6 lands the allocators but
+ * leaves Table A sentinel-empty in HOUSE until a real consumer ports.
+ *
+ * Asm verified at 0x4132c1..0x413315 (projected) and 0x41331d..0x413375
+ * (passthrough).  Ghidra's decomp accurately reflects the field writes;
+ * `param_8` is the slot[8] dw, never read by the tick.
+ *
+ * To match the engine's no-op-on-full behavior, both allocators return
+ * the slot index that was claimed (0..255), or -1 when the table is
+ * full.  Engine returns void; we add the return value as an
+ * observability aid for tests (and any future consumer that wants to
+ * react to allocator failure).
+ */
+int scene1_pfo_table_a_alloc_projected(float pos_x, float pos_y,
+                                       int   template_id,
+                                       float scale_base,
+                                       int   override_dur,
+                                       int   param_8);
+
+int scene1_pfo_table_a_alloc_passthrough(int   template_owner,
+                                         float pos_x, float pos_y, float pos_z,
+                                         int   template_id,
+                                         float scale_base,
+                                         int   override_dur,
+                                         int   override_rot_y_bits,
+                                         int   param_8);
+
 #ifdef __cplusplus
 }
 #endif
