@@ -208,30 +208,75 @@ static void sw_pass_a(IDirect3DDevice8 *dev)
     (void)dev;
 }
 
-/* Pass B walks the count-bounded DAT_069325b8 table; stride 0x49
- * dwords.  Three type-branches inside the loop:
+/* Pass B walks the count-bounded g_scene1_records_b table; stride 0x49
+ * dwords.  Three sub-bodies inside the loop, dispatched by TYPE
+ * (cardinal-int — comments in this header that called out "raw 0xf7/
+ * 0xf8" were stale, asm `cmp eax, 0x9b/0x9c` is authoritative):
  *
- *   fVar2 == 1.96182e-43 (raw 0x8c) — even-iVar5 sub-branch:
- *     compose Translation × Scaling × RotationY → emit
+ *   TYPE == 0x8c — gated by PART_IDX % 2 == 0:
+ *     compose MATRIX0 × RotX(ROT_X) × S(-s,s,s) × T(POS) → emit
+ *     with engine mesh-record &DAT_073a96a8.
  *
- *   fVar2 == 2.17201e-43 (raw 0xf7) OR 2.18603e-43 (raw 0xf8) —
- *     compose Translation × Scaling × neg-RotationY × RotationX → emit
- *     then nested 4-iter inner loop computing per-spoke
- *     Translation(sin·k, cos·k, 70.0f) → emit each
+ *   TYPE == 0x9b or 0x9c — outer body:
+ *     compose RotY(ROT_SCR) × RotX(-ROT_X) × S(-s,s,s) × T(POS) →
+ *     emit with engine mesh-record &DAT_073a96f8.
+ *     Then nested 4-iter spoke loop emits with engine mesh-record
+ *     &DAT_073a9720 per spoke (per-spoke Translation × outer).
  *
- * All other types fall through.  Dormant in HOUSE
- * (sw_pass_bc_count() == 0).
+ * All other types fall through.  Per-emit mesh-record overrides
+ * (0x73a96a8 / f8 / 0x73a9720) are engine static slots populated by
+ * code we haven't ported yet (same DUNGEON-loaded shape as Pass D's
+ * &DAT_073a9680); HOUSE leaves them BSS-zero so all emits short-
+ * circuit inside scene1_emit_record (mesh == NULL fast-path).  We
+ * pass NULL today; a future chip can wire `--force-pass-b-{main,
+ * outer,spoke}-mesh` setters analogous to Pass D's.
+ *
+ * Doubly dormant in HOUSE: g_scene1_records_b_count is 0 (no
+ * populated records), AND the type filter would skip every C8j
+ * allocator type anyway (allocators top out at 0xa6; Pass B needs
+ * 0x8c/0x9b/0x9c which are populated by the unported FUN_0043ae20
+ * table B tick).
  */
 static void sw_pass_b(IDirect3DDevice8 *dev)
 {
     int count = sw_pass_bc_count();
     if (count == 0) return;
-    /* TODO C8-followup: walk DAT_069325b8 with stride 0x49 dwords;
-     * dispatch on fVar2 raw-bits per the structure above; emit via
-     * sw_emit_record_TODO(NULL) per match.  Inner nested loop runs
-     * up to 4 spokes per match in the 0xf7/0xf8 branch. */
-    (void)dev;
-    (void)count;
+    if (count > SCENE1_RECORDS_B_COUNT) count = SCENE1_RECORDS_B_COUNT;
+
+    for (int i = 0; i < count; i++) {
+        const int32_t *slot =
+            &g_scene1_records_b[i * SCENE1_RECORDS_B_STRIDE];
+
+        int32_t type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+        if (type == 0) continue;  /* engine: `cmp eax, ebx (=0); je skip` */
+
+        if (sw_pass_b_should_emit_main(slot)) {
+            float world[16];
+            sw_pass_b_compose_world_main(world, slot);
+            IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                          (const D3DMATRIX *)world);
+            /* Engine: FUN_00455191(&DAT_073a96a8) — main body mesh. */
+            scene1_emit_record((struct IDirect3DDevice8 *)dev, NULL);
+        } else if (sw_pass_b_should_emit_outer(slot)) {
+            float outer[16];
+            sw_pass_b_compose_world_outer(outer, slot);
+            IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                          (const D3DMATRIX *)outer);
+            /* Engine: FUN_00455191(&DAT_073a96f8) — outer body mesh. */
+            scene1_emit_record((struct IDirect3DDevice8 *)dev, NULL);
+
+            /* 4-iter spoke loop @ engine 0x45583c..0x4559af. */
+            for (int spoke_idx = 0; spoke_idx < 4; spoke_idx++) {
+                float spoke_world[16];
+                sw_pass_b_compose_world_spoke(spoke_world, outer, slot,
+                                              spoke_idx);
+                IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                              (const D3DMATRIX *)spoke_world);
+                /* Engine: FUN_00455191(&DAT_073a9720) — spoke mesh. */
+                scene1_emit_record((struct IDirect3DDevice8 *)dev, NULL);
+            }
+        }
+    }
 }
 
 /* Pass C walks DAT_069324b0 table (different table than Pass B!

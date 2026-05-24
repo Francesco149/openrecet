@@ -1356,6 +1356,23 @@ struct test_case {
     X(scene1_debug_pass_d_unlit_default_is_off) \
     X(scene1_debug_pass_d_unlit_setter_round_trips) \
     X(scene1_debug_pass_d_unlit_normalises_to_0_or_1) \
+    X(scene1_pass_b_main_rejects_non_8c_types) \
+    X(scene1_pass_b_main_accepts_8c_when_part_idx_even) \
+    X(scene1_pass_b_main_rejects_8c_when_part_idx_odd) \
+    X(scene1_pass_b_outer_accepts_9b_and_9c) \
+    X(scene1_pass_b_outer_rejects_other_types) \
+    X(scene1_pass_b_main_compose_propagates_matrix0) \
+    X(scene1_pass_b_main_compose_matrix0_translates) \
+    X(scene1_pass_b_main_compose_scale_uses_0_06_factor) \
+    X(scene1_pass_b_outer_compose_scale_uses_0_05_factor) \
+    X(scene1_pass_b_outer_compose_translation_in_row_3) \
+    X(scene1_pass_b_outer_compose_rot_x_negates) \
+    X(scene1_pass_b_spoke_pose_default_age_radius_is_0_1) \
+    X(scene1_pass_b_spoke_pose_type_9b_grows_past_60) \
+    X(scene1_pass_b_spoke_pose_type_9c_grows_past_20) \
+    X(scene1_pass_b_spoke_pose_radius_caps_at_2_5) \
+    X(scene1_pass_b_spoke_compose_uses_70_z) \
+    X(scene1_pass_b_spoke_compose_uses_outer_matrix) \
     X(scene1_preload_post_house_cb_default_is_null) \
     X(scene1_preload_post_house_cb_setter_round_trips) \
     X(scene1_preload_post_house_cb_setter_replaces_previous) \

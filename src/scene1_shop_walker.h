@@ -21,14 +21,22 @@
  *                          matrix.  In HOUSE every record is
  *                          BSS-zero → dormant.
  *
- *   Pass B (L97..L193)   — DAT_069325b8 table, stride 0x49 (73 dw/
- *                          record).  Count-bounded by DAT_0076b964.
- *                          Three type-branches by fVar2 raw-bits:
- *                            0x8c (1.96182e-43)  — sub-branch 1
- *                            0xf7/0xf8 (2.17/2.18e-43) — sub-branch 2
- *                              + nested 4-iter cos/sin sub-loop
- *                          Per-record calls FUN_00455191(0).
- *                          DAT_0076b964 BSS-zero → dormant.
+ *   Pass B (L97..L193)   — DAT_069325b8 alias of g_scene1_records_b
+ *                          (slot dw 0x42 base, stride 0x49).
+ *                          Count-bounded by g_scene1_records_b_count.
+ *                          Three type-branches dispatched by cardinal-
+ *                          int (asm `cmp eax, K` is authoritative —
+ *                          Ghidra's float-as-int reinterp produced
+ *                          misleading raw-bits constants in the older
+ *                          decomp):
+ *                            0x8c — primary body (PART_IDX % 2 == 0)
+ *                            0x9b / 0x9c — outer body + nested 4-iter
+ *                                          sin/cos spoke sub-loop
+ *                          Each sub-body emits via FUN_00455191(<mesh>)
+ *                          with three different mesh-record slots
+ *                          (0x73a96a8 / f8 / 0x73a9720).  All three
+ *                          slots are DUNGEON-loaded only — HOUSE
+ *                          leaves them NULL.  Ported in C8c.B.
  *
  *   Mid block (L194..197)— Four RS writes (AMBIENT, LightEnable(0,1),
  *                          LIGHTING=1, TSS COLOROP=7).
@@ -136,6 +144,30 @@
  * scene1_shop_walker_helpers.c for derivation. */
 int  sw_pass_d_should_emit(const int32_t *slot);
 void sw_pass_d_compose_world(float out[16], const int32_t *slot);
+
+/* Pass B record-emit predicates + matrix composers (C8c.B).  D3D-free.
+ *
+ * Two sub-bodies dispatch by TYPE:
+ *
+ *   main  — TYPE == 0x8c, gated by PART_IDX % 2 == 0.  Composes
+ *             MATRIX0 × Rx(ROT_X) × S(-s,s,s) × T(POS), s = LIFE_MULT*0.06.
+ *   outer — TYPE ∈ {0x9b, 0x9c}.  Composes
+ *             Ry(ROT_SCR) × Rx(-ROT_X) × S(-s,s,s) × T(POS), s = LIFE_MULT*0.05.
+ *             Then the 4-iter spoke loop emits per-spoke matrices:
+ *             T(sin(θ)·r/0.05, cos(θ)·r/0.05, 70.0f) × outer.
+ *
+ * spoke_pose computes (radius, angle) for spoke_idx ∈ [0, 4):
+ *   base_angle = spoke_idx * π/2; default radius = 0.1f.
+ *   For 0x9b with AGE > 60 / 0x9c with AGE > 20, both grow with AGE.
+ *   Radius is clamped to 2.5f. */
+int  sw_pass_b_should_emit_main(const int32_t *slot);
+int  sw_pass_b_should_emit_outer(const int32_t *slot);
+void sw_pass_b_compose_world_main(float out[16], const int32_t *slot);
+void sw_pass_b_compose_world_outer(float out[16], const int32_t *slot);
+void sw_pass_b_spoke_pose(float *out_radius, float *out_angle,
+                          const int32_t *slot, int spoke_idx);
+void sw_pass_b_compose_world_spoke(float out[16], const float outer[16],
+                                   const int32_t *slot, int spoke_idx);
 
 /* Pass D mesh slot.  Stand-in for the engine's static &DAT_073a9680
  * (train_iwa.x, populated by FUN_00474a9a's DUNGEON branch only).
