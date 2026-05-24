@@ -105,6 +105,14 @@ int scene1_preload_house(void)
     scene1_postload_pose_player();
     scene1_postload_ambient_spawn();
 
+    /* C8j.fin.c — table C smoke wiring.  Fires `_spawn_pickup` and/or
+     * `_spawn_world_drop_default` once per HOUSE entry when their CLI
+     * overrides are set (default: -1 / -1 → no-op).  Records then tick
+     * every INGAME frame via the C8j.3 default-arm wiring.  Pass C/D
+     * walker bodies are stubs today — this validates the populator +
+     * tick path in production. */
+    scene1_postload_smoke_c_spawn();
+
     /* Engine guards: top-of-FUN_00474a9a clamps DAT_0438b4dc to the
      * selector table. We seeded selectors in stage_state at boot, so
      * a no-op here unless future stage-change code wants to refresh. */

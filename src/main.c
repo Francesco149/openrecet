@@ -185,6 +185,27 @@ static int              g_ambient_spawn_type_override  = -1;
 static int              g_ambient_spawn_pose_set       = 0;
 static float            g_ambient_spawn_pose[3]        = {0.0f, 0.0f, 0.0f};
 
+/* --force-c-pickup <type> / --force-c-world-drop <type>: C8j.fin.c
+ * smoke wiring for the table C spawn allocators (C8j.2).  Fires
+ * `scene1_records_c_spawn_pickup` and/or `_spawn_world_drop_default`
+ * once per HOUSE entry from `scene1_postload_smoke_c_spawn()`.  The
+ * records then tick every INGAME frame via the C8j.3 default-arm.
+ *
+ * Position reuses --ambient-spawn-pose when set; otherwise spawns at
+ * (player.x, player.y + 2, player.z), same convention as
+ * --force-ambient-spawn.
+ *
+ * Pass C/D walker bodies (scene1_wide_followup.c) are TODO stubs, so
+ * this doesn't yet produce visible pixels — but the populator + tick
+ * path is exercised end-to-end (the C8j.1 integrator advances the
+ * slots' age + physics every frame, evicts at age==0xf0).
+ *
+ * Override of -1 = "no smoke spawn (engine HOUSE default)". */
+static int              g_force_c_pickup_type         = -1;
+static int              g_force_c_world_drop_type     = -1;
+static int              g_force_c_world_drop_count    = 8;
+static float            g_force_c_world_drop_mag      = 1.0f;
+
 /* Scene-0 (title) state now lives in scene_title.c as module globals
  * (`g_scene_title_menu`, `g_scene_title_anim`, `g_scene_title_assets_loaded`).
  * sim_step_a and render_dispatch both reach in directly via those externs;
@@ -843,6 +864,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                                                   g_ambient_spawn_pose[0],
                                                   g_ambient_spawn_pose[1],
                                                   g_ambient_spawn_pose[2]);
+    }
+
+    /* C8j.fin.c — table C smoke wiring.  Applied before the worker
+     * fires scene1_preload_house so the runner sees the overrides on
+     * the first HOUSE entry.  Defaults (-1 / -1) make
+     * scene1_postload_smoke_c_spawn() a no-op (engine HOUSE default). */
+    if (g_force_c_pickup_type >= 0) {
+        scene1_postload_set_force_c_pickup_type(g_force_c_pickup_type);
+    }
+    if (g_force_c_world_drop_type >= 0) {
+        scene1_postload_set_force_c_world_drop_type(g_force_c_world_drop_type);
+        scene1_postload_set_force_c_world_drop_count(g_force_c_world_drop_count);
+        scene1_postload_set_force_c_world_drop_mag(g_force_c_world_drop_mag);
     }
 
     /* Cc.1: initialise scene-1 camera state.  Sets the first-frame
@@ -1918,6 +1952,45 @@ static void parse_cmdline(LPSTR lpCmdLine)
                  * Type ids are byte-wide; clamp into [0, 0xff]. */
                 unsigned long n = strtoul(val, NULL, 0);
                 if (n <= 0xffu) g_ambient_spawn_type_override = (int)n;
+            }
+        } else if (lstrcmpA(tok, "--force-c-pickup") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                /* strtoul base=0 → accept 0x.., decimal, or octal.
+                 * Type ids are int-wide (table C accepts the full
+                 * RNG-ramp window up to 0xc80+); accept up to INT_MAX. */
+                long n = strtol(val, NULL, 0);
+                if (n >= 0 && n <= 0x7fffffff) {
+                    g_force_c_pickup_type = (int)n;
+                }
+            }
+        } else if (lstrcmpA(tok, "--force-c-world-drop") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                long n = strtol(val, NULL, 0);
+                if (n >= 0 && n <= 0x7fffffff) {
+                    g_force_c_world_drop_type = (int)n;
+                }
+            }
+        } else if (lstrcmpA(tok, "--force-c-world-drop-count") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                long n = strtol(val, NULL, 0);
+                /* Engine scan cap is 136 for type<=6, 200 for type>6.
+                 * Accept any positive count; the spawner silently stops
+                 * when the table fills. */
+                if (n > 0 && n <= 200) {
+                    g_force_c_world_drop_count = (int)n;
+                }
+            }
+        } else if (lstrcmpA(tok, "--force-c-world-drop-mag") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                char *end = NULL;
+                float f = strtof(val, &end);
+                if (end != val) {
+                    g_force_c_world_drop_mag = f;
+                }
             }
         } else if (lstrcmpA(tok, "--ambient-spawn-pose") == 0) {
             char *val = strtok(NULL, " ");

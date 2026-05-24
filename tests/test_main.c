@@ -1310,6 +1310,13 @@ struct test_case {
     X(scene1_postload_type_override_replaces_4f) \
     X(scene1_postload_type_override_minus_one_restores_default) \
     X(scene1_postload_ambient_spawn_tick_advances_records) \
+    X(scene1_postload_smoke_c_default_is_noop) \
+    X(scene1_postload_smoke_c_pickup_writes_first_slot) \
+    X(scene1_postload_smoke_c_world_drop_commits_count) \
+    X(scene1_postload_smoke_c_pickup_plus_world_drop_both_fire) \
+    X(scene1_postload_smoke_c_uses_player_pos_y_plus_2_when_no_override) \
+    X(scene1_postload_smoke_c_setter_minus_one_restores_default) \
+    X(scene1_postload_smoke_c_world_drop_count_zero_is_skip) \
     \
     X(scene1_camera_init_clears_orient) \
     X(scene1_camera_house_default_snaps_to_oracle_pose) \

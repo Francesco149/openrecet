@@ -37,6 +37,7 @@
 #include "scene1_postload.h"
 
 #include "scene1_particles_tick.h"
+#include "scene1_records_c_spawn.h"
 #include "scene1_spawn.h"
 #include "stage_palette.h"
 
@@ -49,6 +50,16 @@ static int   g_force_ambient         = 0;
 static int   g_ambient_type_override = -1;
 static int   g_pose_override_set     = 0;
 static float g_pose_override[3]      = {0.0f, 0.0f, 0.0f};
+
+/* C8j.fin.c — table C smoke wiring.  Both type overrides default to
+ * -1 (no-op).  Count + mag are used only when world_drop_type ≥ 0;
+ * defaults match a sensible "lightly seeded ring of 8 drops at unit
+ * magnitude" (consistent with the world_drop_default wrapper which
+ * the engine uses for type 0x6e particle chains via scene1_mesh_emit). */
+static int   g_force_c_pickup_type     = -1;
+static int   g_force_c_world_drop_type = -1;
+static int   g_force_c_world_drop_count = 8;
+static float g_force_c_world_drop_mag  = 1.0f;
 
 void scene1_postload_init_stage_defaults(void)
 {
@@ -118,5 +129,57 @@ void scene1_postload_set_ambient_pose_override(int enable,
         g_pose_override[0] = x;
         g_pose_override[1] = y;
         g_pose_override[2] = z;
+    }
+}
+
+void scene1_postload_set_force_c_pickup_type(int type)
+{
+    g_force_c_pickup_type = type;
+}
+
+void scene1_postload_set_force_c_world_drop_type(int type)
+{
+    g_force_c_world_drop_type = type;
+}
+
+void scene1_postload_set_force_c_world_drop_count(int count)
+{
+    g_force_c_world_drop_count = count;
+}
+
+void scene1_postload_set_force_c_world_drop_mag(float mag)
+{
+    g_force_c_world_drop_mag = mag;
+}
+
+void scene1_postload_smoke_c_spawn(void)
+{
+    if (g_force_c_pickup_type < 0 && g_force_c_world_drop_type < 0) {
+        return;
+    }
+
+    float x, y, z;
+    if (g_pose_override_set) {
+        x = g_pose_override[0];
+        y = g_pose_override[1];
+        z = g_pose_override[2];
+    } else {
+        x = g_scene1_player_pos[0];
+        y = g_scene1_player_pos[1] + 2.0f;
+        z = g_scene1_player_pos[2];
+    }
+
+    if (g_force_c_pickup_type >= 0) {
+        scene1_records_c_spawn_pickup(0, x, y, z, g_force_c_pickup_type);
+    }
+
+    if (g_force_c_world_drop_type >= 0 && g_force_c_world_drop_count > 0) {
+        scene1_records_c_spawn_world_drop_default(
+            0, x, y, z,
+            g_force_c_world_drop_type,
+            g_force_c_world_drop_count,
+            g_force_c_world_drop_mag,
+            /* e1 */       0,
+            /* extra_aux */0);
     }
 }

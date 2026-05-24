@@ -24,12 +24,15 @@
 #include "scene1_particles_tick.h"
 #include "scene1_postload.h"
 #include "scene1_records.h"
+#include "scene1_records_c_spawn.h"
+#include "scene1_records_c_tick.h"
 #include "scene1_spawn.h"
 #include "stage_palette.h"
 
 static void reset_world(void)
 {
     memset(g_scene1_records_a, 0, sizeof g_scene1_records_a);
+    memset(g_scene1_records_c, 0, sizeof g_scene1_records_c);
     scene1_records_reset(1);
     scene1_spawn_trace_reset();
     stage_palette_init_house();
@@ -46,6 +49,33 @@ static void reset_world(void)
      * doesn't leak into the next. */
     scene1_postload_set_force_ambient(0);
     scene1_postload_set_ambient_type_override(-1);
+    scene1_postload_set_ambient_pose_override(0, 0.0f, 0.0f, 0.0f);
+    scene1_postload_set_force_c_pickup_type(-1);
+    scene1_postload_set_force_c_world_drop_type(-1);
+    scene1_postload_set_force_c_world_drop_count(8);
+    scene1_postload_set_force_c_world_drop_mag(1.0f);
+}
+
+static int32_t slot_c_read_i(int slot, int off)
+{
+    return g_scene1_records_c[slot * SCENE1_RECORDS_C_STRIDE + off];
+}
+
+static float slot_c_read_f(int slot, int off)
+{
+    int32_t v = g_scene1_records_c[slot * SCENE1_RECORDS_C_STRIDE + off];
+    float f;
+    memcpy(&f, &v, sizeof f);
+    return f;
+}
+
+static int count_c_live(void)
+{
+    int n = 0;
+    for (int i = 0; i < SCENE1_RECORDS_C_COUNT; i++) {
+        if (slot_c_read_i(i, SCENE1_RECORDS_C_OFF_TYPE) != -1) n++;
+    }
+    return n;
 }
 
 static int32_t slot_read_i(int i, int off)
@@ -334,5 +364,117 @@ int test_scene1_postload_ambient_spawn_tick_advances_records(void)
     T_ASSERT(slot_read_i(100, SCENE1_RECORDS_A_OFF_TYPE) == 0x4f);
     T_ASSERT(slot_read_i(130, SCENE1_RECORDS_A_OFF_TYPE) == 0x4f);
     T_ASSERT(y100 != y130);
+    return 0;
+}
+
+/* ─── C8j.fin.c — table C smoke wiring ────────────────────────────── */
+
+int test_scene1_postload_smoke_c_default_is_noop(void)
+{
+    reset_world();
+    /* Defaults: both type overrides at -1 → smoke runner exits early. */
+    scene1_postload_smoke_c_spawn();
+    T_ASSERT_EQ_I(count_c_live(), 0);
+    return 0;
+}
+
+int test_scene1_postload_smoke_c_pickup_writes_first_slot(void)
+{
+    reset_world();
+    /* Anchor the spawn so we can assert the pos triplet without
+     * depending on player-pose state. */
+    scene1_postload_set_ambient_pose_override(1, 1.5f, 2.5f, 3.5f);
+    scene1_postload_set_force_c_pickup_type(0x42);
+    scene1_postload_smoke_c_spawn();
+
+    T_ASSERT_EQ_I(count_c_live(), 1);
+    T_ASSERT_EQ_I(slot_c_read_i(0, SCENE1_RECORDS_C_OFF_TYPE), 0x42);
+    T_ASSERT(slot_c_read_f(0, SCENE1_RECORDS_C_OFF_POS_X) == 1.5f);
+    T_ASSERT(slot_c_read_f(0, SCENE1_RECORDS_C_OFF_POS_Y) == 2.5f);
+    T_ASSERT(slot_c_read_f(0, SCENE1_RECORDS_C_OFF_POS_Z) == 3.5f);
+    /* Allocator default state=2 (pickup-bob), scale=1.0. */
+    T_ASSERT_EQ_I(slot_c_read_i(0, SCENE1_RECORDS_C_OFF_STATE), 2);
+    T_ASSERT(slot_c_read_f(0, SCENE1_RECORDS_C_OFF_SCALE) == 1.0f);
+    return 0;
+}
+
+int test_scene1_postload_smoke_c_world_drop_commits_count(void)
+{
+    reset_world();
+    scene1_postload_set_ambient_pose_override(1, 0.0f, 0.0f, 0.0f);
+    /* Type > 6 to dodge the 4-color RNG-ramp window and exercise the
+     * full 200-slot scan cap. */
+    scene1_postload_set_force_c_world_drop_type(0x10);
+    scene1_postload_set_force_c_world_drop_count(5);
+    scene1_postload_smoke_c_spawn();
+
+    T_ASSERT_EQ_I(count_c_live(), 5);
+    for (int i = 0; i < 5; i++) {
+        T_ASSERT_EQ_I(slot_c_read_i(i, SCENE1_RECORDS_C_OFF_TYPE), 0x10);
+        /* World-drop allocator sets state=0 (physics). */
+        T_ASSERT_EQ_I(slot_c_read_i(i, SCENE1_RECORDS_C_OFF_STATE), 0);
+    }
+    return 0;
+}
+
+int test_scene1_postload_smoke_c_pickup_plus_world_drop_both_fire(void)
+{
+    reset_world();
+    scene1_postload_set_ambient_pose_override(1, 0.0f, 0.0f, 0.0f);
+    scene1_postload_set_force_c_pickup_type(0x42);
+    scene1_postload_set_force_c_world_drop_type(0x10);
+    scene1_postload_set_force_c_world_drop_count(3);
+    scene1_postload_smoke_c_spawn();
+
+    /* Pickup lands in slot 0 (single-slot, scan finds the first
+     * sentinel first); world-drop fills slots 1..3.  Same first-fit
+     * scan order so the layout is deterministic. */
+    T_ASSERT_EQ_I(count_c_live(), 4);
+    T_ASSERT_EQ_I(slot_c_read_i(0, SCENE1_RECORDS_C_OFF_TYPE), 0x42);
+    T_ASSERT_EQ_I(slot_c_read_i(0, SCENE1_RECORDS_C_OFF_STATE), 2);
+    for (int i = 1; i <= 3; i++) {
+        T_ASSERT_EQ_I(slot_c_read_i(i, SCENE1_RECORDS_C_OFF_TYPE), 0x10);
+        T_ASSERT_EQ_I(slot_c_read_i(i, SCENE1_RECORDS_C_OFF_STATE), 0);
+    }
+    return 0;
+}
+
+int test_scene1_postload_smoke_c_uses_player_pos_y_plus_2_when_no_override(void)
+{
+    reset_world();
+    g_scene1_player_pos[0] =  3.0f;
+    g_scene1_player_pos[1] =  4.0f;
+    g_scene1_player_pos[2] = -7.0f;
+    /* No pose override → smoke spawn anchors on (px, py+2, pz). */
+    scene1_postload_set_force_c_pickup_type(0x42);
+    scene1_postload_smoke_c_spawn();
+
+    T_ASSERT_EQ_I(count_c_live(), 1);
+    T_ASSERT(slot_c_read_f(0, SCENE1_RECORDS_C_OFF_POS_X) ==  3.0f);
+    T_ASSERT(slot_c_read_f(0, SCENE1_RECORDS_C_OFF_POS_Y) ==  6.0f);
+    T_ASSERT(slot_c_read_f(0, SCENE1_RECORDS_C_OFF_POS_Z) == -7.0f);
+    return 0;
+}
+
+int test_scene1_postload_smoke_c_setter_minus_one_restores_default(void)
+{
+    reset_world();
+    scene1_postload_set_force_c_pickup_type(0x42);
+    scene1_postload_set_force_c_pickup_type(-1);
+    scene1_postload_set_force_c_world_drop_type(0x10);
+    scene1_postload_set_force_c_world_drop_type(-1);
+    scene1_postload_smoke_c_spawn();
+    T_ASSERT_EQ_I(count_c_live(), 0);
+    return 0;
+}
+
+int test_scene1_postload_smoke_c_world_drop_count_zero_is_skip(void)
+{
+    reset_world();
+    scene1_postload_set_force_c_world_drop_type(0x10);
+    scene1_postload_set_force_c_world_drop_count(0);
+    scene1_postload_smoke_c_spawn();
+    /* count=0 → world-drop branch short-circuits.  No pickup either. */
+    T_ASSERT_EQ_I(count_c_live(), 0);
     return 0;
 }

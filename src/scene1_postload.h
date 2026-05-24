@@ -122,6 +122,32 @@ void scene1_postload_set_ambient_type_override(int type);
 void scene1_postload_set_ambient_pose_override(int enable,
                                                float x, float y, float z);
 
+/*
+ * Chip C8j.fin.c (2026-05-24) — table C smoke wiring.
+ *
+ * Defaults match HOUSE-engine behaviour (no smoke): pickup_type = -1
+ * and world_drop_type = -1 leave `scene1_postload_smoke_c_spawn()` as
+ * a no-op.  When either type is set ≥ 0, the runner is fired once per
+ * HOUSE entry from the preload tail (after the ambient-spawn hook),
+ * staging records into the table C ring that the C8j.3 default-arm
+ * ticker advances every INGAME frame.
+ *
+ * Spawn pose reuses `--ambient-spawn-pose` when set (the existing pose
+ * override above); without it, the spawn anchor defaults to
+ * (player.x, player.y + 2, player.z) — same as the ambient-spawn loop.
+ *
+ * Pass C/D walker bodies in `scene1_wide_followup.c` are TODO stubs,
+ * so this chip does NOT yet produce visible pixels.  It validates that
+ * the table C tick + spawn ports survive the production pipeline and
+ * unblocks Pass C/D body ports (which can then count on real records
+ * existing in HOUSE under a known smoke flag).
+ */
+void scene1_postload_set_force_c_pickup_type(int type);
+void scene1_postload_set_force_c_world_drop_type(int type);
+void scene1_postload_set_force_c_world_drop_count(int count);
+void scene1_postload_set_force_c_world_drop_mag(float mag);
+void scene1_postload_smoke_c_spawn(void);
+
 #ifdef __cplusplus
 }
 #endif
