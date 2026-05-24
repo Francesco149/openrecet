@@ -1677,7 +1677,37 @@ struct test_case {
     X(records_b_spawn_npc_84_pos_direct_no_bend_spread) \
     X(records_b_spawn_npc_96_bend_spread_pos) \
     X(records_b_spawn_npc_84_dist_clamp_min_5) \
-    X(records_b_spawn_npc_mega_b_7c_rebound)
+    X(records_b_spawn_npc_mega_b_7c_rebound) \
+    \
+    X(scene1_overlay_init_makes_all_slots_free) \
+    X(scene1_overlay_init_zeros_other_fields) \
+    X(scene1_overlay_init_zeros_templates_and_shapes) \
+    X(overlay_spawn_writes_first_free_slot) \
+    X(overlay_spawn_layer_is_sign_extended) \
+    X(overlay_spawn_skips_alive_slots) \
+    X(overlay_spawn_table_full_is_noop) \
+    X(overlay_spawn_count_caps_loop) \
+    X(overlay_spawn_zero_count_writes_one_slot) \
+    X(overlay_spawn_invalid_template_id_noop) \
+    X(overlay_spawn_fade_out_uses_param7_when_positive) \
+    X(overlay_spawn_fade_out_uses_template_when_param7_zero) \
+    X(overlay_spawn_fade_out_uses_template_when_param7_negative) \
+    X(overlay_spawn_age_birth_zero_when_template9_zero) \
+    X(overlay_spawn_age_birth_in_range_when_template9_positive) \
+    X(overlay_spawn_age_stagger_first_is_zero) \
+    X(overlay_spawn_age_stagger_subsequent_are_negative) \
+    X(overlay_spawn_age_stagger_zero_keeps_all_at_zero) \
+    X(overlay_spawn_shape_6_uses_param8_for_rot_y) \
+    X(overlay_spawn_shape_3_rot_xyz_in_range) \
+    X(overlay_spawn_shape_7_rot_xyz_in_range) \
+    X(overlay_spawn_shape_8_rot_y_and_bend_y) \
+    X(overlay_spawn_shape_9_and_10_also_init_bend_y) \
+    X(overlay_spawn_shape_5_pos_and_vel_match_angle) \
+    X(overlay_spawn_shape_lt2_mode_2_reads_owner_904) \
+    X(overlay_spawn_shape_lt2_mode_5_reads_owner_3fc) \
+    X(overlay_spawn_shape_lt2_default_branch_uses_rng) \
+    X(overlay_spawn_template_copies_int_and_float_fields) \
+    X(overlay_spawn_owner_pointer_written_twice)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
