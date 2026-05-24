@@ -1497,7 +1497,22 @@ struct test_case {
     X(records_b_spawn_npc_6b_npc_bend_amp_jitter) \
     X(records_b_spawn_npc_6c_pos_from_vel_times_3) \
     X(records_b_spawn_npc_1f_amp_switch_on_owner_424) \
-    X(records_b_spawn_npc_c8j12_implemented_macro)
+    X(records_b_spawn_npc_c8j12_implemented_macro) \
+    X(records_b_spawn_npc_2f_six_particle_fan) \
+    X(records_b_spawn_npc_2f_rot_z_spacing) \
+    X(records_b_spawn_npc_36_cap_8_indexed_pos) \
+    X(records_b_spawn_npc_2e_sign_flip_tail) \
+    X(records_b_spawn_npc_3c_minimal_drag_zero) \
+    X(records_b_spawn_npc_98_five_particle_per_index_shifts) \
+    X(records_b_spawn_npc_5a_zero_vel_atan2_const) \
+    X(records_b_spawn_npc_f_12_scale_only) \
+    X(records_b_spawn_npc_9c_bend_and_life_mult) \
+    X(records_b_spawn_npc_3a_player_pos_centered_jitter) \
+    X(records_b_spawn_npc_34_eight_particle_player_target) \
+    X(records_b_spawn_npc_34_alt_pos_player_offset) \
+    X(records_b_spawn_npc_34_frame_counter_rotates_table) \
+    X(records_b_spawn_npc_16_17_part_idx_minus_one) \
+    X(records_b_spawn_npc_c8j13_implemented_macro)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

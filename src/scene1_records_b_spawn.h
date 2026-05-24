@@ -337,7 +337,14 @@ extern "C" {
      (t) == 0x31 || (t) == 0x32 ||                                       \
      (t) == 0x25 || (t) == 0x3b ||                                       \
      (t) == 0x28 || (t) == 0x38 || (t) == 0x21 ||                        \
-     (t) == 0x6b || (t) == 0x6c || (t) == 0x1f)
+     (t) == 0x6b || (t) == 0x6c || (t) == 0x1f ||                        \
+     /* C8j.13 — NPC allocator remainder (multi-particle + atan2 +     \
+      * matrix-init + SCALE_X-only anchors + player-aim 0x34).         */\
+     (t) == 0x2f || (t) == 0x2e || (t) == 0x36 ||                        \
+     (t) == 0x3c || (t) == 0x98 || (t) == 0x5a ||                        \
+     (t) == 0xf  || (t) == 0x12 || (t) == 0x9c ||                        \
+     (t) == 0x3a || (t) == 0x34 ||                                       \
+     (t) == 0x16 || (t) == 0x17)
 
 /* Engine DAT_06a46fb8 — monotonically incremented per slot claim by
  * either allocator.  Snapshot + post-increment pattern means the first

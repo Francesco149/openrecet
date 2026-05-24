@@ -43,6 +43,7 @@
 #include "math3d.h"
 #include "rng.h"
 #include "scene1_particles_tick.h"  /* g_scene1_camera_yaw, g_scene1_people */
+#include "sim.h"                    /* g_sim_frame_count (engine DAT_0438b8cc) */
 
 int g_scene1_record_b_seq_counter;
 
@@ -2756,6 +2757,449 @@ static int init_npc_68(int i, const void *owner, int type, int flag,
     return 1;
 }
 
+/* ─── C8j.13 — NPC allocator remainder ────────────────────────────── */
+
+/* Type 0x2f — 6-particle fan: per-particle ROT_Z evenly spaced + ALT_POS
+ * fields seed PARAM-style life caps + AUX_B0 splits the 6 particles into
+ * 0..2 vs 3..5 groups (engine L42316-42354).
+ *
+ *   ROT_Z       = part_idx * 2π/3 + π/2   (3-way fan, repeats x2)
+ *   ROT_X       = owner+0x420              (NPC orientation)
+ *   ROT_SCR     = u*300 + 10               (life cap stash at +0x88)
+ *   ALT_POS_X   = (u+0.5)*π/10
+ *   ALT_POS_Y   = u*2π
+ *   POS         = sin/cos(owner+0x420)*0.5 + owner+0x3f0/4/8 + +1.5y
+ *   VEL.x/z     = sin/cos(owner+0x420)*2 ; VEL_Y = 0
+ *     (argless cos at L42340 reloads `[ebp-0x1c]` per PHC #7 = same ang)
+ *   slot.TYPE   = 0x2f                     (explicit re-write)
+ *   PART_IDX    = part_idx % 3             (group index 0..2 cycled)
+ *   AUX_B0      = (part_idx < 3) ? 0 : 1   (first 3 vs last 3 split)
+ *   cap = 6
+ *
+ * Engine increments local_8 at the END of the body (L42352); our outer
+ * loop calls the body with part_idx = 0..5 then increments. */
+static int init_npc_2f(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)type; (void)flag;
+
+    float rot_z = (float)part_idx * B_TWO_PI_F / 3.0f + 1.5707964f; /* +π/2 */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rot_z);
+
+    float ang = owner_read_f(owner, 0x420);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, ang);
+
+    /* L42321-42322: ROT_SCR = u*300 + 10 (engine stashes a life cap into
+     * the rot-scratch field — consumer is the per-frame tick). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR,
+               rng_next_unit() * 300.0f + 10.0f);
+    /* L42324: ALT_POS_X = (u+0.5)*π/10 (≈ rng cone half-width). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X,
+               (rng_next_unit() + 0.5f) * 0.31415927f);
+    /* L42327: ALT_POS_Y = u*2π. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y,
+               rng_next_unit() * B_TWO_PI_F);
+
+    float sa = sinf(ang);
+    float ca = cosf(ang);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               sa * 0.5f + owner_read_f(owner, 0x3f0));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               owner_read_f(owner, 0x3f4) + 1.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               ca * 0.5f + owner_read_f(owner, 0x3f8));
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 2.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    /* Argless cos at L42340 — same ang per PHC #7 (`[ebp-0x1c]` reload). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 2.0f);
+
+    /* slot.TYPE is set to 0x2f at L42344 (already from preamble — engine
+     * just re-asserts).  PART_IDX = part_idx % 3. */
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, part_idx % 3);
+
+    /* L42346-42351: AUX_B0 = 0 for first 3 particles, 1 for last 3. */
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_B0, (part_idx < 3) ? 0 : 1);
+
+    return 6;
+}
+
+/* Types 0x2e / 0x36 — shared body (engine L42356-42420).
+ *
+ * Phase 1 (common):  pick local_14 = owner+0x420 ± (u+1)*π/4 (sign coin
+ * via rng_next15()&1).  For 0x2e, override local_14 = u*π (fresh random).
+ *
+ * Phase 2 (per-type branch):
+ *   0x36 (8 particles, indexed per-particle pos):
+ *     POS_X = owner[part_idx*0xc + 0x708]
+ *     POS_Y = owner[part_idx*0xc + 0x70c]
+ *     POS_Z = owner[part_idx*0xc + 0x710]
+ *     VEL_X = (POS_X - owner+0x3f0) * 0.02
+ *     VEL_Y = (POS_Y - (owner+0x3f4 + 10)) * 0.02
+ *     VEL_Z = (POS_Z - owner+0x3f8) * 0.02
+ *   0x2e (1 particle, sin/cos pos around owner):
+ *     POS_X = sin(local_14)*0.5 + owner+0x3f0
+ *     POS_Y = owner+0x3f4 + 4.0
+ *     POS_Z = cos(local_14)*0.5 + owner+0x3f8
+ *     VEL_X = sin(local_14)*0.4
+ *     VEL_Y = 0.14   (= 0x3e0f5c29, sign flipped to -0.14 in 0x2e tail)
+ *     VEL_Z = cos(local_14)*0.4  (argless cos = same local_14 per PHC #7)
+ *
+ * Phase 3 (common tail):
+ *   ALT_POS_X = (u-0.5)*3
+ *   ALT_POS_Y = u + 1
+ *   ALT_POS_Z = (u-0.5)*3
+ *   ROT_Z     = u * 2π
+ *
+ * Phase 4 (0x2e only — sign-flip tail):
+ *   VEL_Y = -VEL_Y       (so 0x2e's vy ends at -0.14)
+ *   POS_Y -= 4.0         (cancels the +4 lift back to owner.y)
+ *
+ * Cap: 0x2e → 1, 0x36 → 8. */
+static int init_npc_2e_36(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)flag;
+
+    /* Phase 1 — common angle calc (consumes 1 u + 1 rng_next15 coin). */
+    float ang = owner_read_f(owner, 0x420);
+    float spread = (rng_next_unit() + 1.0f) * 0.7853982f; /* π/4 */
+    if ((rng_next15() & 1) == 0) {
+        ang = ang - spread;
+    } else {
+        ang = ang + spread;
+    }
+    /* L42368-42371: 0x2e overrides local_14 with a fresh random angle. */
+    if (type == 0x2e) {
+        ang = rng_next_unit() * 3.1415927f;
+    }
+
+    /* Phase 2 — per-type pos/vel. */
+    float ox = owner_read_f(owner, 0x3f0);
+    float oy = owner_read_f(owner, 0x3f4);
+    float oz = owner_read_f(owner, 0x3f8);
+
+    if (type == 0x36) {
+        /* L42372-42383: per-particle pos from owner+(part*0xc + 0x708/c/10).
+         *   POS_X is reloaded after compute for vel.x diff (engine reads
+         *   the just-written slot field; ours uses the local). */
+        int base = part_idx * 0xc;
+        float px = owner_read_f(owner, base + 0x708);
+        float py = owner_read_f(owner, base + 0x70c);
+        float pz = owner_read_f(owner, base + 0x710);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, (px - ox)             * 0.02f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, (py - (oy + 10.0f))   * 0.02f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, (pz - oz)             * 0.02f);
+    } else {
+        /* 0x2e else-branch (L42384-42400). */
+        float sa = sinf(ang);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * 0.5f + ox);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 4.0f);
+        float ca = cosf(ang);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * 0.5f + oz);
+        float sa2 = sinf(ang);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa2 * 0.4f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.14f);     /* 0x3e0f5c29 */
+        /* Argless cos at L42397 = same ang per PHC #7. */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * 0.4f);
+    }
+
+    /* Phase 3 — common tail (L42402-42410). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X,
+               (rng_next_unit() - 0.5f) * 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y,
+               rng_next_unit() + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z,
+               (rng_next_unit() - 0.5f) * 3.0f);
+    /* L42408-42410: 1 RNG consumed BEFORE local_8++; ROT_Z gets the
+     * subsequent u*2π value.  In our outer-loop refactor part_idx is
+     * incremented after we return, so the RNG ordering is identical. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               rng_next_unit() * B_TWO_PI_F);
+
+    /* Phase 4 — 0x2e sign-flip tail (L42411-42413).  Engine reads the
+     * just-written slot field; we mirror by inline math (vy was 0.14). */
+    if (type == 0x2e) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -0.14f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy);
+    }
+
+    return (type == 0x36) ? 8 : 1;
+}
+
+/* Type 0x3c — minimal-body anchor (engine L42582 + LAB_004462f0 +
+ * LAB_0044757e + LAB_00447584).  Pure preamble + DRAG=0.  cap=1. */
+static int init_npc_3c(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)owner; (void)type; (void)flag; (void)part_idx;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
+    return 1;
+}
+
+/* Type 0x98 — 5-particle NPC fan with per-particle wider shifts
+ * (engine L42583-42619).  Wider than cluster-B's ±0.18/0.36 (±0.38/0.56).
+ *
+ *   bend = (owner+0x18) * 2π / 8
+ *   per-particle shifts (only 4 explicit cases — part_idx 0 → 0):
+ *      1 → -0.38
+ *      2 → +0.38
+ *      3 → -0.56
+ *      4 → +0.56
+ *   VEL_X     = sin(local_1c) * 0.3
+ *   VEL_Y     = 0
+ *   VEL_Z     = cos(local_1c) * 0.3
+ *   POS       = owner+0x3f0..0x3f8 + 0.25y lift
+ *   ROT_SCR   = atan2(0.1, 0.5) = 0.19739556
+ *   ROT_X     = local_1c (= bend + shift)
+ *   DRAG      = 20.0f
+ *   PART_IDX  = part_idx
+ *   cap = 5
+ *
+ * Argless cos at L42603 (after L42599 sin(local_24)) follows PHC #7. */
+static int init_npc_98(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)type; (void)flag;
+
+    float local_1c = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    if (part_idx == 1) local_1c -= 0.38f;
+    if (part_idx == 2) local_1c += 0.38f;
+    if (part_idx == 3) local_1c -= 0.56f;
+    if (part_idx == 4) local_1c += 0.56f;
+
+    float sa = sinf(local_1c);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    /* Argless cos = same local_1c per PHC #7. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(local_1c) * 0.3f);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x3f0));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               owner_read_f(owner, 0x3f4) + 0.25f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x3f8));
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, B_ATAN2_0P1_0P5);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,   local_1c);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,    20.0f);    /* 0x41a00000 */
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, part_idx);
+    return 5;
+}
+
+/* Type 0x5a — zero-vel point release + atan2 stash (engine L42620-42636).
+ *
+ *   local_18 = (owner+0x18) * 2π / 8     (bend)
+ *   VEL.x/y/z = 0
+ *   POS       = owner+0x3f0..0x3f8 + 0.25y lift
+ *   ROT_SCR   = atan2(0.1, 0.5)
+ *   ROT_X     = local_18
+ *   DRAG      = 20.0  (via LAB_004466a8 → LAB_0044757e)
+ *   cap = 1 (LAB_00447584). */
+static int init_npc_5a(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+
+    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x3f0));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               owner_read_f(owner, 0x3f4) + 0.25f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x3f8));
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, B_ATAN2_0P1_0P5);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,   bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,    20.0f);
+    return 1;
+}
+
+/* Types 0xf / 0x12 — SCALE_X-only anchor (engine L42822-42826 + L42924).
+ * 0xf → SCALE_X = 0.2  (= 0x3e4ccccd)
+ * 0x12 → SCALE_X = 3.0 (= 0x40400000)
+ * Then LAB_00446b7a → LAB_00447584; cap = 1. */
+static int init_npc_f_12(int i, const void *owner, int type, int flag,
+                         int part_idx)
+{
+    (void)owner; (void)flag; (void)part_idx;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X,
+               (type == 0x12) ? 3.0f : 0.2f);
+    return 1;
+}
+
+/* Type 0x9c — NPC-bend + LIFE_MULT=1.8 (engine L42904-42909 + LAB_0044703f).
+ *
+ *   ROT_X      = (owner+0x18) * 2π / 8         (NPC bend)
+ *   LIFE_MULT  = 1.8                            (= 0x3fe66666)
+ *   cap = 1 (falls through LAB_0044703f → LAB_00447584). */
+static int init_npc_9c(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,     bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.7999998f);  /* 0x3fe66666 */
+    return 1;
+}
+
+/* Type 0x3a — centered random pos ±5 around player + RotY matrix
+ * (engine L42735-42753 + LAB_004462f0 → LAB_0044757e → LAB_00447584).
+ *
+ *   VEL_X     = 0
+ *   VEL_Y     = -0.3        (= 0xbe99999a)
+ *   VEL_Z     = 0
+ *   POS_X     = (u-0.5)*5 + player_pos[0]
+ *   POS_Y     = player_pos[1] + 20
+ *   POS_Z     = (u-0.5)*5 + player_pos[2]
+ *   ROT_SCR   = π/2          (= 0x3fc90fdb)
+ *   ROT_Z     = u * 2π
+ *   slot.MATRIX0 = RotY(ROT_Z)   (via engine thunk_FUN_004a35d3)
+ *   DRAG      = 0            (LAB_004462f0 → uVar2=0 → LAB_0044757e)
+ *   cap = 1 (LAB_00447584). */
+static int init_npc_3a(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)owner; (void)type; (void)flag; (void)part_idx;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -0.3f);      /* 0xbe99999a */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               (rng_next_unit() - 0.5f) * 5.0f + g_scene1_player_pos[0]);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               g_scene1_player_pos[1] + 20.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               (rng_next_unit() - 0.5f) * 5.0f + g_scene1_player_pos[2]);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, 1.5707964f); /* π/2 */
+    float rot_z = rng_next_unit() * B_TWO_PI_F;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rot_z);
+
+    /* slot.MATRIX0 = RotY(rot_z) — engine thunk_FUN_004a35d3 at L42751.
+     * Same shape as type 0x56's mat compose. */
+    float matrix_ry[16];
+    mat4_rotation_y(matrix_ry, rot_z);
+    int32_t *r = slot_base(i);
+    memcpy(&r[SCENE1_RECORDS_B_OFF_MATRIX0], matrix_ry, sizeof matrix_ry);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
+    return 1;
+}
+
+/* Type 0x34 — 8-particle ALT_POS targeting player with frame-indexed
+ * azimuth table (engine L42858-42902).
+ *
+ * Per-particle (each of 8 iterations):
+ *   idx = frame_table[(g_sim_frame_count + part_idx) % 8]
+ *     where frame_table = { -3, -1, -4, 2, 1, 3, -2, 4 }
+ *   radius = idx * 5 ± 3   (− 3 when result > 0; + 3 when result ≤ 0)
+ *   negated_ang = -(owner+0x420)
+ *   ALT_POS_X (DAT_06932530) = sin(negated_ang) * radius + player.x
+ *   ALT_POS_Y (DAT_06932534) = player.y + 2
+ *   ALT_POS_Z (DAT_06932538) = cos(negated_ang) * radius + player.z
+ *     (argless cos at L42881 = same negated_ang per PHC #7)
+ *
+ *   POS       = owner+0x3f0/4/8 + +11y
+ *   ang       = owner+0x420  (NOT negated)
+ *   VEL_X     = sin(ang) * 2
+ *   VEL_Y     = 0
+ *   VEL_Z     = cos(ang) * 2
+ *     (argless cos at L42893 = same ang per PHC #7)
+ *   slot.TYPE = 0x34 (explicit re-assert)
+ *   AGE       = part_idx * -4    (negative stagger)
+ *   AUX_SENT1 = part_idx         (engine's saved local_8 = pre-increment)
+ *
+ *   cap = 8 (LAB_00447325).
+ *
+ * Engine writes ALT_POS_X/Y/Z to DAT_06932530/34/38 — those are 1 dw
+ * BEFORE ALT_POS_X (which is DAT_06932524).  Looking at the layout, the
+ * engine has the ALT_POS triplet for 0x34 at dw +0x80/+0x84/+0x88 (=
+ * dw 32/33/34) instead of dw 29/30/31 — a SECOND alt-target field that
+ * shares the rotation scratch area.  Use raw slot_base[] for these so
+ * we match the engine offsets verbatim.  Specifically:
+ *   DAT_06932530 = byte 0x80 = dw 32
+ *   DAT_06932534 = byte 0x84 = dw 33
+ *   DAT_06932538 = byte 0x88 = dw 34 (this overlaps ROT_SCR dw 35 by 1
+ *     dw — verified: byte 0x88 vs ROT_SCR's 0x8c are 4 B apart). */
+static int init_npc_34(int i, const void *owner, int type, int flag,
+                       int part_idx)
+{
+    (void)type; (void)flag;
+
+    /* Engine's 8-element azimuth table (local_4c[0..7] at L42860-42867). */
+    static const int frame_table[8] = { -3, -1, -4, 2, 1, 3, -2, 4 };
+
+    int   tbl_idx = (int)((g_sim_frame_count + (uint32_t)part_idx) % 8u);
+    float radius  = (float)frame_table[tbl_idx] * 5.0f;
+    if (radius <= 0.0f) radius += 3.0f;
+    else                radius -= 3.0f;
+
+    float ang     = owner_read_f(owner, 0x420);
+    float neg_ang = -ang;
+    float s_n     = sinf(neg_ang);
+    /* ALT_POS at dw 32/33/34 — distinct from the standard ALT_POS at
+     * dw 29/30/31.  Engine writes DAT_06932530/34/38. */
+    int32_t *r = slot_base(i);
+    float alt_x_v = s_n * radius + g_scene1_player_pos[0];
+    float alt_y_v = g_scene1_player_pos[1] + 2.0f;
+    /* Argless cos at L42881 = same neg_ang per PHC #7. */
+    float c_n     = cosf(neg_ang);
+    float alt_z_v = c_n * radius + g_scene1_player_pos[2];
+    memcpy(&r[32], &alt_x_v, sizeof alt_x_v);
+    memcpy(&r[33], &alt_y_v, sizeof alt_y_v);
+    memcpy(&r[34], &alt_z_v, sizeof alt_z_v);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x3f0));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               owner_read_f(owner, 0x3f4) + 11.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x3f8));
+
+    float s_a = sinf(ang);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, s_a + s_a);  /* * 2 */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    /* Argless cos at L42893 = same ang per PHC #7. */
+    float c_a = cosf(ang);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, c_a + c_a);
+
+    /* TYPE explicit at L42898 (already set in preamble — matches). */
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, part_idx * -4);
+    /* AUX_SENT1 = pre-increment local_8 = part_idx (engine's uVar5
+     * snapshot at L42894). */
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_SENT1, part_idx);
+    return 8;
+}
+
+/* Types 0x16 / 0x17 — 3-particle NPC-bend with PART_IDX = part_idx - 1
+ * quirk (engine L42911-42918).
+ *
+ *   ROT_X    = (owner+0x18) * 2π / 8           (NPC bend)
+ *   PART_IDX = part_idx - 1                     (engine's iVar4 = pre-inc
+ *                                                local_8 - 1; PRE-decrement
+ *                                                quirk preserved verbatim)
+ *   cap = 3.
+ *
+ * Engine quirk #50: PART_IDX value for 0x16/0x17 is offset by -1 from
+ * the natural per-particle index (so the 3 spawned slots get -1, 0, 1
+ * not 0, 1, 2).  Faithful port — consumer tick must accept negative
+ * PART_IDX values for these types. */
+static int init_npc_16_17(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag;
+    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,    bend);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, part_idx - 1);
+    return 3;
+}
+
 /* Dispatch helper for NPC allocator. */
 static int run_npc_body(int slot, const void *owner, int type, int flag,
                         int part_idx)
@@ -2796,6 +3240,21 @@ static int run_npc_body(int slot, const void *owner, int type, int flag,
     case 0x6b: return init_npc_6b   (slot, owner, type, flag, part_idx);
     case 0x6c: return init_npc_6c   (slot, owner, type, flag, part_idx);
     case 0x1f: return init_npc_1f   (slot, owner, type, flag, part_idx);
+
+    /* C8j.13 — NPC allocator remainder. */
+    case 0x2f: return init_npc_2f   (slot, owner, type, flag, part_idx);
+    case 0x2e: case 0x36:
+        return init_npc_2e_36       (slot, owner, type, flag, part_idx);
+    case 0x3c: return init_npc_3c   (slot, owner, type, flag, part_idx);
+    case 0x98: return init_npc_98   (slot, owner, type, flag, part_idx);
+    case 0x5a: return init_npc_5a   (slot, owner, type, flag, part_idx);
+    case 0xf:  case 0x12:
+        return init_npc_f_12        (slot, owner, type, flag, part_idx);
+    case 0x9c: return init_npc_9c   (slot, owner, type, flag, part_idx);
+    case 0x3a: return init_npc_3a   (slot, owner, type, flag, part_idx);
+    case 0x34: return init_npc_34   (slot, owner, type, flag, part_idx);
+    case 0x16: case 0x17:
+        return init_npc_16_17       (slot, owner, type, flag, part_idx);
 
     default:
         /* Unreachable — outer dispatch gated by IMPLEMENTED. */

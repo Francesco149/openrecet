@@ -121,6 +121,7 @@ extern "C" {
 #define SCENE1_RECORDS_B_OFF_PART_IDX   39   /* DAT_0693254c (per-particle slot index in multi-spawn) */
 #define SCENE1_RECORDS_B_OFF_AUX_SENT1  40   /* DAT_06932550 (= 0xffffffff in preamble) */
 #define SCENE1_RECORDS_B_OFF_DRAG       42   /* DAT_06932558 (life timer / drag) */
+#define SCENE1_RECORDS_B_OFF_AUX_B0     44   /* DAT_06932560 (per-type aux flag; e.g. 0x2f three-of-six split) */
 #define SCENE1_RECORDS_B_OFF_SCALE_X    45   /* DAT_06932564 (= 1.0f in preamble) */
 #define SCENE1_RECORDS_B_OFF_OWNER_FLAG 46   /* DAT_06932568 (entity-alloc: owner+0xeac; npc-alloc: 0) */
 #define SCENE1_RECORDS_B_OFF_SCALE_Y    47   /* DAT_0693256c (entity-alloc only: 1.0f) */
