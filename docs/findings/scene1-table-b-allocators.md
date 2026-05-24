@@ -487,7 +487,8 @@ ladder mirrors C8i.0-5c.
 | C8j.6 | **sin/cos drift cluster + cluster A (0044376a only)** — LANDED 2026-05-24 | 0044376a: 2, 3, 4, 0x22, 0x54, 0x67 (drift) + 0x4d-0x50, 0xa5-0xa6, 99, 0x51, 0x52, 0x53 (cluster A) | ~430 | init_entity_drift_cluster + init_entity_cluster_a (per-type SCALE_X/LIFE_MULT/local_10 vel-mag).  Multi-particle outer loop refactor (body returns cap; outer loop scans for next free slot per particle).  Argless cos pairs at L41296/L41307/L41379 (cluster A — `[ebp-0x2c]` ⇒ cos(local_c)) + L41602/L41609 (drift — `[esi+0xea4]` ⇒ cos(ang)) verified via raw-asm spot-check at 0x444034/0x444131 + 0x443cbd/0x443d0c.  17 types covered.  21 host tests (1295→1316). |
 | C8j.7 | **mega-cluster A (0044376a) + cluster B (00445a8c)** — LANDED 2026-05-24 | 0044376a: 0x73/0x76/0x77/0x78/0x7a/0x7b/0x7c/0x7e (mega A) + 00445a8c: 0x4d/0x4e/0x4f/0x50/0xa5/0xa6 (cluster B) | ~440 | 14 types covered.  Mega-cluster A's "angle table mod 32" pattern (uVar9 = (owner+0xe3c + local_8) % 32, fVar2 = (uVar9 & 7) - 4, fVar3 = uVar9 / 8 → ROT_X wobble) ported via direct owner-field read — no global stand-in needed.  3-way owner+0x948 dispatch (mode 0 → POS_X -= 0.41, mode 4 → POS_X += 0.41, else → POS_Z -= 0.1; same shift on ALT_POS).  0x7a swaps local_c to owner+0xea4 AFTER pos writes.  0x7c per-particle bidirectional fan + rebound (POS -= 2*VEL).  0x76 part>0 → PART_IDX = 1.  Survey correction: 0x77/0x7b/0x7e are 1-PARTICLE (not 8 as survey claimed), engine's bVar14 = (local_8 == 0) at L41809-41811 confirms.  NPC outer loop refactored to multi-particle (mirrors C8j.6 entity refactor) — body returns cap, outer commits up to cap slots.  Cluster B simpler than cluster A (owner shape B at +0x18 bend / +0x3f0 pos / no per-type SCALE_X / hardcoded LIFE_MULT=0.4).  Argless cos at L41752 verified via raw-asm at 0x444769 (`fld QWORD [ebp-0x2c]`).  19 new host tests (1316→1335). |
 | C8j.8 | **NPC-table-deref + camera-yaw + matrix-init (0044376a)** — LANDED 2026-05-24 | 0044376a: 0x23 (matrix), 0x29 (people-table + ground hook), 0x30 (reverse-yaw + people target), 0x9b, 0x9d (NPC-bend), 0x3e, 0x5f (group tail w/ 0x60) | ~440 | 7 new types covered (0x82/0x60 were in C8j.5).  Reuses existing g_scene1_people (C8h.4c) + g_scene1_camera_yaw + math3d's mat4_rotation_x (for engine thunk_FUN_004a35d3).  New ground-query hook `scene1_record_b_spawn_set_ground_query` for 0x29's people-table branch (PHC #15; default stub returns no-hit).  Engine's per-particle dispatch in 0x23/0x29 (local_8 ∈ {1, 2}) ported verbatim but unreachable in normal flow (cap=1 means outer loop only passes part_idx=0).  0x9d's "explicit return" matches our cap=1 outer loop semantically.  0x30 skips engine's dropped-return atan2 call (FUN_00503dd0) — no observable slot side-effect.  14 new host tests (1335 → 1349). |
-| C8j.9 | **remaining single-spawn 0044376a types** | 0x58, 0x65, 0x69, 0x68, 100, 0x74, 0x79, 0x6a, 0x61, 0x6d, 0x6e, 0x6f, 0x70, 0x62, 0x8a, 0x8b, 0x71, 0x72, 0x75, 0x7d, 0x5b, 0x5c, 0x5e, 0x85, 0x86, 0x87, 8 | ~450 | 27 types.  Big chip but most are minor variants of bodies already ported (sin/cos vel + Y-lift + per-type scale/life write).  0x68's people-table iteration may require sub-chip carve-out. |
+| C8j.9 | **remaining single-spawn 0044376a types** — LANDED 2026-05-24 | 0x58, 0x65, 0x69, 100, 0x74, 0x79, 0x6a, 0x61, 0x6d-0x70, 0x62, 0x8a, 0x8b, 0x71, 0x72, 0x75, 0x7d, 0x5b, 0x5c, 0x5e, 0x85, 0x86, 0x87, 8 | ~450 | 26 types covered (0x68 carved out to C8j.9a — needed people-table sister fields).  14 host tests (1349 → 1363). |
+| C8j.9a | **0x68 people-table sister-gate iteration (0044376a)** — LANDED 2026-05-24 | 0x68 | ~250 | Sub-chip carved out of C8j.9.  Extends `scene1_people_entry_t` with `sister_720` + `sister_724` (engine `DAT_0076c478` base, byte offsets +0x720 / +0x724).  Resolves Ghidra-dropped FUN_005031e4 arg via raw-asm 0x444070..0x44409c: distance is sqrt((owner.x − target.x)² + (owner.z − target.z)²) < 16.0 — horizontal only.  Argless cos at decomp L298/L328 follows PHC #7 (raw asm 0x444131 reloads `[ebp-0x2c]` angle stash).  Vestigial `local_10 != -NAN` sentinel (asm `cmp eax, 0xffffffff; je fallback`) is dead — local_10 inits to 0 and only counts up.  Match-counter `iVar8` decoupled from people-iteration index: when `matched_count == owner.field_ea0`, the engine uses `people[iter_idx].target` (NOT `people[matched_count]`).  Fallback (no-match) uses owner.y verbatim; primary path lifts pos.y by +20 → vel.y always ≈ −2 either way.  8 host tests (1363 → 1371). |
 | C8j.10 | **00445a8c skeleton + drift + cluster B + mega-cluster B** | 00445a8c: 0x56, 0x53, 0x51, 0x84, 0x96 (player-aim), 0xa0-0xa4, 0x73, 0x7a, 0x7c, 0x7e (mega B), 0x68 (alt player-aim) | ~450 | Mirrors C8j.6+7 for the NPC allocator.  Player-pos integration (already wired) carries over. |
 | C8j.11 | **remaining 00445a8c types** | 0x33, 0x2f, 0x2e, 0x36, 0x27, 0x2b, 0x26, 0x2a, 0x25, 0x31, 0x32, 0x3b, 0x3c, 0x98, 0x5a, 0x6b, 0x6c, 0x1f, 0x3a, 0x28, 0x38, 0x21, 0xd, 0xf, 0x10-0x17, 0x9c, 0x1e/0x88/0x89/0x9a/0x9e (return group), 0x34 (8-element table) | ~500 | 30+ types.  0x34's static index table + 0x36's per-particle pos array need careful porting (alt-source from owner+0x6fc/0x700/0x704 — already mapped) |
 | C8j.fin (optional) | **trivial tails (00445a8c LAB_00447584 catch-all)** | 0x24, 0xa, 0xb, 0x14, 0x13, 0x99 | ~50 | One-line table extension.  Could fold into 5/10. |
@@ -524,13 +525,18 @@ lines across 8 chips.
    array of waypoints/effect-anchors per NPC entry; 8 entries per the
    loop count.  Stride 0xc (3 floats) is a position triple.
 
-6. **DAT_0076c478 in 0044376a 0x68:** iterated from +0 to
-   `&DAT_007c9678` with stride 0x2e9 (4× sizeof people entry +
-   small).  This is a sister table to the NPC people-table, OR an
-   alias for the same table read at a different field offset.  C8h.2's
-   people-table port has DAT_0076bd54 + stride 0x2e9; +0x724 difference
-   from c478 vs bd54 means it could be the same table read from a
-   different base field.
+6. **DAT_0076c478 in 0044376a 0x68:** RESOLVED 2026-05-24 (C8j.9a).
+   Raw asm at 0x444070..0x4440db confirms the iteration uses the
+   **same** people-table base (stride 0xba4 = 0x2e9 dw = entry size);
+   the c478 - bd54 = 0x724 byte offset just shifts the effective base
+   so `piVar13[-1]` reads +0x720 and `*piVar13` reads +0x724.  In
+   asm: `add edi, 0xba4` advances by one people entry per iteration,
+   and the alive check uses `[edi-0x6e0]` which lands at the +0x44
+   alive flag of the same entry.  End sentinel `&DAT_007c9678` =
+   c478 + 128 × 0xba4 (= last-entry-base + 1 entry), so the loop runs
+   exactly 128 times.  No separate table; just two new "sister" fields
+   on the existing people-table entry — modeled as `sister_720` /
+   `sister_724` in `scene1_people_entry_t`.
 
 7. **Sequence counter (DAT_06a46fb8) wraparound:** if the engine runs
    long enough for the int to wrap, do consumers depend on monotonic

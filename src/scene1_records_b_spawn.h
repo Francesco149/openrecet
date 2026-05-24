@@ -57,12 +57,18 @@
  *     - 0x6d, 0x6e, 0x6f, 0x70 (cap=3) — drift-cluster-like body +
  *       DRAG=20 + AUX_C8=1 + PART_IDX=part_idx-1 (signed!).
  *
- * Deferred (NOT in C8j.9, target C8j.9a sub-chip):
- *   - 0x68 — single-spawn but iterates a NEW sister table at offset 0x720
- *     / 0x724 from people-table base (engine DAT_0076c478).  Requires
- *     extending scene1_people_entry_t with the sister fields + the
- *     FUN_005031e4 distance-check arg has Ghidra-dropped arg.  Worth a
- *     standalone chip with a raw-asm verify.
+ * Chip C8j.9a (2026-05-24) — landed previously-deferred 0x68 single-
+ * spawn with people-table sister-gate iteration.  Extends
+ * scene1_people_entry_t with sister_720 / sister_724 fields (engine
+ * DAT_0076c478 base, byte offsets +0x720 / +0x724) and resolves the
+ * Ghidra-dropped FUN_005031e4 distance arg via raw-asm read of
+ * 0x444070..0x44409c: arg = horizontal squared distance from owner.pos
+ * to people[i].target.  Argless cos at L298/L328 follows PHC #7 (raw
+ * asm 0x444131 reloads `[ebp-0x2c]`, the angle stash from the paired
+ * sin).  Vestigial `local_10 != -NAN` sentinel in decomp (asm
+ * `cmp eax, 0xffffffff; je fallback`) is dead — never reachable since
+ * local_10 inits to 0 and only counts up; ported faithfully but logic
+ * is equivalently a no-op.
  *
  * Argless cos sites verified via raw-asm spot-check in the
  * 0x444500-0x444800 range — all reload either `[ebp-0x2c]` (the dVar4
@@ -237,7 +243,9 @@ extern "C" {
      (t) == 0x85 || (t) == 0x86 || (t) == 0x87 ||                        \
      (t) == 0x6d || (t) == 0x6e || (t) == 0x6f || (t) == 0x70 ||         \
      (t) == 0x71 || (t) == 0x72 || (t) == 0x75 || (t) == 0x7d ||         \
-     (t) == 8)
+     (t) == 8    ||                                                      \
+     /* C8j.9a — single-spawn w/ people-table sister-gate iteration. */  \
+     (t) == 0x68)
 #define SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(t)                    \
     ((t) == 0xe  || (t) == 0x97 || (t) == 0x46 ||                        \
      (t) == 0x4d || (t) == 0x4e || (t) == 0x4f || (t) == 0x50 ||         \

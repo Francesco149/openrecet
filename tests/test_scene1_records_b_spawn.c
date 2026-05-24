@@ -1477,10 +1477,9 @@ int test_records_b_spawn_entity_c8j8_implemented_macro(void)
     /* Existing handlers still implemented. */
     T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x60));
     T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x4d));
-    /* Picks that are NOT in C8j.9 either — defer to a future chip.
-     * 0x68 needs the people-table sister at 0x720/0x724; 0x83 is
-     * empty-branch in the engine (negative-only test). */
-    T_ASSERT(!SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x68));
+    /* 0x68 landed in C8j.9a — sister-table iteration covered. */
+    T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x68));
+    /* 0x83 still deferred — empty branch in the engine (negative-only). */
     T_ASSERT(!SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x83));
     return 0;
 }
@@ -1819,7 +1818,235 @@ int test_records_b_spawn_entity_c8j9_implemented_macro(void)
     for (int k = 0; k < n; k++) {
         T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(new_types[k]));
     }
-    /* Deferred — sister-table 0x68 not in C8j.9. */
-    T_ASSERT(!SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x68));
+    /* C8j.9a — 0x68 sister-table iteration now landed. */
+    T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x68));
+    return 0;
+}
+
+/* ─── C8j.9a — 0x68 people-table sister-gate iteration ────────────── */
+
+/* All 0x68 tests share a people-table-zeroing helper so prior tests'
+ * writes don't leak in via the persistent g_scene1_people BSS. */
+static void zero_people_table(void)
+{
+    memset(g_scene1_people, 0, sizeof g_scene1_people);
+}
+
+int test_records_b_spawn_entity_68_implemented(void)
+{
+    T_ASSERT(SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(0x68));
+    return 0;
+}
+
+int test_records_b_spawn_entity_68_empty_people_uses_fallback(void)
+{
+    /* Empty people table (all alive==0) → no entry passes the alive==1
+     * gate → fallback branch fires.  Fallback alt.y == owner.y (no +20
+     * lift); primary path's pos.y == owner.y + 20.  So vel.y =
+     * (alt.y - pos.y) / 10 = (20 - 40) / 10 = -2.0. */
+    reset_world();
+    zero_people_table();
+    seed_owner_a_yaw();
+    rng_seed(1);
+    scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x68);
+
+    /* POS_Y is RNG-independent: owner.y + 20 = 40. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 40.0f));
+    /* ALT_POS_Y is RNG-independent in the fallback path: owner.y = 20. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 20.0f));
+    /* VEL.y depends only on the y deltas (alt.y - pos.y) / 10 = -2.0. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), -2.0f));
+    /* Tail constants. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 0.6f));
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_PART_IDX), 0);
+    /* Cap = 1 — no second slot committed. */
+    T_ASSERT_EQ_I(slot_i(1, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_spawn_entity_68_matching_people_uses_target(void)
+{
+    /* people[0]: alive=1, sisters=0, target near owner (= (10, 20, 30)).
+     * Expected: alt.{x,y,z} = people[0].target.{x,y,z} = (12, 25, 32). */
+    reset_world();
+    zero_people_table();
+    seed_owner_a_yaw();
+    rng_seed(1);
+
+    g_scene1_people[0].alive       = 1;
+    g_scene1_people[0].sister_720  = 0;
+    g_scene1_people[0].sister_724  = 0;
+    g_scene1_people[0].target[0]   = 12.0f;
+    g_scene1_people[0].target[1]   = 25.0f;
+    g_scene1_people[0].target[2]   = 32.0f;
+    /* owner.field_ea0 default from seed_owner_a_yaw is -1 — but we want
+     * the FIRST matching entry to count, so set it to 0. */
+    owner_write_i(g_owner_a, 0xea0, 0);
+
+    scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x68);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_X), 12.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 25.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Z), 32.0f));
+    /* POS.y stays at owner.y + 20 = 40 (primary path always lifts +20). */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 40.0f));
+    /* VEL.y = (25 - 40) / 10 = -1.5. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), -1.5f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_68_sister_gate_blocks_match(void)
+{
+    /* Same as above but sister_720 != 0 → entry should be skipped → fallback
+     * fires.  ALT.y must equal owner.y (= 20), NOT people target.y. */
+    reset_world();
+    zero_people_table();
+    seed_owner_a_yaw();
+    rng_seed(1);
+
+    g_scene1_people[0].alive       = 1;
+    g_scene1_people[0].sister_720  = 7;       /* blocks */
+    g_scene1_people[0].sister_724  = 0;
+    g_scene1_people[0].target[0]   = 12.0f;
+    g_scene1_people[0].target[1]   = 25.0f;
+    g_scene1_people[0].target[2]   = 32.0f;
+    owner_write_i(g_owner_a, 0xea0, 0);
+
+    scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
+
+    /* Fallback path → ALT.y = owner.y = 20. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 20.0f));
+
+    /* Same blocking via sister_724. */
+    reset_world();
+    zero_people_table();
+    seed_owner_a_yaw();
+    rng_seed(1);
+    g_scene1_people[0].alive       = 1;
+    g_scene1_people[0].sister_720  = 0;
+    g_scene1_people[0].sister_724  = 9;       /* blocks */
+    g_scene1_people[0].target[1]   = 25.0f;
+    owner_write_i(g_owner_a, 0xea0, 0);
+    scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 20.0f));
+
+    /* alive != 1 (set to 2 — the 1/2 distinction matters for 0x68). */
+    reset_world();
+    zero_people_table();
+    seed_owner_a_yaw();
+    rng_seed(1);
+    g_scene1_people[0].alive       = 2;       /* not 1 → fails */
+    g_scene1_people[0].target[1]   = 25.0f;
+    owner_write_i(g_owner_a, 0xea0, 0);
+    scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 20.0f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_68_distance_gate_blocks(void)
+{
+    /* Owner at (10, 20, 30); people[0].target at (10000, 25, 30000).
+     * Horizontal distance >> 16.0 → distance gate blocks → fallback fires. */
+    reset_world();
+    zero_people_table();
+    seed_owner_a_yaw();
+    rng_seed(1);
+
+    g_scene1_people[0].alive       = 1;
+    g_scene1_people[0].sister_720  = 0;
+    g_scene1_people[0].sister_724  = 0;
+    g_scene1_people[0].target[0]   = 10000.0f;
+    g_scene1_people[0].target[1]   = 25.0f;
+    g_scene1_people[0].target[2]   = 30000.0f;
+    owner_write_i(g_owner_a, 0xea0, 0);
+
+    scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
+
+    /* Fallback → ALT.y = owner.y = 20. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 20.0f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_68_distance_is_horizontal_only(void)
+{
+    /* Y is excluded from the distance — set people.target with a huge
+     * Y offset but XZ close.  Distance check should pass. */
+    reset_world();
+    zero_people_table();
+    seed_owner_a_yaw();
+    rng_seed(1);
+
+    g_scene1_people[0].alive       = 1;
+    g_scene1_people[0].sister_720  = 0;
+    g_scene1_people[0].sister_724  = 0;
+    g_scene1_people[0].target[0]   = 11.0f;   /* dx = -1 */
+    g_scene1_people[0].target[1]   = 99999.0f; /* dy ignored */
+    g_scene1_people[0].target[2]   = 29.0f;   /* dz =  1 */
+    /* dx*dx + dz*dz = 2, sqrt = ~1.41 < 16 → match. */
+    owner_write_i(g_owner_a, 0xea0, 0);
+
+    scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
+
+    /* Match → ALT.y = 99999 (the huge people.target.y). */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 99999.0f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_68_selector_picks_nth_match(void)
+{
+    /* Two qualifying entries; owner.field_ea0 = 1 → use the SECOND match.
+     * people[3] is first match (alt.y=25), people[8] is second (alt.y=77). */
+    reset_world();
+    zero_people_table();
+    seed_owner_a_yaw();
+    rng_seed(1);
+
+    g_scene1_people[3].alive       = 1;
+    g_scene1_people[3].sister_720  = 0;
+    g_scene1_people[3].sister_724  = 0;
+    g_scene1_people[3].target[0]   = 12.0f;
+    g_scene1_people[3].target[1]   = 25.0f;
+    g_scene1_people[3].target[2]   = 32.0f;
+
+    g_scene1_people[8].alive       = 1;
+    g_scene1_people[8].sister_720  = 0;
+    g_scene1_people[8].sister_724  = 0;
+    g_scene1_people[8].target[0]   = 14.0f;
+    g_scene1_people[8].target[1]   = 77.0f;
+    g_scene1_people[8].target[2]   = 28.0f;
+
+    /* Select second match. */
+    owner_write_i(g_owner_a, 0xea0, 1);
+
+    scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_X), 14.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 77.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Z), 28.0f));
+    return 0;
+}
+
+int test_records_b_spawn_entity_68_selector_out_of_range_falls_back(void)
+{
+    /* Only one qualifying entry but owner.field_ea0 = 5 → selector never
+     * matches → fallback fires. */
+    reset_world();
+    zero_people_table();
+    seed_owner_a_yaw();
+    rng_seed(1);
+
+    g_scene1_people[0].alive       = 1;
+    g_scene1_people[0].sister_720  = 0;
+    g_scene1_people[0].sister_724  = 0;
+    g_scene1_people[0].target[1]   = 25.0f;
+    owner_write_i(g_owner_a, 0xea0, 5);
+
+    scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
+
+    /* Fallback → ALT.y = owner.y = 20. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 20.0f));
     return 0;
 }

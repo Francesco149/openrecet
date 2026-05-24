@@ -1730,6 +1730,132 @@ static int init_entity_8(int i, const void *owner, int type, int flag,
     return 1;
 }
 
+/* Type 0x68 — RNG-driven amp + angle pos around owner; iterates the
+ * people table looking for an n-th "available" entry (alive==1 AND both
+ * sister gates at +0x720/+0x724 are zero AND horizontal distance from
+ * OWNER to people[i].target < 16.0).  The selector is `owner.field_ea0`
+ * — when (filter-pass count) == owner.field_ea0, that people entry's
+ * `.target` becomes the alt-target; otherwise the engine generates a
+ * random alt-target in a wider ring (amp = (u+0.5)*8) around the owner.
+ * vel = (alt - pos) / 10.0, LIFE_MULT = 0.6, PART_IDX = part_idx.
+ *
+ * Engine FUN_0044376a decomp L291-343, raw asm 0x444070..0x4441c5.
+ *
+ * Engine quirks (C8j.9a — verified via raw-asm read):
+ *
+ * 1. The argless cos call at decomp L298 + L328 (FUN_00503994 with no
+ *    Ghidra-visible args) is the PHC #7 pattern.  Raw asm at 0x444131
+ *    shows `fld QWORD [ebp-0x2c]; fstp QWORD [esp]; call 0x503994` —
+ *    the cos reloads the same angle stashed by the paired sin (asm
+ *    0x44410e / 0x444114).  So `cosf(angle)` is verbatim, not a guess.
+ *
+ * 2. FUN_005031e4 (sqrt) at decomp L305 dropped its arg in Ghidra.
+ *    Raw asm 0x444070..0x44409c shows the arg is
+ *    `(owner.pos.x - people[i].target.x)^2 +
+ *     (owner.pos.z - people[i].target.z)^2`
+ *    — horizontal-plane distance only.  Y is NOT included.
+ *
+ * 3. Decomp's `if (local_10 != -NAN)` (L307) → vestigial sentinel.
+ *    Raw asm 0x444194 = `cmp eax, 0xffffffff; je fallback`.  Since
+ *    local_10 (the people iteration index) inits to 0 and only
+ *    increments, the -1 sentinel branch is unreachable.  Likely an
+ *    unfinished optimization in the engine; we drop the dead check.
+ *
+ * 4. Fallback (no-match) path uses owner.y VERBATIM (no lift), while
+ *    the primary path uses owner.y + 20.0 for POS_Y.  So a 0x68 with
+ *    a successful people-match aims its vel DOWN by (~20/10 = 2.0).
+ *    With no match, vel.y ≈ 0 (alt.y == pos.y - 20.0 → vel.y = -2.0).
+ *    Same drop-by-2 either way — only the alt's X/Z target differs.
+ *
+ * 5. Match-counter semantics: `iVar8` (matched_count) starts at 0 and
+ *    only increments when alive+sister+distance pass.  The engine's
+ *    target is `owner.field_ea0` — the n-th qualifying people slot.
+ *    When matched_count == wanted_match, people[iter_idx].target is
+ *    used (NOT people[matched_count] — they decouple). */
+static int init_entity_68(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag;
+
+    /* Primary path — amp = (u+0.5)*4, angle = u*2π. */
+    float u_amp = rng_next_unit();
+    float amp   = (u_amp + 0.5f) * 4.0f;
+    float u_ang = rng_next_unit();
+    float angle = u_ang * B_TWO_PI_F;
+    float sa = sinf(angle);
+    float ca = cosf(angle);
+
+    float owner_x = owner_read_f(owner, 0x20);
+    float owner_y = owner_read_f(owner, 0x24);
+    float owner_z = owner_read_f(owner, 0x28);
+
+    float pos_x = sa * amp + owner_x;
+    float pos_y = owner_y + 20.0f;
+    float pos_z = ca * amp + owner_z;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z);
+
+    /* People-table scan (engine raw-asm loop 0x444075..0x4440db, 128
+     * iterations bounded by piVar13 == &DAT_007c9678).  Filter:
+     *   alive == 1
+     *   sister_724 == 0
+     *   sister_720 == 0
+     *   sqrt(dx² + dz²) < 16.0 (horizontal distance owner ↔ target)
+     * Selector: `owner.field_ea0` (n-th passing entry). */
+    int wanted_match  = owner_read_i(owner, 0xea0);
+    int matched_count = 0;
+    int found         = 0;
+    float alt_x = 0.0f, alt_y = 0.0f, alt_z = 0.0f;
+
+    for (int idx = 0; idx < SCENE1_PEOPLE_COUNT; idx++) {
+        const scene1_people_entry_t *p = &g_scene1_people[idx];
+        if (p->alive != 1)       continue;
+        if (p->sister_724 != 0)  continue;
+        if (p->sister_720 != 0)  continue;
+
+        float dx = owner_x - p->target[0];
+        float dz = owner_z - p->target[2];
+        float dist_h = sqrtf(dx * dx + dz * dz);
+        if (!(dist_h < 16.0f)) continue;
+
+        if (matched_count == wanted_match) {
+            alt_x = p->target[0];
+            alt_y = p->target[1];
+            alt_z = p->target[2];
+            found = 1;
+            break;
+        }
+        matched_count++;
+    }
+
+    if (!found) {
+        /* Fallback — wider amp ((u+0.5)*8), owner.y VERBATIM (no +20
+         * lift).  Engine L322-329 / raw asm 0x4440e7..0x44414a. */
+        float u_amp2 = rng_next_unit();
+        float amp2   = (u_amp2 + 0.5f) * 8.0f;
+        float u_ang2 = rng_next_unit();
+        float ang2   = u_ang2 * B_TWO_PI_F;
+        alt_x = sinf(ang2) * amp2 + owner_x;
+        alt_y = owner_y;
+        alt_z = cosf(ang2) * amp2 + owner_z;
+    }
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, alt_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, alt_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, alt_z);
+
+    /* Common tail (LAB_0044414a → 0x4441d2): vel = (alt - pos) / 10,
+     * LIFE_MULT = 0.6 (= 0x3f19999a), PART_IDX = part_idx. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, (alt_x - pos_x) / 10.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, (alt_y - pos_y) / 10.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, (alt_z - pos_z) / 10.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.6f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, part_idx);
+
+    return 1;
+}
+
 /* Dispatch helper — routes a (slot, type, part_idx) to the right body
  * and returns the cap.  Used by scene1_record_b_spawn_entity's outer
  * loop to know when to stop committing slots. */
@@ -1782,6 +1908,9 @@ static int run_entity_body(int slot, const void *owner, int type,
     case 0x71: case 0x72: case 0x75: case 0x7d:
         return init_entity_71_72_75_7d(slot, owner, type, flag, part_idx);
     case 8: return init_entity_8(slot, owner, type, flag, part_idx);
+
+    /* C8j.9a — single-spawn with people-table sister-gate iteration. */
+    case 0x68: return init_entity_68(slot, owner, type, flag, part_idx);
 
     default:
         /* Unreachable — outer dispatch gated by IMPLEMENTED. */

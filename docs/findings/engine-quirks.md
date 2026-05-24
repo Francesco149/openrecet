@@ -1543,7 +1543,54 @@ Easy to get wrong because:
 
 ---
 
-## Font atlas is shipped, not regenerated (engine quirk #48)
+## 48. Particle 0x68's "match the n-th candidate" walks the people table from two different angles
+
+**Severity:** decomp footgun + vestigial sentinel.
+
+FUN_0044376a's type-0x68 spawn body scans the 128-entry people table
+looking for an entry that satisfies four gates:
+
+1. `alive == 1`         (not 0, not 2)
+2. `sister_720 == 0`    (engine `piVar13[-1]` = byte +0x720)
+3. `sister_724 == 0`    (engine `*piVar13`   = byte +0x724)
+4. `sqrt(dx² + dz²) < 16.0` — horizontal distance from spawn owner to
+   the candidate's `target` field, Y excluded
+
+It then picks the n-th entry that passes all four, where n is
+`owner.field_ea0`.  Two surprises:
+
+**(a)** The match-counter (Ghidra `iVar8`) and the people-iteration
+index (Ghidra `local_10`) are independently maintained.  `iVar8` only
+increments when an entry passes the gates; `local_10` increments every
+loop iteration unconditionally.  When the engine finally matches
+(`owner.field_ea0 == iVar8`), it uses `people[local_10].target` as the
+alt-target — i.e. the people slot of the most recently passing entry,
+NOT the gate-pass count.  Easy to get wrong if you collapse them into
+one counter.
+
+**(b)** The decomp shows `if (local_10 != -NAN) {...} else break;`
+between the match-check and the alt-target assignment.  Raw asm at
+0x444194 reveals the real test: `cmp eax, 0xffffffff; je fallback`.
+That's a sentinel for "have we ever incremented" — but `local_10`
+starts at 0 and only counts up, so the -1 branch is unreachable.
+Probably an unfinished optimization from an earlier version where
+local_10 could be uninitialized; vestigial in shipping code.
+
+**(c)** And the FUN_005031e4 call's argument was dropped by Ghidra
+entirely (same family of "argless trig" dropouts as PHC #7).  Raw asm
+at 0x444070..0x44409c shows the engine builds `dx² + dz²` on the FPU
+and pushes it as a double — Y is genuinely excluded, so a candidate
+sitting 99 999 units above the owner still passes the gate as long as
+the X/Z plane is within 16.0.
+
+> 📍 `docs/decompiled/by-address/44376a.c` (L291-343),
+> `src/scene1_records_b_spawn.c::init_entity_68`,
+> `docs/findings/scene1-table-b-allocators.md` (C8j.9a entry + Q6
+> resolution).
+
+---
+
+## Font atlas is shipped, not regenerated (engine quirk #49)
 
 FUN_0047c474 (the GDI atlas builder — "fontsystem ok") is a fully
 functional ~1.4 KB of code that the shipped EN retail build never

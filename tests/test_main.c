@@ -1468,7 +1468,15 @@ struct test_case {
     X(records_b_spawn_entity_6d_to_70_spawns_3_with_part_idx_minus_1) \
     X(records_b_spawn_entity_71_72_75_7d_per_type_state) \
     X(records_b_spawn_entity_8_zero_vel_anchor) \
-    X(records_b_spawn_entity_c8j9_implemented_macro)
+    X(records_b_spawn_entity_c8j9_implemented_macro) \
+    X(records_b_spawn_entity_68_implemented) \
+    X(records_b_spawn_entity_68_empty_people_uses_fallback) \
+    X(records_b_spawn_entity_68_matching_people_uses_target) \
+    X(records_b_spawn_entity_68_sister_gate_blocks_match) \
+    X(records_b_spawn_entity_68_distance_gate_blocks) \
+    X(records_b_spawn_entity_68_distance_is_horizontal_only) \
+    X(records_b_spawn_entity_68_selector_picks_nth_match) \
+    X(records_b_spawn_entity_68_selector_out_of_range_falls_back)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

@@ -93,6 +93,15 @@ extern float g_scene1_camera_yaw_alt;
  *   action          +0x5c            state-machine ID
  *   state_counter   +0x910           0/1/2 distance-state from FUN_00430c6d
  *   cooldown        +0x934           decrementing per-frame counter
+ *   sister_720      +0x720           "interactable" gate (== 0 → spawnable)
+ *   sister_724      +0x724           "interactable" gate (== 0 → spawnable)
+ *
+ * sister_720 / sister_724 were added in C8j.9a to back FUN_0044376a's
+ * 0x68 spawn body, which iterates the people table for an entry that is
+ * alive==1 AND both sister gates are zero AND within 16.0 horizontal
+ * units of the spawn owner.  Engine accesses them via base
+ * `DAT_0076c478` (= entry 0 byte +0x724) with `piVar13[-1]` for +0x720,
+ * `*piVar13` for +0x724.
  */
 typedef struct {
     float   pos[3];
@@ -101,6 +110,8 @@ typedef struct {
     int32_t action;
     int32_t state_counter;
     int32_t cooldown;
+    int32_t sister_720;
+    int32_t sister_724;
 } scene1_people_entry_t;
 
 #define SCENE1_PEOPLE_COUNT 128                /* engine cap confirmed in C8h.4a */
