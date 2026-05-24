@@ -199,6 +199,170 @@ void scene1_overlay_shapes_reset(void);
 /* Convenience: reset all three tables at once. */
 void scene1_overlay_init(void);
 
+/* ---- Per-layer texture table + count (mirrors engine globals) -----
+ *
+ * `g_scene1_overlay_layer_count` mirrors engine `DAT_0076b948` — the
+ * number of GRP_02d_* texture groups parsed from the table file by
+ * FUN_00475040 (chip O.10, unported).  Default 0 → dispatcher outer
+ * loop never enters → render is a no-op (matches HOUSE dormancy).
+ *
+ * `g_scene1_overlay_layer_textures[i]` mirrors engine `DAT_073cc780 +
+ * i * 0x10`'s first dw (the IDirect3DTexture8 *).  The engine's 16-B
+ * per-entry stride wraps 3 unused trailing dwords; we model only the
+ * texture pointer field.  Default NULL → SetTexture sees NULL on
+ * every outer slot.  Capacity 256 matches the byte-index range of
+ * `tex_group` (slot.texture_type → shape_entry.tex_group, byte). */
+#define SCENE1_OVERLAY_LAYER_COUNT_MAX 256
+extern int   g_scene1_overlay_layer_count;
+extern void *g_scene1_overlay_layer_textures[SCENE1_OVERLAY_LAYER_COUNT_MAX];
+
+/* Convenience: zero the layer count + texture slots (host-test helper). */
+void scene1_overlay_layers_reset(void);
+
+/* ---- D3D-free helpers (O.3) ---------------------------------------
+ *
+ * These live in scene1_overlay_helpers.c so host unit tests can link
+ * them without pulling in <d3d8.h>.  scene1_overlay.c itself stays
+ * #ifdef _WIN32 for the actual dispatcher entry (SetTransform /
+ * SetTexture / DrawPrimitiveUP).  Same split as
+ * scene1_wide_followup_helpers.c.
+ *
+ * Slot fields are read via SCENE1_OVERLAY_OFF_* constants from this
+ * header.  Shape table fields use SCENE1_OVERLAY_SHAPE_OFF_*.  */
+
+/* FVF 0x142 = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 — 6 dw
+ * (24 B) per vertex.  Matches engine DrawPrimitiveUP stride 0x18.  */
+typedef struct {
+    float    x, y, z;
+    uint32_t diffuse;
+    float    u, v;
+} scene1_overlay_vertex;
+
+#define SCENE1_OVERLAY_VBUF_VERT_COUNT 4
+
+/* Full 5-gate cascade matching engine FUN_00414ee2 L75-L84 (asm
+ * 0x414f12..0x414f57):
+ *   1. slot[ACTIVE]                    != -1
+ *   2. slot[LAYER]                     == param_layer
+ *   3. slot[MODE]                      == param_mode
+ *   4. shape_table[slot[TEXTURE_TYPE]].tex_group == outer_idx
+ *   5. slot[AGE]                       >= 0
+ *
+ * Returns 1 if all gates pass, 0 otherwise.  Reads
+ * `g_scene1_overlay_shapes` for gate 4. */
+int scene1_overlay_should_emit(const int32_t *slot,
+                               int param_layer, int param_mode,
+                               int outer_idx);
+
+/* Fade compute — engine FUN_00414ee2 L86-L117 (asm 0x414f6b..0x415056).
+ *
+ *   alpha = 255.0
+ *   if fade_in_dur > 0:
+ *       alpha = (age*255) / fade_in_dur,  clamp to 255
+ *   if !(shape_mode == 4 && unk_48 != 0) && fade_out_dur > 0:
+ *       delta = age - age_birth
+ *       if (fade_out_offset - fade_out_dur) < delta:
+ *           step  = 255 / fade_out_dur          (INT division, then to float)
+ *           adj   = (delta - fade_out_offset) + fade_out_dur
+ *           alpha -= adj * step
+ *   if alpha < 0:  RETURN 0
+ *   color_val = (blend_byte ∈ {0,2}) ? alpha : 255
+ *   alpha_mix = (blend_byte ∈ {1,2}) ? alpha/255 : 1.0
+ *   out_alpha_int = (int)color_val           ← __ftol truncates toward 0
+ *   out_alpha_mix = alpha_mix
+ *
+ * The truncated `color_val` (out_alpha_int, expected 0..255) is the
+ * gray byte for the diffuse encoding.  The 1.0 alpha_mix default
+ * (blend_byte == 0) means shape 0/5's scale isn't dimmed by the
+ * fade; the diffuse-gray channel carries the brightness instead. */
+int scene1_overlay_compute_fade(const int32_t *slot,
+                                int *out_alpha_int,
+                                float *out_alpha_mix);
+
+/* Shape 0/5 scale axes — engine asm 0x415916..0x41594f.
+ *
+ *   sx = ((1 - blend_mix) * scale_base * alpha_mix * scale_x * 0.003) / 0.5
+ *   sy = (    blend_mix   * scale_base * alpha_mix * scale_x * 0.003) / 0.5
+ *
+ * sz == sx (engine calls scaling(sx, sy, sx)). */
+void scene1_overlay_shape_05_scale(const int32_t *slot,
+                                   float alpha_mix,
+                                   float *out_sx, float *out_sy);
+
+/* Shape 0/5 world matrix: T × S × pre_matrix (left-mul chain).
+ * Reuses wf_pass_c_get_pre_matrix() — same DAT_0438cdf8 stand-in. */
+void scene1_overlay_shape_05_compose_world(float out[16],
+                                           const int32_t *slot,
+                                           float alpha_mix);
+
+/* Shape 0/5 (and most shapes) frame-UV selection — engine asm
+ * 0x4159ca..0x415a22 (also at 0x415803..0x415852 in shape 1, etc).
+ *
+ *   if frame_count > 1:
+ *       frames_per_row = (int)(256.0 / uv_size_x)       (__ftol trunc)
+ *       u_origin = (rng_seed % frames_per_row) * uv_size_x + uv_origin_x
+ *       v_origin = (rng_seed / frames_per_row) * uv_size_y + uv_origin_y
+ *   else:
+ *       (u_origin, v_origin) = (uv_origin_x, uv_origin_y)
+ *
+ * shape_entry: 8-dw shape table entry (NULL ok → returns zeros).
+ * rng_seed: slot[+0x80] (OFF_RNG_SEED), read as signed int.  */
+void scene1_overlay_shape_05_frame_uv(const int32_t *shape_entry,
+                                      int rng_seed,
+                                      float *out_uv_origin_x,
+                                      float *out_uv_origin_y);
+
+/* Shape 0/5 UV + diffuse emit into a 4-vert vbuf.  Mirrors engine
+ * asm 0x415a25..0x415aff:
+ *
+ *   v0..v3 UV layout (after the slot_idx&1 horizontal flip):
+ *     even slot_idx: v0=(u_right, v_top), v2=(u_left, v_top)
+ *     odd  slot_idx: v0=(u_left,  v_top), v2=(u_right, v_top)
+ *   (v1 mirrors v0's U / takes v_bottom; v3 mirrors v2's U / v_bottom.)
+ *
+ * Diffuse: 0xff_gg_gg_gg where gg = alpha_int & 0xff (engine's
+ * 3× shl+or trick; see scene1_overlay_diffuse_gray).
+ *
+ * shape_entry supplies uv_size_x/y for the box span; pass NULL to
+ * use zero (degenerate quad — useful for host tests). */
+void scene1_overlay_shape_05_emit_quad(scene1_overlay_vertex vbuf[4],
+                                       const int32_t *shape_entry,
+                                       float uv_origin_x, float uv_origin_y,
+                                       int slot_idx,
+                                       int alpha_int);
+
+/* Gray-diffuse encoding from a 0..255 int.  Verbatim engine trick at
+ * 0x41586e..0x41587a / 0x415aa6..0x415ab5:
+ *   return (((g | 0xffffff00) << 8 | g) << 8 | g) = 0xff_gg_gg_gg. */
+uint32_t scene1_overlay_diffuse_gray(int alpha_int);
+
+/* ---- Win32 dispatcher entry (O.3) ---------------------------------- */
+#ifdef _WIN32
+struct IDirect3DDevice8;
+
+/* scene1_overlay_render — port of FUN_00414ee2 dispatcher shell.
+ *
+ * Walks `g_scene1_overlay_layer_count` outer iterations × 4096-slot
+ * inner scan, gating on (slot.active != -1, slot.layer == layer,
+ * slot.mode == mode, shape_table[slot.texture_type].tex_group ==
+ * outer_idx, slot.age >= 0).  Per surviving slot: sticky SetTexture
+ * via FUN_00415e90, alpha compute, per-shape draw dispatch.
+ *
+ * O.3 implements shape 0 and shape 5 (the simplest single-quad
+ * T × S × pre_matrix path).  Other shapes (1/2/3/4/6/7/8/9/10) are
+ * stubbed to skip — chips O.4..O.7 will fill them in.
+ *
+ * Caller must have already issued the mid-pass state setup
+ * (SetVertexShader(0x142), LIGHTING=FALSE, MAGFILTER=5, MINFILTER=6,
+ * LightEnable(0, FALSE), and TSS COLOROP per pass).  This function
+ * issues only SetTransform(WORLD), SetTexture(0), and
+ * DrawPrimitiveUP — same scope as the engine's body.
+ *
+ * No-op when dev is NULL or layer_count is 0. */
+void scene1_overlay_render(struct IDirect3DDevice8 *dev,
+                           int layer, int mode);
+#endif
+
 /* ---- Spawn API (FUN_00414345) -------------------------------------- */
 /*
  * Walk the 4096 slots for the first ACTIVE == -1, claim it, copy

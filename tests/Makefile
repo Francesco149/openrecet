@@ -34,7 +34,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_records.c ../src/scene1_spawn.c ../src/scene1_particles_tick.c \
                  ../src/scene1_records_c_tick.c ../src/scene1_records_c_spawn.c \
                  ../src/scene1_records_b_spawn.c \
-                 ../src/scene1_overlay.c \
+                 ../src/scene1_overlay.c ../src/scene1_overlay_helpers.c \
                  ../src/scene1_postload.c ../src/scene1_preload.c ../src/scene1_sim.c ../src/scene1_camera.c \
                  ../src/scene1_shop_walker_helpers.c \
                  ../src/scene1_wide_followup_helpers.c

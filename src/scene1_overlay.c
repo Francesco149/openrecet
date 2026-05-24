@@ -67,6 +67,19 @@ void scene1_overlay_init(void)
     scene1_overlay_reset();
     scene1_overlay_templates_reset();
     scene1_overlay_shapes_reset();
+    scene1_overlay_layers_reset();
+}
+
+/* ---- Layer count + per-layer texture pointers (O.3) ---------------- */
+
+int   g_scene1_overlay_layer_count = 0;
+void *g_scene1_overlay_layer_textures[SCENE1_OVERLAY_LAYER_COUNT_MAX] = {0};
+
+void scene1_overlay_layers_reset(void)
+{
+    g_scene1_overlay_layer_count = 0;
+    memset(g_scene1_overlay_layer_textures, 0,
+           sizeof g_scene1_overlay_layer_textures);
 }
 
 /* ---- Slot / template accessors ------------------------------------- */
@@ -419,3 +432,143 @@ void scene1_overlay_spawn(const void *template_owner,
     /* Outer loop exhausted (4096 slots scanned, table full or
      * fragmented) → silent return matching engine fallthrough. */
 }
+
+/* ─── Win32 dispatcher entry (chip O.3) ────────────────────────────────
+ *
+ * Port of FUN_00414ee2 (4006 B) — the 2D-overlay particle dispatcher
+ * called from wide_followup mid_block_1 (layer=1, mode=0) and from
+ * scene1_render_overlay 4 sites (layer ∈ {0..3}, mode=1).  See
+ * docs/findings/scene1-overlay-dispatcher.md for the full structure
+ * + chip ladder; this chip implements the dispatcher shell + shape
+ * 0/5 draw path.  Other shapes are stubbed to skip (chips O.4..O.7).
+ *
+ * No-op when dev is NULL or layer_count is 0.  HOUSE today leaves
+ * both the layer table (BSS-zero — populated by chip O.10 parser)
+ * and the slot table (no caller drives spawn) empty, so the
+ * function is effectively dormant.
+ */
+#ifdef _WIN32
+
+#define COBJMACROS
+#define CINTERFACE
+#include <d3d8.h>
+
+/* Module-local mirror of engine DAT_0076b95c — the sticky
+ * "last bound texture" cache.  FUN_00415e90 is a 36-byte cache
+ * guard in the engine that only issues SetTexture when the desired
+ * pointer differs from the cache.  Shared with wide_followup's
+ * pass-local cache via convention (the engine uses a single global).
+ *
+ * The dispatcher does NOT reset this on exit — the engine relies on
+ * downstream passes overwriting it.  We mirror that. */
+static uintptr_t g_overlay_tex_cache_last = 0;
+
+static void overlay_set_texture_sticky(IDirect3DDevice8 *dev, void *tex)
+{
+    if ((uintptr_t)tex == g_overlay_tex_cache_last) return;
+    g_overlay_tex_cache_last = (uintptr_t)tex;
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)tex);
+}
+
+/* Static vbuf — engine DAT_0076b750..b7bc, 4 verts × 24 B.
+ * Pos values from FUN_00414813 .data init (all.c L12511..L12529):
+ *   v0 = (-256, +256, 0)  v1 = (-256, -256, 0)
+ *   v2 = (+256, +256, 0)  v3 = (+256, -256, 0)
+ * Diffuse and UV are overwritten per draw. */
+static scene1_overlay_vertex g_scene1_overlay_vbuf[SCENE1_OVERLAY_VBUF_VERT_COUNT] = {
+    { -256.0f,  256.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* v0: TL */
+    { -256.0f, -256.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* v1: BL */
+    {  256.0f,  256.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* v2: TR */
+    {  256.0f, -256.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* v3: BR */
+};
+
+void scene1_overlay_render(IDirect3DDevice8 *dev, int layer, int mode)
+{
+    if (!dev) return;
+    int outer_count = g_scene1_overlay_layer_count;
+    if (outer_count <= 0) return;
+    if (outer_count > SCENE1_OVERLAY_LAYER_COUNT_MAX) {
+        outer_count = SCENE1_OVERLAY_LAYER_COUNT_MAX;
+    }
+
+    for (int outer = 0; outer < outer_count; outer++) {
+        for (int slot_idx = 0;
+             slot_idx < SCENE1_OVERLAY_SLOT_COUNT;
+             slot_idx++)
+        {
+            const int32_t *slot =
+                &g_scene1_overlay_slots[slot_idx * SCENE1_OVERLAY_SLOT_STRIDE];
+
+            if (!scene1_overlay_should_emit(slot, layer, mode, outer)) {
+                continue;
+            }
+
+            /* Sticky SetTexture (engine L85 — call FUN_00415e90).  Per-
+             * layer texture pointer comes from the (chip O.10-populated)
+             * layer table; today it's NULL by default → NULL is bound. */
+            overlay_set_texture_sticky(dev,
+                                       g_scene1_overlay_layer_textures[outer]);
+
+            /* Fade gate — engine L86-L117. */
+            int   alpha_int;
+            float alpha_mix;
+            if (!scene1_overlay_compute_fade(slot, &alpha_int, &alpha_mix)) {
+                continue;
+            }
+
+            int type_shape = slot[SCENE1_OVERLAY_OFF_TYPE_SHAPE];
+
+            /* Per-shape dispatch.  Engine has 10 branches; O.3 covers 0/5.
+             * Other shapes deferred to O.4 (2/3/4/6), O.5 (1), O.6 (7),
+             * O.7 (8/9/10). */
+            if (type_shape == 0 || type_shape == 5) {
+                /* Shape 0/5: T × S × pre_matrix single-quad. */
+                float world[16];
+                scene1_overlay_shape_05_compose_world(world, slot, alpha_mix);
+                IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                              (const D3DMATRIX *)world);
+
+                /* Read shape entry for UV box + frame_count. */
+                int32_t texture_type = slot[SCENE1_OVERLAY_OFF_TEXTURE_TYPE];
+                const int32_t *shape_entry = NULL;
+                if (texture_type >= 0 &&
+                    texture_type < SCENE1_OVERLAY_SHAPE_COUNT)
+                {
+                    shape_entry =
+                        &g_scene1_overlay_shapes[texture_type *
+                                                 SCENE1_OVERLAY_SHAPE_STRIDE];
+                }
+
+                float uv_origin_x, uv_origin_y;
+                int rng_seed = slot[SCENE1_OVERLAY_OFF_RNG_SEED];
+                scene1_overlay_shape_05_frame_uv(shape_entry, rng_seed,
+                                                 &uv_origin_x, &uv_origin_y);
+
+                scene1_overlay_shape_05_emit_quad(g_scene1_overlay_vbuf,
+                                                  shape_entry,
+                                                  uv_origin_x, uv_origin_y,
+                                                  slot_idx, alpha_int);
+
+                IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                                 D3DPT_TRIANGLESTRIP,
+                                                 2,
+                                                 g_scene1_overlay_vbuf,
+                                                 sizeof(scene1_overlay_vertex));
+                continue;
+            }
+
+            /* TODO O.4 (shapes 2/3/4/6 — matrix variants on shape-0).
+             * TODO O.5 (shape 1 — lookat billboard).
+             * TODO O.6 (shape 7 — variable-count multi-quad trail).
+             * TODO O.7 (shapes 8/9/10 — 5-quad group dual-billboard).
+             *
+             * Skipping is safe today: HOUSE smoke (= no spawn caller)
+             * doesn't populate slots of any shape type yet, so the
+             * stubs are never reached.  When spawn callers wire,
+             * unimplemented shapes silently no-op (better than
+             * crashing on an unported draw path). */
+        }
+    }
+}
+
+#endif /* _WIN32 */

@@ -10,6 +10,7 @@
 
 #include "rng.h"
 #include "scene1_overlay.h"
+#include "scene1_wide_followup.h"   /* wf_pass_c_set_pre_matrix — for O.3 world matrix test */
 
 #ifndef TWO_PI_F
 #define TWO_PI_F 6.2831855f
@@ -570,5 +571,415 @@ int test_overlay_spawn_owner_pointer_written_twice(void)
     int32_t expected = (int32_t)(intptr_t)owner_blob;
     T_ASSERT_EQ_I(slot_i(0, SCENE1_OVERLAY_OFF_OWNER_A), expected);
     T_ASSERT_EQ_I(slot_i(0, SCENE1_OVERLAY_OFF_OWNER_B), expected);
+    return 0;
+}
+
+/* ═════════════════ O.3: dispatcher shell + shape 0/5 ═════════════════ */
+/* Tests below cover the D3D-free helpers in scene1_overlay_helpers.c.
+ * The actual scene1_overlay_render entry is #ifdef _WIN32 and not
+ * host-callable; we exercise each helper in isolation. */
+
+/* ─── helpers for direct slot/shape setup ─────────────────────────── */
+
+static void slot_set_f_dir(int s, int off, float v)
+{
+    scene1_overlay_slot_set_i(s, off, f_to_bits(v));
+}
+
+static void shape_set_i(int idx, int off, int32_t v)
+{
+    g_scene1_overlay_shapes[idx * SCENE1_OVERLAY_SHAPE_STRIDE + off] = v;
+}
+
+/* Build a live slot with sensible defaults — caller overrides what
+ * matters per test.  Returns a pointer to the slot. */
+static int32_t *fresh_slot(int s)
+{
+    scene1_overlay_init();
+    scene1_overlay_slot_set_i(s, SCENE1_OVERLAY_OFF_ACTIVE, 0);     /* alive */
+    scene1_overlay_slot_set_i(s, SCENE1_OVERLAY_OFF_LAYER,  0);
+    scene1_overlay_slot_set_i(s, SCENE1_OVERLAY_OFF_MODE,   0);
+    scene1_overlay_slot_set_i(s, SCENE1_OVERLAY_OFF_AGE,    0);
+    return &g_scene1_overlay_slots[s * SCENE1_OVERLAY_SLOT_STRIDE];
+}
+
+/* ─── gate cascade ────────────────────────────────────────────────── */
+
+int test_overlay_should_emit_active_minus1_rejected(void)
+{
+    int32_t *slot = fresh_slot(7);
+    slot[SCENE1_OVERLAY_OFF_ACTIVE] = -1;
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 0, 0, 0), 0);
+    return 0;
+}
+
+int test_overlay_should_emit_layer_mismatch_rejected(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_LAYER] = 3;
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 2, 0, 0), 0);
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 3, 0, 0), 1);
+    return 0;
+}
+
+int test_overlay_should_emit_mode_mismatch_rejected(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_MODE] = 1;
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 0, 0, 0), 0);
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 0, 1, 0), 1);
+    return 0;
+}
+
+int test_overlay_should_emit_tex_group_must_match_outer(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_TEXTURE_TYPE] = 5;
+    shape_set_i(5, SCENE1_OVERLAY_SHAPE_OFF_TEX_GROUP, 2);
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 0, 0, 0), 0);
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 0, 0, 2), 1);
+    return 0;
+}
+
+int test_overlay_should_emit_negative_age_rejected(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_AGE] = -1;
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 0, 0, 0), 0);
+    slot[SCENE1_OVERLAY_OFF_AGE] = 0;
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 0, 0, 0), 1);
+    return 0;
+}
+
+int test_overlay_should_emit_oob_texture_type_rejected(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_TEXTURE_TYPE] = 999;   /* > 256 cap */
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 0, 0, 0), 0);
+    slot[SCENE1_OVERLAY_OFF_TEXTURE_TYPE] = -1;
+    T_ASSERT_EQ_I(scene1_overlay_should_emit(slot, 0, 0, 0), 0);
+    return 0;
+}
+
+/* ─── fade compute ────────────────────────────────────────────────── */
+
+int test_overlay_fade_default_full_alpha(void)
+{
+    int32_t *slot = fresh_slot(0);
+    /* All-zero: fade_in_dur=0, fade_out_dur=0, blend_byte=0 →
+     * alpha=255, alpha_mix=1.0 (blend_byte 0 also makes color_val
+     * follow alpha — so color is 255 and alpha mul is 1.0). */
+    int   ai;
+    float am;
+    T_ASSERT_EQ_I(scene1_overlay_compute_fade(slot, &ai, &am), 1);
+    T_ASSERT_EQ_I(ai, 255);
+    T_ASSERT(fabsf(am - 1.0f) < 1e-6f);
+    return 0;
+}
+
+int test_overlay_fade_in_ramps(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_FADE_IN_DUR] = 10;
+    slot[SCENE1_OVERLAY_OFF_AGE]         = 4;
+    /* alpha = 4 * 255 / 10 = 102 */
+    int   ai;
+    float am;
+    T_ASSERT_EQ_I(scene1_overlay_compute_fade(slot, &ai, &am), 1);
+    T_ASSERT_EQ_I(ai, 102);
+    return 0;
+}
+
+int test_overlay_fade_in_clamps_to_255(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_FADE_IN_DUR] = 10;
+    slot[SCENE1_OVERLAY_OFF_AGE]         = 100;
+    int ai; float am;
+    T_ASSERT_EQ_I(scene1_overlay_compute_fade(slot, &ai, &am), 1);
+    T_ASSERT_EQ_I(ai, 255);
+    return 0;
+}
+
+int test_overlay_fade_out_kicks_in(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_FADE_OUT_DUR]    = 5;
+    slot[SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET] = 10;
+    slot[SCENE1_OVERLAY_OFF_AGE]             = 8;
+    slot[SCENE1_OVERLAY_OFF_AGE_BIRTH]       = 0;
+    /* delta=8; (offset-dur)=5; 5 < 8 → fade-out active.
+     * step = 255/5 = 51 (int div); adj = (8-10)+5 = 3.
+     * alpha = 255 - 3*51 = 102. */
+    int ai; float am;
+    T_ASSERT_EQ_I(scene1_overlay_compute_fade(slot, &ai, &am), 1);
+    T_ASSERT_EQ_I(ai, 102);
+    return 0;
+}
+
+int test_overlay_fade_out_skipped_when_shape_mode_4_and_unk_48_nonzero(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_FADE_OUT_DUR]    = 5;
+    slot[SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET] = 10;
+    slot[SCENE1_OVERLAY_OFF_AGE]             = 100;
+    slot[SCENE1_OVERLAY_OFF_SHAPE_MODE]      = 4;
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_UNK_48, 1.0f);
+    int ai; float am;
+    T_ASSERT_EQ_I(scene1_overlay_compute_fade(slot, &ai, &am), 1);
+    T_ASSERT_EQ_I(ai, 255);   /* fade-out skipped → full alpha */
+    return 0;
+}
+
+int test_overlay_fade_returns_zero_when_alpha_negative(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot[SCENE1_OVERLAY_OFF_FADE_OUT_DUR]    = 1;
+    slot[SCENE1_OVERLAY_OFF_FADE_OUT_OFFSET] = 0;
+    slot[SCENE1_OVERLAY_OFF_AGE]             = 100;
+    /* step = 255/1 = 255; adj = (100-0)+1 = 101; alpha = 255 - 101*255 < 0 */
+    int ai; float am;
+    T_ASSERT_EQ_I(scene1_overlay_compute_fade(slot, &ai, &am), 0);
+    return 0;
+}
+
+int test_overlay_fade_blend_byte_1_only_alpha_mix_follows(void)
+{
+    int32_t *slot = fresh_slot(0);
+    /* blend_byte=1 → color stays 255, alpha_mix follows alpha/255. */
+    scene1_overlay_slot_set_i(0, SCENE1_OVERLAY_OFF_BLEND_MODE_BYTE,
+                              (scene1_overlay_slot_get_i(0, SCENE1_OVERLAY_OFF_BLEND_MODE_BYTE) & ~0xff) | 1);
+    slot[SCENE1_OVERLAY_OFF_FADE_IN_DUR] = 10;
+    slot[SCENE1_OVERLAY_OFF_AGE]         = 5;
+    int ai; float am;
+    T_ASSERT_EQ_I(scene1_overlay_compute_fade(slot, &ai, &am), 1);
+    T_ASSERT_EQ_I(ai, 255);       /* color stays 255 */
+    T_ASSERT(fabsf(am - (127.5f / 255.0f)) < 1e-3f);
+    return 0;
+}
+
+int test_overlay_fade_blend_byte_2_both_follow(void)
+{
+    int32_t *slot = fresh_slot(0);
+    scene1_overlay_slot_set_i(0, SCENE1_OVERLAY_OFF_BLEND_MODE_BYTE,
+                              (scene1_overlay_slot_get_i(0, SCENE1_OVERLAY_OFF_BLEND_MODE_BYTE) & ~0xff) | 2);
+    slot[SCENE1_OVERLAY_OFF_FADE_IN_DUR] = 10;
+    slot[SCENE1_OVERLAY_OFF_AGE]         = 4;
+    int ai; float am;
+    T_ASSERT_EQ_I(scene1_overlay_compute_fade(slot, &ai, &am), 1);
+    T_ASSERT_EQ_I(ai, 102);
+    T_ASSERT(fabsf(am - (102.0f / 255.0f)) < 1e-3f);
+    return 0;
+}
+
+/* ─── shape 0/5 scale ─────────────────────────────────────────────── */
+
+int test_overlay_shape_05_scale_formula(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.25f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 2.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    3.0f);
+
+    /* sx = (1-0.25)*2*1.0*3*0.003/0.5 = 0.75*2*3*0.006 = 0.027 */
+    /* sy = 0.25*2*1.0*3*0.003/0.5 = 0.009 */
+    float sx, sy;
+    scene1_overlay_shape_05_scale(slot, 1.0f, &sx, &sy);
+    T_ASSERT(fabsf(sx - 0.027f) < 1e-5f);
+    T_ASSERT(fabsf(sy - 0.009f) < 1e-5f);
+    return 0;
+}
+
+int test_overlay_shape_05_scale_alpha_mix_scales_both(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.5f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+
+    float sx_full, sy_full, sx_half, sy_half;
+    scene1_overlay_shape_05_scale(slot, 1.0f, &sx_full, &sy_full);
+    scene1_overlay_shape_05_scale(slot, 0.5f, &sx_half, &sy_half);
+    T_ASSERT(fabsf(sx_half - 0.5f * sx_full) < 1e-6f);
+    T_ASSERT(fabsf(sy_half - 0.5f * sy_full) < 1e-6f);
+    return 0;
+}
+
+/* ─── shape 0/5 world matrix ──────────────────────────────────────── */
+
+int test_overlay_shape_05_world_has_translation_row(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_X, 7.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_Y, -3.5f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_Z, 11.0f);
+    /* Identity pre-matrix + zero scale → row 3 of M holds translation
+     * (D3DX row-major: M[12..14] = T). */
+    float world[16];
+    scene1_overlay_shape_05_compose_world(world, slot, 1.0f);
+    T_ASSERT(fabsf(world[12] -  7.0f) < 1e-5f);
+    T_ASSERT(fabsf(world[13] - -3.5f) < 1e-5f);
+    T_ASSERT(fabsf(world[14] - 11.0f) < 1e-5f);
+    return 0;
+}
+
+int test_overlay_shape_05_world_uses_pre_matrix(void)
+{
+    /* Verify pre-matrix is actually applied by setting a non-identity
+     * pre (X-translate +10) and checking it shows up in the final
+     * world matrix.  In row-major D3D, the pre-matrix's row 3 (its
+     * own translation) interacts with S*T's row 0 — so we need a
+     * non-zero scale for the contribution to be visible at M[12].
+     * With sx = (1-mix)*sb*am*sx_slot*0.003/0.5, pick values that
+     * give a clean sx == 0.003: mix=0, sb=1, am=1, slot_sx=1 →
+     * sx = 1*1*1*1*0.003/0.5 = 0.006.  Then
+     *   (pre*S*T)[3] = pre[3][0]*ST[0] + pre[3][3]*ST[3]
+     *               = 10 * [0.006, 0, 0, 0] + 1 * [tx, ty, tz, 1]
+     *   M[12] = 10*0.006 + tx = 0.06 + 5 = 5.06. */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_X,      5.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+
+    float pre[16] = {
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        10, 0, 0, 1
+    };
+    wf_pass_c_set_pre_matrix(pre);
+
+    float world[16];
+    scene1_overlay_shape_05_compose_world(world, slot, 1.0f);
+    T_ASSERT(fabsf(world[12] - 5.06f) < 1e-4f);
+
+    /* Restore identity for downstream tests. */
+    float id[16] = {1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
+    wf_pass_c_set_pre_matrix(id);
+    return 0;
+}
+
+/* ─── frame UV selection ──────────────────────────────────────────── */
+
+int test_overlay_frame_uv_static_when_frame_count_le_1(void)
+{
+    int32_t shape[8] = {0};
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_ORIGIN_X] = f_to_bits(50.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_ORIGIN_Y] = f_to_bits(40.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X]   = f_to_bits(16.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y]   = f_to_bits(16.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_FRAME_COUNT] = 1;
+
+    float u, v;
+    scene1_overlay_shape_05_frame_uv(shape, /*rng_seed=*/123, &u, &v);
+    T_ASSERT(fabsf(u - 50.0f) < 1e-5f);
+    T_ASSERT(fabsf(v - 40.0f) < 1e-5f);
+    return 0;
+}
+
+int test_overlay_frame_uv_animated_picks_tile_via_rng_seed(void)
+{
+    int32_t shape[8] = {0};
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_ORIGIN_X] = f_to_bits(0.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_ORIGIN_Y] = f_to_bits(0.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X]   = f_to_bits(32.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y]   = f_to_bits(32.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_FRAME_COUNT] = 4;
+    /* frames_per_row = (int)(256/32) = 8; rng_seed=11 → col=3, row=1. */
+    float u, v;
+    scene1_overlay_shape_05_frame_uv(shape, /*rng_seed=*/11, &u, &v);
+    T_ASSERT(fabsf(u - 96.0f) < 1e-5f);   /* 3 * 32 + 0 */
+    T_ASSERT(fabsf(v - 32.0f) < 1e-5f);   /* 1 * 32 + 0 */
+    return 0;
+}
+
+int test_overlay_frame_uv_null_shape_returns_zero(void)
+{
+    float u = 99, v = 99;
+    scene1_overlay_shape_05_frame_uv(NULL, 0, &u, &v);
+    T_ASSERT(fabsf(u) < 1e-6f);
+    T_ASSERT(fabsf(v) < 1e-6f);
+    return 0;
+}
+
+/* ─── diffuse gray encoding ───────────────────────────────────────── */
+
+int test_overlay_diffuse_gray_encodes_correctly(void)
+{
+    T_ASSERT_EQ_I((int)scene1_overlay_diffuse_gray(0),     (int)0xff000000u);
+    T_ASSERT_EQ_I((int)scene1_overlay_diffuse_gray(0x7f),  (int)0xff7f7f7fu);
+    T_ASSERT_EQ_I((int)scene1_overlay_diffuse_gray(0xff),  (int)0xffffffffu);
+    T_ASSERT_EQ_I((int)scene1_overlay_diffuse_gray(0x80),  (int)0xff808080u);
+    return 0;
+}
+
+/* ─── shape 0/5 quad emit ─────────────────────────────────────────── */
+
+int test_overlay_shape_05_emit_even_slot_idx_uv_layout(void)
+{
+    int32_t shape[8] = {0};
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X] = f_to_bits(32.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y] = f_to_bits(16.0f);
+    scene1_overlay_vertex vbuf[4] = {0};
+
+    scene1_overlay_shape_05_emit_quad(vbuf, shape, /*uv_origin*/0, 0,
+                                      /*slot_idx=*/0,
+                                      /*alpha_int=*/128);
+    float u_a = (0.0f + 0.5f) / 256.0f;
+    float u_b = (0.0f + 32.0f - 0.5f) / 256.0f;
+    float v_t = (0.0f + 0.5f) / 256.0f;
+    float v_b = (0.0f + 16.0f - 0.5f) / 256.0f;
+
+    /* Even slot_idx: v0 = u_right (= u_b), v2 = u_left (= u_a). */
+    T_ASSERT(fabsf(vbuf[0].u - u_b) < 1e-6f);
+    T_ASSERT(fabsf(vbuf[2].u - u_a) < 1e-6f);
+    T_ASSERT(fabsf(vbuf[1].u - u_b) < 1e-6f);  /* v1 shares U with v0 */
+    T_ASSERT(fabsf(vbuf[3].u - u_a) < 1e-6f);  /* v3 shares U with v2 */
+
+    T_ASSERT(fabsf(vbuf[0].v - v_t) < 1e-6f);
+    T_ASSERT(fabsf(vbuf[1].v - v_b) < 1e-6f);
+    T_ASSERT(fabsf(vbuf[2].v - v_t) < 1e-6f);
+    T_ASSERT(fabsf(vbuf[3].v - v_b) < 1e-6f);
+
+    T_ASSERT_EQ_I((int)vbuf[0].diffuse, (int)0xff808080u);
+    return 0;
+}
+
+int test_overlay_shape_05_emit_odd_slot_idx_horizontal_flip(void)
+{
+    int32_t shape[8] = {0};
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X] = f_to_bits(32.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y] = f_to_bits(16.0f);
+    scene1_overlay_vertex vbuf[4] = {0};
+
+    scene1_overlay_shape_05_emit_quad(vbuf, shape, 0, 0,
+                                      /*slot_idx=*/1,
+                                      /*alpha_int=*/64);
+    float u_a = (0.0f + 0.5f) / 256.0f;
+    float u_b = (0.0f + 32.0f - 0.5f) / 256.0f;
+    /* Odd slot_idx: swap. */
+    T_ASSERT(fabsf(vbuf[0].u - u_a) < 1e-6f);
+    T_ASSERT(fabsf(vbuf[2].u - u_b) < 1e-6f);
+    return 0;
+}
+
+/* ─── layer storage reset ─────────────────────────────────────────── */
+
+int test_overlay_layers_reset_clears_count_and_pointers(void)
+{
+    g_scene1_overlay_layer_count = 17;
+    g_scene1_overlay_layer_textures[3] = (void *)(intptr_t)0xdeadbeef;
+    scene1_overlay_layers_reset();
+    T_ASSERT_EQ_I(g_scene1_overlay_layer_count, 0);
+    T_ASSERT(g_scene1_overlay_layer_textures[3] == NULL);
+    return 0;
+}
+
+int test_overlay_init_also_resets_layers(void)
+{
+    g_scene1_overlay_layer_count = 99;
+    scene1_overlay_init();
+    T_ASSERT_EQ_I(g_scene1_overlay_layer_count, 0);
     return 0;
 }

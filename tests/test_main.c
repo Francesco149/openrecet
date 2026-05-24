@@ -1707,7 +1707,33 @@ struct test_case {
     X(overlay_spawn_shape_lt2_mode_5_reads_owner_3fc) \
     X(overlay_spawn_shape_lt2_default_branch_uses_rng) \
     X(overlay_spawn_template_copies_int_and_float_fields) \
-    X(overlay_spawn_owner_pointer_written_twice)
+    X(overlay_spawn_owner_pointer_written_twice) \
+    X(overlay_should_emit_active_minus1_rejected) \
+    X(overlay_should_emit_layer_mismatch_rejected) \
+    X(overlay_should_emit_mode_mismatch_rejected) \
+    X(overlay_should_emit_tex_group_must_match_outer) \
+    X(overlay_should_emit_negative_age_rejected) \
+    X(overlay_should_emit_oob_texture_type_rejected) \
+    X(overlay_fade_default_full_alpha) \
+    X(overlay_fade_in_ramps) \
+    X(overlay_fade_in_clamps_to_255) \
+    X(overlay_fade_out_kicks_in) \
+    X(overlay_fade_out_skipped_when_shape_mode_4_and_unk_48_nonzero) \
+    X(overlay_fade_returns_zero_when_alpha_negative) \
+    X(overlay_fade_blend_byte_1_only_alpha_mix_follows) \
+    X(overlay_fade_blend_byte_2_both_follow) \
+    X(overlay_shape_05_scale_formula) \
+    X(overlay_shape_05_scale_alpha_mix_scales_both) \
+    X(overlay_shape_05_world_has_translation_row) \
+    X(overlay_shape_05_world_uses_pre_matrix) \
+    X(overlay_frame_uv_static_when_frame_count_le_1) \
+    X(overlay_frame_uv_animated_picks_tile_via_rng_seed) \
+    X(overlay_frame_uv_null_shape_returns_zero) \
+    X(overlay_diffuse_gray_encodes_correctly) \
+    X(overlay_shape_05_emit_even_slot_idx_uv_layout) \
+    X(overlay_shape_05_emit_odd_slot_idx_horizontal_flip) \
+    X(overlay_layers_reset_clears_count_and_pointers) \
+    X(overlay_init_also_resets_layers)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
