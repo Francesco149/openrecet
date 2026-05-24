@@ -168,6 +168,32 @@ int   wf_pass_b_should_emit(const int32_t *slot);
 float wf_pass_b_per_record_scale(const int32_t *slot);
 void  wf_pass_b_compose_world(float out[16], const int32_t *slot);
 
+/* ─── Pass E spear helpers (D3D-free, host-linkable) ───────────────────
+ *
+ * Walks g_scene1_records_b (engine DAT_069324b0 = the slot-base alias of
+ * the same 0x49-stride table A/B see) for cardinal-int type ∈
+ * {0x71, 0x72, 0x75}.  Texture: bmp/effect_shot.bmp 256×256 via
+ * g_sysassets.effect_shot_bmp.tex (engine DAT_073cc940).  vbuf shared
+ * with A/B (g_wf_pass_abe_vbuf 4 verts).
+ *
+ * Per-record scale = LIFE_MULT × 0.005 with the same AGE<5 ramp-in as
+ * Pass A; 0x72 additionally narrows by 0.8.  Tile selection picks one
+ * of three (col, row) origins in the 256-px atlas; 0x72 alternates its
+ * row every 2 frames (AGE%4).  World matrix shape:
+ *   M = RotZ(π - rotX) × DAT_0438cdf8 × S × T
+ * (one pre-matrix slot vs Pass A's RotY(π/2); pre-matrix is the same
+ * stand-in Pass C uses, identity until the engine writer is found —
+ * see PHC #16).  Fan group {0x73, 0x7e, 0x78, 0xa0, 0x7a} deferred —
+ * needs FUN_00415f2e camera-billboard helper survey first.  Engine
+ * FUN_004161c7 L293-L350.  */
+int   wf_pass_e_spear_should_emit(const int32_t *slot);
+float wf_pass_e_spear_per_record_scale(const int32_t *slot);
+void  wf_pass_e_spear_tile(const int32_t *slot, float *out_col, float *out_row);
+void  wf_pass_e_spear_uv_box(float col, float row,
+                             float *out_u0, float *out_u1,
+                             float *out_v0, float *out_v1);
+void  wf_pass_e_spear_compose_world(float out[16], const int32_t *slot);
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;

@@ -611,3 +611,332 @@ int test_wf_pass_b_compose_world_roty_pi_over_2(void)
     T_ASSERT_NEAR_WF(world[10], 0.0f, 1e-5f);
     return 0;
 }
+
+/* ═══ Pass E spear group (C8f.pass-e-spear) ═══════════════════════════════
+ *
+ * Cardinal-int filter {0x71, 0x72, 0x75} (rejects 0 sentinel, fan types
+ * {0x73, 0x7e, 0x78, 0xa0, 0x7a}, and Pass A/B types {0x77, 0xa2, 0x53}).
+ * Same AGE<5 ramp-in as Pass A; 0x72 takes an additional 0.8 narrowing.
+ * Tile origin (col,row) varies by type — 0x72 alternates between two
+ * rows every 2 frames (AGE%4 quirk).  Matrix shape: RotZ(π - rotX) ×
+ * DAT_0438cdf8 × S × T (pre-matrix reuses Pass C's stand-in storage,
+ * default identity).  */
+
+int test_wf_pass_e_spear_should_emit_rejects_sentinel(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0;
+    T_ASSERT(wf_pass_e_spear_should_emit(slot) == 0);
+    return 0;
+}
+
+int test_wf_pass_e_spear_should_emit_accepts_spear_types(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    int32_t accept[] = { 0x71, 0x72, 0x75 };
+    for (size_t i = 0; i < sizeof(accept) / sizeof(accept[0]); i++) {
+        slot_init_zero_b(slot);
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = accept[i];
+        if (wf_pass_e_spear_should_emit(slot) != 1)
+            T_FAIL("type 0x%x should emit", accept[i]);
+    }
+    return 0;
+}
+
+int test_wf_pass_e_spear_should_emit_rejects_fan_types(void)
+{
+    /* Fan group is intentionally excluded from this chip — they fall
+     * through silently until the fan-followup chip ports FUN_00415f2e. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    int32_t reject[] = { 0x73, 0x7e, 0x78, 0xa0, 0x7a };
+    for (size_t i = 0; i < sizeof(reject) / sizeof(reject[0]); i++) {
+        slot_init_zero_b(slot);
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = reject[i];
+        if (wf_pass_e_spear_should_emit(slot) != 0)
+            T_FAIL("fan type 0x%x should not be a spear hit", reject[i]);
+    }
+    return 0;
+}
+
+int test_wf_pass_e_spear_should_emit_rejects_pass_ab_types(void)
+{
+    /* Pass A/B types (0x77, 0xa2, 0x53) are on the same table memory
+     * but must not collide with Pass E spear's filter. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    int32_t reject[] = { 0x77, 0xa2, 0x53, 0x70, 0x73, 0x74, 0x76 };
+    for (size_t i = 0; i < sizeof(reject) / sizeof(reject[0]); i++) {
+        slot_init_zero_b(slot);
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = reject[i];
+        if (wf_pass_e_spear_should_emit(slot) != 0)
+            T_FAIL("type 0x%x should not be a spear hit", reject[i]);
+    }
+    return 0;
+}
+
+/* ─── per-record scale ──────────────────────────────────────────────── */
+
+int test_wf_pass_e_spear_scale_0x71_full_at_age_5(void)
+{
+    /* 0x71 at AGE=5 with LIFE_MULT=1.0 → no ramp, no 0x72 narrowing →
+     * scale = 0.005. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x71;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 5;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    T_ASSERT_NEAR_WF(wf_pass_e_spear_per_record_scale(slot), 0.005f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_spear_scale_0x72_narrows_by_0_point_8(void)
+{
+    /* 0x72 at AGE=5 with LIFE_MULT=1.0 → scale = 0.005 × 0.8 = 0.004. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x72;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 5;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    T_ASSERT_NEAR_WF(wf_pass_e_spear_per_record_scale(slot), 0.004f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_spear_scale_0x75_no_narrowing(void)
+{
+    /* 0x75 at AGE=5 with LIFE_MULT=1.0 → scale = 0.005 (same as 0x71). */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x75;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 5;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    T_ASSERT_NEAR_WF(wf_pass_e_spear_per_record_scale(slot), 0.005f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_spear_scale_ramps_in_over_5_frames(void)
+{
+    /* 0x71 ramp: AGE 0..4 → 0/5, 1/5, 2/5, 3/5, 4/5 of 0.005. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x71;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    float expected[5] = { 0.0f, 0.001f, 0.002f, 0.003f, 0.004f };
+    for (int age = 0; age < 5; age++) {
+        slot[SCENE1_RECORDS_B_OFF_AGE] = age;
+        T_ASSERT_NEAR_WF(wf_pass_e_spear_per_record_scale(slot),
+                         expected[age], 1e-7f);
+    }
+    return 0;
+}
+
+int test_wf_pass_e_spear_scale_0x72_ramps_then_narrows(void)
+{
+    /* 0x72 at AGE=2 → ramp scale = (2/5)*0.005 = 0.002; then ×0.8 = 0.0016. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x72;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 2;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    T_ASSERT_NEAR_WF(wf_pass_e_spear_per_record_scale(slot), 0.0016f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_spear_scale_uses_life_mult(void)
+{
+    /* 0x71 with LIFE_MULT=2.0 at AGE=10 → 2.0*0.005 = 0.01. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x71;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 10;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 2.0f);
+    T_ASSERT_NEAR_WF(wf_pass_e_spear_per_record_scale(slot), 0.01f, 1e-7f);
+    return 0;
+}
+
+/* ─── per-record tile selection ─────────────────────────────────────── */
+
+int test_wf_pass_e_spear_tile_0x71_is_default_128_192(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x71;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 0;
+    float col, row;
+    wf_pass_e_spear_tile(slot, &col, &row);
+    T_ASSERT_NEAR_WF(col, 128.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(row, 192.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_spear_tile_0x75_is_192_0(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x75;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 7;  /* irrelevant for 0x75 */
+    float col, row;
+    wf_pass_e_spear_tile(slot, &col, &row);
+    T_ASSERT_NEAR_WF(col, 192.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(row,   0.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_spear_tile_0x72_age_anim_first_half(void)
+{
+    /* 0x72 with AGE%4 < 2 (i.e. AGE ∈ {0,1,4,5,8,9,...}) → row 128. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x72;
+    int32_t first_half[] = { 0, 1, 4, 5, 8, 100 };
+    for (size_t i = 0; i < sizeof(first_half) / sizeof(first_half[0]); i++) {
+        slot[SCENE1_RECORDS_B_OFF_AGE] = first_half[i];
+        float col, row;
+        wf_pass_e_spear_tile(slot, &col, &row);
+        if (col != 192.0f || row != 128.0f)
+            T_FAIL("AGE=%d → expected (192, 128), got (%g, %g)",
+                   first_half[i], (double)col, (double)row);
+    }
+    return 0;
+}
+
+int test_wf_pass_e_spear_tile_0x72_age_anim_second_half(void)
+{
+    /* 0x72 with AGE%4 ≥ 2 (i.e. AGE ∈ {2,3,6,7,10,11,...}) → row 192. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x72;
+    int32_t second_half[] = { 2, 3, 6, 7, 10, 99 };
+    for (size_t i = 0; i < sizeof(second_half) / sizeof(second_half[0]); i++) {
+        slot[SCENE1_RECORDS_B_OFF_AGE] = second_half[i];
+        float col, row;
+        wf_pass_e_spear_tile(slot, &col, &row);
+        if (col != 192.0f || row != 192.0f)
+            T_FAIL("AGE=%d → expected (192, 192), got (%g, %g)",
+                   second_half[i], (double)col, (double)row);
+    }
+    return 0;
+}
+
+/* ─── UV box ────────────────────────────────────────────────────────── */
+
+int test_wf_pass_e_spear_uv_box_default_0x71_origin(void)
+{
+    /* 0x71 default tile (128, 192) in 256-px atlas:
+     *   u0 = 128.5/256, u1 = 191.5/256
+     *   v0 = 192.5/256, v1 = 255.5/256.  */
+    float u0, u1, v0, v1;
+    wf_pass_e_spear_uv_box(128.0f, 192.0f, &u0, &u1, &v0, &v1);
+    T_ASSERT_NEAR_WF(u0, 128.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(u1, 191.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v0, 192.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v1, 255.5f / 256.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_e_spear_uv_box_0x75_top_row(void)
+{
+    /* 0x75 tile (192, 0): v0 should reach down to 0.5/256, v1 to 63.5/256. */
+    float u0, u1, v0, v1;
+    wf_pass_e_spear_uv_box(192.0f, 0.0f, &u0, &u1, &v0, &v1);
+    T_ASSERT_NEAR_WF(u0, 192.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(u1, 255.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v0,   0.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v1,  63.5f / 256.0f, 1e-7f);
+    return 0;
+}
+
+/* ─── world matrix ──────────────────────────────────────────────────── */
+
+int test_wf_pass_e_spear_compose_world_translation_in_row_3(void)
+{
+    /* AGE=5, LIFE_MULT=1.0, ROT_X=0, identity pre-matrix:
+     *   M = RotZ(π) × I × S(0.005) × T(10, 20, 30).
+     *
+     * Translation row stays at (10, 20, 30, 1) — scale and rotations
+     * leave row 3 = (0,0,0,1).  */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x71;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 5;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_ROT_X,     0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_X,    10.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Y,    20.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Z,    30.0f);
+
+    /* Reset Pass C's pre-matrix to identity (shared stand-in). */
+    float identity[16] = {
+        1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1
+    };
+    wf_pass_c_set_pre_matrix(identity);
+
+    float world[16];
+    wf_pass_e_spear_compose_world(world, slot);
+
+    T_ASSERT_NEAR_WF(world[12], 10.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[13], 20.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[14], 30.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[15],  1.0f, 1e-6f);
+    return 0;
+}
+
+int test_wf_pass_e_spear_compose_world_rot_x_pi_cancels_rot_z(void)
+{
+    /* slot[ROT_X]=π → RotZ(π - π) = RotZ(0) = identity.  With identity
+     * pre-matrix: M = I × I × S × T = S × T.  Pure scale on diagonals. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x71;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 5;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_ROT_X,     3.1415927f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_X,     0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Y,     0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Z,     0.0f);
+
+    float identity[16] = {
+        1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1
+    };
+    wf_pass_c_set_pre_matrix(identity);
+
+    float world[16];
+    wf_pass_e_spear_compose_world(world, slot);
+
+    /* Diagonals are pure 0.005 (scale only). */
+    T_ASSERT_NEAR_WF(world[0],  0.005f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[5],  0.005f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[10], 0.005f, 1e-5f);
+    return 0;
+}
+
+int test_wf_pass_e_spear_compose_world_uses_pre_matrix(void)
+{
+    /* Confirm the pre-matrix slot is consumed: a non-identity pre-matrix
+     * (a 2× uniform scale) should multiply through the scale chain.
+     * Final scale at diagonal[0,5,10] = 2 × 0.005 = 0.01.  Reset back to
+     * identity afterwards so subsequent tests aren't polluted. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x71;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 5;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_ROT_X,     3.1415927f);
+
+    float pre[16] = {
+        2, 0, 0, 0,  0, 2, 0, 0,  0, 0, 2, 0,  0, 0, 0, 1
+    };
+    wf_pass_c_set_pre_matrix(pre);
+
+    float world[16];
+    wf_pass_e_spear_compose_world(world, slot);
+
+    T_ASSERT_NEAR_WF(world[0],  0.01f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[5],  0.01f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[10], 0.01f, 1e-5f);
+
+    float identity[16] = {
+        1, 0, 0, 0,  0, 1, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1
+    };
+    wf_pass_c_set_pre_matrix(identity);
+    return 0;
+}

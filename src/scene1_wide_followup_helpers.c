@@ -341,3 +341,146 @@ void wf_pass_b_compose_world(float out[16], const int32_t *slot)
     mat4_rotation_y(scratch, 1.5707964f /* 0x3fc90fdb = π/2 */);
     mat4_mul(out, scratch, out);
 }
+
+/* ═══ Pass E spear group (C8f.pass-e-spear) ═══════════════════════════════
+ *
+ * Engine FUN_004161c7 L293-L350.  Walks g_scene1_records_b (stride 0x49 —
+ * engine's DAT_069324b0 is just the slot-base alias; Pass A's DAT_06932548
+ * was the slot+AGE bias, Pass B's DAT_06932514 was the slot+POS_Z bias —
+ * all three name the same record memory).  Engine's `piVar11` is biased to
+ * the slot base, so field accesses are at slot offsets directly:
+ *
+ *   piVar11[0]      = slot[TYPE]      (filter source)
+ *   piVar11[0x17]   = slot[POS_X]     (= 23)
+ *   piVar11[0x18]   = slot[POS_Y]     (= 24)
+ *   piVar11[0x19]   = slot[POS_Z]     (= 25)
+ *   piVar11[0x24]   = slot[ROT_X]     (= 36; engine line `π - ROT_X`)
+ *   piVar11[0x26]   = slot[AGE]       (= 38; ramp-in + 0x72 row-AGE quirk)
+ *   piVar11[0x42]   = slot[LIFE_MULT] (= 66; scale source)
+ *
+ * The spear group {0x71, 0x72, 0x75} is the simpler half of Pass E; the
+ * fan group {0x73, 0x7e, 0x78, 0xa0, 0x7a} is deferred until the
+ * FUN_00415f2e camera-billboard helper survey lands.  Both groups share
+ * texture DAT_073cc940 = bmp/effect_shot.bmp (256×256) and vbuf
+ * DAT_0064bf68 (the same g_wf_pass_abe_vbuf shared with Passes A/B).  */
+
+/* Pass E spear filter: cardinal-int type ∈ {0x71, 0x72, 0x75}.  Engine
+ * does `iVar10 = *piVar11; if (iVar10 != 0)` upfront, then the spear
+ * dispatch.  Our caller does the per-slot iteration so this just answers
+ * "is this slot one of the spear types?". */
+int wf_pass_e_spear_should_emit(const int32_t *slot)
+{
+    int32_t type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    return (type == 0x71 || type == 0x72 || type == 0x75);
+}
+
+/* Pass E spear per-record scale.  Engine L300-308:
+ *
+ *   local_8 = piVar11[0x42] * 0.005;        // slot[LIFE_MULT] * 0.005
+ *   local_1c = piVar11[0x26];                // slot[AGE]
+ *   if ((int)local_1c < 5) {
+ *     local_1c = (float)(int)local_1c;
+ *     local_8  = (local_1c * local_8) / 5.0; // ramp-in over 5 frames
+ *   }
+ *   if (iVar10 == 0x72) local_8 = local_8 * 0.8;
+ *
+ * Same AGE<5 ramp-in as Pass A; 0x72 takes an extra 0.8 narrowing factor
+ * after the ramp (i.e. 0x72's full-size scale is 0.8 × LIFE_MULT × 0.005).
+ * LIFE_MULT defaults to 1.0 in the allocator preamble → first-frame scale
+ * is 0.0 (invisible particle), full size from AGE 5 onward. */
+float wf_pass_e_spear_per_record_scale(const int32_t *slot)
+{
+    float life_mult = *(const float *)&slot[SCENE1_RECORDS_B_OFF_LIFE_MULT];
+    int32_t age = slot[SCENE1_RECORDS_B_OFF_AGE];
+    int32_t type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    float scale = life_mult * 0.005f;
+    if (age < 5) scale = ((float)age * scale) / 5.0f;
+    if (type == 0x72) scale *= 0.8f;
+    return scale;
+}
+
+/* Pass E spear UV tile selection.  Engine L320-338:
+ *
+ *   col = 128.0;  row = 192.0;                       // default (0x71)
+ *   if (type == 0x72) {
+ *     col = 192.0;
+ *     row = (AGE % 4 < 2) ? 128.0 : 192.0;           // 2-frame anim
+ *   }
+ *   if (type == 0x75) { col = 192.0; row =   0.0; }
+ *
+ * (Engine also has a `type == 0x77` arm setting col=192, row=64, but
+ * 0x77 is filtered out at the spear gate above — dead code in the
+ * cardinal-int interpretation; preserved in comments only.)
+ *
+ * Each tile is 64×64 in the 256×256 atlas.  See wf_pass_e_spear_uv_box
+ * for the 0.5-texel inset. */
+void wf_pass_e_spear_tile(const int32_t *slot, float *out_col, float *out_row)
+{
+    int32_t type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    int32_t age  = slot[SCENE1_RECORDS_B_OFF_AGE];
+    float col = 128.0f, row = 192.0f;  /* 0x71 default */
+    if (type == 0x72) {
+        col = 192.0f;
+        row = ((age % 4) < 2) ? 128.0f : 192.0f;
+    }
+    if (type == 0x75) {
+        col = 192.0f;
+        row =   0.0f;
+    }
+    *out_col = col;
+    *out_row = row;
+}
+
+/* Pass E spear UV box for a (col, row) origin in the 256×256 atlas.
+ * Engine L339-346:
+ *
+ *   u0 = (col +  0.5) / 256.0    v0 = (row +  0.5) / 256.0
+ *   u1 = (col + 63.5) / 256.0    v1 = (row + 63.5) / 256.0
+ *
+ * 0.5-texel inset on both axes (symmetric — Pass C's 63.0 v1 asymmetry
+ * does NOT carry over to Pass E).  64-px tile in a 256-px atlas. */
+void wf_pass_e_spear_uv_box(float col, float row,
+                            float *out_u0, float *out_u1,
+                            float *out_v0, float *out_v1)
+{
+    *out_u0 = (col +  0.5f) / 256.0f;
+    *out_u1 = (col + 63.5f) / 256.0f;
+    *out_v0 = (row +  0.5f) / 256.0f;
+    *out_v1 = (row + 63.5f) / 256.0f;
+}
+
+/* Pass E spear world matrix.  Engine L309-314:
+ *
+ *   Translation(M, POS_X, POS_Y, POS_Z);                // local_5c = T
+ *   Scaling(S, scale, scale, scale);                    // local_15c = S
+ *   M = S * M;                                          // M = S*T
+ *   M = DAT_0438cdf8 * M;                               // M = pre*S*T
+ *   RotationZ(RZ, π - ROT_X);                           // local_19c = RotZ
+ *   M = RZ * M;                                         // M = RZ*pre*S*T
+ *
+ * thunk_FUN_004a3670 is RotZ per math3d.h's canonical mapping (same
+ * thunk Pass A's per-record yaw uses).  The DAT_0438cdf8 pre-matrix has
+ * no visible writer in the decompile — shared with Pass C (PHC #16).
+ * Reuses Pass C's pre-matrix storage via wf_pass_c_get_pre_matrix() so
+ * the engine global is modeled as a single stand-in; when the writer
+ * ports, both passes pick up the live value with no extra wiring.  */
+void wf_pass_e_spear_compose_world(float out[16], const int32_t *slot)
+{
+    float pos_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_X];
+    float pos_y = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Y];
+    float pos_z = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Z];
+    float rot_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_ROT_X];
+    float scale = wf_pass_e_spear_per_record_scale(slot);
+
+    float scratch[16];
+
+    mat4_translation(out, pos_x, pos_y, pos_z);
+
+    mat4_scaling(scratch, scale, scale, scale);
+    mat4_mul(out, scratch, out);
+
+    mat4_mul(out, wf_pass_c_get_pre_matrix(), out);
+
+    mat4_rotation_z(scratch, 3.1415927f - rot_x);
+    mat4_mul(out, scratch, out);
+}

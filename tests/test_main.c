@@ -1391,6 +1391,25 @@ struct test_case {
     X(wf_pass_b_scale_ignores_age) \
     X(wf_pass_b_compose_world_translation_in_row_3) \
     X(wf_pass_b_compose_world_roty_pi_over_2) \
+    X(wf_pass_e_spear_should_emit_rejects_sentinel) \
+    X(wf_pass_e_spear_should_emit_accepts_spear_types) \
+    X(wf_pass_e_spear_should_emit_rejects_fan_types) \
+    X(wf_pass_e_spear_should_emit_rejects_pass_ab_types) \
+    X(wf_pass_e_spear_scale_0x71_full_at_age_5) \
+    X(wf_pass_e_spear_scale_0x72_narrows_by_0_point_8) \
+    X(wf_pass_e_spear_scale_0x75_no_narrowing) \
+    X(wf_pass_e_spear_scale_ramps_in_over_5_frames) \
+    X(wf_pass_e_spear_scale_0x72_ramps_then_narrows) \
+    X(wf_pass_e_spear_scale_uses_life_mult) \
+    X(wf_pass_e_spear_tile_0x71_is_default_128_192) \
+    X(wf_pass_e_spear_tile_0x75_is_192_0) \
+    X(wf_pass_e_spear_tile_0x72_age_anim_first_half) \
+    X(wf_pass_e_spear_tile_0x72_age_anim_second_half) \
+    X(wf_pass_e_spear_uv_box_default_0x71_origin) \
+    X(wf_pass_e_spear_uv_box_0x75_top_row) \
+    X(wf_pass_e_spear_compose_world_translation_in_row_3) \
+    X(wf_pass_e_spear_compose_world_rot_x_pi_cancels_rot_z) \
+    X(wf_pass_e_spear_compose_world_uses_pre_matrix) \
     \
     X(records_c_tick_empty_table_is_noop) \
     X(records_c_tick_sentinel_slots_skipped) \

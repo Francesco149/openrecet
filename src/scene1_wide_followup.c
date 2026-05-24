@@ -411,47 +411,73 @@ static void wf_pass_d(IDirect3DDevice8 *dev)
 /* Pass E — DAT_069324b0 table, stride 0x49.  Two type groups:
  *   {0x71, 0x72, 0x75}            — "spear" (cardinal-int compare)
  *   {0x73, 0x7e, 0x78, 0xa0, 0x7a} — "fan"
- * Shared texture: DAT_073cc940 (bound at L289-292 before this loop).
- * vbuf: DAT_0064bf68 (shared with A/B).  Most-complex pass — full
- * port deferred. */
+ * Shared texture: DAT_073cc940 = bmp/effect_shot.bmp 256×256 (bound at
+ * L289-292 before this loop) via g_sysassets.effect_shot_bmp.tex.
+ * vbuf: g_wf_pass_abe_vbuf (shared with A/B; mirrors engine DAT_0064bf68).
+ *
+ * This chip (C8f.pass-e-spear) wires the spear half only.  The fan group
+ * is deferred to its own chip — needs the FUN_00415f2e (125 B camera-
+ * billboard matrix helper) survey + port first; its 5 types fall through
+ * silently here for now.  Engine FUN_004161c7 L293-L416. */
 static void wf_pass_e(IDirect3DDevice8 *dev)
 {
     int count = wf_pass_abe_count();
     if (count == 0) return;
-    /* TODO C8f-followup: walk DAT_069324b0 stride 0x49 dwords;
-     * dispatch on cardinal int type:
-     *
-     *   Spear group {0x71, 0x72, 0x75}:
-     *     scale = r[0x42] * 0.005 (clamped by r[0x26] < 5 as in Pass A)
-     *     type==0x72 → scale *= 0.8
-     *     M = T(r[0x17..0x19]) × S × DAT_0438cdf8 × RotY(π - r[0x24])
-     *     atlas tile: per-type column/row constants:
-     *       0x71: col=128, row=192    (default)
-     *       0x72: col=192, row depends on (r[0x26] % 4 < 2): 128 or 192
-     *       0x75: col=192, row=0
-     *       0x77: col=192, row=64     (NB: 0x77 not in this group!)
-     *     atlas UVs (col + 0.5)/256 / (col + 63.5)/256 etc.
-     *
-     *   Fan group {0x73, 0x7e, 0x78, 0xa0, 0x7a}, gated on
-     *     r[0x26] >= 0:
-     *     scale = r[0x42] * 0.004
-     *     M = FUN_00415f2e(r, ...)  (camera-billboard helper, unported)
-     *     M × RotZ(π/2)
-     *     per-type S:
-     *       0x78, 0xa0: S(s, 2s, 2s)
-     *       0x7a:       S(1.2s, 2*1.2s, 2*1.2s)
-     *       else:       S(s, s, s)
-     *     UVs:
-     *       0x7e: 5-frame anim tile based on (local_18 % 5)
-     *       0x78/0xa0/0x7a: fixed tile 96.5/127.5/128.5/159.5
-     *       else: fixed tile 96.5/127.5/160.5/175.5
-     *
-     *   All other types fall through (goto LAB_00417271).
-     *
-     * The fan group's FUN_00415f2e is a sibling unport — likely the
-     * camera-aligned-billboard matrix helper.  Defer to its own chip. */
-    (void)dev;
-    (void)count;
+
+    for (int slot_idx = 0; slot_idx < count; slot_idx++) {
+        const int32_t *slot =
+            &g_scene1_records_b[slot_idx * SCENE1_RECORDS_B_STRIDE];
+
+        /* Engine L297-298: `iVar10 = *piVar11; if (iVar10 != 0)` —
+         * inactive-slot fast skip before the type dispatch. */
+        if (slot[SCENE1_RECORDS_B_OFF_TYPE] == 0) continue;
+
+        /* Spear arm only this chip.  Fan group falls through to the
+         * implicit `goto LAB_00417271` (continue).  Engine texture bind
+         * for Pass E (DAT_073cc940) happens once at L289-292 above this
+         * loop in the engine — we mirror that via the same g_tex_cache_
+         * last guard inside the body so the binding is exercised when
+         * the spear arm actually fires.  Engine binds it unconditionally
+         * before the loop; we keep it adjacent to the draw it serves to
+         * avoid touching the device when no spear slots exist. */
+        if (!wf_pass_e_spear_should_emit(slot)) continue;
+
+        /* Bind texture (engine L289-292 cache guard, hoisted in-loop). */
+        IDirect3DTexture8 *tex = g_sysassets.effect_shot_bmp.tex;
+        if (g_tex_cache_last != (uintptr_t)tex) {
+            g_tex_cache_last = (uintptr_t)tex;
+            IDirect3DDevice8_SetTexture(dev, 0,
+                                        (IDirect3DBaseTexture8 *)tex);
+        }
+
+        /* World matrix: RotZ(π - rotX) × DAT_0438cdf8 × S × T. */
+        float world[16];
+        wf_pass_e_spear_compose_world(world, slot);
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                      (const D3DMATRIX *)world);
+
+        /* Per-slot vbuf writes (engine L315-348): diffuse 0xffffffff on
+         * all 4 verts; UV box per (col, row) tile origin. */
+        float col, row;
+        wf_pass_e_spear_tile(slot, &col, &row);
+        float u0, u1, v0, v1;
+        wf_pass_e_spear_uv_box(col, row, &u0, &u1, &v0, &v1);
+
+        g_wf_pass_abe_vbuf[0].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[1].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[2].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[3].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[0].u = u0; g_wf_pass_abe_vbuf[0].v = v0;  /* TL */
+        g_wf_pass_abe_vbuf[1].u = u0; g_wf_pass_abe_vbuf[1].v = v1;  /* BL */
+        g_wf_pass_abe_vbuf[2].u = u1; g_wf_pass_abe_vbuf[2].v = v0;  /* TR */
+        g_wf_pass_abe_vbuf[3].u = u1; g_wf_pass_abe_vbuf[3].v = v1;  /* BR */
+
+        IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                         D3DPT_TRIANGLESTRIP,
+                                         2,
+                                         g_wf_pass_abe_vbuf,
+                                         sizeof(wf_pass_abe_vertex));
+    }
 }
 
 /* ─── public entry ─────────────────────────────────────────────────── */
