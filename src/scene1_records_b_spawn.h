@@ -102,6 +102,48 @@
  * owner+0x6fc alt-field-source family (0x33/0x36/0x38).  These have
  * the larger shared-body shape that's worth its own chip.
  *
+ * Chip C8j.12 (2026-05-24) — owner+0x420 family of NPC single-spawn
+ * types.  15 new bodies covering 15 types (16 listed; 0x36 deferred to
+ * C8j.13 since it shares a body with 0x2e which isn't in this chip):
+ *
+ *   0x33 — alt-pos from owner+0x6fc/700/704; vel.y = -0.01 * POS_Y;
+ *          vel.{x,z} = sin/cos(owner+0x420)*0.8; LIFE_MULT=0.7.
+ *   0x27 — pos = sin/cos(420)*2.5 + owner + +8y; vel.y=-0.05; DRAG=0.
+ *   0x2b — RNG amp ∈ [0.1, 0.1125) × 1.5 when owner+0x424==0x45;
+ *          positive vel.y lift; LIFE_MULT=0.2; DRAG=0.
+ *   0x26 / 0x2a (shared) — pos via ang*2.5 + per-type +y (4.8/3.5);
+ *          per-type vel.y formula (0x26: -u*amp; 0x2a: u*amp2*0.5).
+ *   0x31 / 0x32 (shared) — RNG amp; 0x32 *= 0.5; per-type vel.y;
+ *          LIFE_MULT=2.0; DRAG=0.
+ *   0x25 — pos + +8.8y; positive vel.y; LIFE_MULT=2.0; DRAG=0.
+ *   0x3b — vel = sin/cos(420)*0.6 (vel.y=0); DRAG=0.
+ *   0x28 — vel = sin/cos(420)*0.3; vel.y=0.13; pos = 2*VEL + owner +
+ *          +0.8y on Y; LIFE_MULT=0.5; DRAG=20; ROT_SCR=atan2 const.
+ *   0x38 — vel = sin/cos(420)*0.5; pos from owner+0x6fc (alt source);
+ *          LIFE_MULT=3.8; DRAG=3.0; ROT_SCR=atan2 const.
+ *   0x21 — random ±π/10 bias around owner+0x420; small amp; vel.y=0.02;
+ *          pos at owner.pos + +1.8y; DRAG=20.
+ *   0x6b — NPC-bend (owner+0x18, NOT 0x420); RNG amp ∈ [4,8) pos
+ *          jitter; ROT_SCR=atan2 const; DRAG=0.
+ *   0x6c — NPC-bend; vel = sin/cos(bend)*0.2; pos = 3*VEL + owner +
+ *          +1.5y; ROT_SCR=atan2 const; DRAG=1.0.
+ *   0x1f — NPC-bend; 5-way amp switch on owner+0x424; 2-way pos branch
+ *          (0x24/0x23 → pos=sin/cos*1.5; else pos=VEL*3); DRAG=20;
+ *          AUX_C8=1.
+ *
+ * Dead writes skipped: 0x27 / 0x26 / 0x2a / 0x25 each have an early
+ * `POS_Y += 2.0` that the body immediately overwrites; 0x28 writes
+ * DRAG=2.0 then 20.0.  Engine end-state matches the port either way.
+ *
+ * Argless cos sites (PHC #7) verified by raw asm: every paired
+ * sin/cos(owner+0x420) in this group reloads `[ebp-0x1c]` for the
+ * cos.  No Frida required.
+ *
+ * atan2(0.1, 0.5) constant pre-folded — see B_ATAN2_0P1_0P5 in the
+ * .c.  Raw asm at 0x4465e3/0x44668b/0x446750/0x446827/0x4469af
+ * confirms ds:0x519c80 (=0.1, first arg=y) + ds:0x519318 (=0.5,
+ * second arg=x).  Used by 0x28/0x38/0x21/0x6b/0x6c/0x1f.
+ *
  * Argless cos sites verified via raw-asm spot-check in the
  * 0x444500-0x444800 range — all reload either `[ebp-0x2c]` (the dVar4
  * angle stash, paired with prior sin call) or `[esi+0xea4]` (the owner
@@ -288,7 +330,14 @@ extern "C" {
      (t) == 0x24 || (t) == 0xa  || (t) == 0xb  ||                        \
      (t) == 0x14 || (t) == 0x13 || (t) == 0x99 ||                        \
      (t) == 0x1e || (t) == 0x88 || (t) == 0x89 ||                        \
-     (t) == 0x9a || (t) == 0x9e)
+     (t) == 0x9a || (t) == 0x9e ||                                       \
+     /* C8j.12 — owner+0x420 family of NPC single-spawn types.        */ \
+     (t) == 0x33 || (t) == 0x27 || (t) == 0x2b ||                        \
+     (t) == 0x26 || (t) == 0x2a ||                                       \
+     (t) == 0x31 || (t) == 0x32 ||                                       \
+     (t) == 0x25 || (t) == 0x3b ||                                       \
+     (t) == 0x28 || (t) == 0x38 || (t) == 0x21 ||                        \
+     (t) == 0x6b || (t) == 0x6c || (t) == 0x1f)
 
 /* Engine DAT_06a46fb8 — monotonically incremented per slot claim by
  * either allocator.  Snapshot + post-increment pattern means the first

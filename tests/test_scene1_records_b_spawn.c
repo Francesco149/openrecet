@@ -1113,8 +1113,10 @@ int test_records_b_spawn_npc_cluster_b_implemented_macro(void)
     T_ASSERT(SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x53));
     T_ASSERT(SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x51));
     T_ASSERT(SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x68));
-    /* Other types remain unimplemented. */
-    T_ASSERT(!SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x33));
+    /* Other types remain unimplemented (0x36 deferred to C8j.13 since
+     * its shared body with 0x2e isn't fully covered here; 0x84 is the
+     * atan2 player-aim from C8j.11). */
+    T_ASSERT(!SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x36));
     T_ASSERT(!SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x84));
     return 0;
 }
@@ -2295,5 +2297,347 @@ int test_records_b_spawn_entity_68_selector_out_of_range_falls_back(void)
 
     /* Fallback → ALT.y = owner.y = 20. */
     T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 20.0f));
+    return 0;
+}
+
+/* ─── C8j.12 — owner+0x420 family of NPC single-spawn types ─────── */
+
+/* Seed for the owner+0x420 family: pos at owner+0x3f0/3f4/3f8 =
+ * (100, 200, 300); angle owner+0x420 = ang; NPC bend owner+0x18 =
+ * bend_idx; owner+0x424 sub-state. */
+static void seed_owner_b_420_family(int bend_idx, float ang, int sub_424)
+{
+    owner_write_f(g_owner_b, 0x3f0, 100.0f);
+    owner_write_f(g_owner_b, 0x3f4, 200.0f);
+    owner_write_f(g_owner_b, 0x3f8, 300.0f);
+    owner_write_f(g_owner_b, 0x420, ang);
+    owner_write_i(g_owner_b, 0x18,  bend_idx);
+    owner_write_i(g_owner_b, 0x424, sub_424);
+    /* Alt source fields used by 0x33 / 0x38. */
+    owner_write_f(g_owner_b, 0x6fc,  7.0f);
+    owner_write_f(g_owner_b, 0x700, 11.0f);
+    owner_write_f(g_owner_b, 0x704, 13.0f);
+}
+
+int test_records_b_spawn_npc_33_alt_pos_and_vel_from_pos_y(void)
+{
+    /* ang = π/2 → sin=1, cos≈0.
+     *   POS_X/Y/Z = owner+0x6fc/700/704 = (7, 11, 13)
+     *   VEL_X     = 1 * 0.8 = 0.8
+     *   VEL_Y     = -0.01 * 11.0 = -0.11
+     *   VEL_Z     = 0
+     *   LIFE_MULT = 0.7 */
+    reset_world();
+    seed_owner_b_420_family(0, 1.5707963f, 0);
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0x33, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x33);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X),  7.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 11.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z), 13.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X),  0.8f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), -0.11f));
+    T_ASSERT(fabsf(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z)) < 1e-4f);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 0.7f));
+    /* cap = 1 */
+    T_ASSERT_EQ_I(slot_i(1, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_spawn_npc_27_lifts_pos_y_to_plus8(void)
+{
+    /* ang = 0 → sin=0, cos=1.
+     *   POS_X = 100, POS_Y = 200 + 8 = 208, POS_Z = 302.5
+     *   VEL_X = 0, VEL_Y = -0.05, VEL_Z = 0.5; DRAG = 0. */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0x27, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x27);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 100.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 208.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z), 302.5f));
+    T_ASSERT(fabsf(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X)) < 1e-4f);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), -0.05f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z),  0.5f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG),   0.0f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_2b_amp_multiplier_on_owner_424(void)
+{
+    /* RNG amp ∈ [0.1, 0.1125); with owner+0x424 == 0x45 → ×1.5.
+     * Verify by running with same RNG seed twice and comparing. */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    rng_seed(7);
+    scene1_record_b_spawn_npc(g_owner_b, 0x2b, 0);
+    float vx_base = slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X);
+    float vz_base = slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z);
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x2b);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 0.2f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 0.0f));
+    float vy = slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y);
+    T_ASSERT(vy >= 0.2f && vy < 1.0f);
+
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0x45);
+    rng_seed(7);
+    scene1_record_b_spawn_npc(g_owner_b, 0x2b, 0);
+    float vx_boost = slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X);
+    float vz_boost = slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z);
+    T_ASSERT(APPROX(vx_boost, vx_base * 1.5f));
+    T_ASSERT(APPROX(vz_boost, vz_base * 1.5f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_26_2a_lift_distinguished(void)
+{
+    /* 0x26: POS_Y = 200 + 4.8 = 204.8, vel.y ≤ 0 (= -u*amp).
+     * 0x2a: POS_Y = 200 + 3.5 = 203.5. */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0x26, 0);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 204.8f));
+    T_ASSERT(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) <= 0.0f);
+
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0x2a, 0);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 203.5f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_31_32_amp_scaling(void)
+{
+    /* 0x32's amp = 0.5 * 0x31's amp.  Same RNG seed → identical amp
+     * draw → vel.x for 0x32 = 0.5 * vel.x for 0x31. */
+    reset_world();
+    seed_owner_b_420_family(0, 1.5707963f, 0);   /* sin=1 */
+    rng_seed(11);
+    scene1_record_b_spawn_npc(g_owner_b, 0x31, 0);
+    float vx_31 = slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 2.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 0.0f));
+
+    reset_world();
+    seed_owner_b_420_family(0, 1.5707963f, 0);
+    rng_seed(11);
+    scene1_record_b_spawn_npc(g_owner_b, 0x32, 0);
+    float vx_32 = slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X);
+
+    T_ASSERT(APPROX(vx_32, vx_31 * 0.5f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_25_lifts_pos_y_to_plus_8p8(void)
+{
+    /* ang = π/2 → sin=1, cos≈0.
+     *   POS_X = 102.5, POS_Y = 208.8, POS_Z ≈ 300.
+     *   LIFE_MULT = 2.0; DRAG = 0. */
+    reset_world();
+    seed_owner_b_420_family(0, 1.5707963f, 0);
+    rng_seed(3);
+    scene1_record_b_spawn_npc(g_owner_b, 0x25, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x25);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 102.5f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 208.8f));
+    T_ASSERT(fabsf(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 300.0f) < 1e-3f);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 2.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 0.0f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_3b_simple_vel_no_pos_writes(void)
+{
+    /* ang = π/2.  VEL_X = 0.6, VEL_Y = 0, VEL_Z ≈ 0; POS unchanged
+     * from preamble (= owner.pos); DRAG = 0. */
+    reset_world();
+    seed_owner_b_420_family(0, 1.5707963f, 0);
+    scene1_record_b_spawn_npc(g_owner_b, 0x3b, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x3b);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X), 0.6f));
+    T_ASSERT(fabsf(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y)) < 1e-4f);
+    T_ASSERT(fabsf(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z)) < 1e-4f);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 100.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 200.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z), 300.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 0.0f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_28_atan2_and_pos_doubled_vel(void)
+{
+    /* ang = π/2 → vel = (0.3, 0.13, 0).
+     *   POS_X = 2*0.3 + 100 = 100.6
+     *   POS_Y = 2*0.13 + 200 + 0.8 = 201.06
+     *   POS_Z = 300
+     *   LIFE_MULT = 0.5; DRAG = 20.0 (final).
+     *   ROT_SCR = atan2(0.1, 0.5) ≈ 0.19739556; ROT_X = π/2. */
+    reset_world();
+    seed_owner_b_420_family(0, 1.5707963f, 0);
+    scene1_record_b_spawn_npc(g_owner_b, 0x28, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x28);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X), 0.3f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), 0.13f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 100.6f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 201.06f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 0.5f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 20.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR),
+                    0.19739556f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_X), 1.5707963f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_38_pos_from_alt_source(void)
+{
+    /* ang = 0 → cos=1.
+     *   POS = (7, 11, 13) from owner+0x6fc/700/704 — NOT owner.xyz.
+     *   VEL_Z = 0.5; LIFE_MULT = 3.8; DRAG = 3.0. */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    scene1_record_b_spawn_npc(g_owner_b, 0x38, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x38);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X),  7.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 11.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z), 13.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z),  0.5f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 3.8f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 3.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR),
+                    0.19739556f));
+    T_ASSERT(fabsf(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_X)) < 1e-4f);
+    return 0;
+}
+
+int test_records_b_spawn_npc_21_invariant_pos_and_vel_y(void)
+{
+    /* RNG-dependent body — assert RNG-independent invariants only:
+     * pos at owner.pos + +1.8y; vel.y = 0.02; DRAG = 20. */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    rng_seed(13);
+    scene1_record_b_spawn_npc(g_owner_b, 0x21, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x21);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 100.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 201.8f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z), 300.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), 0.02f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 20.0f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_6b_npc_bend_amp_jitter(void)
+{
+    /* bend_idx = 2 → bend = π/2 → sin=1, cos≈0.
+     * RNG amp ∈ [4, 8) → POS_X = 1*amp + 100, POS_Z ≈ 300.
+     * POS_Y = 200 + 0.2 = 200.2 (RNG-independent).
+     * ROT_SCR = atan2(0.1, 0.5); ROT_X = bend; DRAG = 0. */
+    reset_world();
+    seed_owner_b_420_family(2, 0.0f, 0);
+    rng_seed(17);
+    scene1_record_b_spawn_npc(g_owner_b, 0x6b, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x6b);
+    float pos_x = slot_f(0, SCENE1_RECORDS_B_OFF_POS_X);
+    T_ASSERT(pos_x >= 104.0f && pos_x < 108.0f);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 200.2f));
+    T_ASSERT(fabsf(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 300.0f) < 1e-3f);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR),
+                    0.19739556f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_X), 1.5707963f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 0.0f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_6c_pos_from_vel_times_3(void)
+{
+    /* bend_idx = 2 → bend = π/2.
+     *   VEL_X = 0.2; POS_X = 0.6 + 100 = 100.6.
+     *   POS_Y = 0 + 200 + 1.5 = 201.5.
+     *   DRAG = 1.0; ROT_SCR = atan2. */
+    reset_world();
+    seed_owner_b_420_family(2, 0.0f, 0);
+    scene1_record_b_spawn_npc(g_owner_b, 0x6c, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x6c);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X), 0.2f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 100.6f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 201.5f));
+    T_ASSERT(fabsf(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 300.0f) < 1e-3f);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 1.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR),
+                    0.19739556f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_1f_amp_switch_on_owner_424(void)
+{
+    /* bend_idx = 2 → bend = π/2 → sin=1, cos≈0.
+     * Per-sub amp: 7 → 0.12, 8 → 0.14, 9 → 0.16,
+     *              0x24 → 0.15, 0x23 → 0.2, else → 0.1.
+     * VEL_X = sin(bend) * amp = amp.
+     * For sub == 0x24 / 0x23: pos = sin/cos(bend)*1.5 + owner.
+     * For other sub:          pos = VEL*3 + owner (POS_X = amp*3 + 100). */
+    struct { int sub; float amp; int use_pos_15; } cases[] = {
+        { 0,     0.1f,  0 },
+        { 7,     0.12f, 0 },
+        { 8,     0.14f, 0 },
+        { 9,     0.16f, 0 },
+        { 0x24,  0.15f, 1 },
+        { 0x23,  0.2f,  1 },
+    };
+    for (int k = 0; k < 6; k++) {
+        reset_world();
+        seed_owner_b_420_family(2, 0.0f, cases[k].sub);
+        rng_seed(1);
+        scene1_record_b_spawn_npc(g_owner_b, 0x1f, 0);
+
+        T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x1f);
+        T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X),
+                        cases[k].amp));
+        T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), 0.0f));
+
+        if (cases[k].use_pos_15) {
+            T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X),
+                            101.5f));
+        } else {
+            float expected = cases[k].amp * 3.0f + 100.0f;
+            T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X),
+                            expected));
+        }
+        T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 201.5f));
+        T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG), 20.0f));
+        T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_AUX_C8), 1);
+        T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR),
+                        0.19739556f));
+        T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ROT_X),
+                        1.5707963f));
+    }
+    return 0;
+}
+
+int test_records_b_spawn_npc_c8j12_implemented_macro(void)
+{
+    int types[15] = {
+        0x33, 0x27, 0x2b, 0x26, 0x2a, 0x31, 0x32, 0x25, 0x3b,
+        0x28, 0x38, 0x21, 0x6b, 0x6c, 0x1f,
+    };
+    for (int k = 0; k < 15; k++) {
+        T_ASSERT(SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(types[k]));
+    }
+    /* 0x36 + 0x2e remain deferred to C8j.13 (shared body). */
+    T_ASSERT(!SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x36));
+    T_ASSERT(!SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x2e));
     return 0;
 }

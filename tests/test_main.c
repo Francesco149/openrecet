@@ -1483,7 +1483,21 @@ struct test_case {
     X(records_b_spawn_entity_68_distance_gate_blocks) \
     X(records_b_spawn_entity_68_distance_is_horizontal_only) \
     X(records_b_spawn_entity_68_selector_picks_nth_match) \
-    X(records_b_spawn_entity_68_selector_out_of_range_falls_back)
+    X(records_b_spawn_entity_68_selector_out_of_range_falls_back) \
+    X(records_b_spawn_npc_33_alt_pos_and_vel_from_pos_y) \
+    X(records_b_spawn_npc_27_lifts_pos_y_to_plus8) \
+    X(records_b_spawn_npc_2b_amp_multiplier_on_owner_424) \
+    X(records_b_spawn_npc_26_2a_lift_distinguished) \
+    X(records_b_spawn_npc_31_32_amp_scaling) \
+    X(records_b_spawn_npc_25_lifts_pos_y_to_plus_8p8) \
+    X(records_b_spawn_npc_3b_simple_vel_no_pos_writes) \
+    X(records_b_spawn_npc_28_atan2_and_pos_doubled_vel) \
+    X(records_b_spawn_npc_38_pos_from_alt_source) \
+    X(records_b_spawn_npc_21_invariant_pos_and_vel_y) \
+    X(records_b_spawn_npc_6b_npc_bend_amp_jitter) \
+    X(records_b_spawn_npc_6c_pos_from_vel_times_3) \
+    X(records_b_spawn_npc_1f_amp_switch_on_owner_424) \
+    X(records_b_spawn_npc_c8j12_implemented_macro)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
