@@ -9,6 +9,7 @@
 
 #include <string.h>
 
+#include "scene1_overlay.h"
 #include "scene1_per_frame_open.h"
 #include "scene1_records.h"
 
@@ -305,6 +306,45 @@ int test_pfo_parent_init_is_idempotent(void)
     if (memcmp(snap, g_scene1_pfo_parent_table, sizeof snap) != 0) {
         T_FAIL("second init produced different state from first");
     }
+    return 0;
+}
+
+/* ===== PFO.2.1 — overlay slot sentinel-init wired into records_reset ===== */
+
+int test_scene1_records_reset_sentinel_inits_overlay_slots(void)
+{
+    /* Engine FUN_00414902's FIRST loop sentinel-inits the 4096 overlay
+     * slots' ACTIVE field to -1.  scene1_records_reset must wire the
+     * Table B (overlay) half alongside the Table A half (PFO.1).
+     * Wipe overlay slots first; if the reset doesn't call
+     * scene1_overlay_reset, every slot's ACTIVE stays at 0. */
+    memset(g_scene1_overlay_slots, 0, sizeof g_scene1_overlay_slots);
+    scene1_records_reset(/*reset_c=*/1);
+
+    /* Spot-check first, middle, and last slots. */
+    int sample[] = { 0, 1, 2047, 2048, 4094, 4095 };
+    for (size_t i = 0; i < sizeof sample / sizeof sample[0]; i++) {
+        int s = sample[i];
+        int32_t v = g_scene1_overlay_slots[s * SCENE1_OVERLAY_SLOT_STRIDE +
+                                            SCENE1_OVERLAY_OFF_ACTIVE];
+        if (v != -1) {
+            T_FAIL("overlay slot %d ACTIVE = %d, want -1", s, v);
+        }
+    }
+    return 0;
+}
+
+int test_scene1_records_reset_with_reset_c_zero_still_inits_overlay(void)
+{
+    /* The reset_c arg gates the records C reset but NOT the overlay
+     * slot reset — engine FUN_0040f64b unconditionally calls
+     * FUN_00414902 regardless of its param_1. */
+    memset(g_scene1_overlay_slots, 0, sizeof g_scene1_overlay_slots);
+    scene1_records_reset(/*reset_c=*/0);
+
+    int32_t v = g_scene1_overlay_slots[42 * SCENE1_OVERLAY_SLOT_STRIDE +
+                                        SCENE1_OVERLAY_OFF_ACTIVE];
+    T_ASSERT_EQ_I(v, -1);
     return 0;
 }
 

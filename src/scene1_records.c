@@ -8,6 +8,7 @@
 
 #include "scene1_records.h"
 
+#include "scene1_overlay.h"
 #include "scene1_per_frame_open.h"
 
 #include <string.h>
@@ -51,10 +52,24 @@ void scene1_records_reset(int reset_c)
         r[2] = i;
     }
 
-    /* PFO.1 — engine FUN_0040f64b L9183 calls FUN_00414902 right after
-     * touching the three record tables above.  Wire the Table A half
-     * here.  (Table B half = the scene1_overlay slot table; covered by
-     * scene1_overlay_reset elsewhere.) */
+    /* PFO.1 + PFO.2 prereq — engine FUN_0040f64b L9183 calls
+     * FUN_00414902 right after touching the three record tables above.
+     * FUN_00414902 has TWO sentinel-init loops:
+     *
+     *   1. Overlay slots (engine `DAT_0064e890..0072a890` stepping 0x37
+     *      dw) — sets `*piVar1 = -1` on every slot's ACTIVE field.
+     *      Ported as `scene1_overlay_reset()`.
+     *
+     *   2. Table A spawn-request queue (`DAT_00730c30..00733830`
+     *      stepping 0xb dw) — sets `*piVar1 = -1` on every slot's
+     *      SENTINEL field.  Ported as `scene1_pfo_table_a_init()`.
+     *
+     * Both halves fire on every HOUSE entry; without the overlay reset
+     * the slot table stays BSS-zero (ACTIVE=0 ≠ -1) and any consumer
+     * of the slot table (overlay dispatcher, particle integrator's
+     * Table B tick) would fire on every slot instead of skipping
+     * empty ones. */
+    scene1_overlay_reset();
     scene1_pfo_table_a_init();
 }
 

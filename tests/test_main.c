@@ -1805,7 +1805,9 @@ struct test_case {
     X(pfo_parent_init_xyz_is_zero) \
     X(pfo_parent_init_preserves_preamble) \
     X(pfo_parent_init_is_idempotent) \
-    X(pfo_parent_field_offsets_match_engine_layout)
+    X(pfo_parent_field_offsets_match_engine_layout) \
+    X(scene1_records_reset_sentinel_inits_overlay_slots) \
+    X(scene1_records_reset_with_reset_c_zero_still_inits_overlay)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
