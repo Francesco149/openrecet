@@ -365,48 +365,88 @@ static void wf_mid_block_2(IDirect3DDevice8 *dev)
 }
 
 /* Pass D — DAT_06956cd8 (same table as Pass C!), stride 0x25.
- * Type filter `*r > 6` (cardinal int > 6).  Per-record alpha fade
- * + per-record texture lookup.  vbuf: DAT_0064e5d8 (shared with C). */
+ * Type filter `*r > 6` (cardinal int > 6) — the world-pickup type range
+ * (Pass C handles {0,1,2,3} = jems/coins).  Per-record alpha fade +
+ * per-record texture lookup via the item-database resolver hook.
+ * vbuf shared with Pass C (engine DAT_0064e5d8).  Algebraic helpers
+ * live in scene1_wide_followup_helpers.c (see that TU for the engine
+ * line-number map and the .rdata constants resolved via raw asm).
+ *
+ * HOUSE dormancy: item resolver defaults to a miss-stub, so each
+ * record (when table C is populated) short-circuits before draw —
+ * walker matrices + diffuse + UV are computed but no DrawPrimitiveUP
+ * fires.  Real visible Pass D output requires the item-database port
+ * to wire wf_pass_d_set_item_resolver(). */
 static void wf_pass_d(IDirect3DDevice8 *dev)
 {
     int count = wf_pass_cd_count();
     if (count == 0) return;
-    /* TODO C8f-followup: walk DAT_06956cd8 stride 0x25 dwords;
-     * for each record with cardinal type > 6:
-     *
-     *   1. Translation(r[-10], r[-9], r[-8]).
-     *   2. If slot_index == DAT_056dae40 (pulsing-selected slot):
-     *        angle = (int)r[1] * 0.3
-     *        flash = sin(angle)              [argless cosf-like dropout]
-     *        rgb_lo = ftol(flash * SCALE)    [scale dropped in decomp]
-     *        scale = 0.026880002 (slightly larger than the normal 0.0192)
-     *      else: rgb_lo = 0, scale = 0.0192.
-     *   3. Alpha: if r[6] (cardinal-float) == 2 (= 2.8026e-45 raw):
-     *        alpha = clamp(((int)r[1] - 0x1e) * 0x20, 0, 0xff) when
-     *                (int)r[1] > 0x1e, else 0
-     *      else alpha = 0xff.
-     *   4. Per-vertex diffuse = (alpha << 24) | (rgb_lo << 16) |
-     *                           (rgb_lo << 8)  | rgb_lo.
-     *   5. Per-record texture lookup:
-     *        iVar8 = FUN_004681f6((int)*r - 7)
-     *        tex   = *(int *)(DAT_073d8778 + DAT_095d3808[iVar8 * 0xb3] * 0x10)
-     *        (bind via g_tex_cache_last guard)
-     *   6. Tile from same table entry:
-     *        tile_raw  = DAT_095d380c[iVar8 * 0xb3]
-     *        force0    = r[4] != 0 → tile_raw = 0
-     *        tex_width = DAT_073d8780[iVar8 * 0xb3 * 4]
-     *        col = tile_raw % 8
-     *        row = tile_raw / 8
-     *        u in (col*32+0.5)/256 .. (col*32+31.5)/256
-     *        v in (row*32+0.5)/tex_width .. (row*32+31)/tex_width
-     *   7. Fill vbuf + S(scale, scale, scale) × DAT_0438cdf8 chain.
-     *   8. DrawPrimitiveUP.
-     *
-     * The argless cosf/sinf-like dropout at engine L236 + the __ftol
-     * source at L238 are both Ghidra-dropped FPU args — port verbatim
-     * with placeholder constants and surface in pending-human-check. */
-    (void)dev;
-    (void)count;
+
+    for (int slot_idx = 0; slot_idx < count; slot_idx++) {
+        const int32_t *slot =
+            &g_scene1_records_c[slot_idx * SCENE1_RECORDS_C_STRIDE];
+
+        if (!wf_pass_d_should_emit(slot)) continue;
+
+        int is_selected = (slot_idx == g_wf_pass_d_selected_slot);
+
+        /* Per-record diffuse: alpha from STATE/AGE, rgb_lo from
+         * pulse (0 when not selected). */
+        int32_t age   = slot[SCENE1_RECORDS_C_OFF_AGE];
+        uint32_t rgb  = wf_pass_d_pulse_rgb(age, is_selected);
+        int      alpha = wf_pass_d_alpha(slot);
+        uint32_t diff = wf_pass_d_diffuse(rgb, alpha);
+
+        /* World matrix: T × S × pre_matrix (shared Pass C stand-in,
+         * default identity). */
+        float world[16];
+        wf_pass_d_compose_world(world, slot, is_selected);
+
+        /* Item-database resolver — miss-stub by default. */
+        wf_pass_d_item_resolved item;
+        if (!wf_pass_d_resolve_item(
+                slot[SCENE1_RECORDS_C_OFF_TYPE] - 7, &item)) continue;
+
+        /* Force tile=0 if PICKUP_E1 is set (engine L13667-13669):
+         *
+         *   if (slot[PICKUP_E1] != 0) tile_raw = 0;
+         *
+         * PICKUP_E1 is the "extra1" field set by the spawner
+         * (slot[14]); when non-zero, the engine forces a generic
+         * tile-0 placeholder. */
+        int tile_raw = item.tile_raw;
+        if (slot[SCENE1_RECORDS_C_OFF_PICKUP_E1] != 0) tile_raw = 0;
+
+        /* Bind texture via the engine's L13662-13665 cache guard. */
+        IDirect3DTexture8 *tex = (IDirect3DTexture8 *)item.tex;
+        if (g_tex_cache_last != (uintptr_t)tex) {
+            g_tex_cache_last = (uintptr_t)tex;
+            IDirect3DDevice8_SetTexture(dev, 0,
+                                        (IDirect3DBaseTexture8 *)tex);
+        }
+
+        /* SetTransform + per-vertex vbuf writes. */
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                      (const D3DMATRIX *)world);
+
+        float u0, u1, v0, v1;
+        wf_pass_d_uv_box(tile_raw, item.tex_height, &u0, &u1, &v0, &v1);
+
+        g_wf_pass_c_vbuf[0].diffuse = diff;
+        g_wf_pass_c_vbuf[1].diffuse = diff;
+        g_wf_pass_c_vbuf[2].diffuse = diff;
+        g_wf_pass_c_vbuf[3].diffuse = diff;
+        g_wf_pass_c_vbuf[0].u = u0; g_wf_pass_c_vbuf[0].v = v0;  /* TL */
+        g_wf_pass_c_vbuf[1].u = u0; g_wf_pass_c_vbuf[1].v = v1;  /* BL */
+        g_wf_pass_c_vbuf[2].u = u1; g_wf_pass_c_vbuf[2].v = v0;  /* TR */
+        g_wf_pass_c_vbuf[3].u = u1; g_wf_pass_c_vbuf[3].v = v1;  /* BR */
+
+        IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                         D3DPT_TRIANGLESTRIP,
+                                         2,
+                                         g_wf_pass_c_vbuf,
+                                         sizeof(wf_pass_c_vertex));
+    }
 }
 
 /* Pass E — DAT_069324b0 table, stride 0x49.  Two type groups:

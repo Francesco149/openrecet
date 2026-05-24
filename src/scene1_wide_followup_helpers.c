@@ -14,6 +14,7 @@
 
 #include "scene1_wide_followup.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "math3d.h"
@@ -675,3 +676,223 @@ void wf_pass_e_fan_compose_world(float out[16], const int32_t *slot,
     mat4_scaling(scratch, sx, sy, sz);
     mat4_mul(out, scratch, out);
 }
+
+/* ═══ Pass D: item-pickup billboard walker (C8f.pass-d) ═══════════════════
+ *
+ * Engine FUN_004161c7 L224-287.  Walks g_scene1_records_c (stride 0x25 —
+ * same table as Pass C!) filtered by TYPE != -1 AND TYPE > 6 (cardinal
+ * int, denormal-float comparison in decomp).  These are world pickups /
+ * item drops with TYPE > 6; Pass C handles TYPE ∈ {0,1,2,3} (jems/coins).
+ *
+ * Per-record draw involves:
+ *   1. Position-only translation (no per-record rotation).
+ *   2. Optional pulse RGB if this slot is the player-selected pickup.
+ *   3. State-driven alpha (state==2 pickup-bob fades in from age 0x1e).
+ *   4. Item-database texture/tile lookup via FUN_004681f6 stand-in.
+ *   5. Per-tile UV box (32×32 tiles on a per-item texture atlas of
+ *      width 256, custom height).
+ *
+ * The texture lookup is the only HOUSE-dormant piece by design: the item
+ * database (DAT_095d3804 at stride 0xb3 dw, parsed from data/item.txt at
+ * line 73886) is unported.  The walker exposes a resolver hook
+ * `wf_pass_d_set_item_resolver()` defaulting to a miss-stub; without a
+ * real resolver, every record skips emit — preserving byte-identical
+ * HOUSE behavior whether table C is populated or not.
+ *
+ * The Ghidra-dropped __ftol arg at engine L13640 was resolved via raw
+ * asm (`fmul ds:0x51938c ; fadd ds:0x51937c ; call 0x503954`) — the
+ * formula is `sinf(angle) * 64.0 + 96.0`, producing rgb in [32, 160].
+ * 0x5194ec = 0.3 (pre-sin angle scale, Ghidra-visible).  */
+
+/* Pass D filter: TYPE != -1 AND TYPE > 6.  Engine L231:
+ *
+ *   if ((*local_8 != -NAN) && (6 < (int)*local_8))
+ *
+ * `-NAN` is the 0xFFFFFFFF int sentinel; cardinal-int compare reads the
+ * slot directly (no denormal-float trick). */
+int wf_pass_d_should_emit(const int32_t *slot)
+{
+    int32_t type = slot[SCENE1_RECORDS_C_OFF_TYPE];
+    if (type == -1) return 0;
+    return (type > 6);
+}
+
+/* Pass D per-record scale.  Engine L232-233 + L640-642:
+ *
+ *   local_10 = 0.0192;   local_c = 0.0192;
+ *   if (local_18 == DAT_056dae40) {
+ *     ...
+ *     local_10 = 0.026880002;  local_c = 0.026880002;
+ *   }
+ *
+ * Selected-slot path swaps to a slightly larger scale (~1.4× larger,
+ * giving the highlighted pickup a subtle "puff up" feel as it pulses).
+ * Same .rdata literal as Pass C's middle bucket. */
+float wf_pass_d_per_record_scale(int is_selected)
+{
+    return is_selected ? 0.026880002f : 0.0192f;
+}
+
+/* Pass D pulse RGB.  Engine L13637-13642 + raw asm @ 0x416ae1..0x416b0c:
+ *
+ *   angle  = (int)slot[AGE] * 0.3                  (0x5194ec = 0.3)
+ *   flash  = sinf(angle)                           (FUN_00503a44)
+ *   value  = flash * 64.0 + 96.0                   (0x51938c=64, 0x51937c=96)
+ *   rgb_lo = (uint32_t)__ftol(value)               (FUN_00503954)
+ *
+ * Range [32, 160] (since sinf ∈ [-1, 1]).  __ftol does truncating
+ * float→int32 — the engine's CRT fast-path matches `(int)value` for
+ * positive values in this range.  Returned as uint32 for the diffuse
+ * shuffle.  Only computed when is_selected; default 0 otherwise. */
+uint32_t wf_pass_d_pulse_rgb(int32_t age, int is_selected)
+{
+    if (!is_selected) return 0;
+    float angle = (float)age * 0.3f;
+    float flash = sinf(angle);
+    float value = flash * 64.0f + 96.0f;
+    return (uint32_t)(int32_t)value;
+}
+
+/* Pass D alpha.  Engine L13644-13651 reads slot[STATE] (denormal-float
+ * compare against 2.8026e-45 = bit-cast 2):
+ *
+ *   alpha = 0xff;
+ *   if (slot[STATE] == 2) {
+ *     alpha = 0;
+ *     if (slot[AGE] > 0x1e) {
+ *       alpha = (slot[AGE] - 0x1e) * 0x20;
+ *       if (alpha > 0xff) alpha = 0xff;
+ *     }
+ *   }
+ *
+ * STATE==2 is the pickup-bob branch (C8j.2 _spawn_pickup sets it);
+ * STATE==0 is world-drop physics (kept fully opaque).  The pickup-bob
+ * fades in over ~8 frames: age 0x1e .. 0x25 ramps alpha 0 → 0xff in
+ * 0x20 (32) increments per frame. */
+int wf_pass_d_alpha(const int32_t *slot)
+{
+    int32_t state = slot[SCENE1_RECORDS_C_OFF_STATE];
+    int32_t age   = slot[SCENE1_RECORDS_C_OFF_AGE];
+    if (state != 2) return 0xff;
+    if (age <= 0x1e) return 0;
+    int alpha = (age - 0x1e) * 0x20;
+    if (alpha > 0xff) alpha = 0xff;
+    return alpha;
+}
+
+/* Pass D ARGB diffuse.  Engine L13654:
+ *
+ *   diffuse = ((alpha << 8 | rgb) << 8 | rgb) << 8 | rgb
+ *
+ * Three identical RGB channels (grayscale) with separately-computed
+ * alpha.  Channel layout is 0xAARRGGBB — D3D's standard ARGB layout. */
+uint32_t wf_pass_d_diffuse(uint32_t rgb_lo, int alpha)
+{
+    return ((((uint32_t)alpha) << 24)
+            | ((rgb_lo & 0xffu) << 16)
+            | ((rgb_lo & 0xffu) <<  8)
+            |  (rgb_lo & 0xffu));
+}
+
+/* Pass D tile-in-atlas → UV box.  Engine L13666-13682:
+ *
+ *   tile_raw  = item.tile (or 0 if slot[PICKUP_E1] != 0)
+ *   col       = tile_raw % 8
+ *   row       = tile_raw / 8
+ *   u0 = (col*32 + 0.5)  / 256.0
+ *   u1 = (col*32 + 31.5) / 256.0
+ *   v0 = (row*32 + 0.5)  / tex_height
+ *   v1 = (row*32 + 31.0) / tex_height        // NB: 31.0, NOT 31.5
+ *
+ * The asymmetric v1 inset (31.0 vs 31.5) is engine-verbatim — same shape
+ * as Pass C's `63.0` quirk.  Width is hardcoded 256 (the item atlases
+ * are uniformly 256-px wide); height varies per atlas, fed in from the
+ * texture-bank table (DAT_073d8780). */
+void wf_pass_d_uv_box(int tile_raw, float tex_height,
+                      float *out_u0, float *out_u1,
+                      float *out_v0, float *out_v1)
+{
+    int col = tile_raw % 8;
+    int row = tile_raw / 8;
+    *out_u0 = ((float)col * 32.0f +  0.5f) / 256.0f;
+    *out_u1 = ((float)col * 32.0f + 31.5f) / 256.0f;
+    *out_v0 = ((float)row * 32.0f +  0.5f) / tex_height;
+    *out_v1 = ((float)row * 32.0f + 31.0f) / tex_height;
+}
+
+/* Pass D world matrix.  Engine L13634 + L13657-13659:
+ *
+ *   Translation(M, POS_X, POS_Y, POS_Z);
+ *   Scaling(S, scale, scale, scale);
+ *   M = S * M;                     // Multiply(M, S, M) — actually
+ *                                  //   thunk_FUN_004a2a03(local_5c, local_9c)
+ *                                  //   with implicit out=in_a (2-arg form)
+ *   M = DAT_0438cdf8 * M;          // Multiply(M, DAT_0438cdf8, M)
+ *
+ * Engine line L13658's `thunk_FUN_004a2a03(local_5c, local_9c)` is the
+ * 2-arg D3DXMatrixMultiply convention where out and the first operand
+ * alias — i.e. `local_5c = local_9c * local_5c`.  Same shape as Pass C.
+ *
+ * Reuses Pass C's pre-matrix stand-in (also driven by DAT_0438cdf8) —
+ * setter/getter shared.  Default identity is benign. */
+void wf_pass_d_compose_world(float out[16], const int32_t *slot,
+                             int is_selected)
+{
+    float pos_x = *(const float *)&slot[SCENE1_RECORDS_C_OFF_POS_X];
+    float pos_y = *(const float *)&slot[SCENE1_RECORDS_C_OFF_POS_Y];
+    float pos_z = *(const float *)&slot[SCENE1_RECORDS_C_OFF_POS_Z];
+    float scale = wf_pass_d_per_record_scale(is_selected);
+
+    float scratch[16];
+
+    mat4_translation(out, pos_x, pos_y, pos_z);
+
+    mat4_scaling(scratch, scale, scale, scale);
+    mat4_mul(out, scratch, out);
+
+    mat4_mul(out, wf_pass_c_get_pre_matrix(), out);
+}
+
+/* Pass D item resolver hook (stand-in for FUN_004681f6 + table walks).
+ *
+ * Default returns 0 (miss) → walker skips emit per record.  When the
+ * item-database port lands (data/item.txt parser at all.c L73886 +
+ * DAT_095d3804 + DAT_073d8778 texture-bank table), wire a real resolver
+ * via wf_pass_d_set_item_resolver().  The hook is type-key driven, where
+ * type_key = slot[TYPE] - 7 (engine L13660: `(int)*local_8 + -7`).  */
+static int wf_pass_d_resolver_default(int type_key,
+                                      wf_pass_d_item_resolved *out)
+{
+    (void)type_key;
+    (void)out;
+    return 0;
+}
+
+static wf_pass_d_item_resolver_fn g_wf_pass_d_resolver =
+    wf_pass_d_resolver_default;
+
+wf_pass_d_item_resolver_fn wf_pass_d_set_item_resolver(
+    wf_pass_d_item_resolver_fn fn)
+{
+    wf_pass_d_item_resolver_fn prev = g_wf_pass_d_resolver;
+    g_wf_pass_d_resolver = fn ? fn : wf_pass_d_resolver_default;
+    return prev;
+}
+
+int wf_pass_d_resolve_item(int type_key, wf_pass_d_item_resolved *out)
+{
+    if (!out) return 0;
+    out->tex = NULL;
+    out->tile_raw = 0;
+    out->tex_height = 1;
+    return g_wf_pass_d_resolver(type_key, out);
+}
+
+/* Pass D selected-slot index (engine DAT_056dae40).
+ *
+ * Engine writers: set to -1 at init (L34551 + L90413).  Assigned a real
+ * slot index at L90463 inside an item-pickup UI path (FUN_004676d4).
+ * When the player is hovering over a pickup, this points to its slot;
+ * Pass D pulses that slot specifically.  Default -1 → no record matches
+ * the `local_18 == DAT_056dae40` test → no pulse.  */
+int g_wf_pass_d_selected_slot = -1;

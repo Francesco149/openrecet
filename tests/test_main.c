@@ -1430,6 +1430,28 @@ struct test_case {
     X(wf_pass_e_fan_billboard_with_vel_along_x) \
     X(wf_pass_e_fan_billboard_translation_at_pos) \
     X(wf_pass_e_fan_compose_world_includes_translation) \
+    X(wf_pass_d_should_emit_rejects_sentinel) \
+    X(wf_pass_d_should_emit_rejects_type_le_6) \
+    X(wf_pass_d_should_emit_accepts_type_gt_6) \
+    X(wf_pass_d_scale_default_when_not_selected) \
+    X(wf_pass_d_scale_larger_when_selected) \
+    X(wf_pass_d_pulse_rgb_zero_when_not_selected) \
+    X(wf_pass_d_pulse_rgb_at_age_0_is_96) \
+    X(wf_pass_d_pulse_rgb_range_is_32_to_160) \
+    X(wf_pass_d_alpha_world_drop_full_opaque) \
+    X(wf_pass_d_alpha_pickup_zero_below_threshold) \
+    X(wf_pass_d_alpha_pickup_ramps_in) \
+    X(wf_pass_d_diffuse_grayscale_with_alpha) \
+    X(wf_pass_d_diffuse_masks_rgb_to_low_byte) \
+    X(wf_pass_d_uv_box_tile_0_top_left) \
+    X(wf_pass_d_uv_box_tile_8_wraps_to_row_1) \
+    X(wf_pass_d_uv_box_respects_custom_tex_height) \
+    X(wf_pass_d_compose_world_translation_in_row_3) \
+    X(wf_pass_d_compose_world_selected_has_larger_scale) \
+    X(wf_pass_d_resolver_default_misses) \
+    X(wf_pass_d_resolver_override_round_trips) \
+    X(wf_pass_d_resolver_null_out_is_safe) \
+    X(wf_pass_d_selected_slot_default_is_minus_1) \
     \
     X(records_c_tick_empty_table_is_noop) \
     X(records_c_tick_sentinel_slots_skipped) \

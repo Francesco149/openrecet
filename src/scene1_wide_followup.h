@@ -230,6 +230,50 @@ void  wf_pass_e_fan_billboard_matrix(float out[16], const int32_t *slot,
 void  wf_pass_e_fan_compose_world(float out[16], const int32_t *slot,
                                   const float camera_eye[3]);
 
+/* ─── Pass D helpers (D3D-free, host-linkable) ─────────────────────────
+ *
+ * Walks g_scene1_records_c (stride 0x25) for TYPE != -1 && TYPE > 6
+ * (the world-pickup type range; Pass C handles TYPE ∈ {0,1,2,3}).
+ * Per-record: position-only world matrix, optional pulse RGB when
+ * the slot is the player-selected pickup, state-driven alpha fade,
+ * and a per-item texture/tile lookup via the resolver hook.
+ *
+ * The item-database resolver is HOUSE-dormant by design (the engine
+ * data/item.txt parser at all.c L73886 + DAT_095d3804/3808/380c
+ * tables + DAT_073d8778/8780 texture-bank table are unported).
+ * Default resolver always misses → walker skips emit → bit-identical
+ * with no walker work performed.  Engine FUN_004161c7 L224-287.  */
+typedef struct {
+    void *tex;            /* IDirect3DTexture8 * (opaque here so the TU
+                             stays D3D-free) — NULL if miss. */
+    int   tile_raw;       /* tile index within the bank (0..tex_w/32 *
+                             tex_h/32 - 1). */
+    float tex_height;     /* texture height for v denominator. */
+} wf_pass_d_item_resolved;
+
+typedef int (*wf_pass_d_item_resolver_fn)(
+        int type_key, wf_pass_d_item_resolved *out);
+
+int          wf_pass_d_should_emit(const int32_t *slot);
+float        wf_pass_d_per_record_scale(int is_selected);
+uint32_t     wf_pass_d_pulse_rgb(int32_t age, int is_selected);
+int          wf_pass_d_alpha(const int32_t *slot);
+uint32_t     wf_pass_d_diffuse(uint32_t rgb_lo, int alpha);
+void         wf_pass_d_uv_box(int tile_raw, float tex_height,
+                              float *out_u0, float *out_u1,
+                              float *out_v0, float *out_v1);
+void         wf_pass_d_compose_world(float out[16], const int32_t *slot,
+                                     int is_selected);
+int          wf_pass_d_resolve_item(int type_key,
+                                    wf_pass_d_item_resolved *out);
+wf_pass_d_item_resolver_fn
+             wf_pass_d_set_item_resolver(wf_pass_d_item_resolver_fn fn);
+
+/* Engine DAT_056dae40 — index of the player-selected pickup slot for
+ * the pulse highlight.  Default -1 (no selection → no record matches).
+ * Real engine writers set this in the pickup-aim UI path (L90463).  */
+extern int g_wf_pass_d_selected_slot;
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;

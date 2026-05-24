@@ -1256,3 +1256,320 @@ int test_wf_pass_e_fan_compose_world_includes_translation(void)
     T_ASSERT_NEAR_WF(world[14], 7.0f, 1e-3f);
     return 0;
 }
+
+/* ═══ Pass D tests (C8f.pass-d) ═══════════════════════════════════════════ */
+
+/* ─── predicate ──────────────────────────────────────────────────────── */
+
+int test_wf_pass_d_should_emit_rejects_sentinel(void)
+{
+    int32_t slot[SCENE1_RECORDS_C_STRIDE];
+    slot_init_zero_c(slot);
+    slot[SCENE1_RECORDS_C_OFF_TYPE] = -1;
+    T_ASSERT(wf_pass_d_should_emit(slot) == 0);
+    return 0;
+}
+
+int test_wf_pass_d_should_emit_rejects_type_le_6(void)
+{
+    int32_t slot[SCENE1_RECORDS_C_STRIDE];
+    for (int t = 0; t <= 6; t++) {
+        slot_init_zero_c(slot);
+        slot[SCENE1_RECORDS_C_OFF_TYPE] = t;
+        if (wf_pass_d_should_emit(slot) != 0)
+            T_FAIL("type %d should not emit (Pass C range)", t);
+    }
+    return 0;
+}
+
+int test_wf_pass_d_should_emit_accepts_type_gt_6(void)
+{
+    int32_t slot[SCENE1_RECORDS_C_STRIDE];
+    int types[] = { 7, 8, 100, 200, 0x7fffffff };
+    for (size_t i = 0; i < sizeof(types)/sizeof(types[0]); i++) {
+        slot_init_zero_c(slot);
+        slot[SCENE1_RECORDS_C_OFF_TYPE] = types[i];
+        if (wf_pass_d_should_emit(slot) != 1)
+            T_FAIL("type %d should emit (world-pickup range)", types[i]);
+    }
+    return 0;
+}
+
+/* ─── per-record scale ───────────────────────────────────────────────── */
+
+int test_wf_pass_d_scale_default_when_not_selected(void)
+{
+    T_ASSERT_NEAR_WF(wf_pass_d_per_record_scale(0), 0.0192f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_d_scale_larger_when_selected(void)
+{
+    T_ASSERT_NEAR_WF(wf_pass_d_per_record_scale(1), 0.026880002f, 1e-7f);
+    return 0;
+}
+
+/* ─── pulse RGB ──────────────────────────────────────────────────────── */
+
+int test_wf_pass_d_pulse_rgb_zero_when_not_selected(void)
+{
+    /* Engine: not the selected slot → uVar6 stays 0. */
+    T_ASSERT_EQ_U(wf_pass_d_pulse_rgb(50, 0), 0);
+    return 0;
+}
+
+int test_wf_pass_d_pulse_rgb_at_age_0_is_96(void)
+{
+    /* sinf(0) = 0 → 0 * 64 + 96 = 96. */
+    T_ASSERT_EQ_U(wf_pass_d_pulse_rgb(0, 1), 96);
+    return 0;
+}
+
+int test_wf_pass_d_pulse_rgb_range_is_32_to_160(void)
+{
+    /* Sweep AGE [0..200], all values must be in [32, 160]. */
+    for (int age = 0; age <= 200; age++) {
+        uint32_t v = wf_pass_d_pulse_rgb(age, 1);
+        if (v < 32 || v > 160)
+            T_FAIL("age %d pulse %u out of [32,160]", age, v);
+    }
+    return 0;
+}
+
+/* ─── alpha ──────────────────────────────────────────────────────────── */
+
+int test_wf_pass_d_alpha_world_drop_full_opaque(void)
+{
+    /* STATE=0 (world drop) → alpha=0xff regardless of AGE. */
+    int32_t slot[SCENE1_RECORDS_C_STRIDE];
+    slot_init_zero_c(slot);
+    slot[SCENE1_RECORDS_C_OFF_STATE] = 0;
+    slot[SCENE1_RECORDS_C_OFF_AGE]   = 0;
+    T_ASSERT_EQ_I(wf_pass_d_alpha(slot), 0xff);
+    slot[SCENE1_RECORDS_C_OFF_AGE]   = 200;
+    T_ASSERT_EQ_I(wf_pass_d_alpha(slot), 0xff);
+    return 0;
+}
+
+int test_wf_pass_d_alpha_pickup_zero_below_threshold(void)
+{
+    /* STATE=2 with AGE <= 0x1e → alpha=0. */
+    int32_t slot[SCENE1_RECORDS_C_STRIDE];
+    slot_init_zero_c(slot);
+    slot[SCENE1_RECORDS_C_OFF_STATE] = 2;
+    for (int age = 0; age <= 0x1e; age++) {
+        slot[SCENE1_RECORDS_C_OFF_AGE] = age;
+        if (wf_pass_d_alpha(slot) != 0)
+            T_FAIL("age %d should give alpha=0 (state=2)", age);
+    }
+    return 0;
+}
+
+int test_wf_pass_d_alpha_pickup_ramps_in(void)
+{
+    /* STATE=2, AGE > 0x1e: alpha = (AGE - 0x1e) * 0x20, clamped at 0xff. */
+    int32_t slot[SCENE1_RECORDS_C_STRIDE];
+    slot_init_zero_c(slot);
+    slot[SCENE1_RECORDS_C_OFF_STATE] = 2;
+    slot[SCENE1_RECORDS_C_OFF_AGE] = 0x1f;  /* (0x1f - 0x1e) * 0x20 = 0x20 */
+    T_ASSERT_EQ_I(wf_pass_d_alpha(slot), 0x20);
+    slot[SCENE1_RECORDS_C_OFF_AGE] = 0x25;  /* (0x25 - 0x1e) * 0x20 = 0xe0 */
+    T_ASSERT_EQ_I(wf_pass_d_alpha(slot), 0xe0);
+    slot[SCENE1_RECORDS_C_OFF_AGE] = 0x26;  /* (0x26 - 0x1e) * 0x20 = 0x100 → 0xff */
+    T_ASSERT_EQ_I(wf_pass_d_alpha(slot), 0xff);
+    slot[SCENE1_RECORDS_C_OFF_AGE] = 0x100; /* far past clamp */
+    T_ASSERT_EQ_I(wf_pass_d_alpha(slot), 0xff);
+    return 0;
+}
+
+/* ─── diffuse shuffle ─────────────────────────────────────────────────── */
+
+int test_wf_pass_d_diffuse_grayscale_with_alpha(void)
+{
+    /* (alpha=0xff, rgb=0x80) → 0xff_80_80_80 in 0xAARRGGBB. */
+    T_ASSERT_EQ_U(wf_pass_d_diffuse(0x80, 0xff), 0xff808080u);
+    /* (alpha=0,   rgb=0x60) → 0x00_60_60_60 */
+    T_ASSERT_EQ_U(wf_pass_d_diffuse(0x60, 0), 0x00606060u);
+    /* (alpha=0x40, rgb=0)   → 0x40_00_00_00 */
+    T_ASSERT_EQ_U(wf_pass_d_diffuse(0, 0x40), 0x40000000u);
+    return 0;
+}
+
+int test_wf_pass_d_diffuse_masks_rgb_to_low_byte(void)
+{
+    /* The engine's `rgb_lo & 0xff` is implicit in the channel shuffle.
+     * Defensive: ensure values > 0xff don't leak into adjacent channels. */
+    T_ASSERT_EQ_U(wf_pass_d_diffuse(0x1234, 0xff), 0xff343434u);
+    return 0;
+}
+
+/* ─── UV box ─────────────────────────────────────────────────────────── */
+
+int test_wf_pass_d_uv_box_tile_0_top_left(void)
+{
+    /* tile 0: col=0, row=0.  u0 = 0.5/256, u1 = 31.5/256.
+     *                         v0 = 0.5/H,  v1 = 31.0/H.   */
+    float u0, u1, v0, v1;
+    wf_pass_d_uv_box(0, 256.0f, &u0, &u1, &v0, &v1);
+    T_ASSERT_NEAR_WF(u0, 0.5f / 256.0f,  1e-7f);
+    T_ASSERT_NEAR_WF(u1, 31.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v0, 0.5f / 256.0f,  1e-7f);
+    T_ASSERT_NEAR_WF(v1, 31.0f / 256.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_d_uv_box_tile_8_wraps_to_row_1(void)
+{
+    /* tile 8: col=0, row=1.  v0 = 32.5/H, v1 = 63.0/H. */
+    float u0, u1, v0, v1;
+    wf_pass_d_uv_box(8, 256.0f, &u0, &u1, &v0, &v1);
+    T_ASSERT_NEAR_WF(u0, 0.5f  / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(u1, 31.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v0, 32.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v1, 63.0f / 256.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_d_uv_box_respects_custom_tex_height(void)
+{
+    /* tile 16 (col=0, row=2) with tex_height=128: v0 = 64.5/128. */
+    float u0, u1, v0, v1;
+    wf_pass_d_uv_box(16, 128.0f, &u0, &u1, &v0, &v1);
+    T_ASSERT_NEAR_WF(u0, 0.5f  / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(u1, 31.5f / 256.0f, 1e-7f);
+    T_ASSERT_NEAR_WF(v0, 64.5f / 128.0f, 1e-6f);
+    T_ASSERT_NEAR_WF(v1, 95.0f / 128.0f, 1e-6f);
+    return 0;
+}
+
+/* ─── world matrix ───────────────────────────────────────────────────── */
+
+int test_wf_pass_d_compose_world_translation_in_row_3(void)
+{
+    /* T × S × pre_matrix (identity by default) puts POS in row 3. */
+    int32_t slot[SCENE1_RECORDS_C_STRIDE];
+    slot_init_zero_c(slot);
+    slot[SCENE1_RECORDS_C_OFF_TYPE] = 10;
+    slot_set_float_c(slot, SCENE1_RECORDS_C_OFF_POS_X, 1.5f);
+    slot_set_float_c(slot, SCENE1_RECORDS_C_OFF_POS_Y, 2.5f);
+    slot_set_float_c(slot, SCENE1_RECORDS_C_OFF_POS_Z, 3.5f);
+
+    /* Default pre-matrix is identity. */
+    float ident[16] = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+    };
+    wf_pass_c_set_pre_matrix(ident);
+
+    float world[16];
+    wf_pass_d_compose_world(world, slot, 0);
+
+    /* With S=0.0192*I and T=Translation(POS), final M = S*T*I has scale
+     * on diagonal and POS on row 3 (unchanged by scale of row 3). */
+    T_ASSERT_NEAR_WF(world[0],  0.0192f, 1e-7f);
+    T_ASSERT_NEAR_WF(world[5],  0.0192f, 1e-7f);
+    T_ASSERT_NEAR_WF(world[10], 0.0192f, 1e-7f);
+    T_ASSERT_NEAR_WF(world[12], 1.5f,    1e-6f);
+    T_ASSERT_NEAR_WF(world[13], 2.5f,    1e-6f);
+    T_ASSERT_NEAR_WF(world[14], 3.5f,    1e-6f);
+    T_ASSERT_NEAR_WF(world[15], 1.0f,    1e-7f);
+    return 0;
+}
+
+int test_wf_pass_d_compose_world_selected_has_larger_scale(void)
+{
+    int32_t slot[SCENE1_RECORDS_C_STRIDE];
+    slot_init_zero_c(slot);
+    slot[SCENE1_RECORDS_C_OFF_TYPE] = 10;
+
+    /* Reset to identity so we can read S on the diagonal. */
+    float ident[16] = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+    };
+    wf_pass_c_set_pre_matrix(ident);
+
+    float world[16];
+    wf_pass_d_compose_world(world, slot, 1);
+
+    T_ASSERT_NEAR_WF(world[0],  0.026880002f, 1e-7f);
+    T_ASSERT_NEAR_WF(world[5],  0.026880002f, 1e-7f);
+    T_ASSERT_NEAR_WF(world[10], 0.026880002f, 1e-7f);
+    return 0;
+}
+
+/* ─── item resolver hook ─────────────────────────────────────────────── */
+
+static int g_test_resolver_last_key = 0;
+static int g_test_resolver_call_count = 0;
+
+static int test_resolver_always_hit(int type_key,
+                                    wf_pass_d_item_resolved *out)
+{
+    g_test_resolver_last_key   = type_key;
+    g_test_resolver_call_count++;
+    out->tex = (void *)0xdeadbeef;
+    out->tile_raw = 7;
+    out->tex_height = 128.0f;
+    return 1;
+}
+
+int test_wf_pass_d_resolver_default_misses(void)
+{
+    /* After any prior override (e.g. from a sibling test), restore the
+     * default by passing NULL to the setter — the setter normalizes NULL
+     * back to the default stub. */
+    wf_pass_d_set_item_resolver(NULL);
+    wf_pass_d_item_resolved item;
+    int hit = wf_pass_d_resolve_item(0, &item);
+    T_ASSERT_EQ_I(hit, 0);
+    return 0;
+}
+
+int test_wf_pass_d_resolver_override_round_trips(void)
+{
+    g_test_resolver_call_count = 0;
+    g_test_resolver_last_key = -999;
+
+    wf_pass_d_item_resolver_fn prev =
+        wf_pass_d_set_item_resolver(test_resolver_always_hit);
+    T_ASSERT(prev != NULL);
+
+    wf_pass_d_item_resolved item = { 0 };
+    int hit = wf_pass_d_resolve_item(42, &item);
+    T_ASSERT_EQ_I(hit, 1);
+    T_ASSERT_EQ_I(g_test_resolver_last_key, 42);
+    T_ASSERT_EQ_I(g_test_resolver_call_count, 1);
+    T_ASSERT(item.tex == (void *)0xdeadbeef);
+    T_ASSERT_EQ_I(item.tile_raw, 7);
+    T_ASSERT_NEAR_WF(item.tex_height, 128.0f, 1e-7f);
+
+    /* Restore the default stub so subsequent tests don't see the override. */
+    wf_pass_d_set_item_resolver(prev);
+    return 0;
+}
+
+int test_wf_pass_d_resolver_null_out_is_safe(void)
+{
+    /* Defensive: passing NULL for out should not deref. */
+    wf_pass_d_set_item_resolver(test_resolver_always_hit);
+    int hit = wf_pass_d_resolve_item(0, NULL);
+    T_ASSERT_EQ_I(hit, 0);
+    wf_pass_d_set_item_resolver(NULL);
+    return 0;
+}
+
+/* ─── selected-slot global default ───────────────────────────────────── */
+
+int test_wf_pass_d_selected_slot_default_is_minus_1(void)
+{
+    /* Default at boot is -1 (no selection).  This is an extern int — set
+     * here for documentation, then restore the engine default. */
+    g_wf_pass_d_selected_slot = -1;
+    T_ASSERT_EQ_I(g_wf_pass_d_selected_slot, -1);
+    return 0;
+}
