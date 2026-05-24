@@ -3219,6 +3219,397 @@ static int init_npc_16_17(int i, const void *owner, int type, int flag,
     return 3;
 }
 
+/* ─── C8j.11 — mega-cluster B + player-aim ────────────────────────── */
+
+/* Mega-cluster B shared body (engine FUN_00445a8c L42935+, decomp
+ * 445a8c.c L954-1144).  Reached either via the explicit guard at L181-182
+ * (type ∈ {0xa0/0xa1/0xa2/0xa3/0xa4} → fall through to L954) OR by any
+ * type not matched in the inner dispatch — the variants 0x73/0x7a/0x7c/
+ * 0x7e all fall through to this body.  Sibling of the entity allocator's
+ * mega-cluster A (init_entity_mega_cluster_a) — same pos/alt-pos shape
+ * with NPC-owner field offsets (0x18 / 0x3f0).
+ *
+ * Body:
+ *   bend       = (owner+0x18) * 2π / 8
+ *   POS        = sin/cos(bend) * 1.2 + owner + +1.3y
+ *   ALT_POS    = sin/cos(bend) * 0.8 + owner + +1.3y
+ *   3-way owner+0x18 dispatch tweaks POS_X / ALT_POS_X (mode 0/4) or
+ *     POS_Z / ALT_POS_Z (other) by ±0.41 / -0.1.
+ *   LIFE_MULT  = 0.3 (overridden per-type)
+ *   DRAG       = 0.5
+ *   AUX_C8     = 1 (UNLESS type == 0xa4)
+ *   vel_mag    = 0.18 default (per-type overrides)
+ *   wobble: ROT_X = (((part_idx % 32) & 7) - 4) * 0.05 +
+ *                   ((part_idx % 32) / 8) * 0.0125) * π + bend
+ *           (overridden per-type)
+ *   VEL_Y      = 0 default (per-type overrides)
+ *
+ * Per-type overrides (engine L996-1078):
+ *   0x7e: LIFE=0.4, vel_mag=0.25, ROT_X = (u-0.5)*0.7π + bend
+ *   0xa0: LIFE=0.15, vel_mag=0.5, ROT_X = (u-0.5)*0.3 + bend,
+ *         VEL_Y = u'*0.01 - 0.1
+ *   0x7a: same as 0xa0 except VEL_Y = u'*0.01 - 0.07; then falls
+ *         through to LAB_00447802 (no further per-type match)
+ *   0x7c: vel_mag=0.3, ROT_X via signed fan offset:
+ *         base = bend - π
+ *         shift_mag = ((part_idx + 1) / 2) * 0.31415927
+ *         (part_idx even): ROT_X = base - shift_mag
+ *         (part_idx odd):  ROT_X = base + shift_mag
+ *         VEL_Y = u*0.01 + 0.15
+ *   0xa3: ROT_X = (wobble_x*0.015 + wobble_y*0.0025)*π + bend,
+ *         vel_mag = 0.25 (no VEL_Y override)
+ *   0xa4: ROT_X = bend; if dx/dz toward player nonzero,
+ *         ROT_X = (u-0.5)*0.2 + atan2(dx, dz).
+ *         Then clamp away from forward/back cones:
+ *           0 < rot_x < 2.5132742 → rot_x = 2.5132742
+ *           -2.5132742 < rot_x < 0 → rot_x = -2.5132742
+ *         vel_mag = 0.15, VEL_Y = 0.35
+ *   0xa1: ROT_X = bend, vel_mag = 0.12, VEL_Y = 0.35
+ *   0xa2: vel_mag = 0.3, LIFE=0.8, ROT_SCR = bend,
+ *         ROT_X = (u-0.5)*π/2 + bend
+ *
+ * Post-tweaks (engine L1080-1144):
+ *   VEL_X = sin(ROT_X)*vel_mag, VEL_Z = cos(ROT_X)*vel_mag
+ *   0x7c rebound: POS_X/Z -= 2*VEL_X/Z
+ *   ROT_Z = u * 2π
+ *   AGE   = -part_idx
+ *   0xa3 + part_idx > 0 → PART_IDX = 1
+ *   SCALE_X per-type:
+ *     0x7e/0x73→0.25, 0xa0/0x7a→0.125, 0xa3/0xa2→0.5,
+ *     0x7c→0.1, 0xa1/0xa4→1.0 (= preamble default, no-op)
+ *   Cap: 0xa0/0x7a/0xa3→8, 0x7c→5, 0x73→4, else 1
+ *
+ * Argless cos sites at L962, L968, L1084 are PHC #7 — engine reloads
+ * `[ebp-0x2c]` (the bend/ROT_X angle) before each call, so the paired
+ * cos uses the same arg as the preceding sin.  No raw-asm verification
+ * needed beyond the general PHC #7 proof. */
+static int init_npc_mega_cluster_b(int i, const void *owner, int type,
+                                   int flag, int part_idx)
+{
+    (void)flag;
+
+    /* L954-956: bend angle. */
+    int   mode = owner_read_i(owner, 0x18);
+    float bend = (float)mode * B_TWO_PI_F / 8.0f;
+    float sb   = sinf(bend);
+    float cb   = cosf(bend);
+
+    float ox = owner_read_f(owner, 0x3f0);
+    float oy = owner_read_f(owner, 0x3f4);
+    float oz = owner_read_f(owner, 0x3f8);
+
+    /* L957-963: POS = sin/cos(bend)*1.2 + owner + +1.3y. */
+    float pos_x = sb * 1.2f + ox;
+    float pos_y = oy + 1.3f;
+    float pos_z = cb * 1.2f + oz;
+    /* L964-969: ALT_POS = sin/cos(bend)*0.8 + owner + +1.3y. */
+    float alt_x = sb * 0.8f + ox;
+    float alt_y = oy + 1.3f;
+    float alt_z = cb * 0.8f + oz;
+
+    /* L970-984: 3-way owner+0x18 mode dispatch. */
+    if (mode == 0) {
+        pos_x -= 0.41f;
+        alt_x -= 0.41f;
+    } else if (mode == 4) {
+        pos_x += 0.41f;
+        alt_x += 0.41f;
+    } else {
+        pos_z -= 0.1f;
+        alt_z -= 0.1f;
+    }
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, alt_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, alt_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, alt_z);
+
+    /* L985-986: LIFE_MULT=0.3, DRAG=0.5 (defaults — per-type may override). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      0.5f);
+
+    /* L987-989: AUX_C8 = 1 (unless 0xa4). */
+    if (type != 0xa4) {
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+    }
+
+    /* L990-994: vel mag default + ROT_X wobble. */
+    float vel_mag  = 0.18f;
+    int   mod32    = part_idx % 32;
+    float wobble_x = (float)((mod32 & 7) - 4);
+    float wobble_y = (float)(mod32 / 8);
+    float rot_x    = (wobble_x * 0.05f + wobble_y * 0.0125f) * 3.1415927f
+                     + bend;
+
+    /* L995: VEL_Y = 0 (default — per-type may override). */
+    float vel_y = 0.0f;
+
+    /* L996-1078 — per-type tweaks.  Engine has a fall-through structure:
+     *   if (type == 0x7e) { ... } [no else]
+     *   if (type == 0xa0 || type == 0x7a) {
+     *     ... ; if (type != 0xa0) goto LAB_00447802;
+     *   } else { LAB_00447802:
+     *     if (type == 0x7c) { ... }
+     *     if (type == 0xa3) { ... }
+     *     ...
+     *   }
+     * 0x7e tweaks set first then fall through to LAB_00447802 path (no
+     * inner case matches 0x7e).  0xa0 SKIPS LAB_00447802.  0x7a takes
+     * its tweaks then falls into LAB_00447802 (no case matches).  Others
+     * (0x7c/0xa1/0xa2/0xa3/0xa4) enter via the ELSE → match their case.
+     * 0x73 enters via the ELSE → no case matches.
+     */
+    if (type == 0x7e) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.4f);
+        vel_mag = 0.25f;
+        rot_x   = (rng_next_unit() - 0.5f) * 2.1991148f + bend;
+    }
+
+    int run_lab_00447802 = 1;
+    if (type == 0xa0 || type == 0x7a) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.15f);
+        vel_mag = 0.5f;
+        /* Engine L1006-1007: dead write to ROT_X (overwritten by L1009-
+         * 1010); skipped — observable end-state matches. */
+        rot_x = (rng_next_unit() - 0.5f) * 0.3f + bend;
+        if (type != 0xa0) {
+            /* 0x7a — wider downward bias + falls into LAB_00447802. */
+            vel_y = rng_next_unit() * 0.01f - 0.07f;
+            run_lab_00447802 = 1;
+        } else {
+            /* 0xa0 — narrower downward bias + SKIPS LAB_00447802. */
+            vel_y = rng_next_unit() * 0.01f - 0.1f;
+            run_lab_00447802 = 0;
+        }
+    }
+
+    if (run_lab_00447802) {
+        if (type == 0x7c) {
+            vel_mag = 0.3f;
+            float base = bend - 3.1415927f;
+            /* L1024 dead write of ROT_X = base — kept faithful to engine
+             * (immediately overwritten below).  No observable effect. */
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, base);
+            float shift_mag = (float)((part_idx + 1) / 2) * 0.31415927f;
+            if ((part_idx & 1) == 0) {
+                rot_x = base - shift_mag;
+            } else {
+                rot_x = base + shift_mag;
+            }
+            vel_y = rng_next_unit() * 0.01f + 0.15f;
+        }
+        if (type == 0xa3) {
+            rot_x   = (wobble_x * 0.015f + wobble_y * 0.0025f) * 3.1415927f
+                      + bend;
+            vel_mag = 0.25f;
+        }
+        if (type == 0xa4) {
+            /* Engine L1043-1064.  Aim ROT_X toward the player if dx/dz
+             * nonzero; then clamp away from the forward/back cones at
+             * ±2.5132742 (= 0.8π, the same 0x4020d97c constant as in
+             * 0x29's people-table branch). */
+            rot_x = bend;
+            float dx = g_scene1_player_pos[0] - pos_x;
+            float dz = g_scene1_player_pos[2] - pos_z;
+            if (dx != 0.0f || dz != 0.0f) {
+                float a = atan2f(dx, dz);
+                rot_x   = (rng_next_unit() - 0.5f) * 0.2f + a;
+            }
+            if (rot_x < 2.5132742f && rot_x > 0.0f) {
+                rot_x = 2.5132742f;
+            }
+            if (rot_x > -2.5132742f && rot_x < 0.0f) {
+                rot_x = -2.5132742f;
+            }
+            vel_mag = 0.15f;
+            vel_y   = 0.35f;     /* 0x3eb33333 */
+        }
+        if (type == 0xa1) {
+            rot_x   = bend;
+            vel_mag = 0.12f;
+            vel_y   = 0.35f;
+        }
+        if (type == 0xa2) {
+            vel_mag = 0.3f;
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.8f);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR,   bend);
+            rot_x = (rng_next_unit() - 0.5f) * 1.5707964f + bend;
+        }
+    }
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
+
+    /* L1080-1086: VEL_X/Z from final ROT_X. */
+    float vel_x = sinf(rot_x) * vel_mag;
+    float vel_z = cosf(rot_x) * vel_mag;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vel_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vel_z);
+
+    /* L1087-1094: 0x7c rebound — pos -= 2*vel on x/z. */
+    if (type == 0x7c) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x - 2.0f * vel_x);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z - 2.0f * vel_z);
+    }
+
+    /* L1095-1096: ROT_Z = u * 2π. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               rng_next_unit() * B_TWO_PI_F);
+
+    /* L1097: AGE = -part_idx. */
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, -part_idx);
+
+    /* L1098-1100: 0xa3 + part_idx > 0 → PART_IDX = 1.
+     * (engine `if (param_2 == 0xa3 && 0 < (int)local_8) PART_IDX = 1`;
+     *  local_8 is part_idx pre-increment, so first particle (part_idx=0)
+     *  doesn't trigger — only subs.) */
+    if (type == 0xa3 && part_idx > 0) {
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+    }
+
+    /* L1102-1128: per-type SCALE_X. */
+    switch (type) {
+    case 0x7e: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.25f);  break;
+    case 0x73: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.25f);  break;
+    case 0xa3: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.5f);   break;
+    case 0xa0: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.125f); break;
+    case 0x7a: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.125f); break;
+    case 0xa2: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.5f);   break;
+    case 0xa1: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 1.0f);   break;
+    case 0xa4: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 1.0f);   break;
+    case 0x7c: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.1f);   break;
+    default: break;
+    }
+
+    /* L1129-1144: per-type cap. */
+    int cap = 1;
+    if (type == 0xa0 || type == 0x7a) cap = 8;
+    else if (type == 0x7c) cap = 5;
+    else if (type == 0xa3) cap = 8;
+    else if (type == 0x73) cap = 4;
+    return cap;
+}
+
+/* Types 0x84 / 0x96 — player-aim body (engine L42232-42257, decomp
+ * 445a8c.c L251-314).  Shared body w/ atan2 toward player_pos.
+ *
+ *   bend = (owner+0x18) * 2π / 8         (computed but only used by 0x96)
+ *
+ *   if (type == 0x84):
+ *       POS_X = owner+0x3f0
+ *       POS_Y = owner+0x3f4 + 3.0
+ *       POS_Z = owner+0x3f8
+ *   else (0x96):
+ *       POS_X = sin(bend)*1.0 + owner+0x3f0
+ *       POS_Y = owner+0x3f4 + 2.0
+ *       POS_Z = cos(bend)*1.0 + owner+0x3f8
+ *
+ *   dx   = player_pos.x - POS_X
+ *   dz   = player_pos.z - POS_Z
+ *   dist = sqrt(dx*dx + dz*dz)
+ *   clamp: if dist > 30 → scale dx/dz by 30/dist
+ *          if dist < 5  → scale dx/dz by  5/dist, dist = 5
+ *          if dist > 30 → dist = 30    (engine re-check after 5-clamp)
+ *
+ *   vel_mag_base = dist * 0.01
+ *   vel_mag      = u * 0.04 + vel_mag_base
+ *
+ *   if (type == 0x96):
+ *       LIFE_MULT = 0.2
+ *       ang_center = atan2(dx, dz)
+ *       ang = (u' - 0.5) * 0.7 + ang_center      (wider jitter)
+ *       vel_mag = u'' * 0.08 + vel_mag_base       (OVERWRITES, wider)
+ *   else (0x84):
+ *       LIFE_MULT = 0.5
+ *       ang_center = atan2(dx, dz)
+ *       ang = (u' - 0.5) * 0.3 + ang_center      (narrower jitter)
+ *
+ *   VEL_X = sin(ang) * vel_mag
+ *   VEL_Y = 0.4 (= 0x3ecccccd)
+ *   VEL_Z = cos(ang) * vel_mag
+ *   ROT_X = ang                                  (LAB_00447572)
+ *   DRAG  = 0.5                                  (LAB_0044757e)
+ *   AUX_C8 NOT set (LAB_0044757e doesn't fall through to LAB_004469d2)
+ *   cap = 1
+ *
+ * RNG draw counts (matters for determinism):
+ *   0x84 path: 2 draws total (vel_mag base, ang jitter)
+ *   0x96 path: 3 draws total (vel_mag base [discarded], ang jitter,
+ *              vel_mag final)
+ *   0xa4 inline atan2 path (in mega-cluster B) is the sibling pattern.
+ *
+ * Argless cos at engine L310 (cos(ang) for VEL_Z) = PHC #7 — same ang
+ * as the preceding sin call. */
+static int init_npc_84_96(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)flag; (void)part_idx;
+
+    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+
+    float pos_x, pos_y, pos_z;
+    if (type == 0x84) {
+        pos_x = owner_read_f(owner, 0x3f0);
+        pos_y = owner_read_f(owner, 0x3f4) + 3.0f;
+        pos_z = owner_read_f(owner, 0x3f8);
+    } else {
+        /* 0x96 — bend-spread pos around owner. */
+        pos_x = sinf(bend) + owner_read_f(owner, 0x3f0);
+        pos_y = owner_read_f(owner, 0x3f4) + 2.0f;
+        pos_z = cosf(bend) + owner_read_f(owner, 0x3f8);
+    }
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z);
+
+    float dx   = g_scene1_player_pos[0] - pos_x;
+    float dz   = g_scene1_player_pos[2] - pos_z;
+    float dist = sqrtf(dx * dx + dz * dz);
+
+    /* L274-285: clamp distance into [5, 30] range. */
+    if (dist > 30.0f) {
+        dx *= 30.0f / dist;
+        dz *= 30.0f / dist;
+    }
+    if (dist < 5.0f) {
+        dx  *= 5.0f / dist;
+        dz  *= 5.0f / dist;
+        dist = 5.0f;
+    }
+    if (dist > 30.0f) {
+        dist = 30.0f;   /* engine re-clamp after the 5-clamp branch */
+    }
+
+    /* L286-288: vel_mag baseline + initial RNG jitter (discarded by
+     * 0x96 — engine still calls rng()). */
+    float vel_mag_base = dist * 0.01f;
+    float vel_mag      = rng_next_unit() * 0.04f + vel_mag_base;
+
+    float ang;
+    if (type == 0x96) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.2f);
+        float ang_center = atan2f(dx, dz);
+        ang     = (rng_next_unit() - 0.5f) * 0.7f + ang_center;
+        vel_mag = rng_next_unit() * 0.08f + vel_mag_base;
+    } else {
+        /* 0x84 */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.5f);
+        float ang_center = atan2f(dx, dz);
+        ang = (rng_next_unit() - 0.5f) * 0.3f + ang_center;
+    }
+
+    /* L305-313: VEL + ROT_X + DRAG (LAB_00447572 / LAB_0044757e). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang) * vel_mag);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.4f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * vel_mag);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, ang);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,  0.5f);
+    /* NO AUX_C8 = 1 — LAB_0044757e skips LAB_004469d2. */
+    return 1;
+}
+
 /* Dispatch helper for NPC allocator. */
 static int run_npc_body(int slot, const void *owner, int type, int flag,
                         int part_idx)
@@ -3278,6 +3669,15 @@ static int run_npc_body(int slot, const void *owner, int type, int flag,
     /* C8j.11a — L42831 fall-through group (5 types, ROT_X=bend only). */
     case 0xd: case 0x11: case 0x15: case 0xc: case 0x10:
         return init_npc_lab_42831_group(slot, owner, type, flag, part_idx);
+
+    /* C8j.11 — mega-cluster B core + variants (9 types share L954+ body). */
+    case 0xa0: case 0xa1: case 0xa2: case 0xa3: case 0xa4:
+    case 0x73: case 0x7a: case 0x7c: case 0x7e:
+        return init_npc_mega_cluster_b(slot, owner, type, flag, part_idx);
+
+    /* C8j.11 — player-aim types (atan2 toward player_pos). */
+    case 0x84: case 0x96:
+        return init_npc_84_96(slot, owner, type, flag, part_idx);
 
     default:
         /* Unreachable — outer dispatch gated by IMPLEMENTED. */

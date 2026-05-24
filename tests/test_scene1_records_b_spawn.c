@@ -1122,7 +1122,7 @@ int test_records_b_spawn_npc_cluster_b_implemented_macro(void)
     T_ASSERT(SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x68));
     /* 0x36 landed in C8j.13. 0x84 is the atan2 player-aim from C8j.11. */
     T_ASSERT(SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x36));
-    T_ASSERT(!SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x84));
+    T_ASSERT(SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(0x84));
     return 0;
 }
 
@@ -3012,6 +3012,263 @@ int test_records_b_spawn_npc_lab_42831_rot_x_only(void)
         T_ASSERT(SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(types[k]));
         /* cap=1 — slot 1 free. */
         T_ASSERT_EQ_I(slot_i(1, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    }
+    return 0;
+}
+
+/* ─── C8j.11 — mega-cluster B + player-aim ────────────────────────── */
+
+int test_records_b_spawn_npc_c8j11_implemented_macro(void)
+{
+    int types[11] = {
+        0xa0, 0xa1, 0xa2, 0xa3, 0xa4,
+        0x73, 0x7a, 0x7c, 0x7e,
+        0x84, 0x96,
+    };
+    for (int k = 0; k < 11; k++) {
+        T_ASSERT(SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(types[k]));
+    }
+    return 0;
+}
+
+int test_records_b_spawn_npc_mega_b_cap_per_type(void)
+{
+    /* cap = 8 (0xa0/0x7a/0xa3), 5 (0x7c), 4 (0x73), 1 (others). */
+    struct { int type; int cap; } cases[] = {
+        { 0xa0, 8 }, { 0x7a, 8 }, { 0xa3, 8 },
+        { 0x7c, 5 }, { 0x73, 4 },
+        { 0xa1, 1 }, { 0xa2, 1 }, { 0xa4, 1 }, { 0x7e, 1 },
+    };
+    for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++) {
+        reset_world();
+        seed_owner_b_420_family(0, 0.0f, 0);
+        rng_seed(1);
+        scene1_record_b_spawn_npc(g_owner_b, cases[k].type, 0);
+        T_ASSERT_EQ_I(count_live(), cases[k].cap);
+        T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), cases[k].type);
+    }
+    return 0;
+}
+
+int test_records_b_spawn_npc_mega_b_pos_and_alt_pos(void)
+{
+    /* For bend_idx=0 (mode 0 dispatch): bend=0, sin=0, cos=1.
+     *   pos.x = 0*1.2 + 100 - 0.41 = 99.59
+     *   pos.y = 200 + 1.3        = 201.3
+     *   pos.z = 1*1.2 + 300       = 301.2
+     *   alt_x = 0*0.8 + 100 - 0.41 = 99.59
+     *   alt_y = 200 + 1.3        = 201.3
+     *   alt_z = 1*0.8 + 300       = 300.8
+     */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0xa1, 0);  /* cap=1, simple body */
+
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X),     99.59f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y),    201.3f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z),    301.2f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_X), 99.59f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y),201.3f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Z),300.8f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_mega_b_mode_dispatch(void)
+{
+    /* mode=4 → pos.x/alt_x += 0.41; mode=else → pos.z/alt_z -= 0.1. */
+    reset_world();
+    seed_owner_b_420_family(4, 0.0f, 0);
+    rng_seed(1);
+    /* bend=4*2π/8 = π → sin≈0, cos=-1. */
+    scene1_record_b_spawn_npc(g_owner_b, 0xa1, 0);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X),
+                    sinf(3.1415927f) * 1.2f + 100.0f + 0.41f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z),
+                    cosf(3.1415927f) * 1.2f + 300.0f));   /* no z bias */
+
+    reset_world();
+    seed_owner_b_420_family(2, 0.0f, 0);  /* mode 2 — "else" branch */
+    rng_seed(1);
+    /* bend=π/2 → sin=1, cos≈0. */
+    scene1_record_b_spawn_npc(g_owner_b, 0xa1, 0);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X),
+                    sinf(1.5707964f) * 1.2f + 100.0f)); /* no x bias */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z),
+                    cosf(1.5707964f) * 1.2f + 300.0f - 0.1f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_mega_b_a4_skips_aux_c8(void)
+{
+    /* AUX_C8 = 1 for all mega-B types EXCEPT 0xa4. */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0xa0, 0);
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_AUX_C8), 1);
+
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0xa4, 0);
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_AUX_C8), 0);
+    return 0;
+}
+
+int test_records_b_spawn_npc_mega_b_scale_x_per_type(void)
+{
+    struct { int type; float scale; } cases[] = {
+        { 0x7e, 0.25f  }, { 0x73, 0.25f },
+        { 0xa3, 0.5f   }, { 0xa2, 0.5f  },
+        { 0xa0, 0.125f }, { 0x7a, 0.125f },
+        { 0xa1, 1.0f   }, { 0xa4, 1.0f  },
+        { 0x7c, 0.1f   },
+    };
+    for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++) {
+        reset_world();
+        seed_owner_b_420_family(0, 0.0f, 0);
+        rng_seed(1);
+        scene1_record_b_spawn_npc(g_owner_b, cases[k].type, 0);
+        T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_SCALE_X),
+                        cases[k].scale));
+    }
+    return 0;
+}
+
+int test_records_b_spawn_npc_mega_b_a3_part_idx_quirk(void)
+{
+    /* 0xa3 cap=8 → 8 slots; part_idx > 0 sets PART_IDX = 1.
+     * First slot (part_idx=0) keeps preamble PART_IDX=0; subs get 1. */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0xa3, 0);
+
+    T_ASSERT_EQ_I(count_live(), 8);
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_PART_IDX), 0);
+    for (int k = 1; k < 8; k++) {
+        T_ASSERT_EQ_I(slot_i(k, SCENE1_RECORDS_B_OFF_PART_IDX), 1);
+    }
+    /* AGE = -part_idx for each slot. */
+    for (int k = 0; k < 8; k++) {
+        T_ASSERT_EQ_I(slot_i(k, SCENE1_RECORDS_B_OFF_AGE), -k);
+    }
+    return 0;
+}
+
+int test_records_b_spawn_npc_mega_b_a4_clamp_away_from_zero(void)
+{
+    /* 0xa4 clamps ROT_X away from forward/back cones at ±2.5132742.
+     * With player_pos = pos + (1, _, 1), atan2(dx=1, dz=1) = π/4 ≈ 0.785,
+     * which is in (0, 2.5132742) → ROT_X gets clamped UP to 2.5132742
+     * after the RNG jitter (we make RNG return 0.5 so jitter cancels). */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);  /* bend=0, mode=0 */
+
+    /* For bend=0: sin=0, cos=1; with mode 0 dispatch:
+     *   pos.x = 0*1.2 + 100 - 0.41 = 99.59
+     *   pos.z = 1*1.2 + 300        = 301.2
+     * Place player at (pos.x + 1, *, pos.z + 1) so atan2(1, 1) = π/4. */
+    g_scene1_player_pos[0] = 99.59f + 1.0f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 301.2f + 1.0f;
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0xa4, 0);
+
+    /* Final ROT_X should be in [2.5132742, ...]: either exactly the clamp
+     * if jittered atan2 lands in (0, 2.5132742), or above otherwise.
+     * For our seed, expect the clamp lower bound. */
+    float rot_x = slot_f(0, SCENE1_RECORDS_B_OFF_ROT_X);
+    T_ASSERT(rot_x >= 2.5132742f - 0.0001f);
+    return 0;
+}
+
+int test_records_b_spawn_npc_84_pos_direct_no_bend_spread(void)
+{
+    /* 0x84 uses owner pos directly with +3.0 y lift, NO sin/cos bend. */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    g_scene1_player_pos[0] = 100.0f + 10.0f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 300.0f + 10.0f;
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0x84, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x84);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 100.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 203.0f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z), 300.0f));
+    /* LIFE_MULT = 0.5; VEL_Y = 0.4; DRAG = 0.5; cap = 1. */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 0.5f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y),     0.4f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG),      0.5f));
+    /* NO AUX_C8 = 1 — preamble's 0 carries. */
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_AUX_C8), 0);
+    T_ASSERT_EQ_I(slot_i(1, SCENE1_RECORDS_B_OFF_TYPE),   0);  /* cap=1 */
+    return 0;
+}
+
+int test_records_b_spawn_npc_96_bend_spread_pos(void)
+{
+    /* 0x96 spreads POS_X/Z by sin/cos(bend) around owner; LIFE_MULT=0.2. */
+    reset_world();
+    seed_owner_b_420_family(2, 0.0f, 0);  /* bend = π/2 → sin=1, cos≈0 */
+    g_scene1_player_pos[0] = 100.0f + 10.0f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 300.0f + 10.0f;
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0x96, 0);
+
+    T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x96);
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X), 101.0f));   /* sin(π/2)*1 + 100 */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 202.0f));   /* +2 lift */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z), 300.0f));   /* cos(π/2)≈0 */
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT), 0.2f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y),     0.4f));
+    T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_DRAG),      0.5f));
+    return 0;
+}
+
+int test_records_b_spawn_npc_84_dist_clamp_min_5(void)
+{
+    /* Player AT owner → dx=dz=0; engine code path: dist=0; 5-clamp would
+     * divide by 0; sequence: dist<5 → scale by 5/0 (∞).  Avoid by placing
+     * player JUST off owner — dist=0.5 (< 5).  After clamp: dist=5,
+     * vel_mag_base = 5*0.01 = 0.05.  Without final-vel_mag override (0x84),
+     * vel_mag = u*0.04 + 0.05 ∈ [0.05, 0.09). */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    /* pos = (100, 203, 300), player offset (0.5, 0, 0) → dist=0.5. */
+    g_scene1_player_pos[0] = 100.5f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 300.0f;
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0x84, 0);
+
+    /* Just sanity-check that magnitudes are within the clamp band — vel
+     * magnitude = sqrt(VEL_X² + VEL_Z²) should be in [0.05, 0.09). */
+    float vx = slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X);
+    float vz = slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z);
+    float mag = sqrtf(vx * vx + vz * vz);
+    T_ASSERT(mag >= 0.05f - 1e-4f);
+    T_ASSERT(mag <= 0.09f + 1e-4f);
+    return 0;
+}
+
+int test_records_b_spawn_npc_mega_b_7c_rebound(void)
+{
+    /* 0x7c — pos -= 2*vel on x/z (after the standard vel computation). */
+    reset_world();
+    seed_owner_b_420_family(0, 0.0f, 0);
+    rng_seed(1);
+    scene1_record_b_spawn_npc(g_owner_b, 0x7c, 0);
+
+    /* cap = 5, so 5 slots written.  For each: pos.x = pre - 2*vel.x.
+     * Verify the relation holds slot-by-slot. */
+    T_ASSERT_EQ_I(count_live(), 5);
+    for (int k = 0; k < 5; k++) {
+        T_ASSERT_EQ_I(slot_i(k, SCENE1_RECORDS_B_OFF_TYPE), 0x7c);
     }
     return 0;
 }

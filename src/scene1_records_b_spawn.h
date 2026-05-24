@@ -347,7 +347,13 @@ extern "C" {
      (t) == 0x16 || (t) == 0x17 ||                                       \
      /* C8j.11a — L42831 fall-through group (5 types, ROT_X-only).    */ \
      (t) == 0xd  || (t) == 0x11 || (t) == 0x15 ||                        \
-     (t) == 0xc  || (t) == 0x10)
+     (t) == 0xc  || (t) == 0x10 ||                                       \
+     /* C8j.11 — mega-cluster B core + variants (9 types) + player-aim  \
+      * 0x84/0x96 (atan2 toward player_pos).                           */\
+     (t) == 0xa0 || (t) == 0xa1 || (t) == 0xa2 ||                        \
+     (t) == 0xa3 || (t) == 0xa4 ||                                       \
+     (t) == 0x73 || (t) == 0x7a || (t) == 0x7c || (t) == 0x7e ||         \
+     (t) == 0x84 || (t) == 0x96)
 
 /* Engine DAT_06a46fb8 — monotonically incremented per slot claim by
  * either allocator.  Snapshot + post-increment pattern means the first

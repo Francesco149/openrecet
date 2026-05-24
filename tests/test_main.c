@@ -1513,7 +1513,19 @@ struct test_case {
     X(records_b_spawn_npc_34_frame_counter_rotates_table) \
     X(records_b_spawn_npc_16_17_part_idx_minus_one) \
     X(records_b_spawn_npc_c8j13_implemented_macro) \
-    X(records_b_spawn_npc_lab_42831_rot_x_only)
+    X(records_b_spawn_npc_lab_42831_rot_x_only) \
+    X(records_b_spawn_npc_c8j11_implemented_macro) \
+    X(records_b_spawn_npc_mega_b_cap_per_type) \
+    X(records_b_spawn_npc_mega_b_pos_and_alt_pos) \
+    X(records_b_spawn_npc_mega_b_mode_dispatch) \
+    X(records_b_spawn_npc_mega_b_a4_skips_aux_c8) \
+    X(records_b_spawn_npc_mega_b_scale_x_per_type) \
+    X(records_b_spawn_npc_mega_b_a3_part_idx_quirk) \
+    X(records_b_spawn_npc_mega_b_a4_clamp_away_from_zero) \
+    X(records_b_spawn_npc_84_pos_direct_no_bend_spread) \
+    X(records_b_spawn_npc_96_bend_spread_pos) \
+    X(records_b_spawn_npc_84_dist_clamp_min_5) \
+    X(records_b_spawn_npc_mega_b_7c_rebound)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
