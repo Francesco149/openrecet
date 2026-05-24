@@ -230,6 +230,42 @@ void sw_pass_a_compose_world(float out[16], const int32_t *slot);
 #define SCENE1_RECORDS_SHOP_OFF_SUBGATE      0x178   /* != -1 to enable */
 #define SCENE1_RECORDS_SHOP_OFF_VISIBILITY   0x1b4   /* < 1 to enable */
 
+/* Pass F-specific field — int compared to 0xff (== 255) for enable. */
+#define SCENE1_RECORDS_SHOP_OFF_STATUS_F    (-0x12)  /* slot[-18], int compare to 0xff */
+
+/* Pass F record-emit predicate (C8c.F).  D3D-free.
+ *
+ * Walks the same range as Pass A (engine DAT_0076bd94..DAT_007c8f94,
+ * stride 0x2e9 dw).  Gates: ACTIVE != 0 AND type_enabled AND STATUS_F
+ * == 0xff (= 255).  The type_enabled flag is the result of a lookup
+ * into a per-type 0x1a-dword record at DAT_005c2410 (engine asm
+ * `(type * 0x68 bytes) + 0x5c2410`).  Caller passes the lookup result
+ * — the helper itself stays pure.
+ *
+ * Per-record action (in the walker body): call FUN_00456d48(slot -
+ * 0x109) — a 526-byte scene-tree dispatcher we haven't ported.  The
+ * walker uses a hook (sw_pass_f_set_emit_hook) so tests can observe
+ * what would have fired. */
+int sw_pass_f_should_emit(const int32_t *slot, int type_enabled);
+
+/* Per-type enable lookup hook.  Default returns 0 (every type
+ * disabled) since DAT_005c2410 is BSS-zero at boot and never
+ * populated for HOUSE.  Tests + future ports can install a real
+ * lookup via the setter. */
+void sw_pass_f_set_type_enabled_hook(int (*hook)(int32_t type));
+int  sw_pass_f_type_enabled(int32_t type);
+
+/* Per-emit hook — receives the record pointer offset by -0x109 dw
+ * (matching FUN_00456d48's expected scene-tree-record arg).  Default
+ * no-op.  Setter is host-linkable for tests. */
+void sw_pass_f_set_emit_hook(void (*hook)(const int32_t *record_offset));
+void sw_pass_f_clear_emit_hook(void);
+
+/* Routes to the installed emit hook (no-op if none set).  The walker
+ * (Win32 only) calls this once per matching record; tests can call
+ * it directly to verify hook plumbing. */
+void sw_pass_f_fire_emit(const int32_t *record_offset);
+
 /* Pass D mesh slot.  Stand-in for the engine's static &DAT_073a9680
  * (train_iwa.x, populated by FUN_00474a9a's DUNGEON branch only).
  * Default NULL → Pass D dormant inside scene1_emit_record (matches

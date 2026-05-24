@@ -1390,6 +1390,13 @@ struct test_case {
     X(scene1_pass_a_compose_variant_1_reads_second_pos_triplet) \
     X(scene1_pass_a_compose_scale_is_hard_coded_0_04) \
     X(scene1_pass_a_compose_rot_src_is_int_scaled_by_0_05) \
+    X(scene1_pass_f_type_enabled_default_is_zero) \
+    X(scene1_pass_f_type_enabled_hook_round_trips) \
+    X(scene1_pass_f_should_emit_rejects_inactive) \
+    X(scene1_pass_f_should_emit_rejects_disabled_type) \
+    X(scene1_pass_f_should_emit_rejects_status_not_0xff) \
+    X(scene1_pass_f_should_emit_accepts_all_gates_open) \
+    X(scene1_pass_f_emit_hook_round_trips) \
     X(scene1_preload_post_house_cb_default_is_null) \
     X(scene1_preload_post_house_cb_setter_round_trips) \
     X(scene1_preload_post_house_cb_setter_replaces_previous) \

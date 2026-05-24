@@ -1022,6 +1022,117 @@ int test_scene1_pass_a_compose_scale_is_hard_coded_0_04(void)
     return 0;
 }
 
+/* ─── Pass F (C8c.F) ────────────────────────────────────────────────────
+ *
+ * Pass F shares Pass A's record layout (same DAT_0076bd94 table, same
+ * slot anchor at TYPE, same negative-offset convention).  The status
+ * field STATUS_F at slot[-0x12] is distinct from Pass A's ROT_SRC at
+ * slot[-0x23]. */
+
+int test_scene1_pass_f_type_enabled_default_is_zero(void)
+{
+    /* Default hook routes every type to "disabled" (DAT_005c2410 is
+     * BSS-zero at boot). */
+    sw_pass_f_set_type_enabled_hook(NULL);  /* reset to default */
+    T_ASSERT(sw_pass_f_type_enabled(0x00) == 0);
+    T_ASSERT(sw_pass_f_type_enabled(0x3e) == 0);
+    T_ASSERT(sw_pass_f_type_enabled(0x77) == 0);
+    T_ASSERT(sw_pass_f_type_enabled(0xff) == 0);
+    return 0;
+}
+
+static int test_pass_f_enable_only_0x42(int32_t type)
+{
+    return type == 0x42 ? 1 : 0;
+}
+
+int test_scene1_pass_f_type_enabled_hook_round_trips(void)
+{
+    sw_pass_f_set_type_enabled_hook(test_pass_f_enable_only_0x42);
+    T_ASSERT(sw_pass_f_type_enabled(0x42) == 1);
+    T_ASSERT(sw_pass_f_type_enabled(0x41) == 0);
+    sw_pass_f_set_type_enabled_hook(NULL);  /* restore default */
+    T_ASSERT(sw_pass_f_type_enabled(0x42) == 0);
+    return 0;
+}
+
+int test_scene1_pass_f_should_emit_rejects_inactive(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE]   = 0;     /* gate */
+    slot[SCENE1_RECORDS_SHOP_OFF_STATUS_F] = 0xff;
+    T_ASSERT(sw_pass_f_should_emit(slot, /*type_enabled=*/1) == 0);
+    return 0;
+}
+
+int test_scene1_pass_f_should_emit_rejects_disabled_type(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE]   = 1;
+    slot[SCENE1_RECORDS_SHOP_OFF_STATUS_F] = 0xff;
+    T_ASSERT(sw_pass_f_should_emit(slot, /*type_enabled=*/0) == 0);
+    return 0;
+}
+
+int test_scene1_pass_f_should_emit_rejects_status_not_0xff(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE]   = 1;
+    slot[SCENE1_RECORDS_SHOP_OFF_STATUS_F] = 0xfe;   /* one off */
+    T_ASSERT(sw_pass_f_should_emit(slot, 1) == 0);
+
+    slot[SCENE1_RECORDS_SHOP_OFF_STATUS_F] = 0x100;  /* one over */
+    T_ASSERT(sw_pass_f_should_emit(slot, 1) == 0);
+
+    slot[SCENE1_RECORDS_SHOP_OFF_STATUS_F] = 0;
+    T_ASSERT(sw_pass_f_should_emit(slot, 1) == 0);
+    return 0;
+}
+
+int test_scene1_pass_f_should_emit_accepts_all_gates_open(void)
+{
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE]   = 1;
+    slot[SCENE1_RECORDS_SHOP_OFF_STATUS_F] = 0xff;
+    T_ASSERT(sw_pass_f_should_emit(slot, 1) == 1);
+    return 0;
+}
+
+static const int32_t *g_test_pass_f_last_emit_arg = NULL;
+static int g_test_pass_f_emit_count = 0;
+static void test_pass_f_emit_capture(const int32_t *record_offset)
+{
+    g_test_pass_f_last_emit_arg = record_offset;
+    g_test_pass_f_emit_count++;
+}
+
+int test_scene1_pass_f_emit_hook_round_trips(void)
+{
+    g_test_pass_f_last_emit_arg = NULL;
+    g_test_pass_f_emit_count = 0;
+    sw_pass_f_set_emit_hook(test_pass_f_emit_capture);
+
+    int32_t buf[SHOP_SLOT_TOTAL];
+    slot_a_init_zero(buf);
+    int32_t *slot = slot_a_anchor(buf);
+    sw_pass_f_fire_emit(slot);
+    T_ASSERT(g_test_pass_f_emit_count == 1);
+    T_ASSERT(g_test_pass_f_last_emit_arg == slot);
+
+    sw_pass_f_clear_emit_hook();
+    sw_pass_f_fire_emit(slot);
+    T_ASSERT(g_test_pass_f_emit_count == 1);  /* still 1 after clear */
+    return 0;
+}
+
 int test_scene1_pass_a_compose_rot_src_is_int_scaled_by_0_05(void)
 {
     /* ROT_SRC is `fild`-loaded (int → float) then multiplied by 0.05f.

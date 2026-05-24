@@ -451,3 +451,80 @@ void sw_pass_a_compose_world(float out[16], const int32_t *slot)
     mat4_rotation_x(scratch, rot_angle);
     mat4_mul(out, scratch, out);    /* out = Rx × S × T */
 }
+
+/* ─── Pass F helpers (C8c.F) ─────────────────────────────────────────────
+ *
+ * Engine FUN_004552d0 L318-L324 / asm @ 0x455ee4..0x455f1d.  Walks the
+ * same DAT_0076bd94..DAT_007c8f94 range as Pass A (128 records × stride
+ * 0x2e9 dw).  Per-record body is just a gate cascade + a delegation
+ * to a 526-byte scene-tree dispatcher (FUN_00456d48, not yet ported).
+ *
+ * Gate cascade (asm @ 0x455ee9..0x455f02):
+ *   slot[1] != 0            (ACTIVE — same field as Pass A)
+ *   (&DAT_005c2410)[type * 0x68 bytes] == 1
+ *                            (TYPE-enable table lookup; each per-type
+ *                             record is 0x1a dwords = 0x68 bytes, first
+ *                             dword is the enable flag)
+ *   slot[-0x12] == 0xff      (STATUS_F field; signed int dword compared
+ *                             to value 255, asm `cmp DWORD PTR
+ *                             [edi-0x48], 0xff`)
+ *
+ * Action: FUN_00456d48(slot - 0x109).  The arg is the scene-tree
+ * record pointer (offset -0x109 dw = -0x424 bytes from the slot
+ * anchor; engine asm `lea eax, [edi-0x424]`).  Engine doesn't write
+ * SetTransform itself — that's done inside FUN_00456d48 with a
+ * Translation × Scaling × RotationY chain followed by FUN_00404a20
+ * (the scene-tree walker).
+ *
+ * Dormant in HOUSE: (a) the DAT_0076bd94 table is unported (count_stub
+ * returns 0), and (b) the DAT_005c2410 type-enable table is BSS-zero
+ * at boot — no in-binary writers found in our decomp.  The default
+ * type_enabled hook returns 0 to match BSS-zero engine state. */
+
+static int sw_pass_f_type_enabled_default(int32_t type)
+{
+    (void)type;
+    /* DAT_005c2410 is BSS-zero at boot; HOUSE never populates it. */
+    return 0;
+}
+
+static int (*g_pass_f_type_enabled_hook)(int32_t) =
+    sw_pass_f_type_enabled_default;
+
+void sw_pass_f_set_type_enabled_hook(int (*hook)(int32_t type))
+{
+    g_pass_f_type_enabled_hook = hook ? hook : sw_pass_f_type_enabled_default;
+}
+
+int sw_pass_f_type_enabled(int32_t type)
+{
+    return g_pass_f_type_enabled_hook(type);
+}
+
+int sw_pass_f_should_emit(const int32_t *slot, int type_enabled)
+{
+    if (slot[SCENE1_RECORDS_SHOP_OFF_ACTIVE] == 0) return 0;
+    if (!type_enabled) return 0;
+    /* Engine: signed int compare against 0xff = 255. */
+    if (slot[SCENE1_RECORDS_SHOP_OFF_STATUS_F] != 0xff) return 0;
+    return 1;
+}
+
+static void (*g_pass_f_emit_hook)(const int32_t *) = NULL;
+
+void sw_pass_f_set_emit_hook(void (*hook)(const int32_t *record_offset))
+{
+    g_pass_f_emit_hook = hook;
+}
+
+void sw_pass_f_clear_emit_hook(void)
+{
+    g_pass_f_emit_hook = NULL;
+}
+
+/* Internal — invoked by sw_pass_f when an emit fires.  Lives here so
+ * tests can link without dragging in <d3d8.h>. */
+void sw_pass_f_fire_emit(const int32_t *record_offset)
+{
+    if (g_pass_f_emit_hook) g_pass_f_emit_hook(record_offset);
+}

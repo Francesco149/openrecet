@@ -457,24 +457,36 @@ static void sw_pass_e(IDirect3DDevice8 *dev)
 }
 
 /* Pass F walks the same table as Pass A.  Per-record (after the
- * same active gate as Pass A) calls FUN_00456d48 — which itself
- * dispatches into the scene-tree chain. */
+ * gate cascade — ACTIVE != 0, type-enable table flag == 1, STATUS_F
+ * == 0xff) calls FUN_00456d48(slot - 0x109).  FUN_00456d48 is a 526-
+ * byte scene-tree dispatcher we haven't ported; the walker dispatches
+ * through sw_pass_f_fire_emit which routes to a host-installable
+ * hook (default no-op).
+ *
+ * Dormant in HOUSE: count_stub returns 0; even with records populated
+ * the type-enable table at DAT_005c2410 is BSS-zero so every record
+ * fails the second gate. */
 static void sw_pass_f(IDirect3DDevice8 *dev)
 {
-    /* Engine L318-L324:
-     *
-     *   piVar8 = &DAT_0076bd94;
-     *   do {
-     *     if (piVar8[1] != 0
-     *         && (&DAT_005c2410)[*piVar8 * 0x1a] == 1
-     *         && piVar8[-0x12] == 0xff) {
-     *       FUN_00456d48(piVar8 - 0x109);
-     *     }
-     *     piVar8 += 0x2e9;
-     *   } while (piVar8 != &DAT_007c8f94);
-     *
-     * Dormant in HOUSE — same active-flag dormancy as Pass A. */
-    (void)dev;
+    (void)dev;  /* Pass F doesn't write SetTransform itself — the
+                 * scene-tree dispatcher inside FUN_00456d48 does. */
+    int count = sw_pass_af_count();
+    if (count == 0) return;
+
+    for (int i = 0; i < count; i++) {
+        const int32_t *slot = sw_pass_af_slot(i);
+        if (!slot) continue;
+
+        int32_t type = slot[SCENE1_RECORDS_SHOP_OFF_TYPE];
+        int type_enabled = sw_pass_f_type_enabled(type);
+        if (!sw_pass_f_should_emit(slot, type_enabled)) continue;
+
+        /* Engine: FUN_00456d48(slot - 0x109).  The -0x109 dw offset
+         * (= -0x424 bytes) points at the scene-tree record header
+         * embedded in the parent shop record.  HOUSE: no-op default
+         * since FUN_00456d48 isn't ported. */
+        sw_pass_f_fire_emit(slot - 0x109);
+    }
 }
 
 /* Light pass — gated by sw_light_pass_gate() == 0 AND
