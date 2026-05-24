@@ -517,6 +517,247 @@ static int init_entity_cluster_a(int i, const void *owner, int type,
     return cap;
 }
 
+/* Mega-cluster A — types 0x73, 0x76, 0x77, 0x78, 0x7a, 0x7b, 0x7c, 0x7e
+ * (engine L41650-41813, reached only via the negated outer guard at
+ * L41469-71).  MULTI-particle for 0x73 (4), 0x7c (5), 0x76/0x78/0x7a
+ * (8 each); 1-particle for 0x77/0x7b/0x7e.
+ *
+ * Body (per-particle, with `part_idx = local_8`):
+ *
+ *   local_c = (owner+0x948) * 2π / 8                       (BEND angle)
+ *   POS_X/Z   = sin/cos(local_c) * 1.2 + owner.x/z
+ *   POS_Y     = owner.y + 1.3
+ *   ALT_POS_X/Z = sin/cos(local_c) * 0.8 + owner.x/z
+ *   ALT_POS_Y   = owner.y + 1.3
+ *   if type==0x7a: local_c = owner+0xea4              (override AFTER pos)
+ *
+ *   3-way (owner+0x948) dispatch (re-read through slot OWNER_A in engine):
+ *     mode 0:  POS_X -= 0.41;  ALT_POS_X -= 0.41;
+ *     mode 4:  POS_X += 0.41;  ALT_POS_X += 0.41;
+ *     else:    POS_Z -= 0.1;   ALT_POS_Z -= 0.1;
+ *
+ *   uVar9 = (owner+0xe3c + part_idx) % 32             (angle-table mod 32)
+ *   LIFE_MULT = 0.3 (default; per-type overrides below)
+ *   DRAG = 0.5
+ *   local_10 = 0.18 (vel mag default)
+ *   AUX_C8 = 1
+ *   fVar2 = (uVar9 & 7) - 4   ;  fVar3 = uVar9 / 8     (int div)
+ *   ROT_X = (fVar2*0.05 + fVar3*0.0125) * π + local_c  (default mod-32)
+ *   VEL_Y = 0
+ *
+ *   Per-type overrides (some chains overwrite ROT_X / VEL_Y):
+ *     0x7e:  LIFE_MULT=0.4, local_10=0.25,
+ *            ROT_X = (u - 0.5)*2.1991148 + local_c
+ *     0x78 | 0x7a:
+ *            LIFE_MULT=0.15, local_10=0.5,
+ *            ROT_X = (fVar2*0.01 + fVar3*0.0025)*π + local_c,
+ *            ROT_X = (u - 0.5)*0.3 + local_c            (overwrites!)
+ *            if part_idx != 3:
+ *              0x78 → VEL_Y = u*0.01 - 0.1
+ *              0x7a → VEL_Y = u*0.01 - 0.07
+ *
+ *   LAB_00444f72 (joined back here from 0x78/0x7a):
+ *     0x7c:  local_10=0.3,
+ *            base = local_c - π,
+ *            shift_mag = ((part_idx + 1) / 2) * π / 10,
+ *            ROT_X = base ∓ shift_mag (alternating sign per part_idx),
+ *            VEL_Y = u*0.01 + 0.15
+ *     0x76:  ROT_X = (fVar2*0.01 + fVar3*0.0025)*π + local_c
+ *     0x7b:  ROT_X = local_c, local_10=0.24, VEL_Y = 0.1
+ *     0x77:  local_10=0.3, LIFE_MULT=0.8, ROT_SCR=local_c,
+ *            ROT_X = (u - 0.5)*0.3 + local_c
+ *
+ *   VEL_X = sin(ROT_X) * local_10
+ *   VEL_Z = cos(ROT_X) * local_10
+ *   if 0x7c:  POS_X -= 2*VEL_X;  POS_Z -= 2*VEL_Z      (rebound)
+ *   ROT_Z = rng_next_unit() * 2π
+ *   AGE = -part_idx     (0x7c override: AGE = part_idx * -4)
+ *   if 0x76 && part_idx > 0:  PART_IDX = 1
+ *   Per-type SCALE_X:
+ *     0x7e→0.3, 0x73→0.25, 0x76→0.25, 0x78→0.125, 0x7a→0.125,
+ *     0x77→1.0, 0x7b→1.0, 0x7c→0.5
+ *   Cap:
+ *     0x76/0x78/0x7a→8, 0x7c→5, 0x73→4, 0x77/0x7b/0x7e→1
+ *
+ * Argless cos at L41752 (after L41750 sin(slot+ROT_X)) verified via
+ * raw-asm at 0x444769: `fld QWORD PTR [ebp-0x2c]; ...; call 0x503994`
+ * — same dVar4 stash pattern as PHC #7.  Argless cos at L41636 (drift-
+ * sibling tail) verified at 0x443d0c. */
+static int init_entity_mega_cluster_a(int i, const void *owner, int type,
+                                      int flag, int part_idx)
+{
+    (void)flag;
+
+    int   npc_idx = owner_read_i(owner, 0x948);
+    float bend    = (float)npc_idx * B_TWO_PI_F / 8.0f;
+    float local_c = bend;
+
+    float ox = owner_read_f(owner, 0x20);
+    float oy = owner_read_f(owner, 0x24);
+    float oz = owner_read_f(owner, 0x28);
+
+    /* L41653-41661: default pos + alt-pos with sin/cos(bend). */
+    float sc_b = sinf(bend);
+    float cc_b = cosf(bend);
+    float pos_x = sc_b * 1.2f + ox;
+    float pos_y = oy + 1.3f;
+    float pos_z = cc_b * 1.2f + oz;
+    float alt_x = sc_b * 0.8f + ox;
+    float alt_y = oy + 1.3f;
+    float alt_z = cc_b * 0.8f + oz;
+
+    /* L41662-41664: 0x7a swaps local_c to owner+0xea4 AFTER pos writes. */
+    if (type == 0x7a) local_c = owner_read_f(owner, 0xea4);
+
+    /* L41665-41679: 3-way (owner+0x948) dispatch — modifies pos + alt_pos
+     * x/z based on the NPC's facing mode. */
+    if (npc_idx == 0) {
+        pos_x -= 0.41f;
+        alt_x -= 0.41f;
+    } else if (npc_idx == 4) {
+        pos_x += 0.41f;
+        alt_x += 0.41f;
+    } else {
+        pos_z -= 0.1f;
+        alt_z -= 0.1f;
+    }
+
+    /* Commit pos + alt-pos. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, alt_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, alt_y);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, alt_z);
+
+    /* L41680: angle-table mod 32.  owner+0xe3c is a per-entity sub-frame
+     * counter (no global stand-in — read directly from owner). */
+    uint32_t uvar9 = (uint32_t)(owner_read_i(owner, 0xe3c) + part_idx) & 0x1f;
+    float    fVar2 = (float)((int)(uvar9 & 7) - 4);
+    float    fVar3 = (float)((int)uvar9 / 8);
+
+    /* L41681-41689: default tail state. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      0.5f);
+    float local_10 = 0.18f;
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+    float rot_x = (fVar2 * 0.05f + fVar3 * 0.0125f) * 3.1415927f + local_c;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+
+    /* L41690-41696: 0x7e override. */
+    if (type == 0x7e) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.4f);
+        local_10 = 0.25f;
+        rot_x    = (rng_next_unit() - 0.5f) * 2.1991148f + local_c;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+    }
+
+    /* L41697-41713: 0x78 / 0x7a override (with part_idx==3 skip). */
+    if (type == 0x78 || type == 0x7a) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.15f);
+        local_10 = 0.5f;
+        rot_x    = (fVar2 * 0.01f + fVar3 * 0.0025f) * 3.1415927f + local_c;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+        rot_x    = (rng_next_unit() - 0.5f) * 0.3f + local_c;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+        if (part_idx != 3) {
+            float u = rng_next_unit();
+            if (type == 0x78) {
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, u * 0.01f - 0.1f);
+            } else {
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, u * 0.01f - 0.07f);
+            }
+        }
+    }
+
+    /* LAB_00444f72 — joined back here regardless of 0x78/0x7a branch. */
+    if (type == 0x7c) {
+        local_10 = 0.3f;
+        float base = local_c - 3.1415927f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, base);
+        float shift_mag = (float)((part_idx + 1) / 2) * 0.31415927f;
+        float fan;
+        if ((part_idx & 1) == 0) {
+            fan = base - shift_mag;
+        } else {
+            fan = base + shift_mag;
+        }
+        rot_x = fan;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y,
+                   rng_next_unit() * 0.01f + 0.15f);
+    }
+    if (type == 0x76) {
+        rot_x = (fVar2 * 0.01f + fVar3 * 0.0025f) * 3.1415927f + local_c;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+    }
+    if (type == 0x7b) {
+        rot_x    = local_c;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+        local_10 = 0.24f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.1f);
+    }
+    if (type == 0x77) {
+        local_10 = 0.3f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.8f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, local_c);
+        rot_x = (rng_next_unit() - 0.5f) * 0.3f + local_c;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+    }
+
+    /* L41750-41753: VEL_X/Z = sin/cos(ROT_X) * local_10.
+     * Re-read ROT_X to capture all per-type overrides above. */
+    float final_rot_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    float vx = sinf(final_rot_x) * local_10;
+    float vz = cosf(final_rot_x) * local_10;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
+
+    /* L41754-41763: 0x7c rebound — POS_X/Z -= 2*VEL.
+     * Engine reads slot[POS_X/Z] and slot[VEL_X/Z] back, not the local
+     * `vx`/`vz` (same values; faithful read-back). */
+    if (type == 0x7c) {
+        float pxr = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float pzr = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pxr - 2.0f * vx);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pzr - 2.0f * vz);
+    }
+
+    /* L41764-41769: ROT_Z, AGE. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               rng_next_unit() * B_TWO_PI_F);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, -part_idx);
+    if (type == 0x7c) {
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, part_idx * -4);
+    }
+
+    /* L41770-41772: 0x76 sub-particle PART_IDX flag. */
+    if (type == 0x76 && part_idx > 0) {
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+    }
+
+    /* L41773-41796: per-type SCALE_X. */
+    switch (type) {
+    case 0x7e: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.3f);   break;
+    case 0x73: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.25f);  break;
+    case 0x76: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.25f);  break;
+    case 0x78: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.125f); break;
+    case 0x7a: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.125f); break;
+    case 0x77: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 1.0f);   break;
+    case 0x7b: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 1.0f);   break;
+    case 0x7c: slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.5f);   break;
+    default: break;
+    }
+
+    /* L41797-41812: per-type cap. */
+    int cap = 1;
+    if (type == 0x76 || type == 0x78 || type == 0x7a) cap = 8;
+    else if (type == 0x7c) cap = 5;
+    else if (type == 0x73) cap = 4;
+    return cap;
+}
+
 /* Dispatch helper — routes a (slot, type, part_idx) to the right body
  * and returns the cap.  Used by scene1_record_b_spawn_entity's outer
  * loop to know when to stop committing slots. */
@@ -536,6 +777,10 @@ static int run_entity_body(int slot, const void *owner, int type,
     case 0x51: case 0x52: case 0x53:
         return init_entity_cluster_a(slot, owner, type, flag, part_idx);
 
+    case 0x73: case 0x76: case 0x77: case 0x78:
+    case 0x7a: case 0x7b: case 0x7c: case 0x7e:
+        return init_entity_mega_cluster_a(slot, owner, type, flag, part_idx);
+
     default:
         /* Unreachable — outer dispatch gated by IMPLEMENTED. */
         return 1;
@@ -544,13 +789,114 @@ static int run_entity_body(int slot, const void *owner, int type,
 
 /* ─── per-type bodies — NPC allocator ─────────────────────────────── */
 
+/* Same per-particle body signature as the entity allocator (see
+ * comment above init_entity_24).  Body returns the cap; outer loop
+ * commits up to `cap` particles. */
+
 /* Types 0xe / 0x97 / 0x46 — pure preamble (engine L42823: direct
  * goto LAB_00447584 → tail-share `local_8 = local_8 + 1; bVar11 =
  * local_8 == 1; goto LAB_00447cbe;`). */
-static void init_npc_e_97_46(int i, const void *owner)
+static int init_npc_e_97_46(int i, const void *owner, int type, int flag,
+                            int part_idx)
 {
-    (void)i;
-    (void)owner;
+    (void)i; (void)owner; (void)type; (void)flag; (void)part_idx;
+    return 1;
+}
+
+/* NPC cluster B — types 0x4d, 0x4e, 0x4f, 0x50, 0xa5, 0xa6 (engine
+ * L42112-42161).  MULTI-particle: 0x4f→3, 0x50→5, 0xa5→6, 0xa6→8;
+ * 0x4d/0x4e are 1-particle.  Simpler than cluster A:
+ *
+ *   local_1c = (owner+0x18) * 2π / 8                   (NPC bend at +0x18)
+ *   per-particle shifts (5 only — engine omits the 5/6/7 cases):
+ *     part_idx 0 →  0
+ *              1 → -0.18
+ *              2 → +0.18
+ *              3 → -0.36
+ *              4 → +0.36
+ *   POS_X     = sin(local_1c) * 0.8 + owner+0x3f0
+ *   POS_Y     = owner+0x3f4 + 1.4
+ *   POS_Z     = cos(local_1c) * 0.8 + owner+0x3f8
+ *   LIFE_MULT = 0.4   (hardcoded — no per-type override)
+ *   VEL_Y     = 0
+ *   VEL_X     = sin(local_1c) * 0.5
+ *   VEL_Z     = cos(local_1c) * 0.5
+ *   ROT_X     = local_1c
+ *   DRAG      = 0.5
+ *   AUX_C8    = 1
+ *   Cap:
+ *     0x4f → 3, 0x50 → 5, 0xa5 → 6, 0xa6 → 8, else → 1.
+ *
+ * No SCALE_X override (preamble default 1.0 carries).  No 0x53 special.
+ *
+ * Argless cos at L42141 (after L42138 sin(local_10)) follows the same
+ * `[ebp-Nx]` reload pattern as the entity allocator's cluster A — same
+ * PHC #7 finding, no separate raw-asm check required. */
+static int init_npc_cluster_b(int i, const void *owner, int type, int flag,
+                              int part_idx)
+{
+    (void)flag;
+
+    /* L42115: bend from owner+0x18 (NPC shape — DIFFERENT field from
+     * entity shape's 0x948). */
+    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    float local_1c = bend;
+
+    /* L42116-42127: per-particle shifts (only 4 explicit cases — engine
+     * uses cluster A's 8-shift table only for entity alloc). */
+    static const float shifts[5] = {
+        0.0f, -0.18f, +0.18f, -0.36f, +0.36f,
+    };
+    if (part_idx >= 0 && part_idx < 5) local_1c += shifts[part_idx];
+
+    float ox = owner_read_f(owner, 0x3f0);
+    float oy = owner_read_f(owner, 0x3f4);
+    float oz = owner_read_f(owner, 0x3f8);
+
+    float sc = sinf(local_1c);
+    float cc = cosf(local_1c);
+
+    /* L42131-42135: pos write. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sc * 0.8f + ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.4f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cc * 0.8f + oz);
+
+    /* L42136-42144: LIFE_MULT, vel. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.4f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(local_1c) * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(local_1c) * 0.5f);
+
+    /* L42157-42159: tail state. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, local_1c);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,  0.5f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+
+    /* L42145-42156: per-type cap. */
+    int cap = 1;
+    if (type == 0x4f) cap = 3;
+    if (type == 0x50) cap = 5;
+    if (type == 0xa5) cap = 6;
+    if (type == 0xa6) cap = 8;
+    return cap;
+}
+
+/* Dispatch helper for NPC allocator. */
+static int run_npc_body(int slot, const void *owner, int type, int flag,
+                        int part_idx)
+{
+    switch (type) {
+    case 0xe: case 0x97: case 0x46:
+        return init_npc_e_97_46(slot, owner, type, flag, part_idx);
+
+    case 0x4d: case 0x4e: case 0x4f: case 0x50:
+    case 0xa5: case 0xa6:
+        return init_npc_cluster_b(slot, owner, type, flag, part_idx);
+
+    default:
+        /* Unreachable — outer dispatch gated by IMPLEMENTED. */
+        return 1;
+    }
 }
 
 /* ─── public API ─────────────────────────────────────────────────── */
@@ -603,19 +949,17 @@ void scene1_record_b_spawn_npc(const void *owner_b, int type, int flag)
         return;
     }
 
+    /* NPC allocator outer loop — same shape as the entity allocator's
+     * after C8j.6 refactor.  Engine LAB_00447cb8 / 00447cbe tail uses
+     * uVar5 as the cap; body returns it. */
+    int part_idx = 0;
     for (int i = 0; i < SCENE1_RECORDS_B_COUNT; i++) {
         if (!slot_is_free(i)) continue;
 
         preamble_npc(i, owner_b, type, flag);
+        int cap = run_npc_body(i, owner_b, type, flag, part_idx);
 
-        switch (type) {
-        case 0xe:
-        case 0x97:
-        case 0x46:
-            init_npc_e_97_46(i, owner_b);
-            break;
-        default: break;
-        }
-        return;
+        part_idx++;
+        if (part_idx >= cap) return;
     }
 }

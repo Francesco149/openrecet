@@ -1421,7 +1421,26 @@ struct test_case {
     X(records_b_spawn_entity_cluster_a_vel_uses_local_10_0_3_for_4d) \
     X(records_b_spawn_entity_cluster_a_vel_uses_local_10_0_5_for_4e) \
     X(records_b_spawn_entity_cluster_a_4e_rot_x_equals_local_c) \
-    X(records_b_spawn_entity_cluster_a_implemented_macro)
+    X(records_b_spawn_entity_cluster_a_implemented_macro) \
+    X(records_b_spawn_entity_mega_77_one_particle) \
+    X(records_b_spawn_entity_mega_73_four_particles) \
+    X(records_b_spawn_entity_mega_7c_five_particles_with_neg_age) \
+    X(records_b_spawn_entity_mega_76_eight_particles_part_idx_flag) \
+    X(records_b_spawn_entity_mega_78_eight_with_life_mult) \
+    X(records_b_spawn_entity_mega_7e_life_mult_and_scale) \
+    X(records_b_spawn_entity_mega_pos_with_bend_mode_else) \
+    X(records_b_spawn_entity_mega_pos_with_bend_mode_0) \
+    X(records_b_spawn_entity_mega_pos_with_bend_mode_4) \
+    X(records_b_spawn_entity_mega_7b_rot_x_is_local_c) \
+    X(records_b_spawn_entity_mega_7a_local_c_override) \
+    X(records_b_spawn_entity_mega_7c_rebound_pos_decremented) \
+    X(records_b_spawn_entity_mega_implemented_macro) \
+    X(records_b_spawn_npc_cluster_b_4d_writes_basic_fields) \
+    X(records_b_spawn_npc_cluster_b_4f_spawns_3_particles) \
+    X(records_b_spawn_npc_cluster_b_a6_spawns_8_particles) \
+    X(records_b_spawn_npc_cluster_b_per_particle_shifts) \
+    X(records_b_spawn_npc_cluster_b_4e_one_particle) \
+    X(records_b_spawn_npc_cluster_b_implemented_macro)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

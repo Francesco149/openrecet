@@ -8,6 +8,11 @@
  * (10 types) + multi-particle outer-loop infrastructure for the entity
  * allocator.  17 new entity types total; NPC allocator unchanged.
  *
+ * Chip C8j.7 (2026-05-24) — mega-cluster A in entity allocator (8 types)
+ * + cluster B in NPC allocator (6 types).  Multi-particle outer-loop
+ * refactor for NPC allocator (mirrors C8j.6's entity refactor).
+ * 14 new types total.
+ *
  *   FUN_0044376a — "entity allocator", owner shape A: pos at owner+0x20,
  *                  matrix at owner+0xde8, NPC-bend at owner+0x948,
  *                  alt people-table at owner+0x9e0 (stride 0x44),
@@ -104,10 +109,34 @@ extern "C" {
  *     {+0.7y default | +1.4y main6 | owner.y for 0x53}.  Per-type
  *     SCALE_X + LIFE_MULT + local_10 vel-mag + VEL_Y (0x4d=0.07).
  *     0x53 also writes byte 0xc0 = 3.
+ *   C8j.7 mega-cluster A (engine L41650-41813):
+ *   - 0x77, 0x7b, 0x7e — 1 particle each.
+ *   - 0x73 — 4 particles.
+ *   - 0x7c — 5 particles.
+ *   - 0x76, 0x78, 0x7a — 8 particles each.
+ *     Pos from sin/cos(bend)*1.2 + +1.3y; ALT_POS from sin/cos(bend)
+ *     *0.8 + +1.3y.  0x7a overrides local_c with owner+0xea4 AFTER
+ *     pos writes.  Three-way (owner+0x948) dispatch: 0 → POS_X -= 0.41,
+ *     4 → POS_X += 0.41, else → POS_Z -= 0.1 (ALT_POS gets same shift).
+ *     Angle table mod 32 = (owner+0xe3c + part_idx) % 32 → ROT_X wobble.
+ *     Per-type ROT_X/VEL_Y/SCALE_X/LIFE_MULT/local_10 overrides.
+ *     0x7c: POS_X/Z -= 2*VEL (rebound), per-particle alternating
+ *     bidirectional ROT_X fan.  0x76 with part>0: PART_IDX = 1.
  *
  * NPC allocator (FUN_00445a8c):
+ *   C8j.5 anchors (1-particle, preamble-only):
  *   - 0xe, 0x97, 0x46 — all preamble-only via LAB_00447584 tail-share.
- *     (No C8j.6 additions — NPC allocator handlers land in C8j.10+.)
+ *   C8j.7 cluster B (engine L42112-42161, MULTI-particle):
+ *   - 0x4d, 0x4e — 1 particle each.
+ *   - 0x4f — 3 particles.
+ *   - 0x50 — 5 particles.
+ *   - 0xa5 — 6 particles.
+ *   - 0xa6 — 8 particles.
+ *     Per-particle angle = bend (owner+0x18 * 2π/8) + 5-shift table
+ *     {0/±0.18/±0.36}; pos = sin/cos(angle)*0.8 + +1.4y; LIFE_MULT
+ *     hardcoded 0.4; VEL_X/Z = sin/cos(angle)*0.5; ROT_X = angle;
+ *     DRAG = 0.5; AUX_C8 = 1.  No per-type SCALE_X / LIFE_MULT.
+ *     (Simpler than cluster A — owner shape B has fewer fields.)
  */
 #define SCENE1_RECORD_B_SPAWN_ENTITY_TYPE_IMPLEMENTED(t)                 \
     ((t) == 0x24 || (t) == 0x60 || (t) == 0x82 ||                        \
@@ -115,9 +144,13 @@ extern "C" {
      (t) == 0x22 || (t) == 0x54 || (t) == 0x67 ||                        \
      (t) == 0x4d || (t) == 0x4e || (t) == 0x4f || (t) == 0x50 ||         \
      (t) == 0xa5 || (t) == 0xa6 || (t) == 99   ||                        \
-     (t) == 0x51 || (t) == 0x52 || (t) == 0x53)
-#define SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(t) \
-    ((t) == 0xe || (t) == 0x97 || (t) == 0x46)
+     (t) == 0x51 || (t) == 0x52 || (t) == 0x53 ||                        \
+     (t) == 0x73 || (t) == 0x76 || (t) == 0x77 || (t) == 0x78 ||         \
+     (t) == 0x7a || (t) == 0x7b || (t) == 0x7c || (t) == 0x7e)
+#define SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(t)                    \
+    ((t) == 0xe  || (t) == 0x97 || (t) == 0x46 ||                        \
+     (t) == 0x4d || (t) == 0x4e || (t) == 0x4f || (t) == 0x50 ||         \
+     (t) == 0xa5 || (t) == 0xa6)
 
 /* Engine DAT_06a46fb8 — monotonically incremented per slot claim by
  * either allocator.  Snapshot + post-increment pattern means the first
