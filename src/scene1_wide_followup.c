@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include "scene1_camera.h"   /* g_scene1_camera_eye (Pass E fan billboard) */
+#include "scene1_overlay.h"  /* scene1_overlay_render — mid_block_1 wiring */
 #include "scene1_pass_f.h"   /* Pass F is already ported (C8g.2 MVP) */
 #include "scene1_records.h"  /* per-pass active counts */
 #include "scene1_records_c_tick.h" /* SCENE1_RECORDS_C_OFF_* slot offsets */
@@ -632,11 +633,11 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
      * additive vs alpha blend modes.  See
      * docs/findings/scene1-overlay-dispatcher.md (chip O.1 survey)
      * for the full record layout, shape dispatch, and ladder. */
-    /* TODO O.8 (per scene1-overlay-dispatcher.md): once chips O.2..O.7
-     * land scene1_overlay_render(dev, layer, mode), replace this comment
-     * with scene1_overlay_render(dev, 1, 0).  Until then the call is a
-     * no-op anyway since the GRP_02d_ table parser (chip O.10) hasn't
-     * populated DAT_0076b948 yet. */
+    /* Chip O.8 wiring: scene1_overlay_render is now ported (chips O.2..O.7).
+     * Layer table count (DAT_0076b948) stays BSS-zero in HOUSE until the
+     * GRP_02d_ table parser (chip O.10) lands, so this is a no-op today
+     * but completes the dispatcher hookup. */
+    scene1_overlay_render(dev, /*layer=*/1, /*mode=*/0);
 
     /* L142: TSS COLOROP = 7 (MODULATEALPHA_ADDCOLOR — α × col1 + col2).
      * Engine sets this AFTER FUN_00414ee2 — so Pass C inherits it. */
