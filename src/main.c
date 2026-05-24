@@ -1776,29 +1776,35 @@ static void render_dispatch(void)
                                               (const D3DMATRIX *)ident);
                 mesh_draw_d3d8(g_dev, g_house_preview_mesh);
             } else {
-                /* Cr.1 (2026-05-23): real scene-1 mesh render chain.
-                 * Engine FUN_004547ab L70-73 (DAT_0438b1c0==1 &&
-                 * DAT_0438b1d0==1, the most common INGAME path):
+                /* Cr.1 (2026-05-23) + Cr.2 (2026-05-25): real scene-1
+                 * mesh render chain.  Engine FUN_004547ab L70-73
+                 * (DAT_0438b1c0==1 && DAT_0438b1d0==1, the most common
+                 * INGAME path):
                  *
                  *     FUN_0045bbf9();   scene1_render_camera_setup
                  *                       (calls scene1_render_meshes
                  *                        which calls 14 walker stubs)
                  *     FUN_0040a765();   2D HUD aggregator (C7i — TODO)
-                 *     FUN_00417504();   scene1_render_overlay     (TODO)
-                 *     FUN_0045404b();   scene1_render_fx_tail     (TODO)
+                 *     FUN_00417504();   scene1_render_overlay     (DEFER)
+                 *     FUN_0045404b();   scene1_render_fx_tail
                  *
-                 * Only the camera_setup → scene1_render_meshes pair lands
-                 * in this wiring chip.  scene1_render_overlay sets
-                 * COLORARG2=D3DTA_SPECULAR (engine quirk @ L18 of
-                 * FUN_00417504) which leaks into the subsequent
-                 * fade_render / nowloading_render and forces them to
-                 * render black; the engine compensates via post-overlay
-                 * state writes that aren't ported yet (FUN_00453e8f /
-                 * FUN_00453147).  Until those land, scene1_render_overlay
-                 * is all side-effect (its FUN_00414ee2 layer dispatcher
-                 * is a TODO stub anyway).  scene1_render_fx_tail is
-                 * dormant on BSS-zero counter_994 today and similarly
-                 * waits on the overlay chip.
+                 * Cr.1 wired camera_setup; Cr.2 (this commit) added
+                 * fx_tail.  scene1_render_overlay is DEFERRED — wiring
+                 * it makes the title-z-press frame-90 "Now Loading…"
+                 * CD icon render pure black due to a COLORARG2 =
+                 * D3DTA_SPECULAR write at FUN_00417504 L18 that leaks
+                 * into nowloading_render.  Engine compensation source
+                 * unidentified; see pending-human-check #18 for the
+                 * Frida-read needed to either confirm retail has the
+                 * same icon-disappears artifact or to find the engine
+                 * COLORARG2 restorer.
+                 *
+                 * scene1_render_fx_tail is dormant in HOUSE today —
+                 * gated on `sim_get_counter_994() > 0` (BSS-zero) for
+                 * the inner draw, and the head call to FUN_00454191 is
+                 * still stubbed (`scene1_fx_overlays_TODO`).  Wiring it
+                 * is safe: when both gates are zero the call is a pure
+                 * no-op with no state writes.
                  *
                  * Today every walker call inside scene1_render_meshes is
                  * a TODO stub, so visible 3D output remains zero.  The
@@ -1808,6 +1814,7 @@ static void render_dispatch(void)
                  * (Cf.1) start producing visible pixels without another
                  * wiring chip. */
                 scene1_render_camera_setup(g_dev);
+                scene1_render_fx_tail(g_dev);
             }
 
             /* --show-pass-f-test: overlay one type-0x92 billboard from
