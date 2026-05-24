@@ -1373,6 +1373,13 @@ struct test_case {
     X(scene1_pass_b_spoke_pose_radius_caps_at_2_5) \
     X(scene1_pass_b_spoke_compose_uses_70_z) \
     X(scene1_pass_b_spoke_compose_uses_outer_matrix) \
+    X(scene1_pass_c_should_emit_rejects_sentinel) \
+    X(scene1_pass_c_should_emit_always_for_56_and_96) \
+    X(scene1_pass_c_should_emit_part_idx_gate_for_23_2c_2b) \
+    X(scene1_pass_c_should_emit_rejects_other_types) \
+    X(scene1_pass_c_compose_scale_uses_0_2_factor) \
+    X(scene1_pass_c_compose_rotation_y_mixes_x_z) \
+    X(scene1_pass_c_compose_propagates_matrix0_translation) \
     X(scene1_preload_post_house_cb_default_is_null) \
     X(scene1_preload_post_house_cb_setter_round_trips) \
     X(scene1_preload_post_house_cb_setter_replaces_previous) \

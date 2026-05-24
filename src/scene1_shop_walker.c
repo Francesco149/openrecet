@@ -279,21 +279,51 @@ static void sw_pass_b(IDirect3DDevice8 *dev)
     }
 }
 
-/* Pass C walks DAT_069324b0 table (different table than Pass B!
- * same stride 0x49 dwords).  Type filter via two cascading
- * if-else groups on fVar2 raw-bits with side condition
- * local_10[0x27] % 2 > 0.  Per-record: Translation × Scaling ×
- * RotationX × Translation chain → emit with &DAT_073a9680
- * override. */
+/* Pass C walks g_scene1_records_b at the slot[0] base (DAT_069324b0
+ * in engine) — different bias than Pass B (slot[42] base) but the
+ * same underlying table.  Type filter via a 5-case cardinal-int
+ * cascade (asm `cmp eax, K`; Ghidra's float-as-int reinterp in the
+ * decomp produced misleading raw-bits comments):
+ *
+ *   TYPE ∈ {0x23, 0x2c, 0x2b}: emit iff PART_IDX % 2 == 0
+ *   TYPE ∈ {0x56, 0x96}: always emit
+ *   other: skip
+ *
+ * Per-record matrix chain: MATRIX0 × RotY(ROT_SCR) × S(-s,s,s) ×
+ * T(POS) where s = LIFE_MULT * 0.2f.  Emits via FUN_00455191(
+ * &DAT_073a9680) — the SAME mesh-record slot as Pass D
+ * (train_iwa.x, DUNGEON-loaded only); HOUSE leaves it NULL so
+ * emit short-circuits.
+ *
+ * UNLIKE Pass B, Pass C IS smoke-fireable on types populated by
+ * landed C8j allocators (0x23 entity matrix-init, 0x56 NPC
+ * matrix-init, 0x96 NPC player-aim, 0x2b NPC owner+0x420 family).
+ * With --force-b-* flags + --force-pass-d-mesh, Pass C should
+ * draw geometry once smoke + mesh + camera all line up.
+ */
 static void sw_pass_c(IDirect3DDevice8 *dev)
 {
     int count = sw_pass_bc_count();
     if (count == 0) return;
-    /* TODO C8-followup: walk DAT_069324b0 stride 0x49 dwords;
-     * type filter per engine L205-L213; emit via
-     * sw_emit_record_TODO((void *)0x73a9680) per match. */
-    (void)dev;
-    (void)count;
+    if (count > SCENE1_RECORDS_B_COUNT) count = SCENE1_RECORDS_B_COUNT;
+
+    for (int i = 0; i < count; i++) {
+        const int32_t *slot =
+            &g_scene1_records_b[i * SCENE1_RECORDS_B_STRIDE];
+
+        if (!sw_pass_c_should_emit(slot)) continue;
+
+        float world[16];
+        sw_pass_c_compose_world(world, slot);
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                      (const D3DMATRIX *)world);
+
+        /* Engine: FUN_00455191(&DAT_073a9680) — same mesh-record slot
+         * as Pass D.  Sharing the slot means `--force-pass-d-mesh`
+         * also feeds Pass C. */
+        scene1_emit_record((struct IDirect3DDevice8 *)dev,
+                           scene1_shop_walker_get_pass_d_mesh());
+    }
 }
 
 /* Pass D walks DAT_069b2fb0 table, stride 0x25 dwords.  Type

@@ -266,3 +266,88 @@ void sw_pass_b_compose_world_spoke(float out[16], const float outer[16],
      * local_1b4 + SetTransform follows. */
     mat4_mul(out, t_spoke, outer);
 }
+
+/* ─── Pass C helpers (C8c.C) ─────────────────────────────────────────────
+ *
+ * Engine FUN_004552d0 L198-L237 / asm @ 0x455a35..0x455bab.  Walks
+ * g_scene1_records_b at slot[0] base (DAT_069324b0 in engine), stride
+ * 0x49 dw, count-bounded by g_scene1_records_b_count.  Single body
+ * with a multi-case TYPE filter:
+ *
+ *   TYPE filter cascade @ 0x455a42..0x455a7e (asm):
+ *     0x23, 0x2c, 0x2b → emit iff PART_IDX % 2 == 0 (signed idiv 2;
+ *                         `cmp edx, esi (=1); jge skip` ⇒ skip when rem >= 1).
+ *     0x56, 0x96       → always emit (jumps directly past parity gate)
+ *     other            → skip
+ *
+ *   Source-comment correction: scene1_shop_walker.c L237-L242 named
+ *   types {0x37, 0x44, 0x55, 0x95, 0x88}; asm `cmp eax, K` is
+ *   authoritative — actual types are {0x23, 0x2c, 0x56, 0x96, 0x2b}.
+ *   Decomp's float-as-int reinterp (4.90/6.16/1.20/2.10/6.02e-44/43)
+ *   maps via `N * 2^-149` to 0x23/0x2c/0x56/0x96/0x2b respectively.
+ *
+ *   Matrix chain:
+ *     scale = LIFE_MULT * 0.2f          (.rdata 0x5198d8)
+ *     T  = Translation(POS)
+ *     S  = Scaling(-scale, scale, scale)
+ *     T  = S × T                         (Multiply pattern same as Pass B)
+ *     Ry = RotationY(ROT_SCR)            (slot[35]; engine asm `fld [esi+0x8c]`
+ *                                          + `call 0x4a3553` = RotY short jmp)
+ *     T  = Ry × S × T
+ *     T  = MATRIX0 × Ry × S × T          (slot[50..65], 16-float matrix)
+ *     T  = I × T                          (dead Scaling(1,1,1) + Multiply, dropped)
+ *
+ *   Emits via FUN_00455191(&DAT_073a9680) — the SAME mesh-record slot
+ *   as Pass D (train_iwa.x, DUNGEON-loaded only).  In HOUSE this is
+ *   NULL → emit short-circuits.  Pass C IS smoke-fireable on
+ *   table-B types that ARE in landed C8j allocator sets:
+ *     0x23 (entity matrix-init), 0x56 (NPC matrix-init), 0x96 (NPC
+ *     player-aim), 0x2b (NPC owner+0x420 family).  Only 0x2c is
+ *     un-allocated by any landed populator today.
+ *
+ *   Differs from Pass B 0x8c which uses Rx (not Ry) and scale 0.06
+ *   (not 0.2).  Same scale factor as Pass D (0.2) but Pass D's
+ *   scale field is slot[SCALE], not LIFE_MULT. */
+
+int sw_pass_c_should_emit(const int32_t *slot)
+{
+    int32_t type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    if (type == 0) return 0;  /* engine: `cmp eax, ebx (=0); je skip` */
+
+    /* Types that always emit. */
+    if (type == 0x56 || type == 0x96) return 1;
+
+    /* Types that require PART_IDX even. */
+    if (type == 0x23 || type == 0x2c || type == 0x2b) {
+        int32_t part_idx = slot[SCENE1_RECORDS_B_OFF_PART_IDX];
+        int rem = part_idx % 2;
+        return rem < 1 ? 1 : 0;
+    }
+
+    return 0;
+}
+
+void sw_pass_c_compose_world(float out[16], const int32_t *slot)
+{
+    float pos_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_X];
+    float pos_y = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Y];
+    float pos_z = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Z];
+    float rot_scr = *(const float *)&slot[SCENE1_RECORDS_B_OFF_ROT_SCR];
+    float life_mult = *(const float *)&slot[SCENE1_RECORDS_B_OFF_LIFE_MULT];
+    float scale = life_mult * 0.2f;
+    const float *matrix0 = (const float *)&slot[SCENE1_RECORDS_B_OFF_MATRIX0];
+
+    float scratch[16];
+
+    mat4_translation(out, pos_x, pos_y, pos_z);
+
+    mat4_scaling(scratch, -scale, scale, scale);
+    mat4_mul(out, scratch, out);   /* out = S × T */
+
+    mat4_rotation_y(scratch, rot_scr);
+    mat4_mul(out, scratch, out);   /* out = Ry × S × T */
+
+    mat4_mul(out, matrix0, out);   /* out = MATRIX0 × Ry × S × T */
+    /* Engine then does Multiply(out, Scaling(1,1,1), out) — algebraic
+     * no-op, dropped here. */
+}

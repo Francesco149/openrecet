@@ -671,3 +671,160 @@ int test_scene1_pass_b_spoke_compose_uses_outer_matrix(void)
     T_ASSERT_NEAR_D(spoke[14], 370.0f, 1e-5f);
     return 0;
 }
+
+/* ─── Pass C (C8c.C) ───────────────────────────────────────────────────── */
+
+int test_scene1_pass_c_should_emit_rejects_sentinel(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_b_init_zero(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0;
+    T_ASSERT(sw_pass_c_should_emit(slot) == 0);
+    return 0;
+}
+
+int test_scene1_pass_c_should_emit_always_for_56_and_96(void)
+{
+    /* Types 0x56 and 0x96 emit regardless of PART_IDX. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_b_init_zero(slot);
+
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x56;
+    slot[SCENE1_RECORDS_B_OFF_PART_IDX] = 1;  /* odd — irrelevant */
+    T_ASSERT(sw_pass_c_should_emit(slot) == 1);
+    slot[SCENE1_RECORDS_B_OFF_PART_IDX] = 0;
+    T_ASSERT(sw_pass_c_should_emit(slot) == 1);
+
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x96;
+    slot[SCENE1_RECORDS_B_OFF_PART_IDX] = 1;
+    T_ASSERT(sw_pass_c_should_emit(slot) == 1);
+    return 0;
+}
+
+int test_scene1_pass_c_should_emit_part_idx_gate_for_23_2c_2b(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_b_init_zero(slot);
+    int gated[] = { 0x23, 0x2c, 0x2b };
+    for (int i = 0; i < 3; i++) {
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = gated[i];
+        slot[SCENE1_RECORDS_B_OFF_PART_IDX] = 0;
+        if (sw_pass_c_should_emit(slot) != 1)
+            T_FAIL("type 0x%x even PART_IDX should emit", gated[i]);
+        slot[SCENE1_RECORDS_B_OFF_PART_IDX] = 2;
+        if (sw_pass_c_should_emit(slot) != 1)
+            T_FAIL("type 0x%x even PART_IDX=2 should emit", gated[i]);
+        slot[SCENE1_RECORDS_B_OFF_PART_IDX] = 1;
+        if (sw_pass_c_should_emit(slot) != 0)
+            T_FAIL("type 0x%x odd PART_IDX should skip", gated[i]);
+        slot[SCENE1_RECORDS_B_OFF_PART_IDX] = 3;
+        if (sw_pass_c_should_emit(slot) != 0)
+            T_FAIL("type 0x%x odd PART_IDX=3 should skip", gated[i]);
+    }
+    return 0;
+}
+
+int test_scene1_pass_c_should_emit_rejects_other_types(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_b_init_zero(slot);
+    /* Adjacent / random types that should NOT emit. */
+    int reject[] = { 0x01, 0x22, 0x24, 0x2a, 0x2d, 0x55, 0x57,
+                     0x8c, 0x95, 0x97, 0x9b, 0x9c, 0xa0, 0xff };
+    for (int i = 0; i < (int)(sizeof(reject)/sizeof(reject[0])); i++) {
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = reject[i];
+        slot[SCENE1_RECORDS_B_OFF_PART_IDX] = 0;  /* even, should not save us */
+        if (sw_pass_c_should_emit(slot) != 0)
+            T_FAIL("type 0x%x should not emit", reject[i]);
+    }
+    return 0;
+}
+
+int test_scene1_pass_c_compose_scale_uses_0_2_factor(void)
+{
+    /* LIFE_MULT * 0.2 with MATRIX0 = identity and ROT_SCR=0. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_b_init_zero(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x56;
+    float identity[16] = {
+        1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+    };
+    memcpy(&slot[SCENE1_RECORDS_B_OFF_MATRIX0], identity, sizeof(identity));
+    slot_b_set_float(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.5f);
+
+    float M[16];
+    sw_pass_c_compose_world(M, slot);
+
+    /* scale = 0.5 * 0.2 = 0.1 */
+    T_ASSERT_NEAR_D(M[0],  -0.1f, 1e-6f);
+    T_ASSERT_NEAR_D(M[5],   0.1f, 1e-6f);
+    T_ASSERT_NEAR_D(M[10],  0.1f, 1e-6f);
+    return 0;
+}
+
+int test_scene1_pass_c_compose_rotation_y_mixes_x_z(void)
+{
+    /* Pass C uses RotY (not Rx like Pass B 0x8c).  D3DX row-major
+     * RotY(π/2) =
+     *   |  0  0 -1  0 |
+     *   |  0  1  0  0 |
+     *   |  1  0  0  0 |
+     *   |  0  0  0  1 |
+     * S(-1, 1, 1) × (T=I) = diag(-1, 1, 1, 1).
+     * Ry × S (row-major (Ry*S)[i][j] = Σ Ry[i][k]·S[k][j]):
+     *   row 0: (0·-1, 0·1, -1·1, 0) = (0, 0, -1, 0)
+     *   row 1: (0,    1·1, 0,    0)
+     *   row 2: (1·-1, 0,   0·1,  0) = (-1, 0, 0, 0)
+     * Then MATRIX0=I no-op. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_b_init_zero(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x96;
+    float identity[16] = {
+        1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+    };
+    memcpy(&slot[SCENE1_RECORDS_B_OFF_MATRIX0], identity, sizeof(identity));
+    slot_b_set_float(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 5.0f);  /* → s=1 */
+    slot_b_set_float(slot, SCENE1_RECORDS_B_OFF_ROT_SCR, 1.5707963267948966f);
+
+    float M[16];
+    sw_pass_c_compose_world(M, slot);
+
+    T_ASSERT_NEAR_D(M[0],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[1],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[2], -1.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[4],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[5],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[6],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[8], -1.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[9],  0.0f, 1e-5f);
+    T_ASSERT_NEAR_D(M[10], 0.0f, 1e-5f);
+    return 0;
+}
+
+int test_scene1_pass_c_compose_propagates_matrix0_translation(void)
+{
+    /* Pure-translation MATRIX0 + zero slot translation: the result
+     * row 3 picks up MATRIX0's row 3 scaled by the inner chain. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_b_init_zero(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x56;
+    float t_mat[16] = {
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        10, 20, 30, 1,
+    };
+    memcpy(&slot[SCENE1_RECORDS_B_OFF_MATRIX0], t_mat, sizeof(t_mat));
+    slot_b_set_float(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+
+    float M[16];
+    sw_pass_c_compose_world(M, slot);
+
+    /* inner = Ry(0) × S(-0.2, 0.2, 0.2) × T(0) = S (4×4 diagonal,
+     * row 3 = 0). MATRIX0_t × inner: row 3 = (10, 20, 30, 1) × inner =
+     * (10·-0.2, 20·0.2, 30·0.2, 1) = (-2, 4, 6, 1). */
+    T_ASSERT_NEAR_D(M[12], -2.0f, 1e-6f);
+    T_ASSERT_NEAR_D(M[13],  4.0f, 1e-6f);
+    T_ASSERT_NEAR_D(M[14],  6.0f, 1e-6f);
+    return 0;
+}

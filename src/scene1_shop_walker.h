@@ -41,14 +41,20 @@
  *   Mid block (L194..197)— Four RS writes (AMBIENT, LightEnable(0,1),
  *                          LIGHTING=1, TSS COLOROP=7).
  *
- *   Pass C (L198..L237)  — DAT_069324b0 table, stride 0x49.
- *                          Count-bounded by DAT_0076b964.  Type
- *                          filter on fVar2 raw-bits {0x37, 0x44,
- *                          0x55, 0x95, 0x88} via two if-else
- *                          branches.  Per-record calls
- *                          FUN_00455191(&DAT_073a9680) with a
- *                          Translation × Scaling × RotationX ×
- *                          Translation chain.
+ *   Pass C (L198..L237)  — g_scene1_records_b at slot[0] base
+ *                          (DAT_069324b0 alias; different bias
+ *                          than Pass B's slot[42]).  Stride 0x49,
+ *                          count-bounded by g_scene1_records_b_count.
+ *                          Cardinal-int type filter (asm `cmp eax,
+ *                          K` authoritative): 0x23/0x2c/0x2b
+ *                          require PART_IDX % 2 == 0; 0x56/0x96
+ *                          always emit.  Per-record matrix chain
+ *                          MATRIX0 × RotY(ROT_SCR) × S(-s,s,s) ×
+ *                          T(POS), s = LIFE_MULT*0.2.  Emits via
+ *                          FUN_00455191(&DAT_073a9680) — SAME
+ *                          mesh-record slot as Pass D
+ *                          (train_iwa.x, DUNGEON-loaded).  Ported
+ *                          in C8c.C.
  *
  *   Pass D (L238..L258)  — DAT_069b2fb0 table, stride 0x25.
  *                          Count-bounded by DAT_0076b960.  Type
@@ -168,6 +174,16 @@ void sw_pass_b_spoke_pose(float *out_radius, float *out_angle,
                           const int32_t *slot, int spoke_idx);
 void sw_pass_b_compose_world_spoke(float out[16], const float outer[16],
                                    const int32_t *slot, int spoke_idx);
+
+/* Pass C record-emit predicate + matrix composer (C8c.C).  D3D-free.
+ *
+ * Walks g_scene1_records_b at slot[0] base (different bias than Pass
+ * B's slot[42]).  Type filter: {0x56, 0x96} always emit; {0x23, 0x2c,
+ * 0x2b} require PART_IDX % 2 == 0; other types skip.
+ * Matrix chain: MATRIX0 × Ry(ROT_SCR) × S(-s,s,s) × T(POS),
+ * s = LIFE_MULT * 0.2 (.rdata 0x5198d8). */
+int  sw_pass_c_should_emit(const int32_t *slot);
+void sw_pass_c_compose_world(float out[16], const int32_t *slot);
 
 /* Pass D mesh slot.  Stand-in for the engine's static &DAT_073a9680
  * (train_iwa.x, populated by FUN_00474a9a's DUNGEON branch only).
