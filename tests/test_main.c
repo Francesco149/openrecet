@@ -1454,7 +1454,21 @@ struct test_case {
     X(records_b_spawn_entity_30_people_branch_zero_distance_keeps_vel) \
     X(records_b_spawn_entity_9b_bend_and_life) \
     X(records_b_spawn_entity_9d_full_pose_and_explicit_return) \
-    X(records_b_spawn_entity_c8j8_implemented_macro)
+    X(records_b_spawn_entity_c8j8_implemented_macro) \
+    X(records_b_spawn_entity_58_drift_with_drag) \
+    X(records_b_spawn_entity_100_anchor_cone) \
+    X(records_b_spawn_entity_74_mode0_pos_x_shift) \
+    X(records_b_spawn_entity_79_mode_else_pos_z_shift) \
+    X(records_b_spawn_entity_65_spawns_8_particles) \
+    X(records_b_spawn_entity_6a_rot_x_strides) \
+    X(records_b_spawn_entity_61_single_with_aux_c8_zero) \
+    X(records_b_spawn_entity_62_scale_0p45) \
+    X(records_b_spawn_entity_8a_8b_scale_distinguished) \
+    X(records_b_spawn_entity_lab_00444be6_scales) \
+    X(records_b_spawn_entity_6d_to_70_spawns_3_with_part_idx_minus_1) \
+    X(records_b_spawn_entity_71_72_75_7d_per_type_state) \
+    X(records_b_spawn_entity_8_zero_vel_anchor) \
+    X(records_b_spawn_entity_c8j9_implemented_macro)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

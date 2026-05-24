@@ -23,6 +23,52 @@
  * total; all 1-particle (engine's per-particle dispatch in 0x23/0x29 is
  * preserved verbatim but unreachable since cap=1 in the loop).
  *
+ * Chip C8j.9 (2026-05-24) — remaining single-spawn + small multi-spawn
+ * FUN_0044376a types.  26 new types covered across 13 bodies:
+ *
+ *   1-particle:
+ *     - 0x58 — drift-like body + DRAG=20.0 + AUX_C8=1 (no random ROT_Z).
+ *     - 100 (0x64) — owner-anchored cone w/ dead per-particle dispatch
+ *       (engine's part_idx 1..4 shifts unreachable in normal cap=1 flow);
+ *       writes byte 0xc2 = 2, LIFE_MULT=0.5, AUX_C8=1.
+ *     - 0x74, 0x79 — NPC-bend pos w/ 3-way owner+0x948 dispatch (same as
+ *       mega-cluster A's preamble shape but without alt-pos / SCALE_X /
+ *       LIFE_MULT overrides); VEL = 2*sin/cos(bend).  No DRAG / AUX_C8.
+ *     - 0x61 — like 0x6a's body w/ SCALE_X=0.5, LIFE_MULT=0.3, DRAG=0.5,
+ *       AUX_C8=0 (!).
+ *     - 0x62 — RNG-shifted angle pos*1.3 + VEL.y=u*0.1 + SCALE_X=0.45 +
+ *       AUX_C8=1.
+ *     - 0x8a, 0x8b — LAB_004451f0 body: VEL=sin/cos(ang)*1.0 (not 3.0),
+ *       SCALE_X per-type (0x8a→0.2, 0x8b→0.1).  No DRAG / AUX_C8.
+ *     - 0x5b, 0x5c, 0x5e, 0x85, 0x86, 0x87 — LAB_00444be6 shared body:
+ *       drift-like vel*3 + pos jitter + per-type SCALE_X
+ *       (0x5b→0.7, 0x5c/0x5e/0x87→1.0, 0x85→0.0, 0x86→0.4) + AUX_C8=1.
+ *     - 0x71, 0x72, 0x75, 0x7d — VEL=sin/cos(owner+0xea4)*1.0 + π/2-shifted
+ *       ROT_Z; per-type SCALE_X (0x72→0.3, 0x7d→1.5, 0x71/0x75→1.0);
+ *       0x75 skips VEL writes (preamble 0 sticks); AUX_C8=1.
+ *     - 8 — VEL=0 + pos = owner.pos + +2y (preserves engine's *10 quirk);
+ *       DRAG=20, AUX_C8=1, ROT_Z=(part_idx+1)*2π.
+ *
+ *   Multi-particle (cap as marked):
+ *     - 0x65, 0x69 (cap=8) — NPC-bend+rng pos jitter + VEL.y=0.7 fixed +
+ *       LIFE_MULT=0.3 + DRAG=0.5 + AUX_C8=1.
+ *     - 0x6a (cap=8) — same pos shape as 0x61 + random ROT_SCR/ROT_Z +
+ *       ROT_X=part_idx*2π/10 + SCALE_X=0.5 + DRAG=0.5 + AUX_C8=1.
+ *     - 0x6d, 0x6e, 0x6f, 0x70 (cap=3) — drift-cluster-like body +
+ *       DRAG=20 + AUX_C8=1 + PART_IDX=part_idx-1 (signed!).
+ *
+ * Deferred (NOT in C8j.9, target C8j.9a sub-chip):
+ *   - 0x68 — single-spawn but iterates a NEW sister table at offset 0x720
+ *     / 0x724 from people-table base (engine DAT_0076c478).  Requires
+ *     extending scene1_people_entry_t with the sister fields + the
+ *     FUN_005031e4 distance-check arg has Ghidra-dropped arg.  Worth a
+ *     standalone chip with a raw-asm verify.
+ *
+ * Argless cos sites verified via raw-asm spot-check in the
+ * 0x444500-0x444800 range — all reload either `[ebp-0x2c]` (the dVar4
+ * angle stash, paired with prior sin call) or `[esi+0xea4]` (the owner
+ * angle field).  Same PHC #7 pattern as C8j.6/7/8; no Frida needed.
+ *
  *   FUN_0044376a — "entity allocator", owner shape A: pos at owner+0x20,
  *                  matrix at owner+0xde8, NPC-bend at owner+0x948,
  *                  alt people-table at owner+0x9e0 (stride 0x44),
@@ -179,7 +225,19 @@ extern "C" {
      (t) == 0x7a || (t) == 0x7b || (t) == 0x7c || (t) == 0x7e ||         \
      (t) == 0x3e || (t) == 0x5f ||                                       \
      (t) == 0x23 || (t) == 0x29 || (t) == 0x30 ||                        \
-     (t) == 0x9b || (t) == 0x9d)
+     (t) == 0x9b || (t) == 0x9d ||                                       \
+     /* C8j.9 — single-spawn family + small multi-spawn (8/3/8/8 caps) */\
+     (t) == 0x58 || (t) == 100  ||                                       \
+     (t) == 0x74 || (t) == 0x79 ||                                       \
+     (t) == 0x65 || (t) == 0x69 ||                                       \
+     (t) == 0x6a || (t) == 0x61 ||                                       \
+     (t) == 0x62 ||                                                      \
+     (t) == 0x8a || (t) == 0x8b ||                                       \
+     (t) == 0x5b || (t) == 0x5c || (t) == 0x5e ||                        \
+     (t) == 0x85 || (t) == 0x86 || (t) == 0x87 ||                        \
+     (t) == 0x6d || (t) == 0x6e || (t) == 0x6f || (t) == 0x70 ||         \
+     (t) == 0x71 || (t) == 0x72 || (t) == 0x75 || (t) == 0x7d ||         \
+     (t) == 8)
 #define SCENE1_RECORD_B_SPAWN_NPC_TYPE_IMPLEMENTED(t)                    \
     ((t) == 0xe  || (t) == 0x97 || (t) == 0x46 ||                        \
      (t) == 0x4d || (t) == 0x4e || (t) == 0x4f || (t) == 0x50 ||         \

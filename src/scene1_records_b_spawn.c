@@ -1136,6 +1136,600 @@ static int init_entity_9d(int i, const void *owner, int type, int flag,
     return 1;
 }
 
+/* ─── C8j.9 — remaining single-spawn + small multi-spawn types ────── */
+
+/* Type 0x58 — drift-like body via LAB_004449c1 tail.  1-particle.
+ *
+ * Body (engine L41108-41124):
+ *   VEL_X = sin(owner+0xea4) * 3
+ *   VEL_Y = 0
+ *   VEL_Z = cos(owner+0xea4) * 3        (argless paired with prior sin)
+ *   POS_X -= sin(owner+0xea4) * 0.5
+ *   POS_Y += 1.0
+ *   POS_Z -= cos(owner+0xea4) * 0.5     (argless)
+ *   ROT_X = (owner+0x948) * 2π / 8      (NPC bend)
+ *   LAB_004449c1: DRAG = 20.0
+ *   LAB_00443dbe: AUX_C8 = 1; cap = 1
+ *
+ * Differences vs the drift cluster (types 2/3/4/0x22/0x54/0x67):
+ *   - No random ROT_Z (drift cluster does it via LAB_004449b0 entry).
+ *   - No per-type SCALE_X override (preamble's 1.0 sticks).
+ *
+ * Argless cos sites verified via raw-asm in the 0x444500-0x444600
+ * range — all reload `[esi+0xea4]` (the owner angle field).  PHC #7. */
+static int init_entity_58(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+
+    float ang = owner_read_f(owner, 0xea4);
+    float sa  = sinf(ang);
+    float ca  = cosf(ang);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 3.0f);
+
+    float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+    float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+    float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,  20.0f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+
+    return 1;
+}
+
+/* Type 100 (0x64) — owner-anchored cone w/ dead per-particle dispatch.
+ * 1-particle (engine bVar14 = (local_8 == 0) terminator).
+ *
+ * Body (engine L41126-41156):
+ *   local_c = owner+0xea4
+ *   POS_X = sin(local_c) * 0.5 + owner.x
+ *   POS_Y = owner.y + 1.5
+ *   POS_Z = cos(local_c) * 0.5 + owner.z   (argless)
+ *   per-particle angle shift (DEAD in cap=1 flow):
+ *     part_idx==1: local_c += π/10  (0.31415927)
+ *     part_idx==2: local_c -= π/10
+ *     part_idx==3: local_c += π/5   (0.62831855)
+ *     part_idx==4: local_c -= π/5
+ *   VEL_X = sin(local_c) * 0.4
+ *   VEL_Y = 0
+ *   VEL_Z = cos(local_c) * 0.4    (argless)
+ *   slot.TYPE = 100  (redundant — preamble already wrote)
+ *   slot byte 0xc2  = 2   (engine `(&DAT_06932572)[iVar10] = 2`)
+ *   LIFE_MULT = 0.5    (= 0x3f000000)
+ *   AUX_C8 = 1
+ *   PART_IDX = local_8
+ *   goto LAB_004457ee  (bVar14 set above to local_8==0 → cap=1) */
+static int init_entity_100(int i, const void *owner, int type, int flag,
+                           int part_idx)
+{
+    (void)flag;
+
+    float local_c = owner_read_f(owner, 0xea4);
+
+    float ox = owner_read_f(owner, 0x20);
+    float oy = owner_read_f(owner, 0x24);
+    float oz = owner_read_f(owner, 0x28);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sinf(local_c) * 0.5f + ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cosf(local_c) * 0.5f + oz);
+
+    /* Per-particle shift — DEAD in cap=1 flow.  Port verbatim. */
+    if (part_idx == 1) local_c += 0.31415927f;
+    if (part_idx == 2) local_c -= 0.31415927f;
+    if (part_idx == 3) local_c += 0.62831855f;
+    if (part_idx == 4) local_c -= 0.62831855f;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(local_c) * 0.4f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(local_c) * 0.4f);
+
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_TYPE, type);  /* engine `*piVar13 = 100` */
+
+    /* Byte 0xc2 = 2 — engine `(&DAT_06932572)[iVar10] = 2`. */
+    {
+        uint8_t *bytes = (uint8_t *)slot_base(i);
+        bytes[0xc2] = 2;
+    }
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.5f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, part_idx);
+
+    return 1;
+}
+
+/* Types 0x74 / 0x79 — NPC-bend + 3-way owner+0x948 dispatch.  1-particle
+ * (engine `goto LAB_004457e7` after body; no DRAG=20 / AUX_C8=1 tail).
+ *
+ * Body (engine L41158-41185):
+ *   bend  = (owner+0x948) * 2π / 8
+ *   POS_X = sin(bend) * 1.2 + owner.x
+ *   POS_Y = owner.y + 1.3
+ *   POS_Z = cos(bend) * 1.2 + owner.z   (default; modified by dispatch below)
+ *   Three-way (owner+0x948) dispatch:
+ *     mode 0:  POS_X -= 0.41
+ *     mode 4:  POS_X += 0.41
+ *     else:    POS_Z -= 0.1
+ *   ROT_X = bend
+ *   VEL_X = 2 * sin(bend)                (engine `fVar15 + fVar15`)
+ *   VEL_Y = 0
+ *   VEL_Z = 2 * cos(bend)                (argless paired)
+ *   cap = 1.  No DRAG / AUX_C8 writes (LAB_004457e7 skips them). */
+static int init_entity_74_79(int i, const void *owner, int type, int flag,
+                             int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+
+    int   npc_mode = owner_read_i(owner, 0x948);
+    float bend     = (float)npc_mode * B_TWO_PI_F / 8.0f;
+    float sb       = sinf(bend);
+    float cb       = cosf(bend);
+
+    float ox = owner_read_f(owner, 0x20);
+    float oy = owner_read_f(owner, 0x24);
+    float oz = owner_read_f(owner, 0x28);
+
+    float px = sb * 1.2f + ox;
+    float py = oy + 1.3f;
+    float pz = cb * 1.2f + oz;
+
+    /* 3-way dispatch (mode 0 / 4 / else). */
+    if (npc_mode == 0)        px -= 0.41f;
+    else if (npc_mode == 4)   px += 0.41f;
+    else                      pz -= 0.1f;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sb + sb);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cb + cb);
+
+    return 1;
+}
+
+/* Types 0x65 / 0x69 — NPC-bend + RNG-shifted angle, centered pos, fixed
+ * vel.y lift.  8-particle (engine `LAB_004456c7: bVar14 = local_8 == 7`).
+ *
+ * Body (engine L41241-41262):
+ *   u1     = rng_unit()
+ *   ang    = (owner+0x948) * 2π / 8  +  (u1 - 0.5) * π
+ *   POS    = (owner.x, owner.y + 3.0, owner.z)
+ *   u2     = rng_unit()
+ *   mag    = u2 * 0.08 + 0.04
+ *   VEL_X  = sin(ang) * mag
+ *   VEL_Y  = 0.7                       (= 0x3f333333)
+ *   VEL_Z  = cos(ang) * mag            (argless paired with sin)
+ *   LIFE_MULT = 0.3
+ *   ROT_X  = ang
+ *   DRAG   = 0.5
+ *   AUX_C8 = 1
+ *   PART_IDX = part_idx
+ *   cap = 8 */
+static int init_entity_65_69(int i, const void *owner, int type, int flag,
+                             int part_idx)
+{
+    (void)type; (void)flag;
+
+    float u1 = rng_next_unit();
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    float ang  = bend + (u1 - 0.5f) * 3.1415927f;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x20));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x24) + 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x28));
+
+    float u2 = rng_next_unit();
+    float mag = u2 * 0.08f + 0.04f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang) * mag);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.7f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * mag);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, ang);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,  0.5f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, part_idx);
+
+    return 8;
+}
+
+/* Type 0x6a — NPC-bend + per-particle ROT_X stride.  8-particle.
+ *
+ * Body (engine L41399-41420):
+ *   bend  = (owner+0x948) * 2π / 8
+ *   POS_X = sin(bend) * 0.8 + owner.x
+ *   POS_Y = owner.y + 1.1
+ *   POS_Z = cos(bend) * 0.8 + owner.z    (argless paired)
+ *   VEL_X = sin(bend) * 0.1
+ *   VEL_Y = 0
+ *   VEL_Z = cos(bend) * 0.1              (argless)
+ *   LIFE_MULT = 0.3
+ *   ROT_SCR = rng_unit() * 2π
+ *   ROT_Z   = rng_unit() * 2π
+ *   ROT_X   = part_idx * 2π / 10
+ *   SCALE_X = 0.5  (engine writes 0x3f000000 to (&DAT_06932564))
+ *   DRAG    = 0.5
+ *   AUX_C8  = 1
+ *   cap = 8 (engine `goto LAB_004456c7` → bVar14 = local_8 == 7) */
+static int init_entity_6a(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag;
+
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    float sb = sinf(bend);
+    float cb = cosf(bend);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               sb * 0.8f + owner_read_f(owner, 0x20));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x24) + 1.1f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               cb * 0.8f + owner_read_f(owner, 0x28));
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(bend) * 0.1f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(bend) * 0.1f);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rng_next_unit() * B_TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,   rng_next_unit() * B_TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,
+               (float)part_idx * B_TWO_PI_F / 10.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,    0.5f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8,  1);
+
+    return 8;
+}
+
+/* Type 0x61 — like 0x6a's body but no random rotations and 1-particle.
+ *
+ * Body (engine L41422-41440):
+ *   bend  = (owner+0x948) * 2π / 8
+ *   POS_X = sin(bend) * 0.8 + owner.x
+ *   POS_Y = owner.y + 1.1
+ *   POS_Z = cos(bend) * 0.8 + owner.z
+ *   VEL_X = sin(bend) * 0.1
+ *   VEL_Y = 0
+ *   VEL_Z = cos(bend) * 0.1
+ *   SCALE_X = 0.5
+ *   LIFE_MULT = 0.3
+ *   ROT_X = bend
+ *   DRAG = 0.5
+ *   AUX_C8 = 0   (NOTE — different from 0x6a which sets 1)
+ *   cap = 1 (engine `goto LAB_004457e7`) */
+static int init_entity_61(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    float sb = sinf(bend);
+    float cb = cosf(bend);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               sb * 0.8f + owner_read_f(owner, 0x20));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x24) + 1.1f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               cb * 0.8f + owner_read_f(owner, 0x28));
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(bend) * 0.1f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(bend) * 0.1f);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X,   0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,     bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      0.5f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8,    0);
+
+    return 1;
+}
+
+/* Type 0x62 — RNG-shifted angle, large-amp pos, vel.y bias.  1-particle.
+ *
+ * Body (engine L41447-41467):
+ *   u1   = rng_unit()
+ *   ang  = (owner+0x948) * 2π / 8  +  (u1 - 0.5) * 0.75
+ *   POS_X = sin(ang) * 1.3 + owner.x
+ *   POS_Y = owner.y + 1.2
+ *   POS_Z = cos(ang) * 1.3 + owner.z   (argless paired)
+ *   VEL_X = sin(ang) * 0.5
+ *   u2    = rng_unit()
+ *   VEL_Y = u2 * 0.1                   (positive bias)
+ *   VEL_Z = cos(ang) * 0.5             (argless)
+ *   LIFE_MULT = 0.3
+ *   ROT_X = ang
+ *   DRAG = 0.5
+ *   LAB_00443db8: SCALE_X = 0.45      (uVar1 = 0x3ee66666)
+ *   LAB_00443dbe: AUX_C8 = 1; cap = 1 */
+static int init_entity_62(int i, const void *owner, int type, int flag,
+                          int part_idx)
+{
+    (void)type; (void)flag; (void)part_idx;
+
+    float u1 = rng_next_unit();
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    float ang  = bend + (u1 - 0.5f) * 0.75f;
+
+    float sa = sinf(ang);
+    float ca = cosf(ang);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * 1.3f + owner_read_f(owner, 0x20));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x24) + 1.2f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * 1.3f + owner_read_f(owner, 0x28));
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang) * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, rng_next_unit() * 0.1f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * 0.5f);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,     ang);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X,   0.45f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8,    1);
+
+    return 1;
+}
+
+/* Types 0x8a / 0x8b — LAB_004451f0 body (vel * 1.0 — not 3.0).
+ * 1-particle (engine `goto LAB_004457e1` → ROT_X=bend → LAB_004457e7).
+ *
+ * Body (engine L41815-41830 + 0x8a entry @ L41815; 0x8b entry @ L41443-41445):
+ *   SCALE_X (per-type):
+ *     0x8a → 0.2  (0x3e4ccccd)
+ *     0x8b → 0.1  (0x3dcccccd)
+ *   ang = owner+0xea4
+ *   VEL_X = sin(ang)               (NOT *3.0 — different from 0x58)
+ *   VEL_Y = 0
+ *   VEL_Z = cos(ang)               (argless paired)
+ *   POS_X -= sin(ang) * 0.5
+ *   POS_Y += 1.0
+ *   POS_Z -= cos(ang) * 0.5
+ *   ROT_X = (owner+0x948) * 2π / 8
+ *   cap = 1.  No DRAG / AUX_C8 writes. */
+static int init_entity_8a_8b(int i, const void *owner, int type, int flag,
+                             int part_idx)
+{
+    (void)flag; (void)part_idx;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X,
+               (type == 0x8a) ? 0.2f : 0.1f);
+
+    float ang = owner_read_f(owner, 0xea4);
+    float sa  = sinf(ang);
+    float ca  = cosf(ang);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca);
+
+    float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+    float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+    float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+
+    return 1;
+}
+
+/* Types 0x5b / 0x5c / 0x5e / 0x85 / 0x86 / 0x87 — LAB_00444be6 shared body.
+ * 1-particle (engine `goto LAB_00443dbe`).
+ *
+ * Body (engine L41526-41559):
+ *   SCALE_X (per-type):
+ *     0x5b → 0.7  (0x3f333333)
+ *     0x5c → 1.0  (via LAB_00444beb)
+ *     0x5e → 1.0
+ *     0x85 → 0.0
+ *     0x86 → 0.4  (0x3ecccccd)
+ *     0x87 → 1.0
+ *   ang = owner+0xea4
+ *   VEL_X = sin(ang) * 3
+ *   VEL_Y = 0
+ *   VEL_Z = cos(ang) * 3                (argless)
+ *   POS_X -= sin(ang) * 0.5
+ *   POS_Y += 1.0
+ *   POS_Z -= cos(ang) * 0.5             (argless)
+ *   ROT_X = (owner+0x948) * 2π / 8
+ *   LAB_00443dbe: AUX_C8 = 1; cap = 1.  No DRAG write (skipped). */
+static int init_entity_lab_00444be6(int i, const void *owner, int type,
+                                    int flag, int part_idx)
+{
+    (void)flag; (void)part_idx;
+
+    float sx = 1.0f;  /* default for 0x5c / 0x5e / 0x87 */
+    switch (type) {
+    case 0x5b: sx = 0.7f; break;
+    case 0x5c: sx = 1.0f; break;
+    case 0x5e: sx = 1.0f; break;
+    case 0x85: sx = 0.0f; break;
+    case 0x86: sx = 0.4f; break;
+    case 0x87: sx = 1.0f; break;
+    default: break;
+    }
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, sx);
+
+    float ang = owner_read_f(owner, 0xea4);
+    float sa  = sinf(ang);
+    float ca  = cosf(ang);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 3.0f);
+
+    float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+    float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+    float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+
+    return 1;
+}
+
+/* Types 0x6d / 0x6e / 0x6f / 0x70 — drift-like body with random ROT_Z,
+ * DRAG=20, AUX_C8=1, and cap = 3 (engine `bVar14 = local_8 == 2`).
+ *
+ * Body (engine L41569-41592):
+ *   ang = owner+0xea4
+ *   VEL_X = sin(ang) * 3
+ *   VEL_Y = 0
+ *   VEL_Z = cos(ang) * 3                 (argless paired)
+ *   POS_X -= sin(ang) * 0.5
+ *   POS_Y += 1.0
+ *   POS_Z -= cos(ang) * 0.5              (argless)
+ *   ROT_X = (owner+0x948) * 2π / 8
+ *   ROT_Z = rng_unit() * 2π
+ *   DRAG  = 20.0
+ *   AUX_C8 = 1
+ *   PART_IDX = part_idx - 1              (negative for first particle!)
+ *   cap = 3 */
+static int init_entity_6d_to_70(int i, const void *owner, int type, int flag,
+                                int part_idx)
+{
+    (void)type; (void)flag;
+
+    float ang = owner_read_f(owner, 0xea4);
+    float sa  = sinf(ang);
+    float ca  = cosf(ang);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 3.0f);
+
+    float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+    float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+    float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rng_next_unit() * B_TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 20.0f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, part_idx - 1);
+
+    return 3;
+}
+
+/* Types 0x71 / 0x72 / 0x75 / 0x7d — owner+0xea4 vel + π/2-shifted rot.z.
+ * 1-particle.
+ *
+ * Body (engine L41626-41648):
+ *   SCALE_X (per-type):
+ *     0x71 → 1.0   (preamble default — engine writes nothing here)
+ *     0x72 → 0.3   (= 0x3e99999a)
+ *     0x75 → 1.0   (preamble default)
+ *     0x7d → 1.5   (= 0x3fc00000 via LAB_00444adc)
+ *   if type != 0x75:
+ *     ang = owner+0xea4
+ *     VEL_X = sin(ang)               (*1.0)
+ *     VEL_Y = 0
+ *     VEL_Z = cos(ang)               (argless)
+ *   POS_X -= sin(ang_of_owner) * 0.5
+ *   POS_Y += 1.0
+ *   POS_Z -= cos(ang) * 0.5          (argless)
+ *   ROT_X = (owner+0x948) * 2π / 8
+ *   ROT_Z = (rng_unit() - 0.5) * π/2   (= * 1.5707964)
+ *   LAB_00443dbe: AUX_C8 = 1; cap = 1.  No DRAG write. */
+static int init_entity_71_72_75_7d(int i, const void *owner, int type,
+                                   int flag, int part_idx)
+{
+    (void)flag; (void)part_idx;
+
+    /* Per-type SCALE_X.  0x71 / 0x75 keep preamble's 1.0. */
+    if (type == 0x72) slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.3f);
+    if (type == 0x7d) slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 1.5f);
+
+    float ang = owner_read_f(owner, 0xea4);
+    float sa  = sinf(ang);
+    float ca  = cosf(ang);
+
+    if (type != 0x75) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca);
+    }
+
+    float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+    float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+    float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+
+    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               (rng_next_unit() - 0.5f) * 1.5707964f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+
+    return 1;
+}
+
+/* Type 8 — manual zero VEL, anchor pos.  1-particle (engine `iVar10 = 1`
+ * explicit + `goto LAB_004455ed`).
+ *
+ * Body (engine L41509-41524):
+ *   VEL = (0, 0, 0)
+ *   POS_X = VEL_X * 10 + owner.x = owner.x         (engine writes literally
+ *                                                  the multiply-by-10 expr)
+ *   POS_Y = VEL_Y * 10 + owner.y + 2.0 = owner.y + 2.0
+ *   POS_Z = VEL_Z * 10 + owner.z = owner.z
+ *   DRAG = 20.0
+ *   AUX_C8 = 1
+ *   ROT_Z = (part_idx + 1) * 2π
+ *   cap = 1 (iVar10=1 explicit) */
+static int init_entity_8(int i, const void *owner, int type, int flag,
+                         int part_idx)
+{
+    (void)type; (void)flag;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+
+    /* Engine writes via the VEL*10 expressions — vel is zero, so values
+     * land at owner.x / owner.y + 2.0 / owner.z.  Ported literally. */
+    float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, vx * 10.0f + owner_read_f(owner, 0x20));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               vy * 10.0f + owner_read_f(owner, 0x24) + 2.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, vz * 10.0f + owner_read_f(owner, 0x28));
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,    20.0f);
+    slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8,  1);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               (float)(part_idx + 1) * B_TWO_PI_F);
+
+    return 1;
+}
+
 /* Dispatch helper — routes a (slot, type, part_idx) to the right body
  * and returns the cap.  Used by scene1_record_b_spawn_entity's outer
  * loop to know when to stop committing slots. */
@@ -1167,6 +1761,27 @@ static int run_entity_body(int slot, const void *owner, int type,
     case 0x30: return init_entity_30(slot, owner, type, flag, part_idx);
     case 0x9b: return init_entity_9b(slot, owner, type, flag, part_idx);
     case 0x9d: return init_entity_9d(slot, owner, type, flag, part_idx);
+
+    /* C8j.9 — additions. */
+    case 0x58: return init_entity_58(slot, owner, type, flag, part_idx);
+    case 100:  return init_entity_100(slot, owner, type, flag, part_idx);
+    case 0x74: case 0x79:
+        return init_entity_74_79(slot, owner, type, flag, part_idx);
+    case 0x65: case 0x69:
+        return init_entity_65_69(slot, owner, type, flag, part_idx);
+    case 0x6a: return init_entity_6a(slot, owner, type, flag, part_idx);
+    case 0x61: return init_entity_61(slot, owner, type, flag, part_idx);
+    case 0x62: return init_entity_62(slot, owner, type, flag, part_idx);
+    case 0x8a: case 0x8b:
+        return init_entity_8a_8b(slot, owner, type, flag, part_idx);
+    case 0x5b: case 0x5c: case 0x5e:
+    case 0x85: case 0x86: case 0x87:
+        return init_entity_lab_00444be6(slot, owner, type, flag, part_idx);
+    case 0x6d: case 0x6e: case 0x6f: case 0x70:
+        return init_entity_6d_to_70(slot, owner, type, flag, part_idx);
+    case 0x71: case 0x72: case 0x75: case 0x7d:
+        return init_entity_71_72_75_7d(slot, owner, type, flag, part_idx);
+    case 8: return init_entity_8(slot, owner, type, flag, part_idx);
 
     default:
         /* Unreachable — outer dispatch gated by IMPLEMENTED. */
