@@ -983,3 +983,172 @@ int test_overlay_init_also_resets_layers(void)
     T_ASSERT_EQ_I(g_scene1_overlay_layer_count, 0);
     return 0;
 }
+
+/* ═════════════════ O.4: shapes 2/3/4/6 matrix variants ═════════════════ */
+
+int test_overlay_shape_2346_uniform_scale_formula(void)
+{
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 2.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    3.0f);
+    /* alpha_mix=0.5 → s = 2*3*0.5*0.003 = 0.009 */
+    float s = scene1_overlay_shape_2346_uniform_scale(slot, 0.5f);
+    T_ASSERT(fabsf(s - 0.009f) < 1e-6f);
+    return 0;
+}
+
+int test_overlay_shape_2_uses_pre_matrix(void)
+{
+    /* Verify shape 2 multiplies by pre_matrix.  Set pre = X-translate
+     * by 100, slot pos.x=2, scale=1 (manufacture via sb=sx=am=1, then
+     * s = 1*1*1*0.003 = 0.003).  M[12] = 100*0.003 + 2 = 2.3. */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_POS_X, 2.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+
+    float pre[16] = {
+        1,0,0,0,
+        0,1,0,0,
+        0,0,1,0,
+        100,0,0,1
+    };
+    wf_pass_c_set_pre_matrix(pre);
+
+    float world[16];
+    scene1_overlay_shape_2_compose_world(world, slot, 1.0f);
+    T_ASSERT(fabsf(world[12] - 2.3f) < 1e-4f);
+
+    float id[16] = {1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
+    wf_pass_c_set_pre_matrix(id);
+    return 0;
+}
+
+int test_overlay_shape_4_applies_roty_quarter(void)
+{
+    /* Shape 4: RotY(π/2) × (S × T).  With a unit-scale ST and a unit
+     * pos at (0,0,0), the world matrix should be pure RotY(π/2).
+     * RotY(π/2):
+     *   [cos, 0, -sin, 0]   [0, 0, -1, 0]
+     *   [0,   1,  0,   0] = [0, 1,  0, 0]
+     *   [sin, 0,  cos, 0]   [1, 0,  0, 0]
+     *   [0,   0,  0,   1]   [0, 0,  0, 1]
+     * S × T with S=scaling(s) and T=trans(0): M = scaling(s).
+     * Then RotY × scaling(s) leaves:
+     *   row 0: [0*s, 0, -1*s, 0] = [0, 0, -s, 0]
+     *   row 2: [1*s, 0, 0, 0] = [s, 0, 0, 0]
+     *
+     * Actually let me check actual D3DXMatrixRotationY convention.
+     * Our mat4_rotation_y produces row-major:
+     *   [cos, 0, -sin, 0]
+     *   [0,   1,  0,   0]
+     *   [sin, 0,  cos, 0]
+     *   [0,   0,  0,   1]
+     * For π/2: cos=0, sin=1. So M_world[2] = -s (since RotY[0][2] = -sin = -1,
+     * times scaling[2][2] = s).
+     */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+    float s = 0.003f;   /* matches formula */
+    float world[16];
+    scene1_overlay_shape_4_compose_world(world, slot, 1.0f);
+    /* world[0..3] = RotY[0] * scaling = [0, 0, -s, 0] */
+    T_ASSERT(fabsf(world[0]) < 1e-6f);
+    T_ASSERT(fabsf(world[2] - -s) < 1e-6f);
+    /* world[8..11] = RotY[2] * scaling = [s, 0, 0, 0] */
+    T_ASSERT(fabsf(world[8] - s) < 1e-6f);
+    T_ASSERT(fabsf(world[10]) < 1e-6f);
+    return 0;
+}
+
+int test_overlay_shape_6_uses_rot_x_field(void)
+{
+    /* Shape 6 reads slot[+0x3c] (= OFF_ROT_Y, Ghidra-named "rot.y")
+     * and applies it via RotationX.  Set the "rot.x" field (OFF_ROT_X)
+     * to something nonzero to prove the engine doesn't read it. */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_ROT_X, 5.0f);   /* should be IGNORED */
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_ROT_Y, 1.5707963f);  /* π/2 → RotX */
+
+    float world[16];
+    scene1_overlay_shape_6_compose_world(world, slot, 1.0f);
+    /* RotX(π/2) row 1: [0, cos, sin, 0] = [0, 0, 1, 0]
+     * After scaling(s,s,s) × T(0): M = scaling(s).
+     * Then RotX × scaling(s):
+     *   row 1: [0*s, 0, 1*s, 0] = [0, 0, s, 0]
+     *   row 2: [0*s, -1*s, 0, 0] = [0, -s, 0, 0] */
+    float s = 0.003f;
+    T_ASSERT(fabsf(world[5]) < 1e-6f);          /* row 1 col 1 */
+    T_ASSERT(fabsf(world[6] - s) < 1e-6f);      /* row 1 col 2 */
+    T_ASSERT(fabsf(world[9] - -s) < 1e-6f);     /* row 2 col 1 */
+    return 0;
+}
+
+int test_overlay_shape_3_off_diagonal_field_mapping(void)
+{
+    /* Shape 3 applies:
+     *   slot[ROT_Z] → about Z axis  (canonical)
+     *   slot[ROT_X] → about Y axis  (off-diagonal)
+     *   slot[ROT_Y] → about X axis  (off-diagonal)
+     *
+     * To verify: set ROT_X to π/2, leave ROT_Y/ROT_Z at 0.  Expected
+     * result is RotY(π/2) × (S × T) — same as shape 4's matrix.  */
+    int32_t *slot4 = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+    float world4[16];
+    scene1_overlay_shape_4_compose_world(world4, slot4, 1.0f);
+
+    int32_t *slot3 = fresh_slot(1);
+    slot_set_f_dir(1, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(1, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+    slot_set_f_dir(1, SCENE1_OVERLAY_OFF_ROT_X,      1.5707963f);  /* drives RotY in shape 3 */
+    float world3[16];
+    scene1_overlay_shape_3_compose_world(world3, slot3, 1.0f);
+
+    for (int i = 0; i < 16; i++) {
+        T_ASSERT(fabsf(world3[i] - world4[i]) < 1e-5f);
+    }
+    (void)slot3;   /* used via slot_set_f_dir */
+    return 0;
+}
+
+int test_overlay_shape_1346_emit_no_flip(void)
+{
+    int32_t shape[8] = {0};
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X] = f_to_bits(32.0f);
+    shape[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y] = f_to_bits(16.0f);
+    scene1_overlay_vertex vbuf[4] = {0};
+
+    /* Non-flipped: v0/v1 always u_left, v2/v3 always u_right, for
+     * ANY slot_idx (no parity dependence). */
+    scene1_overlay_shape_1346_emit_quad(vbuf, shape, 0, 0,
+                                        /*alpha_int=*/0x40);
+    float u_left  = (0.0f + 0.5f) / 256.0f;
+    float u_right = (0.0f + 32.0f - 0.5f) / 256.0f;
+    T_ASSERT(fabsf(vbuf[0].u - u_left)  < 1e-6f);
+    T_ASSERT(fabsf(vbuf[1].u - u_left)  < 1e-6f);
+    T_ASSERT(fabsf(vbuf[2].u - u_right) < 1e-6f);
+    T_ASSERT(fabsf(vbuf[3].u - u_right) < 1e-6f);
+    T_ASSERT_EQ_I((int)vbuf[0].diffuse, (int)0xff404040u);
+    return 0;
+}
+
+int test_overlay_shape_2346_uniform_scale_ignores_blend_mix(void)
+{
+    /* The shape 2/3/4/6 scale formula does NOT involve blend_mix —
+     * unlike shape 0/5.  Verify by changing blend_mix and confirming
+     * the result is unchanged. */
+    int32_t *slot = fresh_slot(0);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_BASE, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_SCALE_X,    1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.0f);
+    float s_a = scene1_overlay_shape_2346_uniform_scale(slot, 1.0f);
+    slot_set_f_dir(0, SCENE1_OVERLAY_OFF_BLEND_MIX,  0.7f);
+    float s_b = scene1_overlay_shape_2346_uniform_scale(slot, 1.0f);
+    T_ASSERT(fabsf(s_a - s_b) < 1e-9f);
+    return 0;
+}

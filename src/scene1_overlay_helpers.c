@@ -283,3 +283,135 @@ void scene1_overlay_shape_05_emit_quad(scene1_overlay_vertex vbuf[4],
     vbuf[2].u = u_v2_v3; vbuf[2].v = v_top;
     vbuf[3].u = u_v2_v3; vbuf[3].v = v_bottom;
 }
+
+/* ---- Shapes 2/3/4/6: uniform scale -------------------------------- */
+
+float scene1_overlay_shape_2346_uniform_scale(const int32_t *slot,
+                                              float alpha_mix)
+{
+    float scale_base = slot_get_f(slot, SCENE1_OVERLAY_OFF_SCALE_BASE);
+    float scale_x    = slot_get_f(slot, SCENE1_OVERLAY_OFF_SCALE_X);
+    /* Engine asm 0x4156a0..0x4156b3:
+     *   fld [scale_base]; fmul [scale_x]; fmul [alpha_mix]; fmul 0.003
+     * No /0.5; no blend split.  */
+    return scale_base * scale_x * alpha_mix * 0.003f;
+}
+
+/* Shared S × T core for shapes 2/3/4/6.  Reads pos.x/y/z and the
+ * uniform scale; writes out = scaling(s, s, s) × translation(pos).  */
+static void shape_2346_st_core(float out[16],
+                               const int32_t *slot,
+                               float alpha_mix)
+{
+    float pos_x = slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_X);
+    float pos_y = slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_Y);
+    float pos_z = slot_get_f(slot, SCENE1_OVERLAY_OFF_POS_Z);
+    float s     = scene1_overlay_shape_2346_uniform_scale(slot, alpha_mix);
+
+    float scratch[16];
+    mat4_translation(out, pos_x, pos_y, pos_z);
+    mat4_scaling(scratch, s, s, s);
+    mat4_mul(out, scratch, out);
+}
+
+/* ---- Shape 2: pre_matrix × (S × T) -------------------------------- */
+
+void scene1_overlay_shape_2_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix)
+{
+    shape_2346_st_core(out, slot, alpha_mix);
+    mat4_mul(out, wf_pass_c_get_pre_matrix(), out);
+}
+
+/* ---- Shape 3: RotX × RotY × RotZ × (S × T) ------------------------ */
+
+void scene1_overlay_shape_3_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix)
+{
+    shape_2346_st_core(out, slot, alpha_mix);
+
+    /* Engine asm 0x415745..0x4157b5 — applies rotations in order:
+     *   world = RotZ(slot[0x40]) × world
+     *   world = RotY(slot[0x38]) × world   (off-diagonal: "rot.x" slot drives Y)
+     *   world = RotX(slot[0x3c]) × world   (off-diagonal: "rot.y" slot drives X)
+     * Final composition: RotX × RotY × RotZ × S × T. */
+    float rz_val = slot_get_f(slot, SCENE1_OVERLAY_OFF_ROT_Z);  /* slot[+0x40] */
+    float ry_val = slot_get_f(slot, SCENE1_OVERLAY_OFF_ROT_X);  /* slot[+0x38] — "rot.x" → RotY */
+    float rx_val = slot_get_f(slot, SCENE1_OVERLAY_OFF_ROT_Y);  /* slot[+0x3c] — "rot.y" → RotX */
+
+    float scratch[16];
+    mat4_rotation_z(scratch, rz_val);
+    mat4_mul(out, scratch, out);
+    mat4_rotation_y(scratch, ry_val);
+    mat4_mul(out, scratch, out);
+    mat4_rotation_x(scratch, rx_val);
+    mat4_mul(out, scratch, out);
+}
+
+/* ---- Shape 4: RotY(π/2) × (S × T) --------------------------------- */
+
+void scene1_overlay_shape_4_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix)
+{
+    shape_2346_st_core(out, slot, alpha_mix);
+
+    /* Engine asm 0x41571b..0x41573d — hard-coded RotY(π/2) via
+     * .rdata 0x519434 = 1.5707963f. */
+    float scratch[16];
+    mat4_rotation_y(scratch, 1.5707963f);
+    mat4_mul(out, scratch, out);
+}
+
+/* ---- Shape 6: RotX(slot[+0x3c]) × (S × T) ------------------------- */
+
+void scene1_overlay_shape_6_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix)
+{
+    shape_2346_st_core(out, slot, alpha_mix);
+
+    /* Engine asm 0x4157b7..0x4157d3 — `fld [ebx+0x3c]; call 0x4a35ef`
+     * (0x4a35ef = RotationX short-jmp).  Field is Ghidra-named "rot.y"
+     * but the engine applies it as a RotX value.  */
+    float rx_val = slot_get_f(slot, SCENE1_OVERLAY_OFF_ROT_Y);
+    float scratch[16];
+    mat4_rotation_x(scratch, rx_val);
+    mat4_mul(out, scratch, out);
+}
+
+/* ---- Shapes 1/2/3/4/6: non-flipped UV + diffuse emit -------------- */
+
+void scene1_overlay_shape_1346_emit_quad(scene1_overlay_vertex vbuf[4],
+                                         const int32_t *shape_entry,
+                                         float uv_origin_x, float uv_origin_y,
+                                         int alpha_int)
+{
+    if (!vbuf) return;
+
+    float uv_size_x = 0.0f, uv_size_y = 0.0f;
+    if (shape_entry) {
+        uv_size_x = bits_to_f(shape_entry[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_X]);
+        uv_size_y = bits_to_f(shape_entry[SCENE1_OVERLAY_SHAPE_OFF_UV_SIZE_Y]);
+    }
+
+    /* Engine asm 0x41587d..0x4158be — same UV box as shape 0/5 but
+     * always v0/v1 = u_left, v2/v3 = u_right (no slot_idx parity flip). */
+    float u_left   = (uv_origin_x + 0.5f) / 256.0f;
+    float u_right  = (uv_origin_x + uv_size_x - 0.5f) / 256.0f;
+    float v_top    = (uv_origin_y + 0.5f) / 256.0f;
+    float v_bottom = (uv_origin_y + uv_size_y - 0.5f) / 256.0f;
+
+    uint32_t diffuse = scene1_overlay_diffuse_gray(alpha_int);
+    vbuf[0].diffuse = diffuse;
+    vbuf[1].diffuse = diffuse;
+    vbuf[2].diffuse = diffuse;
+    vbuf[3].diffuse = diffuse;
+
+    vbuf[0].u = u_left;  vbuf[0].v = v_top;
+    vbuf[1].u = u_left;  vbuf[1].v = v_bottom;
+    vbuf[2].u = u_right; vbuf[2].v = v_top;
+    vbuf[3].u = u_right; vbuf[3].v = v_bottom;
+}

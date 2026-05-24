@@ -521,28 +521,33 @@ void scene1_overlay_render(IDirect3DDevice8 *dev, int layer, int mode)
             /* Per-shape dispatch.  Engine has 10 branches; O.3 covers 0/5.
              * Other shapes deferred to O.4 (2/3/4/6), O.5 (1), O.6 (7),
              * O.7 (8/9/10). */
+            /* Shared shape_entry + UV computation for all single-quad
+             * paths (shape 0/1/2/3/4/5/6).  Each draw path uses these
+             * same inputs; only the world matrix and the UV emit
+             * function differ. */
+            int32_t texture_type = slot[SCENE1_OVERLAY_OFF_TEXTURE_TYPE];
+            const int32_t *shape_entry = NULL;
+            if (texture_type >= 0 &&
+                texture_type < SCENE1_OVERLAY_SHAPE_COUNT)
+            {
+                shape_entry =
+                    &g_scene1_overlay_shapes[texture_type *
+                                             SCENE1_OVERLAY_SHAPE_STRIDE];
+            }
+
+            float uv_origin_x, uv_origin_y;
+            int rng_seed = slot[SCENE1_OVERLAY_OFF_RNG_SEED];
+            scene1_overlay_shape_05_frame_uv(shape_entry, rng_seed,
+                                             &uv_origin_x, &uv_origin_y);
+
+            float world[16];
+
             if (type_shape == 0 || type_shape == 5) {
-                /* Shape 0/5: T × S × pre_matrix single-quad. */
-                float world[16];
+                /* Shape 0/5: T × S × pre_matrix; UV emit has the
+                 * slot_idx&1 horizontal flip. */
                 scene1_overlay_shape_05_compose_world(world, slot, alpha_mix);
                 IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
                                               (const D3DMATRIX *)world);
-
-                /* Read shape entry for UV box + frame_count. */
-                int32_t texture_type = slot[SCENE1_OVERLAY_OFF_TEXTURE_TYPE];
-                const int32_t *shape_entry = NULL;
-                if (texture_type >= 0 &&
-                    texture_type < SCENE1_OVERLAY_SHAPE_COUNT)
-                {
-                    shape_entry =
-                        &g_scene1_overlay_shapes[texture_type *
-                                                 SCENE1_OVERLAY_SHAPE_STRIDE];
-                }
-
-                float uv_origin_x, uv_origin_y;
-                int rng_seed = slot[SCENE1_OVERLAY_OFF_RNG_SEED];
-                scene1_overlay_shape_05_frame_uv(shape_entry, rng_seed,
-                                                 &uv_origin_x, &uv_origin_y);
 
                 scene1_overlay_shape_05_emit_quad(g_scene1_overlay_vbuf,
                                                   shape_entry,
@@ -557,8 +562,34 @@ void scene1_overlay_render(IDirect3DDevice8 *dev, int layer, int mode)
                 continue;
             }
 
-            /* TODO O.4 (shapes 2/3/4/6 — matrix variants on shape-0).
-             * TODO O.5 (shape 1 — lookat billboard).
+            /* Shapes 2/3/4/6 (and 1 once O.5 lands) share the
+             * shape_1346_emit_quad path — non-flipped UV layout.  */
+            if (type_shape == 2 || type_shape == 3 ||
+                type_shape == 4 || type_shape == 6)
+            {
+                switch (type_shape) {
+                case 2: scene1_overlay_shape_2_compose_world(world, slot, alpha_mix); break;
+                case 3: scene1_overlay_shape_3_compose_world(world, slot, alpha_mix); break;
+                case 4: scene1_overlay_shape_4_compose_world(world, slot, alpha_mix); break;
+                case 6: scene1_overlay_shape_6_compose_world(world, slot, alpha_mix); break;
+                }
+                IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                              (const D3DMATRIX *)world);
+
+                scene1_overlay_shape_1346_emit_quad(g_scene1_overlay_vbuf,
+                                                    shape_entry,
+                                                    uv_origin_x, uv_origin_y,
+                                                    alpha_int);
+
+                IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                                 D3DPT_TRIANGLESTRIP,
+                                                 2,
+                                                 g_scene1_overlay_vbuf,
+                                                 sizeof(scene1_overlay_vertex));
+                continue;
+            }
+
+            /* TODO O.5 (shape 1 — lookat billboard).
              * TODO O.6 (shape 7 — variable-count multi-quad trail).
              * TODO O.7 (shapes 8/9/10 — 5-quad group dual-billboard).
              *

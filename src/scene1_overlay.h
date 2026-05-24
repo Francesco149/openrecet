@@ -336,6 +336,57 @@ void scene1_overlay_shape_05_emit_quad(scene1_overlay_vertex vbuf[4],
  *   return (((g | 0xffffff00) << 8 | g) << 8 | g) = 0xff_gg_gg_gg. */
 uint32_t scene1_overlay_diffuse_gray(int alpha_int);
 
+/* ---- Shapes 2/3/4/6 matrix variants (O.4) ---------------------------
+ *
+ * All four use the same uniform scale (NOT the blend-split formula
+ * shape 0/5 uses): s = scale_base * scale_x * alpha_mix * 0.003.
+ * No /0.5 division; scaling(s, s, s) uniform.  Engine asm
+ * 0x4156a0..0x4156fc.  After S × T, each shape applies a different
+ * left-multiplied matrix:
+ *
+ *   Shape 2: pre_matrix × (S × T)  — DAT_0438cdf8 stand-in
+ *   Shape 3: RotX(slot[0x3c]) × RotY(slot[0x38]) × RotZ(slot[0x40]) × (S × T)
+ *   Shape 4: RotY(π/2)         × (S × T)
+ *   Shape 6: RotX(slot[0x3c]) × (S × T)
+ *
+ * **Field-mapping correction** (vs survey doc): the engine's renderer
+ * for shapes 3 and 6 reads slot[+0x3c] (Ghidra-named "rot.y") and
+ * applies it via RotationX, and reads slot[+0x38] (Ghidra-named
+ * "rot.x") and applies it via RotationY.  The survey's "shape 6 =
+ * RotY(rot.y) yaw-only" line was wrong — asm at 0x4157ca calls
+ * 0x4a35ef which is RotationX (verified via thunk-table; same as
+ * scene1_shop_walker_helpers.c L383).  Ghidra's field naming reflects
+ * the spawn-time RNG init (shape 3/7 writes rng*2π to all three),
+ * not the renderer's per-axis interpretation.  */
+float scene1_overlay_shape_2346_uniform_scale(const int32_t *slot,
+                                              float alpha_mix);
+
+void scene1_overlay_shape_2_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix);
+
+void scene1_overlay_shape_3_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix);
+
+void scene1_overlay_shape_4_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix);
+
+void scene1_overlay_shape_6_compose_world(float out[16],
+                                          const int32_t *slot,
+                                          float alpha_mix);
+
+/* Non-flipped UV + diffuse emit for shapes 1/2/3/4/6.  Same UV layout
+ * as shape 0/5 BUT without the slot_idx&1 horizontal flip — v0/v1
+ * always get u_left, v2/v3 always get u_right.  Engine asm
+ * 0x41587d..0x4158be.  shape_entry NULL ok → uv_size_x/y treated as 0
+ * (degenerate quad).  */
+void scene1_overlay_shape_1346_emit_quad(scene1_overlay_vertex vbuf[4],
+                                         const int32_t *shape_entry,
+                                         float uv_origin_x, float uv_origin_y,
+                                         int alpha_int);
+
 /* ---- Win32 dispatcher entry (O.3) ---------------------------------- */
 #ifdef _WIN32
 struct IDirect3DDevice8;

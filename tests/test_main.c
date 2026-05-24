@@ -1733,7 +1733,14 @@ struct test_case {
     X(overlay_shape_05_emit_even_slot_idx_uv_layout) \
     X(overlay_shape_05_emit_odd_slot_idx_horizontal_flip) \
     X(overlay_layers_reset_clears_count_and_pointers) \
-    X(overlay_init_also_resets_layers)
+    X(overlay_init_also_resets_layers) \
+    X(overlay_shape_2346_uniform_scale_formula) \
+    X(overlay_shape_2_uses_pre_matrix) \
+    X(overlay_shape_4_applies_roty_quarter) \
+    X(overlay_shape_6_uses_rot_x_field) \
+    X(overlay_shape_3_off_diagonal_field_mapping) \
+    X(overlay_shape_1346_emit_no_flip) \
+    X(overlay_shape_2346_uniform_scale_ignores_blend_mix)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
