@@ -76,11 +76,17 @@ void scene1_overlay_init(void)
 /* ---- Layer count + per-layer texture pointers (O.3) ---------------- */
 
 int   g_scene1_overlay_layer_count = 0;
+char  g_scene1_overlay_layer_filenames[SCENE1_OVERLAY_LAYER_COUNT_MAX]
+                                      [SCENE1_OVERLAY_LAYER_FILENAME_LEN] = {{0}};
 void *g_scene1_overlay_layer_textures[SCENE1_OVERLAY_LAYER_COUNT_MAX] = {0};
+int   g_scene1_overlay_shapes_max_index = 0;
 
 void scene1_overlay_layers_reset(void)
 {
     g_scene1_overlay_layer_count = 0;
+    g_scene1_overlay_shapes_max_index = 0;
+    memset(g_scene1_overlay_layer_filenames, 0,
+           sizeof g_scene1_overlay_layer_filenames);
     memset(g_scene1_overlay_layer_textures, 0,
            sizeof g_scene1_overlay_layer_textures);
 }

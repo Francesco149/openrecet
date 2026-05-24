@@ -60,6 +60,7 @@
 #include "mesh_draw.h"
 #include "mesh_load.h"
 #include "scene1_camera.h"
+#include "scene1_overlay_table.h"
 #include "scene1_pass_f.h"
 #include "scene1_postload.h"
 #include "scene1_preload.h"
@@ -816,6 +817,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * textures (bg2, 01, fuki, waku + pause/result/dungeon). Sets
      * g_scene_title_assets_loaded on full success. */
     (void)scene_title_load_assets(g_dev);
+
+    /* Overlay table parser (O.10) — FUN_00474f4f called four times
+     * from the tables-loader case 3 dispatch (engine all.c L76530-35).
+     * Populates g_scene1_overlay_layer_count + filenames + the per-
+     * shape UV/animation table from `ef/grpN.idx` (N=1..4).  Must run
+     * before sysassets_load_all below: sysassets's per-layer sprite
+     * loader (engine all.c L71673-83) reads the filename table the
+     * parser writes.  Dormant in the dispatcher until a spawn caller
+     * fires, but the table now matches engine state for HOUSE. */
+    (void)scene1_overlay_table_load_all();
 
     /* System overlay textures — FUN_00472f5d called from FUN_0047b29e
      * L233 right after FUN_0049a3a3 / FUN_00434dbf / FUN_00491b3f.

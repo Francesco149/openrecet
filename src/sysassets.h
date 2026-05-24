@@ -39,10 +39,17 @@
  *      are iterated in g_item.records[] order; categories are loaded
  *      in ascending order (each only once, gated by max_cat tracker).
  *
- *   4. DAT_0076b948-gated array load — DAT_0076b948 is BSS-zero at
- *      boot (set later by a custom-image loader at FUN_00474f4f), so
- *      the entire gated block is dormant on our boot path. Tracked as
- *      deferred work.
+ *   4. DAT_0076b948-gated array load — per-layer sprite loader for the
+ *      2D-overlay dispatcher; populated by the FUN_00474f4f parser
+ *      (chip O.10, `src/scene1_overlay_table.{c,h}`).  Engine all.c
+ *      L71673-71683: for i in 0..DAT_0076b948, sprite_load(1,
+ *      DAT_073cc780 + i*0x10, DAT_0072a820 + i*0x100, 0x100, 0x100).
+ *      In our port the filename table is
+ *      `g_scene1_overlay_layer_filenames[i]` and the texture slot is
+ *      `g_scene1_overlay_layers[i]` (the sprite_t backing
+ *      `g_scene1_overlay_layer_textures[i]`).  Loop dormant until
+ *      scene1_overlay_table_load_all writes the table (main.c boot
+ *      sequencing).
  */
 
 #ifndef OPENRECET_SYSASSETS_H
@@ -65,6 +72,7 @@
 /* sprite_t is a thin wrapper around IDirect3DTexture8, so we keep the
  * struct + global gated to the Win32 build. The pure helper below
  * uses neither and is available unconditionally for host tests. */
+#include "scene1_overlay.h"
 #include "sprite.h"
 
 typedef struct {
@@ -98,6 +106,14 @@ typedef struct {
     /* Item icon pages, sparse — populated only for categories that
      * have at least one valid item record (i.e. valid > 0). */
     sprite_t item_icons[SYSASSETS_ITEM_CATEGORIES];
+
+    /* 2D-overlay dispatcher per-layer textures (engine DAT_073cc780
+     * stride 0x10).  Slot count = `g_scene1_overlay_layer_count`
+     * (populated by scene1_overlay_table_load_all before this loader
+     * runs).  After load, sysassets_load_all writes each sprite's
+     * IDirect3DTexture8 pointer into g_scene1_overlay_layer_textures
+     * so the dispatcher's sticky SetTexture has the right binding. */
+    sprite_t overlay_layers[SCENE1_OVERLAY_LAYER_COUNT_MAX];
 } sysassets_t;
 
 extern sysassets_t g_sysassets;

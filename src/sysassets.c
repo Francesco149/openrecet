@@ -68,6 +68,8 @@ int sysassets_compute_icon_sizes(const item_state_t *items,
 #define CINTERFACE
 #include <d3d8.h>
 
+#include "scene1_overlay.h"
+
 sysassets_t g_sysassets;
 
 /* tiny wrapper so the loader loop reads cleanly */
@@ -132,10 +134,31 @@ int sysassets_load_all(IDirect3DDevice8 *dev)
     }
     loaded += icons_loaded;
 
+    /* L73..L83 of engine all.c: DAT_0076b948-gated per-layer sprite
+     * loader, populated by FUN_00474f4f (O.10).  Each layer's filename
+     * came from `GRPNN:filename` in `ef/grpN.idx`. */
+    int overlay_layers_loaded = 0;
+    int overlay_layer_count = g_scene1_overlay_layer_count;
+    if (overlay_layer_count > SCENE1_OVERLAY_LAYER_COUNT_MAX) {
+        overlay_layer_count = SCENE1_OVERLAY_LAYER_COUNT_MAX;
+    }
+    for (int i = 0; i < overlay_layer_count; i++) {
+        const char *name = g_scene1_overlay_layer_filenames[i];
+        if (name[0] == '\0') continue;
+        if (load_one(dev, name, 0x100, 0x100, &g_sysassets.overlay_layers[i])) {
+            g_scene1_overlay_layer_textures[i] = g_sysassets.overlay_layers[i].tex;
+            overlay_layers_loaded++;
+        } else {
+            g_scene1_overlay_layer_textures[i] = NULL;
+        }
+    }
+    loaded += overlay_layers_loaded;
+
     fprintf(stderr,
             "sysassets: %d textures loaded "
-            "(static=20 chara=%d item_categories=%d/%d)\n",
-            loaded, SYSASSETS_CHARA_VARIANTS, icons_loaded, distinct);
+            "(static=20 chara=%d item_categories=%d/%d overlay_layers=%d/%d)\n",
+            loaded, SYSASSETS_CHARA_VARIANTS, icons_loaded, distinct,
+            overlay_layers_loaded, overlay_layer_count);
 
     return loaded;
 }
@@ -166,6 +189,10 @@ void sysassets_unload_all(void)
     sprite_destroy(&g_sysassets.shade_bmp);
     for (int i = 0; i < SYSASSETS_ITEM_CATEGORIES; i++) {
         sprite_destroy(&g_sysassets.item_icons[i]);
+    }
+    for (int i = 0; i < SCENE1_OVERLAY_LAYER_COUNT_MAX; i++) {
+        sprite_destroy(&g_sysassets.overlay_layers[i]);
+        g_scene1_overlay_layer_textures[i] = NULL;
     }
 }
 

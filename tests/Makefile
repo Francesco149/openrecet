@@ -35,6 +35,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_records_c_tick.c ../src/scene1_records_c_spawn.c \
                  ../src/scene1_records_b_spawn.c \
                  ../src/scene1_overlay.c ../src/scene1_overlay_helpers.c \
+                 ../src/scene1_overlay_table.c \
                  ../src/scene1_postload.c ../src/scene1_preload.c ../src/scene1_sim.c ../src/scene1_camera.c \
                  ../src/scene1_shop_walker_helpers.c \
                  ../src/scene1_wide_followup_helpers.c
@@ -53,7 +54,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_spawn.c test_scene1_particles_tick.c test_scene1_postload.c test_scene1_preload.c test_scene1_sim.c \
                  test_scene1_records_c_tick.c test_scene1_records_c_spawn.c \
                  test_scene1_records_b_spawn.c \
-                 test_scene1_overlay.c \
+                 test_scene1_overlay.c test_scene1_overlay_table.c \
                  test_scene1_camera.c test_scene1_shop_walker.c \
                  test_scene1_wide_followup_helpers.c
 

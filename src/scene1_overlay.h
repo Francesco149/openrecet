@@ -202,9 +202,15 @@ void scene1_overlay_init(void);
 /* ---- Per-layer texture table + count (mirrors engine globals) -----
  *
  * `g_scene1_overlay_layer_count` mirrors engine `DAT_0076b948` — the
- * number of GRP_02d_* texture groups parsed from the table file by
- * FUN_00475040 (chip O.10, unported).  Default 0 → dispatcher outer
- * loop never enters → render is a no-op (matches HOUSE dormancy).
+ * number of GRP%02d:... texture groups parsed from `ef/grpN.idx` by
+ * FUN_00474f4f (chip O.10).  Default 0 → dispatcher outer loop never
+ * enters → render is a no-op (matches HOUSE dormancy when the table
+ * files haven't loaded yet).
+ *
+ * `g_scene1_overlay_layer_filenames[i]` mirrors engine `DAT_0072a820 +
+ * i * 0x100` — 256-byte filename slot per layer, written by the
+ * parser, consumed by `sysassets_load_all`'s per-layer sprite loader
+ * (engine all.c L71673-71683).
  *
  * `g_scene1_overlay_layer_textures[i]` mirrors engine `DAT_073cc780 +
  * i * 0x10`'s first dw (the IDirect3DTexture8 *).  The engine's 16-B
@@ -213,10 +219,21 @@ void scene1_overlay_init(void);
  * every outer slot.  Capacity 256 matches the byte-index range of
  * `tex_group` (slot.texture_type → shape_entry.tex_group, byte). */
 #define SCENE1_OVERLAY_LAYER_COUNT_MAX 256
+#define SCENE1_OVERLAY_LAYER_FILENAME_LEN 256
 extern int   g_scene1_overlay_layer_count;
+extern char  g_scene1_overlay_layer_filenames[SCENE1_OVERLAY_LAYER_COUNT_MAX]
+                                             [SCENE1_OVERLAY_LAYER_FILENAME_LEN];
 extern void *g_scene1_overlay_layer_textures[SCENE1_OVERLAY_LAYER_COUNT_MAX];
 
-/* Convenience: zero the layer count + texture slots (host-test helper). */
+/* Highest NNN shape index seen by the parser + 1.  Mirrors engine
+ * `DAT_0076b94c`; consumed at engine L11427 / L12630 to wrap the
+ * cursor's shape index ("(idx + N) % g_scene1_overlay_shapes_max_index").
+ * Default 0 → wrap denominator is zero, but in practice no consumer
+ * runs until the parser populates this. */
+extern int   g_scene1_overlay_shapes_max_index;
+
+/* Convenience: zero the layer count + texture slots + filenames +
+ * shapes_max_index (host-test helper). */
 void scene1_overlay_layers_reset(void);
 
 /* ---- D3D-free helpers (O.3) ---------------------------------------

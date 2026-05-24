@@ -1767,7 +1767,22 @@ struct test_case {
     X(overlay_shape_89_emit_strip_uv_layout) \
     X(overlay_shape_89_emit_strip_does_not_touch_positions) \
     X(overlay_shape_10_emit_strip_uv_layout_sliding_window) \
-    X(overlay_shape_10_emit_strip_v_linear_across_20_pairs)
+    X(overlay_shape_10_emit_strip_v_linear_across_20_pairs) \
+    \
+    X(overlay_table_parse_skips_comment_and_blank_lines) \
+    X(overlay_table_parse_grp_writes_filename_slot) \
+    X(overlay_table_parse_grp_multiple_lines_increment_count) \
+    X(overlay_table_parse_grp_truncates_at_255) \
+    X(overlay_table_parse_nnn_writes_shape_fields) \
+    X(overlay_table_parse_nnn_defaults_when_no_inner_group) \
+    X(overlay_table_parse_nnn_inner_group_two_args_defaults_loop) \
+    X(overlay_table_parse_nnn_inner_group_three_args_writes_loop) \
+    X(overlay_table_parse_nnn_max_index_tracks_highest) \
+    X(overlay_table_parse_nnn_oob_index_silently_dropped) \
+    X(overlay_table_parse_nnn_uv_floats_stored_as_bits) \
+    X(overlay_table_parse_handles_crlf_and_lf) \
+    X(overlay_table_parse_mixed_grp_and_nnn) \
+    X(overlay_table_parse_buf_empty_is_noop)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
