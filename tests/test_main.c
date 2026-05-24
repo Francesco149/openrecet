@@ -1379,7 +1379,28 @@ struct test_case {
     X(records_c_spawn_world_drop_owner_extra_aux_aux_recorded) \
     X(records_c_spawn_default_wrapper_forces_ramp) \
     X(records_c_spawn_typed_wrapper_passes_override) \
-    X(records_c_spawn_default_wrapper_aux10_zero)
+    X(records_c_spawn_default_wrapper_aux10_zero) \
+    \
+    X(records_b_spawn_trace_records_calls) \
+    X(records_b_spawn_trace_unimplemented_still_traces) \
+    X(records_b_spawn_trace_reset_clears) \
+    X(records_b_spawn_entity_24_pure_preamble) \
+    X(records_b_spawn_entity_writes_owner_ptr_to_owner_a_slot) \
+    X(records_b_spawn_entity_alt_pos_path_when_flag_not_minus_one) \
+    X(records_b_spawn_entity_copies_matrix) \
+    X(records_b_spawn_entity_byte_pair_zeros_low_two_only) \
+    X(records_b_spawn_entity_sequence_counter_increments) \
+    X(records_b_spawn_entity_skips_alive_slots) \
+    X(records_b_spawn_entity_table_full_no_commit) \
+    X(records_b_spawn_entity_unimplemented_no_commit) \
+    X(records_b_spawn_entity_60_writes_rot_x_from_owner_ea4) \
+    X(records_b_spawn_entity_82_scale_2_and_rot_x) \
+    X(records_b_spawn_npc_e_pure_preamble) \
+    X(records_b_spawn_npc_copies_matrix_from_owner_39c) \
+    X(records_b_spawn_npc_all_three_anchor_types_commit) \
+    X(records_b_spawn_npc_shares_seq_counter_with_entity) \
+    X(records_b_spawn_npc_unimplemented_no_commit) \
+    X(records_b_spawn_drives_counter_scan)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

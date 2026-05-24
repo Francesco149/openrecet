@@ -87,17 +87,50 @@ extern "C" {
 #define SCENE1_RECORDS_A_OFF_AUX_18   18   /* DAT_069b2fc8 */
 
 /*
- * Table B field offsets — populated as integrator handlers reference
- * them.  Field-0 is the slot-active flag (B sentinel: == 0 means empty).
+ * Table B field offsets — populated as integrator + allocator handlers
+ * reference them.  Field-0 is the slot-active flag AND the type field
+ * (B sentinel: == 0 means empty; non-zero is the per-record type).
  * Field-2 (engine: DAT_069324b8) holds the slot's own index — set by the
- * sentinel-init in scene1_records_reset().  The pos vector at +0x5c
- * (dw 23/24/25) is read by the integrator's type 0x1d handler.
+ * sentinel-init in scene1_records_reset().
+ *
+ * Allocator-related offsets (touched by FUN_0044376a + FUN_00445a8c,
+ * surveyed in docs/findings/scene1-table-b-allocators.md and ported in
+ * C8j.5).  ACTIVE / TYPE alias: writing TYPE claims the slot and trips
+ * the sentinel for subsequent allocator scans.
  */
-#define SCENE1_RECORDS_B_OFF_ACTIVE   0    /* DAT_069324b0 (sentinel) */
-#define SCENE1_RECORDS_B_OFF_SELF_IDX 2    /* DAT_069324b8 */
-#define SCENE1_RECORDS_B_OFF_POS_X    23   /* DAT_0693250c */
-#define SCENE1_RECORDS_B_OFF_POS_Y    24   /* DAT_06932510 */
-#define SCENE1_RECORDS_B_OFF_POS_Z    25   /* DAT_06932514 */
+#define SCENE1_RECORDS_B_OFF_ACTIVE     0    /* DAT_069324b0 (sentinel) */
+#define SCENE1_RECORDS_B_OFF_TYPE       0    /* alias — type IS the sentinel */
+#define SCENE1_RECORDS_B_OFF_FLAG_A     1    /* DAT_069324b4 (npc-alloc: flag; entity-alloc: 0) */
+#define SCENE1_RECORDS_B_OFF_SELF_IDX   2    /* DAT_069324b8 */
+#define SCENE1_RECORDS_B_OFF_FLAG_B     3    /* DAT_069324bc (entity-alloc: flag; npc-alloc: -1) */
+#define SCENE1_RECORDS_B_OFF_OWNER_A    4    /* DAT_069324c0 (entity-alloc owner; npc-alloc: 0) */
+#define SCENE1_RECORDS_B_OFF_OWNER_B    5    /* DAT_069324c4 (npc-alloc owner; entity-alloc: 0) */
+#define SCENE1_RECORDS_B_OFF_POS_X      23   /* DAT_0693250c */
+#define SCENE1_RECORDS_B_OFF_POS_Y      24   /* DAT_06932510 */
+#define SCENE1_RECORDS_B_OFF_POS_Z      25   /* DAT_06932514 */
+#define SCENE1_RECORDS_B_OFF_VEL_X      26   /* DAT_06932518 */
+#define SCENE1_RECORDS_B_OFF_VEL_Y      27   /* DAT_0693251c */
+#define SCENE1_RECORDS_B_OFF_VEL_Z      28   /* DAT_06932520 */
+#define SCENE1_RECORDS_B_OFF_ALT_POS_X  29   /* DAT_06932524 (per-type alt-target / sub-pos) */
+#define SCENE1_RECORDS_B_OFF_ALT_POS_Y  30   /* DAT_06932528 */
+#define SCENE1_RECORDS_B_OFF_ALT_POS_Z  31   /* DAT_0693252c */
+#define SCENE1_RECORDS_B_OFF_ROT_SCR    35   /* DAT_0693253c (rotation scratch) */
+#define SCENE1_RECORDS_B_OFF_ROT_X      36   /* DAT_06932540 (a.k.a. NPC bend angle for many bodies) */
+#define SCENE1_RECORDS_B_OFF_ROT_Z      37   /* DAT_06932544 (random rot.z, set by drift cluster tail) */
+#define SCENE1_RECORDS_B_OFF_AGE        38   /* DAT_06932548 */
+#define SCENE1_RECORDS_B_OFF_PART_IDX   39   /* DAT_0693254c (per-particle slot index in multi-spawn) */
+#define SCENE1_RECORDS_B_OFF_AUX_SENT1  40   /* DAT_06932550 (= 0xffffffff in preamble) */
+#define SCENE1_RECORDS_B_OFF_DRAG       42   /* DAT_06932558 (life timer / drag) */
+#define SCENE1_RECORDS_B_OFF_SCALE_X    45   /* DAT_06932564 (= 1.0f in preamble) */
+#define SCENE1_RECORDS_B_OFF_OWNER_FLAG 46   /* DAT_06932568 (entity-alloc: owner+0xeac; npc-alloc: 0) */
+#define SCENE1_RECORDS_B_OFF_SCALE_Y    47   /* DAT_0693256c (entity-alloc only: 1.0f) */
+#define SCENE1_RECORDS_B_OFF_BYTE_PAIR  48   /* DAT_06932570/71/72 — bytewise; preamble zeroes low 2 bytes only (entity-alloc only) */
+#define SCENE1_RECORDS_B_OFF_AUX_C8     49   /* DAT_06932574 (= 0 in preamble) */
+#define SCENE1_RECORDS_B_OFF_MATRIX0    50   /* DAT_06932578 — 16 floats follow */
+#define SCENE1_RECORDS_B_OFF_LIFE_MULT  66   /* DAT_069325b8 (= 1.0f in preamble) */
+#define SCENE1_RECORDS_B_OFF_AUX_C0     68   /* DAT_069325c0 (= 0 in preamble) */
+#define SCENE1_RECORDS_B_OFF_AUX_SENT2  69   /* DAT_069325c4 (entity-alloc only: 0xffffffff) */
+#define SCENE1_RECORDS_B_OFF_SEQ_ID     71   /* DAT_069325cc (post-incremented from g_scene1_record_b_seq_counter) */
 
 /*
  * Table C layout differs from A: TYPE is at offset 10 dw (= 0x28
