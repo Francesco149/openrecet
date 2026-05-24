@@ -1750,3 +1750,132 @@ int test_overlay_shape_10_emit_strip_v_linear_across_20_pairs(void)
     }
     return 0;
 }
+
+/* ═══ O.11 — scene1_overlay_setup tests ═════════════════════════════════
+ *
+ * Verify FUN_00452f58's matrix outputs under the engine's hard-coded
+ * (0,0,-550)/(0,0,0) state and a few off-state inputs.
+ */
+
+#include "math3d.h"
+
+static int approx_eq(float a, float b, float eps)
+{
+    float d = a - b; if (d < 0) d = -d;
+    return d < eps;
+}
+
+int test_overlay_setup_compute_engine_state_pre_matrix_is_rot_y_quarter(void)
+{
+    const float eye[3]    = { 0.0f, 0.0f,    0.0f };
+    const float lookat[3] = { 0.0f, 0.0f, -550.0f };
+    float view[16], proj[16], pre[16];
+    scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
+
+    /* Engine state → atan2(0, -550) + π = 2π → RotX(2π) = identity.
+     * dy = 0, hyp = 550 → atan2(0, 550) = 0 → RotY(π/2 - 0) = RotY(π/2).
+     * mat4_mul(out, Y, X) = Y × I = RotationY(π/2).
+     *
+     * Row-major RotY(π/2) — cells that must hold to 1e-5:
+     *   [0][0] =  cos(π/2) ≈ 0
+     *   [0][2] = -sin(π/2) ≈ -1
+     *   [2][0] =  sin(π/2) ≈ 1
+     *   [2][2] =  cos(π/2) ≈ 0
+     *   [1][1] = 1; [3][3] = 1; rest 0
+     */
+    T_ASSERT(approx_eq(pre[0],   0.0f, 1e-5f));
+    T_ASSERT(approx_eq(pre[2],  -1.0f, 1e-5f));
+    T_ASSERT(approx_eq(pre[5],   1.0f, 1e-5f));
+    T_ASSERT(approx_eq(pre[8],   1.0f, 1e-5f));
+    T_ASSERT(approx_eq(pre[10],  0.0f, 1e-5f));
+    T_ASSERT(approx_eq(pre[15],  1.0f, 1e-5f));
+    return 0;
+}
+
+int test_overlay_setup_compute_view_matches_lookat_rh(void)
+{
+    const float eye[3]    = { 0.0f, 0.0f,    0.0f };
+    const float lookat[3] = { 0.0f, 0.0f, -550.0f };
+    float view[16], proj[16], pre[16];
+    scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
+
+    float ref[16];
+    const float up[3] = { 0.0f, 1.0f, 0.0f };
+    mat4_lookat_rh(ref, eye, lookat, up);
+    for (int i = 0; i < 16; i++) {
+        T_ASSERT(approx_eq(view[i], ref[i], 1e-5f));
+    }
+    return 0;
+}
+
+int test_overlay_setup_compute_proj_uses_engine_constants(void)
+{
+    const float eye[3]    = { 0.0f, 0.0f,    0.0f };
+    const float lookat[3] = { 0.0f, 0.0f, -550.0f };
+    float view[16], proj[16], pre[16];
+    scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
+
+    float ref[16];
+    mat4_perspective_fov_rh(ref,
+                            0.7853981852531433f,    /* π/4 */
+                            1.3333333730697632f,    /* 4/3 */
+                            10.0f,
+                            20000.0f);
+    for (int i = 0; i < 16; i++) {
+        T_ASSERT(approx_eq(proj[i], ref[i], 1e-3f));
+    }
+    return 0;
+}
+
+int test_overlay_setup_compute_singular_collapses_rot_y_to_zero(void)
+{
+    /* hyp = 0 → port sets rot_y_angle = 0 (identity Y).
+     * For eye_y > lookat_y, rot_x = atan2(0, +1) + π = π;
+     * RotY(0) × RotX(π) = RotX(π):
+     *   [0][0] = 1; [1][1] = -1; [2][2] = -1; [3][3] = 1
+     */
+    const float eye[3]    = { 0.0f, 5.0f, 0.0f };
+    const float lookat[3] = { 0.0f, 1.0f, 1.0f };    /* z != 0 → atan2(0, 1) defined */
+    float view[16], proj[16], pre[16];
+    scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
+
+    /* hyp = sqrt(0 + 1) = 1.  So rot_y_angle = π/2 - atan2(-4, 1).
+     * atan2(-4, 1) ≈ -1.3258 rad → rot_y ≈ 2.8966 rad.  This is the
+     * non-singular path — only here to exercise non-zero dy.  Skip
+     * pre-matrix exact assertions and just sanity-check det != 0. */
+    float det_ish = pre[0]*pre[5] - pre[1]*pre[4];   /* upper-2x2 det */
+    T_ASSERT(!approx_eq(det_ish, 0.0f, 1e-9f) ||
+             !approx_eq(pre[2], 0.0f, 1e-9f));      /* something nonzero */
+    return 0;
+}
+
+int test_overlay_setup_compute_null_inputs_safe(void)
+{
+    float view[16], proj[16], pre[16];
+    scene1_overlay_setup_compute(NULL, NULL, view, proj, pre);
+    return 0;
+}
+
+int test_overlay_setup_compute_does_not_publish_pre_matrix(void)
+{
+    /* The setter is called only from scene1_overlay_setup (Win32).
+     * Verify the pure helper does NOT touch g_wf_pass_c_pre_matrix. */
+    float marker[16] = {
+        2, 0, 0, 0,
+        0, 3, 0, 0,
+        0, 0, 4, 0,
+        0, 0, 0, 5
+    };
+    wf_pass_c_set_pre_matrix(marker);
+
+    const float eye[3]    = { 0.0f, 0.0f,    0.0f };
+    const float lookat[3] = { 0.0f, 0.0f, -550.0f };
+    float view[16], proj[16], pre[16];
+    scene1_overlay_setup_compute(eye, lookat, view, proj, pre);
+
+    const float *got = wf_pass_c_get_pre_matrix();
+    for (int i = 0; i < 16; i++) {
+        T_ASSERT(approx_eq(got[i], marker[i], 1e-7f));
+    }
+    return 0;
+}

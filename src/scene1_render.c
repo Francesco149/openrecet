@@ -95,19 +95,9 @@ static void scene1_fx_overlays_TODO(void)
 }
 
 /* FUN_00452f58 (491 B) — HUD camera + projection setup for the
- * overlay pass.  Computes a separate D3DXMatrixLookAtRH +
- * D3DXMatrixPerspectiveFovRH (different fov / near / far than the
- * main scene), writes both into the device, plus initializes the
- * post-process texture state DAT_06a47120 / 06a475f0.  Required
- * before the layer dispatcher runs to position the 2D layers
- * correctly. */
-static void scene1_overlay_setup_TODO(void)
-{
-    /* TODO C7-followup: port FUN_00452f58.  Until this lands the
-     * overlay pass inherits whatever transforms the walker left;
-     * for the layer-1/0/2/3 dispatch (also deferred) this is fine
-     * because each FUN_00414ee2 call sets its own transforms. */
-}
+ * overlay pass.  Landed 2026-05-24 as chip O.11 in scene1_overlay.c
+ * (scene1_overlay_setup).  See scene1_overlay.h for the math + the
+ * pre-matrix (DAT_0438cdf8) writer resolution (PHC #16). */
 
 /* FUN_00414ee2 (4006 B) — the 2D overlay dispatcher — landed in chips
  * O.2..O.7 (src/scene1_overlay.{c,h}).  scene1_render_overlay below
@@ -845,8 +835,8 @@ void scene1_render_overlay(struct IDirect3DDevice8 *dev_in)
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
-    /* L6: HUD camera+proj setup. Deferred — see stub. */
-    scene1_overlay_setup_TODO();
+    /* L6: HUD camera+proj setup (O.11). */
+    scene1_overlay_setup(dev);
 
     /* L7-15: per-frame render-state reset for the 2D RHW + alpha
      * overlay pass.  Engine writes these every frame because the

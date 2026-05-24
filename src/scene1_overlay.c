@@ -73,6 +73,20 @@ void scene1_overlay_init(void)
     scene1_overlay_shape_10_vbuf_init();
 }
 
+/* ---- HUD camera state (O.11, FUN_00452f58) ------------------------- */
+/*
+ * Engine globals DAT_06a47120 (lookat) and DAT_06a475f0 (eye).  Each is
+ * a 12-byte vec3 (x, y, z) — the asm fldz/fstp triplets at 0x452fce..
+ * 0x452ffc store via 3 contiguous DWORD writes.  Initialized to BSS
+ * zero; FUN_00452f58 overwrites them to (0, 0, -550) and (0, 0, 0)
+ * every call.  Exposed here because the function reads back from the
+ * globals between the writes and the matrix computations, so any
+ * future code that pre-populates them between calls would land in the
+ * derived matrices.  As of O.11 no consumer pre-writes them.
+ */
+float g_scene1_overlay_camera_lookat[3] = {0};
+float g_scene1_overlay_camera_eye[3]    = {0};
+
 /* ---- Layer count + per-layer texture pointers (O.3) ---------------- */
 
 int   g_scene1_overlay_layer_count = 0;
@@ -463,6 +477,7 @@ void scene1_overlay_spawn(const void *template_owner,
 #include <d3d8.h>
 
 #include "scene1_camera.h"   /* g_scene1_camera_eye for shape 1 lookat */
+#include "scene1_wide_followup.h"  /* wf_pass_c_set_pre_matrix — O.11 */
 
 /* Module-local mirror of engine DAT_0076b95c — the sticky
  * "last bound texture" cache.  FUN_00415e90 is a 36-byte cache
@@ -698,6 +713,43 @@ void scene1_overlay_render(IDirect3DDevice8 *dev, int layer, int mode)
             }
         }
     }
+}
+
+/* ---- HUD camera + projection setup (O.11, FUN_00452f58) ------------ */
+
+void scene1_overlay_setup(IDirect3DDevice8 *dev)
+{
+    if (!dev) return;
+
+    /* Engine writes (0,0,-550) into DAT_06a47120 (lookat) and (0,0,0)
+     * into DAT_06a475f0 (eye) every call (asm 0x452fca..0x452ffc, six
+     * fldz/fstp + the fld 0x519d58 → fstp DAT_06a47128 for -550). */
+    g_scene1_overlay_camera_lookat[0] = 0.0f;
+    g_scene1_overlay_camera_lookat[1] = 0.0f;
+    g_scene1_overlay_camera_lookat[2] = -550.0f;
+    g_scene1_overlay_camera_eye[0]    = 0.0f;
+    g_scene1_overlay_camera_eye[1]    = 0.0f;
+    g_scene1_overlay_camera_eye[2]    = 0.0f;
+
+    float view[16], proj[16], pre_matrix[16];
+    scene1_overlay_setup_compute(g_scene1_overlay_camera_eye,
+                                 g_scene1_overlay_camera_lookat,
+                                 view, proj, pre_matrix);
+
+    /* Publish the pre-matrix to wf_pass_c — engine writes the same
+     * matrix to DAT_0438cdf8 via mat4_mul at 0x4530b8 (PHC #16
+     * resolution: this function is the writer.  Pre-O.11 our stand-in
+     * was identity; under the engine's hard-coded (0,0,-550)/(0,0,0)
+     * state the produced matrix is RotationY(π/2) — a 90° turn around
+     * the Y axis). */
+    wf_pass_c_set_pre_matrix(pre_matrix);
+
+    /* FUN_0049065b call site (asm 0x4530bd) — copies two matrices from
+     * DAT_073de2dc/29c into shadow registers DAT_095d3730+ and computes
+     * a screen-space viewport-transform.  No ported reader, deferred. */
+
+    IDirect3DDevice8_SetTransform(dev, D3DTS_VIEW,       (const D3DMATRIX *)view);
+    IDirect3DDevice8_SetTransform(dev, D3DTS_PROJECTION, (const D3DMATRIX *)proj);
 }
 
 #endif /* _WIN32 */

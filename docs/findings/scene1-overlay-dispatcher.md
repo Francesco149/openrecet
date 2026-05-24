@@ -280,7 +280,7 @@ unknown; loader unidentified.
 
 | Address                       | Role                                       |
 |-------------------------------|--------------------------------------------|
-| `DAT_0438cdf8`                | Shared pre-matrix (PHC #16, identity stand-in) — used by shapes 0/2/5 |
+| `DAT_0438cdf8`                | Shared pre-matrix (PHC #16 RESOLVED 2026-05-24 chip O.11 — writer is `FUN_00452f58` via `mat4_mul` at 0x4530b8; under engine HOUSE state (eye=(0,0,0), lookat=(0,0,-550)) the value is RotationY(π/2); pre-O.11 our stand-in was identity) — used by shapes 0/2/5 |
 | `_DAT_073de31c..324`          | Camera eye position (=`g_scene1_camera_eye`) — used by shape 1 lookat |
 | `DAT_073dfcbc`                | `IDirect3DDevice8 *` (already wired) |
 

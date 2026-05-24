@@ -629,6 +629,65 @@ void scene1_overlay_render(struct IDirect3DDevice8 *dev,
                            int layer, int mode);
 #endif
 
+/* ---- HUD camera + projection setup (O.11, FUN_00452f58) ------------ */
+/*
+ * Engine state (DAT_06a47120 / DAT_06a475f0, 12 B each) — lookat target
+ * and eye position for the 2D-overlay HUD camera.  FUN_00452f58 writes
+ * the literal triplets (0, 0, -550) and (0, 0, 0) every call, then
+ * derives 3 matrices from them.  Exposed here for the rare consumer
+ * that wants to inspect the camera pose between renders.
+ */
+extern float g_scene1_overlay_camera_lookat[3];
+extern float g_scene1_overlay_camera_eye[3];
+
+/*
+ * scene1_overlay_setup_compute — host-testable matrix builder for
+ * FUN_00452f58.  Computes:
+ *
+ *   pre_matrix  = mat4_mul(RotationY(π/2 - α), RotationX(2π))
+ *                 where α = atan2(lookat_y - eye_y, sqrt(dx²+dz²));
+ *                 with the engine's hard-coded (0,0,-550)/(0,0,0) state
+ *                 this evaluates to RotationY(π/2) × Identity =
+ *                 RotationY(π/2).
+ *   view        = mat4_lookat_rh(eye, lookat, up=(0,1,0))
+ *   proj        = mat4_perspective_fov_rh(π/4, 4/3, near=10, far=20000)
+ *
+ * The engine reads from globals between writing them and computing the
+ * matrices, so passing custom eye/lookat is mathematically valid; the
+ * Win32 entry below pins them to the engine's literals.
+ *
+ * The singular path (sqrt result == 0 → FUN_00404bb8) is not yet ported
+ * — with the engine's hard-coded inputs the sqrt is 550, never 0.  If
+ * eye and lookat coincide on x/z, callers fall through to that branch;
+ * for now we collapse it to mat4_identity on the rotation_y output (the
+ * engine's FUN_00404bb8 is itself unported — it likely writes identity).
+ */
+void scene1_overlay_setup_compute(const float eye[3],
+                                  const float lookat[3],
+                                  float view[16],
+                                  float proj[16],
+                                  float pre_matrix[16]);
+
+#ifdef _WIN32
+/*
+ * scene1_overlay_setup — port of FUN_00452f58 (491 B, @ 0x452f58).
+ * "HUD camera + projection setup" — replaces scene1_overlay_setup_TODO
+ * in scene1_render.c.
+ *
+ * Writes lookat/eye globals to (0,0,-550)/(0,0,0), calls
+ * scene1_overlay_setup_compute, publishes the pre-matrix via
+ * wf_pass_c_set_pre_matrix (this resolves PHC #16 — the engine writer
+ * of DAT_0438cdf8 is this very function, via mat4_mul to a fixed-
+ * address output), then writes view + proj to the device.
+ *
+ * 4 atexit-registered no-op destructors (one-shot via DAT_06a4712c)
+ * are skipped — confirmed single-byte RETs at 0x453143..0x453146 via
+ * raw asm.  FUN_0049065b (314 B, internal call mid-routine) writes
+ * shadow registers at DAT_095d3730+ used by an unidentified consumer;
+ * skipped — no ported reader. */
+void scene1_overlay_setup(struct IDirect3DDevice8 *dev);
+#endif
+
 /* ---- Spawn API (FUN_00414345) -------------------------------------- */
 /*
  * Walk the 4096 slots for the first ACTIVE == -1, claim it, copy

@@ -1769,6 +1769,13 @@ struct test_case {
     X(overlay_shape_10_emit_strip_uv_layout_sliding_window) \
     X(overlay_shape_10_emit_strip_v_linear_across_20_pairs) \
     \
+    X(overlay_setup_compute_engine_state_pre_matrix_is_rot_y_quarter) \
+    X(overlay_setup_compute_view_matches_lookat_rh) \
+    X(overlay_setup_compute_proj_uses_engine_constants) \
+    X(overlay_setup_compute_singular_collapses_rot_y_to_zero) \
+    X(overlay_setup_compute_null_inputs_safe) \
+    X(overlay_setup_compute_does_not_publish_pre_matrix) \
+    \
     X(overlay_table_parse_skips_comment_and_blank_lines) \
     X(overlay_table_parse_grp_writes_filename_slot) \
     X(overlay_table_parse_grp_multiple_lines_increment_count) \

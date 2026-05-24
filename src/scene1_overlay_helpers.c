@@ -949,3 +949,80 @@ void scene1_overlay_shape_10_emit_strip(scene1_overlay_vertex *strip_vbuf,
         vb->diffuse = diffuse;
     }
 }
+
+/* ═══ HUD camera + projection setup (O.11, FUN_00452f58) ════════════════
+ *
+ * Pure-C matrix builder for the 2D-overlay HUD camera.  Raw asm
+ * 0x452fca..0x4530f0 confirms the chain:
+ *
+ *   pre_matrix = mat4_mul(Y, X)
+ *   where Y = mat4_rotation_y(π/2 - atan2(dy, hyp))
+ *         X = mat4_rotation_x(atan2(0, lookat_z) + π)
+ *
+ * The engine literally passes the precomputed constant 302500.0 (= 550²)
+ * to sqrt — the compiler folded the (0,0,-550)/(0,0,0) state.  Port
+ * derives hyp at runtime as the 2D horizontal distance from eye to
+ * lookat so arbitrary callers compute correctly; the engine's hard-
+ * coded state still produces hyp = 550.
+ *
+ * Singular path (hyp == 0 → engine FUN_00404bb8) is unported; port
+ * collapses to rot_y_angle = 0 (= identity matrix on Y).
+ */
+void scene1_overlay_setup_compute(const float eye[3],
+                                  const float lookat[3],
+                                  float view[16],
+                                  float proj[16],
+                                  float pre_matrix[16])
+{
+    if (!eye || !lookat) return;
+
+    /* Engine constants from .rdata (verified via tools/analyze/pe.py):
+     *   0x519394 = π/4         (fov_y)
+     *   0x519338 = 4/3         (aspect)
+     *   0x5194f0 = 10.0        (near)
+     *   0x519d40 = 20000.0     (far)
+     *   0x519434 = π/2
+     *   0x51943c = π
+     */
+    const float kFovY    = 0.7853981852531433f;
+    const float kAspect  = 1.3333333730697632f;
+    const float kNear    = 10.0f;
+    const float kFar     = 20000.0f;
+    const float kPiOver2 = 1.5707963705062866f;
+    const float kPi      = 3.1415927410125732f;
+
+    /* RotationX angle = atan2(0, lookat_z) + π. */
+    float rot_x_angle = atan2f(0.0f, lookat[2]) + kPi;
+
+    /* sqrt of squared horizontal distance — engine hard-codes 302500
+     * for its (0,0,-550) state; we recover the formula from the literal
+     * eye/lookat inputs. */
+    float dx_xz = lookat[0] - eye[0];
+    float dz_xz = lookat[2] - eye[2];
+    float hyp   = sqrtf(dx_xz * dx_xz + dz_xz * dz_xz);
+
+    float rot_y_angle;
+    if (hyp == 0.0f) {
+        rot_y_angle = 0.0f;
+    } else {
+        float dy = lookat[1] - eye[1];
+        rot_y_angle = kPiOver2 - atan2f(dy, hyp);
+    }
+
+    float rot_y[16], rot_x[16];
+    mat4_rotation_y(rot_y, rot_y_angle);
+    mat4_rotation_x(rot_x, rot_x_angle);
+
+    if (pre_matrix) {
+        mat4_mul(pre_matrix, rot_y, rot_x);
+    }
+
+    if (view) {
+        const float up[3] = { 0.0f, 1.0f, 0.0f };
+        mat4_lookat_rh(view, eye, lookat, up);
+    }
+
+    if (proj) {
+        mat4_perspective_fov_rh(proj, kFovY, kAspect, kNear, kFar);
+    }
+}
