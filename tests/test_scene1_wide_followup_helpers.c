@@ -332,3 +332,169 @@ int test_wf_pass_c_compose_world_smaller_aux_1_scale(void)
     T_ASSERT_NEAR_WF(world[10], 0.0096f, 1e-6f);
     return 0;
 }
+
+/* ═══ Pass A (C8f.pass-a) ═════════════════════════════════════════════ */
+
+static void slot_init_zero_b(int32_t slot[SCENE1_RECORDS_B_STRIDE])
+{
+    memset(slot, 0, sizeof(int32_t) * SCENE1_RECORDS_B_STRIDE);
+}
+
+static void slot_set_float_b(int32_t slot[SCENE1_RECORDS_B_STRIDE],
+                             int offset, float value)
+{
+    memcpy(&slot[offset], &value, sizeof(value));
+}
+
+/* ─── predicate ──────────────────────────────────────────────────────── */
+
+int test_wf_pass_a_should_emit_rejects_sentinel(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0;  /* free-slot sentinel */
+    T_ASSERT(wf_pass_a_should_emit(slot) == 0);
+    return 0;
+}
+
+int test_wf_pass_a_should_emit_accepts_0x77(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x77;
+    T_ASSERT(wf_pass_a_should_emit(slot) == 1);
+    return 0;
+}
+
+int test_wf_pass_a_should_emit_accepts_0xa2(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0xa2;
+    T_ASSERT(wf_pass_a_should_emit(slot) == 1);
+    return 0;
+}
+
+int test_wf_pass_a_should_emit_rejects_neighboring_types(void)
+{
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    int32_t reject[] = { 1, 2, 0x76, 0x78, 0xa1, 0xa3, 0x53 };
+    for (size_t i = 0; i < sizeof(reject) / sizeof(reject[0]); i++) {
+        slot_init_zero_b(slot);
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = reject[i];
+        if (wf_pass_a_should_emit(slot) != 0) {
+            T_FAIL("type 0x%x should NOT emit but did", reject[i]);
+        }
+    }
+    return 0;
+}
+
+/* ─── per-record scale ───────────────────────────────────────────────── */
+
+int test_wf_pass_a_scale_full_at_age_5(void)
+{
+    /* AGE == 5 → no ramp-in.  LIFE_MULT 1.0 → scale = 0.005. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_AGE] = 5;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    T_ASSERT_NEAR_WF(wf_pass_a_per_record_scale(slot), 0.005f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_a_scale_zero_at_age_0(void)
+{
+    /* AGE == 0 → (0/5) * scale = 0.0 (invisible first frame). */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_AGE] = 0;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    T_ASSERT_NEAR_WF(wf_pass_a_per_record_scale(slot), 0.0f, 1e-7f);
+    return 0;
+}
+
+int test_wf_pass_a_scale_ramps_in_over_5_frames(void)
+{
+    /* AGE = 1,2,3,4 → 0.001, 0.002, 0.003, 0.004. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    float expected[5] = { 0.0f, 0.001f, 0.002f, 0.003f, 0.004f };
+    for (int age = 0; age < 5; age++) {
+        slot[SCENE1_RECORDS_B_OFF_AGE] = age;
+        T_ASSERT_NEAR_WF(wf_pass_a_per_record_scale(slot),
+                         expected[age], 1e-7f);
+    }
+    return 0;
+}
+
+int test_wf_pass_a_scale_uses_life_mult(void)
+{
+    /* LIFE_MULT 2.0 + AGE 10 → 2.0 * 0.005 = 0.01. */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_AGE] = 10;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 2.0f);
+    T_ASSERT_NEAR_WF(wf_pass_a_per_record_scale(slot), 0.01f, 1e-7f);
+    return 0;
+}
+
+/* ─── world matrix ───────────────────────────────────────────────────── */
+
+int test_wf_pass_a_compose_world_translation_in_row_3(void)
+{
+    /* At AGE=5 (no ramp), LIFE_MULT 1.0, ROT_X 0:
+     *   M = RotZ(π) × RotY(π/2) × S(0.005) × T(10, 20, 30).
+     *
+     * Translation row stays at (10, 20, 30, 1) — scale only touches
+     * rows 0..2's diagonal, rotations have row 3 = (0,0,0,1).  */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x77;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 5;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_ROT_X,     0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_X,    10.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Y,    20.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Z,    30.0f);
+
+    float world[16];
+    wf_pass_a_compose_world(world, slot);
+
+    T_ASSERT_NEAR_WF(world[12], 10.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[13], 20.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[14], 30.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[15],  1.0f, 1e-6f);
+    return 0;
+}
+
+int test_wf_pass_a_compose_world_rot_x_pi_cancels_rot_z(void)
+{
+    /* slot[ROT_X] = π → RotZ(π - π) = RotZ(0) = identity.
+     * Then M = I × RotY(π/2) × S × T = RotY(π/2) × S × T.
+     *
+     * mat4_rotation_y(θ) returns the standard right-handed rotation:
+     *   [  cos θ  0  -sin θ  0 ]
+     *   [  0      1   0      0 ]
+     *   [  sin θ  0   cos θ  0 ]
+     *   [  0      0   0      1 ]
+     *
+     * For θ=π/2: cos=0, sin=1 → world[2] = -0.005 (x-row), world[5] =
+     * +0.005 (y-row diagonal), world[8] = +0.005 (z-row's x-col).  */
+    int32_t slot[SCENE1_RECORDS_B_STRIDE];
+    slot_init_zero_b(slot);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x77;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 5;
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_ROT_X,     3.1415927f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_X,     0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Y,     0.0f);
+    slot_set_float_b(slot, SCENE1_RECORDS_B_OFF_POS_Z,     0.0f);
+
+    float world[16];
+    wf_pass_a_compose_world(world, slot);
+
+    /* Y-row's diagonal is unaffected by RotY (only X/Z rows rotate). */
+    T_ASSERT_NEAR_WF(world[5], 0.005f, 1e-5f);
+    return 0;
+}

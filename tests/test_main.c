@@ -1375,6 +1375,16 @@ struct test_case {
     X(wf_pass_c_pre_matrix_setter_ignores_null) \
     X(wf_pass_c_compose_world_default_pre_matrix_is_scale_translate) \
     X(wf_pass_c_compose_world_smaller_aux_1_scale) \
+    X(wf_pass_a_should_emit_rejects_sentinel) \
+    X(wf_pass_a_should_emit_accepts_0x77) \
+    X(wf_pass_a_should_emit_accepts_0xa2) \
+    X(wf_pass_a_should_emit_rejects_neighboring_types) \
+    X(wf_pass_a_scale_full_at_age_5) \
+    X(wf_pass_a_scale_zero_at_age_0) \
+    X(wf_pass_a_scale_ramps_in_over_5_frames) \
+    X(wf_pass_a_scale_uses_life_mult) \
+    X(wf_pass_a_compose_world_translation_in_row_3) \
+    X(wf_pass_a_compose_world_rot_x_pi_cancels_rot_z) \
     \
     X(records_c_tick_empty_table_is_noop) \
     X(records_c_tick_sentinel_slots_skipped) \

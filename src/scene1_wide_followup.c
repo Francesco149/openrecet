@@ -78,31 +78,87 @@ static int wf_palette_field_0(void) { return 0; }
  * and C is unported — see docs/findings/scene1-particles-tick.md).
  */
 
+/* FVF 0x142 shared 4-vert quad used by Pass A, B, and E.  Engine static
+ * init at all.c L8824-8843 (boot-time .data):
+ *
+ *   v0 = (-256, +256, 0)  TL    UVs overwritten per-loop
+ *   v1 = (-256, -256, 0)  BL
+ *   v2 = (+256, +256, 0)  TR
+ *   v3 = (+256, -256, 0)  BR
+ *
+ * 512×512 canonical quad centered at the origin (XY plane, z=0).
+ * Per-record world matrix transforms into world space (Pass A applies
+ * RotY(π/2) which puts the quad in the YZ plane facing +X, then RotZ
+ * yaws it; combined with the 0.005 base scale the final billboard is
+ * ~2.5 world units across by default). */
+typedef struct {
+    float    x, y, z;
+    uint32_t diffuse;
+    float    u, v;
+} wf_pass_abe_vertex;
+
+static wf_pass_abe_vertex g_wf_pass_abe_vbuf[4] = {
+    { -256.0f,  256.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* TL */
+    { -256.0f, -256.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* BL */
+    {  256.0f,  256.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* TR */
+    {  256.0f, -256.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* BR */
+};
+
 /* Pass A — DAT_06932548 table, stride 0x49 dwords.  Type filter on
- * fVar2 raw-bits {0x77 (1.66755e-43), 0xa2 (2.2701e-43)}.  Texture:
- * DAT_073cc8e0.  128-tex atlas UV (0.0078125 / 0.9921875). */
+ * cardinal-int {0x77, 0xa2}.  Texture: DAT_073cc8e0 = bmp/katter.tga
+ * (64×64; loaded at boot by sysassets_load_all, slot
+ * g_sysassets.katter_tga).  Engine FUN_004161c7 L51-L91.  Quad is the
+ * full 1-tile atlas with 0.5-texel inset (= 1/128 in normalised UV). */
 static void wf_pass_a(IDirect3DDevice8 *dev)
 {
     int count = wf_pass_abe_count();
     if (count == 0) return;
-    /* TODO C8f-followup: walk DAT_06932548 stride 0x49 dwords;
-     * for each record with raw-bit type in {0x77, 0xa2}:
-     *
-     *   1. Bind texture DAT_073cc8e0 (cache via g_tex_cache_last).
-     *   2. Per-record scale = pIVar11[0x1c] * 0.005f, clamped:
-     *        if ((int)pIVar11[0] < 5) scale = (int_type) * scale / 5.0
-     *      (engine treats *r as int for the clamp).
-     *   3. World matrix:
-     *        T(r[-0xf], r[-0xe], r[-0xd])
-     *        × S(scale, scale, scale)
-     *        × RotZ(π/2)  (raw 0x3fc90fdb = 1.5707964)
-     *        × RotY(π - r[-2])
-     *   4. Fill DAT_0064bf68 vbuf — 4 vertices × 6 floats:
-     *        diffuse = 0xffffffff per vertex
-     *        UV box corners = 0.0078125 / 0.9921875 (1/128 texel inset)
-     *   5. SetTransform(D3DTS_WORLD, M) + DrawPrimitiveUP. */
-    (void)dev;
-    (void)count;
+
+    for (int slot_idx = 0; slot_idx < count; slot_idx++) {
+        const int32_t *slot =
+            &g_scene1_records_b[slot_idx * SCENE1_RECORDS_B_STRIDE];
+
+        if (!wf_pass_a_should_emit(slot)) continue;
+
+        /* Bind texture via L56-59 cache guard. */
+        IDirect3DTexture8 *tex = g_sysassets.katter_tga.tex;
+        if (g_tex_cache_last != (uintptr_t)tex) {
+            g_tex_cache_last = (uintptr_t)tex;
+            IDirect3DDevice8_SetTexture(dev, 0,
+                                        (IDirect3DBaseTexture8 *)tex);
+        }
+
+        /* World matrix: RotZ(π - rotX) × RotY(π/2) × S × T.  Includes
+         * the AGE<5 scale ramp-in clamp (engine L62-65). */
+        float world[16];
+        wf_pass_a_compose_world(world, slot);
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                      (const D3DMATRIX *)world);
+
+        /* Per-slot vbuf writes (engine L73-85):
+         *   diffuse = 0xffffffff per vertex (loop puVar5 = &DAT_0064bf74
+         *                                    to &DAT_0064bfd4, stride 6)
+         *   UV box  = 1/128 .. 127/128 (raw 0x3c000000 = 0.0078125,
+         *             0x3f7e0000 = 0.9921875).
+         *
+         * Engine writes the 8 UV components individually; we group the
+         * same final layout (matches Pass C's TRIANGLESTRIP winding:
+         * v0=TL, v1=BL, v2=TR, v3=BR). */
+        g_wf_pass_abe_vbuf[0].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[1].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[2].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[3].diffuse = 0xFFFFFFFFu;
+        g_wf_pass_abe_vbuf[0].u = 0.0078125f; g_wf_pass_abe_vbuf[0].v = 0.0078125f; /* TL */
+        g_wf_pass_abe_vbuf[1].u = 0.0078125f; g_wf_pass_abe_vbuf[1].v = 0.9921875f; /* BL */
+        g_wf_pass_abe_vbuf[2].u = 0.9921875f; g_wf_pass_abe_vbuf[2].v = 0.0078125f; /* TR */
+        g_wf_pass_abe_vbuf[3].u = 0.9921875f; g_wf_pass_abe_vbuf[3].v = 0.9921875f; /* BR */
+
+        IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                         D3DPT_TRIANGLESTRIP,
+                                         2,
+                                         g_wf_pass_abe_vbuf,
+                                         sizeof(wf_pass_abe_vertex));
+    }
 }
 
 /* Pass B — DAT_06932514 table, stride 0x49.  Type filter on

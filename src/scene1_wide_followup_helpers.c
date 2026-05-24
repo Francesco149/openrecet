@@ -17,8 +17,8 @@
 #include <string.h>
 
 #include "math3d.h"
-#include "scene1_records.h"
-#include "scene1_records_c_tick.h"
+#include "scene1_records.h"           /* SCENE1_RECORDS_B_OFF_* slot offsets */
+#include "scene1_records_c_tick.h"    /* SCENE1_RECORDS_C_OFF_* slot offsets */
 
 /* ─── Pass C: per-record filter ────────────────────────────────────────
  *
@@ -178,4 +178,94 @@ void wf_pass_c_set_pre_matrix(const float m[16])
 const float *wf_pass_c_get_pre_matrix(void)
 {
     return g_wf_pass_c_pre_matrix;
+}
+
+/* ═══ Pass A: katter.tga billboard walker (C8f.pass-a) ════════════════════
+ *
+ * Engine FUN_004161c7 L51-91.  Walks g_scene1_records_b (stride 0x49)
+ * filtering on type ∈ {0x77, 0xa2} stored as cardinal-int in TYPE
+ * (offset 0).  The engine's `local_8` pointer is biased to slot+AGE
+ * (offset 38), so the per-field accesses pick up:
+ *
+ *   local_8[-0x26]  = slot[TYPE]      (type filter source)
+ *   *local_8        = slot[AGE]       (ramp-in clamp source)
+ *   local_8[0x1c]   = slot[LIFE_MULT] (scale source, 0x1c=28; 38+28=66)
+ *   local_8[-0xf]   = slot[POS_X]     (-15; 38-15=23)
+ *   local_8[-0xe]   = slot[POS_Y]     (24)
+ *   local_8[-0xd]   = slot[POS_Z]     (25)
+ *   local_8[-2]     = slot[ROT_X]     (36; engine line `3.1415927 - local_8[-2]`)  */
+
+/* Pass A filter: type in cardinal-int set {0x77, 0xa2}.  Engine compares
+ * `fVar1` (read as float, but interpretation is bit-cast int — denormal
+ * float values 1.66755e-43 = 0x77, 2.2701e-43 = 0xa2).  Our allocator
+ * stores TYPE as int directly, so plain integer compare suffices.  Also
+ * gates out the 0.0 (= TYPE 0, the free-slot sentinel) — see engine's
+ * leading `fVar1 != 0.0` short-circuit. */
+int wf_pass_a_should_emit(const int32_t *slot)
+{
+    int32_t type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    if (type == 0) return 0;
+    return (type == 0x77 || type == 0xa2);
+}
+
+/* Pass A per-record scale.  Engine L60-65:
+ *
+ *   local_c  = local_8[0x1c] * 0.005;       // slot[LIFE_MULT] * 0.005
+ *   local_14 = *local_8;                    // slot[AGE] read as float bits
+ *   if ((int)local_14 < 5) {
+ *     local_14 = (float)(int)local_14;
+ *     local_c  = (local_14 * local_c) / 5.0;
+ *   }
+ *
+ * The (int) casts pre-empt any FPU conversion — engine stores AGE as
+ * a cardinal int, the float read + int re-cast is a Ghidra artifact of
+ * type-punning the same slot.  Effect: scale ramps 0/5, 1/5, 2/5, 3/5,
+ * 4/5, then full from frame 5 onward.  LIFE_MULT defaults to 1.0 in the
+ * allocator preamble, so the default first-frame scale is 0.0 (i.e.
+ * a brand-new particle at AGE=0 is invisible). */
+float wf_pass_a_per_record_scale(const int32_t *slot)
+{
+    float life_mult = *(const float *)&slot[SCENE1_RECORDS_B_OFF_LIFE_MULT];
+    int32_t age = slot[SCENE1_RECORDS_B_OFF_AGE];
+    float scale = life_mult * 0.005f;
+    if (age < 5) scale = ((float)age * scale) / 5.0f;
+    return scale;
+}
+
+/* Pass A per-record world matrix.  Engine L66-72:
+ *
+ *   Translation(M, POS_X, POS_Y, POS_Z);
+ *   Scaling(S, scale, scale, scale);
+ *   M = S * M;                      // Multiply(M, S, M)   → S * T
+ *   RotationY(RY, π/2);             // thunk 3537 = RotY (per math3d.h)
+ *   M = RY * M;                     // Multiply(M, RY, M)  → RY * S * T
+ *   RotationZ(RZ, π - slot[ROT_X]); // thunk 3670 = RotZ
+ *   M = RZ * M;                     // Multiply(M, RZ, M)  → RZ * RY * S * T
+ *
+ * Note: header comment (and C8f.1 skeleton) called this "RotZ(π/2) ×
+ * RotY(π - yaw)" — that interpretation has the thunk identities swapped.
+ * Per math3d.h's canonical mapping (3537=Y, 3670=Z), the engine builds
+ * RotY(π/2) first then RotZ(π - rotX), so the corrected final shape is
+ * RotZ(π - rotX) × RotY(π/2) × S × T.  Same left-multiply convention as
+ * Pass C's compose_world.  */
+void wf_pass_a_compose_world(float out[16], const int32_t *slot)
+{
+    float pos_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_X];
+    float pos_y = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Y];
+    float pos_z = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Z];
+    float rot_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_ROT_X];
+    float scale = wf_pass_a_per_record_scale(slot);
+
+    float scratch[16];
+
+    mat4_translation(out, pos_x, pos_y, pos_z);
+
+    mat4_scaling(scratch, scale, scale, scale);
+    mat4_mul(out, scratch, out);
+
+    mat4_rotation_y(scratch, 1.5707964f /* 0x3fc90fdb = π/2 */);
+    mat4_mul(out, scratch, out);
+
+    mat4_rotation_z(scratch, 3.1415927f - rot_x);
+    mat4_mul(out, scratch, out);
 }

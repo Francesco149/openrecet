@@ -147,6 +147,15 @@ void         wf_pass_c_compose_world(float out[16], const int32_t *slot);
 void         wf_pass_c_set_pre_matrix(const float m[16]);
 const float *wf_pass_c_get_pre_matrix(void);
 
+/* ─── Pass A helpers (D3D-free, host-linkable) ─────────────────────────
+ *
+ * Walks g_scene1_records_b (stride 0x49) for type ∈ {0x77, 0xa2}, draws
+ * via a 1-tile katter.tga (64×64) atlas with 1/128 UV inset.  Engine
+ * FUN_004161c7 L51-91.  See helpers TU for line-number map.  */
+int   wf_pass_a_should_emit(const int32_t *slot);
+float wf_pass_a_per_record_scale(const int32_t *slot);
+void  wf_pass_a_compose_world(float out[16], const int32_t *slot);
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;
