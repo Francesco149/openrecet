@@ -625,12 +625,18 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
     /* L141: FUN_00414ee2(1, 0) — 2D overlay layer 1 dispatcher.
      *
      * Same 4006-byte function the C7h scene1_render_overlay brackets
-     * call, but with the second arg = 0 (vs 1 from C7h).  Likely the
-     * "additive blend mode" path vs the "alpha blend mode" path.
-     * Stubbed — full port is its own chip. */
-    /* TODO C8f-followup: port FUN_00414ee2 (4006 B).  Shared with C7h
-     * scene1_render_overlay's four call sites.  When that chip lands,
-     * call it here with (layer=1, mode=0). */
+     * call, but with the second arg = 0 (vs 1 from C7h).  param_2 is
+     * the "mode" dispatch key compared against slot[+0x8c]: mid_block_1
+     * uses mode=0, scene1_render_overlay uses mode=1 — these are
+     * separate slot subsets of the shared 4096-record table, not
+     * additive vs alpha blend modes.  See
+     * docs/findings/scene1-overlay-dispatcher.md (chip O.1 survey)
+     * for the full record layout, shape dispatch, and ladder. */
+    /* TODO O.8 (per scene1-overlay-dispatcher.md): once chips O.2..O.7
+     * land scene1_overlay_render(dev, layer, mode), replace this comment
+     * with scene1_overlay_render(dev, 1, 0).  Until then the call is a
+     * no-op anyway since the GRP_02d_ table parser (chip O.10) hasn't
+     * populated DAT_0076b948 yet. */
 
     /* L142: TSS COLOROP = 7 (MODULATEALPHA_ADDCOLOR — α × col1 + col2).
      * Engine sets this AFTER FUN_00414ee2 — so Pass C inherits it. */
