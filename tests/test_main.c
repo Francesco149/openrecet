@@ -1789,7 +1789,13 @@ struct test_case {
     X(overlay_table_parse_nnn_uv_floats_stored_as_bits) \
     X(overlay_table_parse_handles_crlf_and_lf) \
     X(overlay_table_parse_mixed_grp_and_nnn) \
-    X(overlay_table_parse_buf_empty_is_noop)
+    X(overlay_table_parse_buf_empty_is_noop) \
+    \
+    X(pfo_init_sets_sentinel_to_minus_one_on_every_slot) \
+    X(pfo_init_does_not_touch_other_fields) \
+    X(scene1_records_reset_invokes_pfo_init) \
+    X(scene1_records_reset_with_reset_c_zero_still_inits_pfo) \
+    X(pfo_storage_size_matches_engine)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

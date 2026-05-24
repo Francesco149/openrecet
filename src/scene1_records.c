@@ -8,6 +8,8 @@
 
 #include "scene1_records.h"
 
+#include "scene1_per_frame_open.h"
+
 #include <string.h>
 
 int32_t g_scene1_records_a[SCENE1_RECORDS_A_COUNT * SCENE1_RECORDS_A_STRIDE];
@@ -48,6 +50,12 @@ void scene1_records_reset(int reset_c)
         r[0] = 0;
         r[2] = i;
     }
+
+    /* PFO.1 — engine FUN_0040f64b L9183 calls FUN_00414902 right after
+     * touching the three record tables above.  Wire the Table A half
+     * here.  (Table B half = the scene1_overlay slot table; covered by
+     * scene1_overlay_reset elsewhere.) */
+    scene1_pfo_table_a_init();
 }
 
 void scene1_records_counter_scan(void)
