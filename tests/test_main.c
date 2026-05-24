@@ -1356,6 +1356,26 @@ struct test_case {
     X(scene1_preload_post_house_cb_setter_round_trips) \
     X(scene1_preload_post_house_cb_setter_replaces_previous) \
     \
+    X(wf_pass_c_should_emit_rejects_sentinel) \
+    X(wf_pass_c_should_emit_accepts_cardinal_0_1_2_3) \
+    X(wf_pass_c_should_emit_rejects_out_of_range) \
+    X(wf_pass_c_scale_default_is_point_0192) \
+    X(wf_pass_c_scale_aux_1_is_smaller) \
+    X(wf_pass_c_scale_aux_2_is_larger) \
+    X(wf_pass_c_scale_aux_3_falls_through_to_default) \
+    X(wf_pass_c_tile_index_type_0_age_0) \
+    X(wf_pass_c_tile_index_type_1_age_3_is_9) \
+    X(wf_pass_c_tile_index_type_2_age_21_wraps_to_16) \
+    X(wf_pass_c_tile_index_type_3_age_20_max_in_row) \
+    X(wf_pass_c_uv_box_tile_0_top_left_corner) \
+    X(wf_pass_c_uv_box_tile_8_wraps_to_row_1) \
+    X(wf_pass_c_uv_box_tile_30_row_3_col_6) \
+    X(wf_pass_c_pre_matrix_default_is_identity) \
+    X(wf_pass_c_pre_matrix_setter_round_trips) \
+    X(wf_pass_c_pre_matrix_setter_ignores_null) \
+    X(wf_pass_c_compose_world_default_pre_matrix_is_scale_translate) \
+    X(wf_pass_c_compose_world_smaller_aux_1_scale) \
+    \
     X(records_c_tick_empty_table_is_noop) \
     X(records_c_tick_sentinel_slots_skipped) \
     X(records_c_tick_aux_flag_net_zero_age) \

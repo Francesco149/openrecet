@@ -22,7 +22,9 @@
 
 #include "scene1_pass_f.h"   /* Pass F is already ported (C8g.2 MVP) */
 #include "scene1_records.h"  /* per-pass active counts */
+#include "scene1_records_c_tick.h" /* SCENE1_RECORDS_C_OFF_* slot offsets */
 #include "scene1_render.h"   /* scene1_render_push_projection */
+#include "sysassets.h"       /* g_sysassets.magicjem_tga.tex (Pass C texture) */
 
 /* ─── engine scratch globals — module-local mirrors ────────────────────
  *
@@ -128,39 +130,99 @@ static void wf_pass_b(IDirect3DDevice8 *dev)
     (void)count;
 }
 
-/* Pass C — DAT_06956cd8 table, stride 0x25.  Type filter on fVar2
- * cardinal-int reading {0, 1, 2, 3}.  Tile selector mixes type into
- * the index: `tile = (r[1]/3) % 7 + type_offset`, where type_offset
- * is {0, 8, 16, 24} for types {0, 1, 2, 3}.  256×512 atlas (64-tile
- * cells, 8 wide × 8 tall).  Texture: DAT_073cc930.  vbuf:
- * DAT_0064e5d8. */
+/* Pass C — DAT_06956cd8 table, stride 0x25.  Type filter on cardinal
+ * int {0, 1, 2, 3}.  Tile selector: `tile = (slot[AGE]/3) % 7 +
+ * type_offset[type]`, type_offset = {0, 8, 16, 24}.  512×256 atlas
+ * (8 cols × 4 rows of 64-px tiles).  Texture: bmp/magicjem.tga via
+ * g_sysassets.magicjem_tga (= engine DAT_073cc930).  vbuf:
+ * g_wf_pass_c_vbuf (mirrors engine DAT_0064e5d8 static).
+ *
+ * Engine FUN_004161c7 L143-203.  All algebraic per-record helpers
+ * (filter / scale / tile_index / uv_box / compose_world) live in
+ * scene1_wide_followup_helpers.c and are host-tested.  */
+
+/* FVF 0x142 = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 — 6 dwords =
+ * 24 bytes per vertex (matches engine's DrawPrimitiveUP stride 0x18).
+ * Note: NOT XYZRHW — the world matrix from SetTransform(D3DTS_WORLD,...)
+ * applies per draw. */
+typedef struct {
+    float    x, y, z;
+    uint32_t diffuse;
+    float    u, v;
+} wf_pass_c_vertex;
+
+/* Engine .data init (lines 8848-8868 in docs/decompiled/all.c):
+ *
+ *   _DAT_0064e5d8 = -32.0;  _DAT_0064e5dc = 60.0;  _DAT_0064e5e0 = 0;   // v0
+ *   _DAT_0064e5f0 = -32.0;  _DAT_0064e5f4 = -4.0;  _DAT_0064e5f8 = 0;   // v1
+ *   _DAT_0064e608 =  32.0;  _DAT_0064e60c = 60.0;  _DAT_0064e610 = 0;   // v2
+ *   _DAT_0064e620 =  32.0;  _DAT_0064e624 = -4.0;  _DAT_0064e628 = 0;   // v3
+ *
+ * Diffuse all 0xffffffff at boot, overwritten to 0xff000000 per slot
+ * inside Pass C's loop.  UVs also overwritten per slot.  XYZ positions
+ * are static — the per-record world matrix transforms them into world
+ * coords.  Canonical quad is 64×64 wide × 64 tall, anchored at the
+ * bottom-middle (the -4..60 Y range biases the quad UP from the
+ * record origin — sensible for floor decals lifted slightly above
+ * ground).  Triangle-strip winding: v0=TL → v1=BL → v2=TR → v3=BR. */
+static wf_pass_c_vertex g_wf_pass_c_vbuf[4] = {
+    { -32.0f,  60.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* TL */
+    { -32.0f,  -4.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* BL */
+    {  32.0f,  60.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* TR */
+    {  32.0f,  -4.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f },  /* BR */
+};
+
 static void wf_pass_c(IDirect3DDevice8 *dev)
 {
     int count = wf_pass_cd_count();
     if (count == 0) return;
-    /* TODO C8f-followup: walk DAT_06956cd8 stride 0x25 dwords;
-     * for each record with cardinal type in {0, 1, 2, 3}:
-     *
-     *   1. Bind texture DAT_073cc930.
-     *   2. Per-type scale:
-     *        type==1: scale = 0.0096
-     *        type==2: scale = 0.0288  (engine literal 0.028800001)
-     *        else:    scale = 0.0192
-     *      (read from r[7] (cardinal-float)).
-     *   3. World matrix:
-     *        T(r[-10], r[-9], r[-8])
-     *        × S(scale, scale, scale)
-     *        × DAT_0438cdf8  (precomputed shared 4×4, BSS-zero today)
-     *   4. Tile = (r[1]/3) % 7 + type_offset[type].
-     *      Per-axis: col = tile % 8, row = tile / 8.
-     *      UV box: u in (col*64+0.5)/512 .. (col*64+63.5)/512
-     *              v in (row*64+0.5)/256 .. (row*64+63.0)/256
-     *   5. Fill DAT_0064e5d8 vbuf, diffuse = 0xff000000 (opaque
-     *      black — engine quirk: vertex color zeros out emissive but
-     *      keeps alpha for the alpha test).
-     *   6. DrawPrimitiveUP. */
-    (void)dev;
-    (void)count;
+
+    for (int slot_idx = 0; slot_idx < count; slot_idx++) {
+        const int32_t *slot =
+            &g_scene1_records_c[slot_idx * SCENE1_RECORDS_C_STRIDE];
+
+        if (!wf_pass_c_should_emit(slot)) continue;
+
+        /* Bind texture via the engine's L153-156 cache guard.  Engine
+         * compares uintptr DAT_0076b95c against the desired texture
+         * address.  Today g_sysassets.magicjem_tga.tex is loaded by
+         * sysassets_load_all at boot (FUN_00472f5d L51 sibling); the
+         * cache is module-local. */
+        IDirect3DTexture8 *tex = g_sysassets.magicjem_tga.tex;
+        if (g_tex_cache_last != (uintptr_t)tex) {
+            g_tex_cache_last = (uintptr_t)tex;
+            IDirect3DDevice8_SetTexture(dev, 0,
+                                        (IDirect3DBaseTexture8 *)tex);
+        }
+
+        /* World matrix: T × S × pre_matrix.  pre_matrix defaults to
+         * identity until the engine writer for DAT_0438cdf8 ports. */
+        float world[16];
+        wf_pass_c_compose_world(world, slot);
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                      (const D3DMATRIX *)world);
+
+        /* Per-slot vbuf writes (engine L166-196): diffuse=0xff000000
+         * on all 4 verts, UV box per tile. */
+        int tile = wf_pass_c_tile_index(slot);
+        float u0, u1, v0, v1;
+        wf_pass_c_uv_box(tile, &u0, &u1, &v0, &v1);
+
+        g_wf_pass_c_vbuf[0].diffuse = 0xff000000u;
+        g_wf_pass_c_vbuf[1].diffuse = 0xff000000u;
+        g_wf_pass_c_vbuf[2].diffuse = 0xff000000u;
+        g_wf_pass_c_vbuf[3].diffuse = 0xff000000u;
+        g_wf_pass_c_vbuf[0].u = u0; g_wf_pass_c_vbuf[0].v = v0;  /* TL */
+        g_wf_pass_c_vbuf[1].u = u0; g_wf_pass_c_vbuf[1].v = v1;  /* BL */
+        g_wf_pass_c_vbuf[2].u = u1; g_wf_pass_c_vbuf[2].v = v0;  /* TR */
+        g_wf_pass_c_vbuf[3].u = u1; g_wf_pass_c_vbuf[3].v = v1;  /* BR */
+
+        IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                         D3DPT_TRIANGLESTRIP,
+                                         2,
+                                         g_wf_pass_c_vbuf,
+                                         sizeof(wf_pass_c_vertex));
+    }
 }
 
 /* Mid block 2 — projection swap to z_far=350 + conditional 15×20
@@ -400,9 +462,10 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
      * to the LIGHTING render state — same as the shop walker's L491.) */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
 
-    /* L140: SetVertexShader(0x142 = D3DFVF_XYZRHW|DIFFUSE|TEX1).
-     * Mid block 1 transitions to the 2D RHW path that FUN_00414ee2
-     * consumes — same FVF the C7h overlay brackets use. */
+    /* L140: SetVertexShader(0x142 = D3DFVF_XYZ|DIFFUSE|TEX1).
+     * 6-dword (24-byte) vertex stride; world matrix from SetTransform
+     * applies per draw.  FUN_00414ee2 (2D overlay dispatcher) and
+     * Pass C/D below all consume this FVF — same as Pass F's vbuf. */
     IDirect3DDevice8_SetVertexShader(dev, 0x142u);
 
     /* L141: FUN_00414ee2(1, 0) — 2D overlay layer 1 dispatcher.

@@ -123,6 +123,30 @@
 #ifndef OPENRECET_SCENE1_WIDE_FOLLOWUP_H
 #define OPENRECET_SCENE1_WIDE_FOLLOWUP_H
 
+#include <stdint.h>
+
+/* ─── Pass C helpers (D3D-free, host-linkable) ─────────────────────────
+ *
+ * Live in scene1_wide_followup_helpers.c.  See that TU for the engine
+ * line-number references and the cardinal-int / denormal-float
+ * encoding the engine uses for the type filter.  Slot field offsets
+ * are SCENE1_RECORDS_C_OFF_* from scene1_records.h /
+ * scene1_records_c_tick.h.  All inputs are int32_t arrays into
+ * g_scene1_records_c (the 0x25-dw-stride record table).
+ *
+ * The pre-matrix stand-in models engine DAT_0438cdf8 (writer
+ * unidentified today; defaults to identity → benign).  Lives in the
+ * helpers TU so host tests can exercise its setter without <d3d8.h>.  */
+int          wf_pass_c_should_emit(const int32_t *slot);
+float        wf_pass_c_per_record_scale(const int32_t *slot);
+int          wf_pass_c_tile_index(const int32_t *slot);
+void         wf_pass_c_uv_box(int tile,
+                              float *out_u0, float *out_u1,
+                              float *out_v0, float *out_v1);
+void         wf_pass_c_compose_world(float out[16], const int32_t *slot);
+void         wf_pass_c_set_pre_matrix(const float m[16]);
+const float *wf_pass_c_get_pre_matrix(void);
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;
