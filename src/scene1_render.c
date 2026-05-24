@@ -23,6 +23,7 @@
 #include "render_quad.h"
 #include "scene1_alpha_walker.h"
 #include "scene1_camera.h"
+#include "scene1_overlay.h"  /* scene1_overlay_render — 4-site dispatcher wiring */
 #include "scene1_records.h"
 #include "scene1_shop_walker.h"
 #include "scene1_wide_followup.h"
@@ -108,20 +109,9 @@ static void scene1_overlay_setup_TODO(void)
      * because each FUN_00414ee2 call sets its own transforms. */
 }
 
-/* FUN_00414ee2 (4006 B) — per-layer 2D overlay dispatcher.  Called
- * four times with layer ∈ {0, 1, 2, 3} and a constant 1 second arg.
- * Each call walks the corresponding queue (text strings, sprite
- * batches, HUD widgets), emitting render_quad_add calls for each
- * element.  The queues are populated by gameplay code via dozens of
- * small enqueue helpers.  This is the single biggest deferred piece
- * in scene-1 overlay rendering. */
-static void scene1_overlay_layer_TODO(int layer)
-{
-    /* TODO C7-followup: port FUN_00414ee2.  Caller has already set
-     * the blend modes appropriate for this layer's pass; the
-     * dispatcher just needs to walk the per-layer queue. */
-    (void)layer;
-}
+/* FUN_00414ee2 (4006 B) — the 2D overlay dispatcher — landed in chips
+ * O.2..O.7 (src/scene1_overlay.{c,h}).  scene1_render_overlay below
+ * calls scene1_overlay_render(dev, layer, 1) at the 4 layer sites. */
 
 /* ─── C8a — scene1_render_meshes sub-call stubs ───────────────────── */
 
@@ -919,14 +909,14 @@ void scene1_render_overlay(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
     /* L24: FUN_00414ee2(1, 1) — layer 1 dispatch. */
-    scene1_overlay_layer_TODO(1);
+    scene1_overlay_render(dev, /*layer=*/1, /*mode=*/1);
 
     /* ─── layer 0 — additive pass ──────────────────────────────── */
     /* L25-26: SRCBLEND=ONE, DESTBLEND=ONE (additive). */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
     /* L27: FUN_00414ee2(0, 1) — layer 0 dispatch. */
-    scene1_overlay_layer_TODO(0);
+    scene1_overlay_render(dev, /*layer=*/0, /*mode=*/1);
 
     /* ─── layer 2 — alpha pass with alpha-ref 0 ────────────────── */
     /* L28: ALPHAREF = 0 — alpha-test threshold (only matters if
@@ -937,7 +927,7 @@ void scene1_render_overlay(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
     /* L31: FUN_00414ee2(2, 1) — layer 2 dispatch. */
-    scene1_overlay_layer_TODO(2);
+    scene1_overlay_render(dev, /*layer=*/2, /*mode=*/1);
 
     /* ─── layer 3 — mask-by-dest pass ──────────────────────────── */
     /* L32: SRCBLEND=ZERO (with DESTBLEND inherited as INVSRCCOLOR).
@@ -946,7 +936,7 @@ void scene1_render_overlay(struct IDirect3DDevice8 *dev_in)
      * effects in the engine. */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND, D3DBLEND_ZERO);
     /* L33: FUN_00414ee2(3, 1) — layer 3 dispatch. */
-    scene1_overlay_layer_TODO(3);
+    scene1_overlay_render(dev, /*layer=*/3, /*mode=*/1);
 
     /* L34-35: reset blend pair to layer-1 defaults so any code that
      * runs after us (the frame's tail / next frame's pre-walker)
