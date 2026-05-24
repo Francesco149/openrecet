@@ -1284,6 +1284,14 @@ struct test_case {
     X(sim_step_a_state_5_skips_integrator) \
     X(sim_step_a_state_a_skips_integrator) \
     X(sim_step_a_state_c_skips_integrator) \
+    X(scene1_ingame_default_arm_ticks_particles_and_c) \
+    X(scene1_ingame_transition_flag_picks_transition_arm) \
+    X(scene1_ingame_skip_flag_skips_all_ticks) \
+    X(scene1_ingame_paused_flag_picks_transition_arm) \
+    X(scene1_ingame_transition_arm_tick_direct) \
+    X(scene1_ingame_default_arm_tick_direct) \
+    X(scene1_ingame_transition_flag_takes_precedence_over_skip) \
+    X(sim_step_a_state_ingame_default_arm_also_ticks_c) \
     \
     X(scene1_postload_stage_defaults_match_fun_0044f13d) \
     X(scene1_postload_init_stage_defaults_is_idempotent) \
