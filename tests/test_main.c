@@ -1923,6 +1923,20 @@ struct test_case {
     X(records_b_tick_t15f_77_sm_ret_nonzero_skips_age_kill) \
     X(records_b_tick_t15f_77_kills_at_age_4000_when_sm_ret_zero) \
     X(records_b_tick_t15f_a2_sm_called_only_above_threshold) \
+    X(records_b_tick_t15g_preamble_spins_rot_z_and_zeroes_drag) \
+    X(records_b_tick_t15g_type_2e_age_in_window_homes_to_player) \
+    X(records_b_tick_t15g_type_2e_rate_caps_at_0_005) \
+    X(records_b_tick_t15g_type_2e_outside_motion_window_no_homing) \
+    X(records_b_tick_t15g_type_2e_alt_pos_offsets_target) \
+    X(records_b_tick_t15g_type_36_age_in_window_uses_constant_rate) \
+    X(records_b_tick_t15g_type_36_outside_motion_window_no_homing) \
+    X(records_b_tick_t15g_type_36_speed_cap_at_0_75) \
+    X(records_b_tick_t15g_type_36_spawns_two_particles_when_alive) \
+    X(records_b_tick_t15g_type_36_second_spawn_offsets_by_vel) \
+    X(records_b_tick_t15g_type_2e_no_spawn_cluster) \
+    X(records_b_tick_t15g_type_36_sm_ret_nonzero_skips_spawn) \
+    X(records_b_tick_t15g_kills_at_age_0x100) \
+    X(records_b_tick_t15g_does_not_kill_below_age_0x100) \
     \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \

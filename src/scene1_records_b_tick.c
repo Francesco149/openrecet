@@ -25,7 +25,9 @@
  *   C8j-tick.3  mid-cascade (0x9c/0x34/0x69/0x74/0x79/0x68)
  *   C8j-tick.4  Body 1 (2/3/4/0x22/0x54/0x67/0x6d/0x6e/0x6f/0x70)
  *   C8j-tick.5..13  remaining clusters per the survey
- *   C8j-tick.14  type 0x58 / 0x66 shared anchor-rotor body ← THIS CHIP
+ *   C8j-tick.14  type 0x58 / 0x66 shared anchor-rotor body
+ *   C8j-tick.15a..f  trivial / shared / paired tail bodies
+ *   C8j-tick.15g  types 0x2e / 0x36 player-homing drift  ← THIS CHIP
  *
  * Slot dead sentinel: `slot[0] == 0`.
  */
@@ -4536,6 +4538,184 @@ static void body_0x77_or_0xa2(int i, int32_t type)
     }
 }
 
+/* ═══ C8j-tick.15g — types 0x2e / 0x36 player-homing damped drift ═══════
+ *
+ * Decomp L39190+ / asm 0x440005..0x440295 (FUN_0043ae20 tail cascade).
+ * Two-type shared body reached when the upstream cascade has rejected
+ * 0x82 / 0x3e / 0x5f / 0x60 / 0x33 / 0x82-and-0x3e family — the next
+ * else-arm checks `(iVar15 != 0x2e) && (iVar15 != 0x36) goto LAB_00440dc1`.
+ *
+ * Unconditional preamble (asm 0x440013..0x44002e):
+ *   ROT_Z += 0.05        (slot[+0x94] = OFF_ROT_Z; constant 0x5198f8)
+ *   DRAG   = 0           (slot[+0xa8] = OFF_DRAG; fldz)
+ *
+ * Per-type motion block:
+ *   - 0x2e (asm 0x44003e..0x440101): when AGE in (0x1e, 0xc8):
+ *       step  = AGE - 0x1e (int → float)
+ *       rate  = min(step * 5e-05, 0.005)        (lerp speed grows w/ age)
+ *       drag  = max(1.0 - step * 0.01, 0.98)    (drag grows w/ age, floor)
+ *       VEL_{X,Y,Z} += rate * ((player_pos[i] + ALT[i]) - POS[i])
+ *       VEL_{X,Y,Z} *= drag
+ *   - 0x36 (asm 0x44010d..0x440176): when AGE in (0x1e, 0x78):
+ *       VEL_{X,Y,Z} += 0.005 * ((player_pos[i] + ALT[i]) - POS[i])
+ *       VEL_{X,Y,Z} *= 0.95
+ *
+ * Shared speed-cap (asm 0x440179..0x440213):
+ *   if |VEL|² > 0 and |VEL| > cap → VEL *= cap / |VEL|
+ *   cap = 0.25 (0x2e), 0.75 (0x36)  (constants 0x519344 / 0x519b54)
+ *
+ * SM call (asm 0x440210..0x44021c): state_machine(slot); if ret != 0 →
+ * kill slot via LAB_004411e3 (fall through still executes 0x36 spawns
+ * since the AND DWORD PTR [esi],0 happens BEFORE the 0x36 spawn check).
+ *
+ * Wait — actually the AND DWORD PTR [esi],0 at 0x44021b zeroes TYPE, so
+ * the subsequent `cmp DWORD PTR [esi],0x36; jne 0x440298` will fail and
+ * the spawn cluster is skipped.  Re-reading asm: SM ret!=0 → kill →
+ * skip 0x36 spawns → kill check at 0x440298 (kills if AGE==0x100, here
+ * vacuous since slot is already dead).
+ *
+ * Type 0x36 spawn cluster (asm 0x44021e..0x440295):
+ *   scene1_spawn(0, POS_X, POS_Y, POS_Z, 0x70, 0.2, 1)
+ *   scene1_spawn(0, POS_X+VEL_X*0.5, POS_Y+VEL_Y*0.5, POS_Z+VEL_Z*0.5,
+ *                0x70, 0.2, 1)
+ *
+ * Shared LAB_00440298 tail (asm 0x440298..0x4402a8): kill if AGE == 0x100.
+ *
+ * Asm corrections vs Ghidra:
+ *   - Both scene1_spawn calls show 5/6 args in decomp (`0x70, 0x3e4ccccd`
+ *     and `0x70` alone).  Raw asm pushes 7 args for both: scale=0.2
+ *     (0x5198d8) and param7=1 are present.  Total `add esp, 0x1c` = 28 B
+ *     = 7 dwords pop confirms 7-arg form for both calls.  Standard
+ *     Ghidra "trailing args dropped on x87 ABI" pattern (PHC #3 family).
+ *
+ * Constants verified via `tools/analyze/pe.py bytes <va> 4`:
+ *   0x5198f8 = 0.05         (ROT_Z spin step)
+ *   0x519bf4 = 5e-05        (0x2e rate-per-tick coefficient)
+ *   0x5198c8 = 0.005        (0x2e rate ceiling AND 0x36 constant rate)
+ *   0x5193a4 = 0.01         (0x2e drag step)
+ *   0x519364 = 1.0          (0x2e drag base)
+ *   0x5198ec = 0.98         (0x2e drag floor)
+ *   0x5198b4 = 0.95         (0x36 constant drag)
+ *   0x519320 = 0.0          (|VEL|² > 0 sentinel)
+ *   0x519344 = 0.25         (0x2e speed cap)
+ *   0x519b54 = 0.75         (0x36 speed cap)
+ *   0x5198d8 = 0.2          (0x36 spawn scale)
+ *   0x51935c = 0.5          (0x36 second-spawn POS+VEL*0.5 multiplier)
+ *
+ * Player position read from `g_scene1_player_pos[3]` (DAT_056da1d8/dc/e0).
+ */
+
+static void body_0x2e_or_0x36(int i, int32_t type)
+{
+    int32_t *slot = slot_base(i);
+
+    /* asm 0x440013-0x44002e: ROT_Z += 0.05; DRAG = 0. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + 0.05f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
+
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    /* asm 0x44002f-0x440176: per-type motion block.  Both branches read
+     * (player_pos + ALT) as the homing target and write into VEL_{X,Y,Z}. */
+    if (type == 0x2e) {
+        if (age > 0x1e && age < 0xc8) {
+            /* asm 0x440052-0x4400a8: rate and drag derived from step. */
+            float step = (float)(age - 0x1e);
+            float rate = step * 5e-05f;
+            if (rate > 0.005f) rate = 0.005f;
+            float drag = 1.0f - step * 0.01f;
+            if (drag < 0.98f) drag = 0.98f;
+
+            /* asm 0x4400aa-0x440100: VEL = (VEL + rate*delta) * drag. */
+            float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            float ax = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X);
+            float ay = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y);
+            float az = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z);
+            float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+            float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+            float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+
+            vx = ((g_scene1_player_pos[0] + ax - px) * rate + vx) * drag;
+            vy = ((g_scene1_player_pos[1] + ay - py) * rate + vy) * drag;
+            vz = ((g_scene1_player_pos[2] + az - pz) * rate + vz) * drag;
+
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
+        }
+    } else {
+        /* type == 0x36 — asm 0x440103-0x440176. */
+        if (age > 0x1e && age < 0x78) {
+            float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            float ax = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X);
+            float ay = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y);
+            float az = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z);
+            float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+            float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+            float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+
+            vx = ((g_scene1_player_pos[0] + ax - px) * 0.005f + vx) * 0.95f;
+            vy = ((g_scene1_player_pos[1] + ay - py) * 0.005f + vy) * 0.95f;
+            vz = ((g_scene1_player_pos[2] + az - pz) * 0.005f + vz) * 0.95f;
+
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
+        }
+    }
+
+    /* asm 0x440179-0x440213: speed-cap (per-type cap). */
+    float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+    float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+    float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+    float speed_sq = vx * vx + vy * vy + vz * vz;
+    if (speed_sq > 0.0f) {
+        float speed = sqrtf(speed_sq);
+        float cap = (type == 0x36) ? 0.75f : 0.25f;
+        if (speed > cap) {
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx * cap / speed);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy * cap / speed);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz * cap / speed);
+        }
+    }
+
+    /* asm 0x440210-0x44021c: SM call.  Nonzero return zeroes slot[TYPE]
+     * (asm `and [esi], 0x0`) — which both kills the slot AND prevents
+     * the subsequent type==0x36 spawn cluster from firing. */
+    int sm_kills = (state_machine_call_ret(slot) != 0);
+    if (sm_kills) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+
+    /* asm 0x44021e-0x440295: type 0x36 spawn cluster (skipped when slot
+     * is now dead — TYPE was just zeroed by the SM-kill path). */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_TYPE) == 0x36) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float vx2 = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vy2 = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        float vz2 = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+
+        scene1_spawn(0, px, py, pz, 0x70, 0.2f, 1);
+        scene1_spawn(0,
+                     px + vx2 * 0.5f,
+                     py + vy2 * 0.5f,
+                     pz + vz2 * 0.5f,
+                     0x70, 0.2f, 1);
+    }
+
+    /* asm 0x440298-0x4402a8: shared LAB_00440298 tail — kill on AGE == 0x100. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x100) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -4758,13 +4938,18 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0xa2:
         body_0x77_or_0xa2(slot_idx, type);
         break;
+    /* C8j-tick.15g — player-homing damped drift body. */
+    case 0x2e:
+    case 0x36:
+        body_0x2e_or_0x36(slot_idx, type);
+        break;
     default:
         /* Remaining tail types {0x75/0x83/0xa0/0xa5/0xa6 +
-         * 0x2e/0x36/0x7c + entity-bounce cluster
+         * 0x7c + entity-bounce cluster
          * {0x4d-0x52/0x56/0x62/99/0x96} + 0x7e (skips 0x73/0x78/0x7a's
          * AGE<0/AGE==1 head; otherwise shares the cull + SM tail)} and
          * the LAB_00440dc1 default-tail body are deferred to future
-         * C8j-tick.15g+ sub-chips. */
+         * C8j-tick.15h+ sub-chips. */
         break;
     }
 }

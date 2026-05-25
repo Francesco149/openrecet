@@ -6894,3 +6894,232 @@ int test_records_b_tick_t15f_a2_sm_called_only_above_threshold(void)
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xa2);
     return 0;
 }
+
+/* ─── C8j-tick.15g — body_0x2e_or_0x36 (player-homing drift) ──────────── */
+
+int test_records_b_tick_t15g_preamble_spins_rot_z_and_zeroes_drag(void)
+{
+    /* Both types: ROT_Z += 0.05 and DRAG = 0 unconditionally.  Stage AGE
+     * outside motion window so VEL stays zero and the speed-cap path is
+     * a no-op. */
+    reset_world();
+    stage_live(0, 0x2e, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 1.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_DRAG,  9.0f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ROT_Z) - 1.05f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG)  - 0.0f)  < 1e-6f);
+
+    reset_world();
+    stage_live(0, 0x36, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 2.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_DRAG,  9.0f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ROT_Z) - 2.05f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG)  - 0.0f)  < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_2e_age_in_window_homes_to_player(void)
+{
+    /* Type 0x2e, stage AGE = 0x32 (post-preamble 0x33 — comfortably inside
+     * (0x1e, 0xc8)).  step = 0x33 - 0x1e = 0x15 = 21.
+     * rate = 21 * 5e-05 = 0.00105 (< 0.005 cap).
+     * drag = 1.0 - 21 * 0.01 = 0.79; floored to 0.98.
+     * Player at (10, 0, 0); slot at POS=(0, 0, 0), ALT=(0, 0, 0).
+     * delta_x = 10 - 0 = 10.
+     * vx_new = ((10) * 0.00105 + 0) * 0.98 = 0.010290.
+     * vy/vz stay 0 (player y/z = 0). */
+    reset_world();
+    g_scene1_player_pos[0] = 10.0f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 0.0f;
+    stage_live(0, 0x2e, 0, 0, 0, 0, 0, 0, /*age=*/0x32);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.010290f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.0f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z) - 0.0f) < 1e-6f);
+    g_scene1_player_pos[0] = 0.0f;
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_2e_rate_caps_at_0_005(void)
+{
+    /* High AGE so step is large → rate would exceed 0.005, clamped.
+     * AGE = 0xc6 (post-preamble 0xc7 < 0xc8).  step = 0xc7 - 0x1e = 0xa9 = 169.
+     * raw_rate = 169 * 5e-05 = 0.00845 → clamped to 0.005.
+     * drag = 1.0 - 169 * 0.01 = -0.69 → floored to 0.98.
+     * Player at (200, 0, 0); slot at POS=(0,0,0), ALT=(0,0,0).
+     * vx_new = (200 * 0.005 + 0) * 0.98 = 0.98.  Below cap 0.25? No, 0.98 > 0.25
+     *   → speed-cap activates: cap/speed * vx_new = 0.25/0.98 * 0.98 = 0.25.
+     * Speed = sqrt(0.98²) = 0.98.  After cap: vx = 0.98 * 0.25 / 0.98 = 0.25. */
+    reset_world();
+    g_scene1_player_pos[0] = 200.0f;
+    stage_live(0, 0x2e, 0, 0, 0, 0, 0, 0, /*age=*/0xc6);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.25f) < 1e-5f);
+    g_scene1_player_pos[0] = 0.0f;
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_2e_outside_motion_window_no_homing(void)
+{
+    /* AGE = 0xc7 (post-preamble 0xc8 — NOT < 0xc8, gate closed).
+     * VEL stays 0 → speed-cap a no-op → VEL still 0. */
+    reset_world();
+    g_scene1_player_pos[0] = 200.0f;
+    stage_live(0, 0x2e, 0, 0, 0, 0, 0, 0, /*age=*/0xc7);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.0f) < 1e-6f);
+    g_scene1_player_pos[0] = 0.0f;
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_2e_alt_pos_offsets_target(void)
+{
+    /* Target = player_pos + ALT.  Player at (5, 0, 0), ALT_X = 3 → target_x = 8.
+     * AGE 0x1f (post 0x20): step = 2, rate = 0.0001, drag floored to 0.98.
+     * vx_new = ((8 - 0) * 0.0001 + 0) * 0.98 = 0.000784. */
+    reset_world();
+    g_scene1_player_pos[0] = 5.0f;
+    stage_live(0, 0x2e, 0, 0, 0, 0, 0, 0, /*age=*/0x1f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_X, 3.0f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.000784f) < 1e-7f);
+    g_scene1_player_pos[0] = 0.0f;
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_36_age_in_window_uses_constant_rate(void)
+{
+    /* Type 0x36, stage AGE 0x1f (post 0x20, > 0x1e, < 0x78).
+     * Constant rate 0.005, constant drag 0.95.
+     * Player at (10, 0, 0); slot POS=(0,0,0), ALT=(0,0,0).
+     * vx_new = (10 * 0.005 + 0) * 0.95 = 0.0475.
+     * speed = 0.0475 < cap 0.75 → no cap. */
+    reset_world();
+    g_scene1_player_pos[0] = 10.0f;
+    stage_live(0, 0x36, 0, 0, 0, 0, 0, 0, /*age=*/0x1f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.0475f) < 1e-6f);
+    g_scene1_player_pos[0] = 0.0f;
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_36_outside_motion_window_no_homing(void)
+{
+    /* AGE = 0x77 (post 0x78 — NOT < 0x78, gate closed). */
+    reset_world();
+    g_scene1_player_pos[0] = 10.0f;
+    stage_live(0, 0x36, 0, 0, 0, 0, 0, 0, /*age=*/0x77);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.0f) < 1e-6f);
+    g_scene1_player_pos[0] = 0.0f;
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_36_speed_cap_at_0_75(void)
+{
+    /* Pre-existing VEL = (10, 0, 0).  AGE = 0 (post 1; outside (0x1e, 0x78)
+     * window so motion block skipped, vel unchanged).  speed = 10 > 0.75
+     * cap → vx = 10 * 0.75 / 10 = 0.75. */
+    reset_world();
+    stage_live(0, 0x36, 0, 0, 0, 10.0f, 0, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.75f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_36_spawns_two_particles_when_alive(void)
+{
+    /* No SM hook → state_machine_call_ret returns 0 → slot stays alive,
+     * spawn cluster runs.  Stage POS = (4, 0, 0), VEL preserved at 0
+     * (motion window closed at AGE=0).  Expected: 2 spawns, type 0x70,
+     * scale 0.2, param7=1.  First at (4, 0, 0); second at (4 + 0*0.5,
+     * 0+0*0.5, 0+0*0.5) = (4, 0, 0). */
+    reset_world();
+    scene1_spawn_trace_reset();
+    stage_live(0, 0x36, 4.0f, 0, 0, 0, 0, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 2);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace[0].slot_hint, 0);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace[0].type, 0x70);
+    T_ASSERT(fabsf(g_scene1_spawn_trace[0].scale - 0.2f) < 1e-6f);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace[0].param7, 1);
+    T_ASSERT(fabsf(g_scene1_spawn_trace[0].x - 4.0f) < 1e-6f);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace[1].type, 0x70);
+    T_ASSERT(fabsf(g_scene1_spawn_trace[1].scale - 0.2f) < 1e-6f);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace[1].param7, 1);
+    /* second spawn pos = POS + VEL*0.5; VEL=(0,0,0) → same as POS. */
+    T_ASSERT(fabsf(g_scene1_spawn_trace[1].x - 4.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_36_second_spawn_offsets_by_vel(void)
+{
+    /* Pre-VEL = (10, 0, 0); Pre-POS = (0, 0, 0).  Outer preamble runs
+     * BEFORE the body: POS_X += VEL_X → POS_X = 10.  Inside the body:
+     * motion window closed at AGE=1 (post-preamble); speed-cap caps
+     * |VEL| = 10 > 0.75 → vx = 0.75.  First spawn at POS = (10, 0, 0).
+     * Second spawn at POS + VEL*0.5 = (10 + 0.75*0.5, 0, 0) = (10.375, 0, 0). */
+    reset_world();
+    scene1_spawn_trace_reset();
+    stage_live(0, 0x36, 0, 0, 0, 10.0f, 0, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 2);
+    T_ASSERT(fabsf(g_scene1_spawn_trace[0].x - 10.0f) < 1e-5f);
+    T_ASSERT(fabsf(g_scene1_spawn_trace[1].x - 10.375f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_2e_no_spawn_cluster(void)
+{
+    /* Type 0x2e never spawns particles. */
+    reset_world();
+    scene1_spawn_trace_reset();
+    stage_live(0, 0x2e, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 0);
+    return 0;
+}
+
+int test_records_b_tick_t15g_type_36_sm_ret_nonzero_skips_spawn(void)
+{
+    /* SM hook installed → state_machine_call_ret returns 1 → engine zeroes
+     * slot[TYPE] (kill).  Subsequent type==0x36 spawn cluster sees TYPE=0
+     * and skips. */
+    reset_world();
+    s_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    scene1_spawn_trace_reset();
+    stage_live(0, 0x36, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 0);
+    return 0;
+}
+
+int test_records_b_tick_t15g_kills_at_age_0x100(void)
+{
+    /* Pre-AGE 0xff → post-preamble 0x100 → kill (both types). */
+    reset_world();
+    stage_live(0, 0x2e, 0, 0, 0, 0, 0, 0, /*age=*/0xff);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+
+    reset_world();
+    stage_live(0, 0x36, 0, 0, 0, 0, 0, 0, /*age=*/0xff);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15g_does_not_kill_below_age_0x100(void)
+{
+    reset_world();
+    stage_live(0, 0x2e, 0, 0, 0, 0, 0, 0, /*age=*/0xfe);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x2e);
+    return 0;
+}
