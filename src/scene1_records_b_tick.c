@@ -6115,8 +6115,11 @@ static void body_0x7c(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x82) {
         scene1_records_b_tick_kill_slot(i);
     }
-    /* engine `jmp LAB_00440dc1` — default-tail body runs after kill via the
-     * dispatch_default `default:` arm fall-through; see body_lab_00440dc1. */
+    /* engine `jmp LAB_00440dc1` (direct, asm 0x43fae2) — wall-bounce tail.
+     * body_0x7c does NOT set the per-tick flag itself; this call is a
+     * no-op in production unless an upstream helper set the flag earlier
+     * in the same tick.  Wired for engine fidelity. */
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ─── C8j-tick.16 — LAB_00440dc1 default-tail wall-bounce body ──────────
