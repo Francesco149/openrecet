@@ -3550,6 +3550,90 @@ static void body_0x58_or_0x66(int i, int32_t type)
     }
 }
 
+/* ═══ C8j-tick.15a — three trivial tail bodies ═════════════════════════
+ *
+ * Decomp L39122 / L39129 / L38702 (FUN_0043ae20 tail cascade).  All
+ * three bodies are driven by the existing SM hook with no new hooks:
+ *   - type 0x33  (asm 0x43fd99..0x43fdcd): ROT_Z+=0.05 spin + DRAG from
+ *                LIFE_MULT*3 + SM + kill AGE==0x100
+ *   - type 0x60  (asm 0x43fdd0..0x43fe14): pose-snap to owner_a + DRAG=8
+ *                + SM + kill AGE==5
+ *   - type 0x65  (asm 0x43f34f..0x43f3a6): late-AGE vertical drift damper
+ *                with VEL_Y floor and kill AGE==0x78
+ *
+ * The LAB_00440dc1 default-tail body (engine catch-all for types absent
+ * from the dispatch) is intentionally NOT wired here — wiring it as the
+ * `default:` arm today would change behavior for the still-deferred named
+ * tail types (0x75/0x83/0x84/0xa0..0xa6 etc) from "no-op" to "spawn 0x21
+ * + tick fields", which is wrong in port since the engine routes those
+ * to their own specific bodies.  Deferred to a final C8j-tick.15z that
+ * lands once the cascade is exhaustively ported.
+ *
+ * Constants verified via `tools/analyze/pe.py bytes <va> 4`:
+ *   0x5198f8 = 0.05       (type 0x33 ROT_Z step; also type 0x65 VEL_Y step)
+ *   0x519438 = 3.0        (type 0x33 DRAG multiplier)
+ *   0x51935c = 0.5        (type 0x60 POS_Y bias)
+ *   0x519378 = 8.0        (type 0x60 DRAG)
+ *   0x5198b0 = 0.99       (type 0x65 VEL_Y damp)
+ *   0x519c2c = -0.5       (type 0x65 VEL_Y floor)
+ */
+
+static void body_0x33(int i)
+{
+    /* asm 0x43fd9e-0x43fdcd: ROT_Z += 0.05 (fadd ds:0x5198f8); DRAG =
+     * LIFE_MULT * 3 (fld [esi+0x108]; fmul ds:0x519438); SM();
+     * jmp 0x440298 → kill on AGE == 0x100 shared tail. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + 0.05f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,
+               slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) * 3.0f);
+    state_machine_call(slot_base(i));
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x100) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+static void body_0x60(int i)
+{
+    /* asm 0x43fdd5-0x43fe14: read owner via [esi+0x10] (= OWNER_A slot
+     * field), copy pose +0x20/+0x24/+0x28 into POS_X..Z with +0.5 on Y
+     * (fadd ds:0x51935c); DRAG = 8.0 (fld ds:0x519378); SM();
+     * jmp 0x4402a2 → bVar17 = (AGE == 5); shared kill at 0x440dbd. */
+    void *owner = slot_owner_a(i);
+    if (!owner) return;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x20));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x24) + 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x28));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 8.0f);
+    state_machine_call(slot_base(i));
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 5) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+static void body_0x65(int i)
+{
+    /* asm 0x43f354-0x43f3a6: AGE > 0x1e → VEL_Y = (VEL_Y - 0.05) * 0.99
+     * (fsub ds:0x5198f8; fmul ds:0x5198b0); if VEL_Y < -0.5 (fcomp
+     * ds:0x519c2c; jae skip): VEL_Y = -0.5 (fld ds:0x519c2c); call
+     * 0x43865e; jne 0x4411e3 (SM ret != 0 → kill).  Shared LAB_0043f39b
+     * tail: jmp 0x440dbd kill on AGE == 0x78. */
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age > 0x1e) {
+        float vy = (slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.05f) * 0.99f;
+        if (vy < -0.5f) vy = -0.5f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy);
+        if (state_machine_call_ret(slot_base(i)) != 0) {
+            scene1_records_b_tick_kill_slot(i);
+            return;
+        }
+    }
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -3729,10 +3813,22 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x66:
         body_0x58_or_0x66(slot_idx, type);
         break;
+    /* C8j-tick.15a — trivial tail bodies (0x33 / 0x60 / 0x65). */
+    case 0x33:
+        body_0x33(slot_idx);
+        break;
+    case 0x60:
+        body_0x60(slot_idx);
+        break;
+    case 0x65:
+        body_0x65(slot_idx);
+        break;
     default:
-        /* Remaining tail types (0x75/0x83/0x84/0xa0..0xa6 and
-         * LAB_0043f39b default-tail body) are deferred to a future
-         * sub-chip. */
+        /* Remaining tail types {0x75/0x83/0x84/0xa0..0xa6 + 0x5f/0x82/
+         * 0x3e/0x2e/0x36/0x76/0xa3/0x77/0xa2/0x7b/0xa1/0xa4/0x7c/0x73/
+         * 0x78/0x7a/0x4d-0x52/0x56/0x62/99/0x96/0xa5/0xa6} and the
+         * LAB_00440dc1 default-tail body are deferred to future
+         * C8j-tick.15b+ sub-chips. */
         break;
     }
 }

@@ -1818,6 +1818,22 @@ struct test_case {
     X(records_b_tick_t14_kill_on_age_0xe) \
     X(records_b_tick_t14_kill_does_not_fire_below_0xe) \
     \
+    X(records_b_tick_t15a_type_33_increments_rot_z) \
+    X(records_b_tick_t15a_type_33_drag_is_life_mult_times_3) \
+    X(records_b_tick_t15a_type_33_kills_at_age_0x100) \
+    X(records_b_tick_t15a_type_33_does_not_kill_below_0x100) \
+    X(records_b_tick_t15a_type_60_snaps_to_owner_pose_plus_half_y) \
+    X(records_b_tick_t15a_type_60_drag_is_8) \
+    X(records_b_tick_t15a_type_60_kills_at_age_5) \
+    X(records_b_tick_t15a_type_60_does_not_kill_below_age_5) \
+    X(records_b_tick_t15a_type_60_null_owner_is_noop) \
+    X(records_b_tick_t15a_type_65_above_age_30_damps_vel_y) \
+    X(records_b_tick_t15a_type_65_clamps_vel_y_at_negative_half) \
+    X(records_b_tick_t15a_type_65_at_or_below_age_30_no_damp) \
+    X(records_b_tick_t15a_type_65_kills_at_age_0x78) \
+    X(records_b_tick_t15a_type_65_sm_nonzero_return_kills) \
+    X(records_b_tick_t15a_type_65_no_sm_hook_does_not_kill_mid_life) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

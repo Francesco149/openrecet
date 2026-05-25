@@ -5417,3 +5417,193 @@ int test_records_b_tick_t14_kill_does_not_fire_below_0xe(void)
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x58);
     return 0;
 }
+
+/* ═══ C8j-tick.15a — types 0x33 / 0x60 / 0x65 ══════════════════════════ */
+
+/* ─── type 0x33 — ROT_Z spin + LIFE_MULT*3 drag ─── */
+
+int test_records_b_tick_t15a_type_33_increments_rot_z(void)
+{
+    /* ROT_Z = 0.10 → +0.05 → 0.15. */
+    reset_world();
+    stage_live(0, 0x33, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.10f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ROT_Z) - 0.15f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_33_drag_is_life_mult_times_3(void)
+{
+    /* LIFE_MULT = 0.5 → DRAG = 0.5 * 3 = 1.5. */
+    reset_world();
+    stage_live(0, 0x33, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.5f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 1.5f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_33_kills_at_age_0x100(void)
+{
+    /* AGE = 0xff pre-preamble → post = 0x100 → kill. */
+    reset_world();
+    stage_live(0, 0x33, 0, 0, 0, 0, 0, 0, /*age=*/0xff);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_33_does_not_kill_below_0x100(void)
+{
+    reset_world();
+    stage_live(0, 0x33, 0, 0, 0, 0, 0, 0, /*age=*/0xfe);  /* post = 0xff */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x33);
+    return 0;
+}
+
+/* ─── type 0x60 — owner_a pose snap + DRAG=8 ─── */
+
+int test_records_b_tick_t15a_type_60_snaps_to_owner_pose_plus_half_y(void)
+{
+    reset_world();
+    owner_a_blob_reset();
+    int32_t v;
+    float x = 11.0f, y = 22.0f, z = 33.0f;
+    memcpy(&v, &x, 4); owner_a_blob_set_i(0x20, v);
+    memcpy(&v, &y, 4); owner_a_blob_set_i(0x24, v);
+    memcpy(&v, &z, 4); owner_a_blob_set_i(0x28, v);
+    stage_live(0, 0x60, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 11.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 22.5f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 33.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_60_drag_is_8(void)
+{
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x60, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 8.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_60_kills_at_age_5(void)
+{
+    /* AGE = 4 pre-preamble → post = 5 → kill. */
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x60, 0, 0, 0, 0, 0, 0, /*age=*/4);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_60_does_not_kill_below_age_5(void)
+{
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x60, 0, 0, 0, 0, 0, 0, /*age=*/3);  /* post = 4 */
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x60);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_60_null_owner_is_noop(void)
+{
+    /* Without binding owner_a, slot_owner_a returns NULL — body must
+     * early-return without writing pose or DRAG. */
+    reset_world();
+    stage_live(0, 0x60, 7.0f, 7.0f, 7.0f, 0, 0, 0, /*age=*/0);
+    /* Don't bind_owner_a — OWNER_A stays 0. */
+    scene1_records_b_tick();
+    /* POS unchanged (no preamble shift since VEL=0); DRAG stays 0. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 7.0f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG)  - 0.0f) < 1e-6f);
+    return 0;
+}
+
+/* ─── type 0x65 — late-AGE vertical drift damper ─── */
+
+int test_records_b_tick_t15a_type_65_above_age_30_damps_vel_y(void)
+{
+    /* AGE = 0x1f pre → post = 0x20 (> 30).  VEL_Y = 0.3 → (0.3 - 0.05) * 0.99
+     * = 0.2475. */
+    reset_world();
+    stage_live(0, 0x65, 0, 0, 0, 0, 0.3f, 0, /*age=*/0x1f);
+    scene1_records_b_tick();
+    /* preamble shifts pos.y by vel.y, but the body reads/writes VEL_Y after.
+     * Expected: 0.2475 (no clamp triggers). */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.2475f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_65_clamps_vel_y_at_negative_half(void)
+{
+    /* AGE > 30 and VEL_Y very negative → after damp + clamp = -0.5. */
+    reset_world();
+    stage_live(0, 0x65, 0, 0, 0, 0, -10.0f, 0, /*age=*/0x1f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - (-0.5f)) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_65_at_or_below_age_30_no_damp(void)
+{
+    /* AGE = 0x1d pre → post = 0x1e (== 30, NOT > 30).  Damp skipped. */
+    reset_world();
+    stage_live(0, 0x65, 0, 0, 0, 0, 0.3f, 0, /*age=*/0x1d);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.3f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_65_kills_at_age_0x78(void)
+{
+    /* AGE = 0x77 pre → post = 0x78 → kill (shared LAB_0043f39b tail). */
+    reset_world();
+    stage_live(0, 0x65, 0, 0, 0, 0, 0, 0, /*age=*/0x77);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+static int s_t15a_sm_calls;
+static void t15a_sm_capture(int32_t *slot)
+{
+    (void)slot;
+    s_t15a_sm_calls++;
+}
+
+int test_records_b_tick_t15a_type_65_sm_nonzero_return_kills(void)
+{
+    /* Hook installed → state_machine_call_ret returns 1 → slot is killed
+     * via LAB_004411e3 (skips the AGE==0x78 check below). */
+    reset_world();
+    s_t15a_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(t15a_sm_capture);
+    stage_live(0, 0x65, 0, 0, 0, 0, 0, 0, /*age=*/0x40);  /* > 30 */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_t15a_sm_calls, 1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15a_type_65_no_sm_hook_does_not_kill_mid_life(void)
+{
+    /* No hook → state_machine_call_ret returns 0 → no kill from SM
+     * branch; AGE=post-preamble=0x40 != 0x78 → no kill from tail. */
+    reset_world();
+    stage_live(0, 0x65, 0, 0, 0, 0, 0, 0, /*age=*/0x3f);  /* post=0x40 */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x65);
+    return 0;
+}
