@@ -2712,11 +2712,25 @@ struct test_case {
     X(combat_sm_phase_c8b_lifetime_one_falls_to_zero_default) \
     X(combat_sm_phase_c8b_lifetime_zero_type_6_aux_one) \
     X(combat_sm_phase_c8b_lifetime_zero_type_4_deferred) \
-    X(combat_sm_phase_c8b_lifetime_zero_type_0x15_deferred) \
+    X(combat_sm_phase_c8b_lifetime_zero_type_0x15_fires_scatter) \
     X(combat_sm_phase_c8b_lifetime_negative_other_than_minus_one_forces_zero) \
     X(combat_sm_phase_c8b_latch_idempotent) \
     X(combat_sm_phase_c8b_observables_reset_per_tick) \
-    X(combat_sm_phase_c8b_observables_reset_on_no_hit)
+    X(combat_sm_phase_c8b_observables_reset_on_no_hit) \
+    X(combat_sm_phase_c8c_scatter_emits_10_spawns) \
+    X(combat_sm_phase_c8c_scatter_template_alternation) \
+    X(combat_sm_phase_c8c_scatter_scale_per_template) \
+    X(combat_sm_phase_c8c_scatter_param7_one) \
+    X(combat_sm_phase_c8c_scatter_xz_from_proj_pose) \
+    X(combat_sm_phase_c8c_scatter_y_has_angle_offset) \
+    X(combat_sm_phase_c8c_scatter_y_matches_rng_sequence) \
+    X(combat_sm_phase_c8c_scatter_proj_type_set_to_minus_one) \
+    X(combat_sm_phase_c8c_scatter_no_aux_write) \
+    X(combat_sm_phase_c8c_scatter_fires_latch) \
+    X(combat_sm_phase_c8c_lifetime_minus_one_no_scatter) \
+    X(combat_sm_phase_c8c_lifetime_positive_no_scatter) \
+    X(combat_sm_phase_c8c_scatter_observable_resets_per_tick) \
+    X(combat_sm_phase_c8c_scatter_latch_idempotent)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

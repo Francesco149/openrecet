@@ -127,6 +127,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "rng.h"                     /* rng_next_unit (FUN_00471089) */
 #include "scene1_particles_tick.h"   /* g_scene1_people, SCENE1_PEOPLE_COUNT */
 #include "scene1_records.h"          /* SCENE1_RECORDS_B_OFF_* */
 #include "scene1_records_b_tick.h"   /* g_scene1_records_b_tick_flag */
@@ -186,6 +187,9 @@ int32_t g_scene1_combat_phase_c_emit_se_id;
 int32_t g_scene1_combat_phase_c_lifetime_after;
 int32_t g_scene1_combat_phase_c_aux_after;
 int32_t g_scene1_combat_phase_c_latch_fired;
+
+/* C8jb.8c Phase C TYPE 0x15 5-shot scatter observables. */
+int32_t g_scene1_combat_phase_c_scatter_count;
 
 int32_t g_scene1_projectiles[SCENE1_PROJ_COUNT * SCENE1_PROJ_STRIDE];
 
@@ -1670,6 +1674,60 @@ static void phase_c_emit_se(int32_t se_id)
     if (g_emit_se_hook != NULL) g_emit_se_hook(se_id);
 }
 
+/* ─── C8jb.8c — Phase C TYPE 0x15 5-shot scatter ────────────────────── */
+/*
+ * Engine asm 0x43a283..0x43a326.  Fired from the LIFETIME-falls-to-0
+ * TYPE dispatch when proj.TYPE == 0x15.  Behavior:
+ *
+ *   1. proj.TYPE = -1                   (engine `or [esi], 0xffffffff`)
+ *   2. for counter in 0..4:
+ *        angle = counter * 4.0          (.rdata 0x51939c)
+ *        rng1 = rng_next_unit()         (FUN_00471089 — phantom args)
+ *        scene1_spawn(0, proj.POS_X, proj.POS_Y + rng1 + angle,
+ *                     proj.POS_Z, 2, 0.4, 1)
+ *        rng2 = rng_next_unit()
+ *        scene1_spawn(0, proj.POS_X, proj.POS_Y + rng2 + angle,
+ *                     proj.POS_Z, 0xf, 0.8, 1)
+ *   3. jmp 0x43a5c4                     (END-WITH-LATCH)
+ *
+ * Constants (.rdata, verified via tools/analyze/pe.py):
+ *   0x51939c = 4.0    (angle step)
+ *   0x5195c8 = 0.4    (template 2 scale)
+ *   0x519470 = 0.8    (template 0xf scale)
+ *
+ * Engine quirk: spawn pose uses PROJ pos (not slot pos like C8jb.8b's
+ * template 1/2 emits).  TYPE 0x15 path does NOT set proj.AUX (engine
+ * goes straight from spawn loop to latch with no AUX write).
+ *
+ * The 4 stack args pushed for FUN_00471089 are PHANTOM — they sit on
+ * the stack but the function reads no args (just rng_next15() / 32768).
+ * We mirror by calling rng_next_unit() with no args (rng.h).
+ */
+static void phase_c_type_0x15_scatter(int32_t *proj)
+{
+    proj[SCENE1_PROJ_OFF_TYPE] = -1;
+
+    float proj_x = *(const float *)&proj[SCENE1_PROJ_OFF_POS_X];
+    float proj_y = *(const float *)&proj[SCENE1_PROJ_OFF_POS_Y];
+    float proj_z = *(const float *)&proj[SCENE1_PROJ_OFF_POS_Z];
+
+    for (int32_t counter = 0; counter < 5; counter++) {
+        float angle = (float)counter * 4.0f;
+
+        float rng1 = rng_next_unit();
+        phase_c_emit_spawn(/*template=*/0x2,
+                           proj_x, proj_y + rng1 + angle, proj_z,
+                           /*scale=*/0.4f, /*param7=*/1);
+        g_scene1_combat_phase_c_scatter_count++;
+
+        float rng2 = rng_next_unit();
+        phase_c_emit_spawn(/*template=*/0xf,
+                           proj_x, proj_y + rng2 + angle, proj_z,
+                           /*scale=*/0.8f, /*param7=*/1);
+        g_scene1_combat_phase_c_scatter_count++;
+    }
+}
+
 /* ─── C8jb.8b — Phase C LIFETIME + TYPE 6/default dispatch ──────────── */
 /*
  * Engine asm 0x43a1df..0x43a360 (decomp L35721-L35773).  Called once per
@@ -1733,10 +1791,14 @@ static void phase_c_lifetime_dispatch(int32_t *proj,
                  *   FUN_0043824b cascade → AUX=2 / latch / etc.
                  * For C8jb.8b: pure no-op. */
             } else if (proj_type == 0x15) {
-                /* DEFERRED to C8jb.8c (5-shot scatter).  Engine path:
-                 *   proj.TYPE = -1; 5 iters of (FUN_00471089 + spawn 2 +
-                 *   spawn 0xf) with per-iter angle = i * 4.
-                 * For C8jb.8b: pure no-op. */
+                /* C8jb.8c — TYPE 0x15 5-shot scatter.  Engine asm
+                 * 0x43a283..0x43a326.  Sets proj.TYPE=-1, scatters 10
+                 * spawns at proj pose (5 iters × {template 2, template
+                 * 0xf}) with per-iter RNG Y jitter + angle offset, then
+                 * END-WITH-LATCH (no AUX write — engine fall-through
+                 * lands at 0x43a5c4 latch directly). */
+                phase_c_type_0x15_scatter(proj);
+                latch_eligible = 1;
             } else {
                 /* Default branch: spawn template 2 at SLOT pose
                  * (scale 0.2 .rdata 0x5198d8, param_7=1), AUX=1. */
@@ -1959,11 +2021,13 @@ static int phase_c_scan(int32_t *slot)
         }
 
         /* C8jb.8b — LIFETIME processing + TYPE 6/default branches.
+         * C8jb.8c — TYPE 0x15 5-shot scatter (in the same dispatch).
          * Fires AFTER the C8jb.8a sound + 0x15/0x16 spawn block; may
          * fire an additional spawn template 1 (LIFETIME==-1+not-{2,3} or
-         * LIFETIME>0-after-dec) OR spawn template 2 (default fall-through).
-         * AUX writes and FIRST_HIT_LATCH writes happen here too.  TYPE
-         * 4/5/8/0x15 are pure no-ops in this chip (deferred to C8jb.8c/d). */
+         * LIFETIME>0-after-dec) OR spawn template 2 (default fall-through)
+         * OR 10 scatter spawns (TYPE 0x15 path).  AUX writes and
+         * FIRST_HIT_LATCH writes happen here too.  TYPE 4/5/8 stays
+         * deferred to C8jb.8d (combat cascade). */
         phase_c_lifetime_dispatch(proj, slot_pos_x, slot_pos_y, slot_pos_z);
 
         /* Engine flow returns 1 in all paths reaching the end of the
@@ -2023,6 +2087,9 @@ int scene1_combat_sm_tick(int32_t *slot)
     g_scene1_combat_phase_c_lifetime_after         = 0;
     g_scene1_combat_phase_c_aux_after              = 0;
     g_scene1_combat_phase_c_latch_fired            = 0;
+
+    /* C8jb.8c Phase C TYPE 0x15 5-shot scatter observable. */
+    g_scene1_combat_phase_c_scatter_count          = 0;
 
     /* Phase B — attacker NPC scan + collision math + emit.  Skipped if
      * slot is NULL (Phase A tests use NULL to probe gates without

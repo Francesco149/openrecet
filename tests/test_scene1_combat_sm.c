@@ -36,6 +36,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "rng.h"
 #include "scene1_combat_sm.h"
 #include "scene1_particles_tick.h"
 #include "scene1_records.h"
@@ -3320,7 +3321,7 @@ typedef struct {
     int32_t param7;
 } emit_spawn_record_t;
 
-#define EMIT_SPAWN_CAP 8
+#define EMIT_SPAWN_CAP 16   /* up from 8 — C8jb.8c scatter emits 10/hit */
 static emit_spawn_record_t g_emit_spawn_records[EMIT_SPAWN_CAP];
 static int g_emit_spawn_count;
 
@@ -5455,10 +5456,13 @@ int test_combat_sm_phase_c8b_lifetime_zero_type_4_deferred(void)
     return 0;
 }
 
-int test_combat_sm_phase_c8b_lifetime_zero_type_0x15_deferred(void)
+int test_combat_sm_phase_c8b_lifetime_zero_type_0x15_fires_scatter(void)
 {
-    /* LIFETIME==0 + TYPE 0x15: DEFERRED to C8jb.8c (5-shot scatter) — no
-     * AUX write, no spawn, no latch.  Only SE 0x180 fires from C8jb.8a. */
+    /* LIFETIME==0 + TYPE 0x15: C8jb.8c 5-shot scatter fires.  Engine
+     * sets proj.TYPE=-1, fires 10 scene1_spawn calls (5 iters × {template
+     * 2, template 0xf}) at PROJ pose with per-spawn RNG Y jitter + angle
+     * offset, then END-WITH-LATCH (no AUX write).  SE 0x180 still fires
+     * from C8jb.8a. */
     reset_combat_state();
     reset_combat_7_capture();
     reset_combat_6_capture();
@@ -5468,8 +5472,18 @@ int test_combat_sm_phase_c8b_lifetime_zero_type_0x15_deferred(void)
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x180);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count,     10);
+    /* C8jb.8c spawns 10 (5 iters × 2 templates). */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  10);
+    /* proj.TYPE flipped to -1 by scatter prologue. */
+    int32_t proj_type =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_TYPE];
+    T_ASSERT_EQ_I(proj_type, -1);
+    /* Latch storage actually set. */
+    int32_t latch =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
+    T_ASSERT_EQ_I(latch, 1);
     return 0;
 }
 
@@ -5561,5 +5575,308 @@ int test_combat_sm_phase_c8b_observables_reset_on_no_hit(void)
     int32_t lifetime_storage =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME];
     T_ASSERT_EQ_I(lifetime_storage, 5);
+    return 0;
+}
+
+/* ─── C8jb.8c — Phase C TYPE 0x15 5-shot scatter ─────────────────────── */
+
+int test_combat_sm_phase_c8c_scatter_emits_10_spawns(void)
+{
+    /* Scatter fires exactly 10 spawns: 5 iters of (template 2 then 0xf).
+     * scatter_count + emit_spawn_count both report 10. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count,    10);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 10);
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_template_alternation(void)
+{
+    /* Per-iter pair: template 2, then template 0xf.  Check all 10 records. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    for (int i = 0; i < 5; i++) {
+        T_ASSERT_EQ_I(g_emit_spawn_records[i*2 + 0].template, 0x2);
+        T_ASSERT_EQ_I(g_emit_spawn_records[i*2 + 1].template, 0xf);
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_scale_per_template(void)
+{
+    /* Template 2 → scale 0.4 (.rdata 0x5195c8).
+     * Template 0xf → scale 0.8 (.rdata 0x519470). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    for (int i = 0; i < 5; i++) {
+        T_ASSERT_EQ_F(g_emit_spawn_records[i*2 + 0].scale, 0.4f, 1e-6f);
+        T_ASSERT_EQ_F(g_emit_spawn_records[i*2 + 1].scale, 0.8f, 1e-6f);
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_param7_one(void)
+{
+    /* All 10 spawns use param_7 = 1 (engine pushes `ebx = 1` for each). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    for (int i = 0; i < 10; i++) {
+        T_ASSERT_EQ_I(g_emit_spawn_records[i].param7, 1);
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_xz_from_proj_pose(void)
+{
+    /* X / Z are always proj.POS_X / proj.POS_Z (no jitter, no mid-point
+     * with slot like C8jb.8a).  Use proj at (3.0, 0, 1.0). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 3.0f, 0.0f, 1.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    for (int i = 0; i < 10; i++) {
+        T_ASSERT_EQ_F(g_emit_spawn_records[i].x, 3.0f, 1e-6f);
+        T_ASSERT_EQ_F(g_emit_spawn_records[i].z, 1.0f, 1e-6f);
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_y_has_angle_offset(void)
+{
+    /* Y = proj.Y + rng_unit() + iter * 4.0.  With proj.Y = 0.5
+     * (must satisfy `dy < reach` = `0.5 < 10` for the C8jb.7 AABB):
+     *   iter 0 (records 0, 1): Y ∈ [0.5,  1.5)
+     *   iter 1 (records 2, 3): Y ∈ [4.5,  5.5)
+     *   iter 2 (records 4, 5): Y ∈ [8.5,  9.5)
+     *   iter 3 (records 6, 7): Y ∈ [12.5, 13.5)
+     *   iter 4 (records 8, 9): Y ∈ [16.5, 17.5)
+     * Verify band membership without depending on the exact RNG sequence. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 0.0f, 0.5f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 10);
+    for (int iter = 0; iter < 5; iter++) {
+        float base = 0.5f + (float)iter * 4.0f;
+        for (int sub = 0; sub < 2; sub++) {
+            float y = g_emit_spawn_records[iter*2 + sub].y;
+            T_ASSERT(y >= base && y < base + 1.0f);
+        }
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_y_matches_rng_sequence(void)
+{
+    /* Reseed, run the scatter, then re-seed and replay the RNG sequence
+     * manually — the 10 spawns' Y values must be `proj.Y + rng_unit() +
+     * iter*4` in call order.  proves engine's `fadd POS_Y; fadd angle`
+     * ordering and that the second-per-iter rng is a separate draw
+     * (not reused from the first). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(42);
+    int32_t *slot = setup_phase_c_hit(0x15, 0.0f, 0.5f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 10);
+
+    /* Replay the RNG sequence to derive expected Y values. */
+    rng_seed(42);
+    for (int iter = 0; iter < 5; iter++) {
+        float angle = (float)iter * 4.0f;
+        for (int sub = 0; sub < 2; sub++) {
+            float expected_y = 0.5f + rng_next_unit() + angle;
+            T_ASSERT_EQ_F(g_emit_spawn_records[iter*2 + sub].y,
+                          expected_y, 1e-6f);
+        }
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_proj_type_set_to_minus_one(void)
+{
+    /* Prologue `proj.TYPE = -1` ran (engine `or [esi], 0xffffffff`). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    int32_t proj_type =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_TYPE];
+    T_ASSERT_EQ_I(proj_type, -1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_no_aux_write(void)
+{
+    /* Engine TYPE 0x15 path does NOT set proj.AUX (the AUX=1 write only
+     * fires in the TYPE 6 and default branches; the scatter falls
+     * directly from the spawn loop into the latch).
+     *
+     * AUX defaults to 0 — proves no AUX=1 write fired (which is what
+     * TYPE 6 / default would have done).  Note: we can't pre-set AUX to
+     * a non-zero sentinel because the C8jb.7 skip cascade catches any
+     * non-zero AUX → no hit fires → no scatter to verify. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* Scatter fired (10 spawns), latch set, but AUX stayed at 0. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 10);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,      0);
+    int32_t aux =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX];
+    T_ASSERT_EQ_I(aux, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_fires_latch(void)
+{
+    /* Engine jmps to 0x43a5c4 after the spawn loop — END-WITH-LATCH.
+     * FIRST_HIT_LATCH is set to 1 idempotently. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired, 1);
+    int32_t latch =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
+    T_ASSERT_EQ_I(latch, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_lifetime_minus_one_no_scatter(void)
+{
+    /* LIFETIME == -1 + TYPE 0x15: path-a (non-{2,3}) fires template 1,
+     * NOT the scatter.  Verify scatter_count stays 0. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    /* setup_phase_c_hit defaults LIFETIME=-1. */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 0);
+    /* Spawn count = 1 (just C8jb.8b's template 1 emit). */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template, 1);
+    /* proj.TYPE unchanged (still 0x15). */
+    int32_t proj_type =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_TYPE];
+    T_ASSERT_EQ_I(proj_type, 0x15);
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_lifetime_positive_no_scatter(void)
+{
+    /* LIFETIME == 3 + TYPE 0x15: path-b decrements to 2 (still > 0),
+     * fires template 1 — not the scatter. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 3);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after, 2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template, 1);
+    /* proj.TYPE unchanged. */
+    int32_t proj_type =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_TYPE];
+    T_ASSERT_EQ_I(proj_type, 0x15);
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_observable_resets_per_tick(void)
+{
+    /* scatter_count resets at tick top.  Tick 1 with TYPE 0x15 fires
+     * scatter; tick 2 (TYPE became -1 → skip cascade catches it) leaves
+     * scatter_count at 0. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 10);
+
+    /* Tick 2: proj.TYPE is now -1; first-row skip cascade entry catches
+     * it, no scan candidates → no scatter. */
+    reset_combat_7_capture();
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8c_scatter_latch_idempotent(void)
+{
+    /* If FIRST_HIT_LATCH was already 1 pre-tick, scatter still fires +
+     * latch observable bumps to 1, but storage unchanged.  Mirrors the
+     * engine's `if ([esi+4] == 0) [esi+4] = 1` check. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    rng_seed(1);
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+    g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH] = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 10);
+    int32_t latch =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
+    T_ASSERT_EQ_I(latch, 1);
     return 0;
 }

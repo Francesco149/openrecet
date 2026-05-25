@@ -818,9 +818,11 @@ extern int32_t g_scene1_combat_phase_c_emit_se_id;
  *                                  ... → 0x43a5c4).  C8jb.8b stub does
  *                                  NOT fire latch for these types yet;
  *                                  C8jb.8d will land the full path.
- *       - TYPE == 0x15        →  DEFERRED (C8jb.8c 5-shot scatter) — same
- *                                  treatment as 4/5/8: no latch from this
- *                                  chip.
+ *       - TYPE == 0x15        →  C8jb.8c 5-shot scatter (LANDED).  Sets
+ *                                  proj.TYPE=-1 and fires 10 scene1_spawn
+ *                                  calls at PROJ pose, then END-WITH-LATCH
+ *                                  (no AUX write).  See the C8jb.8c block
+ *                                  below for the full contract.
  *       - default             →  spawn template 2 at SLOT pose (scale 0.2,
  *                                  param_7=1); proj.AUX = 1; END-WITH-LATCH.
  *
@@ -848,11 +850,44 @@ extern int32_t g_scene1_combat_phase_c_lifetime_after;
  * or default branch fired; 0 otherwise).  Reset to 0 at tick top. */
 extern int32_t g_scene1_combat_phase_c_aux_after;
 
-/* Observable: 1 if the FIRST_HIT_LATCH was written by C8jb.8b (TYPE 6 /
- * default branches), 0 otherwise.  Reset to 0 at tick top.  Note this
- * does NOT track whether the field's value changed — it tracks whether
+/* Observable: 1 if the FIRST_HIT_LATCH was written by C8jb.8b/.8c (TYPE 6
+ * / default / 0x15 branches), 0 otherwise.  Reset to 0 at tick top.  Note
+ * this does NOT track whether the field's value changed — it tracks whether
  * the engine's `if ([esi+4] == 0) [esi+4] = 1` write executed. */
 extern int32_t g_scene1_combat_phase_c_latch_fired;
+
+/* ─── C8jb.8c — Phase C TYPE 0x15 5-shot scatter ─────────────────────── */
+/*
+ * Engine asm 0x43a283..0x43a326.  Fires from C8jb.8b's path-c TYPE
+ * dispatch when proj.TYPE == 0x15.  Behavior:
+ *
+ *   1. proj.TYPE = -1                  (engine `or [esi], 0xffffffff`).
+ *   2. Loop 5 iters (counter = 0..4):
+ *        angle = counter * 4.0
+ *        rng1 = rng_next_unit()
+ *        scene1_spawn(0, proj.POS_X, proj.POS_Y + rng1 + angle,
+ *                     proj.POS_Z, 2, 0.4, 1)
+ *        rng2 = rng_next_unit()
+ *        scene1_spawn(0, proj.POS_X, proj.POS_Y + rng2 + angle,
+ *                     proj.POS_Z, 0xf, 0.8, 1)
+ *   3. END-WITH-LATCH (proj.FIRST_HIT_LATCH = 1 if currently 0).
+ *
+ * Distinguishing features vs C8jb.8b's spawn template 1/2:
+ *   - Uses PROJ pose (not SLOT pose).
+ *   - 10 spawns per hit (vs 1 in C8jb.8b's default).
+ *   - Does NOT set proj.AUX (engine fall-through skips the AUX write).
+ *   - Constants 0.4 / 0.8 are literal (not proj.SCALE-driven).
+ *
+ * RNG is engine FUN_00471089 = rng_next_unit().  Engine pushes 4 phantom
+ * stack args before each call which the function reads as garbage; we
+ * mirror by calling rng_next_unit() with no args.  Tests can pre-seed
+ * via rng_seed() for deterministic verification.
+ */
+
+/* Observable: total spawn fires inside the scatter loop during the most
+ * recent scene1_combat_sm_tick().  Caps at 10 per Phase C hit (5 iters ×
+ * 2 templates).  Reset to 0 at tick top. */
+extern int32_t g_scene1_combat_phase_c_scatter_count;
 
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*
