@@ -1185,6 +1185,7 @@ struct test_case {
     X(particles_tick_type_7_8_9_share_body) \
     X(particles_tick_type_6_kills_on_scene_dead) \
     X(particles_tick_type_6_interp_saturates) \
+    X(particles_tick_type_6_bob_peaks_at_t_half) \
     X(particles_tick_type_20_snaps_to_origin) \
     X(particles_tick_type_20_spawns_every_4_ticks) \
     X(particles_tick_type_20_kills_on_scene_dead) \

@@ -184,6 +184,43 @@ int test_particles_tick_type_6_kills_on_scene_dead(void)
     return 0;
 }
 
+int test_particles_tick_type_6_bob_peaks_at_t_half(void)
+{
+    /* PHC #1 verification: with t = age * 0.08, the bob argument is
+     * sin(t * π).  When t = 0.5 (age ≈ 6.25), sin(t*π) = sin(π/2) = 1.
+     *
+     * At pre-tick AGE=6, post-preamble t = 6 * 0.08 = 0.48.  bob =
+     * sin(0.48 * π) = sin(1.508) ≈ 0.99803.  Doubled: pos_y_bob_contrib
+     * ≈ 1.996.  Lifetime half-cycle peaks here. */
+    reset_world();
+    g_scene1_player_pos[0] = 0.0f;
+    g_scene1_player_pos[1] = 0.0f;     /* anchor a.y = player_y + 1 = 1.0 */
+    g_scene1_player_pos[2] = 0.0f;
+
+    int slot = 0;
+    int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+    r[SCENE1_RECORDS_A_OFF_TYPE]   = 6;
+    r[SCENE1_RECORDS_A_OFF_AGE]    = 6;
+    r[SCENE1_RECORDS_A_OFF_PARAM2] = 0;
+
+    scene1_particles_tick();
+
+    /* Expected pos.y: lerp(anchor_a.y=1, anchor_b.y=0.5, t=0.48) + 2*sin(t*π).
+     * lerp = (0.5 - 1.0) * 0.48 + 1.0 = -0.24 + 1.0 = 0.76.
+     * bob  = 2 * sin(0.48 * π) ≈ 2 * 0.99803 ≈ 1.996.
+     * total ≈ 0.76 + 1.996 = 2.756. */
+    float t = 0.48f;
+    float lerp_y = (0.5f - 1.0f) * t + 1.0f;
+    float bob    = 2.0f * sinf(t * 3.1415927f);
+    float expected_y = lerp_y + bob;
+    float pos_y = slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y);
+    if (fabsf(pos_y - expected_y) > 1e-4f) {
+        T_FAIL("pos.y = %f, expected %f (bob peak ≈ 2)",
+               (double)pos_y, (double)expected_y);
+    }
+    return 0;
+}
+
 int test_particles_tick_type_6_interp_saturates(void)
 {
     /* At age = 12, t = 12 * 0.08 = 0.96 → near full-interp toward
