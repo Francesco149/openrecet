@@ -4162,10 +4162,13 @@ static void body_0x84(int i)
     }
 
     /* LAB_0043f6c8 / shared LAB_004402a2 tail — kill on AGE == 300, else
-     * fall through to default-tail (LAB_00440dc1, deferred). */
+     * fall through to default-tail (LAB_00440dc1) wall-bounce body.
+     * body_0x84 doesn't set the per-tick flag, so wall-bounce is a
+     * no-op in production; wired for engine fidelity. */
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 300) {
         scene1_records_b_tick_kill_slot(i);
     }
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15e — types 0x73 / 0x78 / 0x7a shared trail-cull body ════
@@ -5604,6 +5607,13 @@ static void body_0x83(int i)
     if (age == 300) {
         scene1_records_b_tick_kill_slot(i);
     }
+    /* engine `jmp 0x43f6d2 → LAB_004402a2 → LAB_00440dc1` (and also
+     * `jmp 0x43f34a / 0x43f3a2 → LAB_00440dbd → LAB_00440dc1` from
+     * inside this body's earlier phases) — fall through to default-tail
+     * wall-bounce body.  body_0x83 doesn't set the per-tick flag, so
+     * this is a no-op in production; wired for engine fidelity
+     * (C8j-tick.16-wire.4). */
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15k — type 0x75 ground-cull walker body ═══════════════════
