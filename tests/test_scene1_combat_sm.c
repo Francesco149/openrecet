@@ -5043,7 +5043,13 @@ static void set_proj_offset_y(int idx, float offset_y)
 /* Setup helper: prep one projectile of TYPE `type` at fixed pose + reach
  * + sentinel-fill the rest, then arm radii so a target at the origin
  * (with reach 10.0 — big enough for all the test poses below to land
- * an AABB hit; the dy < reach gate matters too) will land an AABB hit. */
+ * an AABB hit; the dy < reach gate matters too) will land an AABB hit.
+ * Sets LIFETIME to -1 (sentinel "no countdown") so C8jb.8b's path-a
+ * applies: TYPE in {2, 3} → no extra spawn (C8jb.8a leaf-only); other
+ * TYPEs → extra spawn template 1.  Tests inspect g_emit_spawn_records[0]
+ * (the FIRST spawn from C8jb.8a's hook chain) for template/pose
+ * verification, since the observable `g_scene1_combat_phase_c_emit_template`
+ * holds the LAST spawn (overwritten by C8jb.8b when applicable). */
 static int32_t *setup_phase_c_hit(int32_t proj_type,
                                   float proj_x, float proj_y, float proj_z,
                                   float proj_scale, float offset_y)
@@ -5051,6 +5057,8 @@ static int32_t *setup_phase_c_hit(int32_t proj_type,
     install_proj_radii(proj_type & 0xff, 3.0f, 3.0f);
     setup_proj(0, proj_type, 0, proj_x, proj_y, proj_z, proj_scale);
     set_proj_offset_y(0, offset_y);
+    int32_t *proj = &g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE];
+    proj[SCENE1_PROJ_OFF_LIFETIME] = -1;
     return target_slot_at(0x4242, 0.0f, 0.0f, 0.0f, 10.0f);
 }
 
@@ -5096,7 +5104,9 @@ int test_combat_sm_phase_c8a_type_3_fires_0x15_spawn(void)
 
 int test_combat_sm_phase_c8a_type_0_fires_0x16_spawn(void)
 {
-    /* TYPE 0 → SE 0x169 (else branch of Block 1) + 0x16 spawn (Block 2). */
+    /* TYPE 0 → SE 0x169 (else branch of C8jb.8a Block 1) + 0x16 spawn
+     * (Block 2) + template 1 spawn (C8jb.8b path-a non-{2,3}).  emit_count
+     * is 2; first spawn record is C8jb.8a's 0x16. */
     reset_combat_state();
     reset_combat_7_capture();
     reset_combat_6_capture();
@@ -5105,10 +5115,12 @@ int test_combat_sm_phase_c8a_type_0_fires_0x16_spawn(void)
                                       1.0f, 0.5f, 0.0f, 1.0f, 2.0f);
 
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,     0x16);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  2);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,          0x16);
+    T_ASSERT_EQ_I(g_emit_spawn_records[1].template,          1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x169);
-    /* TYPE 0 path does NOT clear STATE; it stays at the C8jb.7 5. */
+    /* TYPE 0 path does NOT clear STATE in C8jb.8a; it stays at C8jb.7's
+     * 5.  C8jb.8b path-a doesn't touch STATE either. */
     int32_t proj_state =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_STATE];
     T_ASSERT_EQ_I(proj_state, 5);
@@ -5117,7 +5129,8 @@ int test_combat_sm_phase_c8a_type_0_fires_0x16_spawn(void)
 
 int test_combat_sm_phase_c8a_type_0x15_se_only(void)
 {
-    /* TYPE 0x15 plays SE 0x180 but spawns nothing. */
+    /* TYPE 0x15 + LIFETIME=-1: C8jb.8a plays SE 0x180 without spawning;
+     * C8jb.8b path-a non-{2,3} fires template 1.  Single spawn (template 1). */
     reset_combat_state();
     reset_combat_7_capture();
     reset_combat_6_capture();
@@ -5126,16 +5139,18 @@ int test_combat_sm_phase_c8a_type_0x15_se_only(void)
                                       1.0f, 0.5f, 0.0f, 1.0f, 2.0f);
 
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,     0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,          1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x180);
     return 0;
 }
 
 int test_combat_sm_phase_c8a_default_type_se_only(void)
 {
-    /* Any TYPE not in {0, 2, 3, 0x15} plays SE 0x169 and spawns nothing.
-     * Use TYPE 5 (a valid projectile type not in the special set). */
+    /* TYPE 5 + LIFETIME=-1: C8jb.8a plays SE 0x169 (else branch);
+     * C8jb.8b path-a non-{2,3} fires template 1.  Single spawn (template 1).
+     * Note: with LIFETIME=0 (not -1), TYPE 5 would hit C8jb.8b path-c which
+     * is DEFERRED for {4,5,8} (no-op) — but our setup uses LIFETIME=-1. */
     reset_combat_state();
     reset_combat_7_capture();
     reset_combat_6_capture();
@@ -5144,8 +5159,8 @@ int test_combat_sm_phase_c8a_default_type_se_only(void)
                                       1.0f, 0.5f, 0.0f, 1.0f, 2.0f);
 
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,     0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,          1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x169);
     return 0;
 }
@@ -5175,7 +5190,9 @@ int test_combat_sm_phase_c8a_type_2_spawn_pose_verbatim(void)
 int test_combat_sm_phase_c8a_type_0_spawn_pose_verbatim(void)
 {
     /* TYPE 0 uses 20.5 multiplier on offset_y, not 0.5.
-     * y = proj_y + offset_y * 20.5 = 0.0 + 0.1 * 20.5 = 2.05. */
+     * y = proj_y + offset_y * 20.5 = 0.0 + 0.1 * 20.5 = 2.05.
+     * C8jb.8b also fires template 1 (LIFETIME=-1 + TYPE!={2,3}); check
+     * the FIRST spawn record (C8jb.8a's 0x16) for pose verification. */
     reset_combat_state();
     reset_combat_7_capture();
     reset_combat_6_capture();
@@ -5185,12 +5202,12 @@ int test_combat_sm_phase_c8a_type_0_spawn_pose_verbatim(void)
                                       /*scale=*/2.0f, /*offset_y=*/0.1f);
 
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
-    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[0], 1.5f, 1e-6f);
-    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[1], 2.05f, 1e-6f);
-    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[2], 0.5f, 1e-6f);
-    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_scale,   2.0f, 1e-6f);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_param7,  6);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template, 0x16);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template, 0x16);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].x,        1.5f,  1e-6f);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].y,        2.05f, 1e-6f);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].z,        0.5f,  1e-6f);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].scale,    2.0f,  1e-6f);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].param7,   6);
     return 0;
 }
 
@@ -5305,5 +5322,244 @@ int test_combat_sm_phase_c8a_type_2_phase_b_se_id_untouched(void)
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id, 0x159);
     T_ASSERT_EQ_I(g_scene1_combat_phase_b_emit_se_id, 0);
+    return 0;
+}
+
+/* ─── C8jb.8b — Phase C LIFETIME + TYPE 6/default ───────────────────── */
+
+/* Force LIFETIME on the projectile at idx (post-setup hook). */
+static void set_proj_lifetime(int idx, int32_t lifetime)
+{
+    int32_t *proj = &g_scene1_projectiles[idx * SCENE1_PROJ_STRIDE];
+    proj[SCENE1_PROJ_OFF_LIFETIME] = lifetime;
+}
+
+int test_combat_sm_phase_c8b_lifetime_minus_one_type_2_no_spawn(void)
+{
+    /* LIFETIME==-1 + TYPE 2: C8jb.8b path-a {2,3} leaf — NO extra spawn,
+     * NO latch.  Only the C8jb.8a 0x15 spawn fires. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(2, 1.0f, 0.0f, 0.0f, 1.0f, 4.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,          0x15);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    -1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8b_lifetime_minus_one_non_2_3_fires_template_1(void)
+{
+    /* LIFETIME==-1 + TYPE 7 (not in {2,3}): fires template 1 at SLOT pose
+     * (scale 0.2, param_7=1).  No latch (engine jmps to 0x43a5d2 directly). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,           1);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].x,                  0.0f, 1e-6f);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].y,                  0.0f, 1e-6f);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].z,                  0.0f, 1e-6f);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].scale,              0.2f, 1e-6f);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].param7,             1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,        0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8b_lifetime_positive_decrements(void)
+{
+    /* LIFETIME==5 + TYPE 7: dec to 4 (still > 0), fires template 1, no
+     * latch.  LIFETIME field updated to 4 in storage. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 5);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    4);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,           1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,        0);
+    /* Storage actually decremented. */
+    int32_t lifetime_storage =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME];
+    T_ASSERT_EQ_I(lifetime_storage, 4);
+    return 0;
+}
+
+int test_combat_sm_phase_c8b_lifetime_one_falls_to_zero_default(void)
+{
+    /* LIFETIME==1 + TYPE 7: dec to 0, falls to path-c default → spawn
+     * template 2, AUX=1, latch. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 1);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,           2);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].scale,              0.2f, 1e-6f);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].param7,             1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,          1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,        1);
+    int32_t latch =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
+    T_ASSERT_EQ_I(latch, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8b_lifetime_zero_type_6_aux_one(void)
+{
+    /* LIFETIME==0 + TYPE 6: path-c TYPE 6 → AUX=1, latch.  No spawn. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(6, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
+    /* TYPE 6 path doesn't go through C8jb.8a Block 1 spawn either (not
+     * in {2,3}), so no 0x15.  And TYPE != 0 so no 0x16.  Net: 0 spawns. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8b_lifetime_zero_type_4_deferred(void)
+{
+    /* LIFETIME==0 + TYPE 4: DEFERRED to C8jb.8d — no AUX write, no spawn,
+     * no latch. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(4, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8b_lifetime_zero_type_0x15_deferred(void)
+{
+    /* LIFETIME==0 + TYPE 0x15: DEFERRED to C8jb.8c (5-shot scatter) — no
+     * AUX write, no spawn, no latch.  Only SE 0x180 fires from C8jb.8a. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x180);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8b_lifetime_negative_other_than_minus_one_forces_zero(void)
+{
+    /* LIFETIME==-5 (negative but not -1): engine path-b skips the dec
+     * (LIFETIME <= 0), then path-c forces LIFETIME=0 + falls into TYPE
+     * dispatch.  For TYPE 7 (default) that means spawn template 2, AUX=1,
+     * latch. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, -5);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
+    /* Storage was -5, forced to 0. */
+    int32_t lifetime_storage =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME];
+    T_ASSERT_EQ_I(lifetime_storage, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8b_latch_idempotent(void)
+{
+    /* FIRST_HIT_LATCH is only set to 1 if currently 0.  If already 1, the
+     * latch_fired observable still bumps (the engine still executes the
+     * cmp branch). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+    /* Pre-set the latch to verify idempotence. */
+    g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH]
+        = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,        1);
+    int32_t latch =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
+    T_ASSERT_EQ_I(latch, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8b_observables_reset_per_tick(void)
+{
+    /* Tick 1: hit fires C8jb.8b path-c default + latch.  Tick 2: sentinel
+     * the projectile (no hit).  Observables reset. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,    1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,  1);
+
+    /* Tick 2: re-sentinel (TYPE=-1 in all records → no hit). */
+    reset_combat_7_capture();
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,        0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,      0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,   0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8b_observables_reset_on_no_hit(void)
+{
+    /* No AABB pass → C8jb.8b doesn't run, observables stay at the
+     * tick-top reset values. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    install_proj_radii(7, 1.0f, 1.0f);
+    setup_proj(0, 7, 0, 100.0f, 0.0f, 100.0f, 1.0f);
+    set_proj_offset_y(0, 0.0f);
+    set_proj_lifetime(0, 5);  /* would have decremented but no hit fires */
+    int32_t *slot = target_slot_at(0x4242, 0.0f, 0.0f, 0.0f, 1.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,        0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,      0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,   0);
+    /* Storage LIFETIME unchanged (no dec happened). */
+    int32_t lifetime_storage =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME];
+    T_ASSERT_EQ_I(lifetime_storage, 5);
     return 0;
 }

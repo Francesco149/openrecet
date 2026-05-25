@@ -616,6 +616,20 @@ extern int32_t g_scene1_combat_emit_aux_42e791_call_count;
                                            * (0x15 spawn, *0.5) and TYPE 0
                                            * (0x16 spawn, *20.5) hit emits. */
 #define SCENE1_PROJ_OFF_TYPE       0x23   /* esi+0x00, byte +0x8c */
+#define SCENE1_PROJ_OFF_FIRST_HIT_LATCH 0x24 /* esi+0x04, byte +0x90 — set
+                                              * to 1 at the end of any
+                                              * C8jb.8b LIFETIME-falls-to-0
+                                              * branch (TYPE 6 / default
+                                              * + TYPE 4/5/8/0x15 in later
+                                              * chips).  Engine's `[esi+4]
+                                              * = ebx` write at 0x43a5c4-ca.
+                                              * Idempotent: only set if
+                                              * currently 0. */
+#define SCENE1_PROJ_OFF_LIFETIME   0x99   /* esi+0x1d8, byte +0x264 — engine
+                                           * decrements per Phase C hit;
+                                           * sentinel -1 means "no LIFETIME
+                                           * countdown".  Falls to 0 → TYPE
+                                           * dispatch. */
 #define SCENE1_PROJ_OFF_AUX        0x9a   /* esi+0x77, byte +0x268 */
 #define SCENE1_PROJ_OFF_RING       0x9c   /* esi+0x79..esi+0x82, 10 dw */
 #define SCENE1_PROJ_OFF_RING_LEN   10
@@ -775,6 +789,70 @@ extern int32_t g_scene1_combat_phase_c_emit_param7;
  * via the same caller-cleanup sequence).
  */
 extern int32_t g_scene1_combat_phase_c_emit_se_id;
+
+/* ─── C8jb.8b — Phase C LIFETIME processing + TYPE 6/default ─────────── */
+/*
+ * Engine asm 0x43a1df..0x43a360 (decomp L35721-L35773).  Runs after the
+ * C8jb.8a sound/spawn block on every Phase C hit.  Three sub-paths:
+ *
+ * (a) proj.LIFETIME == -1 (sentinel "no countdown"):
+ *       - proj.TYPE in {2, 3}  →  no spawn, no AUX write, no FIRST_HIT
+ *                                  latch.  Just return-to-end (engine
+ *                                  jmp 0x43a5cf → 0x43a5d2).
+ *       - else                 →  spawn template 1 at SLOT pose
+ *                                  (scale 0.2 .rdata 0x5198d8, param_7=1).
+ *                                  Skip latch (engine jmp 0x43a5d2).
+ *
+ * (b) proj.LIFETIME > 0 (decrement-and-continue):
+ *       - proj.LIFETIME -= 1.
+ *       - if (proj.LIFETIME > 0) → spawn template 1 (same as path-a-else),
+ *                                  skip latch.
+ *       - else (LIFETIME hit 0) →  fall to path (c).
+ *
+ * (c) proj.LIFETIME <= 0 (forced to 0) — TYPE dispatch:
+ *       - proj.LIFETIME = 0 (idempotent for LIFETIME==0 case).
+ *       - TYPE == 6           →  proj.AUX = 1; jmp end-with-latch.
+ *       - TYPE in {4, 5, 8}   →  DEFERRED (C8jb.8d combat cascade) — no
+ *                                  AUX write, no spawn, but END-WITH-LATCH
+ *                                  is still set (engine jmp 0x43a365 →
+ *                                  ... → 0x43a5c4).  C8jb.8b stub does
+ *                                  NOT fire latch for these types yet;
+ *                                  C8jb.8d will land the full path.
+ *       - TYPE == 0x15        →  DEFERRED (C8jb.8c 5-shot scatter) — same
+ *                                  treatment as 4/5/8: no latch from this
+ *                                  chip.
+ *       - default             →  spawn template 2 at SLOT pose (scale 0.2,
+ *                                  param_7=1); proj.AUX = 1; END-WITH-LATCH.
+ *
+ * End-with-latch: if proj.FIRST_HIT_LATCH == 0, set it to 1 (engine writes
+ * `[esi+4] = ebx` at 0x43a5c4).
+ *
+ * C8jb.8b does NOT lift the SM return value to 1 yet — phase_c_scan keeps
+ * the C8jb.7/8a contract (return 1 internally → collapsed to 0 by tick).
+ * The ret-lifting chip (C8jb.8z / C8jb.fin) will sync the SM ret value
+ * with the engine's `mov eax, ebx` return after C8jb.8c + .8d land.
+ *
+ * Reuses C8jb.8a's `phase_c_emit_spawn` helper — spawn template 1/2 fires
+ * on top of the C8jb.8a 0x15/0x16 emit when both gates open.  Tests use
+ * observables to distinguish call ordering: g_scene1_combat_phase_c_emit_template
+ * holds the LAST template (template 1 / 2 for this chip wins over 0x15/0x16
+ * for TYPE 0/2/3 + LIFETIME paths).
+ */
+
+/* Observable: snapshot of proj.LIFETIME AFTER the decrement (path-b) OR
+ * the forced 0 (path-c).  For path-a (LIFETIME == -1) this stays -1.
+ * Reset to 0 at tick top. */
+extern int32_t g_scene1_combat_phase_c_lifetime_after;
+
+/* Observable: snapshot of proj.AUX AFTER any C8jb.8b write (1 if TYPE 6
+ * or default branch fired; 0 otherwise).  Reset to 0 at tick top. */
+extern int32_t g_scene1_combat_phase_c_aux_after;
+
+/* Observable: 1 if the FIRST_HIT_LATCH was written by C8jb.8b (TYPE 6 /
+ * default branches), 0 otherwise.  Reset to 0 at tick top.  Note this
+ * does NOT track whether the field's value changed — it tracks whether
+ * the engine's `if ([esi+4] == 0) [esi+4] = 1` write executed. */
+extern int32_t g_scene1_combat_phase_c_latch_fired;
 
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*

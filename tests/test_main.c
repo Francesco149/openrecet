@@ -2705,7 +2705,18 @@ struct test_case {
     X(combat_sm_phase_c8a_se_hook_receives_id) \
     X(combat_sm_phase_c8a_spawn_hook_receives_args) \
     X(combat_sm_phase_c8a_emit_hooks_nullable) \
-    X(combat_sm_phase_c8a_type_2_phase_b_se_id_untouched)
+    X(combat_sm_phase_c8a_type_2_phase_b_se_id_untouched) \
+    X(combat_sm_phase_c8b_lifetime_minus_one_type_2_no_spawn) \
+    X(combat_sm_phase_c8b_lifetime_minus_one_non_2_3_fires_template_1) \
+    X(combat_sm_phase_c8b_lifetime_positive_decrements) \
+    X(combat_sm_phase_c8b_lifetime_one_falls_to_zero_default) \
+    X(combat_sm_phase_c8b_lifetime_zero_type_6_aux_one) \
+    X(combat_sm_phase_c8b_lifetime_zero_type_4_deferred) \
+    X(combat_sm_phase_c8b_lifetime_zero_type_0x15_deferred) \
+    X(combat_sm_phase_c8b_lifetime_negative_other_than_minus_one_forces_zero) \
+    X(combat_sm_phase_c8b_latch_idempotent) \
+    X(combat_sm_phase_c8b_observables_reset_per_tick) \
+    X(combat_sm_phase_c8b_observables_reset_on_no_hit)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

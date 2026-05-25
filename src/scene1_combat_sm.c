@@ -182,6 +182,11 @@ float   g_scene1_combat_phase_c_emit_pose[3];
 int32_t g_scene1_combat_phase_c_emit_param7;
 int32_t g_scene1_combat_phase_c_emit_se_id;
 
+/* C8jb.8b Phase C LIFETIME + TYPE 6/default observables. */
+int32_t g_scene1_combat_phase_c_lifetime_after;
+int32_t g_scene1_combat_phase_c_aux_after;
+int32_t g_scene1_combat_phase_c_latch_fired;
+
 int32_t g_scene1_projectiles[SCENE1_PROJ_COUNT * SCENE1_PROJ_STRIDE];
 
 scene1_combat_npc_type_attrs_t
@@ -1665,6 +1670,105 @@ static void phase_c_emit_se(int32_t se_id)
     if (g_emit_se_hook != NULL) g_emit_se_hook(se_id);
 }
 
+/* ─── C8jb.8b — Phase C LIFETIME + TYPE 6/default dispatch ──────────── */
+/*
+ * Engine asm 0x43a1df..0x43a360 (decomp L35721-L35773).  Called once per
+ * Phase C hit after the C8jb.8a sound + 0x15/0x16 spawn block.  Takes the
+ * projectile record + the slot pose (for the spawn template 1/2 args).
+ *
+ * Engine quirks preserved:
+ *   - LIFETIME == -1 + TYPE in {2,3}: no spawn (the C8jb.8a 0x15 spawn
+ *     was the per-type effect; this branch was the "no further effect"
+ *     leaf).
+ *   - LIFETIME > 0: decremented BEFORE checking "still > 0?" — so a
+ *     LIFETIME of 1 going in becomes 0 and falls through to TYPE dispatch.
+ *   - LIFETIME falls to 0: forces LIFETIME = 0 (overwrites negative
+ *     values too, since the dec is skipped for LIFETIME <= 0).
+ *   - FIRST_HIT_LATCH write at 0x43a5c4: idempotent — only sets to 1 if
+ *     currently 0.  Skipped for the LIFETIME == -1 and LIFETIME > 0
+ *     paths (engine jmps to 0x43a5d2 directly).
+ *
+ * Defers TYPE 4/5/8 (combat cascade → C8jb.8d) and TYPE 0x15 (5-shot
+ * scatter → C8jb.8c).  Those paths in this chip are pure no-ops: no
+ * spawn, no AUX write, no latch.  The deferred paths will be filled in
+ * by the C8jb.8c/d chips.
+ */
+static void phase_c_lifetime_dispatch(int32_t *proj,
+                                      float slot_pos_x, float slot_pos_y,
+                                      float slot_pos_z)
+{
+    int32_t proj_type     = proj[SCENE1_PROJ_OFF_TYPE];
+    int32_t proj_lifetime = proj[SCENE1_PROJ_OFF_LIFETIME];
+
+    int spawn_template_1 = 0;  /* path-a-else / path-b "still > 0" */
+    int latch_eligible   = 0;  /* path-c TYPE 6 / default */
+
+    if (proj_lifetime == -1) {
+        /* Path (a) — sentinel; no decrement, no latch. */
+        if (proj_type != 2 && proj_type != 3) {
+            spawn_template_1 = 1;
+        }
+        /* TYPE in {2, 3}: pure no-op leaf — engine jmps to 0x43a5cf
+         * (ebx=1) then 0x43a5d2 (return).  Skips latch. */
+    } else {
+        /* Path (b) / (c) — decrement and check. */
+        if (proj_lifetime > 0) {
+            proj[SCENE1_PROJ_OFF_LIFETIME] = proj_lifetime - 1;
+        }
+        int32_t lifetime_now = proj[SCENE1_PROJ_OFF_LIFETIME];
+        if (lifetime_now > 0) {
+            /* Path (b) "still alive": spawn template 1, skip latch. */
+            spawn_template_1 = 1;
+        } else {
+            /* Path (c): force LIFETIME=0 (overwrites negative cases too),
+             * then TYPE dispatch. */
+            proj[SCENE1_PROJ_OFF_LIFETIME] = 0;
+
+            if (proj_type == 6) {
+                proj[SCENE1_PROJ_OFF_AUX] = 1;
+                latch_eligible = 1;
+            } else if (proj_type == 4 || proj_type == 5 || proj_type == 8) {
+                /* DEFERRED to C8jb.8d (combat cascade).  Engine path:
+                 *   jmp 0x43a365 → FUN_004412b6 / FUN_0048a348 /
+                 *   FUN_0043824b cascade → AUX=2 / latch / etc.
+                 * For C8jb.8b: pure no-op. */
+            } else if (proj_type == 0x15) {
+                /* DEFERRED to C8jb.8c (5-shot scatter).  Engine path:
+                 *   proj.TYPE = -1; 5 iters of (FUN_00471089 + spawn 2 +
+                 *   spawn 0xf) with per-iter angle = i * 4.
+                 * For C8jb.8b: pure no-op. */
+            } else {
+                /* Default branch: spawn template 2 at SLOT pose
+                 * (scale 0.2 .rdata 0x5198d8, param_7=1), AUX=1. */
+                proj[SCENE1_PROJ_OFF_AUX] = 1;
+                phase_c_emit_spawn(/*template=*/2,
+                                   slot_pos_x, slot_pos_y, slot_pos_z,
+                                   /*scale=*/0.2f, /*param7=*/1);
+                latch_eligible = 1;
+            }
+        }
+    }
+
+    if (spawn_template_1) {
+        phase_c_emit_spawn(/*template=*/1,
+                           slot_pos_x, slot_pos_y, slot_pos_z,
+                           /*scale=*/0.2f, /*param7=*/1);
+    }
+
+    if (latch_eligible) {
+        if (proj[SCENE1_PROJ_OFF_FIRST_HIT_LATCH] == 0) {
+            proj[SCENE1_PROJ_OFF_FIRST_HIT_LATCH] = 1;
+        }
+        g_scene1_combat_phase_c_latch_fired = 1;
+    }
+
+    /* Snapshot observables AFTER all writes. */
+    g_scene1_combat_phase_c_lifetime_after =
+        proj[SCENE1_PROJ_OFF_LIFETIME];
+    g_scene1_combat_phase_c_aux_after =
+        proj[SCENE1_PROJ_OFF_AUX];
+}
+
 /* ─── C8jb.7 — Phase C projectile scan ──────────────────────────────── */
 /*
  * Engine asm 0x439f28..0x43a10b / decomp L35613-L35660.  Iterates 210
@@ -1854,11 +1958,17 @@ static int phase_c_scan(int32_t *slot)
                                proj_scale, /*param7=*/6);
         }
 
-        /* Engine flow continues into LIFETIME processing (C8jb.8b).  For
-         * now, break out of the loop with the on-hit side effects + the
-         * Block 1/2 emits applied; report "hit fired" to the caller
-         * (which collapses Phase C's ret to 0 — C8jb.8b will rewrite the
-         * contract once LIFETIME / TYPE 4/5/6/8/0x15 dispatch lands). */
+        /* C8jb.8b — LIFETIME processing + TYPE 6/default branches.
+         * Fires AFTER the C8jb.8a sound + 0x15/0x16 spawn block; may
+         * fire an additional spawn template 1 (LIFETIME==-1+not-{2,3} or
+         * LIFETIME>0-after-dec) OR spawn template 2 (default fall-through).
+         * AUX writes and FIRST_HIT_LATCH writes happen here too.  TYPE
+         * 4/5/8/0x15 are pure no-ops in this chip (deferred to C8jb.8c/d). */
+        phase_c_lifetime_dispatch(proj, slot_pos_x, slot_pos_y, slot_pos_z);
+
+        /* Engine flow returns 1 in all paths reaching the end of the
+         * dispatch.  For now, scene1_combat_sm_tick still collapses our
+         * return to 0 — ret lifting deferred to C8jb.8c/d/.fin. */
         return 1;
     }
 
@@ -1908,6 +2018,11 @@ int scene1_combat_sm_tick(int32_t *slot)
     g_scene1_combat_phase_c_emit_pose[2]           = 0.0f;
     g_scene1_combat_phase_c_emit_param7            = 0;
     g_scene1_combat_phase_c_emit_se_id             = 0;
+
+    /* C8jb.8b Phase C LIFETIME + TYPE 6/default observables. */
+    g_scene1_combat_phase_c_lifetime_after         = 0;
+    g_scene1_combat_phase_c_aux_after              = 0;
+    g_scene1_combat_phase_c_latch_fired            = 0;
 
     /* Phase B — attacker NPC scan + collision math + emit.  Skipped if
      * slot is NULL (Phase A tests use NULL to probe gates without
