@@ -1797,6 +1797,27 @@ struct test_case {
     X(records_b_tick_t13_type_53_flag_a_not_0_or_3_uses_long_kill_age) \
     X(records_b_tick_t13_type_53_aux_4319d6_returns_0_keeps_long_kill_age) \
     \
+    X(records_b_tick_t14_type_58_writes_base_anchor_pose) \
+    X(records_b_tick_t14_type_58_sets_drag_1_3) \
+    X(records_b_tick_t14_type_66_overrides_drag_to_1_6) \
+    X(records_b_tick_t14_type_58_radius_clamps_at_4) \
+    X(records_b_tick_t14_type_58_rot_z_adds_to_radius) \
+    X(records_b_tick_t14_type_58_rot_x_rotates_into_x) \
+    X(records_b_tick_t14_type_66_radial_shift) \
+    X(records_b_tick_t14_type_58_does_not_apply_radial_shift) \
+    X(records_b_tick_t14_compass_0_shifts_x_by_0_7) \
+    X(records_b_tick_t14_compass_4_shifts_x_by_0_7) \
+    X(records_b_tick_t14_compass_2_shifts_z_by_0_3) \
+    X(records_b_tick_t14_compass_6_shifts_z_by_0_3) \
+    X(records_b_tick_t14_compass_non_matching_no_shift) \
+    X(records_b_tick_t14_writes_alt_pos_from_owner) \
+    X(records_b_tick_t14_sm_loop_fires_in_age_window) \
+    X(records_b_tick_t14_sm_loop_skipped_outside_window) \
+    X(records_b_tick_t14_sm_loop_no_hook_runs_zero_iters) \
+    X(records_b_tick_t14_owner_cf8_nonzero_kills) \
+    X(records_b_tick_t14_kill_on_age_0xe) \
+    X(records_b_tick_t14_kill_does_not_fire_below_0xe) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

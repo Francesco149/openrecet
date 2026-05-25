@@ -23,8 +23,9 @@
  *   C8j-tick.1  skeleton + dispatch table
  *   C8j-tick.2  0x1e/0x2f/0x88/0x9a + 0x89/0x9e
  *   C8j-tick.3  mid-cascade (0x9c/0x34/0x69/0x74/0x79/0x68)
- *   C8j-tick.4  Body 1 (2/3/4/0x22/0x54/0x67/0x6d/0x6e/0x6f/0x70) ← THIS CHIP
+ *   C8j-tick.4  Body 1 (2/3/4/0x22/0x54/0x67/0x6d/0x6e/0x6f/0x70)
  *   C8j-tick.5..13  remaining clusters per the survey
+ *   C8j-tick.14  type 0x58 / 0x66 shared anchor-rotor body ← THIS CHIP
  *
  * Slot dead sentinel: `slot[0] == 0`.
  */
@@ -3422,6 +3423,133 @@ static void body_0x53(int i)
     }
 }
 
+/* ═══ C8j-tick.14 — type 0x58 / 0x66 shared body (anchor rotor) ════════
+ *
+ * Engine asm 0x440bb3..0x440db4.  Decomp L38341-L38405 (FUN_0043ae20
+ * cascade).  Shared body for types 0x58 and 0x66 — NPC-anchored rotor
+ * with optional radial shift for 0x66 + compass dispatch via owner+0x948.
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x519b90 = 1.3      (slot[DRAG] init + POS_Y owner-anchor offset)
+ *   0x5195c8 = 0.4      (AGE-clamped radial multiplier)
+ *   0x519364 = 1.0      (added after AGE multiply; ALT_POS_Y offset)
+ *   0x51939c = 4.0      (radius clamp ceiling)
+ *   0x519434 = π/2      (0x66 sub-branch yaw bias)
+ *   0x519750 = 1.6      (slot[DRAG] override for 0x66)
+ *   0x519748 = 0.7      (compass +X offset for owner+0x948 in {0, 4})
+ *   0x5194ec = 0.3      (compass +Z offset for owner+0x948 in {2, 6})
+ *
+ * Per-tick math:
+ *   slot[DRAG] = 1.3
+ *   r = clamp_max(AGE * 0.4 + 1.0, 4.0)
+ *   pos.x = sin(ROT_X) * (r + ROT_Z) + owner_a.pose.x
+ *   pos.y = owner_a.pose.y + 1.3
+ *   pos.z = cos(ROT_X) * (r + ROT_Z) + owner_a.pose.z
+ *
+ *   if type == 0x66:
+ *     pos.x += sin(ROT_X + π/2) * ROT_SCR
+ *     pos.z += cos(ROT_X + π/2) * ROT_SCR
+ *     slot[DRAG] = 1.6
+ *
+ *   compass = owner_a[+0x948]:
+ *     0 or 4 → pos.x += 0.7
+ *     2 or 6 → pos.z += 0.3
+ *
+ *   ALT_POS = (owner_a.pose.x, owner_a.pose.y + 1.0, owner_a.pose.z)
+ *     (engine calls sinf/cosf(ROT_X) again here but DISCARDS the result
+ *      via `fstp st(0)` at 0x440d4d/0x440d7e — pure-FPU-state noop, elided.)
+ *
+ *   if 6 <= AGE < 10:
+ *     for n in [0..5):
+ *       ret = state_machine(slot)         ; 0/1 return contract
+ *       if ret == 0: break
+ *
+ *   kill if owner_a[+0xcf8] != 0
+ *   kill if AGE == 0xe                     (asm 0x440db6: cmp AGE, 0xe;
+ *                                            shared LAB_00440dbd cleanup.)
+ */
+static void body_0x58_or_0x66(int i, int32_t type)
+{
+    void *owner = slot_owner_a(i);
+    if (!owner) return;
+
+    /* asm 0x440bb3-0x440bb9: slot[DRAG] = 1.3 */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.3f);
+
+    /* asm 0x440bbf-0x440bf1: r = clamp_max(AGE * 0.4 + 1.0, 4.0).  Engine
+     * uses `fild AGE` then mul/add/fcomp — see ds:0x5195c8/364/39c. */
+    int   age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    float r   = (float)age * 0.4f + 1.0f;
+    if (r > 4.0f) r = 4.0f;
+
+    /* asm 0x440bf1-0x440c22: POS_X = sin(ROT_X) * (r + ROT_Z) + owner+0x20. */
+    float rot_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    float rot_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z);
+    float ox    = owner_read_f(owner, 0x20);
+    float oy    = owner_read_f(owner, 0x24);
+    float oz    = owner_read_f(owner, 0x28);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+               sinf(rot_x) * (r + rot_z) + ox);
+
+    /* asm 0x440c25-0x440c31: POS_Y = owner+0x24 + 1.3. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.3f);
+
+    /* asm 0x440c34-0x440c65: POS_Z = cos(ROT_X) * (r + ROT_Z) + owner+0x28. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+               cosf(rot_x) * (r + rot_z) + oz);
+
+    /* asm 0x440c68-0x440cd2: 0x66 sub-branch (radial shift by ROT_SCR
+     * along ROT_X + π/2; override DRAG to 1.6). */
+    if (type == 0x66) {
+        float rot_scr = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR);
+        float ang     = rot_x + 1.5707964f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+                   sinf(ang) * rot_scr
+                   + slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+                   cosf(ang) * rot_scr
+                   + slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.6f);
+    }
+
+    /* asm 0x440cd5-0x440d34: compass dispatch via owner+0x948 int. */
+    int32_t compass = owner_read_i(owner, 0x948);
+    if (compass == 0 || compass == 4) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+                   slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X) + 0.7f);
+    }
+    if (compass == 2 || compass == 6) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+                   slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z) + 0.3f);
+    }
+
+    /* asm 0x440d34-0x440d83: ALT_POS = owner pose + (0, 1.0, 0).  The
+     * sin/cos(ROT_X) calls at 0x440d45/0x440d73 have their results
+     * dropped via `fstp st(0)` — pure-FPU-state noop, elided. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, oz);
+
+    /* asm 0x440d86-0x440da7: 5-iter SM loop if 6 <= AGE < 10. */
+    if (age >= 6 && age < 10) {
+        for (int n = 0; n < 5; n++) {
+            if (state_machine_call_ret(slot_base(i)) == 0) break;
+        }
+    }
+
+    /* asm 0x440da9-0x440db4: kill if owner+0xcf8 != 0. */
+    if (owner_read_i(owner, 0xcf8) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+
+    /* asm 0x440db6-0x440dbf (shared LAB_00440dbd cleanup with this body's
+     * bVar17 = (AGE == 0xe)): kill if AGE == 0xe. */
+    if (age == 0xe) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -3596,9 +3724,14 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x53:
         body_0x53(slot_idx);
         break;
+    /* C8j-tick.14 — type 0x58 / 0x66 shared anchor-rotor body. */
+    case 0x58:
+    case 0x66:
+        body_0x58_or_0x66(slot_idx, type);
+        break;
     default:
-        /* Remaining tail types (0x58/0x66/0x75/0x83/0x84/0x87/0xa0..0xa6
-         * and LAB_0043f39b death-effect spawn) are deferred to a future
+        /* Remaining tail types (0x75/0x83/0x84/0xa0..0xa6 and
+         * LAB_0043f39b default-tail body) are deferred to a future
          * sub-chip. */
         break;
     }

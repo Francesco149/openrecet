@@ -5096,3 +5096,324 @@ int test_records_b_tick_t13_type_53_aux_4319d6_returns_0_keeps_long_kill_age(voi
     T_ASSERT_EQ_I(s_aux_4319d6_calls, 1);
     return 0;
 }
+
+/* ═══ C8j-tick.14 — type 0x58 / 0x66 (anchor rotor body) ════════════════ */
+
+/* Helpers below stage an owner_A blob with pose at (10, 20, 30) and a
+ * compass field set to 1 (a non-matching value, so the compass-shift
+ * branches at owner+0x948 ∈ {0, 2, 4, 6} stay closed unless a test
+ * deliberately opens them).  Other owner fields default zero. */
+static void stage_type_58_66_owner(float px, float py, float pz)
+{
+    owner_a_blob_reset();
+    int32_t v;
+    memcpy(&v, &px, 4); owner_a_blob_set_i(0x20, v);
+    memcpy(&v, &py, 4); owner_a_blob_set_i(0x24, v);
+    memcpy(&v, &pz, 4); owner_a_blob_set_i(0x28, v);
+    owner_a_blob_set_i(0x948, 1);  /* compass != {0,2,4,6} */
+}
+
+int test_records_b_tick_t14_type_58_writes_base_anchor_pose(void)
+{
+    /* AGE=2 → post-preamble 3. r = 3*0.4 + 1 = 2.2.
+     * ROT_X=0 → sin=0, cos=1.  ROT_Z=0.
+     * POS_X = sin(0)*(2.2+0) + 10 = 10.
+     * POS_Y = 20 + 1.3 = 21.3.
+     * POS_Z = cos(0)*(2.2+0) + 30 = 32.2. */
+    reset_world();
+    stage_type_58_66_owner(10.0f, 20.0f, 30.0f);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 10.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 21.3f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 32.2f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t14_type_58_sets_drag_1_3(void)
+{
+    reset_world();
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 1.3f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t14_type_66_overrides_drag_to_1_6(void)
+{
+    /* Type 0x66 first writes DRAG=1.3, then the sub-branch overrides to 1.6. */
+    reset_world();
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x66, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR, 0.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 1.6f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t14_type_58_radius_clamps_at_4(void)
+{
+    /* AGE=19 → post-preamble 20.  r_raw = 20*0.4 + 1 = 9 → clamp to 4.
+     * ROT_X=0, ROT_Z=0 → POS_Z = cos(0)*(4+0) + 0 = 4 (not 9). */
+    reset_world();
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/19);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 4.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t14_type_58_rot_z_adds_to_radius(void)
+{
+    /* AGE=0 → post-preamble 1.  r = 1*0.4 + 1 = 1.4.
+     * ROT_Z = 0.5 → effective radius = 1.4 + 0.5 = 1.9.
+     * ROT_X = 0 → POS_Z = 1.0 * 1.9 + 30 = 31.9. */
+    reset_world();
+    stage_type_58_66_owner(0, 0, 30.0f);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.5f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 31.9f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t14_type_58_rot_x_rotates_into_x(void)
+{
+    /* ROT_X = π/2 → sin=1, cos=0.  AGE=2 → post=3, r=2.2.
+     * POS_X = 1 * (2.2+0) + 0 = 2.2.
+     * POS_Z = 0 * (2.2+0) + 0 = 0. */
+    reset_world();
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 1.5707964f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 2.2f) < 1e-4f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 0.0f) < 1e-4f);
+    return 0;
+}
+
+int test_records_b_tick_t14_type_66_radial_shift(void)
+{
+    /* Type 0x66 adds sin(ROT_X+π/2)*ROT_SCR to POS_X and cos(...)*ROT_SCR
+     * to POS_Z.  With ROT_X=0, sin(π/2)=1, cos(π/2)=0 → POS_X += ROT_SCR,
+     * POS_Z unchanged.  Base pose: ROT_X=0, ROT_Z=0, AGE=2 → r=2.2,
+     * POS_X base = 0 + 0 = 0, plus ROT_SCR=2.0 → POS_X = 2.0. */
+    reset_world();
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x66, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR, 2.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    /* POS_X = (sin(0) * 2.2 + 0)  + (sin(π/2) * 2.0) = 0 + 2.0 = 2.0. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 2.0f) < 1e-4f);
+    /* POS_Z = (cos(0) * 2.2 + 0)  + (cos(π/2) * 2.0) ≈ 2.2 + 0 = 2.2. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 2.2f) < 1e-4f);
+    return 0;
+}
+
+int test_records_b_tick_t14_type_58_does_not_apply_radial_shift(void)
+{
+    /* Type 0x58 must NOT use ROT_SCR.  Set ROT_SCR to a big value;
+     * POS_X should match the base anchor only. */
+    reset_world();
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR, 99.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    /* sin(0)*2.2 + 0 = 0 (no ROT_SCR contribution). */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 0.0f) < 1e-4f);
+    return 0;
+}
+
+int test_records_b_tick_t14_compass_0_shifts_x_by_0_7(void)
+{
+    /* owner+0x948 = 0 → POS_X += 0.7. */
+    reset_world();
+    stage_type_58_66_owner(10.0f, 0, 0);
+    owner_a_blob_set_i(0x948, 0);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    /* base POS_X = 10 + 0.7 = 10.7. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 10.7f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t14_compass_4_shifts_x_by_0_7(void)
+{
+    reset_world();
+    stage_type_58_66_owner(10.0f, 0, 0);
+    owner_a_blob_set_i(0x948, 4);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 10.7f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t14_compass_2_shifts_z_by_0_3(void)
+{
+    reset_world();
+    stage_type_58_66_owner(0, 0, 30.0f);
+    owner_a_blob_set_i(0x948, 2);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    /* base POS_Z = cos(0)*2.2 + 30 = 32.2; +0.3 = 32.5. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 32.5f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t14_compass_6_shifts_z_by_0_3(void)
+{
+    reset_world();
+    stage_type_58_66_owner(0, 0, 30.0f);
+    owner_a_blob_set_i(0x948, 6);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 32.5f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t14_compass_non_matching_no_shift(void)
+{
+    /* owner+0x948 = 3 (non-matching) → no compass shift. */
+    reset_world();
+    stage_type_58_66_owner(10.0f, 0, 30.0f);
+    owner_a_blob_set_i(0x948, 3);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_Z, 0.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    /* POS_X = 0*2.2 + 10 = 10 (no +0.7).  POS_Z = 1*2.2 + 30 = 32.2 (no +0.3). */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 10.0f)  < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 32.2f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t14_writes_alt_pos_from_owner(void)
+{
+    /* ALT_POS = (owner.x, owner.y + 1.0, owner.z). */
+    reset_world();
+    stage_type_58_66_owner(7.0f, 8.0f, 9.0f);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.5f);  /* nonzero — must not affect ALT_POS */
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_X) - 7.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y) - 9.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Z) - 9.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t14_sm_loop_fires_in_age_window(void)
+{
+    /* AGE post-preamble = 6,7,8,9 → 5-iter SM loop (breaks early if
+     * hook returns 0; capture_state_machine doesn't break — it's void).
+     * state_machine_call_ret returns 1 when a hook is installed, so the
+     * loop runs all 5 iterations. */
+    reset_world();
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    s_sm_calls = 0;
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/5);  /* post=6 */
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 5);
+    return 0;
+}
+
+int test_records_b_tick_t14_sm_loop_skipped_outside_window(void)
+{
+    /* AGE post-preamble = 5 (below window) → no SM loop. */
+    reset_world();
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    s_sm_calls = 0;
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/4);  /* post=5 */
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_t14_sm_loop_no_hook_runs_zero_iters(void)
+{
+    /* With no SM hook installed, state_machine_call_ret returns 0 on the
+     * first iteration → loop breaks immediately. */
+    reset_world();
+    /* No SM hook installed (reset_world clears it). */
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/5);  /* post=6, in window */
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    /* Slot stays alive — nothing kills it. */
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x58);
+    return 0;
+}
+
+int test_records_b_tick_t14_owner_cf8_nonzero_kills(void)
+{
+    reset_world();
+    stage_type_58_66_owner(0, 0, 0);
+    owner_a_blob_set_i(0xcf8, 1);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t14_kill_on_age_0xe(void)
+{
+    /* AGE = 13 pre-preamble → post = 0xe (14) → kill. */
+    reset_world();
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/13);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t14_kill_does_not_fire_below_0xe(void)
+{
+    reset_world();
+    stage_type_58_66_owner(0, 0, 0);
+    stage_live(0, 0x58, 0, 0, 0, 0, 0, 0, /*age=*/12);  /* post=13 */
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x58);
+    return 0;
+}
