@@ -21,9 +21,10 @@
  * Per-type cluster ladder:
  *
  *   C8j-tick.1  skeleton + dispatch table
- *   C8j-tick.2  0x1e/0x2f/0x88/0x9a + 0x89/0x9e   ← THIS CHIP
- *   C8j-tick.3  mid-cascade (0x9c/0x34/0x69/0x74/0x79/0x68) [TODO]
- *   C8j-tick.4..13  remaining clusters per the survey
+ *   C8j-tick.2  0x1e/0x2f/0x88/0x9a + 0x89/0x9e
+ *   C8j-tick.3  mid-cascade (0x9c/0x34/0x69/0x74/0x79/0x68)
+ *   C8j-tick.4  Body 1 (2/3/4/0x22/0x54/0x67/0x6d/0x6e/0x6f/0x70) ← THIS CHIP
+ *   C8j-tick.5..13  remaining clusters per the survey
  *
  * Slot dead sentinel: `slot[0] == 0`.
  */
@@ -38,7 +39,8 @@
 #include "scene1_records.h"
 #include "scene1_records_b_spawn.h"
 
-int32_t g_scene1_records_b_tick_flag;  /* engine DAT_06a46f98 */
+int32_t g_scene1_records_b_tick_flag;        /* engine DAT_06a46f98 */
+int32_t g_scene1_records_b_tick_anim_drive;  /* engine DAT_06a46f94 */
 
 /* ─── hooks ──────────────────────────────────────────────────────────── */
 
@@ -88,6 +90,22 @@ static inline void se_play(uint16_t id)
 static inline void state_machine_call(int32_t *slot)
 {
     if (g_state_machine_hook) g_state_machine_hook(slot);
+}
+
+/* C8j-tick.4 helper — returns 1 when a hook is installed (engine's "state
+ * machine ran, continue iter loop") and 0 when no hook is installed
+ * ("state machine reported no progress; break").  The void hook signature
+ * doesn't expose engine's int return value, so this is the closest we
+ * can model: HOOK installed → loop runs all 5 iters; NULL → loop runs 0
+ * iters.  Tests of the type-4 anim-drive special case install a hook
+ * that writes g_scene1_records_b_tick_anim_drive to exercise the branch. */
+static inline int state_machine_call_ret(int32_t *slot)
+{
+    if (g_state_machine_hook) {
+        g_state_machine_hook(slot);
+        return 1;
+    }
+    return 0;
 }
 
 /* Default cull-query returns -1 ("visible") so the state machine fires
@@ -943,6 +961,162 @@ static void body_0x69(int i)
     }
 }
 
+/* ─── C8j-tick.4 — Body 1 (L689-L812) ────────────────────────────────── */
+
+/* Per-type DRAG (engine FUN_0043ae20 L36497..L36514 / asm 0x43c117..0x43c165).
+ * Values confirmed via tools/analyze/pe.py read of .rdata constants
+ * (0x519314 / 0x519c24 / 0x519a20 / 0x5198d0 / 0x5198e0). */
+static float body1_drag_for(int32_t type)
+{
+    switch (type) {
+    case 2:
+    case 0x54: return 2.0f;
+    case 0x67: return 5.5f;
+    case 0x22: return 3.5f;
+    case 0x6d:
+    case 0x6e:
+    case 0x6f:
+    case 0x70: return 2.5f;
+    case 3:
+    case 4:
+    default:   return 1.5f;
+    }
+}
+
+/* Engine L36500-L36605 / asm 0x43c117..0x43c491 — Body 1 (kill-on-ground +
+ * bounce-particle pose helper).  Handles types {2, 3, 4, 0x22, 0x54, 0x67,
+ * 0x6d, 0x6e, 0x6f, 0x70}.
+ *
+ *   slot[DRAG]   = per-type-table-driven value (see body1_drag_for)
+ *
+ *   if slot[FLAG_B] < 0:
+ *     per_scale = (float)(int)slot[PART_IDX] * -0.4
+ *     sa = sinf(ROT_X)
+ *     ca = cosf(ROT_X)
+ *     pos.{x,y,z} = owner_a[+0x20..+0x28] + (sa, 1.0, ca)
+ *     ALT_POS.{x,y,z} = owner_a[+0x20..+0x28] + (per_scale*sa, 1.0, per_scale*ca)
+ *     if type in {0x6d, 0x6e, 0x6f, 0x70}: pos.y += 1.0
+ *   else (FLAG_B >= 0):
+ *     joint_base = owner_a + slot[FLAG_B]*0x44 + 0x9e0
+ *     pos.{x,y,z} = joint_base.{x,y,z} + (sin(ROT_X), 1.0, cos(ROT_X))
+ *     ALT_POS = direct-copy joint_base.{x,y,z} + (0, 1.0, 0)
+ *       (engine calls sinf/cosf for ALT_POS writes but DISCARDS the
+ *        result via `fstp st(0)` at 0x43c214/0x43c256 — pure-FPU-state
+ *        noop; we elide the calls since float math is observable-equiv)
+ *
+ *   if type == 0x67:
+ *     ang_h = (float)(int)slot[AGE] * 0.5
+ *     scene1_overlay_spawn(owner_a,
+ *       sin(ang_h)*4 + pos.x, pos.y, cos(ang_h)*4 + pos.z,
+ *       0xd, 1.0f, -1, 0, 0, 0)
+ *
+ *   if slot[PART_IDX] == 0 && 5 < slot[AGE] < 10:
+ *     for n in [0..5):
+ *       g_scene1_records_b_tick_anim_drive = 0
+ *       ret = state_machine(slot)             ; 0/1 return contract
+ *       if ret == 0: break
+ *       if ret == 1 && type == 4 && anim_drive > 0:
+ *         anim_drive /= 10            ; floor 1
+ *         owner_a+0xe30 = anim_drive
+ *         owner_a+0xe38 = 0x1e
+ *
+ *   kill if owner_a+0xcf8 != 0
+ *   kill if AGE == 0x14
+ */
+static void body_kill_bounce(int i, int32_t type)
+{
+    void *owner_a = slot_owner_a(i);
+    if (!owner_a) return;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, body1_drag_for(type));
+
+    int32_t flag_b = slot_get_i(i, SCENE1_RECORDS_B_OFF_FLAG_B);
+    float   rotx   = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    float   sa     = sinf(rotx);
+    float   ca     = cosf(rotx);
+
+    if (flag_b < 0) {
+        /* Simple branch: pose anchored at owner+0x20. */
+        int   part_idx  = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+        float per_scale = (float)part_idx * -0.4f;
+
+        float ox = owner_read_f(owner_a, 0x20);
+        float oy = owner_read_f(owner_a, 0x24);
+        float oz = owner_read_f(owner_a, 0x28);
+
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa + ox);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca + oz);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, per_scale * sa + ox);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, oy + 1.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, per_scale * ca + oz);
+
+        if (type == 0x6d || type == 0x6e || type == 0x6f || type == 0x70) {
+            float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py + 1.0f);
+        }
+    } else {
+        /* Joint branch: pose at owner + FLAG_B*0x44 + 0x9e0. */
+        int joint_base = flag_b * 0x44 + 0x9e0;
+        float jx = owner_read_f(owner_a, joint_base + 0);
+        float jy = owner_read_f(owner_a, joint_base + 4);
+        float jz = owner_read_f(owner_a, joint_base + 8);
+
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa + jx);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, jy + 1.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca + jz);
+        /* ALT_POS direct-copy from joint base (+1 on y).  Engine calls
+         * sinf/cosf and discards — preserved as a comment, no actual
+         * RNG-affecting side effect. */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, jx);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, jy + 1.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, jz);
+    }
+
+    /* Type 0x67 spawn — circling-around-pos overlay every tick. */
+    if (type == 0x67) {
+        int   age      = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+        float ang_h    = (float)age * 0.5f;
+        float sa_spawn = sinf(ang_h);
+        float ca_spawn = cosf(ang_h);
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        scene1_overlay_spawn(owner_a,
+                             sa_spawn * 4.0f + px,
+                             py,
+                             ca_spawn * 4.0f + pz,
+                             0xd, 1.0f, -1, 0, 0, 0);
+    }
+
+    /* PART_IDX==0 + AGE in [6, 10) → up to 5-iter state_machine loop with
+     * the type-4 anim-drive special case (engine asm 0x43c406..0x43c473). */
+    int part_idx = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+    int age      = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (part_idx == 0 && age > 5 && age < 10) {
+        for (int n = 0; n < 5; n++) {
+            g_scene1_records_b_tick_anim_drive = 0;
+            int ret = state_machine_call_ret(slot_base(i));
+            if (ret == 0) break;
+            if (ret == 1 && type == 4 && g_scene1_records_b_tick_anim_drive > 0) {
+                int v = g_scene1_records_b_tick_anim_drive / 10;
+                if (v < 1) v = 1;
+                g_scene1_records_b_tick_anim_drive = v;
+                owner_write_i(owner_a, 0xe30, v);
+                owner_write_i(owner_a, 0xe38, 0x1e);
+            }
+        }
+    }
+
+    if (owner_read_i(owner_a, 0xcf8) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+    if (age == 0x14) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -955,7 +1129,11 @@ static void dispatch_default(int slot_idx, int32_t type)
      * C8j-tick.3 — mid-cascade.  Types 0x9c (NPC shoulder-arc), 0x34
      * (NPC joint-target lerp), 0x68 (three-phase NPC spawn cycle), 0x74
      * + 0x79 (shared entity ground-cull walker), 0x69 (entity self-spawn
-     * then die). */
+     * then die).
+     *
+     * C8j-tick.4 — Body 1 (L689-L812).  Types {2, 3, 4, 0x22, 0x54, 0x67,
+     * 0x6d, 0x6e, 0x6f, 0x70} — kill-on-ground + bounce particles with
+     * owner_a anchored pose + per-type DRAG + state-machine loop. */
     switch (type) {
     case 0x2f:
     case 0x88:
@@ -985,8 +1163,20 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x69:
         body_0x69(slot_idx);
         break;
+    case 2:
+    case 3:
+    case 4:
+    case 0x22:
+    case 0x54:
+    case 0x67:
+    case 0x6d:
+    case 0x6e:
+    case 0x6f:
+    case 0x70:
+        body_kill_bounce(slot_idx, type);
+        break;
     default:
-        /* C8j-tick.4..13 fill in additional cases here. */
+        /* C8j-tick.5..13 fill in additional cases here. */
         break;
     }
 }

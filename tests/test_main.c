@@ -1572,6 +1572,29 @@ struct test_case {
     X(records_b_tick_type_69_no_op_when_age_mismatch) \
     X(records_b_tick_cull_query_hook_setter_round_trips) \
     \
+    X(records_b_tick_type_2_drag_2) \
+    X(records_b_tick_type_54_drag_2) \
+    X(records_b_tick_type_67_drag_5_5) \
+    X(records_b_tick_type_22_drag_3_5) \
+    X(records_b_tick_type_6e_drag_2_5) \
+    X(records_b_tick_type_3_drag_1_5) \
+    X(records_b_tick_type_4_drag_1_5) \
+    X(records_b_tick_body1_flagb_neg_writes_simple_pose) \
+    X(records_b_tick_body1_type_6d_lifts_pos_y_by_1) \
+    X(records_b_tick_body1_type_2_no_pos_y_lift) \
+    X(records_b_tick_body1_flagb_pos_joint_table) \
+    X(records_b_tick_body1_type_6d_no_lift_in_joint_branch) \
+    X(records_b_tick_body1_type_67_runs_full_pose) \
+    X(records_b_tick_body1_state_machine_loop_5_iters) \
+    X(records_b_tick_body1_state_machine_loop_outside_window) \
+    X(records_b_tick_body1_state_machine_loop_part_idx_nonzero) \
+    X(records_b_tick_body1_state_machine_loop_null_hook_runs_zero) \
+    X(records_b_tick_body1_type_4_anim_drive_writes_owner) \
+    X(records_b_tick_body1_anim_drive_floor_at_1) \
+    X(records_b_tick_body1_type_2_no_anim_drive_branch) \
+    X(records_b_tick_body1_kill_at_age_0x14) \
+    X(records_b_tick_body1_kill_on_owner_cf8) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

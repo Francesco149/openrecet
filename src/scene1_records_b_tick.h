@@ -33,6 +33,36 @@
  *     pos += vel BEFORE state_machine).  Kills on owner+0x428 != 1 OR
  *     age == 0xaf.
  *
+ * C8j-tick.4 (2026-05-25) adds Body 1 (L689-L812) — kill-on-ground +
+ * overlay-spawn cluster covering 10 types {2, 3, 4, 0x22, 0x54, 0x67,
+ * 0x6d, 0x6e, 0x6f, 0x70}.  All bodies share:
+ *
+ *   - DRAG load per type (2.0 / 1.5 / 3.5 / 5.5 / 2.5).
+ *   - Two-way pose dispatch on slot[FLAG_B] sign:
+ *       FLAG_B <  0: pose = owner_a[+0x20..+0x28] + (sin(ROT_X), 1, cos(ROT_X));
+ *                    ALT_POS = owner+0x20 + per_part_scale*(sin/cos, 0, cos)
+ *                    where per_part_scale = (float)slot[PART_IDX] * -0.4.
+ *                    Types 0x6d/0x6e/0x6f/0x70 additionally lift POS_Y by 1.
+ *       FLAG_B >= 0: joint table at owner_a + FLAG_B*0x44 + 0x9e0; pose
+ *                    same shape (joint.x+sin, joint.y+1, joint.z+cos);
+ *                    ALT_POS is a DIRECT COPY of joint base + (0,1,0).
+ *                    Engine still calls sinf/cosf in this branch but
+ *                    DISCARDS the results (asm 0x43c214/0x43c256 fstp st0).
+ *   - Type 0x67 only: spawn overlay 0xd at offset (sin(age*0.5)*4 + pos.x,
+ *                     pos.y, cos(age*0.5)*4 + pos.z), scale 1.0, dur -1.
+ *   - PART_IDX == 0 && AGE in [6, 10): up to 5 state_machine calls
+ *     (engine FUN_0043865e); breaks early when state_machine reports 0
+ *     ("no progress").  Per-iter reset of g_scene1_records_b_tick_anim_drive
+ *     (DAT_06a46f94) BEFORE the call, and read AFTER.  When type==4 AND
+ *     state_machine returned 1 AND anim_drive > 0: scale by /10 (floor 1),
+ *     write to owner_a+0xe30 + owner_a+0xe38 = 0x1e.
+ *   - Kill on owner_a+0xcf8 != 0 OR AGE == 0x14.
+ *
+ * Body 1 uses OWNER_A (entity-allocator side); per-type allocators in
+ * the C8j ladder populate FLAG_B and OWNER_A.  In HOUSE, the FLAG_B=-1
+ * branch fires from `--force-b-entity <type>` smoke since allocator sets
+ * FLAG_B = -1 (engine "owner+0x20 pos source").
+ *
  * C8j-tick.3 (2026-05-25) adds bodies for the mid-cascade (L408-L649):
  *
  *   - 0x9c — NPC shoulder-arc bend.  Per-tick reads slot[ROT_X] as the
@@ -131,6 +161,15 @@ extern "C" {
  * may set it from within per-type bodies to short-circuit retries.
  * PHC #21 — exact semantics unknown until first reader-body lands. */
 extern int32_t g_scene1_records_b_tick_flag;
+
+/* Engine DAT_06a46f94 — cleared by the C8j-tick.4 body before each
+ * state-machine call in the type {2/3/4/0x22/0x54/0x67/0x6d..0x70} loop;
+ * the state machine is expected to set this on relevant ticks.  When the
+ * post-call value is positive AND type == 4, the body scales it down
+ * (/10, min 1) and writes it to owner_a+0xe30/+0xe38 as an anim-drive
+ * frame counter.  Tests with a custom state_machine hook can write this
+ * global to exercise the type-4 special case. */
+extern int32_t g_scene1_records_b_tick_anim_drive;
 
 /* Hook signatures. */
 typedef void (*scene1_b_per_type_body_fn)(int slot_idx, int32_t type);
