@@ -35,9 +35,22 @@
  *                                          FUN_004319d6 cooldown lookup
  *                                          → kill_age write to NPC +0x734,
  *                                          DAT_0438bed8 = 4, local_8 = 0).
- *   C8jb.5b..11                          — Phase B general damage formula
- *                                          / hit registration / Phase C /
- *                                          Phase D.
+ *   C8jb.5b/5c                           — Phase B general damage formula
+ *                                          + post-damage clamps.
+ *   C8jb.6                               — Phase B hit-effect emit cluster
+ *                                          (return 1 contract).
+ *   C8jb.7 (this chip)                   — Phase C projectile-table scan
+ *                                          shell + 10-entry skip cascade +
+ *                                          shared subtype/hit-history
+ *                                          filter + 2D-XZ AABB with
+ *                                          per-projectile-type radii;
+ *                                          on-hit ring bump + state=5 +
+ *                                          slot.TYPE→sound-flag dispatch.
+ *                                          Returns 0 on hit (the C8jb.8
+ *                                          TYPE branches will land the
+ *                                          per-projectile-type effects +
+ *                                          the proper return value).
+ *   C8jb.8..11                           — Phase C TYPE branches + Phase D.
  *   C8jb.fin                             — Install as integrator default
  *                                          SM hook (int-ret plumbing).
  *
@@ -567,6 +580,122 @@ scene1_combat_set_emit_aux_42e791_hook(scene1_combat_emit_aux_42e791_fn fn);
 
 extern int32_t g_scene1_combat_emit_aux_42e791_call_count;
 
+/* ─── C8jb.7 — Phase C projectile-table scan surfaces ────────────────── */
+/*
+ * Engine projectile/aura table at DAT_0695f004 — 210 records, stride
+ * 0xa8 dwords (= 0x2a0 bytes).  Holds "active attack effects" emitted by
+ * NPCs (sword swings, magic projectiles, AOE hitboxes); separate from
+ * table B (allocator slots) and table C (item drops).  Engine pointer
+ * `esi` (= `piVar11` in decomp) anchors at the TYPE field (byte 0x8c
+ * into each record), with all field accesses as signed offsets from
+ * there.  Our port models the storage as a flat dword array indexed
+ * from record start (0); the TYPE field lands at dword 0x23 (= byte
+ * 0x8c) and other fields are translated to positive offsets below.
+ *
+ * No writer of this table is ported yet — production keeps it BSS-zero
+ * forever (every record TYPE == 0, AUX == 0).  The skip cascade passes
+ * BSS-zero records through to the AABB check, where BSS-zero radii
+ * (g_scene1_combat_proj_type_attrs[0] also BSS-zero) reduce the gate
+ * `dist - reach < 0` to "never true" — so production fires zero hits.
+ *
+ * Tests inject TYPE / AUX / POS / SCALE values to exercise the gate
+ * cascade.  No existing in-port code reads back from this table.
+ */
+#define SCENE1_PROJ_COUNT          210
+#define SCENE1_PROJ_STRIDE         0xa8   /* dwords (= 0x2a0 bytes) */
+
+/* Field offsets from record start (dwords).  Engine `esi+N` reads
+ * translate as record[0x23 + N]; record[0x23] IS the TYPE field. */
+#define SCENE1_PROJ_OFF_POS_X      0      /* esi-0x23, byte +0x00 */
+#define SCENE1_PROJ_OFF_POS_Y      1      /* esi-0x22, byte +0x04 */
+#define SCENE1_PROJ_OFF_POS_Z      2      /* esi-0x21, byte +0x08 */
+#define SCENE1_PROJ_OFF_STATE      9      /* esi-0x1a, byte +0x24 */
+#define SCENE1_PROJ_OFF_SCALE      0x20   /* esi-0x03, byte +0x80 */
+#define SCENE1_PROJ_OFF_TYPE       0x23   /* esi+0x00, byte +0x8c */
+#define SCENE1_PROJ_OFF_AUX        0x9a   /* esi+0x77, byte +0x268 */
+#define SCENE1_PROJ_OFF_RING       0x9c   /* esi+0x79..esi+0x82, 10 dw */
+#define SCENE1_PROJ_OFF_RING_LEN   10
+#define SCENE1_PROJ_OFF_CURSOR     0xa6   /* esi+0x83, byte +0x298 */
+
+extern int32_t g_scene1_projectiles[SCENE1_PROJ_COUNT * SCENE1_PROJ_STRIDE];
+
+/*
+ * Per-projectile-type collision radii.  Engine table at DAT_005c4c90,
+ * stride 0x24 bytes (= 9 dwords), indexed by projectile TYPE.  The SM
+ * reads `[ebx+0xc] = DAT_005c4c9c[type*0x24]` (x-radius) and
+ * `[ebx+0x10] = DAT_005c4ca0[type*0x24]` (z-radius).  Both scaled by
+ * the projectile's SCALE field (proj[-3]) before the AABB compare.
+ *
+ * No identified writer of this table in the binary; likely .rdata or
+ * VirtualAlloc'd at scene-init.  Production reads stay BSS-zero →
+ * every AABB gate fails → no hits.  Tests inject specific radii.
+ */
+typedef struct {
+    int32_t pad_0[3];    /* fields +0x00..+0x08 — not read in C8jb.7 */
+    float   x_radius;    /* +0x0c → DAT_005c4c9c[type*0x24] */
+    float   z_radius;    /* +0x10 → DAT_005c4ca0[type*0x24] */
+    int32_t pad_5[4];    /* fields +0x14..+0x20 — total 9 dwords stride */
+} scene1_combat_proj_type_attrs_t;
+
+#define SCENE1_COMBAT_PROJ_TYPE_ATTRS_COUNT 256
+extern scene1_combat_proj_type_attrs_t
+    g_scene1_combat_proj_type_attrs[SCENE1_COMBAT_PROJ_TYPE_ATTRS_COUNT];
+
+/*
+ * Phase C outer gate fires when slot[FLAG_A] is NOT in {1, 3} —
+ * i.e. slot is in "idle" (0) or "knocked-back" (2) state, susceptible
+ * to incoming hits.  Note this is the inverse-shape of Phase B's
+ * `{0, 3}` gate, so a typical slot enters EITHER Phase B (idle attacker)
+ * OR Phase C (idle target / KB recovery), not both per tick.
+ *
+ *   slot[FLAG_A] == 0  →  Phase B AND Phase C both eligible (idle).
+ *   slot[FLAG_A] == 1  →  Phase B no, Phase C no.
+ *   slot[FLAG_A] == 2  →  Phase B no, Phase C yes (KB recovery).
+ *   slot[FLAG_A] == 3  →  Phase B yes, Phase C no (hit-recovery).
+ *
+ * Phase A globals + g_scene1_combat_player_hp are not gates here.
+ */
+
+/*
+ * Total count of projectiles that passed the entire 10-entry skip
+ * cascade + the shared subtype/hit-history filter during the most
+ * recent scene1_combat_sm_tick() call.  Reset to 0 at tick top.
+ * Observable for tests that want to count "would-collide" projectiles
+ * without installing the visit hook.
+ */
+extern int32_t g_scene1_combat_phase_c_visit_count;
+
+/*
+ * Per-projectile visit hook.  Called once per projectile index `i`
+ * (0..209) that passes all skip gates + the hit-history filter.
+ * Default NULL → no callback.  Pure observer; does NOT short-circuit
+ * iteration.
+ */
+typedef void (*scene1_combat_phase_c_visit_fn)(int proj_index);
+scene1_combat_phase_c_visit_fn
+scene1_combat_set_phase_c_visit_hook(scene1_combat_phase_c_visit_fn fn);
+
+/*
+ * Total count of projectiles that passed BOTH the visit filter AND
+ * the 3-condition AABB during the most recent scene1_combat_sm_tick()
+ * call.  Reset to 0 at tick top.  C8jb.7 fires hit side effects (ring
+ * bump, state=5, sound flag) per hit and BREAKS out of the scan loop —
+ * so this counter caps at 1 per tick in production semantics.
+ */
+extern int32_t g_scene1_combat_phase_c_hit_count;
+
+/*
+ * Per-projectile hit hook.  Called once per projectile that passed
+ * the AABB check, just BEFORE the ring bump + state=5 + sound flag
+ * write.  Default NULL → no callback.  After the hook fires (and the
+ * side effects apply), C8jb.7 returns 0 from Phase C without
+ * continuing the loop; C8jb.8 will land the per-projectile-type
+ * effects + the proper return value.
+ */
+typedef void (*scene1_combat_phase_c_hit_fn)(int proj_index);
+scene1_combat_phase_c_hit_fn
+scene1_combat_set_phase_c_hit_hook(scene1_combat_phase_c_hit_fn fn);
+
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*
  * Tick the per-record state machine for one slot.
@@ -643,6 +772,28 @@ extern int32_t g_scene1_combat_emit_aux_42e791_call_count;
  *   - Sets npc.npc_postdmg_ab4 = 1.0.
  *   - Returns 1 immediately on first emit.  Subsequent NPCs / sub-iters
  *     in the same tick are NOT processed.
+ *
+ * Additional C8jb.7 side effects (when Phase B returns 0 — i.e. no Phase
+ * B hit fired this tick — AND slot[FLAG_A] is NOT in {1, 3}):
+ *   - Iterates g_scene1_projectiles (210 records).  Per projectile, runs
+ *     the 10-entry skip cascade + the shared subtype/hit-history filter
+ *     (proj.RING[0..9] vs slot.SEQ_ID).
+ *   - Increments g_scene1_combat_phase_c_visit_count per projectile that
+ *     passes the cascade + filter.
+ *   - Runs a 3-condition 2D-XZ AABB against per-projectile-type radii
+ *     (g_scene1_combat_proj_type_attrs[proj.TYPE].x_radius / .z_radius,
+ *     each scaled by proj.SCALE).
+ *   - On AABB pass: increments g_scene1_combat_phase_c_hit_count; calls
+ *     the hit hook (if installed); writes proj.RING[cursor] = slot.SEQ_ID
+ *     + bumps cursor (mod 10); writes proj.STATE = 5; ORs bit 1 (= 2)
+ *     into g_scene1_combat_dat_056da1b8 if slot.TYPE in {2, 0x54, 0x6d,
+ *     0x6f, 0x70}.  Then BREAKS out of the scan loop (the C8jb.8 TYPE
+ *     branches will land the per-projectile-type effects + the proper
+ *     return value).
+ *   - Still returns 0 from the SM in C8jb.7 — Phase C does NOT raise the
+ *     SM return value to 1 in this chip.  This is a deliberate stand-in:
+ *     C8jb.8 will replace the post-hit return with the engine's
+ *     TYPE-dispatched ret-1 paths.
  */
 int scene1_combat_sm_tick(int32_t *slot);
 

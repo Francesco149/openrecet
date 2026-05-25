@@ -2652,7 +2652,47 @@ struct test_case {
     X(combat_sm_phase_b_emit_aux_42e791_skipped_when_gate_closed) \
     X(combat_sm_phase_b_emit_aux_42e791_skipped_for_type_53) \
     X(combat_sm_phase_b_emit_writes_postdmg_ab4_to_one) \
-    X(combat_sm_phase_b_emit_spawn_pose_midpoint)
+    X(combat_sm_phase_b_emit_spawn_pose_midpoint) \
+    \
+    X(combat_sm_phase_c_skipped_when_state_is_1) \
+    X(combat_sm_phase_c_skipped_when_state_is_3) \
+    X(combat_sm_phase_c_runs_when_state_is_0) \
+    X(combat_sm_phase_c_runs_when_state_is_2) \
+    X(combat_sm_phase_c_skips_type_minus_one) \
+    X(combat_sm_phase_c_skips_disqualifying_types) \
+    X(combat_sm_phase_c_skips_aux_three) \
+    X(combat_sm_phase_c_skips_aux_seven) \
+    X(combat_sm_phase_c_skips_aux_nonzero_other_than_three_seven) \
+    X(combat_sm_phase_c_admits_aux_zero) \
+    X(combat_sm_phase_c_skips_when_seq_id_in_ring) \
+    X(combat_sm_phase_c_skips_match_at_each_ring_slot) \
+    X(combat_sm_phase_c_admits_when_seq_id_absent) \
+    X(combat_sm_phase_c_visit_count_zero_with_sentinel_table) \
+    X(combat_sm_phase_c_visit_hook_called_in_index_order) \
+    X(combat_sm_phase_c_hits_when_aabb_passes) \
+    X(combat_sm_phase_c_misses_when_dist_too_far) \
+    X(combat_sm_phase_c_misses_when_dy_too_high) \
+    X(combat_sm_phase_c_misses_when_dy_too_low) \
+    X(combat_sm_phase_c_dy_dz_jitter) \
+    X(combat_sm_phase_c_proj_scale_scales_radii) \
+    X(combat_sm_phase_c_per_type_radii_used) \
+    X(combat_sm_phase_c_on_hit_ring_bump) \
+    X(combat_sm_phase_c_on_hit_cursor_wraps) \
+    X(combat_sm_phase_c_on_hit_state_set_to_five) \
+    X(combat_sm_phase_c_on_hit_sound_flag_for_type_2) \
+    X(combat_sm_phase_c_on_hit_sound_flag_for_sound_eligible_types) \
+    X(combat_sm_phase_c_on_hit_no_sound_flag_for_other_types) \
+    X(combat_sm_phase_c_on_hit_or_preserves_existing_bits) \
+    X(combat_sm_phase_c_breaks_on_first_hit) \
+    X(combat_sm_phase_c_hit_hook_fires_with_index) \
+    X(combat_sm_phase_c_skipped_when_phase_b_fired) \
+    X(combat_sm_phase_c_runs_when_phase_b_returns_zero) \
+    X(combat_sm_phase_c_skipped_when_phase_a_gates) \
+    X(combat_sm_phase_c_counters_reset_between_ticks) \
+    X(combat_sm_phase_c_counters_reset_on_phase_a_short_circuit) \
+    X(combat_sm_phase_c_visit_hook_install_returns_previous) \
+    X(combat_sm_phase_c_hit_hook_install_returns_previous) \
+    X(combat_sm_phase_c_hooks_nullable)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

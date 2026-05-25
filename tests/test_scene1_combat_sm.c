@@ -4271,3 +4271,762 @@ int test_combat_sm_phase_b_emit_spawn_pose_midpoint(void)
     T_ASSERT_EQ_I(g_emit_spawn_records[0].param7, 1);
     return 0;
 }
+
+/* ─── C8jb.7 — Phase C projectile-table scan ─────────────────────────── */
+
+static int g_phase_c_visit_indices[SCENE1_PROJ_COUNT];
+static int g_phase_c_visit_count;
+
+static int g_phase_c_hit_indices[SCENE1_PROJ_COUNT];
+static int g_phase_c_hit_call_count;
+
+static void capture_phase_c_visit_hook(int proj_index)
+{
+    if (g_phase_c_visit_count < SCENE1_PROJ_COUNT) {
+        g_phase_c_visit_indices[g_phase_c_visit_count++] = proj_index;
+    }
+}
+
+static void capture_phase_c_hit_hook(int proj_index)
+{
+    if (g_phase_c_hit_call_count < SCENE1_PROJ_COUNT) {
+        g_phase_c_hit_indices[g_phase_c_hit_call_count++] = proj_index;
+    }
+}
+
+static void reset_combat_7_capture(void)
+{
+    /* Zero, then sentinel-fill TYPE=-1.  Engine relies on an (unported)
+     * init routine to seed the projectile table this way; without the
+     * sentinel, BSS-zero records pass the 10-entry skip cascade (TYPE=0
+     * and AUX=0 are NOT in the disqualifying set) and would all fire
+     * AABB hits whenever the slot is at origin.  Sentinel-filling here
+     * isolates each test to the projectiles it explicitly configures. */
+    memset(g_scene1_projectiles, 0, sizeof g_scene1_projectiles);
+    for (int i = 0; i < SCENE1_PROJ_COUNT; i++) {
+        g_scene1_projectiles[i * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_TYPE] = -1;
+    }
+    memset(g_scene1_combat_proj_type_attrs, 0,
+           sizeof g_scene1_combat_proj_type_attrs);
+    g_scene1_combat_phase_c_visit_count = 0;
+    g_scene1_combat_phase_c_hit_count   = 0;
+    g_phase_c_visit_count = 0;
+    g_phase_c_hit_call_count = 0;
+    memset(g_phase_c_visit_indices, 0, sizeof g_phase_c_visit_indices);
+    memset(g_phase_c_hit_indices,   0, sizeof g_phase_c_hit_indices);
+    scene1_combat_set_phase_c_visit_hook(NULL);
+    scene1_combat_set_phase_c_hit_hook(NULL);
+}
+
+/* Set the per-projectile-type radii at index `type`. */
+static void install_proj_radii(int type, float x_radius, float z_radius)
+{
+    g_scene1_combat_proj_type_attrs[type].x_radius = x_radius;
+    g_scene1_combat_proj_type_attrs[type].z_radius = z_radius;
+}
+
+/* Configure projectile `idx` with TYPE/AUX/POS/SCALE.  Other fields stay
+ * BSS-zero. */
+static int32_t *setup_proj(int idx, int32_t type, int32_t aux,
+                           float x, float y, float z, float scale)
+{
+    int32_t *proj = &g_scene1_projectiles[idx * SCENE1_PROJ_STRIDE];
+    proj[SCENE1_PROJ_OFF_TYPE]  = type;
+    proj[SCENE1_PROJ_OFF_AUX]   = aux;
+    *(float *)&proj[SCENE1_PROJ_OFF_POS_X] = x;
+    *(float *)&proj[SCENE1_PROJ_OFF_POS_Y] = y;
+    *(float *)&proj[SCENE1_PROJ_OFF_POS_Z] = z;
+    *(float *)&proj[SCENE1_PROJ_OFF_SCALE] = scale;
+    return proj;
+}
+
+/* Prep a slot susceptible to incoming hits (FLAG_A == 0) at the origin,
+ * with a known SEQ_ID and reach.  Caller can mutate. */
+static int32_t *target_slot_at(int32_t seq_id, float px, float py, float pz,
+                               float reach)
+{
+    int32_t *slot = some_slot();
+    memset(slot, 0, SCENE1_RECORDS_B_STRIDE * sizeof(int32_t));
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10; /* arbitrary non-sound-eligible */
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;    /* idle target */
+    slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = seq_id;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_POS_X] = px;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_POS_Y] = py;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_POS_Z] = pz;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_DRAG]  = reach;
+    return slot;
+}
+
+/* ─── Phase C outer gate ─────────────────────────────────────────────── */
+
+int test_combat_sm_phase_c_skipped_when_state_is_1(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_skipped_when_state_is_3(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 3;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_runs_when_state_is_0(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+
+    /* Phase C runs and fires a hit (visit + hit counters go to 1). */
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
+    return 0;
+}
+
+int test_combat_sm_phase_c_runs_when_state_is_2(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 2;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
+    return 0;
+}
+
+/* ─── Phase C skip cascade (TYPE + AUX) ──────────────────────────────── */
+
+int test_combat_sm_phase_c_skips_type_minus_one(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    setup_proj(0, -1, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+    install_proj_radii(0, 1000.0f, 1000.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_skips_disqualifying_types(void)
+{
+    static const int32_t skip_types[] = {
+        0x16, 0x1e, 9, 0xa, 0x12, 0x13, 0xc, 0xd, 0xb, 8
+    };
+    for (size_t k = 0; k < sizeof skip_types / sizeof skip_types[0]; k++) {
+        reset_combat_state();
+        reset_combat_7_capture();
+        setup_proj(0, skip_types[k], 0, 0.0f, 0.0f, 0.0f, 1.0f);
+        install_proj_radii(skip_types[k], 1000.0f, 1000.0f);
+        int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+        T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c_skips_aux_three(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    setup_proj(0, 5, 3, 0.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_skips_aux_seven(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    setup_proj(0, 5, 7, 0.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_skips_aux_nonzero_other_than_three_seven(void)
+{
+    /* Engine final gate: proj_aux must be == 0.  Values like 1, 2, 4, 5,
+     * 6, 8 also skip even though they're not in the explicit 3/7 list. */
+    static const int32_t aux_vals[] = {1, 2, 4, 5, 6, 8, 0x80, -1};
+    for (size_t k = 0; k < sizeof aux_vals / sizeof aux_vals[0]; k++) {
+        reset_combat_state();
+        reset_combat_7_capture();
+        install_proj_radii(5, 1000.0f, 1000.0f);
+        setup_proj(0, 5, aux_vals[k], 0.0f, 0.0f, 0.0f, 1.0f);
+        int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+        T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c_admits_aux_zero(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
+    return 0;
+}
+
+/* ─── Phase C subtype/hit-history filter ──────────────────────────────── */
+
+int test_combat_sm_phase_c_skips_when_seq_id_in_ring(void)
+{
+    /* slot.SEQ_ID matches an entry in proj.RING — skip without visit. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    int32_t *proj = setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+    proj[SCENE1_PROJ_OFF_RING + 3] = 0x1234;
+    int32_t *slot = target_slot_at(0x1234, 0, 0, 0, 1.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_skips_match_at_each_ring_slot(void)
+{
+    /* Match at any of the 10 ring slots should skip. */
+    for (int idx = 0; idx < 10; idx++) {
+        reset_combat_state();
+        reset_combat_7_capture();
+        install_proj_radii(5, 1000.0f, 1000.0f);
+        int32_t *proj = setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+        proj[SCENE1_PROJ_OFF_RING + idx] = 0xDEAD0000 + idx;
+        int32_t *slot = target_slot_at(0xDEAD0000 + idx, 0, 0, 0, 1.0f);
+
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+        T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c_admits_when_seq_id_absent(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    int32_t *proj = setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+    for (int k = 0; k < 10; k++) proj[SCENE1_PROJ_OFF_RING + k] = 0x9000 + k;
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
+    return 0;
+}
+
+/* ─── Phase C iteration order + counter ──────────────────────────────── */
+
+int test_combat_sm_phase_c_visit_count_zero_with_sentinel_table(void)
+{
+    /* Sentinel-init projectile table (TYPE=-1) + BSS-zero radii: every
+     * record is caught by the cascade's first gate (TYPE==-1 skip) and
+     * none reach the AABB.  This matches the engine's expected production
+     * state after the (unported) init routine seeds the table. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    int32_t *slot = target_slot_at(0x1111, 100.0f, 0, 100.0f, 0.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_visit_hook_called_in_index_order(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    /* Live records at indices 5, 7, 12; others remain sentinel (TYPE=-1).
+     * All three pass the cascade + filter; AABB miss (radii=0) so no hit
+     * fires and iteration runs to completion.  Hook receives indices in
+     * ascending order. */
+    install_proj_radii(5, 0.0f, 0.0f);
+    setup_proj(5,  5, 0, 100.0f, 0, 100.0f, 1.0f);
+    setup_proj(7,  5, 0, 100.0f, 0, 100.0f, 1.0f);
+    setup_proj(12, 5, 0, 100.0f, 0, 100.0f, 1.0f);
+    scene1_combat_set_phase_c_visit_hook(capture_phase_c_visit_hook);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_phase_c_visit_count, 3);
+    T_ASSERT_EQ_I(g_phase_c_visit_indices[0], 5);
+    T_ASSERT_EQ_I(g_phase_c_visit_indices[1], 7);
+    T_ASSERT_EQ_I(g_phase_c_visit_indices[2], 12);
+    return 0;
+}
+
+/* ─── Phase C AABB gates ──────────────────────────────────────────────── */
+
+int test_combat_sm_phase_c_hits_when_aabb_passes(void)
+{
+    /* Slot at (0,0,0) reach=0.5, projectile at (1,0,0) scale=1, type 5
+     * radii (3, 3).  dx=1, dz=0 → jitter dz to 0.01 (since not (dx==0 &&
+     * dz==0)).  Actually dx=1, dz=0 doesn't trigger jitter because the
+     * "both zero" check is AND.  dist = sqrt(1+0) = 1.  dist-reach = 0.5.
+     * x_radius = 3 * 1 = 3.  0.5 < 3 ✓.  dy = 0 < reach=0.5 ✓.
+     * z_radius = 3.  -(3+0.5) = -3.5 < 0 ✓.  HIT. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c_misses_when_dist_too_far(void)
+{
+    /* Same as above but proj at (100, 0, 0): dist=100, dist-reach=99.5,
+     * x_radius=3 → 99.5 < 3 false → miss. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    setup_proj(0, 5, 0, 100.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_misses_when_dy_too_high(void)
+{
+    /* dy = proj_y - slot_y = 1.0 - 0 = 1.0; slot_reach = 0.5.
+     * Gate `dy < slot_reach` → 1.0 < 0.5 false → miss. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    setup_proj(0, 5, 0, 1.0f, 1.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_misses_when_dy_too_low(void)
+{
+    /* dy = -10; -(z_radius + reach) = -(3+0.5) = -3.5.
+     * Gate `-(z+reach) < dy` → -3.5 < -10 false → miss. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    setup_proj(0, 5, 0, 1.0f, -10.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_dy_dz_jitter(void)
+{
+    /* slot at (5,0,5), proj at (5,0,5) → dx=0, dz=0 → jitter dz to 0.01.
+     * dist = sqrt(0 + 0.0001) ≈ 0.01.  dist - reach (0.5) = -0.49.
+     * x_radius = 3 → -0.49 < 3 ✓.  Hit. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    setup_proj(0, 5, 0, 5.0f, 0.0f, 5.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 5.0f, 0.0f, 5.0f, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c_proj_scale_scales_radii(void)
+{
+    /* type-5 x_radius = 1.0, z_radius = 1.0; proj_scale = 10 →
+     * effective radii = 10.  Slot at (0,0,0), proj at (5,0,0) reach=0.1
+     * (need >0 because gate is strict `dy < reach`).
+     * dist = 5, dist-reach=4.9, x_radius_scaled = 10 → 4.9 < 10 ✓ HIT.
+     *
+     * Same but proj_scale = 0.1 → effective radii = 0.1.  4.9 < 0.1
+     * false → miss. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1.0f, 1.0f);
+    setup_proj(0, 5, 0, 5.0f, 0.0f, 0.0f, 10.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.1f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
+
+    /* Now retest with scale=0.1. */
+    reset_combat_7_capture();
+    install_proj_radii(5, 1.0f, 1.0f);
+    setup_proj(0, 5, 0, 5.0f, 0.0f, 0.0f, 0.1f);
+    slot = target_slot_at(0x2222, 0, 0, 0, 0.1f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_per_type_radii_used(void)
+{
+    /* Two projectiles, types 5 and 7.  Type-5 radii=3, type-7 radii=0.
+     * Both at same pose → only the type-5 hits. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    install_proj_radii(7, 0.0f, 0.0f);
+    setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    setup_proj(1, 7, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* Only one hit (Phase C breaks after first); but the loop runs proj
+     * 0 first and that one passes → exactly 1 hit. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
+    return 0;
+}
+
+/* ─── Phase C on-hit side effects ─────────────────────────────────────── */
+
+int test_combat_sm_phase_c_on_hit_ring_bump(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    int32_t *proj = setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    proj[SCENE1_PROJ_OFF_CURSOR] = 0;
+    int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
+    T_ASSERT_EQ_I(proj[SCENE1_PROJ_OFF_RING + 0], 0x9999);
+    T_ASSERT_EQ_I(proj[SCENE1_PROJ_OFF_CURSOR],   1);
+    return 0;
+}
+
+int test_combat_sm_phase_c_on_hit_cursor_wraps(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    int32_t *proj = setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    proj[SCENE1_PROJ_OFF_CURSOR] = 9;  /* about to wrap */
+    int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(proj[SCENE1_PROJ_OFF_RING + 9], 0x9999);
+    T_ASSERT_EQ_I(proj[SCENE1_PROJ_OFF_CURSOR],   0);  /* wrapped */
+    return 0;
+}
+
+int test_combat_sm_phase_c_on_hit_state_set_to_five(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    int32_t *proj = setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    proj[SCENE1_PROJ_OFF_STATE] = -1;
+    int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(proj[SCENE1_PROJ_OFF_STATE], 5);
+    return 0;
+}
+
+int test_combat_sm_phase_c_on_hit_sound_flag_for_type_2(void)
+{
+    /* slot.TYPE == 2 → set bit 1 (= 2) in dat_056da1b8. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 2;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056da1b8 & 2, 2);
+    return 0;
+}
+
+int test_combat_sm_phase_c_on_hit_sound_flag_for_sound_eligible_types(void)
+{
+    static const int32_t types[] = {2, 0x54, 0x6d, 0x6f, 0x70};
+    for (size_t k = 0; k < sizeof types / sizeof types[0]; k++) {
+        reset_combat_state();
+        reset_combat_7_capture();
+        install_proj_radii(5, 3.0f, 3.0f);
+        setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+        int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = types[k];
+
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+        T_ASSERT_EQ_I(g_scene1_combat_dat_056da1b8 & 2, 2);
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c_on_hit_no_sound_flag_for_other_types(void)
+{
+    static const int32_t types[] = {1, 3, 4, 5, 0x10, 0x53, 0x6e, 0x71};
+    for (size_t k = 0; k < sizeof types / sizeof types[0]; k++) {
+        reset_combat_state();
+        reset_combat_7_capture();
+        install_proj_radii(5, 3.0f, 3.0f);
+        setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+        int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+        slot[SCENE1_RECORDS_B_OFF_TYPE] = types[k];
+
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+        T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
+        T_ASSERT_EQ_I(g_scene1_combat_dat_056da1b8 & 2, 0);
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c_on_hit_or_preserves_existing_bits(void)
+{
+    /* The OR shouldn't clear bits already set by earlier code. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    g_scene1_combat_dat_056da1b8 = 0x55;  /* bits 0,2,4,6 */
+    int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 2;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056da1b8, 0x57);  /* + bit 1 */
+    return 0;
+}
+
+/* ─── Phase C loop break + hit-once semantics ─────────────────────────── */
+
+int test_combat_sm_phase_c_breaks_on_first_hit(void)
+{
+    /* Two projectiles, both at hit-range.  Only the first should fire. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    int32_t *proj0 = setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *proj1 = setup_proj(1, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
+    T_ASSERT_EQ_I(proj0[SCENE1_PROJ_OFF_STATE], 5);
+    T_ASSERT_EQ_I(proj1[SCENE1_PROJ_OFF_STATE], 0);   /* untouched */
+    return 0;
+}
+
+int test_combat_sm_phase_c_hit_hook_fires_with_index(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    /* Records 0..3 are sentinel (TYPE=-1, skipped by cascade); record 4
+     * is the only live one + AABB-eligible.  Hook fires with index 4. */
+    setup_proj(4, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    scene1_combat_set_phase_c_hit_hook(capture_phase_c_hit_hook);
+    int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_phase_c_hit_call_count, 1);
+    T_ASSERT_EQ_I(g_phase_c_hit_indices[0], 4);
+    return 0;
+}
+
+/* ─── Phase C interaction with Phase B ────────────────────────────────── */
+
+int test_combat_sm_phase_c_skipped_when_phase_b_fired(void)
+{
+    /* When Phase B returns 1 (hit fired), Phase C should NOT run. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    reset_combat_6_capture();
+    reset_combat_7_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+
+    /* Phase B fires via arm_collision_at (helper from earlier in file). */
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    /* Also set up a Phase C hit-eligible projectile.  If Phase C ran,
+     * its visit_count would increment. */
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+
+    /* Phase B returns 1; Phase C should not have run. */
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_runs_when_phase_b_returns_zero(void)
+{
+    /* Phase B doesn't fire (player HP = 0 → outer gate fails); Phase C
+     * runs and fires a hit. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.5f);
+    g_scene1_combat_player_hp = 0.0f;  /* Phase B disabled */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_visit_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
+    return 0;
+}
+
+int test_combat_sm_phase_c_skipped_when_phase_a_gates(void)
+{
+    /* Any Phase A gate fail short-circuits before Phase C. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 1000.0f, 1000.0f);
+    setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+    g_scene1_combat_world_pause = 1;  /* Phase A short-circuits */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   0);
+    return 0;
+}
+
+/* ─── Phase C observable resets at tick top ───────────────────────────── */
+
+int test_combat_sm_phase_c_counters_reset_between_ticks(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+
+    /* Tick 1: hit fires. */
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
+
+    /* Tick 2 with the same slot.SEQ_ID: the projectile's ring now
+     * contains 0x9999, so the subtype filter skips → visit_count back
+     * to 0.  Hit_count also 0.  This proves the counters are reset
+     * at tick top. */
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   0);
+    return 0;
+}
+
+int test_combat_sm_phase_c_counters_reset_on_phase_a_short_circuit(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    g_scene1_combat_phase_c_visit_count = 99;
+    g_scene1_combat_phase_c_hit_count   = 77;
+    /* Phase A short-circuit returns 0 BEFORE the reset (engine semantics
+     * — see C8jb.5/6 prior tests for the analogous behavior on Phase B).
+     * Counters keep their pre-call value. */
+    g_scene1_combat_subphase = 1;
+    int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* Confirm Phase A short-circuit didn't reset the counters. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 99);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   77);
+    return 0;
+}
+
+/* ─── Phase C hook install/uninstall round-trip ───────────────────────── */
+
+int test_combat_sm_phase_c_visit_hook_install_returns_previous(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    scene1_combat_phase_c_visit_fn prev1 =
+        scene1_combat_set_phase_c_visit_hook(capture_phase_c_visit_hook);
+    T_ASSERT(prev1 == NULL);
+    scene1_combat_phase_c_visit_fn prev2 =
+        scene1_combat_set_phase_c_visit_hook(NULL);
+    T_ASSERT(prev2 == capture_phase_c_visit_hook);
+    return 0;
+}
+
+int test_combat_sm_phase_c_hit_hook_install_returns_previous(void)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    scene1_combat_phase_c_hit_fn prev1 =
+        scene1_combat_set_phase_c_hit_hook(capture_phase_c_hit_hook);
+    T_ASSERT(prev1 == NULL);
+    scene1_combat_phase_c_hit_fn prev2 =
+        scene1_combat_set_phase_c_hit_hook(NULL);
+    T_ASSERT(prev2 == capture_phase_c_hit_hook);
+    return 0;
+}
+
+int test_combat_sm_phase_c_hooks_nullable(void)
+{
+    /* NULL-hook path must not crash; only counters increment. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    install_proj_radii(5, 3.0f, 3.0f);
+    setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
+    scene1_combat_set_phase_c_visit_hook(NULL);
+    scene1_combat_set_phase_c_hit_hook(NULL);
+    int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
+    return 0;
+}

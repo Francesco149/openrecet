@@ -170,8 +170,17 @@ int32_t g_scene1_combat_dat_0438b908;
 int32_t g_scene1_combat_dat_06a46f94;
 int32_t g_scene1_combat_emit_aux_42e791_call_count;
 
+/* C8jb.7 Phase C surfaces. */
+int32_t g_scene1_combat_phase_c_visit_count;
+int32_t g_scene1_combat_phase_c_hit_count;
+
+int32_t g_scene1_projectiles[SCENE1_PROJ_COUNT * SCENE1_PROJ_STRIDE];
+
 scene1_combat_npc_type_attrs_t
     g_scene1_combat_npc_type_attrs[SCENE1_COMBAT_NPC_TYPE_ATTRS_COUNT];
+
+scene1_combat_proj_type_attrs_t
+    g_scene1_combat_proj_type_attrs[SCENE1_COMBAT_PROJ_TYPE_ATTRS_COUNT];
 
 static scene1_combat_phase_b_visit_fn      g_phase_b_visit_hook;
 static scene1_combat_phase_b_collision_fn  g_phase_b_collision_hook;
@@ -183,6 +192,8 @@ static scene1_combat_emit_spawn_fn         g_emit_spawn_hook;
 static scene1_combat_emit_overlay_spawn_fn g_emit_overlay_spawn_hook;
 static scene1_combat_emit_se_fn            g_emit_se_hook;
 static scene1_combat_emit_aux_42e791_fn    g_emit_aux_42e791_hook;
+static scene1_combat_phase_c_visit_fn      g_phase_c_visit_hook;
+static scene1_combat_phase_c_hit_fn        g_phase_c_hit_hook;
 
 /* Engine angle-filter threshold = 0.9424779 (≈ 0.3π).  .rdata literal
  * at 0x51940c per asm scan (verified via objdump-s).  Stored as a named
@@ -300,6 +311,24 @@ scene1_combat_set_emit_aux_42e791_hook(scene1_combat_emit_aux_42e791_fn fn)
 {
     scene1_combat_emit_aux_42e791_fn prev = g_emit_aux_42e791_hook;
     g_emit_aux_42e791_hook = fn;
+    return prev;
+}
+
+/* ─── C8jb.7 Phase C hook setters ────────────────────────────────────── */
+
+scene1_combat_phase_c_visit_fn
+scene1_combat_set_phase_c_visit_hook(scene1_combat_phase_c_visit_fn fn)
+{
+    scene1_combat_phase_c_visit_fn prev = g_phase_c_visit_hook;
+    g_phase_c_visit_hook = fn;
+    return prev;
+}
+
+scene1_combat_phase_c_hit_fn
+scene1_combat_set_phase_c_hit_hook(scene1_combat_phase_c_hit_fn fn)
+{
+    scene1_combat_phase_c_hit_fn prev = g_phase_c_hit_hook;
+    g_phase_c_hit_hook = fn;
     return prev;
 }
 
@@ -1590,6 +1619,162 @@ static int phase_b_scan(int32_t *slot)
     return 0;
 }
 
+/* ─── C8jb.7 — Phase C projectile scan ──────────────────────────────── */
+/*
+ * Engine asm 0x439f28..0x43a10b / decomp L35613-L35660.  Iterates 210
+ * projectile records at g_scene1_projectiles (stride 0xa8 dw), skipping
+ * those whose TYPE or AUX field disqualifies them and those whose
+ * recent-hit ring already contains slot.SEQ_ID.  Survivors run a 2D-XZ
+ * AABB against per-projectile-type radii scaled by proj.SCALE; on hit,
+ * the projectile's ring is bumped with slot.SEQ_ID (overwriting the
+ * oldest entry — the ring IS the subtype-filter list), its STATE is
+ * set to 5 ("active-hit"), and the mesh-emit sound bit (= 2) is OR'd
+ * into g_scene1_combat_dat_056da1b8 when slot.TYPE is in the engine's
+ * sound-eligible set.
+ *
+ * C8jb.7 stops at the on-hit side effects: it does NOT fire the
+ * TYPE-dispatched effects (hit-particles / SE / RNG cascade — that's
+ * C8jb.8) and it does NOT raise the SM return value to 1 (that's also
+ * C8jb.8, when the per-TYPE bodies pick which projectile types early-
+ * return).  The loop BREAKS after the first hit so the side effects
+ * fire at most once per tick.
+ *
+ * Production: g_scene1_projectiles is BSS-zero (no writer ported) so
+ * every record has TYPE=0 / AUX=0.  Skip cascade passes the BSS-zero
+ * records (none of the disqualifying TYPE/AUX values match 0); the
+ * subtype filter ALSO passes (slot.SEQ_ID=0 typically matches the
+ * BSS-zero ring at index 0 — and slot.SEQ_ID > 0 for live slots, so
+ * BSS-zero rings of all-0s don't match).  BUT the AABB gate fails
+ * unconditionally because BSS-zero radii reduce the first condition
+ * (`dist - reach < x_radius`) to `dist - reach < 0` — never true for
+ * a non-overlapping projectile at the BSS-zero origin.
+ *
+ * Returns 1 if a hit fired (C8jb.7 reports the hit via the observable
+ * but the SM caller doesn't see ret=1 — see scene1_combat_sm_tick).
+ * The internal return is a debug aid only; the public tick collapses
+ * Phase C's ret to 0 in C8jb.7.
+ */
+static int phase_c_scan(int32_t *slot)
+{
+    /* Phase C outer gate (engine 0x439f28):
+     *   if (slot[FLAG_A] == 1 || slot[FLAG_A] == 3) skip Phase C
+     */
+    int32_t state = slot[SCENE1_RECORDS_B_OFF_FLAG_A];
+    if (state == 1 || state == 3) return 0;
+
+    int32_t slot_seq_id = slot[SCENE1_RECORDS_B_OFF_SEQ_ID];
+    int32_t slot_type   = slot[SCENE1_RECORDS_B_OFF_TYPE];
+
+    float slot_pos_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_X];
+    float slot_pos_y = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Y];
+    float slot_pos_z = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Z];
+    float slot_reach = *(const float *)&slot[SCENE1_RECORDS_B_OFF_DRAG];
+
+    for (int i = 0; i < SCENE1_PROJ_COUNT; i++) {
+        int32_t *proj = &g_scene1_projectiles[i * SCENE1_PROJ_STRIDE];
+
+        int32_t proj_type = proj[SCENE1_PROJ_OFF_TYPE];
+        int32_t proj_aux  = proj[SCENE1_PROJ_OFF_AUX];
+
+        /* 10-entry skip cascade (engine 0x439f44..0x439fcb).  Order
+         * matches engine. */
+        if (proj_type == -1)   continue;
+        if (proj_aux  == 3)    continue;
+        if (proj_aux  == 7)    continue;
+        if (proj_type == 0x16) continue;
+        if (proj_type == 0x1e) continue;
+        if (proj_type == 9)    continue;
+        if (proj_type == 0xa)  continue;
+        if (proj_type == 0x12) continue;
+        if (proj_type == 0x13) continue;
+        if (proj_type == 0xc)  continue;
+        if (proj_type == 0xd)  continue;
+        if (proj_type == 0xb)  continue;
+        if (proj_type == 8)    continue;
+        if (proj_aux  != 0)    continue;
+
+        /* Shared subtype/hit-history filter (engine 0x439fd1..0x439fef).
+         * The 10-dword window proj.RING[0..9] doubles as the "slot SEQ_IDs
+         * that recently hit me" ring buffer.  If slot.SEQ_ID is already
+         * in the ring, skip — engine prevents the same slot from re-hitting
+         * the same projectile within 10 distinct seq_id windows. */
+        int matched = 0;
+        for (int j = 0; j < SCENE1_PROJ_OFF_RING_LEN; j++) {
+            if (proj[SCENE1_PROJ_OFF_RING + j] == slot_seq_id) {
+                matched = 1;
+                break;
+            }
+        }
+        if (matched) continue;
+
+        g_scene1_combat_phase_c_visit_count++;
+        if (g_phase_c_visit_hook != NULL) {
+            g_phase_c_visit_hook(i);
+        }
+
+        /* AABB position + scale loads (engine 0x439ff5..0x43a079). */
+        float proj_x     = *(const float *)&proj[SCENE1_PROJ_OFF_POS_X];
+        float proj_y     = *(const float *)&proj[SCENE1_PROJ_OFF_POS_Y];
+        float proj_z     = *(const float *)&proj[SCENE1_PROJ_OFF_POS_Z];
+        float proj_scale = *(const float *)&proj[SCENE1_PROJ_OFF_SCALE];
+
+        float dx = proj_x - slot_pos_x;
+        float dy = proj_y - slot_pos_y;
+        float dz = proj_z - slot_pos_z;
+        /* Engine 0x43a019..0x43a03b — (dx==0 && dz==0) → dz = 0.01.
+         * .rdata 0x5193a4 = 0.01f.  Note engine compares against 0x519320
+         * (= 0.0f) via fcomp+sahf+jne; we mirror with `== 0.0f`. */
+        if (dx == 0.0f && dz == 0.0f) dz = 0.01f;
+
+        float dist            = sqrtf(dx * dx + dz * dz);
+        float dist_minus_reach = dist - slot_reach;
+
+        /* Per-projectile-type radii (engine 0x43a067..0x43a076). */
+        const scene1_combat_proj_type_attrs_t *attrs =
+            &g_scene1_combat_proj_type_attrs[proj_type & 0xff];
+        float x_radius = attrs->x_radius * proj_scale;
+        float z_radius = attrs->z_radius * proj_scale;
+
+        /* AABB 3-condition gate (engine 0x43a079..0x43a0a3):
+         *   dist - reach < x_radius
+         *   dy           < slot_reach
+         *   -(z_radius + slot_reach) < dy
+         * Engine uses `jae 0x43a0a5` (skip) on first two, and `jb 0x43a0be`
+         * (proceed) on third — note that fcomp's reversed-operand quirk
+         * means the third is "if ST(0) < memory" = "-(z+reach) < dy". */
+        if (!(dist_minus_reach < x_radius))                 continue;
+        if (!(dy               < slot_reach))               continue;
+        if (!(-(z_radius + slot_reach) < dy))               continue;
+
+        /* HIT.  Engine 0x43a0be..0x43a10b — ring bump + state=5 +
+         * conditional sound-flag OR. */
+        g_scene1_combat_phase_c_hit_count++;
+        if (g_phase_c_hit_hook != NULL) {
+            g_phase_c_hit_hook(i);
+        }
+
+        int32_t cursor = proj[SCENE1_PROJ_OFF_CURSOR];
+        proj[SCENE1_PROJ_OFF_RING + cursor] = slot_seq_id;
+        proj[SCENE1_PROJ_OFF_CURSOR]        = (cursor + 1) % 10;
+        proj[SCENE1_PROJ_OFF_STATE]         = 5;
+
+        if (slot_type == 2    || slot_type == 0x54 ||
+            slot_type == 0x6d || slot_type == 0x6f ||
+            slot_type == 0x70) {
+            g_scene1_combat_dat_056da1b8 |= 2;
+        }
+
+        /* Engine flow at 0x43a10c falls into the C8jb.8 TYPE dispatch.
+         * Until C8jb.8 lands, break out of the loop with the on-hit side
+         * effects applied and report "hit fired" to the caller (which
+         * collapses Phase C's ret to 0 — the C8jb.8 chip will rewrite
+         * this contract). */
+        return 1;
+    }
+
+    return 0;
+}
+
 int scene1_combat_sm_tick(int32_t *slot)
 {
     /* Engine L35173-L35181 — early-exit gates.  Order matches engine. */
@@ -1620,6 +1805,10 @@ int scene1_combat_sm_tick(int32_t *slot)
     g_scene1_combat_phase_b_emit_se_id             = 0;
     g_scene1_combat_emit_aux_42e791_call_count     = 0;
 
+    /* C8jb.7 Phase C observables — reset alongside the others. */
+    g_scene1_combat_phase_c_visit_count            = 0;
+    g_scene1_combat_phase_c_hit_count              = 0;
+
     /* Phase B — attacker NPC scan + collision math + emit.  Skipped if
      * slot is NULL (Phase A tests use NULL to probe gates without
      * prepping a slot). */
@@ -1628,9 +1817,18 @@ int scene1_combat_sm_tick(int32_t *slot)
         ret = phase_b_scan(slot);
     }
 
-    /* Phases C/D stub — C8jb.6 returns the Phase B emit ret directly.
-     * 0 = no hit, 1 = hit fired (engine ret-1 path).  Ret-2 (slot self-
-     * kill) lands with Phase D in C8jb.11. */
+    /* Phase C — projectile/aura scan (C8jb.7).  Runs only when Phase B
+     * returned 0 (no Phase B hit this tick); a Phase B ret=1 already
+     * exits the SM via the engine's `return 1` paths at L35603+.
+     *
+     * C8jb.7 collapses Phase C's internal ret to 0 — the C8jb.8 chip
+     * will lift the TYPE-dispatched return values into the public SM
+     * contract.  The on-hit side effects (ring bump, state=5, sound
+     * flag, observable counters) still apply. */
+    if (ret == 0 && slot != NULL) {
+        (void)phase_c_scan(slot);
+    }
+
     return ret;
 }
 
