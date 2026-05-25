@@ -2518,7 +2518,31 @@ struct test_case {
     X(combat_sm_phase_b_visit_count_resets_on_phase_a_fall_through) \
     X(combat_sm_phase_a_gate_skips_phase_b_entirely) \
     X(combat_sm_phase_b_visit_hook_install_returns_previous) \
-    X(combat_sm_phase_b_visit_hook_nullable)
+    X(combat_sm_phase_b_visit_hook_nullable) \
+    X(combat_sm_phase_b_collision_count_zero_with_bss_zero_attrs) \
+    X(combat_sm_phase_b_default_npc_type_has_one_sub_iter) \
+    X(combat_sm_phase_b_npc_type_44_has_seven_sub_iters) \
+    X(combat_sm_phase_b_npc_type_45_has_seven_sub_iters) \
+    X(combat_sm_phase_b_npc_type_46_has_two_sub_iters) \
+    X(combat_sm_phase_b_npc_type_47_has_two_sub_iters) \
+    X(combat_sm_phase_b_default_type_uses_combat_pose) \
+    X(combat_sm_phase_b_44_45_sub_iter_0_uses_combat_pose_anchor_unused) \
+    X(combat_sm_phase_b_44_sub_iter_indices_match_rdata) \
+    X(combat_sm_phase_b_46_sub_iter_indices_match_rdata) \
+    X(combat_sm_phase_b_anchor_path_halves_reach) \
+    X(combat_sm_phase_b_distance_gate_passes_in_range) \
+    X(combat_sm_phase_b_distance_gate_fails_out_of_range) \
+    X(combat_sm_phase_b_distance_is_2d_xz) \
+    X(combat_sm_phase_b_distance_origin_jitter) \
+    X(combat_sm_phase_b_y_band_passes_within) \
+    X(combat_sm_phase_b_y_band_fails_too_high) \
+    X(combat_sm_phase_b_y_band_fails_too_low) \
+    X(combat_sm_phase_b_attrs_lookup_keyed_by_npc_type) \
+    X(combat_sm_phase_b_collision_count_resets_between_ticks) \
+    X(combat_sm_phase_b_collision_hook_install_returns_previous) \
+    X(combat_sm_phase_b_multiple_npcs_collide) \
+    X(combat_sm_phase_b_skip_gate_blocks_collision) \
+    X(combat_sm_phase_b_hit_history_blocks_collision)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

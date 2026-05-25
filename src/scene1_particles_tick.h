@@ -122,6 +122,28 @@ extern float g_scene1_camera_yaw_alt;
  *                               hit_cursor = (hit_cursor + 1) % 10`.
  *   hit_cursor         +0x7a0  ring write index, modulo 10.
  *
+ * C8jb.3 (combat SM Phase B collision math) additions:
+ *
+ *   combat_pose[3]     +0x3e4/+0x3e8/+0x3ec  primary NPC attack pose,
+ *                              distinct from `pos` at +0x00.  Combat SM
+ *                              reads engine `npc[-0x1c9..-0x1c7]`.
+ *                              Engine writers (per-frame NPC AI, not
+ *                              yet ported) keep this synced with `pos`
+ *                              for most NPCs; the duality matters when
+ *                              the AI applies an attack-pose offset.
+ *   npc_type           +0x424  NPC type ID.  Drives Phase B sub-iter
+ *                              count: 7 for 0x44/0x45 (multi-hit), 2
+ *                              for 0x46/0x47 (paired-hit), else 1.
+ *                              Also drives anchor table selection.
+ *   attack_radius      +0xabc  attack radius scalar, halved when the
+ *                              sub-iter uses an anchor pose (multi-hit
+ *                              attacks have smaller radii per hit).
+ *   anchors[8][3]      +0x6fc + iVar8*12  3-float multi-hit anchor
+ *                              poses, indexed by iVar8 (from the
+ *                              rdata DAT_005c530c / DAT_005c5314
+ *                              tables).  Generous 8-entry cap; engine
+ *                              tables index up to 7.
+ *
  * The struct's field layout no longer mirrors engine byte offsets — it's
  * a host-side decomposition.  All readers/writers go through named
  * fields, so the layout drift is invisible.
@@ -139,6 +161,10 @@ typedef struct {
     int32_t alive_alias_24;
     int32_t hit_history[10];
     int32_t hit_cursor;
+    float   combat_pose[3];
+    int32_t npc_type;
+    float   attack_radius;
+    float   anchors[8][3];
 } scene1_people_entry_t;
 
 #define SCENE1_PEOPLE_COUNT 128                /* engine cap confirmed in C8h.4a */

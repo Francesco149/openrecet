@@ -4,9 +4,13 @@
  * Scope:
  *   C8jb.1 — Phase A entry gates (4 globals) + per-tick flag.
  *   C8jb.2 — Phase B head: attacker NPC scan iteration shell + 4 skip
- *            gates + per-NPC hit-history filter.  No collision math.
+ *            gates + per-NPC hit-history filter.
+ *   C8jb.3 — Phase B collision math: nested sub-iter loop (1/7/2 by
+ *            NPC type) + pose lookup (combat_pose vs anchor) + 2D-XZ
+ *            distance + AABB Y-band.
  *
- * Phase C/D not yet ported.  All paths return 0 in C8jb.1+2.
+ * Phase B angle filter / damage roll / Phase C / Phase D not yet ported.
+ * All paths return 0 in C8jb.1..3.
  */
 
 #include "t.h"
@@ -32,6 +36,23 @@ static void capture_visit_hook(int npc_index)
     }
 }
 
+/* C8jb.3 collision-hook capture. */
+static struct {
+    int npc_index;
+    int sub_iter;
+} g_collision_hits[SCENE1_PEOPLE_COUNT * 8];
+static int g_collision_count;
+
+static void capture_collision_hook(int npc_index, int sub_iter)
+{
+    int n = sizeof g_collision_hits / sizeof g_collision_hits[0];
+    if (g_collision_count < n) {
+        g_collision_hits[g_collision_count].npc_index = npc_index;
+        g_collision_hits[g_collision_count].sub_iter  = sub_iter;
+        g_collision_count++;
+    }
+}
+
 static void reset_combat_state(void)
 {
     g_scene1_combat_subphase     = 0;
@@ -40,13 +61,19 @@ static void reset_combat_state(void)
     g_scene1_ingame_paused_flag  = 0;
     g_scene1_records_b_tick_flag = 0;
     g_scene1_combat_player_hp    = 0.0f;
-    g_scene1_combat_phase_b_visit_count = 0;
+    g_scene1_combat_phase_b_visit_count     = 0;
+    g_scene1_combat_phase_b_collision_count = 0;
     g_visit_count = 0;
-    memset(g_visit_indices, 0, sizeof g_visit_indices);
+    g_collision_count = 0;
+    memset(g_visit_indices,  0, sizeof g_visit_indices);
+    memset(g_collision_hits, 0, sizeof g_collision_hits);
     memset(g_scene1_records_b, 0, sizeof g_scene1_records_b);
     memset(g_scene1_people, 0, sizeof g_scene1_people);
+    memset(g_scene1_combat_npc_type_attrs, 0,
+           sizeof g_scene1_combat_npc_type_attrs);
     scene1_records_b_set_state_machine_hook(NULL);
     scene1_combat_set_phase_b_visit_hook(NULL);
+    scene1_combat_set_phase_b_collision_hook(NULL);
 }
 
 static int32_t *some_slot(void)
@@ -74,17 +101,43 @@ static int32_t *attacker_slot(void)
 /*
  * Configure NPC `i` as a fully alive, hittable, uncooldowned target.
  * Any field can be flipped by the caller after this baseline.
+ *
+ * combat_pose / attack_radius / anchors[][] are left zero by default.
+ * Combat tests must override these for collision math to fire.
  */
 static scene1_people_entry_t *prep_npc_alive(int i)
 {
     scene1_people_entry_t *npc = &g_scene1_people[i];
+    memset(npc, 0, sizeof *npc);
     npc->alive             = 1;
-    npc->alive_alias_24    = 0;
-    npc->sister_724        = 0;
-    npc->combat_cooldown_5 = 0;
-    npc->hit_cursor        = 0;
-    for (int k = 0; k < 10; k++) npc->hit_history[k] = 0;
     return npc;
+}
+
+/*
+ * Configure slot[0] world position + reach for collision tests.
+ * slot[FLAG_A] stays 0 so Phase B outer gate passes.
+ */
+static int32_t *attacker_slot_at(float px, float py, float pz, float reach)
+{
+    int32_t *slot = attacker_slot();
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_POS_X] = px;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_POS_Y] = py;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_POS_Z] = pz;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_DRAG]  = reach;
+    return slot;
+}
+
+/*
+ * Install permissive NPC-type collision attrs.  With these defaults
+ * (1.0 * 1.0 = 1.0 multipliers), the gates simplify to:
+ *   distance gate: `dist - slot.reach < npc.attack_radius`
+ *   y-band gate:   `|dy| < npc.attack_radius + slot.reach*0.8`
+ */
+static void install_unit_attrs(int npc_type)
+{
+    g_scene1_combat_npc_type_attrs[npc_type].radius_mul = 1.0f;
+    g_scene1_combat_npc_type_attrs[npc_type].y_band_mul = 1.0f;
+    g_scene1_combat_npc_type_attrs[npc_type].dist_mul   = 1.0f;
 }
 
 /* ─── Phase A fall-through ────────────────────────────────────────── */
@@ -776,5 +829,504 @@ int test_combat_sm_phase_b_visit_hook_nullable(void)
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_b_visit_count, 2);
     T_ASSERT_EQ_I(g_visit_count, 0);  /* no captures */
+    return 0;
+}
+
+/* ═══ C8jb.3 — Phase B collision math ══════════════════════════════════ */
+
+/* ─── BSS-zero attrs → collision math always fails (production safety) ─ */
+
+int test_combat_sm_phase_b_collision_count_zero_with_bss_zero_attrs(void)
+{
+    /* With g_scene1_combat_npc_type_attrs[type] all-zero (production
+     * default per PHC #19), the dist gate `dist - reach < 0` only
+     * passes on overlap.  NPC at distance > 0 from origin → no
+     * collisions.  Verifies the safe-default: production keeps
+     * combat dormant. */
+    reset_combat_state();
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->combat_pose[0]  = 5.0f;  /* 5 units away in x */
+    npc->combat_pose[2]  = 0.0f;
+    npc->attack_radius   = 1.0f;
+    /* attrs[0x10] stays zero → both gates use 0 thresholds */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_visit_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
+    return 0;
+}
+
+/* ─── Default sub-iter count = 1 for non-multi-hit types ───────────── */
+
+int test_combat_sm_phase_b_default_npc_type_has_one_sub_iter(void)
+{
+    /* NPC type 0x10 (not 0x44-0x47) → 1 sub-iter.  With permissive
+     * attrs + NPC right next to slot, sub-iter 0 collides → collision
+     * count == 1. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->combat_pose[0]  = 0.0f;
+    npc->combat_pose[1]  = 0.0f;
+    npc->combat_pose[2]  = 0.0f;
+    npc->attack_radius   = 2.0f;
+
+    scene1_combat_set_phase_b_collision_hook(capture_collision_hook);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_collision_count, 1);
+    T_ASSERT_EQ_I(g_collision_hits[0].npc_index, 0);
+    T_ASSERT_EQ_I(g_collision_hits[0].sub_iter,  0);
+    return 0;
+}
+
+/* ─── 0x44/0x45 = 7 sub-iters; 0x46/0x47 = 2 sub-iters ─────────────── */
+
+int test_combat_sm_phase_b_npc_type_44_has_seven_sub_iters(void)
+{
+    /* NPC type 0x44 → 7 sub-iters.  Sub-iter 0 uses combat_pose (which
+     * is overlapping slot).  Sub-iters 1-6 use anchors[0/1/2/3/6/7]
+     * (per DAT_005c5314[1..6]) — leave those at 0 (= overlapping slot)
+     * to make ALL 7 sub-iters collide. */
+    reset_combat_state();
+    install_unit_attrs(0x44);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x44;
+    npc->attack_radius   = 2.0f;
+    /* combat_pose + anchors[*] all 0 — overlap slot */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 7);
+    return 0;
+}
+
+int test_combat_sm_phase_b_npc_type_45_has_seven_sub_iters(void)
+{
+    reset_combat_state();
+    install_unit_attrs(0x45);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x45;
+    npc->attack_radius   = 2.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 7);
+    return 0;
+}
+
+int test_combat_sm_phase_b_npc_type_46_has_two_sub_iters(void)
+{
+    /* NPC type 0x46 → 2 sub-iters.  Both use anchors (DAT_005c530c[0]=1,
+     * [1]=2) — leave at 0 to overlap slot. */
+    reset_combat_state();
+    install_unit_attrs(0x46);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x46;
+    npc->attack_radius   = 2.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 2);
+    return 0;
+}
+
+int test_combat_sm_phase_b_npc_type_47_has_two_sub_iters(void)
+{
+    reset_combat_state();
+    install_unit_attrs(0x47);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x47;
+    npc->attack_radius   = 2.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 2);
+    return 0;
+}
+
+/* ─── Sub-iter 0 of non-0x44-0x47 uses combat_pose; 1+ uses anchors ─ */
+
+int test_combat_sm_phase_b_default_type_uses_combat_pose(void)
+{
+    /* NPC type 0x10 sub-iter 0 reads combat_pose.  Anchors[0] is NOT
+     * read for this type (sub-iter count = 1). */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->combat_pose[0]  = 0.0f;  /* overlap */
+    npc->attack_radius   = 2.0f;
+    /* Stash garbage in anchors[0] — must be IGNORED for default type. */
+    npc->anchors[0][0] = 999.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_b_44_45_sub_iter_0_uses_combat_pose_anchor_unused(void)
+{
+    /* NPC 0x44 sub-iter 0 reads combat_pose (not anchors[k_anchor_44_45[0]]
+     * since that's -1 = sentinel).  Sub-iters 1-6 read anchors[0/1/2/3/6/7]. */
+    reset_combat_state();
+    install_unit_attrs(0x44);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x44;
+    npc->attack_radius   = 2.0f;
+    npc->combat_pose[0]  = 0.0f;  /* overlap (sub-iter 0 hits) */
+    /* Move ALL anchor entries far away — sub-iters 1-6 should MISS. */
+    for (int k = 0; k < 8; k++) {
+        npc->anchors[k][0] = 1000.0f;
+    }
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);  /* only sub-iter 0 */
+    return 0;
+}
+
+int test_combat_sm_phase_b_44_sub_iter_indices_match_rdata(void)
+{
+    /* Sub-iters 1-6 of NPC type 0x44 read anchors[0/1/2/3/6/7]
+     * (DAT_005c5314[1..6] = {0, 1, 2, 3, 6, 7}).  Place each at origin
+     * (= overlap) and verify each sub-iter is reported. */
+    reset_combat_state();
+    install_unit_attrs(0x44);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x44;
+    npc->attack_radius   = 2.0f;
+    /* Move combat_pose far so sub-iter 0 misses. */
+    npc->combat_pose[0]  = 1000.0f;
+    /* Anchors at indices read by sub-iters 1-6: {0, 1, 2, 3, 6, 7}.
+     * All start at origin = overlap → all 6 hit. */
+    /* anchor[4] / anchor[5] are NOT read for type 0x44 — set to far. */
+    npc->anchors[4][0] = 1000.0f;
+    npc->anchors[5][0] = 1000.0f;
+
+    scene1_combat_set_phase_b_collision_hook(capture_collision_hook);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 6);
+    T_ASSERT_EQ_I(g_collision_count, 6);
+    /* Sub-iters reported in 1..6 order (engine iterates ascending). */
+    T_ASSERT_EQ_I(g_collision_hits[0].sub_iter, 1);
+    T_ASSERT_EQ_I(g_collision_hits[5].sub_iter, 6);
+    return 0;
+}
+
+int test_combat_sm_phase_b_46_sub_iter_indices_match_rdata(void)
+{
+    /* NPC 0x46 sub-iters 0/1 read anchors[1/2] (DAT_005c530c[0..1]
+     * = {1, 2}).  Anchor[0] (NOT read for this type) gets garbage. */
+    reset_combat_state();
+    install_unit_attrs(0x46);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x46;
+    npc->attack_radius   = 2.0f;
+    /* Move anchor[0] far — irrelevant for 0x46. */
+    npc->anchors[0][0] = 1000.0f;
+    /* anchor[1] + anchor[2] at origin = overlap → both hit. */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 2);
+    return 0;
+}
+
+/* ─── Reach halved when anchor used ─────────────────────────────────── */
+
+int test_combat_sm_phase_b_anchor_path_halves_reach(void)
+{
+    /* Construct an NPC where anchor distance > attack_radius * dist_mul
+     * but < attack_radius * 0.5 * dist_mul * 2 — i.e., would hit at full
+     * radius, miss at half.  Verifies the anchor-path radius scaling. */
+    reset_combat_state();
+    install_unit_attrs(0x46);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 0.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x46;
+    npc->attack_radius   = 4.0f;
+    /* Anchor 3 units away.  With unit attrs:
+     *   full-reach threshold = 4.0 (attack_radius * 1.0 * 1.0)
+     *     → 3.0 < 4.0 → would pass.
+     *   half-reach threshold = 2.0 (attack_radius * 0.5 * 1.0 * 1.0)
+     *     → 3.0 < 2.0 → FAIL.
+     * So anchor path correctly halves the radius and misses. */
+    npc->anchors[1][0] = 3.0f;
+    npc->anchors[2][0] = 3.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
+    return 0;
+}
+
+/* ─── Distance gate ─────────────────────────────────────────────────── */
+
+int test_combat_sm_phase_b_distance_gate_passes_in_range(void)
+{
+    /* dist (3.0) - slot.reach (1.0) = 2.0 < attack_radius (3.0)
+     *   * dist_mul (1.0) * radius_mul (1.0) = 3.0 → pass. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 3.0f;  /* dist = 3 */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_b_distance_gate_fails_out_of_range(void)
+{
+    /* dist (10.0) - slot.reach (1.0) = 9.0 NOT < attack_radius (3.0) * 1 * 1.
+     * Fail. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 10.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_b_distance_is_2d_xz(void)
+{
+    /* Distance is sqrt(dx² + dz²) — Y is excluded from distance.  Two
+     * NPCs at (3, 100, 0) and (3, -100, 0) both produce dist = 3.  Y is
+     * checked separately by the Y-band gate (large band ⇒ both pass). */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    /* Generous Y-band so dy=100 still passes. */
+    g_scene1_combat_npc_type_attrs[0x10].y_band_mul = 500.0f;
+
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 3.0f;
+    npc->combat_pose[1]  = 100.0f;
+    npc->combat_pose[2]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_b_distance_origin_jitter(void)
+{
+    /* Engine `if (dx == 0 && dz == 0) dz = 0.01` — when NPC + slot
+     * exactly overlap in XZ, the jitter prevents zero distance.  Test:
+     * a same-spot NPC should still collide (overlap is the most
+     * permissive case). */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(5.0f, 0, 5.0f, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 5.0f;  /* exact overlap */
+    npc->combat_pose[2]  = 5.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    return 0;
+}
+
+/* ─── AABB Y-band gate ──────────────────────────────────────────────── */
+
+int test_combat_sm_phase_b_y_band_passes_within(void)
+{
+    /* dy = 0.5, slot.reach * 0.8 = 0.8, y_band = 1.0 → |dy| < 0.8 + 1.0
+     * = 1.8 → pass. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 1.0f;
+    npc->combat_pose[1]  = 0.5f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_b_y_band_fails_too_high(void)
+{
+    /* dy = 5.0, half + band = 0.8 + 1.0 = 1.8 → 5.0 > 1.8 → fail. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 1.0f;
+    npc->combat_pose[1]  = 5.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_b_y_band_fails_too_low(void)
+{
+    /* Symmetric: dy = -5.0 also fails. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 1.0f;
+    npc->combat_pose[1]  = -5.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
+    return 0;
+}
+
+/* ─── Per-NPC-type attrs differentiate types ────────────────────────── */
+
+int test_combat_sm_phase_b_attrs_lookup_keyed_by_npc_type(void)
+{
+    /* Two NPCs at distance 0.5 from slot; type 0x10 has permissive
+     * attrs, type 0x11 has zero attrs.  Slot.reach = 0 so the zero-attrs
+     * case can't "swallow" the NPC via slot reach.  Only type 0x10
+     * collides. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    /* attrs[0x11] stays zero. */
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 0.0f);  /* slot.reach = 0 */
+
+    scene1_people_entry_t *npc0 = prep_npc_alive(0);
+    npc0->npc_type        = 0x10;
+    npc0->attack_radius   = 1.0f;
+    npc0->combat_pose[0]  = 0.5f;  /* dist = 0.5 < 1.0 → pass for 0x10 */
+
+    scene1_people_entry_t *npc1 = prep_npc_alive(1);
+    npc1->npc_type        = 0x11;
+    npc1->attack_radius   = 1.0f;
+    npc1->combat_pose[0]  = 0.5f;
+    /* For type 0x11: dist_threshold = 1.0 * 0 * 0 = 0; dist (0.5) - 0
+     * NOT < 0 → fail. */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_visit_count, 2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);  /* only npc0 */
+    return 0;
+}
+
+/* ─── Collision counter resets between ticks ────────────────────────── */
+
+int test_combat_sm_phase_b_collision_count_resets_between_ticks(void)
+{
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+
+    /* Move NPC out of range; counter should reset to 0. */
+    npc->combat_pose[0] = 100.0f;
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
+    return 0;
+}
+
+/* ─── Collision hook receives NPC index + sub_iter ──────────────────── */
+
+int test_combat_sm_phase_b_collision_hook_install_returns_previous(void)
+{
+    reset_combat_state();
+    scene1_combat_phase_b_collision_fn prev =
+        scene1_combat_set_phase_b_collision_hook(capture_collision_hook);
+    T_ASSERT_EQ_I(prev == NULL, 1);
+
+    scene1_combat_phase_b_collision_fn prev2 =
+        scene1_combat_set_phase_b_collision_hook(NULL);
+    T_ASSERT_EQ_I(prev2 == capture_collision_hook, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_b_multiple_npcs_collide(void)
+{
+    /* Three NPCs at indices 5/10/20, all overlap slot.  All three
+     * collide; collision count = 3, hook fires 3 times. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+
+    int npcs[3] = {5, 10, 20};
+    for (int j = 0; j < 3; j++) {
+        scene1_people_entry_t *npc = prep_npc_alive(npcs[j]);
+        npc->npc_type        = 0x10;
+        npc->attack_radius   = 3.0f;
+        npc->combat_pose[0]  = 0.0f;
+    }
+
+    scene1_combat_set_phase_b_collision_hook(capture_collision_hook);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 3);
+    T_ASSERT_EQ_I(g_collision_count, 3);
+    T_ASSERT_EQ_I(g_collision_hits[0].npc_index, 5);
+    T_ASSERT_EQ_I(g_collision_hits[1].npc_index, 10);
+    T_ASSERT_EQ_I(g_collision_hits[2].npc_index, 20);
+    return 0;
+}
+
+/* ─── Phase B head still gates collision math ───────────────────────── */
+
+int test_combat_sm_phase_b_skip_gate_blocks_collision(void)
+{
+    /* NPC with sister_724 != 0 fails skip gate → no visit + no
+     * collision check, even if it would otherwise collide. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->sister_724      = 1;  /* fails skip gate 2 */
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_visit_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_b_hit_history_blocks_collision(void)
+{
+    /* NPC in hit_history → no collision check. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x1234;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->hit_history[0]  = 0x1234;  /* already hit */
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_visit_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
     return 0;
 }
