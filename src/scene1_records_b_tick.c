@@ -3668,13 +3668,11 @@ static void body_0x58_or_0x66(int i, int32_t type)
  *   - type 0x65  (asm 0x43f34f..0x43f3a6): late-AGE vertical drift damper
  *                with VEL_Y floor and kill AGE==0x78
  *
- * The LAB_00440dc1 default-tail body (engine catch-all for types absent
- * from the dispatch) is intentionally NOT wired here — wiring it as the
- * `default:` arm today would change behavior for the still-deferred named
- * tail types (0x75/0x83/0x84/0xa0..0xa6 etc) from "no-op" to "spawn 0x21
- * + tick fields", which is wrong in port since the engine routes those
- * to their own specific bodies.  Deferred to a final C8j-tick.15z that
- * lands once the cascade is exhaustively ported.
+ * The LAB_00440dc1 default-tail body is now ported as body_lab_00440dc1
+ * (C8j-tick.16) and wired as the dispatch `default:` arm.  All named
+ * tail types {0x75/0x83/0x84/0xa0..0xa6 etc} are landed, so the default
+ * arm is now safe to wire (no risk of mis-routing).  See the body's
+ * docstring near body_lab_00440dc1 for the asm trace and gate semantics.
  *
  * Constants verified via `tools/analyze/pe.py bytes <va> 4`:
  *   0x5198f8 = 0.05       (type 0x33 ROT_Z step; also type 0x65 VEL_Y step)
