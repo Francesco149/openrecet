@@ -1513,6 +1513,17 @@ struct test_case {
     X(records_c_offset_type_is_10) \
     X(records_c_reset_sentinels_at_offset_10) \
     \
+    X(records_b_tick_empty_table_is_noop) \
+    X(records_b_tick_skips_dead_slots) \
+    X(records_b_tick_preamble_integrates_pos) \
+    X(records_b_tick_preamble_clears_per_tick_flag) \
+    X(records_b_tick_kill_slot_sets_type_zero) \
+    X(records_b_tick_kill_slot_oob_is_safe) \
+    X(records_b_tick_per_type_hook_fires_after_preamble) \
+    X(records_b_tick_per_type_hook_not_called_for_dead_slots) \
+    X(records_b_tick_state_machine_setter_round_trips) \
+    X(records_b_tick_walks_all_512_slots) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

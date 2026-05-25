@@ -13,8 +13,10 @@
  * scene1_particles_tick).  C8j.3 (2026-05-24) adds the default-running
  * arm and the sub-dispatch — for HOUSE all three flags are BSS-zero so
  * the default arm fires.  Default arm adds scene1_records_c_tick on
- * top of the particle tick (FUN_0043ae20 table B tick stays stubbed —
- * separate Mt. Everest ladder; see scene1-record-populators.md C8j.fin).
+ * top of the particle tick.  C8j-tick.1 (2026-05-25) adds the table B
+ * tick skeleton (preamble + per-type dispatch stub); per-type bodies
+ * land in the C8j-tick.* sub-chip ladder.  See
+ * docs/findings/scene1-records-b-tick.md.
  */
 #ifndef OPENRECET_SCENE1_SIM_H
 #define OPENRECET_SCENE1_SIM_H
@@ -49,9 +51,9 @@ void scene1_ingame_transition_arm_tick(void);
  * gate calls to the actual per-tick work.  In HOUSE all gates are
  * BSS-zero so the per-tick work collapses to (in engine order):
  *
- *   FUN_0043ae20  table B tick   — STUBBED (25750-B game-logic monster,
- *                                  separate ladder; see C8j.fin scope in
- *                                  scene1-record-populators.md)
+ *   FUN_0043ae20  table B tick   → scene1_records_b_tick (skeleton only;
+ *                                  per-type bodies in C8j-tick.2+; see
+ *                                  scene1-records-b-tick.md)
  *   FUN_0044284b  table C tick   → scene1_records_c_tick
  *   FUN_0040fb3a  table A tick   → scene1_particles_tick
  *

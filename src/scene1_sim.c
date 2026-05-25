@@ -20,7 +20,10 @@
  * transitions) that gate the actual ticks.  With BSS-zero gates (HOUSE
  * default) the per-tick effect collapses to:
  *
- *   FUN_0043ae20  table B tick  — stubbed (separate Mt. Everest)
+ *   FUN_0043ae20  table B tick  → scene1_records_b_tick() (skeleton —
+ *                                  outer loop + preamble only;
+ *                                  per-type dispatch deferred to
+ *                                  sub-chip ladder C8j-tick.2+)
  *   FUN_0044284b  table C tick  → scene1_records_c_tick()
  *   FUN_0040fb3a  table A tick  → scene1_particles_tick()
  *
@@ -38,6 +41,7 @@
 #include "scene1_sim.h"
 
 #include "scene1_particles_tick.h"
+#include "scene1_records_b_tick.h"
 #include "scene1_records_c_tick.h"
 
 /* Engine flag stand-ins.  All BSS-zero default → HOUSE selects the
@@ -56,8 +60,11 @@ void scene1_ingame_transition_arm_tick(void)
 void scene1_ingame_default_arm_tick(void)
 {
     /* FUN_00442cef L40603 — gated on DAT_0438b4b4 == 0 (BSS-zero in
-     * HOUSE → gate opens) but unported anyway. */
-    /* scene1_records_b_tick();  — FUN_0043ae20, stubbed */
+     * HOUSE → gate opens).  C8j-tick.1 ports the SKELETON ONLY (outer
+     * loop + preamble pos+=vel + age++ + dead-slot skip).  Per-type
+     * dispatch is a no-op stub until sub-chip ladder fills in bodies.
+     * See docs/findings/scene1-records-b-tick.md. */
+    scene1_records_b_tick();
 
     /* FUN_00442cef L40611 — unconditional inside the default-running
      * nested block. */
