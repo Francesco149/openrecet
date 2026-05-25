@@ -46,6 +46,11 @@
 int32_t g_scene1_records_b_tick_flag;        /* engine DAT_06a46f98 */
 int32_t g_scene1_records_b_tick_anim_drive;  /* engine DAT_06a46f94 */
 
+/* Engine DAT_005c2434/8/c — 256-entry per-NPC-motion-style table read by
+ * C8j-tick.10 (Body 6 + Body 7) and presumably deeper bodies.  PHC #19;
+ * default BSS-zero. */
+scene1_b_motion_entry_t g_scene1_b_motion_table[256];
+
 /* ─── hooks ──────────────────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type);
@@ -2726,6 +2731,155 @@ static void body_0x27(int i)
     }
 }
 
+/* ═══ C8j-tick.10 — Body 6 + Body 7 (motion-table-driven anchor) ═══════
+ * Engine asm 0x43dc03..0x43dd79.  Two small bodies that share the new
+ * per-NPC-motion-style physical-constants table at DAT_005c2434/8/c
+ * (modeled as g_scene1_b_motion_table[256]; PHC #19).  Both anchor the
+ * slot's POS to owner+0x3f0/3f4/3f8 every tick with a motion-style-
+ * scaled Y offset; pose is rewritten unconditionally each tick.
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x5193a0 = 0.1f    0x5198e0 = 1.5f    0x5194ec = 0.3f
+ *   0x51935c = 0.5f    0x519c20 = -0.8f
+ */
+
+/* Engine 0x43dc03..0x43dcdb — Body 6 (types 0x10/0xb/0x14/0x13/0x99).
+ *
+ *   if owner+0x428 != 1: kill slot
+ *   motion_idx = owner+0x424
+ *   if motion_idx in {0xd, 0xe}: DRAG = -0.8
+ *   else: DRAG = ((entry.drag_base + 0.1 - 1.5) * owner+0xabc *
+ *                 entry.drag_mul) - 0.3
+ *   POS_X = owner+0x3f0
+ *   POS_Y = owner+0xabc * entry.pos_y_mul * entry.drag_mul * 0.5
+ *           + owner+0x3f4
+ *   POS_Z = owner+0x3f8
+ *   ret = state_machine(slot)
+ *   if (ret != 0 && type == 0x13):
+ *     owner+0xb90 = anim_drive (DAT_06a46f94)
+ *     owner+0xb94 = 0x1e
+ */
+static void body_motion_anchor_keep(int i, int32_t type)
+{
+    void *owner = slot_owner_a(i);
+    if (!owner) {
+        /* Engine reads owner+0x428 via this pointer; NULL owner would crash
+         * retail.  In our port we keep the slot alive (no kill) since the
+         * smoke flag's owner is a static blob and always non-NULL. */
+        return;
+    }
+
+    /* asm 0x43dc37-0x43dc41: gate on owner+0x428 == 1, else kill. */
+    if (owner_read_i(owner, 0x428) != 1) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* asm 0x43dc27-0x43dc32: motion_idx = owner+0x424. */
+    int32_t motion_idx = owner_read_i(owner, 0x424);
+    /* Clamp to valid table range; engine reads unchecked (would OOB for
+     * motion_idx >= 256 or < 0).  In production motion IDs are byte-sized
+     * NPC enum values so OOB is unreachable; defensive clamp here keeps
+     * host tests from corrupting adjacent memory if a test stages an
+     * out-of-band ID. */
+    if (motion_idx < 0 || motion_idx >= 256) motion_idx = 0;
+    const scene1_b_motion_entry_t *entry = &g_scene1_b_motion_table[motion_idx];
+
+    float drag;
+    if (motion_idx == 0xd || motion_idx == 0xe) {
+        /* asm 0x43dc46-0x43dc4e: fixed DRAG = -0.8 for these motion IDs. */
+        drag = -0.8f;
+    } else {
+        /* asm 0x43dc50-0x43dc6e: formula. */
+        float owner_abc = owner_read_f(owner, 0xabc);
+        drag = ((entry->drag_base + 0.1f) - 1.5f) * owner_abc * entry->drag_mul
+               - 0.3f;
+    }
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
+
+    /* asm 0x43dc7c-0x43dcb3: pose write from owner anchor. */
+    float opx = owner_read_f(owner, 0x3f0);
+    float opy = owner_read_f(owner, 0x3f4);
+    float opz = owner_read_f(owner, 0x3f8);
+    float owner_abc = owner_read_f(owner, 0xabc);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, opx);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               owner_abc * entry->pos_y_mul * entry->drag_mul * 0.5f + opy);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, opz);
+
+    /* asm 0x43dcb3-0x43dcd1: state_machine + type-0x13 anim-drive write. */
+    int prog = state_machine_call_ret(slot_base(i));
+    if (prog != 0 && type == 0x13) {
+        owner_write_i(owner, 0xb90, g_scene1_records_b_tick_anim_drive);
+        owner_write_i(owner, 0xb94, 0x1e);
+    }
+}
+
+/* Engine 0x43dcdb..0x43dd79 — Body 7 (types 0x11/0xc).
+ *
+ *   if owner+0x428 != 1: kill slot
+ *   if type == 0x11: DRAG = 0.0
+ *   else (0xc):      DRAG = ((entry.drag_base + 0.1 - 1.5) *
+ *                            owner+0xabc * entry.drag_mul) - 0.3
+ *   Same pose write as Body 6.
+ *   state_machine(slot)
+ *   if AGE != 7: skip kill; else kill.
+ *
+ * Difference from Body 6:
+ *   - DRAG for type 0x11 is hard 0 (vs Body 6's motion-ID branch).
+ *   - state_machine return value is NOT checked.
+ *   - Always kills on AGE == 7 (Body 6 has no AGE-kill).
+ */
+static void body_motion_anchor_kill_7(int i, int32_t type)
+{
+    void *owner = slot_owner_a(i);
+    if (!owner) return;
+
+    /* asm 0x43dcfc-0x43dd02: gate on owner+0x428 == 1, else kill. */
+    if (owner_read_i(owner, 0x428) != 1) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* asm 0x43dcee-0x43dcf7: motion_idx = owner+0x424. */
+    int32_t motion_idx = owner_read_i(owner, 0x424);
+    if (motion_idx < 0 || motion_idx >= 256) motion_idx = 0;
+    const scene1_b_motion_entry_t *entry = &g_scene1_b_motion_table[motion_idx];
+
+    float drag;
+    if (type == 0x11) {
+        /* asm 0x43dd04-0x43dd0b: type 0x11 → DRAG = 0. */
+        drag = 0.0f;
+    } else {
+        /* asm 0x43dd0d-0x43dd2b: type 0xc → motion formula. */
+        float owner_abc = owner_read_f(owner, 0xabc);
+        drag = ((entry->drag_base + 0.1f) - 1.5f) * owner_abc * entry->drag_mul
+               - 0.3f;
+    }
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
+
+    /* asm 0x43dd31-0x43dd68: pose write. */
+    float opx = owner_read_f(owner, 0x3f0);
+    float opy = owner_read_f(owner, 0x3f4);
+    float opz = owner_read_f(owner, 0x3f8);
+    float owner_abc = owner_read_f(owner, 0xabc);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, opx);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+               owner_abc * entry->pos_y_mul * entry->drag_mul * 0.5f + opy);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, opz);
+
+    /* asm 0x43dd68: state_machine; return ignored. */
+    state_machine_call(slot_base(i));
+
+    /* asm 0x43dd6d-0x43dd77: kill on AGE == 7 only.  Engine inverts:
+     *   if (AGE != 7) goto LAB_0043dd79; *piVar14 = 0;
+     * Either branch falls through into the next-type cascade. */
+    (void)type;
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 7) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -2859,8 +3013,20 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x27:
         body_0x27(slot_idx);
         break;
+    /* C8j-tick.10 — Body 6 + Body 7 (motion-table anchor). */
+    case 0x10:
+    case 0xb:
+    case 0x14:
+    case 0x13:
+    case 0x99:
+        body_motion_anchor_keep(slot_idx, type);
+        break;
+    case 0x11:
+    case 0xc:
+        body_motion_anchor_kill_7(slot_idx, type);
+        break;
     default:
-        /* C8j-tick.10..13 fill in additional cases here. */
+        /* C8j-tick.11..13 fill in additional cases here. */
         break;
     }
 }

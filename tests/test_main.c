@@ -1713,6 +1713,24 @@ struct test_case {
     X(records_b_tick_t9_type_27_flag_0_drifts_rot_vel_life) \
     X(records_b_tick_t9_type_27_flag_0_ground_hit_transitions_to_grow) \
     \
+    X(records_b_tick_t10_body6_killed_when_owner_gate_zero) \
+    X(records_b_tick_t10_body6_motion_d_uses_fixed_drag_minus_0_8) \
+    X(records_b_tick_t10_body6_motion_e_uses_fixed_drag_minus_0_8) \
+    X(records_b_tick_t10_body6_other_motion_uses_drag_formula) \
+    X(records_b_tick_t10_body6_writes_pose_from_owner_anchor) \
+    X(records_b_tick_t10_body6_calls_state_machine) \
+    X(records_b_tick_t10_body6_type_13_writes_anim_drive_on_progress) \
+    X(records_b_tick_t10_body6_type_other_skips_anim_drive) \
+    X(records_b_tick_t10_body6_type_13_no_progress_skips_write) \
+    X(records_b_tick_t10_body6_does_not_age_kill) \
+    X(records_b_tick_t10_body7_killed_when_owner_gate_zero) \
+    X(records_b_tick_t10_body7_type_11_uses_drag_zero) \
+    X(records_b_tick_t10_body7_type_c_uses_motion_formula) \
+    X(records_b_tick_t10_body7_writes_pose_from_owner) \
+    X(records_b_tick_t10_body7_age_7_kills) \
+    X(records_b_tick_t10_body7_age_other_survives) \
+    X(records_b_tick_t10_body7_calls_state_machine) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

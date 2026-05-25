@@ -232,8 +232,51 @@
  *   - 0x2b overlay_spawn 1 at 0x43d975 — override_rot_y=0 (asm 0x43d96f
  *     fldz + fstp [esp]); Ghidra L37801 had 8 args, asm has 9.
  *
- * Deferred to next sub-chip(s): Body 6 (10/0xb/0x14/0x13/0x99 at 0x43dc03)
- * which gates on the new DAT_005c2434/8/c per-type-enable tables (PHC #19).
+ * C8j-tick.10 (2026-05-25) adds Body 6 + Body 7 (asm 0x43dc03..0x43dd79) —
+ * two NPC-anchor bodies sharing a per-NPC-motion-style physical-constants
+ * table (PHC #19 — three sibling tables at DAT_005c2434/8/c, 256-entry
+ * stride 0x68; no in-binary writers visible, presumed .rdata copy from
+ * an unported lnkdatas loader):
+ *
+ *   Body 6 — types {0x10, 0xb, 0x14, 0x13, 0x99} (asm 0x43dc03..0x43dcdb):
+ *     Gate: owner+0x428 == 1 (else kill).  Per-tick:
+ *       motion = owner+0x424 (NPC motion-style ID)
+ *       if motion in {0xd, 0xe}:
+ *         DRAG = -0.8
+ *       else:
+ *         DRAG = ((motion_drag_base + 0.1 - 1.5) * owner+0xabc *
+ *                 motion_drag_mul) - 0.3
+ *       POS_X = owner+0x3f0
+ *       POS_Y = owner+0xabc * motion_pos_y_mul * motion_drag_mul * 0.5
+ *               + owner+0x3f4
+ *       POS_Z = owner+0x3f8
+ *       int prog = state_machine(slot)
+ *       if (prog != 0 && type == 0x13):
+ *         owner+0xb90 = anim_drive (DAT_06a46f94)
+ *         owner+0xb94 = 0x1e
+ *     No AGE-kill (relies on owner+0x428 going to 0).
+ *
+ *   Body 7 — types {0x11, 0xc} (asm 0x43dcdb..0x43dd79):
+ *     Gate: owner+0x428 == 1 (else kill).  Per-tick:
+ *       if type == 0x11: DRAG = 0.0
+ *       else:            DRAG = ((motion_drag_base + 0.1 - 1.5) *
+ *                                owner+0xabc * motion_drag_mul) - 0.3
+ *       Same pose write as Body 6.
+ *       state_machine(slot)  (return value ignored)
+ *       if AGE != 7: skip kill else kill.
+ *
+ *   New global: `g_scene1_b_motion_table[256]` (3-float entry: drag_mul /
+ *   drag_base / pos_y_mul) — BSS-zero by default; tests inject per-motion
+ *   constants directly.  With BSS-zero defaults and any motion!={0xd,0xe},
+ *   DRAG = -0.3 and POS_Y = owner+0x3f4 (anchor pose, no scaling).  When
+ *   the .rdata copier ports, this table will be populated from
+ *   lnkdatas/<unidentified>.dat.
+ *
+ *   Body 6's state-machine return-int "prog" uses state_machine_call_ret()
+ *   convention — 1 when hook installed (engine progressed), 0 when NULL
+ *   (engine reported no progress).  Engine's int return is not exposed by
+ *   the void hook signature; tests of the 0x13 anim-drive special case
+ *   install a hook that writes g_scene1_records_b_tick_anim_drive.
  *
  * C8j-tick.3 (2026-05-25) adds bodies for the mid-cascade (L408-L649):
  *
@@ -333,6 +376,31 @@ extern "C" {
  * may set it from within per-type bodies to short-circuit retries.
  * PHC #21 — exact semantics unknown until first reader-body lands. */
 extern int32_t g_scene1_records_b_tick_flag;
+
+/* Engine DAT_005c2434 / DAT_005c2438 / DAT_005c243c — per-NPC-motion-style
+ * physical-constants table (PHC #19).  Three sibling addresses, each
+ * indexed by `motion_id * 0x68` (= entry stride).  Fields are at byte
+ * offsets +0x44, +0x48, +0x4c inside a 0x68-byte struct that has many
+ * other fields not yet consumed.  Read by Body 6/7 (C8j-tick.10) and
+ * deeper bodies in the same fashion.
+ *
+ *   - drag_mul  (+0x44, DAT_005c2434) — DRAG formula multiplier AND
+ *                                       POS_Y formula multiplier
+ *   - drag_base (+0x48, DAT_005c2438) — DRAG formula base value
+ *   - pos_y_mul (+0x4c, DAT_005c243c) — POS_Y formula multiplier
+ *
+ * No in-binary writer found in the decomp dump; presumed populated by a
+ * .rdata table copier (sibling pattern to Pass F's DAT_005c2410 traced
+ * to "no in-binary writer" in C8c.F).  Default BSS-zero produces drag
+ * = -0.3 (post-formula) and POS_Y = owner+0x3f4 (anchor only).  Tests
+ * inject values directly by writing to this table. */
+typedef struct {
+    float drag_mul;
+    float drag_base;
+    float pos_y_mul;
+} scene1_b_motion_entry_t;
+
+extern scene1_b_motion_entry_t g_scene1_b_motion_table[256];
 
 /* Engine DAT_06a46f94 — cleared by the C8j-tick.4 body before each
  * state-machine call in the type {2/3/4/0x22/0x54/0x67/0x6d..0x70} loop;
