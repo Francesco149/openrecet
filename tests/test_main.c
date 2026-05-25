@@ -1849,6 +1849,29 @@ struct test_case {
     X(records_b_tick_t15b_type_82_kills_at_age_0x23) \
     X(records_b_tick_t15b_type_82_no_owner_e90_gate) \
     \
+    X(records_b_tick_t15c_phase0_vel_y_decreases_by_0_01) \
+    X(records_b_tick_t15c_phase0_pos_y_above_ground_no_impact) \
+    X(records_b_tick_t15c_phase0_vel_y_positive_skips_impact) \
+    X(records_b_tick_t15c_phase0_impact_snaps_pos_y_up) \
+    X(records_b_tick_t15c_phase0_impact_zeros_velocity) \
+    X(records_b_tick_t15c_phase0_impact_increments_bounce_count) \
+    X(records_b_tick_t15c_phase0_a4_skips_ground_query) \
+    X(records_b_tick_t15c_phase0_7b_uses_ground_query) \
+    X(records_b_tick_t15c_phase0_a1_uses_ground_query) \
+    X(records_b_tick_t15c_phase0_impact_fires_notify_queue) \
+    X(records_b_tick_t15c_phase0_impact_plays_two_se_ids) \
+    X(records_b_tick_t15c_phase0_7b_pfo_alloc_scale_1_0) \
+    X(records_b_tick_t15c_phase0_a1_pfo_alloc_scale_1_5) \
+    X(records_b_tick_t15c_phase0_a4_pfo_alloc_scale_4_0) \
+    X(records_b_tick_t15c_phase0_sets_per_tick_flag) \
+    X(records_b_tick_t15c_phase1_7b_drag_2_0) \
+    X(records_b_tick_t15c_phase1_a1_drag_4_0) \
+    X(records_b_tick_t15c_phase1_a4_drag_8_0) \
+    X(records_b_tick_t15c_phase1_fires_state_machine) \
+    X(records_b_tick_t15c_phase1_does_not_fire_phase0_side_effects) \
+    X(records_b_tick_t15c_shared_kills_at_age_0x82) \
+    X(records_b_tick_t15c_shared_does_not_kill_below_0x82) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

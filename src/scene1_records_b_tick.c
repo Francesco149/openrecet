@@ -3774,6 +3774,152 @@ static void body_0x82(int i)
     }
 }
 
+/* ═══ C8j-tick.15c — types 0x7b / 0xa1 / 0xa4 shared ground-bounce body ═══
+ *
+ * Engine asm 0x44074d..0x4408a1 / decomp L39400-L39446 (cite L2548-2594 of
+ * docs/decompiled/by-address/43ae20.c).  All three types share one body;
+ * entry points at 0x44074d (0x7b: sets ebx = 0xa4 then falls through) and
+ * 0x440752 (0xa1/0xa4 entry).  Two-phase body driven by `bounce_count` at
+ * slot[PART_IDX] (dw 39 = +0x9c, engine `&DAT_0693254c`):
+ *
+ *   Phase 0  (bounce_count == 0): in-flight + ground impact
+ *     VEL_Y -= 0.01           ; gravity-like accel
+ *     if VEL_Y < 0:
+ *       ground_y = 0
+ *       if type != 0xa4:
+ *         if ground_query(POS_X, POS_Y, POS_Z): ground_y = hit
+ *       if POS_Y <= ground_y + 0.3:
+ *         POS_Y = ground_y + 1.0
+ *         VEL = (0, 0, 0)
+ *         notify_queue(10, 4, 4, 1.0)
+ *         se(0x148)
+ *         se(0x2a5)                       ; raw-asm verified, Ghidra dropped arg
+ *         scale = 1.0 / 1.5 (0xa1) / 4.0 (0xa4)
+ *         scene1_pfo_table_a_alloc_passthrough(0, POS_X, 0, POS_Z, 5,
+ *                                              scale, -1, 0, 0)
+ *         bounce_count++
+ *     g_scene1_records_b_tick_flag = 1   ; DAT_06a46f98
+ *
+ *   Phase 1  (bounce_count != 0): post-bounce settle
+ *     DRAG = 2.0 (0x7b) / 4.0 (0xa1) / 8.0 (0xa4)
+ *     state_machine(slot)
+ *
+ *   Shared LAB_004402a2 tail: kill if AGE == 0x82, else fall through to
+ *   default-tail (LAB_00440dc1, still deferred to C8j-tick.15z+).
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x5193a4 = 0.01     (VEL_Y per-tick decrement)
+ *   0x519320 = 0.0      (VEL_Y < 0 sign check)
+ *   0x5194ec = 0.3      (ground-impact y-threshold offset)
+ *   0x519364 = 1.0      (POS_Y above ground after impact)
+ *   0x5198e0 = 1.5      (0xa1 spawn scale)
+ *   0x51939c = 4.0      (0xa4 spawn scale; 0xa1 settle DRAG)
+ *   0x519378 = 8.0      (0xa4 settle DRAG)
+ *   0x519314 = 2.0      (0x7b default settle DRAG)
+ *
+ * Asm corrections vs decomp (raw-asm reads in 0x44074d..0x4408a1):
+ *   - Ghidra showed both FUN_00499519 calls as argless (L2565/L2566); raw
+ *     asm at 0x4407f9 / 0x440803 has `push 0x148` and `push 0x2a5` — both
+ *     pass specific SE IDs.
+ *   - Ghidra showed FUN_0044b219(10, 4, 4) at L2564 (3 args); raw asm at
+ *     0x4407e9..0x4407f4 pushes 4 args including a `fld1` (1.0) float —
+ *     matches our notify_queue_call(a, b, c, d) 4-arg hook signature.
+ *   - Ghidra showed FUN_0041331d 7-arg call at L2574 (`0xffffffff` last);
+ *     raw asm at 0x440831..0x44085f shows the full 9-arg PFO.6 form: push
+ *     0 (param_8) + fldz/store (override_rot_y_bits float bits, 0) +
+ *     0xffffffff (override_dur=-1) + scale + 5 (template_id) + pos_z + 0
+ *     (pos_y float) + pos_x + 0 (template_owner).
+ *   - The engine's ground_query uses `&slot[+0x18]` as a 4-float scratch
+ *     buffer and reads back `slot[+0x24]` (= AUX_9) for the ground_y.
+ *     Our hook is collapsed to `int hook(x, y, z, *out_y)` and writes
+ *     into the out_y param directly — observably equivalent here since
+ *     the body's only ground_y consumer is the immediate POS_Y check.
+ *
+ * Dormant in HOUSE under default smoke flags — types 0x7b/0xa1/0xa4 are
+ * not in any landed C8j allocator's type set, but `--force-b-npc 0x7b`
+ * / `0xa1` / `0xa4` exercises the falling + ground impact + PFO Table A
+ * spawn chain end-to-end.  No new hooks needed (ground_query / notify_
+ * queue / SE / table_a_alloc_passthrough all wired in earlier chips).
+ */
+static void body_0x7b_a1_a4(int i, int32_t type)
+{
+    int32_t bounce_count = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+
+    if (bounce_count == 0) {
+        /* Phase 0 — falling.  VEL_Y -= 0.01 each tick; once VEL_Y goes
+         * negative, the ground-impact check arms. */
+        float vel_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.01f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
+
+        if (vel_y < 0.0f) {
+            /* asm 0x440783-0x4407b5: type==0xa4 skips ground_query entirely
+             * (always uses ground_y=0); other types query terrain. */
+            float ground_y = 0.0f;
+            if (type != 0xa4) {
+                float px  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+                float py  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+                float pz  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+                float hit = 0.0f;
+                if (ground_query(px, py, pz, &hit) == 1) {
+                    ground_y = hit;
+                }
+            }
+
+            float pos_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            if (pos_y <= ground_y + 0.3f) {
+                /* asm 0x4407cd-0x440862: impact — snap up by 1.0, zero
+                 * velocity, notify + 2× SE + Table A spawn, bump bounce
+                 * counter. */
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, ground_y + 1.0f);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+
+                notify_queue_call(10, 4, 4, 1.0f);
+                se_play(0x148);
+                se_play(0x2a5);
+
+                float scale = 1.0f;
+                if (type == 0xa1) scale = 1.5f;
+                if (type == 0xa4) scale = 4.0f;
+
+                float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+                float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+                scene1_pfo_table_a_alloc_passthrough(
+                    /*template_owner=*/0,
+                    /*pos_x=*/px,
+                    /*pos_y=*/0.0f,
+                    /*pos_z=*/pz,
+                    /*template_id=*/5,
+                    /*scale_base=*/scale,
+                    /*override_dur=*/-1,
+                    /*override_rot_y_bits=*/0,
+                    /*param_8=*/0);
+
+                slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX,
+                           bounce_count + 1);
+            }
+        }
+
+        /* asm 0x440868-0x44086f: latch per-tick flag regardless of
+         * whether impact fired. */
+        g_scene1_records_b_tick_flag = 1;
+    } else {
+        /* Phase 1 — post-bounce settle.  DRAG override + SM. */
+        float drag = 2.0f;
+        if (type == 0xa1) drag = 4.0f;
+        if (type == 0xa4) drag = 8.0f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
+        state_machine_call(slot_base(i));
+    }
+
+    /* Shared LAB_004402a2 tail at 0x4408a1 — kill on AGE == 0x82, else
+     * fall through to LAB_00440dc1 default-tail (deferred). */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x82) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -3971,12 +4117,17 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x82:
         body_0x82(slot_idx);
         break;
+    /* C8j-tick.15c — three-type ground-bounce shared body. */
+    case 0x7b:
+    case 0xa1:
+    case 0xa4:
+        body_0x7b_a1_a4(slot_idx, type);
+        break;
     default:
-        /* Remaining tail types {0x75/0x83/0x84/0xa0..0xa6 + 0x2e/0x36/
-         * 0x76/0xa3/0x77/0xa2/0x7b/0xa1/0xa4/0x7c/0x73/0x78/0x7a +
-         * entity-bounce cluster {0x4d-0x52/0x56/0x62/99/0x96/0xa5/0xa6}}
-         * and the LAB_00440dc1 default-tail body are deferred to future
-         * C8j-tick.15c+ sub-chips. */
+        /* Remaining tail types {0x75/0x83/0x84/0xa0/0xa2/0xa3/0xa5/0xa6 +
+         * 0x2e/0x36/0x76/0x77/0x7c/0x73/0x78/0x7a + entity-bounce cluster
+         * {0x4d-0x52/0x56/0x62/99/0x96}} and the LAB_00440dc1 default-tail
+         * body are deferred to future C8j-tick.15d+ sub-chips. */
         break;
     }
 }

@@ -5820,3 +5820,298 @@ int test_records_b_tick_t15b_type_82_no_owner_e90_gate(void)
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x82);
     return 0;
 }
+
+/* ═══ C8j-tick.15c — types 0x7b / 0xa1 / 0xa4 shared body ════════════════ */
+
+/* Stage a phase-0 (bounce_count == 0) live slot at pos (px, py, pz) with
+ * type `type` and PART_IDX = 0.  AGE = `pre_age` so post-preamble AGE is
+ * pre_age+1. */
+static void stage_t15c(int32_t type, float px, float py, float pz,
+                       float vx, float vy, float vz, int32_t pre_age,
+                       int32_t bounce_count)
+{
+    stage_live(0, type, px, py, pz, vx, vy, vz, pre_age);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, bounce_count);
+}
+
+int test_records_b_tick_t15c_phase0_vel_y_decreases_by_0_01(void)
+{
+    /* Stage VEL_Y = 0.5 well above ground.  After tick: VEL_Y = 0.49. */
+    reset_world();
+    stage_t15c(0x7b, 0, 100.0f, 0, 0, 0.5f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.49f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_pos_y_above_ground_no_impact(void)
+{
+    /* Stage POS_Y = 100, ground_y stub returns 0 (no hook).  VEL_Y < 0
+     * triggers ground check; 100 > 0+0.3 → no impact.  bounce_count
+     * stays 0 (the only stable signal — POS_Y after preamble has VEL_Y
+     * added in, so it's 99.9 not 100). */
+    reset_world();
+    stage_t15c(0x7b, 0, 100.0f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_PART_IDX), 0);
+    /* POS_Y must NOT have been snapped to ground+1.0 = 1.0. */
+    T_ASSERT(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) > 50.0f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_vel_y_positive_skips_impact(void)
+{
+    /* VEL_Y starts at 0.05 → post-tick 0.04 (still > 0), so impact
+     * check is bypassed regardless of POS_Y. */
+    reset_world();
+    stage_t15c(0x7b, 0, 0.1f, 0, 0, 0.05f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    /* No impact: POS_Y unchanged (preamble adds VEL_Y but post-tick is at
+     * 0.1 + 0.05 = 0.15), bounce_count stays 0. */
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_PART_IDX), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_impact_snaps_pos_y_up(void)
+{
+    /* POS_Y just below ground+0.3 (ground=0 default) AND VEL_Y < 0 → impact.
+     * POS_Y becomes 0 + 1.0 = 1.0. */
+    reset_world();
+    stage_t15c(0x7b, 0, 0.2f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    /* Preamble: POS_Y += VEL_Y → 0.2 + (-0.1) = 0.1.  Then body sets
+     * POS_Y = ground_y + 1.0 = 1.0. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 1.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_impact_zeros_velocity(void)
+{
+    reset_world();
+    stage_t15c(0x7b, 0, 0.2f, 0, 0.5f, -0.1f, -0.3f, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X)) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y)) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z)) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_impact_increments_bounce_count(void)
+{
+    reset_world();
+    stage_t15c(0x7b, 0, 0.2f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_PART_IDX), 1);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_a4_skips_ground_query(void)
+{
+    /* type 0xa4 must NOT call ground_query — the engine `cmp [esi], ebx`
+     * + `je 0x4407b8` at 0x440783 skips the query branch entirely. */
+    reset_world();
+    s_gq_calls = 0;
+    s_gq_hit = 1; s_gq_out_y = 999.0f;       /* would force big ground if asked */
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_t15c(0xa4, 0, 100.0f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_gq_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_7b_uses_ground_query(void)
+{
+    /* type 0x7b queries terrain.  Hook returns 1 with ground_y=50.0.
+     * Stage POS_Y = 50.1 (well within impact window): preamble drops
+     * to 50.0; ground+0.3 = 50.3; 50.0 <= 50.3 → impact.  Verify hook
+     * was called AND POS_Y snapped to ground+1.0 = 51.0. */
+    reset_world();
+    s_gq_calls = 0;
+    s_gq_hit = 1; s_gq_out_y = 50.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_t15c(0x7b, 0, 50.1f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_gq_calls, 1);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 51.0f) < 1e-4f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_a1_uses_ground_query(void)
+{
+    reset_world();
+    s_gq_calls = 0;
+    s_gq_hit = 1; s_gq_out_y = 0.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_t15c(0xa1, 0, 0.2f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_gq_calls, 1);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_impact_fires_notify_queue(void)
+{
+    reset_world();
+    s_notify_calls = 0;
+    scene1_records_b_set_notify_queue_hook(capture_notify);
+    stage_t15c(0x7b, 0, 0.2f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_notify_calls, 1);
+    T_ASSERT_EQ_I(s_notify_a, 10);
+    T_ASSERT_EQ_I(s_notify_b, 4);
+    T_ASSERT_EQ_I(s_notify_c, 4);
+    T_ASSERT(fabsf(s_notify_d - 1.0f) < 1e-6f);
+    return 0;
+}
+
+/* SE-capture multi-id state. */
+static uint16_t s_se_ids[4];
+static int s_se_id_count;
+static void capture_se_multi(uint16_t id)
+{
+    if (s_se_id_count < 4) s_se_ids[s_se_id_count] = id;
+    s_se_id_count++;
+}
+
+int test_records_b_tick_t15c_phase0_impact_plays_two_se_ids(void)
+{
+    /* Raw-asm verified at 0x4407f9 (push 0x148) + 0x440803 (push 0x2a5).
+     * Both SE plays fire on first impact. */
+    reset_world();
+    s_se_id_count = 0;
+    scene1_records_b_set_se_hook(capture_se_multi);
+    stage_t15c(0x7b, 0, 0.2f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_se_id_count, 2);
+    T_ASSERT_EQ_I(s_se_ids[0], 0x148);
+    T_ASSERT_EQ_I(s_se_ids[1], 0x2a5);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_7b_pfo_alloc_scale_1_0(void)
+{
+    /* type 0x7b → scale = 1.0 (default fld1).  PFO Table A passthrough
+     * writes template_id=5 to slot[SENTINEL] and scale to PARAM5. */
+    extern int32_t g_scene1_pfo_table_a[];
+    reset_world();
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL], -1);
+    stage_t15c(0x7b, 0, 0.2f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL], 5);
+    /* PARAM5 is float scale_base. */
+    float scale;
+    memcpy(&scale, &g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_PARAM5], 4);
+    T_ASSERT(fabsf(scale - 1.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_a1_pfo_alloc_scale_1_5(void)
+{
+    extern int32_t g_scene1_pfo_table_a[];
+    reset_world();
+    stage_t15c(0xa1, 0, 0.2f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL], 5);
+    float scale;
+    memcpy(&scale, &g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_PARAM5], 4);
+    T_ASSERT(fabsf(scale - 1.5f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_a4_pfo_alloc_scale_4_0(void)
+{
+    extern int32_t g_scene1_pfo_table_a[];
+    reset_world();
+    stage_t15c(0xa4, 0, 0.2f, 0, 0, -0.1f, 0, /*age=*/0, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL], 5);
+    float scale;
+    memcpy(&scale, &g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_PARAM5], 4);
+    T_ASSERT(fabsf(scale - 4.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase0_sets_per_tick_flag(void)
+{
+    /* DAT_06a46f98 = 1 regardless of impact firing. */
+    reset_world();
+    /* High POS_Y → no impact, but flag must still latch in phase 0. */
+    stage_t15c(0x7b, 0, 100.0f, 0, 0, 0.5f, 0, /*age=*/0, /*bc=*/0);
+    g_scene1_records_b_tick_flag = 0;
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_records_b_tick_flag, 1);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase1_7b_drag_2_0(void)
+{
+    /* bounce_count != 0 → settle phase. */
+    reset_world();
+    stage_t15c(0x7b, 0, 1.0f, 0, 0, 0, 0, /*age=*/0, /*bc=*/1);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 2.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase1_a1_drag_4_0(void)
+{
+    reset_world();
+    stage_t15c(0xa1, 0, 1.0f, 0, 0, 0, 0, /*age=*/0, /*bc=*/1);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 4.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase1_a4_drag_8_0(void)
+{
+    reset_world();
+    stage_t15c(0xa4, 0, 1.0f, 0, 0, 0, 0, /*age=*/0, /*bc=*/1);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 8.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase1_fires_state_machine(void)
+{
+    reset_world();
+    s_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    stage_t15c(0x7b, 0, 1.0f, 0, 0, 0, 0, /*age=*/0, /*bc=*/1);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 1);
+    return 0;
+}
+
+int test_records_b_tick_t15c_phase1_does_not_fire_phase0_side_effects(void)
+{
+    /* In settle phase, the impact-only notify_queue + PFO alloc must NOT
+     * fire even though POS_Y is far below ground. */
+    reset_world();
+    s_notify_calls = 0;
+    scene1_records_b_set_notify_queue_hook(capture_notify);
+    stage_t15c(0x7b, 0, -100.0f, 0, 0, -1.0f, 0, /*age=*/0, /*bc=*/1);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_notify_calls, 0);
+    /* PFO Table A slot stays sentinel = -1. */
+    extern int32_t g_scene1_pfo_table_a[];
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL], -1);
+    return 0;
+}
+
+int test_records_b_tick_t15c_shared_kills_at_age_0x82(void)
+{
+    /* Pre AGE = 0x81 → post = 0x82 → kill. */
+    reset_world();
+    stage_t15c(0x7b, 0, 100.0f, 0, 0, 0, 0, /*age=*/0x81, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15c_shared_does_not_kill_below_0x82(void)
+{
+    reset_world();
+    stage_t15c(0xa4, 0, 100.0f, 0, 0, 0, 0, /*age=*/0x80, /*bc=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xa4);
+    return 0;
+}
