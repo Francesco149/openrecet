@@ -26,8 +26,8 @@
  *   C8j-tick.4  Body 1 (2/3/4/0x22/0x54/0x67/0x6d/0x6e/0x6f/0x70)
  *   C8j-tick.5..13  remaining clusters per the survey
  *   C8j-tick.14  type 0x58 / 0x66 shared anchor-rotor body
- *   C8j-tick.15a..f  trivial / shared / paired tail bodies
- *   C8j-tick.15g  types 0x2e / 0x36 player-homing drift  ← THIS CHIP
+ *   C8j-tick.15a..j  trivial / shared / paired tail bodies
+ *   C8j-tick.15k  type 0x75 ground-cull walker  ← THIS CHIP
  *
  * Slot dead sentinel: `slot[0] == 0`.
  */
@@ -45,6 +45,7 @@
 #include "scene1_records.h"
 #include "scene1_records_b_spawn.h"
 #include "scene1_spawn.h"
+#include "sim.h"                       /* g_sim_frame_count (engine DAT_0438b8cc) */
 
 int32_t g_scene1_records_b_tick_flag;        /* engine DAT_06a46f98 */
 int32_t g_scene1_records_b_tick_anim_drive;  /* engine DAT_06a46f94 */
@@ -5484,6 +5485,238 @@ static void body_0x83(int i)
     }
 }
 
+/* ═══ C8j-tick.15k — type 0x75 ground-cull walker body ═══════════════════
+ *
+ * Engine asm 0x43e767..0x43ea72 / decomp L38406-L38484.  Single-type body
+ * (no other type shares this path).  Two phases driven by AGE.
+ *
+ * Phase 1 (AGE < 200) — "anchor rotor":
+ *   LIFE_MULT = 0.5
+ *   if AGE > 100: AGE--                     (decay back toward 100)
+ *
+ *   live_count    = number of slots with TYPE==0x75 AND AGE<200 (incl self)
+ *   preceding_cnt = number of such slots strictly before self in scan order
+ *
+ *   if AGE >= 100 AND live_count > 6:        (phase 1→2 boost)
+ *     AGE = 200
+ *     angle = owner_a+0xea4                  (yaw stash)
+ *     VEL_X = sinf(angle) * 0.24
+ *     VEL_Y = 0.1
+ *     VEL_Z = cosf(angle) * 0.24
+ *     → fall through to LAB_0043ed87 tail (AGE-400 kill — won't fire here)
+ *
+ *   else:
+ *     target = (preceding_cnt * 2π / live_count) + g_sim_frame_count * 0.04
+ *     ROT_X = angle_step_toward(ROT_X, target, 0.08)
+ *     ROT_SCR = 0; ROT_Z = 0
+ *
+ *     mat = T(0,0,0)
+ *     mat = RotY(ROT_SCR) × mat              (no-op since ROT_SCR=0)
+ *     mat = RotZ(ROT_Z)   × mat              (no-op since ROT_Z=0)
+ *     mat = RotX(ROT_X)   × mat              (effective: mat = RotX)
+ *     scale = min(AGE * 0.1, 3.0)
+ *     mat = T(0, 0, scale) × mat             (final mat = T(0,0,scale)*RotX)
+ *
+ *     POS_X = mat[12] + owner_a.pos_x
+ *     POS_Y = mat[13] + owner_a.pos_y + 2.1
+ *     POS_Z = mat[14] + owner_a.pos_z
+ *     → jmp 0x43ea5e (SM tail, skip phase 2 DRAG/ground)
+ *
+ * Phase 2 (AGE >= 200) — "ground-bounce settle":
+ *   VEL_Y -= 0.01                            (gravity)
+ *   if VEL_Y < 0:
+ *     hit = ground_query(POS_X, POS_Y, POS_Z, &ground_y)
+ *     if hit == 1 AND POS_Y <= ground_y + 0.3:
+ *       POS_Y = ground_y + 1.0
+ *       VEL_Y *= -0.5                        (bounce)
+ *       bounce_count++   (slot[PART_IDX])
+ *       if bounce_count == 3 → KILL          (LAB_004411e3)
+ *   DRAG_VAR = 0.3
+ *
+ * Shared tail (both phases, label LAB_0043ea5e):
+ *   sm_ret = state_machine(slot)
+ *   if sm_ret != 0 → KILL
+ *   else → fall to LAB_0043ed87 → AGE==400 kill check
+ *
+ * Notable engine quirks:
+ *   - FUN_00482ae7 (angle_step_toward) takes 3 args (current, target, max_step)
+ *     but Ghidra decomp drops the 3rd (max_step constant 0.08 from .rdata
+ *     0x519894).  Ported inline below — pure math, no hook needed.
+ *   - Matrix chain is sequenced with RotY/RotZ even though both inputs are
+ *     forced to 0 in this body.  Ported faithfully for engine fidelity (and
+ *     so the structure mirrors the cousin 0x6a body at +37 bytes).
+ *   - bounce_count is stored in slot[PART_IDX] (the engine reuses this slot
+ *     field as a bounce counter when the slot has no real "part index" use). */
+
+/* Engine FUN_00482ae7 @ 0x482ae7 (348 B, pure math, no globals or hooks). */
+static float angle_step_toward(float current, float target, float max_step)
+{
+    const float TAU = 6.2831855f;
+    const float PI  = 3.1415927f;
+
+    while (current < -PI) current += TAU;
+    while (PI < current) current -= TAU;
+    while (target  < -PI) target  += TAU;
+    while (PI < target)  target  -= TAU;
+
+    float delta = current - target;
+    float abs_delta = delta < 0.0f ? -delta : delta;
+
+    float result_pre_norm;
+    if (abs_delta < max_step) {
+        result_pre_norm = target;
+    } else if (TAU - max_step < abs_delta) {
+        result_pre_norm = target;
+    } else if (target <= current) {
+        /* delta = current - target ∈ [0, TAU); engine `if (fVar1 < PI)` → step back. */
+        if (delta < PI) {
+            result_pre_norm = current - max_step;
+        } else {
+            result_pre_norm = current + max_step;
+        }
+    } else if (PI <= (target - current)) {
+        result_pre_norm = current - max_step;
+    } else {
+        result_pre_norm = current + max_step;
+    }
+
+    /* Renormalize result_pre_norm to [-PI, PI]. */
+    float result = result_pre_norm;
+    if (PI < result) result -= TAU;
+    while (result < -PI) result += TAU;
+    while (PI < result)  result -= TAU;
+    return result;
+}
+
+static void body_0x75(int i)
+{
+    int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    if (age < 200) {
+        /* Phase 1 — anchor rotor. */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.5f);
+
+        if (age > 100) {
+            age = age - 1;
+            slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, age);
+        }
+
+        /* Live-cousin scan: count all slots with TYPE==0x75 AND AGE<200
+         * (incl self), and snapshot the count taken so far when we visit
+         * self.  Engine treats self as always-counted (we got here because
+         * self.TYPE==0x75 + self.AGE<200). */
+        int32_t total_count    = 0;
+        int32_t preceding_cnt  = 0;
+        for (int j = 0; j < SCENE1_RECORDS_B_COUNT; j++) {
+            if (j == i) {
+                preceding_cnt = total_count;
+                total_count += 1;
+                continue;
+            }
+            int32_t jt = slot_get_i(j, SCENE1_RECORDS_B_OFF_TYPE);
+            if (jt != 0x75) continue;
+            if (slot_get_i(j, SCENE1_RECORDS_B_OFF_AGE) >= 200) continue;
+            total_count += 1;
+        }
+
+        if (age >= 100 && total_count > 6) {
+            /* Phase 1→2 boost: latch velocity from owner yaw, jump AGE to 200. */
+            const void *owner_a = slot_owner_a(i);
+            float yaw = 0.0f;
+            if (owner_a) {
+                yaw = owner_read_f(owner_a, 0xea4);
+            }
+            slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, 200);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(yaw) * 0.24f);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.1f);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(yaw) * 0.24f);
+            /* Engine `jmp LAB_0043ed87` — skip phase 2 DRAG/ground entirely
+             * this tick, fall straight to AGE==400 kill check (won't fire). */
+            if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 400) {
+                scene1_records_b_tick_kill_slot(i);
+            }
+            return;
+        }
+
+        /* Phase 1 angle-step + matrix-driven pose around owner_a. */
+        float rot_x  = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+        float target = ((float)preceding_cnt * 6.2831855f) / (float)total_count
+                     + (float)(int32_t)g_sim_frame_count * 0.04f;
+        rot_x = angle_step_toward(rot_x, target, 0.08f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, 0.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,   0.0f);
+
+        float mat[16], scratch[16];
+        mat4_translation(mat, 0.0f, 0.0f, 0.0f);
+        mat4_rotation_y(scratch, 0.0f);     /* ROT_SCR = 0 */
+        mat4_mul(mat, scratch, mat);
+        mat4_rotation_z(scratch, 0.0f);     /* ROT_Z = 0 */
+        mat4_mul(mat, scratch, mat);
+        mat4_rotation_x(scratch, rot_x);
+        mat4_mul(mat, scratch, mat);
+
+        float scale = (float)slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) * 0.1f;
+        if (scale > 3.0f) scale = 3.0f;
+        mat4_translation(scratch, 0.0f, 0.0f, scale);
+        mat4_mul(mat, scratch, mat);
+
+        const void *owner_a = slot_owner_a(i);
+        float ox = 0.0f, oy = 0.0f, oz = 0.0f;
+        if (owner_a) {
+            ox = owner_read_f(owner_a, 0x20);
+            oy = owner_read_f(owner_a, 0x24);
+            oz = owner_read_f(owner_a, 0x28);
+        }
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, mat[12] + ox);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, mat[13] + oy + 2.1f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, mat[14] + oz);
+
+        /* Engine `jmp 0x43ea5e` — skip phase 2 DRAG/ground, fall to SM. */
+    } else {
+        /* Phase 2 — ground-bounce settle. */
+        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.01f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy);
+
+        if (vy < 0.0f) {
+            float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            float gy = 0.0f;
+            if (ground_query(px, py, pz, &gy) == 1) {
+                /* Mirror engine: ground_y is reloaded from slot[AUX_9] (the
+                 * scratch buffer the engine passes to ground_query) for the
+                 * threshold compare.  Our hook returns out_y directly; write
+                 * AUX_9 to preserve the engine's observable side-effect. */
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_AUX_9, gy);
+                if (py <= gy + 0.3f) {
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, gy + 1.0f);
+                    float new_vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) * -0.5f;
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, new_vy);
+                    int32_t bc = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) + 1;
+                    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, bc);
+                    if (bc == 3) {
+                        scene1_records_b_tick_kill_slot(i);
+                        return;
+                    }
+                }
+            }
+        }
+
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.3f);
+    }
+
+    /* Shared tail (LAB_0043ea5e): state_machine call, ret!=0 kills, else
+     * fall to LAB_0043ed87 AGE==400 kill check. */
+    if (state_machine_call_ret(slot_base(i)) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 400) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -5735,9 +5968,13 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x83:
         body_0x83(slot_idx);
         break;
+    /* C8j-tick.15k — type 0x75 ground-cull walker. */
+    case 0x75:
+        body_0x75(slot_idx);
+        break;
     default:
-        /* Remaining tail types {0x75/0x7c} and the LAB_00440dc1 default-
-         * tail body are deferred to future C8j-tick.15k+ sub-chips.
+        /* Remaining tail types {0x7c} and the LAB_00440dc1 default-tail
+         * body are deferred to future C8j-tick.15l+ sub-chips.
          * LAB_0043f39b is just an AGE==0x78 kill jump-label, not a
          * separate body (survey claim corrected). */
         break;

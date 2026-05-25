@@ -2014,6 +2014,39 @@ struct test_case {
     X(records_b_tick_t15j_age_300_kills) \
     X(records_b_tick_t15j_age_299_alive) \
     X(records_b_tick_t15j_sw_record_at_hook_setter_round_trips) \
+    X(records_b_tick_t15k_phase1_writes_life_mult_half) \
+    X(records_b_tick_t15k_phase1_age_decay_above_100) \
+    X(records_b_tick_t15k_phase1_age_no_decay_at_100) \
+    X(records_b_tick_t15k_phase_boost_at_age_100_with_7_cousins) \
+    X(records_b_tick_t15k_phase_boost_inhibited_at_6_cousins) \
+    X(records_b_tick_t15k_phase_boost_inhibited_when_cousins_too_old) \
+    X(records_b_tick_t15k_phase_boost_inhibited_below_age_100) \
+    X(records_b_tick_t15k_phase_boost_vel_xz_from_owner_yaw) \
+    X(records_b_tick_t15k_phase_boost_vel_xz_pi_half) \
+    X(records_b_tick_t15k_phase_boost_no_owner_uses_zero_yaw) \
+    X(records_b_tick_t15k_phase1_rot_x_steps_toward_target_max_0_08) \
+    X(records_b_tick_t15k_phase1_rot_x_snaps_when_within_max_step) \
+    X(records_b_tick_t15k_phase1_rot_x_target_uses_frame_count) \
+    X(records_b_tick_t15k_phase1_rot_x_target_uses_cousin_ordinal) \
+    X(records_b_tick_t15k_phase1_pos_anchored_to_owner_plus_2_1) \
+    X(records_b_tick_t15k_phase1_pos_scale_clamped_to_3) \
+    X(records_b_tick_t15k_phase1_zeroes_rot_scr_and_rot_z) \
+    X(records_b_tick_t15k_phase2_vel_y_gravity) \
+    X(records_b_tick_t15k_phase2_drag_var_is_0_3) \
+    X(records_b_tick_t15k_phase2_ground_query_skipped_when_vel_y_ge_0) \
+    X(records_b_tick_t15k_phase2_ground_query_fires_when_vel_y_lt_0) \
+    X(records_b_tick_t15k_phase2_ground_bounce_snaps_pos_y_to_gy_plus_1) \
+    X(records_b_tick_t15k_phase2_ground_bounce_increments_bounce_count) \
+    X(records_b_tick_t15k_phase2_ground_bounce_count_3_kills_slot) \
+    X(records_b_tick_t15k_phase2_no_bounce_when_pos_y_above_threshold) \
+    X(records_b_tick_t15k_phase2_no_bounce_when_ground_miss) \
+    X(records_b_tick_t15k_phase2_sm_nonzero_kills_slot) \
+    X(records_b_tick_t15k_phase1_sm_nonzero_kills_slot) \
+    X(records_b_tick_t15k_age_400_kills_slot) \
+    X(records_b_tick_t15k_age_399_stays_alive) \
+    X(records_b_tick_t15k_phase_boost_doesnt_check_age_400_same_tick) \
+    X(records_b_tick_t15k_angle_step_toward_wraps_through_pi) \
+    X(records_b_tick_t15k_dispatch_unaffected_for_other_types) \
     \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
