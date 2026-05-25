@@ -3528,6 +3528,11 @@ static void body_0x53(int i)
     if (age >= kill_age) {
         scene1_records_b_tick_kill_slot(i);
     }
+    /* engine `jmp 0x43e5cb → 0x440dbd → 0x440dc1` — fall through to the
+     * default-tail wall-bounce body.  body_0x53 doesn't set the per-tick
+     * flag, so this is a no-op in production; wired for engine fidelity
+     * (C8j-tick.16-wire.3). */
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.14 — type 0x58 / 0x66 shared body (anchor rotor) ════════
@@ -3655,6 +3660,11 @@ static void body_0x58_or_0x66(int i, int32_t type)
     if (age == 0xe) {
         scene1_records_b_tick_kill_slot(i);
     }
+    /* engine `jmp 0x440bae → 0x440dbd → 0x440dc1` — fall through to
+     * default-tail wall-bounce body.  body_0x58_or_0x66 doesn't set the
+     * per-tick flag, so this is a no-op in production; wired for engine
+     * fidelity (C8j-tick.16-wire.3). */
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15a — three trivial tail bodies ═════════════════════════
