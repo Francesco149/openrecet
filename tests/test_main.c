@@ -2489,7 +2489,36 @@ struct test_case {
     X(combat_sm_fall_through_preserves_gate_globals) \
     X(combat_sm_install_as_void_hook_writes_per_tick_flag_via_integrator) \
     X(combat_sm_uninstall_void_hook_restores_default) \
-    X(combat_sm_gate_short_circuit_is_atomic)
+    X(combat_sm_gate_short_circuit_is_atomic) \
+    X(combat_sm_phase_b_skipped_when_player_hp_zero) \
+    X(combat_sm_phase_b_skipped_when_player_hp_negative) \
+    X(combat_sm_phase_b_skipped_when_state_is_1) \
+    X(combat_sm_phase_b_skipped_when_state_is_2) \
+    X(combat_sm_phase_b_runs_when_state_is_0) \
+    X(combat_sm_phase_b_runs_when_state_is_3) \
+    X(combat_sm_phase_b_skips_npc_with_positive_cooldown) \
+    X(combat_sm_phase_b_admits_npc_with_zero_cooldown) \
+    X(combat_sm_phase_b_admits_npc_with_negative_cooldown) \
+    X(combat_sm_phase_b_skips_npc_with_sister_724_set) \
+    X(combat_sm_phase_b_target_lock_skips_locked_npc) \
+    X(combat_sm_phase_b_target_lock_inert_when_state_is_0) \
+    X(combat_sm_phase_b_target_lock_inert_when_owner_null) \
+    X(combat_sm_phase_b_skips_npc_with_alive_zero) \
+    X(combat_sm_phase_b_admits_npc_with_alive_one) \
+    X(combat_sm_phase_b_skips_npc_with_alive_two_and_alias_zero) \
+    X(combat_sm_phase_b_admits_npc_with_alive_two_and_alias_set) \
+    X(combat_sm_phase_b_skips_npc_with_alive_three) \
+    X(combat_sm_phase_b_skips_npc_when_seq_id_in_history) \
+    X(combat_sm_phase_b_admits_npc_when_seq_id_not_in_history) \
+    X(combat_sm_phase_b_hit_history_match_at_each_slot) \
+    X(combat_sm_phase_b_hit_history_zero_seq_id_matches_default_ring) \
+    X(combat_sm_phase_b_iterates_all_npcs_in_index_order) \
+    X(combat_sm_phase_b_iter_count_caps_at_128) \
+    X(combat_sm_phase_b_visit_count_resets_between_ticks) \
+    X(combat_sm_phase_b_visit_count_resets_on_phase_a_fall_through) \
+    X(combat_sm_phase_a_gate_skips_phase_b_entirely) \
+    X(combat_sm_phase_b_visit_hook_install_returns_previous) \
+    X(combat_sm_phase_b_visit_hook_nullable)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

@@ -102,6 +102,29 @@ extern float g_scene1_camera_yaw_alt;
  * units of the spawn owner.  Engine accesses them via base
  * `DAT_0076c478` (= entry 0 byte +0x724) with `piVar13[-1]` for +0x720,
  * `*piVar13` for +0x724.
+ *
+ * C8jb.2 (combat SM Phase B head) additions:
+ *
+ *   combat_cooldown_5  +0x710  per-NPC active-cooldown countdown; gates
+ *                              the attacker scan in FUN_0043865e
+ *                              (`local_30[-5] > 0` → SM skips this NPC).
+ *                              When 0, the NPC is targetable.
+ *   alive_alias_24     +0x7b4  secondary aliveness flag.  Combat SM gates
+ *                              `alive == 1 || (alive == 2 && alias_24 != 0)`.
+ *                              Allows the engine to distinguish "fully
+ *                              alive" (alive==1) from "alive-in-substate"
+ *                              (alive==2 + alias_24 set).
+ *   hit_history[10]    +0x778..0x79c  10-entry ring of slot SEQ_IDs that
+ *                              recently hit this NPC.  Combat SM scans
+ *                              this to skip "I've already been hit by
+ *                              this attack-slot".  Engine writes via
+ *                              `npc[hit_cursor + 0x15] = slot[0x47];
+ *                               hit_cursor = (hit_cursor + 1) % 10`.
+ *   hit_cursor         +0x7a0  ring write index, modulo 10.
+ *
+ * The struct's field layout no longer mirrors engine byte offsets — it's
+ * a host-side decomposition.  All readers/writers go through named
+ * fields, so the layout drift is invisible.
  */
 typedef struct {
     float   pos[3];
@@ -112,6 +135,10 @@ typedef struct {
     int32_t cooldown;
     int32_t sister_720;
     int32_t sister_724;
+    int32_t combat_cooldown_5;
+    int32_t alive_alias_24;
+    int32_t hit_history[10];
+    int32_t hit_cursor;
 } scene1_people_entry_t;
 
 #define SCENE1_PEOPLE_COUNT 128                /* engine cap confirmed in C8h.4a */

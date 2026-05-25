@@ -8,10 +8,14 @@
  * Chip ladder (C8jb.*):
  *
  *   C8jb.0 (2026-05-25, commit e72ac6c)  — Survey only.
- *   C8jb.1 (this chip)                   — Phase A entry gates + per-tick
+ *   C8jb.1 (2026-05-25, commit 256a1f6)  — Phase A entry gates + per-tick
  *                                          flag write (resolves PHC #21).
- *                                          Bodies stubbed; ret = 0.
- *   C8jb.2..11                           — Phases B/C/D bodies.
+ *   C8jb.2 (this chip)                   — Phase B head: attacker NPC scan
+ *                                          iteration shell + 4 skip gates +
+ *                                          per-NPC hit-history filter.  No
+ *                                          collision math yet — every iter
+ *                                          falls through to next NPC.
+ *   C8jb.3..11                           — Phase B body / Phase C / Phase D.
  *   C8jb.fin                             — Install as integrator default
  *                                          SM hook (int-ret plumbing).
  *
@@ -21,8 +25,8 @@
  *   1  — hit fired (downstream body should apply damage write to owner).
  *   2  — full cleanup; slot self-killed inside the SM (`*slot = 0`).
  *
- * C8jb.1 scope only implements Phase A: returns 0 unconditionally after
- * either short-circuiting on an entry gate OR setting the per-tick flag.
+ * C8jb.1+2 scope: returns 0 unconditionally.  Phase A short-circuit OR
+ * Phase B iteration-completes-without-hit OR Phase C/D stub fall-through.
  */
 #ifndef OPENRECET_SCENE1_COMBAT_SM_H
 #define OPENRECET_SCENE1_COMBAT_SM_H
@@ -63,6 +67,46 @@ extern int32_t g_scene1_combat_subphase;     /* DAT_0438be98 */
 extern int32_t g_scene1_combat_world_pause;  /* DAT_0438be9c */
 extern int32_t g_scene1_combat_aux_pause;    /* DAT_0438bea0 */
 
+/* ─── Phase B head — attacker NPC scan ───────────────────────────────── */
+/*
+ * Phase B gate: enters only when slot is in an "attacker" combat state
+ * AND the player is alive (HP > 0).
+ *
+ *   slot[FLAG_A] in {0, 3}     attacker = idle (0) or hit-recovery (3)
+ *   g_scene1_combat_player_hp > 0.0f
+ *
+ * Engine global: _DAT_056db0bc — float, written by the Phase D HP path
+ * (not ported yet) and by FUN_0044b16c (damage applicator, unported).
+ * Default 0.0f → entire Phase B scan is dormant.  Tests raise this to
+ * exercise iteration paths.
+ *
+ * The scan iterates g_scene1_people[0..127], stride 0xba4 B in engine.
+ * Each NPC passes 4 skip gates + the per-NPC hit-history filter; NPCs
+ * that pass are eligible for collision math (C8jb.3+).  C8jb.2 stops
+ * after the filter — every "passed" NPC merely calls the visit hook.
+ */
+extern float g_scene1_combat_player_hp;      /* _DAT_056db0bc */
+
+/*
+ * Total count of NPCs that passed all 4 skip gates + the hit-history
+ * filter during the most recent scene1_combat_sm_tick() call.  Reset to
+ * 0 at the start of each tick that proceeds past Phase A.  Useful for
+ * test smoke ("did the iteration reach any NPC?") without installing
+ * a full visit hook.
+ */
+extern int32_t g_scene1_combat_phase_b_visit_count;
+
+/*
+ * Per-NPC visit hook.  Called once per NPC index `i` (0..127) that
+ * passes all 4 skip gates + the hit-history filter.  Default NULL → no
+ * callback.  Tests use this to capture which NPCs were "would-collide"
+ * candidates.  The hook does NOT short-circuit iteration; it is a pure
+ * observer.
+ */
+typedef void (*scene1_combat_phase_b_visit_fn)(int npc_index);
+scene1_combat_phase_b_visit_fn
+scene1_combat_set_phase_b_visit_hook(scene1_combat_phase_b_visit_fn fn);
+
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*
  * Tick the per-record state machine for one slot.
@@ -72,14 +116,20 @@ extern int32_t g_scene1_combat_aux_pause;    /* DAT_0438bea0 */
  * is treated identically to the engine's `param_1`).  The function does
  * NOT validate the pointer.
  *
- * Returns the SM ret contract value {0, 1, 2}.  C8jb.1 returns 0 in all
- * paths — Phase A short-circuit OR fall-through to a stubbed body.
+ * Returns the SM ret contract value {0, 1, 2}.  C8jb.1+2 return 0 in
+ * all paths — Phase A short-circuit OR Phase B iter-completes-with-no-
+ * hit OR Phase C/D stub fall-through.
  *
- * Side effects in C8jb.1:
- *   - On fall-through (all entry gates zero): writes
- *     g_scene1_records_b_tick_flag = 1.  This is engine PHC #21's
- *     resolution — the writer that the integrator's per-tick clear
- *     was looking for.  Resolves PHC #21.
+ * Side effects in C8jb.1+2:
+ *   - On fall-through past Phase A (all entry gates zero): writes
+ *     g_scene1_records_b_tick_flag = 1.  Resolves PHC #21.
+ *   - Resets g_scene1_combat_phase_b_visit_count to 0 then increments
+ *     it per NPC that passes all skip gates + hit-history filter
+ *     during the Phase B scan.  If the Phase B outer gate (FLAG_A in
+ *     {0,3} && player_hp > 0) fails, Phase B is skipped and the
+ *     counter stays at 0.
+ *   - Calls g_scene1_combat_phase_b_visit_hook (if installed) for each
+ *     "would-collide" NPC.
  */
 int scene1_combat_sm_tick(int32_t *slot);
 
