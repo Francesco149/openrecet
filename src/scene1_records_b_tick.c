@@ -4502,10 +4502,13 @@ static void body_0x76_or_0xa3(int i, int32_t type)
     }
 
     /* asm 0x440ba7-0x440bae: kill on AGE == 0x5a, else fall through to
-     * LAB_00440dbd default-tail (deferred). */
+     * LAB_00440dbd → 0x440dc1 default-tail wall-bounce body.
+     * body_0x76_or_0xa3 doesn't set the per-tick flag, so this is a no-op
+     * in production; wired for engine fidelity (C8j-tick.16-wire.8). */
     if (age == 0x5a) {
         scene1_records_b_tick_kill_slot(i);
     }
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15f — type 0x77 / 0xa2 shared owner-follow body ══════════
@@ -4686,11 +4689,14 @@ static void body_0x77_or_0xa2(int i, int32_t type)
         }
     }
 
-    /* asm 0x440a9f-0x440aa9: LAB_004402a2 / LAB_00440dbd — kill on AGE
-     * == 4000, else fall through to LAB_00440dbd default-tail (deferred). */
+    /* asm 0x440a9f-0x440aa9: `jmp 0x440aa9 → LAB_004402a2 → 0x440dc1` — kill
+     * on AGE == 4000, else fall through to default-tail wall-bounce body.
+     * body_0x77_or_0xa2 doesn't set the per-tick flag, so this is a no-op
+     * in production; wired for engine fidelity (C8j-tick.16-wire.8). */
     if (age == 4000) {
         scene1_records_b_tick_kill_slot(i);
     }
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15g — types 0x2e / 0x36 player-homing damped drift ═══════
