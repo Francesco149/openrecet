@@ -619,6 +619,29 @@ typedef void (*scene1_b_overlay_spawn_fn)(const void *template_owner,
  * matching unported retail). */
 typedef int32_t *(*scene1_b_sw_record_at_fn)(int idx);
 
+/* Stand-in for engine FUN_0043ab6e (690 B, 0x43ab6e) — NPC sister-search
+ * (nearest-live-NPC scanner with frustum cull).  Engine iterates
+ * DAT_0076c478 (people-table sister alias) stride 0x1c9, uses FUN_00490820
+ * + atan2 to score candidates, and returns the people-table index of the
+ * best match or -1 when no candidate qualifies.
+ *
+ * Used by C8j-tick.15l type-0x7c body to discover a "sister" NPC the slot
+ * latches onto.  Engine call shape (asm 0x43f88b):
+ *   FUN_0043ab6e(slot, 0.6, 0.03, 0.05, 0.96, slot[AUX_SENT2])
+ * The 4 float args are likely (search-radius, score-weight-A, score-
+ * weight-B, score-floor); the 6th arg is the previous match (so the
+ * search can avoid re-picking the same sister within the cooldown
+ * window).  Returns sister index in [0, 0x80) or -1.
+ *
+ * Default NULL → returns -1 → 0x7c slots never latch onto a sister →
+ * the PART_IDX cooldown timer stays at 0 (sister-found gate at
+ * AUX_SENT2!=-1 is closed).  Tests install a stub to drive the
+ * cooldown-start path. */
+typedef int32_t (*scene1_b_aux_43ab6e_fn)(int32_t *slot,
+                                          float arg2, float arg3,
+                                          float arg4, float arg5,
+                                          int32_t old_idx);
+
 /* Setters return prior value so tests can save/restore.  Pass NULL to
  * revert to the default — for `per_type_body` that's the in-module
  * `dispatch_default` (engine-faithful body); for `state_machine` and
@@ -647,6 +670,8 @@ scene1_b_aux_4319d6_fn    scene1_records_b_set_aux_4319d6_hook(
     scene1_b_aux_4319d6_fn fn);
 scene1_b_sw_record_at_fn  scene1_records_b_set_sw_record_at_hook(
     scene1_b_sw_record_at_fn fn);
+scene1_b_aux_43ab6e_fn    scene1_records_b_set_aux_43ab6e_hook(
+    scene1_b_aux_43ab6e_fn fn);
 
 /* Mark a slot dead — engine LAB_004411e3 (`*piVar14 = 0`).  Setting
  * TYPE = 0 makes the next allocator scan reclaim it.  Death-effect

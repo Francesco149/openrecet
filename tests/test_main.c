@@ -2048,6 +2048,39 @@ struct test_case {
     X(records_b_tick_t15k_angle_step_toward_wraps_through_pi) \
     X(records_b_tick_t15k_dispatch_unaffected_for_other_types) \
     \
+    X(records_b_tick_t15l_phase2_age_increments_and_drag_2) \
+    X(records_b_tick_t15l_phase2_sm_called) \
+    X(records_b_tick_t15l_phase2_kill_at_age_above_230) \
+    X(records_b_tick_t15l_phase2_no_kill_at_230) \
+    X(records_b_tick_t15l_phase1_age_negative_cancels_preamble) \
+    X(records_b_tick_t15l_phase1_age_zero_skips_cancel) \
+    X(records_b_tick_t15l_phase1_sm_emit_when_first_sm_nonzero) \
+    X(records_b_tick_t15l_phase1_sm_no_emit_when_no_sm_hook) \
+    X(records_b_tick_t15l_phase1_sm_pos_y_restored_after_second_call) \
+    X(records_b_tick_t15l_phase1_sm_skip_when_age_le_5) \
+    X(records_b_tick_t15l_phase1_age_eq_1_spawns_0x70) \
+    X(records_b_tick_t15l_phase1_age_neq_1_no_spawn_70) \
+    X(records_b_tick_t15l_phase1_part_idx_timer_increments) \
+    X(records_b_tick_t15l_phase1_part_idx_stays_zero_without_sister) \
+    X(records_b_tick_t15l_phase1_sister_found_seeds_part_idx) \
+    X(records_b_tick_t15l_sister_hook_args_match_engine) \
+    X(records_b_tick_t15l_sister_skipped_when_age_le_0x14) \
+    X(records_b_tick_t15l_sister_skipped_when_part_idx_ge_0x28) \
+    X(records_b_tick_t15l_phase1_ground_query_called) \
+    X(records_b_tick_t15l_phase1_ground_hit_writes_aux_9_and_snaps) \
+    X(records_b_tick_t15l_phase1_ground_miss_uses_gy_zero_threshold) \
+    X(records_b_tick_t15l_phase1_ground_no_latch_when_above_threshold) \
+    X(records_b_tick_t15l_post_impact_fires_notify_se_and_3_overlays) \
+    X(records_b_tick_t15l_no_trail_when_vel_zero) \
+    X(records_b_tick_t15l_trail_emits_iters_from_speed) \
+    X(records_b_tick_t15l_trail_iters_clamped_to_1) \
+    X(records_b_tick_t15l_trail_last_emit_at_pos_minus_vel_offset) \
+    X(records_b_tick_t15l_age_eq_130_kills_slot) \
+    X(records_b_tick_t15l_age_just_below_130_alive) \
+    X(records_b_tick_t15l_post_impact_sets_age_200) \
+    X(records_b_tick_t15l_dispatch_unaffected_for_other_types) \
+    X(records_b_tick_t15l_set_aux_43ab6e_hook_round_trip) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

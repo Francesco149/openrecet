@@ -45,6 +45,7 @@ static void reset_world(void)
     scene1_records_b_set_overlay_spawn_hook(NULL);
     scene1_records_b_set_aux_4319d6_hook(NULL);
     scene1_records_b_set_sw_record_at_hook(NULL);
+    scene1_records_b_set_aux_43ab6e_hook(NULL);
 }
 
 static int32_t *bslot(int i)
@@ -8816,5 +8817,576 @@ int test_records_b_tick_t15k_dispatch_unaffected_for_other_types(void)
     slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 99.0f);
     scene1_records_b_tick();
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT) - 99.0f) < 1e-6f);
+    return 0;
+}
+
+/* ─── C8j-tick.15l — body_0x7c (sister-hunting projectile) ────────────── */
+
+/* Per-call overlay log (capacity 32) for tests that need to inspect the
+ * full sequence rather than just the last call. */
+#define T15L_OVERLAY_LOG_CAP 32
+static int s_t15l_overlay_log_n;
+static struct {
+    int   type;
+    float pos_x, pos_y, pos_z;
+    float scale;
+    int   dur;
+} s_t15l_overlay_log[T15L_OVERLAY_LOG_CAP];
+static void t15l_log_overlay(const void *owner,
+                             float px, float py, float pz,
+                             int type, float scale, int dur,
+                             int rot_y, int shape_mode, int mode)
+{
+    (void)owner; (void)rot_y; (void)shape_mode; (void)mode;
+    if (s_t15l_overlay_log_n < T15L_OVERLAY_LOG_CAP) {
+        s_t15l_overlay_log[s_t15l_overlay_log_n].type = type;
+        s_t15l_overlay_log[s_t15l_overlay_log_n].pos_x = px;
+        s_t15l_overlay_log[s_t15l_overlay_log_n].pos_y = py;
+        s_t15l_overlay_log[s_t15l_overlay_log_n].pos_z = pz;
+        s_t15l_overlay_log[s_t15l_overlay_log_n].scale = scale;
+        s_t15l_overlay_log[s_t15l_overlay_log_n].dur = dur;
+    }
+    s_t15l_overlay_log_n++;
+}
+static void t15l_install_overlay_log(void)
+{
+    s_t15l_overlay_log_n = 0;
+    scene1_records_b_set_overlay_spawn_hook(t15l_log_overlay);
+}
+
+/* Sister-search hook capture. */
+static int     s_t15l_sister_calls;
+static int32_t s_t15l_sister_old;
+static float   s_t15l_sister_args[4];
+static int32_t s_t15l_sister_ret;          /* mocked return */
+static int32_t *s_t15l_sister_last_slot;
+static int32_t t15l_sister_hook(int32_t *slot,
+                                float a, float b, float c, float d,
+                                int32_t old_idx)
+{
+    s_t15l_sister_calls++;
+    s_t15l_sister_last_slot = slot;
+    s_t15l_sister_args[0] = a;
+    s_t15l_sister_args[1] = b;
+    s_t15l_sister_args[2] = c;
+    s_t15l_sister_args[3] = d;
+    s_t15l_sister_old = old_idx;
+    return s_t15l_sister_ret;
+}
+
+/* Convenience: stage 0x7c slot with AGE such that post-preamble lands at
+ * the target.  Engine preamble does pos += vel + age++; per-type body
+ * reads the post-preamble AGE.  Target post-preamble AGE = pre + 1. */
+static void t15l_stage(int slot, int pre_age, float py)
+{
+    stage_live(slot, 0x7c, 0, py, 0, 0, 0, 0, /*age=*/pre_age);
+}
+
+int test_records_b_tick_t15l_phase2_age_increments_and_drag_2(void)
+{
+    /* AGE pre 200 → preamble bumps to 201; body sees age > 200 → Phase 2.
+     * Phase 2 sets DRAG=2.0 and age++ → 202 (no kill, <= 230). */
+    reset_world();
+    t15l_stage(0, /*pre_age=*/200, /*py=*/100.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_DRAG, 99.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 202);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 2.0f) < 1e-6f);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x7c);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase2_sm_called(void)
+{
+    /* Phase 2 calls state_machine(slot) once. */
+    reset_world();
+    s_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    t15l_stage(0, /*pre_age=*/200, /*py=*/100.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 1);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase2_kill_at_age_above_230(void)
+{
+    /* AGE pre 230 → preamble bumps to 231; Phase 2 body bumps to 232.
+     * 232 > 230 → kill. */
+    reset_world();
+    t15l_stage(0, /*pre_age=*/230, /*py=*/100.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase2_no_kill_at_230(void)
+{
+    /* AGE pre 228 → preamble 229; Phase 2 → 230.  230 is NOT > 230 → alive. */
+    reset_world();
+    t15l_stage(0, /*pre_age=*/228, /*py=*/100.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x7c);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 230);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_age_negative_cancels_preamble(void)
+{
+    /* AGE pre -5 → preamble: age becomes -4, pos.x += vel.x.  Body sees
+     * age=-4 < 0 → cancels: pos.x -= vel.x → net pos.x unchanged.  Stage
+     * POS_Y=1000 to guarantee no ground latch (threshold = 0 + 1 = 1). */
+    reset_world();
+    stage_live(0, 0x7c, /*px=*/10.0f, /*py=*/1000.0f, /*pz=*/30.0f,
+               /*vx=*/2.0f, /*vy=*/0, /*vz=*/0, /*age=*/-5);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 10.0f) < 1e-5f);
+    /* But velocity-trail loop runs (speed!=0) at the new POS=(10, 1000, 30)
+     * — verified separately. */
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_age_zero_skips_cancel(void)
+{
+    /* AGE pre -1 → preamble bumps to 0 (NOT < 0) → no cancel.  POS gains
+     * VEL via preamble.  Stage POS_Y=1000 to skip ground. */
+    reset_world();
+    stage_live(0, 0x7c, /*px=*/10.0f, /*py=*/1000.0f, /*pz=*/30.0f,
+               /*vx=*/2.0f, /*vy=*/0, /*vz=*/0, /*age=*/-1);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 12.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_sm_emit_when_first_sm_nonzero(void)
+{
+    /* AGE pre 6 → preamble 7 (>5).  SM hook installed (ret!=0).  Body
+     * emits 0x3a at scale 2.25 with POS_Y unchanged.  Use POS_Y=1000 to
+     * suppress ground bounce.  Vel=0 so trail loop is no-op.
+     *
+     * Engine quirk: SM-emit sets the shared hit_flag, which then triggers
+     * the post-impact cascade.  So we expect 4 overlay calls total:
+     *   [0] 0x3a scale 2.25 (SM-emit)
+     *   [1] 0x2e scale 0.8  (post-impact)
+     *   [2] 0x44 scale 0.8
+     *   [3] 0x32 scale 0.8
+     * AGE also jumps to 0xc8. */
+    reset_world();
+    t15l_install_overlay_log();
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    stage_live(0, 0x7c, /*px=*/3.0f, /*py=*/1000.0f, /*pz=*/4.0f,
+               0, 0, 0, /*age=*/6);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_t15l_overlay_log_n, 4);
+    T_ASSERT_EQ_I(s_t15l_overlay_log[0].type, 0x3a);
+    T_ASSERT(fabsf(s_t15l_overlay_log[0].scale - 2.25f) < 1e-5f);
+    T_ASSERT(fabsf(s_t15l_overlay_log[0].pos_y - 1000.0f) < 1e-4f);
+    T_ASSERT_EQ_I(s_t15l_overlay_log[1].type, 0x2e);
+    T_ASSERT_EQ_I(s_t15l_overlay_log[2].type, 0x44);
+    T_ASSERT_EQ_I(s_t15l_overlay_log[3].type, 0x32);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 0xc8);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_sm_no_emit_when_no_sm_hook(void)
+{
+    /* No SM hook → SM ret=0 both times → no SM-emit.  Trail still fires
+     * if VEL nonzero but use VEL=0 + POS_Y=1000 to verify just the SM-
+     * emit branch.  Expect overlay calls == 0. */
+    reset_world();
+    s_overlay_calls = 0;
+    install_overlay_capture();
+    stage_live(0, 0x7c, /*px=*/3.0f, /*py=*/1000.0f, /*pz=*/4.0f,
+               0, 0, 0, /*age=*/6);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_overlay_calls, 0);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_sm_pos_y_restored_after_second_call(void)
+{
+    /* POS_Y must be restored to original (engine restores unconditionally
+     * after the POS_Y-0.5 / SM / POS_Y+0.5 sequence).  Test with no SM
+     * hook → both SMs return 0 but engine still does the nudge/restore. */
+    reset_world();
+    stage_live(0, 0x7c, /*px=*/0, /*py=*/1000.0f, /*pz=*/0,
+               0, 0, 0, /*age=*/6);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 1000.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_sm_skip_when_age_le_5(void)
+{
+    /* AGE pre 4 → preamble 5; 5 is NOT > 5 → skip SM-emit block. */
+    reset_world();
+    s_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    stage_live(0, 0x7c, 0, /*py=*/1000.0f, 0, 0, 0, 0, /*age=*/4);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_age_eq_1_spawns_0x70(void)
+{
+    /* AGE pre 0 → preamble 1 → scene1_spawn(0, POS, 0x70, 0.5, 1). */
+    reset_world();
+    scene1_spawn_trace_reset();
+    /* POS_Y=1000 to skip ground latch. */
+    stage_live(0, 0x7c, /*px=*/5.0f, /*py=*/1000.0f, /*pz=*/15.0f,
+               0, 0, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT(g_scene1_spawn_trace_count >= 1);
+    /* Find the 0x70 call (other types may also enqueue via other paths,
+     * but here only 0x7c body fires). */
+    int found_70 = -1;
+    for (int k = 0; k < g_scene1_spawn_trace_count; k++) {
+        if (g_scene1_spawn_trace[k].type == 0x70) { found_70 = k; break; }
+    }
+    T_ASSERT(found_70 >= 0);
+    scene1_spawn_call_t *c = &g_scene1_spawn_trace[found_70];
+    T_ASSERT_EQ_I(c->slot_hint, 0);
+    T_ASSERT(fabsf(c->x - 5.0f)   < 1e-5f);
+    T_ASSERT(fabsf(c->y - 1000.0f) < 1e-4f);
+    T_ASSERT(fabsf(c->z - 15.0f)  < 1e-5f);
+    T_ASSERT(fabsf(c->scale - 0.5f) < 1e-6f);
+    T_ASSERT_EQ_I(c->param7, 1);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_age_neq_1_no_spawn_70(void)
+{
+    /* AGE pre 1 → preamble 2 → AGE != 1 → no scene1_spawn. */
+    reset_world();
+    scene1_spawn_trace_reset();
+    stage_live(0, 0x7c, 0, /*py=*/1000.0f, 0, 0, 0, 0, /*age=*/1);
+    scene1_records_b_tick();
+    /* No 0x70 call. */
+    for (int k = 0; k < g_scene1_spawn_trace_count; k++) {
+        T_ASSERT(g_scene1_spawn_trace[k].type != 0x70);
+    }
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_part_idx_timer_increments(void)
+{
+    /* PART_IDX pre 1 → increments to 2.  Pre-stage AUX_SENT2=-1 to keep
+     * sister-search dormant.  POS_Y=1000 to skip ground.  AGE pre 99
+     * (preamble 100, > 0x14 = 20 → sister window open; but no hook → no
+     * write).  PART_IDX < 0x28 → window still open. */
+    reset_world();
+    t15l_stage(0, /*pre_age=*/99, /*py=*/1000.0f);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_SENT2, -1);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_PART_IDX), 2);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_part_idx_stays_zero_without_sister(void)
+{
+    /* PART_IDX=0 + AUX_SENT2=-1 (no sister) → timer stays 0. */
+    reset_world();
+    t15l_stage(0, /*pre_age=*/99, /*py=*/1000.0f);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 0);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_SENT2, -1);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_PART_IDX), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_sister_found_seeds_part_idx(void)
+{
+    /* Sister hook returns 5.  PART_IDX starts 0 → after search,
+     * AUX_SENT2=5 → seed PART_IDX=1. */
+    reset_world();
+    s_t15l_sister_ret = 5;
+    s_t15l_sister_calls = 0;
+    scene1_records_b_set_aux_43ab6e_hook(t15l_sister_hook);
+    t15l_stage(0, /*pre_age=*/99, /*py=*/1000.0f);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 0);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_SENT2, -1);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_t15l_sister_calls, 1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AUX_SENT2), 5);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_PART_IDX), 1);
+    return 0;
+}
+
+int test_records_b_tick_t15l_sister_hook_args_match_engine(void)
+{
+    /* Verify exact float args + old_idx passed through. */
+    reset_world();
+    s_t15l_sister_ret = -1;
+    s_t15l_sister_calls = 0;
+    scene1_records_b_set_aux_43ab6e_hook(t15l_sister_hook);
+    t15l_stage(0, /*pre_age=*/99, /*py=*/1000.0f);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_SENT2, 42);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_t15l_sister_calls, 1);
+    T_ASSERT(fabsf(s_t15l_sister_args[0] - 0.6f)  < 1e-6f);
+    T_ASSERT(fabsf(s_t15l_sister_args[1] - 0.03f) < 1e-6f);
+    T_ASSERT(fabsf(s_t15l_sister_args[2] - 0.05f) < 1e-6f);
+    T_ASSERT(fabsf(s_t15l_sister_args[3] - 0.96f) < 1e-6f);
+    T_ASSERT_EQ_I(s_t15l_sister_old, 42);
+    /* hook returned -1 → AUX_SENT2 overwritten to -1 → no seed. */
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AUX_SENT2), -1);
+    return 0;
+}
+
+int test_records_b_tick_t15l_sister_skipped_when_age_le_0x14(void)
+{
+    /* AGE pre 0x13 → preamble 0x14 → 0x14 is NOT > 0x14 → no search. */
+    reset_world();
+    s_t15l_sister_calls = 0;
+    scene1_records_b_set_aux_43ab6e_hook(t15l_sister_hook);
+    t15l_stage(0, /*pre_age=*/0x13, /*py=*/1000.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_t15l_sister_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_t15l_sister_skipped_when_part_idx_ge_0x28(void)
+{
+    /* PART_IDX pre 0x28 → 0x28 is NOT < 0x28 → no search.  PART_IDX>0
+     * also increments → post = 0x29. */
+    reset_world();
+    s_t15l_sister_calls = 0;
+    scene1_records_b_set_aux_43ab6e_hook(t15l_sister_hook);
+    t15l_stage(0, /*pre_age=*/99, /*py=*/1000.0f);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 0x28);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_t15l_sister_calls, 0);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_PART_IDX), 0x29);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_ground_query_called(void)
+{
+    /* Ground query always fires (no VEL_Y gate).  Use POS_Y=1000 so the
+     * miss case latches no impact. */
+    reset_world();
+    s_gq_calls = 0;
+    s_gq_hit = 0;
+    s_gq_out_y = 0;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    t15l_stage(0, /*pre_age=*/99, /*py=*/1000.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_gq_calls, 1);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_ground_hit_writes_aux_9_and_snaps(void)
+{
+    /* Hit at gy=5.0; POS_Y=4.0 → 4.0 <= 5.0+1.0=6.0 → snap to 6.0, zero VEL. */
+    reset_world();
+    s_gq_calls = 0;
+    s_gq_hit = 1;
+    s_gq_out_y = 5.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_live(0, 0x7c, /*px=*/0, /*py=*/4.0f, /*pz=*/0,
+               /*vx=*/1.0f, /*vy=*/2.0f, /*vz=*/3.0f, /*age=*/99);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_AUX_9) - 5.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 6.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.0f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.0f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z) - 0.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_ground_miss_uses_gy_zero_threshold(void)
+{
+    /* Miss → gy=0, threshold = 0 + 1 = 1.  POS_Y=0.5 <= 1 → latches
+     * impact even though "no ground" — engine quirk (asm fldz initializes
+     * gy slot to 0 before the call; on miss the value stays 0). */
+    reset_world();
+    s_gq_calls = 0;
+    s_gq_hit = 0;
+    s_gq_out_y = 999.0f;  /* hook writes but engine ignores on miss == 0 */
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_live(0, 0x7c, /*px=*/0, /*py=*/0.5f, /*pz=*/0, 0, 0, 0, /*age=*/99);
+    scene1_records_b_tick();
+    /* Latched: snap to 1.0. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 1.0f) < 1e-5f);
+    /* AGE jumps to 200 from post-impact. */
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 0xc8);
+    return 0;
+}
+
+int test_records_b_tick_t15l_phase1_ground_no_latch_when_above_threshold(void)
+{
+    /* Hit but POS_Y above threshold → no latch. */
+    reset_world();
+    s_gq_hit = 1;
+    s_gq_out_y = 5.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_live(0, 0x7c, /*px=*/0, /*py=*/100.0f, /*pz=*/0, 0, 0, 0, /*age=*/99);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 100.0f) < 1e-5f);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 100);
+    return 0;
+}
+
+int test_records_b_tick_t15l_post_impact_fires_notify_se_and_3_overlays(void)
+{
+    /* Latch impact → notify_queue(10,4,4,1.0) + SE 0x148 + 3 overlay
+     * spawns (0x2e/0x44/0x32 at scale 0.8).  AGE jumps to 0xc8.  Use
+     * POS_Y=0 to latch on miss (threshold=1). */
+    reset_world();
+    s_overlay_calls = 0;
+    install_overlay_capture();
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    s_notify_calls = 0;
+    scene1_records_b_set_notify_queue_hook(capture_notify);
+    stage_live(0, 0x7c, /*px=*/0, /*py=*/0, /*pz=*/0, 0, 0, 0, /*age=*/99);
+    scene1_records_b_tick();
+    /* notify_queue(10, 4, 4, 1.0). */
+    T_ASSERT_EQ_I(s_notify_calls, 1);
+    T_ASSERT_EQ_I(s_notify_a, 10);
+    T_ASSERT_EQ_I(s_notify_b, 4);
+    T_ASSERT_EQ_I(s_notify_c, 4);
+    T_ASSERT(fabsf(s_notify_d - 1.0f) < 1e-6f);
+    /* SE 0x148. */
+    T_ASSERT_EQ_I(s_se_calls, 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x148);
+    /* 3 overlay spawns.  Last is 0x32. */
+    T_ASSERT(s_overlay_calls >= 3);
+    T_ASSERT_EQ_I(s_overlay_last.type, 0x32);
+    T_ASSERT(fabsf(s_overlay_last.scale - 0.8f) < 1e-5f);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15l_no_trail_when_vel_zero(void)
+{
+    /* VEL=0 → trail loop skipped.  POS_Y=1000 to skip ground.  Expect
+     * 0 overlay calls (no SM hook → no SM-emit; no impact → no post-
+     * impact emits). */
+    reset_world();
+    s_overlay_calls = 0;
+    install_overlay_capture();
+    stage_live(0, 0x7c, /*px=*/0, /*py=*/1000.0f, /*pz=*/0, 0, 0, 0, /*age=*/99);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_overlay_calls, 0);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15l_trail_emits_iters_from_speed(void)
+{
+    /* |VEL|=1.0 → iters = (int)(1.0/0.1) = 10 → 10 overlay spawns.
+     * VEL = (1, 0, 0) → speed = 1.  POS_Y=1000 + no SM → no other emits. */
+    reset_world();
+    s_overlay_calls = 0;
+    install_overlay_capture();
+    stage_live(0, 0x7c, /*px=*/0, /*py=*/1000.0f, /*pz=*/0,
+               /*vx=*/1.0f, /*vy=*/0, /*vz=*/0, /*age=*/99);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_overlay_calls, 10);
+    T_ASSERT_EQ_I(s_overlay_last.type, 0x3a);
+    T_ASSERT(fabsf(s_overlay_last.scale - 0.25f) < 1e-5f);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15l_trail_iters_clamped_to_1(void)
+{
+    /* Very small speed (0.001 → iters=0 → clamp to 1) emits 1 spawn at
+     * t=0 (= POS).  POS_Y=1000 + no SM. */
+    reset_world();
+    s_overlay_calls = 0;
+    install_overlay_capture();
+    stage_live(0, 0x7c, /*px=*/0, /*py=*/1000.0f, /*pz=*/0,
+               /*vx=*/0.001f, 0, 0, /*age=*/99);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_overlay_calls, 1);
+    /* First (only) trail iter is t=0 → pos = POS unchanged.  POS after
+     * preamble is (0 + 0.001, 1000, 0). */
+    T_ASSERT(fabsf(s_overlay_last.pos_x - 0.001f) < 1e-5f);
+    T_ASSERT(fabsf(s_overlay_last.pos_y - 1000.0f) < 1e-3f);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15l_trail_last_emit_at_pos_minus_vel_offset(void)
+{
+    /* iters=10, VEL=(1,0,0).  Last iter k=9 → t = 9/10 = 0.9 → trail_x =
+     * pos_x - 0.9 * 1.0.  Pre POS_X = 5, vel.x = 1 → preamble POS_X = 6 →
+     * last trail at x = 6 - 0.9 = 5.1. */
+    reset_world();
+    s_overlay_calls = 0;
+    install_overlay_capture();
+    stage_live(0, 0x7c, /*px=*/5.0f, /*py=*/1000.0f, /*pz=*/0,
+               /*vx=*/1.0f, 0, 0, /*age=*/99);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_overlay_calls, 10);
+    T_ASSERT(fabsf(s_overlay_last.pos_x - 5.1f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15l_age_eq_130_kills_slot(void)
+{
+    /* AGE pre 129 → preamble 130 → tail kill.  Phase 1 (130 <= 200).
+     * Stage POS_Y=1000 to skip ground latch.  PART_IDX-based timer not
+     * relevant here. */
+    reset_world();
+    t15l_stage(0, /*pre_age=*/129, /*py=*/1000.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15l_age_just_below_130_alive(void)
+{
+    /* AGE pre 128 → preamble 129 → not equal to 130 → alive. */
+    reset_world();
+    t15l_stage(0, /*pre_age=*/128, /*py=*/1000.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x7c);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 129);
+    return 0;
+}
+
+int test_records_b_tick_t15l_post_impact_sets_age_200(void)
+{
+    /* Latching impact jumps AGE to 0xc8 — Phase 2 entry next tick.  Verify
+     * the assignment lands. */
+    reset_world();
+    /* No ground hook → gq returns 0; gy=0 → POS_Y=0 latches via threshold
+     * = 1. */
+    stage_live(0, 0x7c, /*px=*/0, /*py=*/0, /*pz=*/0, 0, 0, 0, /*age=*/50);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 0xc8);
+    return 0;
+}
+
+int test_records_b_tick_t15l_dispatch_unaffected_for_other_types(void)
+{
+    /* Type 0x77 must not trigger 0x7c's body (DRAG=2.0 in Phase 2 is
+     * unique to 0x7c).  Use AGE pre 200 → 201 → 0x7c body would set
+     * DRAG=2.0 but 0x77 wouldn't.  Verify DRAG stays at pre-set value. */
+    reset_world();
+    stage_live(0, 0x77, 0, 0, 0, 0, 0, 0, /*age=*/200);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_DRAG, 99.0f);
+    scene1_records_b_tick();
+    /* 0x77 body writes ROT_X+=0.2 + may write DRAG via its own path; check
+     * it's not 2.0 (the 0x7c-specific value). */
+    float drag = slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG);
+    T_ASSERT(drag != 2.0f);
+    return 0;
+}
+
+int test_records_b_tick_t15l_set_aux_43ab6e_hook_round_trip(void)
+{
+    /* Setter returns previous value; install/uninstall round-trip. */
+    reset_world();
+    scene1_b_aux_43ab6e_fn prev =
+        scene1_records_b_set_aux_43ab6e_hook(t15l_sister_hook);
+    T_ASSERT(prev == NULL);
+    prev = scene1_records_b_set_aux_43ab6e_hook(NULL);
+    T_ASSERT(prev == t15l_sister_hook);
     return 0;
 }

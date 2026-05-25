@@ -71,6 +71,7 @@ static scene1_b_aux_4532bc_fn    g_aux_4532bc_hook;      /* default NULL */
 static scene1_b_overlay_spawn_fn g_overlay_spawn_hook;   /* default NULL = call real spawn */
 static scene1_b_aux_4319d6_fn    g_aux_4319d6_hook;      /* default NULL = returns 0 */
 static scene1_b_sw_record_at_fn  g_sw_record_at_hook;    /* default NULL = no records */
+static scene1_b_aux_43ab6e_fn    g_aux_43ab6e_hook;      /* default NULL = returns -1 */
 
 scene1_b_per_type_body_fn scene1_records_b_set_per_type_body(
     scene1_b_per_type_body_fn fn)
@@ -165,6 +166,24 @@ scene1_b_sw_record_at_fn scene1_records_b_set_sw_record_at_hook(
     scene1_b_sw_record_at_fn prev = g_sw_record_at_hook;
     g_sw_record_at_hook = fn;
     return prev;
+}
+
+scene1_b_aux_43ab6e_fn scene1_records_b_set_aux_43ab6e_hook(
+    scene1_b_aux_43ab6e_fn fn)
+{
+    scene1_b_aux_43ab6e_fn prev = g_aux_43ab6e_hook;
+    g_aux_43ab6e_hook = fn;
+    return prev;
+}
+
+static inline int32_t aux_43ab6e_call(int32_t *slot,
+                                      float a, float b, float c, float d,
+                                      int32_t old_idx)
+{
+    if (g_aux_43ab6e_hook) {
+        return g_aux_43ab6e_hook(slot, a, b, c, d, old_idx);
+    }
+    return -1;
 }
 
 static inline int32_t *sw_record_at(int idx)
@@ -5717,6 +5736,294 @@ static void body_0x75(int i)
     }
 }
 
+/* ═══ C8j-tick.15l — type 0x7c sister-hunting projectile body ═══════════
+ *
+ * Engine asm 0x43f700..0x43fae6 / decomp L39519-L39647.  Single-type
+ * 2-phase body.  Looks like a thrown-with-trail projectile that searches
+ * for a nearby "sister" NPC, latches a cooldown countdown, ground-bounces
+ * on impact, then emits a fireworks-style 3-overlay burst on ground hit
+ * before settling into a 25-tick DRAG=2.0 outro.
+ *
+ * Phase 2 (AGE > 200) — post-impact settle:
+ *   AGE = AGE + 1
+ *   DRAG = 2.0
+ *   state_machine(slot)
+ *   if AGE > 230 → KILL                    (LAB_0043f73a)
+ *   → LAB_00440dc1 (default-tail wall-bounce body, deferred)
+ *
+ * Phase 1 (AGE <= 200) — flight + sister-hunt + ground bounce:
+ *   hit_flag = 0
+ *   if AGE < 0: cancel preamble pos += vel  (POS -= VEL)
+ *
+ *   if AGE > 5:
+ *     sm_ret = state_machine(slot)
+ *     if sm_ret != 0:
+ *       emit overlay_spawn(NULL, POS, 0x3a, 2.25, -1, 0, 0, 0)
+ *       hit_flag = 1
+ *     else:
+ *       POS_Y -= 0.5                       (engine probes ground at lower-Y)
+ *       sm_ret2 = state_machine(slot)
+ *       POS_Y += 0.5                       (restore — always, even when ret2==0)
+ *       if sm_ret2 != 0:
+ *         emit overlay_spawn(NULL, POS (with restored POS_Y), 0x3a, 2.25, ...)
+ *         hit_flag = 1
+ *
+ *   if AGE == 1: scene1_spawn(0, POS, 0x70, 0.5, 1)   (one-shot birth particle)
+ *
+ *   - PART_IDX is reused as a sister-cooldown timer (engine quirk):
+ *   if PART_IDX > 0: PART_IDX++
+ *   if AGE > 0x14 AND PART_IDX < 0x28:
+ *     AUX_SENT2 = aux_43ab6e(slot, 0.6, 0.03, 0.05, 0.96, AUX_SENT2)
+ *   if AUX_SENT2 != -1 AND PART_IDX == 0:
+ *     PART_IDX = 1                          (start cooldown)
+ *
+ *   - Ground impact (always queried, no VEL_Y < 0 gate).  Threshold uses
+ *     +1.0 not +0.3 (vs body_0x75) — soft landing.
+ *   if ground_query(POS, &gy) == 1:
+ *     write slot[AUX_9] = gy                (mirror engine scratch-buffer)
+ *   if POS_Y <= gy + 1.0:
+ *     POS_Y = gy + 1.0
+ *     VEL = (0, 0, 0)
+ *     hit_flag = 1
+ *
+ *   if hit_flag:
+ *     notify_queue(10, 4, 4, 1.0)           (post-impact "thunk" queue)
+ *     se_play(0x148)
+ *     emit overlay_spawn(NULL, POS, 0x2e, 0.8, -1, 0, 0, 0)
+ *     emit overlay_spawn(NULL, POS, 0x44, 0.8, -1, 0, 0, 0)
+ *     emit overlay_spawn(NULL, POS, 0x32, 0.8, -1, 0, 0, 0)
+ *     AGE = 200                              (jump straight to Phase 2 outro
+ *                                             next tick — kill window opens
+ *                                             at AGE > 230)
+ *
+ *   - Velocity-trail spawn (iters = max(1, (int)|VEL|/0.1)):
+ *   speed_sq = VEL.x² + VEL.y² + VEL.z²
+ *   if speed_sq > 0:
+ *     iters = max(1, (int)(sqrtf(speed_sq) / 0.1))
+ *     for i in [0, iters):
+ *       t = i / (float)iters
+ *       trail_pos = POS - t * VEL
+ *       emit overlay_spawn(NULL, trail_pos, 0x3a, 0.25, -1, 0, 0, 0)
+ *
+ *   if AGE == 0x82 (130): KILL              (mid-flight kill window)
+ *   → LAB_00440dc1 (default-tail body, deferred)
+ *
+ * Constants verified via tools/analyze/pe.py (all read from .rdata):
+ *   0x519314 = 2.0    (Phase 2 DRAG)
+ *   0x51935c = 0.5    (POS_Y nudge magnitude)
+ *   0x519c0c = 2.25   (SM-emit overlay scale)
+ *   0x519364 = 1.0    (ground threshold + snap)
+ *   0x519470 = 0.8    (post-impact 3-emit overlay scale)
+ *   0x5193a0 = 0.1    (trail iters divisor — speed/0.1 = speed*10)
+ *   0x519344 = 0.25   (trail overlay scale)
+ *   0x51969c = 0.6, 0x519900 = 0.03, 0x5198f8 = 0.05, 0x519b04 = 0.96
+ *                     (sister-search arg2..5)
+ *
+ * Asm corrections vs Ghidra decomp (raw asm 0x43f700..0x43fae6):
+ *   - scene1_spawn at AGE==1 is 7-arg (decomp shows 6; missing param_7=1).
+ *   - All 5 overlay_spawn calls in this body are 9-arg with the 8th arg
+ *     (override_rot_y_bits) = 0 and shape_mode/mode = 0; Ghidra dropped
+ *     the trailing args in places.
+ *   - notify_queue is 4-arg (a=10, b=4, c=4, d=1.0); decomp shows 3-arg
+ *     in places — fld1 at 0x43f923 confirms the 4th float arg.
+ *   - SE 0x148 call is single-arg; the bare `FUN_00499519()` in decomp
+ *     L2658 hides the `push 0x148`.
+ *   - FUN_0043ab6e is 6-arg `(slot, f1, f2, f3, f4, int)` returning int.
+ *     Decomp shows `uVar9 = FUN_0043ab6e()` argless; raw asm at 0x43f88c
+ *     shows 5 push instructions before the call + the asm 0x43f863..0x43f88b
+ *     load sequence pushes 0.6/0.03/0.05/0.96 as the 4 floats and
+ *     `[esi+0x114]` (slot[AUX_SENT2]) as the int.
+ *   - PART_IDX (dw 39, byte +0x9c) is repurposed as a sister-cooldown
+ *     timer — not a "particle index" in this body.  Engine pattern: when
+ *     a sister is found (AUX_SENT2 != -1) and the timer is dormant
+ *     (PART_IDX == 0), seed it to 1; thereafter increment every tick.
+ *     The search window (AGE > 0x14 AND PART_IDX < 0x28) means the
+ *     cooldown gives ~40 ticks of sister-tracking before re-searching.
+ *
+ * Engine quirks / cross-body parity:
+ *   - The ground threshold is +1.0 (matches body_0x75 Phase 2 snap), but
+ *     this body lacks the body_0x75 +0.3 "impact gate" — every tick that
+ *     POS_Y is at-or-below ground+1.0 latches the impact (cascading
+ *     notify+SE+3-emit then AGE→200).  In practice the body kills itself
+ *     at AGE==130 well before the impact window stays open multiple ticks.
+ *   - LAB_00440dc1 (the default-tail wall-bounce body, asm 0x440dc1..
+ *     0x4411e3, 1058 B) is unported.  Both phases of body_0x7c end with
+ *     a `jmp LAB_00440dc1` in the engine — our port simply returns,
+ *     skipping any wall-bounce post-processing.  Observable effect:
+ *     production HOUSE-state slots that touch a wall while AGE in
+ *     [-N, 200] won't bounce off it.  Not a regression today since type
+ *     0x7c isn't allocated by HOUSE-state callers.  PHC #25 tracks.
+ */
+static void body_0x7c(int i)
+{
+    int32_t age_initial = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    if (age_initial > 0xc8) {
+        /* Phase 2 — DRAG=2.0 settle, kill at AGE>230. */
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, age_initial + 1);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 2.0f);
+        state_machine_call(slot_base(i));
+        if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) > 0xe6) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+        /* engine `jmp LAB_00440dc1` — default-tail body unported. */
+        return;
+    }
+
+    /* Phase 1 (AGE <= 200).  Track hit_flag locally; engine reuses
+     * [ebp-0x8] for both the SM-emit-happened sentinel AND the ground-
+     * impact sentinel — semantically the same "fire post-impact block". */
+    int hit_flag = 0;
+
+    /* AGE < 0: cancel preamble pos += vel.  Engine 0x43f74a-0x43f762. */
+    if (age_initial < 0) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px - vx);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py - vy);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz - vz);
+    }
+
+    /* AGE > 5: SM-driven optional 0x3a spawn.  Engine 0x43f765-0x43f7fd.
+     * Re-reads AGE from slot (cached age_initial unchanged at this point
+     * but engine pattern is to re-read).  Two SM call sites — second one
+     * at POS_Y-0.5 to probe a lower hit. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) > 5) {
+        int sm_ret = state_machine_call_ret(slot_base(i));
+        int should_emit = 0;
+        float emit_y = 0.0f;
+        if (sm_ret != 0) {
+            should_emit = 1;
+            emit_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        } else {
+            float py_orig = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py_orig - 0.5f);
+            int sm_ret2 = state_machine_call_ret(slot_base(i));
+            /* Engine restores POS_Y unconditionally (asm 0x43f7b1-0x43f7c3
+             * runs before the je-skip check). */
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py_orig);
+            if (sm_ret2 != 0) {
+                should_emit = 1;
+                emit_y = py_orig;
+            }
+        }
+        if (should_emit) {
+            float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            overlay_spawn(NULL, px, emit_y, pz,
+                          /*tid=*/0x3a, /*scale=*/2.25f,
+                          /*dur=*/-1, /*rot_y=*/0,
+                          /*shape_mode=*/0, /*mode=*/0);
+            hit_flag = 1;
+        }
+    }
+
+    /* AGE == 1: one-shot 0x70 birth spawn (asm 0x43f804-0x43f837). */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 1) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        scene1_spawn(0, px, py, pz, 0x70, 0.5f, 1);
+    }
+
+    /* PART_IDX-as-cooldown timer (asm 0x43f83a-0x43f845). */
+    int32_t timer = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+    if (timer > 0) {
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, timer + 1);
+    }
+
+    /* Sister-search (asm 0x43f84b-0x43f894). */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) > 0x14 &&
+        slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) < 0x28) {
+        int32_t old = slot_get_i(i, SCENE1_RECORDS_B_OFF_AUX_SENT2);
+        int32_t found = aux_43ab6e_call(slot_base(i),
+                                        0.6f, 0.03f, 0.05f, 0.96f,
+                                        old);
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_SENT2, found);
+    }
+
+    /* Sister-found-and-cooldown-dormant: seed cooldown (asm 0x43f89a-0x43f8b6). */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AUX_SENT2) != -1 &&
+        slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) == 0) {
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+    }
+
+    /* Ground query — unconditional (no VEL_Y < 0 gate, unlike body_0x75).
+     * Engine 0x43f8b6-0x43f917.  out_y from hook used both as the impact
+     * threshold (+1.0) and to write slot[AUX_9] mirroring engine's
+     * `lea eax,[esi+0x18]` 4-float scratch buffer with ground_y at
+     * buffer[3] = slot[AUX_9]. */
+    {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float gy = 0.0f;
+        if (ground_query(px, py, pz, &gy) == 1) {
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_AUX_9, gy);
+        } else {
+            gy = 0.0f;
+        }
+        float threshold = gy + 1.0f;
+        if (py <= threshold) {
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, threshold);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+            hit_flag = 1;
+        }
+    }
+
+    /* Post-impact burst (asm 0x43f923-0x43f9da). */
+    if (hit_flag) {
+        notify_queue_call(10, 4, 4, 1.0f);
+        se_play(0x148);
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        overlay_spawn(NULL, px, py, pz, 0x2e, 0.8f, -1, 0, 0, 0);
+        overlay_spawn(NULL, px, py, pz, 0x44, 0.8f, -1, 0, 0, 0);
+        overlay_spawn(NULL, px, py, pz, 0x32, 0.8f, -1, 0, 0, 0);
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, 0xc8);
+    }
+
+    /* Velocity-driven trail spawn (asm 0x43f9e4-0x43facd).  Engine
+     * re-reads VEL from slot — so the post-impact VEL=0 zeros speed_sq
+     * and the trail loop short-circuits. */
+    {
+        float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        float speed_sq = vx * vx + vy * vy + vz * vz;
+        if (speed_sq > 0.0f) {
+            float speed = sqrtf(speed_sq);
+            /* Engine `fdiv 0x5193a0` (= speed / 0.1) then `__ftol`. */
+            int iters = (int)(speed / 0.1f);
+            if (iters < 1) iters = 1;
+            float trail_px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float trail_py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            float trail_pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            for (int k = 0; k < iters; k++) {
+                float t = (float)k / (float)iters;
+                overlay_spawn(NULL,
+                              trail_px - t * vx,
+                              trail_py - t * vy,
+                              trail_pz - t * vz,
+                              0x3a, 0.25f, -1, 0, 0, 0);
+            }
+        }
+    }
+
+    /* Tail kill check (asm 0x43fad0-0x43fae2): AGE == 130 → KILL. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x82) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+    /* engine `jmp LAB_00440dc1` — default-tail body unported. */
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -5972,11 +6279,16 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x75:
         body_0x75(slot_idx);
         break;
+    /* C8j-tick.15l — type 0x7c sister-hunting projectile. */
+    case 0x7c:
+        body_0x7c(slot_idx);
+        break;
     default:
-        /* Remaining tail types {0x7c} and the LAB_00440dc1 default-tail
-         * body are deferred to future C8j-tick.15l+ sub-chips.
-         * LAB_0043f39b is just an AGE==0x78 kill jump-label, not a
-         * separate body (survey claim corrected). */
+        /* The LAB_00440dc1 default-tail body (asm 0x440dc1..0x4411e3 =
+         * 1058 B) is the only remaining unported body in the FUN_0043ae20
+         * cascade post-15l.  It runs after most other type bodies as a
+         * shared wall-bounce tail.  LAB_0043f39b is just an AGE==0x78
+         * kill jump-label, not a separate body (survey claim corrected). */
         break;
     }
 }
