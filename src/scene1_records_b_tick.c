@@ -3856,6 +3856,12 @@ static void body_0x5f_or_0x3e(int i, int32_t type)
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cosf(yaw) * scale + oz);
 
     shared_5f_3e_tail(i, owner, shape_guard);
+
+    /* engine `jmp 0x43febd → LAB_004402a2 → 0x440dc1` — shared tail falls
+     * through to default-tail wall-bounce body.  body_0x5f_or_0x3e doesn't
+     * set the per-tick flag, so this is a no-op in production; wired for
+     * engine fidelity (C8j-tick.16-wire.7). */
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 static void body_0x82(int i)
@@ -3907,6 +3913,11 @@ static void body_0x82(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x23) {
         scene1_records_b_tick_kill_slot(i);
     }
+    /* engine `jmp 0x43ff77 → LAB_004402a2 → 0x440dc1` — fall through to
+     * default-tail wall-bounce body.  body_0x82 doesn't set the per-tick
+     * flag, so this is a no-op in production; wired for engine fidelity
+     * (C8j-tick.16-wire.7). */
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15c — types 0x7b / 0xa1 / 0xa4 shared ground-bounce body ═══
