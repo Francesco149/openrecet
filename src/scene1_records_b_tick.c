@@ -3146,6 +3146,166 @@ static void body_0xd_or_0x15(int i, int32_t type)
     }
 }
 
+/* ═══ C8j-tick.12 — Body 7b head (0xf-motion, 0x9b, 0x24) ═══════════════
+ * Engine asm 0x43e22b..0x43e5d0.  Three per-type bodies that follow Body
+ * 7a in the outer dispatch cascade.
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x5198e0 = 1.5   0x51935c = 0.5   0x519364 = 1.0   0x5194f0 = 10.0
+ *   0x5194ec = 0.3   0x5194e4 = 15.0  0x51969c = 0.6   0x519a18 = -π/2
+ *   0x519c28 = π/40  0x519434 = π/2   0x519320 = 0.0   0x519a20 = 3.5
+ */
+
+/* Engine 0x43e22b..0x43e2ed — type 0xf body (wide-followup walker arm).
+ *
+ *   Gate: owner+0x424 in {0x18, 0x3b, 0x3c}; else no-op.
+ *   DRAG = 1.5
+ *   POS_X = 0.5 * sin(owner+0x420) + owner+0x3f0
+ *   POS_Y = owner+0x3f4 + 1.0
+ *   POS_Z = 0.5 * cos(owner+0x420) + owner+0x3f8
+ *   state_machine
+ *   kill on AGE >= 1 (slot dies on first tick after pose write).
+ */
+static void body_0xf_motion_walker(int i)
+{
+    void *owner = slot_owner_a(i);
+    if (!owner) return;
+
+    int32_t motion = owner_read_i(owner, 0x424);
+    if (motion != 0x18 && motion != 0x3b && motion != 0x3c) return;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.5f);
+
+    float bend = owner_read_f(owner, 0x420);
+    float opx  = owner_read_f(owner, 0x3f0);
+    float opy  = owner_read_f(owner, 0x3f4);
+    float opz  = owner_read_f(owner, 0x3f8);
+    float s    = sinf(bend);
+    float c    = cosf(bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, s * 0.5f + opx);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, opy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, c * 0.5f + opz);
+
+    state_machine_call(slot_base(i));
+
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) >= 1) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43e2ed..0x43e5ac — type 0x9b body (NPC big animation cluster).
+ *
+ *   local_c = max(15.0 - AGE*0.3, LIFE_MULT*2)
+ *   if AGE >= 365: local_c = (AGE-365)*0.6 + LIFE_MULT*2
+ *
+ *   ROT_SCR = -π/2
+ *   if AGE >= 36: ROT_SCR = clamp_max((AGE-36)*π/40 - π/2, 0.0)
+ *
+ *   pose:
+ *     POS_X = owner+0x20 - 1.5*sin(ROT_X)*LIFE_MULT
+ *     POS_Y = owner+0x24 + local_c
+ *     POS_Z = owner+0x28 - 1.5*cos(ROT_X)*LIFE_MULT
+ *
+ *   spawn pre-compute:
+ *     l28 = 3.5*sin(ROT_X)*LIFE_MULT
+ *     l2c = 2*LIFE_MULT
+ *     l18 = 3.5*cos(ROT_X)*LIFE_MULT
+ *
+ *   AGE in [123, 365):
+ *     overlay_spawn(OWNER_A, l28, l2c, l18, 0x6a, LIFE_MULT, -1, 0, 0, 1)
+ *     overlay_spawn(OWNER_A, l28, l2c, l18, 0x6e, LIFE_MULT, -1, 0, 0, 1)
+ *     if AGE % 3 == 0:
+ *       overlay_spawn(OWNER_A, l28, l2c, l18, 0x6f, LIFE_MULT, -1, 0, 0, 1)
+ *
+ *   if AGE == 200: scene1_record_b_spawn_npc(OWNER_A, 0x9d, -1)
+ *   if AGE == 130: se_play(0x2c2)
+ *   if AGE == 390: kill
+ *   if owner+0xcf8 != 0: kill
+ */
+static void body_0x9b(int i)
+{
+    void *owner = slot_owner_a(i);
+    if (!owner) return;
+
+    int   age       = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+    float rot_x     = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+
+    /* asm 0x43e303-0x43e35b: local_c sliding scale. */
+    float local_c   = 15.0f - (float)age * 0.3f;
+    float lm_double = life_mult + life_mult;
+    if (local_c < lm_double) local_c = lm_double;
+    if (age >= 0x16d) {
+        local_c = (float)(age - 0x16d) * 0.6f + lm_double;
+    }
+
+    /* asm 0x43e35e-0x43e3ac: ROT_SCR. */
+    float rot_scr = -1.5707964f;
+    if (age >= 0x24) {
+        float val = (float)(age - 0x24) * 0.07853982f - 1.5707964f;
+        if (val > 0.0f) val = 0.0f;
+        rot_scr = val;
+    }
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rot_scr);
+
+    /* asm 0x43e3b2-0x43e427: pose. */
+    float s_rot = sinf(rot_x);
+    float c_rot = cosf(rot_x);
+    float opx = owner_read_f(owner, 0x20);
+    float opy = owner_read_f(owner, 0x24);
+    float opz = owner_read_f(owner, 0x28);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, opx - s_rot * life_mult * 1.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, opy + local_c);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, opz - c_rot * life_mult * 1.5f);
+
+    /* asm 0x43e42a-0x43e495: spawn precompute. */
+    float l28 = s_rot * life_mult * 3.5f;
+    float l2c = lm_double;
+    float l18 = c_rot * life_mult * 3.5f;
+
+    /* asm 0x43e498-0x43e552: overlay spawn cascade for AGE in [123, 365). */
+    if (age >= 0x7b && age < 0x16d) {
+        overlay_spawn(owner, l28, l2c, l18, 0x6a, life_mult, -1, 0, 0, 1);
+        overlay_spawn(owner, l28, l2c, l18, 0x6e, life_mult, -1, 0, 0, 1);
+        if ((age % 3) == 0) {
+            overlay_spawn(owner, l28, l2c, l18, 0x6f, life_mult, -1, 0, 0, 1);
+        }
+    }
+
+    /* asm 0x43e555-0x43e570: AGE == 200 → entity spawn 0x9d.
+     * Engine calls FUN_0044376a (entity allocator), NOT FUN_00445a8c (NPC). */
+    if (age == 0xc8) {
+        scene1_record_b_spawn_entity(owner, 0x9d, -1);
+    }
+    /* asm 0x43e573-0x43e589: AGE == 130 → SE. */
+    if (age == 0x82) {
+        se_play(0x2c2);
+    }
+    /* asm 0x43e58a-0x43e596: AGE == 390 → kill. */
+    if (age == 0x186) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+    /* asm 0x43e598-0x43e5a7: owner+0xcf8 != 0 → kill. */
+    if (owner_read_i(owner, 0xcf8) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43e5ac..0x43e5d0 — type 0x24 body.
+ *
+ *   DRAG = 10.0
+ *   state_machine
+ *   kill on AGE == 10  (LAB_440dbd: jne 0x440dc1 — i.e. AGE != 10 skip kill).
+ */
+static void body_0x24(int i)
+{
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 10.0f);
+    state_machine_call(slot_base(i));
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 10) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -3306,8 +3466,18 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x15:
         body_0xd_or_0x15(slot_idx, type);
         break;
+    /* C8j-tick.12 — Body 7b head (motion-gated walker + 0x9b big body + 0x24). */
+    case 0xf:
+        body_0xf_motion_walker(slot_idx);
+        break;
+    case 0x9b:
+        body_0x9b(slot_idx);
+        break;
+    case 0x24:
+        body_0x24(slot_idx);
+        break;
     default:
-        /* C8j-tick.12..13 fill in additional cases here. */
+        /* C8j-tick.13 fills in additional cases here. */
         break;
     }
 }

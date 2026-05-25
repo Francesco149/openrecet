@@ -232,6 +232,49 @@
  *   - 0x2b overlay_spawn 1 at 0x43d975 — override_rot_y=0 (asm 0x43d96f
  *     fldz + fstp [esp]); Ghidra L37801 had 8 args, asm has 9.
  *
+ * C8j-tick.12 (2026-05-25) adds Body 7b head (asm 0x43e22b..0x43e5d0) —
+ * three per-type bodies that follow Body 7a in the outer cascade:
+ *
+ *   - Type 0xf (asm 0x43e22b..0x43e2ed) — wide-followup walker arm pose.
+ *     Gate: owner+0x424 in {0x18, 0x3b, 0x3c}; else no-op (fall-through).
+ *     DRAG = 1.5.
+ *     POS_X = 0.5*sin(owner+0x420) + owner+0x3f0;
+ *     POS_Y = owner+0x3f4 + 1.0;
+ *     POS_Z = 0.5*cos(owner+0x420) + owner+0x3f8.
+ *     state_machine.
+ *     Kill AGE >= 1 (always — engine "pose + SM + die" anchor body).
+ *
+ *   - Type 0x9b (asm 0x43e2ed..0x43e5ac) — big AGE-stage animation +
+ *     spawn-cascade body (5-arm AGE-window state machine):
+ *     local_c = clamp_min(15.0 - AGE*0.3, LIFE_MULT*2);
+ *     if AGE >= 365: local_c = (AGE-365)*0.6 + LIFE_MULT*2.
+ *     ROT_SCR = -π/2.
+ *     if AGE >= 36: ROT_SCR = clamp_max((AGE-36)*π/40 - π/2, 0.0).
+ *     pose: POS = owner+0x20/24/28 - (1.5*sin*LIFE_MULT, -local_c,
+ *                                       1.5*cos*LIFE_MULT) using ROT_X bend
+ *           (engine uses owner+0x20 + (-LIFE_MULT*1.5*sin, +local_c,
+ *                                       -LIFE_MULT*1.5*cos)).
+ *     Spawn-coord precompute:
+ *       local_28 = 3.5*sin(ROT_X)*LIFE_MULT;
+ *       local_2c = 2*LIFE_MULT;
+ *       local_18 = 3.5*cos(ROT_X)*LIFE_MULT.
+ *     if AGE in [123, 365):
+ *       overlay_spawn(OWNER_A, local_28, local_2c, local_18, 0x6a,
+ *                     LIFE_MULT, -1, 0, 0, 1);
+ *       overlay_spawn(OWNER_A, local_28, local_2c, local_18, 0x6e,
+ *                     LIFE_MULT, -1, 0, 0, 1);
+ *       if AGE % 3 == 0:
+ *         overlay_spawn(OWNER_A, local_28, local_2c, local_18, 0x6f,
+ *                       LIFE_MULT, -1, 0, 0, 1);
+ *     if AGE == 200: scene1_record_b_spawn_entity(OWNER_A, 0x9d, -1)
+ *                    (engine FUN_0044376a entity allocator, NOT NPC).
+ *     if AGE == 130: se_play(0x2c2).
+ *     if AGE == 390: kill.
+ *     if owner+0xcf8 != 0: kill.
+ *
+ *   - Type 0x24 (asm 0x43e5ac..0x43e5d0) — trivial: DRAG = 10.0,
+ *     state_machine, kill on AGE == 10.
+ *
  * C8j-tick.11 (2026-05-25) adds Body 7a (asm 0x43dd79..0x43e22b) — the
  * first major FUN_0043865e (state_machine, PHC #20) dispatch cluster.
  * Four per-type bodies plus a motion-id sub-dispatch:

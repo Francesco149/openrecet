@@ -1761,6 +1761,27 @@ struct test_case {
     X(records_b_tick_t11_type_15_sm_fires_in_age_0_to_0xf) \
     X(records_b_tick_t11_type_d_kills_at_age_0x28) \
     \
+    X(records_b_tick_t12_type_f_no_motion_match_is_noop) \
+    X(records_b_tick_t12_type_f_motion_18_writes_pose) \
+    X(records_b_tick_t12_type_f_motion_3b_also_matches) \
+    X(records_b_tick_t12_type_f_motion_3c_also_matches) \
+    X(records_b_tick_t12_type_f_calls_state_machine) \
+    X(records_b_tick_t12_type_9b_writes_pose) \
+    X(records_b_tick_t12_type_9b_rot_scr_starts_neg_pi_half) \
+    X(records_b_tick_t12_type_9b_rot_scr_ramps_at_age_36) \
+    X(records_b_tick_t12_type_9b_rot_scr_clamped_zero_at_high_age) \
+    X(records_b_tick_t12_type_9b_age_123_fires_overlay_cascade) \
+    X(records_b_tick_t12_type_9b_age_124_fires_only_two_overlays) \
+    X(records_b_tick_t12_type_9b_age_outside_window_no_overlay) \
+    X(records_b_tick_t12_type_9b_age_130_fires_se) \
+    X(records_b_tick_t12_type_9b_age_390_kills) \
+    X(records_b_tick_t12_type_9b_owner_cf8_nonzero_kills) \
+    X(records_b_tick_t12_type_9b_age_200_spawns_entity) \
+    X(records_b_tick_t12_type_24_sets_drag_10) \
+    X(records_b_tick_t12_type_24_calls_state_machine) \
+    X(records_b_tick_t12_type_24_kills_at_age_10) \
+    X(records_b_tick_t12_type_24_survives_below_10) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \
