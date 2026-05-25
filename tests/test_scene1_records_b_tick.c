@@ -6115,3 +6115,193 @@ int test_records_b_tick_t15c_shared_does_not_kill_below_0x82(void)
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xa4);
     return 0;
 }
+
+/* ═══ C8j-tick.15d — type 0x84 single-body ground-bounce + self-kill ═══ */
+
+int test_records_b_tick_t15d_writes_drag_neg_0_15(void)
+{
+    /* DRAG = -0.15 written unconditionally (both phases). */
+    reset_world();
+    stage_live(0, 0x84, 0, 100.0f, 0, 0, 0.5f, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - -0.15f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15d_vel_y_decreases_by_0_01(void)
+{
+    reset_world();
+    stage_live(0, 0x84, 0, 100.0f, 0, 0, 0.5f, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.49f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15d_no_ground_hit_no_impact(void)
+{
+    /* Default no-hook ground_query returns 0 → no hit → no impact.
+     * Slot stays alive (type unchanged). */
+    reset_world();
+    stage_live(0, 0x84, 0, 100.0f, 0, 0, -0.5f, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x84);
+    return 0;
+}
+
+int test_records_b_tick_t15d_above_threshold_no_impact(void)
+{
+    /* Ground hit, but POS_Y > ground + 0.2 → no impact. */
+    reset_world();
+    s_gq_calls = 0;
+    s_gq_hit = 1; s_gq_out_y = 0.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_live(0, 0x84, 0, 1.0f, 0, 0, -0.5f, 0, /*age=*/0);
+    /* Preamble POS_Y = 1.0 + (-0.5) = 0.5; 0.5 > 0 + 0.2 → no impact. */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_gq_calls, 1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x84);
+    return 0;
+}
+
+int test_records_b_tick_t15d_impact_kills_slot(void)
+{
+    /* POS_Y close enough → impact → kill. */
+    reset_world();
+    s_gq_hit = 1; s_gq_out_y = 0.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_live(0, 0x84, 0, 0.15f, 0, 0, -0.5f, 0, /*age=*/0);
+    /* Preamble POS_Y = 0.15 - 0.5 = -0.35; ground+0.2 = 0.2; -0.35 <= 0.2 → impact. */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15d_impact_snaps_pos_y_to_ground_plus_0_2(void)
+{
+    /* On impact: POS_Y = ground_y + 0.2 (NOT + 1.0 like 0x7b). */
+    reset_world();
+    s_gq_hit = 1; s_gq_out_y = 5.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_live(0, 0x84, 0, 1.0f, 0, 0, -0.5f, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 5.2f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15d_impact_sets_vel_y_neg_0_01(void)
+{
+    reset_world();
+    s_gq_hit = 1; s_gq_out_y = 0.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_live(0, 0x84, 0, 0.15f, 0, 1.5f, -0.5f, 2.5f, /*age=*/0);
+    scene1_records_b_tick();
+    /* Impact latches VEL_Y = -0.01; VEL_X/Z = 0. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - -0.01f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X)) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z)) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15d_impact_plays_se_0x2b0(void)
+{
+    reset_world();
+    s_se_id_count = 0;
+    scene1_records_b_set_se_hook(capture_se_multi);
+    s_gq_hit = 1; s_gq_out_y = 0.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_live(0, 0x84, 0, 0.15f, 0, 0, -0.5f, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_se_id_count, 1);
+    T_ASSERT_EQ_I(s_se_ids[0], 0x2b0);
+    return 0;
+}
+
+int test_records_b_tick_t15d_impact_spawns_table_a_template_1_scale_0_3(void)
+{
+    extern int32_t g_scene1_pfo_table_a[];
+    reset_world();
+    s_gq_hit = 1; s_gq_out_y = 0.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL], -1);
+    stage_live(0, 0x84, 0, 0.15f, 0, 0, -0.5f, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_SENTINEL], 1);
+    float scale;
+    memcpy(&scale, &g_scene1_pfo_table_a[SCENE1_PFO_TABLE_A_OFF_PARAM5], 4);
+    T_ASSERT(fabsf(scale - 0.3f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15d_does_not_fire_notify_queue(void)
+{
+    /* 0x84 has NO notify_queue call (unlike 0x7b/0xa1/0xa4). */
+    reset_world();
+    s_notify_calls = 0;
+    scene1_records_b_set_notify_queue_hook(capture_notify);
+    s_gq_hit = 1; s_gq_out_y = 0.0f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_live(0, 0x84, 0, 0.15f, 0, 0, -0.5f, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_notify_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_t15d_impact_writes_aux_9_from_query(void)
+{
+    /* Engine writes the 4-float scratch buffer at &slot[+0x18]; our hook
+     * collapses to out_y only, so we mirror by writing slot[AUX_9] =
+     * out_y to preserve the engine's observable post-tick AUX_9 state. */
+    reset_world();
+    s_gq_hit = 1; s_gq_out_y = 7.5f;
+    scene1_records_b_set_ground_query_hook(gq_canned);
+    stage_live(0, 0x84, 0, 100.0f, 0, 0, -0.5f, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_AUX_9) - 7.5f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15d_state_machine_runs_in_phase_0(void)
+{
+    /* state_machine runs unconditionally at phase-0 tail (whether or not
+     * impact fired).  Stage no impact (high POS_Y) + install SM hook. */
+    reset_world();
+    s_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    stage_live(0, 0x84, 0, 100.0f, 0, 0, -0.5f, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 1);
+    return 0;
+}
+
+int test_records_b_tick_t15d_phase_1_undoes_preamble_vel_y(void)
+{
+    /* bounce_count != 0 → POS_Y -= VEL_Y (cancels preamble's gravity
+     * addition).  Pre POS_Y = 50, VEL_Y = 1.0; preamble → POS_Y = 51;
+     * body → POS_Y = 50. */
+    reset_world();
+    stage_live(0, 0x84, 0, 50.0f, 0, 0, 1.0f, 0, /*age=*/0);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 50.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15d_kills_at_age_300(void)
+{
+    /* Shared LAB_004402a2 tail: kill on AGE == 300.  Pre AGE = 299 →
+     * post = 300 → kill. */
+    reset_world();
+    stage_live(0, 0x84, 0, 100.0f, 0, 0, 0.5f, 0, /*age=*/299);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15d_does_not_kill_below_age_300(void)
+{
+    reset_world();
+    stage_live(0, 0x84, 0, 100.0f, 0, 0, 0.5f, 0, /*age=*/298);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x84);
+    return 0;
+}

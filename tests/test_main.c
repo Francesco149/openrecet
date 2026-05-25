@@ -1872,6 +1872,22 @@ struct test_case {
     X(records_b_tick_t15c_shared_kills_at_age_0x82) \
     X(records_b_tick_t15c_shared_does_not_kill_below_0x82) \
     \
+    X(records_b_tick_t15d_writes_drag_neg_0_15) \
+    X(records_b_tick_t15d_vel_y_decreases_by_0_01) \
+    X(records_b_tick_t15d_no_ground_hit_no_impact) \
+    X(records_b_tick_t15d_above_threshold_no_impact) \
+    X(records_b_tick_t15d_impact_kills_slot) \
+    X(records_b_tick_t15d_impact_snaps_pos_y_to_ground_plus_0_2) \
+    X(records_b_tick_t15d_impact_sets_vel_y_neg_0_01) \
+    X(records_b_tick_t15d_impact_plays_se_0x2b0) \
+    X(records_b_tick_t15d_impact_spawns_table_a_template_1_scale_0_3) \
+    X(records_b_tick_t15d_does_not_fire_notify_queue) \
+    X(records_b_tick_t15d_impact_writes_aux_9_from_query) \
+    X(records_b_tick_t15d_state_machine_runs_in_phase_0) \
+    X(records_b_tick_t15d_phase_1_undoes_preamble_vel_y) \
+    X(records_b_tick_t15d_kills_at_age_300) \
+    X(records_b_tick_t15d_does_not_kill_below_age_300) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

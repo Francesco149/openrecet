@@ -3920,6 +3920,131 @@ static void body_0x7b_a1_a4(int i, int32_t type)
     }
 }
 
+/* ═══ C8j-tick.15d — type 0x84 single-body ground-bounce + self-kill ════
+ *
+ * Engine asm 0x43fc96..0x43fd97 / decomp L2713-2741.  Single-type body —
+ * structurally similar to 0x7b/0xa1/0xa4 (gravity + ground impact) but
+ * with three notable differences:
+ *
+ *   1. Impact threshold uses 0.2 (.rdata 0x5198d8), NOT 0.3 (0x5194ec).
+ *   2. POS_Y on impact snaps to ground_y + 0.2 (the threshold itself),
+ *      NOT ground_y + 1.0.  VEL_Y is set to -0.01 (.rdata 0x519c08);
+ *      VEL_X / VEL_Z zero as usual.
+ *   3. Impact KILLS the slot (`mov [esi], edi` with edi=0 at asm 0x43fd74)
+ *      — no bounce_count bump.  Body never reaches its phase-1 branch in
+ *      practice; that branch (POS_Y -= VEL_Y to undo preamble's gravity
+ *      add) is preserved for engine fidelity only.
+ *
+ *   No notify_queue call; single SE (id 0x2b0); Table A spawn args differ
+ *   (template_id=1, scale=0.3 constant, pos_y is the impact pos_y rather
+ *   than 0.0).  AGE-300 kill via shared LAB_0043f6c8 / LAB_004402a2 tail.
+ *
+ *   state_machine ALWAYS runs at end of phase 0 even if impact fires (the
+ *   engine has no jump skipping it after the kill).  Its return value
+ *   gates: ret == 1 → second kill (idempotent on already-dead slot);
+ *   ret != 1 → fall through to AGE-300 kill.
+ *
+ *   Phase 1 (bounce_count != 0): POS_Y -= VEL_Y, then AGE-300 kill.
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x519998 = -0.15    (DRAG, written unconditionally at body entry)
+ *   0x5193a4 =  0.01    (per-tick VEL_Y decrement; shared w/ 0x7b)
+ *   0x519320 =  0.0     (VEL_Y < 0 sign threshold; shared)
+ *   0x5198d8 =  0.2     (impact threshold offset; UNIQUE to 0x84)
+ *   0x519c08 = -0.01    (post-impact VEL_Y, downward latch)
+ *   0x5194ec =  0.3     (Table A spawn scale — same .rdata word as 0x7b's
+ *                        impact threshold, reused here for scale)
+ *
+ * Engine's ground_query fills its `&slot[+0x18]` scratch buffer and the
+ * body reads back `slot[+0x24]` (= AUX_9 = dw 9) for the threshold.  Our
+ * hook is collapsed to `out_y` only, so we mirror the engine's slot
+ * mutation by writing slot[AUX_9] = out_y after a hit — keeps the slot's
+ * post-tick AUX_9 observable-state engine-faithful.
+ *
+ * Dormant in HOUSE under default smoke flags — `--force-b-npc 0x84`
+ * exercises the falling + ground-impact + Table A spawn + kill chain.
+ */
+static void body_0x84(int i)
+{
+    /* asm 0x43fca1-0x43fca7: DRAG = -0.15 unconditionally (both phases). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, -0.15f);
+
+    int32_t bounce_count = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+
+    if (bounce_count == 0) {
+        float vel_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.01f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
+
+        if (vel_y < 0.0f) {
+            float px  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float py  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            float pz  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            float hit = 0.0f;
+            if (ground_query(px, py, pz, &hit) == 1) {
+                /* Mirror engine: slot[AUX_9] is what the engine reads back
+                 * for the threshold (it was written via the 4-float
+                 * scratch buffer at &slot[+0x18]).  Our hook collapses to
+                 * `out_y` only; we restore the engine's observable side-
+                 * effect by writing AUX_9 explicitly. */
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_AUX_9, hit);
+                float threshold = hit + 0.2f;
+                float pos_y     = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+                if (pos_y <= threshold) {
+                    /* Impact — snap to threshold (NOT +1.0 like 0x7b),
+                     * set downward-latch VEL_Y, zero VEL_X/Z, SE + Table
+                     * A spawn + kill self. */
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, threshold);
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -0.01f);
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+                    se_play(0x2b0);
+
+                    float npx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+                    float npy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+                    float npz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+                    scene1_pfo_table_a_alloc_passthrough(
+                        /*template_owner=*/0,
+                        /*pos_x=*/npx,
+                        /*pos_y=*/npy,
+                        /*pos_z=*/npz,
+                        /*template_id=*/1,
+                        /*scale_base=*/0.3f,
+                        /*override_dur=*/-1,
+                        /*override_rot_y_bits=*/0,
+                        /*param_8=*/0);
+
+                    /* asm 0x43fd74: mov [esi], edi (edi=0) — kill slot.
+                     * State machine still runs after this; the engine has
+                     * no jump skipping it. */
+                    scene1_records_b_tick_kill_slot(i);
+                }
+            }
+        }
+
+        /* asm 0x43fd76-0x43fd86: state_machine ALWAYS runs at phase-0
+         * tail (whether or not impact fired).  ret==1 → kill (idempotent
+         * on already-dead impact slot); ret!=1 → fall through to AGE-300
+         * shared tail. */
+        if (state_machine_call_ret(slot_base(i)) == 1) {
+            scene1_records_b_tick_kill_slot(i);
+            return;
+        }
+    } else {
+        /* asm 0x43fd8b-0x43fd94: POS_Y -= VEL_Y (cancel preamble gravity).
+         * Unreachable in normal flow since impact kills the slot before
+         * bounce_count is ever non-zero; ported for engine fidelity. */
+        float pos_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float vel_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y - vel_y);
+    }
+
+    /* LAB_0043f6c8 / shared LAB_004402a2 tail — kill on AGE == 300, else
+     * fall through to default-tail (LAB_00440dc1, deferred). */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 300) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -4123,11 +4248,15 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0xa4:
         body_0x7b_a1_a4(slot_idx, type);
         break;
+    /* C8j-tick.15d — single-type 0x84 ground-bounce + Table A spawn + kill. */
+    case 0x84:
+        body_0x84(slot_idx);
+        break;
     default:
-        /* Remaining tail types {0x75/0x83/0x84/0xa0/0xa2/0xa3/0xa5/0xa6 +
+        /* Remaining tail types {0x75/0x83/0xa0/0xa2/0xa3/0xa5/0xa6 +
          * 0x2e/0x36/0x76/0x77/0x7c/0x73/0x78/0x7a + entity-bounce cluster
          * {0x4d-0x52/0x56/0x62/99/0x96}} and the LAB_00440dc1 default-tail
-         * body are deferred to future C8j-tick.15d+ sub-chips. */
+         * body are deferred to future C8j-tick.15e+ sub-chips. */
         break;
     }
 }
