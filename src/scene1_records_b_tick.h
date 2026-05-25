@@ -144,10 +144,52 @@
  *   - 0x8c — DRAG=1.0; ROT_X += 0.15; state_machine; kill PART_IDX==100
  *     OR AGE > 0x4af (= 1199).
  *
- * Deferred to next sub-chip: types {0x2c, 0x23, 0x3a} which use the
- * FUN_00432e50 ground-query hook (PHC #15).  Engine survey's "Body 4"
- * = types {0, 1} sub-table also deferred — needs separate analysis of
- * the L1187+ region beyond the scattered single bodies.
+ * C8j-tick.8 (2026-05-25) adds three ground-bouncing types from the
+ * scattered post-Body-3 region (asm 0x43cf60..0x43d5f8) — all share the
+ * FUN_00432e50 ground-query hook (PHC #15, new):
+ *
+ *   - 0x2c — physics-bounce billboard.  VEL_Y = (VEL_Y - 0.02) * 0.95
+ *     (gravity + damping); ROT_SCR += 0.05; ROT_Z += 0.03.  MATRIX0 =
+ *     rot_y(ROT_Z) * rot_x(ROT_SCR) via mat4_rotation_x / _y + mat4_mul
+ *     (read by state_machine in the FLAG==0 path).  Bounce gate: VEL_Y
+ *     < 0 AND ground_query(POS) hits AND POS_Y <= LIFE_MULT*0.5 +
+ *     slot[AUX_9] → POS_Y = threshold, VEL_Y *= -0.8; first hit only
+ *     (FLAG==0): FLAG=1, notify_queue(4,4,4,1.0), SE(0x168).  FLAG > 0:
+ *     FLAG++.  FLAG==0x1e (30) kills.  FLAG==0 only: DRAG = LIFE_MULT *
+ *     1.2; state_machine(slot).  Always: mat4_identity(MATRIX0) — wipe
+ *     for next user.  AGE >= 0x12c (300) kills.
+ *   - 0x23 — ground-bounce with on-impact spawn cascade.  DRAG = LIFE_MULT
+ *     * 3.0; state_machine(slot); ROT_SCR += 0.04; ROT_X += 0.04.
+ *     FLAG==0 branch: if AGE&1, scene1_spawn(0, POS, 0x53, LIFE_MULT*0.1,
+ *     1) (vestigial sin/cos discard at L37599-37602 omitted — no side
+ *     effects).  ground_query(POS) hit AND POS_Y < gy+1.0:
+ *       POS_Y = gy, FLAG = 1, VEL_Y = 0,
+ *       aux_4532bc(0x20), notify_queue(0x28, 0x10, 0x10, 1.0),
+ *       7 scene1_spawn calls (types 0xf/0x36/0x2a/0x52 + 3x type 0x51
+ *       at increasing Y),
+ *       DRAG = LIFE_MULT*8.0, then state_machine 30-iter early-break loop.
+ *     FLAG != 0 branch: FLAG++ then if FLAG > 20: POS_Y -= 0.1; if FLAG
+ *     == 10: kill.  Always: AGE == 200 kills.
+ *   - 0x3a — alternate ground-bounce with cleanup-on-progress.  No DRAG/
+ *     state_machine preamble (unlike 0x23).  FLAG==0 branch only: AGE&1
+ *     spawn(0x53), ground_query gated: POS_Y = gy, FLAG=1, VEL_Y=0,
+ *     DRAG=3.0, state_machine(slot), bvar17=1.  Then DRAG=0.5,
+ *     state_machine(slot); if it "returned non-zero" (hook installed),
+ *     bvar17=1.  If bvar17: aux_4532bc(0x20), notify_queue(0x28, 0x10,
+ *     0x10, 1.0), 4 spawn calls (0x52 + 3x 0x51), kill.  AGE == 0x78 kills.
+ *
+ * Hook gained: scene1_b_tick_ground_query_fn (4-arg, FUN_00432e50, PHC #15),
+ * scene1_b_aux_4532bc_fn (1-arg, FUN_004532bc).  Both default no-op (no
+ * ground / no trigger); HOUSE smoke unchanged.
+ *
+ * Survey corrections (vs docs/findings/scene1-records-b-tick.md):
+ *   - Body 4 in the survey was actually three scattered single bodies
+ *     (0x2c, 0x23, 0x3a) all using ground_query, not a {0, 1} sub-table.
+ *     The {0, 1} sub-table sits further down at asm 0x43d600+ and
+ *     remains deferred to a later sub-chip.
+ *
+ * Deferred to next sub-chip(s): types {0, 1} sub-table dispatch and the
+ * Body 5 group (0x21/0x25/0x31/0x32) per the survey.
  *
  * C8j-tick.3 (2026-05-25) adds bodies for the mid-cascade (L408-L649):
  *
@@ -289,6 +331,29 @@ typedef void (*scene1_b_notify_queue_fn)(int32_t a, int32_t b, int32_t c,
  * a stub state machine that doesn't write anything). */
 typedef int (*scene1_b_cull_query_fn)(float x, float y);
 
+/* Stand-in for engine FUN_00432e50 (2084 B, 0x432e50) — terrain ground-
+ * height query (PHC #15).  Engine signature is 4-arg: takes a world
+ * position (x, y, z) plus a pointer to a 4-float scratch buffer; writes
+ * the hit point into the buffer (engine reads ground_y at buffer+0xc =
+ * 4th float).  Returns 1 on hit, 0 on miss.
+ *
+ * Our hook collapses the 4-float buffer to a single `float *out_y` since
+ * the C8j-tick bodies that consume it only read the ground Y component.
+ * Default returns 0 ("no ground"); bounce gates that compare POS_Y to
+ * (ground_y + 1.0f) therefore never trigger.  Hook receives the slot's
+ * pre-preamble pos.{x,y,z} since the integrator preamble has already
+ * added vel into pos by the time per-type bodies run. */
+typedef int (*scene1_b_tick_ground_query_fn)(float x, float y, float z,
+                                        float *out_y);
+
+/* Stand-in for engine FUN_004532bc (29 B, 0x4532bc) — small 1-arg state
+ * writer.  Engine implementation: `if (DAT_06a49998 == 0): DAT_06a49994
+ * = 1; DAT_005c5938 = arg1`.  Looks like a fade/transition trigger that
+ * latches on first call.  Both call sites in this chip (0x23 + 0x3a
+ * post-ground-hit cleanup) pass 0x20.  Default no-op; no in-port consumer
+ * reads the latched state today. */
+typedef void (*scene1_b_aux_4532bc_fn)(int32_t arg1);
+
 /* Setters return prior value so tests can save/restore.  Pass NULL to
  * revert to the default — for `per_type_body` that's the in-module
  * `dispatch_default` (engine-faithful body); for `state_machine` and
@@ -307,6 +372,10 @@ scene1_b_aux_2arg_fn      scene1_records_b_set_aux_482a51_hook(
     scene1_b_aux_2arg_fn fn);
 scene1_b_notify_queue_fn  scene1_records_b_set_notify_queue_hook(
     scene1_b_notify_queue_fn fn);
+scene1_b_tick_ground_query_fn  scene1_records_b_set_ground_query_hook(
+    scene1_b_tick_ground_query_fn fn);
+scene1_b_aux_4532bc_fn    scene1_records_b_set_aux_4532bc_hook(
+    scene1_b_aux_4532bc_fn fn);
 
 /* Mark a slot dead — engine LAB_004411e3 (`*piVar14 = 0`).  Setting
  * TYPE = 0 makes the next allocator scan reclaim it.  Death-effect

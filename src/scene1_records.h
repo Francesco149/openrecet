@@ -105,6 +105,7 @@ extern "C" {
 #define SCENE1_RECORDS_B_OFF_FLAG_B     3    /* DAT_069324bc (entity-alloc: flag; npc-alloc: -1) */
 #define SCENE1_RECORDS_B_OFF_OWNER_A    4    /* DAT_069324c0 (entity-alloc owner; npc-alloc: 0) */
 #define SCENE1_RECORDS_B_OFF_OWNER_B    5    /* DAT_069324c4 (npc-alloc owner; entity-alloc: 0) */
+#define SCENE1_RECORDS_B_OFF_AUX_9      9    /* DAT_069324d4 (per-type aux float; 0x2c bounce: ground threshold offset) */
 #define SCENE1_RECORDS_B_OFF_POS_X      23   /* DAT_0693250c */
 #define SCENE1_RECORDS_B_OFF_POS_Y      24   /* DAT_06932510 */
 #define SCENE1_RECORDS_B_OFF_POS_Z      25   /* DAT_06932514 */

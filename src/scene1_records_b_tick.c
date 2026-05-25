@@ -34,6 +34,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "math3d.h"
 #include "rng.h"
 #include "scene1_overlay.h"
 #include "scene1_particles_tick.h"
@@ -56,6 +57,8 @@ static scene1_b_cull_query_fn    g_cull_query_hook;      /* default NULL = "visi
 static scene1_b_aux_1arg_fn      g_aux_485979_hook;      /* default NULL */
 static scene1_b_aux_2arg_fn      g_aux_482a51_hook;      /* default NULL */
 static scene1_b_notify_queue_fn  g_notify_queue_hook;    /* default NULL */
+static scene1_b_tick_ground_query_fn  g_ground_query_hook;    /* default NULL = "no hit" */
+static scene1_b_aux_4532bc_fn    g_aux_4532bc_hook;      /* default NULL */
 
 scene1_b_per_type_body_fn scene1_records_b_set_per_type_body(
     scene1_b_per_type_body_fn fn)
@@ -112,6 +115,22 @@ scene1_b_notify_queue_fn scene1_records_b_set_notify_queue_hook(
     return prev;
 }
 
+scene1_b_tick_ground_query_fn scene1_records_b_set_ground_query_hook(
+    scene1_b_tick_ground_query_fn fn)
+{
+    scene1_b_tick_ground_query_fn prev = g_ground_query_hook;
+    g_ground_query_hook = fn;
+    return prev;
+}
+
+scene1_b_aux_4532bc_fn scene1_records_b_set_aux_4532bc_hook(
+    scene1_b_aux_4532bc_fn fn)
+{
+    scene1_b_aux_4532bc_fn prev = g_aux_4532bc_hook;
+    g_aux_4532bc_hook = fn;
+    return prev;
+}
+
 static inline void se_play(uint16_t id)
 {
     if (g_se_hook) g_se_hook(id);
@@ -130,6 +149,18 @@ static inline void aux_482a51_call(int32_t arg1, int32_t arg2)
 static inline void notify_queue_call(int32_t a, int32_t b, int32_t c, float d)
 {
     if (g_notify_queue_hook) g_notify_queue_hook(a, b, c, d);
+}
+
+static inline int ground_query(float x, float y, float z, float *out_y)
+{
+    if (g_ground_query_hook) return g_ground_query_hook(x, y, z, out_y);
+    *out_y = 0.0f;
+    return 0;
+}
+
+static inline void aux_4532bc_call(int32_t arg1)
+{
+    if (g_aux_4532bc_hook) g_aux_4532bc_hook(arg1);
 }
 
 static inline void state_machine_call(int32_t *slot)
@@ -1865,6 +1896,355 @@ static void body_0x8c(int i)
     }
 }
 
+/* Engine 0x43cf67..0x43d0b6 — type 0x2c body.  Physics-bounce billboard:
+ * gravity + damping on VEL_Y, two-axis rotation matrix accumulation,
+ * one-shot ground-bounce trigger with notify_queue + SE on first hit,
+ * FLAG-counter shutdown at 0x1e.
+ *
+ *   VEL_Y = (VEL_Y - 0.02) * 0.95          ; gravity (-0.02) + damping (0.95)
+ *   ROT_SCR += 0.05; ROT_Z += 0.03
+ *   mat4_rotation_x(MATRIX0, ROT_SCR)      ; engine stores X-rot here
+ *   mat4_rotation_y(scratch,  ROT_Z)
+ *   mat4_mul(MATRIX0, scratch, MATRIX0)    ; MATRIX0 = scratch * MATRIX0
+ *
+ *   if (VEL_Y < 0):
+ *     if (ground_query(POS) == 1):
+ *       threshold = LIFE_MULT * 0.5 + slot[AUX_9]
+ *       if (POS_Y <= threshold):
+ *         POS_Y = threshold
+ *         VEL_Y *= -0.8                    ; bounce
+ *         if (FLAG == 0):
+ *           FLAG = 1
+ *           notify_queue(4, 4, 4, 1.0)
+ *           SE(0x168)
+ *
+ *   if (FLAG > 0): FLAG++
+ *   if (FLAG == 0x1e): kill                ; 0x1e = 30 ticks post-first-hit
+ *   if (FLAG == 0):
+ *     DRAG = LIFE_MULT * 1.2
+ *     state_machine(slot)                  ; consumes MATRIX0
+ *
+ *   mat4_identity(MATRIX0)                 ; wipe for next user
+ *   if (AGE >= 0x12c): kill                ; 0x12c = 300
+ */
+static void body_0x2c(int i)
+{
+    int32_t *slot = slot_base(i);
+
+    /* L37544 / asm 0x43cf67-0x43cf89: VEL_Y = (VEL_Y - 0.02) * 0.95. */
+    float vel_y = (slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.02f) * 0.95f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
+
+    /* L37545-46 / asm 0x43cf8c-0x43cf9e: ROT_SCR += 0.05; ROT_Z += 0.03. */
+    float rot_scr = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR) + 0.05f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rot_scr);
+    float rot_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + 0.03f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rot_z);
+
+    /* L37547-49 / asm 0x43cfa0-0x43cfc6: MATRIX0 = rot_y(ROT_Z) *
+     * rot_x(ROT_SCR).  Engine asm pushes (MATRIX0, scratch, MATRIX0) to
+     * mat4_multiply; our `mat4_mul(out, a, b)` computes out = a * b. */
+    float *mat0 = (float *)(slot + SCENE1_RECORDS_B_OFF_MATRIX0);
+    float scratch[16];
+    mat4_rotation_x(mat0, rot_scr);
+    mat4_rotation_y(scratch, rot_z);
+    mat4_mul(mat0, scratch, mat0);
+
+    /* L37550-63 / asm 0x43cfcb-0x43d05d: bounce gate.  Three conjoined
+     * conditions all must hold. */
+    if (vel_y < 0.0f) {
+        float gy = 0.0f;
+        float pos_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float pos_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pos_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        int hit = ground_query(pos_x, pos_y, pos_z, &gy);
+        if (hit == 1) {
+            float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+            float aux9      = slot_get_f(i, SCENE1_RECORDS_B_OFF_AUX_9);
+            float threshold = life_mult * 0.5f + aux9;
+            if (pos_y <= threshold) {
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, threshold);
+                vel_y *= -0.8f;
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
+                if (slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) == 0) {
+                    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+                    notify_queue_call(4, 4, 4, 1.0f);
+                    se_play(0x168);
+                }
+            }
+        }
+    }
+
+    /* L37564-67 / asm 0x43d064-0x43d075: FLAG > 0 → FLAG++. */
+    int flag = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+    if (flag > 0) {
+        flag = flag + 1;
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, flag);
+    }
+
+    /* L37568 / asm 0x43d077-0x43d07c: FLAG == 0x1e → kill + skip remainder. */
+    if (flag == 0x1e) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* L37569-72 / asm 0x43d082-0x43d09e: FLAG == 0 → DRAG = LIFE_MULT *
+     * 1.2; state_machine(slot).  State machine consumes MATRIX0. */
+    if (flag == 0) {
+        float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 1.2f);
+        state_machine_call(slot);
+    }
+
+    /* L37573 / asm 0x43d09f-0x43d0a1: mat4_identity(MATRIX0) — engine
+     * wipes the scratch matrix for the next consumer.  Without this, the
+     * pre-multiply work would leak into whoever next reads slot[MATRIX0]
+     * (likely a different per-type body next tick, or the render path). */
+    mat4_identity(mat0);
+
+    /* L37574-76 / asm 0x43d0a5-0x43d0b0: AGE >= 0x12c (300) → kill. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) >= 0x12c) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43d100..0x43d3f4 — type 0x23 body.  Ground-bouncer with
+ * one-shot impact-spawn cascade (7 particles + 30-iter state-machine
+ * loop) and a delayed FLAG-counter graceful shutdown.
+ *
+ *   slot[DRAG]   = LIFE_MULT * 3.0
+ *   state_machine(slot)
+ *   slot[ROT_SCR] += 0.04
+ *   slot[ROT_X]   += 0.04
+ *
+ *   if (FLAG == 0):
+ *     ; engine fires two sin/cos calls on (π - camera_yaw) and discards
+ *     ; both results (asm 0x43d152-0x43d196 + 0x43d196 fstp st0 ×2).
+ *     ; pure dead code — no FPU side effects relevant in our port.
+ *     if (AGE & 1):
+ *       scene1_spawn(0, POS_X, POS_Y, POS_Z, 0x53, LIFE_MULT*0.1, 1)
+ *     gy = 0; hit = ground_query(POS)
+ *     if (hit == 1 && POS_Y < gy + 1.0):
+ *       POS_Y = gy; FLAG = 1; VEL_Y = 0
+ *       aux_4532bc(0x20)
+ *       notify_queue(0x28, 0x10, 0x10, 1.0)
+ *       scene1_spawn(0, POS, 0x0f, LIFE_MULT,      1)
+ *       scene1_spawn(0, POS, 0x36, LIFE_MULT*0.8, 0x40)
+ *       scene1_spawn(0, POS, 0x2a, LIFE_MULT*0.4,  1)
+ *       scene1_spawn(0, POS, 0x52, LIFE_MULT*0.7,  1)
+ *       scene1_spawn(0, POS_X, gy,       POS_Z, 0x51, LIFE_MULT, 2)
+ *       scene1_spawn(0, POS_X, gy + 2.0, POS_Z, 0x51, LIFE_MULT, 2)
+ *       scene1_spawn(0, POS_X, gy + 2.0, POS_Z, 0x51, LIFE_MULT, 2) ; dup (engine)
+ *       DRAG = LIFE_MULT * 8.0
+ *       for n in [0, 30): if !state_machine(slot): break
+ *   else (FLAG != 0):
+ *     FLAG = FLAG + 1
+ *     if (FLAG > 20):  POS_Y -= 0.1
+ *     if (FLAG == 10): kill            ; only reachable when FLAG was 9
+ *
+ *   if (AGE == 200): kill
+ *
+ * The duplicate 0x51 spawn at (POS_X, gy+2, POS_Z) matches Ghidra L37631
+ * and asm 0x43d362..0x43d392 verbatim — appears intentional (or a long-
+ * standing engine copy-paste) and we preserve it.
+ */
+static void body_0x23(int i)
+{
+    int32_t *slot = slot_base(i);
+
+    /* asm 0x43d103-0x43d116: DRAG = LIFE_MULT * 3.0; state_machine. */
+    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 3.0f);
+    state_machine_call(slot);
+
+    /* asm 0x43d11b-0x43d142: ROT_SCR += 0.04; ROT_X += 0.04. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR,
+               slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR) + 0.04f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,
+               slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X) + 0.04f);
+
+    int flag = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+    int age  = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    if (flag == 0) {
+        /* asm 0x43d152-0x43d196: vestigial sin/cos discard (omitted). */
+
+        /* asm 0x43d18d-0x43d1c7: AGE&1 → particle spawn 0x53. */
+        if (age & 1) {
+            float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            scene1_spawn(0, px, py, pz, 0x53, life_mult * 0.1f, 1);
+        }
+
+        /* asm 0x43d1ca-0x43d209: ground_query + bounce gate.  Ghidra
+         * dropped the (z, &out_buf) trailing args at L37608 — full asm
+         * shows the 4-arg signature `(POS_X, POS_Y, POS_Z, &local_140)`
+         * with the ground Y read back from local_138 (= base + 0xc). */
+        float gy = 0.0f;
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        int hit = ground_query(px, py, pz, &gy);
+        if (hit == 1 && py < gy + 1.0f) {
+            /* asm 0x43d20f-0x43d228: snap POS_Y to ground, FLAG=1, VEL_Y=0. */
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, gy);
+            slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+            py = gy;
+
+            /* asm 0x43d228: FUN_004532bc(0x20). */
+            aux_4532bc_call(0x20);
+
+            /* asm 0x43d22d-0x43d23d: notify_queue(0x28, 0x10, 0x10, 1.0). */
+            notify_queue_call(0x28, 0x10, 0x10, 1.0f);
+
+            /* asm 0x43d23d-0x43d265: scene1_spawn(0, POS, 0x0f, LIFE_MULT, 1). */
+            scene1_spawn(0, px, py, pz, 0x0f, life_mult, 1);
+            /* asm 0x43d26a-0x43d297: scene1_spawn(0, POS, 0x36, LIFE_MULT*0.8, 0x40). */
+            scene1_spawn(0, px, py, pz, 0x36, life_mult * 0.8f, 0x40);
+            /* asm 0x43d29c-0x43d2c8: scene1_spawn(0, POS, 0x2a, LIFE_MULT*0.4, 1). */
+            scene1_spawn(0, px, py, pz, 0x2a, life_mult * 0.4f, 1);
+            /* asm 0x43d2cd-0x43d2f9: scene1_spawn(0, POS, 0x52, LIFE_MULT*0.7, 1). */
+            scene1_spawn(0, px, py, pz, 0x52, life_mult * 0.7f, 1);
+            /* asm 0x43d2fe-0x43d328: 0x51 stack at gy. */
+            scene1_spawn(0, px, gy, pz, 0x51, life_mult, 2);
+            /* asm 0x43d333-0x43d35d: 0x51 stack at gy + 2.0. */
+            scene1_spawn(0, px, gy + 2.0f, pz, 0x51, life_mult, 2);
+            /* asm 0x43d362-0x43d392: 0x51 stack at gy + 2.0 (DUP — engine
+             * preserves this duplicate verbatim, see Ghidra L37631). */
+            scene1_spawn(0, px, gy + 2.0f, pz, 0x51, life_mult, 2);
+
+            /* asm 0x43d397-0x43d3bd: DRAG = LIFE_MULT * 8.0; 30-iter
+             * state_machine early-break loop. */
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 8.0f);
+            for (int counter = 0; counter < 30; counter++) {
+                if (!state_machine_call_ret(slot)) break;
+            }
+        }
+    } else {
+        /* asm 0x43d3bf-0x43d3e0: FLAG++ then POS_Y dec then maybe-kill. */
+        int new_flag = flag + 1;
+        slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, new_flag);
+        if (new_flag > 0x14) {
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+                       slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) - 0.1f);
+        }
+        if (new_flag == 10) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+    }
+
+    /* asm 0x43d3e2-0x43d3f0: AGE == 200 → kill (re-check current age, not
+     * the cached `age` from earlier — engine reads [esi+0x98] fresh). */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 200) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43d3f6..0x43d5f8 — type 0x3a body.  Alternate ground-bouncer:
+ * no DRAG/state_machine preamble; cleanup-spawn cascade gates on either
+ * ground-hit OR the (always-run) DRAG=0.5 state-machine "made progress".
+ *
+ *   if (FLAG == 0):
+ *     ; vestigial sin/cos discard at 0x43d40d-0x43d44f (omitted).
+ *     bvar17 = false
+ *     if (AGE & 1):
+ *       scene1_spawn(0, POS, 0x53, LIFE_MULT*0.1, 1)
+ *     gy = 0; hit = ground_query(POS)
+ *     if (hit == 1 && POS_Y < gy + 1.0):
+ *       POS_Y = gy; FLAG = 1; VEL_Y = 0
+ *       DRAG = 3.0
+ *       state_machine(slot)
+ *       bvar17 = true
+ *     DRAG = 0.5
+ *     if (state_machine(slot) returned non-zero):
+ *       bvar17 = true
+ *     if (bvar17):
+ *       aux_4532bc(0x20)
+ *       notify_queue(0x28, 0x10, 0x10, 1.0)
+ *       scene1_spawn(0, POS, 0x52, LIFE_MULT*0.7, 1)
+ *       scene1_spawn(0, POS_X, POS_Y,       POS_Z, 0x51, LIFE_MULT, 2)
+ *       scene1_spawn(0, POS_X, POS_Y + 2.0, POS_Z, 0x51, LIFE_MULT, 2)
+ *       scene1_spawn(0, POS_X, POS_Y + 2.0, POS_Z, 0x51, LIFE_MULT, 2) ; dup
+ *       kill
+ *
+ *   if (AGE == 0x78): kill              ; 0x78 = 120
+ *
+ * Note vs 0x23: this body has NO FLAG != 0 branch — when FLAG != 0 we
+ * skip straight to the AGE-kill check.  The 0x51 stack uses POS_Y (which
+ * equals gy after the ground snap) instead of gy directly — same end
+ * value when ground-hit, but observable when a future caller mutates
+ * POS_Y between the snap and the spawn.
+ */
+static void body_0x3a(int i)
+{
+    int32_t *slot = slot_base(i);
+
+    int flag = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+
+    if (flag == 0) {
+        /* asm 0x43d40d-0x43d44f: vestigial sin/cos discard (omitted). */
+
+        int bvar17 = 0;
+        int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+        float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+
+        /* asm 0x43d448-0x43d482: AGE&1 → spawn 0x53. */
+        if (age & 1) {
+            float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            scene1_spawn(0, px, py, pz, 0x53, life_mult * 0.1f, 1);
+        }
+
+        /* asm 0x43d485-0x43d4ec: ground_query + bounce + DRAG=3.0 state_machine. */
+        float gy = 0.0f;
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        int hit = ground_query(px, py, pz, &gy);
+        if (hit == 1 && py < gy + 1.0f) {
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, gy);
+            slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 3.0f);
+            state_machine_call(slot);
+            bvar17 = 1;
+        }
+
+        /* asm 0x43d4ed-0x43d506: DRAG = 0.5; state_machine; bvar17 |= ret!=0. */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.5f);
+        if (state_machine_call_ret(slot)) {
+            bvar17 = 1;
+        }
+
+        if (bvar17) {
+            /* asm 0x43d50f-0x43d521: trigger + notify. */
+            aux_4532bc_call(0x20);
+            notify_queue_call(0x28, 0x10, 0x10, 1.0f);
+
+            /* asm 0x43d526-0x43d5e8: 4 scene1_spawn calls.  Reload POS_Y
+             * since the ground-hit branch may have snapped it. */
+            px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            scene1_spawn(0, px, py, pz, 0x52, life_mult * 0.7f, 1);
+            scene1_spawn(0, px, py,         pz, 0x51, life_mult, 2);
+            scene1_spawn(0, px, py + 2.0f,  pz, 0x51, life_mult, 2);
+            scene1_spawn(0, px, py + 2.0f,  pz, 0x51, life_mult, 2);
+
+            /* asm 0x43d5eb: kill. */
+            scene1_records_b_tick_kill_slot(i);
+        }
+    }
+
+    /* asm 0x43d5ed-0x43d5f4: AGE == 0x78 → kill. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -1964,8 +2344,17 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x29:
         body_0x29(slot_idx);
         break;
+    case 0x2c:
+        body_0x2c(slot_idx);
+        break;
     case 0x8c:
         body_0x8c(slot_idx);
+        break;
+    case 0x23:
+        body_0x23(slot_idx);
+        break;
+    case 0x3a:
+        body_0x3a(slot_idx);
         break;
     default:
         /* C8j-tick.8..13 fill in additional cases here. */
