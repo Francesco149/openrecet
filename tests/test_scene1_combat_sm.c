@@ -5030,3 +5030,280 @@ int test_combat_sm_phase_c_hooks_nullable(void)
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
     return 0;
 }
+
+/* ─── C8jb.8a — Phase C TYPE-dispatched sound + spawn cluster ──────── */
+
+/* Set the projectile's per-emit OFFSET_Y bias (proj[-2] field). */
+static void set_proj_offset_y(int idx, float offset_y)
+{
+    int32_t *proj = &g_scene1_projectiles[idx * SCENE1_PROJ_STRIDE];
+    *(float *)&proj[SCENE1_PROJ_OFF_OFFSET_Y] = offset_y;
+}
+
+/* Setup helper: prep one projectile of TYPE `type` at fixed pose + reach
+ * + sentinel-fill the rest, then arm radii so a target at the origin
+ * (with reach 10.0 — big enough for all the test poses below to land
+ * an AABB hit; the dy < reach gate matters too) will land an AABB hit. */
+static int32_t *setup_phase_c_hit(int32_t proj_type,
+                                  float proj_x, float proj_y, float proj_z,
+                                  float proj_scale, float offset_y)
+{
+    install_proj_radii(proj_type & 0xff, 3.0f, 3.0f);
+    setup_proj(0, proj_type, 0, proj_x, proj_y, proj_z, proj_scale);
+    set_proj_offset_y(0, offset_y);
+    return target_slot_at(0x4242, 0.0f, 0.0f, 0.0f, 10.0f);
+}
+
+int test_combat_sm_phase_c8a_type_2_fires_0x15_spawn(void)
+{
+    /* TYPE 2 → spawn template 0x15 + SE 0x159 + STATE cleared to 0. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+
+    int32_t *slot = setup_phase_c_hit(/*type=*/2,
+                                      /*pos=*/1.0f, 0.5f, 0.0f,
+                                      /*scale=*/1.0f, /*offset_y=*/4.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,         1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,     0x15);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x159);
+    /* STATE was set to 5 by C8jb.7 then cleared to 0 by C8jb.8a. */
+    int32_t proj_state =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_STATE];
+    T_ASSERT_EQ_I(proj_state, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_type_3_fires_0x15_spawn(void)
+{
+    /* TYPE 3 shares the TYPE 2 branch. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+
+    int32_t *slot = setup_phase_c_hit(/*type=*/3,
+                                      1.0f, 0.5f, 0.0f, 1.0f, 4.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,     0x15);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x159);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_type_0_fires_0x16_spawn(void)
+{
+    /* TYPE 0 → SE 0x169 (else branch of Block 1) + 0x16 spawn (Block 2). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+
+    int32_t *slot = setup_phase_c_hit(/*type=*/0,
+                                      1.0f, 0.5f, 0.0f, 1.0f, 2.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,     0x16);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x169);
+    /* TYPE 0 path does NOT clear STATE; it stays at the C8jb.7 5. */
+    int32_t proj_state =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_STATE];
+    T_ASSERT_EQ_I(proj_state, 5);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_type_0x15_se_only(void)
+{
+    /* TYPE 0x15 plays SE 0x180 but spawns nothing. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+
+    int32_t *slot = setup_phase_c_hit(/*type=*/0x15,
+                                      1.0f, 0.5f, 0.0f, 1.0f, 2.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,     0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x180);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_default_type_se_only(void)
+{
+    /* Any TYPE not in {0, 2, 3, 0x15} plays SE 0x169 and spawns nothing.
+     * Use TYPE 5 (a valid projectile type not in the special set). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+
+    int32_t *slot = setup_phase_c_hit(/*type=*/5,
+                                      1.0f, 0.5f, 0.0f, 1.0f, 2.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,     0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x169);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_type_2_spawn_pose_verbatim(void)
+{
+    /* Verify the spawn pose: mid_x = (proj_x + slot_x)/2 = 1.5,
+     * mid_z = 0.5, y = proj_y + offset_y * 0.5 = 0.5 + 4.0*0.5 = 2.5.
+     * Slot at (0,0,0), proj at (3, 0.5, 1), offset_y = 4.0. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+
+    int32_t *slot = setup_phase_c_hit(/*type=*/2,
+                                      /*pos=*/3.0f, 0.5f, 1.0f,
+                                      /*scale=*/1.5f, /*offset_y=*/4.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[0], 1.5f, 1e-6f);   /* mid_x */
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[1], 2.5f, 1e-6f);   /* y */
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[2], 0.5f, 1e-6f);   /* mid_z */
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_scale,   1.5f, 1e-6f);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_param7,  6);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_type_0_spawn_pose_verbatim(void)
+{
+    /* TYPE 0 uses 20.5 multiplier on offset_y, not 0.5.
+     * y = proj_y + offset_y * 20.5 = 0.0 + 0.1 * 20.5 = 2.05. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+
+    int32_t *slot = setup_phase_c_hit(/*type=*/0,
+                                      /*pos=*/3.0f, 0.0f, 1.0f,
+                                      /*scale=*/2.0f, /*offset_y=*/0.1f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[0], 1.5f, 1e-6f);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[1], 2.05f, 1e-6f);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[2], 0.5f, 1e-6f);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_scale,   2.0f, 1e-6f);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_param7,  6);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template, 0x16);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_no_emit_when_no_hit(void)
+{
+    /* No AABB pass → no Phase C emit observables change. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    /* Radii are 1.0 but proj is 100 units away → far OOB. */
+    install_proj_radii(2, 1.0f, 1.0f);
+    setup_proj(0, 2, 0, 100.0f, 0.0f, 100.0f, 1.0f);
+    set_proj_offset_y(0, 4.0f);
+    int32_t *slot = target_slot_at(0x4242, 0.0f, 0.0f, 0.0f, 0.5f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,        0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,       0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,    0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_observables_reset_per_tick(void)
+{
+    /* Tick 1 hits TYPE 2 and sets observables; tick 2 sentinels the
+     * table and observables should reset to 0. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(2, 1.0f, 0.5f, 0.0f, 1.0f, 4.0f);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template, 0x15);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,    0x159);
+
+    /* Tick 2: re-sentinel the projectile table (so no hits this tick). */
+    reset_combat_7_capture();
+    /* Slot SEQ_ID changed → bumped to avoid ring-history skip; here we
+     * just sentinel the projectile so the cascade catches the first
+     * gate before AABB. */
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,    0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,       0);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[0],     0.0f, 1e-6f);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[1],     0.0f, 1e-6f);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[2],     0.0f, 1e-6f);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_scale,       0.0f, 1e-6f);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_param7,      0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_se_hook_receives_id(void)
+{
+    /* Shared emit_se hook fires with the Phase C SE id. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(2, 1.0f, 0.5f, 0.0f, 1.0f, 4.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_emit_se_count,    1);
+    T_ASSERT_EQ_I(g_emit_se_last_id,  0x159);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_spawn_hook_receives_args(void)
+{
+    /* Shared emit_spawn hook fires with call_index=0 + verbatim args. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(/*type=*/3,
+                                      /*pos=*/3.0f, 0.5f, 1.0f,
+                                      /*scale=*/1.5f, /*offset_y=*/4.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_emit_spawn_count, 1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].call_index, 0);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,   0x15);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].x,          1.5f, 1e-6f);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].y,          2.5f, 1e-6f);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].z,          0.5f, 1e-6f);
+    T_ASSERT_EQ_F(g_emit_spawn_records[0].scale,      1.5f, 1e-6f);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].param7,     6);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_emit_hooks_nullable(void)
+{
+    /* Null emit hooks must not crash; observables still latch. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    scene1_combat_set_emit_spawn_hook(NULL);
+    scene1_combat_set_emit_se_hook(NULL);
+    int32_t *slot = setup_phase_c_hit(2, 1.0f, 0.5f, 0.0f, 1.0f, 4.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template, 0x15);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,    0x159);
+    return 0;
+}
+
+int test_combat_sm_phase_c8a_type_2_phase_b_se_id_untouched(void)
+{
+    /* Phase C SE id latch must not clobber the Phase B observable. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(2, 1.0f, 0.5f, 0.0f, 1.0f, 4.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id, 0x159);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_emit_se_id, 0);
+    return 0;
+}

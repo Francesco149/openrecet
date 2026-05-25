@@ -174,6 +174,14 @@ int32_t g_scene1_combat_emit_aux_42e791_call_count;
 int32_t g_scene1_combat_phase_c_visit_count;
 int32_t g_scene1_combat_phase_c_hit_count;
 
+/* C8jb.8a Phase C TYPE-dispatched sound + spawn observables. */
+int32_t g_scene1_combat_phase_c_emit_spawn_count;
+int32_t g_scene1_combat_phase_c_emit_template;
+float   g_scene1_combat_phase_c_emit_scale;
+float   g_scene1_combat_phase_c_emit_pose[3];
+int32_t g_scene1_combat_phase_c_emit_param7;
+int32_t g_scene1_combat_phase_c_emit_se_id;
+
 int32_t g_scene1_projectiles[SCENE1_PROJ_COUNT * SCENE1_PROJ_STRIDE];
 
 scene1_combat_npc_type_attrs_t
@@ -1619,6 +1627,44 @@ static int phase_b_scan(int32_t *slot)
     return 0;
 }
 
+/* ─── C8jb.8a — Phase C TYPE-dispatched emit helpers ───────────────── */
+/*
+ * Per-hit spawn helper.  Latches the (template, pose, scale, param7)
+ * tuple into the Phase C observable globals + bumps the count, then
+ * delegates to the shared emit_spawn hook (same hook as Phase B uses).
+ * call_index is fixed at 0 because Phase C fires at most one spawn per
+ * hit (proj.TYPE in {2,3} → 0x15 spawn; proj.TYPE == 0 → 0x16 spawn;
+ * other TYPEs spawn nothing — the gates are disjoint).
+ */
+static void phase_c_emit_spawn(int32_t template,
+                               float x, float y, float z,
+                               float scale, int32_t param7)
+{
+    g_scene1_combat_phase_c_emit_template = template;
+    g_scene1_combat_phase_c_emit_pose[0]  = x;
+    g_scene1_combat_phase_c_emit_pose[1]  = y;
+    g_scene1_combat_phase_c_emit_pose[2]  = z;
+    g_scene1_combat_phase_c_emit_scale    = scale;
+    g_scene1_combat_phase_c_emit_param7   = param7;
+    g_scene1_combat_phase_c_emit_spawn_count++;
+    if (g_emit_spawn_hook != NULL) {
+        g_emit_spawn_hook(/*call_index=*/0, template, x, y, z, scale, param7);
+    }
+}
+
+/*
+ * Per-hit SE helper.  Latches the SE id into the Phase C observable;
+ * delegates to the shared emit_se hook.  Note this writes ONLY the
+ * Phase C observable — the Phase B SE observable
+ * (g_scene1_combat_phase_b_emit_se_id) is left at its tick-top reset
+ * value, so tests can distinguish which phase fired the SE.
+ */
+static void phase_c_emit_se(int32_t se_id)
+{
+    g_scene1_combat_phase_c_emit_se_id = se_id;
+    if (g_emit_se_hook != NULL) g_emit_se_hook(se_id);
+}
+
 /* ─── C8jb.7 — Phase C projectile scan ──────────────────────────────── */
 /*
  * Engine asm 0x439f28..0x43a10b / decomp L35613-L35660.  Iterates 210
@@ -1764,11 +1810,55 @@ static int phase_c_scan(int32_t *slot)
             g_scene1_combat_dat_056da1b8 |= 2;
         }
 
-        /* Engine flow at 0x43a10c falls into the C8jb.8 TYPE dispatch.
-         * Until C8jb.8 lands, break out of the loop with the on-hit side
-         * effects applied and report "hit fired" to the caller (which
-         * collapses Phase C's ret to 0 — the C8jb.8 chip will rewrite
-         * this contract). */
+        /* C8jb.8a — Phase C TYPE-dispatched sound + spawn cluster.
+         * Engine asm 0x43a10c..0x43a1df.  Two independent sub-blocks
+         * (sound + 0x15 spawn for TYPE 2/3, then 0x16 spawn for TYPE 0),
+         * separated by an unconditional fall-through at 0x43a18c.  Block 1
+         * gates the SE id on TYPE; Block 2 gates the spawn on TYPE.  Both
+         * blocks compute the spawn pose from the projectile + slot
+         * midpoint (X/Z) and the projectile's OFFSET_Y field scaled by
+         * a per-template constant (0.5 vs 20.5).  All other TYPEs play
+         * SE 0x169 without spawning. */
+        float proj_offset_y =
+            *(const float *)&proj[SCENE1_PROJ_OFF_OFFSET_Y];
+        float mid_x = proj_x - dx * 0.5f;   /* = (proj_x + slot_x) / 2 */
+        float mid_z = proj_z - dz * 0.5f;   /* = (proj_z + slot_z) / 2 */
+
+        /* Block 1 — sound + optional 0x15 spawn for TYPE 2/3. */
+        if (proj_type == 2 || proj_type == 3) {
+            /* Engine quirk (0x43a130): clears STATE back to 0 immediately
+             * after the C8jb.7 STATE=5 write above.  Preserved for
+             * fidelity — the STATE=5 is wasted for TYPE 2/3 but matches
+             * the asm-emit order. */
+            proj[SCENE1_PROJ_OFF_STATE] = 0;
+
+            /* .rdata 0x51935c = 0.5f. */
+            float emit_y = proj_y + proj_offset_y * 0.5f;
+            phase_c_emit_spawn(/*template=*/0x15,
+                               mid_x, emit_y, mid_z,
+                               proj_scale, /*param7=*/6);
+            phase_c_emit_se(0x159);
+        } else if (proj_type == 0x15) {
+            phase_c_emit_se(0x180);
+        } else {
+            phase_c_emit_se(0x169);
+        }
+
+        /* Block 2 — TYPE == 0 spawns hit-particle 0x16.  Independent of
+         * Block 1 (Block 1 fires SE 0x169 for TYPE 0, which is the `else`
+         * branch above).  .rdata 0x519bd0 = 20.5f. */
+        if (proj_type == 0) {
+            float emit_y = proj_y + proj_offset_y * 20.5f;
+            phase_c_emit_spawn(/*template=*/0x16,
+                               mid_x, emit_y, mid_z,
+                               proj_scale, /*param7=*/6);
+        }
+
+        /* Engine flow continues into LIFETIME processing (C8jb.8b).  For
+         * now, break out of the loop with the on-hit side effects + the
+         * Block 1/2 emits applied; report "hit fired" to the caller
+         * (which collapses Phase C's ret to 0 — C8jb.8b will rewrite the
+         * contract once LIFETIME / TYPE 4/5/6/8/0x15 dispatch lands). */
         return 1;
     }
 
@@ -1808,6 +1898,16 @@ int scene1_combat_sm_tick(int32_t *slot)
     /* C8jb.7 Phase C observables — reset alongside the others. */
     g_scene1_combat_phase_c_visit_count            = 0;
     g_scene1_combat_phase_c_hit_count              = 0;
+
+    /* C8jb.8a Phase C TYPE-dispatched emit observables. */
+    g_scene1_combat_phase_c_emit_spawn_count       = 0;
+    g_scene1_combat_phase_c_emit_template          = 0;
+    g_scene1_combat_phase_c_emit_scale             = 0.0f;
+    g_scene1_combat_phase_c_emit_pose[0]           = 0.0f;
+    g_scene1_combat_phase_c_emit_pose[1]           = 0.0f;
+    g_scene1_combat_phase_c_emit_pose[2]           = 0.0f;
+    g_scene1_combat_phase_c_emit_param7            = 0;
+    g_scene1_combat_phase_c_emit_se_id             = 0;
 
     /* Phase B — attacker NPC scan + collision math + emit.  Skipped if
      * slot is NULL (Phase A tests use NULL to probe gates without

@@ -611,6 +611,10 @@ extern int32_t g_scene1_combat_emit_aux_42e791_call_count;
 #define SCENE1_PROJ_OFF_POS_Z      2      /* esi-0x21, byte +0x08 */
 #define SCENE1_PROJ_OFF_STATE      9      /* esi-0x1a, byte +0x24 */
 #define SCENE1_PROJ_OFF_SCALE      0x20   /* esi-0x03, byte +0x80 */
+#define SCENE1_PROJ_OFF_OFFSET_Y   0x21   /* esi-0x02, byte +0x84 — per-proj
+                                           * Y bias used by Phase C TYPE 2/3
+                                           * (0x15 spawn, *0.5) and TYPE 0
+                                           * (0x16 spawn, *20.5) hit emits. */
 #define SCENE1_PROJ_OFF_TYPE       0x23   /* esi+0x00, byte +0x8c */
 #define SCENE1_PROJ_OFF_AUX        0x9a   /* esi+0x77, byte +0x268 */
 #define SCENE1_PROJ_OFF_RING       0x9c   /* esi+0x79..esi+0x82, 10 dw */
@@ -695,6 +699,82 @@ extern int32_t g_scene1_combat_phase_c_hit_count;
 typedef void (*scene1_combat_phase_c_hit_fn)(int proj_index);
 scene1_combat_phase_c_hit_fn
 scene1_combat_set_phase_c_hit_hook(scene1_combat_phase_c_hit_fn fn);
+
+/* ─── C8jb.8a — Phase C TYPE-dispatched sound + spawn cluster ────────── */
+/*
+ * Engine asm 0x43a10c..0x43a1df (decomp L35661..L35720).  Runs once per
+ * Phase C hit, AFTER the C8jb.7 ring bump / STATE=5 / sound flag.  Two
+ * independent sub-blocks:
+ *
+ * Block 1 (sound + 0x15 spawn):
+ *   - proj.TYPE in {2, 3}  →  proj.STATE = 0 (clears the just-set 5);
+ *                             scene1_spawn(0, mid_x, proj.POS_Y +
+ *                             proj.OFFSET_Y*0.5, mid_z, 0x15, proj.SCALE, 6);
+ *                             se_play(0x159).
+ *   - proj.TYPE == 0x15    →  se_play(0x180).
+ *   - else                 →  se_play(0x169).
+ *
+ * Block 2 (0x16 spawn):
+ *   - proj.TYPE == 0       →  scene1_spawn(0, mid_x, proj.POS_Y +
+ *                             proj.OFFSET_Y*20.5, mid_z, 0x16, proj.SCALE, 6).
+ *
+ * Where `mid_x = (proj.POS_X + slot.POS_X) / 2` and `mid_z = (proj.POS_Z
+ * + slot.POS_Z) / 2`.  The Y coord uses proj.POS_Y plus an offset from
+ * the per-projectile OFFSET_Y field (the *0.5 vs *20.5 distinction is
+ * the per-template choice; not a midpoint).
+ *
+ * Reuses the existing scene1_combat_emit_spawn / scene1_combat_emit_se
+ * hooks; both phases B/C call them through the same install/uninstall
+ * surface.  Phase B and C are mutually exclusive in a single tick (Phase
+ * C only runs when Phase B returned 0), so the hooks see at most one
+ * phase's emits per tick.
+ *
+ * The hit-fired observable `g_scene1_combat_phase_c_hit_count` is bumped
+ * by C8jb.7 BEFORE this block runs; the C8jb.8a emit observables below
+ * are bumped in the dispatch.  Tests check the new observables to
+ * distinguish "AABB passed but no emit" vs "spawn/SE fired".
+ *
+ * C8jb.8a does NOT yet raise the SM return value to 1 — phase_c_scan
+ * still returns 1 internally (= "break the loop") but scene1_combat_sm_tick
+ * collapses it to 0 (same as C8jb.7).  C8jb.8b will lift LIFETIME
+ * processing + TYPE 6/default branches + return-value plumbing.
+ */
+
+/*
+ * Count of scene1_spawn calls fired by the Phase C dispatch during the
+ * most recent scene1_combat_sm_tick().  Caps at 1 per tick (one of 0x15
+ * spawn for TYPE 2/3 OR 0x16 spawn for TYPE 0 — never both since the
+ * gates are disjoint).  Reset to 0 at tick top.
+ */
+extern int32_t g_scene1_combat_phase_c_emit_spawn_count;
+
+/*
+ * Last spawn template emitted by the Phase C dispatch (0x15 for TYPE 2/3,
+ * 0x16 for TYPE 0; 0 if no spawn).  Reset to 0 at tick top.
+ */
+extern int32_t g_scene1_combat_phase_c_emit_template;
+
+/* Last spawn scale (= proj.SCALE).  Reset to 0 at tick top. */
+extern float g_scene1_combat_phase_c_emit_scale;
+
+/* Last spawn pose (x, y, z) as passed to scene1_spawn.  Reset to 0 at
+ * tick top. */
+extern float g_scene1_combat_phase_c_emit_pose[3];
+
+/* Last spawn param_7 (= literal 6 for both TYPE 2/3 and TYPE 0 emits).
+ * Reset to 0 at tick top. */
+extern int32_t g_scene1_combat_phase_c_emit_param7;
+
+/*
+ * Last SE id played by the Phase C dispatch:
+ *   proj.TYPE in {2, 3}  → 0x159
+ *   proj.TYPE == 0x15    → 0x180
+ *   else                  → 0x169
+ * Reset to 0 at tick top.  Note that engine fires exactly one se_play
+ * per Phase C hit (the TYPE 2/3 path's spawn block ALSO fires SE 0x159
+ * via the same caller-cleanup sequence).
+ */
+extern int32_t g_scene1_combat_phase_c_emit_se_id;
 
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*
@@ -794,6 +874,25 @@ scene1_combat_set_phase_c_hit_hook(scene1_combat_phase_c_hit_fn fn);
  *     SM return value to 1 in this chip.  This is a deliberate stand-in:
  *     C8jb.8 will replace the post-hit return with the engine's
  *     TYPE-dispatched ret-1 paths.
+ *
+ * Additional C8jb.8a side effects (on Phase C AABB pass, after the C8jb.7
+ * ring bump / STATE=5 / sound flag):
+ *   - Plays exactly one SE per hit via scene1_combat_emit_se hook:
+ *     proj.TYPE in {2,3} → 0x159; proj.TYPE == 0x15 → 0x180; else → 0x169.
+ *     Latches into g_scene1_combat_phase_c_emit_se_id.
+ *   - Fires up to one scene1_spawn via scene1_combat_emit_spawn hook
+ *     (call_index 0): proj.TYPE in {2,3} spawns template 0x15 with Y
+ *     bias `+ proj.OFFSET_Y * 0.5`; proj.TYPE == 0 spawns template 0x16
+ *     with Y bias `+ proj.OFFSET_Y * 20.5`.  All other TYPEs do NOT
+ *     spawn.  Both spawn poses use the midpoint X/Z of proj and slot.
+ *     Latches into g_scene1_combat_phase_c_emit_template / _scale /
+ *     _pose / _param7; bumps _emit_spawn_count.
+ *   - For proj.TYPE in {2,3}, writes proj.STATE = 0 (overwriting the
+ *     STATE=5 set by C8jb.7).  Engine quirk: those two writes happen
+ *     in immediate succession in the engine — the STATE=5 is wasted for
+ *     this TYPE branch but kept for fidelity with the BFS-order asm.
+ *   - Phase C scan still BREAKS after the first hit (== first dispatch).
+ *   - SM return value still 0 (lifted in C8jb.8b+).
  */
 int scene1_combat_sm_tick(int32_t *slot);
 

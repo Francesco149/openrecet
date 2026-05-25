@@ -2692,7 +2692,20 @@ struct test_case {
     X(combat_sm_phase_c_counters_reset_on_phase_a_short_circuit) \
     X(combat_sm_phase_c_visit_hook_install_returns_previous) \
     X(combat_sm_phase_c_hit_hook_install_returns_previous) \
-    X(combat_sm_phase_c_hooks_nullable)
+    X(combat_sm_phase_c_hooks_nullable) \
+    X(combat_sm_phase_c8a_type_2_fires_0x15_spawn) \
+    X(combat_sm_phase_c8a_type_3_fires_0x15_spawn) \
+    X(combat_sm_phase_c8a_type_0_fires_0x16_spawn) \
+    X(combat_sm_phase_c8a_type_0x15_se_only) \
+    X(combat_sm_phase_c8a_default_type_se_only) \
+    X(combat_sm_phase_c8a_type_2_spawn_pose_verbatim) \
+    X(combat_sm_phase_c8a_type_0_spawn_pose_verbatim) \
+    X(combat_sm_phase_c8a_no_emit_when_no_hit) \
+    X(combat_sm_phase_c8a_observables_reset_per_tick) \
+    X(combat_sm_phase_c8a_se_hook_receives_id) \
+    X(combat_sm_phase_c8a_spawn_hook_receives_args) \
+    X(combat_sm_phase_c8a_emit_hooks_nullable) \
+    X(combat_sm_phase_c8a_type_2_phase_b_se_id_untouched)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
