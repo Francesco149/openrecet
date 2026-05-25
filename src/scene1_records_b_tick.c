@@ -4021,10 +4021,18 @@ static void body_0x7b_a1_a4(int i, int32_t type)
     }
 
     /* Shared LAB_004402a2 tail at 0x4408a1 — kill on AGE == 0x82, else
-     * fall through to LAB_00440dc1 default-tail (deferred). */
+     * fall through to LAB_00440dc1 default-tail wall-bounce body via
+     * the engine's `jne 0x440dc1` at LAB_004402a2.  body_lab_00440dc1
+     * (C8j-tick.16) gates internally on slot[AUX_C8] != 0 + per-tick
+     * flag != 0; this body sets the per-tick flag at line 4013 so the
+     * wall-bounce body's flag-gate is open here.  AUX_C8 must be set
+     * by another body (e.g. body_0x74_or_0x79) before this body fires
+     * for the wall-bounce to actually do work; otherwise body_lab_00440dc1
+     * returns at its AUX_C8 gate. */
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x82) {
         scene1_records_b_tick_kill_slot(i);
     }
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15d — type 0x84 single-body ground-bounce + self-kill ════
@@ -5114,7 +5122,22 @@ static void body_0x7e(int i)
  * entity} <type>` exercises end-to-end (cull-default-visible → SM →
  * AGE==0x78 kill).
  */
+static void body_entity_bounce_inner(int i, int32_t type);
 static void body_entity_bounce(int i, int32_t type)
+{
+    /* Engine-faithful tail: body_entity_bounce sets the per-tick flag
+     * via the inline 0x56/0x96 ground-bounce path (asm 0x440714) and
+     * the engine then falls through to LAB_00440dc1 default-tail wall-
+     * bounce body via the shared LAB_004402a2 / LAB_00440741 epilogue.
+     * Wrap the inner body so every early return funnels through the
+     * post-body fall-through.  body_lab_00440dc1 gates internally on
+     * slot[AUX_C8] + per-tick flag, so this is a no-op for slots that
+     * don't have AUX_C8 latched from an earlier body. */
+    body_entity_bounce_inner(i, type);
+    scene1_records_b_run_lab_00440dc1(i);
+}
+
+static void body_entity_bounce_inner(int i, int32_t type)
 {
     /* 1. asm 0x44036a-0x44036f: DRAG = 0 unconditionally. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);

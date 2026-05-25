@@ -9887,7 +9887,61 @@ int test_records_b_tick_dc1_dead_slot_skips(void)
     slot_set_i(0, SCENE1_RECORDS_B_OFF_OWNER_A, 1);
     g_scene1_records_b_tick_flag = 1;
     /* TYPE = 0 by default. */
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_wall_ray_calls, 0);
+    return 0;
+}
+
+/* ─── C8j-tick.16-wire — body fall-through wiring tests ─────────────── */
+
+int test_records_b_tick_dc1_body_7b_falls_through_to_wall_bounce(void)
+{
+    /* body_0x7b_a1_a4 (Phase 0 — bounce_count == 0) sets the per-tick
+     * flag at line 4013.  After body_0x7b's tail, body_lab_00440dc1
+     * runs.  With AUX_C8 pre-set + a hit-scripted raycast hook, the
+     * wall-bounce body fires. */
+    reset_world();
+    lab_dc1_install_hooks();
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_TYPE,    0x7b);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_C8,  1);     /* gate */
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_OWNER_A, 1);
+    /* Phase 0: bounce_count = 0 → body sets per-tick flag. */
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 0);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 0;
+    scene1_records_b_tick();
+    /* body_0x7b_a1_a4 sets flag → body_lab_00440dc1 wall-bounce runs. */
+    T_ASSERT_EQ_I(s_wall_ray_calls, 1);
+    return 0;
+}
+
+int test_records_b_tick_dc1_body_7b_no_aux_c8_no_wall_bounce(void)
+{
+    /* Same as above but AUX_C8 = 0 → wall-bounce body gates out. */
+    reset_world();
+    lab_dc1_install_hooks();
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_TYPE,    0x7b);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_C8,  0);     /* gate closed */
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_OWNER_A, 1);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 0);
+    s_wall_ray_script_hit = 1;
     scene1_records_b_tick();
     T_ASSERT_EQ_I(s_wall_ray_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_dc1_body_entity_bounce_falls_through(void)
+{
+    /* body_entity_bounce (TYPE 0x56 ground-bounce path) sets per-tick
+     * flag at line ~5252.  After body's tail, body_lab_00440dc1 runs. */
+    reset_world();
+    lab_dc1_install_hooks();
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_TYPE,    0x56);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_C8,  1);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_OWNER_A, 1);
+    s_wall_ray_script_hit = 1;
+    scene1_records_b_tick();
+    /* body_entity_bounce's 0x56 path sets flag → wall-bounce body runs. */
+    T_ASSERT_EQ_I(s_wall_ray_calls, 1);
     return 0;
 }

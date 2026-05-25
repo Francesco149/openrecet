@@ -2109,6 +2109,9 @@ struct test_case {
     X(records_b_tick_dc1_set_wall_destroy_hook_round_trip) \
     X(records_b_tick_dc1_set_aux_44b255_hook_round_trip) \
     X(records_b_tick_dc1_dead_slot_skips) \
+    X(records_b_tick_dc1_body_7b_falls_through_to_wall_bounce) \
+    X(records_b_tick_dc1_body_7b_no_aux_c8_no_wall_bounce) \
+    X(records_b_tick_dc1_body_entity_bounce_falls_through) \
     \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
