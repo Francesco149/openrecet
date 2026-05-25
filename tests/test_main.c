@@ -1901,6 +1901,28 @@ struct test_case {
     X(records_b_tick_t15e_clears_anim_drive_global_before_sm) \
     X(records_b_tick_t15e_age_1_spawn_skipped_when_not_age_1) \
     X(records_b_tick_t15e_all_three_types_share_body) \
+    X(records_b_tick_t15f_76_age_negative_cancels_preamble_no_kill) \
+    X(records_b_tick_t15f_a3_age_negative_no_owner_gate) \
+    X(records_b_tick_t15f_76_life_mult_increments_by_0_01) \
+    X(records_b_tick_t15f_76_xz_vel_damp_to_0_99_y_untouched) \
+    X(records_b_tick_t15f_76_sm_skipped_when_part_idx_nonzero) \
+    X(records_b_tick_t15f_76_sm_ret_nonzero_kills) \
+    X(records_b_tick_t15f_a3_pose_snap_fires_at_age_match) \
+    X(records_b_tick_t15f_a3_pose_snap_skipped_for_type_0x76) \
+    X(records_b_tick_t15f_a3_pose_snap_skipped_when_age_mismatch) \
+    X(records_b_tick_t15f_76_kills_at_age_0x5a) \
+    X(records_b_tick_t15f_a3_does_not_kill_below_0x5a) \
+    X(records_b_tick_t15f_77_owner_cf8_nonzero_kills) \
+    X(records_b_tick_t15f_a2_owner_cf8_check_skipped) \
+    X(records_b_tick_t15f_77_rot_x_increments_by_0_2) \
+    X(records_b_tick_t15f_77_below_age_threshold_no_motion) \
+    X(records_b_tick_t15f_77_motion_accumulates_vel) \
+    X(records_b_tick_t15f_77_length_below_1_5_kills) \
+    X(records_b_tick_t15f_77_horizontal_speed_capped_to_0_3) \
+    X(records_b_tick_t15f_a2_uses_owner_b_pose) \
+    X(records_b_tick_t15f_77_sm_ret_nonzero_skips_age_kill) \
+    X(records_b_tick_t15f_77_kills_at_age_4000_when_sm_ret_zero) \
+    X(records_b_tick_t15f_a2_sm_called_only_above_threshold) \
     \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \

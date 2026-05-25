@@ -4206,6 +4206,336 @@ static void body_0x73_or_0x78_or_0x7a(int i)
     }
 }
 
+/* ═══ C8j-tick.15f — type 0x76 / 0xa3 shared crawl+pose-snap body ═══════
+ *
+ * Engine asm 0x440aae..0x440bae / decomp L2738-L2772.  Two types share
+ * one body via the dispatch's paired `je 0x440aae`.  Type 0xa3 adds an
+ * entity-pose-snap side-effect (calls scene1_record_b_spawn_npc(0x97, 1)
+ * after temporarily grafting slot.POS_XZ into owner_b's +0x3f0/+0x3f8
+ * pose triplet) when AGE matches a slot-index-derived value.
+ *
+ *   Phase A  (AGE < 0): pure preamble cancel + advance
+ *     POS_X -= VEL_X ; POS_Y -= VEL_Y ; POS_Z -= VEL_Z   (cancel preamble)
+ *     return                                              (no kill)
+ *
+ *   Phase B  (AGE >= 0): drift damp + SM gate + 0xa3 pose-snap
+ *     LIFE_MULT += 0.01
+ *     VEL_X     *= 0.99   (note: VEL_Y is NOT damped)
+ *     VEL_Z     *= 0.99
+ *     if PART_IDX == 0:
+ *       ret = state_machine(slot)
+ *       if ret != 0: KILL + return            (LAB_004411e3)
+ *     # fall through (PART_IDX != 0, OR PART_IDX == 0 + ret == 0):
+ *     if type == 0xa3 AND PART_IDX == 0 AND AGE == (slot_idx % 0xf + 0x3c):
+ *       save owner_b.pose = (owner_b+0x3f0..0x3f8)
+ *       owner_b.pose = (slot.POS_X, 0, slot.POS_Z)        # graft
+ *       scene1_record_b_spawn_npc(owner_b, 0x97, 1)
+ *       owner_b.pose = saved                              # restore
+ *     if AGE == 0x5a: KILL                                 (LAB_00440dbd kill-eq)
+ *     # fall through to LAB_00440dbd default-tail (deferred)
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x5193a4 = 0.01    (LIFE_MULT increment, shared with 0x84 VEL_Y dec)
+ *   0x5198b0 = 0.99    (horizontal vel damp, shared with 0x65)
+ *
+ * Asm corrections vs decomp:
+ *   - Ghidra renders `FUN_00445a8c(iVar13)` (single arg).  Raw asm at
+ *     0x440b44-0x440b7f pushes 3 args: push 0x1 ; push 0x97 ; push eax
+ *     (= owner_b).  cdecl → scene1_record_b_spawn_npc(owner_b, 0x97, 1).
+ *
+ * AGE<0 / no-owner branch differences vs 0x73/0x78/0x7a (C8j-tick.15e):
+ *   - 0x73/0x78/0x7a: AGE<0 has an owner_a+0xcf8 nonzero-kill gate.
+ *   - 0x76/0xa3:      AGE<0 always advances iter without kill.  Slot
+ *                     stays alive until allocator-set AGE counts up.
+ *
+ * `local_2c` in decomp = the outer-loop slot iterator.  Engine asm at
+ * 0x440b2d loads `mov eax, [ebp-0x28]` — `[ebp-0x28]` is the function's
+ * slot iter variable.  Our port uses the C loop iter `i` directly.
+ *
+ * Owner pose-snap temp-graft mirrors body_0x3b's pattern (C8j-tick.7):
+ * the NPC allocator's preamble at scene1_records_b_spawn.c L42027-42029
+ * reads owner+0x3f0/+0x3f4/+0x3f8 as the spawn POS init, so the engine
+ * temporarily writes slot.POS_XZ + 0 into those fields, calls the
+ * allocator, then restores the originals.  The reload pattern after the
+ * call (`mov eax, [esi+0x14]` re-reads OWNER_B in case spawn_npc moved
+ * it; in our port the static blob layout is fixed but we preserve the
+ * reload for fidelity).
+ *
+ * Dormant in HOUSE under default smoke flags — types 0x76/0xa3 not in any
+ * landed C8j allocator's type set; `--force-b-npc 0x76/0xa3` exercises
+ * the crawl + LIFE_MULT ramp + pose-snap chain.  No new hooks needed.
+ */
+static void body_0x76_or_0xa3(int i, int32_t type)
+{
+    int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    if (age < 0) {
+        /* asm 0x440ab6-0x440ad1: POS -= VEL (cancel preamble), then
+         * `jmp 0x43fbbc` — advance iter WITHOUT kill.  No owner gate. */
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px - vx);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py - vy);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz - vz);
+        return;
+    }
+
+    /* asm 0x440ad6-0x440aff: LIFE_MULT += 0.01, VEL_X *= 0.99, VEL_Z *= 0.99
+     * (VEL_Y is deliberately not damped). */
+    float life = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life + 0.01f);
+    float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+    float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx * 0.99f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz * 0.99f);
+
+    /* asm 0x440b02-0x440b13: SM gate.  Only fires when PART_IDX == 0.  If
+     * SM ret != 0 → LAB_004411e3 → KILL + advance iter. */
+    int32_t part_idx = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+    if (part_idx == 0) {
+        if (state_machine_call_ret(slot_base(i)) != 0) {
+            scene1_records_b_tick_kill_slot(i);
+            return;
+        }
+    }
+
+    /* asm 0x440b19-0x440ba1: 0xa3-only entity pose-snap.  Gated on
+     * type==0xa3 AND PART_IDX==0 AND AGE == (slot_idx % 0xf + 0x3c). */
+    if (type == 0xa3 && part_idx == 0) {
+        int target_age = (int)((unsigned)i % 0xf) + 0x3c;
+        if (age == target_age) {
+            int32_t owner_b_int =
+                slot_get_i(i, SCENE1_RECORDS_B_OFF_OWNER_B);
+            if (owner_b_int) {
+                uint8_t *owner =
+                    (uint8_t *)(uintptr_t)(uint32_t)owner_b_int;
+
+                float save_x, save_y, save_z;
+                memcpy(&save_x, owner + 0x3f0, sizeof save_x);
+                memcpy(&save_y, owner + 0x3f4, sizeof save_y);
+                memcpy(&save_z, owner + 0x3f8, sizeof save_z);
+
+                float px   = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+                float pz   = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+                float zero = 0.0f;
+                memcpy(owner + 0x3f0, &px,   sizeof px);
+                memcpy(owner + 0x3f4, &zero, sizeof zero);
+                memcpy(owner + 0x3f8, &pz,   sizeof pz);
+
+                scene1_record_b_spawn_npc(owner, 0x97, 1);
+
+                /* Reload owner_b — asm at 0x440b84 re-reads [esi+0x14]
+                 * after the call.  Fidelity-only in our port (OWNER_B
+                 * doesn't move). */
+                int32_t reloaded =
+                    slot_get_i(i, SCENE1_RECORDS_B_OFF_OWNER_B);
+                if (reloaded) {
+                    uint8_t *owner2 =
+                        (uint8_t *)(uintptr_t)(uint32_t)reloaded;
+                    memcpy(owner2 + 0x3f0, &save_x, sizeof save_x);
+                    memcpy(owner2 + 0x3f4, &save_y, sizeof save_y);
+                    memcpy(owner2 + 0x3f8, &save_z, sizeof save_z);
+                }
+            }
+        }
+    }
+
+    /* asm 0x440ba7-0x440bae: kill on AGE == 0x5a, else fall through to
+     * LAB_00440dbd default-tail (deferred). */
+    if (age == 0x5a) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* ═══ C8j-tick.15f — type 0x77 / 0xa2 shared owner-follow body ══════════
+ *
+ * Engine asm 0x4408b0..0x440aa9 / decomp L2773-L2820.  Two types share
+ * one body via the dispatch's paired `je 0x4408b0`.  Each tick:
+ *
+ *   1. Type-0x77-only kill: if owner_a+0xcf8 != 0 → KILL.
+ *      (LAB_0043fbb9 — `and [esi], 0x0` — slot.ACTIVE = 0)
+ *      [type 0xa2 skips this check]
+ *   2. ROT_X += 0.2  (unconditional, both types)
+ *   3. If AGE > threshold (0x14 for 0x77, 0x3c for 0xa2):
+ *        target = owner_a.pose@+0x20/+0x28 (for 0x77),
+ *               OR owner_b.pose@+0x3f0/+0x3f8 (for 0xa2)
+ *        (dx, dz) = target - slot.POS_XZ
+ *        if (dx, dz) != (0, 0):
+ *          len = sqrtf(dx*dx + dz*dz)
+ *          if len < 1.5: KILL slot (engine `and [esi], 0x0`)
+ *          if len > 1.0: (dx, dz) /= len
+ *        factor   = (AGE - 0x14) * 0.002 + 0.001
+ *        VEL_X   += factor * dx
+ *        VEL_Z   += factor * dz
+ *        if (VEL_X, VEL_Z) != (0, 0):
+ *          speed = sqrtf(VEL_X^2 + VEL_Z^2)
+ *          if speed > 0.3:
+ *            VEL_X *= 0.3 / speed
+ *            VEL_Z *= 0.3 / speed
+ *        VEL_X *= 0.98  ; VEL_Z *= 0.98
+ *   4. Per-type SM dispatch:
+ *      type == 0xa2: SM iff AGE > 0x3c (ret IGNORED)
+ *      type == 0x77: SM always; if ret != 0 → advance iter (skip step 5)
+ *   5. Kill on AGE == 4000 (LAB_004402a2 / LAB_00440dbd kill-eq)
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x5198d8 = 0.2     (ROT_X increment; shared w/ 0x84 ground threshold)
+ *   0x5198d4 = 0.002   (factor slope on AGE-0x14)
+ *   0x5198f4 = 0.001   (factor offset)
+ *   0x5198e0 = 1.5     (kill-if-len-below threshold)
+ *   0x519364 = 1.0     (normalize-if-len-above threshold)
+ *   0x5194ec = 0.3     (horizontal speed cap)
+ *   0x5198ec = 0.98    (horizontal drag)
+ *   0x519320 = 0.0     (sign-compare zero)
+ *
+ * Asm corrections vs decomp:
+ *   - Decomp shows `if (iVar13 != 0) goto LAB_0043fbbc;` for the 0x77 SM
+ *     branch.  This is "advance iter, NO kill" (LAB_0043fbbc = `inc
+ *     [ebp-0x28]`); not the same as the type-0x77-specific kill at
+ *     LAB_0043fbb9 (`and [esi], 0x0`).  Raw asm at 0x440a99 `jne 0x43fbbc`
+ *     confirms: 0x77 with SM ret != 0 keeps the slot ALIVE for one more
+ *     tick (skipping the AGE==4000 kill check).
+ *   - Decomp `(*piVar14 == 0xa2 && (iVar13 < (int)(&...)[uVar6 * 0x49]))`
+ *     SM gate is "AGE > threshold (= 0x3c for 0xa2)"; matches asm
+ *     0x440a7f `cmp [esi+0x98], ebx ; jle 0x440a9f` where ebx == 0x3c.
+ *   - Length < 1.5 KILL: engine inlines `and [esi], 0x0` at 0x44096f; rest
+ *     of body still executes (VEL writes + SM + AGE==4000 check) on the
+ *     now-dead slot — observable side-effects are confined to slot
+ *     memory, and next tick the dead-slot skip at scene1_records_b_tick
+ *     top elides further work.
+ *
+ * Owner field convention:
+ *   - type 0x77: owner_a at slot+0x10 (= OWNER_A, dw 4) with pose at
+ *     owner+0x20/+0x24/+0x28 (NPC-style entity pose).
+ *   - type 0xa2: owner_b at slot+0x14 (= OWNER_B, dw 5) with pose at
+ *     owner+0x3f0/+0x3f4/+0x3f8 (NPC-allocator-owner-style pose).
+ *
+ * Engine assumes owner != NULL; deref would crash if it were.  Our port
+ * adds a NULL guard that skips the motion block but still advances the
+ * SM + AGE==4000 tail.
+ *
+ * Dormant in HOUSE under default smoke flags — types 0x77/0xa2 not in any
+ * landed C8j allocator's type set; `--force-b-npc 0x77/0xa2` exercises
+ * the owner-follow chain.  No new hooks needed.
+ */
+static void body_0x77_or_0xa2(int i, int32_t type)
+{
+    /* asm 0x4408b8-0x4408c2: type 0x77 specific kill. */
+    if (type == 0x77) {
+        const void *owner_a = slot_owner_a(i);
+        if (owner_a && owner_read_i(owner_a, 0xcf8) != 0) {
+            scene1_records_b_tick_kill_slot(i);
+            return;
+        }
+    }
+
+    /* asm 0x4408c8-0x4408da: ROT_X += 0.2 (unconditional). */
+    float rot_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x + 0.2f);
+
+    /* asm 0x4408dc-0x4408eb: per-type AGE threshold for motion block. */
+    int     age_threshold = (type == 0xa2) ? 0x3c : 0x14;
+    int32_t age           = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    int motion_ran = 0;
+    if (age > age_threshold) {
+        /* asm 0x4408f1-0x44091c: target = owner.pose - slot.POS_XZ. */
+        float dx = 0.0f, dz = 0.0f;
+        int   have_target = 0;
+        if (type == 0x77) {
+            const void *owner_a = slot_owner_a(i);
+            if (owner_a) {
+                float ox = owner_read_f(owner_a, 0x20);
+                float oz = owner_read_f(owner_a, 0x28);
+                dx = ox - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+                dz = oz - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+                have_target = 1;
+            }
+        } else {
+            int32_t owner_b_int =
+                slot_get_i(i, SCENE1_RECORDS_B_OFF_OWNER_B);
+            if (owner_b_int) {
+                const void *owner_b =
+                    (const void *)(uintptr_t)(uint32_t)owner_b_int;
+                float ox = owner_read_f(owner_b, 0x3f0);
+                float oz = owner_read_f(owner_b, 0x3f8);
+                dx = ox - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+                dz = oz - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+                have_target = 1;
+            }
+        }
+
+        if (have_target) {
+            motion_ran = 1;
+
+            /* asm 0x440922-0x440990: kill-if-len<1.5 / normalize-if-len>1.0
+             * (gated on (dx, dz) != (0, 0)). */
+            if (dx != 0.0f || dz != 0.0f) {
+                float len = sqrtf(dx * dx + dz * dz);
+                if (len < 1.5f) {
+                    scene1_records_b_tick_kill_slot(i);
+                }
+                if (len > 1.0f) {
+                    dx /= len;
+                    dz /= len;
+                }
+            }
+
+            /* asm 0x440992-0x4409e9: VEL += factor * dxz. */
+            float factor = (float)(age - 0x14) * 0.002f + 0.001f;
+            float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+            float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+            vx += factor * dx;
+            vz += factor * dz;
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
+
+            /* asm 0x4409ec-0x440a60: clamp horizontal speed to 0.3. */
+            if (vx != 0.0f || vz != 0.0f) {
+                float speed = sqrtf(vx * vx + vz * vz);
+                if (speed > 0.3f) {
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X,
+                               vx * 0.3f / speed);
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z,
+                               vz * 0.3f / speed);
+                }
+            }
+
+            /* asm 0x440a63-0x440a78: 0.98 horizontal drag. */
+            vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+            vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx * 0.98f);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz * 0.98f);
+        }
+    }
+    (void)motion_ran;
+
+    /* asm 0x440a7b-0x440a9f: per-type SM dispatch. */
+    if (type == 0xa2) {
+        /* asm 0x440a7f-0x440a8e: 0xa2 calls SM iff AGE > 0x3c; return
+         * value ignored. */
+        if (age > age_threshold) {
+            state_machine_call(slot_base(i));
+        }
+    } else {
+        /* asm 0x440a90-0x440a99: 0x77 calls SM unconditionally.  If
+         * ret != 0 → advance iter (LAB_0043fbbc; skip AGE==4000 check). */
+        if (state_machine_call_ret(slot_base(i)) != 0) {
+            return;
+        }
+    }
+
+    /* asm 0x440a9f-0x440aa9: LAB_004402a2 / LAB_00440dbd — kill on AGE
+     * == 4000, else fall through to LAB_00440dbd default-tail (deferred). */
+    if (age == 4000) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -4419,13 +4749,22 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x7a:
         body_0x73_or_0x78_or_0x7a(slot_idx);
         break;
+    /* C8j-tick.15f — paired owner-driven tail bodies. */
+    case 0x76:
+    case 0xa3:
+        body_0x76_or_0xa3(slot_idx, type);
+        break;
+    case 0x77:
+    case 0xa2:
+        body_0x77_or_0xa2(slot_idx, type);
+        break;
     default:
-        /* Remaining tail types {0x75/0x83/0xa0/0xa2/0xa3/0xa5/0xa6 +
-         * 0x2e/0x36/0x76/0x77/0x7c + entity-bounce cluster
+        /* Remaining tail types {0x75/0x83/0xa0/0xa5/0xa6 +
+         * 0x2e/0x36/0x7c + entity-bounce cluster
          * {0x4d-0x52/0x56/0x62/99/0x96} + 0x7e (skips 0x73/0x78/0x7a's
          * AGE<0/AGE==1 head; otherwise shares the cull + SM tail)} and
          * the LAB_00440dc1 default-tail body are deferred to future
-         * C8j-tick.15f+ sub-chips. */
+         * C8j-tick.15g+ sub-chips. */
         break;
     }
 }
