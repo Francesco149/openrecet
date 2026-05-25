@@ -3735,6 +3735,11 @@ static void body_0x60(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 5) {
         scene1_records_b_tick_kill_slot(i);
     }
+    /* engine `jmp 0x43fe10 → LAB_004402a2 → 0x440dc1` — fall through to
+     * default-tail wall-bounce body.  body_0x60 doesn't set the per-tick
+     * flag, so this is a no-op in production; wired for engine fidelity
+     * (C8j-tick.16-wire.6). */
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 static void body_0x65(int i)
@@ -3757,6 +3762,11 @@ static void body_0x65(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
+    /* engine `jmp 0x43f3a2 → LAB_00440dbd → 0x440dc1` — fall through to
+     * default-tail wall-bounce body.  body_0x65 doesn't set the per-tick
+     * flag, so this is a no-op in production; wired for engine fidelity
+     * (C8j-tick.16-wire.6). */
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15b — types 0x5f / 0x3e (shared) + 0x82 ═════════════════
