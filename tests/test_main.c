@@ -1641,6 +1641,19 @@ struct test_case {
     X(records_b_tick_body3_type_28_vel_y_decay) \
     X(records_b_tick_body3_type_28_kill_at_age_300) \
     \
+    X(records_b_tick_body4_type_38_drag_2_kill_at_300) \
+    X(records_b_tick_body4_type_29_drag_4x_life_mult) \
+    X(records_b_tick_body4_type_29_age_1_fires_notify_queue) \
+    X(records_b_tick_body4_type_29_spawn_when_age_lt_104) \
+    X(records_b_tick_body4_type_29_no_spawn_at_spawn_age) \
+    X(records_b_tick_body4_type_29_inner_loop_fires_on_age_mod3_1) \
+    X(records_b_tick_body4_type_29_inner_loop_clamps_at_5) \
+    X(records_b_tick_body4_type_29_age_mod_10_increments_seq) \
+    X(records_b_tick_body4_type_29_kill_at_age_136) \
+    X(records_b_tick_body4_type_8c_drag_1_rot_x_increment) \
+    X(records_b_tick_body4_type_8c_kill_when_part_idx_100) \
+    X(records_b_tick_body4_type_8c_kill_when_age_over_0x4af) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

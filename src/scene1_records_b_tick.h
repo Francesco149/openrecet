@@ -131,6 +131,24 @@
  *     at FUN_0044376a 0x29 etc).  Body 3 is pure slot-state + drift
  *     toward player.
  *
+ * C8j-tick.7 (2026-05-25) adds three scattered post-Body-3 types from
+ * the asm 0x43cdef..0x43d0b6 region:
+ *
+ *   - 0x38 — DRAG=2.0; state_machine; kill AGE==0x12c.
+ *   - 0x29 — DRAG = LIFE_MULT*4.0.  AGE==1: notify_queue(10,16,16,1.0).
+ *     AGE in (10, SCALE_Y*90): AGE%3==1 → state-machine 5-iter inner
+ *     loop (POS_Y += n*3, sm, POS_Y -= n*3); AGE%10==0 → SEQ_ID =
+ *     seq_counter_next().  Spawn-age = (int)(SCALE_Y*136 - 32) via
+ *     __ftol (Ghidra-dropped); AGE<spawn_age → scene1_spawn(0, POS, 0x4e,
+ *     LIFE_MULT*0.5, 1).  Kill: SCALE_Y*136 <= (float)AGE.  No owner read.
+ *   - 0x8c — DRAG=1.0; ROT_X += 0.15; state_machine; kill PART_IDX==100
+ *     OR AGE > 0x4af (= 1199).
+ *
+ * Deferred to next sub-chip: types {0x2c, 0x23, 0x3a} which use the
+ * FUN_00432e50 ground-query hook (PHC #15).  Engine survey's "Body 4"
+ * = types {0, 1} sub-table also deferred — needs separate analysis of
+ * the L1187+ region beyond the scattered single bodies.
+ *
  * C8j-tick.3 (2026-05-25) adds bodies for the mid-cascade (L408-L649):
  *
  *   - 0x9c — NPC shoulder-arc bend.  Per-tick reads slot[ROT_X] as the

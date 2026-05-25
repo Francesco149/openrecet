@@ -1750,6 +1750,121 @@ static void body_0x28(int i)
     }
 }
 
+/* ─── C8j-tick.7 — scattered post-Body-3 bodies (asm 0x43cdef..0x43d0b6) ─ */
+
+/* Engine 0x43cdef..0x43ce15 — type 0x38 body.
+ *
+ *   slot[DRAG] = 2.0
+ *   state_machine(slot)
+ *   if (AGE == 0x12c): kill          ; 0x12c = 300
+ */
+static void body_0x38(int i)
+{
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 2.0f);
+    state_machine_call(slot_base(i));
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age == 0x12c) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43ce15..0x43cf5c — type 0x29 body.  Mt. Everest piece in
+ * this cascade — state machine 5-iter inner loop + .rdata-driven
+ * lifecycle gates.
+ *
+ *   slot[DRAG] = LIFE_MULT * 4.0
+ *   if (AGE == 1):
+ *     notify_queue(0xa, 0x10, 0x10, 1.0)
+ *   if (AGE > 10 && (float)AGE < SCALE_Y * 90.0):
+ *     if (AGE % 3 == 1):
+ *       iter_count = min(5, AGE/8 + 1)
+ *       for n in [0, iter_count):
+ *         POS_Y += (float)n * 3.0
+ *         state_machine(slot)
+ *         POS_Y -= (float)n * 3.0
+ *     if (AGE % 10 == 0):
+ *       SEQ_ID = seq_counter_next()
+ *   spawn_age = (int)(SCALE_Y * 136.0 - 32.0)        ; __ftol truncation
+ *   if (AGE < spawn_age):
+ *     scene1_spawn(0, POS_X, POS_Y, POS_Z, 0x4e, LIFE_MULT*0.5, 1)
+ *   if (SCALE_Y * 136.0 <= (float)AGE):
+ *     kill
+ *
+ * SCALE_Y is slot byte 0xbc (dw 47) — entity-allocator scale field,
+ * default 1.0 per C8j allocator preamble.  With SCALE_Y=1.0 the window
+ * is AGE in (10, 90); spawn_age = 104; kill at AGE >= 136.
+ */
+static void body_0x29(int i)
+{
+    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 4.0f);
+
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age == 1) {
+        notify_queue_call(0xa, 0x10, 0x10, 1.0f);
+    }
+
+    float scale_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_SCALE_Y);
+
+    if (age > 10 && (float)age < scale_y * 90.0f) {
+        if (age % 3 == 1) {
+            int iter_count = age / 8 + 1;
+            if (iter_count > 5) iter_count = 5;
+            for (int n = 0; n < iter_count; n++) {
+                float offset = (float)n * 3.0f;
+                float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py + offset);
+                state_machine_call(slot_base(i));
+                py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py - offset);
+            }
+        }
+        if (age % 10 == 0) {
+            int32_t seq = (int32_t)g_scene1_record_b_seq_counter;
+            g_scene1_record_b_seq_counter++;
+            slot_set_i(i, SCENE1_RECORDS_B_OFF_SEQ_ID, seq);
+        }
+    }
+
+    int spawn_age = (int)(scale_y * 136.0f - 32.0f);
+    if (age < spawn_age) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        scene1_spawn(0, px, py, pz, 0x4e, life_mult * 0.5f, 1);
+    }
+
+    if (scale_y * 136.0f <= (float)age) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43d0b8..0x43d0e2 — type 0x8c body.
+ *
+ *   slot[DRAG]   = 1.0
+ *   slot[ROT_X] += 0.15
+ *   state_machine(slot)
+ *   if (PART_IDX == 100): kill         ; engine `goto LAB_0043fc81` (kill)
+ *   if (AGE > 0x4af): kill              ; 0x4af = 1199
+ */
+static void body_0x8c(int i)
+{
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.0f);
+    float rot_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X) + 0.15f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
+    state_machine_call(slot_base(i));
+
+    int part_idx = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+    if (part_idx == 100) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age > 0x4af) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -1843,8 +1958,17 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x28:
         body_0x28(slot_idx);
         break;
+    case 0x38:
+        body_0x38(slot_idx);
+        break;
+    case 0x29:
+        body_0x29(slot_idx);
+        break;
+    case 0x8c:
+        body_0x8c(slot_idx);
+        break;
     default:
-        /* C8j-tick.7..13 fill in additional cases here. */
+        /* C8j-tick.8..13 fill in additional cases here. */
         break;
     }
 }

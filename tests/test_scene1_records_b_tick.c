@@ -2633,6 +2633,174 @@ int test_records_b_tick_body3_type_28_kill_at_age_300(void)
     return 0;
 }
 
+/* ═══ C8j-tick.7 — scattered post-Body-3 (0x38/0x29/0x8c) ══════════════ */
+
+int test_records_b_tick_body4_type_38_drag_2_kill_at_300(void)
+{
+    reset_world();
+    stage_live(0, 0x38, 0, 0, 0, 0, 0, 0, /*age=*/5);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 2.0f) < 1e-6f);
+
+    reset_world();
+    stage_live(0, 0x38, 0, 0, 0, 0, 0, 0, /*age=*/0x12b);  /* → 0x12c */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_29_drag_4x_life_mult(void)
+{
+    reset_world();
+    stage_live(0, 0x29, 0, 0, 0, 0, 0, 0, /*age=*/5);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.75f);
+    scene1_records_b_tick();
+    /* DRAG = 0.75 * 4 = 3.0 */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 3.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_29_age_1_fires_notify_queue(void)
+{
+    /* AGE==1: notify_queue(0xa, 0x10, 0x10, 1.0). */
+    reset_world();
+    s_notify_calls = 0;
+    scene1_records_b_set_notify_queue_hook(capture_notify);
+    /* Pre-tick AGE=0; preamble → 1. */
+    stage_live(0, 0x29, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_notify_calls, 1);
+    T_ASSERT_EQ_I(s_notify_a, 0xa);
+    T_ASSERT_EQ_I(s_notify_b, 0x10);
+    T_ASSERT_EQ_I(s_notify_c, 0x10);
+    T_ASSERT(fabsf(s_notify_d - 1.0f) < 1e-6f);
+    scene1_records_b_set_notify_queue_hook(NULL);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_29_spawn_when_age_lt_104(void)
+{
+    /* SCALE_Y=1.0 default; spawn_age = (int)(136-32) = 104.  AGE=5 < 104
+     * → scene1_spawn(0, POS, 0x4e, LIFE_MULT*0.5, 1). */
+    reset_world();
+    scene1_spawn_trace_reset();
+    stage_live(0, 0x29, 3.0f, 5.0f, -7.0f, 0, 0, 0, /*age=*/4);  /* → 5 */
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_SCALE_Y,   1.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 1);
+    scene1_spawn_call_t *c = &g_scene1_spawn_trace[0];
+    T_ASSERT_EQ_I(c->slot_hint, 0);
+    T_ASSERT(fabsf(c->x -  3.0f) < 1e-5f);
+    T_ASSERT(fabsf(c->y -  5.0f) < 1e-5f);
+    T_ASSERT(fabsf(c->z - -7.0f) < 1e-5f);
+    T_ASSERT_EQ_I(c->type, 0x4e);
+    T_ASSERT(fabsf(c->scale - 0.5f) < 1e-5f);
+    T_ASSERT_EQ_I(c->param7, 1);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_29_no_spawn_at_spawn_age(void)
+{
+    /* AGE == spawn_age = 104 → no spawn (engine `if AGE < spawn_age`). */
+    reset_world();
+    scene1_spawn_trace_reset();
+    stage_live(0, 0x29, 0, 0, 0, 0, 0, 0, /*age=*/103);  /* → 104 */
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_SCALE_Y,   1.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 0);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_29_inner_loop_fires_on_age_mod3_1(void)
+{
+    /* AGE in (10, 90) AND AGE % 3 == 1 → state_machine inner loop with
+     * iter_count = min(5, AGE/8 + 1).  AGE=13 → iter_count = min(5, 2)
+     * = 2 (n in [0, 2)). */
+    reset_world();
+    s_sm5_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_sm_progress);
+    stage_live(0, 0x29, 0, 0, 0, 0, 0, 0, /*age=*/12);  /* → 13 */
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_SCALE_Y, 1.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm5_calls, 2);
+    scene1_records_b_set_state_machine_hook(NULL);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_29_inner_loop_clamps_at_5(void)
+{
+    /* AGE=40 → iter_count = min(5, 40/8+1) = min(5, 6) = 5. */
+    reset_world();
+    s_sm5_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_sm_progress);
+    /* AGE = 39; preamble → 40; 40 % 3 = 1 ✓. */
+    stage_live(0, 0x29, 0, 0, 0, 0, 0, 0, /*age=*/39);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_SCALE_Y, 1.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm5_calls, 5);
+    scene1_records_b_set_state_machine_hook(NULL);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_29_age_mod_10_increments_seq(void)
+{
+    /* AGE=20 → AGE%10==0 → SEQ_ID = seq. */
+    reset_world();
+    g_scene1_record_b_seq_counter = 17;
+    /* AGE = 19; preamble → 20. */
+    stage_live(0, 0x29, 0, 0, 0, 0, 0, 0, /*age=*/19);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_SCALE_Y, 1.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_SEQ_ID), 17);
+    T_ASSERT_EQ_I(g_scene1_record_b_seq_counter, 18);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_29_kill_at_age_136(void)
+{
+    /* SCALE_Y=1 → kill at AGE >= 136. */
+    reset_world();
+    /* AGE = 135; preamble → 136. */
+    stage_live(0, 0x29, 0, 0, 0, 0, 0, 0, /*age=*/135);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_SCALE_Y, 1.0f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_8c_drag_1_rot_x_increment(void)
+{
+    reset_world();
+    stage_live(0, 0x8c, 0, 0, 0, 0, 0, 0, /*age=*/5);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 1.0f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 1.0f) < 1e-6f);
+    /* ROT_X increased by 0.15. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ROT_X) - 1.15f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_8c_kill_when_part_idx_100(void)
+{
+    reset_world();
+    stage_live(0, 0x8c, 0, 0, 0, 0, 0, 0, /*age=*/5);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 100);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_body4_type_8c_kill_when_age_over_0x4af(void)
+{
+    reset_world();
+    stage_live(0, 0x8c, 0, 0, 0, 0, 0, 0, /*age=*/0x4af);  /* → 0x4b0 > 0x4af */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
 int test_records_b_tick_body2_aux_hook_setters_round_trip(void)
 {
     /* All three new setters return previous value. */
