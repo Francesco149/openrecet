@@ -716,6 +716,16 @@ scene1_b_aux_4319d6_fn    scene1_records_b_set_aux_4319d6_hook(
  * FUN_0043ae20 (C8j-tick.13).
  */
 int scene1_records_b_invoke_aux_4319d6(void);
+
+/*
+ * Public accessor: invoke the installed aux_482a51 hook (engine
+ * FUN_00482a51, 2-arg helper).  Exposed so the combat SM (C8jb.5c
+ * charge-attack disarm path) can share the same hook plumbing as the
+ * C8j-tick.5 body types {0x5b/0x5c/0x5e/0x86/0x87} that also call it.
+ * No-op when the hook is NULL.
+ */
+void scene1_records_b_invoke_aux_482a51(int32_t arg1, int32_t arg2);
+
 scene1_b_sw_record_at_fn  scene1_records_b_set_sw_record_at_hook(
     scene1_b_sw_record_at_fn fn);
 scene1_b_aux_43ab6e_fn    scene1_records_b_set_aux_43ab6e_hook(

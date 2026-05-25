@@ -368,6 +368,59 @@ scene1_combat_set_combo_held_hook(scene1_combat_combo_held_fn fn);
 scene1_combat_rng_damage_scale_fn
 scene1_combat_set_rng_damage_scale_hook(scene1_combat_rng_damage_scale_fn fn);
 
+/* ─── C8jb.5c — Phase B post-damage clamp surfaces ───────────────────── */
+/*
+ * `local_1c` bitfield (engine `[ebp-0x18]`).  Direction-hit accumulator
+ * built up across the per-collision damage roll.  Read by C8jb.6 (hit-
+ * effect emit) to pick which hit-particle / SE to spawn; here the C8jb.5b
+ * code seeds bit 0 in idle pass-2 and C8jb.5c adds bits 1/2/3 via the
+ * quadrant-atan2 + npc_phase paths.  Reset at start of each per-collision
+ * iteration.  Exposed as an int32_t observable so tests can inspect the
+ * final bits after a tick.
+ *
+ *   bit 0 (= 0x1) — idle pass-2 saw slot.OWNER_FLAG != 0 (IS_PLAYER).
+ *   bit 1 (= 0x2) — quadrant atan2 |angle| ≥ 3π/4 (rear hit, *1.5 dmg).
+ *   bit 2 (= 0x4) — quadrant atan2 π/4 ≤ |angle| < 3π/4 (side, *1.2 dmg).
+ *   bit 3 (= 0x8) — npc.npc_phase in [1, 6] (NPC is mid-combat anim,
+ *                   *1.2 dmg).
+ *   bits 4-7 untouched in C8jb.5b/5c.
+ *
+ * Multi-collision behavior: holds the LAST collision's value (consistent
+ * with damage_out's reset semantics).
+ */
+extern int32_t g_scene1_combat_phase_b_local_1c_bits;
+
+/*
+ * Stand-ins for engine derefs `*(int *)(slot.OWNER_A + 0xce4)` and
+ * `*(int *)(slot.OWNER_A + 0xcec)`.  Engine reads them at L35415 of the
+ * Phase B damage roll (asm 0x439094 / 0x43909a) for idle-branch "OWNER_A
+ * status flag" gating: if either is non-zero, damage *= 1.5.  Slot.OWNER_A
+ * points to an unported per-character / per-NPC record block; same caveat
+ * as g_scene1_combat_owner_b_npc_type — host-settable, BSS-zero in
+ * production.
+ */
+extern int32_t g_scene1_combat_owner_a_ce4;
+extern int32_t g_scene1_combat_owner_a_cec;
+
+/*
+ * Unsigned RNG hook — engine FUN_00471084 (= rng wrapper, returns
+ * uint).  C8jb.5c calls it once per collision in the final clamp path
+ * (`damage += rng % (damage / 5)` for damage >= 5 OR `damage += rng & 1`
+ * for damage in [1, 5)).  Default returns 0 (deterministic — no jitter).
+ * Tests inject specific values to verify the formula.
+ */
+typedef uint32_t (*scene1_combat_rng_unsigned_fn)(void);
+scene1_combat_rng_unsigned_fn
+scene1_combat_set_rng_unsigned_hook(scene1_combat_rng_unsigned_fn fn);
+
+/*
+ * Hook for FUN_00482a51 — engine 2-arg helper called from the charge-
+ * attack disarm body (`call 0x482a51(npc, 4)`).  Already host-installable
+ * via `scene1_records_b_set_aux_482a51_hook` (from C8j-tick.5 — same
+ * function called by other bodies).  We reuse the existing hook; no new
+ * surface here.  Documented for completeness.
+ */
+
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*
  * Tick the per-record state machine for one slot.
@@ -405,6 +458,21 @@ scene1_combat_set_rng_damage_scale_hook(scene1_combat_rng_damage_scale_fn fn);
  *     value when multiple collisions occur in one tick.
  *   - Calls the combo_held hook up to 4 times (per branch) and the
  *     rng_damage_scale hook up to 2 times (attacker only).
+ *
+ * Additional C8jb.5c side effects (per in-range collision when slot TYPE
+ * != 0x53):
+ *   - May reset NPC combat phase to 6 (NPC 0x44/0x45 + slot.TYPE 0x12 +
+ *     sub_iter==0 + npc_phase != 6).
+ *   - May fire the charge-attack disarm body (writes npc_phase=4, calls
+ *     aux_482a51 hook).  Disarms damage to 0 in the final clamp.
+ *   - Multiplies damage by 1.2 (npc_phase in [1,6]), 1.2 (side hit), 1.5
+ *     (back hit), 1.5 (idle OWNER_A flag set), 2.0 (idle IS_PLAYER).
+ *   - Final clamp writes damage to 0 if disarmed; clamps negative to 0
+ *     for NPC type 5; floors at 1 + adds RNG jitter for others.
+ *   - Writes g_scene1_combat_phase_b_local_1c_bits with the accumulated
+ *     direction-hit bits.
+ *   - Calls the rng_unsigned hook once per collision (in the final
+ *     clamp path).
  */
 int scene1_combat_sm_tick(int32_t *slot);
 

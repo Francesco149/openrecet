@@ -2594,7 +2594,27 @@ struct test_case {
     X(combat_sm_phase_b_general_quirk_mul_ab8_squared_applied) \
     X(combat_sm_phase_b_general_damage_out_resets_when_no_collision) \
     X(combat_sm_phase_b_general_idle_combo_button_sequence_is_5_3_7_6) \
-    X(combat_sm_phase_b_general_attacker_combo_button_sequence_is_4_3_7_6)
+    X(combat_sm_phase_b_general_attacker_combo_button_sequence_is_4_3_7_6) \
+    X(combat_sm_phase_b_clamp_front_hit_no_bit_set) \
+    X(combat_sm_phase_b_clamp_rear_hit_sets_bit_1_and_scales_1_5) \
+    X(combat_sm_phase_b_clamp_side_hit_sets_bit_2_and_scales_1_2) \
+    X(combat_sm_phase_b_clamp_npc_phase_in_range_scales_1_2) \
+    X(combat_sm_phase_b_clamp_npc_phase_zero_no_scaling) \
+    X(combat_sm_phase_b_clamp_npc_phase_7_no_scaling) \
+    X(combat_sm_phase_b_clamp_idle_is_player_sets_bit_0_and_doubles) \
+    X(combat_sm_phase_b_clamp_idle_owner_a_ce4_scales_1_5) \
+    X(combat_sm_phase_b_clamp_idle_owner_a_cec_also_scales) \
+    X(combat_sm_phase_b_clamp_disarm_via_npc_type_48_zeros_damage) \
+    X(combat_sm_phase_b_clamp_npc_44_slot_12_sub0_resets_phase) \
+    X(combat_sm_phase_b_clamp_npc_44_slot_12_phase_6_no_reset) \
+    X(combat_sm_phase_b_clamp_charge_attack_disarms_when_facing) \
+    X(combat_sm_phase_b_clamp_charge_attack_skipped_when_kill_age_nonzero) \
+    X(combat_sm_phase_b_clamp_npc_type_5_negative_clamped_to_zero) \
+    X(combat_sm_phase_b_clamp_npc_type_5_positive_unchanged) \
+    X(combat_sm_phase_b_clamp_floor_minimum_damage_to_1) \
+    X(combat_sm_phase_b_clamp_small_damage_rng_jitter_adds_bit) \
+    X(combat_sm_phase_b_clamp_large_damage_rng_jitter_proportional) \
+    X(combat_sm_phase_b_clamp_local_1c_bits_reset_between_ticks)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

@@ -216,6 +216,27 @@ typedef struct {
     float   damage_quirk_mul_ab8;
     int32_t damage_quirk_disable_b28;
     int32_t block_dodge_b38;
+
+    /* ─── C8jb.5c fields (combat-SM post-damage clamps) ─────────────────── */
+    /*
+     * `charge_flag` — engine byte +0xb9c (asm `[esi+0xb9c]`).  Int — when
+     * non-zero AND npc.npc_b18_kill_age_out == 0, the SM evaluates the
+     * "charge-attack into facing" path: if |atan2(dx,dz) - npc_yaw + π|
+     * normalized is < 0.3π (~63°), the collision is disarmed (damage → 0)
+     * and the NPC's combat phase resets to 4.
+     *
+     * `npc_phase_counter1` — engine byte +0xa58 (asm `[esi+0xa58]`).  Int
+     * — zeroed when (a) the 0x44/0x45 + slot.TYPE 0x12 NPC reset fires AT
+     * sub_iter 0, or (b) the charge-attack disarm fires.  Otherwise
+     * unchanged.  No reader in C8jb.5c (downstream uses by C8jb.6+).
+     *
+     * `npc_phase_counter2` — engine byte +0xa60 (asm `[esi+0xa60]`).  Int
+     * — zeroed only by the 0x44/0x45 + slot.TYPE 0x12 NPC reset (with
+     * sub_iter == 0).  No reader yet.
+     */
+    int32_t charge_flag;
+    int32_t npc_phase_counter1;
+    int32_t npc_phase_counter2;
 } scene1_people_entry_t;
 
 #define SCENE1_PEOPLE_COUNT 128                /* engine cap confirmed in C8h.4a */

@@ -175,6 +175,11 @@ int scene1_records_b_invoke_aux_4319d6(void)
     return g_aux_4319d6_hook ? g_aux_4319d6_hook() : 0;
 }
 
+void scene1_records_b_invoke_aux_482a51(int32_t arg1, int32_t arg2)
+{
+    if (g_aux_482a51_hook) g_aux_482a51_hook(arg1, arg2);
+}
+
 scene1_b_sw_record_at_fn scene1_records_b_set_sw_record_at_hook(
     scene1_b_sw_record_at_fn fn)
 {

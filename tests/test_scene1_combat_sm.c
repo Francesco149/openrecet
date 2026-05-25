@@ -110,6 +110,10 @@ static void reset_combat_state(void)
     g_scene1_combat_scene_mul_01c     = 0;
     g_scene1_combat_dat_056da1b8      = 0;
     g_scene1_combat_owner_b_npc_type  = 0;
+    /* C8jb.5c globals. */
+    g_scene1_combat_phase_b_local_1c_bits = 0;
+    g_scene1_combat_owner_a_ce4           = 0;
+    g_scene1_combat_owner_a_cec           = 0;
     g_visit_count = 0;
     g_collision_count = 0;
     g_armed_count = 0;
@@ -127,6 +131,8 @@ static void reset_combat_state(void)
     scene1_records_b_set_aux_4319d6_hook(NULL);
     scene1_combat_set_combo_held_hook(NULL);
     scene1_combat_set_rng_damage_scale_hook(NULL);
+    scene1_combat_set_rng_unsigned_hook(NULL);
+    scene1_records_b_set_aux_482a51_hook(NULL);
     g_aux_4319d6_return     = 0;
     g_aux_4319d6_call_count = 0;
 }
@@ -2168,7 +2174,11 @@ arm_collision_at(int32_t *slot, int npc_index, int npc_type)
     npc->attack_radius  = 3.0f;
     npc->combat_pose[0] = 0.0f;
     npc->combat_pose[1] = 0.0f;
-    npc->combat_pose[2] = 0.0f;
+    /* pose Z < 0 with yaw=0 gives the C8jb.5c quadrant atan2 a FRONT-hit
+     * angle (no *1.2 / *1.5 scaling, no bit set) — preserves the C8jb.5b
+     * damage int through the C8jb.5c clamps for tests that calibrate the
+     * pre-clamp damage value. */
+    npc->combat_pose[2] = -0.5f;
     *(float *)&slot[SCENE1_RECORDS_B_OFF_SCALE_X] = 1.0f;  /* unit scale */
     (void)slot;
     return npc;
@@ -2594,7 +2604,9 @@ int test_combat_sm_phase_b_general_quirk_mul_ab8_squared_applied(void)
 {
     /* damage_quirk_mul_ab8 = 2 → squared = 4.  attrs_int_38=10 →
      * npc_quirk2 = 40.  second_damage = (int)(0/2 - 40/4) = -10.
-     * TYPE 0x10 → default branch → damage = -10. */
+     * TYPE 0x10 → default branch → C8jb.5b damage = -10.  C8jb.5c
+     * final clamp: NPC type 0x10 (!= 5) → `if damage < 1: damage = 1`,
+     * then `damage < 5` → += rng & 1 = 0 → damage = 1. */
     reset_combat_state();
     reset_combat_5b_capture();
     g_scene1_combat_npc_type_attrs[0x10].attrs_int_38 = 10;
@@ -2606,7 +2618,7 @@ int test_combat_sm_phase_b_general_quirk_mul_ab8_squared_applied(void)
     npc->damage_quirk_mul_ab8 = 2.0f;
 
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, -10);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 1);
     return 0;
 }
 
@@ -2682,5 +2694,561 @@ int test_combat_sm_phase_b_general_attacker_combo_button_sequence_is_4_3_7_6(voi
     T_ASSERT_EQ_I(g_combo_held_buttons_seen[1], 3);
     T_ASSERT_EQ_I(g_combo_held_buttons_seen[2], 7);
     T_ASSERT_EQ_I(g_combo_held_buttons_seen[3], 6);
+    return 0;
+}
+
+/* ═══ C8jb.5c — Phase B post-damage clamps ═════════════════════════════ */
+/*
+ * Asm verification: see scene1_combat_sm.c::phase_b_damage_roll_clamps
+ * doc block for the line-by-line trace of engine asm 0x438eab..0x4390d3.
+ */
+
+static uint32_t g_rng_unsigned_return = 0;
+static int      g_rng_unsigned_call_count = 0;
+
+static uint32_t rng_unsigned_const(void)
+{
+    g_rng_unsigned_call_count++;
+    return g_rng_unsigned_return;
+}
+
+static int g_aux_482a51_arg1_capture = 0;
+static int g_aux_482a51_arg2_capture = 0;
+static int g_aux_482a51_call_count = 0;
+
+static void aux_482a51_capture(int32_t a1, int32_t a2)
+{
+    g_aux_482a51_arg1_capture = a1;
+    g_aux_482a51_arg2_capture = a2;
+    g_aux_482a51_call_count++;
+}
+
+static void reset_combat_5c_capture(void)
+{
+    g_rng_unsigned_return = 0;
+    g_rng_unsigned_call_count = 0;
+    g_aux_482a51_arg1_capture = 0;
+    g_aux_482a51_arg2_capture = 0;
+    g_aux_482a51_call_count = 0;
+}
+
+/*
+ * Position the NPC for a "rear hit" (atan2(dx,dz) - npc_yaw + π wraps to
+ * ±π): pose.Z > 0 with npc_yaw=0 gives ang = π.  Used to verify quadrant
+ * scaling.  Caller must pass an attack_radius large enough that 0.5 < r.
+ */
+static scene1_people_entry_t *
+arm_collision_rear_hit(int32_t *slot, int npc_index, int npc_type)
+{
+    install_unit_attrs(npc_type);
+    scene1_people_entry_t *npc = prep_npc_alive(npc_index);
+    npc->npc_type       = npc_type;
+    npc->attack_radius  = 3.0f;
+    npc->combat_pose[0] = 0.0f;
+    npc->combat_pose[1] = 0.0f;
+    npc->combat_pose[2] = 0.5f;  /* +Z → atan2 = 0 → ang = π → rear */
+    npc->npc_yaw        = 0.0f;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_SCALE_X] = 1.0f;
+    (void)slot;
+    return npc;
+}
+
+/*
+ * Position the NPC for a "side hit": pose at (+X, 0, 0), npc_yaw=0 →
+ * atan2(dx=+0.5, dz=0) = π/2 → ang = π/2 + π = 3π/2 wrap → -π/2.  |angle|
+ * = π/2 ∈ [π/4, 3π/4] → side hit.
+ */
+static scene1_people_entry_t *
+arm_collision_side_hit(int32_t *slot, int npc_index, int npc_type)
+{
+    install_unit_attrs(npc_type);
+    scene1_people_entry_t *npc = prep_npc_alive(npc_index);
+    npc->npc_type       = npc_type;
+    npc->attack_radius  = 3.0f;
+    npc->combat_pose[0] = 0.5f;
+    npc->combat_pose[1] = 0.0f;
+    npc->combat_pose[2] = 0.0f;
+    npc->npc_yaw        = 0.0f;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_SCALE_X] = 1.0f;
+    (void)slot;
+    return npc;
+}
+
+/* ─── Front-hit baseline: no quadrant bit set, no quadrant scale ───── */
+
+int test_combat_sm_phase_b_clamp_front_hit_no_bit_set(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* second_damage=5, front hit, no scaling → 5. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits & 6, 0);
+    return 0;
+}
+
+/* ─── Rear hit: bit 1 set, damage *= 1.5 ──────────────────────────── */
+
+int test_combat_sm_phase_b_clamp_rear_hit_sets_bit_1_and_scales_1_5(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_rear_hit(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* second_damage = 10, *1.5 = 15.  damage_out = 15 (15>=5, += 0%(15/5)=0). */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 15);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits & 2, 2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits & 4, 0);
+    return 0;
+}
+
+/* ─── Side hit: bit 2 set, damage *= 1.2 ──────────────────────────── */
+
+int test_combat_sm_phase_b_clamp_side_hit_sets_bit_2_and_scales_1_2(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_side_hit(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* second_damage = 10, *1.2 = 12.  damage_out = 12 (>=5, += 0%(12/5)=0). */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 12);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits & 4, 4);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits & 2, 0);
+    return 0;
+}
+
+/* ─── npc_phase 1..6 → bit 3 + damage *= 1.2 ───────────────────────── */
+
+int test_combat_sm_phase_b_clamp_npc_phase_in_range_scales_1_2(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = arm_collision_at(slot, 0, 0x10);
+    npc->npc_phase = 3;  /* in [1, 6] */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* second_damage=10, *1.2=12 (npc_phase), front hit (no quadrant). */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 12);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits & 8, 8);
+    return 0;
+}
+
+int test_combat_sm_phase_b_clamp_npc_phase_zero_no_scaling(void)
+{
+    /* npc_phase = 0 (out of [1, 6]) → no *1.2 + no bit 3. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);  /* npc_phase = 0 by default */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* second_damage=10, no npc_phase scale → 10. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 10);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits & 8, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_b_clamp_npc_phase_7_no_scaling(void)
+{
+    /* npc_phase = 7 (out of [1, 6]) → no *1.2. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = arm_collision_at(slot, 0, 0x10);
+    npc->npc_phase = 7;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 10);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits & 8, 0);
+    return 0;
+}
+
+/* ─── Idle pass-2 IS_PLAYER → bit 0 + *2 ──────────────────────────── */
+
+int test_combat_sm_phase_b_clamp_idle_is_player_sets_bit_0_and_doubles(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    slot[SCENE1_RECORDS_B_OFF_OWNER_FLAG] = 1;  /* IS_PLAYER */
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* second_damage=10, *2 (IS_PLAYER) → 20.  bit 0 set. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 20);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits & 1, 1);
+    return 0;
+}
+
+/* ─── Idle OWNER_A flag → *1.5 ────────────────────────────────────── */
+
+int test_combat_sm_phase_b_clamp_idle_owner_a_ce4_scales_1_5(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+    g_scene1_combat_owner_a_ce4       = 1;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* second_damage=10, *1.5 (OWNER_A) → 15. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 15);
+    return 0;
+}
+
+int test_combat_sm_phase_b_clamp_idle_owner_a_cec_also_scales(void)
+{
+    /* Sibling flag at OWNER_A+0xcec also triggers. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+    g_scene1_combat_owner_a_cec       = 1;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 15);
+    return 0;
+}
+
+/* ─── Disarm → damage = 0 (NPC 0x48 always disarms in range) ──────── */
+
+int test_combat_sm_phase_b_clamp_disarm_via_npc_type_48_zeros_damage(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x48);  /* 0x48 disarms */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 0);
+    /* armed counter stays 0. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 0);
+    return 0;
+}
+
+/* ─── NPC 0x44/0x45 + slot.TYPE 0x12 + sub_iter==0 NPC reset ───────── */
+
+int test_combat_sm_phase_b_clamp_npc_44_slot_12_sub0_resets_phase(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    /* Need attrs for NPC 0x44 (sub_iter count = 7).  We only want sub_iter 0
+     * to fire collision; place anchors out of range. */
+    install_unit_attrs(0x44);
+    g_scene1_combat_damage_base_idle2 = 10;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x12;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type       = 0x44;
+    npc->attack_radius  = 3.0f;
+    npc->combat_pose[0] = 0.0f;
+    npc->combat_pose[2] = -0.5f;  /* front-hit angle */
+    npc->npc_yaw        = 0.0f;
+    /* phase 6 + subphase 1 force-arms 0x44 (so it doesn't disarm via
+     * angle filter).  Pre-set both to allow reset to fire (npc_phase != 6 →
+     * triggers reset; here we set npc_phase != 6 to verify reset). */
+    npc->npc_phase    = 3;
+    npc->npc_subphase = 5;
+    npc->npc_phase_counter1 = 0xabcd;
+    npc->npc_phase_counter2 = 0xdef0;
+    /* Anchors out of range so only sub_iter 0 collides. */
+    for (int i = 0; i < 8; i++) {
+        npc->anchors[i][0] = 1000.0f;
+        npc->anchors[i][1] = 1000.0f;
+        npc->anchors[i][2] = 1000.0f;
+    }
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_SCALE_X] = 1.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* Reset fired at sub_iter 0: */
+    T_ASSERT_EQ_I(npc->npc_phase, 6);
+    T_ASSERT_EQ_I(npc->npc_subphase, 0);
+    T_ASSERT_EQ_I(npc->npc_phase_counter1, 0);
+    T_ASSERT_EQ_I(npc->npc_phase_counter2, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_b_clamp_npc_44_slot_12_phase_6_no_reset(void)
+{
+    /* npc_phase already 6 → no reset (gate condition fails). */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    install_unit_attrs(0x44);
+    g_scene1_combat_damage_base_idle2 = 10;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x12;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type       = 0x44;
+    npc->attack_radius  = 3.0f;
+    npc->combat_pose[2] = -0.5f;
+    npc->npc_yaw        = 0.0f;
+    npc->npc_phase      = 6;        /* already 6 */
+    npc->npc_subphase   = 1;        /* force-arm */
+    npc->npc_phase_counter1 = 0xabcd;
+    for (int i = 0; i < 8; i++) {
+        npc->anchors[i][0] = 1000.0f;
+        npc->anchors[i][1] = 1000.0f;
+        npc->anchors[i][2] = 1000.0f;
+    }
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_SCALE_X] = 1.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* Reset did NOT fire — counters preserved. */
+    T_ASSERT_EQ_I(npc->npc_phase_counter1, 0xabcd);
+    return 0;
+}
+
+/* ─── Charge-attack disarm path ─────────────────────────────────── */
+
+int test_combat_sm_phase_b_clamp_charge_attack_disarms_when_facing(void)
+{
+    /* npc.charge_flag != 0 AND npc.npc_b18_kill_age_out == 0 AND
+     * |atan2(dx,dz) - npc_yaw + π wrap| < 0.3π → disarm. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+    scene1_records_b_set_aux_482a51_hook(aux_482a51_capture);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = arm_collision_at(slot, 0, 0x10);
+    /* arm_collision_at uses pose=(0,0,-0.5) → ang ≈ 0 → within ±0.3π. */
+    npc->charge_flag             = 1;
+    npc->npc_b18_kill_age_out    = 0;
+    npc->npc_yaw                 = 0.0f;
+    npc->npc_phase               = 2;
+    npc->npc_phase_counter1      = 0xdead;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* Disarm fires → damage = 0; npc_phase = 4; counter1 = 0; aux hook
+     * called with arg2 = 4. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 0);
+    T_ASSERT_EQ_I(npc->npc_phase, 4);
+    T_ASSERT_EQ_I(npc->npc_phase_counter1, 0);
+    T_ASSERT_EQ_I(g_aux_482a51_call_count, 1);
+    T_ASSERT_EQ_I(g_aux_482a51_arg2_capture, 4);
+    return 0;
+}
+
+int test_combat_sm_phase_b_clamp_charge_attack_skipped_when_kill_age_nonzero(void)
+{
+    /* npc_b18_kill_age_out != 0 → charge-attack path is gated off. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+    scene1_records_b_set_aux_482a51_hook(aux_482a51_capture);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = arm_collision_at(slot, 0, 0x10);
+    npc->charge_flag           = 1;
+    npc->npc_b18_kill_age_out  = 42;  /* != 0 */
+    npc->npc_yaw               = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* No charge-attack fire → no disarm → damage stays at 10. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 10);
+    T_ASSERT_EQ_I(g_aux_482a51_call_count, 0);
+    return 0;
+}
+
+/* ─── Final clamp: NPC type 5 keeps zero for negative ────────────── */
+
+int test_combat_sm_phase_b_clamp_npc_type_5_negative_clamped_to_zero(void)
+{
+    /* NPC type 5 branch: negative damage → 0 (no min-1 floor). */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_npc_type_attrs[5].attrs_int_38 = 10;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = arm_collision_at(slot, 0, 5);
+    npc->damage_quirk_mul_ab8 = 2.0f;
+    /* second_damage = (int)(0/2 - 40/4) = -10.  NPC type 5 → clamp to 0. */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_b_clamp_npc_type_5_positive_unchanged(void)
+{
+    /* Type 5 with positive damage: no min-1 floor + no RNG jitter
+     * (skips the < 1 + RNG paths). */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+    g_rng_unsigned_return = 99;
+    scene1_combat_set_rng_unsigned_hook(rng_unsigned_const);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 5);  /* NPC type 5 */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* second_damage=5.  NPC type 5 → no min-1, no jitter → 5. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);
+    T_ASSERT_EQ_I(g_rng_unsigned_call_count, 0);  /* never called */
+    return 0;
+}
+
+/* ─── Final clamp: < 1 floor + RNG jitter ─────────────────────────── */
+
+int test_combat_sm_phase_b_clamp_floor_minimum_damage_to_1(void)
+{
+    /* damage = 0 (default everything) → < 1 → 1.  Then < 5 → += 0 & 1 = 0
+     * → 1.  Test default front-hit + no scaling → damage = 0 → 1. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_b_clamp_small_damage_rng_jitter_adds_bit(void)
+{
+    /* damage in [1, 5) → += rng & 1.  Inject rng = odd → +1. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 6;  /* second_damage=3 */
+    g_rng_unsigned_return = 0xdeadbeef | 1;  /* low bit set */
+    scene1_combat_set_rng_unsigned_hook(rng_unsigned_const);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* second_damage=3, < 5 → += 1 → 4. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 4);
+    T_ASSERT_EQ_I(g_rng_unsigned_call_count, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_b_clamp_large_damage_rng_jitter_proportional(void)
+{
+    /* damage >= 5 → += rng % (damage / 5).  damage=15 → /5=3 → rng%3.
+     * Inject rng=7 → 7%3=1 → damage=16. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 30;  /* second_damage=15 */
+    g_rng_unsigned_return = 7;
+    scene1_combat_set_rng_unsigned_hook(rng_unsigned_const);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* 15 + 7%3 = 15 + 1 = 16. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 16);
+    return 0;
+}
+
+/* ─── local_1c bits reset between ticks ────────────────────────── */
+
+int test_combat_sm_phase_b_clamp_local_1c_bits_reset_between_ticks(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    reset_combat_5c_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = arm_collision_rear_hit(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits & 2, 2);
+
+    /* Second tick: move NPC out of range — no collision → bits reset. */
+    npc->combat_pose[0] = 100.0f;
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_local_1c_bits, 0);
     return 0;
 }

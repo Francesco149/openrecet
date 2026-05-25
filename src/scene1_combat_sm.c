@@ -155,6 +155,11 @@ int32_t g_scene1_combat_scene_mul_01c;        /* DAT_056db01c */
 int32_t g_scene1_combat_dat_056da1b8;         /* DAT_056da1b8 */
 int32_t g_scene1_combat_owner_b_npc_type;     /* stand-in for *(int*)(OWNER_B+0x424) */
 
+/* C8jb.5c post-damage clamp globals. */
+int32_t g_scene1_combat_phase_b_local_1c_bits;
+int32_t g_scene1_combat_owner_a_ce4;          /* stand-in for *(int*)(OWNER_A+0xce4) */
+int32_t g_scene1_combat_owner_a_cec;          /* stand-in for *(int*)(OWNER_A+0xcec) */
+
 scene1_combat_npc_type_attrs_t
     g_scene1_combat_npc_type_attrs[SCENE1_COMBAT_NPC_TYPE_ATTRS_COUNT];
 
@@ -163,6 +168,7 @@ static scene1_combat_phase_b_collision_fn  g_phase_b_collision_hook;
 static scene1_combat_phase_b_armed_fn      g_phase_b_armed_hook;
 static scene1_combat_combo_held_fn         g_combo_held_hook;
 static scene1_combat_rng_damage_scale_fn   g_rng_damage_scale_hook;
+static scene1_combat_rng_unsigned_fn       g_rng_unsigned_hook;
 
 /* Engine angle-filter threshold = 0.9424779 (≈ 0.3π).  .rdata literal
  * at 0x51940c per asm scan (verified via objdump-s).  Stored as a named
@@ -234,6 +240,19 @@ static float rng_damage_scale_call(int arg)
     return (g_rng_damage_scale_hook != NULL)
          ? g_rng_damage_scale_hook(arg)
          : 1.0f;
+}
+
+scene1_combat_rng_unsigned_fn
+scene1_combat_set_rng_unsigned_hook(scene1_combat_rng_unsigned_fn fn)
+{
+    scene1_combat_rng_unsigned_fn prev = g_rng_unsigned_hook;
+    g_rng_unsigned_hook = fn;
+    return prev;
+}
+
+static uint32_t rng_unsigned_call(void)
+{
+    return (g_rng_unsigned_hook != NULL) ? g_rng_unsigned_hook() : 0u;
 }
 
 static int phase_b_npc_passes_skip_gates(const scene1_people_entry_t *npc,
@@ -652,12 +671,14 @@ static int32_t signed_div2(int32_t x)
  * Side effect on g_scene1_combat_phase_b_damage_out: holds the LAST
  * collision's value when multiple collisions land in one tick.
  */
-static void phase_b_damage_roll_general(scene1_people_entry_t *npc,
-                                        int32_t *slot)
+static int32_t phase_b_damage_roll_general(scene1_people_entry_t *npc,
+                                           int32_t *slot,
+                                           uint32_t *local_1c_out)
 {
     int32_t flag_a       = slot[SCENE1_RECORDS_B_OFF_FLAG_A];
     int32_t owner_b_int  = slot[SCENE1_RECORDS_B_OFF_OWNER_B];
     int32_t slot_type    = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    int32_t owner_flag   = slot[SCENE1_RECORDS_B_OFF_OWNER_FLAG];
     float   slot_scale_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_SCALE_X];
 
     const scene1_combat_npc_type_attrs_t *npc_attrs =
@@ -716,8 +737,14 @@ static void phase_b_damage_roll_general(scene1_people_entry_t *npc,
         float base2_f = (float)g_scene1_combat_damage_base_idle2;
         second_damage = (int32_t)(base2_f / 2.0f
                                 - (float)npc_quirk2_int / 4.0f);
-        /* Engine local_18 = 1 when slot.OWNER_FLAG (IS_PLAYER) != 0.
-         * Wired in C8jb.5c (LAB_004390d3 clamp); no observable here. */
+        /* Engine 0x438d40-0x438d48: idle + slot.OWNER_FLAG != 0 → seed
+         * local_1c bit 0 (IS_PLAYER marker for downstream hit-effect
+         * pick).  Engine literally writes `mov [ebp-0x18], 1` (not OR);
+         * at this point local_1c is BSS-zero so the write is equivalent
+         * to setting bit 0. */
+        if (owner_flag != 0) {
+            *local_1c_out |= 1u;
+        }
     } else {
         float rng2 = rng_damage_scale_call(attacker_rng_arg);
         float base2_f = (float)attacker_attrs->attrs_int_34 * rng2;
@@ -763,7 +790,188 @@ static void phase_b_damage_roll_general(scene1_people_entry_t *npc,
         damage = signed_div2(damage);
     }
 
-    g_scene1_combat_phase_b_damage_out = damage;
+    return damage;
+}
+
+/*
+ * Wrap an angle into [-π, π] via the engine's two while-loops:
+ *   while (a < -π) a += 2π;
+ *   while (a >  π) a -= 2π;
+ * Used by the C8jb.5c charge-attack body and the quadrant atan2.
+ */
+static float wrap_angle_pi(float a)
+{
+    while (a < -3.1415927f) a += 6.2831855f;
+    while (a >  3.1415927f) a -= 6.2831855f;
+    return a;
+}
+
+/*
+ * C8jb.5c — Phase B post-damage clamp body.  Engine asm 0x438eab..0x4390d3
+ * / decomp L35372-L35442.  Runs immediately after the C8jb.5b general
+ * damage formula (when slot.TYPE != 0x53).
+ *
+ * Asm verification (re-runnable):
+ *   nix develop --command i686-w64-mingw32-objdump -d -M intel \
+ *       --no-show-raw-insn vendor/unpacked/recettear.unpacked.exe \
+ *       --start-address=0x438eab --stop-address=0x439120
+ *
+ * Confirms:
+ *
+ *   NPC reset (engine 0x438eab-0x438ee4):
+ *     if npc.npc_type in {0x44, 0x45} AND slot.TYPE == 0x12 AND
+ *        sub_iter == 0 AND npc.npc_phase != 6:
+ *       npc.npc_phase_counter1 = 0
+ *       npc.npc_subphase       = 0
+ *       npc.npc_phase_counter2 = 0
+ *       npc.npc_phase          = 6
+ *
+ *   Charge-attack disarm (engine 0x438ee6-0x438f9a):
+ *     if npc.charge_flag != 0 AND npc.npc_b18_kill_age_out == 0:
+ *       angle = wrap_angle_pi(atan2(dx, dz) - npc.npc_yaw + π)
+ *       if -1.0995574 < angle < 1.0995574  (i.e. |angle| < ~0.35π):
+ *         disarmed = true
+ *         aux_482a51_invoke(npc_ptr_int, 4)
+ *         npc.npc_phase_counter1 = 0
+ *         npc.npc_phase          = 4
+ *
+ *   npc_phase damage scale + bit 3 (engine 0x438f9a-0x438fc2):
+ *     if 1 <= npc.npc_phase <= 6:
+ *       local_1c |= 8
+ *       damage = (int)((float)damage * 1.2)
+ *
+ *   Quadrant atan2 (engine 0x438fc5-0x439089):
+ *     angle = wrap_angle_pi(atan2(dx, dz) - npc.npc_yaw + π)
+ *     if angle >= π/4 OR angle <= -π/4:
+ *       if angle >= 3π/4 OR angle <= -3π/4:
+ *         local_1c |= 2  (rear hit)
+ *         damage = (int)((float)damage * 1.5)
+ *       else:
+ *         local_1c |= 4  (side hit)
+ *         damage = (int)((float)damage * 1.2)
+ *     // else: front hit, no scaling, no bit set
+ *
+ *   Idle OWNER_A flag + IS_PLAYER (engine 0x43908c-0x4390c8):
+ *     if slot.FLAG_A == 0:
+ *       if owner_a_ce4 != 0 OR owner_a_cec != 0:
+ *         damage = (int)((float)damage * 1.5)
+ *       if slot.OWNER_FLAG != 0:
+ *         damage *= 2
+ *
+ *   Final clamp (engine 0x4390cb-0x43911d):
+ *     if disarmed:                damage = 0
+ *     else if npc.npc_type == 5:  if damage < 0: damage = 0
+ *     else:
+ *       if damage < 1: damage = 1
+ *       if damage >= 5:
+ *         damage += rng_unsigned_call() % (uint32_t)(damage / 5)
+ *       else:
+ *         damage += rng_unsigned_call() & 1
+ *
+ * .rdata constants (verified via objdump-s):
+ *   0x519394 = 0.7853982 (π/4)
+ *   0x519bdc = 2.3561945 (3π/4)
+ *   0x519be0 = -π/4
+ *   0x519bd8 = -3π/4
+ *   0x519be4 = -1.0995574 (charge-cone lower)
+ *   0x519be8 =  1.0995574 (charge-cone upper)
+ *   0x519924 = 1.2 (damage multiplier)
+ *   0x5198e0 = 1.5 (damage multiplier)
+ *   0x51943c = π (= 3.1415927)
+ *   0x519398 = 2π (= 6.2831855)
+ */
+static void phase_b_damage_roll_clamps(scene1_people_entry_t *npc,
+                                       int32_t *slot,
+                                       int sub_iter,
+                                       int armed_in,
+                                       float dx,
+                                       float dz,
+                                       int32_t damage,
+                                       uint32_t local_1c)
+{
+    int32_t flag_a    = slot[SCENE1_RECORDS_B_OFF_FLAG_A];
+    int32_t slot_type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+
+    /* `armed_in == 0` is engine local_18 = 1 (disarmed-for-clamp). */
+    int disarmed = (armed_in == 0);
+
+    /* ─── NPC 0x44/0x45 + slot.TYPE 0x12 + sub_iter==0 reset ─────────── */
+    if ((npc->npc_type == 0x44 || npc->npc_type == 0x45)
+        && slot_type == 0x12
+        && sub_iter == 0
+        && npc->npc_phase != 6) {
+        npc->npc_phase_counter1 = 0;
+        npc->npc_subphase       = 0;
+        npc->npc_phase_counter2 = 0;
+        npc->npc_phase          = 6;
+    }
+
+    /* ─── Charge-attack disarm body ──────────────────────────────────── */
+    if (npc->charge_flag != 0 && npc->npc_b18_kill_age_out == 0) {
+        float ang = wrap_angle_pi(atan2f(dx, dz)
+                                - npc->npc_yaw + 3.1415927f);
+        if (ang > -1.0995574f && ang < 1.0995574f) {
+            disarmed = 1;
+            /* Engine pushes esi (= entry origin int) as the npc ptr arg.
+             * Our hook receives that as an opaque int32 (host injects
+             * whatever it wants; production has no hook = no-op). */
+            scene1_records_b_invoke_aux_482a51((int32_t)(intptr_t)npc, 4);
+            npc->npc_phase_counter1 = 0;
+            npc->npc_phase          = 4;
+        }
+    }
+
+    /* ─── npc_phase 1..6 → *1.2 + bit 3 ──────────────────────────────── */
+    if (npc->npc_phase >= 1 && npc->npc_phase <= 6) {
+        local_1c |= 8u;
+        damage = (int32_t)((float)damage * 1.2f);
+    }
+
+    /* ─── Quadrant atan2 → *1.2 (side) / *1.5 (rear) ─────────────────── */
+    {
+        float ang = wrap_angle_pi(atan2f(dx, dz)
+                                - npc->npc_yaw + 3.1415927f);
+        if (ang >= 0.7853982f || ang <= -0.7853982f) {
+            if (ang >= 2.3561945f || ang <= -2.3561945f) {
+                local_1c |= 2u;
+                damage = (int32_t)((float)damage * 1.5f);
+            } else {
+                local_1c |= 4u;
+                damage = (int32_t)((float)damage * 1.2f);
+            }
+        }
+    }
+
+    /* ─── Idle: OWNER_A flag + IS_PLAYER ─────────────────────────────── */
+    if (flag_a == 0) {
+        if (g_scene1_combat_owner_a_ce4 != 0
+            || g_scene1_combat_owner_a_cec != 0) {
+            damage = (int32_t)((float)damage * 1.5f);
+        }
+        if (slot[SCENE1_RECORDS_B_OFF_OWNER_FLAG] != 0) {
+            damage *= 2;
+        }
+    }
+
+    /* ─── Final clamp ────────────────────────────────────────────────── */
+    if (disarmed) {
+        damage = 0;
+    } else if (npc->npc_type == 5) {
+        if (damage < 0) damage = 0;
+    } else {
+        if (damage < 1) damage = 1;
+        if (damage >= 5) {
+            uint32_t denom = (uint32_t)(damage / 5);
+            if (denom > 0) {
+                damage += (int32_t)(rng_unsigned_call() % denom);
+            }
+        } else {
+            damage += (int32_t)(rng_unsigned_call() & 1u);
+        }
+    }
+
+    g_scene1_combat_phase_b_damage_out      = damage;
+    g_scene1_combat_phase_b_local_1c_bits   = (int32_t)local_1c;
 }
 
 static void phase_b_npc_collision_pass(scene1_people_entry_t *npc,
@@ -814,12 +1022,17 @@ static void phase_b_npc_collision_pass(scene1_people_entry_t *npc,
          * clamp, ported in C8jb.5c).  */
         phase_b_damage_roll_prologue(npc, slot, slot_vel_x, slot_vel_z);
 
-        /* C8jb.5b — general damage formula.  Engine asm 0x438bc0 falls
-         * through to 0x438c1c when slot.TYPE != 0x53; the 0x53 short-
-         * circuit (handled inside the prologue) jumps to LAB_004392a7 and
-         * bypasses this entire chunk.  Mirror that gate here. */
+        /* C8jb.5b/5c — general damage formula + post-damage clamps.
+         * Engine asm 0x438bc0 falls through to 0x438c1c when slot.TYPE
+         * != 0x53; the 0x53 short-circuit (handled inside the prologue)
+         * jumps to LAB_004392a7 and bypasses both chunks.  Mirror that
+         * gate here. */
         if (slot[SCENE1_RECORDS_B_OFF_TYPE] != 0x53) {
-            phase_b_damage_roll_general(npc, slot);
+            uint32_t local_1c = 0;
+            int32_t  damage   = phase_b_damage_roll_general(npc, slot,
+                                                            &local_1c);
+            phase_b_damage_roll_clamps(npc, slot, sub, armed, dx, dz,
+                                       damage, local_1c);
         }
     }
 }
@@ -889,6 +1102,7 @@ int scene1_combat_sm_tick(int32_t *slot)
     g_scene1_combat_phase_b_heavy_atk_count        = 0;
     g_scene1_combat_phase_b_damage_out             = 0;
     g_scene1_combat_phase_b_kb_strength            = 0.0f;
+    g_scene1_combat_phase_b_local_1c_bits          = 0;
 
     /* Phase B — attacker NPC scan + collision math.  Skipped if slot is
      * NULL (Phase A tests use NULL to probe gates without prepping
