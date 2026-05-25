@@ -1938,6 +1938,23 @@ struct test_case {
     X(records_b_tick_t15g_kills_at_age_0x100) \
     X(records_b_tick_t15g_does_not_kill_below_age_0x100) \
     \
+    X(records_b_tick_t15h_t_a0_age_negative_cancels_preamble) \
+    X(records_b_tick_t15h_t_a0_age_negative_owner_b_440_nonzero_kills) \
+    X(records_b_tick_t15h_t_a0_age_negative_other_owner_field_does_not_kill) \
+    X(records_b_tick_t15h_t_a0_age_1_dual_overlay_spawn_null_owner) \
+    X(records_b_tick_t15h_t_a0_age_1_first_spawn_template_0x10) \
+    X(records_b_tick_t15h_t_a0_drag_zero_after_tick) \
+    X(records_b_tick_t15h_t_a0_cull_culled_kills) \
+    X(records_b_tick_t15h_t_a0_state_machine_ret_1_kills) \
+    X(records_b_tick_t15h_t_a0_kills_at_age_0x78) \
+    X(records_b_tick_t15h_t_a0_below_age_0x78_alive) \
+    X(records_b_tick_t15h_t_7e_drag_zero_after_tick) \
+    X(records_b_tick_t15h_t_7e_cull_culled_kills) \
+    X(records_b_tick_t15h_t_7e_state_machine_ret_1_kills) \
+    X(records_b_tick_t15h_t_7e_clears_anim_drive_before_sm) \
+    X(records_b_tick_t15h_t_7e_kills_at_age_0x78) \
+    X(records_b_tick_t15h_t_7e_does_not_spawn_overlays) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

@@ -4716,6 +4716,207 @@ static void body_0x2e_or_0x36(int i, int32_t type)
     }
 }
 
+/* ═══ C8j-tick.15h — types 0xa0 + 0x7e cull-tail variants ═══════════════
+ *
+ * Two more LAB_004402ad / LAB_004402c0 cousins extending the 15e trail-cull
+ * body family.
+ *
+ * **Type 0xa0** — engine asm 0x43fb88..0x43fc91 / decomp L2932-L2965.
+ * Owns its own body (NOT routed through LAB_004402ad).  Same overall shape
+ * as 0x73/0x78/0x7a (15e) but with two key swaps:
+ *   - AGE<0 owner check reads `[esi+0x14] + 0x440` = OWNER_B + 0x440 (vs
+ *     OWNER_A + 0xcf8 for the 0x73 family).  Field +0x440 is an NPC-blob
+ *     flag; nonzero → kill, zero → continue iter loop with POS rolled
+ *     back.
+ *   - AGE==1 dual overlay_spawn passes `edi=0` (NULL owner) as 1st arg
+ *     for both calls — the 0x73 family pushes `[esi+0x10]` = OWNER_A.
+ *   Template IDs (0x10 + 0x13) and scales (1.0 + 0.7) are identical to
+ *   the 0x73 family head.
+ *
+ *   Phase 0  (AGE < 0):
+ *     POS -= VEL                                      (cancel preamble)
+ *     if OWNER_B+0x440 != 0 → KILL                    (LAB_0043fbb9)
+ *     else                  → continue iter loop      (LAB_0043fbbc)
+ *
+ *   Phase 1  (AGE == 1):
+ *     scene1_overlay_spawn(NULL, POS-VEL, tid=0x10, 1.0, -1, 0, 0, 0)
+ *     scene1_overlay_spawn(NULL, ALT_POS, tid=0x13, 0.7, -1, 0, 0, 0)
+ *
+ *   Phase 2  (AGE >= 0):
+ *     DRAG = 0
+ *     if cull_query(POS_X, POS_Y) >= 0   → KILL → AGE-78 kill check
+ *     else SM:
+ *       ret != 0 → KILL + advance (skip AGE-78 path)
+ *       ret == 0 → AGE-78 kill check
+ *
+ * **Type 0x7e** — engine asm 0x4402ad..0x44058d.  Enters LAB_004402ad
+ * (jne 0x44036a at 0x4402ba skips the 0x73-family head since 0x7e is not
+ * in {0x73, 0x78, 0x7a}) and falls through to the shared DRAG=0 + per-type
+ * cascade + cull + SM tail.  None of the per-type cascade checks
+ * ({0x4d/0x4e/0x4f/0x50/0xa5/0xa6/99/0x52/0x4d/0x56/0x96}) match 0x7e, so
+ * the per-type effects are all skipped — body collapses to:
+ *
+ *     DRAG = 0
+ *     if cull_query(POS_X, POS_Y) >= 0   → KILL → AGE-78 kill check
+ *     else SM:
+ *       ret != 0 → KILL + advance
+ *       ret == 0 → AGE-78 kill check
+ *
+ * Identical to 0xa0's Phase 2 (modulo source asm address).
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x519748 = 0.7f          (0xa0 second overlay_spawn scale; same as 0x73 family)
+ *
+ * Asm corrections vs decomp (raw asm 0x43fb88..0x43fc91 for 0xa0):
+ *   - L2933 `FUN_004147d5` calls are 9-arg wrappers around
+ *     scene1_overlay_spawn appending mode=0 — Ghidra renders them with
+ *     dropped 8th arg (override_rot_y_bits = 0); raw asm at 0x43fbdf /
+ *     0x43fc1d pushes 0xffffffff for override_dur and zeroes for the
+ *     trailing slots (`add esp, 0x24` = 9 dwords).
+ *   - L2945 `FUN_00490820(POS_X, POS_Y)` is 4-arg in raw asm at 0x43fc6a
+ *     (POS_X, POS_Y, POS_Z, 0.0f); our cull_query hook is 2-arg — the
+ *     dropped Z + 0 feed the engine's depth calc, but the default-visible
+ *     (return < 0) behavior is preserved (same handling as 15e's body).
+ *   - L2948 `LAB_0043fc81` = `mov [esi], edi; jmp 0x43fbbc` — kill +
+ *     skip the LAB_0043fada wall-bounce-tail path (advance directly).
+ *
+ * AGE<0 OWNER_B NULL-guard: engine asm at 0x43fbad dereferences slot+0x14
+ * (= OWNER_B) without a NULL check.  Real allocator commits set OWNER_B
+ * for NPC-class types (0xa0 is in FUN_00445a8c's "Mega-B" cluster per
+ * C8j.11), but a smoke / test slot with OWNER_B=0 would crash.  Our port
+ * mirrors engine fidelity (early-return when null) per the same NULL-guard
+ * convention as the 0x73 family body.
+ *
+ * Dormant in HOUSE under default smoke flags — neither type is in the
+ * landed allocator's set; `--force-b-npc 0xa0` and `--force-b-entity 0x7e`
+ * exercise each body end-to-end.  No new hooks; reuses cull_query
+ * (PHC #14 stand-in), state_machine_call_ret (PHC #20), overlay_spawn
+ * (PHC #11), scene1_records_b_tick_kill_slot.
+ */
+static void body_0xa0(int i)
+{
+    int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    if (age < 0) {
+        /* asm 0x43fb92-0x43fbaa: POS -= VEL — cancel preamble. */
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px - vx);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py - vy);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz - vz);
+
+        /* asm 0x43fbad-0x43fbb9: read OWNER_B+0x440; kill iff nonzero. */
+        const void *owner_b = slot_owner(i);
+        if (owner_b && owner_read_i(owner_b, 0x440) != 0) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+        return;
+    }
+
+    /* asm 0x43fbd1-0x43fc43: AGE == 1 dual NULL-owner overlay_spawn. */
+    if (age == 1) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+
+        /* asm 0x43fbd6-0x43fc0d: template 0x10 trail at POS-VEL, scale 1.0,
+         * owner=NULL (engine pushes `edi` which was zeroed at 0x43fbd6). */
+        overlay_spawn(NULL, px - vx, py - vy, pz - vz,
+                      /*template_id=*/0x10,
+                      /*scale_base=*/1.0f,
+                      /*override_dur=*/-1,
+                      /*override_rot_y_bits=*/0,
+                      /*shape_mode=*/0,
+                      /*mode=*/0);
+
+        /* asm 0x43fc10-0x43fc43: template 0x13 trail at ALT_POS, scale 0.7,
+         * owner=NULL. */
+        float ax = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X);
+        float ay = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y);
+        float az = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z);
+        overlay_spawn(NULL, ax, ay, az,
+                      /*template_id=*/0x13,
+                      /*scale_base=*/0.7f,
+                      /*override_dur=*/-1,
+                      /*override_rot_y_bits=*/0,
+                      /*shape_mode=*/0,
+                      /*mode=*/0);
+    }
+
+    /* asm 0x43fc47-0x43fc4a: DRAG = 0. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
+
+    /* asm 0x43fc4a-0x43fc6f: cull_query(POS_X, POS_Y, POS_Z, 0.0). */
+    float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+    float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+    if (cull_query(px, py) >= 0) {
+        /* asm 0x43fc88: kill + AGE==0x78 check (LAB_0043fada). */
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* asm 0x43fc76-0x43fc83: SM call; nonzero → kill+advance (skip
+     * AGE-78 path), zero → AGE-78 kill check (LAB_0043fada). */
+    int sm_ret = state_machine_call_ret(slot_base(i));
+    if (sm_ret != 0) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* LAB_0043fada / LAB_00440dc1 — kill on AGE == 0x78; else fall through
+     * to wall-bounce tail (deferred). */
+    if (age == 0x78) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+static void body_0x7e(int i)
+{
+    /* asm 0x44036a-0x44036f: DRAG = 0 (entry via LAB_004402ad jne 0x44036a
+     * — skips the 0x73-family head since 0x7e isn't in {0x73,0x78,0x7a}). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
+
+    /* asm 0x440372-0x440474: per-type cascade dispatches to {0x4d-0x50/
+     * 0xa5/0xa6/0x63/0x52/0x4d/0x56/0x96} — none of which match 0x7e,
+     * so all per-type effects are skipped.  Falls into the cull_query at
+     * 0x44047a. */
+
+    /* asm 0x44047a-0x44049f: cull_query(POS_X, POS_Y, POS_Z, 0.0); CULL
+     * (ret >= 0) → kill + AGE==0x78 check (LAB_00440741). */
+    float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+    float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+    if (cull_query(px, py) >= 0) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* asm 0x44058d-0x4405a3: clear DAT_06a46f94, SM call.
+     * ret == 1: 0x52-special path doesn't fire (we're 0x7e) →
+     *           fall through to LAB_0043fbb9 KILL (advance)
+     * ret == 0: LAB_00440741 (AGE-78 check)
+     * ret >= 2: LAB_0043fbb9 KILL (advance) */
+    g_scene1_records_b_tick_anim_drive = 0;
+    int sm_ret = state_machine_call_ret(slot_base(i));
+    if (sm_ret != 0) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* LAB_00440741 / LAB_004402a2 — kill on AGE == 0x78, else fall through
+     * to LAB_00440dc1 wall-bounce tail (deferred). */
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age == 0x78) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -4943,13 +5144,18 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x36:
         body_0x2e_or_0x36(slot_idx, type);
         break;
+    /* C8j-tick.15h — types 0xa0 + 0x7e cull-tail variants. */
+    case 0xa0:
+        body_0xa0(slot_idx);
+        break;
+    case 0x7e:
+        body_0x7e(slot_idx);
+        break;
     default:
-        /* Remaining tail types {0x75/0x83/0xa0/0xa5/0xa6 +
+        /* Remaining tail types {0x75/0x83/0xa5/0xa6 +
          * 0x7c + entity-bounce cluster
-         * {0x4d-0x52/0x56/0x62/99/0x96} + 0x7e (skips 0x73/0x78/0x7a's
-         * AGE<0/AGE==1 head; otherwise shares the cull + SM tail)} and
-         * the LAB_00440dc1 default-tail body are deferred to future
-         * C8j-tick.15h+ sub-chips. */
+         * {0x4d-0x52/0x56/0x62/99/0x96}} and the LAB_00440dc1 wall-bounce
+         * tail body are deferred to future C8j-tick.15i+ sub-chips. */
         break;
     }
 }
