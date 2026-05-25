@@ -147,12 +147,22 @@ int32_t g_scene1_combat_phase_b_damage_out;
 int32_t g_scene1_combat_phase_b_heavy_atk_count;
 int32_t g_scene1_combat_dat_0438bed8;
 
+/* C8jb.5b general damage formula globals. */
+int32_t g_scene1_combat_damage_base_idle;     /* DAT_056db0b4 */
+int32_t g_scene1_combat_damage_base_idle2;    /* DAT_056db0ac */
+int32_t g_scene1_combat_scene_mul_014;        /* DAT_056db014 */
+int32_t g_scene1_combat_scene_mul_01c;        /* DAT_056db01c */
+int32_t g_scene1_combat_dat_056da1b8;         /* DAT_056da1b8 */
+int32_t g_scene1_combat_owner_b_npc_type;     /* stand-in for *(int*)(OWNER_B+0x424) */
+
 scene1_combat_npc_type_attrs_t
     g_scene1_combat_npc_type_attrs[SCENE1_COMBAT_NPC_TYPE_ATTRS_COUNT];
 
-static scene1_combat_phase_b_visit_fn     g_phase_b_visit_hook;
-static scene1_combat_phase_b_collision_fn g_phase_b_collision_hook;
-static scene1_combat_phase_b_armed_fn     g_phase_b_armed_hook;
+static scene1_combat_phase_b_visit_fn      g_phase_b_visit_hook;
+static scene1_combat_phase_b_collision_fn  g_phase_b_collision_hook;
+static scene1_combat_phase_b_armed_fn      g_phase_b_armed_hook;
+static scene1_combat_combo_held_fn         g_combo_held_hook;
+static scene1_combat_rng_damage_scale_fn   g_rng_damage_scale_hook;
 
 /* Engine angle-filter threshold = 0.9424779 (≈ 0.3π).  .rdata literal
  * at 0x51940c per asm scan (verified via objdump-s).  Stored as a named
@@ -196,6 +206,34 @@ scene1_combat_set_phase_b_armed_hook(scene1_combat_phase_b_armed_fn fn)
     scene1_combat_phase_b_armed_fn prev = g_phase_b_armed_hook;
     g_phase_b_armed_hook = fn;
     return prev;
+}
+
+scene1_combat_combo_held_fn
+scene1_combat_set_combo_held_hook(scene1_combat_combo_held_fn fn)
+{
+    scene1_combat_combo_held_fn prev = g_combo_held_hook;
+    g_combo_held_hook = fn;
+    return prev;
+}
+
+scene1_combat_rng_damage_scale_fn
+scene1_combat_set_rng_damage_scale_hook(scene1_combat_rng_damage_scale_fn fn)
+{
+    scene1_combat_rng_damage_scale_fn prev = g_rng_damage_scale_hook;
+    g_rng_damage_scale_hook = fn;
+    return prev;
+}
+
+static int combo_held_call(int button_id)
+{
+    return (g_combo_held_hook != NULL) ? g_combo_held_hook(button_id) : 0;
+}
+
+static float rng_damage_scale_call(int arg)
+{
+    return (g_rng_damage_scale_hook != NULL)
+         ? g_rng_damage_scale_hook(arg)
+         : 1.0f;
 }
 
 static int phase_b_npc_passes_skip_gates(const scene1_people_entry_t *npc,
@@ -527,6 +565,207 @@ static void phase_b_damage_roll_prologue(scene1_people_entry_t *npc,
     }
 }
 
+/*
+ * Signed `x / 2` matching the engine's `cdq; sub eax, edx; sar eax, 1`
+ * round-toward-zero idiom.  Pure right-shift differs from C division for
+ * negative values (rounds toward -inf instead of zero).
+ */
+static int32_t signed_div2(int32_t x)
+{
+    if (x < 0) {
+        uint32_t neg = (uint32_t)(-(x + 1)) + 1u;  /* abs without UB at INT_MIN */
+        return -(int32_t)(neg >> 1);
+    }
+    return x >> 1;
+}
+
+/*
+ * C8jb.5b — Phase B general damage formula.  Runs per in-range collision
+ * when slot.TYPE != 0x53 (engine asm at 0x438bc0 falls through to 0x438c1c
+ * for the general formula; the 0x53 short-circuit jumps to LAB_004392a7
+ * regardless of inner conditions, bypassing this entire chunk).
+ *
+ * Asm verification (re-runnable):
+ *   nix develop --command i686-w64-mingw32-objdump -d -M intel \
+ *       --no-show-raw-insn vendor/unpacked/recettear.unpacked.exe \
+ *       --start-address=0x438c1c --stop-address=0x438eab
+ *
+ * Confirms (against decomp all.c L35313-L35371):
+ *
+ *   Pass 1 — "first damage" (sub eax at 0x438ce6 + neg eax):
+ *     IDLE (FLAG_A == 0):  damage_base = (int)DAT_056db0b4
+ *                          npc_quirk1  = (int)((float)npc_attrs[+0x40]
+ *                                            * npc.damage_quirk_mul_ab8²)
+ *                          (if npc.damage_quirk_disable_b28 != 0 → 0)
+ *                          first_damage = (int)(npc_quirk1 / 4.0
+ *                                             - damage_base / 2.0)
+ *     ATTACKER (FLAG_A != 0): per_attacker = (OWNER_B == 0)
+ *                                          ? &attrs[0x1a]
+ *                                          : &attrs[g_..._owner_b_npc_type]
+ *                             rng = rng_damage_scale_call(attacker_npc_type)
+ *                             damage_base = per_attacker[+0x3c] * rng
+ *                             npc_quirk1  = per_attacker[+0x40]  (raw)
+ *                             (if disable_b28 != 0 → 0)
+ *                             first_damage = (int)(npc_quirk1 / 4.0
+ *                                                - damage_base / 2.0)
+ *
+ *   Side effect: g_scene1_combat_dat_056da1b8 |= 2 (engine 0x438cdf).
+ *
+ *   Pass 2 preamble (engine 0x438ce8-0x438d11):
+ *     npc_quirk2 = (int)((float)npc_attrs[+0x38] * damage_quirk_mul_ab8²)
+ *     (uses the NPC's OWN per-type entry, NOT attacker's)
+ *     (if disable_b28 != 0 → 0)
+ *
+ *   Pass 2 — "second damage":
+ *     IDLE:     second_damage = (int)((float)DAT_056db0ac / 2.0
+ *                                   - (float)npc_quirk2 / 4.0)
+ *               (if slot[OWNER_FLAG] != 0 → local_18 = 1 for C8jb.5c clamp)
+ *     ATTACKER: rng2 = rng_damage_scale_call(attacker_npc_type)
+ *               second_damage = (int)((float)per_attacker[+0x34] * rng2 / 2.0
+ *                                   - (float)npc_quirk2 / 4.0)
+ *
+ *   Per-slot.TYPE damage selection (engine 0x438dac-0x438e02):
+ *     TYPE in {0x12, 0x52, 0x60, 0x61, 0x62, 0x6a, 0x83}:
+ *         damage = -first_damage
+ *     TYPE in {0x3e, 0x51, 0x5f, 0x63, 0x64, 0x69, 0x82}:
+ *         damage = (second_damage + -first_damage) / 2 (signed)
+ *     default:
+ *         damage = second_damage
+ *
+ *   Scale by slot.SCALE_X (engine 0x438e10 `fmul [edi+0xb4]`):
+ *     damage = (int)((float)damage * slot.SCALE_X)
+ *
+ *   Combo + scene-state modifiers (engine 0x438e1b-0x438ea8):
+ *     IDLE:     if combo_held(5) || combo_held(3) → damage *= 2
+ *               if scene_mul_014 > 0 || scene_mul_01c > 0 → damage *= 2
+ *     ATTACKER: if combo_held(4) || combo_held(3) → damage *= 2
+ *                                                   (LAB_00438e6d path)
+ *
+ *   Common tail (engine 0x438e75-0x438ea8):
+ *     if combo_held(7) || combo_held(6) → damage /= 2 (signed)
+ *     if npc.block_dodge_b38 > 0       → damage /= 2 (signed)
+ *
+ * .rdata constants used (verified via objdump-s):
+ *     0x519314 = 2.0  (denominator for damage_base / 2.0)
+ *     0x51939c = 4.0  (denominator for npc_quirk / 4.0)
+ *
+ * Side effect on g_scene1_combat_phase_b_damage_out: holds the LAST
+ * collision's value when multiple collisions land in one tick.
+ */
+static void phase_b_damage_roll_general(scene1_people_entry_t *npc,
+                                        int32_t *slot)
+{
+    int32_t flag_a       = slot[SCENE1_RECORDS_B_OFF_FLAG_A];
+    int32_t owner_b_int  = slot[SCENE1_RECORDS_B_OFF_OWNER_B];
+    int32_t slot_type    = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    float   slot_scale_x = *(const float *)&slot[SCENE1_RECORDS_B_OFF_SCALE_X];
+
+    const scene1_combat_npc_type_attrs_t *npc_attrs =
+        &g_scene1_combat_npc_type_attrs[(unsigned)npc->npc_type & 0xff];
+
+    /* Attacker per-type entry + RNG arg.  Used by FLAG_A != 0 paths only.
+     * When OWNER_B is non-NULL, the engine derefs *(int *)(OWNER_B + 0x424)
+     * for the npc_type.  Our stand-in reads g_scene1_combat_owner_b_npc_type
+     * (host-settable). */
+    const scene1_combat_npc_type_attrs_t *attacker_attrs;
+    int                                   attacker_rng_arg;
+    if (owner_b_int != 0) {
+        unsigned t = (unsigned)g_scene1_combat_owner_b_npc_type & 0xff;
+        attacker_attrs   = &g_scene1_combat_npc_type_attrs[t];
+        attacker_rng_arg = (int)t;
+    } else {
+        attacker_attrs   = &g_scene1_combat_npc_type_attrs[0x1a];
+        attacker_rng_arg = 0x1a;
+    }
+
+    float npc_quirk_mul_sq = npc->damage_quirk_mul_ab8
+                           * npc->damage_quirk_mul_ab8;
+
+    /* ─── Pass 1 ─────────────────────────────────────────────────────── */
+    float damage_base1_f;
+    float npc_quirk1_f;
+    if (flag_a == 0) {
+        damage_base1_f = (float)g_scene1_combat_damage_base_idle;
+        npc_quirk1_f   = (float)npc_attrs->attrs_int_40 * npc_quirk_mul_sq;
+    } else {
+        float rng = rng_damage_scale_call(attacker_rng_arg);
+        damage_base1_f = (float)attacker_attrs->attrs_int_3c * rng;
+        npc_quirk1_f   = (float)attacker_attrs->attrs_int_40;
+    }
+    int32_t npc_quirk1_int = (int32_t)npc_quirk1_f;
+    if (npc->damage_quirk_disable_b28 != 0) {
+        npc_quirk1_int = 0;
+    }
+    int32_t first_damage = (int32_t)((float)npc_quirk1_int / 4.0f
+                                   - damage_base1_f / 2.0f);
+
+    /* Engine side effect (asm 0x438cdf — between pass 1 __ftol and pass 2
+     * setup). */
+    g_scene1_combat_dat_056da1b8 |= 2;
+
+    /* ─── Pass 2 preamble — npc_quirk2 from NPC's own attrs (both branches) */
+    int32_t npc_quirk2_int =
+        (int32_t)((float)npc_attrs->attrs_int_38 * npc_quirk_mul_sq);
+    if (npc->damage_quirk_disable_b28 != 0) {
+        npc_quirk2_int = 0;
+    }
+
+    /* ─── Pass 2 per-branch base ─────────────────────────────────────── */
+    int32_t second_damage;
+    if (flag_a == 0) {
+        float base2_f = (float)g_scene1_combat_damage_base_idle2;
+        second_damage = (int32_t)(base2_f / 2.0f
+                                - (float)npc_quirk2_int / 4.0f);
+        /* Engine local_18 = 1 when slot.OWNER_FLAG (IS_PLAYER) != 0.
+         * Wired in C8jb.5c (LAB_004390d3 clamp); no observable here. */
+    } else {
+        float rng2 = rng_damage_scale_call(attacker_rng_arg);
+        float base2_f = (float)attacker_attrs->attrs_int_34 * rng2;
+        second_damage = (int32_t)(base2_f / 2.0f
+                                - (float)npc_quirk2_int / 4.0f);
+    }
+
+    /* ─── Per-slot.TYPE damage selection ─────────────────────────────── */
+    int32_t damage;
+    switch (slot_type) {
+    case 0x12: case 0x52: case 0x60: case 0x61: case 0x62: case 0x6a: case 0x83:
+        damage = -first_damage;
+        break;
+    case 0x3e: case 0x51: case 0x5f: case 0x63: case 0x64: case 0x69: case 0x82:
+        damage = signed_div2(second_damage + (-first_damage));
+        break;
+    default:
+        damage = second_damage;
+        break;
+    }
+
+    /* ─── Scale by slot.SCALE_X ──────────────────────────────────────── */
+    damage = (int32_t)((float)damage * slot_scale_x);
+
+    /* ─── Combo + scene-state modifiers ──────────────────────────────── */
+    if (flag_a == 0) {
+        if (combo_held_call(5) || combo_held_call(3)) {
+            damage *= 2;
+        }
+        if (g_scene1_combat_scene_mul_014 > 0
+            || g_scene1_combat_scene_mul_01c > 0) {
+            damage *= 2;
+        }
+    } else {
+        if (combo_held_call(4) || combo_held_call(3)) {
+            damage *= 2;
+        }
+    }
+    if (combo_held_call(7) || combo_held_call(6)) {
+        damage = signed_div2(damage);
+    }
+    if (npc->block_dodge_b38 > 0) {
+        damage = signed_div2(damage);
+    }
+
+    g_scene1_combat_phase_b_damage_out = damage;
+}
+
 static void phase_b_npc_collision_pass(scene1_people_entry_t *npc,
                                        int32_t *slot,
                                        int npc_index,
@@ -574,6 +813,14 @@ static void phase_b_npc_collision_pass(scene1_people_entry_t *npc,
          * armed/disarmed distinction matters in the LAB_004390d3 final
          * clamp, ported in C8jb.5c).  */
         phase_b_damage_roll_prologue(npc, slot, slot_vel_x, slot_vel_z);
+
+        /* C8jb.5b — general damage formula.  Engine asm 0x438bc0 falls
+         * through to 0x438c1c when slot.TYPE != 0x53; the 0x53 short-
+         * circuit (handled inside the prologue) jumps to LAB_004392a7 and
+         * bypasses this entire chunk.  Mirror that gate here. */
+        if (slot[SCENE1_RECORDS_B_OFF_TYPE] != 0x53) {
+            phase_b_damage_roll_general(npc, slot);
+        }
     }
 }
 

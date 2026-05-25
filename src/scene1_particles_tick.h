@@ -193,6 +193,29 @@ typedef struct {
      * 600 ticks otherwise).  No in-port consumer reads it yet.
      */
     int32_t npc_b18_kill_age_out;
+
+    /* ─── C8jb.5b fields (combat-SM general damage formula) ────────────── */
+    /*
+     * `damage_quirk_mul_ab8` — engine byte +0xab8 (asm `esi+0xab8`).
+     * Float multiplier read twice (once per pass) and squared (`fmul mem;
+     * fmul mem`) in the npc-quirk path of the damage formula.  Production
+     * writer not yet identified; tests inject a non-zero value to verify
+     * the npc-quirk contribution to damage.
+     *
+     * `damage_quirk_disable_b28` — engine byte +0xb28 (asm `esi+0xb28`).
+     * Int gate: when non-zero, BOTH npc-quirk paths zero out (the int is
+     * AND'd with 0 then re-converted to float).  Effectively disables the
+     * npc.damage_quirk_mul_ab8² contribution to both passes.
+     *
+     * `block_dodge_b38` — engine byte +0xb38 (asm `esi+0xb38`, =
+     * decomp `piVar7[0xc]`).  Int counter: when > 0, halves the final
+     * damage (signed-shift `/2`).  Survey doc names this "block/dodge
+     * counter" — likely incremented by an NPC's block/dodge AI when it
+     * successfully defends, then decremented by some unported timer.
+     */
+    float   damage_quirk_mul_ab8;
+    int32_t damage_quirk_disable_b28;
+    int32_t block_dodge_b38;
 } scene1_people_entry_t;
 
 #define SCENE1_PEOPLE_COUNT 128                /* engine cap confirmed in C8h.4a */

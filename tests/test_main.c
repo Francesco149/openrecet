@@ -2571,7 +2571,30 @@ struct test_case {
     X(combat_sm_phase_b_heavy_atk_skipped_when_mode_nonzero) \
     X(combat_sm_phase_b_heavy_atk_skipped_when_npc_type_22) \
     X(combat_sm_phase_b_heavy_atk_skipped_when_slot_not_53) \
-    X(combat_sm_phase_b_damage_roll_counters_reset)
+    X(combat_sm_phase_b_damage_roll_counters_reset) \
+    X(combat_sm_phase_b_general_idle_base_negation_via_type_0x12) \
+    X(combat_sm_phase_b_general_idle_default_picks_second_damage) \
+    X(combat_sm_phase_b_general_idle_average_path_type_0x3e) \
+    X(combat_sm_phase_b_general_scales_by_slot_scale_x) \
+    X(combat_sm_phase_b_general_idle_combo_button_5_doubles) \
+    X(combat_sm_phase_b_general_idle_combo_button_3_doubles) \
+    X(combat_sm_phase_b_general_idle_scene_mul_014_doubles) \
+    X(combat_sm_phase_b_general_idle_scene_mul_01c_also_doubles) \
+    X(combat_sm_phase_b_general_idle_combo_and_scene_stack) \
+    X(combat_sm_phase_b_general_combo_button_7_halves) \
+    X(combat_sm_phase_b_general_combo_button_6_halves) \
+    X(combat_sm_phase_b_general_block_dodge_b38_halves) \
+    X(combat_sm_phase_b_general_sets_dat_056da1b8_bit_1) \
+    X(combat_sm_phase_b_general_skipped_when_slot_type_0x53) \
+    X(combat_sm_phase_b_general_attacker_owner_b_null_uses_attrs_1a) \
+    X(combat_sm_phase_b_general_attacker_owner_b_uses_configured_npc_type) \
+    X(combat_sm_phase_b_general_attacker_combo_button_4_doubles) \
+    X(combat_sm_phase_b_general_attacker_skips_scene_mul_gate) \
+    X(combat_sm_phase_b_general_quirk_disable_b28_zeros_quirk) \
+    X(combat_sm_phase_b_general_quirk_mul_ab8_squared_applied) \
+    X(combat_sm_phase_b_general_damage_out_resets_when_no_collision) \
+    X(combat_sm_phase_b_general_idle_combo_button_sequence_is_5_3_7_6) \
+    X(combat_sm_phase_b_general_attacker_combo_button_sequence_is_4_3_7_6)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

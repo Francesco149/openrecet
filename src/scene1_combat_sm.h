@@ -166,6 +166,25 @@ typedef struct {
      * field is zero AND npc_type != 0x22.  Production reads stay BSS-zero
      * (PHC #19 — no writers in binary), so the gate opens by default. */
     int32_t heavy_atk_mode;
+
+    /* C8jb.5b — engine table bytes +0x34/+0x38/+0x3c/+0x40, all loaded via
+     * `fild` (i.e. stored as int32 but interpreted as float for the damage
+     * math).  Production reads stay BSS-zero (PHC #19 — no writers); tests
+     * inject values directly.  See port C file for the formula.
+     *
+     *   attrs_int_34  attacker pass-2 KB modifier (* RNG / 2).
+     *   attrs_int_38  pass-2 NPC quirk scale (* npc.damage_quirk_mul_ab8² / 4),
+     *                 read from the NPC's own per-type entry regardless of
+     *                 attacker/idle.
+     *   attrs_int_3c  attacker pass-1 damage curve (* RNG / 2).
+     *   attrs_int_40  pass-1 NPC quirk scale: idle multiplies by
+     *                 npc.damage_quirk_mul_ab8² then / 4; attacker reads it
+     *                 raw (no npc mul) then / 4.
+     */
+    int32_t attrs_int_34;
+    int32_t attrs_int_38;
+    int32_t attrs_int_3c;
+    int32_t attrs_int_40;
 } scene1_combat_npc_type_attrs_t;
 
 #define SCENE1_COMBAT_NPC_TYPE_ATTRS_COUNT 256
@@ -272,6 +291,83 @@ extern int32_t g_scene1_combat_phase_b_heavy_atk_count;
  */
 extern int32_t g_scene1_combat_dat_0438bed8;
 
+/* ─── C8jb.5b — Phase B general damage formula surfaces ──────────────── */
+/*
+ * Engine flow (asm 0x438c1c..0x438eaa, decomp L35313-L35371): when slot
+ * TYPE != 0x53, the SM runs a two-pass damage roll then mixes the passes by
+ * slot.TYPE, scales by slot.SCALE_X, then applies combo/scene-state
+ * modifiers + the npc.block_dodge_b38 halve.  For slot.TYPE == 0x53 the
+ * engine jumps over this entire chunk (C8jb.5a's prologue handles all 0x53
+ * paths).  See port C file for the per-line formula.
+ *
+ * The chip exposes 4 new globals + 2 new hooks:
+ *
+ *   g_scene1_combat_damage_base_idle    DAT_056db0b4 — int.  Idle pass-1
+ *                                       base damage (FLAG_A == 0).  Read
+ *                                       once, divided by 2, subtracted
+ *                                       from the npc-quirk term.
+ *   g_scene1_combat_damage_base_idle2   DAT_056db0ac — int.  Idle pass-2
+ *                                       base damage.  Divided by 2,
+ *                                       npc-quirk subtracted from it
+ *                                       (opposite sign vs pass-1).
+ *   g_scene1_combat_scene_mul_014       DAT_056db014 — int.  Scene-state
+ *                                       damage multiplier.  When > 0
+ *                                       (with combat_scene_mul_01c == 0)
+ *                                       or in combination, idle damage
+ *                                       gets a *2 via LAB_00438e6d.
+ *   g_scene1_combat_scene_mul_01c       DAT_056db01c — int.  Sibling.
+ *   g_scene1_combat_dat_056da1b8        DAT_056da1b8 — int.  Mesh-emit
+ *                                       sound-bus container; the SM ORs
+ *                                       bit 1 (= 2) into it on every
+ *                                       collision that runs the general
+ *                                       damage formula.  Survey doc lists
+ *                                       this as a side effect for slot
+ *                                       TYPEs {2, 0x54, 0x6d, 0x6f, 0x70};
+ *                                       asm shows the OR is unconditional
+ *                                       (regardless of TYPE).
+ *
+ * Combo-held hook — engine FUN_0043647f (61 B, `combo_held(button_id)`).
+ * Returns nonzero if the button is held in the input ring buffer
+ * (DAT_0438b93c).  C8jb.5b calls it 4 times: button ids {5, 3} (idle *2),
+ * {4, 3} (attacker *2), {7, 6} (common /2).  Default NULL hook returns 0
+ * (no buttons held → no combo modifiers).
+ *
+ * RNG-damage-scale hook — engine FUN_0041f46d (57 B,
+ * `rng_damage_scale(int arg)`).  Returns `1.0 + FUN_0041f319(arg) * (0.1
+ * or 0.12)`.  C8jb.5b calls it twice in the attacker branch (once per
+ * pass).  Argument: when slot.OWNER_B is non-null, the OWNER_B's npc_type;
+ * otherwise the literal 0x1a (default).  Default NULL hook returns 1.0f
+ * (deterministic damage).
+ */
+extern int32_t g_scene1_combat_damage_base_idle;     /* DAT_056db0b4 */
+extern int32_t g_scene1_combat_damage_base_idle2;    /* DAT_056db0ac */
+extern int32_t g_scene1_combat_scene_mul_014;        /* DAT_056db014 */
+extern int32_t g_scene1_combat_scene_mul_01c;        /* DAT_056db01c */
+extern int32_t g_scene1_combat_dat_056da1b8;         /* DAT_056da1b8 */
+
+/*
+ * Stand-in for engine deref `*(int *)(slot.OWNER_B + 0x424)` — the OWNER_B
+ * record's npc_type field.  Engine asm 0x438c76 / 0x438d58 read this when
+ * the attacker damage path runs.  Production OWNER_B is unported (a record
+ * in another table whose stride/layout aren't modeled yet), so we expose a
+ * host-settable int.  When slot.OWNER_B == 0 the SM uses npc_type=0x1a's
+ * per-type entry (matching engine's hard-coded DAT_005c2e80 default).
+ *
+ * Default 0 → attacker damage path uses g_scene1_combat_npc_type_attrs[0].
+ * Tests set this to a specific NPC type to verify per-type damage table
+ * lookups.
+ */
+extern int32_t g_scene1_combat_owner_b_npc_type;
+
+typedef int   (*scene1_combat_combo_held_fn)(int button_id);
+typedef float (*scene1_combat_rng_damage_scale_fn)(int arg);
+
+scene1_combat_combo_held_fn
+scene1_combat_set_combo_held_hook(scene1_combat_combo_held_fn fn);
+
+scene1_combat_rng_damage_scale_fn
+scene1_combat_set_rng_damage_scale_hook(scene1_combat_rng_damage_scale_fn fn);
+
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*
  * Tick the per-record state machine for one slot.
@@ -300,6 +396,15 @@ extern int32_t g_scene1_combat_dat_0438bed8;
  *     heavy_atk_mode==0 AND npc.npc_type != 0x22: writes
  *     npc.npc_b18_kill_age_out + g_scene1_combat_dat_0438bed8 = 4,
  *     bumps heavy_atk_count, sets kb_strength = 0, damage_out = 0.
+ *
+ * Additional C8jb.5b side effects (per in-range collision when slot TYPE
+ * != 0x53):
+ *   - OR `g_scene1_combat_dat_056da1b8 |= 2` (mesh-emit sound bit).
+ *   - Compute the two-pass damage formula then write the final int into
+ *     g_scene1_combat_phase_b_damage_out.  Holds the LAST collision's
+ *     value when multiple collisions occur in one tick.
+ *   - Calls the combo_held hook up to 4 times (per branch) and the
+ *     rng_damage_scale hook up to 2 times (attacker only).
  */
 int scene1_combat_sm_tick(int32_t *slot);
 

@@ -103,6 +103,13 @@ static void reset_combat_state(void)
     g_scene1_combat_phase_b_damage_out             = 0;
     g_scene1_combat_phase_b_kb_strength            = 0.0f;
     g_scene1_combat_dat_0438bed8                   = 0;
+    /* C8jb.5b globals. */
+    g_scene1_combat_damage_base_idle  = 0;
+    g_scene1_combat_damage_base_idle2 = 0;
+    g_scene1_combat_scene_mul_014     = 0;
+    g_scene1_combat_scene_mul_01c     = 0;
+    g_scene1_combat_dat_056da1b8      = 0;
+    g_scene1_combat_owner_b_npc_type  = 0;
     g_visit_count = 0;
     g_collision_count = 0;
     g_armed_count = 0;
@@ -118,6 +125,8 @@ static void reset_combat_state(void)
     scene1_combat_set_phase_b_collision_hook(NULL);
     scene1_combat_set_phase_b_armed_hook(NULL);
     scene1_records_b_set_aux_4319d6_hook(NULL);
+    scene1_combat_set_combo_held_hook(NULL);
+    scene1_combat_set_rng_damage_scale_hook(NULL);
     g_aux_4319d6_return     = 0;
     g_aux_4319d6_call_count = 0;
 }
@@ -2092,5 +2101,586 @@ int test_combat_sm_phase_b_damage_roll_counters_reset(void)
     T_ASSERT(fabsf(g_scene1_combat_phase_b_kb_strength) < 1e-6f);
     /* DAT_0438bed8 is NOT reset by the SM — engine semantic.  Tests
      * that care about its value should reset it explicitly. */
+    return 0;
+}
+
+/* ═══ C8jb.5b — Phase B general damage formula ═════════════════════════ */
+/*
+ * Asm verification: see scene1_combat_sm.c::phase_b_damage_roll_general
+ * doc block for the line-by-line trace of engine asm 0x438c1c..0x438eaa.
+ */
+
+/* combo_held hook: returns 1 for a single configured button. */
+static int g_combo_held_button = -1;
+static int g_combo_held_call_count = 0;
+static int g_combo_held_buttons_seen[16];
+static int g_combo_held_buttons_seen_n = 0;
+
+static int combo_held_one_button(int btn)
+{
+    if (g_combo_held_buttons_seen_n
+        < (int)(sizeof g_combo_held_buttons_seen
+                / sizeof g_combo_held_buttons_seen[0])) {
+        g_combo_held_buttons_seen[g_combo_held_buttons_seen_n++] = btn;
+    }
+    g_combo_held_call_count++;
+    return (btn == g_combo_held_button) ? 1 : 0;
+}
+
+/* rng_damage_scale hook: returns a fixed value (default 1.0) and
+ * records the arg passed by the SM. */
+static float g_rng_damage_scale_return = 1.0f;
+static int   g_rng_damage_scale_args[8];
+static int   g_rng_damage_scale_args_n = 0;
+
+static float rng_damage_scale_const(int arg)
+{
+    if (g_rng_damage_scale_args_n
+        < (int)(sizeof g_rng_damage_scale_args
+                / sizeof g_rng_damage_scale_args[0])) {
+        g_rng_damage_scale_args[g_rng_damage_scale_args_n++] = arg;
+    }
+    return g_rng_damage_scale_return;
+}
+
+static void reset_combat_5b_capture(void)
+{
+    g_combo_held_button         = -1;
+    g_combo_held_call_count     = 0;
+    g_combo_held_buttons_seen_n = 0;
+    memset(g_combo_held_buttons_seen, 0, sizeof g_combo_held_buttons_seen);
+    g_rng_damage_scale_return = 1.0f;
+    g_rng_damage_scale_args_n = 0;
+    memset(g_rng_damage_scale_args, 0, sizeof g_rng_damage_scale_args);
+}
+
+/*
+ * Bring a slot into the per-collision damage-roll body of phase_b_scan.
+ * NPC type defaults to 0x10 (boring type — not 0x44/0x45 multi-hit, not
+ * 0x46/0x47 paired-hit, not 0x48 disarm).  Returns the npc pointer.
+ */
+static scene1_people_entry_t *
+arm_collision_at(int32_t *slot, int npc_index, int npc_type)
+{
+    install_unit_attrs(npc_type);
+    scene1_people_entry_t *npc = prep_npc_alive(npc_index);
+    npc->npc_type       = npc_type;
+    npc->attack_radius  = 3.0f;
+    npc->combat_pose[0] = 0.0f;
+    npc->combat_pose[1] = 0.0f;
+    npc->combat_pose[2] = 0.0f;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_SCALE_X] = 1.0f;  /* unit scale */
+    (void)slot;
+    return npc;
+}
+
+/* ─── Idle base damage selects pass-1 in TYPE 0x12 path ────────────── */
+
+int test_combat_sm_phase_b_general_idle_base_negation_via_type_0x12(void)
+{
+    /* TYPE 0x12 takes the negation path: damage = -first_damage.
+     * Idle pass 1: first_damage = (int)(0 - DAT_056db0b4/2) = -5 for
+     * DAT_056db0b4 = 10.  damage = -(-5) = 5.  SCALE_X = 1.0. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle = 10;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x12;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;  /* idle */
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);
+    return 0;
+}
+
+/* ─── Default-branch TYPE picks pass-2 result ─────────────────────── */
+
+int test_combat_sm_phase_b_general_idle_default_picks_second_damage(void)
+{
+    /* TYPE 0x10 (not in either special set) → default branch: damage =
+     * second_damage = (int)(DAT_056db0ac/2 - 0/4) = 10/2 = 5. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);
+    return 0;
+}
+
+/* ─── Average path (TYPE 0x3e) ────────────────────────────────────── */
+
+int test_combat_sm_phase_b_general_idle_average_path_type_0x3e(void)
+{
+    /* TYPE 0x3e → damage = (second + -first) / 2 (signed).
+     * Idle with DAT_056db0b4=20, DAT_056db0ac=40:
+     *   first  = (int)(0 - 20/2) = -10  →  -first = 10
+     *   second = (int)(40/2 - 0/4) = 20
+     *   damage = (20 + 10) / 2 = 15. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle  = 20;
+    g_scene1_combat_damage_base_idle2 = 40;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x3e;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 15);
+    return 0;
+}
+
+/* ─── SCALE_X scales the result ─────────────────────────────────── */
+
+int test_combat_sm_phase_b_general_scales_by_slot_scale_x(void)
+{
+    /* same as default-second test but SCALE_X = 2.0 → damage = 10. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_SCALE_X] = 2.0f;
+    arm_collision_at(slot, 0, 0x10);
+    /* arm_collision_at sets SCALE_X to 1.0; override AFTER the helper. */
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_SCALE_X] = 2.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 10);
+    return 0;
+}
+
+/* ─── Idle combo 5 doubles damage ────────────────────────────────── */
+
+int test_combat_sm_phase_b_general_idle_combo_button_5_doubles(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+    g_combo_held_button = 5;
+    scene1_combat_set_combo_held_hook(combo_held_one_button);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 10);  /* 5 * 2 */
+    return 0;
+}
+
+/* ─── Idle combo 3 also doubles (paired alternative) ─────────────── */
+
+int test_combat_sm_phase_b_general_idle_combo_button_3_doubles(void)
+{
+    /* Engine 0x438e25-0x438e3b: combo_held(5) || combo_held(3) → *2. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+    g_combo_held_button = 3;
+    scene1_combat_set_combo_held_hook(combo_held_one_button);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 10);
+    return 0;
+}
+
+/* ─── Scene mul gate doubles damage (idle only) ───────────────── */
+
+int test_combat_sm_phase_b_general_idle_scene_mul_014_doubles(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+    g_scene1_combat_scene_mul_014     = 1;  /* > 0 → LAB_00438e6d */
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 10);
+    return 0;
+}
+
+int test_combat_sm_phase_b_general_idle_scene_mul_01c_also_doubles(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+    g_scene1_combat_scene_mul_01c     = 1;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 10);
+    return 0;
+}
+
+int test_combat_sm_phase_b_general_idle_combo_and_scene_stack(void)
+{
+    /* Combo 5 + scene_mul_014 → *2 * *2 = *4. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+    g_scene1_combat_scene_mul_014     = 1;
+    g_combo_held_button = 5;
+    scene1_combat_set_combo_held_hook(combo_held_one_button);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 20);  /* 5*4 */
+    return 0;
+}
+
+/* ─── Common combo 7/6 halves ──────────────────────────────────── */
+
+int test_combat_sm_phase_b_general_combo_button_7_halves(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 20;  /* second_damage = 10 */
+    g_combo_held_button = 7;
+    scene1_combat_set_combo_held_hook(combo_held_one_button);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);  /* 10/2 */
+    return 0;
+}
+
+int test_combat_sm_phase_b_general_combo_button_6_halves(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+    g_combo_held_button = 6;
+    scene1_combat_set_combo_held_hook(combo_held_one_button);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);
+    return 0;
+}
+
+/* ─── Block/dodge counter halves ──────────────────────────────── */
+
+int test_combat_sm_phase_b_general_block_dodge_b38_halves(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 20;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = arm_collision_at(slot, 0, 0x10);
+    npc->block_dodge_b38 = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);  /* 10/2 */
+    return 0;
+}
+
+/* ─── Sound bus bit set on every general-formula collision ────── */
+
+int test_combat_sm_phase_b_general_sets_dat_056da1b8_bit_1(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_dat_056da1b8 = 0;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I((g_scene1_combat_dat_056da1b8 & 2), 2);
+    return 0;
+}
+
+/* ─── Slot TYPE == 0x53 SKIPS general formula ─────────────────── */
+
+int test_combat_sm_phase_b_general_skipped_when_slot_type_0x53(void)
+{
+    /* Engine 0x438bc0 `jne 0x438c1c`: TYPE == 0x53 jumps to LAB_004392a7,
+     * never reaching the general formula. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+    g_scene1_combat_dat_056da1b8      = 0;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x53;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* damage_out stays at the C8jb.5a prologue's 0; bit 1 of da1b8 NOT
+     * set because the general formula didn't run. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 0);
+    T_ASSERT_EQ_I((g_scene1_combat_dat_056da1b8 & 2), 0);
+    return 0;
+}
+
+/* ─── Attacker branch (FLAG_A=3) uses RNG + per-attacker table ──── */
+
+int test_combat_sm_phase_b_general_attacker_owner_b_null_uses_attrs_1a(void)
+{
+    /* Attacker with OWNER_B == 0: uses attrs[0x1a] + rng_arg=0x1a.
+     * attrs[0x1a].attrs_int_3c=20 + rng=1.0 → damage_base=20.
+     * attrs[0x1a].attrs_int_34=10 + rng=1.0 → base2=10.
+     * first_damage = (int)(0/4 - 20/2) = -10
+     * second_damage = (int)(10/2 - 0/4) = 5
+     * default branch → damage = 5. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_rng_damage_scale_return = 1.0f;
+    scene1_combat_set_rng_damage_scale_hook(rng_damage_scale_const);
+    g_scene1_combat_npc_type_attrs[0x1a].attrs_int_3c = 20;
+    g_scene1_combat_npc_type_attrs[0x1a].attrs_int_34 = 10;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]    = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A]  = 3;     /* attacker (hit-recovery) */
+    slot[SCENE1_RECORDS_B_OFF_OWNER_B] = 0;     /* NULL */
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);
+    /* RNG hook called twice (pass 1 + pass 2), both with arg=0x1a. */
+    T_ASSERT_EQ_I(g_rng_damage_scale_args_n, 2);
+    T_ASSERT_EQ_I(g_rng_damage_scale_args[0], 0x1a);
+    T_ASSERT_EQ_I(g_rng_damage_scale_args[1], 0x1a);
+    return 0;
+}
+
+int test_combat_sm_phase_b_general_attacker_owner_b_uses_configured_npc_type(void)
+{
+    /* When slot.OWNER_B != 0, the SM uses g_scene1_combat_owner_b_npc_type
+     * to look up per-attacker attrs.  Set it to 0x07 + populate the
+     * table entry. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_rng_damage_scale_return = 1.0f;
+    scene1_combat_set_rng_damage_scale_hook(rng_damage_scale_const);
+    g_scene1_combat_owner_b_npc_type = 0x07;
+    g_scene1_combat_npc_type_attrs[0x07].attrs_int_3c = 40;
+    g_scene1_combat_npc_type_attrs[0x07].attrs_int_34 = 14;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]    = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A]  = 3;
+    slot[SCENE1_RECORDS_B_OFF_OWNER_B] = 0xfeedf00d;  /* non-NULL */
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* second_damage = (int)(14/2 - 0/4) = 7.  TYPE=0x10 → default branch. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 7);
+    T_ASSERT_EQ_I(g_rng_damage_scale_args_n, 2);
+    T_ASSERT_EQ_I(g_rng_damage_scale_args[0], 0x07);
+    T_ASSERT_EQ_I(g_rng_damage_scale_args[1], 0x07);
+    return 0;
+}
+
+/* ─── Attacker combo 4/3 doubles ──────────────────────────────── */
+
+int test_combat_sm_phase_b_general_attacker_combo_button_4_doubles(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_rng_damage_scale_return = 1.0f;
+    scene1_combat_set_rng_damage_scale_hook(rng_damage_scale_const);
+    g_scene1_combat_npc_type_attrs[0x1a].attrs_int_34 = 10;
+    g_combo_held_button = 4;
+    scene1_combat_set_combo_held_hook(combo_held_one_button);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]    = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A]  = 3;
+    slot[SCENE1_RECORDS_B_OFF_OWNER_B] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 10);  /* 5 * 2 */
+    return 0;
+}
+
+int test_combat_sm_phase_b_general_attacker_skips_scene_mul_gate(void)
+{
+    /* Attacker branch goes through LAB_00438e6d via combo only; the
+     * scene_mul_014/01c gate is reachable only from the idle branch.
+     * Verify scene_mul_014 = 1 has NO effect when FLAG_A != 0. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_rng_damage_scale_return = 1.0f;
+    scene1_combat_set_rng_damage_scale_hook(rng_damage_scale_const);
+    g_scene1_combat_npc_type_attrs[0x1a].attrs_int_34 = 10;
+    g_scene1_combat_scene_mul_014 = 1;  /* would *2 in idle branch */
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]    = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A]  = 3;
+    slot[SCENE1_RECORDS_B_OFF_OWNER_B] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);  /* no *2 */
+    return 0;
+}
+
+/* ─── Damage quirk disable b28 zeros the npc_quirk contribution ── */
+
+int test_combat_sm_phase_b_general_quirk_disable_b28_zeros_quirk(void)
+{
+    /* With damage_quirk_disable_b28 != 0, the npc_quirk_mul²-derived
+     * terms (attrs_int_38 / 0x40) get zeroed in both passes.  Set up a
+     * non-zero quirk and verify it has no effect. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+    g_scene1_combat_npc_type_attrs[0x10].attrs_int_38 = 100;
+    g_scene1_combat_npc_type_attrs[0x10].attrs_int_40 = 100;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = arm_collision_at(slot, 0, 0x10);
+    npc->damage_quirk_mul_ab8       = 2.0f;  /* would scale by 4 */
+    npc->damage_quirk_disable_b28   = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* quirk is zeroed → second_damage = 10/2 = 5. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);
+    return 0;
+}
+
+int test_combat_sm_phase_b_general_quirk_mul_ab8_squared_applied(void)
+{
+    /* damage_quirk_mul_ab8 = 2 → squared = 4.  attrs_int_38=10 →
+     * npc_quirk2 = 40.  second_damage = (int)(0/2 - 40/4) = -10.
+     * TYPE 0x10 → default branch → damage = -10. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_npc_type_attrs[0x10].attrs_int_38 = 10;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = arm_collision_at(slot, 0, 0x10);
+    npc->damage_quirk_mul_ab8 = 2.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, -10);
+    return 0;
+}
+
+/* ─── damage_out resets between ticks ─────────────────────────── */
+
+int test_combat_sm_phase_b_general_damage_out_resets_when_no_collision(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    scene1_people_entry_t *npc = arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 5);
+
+    /* Move NPC out of range; damage_out resets to 0. */
+    npc->combat_pose[0] = 100.0f;
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 0);
+    return 0;
+}
+
+/* ─── combo_held button sequence on idle branch ──────────────── */
+
+int test_combat_sm_phase_b_general_idle_combo_button_sequence_is_5_3_7_6(void)
+{
+    /* Engine call order for idle without scene_mul: combo_held(5),
+     * (if 0) combo_held(3), then common tail combo_held(7), (if 0)
+     * combo_held(6).  When all return 0 we see all 4 calls. */
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_scene1_combat_damage_base_idle2 = 10;
+    g_combo_held_button = -1;  /* nothing held */
+    scene1_combat_set_combo_held_hook(combo_held_one_button);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]   = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_combo_held_buttons_seen_n, 4);
+    T_ASSERT_EQ_I(g_combo_held_buttons_seen[0], 5);
+    T_ASSERT_EQ_I(g_combo_held_buttons_seen[1], 3);
+    T_ASSERT_EQ_I(g_combo_held_buttons_seen[2], 7);
+    T_ASSERT_EQ_I(g_combo_held_buttons_seen[3], 6);
+    return 0;
+}
+
+int test_combat_sm_phase_b_general_attacker_combo_button_sequence_is_4_3_7_6(void)
+{
+    reset_combat_state();
+    reset_combat_5b_capture();
+    g_rng_damage_scale_return = 1.0f;
+    scene1_combat_set_rng_damage_scale_hook(rng_damage_scale_const);
+    g_scene1_combat_npc_type_attrs[0x1a].attrs_int_34 = 10;
+    g_combo_held_button = -1;
+    scene1_combat_set_combo_held_hook(combo_held_one_button);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE]    = 0x10;
+    slot[SCENE1_RECORDS_B_OFF_FLAG_A]  = 3;
+    slot[SCENE1_RECORDS_B_OFF_OWNER_B] = 0;
+    arm_collision_at(slot, 0, 0x10);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_combo_held_buttons_seen_n, 4);
+    T_ASSERT_EQ_I(g_combo_held_buttons_seen[0], 4);
+    T_ASSERT_EQ_I(g_combo_held_buttons_seen[1], 3);
+    T_ASSERT_EQ_I(g_combo_held_buttons_seen[2], 7);
+    T_ASSERT_EQ_I(g_combo_held_buttons_seen[3], 6);
     return 0;
 }
