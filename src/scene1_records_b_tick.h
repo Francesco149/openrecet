@@ -603,6 +603,22 @@ typedef void (*scene1_b_overlay_spawn_fn)(const void *template_owner,
                                           int   shape_mode,
                                           int   mode);
 
+/* Stand-in for engine's shop-walker record table at DAT_0076bd98..
+ * DAT_007c8f94 (128 records × 0x2e9 dw stride = ~372 KB; NOT ported as
+ * typed storage in this chip).  The C8j-tick.15j type-0x83 body iterates
+ * this range to nudge each gated record's velocity toward the slot's
+ * world POS by 0.03 per tick.
+ *
+ * Hook semantics: returns the record's TYPE-anchored dword pointer
+ * (engine's `piVar10`) for `idx` in [0, 128), or NULL when the host
+ * hasn't installed a real table (production today — table unported).
+ * The body reads gate fields at +0x1b3 / +0 / +0x1b7, position triplet
+ * at -0xe / -0xd / -0xc, and writes velocity triplet at -0xb / -0xa /
+ * -0x9 (all in dword units from the anchor).  Default NULL → no records
+ * iterated → body's nudge loop is a no-op (preserves BSS-zero behavior
+ * matching unported retail). */
+typedef int32_t *(*scene1_b_sw_record_at_fn)(int idx);
+
 /* Setters return prior value so tests can save/restore.  Pass NULL to
  * revert to the default — for `per_type_body` that's the in-module
  * `dispatch_default` (engine-faithful body); for `state_machine` and
@@ -629,6 +645,8 @@ scene1_b_overlay_spawn_fn scene1_records_b_set_overlay_spawn_hook(
     scene1_b_overlay_spawn_fn fn);
 scene1_b_aux_4319d6_fn    scene1_records_b_set_aux_4319d6_hook(
     scene1_b_aux_4319d6_fn fn);
+scene1_b_sw_record_at_fn  scene1_records_b_set_sw_record_at_hook(
+    scene1_b_sw_record_at_fn fn);
 
 /* Mark a slot dead — engine LAB_004411e3 (`*piVar14 = 0`).  Setting
  * TYPE = 0 makes the next allocator scan reclaim it.  Death-effect

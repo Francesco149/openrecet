@@ -69,6 +69,7 @@ static scene1_b_tick_ground_query_fn  g_ground_query_hook;    /* default NULL = 
 static scene1_b_aux_4532bc_fn    g_aux_4532bc_hook;      /* default NULL */
 static scene1_b_overlay_spawn_fn g_overlay_spawn_hook;   /* default NULL = call real spawn */
 static scene1_b_aux_4319d6_fn    g_aux_4319d6_hook;      /* default NULL = returns 0 */
+static scene1_b_sw_record_at_fn  g_sw_record_at_hook;    /* default NULL = no records */
 
 scene1_b_per_type_body_fn scene1_records_b_set_per_type_body(
     scene1_b_per_type_body_fn fn)
@@ -155,6 +156,19 @@ scene1_b_aux_4319d6_fn scene1_records_b_set_aux_4319d6_hook(
     scene1_b_aux_4319d6_fn prev = g_aux_4319d6_hook;
     g_aux_4319d6_hook = fn;
     return prev;
+}
+
+scene1_b_sw_record_at_fn scene1_records_b_set_sw_record_at_hook(
+    scene1_b_sw_record_at_fn fn)
+{
+    scene1_b_sw_record_at_fn prev = g_sw_record_at_hook;
+    g_sw_record_at_hook = fn;
+    return prev;
+}
+
+static inline int32_t *sw_record_at(int idx)
+{
+    return g_sw_record_at_hook ? g_sw_record_at_hook(idx) : NULL;
 }
 
 static inline int aux_4319d6_call(void)
@@ -5256,6 +5270,220 @@ static void body_entity_bounce(int i, int32_t type)
     }
 }
 
+/* ─── C8j-tick.15j — body_0x83 (shop-walker velocity nudge) ──────────────
+ *
+ * Engine FUN_0043ae20's type-0x83 body at decomp L38821-L38924 / asm
+ * 0x43f3dc..0x43f6d2 (758 B).  Long-lived shop-walker AI driver: emits
+ * particles 0x1f/0x20 + iterates 128 shop-walker records and nudges
+ * each gated record's velocity toward this slot's POS by 0.03 per tick.
+ * First body in the ladder that writes directly to the engine's shop-
+ * walker record table (DAT_0076bd98) — earlier 0x83-related writes
+ * landed in C8j-tick.5 (Body 2) flowed through FUN_0043865e state machine
+ * (PHC #20), not direct table writes.
+ *
+ * Phases (per asm trace 0x43f3dc..0x43f6d2):
+ *   1. AGE == 0x3c: SE 0x2bb (engine arg push verified vs Ghidra-argless).
+ *   2. AGE == 0x1e: SE 0x2a5.
+ *   3. AGE == 0x3c: VEL = (sin(ROT_X)*0.15, -0.02, cos(ROT_X)*0.15).
+ *   4. AGE <= 0xb4: VEL *= 0.98; else: VEL = 0.
+ *   5. SEQ_ID capture at AGE in {0x78, 0xa0, 0xc8, 0xf0} — FUN_0044375e
+ *      monotonic counter (already in g_scene1_record_b_seq_counter).
+ *   6. DRAG = 1.5 (unconditional, .rdata 0x5198e0).
+ *   7. AGE in (0x50, 0x10e): per-AGE-bucket modulo emit particle 0x1f
+ *      with scale = rng_next_unit() + 1.0  → [1, 2).  Divisor table:
+ *        AGE >= 0xa0: divisor = 1   (every tick)
+ *        AGE >= 0x8c: divisor = 2
+ *        AGE >= 0x78: divisor = 3
+ *        AGE >= 0x64: divisor = 4
+ *        AGE >= 0x51: divisor = 5
+ *      Emits at slot.POS with owner=OWNER_A, mode=0, shape=0, rot_y=0.
+ *   8. AGE % 2 == 0: emit particle 0x20 at slot.POS, scale = 1.0.
+ *   9. AGE < 0x46 AND owner_a+0xcf8 != 0: KILL.
+ *  10. AGE in (0x50, 0x11d): iterate 128 shop-walker records at engine
+ *      DAT_0076bd98..DAT_007c8f94 (stride 0xba4).  Per-record gates:
+ *      rec[+0x1b3] <= 0 (engine `jg` skip-when->0) AND rec[+0] == 1
+ *      (TYPE) AND rec[+0x1b7] == 0.  When all pass:
+ *        delta  = slot.POS - rec.POS  (rec.POS at rec[-0xe..-0xc])
+ *        lensq  = (dz² + dy²) + dx²  (engine fmul cascade order)
+ *        if lensq > 0:
+ *          len = sqrt(lensq)
+ *          rec.VEL[-0xb..-0x9] += (delta / len) * 0.03  (.rdata 0x519900)
+ *      Default `sw_record_at_hook` returns NULL → loop is a no-op
+ *      (matches BSS-zero retail until a real table populator ports).
+ *  11. (Inside phase 10's gate, AGE >= 0x3c always true since AGE > 0x50)
+ *      g_scene1_records_b_tick_anim_drive = 0; SM(); if SM ret != 0 AND
+ *      drive > 0: drive = max(1, drive/2); write owner_a+0xe2c = drive,
+ *      owner_a+0xe34 = 0x1e.  Note +0xe2c/+0xe34 differ from body_kill_
+ *      bounce's +0xe30/+0xe38 (C8j-tick.15c) and body_entity_bounce's
+ *      0x52-cluster +0xe30/+0xe38 (C8j-tick.15i) — likely a sibling
+ *      field pair tied to a different damage class.
+ *  12. AGE == 300 (0x12c): KILL.  Else falls through (LAB_00440dc1
+ *      wall-bounce post-tail, NOT ported here).
+ *
+ * .rdata constants verified via tools/analyze/pe.py (2026-05-25):
+ *   0x5198cc = 0.15        sin/cos velocity init magnitude
+ *   0x519c10 = -0.02       initial VEL_Y at AGE==0x3c
+ *   0x5198ec = 0.98        drag multiplier
+ *   0x5198e0 = 1.5         DRAG (unconditional set)
+ *   0x519364 = 1.0         scale offset (rng + 1.0)
+ *   0x519900 = 0.03        shop-walker velocity nudge magnitude
+ *   0x519320 = 0.0         lensq > 0 compare
+ *
+ * Asm corrections vs Ghidra decomp:
+ *   - SE 0x2bb / 0x2a5 push verified vs Ghidra-argless FUN_00499519.
+ *   - cos/sin call at L38830 / L38834: argless decomp; asm 0x43f418 /
+ *     0x43f444 shows the angle reload from [ebp-0x4] populated immediately
+ *     before each call.  Both reload slot.ROT_X (+0x90).
+ *   - FUN_00471089 call at 0x43f515 has 3 phantom stack args (push edx,
+ *     push ecx+fstp 0.0, push -1) that the rng helper doesn't read.
+ *     Our rng_next_unit() is argless, matching the engine's actual
+ *     consumption pattern.
+ *   - Damage write to owner_a+0xe2c / +0xe34 (NOT +0xe30 / +0xe38) — verified
+ *     asm 0x43f6b8 / 0x43f6be. */
+static void body_0x83(int i)
+{
+    int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    /* Phase 1-2: AGE-gated SE plays. */
+    if (age == 0x3c) se_play(0x2bb);
+    if (age == 0x1e) se_play(0x2a5);
+
+    /* Phase 3: AGE == 0x3c — angle-derived velocity init. */
+    if (age == 0x3c) {
+        float ang = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang) * 0.15f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -0.02f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * 0.15f);
+    }
+
+    /* Phase 4: AGE <= 0xb4 → drag 0.98; else zero. */
+    if (age <= 0xb4) {
+        float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx * 0.98f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy * 0.98f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz * 0.98f);
+    } else {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+    }
+
+    /* Phase 5: SEQ_ID capture at AGE in {0x78, 0xa0, 0xc8, 0xf0}. */
+    for (int32_t age_check = 0x78; age_check != 0x118; age_check += 0x28) {
+        if (age == age_check) {
+            int32_t seq = (int32_t)g_scene1_record_b_seq_counter;
+            g_scene1_record_b_seq_counter++;
+            slot_set_i(i, SCENE1_RECORDS_B_OFF_SEQ_ID, seq);
+        }
+    }
+
+    /* Phase 6: DRAG = 1.5 (unconditional). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.5f);
+
+    /* Phase 7: AGE in (0x50, 0x10e) — modulo-N particle 0x1f emit. */
+    if (age > 0x50 && age < 0x10e) {
+        int divisor = 1;
+        if (age < 0xa0) divisor = 2;
+        if (age < 0x8c) divisor = 3;
+        if (age < 0x78) divisor = 4;
+        if (age < 0x64) divisor = 5;
+        if (age % divisor == 0) {
+            const void *owner_a = slot_owner_a(i);
+            float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            float scale = rng_next_unit() + 1.0f;
+            overlay_spawn(owner_a, px, py, pz, 0x1f, scale, -1, 0, 0, 0);
+        }
+    }
+
+    /* Phase 8: AGE % 2 == 0 — particle 0x20 emit. */
+    if (age % 2 == 0) {
+        const void *owner_a = slot_owner_a(i);
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        overlay_spawn(owner_a, px, py, pz, 0x20, 1.0f, -1, 0, 0, 0);
+    }
+
+    /* Phase 9: AGE < 0x46 AND owner_a+0xcf8 != 0 → KILL. */
+    if (age < 0x46) {
+        void *owner_a = slot_owner_a(i);
+        if (owner_a && owner_read_i(owner_a, 0xcf8) != 0) {
+            scene1_records_b_tick_kill_slot(i);
+            return;
+        }
+    }
+
+    /* Phase 10+11: AGE in (0x50, 0x11d) — shop-walker record nudge + SM. */
+    if (age > 0x50 && age < 0x11d) {
+        float spx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float spy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float spz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+
+        for (int r = 0; r < 128; r++) {
+            int32_t *rec = sw_record_at(r);
+            if (!rec) continue;
+
+            /* Gate: rec[+0x1b3] <= 0 (engine `jg 0x43f668` skips when > 0). */
+            if (rec[0x1b3] > 0) continue;
+            /* Gate: rec[0] == 1 (TYPE). */
+            if (rec[0] != 1) continue;
+            /* Gate: rec[+0x1b7] == 0. */
+            if (rec[0x1b7] != 0) continue;
+
+            float rpx, rpy, rpz;
+            memcpy(&rpx, &rec[-0xe], sizeof rpx);
+            memcpy(&rpy, &rec[-0xd], sizeof rpy);
+            memcpy(&rpz, &rec[-0xc], sizeof rpz);
+
+            float dx = spx - rpx;
+            float dy = spy - rpy;
+            float dz = spz - rpz;
+
+            /* Engine fmul cascade: (dz² + dy²) + dx². */
+            float lensq = (dz * dz + dy * dy) + dx * dx;
+            /* Engine fcomp 0.0 + `jbe` — skip when lensq <= 0. */
+            if (!(lensq > 0.0f)) continue;
+            float len = sqrtf(lensq);
+
+            float rvx, rvy, rvz;
+            memcpy(&rvx, &rec[-0xb], sizeof rvx);
+            memcpy(&rvy, &rec[-0xa], sizeof rvy);
+            memcpy(&rvz, &rec[-0x9], sizeof rvz);
+
+            rvx += (dx / len) * 0.03f;
+            rvy += (dy / len) * 0.03f;
+            rvz += (dz / len) * 0.03f;
+
+            memcpy(&rec[-0xb], &rvx, sizeof rvx);
+            memcpy(&rec[-0xa], &rvy, sizeof rvy);
+            memcpy(&rec[-0x9], &rvz, sizeof rvz);
+        }
+
+        /* Phase 11: AGE >= 0x3c (always true here) — SM + damage write. */
+        g_scene1_records_b_tick_anim_drive = 0;
+        int ret = state_machine_call_ret(slot_base(i));
+        if (ret != 0 && g_scene1_records_b_tick_anim_drive > 0) {
+            int v = g_scene1_records_b_tick_anim_drive / 2;
+            if (v < 1) v = 1;
+            g_scene1_records_b_tick_anim_drive = v;
+            void *owner_a = slot_owner_a(i);
+            if (owner_a) {
+                owner_write_i(owner_a, 0xe2c, v);
+                owner_write_i(owner_a, 0xe34, 0x1e);
+            }
+        }
+    }
+
+    /* Phase 12: AGE == 300 → KILL. */
+    if (age == 300) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -5504,10 +5732,14 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0xa6:
         body_entity_bounce(slot_idx, type);
         break;
+    case 0x83:
+        body_0x83(slot_idx);
+        break;
     default:
-        /* Remaining tail types {0x75/0x83/0x7c} and the LAB_00440dc1
-         * default-tail body + LAB_0043f39b catch-all are deferred to
-         * future C8j-tick.15j+ sub-chips. */
+        /* Remaining tail types {0x75/0x7c} and the LAB_00440dc1 default-
+         * tail body are deferred to future C8j-tick.15k+ sub-chips.
+         * LAB_0043f39b is just an AGE==0x78 kill jump-label, not a
+         * separate body (survey claim corrected). */
         break;
     }
 }

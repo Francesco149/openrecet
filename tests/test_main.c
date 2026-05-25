@@ -1982,6 +1982,38 @@ struct test_case {
     X(records_b_tick_t15i_t_56_bounce_sets_flag) \
     X(records_b_tick_t15i_t_56_age_0x78_kills) \
     X(records_b_tick_t15i_t_56_skips_cull_check) \
+    X(records_b_tick_t15j_age_0x3c_plays_se_0x2bb_and_0x2a5) \
+    X(records_b_tick_t15j_age_0x3c_inits_vel_from_rot_x) \
+    X(records_b_tick_t15j_age_0x3c_rot_x_pi_half) \
+    X(records_b_tick_t15j_age_le_0xb4_drags_velocity_0_98) \
+    X(records_b_tick_t15j_age_gt_0xb4_zeroes_velocity) \
+    X(records_b_tick_t15j_seq_id_captures_at_0x78) \
+    X(records_b_tick_t15j_seq_id_captures_at_0xf0) \
+    X(records_b_tick_t15j_seq_id_not_captured_between_buckets) \
+    X(records_b_tick_t15j_drag_is_1_5_unconditional) \
+    X(records_b_tick_t15j_particle_0x1f_emits_with_age_divisor) \
+    X(records_b_tick_t15j_particle_0x1f_skipped_when_not_divisible) \
+    X(records_b_tick_t15j_particle_0x1f_outside_window_no_emit) \
+    X(records_b_tick_t15j_particle_0x20_emits_on_even_age) \
+    X(records_b_tick_t15j_particle_0x20_skipped_on_odd_age) \
+    X(records_b_tick_t15j_age_lt_0x46_kills_when_owner_cf8_set) \
+    X(records_b_tick_t15j_age_lt_0x46_alive_when_owner_cf8_clear) \
+    X(records_b_tick_t15j_age_ge_0x46_ignores_owner_cf8) \
+    X(records_b_tick_t15j_sw_loop_no_hook_is_noop) \
+    X(records_b_tick_t15j_sw_loop_gate_filter_type_0_skips) \
+    X(records_b_tick_t15j_sw_loop_gate_filter_flag_1b3_positive_skips) \
+    X(records_b_tick_t15j_sw_loop_gate_filter_flag_1b7_nonzero_skips) \
+    X(records_b_tick_t15j_sw_loop_nudge_formula) \
+    X(records_b_tick_t15j_sw_loop_skips_zero_distance) \
+    X(records_b_tick_t15j_sw_loop_outside_age_window_skipped) \
+    X(records_b_tick_t15j_sw_loop_null_records_skipped) \
+    X(records_b_tick_t15j_sm_damage_write_on_drive_positive) \
+    X(records_b_tick_t15j_sm_damage_write_floor_1) \
+    X(records_b_tick_t15j_sm_damage_no_write_when_drive_zero) \
+    X(records_b_tick_t15j_sm_no_call_outside_age_window) \
+    X(records_b_tick_t15j_age_300_kills) \
+    X(records_b_tick_t15j_age_299_alive) \
+    X(records_b_tick_t15j_sw_record_at_hook_setter_round_trips) \
     \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \

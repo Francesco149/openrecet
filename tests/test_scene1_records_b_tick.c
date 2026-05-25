@@ -15,6 +15,7 @@
 #include <string.h>
 #include <sys/mman.h>
 
+#include "rng.h"
 #include "scene1_particles_tick.h"
 #include "scene1_per_frame_open.h"
 #include "scene1_records.h"
@@ -41,6 +42,7 @@ static void reset_world(void)
     scene1_records_b_set_aux_4532bc_hook(NULL);
     scene1_records_b_set_overlay_spawn_hook(NULL);
     scene1_records_b_set_aux_4319d6_hook(NULL);
+    scene1_records_b_set_sw_record_at_hook(NULL);
 }
 
 static int32_t *bslot(int i)
@@ -7767,5 +7769,565 @@ int test_records_b_tick_t15i_t_56_skips_cull_check(void)
     stage_live(0, 0x56, 0, 0, 0, 0, 0, 0, /*age=*/2);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x56);
+    return 0;
+}
+
+/* ─── C8j-tick.15j — body_0x83 (shop-walker velocity nudge) ──────────── */
+
+/* Shop-walker record fixture.  Each record is a 0x2e9-dword block (the
+ * engine's actual stride at DAT_0076bd98), with leading padding so the
+ * TYPE anchor sits at offset SCENE1_RECORDS_SHOP_STRIDE/2 (mid-record);
+ * body reads at negative dword offsets -0xe..-0x9 around the anchor.
+ *
+ * We allocate 4 records — enough to exercise the gate cascade + nudge
+ * formula with a manageable test surface.  Each record's TYPE-anchor
+ * pointer is returned by t15j_sw_record_at(idx), null when idx >= 4. */
+#define T15J_SW_RECORD_DW   0x2e9
+#define T15J_SW_ANCHOR_OFF  0x40   /* leading dwords before the anchor;
+                                    * must be > 0xe so neg-offset reads
+                                    * stay within bounds */
+#define T15J_SW_RECORD_COUNT 4
+
+static int32_t g_t15j_sw_records[T15J_SW_RECORD_COUNT][T15J_SW_RECORD_DW];
+
+static int32_t *t15j_sw_record_at(int idx)
+{
+    if (idx < 0 || idx >= T15J_SW_RECORD_COUNT) return NULL;
+    return &g_t15j_sw_records[idx][T15J_SW_ANCHOR_OFF];
+}
+
+static int32_t *t15j_sw_record_at_partial(int idx)
+{
+    /* Returns a record only for idx == 1 — used to verify gate-skipping
+     * on null records preserves slot integrity. */
+    if (idx != 1) return NULL;
+    return &g_t15j_sw_records[1][T15J_SW_ANCHOR_OFF];
+}
+
+static void t15j_sw_records_reset(void)
+{
+    memset(g_t15j_sw_records, 0, sizeof g_t15j_sw_records);
+    scene1_records_b_set_sw_record_at_hook(t15j_sw_record_at);
+}
+
+static void t15j_sw_record_set_f(int idx, int dw_off, float f)
+{
+    int32_t v;
+    memcpy(&v, &f, sizeof v);
+    g_t15j_sw_records[idx][T15J_SW_ANCHOR_OFF + dw_off] = v;
+}
+
+static float t15j_sw_record_get_f(int idx, int dw_off)
+{
+    int32_t v = g_t15j_sw_records[idx][T15J_SW_ANCHOR_OFF + dw_off];
+    float f;
+    memcpy(&f, &v, sizeof f);
+    return f;
+}
+
+static void t15j_sw_record_set_gates(int idx,
+                                     int32_t flag_1b3, int32_t type_0,
+                                     int32_t flag_1b7)
+{
+    g_t15j_sw_records[idx][T15J_SW_ANCHOR_OFF + 0x1b3] = flag_1b3;
+    g_t15j_sw_records[idx][T15J_SW_ANCHOR_OFF + 0]     = type_0;
+    g_t15j_sw_records[idx][T15J_SW_ANCHOR_OFF + 0x1b7] = flag_1b7;
+}
+
+/* SM hook that bumps anim_drive — used to exercise the damage-write path. */
+static int32_t s_t15j_damage_drive_seed;
+static void t15j_sm_set_drive(int32_t *slot)
+{
+    (void)slot;
+    g_scene1_records_b_tick_anim_drive = s_t15j_damage_drive_seed;
+}
+
+int test_records_b_tick_t15j_age_0x3c_plays_se_0x2bb_and_0x2a5(void)
+{
+    /* AGE 0x3b post-preamble = 0x3c → both SE plays fire (0x2bb for the
+     * AGE==0x3c gate; 0x2a5 NOT fired since AGE != 0x1e).  Then stage
+     * AGE 0x1d post-preamble = 0x1e → only 0x2a5 fires. */
+    reset_world();
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x3b);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_se_calls, 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x2bb);
+
+    reset_world();
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x1d);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_se_calls, 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x2a5);
+    return 0;
+}
+
+int test_records_b_tick_t15j_age_0x3c_inits_vel_from_rot_x(void)
+{
+    /* AGE==0x3c: VEL = (sin(ROT_X)*0.15, -0.02, cos(ROT_X)*0.15).
+     * ROT_X = 0 → sin=0, cos=1 → VEL = (0, -0.02, 0.15).  After phase 4
+     * (AGE <= 0xb4 drag 0.98): VEL = (0, -0.0196, 0.147). */
+    reset_world();
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x3b);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.0f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - (-0.02f * 0.98f))
+             < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z) - (0.15f * 0.98f))
+             < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_age_0x3c_rot_x_pi_half(void)
+{
+    /* ROT_X = π/2 → sin=1, cos=0 → VEL_pre = (0.15, -0.02, 0).
+     * After drag 0.98: VEL = (0.147, -0.0196, 0). */
+    reset_world();
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x3b);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 1.5707963f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - (0.15f * 0.98f))
+             < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z) - 0.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_age_le_0xb4_drags_velocity_0_98(void)
+{
+    /* AGE == 0xb4: drag still active.  Pre-VEL = (1, 2, 4) → post = ×0.98. */
+    reset_world();
+    stage_live(0, 0x83, 0, 0, 0, 1.0f, 2.0f, 4.0f, /*age=*/0xb3);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.98f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - 1.96f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z) - 3.92f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_age_gt_0xb4_zeroes_velocity(void)
+{
+    /* AGE == 0xb5: drag arm closes, VEL latched to zero. */
+    reset_world();
+    stage_live(0, 0x83, 0, 0, 0, 9.0f, 9.0f, 9.0f, /*age=*/0xb4);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.0f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.0f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z) - 0.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_seq_id_captures_at_0x78(void)
+{
+    /* AGE 0x77 post-preamble = 0x78 → first capture point; SEQ_ID
+     * gets g_scene1_record_b_seq_counter (which then increments). */
+    reset_world();
+    g_scene1_record_b_seq_counter = 42;
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x77);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_SEQ_ID), 42);
+    T_ASSERT_EQ_U(g_scene1_record_b_seq_counter, 43u);
+    return 0;
+}
+
+int test_records_b_tick_t15j_seq_id_captures_at_0xf0(void)
+{
+    /* AGE 0xef post-preamble = 0xf0 → last capture point. */
+    reset_world();
+    g_scene1_record_b_seq_counter = 100;
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0xef);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_SEQ_ID), 100);
+    T_ASSERT_EQ_U(g_scene1_record_b_seq_counter, 101u);
+    return 0;
+}
+
+int test_records_b_tick_t15j_seq_id_not_captured_between_buckets(void)
+{
+    /* AGE 0x9b post-preamble = 0x9c — not a capture point (those are
+     * {0x78, 0xa0, 0xc8, 0xf0}).  SEQ_ID preserved, counter untouched. */
+    reset_world();
+    g_scene1_record_b_seq_counter = 99;
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x9b);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_SEQ_ID, 777);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_SEQ_ID), 777);
+    T_ASSERT_EQ_U(g_scene1_record_b_seq_counter, 99u);
+    return 0;
+}
+
+int test_records_b_tick_t15j_drag_is_1_5_unconditional(void)
+{
+    /* DRAG = 1.5 set every tick regardless of AGE. */
+    reset_world();
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/5);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_DRAG, 99.0f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 1.5f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_particle_0x1f_emits_with_age_divisor(void)
+{
+    /* AGE 0xa0 post-preamble = 0xa1 → divisor 1 (every tick); AGE divisible
+     * → emit particle 0x1f.  scale = rng + 1.0 ∈ [1.0, 2.0). */
+    reset_world();
+    install_overlay_capture();
+    rng_seed(1);
+    stage_live(0, 0x83, 10.0f, 20.0f, 30.0f, 0, 0, 0, /*age=*/0xa0);
+    scene1_records_b_tick();
+    /* Expect at least one particle 0x1f spawn + AGE % 2 == 0 → particle 0x20.
+     * 0xa1 is odd so 0x20 NOT emitted.  Just one spawn (0x1f). */
+    T_ASSERT_EQ_I(s_overlay_calls, 1);
+    T_ASSERT_EQ_I(s_overlay_last.type, 0x1f);
+    T_ASSERT(s_overlay_last.scale >= 1.0f && s_overlay_last.scale < 2.0f);
+    T_ASSERT(fabsf(s_overlay_last.pos_x - 10.0f) < 1e-6f);
+    T_ASSERT(fabsf(s_overlay_last.pos_y - 20.0f) < 1e-6f);
+    T_ASSERT(fabsf(s_overlay_last.pos_z - 30.0f) < 1e-6f);
+    T_ASSERT_EQ_I(s_overlay_last.dur, -1);
+    T_ASSERT_EQ_I(s_overlay_last.rot_y, 0);
+    T_ASSERT_EQ_I(s_overlay_last.shape_mode, 0);
+    T_ASSERT_EQ_I(s_overlay_last.mode, 0);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15j_particle_0x1f_skipped_when_not_divisible(void)
+{
+    /* AGE 0x77 post-preamble = 0x78 → divisor 4 (AGE >= 0x78 → divisor 3,
+     * then AGE < 0x8c so divisor=3; further AGE < 0x78? no — actually
+     * AGE 0x78 fails the `< 0x78` check, so divisor stays 3.  AGE % 3 =
+     * 0x78 % 3 = 0 → emit.  Use AGE 0x79 post = 0x7a, divisor 3 (since
+     * 0x7a >= 0x78), 0x7a % 3 = 122 % 3 = 2 → skip. */
+    reset_world();
+    install_overlay_capture();
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x79);
+    scene1_records_b_tick();
+    /* Only particle 0x20 may fire (AGE 0x7a even → emit 0x20). 0x1f NOT emitted. */
+    int n_1f = 0;
+    /* Inspect overlay history via last call alone is insufficient; trust
+     * total count == 1 (= just the 0x20 spawn since AGE 0x7a even). */
+    T_ASSERT_EQ_I(s_overlay_calls, 1);
+    T_ASSERT_EQ_I(s_overlay_last.type, 0x20);
+    (void)n_1f;
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15j_particle_0x1f_outside_window_no_emit(void)
+{
+    /* AGE 0x50 post-preamble = 0x51 — wait, gate is `age > 0x50` so AGE
+     * 0x51 passes.  Use AGE 0x4f post-preamble = 0x50 → 0x50 > 0x50
+     * false → skip the 0x1f spawn.  Verify only the AGE%2==0 0x20 path. */
+    reset_world();
+    install_overlay_capture();
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x4f);
+    scene1_records_b_tick();
+    /* AGE 0x50 — 0x50 % 2 == 0 → emit 0x20.  No 0x1f. */
+    T_ASSERT_EQ_I(s_overlay_calls, 1);
+    T_ASSERT_EQ_I(s_overlay_last.type, 0x20);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15j_particle_0x20_emits_on_even_age(void)
+{
+    /* AGE 1 post-preamble = 2 → even → emit 0x20.  Also AGE < 0x50 so
+     * no 0x1f.  AGE < 0x46 + no owner gate → no kill. */
+    reset_world();
+    install_overlay_capture();
+    stage_live(0, 0x83, 1.0f, 2.0f, 3.0f, 0, 0, 0, /*age=*/1);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_overlay_calls, 1);
+    T_ASSERT_EQ_I(s_overlay_last.type, 0x20);
+    T_ASSERT(fabsf(s_overlay_last.scale - 1.0f) < 1e-6f);
+    T_ASSERT(fabsf(s_overlay_last.pos_x - 1.0f) < 1e-6f);
+    T_ASSERT(fabsf(s_overlay_last.pos_y - 2.0f) < 1e-6f);
+    T_ASSERT(fabsf(s_overlay_last.pos_z - 3.0f) < 1e-6f);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15j_particle_0x20_skipped_on_odd_age(void)
+{
+    /* AGE 2 post-preamble = 3 (odd) → no 0x20 emit. AGE < 0x50 → no 0x1f. */
+    reset_world();
+    install_overlay_capture();
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/2);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_overlay_calls, 0);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15j_age_lt_0x46_kills_when_owner_cf8_set(void)
+{
+    /* AGE post-preamble < 0x46 AND owner_a+0xcf8 != 0 → kill. */
+    reset_world();
+    owner_a_blob_reset();
+    owner_a_blob_set_i(0xcf8, 1);
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x10);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15j_age_lt_0x46_alive_when_owner_cf8_clear(void)
+{
+    /* AGE post-preamble < 0x46 AND owner_a+0xcf8 == 0 → slot alive. */
+    reset_world();
+    owner_a_blob_reset();
+    /* owner_a+0xcf8 stays 0 */
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x10);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x83);
+    return 0;
+}
+
+int test_records_b_tick_t15j_age_ge_0x46_ignores_owner_cf8(void)
+{
+    /* AGE post-preamble >= 0x46 → owner_a+0xcf8 != 0 has no effect on kill. */
+    reset_world();
+    owner_a_blob_reset();
+    owner_a_blob_set_i(0xcf8, 1);
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x46);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x83);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sw_loop_no_hook_is_noop(void)
+{
+    /* No sw_record_at_hook installed → default returns NULL → loop is
+     * a no-op + slot survives the phase. */
+    reset_world();
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x60);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x83);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sw_loop_gate_filter_type_0_skips(void)
+{
+    /* Record with TYPE != 1 (e.g. 0) → gate fails → no nudge. */
+    reset_world();
+    t15j_sw_records_reset();
+    t15j_sw_record_set_gates(0, /*flag_1b3=*/0, /*type_0=*/0, /*flag_1b7=*/0);
+    t15j_sw_record_set_f(0, -0xe, 5.0f);  /* rec.POS_X */
+    t15j_sw_record_set_f(0, -0xd, 0.0f);
+    t15j_sw_record_set_f(0, -0xc, 0.0f);
+    t15j_sw_record_set_f(0, -0xb, 0.0f);  /* rec.VEL_X */
+    t15j_sw_record_set_f(0, -0xa, 0.0f);
+    t15j_sw_record_set_f(0, -0x9, 0.0f);
+
+    stage_live(0, 0x83, 10.0f, 0, 0, 0, 0, 0, /*age=*/0x60);
+    scene1_records_b_tick();
+    /* Record VEL untouched. */
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0xb) - 0.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sw_loop_gate_filter_flag_1b3_positive_skips(void)
+{
+    /* Record with flag_1b3 > 0 → gate fails. */
+    reset_world();
+    t15j_sw_records_reset();
+    t15j_sw_record_set_gates(0, /*flag_1b3=*/1, /*type_0=*/1, /*flag_1b7=*/0);
+    t15j_sw_record_set_f(0, -0xe, 0.0f);
+    t15j_sw_record_set_f(0, -0xd, 0.0f);
+    t15j_sw_record_set_f(0, -0xc, 0.0f);
+
+    stage_live(0, 0x83, 10.0f, 0, 0, 0, 0, 0, /*age=*/0x60);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0xb) - 0.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sw_loop_gate_filter_flag_1b7_nonzero_skips(void)
+{
+    /* Record with flag_1b7 != 0 → gate fails. */
+    reset_world();
+    t15j_sw_records_reset();
+    t15j_sw_record_set_gates(0, /*flag_1b3=*/0, /*type_0=*/1, /*flag_1b7=*/1);
+
+    stage_live(0, 0x83, 10.0f, 0, 0, 0, 0, 0, /*age=*/0x60);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0xb) - 0.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sw_loop_nudge_formula(void)
+{
+    /* Record gated open: TYPE=1, flags=0.  Record at POS=(0,0,0), slot at
+     * POS=(3, 0, 4) → delta=(3, 0, 4), len=5, nudge = delta/5 * 0.03 =
+     * (0.018, 0, 0.024). */
+    reset_world();
+    t15j_sw_records_reset();
+    t15j_sw_record_set_gates(0, /*flag_1b3=*/0, /*type_0=*/1, /*flag_1b7=*/0);
+    t15j_sw_record_set_f(0, -0xe, 0.0f);
+    t15j_sw_record_set_f(0, -0xd, 0.0f);
+    t15j_sw_record_set_f(0, -0xc, 0.0f);
+    t15j_sw_record_set_f(0, -0xb, 0.0f);
+    t15j_sw_record_set_f(0, -0xa, 0.0f);
+    t15j_sw_record_set_f(0, -0x9, 0.0f);
+
+    stage_live(0, 0x83, 3.0f, 0.0f, 4.0f, 0, 0, 0, /*age=*/0x60);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0xb) - 0.018f) < 1e-5f);
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0xa) - 0.0f) < 1e-6f);
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0x9) - 0.024f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sw_loop_skips_zero_distance(void)
+{
+    /* Slot and record at same POS → lensq = 0 → skip nudge (engine fcomp
+     * + jbe). */
+    reset_world();
+    t15j_sw_records_reset();
+    t15j_sw_record_set_gates(0, /*flag_1b3=*/0, /*type_0=*/1, /*flag_1b7=*/0);
+    t15j_sw_record_set_f(0, -0xe, 5.0f);
+    t15j_sw_record_set_f(0, -0xd, 5.0f);
+    t15j_sw_record_set_f(0, -0xc, 5.0f);
+
+    stage_live(0, 0x83, 5.0f, 5.0f, 5.0f, 0, 0, 0, /*age=*/0x60);
+    scene1_records_b_tick();
+    /* Record VEL still zero — gate passed, but lensq <= 0 so no nudge. */
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0xb) - 0.0f) < 1e-6f);
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0xa) - 0.0f) < 1e-6f);
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0x9) - 0.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sw_loop_outside_age_window_skipped(void)
+{
+    /* AGE 0x4f post-preamble = 0x50 → !(AGE > 0x50) → outer gate fails.
+     * Record VEL untouched even though gates would pass. */
+    reset_world();
+    t15j_sw_records_reset();
+    t15j_sw_record_set_gates(0, /*flag_1b3=*/0, /*type_0=*/1, /*flag_1b7=*/0);
+    t15j_sw_record_set_f(0, -0xe, 0.0f);
+    t15j_sw_record_set_f(0, -0xd, 0.0f);
+    t15j_sw_record_set_f(0, -0xc, 0.0f);
+
+    stage_live(0, 0x83, 10.0f, 0, 0, 0, 0, 0, /*age=*/0x4f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0xb) - 0.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sw_loop_null_records_skipped(void)
+{
+    /* Partial hook: only idx==1 returns a record; idx 0/2/3 return NULL.
+     * Only record 1 should be nudged. */
+    reset_world();
+    memset(g_t15j_sw_records, 0, sizeof g_t15j_sw_records);
+    scene1_records_b_set_sw_record_at_hook(t15j_sw_record_at_partial);
+    t15j_sw_record_set_gates(1, /*flag_1b3=*/0, /*type_0=*/1, /*flag_1b7=*/0);
+    t15j_sw_record_set_f(1, -0xe, 0.0f);
+    t15j_sw_record_set_f(1, -0xd, 0.0f);
+    t15j_sw_record_set_f(1, -0xc, 0.0f);
+
+    stage_live(0, 0x83, 3.0f, 0.0f, 4.0f, 0, 0, 0, /*age=*/0x60);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(t15j_sw_record_get_f(1, -0xb) - 0.018f) < 1e-5f);
+    T_ASSERT(fabsf(t15j_sw_record_get_f(1, -0x9) - 0.024f) < 1e-5f);
+    /* Idx 0 still zero (hook returned NULL). */
+    T_ASSERT(fabsf(t15j_sw_record_get_f(0, -0xb) - 0.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sm_damage_write_on_drive_positive(void)
+{
+    /* AGE in (0x50, 0x11d) → SM call.  Hook installed sets anim_drive=20
+     * → write owner_a+0xe2c = 20/2 = 10, owner_a+0xe34 = 0x1e. */
+    reset_world();
+    owner_a_blob_reset();
+    s_t15j_damage_drive_seed = 20;
+    scene1_records_b_set_state_machine_hook(t15j_sm_set_drive);
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x60);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(owner_a_blob_get_i(0xe2c), 10);
+    T_ASSERT_EQ_I(owner_a_blob_get_i(0xe34), 0x1e);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sm_damage_write_floor_1(void)
+{
+    /* anim_drive=1 → 1/2 = 0 → floored to 1. */
+    reset_world();
+    owner_a_blob_reset();
+    s_t15j_damage_drive_seed = 1;
+    scene1_records_b_set_state_machine_hook(t15j_sm_set_drive);
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x60);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(owner_a_blob_get_i(0xe2c), 1);
+    T_ASSERT_EQ_I(owner_a_blob_get_i(0xe34), 0x1e);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sm_damage_no_write_when_drive_zero(void)
+{
+    /* anim_drive=0 → damage write skipped (engine `test eax, eax; jle skip`). */
+    reset_world();
+    owner_a_blob_reset();
+    s_t15j_damage_drive_seed = 0;
+    scene1_records_b_set_state_machine_hook(t15j_sm_set_drive);
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x60);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(owner_a_blob_get_i(0xe2c), 0);
+    T_ASSERT_EQ_I(owner_a_blob_get_i(0xe34), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sm_no_call_outside_age_window(void)
+{
+    /* AGE post-preamble == 0x50 → outer gate `> 0x50` false → SM not called. */
+    reset_world();
+    s_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/0x4f);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_t15j_age_300_kills(void)
+{
+    /* AGE 299 post-preamble = 300 → KILL. */
+    reset_world();
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/299);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15j_age_299_alive(void)
+{
+    /* AGE 298 post-preamble = 299 → still alive. */
+    reset_world();
+    stage_live(0, 0x83, 0, 0, 0, 0, 0, 0, /*age=*/298);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x83);
+    return 0;
+}
+
+int test_records_b_tick_t15j_sw_record_at_hook_setter_round_trips(void)
+{
+    reset_world();
+    scene1_b_sw_record_at_fn prev =
+        scene1_records_b_set_sw_record_at_hook(t15j_sw_record_at);
+    T_ASSERT(prev == NULL);
+    prev = scene1_records_b_set_sw_record_at_hook(NULL);
+    T_ASSERT(prev == t15j_sw_record_at);
     return 0;
 }
