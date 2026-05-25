@@ -1523,6 +1523,31 @@ struct test_case {
     X(records_b_tick_per_type_hook_not_called_for_dead_slots) \
     X(records_b_tick_state_machine_setter_round_trips) \
     X(records_b_tick_walks_all_512_slots) \
+    X(records_b_tick_type_2f_writes_joint_pose) \
+    X(records_b_tick_type_2f_aux_b0_1_uses_positive_pi_half) \
+    X(records_b_tick_type_2f_joint_enable_byte_gates_body) \
+    X(records_b_tick_type_2f_sets_drag_1_0_in_tail) \
+    X(records_b_tick_type_88_drag_1_0_kill_at_0x96) \
+    X(records_b_tick_type_9a_drag_0_5_kill_at_0x15e) \
+    X(records_b_tick_type_2f_skips_state_machine_in_loop) \
+    X(records_b_tick_type_88_calls_state_machine_40x) \
+    X(records_b_tick_type_1e_gate_fail_returns_early) \
+    X(records_b_tick_type_1e_motion_4b_uses_angle_plus_0_3) \
+    X(records_b_tick_type_1e_motion_4c_uses_angle_minus_0_3) \
+    X(records_b_tick_type_1e_motion_48_uses_angle_plus_0_3) \
+    X(records_b_tick_type_1e_motion_other_uses_alt_pos_branch) \
+    X(records_b_tick_type_1e_se_fires_at_age_4_and_4b) \
+    X(records_b_tick_type_1e_kill_at_age_0x69) \
+    X(records_b_tick_type_89_writes_compass_pose) \
+    X(records_b_tick_type_9e_radius_uses_life_mult_5x) \
+    X(records_b_tick_type_89_kill_on_owner_gate_fail) \
+    X(records_b_tick_type_89_kill_at_age_0xaf) \
+    X(records_b_tick_type_89_se_fires_at_age_0x50) \
+    X(records_b_tick_type_89_iter_loop_calls_state_machine_20x_in_window) \
+    X(records_b_tick_type_89_owner_null_no_crash) \
+    X(records_b_tick_type_2f_owner_null_no_crash) \
+    X(records_b_tick_unknown_type_is_noop) \
+    X(records_b_tick_se_hook_setter_round_trips) \
     \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
