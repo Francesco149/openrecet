@@ -2245,6 +2245,487 @@ static void body_0x3a(int i)
     }
 }
 
+/* ═══ C8j-tick.9 — scattered post-Body-3 to Body 5 cluster ═══════════════
+ * Engine asm 0x43d5f8..0x43dc02.  Six per-type bodies covering the gap
+ * between C8j-tick.8 (0x3a) and Body 6 (10/0xb/0x14/0x13/0x99 at 0x43dc03).
+ *
+ *   0x3c (0x43d5f8..0x43d669) — small physics: DRAG=0.1; state_machine on
+ *     AGE in (7, 100); on AGE==1 fire scene1_spawn(0x54) with arg7 =
+ *     rng_next15(); kill on AGE==0x78.
+ *   0x3b (0x43d66a..0x43d7b6) — NPC sister-spawn with owner.pos swap:
+ *     DRAG=0.1; temporarily writes slot.POS into owner.pos[3f0..3f8],
+ *     fires scene1_record_b_spawn_npc(owner_b, 0x3c, 1), restores
+ *     owner.pos.  Then for AGE in (30, 120) drifts VEL_{X,Z} toward
+ *     (player_pos[0] + ALT_POS_X) / (player_pos[2] + ALT_POS_Z) via
+ *     `vel += (target - pos) * 0.005`, then damps `vel *= 0.95`.
+ *     Caps |VEL_xz| to 0.6 via Pythagoras + sqrt + scale.  Kill on
+ *     AGE==0x100.
+ *   Body 5 — 0x21/0x25/0x31/0x32 (0x43d7b7..0x43d845) — shared state
+ *     machine body: LIFE_MULT += 0.002; DRAG = LIFE_MULT*0.1; ROT_Z +=
+ *     0.03; type==0x21 → state_machine if AGE<0x48, kill AGE==0x50;
+ *     others → state_machine if AGE<0xf8, kill AGE==0x100.
+ *   0x2b (0x43d846..0x43d9ec) — ground-bounce with overlay cascade:
+ *     DRAG = LIFE_MULT*0.2; state_machine if AGE<0x48; FLAG==1 short-
+ *     circuit to AGE==0x50 kill check.  FLAG!=1 path: ROT_SCR += 0.05,
+ *     ROT_Z += 0.03, MATRIX0 = rot_y(ROT_Z) × rot_x(ROT_SCR),
+ *     VEL_Y -= 0.02, ground_query(POS).  On hit + VEL_Y<0 + POS_Y <
+ *     LIFE_MULT*0.5 + ground_y: POS_Y = threshold, VEL_{X,Y,Z}=0, FLAG=1,
+ *     AGE=0x28, fire 2 scene1_overlay_spawn calls (type 7 scale 1.5 dur
+ *     0x20 at POS; type 0xb scale 1.0 dur -1 at POS-(0,1,0)), and if
+ *     (slot_idx & 1) play SE(0x2c0).  Kill AGE==0x50.
+ *   0x26/0x2a (0x43d9ed..0x43dac1) — shared body: LIFE_MULT += 0.002;
+ *     DRAG = LIFE_MULT*0.2; ROT_Z += 0.03; state_machine if AGE<0x98;
+ *     ground_query.  On hit + VEL_Y<0 + POS_Y < LIFE_MULT*0.5 + ground_y:
+ *     POS_Y = threshold, VEL_Y = -VEL_Y (true bounce vs 0x2b's snap-to-
+ *     zero).  Kill AGE==0xa0.
+ *   0x27 (0x43dac7..0x43dc02) — three-phase state machine.  FLAG==2:
+ *     LIFE_MULT -= 0.1; kill if LIFE_MULT < 0 (fade-out phase).  FLAG==1:
+ *     LIFE_MULT += 0.3 (clamp 10.0); DRAG = LIFE_MULT*0.5; state_machine
+ *     (grow phase).  FLAG==0 (default): ROT_Z += 0.03; VEL_Y -= 0.01;
+ *     LIFE_MULT += 0.1; ground_query.  On hit + POS_Y < ground_y + 0.3:
+ *     POS_Y = ground_y + 0.3, VEL_{X,Y,Z}=0, FLAG=1, LIFE_MULT += 0.5
+ *     (transition phase 0 → 1).
+ *
+ * Engine quirk: 0x2b's per-tick SE gate uses `[ebp-0x28] & 1` which is
+ * the function-local loop iterator (= slot index `i`), so half of all
+ * 0x2b slots play SE(0x2c0) on every bounce — even/odd by slot index.
+ * No new globals or hooks; all use existing scene1_spawn, scene1_overlay_spawn,
+ * scene1_record_b_spawn_npc, ground_query, notify_queue, aux_4532bc, se_play. */
+
+/* Engine 0x43d5f8..0x43d669 — type 0x3c body.
+ *
+ *   slot[DRAG] = 0.1f
+ *   if 8 <= AGE < 100: state_machine(slot)
+ *   if AGE == 1:
+ *     u = rng_next15()                       ; engine call to 0x471084
+ *     scene1_spawn(0, POS_X, POS_Y+1.0, POS_Z, 0x54, 0.1f, u)
+ *   if AGE == 0x78: kill                     ; 120
+ *
+ * Ghidra dropped the trailing scale/param7 args at L37708 — asm
+ * (0x43d629..0x43d65c) shows 7 pushes: edi=0, POS_X, POS_Y+1.0, POS_Z,
+ * 0x54, 0.1f, eax(=rng_next15()).
+ */
+static void body_0x3c(int i)
+{
+    int32_t *slot = slot_base(i);
+
+    /* asm 0x43d5fd-0x43d603: DRAG = 0.1f. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.1f);
+
+    /* asm 0x43d609-0x43d61f: state_machine if 8 <= AGE < 100. */
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age >= 8 && age < 100) {
+        state_machine_call(slot);
+    }
+
+    /* asm 0x43d620-0x43d65c: AGE == 1 → spawn 0x54 with rng_next15() as
+     * param7.  Ghidra drops scale + param7 at L37708; asm preserves them. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 1) {
+        uint16_t u = rng_next15();
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        scene1_spawn(0, px, py + 1.0f, pz, 0x54, 0.1f, (int)u);
+    }
+
+    /* asm 0x43d65f-0x43d668: AGE == 0x78 → kill. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43d66a..0x43d7b6 — type 0x3b body.
+ *
+ *   slot[DRAG] = 0.1f
+ *   save = (owner.pos.x, owner.pos.y, owner.pos.z)         ; ebp-{4,20,24}
+ *   owner.pos = slot.POS                                   ; temp graft
+ *   scene1_record_b_spawn_npc(owner_b, 0x3c, 1)
+ *   owner.pos = save                                       ; restore
+ *
+ *   ; per-tick drift gate (NPC owner is now the freshly spawned 0x3c slot)
+ *   if 30 < AGE < 120:
+ *     vel.x += (player.x + ALT_POS_X - POS_X) * 0.005
+ *     vel.z += (player.z + ALT_POS_Z - POS_Z) * 0.005
+ *     vel.x *= 0.95
+ *     vel.z *= 0.95
+ *
+ *   ; clamp |vel.xz| to 0.6
+ *   speed_sq = vel.x*vel.x + vel.z*vel.z
+ *   if speed_sq > 0:
+ *     speed = sqrtf(speed_sq)
+ *     if speed > 0.6:
+ *       vel.x = vel.x * 0.6 / speed
+ *       vel.z = vel.z * 0.6 / speed
+ *
+ *   if AGE == 0x100: kill
+ *
+ * Owner pose lives at owner+0x3f0/0x3f4/0x3f8 (= pose triplet, same as
+ * the NPC owner pose convention).  OWNER_B field stores owner pointer
+ * (npc-allocator side).
+ */
+static void body_0x3b(int i)
+{
+    int32_t *slot = slot_base(i);
+
+    /* asm 0x43d673-0x43d67d: DRAG = 0.1f. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.1f);
+
+    /* asm 0x43d683-0x43d6e0: owner.pos save → graft slot.POS → spawn NPC
+     * sister → restore owner.pos. */
+    int32_t owner_ptr_int = slot_get_i(i, SCENE1_RECORDS_B_OFF_OWNER_B);
+    if (owner_ptr_int) {
+        uint8_t *owner = (uint8_t *)(uintptr_t)owner_ptr_int;
+        float save_x, save_y, save_z;
+        memcpy(&save_x, owner + 0x3f0, sizeof save_x);
+        memcpy(&save_y, owner + 0x3f4, sizeof save_y);
+        memcpy(&save_z, owner + 0x3f8, sizeof save_z);
+
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        memcpy(owner + 0x3f0, &px, sizeof px);
+        memcpy(owner + 0x3f4, &py, sizeof py);
+        memcpy(owner + 0x3f8, &pz, sizeof pz);
+
+        scene1_record_b_spawn_npc(owner, 0x3c, 1);
+
+        /* Owner pointer may have moved (asm reloads [esi+0x14] post-call). */
+        int32_t reloaded_int = slot_get_i(i, SCENE1_RECORDS_B_OFF_OWNER_B);
+        if (reloaded_int) {
+            uint8_t *owner2 = (uint8_t *)(uintptr_t)reloaded_int;
+            memcpy(owner2 + 0x3f0, &save_x, sizeof save_x);
+            memcpy(owner2 + 0x3f4, &save_y, sizeof save_y);
+            memcpy(owner2 + 0x3f8, &save_z, sizeof save_z);
+        }
+    }
+
+    /* asm 0x43d6e1-0x43d738: drift body, gated on AGE in (30, 120). */
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age > 0x1e && age < 0x78) {
+        float pos_x  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float pos_z  = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float alt_x  = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X);
+        float alt_z  = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z);
+        float vel_x  = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vel_z  = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+
+        vel_x = ((g_scene1_player_pos[0] + alt_x - pos_x) * 0.005f + vel_x)
+                * 0.95f;
+        vel_z = ((g_scene1_player_pos[2] + alt_z - pos_z) * 0.005f + vel_z)
+                * 0.95f;
+
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vel_x);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vel_z);
+    }
+
+    /* asm 0x43d739-0x43d7a7: |vel.xz| cap to 0.6. */
+    float vel_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+    float vel_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+    float speed_sq = vel_x * vel_x + vel_z * vel_z;
+    if (speed_sq > 0.0f) {
+        float speed = sqrtf(speed_sq);
+        if (speed > 0.6f) {
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vel_x * 0.6f / speed);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vel_z * 0.6f / speed);
+        }
+    }
+
+    /* asm 0x43d7a8-0x43d7b6: AGE == 0x100 → kill. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x100) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43d7b7..0x43d845 — Body 5 (types 0x21/0x25/0x31/0x32).
+ *
+ *   LIFE_MULT += 0.002
+ *   slot[DRAG] = LIFE_MULT * 0.1
+ *   ROT_Z += 0.03
+ *   if type == 0x21:
+ *     if AGE < 0x48: state_machine(slot)
+ *     if AGE == 0x50: kill
+ *   else (0x25/0x31/0x32):
+ *     if AGE < 0xf8: state_machine(slot)
+ *     if AGE == 0x100: kill
+ */
+static void body_021_to_032(int i, int32_t type)
+{
+    int32_t *slot = slot_base(i);
+
+    /* asm 0x43d7cd-0x43d805: LIFE_MULT += 0.002; DRAG = LIFE_MULT*0.1;
+     * ROT_Z += 0.03.  Engine ROT_Z is at slot+0x94 = dw 37. */
+    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.002f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      life_mult * 0.1f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + 0.03f);
+
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    if (type == 0x21) {
+        /* asm 0x43d80b-0x43d82c: 0x21 short-life. */
+        if (age < 0x48) state_machine_call(slot);
+        if (age == 0x50) scene1_records_b_tick_kill_slot(i);
+    } else {
+        /* asm 0x43d824-0x43d843: 0x25/0x31/0x32 long-life. */
+        if (age < 0xf8) state_machine_call(slot);
+        if (age == 0x100) scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43d846..0x43d9ec — type 0x2b body.
+ *
+ *   slot[DRAG] = LIFE_MULT * 0.2
+ *   if AGE < 0x48: state_machine(slot)
+ *   if FLAG == 1: goto END (which checks AGE==0x50 → kill)
+ *
+ *   ; FLAG != 1 path
+ *   ROT_SCR += 0.05
+ *   ROT_Z   += 0.03
+ *   mat4_rotation_x(MATRIX0, ROT_SCR)
+ *   mat4_rotation_y(scratch, ROT_Z)
+ *   mat4_mul(MATRIX0, scratch, MATRIX0)
+ *   VEL_Y -= 0.02
+ *
+ *   hit = ground_query(POS_X, POS_Y, POS_Z, &gy)
+ *   if hit == 1 && VEL_Y < 0:
+ *     threshold = LIFE_MULT * 0.5 + gy
+ *     if POS_Y < threshold:
+ *       POS_Y = threshold
+ *       VEL_X = VEL_Y = VEL_Z = 0
+ *       FLAG = 1
+ *       AGE = 0x28
+ *       scene1_overlay_spawn(NULL, POS_X, POS_Y, POS_Z, 7, 1.5f, 0x20,
+ *                            0, 0, 0)
+ *       scene1_overlay_spawn(NULL, POS_X, POS_Y-1.0, POS_Z, 0xb, 1.0f,
+ *                            -1, 0, 0, 0)
+ *       if (slot_idx & 1): SE(0x2c0)            ; engine [ebp-0x28] = iter
+ *
+ *   if AGE == 0x50: kill
+ *
+ * Ghidra-dropped arg in scene1_overlay_spawn call 1: arg8 (override_rot_y)
+ * — asm at 0x43d96f shows fldz + fstp [esp] writing 0.0f as the 8th arg
+ * (since override_rot_y is `int` in the API, 0.0f bit pattern = int 0).
+ */
+static void body_0x2b(int i)
+{
+    int32_t *slot = slot_base(i);
+
+    /* asm 0x43d84f-0x43d860: DRAG = LIFE_MULT * 0.2. */
+    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 0.2f);
+
+    /* asm 0x43d861-0x43d870: state_machine if AGE < 0x48. */
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age < 0x48) state_machine_call(slot);
+
+    /* asm 0x43d871-0x43d878: FLAG == 1 → skip the rest, fall through to
+     * AGE==0x50 kill. */
+    int flag = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+    if (flag != 1) {
+        /* asm 0x43d87e-0x43d8a7: ROT_SCR += 0.05; ROT_Z += 0.03. */
+        float rot_scr = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR) + 0.05f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rot_scr);
+        float rot_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + 0.03f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rot_z);
+
+        /* asm 0x43d8a9-0x43d8d3: MATRIX0 = rot_y(ROT_Z) × rot_x(ROT_SCR).
+         * Engine pushes (MATRIX0, scratch, MATRIX0) to mat4_multiply; our
+         * `mat4_mul(out, a, b)` computes out = a × b — so the call is
+         * `mat4_mul(MATRIX0, scratch, MATRIX0)` = MATRIX0 = scratch × MATRIX0
+         * after we filled scratch with rot_y(ROT_Z) and MATRIX0 with
+         * rot_x(ROT_SCR). */
+        float *mat0 = (float *)(slot + SCENE1_RECORDS_B_OFF_MATRIX0);
+        float scratch[16];
+        mat4_rotation_x(mat0, rot_scr);
+        mat4_rotation_y(scratch, rot_z);
+        mat4_mul(mat0, scratch, mat0);
+
+        /* asm 0x43d8d4-0x43d8e2: VEL_Y -= 0.02. */
+        float vel_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.02f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
+
+        /* asm 0x43d8e5-0x43d903: ground_query.  Engine passes a 4-float
+         * out buffer at [esi+0x18] (= slot offset dw 6 — scratch space);
+         * we collapse to a single `float *out_y`. */
+        float gy = 0.0f;
+        float pos_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float pos_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pos_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        int hit = ground_query(pos_x, pos_y, pos_z, &gy);
+
+        /* asm 0x43d904-0x43d937: hit AND VEL_Y < 0 AND POS_Y < threshold. */
+        if (hit == 1 && vel_y < 0.0f) {
+            float threshold = life_mult * 0.5f + gy;
+            if (pos_y < threshold) {
+                /* asm 0x43d93d-0x43d96c: snap + zero vel + FLAG=1 + AGE=0x28. */
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, threshold);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+                slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+                slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE,      0x28);
+
+                /* asm 0x43d96f-0x43d998: overlay spawn 1.  9 args (Ghidra
+                 * dropped override_rot_y at L37801). */
+                scene1_overlay_spawn(NULL, pos_x, threshold, pos_z,
+                                     /*template=*/7, /*scale=*/1.5f,
+                                     /*override_dur=*/0x20,
+                                     /*override_rot_y=*/0,
+                                     /*shape_mode=*/0, /*mode=*/0);
+
+                /* asm 0x43d99b-0x43d9cd: overlay spawn 2. */
+                scene1_overlay_spawn(NULL, pos_x, threshold - 1.0f, pos_z,
+                                     /*template=*/0xb, /*scale=*/1.0f,
+                                     /*override_dur=*/-1,
+                                     /*override_rot_y=*/0,
+                                     /*shape_mode=*/0, /*mode=*/0);
+
+                /* asm 0x43d9d0-0x43d9e0: (slot_idx & 1) → SE(0x2c0).
+                 * Engine `test [ebp-0x28], 0x1` reads the function-local
+                 * loop iterator (= slot index). */
+                if (i & 1) se_play(0x2c0);
+            }
+        }
+    }
+
+    /* asm 0x43d9e1-0x43d9ec: AGE == 0x50 → kill. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x50) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43d9ed..0x43dac1 — type 0x26/0x2a shared body.
+ *
+ *   LIFE_MULT += 0.002
+ *   slot[DRAG] = LIFE_MULT * 0.2
+ *   ROT_Z += 0.03
+ *   if AGE < 0x98: state_machine(slot)
+ *   hit = ground_query(POS_X, POS_Y, POS_Z, &gy)
+ *   if hit == 1 && VEL_Y < 0:
+ *     threshold = LIFE_MULT * 0.5 + gy
+ *     if POS_Y < threshold:
+ *       POS_Y = threshold
+ *       VEL_Y = -VEL_Y                        ; true bounce, not zero-snap
+ *   if AGE == 0xa0: kill
+ *
+ * Distinct from 0x2b: bounces (VEL_Y inverted) instead of snap-to-zero;
+ * no overlay spawn cascade; no FLAG check; longer life (0xa0 vs 0x50).
+ */
+static void body_0x26_or_0x2a(int i)
+{
+    int32_t *slot = slot_base(i);
+
+    /* asm 0x43d9fd-0x43da32: LIFE_MULT += 0.002; DRAG = LIFE_MULT*0.2;
+     * ROT_Z += 0.03. */
+    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.002f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      life_mult * 0.2f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+               slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + 0.03f);
+
+    /* asm 0x43da34-0x43da46: state_machine if AGE < 0x98. */
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age < 0x98) state_machine_call(slot);
+
+    /* asm 0x43da47-0x43daa9: ground_query + bounce. */
+    float gy = 0.0f;
+    float pos_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+    float pos_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+    float pos_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+    int hit = ground_query(pos_x, pos_y, pos_z, &gy);
+    if (hit == 1) {
+        float vel_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        if (vel_y < 0.0f) {
+            float threshold = life_mult * 0.5f + gy;
+            if (pos_y < threshold) {
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, threshold);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -vel_y);
+            }
+        }
+    }
+
+    /* asm 0x43daac-0x43dab9: AGE == 0xa0 → kill. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0xa0) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43dac7..0x43dc02 — type 0x27 body.  Three-phase state machine
+ * gated on slot[FLAG]:
+ *
+ *   FLAG == 2 (fade-out):
+ *     LIFE_MULT -= 0.1
+ *     if LIFE_MULT < 0: kill
+ *
+ *   FLAG == 1 (grow):
+ *     LIFE_MULT += 0.3 (clamp 10.0)
+ *     slot[DRAG] = LIFE_MULT * 0.5
+ *     state_machine(slot)
+ *
+ *   FLAG == 0 (default — pre-bounce drift):
+ *     ROT_Z      += 0.03
+ *     VEL_Y      -= 0.01
+ *     LIFE_MULT  += 0.1
+ *     hit = ground_query(POS_X, POS_Y, POS_Z, &gy)
+ *     if hit == 1:
+ *       threshold = gy + 0.3
+ *       if POS_Y < threshold:
+ *         POS_Y     = threshold
+ *         FLAG      = 1                       ; phase 0 → 1
+ *         VEL_X = VEL_Y = VEL_Z = 0
+ *         LIFE_MULT += 0.5                    ; one-shot splash boost
+ *
+ * No AGE-based kill — the body relies on FLAG==2's LIFE_MULT-fade-to-zero.
+ */
+static void body_0x27(int i)
+{
+    int32_t *slot = slot_base(i);
+    int flag = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+
+    if (flag == 2) {
+        /* asm 0x43dadb-0x43db09: fade-out phase. */
+        float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) - 0.1f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+        if (life_mult < 0.0f) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+    } else if (flag == 1) {
+        /* asm 0x43db12-0x43db5d: grow phase.  Clamp at 10.0. */
+        float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.3f;
+        if (life_mult > 10.0f) life_mult = 10.0f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      life_mult * 0.5f);
+        state_machine_call(slot);
+    } else {
+        /* asm 0x43db62-0x43dc02: default (FLAG==0) — pre-bounce drift. */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
+                   slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + 0.03f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y,
+                   slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.01f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT,
+                   slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.1f);
+
+        float gy = 0.0f;
+        float pos_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float pos_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pos_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        int hit = ground_query(pos_x, pos_y, pos_z, &gy);
+        if (hit == 1) {
+            float threshold = gy + 0.3f;
+            if (pos_y < threshold) {
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,    threshold);
+                slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X,    0.0f);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y,    0.0f);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z,    0.0f);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT,
+                           slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.5f);
+            }
+        }
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -2356,8 +2837,30 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x3a:
         body_0x3a(slot_idx);
         break;
+    case 0x3c:
+        body_0x3c(slot_idx);
+        break;
+    case 0x3b:
+        body_0x3b(slot_idx);
+        break;
+    case 0x21:
+    case 0x25:
+    case 0x31:
+    case 0x32:
+        body_021_to_032(slot_idx, type);
+        break;
+    case 0x2b:
+        body_0x2b(slot_idx);
+        break;
+    case 0x26:
+    case 0x2a:
+        body_0x26_or_0x2a(slot_idx);
+        break;
+    case 0x27:
+        body_0x27(slot_idx);
+        break;
     default:
-        /* C8j-tick.8..13 fill in additional cases here. */
+        /* C8j-tick.10..13 fill in additional cases here. */
         break;
     }
 }

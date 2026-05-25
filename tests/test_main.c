@@ -1681,6 +1681,37 @@ struct test_case {
     X(records_b_tick_body5_type_3a_no_progress_no_cleanup) \
     X(records_b_tick_body5_ground_query_hook_round_trip) \
     X(records_b_tick_body5_aux_4532bc_hook_round_trip) \
+    X(records_b_tick_t9_type_3c_sets_drag_0_1) \
+    X(records_b_tick_t9_type_3c_state_machine_age_window) \
+    X(records_b_tick_t9_type_3c_age_1_spawns_0x54) \
+    X(records_b_tick_t9_type_3c_age_other_no_spawn) \
+    X(records_b_tick_t9_type_3c_age_0x78_kills) \
+    X(records_b_tick_t9_type_3b_sets_drag_0_1) \
+    X(records_b_tick_t9_type_3b_spawns_npc_sister_then_restores_owner_pos) \
+    X(records_b_tick_t9_type_3b_drift_gated_age_window) \
+    X(records_b_tick_t9_type_3b_speed_cap_at_0_6) \
+    X(records_b_tick_t9_type_3b_age_0x100_kills) \
+    X(records_b_tick_t9_body5_life_mult_and_drag) \
+    X(records_b_tick_t9_body5_rot_z_increments) \
+    X(records_b_tick_t9_body5_type_21_short_life_kills_at_0x50) \
+    X(records_b_tick_t9_body5_type_32_long_life_kills_at_0x100) \
+    X(records_b_tick_t9_type_2b_sets_drag_life_mult_times_0_2) \
+    X(records_b_tick_t9_type_2b_flag_1_short_circuits_big_body) \
+    X(records_b_tick_t9_type_2b_big_body_updates_rot_vel_y) \
+    X(records_b_tick_t9_type_2b_bounce_snaps_pos_and_zeros_vel) \
+    X(records_b_tick_t9_type_2b_no_bounce_when_vel_y_positive) \
+    X(records_b_tick_t9_type_2b_se_only_on_odd_slot) \
+    X(records_b_tick_t9_type_2b_age_0x50_kills) \
+    X(records_b_tick_t9_type_26_life_mult_drag_rot) \
+    X(records_b_tick_t9_type_2a_bounce_inverts_vel_y) \
+    X(records_b_tick_t9_type_26_no_bounce_when_pos_y_above_threshold) \
+    X(records_b_tick_t9_type_26_age_0xa0_kills) \
+    X(records_b_tick_t9_type_27_flag_2_decrements_life_mult) \
+    X(records_b_tick_t9_type_27_flag_2_kills_on_negative) \
+    X(records_b_tick_t9_type_27_flag_1_grows_and_runs_sm) \
+    X(records_b_tick_t9_type_27_flag_1_clamps_life_mult_at_10) \
+    X(records_b_tick_t9_type_27_flag_0_drifts_rot_vel_life) \
+    X(records_b_tick_t9_type_27_flag_0_ground_hit_transitions_to_grow) \
     \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \

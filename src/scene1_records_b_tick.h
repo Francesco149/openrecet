@@ -188,8 +188,52 @@
  *     The {0, 1} sub-table sits further down at asm 0x43d600+ and
  *     remains deferred to a later sub-chip.
  *
- * Deferred to next sub-chip(s): types {0, 1} sub-table dispatch and the
- * Body 5 group (0x21/0x25/0x31/0x32) per the survey.
+ * C8j-tick.9 (2026-05-25) covers asm 0x43d5f8..0x43dc02 — the gap between
+ * C8j-tick.8's last body (0x3a) and Body 6 (10/0xb/0x14/0x13/0x99 starting
+ * at 0x43dc03).  Six per-type bodies:
+ *
+ *   - 0x3c — DRAG=0.1f; state_machine if 8<=AGE<100; AGE==1 → spawn 0x54
+ *     (with rng_next15() as param7, asm-recovered); AGE==0x78 kills.
+ *   - 0x3b — DRAG=0.1f; NPC sister-spawn (temporarily grafts slot.POS
+ *     into owner.pos[3f0..3f8] around scene1_record_b_spawn_npc(0x3c, 1),
+ *     then restores owner.pos); for AGE in (30, 120) drifts VEL_{X,Z}
+ *     toward `player_pos + ALT_POS` via `vel = ((target-pos)*0.005 + vel)
+ *     * 0.95`; clamps |vel.xz| to 0.6 via sqrt-normalize.  AGE==0x100 kills.
+ *   - Body 5 (0x21/0x25/0x31/0x32) — shared: LIFE_MULT += 0.002; DRAG =
+ *     LIFE_MULT*0.1; ROT_Z += 0.03; type-split: 0x21 → SM if AGE<0x48,
+ *     kill AGE==0x50; others → SM if AGE<0xf8, kill AGE==0x100.
+ *   - 0x2b — DRAG = LIFE_MULT*0.2; SM if AGE<0x48; FLAG==1 short-circuits
+ *     past big body to AGE==0x50 kill check.  FLAG!=1 path: ROT_SCR+=0.05,
+ *     ROT_Z+=0.03, MATRIX0 = rot_y(ROT_Z) × rot_x(ROT_SCR), VEL_Y -= 0.02,
+ *     ground_query.  On hit + VEL_Y<0 + POS_Y < LIFE_MULT*0.5+gy: snap
+ *     POS_Y, zero VEL_xyz, FLAG=1, AGE=0x28, fire 2 scene1_overlay_spawn
+ *     calls (type 7 scale 1.5 dur 0x20 at POS; type 0xb scale 1.0 dur -1
+ *     at POS-(0,1,0)).  Engine quirk: `(slot_idx & 1) → SE(0x2c0)` —
+ *     half of all 0x2b slots play the SE on bounce, partitioned by slot
+ *     index (engine `[ebp-0x28]` = function-local loop iterator).
+ *   - 0x26/0x2a — shared: LIFE_MULT += 0.002; DRAG = LIFE_MULT*0.2; ROT_Z
+ *     += 0.03; SM if AGE<0x98; ground_query bounce inverts VEL_Y (not
+ *     zero-snap like 0x2b).  AGE==0xa0 kills.
+ *   - 0x27 — three-phase state machine.  FLAG==2: LIFE_MULT -= 0.1, kill
+ *     iff LIFE_MULT < 0 (fade-out).  FLAG==1: LIFE_MULT += 0.3 (clamp 10),
+ *     DRAG = LIFE_MULT*0.5, SM (grow).  FLAG==0 default: ROT_Z+=0.03,
+ *     VEL_Y-=0.01, LIFE_MULT+=0.1; ground_query → if POS_Y < gy+0.3:
+ *     snap, zero VEL, FLAG=1, LIFE_MULT += 0.5 splash boost (phase 0 → 1
+ *     transition).  No AGE-kill — relies on FLAG==2 fade-out.
+ *
+ * No new hooks or globals — all existing (state_machine, scene1_spawn,
+ * scene1_overlay_spawn, scene1_record_b_spawn_npc, ground_query,
+ * notify_queue, aux_4532bc, se_play, g_scene1_player_pos[0/2]).
+ *
+ * Ghidra-dropped args recovered via raw asm (preserved in port via 7-arg
+ * scene1_spawn / 10-arg scene1_overlay_spawn signatures):
+ *   - 0x3c spawn at 0x43d629 — scale=0.1f, param7=rng_next15() (asm
+ *     0x43d62e + 0x43d634).
+ *   - 0x2b overlay_spawn 1 at 0x43d975 — override_rot_y=0 (asm 0x43d96f
+ *     fldz + fstp [esp]); Ghidra L37801 had 8 args, asm has 9.
+ *
+ * Deferred to next sub-chip(s): Body 6 (10/0xb/0x14/0x13/0x99 at 0x43dc03)
+ * which gates on the new DAT_005c2434/8/c per-type-enable tables (PHC #19).
  *
  * C8j-tick.3 (2026-05-25) adds bodies for the mid-cascade (L408-L649):
  *
