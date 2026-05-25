@@ -642,6 +642,45 @@ typedef int32_t (*scene1_b_aux_43ab6e_fn)(int32_t *slot,
                                           float arg4, float arg5,
                                           int32_t old_idx);
 
+/* Stand-in for engine FUN_00433674 — horizontal wall raycast (PHC #13).
+ * Engine takes a 6-float ray (origin + direction) plus 2 output pointers:
+ * `out_t` (1 float) and `out_buf` (a 16-byte buffer the engine reads as
+ * 3 ints at +0x10/+0x14/+0x18 = wall_x, wall_z, wall_id).  The C8j-tick
+ * default-tail body uses out_t to compute the actual hit position
+ * (= origin + out_t * dir) and the wall coords to look up the wall record
+ * flag.  Returns 1 on hit, 0 on miss.
+ *
+ * Default returns 0 (no hit) → body's wall-bounce branches all skip. */
+typedef struct {
+    float t;            /* engine local_2c — distance along ray */
+    int32_t wall_x;     /* engine buf[+0x10] — wall-record fine index */
+    int32_t wall_z;     /* engine buf[+0x14] — wall-record coarse index */
+    int32_t wall_id;    /* engine buf[+0x18] — wall lifetime/freshness index */
+} scene1_b_wall_ray_result_t;
+
+typedef int (*scene1_b_wall_raycast_fn)(float ox, float oy, float oz,
+                                        float dx, float dy, float dz,
+                                        scene1_b_wall_ray_result_t *out);
+
+/* Stand-in for the per-wall flag at engine `DAT_007ca434 + wall_x*0x98 +
+ * wall_z*0x2f8020 + 0x90`.  Engine treats: 1 = "bouncable wall, run
+ * lifetime tracking"; 0 = "treat as transient bounce surface"; any other
+ * value = "ignore (skip to next slot)".  Default 0 → all hits go to the
+ * particle-spawn cascade with no lifetime tracking. */
+typedef int (*scene1_b_wall_flag_at_fn)(int32_t wall_x, int32_t wall_z);
+
+/* Stand-in for engine FUN_0042353c — destroy/cleanup a wall record by id
+ * after its lifetime hits 0.  Engine implementation plays SE 0x13e and
+ * writes per-wall globals at `DAT_438c154` / `DAT_438c604`.  Default
+ * no-op; observable hook for tests that exercise the destroy branch. */
+typedef void (*scene1_b_wall_destroy_fn)(int32_t wall_id);
+
+/* Stand-in for engine FUN_0044b255 — the LAB_00440dc1 default-tail body's
+ * pre-kill helper.  Retail FUN_0044b255 at 0x44b255 disassembles to `ret`
+ * (a no-op leftover); we still expose a hook so tests can observe call
+ * site coverage without changing production behavior. */
+typedef void (*scene1_b_aux_44b255_fn)(void);
+
 /* Setters return prior value so tests can save/restore.  Pass NULL to
  * revert to the default — for `per_type_body` that's the in-module
  * `dispatch_default` (engine-faithful body); for `state_machine` and
@@ -672,12 +711,50 @@ scene1_b_sw_record_at_fn  scene1_records_b_set_sw_record_at_hook(
     scene1_b_sw_record_at_fn fn);
 scene1_b_aux_43ab6e_fn    scene1_records_b_set_aux_43ab6e_hook(
     scene1_b_aux_43ab6e_fn fn);
+scene1_b_wall_raycast_fn  scene1_records_b_set_wall_raycast_hook(
+    scene1_b_wall_raycast_fn fn);
+scene1_b_wall_flag_at_fn  scene1_records_b_set_wall_flag_at_hook(
+    scene1_b_wall_flag_at_fn fn);
+scene1_b_wall_destroy_fn  scene1_records_b_set_wall_destroy_hook(
+    scene1_b_wall_destroy_fn fn);
+scene1_b_aux_44b255_fn    scene1_records_b_set_aux_44b255_hook(
+    scene1_b_aux_44b255_fn fn);
+
+/* Engine DAT_438c218 / DAT_438c3a8 — per-wall-id lifetime and freshness
+ * counters read+written by the LAB_00440dc1 default-tail wall-bounce body.
+ *
+ * Engine references walls by 1-based `wall_id` (stored in the raycast
+ * output buffer at +0x18).  The body reads/writes `[wall_id * 4 +
+ * 0x438c218]` (lifetime) and `[wall_id * 4 + 0x438c3a8]` (freshness).
+ * Engine size of these arrays is unknown from the body alone; the wall
+ * populator that allocates wall_id assigns IDs into a bounded range —
+ * sized to 256 here, sufficient for any HOUSE-stage scenario.  Sized
+ * matches the engine wall record bank used by FUN_0042353c (which
+ * also writes per-wall globals at DAT_438c154 / DAT_438c604).
+ *
+ * Default BSS-zero → lifetime starts at 0 → the very first hit destroys
+ * the wall (engine: `g_wall_lifetime[wall_id] < 0x64 ⇒ decrement; if 0 ⇒
+ * call wall_destroy`).  Tests preset lifetime > 0 to exercise the
+ * sub-100 hit path. */
+extern int32_t g_scene1_b_wall_lifetime[256];
+extern int32_t g_scene1_b_wall_freshness[256];
 
 /* Mark a slot dead — engine LAB_004411e3 (`*piVar14 = 0`).  Setting
  * TYPE = 0 makes the next allocator scan reclaim it.  Death-effect
  * spawn (LAB_0043f39b 0x21 particle on age-parity) deferred to
  * C8j-tick.13. */
 void scene1_records_b_tick_kill_slot(int slot_idx);
+
+/* Engine LAB_00440dc1 default-tail wall-bounce body.  In production this
+ * runs as the dispatch `default:` arm (for types absent from the cascade)
+ * and is also the target of explicit `jmp LAB_00440dc1` fall-throughs
+ * from per-type body epilogues.  Exposed here so tests can directly drive
+ * the body with pre-set slot state and a pre-set per-tick flag
+ * (`g_scene1_records_b_tick_flag = 1`) — the outer tick loop clears the
+ * flag at slot iter top, so testing via `scene1_records_b_tick()` only
+ * exercises the gate; the body's bounce logic requires the flag to be
+ * set by an earlier helper within the same tick. */
+void scene1_records_b_run_lab_00440dc1(int slot_idx);
 
 /* Walk all 512 slots; for each live slot run preamble + per-type
  * dispatch.  Engine FUN_0043ae20 outer loop. */

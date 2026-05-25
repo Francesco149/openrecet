@@ -46,6 +46,12 @@ static void reset_world(void)
     scene1_records_b_set_aux_4319d6_hook(NULL);
     scene1_records_b_set_sw_record_at_hook(NULL);
     scene1_records_b_set_aux_43ab6e_hook(NULL);
+    scene1_records_b_set_wall_raycast_hook(NULL);
+    scene1_records_b_set_wall_flag_at_hook(NULL);
+    scene1_records_b_set_wall_destroy_hook(NULL);
+    scene1_records_b_set_aux_44b255_hook(NULL);
+    memset(g_scene1_b_wall_lifetime, 0, sizeof g_scene1_b_wall_lifetime);
+    memset(g_scene1_b_wall_freshness, 0, sizeof g_scene1_b_wall_freshness);
 }
 
 static int32_t *bslot(int i)
@@ -9388,5 +9394,500 @@ int test_records_b_tick_t15l_set_aux_43ab6e_hook_round_trip(void)
     T_ASSERT(prev == NULL);
     prev = scene1_records_b_set_aux_43ab6e_hook(NULL);
     T_ASSERT(prev == t15l_sister_hook);
+    return 0;
+}
+
+/* ─── C8j-tick.16 — LAB_00440dc1 default-tail wall-bounce body ──────── */
+
+/* Captured wall-raycast invocation + scripted result. */
+static int s_wall_ray_calls;
+static struct {
+    float ox, oy, oz, dx, dy, dz;
+} s_wall_ray_last;
+static scene1_b_wall_ray_result_t s_wall_ray_script;
+static int s_wall_ray_script_hit;
+static int wall_ray_capture(float ox, float oy, float oz,
+                            float dx, float dy, float dz,
+                            scene1_b_wall_ray_result_t *out)
+{
+    s_wall_ray_calls++;
+    s_wall_ray_last.ox = ox; s_wall_ray_last.oy = oy; s_wall_ray_last.oz = oz;
+    s_wall_ray_last.dx = dx; s_wall_ray_last.dy = dy; s_wall_ray_last.dz = dz;
+    *out = s_wall_ray_script;
+    return s_wall_ray_script_hit;
+}
+
+static int s_wall_flag_value;
+static int s_wall_flag_calls;
+static int wall_flag_capture(int32_t wx, int32_t wz)
+{
+    (void)wx; (void)wz;
+    s_wall_flag_calls++;
+    return s_wall_flag_value;
+}
+
+static int s_wall_destroy_calls;
+static int32_t s_wall_destroy_last;
+static void wall_destroy_capture(int32_t wall_id)
+{
+    s_wall_destroy_calls++;
+    s_wall_destroy_last = wall_id;
+}
+
+static int s_aux_44b255_calls;
+static void aux_44b255_capture(void) { s_aux_44b255_calls++; }
+
+/* Convenience: enable the three gates so the body fires.  TYPE is set
+ * by the caller; AUX_C8 = 1 + per-tick flag = 1 here.  OWNER_A defaults
+ * to 1 (Path A) — pass 0 to exercise Path B.
+ *
+ * Tests invoke the body directly via scene1_records_b_run_lab_00440dc1
+ * because the outer tick loop clears the flag at slot iter top — so
+ * scene1_records_b_tick() can only exercise the gates, not the body. */
+static void lab_dc1_stage(int slot, int32_t type, int32_t owner_a)
+{
+    slot_set_i(slot, SCENE1_RECORDS_B_OFF_TYPE,    type);
+    slot_set_i(slot, SCENE1_RECORDS_B_OFF_AUX_C8,  1);
+    slot_set_i(slot, SCENE1_RECORDS_B_OFF_OWNER_A, owner_a);
+    g_scene1_records_b_tick_flag = 1;
+}
+
+static void lab_dc1_install_hooks(void)
+{
+    s_wall_ray_calls = 0;
+    s_wall_flag_calls = 0;
+    s_wall_destroy_calls = 0;
+    s_aux_44b255_calls = 0;
+    s_wall_ray_script_hit = 0;
+    s_wall_flag_value = 0;
+    memset(&s_wall_ray_script, 0, sizeof s_wall_ray_script);
+    memset(&s_wall_ray_last,   0, sizeof s_wall_ray_last);
+    s_wall_destroy_last = -1;
+    scene1_records_b_set_wall_raycast_hook(wall_ray_capture);
+    scene1_records_b_set_wall_flag_at_hook(wall_flag_capture);
+    scene1_records_b_set_wall_destroy_hook(wall_destroy_capture);
+    scene1_records_b_set_aux_44b255_hook(aux_44b255_capture);
+}
+
+int test_records_b_tick_dc1_gate_aux_c8_blocks(void)
+{
+    /* TYPE alive + tick_flag set, but AUX_C8 = 0 → no raycast. */
+    reset_world();
+    lab_dc1_install_hooks();
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_TYPE,    0xff);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_OWNER_A, 1);
+    g_scene1_records_b_tick_flag = 1;
+    /* AUX_C8 NOT set → 0. */
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_wall_ray_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_dc1_gate_tick_flag_blocks(void)
+{
+    /* TYPE alive + AUX_C8 set, but tick_flag = 0 → no raycast. */
+    reset_world();
+    lab_dc1_install_hooks();
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_TYPE,    0xff);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_C8,  1);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_OWNER_A, 1);
+    /* tick_flag NOT set → 0. */
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_wall_ray_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_dc1_all_gates_open_runs_raycast(void)
+{
+    /* All three gates open → wall raycast invoked exactly once. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0xff, /*owner_a=*/1);
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_wall_ray_calls, 1);
+    return 0;
+}
+
+int test_records_b_tick_dc1_path_a_back_step_origin(void)
+{
+    /* Path A: ox = pos - 0.2*vel.  POS_X = 15, VEL_X = 10 → back-step
+     * origin = 15 - 0.2*10 = 13.  Direct invocation skips the preamble. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0xff, /*owner_a=*/1);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_POS_X, 15.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_VEL_X, 10.0f);
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT(fabsf(s_wall_ray_last.ox - 13.0f) < 1e-5f);
+    T_ASSERT(fabsf(s_wall_ray_last.dx - 10.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_dc1_path_a_type_58_uses_age_formula(void)
+{
+    /* Type 0x58 substitutes ray origin: (pos - vel) + (age-6) * vel * 0.3.
+     * POS_X = 1, VEL_X = 1, AGE = 7 → (1-1) + (7-6)*1*0.3 = 0.3. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0x58, /*owner_a=*/1);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_POS_X, 1.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_VEL_X, 1.0f);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AGE,   7);
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT(fabsf(s_wall_ray_last.ox - 0.3f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_dc1_no_wall_ray_hit_skips(void)
+{
+    /* Raycast hook returns 0 (no hit) → no flag query, no kill. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0xff, /*owner_a=*/1);
+    s_wall_ray_script_hit = 0;
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_wall_flag_calls, 0);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xff);  /* not killed */
+    return 0;
+}
+
+int test_records_b_tick_dc1_wall_flag_other_skips(void)
+{
+    /* Wall flag returns 2 (not 0 or 1) → skip with no further action. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0xff, /*owner_a=*/1);
+    s_wall_ray_script_hit = 1;
+    s_wall_flag_value     = 2;
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_wall_flag_calls, 1);
+    T_ASSERT_EQ_I(s_wall_destroy_calls, 0);
+    T_ASSERT_EQ_I(s_aux_44b255_calls, 0);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xff);  /* not killed */
+    return 0;
+}
+
+int test_records_b_tick_dc1_wall_id_lifetime_destroy(void)
+{
+    /* wall_id = 3, lifetime = 1 → freshness=0x1e, lifetime→0, then
+     * wall_destroy(wall_id-1) + KILL.  No SE, no particle. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0xff, /*owner_a=*/1);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 3;
+    g_scene1_b_wall_lifetime[3] = 1;
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_wall_destroy_calls, 1);
+    T_ASSERT_EQ_I(s_wall_destroy_last, 2);    /* wall_id - 1 */
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);  /* killed */
+    T_ASSERT_EQ_I(s_se_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_dc1_wall_id_lifetime_decrement_only(void)
+{
+    /* wall_id = 5, lifetime = 10 → decrement to 9.  SE 0x169 + particle +
+     * KILL.  Freshness pinned to 0x1e. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0xff, /*owner_a=*/1);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 5;
+    g_scene1_b_wall_lifetime[5] = 10;
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(g_scene1_b_wall_lifetime[5], 9);
+    T_ASSERT_EQ_I(g_scene1_b_wall_freshness[5], 0x1e);
+    T_ASSERT_EQ_I(s_wall_destroy_calls, 0);
+    T_ASSERT_EQ_I(s_se_calls, 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x169);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);  /* killed */
+    return 0;
+}
+
+int test_records_b_tick_dc1_wall_id_lifetime_at_max_no_decrement(void)
+{
+    /* When lifetime >= 0x64, the body skips decrement and freshness reset
+     * but still falls through to the lifetime==0 check.  Lifetime stays
+     * at 0x64 → != 0 → SE 0x169 + particle + KILL. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0xff, /*owner_a=*/1);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 7;
+    g_scene1_b_wall_lifetime[7] = 0x64;
+    g_scene1_b_wall_freshness[7] = 0;
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(g_scene1_b_wall_lifetime[7], 0x64);     /* unchanged */
+    T_ASSERT_EQ_I(g_scene1_b_wall_freshness[7], 0);       /* unchanged */
+    T_ASSERT_EQ_I(s_se_calls, 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x169);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_dc1_default_particle_path(void)
+{
+    /* TYPE 0xff (not in any special list) + wall_id = 0 → default path:
+     * scene1_pfo_table_a_alloc_passthrough + FUN_0044b255 + KILL. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0xff, /*owner_a=*/1);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 0;
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_aux_44b255_calls, 1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);   /* killed */
+    return 0;
+}
+
+int test_records_b_tick_dc1_type_2_extended_spawn_pair(void)
+{
+    /* TYPE 0x2 (in the {0x2/0x54/0x3/0x4/0x22/0x67/0x6d-0x70} list) →
+     * scene1_spawn(0x29) + scene1_spawn(0x2a) + SE 0x167 + 0x44b255 +
+     * KILL. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0x2, /*owner_a=*/0x1234);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 0;
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    scene1_spawn_trace_reset();
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 2);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace[0].type, 0x29);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace[1].type, 0x2a);
+    T_ASSERT(fabsf(g_scene1_spawn_trace[0].scale - 0.2f) < 1e-5f);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace[0].param7, 1);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace[0].slot_hint, 0x1234);  /* owner_a */
+    T_ASSERT_EQ_I(s_se_calls, 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x167);
+    T_ASSERT_EQ_I(s_aux_44b255_calls, 1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);  /* killed */
+    return 0;
+}
+
+int test_records_b_tick_dc1_type_72_no_kill(void)
+{
+    /* TYPE 0x72 — spawn pair + SE 0x167, BUT no kill, no 0x44b255 (asm
+     * 0x44106b jmps to next slot, not the kill path). */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0x72, /*owner_a=*/1);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 0;
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    scene1_spawn_trace_reset();
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(g_scene1_spawn_trace_count, 2);
+    T_ASSERT_EQ_I(s_se_calls, 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x167);
+    T_ASSERT_EQ_I(s_aux_44b255_calls, 0);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x72);  /* alive */
+    return 0;
+}
+
+int test_records_b_tick_dc1_type_5b_default_se_29e(void)
+{
+    /* TYPE 0x5b → SE 0x29e + default-particle path + 0x44b255 + KILL. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0x5b, /*owner_a=*/1);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 0;
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_se_calls, 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x29e);
+    T_ASSERT_EQ_I(s_aux_44b255_calls, 1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_dc1_type_4d_default_se_2b0(void)
+{
+    /* TYPE 0x4d → SE 0x2b0 + default-particle path + 0x44b255 + KILL. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0x4d, /*owner_a=*/1);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 0;
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_se_calls, 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x2b0);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_dc1_type_78_overlay_scale_0p8(void)
+{
+    /* TYPE 0x78 → overlay_spawn at slot.pos with scale 0.8 + 0x44b255 +
+     * KILL.  No particle, no SE. */
+    reset_world();
+    lab_dc1_install_hooks();
+    install_overlay_capture();
+    lab_dc1_stage(0, /*type=*/0x78, /*owner_a=*/1);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_POS_X, 5.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_POS_Y, 6.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_POS_Z, 7.0f);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 0;
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_overlay_calls, 1);
+    T_ASSERT_EQ_I(s_overlay_last.type, 0x14);
+    T_ASSERT(fabsf(s_overlay_last.scale - 0.8f) < 1e-5f);
+    /* Uses slot.pos, not hit_pos. */
+    T_ASSERT(fabsf(s_overlay_last.pos_x - 5.0f) < 1e-5f);
+    T_ASSERT_EQ_I(s_aux_44b255_calls, 1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_dc1_type_7a_overlay_scale_1p0(void)
+{
+    /* TYPE 0x7a → overlay_spawn at slot.pos with scale 1.0. */
+    reset_world();
+    lab_dc1_install_hooks();
+    install_overlay_capture();
+    lab_dc1_stage(0, /*type=*/0x7a, /*owner_a=*/1);
+    s_wall_ray_script_hit = 1;
+    s_wall_ray_script.wall_id = 0;
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_overlay_calls, 1);
+    T_ASSERT(fabsf(s_overlay_last.scale - 1.0f) < 1e-5f);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_dc1_path_b_owner_zero_simpler_origin(void)
+{
+    /* Path B: OWNER_A == 0 → raycast origin = slot.POS (no back-step).
+     * POS_X = 15, VEL_X = 10 → ox = 15.  Direct invocation skips preamble. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0xff, /*owner_a=*/0);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_POS_X, 15.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_VEL_X, 10.0f);
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT(fabsf(s_wall_ray_last.ox - 15.0f) < 1e-5f);
+    T_ASSERT(fabsf(s_wall_ray_last.dx - 10.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_dc1_path_b_type_a0_overlay_spawn(void)
+{
+    /* Path B + TYPE 0xa0: overlay_spawn(NULL, slot.pos, 0x14, 0.8). */
+    reset_world();
+    lab_dc1_install_hooks();
+    install_overlay_capture();
+    lab_dc1_stage(0, /*type=*/0xa0, /*owner_a=*/0);
+    s_wall_ray_script_hit = 1;
+    s_wall_flag_value     = 0;     /* allowable for path B */
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_overlay_calls, 1);
+    T_ASSERT(s_overlay_last.owner == NULL);
+    T_ASSERT_EQ_I(s_overlay_last.type, 0x14);
+    T_ASSERT(fabsf(s_overlay_last.scale - 0.8f) < 1e-5f);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xa0);  /* NOT killed */
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_dc1_path_b_type_1f_resets_age(void)
+{
+    /* Path B + TYPE 0x1f: slot[AGE] = 0x70 on wall hit. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0x1f, /*owner_a=*/0);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AGE, 42);
+    s_wall_ray_script_hit = 1;
+    s_wall_flag_value     = 0;
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 0x70);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x1f);  /* NOT killed */
+    return 0;
+}
+
+int test_records_b_tick_dc1_path_b_no_hit_no_kill(void)
+{
+    /* Path B + no raycast hit → no action. */
+    reset_world();
+    lab_dc1_install_hooks();
+    lab_dc1_stage(0, /*type=*/0xa0, /*owner_a=*/0);
+    s_wall_ray_script_hit = 0;
+    scene1_records_b_run_lab_00440dc1(0);
+    T_ASSERT_EQ_I(s_wall_flag_calls, 0);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0xa0);
+    return 0;
+}
+
+int test_records_b_tick_dc1_set_wall_raycast_hook_round_trip(void)
+{
+    reset_world();
+    scene1_b_wall_raycast_fn prev =
+        scene1_records_b_set_wall_raycast_hook(wall_ray_capture);
+    T_ASSERT(prev == NULL);
+    prev = scene1_records_b_set_wall_raycast_hook(NULL);
+    T_ASSERT(prev == wall_ray_capture);
+    return 0;
+}
+
+int test_records_b_tick_dc1_set_wall_flag_at_hook_round_trip(void)
+{
+    reset_world();
+    scene1_b_wall_flag_at_fn prev =
+        scene1_records_b_set_wall_flag_at_hook(wall_flag_capture);
+    T_ASSERT(prev == NULL);
+    prev = scene1_records_b_set_wall_flag_at_hook(NULL);
+    T_ASSERT(prev == wall_flag_capture);
+    return 0;
+}
+
+int test_records_b_tick_dc1_set_wall_destroy_hook_round_trip(void)
+{
+    reset_world();
+    scene1_b_wall_destroy_fn prev =
+        scene1_records_b_set_wall_destroy_hook(wall_destroy_capture);
+    T_ASSERT(prev == NULL);
+    prev = scene1_records_b_set_wall_destroy_hook(NULL);
+    T_ASSERT(prev == wall_destroy_capture);
+    return 0;
+}
+
+int test_records_b_tick_dc1_set_aux_44b255_hook_round_trip(void)
+{
+    reset_world();
+    scene1_b_aux_44b255_fn prev =
+        scene1_records_b_set_aux_44b255_hook(aux_44b255_capture);
+    T_ASSERT(prev == NULL);
+    prev = scene1_records_b_set_aux_44b255_hook(NULL);
+    T_ASSERT(prev == aux_44b255_capture);
+    return 0;
+}
+
+int test_records_b_tick_dc1_dead_slot_skips(void)
+{
+    /* TYPE == 0 first gate → no raycast even if other gates set. */
+    reset_world();
+    lab_dc1_install_hooks();
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_OWNER_A, 1);
+    g_scene1_records_b_tick_flag = 1;
+    /* TYPE = 0 by default. */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_wall_ray_calls, 0);
     return 0;
 }

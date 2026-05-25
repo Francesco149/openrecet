@@ -2081,6 +2081,33 @@ struct test_case {
     X(records_b_tick_t15l_dispatch_unaffected_for_other_types) \
     X(records_b_tick_t15l_set_aux_43ab6e_hook_round_trip) \
     \
+    X(records_b_tick_dc1_gate_aux_c8_blocks) \
+    X(records_b_tick_dc1_gate_tick_flag_blocks) \
+    X(records_b_tick_dc1_all_gates_open_runs_raycast) \
+    X(records_b_tick_dc1_path_a_back_step_origin) \
+    X(records_b_tick_dc1_path_a_type_58_uses_age_formula) \
+    X(records_b_tick_dc1_no_wall_ray_hit_skips) \
+    X(records_b_tick_dc1_wall_flag_other_skips) \
+    X(records_b_tick_dc1_wall_id_lifetime_destroy) \
+    X(records_b_tick_dc1_wall_id_lifetime_decrement_only) \
+    X(records_b_tick_dc1_wall_id_lifetime_at_max_no_decrement) \
+    X(records_b_tick_dc1_default_particle_path) \
+    X(records_b_tick_dc1_type_2_extended_spawn_pair) \
+    X(records_b_tick_dc1_type_72_no_kill) \
+    X(records_b_tick_dc1_type_5b_default_se_29e) \
+    X(records_b_tick_dc1_type_4d_default_se_2b0) \
+    X(records_b_tick_dc1_type_78_overlay_scale_0p8) \
+    X(records_b_tick_dc1_type_7a_overlay_scale_1p0) \
+    X(records_b_tick_dc1_path_b_owner_zero_simpler_origin) \
+    X(records_b_tick_dc1_path_b_type_a0_overlay_spawn) \
+    X(records_b_tick_dc1_path_b_type_1f_resets_age) \
+    X(records_b_tick_dc1_path_b_no_hit_no_kill) \
+    X(records_b_tick_dc1_set_wall_raycast_hook_round_trip) \
+    X(records_b_tick_dc1_set_wall_flag_at_hook_round_trip) \
+    X(records_b_tick_dc1_set_wall_destroy_hook_round_trip) \
+    X(records_b_tick_dc1_set_aux_44b255_hook_round_trip) \
+    X(records_b_tick_dc1_dead_slot_skips) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

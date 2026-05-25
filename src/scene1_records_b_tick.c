@@ -55,6 +55,12 @@ int32_t g_scene1_records_b_tick_anim_drive;  /* engine DAT_06a46f94 */
  * default BSS-zero. */
 scene1_b_motion_entry_t g_scene1_b_motion_table[256];
 
+/* Engine DAT_438c218 / DAT_438c3a8 — wall-id lifetime / freshness banks.
+ * See scene1_records_b_tick.h.  Sized 256; production exercises these
+ * only when a wall populator sets up a record table. */
+int32_t g_scene1_b_wall_lifetime[256];
+int32_t g_scene1_b_wall_freshness[256];
+
 /* ─── hooks ──────────────────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type);
@@ -72,6 +78,10 @@ static scene1_b_overlay_spawn_fn g_overlay_spawn_hook;   /* default NULL = call 
 static scene1_b_aux_4319d6_fn    g_aux_4319d6_hook;      /* default NULL = returns 0 */
 static scene1_b_sw_record_at_fn  g_sw_record_at_hook;    /* default NULL = no records */
 static scene1_b_aux_43ab6e_fn    g_aux_43ab6e_hook;      /* default NULL = returns -1 */
+static scene1_b_wall_raycast_fn  g_wall_raycast_hook;    /* default NULL = no hit */
+static scene1_b_wall_flag_at_fn  g_wall_flag_at_hook;    /* default NULL = flag 0 */
+static scene1_b_wall_destroy_fn  g_wall_destroy_hook;    /* default NULL */
+static scene1_b_aux_44b255_fn    g_aux_44b255_hook;      /* default NULL */
 
 scene1_b_per_type_body_fn scene1_records_b_set_per_type_body(
     scene1_b_per_type_body_fn fn)
@@ -174,6 +184,67 @@ scene1_b_aux_43ab6e_fn scene1_records_b_set_aux_43ab6e_hook(
     scene1_b_aux_43ab6e_fn prev = g_aux_43ab6e_hook;
     g_aux_43ab6e_hook = fn;
     return prev;
+}
+
+scene1_b_wall_raycast_fn scene1_records_b_set_wall_raycast_hook(
+    scene1_b_wall_raycast_fn fn)
+{
+    scene1_b_wall_raycast_fn prev = g_wall_raycast_hook;
+    g_wall_raycast_hook = fn;
+    return prev;
+}
+
+scene1_b_wall_flag_at_fn scene1_records_b_set_wall_flag_at_hook(
+    scene1_b_wall_flag_at_fn fn)
+{
+    scene1_b_wall_flag_at_fn prev = g_wall_flag_at_hook;
+    g_wall_flag_at_hook = fn;
+    return prev;
+}
+
+scene1_b_wall_destroy_fn scene1_records_b_set_wall_destroy_hook(
+    scene1_b_wall_destroy_fn fn)
+{
+    scene1_b_wall_destroy_fn prev = g_wall_destroy_hook;
+    g_wall_destroy_hook = fn;
+    return prev;
+}
+
+scene1_b_aux_44b255_fn scene1_records_b_set_aux_44b255_hook(
+    scene1_b_aux_44b255_fn fn)
+{
+    scene1_b_aux_44b255_fn prev = g_aux_44b255_hook;
+    g_aux_44b255_hook = fn;
+    return prev;
+}
+
+static inline int wall_raycast_call(float ox, float oy, float oz,
+                                    float dx, float dy, float dz,
+                                    scene1_b_wall_ray_result_t *out)
+{
+    out->t = 0.0f;
+    out->wall_x = 0;
+    out->wall_z = 0;
+    out->wall_id = 0;
+    if (g_wall_raycast_hook) {
+        return g_wall_raycast_hook(ox, oy, oz, dx, dy, dz, out);
+    }
+    return 0;
+}
+
+static inline int wall_flag_at_call(int32_t wall_x, int32_t wall_z)
+{
+    return g_wall_flag_at_hook ? g_wall_flag_at_hook(wall_x, wall_z) : 0;
+}
+
+static inline void wall_destroy_call(int32_t wall_id)
+{
+    if (g_wall_destroy_hook) g_wall_destroy_hook(wall_id);
+}
+
+static inline void aux_44b255_call(void)
+{
+    if (g_aux_44b255_hook) g_aux_44b255_hook();
 }
 
 static inline int32_t aux_43ab6e_call(int32_t *slot,
@@ -6021,7 +6092,252 @@ static void body_0x7c(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x82) {
         scene1_records_b_tick_kill_slot(i);
     }
-    /* engine `jmp LAB_00440dc1` — default-tail body unported. */
+    /* engine `jmp LAB_00440dc1` — default-tail body runs after kill via the
+     * dispatch_default `default:` arm fall-through; see body_lab_00440dc1. */
+}
+
+/* ─── C8j-tick.16 — LAB_00440dc1 default-tail wall-bounce body ──────────
+ *
+ * Engine asm 0x440dc1..0x4412b1 (~1264 B).  The last unported body in the
+ * FUN_0043ae20 cascade.  Runs as a shared wall-bounce post-processing
+ * tail after most per-type bodies via fall-through `jmp LAB_00440dc1`,
+ * AND as the dispatch `default:` arm for types absent from the cascade.
+ *
+ * Three-gate prologue: TYPE != 0 (slot alive), slot[AUX_C8] != 0 (per-slot
+ * "wall bounce enabled" flag), and `g_scene1_records_b_tick_flag != 0`
+ * (DAT_06a46f98 — per-tick "side effect happened" flag set by an earlier
+ * helper such as a ground-bounce body).  Both gates are BSS-zero in
+ * default tests, so the body is unreachable in production HOUSE state.
+ *
+ * Two paths after the prologue:
+ *   - Path A (OWNER_A != 0): wall raycast from "back-stepped" origin
+ *     (pos - 0.2*vel) with vel as direction.  Type 0x58 uses a different
+ *     origin computation involving (age-6).
+ *   - Path B (OWNER_A == 0): wall raycast from slot.POS with slot.VEL.
+ *     Simpler TYPE response (only 0xa0 and 0x1f have special branches).
+ *
+ * On hit, the body reads the wall record flag (via engine table at
+ * DAT_007ca434 with stride 0x98 × 0x2f8020; modeled as a hook) and one
+ * of three outcomes:
+ *   - Flag != 0 AND != 1: ignore (skip to next slot).
+ *   - Flag is 0 or 1, wall_id > 0: decrement g_wall_lifetime[wall_id];
+ *     when it hits zero, call wall_destroy (FUN_0042353c).  Otherwise
+ *     play SE 0x169 and spawn a Table-A particle at the back-step pos.
+ *     Kill the slot.
+ *   - Flag is 0 or 1, wall_id == 0: per-TYPE bounce response (see below).
+ *
+ * Per-TYPE bounce responses (Path A only):
+ *   - 0x2/0x54/0x3/0x4/0x22/0x67/0x6d/0x6e/0x6f/0x70 → LAB_0044117a:
+ *     scene1_spawn(owner_a, hit_pos, 0x29, 0.2, 1) + same for 0x2a +
+ *     SE 0x167 + FUN_0044b255 + KILL.
+ *   - 0x72 → inline same scene1_spawn pair + SE 0x167; NO kill,
+ *     NO FUN_0044b255 — slot continues for next tick.
+ *   - 0x5b/0x5c/0x5f/0x85/0x86/0x87 → SE 0x29e + default-particle path.
+ *   - 0x4d/0x4e/0x4f/0x50/0xa5/0xa6 → SE 0x2b0 + default-particle path.
+ *   - 0x78 → overlay_spawn(owner_a, slot.pos, 0x14, scale 0.8) + 0x44b255 + KILL.
+ *   - 0x7a → overlay_spawn(owner_a, slot.pos, 0x14, scale 1.0) + 0x44b255 + KILL.
+ *   - all other types → default-particle path:
+ *       scene1_pfo_table_a_alloc_passthrough(owner_a, hit_pos, 1, 0.3,
+ *                                            -1, 0.0, 0) + 0x44b255 + KILL.
+ *
+ * Path B specials:
+ *   - 0xa0 → scene1_overlay_spawn(NULL, slot.pos, 0x14, 0.8, -1, 0.0, 0).
+ *   - 0x1f → slot[AGE] = 0x70 (reset AGE to 0x70).
+ *   - other types → no action (just falls through to next slot).
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x5198d8 = 0.2     (back-step ray origin scale; also overlay_spawn arg)
+ *   0x5194ec = 0.3     (default particle scale; also 0x58 mid-point scale)
+ *   0x519470 = 0.8     (0x78 overlay scale)
+ *   ds:0x519364 = 1.0  (loaded via fld1 for 0x7a)
+ *
+ * Engine FUN_00433674 wall raycast (PHC #13): 8 args — 6 floats + 2 out
+ * pointers (out_t float + out_buffer with wall_x/wall_z/wall_id at byte
+ * offsets +0x10/+0x14/+0x18).  Hook returns 1 on hit, 0 on miss.
+ *
+ * Engine FUN_0042353c wall destroy: 1 arg (wall_id - 1).  Engine plays
+ * SE 0x13e and writes per-wall globals.
+ *
+ * Engine FUN_0044b255 at 0x44b255 is `ret` (no-op leftover); hook exists
+ * for test observability only.
+ */
+void scene1_records_b_run_lab_00440dc1(int i);
+static void body_lab_00440dc1(int i) { scene1_records_b_run_lab_00440dc1(i); }
+void scene1_records_b_run_lab_00440dc1(int i)
+{
+    int32_t type = slot_get_i(i, SCENE1_RECORDS_B_OFF_TYPE);
+    if (type == 0) return;                   /* 0x440dc1: slot dead */
+    /* 0x440dcb: slot[+0xc4] == AUX_C8 == OFF 49.  BSS-zero default
+     * → body skipped unless an earlier helper enabled it. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AUX_C8) == 0) return;
+    if (g_scene1_records_b_tick_flag == 0) return;  /* 0x440dd8 */
+
+    /* OWNER_A is stored as an int (engine `mov DWORD PTR [esi+0x10]`);
+     * scene1_spawn / scene1_pfo_table_a_alloc_passthrough both consume
+     * it as int.  overlay_spawn wants `const void *` so we cast at the
+     * call site below. */
+    int32_t owner_a = slot_get_i(i, SCENE1_RECORDS_B_OFF_OWNER_A);
+
+    if (owner_a == 0) {
+        /* ── Path B: 0x4411ea — OWNER_A == 0, simpler raycast/response.
+         *
+         * Engine raycasts from current slot.POS with current slot.VEL
+         * (no back-step), reads the same wall record flag, then for
+         * TYPE 0xa0 spawns a different overlay; TYPE 0x1f resets AGE
+         * to 0x70.  No other TYPEs take any action in this path. */
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+
+        scene1_b_wall_ray_result_t ray;
+        if (!wall_raycast_call(px, py, pz, vx, vy, vz, &ray)) return;
+
+        int flag = wall_flag_at_call(ray.wall_x, ray.wall_z);
+        if (flag != 0 && flag != 1) return;     /* 0x44125b */
+
+        if (type == 0xa0) {
+            /* 0x441269-0x44129b: scene1_overlay_spawn(NULL, slot.pos,
+             * 0x14, 0.8, -1, 0.0, shape_mode=0, mode=0). */
+            overlay_spawn(NULL,
+                          slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X),
+                          slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                          slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z),
+                          0x14, 0.8f, -1, 0, 0, 0);
+        }
+        if (type == 0x1f) {
+            slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, 0x70);
+        }
+        return;
+    }
+
+    /* ── Path A: 0x440def — OWNER_A != 0.
+     *
+     * Ray origin = pos - 0.2 * vel (back-step); ray dir = vel. */
+    float ox = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X)
+             - slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X) * 0.2f;
+    float oy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y)
+             - slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) * 0.2f;
+    float oz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z)
+             - slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z) * 0.2f;
+    float dx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+    float dy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+    float dz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+
+    if (type == 0x58) {
+        /* 0x440e33-0x440e87: type-0x58 substitutes (age-6) * vel * 0.3
+         * + (pos - vel) for the ray origin. */
+        float f = (float)(slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) - 6);
+        float vxc = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vyc = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        float vzc = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        ox = (slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X) - vxc)
+           + f * vxc * 0.3f;
+        oy = (slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) - vyc)
+           + f * vyc * 0.3f;
+        oz = (slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z) - vzc)
+           + f * vzc * 0.3f;
+    }
+
+    scene1_b_wall_ray_result_t ray;
+    if (!wall_raycast_call(ox, oy, oz, dx, dy, dz, &ray)) return;
+
+    /* Wall record flag gate: flag must be 0 or 1 to bounce; otherwise skip. */
+    int flag = wall_flag_at_call(ray.wall_x, ray.wall_z);
+    if (flag != 1 && flag != 0) return;     /* 0x440efb-0x440f01 */
+
+    if (ray.wall_id > 0) {
+        /* 0x440f03-0x440f7d: lifetime tracking + destroy-on-zero.
+         *
+         * Engine: if g_wall_lifetime[wall_id] < 0x64 → set
+         * g_wall_freshness[wall_id] = 0x1e + decrement lifetime.  Then
+         * if lifetime hit 0 → wall_destroy(wall_id - 1) + KILL.  Else
+         * SE 0x169 + Table-A particle at back-step pos + KILL. */
+        int wid = ray.wall_id;
+        if (wid > 0 && wid < (int)(sizeof g_scene1_b_wall_lifetime
+                                  / sizeof g_scene1_b_wall_lifetime[0])) {
+            if (g_scene1_b_wall_lifetime[wid] < 0x64) {
+                g_scene1_b_wall_freshness[wid] = 0x1e;
+                g_scene1_b_wall_lifetime[wid]--;
+            }
+            if (g_scene1_b_wall_lifetime[wid] == 0) {
+                wall_destroy_call(wid - 1);
+                scene1_records_b_tick_kill_slot(i);
+                return;
+            }
+        }
+        se_play(0x169);
+        scene1_pfo_table_a_alloc_passthrough(
+            owner_a, ox, oy, oz, 1, 0.3f, -1, 0.0f, 0);
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* wall_id == 0: per-TYPE bounce particle response.
+     * hit_pos = back_step_origin + out_t * direction. */
+    float hit_x = ox + ray.t * dx;
+    float hit_y = oy + ray.t * dy;
+    float hit_z = oz + ray.t * dz;
+
+    /* TYPEs in {0x2, 0x54, 0x3, 0x4, 0x22, 0x67, 0x6d, 0x6e, 0x6f, 0x70}
+     * → LAB_0044117a: scene1_spawn pair (0x29 + 0x2a, scale 0.2) +
+     * SE 0x167 + FUN_0044b255 + KILL. */
+    if (type == 0x2 || type == 0x54 || type == 0x3 || type == 0x4
+        || type == 0x22 || type == 0x67 || type == 0x6d
+        || type == 0x6e || type == 0x6f || type == 0x70) {
+        scene1_spawn(owner_a, hit_x, hit_y, hit_z, 0x29, 0.2f, 1);
+        scene1_spawn(owner_a, hit_x, hit_y, hit_z, 0x2a, 0.2f, 1);
+        se_play(0x167);
+        aux_44b255_call();
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* TYPE 0x72 → same scene1_spawn pair + SE 0x167; NO kill, NO
+     * aux_44b255 (asm 0x44106b: jmp 0x43fbbc — straight to next slot). */
+    if (type == 0x72) {
+        scene1_spawn(owner_a, hit_x, hit_y, hit_z, 0x29, 0.2f, 1);
+        scene1_spawn(owner_a, hit_x, hit_y, hit_z, 0x2a, 0.2f, 1);
+        se_play(0x167);
+        return;
+    }
+
+    /* TYPE 0x5b/0x5c/0x5f/0x85/0x86/0x87 → SE 0x29e + default-particle. */
+    int default_se = 0;
+    if (type == 0x5b || type == 0x5c || type == 0x5f
+        || type == 0x85 || type == 0x86 || type == 0x87) {
+        default_se = 0x29e;
+    }
+    /* TYPE 0x4d/0x4e/0x4f/0x50/0xa5/0xa6 → SE 0x2b0 + default-particle. */
+    if (type == 0x4d || type == 0x4e || type == 0x4f
+        || type == 0x50 || type == 0xa5 || type == 0xa6) {
+        default_se = 0x2b0;
+    }
+
+    /* TYPE 0x78 / 0x7a → overlay_spawn at slot.pos (not hit_pos).
+     * 0x78: scale 0.8; 0x7a: scale 1.0.  Then 0x44b255 + KILL. */
+    if (type == 0x78 || type == 0x7a) {
+        float scale = (type == 0x78) ? 0.8f : 1.0f;
+        overlay_spawn((const void *)(intptr_t)owner_a,
+                      slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X),
+                      slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y),
+                      slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z),
+                      0x14, scale, -1, 0, 0, 0);
+        aux_44b255_call();
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* Default-particle path (LAB_0044112d).  Fires the SE if one was
+     * latched by an SE-prefix branch (0x29e or 0x2b0), then spawns a
+     * Table-A particle at hit_pos with template 1, scale 0.3, dur -1. */
+    if (default_se) se_play((uint16_t)default_se);
+    scene1_pfo_table_a_alloc_passthrough(
+        owner_a, hit_x, hit_y, hit_z, 1, 0.3f, -1, 0.0f, 0);
+    aux_44b255_call();
+    scene1_records_b_tick_kill_slot(i);
 }
 
 /* ─── default dispatch ───────────────────────────────────────────────── */
@@ -6284,11 +6600,11 @@ static void dispatch_default(int slot_idx, int32_t type)
         body_0x7c(slot_idx);
         break;
     default:
-        /* The LAB_00440dc1 default-tail body (asm 0x440dc1..0x4411e3 =
-         * 1058 B) is the only remaining unported body in the FUN_0043ae20
-         * cascade post-15l.  It runs after most other type bodies as a
-         * shared wall-bounce tail.  LAB_0043f39b is just an AGE==0x78
-         * kill jump-label, not a separate body (survey claim corrected). */
+        /* LAB_00440dc1 default-tail wall-bounce body (C8j-tick.16).
+         * Heavily gated (TYPE != 0 + slot[AUX_C8] != 0 + per-tick flag);
+         * BSS-zero defaults make it unreachable in HOUSE production.  See
+         * body_lab_00440dc1 above for the full asm trace. */
+        body_lab_00440dc1(slot_idx);
         break;
     }
 }
