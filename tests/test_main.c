@@ -1337,6 +1337,8 @@ struct test_case {
     X(scene1_camera_floor_bias_converges_to_fixed_point) \
     X(scene1_camera_yaw_change_lerps_eye) \
     X(scene1_camera_angle_writes_orient_matrix) \
+    X(scene1_camera_angle_sample_counter_lands_at_8) \
+    X(scene1_camera_angle_sample_smoothed_converges) \
     X(scene1_camera_angle_singular_dist_skips_write) \
     X(scene1_camera_view_matches_lookat_rh_when_z_roll_zero) \
     X(scene1_camera_view_applies_z_roll_when_nonzero) \

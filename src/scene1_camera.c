@@ -34,6 +34,9 @@ int   g_scene1_camera_char_mode        = 2;     /* shop view; PHC #11 */
 int   g_scene1_camera_stage_view_mode  = 0;     /* HOUSE BSS-zero */
 float g_scene1_camera_z_roll           = 0.0f;  /* _DAT_006051c4 */
 
+int   g_scene1_camera_sample_counter   = 0;     /* engine DAT_0438bfa8 */
+float g_scene1_camera_sample_smoothed  = 0.0f;  /* engine DAT_0438bfac */
+
 /* ─── module-internal smoothed state (engine `_DAT_0438cc38..58`) ─────── */
 
 static float g_smooth_eye[3]    = { 0, 0, 0 };
@@ -308,11 +311,34 @@ void scene1_camera_angle_compute(void)
     mat4_rotation_x(m_x, angle_x);
     mat4_mul(g_scene1_camera_orient, m_y, m_x);
 
-    /* L32-L43: 8-azimuth loop incrementing _DAT_0438bfa8 to 8 + the
-     * lerp at L44 toward 8 (smoothed sample count).  The four
-     * sin/cos calls inside the loop have their return values dropped
-     * by Ghidra — pending-human-check #10.  No consumer in our port
-     * today; tracked as a future chip. */
+    /* L32-L43: 8-azimuth loop (asm 0x4425f9..0x44266c).  Resets
+     * g_scene1_camera_sample_counter to 0, then runs 8 iterations of
+     * `sinf(iter * 2π/8); cosf(iter * 2π/8); sinf(angle_y_long_double);
+     * cosf(angle_y_long_double); inc counter`.
+     *
+     * Asm verification (PHC #10): the 4 trig calls all end with
+     * `fstp st(0)` (pop FPU TOS without storing) — return values are
+     * explicitly discarded.  Only the counter increment is observable.
+     * The angle_y_long_double argument is the just-computed angle_y
+     * stored as a float10 via `fld DWORD PTR [ebp-0x10]; fstp QWORD PTR
+     * [ebp-0x8]` at 0x4425f6/0x442604.
+     *
+     * L44 (asm 0x44266e..0x44268c): smoothed lerp at rate 0.1
+     * (.rdata 0x5193a0 = 0.1).
+     *
+     * No in-port consumer; preserved for engine-faithful side effects. */
+    g_scene1_camera_sample_counter = 0;
+    for (int iter = 0; iter < 8; iter++) {
+        float iter_angle = (float)iter * 6.2831855f / 8.0f;
+        (void)sinf(iter_angle);
+        (void)cosf(iter_angle);
+        (void)sinf(angle_y);
+        (void)cosf(angle_y);
+        g_scene1_camera_sample_counter++;
+    }
+    g_scene1_camera_sample_smoothed +=
+        ((float)g_scene1_camera_sample_counter
+         - g_scene1_camera_sample_smoothed) * 0.1f;
 }
 
 /* ─── FUN_0040120c view matrix builder ────────────────────────────────── */

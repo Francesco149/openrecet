@@ -61,6 +61,23 @@ extern float g_scene1_camera_lookat[3];
  * `scene1_wide_followup` Pass D's per-record matrix chain. */
 extern float g_scene1_camera_orient[16];
 
+/* Engine DAT_0438bfa8 / DAT_0438bfac — written by
+ * `scene1_camera_angle_compute`'s 8-azimuth loop tail (L32-L44 of the
+ * decompile, asm 0x4425f9..0x44268c).  PHC #10 verified via asm read:
+ * the 4 sin/cos calls inside the loop discard their return values via
+ * `fstp st(0)`, so the only side effects are the global counter
+ * increment + the final lerp.
+ *
+ *   _DAT_0438bfa8 (int)   — incremented to 8 then reset/incremented every
+ *                            angle-compute call.
+ *   _DAT_0438bfac (float) — smoothed sample count via
+ *                            `f' = lerp(f, (float)counter, 0.1)`.
+ *
+ * No in-port consumer reads these globals today.  Exposed as externs so
+ * tests can observe the side effects of angle_compute. */
+extern int   g_scene1_camera_sample_counter;
+extern float g_scene1_camera_sample_smoothed;
+
 /* Stand-in for `(&DAT_045105a4)[char*0x2dfc8]` — the per-character view
  * mode that gates the class-offset and z-bias branches inside
  * FUN_00441c3e.  Pending-human-check #11.  Default 2 = "shop view"
@@ -109,11 +126,12 @@ void scene1_camera_pose_compute(void);
 /* Port of FUN_004424e7.  Reads `g_scene1_camera_eye` + `_lookat` and
  * writes:
  *   - `g_scene1_camera_orient[16]` (4×4 = RotY × RotX product)
- *   - (internal) the two intermediate RotY / RotX matrices and the
- *     8-azimuth counter increment.  The 8-azimuth loop's sin/cos return
- *     values are dropped by Ghidra; only the counter increment is
- *     observable.  No consumer in our port today; pending-human-check
- *     #10 covers the dropped side-effects.
+ *   - `g_scene1_camera_sample_counter` (int, reset to 0 then incremented
+ *     to 8 each call) and `g_scene1_camera_sample_smoothed` (float,
+ *     lerped toward sample_counter at rate 0.1).  PHC #10 verified via
+ *     asm — the 4 sin/cos calls inside the 8-azimuth loop discard their
+ *     return values via `fstp st(0)`, so the only side effects are the
+ *     counter increment + smoothed lerp.
  *
  * Engine singular-dist guard: when `eye.xz == lookat.xz` and the
  * vertical delta is also zero, engine calls `FUN_00404bb8` (error

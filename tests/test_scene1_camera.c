@@ -231,6 +231,35 @@ int test_scene1_camera_angle_writes_orient_matrix(void)
     return 0;
 }
 
+int test_scene1_camera_angle_sample_counter_lands_at_8(void)
+{
+    /* PHC #10: the 8-azimuth loop tail resets the counter to 0 then
+     * increments to 8 each call.  The smoothed value lerps at rate 0.1
+     * toward the counter. */
+    reset_camera_world();
+    scene1_camera_pose_compute();
+    g_scene1_camera_sample_counter  = 99;       /* sentinel pre-state */
+    g_scene1_camera_sample_smoothed = 0.0f;
+    scene1_camera_angle_compute();
+    T_ASSERT_EQ_I(g_scene1_camera_sample_counter, 8);
+    /* Smoothed: (8 - 0) * 0.1 + 0 = 0.8. */
+    T_ASSERT(fabsf(g_scene1_camera_sample_smoothed - 0.8f) < 1e-5f);
+    return 0;
+}
+
+int test_scene1_camera_angle_sample_smoothed_converges(void)
+{
+    /* Repeated calls converge smoothed → 8 (lerp rate 0.1, so after n
+     * iters from 0: s = 8 * (1 - 0.9^n)).  After 80 iters: 8 * (1 -
+     * 0.9^80) ≈ 8 * 0.99988 = 7.9991 — within 0.01. */
+    reset_camera_world();
+    scene1_camera_pose_compute();
+    g_scene1_camera_sample_smoothed = 0.0f;
+    for (int n = 0; n < 80; n++) scene1_camera_angle_compute();
+    T_ASSERT(fabsf(g_scene1_camera_sample_smoothed - 8.0f) < 0.01f);
+    return 0;
+}
+
 int test_scene1_camera_angle_singular_dist_skips_write(void)
 {
     reset_camera_world();
