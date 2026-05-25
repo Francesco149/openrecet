@@ -1954,6 +1954,34 @@ struct test_case {
     X(records_b_tick_t15h_t_7e_clears_anim_drive_before_sm) \
     X(records_b_tick_t15h_t_7e_kills_at_age_0x78) \
     X(records_b_tick_t15h_t_7e_does_not_spawn_overlays) \
+    X(records_b_tick_t15i_cluster_drag_0p5_after_tick) \
+    X(records_b_tick_t15i_cluster_age_1_spawns_overlay_9) \
+    X(records_b_tick_t15i_cluster_age_other_no_overlay) \
+    X(records_b_tick_t15i_t_4d_vel_y_subtract_0p01) \
+    X(records_b_tick_t15i_t_99_overlay_offset_by_vel_12) \
+    X(records_b_tick_t15i_t_99_drag_starts_1p2_then_overrides_1p0) \
+    X(records_b_tick_t15i_t_52_drag_0p5) \
+    X(records_b_tick_t15i_cull_kills) \
+    X(records_b_tick_t15i_kills_at_age_0x78) \
+    X(records_b_tick_t15i_below_age_0x78_alive) \
+    X(records_b_tick_t15i_sm_ret_1_kills) \
+    X(records_b_tick_t15i_t_52_sm_ret_1_writes_damage_when_drive_positive) \
+    X(records_b_tick_t15i_t_52_sm_ret_1_drive_floor_1) \
+    X(records_b_tick_t15i_t_52_sm_ret_1_drive_zero_no_write) \
+    X(records_b_tick_t15i_t_51_restores_pos_after_loop) \
+    X(records_b_tick_t15i_t_51_drag_1p2) \
+    X(records_b_tick_t15i_t_51_age_0x3c_kills) \
+    X(records_b_tick_t15i_t_51_age_0x78_kills) \
+    X(records_b_tick_t15i_t_56_drag_neg_0p15) \
+    X(records_b_tick_t15i_t_56_vel_y_subtract_0p01) \
+    X(records_b_tick_t15i_t_56_rotates_scr_and_z) \
+    X(records_b_tick_t15i_t_56_no_ground_hit_no_bounce) \
+    X(records_b_tick_t15i_t_56_ground_hit_bounces_and_plays_0x158) \
+    X(records_b_tick_t15i_t_96_ground_hit_plays_0x168) \
+    X(records_b_tick_t15i_t_56_bounce_count_2_kills) \
+    X(records_b_tick_t15i_t_56_bounce_sets_flag) \
+    X(records_b_tick_t15i_t_56_age_0x78_kills) \
+    X(records_b_tick_t15i_t_56_skips_cull_check) \
     \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \

@@ -4917,6 +4917,345 @@ static void body_0x7e(int i)
     }
 }
 
+/* ═══ C8j-tick.15i — entity-bounce shared body ═══════════════════════════
+ *
+ * Engine asm 0x44036a..0x440748 / decomp L39346-L39440.  Shared LAB_004402ad
+ * tail body covering 12 types: {0x4d, 0x4e, 0x4f, 0x50, 0xa5, 0xa6, 99,
+ * 0x51, 0x52, 0x56, 0x96, 0x62}.  Types 0x73/0x78/0x7a, 0xa0, 0x7e also
+ * traverse this body but have their own entry points (with private head
+ * code) and live in body_0x73_or_0x78_or_0x7a / body_0xa0 / body_0x7e.
+ *
+ * Body structure (entry at asm 0x44036a):
+ *
+ *   1. DRAG = 0 always
+ *   2. Per-type head:
+ *      - {0x4d/0x4e/0x4f/0x50/0xa5/0xa6}: AGE==1 → overlay_spawn(owner_a,
+ *        POS, template=9, scale=0.4); DRAG=0.5
+ *      - 99: overlay_spawn(owner_a, POS+VEL*12, template=0x24, scale=1.0);
+ *        DRAG=1.2
+ *      - 0x52: DRAG=0.5
+ *      - 0x4d: VEL_Y -= 0.01
+ *      - {0x56/0x96}: full ground-bounce body (jumps over cull/general SM)
+ *
+ *   3. Cull gate (skipped by 0x56/0x96 — they jumped to the bounce body):
+ *      `iVar13 = FUN_00490820(POS_X, POS_Y, POS_Z, 0.0f)` (4-arg in raw asm;
+ *      our 2-arg hook drops Z+0, default-visible behavior preserved).
+ *      iVar13 >= 0 → KILL + LAB_00440741.
+ *
+ *   4. Visible (cull < 0) per-type sub-dispatch:
+ *      - 0x51: 3-iter SM-driven displaced-POS loop (cos*(iter-1), sin*(iter-
+ *        1)) using slot.ROT_X (engine byte +0x90) as angle.  Restore POS
+ *        after loop.  AGE==0x3c → KILL.  Else LAB_00440741.
+ *      - 99: DRAG=1.0; SM(); LAB_00440741.
+ *      - general: anim_drive=0; ret = SM().
+ *        - ret == 1: if type==0x52 AND anim_drive > 0 → damage write to
+ *          owner_a+0xe30 (= anim_drive/10, min 1) + owner_a+0xe38 = 0x1e.
+ *          KILL (always, regardless of damage-write).
+ *        - ret == 0: LAB_00440741.
+ *        - ret >= 2: KILL.
+ *
+ *   5. 0x56/0x96 ground-bounce body (asm 0x4405f3-0x440705):
+ *      - DRAG = -0.15; VEL_Y -= 0.01
+ *      - ROT_SCR += 0.05; ROT_Z += 0.03
+ *      - matrix update: MATRIX0 = RotY(ROT_Z) * RotX(ROT_SCR)
+ *      - If VEL_Y < 0 AND ground_query() == 1 AND POS_Y <= ground+0.3:
+ *        - POS_Y = ground+0.3
+ *        - VEL_Y *= -0.5; VEL_X *= 0.7; VEL_Z *= 0.7
+ *        - bounce_count++
+ *        - if bounce_count == 1: SE (0x158 for 0x56, 0x168 for 0x96)
+ *        - if bounce_count >= 2: KILL (return)
+ *      - g_scene1_records_b_tick_flag = 1
+ *      - if bounce_count == 0: SM ret=1→KILL, ret=2→bounce_count=1, ret=0
+ *        fall-through; if bounce_count != 0: bounce_count++
+ *      - LAB_00440741 (kill on AGE==0x78)
+ *
+ *   6. LAB_00440741 / LAB_004402a2: kill on AGE == 0x78, else fall through
+ *      to LAB_00440dc1 default-tail (deferred).
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x5195c8 = 0.4         ({0x4d-0x50/0xa5/0xa6} overlay scale)
+ *   0x51935c = 0.5         (cluster + 0x52 DRAG)
+ *   0x519560 = 12.0        (99 POS+VEL*12 offset)
+ *   0x519924 = 1.2         (99 DRAG; 0x51 DRAG)
+ *   0x5193a4 = 0.01        (VEL_Y subtract for 0x4d, 0x56, 0x96)
+ *   0x519364 = 1.0         (99 DRAG override; 0x51 iter-1.0; ground+1.0
+ *                           override for non-0x56/0x96 — unused here)
+ *   0x519998 = -0.15       (0x56/0x96 DRAG)
+ *   0x5198f8 = 0.05        (0x56/0x96 ROT_SCR step)
+ *   0x519900 = 0.03        (0x56/0x96 ROT_Z step)
+ *   0x519320 = 0.0         (VEL_Y < 0 compare)
+ *   0x5194ec = 0.3         (ground+0.3 bounce threshold)
+ *   0x519c2c = -0.5        (VEL_Y *= -0.5 bounce)
+ *   0x519748 = 0.7         (VEL_X/Z bounce damp)
+ *
+ * Asm corrections vs Ghidra decomp:
+ *   - cull_query (FUN_00490820) raw asm at 0x44047a..0x440495 pushes 4 args
+ *     (POS_X, POS_Y, POS_Z, 0.0f); Ghidra L39437 shows 2.  Our 2-arg hook
+ *     preserves default-visible behavior (existing 0x73/0x78/0x7a/0x7e
+ *     bodies use the same elision).
+ *   - 0x51 3-iter loop: Ghidra L39397 renders the exit condition as a
+ *     float compare against 4.2039e-45.  Raw asm at 0x440544-0x44054b
+ *     uses INT increment + `cmp [ebp-0x8], 0x3 ; jne` — local_c is an
+ *     int.  Iteration count is 3 (values 0/1/2), not 4.
+ *   - 0x56/0x96 SE call at 0x4406eb/0x4406f2: Ghidra L39429 renders
+ *     `FUN_00499519()` argless; raw asm pushes 0x158 (for 0x56) or 0x168
+ *     (for 0x96).
+ *   - 0x51 angle source: Ghidra L39391 shows `slot[0x40]` (= byte 0x40 =
+ *     dw 16, undocumented); raw asm at 0x4404e6 / 0x44050f loads from
+ *     `[esi+0x90]` = byte 0x90 = dw 36 = SCENE1_RECORDS_B_OFF_ROT_X.
+ *
+ * Dormant in HOUSE under default smoke flags — table B BSS-zero, no
+ * allocator wires these types in production today.  `--force-b-{npc,
+ * entity} <type>` exercises end-to-end (cull-default-visible → SM →
+ * AGE==0x78 kill).
+ */
+static void body_entity_bounce(int i, int32_t type)
+{
+    /* 1. asm 0x44036a-0x44036f: DRAG = 0 unconditionally. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
+
+    int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    /* 2a. asm 0x440372-0x4403df: cluster {0x4d-0x50/0xa5/0xa6} — AGE==1
+     * overlay (template=9, scale=0.4), then DRAG = 0.5. */
+    if (type == 0x4d || type == 0x4e || type == 0x4f || type == 0x50 ||
+        type == 0xa5 || type == 0xa6) {
+        if (age == 1) {
+            const void *owner_a = slot_owner_a(i);
+            float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            overlay_spawn(owner_a, px, py, pz,
+                          /*template_id=*/9,
+                          /*scale_base=*/0.4f,
+                          /*override_dur=*/-1,
+                          /*override_rot_y_bits=*/0,
+                          /*shape_mode=*/0,
+                          /*mode=*/0);
+        }
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.5f);
+    }
+
+    /* 2b. asm 0x4403e1-0x440441: type 99 — overlay (template=0x24,
+     * scale=1.0) at POS + VEL*12 (POS.y unscaled); DRAG = 1.2. */
+    if (type == 99) {
+        const void *owner_a = slot_owner_a(i);
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        overlay_spawn(owner_a, px + vx * 12.0f, py, pz + vz * 12.0f,
+                      /*template_id=*/0x24,
+                      /*scale_base=*/1.0f,
+                      /*override_dur=*/-1,
+                      /*override_rot_y_bits=*/0,
+                      /*shape_mode=*/0,
+                      /*mode=*/0);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.2f);
+    }
+
+    /* 2c. asm 0x440442-0x440451: type 0x52 — DRAG = 0.5. */
+    if (type == 0x52) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.5f);
+    }
+
+    /* 2d. asm 0x440453-0x440461: type 0x4d — VEL_Y -= 0.01. */
+    if (type == 0x4d) {
+        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy - 0.01f);
+    }
+
+    /* 2e. asm 0x440464-0x440474: types 0x56/0x96 take the inline ground-
+     * bounce body and BYPASS the cull check + general SM cascade. */
+    if (type == 0x56 || type == 0x96) {
+        /* asm 0x4405f3-0x440605: DRAG = -0.15. */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, -0.15f);
+
+        /* asm 0x44060b-0x44061b: VEL_Y -= 0.01. */
+        float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.01f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy);
+
+        /* asm 0x44061e-0x440630: ROT_SCR += 0.05; ROT_Z += 0.03. */
+        float rot_scr =
+            slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR) + 0.05f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rot_scr);
+        float rot_z =
+            slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_Z) + 0.03f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rot_z);
+
+        /* asm 0x440632-0x44065c: MATRIX0 = RotY(ROT_Z) * RotX(ROT_SCR).
+         * Engine pushes (slot[MATRIX0], scratch, slot[MATRIX0]) — our
+         * `mat4_mul(out, a, b)` writes out = a * b, so the call matches
+         * scratch * slot[MATRIX0] = RotY(ROT_Z) * RotX(ROT_SCR). */
+        int32_t *slot = slot_base(i);
+        float *mat0 = (float *)(slot + SCENE1_RECORDS_B_OFF_MATRIX0);
+        float scratch[16];
+        mat4_rotation_x(mat0, rot_scr);
+        mat4_rotation_y(scratch, rot_z);
+        mat4_mul(mat0, scratch, mat0);
+
+        /* asm 0x44065d-0x4406ab: VEL_Y < 0 + ground hit + POS_Y <=
+         * ground+0.3 gate. */
+        int bounced = 0;
+        if (vy < 0.0f) {
+            float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+            float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+            float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+            float gy = 0.0f;
+            if (ground_query(px, py, pz, &gy) == 1) {
+                float threshold = gy + 0.3f;
+                if (py <= threshold) {
+                    /* asm 0x4406ae-0x4406d8: snap POS_Y, damp velocity,
+                     * bounce_count++. */
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, threshold);
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy * -0.5f);
+                    float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+                    float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx * 0.7f);
+                    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz * 0.7f);
+                    int bc =
+                        slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX) + 1;
+                    slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, bc);
+
+                    /* asm 0x4406de-0x4406fc: bounce_count == 1 → SE
+                     * (0x158 for 0x56, 0x168 for 0x96). */
+                    if (bc == 1) {
+                        se_play(type == 0x56 ? 0x158 : 0x168);
+                    }
+
+                    /* asm 0x4406fd-0x440706: bounce_count >= 2 → KILL
+                     * (skip SM + LAB_00440741). */
+                    if (bc >= 2) {
+                        scene1_records_b_tick_kill_slot(i);
+                        return;
+                    }
+                    bounced = 1;
+                }
+            }
+        }
+        (void)bounced;
+
+        /* asm 0x440714: g_scene1_records_b_tick_flag = 1 always. */
+        g_scene1_records_b_tick_flag = 1;
+
+        /* asm 0x44071a-0x44073b: bounce_count branches. */
+        int bc = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+        if (bc == 0) {
+            int ret = state_machine_call_ret(slot_base(i));
+            if (ret == 1) {
+                scene1_records_b_tick_kill_slot(i);
+                return;
+            }
+            if (ret == 2) {
+                slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, 1);
+            }
+            /* ret == 0 (or unhandled): fall through to LAB_00440741. */
+        } else {
+            slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, bc + 1);
+        }
+
+        /* LAB_00440741: kill on AGE == 0x78 (else default-tail deferred). */
+        if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+        return;
+    }
+
+    /* 3. asm 0x44047a-0x44049f: cull_query gate (skipped for 0x56/0x96).
+     * Engine pushes 4 args (POS_X, POS_Y, POS_Z, 0.0f); our 2-arg hook
+     * receives POS_X/POS_Y only — default returns -1 ("visible") so
+     * production behavior unchanged.  ret >= 0 → KILL + LAB_00440741. */
+    float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+    float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+    if (cull_query(px, py) >= 0) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* 4a. asm 0x4404a5-0x440569: type 0x51 — 3-iter SM-driven loop with
+     * displaced POS (cos*(iter-1), sin*(iter-1)) using slot.ROT_X as
+     * angle.  DRAG = 1.2 prelude.  AGE==0x3c → KILL; else LAB_00440741. */
+    if (type == 0x51) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.2f);
+
+        float orig_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float orig_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float orig_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float angle  = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+
+        for (int n = 0; n < 3; n++) {
+            float off = (float)n - 1.0f;
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+                       cosf(angle) * off + orig_x);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, orig_y);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+                       sinf(angle) * off + orig_z);
+            int ret = state_machine_call_ret(slot_base(i));
+            /* asm 0x44053d-0x440542: SM ret != 0 + TYPE == 0 → break.
+             * (SM may kill the slot via internal LAB_004411e3.) */
+            if (ret != 0 && slot_get_i(i, SCENE1_RECORDS_B_OFF_TYPE) == 0) {
+                break;
+            }
+        }
+
+        /* asm 0x44054d-0x44055e: restore POS unconditionally after loop. */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, orig_x);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, orig_y);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, orig_z);
+
+        /* asm 0x44055f-0x44056f: AGE == 0x3c → KILL + LAB_00440741. */
+        int cur_age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+        if (cur_age == 0x3c) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+        if (cur_age == 0x78) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+        return;
+    }
+
+    /* 4b. asm 0x440579-0x440588: type 99 — DRAG = 1.0; SM(); LAB_00440741. */
+    if (type == 99) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.0f);
+        state_machine_call(slot_base(i));
+        if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+        return;
+    }
+
+    /* 4c. asm 0x44058d-0x4405ee: general SM cascade for cluster +
+     * {0x52, 0x62}.  anim_drive clear; SM(); branches on ret:
+     *   ret == 1: 0x52-specific damage write to owner_a, then KILL
+     *   ret == 0: LAB_00440741 (AGE==0x78 kill)
+     *   ret >= 2: KILL */
+    g_scene1_records_b_tick_anim_drive = 0;
+    int ret = state_machine_call_ret(slot_base(i));
+    if (ret == 1) {
+        if (type == 0x52 && g_scene1_records_b_tick_anim_drive > 0) {
+            int dmg = g_scene1_records_b_tick_anim_drive / 10;
+            if (dmg < 1) dmg = 1;
+            g_scene1_records_b_tick_anim_drive = dmg;
+            void *owner_a = slot_owner_a(i);
+            if (owner_a) {
+                owner_write_i(owner_a, 0xe30, dmg);
+                owner_write_i(owner_a, 0xe38, 0x1e);
+            }
+        }
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+    if (ret != 0) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+    /* ret == 0: LAB_00440741. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x78) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -5151,11 +5490,24 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x7e:
         body_0x7e(slot_idx);
         break;
+    case 0x4d:
+    case 0x4e:
+    case 0x4f:
+    case 0x50:
+    case 0x51:
+    case 0x52:
+    case 0x56:
+    case 0x62:
+    case 99:
+    case 0x96:
+    case 0xa5:
+    case 0xa6:
+        body_entity_bounce(slot_idx, type);
+        break;
     default:
-        /* Remaining tail types {0x75/0x83/0xa5/0xa6 +
-         * 0x7c + entity-bounce cluster
-         * {0x4d-0x52/0x56/0x62/99/0x96}} and the LAB_00440dc1 wall-bounce
-         * tail body are deferred to future C8j-tick.15i+ sub-chips. */
+        /* Remaining tail types {0x75/0x83/0x7c} and the LAB_00440dc1
+         * default-tail body + LAB_0043f39b catch-all are deferred to
+         * future C8j-tick.15j+ sub-chips. */
         break;
     }
 }
