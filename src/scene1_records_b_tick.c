@@ -4356,11 +4356,14 @@ static void body_0x73_or_0x78_or_0x7a(int i)
         return;
     }
 
-    /* LAB_00440741 / LAB_004402a2 — kill on AGE == 0x78, else fall through
-     * to LAB_00440dc1 default-tail (deferred). */
+    /* LAB_00440741 / LAB_004402a2 → 0x440dc1 — kill on AGE == 0x78, else
+     * fall through to default-tail wall-bounce body.  body_0x73_or_0x78_or_0x7a
+     * doesn't set the per-tick flag, so this is a no-op in production;
+     * wired for engine fidelity (C8j-tick.16-wire.9). */
     if (age == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15f — type 0x76 / 0xa3 shared crawl+pose-snap body ═══════
@@ -5031,11 +5034,14 @@ static void body_0xa0(int i)
         return;
     }
 
-    /* LAB_0043fada / LAB_00440dc1 — kill on AGE == 0x78; else fall through
-     * to wall-bounce tail (deferred). */
+    /* LAB_0043fada → 0x440dc1 — kill on AGE == 0x78; else fall through to
+     * default-tail wall-bounce body.  body_0xa0 doesn't set the per-tick
+     * flag, so this is a no-op in production; wired for engine fidelity
+     * (C8j-tick.16-wire.9). */
     if (age == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 static void body_0x7e(int i)
@@ -5070,12 +5076,15 @@ static void body_0x7e(int i)
         return;
     }
 
-    /* LAB_00440741 / LAB_004402a2 — kill on AGE == 0x78, else fall through
-     * to LAB_00440dc1 wall-bounce tail (deferred). */
+    /* LAB_00440741 / LAB_004402a2 → 0x440dc1 — kill on AGE == 0x78, else
+     * fall through to default-tail wall-bounce body.  body_0x7e doesn't
+     * set the per-tick flag, so this is a no-op in production; wired for
+     * engine fidelity (C8j-tick.16-wire.9). */
     int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
     if (age == 0x78) {
         scene1_records_b_tick_kill_slot(i);
     }
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15i — entity-bounce shared body ═══════════════════════════
