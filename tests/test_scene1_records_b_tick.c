@@ -5607,3 +5607,216 @@ int test_records_b_tick_t15a_type_65_no_sm_hook_does_not_kill_mid_life(void)
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x65);
     return 0;
 }
+
+/* ═══ C8j-tick.15b — types 0x5f / 0x3e (shared) + 0x82 ═════════════════ */
+
+/* Stage owner_A at (px, py, pz), yaw, with anim_state in [4..7] so the
+ * shared kill gate stays closed. */
+static void stage_owner_yawed(float px, float py, float pz, float yaw,
+                              int32_t anim_state)
+{
+    owner_a_blob_reset();
+    int32_t v;
+    memcpy(&v, &px,  4); owner_a_blob_set_i(0x20,  v);
+    memcpy(&v, &py,  4); owner_a_blob_set_i(0x24,  v);
+    memcpy(&v, &pz,  4); owner_a_blob_set_i(0x28,  v);
+    memcpy(&v, &yaw, 4); owner_a_blob_set_i(0xea4, v);
+    owner_a_blob_set_i(0xe90, anim_state);
+}
+
+int test_records_b_tick_t15b_type_5f_writes_owner_anchored_pose(void)
+{
+    /* yaw = 0 → sin = 0, cos = 1.  scale = 2.  POS_X = 0*2 + 10 = 10;
+     * POS_Y = 20 + 1.2 = 21.2; POS_Z = 1*2 + 30 = 32. */
+    reset_world();
+    stage_owner_yawed(10.0f, 20.0f, 30.0f, 0.0f, /*anim=*/4);
+    stage_live(0, 0x5f, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 10.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 21.2f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 32.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15b_type_5f_drag_is_1_5(void)
+{
+    reset_world();
+    stage_owner_yawed(0, 0, 0, 0, /*anim=*/4);
+    stage_live(0, 0x5f, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 1.5f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15b_type_3e_writes_owner_anchored_pose(void)
+{
+    /* yaw = π/2 → sin = 1, cos = 0.  scale = 3.  POS_X = 1*3 + 10 = 13;
+     * POS_Y = 20 + 1.5 = 21.5; POS_Z = 0*3 + 30 = 30. */
+    reset_world();
+    stage_owner_yawed(10.0f, 20.0f, 30.0f, 1.5707964f, /*anim=*/5);
+    stage_live(0, 0x3e, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 13.0f) < 1e-4f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 21.5f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 30.0f) < 1e-4f);
+    return 0;
+}
+
+int test_records_b_tick_t15b_type_3e_drag_is_2_0(void)
+{
+    reset_world();
+    stage_owner_yawed(0, 0, 0, 0, /*anim=*/4);
+    stage_live(0, 0x3e, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 2.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15b_shared_anim_state_below_4_kills(void)
+{
+    reset_world();
+    stage_owner_yawed(0, 0, 0, 0, /*anim=*/3);
+    stage_live(0, 0x5f, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15b_shared_anim_state_above_7_kills(void)
+{
+    reset_world();
+    stage_owner_yawed(0, 0, 0, 0, /*anim=*/8);
+    stage_live(0, 0x3e, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15b_shared_kills_at_age_0x19(void)
+{
+    /* AGE = 0x18 pre → post = 0x19 → shared LAB_004402a2 kill. */
+    reset_world();
+    stage_owner_yawed(0, 0, 0, 0, /*anim=*/5);
+    stage_live(0, 0x5f, 0, 0, 0, 0, 0, 0, /*age=*/0x18);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+/* ─── type 0x82 — owner-anchored AGE-20 lerp ─── */
+
+int test_records_b_tick_t15b_type_82_snaps_to_owner_pose_plus_1_5_y(void)
+{
+    /* AGE = 4 pre → post = 5 (not in {1, 0x14}, no extra side effects).
+     * POS = owner+0x20..28 with +1.5 on Y. */
+    reset_world();
+    stage_owner_yawed(11.0f, 22.0f, 33.0f, 0, /*anim=*/0);
+    stage_live(0, 0x82, 0, 0, 0, 0, 0, 0, /*age=*/4);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 11.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 23.5f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 33.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG)  - 2.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15b_type_82_age_1_records_alt_pos(void)
+{
+    /* AGE = 0 pre → post = 1 → one-shot ALT_POS write. */
+    reset_world();
+    stage_owner_yawed(11.0f, 22.0f, 33.0f, 0, /*anim=*/0);
+    stage_live(0, 0x82, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_X) - 11.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y) - 23.5f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Z) - 33.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t15b_type_82_non_age_1_preserves_alt_pos(void)
+{
+    /* AGE != 1 path → ALT_POS write is gated.  Pre-set ALT to a sentinel
+     * and verify body doesn't overwrite. */
+    reset_world();
+    stage_owner_yawed(99.0f, 99.0f, 99.0f, 0, /*anim=*/0);
+    stage_live(0, 0x82, 0, 0, 0, 0, 0, 0, /*age=*/2);  /* post = 3 */
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_X, 7.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y, 8.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Z, 9.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_X) - 7.0f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y) - 8.0f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Z) - 9.0f) < 1e-6f);
+    return 0;
+}
+
+static int s_t15b_sm_calls;
+static void t15b_sm_capture(int32_t *slot) { (void)slot; s_t15b_sm_calls++; }
+
+int test_records_b_tick_t15b_type_82_age_20_runs_20_iter_sm_loop(void)
+{
+    /* AGE = 0x13 pre → post = 0x14 → 20-iter SM loop fires. */
+    reset_world();
+    s_t15b_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(t15b_sm_capture);
+    stage_owner_yawed(0, 0, 0, 0, /*anim=*/0);
+    stage_live(0, 0x82, 0, 0, 0, 0, 0, 0, /*age=*/0x13);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_t15b_sm_calls, 0x14);
+    return 0;
+}
+
+int test_records_b_tick_t15b_type_82_age_20_lerps_pos_toward_alt(void)
+{
+    /* Stage ALT_POS at (10, 0, 20).  At AGE==0x14 (post-preamble), POS
+     * starts at owner+0 = (0, 1.5, 0) (after the unconditional anchor
+     * snap on line 0x43fef7+).  dx = (10 - 0) * 0.05 = 0.5; dz = (20 -
+     * 0) * 0.05 = 1.0.  After 20 iterations, POS_X += 20*0.5 = 10 →
+     * POS_X = 10.0; POS_Z = 0 + 20*1.0 = 20.  Net: POS ends at ALT_POS. */
+    reset_world();
+    stage_owner_yawed(0, -1.5f, 0, 0, /*anim=*/0);  /* y -1.5 so post anchor lands at y=0 */
+    stage_live(0, 0x82, 0, 0, 0, 0, 0, 0, /*age=*/0x13);  /* post=0x14 */
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_X, 10.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Z, 20.0f);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 10.0f) < 1e-4f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 20.0f) < 1e-4f);
+    return 0;
+}
+
+int test_records_b_tick_t15b_type_82_kills_at_age_0x23(void)
+{
+    /* AGE = 0x22 pre → post = 0x23 → kill. */
+    reset_world();
+    stage_owner_yawed(0, 0, 0, 0, /*anim=*/0);
+    stage_live(0, 0x82, 0, 0, 0, 0, 0, 0, /*age=*/0x22);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15b_type_82_no_owner_e90_gate(void)
+{
+    /* anim_state=0 (out of [4..7] for 5f/3e) must NOT kill 0x82. */
+    reset_world();
+    stage_owner_yawed(0, 0, 0, 0, /*anim=*/0);
+    stage_live(0, 0x82, 0, 0, 0, 0, 0, 0, /*age=*/4);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x82);
+    return 0;
+}

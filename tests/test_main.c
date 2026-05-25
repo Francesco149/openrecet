@@ -1834,6 +1834,21 @@ struct test_case {
     X(records_b_tick_t15a_type_65_sm_nonzero_return_kills) \
     X(records_b_tick_t15a_type_65_no_sm_hook_does_not_kill_mid_life) \
     \
+    X(records_b_tick_t15b_type_5f_writes_owner_anchored_pose) \
+    X(records_b_tick_t15b_type_5f_drag_is_1_5) \
+    X(records_b_tick_t15b_type_3e_writes_owner_anchored_pose) \
+    X(records_b_tick_t15b_type_3e_drag_is_2_0) \
+    X(records_b_tick_t15b_shared_anim_state_below_4_kills) \
+    X(records_b_tick_t15b_shared_anim_state_above_7_kills) \
+    X(records_b_tick_t15b_shared_kills_at_age_0x19) \
+    X(records_b_tick_t15b_type_82_snaps_to_owner_pose_plus_1_5_y) \
+    X(records_b_tick_t15b_type_82_age_1_records_alt_pos) \
+    X(records_b_tick_t15b_type_82_non_age_1_preserves_alt_pos) \
+    X(records_b_tick_t15b_type_82_age_20_runs_20_iter_sm_loop) \
+    X(records_b_tick_t15b_type_82_age_20_lerps_pos_toward_alt) \
+    X(records_b_tick_t15b_type_82_kills_at_age_0x23) \
+    X(records_b_tick_t15b_type_82_no_owner_e90_gate) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

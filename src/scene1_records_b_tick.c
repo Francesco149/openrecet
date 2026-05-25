@@ -3634,6 +3634,146 @@ static void body_0x65(int i)
     }
 }
 
+/* ═══ C8j-tick.15b — types 0x5f / 0x3e (shared) + 0x82 ═════════════════
+ *
+ * Decomp L39139 / L39287 / L39155 / L39300.  All three bodies are
+ * owner_a-anchored, driven by the existing SM hook.  Types 0x5f and 0x3e
+ * literally share their tail in the engine: 0x3e's body jumps to
+ * 0x43fe91 (= mid-0x5f) to reuse SHAPE_GUARD write + SM + owner+0xe90
+ * gate + kill on AGE == 0x19.
+ *
+ *   - type 0x5f  (asm 0x43fe15..0x43febd): POS = owner+(2*sin(yaw),
+ *                  1.2, 2*cos(yaw)); SHAPE_GUARD=1.5.  Yaw read from
+ *                  owner+0xea4 (engine NPC yaw field).
+ *   - type 0x3e  (asm 0x43ff7c..0x440000): POS = owner+(3*sin(yaw),
+ *                  1.5, 3*cos(yaw)); SHAPE_GUARD=2.0.  Same yaw source.
+ *                  Tail JMPs into 0x5f at 0x43fe91 to reuse SM + kill.
+ *   - shared post (asm 0x43fe8b..0x43febd): SHAPE_GUARD; SM(); kill if
+ *                  owner+0xe90 not in [4..7]; kill on AGE == 0x19.
+ *   - type 0x82  (asm 0x43fec2..0x43ff7b): AGE == 1 → ALT_POS = owner+
+ *                  (0, 1.5, 0) (anchor snapshot).  Every tick: POS =
+ *                  owner+(0, 1.5, 0), SHAPE_GUARD = 2.0.  AGE == 20 → run
+ *                  20-iter inner loop calling SM, after each iter
+ *                  POS_X += (ALT_POS_X - POS_X) * 0.05, POS_Z += dz too.
+ *                  Kill on AGE == 0x23.  No owner+0xe90 gate.
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x519924 = 1.2        (0x5f POS_Y bias)
+ *   0x5198e0 = 1.5        (0x5f SHAPE_GUARD; 0x82 ALT_POS_Y/POS_Y bias;
+ *                          0x3e POS_Y bias)
+ *   0x519314 = 2.0        (0x82 + 0x3e SHAPE_GUARD)
+ *   0x519438 = 3.0        (0x3e scale — same .rdata word as 0x33's
+ *                          DRAG=LIFE_MULT*3 multiplier)
+ *   0x5198f8 = 0.05       (0x82 inner-loop lerp factor — same .rdata
+ *                          word as 0x33's ROT_Z step and 0x65's VEL_Y
+ *                          step)
+ */
+
+/* Shared post-body for types 0x5f and 0x3e.  Stores SHAPE_GUARD, runs
+ * SM, then applies the owner-anim-state range gate (kill if owner+0xe90
+ * not in [4..7]) and the AGE == 0x19 kill check from the shared
+ * LAB_004402a2 tail. */
+static void shared_5f_3e_tail(int i, const void *owner, float shape_guard)
+{
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, shape_guard);
+    state_machine_call(slot_base(i));
+
+    /* asm 0x43fea3-0x43feb5: read owner+0xe90 → kill slot if value < 4
+     * or > 7 (i.e. anim state is not in [4..7]). */
+    int32_t anim_state = owner_read_i(owner, 0xe90);
+    if (anim_state < 4 || anim_state > 7) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+
+    /* asm 0x43feb6-0x43febd shared LAB_004402a2 tail:
+     *   bVar17 = (AGE == 0x19); if bVar17: *piVar14 = 0. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x19) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+static void body_0x5f_or_0x3e(int i, int32_t type)
+{
+    void *owner = slot_owner_a(i);
+    if (!owner) return;
+
+    /* asm 0x43fe1e-0x43fe88 (0x5f) / 0x43ff85-0x43fff7 (0x3e):
+     * yaw = owner+0xea4 (NPC bend angle); POS = owner.pose +
+     * scale*(sin(yaw), 0, cos(yaw)) with per-type +Y bias.
+     *
+     * 0x5f uses `fadd st(0),st` to double (scale = 2.0); 0x3e uses
+     * `fmul ds:0x519438` (scale = 3.0). */
+    float yaw = owner_read_f(owner, 0xea4);
+    float ox  = owner_read_f(owner, 0x20);
+    float oy  = owner_read_f(owner, 0x24);
+    float oz  = owner_read_f(owner, 0x28);
+
+    float scale, y_bias, shape_guard;
+    if (type == 0x5f) {
+        scale = 2.0f; y_bias = 1.2f; shape_guard = 1.5f;
+    } else {
+        /* type 0x3e */
+        scale = 3.0f; y_bias = 1.5f; shape_guard = 2.0f;
+    }
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sinf(yaw) * scale + ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + y_bias);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cosf(yaw) * scale + oz);
+
+    shared_5f_3e_tail(i, owner, shape_guard);
+}
+
+static void body_0x82(int i)
+{
+    /* asm 0x43fec2-0x43ff7b.  Owner-anchored snap-to-pose with one-shot
+     * ALT_POS recording at AGE==1 and a 20-iter SM-driven lerp at
+     * AGE==20.  No owner+0xe90 kill gate.  Kill on AGE == 0x23. */
+    void *owner = slot_owner_a(i);
+    if (!owner) return;
+
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    /* asm 0x43fecd-0x43fef4: AGE == 1 → ALT_POS = owner+(0, 1.5, 0).
+     * Records the initial anchor pose to lerp back toward at AGE==20. */
+    if (age == 1) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, owner_read_f(owner, 0x20));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y,
+                   owner_read_f(owner, 0x24) + 1.5f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, owner_read_f(owner, 0x28));
+    }
+
+    /* asm 0x43fef7-0x43ff29: SHAPE_GUARD = 2.0; POS = owner+(0, 1.5, 0). */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 2.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x20));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x24) + 1.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x28));
+
+    /* asm 0x43ff2a-0x43ff6e: AGE == 0x14 → 20-iter SM-driven X/Z lerp
+     * toward ALT_POS at 0.05/iter.  dx/dz are loaded ONCE before the
+     * loop from the current (ALT - POS) deltas — they don't update as
+     * POS marches, so net displacement = iter_count * delta * 0.05 =
+     * 20 * delta * 0.05 = delta.  POS ends at ALT_POS_X / ALT_POS_Z
+     * after the loop (geometric reading of the asm). */
+    if (age == 0x14) {
+        float dx = (slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X)
+                    - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X)) * 0.05f;
+        float dz = (slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z)
+                    - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z)) * 0.05f;
+        for (int n = 0; n < 0x14; n++) {
+            state_machine_call(slot_base(i));
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
+                       slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X) + dx);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
+                       slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z) + dz);
+        }
+    }
+
+    /* asm 0x43ff70-0x43ff7b shared LAB_004402a2 tail: kill on AGE == 0x23. */
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x23) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -3823,12 +3963,20 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x65:
         body_0x65(slot_idx);
         break;
+    /* C8j-tick.15b — owner-anchored 5f/3e shared + 0x82 lerp. */
+    case 0x5f:
+    case 0x3e:
+        body_0x5f_or_0x3e(slot_idx, type);
+        break;
+    case 0x82:
+        body_0x82(slot_idx);
+        break;
     default:
-        /* Remaining tail types {0x75/0x83/0x84/0xa0..0xa6 + 0x5f/0x82/
-         * 0x3e/0x2e/0x36/0x76/0xa3/0x77/0xa2/0x7b/0xa1/0xa4/0x7c/0x73/
-         * 0x78/0x7a/0x4d-0x52/0x56/0x62/99/0x96/0xa5/0xa6} and the
-         * LAB_00440dc1 default-tail body are deferred to future
-         * C8j-tick.15b+ sub-chips. */
+        /* Remaining tail types {0x75/0x83/0x84/0xa0..0xa6 + 0x2e/0x36/
+         * 0x76/0xa3/0x77/0xa2/0x7b/0xa1/0xa4/0x7c/0x73/0x78/0x7a +
+         * entity-bounce cluster {0x4d-0x52/0x56/0x62/99/0x96/0xa5/0xa6}}
+         * and the LAB_00440dc1 default-tail body are deferred to future
+         * C8j-tick.15c+ sub-chips. */
         break;
     }
 }
