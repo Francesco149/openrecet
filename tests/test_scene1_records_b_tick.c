@@ -40,6 +40,7 @@ static void reset_world(void)
     scene1_records_b_set_ground_query_hook(NULL);
     scene1_records_b_set_aux_4532bc_hook(NULL);
     scene1_records_b_set_overlay_spawn_hook(NULL);
+    scene1_records_b_set_aux_4319d6_hook(NULL);
 }
 
 static int32_t *bslot(int i)
@@ -4911,5 +4912,187 @@ int test_records_b_tick_t12_type_24_survives_below_10(void)
     stage_live(0, 0x24, 0, 0, 0, 0, 0, 0, /*age=*/3);
     scene1_records_b_tick();
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x24);
+    return 0;
+}
+
+/* ═══ C8j-tick.13 — type 0x53 (drift-damping body) ═════════════════════ */
+
+static int s_aux_4319d6_calls;
+static int s_aux_4319d6_return;
+static int aux_4319d6_stub(void)
+{
+    s_aux_4319d6_calls++;
+    return s_aux_4319d6_return;
+}
+
+int test_records_b_tick_t13_type_53_sets_life_mult_005_at_age_under_45(void)
+{
+    /* AGE = 0 → LIFE_MULT = 0.005 (initial). */
+    reset_world();
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT) - 0.005f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_age_50_ramps_life_mult(void)
+{
+    /* AGE = 50 (post-preamble) → ramp 0.005 + (50-45)*0.001 = 0.01;
+     * sin((50-45)*0.04)*0.02 + 1.0 = sin(0.2)*0.02 + 1.0 ≈ 1.00397;
+     * LIFE_MULT ≈ 0.01 * 1.00397 ≈ 0.01004. */
+    reset_world();
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/49);  /* preamble→50 */
+    scene1_records_b_tick();
+    float expected = 0.01f * (sinf(0.2f) * 0.02f + 1.0f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT) - expected) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_clamps_life_mult_at_0_015(void)
+{
+    /* AGE = 100 → ramp 0.005 + (100-45)*0.001 = 0.06, clamp at 0.015;
+     * then sin modulation around 0.015. */
+    reset_world();
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/99);  /* preamble→100 */
+    scene1_records_b_tick();
+    float expected = 0.015f * (sinf(0.04f * (100.0f - 45.0f)) * 0.02f + 1.0f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT) - expected) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_late_life_ramps_down(void)
+{
+    /* kill_age = 600 (default, aux_4319d6 returns 0).  ramp_down_threshold
+     * = 555.  AGE = 600 hits the kill (== kill_age), so test at 556. */
+    reset_world();
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/555);  /* preamble→556 */
+    scene1_records_b_tick();
+    /* At AGE = 556: ramp_down = 0.015 - (556-555)*0.001 = 0.014. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT) - 0.014f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_late_life_clamps_at_zero(void)
+{
+    /* AGE = 575 — well past the 555 threshold; 0.015 - 20*0.001 = -0.005,
+     * clamp to 0. */
+    reset_world();
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/574);  /* preamble→575 */
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT)) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_age_below_30_damps_vel_xz(void)
+{
+    /* AGE = 10 → vel.x *= 0.92; vel.z *= 0.92. */
+    reset_world();
+    stage_live(0, 0x53, 0, 0, 0, /*vx=*/2.0f, 0, /*vz=*/4.0f, /*age=*/9);
+    /* Preamble adds vel to pos (vel unchanged), bumps AGE to 10. */
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 1.84f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z) - 3.68f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_age_30_to_45_no_vel_change(void)
+{
+    /* AGE = 35 → in [30, 45]; vel passes through unchanged. */
+    reset_world();
+    stage_live(0, 0x53, 0, 0, 0, /*vx=*/2.0f, 0, /*vz=*/4.0f, /*age=*/34);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 2.0f) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z) - 4.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_age_46_zeros_vel_xz(void)
+{
+    /* AGE > 45 → VEL_X = 0, VEL_Z = 0. */
+    reset_world();
+    stage_live(0, 0x53, 0, 0, 0, /*vx=*/3.0f, 0, /*vz=*/-2.0f, /*age=*/45);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X)) < 1e-7f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z)) < 1e-7f);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_sm_fires_in_mid_life(void)
+{
+    /* AGE = 100 (in (45, 555)) → DRAG + SM. */
+    reset_world();
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    s_sm_calls = 0;
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/99);  /* preamble→100 */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 1);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_sm_skipped_at_birth(void)
+{
+    /* AGE = 5 (not > 45) → no SM. */
+    reset_world();
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    s_sm_calls = 0;
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/4);  /* preamble→5 */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 0);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_kills_at_age_600_default(void)
+{
+    reset_world();
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/0x257);  /* preamble→600 */
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_stage_transition_shortens_kill_age(void)
+{
+    /* aux_4319d6 returns 1 AND FLAG_A in {0, 3} → kill_age = 120 instead
+     * of 600. */
+    reset_world();
+    s_aux_4319d6_calls = 0;
+    s_aux_4319d6_return = 1;
+    scene1_records_b_set_aux_4319d6_hook(aux_4319d6_stub);
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/0x77);  /* preamble→120 */
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_FLAG_A, 0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    T_ASSERT(s_aux_4319d6_calls >= 1);
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_flag_a_not_0_or_3_uses_long_kill_age(void)
+{
+    /* FLAG_A = 1 → aux_4319d6 NOT consulted; kill_age stays 600.
+     * At AGE = 120, slot still alive. */
+    reset_world();
+    s_aux_4319d6_calls = 0;
+    s_aux_4319d6_return = 1;
+    scene1_records_b_set_aux_4319d6_hook(aux_4319d6_stub);
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/0x77);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_FLAG_A, 1);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x53);
+    T_ASSERT_EQ_I(s_aux_4319d6_calls, 0);  /* hook NOT called. */
+    return 0;
+}
+
+int test_records_b_tick_t13_type_53_aux_4319d6_returns_0_keeps_long_kill_age(void)
+{
+    /* FLAG_A == 0 but aux_4319d6 returns 0 → kill_age stays 600. */
+    reset_world();
+    s_aux_4319d6_calls = 0;
+    s_aux_4319d6_return = 0;
+    scene1_records_b_set_aux_4319d6_hook(aux_4319d6_stub);
+    stage_live(0, 0x53, 0, 0, 0, 0, 0, 0, /*age=*/0x77);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_FLAG_A, 0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x53);
+    T_ASSERT_EQ_I(s_aux_4319d6_calls, 1);
     return 0;
 }

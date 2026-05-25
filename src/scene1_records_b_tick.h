@@ -232,6 +232,29 @@
  *   - 0x2b overlay_spawn 1 at 0x43d975 — override_rot_y=0 (asm 0x43d96f
  *     fldz + fstp [esp]); Ghidra L37801 had 8 args, asm has 9.
  *
+ * C8j-tick.13 (2026-05-25) adds type 0x53 (asm 0x43e5d0..0x43e755) —
+ * drift-damping body with two-phase life curve + stage-transition gate.
+ * Largest single-type body in the integrator at 0x185 bytes.
+ *
+ *   kill_age = 600 (default) or 120 (if stage-transitioning via aux_4319d6
+ *              AND FLAG_A in {0, 3}).
+ *   LIFE_MULT = 0.005 (initial).
+ *   if AGE >= 45:
+ *     LIFE_MULT = clamp_max(0.005 + (AGE-45)*0.001, 0.015)
+ *               * (1.0 + 0.02*sin((AGE-45)*0.04))
+ *   if AGE >= kill_age-45:
+ *     LIFE_MULT = clamp_min(0.015 - (AGE-(kill_age-45))*0.001, 0.0)
+ *   if AGE < 30:   VEL_X *= 0.92; VEL_Z *= 0.92
+ *   if AGE <= 45:  VEL_X = 0;     VEL_Z = 0
+ *   if AGE in (45, kill_age-45):
+ *     DRAG = LIFE_MULT * 1.9 / 0.015
+ *     state_machine
+ *   kill on AGE == kill_age.
+ *
+ *   New hook: scene1_records_b_set_aux_4319d6_hook (stage-transition
+ *   gate, PHC FUN_004319d6).  Default returns 0 → kill_age stays at
+ *   600 (the normal NPC walker lifetime).
+ *
  * C8j-tick.12 (2026-05-25) adds Body 7b head (asm 0x43e22b..0x43e5d0) —
  * three per-type bodies that follow Body 7a in the outer cascade:
  *
@@ -554,6 +577,16 @@ typedef int (*scene1_b_tick_ground_query_fn)(float x, float y, float z,
  * reads the latched state today. */
 typedef void (*scene1_b_aux_4532bc_fn)(int32_t arg1);
 
+/* Stand-in for engine FUN_004319d6 (170 B, 0x4319d6) — stage-transition
+ * gate check.  Reads DAT_0438b4c8/cc (current/next stage IDs) and
+ * returns 1 when in a specific stage-to-stage transition (0→4, 4→0x1d,
+ * 4→99), 0 otherwise.  Used by the C8j-tick.13 type-0x53 body to
+ * compute a per-stage kill-age (120 ticks when transitioning; 600
+ * ticks normal).  Default returns 0 ("not transitioning") — slots use
+ * the 600-tick kill_age.  Tests can install a stub that returns 1 to
+ * exercise the short-life path. */
+typedef int (*scene1_b_aux_4319d6_fn)(void);
+
 /* Stand-in for scene1_overlay_spawn calls fired from within per-type
  * bodies (scattered across C8j-tick.2..C8j-tick.13).  When installed,
  * the hook is called INSTEAD of scene1_overlay_spawn — tests use this
@@ -594,6 +627,8 @@ scene1_b_aux_4532bc_fn    scene1_records_b_set_aux_4532bc_hook(
     scene1_b_aux_4532bc_fn fn);
 scene1_b_overlay_spawn_fn scene1_records_b_set_overlay_spawn_hook(
     scene1_b_overlay_spawn_fn fn);
+scene1_b_aux_4319d6_fn    scene1_records_b_set_aux_4319d6_hook(
+    scene1_b_aux_4319d6_fn fn);
 
 /* Mark a slot dead — engine LAB_004411e3 (`*piVar14 = 0`).  Setting
  * TYPE = 0 makes the next allocator scan reclaim it.  Death-effect

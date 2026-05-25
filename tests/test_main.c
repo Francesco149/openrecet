@@ -1782,6 +1782,21 @@ struct test_case {
     X(records_b_tick_t12_type_24_kills_at_age_10) \
     X(records_b_tick_t12_type_24_survives_below_10) \
     \
+    X(records_b_tick_t13_type_53_sets_life_mult_005_at_age_under_45) \
+    X(records_b_tick_t13_type_53_age_50_ramps_life_mult) \
+    X(records_b_tick_t13_type_53_clamps_life_mult_at_0_015) \
+    X(records_b_tick_t13_type_53_late_life_ramps_down) \
+    X(records_b_tick_t13_type_53_late_life_clamps_at_zero) \
+    X(records_b_tick_t13_type_53_age_below_30_damps_vel_xz) \
+    X(records_b_tick_t13_type_53_age_30_to_45_no_vel_change) \
+    X(records_b_tick_t13_type_53_age_46_zeros_vel_xz) \
+    X(records_b_tick_t13_type_53_sm_fires_in_mid_life) \
+    X(records_b_tick_t13_type_53_sm_skipped_at_birth) \
+    X(records_b_tick_t13_type_53_kills_at_age_600_default) \
+    X(records_b_tick_t13_type_53_stage_transition_shortens_kill_age) \
+    X(records_b_tick_t13_type_53_flag_a_not_0_or_3_uses_long_kill_age) \
+    X(records_b_tick_t13_type_53_aux_4319d6_returns_0_keeps_long_kill_age) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

@@ -65,6 +65,7 @@ static scene1_b_notify_queue_fn  g_notify_queue_hook;    /* default NULL */
 static scene1_b_tick_ground_query_fn  g_ground_query_hook;    /* default NULL = "no hit" */
 static scene1_b_aux_4532bc_fn    g_aux_4532bc_hook;      /* default NULL */
 static scene1_b_overlay_spawn_fn g_overlay_spawn_hook;   /* default NULL = call real spawn */
+static scene1_b_aux_4319d6_fn    g_aux_4319d6_hook;      /* default NULL = returns 0 */
 
 scene1_b_per_type_body_fn scene1_records_b_set_per_type_body(
     scene1_b_per_type_body_fn fn)
@@ -143,6 +144,19 @@ scene1_b_overlay_spawn_fn scene1_records_b_set_overlay_spawn_hook(
     scene1_b_overlay_spawn_fn prev = g_overlay_spawn_hook;
     g_overlay_spawn_hook = fn;
     return prev;
+}
+
+scene1_b_aux_4319d6_fn scene1_records_b_set_aux_4319d6_hook(
+    scene1_b_aux_4319d6_fn fn)
+{
+    scene1_b_aux_4319d6_fn prev = g_aux_4319d6_hook;
+    g_aux_4319d6_hook = fn;
+    return prev;
+}
+
+static inline int aux_4319d6_call(void)
+{
+    return g_aux_4319d6_hook ? g_aux_4319d6_hook() : 0;
 }
 
 /* Wrapper used by all per-type bodies in this TU.  Routes to the
@@ -3306,6 +3320,108 @@ static void body_0x24(int i)
     }
 }
 
+/* ═══ C8j-tick.13 — type 0x53 (drift-damping body) ═════════════════════
+ * Engine asm 0x43e5d0..0x43e755.  Largest single-type body in the
+ * integrator at 0x185 bytes.  Two-phase LIFE_MULT life curve, velocity
+ * damping, and SM-driven mid-life.
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   0x5198c8 = 0.005   0x5198f4 = 0.001   0x519940 = 0.015
+ *   0x5198c4 = 0.04    0x5198dc = 0.02    0x5196ac = 1.9
+ *   0x5198a4 = 0.92    0x519364 = 1.0     0x519320 = 0.0
+ */
+
+/* Engine 0x43e5d0..0x43e755 — type 0x53 body.
+ *
+ *   kill_age = (FLAG_A in {0, 3} && aux_4319d6() == 1) ? 120 : 600
+ *   LIFE_MULT = 0.005
+ *   if AGE >= 45:
+ *     LIFE_MULT = clamp_max(0.005 + (AGE-45)*0.001, 0.015) *
+ *                 (1.0 + 0.02 * sin((AGE-45)*0.04))
+ *   if AGE >= kill_age-45:
+ *     LIFE_MULT = clamp_min(0.015 - (AGE-(kill_age-45))*0.001, 0.0)
+ *   if AGE < 30:  VEL_X *= 0.92; VEL_Z *= 0.92
+ *   if AGE <= 45: VEL_X = 0;     VEL_Z = 0
+ *   if AGE > 45 && AGE < kill_age-45:
+ *     DRAG = LIFE_MULT * 1.9 / 0.015
+ *     state_machine
+ *   kill on AGE == kill_age (LAB_43f0f8 → jl skip; else jmp 0x43f73a kill).
+ */
+static void body_0x53(int i)
+{
+    int   age   = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    int32_t fa  = slot_get_i(i, SCENE1_RECORDS_B_OFF_FLAG_A);
+
+    /* asm 0x43e5d9-0x43e5f6: kill_age dispatch.
+     * Engine: ebx = 0x258 (600).  If FLAG_A in {0, 3} AND aux_4319d6
+     * returns 1, ebx = 0x78 (120). */
+    int kill_age = 0x258;
+    if (fa == 0 || fa == 3) {
+        if (aux_4319d6_call() == 1) {
+            kill_age = 0x78;
+        }
+    }
+
+    /* asm 0x43e5f7-0x43e699: LIFE_MULT life curve.  edi = 45. */
+    float life_mult = 0.005f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+    if (age >= 45) {
+        /* Ramp 0.005 → 0.015 over AGE 45..55, then sin-modulated. */
+        float lm_ramp = 0.005f + (float)(age - 45) * 0.001f;
+        if (lm_ramp > 0.015f) lm_ramp = 0.015f;
+        /* asm 0x43e655-0x43e699: sin modulation around peak. */
+        float ang = (float)(age - 45) * 0.04f;
+        float mod = sinf(ang) * 0.02f + 1.0f;
+        life_mult = lm_ramp * mod;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+    }
+
+    /* asm 0x43e69f-0x43e6e8: late-life ramp down (AGE >= kill_age-45). */
+    int ramp_down_threshold = kill_age - 45;
+    if (age >= ramp_down_threshold) {
+        float lm_down = 0.015f
+                        - (float)(age - ramp_down_threshold) * 0.001f;
+        if (lm_down < 0.0f) lm_down = 0.0f;
+        life_mult = lm_down;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+    }
+
+    /* asm 0x43e6ea-0x43e708: AGE < 30 → vel damping. */
+    if (age < 0x1e) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X,
+                   slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X) * 0.92f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z,
+                   slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z) * 0.92f);
+    }
+    /* asm 0x43e70b-0x43e71d: AGE > 45 → zero vel.x/z.  Engine cmp is
+     * `cmp AGE, edi (=45); jle skip` — i.e. skip when AGE <= 45; zero
+     * when AGE > 45.  Combined with the AGE<30 damping above: AGE<30
+     * damps, AGE in [30, 45] no-op, AGE > 45 zeros.  (At AGE>45 the
+     * vel is wiped before the SM phase calls into the body.) */
+    if (age > 45) {
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
+    }
+
+    /* asm 0x43e71d-0x43e749: AGE in (45, kill_age-45) → DRAG + SM. */
+    if (age > 45 && age < ramp_down_threshold) {
+        float drag = life_mult * 1.9f / 0.015f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
+        state_machine_call(slot_base(i));
+    }
+
+    /* asm 0x43e74a-0x43e750 → LAB_43f0f8 → jl skip; jmp 0x43f73a (kill).
+     * Equivalent: if AGE >= kill_age then kill.  Engine uses `cmp [esi
+     * +0x98], ebx` (sets flags); shared LAB_43f0f8 does `jl 0x440dc1`
+     * (skip kill if AGE < ebx); else falls through to LAB_43f73a which
+     * does `mov [esi], 0` (kill).  Engine semantics: AGE >= kill_age
+     * triggers kill — collapsed to AGE == kill_age in normal operation
+     * since the body fires once per tick and AGE increments by 1. */
+    if (age >= kill_age) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -3476,8 +3592,14 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x24:
         body_0x24(slot_idx);
         break;
+    /* C8j-tick.13 — type 0x53 (drift-damping body). */
+    case 0x53:
+        body_0x53(slot_idx);
+        break;
     default:
-        /* C8j-tick.13 fills in additional cases here. */
+        /* Remaining tail types (0x58/0x66/0x75/0x83/0x84/0x87/0xa0..0xa6
+         * and LAB_0043f39b death-effect spawn) are deferred to a future
+         * sub-chip. */
         break;
     }
 }
