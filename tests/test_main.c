@@ -1548,6 +1548,29 @@ struct test_case {
     X(records_b_tick_type_2f_owner_null_no_crash) \
     X(records_b_tick_unknown_type_is_noop) \
     X(records_b_tick_se_hook_setter_round_trips) \
+    X(records_b_tick_type_9c_writes_pose_around_owner) \
+    X(records_b_tick_type_9c_local_c_high_age_branch) \
+    X(records_b_tick_type_9c_rot_scr_clamped_to_zero) \
+    X(records_b_tick_type_9c_rot_scr_neg_pi_half_when_young) \
+    X(records_b_tick_type_9c_kill_at_age_0xc8) \
+    X(records_b_tick_type_9c_se_fires_at_age_1) \
+    X(records_b_tick_type_34_default_joint_pose) \
+    X(records_b_tick_type_34_iter_loop_state_machine_in_window) \
+    X(records_b_tick_type_34_kill_at_0x96) \
+    X(records_b_tick_type_68_drag_default_1_0) \
+    X(records_b_tick_type_68_drag_with_flag_a) \
+    X(records_b_tick_type_68_kill_at_age_off_plus_0x4b) \
+    X(records_b_tick_type_68_se_fires_at_age_off_plus_10) \
+    X(records_b_tick_type_68_state_machine_in_window) \
+    X(records_b_tick_type_74_drag_zero) \
+    X(records_b_tick_type_79_drag_0_7) \
+    X(records_b_tick_type_74_anchor_back_cancels_preamble) \
+    X(records_b_tick_type_74_kill_at_age_0x37) \
+    X(records_b_tick_type_74_owner_kill_gate) \
+    X(records_b_tick_type_74_cull_query_gates_state_machine) \
+    X(records_b_tick_type_69_spawn_on_age_match_kills_self) \
+    X(records_b_tick_type_69_no_op_when_age_mismatch) \
+    X(records_b_tick_cull_query_hook_setter_round_trips) \
     \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \

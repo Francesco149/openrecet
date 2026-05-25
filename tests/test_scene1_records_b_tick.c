@@ -29,6 +29,7 @@ static void reset_world(void)
     scene1_records_b_set_per_type_body(NULL);
     scene1_records_b_set_state_machine_hook(NULL);
     scene1_records_b_set_se_hook(NULL);
+    scene1_records_b_set_cull_query_hook(NULL);
 }
 
 static int32_t *bslot(int i)
@@ -821,5 +822,507 @@ int test_records_b_tick_se_hook_setter_round_trips(void)
     T_ASSERT(prev == NULL);
     prev = scene1_records_b_set_se_hook(NULL);
     T_ASSERT(prev == capture_se);
+    return 0;
+}
+
+/* ═══ C8j-tick.3 — mid-cascade tests ═══════════════════════════════════ */
+/*
+ * 0x9c uses owner_B (slot[+0x14]).  0x68 / 0x74 / 0x79 / 0x69 use
+ * owner_A (slot[+0x10]) instead — bind via bind_owner_a().  Owner blob
+ * is shared since 0x68/0x74/0x79 read at +0x904/0x908/0x90c/0x948/0xcf8/
+ * 0xea0, and the existing 0xb00-byte blob isn't large enough; grow it
+ * (lazy alloc) when these tests first run.
+ */
+#define OWNER_BLOB_3_SIZE 0xe00
+static uint8_t *g_test_owner_a_blob;
+
+static void owner_a_blob_ensure(void)
+{
+    if (g_test_owner_a_blob) return;
+    void *p = mmap(NULL, OWNER_BLOB_3_SIZE,
+                   PROT_READ | PROT_WRITE,
+                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT,
+                   -1, 0);
+    if (p == MAP_FAILED) abort();
+    g_test_owner_a_blob = (uint8_t *)p;
+}
+
+static void owner_a_blob_reset(void)
+{
+    owner_a_blob_ensure();
+    memset(g_test_owner_a_blob, 0, OWNER_BLOB_3_SIZE);
+}
+
+static void owner_a_blob_set_i(int byte_off, int32_t v)
+{
+    memcpy(g_test_owner_a_blob + byte_off, &v, sizeof v);
+}
+
+static int32_t owner_a_blob_get_i(int byte_off)
+{
+    int32_t v;
+    memcpy(&v, g_test_owner_a_blob + byte_off, sizeof v);
+    return v;
+}
+
+static float owner_a_blob_get_f(int byte_off)
+{
+    int32_t v;
+    memcpy(&v, g_test_owner_a_blob + byte_off, sizeof v);
+    float f;
+    memcpy(&f, &v, sizeof f);
+    return f;
+}
+
+static void bind_owner_a(int slot_idx)
+{
+    owner_a_blob_ensure();
+    int32_t ptr = (int32_t)(uintptr_t)g_test_owner_a_blob;
+    slot_set_i(slot_idx, SCENE1_RECORDS_B_OFF_OWNER_A, ptr);
+}
+
+/* Cull-query hook capture. */
+static int s_cull_calls;
+static int s_cull_return;
+static int cull_stub(float x, float y)
+{
+    (void)x; (void)y;
+    s_cull_calls++;
+    return s_cull_return;
+}
+
+/* ─── 0x9c — NPC shoulder-arc bend ────────────────────────────────────── */
+
+int test_records_b_tick_type_9c_writes_pose_around_owner(void)
+{
+    /* ang=0 → sin=0, cos=1; scale = LIFE_MULT.
+     * pos.x = owner.x - 0*scale*1.5 = owner.x
+     * pos.y = local_c * scale + owner.y    (local_c = 10 at age=0, but
+     *   preamble bumps age to 1, so local_c = 10 - 1*0.3 = 9.7;
+     *   clamped to max(9.7, scale)).
+     * pos.z = owner.z - 1*scale*1.5 = owner.z - 1.5 */
+    reset_world();
+    owner_blob_reset();
+    owner_blob_set_f(0x3f0, 100.0f);
+    owner_blob_set_f(0x3f4, 50.0f);
+    owner_blob_set_f(0x3f8, -20.0f);
+
+    stage_live(0, 0x9c, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    bind_owner(0);
+
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 100.0f) < 1e-5f);
+    /* local_c = max(9.7, 1.0) = 9.7; pos.y = 9.7*1 + 50 = 59.7. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 59.7f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - (-21.5f)) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_type_9c_local_c_high_age_branch(void)
+{
+    /* AGE >= 0xbe → local_c = (AGE - 0xbe) * 0.6 + scale.
+     * After preamble, AGE=0xbf, scale=2.0 → local_c = (0xbf-0xbe)*0.6 + 2 = 2.6.
+     * pos.y = 2.6 * 2.0 + owner.y. */
+    reset_world();
+    owner_blob_reset();
+    owner_blob_set_f(0x3f4, 10.0f);
+
+    stage_live(0, 0x9c, 0, 0, 0, 0, 0, 0, /*age=*/0xbe);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ROT_X, 0.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 2.0f);
+    bind_owner(0);
+
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - (2.6f * 2.0f + 10.0f)) < 1e-4f);
+    return 0;
+}
+
+int test_records_b_tick_type_9c_rot_scr_clamped_to_zero(void)
+{
+    /* AGE >= 0x1a: ROT_SCR = clamp((AGE-0x1a)*π/40 - π/2, ≤0).
+     * After preamble, AGE = 0xff → (0xff-0x1a)*π/40 - π/2 ≫ 0 → clamp to 0. */
+    reset_world();
+    owner_blob_reset();
+    stage_live(0, 0x9c, 0, 0, 0, 0, 0, 0, /*age=*/0xfe);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    bind_owner(0);
+
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR)) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_type_9c_rot_scr_neg_pi_half_when_young(void)
+{
+    /* AGE < 0x1a: ROT_SCR = -π/2 verbatim. */
+    reset_world();
+    owner_blob_reset();
+    stage_live(0, 0x9c, 0, 0, 0, 0, 0, 0, /*age=*/5);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    bind_owner(0);
+
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_ROT_SCR) - (-1.5707964f)) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_type_9c_kill_at_age_0xc8(void)
+{
+    reset_world();
+    owner_blob_reset();
+    stage_live(0, 0x9c, 0, 0, 0, 0, 0, 0, /*age=*/0xc7);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    bind_owner(0);
+
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 0xc8);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_type_9c_se_fires_at_age_1(void)
+{
+    /* Preamble bumps age 0 → 1 before dispatch.  AGE==1 → SE 0x2c2. */
+    reset_world();
+    owner_blob_reset();
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+
+    stage_live(0, 0x9c, 0, 0, 0, 0, 0, 0, /*age=*/0);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.0f);
+    bind_owner(0);
+    scene1_records_b_tick();
+
+    T_ASSERT(s_se_calls >= 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x2c2);
+    return 0;
+}
+
+/* ─── 0x34 — NPC joint-target lerp ────────────────────────────────────── */
+
+int test_records_b_tick_type_34_default_joint_pose(void)
+{
+    /* AUX_SENT1 preamble default = -1; joint pose reads owner+0x6fc /
+     * +0x708 / +0x70c.  ALT_POS defaults zero → vel = -pos/15. */
+    reset_world();
+    owner_blob_reset();
+    owner_blob_set_f(0x6fc, 30.0f);
+    owner_blob_set_f(0x708, 60.0f);
+    owner_blob_set_f(0x70c, 90.0f);
+
+    stage_live(0, 0x34, 0, 0, 0, 0, 0, 0, /*age=*/10);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_SENT1, -1);
+    bind_owner(0);
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 30.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 60.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 90.0f) < 1e-5f);
+    /* ALT_POS = 0; vel = (0 - 30) / 15 = -2.0 etc. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - (-2.0f)) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Y) - (-4.0f)) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_Z) - (-6.0f)) < 1e-5f);
+    /* DRAG = -0.5. */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - (-0.5f)) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_type_34_iter_loop_state_machine_in_window(void)
+{
+    /* PART_IDX=0 + AGE in [0x5a, 0x78) → 20 state_machine calls. */
+    reset_world();
+    owner_blob_reset();
+    s_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+
+    stage_live(0, 0x34, 0, 0, 0, 0, 0, 0, /*age=*/0x60);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 0);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_SENT1, -1);
+    bind_owner(0);
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(s_sm_calls, 20);
+    return 0;
+}
+
+int test_records_b_tick_type_34_kill_at_0x96(void)
+{
+    reset_world();
+    owner_blob_reset();
+    stage_live(0, 0x34, 0, 0, 0, 0, 0, 0, /*age=*/0x95);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_AUX_SENT1, -1);
+    bind_owner(0);
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 0x96);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+/* ─── 0x68 — three-phase NPC spawn cycle ──────────────────────────────── */
+
+int test_records_b_tick_type_68_drag_default_1_0(void)
+{
+    /* FLAG_A != 1 → DRAG = 1.0, age_off = 0. */
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x68, 0, 0, 0, 0, 0, 0, /*age=*/50);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_FLAG_A, 0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 1.0f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_type_68_drag_with_flag_a(void)
+{
+    /* FLAG_A == 1 → DRAG = 0.2, age_off = 0x14. */
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x68, 0, 0, 0, 0, 0, 0, /*age=*/50);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_FLAG_A, 1);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 0.2f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_type_68_kill_at_age_off_plus_0x4b(void)
+{
+    /* FLAG_A=0 → age_off=0; kill at AGE == 0x4b. */
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x68, 0, 0, 0, 0, 0, 0, /*age=*/0x4a);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+
+    /* FLAG_A=1 → age_off=0x14; kill at AGE == 0x14+0x4b = 0x5f. */
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x68, 0, 0, 0, 0, 0, 0, /*age=*/0x5e);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_FLAG_A, 1);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_type_68_se_fires_at_age_off_plus_10(void)
+{
+    /* FLAG_A=1 → SE 0x2a4 at AGE==0x14+10=0x1e; SE 0x2a9 at AGE==0x14+0x28=0x3c. */
+    reset_world();
+    owner_a_blob_reset();
+    s_se_calls = 0;
+    scene1_records_b_set_se_hook(capture_se);
+    stage_live(0, 0x68, 0, 0, 0, 0, 0, 0, /*age=*/0x1d);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_FLAG_A, 1);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT(s_se_calls >= 1);
+    T_ASSERT_EQ_I(s_se_last_id, 0x2a4);
+    return 0;
+}
+
+int test_records_b_tick_type_68_state_machine_in_window(void)
+{
+    /* age_off=0 → state_machine called for AGE in [0, 0x3c). */
+    reset_world();
+    owner_a_blob_reset();
+    s_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+
+    stage_live(0, 0x68, 0, 0, 0, 0, 0, 0, /*age=*/5);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 1);
+
+    /* Past window — no call. */
+    reset_world();
+    owner_a_blob_reset();
+    s_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    stage_live(0, 0x68, 0, 0, 0, 0, 0, 0, /*age=*/0x40);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 0);
+    return 0;
+}
+
+/* ─── 0x74 / 0x79 — entity ground-cull walker ─────────────────────────── */
+
+int test_records_b_tick_type_74_drag_zero(void)
+{
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x74, 0, 0, 0, 0, 0, 0, /*age=*/50);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG)) < 1e-6f);
+    /* AUX_C8 set to 1. */
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AUX_C8), 1);
+    return 0;
+}
+
+int test_records_b_tick_type_79_drag_0_7(void)
+{
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x79, 0, 0, 0, 0, 0, 0, /*age=*/50);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG) - 0.7f) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_type_74_anchor_back_cancels_preamble(void)
+{
+    /* Preamble bumps pos by vel; body cancels it.  Net pos unchanged.
+     * For ages outside [0, 0x28), no iter loop runs. */
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x74, 10.0f, 20.0f, 30.0f,
+               /*vel=*/0.5f, 0.5f, 0.5f, /*age=*/0x80);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 10.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 20.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 30.0f) < 1e-5f);
+    return 0;
+}
+
+int test_records_b_tick_type_74_kill_at_age_0x37(void)
+{
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x74, 0, 0, 0, 0, 0, 0, /*age=*/0x36);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), 0x37);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_type_74_owner_kill_gate(void)
+{
+    /* owner_a+0xcf8 != 0 → kill regardless of age. */
+    reset_world();
+    owner_a_blob_reset();
+    owner_a_blob_set_i(0xcf8, 1);
+
+    stage_live(0, 0x74, 0, 0, 0, 0, 0, 0, /*age=*/0x50);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_type_74_cull_query_gates_state_machine(void)
+{
+    /* AGE in [0, 0x28) → 20-iter loop calling cull then state_machine.
+     * cull_stub returns 0 (>=0 = "visible/skip") → state_machine NOT called. */
+    reset_world();
+    owner_a_blob_reset();
+    s_sm_calls = 0;
+    s_cull_calls = 0;
+    s_cull_return = 0;          /* return 0 → state_machine NOT called */
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    scene1_records_b_set_cull_query_hook(cull_stub);
+
+    stage_live(0, 0x74, 0, 0, 0, 0, 0, 0, /*age=*/5);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(s_cull_calls, 20);
+    T_ASSERT_EQ_I(s_sm_calls, 0);
+
+    /* Now with cull < 0 ("visible") → state_machine fires every iter. */
+    reset_world();
+    owner_a_blob_reset();
+    s_sm_calls = 0;
+    s_cull_calls = 0;
+    s_cull_return = -1;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    scene1_records_b_set_cull_query_hook(cull_stub);
+
+    stage_live(0, 0x74, 0, 0, 0, 0, 0, 0, /*age=*/5);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(s_cull_calls, 20);
+    T_ASSERT_EQ_I(s_sm_calls, 20);
+    return 0;
+}
+
+/* ─── 0x69 — entity self-spawn-then-die ───────────────────────────────── */
+
+int test_records_b_tick_type_69_spawn_on_age_match_kills_self(void)
+{
+    /* PART_IDX=0 → spawn-trigger AGE = 0*4+0x14 = 0x14.  Preamble bumps
+     * age from 0x13 to 0x14.  Engine writes owner+0xea0 = PART_IDX,
+     * spawns entity 0x68, kills self. */
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x69, 0, 0, 0, 0, 0, 0, /*age=*/0x13);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 0);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    T_ASSERT_EQ_I(owner_a_blob_get_i(0xea0), 0);
+
+    /* A spawned slot should now be live somewhere with type 0x68. */
+    int found_spawn = 0;
+    for (int k = 1; k < SCENE1_RECORDS_B_COUNT; k++) {
+        if (slot_get_i(k, SCENE1_RECORDS_B_OFF_TYPE) == 0x68) {
+            found_spawn = 1;
+            break;
+        }
+    }
+    T_ASSERT(found_spawn);
+    return 0;
+}
+
+int test_records_b_tick_type_69_no_op_when_age_mismatch(void)
+{
+    /* PART_IDX=2 → spawn-trigger AGE = 2*4+0x14 = 0x1c.  age=5 → no spawn. */
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x69, 0, 0, 0, 0, 0, 0, /*age=*/4);
+    slot_set_i(0, SCENE1_RECORDS_B_OFF_PART_IDX, 2);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+
+    /* Slot stays alive, no spawn. */
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x69);
+    /* Suppress unused warning */
+    (void)owner_a_blob_get_f;
+    return 0;
+}
+
+int test_records_b_tick_cull_query_hook_setter_round_trips(void)
+{
+    reset_world();
+    scene1_b_cull_query_fn prev = scene1_records_b_set_cull_query_hook(cull_stub);
+    T_ASSERT(prev == NULL);
+    prev = scene1_records_b_set_cull_query_hook(NULL);
+    T_ASSERT(prev == cull_stub);
     return 0;
 }
