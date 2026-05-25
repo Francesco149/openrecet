@@ -2473,7 +2473,23 @@ struct test_case {
     X(pfo_parent_load_chunk_ignores_out_of_range_file_idx) \
     X(pfo_parent_load_chunk_null_buf_is_noop) \
     X(pfo_parent_load_chunk_zero_len_is_noop) \
-    X(pfo_parent_load_chunk_then_tick_spawns_from_loaded_data)
+    X(pfo_parent_load_chunk_then_tick_spawns_from_loaded_data) \
+    \
+    X(combat_sm_phase_a_fall_through_sets_per_tick_flag) \
+    X(combat_sm_phase_a_returns_zero_with_null_slot) \
+    X(combat_sm_subphase_positive_returns_zero_without_setting_flag) \
+    X(combat_sm_subphase_negative_does_not_gate) \
+    X(combat_sm_world_pause_positive_returns_zero_without_setting_flag) \
+    X(combat_sm_world_pause_negative_does_not_gate) \
+    X(combat_sm_aux_pause_positive_returns_zero_without_setting_flag) \
+    X(combat_sm_aux_pause_negative_does_not_gate) \
+    X(combat_sm_paused_flag_nonzero_returns_zero_without_setting_flag) \
+    X(combat_sm_paused_flag_negative_also_gates) \
+    X(combat_sm_multiple_gates_active_still_short_circuits) \
+    X(combat_sm_fall_through_preserves_gate_globals) \
+    X(combat_sm_install_as_void_hook_writes_per_tick_flag_via_integrator) \
+    X(combat_sm_uninstall_void_hook_restores_default) \
+    X(combat_sm_gate_short_circuit_is_atomic)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
