@@ -1625,6 +1625,22 @@ struct test_case {
     X(records_b_tick_body2_state_machine_loop_window_71) \
     X(records_b_tick_body2_aux_hook_setters_round_trip) \
     \
+    X(records_b_tick_body3_type_1f_life_mult_ramps) \
+    X(records_b_tick_body3_type_1f_life_mult_clamps_at_1_5) \
+    X(records_b_tick_body3_type_1f_kill_at_age_0x78) \
+    X(records_b_tick_body3_type_5a_drag_uses_plus_0_5) \
+    X(records_b_tick_body3_type_5a_drifts_toward_player_in_window) \
+    X(records_b_tick_body3_type_5a_no_drift_outside_window) \
+    X(records_b_tick_body3_type_5a_age_0x78_spawns_and_kills) \
+    X(records_b_tick_body3_type_5a_kill_on_owner_428) \
+    X(records_b_tick_body3_type_98_uses_same_body_as_5a) \
+    X(records_b_tick_body3_type_6c_drag_kill_at_age_200) \
+    X(records_b_tick_body3_type_6b_age_0x2d_spawns_se) \
+    X(records_b_tick_body3_type_6b_state_machine_only_after_2d) \
+    X(records_b_tick_body3_type_6b_kill_at_age_0x9b) \
+    X(records_b_tick_body3_type_28_vel_y_decay) \
+    X(records_b_tick_body3_type_28_kill_at_age_300) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

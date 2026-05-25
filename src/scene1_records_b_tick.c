@@ -36,6 +36,7 @@
 
 #include "rng.h"
 #include "scene1_overlay.h"
+#include "scene1_particles_tick.h"
 #include "scene1_per_frame_open.h"
 #include "scene1_records.h"
 #include "scene1_records_b_spawn.h"
@@ -1574,6 +1575,181 @@ static void body_0x71_72_7d(int i, int32_t type)
     }
 }
 
+/* ─── C8j-tick.6 — Body 3 (L1050-L1187, asm 0x43cb4a..0x43cdef) ──────── */
+
+/* Engine 0x43cb4f..0x43cba9 — type 0x1f body.
+ *
+ *   slot[LIFE_MULT] += 0.03
+ *   if (LIFE_MULT > 1.5): LIFE_MULT = 1.5
+ *   slot[DRAG] = LIFE_MULT * 0.1 - 0.5
+ *   state_machine(slot)
+ *   if (AGE == 0x78): kill
+ *
+ * Notable: NO owner read.  Pure slot state machine — LIFE_MULT ramps
+ * up at 0.03/tick, asymptotes at 1.5; DRAG follows.  At AGE=120 the
+ * slot dies (no spawn-on-death side effects).
+ */
+static void body_0x1f(int i)
+{
+    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.03f;
+    if (life_mult > 1.5f) life_mult = 1.5f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 0.1f - 0.5f);
+
+    state_machine_call(slot_base(i));
+
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age == 0x78) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43cca5..0x43cde0 — types 0x5a / 0x98 shared body.
+ *
+ *   slot[LIFE_MULT] += 0.03
+ *   if (LIFE_MULT > 2.0): LIFE_MULT = 2.0      ; different clamp from 0x1f
+ *   slot[DRAG] = LIFE_MULT * 0.1 + 0.5         ; different sign from 0x1f
+ *
+ *   if ((PART_IDX + 3) * 10 < AGE && AGE < 0x78):
+ *     ; horizontal drift toward player (PHC #8 sibling)
+ *     VEL_X += (player.x - POS_X) * 0.003
+ *     VEL_Z += (player.z - POS_Z) * 0.003
+ *     VEL_X *= 0.95
+ *     VEL_Z *= 0.95
+ *
+ *   if (AGE == 0x78):
+ *     scene1_overlay_spawn(NULL, POS_X, POS_Y,     POS_Z, 7,   1.5, 0x1e, 0, 0, 0)
+ *     scene1_overlay_spawn(NULL, POS_X, POS_Y-1.0, POS_Z, 0xb, 1.0, -1,    0, 0, 0)
+ *     se_play(0x2ac)
+ *     POS_Y += 1.0
+ *     state_machine(slot)
+ *     kill
+ *
+ *   if (owner_b+0x428 != 1): kill              ; engine LAB_0043cded
+ *
+ * Notable: reads engine player position (DAT_056da1d8 / DAT_056da1e0 =
+ * g_scene1_player_pos[0/2]).  Reads OWNER_B (not OWNER_A like Body 1/2).
+ */
+static void body_0x5a_or_0x98(int i)
+{
+    const void *owner = slot_owner(i);
+    if (!owner) return;
+
+    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.03f;
+    if (life_mult > 2.0f) life_mult = 2.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 0.1f + 0.5f);
+
+    int part_idx = slot_get_i(i, SCENE1_RECORDS_B_OFF_PART_IDX);
+    int age      = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    int age_lo   = (part_idx + 3) * 10;
+
+    if (age_lo < age && age < 0x78) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        vx = (g_scene1_player_pos[0] - px) * 0.003f + vx;
+        vz = (g_scene1_player_pos[2] - pz) * 0.003f + vz;
+        vx *= 0.95f;
+        vz *= 0.95f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
+    }
+
+    if (age == 0x78) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        scene1_overlay_spawn(NULL, px, py,        pz, 7,   1.5f, 0x1e, 0, 0, 0);
+        scene1_overlay_spawn(NULL, px, py - 1.0f, pz, 0xb, 1.0f, -1,   0, 0, 0);
+        se_play(0x2ac);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py + 1.0f);
+        state_machine_call(slot_base(i));
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    /* Engine LAB_0043cded: kill on owner_b+0x428 != 1. */
+    if (owner_read_i(owner, 0x428) != 1) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43cbc6..0x43cbef — type 0x6c body.
+ *
+ *   slot[DRAG] = LIFE_MULT * 0.1 - 0.5     ; same as 0x1f
+ *   state_machine(slot)                    ; ARGLESS in asm (push esi)
+ *   if (AGE == 0xc8): kill                 ; 0xc8 = 200
+ *
+ * No LIFE_MULT update (unlike 0x1f).
+ */
+static void body_0x6c(int i)
+{
+    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 0.1f - 0.5f);
+
+    state_machine_call(slot_base(i));
+
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age == 0xc8) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43cbf9..0x43cc60 — type 0x6b body.
+ *
+ *   if (AGE == 0x2d):
+ *     se_play(0x2ac)
+ *     scene1_overlay_spawn(NULL, POS_X, POS_Y+1.5, POS_Z, 7, 1.5, 0x78, 0, 0, 0)
+ *   if (AGE >= 0x2d):
+ *     state_machine(slot)
+ *   if (AGE == 0x9b): kill
+ *
+ * No DRAG / LIFE_MULT writes.
+ */
+static void body_0x6b(int i)
+{
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    if (age == 0x2d) {
+        se_play(0x2ac);
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        scene1_overlay_spawn(NULL, px, py + 1.5f, pz, 7, 1.5f, 0x78, 0, 0, 0);
+    }
+    if (age >= 0x2d) {
+        state_machine_call(slot_base(i));
+    }
+    if (age == 0x9b) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine 0x43cc6b..0x43cc99 — type 0x28 body.
+ *
+ *   slot[DRAG]  = LIFE_MULT * 0.1     ; no offset
+ *   slot[VEL_Y] -= 0.003
+ *   state_machine(slot)
+ *   if (AGE == 0x12c): kill            ; 0x12c = 300
+ */
+static void body_0x28(int i)
+{
+    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 0.1f);
+
+    float vel_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) - 0.003f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
+
+    state_machine_call(slot_base(i));
+
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age == 0x12c) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -1651,8 +1827,24 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x7d:
         body_0x71_72_7d(slot_idx, type);
         break;
+    case 0x1f:
+        body_0x1f(slot_idx);
+        break;
+    case 0x5a:
+    case 0x98:
+        body_0x5a_or_0x98(slot_idx);
+        break;
+    case 0x6c:
+        body_0x6c(slot_idx);
+        break;
+    case 0x6b:
+        body_0x6b(slot_idx);
+        break;
+    case 0x28:
+        body_0x28(slot_idx);
+        break;
     default:
-        /* C8j-tick.6..13 fill in additional cases here. */
+        /* C8j-tick.7..13 fill in additional cases here. */
         break;
     }
 }

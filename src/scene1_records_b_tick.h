@@ -104,6 +104,33 @@
  * Hooks gained (all default no-op): aux_485979 (1-arg), aux_482a51
  * (2-arg), notify_queue (4-arg, PHC #22).
  *
+ * C8j-tick.6 (2026-05-25) adds Body 3 (L1050-L1187, asm 0x43cb4a..
+ * 0x43cdef) — six small slot-state bodies.
+ *
+ *   - 0x1f — LIFE_MULT += 0.03 (clamp 1.5); DRAG = LIFE_MULT*0.1 - 0.5;
+ *     state_machine; kill AGE==0x78.  No owner read.
+ *   - 0x5a / 0x98 — shared body, reads OWNER_B.  LIFE_MULT += 0.03
+ *     (clamp 2.0); DRAG = LIFE_MULT*0.1 + 0.5.  When (PART_IDX+3)*10 <
+ *     AGE < 0x78: VEL_{X,Z} += (g_scene1_player_pos[{0,2}] - POS_{X,Z})
+ *     * 0.003 then *= 0.95 (drift toward player).  AGE==0x78: two
+ *     overlay spawns (type 7 scale 1.5 dur 30 at POS, type 0xb scale
+ *     1.0 dur -1 at POS-(0,1,0)), SE(0x2ac), POS_Y += 1.0, state_machine,
+ *     kill.  owner_b+0x428 != 1 → kill.
+ *   - 0x6c — DRAG = LIFE_MULT*0.1 - 0.5; state_machine; kill AGE==0xc8.
+ *   - 0x6b — AGE==0x2d: SE(0x2ac) + overlay spawn(type 7 scale 1.5 dur
+ *     0x78 at POS+(0,1.5,0)).  AGE>=0x2d: state_machine.  Kill AGE==0x9b.
+ *   - 0x28 — DRAG = LIFE_MULT*0.1; VEL_Y -= 0.003; state_machine; kill
+ *     AGE==0x12c.
+ *
+ * Survey corrections (vs docs/findings/scene1-records-b-tick.md):
+ *   - Body 3 includes 0x1f (asm 0x43cb4a..0x43cba9) — survey omitted it.
+ *   - 0x2d in survey type list was an AGE check inside 0x6b's body,
+ *     NOT a separate type.
+ *   - Body 3 does NOT use FUN_00432e50 (ground query) as the survey
+ *     claimed — that hook is exercised by other bodies (PHC #15 sites
+ *     at FUN_0044376a 0x29 etc).  Body 3 is pure slot-state + drift
+ *     toward player.
+ *
  * C8j-tick.3 (2026-05-25) adds bodies for the mid-cascade (L408-L649):
  *
  *   - 0x9c — NPC shoulder-arc bend.  Per-tick reads slot[ROT_X] as the
