@@ -6305,3 +6305,233 @@ int test_records_b_tick_t15d_does_not_kill_below_age_300(void)
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x84);
     return 0;
 }
+
+/* ═══ C8j-tick.15e — types 0x73 / 0x78 / 0x7a trail-cull body ═════════ */
+
+int test_records_b_tick_t15e_age_negative_cancels_preamble(void)
+{
+    /* AGE < 0 branch: POS -= VEL cancels the preamble's POS += VEL.
+     * Net effect: POS is unchanged from stage_live (before preamble +
+     * body cancellation).  age stays at -2 after preamble +1 → -1, body
+     * does not touch age beyond preamble.  We stage age=-2 so post-
+     * preamble age=-1 (still < 0). */
+    reset_world();
+    owner_a_blob_reset();
+    stage_live(0, 0x73, 5.0f, 10.0f, 15.0f, 0.5f, 1.0f, -0.25f, /*age=*/-2);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    /* Preamble: POS += VEL → (5.5, 11.0, 14.75); body cancels → (5.0,
+     * 10.0, 15.0).  Slot stays alive (owner_a+0xcf8 is 0). */
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_X) - 5.0f)  < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Y) - 10.0f) < 1e-5f);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_POS_Z) - 15.0f) < 1e-5f);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_AGE), -1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x73);
+    return 0;
+}
+
+int test_records_b_tick_t15e_age_negative_owner_cf8_nonzero_kills(void)
+{
+    /* AGE < 0 + owner_a+0xcf8 != 0 → KILL. */
+    reset_world();
+    owner_a_blob_reset();
+    owner_a_blob_set_i(0xcf8, 1);
+    stage_live(0, 0x78, 0, 0, 0, 0, 0, 0, /*age=*/-2);
+    bind_owner_a(0);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15e_age_1_dual_overlay_spawn(void)
+{
+    /* AGE == 1 → 2 overlay_spawn calls.  Stage AGE = 0 (preamble bumps
+     * to 1).  POS / VEL chosen to make POS-VEL = (5, 10, 15) easy. */
+    reset_world();
+    install_overlay_capture();
+    stage_live(0, 0x7a, /*px=*/6.0f, /*py=*/11.0f, /*pz=*/16.0f,
+               /*vx=*/1.0f, /*vy=*/1.0f, /*vz=*/1.0f, /*age=*/0);
+    scene1_records_b_tick();
+    /* Preamble: POS → (7, 12, 17), AGE → 1.  Body: POS-VEL = (6, 11, 16). */
+    T_ASSERT_EQ_I(s_overlay_calls, 2);
+    /* Last call was the template 0x13 ALT_POS spawn, scale 0.7. */
+    T_ASSERT_EQ_I(s_overlay_last.type, 0x13);
+    T_ASSERT(fabsf(s_overlay_last.scale - 0.7f) < 1e-6f);
+    T_ASSERT_EQ_I(s_overlay_last.dur, -1);
+    T_ASSERT_EQ_I(s_overlay_last.mode, 0);
+    restore_overlay();
+    return 0;
+}
+
+/* C8j-tick.15e local capture — both spawn calls (not just last). */
+static int s_t15e_overlay_n;
+static struct { int type; float px, py, pz, scale; }
+    s_t15e_overlay_log[4];
+static void t15e_capture_overlay(const void *owner,
+                                 float px, float py, float pz,
+                                 int type, float scale,
+                                 int dur, int rot_y,
+                                 int shape_mode, int mode)
+{
+    (void)owner; (void)dur; (void)rot_y;
+    (void)shape_mode; (void)mode;
+    if (s_t15e_overlay_n < 4) {
+        s_t15e_overlay_log[s_t15e_overlay_n].type  = type;
+        s_t15e_overlay_log[s_t15e_overlay_n].px    = px;
+        s_t15e_overlay_log[s_t15e_overlay_n].py    = py;
+        s_t15e_overlay_log[s_t15e_overlay_n].pz    = pz;
+        s_t15e_overlay_log[s_t15e_overlay_n].scale = scale;
+    }
+    s_t15e_overlay_n++;
+}
+
+int test_records_b_tick_t15e_age_1_first_spawn_template_0x10_at_pos_minus_vel(void)
+{
+    /* Verify the FIRST overlay_spawn call: template 0x10, pos = POS-VEL,
+     * scale 1.0. */
+    reset_world();
+    s_t15e_overlay_n = 0;
+    scene1_records_b_set_overlay_spawn_hook(t15e_capture_overlay);
+    stage_live(0, 0x73, /*px=*/10.0f, /*py=*/20.0f, /*pz=*/30.0f,
+               /*vx=*/2.0f, /*vy=*/3.0f, /*vz=*/4.0f, /*age=*/0);
+    /* Stash ALT_POS so the second spawn doesn't alias the first. */
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_X, 100.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y, 200.0f);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Z, 300.0f);
+    scene1_records_b_tick();
+    /* Preamble: POS → (12, 23, 34) → POS-VEL = (10, 20, 30). */
+    T_ASSERT_EQ_I(s_t15e_overlay_n, 2);
+    T_ASSERT_EQ_I(s_t15e_overlay_log[0].type, 0x10);
+    T_ASSERT(fabsf(s_t15e_overlay_log[0].px    - 10.0f) < 1e-5f);
+    T_ASSERT(fabsf(s_t15e_overlay_log[0].py    - 20.0f) < 1e-5f);
+    T_ASSERT(fabsf(s_t15e_overlay_log[0].pz    - 30.0f) < 1e-5f);
+    T_ASSERT(fabsf(s_t15e_overlay_log[0].scale - 1.0f)  < 1e-6f);
+    /* Second spawn: template 0x13 at ALT_POS, scale 0.7. */
+    T_ASSERT_EQ_I(s_t15e_overlay_log[1].type, 0x13);
+    T_ASSERT(fabsf(s_t15e_overlay_log[1].px    - 100.0f) < 1e-5f);
+    T_ASSERT(fabsf(s_t15e_overlay_log[1].py    - 200.0f) < 1e-5f);
+    T_ASSERT(fabsf(s_t15e_overlay_log[1].pz    - 300.0f) < 1e-5f);
+    T_ASSERT(fabsf(s_t15e_overlay_log[1].scale - 0.7f)   < 1e-6f);
+    scene1_records_b_set_overlay_spawn_hook(NULL);
+    return 0;
+}
+
+int test_records_b_tick_t15e_drag_zero_after_tick(void)
+{
+    /* DRAG = 0 unconditionally written.  Stage with DRAG = 1.5; should
+     * be overwritten to 0. */
+    reset_world();
+    stage_live(0, 0x73, 0, 0, 0, 0, 0, 0, /*age=*/10);
+    slot_set_f(0, SCENE1_RECORDS_B_OFF_DRAG, 1.5f);
+    scene1_records_b_tick();
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG)) < 1e-6f);
+    return 0;
+}
+
+int test_records_b_tick_t15e_cull_visible_continues(void)
+{
+    /* cull_query returns -1 (visible) → state_machine fires, slot stays
+     * alive (state_machine hook NULL → ret 0 → AGE-78 check; AGE=10
+     * stays). */
+    reset_world();
+    s_cull_calls = 0;
+    s_cull_return = -1;
+    scene1_records_b_set_cull_query_hook(cull_stub);
+    stage_live(0, 0x78, 0, 0, 0, 0, 0, 0, /*age=*/10);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_cull_calls, 1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x78);
+    return 0;
+}
+
+int test_records_b_tick_t15e_cull_culled_kills(void)
+{
+    /* cull_query returns >= 0 (culled) → KILL. */
+    reset_world();
+    s_cull_return = 0;
+    scene1_records_b_set_cull_query_hook(cull_stub);
+    stage_live(0, 0x7a, 0, 0, 0, 0, 0, 0, /*age=*/10);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15e_state_machine_ret_1_kills(void)
+{
+    /* state_machine hook installed → state_machine_call_ret returns 1
+     * → KILL. */
+    reset_world();
+    s_sm_calls = 0;
+    scene1_records_b_set_state_machine_hook(capture_state_machine);
+    stage_live(0, 0x73, 0, 0, 0, 0, 0, 0, /*age=*/10);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_sm_calls, 1);
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15e_state_machine_ret_0_age_120_kills(void)
+{
+    /* No state_machine hook → ret 0 → AGE-78 (=0x78=120) check.  Stage
+     * AGE = 119; preamble bumps to 120 → KILL. */
+    reset_world();
+    stage_live(0, 0x78, 0, 0, 0, 0, 0, 0, /*age=*/119);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_t15e_state_machine_ret_0_age_below_120_alive(void)
+{
+    /* AGE 118 → preamble → 119 (!= 120) → alive. */
+    reset_world();
+    stage_live(0, 0x7a, 0, 0, 0, 0, 0, 0, /*age=*/118);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x7a);
+    return 0;
+}
+
+int test_records_b_tick_t15e_clears_anim_drive_global_before_sm(void)
+{
+    /* DAT_06a46f94 (= g_scene1_records_b_tick_anim_drive) is set to 0
+     * before the state_machine call.  Pre-set to 99, expect post-tick
+     * = 0. */
+    reset_world();
+    g_scene1_records_b_tick_anim_drive = 99;
+    stage_live(0, 0x73, 0, 0, 0, 0, 0, 0, /*age=*/10);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(g_scene1_records_b_tick_anim_drive, 0);
+    return 0;
+}
+
+int test_records_b_tick_t15e_age_1_spawn_skipped_when_not_age_1(void)
+{
+    /* AGE != 1 → no overlay_spawn calls fire.  Stage AGE=10 (post-
+     * preamble = 11). */
+    reset_world();
+    install_overlay_capture();
+    stage_live(0, 0x78, 0, 0, 0, 0, 0, 0, /*age=*/10);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_overlay_calls, 0);
+    restore_overlay();
+    return 0;
+}
+
+int test_records_b_tick_t15e_all_three_types_share_body(void)
+{
+    /* Smoke: same input, three types.  All three should produce the
+     * same DRAG=0 + cull_query call count + kill on AGE-120. */
+    reset_world();
+    s_cull_return = -1;
+    scene1_records_b_set_cull_query_hook(cull_stub);
+    s_cull_calls = 0;
+    stage_live(0, 0x73, 0, 0, 0, 0, 0, 0, /*age=*/10);
+    stage_live(1, 0x78, 0, 0, 0, 0, 0, 0, /*age=*/10);
+    stage_live(2, 0x7a, 0, 0, 0, 0, 0, 0, /*age=*/10);
+    scene1_records_b_tick();
+    T_ASSERT_EQ_I(s_cull_calls, 3);
+    T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_DRAG)) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(1, SCENE1_RECORDS_B_OFF_DRAG)) < 1e-6f);
+    T_ASSERT(fabsf(slot_get_f(2, SCENE1_RECORDS_B_OFF_DRAG)) < 1e-6f);
+    return 0;
+}

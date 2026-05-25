@@ -1888,6 +1888,20 @@ struct test_case {
     X(records_b_tick_t15d_kills_at_age_300) \
     X(records_b_tick_t15d_does_not_kill_below_age_300) \
     \
+    X(records_b_tick_t15e_age_negative_cancels_preamble) \
+    X(records_b_tick_t15e_age_negative_owner_cf8_nonzero_kills) \
+    X(records_b_tick_t15e_age_1_dual_overlay_spawn) \
+    X(records_b_tick_t15e_age_1_first_spawn_template_0x10_at_pos_minus_vel) \
+    X(records_b_tick_t15e_drag_zero_after_tick) \
+    X(records_b_tick_t15e_cull_visible_continues) \
+    X(records_b_tick_t15e_cull_culled_kills) \
+    X(records_b_tick_t15e_state_machine_ret_1_kills) \
+    X(records_b_tick_t15e_state_machine_ret_0_age_120_kills) \
+    X(records_b_tick_t15e_state_machine_ret_0_age_below_120_alive) \
+    X(records_b_tick_t15e_clears_anim_drive_global_before_sm) \
+    X(records_b_tick_t15e_age_1_spawn_skipped_when_not_age_1) \
+    X(records_b_tick_t15e_all_three_types_share_body) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \
