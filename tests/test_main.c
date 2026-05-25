@@ -1595,6 +1595,36 @@ struct test_case {
     X(records_b_tick_body1_kill_at_age_0x14) \
     X(records_b_tick_body1_kill_on_owner_cf8) \
     \
+    X(records_b_tick_body2_type_85_pose_anchored_at_owner) \
+    X(records_b_tick_body2_type_85_state_machine_progress_kills) \
+    X(records_b_tick_body2_type_85_kill_at_age_0x24) \
+    X(records_b_tick_body2_type_85_kill_owner_cf8) \
+    X(records_b_tick_body2_type_8a_pose_half_radius) \
+    X(records_b_tick_body2_type_8a_progress_full_cascade) \
+    X(records_b_tick_body2_type_8b_progress_uses_0x8_vel_scale) \
+    X(records_b_tick_body2_type_8a_no_progress_falls_through) \
+    X(records_b_tick_body2_type_8a_kill_age_20000) \
+    X(records_b_tick_body2_type_5c_drag_1_5) \
+    X(records_b_tick_body2_type_87_drag_2_5) \
+    X(records_b_tick_body2_type_5b_age_2_spawn_no_lift) \
+    X(records_b_tick_body2_type_5c_age_2_spawn_lifts_y) \
+    X(records_b_tick_body2_type_5b_no_spawn_outside_age_2) \
+    X(records_b_tick_body2_type_5c_state_machine_loop_window) \
+    X(records_b_tick_body2_type_5c_kill_at_age_0x14) \
+    X(records_b_tick_body2_type_71_age_under_20_uses_sin_ramp) \
+    X(records_b_tick_body2_type_71_age_at_or_above_20_uses_3_0_scale) \
+    X(records_b_tick_body2_type_7d_scale_is_2_5_and_drag_1_5) \
+    X(records_b_tick_body2_type_72_scale_multiplied_by_0_9) \
+    X(records_b_tick_body2_compass_0_subtracts_pos_x) \
+    X(records_b_tick_body2_type_7d_age_1_fires_pfo_alloc) \
+    X(records_b_tick_body2_type_72_age_mod5_4_increments_seq) \
+    X(records_b_tick_body2_type_72_age_mod5_not_4_no_seq_no_kill) \
+    X(records_b_tick_body2_type_72_kills_when_owner_e90_not_2) \
+    X(records_b_tick_body2_type_71_kill_at_age_0x1e) \
+    X(records_b_tick_body2_type_71_owner_cf8_kill) \
+    X(records_b_tick_body2_state_machine_loop_window_71) \
+    X(records_b_tick_body2_aux_hook_setters_round_trip) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \

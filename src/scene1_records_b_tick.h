@@ -63,6 +63,47 @@
  * branch fires from `--force-b-entity <type>` smoke since allocator sets
  * FLAG_B = -1 (engine "owner+0x20 pos source").
  *
+ * C8j-tick.5 (2026-05-25) adds Body 2 (L812-L1050) — chr-walker /
+ * shop-walker driven types {0x71, 0x72, 0x7d, 0x85, 0x8a, 0x8b, 0x5b,
+ * 0x5c, 0x5e, 0x86, 0x87}.  All read OWNER_A.pose at +0x20..+0x28.
+ *
+ *   - 0x85 — pose at owner+0x20 + (sin, 1, cos) radius 1.0; ALT_POS
+ *     direct-copy.  DRAG=0.5.  state_machine: progress → owner+0xe90=7,
+ *     owner+0xe94=0, kill (engine LAB_004411e3); no progress → kill if
+ *     owner+0xcf8 != 0 or AGE == 0x24.
+ *   - 0x8a / 0x8b — pose at owner+0x20 + (sin*0.5, 1, cos*0.5).  DRAG
+ *     =0.5.  state_machine progress: zero owner+0xe7c/e80/e84, then
+ *     per-type cascade.  0x8a: aux_485979(0), SE(0x13f), owner+0xcf8
+ *     =0x2d, owner+0xe90=1, aux_482a51(owner+0x930, 2), notify_queue
+ *     (8, 4, 4, 0.5), vel_scale=1.4.  0x8b: owner+0xcf8=0xf, owner
+ *     +0xe90=1, vel_scale=0.8.  Common: kill slot (TYPE=0), owner+0x904
+ *     = -0.1 × sin(ROT_X)×vel_scale, owner+0x908 = 0.3, owner+0x90c
+ *     = -0.1 × cos(ROT_X)×vel_scale.  Kill checks: owner+0xe90 / e7c /
+ *     cf8 != 0; AGE == 20000.
+ *   - 0x5b / 0x5c / 0x5e / 0x86 / 0x87 — pose at owner+0x20 + (sin, 1,
+ *     cos) full radius; ALT_POS direct-copy.  DRAG=1.5 default, 2.5 for
+ *     0x87.  Y-offset to scene1_spawn = 0 for 0x5b, 1.0 for others.
+ *     AGE==2 → scene1_spawn(0, x, y+offset, z, 4, 1.8, 1).  state_machine
+ *     5-iter early-break loop for AGE in [2, 6).  Kill on owner+0xcf8 /
+ *     AGE==0x14.
+ *   - 0x71 / 0x72 / 0x7d — chr-walker dynamic-scale pose.  DRAG=0.5
+ *     default, 1.5 for 0x7d, 0.4 for 0x72; 0x72 also overrides DRAG to
+ *     1.0 later if its kill_age branch runs.  Scale = min(2.0, AGE*0.2
+ *     + 0.5).  0x71 + AGE<20 overrides to sin(AGE * π/2 / 20) * 2.5
+ *     + 0.5; 0x7d overrides to 2.5; 0x72 multiplies by 0.9.  Pose at
+ *     owner+0x20 + scale*(sin, _, cos), POS_Y = owner+0x24 + 1.0.
+ *     Compass dispatch via owner+0x948: ==0 → POS_X -= 0.4; ==4 → POS_X
+ *     += 0.4; else → POS_Z += 0.4.  0x7d AGE==1 → PFO Table A pass-
+ *     through alloc(owner, POS_X, 0, POS_Z, 6, 1.0, -1, 0, 0).  0x72
+ *     AGE%5==4 → SEQ_ID = seq_counter_next(); 0x72 also sets kill_age
+ *     to 20000 (vs 0x14 for 0x71/0x7d) and DRAG=1.0.  state_machine
+ *     5-iter early-break loop for AGE in [4, kill_age).  Kill checks:
+ *     owner+0xcf8 != 0 (all); 0x72: owner+0xe90 != 2 → kill, AGE%5!=4
+ *     skips age-kill, AGE==20000 kills.  0x71/0x7d: AGE==0x1e kills.
+ *
+ * Hooks gained (all default no-op): aux_485979 (1-arg), aux_482a51
+ * (2-arg), notify_queue (4-arg, PHC #22).
+ *
  * C8j-tick.3 (2026-05-25) adds bodies for the mid-cascade (L408-L649):
  *
  *   - 0x9c — NPC shoulder-arc bend.  Per-tick reads slot[ROT_X] as the
@@ -176,6 +217,23 @@ typedef void (*scene1_b_per_type_body_fn)(int slot_idx, int32_t type);
 typedef void (*scene1_b_state_machine_fn)(int32_t *slot);
 typedef void (*scene1_b_se_fn)(uint16_t se_id);
 
+/* Stand-ins for three engine helpers used by the C8j-tick.5 0x8a body.
+ * All are deferred to their own ports (no in-port consumer reads their
+ * side effects today); the hooks let tests observe arg shape and let the
+ * defaults remain pure no-ops.
+ *
+ *   FUN_00485979 (731 B, 0x485979) — unknown 1-arg helper (item-pickup
+ *     notify?).  Engine call site pushes 0; we surface as a 1-arg hook.
+ *   FUN_00482a51 (32 B, 0x482a51) — small 2-arg wrapper, called with
+ *     (owner_a + 0x930, 2).
+ *   FUN_0044b219 (60 B, 0x44b219) — single-slot notification queue
+ *     writer to DAT_0438cc14..cc2c (PHC #22).  4-arg signature
+ *     `(int a, int b, int c, float d)`; engine call passes (8, 4, 4, 0.5). */
+typedef void (*scene1_b_aux_1arg_fn)(int32_t arg1);
+typedef void (*scene1_b_aux_2arg_fn)(int32_t arg1, int32_t arg2);
+typedef void (*scene1_b_notify_queue_fn)(int32_t a, int32_t b, int32_t c,
+                                         float d);
+
 /* Stand-in for engine FUN_00490820 (348 B, 0x490820) — view-frustum cull
  * / projection visibility test (vec3 × 4-row view-matrix vs radius).
  * Engine reads _DAT_095d3770..95d37bc (16-float matrix + 4 ints); returns
@@ -198,6 +256,12 @@ scene1_b_state_machine_fn scene1_records_b_set_state_machine_hook(
 scene1_b_se_fn            scene1_records_b_set_se_hook(scene1_b_se_fn fn);
 scene1_b_cull_query_fn    scene1_records_b_set_cull_query_hook(
     scene1_b_cull_query_fn fn);
+scene1_b_aux_1arg_fn      scene1_records_b_set_aux_485979_hook(
+    scene1_b_aux_1arg_fn fn);
+scene1_b_aux_2arg_fn      scene1_records_b_set_aux_482a51_hook(
+    scene1_b_aux_2arg_fn fn);
+scene1_b_notify_queue_fn  scene1_records_b_set_notify_queue_hook(
+    scene1_b_notify_queue_fn fn);
 
 /* Mark a slot dead — engine LAB_004411e3 (`*piVar14 = 0`).  Setting
  * TYPE = 0 makes the next allocator scan reclaim it.  Death-effect

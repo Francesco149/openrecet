@@ -36,8 +36,10 @@
 
 #include "rng.h"
 #include "scene1_overlay.h"
+#include "scene1_per_frame_open.h"
 #include "scene1_records.h"
 #include "scene1_records_b_spawn.h"
+#include "scene1_spawn.h"
 
 int32_t g_scene1_records_b_tick_flag;        /* engine DAT_06a46f98 */
 int32_t g_scene1_records_b_tick_anim_drive;  /* engine DAT_06a46f94 */
@@ -50,6 +52,9 @@ static scene1_b_per_type_body_fn g_per_type_body     = dispatch_default;
 static scene1_b_state_machine_fn g_state_machine_hook;   /* default NULL */
 static scene1_b_se_fn            g_se_hook;              /* default NULL */
 static scene1_b_cull_query_fn    g_cull_query_hook;      /* default NULL = "visible" */
+static scene1_b_aux_1arg_fn      g_aux_485979_hook;      /* default NULL */
+static scene1_b_aux_2arg_fn      g_aux_482a51_hook;      /* default NULL */
+static scene1_b_notify_queue_fn  g_notify_queue_hook;    /* default NULL */
 
 scene1_b_per_type_body_fn scene1_records_b_set_per_type_body(
     scene1_b_per_type_body_fn fn)
@@ -82,9 +87,48 @@ scene1_b_cull_query_fn scene1_records_b_set_cull_query_hook(
     return prev;
 }
 
+scene1_b_aux_1arg_fn scene1_records_b_set_aux_485979_hook(
+    scene1_b_aux_1arg_fn fn)
+{
+    scene1_b_aux_1arg_fn prev = g_aux_485979_hook;
+    g_aux_485979_hook = fn;
+    return prev;
+}
+
+scene1_b_aux_2arg_fn scene1_records_b_set_aux_482a51_hook(
+    scene1_b_aux_2arg_fn fn)
+{
+    scene1_b_aux_2arg_fn prev = g_aux_482a51_hook;
+    g_aux_482a51_hook = fn;
+    return prev;
+}
+
+scene1_b_notify_queue_fn scene1_records_b_set_notify_queue_hook(
+    scene1_b_notify_queue_fn fn)
+{
+    scene1_b_notify_queue_fn prev = g_notify_queue_hook;
+    g_notify_queue_hook = fn;
+    return prev;
+}
+
 static inline void se_play(uint16_t id)
 {
     if (g_se_hook) g_se_hook(id);
+}
+
+static inline void aux_485979_call(int32_t arg1)
+{
+    if (g_aux_485979_hook) g_aux_485979_hook(arg1);
+}
+
+static inline void aux_482a51_call(int32_t arg1, int32_t arg2)
+{
+    if (g_aux_482a51_hook) g_aux_482a51_hook(arg1, arg2);
+}
+
+static inline void notify_queue_call(int32_t a, int32_t b, int32_t c, float d)
+{
+    if (g_notify_queue_hook) g_notify_queue_hook(a, b, c, d);
 }
 
 static inline void state_machine_call(int32_t *slot)
@@ -1117,6 +1161,419 @@ static void body_kill_bounce(int i, int32_t type)
     }
 }
 
+/* ─── C8j-tick.5 — Body 2 (L812-L1050) ───────────────────────────────── */
+
+/* Shared 5-iter early-break state-machine loop used by 0x5b-group AND
+ * 0x71/0x72/0x7d bodies.  Engine pattern (asm 0x43c711-0x43c722 and
+ * 0x43caed-0x43cafe): zero `edi`, then loop calling FUN_0043865e; break
+ * when it returns 0; cap at 5 iterations.  With our NULL state-machine
+ * hook the loop runs 0 iters (state_machine_call_ret returns 0).  When
+ * a hook is installed, the loop runs all 5 iters. */
+static void body2_state_machine_5iter_loop(int slot_idx)
+{
+    for (int n = 0; n < 5; n++) {
+        int ret = state_machine_call_ret(slot_base(slot_idx));
+        if (ret == 0) break;
+    }
+}
+
+/* Engine L36631-L36670 / asm 0x43c500..0x43c5ab — type 0x85 body.
+ *
+ *   slot[DRAG] = 0.5
+ *   sa = sinf(ROT_X); ca = cosf(ROT_X)
+ *   pos.x   = sa + owner_a[+0x20]
+ *   pos.y   = owner_a[+0x24] + 1.0
+ *   pos.z   = ca + owner_a[+0x28]
+ *   ALT_POS = (owner_a[+0x20], owner_a[+0x24]+1.0, owner_a[+0x28])
+ *     (engine still calls sinf/cosf and discards — fstp st(0) — pure
+ *     FPU-state noop, elided)
+ *
+ *   ret = state_machine(slot)
+ *   if (ret != 0):
+ *     owner_a[+0xe90] = 7
+ *     owner_a[+0xe94] = 0
+ *     kill slot          ; engine: jmp 0x4411e3 (LAB_004411e3)
+ *   else:
+ *     if (owner_a[+0xcf8] != 0): kill slot
+ *     if (AGE == 0x24):          kill slot
+ */
+static void body_0x85(int i)
+{
+    void *owner_a = slot_owner_a(i);
+    if (!owner_a) return;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.5f);
+
+    float rotx = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    float sa   = sinf(rotx);
+    float ca   = cosf(rotx);
+    float ox   = owner_read_f(owner_a, 0x20);
+    float oy   = owner_read_f(owner_a, 0x24);
+    float oz   = owner_read_f(owner_a, 0x28);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa + ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca + oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, oz);
+
+    int ret = state_machine_call_ret(slot_base(i));
+    if (ret != 0) {
+        owner_write_i(owner_a, 0xe90, 7);
+        owner_write_i(owner_a, 0xe94, 0);
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+
+    if (owner_read_i(owner_a, 0xcf8) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+        return;
+    }
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age == 0x24) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine L36739-L36805 / asm 0x43c73d..0x43c8fe — types 0x8a / 0x8b
+ * (shared body).
+ *
+ *   slot[DRAG] = 0.5
+ *   sa = sinf(ROT_X); ca = cosf(ROT_X)
+ *   pos.x = sa * 0.5 + owner_a[+0x20]
+ *   pos.y = owner_a[+0x24] + 1.0
+ *   pos.z = ca * 0.5 + owner_a[+0x28]
+ *
+ *   ret = state_machine(slot)
+ *   if (ret != 0):
+ *     owner_a[+0xe7c] = 0
+ *     owner_a[+0xe80] = 0
+ *     owner_a[+0xe84] = 0
+ *     vel_scale = 1.4         ; 0x8a default
+ *     if type == 0x8a:
+ *       aux_485979(0)
+ *       SE(0x13f)
+ *       owner_a[+0xcf8] = 0x2d
+ *       owner_a[+0xe90] = 1
+ *       aux_482a51(owner_a+0x930, 2)
+ *       notify_queue(8, 4, 4, 0.5)
+ *     else:                    ; 0x8b
+ *       owner_a[+0xcf8] = 0xf
+ *       owner_a[+0xe90] = 1
+ *       vel_scale = 0.8
+ *     Common tail (executes for BOTH 0x8a and 0x8b after the cascade):
+ *       sa2 = sinf(ROT_X) * vel_scale
+ *       ca2 = cosf(ROT_X) * vel_scale
+ *       *piVar14 = 0           ; immediate kill (TYPE=0)
+ *       owner_a[+0x904] = sa2 * -0.1
+ *       owner_a[+0x908] = 0.3
+ *       owner_a[+0x90c] = ca2 * -0.1
+ *
+ *   Kill checks (executed unconditionally after the branch):
+ *     if (owner_a[+0xe90] != 0): kill slot
+ *     if (owner_a[+0xe7c] == 0): kill slot
+ *     if (owner_a[+0xcf8] != 0): kill slot
+ *     if (AGE == 20000):         kill slot
+ *
+ * Note: the immediate `*piVar14 = 0` write inside the state-machine
+ * branch is what makes the slot effectively kill-on-state-machine; the
+ * three "if owner+X != 0 → kill" checks at the tail are no-ops in that
+ * case (slot already TYPE=0).  When state_machine returned 0, only the
+ * unconditional tail checks fire.
+ */
+static void body_0x8a_or_0x8b(int i, int32_t type)
+{
+    void *owner_a = slot_owner_a(i);
+    if (!owner_a) return;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.5f);
+
+    float rotx = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    float sa   = sinf(rotx);
+    float ca   = cosf(rotx);
+    float ox   = owner_read_f(owner_a, 0x20);
+    float oy   = owner_read_f(owner_a, 0x24);
+    float oz   = owner_read_f(owner_a, 0x28);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * 0.5f + ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * 0.5f + oz);
+
+    int ret = state_machine_call_ret(slot_base(i));
+    if (ret != 0) {
+        owner_write_i(owner_a, 0xe7c, 0);
+        owner_write_i(owner_a, 0xe80, 0);
+        owner_write_i(owner_a, 0xe84, 0);
+
+        float vel_scale;
+        if (type == 0x8a) {
+            aux_485979_call(0);
+            se_play(0x13f);
+            owner_write_i(owner_a, 0xcf8, 0x2d);
+            owner_write_i(owner_a, 0xe90, 1);
+            int32_t owner_int = slot_get_i(i, SCENE1_RECORDS_B_OFF_OWNER_A);
+            aux_482a51_call(owner_int + 0x930, 2);
+            notify_queue_call(8, 4, 4, 0.5f);
+            vel_scale = 1.4f;
+        } else {
+            owner_write_i(owner_a, 0xcf8, 0xf);
+            owner_write_i(owner_a, 0xe90, 1);
+            vel_scale = 0.8f;
+        }
+
+        /* Re-read ROT_X — the engine recomputes sin/cos here.  Field is
+         * unchanged across the branch but the engine does fresh loads. */
+        float rotx2 = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+        float sa2   = sinf(rotx2) * vel_scale;
+        float ca2   = cosf(rotx2) * vel_scale;
+
+        scene1_records_b_tick_kill_slot(i);
+        owner_write_f(owner_a, 0x904, sa2 * -0.1f);
+        owner_write_f(owner_a, 0x908, 0.3f);
+        owner_write_f(owner_a, 0x90c, ca2 * -0.1f);
+    }
+
+    /* Unconditional kill checks (asm 0x43c8cd..0x43c8fe). */
+    if (owner_read_i(owner_a, 0xe90) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+    if (owner_read_i(owner_a, 0xe7c) == 0) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+    if (owner_read_i(owner_a, 0xcf8) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age == 20000) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine L36805-L36870 / asm 0x43c5e9..0x43c738 — types 0x5b / 0x5c /
+ * 0x5e / 0x86 / 0x87 (shared body).
+ *
+ *   slot[DRAG] = 1.5             ; default
+ *   y_offset   = 1.0             ; default (used in AGE==2 spawn arg)
+ *   if type == 0x87: slot[DRAG] = 2.5
+ *   if type == 0x5b: y_offset   = 0
+ *
+ *   pose at owner+0x20 + (sin(ROT_X), 1, cos(ROT_X))   ; full radius
+ *   ALT_POS direct-copy from owner+0x20 + (0, 1, 0)
+ *     (engine calls sinf/cosf again, discards via fstp st(0))
+ *
+ *   if AGE == 2:
+ *     scene1_spawn(0, POS_X, POS_Y + y_offset, POS_Z, 4, 1.8, 1)
+ *
+ *   if 1 < AGE < 6:
+ *     body2_state_machine_5iter_loop
+ *
+ *   if (owner_a[+0xcf8] != 0): kill
+ *   if (AGE == 0x14):           kill
+ */
+static void body_0x5b_group(int i, int32_t type)
+{
+    void *owner_a = slot_owner_a(i);
+    if (!owner_a) return;
+
+    float drag     = 1.5f;
+    float y_offset = 1.0f;
+    if (type == 0x87) drag = 2.5f;
+    if (type == 0x5b) y_offset = 0.0f;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
+
+    float rotx = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    float sa   = sinf(rotx);
+    float ca   = cosf(rotx);
+    float ox   = owner_read_f(owner_a, 0x20);
+    float oy   = owner_read_f(owner_a, 0x24);
+    float oz   = owner_read_f(owner_a, 0x28);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa + ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca + oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, oz);
+
+    int age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+
+    if (age == 2) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        scene1_spawn(0, px, py + y_offset, pz, 4, 1.8f, 1);
+    }
+
+    if (age >= 2 && age < 6) {
+        body2_state_machine_5iter_loop(i);
+    }
+
+    if (owner_read_i(owner_a, 0xcf8) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+    if (age == 0x14) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+}
+
+/* Engine L36870-L36970 / asm 0x43c903..0x43cb46 — types 0x71 / 0x72 /
+ * 0x7d (shared body, chr-walker dynamic-scale pose).
+ *
+ *   slot[DRAG] = 0.5             ; default
+ *   age_f      = (float)AGE
+ *   scale      = min(2.0, age_f * 0.2 + 0.5)
+ *
+ *   if type == 0x71 && AGE < 0x14:
+ *     scale = sinf(age_f * π/2 / 20.0) * 2.5 + 0.5
+ *   if type == 0x7d:
+ *     scale = 2.5
+ *     slot[DRAG] = 1.5
+ *   if type == 0x72:
+ *     scale *= 0.9
+ *     slot[DRAG] = 0.4
+ *
+ *   pose at owner+0x20 + scale*(sin(ROT_X), _, cos(ROT_X))
+ *   POS_Y = owner+0x24 + 1.0
+ *
+ *   compass dispatch via owner[+0x948] int:
+ *     == 0:  POS_X -= 0.4
+ *     == 4:  POS_X += 0.4
+ *     else:  POS_Z += 0.4
+ *
+ *   if type == 0x7d && AGE == 1:
+ *     scene1_pfo_table_a_alloc_passthrough(owner_a_int, POS_X, 0,
+ *                                          POS_Z, 6, 1.0, -1, 0, 0)
+ *
+ *   kill_age = 0x14                ; default 0x71/0x7d
+ *   if type == 0x72:
+ *     kill_age = 20000
+ *     slot[DRAG] = 1.0
+ *     if AGE % 5 == 4: SEQ_ID = seq_counter_next()
+ *
+ *   if 3 < AGE < kill_age:
+ *     body2_state_machine_5iter_loop
+ *
+ *   if (owner_a[+0xcf8] != 0): kill
+ *
+ *   if type == 0x72:
+ *     if (owner_a[+0xe90] != 2): kill
+ *     if AGE % 5 != 4: skip remaining age-kill check  (engine jmp 0x43fbbc)
+ *     kill if AGE == 20000
+ *   else:
+ *     kill if AGE == 0x1e
+ *
+ * Note on AGE == 0x1e: the survey doc says 0x1e (= 30) but the kill_age
+ * default for the loop window is 0x14 (= 20).  These are different
+ * gates — 0x14 caps the state-machine loop window, 0x1e is the slot
+ * lifespan kill.  Engine sets both unambiguously (asm 0x43cab0 push
+ * 0x14 → edi as loop cap; 0x43cb3f cmp [esi+0x98], 0x1e → kill).
+ */
+static void body_0x71_72_7d(int i, int32_t type)
+{
+    void *owner_a = slot_owner_a(i);
+    if (!owner_a) return;
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.5f);
+
+    int   age   = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    float age_f = (float)age;
+    float scale = age_f * 0.2f + 0.5f;
+    if (scale > 2.0f) scale = 2.0f;
+
+    /* Engine 0x43c947-0x43c98d: for type 0x71, unconditionally override
+     * `scale = 3.0`, then if AGE < 0x14 override again to the sin ramp.
+     * The base min(2.0, AGE*0.2+0.5) path is dead code for 0x71. */
+    if (type == 0x71) {
+        scale = 3.0f;
+        if (age < 0x14) {
+            scale = sinf(age_f * 1.5707964f / 20.0f) * 2.5f + 0.5f;
+        }
+    }
+    if (type == 0x7d) {
+        scale = 2.5f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.5f);
+    }
+    if (type == 0x72) {
+        scale *= 0.9f;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.4f);
+    }
+
+    float rotx = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    float sa   = sinf(rotx);
+    float ca   = cosf(rotx);
+    float ox   = owner_read_f(owner_a, 0x20);
+    float oy   = owner_read_f(owner_a, 0x24);
+    float oz   = owner_read_f(owner_a, 0x28);
+
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, scale * sa + ox);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, scale * ca + oz);
+
+    /* Compass dispatch via owner+0x948 int. */
+    int32_t compass = owner_read_i(owner_a, 0x948);
+    if (compass == 0) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px - 0.4f);
+    } else if (compass == 4) {
+        float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px + 0.4f);
+    } else {
+        float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz + 0.4f);
+    }
+
+    if (type == 0x7d && age == 1) {
+        int32_t owner_int = slot_get_i(i, SCENE1_RECORDS_B_OFF_OWNER_A);
+        float   px        = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        float   pz        = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        scene1_pfo_table_a_alloc_passthrough(owner_int, px, 0.0f, pz,
+                                             /*template_id=*/6,
+                                             /*scale_base=*/1.0f,
+                                             /*override_dur=*/-1,
+                                             /*override_rot_y_bits=*/0,
+                                             /*param_8=*/0);
+    }
+
+    int kill_age = 0x14;
+    if (type == 0x72) {
+        kill_age = 20000;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 1.0f);
+        if (age % 5 == 4) {
+            int32_t seq = (int32_t)g_scene1_record_b_seq_counter;
+            g_scene1_record_b_seq_counter++;
+            slot_set_i(i, SCENE1_RECORDS_B_OFF_SEQ_ID, seq);
+        }
+    }
+
+    if (age > 3 && age < kill_age) {
+        body2_state_machine_5iter_loop(i);
+    }
+
+    if (owner_read_i(owner_a, 0xcf8) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+    }
+
+    if (type == 0x72) {
+        if (owner_read_i(owner_a, 0xe90) != 2) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+        /* Engine `if (AGE % 5 != 4) goto LAB_0043fbbc` — i.e. skip the
+         * AGE==20000 kill check entirely on non-cadence frames.  The
+         * SEQ_ID write above and the previous kill checks have already
+         * fired, so a return here matches the engine's outer-loop
+         * advance. */
+        if (age % 5 != 4) return;
+        if (age == 20000) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+    } else {
+        if (age == 0x1e) {
+            scene1_records_b_tick_kill_slot(i);
+        }
+    }
+}
+
 /* ─── default dispatch ───────────────────────────────────────────────── */
 
 static void dispatch_default(int slot_idx, int32_t type)
@@ -1175,8 +1632,27 @@ static void dispatch_default(int slot_idx, int32_t type)
     case 0x70:
         body_kill_bounce(slot_idx, type);
         break;
+    case 0x85:
+        body_0x85(slot_idx);
+        break;
+    case 0x8a:
+    case 0x8b:
+        body_0x8a_or_0x8b(slot_idx, type);
+        break;
+    case 0x5b:
+    case 0x5c:
+    case 0x5e:
+    case 0x86:
+    case 0x87:
+        body_0x5b_group(slot_idx, type);
+        break;
+    case 0x71:
+    case 0x72:
+    case 0x7d:
+        body_0x71_72_7d(slot_idx, type);
+        break;
     default:
-        /* C8j-tick.5..13 fill in additional cases here. */
+        /* C8j-tick.6..13 fill in additional cases here. */
         break;
     }
 }
