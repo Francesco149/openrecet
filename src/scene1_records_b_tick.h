@@ -232,6 +232,51 @@
  *   - 0x2b overlay_spawn 1 at 0x43d975 — override_rot_y=0 (asm 0x43d96f
  *     fldz + fstp [esp]); Ghidra L37801 had 8 args, asm has 9.
  *
+ * C8j-tick.11 (2026-05-25) adds Body 7a (asm 0x43dd79..0x43e22b) — the
+ * first major FUN_0043865e (state_machine, PHC #20) dispatch cluster.
+ * Four per-type bodies plus a motion-id sub-dispatch:
+ *
+ *   - Type 0x46 (asm 0x43dd96..0x43deb1) — overlay cascade.
+ *     If AGE == 1: scene1_overlay_spawn(NULL, POS, 0x44, 2.5, 0xffffffff, 0).
+ *     If AGE == 0x28: fire 4 overlay spawns + se_play(0x2a3):
+ *       (POS+y+4.0, 0x42, 2.0), (POS, 0x43, 1.5), (POS, 0x45, 1.5).
+ *     DRAG = 3.0; SM if AGE in [0x28, 0x30); kill on AGE == 0x3c.
+ *
+ *   - Type 0x97 (asm 0x43debd..0x43df16) — overlay emit + ramp-out.
+ *     DRAG = 1.0; state_machine.
+ *     If AGE % 2 == 1: scene1_overlay_spawn(OWNER_A, POS_X, 0, POS_Z,
+ *                                            0x56, 1.0, 0xffffffff, 0).
+ *     Kill on AGE >= 800.
+ *
+ *   - Types 0xe / 0x12 (asm 0x43df1b..0x43e108) — motion-id sub-dispatch
+ *     reading owner+0x424:
+ *       0x31 → DRAG = 3.0; SM; kill AGE >= 8.
+ *       0xf  → DRAG = 1.0; SM; kill AGE >= 0 (always).
+ *       0x25/0x26/0x27/0x28 → DRAG = 4.0; iter loop SM up to 20× (break
+ *                              on SM return 0); always kills post-loop.
+ *       0x3d/0x3e/0x3f/0x40/0x41/0x42 → DRAG = 3.5; SM; kill AGE >= 5.
+ *       0x46/0x47 → DRAG = 1.0; SM; kill AGE >= 1 (always).
+ *       0x44/0x45 → DRAG = g_scene1_b_motion_table[motion].drag_mul *
+ *                          1.15; SM; kill AGE >= 1 (always).
+ *       0x43 → DRAG = 3.5; pose write (2*sin/cos around owner+0x3f0..f8
+ *               with owner+0x420 angle, +2.0 y); SM; kill AGE == 0x3c.
+ *       0x18/0x3b/0x3c → DRAG = owner+0xa58 < 100 ? 6.5 : 8.5; SM;
+ *                        kill AGE == 0xf.
+ *       (else) → DRAG = 2.0; SM; kill AGE == 0xf.
+ *
+ *   - Types 0xd / 0x15 (asm 0x43e15d..0x43e226) — pose around owner.
+ *     DRAG = 0.5 (or 0.0 for type 0x15 + owner motion == 0x19).
+ *     POS_X = 2*sin(owner+0x420) + owner+0x3f0;
+ *     POS_Y = owner+0x3f4 + 2.0;
+ *     POS_Z = 2*cos(owner+0x420) + owner+0x3f8.
+ *     SM gate: AGE in [5, 9) for 0xd; AGE in [0, 0xf) for 0x15.
+ *     Kill on AGE == 0x28.
+ *
+ *   Engine quirk: the "AGE >= 1 always kills" cases ({0xe,0x12} +
+ *   motion in {0xf, 0x44-0x47}) preserve their motion-id sub-dispatch
+ *   despite immediate kill — the state_machine call is the side
+ *   effect they want (e.g. trigger a one-shot effect via FUN_0043865e).
+ *
  * C8j-tick.10 (2026-05-25) adds Body 6 + Body 7 (asm 0x43dc03..0x43dd79) —
  * two NPC-anchor bodies sharing a per-NPC-motion-style physical-constants
  * table (PHC #19 — three sibling tables at DAT_005c2434/8/c, 256-entry
@@ -466,6 +511,22 @@ typedef int (*scene1_b_tick_ground_query_fn)(float x, float y, float z,
  * reads the latched state today. */
 typedef void (*scene1_b_aux_4532bc_fn)(int32_t arg1);
 
+/* Stand-in for scene1_overlay_spawn calls fired from within per-type
+ * bodies (scattered across C8j-tick.2..C8j-tick.13).  When installed,
+ * the hook is called INSTEAD of scene1_overlay_spawn — tests use this
+ * to observe arg construction without populating the full overlay
+ * template/shape table.  Default NULL → production calls
+ * scene1_overlay_spawn directly. */
+typedef void (*scene1_b_overlay_spawn_fn)(const void *template_owner,
+                                          float pos_x, float pos_y,
+                                          float pos_z,
+                                          int   template_id,
+                                          float scale_base,
+                                          int   override_dur,
+                                          int   override_rot_y,
+                                          int   shape_mode,
+                                          int   mode);
+
 /* Setters return prior value so tests can save/restore.  Pass NULL to
  * revert to the default — for `per_type_body` that's the in-module
  * `dispatch_default` (engine-faithful body); for `state_machine` and
@@ -488,6 +549,8 @@ scene1_b_tick_ground_query_fn  scene1_records_b_set_ground_query_hook(
     scene1_b_tick_ground_query_fn fn);
 scene1_b_aux_4532bc_fn    scene1_records_b_set_aux_4532bc_hook(
     scene1_b_aux_4532bc_fn fn);
+scene1_b_overlay_spawn_fn scene1_records_b_set_overlay_spawn_hook(
+    scene1_b_overlay_spawn_fn fn);
 
 /* Mark a slot dead — engine LAB_004411e3 (`*piVar14 = 0`).  Setting
  * TYPE = 0 makes the next allocator scan reclaim it.  Death-effect

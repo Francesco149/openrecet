@@ -1731,6 +1731,36 @@ struct test_case {
     X(records_b_tick_t10_body7_age_other_survives) \
     X(records_b_tick_t10_body7_calls_state_machine) \
     \
+    X(records_b_tick_t11_type_46_age_1_spawns_0x44) \
+    X(records_b_tick_t11_type_46_age_0x28_fires_3_overlays_plus_se) \
+    X(records_b_tick_t11_type_46_state_machine_in_age_window) \
+    X(records_b_tick_t11_type_46_no_state_machine_outside_window) \
+    X(records_b_tick_t11_type_46_kills_at_age_0x3c) \
+    X(records_b_tick_t11_type_46_sets_drag_3_0) \
+    X(records_b_tick_t11_type_97_sets_drag_1_0) \
+    X(records_b_tick_t11_type_97_calls_state_machine_every_tick) \
+    X(records_b_tick_t11_type_97_odd_age_spawns_overlay_0x56) \
+    X(records_b_tick_t11_type_97_even_age_skips_overlay) \
+    X(records_b_tick_t11_type_97_kills_at_age_0x320) \
+    X(records_b_tick_t11_type_97_survives_at_age_0x100) \
+    X(records_b_tick_t11_type_e_motion_31_drag_3_0_kill_at_8) \
+    X(records_b_tick_t11_type_e_motion_f_kills_immediately) \
+    X(records_b_tick_t11_type_e_motion_25_iter_loop) \
+    X(records_b_tick_t11_type_e_motion_25_no_hook_skips_loop_kills) \
+    X(records_b_tick_t11_type_e_motion_3d_drag_3_5_kill_at_5) \
+    X(records_b_tick_t11_type_e_motion_44_uses_motion_table_drag) \
+    X(records_b_tick_t11_type_e_motion_43_writes_pose) \
+    X(records_b_tick_t11_type_e_motion_18_drag_6_5_under_100) \
+    X(records_b_tick_t11_type_e_motion_18_drag_8_5_over_100) \
+    X(records_b_tick_t11_type_e_motion_other_drag_2_0_kill_at_0xf) \
+    X(records_b_tick_t11_type_d_writes_pose_and_drag_0_5) \
+    X(records_b_tick_t11_type_15_motion_19_uses_drag_0) \
+    X(records_b_tick_t11_type_15_motion_other_uses_drag_0_5) \
+    X(records_b_tick_t11_type_d_sm_fires_in_age_5_to_9) \
+    X(records_b_tick_t11_type_d_sm_skipped_outside_window) \
+    X(records_b_tick_t11_type_15_sm_fires_in_age_0_to_0xf) \
+    X(records_b_tick_t11_type_d_kills_at_age_0x28) \
+    \
     X(records_c_spawn_pickup_writes_first_free_slot) \
     X(records_c_spawn_pickup_skips_alive_slots) \
     X(records_c_spawn_pickup_table_full_is_noop) \
