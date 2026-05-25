@@ -2,23 +2,28 @@
  * test_scene1_combat_sm.c — unit tests for the FUN_0043865e port.
  *
  * Scope:
- *   C8jb.1 — Phase A entry gates (4 globals) + per-tick flag.
- *   C8jb.2 — Phase B head: attacker NPC scan iteration shell + 4 skip
- *            gates + per-NPC hit-history filter.
- *   C8jb.3 — Phase B collision math: nested sub-iter loop (1/7/2 by
- *            NPC type) + pose lookup (combat_pose vs anchor) + 2D-XZ
- *            distance + AABB Y-band.
- *   C8jb.4 — Phase B per-collision arming: 0x48 disarm + 0x44/0x45
- *            angle filter (±0.3π cone) + anchor-path disarming for
- *            non-0x46/0x47 sub-iter > 0 + phase==6 ∧ subphase==1
- *            force-arm.
+ *   C8jb.1  — Phase A entry gates (4 globals) + per-tick flag.
+ *   C8jb.2  — Phase B head: attacker NPC scan iteration shell + 4 skip
+ *             gates + per-NPC hit-history filter.
+ *   C8jb.3  — Phase B collision math: nested sub-iter loop (1/7/2 by
+ *             NPC type) + pose lookup (combat_pose vs anchor) + 2D-XZ
+ *             distance + AABB Y-band.
+ *   C8jb.4  — Phase B per-collision arming: 0x48 disarm + 0x44/0x45
+ *             angle filter (±0.3π cone) + anchor-path disarming for
+ *             non-0x46/0x47 sub-iter > 0 + phase==6 ∧ subphase==1
+ *             force-arm.
+ *   C8jb.5a — Phase B damage-roll prologue: velocity-derived KB factor
+ *             (0.7/sqrt(VX²+VZ²)), hit-history ring bump, and slot
+ *             TYPE==0x53 heavy-attack short-circuit (per-type +0x20
+ *             gate + npc_type!=0x22 + FUN_004319d6 cooldown lookup).
  *
- * Phase B damage roll / Phase C / Phase D not yet ported.  All paths
- * return 0 in C8jb.1..4.
+ * Phase B general damage formula / Phase C / Phase D not yet ported.
+ * All paths return 0 in C8jb.1..5a.
  */
 
 #include "t.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -74,6 +79,15 @@ static void capture_armed_hook(int npc_index, int sub_iter)
     }
 }
 
+/* C8jb.5a aux_4319d6 capture (for 0x53 heavy-attack path tests). */
+static int g_aux_4319d6_return = 0;
+static int g_aux_4319d6_call_count = 0;
+static int aux_4319d6_returns_configured(void)
+{
+    g_aux_4319d6_call_count++;
+    return g_aux_4319d6_return;
+}
+
 static void reset_combat_state(void)
 {
     g_scene1_combat_subphase     = 0;
@@ -85,6 +99,10 @@ static void reset_combat_state(void)
     g_scene1_combat_phase_b_visit_count            = 0;
     g_scene1_combat_phase_b_collision_count        = 0;
     g_scene1_combat_phase_b_armed_collision_count  = 0;
+    g_scene1_combat_phase_b_heavy_atk_count        = 0;
+    g_scene1_combat_phase_b_damage_out             = 0;
+    g_scene1_combat_phase_b_kb_strength            = 0.0f;
+    g_scene1_combat_dat_0438bed8                   = 0;
     g_visit_count = 0;
     g_collision_count = 0;
     g_armed_count = 0;
@@ -99,6 +117,9 @@ static void reset_combat_state(void)
     scene1_combat_set_phase_b_visit_hook(NULL);
     scene1_combat_set_phase_b_collision_hook(NULL);
     scene1_combat_set_phase_b_armed_hook(NULL);
+    scene1_records_b_set_aux_4319d6_hook(NULL);
+    g_aux_4319d6_return     = 0;
+    g_aux_4319d6_call_count = 0;
 }
 
 static int32_t *some_slot(void)
@@ -1693,5 +1714,383 @@ int test_combat_sm_phase_b_armed_hook_install_returns_previous(void)
     scene1_combat_phase_b_armed_fn prev2 =
         scene1_combat_set_phase_b_armed_hook(NULL);
     T_ASSERT_EQ_I(prev2 == capture_armed_hook, 1);
+    return 0;
+}
+
+/* ═══ C8jb.5a — Phase B damage-roll prologue ═══════════════════════════ */
+
+/* Helper: set slot[VEL_X] / [VEL_Z] in a single call. */
+static void set_slot_velocity(int32_t *slot, float vx, float vz)
+{
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_VEL_X] = vx;
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_VEL_Z] = vz;
+}
+
+/* ─── KB factor: positive velocity → 0.7 / sqrt(VX²+VZ²) ────────────── */
+
+int test_combat_sm_phase_b_kb_strength_positive_vel(void)
+{
+    /* VEL_X = 3, VEL_Z = 4 → sqrt(9+16) = 5; kb = 0.7 / 5 = 0.14. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    set_slot_velocity(slot, 3.0f, 4.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT(fabsf(g_scene1_combat_phase_b_kb_strength - 0.14f) < 1e-6f);
+    return 0;
+}
+
+/* ─── KB factor: zero velocity → 0.0 (engine: divide skipped) ──────── */
+
+int test_combat_sm_phase_b_kb_strength_zero_vel(void)
+{
+    /* VEL_X = VEL_Z = 0 → sqrt = 0; engine fcomp ≤ 0 → SKIP divide,
+     * local_8 stays at 0.0 (not divide-by-zero infinity). */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    set_slot_velocity(slot, 0.0f, 0.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT(fabsf(g_scene1_combat_phase_b_kb_strength) < 1e-6f);
+    return 0;
+}
+
+/* ─── KB factor: VEL_Y ignored (only XZ contribute) ────────────────── */
+
+int test_combat_sm_phase_b_kb_strength_ignores_vel_y(void)
+{
+    /* Engine reads VEL_X (edi+0x68 = slot[0x1a]) + VEL_Z (edi+0x70 =
+     * slot[0x1c]).  VEL_Y at slot[0x1b] is not part of the magnitude. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    set_slot_velocity(slot, 5.0f, 0.0f);
+    *(float *)&slot[SCENE1_RECORDS_B_OFF_VEL_Y] = 999.0f;  /* IGNORED */
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT(fabsf(g_scene1_combat_phase_b_kb_strength - 0.7f / 5.0f) < 1e-6f);
+    return 0;
+}
+
+/* ─── KB factor: no collision → kb stays 0 (default reset) ─────────── */
+
+int test_combat_sm_phase_b_kb_strength_no_collision_stays_zero(void)
+{
+    /* NPC out of range → no collision → prologue never fires → kb=0. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    set_slot_velocity(slot, 3.0f, 4.0f);  /* would yield 0.14 IF collided */
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 100.0f;  /* out of range */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
+    T_ASSERT(fabsf(g_scene1_combat_phase_b_kb_strength) < 1e-6f);
+    return 0;
+}
+
+/* ─── Hit-history bump writes SEQ_ID at hit_cursor ─────────────────── */
+
+int test_combat_sm_phase_b_hit_history_bump_writes_seq_id(void)
+{
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0xabcd;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+    npc->hit_cursor      = 0;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(npc->hit_history[0], 0xabcd);
+    T_ASSERT_EQ_I(npc->hit_cursor, 1);
+    /* Other slots untouched. */
+    for (int k = 1; k < 10; k++) {
+        T_ASSERT_EQ_I(npc->hit_history[k], 0);
+    }
+    return 0;
+}
+
+/* ─── Hit-history bump wraps cursor 9 → 0 ──────────────────────────── */
+
+int test_combat_sm_phase_b_hit_history_wraps_at_10(void)
+{
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x77;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+    npc->hit_cursor      = 9;  /* about to wrap */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(npc->hit_history[9], 0x77);
+    T_ASSERT_EQ_I(npc->hit_cursor, 0);
+    return 0;
+}
+
+/* ─── Hit-history bump only fires per in-range collision ───────────── */
+
+int test_combat_sm_phase_b_hit_history_only_on_in_range(void)
+{
+    /* NPC out of range → no hit-history write. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x99;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 100.0f;  /* out of range */
+    npc->hit_cursor      = 5;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
+    /* hit_history untouched; cursor unchanged. */
+    for (int k = 0; k < 10; k++) {
+        T_ASSERT_EQ_I(npc->hit_history[k], 0);
+    }
+    T_ASSERT_EQ_I(npc->hit_cursor, 5);
+    return 0;
+}
+
+/* ─── Hit-history bump fires once per multi-anchor sub-iter hit ────── */
+
+int test_combat_sm_phase_b_hit_history_multi_subiter(void)
+{
+    /* NPC type 0x46 has 2 sub-iters using anchors[1] + [2].  Both in
+     * range → 2 hit-history bumps, cursor advances by 2.  Engine
+     * iterates writes in sequence. */
+    reset_combat_state();
+    install_unit_attrs(0x46);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x1234;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x46;
+    npc->attack_radius   = 5.0f;
+    npc->anchors[1][2]   = -2.0f;
+    npc->anchors[2][2]   = -2.0f;
+    npc->hit_cursor      = 3;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 2);
+    T_ASSERT_EQ_I(npc->hit_history[3], 0x1234);
+    T_ASSERT_EQ_I(npc->hit_history[4], 0x1234);
+    T_ASSERT_EQ_I(npc->hit_cursor, 5);
+    return 0;
+}
+
+/* ─── 0x53 short-circuit fires + writes kill_age + bed8 ────────────── */
+
+int test_combat_sm_phase_b_heavy_atk_fires_kill_age_default(void)
+{
+    /* slot[TYPE] = 0x53, per-type heavy_atk_mode = 0, npc_type != 0x22,
+     * aux_4319d6 returns 0 → kill_age = 600.  slot.AGE = 100 →
+     * npc.b18_kill_age_out = 500. */
+    reset_combat_state();
+    install_unit_attrs(0x10);  /* permissive collision */
+    g_scene1_combat_npc_type_attrs[0x10].heavy_atk_mode = 0;
+    g_aux_4319d6_return = 0;
+    scene1_records_b_set_aux_4319d6_hook(aux_4319d6_returns_configured);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x53;
+    /* TYPE=0x53 doubles as the FLAG_A field?  No — TYPE is offset 0,
+     * FLAG_A is offset 1.  We already set FLAG_A=0 in attacker_slot. */
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 100;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_heavy_atk_count, 1);
+    T_ASSERT_EQ_I(npc->npc_b18_kill_age_out, 500);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_0438bed8, 4);
+    T_ASSERT(fabsf(g_scene1_combat_phase_b_kb_strength) < 1e-6f);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 0);
+    T_ASSERT_EQ_I(g_aux_4319d6_call_count, 1);
+    return 0;
+}
+
+/* ─── 0x53 kill_age uses 0x78 when aux_4319d6 returns 1 ─────────────── */
+
+int test_combat_sm_phase_b_heavy_atk_kill_age_transitioning(void)
+{
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    g_aux_4319d6_return = 1;  /* stage-transitioning */
+    scene1_records_b_set_aux_4319d6_hook(aux_4319d6_returns_configured);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x53;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 0x20;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* kill_age = 0x78 (= 120); slot.AGE = 0x20 (= 32); 120-32 = 88. */
+    T_ASSERT_EQ_I(npc->npc_b18_kill_age_out, 88);
+    return 0;
+}
+
+/* ─── 0x53 kill_age MAX(0, ...) clamp when slot.AGE exceeds kill_age ─ */
+
+int test_combat_sm_phase_b_heavy_atk_kill_age_negative_clamped(void)
+{
+    /* slot.AGE > kill_age → MAX(0, ...) clamps to 0. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    g_aux_4319d6_return = 0;  /* kill_age = 600 */
+    scene1_records_b_set_aux_4319d6_hook(aux_4319d6_returns_configured);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x53;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 9999;  /* > kill_age */
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(npc->npc_b18_kill_age_out, 0);
+    return 0;
+}
+
+/* ─── 0x53 short-circuit SKIPPED when heavy_atk_mode != 0 ──────────── */
+
+int test_combat_sm_phase_b_heavy_atk_skipped_when_mode_nonzero(void)
+{
+    /* Engine: `if (per_type_attrs[npc_type].heavy_atk_mode == 0)` — if
+     * nonzero, the 0x53 branch is skipped entirely (no kill_age write,
+     * no bed8 write, kb stays at vel-derived value, damage_out stays 0). */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    g_scene1_combat_npc_type_attrs[0x10].heavy_atk_mode = 1;  /* SKIP */
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    set_slot_velocity(slot, 5.0f, 0.0f);  /* kb = 0.7 / 5 = 0.14 */
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x53;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 100;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+    npc->npc_b18_kill_age_out = 0xdead;  /* sentinel; should stay */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_heavy_atk_count, 0);
+    T_ASSERT_EQ_I(npc->npc_b18_kill_age_out, 0xdead);  /* sentinel unchanged */
+    T_ASSERT_EQ_I(g_scene1_combat_dat_0438bed8, 0);
+    T_ASSERT(fabsf(g_scene1_combat_phase_b_kb_strength - 0.14f) < 1e-6f);
+    return 0;
+}
+
+/* ─── 0x53 short-circuit SKIPPED when npc_type == 0x22 ─────────────── */
+
+int test_combat_sm_phase_b_heavy_atk_skipped_when_npc_type_22(void)
+{
+    /* Engine: `&& npc.npc_type != 0x22` — NPC 0x22 immunity. */
+    reset_combat_state();
+    install_unit_attrs(0x22);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    set_slot_velocity(slot, 5.0f, 0.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x53;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 100;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x22;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+    npc->npc_b18_kill_age_out = 0xbeef;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_heavy_atk_count, 0);
+    T_ASSERT_EQ_I(npc->npc_b18_kill_age_out, 0xbeef);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_0438bed8, 0);
+    T_ASSERT(fabsf(g_scene1_combat_phase_b_kb_strength - 0.14f) < 1e-6f);
+    return 0;
+}
+
+/* ─── 0x53 short-circuit SKIPPED when slot.TYPE != 0x53 ────────────── */
+
+int test_combat_sm_phase_b_heavy_atk_skipped_when_slot_not_53(void)
+{
+    /* slot.TYPE != 0x53 → general damage path (still stubbed; just
+     * confirm short-circuit doesn't fire). */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    g_aux_4319d6_return = 1;
+    scene1_records_b_set_aux_4319d6_hook(aux_4319d6_returns_configured);
+
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x52;  /* != 0x53 */
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_heavy_atk_count, 0);
+    /* aux_4319d6 not invoked because the 0x53 gate didn't open. */
+    T_ASSERT_EQ_I(g_aux_4319d6_call_count, 0);
+    return 0;
+}
+
+/* ─── C8jb.5a counters reset between ticks ─────────────────────────── */
+
+int test_combat_sm_phase_b_damage_roll_counters_reset(void)
+{
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    slot[SCENE1_RECORDS_B_OFF_TYPE] = 0x53;
+    slot[SCENE1_RECORDS_B_OFF_AGE]  = 100;
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    /* First tick: 0x53 fires → heavy_atk_count = 1. */
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_heavy_atk_count, 1);
+
+    /* Move NPC out of range; second tick has no collision → all per-
+     * tick counters reset to 0. */
+    npc->combat_pose[0] = 100.0f;
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_heavy_atk_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_damage_out, 0);
+    T_ASSERT(fabsf(g_scene1_combat_phase_b_kb_strength) < 1e-6f);
+    /* DAT_0438bed8 is NOT reset by the SM — engine semantic.  Tests
+     * that care about its value should reset it explicitly. */
     return 0;
 }

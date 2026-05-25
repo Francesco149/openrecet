@@ -707,6 +707,15 @@ scene1_b_overlay_spawn_fn scene1_records_b_set_overlay_spawn_hook(
     scene1_b_overlay_spawn_fn fn);
 scene1_b_aux_4319d6_fn    scene1_records_b_set_aux_4319d6_hook(
     scene1_b_aux_4319d6_fn fn);
+
+/*
+ * Public accessor: invoke the installed aux_4319d6 hook (stage-transition
+ * gate, PHC #24).  Returns 0 when no hook is installed.  Exposed so the
+ * combat SM (FUN_0043865e — C8jb.5a 0x53 heavy-attack short-circuit) can
+ * share the same hook plumbing as the type-0x53 lifetime body in
+ * FUN_0043ae20 (C8j-tick.13).
+ */
+int scene1_records_b_invoke_aux_4319d6(void);
 scene1_b_sw_record_at_fn  scene1_records_b_set_sw_record_at_hook(
     scene1_b_sw_record_at_fn fn);
 scene1_b_aux_43ab6e_fn    scene1_records_b_set_aux_43ab6e_hook(

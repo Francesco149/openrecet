@@ -16,15 +16,27 @@
  *   C8jb.3 (2026-05-25, commit c3a2dad)  — Phase B collision math: nested
  *                                          per-NPC sub-iter loop +
  *                                          distance check + AABB Y-band.
- *   C8jb.4 (this chip)                   — Phase B per-collision arming:
+ *   C8jb.4 (2026-05-25, commit 6824d22)  — Phase B per-collision arming:
  *                                          0x48 disarm, 0x44/0x45 angle
  *                                          filter (atan2-based facing
  *                                          check, ±0.3π cone), plus
  *                                          implicit unarming from C8jb.3's
  *                                          anchor-path sub-iter > 0
  *                                          (engine `local_18 = 1`).
- *   C8jb.5..11                           — Phase B damage roll / hit
- *                                          registration / Phase C /
+ *   C8jb.5a (this chip)                  — Phase B damage-roll prologue:
+ *                                          velocity-derived KB factor
+ *                                          (0.7 / sqrt(VX² + VZ²)),
+ *                                          hit-history ring bump (per
+ *                                          armed-or-disarmed collision
+ *                                          in range), and slot TYPE==0x53
+ *                                          heavy-attack short-circuit
+ *                                          (per-NPC-type +0x20 gate +
+ *                                          npc.npc_type != 0x22 +
+ *                                          FUN_004319d6 cooldown lookup
+ *                                          → kill_age write to NPC +0x734,
+ *                                          DAT_0438bed8 = 4, local_8 = 0).
+ *   C8jb.5b..11                          — Phase B general damage formula
+ *                                          / hit registration / Phase C /
  *                                          Phase D.
  *   C8jb.fin                             — Install as integrator default
  *                                          SM hook (int-ret plumbing).
@@ -148,6 +160,12 @@ typedef struct {
     float radius_mul;
     float y_band_mul;
     float dist_mul;
+
+    /* C8jb.5a — engine table byte +0x20 (asm `[local_38+0x20]`).
+     * Heavy-attack gate: the 0x53-slot short-circuit fires only when this
+     * field is zero AND npc_type != 0x22.  Production reads stay BSS-zero
+     * (PHC #19 — no writers in binary), so the gate opens by default. */
+    int32_t heavy_atk_mode;
 } scene1_combat_npc_type_attrs_t;
 
 #define SCENE1_COMBAT_NPC_TYPE_ATTRS_COUNT 256
@@ -204,6 +222,56 @@ typedef void (*scene1_combat_phase_b_armed_fn)(int npc_index, int sub_iter);
 scene1_combat_phase_b_armed_fn
 scene1_combat_set_phase_b_armed_hook(scene1_combat_phase_b_armed_fn fn);
 
+/* ─── C8jb.5a — damage-roll prologue surfaces ────────────────────────── */
+/*
+ * Knockback strength factor for the most recent in-range collision.
+ * Engine `local_8` — initialized to `0.7 / sqrt(VEL_X² + VEL_Z²)` (= 0.0
+ * when vel_mag == 0), then forced to 0 by the slot-TYPE==0x53 short-
+ * circuit.  Reset to 0 at the start of each tick that proceeds past
+ * Phase A.  Read by C8jb.5b/c (damage modifier chain) and C8jb.6
+ * (hit-effect emit knockback writes).  Tests probe this to verify the
+ * velocity-derived initial value + the 0x53-path zeroing.
+ *
+ * If the iteration sees multiple in-range collisions in a single tick,
+ * this holds the value of the LAST collision processed (since the SM
+ * still scans all per the C8jb.3 design — engine `return 1` early-exit
+ * lands with C8jb.6).
+ */
+extern float g_scene1_combat_phase_b_kb_strength;
+
+/*
+ * Per-collision damage-roll surface.  Engine `param_1` — the integer
+ * damage value computed at the end of the per-collision damage roll
+ * (Phase B "damage int").  C8jb.5a writes 0 for the slot-TYPE==0x53
+ * heavy-attack short-circuit path; C8jb.5b/c will compute the general
+ * damage formula and quadrant-clamped variants.  Reset to 0 at tick top.
+ *
+ * Tests use this to verify the 0x53 path produces damage=0 (engine
+ * explicitly zeroes inside that branch).  Multi-collision behavior:
+ * holds the LAST collision's damage (see kb_strength note above).
+ */
+extern int32_t g_scene1_combat_phase_b_damage_out;
+
+/*
+ * Total count of slot TYPE==0x53 heavy-attack short-circuits that fired
+ * during the most recent scene1_combat_sm_tick() call.  Each firing
+ * writes npc.npc_b18_kill_age_out + DAT_0438bed8=4 + local_8=0.
+ *
+ * Reset to 0 alongside the visit/collision/armed counters.  Caps at the
+ * armed_collision_count since unarmed collisions still take the same
+ * short-circuit path (the engine evaluates 0x53 BEFORE checking arming).
+ */
+extern int32_t g_scene1_combat_phase_b_heavy_atk_count;
+
+/*
+ * Engine global DAT_0438bed8 (post-hit pose lock — see survey doc for
+ * the full semantic).  Written to 4 by the 0x53 heavy-attack short-
+ * circuit.  Also written by other Phase B / Phase D arms (C8jb.5b+ and
+ * C8jb.10+).  Exposed as a host-readable global so tests can verify the
+ * SM wrote it during a 0x53 path.  BSS-zero default.
+ */
+extern int32_t g_scene1_combat_dat_0438bed8;
+
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*
  * Tick the per-record state machine for one slot.
@@ -213,11 +281,11 @@ scene1_combat_set_phase_b_armed_hook(scene1_combat_phase_b_armed_fn fn);
  * is treated identically to the engine's `param_1`).  The function does
  * NOT validate the pointer.
  *
- * Returns the SM ret contract value {0, 1, 2}.  C8jb.1..4 return 0 in
+ * Returns the SM ret contract value {0, 1, 2}.  C8jb.1..5a return 0 in
  * all paths — Phase A short-circuit OR Phase B iter-completes-with-no-
  * hit OR Phase C/D stub fall-through.
  *
- * Side effects in C8jb.1..4:
+ * Side effects in C8jb.1..5a:
  *   - On fall-through past Phase A (all entry gates zero): writes
  *     g_scene1_records_b_tick_flag = 1.  Resolves PHC #21.
  *   - Resets visit_count + collision_count + armed_collision_count to 0
@@ -226,6 +294,12 @@ scene1_combat_set_phase_b_armed_hook(scene1_combat_phase_b_armed_fn fn);
  *     && player_hp > 0) fails, all three counters stay at 0.
  *   - Calls visit / collision / armed hooks (if installed) per
  *     visit / per collision / per armed collision.
+ *   - Per in-range collision (armed or not): writes hit_history ring +
+ *     hit_cursor bump, computes velocity-derived kb_strength.
+ *   - Per in-range collision with slot TYPE==0x53 AND per-NPC-type
+ *     heavy_atk_mode==0 AND npc.npc_type != 0x22: writes
+ *     npc.npc_b18_kill_age_out + g_scene1_combat_dat_0438bed8 = 4,
+ *     bumps heavy_atk_count, sets kb_strength = 0, damage_out = 0.
  */
 int scene1_combat_sm_tick(int32_t *slot);
 

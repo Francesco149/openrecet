@@ -170,6 +170,11 @@ scene1_b_aux_4319d6_fn scene1_records_b_set_aux_4319d6_hook(
     return prev;
 }
 
+int scene1_records_b_invoke_aux_4319d6(void)
+{
+    return g_aux_4319d6_hook ? g_aux_4319d6_hook() : 0;
+}
+
 scene1_b_sw_record_at_fn scene1_records_b_set_sw_record_at_hook(
     scene1_b_sw_record_at_fn fn)
 {

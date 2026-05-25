@@ -183,6 +183,16 @@ typedef struct {
     float   npc_yaw;
     int32_t npc_phase;
     int32_t npc_subphase;
+
+    /* ─── C8jb.5a fields (combat-SM damage-roll prologue) ─────────────── */
+    /*
+     * `npc_b18_kill_age_out` — engine byte +0x734 (asm `esi+0xb18`).
+     * Written by the slot TYPE==0x53 heavy-attack short-circuit with
+     * `MAX(0, kill_age - slot.AGE)`.  kill_age comes from the
+     * FUN_004319d6 stage-transition hook (0x78 ticks during transition,
+     * 600 ticks otherwise).  No in-port consumer reads it yet.
+     */
+    int32_t npc_b18_kill_age_out;
 } scene1_people_entry_t;
 
 #define SCENE1_PEOPLE_COUNT 128                /* engine cap confirmed in C8h.4a */

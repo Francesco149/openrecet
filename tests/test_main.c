@@ -2556,7 +2556,22 @@ struct test_case {
     X(combat_sm_phase_b_arming_other_types_ignore_yaw) \
     X(combat_sm_phase_b_armed_count_le_collision_count) \
     X(combat_sm_phase_b_armed_count_resets_between_ticks) \
-    X(combat_sm_phase_b_armed_hook_install_returns_previous)
+    X(combat_sm_phase_b_armed_hook_install_returns_previous) \
+    X(combat_sm_phase_b_kb_strength_positive_vel) \
+    X(combat_sm_phase_b_kb_strength_zero_vel) \
+    X(combat_sm_phase_b_kb_strength_ignores_vel_y) \
+    X(combat_sm_phase_b_kb_strength_no_collision_stays_zero) \
+    X(combat_sm_phase_b_hit_history_bump_writes_seq_id) \
+    X(combat_sm_phase_b_hit_history_wraps_at_10) \
+    X(combat_sm_phase_b_hit_history_only_on_in_range) \
+    X(combat_sm_phase_b_hit_history_multi_subiter) \
+    X(combat_sm_phase_b_heavy_atk_fires_kill_age_default) \
+    X(combat_sm_phase_b_heavy_atk_kill_age_transitioning) \
+    X(combat_sm_phase_b_heavy_atk_kill_age_negative_clamped) \
+    X(combat_sm_phase_b_heavy_atk_skipped_when_mode_nonzero) \
+    X(combat_sm_phase_b_heavy_atk_skipped_when_npc_type_22) \
+    X(combat_sm_phase_b_heavy_atk_skipped_when_slot_not_53) \
+    X(combat_sm_phase_b_damage_roll_counters_reset)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

@@ -1,12 +1,48 @@
 /*
  * scene1_combat_sm.c — per-record state machine (combat tick).
  *
- * Engine source: FUN_0043865e @ 0x43865e.  Chip C8jb.4 extends C8jb.3's
- * collision math with per-collision arming: type-0x48 disarm + 0x44/0x45
- * angle filter (±0.3π cone, bypassed when NPC phase==6 ∧ subphase==1)
- * plus the implicit unarming from anchor-path sub-iter > 0 (engine
- * `local_18 = 1`).  See scene1_combat_sm.h and
+ * Engine source: FUN_0043865e @ 0x43865e.  Chip C8jb.5a extends C8jb.4
+ * with the damage-roll prologue: velocity-derived knockback factor +
+ * hit-history ring bump + slot TYPE==0x53 heavy-attack short-circuit.
+ * See scene1_combat_sm.h and
  * docs/findings/scene1-records-b-state-machine.md.
+ *
+ * Asm verification for C8jb.5a (re-runnable):
+ *   nix develop --command i686-w64-mingw32-objdump -d -M intel \
+ *       --no-show-raw-insn vendor/unpacked/recettear.unpacked.exe \
+ *       --start-address=0x438b47 --stop-address=0x438c1c
+ *
+ * Confirms (against decomp all.c L35276-L35307):
+ *   - velocity-derived KB factor (engine 0x438b47-0x438b8b):
+ *       `local_8 = sqrt(slot[+0x68]² + slot[+0x70]²)`  (VEL_X² + VEL_Z²)
+ *       `if (local_8 > 0) local_8 = 0.7 / local_8`
+ *     Engine .rdata 0x519748 = 0.7 (verified via tools/analyze/pe.py).
+ *     Slot offsets: edi+0x68 = slot[0x1a dw] = VEL_X (off 26);
+ *                   edi+0x70 = slot[0x1c dw] = VEL_Z (off 28).
+ *   - hit-history ring bump (engine 0x438b8e-0x438bbe):
+ *       `npc.hit_history[npc.hit_cursor] = slot[+0x11c]`  (slot SEQ_ID)
+ *       `npc.hit_cursor = (npc.hit_cursor + 1) % 10`
+ *     Engine field addresses: esi+0xb5c = hit_history start (10 dw);
+ *                             esi+0xb84 = hit_cursor int.
+ *     Slot offset: edi+0x11c = slot[0x47 dw] = SEQ_ID (off 71).
+ *     Engine writes to npc BEFORE bumping cursor (post-increment).
+ *   - 0x53 heavy-attack short-circuit (engine 0x438bb8-0x438c1a):
+ *       `if (slot[TYPE] == 0x53):`
+ *       `  if (per_type_attrs[npc.npc_type].heavy_atk_mode == 0`
+ *       `      AND npc.npc_type != 0x22):`
+ *       `    kill_age = (FUN_004319d6() == 1) ? 0x78 : 600`
+ *       `    npc[+0xb18] = MAX(0, kill_age - slot[+0x98])`  (slot.AGE)
+ *       `    DAT_0438bed8 = 4`
+ *       `    local_8 = 0.0`
+ *       `    goto LAB_004392a7`   (skip damage-roll, fall to hit emit)
+ *     Engine reads npc.npc_type from `[esi+0x424]` (per-people-entry
+ *     byte offset, identical to C8jb.3 source for sub-iter selection).
+ *
+ * Note on the LAB_004392a7 path: when the 0x53 short-circuit fires, the
+ * engine jumps PAST the entire damage roll into the hit-emit section.
+ * In C8jb.5a (no emit yet) we simply set damage_out=0 + kb_strength=0
+ * and let the iteration continue.  C8jb.6 will model the LAB_004392a7
+ * + return 1 contract.
  *
  * Asm verification for C8jb.2 (re-runnable):
  *   nix develop --command i686-w64-mingw32-objdump -d -M intel \
@@ -104,6 +140,12 @@ float   g_scene1_combat_player_hp;   /* _DAT_056db0bc */
 int32_t g_scene1_combat_phase_b_visit_count;
 int32_t g_scene1_combat_phase_b_collision_count;
 int32_t g_scene1_combat_phase_b_armed_collision_count;
+
+/* C8jb.5a damage-roll prologue surfaces. */
+float   g_scene1_combat_phase_b_kb_strength;
+int32_t g_scene1_combat_phase_b_damage_out;
+int32_t g_scene1_combat_phase_b_heavy_atk_count;
+int32_t g_scene1_combat_dat_0438bed8;
 
 scene1_combat_npc_type_attrs_t
     g_scene1_combat_npc_type_attrs[SCENE1_COMBAT_NPC_TYPE_ATTRS_COUNT];
@@ -407,12 +449,93 @@ static int phase_b_check_collision(const scene1_people_entry_t *npc,
     return 1;
 }
 
-static void phase_b_npc_collision_pass(const scene1_people_entry_t *npc,
+/*
+ * C8jb.5a — damage-roll prologue.  Runs per in-range collision (armed or
+ * not) BEFORE the per-collision arming check — engine evaluates the
+ * vel-derived factor + hit-history bump + 0x53 short-circuit
+ * unconditionally once the collision passes both distance + Y-band gates
+ * (engine 0x438b47-0x438c1a).
+ *
+ * The 0x53 short-circuit jumps PAST the rest of the damage roll into
+ * LAB_004392a7 (hit-emit + return 1).  In C8jb.5a we model this by
+ * writing kb_strength=0 + damage_out=0 + heavy_atk_count++ + the engine
+ * side effects (npc.npc_b18_kill_age_out + DAT_0438bed8=4).
+ *
+ * `slot_vel_x` / `slot_vel_z` are pre-loaded by the caller (read once
+ * per Phase B entry; bit-equivalent under our slot model).
+ */
+static void phase_b_damage_roll_prologue(scene1_people_entry_t *npc,
+                                         int32_t *slot,
+                                         float slot_vel_x,
+                                         float slot_vel_z)
+{
+    /* Velocity-derived KB factor.  Engine .rdata 0x519748 = 0.7. */
+    float vel_mag = sqrtf(slot_vel_x * slot_vel_x
+                          + slot_vel_z * slot_vel_z);
+    float kb_strength;
+    if (vel_mag > 0.0f) {
+        kb_strength = 0.7f / vel_mag;
+    } else {
+        /* Engine: skips the divide when fcomp <= 0.  Local stays at the
+         * sqrt result (= 0). */
+        kb_strength = vel_mag;
+    }
+
+    /* Hit-history ring bump.  Engine post-increments cursor after write
+     * (asm 0x438ba2 writes, then 0x438bae+ bumps).  `% 10` is performed
+     * by `cdq + idiv` of the +1 value. */
+    int32_t seq_id = slot[SCENE1_RECORDS_B_OFF_SEQ_ID];
+    int32_t cursor = npc->hit_cursor;
+    if (cursor < 0 || cursor >= 10) {
+        /* Defensive guard: engine has no bound-check (the cursor is
+         * always in [0, 9] via the `% 10` invariant).  Tests that inject
+         * a fresh NPC start at cursor=0 anyway.  Clamp to safe range to
+         * avoid OOB writes if tests inject corruption. */
+        cursor = 0;
+    }
+    npc->hit_history[cursor] = seq_id;
+    npc->hit_cursor = (cursor + 1) % 10;
+
+    int32_t slot_type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+
+    /* Initialize damage-roll outputs.  C8jb.5b/c will refine. */
+    g_scene1_combat_phase_b_damage_out  = 0;
+    g_scene1_combat_phase_b_kb_strength = kb_strength;
+
+    /* 0x53 heavy-attack short-circuit.  Engine 0x438bb8-0x438c1a. */
+    if (slot_type == 0x53) {
+        const scene1_combat_npc_type_attrs_t *attrs =
+            &g_scene1_combat_npc_type_attrs[(unsigned)npc->npc_type & 0xff];
+
+        if (attrs->heavy_atk_mode == 0 && npc->npc_type != 0x22) {
+            /* Engine reads FUN_004319d6 result and picks 0x78 or 600. */
+            int32_t kill_age =
+                (scene1_records_b_invoke_aux_4319d6() == 1) ? 0x78 : 600;
+            int32_t slot_age = slot[SCENE1_RECORDS_B_OFF_AGE];
+            int32_t latch    = kill_age - slot_age;
+            if (latch < 0) {
+                latch = 0;
+            }
+            npc->npc_b18_kill_age_out      = latch;
+            g_scene1_combat_dat_0438bed8   = 4;
+            g_scene1_combat_phase_b_heavy_atk_count++;
+            g_scene1_combat_phase_b_kb_strength = 0.0f;
+            /* damage_out already 0; engine jumps to LAB_004392a7
+             * (hit-emit + return 1).  C8jb.6 will model the early
+             * exit; for now the iteration continues. */
+        }
+    }
+}
+
+static void phase_b_npc_collision_pass(scene1_people_entry_t *npc,
+                                       int32_t *slot,
                                        int npc_index,
                                        float slot_pos_x,
                                        float slot_pos_y,
                                        float slot_pos_z,
-                                       float slot_reach)
+                                       float slot_reach,
+                                       float slot_vel_x,
+                                       float slot_vel_z)
 {
     /* Engine decomp L35204-L35234: sub-iter count by NPC type. */
     int iter_count = phase_b_sub_iter_count(npc->npc_type);
@@ -445,6 +568,12 @@ static void phase_b_npc_collision_pass(const scene1_people_entry_t *npc,
                 g_phase_b_armed_hook(npc_index, sub);
             }
         }
+
+        /* C8jb.5a — damage-roll prologue.  Engine runs this for every
+         * in-range collision regardless of armed state (the
+         * armed/disarmed distinction matters in the LAB_004390d3 final
+         * clamp, ported in C8jb.5c).  */
+        phase_b_damage_roll_prologue(npc, slot, slot_vel_x, slot_vel_z);
     }
 }
 
@@ -460,17 +589,19 @@ static void phase_b_scan(int32_t *slot)
     int32_t owner_b_int = slot[SCENE1_RECORDS_B_OFF_OWNER_B];
     int32_t seq_id      = slot[SCENE1_RECORDS_B_OFF_SEQ_ID];
 
-    /* Slot pose + reach are read once per Phase B entry; they don't
-     * change as the iteration walks NPCs.  Engine reads them inside the
-     * inner loop (per sub-iter), but they're identical each time, so
-     * hoisting is bit-equivalent. */
+    /* Slot pose + reach + velocity are read once per Phase B entry; they
+     * don't change as the iteration walks NPCs.  Engine reads them
+     * inside the inner loop (per sub-iter), but they're identical each
+     * time, so hoisting is bit-equivalent. */
     float slot_pos_x  = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_X];
     float slot_pos_y  = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Y];
     float slot_pos_z  = *(const float *)&slot[SCENE1_RECORDS_B_OFF_POS_Z];
     float slot_reach  = *(const float *)&slot[SCENE1_RECORDS_B_OFF_DRAG];
+    float slot_vel_x  = *(const float *)&slot[SCENE1_RECORDS_B_OFF_VEL_X];
+    float slot_vel_z  = *(const float *)&slot[SCENE1_RECORDS_B_OFF_VEL_Z];
 
     for (int i = 0; i < SCENE1_PEOPLE_COUNT; i++) {
-        const scene1_people_entry_t *npc = &g_scene1_people[i];
+        scene1_people_entry_t *npc = &g_scene1_people[i];
 
         if (!phase_b_npc_passes_skip_gates(npc, state, owner_b_int)) {
             continue;
@@ -485,10 +616,11 @@ static void phase_b_scan(int32_t *slot)
             g_phase_b_visit_hook(i);
         }
 
-        /* C8jb.3 — run the nested sub-iter loop + collision math. */
-        phase_b_npc_collision_pass(npc, i,
+        /* C8jb.3/4/5a — run the nested sub-iter loop + collision math
+         * + arming + damage-roll prologue. */
+        phase_b_npc_collision_pass(npc, slot, i,
                                    slot_pos_x, slot_pos_y, slot_pos_z,
-                                   slot_reach);
+                                   slot_reach, slot_vel_x, slot_vel_z);
     }
 }
 
@@ -507,6 +639,9 @@ int scene1_combat_sm_tick(int32_t *slot)
     g_scene1_combat_phase_b_visit_count            = 0;
     g_scene1_combat_phase_b_collision_count        = 0;
     g_scene1_combat_phase_b_armed_collision_count  = 0;
+    g_scene1_combat_phase_b_heavy_atk_count        = 0;
+    g_scene1_combat_phase_b_damage_out             = 0;
+    g_scene1_combat_phase_b_kb_strength            = 0.0f;
 
     /* Phase B — attacker NPC scan + collision math.  Skipped if slot is
      * NULL (Phase A tests use NULL to probe gates without prepping
