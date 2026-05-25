@@ -421,6 +421,152 @@ scene1_combat_set_rng_unsigned_hook(scene1_combat_rng_unsigned_fn fn);
  * surface here.  Documented for completeness.
  */
 
+/* ─── C8jb.6 — Phase B hit-effect emit surfaces ──────────────────────── */
+/*
+ * Total count of hit-effect emit clusters that fired during the most
+ * recent scene1_combat_sm_tick() call.  Engine fires the cluster once
+ * per (slot, NPC, sub_iter) in-range collision after the C8jb.5b/c
+ * damage roll completes; on fire, the SM returns 1 immediately so
+ * subsequent NPCs/sub-iters are NOT processed in the same tick.
+ *
+ * Capped at 1 per tick in production semantics (one hit = one return).
+ * Reset to 0 at tick top.
+ */
+extern int32_t g_scene1_combat_phase_b_emit_count;
+
+/*
+ * Mid-point spawn pose used by the most recent emit cluster.  Engine
+ * computes this as:
+ *
+ *   fVar3 = npc.attack_radius * dist_mul * radius_mul    (== dist_threshold)
+ *   pose.x = npc_pose.x - (fVar3 * dx) / dist
+ *   pose.y = dy * 0.85 + slot.POS_Y                       (.rdata 0x5196dc)
+ *   pose.z = npc_pose.z - (fVar3 * dz) / dist
+ *
+ * where (dx, dy, dz) = npc_pose - slot.pos and dist = sqrt(dx² + dz²).
+ * Reset to (0, 0, 0) at tick top.
+ */
+extern float g_scene1_combat_phase_b_emit_pose[3];
+
+/*
+ * The two scene1_spawn template IDs picked by the most recent emit
+ * cluster.  Engine writes 2 hit particles per emit (the engine has 4
+ * scene1_spawn call sites but the disarmed / armed-IS_PLAYER / !idle
+ * branches each pick a different pair).  Mapping:
+ *
+ *   idle + armed + IS_PLAYER:  (3,    0xf)
+ *   idle + disarmed:           (0x29, 0x2a)
+ *   idle + armed + !IS_PLAYER: (1,    0x19)   (LAB_0043949c)
+ *   !idle (any state):         (1,    0x19)   (LAB_0043949c)
+ *
+ * For the OWNER_CEC overlay-spawn branch (idle + OWNER_A.+0xcec != 0),
+ * the cluster jumps to LAB_004394e8 and the two templates are both 0.
+ *
+ * Reset to (0, 0) at tick top.
+ */
+extern int32_t g_scene1_combat_phase_b_emit_templates[2];
+
+/*
+ * SE id played at the tail of the most recent emit cluster.  Engine
+ * picks via a branch table (asm 0x439528..0x4395bd):
+ *
+ *   slot.TYPE 8                              → 0x179
+ *   slot.TYPE 0x53                           → 0x2af
+ *   disarmed                                 → 0x167
+ *   idle + IS_PLAYER + OWNER==0              → 0x148
+ *   slot.TYPE 0x5b                           → 0x13f (default)
+ *   slot.TYPE in {0x5c, 0x5f}                → 0x2a7
+ *   slot.TYPE in {0x85, 0x86, 0x87}          → 0x2a7 OR 0x13f (rng & 1)
+ *   slot.TYPE in {2, 3, 0x6d, 0x6f, 0x70}    → 0x153
+ *   else                                       → 0x13f (default)
+ *
+ * Reset to 0 at tick top.
+ */
+extern int32_t g_scene1_combat_phase_b_emit_se_id;
+
+/*
+ * Engine globals written by the emit cluster.  Useful as observables.
+ *
+ *   g_scene1_combat_dat_0438b904 — DAT_0438b904 float, set to local_2c
+ *                                  (= dist - reach) at every emit fire.
+ *   g_scene1_combat_dat_0438b908 — DAT_0438b908 int, set to 0xb4 (= 180
+ *                                  frames) at every emit fire.
+ *   g_scene1_combat_dat_06a46f94 — DAT_06a46f94 int, set to min(damage,
+ *                                  ftol(npc.npc_hp_curr_42c)).  Note this
+ *                                  is the integrator's "anim drive" flag
+ *                                  too (cleared per-iter, read by type-4
+ *                                  body); here the SM-emit path writes
+ *                                  the damage value, not 1.
+ */
+extern float   g_scene1_combat_dat_0438b904;
+extern int32_t g_scene1_combat_dat_0438b908;
+extern int32_t g_scene1_combat_dat_06a46f94;
+
+/*
+ * Per-emit spawn hook — engine FUN_00447f4f (scene1_spawn).  Called up
+ * to 2 times per emit cluster (3 in the slot.TYPE in {4, 0x52} +
+ * damage > 0 extra spawn case).
+ *
+ *   call_index 0   first spawn (template 1 / 3 / 0x29)
+ *   call_index 1   second spawn (template 0x19 / 0xf / 0x2a)
+ *   call_index 2   type-4/0x52 extra spawn (template 0x98 at NPC pose)
+ *
+ * Default NULL → no spawn (production unwired anyway).  Tests inject
+ * to verify per-branch template / pose / param7 selection.
+ */
+typedef void (*scene1_combat_emit_spawn_fn)(int call_index,
+                                            int32_t template,
+                                            float x, float y, float z,
+                                            float scale,
+                                            int32_t param7);
+scene1_combat_emit_spawn_fn
+scene1_combat_set_emit_spawn_hook(scene1_combat_emit_spawn_fn fn);
+
+/*
+ * Per-emit overlay-spawn hook — engine FUN_004147d5 (scene1_overlay_spawn).
+ * Called once per emit cluster when idle + slot.OWNER_A.+0xcec != 0
+ * (the early-skip-to-LAB_004394e8 path); also covers the special
+ * "destroy overlay" case at template 0x19, scale 1.0, override_dur -1.
+ *
+ * Default NULL → no spawn.  Tests inject to verify the OWNER_CEC gate.
+ */
+typedef void (*scene1_combat_emit_overlay_spawn_fn)(int32_t template,
+                                                    float x, float y, float z,
+                                                    float scale,
+                                                    int32_t override_dur,
+                                                    float override_rot_y,
+                                                    int32_t mode);
+scene1_combat_emit_overlay_spawn_fn
+scene1_combat_set_emit_overlay_spawn_hook(scene1_combat_emit_overlay_spawn_fn fn);
+
+/*
+ * Per-emit SE hook — engine FUN_00499519 (se_play).  Called once per
+ * emit cluster at the tail with one of the branch-table SE ids
+ * documented on g_scene1_combat_phase_b_emit_se_id.  Default NULL =
+ * no-op.
+ */
+typedef void (*scene1_combat_emit_se_fn)(int32_t se_id);
+scene1_combat_emit_se_fn
+scene1_combat_set_emit_se_hook(scene1_combat_emit_se_fn fn);
+
+/*
+ * Hook for FUN_0042e791 — 4-arg helper called at the tail of the emit
+ * cluster when slot.TYPE != 0x53 AND npc.npc_extra_gate_428 == 1.
+ * Engine signature `(npc_ptr, damage, armed_int, 0)` — the last arg is
+ * literal 0 (ebx pushed before xor reuse).  The NPC pointer is passed
+ * as an opaque int32 (mirrors the existing aux_482a51 hook convention).
+ *
+ * Default NULL = no-op observable counter only.
+ */
+typedef void (*scene1_combat_emit_aux_42e791_fn)(int32_t npc_int,
+                                                 int32_t damage,
+                                                 int32_t armed,
+                                                 int32_t flag);
+scene1_combat_emit_aux_42e791_fn
+scene1_combat_set_emit_aux_42e791_hook(scene1_combat_emit_aux_42e791_fn fn);
+
+extern int32_t g_scene1_combat_emit_aux_42e791_call_count;
+
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*
  * Tick the per-record state machine for one slot.
@@ -473,6 +619,30 @@ scene1_combat_set_rng_unsigned_hook(scene1_combat_rng_unsigned_fn fn);
  *     direction-hit bits.
  *   - Calls the rng_unsigned hook once per collision (in the final
  *     clamp path).
+ *
+ * Additional C8jb.6 side effects (per in-range collision when slot TYPE
+ * != 0x53; per-collision emit cluster fires once then SM returns 1):
+ *   - Per-slot.TYPE scales the kb_strength (kb_strength is then read by
+ *     downstream KB-vector consumers via npc.npc_kb_vec_3fc[]).
+ *   - Writes npc.npc_kbcd_440 (= 0x28 or 0x3c) and npc.npc_kb_type_ba0
+ *     (= 0 / 0x1e); zeroes npc.npc_phase / npc_phase_counter1/2 if
+ *     npc.npc_combat_phase_b40 == 0 AND KB-write gate passes.
+ *   - Writes npc.npc_kb_vec_3fc[3] with the KB velocity vector.
+ *   - Calls scene1_records_b_invoke_aux_482a51 (existing hook) 0 or 1
+ *     time inside the KB-write block.
+ *   - Calls scene1_combat_emit_overlay_spawn hook 0 or 1 time (OWNER_CEC
+ *     early-exit path), or scene1_combat_emit_spawn hook 1 or 2 times
+ *     (non-OWNER_CEC paths) — plus 1 extra time for slot.TYPE in
+ *     {4, 0x52} with damage > 0.
+ *   - Calls scene1_combat_emit_se hook exactly once with branch-table
+ *     SE id.
+ *   - Calls scene1_combat_emit_aux_42e791 hook 0 or 1 time gated on
+ *     npc.npc_extra_gate_428 == 1 AND slot.TYPE != 0x53.
+ *   - Writes engine globals g_scene1_combat_dat_0438b904/b908 and
+ *     g_scene1_combat_dat_06a46f94 (= min(damage, ftol(npc.npc_hp_curr_42c))).
+ *   - Sets npc.npc_postdmg_ab4 = 1.0.
+ *   - Returns 1 immediately on first emit.  Subsequent NPCs / sub-iters
+ *     in the same tick are NOT processed.
  */
 int scene1_combat_sm_tick(int32_t *slot);
 

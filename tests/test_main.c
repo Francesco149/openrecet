@@ -2614,7 +2614,45 @@ struct test_case {
     X(combat_sm_phase_b_clamp_floor_minimum_damage_to_1) \
     X(combat_sm_phase_b_clamp_small_damage_rng_jitter_adds_bit) \
     X(combat_sm_phase_b_clamp_large_damage_rng_jitter_proportional) \
-    X(combat_sm_phase_b_clamp_local_1c_bits_reset_between_ticks)
+    X(combat_sm_phase_b_clamp_local_1c_bits_reset_between_ticks) \
+    X(combat_sm_phase_b_emit_returns_one_on_hit) \
+    X(combat_sm_phase_b_emit_breaks_iteration_on_first_hit) \
+    X(combat_sm_phase_b_emit_observables_reset_at_tick_top) \
+    X(combat_sm_phase_b_emit_armed_idle_player_templates_3_f) \
+    X(combat_sm_phase_b_emit_disarmed_templates_29_2a) \
+    X(combat_sm_phase_b_emit_armed_idle_npc_templates_1_19) \
+    X(combat_sm_phase_b_emit_not_idle_templates_1_19) \
+    X(combat_sm_phase_b_emit_owner_cec_overlay_branch) \
+    X(combat_sm_phase_b_emit_type_4_damage_extra_spawn_0x98) \
+    X(combat_sm_phase_b_emit_type_52_damage_extra_spawn_0x98) \
+    X(combat_sm_phase_b_emit_type_4_zero_damage_no_extra_spawn) \
+    X(combat_sm_phase_b_emit_se_type_8_picks_0x179) \
+    X(combat_sm_phase_b_emit_se_type_53_picks_0x2af) \
+    X(combat_sm_phase_b_emit_se_disarmed_picks_0x167) \
+    X(combat_sm_phase_b_emit_se_armed_idle_player_picks_0x148) \
+    X(combat_sm_phase_b_emit_se_type_5b_picks_default_0x13f) \
+    X(combat_sm_phase_b_emit_se_type_5c_picks_0x2a7) \
+    X(combat_sm_phase_b_emit_se_cluster_2_3_6d_6f_70_picks_0x153) \
+    X(combat_sm_phase_b_emit_se_type_85_rng_bit0_set_picks_default) \
+    X(combat_sm_phase_b_emit_se_type_86_rng_bit0_clear_picks_0x2a7) \
+    X(combat_sm_phase_b_emit_kb_strength_type_86_zeros) \
+    X(combat_sm_phase_b_emit_kb_strength_type_0x82_zero_and_field_28) \
+    X(combat_sm_phase_b_emit_kbcd_default_28) \
+    X(combat_sm_phase_b_emit_kbcd_type_60_uses_3c) \
+    X(combat_sm_phase_b_emit_kbcd_zeroed_when_kb_gate_fails) \
+    X(combat_sm_phase_b_emit_kb_vector_written_on_armed_hit) \
+    X(combat_sm_phase_b_emit_kb_vector_skipped_when_stunned) \
+    X(combat_sm_phase_b_emit_kb_vector_blocking_uses_damage_and_0_5) \
+    X(combat_sm_phase_b_emit_kb_vector_b18_kill_age_clears) \
+    X(combat_sm_phase_b_emit_writes_dat_0438b904_b908) \
+    X(combat_sm_phase_b_emit_dat_06a46f94_is_min_damage_hp) \
+    X(combat_sm_phase_b_emit_dat_06a46f94_uses_damage_when_hp_high) \
+    X(combat_sm_phase_b_emit_idle_player_dat_0438bed8_is_8) \
+    X(combat_sm_phase_b_emit_aux_42e791_fires_when_gate_open) \
+    X(combat_sm_phase_b_emit_aux_42e791_skipped_when_gate_closed) \
+    X(combat_sm_phase_b_emit_aux_42e791_skipped_for_type_53) \
+    X(combat_sm_phase_b_emit_writes_postdmg_ab4_to_one) \
+    X(combat_sm_phase_b_emit_spawn_pose_midpoint)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

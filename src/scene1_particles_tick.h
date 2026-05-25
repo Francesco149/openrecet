@@ -237,6 +237,41 @@ typedef struct {
     int32_t charge_flag;
     int32_t npc_phase_counter1;
     int32_t npc_phase_counter2;
+
+    /* ─── C8jb.6 fields (combat-SM Phase B hit emit) ───────────────────── */
+    /*
+     * Engine NPC fields touched by the hit-effect emit cluster (engine
+     * asm 0x439120..0x43964d).  All defaults BSS-zero; production keeps
+     * the SM unwired so these stay untouched.  Tests inject values to
+     * exercise per-TYPE kb_strength scaling, kb-vector writes, and the
+     * gate conditions for the FUN_0042e791 / FUN_00482a51 hooks.
+     *
+     *   npc_kbcd_440             +0x440 — kb cooldown (set to 0x28 or 0x3c).
+     *   npc_kb_type_ba0          +0xba0 — kb type (cleared to 0; set to 0x1e
+     *                                     for slot.TYPE in {0x85, 0x86}).
+     *   npc_blocking_b98         +0xb98 — block stance (1 = blocking).
+     *   npc_block_dodge_b54      +0xb54 — block/dodge mode (0/1/2).
+     *   npc_stun_b20             +0xb20 — stun counter (gates KB write).
+     *   npc_field_28              +0x28  — set to 1 for slot.TYPE == 0x82.
+     *   npc_combat_phase_b40     +0xb40 — combat phase counter (clear gate).
+     *   npc_phase_lock_1c        +0x1c  — armed-collision phase lock (set 6).
+     *   npc_kb_vec_3fc[3]        +0x3fc/+0x400/+0x404 — kb velocity vector.
+     *   npc_hp_curr_42c          +0x42c — HP-related float (delta gate).
+     *   npc_extra_gate_428       +0x428 — gates FUN_0042e791 call.
+     *   npc_postdmg_ab4          +0xab4 — set to 1.0 at end of emit cluster.
+     */
+    int32_t npc_kbcd_440;
+    int32_t npc_kb_type_ba0;
+    int32_t npc_blocking_b98;
+    int32_t npc_block_dodge_b54;
+    int32_t npc_stun_b20;
+    int32_t npc_field_28;
+    int32_t npc_combat_phase_b40;
+    int32_t npc_phase_lock_1c;
+    float   npc_kb_vec_3fc[3];
+    float   npc_hp_curr_42c;
+    int32_t npc_extra_gate_428;
+    float   npc_postdmg_ab4;
 } scene1_people_entry_t;
 
 #define SCENE1_PEOPLE_COUNT 128                /* engine cap confirmed in C8h.4a */

@@ -160,6 +160,16 @@ int32_t g_scene1_combat_phase_b_local_1c_bits;
 int32_t g_scene1_combat_owner_a_ce4;          /* stand-in for *(int*)(OWNER_A+0xce4) */
 int32_t g_scene1_combat_owner_a_cec;          /* stand-in for *(int*)(OWNER_A+0xcec) */
 
+/* C8jb.6 hit-effect emit globals. */
+int32_t g_scene1_combat_phase_b_emit_count;
+float   g_scene1_combat_phase_b_emit_pose[3];
+int32_t g_scene1_combat_phase_b_emit_templates[2];
+int32_t g_scene1_combat_phase_b_emit_se_id;
+float   g_scene1_combat_dat_0438b904;
+int32_t g_scene1_combat_dat_0438b908;
+int32_t g_scene1_combat_dat_06a46f94;
+int32_t g_scene1_combat_emit_aux_42e791_call_count;
+
 scene1_combat_npc_type_attrs_t
     g_scene1_combat_npc_type_attrs[SCENE1_COMBAT_NPC_TYPE_ATTRS_COUNT];
 
@@ -169,6 +179,10 @@ static scene1_combat_phase_b_armed_fn      g_phase_b_armed_hook;
 static scene1_combat_combo_held_fn         g_combo_held_hook;
 static scene1_combat_rng_damage_scale_fn   g_rng_damage_scale_hook;
 static scene1_combat_rng_unsigned_fn       g_rng_unsigned_hook;
+static scene1_combat_emit_spawn_fn         g_emit_spawn_hook;
+static scene1_combat_emit_overlay_spawn_fn g_emit_overlay_spawn_hook;
+static scene1_combat_emit_se_fn            g_emit_se_hook;
+static scene1_combat_emit_aux_42e791_fn    g_emit_aux_42e791_hook;
 
 /* Engine angle-filter threshold = 0.9424779 (≈ 0.3π).  .rdata literal
  * at 0x51940c per asm scan (verified via objdump-s).  Stored as a named
@@ -253,6 +267,77 @@ scene1_combat_set_rng_unsigned_hook(scene1_combat_rng_unsigned_fn fn)
 static uint32_t rng_unsigned_call(void)
 {
     return (g_rng_unsigned_hook != NULL) ? g_rng_unsigned_hook() : 0u;
+}
+
+/* ─── C8jb.6 emit hook setters ───────────────────────────────────────── */
+
+scene1_combat_emit_spawn_fn
+scene1_combat_set_emit_spawn_hook(scene1_combat_emit_spawn_fn fn)
+{
+    scene1_combat_emit_spawn_fn prev = g_emit_spawn_hook;
+    g_emit_spawn_hook = fn;
+    return prev;
+}
+
+scene1_combat_emit_overlay_spawn_fn
+scene1_combat_set_emit_overlay_spawn_hook(scene1_combat_emit_overlay_spawn_fn fn)
+{
+    scene1_combat_emit_overlay_spawn_fn prev = g_emit_overlay_spawn_hook;
+    g_emit_overlay_spawn_hook = fn;
+    return prev;
+}
+
+scene1_combat_emit_se_fn
+scene1_combat_set_emit_se_hook(scene1_combat_emit_se_fn fn)
+{
+    scene1_combat_emit_se_fn prev = g_emit_se_hook;
+    g_emit_se_hook = fn;
+    return prev;
+}
+
+scene1_combat_emit_aux_42e791_fn
+scene1_combat_set_emit_aux_42e791_hook(scene1_combat_emit_aux_42e791_fn fn)
+{
+    scene1_combat_emit_aux_42e791_fn prev = g_emit_aux_42e791_hook;
+    g_emit_aux_42e791_hook = fn;
+    return prev;
+}
+
+static void emit_spawn_call(int call_index, int32_t template,
+                            float x, float y, float z,
+                            float scale, int32_t param7)
+{
+    if (g_emit_spawn_hook != NULL) {
+        g_emit_spawn_hook(call_index, template, x, y, z, scale, param7);
+    }
+}
+
+static void emit_overlay_spawn_call(int32_t template,
+                                    float x, float y, float z,
+                                    float scale,
+                                    int32_t override_dur,
+                                    float override_rot_y,
+                                    int32_t mode)
+{
+    if (g_emit_overlay_spawn_hook != NULL) {
+        g_emit_overlay_spawn_hook(template, x, y, z, scale,
+                                  override_dur, override_rot_y, mode);
+    }
+}
+
+static void emit_se_call(int32_t se_id)
+{
+    g_scene1_combat_phase_b_emit_se_id = se_id;
+    if (g_emit_se_hook != NULL) g_emit_se_hook(se_id);
+}
+
+static void emit_aux_42e791_call(int32_t npc_int, int32_t damage,
+                                 int32_t armed, int32_t flag)
+{
+    g_scene1_combat_emit_aux_42e791_call_count++;
+    if (g_emit_aux_42e791_hook != NULL) {
+        g_emit_aux_42e791_hook(npc_int, damage, armed, flag);
+    }
 }
 
 static int phase_b_npc_passes_skip_gates(const scene1_people_entry_t *npc,
@@ -974,15 +1059,393 @@ static void phase_b_damage_roll_clamps(scene1_people_entry_t *npc,
     g_scene1_combat_phase_b_local_1c_bits   = (int32_t)local_1c;
 }
 
-static void phase_b_npc_collision_pass(scene1_people_entry_t *npc,
-                                       int32_t *slot,
-                                       int npc_index,
-                                       float slot_pos_x,
-                                       float slot_pos_y,
-                                       float slot_pos_z,
-                                       float slot_reach,
-                                       float slot_vel_x,
-                                       float slot_vel_z)
+/*
+ * C8jb.6 — Per-slot.TYPE scale of the kb_strength (engine 0x439146..0x4392a5).
+ *
+ * Runs after C8jb.5c's clamps.  Mutates kb_strength in place and writes
+ * several NPC bookkeeping fields (npc_kbcd_440 / npc_kb_type_ba0 /
+ * npc_phase_lock_1c / npc_field_28).  All bit-exact .rdata constants
+ * verified via the objdump scan documented above:
+ *   0x5193a0 = 0.1, 0x5198d8 = 0.2, 0x5194ec = 0.3, 0x51935c = 0.5,
+ *   0x5198e0 = 1.5 (engine multiplies; 0x82/0x85/0x86 zero local_8).
+ *
+ * Two arms: NPC blocking (`npc.npc_blocking_b98 == 1`) → kb_strength *= 0.3
+ * + jump straight to the NPC.+0xba0 = 0 line; else NPC block_dodge_mode
+ * scales (1 → 0, 2 → *0.5) then per-slot.TYPE multipliers.
+ */
+static float phase_b_emit_scale_kb_strength(scene1_people_entry_t *npc,
+                                            int32_t slot_type,
+                                            int armed,
+                                            float kb_strength)
+{
+    /* Engine `mov [esi+0x440], 0x28; if (slot.TYPE == 0x60) [esi+0x440] = 0x3c`. */
+    npc->npc_kbcd_440 = (slot_type == 0x60) ? 0x3c : 0x28;
+
+    /* Engine `if (local_18 == 0) [esi+0x1c] = 6` — armed-collision phase lock. */
+    if (armed) {
+        npc->npc_phase_lock_1c = 6;
+    }
+
+    if (npc->npc_blocking_b98 == 1) {
+        /* Engine 0x43914f-0x43916b — blocking branch: *= 0.3, jmp 0x439264. */
+        kb_strength *= 0.3f;
+    } else {
+        /* Engine 0x43916e-0x43918b — block/dodge mode scaling. */
+        if (npc->npc_block_dodge_b54 == 1) {
+            kb_strength = 0.0f;
+        } else if (npc->npc_block_dodge_b54 == 2) {
+            kb_strength *= 0.5f;
+        }
+
+        /* Per-slot.TYPE multipliers.  Engine emits a flat cmp+jne chain
+         * (not a switch); preserve that — each branch independent so an
+         * attacker can in principle match multiple (none of the engine's
+         * literal IDs overlap, but the order matters for any hypothetical
+         * future TYPE alias). */
+        if (slot_type == 0x82) {
+            kb_strength = 0.0f;
+            npc->npc_field_28 = 1;
+            npc->npc_kbcd_440 = 0x3c;
+        }
+        if (slot_type == 0x8a) {
+            kb_strength *= 1.5f;
+            npc->npc_kbcd_440 = 0x3c;
+        }
+        if (slot_type == 0x66) kb_strength *= 0.3f;
+        if (slot_type == 0x62) kb_strength *= 0.3f;
+        if (slot_type == 0x72) kb_strength *= 0.1f;
+        if (slot_type == 0x73) kb_strength *= 0.3f;
+        if (slot_type == 0x7e) kb_strength *= 0.3f;
+        if (slot_type == 0x76) kb_strength *= 0.3f;
+        if (slot_type == 0x78) kb_strength *= 0.2f;
+        if (slot_type == 0x7a) kb_strength *= 0.2f;
+        if (slot_type == 0x5b) {
+            /* Engine reads `*(byte *)(slot.OWNER_B+0x10) & 1` — when bit 0
+             * set, kb=0; else *= 0.2.  We stand in with `g_scene1_combat
+             * _owner_b_npc_type` bit 0 as the proxy (no per-byte OWNER_B
+             * field exists yet; the stand-in is good enough for tests). */
+            if ((g_scene1_combat_owner_b_npc_type & 1) != 0) {
+                kb_strength = 0.0f;
+            } else {
+                kb_strength *= 0.2f;
+            }
+        }
+    }
+
+    /* Engine 0x43926d-0x43929b — kb-type byte clear + 0x85/0x86 overrides. */
+    npc->npc_kb_type_ba0 = 0;
+    if (slot_type == 0x86) {
+        kb_strength = 0.0f;
+        npc->npc_kb_type_ba0 = 0x1e;
+    }
+    if (slot_type == 0x85) {
+        kb_strength = 0.0f;
+        npc->npc_kb_type_ba0 = 0x1e;
+    }
+    g_scene1_combat_dat_0438bed8 = 4;
+
+    return kb_strength;
+}
+
+/*
+ * C8jb.6 — Engine signed-div by 2 helper (used in the NPC.+0x440 halving
+ * when block_dodge_mode == 2).  Engine asm `cdq; sub eax, edx; sar eax, 1`.
+ */
+static int32_t signed_div2_emit(int32_t x)
+{
+    int32_t s = x >> 31;        /* cdq result */
+    return (x - s) >> 1;        /* sub eax, edx; sar eax, 1 */
+}
+
+/*
+ * C8jb.6 — KB vector write (engine 0x4392a7..0x4393bf).  Gate:
+ *
+ *   (npc.npc_stun_b20 == 0  AND  armed  AND  npc.npc_block_dodge_b54 != 1)
+ *   OR (npc.npc_blocking_b98 == 1  AND  npc.npc_hp_curr_42c - damage <= 0)
+ *
+ * If gate passes:
+ *   - block_dodge_b54 == 2 → npc_kbcd_440 = signed_div2(npc_kbcd_440)
+ *   - npc_combat_phase_b40 == 0 → clear npc_phase / counter1 / counter2
+ *   - npc_b18_kill_age_out > 0 → clear kb_vec + aux_482a51(npc, 0); else
+ *     aux_482a51(npc, 2) + write kb_vec
+ *     - blocking + npc_hp_curr_42c - damage > 0:
+ *         kb_vec.x = (float)damage * slot.vel_x
+ *         kb_vec.y = 0.5
+ *         kb_vec.z = (float)damage * slot.vel_z
+ *       else:
+ *         kb_vec.x = kb_strength * slot.vel_x
+ *         kb_vec.y = 0.3
+ *         kb_vec.z = kb_strength * slot.vel_z
+ * Else (gate failed): npc_kbcd_440 = 0.
+ */
+static void phase_b_emit_kb_vector_write(scene1_people_entry_t *npc,
+                                         int armed,
+                                         int32_t damage,
+                                         float kb_strength,
+                                         float slot_vel_x,
+                                         float slot_vel_z)
+{
+    int gate_a = (npc->npc_stun_b20 == 0)
+              && armed
+              && (npc->npc_block_dodge_b54 != 1);
+    int gate_b = (npc->npc_blocking_b98 == 1)
+              && ((npc->npc_hp_curr_42c - (float)damage) <= 0.0f);
+
+    if (!(gate_a || gate_b)) {
+        npc->npc_kbcd_440 = 0;
+        return;
+    }
+
+    if (npc->npc_block_dodge_b54 == 2) {
+        npc->npc_kbcd_440 = signed_div2_emit(npc->npc_kbcd_440);
+    }
+
+    if (npc->npc_combat_phase_b40 == 0) {
+        npc->npc_phase           = 0;
+        npc->npc_phase_counter1  = 0;
+        npc->npc_phase_counter2  = 0;
+    }
+
+    if (npc->npc_b18_kill_age_out > 0) {
+        npc->npc_kb_vec_3fc[0] = 0.0f;
+        npc->npc_kb_vec_3fc[1] = 0.0f;
+        npc->npc_kb_vec_3fc[2] = 0.0f;
+        scene1_records_b_invoke_aux_482a51((int32_t)(intptr_t)npc, 0);
+        return;
+    }
+
+    scene1_records_b_invoke_aux_482a51((int32_t)(intptr_t)npc, 2);
+
+    if ((npc->npc_blocking_b98 == 1)
+        && ((npc->npc_hp_curr_42c - (float)damage) > 0.0f)) {
+        npc->npc_kb_vec_3fc[0] = (float)damage * slot_vel_x;
+        npc->npc_kb_vec_3fc[1] = 0.5f;
+        npc->npc_kb_vec_3fc[2] = (float)damage * slot_vel_z;
+    } else {
+        npc->npc_kb_vec_3fc[0] = kb_strength * slot_vel_x;
+        npc->npc_kb_vec_3fc[1] = 0.3f;
+        npc->npc_kb_vec_3fc[2] = kb_strength * slot_vel_z;
+    }
+}
+
+/*
+ * C8jb.6 — Pick the SE id played at the emit tail (engine 0x439528..0x4395bd).
+ * Branch table on slot.TYPE, armed flag, slot.FLAG_A (idle/!idle),
+ * slot.OWNER_FLAG (IS_PLAYER), with one RNG bucket for {0x85, 0x86, 0x87}.
+ */
+static int32_t phase_b_emit_pick_se_id(int32_t slot_type,
+                                       int armed,
+                                       int idle,
+                                       int is_player)
+{
+    if (slot_type == 0x08) return 0x179;
+    if (slot_type == 0x53) return 0x2af;
+    if (!armed)            return 0x167;
+    /* armed branch */
+    if (!idle)             return 0x13f;          /* default for !idle */
+    if (is_player)         return 0x148;
+    /* armed + idle + !is_player */
+    if (slot_type == 0x5b)                  return 0x13f;
+    if (slot_type == 0x5c || slot_type == 0x5f) return 0x2a7;
+    if (slot_type == 0x85
+     || slot_type == 0x86
+     || slot_type == 0x87) {
+        /* Engine: call rng; test al,1; jne → default (0x13f); else 0x2a7. */
+        if ((rng_unsigned_call() & 1u) != 0u) return 0x13f;
+        return 0x2a7;
+    }
+    if (slot_type == 0x02
+     || slot_type == 0x03
+     || slot_type == 0x6d
+     || slot_type == 0x6f
+     || slot_type == 0x70) {
+        return 0x153;
+    }
+    return 0x13f;
+}
+
+/*
+ * C8jb.6 — Mid-point spawn pose (engine 0x438b0c..0x438b44).  Engine
+ * factors fVar3 = npc.attack_radius * dist_mul * radius_mul, then walks
+ * from npc_pose toward slot.pos by fVar3 / dist along (dx, dz).  Y is
+ * a fixed 0.85 lerp toward slot.pos.y + offset slot.pos.y.
+ */
+static void phase_b_compute_emit_pose(const scene1_people_entry_t *npc,
+                                      const float npc_pose[3],
+                                      float slot_pos_x,
+                                      float slot_pos_y,
+                                      float slot_pos_z,
+                                      float out_pose[3])
+{
+    const scene1_combat_npc_type_attrs_t *attrs =
+        &g_scene1_combat_npc_type_attrs[(unsigned)npc->npc_type & 0xff];
+
+    float dx = npc_pose[0] - slot_pos_x;
+    float dy = npc_pose[1] - slot_pos_y;
+    float dz = npc_pose[2] - slot_pos_z;
+    /* Engine uses the same 0.01 jitter convention as collision_check; in
+     * practice we only reach here when collision_check already passed,
+     * so dist > 0.  Defensive 0-guard kept to match engine's `fdiv`
+     * behavior on NaN inputs (engine would produce ±inf, we produce 0). */
+    float dist = sqrtf(dx * dx + dz * dz);
+    if (dist == 0.0f) dist = 0.01f;
+    float fvar3 = npc->attack_radius
+                * attrs->dist_mul
+                * attrs->radius_mul;
+
+    out_pose[0] = npc_pose[0] - (fvar3 * dx) / dist;
+    out_pose[1] = dy * 0.85f + slot_pos_y;
+    out_pose[2] = npc_pose[2] - (fvar3 * dz) / dist;
+}
+
+/*
+ * C8jb.6 — Hit-effect emit cluster (engine 0x4393bf..0x43964d).  Runs
+ * once per in-range collision after the C8jb.5b/c damage roll.  Returns
+ * the SM ret value (always 1 in C8jb.6 — return 2 lands with Phase D).
+ *
+ * Branches:
+ *   (A) idle + OWNER_A != 0 + OWNER_A.+0xcec != 0
+ *       → 1 overlay_spawn(0x19, scale 1.0, override_dur -1)
+ *       → skip to tail (no scene1_spawn calls)
+ *   (B) idle + armed + is_player
+ *       → 2 scene1_spawn (template 3, then 0xf)
+ *   (C) idle + disarmed
+ *       → 2 scene1_spawn (template 0x29, then 0x2a)
+ *   (D) !idle (any state)                  → LAB_0043949c
+ *       → 2 scene1_spawn (template 1, then 0x19)
+ *   (E) idle + armed + !is_player           → LAB_0043949c
+ *       → 2 scene1_spawn (template 1, then 0x19)
+ *
+ * Then: TYPE 4/0x52 + damage > 0 → 1 extra scene1_spawn (template 0x98,
+ * at NPC pose); optional RNG call for {0x85, 0x86, 0x87}; SE play
+ * (branch-table id); DAT writes; FUN_0042e791 (gated); FUN_00482a51
+ * (gated); npc.npc_postdmg_ab4 = 1.0.
+ */
+static int phase_b_emit_hit_cluster(scene1_people_entry_t *npc,
+                                    int32_t *slot,
+                                    int armed,
+                                    int32_t damage,
+                                    const float npc_pose[3],
+                                    float dist_minus_reach,
+                                    float slot_pos_x,
+                                    float slot_pos_y,
+                                    float slot_pos_z)
+{
+    int32_t slot_type = slot[SCENE1_RECORDS_B_OFF_TYPE];
+    int32_t flag_a    = slot[SCENE1_RECORDS_B_OFF_FLAG_A];
+    int     idle      = (flag_a == 0);
+    int     is_player = (slot[SCENE1_RECORDS_B_OFF_OWNER_FLAG] != 0);
+
+    /* Spawn pose midpoint — engine local_28/24/20. */
+    float pose[3];
+    phase_b_compute_emit_pose(npc, npc_pose,
+                              slot_pos_x, slot_pos_y, slot_pos_z, pose);
+    g_scene1_combat_phase_b_emit_pose[0] = pose[0];
+    g_scene1_combat_phase_b_emit_pose[1] = pose[1];
+    g_scene1_combat_phase_b_emit_pose[2] = pose[2];
+
+    int32_t template_a = 0;
+    int32_t template_b = 0;
+    int     skip_double_spawn = 0;
+
+    if (idle) {
+        /* Engine 0x4393cf — OWNER_A.+0xcec != 0 path.  We stand in with
+         * g_scene1_combat_owner_a_cec (existing C8jb.5c global). */
+        if (g_scene1_combat_owner_a_cec != 0) {
+            emit_overlay_spawn_call(0x19, pose[0], pose[1], pose[2],
+                                    1.0f, -1, 0.0f, 0);
+            skip_double_spawn = 1;
+        } else if (armed) {
+            if (is_player) {
+                template_a = 3;
+                template_b = 0xf;
+            } else {
+                /* LAB_0043949c path. */
+                template_a = 1;
+                template_b = 0x19;
+            }
+        } else {
+            template_a = 0x29;
+            template_b = 0x2a;
+        }
+    } else {
+        /* !idle → LAB_0043949c path. */
+        template_a = 1;
+        template_b = 0x19;
+    }
+
+    if (!skip_double_spawn) {
+        emit_spawn_call(0, template_a, pose[0], pose[1], pose[2], 0.2f, 1);
+        emit_spawn_call(1, template_b, pose[0], pose[1], pose[2], 0.2f, 1);
+    }
+
+    g_scene1_combat_phase_b_emit_templates[0] = template_a;
+    g_scene1_combat_phase_b_emit_templates[1] = template_b;
+
+    /* Engine 0x4394e8 — TYPE 4/0x52 + damage > 0 → extra spawn at NPC pose
+     * (template 0x98).  Engine's pose locals are local_34/local_54/local_4c
+     * (decomp); the asm reads [ebp-0x30]/[ebp-0x50]/[ebp-0x48] which are
+     * the npc.combat_pose / anchor pose components written during sub-iter
+     * pose resolution (see phase_b_resolve_pose). */
+    if ((slot_type == 0x04 || slot_type == 0x52) && damage > 0) {
+        emit_spawn_call(2, 0x98,
+                        npc_pose[0], npc_pose[1], npc_pose[2],
+                        0.2f, 1);
+    }
+
+    /* Engine 0x4394e8..0x4395bd — SE branch table. */
+    int32_t se_id = phase_b_emit_pick_se_id(slot_type, armed, idle, is_player);
+    emit_se_call(se_id);
+
+    /* Engine 0x4395c3-0x4395d9 — DAT writes (distance latch + 180-frame
+     * timer + post-hit pose lock for idle + is_player). */
+    g_scene1_combat_dat_0438b904 = dist_minus_reach;
+    g_scene1_combat_dat_0438b908 = 0xb4;
+    if (idle && is_player) {
+        g_scene1_combat_dat_0438bed8 = 8;
+    }
+
+    /* Engine 0x4395ed-0x439605 — DAT_06a46f94 = min(damage, ftol(npc HP)). */
+    g_scene1_combat_dat_06a46f94 = damage;
+    int32_t hp_int = (int32_t)npc->npc_hp_curr_42c;
+    if (hp_int < damage) {
+        g_scene1_combat_dat_06a46f94 = hp_int;
+    }
+
+    /* Engine 0x43960a-0x439625 — slot.TYPE != 0x53 AND npc_extra_gate_428
+     * == 1 → FUN_0042e791(npc, damage, armed_int, 0).  armed_int is the
+     * engine local_18 (1 = disarmed, 0 = armed), so we pass !armed. */
+    if (slot_type != 0x53 && npc->npc_extra_gate_428 == 1) {
+        emit_aux_42e791_call((int32_t)(intptr_t)npc, damage,
+                             armed ? 0 : 1, 0);
+    }
+
+    /* Engine 0x439628-0x43964a — block_dodge_b54 != 0 AND
+     * npc_hp_curr_42c == 0 → aux_482a51(npc, 2).  The fcomp is against
+     * 0.0 (.rdata 0x519320); we compare directly. */
+    if (npc->npc_block_dodge_b54 != 0 && npc->npc_hp_curr_42c == 0.0f) {
+        scene1_records_b_invoke_aux_482a51((int32_t)(intptr_t)npc, 2);
+    }
+
+    /* Engine 0x43964b-0x43964d — fld1 → NPC.+0xab4 = 1.0; ret 1. */
+    npc->npc_postdmg_ab4 = 1.0f;
+    g_scene1_combat_phase_b_emit_count++;
+    return 1;
+}
+
+/*
+ * C8jb.6 — Returns 1 when a hit was emitted (SM should return 1 from the
+ * outer scan and break the iteration); 0 otherwise (continue scanning).
+ */
+static int phase_b_npc_collision_pass(scene1_people_entry_t *npc,
+                                      int32_t *slot,
+                                      int npc_index,
+                                      float slot_pos_x,
+                                      float slot_pos_y,
+                                      float slot_pos_z,
+                                      float slot_reach,
+                                      float slot_vel_x,
+                                      float slot_vel_z)
 {
     /* Engine decomp L35204-L35234: sub-iter count by NPC type. */
     int iter_count = phase_b_sub_iter_count(npc->npc_type);
@@ -1034,17 +1497,56 @@ static void phase_b_npc_collision_pass(scene1_people_entry_t *npc,
             phase_b_damage_roll_clamps(npc, slot, sub, armed, dx, dz,
                                        damage, local_1c);
         }
+
+        /* C8jb.6 — Per-slot.TYPE kb_strength scaling + KB vector write +
+         * hit-effect emit cluster.  Always fires once per in-range
+         * collision (regardless of TYPE 0x53 short-circuit).  Returns 1
+         * to signal the outer scan to break + the SM to return 1. */
+        float kb_strength = phase_b_emit_scale_kb_strength(
+            npc,
+            slot[SCENE1_RECORDS_B_OFF_TYPE],
+            armed,
+            g_scene1_combat_phase_b_kb_strength);
+        g_scene1_combat_phase_b_kb_strength = kb_strength;
+
+        phase_b_emit_kb_vector_write(npc,
+                                     armed,
+                                     g_scene1_combat_phase_b_damage_out,
+                                     kb_strength,
+                                     slot_vel_x,
+                                     slot_vel_z);
+
+        /* Compute (dist - slot.reach) for the DAT_0438b904 write inside
+         * the emit cluster.  Reuses the same dx/dz already calculated
+         * for arming. */
+        float dy = pose[1] - slot_pos_y;
+        (void)dy;  /* unused here; phase_b_check_collision already gated */
+        float dist = sqrtf(dx * dx + dz * dz);
+        if (dist == 0.0f) dist = 0.01f;
+        float dist_minus_reach = dist - slot_reach;
+
+        return phase_b_emit_hit_cluster(npc, slot, armed,
+                                        g_scene1_combat_phase_b_damage_out,
+                                        pose, dist_minus_reach,
+                                        slot_pos_x, slot_pos_y, slot_pos_z);
     }
+
+    return 0;
 }
 
-static void phase_b_scan(int32_t *slot)
+/*
+ * Returns the SM ret value (1 if a hit emitted, 0 if scan completed
+ * with no hit).  C8jb.6 introduces the early-break: the first in-range
+ * collision that fires the emit cluster aborts the per-NPC iteration.
+ */
+static int phase_b_scan(int32_t *slot)
 {
     /* Phase B outer gate (engine L35186):
      *   ((slot[FLAG_A] == 0 || slot[FLAG_A] == 3)
      *    && 0.0 < _DAT_056db0bc) */
     int32_t state = slot[SCENE1_RECORDS_B_OFF_FLAG_A];
-    if (state != 0 && state != 3) return;
-    if (!(g_scene1_combat_player_hp > 0.0f)) return;
+    if (state != 0 && state != 3) return 0;
+    if (!(g_scene1_combat_player_hp > 0.0f)) return 0;
 
     int32_t owner_b_int = slot[SCENE1_RECORDS_B_OFF_OWNER_B];
     int32_t seq_id      = slot[SCENE1_RECORDS_B_OFF_SEQ_ID];
@@ -1076,12 +1578,16 @@ static void phase_b_scan(int32_t *slot)
             g_phase_b_visit_hook(i);
         }
 
-        /* C8jb.3/4/5a — run the nested sub-iter loop + collision math
-         * + arming + damage-roll prologue. */
-        phase_b_npc_collision_pass(npc, slot, i,
-                                   slot_pos_x, slot_pos_y, slot_pos_z,
-                                   slot_reach, slot_vel_x, slot_vel_z);
+        /* C8jb.3/4/5a/5b/5c — collision math + arming + damage roll.
+         * C8jb.6 — emit cluster + early-break on first hit. */
+        int ret = phase_b_npc_collision_pass(npc, slot, i,
+                                             slot_pos_x, slot_pos_y, slot_pos_z,
+                                             slot_reach, slot_vel_x, slot_vel_z);
+        if (ret != 0) {
+            return ret;
+        }
     }
+    return 0;
 }
 
 int scene1_combat_sm_tick(int32_t *slot)
@@ -1104,15 +1610,28 @@ int scene1_combat_sm_tick(int32_t *slot)
     g_scene1_combat_phase_b_kb_strength            = 0.0f;
     g_scene1_combat_phase_b_local_1c_bits          = 0;
 
-    /* Phase B — attacker NPC scan + collision math.  Skipped if slot is
-     * NULL (Phase A tests use NULL to probe gates without prepping
-     * a slot). */
+    /* C8jb.6 emit observables — reset alongside the C8jb.5 ones. */
+    g_scene1_combat_phase_b_emit_count             = 0;
+    g_scene1_combat_phase_b_emit_pose[0]           = 0.0f;
+    g_scene1_combat_phase_b_emit_pose[1]           = 0.0f;
+    g_scene1_combat_phase_b_emit_pose[2]           = 0.0f;
+    g_scene1_combat_phase_b_emit_templates[0]      = 0;
+    g_scene1_combat_phase_b_emit_templates[1]      = 0;
+    g_scene1_combat_phase_b_emit_se_id             = 0;
+    g_scene1_combat_emit_aux_42e791_call_count     = 0;
+
+    /* Phase B — attacker NPC scan + collision math + emit.  Skipped if
+     * slot is NULL (Phase A tests use NULL to probe gates without
+     * prepping a slot). */
+    int ret = 0;
     if (slot != NULL) {
-        phase_b_scan(slot);
+        ret = phase_b_scan(slot);
     }
 
-    /* Phases C/D stub — return 0 unconditionally for C8jb.3. */
-    return 0;
+    /* Phases C/D stub — C8jb.6 returns the Phase B emit ret directly.
+     * 0 = no hit, 1 = hit fired (engine ret-1 path).  Ret-2 (slot self-
+     * kill) lands with Phase D in C8jb.11. */
+    return ret;
 }
 
 /* ─── void-hook adapter (test-only convenience) ──────────────────────── */
