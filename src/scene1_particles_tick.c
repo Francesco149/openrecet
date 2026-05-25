@@ -229,11 +229,10 @@ static void particles_per_frame_open(void)
  *
  * Engine quirk: line 1120 in the decomp shows
  *   `fVar9 = (float10)FUN_00503a44();`
- * with NO argument — Ghidra lost the FPU-stack arg.  The most plausible
- * reconstruction (and the one used here) is `sinf(age_f)`, where age_f
- * is the just-loaded `(float)age` from L1114.  Verifying the exact
- * argument needs a Frida run against retail; flagged in
- * docs/findings/scene1-particles-tick.md → "Pending human checks".
+ * with NO argument — Ghidra lost the FPU-stack arg.  Resolved
+ * 2026-05-25 via raw asm read at 0x411856: argument is `t * π` (where
+ * t is the clamped lerp factor from L1117), NOT `(float)age`.  See the
+ * inline comment at the sinf call site below.
  */
 static void handle_type_6_to_9(int i)
 {
@@ -270,14 +269,19 @@ static void handle_type_6_to_9(int i)
     if (t > 1.0f) t = 1.0f;
 
     /* L1119: pos.x = lerp(anchor_a.x, anchor_b.x, t).
-     * L1120: sin(?) — engine quirk; using sinf(age_f) per note above.
-     * L1122-23: pos.y = lerp(a.y, b.y, t) + 2 * sin(?) + a.y_base.
+     * L1120: sin(t * π).  Engine asm at 0x411856 (`fld [ebp-0xc] ;
+     * fmul ds:0x51943c ; fstp QWORD [esp] ; call 0x503a44`) loads the
+     * just-clamped lerp factor t and multiplies by π (.rdata 0x51943c
+     * = 3.1415927) before the sinf call — Ghidra dropped the QWORD
+     * load.  Argument is a lifetime-driven half-cycle bob (peaks at
+     * t=0.5, fades to 0 at t=0 and t=1), NOT a periodic age bob.
+     * L1122-23: pos.y = lerp(a.y, b.y, t) + 2 * sin(t*π) + a.y_base.
      *
      * Decomp writes:
      *   pos.y = (b.y - a.y) * t + sin_result + sin_result + a.y
      * which simplifies to lerp(a.y, b.y, t) + 2*sin_result.  Verbatim. */
     float pos_x = (bx - ax) * t + ax;
-    float sin_result = sinf(age_f);
+    float sin_result = sinf(t * 3.1415927f);
     float pos_y = (by - ay) * t + sin_result + sin_result + ay;
     float pos_z = (bz - az) * t + az;
 

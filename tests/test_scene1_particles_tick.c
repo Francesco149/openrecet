@@ -125,7 +125,7 @@ int test_particles_tick_type_6_initial_position(void)
      *   ax = sin(2.3876104) * 6 + 0 ≈ 0.6816 * 6 = 4.090
      *   az = cos(2.3876104) * 6 + 0 ≈ -0.7317 * 6 = -4.390
      *   ay = player_y + 1 = 1.0
-     * Plus 2 * sin(age=0) = 0 → pos.y = 1.0. */
+     * Plus 2 * sin(t=0 * π) = 0 → pos.y = 1.0. */
     float pos_x = slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X);
     float pos_y = slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Y);
     float pos_z = slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_Z);
@@ -201,9 +201,9 @@ int test_particles_tick_type_6_interp_saturates(void)
 
     scene1_particles_tick();
 
-    /* t saturated; pos.y = player_y + 0.5 + 2*sin(14) — within reach.
-     * Without computing sin(14) here, just sanity-check pos.x is near
-     * the orbit-B target sinf(sector_angle - yaw) * 1.5 + player_x. */
+    /* t saturated → sin(t*π) = sin(π) = 0 → pos.y = player_y + 0.5.
+     * Sanity-check pos.x is near the orbit-B target
+     * sinf(sector_angle - yaw) * 1.5 + player_x. */
     float sector_angle = (0.0f * 6.2831855f) / 3.0f + 3.1415927f;
     float bx = sinf(sector_angle) * 1.5f + 100.0f;
     float pos_x = slot_read_f(slot, SCENE1_RECORDS_A_OFF_POS_X);
