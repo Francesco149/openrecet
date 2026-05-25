@@ -4874,10 +4874,15 @@ static void body_0x2e_or_0x36(int i, int32_t type)
                      0x70, 0.2f, 1);
     }
 
-    /* asm 0x440298-0x4402a8: shared LAB_00440298 tail — kill on AGE == 0x100. */
+    /* asm 0x440298-0x4402a8: shared LAB_00440298 → LAB_004402a2 → 0x440dc1
+     * tail — kill on AGE == 0x100, else fall through to default-tail wall-
+     * bounce body.  body_0x2e_or_0x36 doesn't set the per-tick flag, so
+     * this is a no-op in production; wired for engine fidelity
+     * (C8j-tick.16-wire.10). */
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 0x100) {
         scene1_records_b_tick_kill_slot(i);
     }
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15h — types 0xa0 + 0x7e cull-tail variants ═══════════════
@@ -5884,7 +5889,10 @@ static void body_0x75(int i)
     }
 
     /* Shared tail (LAB_0043ea5e): state_machine call, ret!=0 kills, else
-     * fall to LAB_0043ed87 AGE==400 kill check. */
+     * fall to LAB_0043ed87 AGE==400 kill check + jmp 0x440dbd → 0x440dc1
+     * (default-tail wall-bounce body).  body_0x75 doesn't set the per-tick
+     * flag, so this is a no-op in production; wired for engine fidelity
+     * (C8j-tick.16-wire.10). */
     if (state_machine_call_ret(slot_base(i)) != 0) {
         scene1_records_b_tick_kill_slot(i);
         return;
@@ -5892,6 +5900,7 @@ static void body_0x75(int i)
     if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 400) {
         scene1_records_b_tick_kill_slot(i);
     }
+    scene1_records_b_run_lab_00440dc1(i);
 }
 
 /* ═══ C8j-tick.15l — type 0x7c sister-hunting projectile body ═══════════
