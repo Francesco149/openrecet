@@ -8,9 +8,13 @@
  *   C8jb.3 — Phase B collision math: nested sub-iter loop (1/7/2 by
  *            NPC type) + pose lookup (combat_pose vs anchor) + 2D-XZ
  *            distance + AABB Y-band.
+ *   C8jb.4 — Phase B per-collision arming: 0x48 disarm + 0x44/0x45
+ *            angle filter (±0.3π cone) + anchor-path disarming for
+ *            non-0x46/0x47 sub-iter > 0 + phase==6 ∧ subphase==1
+ *            force-arm.
  *
- * Phase B angle filter / damage roll / Phase C / Phase D not yet ported.
- * All paths return 0 in C8jb.1..3.
+ * Phase B damage roll / Phase C / Phase D not yet ported.  All paths
+ * return 0 in C8jb.1..4.
  */
 
 #include "t.h"
@@ -53,6 +57,23 @@ static void capture_collision_hook(int npc_index, int sub_iter)
     }
 }
 
+/* C8jb.4 armed-hook capture. */
+static struct {
+    int npc_index;
+    int sub_iter;
+} g_armed_hits[SCENE1_PEOPLE_COUNT * 8];
+static int g_armed_count;
+
+static void capture_armed_hook(int npc_index, int sub_iter)
+{
+    int n = sizeof g_armed_hits / sizeof g_armed_hits[0];
+    if (g_armed_count < n) {
+        g_armed_hits[g_armed_count].npc_index = npc_index;
+        g_armed_hits[g_armed_count].sub_iter  = sub_iter;
+        g_armed_count++;
+    }
+}
+
 static void reset_combat_state(void)
 {
     g_scene1_combat_subphase     = 0;
@@ -61,12 +82,15 @@ static void reset_combat_state(void)
     g_scene1_ingame_paused_flag  = 0;
     g_scene1_records_b_tick_flag = 0;
     g_scene1_combat_player_hp    = 0.0f;
-    g_scene1_combat_phase_b_visit_count     = 0;
-    g_scene1_combat_phase_b_collision_count = 0;
+    g_scene1_combat_phase_b_visit_count            = 0;
+    g_scene1_combat_phase_b_collision_count        = 0;
+    g_scene1_combat_phase_b_armed_collision_count  = 0;
     g_visit_count = 0;
     g_collision_count = 0;
+    g_armed_count = 0;
     memset(g_visit_indices,  0, sizeof g_visit_indices);
     memset(g_collision_hits, 0, sizeof g_collision_hits);
+    memset(g_armed_hits,     0, sizeof g_armed_hits);
     memset(g_scene1_records_b, 0, sizeof g_scene1_records_b);
     memset(g_scene1_people, 0, sizeof g_scene1_people);
     memset(g_scene1_combat_npc_type_attrs, 0,
@@ -74,6 +98,7 @@ static void reset_combat_state(void)
     scene1_records_b_set_state_machine_hook(NULL);
     scene1_combat_set_phase_b_visit_hook(NULL);
     scene1_combat_set_phase_b_collision_hook(NULL);
+    scene1_combat_set_phase_b_armed_hook(NULL);
 }
 
 static int32_t *some_slot(void)
@@ -1328,5 +1353,345 @@ int test_combat_sm_phase_b_hit_history_blocks_collision(void)
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_b_visit_count, 0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 0);
+    return 0;
+}
+
+/* ═══ C8jb.4 — Phase B per-collision arming ════════════════════════════ */
+
+/* ─── Default armed when no special arming rule fires ──────────────── */
+
+int test_combat_sm_phase_b_arming_default_collision_is_armed(void)
+{
+    /* NPC type 0x10 (not 0x44-0x48), sub-iter 0 → no disarm rule
+     * fires.  Collision = armed.  Both counters increment in sync. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 1);
+    return 0;
+}
+
+/* ─── NPC type 0x48 disarms ─────────────────────────────────────────── */
+
+int test_combat_sm_phase_b_arming_npc_type_48_disarms(void)
+{
+    reset_combat_state();
+    install_unit_attrs(0x48);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x48;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 0);
+    return 0;
+}
+
+/* ─── 0x44/0x45 sub-iter 0 + facing-aligned → armed ────────────────── */
+
+int test_combat_sm_phase_b_arming_44_facing_player_armed(void)
+{
+    /* NPC at (0, 0, -2) (in front of slot at origin); npc.yaw = 0
+     * (facing +z).  atan2(dx=0, dz=-2) = π.  angle = π - 0 + π = 2π,
+     * wrapped → 0.  |0| < 0.9424779 → armed. */
+    reset_combat_state();
+    install_unit_attrs(0x44);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x44;
+    npc->attack_radius   = 5.0f;
+    npc->combat_pose[0]  = 0.0f;
+    npc->combat_pose[2]  = -2.0f;
+    npc->npc_yaw         = 0.0f;
+    /* Move all anchors out of range so only sub-iter 0 collides. */
+    for (int k = 0; k < 8; k++) {
+        npc->anchors[k][0] = 1000.0f;
+    }
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 1);
+    return 0;
+}
+
+/* ─── 0x44/0x45 sub-iter 0 + facing-away → disarmed ────────────────── */
+
+int test_combat_sm_phase_b_arming_44_facing_away_disarmed(void)
+{
+    /* NPC at (0, 0, -2); npc.yaw = π (facing -z, away from slot).
+     * atan2(0, -2) = π.  angle = π - π + π = π, normalized → π.
+     * 0.9424779 < π → disarm. */
+    reset_combat_state();
+    install_unit_attrs(0x44);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x44;
+    npc->attack_radius   = 5.0f;
+    npc->combat_pose[0]  = 0.0f;
+    npc->combat_pose[2]  = -2.0f;
+    npc->npc_yaw         = 3.1415927f;  /* facing away */
+    for (int k = 0; k < 8; k++) {
+        npc->anchors[k][0] = 1000.0f;
+    }
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 0);
+    return 0;
+}
+
+/* ─── 0x44/0x45 phase==6, subphase==1 force-arms ────────────────────── */
+
+int test_combat_sm_phase_b_arming_44_force_arm_in_special_phase(void)
+{
+    /* Same setup as the facing-away test, but with phase==6 ∧
+     * subphase==1 — engine bypasses the angle filter and force-arms. */
+    reset_combat_state();
+    install_unit_attrs(0x44);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x44;
+    npc->attack_radius   = 5.0f;
+    npc->combat_pose[0]  = 0.0f;
+    npc->combat_pose[2]  = -2.0f;
+    npc->npc_yaw         = 3.1415927f;  /* would normally disarm */
+    npc->npc_phase       = 6;
+    npc->npc_subphase    = 1;
+    for (int k = 0; k < 8; k++) {
+        npc->anchors[k][0] = 1000.0f;
+    }
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_b_arming_44_phase_6_subphase_2_does_not_force_arm(void)
+{
+    /* Only the EXACT pair (phase==6, subphase==1) force-arms.  Any
+     * other (phase, subphase) keeps the normal angle filter. */
+    reset_combat_state();
+    install_unit_attrs(0x44);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x44;
+    npc->attack_radius   = 5.0f;
+    npc->combat_pose[0]  = 0.0f;
+    npc->combat_pose[2]  = -2.0f;
+    npc->npc_yaw         = 3.1415927f;  /* angle filter would disarm */
+    npc->npc_phase       = 6;
+    npc->npc_subphase    = 2;  /* NOT subphase 1 */
+    for (int k = 0; k < 8; k++) {
+        npc->anchors[k][0] = 1000.0f;
+    }
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_b_arming_44_phase_5_subphase_1_does_not_force_arm(void)
+{
+    reset_combat_state();
+    install_unit_attrs(0x44);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x44;
+    npc->attack_radius   = 5.0f;
+    npc->combat_pose[0]  = 0.0f;
+    npc->combat_pose[2]  = -2.0f;
+    npc->npc_yaw         = 3.1415927f;
+    npc->npc_phase       = 5;  /* NOT phase 6 */
+    npc->npc_subphase    = 1;
+    for (int k = 0; k < 8; k++) {
+        npc->anchors[k][0] = 1000.0f;
+    }
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 0);
+    return 0;
+}
+
+/* ─── 0x44/0x45 sub-iter > 0 → anchor-path disarm ──────────────────── */
+
+int test_combat_sm_phase_b_arming_44_anchor_sub_iter_disarms(void)
+{
+    /* NPC type 0x44 with all 7 sub-iters in range and facing-aligned.
+     * Sub-iter 0 = armed (no anchor path).  Sub-iters 1-6 = disarmed
+     * (engine L35232 sets local_18 = 1 for non-0x46/0x47 anchor
+     * sub-iters). */
+    reset_combat_state();
+    install_unit_attrs(0x44);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x44;
+    npc->attack_radius   = 5.0f;
+    npc->npc_yaw         = 0.0f;
+    /* combat_pose + all anchors at z = -2 (in front of slot, facing-
+     * aligned).  Sub-iters 0..6 all in collision range. */
+    npc->combat_pose[2]  = -2.0f;
+    for (int k = 0; k < 8; k++) {
+        npc->anchors[k][2] = -2.0f;
+    }
+
+    scene1_combat_set_phase_b_armed_hook(capture_armed_hook);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 7);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 1);
+    T_ASSERT_EQ_I(g_armed_count, 1);
+    T_ASSERT_EQ_I(g_armed_hits[0].sub_iter, 0);  /* only sub-iter 0 */
+    return 0;
+}
+
+/* ─── 0x46/0x47 anchor path stays armed (different rule) ────────────── */
+
+int test_combat_sm_phase_b_arming_46_anchor_sub_iters_stay_armed(void)
+{
+    /* NPC type 0x46 uses anchors for BOTH sub-iters, but engine does
+     * NOT set local_18 for 0x46/0x47 (the `else if` branch at L35232
+     * is skipped).  Both sub-iters stay armed if collision passes.
+     * NPC type 0x46 is NOT 0x44/0x45 so the angle filter doesn't
+     * apply either. */
+    reset_combat_state();
+    install_unit_attrs(0x46);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x46;
+    npc->attack_radius   = 5.0f;
+    /* Both anchors at -2 z (sub-iters 0/1 use anchors[1] / [2]). */
+    npc->anchors[1][2] = -2.0f;
+    npc->anchors[2][2] = -2.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 2);
+    return 0;
+}
+
+/* ─── Angle-filter boundary check ───────────────────────────────────── */
+
+int test_combat_sm_phase_b_arming_angle_at_threshold_disarms(void)
+{
+    /* engine: `0.9424779 <= angle OR angle <= -0.9424779` → disarm.
+     * At exactly +threshold: disarmed (inclusive on positive side). */
+    reset_combat_state();
+    install_unit_attrs(0x44);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x44;
+    npc->attack_radius   = 5.0f;
+    /* Choose pose + yaw so the normalized angle = EXACTLY 0.9424779.
+     * atan2(dx, dz) - yaw + π = 0.9424779
+     * Set dx = 0, dz = -2 → atan2 = π.  Want π - yaw + π = 0.9424779
+     * → yaw = 2π - 0.9424779.  Normalized to (-π, π], yaw ≈ -1 rad
+     * (= -π + (π - 0.9424779) = -π + ε... wait let me redo).
+     *
+     * Easier: angle = atan2(dx, dz) - yaw + π.  Want angle = +threshold.
+     * Pick dx = 0, dz = +1 → atan2 = 0.  Pick yaw = π - 0.9424779.
+     * Then angle = 0 - (π - 0.9424779) + π = 0.9424779. */
+    npc->combat_pose[0]  = 0.0f;
+    npc->combat_pose[2]  = 1.0f;  /* slot in front of NPC */
+    npc->npc_yaw         = 3.1415927f - 0.9424779f;
+    for (int k = 0; k < 8; k++) {
+        npc->anchors[k][0] = 1000.0f;
+    }
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    /* angle == +threshold → engine `0.9424779 <= angle` → TRUE → disarm. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 0);
+    return 0;
+}
+
+/* ─── Non-0x44/0x45/0x48 types unaffected by angle filter ──────────── */
+
+int test_combat_sm_phase_b_arming_other_types_ignore_yaw(void)
+{
+    /* NPC type 0x10 with yaw pointing away from slot.  Default armed,
+     * no angle filter — yaw is irrelevant. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+    npc->npc_yaw         = 3.1415927f;  /* facing away — IGNORED */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 1);
+    return 0;
+}
+
+/* ─── armed_collision_count <= collision_count invariant ───────────── */
+
+int test_combat_sm_phase_b_armed_count_le_collision_count(void)
+{
+    /* Mixed types in range; armed count should never exceed total. */
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    install_unit_attrs(0x48);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc0 = prep_npc_alive(0);
+    npc0->npc_type        = 0x10;
+    npc0->attack_radius   = 3.0f;
+    npc0->combat_pose[0]  = 0.0f;
+    scene1_people_entry_t *npc1 = prep_npc_alive(1);
+    npc1->npc_type        = 0x48;
+    npc1->attack_radius   = 3.0f;
+    npc1->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_collision_count, 2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 1);
+    return 0;
+}
+
+/* ─── Armed counters reset between ticks ────────────────────────────── */
+
+int test_combat_sm_phase_b_armed_count_resets_between_ticks(void)
+{
+    reset_combat_state();
+    install_unit_attrs(0x10);
+    int32_t *slot = attacker_slot_at(0, 0, 0, 1.0f);
+    scene1_people_entry_t *npc = prep_npc_alive(0);
+    npc->npc_type        = 0x10;
+    npc->attack_radius   = 3.0f;
+    npc->combat_pose[0]  = 0.0f;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 1);
+
+    npc->combat_pose[0] = 100.0f;
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_b_armed_collision_count, 0);
+    return 0;
+}
+
+/* ─── Armed hook install/uninstall ──────────────────────────────────── */
+
+int test_combat_sm_phase_b_armed_hook_install_returns_previous(void)
+{
+    reset_combat_state();
+    scene1_combat_phase_b_armed_fn prev =
+        scene1_combat_set_phase_b_armed_hook(capture_armed_hook);
+    T_ASSERT_EQ_I(prev == NULL, 1);
+
+    scene1_combat_phase_b_armed_fn prev2 =
+        scene1_combat_set_phase_b_armed_hook(NULL);
+    T_ASSERT_EQ_I(prev2 == capture_armed_hook, 1);
     return 0;
 }

@@ -2542,7 +2542,21 @@ struct test_case {
     X(combat_sm_phase_b_collision_hook_install_returns_previous) \
     X(combat_sm_phase_b_multiple_npcs_collide) \
     X(combat_sm_phase_b_skip_gate_blocks_collision) \
-    X(combat_sm_phase_b_hit_history_blocks_collision)
+    X(combat_sm_phase_b_hit_history_blocks_collision) \
+    X(combat_sm_phase_b_arming_default_collision_is_armed) \
+    X(combat_sm_phase_b_arming_npc_type_48_disarms) \
+    X(combat_sm_phase_b_arming_44_facing_player_armed) \
+    X(combat_sm_phase_b_arming_44_facing_away_disarmed) \
+    X(combat_sm_phase_b_arming_44_force_arm_in_special_phase) \
+    X(combat_sm_phase_b_arming_44_phase_6_subphase_2_does_not_force_arm) \
+    X(combat_sm_phase_b_arming_44_phase_5_subphase_1_does_not_force_arm) \
+    X(combat_sm_phase_b_arming_44_anchor_sub_iter_disarms) \
+    X(combat_sm_phase_b_arming_46_anchor_sub_iters_stay_armed) \
+    X(combat_sm_phase_b_arming_angle_at_threshold_disarms) \
+    X(combat_sm_phase_b_arming_other_types_ignore_yaw) \
+    X(combat_sm_phase_b_armed_count_le_collision_count) \
+    X(combat_sm_phase_b_armed_count_resets_between_ticks) \
+    X(combat_sm_phase_b_armed_hook_install_returns_previous)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

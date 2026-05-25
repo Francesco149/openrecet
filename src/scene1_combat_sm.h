@@ -13,16 +13,19 @@
  *   C8jb.2 (2026-05-25, commit 4b29713)  — Phase B head: attacker NPC scan
  *                                          iteration shell + 4 skip gates +
  *                                          per-NPC hit-history filter.
- *   C8jb.3 (this chip)                   — Phase B collision math: nested
- *                                          per-NPC sub-iter loop (1/7/2
- *                                          by NPC type), position lookup
- *                                          (npc.combat_pose OR anchor
- *                                          via rdata DAT_005c530c/5314),
- *                                          2D-XZ distance check + AABB
- *                                          Y-band check.  No hit
- *                                          registration yet.
- *   C8jb.4..11                           — Phase B angle filter / body /
- *                                          Phase C / Phase D.
+ *   C8jb.3 (2026-05-25, commit c3a2dad)  — Phase B collision math: nested
+ *                                          per-NPC sub-iter loop +
+ *                                          distance check + AABB Y-band.
+ *   C8jb.4 (this chip)                   — Phase B per-collision arming:
+ *                                          0x48 disarm, 0x44/0x45 angle
+ *                                          filter (atan2-based facing
+ *                                          check, ±0.3π cone), plus
+ *                                          implicit unarming from C8jb.3's
+ *                                          anchor-path sub-iter > 0
+ *                                          (engine `local_18 = 1`).
+ *   C8jb.5..11                           — Phase B damage roll / hit
+ *                                          registration / Phase C /
+ *                                          Phase D.
  *   C8jb.fin                             — Install as integrator default
  *                                          SM hook (int-ret plumbing).
  *
@@ -32,7 +35,7 @@
  *   1  — hit fired (downstream body should apply damage write to owner).
  *   2  — full cleanup; slot self-killed inside the SM (`*slot = 0`).
  *
- * C8jb.1..3 scope: returns 0 unconditionally.  Phase A short-circuit OR
+ * C8jb.1..4 scope: returns 0 unconditionally.  Phase A short-circuit OR
  * Phase B iteration-completes-without-hit OR Phase C/D stub fall-through.
  */
 #ifndef OPENRECET_SCENE1_COMBAT_SM_H
@@ -173,6 +176,34 @@ typedef void (*scene1_combat_phase_b_collision_fn)(int npc_index, int sub_iter);
 scene1_combat_phase_b_collision_fn
 scene1_combat_set_phase_b_collision_hook(scene1_combat_phase_b_collision_fn fn);
 
+/*
+ * Total count of "armed" collisions during the most recent
+ * scene1_combat_sm_tick() call — collisions where engine `local_18`
+ * would stay 0, meaning the downstream damage roll (C8jb.5+) will
+ * apply real damage rather than a no-damage observable hit.
+ *
+ * A collision is unarmed (`local_18 = 1` in engine) when:
+ *   - NPC type ∉ {0x46, 0x47} AND sub_iter > 0 (anchor-path sub-iter for
+ *     0x44/0x45 secondary hits)
+ *   - NPC type == 0x48 (always disarms in range)
+ *   - NPC type ∈ {0x44, 0x45} AND NOT (phase==6 ∧ subphase==1) AND
+ *     |atan2(dx, dz) - yaw + π normalized| ≥ 0.3π (≈ 0.9424779)
+ *
+ * Otherwise armed.  Counter resets alongside collision_count.  Range:
+ * 0 ≤ armed ≤ collision_count.
+ */
+extern int32_t g_scene1_combat_phase_b_armed_collision_count;
+
+/*
+ * Per-collision armed hook.  Called once per (NPC, sub-iter) pair that
+ * is BOTH in collision range AND armed.  Adds the arming dimension to
+ * the existing collision hook; tests that want to verify arming logic
+ * compare counts across the two hooks / counters.
+ */
+typedef void (*scene1_combat_phase_b_armed_fn)(int npc_index, int sub_iter);
+scene1_combat_phase_b_armed_fn
+scene1_combat_set_phase_b_armed_hook(scene1_combat_phase_b_armed_fn fn);
+
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*
  * Tick the per-record state machine for one slot.
@@ -182,19 +213,19 @@ scene1_combat_set_phase_b_collision_hook(scene1_combat_phase_b_collision_fn fn);
  * is treated identically to the engine's `param_1`).  The function does
  * NOT validate the pointer.
  *
- * Returns the SM ret contract value {0, 1, 2}.  C8jb.1..3 return 0 in
+ * Returns the SM ret contract value {0, 1, 2}.  C8jb.1..4 return 0 in
  * all paths — Phase A short-circuit OR Phase B iter-completes-with-no-
  * hit OR Phase C/D stub fall-through.
  *
- * Side effects in C8jb.1..3:
+ * Side effects in C8jb.1..4:
  *   - On fall-through past Phase A (all entry gates zero): writes
  *     g_scene1_records_b_tick_flag = 1.  Resolves PHC #21.
- *   - Resets g_scene1_combat_phase_b_visit_count + collision_count to 0
- *     then increments them per NPC / per collision during Phase B scan.
- *     If the Phase B outer gate (FLAG_A in {0,3} && player_hp > 0)
- *     fails, both counters stay at 0.
- *   - Calls g_scene1_combat_phase_b_visit_hook + collision_hook (if
- *     installed) per visit / per collision.
+ *   - Resets visit_count + collision_count + armed_collision_count to 0
+ *     then increments them per NPC / per collision / per armed collision
+ *     during Phase B scan.  If the Phase B outer gate (FLAG_A in {0,3}
+ *     && player_hp > 0) fails, all three counters stay at 0.
+ *   - Calls visit / collision / armed hooks (if installed) per
+ *     visit / per collision / per armed collision.
  */
 int scene1_combat_sm_tick(int32_t *slot);
 

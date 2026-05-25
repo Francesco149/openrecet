@@ -144,6 +144,21 @@ extern float g_scene1_camera_yaw_alt;
  *                              tables).  Generous 8-entry cap; engine
  *                              tables index up to 7.
  *
+ * C8jb.4 (combat SM Phase B angle filter) additions:
+ *
+ *   npc_yaw            +0x420  NPC facing yaw (radians).  Combat SM's
+ *                              0x44/0x45 angle filter computes
+ *                              `atan2(dx, dz) - npc_yaw + π` normalized
+ *                              into [-π, π]; cancels hit if |angle| ≥
+ *                              0.9424779 (≈54° from facing).
+ *   npc_phase          +0xa54  NPC combat phase (engine `local_30[-0x2d]`).
+ *                              When phase==6 AND subphase==1, the
+ *                              0x44/0x45 angle filter is bypassed
+ *                              (collision stays armed regardless of
+ *                              facing).
+ *   npc_subphase       +0xa5c  NPC combat sub-phase (engine
+ *                              `local_30[-0x2b]`).
+ *
  * The struct's field layout no longer mirrors engine byte offsets — it's
  * a host-side decomposition.  All readers/writers go through named
  * fields, so the layout drift is invisible.
@@ -165,6 +180,9 @@ typedef struct {
     int32_t npc_type;
     float   attack_radius;
     float   anchors[8][3];
+    float   npc_yaw;
+    int32_t npc_phase;
+    int32_t npc_subphase;
 } scene1_people_entry_t;
 
 #define SCENE1_PEOPLE_COUNT 128                /* engine cap confirmed in C8h.4a */

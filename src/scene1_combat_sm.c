@@ -1,11 +1,12 @@
 /*
  * scene1_combat_sm.c — per-record state machine (combat tick).
  *
- * Engine source: FUN_0043865e @ 0x43865e.  Chip C8jb.3 extends C8jb.2's
- * Phase B head with the nested per-NPC sub-iter loop (1/7/2 iters by
- * NPC type), the position lookup (npc.combat_pose OR rdata-indexed
- * anchor), and the 2D-XZ distance + AABB Y-band collision check.  See
- * scene1_combat_sm.h and docs/findings/scene1-records-b-state-machine.md.
+ * Engine source: FUN_0043865e @ 0x43865e.  Chip C8jb.4 extends C8jb.3's
+ * collision math with per-collision arming: type-0x48 disarm + 0x44/0x45
+ * angle filter (±0.3π cone, bypassed when NPC phase==6 ∧ subphase==1)
+ * plus the implicit unarming from anchor-path sub-iter > 0 (engine
+ * `local_18 = 1`).  See scene1_combat_sm.h and
+ * docs/findings/scene1-records-b-state-machine.md.
  *
  * Asm verification for C8jb.2 (re-runnable):
  *   nix develop --command i686-w64-mingw32-objdump -d -M intel \
@@ -62,6 +63,27 @@
  *     `local_1c = slot[0x2a] * 0.8`
  *     `local_8 = local_c * y_band_mul * radius_mul`
  *     `|dy - local_1c| < local_8` (two-sided check).
+ *
+ * Engine decomp L35250-L35275 (C8jb.4 — per-collision arming):
+ *
+ *   armed = (sub-iter 0 of NPC type ∉ {0x48})        // engine local_18 = 0
+ *   if NPC type == 0x48 → armed = false              // L35253
+ *   if NPC type ∈ {0x44, 0x45}:
+ *     if phase==6 ∧ subphase==1 → armed = true       // L35257 force-arm
+ *     else:
+ *       angle = atan2(dx, dz) - npc_yaw + π          // L35260-L35267
+ *       normalize into [-π, π] via wrap loops
+ *       if |angle| ≥ 0.9424779 (≈0.3π) → armed = false  // L35271
+ *
+ * Note: anchor-path sub-iter > 0 (engine L35232) already sets
+ * `local_18 = 1` for non-0x46/0x47 NPCs.  In our port, the
+ * `armed_from_anchor_path` flag in phase_b_resolve_pose propagates that
+ * to the arming decision.
+ *
+ * Engine debug-text overlay (L35268-L35270, FUN_005038ff + FUN_00451874
+ * with format "ANG: %f") is QA leftover — port skips it.  Adding a
+ * stand-in hook would surface "did the angle filter evaluate" but
+ * provides no gameplay value.
  */
 #include "scene1_combat_sm.h"
 
@@ -81,12 +103,19 @@ int32_t g_scene1_combat_aux_pause;   /* DAT_0438bea0 */
 float   g_scene1_combat_player_hp;   /* _DAT_056db0bc */
 int32_t g_scene1_combat_phase_b_visit_count;
 int32_t g_scene1_combat_phase_b_collision_count;
+int32_t g_scene1_combat_phase_b_armed_collision_count;
 
 scene1_combat_npc_type_attrs_t
     g_scene1_combat_npc_type_attrs[SCENE1_COMBAT_NPC_TYPE_ATTRS_COUNT];
 
 static scene1_combat_phase_b_visit_fn     g_phase_b_visit_hook;
 static scene1_combat_phase_b_collision_fn g_phase_b_collision_hook;
+static scene1_combat_phase_b_armed_fn     g_phase_b_armed_hook;
+
+/* Engine angle-filter threshold = 0.9424779 (≈ 0.3π).  .rdata literal
+ * at 0x51940c per asm scan (verified via objdump-s).  Stored as a named
+ * constant for clarity. */
+#define COMBAT_ANGLE_THRESHOLD  0.9424779f
 
 /* ─── rdata tables (DAT_005c530c, DAT_005c5314) ──────────────────────── */
 /*
@@ -116,6 +145,14 @@ scene1_combat_set_phase_b_collision_hook(scene1_combat_phase_b_collision_fn fn)
 {
     scene1_combat_phase_b_collision_fn prev = g_phase_b_collision_hook;
     g_phase_b_collision_hook = fn;
+    return prev;
+}
+
+scene1_combat_phase_b_armed_fn
+scene1_combat_set_phase_b_armed_hook(scene1_combat_phase_b_armed_fn fn)
+{
+    scene1_combat_phase_b_armed_fn prev = g_phase_b_armed_hook;
+    g_phase_b_armed_hook = fn;
     return prev;
 }
 
@@ -190,6 +227,7 @@ static int phase_b_sub_iter_count(int32_t npc_type)
  *
  *   pose      ← npc.combat_pose                  (default)
  *   reach     ← npc.attack_radius                (default)
+ *   *out_disarmed_by_anchor ← 0
  *
  *   if npc_type ∈ {0x46, 0x47}:
  *     anchor_idx = DAT_005c530c[sub_iter]
@@ -200,26 +238,28 @@ static int phase_b_sub_iter_count(int32_t npc_type)
  *     anchor_idx = DAT_005c5314[sub_iter]
  *     pose      ← npc.anchors[anchor_idx]
  *     reach     ← npc.attack_radius * 0.5
- *     (sets local_18 flag in engine; this is the "subtype anchor used"
- *      flag, consumed by Phase B's later angle filter / damage flow.
- *      C8jb.3 does not yet read this flag.)
+ *     *out_disarmed_by_anchor ← 1     // engine `local_18 = 1`
  *
  * `out_pose` is filled with 3 floats.  `out_reach` with the scalar.
- * Returns 1 on success, 0 if the anchor index is out of range (defensive
- * — engine bounds DAT_005c5314[1..6] to known-valid anchor indices, but
- * tests may inject bad data).
+ * `out_disarmed_by_anchor` is 1 only when this sub-iter selected an
+ * anchor pose for a non-{0x46, 0x47} NPC — the "secondary multi-hit"
+ * sub-iters of 0x44/0x45.  C8jb.4 propagates this into the arming
+ * decision.
  */
-static int phase_b_resolve_pose(const scene1_people_entry_t *npc,
-                                int sub_iter,
-                                float out_pose[3],
-                                float *out_reach)
+static void phase_b_resolve_pose(const scene1_people_entry_t *npc,
+                                 int sub_iter,
+                                 float out_pose[3],
+                                 float *out_reach,
+                                 int *out_disarmed_by_anchor)
 {
     int32_t anchor_idx = -1;
+    *out_disarmed_by_anchor = 0;
 
     if (npc->npc_type == 0x46 || npc->npc_type == 0x47) {
         anchor_idx = k_anchor_index_46_47[sub_iter];
     } else if (sub_iter != 0) {
         anchor_idx = k_anchor_index_44_45[sub_iter];
+        *out_disarmed_by_anchor = 1;
     }
 
     if (anchor_idx < 0) {
@@ -228,25 +268,83 @@ static int phase_b_resolve_pose(const scene1_people_entry_t *npc,
         out_pose[1] = npc->combat_pose[1];
         out_pose[2] = npc->combat_pose[2];
         *out_reach  = npc->attack_radius;
-        return 1;
+        return;
     }
 
     /* Anchor path: bounds-check the anchor index against the port's
      * anchor table (8 entries).  Engine has no explicit bounds check —
-     * .rdata data ensures valid indices.  Defensive return for tests. */
+     * .rdata data ensures valid indices.  Defensive fallback for tests
+     * that inject bad anchor data. */
     if (anchor_idx >= 8) {
         out_pose[0] = npc->combat_pose[0];
         out_pose[1] = npc->combat_pose[1];
         out_pose[2] = npc->combat_pose[2];
         *out_reach  = npc->attack_radius;
-        return 0;
+        return;
     }
 
     out_pose[0] = npc->anchors[anchor_idx][0];
     out_pose[1] = npc->anchors[anchor_idx][1];
     out_pose[2] = npc->anchors[anchor_idx][2];
     *out_reach  = npc->attack_radius * 0.5f;
-    return 1;
+}
+
+/*
+ * Normalize an angle into [-π, π] via the engine's wrap loops at
+ * L35262-L35267.  Engine uses 6.2831855f (= 2π) as the wrap step.
+ * Iterative rather than fmod-based to preserve bit-exact behavior.
+ */
+static float combat_normalize_angle(float a)
+{
+    while (a < -3.1415927f) {
+        a += 6.2831855f;
+    }
+    while (a > 3.1415927f) {
+        a -= 6.2831855f;
+    }
+    return a;
+}
+
+/*
+ * Engine decomp L35250-L35275 — per-collision arming.
+ *
+ * `dx`, `dz` are pose - slot.pos (used by the 0x44/0x45 angle filter).
+ * Returns 1 (armed) or 0 (disarmed).
+ */
+static int phase_b_compute_armed(const scene1_people_entry_t *npc,
+                                 int disarmed_by_anchor,
+                                 float dx, float dz)
+{
+    /* Anchor-path disarming applies to non-0x46/0x47 sub-iter > 0. */
+    int armed = !disarmed_by_anchor;
+
+    int32_t type = npc->npc_type;
+
+    /* L35252-L35254 — 0x48 always disarms in range. */
+    if (type == 0x48) {
+        return 0;
+    }
+
+    /* L35255-L35275 — 0x44/0x45 angle filter.  Note: even with
+     * anchor-path disarming already set, the engine RE-EVALUATES the
+     * angle filter for 0x44/0x45; if phase==6∧subphase==1, the engine
+     * EXPLICITLY clears local_18 to 0 (force-arm).  We mirror that. */
+    if (type == 0x44 || type == 0x45) {
+        if (npc->npc_phase == 6 && npc->npc_subphase == 1) {
+            /* Force-arm, overriding any anchor-path disarming. */
+            return 1;
+        }
+        /* Engine: `atan2(local_48, local_44) - npc_yaw + π`
+         * where local_48 = dx, local_44 = dz.  Normalize to [-π, π]. */
+        float ang = combat_normalize_angle(
+            atan2f(dx, dz) - npc->npc_yaw + 3.1415927f);
+        if (ang >= COMBAT_ANGLE_THRESHOLD
+            || ang <= -COMBAT_ANGLE_THRESHOLD) {
+            return 0;
+        }
+    }
+
+    return armed;
 }
 
 /*
@@ -322,18 +420,29 @@ static void phase_b_npc_collision_pass(const scene1_people_entry_t *npc,
     for (int sub = 0; sub < iter_count; sub++) {
         float pose[3];
         float reach;
-        if (!phase_b_resolve_pose(npc, sub, pose, &reach)) {
-            /* Out-of-range anchor — engine has no bounds check, but our
-             * port falls back to combat_pose.  C8jb.3 still runs the
-             * collision check on the fallback for fidelity. */
+        int   disarmed_by_anchor;
+        phase_b_resolve_pose(npc, sub, pose, &reach, &disarmed_by_anchor);
+
+        if (!phase_b_check_collision(npc, pose, reach,
+                                     slot_pos_x, slot_pos_y, slot_pos_z,
+                                     slot_reach)) {
+            continue;
         }
 
-        if (phase_b_check_collision(npc, pose, reach,
-                                    slot_pos_x, slot_pos_y, slot_pos_z,
-                                    slot_reach)) {
-            g_scene1_combat_phase_b_collision_count++;
-            if (g_phase_b_collision_hook != NULL) {
-                g_phase_b_collision_hook(npc_index, sub);
+        g_scene1_combat_phase_b_collision_count++;
+        if (g_phase_b_collision_hook != NULL) {
+            g_phase_b_collision_hook(npc_index, sub);
+        }
+
+        /* Per-collision arming — C8jb.4.  Uses pose - slot.pos for the
+         * 0x44/0x45 angle filter. */
+        float dx = pose[0] - slot_pos_x;
+        float dz = pose[2] - slot_pos_z;
+        int armed = phase_b_compute_armed(npc, disarmed_by_anchor, dx, dz);
+        if (armed) {
+            g_scene1_combat_phase_b_armed_collision_count++;
+            if (g_phase_b_armed_hook != NULL) {
+                g_phase_b_armed_hook(npc_index, sub);
             }
         }
     }
@@ -395,8 +504,9 @@ int scene1_combat_sm_tick(int32_t *slot)
     g_scene1_records_b_tick_flag = 1;
 
     /* Reset Phase B observable counters at every fall-through entry. */
-    g_scene1_combat_phase_b_visit_count     = 0;
-    g_scene1_combat_phase_b_collision_count = 0;
+    g_scene1_combat_phase_b_visit_count            = 0;
+    g_scene1_combat_phase_b_collision_count        = 0;
+    g_scene1_combat_phase_b_armed_collision_count  = 0;
 
     /* Phase B — attacker NPC scan + collision math.  Skipped if slot is
      * NULL (Phase A tests use NULL to probe gates without prepping
