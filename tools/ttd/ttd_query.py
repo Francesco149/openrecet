@@ -101,7 +101,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--extra-global",
         action="append", default=[], metavar="KEY=VALUE",
         help="pin an additional JS global before script load. "
-             "Repeatable. Values are JSON-encoded; strings need quotes.")
+             "Repeatable. Values are JSON-encoded; strings need quotes. "
+             "For large values, see --extra-global-file.")
+    ap.add_argument("--extra-global-file",
+        action="append", default=[], metavar="KEY=PATH",
+        help="like --extra-global but reads VALUE from a JSON file. "
+             "Avoids shell-quoting pain for large arrays. Repeatable.")
     ap.add_argument("--timeout-s", type=float, default=600.0,
         help="seconds to wait for cdb to finish (default 600)")
     args = ap.parse_args(argv)
@@ -146,6 +151,17 @@ def main(argv: list[str] | None = None) -> int:
         except json.JSONDecodeError:
             return _fail("bad_extra_global_value", key=k.strip(),
                          hint="value must be JSON; strings need quotes")
+    for kp in args.extra_global_file:
+        if "=" not in kp:
+            return _fail("bad_extra_global_file", arg=kp)
+        k, p = kp.split("=", 1)
+        try:
+            extras[k.strip()] = json.loads(Path(p.strip()).read_text())
+        except FileNotFoundError:
+            return _fail("extra_global_file_missing", path=p.strip())
+        except json.JSONDecodeError as e:
+            return _fail("extra_global_file_parse", path=p.strip(),
+                         error_class=type(e).__name__)
 
     try:
         trace_win = _wslpath_w(trace_p)
