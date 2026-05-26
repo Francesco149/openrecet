@@ -274,3 +274,167 @@ Cross-reference:
   shop_walker per-record draw chain.
 - `docs/findings/scene1-wide-followup.md` L186 also references
   FUN_00455191 as the per-record draw entry.
+
+## PII.0 findings — 2026-05-26 PM (research chip; doc-only)
+
+PII.0 traced the populator for what this survey calls
+`mesh->face_npc_ptr[]`.  **The naming was wrong throughout the
+preceding sections.**  The populator is `mesh_load` itself
+(FUN_00472836 at 0x472836), and **it is already ported** as
+`src/mesh_load.c` — the "binder" question is moot because the data
+the walker filters on is `m->texture_slots[]`, not an NPC-association
+table.
+
+### What the engine field actually is
+
+- `param_1[1]` in FUN_00472836 (the `texture_indices` array per
+  `src/mesh.h:86`) is allocated as `operator_new(local_c * 4)` where
+  `local_c` is the **material count** returned by
+  `D3DXLoadMeshFromXof` (FUN_004c8f74 wrapper).  Initial-fill is
+  `0xffffffff`, then each material's `pTextureFilename` is matched
+  against the global texture-name cache.
+- The global texture-name cache lives at `&DAT_073be908` (200 entries
+  × 256 bytes per name) with the count at `DAT_073cb108`.  Cache
+  entries are inserted on first encounter; ten parallel
+  side-tables at `DAT_073cb10c..DAT_073cb814` record the filename
+  classification (water / hikari / kabe_ / yuka_ / shop_jutan /
+  ext_tga / has_n_ / has_w_ / u_index / v_index).
+- `DAT_073be5e8` (parallel-to-cache, 200 × 4 bytes) holds the
+  `IDirect3DTexture8*` for each slot — populated by
+  `FUN_00471b24` at L71518 (`FUN_00471b24(&DAT_073be5e8 + DAT_073cb108, local_248)`).
+- Asm verification at 0x472cee-0x472d3f confirms the side-table writes
+  are keyed by `DAT_073cb108`:
+  ```
+  mov  eax, ds:0x73cb108
+  lea  eax, [eax*4 + 0x73be5e8]       ; &DAT_073be5e8[count]
+  call 0x471b24                        ; insert sprite handle
+  ...
+  mov  ecx, ds:0x73cb108
+  mov  [ecx + 0x73cb4f4], al           ; ext_tga side-table @ count
+  mov  [eax + 0x73cb1d4], cl           ; hikari side-table
+  mov  [eax + 0x73cb29c], cl           ; kabe_ side-table
+  mov  [eax + 0x73cb364], cl           ; yuka_ side-table
+  ```
+  Verbatim mapping of `mesh_load.h:62-92`'s `mesh_tex_flags` struct.
+
+So the engine table the survey calls a "people-table" is actually the
+**global texture cache** — `g_mesh_tex_cache` in our port.
+
+### What the walker actually does
+
+FUN_00457714's outer loop at L52809 iterates `DAT_073cb108` slots:
+**this is texture-cache slots, not NPCs.**  Per outer slot, the
+function picks a `SetTexture` target via a flag-byte switch over the
+side-tables and then walks every mesh in the per-stage arrays
+(DAT_068dcca0 + DAT_073b1ac8), drawing each material whose
+`texture_slots[face_i] == current_outer_slot`.  Classic per-texture
+state-sorted draw batching:
+
+```c
+for (slot = 0; slot < DAT_073cb108; slot++) {       /* per texture cache slot */
+    sprite = DAT_073be5e8[slot];                    /* IDirect3DTexture8* */
+    if (DAT_073cb4f4[slot] /* .ext_tga */ ) ...      /* per-flag dispatch overrides */
+    else if (DAT_073cb1d4[slot] /* .hikari */) ...
+    else if (DAT_073cb29c[slot] /* .kabe_  */) sprite = DAT_073cc630[stage_kabe_idx * 4];
+    else if (DAT_073cb364[slot] /* .yuka_  */) sprite = DAT_073b18d8[stage_yuka_idx * 4];
+    else if (DAT_073cb42c[slot] /* .shop_jutan */) sprite = DAT_073ac728[stage_jutan_idx * 4];
+    SetTexture(0, sprite);
+
+    for each mesh in DAT_068dcca0[]:
+        for face_i in 0..mesh->face_count:
+            if (mesh->texture_slots[face_i] == slot)
+                SetTransform(D3DTS_WORLD, mesh->per_face_matrices[face_i]);
+                mesh->vtable->draw(mesh, face_i);
+
+    for each mesh in DAT_073b1ac8[]:
+        ... same shape, gated on DAT_073dddb4==0 && DAT_0438bfb4!=0
+}
+```
+
+The L52813-L52870 "NPC flag dispatch" the survey describes is just
+this per-slot flag-byte switch; the 6 magic offsets
+`0x1cf2c43 / 0x1cf2c75 / 0x1cf2ca7 / 0x1cf2cd9 / 0x1cf2d0b / 0x1cf2d3d`
+are dword-indexed reads from `local_28` (the slot counter
+extended via uint*) that resolve via Ghidra's pointer-arith
+canonicalisation to byte addresses 0x73cb10c / 0x73cb4f4 / 0x73cb1d4 /
+0x73cb29c / 0x73cb364 / 0x73cb42c — i.e. the water / ext_tga / hikari /
+kabe_ / yuka_ / shop_jutan side-tables at the current slot
+(verified: `0x1cf2c43 * 4 == 0x73cb10c`).
+
+### Verdict for HOUSE-pixel reachability
+
+The earlier table in this doc that listed the populator as **UNKNOWN**
+is **fully resolved**:
+
+| Layer | Status |
+|---|---|
+| C0A worker (shop_table.x meshes loaded into DAT_073b1ac8) | **DONE** — `src/scene_table.c` |
+| FUN_00436f97 writes DAT_0438bfb4 nonzero (per-stage count) | partial (Cf.1 ladder) |
+| FUN_00457714 walker — body (L52599-L53330) | **stub** — `scene1_walk_pass_init_TODO` no-op today |
+| FUN_00455191 helper — per-NPC single-mesh draw | **stub** — `scene1_walk_initial_asset_TODO` no-op today |
+| FUN_00454fe4 — per-cache-slot TextureStageState picker | unported |
+| `mesh->texture_slots[]` populator (formerly `face_npc_ptr[]`) | **DONE** — `src/mesh_load.c::mesh_load`, populates `g_mesh_tex_cache` |
+| `g_mesh_tex_cache.count` (= DAT_073cb108) > 0 in HOUSE | **YES** — every `mesh_load` call grows it |
+| `g_mesh_tex_cache.entries[i].sprite` (= DAT_073be5e8[i]) populated in HOUSE | **YES on Win32** — `mesh_load_finalize_win32` fills sprite handles after upload |
+| Status-screen flag stays 0 outside menus (DAT_073dddb4) | yes (default) |
+
+**There is no missing per-stage binder.**  Porting the walker bodies
+WILL produce visible HOUSE-furniture pixels (driven by the
+shop_table meshes loaded by `src/scene_table.c`), because the data
+they filter on is already correctly populated by `mesh_load`.
+
+### Revised PII.1+ chip ladder
+
+The original ladder structure is unchanged — only the
+"will-this-produce-pixels" risk is gone:
+
+| Chip | Function | Bytes | Notes |
+|---|---|---|---|
+| PII.0 | (research) | — | **THIS LANDING** — texture-cache binder traced to mesh_load; survey's `face_npc_ptr[]` is `texture_slots[]` |
+| PII.1 | FUN_00455191 | 217 | single-mesh per-cache-slot draw helper; 4 callers (shop_walker L51706/37/50/97 + alpha_pre walker L52185/L52209); reads `g_mesh_tex_cache` for sprite + flags |
+| PII.2 | FUN_00454fe4 | 429 | per-cache-slot SetTextureStageState picker; called from FUN_00455191 inner-NPC loop |
+| PII.3a | FUN_00457714 setup phase 2 | ~100 LoC | per-mesh world-matrix builder for shop_table array (DAT_073b1ac8 → local_5f8[]) |
+| PII.3b | FUN_00457714 NPC outer loop + draw loop B | ~250 LoC | the actual HOUSE-furniture renderer; once landed, HOUSE entry should show shop_table meshes |
+| PII.3c (optional) | FUN_00457714 draw loop A + DUNGEON branch | — | wall/floor/jutan path + DUNGEON; defer until HOUSE visually validated |
+
+### Naming corrections to the earlier sections
+
+Throughout the preceding sections of this doc, the following terms
+were inaccurate.  They're left in place for git-diff continuity, but
+when reading, mentally substitute:
+
+| Survey wording | Correct meaning |
+|---|---|
+| `face_npc_ptr[face_i]` | `texture_slots[material_i]` (= our `m->texture_slots[i]`) |
+| `mesh->face_count` | material count (= our `m->material_count`) — engine reuses one count for both materials and the parallel texture_slots array |
+| `current_npc` | current outer-loop texture cache slot |
+| `DAT_073cb108` "NPC count" | global texture cache count (= `g_mesh_tex_cache.count`) |
+| `DAT_073be5e8[]` "people-table" | per-cache-slot `IDirect3DTexture8*` array (= `g_mesh_tex_cache.entries[i].sprite`) |
+| `DAT_073be908` "NPC name table" | per-cache-slot texture filename (= `g_mesh_tex_cache.entries[i].name`) |
+| "6 char-flag bytes at NPC + 0x1cf2c43..0x1cf2d3d" | 6 of the 10 texture-classification side-tables, indexed by cache slot (water/ext_tga/hikari/kabe_/yuka_/shop_jutan) |
+
+### Re-runnable verification (PII.0)
+
+Texture-cache write at the count-keyed lea + per-flag byte writes:
+```
+nix develop --command i686-w64-mingw32-objdump -d -M intel \
+    --no-show-raw-insn vendor/unpacked/recettear.unpacked.exe \
+    --start-address=0x472cd0 --stop-address=0x472d70
+```
+Expect: `lea eax, [eax*4 + 0x73be5e8]` + 10 `mov BYTE PTR [eax+0x73cb???], cl` side-table writes.
+
+Walker outer loop count read:
+```
+nix develop --command grep -nE \
+    'DAT_073cb108|DAT_073be908|DAT_073be5e8' docs/decompiled/all.c \
+  | awk -F: '$1 >= 52599 && $1 <= 53330'
+```
+Expect: 2 outer-loop blocks (L52809-L53043 HOUSE, L53148-L53326 DUNGEON), each iterating from `&DAT_073be5e8` while `local_xx != DAT_073cb108`.
+
+Confirmation that mesh_load.h matches the engine layout:
+```
+nix develop --command grep -n 'param_1\[1\]\|texture_indices\|FUN_00472836' \
+    src/mesh.h src/mesh_load.h src/mesh_load.c | head -10
+```
+Expect cross-references in `mesh.h:86` and `mesh_load.h:14` confirming
+the cache is the engine's DAT_073be908+DAT_073cb108 reservation.
