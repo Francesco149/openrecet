@@ -158,6 +158,26 @@ static void reset_combat_state(void)
     scene1_combat_set_hud_effect_play_hook(NULL);
     scene1_combat_set_throwable_spawn_hook(NULL);
     scene1_combat_set_throwable_error_log_hook(NULL);
+    /* C8jb.8g — sentinel-fill projectile TYPE=-1 so Phase C's skip
+     * cascade catches every record (BSS-zero TYPE=0 + AUX=0 would
+     * otherwise pass the cascade and hit-AABB whenever the slot is at
+     * the origin with a positive reach).  Engine has an unported init
+     * routine that seeds this sentinel in production.  Folding the
+     * sentinel-fill into reset_combat_state guarantees Phase B/A tests
+     * don't get spurious Phase C ret=1 lifts now that the SM tick
+     * propagates Phase C's hit return value (C8jb.8g). */
+    memset(g_scene1_projectiles, 0, sizeof g_scene1_projectiles);
+    for (int i = 0; i < SCENE1_PROJ_COUNT; i++) {
+        g_scene1_projectiles[i * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_TYPE] = -1;
+    }
+    memset(g_scene1_combat_proj_type_attrs, 0,
+           sizeof g_scene1_combat_proj_type_attrs);
+    /* C8jb.8g also clears Phase C observables here so callers don't have
+     * to remember reset_combat_7_capture for non-Phase-C tests. */
+    g_scene1_combat_phase_c_visit_count = 0;
+    g_scene1_combat_phase_c_hit_count   = 0;
+    scene1_combat_set_phase_c_visit_hook(NULL);
+    scene1_combat_set_phase_c_hit_hook(NULL);
     g_visit_count = 0;
     g_collision_count = 0;
     g_armed_count = 0;
@@ -4434,7 +4454,7 @@ int test_combat_sm_phase_c_runs_when_state_is_0(void)
     slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 0;
 
     /* Phase C runs and fires a hit (visit + hit counters go to 1). */
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
     return 0;
@@ -4449,7 +4469,7 @@ int test_combat_sm_phase_c_runs_when_state_is_2(void)
     int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
     slot[SCENE1_RECORDS_B_OFF_FLAG_A] = 2;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
     return 0;
@@ -4540,7 +4560,7 @@ int test_combat_sm_phase_c_admits_aux_zero(void)
     setup_proj(0, 5, 0, 0.0f, 0.0f, 0.0f, 1.0f);
     int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
     return 0;
 }
@@ -4588,7 +4608,7 @@ int test_combat_sm_phase_c_admits_when_seq_id_absent(void)
     for (int k = 0; k < 10; k++) proj[SCENE1_PROJ_OFF_RING + k] = 0x9000 + k;
     int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 1.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
     return 0;
 }
@@ -4650,7 +4670,7 @@ int test_combat_sm_phase_c_hits_when_aabb_passes(void)
     setup_proj(0, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
     int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.5f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
     return 0;
 }
@@ -4712,7 +4732,7 @@ int test_combat_sm_phase_c_dy_dz_jitter(void)
     setup_proj(0, 5, 0, 5.0f, 0.0f, 5.0f, 1.0f);
     int32_t *slot = target_slot_at(0x1111, 5.0f, 0.0f, 5.0f, 0.5f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
     return 0;
 }
@@ -4732,7 +4752,7 @@ int test_combat_sm_phase_c_proj_scale_scales_radii(void)
     setup_proj(0, 5, 0, 5.0f, 0.0f, 0.0f, 10.0f);
     int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.1f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
 
     /* Now retest with scale=0.1. */
@@ -4758,7 +4778,7 @@ int test_combat_sm_phase_c_per_type_radii_used(void)
     setup_proj(1, 7, 0, 1.0f, 0.0f, 0.0f, 1.0f);
     int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.5f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     /* Only one hit (Phase C breaks after first); but the loop runs proj
      * 0 first and that one passes → exactly 1 hit. */
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
@@ -4776,7 +4796,7 @@ int test_combat_sm_phase_c_on_hit_ring_bump(void)
     proj[SCENE1_PROJ_OFF_CURSOR] = 0;
     int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
     T_ASSERT_EQ_I(proj[SCENE1_PROJ_OFF_RING + 0], 0x9999);
     T_ASSERT_EQ_I(proj[SCENE1_PROJ_OFF_CURSOR],   1);
@@ -4792,7 +4812,7 @@ int test_combat_sm_phase_c_on_hit_cursor_wraps(void)
     proj[SCENE1_PROJ_OFF_CURSOR] = 9;  /* about to wrap */
     int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(proj[SCENE1_PROJ_OFF_RING + 9], 0x9999);
     T_ASSERT_EQ_I(proj[SCENE1_PROJ_OFF_CURSOR],   0);  /* wrapped */
     return 0;
@@ -4807,7 +4827,7 @@ int test_combat_sm_phase_c_on_hit_state_set_to_five(void)
     proj[SCENE1_PROJ_OFF_STATE] = -1;
     int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(proj[SCENE1_PROJ_OFF_STATE], 5);
     return 0;
 }
@@ -4822,7 +4842,7 @@ int test_combat_sm_phase_c_on_hit_sound_flag_for_type_2(void)
     int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
     slot[SCENE1_RECORDS_B_OFF_TYPE] = 2;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_dat_056da1b8 & 2, 2);
     return 0;
 }
@@ -4838,7 +4858,7 @@ int test_combat_sm_phase_c_on_hit_sound_flag_for_sound_eligible_types(void)
         int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
         slot[SCENE1_RECORDS_B_OFF_TYPE] = types[k];
 
-        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
         T_ASSERT_EQ_I(g_scene1_combat_dat_056da1b8 & 2, 2);
     }
     return 0;
@@ -4855,7 +4875,7 @@ int test_combat_sm_phase_c_on_hit_no_sound_flag_for_other_types(void)
         int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
         slot[SCENE1_RECORDS_B_OFF_TYPE] = types[k];
 
-        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
         T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
         T_ASSERT_EQ_I(g_scene1_combat_dat_056da1b8 & 2, 0);
     }
@@ -4873,7 +4893,7 @@ int test_combat_sm_phase_c_on_hit_or_preserves_existing_bits(void)
     int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
     slot[SCENE1_RECORDS_B_OFF_TYPE] = 2;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_dat_056da1b8, 0x57);  /* + bit 1 */
     return 0;
 }
@@ -4890,7 +4910,7 @@ int test_combat_sm_phase_c_breaks_on_first_hit(void)
     int32_t *proj1 = setup_proj(1, 5, 0, 1.0f, 0.0f, 0.0f, 1.0f);
     int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count, 1);
     T_ASSERT_EQ_I(proj0[SCENE1_PROJ_OFF_STATE], 5);
     T_ASSERT_EQ_I(proj1[SCENE1_PROJ_OFF_STATE], 0);   /* untouched */
@@ -4908,7 +4928,7 @@ int test_combat_sm_phase_c_hit_hook_fires_with_index(void)
     scene1_combat_set_phase_c_hit_hook(capture_phase_c_hit_hook);
     int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_phase_c_hit_call_count, 1);
     T_ASSERT_EQ_I(g_phase_c_hit_indices[0], 4);
     return 0;
@@ -4955,7 +4975,7 @@ int test_combat_sm_phase_c_runs_when_phase_b_returns_zero(void)
     int32_t *slot = target_slot_at(0x1111, 0, 0, 0, 0.5f);
     g_scene1_combat_player_hp = 0.0f;  /* Phase B disabled */
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_b_visit_count, 0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
     return 0;
@@ -4988,7 +5008,7 @@ int test_combat_sm_phase_c_counters_reset_between_ticks(void)
     int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
 
     /* Tick 1: hit fires. */
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
 
@@ -5060,7 +5080,7 @@ int test_combat_sm_phase_c_hooks_nullable(void)
     scene1_combat_set_phase_c_hit_hook(NULL);
     int32_t *slot = target_slot_at(0x9999, 0, 0, 0, 0.5f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_visit_count, 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,   1);
     return 0;
@@ -5108,7 +5128,7 @@ int test_combat_sm_phase_c8a_type_2_fires_0x15_spawn(void)
                                       /*pos=*/1.0f, 0.5f, 0.0f,
                                       /*scale=*/1.0f, /*offset_y=*/4.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,         1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,     0x15);
@@ -5130,7 +5150,7 @@ int test_combat_sm_phase_c8a_type_3_fires_0x15_spawn(void)
     int32_t *slot = setup_phase_c_hit(/*type=*/3,
                                       1.0f, 0.5f, 0.0f, 1.0f, 4.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template,     0x15);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x159);
@@ -5149,7 +5169,7 @@ int test_combat_sm_phase_c8a_type_0_fires_0x16_spawn(void)
     int32_t *slot = setup_phase_c_hit(/*type=*/0,
                                       1.0f, 0.5f, 0.0f, 1.0f, 2.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  2);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].template,          0x16);
     T_ASSERT_EQ_I(g_emit_spawn_records[1].template,          1);
@@ -5173,7 +5193,7 @@ int test_combat_sm_phase_c8a_type_0x15_se_only(void)
     int32_t *slot = setup_phase_c_hit(/*type=*/0x15,
                                       1.0f, 0.5f, 0.0f, 1.0f, 2.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].template,          1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x180);
@@ -5193,7 +5213,7 @@ int test_combat_sm_phase_c8a_default_type_se_only(void)
     int32_t *slot = setup_phase_c_hit(/*type=*/5,
                                       1.0f, 0.5f, 0.0f, 1.0f, 2.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].template,          1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x169);
@@ -5213,7 +5233,7 @@ int test_combat_sm_phase_c8a_type_2_spawn_pose_verbatim(void)
                                       /*pos=*/3.0f, 0.5f, 1.0f,
                                       /*scale=*/1.5f, /*offset_y=*/4.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[0], 1.5f, 1e-6f);   /* mid_x */
     T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[1], 2.5f, 1e-6f);   /* y */
     T_ASSERT_EQ_F(g_scene1_combat_phase_c_emit_pose[2], 0.5f, 1e-6f);   /* mid_z */
@@ -5236,7 +5256,7 @@ int test_combat_sm_phase_c8a_type_0_spawn_pose_verbatim(void)
                                       /*pos=*/3.0f, 0.0f, 1.0f,
                                       /*scale=*/2.0f, /*offset_y=*/0.1f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].template, 0x16);
     T_ASSERT_EQ_F(g_emit_spawn_records[0].x,        1.5f,  1e-6f);
     T_ASSERT_EQ_F(g_emit_spawn_records[0].y,        2.05f, 1e-6f);
@@ -5274,7 +5294,7 @@ int test_combat_sm_phase_c8a_observables_reset_per_tick(void)
     reset_combat_7_capture();
     reset_combat_6_capture();
     int32_t *slot = setup_phase_c_hit(2, 1.0f, 0.5f, 0.0f, 1.0f, 4.0f);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template, 0x15);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,    0x159);
 
@@ -5303,7 +5323,7 @@ int test_combat_sm_phase_c8a_se_hook_receives_id(void)
     reset_combat_6_capture();
     int32_t *slot = setup_phase_c_hit(2, 1.0f, 0.5f, 0.0f, 1.0f, 4.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_emit_se_count,    1);
     T_ASSERT_EQ_I(g_emit_se_last_id,  0x159);
     return 0;
@@ -5319,7 +5339,7 @@ int test_combat_sm_phase_c8a_spawn_hook_receives_args(void)
                                       /*pos=*/3.0f, 0.5f, 1.0f,
                                       /*scale=*/1.5f, /*offset_y=*/4.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_emit_spawn_count, 1);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].call_index, 0);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].template,   0x15);
@@ -5340,7 +5360,7 @@ int test_combat_sm_phase_c8a_emit_hooks_nullable(void)
     scene1_combat_set_emit_se_hook(NULL);
     int32_t *slot = setup_phase_c_hit(2, 1.0f, 0.5f, 0.0f, 1.0f, 4.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_template, 0x15);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,    0x159);
     return 0;
@@ -5354,7 +5374,7 @@ int test_combat_sm_phase_c8a_type_2_phase_b_se_id_untouched(void)
     reset_combat_6_capture();
     int32_t *slot = setup_phase_c_hit(2, 1.0f, 0.5f, 0.0f, 1.0f, 4.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id, 0x159);
     T_ASSERT_EQ_I(g_scene1_combat_phase_b_emit_se_id, 0);
     return 0;
@@ -5378,7 +5398,7 @@ int test_combat_sm_phase_c8b_lifetime_minus_one_type_2_no_spawn(void)
     reset_combat_6_capture();
     int32_t *slot = setup_phase_c_hit(2, 1.0f, 0.0f, 0.0f, 1.0f, 4.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 1);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].template,          0x15);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    -1);
@@ -5396,7 +5416,7 @@ int test_combat_sm_phase_c8b_lifetime_minus_one_non_2_3_fires_template_1(void)
     reset_combat_6_capture();
     int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].template,           1);
     T_ASSERT_EQ_F(g_emit_spawn_records[0].x,                  0.0f, 1e-6f);
@@ -5418,7 +5438,7 @@ int test_combat_sm_phase_c8b_lifetime_positive_decrements(void)
     int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 5);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    4);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].template,           1);
@@ -5440,7 +5460,7 @@ int test_combat_sm_phase_c8b_lifetime_one_falls_to_zero_default(void)
     int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 1);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].template,           2);
@@ -5463,7 +5483,7 @@ int test_combat_sm_phase_c8b_lifetime_zero_type_6_aux_one(void)
     int32_t *slot = setup_phase_c_hit(6, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
@@ -5489,7 +5509,7 @@ int test_combat_sm_phase_c8b_lifetime_zero_type_4_fires_c8jb_8f(void)
     int32_t *slot = setup_phase_c_hit(4, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,             2);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,           1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,      0);
@@ -5516,7 +5536,7 @@ int test_combat_sm_phase_c8b_lifetime_zero_type_0x15_fires_scatter(void)
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,        0x180);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
@@ -5546,7 +5566,7 @@ int test_combat_sm_phase_c8b_lifetime_negative_other_than_minus_one_forces_zero(
     int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, -5);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
@@ -5571,7 +5591,7 @@ int test_combat_sm_phase_c8b_latch_idempotent(void)
     g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH]
         = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,        1);
     int32_t latch =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
@@ -5588,7 +5608,7 @@ int test_combat_sm_phase_c8b_observables_reset_per_tick(void)
     reset_combat_6_capture();
     int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,    1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,  1);
 
@@ -5638,7 +5658,7 @@ int test_combat_sm_phase_c8c_scatter_emits_10_spawns(void)
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count,    10);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 10);
     return 0;
@@ -5654,7 +5674,7 @@ int test_combat_sm_phase_c8c_scatter_template_alternation(void)
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     for (int i = 0; i < 5; i++) {
         T_ASSERT_EQ_I(g_emit_spawn_records[i*2 + 0].template, 0x2);
         T_ASSERT_EQ_I(g_emit_spawn_records[i*2 + 1].template, 0xf);
@@ -5673,7 +5693,7 @@ int test_combat_sm_phase_c8c_scatter_scale_per_template(void)
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     for (int i = 0; i < 5; i++) {
         T_ASSERT_EQ_F(g_emit_spawn_records[i*2 + 0].scale, 0.4f, 1e-6f);
         T_ASSERT_EQ_F(g_emit_spawn_records[i*2 + 1].scale, 0.8f, 1e-6f);
@@ -5691,7 +5711,7 @@ int test_combat_sm_phase_c8c_scatter_param7_one(void)
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     for (int i = 0; i < 10; i++) {
         T_ASSERT_EQ_I(g_emit_spawn_records[i].param7, 1);
     }
@@ -5709,7 +5729,7 @@ int test_combat_sm_phase_c8c_scatter_xz_from_proj_pose(void)
     int32_t *slot = setup_phase_c_hit(0x15, 3.0f, 0.0f, 1.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     for (int i = 0; i < 10; i++) {
         T_ASSERT_EQ_F(g_emit_spawn_records[i].x, 3.0f, 1e-6f);
         T_ASSERT_EQ_F(g_emit_spawn_records[i].z, 1.0f, 1e-6f);
@@ -5734,7 +5754,7 @@ int test_combat_sm_phase_c8c_scatter_y_has_angle_offset(void)
     int32_t *slot = setup_phase_c_hit(0x15, 0.0f, 0.5f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 10);
     for (int iter = 0; iter < 5; iter++) {
         float base = 0.5f + (float)iter * 4.0f;
@@ -5759,7 +5779,7 @@ int test_combat_sm_phase_c8c_scatter_y_matches_rng_sequence(void)
     rng_seed(42);
     int32_t *slot = setup_phase_c_hit(0x15, 0.0f, 0.5f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 10);
 
     /* Replay the RNG sequence to derive expected Y values. */
@@ -5785,7 +5805,7 @@ int test_combat_sm_phase_c8c_scatter_proj_type_set_to_minus_one(void)
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     int32_t proj_type =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_TYPE];
     T_ASSERT_EQ_I(proj_type, -1);
@@ -5809,7 +5829,7 @@ int test_combat_sm_phase_c8c_scatter_no_aux_write(void)
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     /* Scatter fired (10 spawns), latch set, but AUX stayed at 0. */
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 10);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,      0);
@@ -5830,7 +5850,7 @@ int test_combat_sm_phase_c8c_scatter_fires_latch(void)
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired, 1);
     int32_t latch =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
@@ -5849,7 +5869,7 @@ int test_combat_sm_phase_c8c_lifetime_minus_one_no_scatter(void)
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     /* setup_phase_c_hit defaults LIFETIME=-1. */
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 0);
     /* Spawn count = 1 (just C8jb.8b's template 1 emit). */
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 1);
@@ -5872,7 +5892,7 @@ int test_combat_sm_phase_c8c_lifetime_positive_no_scatter(void)
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 3);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after, 2);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 1);
@@ -5895,7 +5915,7 @@ int test_combat_sm_phase_c8c_scatter_observable_resets_per_tick(void)
     rng_seed(1);
     int32_t *slot = setup_phase_c_hit(0x15, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 10);
 
     /* Tick 2: proj.TYPE is now -1; first-row skip cascade entry catches
@@ -5919,7 +5939,7 @@ int test_combat_sm_phase_c8c_scatter_latch_idempotent(void)
     set_proj_lifetime(0, 0);
     g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH] = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired, 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_scatter_count, 10);
     int32_t latch =
@@ -5942,7 +5962,7 @@ static int test_combat_sm_phase_c8d_type_n_arms(int proj_type)
     int32_t *slot = setup_phase_c_hit(proj_type, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         2);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
     T_ASSERT_EQ_I(g_scene1_combat_world_pause,               1);
@@ -6010,7 +6030,7 @@ int test_combat_sm_phase_c8d_type_5_owner_gate_zero_fires_grid_pick(void)
     int32_t *slot = setup_phase_c_hit(5, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         2);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
@@ -6037,7 +6057,7 @@ int test_combat_sm_phase_c8d_owner_gate_negative_byte_arms(void)
     int32_t *slot = setup_phase_c_hit(4, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after, 2);
     T_ASSERT_EQ_I(g_scene1_combat_world_pause,       1);
     return 0;
@@ -6056,7 +6076,7 @@ int test_combat_sm_phase_c8d_type_6_unaffected_by_owner_gate(void)
     int32_t *slot = setup_phase_c_hit(6, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,    1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,  1);
     T_ASSERT_EQ_I(g_scene1_combat_world_pause,          0);
@@ -6074,7 +6094,7 @@ int test_combat_sm_phase_c8d_default_type_unaffected_by_owner_gate(void)
     int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
     T_ASSERT_EQ_I(g_scene1_combat_world_pause,               0);
@@ -6097,7 +6117,7 @@ int test_combat_sm_phase_c8d_type_4_lifetime_positive_unaffected(void)
     int32_t *slot = setup_phase_c_hit(4, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 5);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    4);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
     T_ASSERT_EQ_I(g_emit_spawn_records[0].template,           1);
@@ -6120,7 +6140,7 @@ int test_combat_sm_phase_c8d_armed_blocks_next_tick_phase_a(void)
     set_proj_lifetime(0, 0);
 
     /* Tick 1: arm fires. */
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),    0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),    1);
     T_ASSERT_EQ_I(g_scene1_combat_world_pause,    1);
     T_ASSERT_EQ_I(g_scene1_records_b_tick_flag,   1);
 
@@ -6198,7 +6218,7 @@ int test_combat_sm_phase_c8e_stage_zero_cell_lt_5_picks_item_4(void)
     /* stage_id=0, cell[0..3]=0 (< 5): item_id=4 path. */
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8e_drop_calls,                              1);
     T_ASSERT_EQ_I(g_c8e_drop_last_item_id,                       4);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_item_id,          4);
@@ -6214,7 +6234,7 @@ int test_combat_sm_phase_c8e_stage_zero_cell_ge_5_picks_item_5(void)
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
     g_scene1_combat_map_cells[0 * 4] = 5;  /* (grid_x=0, grid_z=0) */
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 5);
     return 0;
 }
@@ -6233,14 +6253,14 @@ int test_combat_sm_phase_c8e_grid_quantize_formula(void)
     install_proj_radii(5, 200.0f, 200.0f);
     g_scene1_combat_map_cells[31 * 4] = 5;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 5);
 
     /* Sanity: same proj at (1.0, 0.0) → grid_x=0, grid_z=0, cell idx 0.
      * cells[0][0] is still 0 (only cells[31][0] was set) → item_id=4. */
     int32_t *slot2 = setup_phase_c8e(1.0f, 0.0f);
     g_scene1_combat_map_cells[31 * 4] = 5;
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot2), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot2), 1);
     T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 4);
     return 0;
 }
@@ -6251,7 +6271,7 @@ int test_combat_sm_phase_c8e_drop_hook_receives_proj_xz(void)
      * (3.5, 0, -7.25). */
     int32_t *slot = setup_phase_c8e(3.5f, -7.25f);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_F(g_c8e_drop_last_x, 3.5f,  1e-6f);
     T_ASSERT_EQ_F(g_c8e_drop_last_z, -7.25f, 1e-6f);
     T_ASSERT_EQ_F(g_scene1_combat_phase_c_drop_pose[0], 3.5f,  1e-6f);
@@ -6266,7 +6286,7 @@ int test_combat_sm_phase_c8e_drop_ret_one_fires_trap_se(void)
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
     g_c8e_drop_ret = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8e_se_calls,                                  1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_se_string_call_count,    1);
     T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c,            0x3c);
@@ -6281,7 +6301,7 @@ int test_combat_sm_phase_c8e_drop_ret_zero_no_trap_se(void)
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
     g_c8e_drop_ret = 0;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8e_se_calls,                               0);
     T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c,            0);
     return 0;
@@ -6294,7 +6314,7 @@ int test_combat_sm_phase_c8e_drop_ret_two_no_trap_se(void)
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
     g_c8e_drop_ret = 2;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8e_se_calls,                               0);
     T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c,            0);
     return 0;
@@ -6316,7 +6336,7 @@ int test_combat_sm_phase_c8e_counter_bump_unconditional(void)
         /* Also bump slot SEQ_ID so it doesn't get caught by the hit-history
          * ring filter on subsequent ticks. */
         slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x4242 + i;
-        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     }
     T_ASSERT_EQ_I(g_scene1_combat_owner_a_2c3e0, 6);  /* 3 × 2 */
     return 0;
@@ -6340,7 +6360,7 @@ int test_combat_sm_phase_c8e_stage_nonzero_rare_drop_item_10(void)
     T_ASSERT(seed_found != 0);
 
     rng_seed(seed_found);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8e_drop_calls,         1);
     T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 10);
     return 0;
@@ -6365,7 +6385,7 @@ int test_combat_sm_phase_c8e_rare_drop_ret_one_no_se(void)
     T_ASSERT(seed_found != 0);
 
     rng_seed(seed_found);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     /* Rare path: drop fired with item_id=10, but SE skipped. */
     T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 10);
     T_ASSERT_EQ_I(g_c8e_se_calls,           0);
@@ -6394,7 +6414,7 @@ int test_combat_sm_phase_c8e_stage_nonzero_common_path_cell_ge_5_bucket(void)
     }
     T_ASSERT(seed_found != 0);
     rng_seed(seed_found);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 5);  /* cell >= 5, bucket 3 → 5 */
     return 0;
 }
@@ -6416,7 +6436,7 @@ int test_combat_sm_phase_c8e_stage_nonzero_common_path_cell_lt_5_bucket(void)
     }
     T_ASSERT(seed_found != 0);
     rng_seed(seed_found);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 4);  /* cell < 5, bucket 3 → 4 */
     return 0;
 }
@@ -6437,7 +6457,7 @@ int test_combat_sm_phase_c8e_stage_nonzero_bucket_zero_picks_8(void)
     }
     T_ASSERT(seed_found != 0);
     rng_seed(seed_found);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 8);
     return 0;
 }
@@ -6474,7 +6494,7 @@ int test_combat_sm_phase_c8e_trap_se_path_string_dispatch(void)
         int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
         g_c8e_drop_ret = 1;  /* trigger SE block */
         rng_seed(seed_found);
-        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
         T_ASSERT_EQ_I(g_c8e_se_calls, 1);
         T_ASSERT(g_c8e_se_last_path != NULL);
         if (strcmp(g_c8e_se_last_path, expected[target_bucket]) != 0) {
@@ -6496,7 +6516,7 @@ int test_combat_sm_phase_c8e_drop_hook_nullable(void)
     int32_t *slot = setup_phase_c_hit(5, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,     1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_se_string_call_count, 0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,           2);
@@ -6513,7 +6533,7 @@ int test_combat_sm_phase_c8e_observables_reset_per_tick(void)
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
     g_c8e_drop_ret = 1;  /* tick 1 fires SE */
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,       1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_se_string_call_count,  1);
     T_ASSERT(g_scene1_combat_phase_c_se_string_path != NULL);
@@ -6525,7 +6545,7 @@ int test_combat_sm_phase_c8e_observables_reset_per_tick(void)
     g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME]         = 0;
     slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x4243;
     g_c8e_drop_ret = 0;
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,       1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_se_string_call_count,  0);
     T_ASSERT(g_scene1_combat_phase_c_se_string_path == NULL);
@@ -6544,7 +6564,7 @@ int test_combat_sm_phase_c8e_owner_gate_priority_over_grid_pick(void)
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
     g_scene1_combat_owner_a_2bc82 = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_world_pause,                   1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,             2);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,       0);
@@ -6559,7 +6579,7 @@ int test_combat_sm_phase_c8e_lifetime_positive_does_not_fire(void)
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
     set_proj_lifetime(0, 5);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,       0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,    0);
     /* Path-b fired template 1 spawn. */
@@ -6572,7 +6592,7 @@ int test_combat_sm_phase_c8e_aux_storage_actually_set(void)
 {
     /* proj.AUX storage in g_scene1_projectiles[0][AUX] gets the 2 value. */
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     int32_t aux_storage =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX];
     T_ASSERT_EQ_I(aux_storage, 2);
@@ -6583,7 +6603,7 @@ int test_combat_sm_phase_c8e_latch_storage_actually_set(void)
 {
     /* FIRST_HIT_LATCH storage in g_scene1_projectiles[0][LATCH] = 1. */
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     int32_t latch =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
     T_ASSERT_EQ_I(latch, 1);
@@ -6596,7 +6616,7 @@ int test_combat_sm_phase_c8e_no_emit_spawn_or_overlay(void)
      * emit_se via id).  Verify all spawn/overlay/se-by-id counters stay
      * at 0 even after a TYPE 5 fire. */
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 0);
     /* SE-by-id observable stays untouched (the C8jb.8a SE hook path is
      * separate from C8jb.8e's SE-by-string path). */
@@ -6613,7 +6633,7 @@ int test_combat_sm_phase_c8e_cooldown_latches_across_ticks(void)
      * ret 0) → cooldown stays at 60. */
     int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
     g_c8e_drop_ret = 1;
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c, 0x3c);
 
     /* Reset proj for next hit; keep drop ret = 0. */
@@ -6622,7 +6642,7 @@ int test_combat_sm_phase_c8e_cooldown_latches_across_ticks(void)
     g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME]         = 0;
     slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x4243;
     g_c8e_drop_ret = 0;
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c, 0x3c);  /* unchanged */
     return 0;
 }
@@ -6638,7 +6658,7 @@ int test_combat_sm_phase_c8e_oob_grid_falls_back_to_cell_zero(void)
     install_proj_radii(5, 5000.0f, 5000.0f);
     g_scene1_combat_stage_id = 0;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     /* OOB fallback returns cell=0 → cell < 5 → item 4. */
     T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 4);
     return 0;
@@ -6763,7 +6783,7 @@ int test_combat_sm_phase_c8f_gate_zero_single_spawn_default_byte(void)
     g_c8f_hud_gate_ret = 0;
     g_c8f_spawn_ret    = 1;  /* "success" — doesn't matter on this arm */
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8f_hud_gate_calls,                          1);
     T_ASSERT_EQ_I(g_c8f_hud_effect_calls,                        0);
     T_ASSERT_EQ_I(g_c8f_spawn_calls,                             1);
@@ -6781,7 +6801,7 @@ int test_combat_sm_phase_c8f_gate_zero_pose_xz_from_proj_y_plus_half(void)
     int32_t *slot = setup_phase_c8f(4, 3.0f, 2.0f, 5.0f);
     g_c8f_spawn_ret = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_F(g_c8f_spawn_last_x, 3.0f, 1e-6f);
     T_ASSERT_EQ_F(g_c8f_spawn_last_y, 2.5f, 1e-6f);   /* y + 0.5 */
     T_ASSERT_EQ_F(g_c8f_spawn_last_z, 5.0f, 1e-6f);
@@ -6797,7 +6817,7 @@ int test_combat_sm_phase_c8f_gate_zero_byte_eq_one_fires_1000_iter_loop(void)
     g_c8f_spawn_ret    = 0;  /* every iter "fails" → error_log fires */
     g_scene1_combat_owner_a_2bd21 = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   1);
     T_ASSERT_EQ_I(g_c8f_spawn_calls,                             1000);
     T_ASSERT_EQ_I(g_c8f_err_calls,                               1000);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 1000);
@@ -6815,7 +6835,7 @@ int test_combat_sm_phase_c8f_gate_zero_byte_one_no_errors_when_spawn_succeeds(vo
     g_c8f_spawn_ret = 1;
     g_scene1_combat_owner_a_2bd21 = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   1);
     T_ASSERT_EQ_I(g_c8f_spawn_calls,                             1000);
     T_ASSERT_EQ_I(g_c8f_err_calls,                               0);
     return 0;
@@ -6829,7 +6849,7 @@ int test_combat_sm_phase_c8f_gate_zero_byte_low_one_high_garbage_enters_loop(voi
     g_c8f_spawn_ret = 1;
     g_scene1_combat_owner_a_2bd21 = 0x01000001;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8f_spawn_calls, 1000);
     return 0;
 }
@@ -6841,7 +6861,7 @@ int test_combat_sm_phase_c8f_gate_zero_byte_low_zero_high_one_single_spawn(void)
     g_c8f_spawn_ret = 1;
     g_scene1_combat_owner_a_2bd21 = 0x100;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8f_spawn_calls, 1);
     return 0;
 }
@@ -6854,7 +6874,7 @@ int test_combat_sm_phase_c8f_gate_zero_byte_two_takes_single_spawn(void)
     g_c8f_spawn_ret = 1;
     g_scene1_combat_owner_a_2bd21 = 2;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8f_spawn_calls, 1);
     return 0;
 }
@@ -6867,7 +6887,7 @@ int test_combat_sm_phase_c8f_gate_zero_byte_0xff_takes_single_spawn(void)
     g_c8f_spawn_ret = 1;
     g_scene1_combat_owner_a_2bd21 = 0xff;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8f_spawn_calls, 1);
     return 0;
 }
@@ -6881,7 +6901,7 @@ int test_combat_sm_phase_c8f_gate_zero_error_log_msg_is_engine_literal(void)
     g_c8f_spawn_ret = 0;  /* fail → error fires */
     g_scene1_combat_owner_a_2bd21 = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT(g_c8f_err_last_msg == k_scene1_combat_throwable_error_msg);
     T_ASSERT(g_scene1_combat_phase_c_throwable_last_error_msg
              == k_scene1_combat_throwable_error_msg);
@@ -6896,7 +6916,7 @@ int test_combat_sm_phase_c8f_gate_nonzero_fires_hud_effect_play(void)
     int32_t *slot = setup_phase_c8f(4, 1.0f, 0.0f, 0.0f);
     g_c8f_hud_gate_ret = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_c8f_hud_gate_calls,                          1);
     T_ASSERT_EQ_I(g_c8f_hud_effect_calls,                        1);
     T_ASSERT_EQ_I(g_c8f_hud_effect_args[0],                      1);
@@ -6922,7 +6942,7 @@ int test_combat_sm_phase_c8f_gate_nonzero_sets_lifetime_to_one(void)
     int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
     g_c8f_hud_gate_ret = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                1);
     /* Read LIFETIME directly from the proj storage. */
     int32_t lifetime =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME];
@@ -6939,7 +6959,7 @@ int test_combat_sm_phase_c8f_gate_nonzero_does_not_enter_spawn_loop_even_with_by
     g_scene1_combat_owner_a_2bd21 = 1;
     g_c8f_spawn_ret = 0;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                1);
     T_ASSERT_EQ_I(g_c8f_spawn_calls,                          0);
     T_ASSERT_EQ_I(g_c8f_err_calls,                            0);
     return 0;
@@ -6952,7 +6972,7 @@ int test_combat_sm_phase_c8f_engine_globals_set_at_head_unconditionally(void)
     int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
     g_c8f_hud_gate_ret = 0;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         1);
     T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,        4);
     T_ASSERT_EQ_I(g_scene1_combat_dat_056db008,        1);
     return 0;
@@ -6965,7 +6985,7 @@ int test_combat_sm_phase_c8f_engine_globals_set_for_gate_nonzero_path_too(void)
     int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
     g_c8f_hud_gate_ret = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         1);
     T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,        4);
     T_ASSERT_EQ_I(g_scene1_combat_dat_056db008,        1);
     return 0;
@@ -6984,7 +7004,7 @@ int test_combat_sm_phase_c8f_engine_globals_unset_when_owner_gate_armed(void)
     int32_t *slot = setup_phase_c_hit(4, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         1);
     /* C8jb.8d arm took priority; C8jb.8f never entered. */
     T_ASSERT_EQ_I(g_scene1_combat_world_pause,         1);
     T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,        0);
@@ -7003,7 +7023,7 @@ int test_combat_sm_phase_c8f_engine_globals_unset_for_type_5_path(void)
     int32_t *slot = setup_phase_c_hit(5, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     set_proj_lifetime(0, 0);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         1);
     T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,        0);
     T_ASSERT_EQ_I(g_scene1_combat_dat_056db008,        0);
     /* TYPE 5 still fires its own counter bump + AUX=2 via C8jb.8e. */
@@ -7044,7 +7064,7 @@ int test_combat_sm_phase_c8f_owner_a_2c3e0_latched_across_ticks(void)
     int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
     g_c8f_spawn_ret = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),       0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),       1);
     T_ASSERT_EQ_I(g_scene1_combat_owner_a_2c3e0,     2);
 
     /* Re-arm: bump SEQ_ID so hit-history ring misses, clear proj.AUX
@@ -7053,7 +7073,7 @@ int test_combat_sm_phase_c8f_owner_a_2c3e0_latched_across_ticks(void)
     slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x4243;
     g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX] = 0;
     set_proj_lifetime(0, 0);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),       0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),       1);
     T_ASSERT_EQ_I(g_scene1_combat_owner_a_2c3e0,     4);
     return 0;
 }
@@ -7066,12 +7086,12 @@ int test_combat_sm_phase_c8f_observables_reset_per_tick(void)
     int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
     g_c8f_spawn_ret = 0;
     g_scene1_combat_owner_a_2bd21 = 1;
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 1000);
 
     /* Disarm: zero out the projectile table so the AABB misses. */
     memset(g_scene1_projectiles, 0, sizeof g_scene1_projectiles);
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_gate_call_count,   0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_effect_call_count, 0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 0);
@@ -7094,7 +7114,7 @@ int test_combat_sm_phase_c8f_nullable_hooks_default_to_silent(void)
     set_proj_lifetime(0, 0);
     g_scene1_combat_owner_a_2bd21 = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_gate_call_count,   1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 1000);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_error_count, 1000);
@@ -7108,7 +7128,7 @@ int test_combat_sm_phase_c8f_aux_storage_actually_set(void)
     int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
     g_c8f_spawn_ret = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     int32_t aux =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX];
     T_ASSERT_EQ_I(aux, 2);
@@ -7121,7 +7141,7 @@ int test_combat_sm_phase_c8f_latch_storage_actually_set(void)
     int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
     g_c8f_spawn_ret = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 1);
     int32_t latch =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
     T_ASSERT_EQ_I(latch, 1);
@@ -7136,7 +7156,7 @@ int test_combat_sm_phase_c8f_no_emit_spawn_or_overlay(void)
     g_c8f_spawn_ret = 1;
     g_scene1_combat_owner_a_2bd21 = 1;
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                  0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                  1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,     0);
     /* But the throwable spawn IS counted on its own observable. */
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 1000);
@@ -7150,7 +7170,7 @@ int test_combat_sm_phase_c8f_lifetime_minus_one_skips_c8jb_8f(void)
     int32_t *slot = setup_phase_c8f(4, 1.0f, 0.0f, 0.0f);
     set_proj_lifetime(0, -1);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_gate_call_count,   0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 0);
     T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,                  0);
@@ -7167,7 +7187,7 @@ int test_combat_sm_phase_c8f_lifetime_positive_skips_c8jb_8f(void)
     int32_t *slot = setup_phase_c8f(4, 1.0f, 0.0f, 0.0f);
     set_proj_lifetime(0, 5);
 
-    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,        4);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_gate_call_count,   0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 0);

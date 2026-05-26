@@ -2274,10 +2274,11 @@ static void phase_c_lifetime_dispatch(int32_t *proj,
  * (`dist - reach < x_radius`) to `dist - reach < 0` — never true for
  * a non-overlapping projectile at the BSS-zero origin.
  *
- * Returns 1 if a hit fired (C8jb.7 reports the hit via the observable
- * but the SM caller doesn't see ret=1 — see scene1_combat_sm_tick).
- * The internal return is a debug aid only; the public tick collapses
- * Phase C's ret to 0 in C8jb.7.
+ * Returns 1 if a hit fired (any in-range AABB pass), 0 on no-hit.
+ * C8jb.8g lifted the public SM ret from collapsed-0 to this value —
+ * see scene1_combat_sm_tick's `ret = phase_c_scan(slot)` call.  Engine
+ * semantic: a Phase C hit signals "this projectile was consumed; outer
+ * caller should treat it as a fresh combat event".
  */
 static int phase_c_scan(int32_t *slot)
 {
@@ -2545,12 +2546,14 @@ int scene1_combat_sm_tick(int32_t *slot)
      * returned 0 (no Phase B hit this tick); a Phase B ret=1 already
      * exits the SM via the engine's `return 1` paths at L35603+.
      *
-     * C8jb.7 collapses Phase C's internal ret to 0 — the C8jb.8 chip
-     * will lift the TYPE-dispatched return values into the public SM
-     * contract.  The on-hit side effects (ring bump, state=5, sound
-     * flag, observable counters) still apply. */
+     * C8jb.8g (commit-pending) lifts the SM ret to engine semantics:
+     * every Phase C dispatch path (C8jb.8a/8b/8c/8d/8e/8f) ends with
+     * `mov eax, ebx` where ebx=1 (head's `push 1; pop ebx` at 0x43a505
+     * or the `push 1; pop ebx` at 0x43a5cf), so a Phase C hit returns
+     * 1 from the public tick — matching the engine's
+     * `jmp 0x43a0b9` (= function epilogue + `ret`) at 0x43a5d4. */
     if (ret == 0 && slot != NULL) {
-        (void)phase_c_scan(slot);
+        ret = phase_c_scan(slot);
     }
 
     return ret;
