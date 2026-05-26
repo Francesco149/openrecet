@@ -2789,7 +2789,21 @@ struct test_case {
     X(combat_sm_phase_c8f_no_emit_spawn_or_overlay) \
     X(combat_sm_phase_c8f_lifetime_minus_one_skips_c8jb_8f) \
     X(combat_sm_phase_c8f_lifetime_positive_skips_c8jb_8f) \
-    X(combat_sm_phase_c8f_hook_install_returns_previous)
+    X(combat_sm_phase_c8f_hook_install_returns_previous) \
+    X(scene1_walker_pass_init_count_zero_skips) \
+    X(scene1_walker_pass_init_null_out_returns_zero) \
+    X(scene1_walker_pass_init_clamps_to_max) \
+    X(scene1_walker_pass_init_default_path_no_flip) \
+    X(scene1_walker_pass_init_type_4_flag_zero_no_flip) \
+    X(scene1_walker_pass_init_type_4_flag_mask_fails_no_flip) \
+    X(scene1_walker_pass_init_type_4_rot_zero_one_flip) \
+    X(scene1_walker_pass_init_type_4_rot_half_pi_pos_y_small_one_flip) \
+    X(scene1_walker_pass_init_type_4_rot_half_pi_pos_y_large_two_flips) \
+    X(scene1_walker_pass_init_type_4_other_rot_pos_y_large_one_flip) \
+    X(scene1_walker_pass_init_type_4_other_rot_pos_y_small_no_flip) \
+    X(scene1_walker_pass_init_multi_mesh_per_index_hook) \
+    X(scene1_walker_pass_init_flag_hook_null_treated_as_zero) \
+    X(scene1_walker_pass_init_hook_getter_round_trip)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
