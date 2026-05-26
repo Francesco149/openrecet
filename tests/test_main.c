@@ -2734,12 +2734,36 @@ struct test_case {
     X(combat_sm_phase_c8d_type_4_owner_gate_arms) \
     X(combat_sm_phase_c8d_type_5_owner_gate_arms) \
     X(combat_sm_phase_c8d_type_8_unreachable_via_skip_cascade) \
-    X(combat_sm_phase_c8d_type_5_owner_gate_zero_defers) \
+    X(combat_sm_phase_c8d_type_5_owner_gate_zero_fires_grid_pick) \
     X(combat_sm_phase_c8d_owner_gate_negative_byte_arms) \
     X(combat_sm_phase_c8d_type_6_unaffected_by_owner_gate) \
     X(combat_sm_phase_c8d_default_type_unaffected_by_owner_gate) \
     X(combat_sm_phase_c8d_type_4_lifetime_positive_unaffected) \
-    X(combat_sm_phase_c8d_armed_blocks_next_tick_phase_a)
+    X(combat_sm_phase_c8d_armed_blocks_next_tick_phase_a) \
+    X(combat_sm_phase_c8e_stage_zero_cell_lt_5_picks_item_4) \
+    X(combat_sm_phase_c8e_stage_zero_cell_ge_5_picks_item_5) \
+    X(combat_sm_phase_c8e_grid_quantize_formula) \
+    X(combat_sm_phase_c8e_drop_hook_receives_proj_xz) \
+    X(combat_sm_phase_c8e_drop_ret_one_fires_trap_se) \
+    X(combat_sm_phase_c8e_drop_ret_zero_no_trap_se) \
+    X(combat_sm_phase_c8e_drop_ret_two_no_trap_se) \
+    X(combat_sm_phase_c8e_counter_bump_unconditional) \
+    X(combat_sm_phase_c8e_stage_nonzero_rare_drop_item_10) \
+    X(combat_sm_phase_c8e_rare_drop_ret_one_no_se) \
+    X(combat_sm_phase_c8e_stage_nonzero_common_path_cell_ge_5_bucket) \
+    X(combat_sm_phase_c8e_stage_nonzero_common_path_cell_lt_5_bucket) \
+    X(combat_sm_phase_c8e_stage_nonzero_bucket_zero_picks_8) \
+    X(combat_sm_phase_c8e_trap_se_path_string_dispatch) \
+    X(combat_sm_phase_c8e_drop_hook_nullable) \
+    X(combat_sm_phase_c8e_observables_reset_per_tick) \
+    X(combat_sm_phase_c8e_owner_gate_priority_over_grid_pick) \
+    X(combat_sm_phase_c8e_lifetime_positive_does_not_fire) \
+    X(combat_sm_phase_c8e_aux_storage_actually_set) \
+    X(combat_sm_phase_c8e_latch_storage_actually_set) \
+    X(combat_sm_phase_c8e_no_emit_spawn_or_overlay) \
+    X(combat_sm_phase_c8e_cooldown_latches_across_ticks) \
+    X(combat_sm_phase_c8e_oob_grid_falls_back_to_cell_zero) \
+    X(combat_sm_phase_c8e_hook_install_returns_previous)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

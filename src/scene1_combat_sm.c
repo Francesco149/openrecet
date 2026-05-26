@@ -194,6 +194,25 @@ int32_t g_scene1_combat_phase_c_latch_fired;
 /* C8jb.8c Phase C TYPE 0x15 5-shot scatter observables. */
 int32_t g_scene1_combat_phase_c_scatter_count;
 
+/* C8jb.8e Phase C TYPE 5 grid-pick globals + observables. */
+int32_t     g_scene1_combat_stage_id;                /* DAT_0438b4c8 */
+int32_t     g_scene1_combat_map_cells[SCENE1_COMBAT_MAP_GRID_CELLS * 4]; /* DAT_073e03b4 */
+int32_t     g_scene1_combat_se_cooldown_db00c;       /* DAT_056db00c */
+int32_t     g_scene1_combat_owner_a_2c3e0;           /* *(int*)(OWNER_A+0x2c3e0) */
+int32_t     g_scene1_combat_phase_c_drop_call_count;
+float       g_scene1_combat_phase_c_drop_pose[2];
+int32_t     g_scene1_combat_phase_c_drop_item_id;
+int32_t     g_scene1_combat_phase_c_se_string_call_count;
+const char *g_scene1_combat_phase_c_se_string_path;
+int32_t     g_scene1_combat_phase_c_counter_bump_count;
+
+/* Engine .rdata string literals at 0x5c5498/0x5c54b8/0x5c54d8 — kept as
+ * static constants so the observable can return a stable pointer.  Order
+ * matches engine's rng%3 dispatch (case 0/1/2 → re_wana/ti_wana_a/ti_wana_b). */
+static const char k_phase_c_se_path_0[] = "bin/se/00re/event/re_wana.bin";
+static const char k_phase_c_se_path_1[] = "bin/se/01ti/tuika/ti_wana_a.bin";
+static const char k_phase_c_se_path_2[] = "bin/se/01ti/tuika/ti_wana_b.bin";
+
 int32_t g_scene1_projectiles[SCENE1_PROJ_COUNT * SCENE1_PROJ_STRIDE];
 
 scene1_combat_npc_type_attrs_t
@@ -214,6 +233,8 @@ static scene1_combat_emit_se_fn            g_emit_se_hook;
 static scene1_combat_emit_aux_42e791_fn    g_emit_aux_42e791_hook;
 static scene1_combat_phase_c_visit_fn      g_phase_c_visit_hook;
 static scene1_combat_phase_c_hit_fn        g_phase_c_hit_hook;
+static scene1_combat_drop_item_fn          g_drop_item_hook;
+static scene1_combat_se_play_string_fn     g_se_play_string_hook;
 
 /* Engine angle-filter threshold = 0.9424779 (≈ 0.3π).  .rdata literal
  * at 0x51940c per asm scan (verified via objdump-s).  Stored as a named
@@ -349,6 +370,24 @@ scene1_combat_set_phase_c_hit_hook(scene1_combat_phase_c_hit_fn fn)
 {
     scene1_combat_phase_c_hit_fn prev = g_phase_c_hit_hook;
     g_phase_c_hit_hook = fn;
+    return prev;
+}
+
+/* ─── C8jb.8e Phase C TYPE 5 grid-pick hook setters ──────────────────── */
+
+scene1_combat_drop_item_fn
+scene1_combat_set_drop_item_hook(scene1_combat_drop_item_fn fn)
+{
+    scene1_combat_drop_item_fn prev = g_drop_item_hook;
+    g_drop_item_hook = fn;
+    return prev;
+}
+
+scene1_combat_se_play_string_fn
+scene1_combat_set_se_play_string_hook(scene1_combat_se_play_string_fn fn)
+{
+    scene1_combat_se_play_string_fn prev = g_se_play_string_hook;
+    g_se_play_string_hook = fn;
     return prev;
 }
 
@@ -1731,6 +1770,162 @@ static void phase_c_type_0x15_scatter(int32_t *proj)
     }
 }
 
+/* ─── C8jb.8e — Phase C TYPE 5 grid-pick + trap-drop dispatch ─────────── */
+/*
+ * Engine asm 0x43a389..0x43a4f4.  Fired from the C8jb.8b path-c TYPE
+ * dispatch when proj.TYPE == 5 AND the C8jb.8d owner-flag gate is OFF.
+ *
+ * Asm verification (re-runnable):
+ *   nix develop --command i686-w64-mingw32-objdump -d -M intel \
+ *       --no-show-raw-insn vendor/unpacked/recettear.unpacked.exe \
+ *       --start-address=0x43a389 --stop-address=0x43a4f4
+ *
+ * Constants (.rdata, verified via tools/analyze/pe.py):
+ *   0x519520 = 20.0f      (grid-quantize bias)
+ *   0x519660 = -40.0f     (grid-quantize stride)
+ *
+ * Engine SE string literals at .rdata 0x5c5498/0x5c54b8/0x5c54d8 — see
+ * the `k_phase_c_se_path_0/1/2` arrays at the top of this file.
+ *
+ * Engine quirk #1 (stage_id != 0 + 10% drop): the FUN_004412b6 ret value
+ * is intentionally discarded (asm `jmp 0x43a49f` skips the `mov edi, eax`
+ * save), so even if the hook returns 1, no trap SE plays.  Only the cell-
+ * dispatched 90% path can fire the SE block.
+ *
+ * Engine quirk #2 (push ecx as arg0 in stage_id != 0 + 10% branch): the
+ * `push ecx; push ecx` sequence at 0x43a418..0x43a419 leaves arg0 holding
+ * whatever ecx contains.  Earlier `pop ecx` at 0x43a40b set ecx=10 (the
+ * divisor); ecx is unchanged through `div ecx`.  So item_id=10 here is
+ * an intentional value, not garbage.
+ *
+ * Returns the saved ret value (edi) — caller doesn't use it, but
+ * matches engine semantics.
+ */
+static int32_t phase_c_emit_drop_item(float pos_x, float pos_z, int32_t item_id)
+{
+    g_scene1_combat_phase_c_drop_call_count++;
+    g_scene1_combat_phase_c_drop_pose[0] = pos_x;
+    g_scene1_combat_phase_c_drop_pose[1] = pos_z;
+    g_scene1_combat_phase_c_drop_item_id = item_id;
+    if (g_drop_item_hook != NULL) {
+        return g_drop_item_hook(pos_x, pos_z, item_id);
+    }
+    return 0;
+}
+
+static void phase_c_emit_se_string(const char *path)
+{
+    g_scene1_combat_phase_c_se_string_call_count++;
+    g_scene1_combat_phase_c_se_string_path = path;
+    if (g_se_play_string_hook != NULL) {
+        g_se_play_string_hook(path);
+    }
+}
+
+static int32_t phase_c_grid_quantize(float pos)
+{
+    /* Engine: `__ftol((pos - 20.0f) / -40.0f)`.  __ftol = truncate-toward-
+     * zero (MSVC RTL helper).  C's int cast already truncates. */
+    return (int32_t)((pos - 20.0f) / -40.0f);
+}
+
+static int32_t phase_c_map_cell_at(int32_t grid_x, int32_t grid_z)
+{
+    /* Engine: `[ebx+0x73e03b4]` where ebx = (grid_z*15 + grid_x)*16 (byte
+     * offset).  Reads first dword of the cell.  Our model:
+     * g_scene1_combat_map_cells laid out as 225 cells × 4 dwords. */
+    int32_t cell_idx = grid_z * 15 + grid_x;
+    if (cell_idx < 0 || cell_idx >= SCENE1_COMBAT_MAP_GRID_CELLS) {
+        /* Engine has no bounds check — this would OOB into adjacent
+         * memory.  Port treats OOB as cell=0 (which is `< 5` → item 4
+         * or RNG-bucket {8, 9, 6, 4}).  Production grid coords always
+         * land in [0, 15) for valid HOUSE-class stages so this fallback
+         * is dormant. */
+        return 0;
+    }
+    return g_scene1_combat_map_cells[cell_idx * 4];
+}
+
+static void phase_c_type_5_grid_pick(int32_t *proj)
+{
+    float proj_x = *(const float *)&proj[SCENE1_PROJ_OFF_POS_X];
+    float proj_z = *(const float *)&proj[SCENE1_PROJ_OFF_POS_Z];
+
+    int32_t grid_x = phase_c_grid_quantize(proj_x);
+    int32_t grid_z = phase_c_grid_quantize(proj_z);
+
+    /* edi = saved-ret from FUN_004412b6.  Initialized to 0 (engine
+     * `xor edi, edi` at 0x43a3cf) so paths that skip the save (the 10%
+     * stage_id!=0 branch) leave edi=0 → no trap SE. */
+    int32_t saved_ret = 0;
+
+    if (g_scene1_combat_stage_id == 0) {
+        /* Stage 0: cell value drives item id directly (5 if cell >= 5,
+         * else 4).  Engine 0x43a3db..0x43a3f1 + 0x43a3f3..0x43a49d. */
+        int32_t cell = phase_c_map_cell_at(grid_x, grid_z);
+        int32_t item_id = (cell >= 5) ? 5 : 4;
+        saved_ret = phase_c_emit_drop_item(proj_x, proj_z, item_id);
+    } else {
+        /* Stage != 0: 10% rare-trap branch via rng_next15() % 10.
+         * Engine 0x43a402..0x43a42f. */
+        uint16_t rng_a = rng_next15();
+        if ((rng_a % 10u) == 0u) {
+            /* Rare-trap drop with item_id=10 (engine `push ecx` where
+             * ecx==10 from the divisor `pop ecx`).  Engine
+             * intentionally discards the ret — no trap SE eligibility. */
+            (void)phase_c_emit_drop_item(proj_x, proj_z, 10);
+        } else {
+            /* Cell-dispatched RNG-3-bucket pick.  Engine 0x43a431..0x43a49d.
+             * Two buckets depending on cell value:
+             *   cell >= 5: {0→8, 1→9, 2→6, 3→5}
+             *   cell <  5: {0→8, 1→9, 2→6, 3→4}
+             * Only difference is the `case 3` entry. */
+            int32_t cell = phase_c_map_cell_at(grid_x, grid_z);
+            uint16_t rng_b = rng_next15();
+            int32_t bucket = (int32_t)(rng_b & 0x3u);
+            int32_t item_id;
+            if (cell >= 5) {
+                switch (bucket) {
+                    case 0:  item_id = 8; break;
+                    case 1:  item_id = 9; break;
+                    case 2:  item_id = 6; break;
+                    default: item_id = 5; break;  /* case 3 */
+                }
+            } else {
+                switch (bucket) {
+                    case 0:  item_id = 8; break;
+                    case 1:  item_id = 9; break;
+                    case 2:  item_id = 6; break;
+                    default: item_id = 4; break;  /* case 3 */
+                }
+            }
+            saved_ret = phase_c_emit_drop_item(proj_x, proj_z, item_id);
+        }
+    }
+
+    /* Common tail (asm 0x43a49f..0x43a4f4). */
+    proj[SCENE1_PROJ_OFF_AUX] = 2;
+
+    if (saved_ret == 1) {
+        /* Trap-SE block: rng_next15() % 3 picks one of three filename
+         * literals.  Engine 0x43a4b0..0x43a4e0. */
+        uint16_t rng_c = rng_next15();
+        uint32_t se_bucket = (uint32_t)rng_c % 3u;
+        const char *path;
+        switch (se_bucket) {
+            case 0:  path = k_phase_c_se_path_0; break;  /* re_wana */
+            case 1:  path = k_phase_c_se_path_1; break;  /* ti_wana_a */
+            default: path = k_phase_c_se_path_2; break;  /* ti_wana_b */
+        }
+        phase_c_emit_se_string(path);
+        g_scene1_combat_se_cooldown_db00c = 0x3c;  /* 60-tick cooldown */
+    }
+
+    /* Unconditional OWNER_A counter bump (engine 0x43a4ea..0x43a4ed). */
+    g_scene1_combat_owner_a_2c3e0 += 2;
+    g_scene1_combat_phase_c_counter_bump_count++;
+}
+
 /* ─── C8jb.8b — Phase C LIFETIME + TYPE 6/default dispatch ──────────── */
 /*
  * Engine asm 0x43a1df..0x43a360 (decomp L35721-L35773).  Called once per
@@ -1804,18 +1999,28 @@ static void phase_c_lifetime_dispatch(int32_t *proj,
                  * Byte != 0 short-circuits the FUN_004412b6 / FUN_0043824b
                  * cascade entirely; production OWNER_A blocks are still
                  * unported so the byte stays BSS-zero and the cascade
-                 * (defer) path runs.  The cascade itself is deferred to
-                 * C8jb.8e (TYPE 5 grid-pick) + C8jb.8f (TYPE 4/8 spawn
-                 * loop).  Engine semantic: when the gate trips, NO spawn
-                 * fires for this hit — the projectile just arms and the
-                 * downstream world enters a one-frame pause. */
+                 * (defer) path runs.  Engine semantic: when the gate trips,
+                 * NO spawn fires for this hit — the projectile just arms
+                 * and the downstream world enters a one-frame pause.
+                 *
+                 * When the gate is OFF (byte == 0), TYPE 5 enters the
+                 * C8jb.8e grid-pick body; TYPE 4/8 remain deferred to
+                 * C8jb.8f (1000-iter spawn loop + hud_effect / error
+                 * fallback path at engine 0x43a4f9..0x43a5bd). */
                 if (g_scene1_combat_owner_a_2bc82 != 0) {
                     proj[SCENE1_PROJ_OFF_AUX]   = 2;
                     g_scene1_combat_world_pause = 1;
                     latch_eligible              = 1;
+                } else if (proj_type == 5) {
+                    /* C8jb.8e — TYPE 5 grid-pick + trap-drop dispatch.
+                     * Sets proj.AUX=2 + counter bump internally; may also
+                     * fire trap SE + 60-tick cooldown when the drop hook
+                     * returns 1.  END-WITH-LATCH (engine jmp 0x43a5c4). */
+                    phase_c_type_5_grid_pick(proj);
+                    latch_eligible = 1;
                 }
-                /* else: defer to C8jb.8e/f — pure no-op (matches the
-                 * previous C8jb.8b deferred behavior). */
+                /* else (TYPE 4 or 8 + gate==0): defer to C8jb.8f — pure
+                 * no-op until that path ports. */
             } else if (proj_type == 0x15) {
                 /* C8jb.8c — TYPE 0x15 5-shot scatter.  Engine asm
                  * 0x43a283..0x43a326.  Sets proj.TYPE=-1, scatters 10
@@ -2116,6 +2321,18 @@ int scene1_combat_sm_tick(int32_t *slot)
 
     /* C8jb.8c Phase C TYPE 0x15 5-shot scatter observable. */
     g_scene1_combat_phase_c_scatter_count          = 0;
+
+    /* C8jb.8e Phase C TYPE 5 grid-pick observables.  Note:
+     * g_scene1_combat_se_cooldown_db00c and g_scene1_combat_owner_a_2c3e0
+     * are LATCHED engine state (not reset per tick); only the per-tick
+     * call counters / last-args are reset here. */
+    g_scene1_combat_phase_c_drop_call_count        = 0;
+    g_scene1_combat_phase_c_drop_pose[0]           = 0.0f;
+    g_scene1_combat_phase_c_drop_pose[1]           = 0.0f;
+    g_scene1_combat_phase_c_drop_item_id           = 0;
+    g_scene1_combat_phase_c_se_string_call_count   = 0;
+    g_scene1_combat_phase_c_se_string_path         = NULL;
+    g_scene1_combat_phase_c_counter_bump_count     = 0;
 
     /* Phase B — attacker NPC scan + collision math + emit.  Skipped if
      * slot is NULL (Phase A tests use NULL to probe gates without

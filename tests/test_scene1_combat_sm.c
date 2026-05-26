@@ -126,6 +126,20 @@ static void reset_combat_state(void)
     g_scene1_combat_owner_a_cec           = 0;
     /* C8jb.8d global. */
     g_scene1_combat_owner_a_2bc82         = 0;
+    /* C8jb.8e globals (incl. latched ones we want zero-baseline). */
+    g_scene1_combat_stage_id                       = 0;
+    g_scene1_combat_se_cooldown_db00c              = 0;
+    g_scene1_combat_owner_a_2c3e0                  = 0;
+    g_scene1_combat_phase_c_drop_call_count        = 0;
+    g_scene1_combat_phase_c_drop_pose[0]           = 0.0f;
+    g_scene1_combat_phase_c_drop_pose[1]           = 0.0f;
+    g_scene1_combat_phase_c_drop_item_id           = 0;
+    g_scene1_combat_phase_c_se_string_call_count   = 0;
+    g_scene1_combat_phase_c_se_string_path         = NULL;
+    g_scene1_combat_phase_c_counter_bump_count     = 0;
+    memset(g_scene1_combat_map_cells, 0, sizeof g_scene1_combat_map_cells);
+    scene1_combat_set_drop_item_hook(NULL);
+    scene1_combat_set_se_play_string_hook(NULL);
     g_visit_count = 0;
     g_collision_count = 0;
     g_armed_count = 0;
@@ -5444,9 +5458,11 @@ int test_combat_sm_phase_c8b_lifetime_zero_type_6_aux_one(void)
 int test_combat_sm_phase_c8b_lifetime_zero_type_4_deferred(void)
 {
     /* LIFETIME==0 + TYPE 4 + OWNER_A+0x2bc82==0: C8jb.8d's gate==0 defer
-     * path runs (DEFERRED to C8jb.8e/f — the FUN_004412b6 / FUN_0043824b
-     * cascade).  No AUX write, no spawn, no latch.  reset_combat_state()
-     * zeros the gate, so production HOUSE always lands here. */
+     * path runs (DEFERRED to C8jb.8f — the 1000-iter FUN_0043824b spawn
+     * loop).  TYPE 5 with the same setup now fires the C8jb.8e grid-pick
+     * body, but TYPE 4 still defers.  No AUX write, no spawn, no latch.
+     * reset_combat_state() zeros the gate, so production HOUSE always
+     * lands here for TYPE 4. */
     reset_combat_state();
     reset_combat_7_capture();
     reset_combat_6_capture();
@@ -5956,10 +5972,13 @@ int test_combat_sm_phase_c8d_type_8_unreachable_via_skip_cascade(void)
     return 0;
 }
 
-int test_combat_sm_phase_c8d_type_5_owner_gate_zero_defers(void)
+int test_combat_sm_phase_c8d_type_5_owner_gate_zero_fires_grid_pick(void)
 {
-    /* OWNER_A+0x2bc82==0 (default): TYPE 5 defers (cascade no-op).
-     * Mirror test for TYPE 4 already in C8jb.8b's deferred test. */
+    /* OWNER_A+0x2bc82==0 (default): TYPE 5 enters the C8jb.8e grid-pick
+     * body.  Mirror test for TYPE 4 is c8b_lifetime_zero_type_4_deferred
+     * (TYPE 4 still defers to C8jb.8f).  Note: C8jb.8e produces AUX=2 +
+     * latch + counter bump just like the gate==1 short-circuit, but does
+     * NOT set world_pause — that's how the two arms are distinguished. */
     reset_combat_state();
     reset_combat_7_capture();
     reset_combat_6_capture();
@@ -5967,10 +5986,14 @@ int test_combat_sm_phase_c8d_type_5_owner_gate_zero_defers(void)
     set_proj_lifetime(0, 0);
 
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
+    /* world_pause stays 0 — only the gate==1 short-circuit sets it. */
     T_ASSERT_EQ_I(g_scene1_combat_world_pause,               0);
+    /* C8jb.8e signatures: drop hook called once + counter bumped once. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,       1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,    1);
     return 0;
 }
 
@@ -6083,5 +6106,534 @@ int test_combat_sm_phase_c8d_armed_blocks_next_tick_phase_a(void)
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),    0);
     /* Phase A short-circuited — per-tick flag stays 0. */
     T_ASSERT_EQ_I(g_scene1_records_b_tick_flag,   0);
+    return 0;
+}
+
+/* ─── C8jb.8e — Phase C TYPE 5 grid-pick + trap-drop dispatch ────────── */
+
+/* Fixture: drop-item hook returning a configurable constant.  Tests set
+ * g_c8e_drop_ret to the desired return value before installing.  All call
+ * args are captured for verification. */
+static int32_t g_c8e_drop_ret;
+static float   g_c8e_drop_last_x;
+static float   g_c8e_drop_last_z;
+static int32_t g_c8e_drop_last_item_id;
+static int     g_c8e_drop_calls;
+
+static int32_t c8e_drop_const(float x, float z, int32_t item_id)
+{
+    g_c8e_drop_last_x       = x;
+    g_c8e_drop_last_z       = z;
+    g_c8e_drop_last_item_id = item_id;
+    g_c8e_drop_calls++;
+    return g_c8e_drop_ret;
+}
+
+/* Fixture: SE-by-string hook.  Captures last path arg + call count. */
+static const char *g_c8e_se_last_path;
+static int         g_c8e_se_calls;
+
+static void c8e_se_capture(const char *path)
+{
+    g_c8e_se_last_path = path;
+    g_c8e_se_calls++;
+}
+
+static void reset_combat_8e_capture(void)
+{
+    g_c8e_drop_ret          = 0;
+    g_c8e_drop_last_x       = 0.0f;
+    g_c8e_drop_last_z       = 0.0f;
+    g_c8e_drop_last_item_id = 0;
+    g_c8e_drop_calls        = 0;
+    g_c8e_se_last_path      = NULL;
+    g_c8e_se_calls          = 0;
+}
+
+/* C8jb.8e probe helper: configure proj.TYPE=5 + LIFETIME=0 (forces path-c
+ * dispatch into the C8jb.8d / C8jb.8e arm), gate==0 (defaults to C8jb.8e
+ * grid-pick body), and install the c8e_drop_const + c8e_se_capture hooks.
+ * Caller may pre-set g_c8e_drop_ret + g_scene1_combat_stage_id +
+ * g_scene1_combat_map_cells before invoking the SM. */
+static int32_t *setup_phase_c8e(float proj_x, float proj_z)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    reset_combat_8e_capture();
+    scene1_combat_set_drop_item_hook(c8e_drop_const);
+    scene1_combat_set_se_play_string_hook(c8e_se_capture);
+    int32_t *slot = setup_phase_c_hit(5, proj_x, 0.0f, proj_z, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+    return slot;
+}
+
+int test_combat_sm_phase_c8e_stage_zero_cell_lt_5_picks_item_4(void)
+{
+    /* stage_id=0, cell[0..3]=0 (< 5): item_id=4 path. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8e_drop_calls,                              1);
+    T_ASSERT_EQ_I(g_c8e_drop_last_item_id,                       4);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_item_id,          4);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,             2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,           1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,    1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_stage_zero_cell_ge_5_picks_item_5(void)
+{
+    /* stage_id=0, cell[0]=5: item_id=5 path. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_scene1_combat_map_cells[0 * 4] = 5;  /* (grid_x=0, grid_z=0) */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 5);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_grid_quantize_formula(void)
+{
+    /* Verify __ftol((p - 20)/-40) truncation for known coords.
+     * (20 - 20) / -40 = 0       → grid 0
+     * (-20 - 20) / -40 = 1      → grid 1
+     * (-60 - 20) / -40 = 2      → grid 2
+     * Place proj at (-20, 0, -60) → grid_x=1, grid_z=2 → cell idx 31.
+     * Set cells[31][0] = 5 so item_id == 5.  Widen proj radii so the
+     * AABB admits the proj-far-from-slot scenario (default radii=3 only
+     * reach ~13 units from origin; we need ~63). */
+    int32_t *slot = setup_phase_c8e(-20.0f, -60.0f);
+    install_proj_radii(5, 200.0f, 200.0f);
+    g_scene1_combat_map_cells[31 * 4] = 5;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 5);
+
+    /* Sanity: same proj at (1.0, 0.0) → grid_x=0, grid_z=0, cell idx 0.
+     * cells[0][0] is still 0 (only cells[31][0] was set) → item_id=4. */
+    int32_t *slot2 = setup_phase_c8e(1.0f, 0.0f);
+    g_scene1_combat_map_cells[31 * 4] = 5;
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot2), 0);
+    T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 4);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_drop_hook_receives_proj_xz(void)
+{
+    /* Hook receives proj.POS_X / POS_Z (not slot pose).  Use proj at
+     * (3.5, 0, -7.25). */
+    int32_t *slot = setup_phase_c8e(3.5f, -7.25f);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_F(g_c8e_drop_last_x, 3.5f,  1e-6f);
+    T_ASSERT_EQ_F(g_c8e_drop_last_z, -7.25f, 1e-6f);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_drop_pose[0], 3.5f,  1e-6f);
+    T_ASSERT_EQ_F(g_scene1_combat_phase_c_drop_pose[1], -7.25f, 1e-6f);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_drop_ret_one_fires_trap_se(void)
+{
+    /* Drop hook returns 1 → trap-SE block fires.  Verify SE call + 60-
+     * tick cooldown latch. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_c8e_drop_ret = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8e_se_calls,                                  1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_se_string_call_count,    1);
+    T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c,            0x3c);
+    /* Path is one of the three trap-SE strings. */
+    T_ASSERT(g_c8e_se_last_path != NULL);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_drop_ret_zero_no_trap_se(void)
+{
+    /* Drop hook returns 0 → no SE, no cooldown. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_c8e_drop_ret = 0;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8e_se_calls,                               0);
+    T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c,            0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_drop_ret_two_no_trap_se(void)
+{
+    /* Engine asm `cmp edi, 1; je <SE>` — only ret==1 fires SE.  ret==2
+     * (or any other non-1 value) skips. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_c8e_drop_ret = 2;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8e_se_calls,                               0);
+    T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c,            0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_counter_bump_unconditional(void)
+{
+    /* OWNER_A+0x2c3e0 += 2 fires every C8jb.8e execution, regardless of
+     * SE branch.  Verify across 3 ticks with no SE (drop ret 0). */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_c8e_drop_ret = 0;
+
+    for (int i = 0; i < 3; i++) {
+        /* Reset proj for next hit: clear AUX so cascade re-admits, reset
+         * latch + LIFETIME so dispatch re-enters path-c. */
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX]              = 0;
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH]  = 0;
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME]         = 0;
+        /* Also bump slot SEQ_ID so it doesn't get caught by the hit-history
+         * ring filter on subsequent ticks. */
+        slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x4242 + i;
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    }
+    T_ASSERT_EQ_I(g_scene1_combat_owner_a_2c3e0, 6);  /* 3 × 2 */
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_stage_nonzero_rare_drop_item_10(void)
+{
+    /* stage_id != 0 + rng_next15() % 10 == 0: drop hook gets item_id=10
+     * (engine `push ecx` with ecx=10 from the divisor).  Find a seed that
+     * produces rng % 10 == 0.  rng_seed(2) — empirically a seed that
+     * lands on a `% 10 == 0` value early; verify the rare path fires. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_scene1_combat_stage_id = 1;
+
+    /* Probe rng seeds to find one where the first rng_next15() % 10 == 0. */
+    uint32_t seed_found = 0;
+    for (uint32_t s = 1; s < 200; s++) {
+        rng_seed(s);
+        if ((rng_next15() % 10u) == 0u) { seed_found = s; break; }
+    }
+    T_ASSERT(seed_found != 0);
+
+    rng_seed(seed_found);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8e_drop_calls,         1);
+    T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 10);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_rare_drop_ret_one_no_se(void)
+{
+    /* Engine quirk: stage_id != 0 + rare-trap branch (10% chance) jmps
+     * past the `mov edi, eax` save (asm `jmp 0x43a49f` at 0x43a42f).  So
+     * even if the drop hook returns 1, edi stays at 0 → NO trap SE plays.
+     * Verify by forcing the rare path with stage_id=1 + a seed that lands
+     * on rng%10==0, AND drop hook return 1. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_scene1_combat_stage_id = 1;
+    g_c8e_drop_ret           = 1;
+
+    uint32_t seed_found = 0;
+    for (uint32_t s = 1; s < 200; s++) {
+        rng_seed(s);
+        if ((rng_next15() % 10u) == 0u) { seed_found = s; break; }
+    }
+    T_ASSERT(seed_found != 0);
+
+    rng_seed(seed_found);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* Rare path: drop fired with item_id=10, but SE skipped. */
+    T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 10);
+    T_ASSERT_EQ_I(g_c8e_se_calls,           0);
+    T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c, 0);
+    /* AUX=2 + counter bump still happen unconditionally. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,          2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_stage_nonzero_common_path_cell_ge_5_bucket(void)
+{
+    /* stage_id != 0 + rng%10 != 0 + cell >= 5: item_id from bucket
+     * {0→8, 1→9, 2→6, 3→5}.  Find a seed where (rng_next15() % 10 != 0)
+     * and (rng_next15() & 3 == 3) to verify the case-3 path picks 5. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_scene1_combat_stage_id = 1;
+    g_scene1_combat_map_cells[0 * 4] = 5;
+
+    uint32_t seed_found = 0;
+    for (uint32_t s = 1; s < 5000; s++) {
+        rng_seed(s);
+        uint16_t a = rng_next15();
+        uint16_t b = rng_next15();
+        if ((a % 10u) != 0u && (b & 3u) == 3u) { seed_found = s; break; }
+    }
+    T_ASSERT(seed_found != 0);
+    rng_seed(seed_found);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 5);  /* cell >= 5, bucket 3 → 5 */
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_stage_nonzero_common_path_cell_lt_5_bucket(void)
+{
+    /* stage_id != 0 + rng%10 != 0 + cell < 5: item_id from bucket
+     * {0→8, 1→9, 2→6, 3→4}.  Same seed-search as the cell >= 5 test;
+     * cell stays at 0 (default BSS) → case 3 picks 4. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_scene1_combat_stage_id = 1;
+
+    uint32_t seed_found = 0;
+    for (uint32_t s = 1; s < 5000; s++) {
+        rng_seed(s);
+        uint16_t a = rng_next15();
+        uint16_t b = rng_next15();
+        if ((a % 10u) != 0u && (b & 3u) == 3u) { seed_found = s; break; }
+    }
+    T_ASSERT(seed_found != 0);
+    rng_seed(seed_found);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 4);  /* cell < 5, bucket 3 → 4 */
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_stage_nonzero_bucket_zero_picks_8(void)
+{
+    /* Both cell paths: bucket 0 → item_id 8.  Seed-search for first
+     * (rng%10 != 0) AND (rng & 3 == 0). */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_scene1_combat_stage_id = 1;
+
+    uint32_t seed_found = 0;
+    for (uint32_t s = 1; s < 5000; s++) {
+        rng_seed(s);
+        uint16_t a = rng_next15();
+        uint16_t b = rng_next15();
+        if ((a % 10u) != 0u && (b & 3u) == 0u) { seed_found = s; break; }
+    }
+    T_ASSERT(seed_found != 0);
+    rng_seed(seed_found);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 8);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_trap_se_path_string_dispatch(void)
+{
+    /* Trap-SE block: rng_next15() % 3 picks one of 3 paths.  For stage 0
+     * (simpler path: 1 rng call total via SE block), confirm the picked
+     * path matches the seed's rng_next15() % 3 by exhaustive seed search.
+     * Strings (in case 0/1/2 order):
+     *   "bin/se/00re/event/re_wana.bin"
+     *   "bin/se/01ti/tuika/ti_wana_a.bin"
+     *   "bin/se/01ti/tuika/ti_wana_b.bin"
+     */
+    static const char *const expected[3] = {
+        "bin/se/00re/event/re_wana.bin",
+        "bin/se/01ti/tuika/ti_wana_a.bin",
+        "bin/se/01ti/tuika/ti_wana_b.bin",
+    };
+
+    /* Find one seed for each bucket (matched against the FIRST rng call —
+     * the SE block's rng — which fires after the drop call in stage_0). */
+    for (int target_bucket = 0; target_bucket < 3; target_bucket++) {
+        uint32_t seed_found = 0;
+        for (uint32_t s = 1; s < 5000; s++) {
+            rng_seed(s);
+            uint16_t a = rng_next15();
+            if ((uint32_t)(a) % 3u == (uint32_t)target_bucket) {
+                seed_found = s; break;
+            }
+        }
+        T_ASSERT(seed_found != 0);
+
+        int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+        g_c8e_drop_ret = 1;  /* trigger SE block */
+        rng_seed(seed_found);
+        T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+        T_ASSERT_EQ_I(g_c8e_se_calls, 1);
+        T_ASSERT(g_c8e_se_last_path != NULL);
+        if (strcmp(g_c8e_se_last_path, expected[target_bucket]) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_drop_hook_nullable(void)
+{
+    /* No drop hook installed → default ret 0 → no SE.  AUX=2 + counter
+     * bump still apply.  Helper call observed via the observable count. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    reset_combat_8e_capture();
+    /* Do NOT install drop hook. */
+    int32_t *slot = setup_phase_c_hit(5, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,     1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_se_string_call_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,           2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,  1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_observables_reset_per_tick(void)
+{
+    /* drop_call_count + se_string_call_count + counter_bump_count + path
+     * are all per-tick observables — reset at tick top.  Run two ticks
+     * with different setups and verify the second tick's observables
+     * reflect ONLY that tick. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_c8e_drop_ret = 1;  /* tick 1 fires SE */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,       1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_se_string_call_count,  1);
+    T_ASSERT(g_scene1_combat_phase_c_se_string_path != NULL);
+
+    /* Tick 2: change projectile so cascade re-admits, but set drop ret=0
+     * so no SE fires this tick. */
+    g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX]              = 0;
+    g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH]  = 0;
+    g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME]         = 0;
+    slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x4243;
+    g_c8e_drop_ret = 0;
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,       1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_se_string_call_count,  0);
+    T_ASSERT(g_scene1_combat_phase_c_se_string_path == NULL);
+    /* counter bump stays 1 for THIS tick (also reset), but the latched
+     * owner_a_2c3e0 accumulates: 2 + 2 = 4. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,    1);
+    T_ASSERT_EQ_I(g_scene1_combat_owner_a_2c3e0,                 4);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_owner_gate_priority_over_grid_pick(void)
+{
+    /* TYPE 5 + gate==1 short-circuits to C8jb.8d arm BEFORE C8jb.8e
+     * fires.  Verify: world_pause==1 (only gate path sets), drop hook
+     * NOT called, counter NOT bumped. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_scene1_combat_owner_a_2bc82 = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,                   1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,             2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,       0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,    0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_lifetime_positive_does_not_fire(void)
+{
+    /* LIFETIME>0 fires path-b template 1 spawn FIRST (not C8jb.8e).  TYPE
+     * 5 with LIFETIME=5 must NOT reach the grid-pick body. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    set_proj_lifetime(0, 5);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_drop_call_count,       0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,    0);
+    /* Path-b fired template 1 spawn. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,      1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,              1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_aux_storage_actually_set(void)
+{
+    /* proj.AUX storage in g_scene1_projectiles[0][AUX] gets the 2 value. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    int32_t aux_storage =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX];
+    T_ASSERT_EQ_I(aux_storage, 2);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_latch_storage_actually_set(void)
+{
+    /* FIRST_HIT_LATCH storage in g_scene1_projectiles[0][LATCH] = 1. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    int32_t latch =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
+    T_ASSERT_EQ_I(latch, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_no_emit_spawn_or_overlay(void)
+{
+    /* C8jb.8e fires ONLY the drop hook (no scene1_spawn / overlay_spawn /
+     * emit_se via id).  Verify all spawn/overlay/se-by-id counters stay
+     * at 0 even after a TYPE 5 fire. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count, 0);
+    /* SE-by-id observable stays untouched (the C8jb.8a SE hook path is
+     * separate from C8jb.8e's SE-by-string path). */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_se_id,       0x169);
+    /* (0x169 because C8jb.8a's "else" branch picks 0x169 for proj.TYPE=5
+     * — that's the C8jb.8a sound, not a C8jb.8e effect.) */
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_cooldown_latches_across_ticks(void)
+{
+    /* g_scene1_combat_se_cooldown_db00c is LATCHED (not reset per tick).
+     * Tick 1: SE fires → cooldown=60.  Tick 2: SE doesn't fire (drop
+     * ret 0) → cooldown stays at 60. */
+    int32_t *slot = setup_phase_c8e(1.0f, 0.0f);
+    g_c8e_drop_ret = 1;
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c, 0x3c);
+
+    /* Reset proj for next hit; keep drop ret = 0. */
+    g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX]              = 0;
+    g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH]  = 0;
+    g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME]         = 0;
+    slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x4243;
+    g_c8e_drop_ret = 0;
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_se_cooldown_db00c, 0x3c);  /* unchanged */
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_oob_grid_falls_back_to_cell_zero(void)
+{
+    /* proj.POS_X / POS_Z mapping into negative or >=15 grid indices
+     * triggers the OOB fallback (cell=0 → item_id 4 OR bucket{4} for
+     * stage 0 / stage != 0).  Use (1000, 0, 1000) → grid_x/z highly
+     * negative → OOB.  Widen proj radii so the AABB still admits this
+     * far-from-slot scenario. */
+    int32_t *slot = setup_phase_c8e(1000.0f, 1000.0f);
+    install_proj_radii(5, 5000.0f, 5000.0f);
+    g_scene1_combat_stage_id = 0;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* OOB fallback returns cell=0 → cell < 5 → item 4. */
+    T_ASSERT_EQ_I(g_c8e_drop_last_item_id, 4);
+    return 0;
+}
+
+int test_combat_sm_phase_c8e_hook_install_returns_previous(void)
+{
+    /* Hook setter contract: return the previous hook. */
+    reset_combat_state();
+    reset_combat_8e_capture();
+    scene1_combat_drop_item_fn prev_drop =
+        scene1_combat_set_drop_item_hook(c8e_drop_const);
+    T_ASSERT(prev_drop == NULL);
+    prev_drop = scene1_combat_set_drop_item_hook(NULL);
+    T_ASSERT(prev_drop == c8e_drop_const);
+
+    scene1_combat_se_play_string_fn prev_se =
+        scene1_combat_set_se_play_string_hook(c8e_se_capture);
+    T_ASSERT(prev_se == NULL);
+    prev_se = scene1_combat_set_se_play_string_hook(NULL);
+    T_ASSERT(prev_se == c8e_se_capture);
     return 0;
 }

@@ -903,6 +903,116 @@ extern int32_t g_scene1_combat_phase_c_latch_fired;
  * 2 templates).  Reset to 0 at tick top. */
 extern int32_t g_scene1_combat_phase_c_scatter_count;
 
+/* ─── C8jb.8e — Phase C TYPE 5 grid-pick path ────────────────────────── */
+/*
+ * Engine asm 0x43a389..0x43a4f4.  Fires from the C8jb.8b path-c TYPE
+ * dispatch when proj.TYPE == 5 AND the C8jb.8d owner-flag gate is OFF
+ * (g_scene1_combat_owner_a_2bc82 == 0).  Two stages share the dispatch:
+ *
+ *   stage_id == 0:
+ *     Quantize proj.POS_X/Z to a 15×15 grid via
+ *       grid_x = (int)((POS_X - 20.0f) / -40.0f)   (.rdata 0x519520 / 0x519660)
+ *       grid_z = (int)((POS_Z - 20.0f) / -40.0f)
+ *     Look up cell at g_scene1_combat_map_cells[grid_z*15 + grid_x][0]
+ *     (engine byte offset (grid_z*15+grid_x)*16, reads first dword).
+ *     item_id = (cell >= 5) ? 5 : 4.
+ *     Call drop_item_004412b6_hook(proj.POS_X, proj.POS_Z, item_id);
+ *     ret saved into edi (drives the trap-SE branch below).
+ *
+ *   stage_id != 0:
+ *     Roll rng_next15() % 10.  On remainder==0 (10% chance):
+ *       Call drop_item_004412b6_hook(POS_X, POS_Z, 10).  Ret is DISCARDED
+ *       (engine `jmp 0x43a49f` skips the `mov edi, eax` save).  No trap
+ *       SE plays even if the hook returns 1.
+ *     Else (90% chance):
+ *       cell = g_scene1_combat_map_cells[grid_z*15+grid_x][0].
+ *       Roll rng_next15() & 3 → item_id from a per-cell 4-bucket:
+ *         cell >= 5: {0→8, 1→9, 2→6, 3→5}
+ *         cell <  5: {0→8, 1→9, 2→6, 3→4}
+ *       Call drop_item_004412b6_hook(POS_X, POS_Z, item_id); save ret.
+ *
+ * Common tail (all branches):
+ *   proj.AUX = 2.
+ *   If saved-ret == 1:
+ *     Roll rng_next15() % 3 → SE string from {"bin/se/00re/event/re_wana.bin",
+ *     "bin/se/01ti/tuika/ti_wana_a.bin", "bin/se/01ti/tuika/ti_wana_b.bin"}
+ *     (engine .rdata 0x5c5498/0x5c54b8/0x5c54d8; case 0/1/2 of (rng%3)).
+ *     Call se_play_string_0049933c_hook(path).
+ *     g_scene1_combat_se_cooldown_db00c = 0x3c (60-tick trap cooldown).
+ *   g_scene1_combat_owner_a_2c3e0 += 2 (unconditional counter bump).
+ *   END-WITH-LATCH (proj.FIRST_HIT_LATCH = 1 if 0; same as C8jb.8b tail).
+ *
+ * Production: g_scene1_combat_owner_a_2bc82 stays BSS-zero (no port writer)
+ * so this path runs whenever proj.TYPE==5 and LIFETIME falls to 0.  But the
+ * drop hook is also defaulted to NULL → no drops, no SE, no cooldown.  The
+ * AUX=2 + latch + counter-bump side effects still apply.
+ */
+
+/* Stage id stand-in for DAT_0438b4c8.  BSS-zero in production (no port
+ * writer); engine writes this during stage transitions (see PHC #24 for
+ * the related transition table at 0x53f8e8).  Tests assign 0 or non-zero
+ * to exercise the two grid-pick branches.
+ */
+extern int32_t g_scene1_combat_stage_id;
+
+/* Per-stage map cell table stand-in for DAT_073e03b4.  Engine table is
+ * an unbounded BSS slab written by an unported per-stage scene loader;
+ * the combat SM reads it as 15×15 cells (engine `(grid_z*15+grid_x)*16`
+ * byte stride per cell) and accesses only the first dword.  We model
+ * exactly that surface — 225 cells × 4 dwords (matching the 16-byte
+ * stride) — even though we only ever read [k][0].  BSS-zero default
+ * means cell value 0 → both branches treat cell as "< 5" → item_id 4
+ * (stage_id==0) OR RNG-bucket {8, 9, 6, 4} (stage_id!=0).
+ */
+#define SCENE1_COMBAT_MAP_GRID_CELLS  (15 * 15)
+extern int32_t g_scene1_combat_map_cells[SCENE1_COMBAT_MAP_GRID_CELLS * 4];
+
+/* Trap-SE cooldown stand-in for DAT_056db00c.  Written 60 (= 0x3c) when
+ * a drop-hook ret==1 fires the SE block.  No in-port consumer reads
+ * this yet (likely a per-frame decrementer in the scene loop).  BSS-
+ * zero default; not reset at tick top (it's a latched timer). */
+extern int32_t g_scene1_combat_se_cooldown_db00c;
+
+/* OWNER_A+0x2c3e0 counter stand-in.  Engine increments by 2 on every
+ * TYPE 5 grid-pick path execution (unconditional).  No port consumer
+ * reads this yet.  BSS-zero default; not reset at tick top. */
+extern int32_t g_scene1_combat_owner_a_2c3e0;
+
+/* Hook for FUN_004412b6 — engine drop-item-at-pose dispatcher.  Engine
+ * signature (asm-verified): `int (float pos_x, float pos_z, int item_id)`.
+ * Return value semantics (per engine `cmp edi, 1; je <SE>` at 0x43a4ac):
+ *   1 → drop succeeded, play trap SE + set 60-tick cooldown
+ *   anything else → silent drop
+ * Default NULL → returns 0 (silent path).  Tests inject deterministic
+ * returns to drive the trap-SE branch. */
+typedef int32_t (*scene1_combat_drop_item_fn)(float pos_x, float pos_z,
+                                              int32_t item_id);
+scene1_combat_drop_item_fn
+scene1_combat_set_drop_item_hook(scene1_combat_drop_item_fn fn);
+
+/* Hook for FUN_0049933c — engine SE-by-string dispatcher (asm-verified
+ * 1-arg, `void (const char *path)`).  Engine passes one of the 3 trap-
+ * SE filename literals from .rdata 0x5c5498/0x5c54b8/0x5c54d8.  Default
+ * NULL → no-op. */
+typedef void (*scene1_combat_se_play_string_fn)(const char *path);
+scene1_combat_se_play_string_fn
+scene1_combat_set_se_play_string_hook(scene1_combat_se_play_string_fn fn);
+
+/* Observables — all reset to 0 at tick top.  `_path` is a pointer to
+ * the engine's .rdata string literal (no copy); it stays valid for the
+ * test's lifetime because the strings are static constants in the
+ * port.  `_call_count` for drop is 0 or 1 per Phase C hit (the path
+ * fires the drop hook exactly once); _call_count for se_string is 0 or
+ * 1 (only when drop ret == 1). */
+extern int32_t     g_scene1_combat_phase_c_drop_call_count;
+extern float       g_scene1_combat_phase_c_drop_pose[2];   /* x, z */
+extern int32_t     g_scene1_combat_phase_c_drop_item_id;
+extern int32_t     g_scene1_combat_phase_c_se_string_call_count;
+extern const char *g_scene1_combat_phase_c_se_string_path;
+/* Counter-bump observable: number of OWNER_A+0x2c3e0 += 2 writes that
+ * fired this tick (cap 1 per Phase C hit).  Reset to 0 at tick top. */
+extern int32_t     g_scene1_combat_phase_c_counter_bump_count;
+
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*
  * Tick the per-record state machine for one slot.
