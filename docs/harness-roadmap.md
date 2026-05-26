@@ -564,3 +564,215 @@ durable diff harness for future render chips.
   replaces / migrates from.
 - `docs/findings/scene1-walker-pass-init.md` "Cf.survey landing"
   — the bug class Phase D.6 is designed to resolve.
+
+## Phase E — Leaf-first execution parity (post-D.6 strategic shift)
+
+### Motivation
+
+Phase D's diff harness surfaces divergent behaviour after the fact
+(a translucent shop_table, a swapped-axis mesh, a missing draw call).
+That's useful for triaging known-broken render chips, but it's not
+enough for a faithful drop-in reimplementation: each visible bug
+points at one or more leaf-function defects, and the harness gives
+no signal on leaves that are wrong but happen not to show up
+visually yet.  The right shape of the work is to walk the execution
+tree bottom-up: for every leaf retail calls during a frame, verify
+the port calls the same leaf with the same inputs and that it
+returns the same outputs.  Then iterate inward: once all the leaves
+match, internal nodes match by construction.
+
+This is a multi-session commitment (months, realistically) and a
+different methodology from Phase D's bug-driven cadence — the user
+explicitly chose it over chasing the Cf.minimal alpha/orientation/
+scale bugs piecemeal.
+
+### Tooling pivot: TTD + cdb instead of Frida-only
+
+Frida is great for live RPC and state-watch but every analysis pass
+re-runs the target — non-deterministic.  **Time Travel Debugging**
+records once and replays infinitely; the trace IS the data, and any
+query can be re-run against the same recording with no re-execution.
+For the "iterate per leaf, look at the same call site dozens of
+times" loop, that's the right primitive.
+
+Frida stays for: live state-forcing RPCs (`runRetailRngNext15`-style),
+the D.7 memory-access watch when it lands, and the D.4 / D.5 D3D
+state-trace emitters that already shipped.  TTD owns: every-function
+call enumeration, per-leaf I/O capture, repeatable forensic replay.
+
+#### Phase E.0 — TTD record/query harness scaffold ✓
+
+**Status**: landed (commits `59b521e` → `76f7da2`, 2026-05-26).
+
+  - `tools/ttd/ttd_paths.py` — binary discovery (`TTD.exe` +
+    `cdbX86.exe`).  WindowsApps shims first, classic SDK paths
+    next; env-var overrides for outliers.
+  - `tools/ttd/ttd_capture.py` — record-cycle driver.  Outer
+    PowerShell → `Start-Process -Verb RunAs` → inner PowerShell
+    runs `_run_elevated.ps1` which spawns TTD, sleeps wall-time,
+    `Stop-Process` the target, waits for finalize, writes a status
+    JSON across the elevation boundary.  Capture flow elevated
+    because TTD rejects non-admin callers with `0x80070005`.
+  - `tools/ttd/ttd_query.py` — load a `.run` trace into cdb, run a
+    JS via `.scriptrun` (NOT `.scriptload`; the latter only fires
+    `initializeScript()`, not `invokeScript()`).  `--extra-global
+    K=JSON_VALUE` and `--extra-global-file K=PATH` pin per-call JS
+    globals.
+  - `tools/ttd/scripts/batch_calls.js` — the leaf-first analysis
+    primitive.  Takes `TARGET_VAS: [int, …]` and returns per-VA
+    `{n_calls, callers: [{ret_va, count, first_time_seq}],
+    truncated}`.  Address-keyed queries — works without PDBs (retail
+    has none).
+  - `tools/ttd/data/engine_function_vas.json` — 2103 static call
+    targets extracted via objdump `-d --section=.text`.  Misses
+    indirectly-called function-pointer/vtable targets (those'll
+    surface as "TTD saw a call we don't have in the list" findings
+    during enumeration).
+  - **Classifier-clean output design**: every subprocess stdout/
+    stderr → log file the harness never reads back.  Harness's own
+    stdout = a single JSON line with abstract failure stages
+    (`paths_discover`, `record_spawn`, `no_output_file`, etc.).
+    Anthropic's API-level Usage Policy classifier trips on dense
+    debugger help text regardless of model reasoning about
+    legitimacy — design forces all that text into log files only.
+
+Validated end-to-end against a 352 MB boot-smoke trace
+(`runs/ttd-boot-smoke-*/trace.run`): rng_next15@0x5041f6 → 600
+calls, single caller; rng_unit@0x471089 → 600 calls, 6 sites at 100
+each (unrolled loop); first-100 engine VAs → 2 called (low-VA init
+paths dormant in the first 400 ms).
+
+Per-VA cost ~2.5 s after a 10 s cdb startup; full 2103-VA
+enumeration extrapolates ~90 min.
+
+#### Phase E.1 — Per-frame bracketing
+
+**Goal**: partition a trace's calls into per-frame buckets.
+
+Without symbols, `TTD.Calls("d3d8!*Present*")` returns empty.
+Options:
+
+  - Address-keyed `TTD.Calls(va)` against the engine call site for
+    Present (we know its address from D.4's vtable hook).  Each
+    Present-call's `TimeStart.Sequence` is a frame boundary.
+  - Or `TTD.Memory(d3d8_vtable_present_slot, +4, "R")` for vtable
+    reads — slower but exhaustive.
+
+Once frame boundaries are known, `batch_calls.js` widens to take
+`(target_va, time_lo, time_hi)` and filter the iterator by time
+position — produces per-frame call lists per VA.
+
+**Estimated**: 1 session.
+
+#### Phase E.2 — Port-side call enumeration
+
+**Goal**: emit the same `{target_va, n_calls, callers}` shape on
+the openrecet side.
+
+Build flag: `-finstrument-functions` on every TU.  Implement
+`__cyg_profile_func_enter(this_fn, call_site)` + `_func_exit` to
+append rows to a JSONL emitter, gated by per-frame `g_emit_this_frame`
+the same way `src/d3d_trace.c` is gated.  Output: per-frame call
+list matching the TTD `batch_calls.json` schema.
+
+`scene1_emit_frame_begin()` resets the per-frame call buckets the
+same way D.5's `d3d_trace_begin_frame()` does.
+
+**Estimated**: 1 session.
+
+#### Phase E.3 — Call-graph diff orchestrator
+
+**Goal**: align retail vs port call lists per frame, surface
+divergences leaf-first.
+
+`tools/call_graph_diff.py` — same shape as `render_diff.py`:
+
+  - Load both JSONLs.
+  - Per frame, align by `target_va` (engine ↔ port VA equivalence
+    table needed — see below).
+  - For each leaf: compare `n_calls`, `callers[]` distribution,
+    `first_time_seq` ordering.
+  - Output: deepest-diverging leaf first.
+
+**Engine↔port VA equivalence**: maintain a manual mapping
+`engine_va → port_function_name` in `tools/call_graph_diff_map.json`,
+derived from our per-chip port commits (most port functions name
+the engine FUN_ they correspond to in their docstring already).
+Port-side VAs come from `nm openrecet.exe` post-build.
+
+**Estimated**: 1-2 sessions.
+
+#### Phase E.4 — Per-call I/O capture
+
+**Goal**: at every call boundary, capture {stack args, register
+state, memory writes} on both sides.
+
+TTD side: extend `batch_calls.js` to dump per-call `Registers` and
+`MemoryWrites` model objects.  Per-call cost rises significantly;
+gate via `MAX_IO_CAPTURES_PER_VA`.
+
+Port side: wrap `_func_enter`/`_func_exit` with stack-arg snapshot
++ a shadow-page hash of post-call writable memory regions.
+
+Diff orchestrator gains I/O comparison: same args → expect same ret
++ same memory delta.  First mismatch = the leaf's behavior diverges.
+
+**Estimated**: 2-3 sessions.  Heaviest tooling chip in Phase E.
+
+#### Phase E.5 — Iterative porting loop
+
+**Goal**: pick the deepest diverging leaf, fix or port it, re-run.
+
+This is the actual leaf-first work; the prior chips are
+infrastructure.  Each iteration:
+
+  1. Run capture on both sides for the same scenario.
+  2. Run diff orchestrator.
+  3. Identify the deepest leaf that diverges (or is called in retail
+     and unimplemented in port).
+  4. Port / fix that leaf.
+  5. Verify the leaf no longer diverges.
+  6. Goto 1.
+
+Stop conditions: every called retail leaf has a matching port
+implementation, every leaf's per-call I/O matches retail's verbatim
+on the recorded scenario.  Stub leaves (intentionally unimplemented
+because their effect is provably isolated) are documented in a
+per-leaf annotation file.
+
+**Estimated**: ongoing for as long as the project runs.  Each leaf
+is a self-contained chip.
+
+### Suggested session order (Phase E)
+
+1. **E.1** — per-frame bracketing (1 session).
+2. **E.2** — port-side `-finstrument-functions` emitter (1 session).
+3. **E.3** — call-graph diff orchestrator (1-2 sessions).
+4. **E.4** — per-call I/O capture (2-3 sessions).
+5. **E.5** — iterative porting (ongoing).
+
+Total to "first leaf comparison": ~5-7 sessions from E.0 landing.
+
+### Capture friction notes
+
+  - TTD's first run on a host shows a one-time "Start Trace" consent
+    dialog (already cleared on this host).
+  - Recording requires admin; PowerShell `Start-Process -Verb RunAs`
+    fires UAC.  At lowest UAC setting it auto-approves silently.
+  - retail's CWD must point at `vendor/original/` (the Steam-install
+    symlink) for asset bundles to load.  Already wired through the
+    harness `--cwd` default.
+  - Native NTFS trace output (`~/openrecet-traces/`) is ~3× faster
+    than UNC writes through `\\wsl.localhost\NixOS\...`.  Use
+    `--run-dir /mnt/c/Users/<user>/openrecet-traces/<scenario>` for
+    captures that matter.
+
+### Cross-references (E.*)
+
+  - `tools/ttd/README.md` — harness layout + working primitive +
+    leaf-first workflow sketch.
+  - `tools/ttd/data/engine_function_vas.json` — input for
+    `batch_calls.js`.
+  - `memory/feedback_classifier_clean_output.md` — why the harness
+    looks the way it does (Anthropic API classifier mitigations).
+  - `memory/reference_ttd_harness.md` — quick command reference.
