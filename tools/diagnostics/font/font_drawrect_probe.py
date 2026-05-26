@@ -171,7 +171,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--frida-remote",
                     default=os.environ.get("OPENRECET_FRIDA_REMOTE",
-                                           "127.0.0.1:27042"))
+                                           "cutestation.soy:27042"))
     ap.add_argument("--count", type=int, default=80,
                     help="number of draw calls to log")
     ap.add_argument("--settle-s", type=float, default=12.0,

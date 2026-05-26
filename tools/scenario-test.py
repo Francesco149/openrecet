@@ -583,9 +583,11 @@ def main(argv: list[str] | None = None) -> int:
                     help="which binary to drive: our reimplementation "
                          "(openrecet, default) or the retail unpacked exe "
                          "instrumented via Frida (retail)")
-    ap.add_argument("--frida-remote", default="127.0.0.1:27042",
+    ap.add_argument("--frida-remote",
+                    default=os.environ.get("OPENRECET_FRIDA_REMOTE",
+                                           "cutestation.soy:27042"),
                     help="frida-server host:port used by --target retail "
-                         "(default %(default)s)")
+                         "(default %(default)s; env $OPENRECET_FRIDA_REMOTE)")
     ap.add_argument("--run-dir-root", type=Path, default=ROOT / "runs" / "scenarios",
                     help="where to write per-scenario run artifacts "
                          "(default: runs/scenarios/)")

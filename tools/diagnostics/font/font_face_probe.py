@@ -176,7 +176,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--frida-remote",
                     default=os.environ.get("OPENRECET_FRIDA_REMOTE",
-                                           "127.0.0.1:27042"))
+                                           "cutestation.soy:27042"))
     args = ap.parse_args()
 
     dm = frida.get_device_manager()

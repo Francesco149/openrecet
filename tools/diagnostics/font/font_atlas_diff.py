@@ -56,7 +56,7 @@ RETAIL_FONTIDX  = ASSET_CWD / "fontidx.bin"
 OUR_FONTDATA = OUR_FONT_DIR / "fontdata.bin"
 OUR_FONTIDX  = OUR_FONT_DIR / "fontidx.bin"
 
-DEFAULT_REMOTE = os.environ.get("OPENRECET_FRIDA_REMOTE", "127.0.0.1:27042")
+DEFAULT_REMOTE = os.environ.get("OPENRECET_FRIDA_REMOTE", "cutestation.soy:27042")
 
 # SJIS encoding of "ＭＳ Ｐゴシック" — the engine's default Japanese font.
 # Used by openrecet's font_atlas_build_win32 too; consistent across both

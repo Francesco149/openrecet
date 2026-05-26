@@ -45,7 +45,7 @@ SCENARIO_TEST = ROOT / "tools" / "scenario-test.py"
 # We only care about `--target both` runs here.
 RUN_DIR_RE = re.compile(r"^(?P<name>.+)-both-(?P<ts>\d{8}T\d{6}Z)$")
 
-DEFAULT_REMOTE = os.environ.get("OPENRECET_FRIDA_REMOTE", "127.0.0.1:27042")
+DEFAULT_REMOTE = os.environ.get("OPENRECET_FRIDA_REMOTE", "cutestation.soy:27042")
 
 
 # ─── scenario + run discovery ─────────────────────────────────────────────

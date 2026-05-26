@@ -2,7 +2,8 @@
 """
 tools/frida_capture.py — Phase B retail-capture driver.
 
-Connects to a Windows-side frida-server (default 127.0.0.1:27042), spawns
+Connects to a Windows-side frida-server (default cutestation.soy:27042),
+spawns
 `vendor/unpacked/recettear.unpacked.exe` with the openrecet-agent.js hooks
 loaded, and lays artifacts down in a Phase A-compatible run directory:
 
@@ -54,7 +55,7 @@ AGENT_JS   = ROOT / "tools" / "frida" / "openrecet-agent.js"
 RETAIL_EXE = ROOT / "vendor" / "unpacked" / "recettear.unpacked.exe"
 ASSET_CWD  = ROOT / "vendor" / "original"
 
-DEFAULT_REMOTE = os.environ.get("OPENRECET_FRIDA_REMOTE", "127.0.0.1:27042")
+DEFAULT_REMOTE = os.environ.get("OPENRECET_FRIDA_REMOTE", "cutestation.soy:27042")
 
 # Where to look for the Windows-side frida-server.exe when auto-starting.
 # Override via $OPENRECET_FRIDA_SERVER_EXE (WSL path to the exe).

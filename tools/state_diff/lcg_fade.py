@@ -63,7 +63,7 @@ RETAIL_EXE = ROOT / "vendor" / "unpacked" / "recettear.unpacked.exe"
 ASSET_CWD  = ROOT / "vendor" / "original"
 ORACLE_BIN = Path(__file__).resolve().parent / "build" / "oracle"
 
-DEFAULT_REMOTE = os.environ.get("OPENRECET_FRIDA_REMOTE", "127.0.0.1:27042")
+DEFAULT_REMOTE = os.environ.get("OPENRECET_FRIDA_REMOTE", "cutestation.soy:27042")
 
 
 # ─── oracle wrapper ───────────────────────────────────────────────────────
