@@ -146,6 +146,9 @@ void sim_loading_pump_pure(int32_t *c990,
 
 void sim_loading_pump(void)
 {
+    /* E.2 probe — FUN_004532df @ 0x4532df. */
+    CALL_TRACE_ENTER(0x4532dfu);
+
     sim_loading_pump_pure(&g_sim_counter_990,
                           &g_sim_counter_994,
                           &g_sim_counter_998,

@@ -43,6 +43,7 @@
 #include "scene1_particles_tick.h"
 #include "scene1_records_b_tick.h"
 #include "scene1_records_c_tick.h"
+#include "call_trace.h"
 
 /* Engine flag stand-ins.  All BSS-zero default → HOUSE selects the
  * default-running arm.  See header for engine-globals mapping. */
@@ -52,6 +53,9 @@ int g_scene1_ingame_paused_flag     = 0;  /* DAT_0438b1c8 */
 
 void scene1_ingame_transition_arm_tick(void)
 {
+    /* E.2 probe — FUN_004427d3 @ 0x4427d3. */
+    CALL_TRACE_ENTER(0x4427d3u);
+
     /* FUN_004427d3 L10 — the one ported call.  The other 5 are
      * dormant; documented in this file's header. */
     scene1_particles_tick();
@@ -59,6 +63,9 @@ void scene1_ingame_transition_arm_tick(void)
 
 void scene1_ingame_default_arm_tick(void)
 {
+    /* E.2 probe — FUN_00442cef @ 0x442cef. */
+    CALL_TRACE_ENTER(0x442cefu);
+
     /* FUN_00442cef L40603 — gated on DAT_0438b4b4 == 0 (BSS-zero in
      * HOUSE → gate opens).  C8j-tick.1 ports the SKELETON ONLY (outer
      * loop + preamble pos+=vel + age++ + dead-slot skip).  Per-type

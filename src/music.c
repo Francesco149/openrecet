@@ -29,6 +29,7 @@
 
 #include "audio_fade.h"    /* audio_fade_apply_progress for the per-tick fade tail */
 #include "scene_title.h"   /* g_scene_title_anim — for music_step_default */
+#include "call_trace.h"
 
 music_state_t g_music;
 
@@ -308,6 +309,9 @@ void music_step(music_state_t            *m,
 
 void music_step_default(void)
 {
+    /* E.2 probe — FUN_0049966a @ 0x49966a (engine sim_b music selector). */
+    CALL_TRACE_ENTER(0x49966au);
+
     /* Scene state is pinned at 0 (title) — no carrier global yet. The
      * other ctx fields come from g_scene_title_anim (the same globals
      * the engine reads at DAT_096435..). */

@@ -33,6 +33,8 @@
 
 #include "render_quad.h"
 
+#include "call_trace.h"
+
 #include <math.h>
 #include <string.h>
 
@@ -126,6 +128,9 @@ int render_quad_add(const float dst[4], const float src[4],
                     uint32_t tex_w, uint32_t tex_h,
                     uint32_t diffuse)
 {
+    /* E.2 probe — FUN_00404efc @ 0x404efc. */
+    CALL_TRACE_ENTER(0x404efcu);
+
     if (g_vcount + 6 > RENDER_QUAD_MAX_VERTICES) {
         /* Engine has no bounds check (it would corrupt memory past
          * DAT_00647e14). We bail so a runaway frame is recoverable. */
@@ -210,6 +215,9 @@ void render_quad_state_setup(IDirect3DDevice8 *dev)
 
 void render_quad_flush(IDirect3DDevice8 *dev)
 {
+    /* E.2 probe — FUN_00405354 @ 0x405354. */
+    CALL_TRACE_ENTER(0x405354u);
+
     if (g_vcount == 0) return;
 
     IDirect3DDevice8_SetVertexShader(dev, RENDER_QUAD_FVF);

@@ -61,6 +61,7 @@
 #include "scene1_particles_tick.h"   /* g_scene1_player_pos */
 #include "scene1_records.h"
 #include "scene1_spawn.h"
+#include "call_trace.h"
 
 #ifndef M_PI_F
 #define M_PI_F 3.14159265358979323846f
@@ -361,6 +362,9 @@ static void phase2_integrate(void)
 
 void scene1_records_c_tick(void)
 {
+    /* E.2 probe — FUN_0044284b @ 0x44284b (table C tick). */
+    CALL_TRACE_ENTER(0x44284bu);
+
     phase1_evict();
     phase2_integrate();
 }

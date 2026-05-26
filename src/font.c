@@ -9,6 +9,7 @@
  */
 
 #include "font.h"
+#include "call_trace.h"
 
 #include <string.h>
 
@@ -41,6 +42,9 @@ void font_init(void)
 
 void font_age_tick(void)
 {
+    /* E.2 probe — FUN_0047c29d @ 0x47c29d. */
+    CALL_TRACE_ENTER(0x47c29du);
+
     /* FUN_0047c29d body (minus the dead debug computation).
      *
      * Engine's loop walks &DAT_073de670 (slot[0].age) stepping by 7

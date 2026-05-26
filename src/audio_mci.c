@@ -8,11 +8,15 @@
  */
 
 #include "audio_mci.h"
+#include "call_trace.h"
 
 char g_audio_mci_buffer[AUDIO_MCI_BUFFER_SIZE];
 
 void audio_mci_record_command(int channel, int row_index, const char *cmd)
 {
+    /* E.2 probe — FUN_00451874 @ 0x451874. */
+    CALL_TRACE_ENTER(0x451874u);
+
     /* Engine body verbatim:
      *
      *   iVar2 = 0;

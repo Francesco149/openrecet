@@ -15,6 +15,7 @@
 
 #include "input.h"
 #include "recet_ini.h"
+#include "call_trace.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -377,6 +378,9 @@ static int poll_keyboard_state(uint8_t kbd_state[256])
 
 void input_poll(void)
 {
+    /* E.2 probe — FUN_0047b73c @ 0x47b73c. */
+    CALL_TRACE_ENTER(0x47b73cu);
+
     /* Pre-poll clear of the button accumulator. The engine clears at the
      * BOTTOM of each ticked frame (FUN_0047be92 L78915-78916, after the
      * render callback returns) — that lets it accumulate input across

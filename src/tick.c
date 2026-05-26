@@ -10,6 +10,8 @@
 
 #include "tick.h"
 
+#include "call_trace.h"
+
 #ifdef _WIN32
 # define WIN32_LEAN_AND_MEAN
 # include <windows.h>
@@ -158,6 +160,9 @@ enum tick_result tick_step_with_now(uint32_t now_ms,
 
 uint32_t tick_now_ms(void)
 {
+    /* E.2 probe — FUN_0047be2f @ 0x47be2f (QPC time-now). */
+    CALL_TRACE_ENTER(0x47be2fu);
+
     /* FUN_0047be2f: QPC*1000/QPF, fall back to timeGetTime when either
      * frequency or counter reads zero (e.g., legacy hardware). */
     LARGE_INTEGER freq = {0}, count = {0};

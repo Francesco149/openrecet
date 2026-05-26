@@ -41,6 +41,7 @@
 #include "scene1_per_frame_open.h"
 #include "scene1_records.h"
 #include "scene1_spawn.h"
+#include "call_trace.h"
 
 /* Engine-global stubs — see header.  Writable so tests + downstream
  * ports can populate.  BSS-zero default mirrors the engine state at
@@ -215,6 +216,9 @@ static void field_decay_x(int i, int field_off, float mul, int kill_age)
  */
 static void particles_per_frame_open(void)
 {
+    /* E.2 probe — FUN_00414929 @ 0x414929 (called from FUN_0040fb3a L1). */
+    CALL_TRACE_ENTER(0x414929u);
+
     scene1_pfo_table_a_tick();
     scene1_pfo_table_b_tick();
 }
@@ -1745,6 +1749,9 @@ static void handle_type_12_13_14(int i, int type)
  */
 void scene1_particles_tick(void)
 {
+    /* E.2 probe — FUN_0040fb3a @ 0x40fb3a (table A tick). */
+    CALL_TRACE_ENTER(0x40fb3au);
+
     particles_per_frame_open();
 
     for (int i = 0; i < SCENE1_RECORDS_A_COUNT; i++) {

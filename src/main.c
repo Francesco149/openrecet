@@ -383,6 +383,13 @@ static int             g_hidden                  = 0;
  *                      --turbo since DirectMusic complains about
  *                      being clocked far above its expected rate. */
 static int             g_turbo                   = 0;
+/* --auto-z-spam: write button A (mask 0x10) into the player-0 input
+ * mask on alternating frames after input_poll returns.  Drives the
+ * title menu past "Continue / New game" without keyboard input so an
+ * unattended capture run boots straight into HOUSE.  Mutually
+ * exclusive with --input-trace-replay (which OWNS the input mask).
+ * Port-side analogue of the Frida agent's same-named flag (E.2.2). */
+static int             g_auto_z_spam             = 0;
 static int             g_silent_audio            = 0;
 
 /* --no-singleton: bypass the cross-process singleton mutex acquired in
@@ -431,6 +438,7 @@ static mesh_t *house_preview_load_dump(const char *dir, IDirect3DDevice8 *dev);
  * sources via DI. */
 static void  recording_input_poll(void);
 static void  replay_input_poll(void);
+static void  auto_z_spam_input_poll(void);
 static int   capture_frame_is_listed(uint32_t frame);
 
 /* Cross-process singleton lock. A second openrecet instance trying to
@@ -1262,6 +1270,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         active_input_poll = replay_input_poll;
     } else if (g_input_trace_record_path) {
         active_input_poll = recording_input_poll;
+    } else if (g_auto_z_spam) {
+        active_input_poll = auto_z_spam_input_poll;
     }
     const struct tick_callbacks tick_cb = {
         .input_poll = active_input_poll,
@@ -2322,6 +2332,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
             }
         } else if (lstrcmpA(tok, "--hidden") == 0) {
             g_hidden = 1;
+        } else if (lstrcmpA(tok, "--auto-z-spam") == 0) {
+            g_auto_z_spam = 1;
         } else if (lstrcmpA(tok, "--turbo") == 0) {
             g_turbo = 1;
         } else if (lstrcmpA(tok, "--silent-audio") == 0) {
@@ -2358,6 +2370,24 @@ static void recording_input_poll(void)
 {
     input_poll();
     input_trace_record_frame(g_tick.frame_count, g_input_state[0].buttons);
+}
+
+/* --auto-z-spam wrapper.  Runs the real input_poll (so any user
+ * keystrokes still count) then OR's in button A on alternating
+ * frames.  Press-then-release at 30 Hz gives the engine's button-edge
+ * detection a clean transition every other tick — same shape the
+ * Frida agent uses on the retail side. */
+static void auto_z_spam_input_poll(void)
+{
+    input_poll();
+    /* Toggle every frame so the engine sees press-then-release; any
+     * menu that uses edge detection (most title-menu nav does) will
+     * fire on the press half-frame. */
+    if ((g_tick.frame_count & 1u) == 0u) {
+        g_input_state[0].buttons |= 0x0010u;  /* button A */
+    } else {
+        g_input_state[0].buttons &= ~0x0010u;
+    }
 }
 
 static int capture_frame_is_listed(uint32_t frame)

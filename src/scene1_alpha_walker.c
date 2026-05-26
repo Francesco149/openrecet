@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include "scene1_render.h"   /* scene1_render_apply_palette_combiner_mode */
+#include "scene1_walker_pass_init.h"  /* scene1_walker_pass_render_house */
 
 /* ─── engine scratch globals — module-local mirrors ──────────────────── */
 
@@ -75,16 +76,14 @@ static int aw_alpha_pass_guard(void) { return 0; }
  * scene1_combiner_override in scene1_render.c; zero by default. */
 static int aw_combiner_override(void) { return 0; }
 
-/* FUN_00457714 (5323 B) — per-pass texture/shader sub-init.  C8a
- * has a TODO stub `scene1_walk_pass_init_TODO` for this, but it's
- * module-local; redeclare the stub here so the body reads cleanly. */
-static void aw_pass_init_TODO(int which_pass)
-{
-    /* TODO C8-followup: port FUN_00457714.  Same body as the
-     * scene1_walk_pass_init_TODO in scene1_render.c; when one ports
-     * the other can be deleted. */
-    (void)which_pass;
-}
+/* FUN_00457714 is now ported as scene1_walker_pass_render_house
+ * (src/scene1_walker_pass_init.c, PII.3b).  The call sites below
+ * dispatch directly through it; this stub used to bridge the gap
+ * while the function was unported.  E.2.3 call_trace_diff surfaced
+ * the divergence (retail=4, port=2) — wiring fills the last two of
+ * the four engine call sites (pass-id 2 + 3, both inside FUN_00458bdf
+ * = this file).  Pass-id 0 + 1 already dispatch through the
+ * scene1_render.c arm. */
 
 /* FUN_00459847 (1444 B) — narrow-frustum mesh walker.  C8a has a
  * TODO stub `scene1_walk_narrow_frustum_TODO` for this; redeclare
@@ -216,8 +215,8 @@ void scene1_alpha_walker(struct IDirect3DDevice8 *dev_in)
         }
 
         /* L63: FUN_00457714(2) — per-pass texture / shader sub-init,
-         * pass-id 2.  Stubbed. */
-        aw_pass_init_TODO(2);
+         * pass-id 2.  Dispatches through PII.3b walker port. */
+        scene1_walker_pass_render_house((struct IDirect3DDevice8 *)dev, 2);
 
         /* L64-L74: inner palette blend-mode gate. */
         if (aw_palette_inner_blend_gate_1a5c() == 0) {
@@ -270,7 +269,7 @@ void scene1_alpha_walker(struct IDirect3DDevice8 *dev_in)
         IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG2,  D3DTA_TFACTOR);
 
         /* L83: FUN_00457714(3). */
-        aw_pass_init_TODO(3);
+        scene1_walker_pass_render_house((struct IDirect3DDevice8 *)dev, 3);
 
         /* L84: FUN_00454f03(palette+0x1a40). */
         scene1_render_apply_palette_combiner_mode(

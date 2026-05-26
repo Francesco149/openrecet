@@ -34,6 +34,8 @@
 
 #include "scene1_records_b_tick.h"
 
+#include "call_trace.h"
+
 #include <math.h>
 #include <string.h>
 
@@ -419,6 +421,9 @@ void scene1_records_b_tick_kill_slot(int slot_idx)
 
 void scene1_records_b_tick(void)
 {
+    /* E.2 probe — FUN_0043ae20 @ 0x43ae20 (table B tick). */
+    CALL_TRACE_ENTER(0x43ae20u);
+
     for (int i = 0; i < SCENE1_RECORDS_B_COUNT; i++) {
         int32_t *slot = slot_base(i);
         int32_t  type = slot[SCENE1_RECORDS_B_OFF_TYPE];

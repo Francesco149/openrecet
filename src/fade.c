@@ -14,6 +14,7 @@
 #include "fade.h"
 
 #include "render_quad.h"
+#include "call_trace.h"
 
 int32_t g_fade_counter  = 0;
 int32_t g_fade_phase    = 0;
@@ -49,6 +50,9 @@ void fade_phase_out_start(int32_t mode, int32_t duration)
 
 void fade_tick(void)
 {
+    /* E.2 probe — FUN_004526ab @ 0x4526ab. */
+    CALL_TRACE_ENTER(0x4526abu);
+
     if (g_fade_phase == 0) return;
 
     if (g_fade_phase == 1) {
@@ -104,6 +108,9 @@ void fade_unload_system_texture(void)
 
 void fade_render(IDirect3DDevice8 *dev)
 {
+    /* E.2 probe — FUN_00453e8f @ 0x453e8f. */
+    CALL_TRACE_ENTER(0x453e8fu);
+
     if (!dev) return;
     if (g_fade_counter == 0) return;
 
