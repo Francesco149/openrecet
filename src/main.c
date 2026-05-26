@@ -1754,6 +1754,16 @@ static void render_dispatch(void)
      * macros below check the per-frame emit flag this sets. */
     call_trace_begin_frame(g_tick.frame_count);
 
+    /* Engine FUN_004547ab L17: unconditional scene-effect counter pump.
+     * Separate from the sim-side worker-load-busy gated call in
+     * sim_step_a — the engine runs this every render-tick regardless of
+     * scene state or loading status.  Without it the counter pump only
+     * fires when worker_load_busy() is true (= rarely on the
+     * load-everything-sync port), so retail-vs-port call_trace diff
+     * shows a persistent -1 per frame on 0x4532df (found 2026-05-27
+     * via pre_3d_trace methodology).  See call_trace_diff.py output. */
+    sim_loading_pump();
+
     /* Per-state clear color. Engine FUN_004547ab L33-44 derives the
      * scene-1 clear from DAT_068dd2f0's stage palette; we use a fixed
      * placeholder until the stage system ports. Title clear stays at
@@ -1904,7 +1914,15 @@ static void render_dispatch(void)
                  * wiring chip. */
                 scene1_render_camera_setup(g_dev);
                 scene1_render_overlay(g_dev);
-                scene1_render_fx_tail(g_dev);
+                /* scene1_render_fx_tail is moved out of this branch
+                 * and called unconditionally below — engine has it
+                 * both inline here AND in the LAB_00454be4 fallthrough
+                 * (set bVar1=false to skip fallthrough), but since
+                 * fx_tail is currently a no-op stub in port, calling
+                 * it exactly once per frame from the fallthrough is
+                 * the simpler match.  Restore the inline call here
+                 * (and add bVar1 tracking) only if fx_tail acquires
+                 * state-write side effects that depend on order. */
             }
 
             /* --show-pass-f-test: overlay one type-0x92 billboard from
@@ -1961,6 +1979,16 @@ static void render_dispatch(void)
                                (int)g_ini.width, (int)g_ini.height);
         mesh_draw_d3d8(g_dev, g_show_mesh);
     }
+
+    /* Engine FUN_004547ab LAB_00454be4 (fallthrough at L183): the
+     * render dispatcher exits via either an inline FUN_0045404b call
+     * inside one of the state-1 substates (with bVar1 cleared) or this
+     * unconditional fallthrough.  Result: exactly 1 fx_tail call per
+     * frame across every state.  Pre-3D-trace diff (2026-05-27) showed
+     * a persistent -1 here because our port only had the inline
+     * INGAME call; TITLE + other states missed the fallthrough.  See
+     * call_trace_diff.py output. */
+    scene1_render_fx_tail(g_dev);
 
     /* Engine FUN_004547ab L202: scene-fade alpha quad. Runs after the
      * scene-render dispatch so it darkens whatever the scene just drew
