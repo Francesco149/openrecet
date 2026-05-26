@@ -58,6 +58,6 @@ function invokeScript() {
         matched_pattern: matched_pattern,
         tried_patterns:  patterns,
     }));
-    tw.Close();
+    try { tw.Close(); } catch (_) {}
     fh.Close();
 }

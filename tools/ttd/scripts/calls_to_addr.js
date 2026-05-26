@@ -46,6 +46,6 @@ function invokeScript() {
         first:   first,
         error:   err,
     }));
-    tw.Close();
+    try { tw.Close(); } catch (_) {}
     fh.Close();
 }

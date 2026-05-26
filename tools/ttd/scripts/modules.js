@@ -31,6 +31,6 @@ function invokeScript() {
     var fh = fs.CreateFile(TTD_OUTPUT_PATH, "CreateAlways");
     var tw = fs.CreateTextWriter(fh, "Utf8");
     tw.WriteLine(JSON.stringify({records: out}));
-    tw.Close();
+    try { tw.Close(); } catch (_) {}
     fh.Close();
 }

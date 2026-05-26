@@ -18,6 +18,6 @@ function invokeScript() {
         probe:   "ok",
         ttd_output_path: TTD_OUTPUT_PATH,
     }));
-    tw.Close();
+    try { tw.Close(); } catch (_) {}
     fh.Close();
 }

@@ -51,6 +51,6 @@ function invokeScript() {
         truncated: truncated,
         pattern:   pattern,
     }));
-    tw.Close();
+    try { tw.Close(); } catch (_) {}
     fh.Close();
 }
