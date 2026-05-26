@@ -231,9 +231,12 @@ class CaptureConfig:
     # Call tracer (Phase E.1). When `call_trace` is true the agent
     # Interceptor.attach()es onEnter on every VA in `call_trace_vas`
     # and emits one record per invocation to `<run_dir>/call_trace.jsonl`.
-    # `call_trace_vas` defaults to the engine function-entry list at
-    # tools/ttd/data/engine_function_vas.json (2103 entries from
-    # objdump). `call_trace_frames` is a per-frame whitelist — strongly
+    # `call_trace_vas` defaults to the bisect-vetted Frida-safe engine
+    # function-entry list at
+    # tools/ttd/data/engine_function_vas_frida_safe.json (1979 entries —
+    # the wider engine_function_vas.json contains entries that crash
+    # the engine when hooked; see tools/bisect_call_trace_vas.py).
+    # `call_trace_frames` is a per-frame whitelist — strongly
     # recommended, since unfiltered runs can emit tens of thousands of
     # events per frame and saturate the Frida wire.
     call_trace:        bool = False
@@ -250,6 +253,13 @@ class CaptureConfig:
     auto_z_spam:            bool = False
     auto_3d_trace:          bool = False
     auto_3d_trace_frames:   int  = 60
+    # Inverse of `auto_3d_trace`.  When true the agent emits call_trace
+    # for every frame BEFORE the first DrawIndexedPrimitive call, then
+    # sends `pre_3d_trace_done` so the driver shuts down.  Pair with
+    # `auto_z_spam` to drive past the title menu unattended.  Output
+    # covers title screen + intro cutscene up to (not including) the
+    # first HOUSE 3D frame.
+    pre_3d_trace:           bool = False
 
 
 @dataclass
@@ -411,6 +421,12 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             done.set()
             return
 
+        if kind == "pre_3d_trace_done":
+            f_log.write(f"[pre_3d] first 3D draw @ frame={p.get('last_frame')}; "
+                        f"signaling shutdown\n")
+            done.set()
+            return
+
         f_log.write(f"[unhandled] {p}\n")
 
     # ── auto-start frida-server if not already up ──
@@ -449,6 +465,17 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
 
     pid = device.spawn([win_exe], cwd=win_cwd)
     session = device.attach(pid)
+
+    # Detach handler — fires when the target dies (crash, exit, kill from
+    # outside).  Without this the driver sits waiting on `done` for the
+    # full --duration-ms even though there's nothing alive to trace.
+    # Sets `done` so the main loop falls through and reports the early
+    # exit in the log.
+    def on_detached(reason: str, crash: Any) -> None:
+        f_log.write(f"[detached] reason={reason!r} crash={crash!r}\n")
+        done.set()
+    session.on("detached", on_detached)
+
     script = session.create_script(AGENT_JS.read_text())
     script.on("message", on_message)
     script.load()
@@ -499,6 +526,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     if cfg.auto_3d_trace:
         init_cfg["auto_3d_trace"] = True
         init_cfg["auto_3d_trace_frames"] = int(cfg.auto_3d_trace_frames)
+    if cfg.pre_3d_trace:
+        init_cfg["pre_3d_trace"] = True
     script.exports_sync.init(init_cfg)
     device.resume(pid)
 
@@ -671,12 +700,15 @@ def main(argv: list[str] | None = None) -> int:
                          "Use this for any non-title scenario.")
     ap.add_argument("--call-trace", action="store_true",
                     help="hook every engine function entry (default list: "
-                         "tools/ttd/data/engine_function_vas.json, 2103 VAs) "
-                         "and emit one JSONL row per invocation to "
-                         "<run_dir>/call_trace.jsonl. Phase E.1 — per-frame "
-                         "ordered call list for leaf-first porting. Pair "
-                         "with --call-trace-frames or output saturates the "
-                         "Frida wire.")
+                         "tools/ttd/data/engine_function_vas_frida_safe.json, "
+                         "1979 VAs vetted by tools/bisect_call_trace_vas.py — "
+                         "the unvetted superset engine_function_vas.json "
+                         "contains entries that destabilize the retail "
+                         "engine on boot) and emit one JSONL row per "
+                         "invocation to <run_dir>/call_trace.jsonl. Phase "
+                         "E.1 — per-frame ordered call list for leaf-first "
+                         "porting. Pair with --call-trace-frames or output "
+                         "saturates the Frida wire.")
     ap.add_argument("--call-trace-vas-file", type=Path, default=None,
                     help="override the default engine VA list. JSON: either "
                          "a bare array of ints, or the metadata-dict form "
@@ -699,6 +731,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--auto-3d-trace-frames", type=int, default=60,
                     help="how many frames to capture after the 3D-scene "
                          "trigger fires (default 60 = 1s of game time).")
+    ap.add_argument("--pre-3d-trace", action="store_true",
+                    help="inverse of --auto-3d-trace: capture call_trace "
+                         "for every frame BEFORE the first "
+                         "DrawIndexedPrimitive call (= title + intro "
+                         "cutscene), then shut down on first 3D draw. "
+                         "Pair with --auto-z-spam to drive past the title "
+                         "menu unattended.")
     args = ap.parse_args(argv)
     fr_tuple: tuple[int, int] | None = None
     if args.force_resolution:
@@ -722,8 +761,14 @@ def main(argv: list[str] | None = None) -> int:
 
     call_trace_vas: list[int] | None = None
     if args.call_trace:
+        # Default to the bisect-vetted safe subset.  The full
+        # engine_function_vas.json contains entries that Frida hooks
+        # destabilize (see tools/bisect_call_trace_vas.py).  Callers
+        # who need the wider list pass it explicitly via
+        # --call-trace-vas-file.
         ct_path = args.call_trace_vas_file or (
-            ROOT / "tools" / "ttd" / "data" / "engine_function_vas.json")
+            ROOT / "tools" / "ttd" / "data" /
+            "engine_function_vas_frida_safe.json")
         if not ct_path.exists():
             ap.error(f"--call-trace: VA list not found at {ct_path}; pass "
                      f"--call-trace-vas-file to override")
@@ -733,6 +778,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.auto_z_spam and args.input_trace is not None:
         ap.error("--auto-z-spam and --input-trace are mutually exclusive")
+    if args.auto_3d_trace and args.pre_3d_trace:
+        ap.error("--auto-3d-trace and --pre-3d-trace are mutually exclusive")
 
     cfg = CaptureConfig(
         capture_frames=capture_frames,
@@ -755,6 +802,7 @@ def main(argv: list[str] | None = None) -> int:
         auto_z_spam=args.auto_z_spam,
         auto_3d_trace=args.auto_3d_trace,
         auto_3d_trace_frames=args.auto_3d_trace_frames,
+        pre_3d_trace=args.pre_3d_trace,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

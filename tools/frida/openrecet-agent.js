@@ -458,6 +458,14 @@ let g_call_trace_frames  = null;    // Set<int> or null (null = every frame)
 let g_call_trace_vas     = [];      // [int] Ghidra-VAs to hook
 let g_call_trace_hooked  = false;
 let g_call_trace_buffer  = [];
+
+// Mid-frame buffer cap.  Each event is ~80 bytes JSON.  At 1M events
+// per send() we're well under GLib's 128MiB DBus message ceiling
+// (~1.6GB worth of headroom) but high enough that steady-state per-
+// frame batching still gets one flush per Present.  The cap exists to
+// bound the FIRST flush — between agent load and the first Present,
+// CRT/MFC startup with 1979 hooks installed can push 100k+ events.
+const CALL_TRACE_FLUSH_AT = 50000;
 let g_call_trace_n_ok    = 0;
 let g_call_trace_n_fail  = 0;
 
@@ -481,6 +489,16 @@ let g_auto_3d_seen_frame   = -1;
 let g_auto_3d_trace_frames = 60;
 let g_auto_3d_hooked       = false;
 let g_auto_3d_done_sent    = false;
+
+// Pre-3D-trace mode (inverse of auto_3d_trace).  When `pre_3d_trace` is
+// true the agent installs the same DrawIndexedPrimitive trigger but
+// arms call_trace emit for every frame BEFORE the first 3D draw, then
+// sends `pre_3d_trace_done` on the first 3D draw so the python driver
+// shuts the engine down cleanly.  Use with auto_z_spam to drive past
+// title menus; the resulting trace covers title + intro cutscene up to
+// (but not including) the first HOUSE 3D frame.
+let g_pre_3d_trace         = false;
+let g_pre_3d_done_sent     = false;
 
 // Render-demo state. When `g_demo_active` is true, the
 // Interceptor.replace on FUN_004547ab routes every render-thread tick
@@ -1048,8 +1066,11 @@ function installInitHook() {
                 }
             }
             // Auto-3D trigger needs the device's DrawIndexedPrimitive
-            // vtable slot; install here for the same reason.
-            if (g_auto_3d_trace) {
+            // vtable slot; install here for the same reason.  Shared
+            // between auto_3d_trace (post-3D window) and pre_3d_trace
+            // (inverse — pre-3D window, sends pre_3d_trace_done on
+            // first 3D draw).
+            if (g_auto_3d_trace || g_pre_3d_trace) {
                 try {
                     installAuto3dTrigger(dev);
                 } catch (e) {
@@ -1347,6 +1368,11 @@ function callTraceShouldEmit() {
         }
         return true;
     }
+    if (g_pre_3d_trace) {
+        // Emit every frame until the first 3D draw fires.  The trigger
+        // sets g_auto_3d_seen + sends pre_3d_trace_done on first call.
+        return !g_auto_3d_seen;
+    }
     if (g_call_trace_frames === null) return true;
     return g_call_trace_frames.has(g_manual_frame_counter);
 }
@@ -1362,6 +1388,14 @@ function installAuto3dTrigger(devicePtr) {
             g_auto_3d_seen_frame = g_manual_frame_counter;
             send({kind: 'auto_3d_scene_reached',
                   frame: g_auto_3d_seen_frame});
+            // pre_3d_trace shares the trigger but inverts the semantics:
+            // the first 3D draw means "we are leaving the cutscene
+            // window, shut down".  Sent once.
+            if (g_pre_3d_trace && !g_pre_3d_done_sent) {
+                g_pre_3d_done_sent = true;
+                send({kind: 'pre_3d_trace_done',
+                      last_frame: g_auto_3d_seen_frame});
+            }
         },
     });
     g_auto_3d_hooked = true;
@@ -1396,6 +1430,18 @@ function installCallTraceHooks(vasArray) {
                         ts:     nowMs(),
                         thr:    this.threadId,
                     });
+                    // Cap: per-frame flush is fine for steady-state but
+                    // the pre-Present startup window (CRT/MFC init with
+                    // 1979 hooks firing) can dump hundreds of thousands
+                    // of events into one batch.  GLib's DBus transport
+                    // tops out at 128MiB per blob — exceed that and
+                    // frida-server kills the channel + the target dies
+                    // process-terminated with no diagnostic.  Force a
+                    // flush whenever the buffer crosses CALL_TRACE_FLUSH_AT
+                    // events so individual send() messages stay bounded.
+                    if (g_call_trace_buffer.length >= CALL_TRACE_FLUSH_AT) {
+                        callTraceFlush(g_manual_frame_counter);
+                    }
                 },
             });
             g_call_trace_n_ok++;
@@ -2107,6 +2153,8 @@ rpc.exports = {
         g_auto_3d_hooked         = false;
         g_auto_3d_done_sent      = false;
         g_auto_3d_trace_frames   = (config.auto_3d_trace_frames | 0) || 60;
+        g_pre_3d_trace           = !!config.pre_3d_trace;
+        g_pre_3d_done_sent       = false;
 
         // Mesh dump knob. config.dump_meshes is either:
         //   true             — dump every .x load
@@ -2151,7 +2199,8 @@ rpc.exports = {
                   ? null : Array.from(g_call_trace_frames),
               auto_z_spam: g_auto_z_spam,
               auto_3d_trace: g_auto_3d_trace,
-              auto_3d_trace_frames: g_auto_3d_trace_frames});
+              auto_3d_trace_frames: g_auto_3d_trace_frames,
+              pre_3d_trace: g_pre_3d_trace});
 
         // The capture-side hooks expect to fire on a running engine.
         // State-forcing tests skip resume() entirely, so we make the
