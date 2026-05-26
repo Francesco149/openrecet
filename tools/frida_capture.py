@@ -239,6 +239,17 @@ class CaptureConfig:
     call_trace:        bool = False
     call_trace_vas:    list[int] | None = None
     call_trace_frames: list[int] | None = None
+    # Auto-Z spam + auto-3D-trace.  When `auto_z_spam` is true the
+    # agent's input_poll onLeave forces button-A every other 2-frame
+    # block (~15 presses/sec) — fast enough to clear the intro
+    # cutscene unattended.  When `auto_3d_trace` is true the agent
+    # hooks DrawIndexedPrimitive; on the first hit it records the
+    # frame number and arms call_trace emit ONLY for the window
+    # [3D_seen, 3D_seen + auto_3d_trace_frames], then sends
+    # `auto_3d_trace_done` which causes the driver to shut down.
+    auto_z_spam:            bool = False
+    auto_3d_trace:          bool = False
+    auto_3d_trace_frames:   int  = 60
 
 
 @dataclass
@@ -389,6 +400,17 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             f_log.write(f"[call_trace] frame={frame} events={len(events)}\n")
             return
 
+        if kind == "auto_3d_scene_reached":
+            f_log.write(f"[auto_3d] scene reached @ frame={p.get('frame')}\n")
+            return
+
+        if kind == "auto_3d_trace_done":
+            f_log.write(f"[auto_3d] trace window done "
+                        f"[frames {p.get('first_frame')}..{p.get('last_frame')}]; "
+                        f"signaling shutdown\n")
+            done.set()
+            return
+
         f_log.write(f"[unhandled] {p}\n")
 
     # ── auto-start frida-server if not already up ──
@@ -472,6 +494,11 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["call_trace_vas"] = [int(v) for v in (cfg.call_trace_vas or [])]
         if cfg.call_trace_frames is not None:
             init_cfg["call_trace_frames"] = [int(f) for f in cfg.call_trace_frames]
+    if cfg.auto_z_spam:
+        init_cfg["auto_z_spam"] = True
+    if cfg.auto_3d_trace:
+        init_cfg["auto_3d_trace"] = True
+        init_cfg["auto_3d_trace_frames"] = int(cfg.auto_3d_trace_frames)
     script.exports_sync.init(init_cfg)
     device.resume(pid)
 
@@ -659,6 +686,19 @@ def main(argv: list[str] | None = None) -> int:
                     help="comma-separated frame numbers to limit call_trace "
                          "to. STRONGLY recommended — unfiltered runs can "
                          "emit tens of thousands of events per frame.")
+    ap.add_argument("--auto-z-spam", action="store_true",
+                    help="drive the engine past the intro cutscene by "
+                         "pressing button A (Z on keyboard) at ~15Hz "
+                         "unattended. Mutually exclusive with --input-trace.")
+    ap.add_argument("--auto-3d-trace", action="store_true",
+                    help="pair with --call-trace + --auto-z-spam: arm "
+                         "call_trace emit ONLY for the N-frame window "
+                         "starting at the first DrawIndexedPrimitive call "
+                         "(= we just entered HOUSE / 3D shop). The driver "
+                         "shuts down cleanly once the window closes.")
+    ap.add_argument("--auto-3d-trace-frames", type=int, default=60,
+                    help="how many frames to capture after the 3D-scene "
+                         "trigger fires (default 60 = 1s of game time).")
     args = ap.parse_args(argv)
     fr_tuple: tuple[int, int] | None = None
     if args.force_resolution:
@@ -691,6 +731,9 @@ def main(argv: list[str] | None = None) -> int:
         call_trace_vas = (raw["vas"] if isinstance(raw, dict) and "vas" in raw
                           else list(raw))
 
+    if args.auto_z_spam and args.input_trace is not None:
+        ap.error("--auto-z-spam and --input-trace are mutually exclusive")
+
     cfg = CaptureConfig(
         capture_frames=capture_frames,
         max_frames=args.max_frames,
@@ -709,6 +752,9 @@ def main(argv: list[str] | None = None) -> int:
         call_trace=args.call_trace,
         call_trace_vas=call_trace_vas,
         call_trace_frames=call_trace_frames,
+        auto_z_spam=args.auto_z_spam,
+        auto_3d_trace=args.auto_3d_trace,
+        auto_3d_trace_frames=args.auto_3d_trace_frames,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

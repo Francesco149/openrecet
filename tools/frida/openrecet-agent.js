@@ -461,6 +461,27 @@ let g_call_trace_buffer  = [];
 let g_call_trace_n_ok    = 0;
 let g_call_trace_n_fail  = 0;
 
+// Auto-Z spam (Phase E.1+). When `auto_z_spam` is true, the
+// input_poll onLeave overrides the input mask with 0x10 (button A,
+// i.e. Z on the default keyboard binding) for 2 frames out of every
+// 4, giving ~15 presses/sec — enough to advance dialogue without
+// fighting the engine's debounce.
+let g_auto_z_spam = false;
+
+// Auto-3D-trace mode.  When `auto_3d_trace` is true, the agent
+// hooks IDirect3DDevice8::DrawIndexedPrimitive (the 3D mesh-draw
+// path; absent from title / main-menu UI which uses *UP variants
+// only), and arms call_trace emit ONLY for the window
+// [3D_seen_frame, 3D_seen_frame + g_auto_3d_trace_frames].  Once the
+// window closes the agent sends a single `auto_3d_trace_done`
+// message so the python driver can shut the engine down cleanly.
+let g_auto_3d_trace        = false;
+let g_auto_3d_seen         = false;
+let g_auto_3d_seen_frame   = -1;
+let g_auto_3d_trace_frames = 60;
+let g_auto_3d_hooked       = false;
+let g_auto_3d_done_sent    = false;
+
 // Render-demo state. When `g_demo_active` is true, the
 // Interceptor.replace on FUN_004547ab routes every render-thread tick
 // through the JS demo callback below instead of the engine's normal
@@ -744,6 +765,13 @@ function installInputHook() {
                     // sim_a / button-state ring are the next readers
                     // after this onLeave returns.
                     rva(ADDR.var_input_mask).writeU16(g_input_last_forced);
+                } else if (g_auto_z_spam) {
+                    // 2-on / 2-off pattern over every 4 frames.  ~15
+                    // distinct presses per second — fast enough to clear
+                    // tutorial dialogue, slow enough that the engine's
+                    // 1-frame debounce sees each press as a fresh edge.
+                    const pressed = (fn % 4) < 2;
+                    rva(ADDR.var_input_mask).writeU16(pressed ? 0x0010 : 0);
                 }
 
                 const mask = rva(ADDR.var_input_mask).readU16();
@@ -1017,6 +1045,15 @@ function installInitHook() {
                     installD3dTraceHooks(dev);
                 } catch (e) {
                     err('installD3dTraceHooks', e.message);
+                }
+            }
+            // Auto-3D trigger needs the device's DrawIndexedPrimitive
+            // vtable slot; install here for the same reason.
+            if (g_auto_3d_trace) {
+                try {
+                    installAuto3dTrigger(dev);
+                } catch (e) {
+                    err('installAuto3dTrigger', e.message);
                 }
             }
             // Signal "device ready" so RPC callers that depend on the
@@ -1295,8 +1332,41 @@ function installD3dTraceHooks(devicePtr) {
 
 function callTraceShouldEmit() {
     if (!g_call_trace_enabled) return false;
+    if (g_auto_3d_trace) {
+        if (!g_auto_3d_seen) return false;
+        const fn = g_manual_frame_counter;
+        if (fn > g_auto_3d_seen_frame + g_auto_3d_trace_frames) {
+            if (!g_auto_3d_done_sent) {
+                g_auto_3d_done_sent = true;
+                send({kind: 'auto_3d_trace_done',
+                      first_frame: g_auto_3d_seen_frame,
+                      last_frame:  g_auto_3d_seen_frame +
+                                   g_auto_3d_trace_frames});
+            }
+            return false;
+        }
+        return true;
+    }
     if (g_call_trace_frames === null) return true;
     return g_call_trace_frames.has(g_manual_frame_counter);
+}
+
+// Hook DrawIndexedPrimitive once the D3D device is live and mark
+// g_auto_3d_seen on the first call.  Idempotent.
+function installAuto3dTrigger(devicePtr) {
+    if (g_auto_3d_hooked) return;
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawIndexedPrimitive), {
+        onEnter: function () {
+            if (g_auto_3d_seen) return;
+            g_auto_3d_seen = true;
+            g_auto_3d_seen_frame = g_manual_frame_counter;
+            send({kind: 'auto_3d_scene_reached',
+                  frame: g_auto_3d_seen_frame});
+        },
+    });
+    g_auto_3d_hooked = true;
+    log('auto-3d trigger installed (DrawIndexedPrimitive vtable[' +
+        V_Dev_DrawIndexedPrimitive + '])');
 }
 
 function callTraceFlush(frameNumber) {
@@ -2025,6 +2095,19 @@ rpc.exports = {
             g_call_trace_frames = null;
         }
 
+        // Auto-Z-spam + auto-3D-trace.  Pair these to drive retail past
+        // the intro cutscene unattended and start capturing once the
+        // HOUSE / 3D scene activates.  auto_3d_trace overrides the
+        // call_trace_frames whitelist with a dynamic window anchored on
+        // the first DrawIndexedPrimitive.
+        g_auto_z_spam            = !!config.auto_z_spam;
+        g_auto_3d_trace          = !!config.auto_3d_trace;
+        g_auto_3d_seen           = false;
+        g_auto_3d_seen_frame     = -1;
+        g_auto_3d_hooked         = false;
+        g_auto_3d_done_sent      = false;
+        g_auto_3d_trace_frames   = (config.auto_3d_trace_frames | 0) || 60;
+
         // Mesh dump knob. config.dump_meshes is either:
         //   true             — dump every .x load
         //   ['xfile/shop/']  — dump only paths containing any of these
@@ -2065,7 +2148,10 @@ rpc.exports = {
               call_trace: g_call_trace_enabled,
               call_trace_n_vas: g_call_trace_vas.length,
               call_trace_frames: g_call_trace_frames === null
-                  ? null : Array.from(g_call_trace_frames)});
+                  ? null : Array.from(g_call_trace_frames),
+              auto_z_spam: g_auto_z_spam,
+              auto_3d_trace: g_auto_3d_trace,
+              auto_3d_trace_frames: g_auto_3d_trace_frames});
 
         // The capture-side hooks expect to fire on a running engine.
         // State-forcing tests skip resume() entirely, so we make the
