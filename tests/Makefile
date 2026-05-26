@@ -68,11 +68,34 @@ OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))
 DEPS := $(OBJS:.o=.d)
 OUT  := build/run_tests
 
-.PHONY: all run clean
+# ── diff harness (tools/diff_test.py) ───────────────────────────────────
+#
+# Builds a host-loadable shared library that exports a stable C ABI for
+# our ported pure-math functions, so the Phase D diff orchestrator can
+# call them via ctypes and compare their output against the same call
+# dispatched into retail via Frida.
+#
+# Separate object dir + no sanitizers — ASan-instrumented .so would
+# require LD_PRELOADing the runtime, complicating the Python launcher
+# for zero benefit (the unit-test suite already exercises the same
+# code under ASan/UBSan, so the diff path doesn't need it).
+#
+# Extend DIFF_SRCS as new diff targets land.
+
+DIFF_SRCS    := ../src/diff_entry.c ../src/rng.c
+DIFF_OBJS    := $(addprefix build/diff/,$(notdir $(DIFF_SRCS:.c=.o)))
+DIFF_DEPS    := $(DIFF_OBJS:.o=.d)
+DIFF_OUT     := build/libengine_diff.so
+DIFF_CFLAGS  := -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter \
+                -fPIC -I../src -MMD -MP
+
+.PHONY: all run diff clean
 all: $(OUT)
 
 run: $(OUT)
 	./$(OUT)
+
+diff: $(DIFF_OUT)
 
 build/%.o: ../src/%.c | build
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -83,10 +106,20 @@ build/%.o: %.c | build
 $(OUT): $(OBJS)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS) -lm
 
+build/diff/%.o: ../src/%.c | build/diff
+	$(CC) $(DIFF_CFLAGS) -c -o $@ $<
+
+$(DIFF_OUT): $(DIFF_OBJS)
+	$(CC) -shared -o $@ $(DIFF_OBJS) -lm
+
 build:
+	@mkdir -p $@
+
+build/diff:
 	@mkdir -p $@
 
 clean:
 	rm -rf build/
 
 -include $(DEPS)
+-include $(DIFF_DEPS)

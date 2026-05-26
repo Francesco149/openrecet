@@ -367,6 +367,17 @@ let g_turbo_clock_cb = null;
 let g_silent_audio_enabled = false;
 let g_silent_audio_hooked  = false;
 
+// Differential test mode (Phase D). When true, the agent is set up
+// purely for state-forcing RPC calls — no capture/input/turbo/audio
+// hooks install, and the engine main thread is expected to stay
+// suspended (the driver never calls device.resume()). The Frida-
+// injected helper thread still runs independently, so NativeFunction
+// calls + memory R/W work without the engine executing. Implies
+// install_hooks: false; the runRetail* RPCs additionally check this
+// flag and refuse to run if it's not set (so callers from the
+// capture pipeline can't accidentally clobber engine globals).
+let g_diff_test_enabled = false;
+
 // Resolution injection. When enabled, the engine's recet.ini parser
 // (FUN_0047a474) is hooked at onLeave to overwrite DAT_005cbc04
 // (width) + DAT_005cbc08 (height) with the requested dimensions
@@ -1548,6 +1559,12 @@ rpc.exports = {
         g_hide_window         = !!config.hide_window;
         g_show_window_handled = false;
 
+        // diff_test: true implies install_hooks: false (the engine main
+        // thread stays suspended, so capture-side hooks would never
+        // fire anyway). Tracked as its own flag so the runRetail* RPCs
+        // can gate themselves.
+        g_diff_test_enabled = !!config.diff_test;
+
         // Defensive reset — driver creates a fresh agent per spawn so
         // this is a no-op in practice, but keeps init self-contained.
         g_manual_frame_counter = 0;
@@ -1602,13 +1619,17 @@ rpc.exports = {
               hide_window: g_hide_window,
               turbo: g_turbo_enabled,
               turbo_step_ms: g_turbo_step_ms,
-              silent_audio: g_silent_audio_enabled});
+              silent_audio: g_silent_audio_enabled,
+              diff_test: g_diff_test_enabled});
 
         // The capture-side hooks expect to fire on a running engine.
         // State-forcing tests skip resume() entirely, so we make the
         // hook installation opt-in via config.install_hooks (default
         // true to preserve the Phase B capture pipeline behavior).
-        const install = config.install_hooks !== false;
+        // diff_test: true forces the same skip — explicit flag, same
+        // effect as install_hooks: false.
+        const install = !g_diff_test_enabled &&
+                        config.install_hooks !== false;
         if (install) {
             // Install the MessageBox redirector FIRST so any popup from
             // subsequent installers — or from the engine's own boot path
@@ -1822,6 +1843,57 @@ rpc.exports = {
         ensureBase();
         const fn = new NativeFunction(rva(va), 'uint32', []);
         return fn();
+    },
+
+    // ── Phase D differential-test RPCs ──
+    //
+    // Each runRetail* RPC follows the same pattern: snapshot the engine
+    // globals it touches, inject inputs, call the retail function,
+    // observe outputs, restore in a finally block. This guarantees the
+    // engine state is left exactly as it was found — so back-to-back
+    // RPCs with different inputs don't accidentally chain through a
+    // shared global.
+    //
+    // The agent gates these on g_diff_test_enabled to prevent the
+    // capture pipeline from calling them by mistake (those callers run
+    // with a live engine main thread; a per-RPC global stomp could
+    // race with engine reads).
+
+    // rng_next15 (FUN_005041f6 reading/writing DAT_006023a0).
+    // Injects `seed_u32` as the pre-state, calls one LCG step, reads
+    // back the post-state and the 15-bit return value, restores.
+    //
+    // Returns {ret_value: u16, post_state: u32}.
+    //
+    // Race surface: FUN_005041f6 is called from many engine sites
+    // (particle init, RNG consumers across scene1). With the engine
+    // main thread suspended (diff_test mode), there's nothing else
+    // reading or writing DAT_006023a0 between our snapshot and the
+    // restore. The Frida helper thread is single-threaded for our
+    // RPCs, so concurrent runRetailRngNext15 invocations serialise.
+    runRetailRngNext15: function (seed_u32) {
+        if (!g_diff_test_enabled) {
+            throw new Error(
+                'runRetailRngNext15: diff_test mode required ' +
+                '(init with diff_test: true)');
+        }
+        ensureBase();
+        const seedPtr = rva(ADDR.var_lcg_seed);
+        const saved = seedPtr.readU32();
+        try {
+            seedPtr.writeU32(seed_u32 >>> 0);
+            const fn = new NativeFunction(rva(ADDR.fn_lcg_step),
+                                          'uint32', []);
+            const ret = fn() >>> 0;
+            const post = seedPtr.readU32() >>> 0;
+            // FUN_005041f6 returns the 15-bit field directly via EAX.
+            // Mask defensively in case a future engine variant widens
+            // the return to a full u16 / u32 — the diff harness only
+            // compares the 15 bits the engine actually uses.
+            return {ret_value: ret & 0x7fff, post_state: post};
+        } finally {
+            seedPtr.writeU32(saved);
+        }
     },
 
     // Force the engine to regenerate its font atlas via the legit
