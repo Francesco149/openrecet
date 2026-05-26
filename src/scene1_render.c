@@ -110,25 +110,83 @@ static void scene1_fx_overlays_TODO(void)
  * scene1_render_meshes; the tables are sentinel-empty until the sim
  * populator FUN_0040fb3a lands, so every count lands 0. */
 
-/* FUN_00457714 (5323 B) — per-pass texture / shader sub-init.
- * Called with arg=0 from FUN_004597ad (pre-walker[0]) and arg=1
- * from FUN_004597dd (alpha-pass pre-walker).  Likely sets up a
- * per-pass uniform / pixel-shader-equivalent.  Deferred. */
+/* FUN_00457714 (5323 B) — per-pass NPC-anchored mesh walker; previous
+ * "per-pass texture/shader uniforms" label was wrong (see
+ * docs/findings/scene1-walker-pass-init.md, survey 2026-05-26 PM).
+ *
+ * Two main branches inside an outer DAT_073dfcec==0 gate (alpha-pass
+ * guard, dead in retail):
+ *
+ *   HOUSE branch (stage palette mode < 1 at L52658):
+ *     - setup phase 1 (L52671): per-mesh transforms for DAT_068dcca0
+ *       (wall/floor/jutan) into local_738, gated DAT_0438bfb0 != 0
+ *     - setup phase 2 (L52704): per-mesh transforms for DAT_073b1ac8
+ *       (shop_table; populated by C0A worker / src/scene_table.c),
+ *       gated DAT_0438bfb4 != 0
+ *     - NPC iteration loop (L52809, gated DAT_073cb108 != 0):
+ *         - per-NPC flag dispatch picks a SetTexture target
+ *         - DRAW LOOP A (L52902): DAT_068dcca0 per-NPC mesh draw
+ *         - DRAW LOOP B (L52952, the shop_table furniture renderer):
+ *           gated DAT_073dddb4 == 0 (status-screen NOT open) AND
+ *           DAT_0438bfb4 != 0 — the HOUSE-visible-pixels path.
+ *
+ *   DUNGEON branch (L53046+): different mesh sources, parallel
+ *   structure.
+ *
+ * HOUSE-reachability: the L52952 block IS reachable in retail HOUSE
+ * with status screen closed.  Visible-pixel output additionally
+ * requires that someone populate `mesh->face_npc_ptr[]` — see survey
+ * doc for the open question.
+ *
+ * Reusable helper: FUN_00455191 (217 B, see scene1_walk_initial_asset
+ * _TODO) implements the same per-NPC single-mesh draw idiom and is
+ * called from 4 sibling walkers.  Porting it is the first chip.
+ *
+ * Called with arg=0 from scene1_render_meshes (this file); also called
+ * with arg=1 and arg=3 from sibling walker entries. */
 static void scene1_walk_pass_init_TODO(int which_pass)
 {
-    /* TODO C8-followup: port FUN_00457714.  Until this lands, the
-     * per-pass shader state stays at whatever the previous frame
-     * (or boot) left it. */
+    /* TODO: port FUN_00457714.  Suggested chip ladder PII.0..PII.3
+     * (see docs/findings/scene1-walker-pass-init.md "Recommended next
+     * chips" section). */
     (void)which_pass;
 }
 
-/* FUN_00455191 (217 B) — initial transform asset draw.  Called from
- * L165 when stage palette has 0x108 != 0 AND DAT_068dcf98 != 0 (a
- * "first asset" pointer).  Small but reads two undocumented globals;
- * defer until the source ports. */
+/* FUN_00455191 (217 B) — per-NPC single-mesh draw helper; previous
+ * "initial transform asset draw" label was incomplete (the L165
+ * caller is one of FOUR sites in retail).  See
+ * docs/findings/scene1-walker-pass-init.md for the full survey.
+ *
+ * Body shape (decomp L51528):
+ *
+ *   for (npc_i = 0; npc_i < DAT_073cb108; npc_i++) {
+ *       if (mesh->vtable == 0) continue;
+ *       FUN_00454fe4(npc_i);  // per-NPC SetTextureStageState
+ *       for (face_i = 0; face_i < mesh->face_count; face_i++) {
+ *           if (mesh->face_npc_ptr[face_i] == npc_i) {
+ *               if (first) SetTexture(0, npc_table[npc_i]);
+ *               SetTransform(D3DTS_WORLD, &mesh->per_face_mat[face_i]);
+ *               mesh->vtable->draw(mesh, face_i);
+ *           }
+ *       }
+ *   }
+ *
+ * Callers (4 sites in retail):
+ *   - shop_walker (FUN_004552d0) L51706/37/50/97 — C8c port stubs
+ *   - alpha_pre walker (FUN_0045672a) L52185/L52209 — TODO stub
+ *
+ * (The L52952 inner loop of FUN_00457714 is an inlined version of
+ *  this same idiom over an array of meshes.)
+ *
+ * Caller at L165 of scene1_render_meshes gates on palette+0x108 != 0
+ * AND DAT_068dcf98 != 0 — palette+0x108 is zero for HOUSE
+ * (scene1_preload.c:140), so the L165 site itself is dormant in
+ * HOUSE.  Porting FUN_00455191 only matters for the other 3 caller
+ * paths today. */
 static void scene1_walk_initial_asset_TODO(void)
 {
-    /* TODO C8-followup: port FUN_00455191. */
+    /* TODO: port FUN_00455191 as chip PII.1
+     * (see docs/findings/scene1-walker-pass-init.md). */
 }
 
 /* FUN_00405d70 (911 B) — depth-generation pre-pass.  Likely emits
