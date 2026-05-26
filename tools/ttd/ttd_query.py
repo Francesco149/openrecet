@@ -49,6 +49,12 @@ def _wslpath_w(p: Path) -> str:
         check=True, capture_output=True, text=True).stdout.strip()
 
 
+def _wslpath_u(win_path: str) -> str:
+    return subprocess.run(
+        ["wslpath", "-u", win_path],
+        check=True, capture_output=True, text=True).stdout.strip()
+
+
 def _fail(stage: str, log_path: Path | None = None, **extra) -> int:
     out = {"status": "failed", "stage": stage}
     if log_path is not None:
@@ -104,7 +110,11 @@ def main(argv: list[str] | None = None) -> int:
     if paths["status"] != "ok":
         return _fail("paths_discover", **{k: v for k, v in paths.items()
                                           if k != "status"})
-    cdb_exe = paths["cdb_exe"]
+    cdb_exe_win = paths["cdb_exe"]
+    try:
+        cdb_exe_wsl = _wslpath_u(cdb_exe_win)
+    except Exception as e:
+        return _fail("wslpath", error_class=type(e).__name__)
 
     trace_p = Path(args.trace).resolve()
     if not trace_p.exists() or trace_p.stat().st_size == 0:
@@ -157,10 +167,11 @@ def main(argv: list[str] | None = None) -> int:
     wrapper_p.write_text(wrapper_src)
     wrapper_win = _wslpath_w(wrapper_p)
 
-    # cdb command: load trace, run script, quit.  The .scriptload
-    # invokes the script's `invokeScript()` automatically.
-    cmd_str = f".scriptload {wrapper_win};q"
-    cmd = [cdb_exe, "-z", trace_win, "-c", cmd_str]
+    # cdb command: load trace, run script, quit.  Use .scriptrun
+    # (which fires the script's invokeScript()) — .scriptload only
+    # calls initializeScript() if present, not invokeScript().
+    cmd_str = f".scriptrun {wrapper_win};q"
+    cmd = [cdb_exe_wsl, "-z", trace_win, "-c", cmd_str]
 
     t0 = time.monotonic()
     with log_path.open("w") as logf:

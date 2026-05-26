@@ -1,72 +1,55 @@
-// frame_calls.js — enumerate calls into the engine module range.
+// frame_calls.js — enumerate calls into the engine module.
 //
 // Globals pinned by the python wrapper at load time:
-//   TTD_OUTPUT_PATH           Windows path for the JSON output file
-//   MODULE_LO   (optional)    inclusive lower bound, default 0x00400000
-//   MODULE_HI   (optional)    exclusive upper bound, default 0x00800000
-//   MAX_RECORDS (optional)    cap on records written, default 200000
+//   TTD_OUTPUT_PATH                  Windows path for the JSON output
+//   MODULE_PATTERN (optional)        TTD.Calls pattern; default
+//                                    "recettear_unpacked!*".  Underscore
+//                                    is what cdb's symbol parser uses
+//                                    after sanitising the dot in
+//                                    "recettear.unpacked.exe".
+//   MAX_RECORDS    (optional)        cap on records written, default 200000
 //
 // Output JSON: array of {target_va, ret_va, time_seq} objects, one
-// per engine→engine call.  External module calls (d3d8, dinput8,
-// kernel32, etc.) are filtered out before write.
+// row per matched call.  The pattern is intentionally narrow so cdb's
+// native indexer filters at scan time; "*!*" full-scan would timeout
+// on a multi-hundred-MB trace.
 
 "use strict";
 
 function invokeScript() {
-    var lo = (typeof MODULE_LO !== "undefined") ? MODULE_LO : 0x00400000;
-    var hi = (typeof MODULE_HI !== "undefined") ? MODULE_HI : 0x00800000;
+    var pattern = (typeof MODULE_PATTERN !== "undefined")
+        ? MODULE_PATTERN : "recettear_unpacked!*";
     var cap = (typeof MAX_RECORDS !== "undefined") ? MAX_RECORDS : 200000;
 
     var session = host.namespace.Debugger.Sessions.First();
     var ttd = session.TTD;
 
     var out = [];
-    var skipped = 0;
     var n = 0;
+    var truncated = false;
 
-    // TTD.Calls("*!*") enumerates every recorded call.  Without
-    // public symbols the function-name field is empty, but the
-    // numeric address fields are populated, which is all we need.
-    var calls;
-    try {
-        calls = ttd.Calls("*!*");
-    } catch (e) {
-        // narrow pattern fallback — some WinDbg builds reject "*!*"
-        calls = ttd.Calls("");
-    }
-
+    var calls = ttd.Calls(pattern);
     for (var c of calls) {
         var fn = c.Function;
         var fnNum = (typeof fn === "number") ? fn :
                     (fn && fn.address) ? Number(fn.address) :
                     Number(fn);
-        if (!(fnNum >= lo && fnNum < hi)) {
-            skipped++;
-            continue;
-        }
-
-        var rec = {
-            target_va: fnNum,
-        };
-
-        // try to surface time-position + return-address when present.
+        var rec = { target_va: fnNum };
         try { rec.time_seq = Number(c.TimeStart.Sequence); } catch (_) {}
         try { rec.ret_va   = Number(c.ReturnAddress);     } catch (_) {}
-
         out.push(rec);
         n++;
-        if (n >= cap) break;
+        if (n >= cap) { truncated = true; break; }
     }
 
     var fs = host.namespace.Debugger.Utility.FileSystem;
     var fh = fs.CreateFile(TTD_OUTPUT_PATH, "CreateAlways");
     var tw = fs.CreateTextWriter(fh, "Utf8");
     tw.WriteLine(JSON.stringify({
-        records: out,
-        kept:    n,
-        skipped: skipped,
-        module_lo: lo,
-        module_hi: hi,
+        records:   out,
+        kept:      n,
+        truncated: truncated,
+        pattern:   pattern,
     }));
     tw.Close();
     fh.Close();

@@ -39,11 +39,23 @@ import ttd_paths   # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_TARGET = ROOT / "vendor" / "unpacked" / "recettear.unpacked.exe"
 DEFAULT_ASSET_CWD = ROOT / "vendor" / "original"
+ELEVATED_PS1 = Path(__file__).resolve().parent / "_run_elevated.ps1"
+POWERSHELL_EXE = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 
 
 def _wslpath_w(p: Path) -> str:
     return subprocess.run(
         ["wslpath", "-w", str(p)],
+        check=True, capture_output=True, text=True).stdout.strip()
+
+
+def _wslpath_u(win_path: str) -> str:
+    """Translate a Windows-style path back to its WSL mount path so
+    Python's subprocess.Popen can find the binary on the Linux side.
+    Popen on WSL2 won't resolve `C:\\…\\foo.exe` directly — it needs
+    `/mnt/c/…/foo.exe`."""
+    return subprocess.run(
+        ["wslpath", "-u", win_path],
         check=True, capture_output=True, text=True).stdout.strip()
 
 
@@ -91,13 +103,13 @@ def main(argv: list[str] | None = None) -> int:
         return _fail("paths_discover", **{k: v for k, v in paths.items()
                                           if k != "status"})
 
-    ttd_exe = paths["ttd_exe"]
+    ttd_exe_win = paths["ttd_exe"]
 
     # --- run dir ---
     if args.run_dir:
         run_dir = Path(args.run_dir)
     else:
-        ts = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         run_dir = ROOT / "runs" / f"ttd-{args.scenario}-{ts}"
 
     try:
@@ -107,78 +119,115 @@ def main(argv: list[str] | None = None) -> int:
 
     log_path = run_dir / "cdb.log"
     trace_path = run_dir / "trace.run"
+    status_path = run_dir / "elev_status.json"
 
-    # --- recorder argv ---
+    # --- target check ---
     target_p = Path(args.target).resolve()
-    cwd_p = Path(args.cwd).resolve()
     if not target_p.exists():
         return _fail("target_missing", log_path=log_path,
                      looked_for=str(target_p))
+
+    cwd_p = Path(args.cwd).resolve()
+    if not cwd_p.exists():
+        return _fail("cwd_missing", log_path=log_path,
+                     looked_for=str(cwd_p))
 
     try:
         trace_win = _wslpath_w(trace_path)
         target_win = _wslpath_w(target_p)
         cwd_win = _wslpath_w(cwd_p)
+        log_win = _wslpath_w(log_path)
+        status_win = _wslpath_w(status_path)
+        elevated_ps1_win = _wslpath_w(ELEVATED_PS1)
     except Exception as e:
         return _fail("wslpath", log_path=log_path,
                      error_class=type(e).__name__)
 
-    cmd = [ttd_exe, "-out", trace_win, target_win]
-    if args.target_args.strip():
-        cmd += args.target_args.split()
+    # Inner PowerShell argv — the script that actually does the
+    # recording.  PowerShell parses this when the outer Start-Process
+    # spawns the elevated child, so it's a single string.
+    inner_args = (
+        f"-NoProfile -ExecutionPolicy Bypass -File \"{elevated_ps1_win}\" "
+        f"-TtdExe \"{ttd_exe_win}\" "
+        f"-OutPath \"{trace_win}\" "
+        f"-TargetExe \"{target_win}\" "
+        f"-WallSec {args.wall_s} "
+        f"-LogPath \"{log_win}\" "
+        f"-StatusPath \"{status_win}\" "
+        f"-TargetCwd \"{cwd_win}\""
+    )
 
-    # --- record ---
+    # Outer (non-elevated) PowerShell that spawns the inner one with
+    # -Verb RunAs.  -Wait blocks until the elevated process exits;
+    # -PassThru lets us harvest its exit code.
+    elevation_cmd_str = (
+        f"$p = Start-Process -FilePath powershell.exe "
+        f"-ArgumentList '{inner_args}' "
+        f"-Verb RunAs -Wait -PassThru; "
+        f"exit $p.ExitCode"
+    )
+    outer_cmd = [
+        POWERSHELL_EXE, "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-Command", elevation_cmd_str,
+    ]
+
+    # Pre-write the log header so a totally-failed elevation still
+    # leaves something on disk for manual inspection.
+    log_path.write_text(
+        f"# inner_argv: {inner_args}\n"
+        f"# elevation_cmd: {elevation_cmd_str}\n"
+        f"# target: {target_win}\n"
+        f"# wall_s: {args.wall_s}\n\n"
+    )
+
     t0 = time.monotonic()
-    with log_path.open("w") as logf:
-        logf.write(f"# argv: {cmd}\n# cwd: {cwd_win}\n# wall_s: {args.wall_s}\n\n")
-        logf.flush()
-        try:
-            proc = subprocess.Popen(
-                cmd, cwd="/mnt/c",  # cdb-style invocation; cwd controls
-                                    #   nothing the recorder cares about
-                stdout=logf, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
-        except Exception as e:
-            return _fail("record_spawn", log_path=log_path,
-                         error_class=type(e).__name__)
-
-        # let the target run, then kill it.  The recorder finalizes
-        # the trace on target exit.
-        target_basename = os.path.basename(args.target)
-        try:
-            time.sleep(args.wall_s)
-        except KeyboardInterrupt:
-            pass
-
-        try:
-            subprocess.run(
-                ["/mnt/c/Windows/System32/taskkill.exe", "/F", "/IM",
-                 target_basename],
-                stdout=logf, stderr=subprocess.STDOUT, check=False, timeout=15)
-        except Exception as e:
-            return _fail("record_kill", log_path=log_path,
-                         error_class=type(e).__name__)
-
-        # wait for the recorder process itself to finalize the trace
-        try:
-            proc.wait(timeout=args.finalize_timeout_s)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            return _fail("record_finalize", log_path=log_path)
-        except Exception as e:
-            return _fail("record_finalize", log_path=log_path,
-                         error_class=type(e).__name__)
+    try:
+        # No stdout/stderr capture on the outer PS — the elevated
+        # child appends to log_path on its own.  We only care about
+        # the outer PS exit code + the status JSON the child writes.
+        r = subprocess.run(
+            outer_cmd,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            timeout=args.wall_s + args.finalize_timeout_s + 60)
+    except subprocess.TimeoutExpired:
+        return _fail("record_timeout", log_path=log_path)
+    except Exception as e:
+        return _fail("record_spawn", log_path=log_path,
+                     error_class=type(e).__name__)
 
     elapsed_s = round(time.monotonic() - t0, 2)
 
+    if r.returncode != 0:
+        return _fail("elevation_failed", log_path=log_path,
+                     outer_exit=r.returncode, elapsed_s=elapsed_s)
+
+    # Read the status file the elevated child wrote.  Missing file →
+    # UAC was cancelled or the script crashed before its first write.
+    if not status_path.exists():
+        return _fail("elevation_no_status", log_path=log_path,
+                     elapsed_s=elapsed_s)
+    try:
+        elev_status = json.loads(status_path.read_text())
+    except Exception as e:
+        return _fail("elevation_status_parse", log_path=log_path,
+                     error_class=type(e).__name__)
+    if elev_status.get("status") != "ok":
+        return _fail("elevation_child_failed", log_path=log_path,
+                     child_stage=elev_status.get("stage", "?"),
+                     elapsed_s=elapsed_s)
+
     if not trace_path.exists() or trace_path.stat().st_size == 0:
         return _fail("no_trace_output", log_path=log_path,
-                     elapsed_s=elapsed_s)
+                     elapsed_s=elapsed_s,
+                     ttd_exit=elev_status.get("ttd_exit"))
 
     return _ok(
         trace_path=str(trace_path),
         size_mb=round(trace_path.stat().st_size / (1024 * 1024), 1),
         elapsed_s=elapsed_s,
-        log_path=str(log_path))
+        log_path=str(log_path),
+        ttd_exit=elev_status.get("ttd_exit", 0))
 
 
 if __name__ == "__main__":
