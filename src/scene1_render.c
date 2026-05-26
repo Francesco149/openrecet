@@ -21,8 +21,10 @@
 #include "math3d.h"
 #include "mesh_draw.h"
 #include "render_quad.h"
+#include "mesh.h"            /* mesh_t (scene1_walk_initial_asset cast) */
 #include "scene1_alpha_walker.h"
 #include "scene1_camera.h"
+#include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
 #include "scene1_overlay.h"  /* scene1_overlay_render — 4-site dispatcher wiring */
 #include "scene1_records.h"
 #include "scene1_shop_walker.h"
@@ -152,41 +154,68 @@ static void scene1_walk_pass_init_TODO(int which_pass)
     (void)which_pass;
 }
 
-/* FUN_00455191 (217 B) — per-NPC single-mesh draw helper; previous
- * "initial transform asset draw" label was incomplete (the L165
- * caller is one of FOUR sites in retail).  See
- * docs/findings/scene1-walker-pass-init.md for the full survey.
+/* Forward decls for accessors used by scene1_walk_initial_asset (PII.1).
+ * Definitions live further down in the engine-state accessor section
+ * so the dormant-stub defaults are co-located with their siblings. */
+static int   scene1_palette_initial_asset_flag(void);
+static void *scene1_initial_asset_ptr(void);
+
+/* FUN_00455191 (217 B) — per-texture-cache-slot single-mesh draw
+ * helper.  Already ported as `scene1_emit_record` in
+ * src/scene1_emit_record.c (C8e.bridge, 2026-05-24).  The PII.survey
+ * landing's "NPC" naming was misleading: the outer loop iterates
+ * g_mesh_tex_cache slots, not NPCs (see PII.0 findings in
+ * docs/findings/scene1-walker-pass-init.md).
  *
- * Body shape (decomp L51528):
+ * Body shape (decomp L51528 / asm 0x455191):
  *
- *   for (npc_i = 0; npc_i < DAT_073cb108; npc_i++) {
+ *   for (slot = 0; slot < g_mesh_tex_cache.count; slot++) {
  *       if (mesh->vtable == 0) continue;
- *       FUN_00454fe4(npc_i);  // per-NPC SetTextureStageState
- *       for (face_i = 0; face_i < mesh->face_count; face_i++) {
- *           if (mesh->face_npc_ptr[face_i] == npc_i) {
- *               if (first) SetTexture(0, npc_table[npc_i]);
- *               SetTransform(D3DTS_WORLD, &mesh->per_face_mat[face_i]);
- *               mesh->vtable->draw(mesh, face_i);
+ *       FUN_00454fe4(slot);  // == scene1_emit_apply_material_state
+ *       for (mat_i = 0; mat_i < mesh->material_count; mat_i++) {
+ *           if (mesh->texture_slots[mat_i] == slot) {
+ *               if (first) SetTexture(0, g_mesh_tex_cache.entries[slot].sprite);
+ *               SetMaterial(&mesh->materials[mat_i]);
+ *               mesh->vtable->DrawSubset(mat_i);
  *           }
  *       }
  *   }
  *
- * Callers (4 sites in retail):
- *   - shop_walker (FUN_004552d0) L51706/37/50/97 — C8c port stubs
- *   - alpha_pre walker (FUN_0045672a) L52185/L52209 — TODO stub
+ * Callers (4 sites in retail; all already wired via scene1_emit_record):
+ *   - shop_walker Pass A/B/C/D — scene1_shop_walker.c L224/276/283/293/341
+ *   - alpha_pre walker (FUN_0045672a L52185/L52209) — still a TODO stub
  *
  * (The L52952 inner loop of FUN_00457714 is an inlined version of
- *  this same idiom over an array of meshes.)
+ *  this same idiom over an array of meshes — chip PII.3b.)
  *
  * Caller at L165 of scene1_render_meshes gates on palette+0x108 != 0
  * AND DAT_068dcf98 != 0 — palette+0x108 is zero for HOUSE
  * (scene1_preload.c:140), so the L165 site itself is dormant in
- * HOUSE.  Porting FUN_00455191 only matters for the other 3 caller
- * paths today. */
-static void scene1_walk_initial_asset_TODO(void)
+ * HOUSE.  Wired below as `scene1_walk_initial_asset` (PII.1, 2026-05-26):
+ * composes the engine's S(-2.8, 2.8, 2.8) * T(0,0,0) world matrix
+ * + SetTransform + scene1_emit_record.  Bit-exact under BSS-zero
+ * gates; surfaces under any non-HOUSE scene that sets both. */
+static void scene1_walk_initial_asset(IDirect3DDevice8 *dev)
 {
-    /* TODO: port FUN_00455191 as chip PII.1
-     * (see docs/findings/scene1-walker-pass-init.md). */
+    /* Engine FUN_00459dfd L160-L166 (decomp all.c L54474-L54479):
+     *   thunk_FUN_004a3462(&trans, 0, 0, 0);                    // MatrixTranslation
+     *   thunk_FUN_004a33d2(&scale, -2.8, 2.8, 2.8);             // MatrixScaling
+     *   thunk_FUN_004a2a03(&world, &scale, &trans);             // Multiply
+     *   SetTransform(D3DTS_WORLDMATRIX(0), &world);             // vtable[0x94]
+     *   FUN_00455191(&DAT_068dcf98);                            // == scene1_emit_record
+     *
+     * Constants: 0xc0333333 = -2.8f, 0x40333333 = 2.8f.  Translation
+     * is the zero vector — composed matrix collapses to pure scaling. */
+    float trans[16];
+    float scale[16];
+    float world[16];
+    mat4_translation(trans, 0.0f, 0.0f, 0.0f);
+    mat4_scaling(scale, -2.8f, 2.8f, 2.8f);
+    mat4_mul(world, scale, trans);
+    IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                  (const D3DMATRIX *)world);
+    scene1_emit_record((struct IDirect3DDevice8 *)dev,
+                       (const mesh_t *)scene1_initial_asset_ptr());
 }
 
 /* FUN_00405d70 (911 B) — depth-generation pre-pass.  Likely emits
@@ -622,16 +651,14 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     scene1_push_projection(dev, 2000.0f);
 
     /* L160-L166: initial transform asset.  Gated on stage palette
-     * + 0x108 != 0 AND DAT_068dcf98 != 0.  When live, composes a
-     * world matrix from MatrixTranslation(0,0,0) * MatrixScaling
-     * (-2.8, 2.8, 2.8) and pushes it as D3DTS_WORLDMATRIX(0) before
-     * FUN_00455191 draws the asset.  Branch dormant in HOUSE. */
+     * + 0x108 != 0 AND DAT_068dcf98 != 0.  Both BSS-zero in HOUSE
+     * (palette+0x108 documented zero in scene1_preload.c:140), so
+     * the branch is dormant; engine fidelity preserved bit-exactly.
+     * scene1_walk_initial_asset (PII.1) composes the world matrix
+     * and delegates to scene1_emit_record. */
     if (scene1_palette_initial_asset_flag() != 0
         && scene1_initial_asset_ptr() != NULL) {
-        /* TODO C8-followup: compose world matrix
-         * MatrixTranslation(0,0,0) * MatrixScaling(-2.8, 2.8, 2.8)
-         * and SetTransform(D3DTS_WORLD, &world). */
-        scene1_walk_initial_asset_TODO();
+        scene1_walk_initial_asset(dev);
     }
 
     /* L167: FUN_00405d70 (911 B) — depth-generation pre-pass. */
