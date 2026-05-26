@@ -140,6 +140,24 @@ static void reset_combat_state(void)
     memset(g_scene1_combat_map_cells, 0, sizeof g_scene1_combat_map_cells);
     scene1_combat_set_drop_item_hook(NULL);
     scene1_combat_set_se_play_string_hook(NULL);
+    /* C8jb.8f globals + hooks (latched engine state zero-baselined). */
+    g_scene1_combat_dat_056db004                   = 0;
+    g_scene1_combat_dat_056db008                   = 0;
+    g_scene1_combat_owner_a_2bd21                  = 0;
+    g_scene1_combat_phase_c_hud_gate_call_count    = 0;
+    g_scene1_combat_phase_c_hud_effect_call_count  = 0;
+    memset(g_scene1_combat_phase_c_hud_effect_last_args, 0,
+           sizeof g_scene1_combat_phase_c_hud_effect_last_args);
+    g_scene1_combat_phase_c_throwable_spawn_count  = 0;
+    g_scene1_combat_phase_c_throwable_last_pose[0] = 0.0f;
+    g_scene1_combat_phase_c_throwable_last_pose[1] = 0.0f;
+    g_scene1_combat_phase_c_throwable_last_pose[2] = 0.0f;
+    g_scene1_combat_phase_c_throwable_error_count  = 0;
+    g_scene1_combat_phase_c_throwable_last_error_msg = NULL;
+    scene1_combat_set_hud_gate_hook(NULL);
+    scene1_combat_set_hud_effect_play_hook(NULL);
+    scene1_combat_set_throwable_spawn_hook(NULL);
+    scene1_combat_set_throwable_error_log_hook(NULL);
     g_visit_count = 0;
     g_collision_count = 0;
     g_armed_count = 0;
@@ -5455,14 +5473,16 @@ int test_combat_sm_phase_c8b_lifetime_zero_type_6_aux_one(void)
     return 0;
 }
 
-int test_combat_sm_phase_c8b_lifetime_zero_type_4_deferred(void)
+int test_combat_sm_phase_c8b_lifetime_zero_type_4_fires_c8jb_8f(void)
 {
-    /* LIFETIME==0 + TYPE 4 + OWNER_A+0x2bc82==0: C8jb.8d's gate==0 defer
-     * path runs (DEFERRED to C8jb.8f — the 1000-iter FUN_0043824b spawn
-     * loop).  TYPE 5 with the same setup now fires the C8jb.8e grid-pick
-     * body, but TYPE 4 still defers.  No AUX write, no spawn, no latch.
-     * reset_combat_state() zeros the gate, so production HOUSE always
-     * lands here for TYPE 4. */
+    /* LIFETIME==0 + TYPE 4 + OWNER_A+0x2bc82==0: dispatches into C8jb.8f.
+     * Default HUD-gate hook is NULL → returns 0 → spawn-loop branch.
+     * Default OWNER_A+0x2bd21 byte is 0 → single-spawn-call sub-path.
+     * Side effects observable: AUX=2, counter bump, FIRST_HIT_LATCH=1,
+     * one throwable_spawn call (default hook null → returns 0).  No
+     * scene1_spawn templates fire (C8jb.8f uses its own spawn hook, not
+     * the C8jb.8a emit channel).  world_pause stays 0 — that's C8jb.8d's
+     * gate==1 short-circuit's side effect, not C8jb.8f's. */
     reset_combat_state();
     reset_combat_7_capture();
     reset_combat_6_capture();
@@ -5470,11 +5490,16 @@ int test_combat_sm_phase_c8b_lifetime_zero_type_4_deferred(void)
     set_proj_lifetime(0, 0);
 
     T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       0);
-    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
-    /* world_pause stays at the reset value (0) — the gate didn't fire. */
-    T_ASSERT_EQ_I(g_scene1_combat_world_pause,               0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,             2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,           1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,      0);
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,                   0);
+    /* C8jb.8f surfaces — single-spawn-call sub-path. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_gate_call_count,   1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_effect_call_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_error_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,    1);
     return 0;
 }
 
@@ -6635,5 +6660,549 @@ int test_combat_sm_phase_c8e_hook_install_returns_previous(void)
     T_ASSERT(prev_se == NULL);
     prev_se = scene1_combat_set_se_play_string_hook(NULL);
     T_ASSERT(prev_se == c8e_se_capture);
+    return 0;
+}
+
+/* ─── C8jb.8f — Phase C TYPE 4/8 HUD-effect / spawn-loop dispatch ────── */
+
+/* Hud-gate fixture: returns a configurable constant.  Tests set
+ * g_c8f_hud_gate_ret before installing. */
+static int32_t g_c8f_hud_gate_ret;
+static int     g_c8f_hud_gate_calls;
+static int32_t c8f_hud_gate_const(void)
+{
+    g_c8f_hud_gate_calls++;
+    return g_c8f_hud_gate_ret;
+}
+
+/* Hud-effect-play fixture: capture all 5 args + count calls. */
+static int32_t g_c8f_hud_effect_args[5];
+static int     g_c8f_hud_effect_calls;
+static void c8f_hud_effect_capture(int32_t a0, int32_t a1, int32_t a2,
+                                    int32_t a3, int32_t a4)
+{
+    g_c8f_hud_effect_args[0] = a0;
+    g_c8f_hud_effect_args[1] = a1;
+    g_c8f_hud_effect_args[2] = a2;
+    g_c8f_hud_effect_args[3] = a3;
+    g_c8f_hud_effect_args[4] = a4;
+    g_c8f_hud_effect_calls++;
+}
+
+/* Throwable-spawn fixture: returns a configurable constant.  Tests set
+ * g_c8f_spawn_ret before installing. */
+static int32_t g_c8f_spawn_ret;
+static int     g_c8f_spawn_calls;
+static float   g_c8f_spawn_last_x;
+static float   g_c8f_spawn_last_y;
+static float   g_c8f_spawn_last_z;
+static int32_t c8f_spawn_const(float x, float y, float z)
+{
+    g_c8f_spawn_calls++;
+    g_c8f_spawn_last_x = x;
+    g_c8f_spawn_last_y = y;
+    g_c8f_spawn_last_z = z;
+    return g_c8f_spawn_ret;
+}
+
+/* Throwable-error-log fixture: capture msg ptr + count calls. */
+static const char *g_c8f_err_last_msg;
+static int32_t     g_c8f_err_last_val;
+static int         g_c8f_err_calls;
+static void c8f_err_capture(const char *msg, int32_t val)
+{
+    g_c8f_err_last_msg = msg;
+    g_c8f_err_last_val = val;
+    g_c8f_err_calls++;
+}
+
+static void reset_combat_8f_capture(void)
+{
+    g_c8f_hud_gate_ret    = 0;
+    g_c8f_hud_gate_calls  = 0;
+    memset(g_c8f_hud_effect_args, 0, sizeof g_c8f_hud_effect_args);
+    g_c8f_hud_effect_calls = 0;
+    g_c8f_spawn_ret       = 0;
+    g_c8f_spawn_calls     = 0;
+    g_c8f_spawn_last_x    = 0.0f;
+    g_c8f_spawn_last_y    = 0.0f;
+    g_c8f_spawn_last_z    = 0.0f;
+    g_c8f_err_last_msg    = NULL;
+    g_c8f_err_last_val    = 0;
+    g_c8f_err_calls       = 0;
+}
+
+/* C8jb.8f probe helper: configure proj.TYPE=type (4 or 8), LIFETIME=0
+ * (forces path-c → C8jb.8d → C8jb.8f), gate==0 (defaults to C8jb.8f
+ * because TYPE != 5), and install all four C8jb.8f hooks.  Caller
+ * may pre-set g_c8f_hud_gate_ret / g_c8f_spawn_ret +
+ * g_scene1_combat_owner_a_2bd21 before invoking the SM. */
+static int32_t *setup_phase_c8f(int proj_type,
+                                 float proj_x, float proj_y, float proj_z)
+{
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    reset_combat_8f_capture();
+    scene1_combat_set_hud_gate_hook(c8f_hud_gate_const);
+    scene1_combat_set_hud_effect_play_hook(c8f_hud_effect_capture);
+    scene1_combat_set_throwable_spawn_hook(c8f_spawn_const);
+    scene1_combat_set_throwable_error_log_hook(c8f_err_capture);
+    int32_t *slot = setup_phase_c_hit(proj_type,
+                                       proj_x, proj_y, proj_z,
+                                       1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+    return slot;
+}
+
+int test_combat_sm_phase_c8f_gate_zero_single_spawn_default_byte(void)
+{
+    /* gate=0 + OWNER_A+0x2bd21=0: single spawn call, AUX=2, counter
+     * bump, latch.  No hud_effect.  No error_log. */
+    int32_t *slot = setup_phase_c8f(4, 1.0f, 0.0f, 0.0f);
+    g_c8f_hud_gate_ret = 0;
+    g_c8f_spawn_ret    = 1;  /* "success" — doesn't matter on this arm */
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8f_hud_gate_calls,                          1);
+    T_ASSERT_EQ_I(g_c8f_hud_effect_calls,                        0);
+    T_ASSERT_EQ_I(g_c8f_spawn_calls,                             1);
+    T_ASSERT_EQ_I(g_c8f_err_calls,                               0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,             2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,    1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,           1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_zero_pose_xz_from_proj_y_plus_half(void)
+{
+    /* The spawn pose is (POS_X, POS_Y + 0.5f, POS_Z).  Verify each
+     * component arrives at the hook with the bias applied to Y only. */
+    int32_t *slot = setup_phase_c8f(4, 3.0f, 2.0f, 5.0f);
+    g_c8f_spawn_ret = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_F(g_c8f_spawn_last_x, 3.0f, 1e-6f);
+    T_ASSERT_EQ_F(g_c8f_spawn_last_y, 2.5f, 1e-6f);   /* y + 0.5 */
+    T_ASSERT_EQ_F(g_c8f_spawn_last_z, 5.0f, 1e-6f);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_zero_byte_eq_one_fires_1000_iter_loop(void)
+{
+    /* gate=0 + byte=1: 1000-iter loop, every spawn returns 0 (failure)
+     * via spawn_ret=0, so 1000 error_log calls fire too. */
+    int32_t *slot = setup_phase_c8f(4, 1.0f, 0.0f, 0.0f);
+    g_c8f_hud_gate_ret = 0;
+    g_c8f_spawn_ret    = 0;  /* every iter "fails" → error_log fires */
+    g_scene1_combat_owner_a_2bd21 = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(g_c8f_spawn_calls,                             1000);
+    T_ASSERT_EQ_I(g_c8f_err_calls,                               1000);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 1000);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_error_count, 1000);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,             2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,    1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,           1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_zero_byte_one_no_errors_when_spawn_succeeds(void)
+{
+    /* gate=0 + byte=1 + spawn_ret=1: 1000 spawn calls, 0 error_log. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 1;
+    g_scene1_combat_owner_a_2bd21 = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(g_c8f_spawn_calls,                             1000);
+    T_ASSERT_EQ_I(g_c8f_err_calls,                               0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_zero_byte_low_one_high_garbage_enters_loop(void)
+{
+    /* Byte gate reads only the low byte.  int32 = 0x01000001 → low byte
+     * 0x01 → still equals 1 → enters the loop. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 1;
+    g_scene1_combat_owner_a_2bd21 = 0x01000001;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8f_spawn_calls, 1000);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_zero_byte_low_zero_high_one_single_spawn(void)
+{
+    /* int32 = 0x00000100 → low byte 0x00 → != 1 → single-spawn path. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 1;
+    g_scene1_combat_owner_a_2bd21 = 0x100;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8f_spawn_calls, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_zero_byte_two_takes_single_spawn(void)
+{
+    /* Byte gate is strict equality with 1, NOT "non-zero".  A byte of 2
+     * takes the single-spawn path. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 1;
+    g_scene1_combat_owner_a_2bd21 = 2;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8f_spawn_calls, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_zero_byte_0xff_takes_single_spawn(void)
+{
+    /* int8 0xff = -1 in signed; engine `cmp BYTE ...` does unsigned compare
+     * with literal 1 → not equal → single-spawn. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 1;
+    g_scene1_combat_owner_a_2bd21 = 0xff;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8f_spawn_calls, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_zero_error_log_msg_is_engine_literal(void)
+{
+    /* The error-log call receives the .rdata 0x5c54f8 literal pointer
+     * (the engine's Shift-JIS "配無エラー" format string).  Verify the
+     * pointer-equality between the observable and the public extern. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 0;  /* fail → error fires */
+    g_scene1_combat_owner_a_2bd21 = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT(g_c8f_err_last_msg == k_scene1_combat_throwable_error_msg);
+    T_ASSERT(g_scene1_combat_phase_c_throwable_last_error_msg
+             == k_scene1_combat_throwable_error_msg);
+    T_ASSERT_EQ_I(g_c8f_err_last_val, 0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_nonzero_fires_hud_effect_play(void)
+{
+    /* gate!=0: hud_effect_play(1, 0, 2, 0, 0xb4); LIFETIME=1;
+     * SKIPS AUX=2; SKIPS counter bump; latch DOES fire. */
+    int32_t *slot = setup_phase_c8f(4, 1.0f, 0.0f, 0.0f);
+    g_c8f_hud_gate_ret = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_c8f_hud_gate_calls,                          1);
+    T_ASSERT_EQ_I(g_c8f_hud_effect_calls,                        1);
+    T_ASSERT_EQ_I(g_c8f_hud_effect_args[0],                      1);
+    T_ASSERT_EQ_I(g_c8f_hud_effect_args[1],                      0);
+    T_ASSERT_EQ_I(g_c8f_hud_effect_args[2],                      2);
+    T_ASSERT_EQ_I(g_c8f_hud_effect_args[3],                      0);
+    T_ASSERT_EQ_I(g_c8f_hud_effect_args[4],                      0xb4);
+    /* gate!=0 skips AUX=2 + counter bump. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,             0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count,    0);
+    /* Latch still fires. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,           1);
+    /* Spawn / error don't fire on this branch. */
+    T_ASSERT_EQ_I(g_c8f_spawn_calls,                             0);
+    T_ASSERT_EQ_I(g_c8f_err_calls,                               0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_nonzero_sets_lifetime_to_one(void)
+{
+    /* gate!=0: proj.LIFETIME = 1 (engine `mov [esi+0x1d8], ebx` at
+     * 0x43a521, where ebx=1 from `pop ebx` at 0x43a505). */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_hud_gate_ret = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                0);
+    /* Read LIFETIME directly from the proj storage. */
+    int32_t lifetime =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_LIFETIME];
+    T_ASSERT_EQ_I(lifetime, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_gate_nonzero_does_not_enter_spawn_loop_even_with_byte_one(void)
+{
+    /* gate!=0 short-circuits before the byte gate is checked — even with
+     * byte=1, the 1000-iter loop does NOT fire. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_hud_gate_ret = 1;
+    g_scene1_combat_owner_a_2bd21 = 1;
+    g_c8f_spawn_ret = 0;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                0);
+    T_ASSERT_EQ_I(g_c8f_spawn_calls,                          0);
+    T_ASSERT_EQ_I(g_c8f_err_calls,                            0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_engine_globals_set_at_head_unconditionally(void)
+{
+    /* dat_056db004 = 4 + dat_056db008 = 1 are written at the head of
+     * EVERY C8jb.8f entry, regardless of gate / byte / type. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_hud_gate_ret = 0;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         0);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,        4);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db008,        1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_engine_globals_set_for_gate_nonzero_path_too(void)
+{
+    /* The head globals are written BEFORE the gate is checked — so the
+     * HUD-effect branch also sets them. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_hud_gate_ret = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         0);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,        4);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db008,        1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_engine_globals_unset_when_owner_gate_armed(void)
+{
+    /* C8jb.8d's gate==1 short-circuit at L2072+ jumps directly to
+     * END-WITH-LATCH BEFORE C8jb.8f's head writes — so dat_056db004/8
+     * stay at the reset zero. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    reset_combat_8f_capture();
+    g_scene1_combat_owner_a_2bc82 = 1;   /* arm C8jb.8d gate */
+    int32_t *slot = setup_phase_c_hit(4, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         0);
+    /* C8jb.8d arm took priority; C8jb.8f never entered. */
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,         1);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,        0);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db008,        0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_engine_globals_unset_for_type_5_path(void)
+{
+    /* TYPE 5 takes the C8jb.8e grid-pick branch (not C8jb.8f) — verify
+     * the head globals stay zero on the TYPE 5 path. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    reset_combat_8f_capture();
+    int32_t *slot = setup_phase_c_hit(5, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),         0);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,        0);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db008,        0);
+    /* TYPE 5 still fires its own counter bump + AUX=2 via C8jb.8e. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,   2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_counter_bump_count, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_type_8_unreachable_via_skip_cascade(void)
+{
+    /* Like TYPE 8 in C8jb.8d, TYPE 8 is filtered by C8jb.7's skip
+     * cascade BEFORE the AABB runs — so C8jb.8f is never entered for
+     * TYPE 8 in production.  Verify no observable change. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    reset_combat_8f_capture();
+    int32_t *slot = setup_phase_c_hit(8, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,             0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_gate_call_count,   0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,             0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,           0);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,                  0);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db008,                  0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_owner_a_2c3e0_latched_across_ticks(void)
+{
+    /* The +0x2c3e0 counter bump is a latched engine global (not reset
+     * per tick).  Two single-spawn ticks should produce +2 each = 4
+     * total.  To re-fire Phase C on tick 2, the slot's SEQ_ID must
+     * differ from tick 1 (the hit-history ring filter blocks repeat
+     * hits — see C8jb.7). */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),       0);
+    T_ASSERT_EQ_I(g_scene1_combat_owner_a_2c3e0,     2);
+
+    /* Re-arm: bump SEQ_ID so hit-history ring misses, clear proj.AUX
+     * (C8jb.7's skip cascade filters AUX != 0), and re-set LIFETIME=0
+     * (still zero — idempotent but safe). */
+    slot[SCENE1_RECORDS_B_OFF_SEQ_ID] = 0x4243;
+    g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX] = 0;
+    set_proj_lifetime(0, 0);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),       0);
+    T_ASSERT_EQ_I(g_scene1_combat_owner_a_2c3e0,     4);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_observables_reset_per_tick(void)
+{
+    /* All per-tick observables get cleared at tick top.  Run the 1000-
+     * iter loop tick (with byte=1), then run an empty tick (slot becomes
+     * a non-hit) and verify all observables return to zero. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 0;
+    g_scene1_combat_owner_a_2bd21 = 1;
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 1000);
+
+    /* Disarm: zero out the projectile table so the AABB misses. */
+    memset(g_scene1_projectiles, 0, sizeof g_scene1_projectiles);
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_gate_call_count,   0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_effect_call_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_error_count, 0);
+    T_ASSERT(g_scene1_combat_phase_c_throwable_last_error_msg == NULL);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_nullable_hooks_default_to_silent(void)
+{
+    /* All four hooks default to NULL.  Even with NULL hooks the
+     * dispatch should run cleanly (no crash) — spawn returns 0,
+     * error_log silently no-ops on the byte=1 path. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    reset_combat_8f_capture();
+    /* DON'T install any hooks. */
+    int32_t *slot = setup_phase_c_hit(4, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+    g_scene1_combat_owner_a_2bd21 = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_gate_call_count,   1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 1000);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_error_count, 1000);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_aux_storage_actually_set(void)
+{
+    /* Verify the proj.AUX storage is actually written (not just the
+     * observable). */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    int32_t aux =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX];
+    T_ASSERT_EQ_I(aux, 2);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_latch_storage_actually_set(void)
+{
+    /* Verify proj.FIRST_HIT_LATCH storage is actually written. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    int32_t latch =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
+    T_ASSERT_EQ_I(latch, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_no_emit_spawn_or_overlay(void)
+{
+    /* C8jb.8f uses its own throwable_spawn hook, NOT the C8jb.8a emit
+     * channel.  Verify the C8jb.8a emit observable stays at 0. */
+    int32_t *slot = setup_phase_c8f(4, 0.0f, 0.0f, 0.0f);
+    g_c8f_spawn_ret = 1;
+    g_scene1_combat_owner_a_2bd21 = 1;
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                  0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,     0);
+    /* But the throwable spawn IS counted on its own observable. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 1000);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_lifetime_minus_one_skips_c8jb_8f(void)
+{
+    /* LIFETIME==-1 sentinel + TYPE 4: path-a, NOT path-c.  C8jb.8f
+     * doesn't fire.  Template 1 spawn fires instead (path-a non-{2,3}). */
+    int32_t *slot = setup_phase_c8f(4, 1.0f, 0.0f, 0.0f);
+    set_proj_lifetime(0, -1);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_gate_call_count,   0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_dat_056db004,                  0);
+    /* Template 1 fires from path-a. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,      1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,              1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_lifetime_positive_skips_c8jb_8f(void)
+{
+    /* LIFETIME==5 + TYPE 4: path-b decrements to 4 (still > 0) and
+     * fires template 1.  C8jb.8f doesn't enter. */
+    int32_t *slot = setup_phase_c8f(4, 1.0f, 0.0f, 0.0f);
+    set_proj_lifetime(0, 5);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),                   0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,        4);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hud_gate_call_count,   0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_throwable_spawn_count, 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,      1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,              1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8f_hook_install_returns_previous(void)
+{
+    /* All four C8jb.8f hook setters return the previous hook. */
+    reset_combat_state();
+    reset_combat_8f_capture();
+
+    scene1_combat_hud_gate_fn prev_gate =
+        scene1_combat_set_hud_gate_hook(c8f_hud_gate_const);
+    T_ASSERT(prev_gate == NULL);
+    T_ASSERT(scene1_combat_set_hud_gate_hook(NULL) == c8f_hud_gate_const);
+
+    scene1_combat_hud_effect_play_fn prev_hud =
+        scene1_combat_set_hud_effect_play_hook(c8f_hud_effect_capture);
+    T_ASSERT(prev_hud == NULL);
+    T_ASSERT(scene1_combat_set_hud_effect_play_hook(NULL)
+             == c8f_hud_effect_capture);
+
+    scene1_combat_throwable_spawn_fn prev_spawn =
+        scene1_combat_set_throwable_spawn_hook(c8f_spawn_const);
+    T_ASSERT(prev_spawn == NULL);
+    T_ASSERT(scene1_combat_set_throwable_spawn_hook(NULL)
+             == c8f_spawn_const);
+
+    scene1_combat_throwable_error_log_fn prev_err =
+        scene1_combat_set_throwable_error_log_hook(c8f_err_capture);
+    T_ASSERT(prev_err == NULL);
+    T_ASSERT(scene1_combat_set_throwable_error_log_hook(NULL)
+             == c8f_err_capture);
     return 0;
 }

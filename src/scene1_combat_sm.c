@@ -213,6 +213,29 @@ static const char k_phase_c_se_path_0[] = "bin/se/00re/event/re_wana.bin";
 static const char k_phase_c_se_path_1[] = "bin/se/01ti/tuika/ti_wana_a.bin";
 static const char k_phase_c_se_path_2[] = "bin/se/01ti/tuika/ti_wana_b.bin";
 
+/* C8jb.8f Phase C TYPE 4/8 globals + observables. */
+int32_t     g_scene1_combat_dat_056db004;
+int32_t     g_scene1_combat_dat_056db008;
+int32_t     g_scene1_combat_owner_a_2bd21;
+int32_t     g_scene1_combat_phase_c_hud_gate_call_count;
+int32_t     g_scene1_combat_phase_c_hud_effect_call_count;
+int32_t     g_scene1_combat_phase_c_hud_effect_last_args[5];
+int32_t     g_scene1_combat_phase_c_throwable_spawn_count;
+float       g_scene1_combat_phase_c_throwable_last_pose[3];
+int32_t     g_scene1_combat_phase_c_throwable_error_count;
+const char *g_scene1_combat_phase_c_throwable_last_error_msg;
+
+/* Engine .rdata 0x5c54f8 error-format literal — Shift-JIS "配無エラー"
+ * (= "placement error" or similar).  12 bytes of CP932 followed by null
+ * padding, then the SE filename literal at 0x5c5504.  We use the
+ * original byte image so the literal is comparable to the engine
+ * pointer if Frida ever inspects this value.  Exposed via the public
+ * extern below. */
+static const char k_throwable_error_msg_chars[] =
+    "\x95\xf3\x94\xa0\x83\x47\x83\x89\x81\x5b";  /* "配無エラー" */
+const char *const k_scene1_combat_throwable_error_msg =
+    k_throwable_error_msg_chars;
+
 int32_t g_scene1_projectiles[SCENE1_PROJ_COUNT * SCENE1_PROJ_STRIDE];
 
 scene1_combat_npc_type_attrs_t
@@ -235,6 +258,10 @@ static scene1_combat_phase_c_visit_fn      g_phase_c_visit_hook;
 static scene1_combat_phase_c_hit_fn        g_phase_c_hit_hook;
 static scene1_combat_drop_item_fn          g_drop_item_hook;
 static scene1_combat_se_play_string_fn     g_se_play_string_hook;
+static scene1_combat_hud_gate_fn            g_hud_gate_hook;
+static scene1_combat_hud_effect_play_fn     g_hud_effect_play_hook;
+static scene1_combat_throwable_spawn_fn     g_throwable_spawn_hook;
+static scene1_combat_throwable_error_log_fn g_throwable_error_log_hook;
 
 /* Engine angle-filter threshold = 0.9424779 (≈ 0.3π).  .rdata literal
  * at 0x51940c per asm scan (verified via objdump-s).  Stored as a named
@@ -388,6 +415,41 @@ scene1_combat_set_se_play_string_hook(scene1_combat_se_play_string_fn fn)
 {
     scene1_combat_se_play_string_fn prev = g_se_play_string_hook;
     g_se_play_string_hook = fn;
+    return prev;
+}
+
+/* ─── C8jb.8f Phase C TYPE 4/8 hook setters ──────────────────────────── */
+
+scene1_combat_hud_gate_fn
+scene1_combat_set_hud_gate_hook(scene1_combat_hud_gate_fn fn)
+{
+    scene1_combat_hud_gate_fn prev = g_hud_gate_hook;
+    g_hud_gate_hook = fn;
+    return prev;
+}
+
+scene1_combat_hud_effect_play_fn
+scene1_combat_set_hud_effect_play_hook(scene1_combat_hud_effect_play_fn fn)
+{
+    scene1_combat_hud_effect_play_fn prev = g_hud_effect_play_hook;
+    g_hud_effect_play_hook = fn;
+    return prev;
+}
+
+scene1_combat_throwable_spawn_fn
+scene1_combat_set_throwable_spawn_hook(scene1_combat_throwable_spawn_fn fn)
+{
+    scene1_combat_throwable_spawn_fn prev = g_throwable_spawn_hook;
+    g_throwable_spawn_hook = fn;
+    return prev;
+}
+
+scene1_combat_throwable_error_log_fn
+scene1_combat_set_throwable_error_log_hook(
+    scene1_combat_throwable_error_log_fn fn)
+{
+    scene1_combat_throwable_error_log_fn prev = g_throwable_error_log_hook;
+    g_throwable_error_log_hook = fn;
     return prev;
 }
 
@@ -1926,6 +1988,120 @@ static void phase_c_type_5_grid_pick(int32_t *proj)
     g_scene1_combat_phase_c_counter_bump_count++;
 }
 
+/* ─── C8jb.8f — Phase C TYPE 4/8 HUD-effect / spawn-loop dispatch ─────── */
+/*
+ * Engine asm 0x43a4f9..0x43a5bd.  See the block comment in
+ * scene1_combat_sm.h for the engine semantics + quirks.
+ *
+ * Re-runnable asm verification:
+ *   nix develop --command i686-w64-mingw32-objdump -d -M intel \
+ *       --no-show-raw-insn vendor/unpacked/recettear.unpacked.exe \
+ *       --start-address=0x43a4f9 --stop-address=0x43a5c4
+ *
+ * Constants verified via tools/analyze/pe.py:
+ *   .rdata 0x51935c = 0.5f          (POS_Y bias added to throwable spawn)
+ *   .rdata 0x5c54f8 = Shift-JIS error-format literal
+ *
+ * Engine quirk recap (asm vs port):
+ *   - LIFETIME=1 write (gate!=0) precedes hud_effect_play to match the
+ *     asm `mov [esi+0x1d8], ebx ; call 0x485413` order at 0x43a521.
+ *   - The 1000-iter loop counter is per-tick local (`mov [ebp+0x8],
+ *     0x3e8 ; dec ; jne LOOP`) — port uses a stack-local int32 with
+ *     identical [1000..1] descending sweep.
+ *   - The error-log fallback fires ONCE per failed iter, NOT once per
+ *     loop entry — verified by `je 0x43a58a` (skip-error) vs falling
+ *     through to `call 0x48a348 ; pop ecx ; pop ecx`.
+ */
+static int32_t hud_gate_call(void)
+{
+    g_scene1_combat_phase_c_hud_gate_call_count++;
+    return (g_hud_gate_hook != NULL) ? g_hud_gate_hook() : 0;
+}
+
+static void hud_effect_play_call(int32_t a0, int32_t a1, int32_t a2,
+                                  int32_t a3, int32_t a4)
+{
+    g_scene1_combat_phase_c_hud_effect_call_count++;
+    g_scene1_combat_phase_c_hud_effect_last_args[0] = a0;
+    g_scene1_combat_phase_c_hud_effect_last_args[1] = a1;
+    g_scene1_combat_phase_c_hud_effect_last_args[2] = a2;
+    g_scene1_combat_phase_c_hud_effect_last_args[3] = a3;
+    g_scene1_combat_phase_c_hud_effect_last_args[4] = a4;
+    if (g_hud_effect_play_hook != NULL) {
+        g_hud_effect_play_hook(a0, a1, a2, a3, a4);
+    }
+}
+
+static int32_t throwable_spawn_call(float x, float y, float z)
+{
+    g_scene1_combat_phase_c_throwable_spawn_count++;
+    g_scene1_combat_phase_c_throwable_last_pose[0] = x;
+    g_scene1_combat_phase_c_throwable_last_pose[1] = y;
+    g_scene1_combat_phase_c_throwable_last_pose[2] = z;
+    return (g_throwable_spawn_hook != NULL)
+         ? g_throwable_spawn_hook(x, y, z)
+         : 0;
+}
+
+static void throwable_error_log_call(const char *msg, int32_t val)
+{
+    g_scene1_combat_phase_c_throwable_error_count++;
+    g_scene1_combat_phase_c_throwable_last_error_msg = msg;
+    if (g_throwable_error_log_hook != NULL) {
+        g_throwable_error_log_hook(msg, val);
+    }
+}
+
+static void phase_c_type_4_or_8_dispatch(int32_t *proj)
+{
+    /* Head (asm 0x43a4fb / 0x43a506): unconditional engine global writes. */
+    g_scene1_combat_dat_056db004 = 4;
+    g_scene1_combat_dat_056db008 = 1;
+
+    int32_t gate = hud_gate_call();
+    if (gate != 0) {
+        /* HUD-effect branch (asm 0x43a515..0x43a52f).
+         * proj.LIFETIME = 1 BEFORE the call (asm 0x43a521 precedes
+         * 0x43a527).  Then `jmp 0x43a5c4` skips both AUX=2 and the
+         * +0x2c3e0 counter bump — falls directly to end-with-latch. */
+        proj[SCENE1_PROJ_OFF_LIFETIME] = 1;
+        hud_effect_play_call(1, 0, 2, 0, 0xb4);
+        return;
+    }
+
+    /* gate == 0 — asm 0x43a534+.  proj.AUX = 2, then byte-gate branch. */
+    proj[SCENE1_PROJ_OFF_AUX] = 2;
+
+    float proj_x = *(const float *)&proj[SCENE1_PROJ_OFF_POS_X];
+    float proj_y = *(const float *)&proj[SCENE1_PROJ_OFF_POS_Y];
+    float proj_z = *(const float *)&proj[SCENE1_PROJ_OFF_POS_Z];
+    float y_arg  = proj_y + 0.5f;  /* .rdata 0x51935c */
+
+    /* Engine `cmp BYTE [edi+0x2bd21], bl` where bl=1 (head's `pop ebx`).
+     * Strict equality with literal 1 on the low byte only. */
+    if ((g_scene1_combat_owner_a_2bd21 & 0xff) == 1) {
+        /* 1000-iter spawn loop (asm 0x43a546..0x43a58d).  Only this path
+         * checks the spawn return value and logs an error on failure;
+         * the single-spawn else branch discards the return. */
+        for (int32_t counter = 1000; counter > 0; counter--) {
+            int32_t ret = throwable_spawn_call(proj_x, y_arg, proj_z);
+            if (ret == 0) {
+                throwable_error_log_call(
+                    k_scene1_combat_throwable_error_msg, 0);
+            }
+        }
+    } else {
+        /* Single-spawn fall-through (asm 0x43a591..0x43a5ba).  Engine
+         * `call 0x43824b ; add esp, 0xc` — no `test eax, eax` after, the
+         * return is discarded.  No error_log call site on this arm. */
+        (void)throwable_spawn_call(proj_x, y_arg, proj_z);
+    }
+
+    /* Counter bump (asm 0x43a5bd).  Falls to end-with-latch. */
+    g_scene1_combat_owner_a_2c3e0 += 2;
+    g_scene1_combat_phase_c_counter_bump_count++;
+}
+
 /* ─── C8jb.8b — Phase C LIFETIME + TYPE 6/default dispatch ──────────── */
 /*
  * Engine asm 0x43a1df..0x43a360 (decomp L35721-L35773).  Called once per
@@ -2003,10 +2179,10 @@ static void phase_c_lifetime_dispatch(int32_t *proj,
                  * NO spawn fires for this hit — the projectile just arms
                  * and the downstream world enters a one-frame pause.
                  *
-                 * When the gate is OFF (byte == 0), TYPE 5 enters the
-                 * C8jb.8e grid-pick body; TYPE 4/8 remain deferred to
-                 * C8jb.8f (1000-iter spawn loop + hud_effect / error
-                 * fallback path at engine 0x43a4f9..0x43a5bd). */
+                 * When the gate is OFF (byte == 0), the engine splits via
+                 * asm 0x43a389 `cmp eax, 5; jne 0x43a4f9` — TYPE 5 enters
+                 * the C8jb.8e grid-pick body; TYPE 4 and TYPE 8 jump to the
+                 * C8jb.8f HUD-effect / spawn-loop dispatch at 0x43a4f9. */
                 if (g_scene1_combat_owner_a_2bc82 != 0) {
                     proj[SCENE1_PROJ_OFF_AUX]   = 2;
                     g_scene1_combat_world_pause = 1;
@@ -2018,9 +2194,15 @@ static void phase_c_lifetime_dispatch(int32_t *proj,
                      * returns 1.  END-WITH-LATCH (engine jmp 0x43a5c4). */
                     phase_c_type_5_grid_pick(proj);
                     latch_eligible = 1;
+                } else {
+                    /* C8jb.8f — TYPE 4 / TYPE 8 + gate==0.
+                     * HUD-effect branch sets LIFETIME=1 + fires hud_effect;
+                     * spawn-loop branch sets AUX=2 + fires 1 or 1000
+                     * throwable_spawns + bumps OWNER_A+0x2c3e0.  Both arms
+                     * fall to END-WITH-LATCH. */
+                    phase_c_type_4_or_8_dispatch(proj);
+                    latch_eligible = 1;
                 }
-                /* else (TYPE 4 or 8 + gate==0): defer to C8jb.8f — pure
-                 * no-op until that path ports. */
             } else if (proj_type == 0x15) {
                 /* C8jb.8c — TYPE 0x15 5-shot scatter.  Engine asm
                  * 0x43a283..0x43a326.  Sets proj.TYPE=-1, scatters 10
@@ -2333,6 +2515,23 @@ int scene1_combat_sm_tick(int32_t *slot)
     g_scene1_combat_phase_c_se_string_call_count   = 0;
     g_scene1_combat_phase_c_se_string_path         = NULL;
     g_scene1_combat_phase_c_counter_bump_count     = 0;
+
+    /* C8jb.8f Phase C TYPE 4/8 observables.  Note: dat_056db004 /
+     * dat_056db008 are LATCHED engine globals (not reset per tick) — only
+     * the per-tick call counters / last-args are reset here. */
+    g_scene1_combat_phase_c_hud_gate_call_count    = 0;
+    g_scene1_combat_phase_c_hud_effect_call_count  = 0;
+    g_scene1_combat_phase_c_hud_effect_last_args[0] = 0;
+    g_scene1_combat_phase_c_hud_effect_last_args[1] = 0;
+    g_scene1_combat_phase_c_hud_effect_last_args[2] = 0;
+    g_scene1_combat_phase_c_hud_effect_last_args[3] = 0;
+    g_scene1_combat_phase_c_hud_effect_last_args[4] = 0;
+    g_scene1_combat_phase_c_throwable_spawn_count  = 0;
+    g_scene1_combat_phase_c_throwable_last_pose[0] = 0.0f;
+    g_scene1_combat_phase_c_throwable_last_pose[1] = 0.0f;
+    g_scene1_combat_phase_c_throwable_last_pose[2] = 0.0f;
+    g_scene1_combat_phase_c_throwable_error_count  = 0;
+    g_scene1_combat_phase_c_throwable_last_error_msg = NULL;
 
     /* Phase B — attacker NPC scan + collision math + emit.  Skipped if
      * slot is NULL (Phase A tests use NULL to probe gates without

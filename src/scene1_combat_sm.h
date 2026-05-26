@@ -1010,8 +1010,154 @@ extern int32_t     g_scene1_combat_phase_c_drop_item_id;
 extern int32_t     g_scene1_combat_phase_c_se_string_call_count;
 extern const char *g_scene1_combat_phase_c_se_string_path;
 /* Counter-bump observable: number of OWNER_A+0x2c3e0 += 2 writes that
- * fired this tick (cap 1 per Phase C hit).  Reset to 0 at tick top. */
+ * fired this tick (cap 1 per Phase C hit).  Reset to 0 at tick top.
+ * Shared between the C8jb.8e grid-pick and the C8jb.8f gate==0 branch —
+ * both writers bump this. */
 extern int32_t     g_scene1_combat_phase_c_counter_bump_count;
+
+/* ─── C8jb.8f — Phase C TYPE 4/8 HUD-effect / spawn-loop dispatch ────── */
+/*
+ * Engine asm 0x43a4f9..0x43a5bd.  Fires from C8jb.8b's path-c TYPE
+ * dispatch when proj.TYPE in {4, 8} AND the C8jb.8d owner-flag gate is
+ * OFF (g_scene1_combat_owner_a_2bc82 == 0).  Engine asm 0x43a389
+ * `cmp eax, 5; jne 0x43a4f9` splits TYPE 5 from TYPE 4/8 — the cousin
+ * C8jb.8e takes TYPE 5; this chip takes TYPE 4 and TYPE 8.
+ *
+ * Body shape:
+ *   Head (always):
+ *     g_scene1_combat_dat_056db004 = 4;
+ *     g_scene1_combat_dat_056db008 = 1;
+ *   Call hud_gate_hook (FUN_00484e45, 0-arg → int).
+ *
+ *   if (gate != 0):  HUD-effect branch (asm 0x43a513..0x43a52f).
+ *     proj.LIFETIME = 1;
+ *     hud_effect_play_hook(1, 0, 2, 0, 0xb4);   (FUN_00485413, 5-arg)
+ *     jmp end-with-latch  (SKIPS the +0x2c3e0 counter bump).
+ *
+ *   else (gate == 0):
+ *     proj.AUX = 2;
+ *     Engine `cmp BYTE [edi+0x2bd21], bl` where bl=1 — strict equality
+ *     with literal 1 on the low byte only.
+ *     if (low_byte(OWNER_A+0x2bd21) == 1):
+ *       for (counter = 1000; counter > 0; counter--):
+ *         ret = throwable_spawn_hook(POS_X, POS_Y + 0.5f, POS_Z)
+ *                 (FUN_0043824b, 3-arg float → int).
+ *         if (ret == 0):
+ *           throwable_error_log_hook(
+ *             k_scene1_combat_throwable_error_msg, 0)
+ *               (FUN_0048a348, 2-arg).
+ *     else:
+ *       throwable_spawn_hook(POS_X, POS_Y + 0.5f, POS_Z)   (once)
+ *
+ *     OWNER_A+0x2c3e0 += 2 (counter bump).
+ *
+ *   end-with-latch:
+ *     if (proj.FIRST_HIT_LATCH == 0) proj.FIRST_HIT_LATCH = 1.
+ *
+ * Engine quirk #1 (TYPE 8 unreachability): same as C8jb.8d — TYPE 8 is
+ * filtered by C8jb.7's skip cascade BEFORE the AABB even runs, so this
+ * arm never fires for TYPE 8 in production.  Kept for engine fidelity.
+ *
+ * Engine quirk #2 (gate!=0 LIFETIME=1 write): proj.LIFETIME is set to 1
+ * BEFORE the hud_effect_play call (asm 0x43a521 precedes 0x43a527).
+ * Order preserved even though the call ignores the field.
+ *
+ * Engine quirk #3 (gate!=0 SKIPS AUX=2 + counter bump): the HUD-effect
+ * branch jumps directly to end-with-latch via `jmp 0x43a5c4`, bypassing
+ * both `mov [esi+0x1dc], 2` and `add [edi+0x2c3e0], 2`.  Distinct from
+ * both C8jb.8d's gate==1 arm (which DOES set AUX=2 and world_pause=1)
+ * AND the C8jb.8f gate==0 paths (which DO set AUX=2 and bump).
+ *
+ * Engine quirk #4 (1000-iter spawn loop): on the byte==1 sub-path, the
+ * spawn hook fires 1000 times back-to-back.  Production likely never
+ * enters this branch (OWNER_A+0x2bd21 byte 1 is a debug/QA flag).
+ * Tests install counting hooks to verify the loop semantics.
+ *
+ * Engine quirk #5 (error log on spawn failure): when throwable_spawn
+ * returns 0, an error message is logged via FUN_0048a348.  The literal
+ * at .rdata 0x5c54f8 is Shift-JIS "配無エラー" (≈ "placement error").
+ * Port exposes the literal as `k_scene1_combat_throwable_error_msg` so
+ * tests can compare pointer equality against the observable.
+ *
+ * Engine quirk #6 (byte gate is strict equality, not "non-zero"): the
+ * engine compares ONLY against literal 1.  Bytes 0, 2, 0xff all take
+ * the single-spawn branch — only 1 (or any int with low byte == 0x01)
+ * enters the 1000-iter loop.  Stand-in `g_scene1_combat_owner_a_2bd21`
+ * is int32 but only the low 8 bits matter.
+ *
+ * Production: g_scene1_combat_owner_a_2bd21 stays BSS-zero (no port
+ * writer) so TYPE 4 always lands on the single-spawn-call sub-path.
+ * The spawn / error / hud hooks default to NULL → all observable side
+ * effects are counters + last-arg captures with no behavior change.
+ */
+
+/* Engine globals at 0x56db004 / 0x56db008.  Both unconditionally written
+ * at the head of every C8jb.8f entry (= every TYPE 4/8 + gate==0 hit).
+ * Not reset at tick top — they're latched engine state.  Currently no
+ * port consumer reads either, but tests verify they're set so this
+ * surface is observable when downstream chips port their readers. */
+extern int32_t g_scene1_combat_dat_056db004;
+extern int32_t g_scene1_combat_dat_056db008;
+
+/* Byte-gate stand-in for *(BYTE*)(OWNER_A+0x2bd21).  Stored as int32 but
+ * only the low byte matters (engine `cmp BYTE [edi+0x2bd21], bl`).  BSS-
+ * zero in production → single-spawn-call sub-path.  Set to 1 in tests to
+ * exercise the 1000-iter loop. */
+extern int32_t g_scene1_combat_owner_a_2bd21;
+
+/* Hook for FUN_00484e45 — engine HUD-gate.  0-arg, returns int.
+ * Non-zero → HUD-effect branch; zero → spawn-loop branch.  Default NULL
+ * → returns 0 (production-default HOUSE behavior, since no port writer
+ * has installed a HUD state populator yet). */
+typedef int32_t (*scene1_combat_hud_gate_fn)(void);
+scene1_combat_hud_gate_fn
+scene1_combat_set_hud_gate_hook(scene1_combat_hud_gate_fn fn);
+
+/* Hook for FUN_00485413 — engine HUD effect play.  5-arg, void return.
+ * Engine call site passes constants (1, 0, 2, 0, 0xb4); the args index
+ * into engine HUD effect tables we haven't ported.  Default NULL →
+ * no-op. */
+typedef void (*scene1_combat_hud_effect_play_fn)(int32_t a0, int32_t a1,
+                                                  int32_t a2, int32_t a3,
+                                                  int32_t a4);
+scene1_combat_hud_effect_play_fn
+scene1_combat_set_hud_effect_play_hook(scene1_combat_hud_effect_play_fn fn);
+
+/* Hook for FUN_0043824b — engine "spawn throwable at pose".  3-arg
+ * floats, returns int (per asm `test eax, eax; jne <skip-error>` at
+ * 0x43a579).  Non-zero return → spawn succeeded; zero → fires the
+ * error-log path.  Default NULL → returns 0 (every call fails →
+ * 1000-iter loop produces 1000 error_log calls when byte gate active). */
+typedef int32_t (*scene1_combat_throwable_spawn_fn)(float x, float y, float z);
+scene1_combat_throwable_spawn_fn
+scene1_combat_set_throwable_spawn_hook(scene1_combat_throwable_spawn_fn fn);
+
+/* Hook for FUN_0048a348 — engine error-log printf.  2-arg `(const char*,
+ * int)` — engine call site passes the .rdata format literal at 0x5c54f8
+ * and `0` as the integer arg.  Default NULL → no-op.  Tests can install
+ * a counting hook to verify per-loop-iter error count when the spawn
+ * hook returns 0. */
+typedef void (*scene1_combat_throwable_error_log_fn)(const char *msg,
+                                                      int32_t val);
+scene1_combat_throwable_error_log_fn
+scene1_combat_set_throwable_error_log_hook(
+    scene1_combat_throwable_error_log_fn fn);
+
+/* The .rdata 0x5c54f8 error-format literal (Shift-JIS "配無エラー").
+ * Exposed as a stable const-pointer so tests can compare pointer-
+ * equality against the `_last_msg` observable. */
+extern const char *const k_scene1_combat_throwable_error_msg;
+
+/* Observables — all reset to 0 at tick top.  Counters track per-tick
+ * call totals (0 or 1 for most; 0..1000 for `_throwable_spawn_count`
+ * and `_throwable_error_count` in the byte-gate-active sub-path). */
+extern int32_t     g_scene1_combat_phase_c_hud_gate_call_count;
+extern int32_t     g_scene1_combat_phase_c_hud_effect_call_count;
+extern int32_t     g_scene1_combat_phase_c_hud_effect_last_args[5];
+extern int32_t     g_scene1_combat_phase_c_throwable_spawn_count;
+extern float       g_scene1_combat_phase_c_throwable_last_pose[3];
+extern int32_t     g_scene1_combat_phase_c_throwable_error_count;
+extern const char *g_scene1_combat_phase_c_throwable_last_error_msg;
 
 /* ─── public entry ───────────────────────────────────────────────────── */
 /*

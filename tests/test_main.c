@@ -2711,7 +2711,7 @@ struct test_case {
     X(combat_sm_phase_c8b_lifetime_positive_decrements) \
     X(combat_sm_phase_c8b_lifetime_one_falls_to_zero_default) \
     X(combat_sm_phase_c8b_lifetime_zero_type_6_aux_one) \
-    X(combat_sm_phase_c8b_lifetime_zero_type_4_deferred) \
+    X(combat_sm_phase_c8b_lifetime_zero_type_4_fires_c8jb_8f) \
     X(combat_sm_phase_c8b_lifetime_zero_type_0x15_fires_scatter) \
     X(combat_sm_phase_c8b_lifetime_negative_other_than_minus_one_forces_zero) \
     X(combat_sm_phase_c8b_latch_idempotent) \
@@ -2763,7 +2763,33 @@ struct test_case {
     X(combat_sm_phase_c8e_no_emit_spawn_or_overlay) \
     X(combat_sm_phase_c8e_cooldown_latches_across_ticks) \
     X(combat_sm_phase_c8e_oob_grid_falls_back_to_cell_zero) \
-    X(combat_sm_phase_c8e_hook_install_returns_previous)
+    X(combat_sm_phase_c8e_hook_install_returns_previous) \
+    X(combat_sm_phase_c8f_gate_zero_single_spawn_default_byte) \
+    X(combat_sm_phase_c8f_gate_zero_pose_xz_from_proj_y_plus_half) \
+    X(combat_sm_phase_c8f_gate_zero_byte_eq_one_fires_1000_iter_loop) \
+    X(combat_sm_phase_c8f_gate_zero_byte_one_no_errors_when_spawn_succeeds) \
+    X(combat_sm_phase_c8f_gate_zero_byte_low_one_high_garbage_enters_loop) \
+    X(combat_sm_phase_c8f_gate_zero_byte_low_zero_high_one_single_spawn) \
+    X(combat_sm_phase_c8f_gate_zero_byte_two_takes_single_spawn) \
+    X(combat_sm_phase_c8f_gate_zero_byte_0xff_takes_single_spawn) \
+    X(combat_sm_phase_c8f_gate_zero_error_log_msg_is_engine_literal) \
+    X(combat_sm_phase_c8f_gate_nonzero_fires_hud_effect_play) \
+    X(combat_sm_phase_c8f_gate_nonzero_sets_lifetime_to_one) \
+    X(combat_sm_phase_c8f_gate_nonzero_does_not_enter_spawn_loop_even_with_byte_one) \
+    X(combat_sm_phase_c8f_engine_globals_set_at_head_unconditionally) \
+    X(combat_sm_phase_c8f_engine_globals_set_for_gate_nonzero_path_too) \
+    X(combat_sm_phase_c8f_engine_globals_unset_when_owner_gate_armed) \
+    X(combat_sm_phase_c8f_engine_globals_unset_for_type_5_path) \
+    X(combat_sm_phase_c8f_type_8_unreachable_via_skip_cascade) \
+    X(combat_sm_phase_c8f_owner_a_2c3e0_latched_across_ticks) \
+    X(combat_sm_phase_c8f_observables_reset_per_tick) \
+    X(combat_sm_phase_c8f_nullable_hooks_default_to_silent) \
+    X(combat_sm_phase_c8f_aux_storage_actually_set) \
+    X(combat_sm_phase_c8f_latch_storage_actually_set) \
+    X(combat_sm_phase_c8f_no_emit_spawn_or_overlay) \
+    X(combat_sm_phase_c8f_lifetime_minus_one_skips_c8jb_8f) \
+    X(combat_sm_phase_c8f_lifetime_positive_skips_c8jb_8f) \
+    X(combat_sm_phase_c8f_hook_install_returns_previous)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
