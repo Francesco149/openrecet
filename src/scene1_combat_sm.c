@@ -161,6 +161,9 @@ int32_t g_scene1_combat_phase_b_local_1c_bits;
 int32_t g_scene1_combat_owner_a_ce4;          /* stand-in for *(int*)(OWNER_A+0xce4) */
 int32_t g_scene1_combat_owner_a_cec;          /* stand-in for *(int*)(OWNER_A+0xcec) */
 
+/* C8jb.8d Phase C TYPE 4/5/8 owner-flag short-circuit gate. */
+int32_t g_scene1_combat_owner_a_2bc82;        /* stand-in for *(BYTE*)(OWNER_A+0x2bc82) */
+
 /* C8jb.6 hit-effect emit globals. */
 int32_t g_scene1_combat_phase_b_emit_count;
 float   g_scene1_combat_phase_b_emit_pose[3];
@@ -1786,10 +1789,33 @@ static void phase_c_lifetime_dispatch(int32_t *proj,
                 proj[SCENE1_PROJ_OFF_AUX] = 1;
                 latch_eligible = 1;
             } else if (proj_type == 4 || proj_type == 5 || proj_type == 8) {
-                /* DEFERRED to C8jb.8d (combat cascade).  Engine path:
-                 *   jmp 0x43a365 → FUN_004412b6 / FUN_0048a348 /
-                 *   FUN_0043824b cascade → AUX=2 / latch / etc.
-                 * For C8jb.8b: pure no-op. */
+                /* C8jb.8d — TYPE 4/5/8 owner-flag short-circuit arm.
+                 * Engine asm 0x43a365..0x43a384 (LAB_0043a365 head):
+                 *
+                 *   mov edi, [ebp-0xc]                ; edi = OWNER_A
+                 *   cmp BYTE [edi+0x2bc82], 0x0       ; byte gate
+                 *   je 0x43a389                       ; gate==0 → cascade
+                 *   push 0x1
+                 *   mov [esi+0x1dc], 0x2              ; proj.AUX = 2
+                 *   pop ebx                           ; ebx = 1 (latch arg)
+                 *   mov [0x438be9c], ebx              ; world_pause = 1
+                 *   jmp 0x43a5c4                      ; END-WITH-LATCH
+                 *
+                 * Byte != 0 short-circuits the FUN_004412b6 / FUN_0043824b
+                 * cascade entirely; production OWNER_A blocks are still
+                 * unported so the byte stays BSS-zero and the cascade
+                 * (defer) path runs.  The cascade itself is deferred to
+                 * C8jb.8e (TYPE 5 grid-pick) + C8jb.8f (TYPE 4/8 spawn
+                 * loop).  Engine semantic: when the gate trips, NO spawn
+                 * fires for this hit — the projectile just arms and the
+                 * downstream world enters a one-frame pause. */
+                if (g_scene1_combat_owner_a_2bc82 != 0) {
+                    proj[SCENE1_PROJ_OFF_AUX]   = 2;
+                    g_scene1_combat_world_pause = 1;
+                    latch_eligible              = 1;
+                }
+                /* else: defer to C8jb.8e/f — pure no-op (matches the
+                 * previous C8jb.8b deferred behavior). */
             } else if (proj_type == 0x15) {
                 /* C8jb.8c — TYPE 0x15 5-shot scatter.  Engine asm
                  * 0x43a283..0x43a326.  Sets proj.TYPE=-1, scatters 10

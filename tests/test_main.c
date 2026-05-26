@@ -2730,7 +2730,16 @@ struct test_case {
     X(combat_sm_phase_c8c_lifetime_minus_one_no_scatter) \
     X(combat_sm_phase_c8c_lifetime_positive_no_scatter) \
     X(combat_sm_phase_c8c_scatter_observable_resets_per_tick) \
-    X(combat_sm_phase_c8c_scatter_latch_idempotent)
+    X(combat_sm_phase_c8c_scatter_latch_idempotent) \
+    X(combat_sm_phase_c8d_type_4_owner_gate_arms) \
+    X(combat_sm_phase_c8d_type_5_owner_gate_arms) \
+    X(combat_sm_phase_c8d_type_8_unreachable_via_skip_cascade) \
+    X(combat_sm_phase_c8d_type_5_owner_gate_zero_defers) \
+    X(combat_sm_phase_c8d_owner_gate_negative_byte_arms) \
+    X(combat_sm_phase_c8d_type_6_unaffected_by_owner_gate) \
+    X(combat_sm_phase_c8d_default_type_unaffected_by_owner_gate) \
+    X(combat_sm_phase_c8d_type_4_lifetime_positive_unaffected) \
+    X(combat_sm_phase_c8d_armed_blocks_next_tick_phase_a)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

@@ -124,6 +124,8 @@ static void reset_combat_state(void)
     g_scene1_combat_phase_b_local_1c_bits = 0;
     g_scene1_combat_owner_a_ce4           = 0;
     g_scene1_combat_owner_a_cec           = 0;
+    /* C8jb.8d global. */
+    g_scene1_combat_owner_a_2bc82         = 0;
     g_visit_count = 0;
     g_collision_count = 0;
     g_armed_count = 0;
@@ -5441,8 +5443,10 @@ int test_combat_sm_phase_c8b_lifetime_zero_type_6_aux_one(void)
 
 int test_combat_sm_phase_c8b_lifetime_zero_type_4_deferred(void)
 {
-    /* LIFETIME==0 + TYPE 4: DEFERRED to C8jb.8d — no AUX write, no spawn,
-     * no latch. */
+    /* LIFETIME==0 + TYPE 4 + OWNER_A+0x2bc82==0: C8jb.8d's gate==0 defer
+     * path runs (DEFERRED to C8jb.8e/f — the FUN_004412b6 / FUN_0043824b
+     * cascade).  No AUX write, no spawn, no latch.  reset_combat_state()
+     * zeros the gate, so production HOUSE always lands here. */
     reset_combat_state();
     reset_combat_7_capture();
     reset_combat_6_capture();
@@ -5453,6 +5457,8 @@ int test_combat_sm_phase_c8b_lifetime_zero_type_4_deferred(void)
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       0);
     T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
+    /* world_pause stays at the reset value (0) — the gate didn't fire. */
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,               0);
     return 0;
 }
 
@@ -5878,5 +5884,204 @@ int test_combat_sm_phase_c8c_scatter_latch_idempotent(void)
     int32_t latch =
         g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
     T_ASSERT_EQ_I(latch, 1);
+    return 0;
+}
+
+/* ─── C8jb.8d — Phase C TYPE 4/5/8 owner-flag short-circuit arm ──────── */
+
+static int test_combat_sm_phase_c8d_type_n_arms(int proj_type)
+{
+    /* Common helper: with OWNER_A+0x2bc82 gate set, TYPE 4/5/8 short-
+     * circuits to AUX=2 + world_pause=1 + latch.  No spawn fires.  See
+     * each per-TYPE test for the wrapper. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    g_scene1_combat_owner_a_2bc82 = 1;
+    int32_t *slot = setup_phase_c_hit(proj_type, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         2);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,               1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
+    /* AUX storage actually set. */
+    int32_t aux_storage =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_AUX];
+    T_ASSERT_EQ_I(aux_storage, 2);
+    /* Latch storage actually set. */
+    int32_t latch =
+        g_scene1_projectiles[0 * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_FIRST_HIT_LATCH];
+    T_ASSERT_EQ_I(latch, 1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8d_type_4_owner_gate_arms(void)
+{
+    return test_combat_sm_phase_c8d_type_n_arms(4);
+}
+
+int test_combat_sm_phase_c8d_type_5_owner_gate_arms(void)
+{
+    return test_combat_sm_phase_c8d_type_n_arms(5);
+}
+
+int test_combat_sm_phase_c8d_type_8_unreachable_via_skip_cascade(void)
+{
+    /* Engine asm 0x43a272 has a `cmp eax, 0x8; je 0x43a365` branch — TYPE 8
+     * would dispatch into the C8jb.8d arm.  BUT the C8jb.7 skip cascade
+     * (scene1_combat_sm.c:1931, engine 0x439f44..0x439fcb) filters TYPE 8
+     * BEFORE the AABB even runs (`if (proj_type == 8) continue;`).  So
+     * the TYPE 8 arm is dead code in production — engine compiled it in
+     * but no projectile with TYPE 8 ever reaches the dispatch.
+     *
+     * We keep `proj_type == 8` in the C8jb.8d port for engine fidelity
+     * (asm has the branch) and document the unreachability here.  This
+     * test verifies the skip-cascade gate fires: TYPE 8 + armed owner
+     * gate produces NO state change (no hit, no arm, no latch). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    g_scene1_combat_owner_a_2bc82 = 1;
+    int32_t *slot = setup_phase_c_hit(8, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    /* C8jb.7 skip cascade caught TYPE 8 → no hit. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_hit_count,         0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       0);
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,               0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8d_type_5_owner_gate_zero_defers(void)
+{
+    /* OWNER_A+0x2bc82==0 (default): TYPE 5 defers (cascade no-op).
+     * Mirror test for TYPE 4 already in C8jb.8b's deferred test. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    int32_t *slot = setup_phase_c_hit(5, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  0);
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,               0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8d_owner_gate_negative_byte_arms(void)
+{
+    /* Engine `cmp BYTE [edi+0x2bc82], 0` + `jne` trips on ANY non-zero
+     * byte — including negative bit patterns (e.g. 0xff = -1).  Our
+     * stand-in is int32_t but the engine read is a single byte; verify
+     * that a negative int still arms (because the byte image is non-
+     * zero).  Pick -1 (= 0xffffffff in two's complement, low byte
+     * 0xff). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    g_scene1_combat_owner_a_2bc82 = -1;
+    int32_t *slot = setup_phase_c_hit(4, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after, 2);
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,       1);
+    return 0;
+}
+
+int test_combat_sm_phase_c8d_type_6_unaffected_by_owner_gate(void)
+{
+    /* TYPE 6 falls through to its own AUX=1 path BEFORE the 4/5/8 cluster
+     * dispatches (engine `cmp eax, 0x6; jne 0x43a260` at 0x43a24d).  The
+     * owner-flag gate has no influence on TYPE 6 — verify AUX stays at 1
+     * and world_pause stays 0 even with the gate armed. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    g_scene1_combat_owner_a_2bc82 = 1;
+    int32_t *slot = setup_phase_c_hit(6, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,    1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,  1);
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,          0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8d_default_type_unaffected_by_owner_gate(void)
+{
+    /* Default TYPE (e.g. 7) falls through to spawn template 2 + AUX=1.
+     * The owner-flag gate has no influence on the default branch. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    g_scene1_combat_owner_a_2bc82 = 1;
+    int32_t *slot = setup_phase_c_hit(7, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       1);
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,               0);
+    /* Default branch spawns template 2. */
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,           2);
+    return 0;
+}
+
+int test_combat_sm_phase_c8d_type_4_lifetime_positive_unaffected(void)
+{
+    /* LIFETIME==5 + TYPE 4 + gate==1: lifetime path-b "still alive"
+     * fires template 1 FIRST (the C8jb.8b path-b branch), not the C8jb.8d
+     * arm.  Owner gate only matters when lifetime falls to 0 and the
+     * TYPE dispatch is reached. */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    g_scene1_combat_owner_a_2bc82 = 1;
+    int32_t *slot = setup_phase_c_hit(4, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 5);
+
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot), 0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_lifetime_after,    4);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_emit_spawn_count,  1);
+    T_ASSERT_EQ_I(g_emit_spawn_records[0].template,           1);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_aux_after,         0);
+    T_ASSERT_EQ_I(g_scene1_combat_phase_c_latch_fired,       0);
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,               0);
+    return 0;
+}
+
+int test_combat_sm_phase_c8d_armed_blocks_next_tick_phase_a(void)
+{
+    /* The world_pause=1 side effect of arming gates Phase A on the NEXT
+     * tick.  Tick 1: arm fires, world_pause=1.  Tick 2: Phase A short-
+     * circuits (no per-tick flag write). */
+    reset_combat_state();
+    reset_combat_7_capture();
+    reset_combat_6_capture();
+    g_scene1_combat_owner_a_2bc82 = 1;
+    int32_t *slot = setup_phase_c_hit(4, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    set_proj_lifetime(0, 0);
+
+    /* Tick 1: arm fires. */
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),    0);
+    T_ASSERT_EQ_I(g_scene1_combat_world_pause,    1);
+    T_ASSERT_EQ_I(g_scene1_records_b_tick_flag,   1);
+
+    /* Reset only the per-tick flag (Phase A's observable).  world_pause
+     * is the LATCHED state we want to test against. */
+    g_scene1_records_b_tick_flag = 0;
+    reset_combat_7_capture();
+    T_ASSERT_EQ_I(scene1_combat_sm_tick(slot),    0);
+    /* Phase A short-circuited — per-tick flag stays 0. */
+    T_ASSERT_EQ_I(g_scene1_records_b_tick_flag,   0);
     return 0;
 }

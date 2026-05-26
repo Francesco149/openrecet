@@ -416,6 +416,20 @@ extern int32_t g_scene1_combat_owner_a_ce4;
 extern int32_t g_scene1_combat_owner_a_cec;
 
 /*
+ * Stand-in for the byte engine reads at `slot.OWNER_A + 0x2bc82` (engine
+ * `cmp BYTE [edi+0x2bc82], 0x0` at asm 0x43a368).  Phase C TYPE 4/5/8 hit-
+ * dispatch arm: when non-zero, the projectile arms with AUX=2 +
+ * world_pause=1 + END-WITH-LATCH short-circuit (the byte==0 path defers
+ * to the FUN_004412b6 / FUN_0043824b cascade, ported later in C8jb.8e/f).
+ *
+ * Engine treats this as a byte read; any non-zero value (positive OR
+ * negative bit pattern) trips the gate.  Modeled as int32_t for host
+ * convenience — tests assign 1 to arm; production keeps it BSS-zero so
+ * the defer path runs.  Cleared by reset_combat_state() in tests.
+ */
+extern int32_t g_scene1_combat_owner_a_2bc82;
+
+/*
  * Unsigned RNG hook — engine FUN_00471084 (= rng wrapper, returns
  * uint).  C8jb.5c calls it once per collision in the final clamp path
  * (`damage += rng % (damage / 5)` for damage >= 5 OR `damage += rng & 1`
