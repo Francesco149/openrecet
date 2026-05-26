@@ -2803,7 +2803,23 @@ struct test_case {
     X(scene1_walker_pass_init_type_4_other_rot_pos_y_small_no_flip) \
     X(scene1_walker_pass_init_multi_mesh_per_index_hook) \
     X(scene1_walker_pass_init_flag_hook_null_treated_as_zero) \
-    X(scene1_walker_pass_init_hook_getter_round_trip)
+    X(scene1_walker_pass_init_hook_getter_round_trip) \
+    X(scene1_walker_classify_slot_all_zero_param0_default) \
+    X(scene1_walker_classify_slot_all_zero_param1_skips) \
+    X(scene1_walker_classify_slot_water_param2_water) \
+    X(scene1_walker_classify_slot_water_other_params_skip) \
+    X(scene1_walker_classify_slot_kabe_param0_kabe) \
+    X(scene1_walker_classify_slot_kabe_other_params_skip) \
+    X(scene1_walker_classify_slot_yuka_param0_yuka) \
+    X(scene1_walker_classify_slot_jutan_param0_jutan) \
+    X(scene1_walker_classify_slot_ext_tga_param1) \
+    X(scene1_walker_classify_slot_hikari_param3) \
+    X(scene1_walker_classify_slot_cascade_priority) \
+    X(scene1_walker_draw_b_mesh_index_shop_table_path) \
+    X(scene1_walker_draw_b_mesh_index_shop_table_out_of_range) \
+    X(scene1_walker_draw_b_mesh_index_wall_floor_path) \
+    X(scene1_walker_draw_b_mesh_index_null_out_ok) \
+    X(scene1_walker_phase2b_reset_defaults)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

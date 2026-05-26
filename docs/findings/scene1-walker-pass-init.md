@@ -438,3 +438,113 @@ nix develop --command grep -n 'param_1\[1\]\|texture_indices\|FUN_00472836' \
 ```
 Expect cross-references in `mesh.h:86` and `mesh_load.h:14` confirming
 the cache is the engine's DAT_073be908+DAT_073cb108 reservation.
+
+## PII.3b landing — 2026-05-26 PM
+
+**What landed:** the outer cache-slot loop + draw loop B of
+`FUN_00457714`'s HOUSE branch (decomp L52806-L53043).  Renames
+`scene1_walk_pass_init_TODO` → `scene1_walk_pass_init` and wires it
+through `scene1_walker_pass_render_house(dev, param_1)` from
+`src/scene1_walker_pass_init.c`.
+
+**API surface:**
+
+| Symbol | Purpose |
+|---|---|
+| `scene1_walker_pass_render_house(dev, param_1)` | Win32-only public entry; outer slot loop + draw loop B |
+| `scene1_walker_classify_slot(...)` | Pure-C 6-flag dispatch → enum `scene1_walker_slot_action` |
+| `scene1_walker_draw_b_mesh_index(mesh_type, flag, selector, *out)` | Pure-C mesh-index calculator (shop_table vs wall/floor path) |
+| `g_scene1_walker_status_screen_open` | Engine `DAT_073dddb4`; gates draw loop B |
+| `scene1_walker_set_{kabe,yuka,jutan,animated}_texture_hook(fn)` | Stage-texture lookup hooks (default NULL) |
+| `scene1_walker_set_shop_table_selector_hook(fn)` | Engine `local_24[0xb37c]` (default → `g_scene_table_selector`) |
+
+**Iteration shape:**
+
+```c
+scene1_emit_preamble(dev);                          // L52806 barrier
+for slot in [0, g_mesh_tex_cache.count):
+    action = scene1_walker_classify_slot(slot_flags..., param_1);
+    if action == SKIP: continue;
+    SetTexture(0, pick_texture_for_action(slot, action));
+    scene1_emit_apply_material_state(dev, slot);    // L52883 FUN_00454fe4
+
+    /* L52902 draw loop A — DAT_068dcca0; SKIPPED (PII.3c) */
+
+    if g_scene1_walker_status_screen_open != 0: continue;
+    for mesh_i in [0, phase2_n):
+        flag = phase2_flag_hook(mesh_i);
+        idx = mesh_type[i] - 3 + selector*2     (when flag == 0)
+        m = g_scene_table[idx];                  (shop_table path)
+        SetTransform(WORLD, phase2_matrices[mesh_i]);
+        SetStreamSource; for submesh in m: if texture_slots[mat_i] == slot:
+            SetIndices; SetMaterial; DrawIndexedPrimitive;
+```
+
+**Per-slot flag cascade** (decomp L52813-L52870 verbatim):
+
+| Pass `param_1` | Selected action (when other flags zero) |
+|---|---|
+| 0 (default + kabe + yuka + jutan) | `DEFAULT` (cache sprite), `KABE`, `YUKA`, `JUTAN` |
+| 1 (ext_tga) | `EXT_TGA` (cache sprite) |
+| 2 (water) | `WATER` (animated overlay, armed-once) |
+| 3 (hikari) | `HIKARI` (animated overlay, armed-once) |
+
+Production call sites today: `scene1_render_meshes` → arg=0 (pre-pass)
++ arg=1 (alpha-pre).  arg=2/3 come from alpha walker `FUN_00458bdf`
+sub-call (still stubbed in `scene1_alpha_walker.c`).
+
+**Per-mesh-source selection** (asm 0x4583b8..0x4583f8):
+
+- per-mesh flag (read via PII.3a `scene1_walker_phase2_flag_fn` hook,
+  shares the same memory `local_24 + 0xb1d4 + i*4`)
+- flag == 0 → shop_table path; idx = `mesh_type[i] - 3 + selector*2`;
+  resolves into `g_scene_table[idx]` (= our scene_table.c storage).
+- flag != 0 → wall/floor path; idx = `mesh_type[i] - 0x28a0 +
+  (flag>>6)*2` against `DAT_068dcca0`.  **Skipped in PII.3b**
+  (mesh array not exposed; PII.3c scope).
+
+**Pulse path (L52974-L53028):** the per-face level-abilities pulse
+inside draw loop B — gated by `DAT_0438cc08 == 2 && local_1c ==
+DAT_0438bea4`.  Both gates BSS-zero in HOUSE retail.  Skipped in
+PII.3b; the per-face draw fires directly without the pulse-color
+wrapper.
+
+**HOUSE-entry behaviour:**
+
+- `g_scene1_walker_phase2_count == 0` (writer FUN_00436f97 chunk
+  unported — Cf.* sub-chip).  Draw loop B short-circuits per slot;
+  outer loop still runs the per-slot SetTexture + TSS picker for
+  state-fidelity.
+- All 4 stage-texture hooks default NULL; per-slot SetTexture binds
+  the default cache sprite for flag-zero slots and NULL elsewhere
+  (no visible effect since the geometry doesn't iterate).
+- Canaries bit-exact: boot-idle 3/3, title-z-press 14/14,
+  title-down-press 4/4, title-options 2/4 (frames 39/60 pre-existing
+  regression untouched).
+
+**Next chip on the PII ladder:**
+
+- **Cf.* sub-chip** = port the FUN_00436f97 writer chunk that
+  populates `DAT_0438bfb4` (= our `g_scene1_walker_phase2_count`) +
+  the 5 per-mesh parallel arrays (mesh_type / rot_y / pos_x/y/z) +
+  the per-mesh flag at `local_24+0xb1d4+i*4`.  After Cf.* lands, a
+  HOUSE-entry boot should produce visible shop_table furniture
+  pixels (drives PII.3b's draw loop B end-to-end).
+- **PII.3c (optional)** = port FUN_00457714 setup phase 1 (DAT_068dcca0
+  matrix builder, L52671-L52701) + draw loop A (L52902-L52950) +
+  DUNGEON branch.  Defer until HOUSE visually validated and a
+  DUNGEON stage scenario lands.
+
+**Re-runnable verification (PII.3b):**
+
+```
+nix develop --command i686-w64-mingw32-objdump -d -M intel \
+    --no-show-raw-insn vendor/unpacked/recettear.unpacked.exe \
+    --start-address=0x4581df --stop-address=0x458570
+```
+
+Expect: per-slot dispatch starts at LAB_004581df (call 0x454fe4 =
+scene1_emit_apply_material_state), BSS palette writes at
+0x438bfbc..0x438bff0, draw-loop-A gate at 0x4581e8, draw-loop-B at
+0x458382-0x458567 (status-screen + phase2 count gates, per-mesh source
+selection at 0x4583b8-0x4583f8, per-face inner draw at 0x458425+).

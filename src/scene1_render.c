@@ -28,6 +28,7 @@
 #include "scene1_overlay.h"  /* scene1_overlay_render — 4-site dispatcher wiring */
 #include "scene1_records.h"
 #include "scene1_shop_walker.h"
+#include "scene1_walker_pass_init.h"  /* PII.3a/PII.3b walker pass-init */
 #include "scene1_wide_followup.h"
 #include "sim.h"
 
@@ -112,46 +113,43 @@ static void scene1_fx_overlays_TODO(void)
  * scene1_render_meshes; the tables are sentinel-empty until the sim
  * populator FUN_0040fb3a lands, so every count lands 0. */
 
-/* FUN_00457714 (5323 B) — per-pass NPC-anchored mesh walker; previous
- * "per-pass texture/shader uniforms" label was wrong (see
- * docs/findings/scene1-walker-pass-init.md, survey 2026-05-26 PM).
+/* FUN_00457714 (5323 B) — per-pass cache-slot-anchored mesh walker
+ * (PII.0 corrected the original "NPC walker" interpretation).
  *
  * Two main branches inside an outer DAT_073dfcec==0 gate (alpha-pass
  * guard, dead in retail):
  *
  *   HOUSE branch (stage palette mode < 1 at L52658):
  *     - setup phase 1 (L52671): per-mesh transforms for DAT_068dcca0
- *       (wall/floor/jutan) into local_738, gated DAT_0438bfb0 != 0
+ *       (wall/floor/jutan) into local_738, gated DAT_0438bfb0 != 0.
+ *       NOT ported (PII.3c scope).
  *     - setup phase 2 (L52704): per-mesh transforms for DAT_073b1ac8
- *       (shop_table; populated by C0A worker / src/scene_table.c),
- *       gated DAT_0438bfb4 != 0
- *     - NPC iteration loop (L52809, gated DAT_073cb108 != 0):
- *         - per-NPC flag dispatch picks a SetTexture target
- *         - DRAW LOOP A (L52902): DAT_068dcca0 per-NPC mesh draw
+ *       (shop_table; populated by C0A worker / src/scene_table.c).
+ *       Ported as PII.3a (scene1_walker_phase2_compute).
+ *     - outer slot loop (L52809, gated DAT_073cb108 != 0):
+ *         - per-slot flag-byte dispatch picks a SetTexture target
+ *         - DRAW LOOP A (L52902): DAT_068dcca0 wall/floor/jutan
+ *           mesh draw.  NOT ported (PII.3c scope).
  *         - DRAW LOOP B (L52952, the shop_table furniture renderer):
  *           gated DAT_073dddb4 == 0 (status-screen NOT open) AND
- *           DAT_0438bfb4 != 0 — the HOUSE-visible-pixels path.
+ *           DAT_0438bfb4 != 0.  Ported as PII.3b
+ *           (scene1_walker_pass_render_house).
  *
  *   DUNGEON branch (L53046+): different mesh sources, parallel
- *   structure.
+ *   structure.  Not ported.
  *
- * HOUSE-reachability: the L52952 block IS reachable in retail HOUSE
- * with status screen closed.  Visible-pixel output additionally
- * requires that someone populate `mesh->face_npc_ptr[]` — see survey
- * doc for the open question.
- *
- * Reusable helper: FUN_00455191 (217 B, see scene1_walk_initial_asset
- * _TODO) implements the same per-NPC single-mesh draw idiom and is
- * called from 4 sibling walkers.  Porting it is the first chip.
- *
- * Called with arg=0 from scene1_render_meshes (this file); also called
- * with arg=1 and arg=3 from sibling walker entries. */
-static void scene1_walk_pass_init_TODO(int which_pass)
+ * Called with arg=0 from scene1_render_meshes (this file via
+ * scene1_walk_pre_pass) and arg=1 (via scene1_walk_alpha_pre); also
+ * called with arg=2/3 from FUN_00458bdf (alpha walker, still stubbed). */
+static void scene1_walk_pass_init(IDirect3DDevice8 *dev, int which_pass)
 {
-    /* TODO: port FUN_00457714.  Suggested chip ladder PII.0..PII.3
-     * (see docs/findings/scene1-walker-pass-init.md "Recommended next
-     * chips" section). */
-    (void)which_pass;
+    /* PII.3b: HOUSE branch outer loop + draw loop B.  The HOUSE-branch
+     * gate (decomp L52658: stage palette mode < 1) is NOT checked
+     * here — scene1_render_meshes is the only caller and the engine's
+     * only HOUSE-mode dispatcher.  Once a DUNGEON port lands, add the
+     * gate accessor + branch. */
+    scene1_walker_pass_render_house((struct IDirect3DDevice8 *)dev,
+                                    which_pass);
 }
 
 /* Forward decls for accessors used by scene1_walk_initial_asset (PII.1).
@@ -549,7 +547,7 @@ static void scene1_walk_pre_pass(IDirect3DDevice8 *dev)
                        : scene1_palette_combiner_mode();
         scene1_apply_palette_combiner_mode(dev, mode);
     }
-    scene1_walk_pass_init_TODO(0);
+    scene1_walk_pass_init(dev, 0);
 }
 
 /* FUN_004597dd (106 B) — alpha-pass-pre wrapper.  Same gates as
@@ -561,7 +559,7 @@ static void scene1_walk_alpha_pre(IDirect3DDevice8 *dev)
                        ? 2
                        : scene1_palette_combiner_mode();
         scene1_apply_palette_combiner_mode(dev, mode);
-        scene1_walk_pass_init_TODO(1);
+        scene1_walk_pass_init(dev, 1);
     }
     /* L18-19 of FUN_004597dd: SetTSS(0, ADDRESSU=0xd, WRAP=1) +
      * SetTSS(0, ADDRESSV=0xe, WRAP=1).  Engine resets the sampler's

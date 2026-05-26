@@ -20,6 +20,7 @@
 #include "t.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "math3d.h"
@@ -369,6 +370,212 @@ int test_scene1_walker_pass_init_hook_getter_round_trip(void)
     scene1_walker_phase2_set_flag_hook(flag_hook_constant);
     T_ASSERT(scene1_walker_phase2_get_flag_hook() == flag_hook_constant);
     scene1_walker_phase2_set_flag_hook(NULL);
+    T_ASSERT(scene1_walker_phase2_get_flag_hook() == NULL);
+    return 0;
+}
+
+/* ═════════════════ PII.3b — outer loop + draw loop B ════════════════ */
+
+/* ─── classify_slot — per-cache-slot flag dispatch ──────────────────── */
+
+int test_scene1_walker_classify_slot_all_zero_param0_default(void)
+{
+    /* All 6 flags 0, param=0 → DEFAULT (sprite from cache slot). */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 0, 0, 0, 0),
+                  SCENE1_WALKER_SLOT_DEFAULT);
+    return 0;
+}
+
+int test_scene1_walker_classify_slot_all_zero_param1_skips(void)
+{
+    /* All 6 flags 0, param=1 → SKIP (ext_tga arm wants ext_tga != 0). */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 0, 0, 0, 1),
+                  SCENE1_WALKER_SLOT_SKIP);
+    return 0;
+}
+
+int test_scene1_walker_classify_slot_water_param2_water(void)
+{
+    /* water=1, param=2 → WATER (animated overlay arm). */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(1, 0, 0, 0, 0, 0, 2),
+                  SCENE1_WALKER_SLOT_WATER);
+    return 0;
+}
+
+int test_scene1_walker_classify_slot_water_other_params_skip(void)
+{
+    /* water=1, but param != 2 → SKIP regardless of other flags. */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(1, 0, 0, 0, 0, 0, 0),
+                  SCENE1_WALKER_SLOT_SKIP);
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(1, 1, 1, 1, 1, 1, 1),
+                  SCENE1_WALKER_SLOT_SKIP);
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(1, 0, 0, 0, 0, 0, 3),
+                  SCENE1_WALKER_SLOT_SKIP);
+    return 0;
+}
+
+int test_scene1_walker_classify_slot_kabe_param0_kabe(void)
+{
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 1, 0, 0, 0, 0, 0),
+                  SCENE1_WALKER_SLOT_KABE);
+    return 0;
+}
+
+int test_scene1_walker_classify_slot_kabe_other_params_skip(void)
+{
+    /* kabe != 0 but param != 0 → SKIP (per engine dispatch). */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 1, 0, 0, 0, 0, 1),
+                  SCENE1_WALKER_SLOT_SKIP);
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 1, 0, 0, 0, 0, 2),
+                  SCENE1_WALKER_SLOT_SKIP);
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 1, 0, 0, 0, 0, 3),
+                  SCENE1_WALKER_SLOT_SKIP);
+    return 0;
+}
+
+int test_scene1_walker_classify_slot_yuka_param0_yuka(void)
+{
+    /* kabe==0, yuka!=0, param=0 → YUKA. */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 1, 0, 0, 0, 0),
+                  SCENE1_WALKER_SLOT_YUKA);
+    return 0;
+}
+
+int test_scene1_walker_classify_slot_jutan_param0_jutan(void)
+{
+    /* kabe==0, yuka==0, shop_jutan!=0, param=0 → JUTAN. */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 1, 0, 0, 0),
+                  SCENE1_WALKER_SLOT_JUTAN);
+    return 0;
+}
+
+int test_scene1_walker_classify_slot_ext_tga_param1(void)
+{
+    /* All upper flags 0, ext_tga != 0, param == 1 → EXT_TGA. */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 0, 1, 0, 1),
+                  SCENE1_WALKER_SLOT_EXT_TGA);
+    /* param != 1 with ext_tga set → SKIP. */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 0, 1, 0, 0),
+                  SCENE1_WALKER_SLOT_SKIP);
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 0, 1, 0, 2),
+                  SCENE1_WALKER_SLOT_SKIP);
+    return 0;
+}
+
+int test_scene1_walker_classify_slot_hikari_param3(void)
+{
+    /* All upper flags 0, ext_tga==0, hikari != 0, param == 3 → HIKARI. */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 0, 0, 1, 3),
+                  SCENE1_WALKER_SLOT_HIKARI);
+    /* hikari != 0 + param != 3 → SKIP. */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 0, 0, 1, 0),
+                  SCENE1_WALKER_SLOT_SKIP);
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 0, 0, 1, 1),
+                  SCENE1_WALKER_SLOT_SKIP);
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 0, 0, 1, 2),
+                  SCENE1_WALKER_SLOT_SKIP);
+    return 0;
+}
+
+int test_scene1_walker_classify_slot_cascade_priority(void)
+{
+    /* When multiple flags are set, the engine's nested-if cascade
+     * gives water > kabe > yuka > shop_jutan > ext_tga > hikari priority.
+     * Verify a few combinations. */
+    /* water + kabe + yuka set: water wins (param=2) */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(1, 1, 1, 0, 0, 0, 2),
+                  SCENE1_WALKER_SLOT_WATER);
+    /* water=0, kabe + yuka set: kabe wins (param=0) */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 1, 1, 0, 0, 0, 0),
+                  SCENE1_WALKER_SLOT_KABE);
+    /* water=0, kabe=0, yuka + shop_jutan set: yuka wins (param=0) */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 1, 1, 0, 0, 0),
+                  SCENE1_WALKER_SLOT_YUKA);
+    /* water=0, kabe=0, yuka=0, shop_jutan + ext_tga + hikari: shop_jutan wins (param=0) */
+    T_ASSERT_EQ_I(scene1_walker_classify_slot(0, 0, 0, 1, 1, 1, 0),
+                  SCENE1_WALKER_SLOT_JUTAN);
+    return 0;
+}
+
+/* ─── draw_b_mesh_index — per-mesh source selection ─────────────────── */
+
+int test_scene1_walker_draw_b_mesh_index_shop_table_path(void)
+{
+    /* flag == 0 → shop_table path; index = mesh_type - 3 + selector*2. */
+    int use_shop = 99;
+    int idx = scene1_walker_draw_b_mesh_index(/*mesh_type=*/3, /*flag=*/0,
+                                              /*selector=*/0, &use_shop);
+    T_ASSERT_EQ_I(use_shop, 1);
+    T_ASSERT_EQ_I(idx, 0);  /* 3 - 3 + 0*2 */
+
+    idx = scene1_walker_draw_b_mesh_index(/*mesh_type=*/4, /*flag=*/0,
+                                          /*selector=*/0, &use_shop);
+    T_ASSERT_EQ_I(idx, 1);  /* 4 - 3 + 0 */
+
+    /* selector=3 → slot = 4 - 3 + 6 = 7 */
+    idx = scene1_walker_draw_b_mesh_index(/*mesh_type=*/4, /*flag=*/0,
+                                          /*selector=*/3, &use_shop);
+    T_ASSERT_EQ_I(idx, 7);
+    return 0;
+}
+
+int test_scene1_walker_draw_b_mesh_index_shop_table_out_of_range(void)
+{
+    /* Index < 0 or >= 16 → -1. */
+    int use_shop = 0;
+    int idx = scene1_walker_draw_b_mesh_index(/*mesh_type=*/0, /*flag=*/0,
+                                              /*selector=*/0, &use_shop);
+    T_ASSERT_EQ_I(use_shop, 1);
+    T_ASSERT_EQ_I(idx, -1);  /* 0 - 3 = -3 */
+
+    idx = scene1_walker_draw_b_mesh_index(/*mesh_type=*/100, /*flag=*/0,
+                                          /*selector=*/0, &use_shop);
+    T_ASSERT_EQ_I(idx, -1);  /* 100 - 3 = 97, > 15 */
+    return 0;
+}
+
+int test_scene1_walker_draw_b_mesh_index_wall_floor_path(void)
+{
+    /* flag != 0 → wall/floor path; index = mesh_type - 0x28a0 + (flag>>6)*2.
+     * Wall/floor path doesn't bound-check (engine layout is huge);
+     * returns the raw computed offset. */
+    int use_shop = 99;
+    /* flag = 0x80, shift=2; mesh_type = 0x28a0; offset = 0 + 2*2 = 4 */
+    int idx = scene1_walker_draw_b_mesh_index(/*mesh_type=*/0x28a0,
+                                              /*flag=*/0x80,
+                                              /*selector=*/0, &use_shop);
+    T_ASSERT_EQ_I(use_shop, 0);
+    T_ASSERT_EQ_I(idx, 4);
+    return 0;
+}
+
+int test_scene1_walker_draw_b_mesh_index_null_out_ok(void)
+{
+    /* NULL out param: still computes index, just doesn't store path tag. */
+    int idx = scene1_walker_draw_b_mesh_index(/*mesh_type=*/5, /*flag=*/0,
+                                              /*selector=*/0, NULL);
+    T_ASSERT_EQ_I(idx, 2);
+    return 0;
+}
+
+/* ─── PII.3b hook + state defaults via reset ───────────────────────── */
+
+int test_scene1_walker_phase2b_reset_defaults(void)
+{
+    /* Set everything to non-default, then reset, then verify defaults. */
+    g_scene1_walker_status_screen_open = 1;
+    scene1_walker_set_kabe_texture_hook((scene1_walker_stage_texture_fn)(uintptr_t)0x1234);
+    scene1_walker_set_yuka_texture_hook((scene1_walker_stage_texture_fn)(uintptr_t)0x5678);
+    scene1_walker_set_jutan_texture_hook((scene1_walker_stage_texture_fn)(uintptr_t)0xabcd);
+    scene1_walker_set_animated_texture_hook((scene1_walker_stage_texture_fn)(uintptr_t)0xdcba);
+
+    scene1_walker_phase2_reset();
+
+    T_ASSERT_EQ_I(g_scene1_walker_status_screen_open, 0);
+    /* No hook getters for the stage-texture hooks; instead, the
+     * post-reset state is observable through compute() being a no-op
+     * (count == 0) and the count/flag defaults. */
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_count, 0);
     T_ASSERT(scene1_walker_phase2_get_flag_hook() == NULL);
     return 0;
 }
