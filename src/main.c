@@ -72,6 +72,7 @@
 #include "stage_palette.h"
 #include "stage_state.h"
 #include "tick.h"
+#include "d3d_trace.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
 #define AZUMANGA_CLASS  "Azumanga Main Window"
@@ -330,6 +331,14 @@ static uint32_t        g_max_frames              = 0;
 #define CAPTURE_FRAMES_MAX  32
 static uint32_t        g_capture_frames[CAPTURE_FRAMES_MAX];
 static int             g_capture_frames_count    = 0;
+
+/* --d3d-trace <path> + --d3d-trace-frames i,j,k.  See d3d_trace.h.
+ * Path nonzero turns the emitter on; if frames list is empty, every
+ * frame's D3D calls are emitted.  D.5 of docs/harness-roadmap.md. */
+#define D3D_TRACE_FRAMES_MAX 64
+static char           *g_d3d_trace_path                            = NULL;
+static unsigned        g_d3d_trace_frames[D3D_TRACE_FRAMES_MAX];
+static int             g_d3d_trace_frames_count                    = 0;
 
 /* --hidden: ShowWindow(SW_HIDE) instead of nCmdShow. D3D rendering
  * continues to work on a non-visible window (back buffer is video
@@ -651,6 +660,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         return 0;
     }
     /* "init start" — section marker logged by FUN_0047ac6a on success. */
+
+    /* D.5: open trace file + remember which device to wrap.  Wrap is at
+     * the call-site macro level (see d3d_trace_macros.h, injected via
+     * -include in src/Makefile), so there's no vtable hot-patch here.
+     * d3d_trace_install just notes the device pointer so the wrappers
+     * can validate `p == g_dev` quickly. */
+    if (g_d3d_trace_path) {
+        d3d_trace_init_from_cli(g_d3d_trace_path,
+                                g_d3d_trace_frames_count > 0
+                                    ? g_d3d_trace_frames : NULL,
+                                (size_t)g_d3d_trace_frames_count);
+        d3d_trace_install(g_dev);
+    }
 
     /* "init dinput ok" — FUN_0047af52 — keyboard + up to 4 joysticks.
      * Skipped under --input-trace-replay: a replay drives
@@ -1572,6 +1594,7 @@ static BOOL init_render(HWND hwnd)
 
 static void shutdown_render(void)
 {
+    d3d_trace_shutdown();
     if (g_dev) { IDirect3DDevice8_Release(g_dev); g_dev = NULL; }
     if (g_d3d) { IDirect3D8_Release(g_d3d); g_d3d = NULL; }
     if (g_d3d8_dll) { FreeLibrary(g_d3d8_dll); g_d3d8_dll = NULL; }
@@ -1693,6 +1716,10 @@ static mesh_t *house_preview_load_dump(const char *dir, IDirect3DDevice8 *dev)
 static void render_dispatch(void)
 {
     if (!g_dev) return;
+
+    /* D.5: re-evaluate frame filter so the call-site wrappers know
+     * whether to emit this frame.  No-op when --d3d-trace is off. */
+    d3d_trace_begin_frame(g_tick.frame_count);
 
     /* Per-state clear color. Engine FUN_004547ab L33-44 derives the
      * scene-1 clear from DAT_068dd2f0's stage palette; we use a fixed
@@ -1949,6 +1976,10 @@ static void render_dispatch(void)
     }
 
     IDirect3DDevice8_Present(g_dev, NULL, NULL, NULL, NULL);
+
+    /* D.5: fflush so a mid-scenario crash still leaves the trace on
+     * disk through the last completed frame. */
+    d3d_trace_end_frame();
 }
 
 /* ─── CLI parsing — hand-tokenize lpCmdLine on ASCII spaces ──────────────
@@ -2209,6 +2240,32 @@ static void parse_cmdline(LPSTR lpCmdLine)
                     long n = strtol(p, &end, 10);
                     if (end != p && n >= 0) {
                         g_capture_frames[g_capture_frames_count++] = (uint32_t)n;
+                    }
+                    if (end == NULL || *end == '\0') break;
+                    p = end + (*end == ',' ? 1 : 0);
+                    if (*end != ',') break;
+                }
+            }
+        } else if (lstrcmpA(tok, "--d3d-trace") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char d3d_buf[MAX_PATH];
+                lstrcpynA(d3d_buf, val, (int)sizeof(d3d_buf));
+                g_d3d_trace_path = d3d_buf;
+            }
+        } else if (lstrcmpA(tok, "--d3d-trace-frames") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                /* Same parser shape as --capture-frames: comma-separated
+                 * decimal sim-frame indices, capped at D3D_TRACE_FRAMES_MAX. */
+                char *p = val;
+                while (*p && g_d3d_trace_frames_count
+                                 < D3D_TRACE_FRAMES_MAX) {
+                    char *end = NULL;
+                    long n = strtol(p, &end, 10);
+                    if (end != p && n >= 0) {
+                        g_d3d_trace_frames[g_d3d_trace_frames_count++] =
+                            (unsigned)n;
                     }
                     if (end == NULL || *end == '\0') break;
                     p = end + (*end == ',' ? 1 : 0);

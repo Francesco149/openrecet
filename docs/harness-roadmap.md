@@ -424,24 +424,28 @@ driver / D.6 orchestrator resolves to FUN_-name client-side).
 
 #### Phase D.5 — D3D state-trace emitter (port side)
 
-**Goal**: emit the same JSON schema from our openrecet binary so
-they can be diffed.
+**Status**: ✅ landed 2026-05-26.  See
+`docs/findings/d3d-trace.md` "Port side (D.5)" §.  Approach (b) —
+vtable hot-patch — was tried first and produced a reliable
+ACCESS_VIOLATION whenever `dev->lpVtbl` was reassigned to a verbatim
+copy of the engine's vtable.  Falling back to approach (a), the
+`-include d3d_trace_macros.h` compile-flag transparently rewrites
+every `IDirect3DDevice8_Foo(dev, …)` call site to
+`d3d_trace_Foo(dev, …)` across all ~30 TUs with zero source-tree
+churn.  CLI: `--d3d-trace <path>` + optional
+`--d3d-trace-frames i,j,k`.  Wrappers emit JSONL rows matching the
+Frida agent's schema verbatim (`op` + `args` + `ret_va` (module-
+relative caller offset via `__builtin_return_address(0)`) + `frame`);
+floats serialized with `%.9g` to round-trip IEEE-754 single
+precision.  Frame filter is per-frame in `d3d_trace_begin_frame`;
+zero-emit cost when the frame isn't selected.
 
-- New `src/d3d_trace.c` + `src/d3d_trace.h`.
-- Wraps the IDirect3DDevice8 vtable calls our code makes with a
-  logger.  Two implementation options:
-  - (a) Wrapper functions called explicitly from each SetRenderState
-    site — invasive but precise.
-  - (b) Hot-patch our own vtable pointer on the IDirect3DDevice8
-    instance to point at a wrapper vtable that logs + delegates.
-    Less invasive but trickier (engine code calls through the
-    instance pointer's vtable).
-- CLI flag `--d3d-trace <path>` writes to a JSONL file.
-- Same JSON schema as Frida side, same `caller` annotations (via
-  GCC `__builtin_return_address(0)` resolved against our symbol
-  table).
-
-**Estimated**: 1 session (with the port-side mostly mechanical).
+Smoke validated against boot-idle frames 0,1,2 — 270 events total
+(SetRenderState / SetVertexShader / SetTextureStageState /
+SetTexture / DrawPrimitiveUP, distribution matches title-BG-scroll
+shape).  Canaries bit-exact (boot-idle 3/3 + title-down-press 4/4 +
+title-options 2/4 + title-z-press 14/14, same as baseline).  Host
+suite 2701/2701 untouched.
 
 #### Phase D.6 — render_diff orchestrator + first diagnosis
 

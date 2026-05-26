@@ -12,6 +12,7 @@ CFLAGS    ?= -std=c11 -O2 -g \
              -Wall -Wextra -Wno-unused-parameter \
              -DUNICODE=0 -D_UNICODE=0 \
              -DWINVER=0x0500 -D_WIN32_WINNT=0x0500 \
+             -include d3d_trace_macros.h \
              -MMD -MP
 LDFLAGS   ?= -static-libgcc
 LIBS      ?= -ld3d8 -ldinput8 -ldxguid -ldsound -lwinmm \

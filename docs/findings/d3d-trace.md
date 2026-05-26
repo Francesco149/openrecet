@@ -216,13 +216,113 @@ inlining (matrix, material, viewport, light), add a reader helper
 next to `traceReadMatrix` / `traceReadMaterial` to flatten the
 struct into a JSON-friendly list.
 
+## Port side (D.5)
+
+Symmetric emitter for our openrecet binary lives in
+`src/d3d_trace.{c,h}` + `src/d3d_trace_macros.h`.  Drops the same
+JSONL schema as the agent into `<run_dir>/d3d_trace.jsonl`.
+
+### Quick start (port side)
+
+```fish
+nix develop
+nix develop --command tools/run-openrecet.sh \
+    --max-frames 5 --turbo --silent-audio --hidden --rng-seed 1 \
+    --input-trace-replay $(wslpath -w "$PWD/tests/scenarios/boot-idle/trace.jsonl") \
+    --d3d-trace        $(wslpath -w "$PWD/runs/d3d-trace-smoke/d3d_trace.jsonl") \
+    --d3d-trace-frames 0,1,2 \
+    --max-duration-ms 3000
+head runs/d3d-trace-smoke/d3d_trace.jsonl
+```
+
+### Interception mechanism
+
+**The obvious approach (vtable hot-patch) does not work on this
+host.**  Reassigning `dev->lpVtbl` to a static-storage byte copy of
+the engine's original vtable triggers a reliable
+`ACCESS_VIOLATION` (`0xC0000005`) somewhere downstream — the
+d3d8.dll implementation evidently caches or type-tags the original
+vtable address.  Verified by copying the vtable into a static
+struct and pointing `dev->lpVtbl` at the copy WITHOUT wrapping any
+slots: still crashes.  Pointing back at the original keeps the run
+alive.
+
+The shipped approach is **call-site macro redirection**:
+
+```
+   user code                  d3d_trace_macros.h          d3d_trace.c
+   ─────────                  ─────────────────────       ────────────
+   IDirect3DDevice8_SetRenderState(dev, S, V)
+                          ───▶ #define …→ d3d_trace_SetRenderState(dev, S, V)
+                                                       ───▶ emit JSON row
+                                                            then (dev)->lpVtbl->SetRenderState(dev,S,V)
+```
+
+`src/Makefile` adds `-include d3d_trace_macros.h` to `CFLAGS` so the
+redirect header is processed at the top of every TU before any
+other code, ahead of the `<d3d8.h>` include.  d3d8.h's COBJMACROS
+variant emits the standard `(p)->lpVtbl->Foo(p, …)` macros;
+`d3d_trace_macros.h` then `#undef`s the 12 we care about and
+redefines them to call into the wrappers.
+
+`d3d_trace.c` itself is the one TU that needs the RAW macros to
+forward the call — it `#undef`s the redirected macros immediately
+after including `d3d_trace_macros.h`, then restores the d3d8.h
+COBJMACROS form verbatim.  After that, `IDirect3DDevice8_Foo(p, …)`
+inside `d3d_trace.c` expands to the original lpVtbl call, which is
+what each `d3d_trace_Foo` wrapper ends up tail-calling.
+
+### Schema differences vs the Frida side
+
+Field shapes match field-for-field (op, args, ret_va, frame).  Only
+the float formatter differs: the Frida side hands JS Numbers to
+`JSON.stringify` which picks the shortest decimal that round-trips
+a double; the port side uses `%.9g` which is sufficient to round-
+trip an IEEE-754 single.  Equivalent for any float32 ingested by a
+JSON parser on the diff side.
+
+`ret_va` is computed via `__builtin_return_address(0)` minus the
+EXE's load base (`GetModuleHandleA(NULL)`).  The openrecet ImageBase
+is 0x00400000 — add that to the `ret_va` to get a Ghidra VA inside
+the port, the same way `ret_va + 0x00400000` maps to a retail VA on
+the Frida side.
+
+### Cost when not enabled
+
+Each wrapper checks one static FILE pointer (`g_f == NULL`) and
+forwards.  With `--d3d-trace` unset, `g_f` is NULL and emit is
+skipped — the wrapper degenerates to: stash return address, one
+branch, one function-pointer call.  Sub-nanosecond on modern x86.
+
+### Smoke results (D.5 landing)
+
+| scenario                        | frames captured | event count |
+|---------------------------------|-----------------|-------------|
+| boot-idle 0,1,2                 | 90 each (270 total) | SetVertexShader 24, DrawPrimitiveUP 23, SetTexture 23, SetTextureStageState 13, SetRenderState 7 (per frame) |
+
+Counts diverge from the retail-side D.4 smoke (39/frame total)
+because the openrecet title scene's render path differs structurally
+from retail's.  That divergence IS the bug class Phase D.6 is
+designed to surface.  When the diff orchestrator lands and runs both
+traces on the same scenario, every per-call gap (extra SetTexture,
+missing SetMaterial, swapped DrawPrimitive args) appears as a
+diff-able event pair.
+
+### Validation
+
+Canaries bit-exact after the wrappers landed: boot-idle 3/3 +
+title-down-press 4/4 + title-options 2/4 + title-z-press 14/14
+(same as the C8jb.fin baseline; the 2 fails in title-options are
+the pre-existing frames 39/60 regression).  Host suite 2701/2701
+pass unchanged.
+
 ## Cross-references
 
   - `tools/frida/openrecet-agent.js` — `installD3dTraceHooks` and
     related state.
   - `tools/frida_capture.py` — driver `CaptureConfig.d3d_trace` +
     `--d3d-trace` / `--d3d-trace-frames` CLI flags.
-  - `docs/harness-roadmap.md` Phase D.4 — original spec.
-  - Future: `src/d3d_trace.{c,h}` (Phase D.5) — port-side emitter
-    using the same schema.  `tools/render_diff.py` (Phase D.6) —
-    lock-step diff orchestrator.
+  - `src/d3d_trace.{c,h}` + `src/d3d_trace_macros.h` — port side.
+  - `docs/harness-roadmap.md` Phase D.4 + D.5 — original specs.
+  - Future: `tools/render_diff.py` (Phase D.6) — lock-step diff
+    orchestrator.
