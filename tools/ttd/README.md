@@ -11,12 +11,45 @@ shows up.
 
 ```
 tools/ttd/
-├── ttd_paths.py        binary discovery (returns {ttd_exe, cdb_exe})
-├── ttd_capture.py      record a trace
-├── ttd_query.py        run a JS query against a trace
+├── ttd_paths.py            binary discovery (returns {ttd_exe, cdb_exe})
+├── ttd_capture.py          record a trace
+├── ttd_query.py            run a JS query against a trace
+├── _run_elevated.ps1       PowerShell elevation wrapper used by capture
 └── scripts/
-    └── frame_calls.js  first query — engine-VA call enumeration
+    ├── probe.js            sanity: writes a constant JSON to validate
+                            the cdb + .scriptrun + file-write path
+    ├── modules.js          dump loaded modules + base/end VAs
+    ├── calls_to_addr.js    count calls to ONE VA (+ first call site)
+    ├── batch_calls.js      count + caller distribution for an array of VAs
+                            (the leaf-first analysis primitive)
+    ├── present_boundaries.js  enumerate Present() calls (BLOCKED — needs
+                                d3d8 public symbols which aren't loaded)
+    └── frame_calls.js      enumerate by module pattern (BLOCKED — retail
+                              has no PDB so "recettear!*" returns empty)
 ```
+
+## Working call enumeration: address-keyed
+
+cdb's `TTD.Calls()` accepts either a `"module!symbol"` pattern OR a
+raw integer address.  Patterns require symbols (PDBs); retail ships
+none.  Address queries don't need symbols and are natively indexed
+by cdb — fast (sub-10s for one VA on a 350 MB trace).
+
+The leaf-first workflow:
+
+  1. Capture a trace via `ttd_capture.py`.
+  2. Produce a list of engine function entry-point VAs.  Two
+     candidate sources: `objdump -d vendor/unpacked/recettear.unpacked
+     .exe | grep '^[0-9a-f]\\{8\\} <FUN_'` (if symbols are exported),
+     or a Ghidra headless export.
+  3. Run `batch_calls.js` with `TARGET_VAS=[v1, v2, …]` to get
+     per-VA call counts + caller distributions.
+  4. Run the equivalent analysis on the port (using `nm openrecet
+     .exe` for the VA list).
+  5. Diff retail vs port call-graph metadata.  Mismatches surface as:
+       a function called in retail but not port (missing port impl),
+       different call counts (logic divergence),
+       different caller distributions (call-site divergence).
 
 ## One-time setup (manual)
 
