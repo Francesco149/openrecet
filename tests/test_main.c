@@ -1329,6 +1329,21 @@ struct test_case {
     X(scene1_postload_smoke_b_uses_player_pos_y_plus_2_when_no_override) \
     X(scene1_postload_smoke_b_setter_minus_one_restores_default) \
     X(scene1_postload_smoke_b_blob_persists_matrix_across_calls) \
+    X(scene1_postload_walker_phase2_default_is_disabled) \
+    X(scene1_postload_walker_phase2_scene_type_out_of_range_disables) \
+    X(scene1_postload_walker_phase2_scene_type_0_count_uses_ivar8) \
+    X(scene1_postload_walker_phase2_scene_type_1_count_4) \
+    X(scene1_postload_walker_phase2_scene_type_2_count_6) \
+    X(scene1_postload_walker_phase2_scene_type_3_count_10) \
+    X(scene1_postload_walker_phase2_scene_type_4_count_10) \
+    X(scene1_postload_walker_phase2_mesh_type_pattern) \
+    X(scene1_postload_walker_phase2_rot_y_pattern) \
+    X(scene1_postload_walker_phase2_positions_default_anchor_subtract) \
+    X(scene1_postload_walker_phase2_positions_with_stage_override) \
+    X(scene1_postload_walker_phase2_scene_type_4_distinct_anchors) \
+    X(scene1_postload_walker_phase2_setter_round_trip) \
+    X(scene1_postload_walker_phase2_set_positions_null_clears) \
+    X(scene1_postload_walker_phase2_drives_walker_compute_translation) \
     \
     X(scene1_camera_init_clears_orient) \
     X(scene1_camera_house_default_snaps_to_oracle_pose) \

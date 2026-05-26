@@ -26,6 +26,8 @@
 #ifndef OPENRECET_SCENE1_POSTLOAD_H
 #define OPENRECET_SCENE1_POSTLOAD_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -181,6 +183,64 @@ void scene1_postload_smoke_c_spawn(void);
 void scene1_postload_set_force_b_npc_type(int type);
 void scene1_postload_set_force_b_entity_type(int type);
 void scene1_postload_smoke_b_spawn(void);
+
+/*
+ * Chip Cf.minimal (2026-05-26) — phase-2 walker-array writer.
+ *
+ * Engine analog: the FUN_00436f97 alt-stage arm chunk at decomp L34770+
+ * (asm 0x4378d6..0x437a47 dispatch + scalar fanout, 0x437a4b..0x437ac5
+ * 10-iter position loop).  Populates the per-mesh-furniture arrays
+ * `g_scene1_walker_phase2_*` that PII.3b's `scene1_walker_pass_render_house`
+ * iterates to draw the HOUSE shop_table furniture.
+ *
+ * The engine only runs this chunk when re-entering INGAME from a sub-
+ * scene (sub-scene return path via `FUN_0048526d`/`FUN_0049e163` — all
+ * unported).  Initial title → HOUSE entry doesn't fire it, so HOUSE
+ * boot has phase2_count == 0 and no furniture is drawn.
+ *
+ * Defaults match engine BSS-zero behaviour (no furniture rendered on
+ * default boot).  Enable via `scene1_postload_set_walker_phase2_scene_type()`
+ * with a value in [0..4].
+ *
+ * Stand-in seams (no consumers wire to these in production yet):
+ *   - scene_type (= engine `DAT_068dd3fc[stage*0x6cf]`): drives the
+ *     count dispatch.  -1 disables (no writer fires).  0..4 enables.
+ *   - per-stage furniture position table (= engine
+ *     `stage_record + 0x2ce14`): 10 (x, z) int pairs used by the
+ *     10-iter position loop as `pos[i] = 2 * (stage_pos[i] - rdata_anchor[i])`.
+ *   - iVar8 stand-in: the engine value of `iVar8` at the moment the
+ *     dispatch reads it.  Stays 0 in our model (consistent with the
+ *     decompile's exit values from prior loops, but unverified without
+ *     Frida — pending-human-check candidate).
+ *
+ * See `docs/findings/scene1-walker-pass-init.md` "Cf.survey landing"
+ * section for full asm-decoded structure + reachability analysis.
+ */
+void scene1_postload_walker_phase2_init(void);
+
+/*
+ * Set the scene_type used by the writer.  Values in [0..4] enable the
+ * writer to fire; -1 (default) disables.  Drives `--force-walker-phase2
+ * <N>`.  When enabled, the writer runs at HOUSE-entry time from
+ * scene1_preload_house.
+ */
+void scene1_postload_set_walker_phase2_scene_type(int scene_type);
+
+/*
+ * Override the per-stage furniture position table (engine stage_record
+ * + 0x2ce14, 10 × (int x, int z) pairs).  When `positions` is non-NULL,
+ * copies 20 ints into the stand-in storage.  Pass NULL to reset to
+ * BSS-zero defaults (which produce world-position output that mirrors
+ * the .rdata anchor table inverted — see formula in implementation).
+ */
+void scene1_postload_set_walker_phase2_stage_positions(const int32_t positions[10][2]);
+
+/*
+ * Override the iVar8 stand-in.  Default 0.  Surfaced for tests that
+ * need to exercise the scene_type==0/2 dispatch paths (which write
+ * iVar8 to a count field).  Production code should leave at default.
+ */
+void scene1_postload_set_walker_phase2_ivar8(int ivar8);
 
 #ifdef __cplusplus
 }

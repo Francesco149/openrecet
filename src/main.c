@@ -228,6 +228,19 @@ static float            g_force_c_world_drop_mag      = 1.0f;
 static int              g_force_b_npc_type            = -1;
 static int              g_force_b_entity_type         = -1;
 
+/* --force-walker-phase2 <N>: enable Cf.minimal writer chunk on HOUSE
+ * entry with scene_type=N (valid range [0..4]).  -1 disables (default).
+ *
+ * scene_type 1 → 4 furniture meshes (slots 0..3).
+ * scene_type 3 or 4 → 10 furniture meshes (slots 0..9).
+ *
+ * Acts on `scene1_postload_walker_phase2_init` from scene1_preload_house.
+ * Engine doesn't fire FUN_00436f97 on initial HOUSE entry from title
+ * (only on sub-scene re-entry); this CLI flag opts into the stand-in
+ * wiring so HOUSE-from-title produces visible shop_table furniture
+ * pixels via PII.3b's draw loop B. */
+static int              g_force_walker_phase2_scene_type = -1;
+
 /* Scene-0 (title) state now lives in scene_title.c as module globals
  * (`g_scene_title_menu`, `g_scene_title_anim`, `g_scene_title_assets_loaded`).
  * sim_step_a and render_dispatch both reach in directly via those externs;
@@ -928,6 +941,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     }
     if (g_force_b_entity_type >= 0) {
         scene1_postload_set_force_b_entity_type(g_force_b_entity_type);
+    }
+
+    /* Cf.minimal — phase-2 walker writer.  Applied before scene1_preload_house
+     * fires so the writer sees the override on the first HOUSE entry. */
+    if (g_force_walker_phase2_scene_type >= 0) {
+        scene1_postload_set_walker_phase2_scene_type(g_force_walker_phase2_scene_type);
     }
 
     /* Cc.1: initialise scene-1 camera state.  Sets the first-frame
@@ -2074,6 +2093,14 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 long n = strtol(val, NULL, 0);
                 if (n >= 0 && n <= 0xff) {
                     g_force_b_entity_type = (int)n;
+                }
+            }
+        } else if (lstrcmpA(tok, "--force-walker-phase2") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                long n = strtol(val, NULL, 0);
+                if (n >= 0 && n <= 4) {
+                    g_force_walker_phase2_scene_type = (int)n;
                 }
             }
         } else if (lstrcmpA(tok, "--ambient-spawn-pose") == 0) {

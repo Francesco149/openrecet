@@ -58,9 +58,9 @@
  * sub-chip lands, the arrays stay zero in production. */
 extern int32_t g_scene1_walker_phase2_mesh_type[SCENE1_WALKER_PHASE2_MAX]; /* DAT_0438bfcc + i*4 */
 extern float   g_scene1_walker_phase2_rot_y    [SCENE1_WALKER_PHASE2_MAX]; /* DAT_0438c01c + i*4 */
-extern float   g_scene1_walker_phase2_pos_y    [SCENE1_WALKER_PHASE2_MAX]; /* DAT_0438c06c + i*4 */
-extern float   g_scene1_walker_phase2_pos_x    [SCENE1_WALKER_PHASE2_MAX]; /* DAT_0438c0bc + i*4 */
-extern float   g_scene1_walker_phase2_pos_z    [SCENE1_WALKER_PHASE2_MAX]; /* DAT_0438c10c + i*4 */
+extern float   g_scene1_walker_phase2_pos_x    [SCENE1_WALKER_PHASE2_MAX]; /* DAT_0438c06c + i*4 (engine X — verified asm 0x457e5c pushes [esi+0x50] as 2nd arg to D3DXMatrixTranslation) */
+extern float   g_scene1_walker_phase2_pos_y    [SCENE1_WALKER_PHASE2_MAX]; /* DAT_0438c0bc + i*4 (engine Y — asm 0x457e52 pushes [esi+0xa0] as 3rd arg) */
+extern float   g_scene1_walker_phase2_pos_z    [SCENE1_WALKER_PHASE2_MAX]; /* DAT_0438c10c + i*4 (engine Z — asm 0x457e48 pushes [esi+0xf0] as 4th arg) */
 
 /* Per-mesh count — engine DAT_0438bfb4.  Set by FUN_00436f97 on
  * stage init; 0 = phase 2 short-circuits (compute writes nothing). */

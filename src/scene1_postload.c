@@ -43,6 +43,7 @@
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
 #include "scene1_spawn.h"
+#include "scene1_walker_pass_init.h"
 #include "stage_palette.h"
 
 float g_scene1_stage_player_default_pos[3] = {-40.0f, 0.0f, -60.0f};
@@ -270,5 +271,129 @@ void scene1_postload_smoke_c_spawn(void)
             g_force_c_world_drop_mag,
             /* e1 */       0,
             /* extra_aux */0);
+    }
+}
+
+/* ─── Cf.minimal — FUN_00436f97 alt-stage arm writer chunk ──────────── */
+
+/* .rdata 0x5c5120 — per-(scene_type, mesh_index) world-anchor table.
+ * Dump verified at landing time via:
+ *
+ *   nix develop --command python3 tools/analyze/pe.py bytes 0x5c5120 400
+ *
+ * 5 scene_types × 10 entries × (int32_t x, int32_t z) = 400 B.  Engine
+ * formula at asm 0x437a68-0x437aa0: `addr = 0x5c5120 + (i + scene_type
+ * * 10) * 8`.  scene_types 0..3 share the same anchor row (compact
+ * shop layout); scene_type 4 has a distinct row with larger values
+ * (different sub-class; not validated in HOUSE smoke). */
+static const int32_t k_walker_anchor_table[5][10][2] = {
+    /* scene_type 0 */
+    {{4,3},{3,4},{5,2},{4,2},{4,3},{3,4},{4,3},{4,3},{4,3},{4,3}},
+    /* scene_type 1 */
+    {{4,3},{3,4},{5,2},{4,2},{4,3},{3,4},{4,3},{4,3},{4,3},{4,3}},
+    /* scene_type 2 */
+    {{4,3},{3,4},{5,2},{4,2},{4,3},{3,4},{4,3},{4,3},{4,3},{4,3}},
+    /* scene_type 3 */
+    {{4,3},{3,4},{5,2},{4,2},{4,3},{3,4},{4,3},{4,3},{4,3},{4,3}},
+    /* scene_type 4 — distinct sub-class */
+    {{12,111},{211,311},{411,511},{611,711},{1011,1012},
+     {1112,1211},{1311,1411},{1512,1611},{1711,2011},{2107,2207}},
+};
+
+/* Stand-in storage (defaults match BSS-zero / disabled). */
+static int     g_walker_scene_type = -1;
+static int     g_walker_ivar8      = 0;
+static int32_t g_walker_stage_positions[10][2];
+
+void scene1_postload_set_walker_phase2_scene_type(int scene_type)
+{
+    g_walker_scene_type = scene_type;
+}
+
+void scene1_postload_set_walker_phase2_stage_positions(
+    const int32_t positions[10][2])
+{
+    if (positions) {
+        memcpy(g_walker_stage_positions, positions,
+               sizeof g_walker_stage_positions);
+    } else {
+        memset(g_walker_stage_positions, 0,
+               sizeof g_walker_stage_positions);
+    }
+}
+
+void scene1_postload_set_walker_phase2_ivar8(int ivar8)
+{
+    g_walker_ivar8 = ivar8;
+}
+
+void scene1_postload_walker_phase2_init(void)
+{
+    int st = g_walker_scene_type;
+    /* Alt-stage gate (asm 0x4378c5-0x4378d0): scene_type must be in
+     * [0..4] for the writer to fire.  Negative or > 4 = disabled. */
+    if (st < 0 || st > 4) {
+        return;
+    }
+
+    int ivar8 = g_walker_ivar8;
+
+    /* Count dispatch (asm 0x4378f0-0x437946).  Only phase 2 count
+     * matters for PII.3b's draw loop; phase 1 (DAT_0438bfb0) is
+     * deferred to PII.3c. */
+    int32_t phase2_count;
+    switch (st) {
+    case 0:  phase2_count = ivar8; break;
+    case 1:  phase2_count = 4;     break;
+    case 2:  phase2_count = 6;     break;
+    case 3:
+    case 4:  phase2_count = 10;    break;
+    default: return;
+    }
+    if (phase2_count < 0) phase2_count = 0;
+    if (phase2_count > SCENE1_WALKER_PHASE2_MAX) {
+        phase2_count = SCENE1_WALKER_PHASE2_MAX;
+    }
+    g_scene1_walker_phase2_count = phase2_count;
+
+    /* Mesh-type scalar setup (asm 0x43795a-0x4379c5).  Engine writes:
+     *   slots {0, 4, 6, 7, 8, 9} = esi (= iVar8)
+     *   slots {1, 2, 3, 5}       = 4 (pop eax constant)
+     *
+     * The shop_table mesh-index formula (PII.3b
+     * `scene1_walker_draw_b_mesh_index`) is `mesh_type - 3 + selector*2`;
+     * with `mesh_type==4` and default selector 0 this resolves to 1
+     * (= shop_table02.x in scene_table.c). */
+    g_scene1_walker_phase2_mesh_type[0] = ivar8;
+    g_scene1_walker_phase2_mesh_type[1] = 4;
+    g_scene1_walker_phase2_mesh_type[2] = 4;
+    g_scene1_walker_phase2_mesh_type[3] = 4;
+    g_scene1_walker_phase2_mesh_type[4] = ivar8;
+    g_scene1_walker_phase2_mesh_type[5] = 4;
+    g_scene1_walker_phase2_mesh_type[6] = ivar8;
+    g_scene1_walker_phase2_mesh_type[7] = ivar8;
+    g_scene1_walker_phase2_mesh_type[8] = ivar8;
+    g_scene1_walker_phase2_mesh_type[9] = ivar8;
+
+    /* Rot_y scalar setup (asm 0x437a29-0x437a47).  Only slots 1, 2, 3
+     * have explicit angles; the other slots stay at their prior values
+     * (BSS-zero on first call). */
+    g_scene1_walker_phase2_rot_y[1] =  0.0f;
+    g_scene1_walker_phase2_rot_y[2] =  1.5707964f;   /* π/2  @ 0x519434 */
+    g_scene1_walker_phase2_rot_y[3] = -1.5707964f;   /* -π/2 @ 0x519a18 */
+
+    /* 10-iter position loop (asm 0x437a4b-0x437ac5).
+     *   pos_x[i] = 2.0 × (stage_pos[i].x - anchor[scene_type][i].x)
+     *   pos_y[i] = 0.0
+     *   pos_z[i] = 2.0 × (stage_pos[i].z - anchor[scene_type][i].z)
+     */
+    for (int i = 0; i < 10; i++) {
+        int32_t sx = g_walker_stage_positions[i][0];
+        int32_t sz = g_walker_stage_positions[i][1];
+        int32_t ax = k_walker_anchor_table[st][i][0];
+        int32_t az = k_walker_anchor_table[st][i][1];
+        g_scene1_walker_phase2_pos_x[i] = 2.0f * (float)(sx - ax);
+        g_scene1_walker_phase2_pos_y[i] = 0.0f;
+        g_scene1_walker_phase2_pos_z[i] = 2.0f * (float)(sz - az);
     }
 }
