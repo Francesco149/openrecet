@@ -147,16 +147,26 @@ static void scene1_walk_pre_dispatch_TODO(void)
     /* TODO C8-followup: port FUN_00458f67. */
 }
 
-/* FUN_00459847 (1444 B) — the engine's "narrow frustum" mesh walker.
- * Called TWICE per frame: arg=0 (no fog) at L204, arg=1 (fog enabled
- * by L213-214) at L215.  Reads DAT_0076b960 (record-table active
- * count) and DAT_069b2fb0 (the per-record table, stride 0x25).
- * Likely the walls / floor / static room geometry walker. */
+/* FUN_00459847 (1444 B) — projectile-table renderer (NOT walls/floor;
+ * earlier comment was wrong).  Survey 2026-05-26 (decomp all.c L53983):
+ * walks &DAT_0695f004 stride 0xa8 (the PHC #26 projectile table),
+ * filters by TYPE != -1 + slot[+0x77] != 3 + per-type class match
+ * (`*(int *)(&DAT_005c4cac + iVar3 * 0x24) == param_1`), and emits via
+ * the scene-tree dispatcher (FUN_00403d79/FUN_00404870/FUN_00404a20).
+ * Called 4× per frame with class param ∈ {0, 1, 2, 3} — 0/1 from
+ * scene1_render_meshes (this file), 2/3 from FUN_00458bdf (alpha walker).
+ *
+ * Doubly dormant in retail: the projectile table at 0x695f004 has no
+ * writers anywhere in the binary (PHC #26), and the per-type class
+ * attr table at 0x5c4cac also has no writers (PHC #19).  Porting this
+ * yields zero visible pixels until something seeds those tables.
+ *
+ * The TRUE walls/floor draw is `FUN_00455191(&DAT_068dcf98)` at L165
+ * of scene1_render_meshes — see scene1_walk_initial_asset_TODO below.
+ * For HOUSE specifically, palette+0x108 is zero (no 3D room mesh) — the
+ * shop interior renders as 2D sprites + furniture via shop_walker. */
 static void scene1_walk_narrow_frustum_TODO(int pass)
 {
-    /* TODO C8-followup: port FUN_00459847.  Until this lands the
-     * shop walls/floor never paint — there will be no visible
-     * scene-1 3D output. */
     (void)pass;
 }
 
@@ -856,11 +866,13 @@ void scene1_render_overlay(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE,      FALSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
 
-    /* L11-12: TSS stage 0 texcoord routing — index 2, transform
-     * flags COUNT2 (read uv from input stream index 2 — wait, FVF only
-     * has TEX1, so this is engine over-config). Reproduced verbatim. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_TEXCOORDINDEX,        2);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_TEXTURETRANSFORMFLAGS, 2);
+    /* L11-12: linear texture sampling.  Engine writes 0x11/0x10
+     * (= MINFILTER/MAGFILTER) — earlier this port wrote
+     * TEXCOORDINDEX/TEXTURETRANSFORMFLAGS due to a dec/hex confusion
+     * (`0x11` = 17 = MINFILTER, NOT decimal 11 = TEXCOORDINDEX).
+     * Fixed 2026-05-26 alongside the L897 COLORARG2=SPECULAR removal. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
 
     /* L13: fog off. */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, FALSE);
@@ -868,8 +880,10 @@ void scene1_render_overlay(struct IDirect3DDevice8 *dev_in)
     /* L14: alpha blend on. */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHABLENDENABLE, TRUE);
 
-    /* L15: color op modulate. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    /* L15: alpha op modulate (engine asm 0x4175b2 — SetTSS(0, 4, 4)).
+     * Was missing from this port; surfaced 2026-05-26 alongside the
+     * L897 phantom-write fix. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 
     /* L16: ambient — very dim gray (sets a baseline so lighting-off
      * still has some "self emission" feel; the engine uses this for
@@ -879,12 +893,16 @@ void scene1_render_overlay(struct IDirect3DDevice8 *dev_in)
     /* L17: shademode gouraud (per-vertex). */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
 
-    /* L18: COLORARG2 = D3DTA_SPECULAR.  Unusual — the secondary color
-     * argument normally is TEXTURE or TFACTOR.  D3DTA_SPECULAR pulls
-     * from a specular channel that FVF 0x142 doesn't declare, which
-     * means the engine is implicitly relying on a 0 (or last-written)
-     * value here.  Reproduced verbatim. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_SPECULAR);
+    /* L18: color op modulate (engine asm 0x4175ec — SetTSS(0, 1, 4)). */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+    /* NOTE: prior version of this port had an extra
+     * SetTSS(0, COLORARG2, D3DTA_SPECULAR) write here that does NOT
+     * exist in engine asm (verified via objdump @ 0x417504 — only 4
+     * SetTSS calls total, none with state==3=COLORARG2).  That phantom
+     * write was the cause of PHC #18 / Cr.2 — the COLORARG2 leak that
+     * blanked the "Now Loading" CD icon when scene1_render_overlay was
+     * wired.  Removed 2026-05-26. */
 
     /* L19-20: lighting off (FFP off, vertex diffuse is final). */
     IDirect3DDevice8_LightEnable(dev, 0, FALSE);

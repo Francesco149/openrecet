@@ -1824,6 +1824,7 @@ static void render_dispatch(void)
                  * (Cf.1) start producing visible pixels without another
                  * wiring chip. */
                 scene1_render_camera_setup(g_dev);
+                scene1_render_overlay(g_dev);
                 scene1_render_fx_tail(g_dev);
             }
 
