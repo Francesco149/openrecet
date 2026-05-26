@@ -1280,17 +1280,23 @@ extern const char *g_scene1_combat_phase_c_throwable_last_error_msg;
 int scene1_combat_sm_tick(int32_t *slot);
 
 /*
- * Wrapper adapter: install scene1_combat_sm_tick as the existing
- * scene1_records_b_set_state_machine_hook (void return).  The void hook
- * loses the {0, 1, 2} ret distinction — the integrator's translator
- * (`state_machine_call_ret`) coerces all "hook installed" into ret=1.
+ * Production install / uninstall.  C8jb.fin makes the records_b_tick
+ * state-machine hook int-returning (matching engine FUN_0043865e's int
+ * ret), so scene1_combat_sm_tick is install-able directly.  Call
+ * scene1_combat_sm_install() once during scene1 init (main.c does this
+ * before the first INGAME tick).  The int return propagates to
+ * `state_machine_call_ret` in the integrator — Phase B/C hits returning
+ * 1 break per-record scan loops at the engine-equivalent sites.
  *
- * C8jb.1 does NOT auto-install — production wiring stays as-is (no SM
- * hook = ret=0).  Tests call this to exercise the integrator coupling
- * with Phase A side effects (per-tick flag write).
+ * Today the records_b table is BSS-zero in HOUSE (C8j allocator ladder
+ * unwired without smoke flags), so installing the hook is observably a
+ * no-op — every slot is dead → SM never fires → canaries bit-exact.
+ *
+ * Tests can call scene1_combat_sm_uninstall() (= set hook to NULL) to
+ * detach the SM and restore the pre-C8jb.fin "no hook = ret 0" baseline.
  */
-void scene1_combat_sm_install_as_void_hook(void);
-void scene1_combat_sm_uninstall_void_hook(void);
+void scene1_combat_sm_install(void);
+void scene1_combat_sm_uninstall(void);
 
 #ifdef __cplusplus
 }

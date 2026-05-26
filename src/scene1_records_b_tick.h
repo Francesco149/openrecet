@@ -464,8 +464,12 @@
  *   - scene1_records_b_set_state_machine_hook(fn) — stand-in for engine
  *     FUN_0043865e (Mt. Everest #2, 8059 B per-record state machine,
  *     PHC #20).  Called from the LAB_0043b205 iter loop AND the
- *     LAB_0043b325 0x89/0x9e iter loop; default `NULL` = no-op.  The
- *     C8jb.* ladder will install a real body once that ports.
+ *     LAB_0043b325 0x89/0x9e iter loop.  C8jb.fin wires
+ *     scene1_combat_sm_tick (the Phase A/B/C SM ported by the C8jb.*
+ *     ladder) as the production hook; pass NULL to revert to no-op.
+ *     Hook ret matches engine: non-zero = "fired this tick", 0 = "no
+ *     progress" (integrator breaks iter on 0 at LAB_0043b205-style
+ *     sites that propagate the ret).
  *
  *   - scene1_records_b_set_se_hook(fn) — stand-in for engine
  *     FUN_00499519 (sound-effect-by-ID).  Called from the 0x1e age==4
@@ -524,7 +528,13 @@ extern int32_t g_scene1_records_b_tick_anim_drive;
 
 /* Hook signatures. */
 typedef void (*scene1_b_per_type_body_fn)(int slot_idx, int32_t type);
-typedef void (*scene1_b_state_machine_fn)(int32_t *slot);
+/* C8jb.fin — hook returns int matching engine FUN_0043865e's int ret.
+ * Non-zero = "state machine fired this tick / progress made"; 0 = "no
+ * progress, integrator should break iteration".  Integrator wraps
+ * invocations via two helpers: `state_machine_call` discards the ret
+ * (matches engine sites that ignore the ret), `state_machine_call_ret`
+ * propagates it (matches engine sites that gate on it). */
+typedef int  (*scene1_b_state_machine_fn)(int32_t *slot);
 typedef void (*scene1_b_se_fn)(uint16_t se_id);
 
 /* Stand-ins for three engine helpers used by the C8j-tick.5 0x8a body.

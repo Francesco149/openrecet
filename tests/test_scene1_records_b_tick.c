@@ -224,7 +224,7 @@ int test_records_b_tick_per_type_hook_not_called_for_dead_slots(void)
 
 /* State-machine hook setter is wired but not invoked from skeleton.
  * Confirm setter round-trips. */
-static void noop_state_machine(int32_t *slot) { (void)slot; }
+static int noop_state_machine(int32_t *slot) { (void)slot; return 0; }
 
 int test_records_b_tick_state_machine_setter_round_trips(void)
 {
@@ -339,12 +339,17 @@ static void capture_se(uint16_t id)
     s_se_last_id = id;
 }
 
-/* State-machine hook capture. */
+/* State-machine hook capture.  C8jb.fin: hook returns int.  These call
+ * sites generally use the void variant (state_machine_call), so the ret
+ * is observable only via state_machine_call_ret-aware tests.  Default
+ * return 1 keeps the pre-C8jb.fin "any hook installed → ret=1" semantic
+ * the existing tests were authored against. */
 static int s_sm_calls;
-static void capture_state_machine(int32_t *slot)
+static int capture_state_machine(int32_t *slot)
 {
     (void)slot;
     s_sm_calls++;
+    return 1;
 }
 
 /* ─── 0x2f / 0x88 / 0x9a — joint-table anchor cascade ──────────────────── */
@@ -1695,7 +1700,7 @@ int test_records_b_tick_body1_state_machine_loop_null_hook_runs_zero(void)
  * mimicking the engine's per-tick fill-with-velocity behavior. */
 static int s_anim_drive_writes;
 static int s_anim_drive_write_value;
-static void anim_drive_state_machine(int32_t *slot)
+static int anim_drive_state_machine(int32_t *slot)
 {
     (void)slot;
     /* Engine resets to 0 before each call; only the FIRST hook call
@@ -1706,6 +1711,7 @@ static void anim_drive_state_machine(int32_t *slot)
         g_scene1_records_b_tick_anim_drive = s_anim_drive_write_value;
     }
     s_anim_drive_writes++;
+    return 1;
 }
 
 int test_records_b_tick_body1_type_4_anim_drive_writes_owner(void)
@@ -1843,14 +1849,15 @@ static void capture_notify(int32_t a, int32_t b, int32_t c, float d)
 }
 
 /* State machine that returns "progress" (= installed hook) for the
- * ret-aware bodies (0x85, 0x8a, 0x8b).  The void-return contract here
- * means installing ANY hook → state_machine_call_ret() returns 1.  Use
- * for Body 2 progress-path tests. */
+ * ret-aware bodies (0x85, 0x8a, 0x8b).  C8jb.fin: returns 1 explicitly;
+ * pre-C8jb.fin the coarse stand-in returned 1 whenever any hook was
+ * installed, so existing tests are authored against ret=1. */
 static int s_sm5_calls;
-static void capture_sm_progress(int32_t *slot)
+static int capture_sm_progress(int32_t *slot)
 {
     (void)slot;
     s_sm5_calls++;
+    return 1;
 }
 
 /* ─── 0x85 ─────────────────────────────────────────────────────────────── */
@@ -5588,10 +5595,11 @@ int test_records_b_tick_t15a_type_65_kills_at_age_0x78(void)
 }
 
 static int s_t15a_sm_calls;
-static void t15a_sm_capture(int32_t *slot)
+static int t15a_sm_capture(int32_t *slot)
 {
     (void)slot;
     s_t15a_sm_calls++;
+    return 1;
 }
 
 int test_records_b_tick_t15a_type_65_sm_nonzero_return_kills(void)
@@ -5772,7 +5780,7 @@ int test_records_b_tick_t15b_type_82_non_age_1_preserves_alt_pos(void)
 }
 
 static int s_t15b_sm_calls;
-static void t15b_sm_capture(int32_t *slot) { (void)slot; s_t15b_sm_calls++; }
+static int t15b_sm_capture(int32_t *slot) { (void)slot; s_t15b_sm_calls++; return 1; }
 
 int test_records_b_tick_t15b_type_82_age_20_runs_20_iter_sm_loop(void)
 {
@@ -7529,11 +7537,12 @@ int test_records_b_tick_t15i_sm_ret_1_kills(void)
  * reads g_scene1_records_b_tick_anim_drive AFTER the SM call. */
 static int s_sm_drive_calls;
 static int s_sm_drive_set_to;
-static void sm_sets_drive(int32_t *slot)
+static int sm_sets_drive(int32_t *slot)
 {
     (void)slot;
     s_sm_drive_calls++;
     g_scene1_records_b_tick_anim_drive = s_sm_drive_set_to;
+    return 1;
 }
 
 int test_records_b_tick_t15i_t_52_sm_ret_1_writes_damage_when_drive_positive(void)
@@ -7845,10 +7854,11 @@ static void t15j_sw_record_set_gates(int idx,
 
 /* SM hook that bumps anim_drive — used to exercise the damage-write path. */
 static int32_t s_t15j_damage_drive_seed;
-static void t15j_sm_set_drive(int32_t *slot)
+static int t15j_sm_set_drive(int32_t *slot)
 {
     (void)slot;
     g_scene1_records_b_tick_anim_drive = s_t15j_damage_drive_seed;
+    return 1;
 }
 
 int test_records_b_tick_t15j_age_0x3c_plays_se_0x2bb_and_0x2a5(void)

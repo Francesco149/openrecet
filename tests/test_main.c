@@ -2487,8 +2487,8 @@ struct test_case {
     X(combat_sm_paused_flag_negative_also_gates) \
     X(combat_sm_multiple_gates_active_still_short_circuits) \
     X(combat_sm_fall_through_preserves_gate_globals) \
-    X(combat_sm_install_as_void_hook_writes_per_tick_flag_via_integrator) \
-    X(combat_sm_uninstall_void_hook_restores_default) \
+    X(combat_sm_install_writes_per_tick_flag_via_integrator) \
+    X(combat_sm_uninstall_restores_default) \
     X(combat_sm_gate_short_circuit_is_atomic) \
     X(combat_sm_phase_b_skipped_when_player_hp_zero) \
     X(combat_sm_phase_b_skipped_when_player_hp_negative) \

@@ -2559,24 +2559,26 @@ int scene1_combat_sm_tick(int32_t *slot)
     return ret;
 }
 
-/* ─── void-hook adapter (test-only convenience) ──────────────────────── */
+/* ─── production install / uninstall ──────────────────────────────────── */
 /*
- * The existing scene1_records_b_set_state_machine_hook accepts
- * `void (*)(int32_t *)`.  We adapt scene1_combat_sm_tick by discarding
- * the int return.  C8jb.fin replaces this adapter with an int-ret
- * variant.
+ * C8jb.fin: the records_b_tick hook is now `int (*)(int32_t *)` (matches
+ * engine FUN_0043865e's int ret).  scene1_combat_sm_tick is install-able
+ * directly — no adapter needed.  The int return propagates to
+ * `state_machine_call_ret` in scene1_records_b_tick.c, which gates
+ * per-record iteration breaks at engine-equivalent sites.
+ *
+ * Production wiring (main.c) calls scene1_combat_sm_install() once during
+ * scene1 init.  Today the records_b table is BSS-zero in HOUSE (the C8j
+ * allocator ladder is unwired without smoke flags), so installing the
+ * hook produces no observable change — every slot is dead → SM never
+ * fires → canaries bit-exact.
  */
-static void combat_sm_void_adapter(int32_t *slot)
+void scene1_combat_sm_install(void)
 {
-    (void)scene1_combat_sm_tick(slot);
+    scene1_records_b_set_state_machine_hook(scene1_combat_sm_tick);
 }
 
-void scene1_combat_sm_install_as_void_hook(void)
-{
-    scene1_records_b_set_state_machine_hook(combat_sm_void_adapter);
-}
-
-void scene1_combat_sm_uninstall_void_hook(void)
+void scene1_combat_sm_uninstall(void)
 {
     scene1_records_b_set_state_machine_hook(NULL);
 }

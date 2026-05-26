@@ -60,6 +60,7 @@
 #include "mesh_draw.h"
 #include "mesh_load.h"
 #include "scene1_camera.h"
+#include "scene1_combat_sm.h"
 #include "scene1_overlay_table.h"
 #include "scene1_pass_f.h"
 #include "scene1_per_frame_open.h"
@@ -933,6 +934,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * snap flag so the first scene1_render_camera_setup pass writes
      * a real eye/lookat instead of accumulating from BSS-zero. */
     scene1_camera_init();
+
+    /* C8jb.fin — wire scene1_combat_sm_tick as the records_b_tick
+     * state-machine hook.  This is the engine's FUN_0043865e (Mt.
+     * Everest #2) port.  No observable change in HOUSE today: table B
+     * is BSS-zero (C8j allocator unwired without smoke flags), so every
+     * slot is dead and the SM never fires.  Smoke flags
+     * (--force-b-npc / --force-b-entity) spawn slots that exercise the
+     * SM through the integrator's state_machine_call(_ret) helpers. */
+    scene1_combat_sm_install();
 
     /* C7e: wire FUN_00474a9a (scene-1 pre-load entry, HOUSE branch) as
      * the worker_load slot-1 INGAME callback. After title fade-out,

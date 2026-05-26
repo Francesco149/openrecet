@@ -332,25 +332,23 @@ static inline void aux_4532bc_call(int32_t arg1)
     if (g_aux_4532bc_hook) g_aux_4532bc_hook(arg1);
 }
 
+/* Discard variant — matches engine call sites where FUN_0043865e's ret
+ * is unused.  We still invoke the hook (for its side effects on the
+ * slot / per-tick flag / damage globals) but throw away the int. */
 static inline void state_machine_call(int32_t *slot)
 {
-    if (g_state_machine_hook) g_state_machine_hook(slot);
+    if (g_state_machine_hook) (void)g_state_machine_hook(slot);
 }
 
-/* C8j-tick.4 helper — returns 1 when a hook is installed (engine's "state
- * machine ran, continue iter loop") and 0 when no hook is installed
- * ("state machine reported no progress; break").  The void hook signature
- * doesn't expose engine's int return value, so this is the closest we
- * can model: HOOK installed → loop runs all 5 iters; NULL → loop runs 0
- * iters.  Tests of the type-4 anim-drive special case install a hook
- * that writes g_scene1_records_b_tick_anim_drive to exercise the branch. */
+/* C8jb.fin — propagate the int ret from the installed hook.  When no
+ * hook is installed, returns 0 (engine equivalent: no SM = no progress).
+ * Matches engine sites where the SM ret gates loop continuation or kills
+ * (e.g. the LAB_0043b205 0x85/0x8a/0x8b "break-on-zero" iter loops, the
+ * type-4 anim-drive ret==1 path, and the C8jb-coupled Phase-B/C hit
+ * propagation that breaks the per-record scan on the first hit). */
 static inline int state_machine_call_ret(int32_t *slot)
 {
-    if (g_state_machine_hook) {
-        g_state_machine_hook(slot);
-        return 1;
-    }
-    return 0;
+    return g_state_machine_hook ? g_state_machine_hook(slot) : 0;
 }
 
 /* Default cull-query returns -1 ("visible") so the state machine fires

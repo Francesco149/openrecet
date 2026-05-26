@@ -435,38 +435,37 @@ int test_combat_sm_fall_through_preserves_gate_globals(void)
     return 0;
 }
 
-/* ─── void-hook adapter installs/uninstalls ──────────────────────── */
+/* ─── production install/uninstall (C8jb.fin) ──────────────────────── */
 
-int test_combat_sm_install_as_void_hook_writes_per_tick_flag_via_integrator(void)
+int test_combat_sm_install_writes_per_tick_flag_via_integrator(void)
 {
-    /* When installed as the integrator's SM hook, the void wrapper
+    /* When installed as the integrator's SM hook, scene1_combat_sm_tick
      * runs Phase A and writes the per-tick flag.  The integrator's
      * own per-iter flag clear runs BEFORE this, so the post-SM
      * observable is "flag = 1 if SM ran". */
     reset_combat_state();
-    scene1_combat_sm_install_as_void_hook();
+    scene1_combat_sm_install();
 
-    /* Direct check: call the hook through the integrator's
-     * state-machine helper surface by invoking the public combat tick
-     * (which is what the hook adapter wraps). */
+    /* Direct check: invoke the public combat tick (this is what the
+     * hook now invokes directly — C8jb.fin dropped the void adapter). */
     g_scene1_records_b_tick_flag = 0;
     int ret = scene1_combat_sm_tick(NULL);
     T_ASSERT_EQ_I(ret, 0);
     T_ASSERT_EQ_I(g_scene1_records_b_tick_flag, 1);
 
-    scene1_combat_sm_uninstall_void_hook();
+    scene1_combat_sm_uninstall();
     return 0;
 }
 
-int test_combat_sm_uninstall_void_hook_restores_default(void)
+int test_combat_sm_uninstall_restores_default(void)
 {
     /* After uninstall, the integrator's state_machine_call_ret should
      * return 0 (no hook).  We don't test the integrator's helper
      * directly (it's static inline); we verify that the public
      * setter accepts NULL via this path. */
     reset_combat_state();
-    scene1_combat_sm_install_as_void_hook();
-    scene1_combat_sm_uninstall_void_hook();
+    scene1_combat_sm_install();
+    scene1_combat_sm_uninstall();
 
     /* The state machine setter accepts the round-trip; the actual
      * "no hook installed" semantic is exercised by the integrator's
