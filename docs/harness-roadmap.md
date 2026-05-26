@@ -280,3 +280,304 @@ PNGs for SE work — so iteration doesn't bounce off the human in the loop.
   side-by-side + zoom).
 - `tools/analyze/pe.py` — handy when retail-hook addresses need
   resolving from VA → file offset.
+
+---
+
+## Phase D — Generic differential testing (multi-session plan, 2026-05-26)
+
+### Motivation
+
+Phase B+ proved the state-forcing pattern works (RNG + audio_fade bit-
+exact across thousands of vectors via `tools/state_diff/`).  But it's
+bespoke per-target — every new function gets its own ~200-line driver,
+no shared scaffolding.  And the render layer has zero coverage: the
+Cf.minimal landing (2026-05-26) ships visible HOUSE shop_table furniture
+pixels, but with three diagnosed-but-unresolved bugs (translucent
+rendering, mesh-on-its-side orientation, 2-3x scale).  Each bug class
+is asm-archaeology territory today; the bug-class signature ("retail's
+D3D state at the walker draw is some specific combination, ours is
+different") demands a state-trace diff, not more decompile reading.
+
+`../OpenLords2/docs/harness-roadmap.md` Phase 4 has the right shape —
+generic orchestrator (`tools/diff_test.py`) + per-target `runRetail*`
+RPCs on the agent + a single host shared library
+(`tests/build/libengine_diff.so`) loaded via `ctypes` — and lands
+9 pure-function targets at 1800/1800 vectors.  Phase D ports that
+pattern + extends it with D3D state diffing.
+
+### Scope decisions
+
+- **Replaces** the bespoke `tools/state_diff/` pattern with a generic
+  orchestrator.  Migrates RNG + audio_fade to the new harness as the
+  first two targets (proves the migration, validates parity).
+- **Adds** D3D state-trace diff for render-path verification.  The
+  pure-function harness and the D3D-trace harness share the agent
+  but live in separate orchestrator scripts.
+- **Adds** memory-access watch for finding unported writers (PHC
+  entries marked "no writer in decompile" — these have writers in
+  retail; Frida's `MemoryAccessMonitor` finds them).
+
+### What we keep / migrate / add
+
+| Capability                                  | Today                                        | Phase D state                          |
+|---------------------------------------------|----------------------------------------------|----------------------------------------|
+| Bespoke pure-fn oracle (`tools/state_diff/`) | RNG + audio_fade, 2 targets                  | Migrate to `tools/diff_test.py`        |
+| Frida agent capture hooks                   | `openrecet-agent.js` ~1900 LOC, in place     | Reused                                 |
+| Cross-target visual probe                   | `regen-comparisons.py` + `scenario-test --target both` | Reused                                 |
+| Generic pure-fn diff orchestrator           | —                                            | New `tools/diff_test.py`               |
+| Host-side ctypes-loadable `libengine_diff.so` | `tools/state_diff/build/oracle` (one-off)  | New `tests/build/libengine_diff.so`    |
+| Engine-tick freeze + race-retry             | —                                            | New (Frida side)                       |
+| D3D state-trace emitter (Frida side)        | —                                            | New `installD3dTraceHooks()`           |
+| D3D state-trace emitter (port side)         | —                                            | New `src/d3d_trace.c`                  |
+| D3D trace diff orchestrator                 | —                                            | New `tools/render_diff.py`             |
+| Memory-access watch                         | —                                            | New (Frida side, ad-hoc tool)          |
+| Walker-behavior diff (controlled-state)     | —                                            | New (built on D3D trace + state inject) |
+
+### Sub-phases (suggested session order)
+
+#### Phase D.1 — Pure-function diff scaffolding
+
+**Goal**: orchestrator + first target end-to-end working.
+
+- New `tests/Makefile` target `diff`: compiles selected `src/*.c` into
+  `tests/build/libengine_diff.so` with host gcc, no sanitizers (the
+  diff path doesn't need ASan; the regular unit tests still cover that).
+  Initial sources: `rng.c`, `audio_fade.c`.
+- New `tools/diff_test.py` (~400 LOC, OL2 pattern):
+  - Function registry: name → (port_symbol, retail_rpc, vector_gen).
+  - Vector generator: 7 fixed edge cases + N random (default 200),
+    deterministic from `--seed`.
+  - RPC fan-out: spawn retail via Frida, init with `diff_test: true`,
+    fire all vectors per target.
+  - Result diff: byte-exact compare; first mismatch wins, dumps the
+    full input vector + both outputs + a context window.
+  - `--functions <list>` / `--vectors N` / `--seed N` / `--warmup-s N`
+    flags.
+- Agent: new init flag `diff_test: bool`.  When set, skip the capture
+  hooks (Phase A/B path), install only the diff scaffolding.
+- First target: **rng_next15** (`FUN_00471089`).
+  - Globals: LCG state at `DAT_006023a0` (single u32).
+  - RPC: `runRetailRngNext15(seed_u32) → {out: u15, post_state: u32}`.
+  - Vector: random u32 seed, expected output = our port's
+    `rng_next15` from `libengine_diff.so`.
+- Lands `docs/findings/pure-function-diff.md` with the engine-thread
+  race + retry pattern (we WILL hit this — retail's main thread is
+  alive during diffs unless frozen).
+- Migrate existing `tools/state_diff/lcg_fade.py` test plan into the
+  new harness as a regression gate.
+
+**Deliverables**: `tools/diff_test.py`, `tests/build/libengine_diff.so`,
+1 RPC export, 200/200 vectors pass for rng_next15.
+
+#### Phase D.2 — Two more pure-function targets
+
+- **audio_fade_compute** (`FUN_00501a48` or similar — verify decomp).
+  Reuses the existing oracle logic.
+- **tick math** — `tick.c::tick_should_advance` or
+  `tick_compute_step`.  Verify against retail's per-frame tick driver.
+- Validates the orchestrator handles multi-target dispatch.
+- 600/600 vectors total (3 targets × 200).
+
+#### Phase D.3 — Engine-tick freeze + race-retry
+
+**Goal**: support stateful diff targets (read/write shared globals).
+
+- Survey Recettear's per-tick driver function (analogous to OL2's
+  `FUN_004b99c0`).  Candidates: trace the call from WndProc /
+  main loop → per-frame entry.  Document as
+  `docs/findings/per-tick-driver.md`.
+- Implement `Interceptor.replace(per_tick_driver, no_op)` install +
+  uninstall.  Engine sits frozen on a known tick boundary; diff RPC
+  fires safely; resume.
+- Implement race-detect retry: snapshot pre-call; post-call, checksum
+  the inputs to verify they weren't perturbed; retry up to N if so;
+  fail with `raced` if budget exceeded.
+- Smoke target: a small ported function with non-trivial reads — e.g.,
+  `scene1_records_b_tick` per-slot dispatch (one slot, BSS-zero
+  globals).  Proves the pattern handles state.
+
+**Cross-cutting**: pre-emptively design for the OL2-discovered Frida
+quirk — installing→uninstalling→re-installing the freeze on the same
+target triggers a Frida-internal `TypeError`.  Install once at run
+start, uninstall once at end.
+
+**Estimated**: 1 session.
+
+#### Phase D.4 — D3D state-trace emitter (Frida side)
+
+**Goal**: capture every IDirect3DDevice8 vtable call during a known
+scenario from retail.
+
+- Hook vtable methods (D3D8 SDK offsets):
+  - `0xC8` SetRenderState
+  - `0xCC` GetRenderState (rare; useful for "what does engine think
+    state is here")
+  - `0xFC` SetTextureStageState
+  - `0x94` SetTransform
+  - `0x140` DrawIndexedPrimitive
+  - `0x144` DrawIndexedPrimitiveUP
+  - `0xA8` SetMaterial
+  - `0xC0` SetVertexShader
+  - `0xE8` SetIndices
+  - `0xE0` SetStreamSource
+  - `0xE4` SetTexture
+- Emit one event per call:
+  ```json
+  {"kind":"d3d","frame":N,"op":"SetRenderState","args":{"state":27,"value":1},"caller":"FUN_00457714+0x4c","t_us":12345}
+  ```
+- For pointer args (D3DMATERIAL8*, D3DMATRIX*), inline the struct's
+  contents into the event so the diff doesn't break on pointer
+  identity.
+- New init flag `d3d_trace: bool` + optional `d3d_trace_frames:
+  [N, M, ...]` window filter (one full frame is ~10 KB; the
+  unbounded stream is megabytes).
+- `caller` resolved via `Thread.backtrace()` on the hooked call,
+  matched against the module's export table + best-effort
+  FUN_-name lookup.  Lets us group events by "between
+  walker-pass-init entry and exit".
+- Batch events agent-side, flush per-frame via single `send()` —
+  individual events would saturate the Frida wire.
+
+**Smoke**: capture 1 frame of title-z-press, verify event shape
++ caller annotation works.
+
+**Estimated**: 1 session.
+
+#### Phase D.5 — D3D state-trace emitter (port side)
+
+**Goal**: emit the same JSON schema from our openrecet binary so
+they can be diffed.
+
+- New `src/d3d_trace.c` + `src/d3d_trace.h`.
+- Wraps the IDirect3DDevice8 vtable calls our code makes with a
+  logger.  Two implementation options:
+  - (a) Wrapper functions called explicitly from each SetRenderState
+    site — invasive but precise.
+  - (b) Hot-patch our own vtable pointer on the IDirect3DDevice8
+    instance to point at a wrapper vtable that logs + delegates.
+    Less invasive but trickier (engine code calls through the
+    instance pointer's vtable).
+- CLI flag `--d3d-trace <path>` writes to a JSONL file.
+- Same JSON schema as Frida side, same `caller` annotations (via
+  GCC `__builtin_return_address(0)` resolved against our symbol
+  table).
+
+**Estimated**: 1 session (with the port-side mostly mechanical).
+
+#### Phase D.6 — render_diff orchestrator + first diagnosis
+
+**Goal**: compare two D3D trace JSONLs, surface first divergence.
+
+- New `tools/render_diff.py`:
+  - Reads both traces, walks them in lockstep frame-by-frame.
+  - Per-call diff: matches `op` + `args`; if mismatch, reports both
+    + a context window of 5 calls before + after.
+  - Special handling for state-coalescing: if retail sets the same
+    state to the same value twice (engine quirk), suppress in our
+    output to match.
+  - Filter mode `--scope walker-pass-init` to narrow to events
+    inside a specific call range.
+- First use: capture title-z-press frames 90, 100, 108, 115 in both
+  targets, run `render_diff.py --scope walker-pass-init`.  Find:
+  - ALPHABLENDENABLE state at walker-draw time.
+  - Texture stage state for shop_table mat draws.
+  - Whether retail sets a SRC/DEST blend pair we don't.
+- Cf.minimal alpha bug becomes a known concrete fix from this
+  diagnosis.
+
+**Estimated**: 1-2 sessions (incl. fixing Cf.minimal alpha based on
+findings).
+
+#### Phase D.7 — Memory-access watch
+
+**Goal**: identify writers of "no decompile writer" memory regions
+(several PHC entries) via Frida's `MemoryAccessMonitor`.
+
+- New ad-hoc tool `tools/mem_watch.py` + agent-side
+  `installMemoryWatch(regions[])` RPC.
+- Sets up `MemoryAccessMonitor.enable([{base, size}, ...], {onAccess:
+  emit_event})`.
+- Filter: write-only by default, optional read-trace too.
+- First use: trace `stage_record + 0x2c750 .. +0x2c77c` (40 bytes,
+  10 slot flags) during HOUSE-INGAME boot in retail.  Find the
+  writer(s).  Cross-reference against the decompile to identify
+  the unported chip.  Resolves Cf.minimal orientation bug by
+  identifying the missing writer chip.
+- Reusable for any PHC entry of the "no writer in decompile" class
+  (PHC #19, #22, #26, etc.).
+
+**Estimated**: 0.5 session.
+
+#### Phase D.8 — Walker-behavior diff (consumer of D.6)
+
+**Goal**: given synthetic stage_state, diff walker output between
+targets at the matrix/draw-call level.
+
+- Agent-side RPC `runRetailWalker(state) → trace`: inject state
+  globals, freeze tick, call `FUN_00457714`, capture D3D trace,
+  restore, return.
+- Port-side `--inject-walker-state <json>` flag: set the same
+  globals, fire `scene1_walker_pass_render_house`, capture trace.
+- Diff via `render_diff.py`.
+- Targets:
+  - **PII.3a matrix builder** — per-mesh world matrix bit-exact?
+  - **PII.3b draw loop B** — same SetTexture/SetMaterial/Draw
+    sequence?
+  - **Future**: shop_walker (C8c), wide_followup (C8f), etc.
+
+**Estimated**: 1-2 sessions.
+
+#### Phase D.9 — TAS-bot / continuous diff (long-term)
+
+OpenLords2's Phase 5 — drive a whole game session through both
+targets at inhuman speed, full-frame + state diff.  Out of scope
+for the next 7 sessions; revisit once D.1-D.8 are in place.
+
+### Suggested session order (high-leverage path)
+
+1. **D.1** — scaffolding + rng_next15 target (1-2 sessions).
+2. **D.4 + D.5** — D3D trace emitters both sides (parallel-feasible
+   but cleaner sequentially; 1 session each = 2).
+3. **D.6 + Cf.minimal fixes** — first render diagnosis (1-2 sessions).
+4. **D.7** — memory-access watch + flip-chain writer trace (0.5).
+5. **D.2 + D.3** — fill in more pure-function targets + engine-tick
+   freeze (1-2 sessions, lower priority once visual bugs are fixed).
+6. **D.8** — walker-behavior diff (1-2 sessions).
+
+Total: ~5-9 sessions to reach Cf.minimal-visually-correct + a
+durable diff harness for future render chips.
+
+### Cross-cutting design notes
+
+- **Race handling** (mandatory from D.3 onward): snapshot pre-call,
+  checksum after, retry on perturbation, fail after N retries.
+  OL2 has 1800/1800 vectors landing clean — pattern is proven.
+- **Snapshot/restore in `finally`**: every RPC that mutates retail
+  globals restores in a `finally` block.  Exception → engine NOT
+  left perturbed.
+- **Engine-tick freeze cycling quirk**: install once per run,
+  uninstall once at end.  Cycling triggers a Frida-internal
+  TypeError.  OL2 burned several debugging sessions on this; we
+  pre-emptively design around it.
+- **Frame budget**: ~1-3 ms per Frida RPC.  Pure-function diffs are
+  fine (200 vectors × few ms = ~1 s).  D3D-trace events MUST be
+  batched per-frame; per-call `send()` would saturate.
+- **Schema versioning**: every JSONL emitter writes a `version: 1`
+  header line.  Lets us evolve the schema without breaking older
+  captures.
+- **No mandatory retail dependency**: the diff harness is opt-in
+  (run `make -C tests diff` + `tools/diff_test.py` only when
+  diagnosing).  Default CI = the host-test suite alone.
+
+### Cross-references (D.*)
+
+- `../OpenLords2/docs/harness-roadmap.md` Phase 4 — origin pattern.
+- `../OpenLords2/tools/diff_test.py` — orchestrator reference.
+- `../OpenLords2/tools/frida/openlords2-agent.js` (lines 3838+) —
+  RPC export structure to mirror.
+- `../OpenLords2/docs/findings/pure-function-diff.md` — engine-
+  thread race + retry details.
+- `tools/state_diff/oracle.c` — the bespoke pattern Phase D.1
+  replaces / migrates from.
+- `docs/findings/scene1-walker-pass-init.md` "Cf.survey landing"
+  — the bug class Phase D.6 is designed to resolve.
