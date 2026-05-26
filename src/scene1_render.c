@@ -23,6 +23,7 @@
 #include "render_quad.h"
 #include "mesh.h"            /* mesh_t (scene1_walk_initial_asset cast) */
 #include "scene1_alpha_walker.h"
+#include "call_trace.h"
 #include "scene1_camera.h"
 #include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
 #include "scene1_overlay.h"  /* scene1_overlay_render — 4-site dispatcher wiring */
@@ -337,6 +338,9 @@ static void scene1_apply_palette_combiner_mode(IDirect3DDevice8 *dev,
 
 void scene1_render_camera_setup(struct IDirect3DDevice8 *dev_in)
 {
+    /* E.2 probe — FUN_0045bbf9 @ 0x45bbf9. */
+    CALL_TRACE_ENTER(0x45bbf9u);
+
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
@@ -576,6 +580,9 @@ static void scene1_walk_alpha_pre(IDirect3DDevice8 *dev)
 
 void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
 {
+    /* E.2 probe — FUN_00459dfd @ 0x459dfd. */
+    CALL_TRACE_ENTER(0x459dfdu);
+
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
@@ -835,6 +842,9 @@ void scene1_render_emit_frame(struct IDirect3DDevice8 *dev_in,
 
 void scene1_render_fx_tail(struct IDirect3DDevice8 *dev_in)
 {
+    /* E.2 probe — FUN_0045404b @ 0x45404b. */
+    CALL_TRACE_ENTER(0x45404bu);
+
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 

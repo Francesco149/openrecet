@@ -73,6 +73,7 @@
 #include "stage_state.h"
 #include "tick.h"
 #include "d3d_trace.h"
+#include "call_trace.h"
 
 /* ─── original-engine constants (from RE) ───────────────────────────────── */
 #define AZUMANGA_CLASS  "Azumanga Main Window"
@@ -339,6 +340,14 @@ static int             g_capture_frames_count    = 0;
 static char           *g_d3d_trace_path                            = NULL;
 static unsigned        g_d3d_trace_frames[D3D_TRACE_FRAMES_MAX];
 static int             g_d3d_trace_frames_count                    = 0;
+
+/* --call-trace <path> + --call-trace-frames i,j,k.  See call_trace.h.
+ * Port-side per-frame function-entry tracer; symmetric counterpart of
+ * the Frida agent's call_trace.jsonl.  Phase E.2. */
+#define CALL_TRACE_FRAMES_MAX_CLI 256
+static char           *g_call_trace_path                              = NULL;
+static unsigned        g_call_trace_frames[CALL_TRACE_FRAMES_MAX_CLI];
+static int             g_call_trace_frames_count                     = 0;
 
 /* --hidden: ShowWindow(SW_HIDE) instead of nCmdShow. D3D rendering
  * continues to work on a non-visible window (back buffer is video
@@ -672,6 +681,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                                     ? g_d3d_trace_frames : NULL,
                                 (size_t)g_d3d_trace_frames_count);
         d3d_trace_install(g_dev);
+    }
+
+    /* E.2: open call_trace file.  No device pointer needed — the probes
+     * are direct CALL_TRACE_ENTER() macros sprinkled through src/. */
+    if (g_call_trace_path) {
+        call_trace_init_from_cli(g_call_trace_path,
+                                 g_call_trace_frames_count > 0
+                                     ? g_call_trace_frames : NULL,
+                                 (size_t)g_call_trace_frames_count);
     }
 
     /* "init dinput ok" — FUN_0047af52 — keyboard + up to 4 joysticks.
@@ -1595,6 +1613,7 @@ static BOOL init_render(HWND hwnd)
 static void shutdown_render(void)
 {
     d3d_trace_shutdown();
+    call_trace_shutdown();
     if (g_dev) { IDirect3DDevice8_Release(g_dev); g_dev = NULL; }
     if (g_d3d) { IDirect3D8_Release(g_d3d); g_d3d = NULL; }
     if (g_d3d8_dll) { FreeLibrary(g_d3d8_dll); g_d3d8_dll = NULL; }
@@ -1720,6 +1739,10 @@ static void render_dispatch(void)
     /* D.5: re-evaluate frame filter so the call-site wrappers know
      * whether to emit this frame.  No-op when --d3d-trace is off. */
     d3d_trace_begin_frame(g_tick.frame_count);
+
+    /* E.2: same gate for the port-side call tracer.  CALL_TRACE_ENTER
+     * macros below check the per-frame emit flag this sets. */
+    call_trace_begin_frame(g_tick.frame_count);
 
     /* Per-state clear color. Engine FUN_004547ab L33-44 derives the
      * scene-1 clear from DAT_068dd2f0's stage palette; we use a fixed
@@ -1980,6 +2003,7 @@ static void render_dispatch(void)
     /* D.5: fflush so a mid-scenario crash still leaves the trace on
      * disk through the last completed frame. */
     d3d_trace_end_frame();
+    call_trace_end_frame();
 }
 
 /* ─── CLI parsing — hand-tokenize lpCmdLine on ASCII spaces ──────────────
@@ -2265,6 +2289,30 @@ static void parse_cmdline(LPSTR lpCmdLine)
                     long n = strtol(p, &end, 10);
                     if (end != p && n >= 0) {
                         g_d3d_trace_frames[g_d3d_trace_frames_count++] =
+                            (unsigned)n;
+                    }
+                    if (end == NULL || *end == '\0') break;
+                    p = end + (*end == ',' ? 1 : 0);
+                    if (*end != ',') break;
+                }
+            }
+        } else if (lstrcmpA(tok, "--call-trace") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char call_buf[MAX_PATH];
+                lstrcpynA(call_buf, val, (int)sizeof(call_buf));
+                g_call_trace_path = call_buf;
+            }
+        } else if (lstrcmpA(tok, "--call-trace-frames") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                char *p = val;
+                while (*p && g_call_trace_frames_count
+                                 < CALL_TRACE_FRAMES_MAX_CLI) {
+                    char *end = NULL;
+                    long n = strtol(p, &end, 10);
+                    if (end != p && n >= 0) {
+                        g_call_trace_frames[g_call_trace_frames_count++] =
                             (unsigned)n;
                     }
                     if (end == NULL || *end == '\0') break;

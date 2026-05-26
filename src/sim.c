@@ -27,6 +27,8 @@
 
 #include "sim.h"
 
+#include "call_trace.h"
+
 #include <string.h>
 
 #include "fade.h"         /* fade_tick — engine's per-frame fade counter advance */
@@ -188,6 +190,9 @@ void sim_init(void)
 
 void sim_step_a(void)
 {
+    /* E.2 probe — FUN_004536cb @ 0x4536cb. */
+    CALL_TRACE_ENTER(0x4536cbu);
+
     /* FUN_0047c29d (font_age_tick) — engine L50362, runs BEFORE the
      * worker-busy check. Glyph cache aging keeps ticking even during
      * the loading screen (the engine still draws font on top of the

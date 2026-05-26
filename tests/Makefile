@@ -21,6 +21,7 @@ LDFLAGS := $(SAN)
 
 SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash.c ../src/lnk_lzss.c \
                  ../src/recet_ini.c ../src/input.c ../src/input_trace.c \
+                 ../src/call_trace.c \
                  ../src/rng.c ../src/math3d.c ../src/prewindow.c ../src/tick.c \
                  ../src/render_quad.c ../src/scene.c ../src/scene_title.c ../src/scene_buy.c ../src/scene_floor.c ../src/scene_jutan.c ../src/scene_pause.c ../src/scene_walls.c ../src/scene_worldmap.c ../src/sim.c ../src/music.c ../src/audio.c ../src/audio_mci.c ../src/audio_fade.c ../src/audio_se_names.c ../src/save_bank.c ../src/save_io.c ../src/settings.c ../src/sysassets.c ../src/nowloading.c ../src/worker_load.c ../src/fade.c ../src/font.c ../src/font_atlas.c ../src/font_alloc.c ../src/font_upload.c \
                  ../src/tables_buysell.c ../src/tables_chara.c ../src/tables_config.c \

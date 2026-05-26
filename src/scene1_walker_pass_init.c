@@ -12,6 +12,7 @@
 
 #include "math3d.h"
 #include "scene_table.h"  /* g_scene_table + g_scene_table_selector */
+#include "call_trace.h"
 
 /* ─── per-mesh field arrays (BSS-zero by default) ─────────────────── */
 
@@ -384,6 +385,9 @@ static IDirect3DBaseTexture8 *pick_texture_for_action(
 void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
                                      int param_1)
 {
+    /* E.2 probe — FUN_00457714 @ 0x457714 (HOUSE furniture renderer). */
+    CALL_TRACE_ENTER(0x457714u);
+
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
