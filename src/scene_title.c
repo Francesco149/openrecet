@@ -895,16 +895,11 @@ void scene_title_render(IDirect3DDevice8 *dev,
     /* Final flush guard — restore additive→modulate already done. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 
-    /* Smoke test for draw_text: dump the engine version string in the
-     * lower-left so we can visually verify the font path lights up.
-     * Engine ships its own "RECETTEAR Ver 1.108" baked into the window
-     * title; this just proves the atlas + slot allocator + glyph
-     * upload + draw_text quad path renders.
-     *
-     * TODO: replace this with the engine's actual text consumers as
-     * scenes get ported. */
-    font_draw_text(dev, 8.0f, 460.0f, "openrecet 0.1",
-                   0xFFFFFFFFu, 1.0f);
+    /* Smoke-test "openrecet 0.1" font draw removed 2026-05-27:
+     * pre_3d_trace diff showed it was responsible for +12
+     * render_quad_add calls per title frame vs retail (one quad per
+     * glyph).  Restore (gated on a flag, not hot path) if we need to
+     * eyeball the font atlas again. */
 }
 
 #endif /* _WIN32 */
