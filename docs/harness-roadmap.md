@@ -405,43 +405,22 @@ start, uninstall once at end.
 
 #### Phase D.4 — D3D state-trace emitter (Frida side)
 
-**Goal**: capture every IDirect3DDevice8 vtable call during a known
-scenario from retail.
+**Status**: ✅ landed 2026-05-26.  See
+`docs/findings/d3d-trace.md` for the schema + smoke results.
+12 vtable slots hooked (SetTransform / SetMaterial / SetRenderState
+/ SetTexture / SetTextureStageState / DrawPrimitive[UP] /
+DrawIndexedPrimitive[UP] / SetVertexShader / SetStreamSource /
+SetIndices).  Per-frame batching via Present.onEnter flush; one
+`d3d_trace_batch` send per Present cycle.  `ret_va` annotation via
+`this.returnAddress` (free, no `Thread.backtrace()` cost — module-
+relative, add 0x00400000 for Ghidra VA).  `d3d_trace_frames` filter
+gates buffering so a non-title scenario doesn't push megabytes per
+frame.  Driver writes `<run_dir>/d3d_trace.jsonl`, one row per call.
 
-- Hook vtable methods (D3D8 SDK offsets):
-  - `0xC8` SetRenderState
-  - `0xCC` GetRenderState (rare; useful for "what does engine think
-    state is here")
-  - `0xFC` SetTextureStageState
-  - `0x94` SetTransform
-  - `0x140` DrawIndexedPrimitive
-  - `0x144` DrawIndexedPrimitiveUP
-  - `0xA8` SetMaterial
-  - `0xC0` SetVertexShader
-  - `0xE8` SetIndices
-  - `0xE0` SetStreamSource
-  - `0xE4` SetTexture
-- Emit one event per call:
-  ```json
-  {"kind":"d3d","frame":N,"op":"SetRenderState","args":{"state":27,"value":1},"caller":"FUN_00457714+0x4c","t_us":12345}
-  ```
-- For pointer args (D3DMATERIAL8*, D3DMATRIX*), inline the struct's
-  contents into the event so the diff doesn't break on pointer
-  identity.
-- New init flag `d3d_trace: bool` + optional `d3d_trace_frames:
-  [N, M, ...]` window filter (one full frame is ~10 KB; the
-  unbounded stream is megabytes).
-- `caller` resolved via `Thread.backtrace()` on the hooked call,
-  matched against the module's export table + best-effort
-  FUN_-name lookup.  Lets us group events by "between
-  walker-pass-init entry and exit".
-- Batch events agent-side, flush per-frame via single `send()` —
-  individual events would saturate the Frida wire.
-
-**Smoke**: capture 1 frame of title-z-press, verify event shape
-+ caller annotation works.
-
-**Estimated**: 1 session.
+GetRenderState deferred (low diff value — state-changing methods
+already cover the divergence class).  `caller` field replaced
+with `ret_va` (cheaper to compute, equivalent expressiveness; the
+driver / D.6 orchestrator resolves to FUN_-name client-side).
 
 #### Phase D.5 — D3D state-trace emitter (port side)
 

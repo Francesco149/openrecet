@@ -229,6 +229,29 @@ const V_Dev_SetLight           = 44;
 const V_Dev_LightEnable        = 46;
 const V_Dev_SetRenderState     = 50;
 
+// Additional IDirect3DDevice8 vtable slots used by the D3D state-trace
+// emitter (Phase D.4). Order per d3d8.h IDirect3DDevice8Vtbl. IUnknown
+// at 0-2, IDirect3DDevice8 methods start at slot 3 (TestCooperativeLevel).
+//
+//   61 SetTexture
+//   63 SetTextureStageState
+//   70 DrawPrimitive
+//   71 DrawIndexedPrimitive
+//   72 DrawPrimitiveUP
+//   73 DrawIndexedPrimitiveUP
+//   76 SetVertexShader
+//   83 SetStreamSource
+//   85 SetIndices
+const V_Dev_SetTexture             = 61;
+const V_Dev_SetTextureStageState   = 63;
+const V_Dev_DrawPrimitive          = 70;
+const V_Dev_DrawIndexedPrimitive   = 71;
+const V_Dev_DrawPrimitiveUP        = 72;
+const V_Dev_DrawIndexedPrimitiveUP = 73;
+const V_Dev_SetVertexShader        = 76;
+const V_Dev_SetStreamSource        = 83;
+const V_Dev_SetIndices             = 85;
+
 // D3D8 transform-state IDs (D3DTRANSFORMSTATETYPE).
 const D3DTS_VIEW       = 2;
 const D3DTS_PROJECTION = 3;
@@ -400,6 +423,28 @@ let g_mesh_dump_enabled = false;
 let g_mesh_dump_filters = [];
 let g_mesh_dump_seen    = new Set();
 let g_mesh_dump_count   = 0;
+
+// D3D state-trace emitter (Phase D.4). Hooks IDirect3DDevice8 vtable
+// slots and emits one event per state-changing or draw call into a
+// per-frame buffer; the Present hook flushes the buffer as a single
+// `d3d_trace_batch` message just before bumping the frame counter.
+// Batching is mandatory — per-call send() saturates the Frida wire
+// (frame can have 1000+ state-change calls during INGAME).
+//
+// `g_d3d_trace_frames` is either null (unfiltered: capture every frame)
+// or a Set of frame numbers — events only buffer when frameNo() is in
+// the set. Lets a scenario request only a few frames of trace without
+// drowning in megabytes per second.
+//
+// Caller annotation: each event records `ret_va` (the immediate caller's
+// return address relative to module base), so the driver can resolve
+// "which engine function emitted this" against Ghidra's FUN_ table.
+// Uses `this.returnAddress` (free — already on the stack on x86) rather
+// than `Thread.backtrace()` (per-call backtrace would dominate runtime).
+let g_d3d_trace_enabled = false;
+let g_d3d_trace_frames  = null;     // Set<int> or null
+let g_d3d_trace_hooked  = false;
+let g_d3d_trace_buffer  = [];       // events for current frame, flushed at Present
 
 // Render-demo state. When `g_demo_active` is true, the
 // Interceptor.replace on FUN_004547ab routes every render-thread tick
@@ -607,6 +652,13 @@ function installPresentHook(devicePtr) {
             }
             if (g_max_frames > 0 && fn >= g_max_frames) {
                 send({kind: 'max_frames_reached', frame: fn});
+            }
+            // Flush the D3D trace buffer BEFORE bumping the counter —
+            // every state-change call during this cycle was buffered
+            // with frameNo() == fn. Buffer is empty unless d3d_trace is
+            // enabled AND the frame is in the (optional) filter set.
+            if (g_d3d_trace_enabled) {
+                traceFlush(fn);
             }
             // Bump AFTER the capture decision. Audio/input events that
             // fired during the cycle leading to this Present have
@@ -938,6 +990,16 @@ function installInitHook() {
             } catch (e) {
                 err('installPresentHook', e.message);
             }
+            // D3D trace install gated on the init flag. Must happen
+            // here (after the device pointer is live) so the vtable
+            // hooks bind to real method addresses.
+            if (g_d3d_trace_enabled) {
+                try {
+                    installD3dTraceHooks(dev);
+                } catch (e) {
+                    err('installD3dTraceHooks', e.message);
+                }
+            }
             // Signal "device ready" so RPC callers that depend on the
             // device being live (invokeMeshLoader, …) know when it's
             // safe to fire.
@@ -945,6 +1007,269 @@ function installInitHook() {
         },
     });
     log('d3d init hook installed @ ' + rva(ADDR.fn_d3d_init_wrapper));
+}
+
+// ─── D3D state-trace hooks (Phase D.4) ──────────────────────────────────
+//
+// Hook a subset of IDirect3DDevice8 vtable methods (state-changing +
+// draw calls) and buffer one event per call. The Present hook flushes
+// the buffer as a single batched send() — per-call send() saturates the
+// Frida wire on render-heavy frames.
+//
+// Args reading uses Frida's `args` array. For x86 stdcall COM methods,
+// args[0] is the `this` pointer (IDirect3DDevice8*), args[1] onwards are
+// the method's declared params in left-to-right order.
+//
+// Schema (one event per call):
+//   {op:"SetRenderState", args:{state:N, value:N}, ret_va:N}
+//   {op:"SetTextureStageState", args:{stage:N, type:N, value:N}, ret_va:N}
+//   {op:"SetTransform", args:{state:N, matrix:[16 floats]}, ret_va:N}
+//   {op:"SetMaterial", args:{material:[17 floats]}, ret_va:N}
+//   {op:"SetTexture", args:{stage:N, texture:"0xNN"}, ret_va:N}
+//   {op:"SetStreamSource", args:{stream:N, vb:"0xNN", stride:N}, ret_va:N}
+//   {op:"SetIndices", args:{ib:"0xNN", base_vertex:N}, ret_va:N}
+//   {op:"SetVertexShader", args:{handle:N}, ret_va:N}
+//   {op:"DrawIndexedPrimitive", args:{prim_type:N, min_idx:N,
+//        num_vertices:N, start_idx:N, prim_count:N}, ret_va:N}
+//   {op:"DrawIndexedPrimitiveUP", args:{prim_type:N, min_vtx_idx:N,
+//        num_vtx_indices:N, prim_count:N, ib:"0xNN", ib_fmt:N,
+//        vb:"0xNN", vb_stride:N}, ret_va:N}
+//
+// `ret_va` is module-relative (caller VA - g_base) so it maps directly
+// to a Ghidra VA via + IMAGE_BASE.
+
+function traceShouldEmit() {
+    if (!g_d3d_trace_enabled) return false;
+    if (g_d3d_trace_frames === null) return true;
+    return g_d3d_trace_frames.has(g_manual_frame_counter);
+}
+
+function traceRetVa(returnAddress) {
+    // returnAddress is a NativePointer; sub g_base for the module-
+    // relative offset (uint, since the .text is well below 4GB).
+    try {
+        return returnAddress.sub(g_base).toUInt32() | 0;
+    } catch (_) {
+        return -1;
+    }
+}
+
+function traceReadMatrix(ptrArg) {
+    // D3DMATRIX = 16 floats, row-major. Read as a flat list so the JSON
+    // diff is index-by-index without struct decoding driver-side.
+    if (ptrArg.isNull()) return null;
+    const out = new Array(16);
+    for (let i = 0; i < 16; i++) {
+        out[i] = ptrArg.add(i * 4).readFloat();
+    }
+    return out;
+}
+
+function traceReadMaterial(ptrArg) {
+    // D3DMATERIAL8 = 4×D3DCOLORVALUE (Diffuse, Ambient, Specular,
+    // Emissive — each 4 floats) + 1 float (Power) = 17 floats, 68 bytes.
+    if (ptrArg.isNull()) return null;
+    const out = new Array(17);
+    for (let i = 0; i < 17; i++) {
+        out[i] = ptrArg.add(i * 4).readFloat();
+    }
+    return out;
+}
+
+function traceEmit(ev) {
+    g_d3d_trace_buffer.push(ev);
+}
+
+function traceFlush(frameNumber) {
+    if (g_d3d_trace_buffer.length === 0) return;
+    // Pull the buffer reference and swap in a fresh one before send()
+    // so any re-entrant emit during marshalling doesn't double-flush.
+    const events = g_d3d_trace_buffer;
+    g_d3d_trace_buffer = [];
+    send({kind: 'd3d_trace_batch',
+          frame: frameNumber,
+          count: events.length,
+          events: events});
+}
+
+function installD3dTraceHooks(devicePtr) {
+    if (g_d3d_trace_hooked) return;
+
+    // SetRenderState(state, value)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetRenderState), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'SetRenderState',
+                args: {state: args[1].toUInt32(),
+                       value: args[2].toUInt32()},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // SetTextureStageState(stage, type, value)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetTextureStageState), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'SetTextureStageState',
+                args: {stage: args[1].toUInt32(),
+                       type:  args[2].toUInt32(),
+                       value: args[3].toUInt32()},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // SetTransform(state, *matrix)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetTransform), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'SetTransform',
+                args: {state:  args[1].toUInt32(),
+                       matrix: traceReadMatrix(args[2])},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // SetMaterial(*material)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetMaterial), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'SetMaterial',
+                args: {material: traceReadMaterial(args[1])},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // SetTexture(stage, *texture)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetTexture), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'SetTexture',
+                args: {stage:   args[1].toUInt32(),
+                       texture: '0x' + args[2].toString(16)},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // SetStreamSource(stream, *vb, stride)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetStreamSource), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'SetStreamSource',
+                args: {stream: args[1].toUInt32(),
+                       vb:     '0x' + args[2].toString(16),
+                       stride: args[3].toUInt32()},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // SetIndices(*ib, base_vertex_index)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetIndices), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'SetIndices',
+                args: {ib:           '0x' + args[1].toString(16),
+                       base_vertex:  args[2].toUInt32()},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // SetVertexShader(handle) — handle is either an FVF code or a
+    // shader handle; the trace records the raw value and lets the
+    // driver disambiguate (FVF codes have the high bit clear in d3d8).
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetVertexShader), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'SetVertexShader',
+                args: {handle: args[1].toUInt32()},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // DrawPrimitive(prim_type, start_vertex, prim_count)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawPrimitive), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'DrawPrimitive',
+                args: {prim_type:    args[1].toUInt32(),
+                       start_vertex: args[2].toUInt32(),
+                       prim_count:   args[3].toUInt32()},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // DrawPrimitiveUP(prim_type, prim_count, *vertex_data, vertex_stride)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawPrimitiveUP), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'DrawPrimitiveUP',
+                args: {prim_type:  args[1].toUInt32(),
+                       prim_count: args[2].toUInt32(),
+                       vb:         '0x' + args[3].toString(16),
+                       vb_stride:  args[4].toUInt32()},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // DrawIndexedPrimitive(prim_type, min_idx, num_vertices, start_idx,
+    //                      prim_count)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawIndexedPrimitive), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'DrawIndexedPrimitive',
+                args: {prim_type:    args[1].toUInt32(),
+                       min_idx:      args[2].toUInt32(),
+                       num_vertices: args[3].toUInt32(),
+                       start_idx:    args[4].toUInt32(),
+                       prim_count:   args[5].toUInt32()},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    // DrawIndexedPrimitiveUP(prim_type, min_vtx_idx, num_vtx_indices,
+    //                       prim_count, *index_data, index_fmt,
+    //                       *vertex_data, vertex_stride)
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawIndexedPrimitiveUP), {
+        onEnter: function (args) {
+            if (!traceShouldEmit()) return;
+            traceEmit({
+                op: 'DrawIndexedPrimitiveUP',
+                args: {prim_type:        args[1].toUInt32(),
+                       min_vtx_idx:      args[2].toUInt32(),
+                       num_vtx_indices:  args[3].toUInt32(),
+                       prim_count:       args[4].toUInt32(),
+                       ib:               '0x' + args[5].toString(16),
+                       ib_fmt:           args[6].toUInt32(),
+                       vb:               '0x' + args[7].toString(16),
+                       vb_stride:        args[8].toUInt32()},
+                ret_va: traceRetVa(this.returnAddress),
+            });
+        },
+    });
+
+    g_d3d_trace_hooked = true;
+    log('d3d trace hooks installed (12 vtable slots)');
 }
 
 // ─── mesh dump hook ─────────────────────────────────────────────────────
@@ -1587,6 +1912,24 @@ rpc.exports = {
             g_force_resolution_h = config.force_resolution[1] | 0;
         }
 
+        // D3D state-trace (Phase D.4). When d3d_trace:true, the agent
+        // installs vtable hooks on Direct3DDevice8 methods as soon as
+        // the device pointer is live (driven by the d3d_init_wrapper
+        // hook in installInitHook). d3d_trace_frames is an optional
+        // list of frame numbers — when set, only those frames have
+        // their events buffered + flushed (use this to keep output
+        // small for render-heavy scenarios; INGAME frames can run 1000+
+        // state-change calls each). Null = unfiltered (every frame).
+        g_d3d_trace_enabled = !!config.d3d_trace;
+        g_d3d_trace_hooked  = false;
+        g_d3d_trace_buffer  = [];
+        if (Array.isArray(config.d3d_trace_frames)) {
+            g_d3d_trace_frames = new Set(
+                config.d3d_trace_frames.map(function (f) { return f | 0; }));
+        } else {
+            g_d3d_trace_frames = null;
+        }
+
         // Mesh dump knob. config.dump_meshes is either:
         //   true             — dump every .x load
         //   ['xfile/shop/']  — dump only paths containing any of these
@@ -1620,7 +1963,10 @@ rpc.exports = {
               turbo: g_turbo_enabled,
               turbo_step_ms: g_turbo_step_ms,
               silent_audio: g_silent_audio_enabled,
-              diff_test: g_diff_test_enabled});
+              diff_test: g_diff_test_enabled,
+              d3d_trace: g_d3d_trace_enabled,
+              d3d_trace_frames: g_d3d_trace_frames === null
+                  ? null : Array.from(g_d3d_trace_frames)});
 
         // The capture-side hooks expect to fire on a running engine.
         // State-forcing tests skip resume() entirely, so we make the

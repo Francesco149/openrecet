@@ -218,6 +218,16 @@ class CaptureConfig:
     # retail path defaults this to openrecet's resolution so the
     # side-by-sides line up by construction.
     force_resolution: tuple[int, int] | None = None
+    # D3D state-trace emitter (Phase D.4). When `d3d_trace` is true,
+    # the agent hooks IDirect3DDevice8 vtable slots and buffers one
+    # event per state-change or draw call; the Present hook flushes
+    # the buffer as a batched message that the driver writes to
+    # `<run_dir>/d3d_trace.jsonl`. `d3d_trace_frames` is an optional
+    # filter — when set, only the listed frames have their events
+    # captured (INGAME frames can run 1000+ calls each, so a full
+    # unfiltered trace generates megabytes per second).
+    d3d_trace:        bool = False
+    d3d_trace_frames: list[int] | None = None
 
 
 @dataclass
@@ -234,12 +244,17 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     audio_jsonl  = run_dir / "audio.jsonl"
     trace_jsonl  = run_dir / "trace.jsonl"
     agent_log    = run_dir / "agent.log"
+    d3d_jsonl    = run_dir / "d3d_trace.jsonl"
 
     # File handles. trace.jsonl is sparse — we only emit when the mask
     # changes — so we buffer last value across input_state events.
     f_audio = audio_jsonl.open("w", buffering=1)
     f_trace = trace_jsonl.open("w", buffering=1)
     f_log   = agent_log.open("w",   buffering=1)
+    # d3d_trace.jsonl: one line per state-change / draw call. Default
+    # buffering (not line-buffered) — bursty render frames would dominate
+    # the wall clock if we fsync after every event.
+    f_d3d = d3d_jsonl.open("w") if cfg.d3d_trace else None
 
     captured: list[int] = []
     last_mask: int | None = None
@@ -330,6 +345,20 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             done.set()
             return
 
+        if kind == "d3d_trace_batch":
+            if f_d3d is None:
+                return
+            frame  = int(p["frame"])
+            events = p.get("events") or []
+            # One JSONL row per event for tractable diffing; the batch
+            # boundary is recorded as `frame` on each row.
+            for ev in events:
+                ev_out = dict(ev)
+                ev_out["frame"] = frame
+                f_d3d.write(json.dumps(ev_out) + "\n")
+            f_log.write(f"[d3d_trace] frame={frame} events={len(events)}\n")
+            return
+
         f_log.write(f"[unhandled] {p}\n")
 
     # ── auto-start frida-server if not already up ──
@@ -404,6 +433,10 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     if cfg.force_resolution is not None:
         init_cfg["force_resolution"] = [int(cfg.force_resolution[0]),
                                         int(cfg.force_resolution[1])]
+    if cfg.d3d_trace:
+        init_cfg["d3d_trace"] = True
+        if cfg.d3d_trace_frames is not None:
+            init_cfg["d3d_trace_frames"] = [int(f) for f in cfg.d3d_trace_frames]
     script.exports_sync.init(init_cfg)
     device.resume(pid)
 
@@ -439,6 +472,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         exit_code = 1
 
     f_audio.close(); f_trace.close(); f_log.close()
+    if f_d3d is not None:
+        f_d3d.close()
 
     return CaptureResult(
         exit_code=exit_code,
@@ -559,6 +594,17 @@ def main(argv: list[str] | None = None) -> int:
                          "so retail captures at the requested dims even "
                          "when its vendor/unpacked/recet.ini is empty or "
                          "stale. Example: --force-resolution 1024x768")
+    ap.add_argument("--d3d-trace", action="store_true",
+                    help="hook IDirect3DDevice8 vtable slots "
+                         "(SetRenderState / SetTransform / SetTexture / "
+                         "DrawIndexedPrimitive et al.) and write one JSONL "
+                         "row per call to <run_dir>/d3d_trace.jsonl. "
+                         "Phase D.4 — pairs with src/d3d_trace.c on the "
+                         "port side + tools/render_diff.py.")
+    ap.add_argument("--d3d-trace-frames", default="",
+                    help="comma-separated frame numbers to limit the D3D "
+                         "trace to. Default empty = every frame (large!). "
+                         "Use this for any non-title scenario.")
     args = ap.parse_args(argv)
     fr_tuple: tuple[int, int] | None = None
     if args.force_resolution:
@@ -571,6 +617,10 @@ def main(argv: list[str] | None = None) -> int:
 
     capture_frames = ([int(x) for x in args.capture_frames.split(",") if x]
                       if args.capture_frames else [])
+
+    d3d_trace_frames: list[int] | None = None
+    if args.d3d_trace_frames:
+        d3d_trace_frames = [int(x) for x in args.d3d_trace_frames.split(",") if x]
 
     cfg = CaptureConfig(
         capture_frames=capture_frames,
@@ -585,6 +635,8 @@ def main(argv: list[str] | None = None) -> int:
         turbo=args.turbo, turbo_step_ms=args.turbo_step_ms,
         silent_audio=args.silent_audio,
         force_resolution=fr_tuple,
+        d3d_trace=args.d3d_trace,
+        d3d_trace_frames=d3d_trace_frames,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)
