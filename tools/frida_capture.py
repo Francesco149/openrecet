@@ -228,6 +228,17 @@ class CaptureConfig:
     # unfiltered trace generates megabytes per second).
     d3d_trace:        bool = False
     d3d_trace_frames: list[int] | None = None
+    # Call tracer (Phase E.1). When `call_trace` is true the agent
+    # Interceptor.attach()es onEnter on every VA in `call_trace_vas`
+    # and emits one record per invocation to `<run_dir>/call_trace.jsonl`.
+    # `call_trace_vas` defaults to the engine function-entry list at
+    # tools/ttd/data/engine_function_vas.json (2103 entries from
+    # objdump). `call_trace_frames` is a per-frame whitelist — strongly
+    # recommended, since unfiltered runs can emit tens of thousands of
+    # events per frame and saturate the Frida wire.
+    call_trace:        bool = False
+    call_trace_vas:    list[int] | None = None
+    call_trace_frames: list[int] | None = None
 
 
 @dataclass
@@ -255,6 +266,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     # buffering (not line-buffered) — bursty render frames would dominate
     # the wall clock if we fsync after every event.
     f_d3d = d3d_jsonl.open("w") if cfg.d3d_trace else None
+    call_trace_jsonl = run_dir / "call_trace.jsonl"
+    f_call = call_trace_jsonl.open("w") if cfg.call_trace else None
 
     captured: list[int] = []
     last_mask: int | None = None
@@ -359,6 +372,23 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             f_log.write(f"[d3d_trace] frame={frame} events={len(events)}\n")
             return
 
+        if kind == "call_trace_hooked":
+            f_log.write(f"[call_trace] hooked ok={p.get('n_ok')} "
+                        f"fail={p.get('n_fail')} req={p.get('n_req')}\n")
+            return
+
+        if kind == "call_trace_batch":
+            if f_call is None:
+                return
+            frame  = int(p["frame"])
+            events = p.get("events") or []
+            for ev in events:
+                ev_out = dict(ev)
+                ev_out["frame"] = frame
+                f_call.write(json.dumps(ev_out) + "\n")
+            f_log.write(f"[call_trace] frame={frame} events={len(events)}\n")
+            return
+
         f_log.write(f"[unhandled] {p}\n")
 
     # ── auto-start frida-server if not already up ──
@@ -437,6 +467,11 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["d3d_trace"] = True
         if cfg.d3d_trace_frames is not None:
             init_cfg["d3d_trace_frames"] = [int(f) for f in cfg.d3d_trace_frames]
+    if cfg.call_trace:
+        init_cfg["call_trace"] = True
+        init_cfg["call_trace_vas"] = [int(v) for v in (cfg.call_trace_vas or [])]
+        if cfg.call_trace_frames is not None:
+            init_cfg["call_trace_frames"] = [int(f) for f in cfg.call_trace_frames]
     script.exports_sync.init(init_cfg)
     device.resume(pid)
 
@@ -474,6 +509,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     f_audio.close(); f_trace.close(); f_log.close()
     if f_d3d is not None:
         f_d3d.close()
+    if f_call is not None:
+        f_call.close()
 
     return CaptureResult(
         exit_code=exit_code,
@@ -605,6 +642,23 @@ def main(argv: list[str] | None = None) -> int:
                     help="comma-separated frame numbers to limit the D3D "
                          "trace to. Default empty = every frame (large!). "
                          "Use this for any non-title scenario.")
+    ap.add_argument("--call-trace", action="store_true",
+                    help="hook every engine function entry (default list: "
+                         "tools/ttd/data/engine_function_vas.json, 2103 VAs) "
+                         "and emit one JSONL row per invocation to "
+                         "<run_dir>/call_trace.jsonl. Phase E.1 — per-frame "
+                         "ordered call list for leaf-first porting. Pair "
+                         "with --call-trace-frames or output saturates the "
+                         "Frida wire.")
+    ap.add_argument("--call-trace-vas-file", type=Path, default=None,
+                    help="override the default engine VA list. JSON: either "
+                         "a bare array of ints, or the metadata-dict form "
+                         "{vas: [...], ...}. Useful for trimming to a "
+                         "render-side subset.")
+    ap.add_argument("--call-trace-frames", default="",
+                    help="comma-separated frame numbers to limit call_trace "
+                         "to. STRONGLY recommended — unfiltered runs can "
+                         "emit tens of thousands of events per frame.")
     args = ap.parse_args(argv)
     fr_tuple: tuple[int, int] | None = None
     if args.force_resolution:
@@ -622,6 +676,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.d3d_trace_frames:
         d3d_trace_frames = [int(x) for x in args.d3d_trace_frames.split(",") if x]
 
+    call_trace_frames: list[int] | None = None
+    if args.call_trace_frames:
+        call_trace_frames = [int(x) for x in args.call_trace_frames.split(",") if x]
+
+    call_trace_vas: list[int] | None = None
+    if args.call_trace:
+        ct_path = args.call_trace_vas_file or (
+            ROOT / "tools" / "ttd" / "data" / "engine_function_vas.json")
+        if not ct_path.exists():
+            ap.error(f"--call-trace: VA list not found at {ct_path}; pass "
+                     f"--call-trace-vas-file to override")
+        raw = json.loads(ct_path.read_text())
+        call_trace_vas = (raw["vas"] if isinstance(raw, dict) and "vas" in raw
+                          else list(raw))
+
     cfg = CaptureConfig(
         capture_frames=capture_frames,
         max_frames=args.max_frames,
@@ -637,6 +706,9 @@ def main(argv: list[str] | None = None) -> int:
         force_resolution=fr_tuple,
         d3d_trace=args.d3d_trace,
         d3d_trace_frames=d3d_trace_frames,
+        call_trace=args.call_trace,
+        call_trace_vas=call_trace_vas,
+        call_trace_frames=call_trace_frames,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

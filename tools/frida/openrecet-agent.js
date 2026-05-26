@@ -446,6 +446,21 @@ let g_d3d_trace_frames  = null;     // Set<int> or null
 let g_d3d_trace_hooked  = false;
 let g_d3d_trace_buffer  = [];       // events for current frame, flushed at Present
 
+// Call tracer (Phase E.1). When `call_trace` is true the agent
+// Interceptor.attach()es onEnter on every Ghidra-VA in
+// `g_call_trace_vas` and emits one event per invocation into a
+// per-frame buffer that flushes at Present (same shape as the D3D
+// state-trace). Output is meant for "what fired in this frame and in
+// what order" analysis — pair with a small `call_trace_frames`
+// whitelist or the wire saturates.
+let g_call_trace_enabled = false;
+let g_call_trace_frames  = null;    // Set<int> or null (null = every frame)
+let g_call_trace_vas     = [];      // [int] Ghidra-VAs to hook
+let g_call_trace_hooked  = false;
+let g_call_trace_buffer  = [];
+let g_call_trace_n_ok    = 0;
+let g_call_trace_n_fail  = 0;
+
 // Render-demo state. When `g_demo_active` is true, the
 // Interceptor.replace on FUN_004547ab routes every render-thread tick
 // through the JS demo callback below instead of the engine's normal
@@ -659,6 +674,10 @@ function installPresentHook(devicePtr) {
             // enabled AND the frame is in the (optional) filter set.
             if (g_d3d_trace_enabled) {
                 traceFlush(fn);
+            }
+            // Same flush-before-bump invariant for call_trace.
+            if (g_call_trace_enabled) {
+                callTraceFlush(fn);
             }
             // Bump AFTER the capture decision. Audio/input events that
             // fired during the cycle leading to this Present have
@@ -1270,6 +1289,60 @@ function installD3dTraceHooks(devicePtr) {
 
     g_d3d_trace_hooked = true;
     log('d3d trace hooks installed (12 vtable slots)');
+}
+
+// ─── call tracer ────────────────────────────────────────────────────────
+
+function callTraceShouldEmit() {
+    if (!g_call_trace_enabled) return false;
+    if (g_call_trace_frames === null) return true;
+    return g_call_trace_frames.has(g_manual_frame_counter);
+}
+
+function callTraceFlush(frameNumber) {
+    if (g_call_trace_buffer.length === 0) return;
+    const events = g_call_trace_buffer;
+    g_call_trace_buffer = [];
+    send({kind: 'call_trace_batch',
+          frame: frameNumber,
+          count: events.length,
+          events: events});
+}
+
+function installCallTraceHooks(vasArray) {
+    if (g_call_trace_hooked) return;
+    // closures capture `va` directly (let-binding per iteration) so each
+    // hook reports its own address; using `this.context.eip` would also
+    // work but reads the register on every fire.
+    for (let i = 0; i < vasArray.length; i++) {
+        const va = vasArray[i] | 0;
+        try {
+            Interceptor.attach(rva(va), {
+                onEnter: function () {
+                    if (!callTraceShouldEmit()) return;
+                    g_call_trace_buffer.push({
+                        va:     va,
+                        ret_va: traceRetVa(this.returnAddress),
+                        ts:     nowMs(),
+                        thr:    this.threadId,
+                    });
+                },
+            });
+            g_call_trace_n_ok++;
+        } catch (e) {
+            // Skipped: Frida couldn't trampoline this VA (instruction
+            // prefix unsupported, prior hook on the same byte, etc.).
+            // Counted so the driver can spot a degraded run.
+            g_call_trace_n_fail++;
+        }
+    }
+    g_call_trace_hooked = true;
+    log('call_trace: hooked ' + g_call_trace_n_ok + ' VAs (' +
+        g_call_trace_n_fail + ' failed) of ' + vasArray.length);
+    send({kind: 'call_trace_hooked',
+          n_ok:   g_call_trace_n_ok,
+          n_fail: g_call_trace_n_fail,
+          n_req:  vasArray.length});
 }
 
 // ─── mesh dump hook ─────────────────────────────────────────────────────
@@ -1930,6 +2003,28 @@ rpc.exports = {
             g_d3d_trace_frames = null;
         }
 
+        // Call tracer (Phase E.1). When call_trace:true, hook every VA
+        // in call_trace_vas (array of Ghidra-VAs; default empty = no-op)
+        // with an onEnter that pushes one record per invocation into a
+        // per-frame buffer flushed at Present. call_trace_frames is an
+        // optional whitelist — when set, only those frames emit; the
+        // hook still fires on every other frame but the early-return in
+        // callTraceShouldEmit() makes it cheap.
+        g_call_trace_enabled = !!config.call_trace;
+        g_call_trace_hooked  = false;
+        g_call_trace_buffer  = [];
+        g_call_trace_n_ok    = 0;
+        g_call_trace_n_fail  = 0;
+        g_call_trace_vas     = Array.isArray(config.call_trace_vas)
+            ? config.call_trace_vas.map(function (v) { return v | 0; })
+            : [];
+        if (Array.isArray(config.call_trace_frames)) {
+            g_call_trace_frames = new Set(
+                config.call_trace_frames.map(function (f) { return f | 0; }));
+        } else {
+            g_call_trace_frames = null;
+        }
+
         // Mesh dump knob. config.dump_meshes is either:
         //   true             — dump every .x load
         //   ['xfile/shop/']  — dump only paths containing any of these
@@ -1966,7 +2061,11 @@ rpc.exports = {
               diff_test: g_diff_test_enabled,
               d3d_trace: g_d3d_trace_enabled,
               d3d_trace_frames: g_d3d_trace_frames === null
-                  ? null : Array.from(g_d3d_trace_frames)});
+                  ? null : Array.from(g_d3d_trace_frames),
+              call_trace: g_call_trace_enabled,
+              call_trace_n_vas: g_call_trace_vas.length,
+              call_trace_frames: g_call_trace_frames === null
+                  ? null : Array.from(g_call_trace_frames)});
 
         // The capture-side hooks expect to fire on a running engine.
         // State-forcing tests skip resume() entirely, so we make the
@@ -2009,6 +2108,14 @@ rpc.exports = {
             // INGAME bootstrap.
             if (g_mesh_dump_enabled) {
                 installMeshDumpHook();
+            }
+            // Call tracer — install last (after other hooks) so the
+            // call_trace doesn't also fire on hook-injected detour
+            // entries. Hooking 2000+ trampolines takes a couple seconds
+            // pre-resume; the engine doesn't start running until
+            // device.resume(pid) on the driver side.
+            if (g_call_trace_enabled && g_call_trace_vas.length > 0) {
+                installCallTraceHooks(g_call_trace_vas);
             }
         }
     },
