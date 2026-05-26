@@ -548,3 +548,352 @@ scene1_emit_apply_material_state), BSS palette writes at
 0x438bfbc..0x438bff0, draw-loop-A gate at 0x4581e8, draw-loop-B at
 0x458382-0x458567 (status-screen + phase2 count gates, per-mesh source
 selection at 0x4583b8-0x4583f8, per-face inner draw at 0x458425+).
+
+## Cf.survey landing — 2026-05-26 PM (writer-chunk reachability + layout)
+
+Survey of the writer chunk that PII.3b waits on.  Done before any
+code lands so the production port can correct the existing
+`scene1_walker_pass_init.h` field-naming swap (see §Layout
+corrections below).
+
+### Source location
+
+The writer chunk is inside `FUN_00436f97` (4788 B, decomp L34770+ /
+asm 0x4378e0..0x437b7c).  It lives in the function's `else` branch
+("alt-stage arm" per `docs/findings/scene1-postload-init.md` block
+21).  The gate at L34361-34364:
+
+```c
+iVar6 = (&DAT_068dd3fc)[DAT_0438b4dc * 0x6cf];
+if ((iVar6 < 0) || (4 < iVar6)) {
+    /* Block 20 — DUNGEON-class stage-class init */
+} else {
+    /* Block 21 — HOUSE-class stages, iVar6 ∈ [0..4]
+     * THIS IS THE WRITER CHUNK */
+}
+```
+
+`DAT_068dd3fc[stage*0x6cf]` is a per-stage selector loaded from the
+stage record at `&DAT_044e3798 + DAT_0438b1e0 * 0x2dfc8 + 0x2cdfc`
+(field offset within the per-stage record).  HOUSE-class stages
+have this selector in `[0..4]` (5 sub-types: 0/1/2/3/4); DUNGEON-
+class stages have it < 0 or > 4.
+
+### Reachability question — and its answer
+
+`FUN_00436f97` is reachable from two engine call sites (per the
+postload-init survey):
+
+1. `FUN_0049e163` — state-8 (dungeon combat) → INGAME transition
+2. `FUN_0048526d` — "enter state-1" wrapper, called from
+   `FUN_00462403:249`, `FUN_00442cef:335`, `FUN_0048670f:214/218`
+
+**Initial title → HOUSE goes through `FUN_004547ab` case-1 →
+`FUN_00474a9a` only.  FUN_00436f97 is NOT called on initial HOUSE
+entry from title.**  Sub-scene → HOUSE re-entry (returning from
+dungeon, ESC menu, day-end transition) DOES go through
+FUN_0048526d → FUN_00436f97.
+
+Confirmed re-runnable:
+```
+nix develop --command grep -nE 'FUN_0048526d\(\)' docs/decompiled/all.c
+```
+Three production call sites (L40767, L60379, L86747/L86751) — all
+inside scene-transition / post-day-end dispatch paths.  Initial
+boot from title-screen IS NOT one of them.
+
+**Implication for production**: porting Cf.* alone is not enough
+to make HOUSE furniture appear on a fresh boot.  Cf.* needs a
+wiring stand-in (same pattern as `scene1_postload_pose_player()`
+in `scene1_preload.c::scene1_preload_house`).  Wiring decision is
+deferred to the production-port chip.
+
+### Writer-chunk structure (decomp L34772-L34871 / asm 0x4378d6-0x437b7c)
+
+Top-down outline.  Decomp line refs match `docs/decompiled/all.c`;
+asm line refs match `vendor/unpacked/recettear.unpacked.exe`.
+
+1. **Camera-yaw priming** (L34773-34774 / asm 0x4378d6-0x4378ea):
+   `_DAT_073de39c = π`; `_DAT_056db060 = π`.  Both writes share
+   the literal at .rdata 0x51943c = 0x40490fdb.
+
+2. **Count dispatch** (L34775-34790 / asm 0x4378f0-0x437946):
+   4-way switch on iVar6 selecting `(phase1_count, phase2_count)`:
+   - iVar6 == 0: (2, esi)  — esi = iVar8 ∈ {0, 1} from outer state
+   - iVar6 == 1: (2, 4)
+   - iVar6 == 2: (esi, 6)
+   - iVar6 ∈ {3, 4}: (5, 10)
+
+   The `esi` value (= decomp `iVar8`) traces back to outer state
+   from earlier in the function.  Setting either count to `esi`
+   produces 0 in the default boot path (iVar8 stays 0 unless a
+   ported caller sets it).  In practice **phase 2 count of 10 is
+   the maximum** (iVar6==3/4 case; the 14-iter loop below
+   populates exactly 10 entries).
+
+3. **Scalar field setup** (L34791-34822 / asm 0x437946-0x437a47):
+   Fan-out writes of mesh_type / rot_y / pos_x / pos_y for slots
+   {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 16, 17, 18, 19}.  Layout per
+   §Layout corrections below.  Slots 10-15 are not written here.
+
+4. **Per-stage 10-iter position loop** (L34823-L34840 / asm
+   0x437a4b-0x437ac5):
+
+   ```
+   eax  = &DAT_0438c10c             ; = pos_z[0]
+   edx  = stage_record + 0x2ce14    ; = local_c + 0x2ce14
+   esi  = 0                          ; loop counter
+   do {
+       /* edi = stage_record[i].x_int */
+       edi = *(int*)(edx - 4)
+       /* per-(scene_type, slot) world-anchor offset from .rdata */
+       idx = i + DAT_068dd3fc[stage*0x6cf] * 10
+       edi -= *(int*)(0x5c5120 + idx*8)
+       /* pos_x[i] = 2.0f * (float)edi */
+       float v = (float)(int)edi
+       *(float*)(eax - 0xa0) = v + v
+       /* edi = stage_record[i].z_int */
+       edi = *(int*)edx
+       edi -= *(int*)(0x5c5124 + idx*8)
+       *(float*)eax = (float)edi + (float)edi   ; pos_z[i] = 2.0f * z
+       *(float*)(eax - 0x50) = 0.0f             ; pos_y[i] = 0
+       esi++
+       edx += 8
+       eax += 4
+   } while (eax != &DAT_0438c134);
+   ```
+
+   Re-runnable verification of the .rdata anchor table at 0x5c5120
+   (5 scene_types × 10 entries × 8 B = 400 B):
+   ```
+   nix develop --command python3 tools/analyze/pe.py bytes 0x5c5120 400
+   ```
+
+   The stage record at `local_c + 0x2ce14` is the per-stage
+   furniture-position array (10 entries × 8 B int pairs).  Source
+   data is loaded from a stage file we haven't traced; for HOUSE-
+   class stages the values determine where each shop_table mesh
+   lands in world space.
+
+5. **Trailing BSS writes** (L34841-34857 / asm 0x437ac7-0x437b65):
+   ~14 zero-resets at `DAT_0438c0bc..DAT_0438c0e0` (pos_y slots
+   not handled by the loop) + 7 specific writes at `DAT_0438cbe8..
+   DAT_0438cbfc` (camera/state metadata at addresses outside our
+   port's tracked walker fields).  Last two writes (L34856-34857):
+   `DAT_0438cbf4 = pos_x[17] - 1.0` and `DAT_0438cbf8 =
+   pos_y[17] - 1.0`.
+
+6. **Per-stage camera yaw branch** (L34858-34870 / asm
+   0x437b67-0x437b76):
+   ```c
+   if (stage_record[+0x2cdf4] == 0) {
+       _DAT_056db05c = π/2;             // 0x3fc90fdb
+   } else if (stage_record[+0x2cde0] == 0) {
+       _DAT_056db05c = -π/2;            // 0xbfc90fdb
+       DAT_056dab00 = 2;
+       DAT_056dab58 = 2;
+   } else {
+       _DAT_056db05c = 0;
+       DAT_056dab00 = 4;
+       DAT_056dab58 = 4;
+   }
+   FUN_004851e2();
+   ```
+
+7. **Post-chunk** (L34871+ / asm 0x437b7f+): single yaw_alt copy
+   (L34873 `_DAT_0438b4ac = _DAT_056db05c` — already noted as
+   "out of MVP scope" in Cf.1's postload doc) + the 200-iter
+   ambient spawn loop (L34874-34883 — already ported as Cf.1).
+
+### Layout corrections
+
+The existing `scene1_walker_pass_init.h` has the per-mesh field
+arrays **mislabeled** relative to engine semantics.  Engine
+`D3DXMatrixTranslation(out, x, y, z)` is called at asm
+0x457e48-0x457e64 with args pushed right-to-left (stdcall):
+
+```
+push [esi + 0xf0]    ; z
+push [esi + 0xa0]    ; y
+push [esi + 0x50]    ; x
+push edi             ; out
+call MatrixTranslation
+```
+
+Where `esi = &DAT_0438c01c` (rot_y base).  So the engine layout
+is:
+
+| Engine semantic | Address           | Offset from rot_y base | Current header label |
+|---|---|---|---|
+| rot_y[]   | 0x438c01c..0x438c068 | +0x00 | `pos_y` (WRONG: this is rot_y) |
+| pos_x[]   | 0x438c06c..0x438c0b8 | +0x50 | `pos_x` (WRONG label, address now mismatches) |
+| pos_y[]   | 0x438c0bc..0x438c108 | +0xa0 | `pos_y` (header says pos_x here) |
+| pos_z[]   | 0x438c10c..0x438c158 | +0xf0 | `pos_z` (correct) |
+
+The current `scene1_walker_pass_init.c::scene1_walker_phase2_compute`
+reads:
+```c
+mat4_translation(world,
+                 g_scene1_walker_phase2_pos_x[i],  // header says addr 0x438c0bc — engine's Y
+                 g_scene1_walker_phase2_pos_y[i],  // header says addr 0x438c06c — engine's X
+                 g_scene1_walker_phase2_pos_z[i]);
+```
+
+→ The matrix builder is feeding (engine Y, engine X, engine Z) as
+(x, y, z) of `mat4_translation`.  This is a transposition bug.
+Today it has no visible effect because count==0; once Cf.* lands
+the bug becomes load-bearing.
+
+**Required correction** (load-bearing for Cf.*):
+
+| Header symbol (rename) | Address           |
+|---|---|
+| `g_scene1_walker_phase2_rot_y[]`  | 0x438c01c |
+| `g_scene1_walker_phase2_pos_x[]`  | 0x438c06c |
+| `g_scene1_walker_phase2_pos_y[]`  | 0x438c0bc |
+| `g_scene1_walker_phase2_pos_z[]`  | 0x438c10c |
+
+The `mat4_translation` call in `scene1_walker_phase2_compute` is
+unchanged after the rename — the addresses now match the engine's
+push order.
+
+### Per-mesh scalar writes — verified asm-decoded values
+
+For slots 0..9 (the meshes the 10-iter loop populates):
+
+| Slot | mesh_type | rot_y | Notes |
+|---|---|---|---|
+| 0 | esi (= iVar8) | 0 (BSS default) | mesh_type=esi at asm 0x43795a |
+| 1 | 4 | 0 | mesh_type=eax (popped 4) at asm 0x43799e; rot_y=0 at 0x437a29 (fldz; fstp 0x438c020) |
+| 2 | 4 | π/2 | mesh_type at 0x4379af; rot_y at 0x437a31 (fld 0x519434=π/2) |
+| 3 | 4 | -π/2 | mesh_type at 0x4379b4; rot_y at 0x437a3d (fld 0x519a18=-π/2) |
+| 4 | esi | 0 (BSS) | mesh_type at 0x43796c |
+| 5 | 4 | 0 (BSS) | mesh_type at 0x4379c5 |
+| 6 | esi | 0 (BSS) | mesh_type at 0x437972 |
+| 7 | esi | 0 (BSS) | mesh_type at 0x437984 |
+| 8 | esi | 0 (BSS) | mesh_type at 0x43798a |
+| 9 | esi | 0 (BSS) | mesh_type at 0x437998 |
+
+Slots 0..9 pos_x / pos_y / pos_z come from the 10-iter loop:
+- pos_x[i] = 2.0 × (stage_record[i].x - rdata_anchor[scene_type][i].x)
+- pos_y[i] = 0.0
+- pos_z[i] = 2.0 × (stage_record[i].z - rdata_anchor[scene_type][i].z)
+
+Slots 16..19 are scratch slots (NOT walked — phase2 count ≤ 10):
+
+| Slot | rot_y | pos_x | pos_y | pos_z | Notes |
+|---|---|---|---|---|---|
+| 16 | -2.0 (asm 0x437946 fld 0x519908) | 0 (asm 0x437957 fldz; fstp 0x438c0ac) | -1.0 (asm 0x437966 fld 0x5196b8) | 0 (BSS) | |
+| 17 | 13.0 (asm 0x43797e fld 0x519b40) | 0 (asm 0x4379a3 fldz; fstp 0x438c0b0) | -1.0 (asm 0x4379a9 fld 0x5196b8) | 0 (BSS) | |
+| 18 | -2.5 (asm 0x4379bf fld 0x519bc8) | 0 (asm 0x4379e0 fldz; fstp 0x438c0b4) | 8.0 (asm 0x4379e6 fld 0x519378) | 0 (BSS) | |
+| 19 | 13.0 (asm 0x4379fe fld 0x519b40) | 0 (asm 0x437a15 fldz; fstp 0x438c0b8) | 8.0 (asm 0x437a1d fld 0x519378) | 0 (BSS) | |
+
+These look like dimensions/anchors used by other code paths (HUD
+overlay setup or camera bounding), NOT actual furniture meshes.
+The "rot_y" values for 16-19 (-2.0, 13.0, -2.5, 13.0) are clearly
+not rotation radians.
+
+`mesh_type[10..15]` and `mesh_type[16..19]` are not touched by
+this writer chunk — they stay at their prior BSS-zero or
+previously-set values.
+
+### Palette / mesh-slot extras (asm 0x4379d4-0x4379f2)
+
+The writer also fan-outs four palette-index writes at
+`DAT_0438bfbc / _0438bfc0 / _0438bfc4 / _0438bfc8` (each = uVar13
+= edi = 1 in production).  These are NOT phase-2 per-mesh fields
+— they're texture-palette IDs read by the PII.3b draw loop's
+classifier (`scene1_walker_classify_slot`).  Already exposed via
+the engine BSS state in our port.
+
+### Cf.* port scope decision
+
+Two viable scopes:
+
+1. **Cf.minimal** — port only the count + scalar writes + 10-iter
+   position loop.  Skip trailing BSS clears (slots 10-15 stay
+   BSS-zero, irrelevant since count ≤ 10) and the camera-yaw
+   branch (yaw can stay BSS for HOUSE-default).  Scope: ~150 LoC,
+   ~10 tests.  Output: phase 2 arrays populated correctly for
+   slots 0..9 from per-stage data.
+
+2. **Cf.full** — Cf.minimal + scratch slot 16-19 writes + camera-
+   yaw branch + DAT_0438cbe8..cbfc BSS housekeeping.  Scope:
+   ~250 LoC, ~15 tests.  Output: engine-faithful replication of
+   the full writer chunk including dormant scratch fields.
+
+**Recommendation: Cf.minimal** — the scratch slots and camera-yaw
+writes have no consumer in the current walker port (PII.3b reads
+only slots [0, count) and ignores rot_y[16..19]).  Camera-yaw is
+already handled separately by scene1_camera.c.  Cf.minimal
+unlocks visible HOUSE furniture; Cf.full can land later if a
+sibling consumer ports.
+
+### Wiring stand-in
+
+The chip needs a wiring decision since FUN_00436f97 doesn't fire
+on initial HOUSE entry.  Options:
+
+- **A (recommended)**: call from `scene1_preload_house()` after
+  `scene1_postload_init_stage_defaults()`.  Same pattern as the
+  existing `scene1_postload_pose_player()` /
+  `scene1_postload_ambient_spawn()` stand-in wiring.
+- **B**: gate on a CLI flag like `--force-walker-phase2` (test
+  scaffold; doesn't run on default boot).
+
+Option A produces visible HOUSE furniture pixels on default boot
+(the goal of the Cf.* chip ladder).  Document as "stand-in until
+FUN_0048526d / FUN_0049e163 / sub-scene transitions port".
+
+### Required data inputs the writer chunk reads
+
+| Input | Address / accessor | Status today |
+|---|---|---|
+| `DAT_068dd3fc[stage*0x6cf]` (scene_type 0..4) | per-stage field at +0x2cdfc inside stage record | UNPORTED — stage record at `&DAT_044e3798 + stage*0x2dfc8` not modelled |
+| `DAT_005c5120/24` (.rdata 5×10 anchor pairs) | static .rdata, 400 B | portable — read at port-time and embed as static array |
+| `stage_record + 0x2ce14` (per-stage furniture position pairs, 10×8 B) | per-stage scratch | UNPORTED |
+| `stage_record + 0x2cdf4 / +0x2cde0` (camera-yaw branch gates) | per-stage scratch | UNPORTED |
+| `iVar6 = stage_record + 0x2cdfc` (scene_type 0..4 selector) | per-stage scratch | UNPORTED — same field as DAT_068dd3fc[..] |
+
+The unported stage record means Cf.minimal needs stand-in
+accessors for:
+- scene_type (0..4)
+- per-stage furniture positions (10× int x, int z pairs)
+- camera-yaw gate values (2 ints)
+
+Best modelled as host-installable hooks (default: scene_type=0,
+positions all zero, camera-yaw gates both zero) so Cf.* can land
+without porting the full stage record.  Mirrors C8j-tick.0's
+stand-in pattern for similar per-stage data.
+
+### Pending human checks for Cf.*
+
+The port will introduce candidates for the standard PHC queue:
+
+- **scene_type default for HOUSE on first boot** — Frida read of
+  `*(int*)(&DAT_044e3798 + stage*0x2dfc8 + 0x2cdfc)` at the moment
+  PII.3b first fires for HOUSE.  Our stand-in default 0
+  corresponds to iVar6==0 case (phase2_count = esi = 0 → walker
+  short-circuits).  Default 3 or 4 would give count = 10.
+- **Per-stage furniture position table** at offset +0x2ce14.
+  Frida dump after stage init for HOUSE; verify our stand-in's
+  10 (int x, int z) pairs match.
+- **.rdata 0x5c5120 anchor table** — already verified statically
+  via `tools/analyze/pe.py bytes 0x5c5120 400` — re-runnable but
+  no Frida read needed.
+
+### Re-runnable verification
+
+```
+nix develop --command i686-w64-mingw32-objdump -d -M intel \
+    --no-show-raw-insn vendor/unpacked/recettear.unpacked.exe \
+    --start-address=0x4378e0 --stop-address=0x437b7c
+```
+
+Expect: count dispatch at 0x4378f0..0x437946 (4 cases); scalar
+field setup at 0x437946..0x437a47; 10-iter loop body at
+0x437a4b..0x437ac5; trailing BSS writes at 0x437ac7..0x437b65;
+camera-yaw branch at 0x437b67..0x437b76.  Constants @ .rdata:
+0x519908=-2.0, 0x5196b8=-1.0, 0x519bc8=-2.5, 0x519378=8.0,
+0x519b40=13.0, 0x519434=π/2, 0x519a18=-π/2, 0x51943c=π,
+0x519364=1.0.
