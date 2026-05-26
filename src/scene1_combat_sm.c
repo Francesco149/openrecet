@@ -2264,15 +2264,23 @@ static void phase_c_lifetime_dispatch(int32_t *proj,
  * return).  The loop BREAKS after the first hit so the side effects
  * fire at most once per tick.
  *
- * Production: g_scene1_projectiles is BSS-zero (no writer ported) so
- * every record has TYPE=0 / AUX=0.  Skip cascade passes the BSS-zero
- * records (none of the disqualifying TYPE/AUX values match 0); the
- * subtype filter ALSO passes (slot.SEQ_ID=0 typically matches the
- * BSS-zero ring at index 0 — and slot.SEQ_ID > 0 for live slots, so
- * BSS-zero rings of all-0s don't match).  BUT the AABB gate fails
- * unconditionally because BSS-zero radii reduce the first condition
- * (`dist - reach < x_radius`) to `dist - reach < 0` — never true for
- * a non-overlapping projectile at the BSS-zero origin.
+ * Production: g_scene1_projectiles is BSS-zero in our port AND in retail.
+ * Verified 2026-05-26: the unified table-init routine at FUN_0040f640
+ * (9 callers across stage transitions) initializes 4 sibling tables but
+ * never touches the projectile range — full-binary grep of `0x695f004 ..
+ * 0x69b3004` shows 8 readers, 0 writers.  The 8 readers all check
+ * `cmp [esi], 0xffffffff; je skip` — i.e. they ARE written against a
+ * TYPE=-1 sentinel convention, but no init writer exists, so BSS-zero
+ * TYPE=0 records reach the AABB.  Skip cascade passes (TYPE=0 / AUX=0
+ * are not in the disqualifying set); subtype filter ALSO passes (slot's
+ * live SEQ_ID > 0 doesn't match BSS-zero rings).  BUT the AABB gate
+ * fails unconditionally because the per-type attr table
+ * (g_scene1_combat_proj_type_attrs, PHC #19) is ALSO permanently BSS-
+ * zero in retail (no writers anywhere) — radii=0 reduces the first
+ * condition `dist - reach < x_radius` to `dist - reach < 0`, never true
+ * for non-overlapping geometry.  PHC #26 RESOLVED: our BSS-zero
+ * projectile table matches retail verbatim; safety is double-gated by
+ * BSS-zero radii.
  *
  * Returns 1 if a hit fired (any in-range AABB pass), 0 on no-hit.
  * C8jb.8g lifted the public SM ret from collapsed-0 to this value —

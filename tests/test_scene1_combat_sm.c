@@ -161,11 +161,12 @@ static void reset_combat_state(void)
     /* C8jb.8g — sentinel-fill projectile TYPE=-1 so Phase C's skip
      * cascade catches every record (BSS-zero TYPE=0 + AUX=0 would
      * otherwise pass the cascade and hit-AABB whenever the slot is at
-     * the origin with a positive reach).  Engine has an unported init
-     * routine that seeds this sentinel in production.  Folding the
-     * sentinel-fill into reset_combat_state guarantees Phase B/A tests
-     * don't get spurious Phase C ret=1 lifts now that the SM tick
-     * propagates Phase C's hit return value (C8jb.8g). */
+     * the origin with a positive reach).  Test-hygiene only — NOT
+     * modeling engine init: PHC #26 verified 2026-05-26 that no engine
+     * writer seeds this sentinel.  Production stays safe via BSS-zero
+     * radii (PHC #19) collapsing the AABB regardless.  We sentinel-fill
+     * here to give per-test isolation now that the SM tick propagates
+     * Phase C's hit return value (C8jb.8g). */
     memset(g_scene1_projectiles, 0, sizeof g_scene1_projectiles);
     for (int i = 0; i < SCENE1_PROJ_COUNT; i++) {
         g_scene1_projectiles[i * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_TYPE] = -1;
@@ -4350,12 +4351,15 @@ static void capture_phase_c_hit_hook(int proj_index)
 
 static void reset_combat_7_capture(void)
 {
-    /* Zero, then sentinel-fill TYPE=-1.  Engine relies on an (unported)
-     * init routine to seed the projectile table this way; without the
-     * sentinel, BSS-zero records pass the 10-entry skip cascade (TYPE=0
-     * and AUX=0 are NOT in the disqualifying set) and would all fire
-     * AABB hits whenever the slot is at origin.  Sentinel-filling here
-     * isolates each test to the projectiles it explicitly configures. */
+    /* Zero, then sentinel-fill TYPE=-1.  Test-hygiene only: PHC #26
+     * verified 2026-05-26 that engine has NO init writer for this table
+     * — retail leaves it BSS-zero too, and production safety comes from
+     * BSS-zero radii (PHC #19) collapsing the AABB.  Without the
+     * sentinel here, BSS-zero records would pass the 10-entry skip
+     * cascade (TYPE=0 and AUX=0 are NOT in the disqualifying set) AND
+     * the AABB would fire because tests deliberately set radii > 0 on
+     * the slot[0] they're exercising.  Sentinel-filling isolates each
+     * test to the projectiles it explicitly configures. */
     memset(g_scene1_projectiles, 0, sizeof g_scene1_projectiles);
     for (int i = 0; i < SCENE1_PROJ_COUNT; i++) {
         g_scene1_projectiles[i * SCENE1_PROJ_STRIDE + SCENE1_PROJ_OFF_TYPE] = -1;
