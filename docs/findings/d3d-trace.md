@@ -324,5 +324,6 @@ pass unchanged.
     `--d3d-trace` / `--d3d-trace-frames` CLI flags.
   - `src/d3d_trace.{c,h}` + `src/d3d_trace_macros.h` — port side.
   - `docs/harness-roadmap.md` Phase D.4 + D.5 — original specs.
-  - Future: `tools/render_diff.py` (Phase D.6) — lock-step diff
-    orchestrator.
+  - `tools/render_diff.py` + `docs/findings/render-diff.md` —
+    Phase D.6 lock-step diff orchestrator (consumes the JSONLs this
+    pipeline emits).
