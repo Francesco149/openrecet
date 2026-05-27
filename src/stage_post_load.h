@@ -14,7 +14,7 @@
  * as their owning scenes port.
  *
  * Body (decomp at docs/decompiled/all.c L33102-33159):
- *   1. Call FUN_004844ef (stat aggregator — STUB).
+ *   1. Call FUN_004844ef (stat aggregator) → chara_equip_recompute_aggregate.
  *   2. Reset scratch [DAT_056da1cc..d4] = (0, 3, 1).
  *   3. (Engine calls FUN_0047a8c0 = apply_chara_interp here — see
  *      "apply_chara_interp note" below for why this chip skips it.)

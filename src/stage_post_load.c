@@ -1,9 +1,10 @@
 /*
  * stage_post_load.c — see stage_post_load.h for the chip writeup.
  *
- * Engine: FUN_00435c98 @ 0x435c98 (309 B), with stubs for FUN_004844ef
- * (stat aggregator), FUN_004360b6 (post-init sibling), FUN_00435fbb,
- * FUN_00435dcd.
+ * Engine: FUN_00435c98 @ 0x435c98 (309 B).  Stat aggregator
+ * FUN_004844ef lives in chara_equip.c (full body); FUN_00435fbb and
+ * FUN_00435dcd have full bodies below; FUN_004360b6 remains stubbed
+ * (the last post-init sibling — see stub comment for details).
  */
 
 #include "stage_post_load.h"
@@ -11,6 +12,7 @@
 #include <string.h>
 
 #include "call_trace.h"
+#include "chara_equip.h"
 #include "rng.h"
 #include "scene1_combat_sm.h"   /* g_scene1_combat_stage_id (DAT_0438b4c8) */
 #include "stage_gate.h"
@@ -49,16 +51,6 @@ static int32_t g_dat_0438bf24[6];
 static int32_t g_dat_0438b4d0;
 
 /* ─── sub-call stubs (probes only, body deferred) ──────────────────────── */
-
-/* FUN_004844ef @ 0x4844ef — chara stat aggregator.
- * Reads g_chara + per-chara item slots, distributes equip stats into
- * scratch sum at DAT_056db0ac (consumed by combat damage calc).
- * Not on the HOUSE-entry visible path → defer until equipped-item
- * subsystem ports. */
-static void stage_post_load_stat_aggregator_stub(void)
-{
-    CALL_TRACE_ENTER_STUB(0x4844efu);
-}
 
 /* FUN_004360b6 @ 0x4360b6 — post-init sibling (202 B).
  * Writes the same DAT_0438bXXX scratch arrays this function zeros;
@@ -509,8 +501,8 @@ void stage_post_load_init(void)
      * NEW GAME → stage 0, chara 0. */
     int32_t *chara = g_stage_chara[0];
 
-    /* L33114: stat aggregator (stub). */
-    stage_post_load_stat_aggregator_stub();
+    /* L33114: stat aggregator — full body in chara_equip. */
+    chara_equip_recompute_aggregate();
 
     /* L33115-33117: scratch tag triple (0, 3, 1). */
     g_dat_056da1cc = 0;

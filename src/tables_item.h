@@ -216,4 +216,23 @@ void tables_parse_item(const unsigned char *data, size_t size,
  */
 int32_t tables_item_resolve(const item_state_t *state, const char *name);
 
+/*
+ * Item-id → record-slot lookup.  Engine: FUN_004681f6 @ 0x4681f6 (42 B).
+ *
+ * Walks `state->records[0..count-1]` looking for the first record whose
+ * `item_id` field exactly matches `item_id`.  Returns the slot index
+ * (0..count-1) on hit; -1 on miss / NULL state.  Engine does no
+ * `valid` check — matches whatever int32 sits at offset +0x34 of every
+ * stride-0x2cc record up through count.  Port matches that behavior
+ * (records past count won't be scanned since the loop bounds on count).
+ *
+ * Used by the chara-equipment subsystem (chara_equip.c) to resolve
+ * encoded equip-slot dwords (item_id = slot_val >> 6) to records for
+ * stat aggregation.
+ *
+ * NOTE: emits a CALL_TRACE_ENTER probe @ 0x4681f6.
+ */
+int32_t tables_item_find_slot_by_id(const item_state_t *state,
+                                    int32_t item_id);
+
 #endif /* OPENRECET_TABLES_ITEM_H */

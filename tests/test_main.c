@@ -728,6 +728,29 @@ struct test_case {
     X(d3d_pool_slot_setter_rejects_out_of_range_index) \
     X(d3d_pool_reset_clears_populated_slots) \
     \
+    X(items_find_slot_by_id_empty_db_returns_neg1) \
+    X(items_find_slot_by_id_null_state_returns_neg1) \
+    X(items_find_slot_by_id_hit_returns_slot_index) \
+    X(items_find_slot_by_id_miss_returns_neg1) \
+    X(items_find_slot_by_id_returns_first_match_on_dup) \
+    X(chara_equip_selectors_roundtrip) \
+    X(chara_equip_slot_roundtrip) \
+    X(chara_equip_base_stat_roundtrip) \
+    X(chara_equip_separate_chara_slots) \
+    X(aggregate_sets_counter_to_5) \
+    X(aggregate_empty_db_yields_zero_sums) \
+    X(aggregate_writes_to_existing_combat_globals) \
+    X(aggregate_sums_five_slots_with_single_item) \
+    X(aggregate_sentinel_slot_skipped) \
+    X(aggregate_all_slots_sentinel_yields_zero) \
+    X(aggregate_encoded_slot_picks_correct_item) \
+    X(aggregate_max_stat_gets_enchant_bonus) \
+    X(aggregate_enchant_lands_on_first_max_on_tie) \
+    X(aggregate_enchant_skipped_when_all_stats_zero) \
+    X(aggregate_adds_base_stats) \
+    X(aggregate_reads_active_chara) \
+    X(aggregate_idempotent) \
+    \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \
     X(nowloading_tick_idle_decays_alpha_by_32) \

@@ -62,6 +62,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "call_trace.h"
+
 /* Global state — populated by tables.c via tables_parse_item. */
 item_state_t g_item;
 
@@ -720,6 +722,40 @@ int32_t tables_item_resolve(const item_state_t *state, const char *name)
         if (state->records[i].valid != 1) continue;
         if (strncmp(state->records[i].singular, name, ITEM_NAME_LEN) == 0) {
             return state->records[i].item_id;
+        }
+    }
+    return -1;
+}
+
+/* FUN_004681f6 @ 0x4681f6 — item-id → record-slot lookup.
+ *
+ * Engine body (docs/decompiled/by-address/4681f6.c):
+ *
+ *     iVar1 = 0;
+ *     if (DAT_005c80ac != 0) {
+ *         piVar2 = &DAT_095d3804;        // &records[0].item_id
+ *         do {
+ *             if (*piVar2 == param_1) return iVar1;
+ *             iVar1++;
+ *             piVar2 += 0xb3;             // stride 0x2cc bytes
+ *         } while (iVar1 != DAT_005c80ac);
+ *     }
+ *     return -1;
+ *
+ * Verbatim translation: the engine reads the `item_id` field (offset
+ * +0x34) of each populated record up through `count` and returns the
+ * first match's index, or -1.  No `valid` check (matches engine — the
+ * struct's `item_id` is set by parse_item_record before count is
+ * incremented, so records[0..count-1].item_id is always populated).
+ */
+int32_t tables_item_find_slot_by_id(const item_state_t *state,
+                                    int32_t item_id)
+{
+    CALL_TRACE_ENTER(0x4681f6u);
+    if (state == NULL) return -1;
+    for (int i = 0; i < state->count; i++) {
+        if (state->records[i].item_id == item_id) {
+            return i;
         }
     }
     return -1;
