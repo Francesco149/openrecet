@@ -751,6 +751,19 @@ struct test_case {
     X(aggregate_reads_active_chara) \
     X(aggregate_idempotent) \
     \
+    X(chara_skills_writes_alive_flags) \
+    X(chara_skills_alive_flags_do_not_leak_outside_window) \
+    X(chara_skills_default_slot_list_is_0_to_4) \
+    X(chara_skills_count_at_level_0_all_pass_first_threshold) \
+    X(chara_skills_count_at_level_9_chara0) \
+    X(chara_skills_count_at_level_8_chara0) \
+    X(chara_skills_count_at_level_29_chara2_passes_all_5) \
+    X(chara_skills_count_at_level_28_chara2_passes_4) \
+    X(chara_skills_count_per_chara_isolation) \
+    X(chara_skills_count_chara7_capped_at_1) \
+    X(chara_skills_tail_writes) \
+    X(chara_skills_idempotent) \
+    \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \
     X(nowloading_tick_idle_decays_alpha_by_32) \

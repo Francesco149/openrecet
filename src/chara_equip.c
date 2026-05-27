@@ -92,6 +92,40 @@ void chara_equip_set_base_stat(int32_t bank, int32_t chara, int stat_idx,
     memcpy(rec + 0x2c + stat_idx * 4, &value, sizeof(value));
 }
 
+int32_t chara_equip_get_chara_level(int32_t bank, int32_t chara)
+{
+    uint8_t *rec = record_at(bank, chara);
+    if (rec == NULL) return 0;
+    int32_t out;
+    memcpy(&out, rec, sizeof(out));
+    return out;
+}
+
+void chara_equip_set_chara_level(int32_t bank, int32_t chara, int32_t level)
+{
+    uint8_t *rec = record_at(bank, chara);
+    if (rec == NULL) return;
+    memcpy(rec, &level, sizeof(level));
+}
+
+uint8_t chara_equip_get_record_byte(int32_t bank, int32_t chara,
+                                    int byte_offset)
+{
+    if (byte_offset < 0 || byte_offset >= CHARA_EQUIP_RECORD_BYTES) return 0;
+    uint8_t *rec = record_at(bank, chara);
+    if (rec == NULL) return 0;
+    return rec[byte_offset];
+}
+
+void chara_equip_set_record_byte(int32_t bank, int32_t chara,
+                                 int byte_offset, uint8_t value)
+{
+    if (byte_offset < 0 || byte_offset >= CHARA_EQUIP_RECORD_BYTES) return;
+    uint8_t *rec = record_at(bank, chara);
+    if (rec == NULL) return;
+    rec[byte_offset] = value;
+}
+
 /* ─── Scratch DATs zeroed/written by the aggregator ─────────────────
  *
  * Engine zeros 056db074..056db08c (7 dwords with mixed _DAT_/DAT_

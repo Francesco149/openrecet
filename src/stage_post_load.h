@@ -28,7 +28,7 @@
  *      [xp_curr, xp_next] window.
  *   7. Read per-stage int from `stage_record + 0x2c3f4` → float
  *      DAT_0438b91c.  Stage record isn't ported → defaults to 0.
- *   8. Call FUN_004360b6 (sibling — STUB).
+ *   8. Call FUN_004360b6 (sibling) → chara_skills_init_at_stage_load.
  *   9. Zero 6 dwords at DAT_056dae44 (to -1), 25 dwords at
  *      DAT_0438b4ec, then the 4x6 grid at DAT_0438bedc / bef4 / bf0c /
  *      bf24 (24 dwords).  Write DAT_0438b4c4 = 1 between the second

@@ -128,6 +128,23 @@ int32_t  chara_equip_get_base_stat(int32_t bank, int32_t chara,
 void     chara_equip_set_base_stat(int32_t bank, int32_t chara,
                                    int stat_idx, int32_t value);
 
+/* Chara level — record dword at offset +0x00.  Read by stage_post_load
+ * and by the skill-slot initializer in chara_skills.  No port writer
+ * lands here yet (engine seeds via save_bank → stage record copy at
+ * stage transition; that copy chip isn't ported). */
+int32_t  chara_equip_get_chara_level(int32_t bank, int32_t chara);
+void     chara_equip_set_chara_level(int32_t bank, int32_t chara,
+                                     int32_t level);
+
+/* Raw byte get/set into the per-chara 0x6c record.  Used by
+ * chara_skills (writes the +0x60..+0x64 "skill slot alive flag" run
+ * of 5 bytes).  Out-of-range (bank/chara/byte_offset) is a silent
+ * no-op (set) or 0 (get). */
+uint8_t  chara_equip_get_record_byte(int32_t bank, int32_t chara,
+                                     int byte_offset);
+void     chara_equip_set_record_byte(int32_t bank, int32_t chara,
+                                     int byte_offset, uint8_t value);
+
 /* ─── Aggregator scratch (read-only accessors for tests + future
  *      combat-damage callers) ────────────────────────────────────── */
 

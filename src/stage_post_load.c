@@ -2,9 +2,9 @@
  * stage_post_load.c — see stage_post_load.h for the chip writeup.
  *
  * Engine: FUN_00435c98 @ 0x435c98 (309 B).  Stat aggregator
- * FUN_004844ef lives in chara_equip.c (full body); FUN_00435fbb and
- * FUN_00435dcd have full bodies below; FUN_004360b6 remains stubbed
- * (the last post-init sibling — see stub comment for details).
+ * FUN_004844ef lives in chara_equip.c (full body); FUN_004360b6 lives
+ * in chara_skills.c (full body); FUN_00435fbb and FUN_00435dcd have
+ * full bodies below.
  */
 
 #include "stage_post_load.h"
@@ -13,6 +13,7 @@
 
 #include "call_trace.h"
 #include "chara_equip.h"
+#include "chara_skills.h"
 #include "rng.h"
 #include "scene1_combat_sm.h"   /* g_scene1_combat_stage_id (DAT_0438b4c8) */
 #include "stage_gate.h"
@@ -51,14 +52,6 @@ static int32_t g_dat_0438bf24[6];
 static int32_t g_dat_0438b4d0;
 
 /* ─── sub-call stubs (probes only, body deferred) ──────────────────────── */
-
-/* FUN_004360b6 @ 0x4360b6 — post-init sibling (202 B).
- * Writes the same DAT_0438bXXX scratch arrays this function zeros;
- * body deferred. */
-static void stage_post_load_post_init_sibling_stub(void)
-{
-    CALL_TRACE_ENTER_STUB(0x4360b6u);
-}
 
 /* FUN_00435fbb @ 0x435fbb — stage-init sibling (224 B).
  *
@@ -559,8 +552,8 @@ void stage_post_load_init(void)
      * Stage record isn't ported; default to 0 for stage 0. */
     g_dat_0438b91c = 0.0f;
 
-    /* L33137: post-init sibling (stub). */
-    stage_post_load_post_init_sibling_stub();
+    /* L33137: post-init sibling — full body in chara_skills. */
+    chara_skills_init_at_stage_load();
 
     /* L33138-33142: 6 dwords at DAT_056dae44 → -1. */
     for (int i = 0; i < 6; i++) {
