@@ -702,6 +702,20 @@ struct test_case {
     X(stage_post_load_435fbb_idx1_threshold_3_below_stays_zero) \
     X(stage_post_load_435fbb_idx1_threshold_3_above_activates) \
     X(stage_post_load_435fbb_idx2_high_clamp_caps_at_0_2) \
+    X(stage_post_load_435dcd_mode_0_dumps_full_weight_on_slot_0) \
+    X(stage_post_load_435dcd_param2_force_clear_bedc_slot) \
+    X(stage_post_load_435dcd_mode_1_writes_carved_distribution) \
+    X(stage_post_load_435dcd_mode_1_threshold_above_2_activates) \
+    X(stage_post_load_435dcd_mode_1_high_clamp_caps_bedc1) \
+    X(stage_post_load_435dcd_mode_2_slot_0_with_zero_counters) \
+    X(stage_post_load_435dcd_mode_3_slot_1_with_zero_counters) \
+    X(stage_post_load_435dcd_mode_5_slot_3_with_zero_counters) \
+    X(stage_post_load_435dcd_mode_4_slot_2_with_counter_boost) \
+    X(stage_post_load_435dcd_deep_dungeon_override_to_mode_4) \
+    X(stage_post_load_435dcd_no_override_when_stage_id_not_5) \
+    X(stage_post_load_435dcd_array_preservation_under_no_reset) \
+    X(stage_post_load_435dcd_counter_increment_each_pulse) \
+    X(stage_post_load_435dcd_b4d0_accessor_roundtrip) \
     \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \

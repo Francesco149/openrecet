@@ -33,8 +33,8 @@
  *      DAT_0438b4ec, then the 4x6 grid at DAT_0438bedc / bef4 / bf0c /
  *      bf24 (24 dwords).  Write DAT_0438b4c4 = 1 between the second
  *      and third blocks.
- *  10. Call FUN_00435fbb(1, 0) (sibling — STUB) and FUN_00435dcd(1, 0)
- *      (sibling — STUB).
+ *  10. Call FUN_00435fbb(1, 0) (full body) and FUN_00435dcd(1, 0) (full
+ *      body via stage_post_load_pulse_first_row).
  *
  * Storage layout:
  *   The engine's stage record is a 0x2dfc8-byte block per stage.  Most
@@ -113,6 +113,48 @@ void stage_post_load_init(void);
  *                                     pulse one index per call. */
 void stage_post_load_pulse_5fold(int reset_arrays, int reset_counter_idx);
 
+/* FUN_00435dcd @ 0x435dcd — first-row mode-dispatched weight write
+ * + 6-fold counter pulse.
+ *
+ *   reset_arrays: 1 zeros DAT_0438bedc[0..5] AND DAT_0438bf0c[0..5]
+ *                 before the dispatch.  Engine's stage_post_load_init
+ *                 (FUN_00435c98) passes 1.  0 preserves both — used by
+ *                 four tick-time callers (FUN_004844ef and three other
+ *                 dungeon-step paths) to pulse one slot per call.
+ *   force_clear_idx: when >= 0 (and < 6), zeros bedc[force_clear_idx]
+ *                 before the dispatch (post the array reset).  Engine's
+ *                 stage_post_load_init passes 0; tick-time callers pass -1.
+ *
+ * Behavior summary (decomp L33163-L33250):
+ *   1. Optionally reset bedc[0..5] and bf0c[0..5] to 0.
+ *   2. Optionally force-clear one bedc slot.
+ *   3. Pick mode based on g_dat_0438b4d0 (with a deep-dungeon override
+ *      for (-1, dungeon_id==5, next_floor>0x1d) → mode 4).
+ *   4. Write a mode-specific carve-up into bedc[]:
+ *        mode 0: bedc[0] = 1.0
+ *        mode 1: bedc[1] = clamp01_high( (bf0c[1]-2)*0.02, 0.2 );
+ *                bedc[0] = 1.0 - sum(bedc[1..4])
+ *        mode 2..5: pick slot ∈ {0,1,2,3}; carve bedc[slot..slot+2] s.t.
+ *                bedc[slot+1] = clamp_high(bf0c[slot+1]*0.04, 0.2)
+ *                bedc[slot+2] = clamp_high((bf0c[slot+2]-3)*0.005, 0.05)
+ *                bedc[slot]   = 1.0 - bedc[slot+1] - bedc[slot+2]
+ *   5. Increment bf0c[0..5] by 1, or by 5 on the rng-gated equipped-item
+ *      predicate path (only reachable from tick-time callers via the
+ *      reset_arrays==0 branch).
+ *
+ * On NEW GAME (g_dat_0438b4d0 BSS-zero, bf0c BSS-zero): bedc[0] = 1.0,
+ * all other bedc slots stay 0, bf0c[0..5] all increment from 0 → 1.
+ *
+ * Storage note: bedc[] holds float bit-patterns but the backing store
+ * is int32_t (shared with stage_post_load_init's zero pass); memcpy
+ * mediates the float view to keep strict-aliasing clean. */
+void stage_post_load_pulse_first_row(int reset_arrays, int force_clear_idx);
+
+/* g_dat_0438b4d0 — primary mode selector for the first-row dispatch.
+ * Future stage-change subsystem wires this; until then, test-only. */
+void    stage_post_load_set_mode_b4d0(int32_t mode);
+int32_t stage_post_load_get_mode_b4d0(void);
+
 /* ─── chara record access (test helpers + future consumers) ───────────── */
 
 int32_t stage_post_load_chara_field(int chara_idx, int dword_idx);
@@ -145,6 +187,10 @@ int32_t stage_post_load_get_dat_0438bf24(int idx);    /* idx in [0..5] */
 /* FUN_00435fbb writes float bit-patterns into bef4[].  This accessor
  * returns the float view via memcpy (strict-aliasing safe). */
 float   stage_post_load_get_dat_0438bef4_as_float(int idx);  /* idx in [0..5] */
+
+/* FUN_00435dcd writes float bit-patterns into bedc[].  Float view, same
+ * strict-aliasing-safe pattern. */
+float   stage_post_load_get_dat_0438bedc_as_float(int idx);  /* idx in [0..5] */
 
 /* Reset all stage_post_load state to BSS-zero.  Test-only helper. */
 void stage_post_load_reset_for_test(void);
