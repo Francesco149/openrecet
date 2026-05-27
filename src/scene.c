@@ -3,6 +3,7 @@
 #include "fade.h"
 #include "nowloading.h"
 #include "save_bank.h"
+#include "scene_new_game.h"
 #include "worker_load.h"
 
 int32_t g_scene_state    = SCENE_STATE_TITLE;
@@ -22,16 +23,42 @@ void scene_post_fade_init(void)
      * INGAME write below immediately replaces it. */
     g_scene_state    = SCENE_STATE_LOADING;
 
+    /* Engine FUN_0049a59e L65 — write DAT_09643684 = 0 between the
+     * LOADING and INGAME state writes (= save-dialog state reset).
+     * No-op observable today; surfaces in call_trace for parity. */
+    scene_new_game_clear_save_dialog_state();
+
     /* Engine FUN_0049a59e L213 (the `DAT_0438bed4 != 0` branch — the
      * NEW GAME path). Reset bank 0 (the active save slot's data) to
      * its fresh "new game" state. The engine reads the active slot
      * index from DAT_0438b1e0; until save-slot UI lands, we hardcode
      * bank 0 — matches the engine's behaviour on a fresh boot where
-     * DAT_0438b1e0 is BSS-zero. */
+     * DAT_0438b1e0 is BSS-zero.
+     *
+     * Position note: the engine calls FUN_0049001c (= save_bank_init_one)
+     * much later in the commit block (~L213).  Our port hoists it
+     * forward here so the bank is ready before fade_phase_out_start
+     * + worker_load_spawn — the worker reads bank state to load
+     * per-chara assets.  Faithful when no observer sits between the
+     * two positions; we currently have none. */
     save_bank_init_one(0);
 
     g_scene_state    = SCENE_STATE_INGAME;
     g_scene_substate = 0;
+
+    /* Engine FUN_0049a59e L71-72 — the 16-global UI scratch reset
+     * (FUN_004060ff) + DAT_0734b9a0 clear (FUN_004682d0).  Faithful
+     * order: scratch reset first, then the pulse-B clear.  Both fire
+     * after the INGAME write and before worker_load_close + the
+     * fade-IN kick. */
+    scene_new_game_clear_ui_scratch();
+    scene_new_game_clear_stage_load_pulse_b();
+
+    /* Engine FUN_0049a59e L74 — close any lingering worker thread
+     * before kicking the new asset-load worker.  Our port keeps a
+     * single-shot handle, so this is a no-op on fresh boot but
+     * matches the engine's call site for call_trace parity. */
+    worker_load_close();
 
     /* Engine FUN_0049a59e L235: FUN_0045281c(0, 0x11) — kick off the
      * phase-(-1) fade-IN so the alpha quad ramps from 255 → 0 over the

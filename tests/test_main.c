@@ -649,6 +649,12 @@ struct test_case {
     X(scene_post_fade_init_clears_substate) \
     X(scene_post_fade_init_starts_fade_in) \
     \
+    X(scene_new_game_save_dialog_state_clear_zeroes) \
+    X(scene_new_game_save_dialog_state_setter_roundtrip) \
+    X(scene_new_game_ui_scratch_clear_sentinels_first_two) \
+    X(scene_new_game_ui_scratch_clear_idempotent) \
+    X(scene_new_game_stage_load_pulse_b_clear_zeroes) \
+    \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \
     X(nowloading_tick_idle_decays_alpha_by_32) \
