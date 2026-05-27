@@ -673,6 +673,12 @@ struct test_case {
     X(stage_gate_query_out_of_range_dungeon_returns_zero) \
     X(stage_gate_next_setter_roundtrip) \
     \
+    X(xp_curve_zero_returns_zero) \
+    X(xp_curve_level_1_is_300) \
+    X(xp_curve_low_levels_match_quadratic) \
+    X(xp_curve_level_cap_97_no_overflow) \
+    X(xp_curve_negative_follows_formula) \
+    \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \
     X(nowloading_tick_idle_decays_alpha_by_32) \
