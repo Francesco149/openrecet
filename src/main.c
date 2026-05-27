@@ -61,6 +61,7 @@
 #include "mesh_load.h"
 #include "scene1_camera.h"
 #include "scene1_combat_sm.h"
+#include "scene1_dungeon_clear_banner.h"
 #include "scene1_overlay_table.h"
 #include "scene1_pass_f.h"
 #include "scene1_per_frame_open.h"
@@ -2009,6 +2010,19 @@ static void render_dispatch(void)
      * INGAME call; TITLE + other states missed the fallthrough.  See
      * call_trace_diff.py output. */
     scene1_render_fx_tail(g_dev);
+
+    /* Engine FUN_004547ab L51237-51239: dungeon-clear banner overlay
+     * (FUN_0048fe43).  Gated on `state==INGAME || (3 < transition_counter
+     * < 0xd)`.  Transition_counter is BSS-zero in our port (the scene-
+     * transition state machine hasn't ported), so only the INGAME arm
+     * fires.  Body is a no-op when its own internal counter is 0 (= the
+     * banner isn't currently animating) but still calls
+     * render_quad_state_setup as a state-write side effect — that's why
+     * we call it unconditionally on INGAME frames, not gated on the
+     * counter (the counter gate lives inside the function). */
+    if (g_scene_state == SCENE_STATE_INGAME) {
+        scene1_dungeon_clear_banner_render(g_dev);
+    }
 
     /* Engine FUN_004547ab L202: scene-fade alpha quad. Runs after the
      * scene-render dispatch so it darkens whatever the scene just drew

@@ -2834,7 +2834,22 @@ struct test_case {
     X(scene1_walker_draw_b_mesh_index_shop_table_out_of_range) \
     X(scene1_walker_draw_b_mesh_index_wall_floor_path) \
     X(scene1_walker_draw_b_mesh_index_null_out_ok) \
-    X(scene1_walker_phase2b_reset_defaults)
+    X(scene1_walker_phase2b_reset_defaults) \
+    \
+    X(banner_compute_y_counter_0_is_off_screen) \
+    X(banner_compute_y_counter_1) \
+    X(banner_compute_y_counter_60_mid_ramp) \
+    X(banner_compute_y_clamps_at_96_when_overshoot) \
+    X(banner_compute_y_phase2_at_120_still_clamped) \
+    X(banner_compute_y_phase2_starts_descending) \
+    X(banner_compute_y_phase2_clamps_at_minus_48) \
+    X(banner_compute_u_slice_0_default_strip) \
+    X(banner_compute_u_slice_1_right_strip) \
+    X(banner_compute_u_slice_2_middle_strip) \
+    X(banner_compute_u_unknown_slice_falls_to_default) \
+    X(banner_compute_u_null_pointers_safe) \
+    X(banner_state_defaults_zero) \
+    X(banner_set_get_round_trip)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
