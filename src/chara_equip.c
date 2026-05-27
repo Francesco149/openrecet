@@ -126,6 +126,26 @@ void chara_equip_set_record_byte(int32_t bank, int32_t chara,
     rec[byte_offset] = value;
 }
 
+uint32_t chara_equip_get_record_dword(int32_t bank, int32_t chara,
+                                      int byte_offset)
+{
+    if (byte_offset < 0 || byte_offset + 4 > CHARA_EQUIP_RECORD_BYTES) return 0;
+    uint8_t *rec = record_at(bank, chara);
+    if (rec == NULL) return 0;
+    uint32_t out;
+    memcpy(&out, rec + byte_offset, sizeof(out));
+    return out;
+}
+
+void chara_equip_set_record_dword(int32_t bank, int32_t chara,
+                                  int byte_offset, uint32_t value)
+{
+    if (byte_offset < 0 || byte_offset + 4 > CHARA_EQUIP_RECORD_BYTES) return;
+    uint8_t *rec = record_at(bank, chara);
+    if (rec == NULL) return;
+    memcpy(rec + byte_offset, &value, sizeof(value));
+}
+
 /* ─── Scratch DATs zeroed/written by the aggregator ─────────────────
  *
  * Engine zeros 056db074..056db08c (7 dwords with mixed _DAT_/DAT_

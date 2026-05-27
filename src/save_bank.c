@@ -39,6 +39,7 @@
 
 #include "audio_fade.h"
 #include "call_trace.h"
+#include "chara_equip.h"
 #include "rng.h"
 #include "tables_chara.h"
 
@@ -255,28 +256,60 @@ static const int32_t STARTER_FLAG_PAIRS[SAVE_BANK_CHARA_COUNT][10][2] = {
 #define BANK_INTERP_LEVEL_OFFSET_BYTES    (-0x30)
 
 /* Port of FUN_0048ff93. Walks the 8-chara × 5-slot STARTER_ITEMS
- * table; for each entry writes two copies of the encoded slot
- * (id<<6 | 0x20) into the bank, 5 dwords apart. -1 entries stay as
- * 0xffffffff in both positions. */
-static void apply_starter_items(uint8_t *bank_bytes)
+ * table; for each entry writes TWO copies of the encoded slot
+ * (id<<6 | 0x20) into the bank — `*puVar1` (= puVar4 + slot) AND
+ * `puVar1[-5]` (= puVar4 + slot - 5).  -1 entries get 0xffffffff in
+ * both positions.  Asm-verified at 0x48ff93 (objdump):
+ *
+ *   48ffae: jne  0x48ffb7              ; sentinel branch
+ *   48ffb0: or   %ecx, (%eax)          ; *(eax) |= 0xffffffff
+ *   48ffb2: or   %ecx, -0x14(%eax)     ; *(eax - 0x14) |= 0xffffffff
+ *   48ffbd: mov  %ecx, -0x14(%eax)     ; *(eax - 0x14) = encoded
+ *   48ffc0: mov  %ecx, (%eax)          ; *(eax) = encoded
+ *
+ * The -0x14(%eax) write reaches 5 dwords BEFORE puVar4, NOT 5 dwords
+ * after.  Per-chara range covered: 10 dwords at
+ * [bank + 0x2ceb4 + chara*0x6c, bank + 0x2cedc + chara*0x6c).
+ *
+ * This range overlaps the chara_equip arena (engine: same memory at
+ * bank + 0x2cec0 + chara*0x6c).  In the port the two arenas are
+ * SEPARATE backing stores, so mirror writes that land inside the
+ * chara_equip 0x6c record into chara_equip storage explicitly.  The
+ * non-overlapping prefix (bytes 0x2ceb4..0x2cebf = 3 dwords) lands in
+ * save_bank arena only — those bytes have no current readers, so they
+ * stay as raw save_bank state. */
+static void apply_starter_items(uint8_t *bank_bytes, int bank_idx)
 {
     /* E.2 probe — FUN_0048ff93 @ 0x48ff93. */
     CALL_TRACE_ENTER(0x48ff93u);
 
-    uint32_t *base = (uint32_t *)(bank_bytes + BANK_OFFSET_STARTER_ITEMS_BYTES);
+    /* puVar4 advances by 0x1b dwords per chara (matches asm `add $0x6c,%esi`). */
+    uint32_t *puVar4 = (uint32_t *)(bank_bytes + BANK_OFFSET_STARTER_ITEMS_BYTES);
 
     for (int chara = 0; chara < SAVE_BANK_CHARA_COUNT; chara++) {
-        uint32_t *row = base + (size_t)chara * SAVE_BANK_CHARA_STRIDE_DWORDS;
         for (int slot = 0; slot < 5; slot++) {
             int32_t id = STARTER_ITEMS[chara][slot];
             uint32_t encoded = (id == -1)
                 ? 0xffffffffu
                 : (uint32_t)(((uint32_t)id << 6) | 0x20u);
-            /* The engine writes `puVar1[-5]` and `*puVar1` — two
-             * dwords, the second 5 slots after the first. */
-            row[slot]     = encoded;
-            row[slot + 5] = encoded;
+            /* Engine writes: *puVar1 + puVar1[-5], where puVar1 = puVar4 + slot. */
+            puVar4[slot]     = encoded;
+            puVar4[slot - 5] = encoded;
+
+            /* Mirror into chara_equip storage.  chara_equip[chara]
+             * starts at bank + 0x2cec0 + chara*0x6c; puVar4 points at
+             * chara_equip[chara] + 8.  The R write (puVar4 + slot)
+             * lands at chara_equip[chara] + 8 + slot*4; the L write
+             * (puVar4 + slot - 5) at chara_equip[chara] + 8 + slot*4 - 0x14.
+             * set_record_dword is a no-op for out-of-range offsets — the
+             * pre-record bytes (-0xc..-4 for slots 0..2) are dropped
+             * silently, exactly what we want. */
+            int off_R = 8 + slot * 4;
+            int off_L = off_R - 0x14;
+            chara_equip_set_record_dword(bank_idx, chara, off_R, encoded);
+            chara_equip_set_record_dword(bank_idx, chara, off_L, encoded);
         }
+        puVar4 += SAVE_BANK_CHARA_STRIDE_DWORDS;
     }
 }
 
@@ -530,8 +563,12 @@ void save_bank_init_one(int bank_idx)
 
     /* (9) FUN_0048ff93 — starter items for all 8 charas. Reads the
      * 40-dword STARTER_ITEMS table and writes encoded slot dwords
-     * into the bank's starter-inventory windows. */
-    apply_starter_items(bank_bytes);
+     * into the bank's starter-inventory windows.  Also mirrors writes
+     * into chara_equip storage (engine has the two arenas overlapping;
+     * the port stores them separately).  Without this mirror, slot
+     * A[0] of every chara stays BSS-zero and chara_equip_recompute_
+     * aggregate fires items_find_by_id 5× instead of retail's 4×. */
+    apply_starter_items(bank_bytes, bank_idx);
 
     /* (10) Stamp checksum so future verify passes accept this bank. */
     save_bank_stamp_checksum(bank_idx);

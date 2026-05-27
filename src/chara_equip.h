@@ -53,17 +53,14 @@
  *
  *   chara_equip_recompute_aggregate     ×1    matches retail
  *   distribute_slot_stats               ×5    matches retail
- *   tables_item_find_slot_by_id         ×5    retail = ×4
+ *   tables_item_find_slot_by_id         ×4    matches retail
  *
- * Retail has one slot with the 0xffffffff sentinel (so 4 of its 5
- * distribute calls bottom out before looking up an item), while the
- * port's BSS-zero state has all 5 slots = 0 (so all 5 distribute
- * calls do a lookup).  The starter-equip seeder that sets that
- * sentinel hasn't been identified or ported — known call-count
- * divergence, documented inline.  Combat damage formula reads the
- * aggregated sums (g_scene1_combat_damage_base_idle / _idle2), so
- * this divergence propagates a 5×item[0].stats vs 4×item[0].stats
- * difference into combat — also documented.
+ * The fourth call is skipped because slot A[0] of every chara holds
+ * the 0xffffffff sentinel — written by save_bank.c::apply_starter_items
+ * (port of FUN_0048ff93), which mirrors its save_bank arena writes into
+ * chara_equip storage via chara_equip_set_record_dword.  The engine's
+ * STARTER_ITEMS[chara][4] = -1 entry combined with the symmetric L/R
+ * write pattern lands the sentinel at chara_equip[chara] + 4 (slot A[0]).
  *
  * Pure C, no Win32 surface.  Tests link this module + tables_item +
  * call_trace and exercise both the leaf helpers and the full
@@ -144,6 +141,17 @@ uint8_t  chara_equip_get_record_byte(int32_t bank, int32_t chara,
                                      int byte_offset);
 void     chara_equip_set_record_byte(int32_t bank, int32_t chara,
                                      int byte_offset, uint8_t value);
+
+/* Raw dword get/set into the per-chara 0x6c record.  Engine code that
+ * touches the chara_equip arena via raw pointer arithmetic (e.g.
+ * FUN_0048ff93's symmetric L/R write pair) lands at byte offsets the
+ * named accessors don't cover (slot B at 0x18..0x28, level stomps from
+ * the duplicate-write loop).  byte_offset must be 4-byte-aligned and in
+ * [0, 0x6c - 4]; out-of-range is a silent no-op (set) or 0 (get). */
+uint32_t chara_equip_get_record_dword(int32_t bank, int32_t chara,
+                                      int byte_offset);
+void     chara_equip_set_record_dword(int32_t bank, int32_t chara,
+                                      int byte_offset, uint32_t value);
 
 /* ─── Aggregator scratch (read-only accessors for tests + future
  *      combat-damage callers) ────────────────────────────────────── */

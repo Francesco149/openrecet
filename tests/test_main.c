@@ -490,6 +490,7 @@ struct test_case {
     X(save_bank_init_one_fills_item_slot_spans) \
     X(save_bank_init_one_mini_block) \
     X(save_bank_init_one_chara_records) \
+    X(save_bank_init_one_mirrors_starter_items_into_chara_equip) \
     X(save_bank_init_one_consumes_8_rng_steps) \
     X(save_bank_checksum_detects_tamper) \
     X(save_bank_header_init_hook_fires_once_per_reset) \

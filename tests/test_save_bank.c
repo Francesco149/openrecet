@@ -8,6 +8,7 @@
  * state.
  */
 #include "t.h"
+#include "chara_equip.h"
 #include "save_bank.h"
 #include "tables_chara.h"
 #include "rng.h"
@@ -222,34 +223,90 @@ int test_save_bank_init_one_chara_records(void)
     uint32_t *rec0 = bank + SAVE_BANK_CHARA_BASE_DWORD;
     uint32_t *rec1 = bank + SAVE_BANK_CHARA_BASE_DWORD + SAVE_BANK_CHARA_STRIDE_DWORDS;
 
-    /* ENGINE QUIRK: chara record dwords [6..15] are overlaid by
-     * apply_starter_items, which writes encoded slot IDs (id<<6|0x20).
-     * So rec[0xb..0x13] do NOT hold the stat fields the per-chara
-     * loop wrote — those are dead writes. Only rec[0..5] and rec[0x14..]
-     * survive from the loop body.
+    /* ENGINE QUIRK: chara record dwords [1..10] are overlaid by
+     * apply_starter_items, which writes encoded slot IDs (id<<6|0x20)
+     * at puVar4[-5..-1] AND puVar4[0..4] where puVar4 = bank + 0x2cec8 +
+     * chara*0x6c — i.e. 5 dwords BEFORE and 5 dwords AT puVar4.  Mapped
+     * to the chara record (which starts at bank dword 0xb3ac = byte
+     * 0x2ceb0), the writes hit rec[1..10] (= bank bytes 0x2ceb4..0x2ced8).
+     * Original per-chara stat writes (rec[0xb..0x13]) survive — they
+     * sit AFTER the starter-items write window.
      *
      * Recette (chara 0) — `*puVar1 = 0` overrides level_threshold. */
     T_ASSERT_EQ_I(rec0[0], 0);
     /* Per-chara presence byte at +0x60 (rec[0x18]) — survives. */
     T_ASSERT_EQ_I(((uint8_t *)(rec0 + 0x18))[0], 1);
 
-    /* Final values at rec0[0xb..0xf] reflect apply_starter_items'
-     * encoded slot IDs. STARTER_ITEMS[0] = {1, 1301, 1501, 2301, -1}.
-     * Encoded: (id<<6)|0x20 = 0x60 / 0x14460 / 0x17460 / 0x23860 / 0xffffffff.
-     * The five slots get written TWICE (rows [0..4] and [5..9]) — within
-     * the chara record those land at offsets [6..10] and [11..15]. */
-    T_ASSERT_EQ_U(rec0[0xb], (1u    << 6) | 0x20u);  /* slot 0 from row[5..9] */
-    T_ASSERT_EQ_U(rec0[0xc], (1301u << 6) | 0x20u);  /* slot 1 */
-    T_ASSERT_EQ_U(rec0[0xd], (1501u << 6) | 0x20u);  /* slot 2 */
-    T_ASSERT_EQ_U(rec0[0xe], (2301u << 6) | 0x20u);  /* slot 3 */
-    T_ASSERT_EQ_U(rec0[0xf], 0xffffffffu);           /* slot 4 = -1 */
+    /* Final values at rec0[1..0xa] reflect apply_starter_items'
+     * symmetric L/R write pattern.  STARTER_ITEMS[0] = {1, 1301, 1501,
+     * 2301, -1}.  Encoded: (id<<6)|0x20 = 0x60 / 0x14560 / 0x17560 /
+     * 0x23860 / 0xffffffff.  Each STARTER_ITEMS[0][N] is written to
+     * rec[1+N] AND rec[6+N], with N from 0 (first inner iter) to 4
+     * (last inner iter — emits the -1 sentinel). */
+    T_ASSERT_EQ_U(rec0[1], (1u    << 6) | 0x20u);  /* L-write, slot 0 */
+    T_ASSERT_EQ_U(rec0[2], (1301u << 6) | 0x20u);  /* L-write, slot 1 */
+    T_ASSERT_EQ_U(rec0[3], (1501u << 6) | 0x20u);  /* L-write, slot 2 */
+    T_ASSERT_EQ_U(rec0[4], (2301u << 6) | 0x20u);  /* L-write, slot 3 */
+    T_ASSERT_EQ_U(rec0[5], 0xffffffffu);           /* L-write, slot 4 = -1 */
+    T_ASSERT_EQ_U(rec0[6], (1u    << 6) | 0x20u);  /* R-write, slot 0 */
+    T_ASSERT_EQ_U(rec0[7], (1301u << 6) | 0x20u);  /* R-write, slot 1 */
+    T_ASSERT_EQ_U(rec0[8], (1501u << 6) | 0x20u);  /* R-write, slot 2 */
+    T_ASSERT_EQ_U(rec0[9], (2301u << 6) | 0x20u);  /* R-write, slot 3 */
+    T_ASSERT_EQ_U(rec0[0xa], 0xffffffffu);         /* R-write, slot 4 = -1 */
 
     /* Chara 1 — level_threshold preserved (NOT overridden — only
      * chara 0 gets the `*puVar1 = 0;` zeroing). */
     T_ASSERT_EQ_I(rec1[0], 5);
-    /* Chara 1 also gets starter items overlaid on dwords [6..15]. */
-    T_ASSERT_EQ_U(rec1[0xb], (101u << 6) | 0x20u);
+    /* Chara 1 also gets the symmetric L/R writes; first entry =
+     * STARTER_ITEMS[1][0] = 101. */
+    T_ASSERT_EQ_U(rec1[1], (101u << 6) | 0x20u);
+    T_ASSERT_EQ_U(rec1[6], (101u << 6) | 0x20u);
     T_ASSERT_EQ_I(((uint8_t *)(rec1 + 0x18))[0], 1);
+    return 0;
+}
+
+int test_save_bank_init_one_mirrors_starter_items_into_chara_equip(void)
+{
+    /* apply_starter_items writes into both save_bank arena (faithfully)
+     * AND chara_equip storage (mirror, since the port has the two
+     * arenas in SEPARATE memory while the engine overlaps them).
+     * Without the mirror, slot A[0] would stay BSS-zero and the stat
+     * aggregator would fire items_find_by_id 5× instead of retail's 4×.
+     *
+     * For chara 0, STARTER_ITEMS[0] = {1, 1301, 1501, 2301, -1}.
+     * The symmetric L/R write pattern places STARTER_ITEMS[0][4] = -1
+     * at chara_equip[0].slot_A[0] (via the L write of the last inner
+     * iter, which lands at puVar4 - 0x14 + 4 = chara_equip[0] + 4).
+     * Slot A[1..4] hold STARTER_ITEMS[0][0..3] encoded.  Slot B[0] also
+     * holds the sentinel.  Level field gets stomped with the encoded
+     * STARTER_ITEMS[0][3] = 2301. */
+    save_bank_arena_clear();
+    chara_equip_reset_for_test();
+    seed_chara_zero();
+    rng_seed(1);
+    save_bank_init_one(0);
+
+    /* Slot A[0] = sentinel — the chip's whole point. */
+    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 0), 0xffffffffu);
+    /* Slot A[1..4] = STARTER_ITEMS[0][0..3] encoded. */
+    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 1), (1u    << 6) | 0x20u);
+    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 2), (1301u << 6) | 0x20u);
+    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 3), (1501u << 6) | 0x20u);
+    T_ASSERT_EQ_U(chara_equip_get_slot(0, 0, 4), (2301u << 6) | 0x20u);
+    /* Slot B[0] (record byte +0x18) = sentinel from the same final iter. */
+    T_ASSERT_EQ_U(chara_equip_get_record_dword(0, 0, 0x18), 0xffffffffu);
+    /* Level field (record byte +0) gets stomped with encoded
+     * STARTER_ITEMS[0][3] = 2301 (via the L write of iter 4). */
+    T_ASSERT_EQ_U(chara_equip_get_record_dword(0, 0, 0x00),
+                  (2301u << 6) | 0x20u);
+
+    /* Chara 7 (last) — same pattern with STARTER_ITEMS[7] =
+     * {701, 1201, 1601, -1, -1}.  Slot A[0] still the sentinel
+     * (STARTER_ITEMS[7][4] = -1).  Slot A[4] is ALSO a sentinel
+     * (STARTER_ITEMS[7][3] = -1 lands at slot A[4]). */
+    T_ASSERT_EQ_U(chara_equip_get_slot(0, 7, 0), 0xffffffffu);
+    T_ASSERT_EQ_U(chara_equip_get_slot(0, 7, 1), (701u  << 6) | 0x20u);
+    T_ASSERT_EQ_U(chara_equip_get_slot(0, 7, 4), 0xffffffffu);
     return 0;
 }
 
