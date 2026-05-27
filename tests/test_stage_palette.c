@@ -110,3 +110,52 @@ int test_stage_palette_init_house_idempotent(void)
     T_ASSERT(g_stage_palette == &g_stage_palette_house);
     return 0;
 }
+
+/* ─── FUN_0043244c + FUN_00474681 — probe-only no-op bodies ─────────── */
+
+int test_stage_palette_clear_resource_caches_does_not_crash(void)
+{
+    /* Body is probe-only (caches not allocated in port). Just confirm
+     * the call returns cleanly without touching unrelated state. */
+    stage_palette_init_house();
+    stage_palette_t *saved_ptr = g_stage_palette;
+    int32_t saved_mode = g_stage_palette_house.mode;
+
+    stage_palette_clear_resource_caches();
+
+    T_ASSERT(g_stage_palette == saved_ptr);
+    T_ASSERT_EQ_I(g_stage_palette_house.mode, saved_mode);
+    return 0;
+}
+
+int test_stage_palette_load_for_stage_does_not_clobber_palette(void)
+{
+    /* FUN_00474681's pointer set is delegated to stage_palette_init_house;
+     * this function should not zero or repoint the palette record. */
+    stage_palette_init_house();
+    g_stage_palette_house.mode = 7;  /* mutate to detect a clobber */
+
+    stage_palette_load_for_stage();
+
+    T_ASSERT(g_stage_palette == &g_stage_palette_house);
+    T_ASSERT_EQ_I(g_stage_palette_house.mode, 7);
+
+    /* Cleanup: re-init for downstream tests. */
+    stage_palette_init_house();
+    return 0;
+}
+
+int test_stage_palette_load_for_stage_invokes_cache_clear(void)
+{
+    /* The function's main observable side effect is dispatching to
+     * stage_palette_clear_resource_caches.  Without a hook injection
+     * we can only check that the call chain doesn't crash on
+     * BSS-default state.  Probe firing is verified via the
+     * call_trace log, not via host tests. */
+    stage_palette_init_house();
+    stage_palette_load_for_stage();
+    /* Idempotency: call twice. */
+    stage_palette_load_for_stage();
+    T_ASSERT(g_stage_palette == &g_stage_palette_house);
+    return 0;
+}

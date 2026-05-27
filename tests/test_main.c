@@ -1041,6 +1041,9 @@ struct test_case {
     X(stage_palette_init_house_zeroes) \
     X(stage_palette_init_house_zeroes_padding) \
     X(stage_palette_init_house_idempotent) \
+    X(stage_palette_clear_resource_caches_does_not_crash) \
+    X(stage_palette_load_for_stage_does_not_clobber_palette) \
+    X(stage_palette_load_for_stage_invokes_cache_clear) \
     \
     X(scene_table_introspection) \
     X(scene_table_param1_loads_non_selector) \

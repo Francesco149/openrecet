@@ -144,4 +144,46 @@ extern stage_palette_t *g_stage_palette;
  * and point `g_stage_palette` at it. Idempotent. */
 void stage_palette_init_house(void);
 
+/* FUN_0043244c @ 0x43244c — engine "per-stage cache clear".
+ *
+ * Engine body (decomp at all.c L30720-L30738) clears two BSS slabs:
+ *   1. 10,240 entries × 20-byte stride at DAT_04348760..DAT_0437a760
+ *      (zero the first dword of each; ~200 KB).
+ *   2. 80 entries × 0xbe008-byte stride at DAT_00ac2434..DAT_046226b4
+ *      (zero the first dword of each; ~60 MB).
+ *
+ * Both are engine-internal per-stage caches (likely chara animation
+ * state pools).  Openrecet doesn't allocate either — our chara/anim
+ * state lives elsewhere — so the body is a probe-only no-op.  When
+ * the engine's chara state pools port, this clears them.
+ *
+ * Engine call sites: only from FUN_00474681 (the per-stage pre-load). */
+void stage_palette_clear_resource_caches(void);
+
+/* FUN_00474681 @ 0x474681 — engine "per-stage pre-load".
+ *
+ * Engine body (decomp at all.c L72738-L72767):
+ *   1. iVar3 = DAT_0438b4dc * 0x1b3c
+ *   2. DAT_068dd2f0 = &DAT_068dd2f8 + iVar3   (pointer-to-current entry)
+ *   3. FUN_0043244c()                         (clear caches)
+ *   4. if (palette[+0x1a2c] != 0) loop calling FUN_00472836 (mesh-name
+ *      preprocessor, 1609 B) + FUN_00471d45 per mesh.
+ *   5. if (palette[+0x108] != 0) single FUN_00472836 call (single sprite).
+ *
+ * Port specifics:
+ *   - Step 2 is already done by stage_palette_init_house() (sets
+ *     g_stage_palette = &g_stage_palette_house).  Re-doing it here
+ *     would point at the same record — no observable effect.  This
+ *     function intentionally skips the pointer set: the caller (engine
+ *     equiv = scene1_preload_house) invokes stage_palette_init_house
+ *     after this point, so the pointer is correct before any
+ *     post-this-function read.  Document the deviation here in case
+ *     the call order shifts under future restructuring.
+ *   - Steps 4-5 are gated on BSS-zero palette fields.  Loops skip on
+ *     HOUSE defaults.  Bodies (FUN_00472836 + FUN_00471d45) are
+ *     unported (heavy, ~1.6 KB of mesh-name preprocessing).
+ *
+ * Engine call sites: only from FUN_00474a9a (= scene1_preload_house). */
+void stage_palette_load_for_stage(void);
+
 #endif /* OPENRECET_STAGE_PALETTE_H */

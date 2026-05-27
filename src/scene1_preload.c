@@ -149,15 +149,18 @@ int scene1_preload_house(void)
      * being reused for the new scene's atlas. */
     mesh_tex_cache_reset();
 
-    /* Engine FUN_00474681 HOUSE path — sets palette pointer +
-     * (dormant) per-stage mesh/sprite loops. Our stage_palette is
-     * already pointing at the HOUSE record from boot; this is the
-     * explicit-refresh hook. The 2 conditional inner loops read
-     * palette+0x52c and palette+0x108 which are zero for HOUSE. */
-    stage_palette_init_house();
+    /* Engine FUN_00474681 — per-stage pre-load.  Probes the engine
+     * call site, invokes FUN_0043244c (cache clear, no-op for port),
+     * and the gated mesh/sprite preloaders (skip on BSS-zero HOUSE
+     * defaults).  Pointer-set is delegated to stage_palette_init_house
+     * below — see stage_palette.h "deviation note" for why. */
+    stage_palette_load_for_stage();
 
-    /* FUN_0043244c (called inside FUN_00474681) — TODO survey. Likely
-     * FPU init or per-stage scratch. Dormant in the boot smoke trace. */
+    /* Stage palette HOUSE record reset + g_stage_palette pointer set.
+     * The 2 conditional render-side reads (palette+0x52c, palette+0x108)
+     * are zero for HOUSE, so the rest of scene1_preload_house body
+     * sees a clean palette pointer. */
+    stage_palette_init_house();
 
     /* Engine FUN_00473c15 — early-returns when *DAT_068dd2f0 == 0,
      * so HOUSE skips it entirely. The 562-line body is DUNGEON-only
