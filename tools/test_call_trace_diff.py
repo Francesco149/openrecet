@@ -182,12 +182,91 @@ def main() -> int:
         f"missing-frame err:\n{err}")
     pa.unlink(); pb.unlink()
 
+    # ── 10. first_frame_with_va finds earliest frame ──────────────────
+    by_f = {
+        5: Counter({0x100: 1}),
+        10: Counter({0x100: 1, 0x200: 1}),
+        15: Counter({0x200: 1}),
+    }
+    chk(mod.first_frame_with_va(by_f, 0x100) == 5, "first frame 0x100")
+    chk(mod.first_frame_with_va(by_f, 0x200) == 10, "first frame 0x200")
+    chk(mod.first_frame_with_va(by_f, 0x999) is None, "missing VA → None")
+
+    # ── 11. --align-on-first anchors each side independently ──────────
+    pa = write_trace([
+        {"va": 0x100, "ret_va": 0, "frame": 50},
+        {"va": 0x200, "ret_va": 0, "frame": 50},   # anchor on retail = 50
+    ])
+    pb = write_trace([
+        {"va": 0x100, "ret_va": 0, "frame": 3},
+        {"va": 0x200, "ret_va": 0, "frame": 3},    # anchor on port = 3
+    ])
+    rc, out, _ = run_main(mod, ["--retail", str(pa), "--port", str(pb),
+                                "--align-on-first", "0x200"])
+    chk(rc == 0, f"align rc: {rc}")
+    chk("retail anchor: frame 50" in out, f"retail anchor missing:\n{out}")
+    chk("port anchor:   frame 3"  in out, f"port anchor missing:\n{out}")
+    chk("retail frame 50 vs port frame 3" in out, f"align header:\n{out}")
+    pa.unlink(); pb.unlink()
+
+    # ── 12. --frame-offset advances both anchors ──────────────────────
+    pa = write_trace([
+        {"va": 0x100, "ret_va": 0, "frame": 50},
+        {"va": 0x100, "ret_va": 0, "frame": 52},
+    ])
+    pb = write_trace([
+        {"va": 0x100, "ret_va": 0, "frame": 3},
+        {"va": 0x100, "ret_va": 0, "frame": 5},
+    ])
+    rc, out, _ = run_main(mod, ["--retail", str(pa), "--port", str(pb),
+                                "--align-on-first", "0x100",
+                                "--frame-offset", "2"])
+    chk(rc == 0, f"frame-offset rc: {rc}")
+    chk("frame-offset:  +2" in out, f"frame-offset metadata:\n{out}")
+    chk("retail frame 52 vs port frame 5" in out, f"offset header:\n{out}")
+    pa.unlink(); pb.unlink()
+
+    # ── 13. --align-on-first errors when VA missing on either side ────
+    pa = write_trace([{"va": 0x100, "ret_va": 0, "frame": 5}])
+    pb = write_trace([{"va": 0x200, "ret_va": 0, "frame": 5}])
+    rc, out, err = run_main(mod, ["--retail", str(pa), "--port", str(pb),
+                                  "--align-on-first", "0x999"])
+    chk(rc == 2, f"missing-anchor rc: {rc}")
+    chk("never fires on retail side" in err,
+        f"missing-anchor retail err:\n{err}")
+    pa.unlink(); pb.unlink()
+
+    pa = write_trace([{"va": 0x100, "ret_va": 0, "frame": 5}])
+    pb = write_trace([{"va": 0x200, "ret_va": 0, "frame": 5}])
+    rc, out, err = run_main(mod, ["--retail", str(pa), "--port", str(pb),
+                                  "--align-on-first", "0x100"])
+    chk(rc == 2, f"missing-port-anchor rc: {rc}")
+    chk("never fires on port side" in err,
+        f"missing-anchor port err:\n{err}")
+    pa.unlink(); pb.unlink()
+
+    # ── 14. --align-on-first + explicit --retail-frame overrides ──────
+    pa = write_trace([
+        {"va": 0x100, "ret_va": 0, "frame": 5},
+        {"va": 0x100, "ret_va": 0, "frame": 99},
+    ])
+    pb = write_trace([
+        {"va": 0x100, "ret_va": 0, "frame": 5},
+    ])
+    rc, out, _ = run_main(mod, ["--retail", str(pa), "--port", str(pb),
+                                "--align-on-first", "0x100",
+                                "--retail-frame", "99"])
+    chk(rc == 0, f"override rc: {rc}")
+    # Retail explicit, port stays at its anchor (frame 5)
+    chk("retail frame 99 vs port frame 5" in out, f"override header:\n{out}")
+    pa.unlink(); pb.unlink()
+
     if failures:
         print(f"FAIL ({len(failures)} test(s)):")
         for f in failures:
             print(f"  - {f}")
         return 1
-    print("OK (9 tests)")
+    print("OK (14 tests)")
     return 0
 
 

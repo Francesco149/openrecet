@@ -34,6 +34,21 @@ For non-matching scenarios (most HOUSE captures), pass `--retail-frame N
 before matching (e.g. retail HOUSE-entry at frame 11775 vs port
 HOUSE-entry at frame 240 → --retail-frame-offset -11535).
 
+Event-anchored alignment: pass `--align-on-first 0xVA` to make each side's
+"frame 0" be the first frame on which VA fires (different anchor frame
+per side, computed independently).  Pair with `--frame-offset N` to step
+forward N frames from each side's anchor.  Use this when port and retail
+have variable load times, different turbo factors, or non-deterministic
+phase entry — anything where wall-clock frame numbers aren't comparable
+but a known event marker (a scene-entry init function, etc.) fires
+exactly once on both sides.
+
+  # diff "INGAME-entry frame" on both sides
+  tools/call_trace_diff.py … --align-on-first 0x474a9a
+
+  # diff "5 frames into INGAME" on both sides
+  tools/call_trace_diff.py … --align-on-first 0x474a9a --frame-offset 5
+
 Default output is a compact summary; pass `--verbose` to dump the
 VA-by-VA breakdown with Ghidra names from docs/decompiled/functions.csv.
 
@@ -104,6 +119,15 @@ def load_ghidra_names(path: Path) -> dict[int, str]:
 
 
 # ── diff core ─────────────────────────────────────────────────────────────
+
+
+def first_frame_with_va(by_frame: dict[int, Counter[int]],
+                        va: int) -> int | None:
+    """First (smallest) frame number whose Counter contains VA."""
+    for fr in sorted(by_frame.keys()):
+        if va in by_frame[fr]:
+            return fr
+    return None
 
 
 def diff_frames(retail: Counter[int],
@@ -192,6 +216,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--retail-frame-offset", type=int, default=0,
                     help="DELTA added to retail frame numbers before "
                          "matching (so port_frame == retail_frame + DELTA)")
+    ap.add_argument("--align-on-first", type=lambda s: int(s, 0), default=None,
+                    metavar="VA",
+                    help="anchor each side to its FIRST frame containing VA "
+                         "(hex with 0x prefix or decimal). Resolved anchors "
+                         "become each side's frame 0; advance both with "
+                         "--frame-offset.  Overrides --retail-frame-offset.")
+    ap.add_argument("--frame-offset", type=int, default=0,
+                    help="step both sides N frames past their anchor "
+                         "(default 0).  Only meaningful with --align-on-first.")
     ap.add_argument("--functions-csv", type=Path,
                     default=ROOT / "docs" / "decompiled" / "functions.csv",
                     help="Ghidra functions.csv for VA→name decoration")
@@ -208,11 +241,33 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: port trace {args.port} has no events", file=sys.stderr)
         return 2
 
-    # Frame resolution.  Allow either pin to be unset and derive it from
-    # the other via the offset; if both are unset, pick the first retail
-    # frame whose shifted-counterpart exists on the port side.
+    # Resolve event-anchor mode first — overrides retail-frame-offset.
+    retail_anchor: int | None = None
+    port_anchor:   int | None = None
+    if args.align_on_first is not None:
+        retail_anchor = first_frame_with_va(retail_by_f, args.align_on_first)
+        port_anchor   = first_frame_with_va(port_by_f,   args.align_on_first)
+        if retail_anchor is None:
+            print(f"error: --align-on-first VA 0x{args.align_on_first:x} never "
+                  f"fires on retail side", file=sys.stderr)
+            return 2
+        if port_anchor is None:
+            print(f"error: --align-on-first VA 0x{args.align_on_first:x} never "
+                  f"fires on port side", file=sys.stderr)
+            return 2
+
+    # Frame resolution.  Priority:
+    #   1. Both pins explicit → use them
+    #   2. --align-on-first set → anchor + --frame-offset
+    #   3. Single pin set → derive other via --retail-frame-offset
+    #   4. Neither set → first overlapping frame pair (legacy default)
     if args.retail_frame is not None and args.port_frame is not None:
         rf, pf = args.retail_frame, args.port_frame
+    elif retail_anchor is not None:
+        rf = (args.retail_frame if args.retail_frame is not None
+              else retail_anchor + args.frame_offset)
+        pf = (args.port_frame   if args.port_frame   is not None
+              else port_anchor   + args.frame_offset)
     elif args.retail_frame is not None:
         rf = args.retail_frame
         pf = rf + args.retail_frame_offset
@@ -244,6 +299,17 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     names = load_ghidra_names(args.functions_csv)
+
+    if retail_anchor is not None:
+        va = args.align_on_first
+        tag = f"0x{va:06x} {names.get(va, '')}".rstrip()
+        print(f"# Aligned on first occurrence of {tag}")
+        print(f"#   retail anchor: frame {retail_anchor}")
+        print(f"#   port anchor:   frame {port_anchor}")
+        if args.frame_offset:
+            print(f"#   frame-offset:  +{args.frame_offset}")
+        print()
+
     diff  = diff_frames(retail_by_f[rf], port_by_f[pf])
     print_summary(rf, pf, retail_by_f[rf], port_by_f[pf],
                   diff, names, args.verbose)
