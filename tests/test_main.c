@@ -557,7 +557,7 @@ struct test_case {
     X(music_step_fade_phase_advances_progress) \
     X(music_step_fade_phase_one_walks_to_silence) \
     X(music_step_fade_phase_two_walks_to_loud) \
-    X(music_step_no_fade_skips_apply_hook) \
+    X(music_step_no_fade_phase_keeps_fade_tail_idle) \
     X(music_step_pending_fade_phase_drives_animation) \
     \
     X(audio_bgm_table_has_21_entries) \
@@ -590,6 +590,11 @@ struct test_case {
     X(audio_fade_apply_calls_hook_with_centibel) \
     X(audio_fade_apply_skips_hook_when_unset) \
     X(audio_fade_apply_rejects_invalid_channel) \
+    X(audio_fade_apply_bgm_tick_full_target_matches_apply) \
+    X(audio_fade_apply_bgm_tick_zero_slider_is_hard_silence) \
+    X(audio_fade_apply_bgm_tick_lower_target_attenuates) \
+    X(audio_fade_apply_bgm_tick_skips_hook_when_unset) \
+    X(audio_fade_apply_bgm_tick_clamps_target_volume) \
     X(audio_fade_progress_phase1_starts_loud) \
     X(audio_fade_progress_phase1_ends_silent) \
     X(audio_fade_progress_phase1_monotonic_decreasing) \

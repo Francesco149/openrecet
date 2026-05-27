@@ -438,8 +438,11 @@ static void music_test_apply_hook(int channel, int32_t centibel)
 int test_music_step_fade_phase_advances_progress(void)
 {
     /* fade_phase != 0 + pause_modal_state != 0 (so step-5 doesn't reset
-     * the phase) → each step increments fade_progress, apply hook fires
-     * once per step. */
+     * the phase) → each step increments fade_progress, fade-tail hook
+     * fires once per step.  Hook is ALSO fired by the per-tick BGM
+     * volume apply (engine FUN_00499583 / audio_fade_apply_bgm_tick),
+     * which runs in the title bare-play band before dispatch — so the
+     * total hook count per step is 2 (early-band tick + fade tail). */
     audio_fade_reset();
     audio_fade_set_apply_hook(music_test_apply_hook);
     g_fade_apply_calls = 0;
@@ -452,13 +455,13 @@ int test_music_step_fade_phase_advances_progress(void)
 
     music_step(&m, &c);
     T_ASSERT_EQ_I(m.fade_progress, 1);
-    T_ASSERT_EQ_I(m.fade_apply_count, 1);
-    T_ASSERT_EQ_I(g_fade_apply_calls, 1);
+    T_ASSERT_EQ_I(m.fade_apply_count, 1);    /* fade-tail counter only */
+    T_ASSERT_EQ_I(g_fade_apply_calls, 2);    /* early-band tick + fade tail */
 
     music_step(&m, &c);
     music_step(&m, &c);
     T_ASSERT_EQ_I(m.fade_progress, 3);
-    T_ASSERT_EQ_I(g_fade_apply_calls, 3);
+    T_ASSERT_EQ_I(g_fade_apply_calls, 6);    /* 3 steps × 2 calls each */
 
     audio_fade_reset();
     return 0;
@@ -527,10 +530,13 @@ int test_music_step_fade_phase_two_walks_to_loud(void)
     return 0;
 }
 
-int test_music_step_no_fade_skips_apply_hook(void)
+int test_music_step_no_fade_phase_keeps_fade_tail_idle(void)
 {
-    /* fade_phase == 0 → tail is a no-op, no hook calls, no progress
-     * advance. */
+    /* fade_phase == 0 → fade-tail is a no-op (fade_apply_count stays 0,
+     * progress stays 0).  The hook is still called by the per-tick BGM
+     * volume apply (engine FUN_00499583 / audio_fade_apply_bgm_tick)
+     * because scene_state == 0 + counter < 0x1b6d puts us in the title
+     * bare-play band — that path fires unconditionally. */
     audio_fade_reset();
     audio_fade_set_apply_hook(music_test_apply_hook);
     g_fade_apply_calls = 0;
@@ -541,7 +547,9 @@ int test_music_step_no_fade_skips_apply_hook(void)
 
     music_step(&m, &c);
     music_step(&m, &c);
-    T_ASSERT_EQ_I(g_fade_apply_calls, 0);
+    /* Hook fires from the early-band BGM tick once per step (no fade). */
+    T_ASSERT_EQ_I(g_fade_apply_calls, 2);
+    /* Fade-tail state is untouched. */
     T_ASSERT_EQ_I(m.fade_apply_count, 0);
     T_ASSERT_EQ_I(m.fade_progress,    0);
 
@@ -565,10 +573,12 @@ int test_music_step_pending_fade_phase_drives_animation(void)
     music_select_ctx_t c = ctx_title_bare(0);
 
     music_step(&m, &c);
-    /* pending was latched, phase active, first frame applied. */
+    /* pending was latched, phase active, fade-tail frame applied once.
+     * Hook count is 2 = 1 early-band BGM tick + 1 fade-tail. */
     T_ASSERT_EQ_I(m.pending_fade_phase, 0);
     T_ASSERT_EQ_I(m.fade_phase,         1);
-    T_ASSERT_EQ_I(g_fade_apply_calls,   1);
+    T_ASSERT_EQ_I(m.fade_apply_count,   1);
+    T_ASSERT_EQ_I(g_fade_apply_calls,   2);
 
     audio_fade_reset();
     return 0;

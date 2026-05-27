@@ -61,6 +61,13 @@ static const int32_t k_title_bgm_by_lang[8] = {
 static int32_t title_bgm_select(const music_select_ctx_t *ctx,
                                 int32_t language)
 {
+    /* Engine FUN_0049a558 entry. Body is 35 bytes verbatim — return
+     * k_title_bgm_by_lang[language] when (cursor_anim == 10 && submenu == 4),
+     * else -1. The probe fires here so port/retail call-trace diff aligns;
+     * music_step's selector calls us only when state == 0 + counter < 0x1b6d,
+     * mirroring the engine's FUN_0049966a L60 call site. */
+    CALL_TRACE_ENTER(0x49a558u);
+
     if (ctx->title_cursor_anim != 10 || ctx->title_submenu_state != 4) {
         return -1;
     }
@@ -219,19 +226,26 @@ void music_step(music_state_t            *m,
 
     /* 6+7. Update target_volume for the title fade band before the
      *      selector runs (selector returns NONE in the band but the
-     *      volume needs to track the fade). */
+     *      volume needs to track the fade).  Engine FUN_0049966a calls
+     *      FUN_00499583 (audio_fade_apply_bgm_tick) at the tail of both
+     *      bands so the backend sees the new target every frame. */
     if (ctx->scene_state == 0 && m->forced_track == MUSIC_TRACK_NONE) {
         const int32_t f = ctx->title_frame_counter;
         if (f >= 0x1b6d && f < 0x1ba7) {
-            /* Linear ramp: v = 1.0 - (f - 0x1b6c) / 600.0; clamp >=0. */
+            /* Engine L64-68: linear ramp v = 1.0 - (f - 0x1b6c)/600.0,
+             * clamp >= 0. */
             float ramp = 1.0f - ((float)(f - 0x1b6c)) / 600.0f;
             if (ramp < 0.0f) ramp = 0.0f;
             m->target_volume = ramp;
+            audio_fade_apply_bgm_tick(ramp);                /* engine L69 */
         } else if (f < 0x1b6d) {
+            /* Engine L58: target = 1.0, apply, then fall through to the
+             * title-bgm lookup (which we run inside music_select_track). */
             m->target_volume = 1.0f;
-            /* TODO: FUN_00499583() — apply volume to backend. */
+            audio_fade_apply_bgm_tick(1.0f);                /* engine L59 */
         }
-        /* f >= 0x1ba7: volume already 0; selector returns STOP. */
+        /* f >= 0x1ba7: volume already 0; selector returns STOP — engine
+         * skips the volume-apply call here too (L72-77 early-returns). */
     }
 
     /* 8. Selector + dispatch. */

@@ -222,6 +222,109 @@ int test_audio_fade_apply_rejects_invalid_channel(void)
     return 0;
 }
 
+/* ─── per-tick BGM apply (engine FUN_00499583) ──────────────────────── */
+
+int test_audio_fade_apply_bgm_tick_full_target_matches_apply(void)
+{
+    /* target_volume == 1.0 should produce the same centibel as
+     * audio_fade_apply(BGM) — both feed target_centibel=0 into the
+     * cos curve. */
+    audio_fade_reset();
+    audio_fade_set_apply_hook(test_apply_hook);
+    g_apply_hook_calls = 0;
+
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, 9);
+    int32_t got = audio_fade_apply_bgm_tick(1.0f);
+    T_ASSERT_EQ_I(g_apply_hook_calls, 1);
+    T_ASSERT_EQ_I(g_apply_hook_last_channel, AUDIO_FADE_CHANNEL_BGM);
+    T_ASSERT_EQ_I(g_apply_hook_last_centibel, 0);    /* slider 9 + full = 0 dB */
+    T_ASSERT_EQ_I(got, 0);
+
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, 5);
+    int32_t got_slider5 = audio_fade_apply_bgm_tick(1.0f);
+    int32_t want_slider5 = audio_fade_compute(5, 0);
+    T_ASSERT_EQ_I(got_slider5, want_slider5);
+
+    audio_fade_reset();
+    return 0;
+}
+
+int test_audio_fade_apply_bgm_tick_zero_slider_is_hard_silence(void)
+{
+    /* Engine fast path at FUN_00499583 L13-17: slider==0 → SetVolume
+     * fires with the constant -10000, bypassing the math curve. */
+    audio_fade_reset();
+    audio_fade_set_apply_hook(test_apply_hook);
+    g_apply_hook_calls = 0;
+
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, 0);
+    int32_t got = audio_fade_apply_bgm_tick(1.0f);
+    T_ASSERT_EQ_I(g_apply_hook_calls, 1);
+    T_ASSERT_EQ_I(g_apply_hook_last_centibel, AUDIO_FADE_SILENCE_CENTIBEL);
+    T_ASSERT_EQ_I(got, AUDIO_FADE_SILENCE_CENTIBEL);
+
+    /* Even with full target, slider-0 stays at -10000. */
+    g_apply_hook_calls = 0;
+    got = audio_fade_apply_bgm_tick(0.0f);
+    T_ASSERT_EQ_I(got, AUDIO_FADE_SILENCE_CENTIBEL);
+
+    audio_fade_reset();
+    return 0;
+}
+
+int test_audio_fade_apply_bgm_tick_lower_target_attenuates(void)
+{
+    /* target_volume < 1.0 produces a lower target_centibel, which lowers
+     * the apply result through the cos curve. At slider 9 (cos=1), the
+     * formula collapses to:
+     *   centibel = 1.0 * (target_centibel + 9600) - 9600
+     *            = target_centibel
+     * so target_volume == 0.5 → target_centibel == -4800. */
+    audio_fade_reset();
+    audio_fade_set_apply_hook(test_apply_hook);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, 9);
+
+    int32_t at_full = audio_fade_apply_bgm_tick(1.0f);
+    int32_t at_half = audio_fade_apply_bgm_tick(0.5f);
+    int32_t at_zero = audio_fade_apply_bgm_tick(0.0f);
+
+    T_ASSERT_EQ_I(at_full, 0);
+    T_ASSERT_EQ_I(at_half, -4800);
+    T_ASSERT_EQ_I(at_zero, -9600);
+
+    audio_fade_reset();
+    return 0;
+}
+
+int test_audio_fade_apply_bgm_tick_skips_hook_when_unset(void)
+{
+    /* No hook installed → audio_fade_apply_bgm_tick returns the centibel
+     * but doesn't call out. */
+    audio_fade_reset();   /* clears hook + sets sliders to 9 */
+    g_apply_hook_calls = 0;
+    int32_t got = audio_fade_apply_bgm_tick(1.0f);
+    T_ASSERT_EQ_I(g_apply_hook_calls, 0);
+    T_ASSERT_EQ_I(got, 0);
+    return 0;
+}
+
+int test_audio_fade_apply_bgm_tick_clamps_target_volume(void)
+{
+    /* Defensive clamping: negative target_volume → 0.0 (silence floor);
+     * over-1.0 → 1.0 (full target). */
+    audio_fade_reset();
+    audio_fade_set_apply_hook(test_apply_hook);
+    audio_fade_set_slider(AUDIO_FADE_CHANNEL_BGM, 9);
+
+    int32_t below = audio_fade_apply_bgm_tick(-0.5f);
+    int32_t above = audio_fade_apply_bgm_tick( 1.5f);
+    T_ASSERT_EQ_I(below, -9600);    /* clamped to 0.0 → curve floor */
+    T_ASSERT_EQ_I(above, 0);        /* clamped to 1.0 → full target */
+
+    audio_fade_reset();
+    return 0;
+}
+
 /* ─── per-tick fade animation (FUN_0049966a tail) ──────────────────────
  *
  * Phase 1 (fade-OUT): cos(angle_progress) = cos(progress*π/2/duration),

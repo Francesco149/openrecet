@@ -168,6 +168,25 @@ int32_t audio_fade_apply_progress(int channel,
  * no hook is installed). */
 int32_t audio_fade_apply(int channel);
 
+/* Per-tick BGM volume apply (engine FUN_00499583 entry).
+ *
+ * Called once per sim_b tick from music_step in the title bare-play band
+ * (counter < 0x1b6d) and the title fade band (counter in [0x1b6d, 0x1ba7)).
+ * Reads the CURRENT BGM slider, combines with `target_volume` (in [0,1] —
+ * 1.0 = full target, 0.0 = silence) to derive a target centibel, then
+ * forwards (channel, centibel) through the apply hook.
+ *
+ * Does NOT emit the audio-trace fade_start event (firing per-frame
+ * during the title fade band would spam the JSONL log). The
+ * CALL_TRACE_ENTER probe for engine VA 0x499583 fires here for
+ * port/retail call-trace diffing.
+ *
+ * Behaviour quirk matching the engine: when the BGM slider is 0 the
+ * engine hard-pins the hook arg to AUDIO_FADE_SILENCE_CENTIBEL
+ * (-10000), bypassing the math curve (which would otherwise produce
+ * the curve floor at -9600). Same fast path here. */
+int32_t audio_fade_apply_bgm_tick(float target_volume);
+
 /* Hook installer. The Win32 audio backend registers a function that
  * receives (channel, centibel) and calls SetVolume on the matching
  * AudioPath. Pass NULL to clear. Tests use this to capture applied

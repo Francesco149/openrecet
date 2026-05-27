@@ -18,6 +18,7 @@
 
 #include "audio_fade.h"
 #include "audio.h"     /* audio_trace_emit_fade_start */
+#include "call_trace.h"
 
 #include <math.h>
 
@@ -167,6 +168,38 @@ int32_t audio_fade_apply(int channel)
     audio_trace_emit_fade_start(channel, g_sliders[channel], centibel);
     if (g_apply_hook) {
         g_apply_hook(channel, centibel);
+    }
+    return centibel;
+}
+
+int32_t audio_fade_apply_bgm_tick(float target_volume)
+{
+    CALL_TRACE_ENTER(0x499583u);
+
+    int slider = g_sliders[AUDIO_FADE_CHANNEL_BGM];
+
+    /* Engine FUN_00499583 fast path (decomp L13-17): when the BGM slider
+     * is 0 the engine bypasses the cos-curve math and writes -10000
+     * directly. Reproduce that pin even though our math curve's floor
+     * is -9600. */
+    if (slider <= 0) {
+        if (g_apply_hook) {
+            g_apply_hook(AUDIO_FADE_CHANNEL_BGM, AUDIO_FADE_SILENCE_CENTIBEL);
+        }
+        return AUDIO_FADE_SILENCE_CENTIBEL;
+    }
+
+    /* Convert target_volume in [0, 1] to a target_centibel in the
+     * curve's domain. 1.0 → 0 (full target, identical to audio_fade_apply),
+     * 0.0 → -9600 (curve floor; engine's title fade-band endpoint). */
+    if (target_volume < 0.0f) target_volume = 0.0f;
+    if (target_volume > 1.0f) target_volume = 1.0f;
+    int32_t target_centibel =
+        (int32_t)(((double)target_volume - 1.0) * AUDIO_FADE_SCALE);
+
+    int32_t centibel = audio_fade_compute(slider, target_centibel);
+    if (g_apply_hook) {
+        g_apply_hook(AUDIO_FADE_CHANNEL_BGM, centibel);
     }
     return centibel;
 }
