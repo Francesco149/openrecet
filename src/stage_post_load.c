@@ -15,6 +15,7 @@
 #include "chara_equip.h"
 #include "chara_skills.h"
 #include "rng.h"
+#include "save_bank.h"
 #include "scene1_combat_sm.h"   /* g_scene1_combat_stage_id (DAT_0438b4c8) */
 #include "stage_gate.h"
 #include "xp_curve.h"
@@ -502,9 +503,17 @@ void stage_post_load_init(void)
     g_dat_056da1d0 = 3;
     g_dat_056da1d4 = 1;
 
-    /* L33118: FUN_0047a8c0(stage_record) — apply_chara_interp on the
-     * stage record's chara block.  OMITTED: see stage_post_load.h
-     * "apply_chara_interp note" for the call-count divergence write-up. */
+    /* L33118: FUN_0047a8c0(stage_record) — engine fires this with
+     * &DAT_044e3798 + DAT_0438b1e0 * 0x2dfc8 = save_bank arena for
+     * current bank.  In the engine the stage_record and save_bank
+     * arena are the same memory; in the port they're separate stores
+     * but DAT_0438b1e0 is BSS-zero on NEW GAME so chara_equip's bank
+     * 0 = save_bank's bank 0 — apply the interp against bank 0 to
+     * match retail's call count.  Body is idempotent (same level
+     * produces same writes), so re-firing after save_bank_init_one's
+     * 8 in-loop calls is a no-op on state but fires the probe (= the
+     * 9th call needed for call-count parity). */
+    save_bank_apply_chara_interp(chara_equip_get_current_bank());
 
     /* L33119-33124: position carry-forward.
      *   Engine: sum the low int16 of piVar2[0xf] (chara bytes 0x3c..0x3d)

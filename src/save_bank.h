@@ -178,6 +178,24 @@ void save_bank_init_all(void);
  * crash, just garbage values that later consumers would misread. */
 void save_bank_init_one(int bank_idx);
 
+/* Port of FUN_0047a8c0 — per-chara level-up stat interpolation.
+ *
+ * Walks all 8 chara records of bank_idx; for each, reads the current
+ * level from rec[0] and writes interpolated atk/def/matk/mdef/hp/sp
+ * fields based on g_chara[N]'s {base, lv100} stats.  Idempotent: the
+ * same level produces the same writes every call.
+ *
+ * Engine call sites (9 per NEW GAME):
+ *   - 8× from save_bank_init_one (one per outer iter of the chara loop)
+ *   - 1× from stage_post_load_init (FUN_00435c98 L33118)
+ *
+ * The engine's per-outer-iter calls are wasteful (each call processes
+ * all 8 records but only iter N has rec[N][0] freshly written), but
+ * the final state is identical to a single post-loop call.  Mirroring
+ * the engine's call pattern matches retail's per-frame call-count for
+ * the function. */
+void save_bank_apply_chara_interp(int bank_idx);
+
 /* Recompute + stamp checksum at bank[SAVE_BANK_FIELD_CHECKSUM]. */
 void save_bank_stamp_checksum(int bank_idx);
 

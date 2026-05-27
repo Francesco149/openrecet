@@ -382,14 +382,18 @@ static int interp(int base, int lv100, int level)
     return base + rounded;
 }
 
-static void apply_chara_interp(uint8_t *bank_bytes)
+void save_bank_apply_chara_interp(int bank_idx)
 {
-    /* E.2 probe — FUN_0047a8c0 @ 0x47a8c0.  Behavioural divergence:
-     * port collapses what the engine calls 9× (once per chara record +
-     * once standalone) into a single function that walks all 8 records
-     * internally, so the call-count diff will show retail=9 / port=1.
-     * Documented; not a port bug. */
+    /* E.2 probe — FUN_0047a8c0 @ 0x47a8c0.  Engine fires this 9× per
+     * NEW GAME (8× inside save_bank_init_one's per-chara loop + 1×
+     * from stage_post_load_init).  Each call walks all 8 chara records;
+     * intermediate calls produce partial level data but the final state
+     * matches a single post-loop call.  Port mirrors the call pattern
+     * to keep per-frame call counts in lockstep with retail. */
     CALL_TRACE_ENTER(0x47a8c0u);
+
+    uint8_t *bank_bytes = save_bank_at(bank_idx);
+    if (!bank_bytes) return;
 
     uint32_t *interp_base = (uint32_t *)(bank_bytes + BANK_OFFSET_CHARA_INTERP_BYTES);
 
@@ -544,22 +548,19 @@ void save_bank_init_one(int bank_idx)
             rec[0] = 0;
         }
 
-        /* Per-chara FUN_0047a8c0 call. The engine calls it ONCE per
-         * outer iter, but FUN_0047a8c0 itself walks all 8 records
-         * internally — so this is effectively called 8 times with
-         * redundant work. Faithful, but inefficient. We call it once
-         * AFTER the chara loop instead (matches the final write per
-         * chara; intermediate writes during iters 0..6 are dead). */
+        /* Per-chara FUN_0047a8c0 call (engine L92771).  Mirrors the
+         * engine's wasteful-but-faithful pattern: each call walks all
+         * 8 chara records, but only iter N has rec[N][0] freshly
+         * written — earlier iters see still-zero levels for charas
+         * > N.  Final state after iter 7 matches a single post-loop
+         * call; intermediate writes are dead.  Required for call-
+         * count parity (8 of the engine's 9 NEW GAME calls to 0x47a8c0). */
+        save_bank_apply_chara_interp(bank_idx);
 
         /* Mark this chara as "present" — engine writes
          * `*(undefined1 *)(puVar1 + 0x18) = 1;` (byte at +0x60). */
         ((uint8_t *)(rec + 0x18))[0] = 1;
     }
-
-    /* (8b) Single FUN_0047a8c0 call covers all 8 chara records at
-     * once. The engine's per-iter call inside the loop is wasteful
-     * (the same work overwritten 7 times); we collapse to one call. */
-    apply_chara_interp(bank_bytes);
 
     /* (9) FUN_0048ff93 — starter items for all 8 charas. Reads the
      * 40-dword STARTER_ITEMS table and writes encoded slot dwords
