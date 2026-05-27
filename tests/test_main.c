@@ -693,6 +693,15 @@ struct test_case {
     X(stage_post_load_init_zeroes_b4ec_and_grid) \
     X(stage_post_load_init_defaults_b91c_to_zero) \
     X(stage_post_load_init_idempotent) \
+    X(stage_post_load_435fbb_default_values_are_low_clamps) \
+    X(stage_post_load_435fbb_counter_advances_with_no_reset) \
+    X(stage_post_load_435fbb_param1_one_resets_arrays) \
+    X(stage_post_load_435fbb_param2_zeros_specific_counter_slot) \
+    X(stage_post_load_435fbb_idx0_threshold_zero_produces_slope_value) \
+    X(stage_post_load_435fbb_idx0_high_clamp_caps_at_0_1) \
+    X(stage_post_load_435fbb_idx1_threshold_3_below_stays_zero) \
+    X(stage_post_load_435fbb_idx1_threshold_3_above_activates) \
+    X(stage_post_load_435fbb_idx2_high_clamp_caps_at_0_2) \
     \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \

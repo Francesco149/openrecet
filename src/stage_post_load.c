@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "call_trace.h"
+#include "stage_gate.h"
 #include "xp_curve.h"
 
 /* ─── per-chara record storage ─────────────────────────────────────────── */
@@ -59,13 +60,107 @@ static void stage_post_load_post_init_sibling_stub(void)
 }
 
 /* FUN_00435fbb @ 0x435fbb — stage-init sibling (224 B).
- * Body internally calls FUN_004319d6 (stage_gate_query — already
- * ported as a leaf).  Wiring stage_gate_query through this caller
- * requires the full body port; this chip just probes the call. */
-static void stage_post_load_sibling_435fbb_stub(int param_1, int param_2)
+ *
+ * Decomp at all.c L33255-33301.  Drives a 5-element float scratch
+ * array (DAT_0438bef4[0..4]) from a per-index counter (DAT_0438bf24[0..4])
+ * via threshold/slope/clamp arithmetic against five 5-element RDATA
+ * tables.  For indices 2-4 a stage_gate_query() pass triggers a
+ * fixed-value override.
+ *
+ * Two-arg signature:
+ *   param_1: 1 resets DAT_0438bef4[0..4] AND DAT_0438bf24[0..4] before
+ *            the main loop; 0 skips the reset.  FUN_00435c98 always
+ *            passes 1; other callers (dungeon scenes) pass 0.
+ *   param_2: when >= 0, additionally clears DAT_0438bf24[param_2]
+ *            (forces that specific counter to 0 before the loop).
+ *
+ * Engine RDATA (5 entries each, in counter-index order):
+ *   DAT_005c4ffc int32  : counter threshold       = {0, 3, 0, 0, 2}
+ *   DAT_005c5010 float  : low clamp / pre offset  = {0.0, 0.0, 0.02, 0.008, 0.0}
+ *   DAT_005c5024 float  : slope                   = {0.002, 0.0005, 0.04, 0.002, 0.0005}
+ *   DAT_005c5038 float  : high clamp              = {0.1, 0.1, 0.2, 0.05, 0.01}
+ *   DAT_005c504c float  : gate-override value     = {0.1, 0.1, 0.3, 0.1, 0.05}
+ *
+ * Per-index pipeline:
+ *   1. Write 0 into bef4[i].
+ *   2. If counter[i] > threshold[i]:
+ *        pre = (counter[i] - threshold[i]) * slope[i] + low[i]
+ *        bef4[i] = pre
+ *   3. Clamp bef4[i] to >= low[i].
+ *   4. Clamp bef4[i] to <= high[i].
+ *   5. For i in {2, 3, 4}: if stage_gate_query() != 0,
+ *      bef4[i] = override[i].
+ *
+ * After the loop, all five counters are incremented by 1.
+ *
+ * Storage note: bef4[] holds float bit-patterns but our backing store
+ * is int32_t (shared with FUN_00435c98 zeroing); memcpy mediates the
+ * float view to keep strict-aliasing clean. */
+static const int32_t kFun435fbbThresholds[5] = { 0, 3, 0, 0, 2 };
+static const float   kFun435fbbLows[5]       = { 0.0f, 0.0f, 0.02f, 0.008f, 0.0f };
+static const float   kFun435fbbSlopes[5]     = { 0.002f, 0.0005f, 0.04f, 0.002f, 0.0005f };
+static const float   kFun435fbbHighs[5]      = { 0.1f, 0.1f, 0.2f, 0.05f, 0.01f };
+static const float   kFun435fbbOverrides[5]  = { 0.1f, 0.1f, 0.3f, 0.1f, 0.05f };
+
+void stage_post_load_pulse_5fold(int param_1, int param_2)
 {
-    (void)param_1; (void)param_2;
-    CALL_TRACE_ENTER_STUB(0x435fbbu);
+    CALL_TRACE_ENTER(0x435fbbu);
+
+    /* L33264-33271: param_1 == 1 zeros bef4[0..4] and bf24[0..4]. */
+    if (param_1 == 1) {
+        for (int i = 0; i < 5; i++) {
+            g_dat_0438bef4[i] = 0;
+            g_dat_0438bf24[i] = 0;
+        }
+    }
+
+    /* L33272-33274: zero a specific counter slot.  Engine guards on
+     * `-1 < param_2`; we additionally bound-check to keep the index
+     * in-range under any caller. */
+    if (param_2 >= 0 && param_2 < 5) {
+        g_dat_0438bf24[param_2] = 0;
+    }
+
+    /* L33275-33295: per-index pipeline. */
+    for (int i = 0; i < 5; i++) {
+        int32_t counter = g_dat_0438bf24[i];
+
+        /* Default to 0 (int 0 == float 0.0f bit-pattern). */
+        g_dat_0438bef4[i] = 0;
+
+        /* Threshold-driven write. */
+        if (kFun435fbbThresholds[i] < counter) {
+            float pre = (float)(counter - kFun435fbbThresholds[i])
+                      * kFun435fbbSlopes[i] + kFun435fbbLows[i];
+            memcpy(&g_dat_0438bef4[i], &pre, sizeof(float));
+        }
+
+        /* Clamp to >= low. */
+        float current;
+        memcpy(&current, &g_dat_0438bef4[i], sizeof(float));
+        if (current < kFun435fbbLows[i]) {
+            memcpy(&g_dat_0438bef4[i], &kFun435fbbLows[i], sizeof(float));
+        }
+
+        /* Clamp to <= high (re-read after the low clamp). */
+        memcpy(&current, &g_dat_0438bef4[i], sizeof(float));
+        if (kFun435fbbHighs[i] < current) {
+            memcpy(&g_dat_0438bef4[i], &kFun435fbbHighs[i], sizeof(float));
+        }
+
+        /* Gate-override at indices 2..4 (engine: `if (7 < iVar4)` where
+         * iVar4 is the byte offset 0/4/8/12/16, equivalent to i >= 2). */
+        if (i >= 2) {
+            if (stage_gate_query() != 0) {
+                memcpy(&g_dat_0438bef4[i], &kFun435fbbOverrides[i], sizeof(float));
+            }
+        }
+    }
+
+    /* L33296-33300: counter += 1 for all five indices. */
+    for (int i = 0; i < 5; i++) {
+        g_dat_0438bf24[i] += 1;
+    }
 }
 
 /* FUN_00435dcd @ 0x435dcd — stage-init sibling (494 B, heaviest of
@@ -148,6 +243,14 @@ int32_t stage_post_load_get_dat_0438bf0c(int idx)
 int32_t stage_post_load_get_dat_0438bf24(int idx)
 {
     return (idx < 0 || idx >= 6) ? 0 : g_dat_0438bf24[idx];
+}
+
+float stage_post_load_get_dat_0438bef4_as_float(int idx)
+{
+    if (idx < 0 || idx >= 6) return 0.0f;
+    float out;
+    memcpy(&out, &g_dat_0438bef4[idx], sizeof(out));
+    return out;
 }
 
 void stage_post_load_reset_for_test(void)
@@ -270,9 +373,8 @@ void stage_post_load_init(void)
         g_dat_0438bf24[i] = 0;
     }
 
-    /* L33157-33158: sibling stubs.  Engine passes (1, 0) to both;
-     * preserved verbatim so the call-count diff lines up if a future
-     * chip lifts either to a full port. */
-    stage_post_load_sibling_435fbb_stub(1, 0);
+    /* L33157-33158: siblings (435fbb full body, 435dcd still STUB).
+     * Engine passes (1, 0) to both. */
+    stage_post_load_pulse_5fold(1, 0);
     stage_post_load_sibling_435dcd_stub(1, 0);
 }

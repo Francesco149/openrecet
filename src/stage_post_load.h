@@ -91,10 +91,27 @@
 #define STAGE_POST_LOAD_CHARA_DWORDS    0x1b   /* 27 dwords = 108 bytes */
 #define STAGE_POST_LOAD_CHARA_BYTES     0x6c
 
-/* ─── public entry point ──────────────────────────────────────────────── */
+/* ─── public entry points ─────────────────────────────────────────────── */
 
 /* FUN_00435c98 @ 0x435c98 — runs the post-load init body.  Idempotent. */
 void stage_post_load_init(void);
+
+/* FUN_00435fbb @ 0x435fbb — 5-fold counter-driven scratch pulse.
+ *
+ *   reset_arrays: 1 to zero DAT_0438bef4[0..4] and DAT_0438bf24[0..4]
+ *                 before the main loop; 0 to skip the reset (preserves
+ *                 the per-index counter accumulated across prior calls).
+ *   reset_counter_idx: when >= 0 (and < 5), forces
+ *                 DAT_0438bf24[reset_counter_idx] = 0 before the loop.
+ *                 -1 (sentinel) skips this targeted reset.
+ *
+ * After the loop, all five counters are incremented by 1.
+ *
+ * Engine call sites:
+ *   FUN_00435c98 L33157            — (1, 0): full reset, idx 0 forced.
+ *   FUN_0048fe43 (and three others) — (0, *): preserve counters,
+ *                                     pulse one index per call. */
+void stage_post_load_pulse_5fold(int reset_arrays, int reset_counter_idx);
 
 /* ─── chara record access (test helpers + future consumers) ───────────── */
 
@@ -124,6 +141,10 @@ int32_t stage_post_load_get_dat_0438bedc(int idx);    /* idx in [0..5] */
 int32_t stage_post_load_get_dat_0438bef4(int idx);    /* idx in [0..5] */
 int32_t stage_post_load_get_dat_0438bf0c(int idx);    /* idx in [0..5] */
 int32_t stage_post_load_get_dat_0438bf24(int idx);    /* idx in [0..5] */
+
+/* FUN_00435fbb writes float bit-patterns into bef4[].  This accessor
+ * returns the float view via memcpy (strict-aliasing safe). */
+float   stage_post_load_get_dat_0438bef4_as_float(int idx);  /* idx in [0..5] */
 
 /* Reset all stage_post_load state to BSS-zero.  Test-only helper. */
 void stage_post_load_reset_for_test(void);
