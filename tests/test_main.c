@@ -679,6 +679,21 @@ struct test_case {
     X(xp_curve_level_cap_97_no_overflow) \
     X(xp_curve_negative_follows_formula) \
     \
+    X(stage_post_load_init_writes_da1xx_triple) \
+    X(stage_post_load_init_xp_thresholds_at_level_0) \
+    X(stage_post_load_init_xp_thresholds_at_level_5) \
+    X(stage_post_load_init_clamps_xp_value_below_curr) \
+    X(stage_post_load_init_clamps_xp_value_above_next) \
+    X(stage_post_load_init_preserves_xp_value_in_range) \
+    X(stage_post_load_init_carries_position_from_chara_bytes) \
+    X(stage_post_load_init_carries_negative_position) \
+    X(stage_post_load_init_zeroes_db0d8_and_bea0) \
+    X(stage_post_load_init_writes_minus_one_sentinels_at_dae44) \
+    X(stage_post_load_init_writes_one_at_b4c4) \
+    X(stage_post_load_init_zeroes_b4ec_and_grid) \
+    X(stage_post_load_init_defaults_b91c_to_zero) \
+    X(stage_post_load_init_idempotent) \
+    \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \
     X(nowloading_tick_idle_decays_alpha_by_32) \

@@ -4,6 +4,7 @@
 #include "nowloading.h"
 #include "save_bank.h"
 #include "scene_new_game.h"
+#include "stage_post_load.h"
 #include "worker_load.h"
 
 int32_t g_scene_state    = SCENE_STATE_TITLE;
@@ -42,6 +43,13 @@ void scene_post_fade_init(void)
      * per-chara assets.  Faithful when no observer sits between the
      * two positions; we currently have none. */
     save_bank_init_one(0);
+
+    /* Engine FUN_0049a59e L100757 — FUN_00435c98 fires right after
+     * FUN_0049001c (= save_bank_init_one) in the NEW GAME post-fade
+     * commit branch.  Body: chara XP threshold seeding, position
+     * carry-forward, scratch reset for the per-stage tick state.
+     * See src/stage_post_load.h. */
+    stage_post_load_init();
 
     g_scene_state    = SCENE_STATE_INGAME;
     g_scene_substate = 0;

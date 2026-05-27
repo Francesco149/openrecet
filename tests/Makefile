@@ -50,7 +50,8 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/title_save_dialog.c \
                  ../src/scene_new_game.c \
                  ../src/stage_gate.c \
-                 ../src/xp_curve.c
+                 ../src/xp_curve.c \
+                 ../src/stage_post_load.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
                  test_recet_ini.c test_input_poll.c test_input_trace.c \
                  test_rng.c test_math3d.c test_prewindow.c test_tick.c \
@@ -79,7 +80,8 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_title_save_dialog.c \
                  test_scene_new_game.c \
                  test_stage_gate.c \
-                 test_xp_curve.c
+                 test_xp_curve.c \
+                 test_stage_post_load.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))
 DEPS := $(OBJS:.o=.d)
