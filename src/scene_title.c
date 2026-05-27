@@ -24,11 +24,13 @@
 
 #include "audio.h"        /* audio_play_se_by_id for settings SE feedback */
 #include "audio_fade.h"   /* slider get/set + apply for BGM/SE-A/SE-B rows */
+#include "call_trace.h"   /* CALL_TRACE_ENTER_STUB at scene_title entry points */
 #include "fade.h"         /* scene-fade phase-1 trigger + done query */
 #include "save_bank.h"    /* save_header_set_*_slider for persistence */
 #include "scene.h"        /* g_scene_state transition on fade complete */
 #include "settings.h"     /* non-audio rows 3 & 4 */
 #include "sim.h"          /* g_sim_buttons for scene_title_sim_default */
+#include "title_save_dialog.h" /* FUN_00434d6a/4356cd/etc. — title-frame cluster */
 
 scene_title_menu_t  g_scene_title_menu;
 scene_title_anim_t  g_scene_title_anim;
@@ -517,6 +519,22 @@ void scene_title_sim(scene_title_anim_t *anim,
 
 void scene_title_sim_default(void)
 {
+    /* E.2 probe — FUN_0049a59e @ 0x49a59e. Marked STUB because the
+     * engine's title sim is 3719 B and we port only the menu cursor
+     * + button handling subset.  Skipped engine logic includes:
+     * save/load dialog state machine, DAT_09643520/24/28/40/44/60
+     * settings-overlay state, FUN_00499519 SE pings on every cursor
+     * move, attract-loop timer (DAT_09643518), and the "saving"
+     * overlay path.  The call-count parity holds (we still fire
+     * once per title frame), but the body is far from complete. */
+    CALL_TRACE_ENTER_STUB(0x49a59eu);
+
+    /* Engine FUN_0049a59e L100567: `if (FUN_00434d6a() == -1) return;` —
+     * save/load dialog gate.  Our port ignores the return for now (the
+     * dialog never opens — its writers aren't ported); calling the
+     * function alone is what trace parity needs. */
+    (void)title_save_dialog_gate_tick();
+
     /* Dispatch off the global button ring (sim.c wrote it earlier in
      * the same sim_step_a call). The engine's button masks live at
      * DAT_073dddd4 / DAT_073dddd6 — player 0 only at this layer; the
@@ -525,6 +543,11 @@ void scene_title_sim_default(void)
                     &g_scene_title_menu,
                     g_sim_buttons[0].pressed,
                     g_sim_buttons[0].held);
+
+    /* Engine FUN_0049a59e L101201 tail: FUN_004356cd — anim counter
+     * tick + shake interpolation step.  Runs regardless of which
+     * branch the sim took above. */
+    title_save_dialog_anim_tick();
 }
 
 #ifdef _WIN32
@@ -714,6 +737,13 @@ void scene_title_render(IDirect3DDevice8 *dev,
 {
     if (!dev || !menu || !anim) return;
 
+    /* E.2 probe — FUN_0049c644 @ 0x49c644. Marked STUB because the
+     * engine's title render is 3233 B and we port only the BG + menu-
+     * items subset.  Skipped engine logic includes: save/load dialog
+     * frame, settings/options panel, attract-loop fade, the
+     * DAT_09643518 timeout banner, and the cursor-shake overlay. */
+    CALL_TRACE_ENTER_STUB(0x49c644u);
+
     render_quad_state_setup(dev);
 
     /* ── background bg2.bmp ────────────────────────────────────────────
@@ -894,6 +924,15 @@ void scene_title_render(IDirect3DDevice8 *dev,
 
     /* Final flush guard — restore additive→modulate already done. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+    /* Engine FUN_0049c644 L102078-L102080 tail: three render helpers
+     * for the dialog/overlay layer.  All three short-circuit on their
+     * respective BSS-zero gates in normal play, but the function calls
+     * themselves are unconditional — the diff tool sees count parity
+     * regardless. */
+    title_save_dialog_secondary_render();
+    title_save_dialog_cursor_render();
+    title_save_dialog_render();
 
     /* Smoke-test "openrecet 0.1" font draw removed 2026-05-27:
      * pre_3d_trace diff showed it was responsible for +12

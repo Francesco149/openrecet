@@ -666,6 +666,18 @@ struct test_case {
     X(debug_param_tick_gate_zero_is_idempotent) \
     X(debug_param_tick_gate_one_is_also_a_noop_body_deferred) \
     \
+    X(title_save_dialog_reset_zeroes_state) \
+    X(title_save_dialog_gate_tick_closed_returns_zero) \
+    X(title_save_dialog_gate_tick_opening_ramps_to_8) \
+    X(title_save_dialog_gate_tick_press_at_8_flips_to_closing) \
+    X(title_save_dialog_gate_tick_press_x_at_8_also_flips) \
+    X(title_save_dialog_gate_tick_press_below_8_does_not_flip) \
+    X(title_save_dialog_gate_tick_closing_ramps_down_and_signals) \
+    X(title_save_dialog_anim_tick_increments_anim_counter_when_closed) \
+    X(title_save_dialog_anim_tick_skips_when_dialog_open) \
+    X(title_save_dialog_anim_tick_shake_interpolates) \
+    X(title_save_dialog_stub_renders_dont_crash) \
+    \
     X(worker_load_case_count_is_seventeen) \
     X(worker_load_reset_zeroes_all_state) \
     X(worker_load_begin_raises_busy_and_nowloading) \
