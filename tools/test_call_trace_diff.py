@@ -74,11 +74,12 @@ def main() -> int:
         {"va": 0x457714, "ret_va": 0x200, "frame": 5},
         {"va": 0x457714, "ret_va": 0x200, "frame": 6},
     ])
-    by_f = mod.load_trace(p1)
+    by_f, stubs = mod.load_trace(p1)
     chk(set(by_f) == {5, 6}, f"load_trace frames: {sorted(by_f)}")
     chk(by_f[5][0x4536cb] == 2, f"frame 5 va 0x4536cb count: {by_f[5][0x4536cb]}")
     chk(by_f[5][0x457714] == 1, f"frame 5 va 0x457714 count: {by_f[5][0x457714]}")
     chk(by_f[6][0x457714] == 1, f"frame 6 va 0x457714 count: {by_f[6][0x457714]}")
+    chk(stubs == {}, f"no-stub trace should yield empty stub map: {stubs}")
     p1.unlink()
 
     # ── 2. load_trace malformed line ──────────────────────────────────
@@ -91,6 +92,21 @@ def main() -> int:
         raised = True
     chk(raised, "load_trace should SystemExit on malformed JSONL")
     p_bad.unlink()
+
+    # ── 2b. load_trace surfaces stub markers ──────────────────────────
+    p_stub = write_trace([
+        {"va": 0x100, "ret_va": 0, "frame": 1},
+        {"va": 0x200, "ret_va": 0, "frame": 1, "stub": True},
+        {"va": 0x200, "ret_va": 0, "frame": 1, "stub": True},
+        {"va": 0x300, "ret_va": 0, "frame": 1, "stub": False},  # explicit-false ignored
+        {"va": 0x200, "ret_va": 0, "frame": 2, "stub": True},
+    ])
+    by_f, stubs = mod.load_trace(p_stub)
+    chk(stubs == {1: {0x200: 2}, 2: {0x200: 1}},
+        f"stub map mismatch: {stubs}")
+    chk(by_f[1][0x100] == 1 and by_f[1][0x200] == 2 and by_f[1][0x300] == 1,
+        f"by_frame counts (stub markers must NOT reduce totals): {by_f[1]}")
+    p_stub.unlink()
 
     # ── 3. diff_frames partitions correctly ───────────────────────────
     r = Counter({0x100: 2, 0x200: 1, 0x300: 5})
@@ -245,7 +261,56 @@ def main() -> int:
         f"missing-anchor port err:\n{err}")
     pa.unlink(); pb.unlink()
 
-    # ── 14. --align-on-first + explicit --retail-frame overrides ──────
+    # ── 14b. CLI surfaces stubbed overlap rows as ≈ ───────────────────
+    # Same call counts on both sides — but port marks the row as stubbed.
+    # Diff should print ≈ (count-match-but-body-stubbed), NOT a clean " ".
+    pa = write_trace([
+        {"va": 0x457714, "ret_va": 0, "frame": 100},
+        {"va": 0x457714, "ret_va": 0, "frame": 100},
+    ])
+    pb = write_trace([
+        {"va": 0x457714, "ret_va": 0, "frame": 100, "stub": True},
+        {"va": 0x457714, "ret_va": 0, "frame": 100, "stub": True},
+    ])
+    rc, out, _ = run_main(mod, ["--retail", str(pa), "--port", str(pb),
+                                "--verbose"])
+    chk(rc == 0, f"stub-overlap rc: {rc}")
+    chk("≈ 0x457714" in out,
+        f"stubbed-overlap row should use ≈ marker:\n{out}")
+    chk("(port stub × 2)" in out,
+        f"stubbed-overlap row should show stub count:\n{out}")
+    chk("(1 stubbed port-side)" in out,
+        f"summary line should show stubbed-overlap count:\n{out}")
+    pa.unlink(); pb.unlink()
+
+    # ── 14c. Clean overlap (no stubs) stays as ' ' marker ─────────────
+    pa = write_trace([{"va": 0x100, "ret_va": 0, "frame": 1}])
+    pb = write_trace([{"va": 0x100, "ret_va": 0, "frame": 1}])
+    rc, out, _ = run_main(mod, ["--retail", str(pa), "--port", str(pb),
+                                "--verbose"])
+    chk(rc == 0, f"clean-overlap rc: {rc}")
+    chk("≈ 0x" not in out, f"clean-overlap should not show ≈:\n{out}")
+    chk("(stubbed" not in out and "stubbed port-side" not in out,
+        f"clean-overlap should not annotate stubs:\n{out}")
+    pa.unlink(); pb.unlink()
+
+    # ── 14d. Count mismatch wins over stub marker (≠ not ≈) ───────────
+    pa = write_trace([
+        {"va": 0x100, "ret_va": 0, "frame": 1},
+        {"va": 0x100, "ret_va": 0, "frame": 1},
+    ])
+    pb = write_trace([
+        {"va": 0x100, "ret_va": 0, "frame": 1, "stub": True},
+    ])
+    rc, out, _ = run_main(mod, ["--retail", str(pa), "--port", str(pb),
+                                "--verbose"])
+    chk(rc == 0, f"mismatch-with-stub rc: {rc}")
+    chk("≠ 0x000100" in out,
+        f"count-mismatch should prefer ≠ over ≈:\n{out}")
+    chk("≈ 0x000100" not in out, f"≈ must not appear when counts differ:\n{out}")
+    pa.unlink(); pb.unlink()
+
+    # ── 15. --align-on-first + explicit --retail-frame overrides ──────
     pa = write_trace([
         {"va": 0x100, "ret_va": 0, "frame": 5},
         {"va": 0x100, "ret_va": 0, "frame": 99},
@@ -266,7 +331,7 @@ def main() -> int:
         for f in failures:
             print(f"  - {f}")
         return 1
-    print("OK (14 tests)")
+    print("OK (18 tests)")
     return 0
 
 

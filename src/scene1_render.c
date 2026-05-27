@@ -580,8 +580,16 @@ static void scene1_walk_alpha_pre(IDirect3DDevice8 *dev)
 
 void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
 {
-    /* E.2 probe — FUN_00459dfd @ 0x459dfd. */
-    CALL_TRACE_ENTER(0x459dfdu);
+    /* See CALL_TRACE_ENTER_STUB at L584 — body is wired but every walker
+     * branch (depth_prepass / pre_dispatch / narrow_frustum / alpha_pre
+     * / wide_b / chr / narrow_followup / tail) is a TODO stub that
+     * returns immediately.  The probe firing on the port side means
+     * scene1_render_meshes was entered, NOT that the engine's per-mesh
+     * draws happened.  Marked stub so call_trace_diff doesn't show this
+     * row as full-parity ` ` when it's actually ≈ (count-match-but-
+     * body-not-doing-engine-work). */
+    /* E.2 probe — FUN_00459dfd @ 0x459dfd.  STUB per the comment above. */
+    CALL_TRACE_ENTER_STUB(0x459dfdu);
 
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
@@ -842,8 +850,15 @@ void scene1_render_emit_frame(struct IDirect3DDevice8 *dev_in,
 
 void scene1_render_fx_tail(struct IDirect3DDevice8 *dev_in)
 {
-    /* E.2 probe — FUN_0045404b @ 0x45404b. */
-    CALL_TRACE_ENTER(0x45404bu);
+    /* E.2 probe — FUN_0045404b @ 0x45404b.  STUB: body's only payload
+     * is the head call to scene1_fx_overlays_TODO (= FUN_00454191, the
+     * scene-transition effect renderer, unported); the L20-gated inner
+     * draw is dormant in HOUSE (sim_get_counter_994 BSS-zero) AND its
+     * post-tex source binding (DAT_073de648) is unported too.  In other
+     * words: this probe firing on the port side does NOT mean the
+     * function did real work.  Mark stub so call_trace_diff surfaces it
+     * as ≈ instead of clean parity. */
+    CALL_TRACE_ENTER_STUB(0x45404bu);
 
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;

@@ -54,15 +54,40 @@ void call_trace_begin_frame(unsigned frame);
 void call_trace_end_frame(void);
 void call_trace_shutdown(void);
 
-/* Emit one JSONL row.  ret_addr is captured by the CALL_TRACE_ENTER
- * macro so the value is the caller's PC, not the macro expansion's. */
-void call_trace_enter(uint32_t ghidra_va, const void *ret_addr);
+/* Emit one JSONL row.  ret_addr is captured by the probe macro so the
+ * value is the caller's PC, not the macro expansion's.  `stub` carries
+ * forward into the emitted JSON as `"stub": true` when nonzero — used
+ * by tools/call_trace_diff.py to distinguish "matched-count-AND-fully-
+ * ported" rows from "matched-count-but-port-body-is-a-stub" rows.
+ * Without the marker, pure call-count parity can hide a stubbed body
+ * (= the engine fires the function, our port also fires SOMETHING at
+ * the same VA, but our SOMETHING returns immediately or only emits the
+ * preamble — see docs feedback_mark_stubbed_ports memory for the
+ * motivating incident). */
+void call_trace_enter(uint32_t ghidra_va, const void *ret_addr, int stub);
 
-/* Probe macro placed at the top of every port function we want to
- * trace.  `ghidra_va` is the engine VA the function corresponds to.
+/* Probe macro for a FULLY PORTED function — body matches the engine's
+ * behavioural contract end-to-end (subject to documented divergences).
  * Compiles to a single null-check + fprintf gate when --call-trace is
- * not on. */
+ * off.  `ghidra_va` is the engine VA the function corresponds to. */
 #define CALL_TRACE_ENTER(ghidra_va) \
-    call_trace_enter((uint32_t)(ghidra_va), __builtin_return_address(0))
+    call_trace_enter((uint32_t)(ghidra_va), __builtin_return_address(0), 0)
+
+/* Probe macro for a PARTIALLY PORTED or STUB function.  Use when:
+ *   - Function body is a stub that returns immediately (or only fires
+ *     a state-write preamble like render_quad_state_setup) and the
+ *     real work is deferred to a future chip.
+ *   - Function body is partially ported — wraps real work AND
+ *     unimplemented sub-stubs, AND the unimplemented portion is
+ *     load-bearing for the current scene's behaviour.
+ * Do NOT use when:
+ *   - Body is fully ported but happens to hit a no-op branch in the
+ *     current scenario (e.g., dungeon_clear_banner with counter==0 —
+ *     the body is complete, the gate is just BSS-zero today).
+ * The marker propagates into JSONL as `"stub": true`; call_trace_diff
+ * surfaces those rows as `≈` (count-parity but body-not-complete)
+ * distinct from `=` (full parity) and `≠` (count mismatch). */
+#define CALL_TRACE_ENTER_STUB(ghidra_va) \
+    call_trace_enter((uint32_t)(ghidra_va), __builtin_return_address(0), 1)
 
 #endif /* OPENRECET_CALL_TRACE_H */

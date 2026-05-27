@@ -67,7 +67,7 @@ void call_trace_shutdown(void)
     if (g_f) { fclose(g_f); g_f = NULL; }
 }
 
-void call_trace_enter(uint32_t ghidra_va, const void *ret_addr)
+void call_trace_enter(uint32_t ghidra_va, const void *ret_addr, int stub)
 {
     if (!g_f || !g_emit_this_frame) return;
 
@@ -75,7 +75,13 @@ void call_trace_enter(uint32_t ghidra_va, const void *ret_addr)
     if (ret_addr && g_module_base)
         ret_off = (unsigned)((const char *)ret_addr - g_module_base);
 
-    fprintf(g_f,
-            "{\"va\":%u,\"ret_va\":%u,\"frame\":%u}\n",
-            (unsigned)ghidra_va, ret_off, g_cur_frame);
+    if (stub) {
+        fprintf(g_f,
+                "{\"va\":%u,\"ret_va\":%u,\"frame\":%u,\"stub\":true}\n",
+                (unsigned)ghidra_va, ret_off, g_cur_frame);
+    } else {
+        fprintf(g_f,
+                "{\"va\":%u,\"ret_va\":%u,\"frame\":%u}\n",
+                (unsigned)ghidra_va, ret_off, g_cur_frame);
+    }
 }

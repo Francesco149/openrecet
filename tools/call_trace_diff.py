@@ -83,10 +83,19 @@ ROOT = Path(__file__).resolve().parent.parent
 # ── loaders ───────────────────────────────────────────────────────────────
 
 
-def load_trace(path: Path) -> dict[int, Counter[int]]:
-    """frame -> Counter[va] (per-frame call counts).  Both emitter schemas
-    are accepted (Frida agent emits `ts` too; we ignore it)."""
+def load_trace(path: Path) -> tuple[dict[int, Counter[int]],
+                                    dict[int, dict[int, int]]]:
+    """Returns (by_frame, stub_by_frame).
+
+    by_frame: frame -> Counter[va] (total per-frame call counts).
+    stub_by_frame: frame -> {va -> stub-fire count} (subset of by_frame
+                  whose JSONL row carried `"stub": true`).
+
+    Both emitter schemas are accepted (Frida agent emits `ts` too; we
+    ignore it).  The optional `stub` field defaults to absent/false,
+    which keeps loaders backwards-compatible with pre-stub traces. """
     by_frame: dict[int, Counter[int]] = {}
+    stub_by_frame: dict[int, dict[int, int]] = {}
     with path.open() as f:
         for line_no, line in enumerate(f, 1):
             line = line.strip()
@@ -100,7 +109,10 @@ def load_trace(path: Path) -> dict[int, Counter[int]]:
             frame = int(row["frame"])
             va    = int(row["va"])
             by_frame.setdefault(frame, Counter())[va] += 1
-    return by_frame
+            if row.get("stub"):
+                stubs = stub_by_frame.setdefault(frame, {})
+                stubs[va] = stubs.get(va, 0) + 1
+    return by_frame, stub_by_frame
 
 
 def load_ghidra_names(path: Path) -> dict[int, str]:
@@ -159,19 +171,23 @@ def fmt_va(va: int, names: dict[int, str]) -> str:
 def print_summary(retail_frame: int, port_frame: int,
                   retail: Counter[int], port: Counter[int],
                   diff: dict, names: dict[int, str],
+                  port_stubs: dict[int, int],
                   verbose: bool) -> None:
     nr, np_ = sum(retail.values()), sum(port.values())
     ur, up = len(retail), len(port)
     n_overlap = len(diff["overlap"])
     n_ronly   = len(diff["retail_only"])
     n_ponly   = len(diff["port_only"])
+    n_stub_overlap = sum(1 for va, _, _ in diff["overlap"] if port_stubs.get(va, 0))
     print(f"# Call-trace diff — retail frame {retail_frame} vs "
           f"port frame {port_frame}")
     print()
     print(f"retail: {nr:5d} calls, {ur:3d} unique VAs")
     print(f"port:   {np_:5d} calls, {up:3d} unique VAs")
     print()
-    print(f"  overlap (called on both):    {n_overlap}")
+    print(f"  overlap (called on both):    {n_overlap}"
+          f"  ({n_stub_overlap} stubbed port-side)" if n_stub_overlap
+          else f"  overlap (called on both):    {n_overlap}")
     print(f"  retail-only (port missing):  {n_ronly}")
     print(f"  port-only (retail skipped):  {n_ponly}")
     if not verbose:
@@ -181,9 +197,20 @@ def print_summary(retail_frame: int, port_frame: int,
     print()
     if diff["overlap"]:
         print("## Overlap (va | retail × | port ×)")
+        print("##   = full parity   ≈ count-parity but port body stubbed   "
+              "≠ count mismatch")
         for va, rc, pc in diff["overlap"]:
-            mark = " " if rc == pc else "≠"
-            print(f"  {mark} {fmt_va(va, names):42s}  retail={rc:4d}  port={pc:4d}")
+            stub_fires = port_stubs.get(va, 0)
+            if rc != pc:
+                mark = "≠"
+            elif stub_fires:
+                mark = "≈"
+            else:
+                mark = " "
+            stub_suffix = (f"  (port stub × {stub_fires})"
+                           if stub_fires and rc == pc else "")
+            print(f"  {mark} {fmt_va(va, names):42s}  "
+                  f"retail={rc:4d}  port={pc:4d}{stub_suffix}")
         print()
     if diff["retail_only"]:
         print("## Retail-only (= port-side gap)")
@@ -232,8 +259,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="dump every VA in overlap/retail-only/port-only")
     args = ap.parse_args(argv)
 
-    retail_by_f = load_trace(args.retail)
-    port_by_f   = load_trace(args.port)
+    retail_by_f, _retail_stubs = load_trace(args.retail)
+    port_by_f,   port_stubs    = load_trace(args.port)
     if not retail_by_f:
         print(f"error: retail trace {args.retail} has no events", file=sys.stderr)
         return 2
@@ -312,7 +339,7 @@ def main(argv: list[str] | None = None) -> int:
 
     diff  = diff_frames(retail_by_f[rf], port_by_f[pf])
     print_summary(rf, pf, retail_by_f[rf], port_by_f[pf],
-                  diff, names, args.verbose)
+                  diff, names, port_stubs.get(pf, {}), args.verbose)
     return 0
 
 

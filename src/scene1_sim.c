@@ -53,8 +53,12 @@ int g_scene1_ingame_paused_flag     = 0;  /* DAT_0438b1c8 */
 
 void scene1_ingame_transition_arm_tick(void)
 {
-    /* E.2 probe — FUN_004427d3 @ 0x4427d3. */
-    CALL_TRACE_ENTER(0x4427d3u);
+    /* E.2 probe — FUN_004427d3 @ 0x4427d3.  STUB: body ports only 1 of
+     * the engine's 6 calls (scene1_particles_tick); the other 5 are
+     * dormant.  Marked stub so call_trace_diff surfaces this row as ≈
+     * rather than ` ` (= full parity), preventing the false-positive
+     * "this path is complete" reading. */
+    CALL_TRACE_ENTER_STUB(0x4427d3u);
 
     /* FUN_004427d3 L10 — the one ported call.  The other 5 are
      * dormant; documented in this file's header. */
