@@ -1879,7 +1879,7 @@ static void render_dispatch(void)
                 IDirect3DDevice8_SetTransform(g_dev, D3DTS_WORLD,
                                               (const D3DMATRIX *)ident);
                 mesh_draw_d3d8(g_dev, g_house_preview_mesh);
-            } else {
+            } else if (!nowloading_is_active()) {
                 /* Cr.1 (2026-05-23) + Cr.2 (2026-05-25): real scene-1
                  * mesh render chain.  Engine FUN_004547ab L70-73
                  * (DAT_0438b1c0==1 && DAT_0438b1d0==1, the most common
@@ -1916,7 +1916,22 @@ static void render_dispatch(void)
                  * wide-followup) port, real records from the integrator
                  * (C8h) + spawn API (C8i.1-5c) + ambient spawn loop
                  * (Cf.1) start producing visible pixels without another
-                 * wiring chip. */
+                 * wiring chip.
+                 *
+                 * 2026-05-27: gated on `!nowloading_is_active()` to mirror
+                 * engine FUN_004547ab L51100, which skips the entire
+                 * per-state render dispatch while the nowloading overlay
+                 * is up.  Without this gate our port jumps straight from
+                 * the title fade-out into a fully-rendered 3D HOUSE on
+                 * the first INGAME frame; retail spends the post-NEW-GAME
+                 * window showing the nowloading overlay over a black
+                 * background and only reaches 3D once the worker drops.
+                 * Our sync-load collapses the window to ~1 frame but the
+                 * structural gate is what makes the visible boot path
+                 * match.  (The engine's second gate `DAT_06a4999c < 4 ||
+                 * 0xc < DAT_06a4999c` — the scene-transition counter — is
+                 * BSS-zero in port today, so omitted; revisit when the
+                 * scene-transition state machine ports.) */
                 scene1_render_camera_setup(g_dev);
                 scene1_render_overlay(g_dev);
                 /* scene1_render_fx_tail is moved out of this branch
