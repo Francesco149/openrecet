@@ -39,6 +39,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_overlay.c ../src/scene1_overlay_helpers.c \
                  ../src/scene1_overlay_table.c \
                  ../src/scene1_dungeon_clear_banner.c \
+                 ../src/scene1_fx_overlays.c \
                  ../src/scene1_postload.c ../src/scene1_preload.c ../src/scene1_sim.c ../src/scene1_camera.c \
                  ../src/scene1_per_frame_open.c \
                  ../src/scene1_shop_walker_helpers.c \
@@ -69,6 +70,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_walker_pass_init.c \
                  test_scene1_wide_followup_helpers.c \
                  test_scene1_dungeon_clear_banner.c \
+                 test_scene1_fx_overlays.c \
                  test_stage_load_pulse.c \
                  test_debug_param_tick.c \
                  test_title_save_dialog.c

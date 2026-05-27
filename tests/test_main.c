@@ -2880,7 +2880,11 @@ struct test_case {
     X(banner_compute_u_unknown_slice_falls_to_default) \
     X(banner_compute_u_null_pointers_safe) \
     X(banner_state_defaults_zero) \
-    X(banner_set_get_round_trip)
+    X(banner_set_get_round_trip) \
+    \
+    X(scene1_fx_overlays_null_device_safe) \
+    X(scene1_fx_overlays_default_counters_no_op) \
+    X(scene1_fx_overlays_active_counters_no_crash)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

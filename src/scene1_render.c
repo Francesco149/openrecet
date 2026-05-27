@@ -26,6 +26,7 @@
 #include "call_trace.h"
 #include "scene1_camera.h"
 #include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
+#include "scene1_fx_overlays.h"  /* scene1_fx_overlays — FUN_00454191 scaffold */
 #include "scene1_overlay.h"  /* scene1_overlay_render — 4-site dispatcher wiring */
 #include "scene1_records.h"
 #include "scene1_shop_walker.h"
@@ -84,19 +85,10 @@ void scene1_render_reset_view(void)
  * post-load transition (block D), and the debug HUD overlays (block J)
  * are all deferred to Cc.2-4. */
 
-/* FUN_00454191 (1391 B) — screen-effect overlays (per-counter shake +
- * flash + per-stage dim).  Reads DAT_06a49990 / 06a49994 / 06a4999c
- * and emits up to three full-screen alpha quads.  All three counter
- * starters (FUN_004532b1, FUN_004532bc, scene-transition flashes) are
- * unported, so the function is a no-op against BSS-zero counter
- * state. */
-static void scene1_fx_overlays_TODO(void)
-{
-    /* TODO C7-followup: port FUN_00454191.  Today nothing reads or
-     * writes the counters this function consumes (sim_step_a's
-     * pump runs against BSS-zero), so the visible state would be
-     * "no overlays" regardless. */
-}
+/* FUN_00454191 (1391 B) — screen-effect overlays.  Landed 2026-05-27 PM
+ * as a scaffold port in src/scene1_fx_overlays.{c,h}.  Entry probe +
+ * outer-gate structure only; the three inner render branches stay
+ * deferred until the counter starters port. */
 
 /* FUN_00452f58 (491 B) — HUD camera + projection setup for the
  * overlay pass.  Landed 2026-05-24 as chip O.11 in scene1_overlay.c
@@ -851,20 +843,20 @@ void scene1_render_emit_frame(struct IDirect3DDevice8 *dev_in,
 void scene1_render_fx_tail(struct IDirect3DDevice8 *dev_in)
 {
     /* E.2 probe — FUN_0045404b @ 0x45404b.  STUB: body's only payload
-     * is the head call to scene1_fx_overlays_TODO (= FUN_00454191, the
-     * scene-transition effect renderer, unported); the L20-gated inner
-     * draw is dormant in HOUSE (sim_get_counter_994 BSS-zero) AND its
-     * post-tex source binding (DAT_073de648) is unported too.  In other
-     * words: this probe firing on the port side does NOT mean the
-     * function did real work.  Mark stub so call_trace_diff surfaces it
-     * as ≈ instead of clean parity. */
+     * is the head call to scene1_fx_overlays (= FUN_00454191), scaffold-
+     * ported 2026-05-27 PM (gates only, inner draws deferred); the
+     * L20-gated inner draw is also dormant in HOUSE (sim_get_counter_994
+     * BSS-zero) AND its post-tex source binding (DAT_073de648) is
+     * unported too.  Mark stub so call_trace_diff surfaces it as ≈
+     * instead of clean parity. */
     CALL_TRACE_ENTER_STUB(0x45404bu);
 
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
-    /* L19: full screen-effect overlay pass. Deferred — see stub. */
-    scene1_fx_overlays_TODO();
+    /* L19: full screen-effect overlay pass.  Body is a STUB scaffold —
+     * gates match the engine; inner branches deferred. */
+    scene1_fx_overlays((struct IDirect3DDevice8 *)dev);
 
     /* L20: gate.  DAT_0438b1b0 is a separate render-mode flag (zero in
      * normal scene-1; nonzero during certain menu/transition states).
