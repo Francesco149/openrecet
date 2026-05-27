@@ -43,7 +43,9 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_per_frame_open.c \
                  ../src/scene1_shop_walker_helpers.c \
                  ../src/scene1_walker_pass_init.c \
-                 ../src/scene1_wide_followup_helpers.c
+                 ../src/scene1_wide_followup_helpers.c \
+                 ../src/stage_load_pulse.c \
+                 ../src/debug_param_tick.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
                  test_recet_ini.c test_input_poll.c test_input_trace.c \
                  test_rng.c test_math3d.c test_prewindow.c test_tick.c \
@@ -65,7 +67,9 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_per_frame_open.c \
                  test_scene1_walker_pass_init.c \
                  test_scene1_wide_followup_helpers.c \
-                 test_scene1_dungeon_clear_banner.c
+                 test_scene1_dungeon_clear_banner.c \
+                 test_stage_load_pulse.c \
+                 test_debug_param_tick.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))
 DEPS := $(OBJS:.o=.d)

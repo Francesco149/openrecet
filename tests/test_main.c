@@ -652,6 +652,20 @@ struct test_case {
     X(nowloading_tick_idle_does_not_advance_rotation) \
     X(nowloading_tick_returns_previous_gate_state) \
     \
+    X(stage_load_pulse_reset_zeroes_state) \
+    X(stage_load_pulse_set_active_normalises_to_zero_one) \
+    X(stage_load_pulse_tick_idle_decrements_toward_zero) \
+    X(stage_load_pulse_tick_idle_clamps_at_zero) \
+    X(stage_load_pulse_tick_active_increments_toward_five) \
+    X(stage_load_pulse_tick_active_clamps_at_five) \
+    X(stage_load_pulse_tick_flip_active_reverses_direction) \
+    X(stage_load_pulse_reset_counter_to_5_overrides_active) \
+    \
+    X(debug_param_tick_reset_zeroes_gate) \
+    X(debug_param_tick_set_gate_normalises_to_zero_one) \
+    X(debug_param_tick_gate_zero_is_idempotent) \
+    X(debug_param_tick_gate_one_is_also_a_noop_body_deferred) \
+    \
     X(worker_load_case_count_is_seventeen) \
     X(worker_load_reset_zeroes_all_state) \
     X(worker_load_begin_raises_busy_and_nowloading) \

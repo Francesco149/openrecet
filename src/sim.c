@@ -31,6 +31,7 @@
 
 #include <string.h>
 
+#include "debug_param_tick.h" /* engine FUN_00405552 — debug-param tick gate */
 #include "fade.h"         /* fade_tick — engine's per-frame fade counter advance */
 #include "font.h"         /* font_age_tick — engine's per-frame LRU bump */
 #include "input.h"        /* g_input_state for cur-buttons read */
@@ -39,6 +40,7 @@
 #include "scene1_particles_tick.h"  /* engine FUN_0040fb3a — LAB_00453bed body */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
+#include "stage_load_pulse.h" /* engine FUN_004693e3 — stage-load animation pulse */
 #include "worker_load.h"  /* worker_load_busy — primary asset-load worker gate */
 
 struct sim_player_buttons g_sim_buttons[SIM_NUM_PLAYERS];
@@ -193,8 +195,16 @@ void sim_init(void)
 
 void sim_step_a(void)
 {
-    /* E.2 probe — FUN_004536cb @ 0x4536cb. */
-    CALL_TRACE_ENTER(0x4536cbu);
+    /* E.2 probe — FUN_004536cb @ 0x4536cb. Marked STUB because we
+     * port the worker-busy gate, button ring, scene dispatch, and
+     * fade-tick tail but skip the engine's middle: DAT_06a499cc
+     * one-shot init, video poll (FUN_0040cea6), DAT_06a499c8 scene-
+     * transition counter, DAT_06a49998==3 transition arm, DAT_06a499c4
+     * scene-reseed check, plus several smaller writes around
+     * DAT_06a4993c. The unported regions are dormant in the captured
+     * pre-3D trace, so the count parity holds, but the body is far
+     * from complete. */
+    CALL_TRACE_ENTER_STUB(0x4536cbu);
 
     /* FUN_0047c29d (font_age_tick) — engine L50362, runs BEFORE the
      * worker-busy check. Glyph cache aging keeps ticking even during
@@ -230,6 +240,16 @@ void sim_step_a(void)
                                &g_sim_buttons[i].held);
         g_sim_buttons[i].cur = cur;
     }
+
+    /* Engine FUN_004536cb L50470-50471: two unconditional per-frame
+     * helpers, run between the button mode-cycle block (above) and
+     * the scene-state dispatch (below). In the engine they sit
+     * AFTER the video poll + DAT_06a499c8 scene-transition counter +
+     * DAT_06a49998==3 arm — all unported, all dormant in the captured
+     * trace — so the relative order vs the rest of our sim_step_a
+     * doesn't matter for trace parity. */
+    debug_param_tick();   /* FUN_00405552 — body deferred (gate=0 path) */
+    stage_load_pulse_tick(); /* FUN_004693e3 — counter ramp 0..5 */
 
     /* Scene dispatch by `g_scene_state` (engine global DAT_0438b1c0).
      *
