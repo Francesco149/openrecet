@@ -765,6 +765,19 @@ struct test_case {
     X(chara_skills_tail_writes) \
     X(chara_skills_idempotent) \
     \
+    X(npc_schedule_new_game_resets_event_active) \
+    X(npc_schedule_new_game_init_pass_writes_100_for_mode_0) \
+    X(npc_schedule_new_game_no_rng_when_all_modes_0) \
+    X(npc_schedule_continue_no_init_when_status_nonzero) \
+    X(npc_schedule_continue_event_active_unchanged) \
+    X(npc_schedule_init_pass_mode_assignments) \
+    X(npc_schedule_tick_mode_0_resets_to_100) \
+    X(npc_schedule_tick_mode_1_counter_advances) \
+    X(npc_schedule_tick_mode_5_gated_on_status_zero) \
+    X(npc_schedule_mode_get_set_roundtrip) \
+    X(npc_schedule_event_active_get_set_roundtrip) \
+    X(npc_schedule_accessors_out_of_range) \
+    \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \
     X(nowloading_tick_idle_decays_alpha_by_32) \

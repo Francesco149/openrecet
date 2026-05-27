@@ -3,6 +3,7 @@
 #include "d3d_pool.h"
 #include "fade.h"
 #include "nowloading.h"
+#include "npc_schedule.h"
 #include "save_bank.h"
 #include "scene_new_game.h"
 #include "stage_post_load.h"
@@ -51,6 +52,13 @@ void scene_post_fade_init(void)
      * carry-forward, scratch reset for the per-stage tick state.
      * See src/stage_post_load.h. */
     stage_post_load_init();
+
+    /* Engine FUN_0049a59e L232 — FUN_00490e56(0) fires inside the
+     * NEW GAME branch right before FUN_00473474.  Body: per-bank NPC
+     * schedule status array INIT pass (resets event_active flag,
+     * walks 600 NPCs writing mode-dependent status values).  See
+     * src/npc_schedule.h. */
+    npc_schedule_apply(0);
 
     g_scene_state    = SCENE_STATE_INGAME;
     g_scene_substate = 0;
