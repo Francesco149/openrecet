@@ -191,6 +191,9 @@ void render_quad_bind(IDirect3DDevice8 *dev, const sprite_t *s)
 
 void render_quad_state_setup(IDirect3DDevice8 *dev)
 {
+    /* E.2 probe — FUN_0049b425 @ 0x49b425. */
+    CALL_TRACE_ENTER(0x49b425u);
+
     /* SetVertexShader(0x142 = XYZ|DIFFUSE|TEX1). Note: this FVF is
      * for the engine's 3D-quad path; the 2D flush will override it
      * with 0x1c4. The engine sets it here defensively. */
@@ -232,6 +235,9 @@ void render_quad_draw_rotated(IDirect3DDevice8 *dev,
                               float half_size, float rotation_rad,
                               const float uv[4], uint32_t diffuse)
 {
+    /* E.2 probe — FUN_004063c7 @ 0x4063c7. */
+    CALL_TRACE_ENTER(0x4063c7u);
+
     /* Engine FUN_004063c7. Fill vertex slots 0..3, draw a 2-triangle
      * strip, reset counter.  Pure-C math lives in
      * render_quad_fill_rotated_vbuf() so it can be unit-tested without

@@ -59,6 +59,9 @@ enum tick_result tick_step_with_now(uint32_t now_ms,
                                     const struct tick_callbacks *cb,
                                     uint32_t *out_sleep_ms)
 {
+    /* E.2 probe — FUN_0047be92 @ 0x47be92. */
+    CALL_TRACE_ENTER(0x47be92u);
+
     /* 1. latch pending speed. The engine writes through DAT_0438ccdc;
      *    we mirror via g_tick.pending_speed which an F-key handler will
      *    set in a later port. */

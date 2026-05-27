@@ -1754,6 +1754,11 @@ static void render_dispatch(void)
      * macros below check the per-frame emit flag this sets. */
     call_trace_begin_frame(g_tick.frame_count);
 
+    /* E.2 probe — FUN_004547ab @ 0x4547ab (render dispatch root).
+     * Must be AFTER call_trace_begin_frame so the first emit lands in
+     * the new frame's bucket. */
+    CALL_TRACE_ENTER(0x4547abu);
+
     /* Engine FUN_004547ab L17: unconditional scene-effect counter pump.
      * Separate from the sim-side worker-load-busy gated call in
      * sim_step_a — the engine runs this every render-tick regardless of

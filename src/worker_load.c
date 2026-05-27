@@ -59,6 +59,14 @@ worker_load_cb worker_load_get_cb(int case_idx)
 
 int worker_load_busy(void)
 {
+    /* No CALL_TRACE_ENTER probe here even though this is the C port of
+     * FUN_00452911: the engine inlines DAT_06a49954 in sim_step_a (its
+     * highest-frequency caller) whereas the port keeps the function-call
+     * boundary, so a probe here generates persistent port-only noise on
+     * the every-frame sim path.  Engine FUN_00452911 has only two real
+     * call sites (WndProc-ESC + a music-selector branch); both are
+     * unported, so the probe wouldn't fire from anywhere meaningful
+     * anyway. */
     return g_worker_busy ? 1 : 0;
 }
 

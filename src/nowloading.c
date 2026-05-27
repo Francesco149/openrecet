@@ -9,6 +9,8 @@
 
 #include "nowloading.h"
 
+#include "call_trace.h"
+
 /* ─── state ──────────────────────────────────────────────────────────── */
 
 /* Engine `_DAT_06a49988`. Drops by 32 per tick when the gate is 0,
@@ -74,6 +76,9 @@ int nowloading_tick(void)
 
 void nowloading_render(IDirect3DDevice8 *dev)
 {
+    /* E.2 probe — FUN_00453147 @ 0x453147 (engine fuses tick + render). */
+    CALL_TRACE_ENTER(0x453147u);
+
     if (!dev) return;
 
     /* Always tick first — the engine fuses this with the render. */
