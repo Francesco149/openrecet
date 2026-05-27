@@ -31,21 +31,27 @@ void fade_reset(void)
 
 void fade_phase1_start(int32_t mode, int32_t duration)
 {
+    /* E.2 probe — FUN_004526f5 @ 0x4526f5.  Engine body pre-rolls 100
+     * float-vec scratch entries we skip (vestigial); the visible state
+     * writes match. */
+    CALL_TRACE_ENTER(0x4526f5u);
+
     g_fade_counter  = 1;
     g_fade_phase    = 1;
     g_fade_mode     = mode;
     g_fade_duration = duration;
-    /* Engine pre-rolls 100 float-vec scratch entries (DAT_06a48d6c +
-     * DAT_06a4921c) here — vestigial, no readers. Skipped. */
 }
 
 void fade_phase_out_start(int32_t mode, int32_t duration)
 {
+    /* E.2 probe — FUN_0045281c @ 0x45281c.  Engine body zeroes the
+     * same 100 scratch entries we skip. */
+    CALL_TRACE_ENTER(0x45281cu);
+
     g_fade_phase    = -1;
     g_fade_mode     = mode;
     g_fade_duration = duration;
     g_fade_counter  = 0;
-    /* Engine zeroes the same 100 scratch entries here. Skipped. */
 }
 
 void fade_tick(void)
@@ -71,6 +77,9 @@ void fade_tick(void)
 
 int fade_is_done(void)
 {
+    /* E.2 probe — FUN_004528b3 @ 0x4528b3. */
+    CALL_TRACE_ENTER(0x4528b3u);
+
     if (g_fade_phase != 1) return 0;
     if (g_fade_mode == 2) {
         return (g_fade_counter == 0x1f) ? 1 : 0;

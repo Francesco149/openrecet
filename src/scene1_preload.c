@@ -6,6 +6,7 @@
 
 #include "scene1_preload.h"
 
+#include "call_trace.h"
 #include "mesh_load.h"
 #include "scene1_postload.h"
 #include "scene1_records.h"
@@ -82,6 +83,11 @@ void scene1_preload_init(struct IDirect3DDevice8 *dev)
 
 int scene1_preload_house(void)
 {
+    /* E.2 probe — FUN_00474a9a @ 0x474a9a.  Marker for `--align-on-first
+     * 0x474a9a`: this is the worker-load INGAME callback that fires once
+     * per HOUSE entry on both port and retail. */
+    CALL_TRACE_ENTER(0x474a9au);
+
     /* C8g.1 — engine FUN_0040f64b's 3-table preamble.  Sentinel-resets
      * the per-record tables read by the scene-1 mesh walkers.  Called
      * once at scene-1 entry so the counter-scan in scene1_render_meshes

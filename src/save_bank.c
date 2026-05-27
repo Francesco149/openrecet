@@ -38,6 +38,7 @@
 #include <string.h>
 
 #include "audio_fade.h"
+#include "call_trace.h"
 #include "rng.h"
 #include "tables_chara.h"
 
@@ -259,6 +260,9 @@ static const int32_t STARTER_FLAG_PAIRS[SAVE_BANK_CHARA_COUNT][10][2] = {
  * 0xffffffff in both positions. */
 static void apply_starter_items(uint8_t *bank_bytes)
 {
+    /* E.2 probe — FUN_0048ff93 @ 0x48ff93. */
+    CALL_TRACE_ENTER(0x48ff93u);
+
     uint32_t *base = (uint32_t *)(bank_bytes + BANK_OFFSET_STARTER_ITEMS_BYTES);
 
     for (int chara = 0; chara < SAVE_BANK_CHARA_COUNT; chara++) {
@@ -288,6 +292,9 @@ static void apply_starter_items(uint8_t *bank_bytes)
  * pick up the right row. */
 static void apply_starter_flag_pairs(uint8_t *bank_bytes)
 {
+    /* E.2 probe — FUN_0048ffd9 @ 0x48ffd9. */
+    CALL_TRACE_ENTER(0x48ffd9u);
+
     uint32_t chara_idx = *(uint32_t *)(bank_bytes + BANK_OFFSET_CHARA_INDEX_BYTES);
     if (chara_idx >= (uint32_t)SAVE_BANK_CHARA_COUNT) {
         /* Engine doesn't guard; we do, to keep the array access in-bounds. */
@@ -344,6 +351,13 @@ static int interp(int base, int lv100, int level)
 
 static void apply_chara_interp(uint8_t *bank_bytes)
 {
+    /* E.2 probe — FUN_0047a8c0 @ 0x47a8c0.  Behavioural divergence:
+     * port collapses what the engine calls 9× (once per chara record +
+     * once standalone) into a single function that walks all 8 records
+     * internally, so the call-count diff will show retail=9 / port=1.
+     * Documented; not a port bug. */
+    CALL_TRACE_ENTER(0x47a8c0u);
+
     uint32_t *interp_base = (uint32_t *)(bank_bytes + BANK_OFFSET_CHARA_INTERP_BYTES);
 
     for (int chara = 0; chara < SAVE_BANK_CHARA_COUNT; chara++) {
@@ -386,6 +400,9 @@ static void apply_chara_interp(uint8_t *bank_bytes)
 
 void save_bank_init_one(int bank_idx)
 {
+    /* E.2 probe — FUN_0049001c @ 0x49001c. */
+    CALL_TRACE_ENTER(0x49001cu);
+
     uint8_t *bank_bytes = save_bank_at(bank_idx);
     uint32_t *bank = save_bank_dwords_at(bank_idx);
     if (!bank) return;

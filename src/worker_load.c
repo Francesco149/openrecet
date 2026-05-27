@@ -8,6 +8,7 @@
 
 #include "worker_load.h"
 
+#include "call_trace.h"
 #include "fade.h"
 #include "nowloading.h"
 #include "scene.h"
@@ -260,6 +261,9 @@ static DWORD  g_worker_thread_id = 0;
 
 void worker_load_close(void)
 {
+    /* E.2 probe — FUN_00452917 @ 0x452917. */
+    CALL_TRACE_ENTER(0x452917u);
+
     /* Engine FUN_00452917: gated on `handle != NULL` to avoid a
      * pointless CloseHandle(NULL); on the inside zeroes the handle,
      * the secondary busy (DAT_06a4995c), and the secondary
@@ -331,6 +335,9 @@ static DWORD WINAPI worker_load_thread_proc_alt(LPVOID arg)
 
 void worker_load_spawn(void)
 {
+    /* E.2 probe — FUN_00452cde @ 0x452cde. */
+    CALL_TRACE_ENTER(0x452cdeu);
+
     /* Engine writes 49954/49958 first, THEN CreateThread. We mirror
      * the order so the thread sees the gates raised the moment it's
      * scheduled. */
@@ -497,6 +504,9 @@ void worker_load_spawn_eb1(int param)
 
 void worker_load_close(void)
 {
+    /* E.2 probe — FUN_00452917 @ 0x452917.  Mirrors the Win32 arm. */
+    CALL_TRACE_ENTER(0x452917u);
+
     /* No handle to close. The engine's secondary-flag clears are
      * gated on `handle != NULL`, which is never true here, so this
      * is a faithful no-op. Tests that want to verify the secondary
@@ -505,6 +515,10 @@ void worker_load_close(void)
 
 void worker_load_spawn(void)
 {
+    /* E.2 probe — FUN_00452cde @ 0x452cde.  Mirrors the Win32 arm so
+     * test builds emit the same trace row if call_trace ever runs. */
+    CALL_TRACE_ENTER(0x452cdeu);
+
     /* Tests drive dispatch_pure + end explicitly. Spawn just raises
      * the gates so callers can observe the "busy + nowloading set"
      * window. */

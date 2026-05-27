@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "call_trace.h"
 #include "xfile.h"
 
 #ifdef _WIN32
@@ -112,6 +113,9 @@ mesh_tex_cache_t g_mesh_tex_cache = { 0 };
 
 void mesh_tex_cache_reset(void)
 {
+    /* E.2 probe — FUN_0047281e @ 0x47281e. */
+    CALL_TRACE_ENTER(0x47281eu);
+
 #ifdef _WIN32
     for (int i = 0; i < g_mesh_tex_cache.count; i++) {
         sprite_t *s = (sprite_t *)g_mesh_tex_cache.entries[i].sprite;
