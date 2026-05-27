@@ -1,5 +1,6 @@
 #include "scene.h"
 
+#include "d3d_pool.h"
 #include "fade.h"
 #include "nowloading.h"
 #include "save_bank.h"
@@ -67,6 +68,14 @@ void scene_post_fade_init(void)
      * single-shot handle, so this is a no-op on fresh boot but
      * matches the engine's call site for call_trace parity. */
     worker_load_close();
+
+    /* Engine FUN_0049a59e L100777 — FUN_00473474() releases all
+     * stage-scoped D3D resources tagged type 2.  Port-side D3D pool is
+     * empty (the wrapper allocator FUN_0047183b is unported), so this
+     * walks 200 NULL slots and returns; probe fires for call_trace
+     * parity.  Sits between worker_load_close and fade_phase_out_start
+     * to match engine call order. */
+    d3d_pool_release_post_fade();
 
     /* Engine FUN_0049a59e L235: FUN_0045281c(0, 0x11) — kick off the
      * phase-(-1) fade-IN so the alpha quad ramps from 255 → 0 over the

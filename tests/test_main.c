@@ -717,6 +717,17 @@ struct test_case {
     X(stage_post_load_435dcd_counter_increment_each_pulse) \
     X(stage_post_load_435dcd_b4d0_accessor_roundtrip) \
     \
+    X(d3d_pool_release_type_on_empty_pool_no_crash) \
+    X(d3d_pool_release_post_fade_on_empty_pool_no_crash) \
+    X(d3d_pool_release_type_matching_releases_and_zeros_slot) \
+    X(d3d_pool_release_type_mismatch_preserves_slot) \
+    X(d3d_pool_release_type_mixed_releases_only_matching) \
+    X(d3d_pool_release_post_fade_releases_type_2) \
+    X(d3d_pool_release_type_reaches_last_slot) \
+    X(d3d_pool_release_type_does_not_touch_out_of_bounds) \
+    X(d3d_pool_slot_setter_rejects_out_of_range_index) \
+    X(d3d_pool_reset_clears_populated_slots) \
+    \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \
     X(nowloading_tick_idle_decays_alpha_by_32) \
