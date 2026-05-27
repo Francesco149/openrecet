@@ -655,6 +655,24 @@ struct test_case {
     X(scene_new_game_ui_scratch_clear_idempotent) \
     X(scene_new_game_stage_load_pulse_b_clear_zeroes) \
     \
+    X(stage_gate_boss_id_low_range_17_to_19) \
+    X(stage_gate_boss_id_pair_1b_1c_singletons_29_2b) \
+    X(stage_gate_boss_id_high_range_36_to_49) \
+    X(stage_gate_boss_id_minus_one_sentinel) \
+    X(stage_gate_checkpoint_non_5_dungeon_uses_mod5_eq_4) \
+    X(stage_gate_checkpoint_dungeon_5_uses_geq_29) \
+    X(stage_gate_query_hardcoded_0_to_4) \
+    X(stage_gate_query_hardcoded_4_to_29_and_99) \
+    X(stage_gate_query_checkpoint_fail_returns_zero) \
+    X(stage_gate_query_walker_finds_boss_in_range) \
+    X(stage_gate_query_walker_finds_non_boss_returns_zero) \
+    X(stage_gate_query_walker_skips_to_later_section) \
+    X(stage_gate_query_walker_terminates_at_minus_one) \
+    X(stage_gate_query_inner_walker_scans_past_non_bosses) \
+    X(stage_gate_query_dungeon_5_uses_geq_29_rule) \
+    X(stage_gate_query_out_of_range_dungeon_returns_zero) \
+    X(stage_gate_next_setter_roundtrip) \
+    \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \
     X(nowloading_tick_idle_decays_alpha_by_32) \
