@@ -1,0 +1,387 @@
+# OpenRecet — port ledger
+
+> **DERIVED FILE** — regenerate with `python3 tools/gen_port_ledger.py`.
+> See `STATUS.md` for the headline.
+
+Per-engine-function port status, derived from `functions.csv` (universe),
+`CALL_TRACE_ENTER(_STUB)` probes (verified/stubbed), and `FUN_` references
+in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
+
+## Summary
+
+- non-thunk engine functions: **2548** (of 2620 incl. thunks)
+- touched: **356** (14.0%) — verified 58, stubbed 12, ported 286
+- unported: **2192**
+- orphan refs (in src/, not in function table): 6
+
+## verified (58) — runtime-diffed vs retail
+
+| VA | name | size | call-target | src |
+|----|------|-----:|:-----------:|-----|
+| 0x404efc | FUN_00404efc | 562 | ✓ | render_quad.c |
+| 0x405354 | FUN_00405354 | 76 | ✓ | render_quad.c |
+| 0x4060ff | FUN_004060ff | 90 | ✓ | scene_new_game.c |
+| 0x4063c7 | FUN_004063c7 | 394 | ✓ | render_quad.c |
+| 0x40fb3a | FUN_0040fb3a | 8071 | ✓ | scene1_particles_tick.c |
+| 0x414929 | FUN_00414929 | 1465 | ✓ | scene1_particles_tick.c |
+| 0x43195d | FUN_0043195d | 51 | ✓ | stage_gate.c |
+| 0x431990 | FUN_00431990 | 70 | ✓ | stage_gate.c |
+| 0x4319d6 | FUN_004319d6 | 170 | ✓ | stage_gate.c |
+| 0x43244c | FUN_0043244c | 39 | ✓ | stage_palette.c |
+| 0x434d6a | FUN_00434d6a | 85 | ✓ | title_save_dialog.c |
+| 0x4356cd | FUN_004356cd | 67 | ✓ | title_save_dialog.c |
+| 0x435c98 | FUN_00435c98 | 309 | ✓ | stage_post_load.c |
+| 0x435dcd | FUN_00435dcd | 494 | ✓ | stage_post_load.c |
+| 0x435fbb | FUN_00435fbb | 224 | ✓ | stage_post_load.c |
+| 0x4360b6 | FUN_004360b6 | 202 | ✓ | chara_skills.c |
+| 0x43ae20 | FUN_0043ae20 | 25750 | ✓ | scene1_records_b_tick.c |
+| 0x44284b | FUN_0044284b | 1083 | ✓ | scene1_records_c_tick.c |
+| 0x442cef | FUN_00442cef | 2490 | ✓ | scene1_sim.c |
+| 0x451874 | FUN_00451874 | 47 | ✓ | audio_mci.c |
+| 0x4526ab | FUN_004526ab | 74 | ✓ | fade.c |
+| 0x4526f5 | FUN_004526f5 | 276 | ✓ | fade.c |
+| 0x45281c | FUN_0045281c | 151 | ✓ | fade.c |
+| 0x4528b3 | FUN_004528b3 | 47 | ✓ | fade.c |
+| 0x452917 | FUN_00452917 | 38 | ✓ | worker_load.c |
+| 0x452cde | FUN_00452cde | 41 | ✓ | worker_load.c |
+| 0x453147 | FUN_00453147 | 362 | ✓ | nowloading.c |
+| 0x4532df | FUN_004532df | 129 | ✓ | sim.c |
+| 0x453e8f | FUN_00453e8f | 444 | ✓ | fade.c |
+| 0x4547ab | FUN_004547ab | 1670 | ✓ | main.c |
+| 0x457714 | FUN_00457714 | 5323 | ✓ | scene1_walker_pass_init.c |
+| 0x45bbf9 | FUN_0045bbf9 | 134 | ✓ | scene1_render.c |
+| 0x4681f6 | FUN_004681f6 | 42 | ✓ | tables_item.c |
+| 0x4682d0 | FUN_004682d0 | 8 | ✓ | scene_new_game.c |
+| 0x4693e3 | FUN_004693e3 | 41 | ✓ | stage_load_pulse.c |
+| 0x471905 | FUN_00471905 | 54 | ✓ | d3d_pool.c |
+| 0x47281e | FUN_0047281e | 24 | ✓ | mesh_load.c |
+| 0x473474 | FUN_00473474 | 9 | ✓ | d3d_pool.c |
+| 0x474681 | FUN_00474681 | 123 | ✓ | stage_palette.c |
+| 0x474a9a | FUN_00474a9a | 760 | ✓ | scene1_preload.c |
+| 0x47a8c0 | FUN_0047a8c0 | 368 | ✓ | save_bank.c |
+| 0x47b73c | FUN_0047b73c | 1779 | ✓ | input.c |
+| 0x47be2f | FUN_0047be2f | 99 | ✓ | tick.c |
+| 0x47be92 | FUN_0047be92 | 289 | ✓ | tick.c |
+| 0x47c29d | FUN_0047c29d | 215 | ✓ | font.c |
+| 0x48093f | FUN_0048093f | 136 | ✓ | chara_equip.c |
+| 0x4844ef | FUN_004844ef | 310 | ✓ | chara_equip.c |
+| 0x48a331 | FUN_0048a331 | 23 | ✓ | xp_curve.c |
+| 0x48fe43 | FUN_0048fe43 | 315 | ✓ | scene1_dungeon_clear_banner.c |
+| 0x48ff93 | FUN_0048ff93 | 70 | ✓ | save_bank.c |
+| 0x48ffd9 | FUN_0048ffd9 | 67 | ✓ | save_bank.c |
+| 0x49001c | FUN_0049001c | 422 | ✓ | save_bank.c |
+| 0x490e56 | FUN_00490e56 | 494 | ✓ | npc_schedule.c |
+| 0x499583 | FUN_00499583 | 231 | ✓ | audio_fade.c |
+| 0x49966a | FUN_0049966a | 1412 | ✓ | music.c |
+| 0x49a558 | FUN_0049a558 | 35 | ✓ | music.c |
+| 0x49b425 | FUN_0049b425 | 207 | ✓ | render_quad.c |
+| 0x49de18 | FUN_0049de18 | 8 | ✓ | scene_new_game.c |
+
+## stubbed (12) — wired, body incomplete
+
+| VA | name | size | call-target | src |
+|----|------|-----:|:-----------:|-----|
+| 0x405552 | FUN_00405552 | 498 | ✓ | debug_param_tick.c |
+| 0x435117 | FUN_00435117 | 615 | ✓ | title_save_dialog.c |
+| 0x43537e | FUN_0043537e | 660 | ✓ | title_save_dialog.c |
+| 0x435747 | FUN_00435747 | 300 | ✓ | title_save_dialog.c |
+| 0x4427d3 | FUN_004427d3 | 30 | ✓ | scene1_sim.c |
+| 0x4536cb | FUN_004536cb | 1745 | ✓ | sim.c |
+| 0x45404b | FUN_0045404b | 326 | ✓ | scene1_render.c |
+| 0x454191 | FUN_00454191 | 1391 | ✓ | scene1_fx_overlays.c |
+| 0x459dfd | FUN_00459dfd | 1906 | ✓ | scene1_render.c |
+| 0x485712 | FUN_00485712 | 317 | ✓ | stage_post_load.c |
+| 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
+| 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
+
+## ported (286) — reimplemented, no probe yet
+
+| VA | name | size | call-target | src |
+|----|------|-----:|:-----------:|-----|
+| 0x40110f | FUN_0040110f | 27 | ✓ | main.c |
+| 0x40112a | FUN_0040112a | 20 | ✓ | main.c |
+| 0x40120c | FUN_0040120c | 116 | ✓ | main.c, scene1_camera.c, scene1_camera.h (+1) |
+| 0x4038e4 | FUN_004038e4 | 90 | ✓ | layers.c, layers.h |
+| 0x403d79 | FUN_00403d79 | 186 | ✓ | scene1_render.c, scene1_shop_walker.c, scene1_shop_walker.h |
+| 0x403eb7 | FUN_00403eb7 | 108 | ✓ | scene1_render.c, scene1_render.h, scene1_shop_walker.h |
+| 0x404209 | FUN_00404209 | 759 | ✓ | scene1_render.c, scene1_render.h |
+| 0x404757 | FUN_00404757 | 117 | ✓ | scene1_render.h, scene1_shop_walker.h |
+| 0x4047df | FUN_004047df | 135 | ✓ | scene1_render.c, scene1_render.h, scene1_shop_walker.h |
+| 0x404866 | FUN_00404866 | 10 | ✓ | scene1_shop_walker.c, scene1_shop_walker.h |
+| 0x404870 | FUN_00404870 | 432 | ✓ | scene1_render.c, scene1_shop_walker.c, scene1_shop_walker.h |
+| 0x404a20 | FUN_00404a20 | 45 | ✓ | scene1_render.c, scene1_render.h, scene1_shop_walker.c (+2) |
+| 0x404bb8 | FUN_00404bb8 | 84 | ✓ | scene1_camera.c, scene1_camera.h, scene1_overlay.h (+2) |
+| 0x404e44 | FUN_00404e44 | 29 | ✓ | prewindow.c, prewindow.h, render_quad.c (+1) |
+| 0x4054c0 | FUN_004054c0 | 146 | ✓ | font_draw.h |
+| 0x405744 | FUN_00405744 | 373 |  | debug_param_tick.h |
+| 0x405b1a | FUN_00405b1a | 598 | ✓ | scene1_render.c, scene1_render.h |
+| 0x405d70 | FUN_00405d70 | 911 | ✓ | scene1_render.c, scene1_render.h, stage_palette.h |
+| 0x40656e | FUN_0040656e | 22 | ✓ | scene1_per_frame_open.c, scene1_per_frame_open.h |
+| 0x406584 | FUN_00406584 | 1017 | ✓ | sim.c |
+| 0x4072f5 | FUN_004072f5 | 1983 | ✓ | chara_skills.h |
+| 0x40a765 | FUN_0040a765 | 7558 | ✓ | main.c, mesh_draw.h, scene1_render.c (+2) |
+| 0x40c90e | FUN_0040c90e | 20 | ✓ | scene1_spawn.c |
+| 0x40cea6 | FUN_0040cea6 | 226 | ✓ | sim.c |
+| 0x40cf88 | FUN_0040cf88 | 403 | ✓ | music.c |
+| 0x40d132 | FUN_0040d132 | 9497 | ✓ | scene1_overlay.h, scene1_overlay_helpers.c |
+| 0x40f64b | FUN_0040f64b | 128 | ✓ | scene1_per_frame_open.h, scene1_preload.c, scene1_records.c (+1) |
+| 0x41276e | FUN_0041276e | 795 |  | scene1_per_frame_open.c, scene1_per_frame_open.h |
+| 0x412a89 | FUN_00412a89 | 490 | ✓ | main.c, scene1_per_frame_open.c, scene1_per_frame_open.h |
+| 0x4132c1 | FUN_004132c1 | 92 | ✓ | scene1_per_frame_open.h |
+| 0x41331d | FUN_0041331d | 89 | ✓ | scene1_per_frame_open.h, scene1_records_b_tick.c |
+| 0x414345 | FUN_00414345 | 1057 | ✓ | scene1_overlay.c, scene1_overlay.h |
+| 0x4147d5 | FUN_004147d5 | 62 | ✓ | scene1_combat_sm.h, scene1_records_b_tick.c |
+| 0x414813 | FUN_00414813 | 239 | ✓ | scene1_overlay.c |
+| 0x414902 | FUN_00414902 | 39 | ✓ | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_preload.c (+2) |
+| 0x414ee2 | FUN_00414ee2 | 4006 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_overlay_helpers.c (+4) |
+| 0x415e90 | FUN_00415e90 | 36 | ✓ | scene1_overlay.c, scene1_overlay.h |
+| 0x415f2e | FUN_00415f2e | 125 | ✓ | scene1_wide_followup.h, scene1_wide_followup_helpers.c |
+| 0x415fab | FUN_00415fab | 540 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
+| 0x4161c7 | FUN_004161c7 | 4925 | ✓ | scene1_pass_f.c, scene1_pass_f.h, scene1_records.h (+5) |
+| 0x417504 | FUN_00417504 | 506 | ✓ | main.c, scene1_render.c, scene1_render.h |
+| 0x4176ff | FUN_004176ff | 30395 | ✓ | scene1_render.c, scene1_render.h |
+| 0x41edf1 | FUN_0041edf1 | 35 | ✓ | worker_load.h |
+| 0x41ee24 | FUN_0041ee24 | 365 | ✓ | sim.c |
+| 0x41f319 | FUN_0041f319 | 340 | ✓ | scene1_combat_sm.h |
+| 0x41f46d | FUN_0041f46d | 57 | ✓ | scene1_combat_sm.h |
+| 0x42353c | FUN_0042353c | 330 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x42b6b7 | FUN_0042b6b7 | 4590 | ✓ | scene1_particles_tick.c |
+| 0x42e791 | FUN_0042e791 | 676 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h, scene1_particles_tick.h |
+| 0x430c00 | FUN_00430c00 | 109 | ✓ | scene1_sim.c, scene1_sim.h |
+| 0x430c6d | FUN_00430c6d | 3022 | ✓ | scene1_particles_tick.c, scene1_particles_tick.h |
+| 0x432e50 | FUN_00432e50 | 2084 | ✓ | scene1_postload.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+2) |
+| 0x433674 | FUN_00433674 | 2354 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h, scene1_records_c_tick.c (+1) |
+| 0x4341d4 | FUN_004341d4 | 42 | ✓ | storage.c |
+| 0x4341fe | FUN_004341fe | 903 | ✓ | lnkdatas_hash.h, main.c, storage.c (+1) |
+| 0x434585 | FUN_00434585 | 314 | ✓ | scene1_overlay_table.c, scene1_overlay_table.h, scene1_per_frame_open.c (+2) |
+| 0x4346bf | FUN_004346bf | 805 | ✓ | scene1_overlay_table.c, scene1_overlay_table.h, scene1_per_frame_open.c (+2) |
+| 0x4349e4 | FUN_004349e4 | 1 | ✓ | storage.c, storage.h |
+| 0x4349e5 | FUN_004349e5 | 333 | ✓ | lnk_lzss.c, lnk_lzss.h, storage.c |
+| 0x434b32 | FUN_00434b32 | 250 | ✓ | bmp_lzw.c, bmp_lzw.h, storage.c |
+| 0x434c2c | FUN_00434c2c | 125 | ✓ | bmp_lzw.c, bmp_lzw.h |
+| 0x434ca9 | FUN_00434ca9 | 58 | ✓ | bmp_lzw.c, bmp_lzw.h |
+| 0x434dbf | FUN_00434dbf | 23 | ✓ | main.c |
+| 0x434def | FUN_00434def | 227 | ✓ | scene_title.c |
+| 0x435612 | FUN_00435612 | 8 | ✓ | scene_title.c, title_save_dialog.c, title_save_dialog.h |
+| 0x43561a | FUN_0043561a | 11 | ✓ | scene_worldmap.h, title_save_dialog.c, title_save_dialog.h |
+| 0x435625 | FUN_00435625 | 6 | ✓ | title_save_dialog.c, title_save_dialog.h |
+| 0x435644 | FUN_00435644 | 79 | ✓ | title_save_dialog.c |
+| 0x435693 | FUN_00435693 | 58 | ✓ | scene_worldmap.h, title_save_dialog.c, title_save_dialog.h |
+| 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
+| 0x43647f | FUN_0043647f | 61 | ✓ | scene1_combat_sm.h |
+| 0x4364bc | FUN_004364bc | 359 | ✓ | tables_snews.h |
+| 0x436f97 | FUN_00436f97 | 4788 | ✓ | main.c, scene.c, scene1_alpha_walker.c (+11) |
+| 0x43824b | FUN_0043824b | 940 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h |
+| 0x4385fb | FUN_004385fb | 99 | ✓ | scene1_spawn.c, scene1_spawn.h |
+| 0x43865e | FUN_0043865e | 8059 | ✓ | main.c, scene1_combat_sm.c, scene1_combat_sm.h (+3) |
+| 0x43a5d9 | FUN_0043a5d9 | 1429 | ✓ | scene1_particles_tick.h, scene1_sim.c, scene1_sim.h |
+| 0x43ab6e | FUN_0043ab6e | 690 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x4412b6 | FUN_004412b6 | 2037 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h |
+| 0x441c3e | FUN_00441c3e | 2217 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
+| 0x4424e7 | FUN_004424e7 | 429 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
+| 0x4426a7 | FUN_004426a7 | 300 | ✓ | scene1_sim.c, scene1_sim.h |
+| 0x44375e | FUN_0044375e | 12 | ✓ | scene1_records_b_tick.c |
+| 0x44376a | FUN_0044376a | 8538 | ✓ | scene1_particles_tick.h, scene1_records.h, scene1_records_b_spawn.c (+3) |
+| 0x445a8c | FUN_00445a8c | 8952 | ✓ | scene1_records.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+1) |
+| 0x447f4f | FUN_00447f4f | 11826 | ✓ | main.c, scene1_combat_sm.h, scene1_particles_tick.c (+4) |
+| 0x44aef0 | FUN_0044aef0 | 96 | ✓ | scene1_records.h, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |
+| 0x44af50 | FUN_0044af50 | 419 | ✓ | scene1_records_c_spawn.c, scene1_records_c_spawn.h |
+| 0x44b0f3 | FUN_0044b0f3 | 60 | ✓ | scene1_particles_tick.c, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |
+| 0x44b12f | FUN_0044b12f | 61 | ✓ | scene1_records_c_spawn.c, scene1_records_c_spawn.h |
+| 0x44b16c | FUN_0044b16c | 84 | ✓ | scene1_combat_sm.h |
+| 0x44b219 | FUN_0044b219 | 60 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x44b255 | FUN_0044b255 | 1 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x44c88f | FUN_0044c88f | 299 | ✓ | stage_palette.h |
+| 0x44f13d | FUN_0044f13d | 4870 | ✓ | scene1_postload.h |
+| 0x451790 | FUN_00451790 | 211 | ✓ | main.c, prewindow.h, rng.h (+1) |
+| 0x451863 | FUN_00451863 | 17 | ✓ | audio_mci.c, audio_mci.h, main.c |
+| 0x451ea7 | FUN_00451ea7 | 1343 | ✓ | audio_mci.h |
+| 0x452569 | FUN_00452569 | 312 | ✓ | prewindow.c, prewindow.h |
+| 0x452911 | FUN_00452911 | 6 | ✓ | main.c, music.c, worker_load.c (+1) |
+| 0x452d07 | FUN_00452d07 | 55 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
+| 0x452d3e | FUN_00452d3e | 71 | ✓ | scene_buy.h, worker_load.c |
+| 0x452d85 | FUN_00452d85 | 60 | ✓ | scene1_preload.h, scene_walls.h, worker_load.c |
+| 0x452dc1 | FUN_00452dc1 | 60 | ✓ | scene_floor.h, worker_load.c |
+| 0x452dfd | FUN_00452dfd | 60 | ✓ | scene_jutan.h, worker_load.c |
+| 0x452e39 | FUN_00452e39 | 60 | ✓ | scene_table.h, worker_load.c |
+| 0x452eed | FUN_00452eed | 41 | ✓ | worker_load.c, worker_load.h |
+| 0x452f16 | FUN_00452f16 | 66 | ✓ | worker_load.h |
+| 0x452f58 | FUN_00452f58 | 491 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_overlay_helpers.c (+2) |
+| 0x4532b1 | FUN_004532b1 | 11 | ✓ | scene1_fx_overlays.h, scene1_render.h, sim.h |
+| 0x4532bc | FUN_004532bc | 29 | ✓ | scene1_fx_overlays.h, scene1_records_b_tick.c, scene1_records_b_tick.h (+3) |
+| 0x453373 | FUN_00453373 | 8 | ✓ | main.c, sim.h |
+| 0x454e69 | FUN_00454e69 | 154 | ✓ | layers.c, layers.h, main.c |
+| 0x454f03 | FUN_00454f03 | 120 | ✓ | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |
+| 0x454f7c | FUN_00454f7c | 104 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_walker_pass_init.c |
+| 0x454fe4 | FUN_00454fe4 | 429 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_render.c (+1) |
+| 0x455191 | FUN_00455191 | 217 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_render.c (+4) |
+| 0x4552d0 | FUN_004552d0 | 5210 | ✓ | scene1_render.c, scene1_render.h, scene1_shop_walker.c (+2) |
+| 0x45672a | FUN_0045672a | 1317 | ✓ | scene1_render.c, scene1_render.h |
+| 0x456d48 | FUN_00456d48 | 526 | ✓ | scene1_render.c, scene1_shop_walker.c, scene1_shop_walker.h (+1) |
+| 0x456f56 | FUN_00456f56 | 1982 | ✓ | scene1_render.c, scene1_render.h |
+| 0x458bdf | FUN_00458bdf | 904 | ✓ | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_render.c (+1) |
+| 0x458f67 | FUN_00458f67 | 2118 | ✓ | scene1_render.c, scene1_render.h |
+| 0x4597ad | FUN_004597ad | 48 | ✓ | scene1_render.c, scene1_render.h |
+| 0x4597dd | FUN_004597dd | 106 | ✓ | scene1_render.c, scene1_render.h |
+| 0x459847 | FUN_00459847 | 1444 | ✓ | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_emit_record.h (+2) |
+| 0x45a56f | FUN_0045a56f | 1223 | ✓ | scene1_render.c, scene1_shop_walker.c, scene1_shop_walker.h |
+| 0x45aa36 | FUN_0045aa36 | 4493 | ✓ | scene1_render.c, scene1_render.h |
+| 0x45bdc2 | FUN_0045bdc2 | 546 | ✓ | worker_load.h |
+| 0x45c051 | FUN_0045c051 | 3021 | ✓ | sim.c |
+| 0x45de68 | FUN_0045de68 | 433 | ✓ | scene_worldmap.h, tables_event.c, tables_event.h |
+| 0x45e053 | FUN_0045e053 | 201 | ✓ | sim.c |
+| 0x45e1a5 | FUN_0045e1a5 | 175 | ✓ | sim.c |
+| 0x45e2dd | FUN_0045e2dd | 118 | ✓ | sim.c |
+| 0x45e3dc | FUN_0045e3dc | 175 | ✓ | sim.c |
+| 0x45edaa | FUN_0045edaa | 4455 | ✓ | npc_schedule.h |
+| 0x461c00 | FUN_00461c00 | 1753 | ✓ | tables_tuto.h |
+| 0x4682bf | FUN_004682bf | 6 | ✓ | stage_load_pulse.h |
+| 0x4682c5 | FUN_004682c5 | 11 | ✓ | stage_load_pulse.h |
+| 0x4682e3 | FUN_004682e3 | 11 | ✓ | stage_load_pulse.h |
+| 0x468338 | FUN_00468338 | 2490 | ✓ | stage_load_pulse.c, stage_load_pulse.h |
+| 0x46bf38 | FUN_0046bf38 | 230 | ✓ | mesh_load.h, scene_sc1.c, scene_sc1.h (+1) |
+| 0x46c01e | FUN_0046c01e | 27 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
+| 0x46c039 | FUN_0046c039 | 87 | ✓ | sim.c |
+| 0x46f737 | FUN_0046f737 | 347 | ✓ | scene1_shop_walker.c |
+| 0x4705a3 | FUN_004705a3 | 327 | ✓ | scene1_shop_walker.c, scene1_shop_walker.h |
+| 0x470d44 | FUN_00470d44 | 292 | ✓ | scene1_shop_walker.c |
+| 0x471050 | FUN_00471050 | 11 | ✓ | main.c, prewindow.h, rng.h |
+| 0x471089 | FUN_00471089 | 34 | ✓ | rng.h, scene1_combat_sm.c, scene1_combat_sm.h (+5) |
+| 0x47183b | FUN_0047183b | 151 | ✓ | d3d_pool.c, d3d_pool.h, scene.c |
+| 0x4718d2 | FUN_004718d2 | 51 | ✓ | d3d_pool.h |
+| 0x47193c | FUN_0047193c | 488 | ✓ | scene1_dungeon_clear_banner.c, scene1_preload.c, scene_buy.c (+12) |
+| 0x471b24 | FUN_00471b24 | 467 | ✓ | mesh_load.c, mesh_load.h |
+| 0x471d45 | FUN_00471d45 | 2777 | ✓ | stage_palette.c, stage_palette.h |
+| 0x472836 | FUN_00472836 | 1609 | ✓ | mesh.h, mesh_load.c, mesh_load.h (+5) |
+| 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_wide_followup.c, sysassets.c (+1) |
+| 0x47329b | FUN_0047329b | 151 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
+| 0x47333b | FUN_0047333b | 145 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
+| 0x4733d5 | FUN_004733d5 | 159 | ✓ | main.c, scene_title.c, scene_title.h (+1) |
+| 0x47347d | FUN_0047347d | 215 | ✓ | worker_load.h |
+| 0x47355d | FUN_0047355d | 31 | ✓ | worker_load.h |
+| 0x473585 | FUN_00473585 | 31 | ✓ | worker_load.h |
+| 0x4735ad | FUN_004735ad | 98 | ✓ | main.c, scene_worldmap.c, scene_worldmap.h (+1) |
+| 0x4736bd | FUN_004736bd | 163 | ✓ | worker_load.h |
+| 0x473769 | FUN_00473769 | 258 | ✓ | worker_load.h |
+| 0x473874 | FUN_00473874 | 245 | ✓ | worker_load.h |
+| 0x473972 | FUN_00473972 | 31 | ✓ | worker_load.h |
+| 0x473991 | FUN_00473991 | 75 | ✓ | worker_load.h |
+| 0x4739dc | FUN_004739dc | 31 | ✓ | worker_load.h |
+| 0x4739fb | FUN_004739fb | 31 | ✓ | worker_load.h |
+| 0x473a3e | FUN_00473a3e | 453 | ✓ | main.c, scene_pause.c, scene_pause.h (+1) |
+| 0x473c15 | FUN_00473c15 | 2476 | ✓ | scene1_preload.c, scene1_preload.h, worker_load.h |
+| 0x4746fc | FUN_004746fc | 48 | ✓ | worker_load.h |
+| 0x47472c | FUN_0047472c | 34 | ✓ | worker_load.h |
+| 0x47474e | FUN_0047474e | 142 | ✓ | main.c, scene1_preload.c, scene_floor.c (+5) |
+| 0x4747dc | FUN_004747dc | 142 | ✓ | main.c, scene1_preload.c, scene_floor.c (+3) |
+| 0x47486a | FUN_0047486a | 142 | ✓ | main.c, scene1_preload.c, scene_jutan.c (+2) |
+| 0x4748f8 | FUN_004748f8 | 169 | ✓ | mesh_load.h, scene1_preload.c, scene_table.c (+2) |
+| 0x474e7a | FUN_00474e7a | 153 | ✓ | main.c |
+| 0x474f14 | FUN_00474f14 | 58 | ✓ | lnkdatas_hash.c, lnkdatas_hash.h, storage.c |
+| 0x474f4f | FUN_00474f4f | 801 | ✓ | main.c, scene1_overlay.h, scene1_overlay_table.c (+3) |
+| 0x475270 | FUN_00475270 | 19645 | ✓ | main.c, scene1_overlay_table.h, scene1_walker_pass_init.h (+32) |
+| 0x479f4d | FUN_00479f4d | 43 | ✓ | tables.c, tables_enemylist.c, tables_news.c (+1) |
+| 0x47a474 | FUN_0047a474 | 912 | ✓ | main.c, recet_ini.c, recet_ini.h |
+| 0x47aa30 | FUN_0047aa30 | 1 | ✓ | main.c |
+| 0x47aa31 | FUN_0047aa31 | 1 | ✓ | tables_enemylist.c, tables_gousei.c, tables_snews.c |
+| 0x47aa8b | FUN_0047aa8b | 402 | ✓ | main.c |
+| 0x47ac6a | FUN_0047ac6a | 507 | ✓ | main.c |
+| 0x47af52 | FUN_0047af52 | 413 | ✓ | input.c, input.h, main.c |
+| 0x47b0ef | FUN_0047b0ef | 120 | ✓ | input.c, input.h |
+| 0x47b1f2 | FUN_0047b1f2 | 99 |  | input.c |
+| 0x47b29e | FUN_0047b29e | 73 | ✓ | main.c, prewindow.c, scene.h (+1) |
+| 0x47b2e7 | FUN_0047b2e7 | 1061 |  | main.c |
+| 0x47bfb3 | FUN_0047bfb3 | 629 | ✓ | main.c |
+| 0x47c228 | FUN_0047c228 | 61 | ✓ | font.h, main.c |
+| 0x47c3a5 | FUN_0047c3a5 | 207 | ✓ | font.h, font_atlas.c, font_atlas.h (+1) |
+| 0x47c474 | FUN_0047c474 | 1425 | ✓ | font.h, font_atlas.c, font_atlas.h (+1) |
+| 0x47ca05 | FUN_0047ca05 | 454 | ✓ | font.h, font_draw.c, font_draw.h |
+| 0x47cbcb | FUN_0047cbcb | 855 | ✓ | font.h, font_alloc.c, font_alloc.h (+3) |
+| 0x47cf22 | FUN_0047cf22 | 456 | ✓ | font.h, font_upload.c, font_upload.h |
+| 0x47d14c | FUN_0047d14c | 399 | ✓ | font_draw.h |
+| 0x47e711 | FUN_0047e711 | 403 | ✓ | sim.c |
+| 0x47fc44 | FUN_0047fc44 | 596 | ✓ | audio_fade.h |
+| 0x480b65 | FUN_00480b65 | 1919 | ✓ | chara_skills.h |
+| 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h, scene1_particles_tick.h (+1) |
+| 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |
+| 0x48407f | FUN_0048407f | 795 | ✓ | scene1_sim.c, scene1_sim.h |
+| 0x484dd1 | FUN_00484dd1 | 116 | ✓ | scene1_records_c_tick.c, scene1_records_c_tick.h |
+| 0x484e45 | FUN_00484e45 | 82 | ✓ | scene1_combat_sm.h |
+| 0x484e97 | FUN_00484e97 | 286 | ✓ | scene1_records_c_spawn.h |
+| 0x48526d | FUN_0048526d | 142 | ✓ | scene1_postload.h, scene1_preload.c |
+| 0x485413 | FUN_00485413 | 55 | ✓ | scene1_combat_sm.h |
+| 0x485979 | FUN_00485979 | 731 | ✓ | scene1_records_b_tick.h |
+| 0x485f8c | FUN_00485f8c | 316 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
+| 0x489c79 | FUN_00489c79 | 217 | ✓ | chara_skills.h |
+| 0x489d52 | FUN_00489d52 | 102 | ✓ | chara_skills.h |
+| 0x48a348 | FUN_0048a348 | 59 | ✓ | scene1_combat_sm.h |
+| 0x48a383 | FUN_0048a383 | 334 | ✓ | xp_curve.h |
+| 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
+| 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h |
+| 0x4901c2 | FUN_004901c2 | 151 | ✓ | main.c, save_bank.c, save_bank.h (+1) |
+| 0x4902aa | FUN_004902aa | 84 | ✓ | save_bank.h |
+| 0x4902fe | FUN_004902fe | 682 | ✓ | audio_fade.h, main.c, save_bank.h (+2) |
+| 0x4905a8 | FUN_004905a8 | 179 | ✓ | main.c, save_io.c, save_io.h (+1) |
+| 0x49065b | FUN_0049065b | 314 | ✓ | scene1_overlay.c, scene1_overlay.h |
+| 0x490820 | FUN_00490820 | 348 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x490e16 | FUN_00490e16 | 14 | ✓ | scene.h |
+| 0x490e24 | FUN_00490e24 | 17 | ✓ | sim.c |
+| 0x491044 | FUN_00491044 | 81 | ✓ | tables.c, tables_item.c, tables_item.h |
+| 0x491095 | FUN_00491095 | 385 | ✓ | tables_item.c, tables_item.h |
+| 0x491216 | FUN_00491216 | 85 | ✓ | tables_item.c, tables_item.h |
+| 0x4912de | FUN_004912de | 820 | ✓ | tables.c, tables_item.c, tables_item.h |
+| 0x491b3f | FUN_00491b3f | 23 | ✓ | main.c |
+| 0x49791f | FUN_0049791f | 868 | ✓ | chara_skills.h |
+| 0x498ef4 | FUN_00498ef4 | 736 | ✓ | audio.c, audio.h, main.c |
+| 0x499200 | FUN_00499200 | 219 | ✓ | audio.c, audio.h, music.c (+1) |
+| 0x49933c | FUN_0049933c | 439 | ✓ | scene1_combat_sm.h, scene_title.c |
+| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, scene1_combat_sm.h (+6) |
+| 0x499538 | FUN_00499538 | 20 | ✓ | music.h |
+| 0x49954c | FUN_0049954c | 20 | ✓ | music.h |
+| 0x499579 | FUN_00499579 | 10 | ✓ | worker_load.c, worker_load.h |
+| 0x499c63 | FUN_00499c63 | 477 | ✓ | audio.c, audio.h, audio_fade.h (+3) |
+| 0x49a324 | FUN_0049a324 | 127 | ✓ | save_io.c, save_io.h, scene_title.h |
+| 0x49a3a3 | FUN_0049a3a3 | 154 | ✓ | main.c, scene_title.c, scene_title.h (+1) |
+| 0x49a43d | FUN_0049a43d | 283 | ✓ | main.c, save_io.c, save_io.h (+2) |
+| 0x49b537 | FUN_0049b537 | 31 | ✓ | scene_title.c |
+| 0x49c050 | FUN_0049c050 | 1001 | ✓ | scene_title.c |
+| 0x49d8a4 | FUN_0049d8a4 | 355 | ✓ | sim.c |
+| 0x49db8a | FUN_0049db8a | 487 | ✓ | sim.c |
+| 0x49de08 | FUN_0049de08 | 6 | ✓ | scene_new_game.h |
+| 0x49de0e | FUN_0049de0e | 10 | ✓ | scene_new_game.c, scene_new_game.h |
+| 0x49de20 | FUN_0049de20 | 374 | ✓ | main.c, scene_worldmap.c, scene_worldmap.h (+1) |
+| 0x49e163 | FUN_0049e163 | 575 | ✓ | scene1_postload.h, scene1_preload.c, sim.c |
+| 0x49e849 | FUN_0049e849 | 350 | ✓ | tables_item.c, tables_item.h |
+| 0x49e9a7 | FUN_0049e9a7 | 387 | ✓ | tables_item.c, tables_kyaku.c, tables_kyaku.h (+3) |
+| 0x49eb2a | FUN_0049eb2a | 488 | ✓ | tables_item.c, tables_item.h, tables_kyaku.c (+1) |
+| 0x49ed75 | FUN_0049ed75 | 515 | ✓ | tables_item.c, tables_item.h |
+| 0x49f012 | FUN_0049f012 | 851 | ✓ | scene_title.c |
+| 0x4a2a03 | FUN_004a2a03 | 13 |  | math3d.h, scene1_camera.c, scene1_pass_f.c (+4) |
+| 0x4a2f35 | FUN_004a2f35 | 13 |  | math3d.h |
+| 0x4a33d2 | FUN_004a33d2 | 46 |  | math3d.h, scene1_render.c |
+| 0x4a3462 | FUN_004a3462 | 46 |  | math3d.h, scene1_render.c |
+| 0x4a3537 | FUN_004a3537 | 28 |  | scene1_camera.c, scene1_wide_followup_helpers.c |
+| 0x4a35d3 | FUN_004a35d3 | 28 |  | scene1_camera.c, scene1_records_b_spawn.c, scene1_records_b_spawn.h |
+| 0x4a3670 | FUN_004a3670 | 28 |  | scene1_wide_followup_helpers.c |
+| 0x4a3b52 | FUN_004a3b52 | 328 | ✓ | math3d.h |
+| 0x4a3ee8 | FUN_004a3ee8 | 148 | ✓ | main.c, math3d.h, mesh_draw.c (+2) |
+| 0x4aaad7 | FUN_004aaad7 | 278 | ✓ | mesh.c, mesh.h |
+| 0x4c75e3 | FUN_004c75e3 | 4634 | ✓ | mesh_draw.c, scene1_emit_record.c |
+| 0x4c8f74 | FUN_004c8f74 | 704 | ✓ | mesh_load.c |
+| 0x4cdd9f | FUN_004cdd9f | 221 | ✓ | math3d.h |
+| 0x5031e4 | FUN_005031e4 | 9 | ✓ | scene1_particles_tick.c, scene1_records_b_spawn.c, scene1_records_b_spawn.h |
+| 0x5036af | FUN_005036af | 47 | ✓ | storage.c, tables_news.h |
+| 0x5038b0 | FUN_005038b0 | 19 | ✓ | scene1_overlay_table.c, scene1_overlay_table.h, scene1_per_frame_open.c |
+| 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, scene1_combat_sm.c, scene1_per_frame_open.c (+5) |
+| 0x503954 | __ftol | 39 | ✓ | scene1_wide_followup_helpers.c |
+| 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, scene1_particles_tick.c (+2) |
+| 0x503a44 | FUN_00503a44 | 9 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_particles_tick.c (+3) |
+| 0x503d03 | FUN_00503d03 | 11 | ✓ | scene1_overlay_table.c, tables_item.c |
+| 0x503dd0 | FUN_00503dd0 | 10 | ✓ | scene1_records_b_spawn.c, scene1_records_b_spawn.h |
+| 0x503de4 | FUN_00503de4 | 344 | ✓ | storage.c |
+| 0x503f3c | FUN_00503f3c | 140 | ✓ | storage.c |
+| 0x5041ec | FUN_005041ec | 10 | ✓ | main.c, rng.h |
+| 0x5041f6 | FUN_005041f6 | 30 | ✓ | diff_entry.c, diff_entry.h, npc_schedule.c (+6) |
+| 0x5045eb | FUN_005045eb | 220 | ✓ | main.c, prewindow.h, rng.h |
+| 0x50bcff | FUN_0050bcff | 194 | ✓ | rng.h |
+
