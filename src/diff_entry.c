@@ -29,6 +29,14 @@
 #include "diff_entry.h"
 
 #include "rng.h"
+#include "audio_fade.h"
+
+/* NOTE: audio_fade.c references audio_trace_emit_fade_start (audio.c) and
+ * call_trace_enter (call_trace.c) from code paths we never invoke here.
+ * Those no-op stubs live in tests/diff_stubs.c (NOT here) — this file is
+ * globbed into the exe by src/Makefile, so defining them here would
+ * duplicate-define the real symbols at link time. The stubs link only into
+ * libengine_diff.so via tests/Makefile DIFF_SRCS. */
 
 void engine_rng_next15(const EngineRngIn *in, EngineRngOut *out)
 {
@@ -40,4 +48,16 @@ void engine_rng_next15(const EngineRngIn *in, EngineRngOut *out)
     rng_seed(in->seed);
     out->ret_value = rng_next15();
     out->post_state = g_rng_seed;
+}
+
+void engine_audio_fade(const EngineFadeIn *in, EngineFadeOut *out)
+{
+    /* The engine BGM fade is FUN_00499583: it reads the BGM slider,
+     * runs the cos-curve against a full target, and applies the result
+     * via IDirectMusicAudioPath::SetVolume.  Our port mirrors the math
+     * in audio_fade_compute(slider, 0).  Retail's captureFadeCentibel
+     * RPC observes the applied centibel via a fake AudioPath whose
+     * SetVolume slot records lVolume — the same observable, with target
+     * pinned to 0 (full target) on both sides. */
+    out->centibel = audio_fade_compute(in->slider, 0);
 }

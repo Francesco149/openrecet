@@ -35,4 +35,16 @@ typedef struct EngineRngOut {
 
 void engine_rng_next15(const EngineRngIn *in, EngineRngOut *out);
 
+/* ── audio_fade (FUN_00499583 / BGM cos-curve fade) ────────────────── */
+
+typedef struct EngineFadeIn {
+    int32_t slider;         /* BGM volume slider in [0, 9] */
+} EngineFadeIn;
+
+typedef struct EngineFadeOut {
+    int32_t centibel;       /* audio_fade_compute(slider, 0) result */
+} EngineFadeOut;
+
+void engine_audio_fade(const EngineFadeIn *in, EngineFadeOut *out);
+
 #endif /* OPENRECET_DIFF_ENTRY_H */

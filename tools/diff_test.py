@@ -17,6 +17,7 @@ back here to the first target only; targets get added in D.2 / D.3.
 
 Targets:
     rng_next15  — FUN_005041f6 (LCG step, DAT_006023a0)
+    audio_fade  — FUN_00499583 (BGM cos-curve fade, ±1 centibel)
 
 Usage:
     nix develop --command python3 tools/diff_test.py
@@ -75,6 +76,16 @@ class EngineRngOut(ctypes.Structure):
         ("_pad",       ctypes.c_uint16),
     ]
 
+class EngineFadeIn(ctypes.Structure):
+    _fields_ = [
+        ("slider", ctypes.c_int32),
+    ]
+
+class EngineFadeOut(ctypes.Structure):
+    _fields_ = [
+        ("centibel", ctypes.c_int32),
+    ]
+
 
 # ─── port lib loader ───────────────────────────────────────────────────────
 
@@ -90,6 +101,10 @@ def load_port_lib() -> ctypes.CDLL:
     lib.engine_rng_next15.restype  = None
     lib.engine_rng_next15.argtypes = [ctypes.POINTER(EngineRngIn),
                                       ctypes.POINTER(EngineRngOut)]
+
+    lib.engine_audio_fade.restype  = None
+    lib.engine_audio_fade.argtypes = [ctypes.POINTER(EngineFadeIn),
+                                      ctypes.POINTER(EngineFadeOut)]
 
     return lib
 
@@ -140,6 +155,57 @@ def diff_rng_next15(retail: dict, port: dict) -> list[str]:
     return bad
 
 
+# audio_fade ─────────────────────────────────────────────────────────────────
+#
+# BGM cos-curve fade (FUN_00499583 → src/audio_fade.c). The retail side
+# installs a fake AudioPath whose SetVolume slot records the applied
+# centibel for a given BGM slider value; the port side calls
+# audio_fade_compute(slider, 0). Because cos() differs across libm vs the
+# MSVC CRT, this is NOT bit-exact: frames 1..9 allow ±1 centibel slack.
+# The frame-0 hard-silence path skips cos entirely, so slider 0 must be
+# exactly AUDIO_FADE_SILENCE_CENTIBEL (-10000) on both sides — and the
+# engine must apply SetVolume exactly once on every path.
+
+AUDIO_FADE_TOLERANCE_CENTIBEL = 1          # ±1 centibel = 1/100 dB
+AUDIO_FADE_SILENCE_CENTIBEL   = -10000     # frame-0 hard silence
+
+# slider 0..9 covers the engine's full valid input range; no random
+# fill needed (the whole domain is enumerable).
+AUDIO_FADE_SLIDERS = list(range(0, 10))
+
+def gen_audio_fade_vectors(n: int, rng: random.Random) -> list[dict]:
+    return [{"slider": s} for s in AUDIO_FADE_SLIDERS]
+
+def run_port_audio_fade(lib: ctypes.CDLL, vec: dict) -> dict:
+    in_  = EngineFadeIn(slider=vec["slider"])
+    out_ = EngineFadeOut()
+    lib.engine_audio_fade(ctypes.byref(in_), ctypes.byref(out_))
+    return {"centibel": int(out_.centibel), "calls": 1}
+
+def run_retail_audio_fade(script, vec: dict) -> dict:
+    r = script.exports_sync.capture_fade_centibel(vec["slider"])
+    return {"centibel": int(r["centibel"]), "calls": int(r["calls"])}
+
+def diff_audio_fade(retail: dict, port: dict) -> list[str]:
+    bad = []
+    # The engine must apply SetVolume exactly once on every code path.
+    if retail["calls"] != 1:
+        bad.append("calls")
+    if port.get("calls", 1) != 1:
+        bad.append("port_calls")
+    if port["centibel"] == AUDIO_FADE_SILENCE_CENTIBEL \
+            or retail["centibel"] == AUDIO_FADE_SILENCE_CENTIBEL:
+        # Hard-silence path (slider 0): exact match required.
+        if retail["centibel"] != port["centibel"]:
+            bad.append("centibel")
+    else:
+        # cos-curve path: ±1 centibel slack for libm vs MSVC CRT.
+        if abs(retail["centibel"] - port["centibel"]) \
+                > AUDIO_FADE_TOLERANCE_CENTIBEL:
+            bad.append("centibel")
+    return bad
+
+
 # ─── target registry ───────────────────────────────────────────────────────
 
 @dataclass
@@ -155,6 +221,11 @@ TARGETS: dict[str, Target] = {
         port=run_port_rng_next15,
         retail=run_retail_rng_next15,
         diff=diff_rng_next15),
+    "audio_fade": Target(
+        gen=gen_audio_fade_vectors,
+        port=run_port_audio_fade,
+        retail=run_retail_audio_fade,
+        diff=diff_audio_fade),
 }
 
 
