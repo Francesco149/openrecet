@@ -371,6 +371,15 @@ pattern + extends it with D3D state diffing.
 
 #### Phase D.2 — Two more pure-function targets
 
+> **STATUS (audited 2026-05-29): NOT as described below.**  Only
+> **rng_next15 has landed** in the generic harness — `tools/diff_test.py`
+> defines exactly one `Target` (`rng_next15`) and `tests/Makefile`
+> `DIFF_SRCS` = `diff_entry.c + rng.c` only.  **audio_fade migration is
+> in progress** (a separate agent may be wiring it as you read this —
+> re-verify the `TARGETS` dict before quoting a number).  **tick math is
+> NOT yet built.**  The "600/600 vectors / 3 targets" figure below is a
+> plan target, not a shipped result.
+
 - **audio_fade_compute** (`FUN_00501a48` or similar — verify decomp).
   Reuses the existing oracle logic.
 - **tick math** — `tick.c::tick_should_advance` or
@@ -567,6 +576,21 @@ durable diff harness for future render chips.
 
 ## Phase E — Leaf-first execution parity (post-D.6 strategic shift)
 
+> **IMPLEMENTATION NOTE (audited 2026-05-29): E.1–E.3 were realised via
+> the annotation-driven `CALL_TRACE_ENTER(0xVA)` scheme
+> (`src/call_trace.h`, `tools/call_trace_diff.py`), NOT the
+> `cyg_profile`/`call_graph_diff` design sketched below.  The latter is
+> retained as rejected-alternative rationale.**  The
+> `-finstrument-functions` / `__cyg_profile_func_enter` build flag,
+> `tools/call_graph_diff.py`, and `tools/call_graph_diff_map.json`
+> described in E.2/E.3 were never implemented — grep confirms none of
+> them exist.  The annotation scheme was chosen because it is lossless
+> and explicit (each traced site names its engine VA at the source, so
+> there is no fragile auto-derived VA-equivalence map to maintain), it
+> doubles as port↔engine documentation, and its `CALL_TRACE_ENTER_STUB`
+> variant surfaces stubbed-but-wired bodies that a pure call-count
+> diff would silently treat as matching.
+
 ### Motivation
 
 Phase D's diff harness surfaces divergent behaviour after the fact
@@ -603,6 +627,12 @@ call enumeration, per-leaf I/O capture, repeatable forensic replay.
 #### Phase E.0 — TTD record/query harness scaffold ✓
 
 **Status**: landed (commits `59b521e` → `76f7da2`, 2026-05-26).
+
+> **STATUS (audited 2026-05-29): TTD harness is currently forensic-only
+> / unconsumed by the live diff loop — see audit.**  It was built on the
+> premise of replacing Frida for leaf enumeration, but
+> `tools/call_trace_diff.py` (the scheme that actually ships for E.1–E.3)
+> consumes a Frida-produced retail trace, not a TTD `.run`.
 
   - `tools/ttd/ttd_paths.py` — binary discovery (`TTD.exe` +
     `cdbX86.exe`).  WindowsApps shims first, classic SDK paths

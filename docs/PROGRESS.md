@@ -3,6 +3,56 @@
 Reverse-chronological log of meaningful changes. Auto-generation TBD once
 the test harness has coverage metrics worth reporting.
 
+> **Live status now lives in `STATUS.md`** (derived headline) and
+> `port-ledger.{json,md}` (per-function port status). This log is the dated
+> narrative; don't hand-track per-subsystem "done/not-done" status here.
+
+## 2026-05-28 — Backfill: 05-25 → 05-27 (reconstructed from git + memory)
+
+> Backfill entry. The per-commit detail (115 commits) lives in `git log
+> --since=2026-05-25`; this is the arc-level summary the narrative was missing
+> after the log lapsed on 05-24. Durable per-subsystem RE is in `findings/`;
+> live counts in `STATUS.md`.
+
+Four parallel work-streams landed in this window:
+
+1. **scene1 records-B tick + combat state machine (C8j-tick.0–16, C8jb.0–fin).**
+   The bulk of the work — ~70 commits porting `FUN_0043ae20` (per-record tick,
+   ~100+ entity "body" types dispatched by type byte: anchor cascades, ground
+   bouncers, walker/shop-walker driven motion, homing drift, trail-cull
+   variants) and `FUN_0043865e` (per-record combat state machine: Phase A entry
+   gates, Phase B attacker-scan + AABB collision + damage formula + hit-effect
+   emit, Phase C projectile-table scan + TYPE-dispatched spawn/sound clusters).
+   `combat_sm` wired as the production `state_machine_hook` (f3939b8). Several
+   PHCs resolved by static analysis along the way (PHC #1, #10, #18, #26).
+
+2. **scene1 render — PII + Cf chips.** `FUN_00457714` HOUSE furniture renderer
+   ported (PII.survey→PII.3b: setup phase 2, outer loop, draw loop B);
+   `scene1_render_overlay` + `scene1_render_fx_tail` wired (Cr.2). `FUN_00436f97`
+   alt-stage arm writer chunk ported minimally (Cf.minimal) — visible HOUSE
+   shop_table pixels, but with the diagnosed translucent/orientation/scale bugs
+   that motivated the Phase D render-diff harness. **Cf.\* writer chunk remains
+   the top render blocker** (see memory house_visible_blockers).
+
+3. **Verification harness — Phase D + E build-out.** D.1 pure-function diff
+   scaffolding (`diff_test.py` + `libengine_diff.so`, rng_next15 target); D.4/D.5
+   D3D state-trace emitters (Frida + port side, `src/d3d_trace.c`); D.6
+   `render_diff.py`. Then the Phase E leaf-first pivot: E.0 TTD record/query
+   scaffold, E.1 Frida call tracer, E.2 port-side `CALL_TRACE_ENTER` annotation
+   scheme + `call_trace_diff.py` (the annotation scheme superseded the
+   roadmap's sketched cyg_profile/call_graph_diff design — see harness-roadmap
+   §E note), E.3 `pre_3d_trace` mode. Methodology proven by surfacing + fixing
+   the alpha-walker gap. (See harness-roadmap.md for reconciled phase status.)
+
+4. **Pre-3D / post-new-game parity chips.** Title-phase frame-1 gap driven to
+   benign-only (music `FUN_00499583`, `scene1_fx_overlays`). New-game →
+   frame-59 gap narrowed 24→17 via probe coverage + micro-helper ports
+   (`stage_gate` 0x4319d6/0x43195d/0x431990, `stage_post_load` cluster,
+   `title_save_dialog`, `npc_schedule`, `chara_skills`, `chara_equip`,
+   `xp_curve`, `d3d_pool`, etc.). Cutscene parity goal clarified: the pre-3D
+   cutscene is `recet_op.wmv` (DirectShow video) — skipping it is correct port
+   behavior (see memory cutscene_is_directshow_video).
+
 ## 2026-05-24 — Process-supervision: Job-Object launcher + singleton mutex
 
 Closes a long-standing class of test-iteration bugs where openrecet

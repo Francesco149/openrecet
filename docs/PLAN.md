@@ -1,7 +1,17 @@
 # OpenRecet — Project Plan
 
 > Living document. Update as decisions change. Linked from `PROGRESS.md`.
-> Last revised: 2026-05-19.
+> Last revised: roadmap frame 2026-05-19; see STATUS.md for live status.
+
+## Current status (read this first)
+
+The Phase 0-6 roadmap below remains the strategic frame for the project, but it
+is no longer the operational plan. The project now executes a leaf-first parity
+methodology driven by the live harness phases (Phase D.*/E.*) — porting and
+diffing individual functions against the retail exe rather than building whole
+subsystems top-down. For current state see: `docs/STATUS.md` (live coverage
+numbers), `harness-roadmap.md` §E (the active phase), and `PROGRESS.md` (the
+narrative).
 
 ## 1. Goal
 
