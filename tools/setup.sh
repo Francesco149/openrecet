@@ -46,6 +46,11 @@ fi
 green "  ✓ game dir:     $GAME_DIR"
 green "  ✓ steamless:    $STEAMLESS_DIR"
 
+# Activate the repo's tracked git hooks (co-author trailer, pre-commit ledger
+# + test gate). Idempotent. Without this a fresh clone uses .git/hooks (empty).
+git -C "$(dirname "$0")/.." config core.hooksPath tools/git-hooks
+green "  ✓ git hooks:    core.hooksPath → tools/git-hooks"
+
 # ─── symlink game files ────────────────────────────────────────────────────
 bold "[2/4] Linking game files into vendor/original/"
 

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# commit-msg hook — guarantees the Claude co-author trailer is present and
+# names the CURRENT model.  This is the single place the model version is
+# encoded; update CLAUDE_MODEL below when the model changes and every commit
+# is corrected automatically (the audit found 48 commits hand-stamped with a
+# stale "Opus 4.7" — this hook makes that class of drift impossible).
+#
+# Behaviour:
+#   - rewrites any "Claude Opus 4.<N>" co-author line to the current model
+#   - if no Claude co-author trailer exists, appends one
+#   - human-authored commits with no Claude involvement are unaffected only
+#     if they already lack the trailer AND you set SKIP_CLAUDE_TRAILER=1
+#
+# Installed via core.hooksPath=tools/git-hooks (see tools/setup.sh / README).
+
+set -euo pipefail
+
+CLAUDE_MODEL="Claude Opus 4.8 (1M context)"
+TRAILER="Co-Authored-By: ${CLAUDE_MODEL} <noreply@anthropic.com>"
+
+msg_file="$1"
+
+# Opt-out for genuinely human-only commits.
+if [[ "${SKIP_CLAUDE_TRAILER:-0}" == "1" ]]; then
+    exit 0
+fi
+
+# 1. Normalise any existing Claude co-author line to the current model.
+if grep -qiE '^Co-Authored-By: Claude Opus' "$msg_file"; then
+    # Replace the whole line in place.
+    sed -i -E "s|^Co-Authored-By: Claude Opus .*<noreply@anthropic.com>.*$|${TRAILER}|I" "$msg_file"
+    exit 0
+fi
+
+# 2. No trailer present — append it (with a blank separator line if needed).
+if [[ -n "$(tail -c1 "$msg_file" 2>/dev/null)" ]]; then
+    printf '\n' >> "$msg_file"
+fi
+# Ensure a blank line precedes the trailer block for clean formatting.
+last_line="$(grep -v '^#' "$msg_file" | tail -1 || true)"
+if [[ -n "$last_line" ]]; then
+    printf '\n%s\n' "$TRAILER" >> "$msg_file"
+else
+    printf '%s\n' "$TRAILER" >> "$msg_file"
+fi
+exit 0
