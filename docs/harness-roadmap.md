@@ -482,6 +482,9 @@ findings).
 
 #### Phase D.7 — Memory-access watch
 
+> **Detailed executable plan: `docs/plans/d7-mem-watch.md`** (2026-05-29).
+> Prioritised ahead of E.4 — it unblocks the active HOUSE shop_table render gap.
+
 **Goal**: identify writers of "no decompile writer" memory regions
 (several PHC entries) via Frida's `MemoryAccessMonitor`.
 
@@ -733,6 +736,10 @@ Port-side VAs come from `nm openrecet.exe` post-build.
 **Estimated**: 1-2 sessions.
 
 #### Phase E.4 — Per-call I/O capture
+
+> **Detailed executable plan: `docs/plans/e4-per-call-io-capture.md`** (2026-05-29).
+> Deferred: build when count-parity stops being enough (first invisible
+> behavioral divergence). Start with Tier 1 (small, reuses the diff_test.py oracle).
 
 **Goal**: at every call boundary, capture {stack args, register
 state, memory writes} on both sides.
