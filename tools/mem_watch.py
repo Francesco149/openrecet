@@ -172,7 +172,8 @@ def _rank(run_dir: Path, regions: list[dict]) -> dict:
             "ops":          g["ops"],
             "first_frame":  g["first_frame"],
             "regions":      sorted(g["regions"]),
-            "sample_offsets": [f"+0x{o:x}" for o in offs[:12]],
+            "sample_offsets": [(f"+0x{o:x}" if o >= 0 else f"-0x{-o:x}")
+                               for o in offs[:12]],
             "owner_func":   owner["func_va"]   if owner else None,
             "owner_name":   owner["name"]      if owner else None,
             "owner_status": owner["status"]    if owner else "unmapped",
@@ -210,6 +211,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="trap writes only (default) or reads+writes. "
                          "'rw' floods on hot pages — use only when the "
                          "reader is what's unknown.")
+    ap.add_argument("--no-precise", action="store_true",
+                    help="raw one-shot-per-page mode. By default the agent "
+                         "re-arms on page-neighbor traps and records only "
+                         "accesses inside the watched field, so an unrelated "
+                         "write elsewhere on the 4KiB page can't mask the "
+                         "writer. Disable only to see the raw page traffic.")
     ap.add_argument("--remote", default=fc.DEFAULT_REMOTE,
                     help="frida-server host:port (default %(default)s)")
     ap.add_argument("--exe", type=Path, default=fc.RETAIL_EXE)
@@ -253,6 +260,7 @@ def main(argv: list[str] | None = None) -> int:
             auto_z_spam=not args.no_auto_z_spam,
             mem_watch=True,
             mem_watch_regions=regions,
+            mem_watch_precise=not args.no_precise,
         )
         result = fc._run_capture_impl(cfg, args.run_dir)
         # Capture diagnostics go to the log, not stdout — stdout stays a

@@ -509,17 +509,37 @@ let g_pre_3d_done_sent     = false;
 // decompile (indirect dispatch / dropped Ghidra output), so the chip
 // that fills it can be ported. See docs/plans/d7-mem-watch.md.
 //
-// Page granularity: MemoryAccessMonitor traps at OS-page resolution, so
-// a small `size` still watches the whole 4KiB page(s) the region falls
-// on. Keep regions tight and prefer access:"w" — read-watching a hot
-// page floods. Events are buffered + flushed at Present (same wire-
-// pressure discipline as d3d_trace / call_trace), with a hard cap so the
-// pre-Present boot burst can't exceed GLib's DBus blob ceiling.
-let g_mem_watch_enabled = false;
-let g_mem_watch_regions = [];     // [{va, size, label, access}] — Ghidra VAs
-let g_mem_watch_buffer  = [];     // batched {op, from, addr, region, label}
-let g_mem_watch_n       = 0;      // total accesses trapped this session
-const MEM_WATCH_FLUSH_AT = 50000;
+// Page granularity + the precision problem: MemoryAccessMonitor traps at
+// OS-page (4KiB) resolution and notifies only on the FIRST access of each
+// page, then disables that page. So if any *page neighbor* of the watched
+// field is touched before the writer we're hunting, that neighbor
+// consumes the one-shot and we learn nothing about our field. (Observed
+// in the var_input_mask smoke: a frame-0 startup write 0xdc8 bytes below
+// the field tripped the page first.)
+//
+// Precise mode (default) closes this: on a trap we check whether the
+// accessed address actually lands inside [va, va+size). If it's a page
+// neighbor, we re-arm the monitor and DON'T record it — effectively
+// single-stepping page accesses until the field itself is written. A cap
+// (MEM_WATCH_REARM_CAP) bounds this so a genuinely hot page can't spin
+// forever; when the cap is hit before any in-region write, the agent logs
+// a warning (use the HW-breakpoint fallback for that field). In-region
+// hits are recorded and we keep re-arming up to MEM_WATCH_MAX_HITS so
+// multiple distinct writers of the same field all surface.
+//
+// Events are buffered + flushed at Present (same wire-pressure discipline
+// as d3d_trace / call_trace), with a hard cap on batch size.
+let g_mem_watch_enabled  = false;
+let g_mem_watch_regions  = [];    // [{va, size, label, access}] — Ghidra VAs
+let g_mem_watch_ranges   = [];    // cached [{base: NativePointer, size}] for re-arm
+let g_mem_watch_buffer   = [];    // batched {op, from, addr, region, label}
+let g_mem_watch_n        = 0;     // in-region hits recorded this session
+let g_mem_watch_neighbor = 0;     // page-neighbor traps skipped (precise mode)
+let g_mem_watch_rearm    = 0;     // re-arm count (budget against the cap)
+let g_mem_watch_precise  = true;
+const MEM_WATCH_FLUSH_AT  = 50000;
+const MEM_WATCH_REARM_CAP = 8000;  // max re-arms before giving up on a hot page
+const MEM_WATCH_MAX_HITS  = 64;    // stop re-arming after this many in-region hits
 
 // Render-demo state. When `g_demo_active` is true, the
 // Interceptor.replace on FUN_004547ab routes every render-thread tick
@@ -1479,7 +1499,72 @@ function memWatchFlush(frameNumber) {
 //
 // MemoryAccessMonitor.enable replaces any prior monitor, so calling this
 // twice re-arms with the latest region set.
-function installMemoryWatch(regions) {
+// Whether a trapped access landed inside the recorded extent of region
+// `idx` (vs. a page neighbor that merely shares the 4KiB page).
+function memWatchInRegion(idx, addrPtr) {
+    const r = g_mem_watch_regions[idx];
+    if (!r) return false;
+    const base = rva(r.va);
+    return addrPtr.compare(base) >= 0 &&
+           addrPtr.compare(base.add(r.size)) < 0;
+}
+
+// (Re-)arm MemoryAccessMonitor over the cached ranges. Idempotent —
+// MemoryAccessMonitor.enable() replaces any prior monitor, which is
+// exactly the re-arm we want after a page's one-shot fires.
+function memWatchArm() {
+    MemoryAccessMonitor.enable(g_mem_watch_ranges, {onAccess: memWatchOnAccess});
+}
+
+function memWatchOnAccess(details) {
+    const idx = details.rangeIndex | 0;
+    const region = g_mem_watch_regions[idx] || {};
+    const inRegion = memWatchInRegion(idx, details.address);
+
+    if (g_mem_watch_precise && !inRegion) {
+        // Page neighbor consumed this page's one-shot. Re-arm and keep
+        // hunting, unless the page is so hot we've burned the budget.
+        g_mem_watch_neighbor++;
+        if (g_mem_watch_rearm < MEM_WATCH_REARM_CAP) {
+            g_mem_watch_rearm++;
+            try { memWatchArm(); }
+            catch (e) { err('memWatchArm', e.message); }
+        } else if (g_mem_watch_rearm === MEM_WATCH_REARM_CAP) {
+            g_mem_watch_rearm++;   // log-once sentinel
+            log('mem_watch: re-arm budget (' + MEM_WATCH_REARM_CAP +
+                ') exhausted on a hot page for region "' +
+                (region.label || idx) + '" before any in-region write — ' +
+                'consider a narrower region or a HW write breakpoint.');
+        }
+        return;
+    }
+
+    // In-region hit (or non-precise mode: record everything).
+    g_mem_watch_n++;
+    g_mem_watch_buffer.push({
+        op:     details.operation,            // read | write | execute
+        from:   toGhidraVa(details.from),     // faulting insn VA
+        addr:   toGhidraVa(details.address),   // accessed data VA
+        region: idx,
+        label:  region.label || '',
+        ts:     nowMs(),
+    });
+    if (g_mem_watch_buffer.length >= MEM_WATCH_FLUSH_AT) {
+        memWatchFlush(g_manual_frame_counter);
+    }
+    // Keep watching so additional distinct writers of the same field
+    // surface, up to a sane cap. (In non-precise mode the one-shot has
+    // disabled the page and we deliberately let it stay disabled.)
+    if (g_mem_watch_precise &&
+        g_mem_watch_n < MEM_WATCH_MAX_HITS &&
+        g_mem_watch_rearm < MEM_WATCH_REARM_CAP) {
+        g_mem_watch_rearm++;
+        try { memWatchArm(); }
+        catch (e) { err('memWatchArm', e.message); }
+    }
+}
+
+function installMemoryWatch(regions, precise) {
     ensureBase();
     g_mem_watch_regions = (regions || []).map(function (r) {
         return {
@@ -1493,47 +1578,30 @@ function installMemoryWatch(regions) {
         err('installMemoryWatch', 'no regions given');
         return false;
     }
-
-    const ranges = g_mem_watch_regions.map(function (r) {
+    g_mem_watch_precise  = (precise !== false);
+    g_mem_watch_n        = 0;
+    g_mem_watch_neighbor = 0;
+    g_mem_watch_rearm    = 0;
+    g_mem_watch_ranges   = g_mem_watch_regions.map(function (r) {
         return {base: rva(r.va), size: r.size};
     });
 
     try {
-        MemoryAccessMonitor.enable(ranges, {
-            onAccess: function (details) {
-                const idx = details.rangeIndex | 0;
-                const region = g_mem_watch_regions[idx] || {};
-                g_mem_watch_n++;
-                g_mem_watch_buffer.push({
-                    op:     details.operation,            // read | write | execute
-                    from:   toGhidraVa(details.from),     // faulting insn VA
-                    addr:   toGhidraVa(details.address),   // accessed data VA
-                    region: idx,
-                    label:  region.label || '',
-                    pc:     details.pagesCompleted | 0,
-                    pt:     details.pagesTotal | 0,
-                    ts:     nowMs(),
-                });
-                // Safety valve in case a future/alt Frida build re-arms
-                // pages continuously rather than one-shot — keeps any
-                // single batch under GLib's DBus blob ceiling.
-                if (g_mem_watch_buffer.length >= MEM_WATCH_FLUSH_AT) {
-                    memWatchFlush(g_manual_frame_counter);
-                }
-            },
-        });
+        memWatchArm();
     } catch (e) {
         err('installMemoryWatch', e.message + ' ' + (e.stack || ''));
         return false;
     }
 
     g_mem_watch_enabled = true;
-    log('mem_watch: armed ' + g_mem_watch_regions.length + ' region(s): ' +
+    log('mem_watch: armed ' + g_mem_watch_regions.length + ' region(s) [' +
+        (g_mem_watch_precise ? 'precise' : 'raw') + ']: ' +
         g_mem_watch_regions.map(function (r) {
             return r.label + '@0x' + (r.va >>> 0).toString(16) +
                    '+' + r.size + '(' + r.access + ')';
         }).join(', '));
     send({kind: 'mem_watch_ready',
+          precise: g_mem_watch_precise,
           regions: g_mem_watch_regions.map(function (r) {
               return {va: r.va, size: r.size, label: r.label,
                       access: r.access};
@@ -2289,10 +2357,15 @@ rpc.exports = {
         // resume) so the very first write — including an init-time
         // writer during HOUSE bootstrap — is trapped. Regions carry
         // Ghidra VAs; see installMemoryWatch.
-        g_mem_watch_enabled = false;
-        g_mem_watch_buffer  = [];
-        g_mem_watch_n       = 0;
-        g_mem_watch_regions = Array.isArray(config.mem_watch_regions)
+        g_mem_watch_enabled  = false;
+        g_mem_watch_buffer   = [];
+        g_mem_watch_n        = 0;
+        g_mem_watch_neighbor = 0;
+        g_mem_watch_rearm    = 0;
+        // Default precise (re-arm on page-neighbor traps). Pass
+        // mem_watch_precise:false for the raw one-shot-per-page behavior.
+        g_mem_watch_precise  = (config.mem_watch_precise !== false);
+        g_mem_watch_regions  = Array.isArray(config.mem_watch_regions)
             ? config.mem_watch_regions
             : [];
         const wantMemWatch = !!config.mem_watch &&
@@ -2401,7 +2474,7 @@ rpc.exports = {
             // watched pages are static .data/.bss globals, committed at
             // image load (well before this point), so enable() succeeds.
             if (wantMemWatch) {
-                installMemoryWatch(g_mem_watch_regions);
+                installMemoryWatch(g_mem_watch_regions, g_mem_watch_precise);
             }
         }
     },
@@ -2547,16 +2620,19 @@ rpc.exports = {
     // boot would trap unrelated earlier writes. Most callers instead set
     // mem_watch + mem_watch_regions in init() to arm pre-resume.
     // regions: [{va: <Ghidra VA>, size, label, access: "w"|"rw"}]
-    installMemoryWatch: function (regions) {
-        return installMemoryWatch(regions);
+    installMemoryWatch: function (regions, precise) {
+        return installMemoryWatch(regions, precise);
     },
 
     getMemWatchStatus: function () {
         return {
-            enabled:   g_mem_watch_enabled,
-            n_trapped: g_mem_watch_n,
-            buffered:  g_mem_watch_buffer.length,
-            regions:   g_mem_watch_regions.length,
+            enabled:    g_mem_watch_enabled,
+            precise:    g_mem_watch_precise,
+            n_inregion: g_mem_watch_n,
+            n_neighbor: g_mem_watch_neighbor,
+            n_rearm:    g_mem_watch_rearm,
+            buffered:   g_mem_watch_buffer.length,
+            regions:    g_mem_watch_regions.length,
         };
     },
 

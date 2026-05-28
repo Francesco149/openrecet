@@ -270,6 +270,12 @@ class CaptureConfig:
     # access: "w"|"rw"}. Pair with `auto_z_spam` to drive to HOUSE.
     mem_watch:              bool = False
     mem_watch_regions:      list[dict] | None = None
+    # Precise mode (default): re-arm MemoryAccessMonitor on page-neighbor
+    # traps and only record accesses that land inside a watched field, so
+    # an unrelated write elsewhere on the 4KiB page can't consume the
+    # page's one-shot and mask the writer we're hunting. Set False for the
+    # raw one-shot-per-page behavior.
+    mem_watch_precise:      bool = True
 
 
 @dataclass
@@ -562,6 +568,7 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["pre_3d_trace"] = True
     if cfg.mem_watch:
         init_cfg["mem_watch"] = True
+        init_cfg["mem_watch_precise"] = bool(cfg.mem_watch_precise)
         init_cfg["mem_watch_regions"] = [
             {
                 "va":     int(r["va"]),
