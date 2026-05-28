@@ -14,6 +14,20 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# --force / OPENRECET_FORCE_UNPACK=1 — required to re-unpack over an existing
+# vendor/unpacked/recettear.unpacked.exe. The unpacked exe is the analysis
+# target the entire findings/port-ledger corpus references by VA, AND the
+# frida-spawn target; a stray overwrite (e.g. an analysis tool dumping a
+# memory image to that path) silently broke it once. The installed exe is
+# also chmod'd read-only as a second line of defence. See the guard below.
+FORCE_UNPACK="${OPENRECET_FORCE_UNPACK:-0}"
+for arg in "$@"; do
+    case "$arg" in
+        --force|-f) FORCE_UNPACK=1 ;;
+        *) ;;
+    esac
+done
+
 GAME_DIR="${OPENRECET_GAME_DIR:-/mnt/c/Program Files (x86)/Steam/steamapps/common/Recettear}"
 STEAMLESS_DIR="${OPENRECET_STEAMLESS_DIR:-/mnt/c/Users/headpats/Documents/_devtools/Steamless.v3.1.0.5.-.by.atom0s}"
 
@@ -67,6 +81,35 @@ bold "[3/4] Running Steamless to remove DRM"
 
 mkdir -p "$UNPACKED"
 
+# Overwrite guard. If a previous unpacked exe is already in place, refuse to
+# clobber it unless --force / OPENRECET_FORCE_UNPACK=1. Re-running setup.sh
+# for symlink/hook validation must NOT silently replace the analysis target.
+DEST="$UNPACKED/recettear.unpacked.exe"
+SHAFILE="$UNPACKED/.unpacked.sha256"
+if [[ -f "$DEST" && "$FORCE_UNPACK" != "1" ]]; then
+    green "  ✓ unpacked exe already present — skipping Steamless (overwrite-guarded)."
+    EXISTING_SHA="$(sha256sum "$DEST" | awk '{print $1}')"
+    if [[ -f "$SHAFILE" ]]; then
+        RECORDED_SHA="$(awk '{print $1}' "$SHAFILE")"
+        if [[ "$EXISTING_SHA" != "$RECORDED_SHA" ]]; then
+            red "  ! integrity drift: $DEST sha256 $EXISTING_SHA"
+            red "    does not match recorded $RECORDED_SHA — the exe was"
+            red "    overwritten out-of-band. Re-run with --force to regenerate."
+        fi
+    else
+        # First adoption: record the current exe's sha as canonical so a
+        # later out-of-band overwrite is detectable.
+        printf '%s  recettear.unpacked.exe\n' "$EXISTING_SHA" > "$SHAFILE"
+    fi
+    yellow "    sha256 $EXISTING_SHA"
+    yellow "    (re-unpack with: ./tools/setup.sh --force)"
+    # Re-assert the read-only bit in case something cleared it.
+    chmod a-w "$DEST" 2>/dev/null || true
+    bold "[4/4] Summary"
+    green "Setup OK (unpack skipped). vendor/original -> $GAME_DIR"
+    exit 0
+fi
+
 # Copy (not symlink) the exe into a writable dir, since Steamless writes its
 # output next to the input. The Steam install dir may also be read-only or
 # under Windows ACLs that confuse Steamless when writing.
@@ -97,9 +140,19 @@ if [[ ! -f "$WORK/recettear.exe.unpacked.exe" ]]; then
     exit 1
 fi
 
-mv "$WORK/recettear.exe.unpacked.exe" "$UNPACKED/recettear.unpacked.exe"
-UNPACK_SHA="$(sha256sum "$UNPACKED/recettear.unpacked.exe" | awk '{print $1}')"
-green "  ✓ unpacked: vendor/unpacked/recettear.unpacked.exe"
+# Clear any prior read-only bit so the move can replace it (we only reach
+# here when --force or the dest is absent), then install + re-protect.
+chmod u+w "$DEST" 2>/dev/null || true
+rm -f "$DEST"
+mv "$WORK/recettear.exe.unpacked.exe" "$DEST"
+UNPACK_SHA="$(sha256sum "$DEST" | awk '{print $1}')"
+# Record the sha so a future setup.sh / integrity check can detect an
+# out-of-band overwrite, and make the file read-only so a stray write
+# (e.g. an analysis tool dumping to this path) fails loudly instead of
+# silently swapping in a non-loadable image.
+printf '%s  recettear.unpacked.exe\n' "$UNPACK_SHA" > "$SHAFILE"
+chmod a-w "$DEST"
+green "  ✓ unpacked: vendor/unpacked/recettear.unpacked.exe (read-only)"
 yellow "    sha256 $UNPACK_SHA"
 
 # ─── summary / next steps ─────────────────────────────────────────────────
