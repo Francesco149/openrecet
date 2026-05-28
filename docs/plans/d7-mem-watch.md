@@ -1,9 +1,64 @@
 # Phase D.7 — Memory-access watch (implementation plan)
 
 > Detailed executable plan. Pointed to from `harness-roadmap.md` §D.7.
-> Status: **planned, not built.** Higher near-term leverage than E.4 because
-> the blocker it resolves (the HOUSE shop_table render gap) is already active
-> and on the critical path to visible gameplay.
+> Status: **TOOL BUILT + VALIDATED 2026-05-29** (commits 8ba6a93, 3b02666).
+> The writer-hunt run itself is the remaining work — see "Build log" below.
+> Higher near-term leverage than E.4 because the blocker it resolves (the
+> HOUSE shop_table render gap) is already active and on the critical path to
+> visible gameplay.
+
+## Build log (2026-05-29)
+
+What landed:
+- `openrecet-agent.js`: `installMemoryWatch()` (MemoryAccessMonitor) +
+  `mem_access` batching, armed pre-resume from `init`; late-install RPC +
+  `getMemWatchStatus`; `toGhidraVa()`. **Precise mode** (default) re-arms on
+  page-neighbor traps and records only in-region accesses (commit 3b02666).
+- `frida_capture.py`: `CaptureConfig.mem_watch[_regions/_precise]`,
+  `mem_access_batch`/`mem_watch_ready` → `mem_watch.jsonl`.
+- `tools/mem_watch.py`: standalone driver; ranks trapped accesses by faulting
+  VA, cross-references `port-ledger.json` to name the owning function + port
+  status. Classifier-clean stdout. `--no-precise`, `--no-auto-z-spam`,
+  `--analyze-only`.
+
+Validated against retail (`var_input_mask` 0x073dddd0):
+- Plumbing end-to-end OK: armed → trapped a write → mapped VA, base 0x400000
+  (no rebase, so `rva`/`toGhidraVa` are correct), clean shutdown.
+
+**Two hard-won lessons that shape how to run it:**
+
+1. **MemoryAccessMonitor is page-granular AND op-blind.** It traps the first
+   access of each 4KiB page then disables the page; it can't tell reads from
+   writes at arm time. So:
+   - On a **cold** page (region written once at a discrete event, no per-frame
+     neighbor traffic) raw mode nails the writer: the first page access *is*
+     the write. **This is the expected HOUSE case** — use raw or precise.
+   - On a **read-hot** page, precise mode's re-arm budget burns out on neighbor
+     *reads* before the write lands (demonstrated: `var_input_mask`'s page is
+     read every frame; budget 8000 exhausted, 0 in-region writes caught).
+     `var_input_mask` was a worst-case smoke target, not representative.
+   → Keep the watched region as tight as possible and check page heat first.
+
+2. **HW write watchpoint (`Thread.setHardwareWatchpoint`, Frida 17.5.1) is the
+   byte-granular fallback — but it CRASHED retail.** Prototyped externally:
+   arming a `'w'` watchpoint on all 17 engine threads post-resume killed the
+   process within ~4s (retail+Frida is already documented-fragile around
+   DirectMusic/DirectShow). **Not shipped.** If a hot-page field must be
+   pinned, revisit with single-thread arming + careful exception-handler
+   teardown, or freeze the tick first.
+
+## Remaining work (the actual writer-hunt)
+
+The exact region wasn't run yet — pin it first (see "First target" below; the
+stale `stage_record + 0x2c750` candidate is a **misnomer**: that offset is into
+the **per-save-slot record** `&DAT_044e3798 + DAT_0438b1e0 * 0x2dfc8`, not the
+0x1b3c-byte `stage_record_t`; offsets `+0x2a6c0 / +0x2c400 / +0x2c798 / …` are
+documented in `scene1-walker.md` §"Per-save-slot record base"). Steps:
+1. Drive port + retail to a HOUSE frame; `call_trace_diff.py` + `render_diff.py`
+   to pinpoint which draw reads stale/zero save-record data.
+2. Map that draw's read to the exact `&DAT_044e3798 + slot*0x2dfc8 + off` VA.
+3. `tools/mem_watch.py --region <that VA>:<size>:shop_table ...` (raw first;
+   the page is likely cold). Map the writer VA via the ranked output.
 
 ## Why this, why now
 

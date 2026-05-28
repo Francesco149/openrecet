@@ -7,6 +7,42 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — D.7 mem-watch tool built + validated; unpacked-exe regression fixed
+
+Built the Phase D.7 memory-access-watch capability (commits 8ba6a93,
+3b02666) — the unblock path for the HOUSE shop_table render gap. Arms
+Frida's `MemoryAccessMonitor` over an engine region in retail, traps the
+writer, maps the faulting instruction to its owning engine function via
+the port ledger. New surface: `installMemoryWatch()` + `mem_access`
+batching in `openrecet-agent.js`, `mem_watch[_regions/_precise]` in
+`frida_capture.py`, and the standalone `tools/mem_watch.py` ranker.
+Validated end-to-end against retail.
+
+Two findings shaped it (full detail in `plans/d7-mem-watch.md` Build log):
+- `MemoryAccessMonitor` is **page-granular + op-blind** — first access of
+  each 4KiB page, can't distinguish read/write. Fine for a *cold* region
+  written at a discrete event (expected HOUSE case); a *read-hot* page
+  (the `var_input_mask` smoke target) burns the precise-mode re-arm budget
+  on neighbor reads before the write lands. Added precise mode (re-arm
+  past page neighbors, record only in-region) as the default.
+- HW write watchpoint (`Thread.setHardwareWatchpoint`, Frida 17.5.1) is
+  the byte-granular fallback but **crashed retail** when armed on all
+  threads — not shipped.
+
+Mid-session: discovered `vendor/unpacked/recettear.unpacked.exe` had been
+silently replaced (≈05-27 14:12) by a non-loadable memory-image dump —
+Windows rejected it as "not a valid application for this OS platform",
+surfacing only as an opaque frida "unsupported file format" on spawn.
+Isolated test confirmed: the real `recettear.exe` spawns, the dump
+doesn't. Re-ran Steamless (`setup.sh --force`) to regenerate the rebuilt,
+loadable PE (deterministic — same sha as prior good unpack, so the Ghidra
+analysis is unaffected). Added a `setup.sh` overwrite guard + read-only
+bit + sha marker so a stray write can't recur (commit 91e2782).
+
+Remaining: the writer-hunt run itself — pin the exact stale save-record
+field (`&DAT_044e3798 + slot*0x2dfc8 + off`) via a HOUSE-frame
+call/render-trace diff, then point `mem_watch` at it.
+
 ## 2026-05-28 — Backfill: 05-25 → 05-27 (reconstructed from git + memory)
 
 > Backfill entry. The per-commit detail (115 commits) lives in `git log

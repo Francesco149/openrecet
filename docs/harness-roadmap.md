@@ -483,6 +483,8 @@ findings).
 #### Phase D.7 — Memory-access watch
 
 > **Detailed executable plan: `docs/plans/d7-mem-watch.md`** (2026-05-29).
+> **Status: tool BUILT + VALIDATED 2026-05-29** (commits 8ba6a93, 3b02666);
+> writer-hunt run still pending — see the plan's "Build log" + "Remaining work".
 > Prioritised ahead of E.4 — it unblocks the active HOUSE shop_table render gap.
 
 **Goal**: identify writers of "no decompile writer" memory regions
@@ -492,12 +494,17 @@ findings).
   `installMemoryWatch(regions[])` RPC.
 - Sets up `MemoryAccessMonitor.enable([{base, size}, ...], {onAccess:
   emit_event})`.
-- Filter: write-only by default, optional read-trace too.
-- First use: trace `stage_record + 0x2c750 .. +0x2c77c` (40 bytes,
-  10 slot flags) during HOUSE-INGAME boot in retail.  Find the
-  writer(s).  Cross-reference against the decompile to identify
-  the unported chip.  Resolves Cf.minimal orientation bug by
-  identifying the missing writer chip.
+- Filter: write-only intent; **precise mode** (default) re-arms past
+  page neighbors since MemoryAccessMonitor is page-granular + op-blind
+  (see plan Build log). HW-watchpoint fallback prototyped but crashed
+  retail — not shipped.
+- First use: the HOUSE shop_table region in the **per-save-slot record**
+  (`&DAT_044e3798 + DAT_0438b1e0 * 0x2dfc8`, e.g. `+0x2c798`), NOT
+  `stage_record` (the old candidate offset was a misnomer — that 0x2c7xx
+  offset exceeds the 0x1b3c stage_record_t). Pin the exact stale field
+  via a HOUSE-frame call/render-trace diff first, then point mem_watch
+  at it. Cross-reference the writer VA against the ledger → the unported
+  chip. Resolves the Cf.minimal orientation bug.
 - Reusable for any PHC entry of the "no writer in decompile" class
   (PHC #19, #22, #26, etc.).
 
