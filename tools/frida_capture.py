@@ -260,6 +260,16 @@ class CaptureConfig:
     # covers title screen + intro cutscene up to (not including) the
     # first HOUSE 3D frame.
     pre_3d_trace:           bool = False
+    # Memory-access watch (Phase D.7). When `mem_watch` is true the agent
+    # arms Frida's MemoryAccessMonitor over `mem_watch_regions` and emits
+    # one record per trapped access (faulting instruction VA + accessed
+    # data VA, both Ghidra VAs) to `<run_dir>/mem_watch.jsonl`. Used to
+    # locate the writer of a region whose filler isn't visible in the
+    # decompile — the unblock path for the HOUSE shop_table render gap.
+    # Each region is {va: int (Ghidra VA), size: int, label: str,
+    # access: "w"|"rw"}. Pair with `auto_z_spam` to drive to HOUSE.
+    mem_watch:              bool = False
+    mem_watch_regions:      list[dict] | None = None
 
 
 @dataclass
@@ -289,6 +299,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     f_d3d = d3d_jsonl.open("w") if cfg.d3d_trace else None
     call_trace_jsonl = run_dir / "call_trace.jsonl"
     f_call = call_trace_jsonl.open("w") if cfg.call_trace else None
+    mem_watch_jsonl = run_dir / "mem_watch.jsonl"
+    f_mem = mem_watch_jsonl.open("w") if cfg.mem_watch else None
 
     captured: list[int] = []
     last_mask: int | None = None
@@ -410,6 +422,26 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             f_log.write(f"[call_trace] frame={frame} events={len(events)}\n")
             return
 
+        if kind == "mem_watch_ready":
+            regs = p.get("regions") or []
+            f_log.write(f"[mem_watch] armed {len(regs)} region(s): "
+                        + ", ".join(f"{r.get('label')}@0x{int(r.get('va',0)):08x}"
+                                    f"+{r.get('size')}({r.get('access')})"
+                                    for r in regs) + "\n")
+            return
+
+        if kind == "mem_access_batch":
+            if f_mem is None:
+                return
+            frame  = int(p["frame"])
+            events = p.get("events") or []
+            for ev in events:
+                ev_out = dict(ev)
+                ev_out["frame"] = frame
+                f_mem.write(json.dumps(ev_out) + "\n")
+            f_log.write(f"[mem_watch] frame={frame} accesses={len(events)}\n")
+            return
+
         if kind == "auto_3d_scene_reached":
             f_log.write(f"[auto_3d] scene reached @ frame={p.get('frame')}\n")
             return
@@ -528,6 +560,17 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["auto_3d_trace_frames"] = int(cfg.auto_3d_trace_frames)
     if cfg.pre_3d_trace:
         init_cfg["pre_3d_trace"] = True
+    if cfg.mem_watch:
+        init_cfg["mem_watch"] = True
+        init_cfg["mem_watch_regions"] = [
+            {
+                "va":     int(r["va"]),
+                "size":   int(r.get("size", 16)),
+                "label":  str(r.get("label", f"0x{int(r['va']):08x}")),
+                "access": "rw" if r.get("access") == "rw" else "w",
+            }
+            for r in (cfg.mem_watch_regions or [])
+        ]
     script.exports_sync.init(init_cfg)
     device.resume(pid)
 
@@ -567,6 +610,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         f_d3d.close()
     if f_call is not None:
         f_call.close()
+    if f_mem is not None:
+        f_mem.close()
 
     return CaptureResult(
         exit_code=exit_code,

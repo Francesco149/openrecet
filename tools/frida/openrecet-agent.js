@@ -500,6 +500,27 @@ let g_auto_3d_done_sent    = false;
 let g_pre_3d_trace         = false;
 let g_pre_3d_done_sent     = false;
 
+// Memory-access watch (Phase D.7). When `mem_watch` is true, the agent
+// arms Frida's MemoryAccessMonitor over the regions in
+// `g_mem_watch_regions` and emits one `mem_access` record per trapped
+// access (faulting instruction VA + accessed data address, both as
+// Ghidra VAs). This is a *capability unblocker*, not verification: it
+// finds the writer of a region we can't locate by reading the
+// decompile (indirect dispatch / dropped Ghidra output), so the chip
+// that fills it can be ported. See docs/plans/d7-mem-watch.md.
+//
+// Page granularity: MemoryAccessMonitor traps at OS-page resolution, so
+// a small `size` still watches the whole 4KiB page(s) the region falls
+// on. Keep regions tight and prefer access:"w" — read-watching a hot
+// page floods. Events are buffered + flushed at Present (same wire-
+// pressure discipline as d3d_trace / call_trace), with a hard cap so the
+// pre-Present boot burst can't exceed GLib's DBus blob ceiling.
+let g_mem_watch_enabled = false;
+let g_mem_watch_regions = [];     // [{va, size, label, access}] — Ghidra VAs
+let g_mem_watch_buffer  = [];     // batched {op, from, addr, region, label}
+let g_mem_watch_n       = 0;      // total accesses trapped this session
+const MEM_WATCH_FLUSH_AT = 50000;
+
 // Render-demo state. When `g_demo_active` is true, the
 // Interceptor.replace on FUN_004547ab routes every render-thread tick
 // through the JS demo callback below instead of the engine's normal
@@ -521,6 +542,15 @@ let g_demo_keepalive     = [];       // NativeCallback retainer — GC eats them
 // ─── helpers ────────────────────────────────────────────────────────────
 
 function rva(va) { return g_base.add(va - IMAGE_BASE.toUInt32()); }
+
+// Inverse of rva(): a live runtime pointer → its Ghidra VA (preferred
+// ImageBase 0x00400000). Returns a JS number. Used by mem_watch to
+// report faulting-instruction / accessed-data addresses in the same VA
+// space the port-ledger + functions.csv use, so the driver can map them
+// to engine functions without knowing the load base.
+function toGhidraVa(p) {
+    return (p.sub(g_base).toUInt32() + IMAGE_BASE.toUInt32()) >>> 0;
+}
 
 function nowMs() { return (Date.now() - g_start_real_ms) | 0; }
 
@@ -717,6 +747,11 @@ function installPresentHook(devicePtr) {
             // Same flush-before-bump invariant for call_trace.
             if (g_call_trace_enabled) {
                 callTraceFlush(fn);
+            }
+            // ...and for the memory-access watch. Accesses trapped during
+            // this cycle were buffered with frameNo() == fn.
+            if (g_mem_watch_enabled) {
+                memWatchFlush(fn);
             }
             // Bump AFTER the capture decision. Audio/input events that
             // fired during the cycle leading to this Present have
@@ -1411,6 +1446,99 @@ function callTraceFlush(frameNumber) {
           frame: frameNumber,
           count: events.length,
           events: events});
+}
+
+// ─── memory-access watch (Phase D.7) ────────────────────────────────────
+
+function memWatchFlush(frameNumber) {
+    if (g_mem_watch_buffer.length === 0) return;
+    const events = g_mem_watch_buffer;
+    g_mem_watch_buffer = [];
+    send({kind: 'mem_access_batch',
+          frame: frameNumber,
+          count: events.length,
+          events: events});
+}
+
+// Arm MemoryAccessMonitor over `regions` (array of {va, size, label,
+// access}). va is a Ghidra VA, translated to the live address via rva().
+//
+// IMPORTANT — MemoryAccessMonitor semantics: it notifies on the *first*
+// access of each monitored OS page, then disables monitoring of that
+// page (hence the pagesCompleted/pagesTotal fields). It is NOT a
+// per-access stream and it can't distinguish reads from writes at arm
+// time — any touch of the page (read or write) consumes its one-shot
+// trap. So we capture EVERY trapped op (read + write) and let the driver
+// rank by op; dropping reads here would risk a read silently consuming
+// the page before the writer we're hunting ever runs. `access` is kept
+// as caller intent / metadata only.
+//
+// Page granularity: a tight `size` still watches the enclosing 4KiB
+// page(s). Keep regions small so the field of interest is likely the
+// first thing touched on its page.
+//
+// MemoryAccessMonitor.enable replaces any prior monitor, so calling this
+// twice re-arms with the latest region set.
+function installMemoryWatch(regions) {
+    ensureBase();
+    g_mem_watch_regions = (regions || []).map(function (r) {
+        return {
+            va:     r.va | 0,
+            size:   (r.size | 0) || 16,
+            label:  String(r.label || ('0x' + (r.va >>> 0).toString(16))),
+            access: (r.access === 'rw') ? 'rw' : 'w',
+        };
+    });
+    if (g_mem_watch_regions.length === 0) {
+        err('installMemoryWatch', 'no regions given');
+        return false;
+    }
+
+    const ranges = g_mem_watch_regions.map(function (r) {
+        return {base: rva(r.va), size: r.size};
+    });
+
+    try {
+        MemoryAccessMonitor.enable(ranges, {
+            onAccess: function (details) {
+                const idx = details.rangeIndex | 0;
+                const region = g_mem_watch_regions[idx] || {};
+                g_mem_watch_n++;
+                g_mem_watch_buffer.push({
+                    op:     details.operation,            // read | write | execute
+                    from:   toGhidraVa(details.from),     // faulting insn VA
+                    addr:   toGhidraVa(details.address),   // accessed data VA
+                    region: idx,
+                    label:  region.label || '',
+                    pc:     details.pagesCompleted | 0,
+                    pt:     details.pagesTotal | 0,
+                    ts:     nowMs(),
+                });
+                // Safety valve in case a future/alt Frida build re-arms
+                // pages continuously rather than one-shot — keeps any
+                // single batch under GLib's DBus blob ceiling.
+                if (g_mem_watch_buffer.length >= MEM_WATCH_FLUSH_AT) {
+                    memWatchFlush(g_manual_frame_counter);
+                }
+            },
+        });
+    } catch (e) {
+        err('installMemoryWatch', e.message + ' ' + (e.stack || ''));
+        return false;
+    }
+
+    g_mem_watch_enabled = true;
+    log('mem_watch: armed ' + g_mem_watch_regions.length + ' region(s): ' +
+        g_mem_watch_regions.map(function (r) {
+            return r.label + '@0x' + (r.va >>> 0).toString(16) +
+                   '+' + r.size + '(' + r.access + ')';
+        }).join(', '));
+    send({kind: 'mem_watch_ready',
+          regions: g_mem_watch_regions.map(function (r) {
+              return {va: r.va, size: r.size, label: r.label,
+                      access: r.access};
+          })});
+    return true;
 }
 
 function installCallTraceHooks(vasArray) {
@@ -2156,6 +2284,20 @@ rpc.exports = {
         g_pre_3d_trace           = !!config.pre_3d_trace;
         g_pre_3d_done_sent       = false;
 
+        // Memory-access watch (Phase D.7). The region list is parsed
+        // here; the monitor is armed below (after ensureBase, before
+        // resume) so the very first write — including an init-time
+        // writer during HOUSE bootstrap — is trapped. Regions carry
+        // Ghidra VAs; see installMemoryWatch.
+        g_mem_watch_enabled = false;
+        g_mem_watch_buffer  = [];
+        g_mem_watch_n       = 0;
+        g_mem_watch_regions = Array.isArray(config.mem_watch_regions)
+            ? config.mem_watch_regions
+            : [];
+        const wantMemWatch = !!config.mem_watch &&
+                             g_mem_watch_regions.length > 0;
+
         // Mesh dump knob. config.dump_meshes is either:
         //   true             — dump every .x load
         //   ['xfile/shop/']  — dump only paths containing any of these
@@ -2200,7 +2342,9 @@ rpc.exports = {
               auto_z_spam: g_auto_z_spam,
               auto_3d_trace: g_auto_3d_trace,
               auto_3d_trace_frames: g_auto_3d_trace_frames,
-              pre_3d_trace: g_pre_3d_trace});
+              pre_3d_trace: g_pre_3d_trace,
+              mem_watch: wantMemWatch,
+              mem_watch_regions: g_mem_watch_regions.length});
 
         // The capture-side hooks expect to fire on a running engine.
         // State-forcing tests skip resume() entirely, so we make the
@@ -2251,6 +2395,13 @@ rpc.exports = {
             // device.resume(pid) on the driver side.
             if (g_call_trace_enabled && g_call_trace_vas.length > 0) {
                 installCallTraceHooks(g_call_trace_vas);
+            }
+            // Memory-access watch — arm pre-resume so an init-time writer
+            // during HOUSE bootstrap is trapped on its first write. The
+            // watched pages are static .data/.bss globals, committed at
+            // image load (well before this point), so enable() succeeds.
+            if (wantMemWatch) {
+                installMemoryWatch(g_mem_watch_regions);
             }
         }
     },
@@ -2388,6 +2539,25 @@ rpc.exports = {
     // called `init`, which has no underscores.
     queueCapture: function (frame) {
         g_capture_pending.add(frame | 0);
+    },
+
+    // Phase D.7 late-install entry point. Arms MemoryAccessMonitor over
+    // the given regions after the engine is already running — use when
+    // the writer fires at a known scene transition and watching from
+    // boot would trap unrelated earlier writes. Most callers instead set
+    // mem_watch + mem_watch_regions in init() to arm pre-resume.
+    // regions: [{va: <Ghidra VA>, size, label, access: "w"|"rw"}]
+    installMemoryWatch: function (regions) {
+        return installMemoryWatch(regions);
+    },
+
+    getMemWatchStatus: function () {
+        return {
+            enabled:   g_mem_watch_enabled,
+            n_trapped: g_mem_watch_n,
+            buffered:  g_mem_watch_buffer.length,
+            regions:   g_mem_watch_regions.length,
+        };
     },
 
     getFrame: function () {
