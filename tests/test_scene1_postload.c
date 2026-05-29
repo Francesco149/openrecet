@@ -919,3 +919,54 @@ int test_scene1_postload_walker_phase2_drives_walker_compute_translation(void)
     T_ASSERT(m0[14] == -6.0f);
     return 0;
 }
+
+int test_scene1_postload_walker_phase2_retail_groundtruth_new_game_house(void)
+{
+    /* Retail ground truth — new-game HOUSE entry.  Captured from
+     * recettear.unpacked.exe via tools/dump_phase2_groundtruth.py
+     * (runs/phase2-groundtruth.clean.json), after FUN_00436f97 fires
+     * once at engine frame 3200 (proven via the E.1 call tracer:
+     * 0x436f97 count=1 @ frame 3200, 11 frames before the first
+     * scene1_render_meshes — see PROGRESS 2026-05-29).
+     *
+     * Engine state at capture: stage_idx=0, save_slot=0, scene_type=0,
+     * phase2_count=3.  The 10 stage-position source pairs were read
+     * from the per-save-slot record at &DAT_044e3798 + 0x2ce10.
+     *
+     * This is the authoritative check that the ported writer reproduces
+     * retail's phase-2 furniture arrays bit-for-bit for the 3 live
+     * meshes the HOUSE furniture walker draws. */
+    reset_world();
+    int32_t stage_pos[10][2] = {
+        {3, 3}, {1, 0}, {0, 1}, {9, 1}, {10, 3},
+        {11, 0}, {3, 6}, {6, 6}, {9, 6}, {12, 6},
+    };
+    scene1_postload_set_walker_phase2_scene_type(0);
+    scene1_postload_set_walker_phase2_ivar8(3);   /* = retail phase2_count @ st0 */
+    scene1_postload_set_walker_phase2_stage_positions(stage_pos);
+    scene1_postload_walker_phase2_init();
+
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_count, 3);
+
+    /* Live entry [0]: type 3, rot_y 0, pos (-2, 0, 0). */
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_mesh_type[0], 3);
+    T_ASSERT(g_scene1_walker_phase2_rot_y[0] == 0.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_x[0] == -2.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_y[0] == 0.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_z[0] == 0.0f);
+
+    /* Live entry [1]: type 4, rot_y 0, pos (-4, 0, -8). */
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_mesh_type[1], 4);
+    T_ASSERT(g_scene1_walker_phase2_rot_y[1] == 0.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_x[1] == -4.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_y[1] == 0.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_z[1] == -8.0f);
+
+    /* Live entry [2]: type 4, rot_y π/2, pos (-10, 0, -2). */
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_mesh_type[2], 4);
+    T_ASSERT(g_scene1_walker_phase2_rot_y[2] == 1.5707964f);
+    T_ASSERT(g_scene1_walker_phase2_pos_x[2] == -10.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_y[2] == 0.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_z[2] == -2.0f);
+    return 0;
+}

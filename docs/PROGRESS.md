@@ -7,6 +7,51 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — Cf writer-hunt RESOLVED: FUN_00436f97 block-21 fires on HOUSE entry (survey was wrong)
+
+The HOUSE shop_table render gap's "writer we can't find" is found — and it
+was never missing, only mis-attributed. The 2026-05-26 survey claimed
+`FUN_00436f97` does **not** fire on new-game HOUSE entry (it inferred HOUSE
+goes only through `FUN_004547ab`→`FUN_00474a9a`). That was a static-analysis
+inference and is **wrong**.
+
+**Method.** The D.7 `mem_watch` MemoryAccessMonitor approach hit its
+documented hot-page wall on the first run — the phase-2 globals live on data
+pages (`0x438b000`, `0x438c000`) busy with per-frame reads, exhausting the
+8000-rearm budget before HOUSE entry on *both* candidate regions. Pivoted to
+the E.1 Frida **call tracer** (no hot-page problem): traced just `{0x436f97,
+0x459dfd, 0x457714}` every frame while `--auto-z-spam` drove a new game.
+Result: **FUN_00436f97 called exactly once at engine frame 3200**, 11 frames
+before the first `scene1_render_meshes` (3211) and HOUSE furniture walker.
+That is the block-21 "alt-stage arm" else-branch (the phase-2 writer at
+all.c L34772-34849 / by-address 436f97.c block 21), which populates
+`DAT_0438bfb4` count + the furniture arrays the walker reads.
+
+**The real gap.** Cf.minimal (commit 7dbe0b0) already *ported* this writer as
+`scene1_postload_walker_phase2_init()` — but left it gated off (scene_type
+defaults to -1), unwired into the HOUSE path, and dependent on 3 runtime
+inputs (scene_type, ivar8, the 10 stage-position pairs). So the writer logic
+exists; it just never runs in production.
+
+**Ground truth + validation.** New tool `tools/dump_phase2_groundtruth.py`
+reads the writer's inputs and outputs from retail via the agent `readMemory`
+RPC after the writer fires. For new-game HOUSE: stage_idx=0, save_slot=0,
+scene_type=0, phase2_count=3; 3 live furniture meshes
+(type 3/4/4, rot_y 0/0/(π/2), pos (-2,0,0)/(-4,0,-8)/(-10,0,-2)). Fed those
+captured inputs into `scene1_postload_walker_phase2_init()` in a new host test
+(`..._retail_groundtruth_new_game_house`) — the port reproduces every field
+**bit-for-bit**. Cf.minimal is now ground-truth-verified, not just
+asm-decoded. (2871 tests pass.)
+
+**Next chip** (HOUSE-visible): wire `scene1_postload_walker_phase2_init()`
+into the INGAME-entry arm path with the 3 inputs sourced from engine state —
+scene_type from the `DAT_068dd3fc[stage*0x6cf]` selector, ivar8, and the
+stage_positions from the per-save-slot record (`&DAT_044e3798 + slot*0x2dfc8
++ 0x2ce10`). Those three are themselves unported dependencies; an MVP that
+hardcodes the captured new-game-HOUSE inputs behind a flag would surface the
+first visible furniture pixels for visual A/B while the proper input ports
+land.
+
 ## 2026-05-29 — D.7 mem-watch tool built + validated; unpacked-exe regression fixed
 
 Built the Phase D.7 memory-access-watch capability (commits 8ba6a93,

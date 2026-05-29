@@ -1507,6 +1507,7 @@ struct test_case {
     X(scene1_postload_walker_phase2_setter_round_trip) \
     X(scene1_postload_walker_phase2_set_positions_null_clears) \
     X(scene1_postload_walker_phase2_drives_walker_compute_translation) \
+    X(scene1_postload_walker_phase2_retail_groundtruth_new_game_house) \
     \
     X(scene1_camera_init_clears_orient) \
     X(scene1_camera_house_default_snaps_to_oracle_pose) \

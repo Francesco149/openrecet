@@ -36,12 +36,28 @@ Cross-referenced via `grep -rn "FUN_00436f97" docs/decompiled/by-address/`:
 | `FUN_0049e163`        | `LAB_0049e304` (L98)  | State-8 (dungeon combat) exit-to-INGAME transition. Runs after `FUN_004528b3()` poll succeeds and the new state has been committed. |
 | `FUN_0048526d` (142 B wrapper) | L8  | Always paired with `FUN_004851e2(1)` + camera/UI commits. Called from 4 sites: `FUN_00462403:249`, `FUN_00442cef:335`, `FUN_0048670f:214/218`. The `442cef:335` site commits `DAT_0438b1c0 = 1` immediately after the wrapper — this is the canonical "enter INGAME" hook. |
 
+> **CORRECTION 2026-05-29 — FUN_00436f97 *does* fire on new-game HOUSE
+> entry.** The claim below (that HOUSE state-1 entry skips FUN_00436f97)
+> was a static-analysis inference and is **wrong**. Empirical proof via
+> the E.1 Frida call tracer (0x436f97 in the safe-VA list) driving
+> --auto-z-spam into a new game: **FUN_00436f97 is called exactly once at
+> engine frame 3200**, 11 frames before the first `scene1_render_meshes`
+> (frame 3211) and the HOUSE furniture walker (0x457714). It runs the
+> **block-21 else-branch** (the "alt-stage arm" phase-2 writer), which is
+> what populates `DAT_0438bfb4` + the phase-2 furniture arrays the walker
+> reads. The likely path is `FUN_00442cef` (scene1_ingame_default_arm_tick,
+> the canonical "enter INGAME" hook) → `FUN_0048526d` wrapper → here. The
+> capture is reproducible: `runs/cf-writer-probe/` (call trace) +
+> `tools/dump_phase2_groundtruth.py` (the array values). The block-23
+> ambient-spawn loop (Cf.1) staying HOUSE-dormant is a *separate* question
+> from the block-21 writer, which is live.
+
 The state-1 (INGAME) entry **from HOUSE** runs through `FUN_004547ab` case-1 →
-`FUN_00474a9a` (the HOUSE-asset loader we already wired in C7e) — that path
-does **not** call FUN_00436f97.  HOUSE has no ambient particle layer.
-FUN_00436f97 fires when the engine *re-enters* state-1 from a sub-scene
-(dungeon room transition, dialog return, etc.) where ambient particles do
-exist for the destination stage.
+`FUN_00474a9a` (the HOUSE-asset loader we already wired in C7e). That path
+loads assets; the *stage-arm* writer (FUN_00436f97 block 21) runs in addition,
+reached via the INGAME-entry arm tick (see correction above). HOUSE has no
+ambient *particle* layer (block 23 stays dormant), but the block-21 furniture
+arm DOES fire.
 
 Important consequence for wiring: `scene1_preload_house_cb` is reachable but
 not the engine-correct hook for the spawn loop.  See the MVP wiring section
