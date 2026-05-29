@@ -28,12 +28,30 @@ god-ray subsystem, which is only partially ported):
        as SetTextureStageState(MAGFILTER,5)+(MINFILTER,6), so it never
        reset DESTBLEND from the earlier INVSRCCOLOR(4) to INVSRCALPHA(6).
        Under alpha-blend that gave the colour-keyed red/blue/cyan overlay.
-   After both fixes the port's HOUSE draws match retail exactly:
+   After both fixes the port's HOUSE draw *state* matches retail exactly:
    base 42×(MODULATE2X, opaque), overlay 8×(SRCALPHA/INVSRCALPHA,
    MODULATE2X, COLORARG1=DIFFUSE), additive 5×(ONE/ONE). Traces:
    runs/port-d3d-house5 vs runs/retail-d3d-house. **Lesson: wide_followup
    is dormant in HOUSE (draws nothing) but its render-state preamble runs
    and LEAKS into later passes — audit dormant walkers' state writes too.**
+
+   **STILL OPEN (state fixed, pixels still wrong):** the blend-state fixes
+   did NOT resolve the visible artifact — confirmed by user + a port↔retail
+   pixel diff (runs/house_diff_heat.png, cluster on the centre window).
+   High-res A/B (runs/window_zoom_ab.png): the window-side **curtains**
+   render in the port as **bright cyan-green, flat/triangulated**, vs
+   retail's **smooth darker-green lit fabric**.  Since the draw STATE now
+   matches retail, the remaining divergence is a **texture/shading** bug,
+   not blend: the hikari-flagged curtain submesh is binding the wrong
+   texture (likely the cyan `hikari.bmp` gradient from the PII.3d.2
+   binding, applied too broadly) and/or showing flat per-vertex colour
+   instead of the lit curtain fabric.  This is the hikari texture-
+   classification path (scene1_walker_pass_init.c pick_texture_for_action
+   / classify_slot), and overlaps hunt items #2/#3 (the frustum + missing
+   middle-window glow are the same hikari subsystem).  NEXT: trace which
+   texture the curtain submeshes bind vs what retail binds; the hikari
+   slot binding likely needs to be narrowed (only true light-shaft
+   submeshes get hikari.bmp; curtains keep their own texture).
 2. **Frustum over the LEFT window** — a visible opaque frustum/shape over
    the left window even though the god rays themselves look right. Likely
    a hikari god-ray billboard/quad rendering opaque (wrong blend or a mesh
