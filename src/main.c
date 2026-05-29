@@ -72,6 +72,7 @@
 #include "scene1_hud.h"
 #include "scene1_shop_walker.h"
 #include "scene1_chr_sprite.h"
+#include "scene1_chr_walker.h"
 #include "chr_sprite_meta.h"
 #include "sprite.h"
 #include "stage_palette.h"
@@ -174,6 +175,14 @@ static mesh_t          *g_force_pass_d_mesh      = NULL;
  * hold real data; build_quads then resolves the same cell retail did.
  * Off by default — normal boot doesn't load the chr data. */
 static int              g_force_player_sprite      = 0;
+/* --force-chr-walker: populator-survey MVP.  Seeds ONE standing-Recette
+ * render slot into the Cchr.2d walker (FUN_00456f56) so it draws her in
+ * HOUSE end-to-end (matrix + alpha + state + leaf) WITHOUT the ~18 KB
+ * FUN_0048b850/FUN_0044376a per-frame actor populator.  Unlike
+ * --force-player-sprite (which calls the leaf directly with a captured
+ * world matrix), this validates the WALKER's own matrix/alpha chain.
+ * Diffuse-only (no sheet bound).  See scene1-char-sprite-render.md banner. */
+static int              g_force_chr_walker         = 0;
 static char             g_fps_inject_path[MAX_PATH] = {0};
 static int              g_fps_loaded               = 0;  /* inject parsed ok */
 static int32_t          g_fps_actor[0x11]          = {0};
@@ -778,15 +787,20 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * so g_chr_formdata + the per-char descriptor hold real data before
      * the first HOUSE render.  Only under the flag — normal boot leaves
      * the chr data unloaded (no consumer yet). */
-    if (g_force_player_sprite) {
+    if (g_force_player_sprite || g_force_chr_walker) {
         int fd = chr_formdata_load();
         int nidx = chr_meta_load();
-        fprintf(stderr, "force-player-sprite: chr_formdata_load=%d "
+        fprintf(stderr, "chr-sprite loaders: chr_formdata_load=%d "
                 "chr_meta_load parsed %d idx files\n", fd, nidx);
-        g_fps_loaded = force_player_sprite_load_inject(g_fps_inject_path);
-        if (!fd || !g_fps_loaded)
-            fprintf(stderr, "force-player-sprite: disabled (formdata=%d "
-                    "inject=%d)\n", fd, g_fps_loaded);
+        if (g_force_player_sprite) {
+            g_fps_loaded = force_player_sprite_load_inject(g_fps_inject_path);
+            if (!fd || !g_fps_loaded)
+                fprintf(stderr, "force-player-sprite: disabled (formdata=%d "
+                        "inject=%d)\n", fd, g_fps_loaded);
+        }
+        if (g_force_chr_walker && !fd)
+            fprintf(stderr, "force-chr-walker: disabled (formdata load "
+                    "failed)\n");
     }
 
     /* TODO "init print ok"   — FUN_00451863 */
@@ -1121,6 +1135,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     if (g_force_walker_phase2_scene_type >= 0) {
         scene1_postload_set_house_scene_type_override(
             g_force_walker_phase2_scene_type);
+    }
+
+    /* --force-chr-walker: seed the standing-Recette render slot the Cchr.2d
+     * walker draws.  Pose = the Cchr.2b-validated billboard (char 0, anim 0,
+     * frame 2, facing 6); pos = new-game HOUSE groundtruth (-0.30, 0, 9.35);
+     * age 100 = fully spawned (no ease) with positive draw-order alpha.
+     * Static slot — the walker reads it every INGAME frame. */
+    if (g_force_chr_walker) {
+        scene1_chr_walker_set_inject(1, /*player_char=*/0,
+                                     /*anim=*/0, /*frame=*/2, /*facing=*/6,
+                                     /*px=*/-0.30f, /*py=*/0.0f, /*pz=*/9.35f,
+                                     /*age=*/100);
     }
 
     /* Cc.1: initialise scene-1 camera state.  Sets the first-frame
@@ -2401,6 +2427,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
                     g_force_walker_phase2_scene_type = (int)n;
                 }
             }
+        } else if (lstrcmpA(tok, "--force-chr-walker") == 0) {
+            g_force_chr_walker = 1;
         } else if (lstrcmpA(tok, "--ambient-spawn-pose") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {

@@ -93,6 +93,36 @@ int chr_walker_actor_alpha(int age, int is_party, int prio_base, int daae0);
  */
 int chr_walker_npc_alpha(float pos, float mult);
 
+/* ── MVP render-slot inject (populator-survey 2026-05-29) ────────────────
+ *
+ * The faithful per-frame populator of the walker's actor array (DAT_056dacc0)
+ * is the ~18 KB FUN_0048b850 → FUN_0044376a subsystem (see the findings-doc
+ * "POPULATOR SURVEY" banner — FUN_00436f97 only CLEARS the array).  Until
+ * that ports, this inject hand-builds ONE player render slot so the ported
+ * walker draws a standing actor in HOUSE end-to-end (matrix + alpha + D3D
+ * state + leaf), validating everything but the populator.
+ *
+ * `scene1_chr_walker_set_inject` activates the inject and fills the player
+ * sweep-0 slot 0 from the standing-pose fields below.  Pass `enable == 0`
+ * to deactivate (the accessors revert to the dormant NULL/empty defaults).
+ * Diffuse-only by design (no chr sheet bound), like the --force-player-
+ * sprite leaf validation — it proves the walker's matrix/alpha/state path.
+ *
+ *   player_char — descriptor / formdata index (0 = Recette).
+ *   anim/frame/facing — the leaf sprite-state ([0],[4],[6]); a static
+ *     standing pose (anim 0, frame 2, facing 6 = the Cchr.2b-validated
+ *     Recette billboard).  The timer/counter ([2]/[3]) are left 0 — the
+ *     leaf selects the cell from `frame` directly (chr_anim_tick is not
+ *     run here).
+ *   px/py/pz — world position ([0xb..0xd], float); the new-game HOUSE
+ *     groundtruth is (-0.30, 0, 9.35).
+ *   age — the spawn/alive timer ([0xe]); >= 20 is fully spawned (no ease),
+ *     and < 0x254 keeps the draw-order alpha positive.
+ */
+void scene1_chr_walker_set_inject(int enable, int player_char,
+                                  int anim, int frame, int facing,
+                                  float px, float py, float pz, int age);
+
 #ifdef _WIN32
 struct IDirect3DDevice8;
 
@@ -100,7 +130,7 @@ struct IDirect3DDevice8;
  * Win32 render path (engine FUN_00456f56, full).  Lays down the live
  * additive-billboard D3D state envelope and runs the four actor passes.
  * Dormant in HOUSE until the actor/people tables populate (see header
- * note); the state writes are always correct.
+ * note) OR scene1_chr_walker_set_inject seeds the MVP slot.
  */
 void scene1_chr_walker_render(struct IDirect3DDevice8 *dev);
 #endif /* _WIN32 */

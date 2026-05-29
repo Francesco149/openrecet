@@ -4,6 +4,49 @@
 > sprite path) with the *port* dependency map + chip ladder. Started
 > 2026-05-29.
 
+> **2026-05-29 — POPULATOR SURVEY (objdump-grounded): the memory note
+> "FUN_00436f97 populates DAT_056dacc0" is WRONG. FUN_00436f97 *clears* the
+> party render array; a separate ~18 KB per-frame subsystem *fills* it.**
+> Objdump of the walker (FUN_00456f56) pass-2 loop @ 0x457205-0x45741b:
+> it iterates `esi` from **`0x56dacc0` → `0x56dae14`** (5 slots, stride
+> `0x44`), gating each on the **age field `[esi+0x38]`** (`jle` → skip).
+> The leaf's `param_1` struct pointer differs per sweep: sweep 0 (i==0)
+> uses `esi-0x154` (a parallel anim-state array at `0x56dab6c`), sweep 1
+> uses `esi`; position `[esi+0x2c/30/34]` and age come from the
+> `0x56dacc0` array in both sweeps. Companion pass-1 uses `0x56dab40` as
+> param_1, gated on `DAT_056da1d4 != -1`.
+>
+> Base `0x56dacc0` has only **3 referents** in the whole binary:
+> `0x4375ff` (FUN_00436f97 — the *clear* loop, sets age=0 for all 5 slots),
+> `0x45722a` (the walker — *read*), and `0x48c961` (inside **FUN_0048b850**,
+> 5030 B — the per-frame actor controller, the *writer*). FUN_0048b850 is
+> called from **FUN_0048b3f6** (the INGAME actor tick) and, at its tail
+> (`0x48c98f`+), populates each render slot via
+> **`FUN_0044376a(0x56da1b8, 3, slot_idx)`** — the actor logical→render
+> copier, **8538 B**. So the live chain for a visible player billboard is:
+>
+> 1. **FUN_00436f97** (4788 B, one-shot HOUSE init) — sets player char-id
+>    `DAT_056da1cc` (=0 for HOUSE), companion flag `DAT_056da1d4` (=1),
+>    player logical pos `DAT_056da1d8` (= player table `DAT_056da1b8`+0x20),
+>    and **clears** the `DAT_056dacc0` render array. Furniture branch
+>    (the `else` at decomp L34772+) already ported as
+>    `scene1_postload_walker_phase2_init`; the char/actor blocks are NOT.
+> 2. **FUN_0048b3f6 (663 B) → FUN_0048b850 (5030 B)** — per-frame player/
+>    actor movement+anim controller; tail populates `DAT_056dacc0` from
+>    `DAT_056da1b8` via FUN_0044376a. **Entirely unported.**
+> 3. **FUN_0044376a (8538 B)** — actor logical→render-slot copier. Writes
+>    the render slot via `[ebx+...]` (ebx = render slot ptr). **Unported.**
+> 4. **FUN_00456f56** walker + **FUN_0045a56f** leaf — render. **Ported;
+>    leaf bit-exact validated (Cchr.2b).**
+>
+> **Implication:** "port FUN_00436f97 → visible HOUSE characters" is false.
+> Faithfully it needs ~18 KB across three large functions. The cheapest
+> path to a *visually-validated walker* is an MVP **render-slot inject**
+> into `DAT_056dacc0` (one hand-built standing-Recette slot: age>0, pos =
+> groundtruth, anim 0) behind a flag, reusing the `--force-player-sprite`
+> tooling pattern — deferring the faithful FUN_0048b850/FUN_0044376a port.
+> See PROGRESS 2026-05-29 populator survey.
+
 ## What Cchr.2 actually is
 
 Cchr.1 ground-truthed that the visible HOUSE characters (Recette / Tear /

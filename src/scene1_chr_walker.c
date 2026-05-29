@@ -75,6 +75,47 @@ int chr_walker_npc_alpha(float pos, float mult)
     return a;                            /* caller skips when <= 0 */
 }
 
+/* ── MVP render-slot inject (populator-survey 2026-05-29) ────────────────
+ * Port-side backing for one hand-built player render slot + the gate
+ * scalars the walker reads, so it can draw a standing actor in HOUSE
+ * before the ~18 KB FUN_0048b850/FUN_0044376a populator ports.  Storage +
+ * the public setter live outside _WIN32 so the host build links them; the
+ * render path (and the accessors that read them) is _WIN32-only. */
+#include "scene1_chr_sprite.h"     /* CHR_ACTOR_* dword indices */
+
+/* Actor sprite-state field byte/dword layout (param_1 to the leaf, the
+ * 0x44-byte struct; see scene1_chr_sprite.h CHR_ACTOR_*). */
+#define CHR_W_ACTOR_POS_X   0xb    /* dword: +0x2c */
+#define CHR_W_ACTOR_POS_Y   0xc    /* dword: +0x30 */
+#define CHR_W_ACTOR_POS_Z   0xd    /* dword: +0x34 (engine adds +0.02) */
+#define CHR_W_ACTOR_ALIVE   0xe    /* dword: +0x38 (>0 gate; == spawn age) */
+#define CHR_W_ACTOR_SLOTS   5      /* (&DAT_056dae14 - &DAT_056dacc0)/0x44 */
+#define CHR_W_ACTOR_DWORDS  0x11   /* the 0x44-byte actor struct */
+
+static int     s_inject_active        = 0;
+static int32_t s_inject_slot0[CHR_W_ACTOR_DWORDS];
+static int     s_inject_player_char   = -1;
+
+void scene1_chr_walker_set_inject(int enable, int player_char,
+                                  int anim, int frame, int facing,
+                                  float px, float py, float pz, int age)
+{
+    s_inject_active = enable ? 1 : 0;
+    if (!enable)
+        return;
+    s_inject_player_char = player_char;
+    for (int i = 0; i < CHR_W_ACTOR_DWORDS; i++)
+        s_inject_slot0[i] = 0;
+    s_inject_slot0[CHR_ACTOR_ANIM]   = anim;    /* [0] */
+    s_inject_slot0[CHR_ACTOR_FRAME]  = frame;   /* [4] */
+    s_inject_slot0[CHR_ACTOR_FACING] = facing;  /* [6] */
+    /* [0xb..0xd] pos + [0xe] alive/age (pos stored as float bits). */
+    __builtin_memcpy(&s_inject_slot0[CHR_W_ACTOR_POS_X], &px, sizeof px);
+    __builtin_memcpy(&s_inject_slot0[CHR_W_ACTOR_POS_Y], &py, sizeof py);
+    __builtin_memcpy(&s_inject_slot0[CHR_W_ACTOR_POS_Z], &pz, sizeof pz);
+    s_inject_slot0[CHR_W_ACTOR_ALIVE] = age;    /* [0xe] */
+}
+
 /* ── Win32 render path (engine FUN_00456f56, full) ──────────────────────── */
 #ifdef _WIN32
 
@@ -83,21 +124,19 @@ int chr_walker_npc_alpha(float pos, float mult)
 #include <d3d8.h>
 
 #include "math3d.h"
-#include "scene1_chr_sprite.h"
+#include "scene1_camera.h"   /* g_scene1_camera_orient (= engine DAT_0438cdf8) */
 
-/* Engine billboard base matrix DAT_0438cdf8 (owned by scene1_camera.c).
- * Not header-exported there; mirrored read here is only reached by the
- * dormant pass bodies (no actors today), so a local zero-matrix stand-in
- * is harmless until the populator + camera export wire up together. */
-static const float CHR_W_BASE_MATRIX[16] = { 0 };
+/* Engine billboard base matrix DAT_0438cdf8 — the camera orientation matrix
+ * scene1_camera_angle_compute() publishes to g_scene1_camera_orient each
+ * frame (scene1_render.c L372).  The walker multiplies it onto every actor
+ * world matrix (objdump @ 0x4573ae: `Multiply(world, 0x438cdf8, S×T)`). */
+#define CHR_W_BASE_MATRIX  g_scene1_camera_orient
 
-/* Actor sprite-state field byte/dword layout (param_1 to the leaf, the
- * 0x44-byte struct; see scene1_chr_sprite.h CHR_ACTOR_*). */
-#define CHR_W_ACTOR_POS_X   0xb   /* dword: +0x2c */
-#define CHR_W_ACTOR_POS_Y   0xc   /* dword: +0x30 */
-#define CHR_W_ACTOR_POS_Z   0xd   /* dword: +0x34 (engine adds +0.02) */
-#define CHR_W_ACTOR_ALIVE   0xe   /* dword: +0x38 (>0 gate; == spawn age) */
-#define CHR_W_ACTOR_SLOTS   5     /* (&DAT_056dae14 - &DAT_056dacc0)/0x44 */
+/* The billboard base matrix the walker multiplies onto each actor world. */
+static const float *chr_walker_base_matrix(void)
+{
+    return CHR_W_BASE_MATRIX;
+}
 
 /* ── dormant engine-state accessors ─────────────────────────────────────
  * The actor sprite-state array (DAT_056dacc0 / companion DAT_056dab40) and
@@ -107,15 +146,35 @@ static const float CHR_W_BASE_MATRIX[16] = { 0 };
  * When FUN_00436f97 ports, point these at the real engine state and the
  * bodies fire verbatim — exactly the scene1_shop_walker count-stub pattern. */
 static int            chr_walker_top_gate(void)        { return 0; }   /* DAT_0438b8bc == 0 → run passes */
-static int            chr_walker_fade_counter(void)    { return 0; }   /* DAT_0438b4b4 */
-static int            chr_walker_companion_char(void)  { return -1; }  /* DAT_056da1d4 (== -1 → skip) */
-static int            chr_walker_player_char(void)     { return -1; }  /* DAT_056da1cc (== -1 → skip) */
-static const int32_t *chr_walker_companion_actor(void) { return NULL; }/* &DAT_056dab40 */
-static const int32_t *chr_walker_party_slot(int sweep, int idx)        /* DAT_056dacc0 / -0x154 */
-                                                       { (void)sweep; (void)idx; return NULL; }
-static int            chr_walker_party_daae0(void)     { return 0; }   /* DAT_056daae0 */
+static int            chr_walker_fade_counter(void)    { return 0; }   /* DAT_0438b4b4 (0 ≤ 0x5a → run) */
+static int            chr_walker_companion_char(void)  { return -1; }  /* DAT_056da1d4 (== -1 → skip; MVP draws player only) */
+static int            chr_walker_player_char(void)                     /* DAT_056da1cc (== -1 → skip) */
+                      { return s_inject_active ? s_inject_player_char : -1; }
+static const int32_t *chr_walker_companion_actor(void) { return NULL; }/* &DAT_056dab40 (MVP: no companion) */
+/* DAT_056dacc0 / -0x154.  MVP seeds only sweep-0 (the player array, always
+ * run, no daae0 gate) slot 0; everything else is the dormant empty default. */
+static const int32_t *chr_walker_party_slot(int sweep, int idx)
+{
+    if (s_inject_active && sweep == 0 && idx == 0)
+        return s_inject_slot0;
+    return NULL;
+}
+static int            chr_walker_party_daae0(void)     { return 0; }   /* DAT_056daae0 (0 → skip party sweep) */
 static int            chr_walker_people_count(void)    { return 0; }   /* DAT_0076c464..DAT_007c9664 */
 static int            chr_walker_tail_blend_gate(void) { return 0; }   /* DAT_0438ccc8 */
+
+/* Scale bases DAT_056dae18 / DAT_056dae24 — FUN_00436f97 block D inits both
+ * to 1.0; the spawn/scale math multiplies them by scale_f (= fade × 0.03). */
+static const float s_inject_scale_w = 1.0f;
+static const float s_inject_scale_h = 1.0f;
+
+/* Reinterpret an actor dword as the float the engine stores there. */
+static float chr_walker_actor_f(const int32_t *actor, int dword)
+{
+    float f;
+    __builtin_memcpy(&f, &actor[dword], sizeof f);
+    return f;
+}
 
 /* FUN_0047047b (296 B): a second small char-id-0x43 billboard sub-walker
  * over the DAT_073a6ea8 table (stride 0x24, count DAT_005c7dd0), gated on
@@ -165,7 +224,7 @@ void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
                 mat4_translation(tmp, 0.0f, 0.0f, 0.0f);    /* pos placeholder */
                 mat4_scaling(scale, 0.0f, 0.0f, 0.0f);      /* (cw,ch,cw)·scale_f */
                 mat4_mul(tmp, scale, tmp);
-                mat4_mul(world, CHR_W_BASE_MATRIX, tmp);
+                mat4_mul(world, chr_walker_base_matrix(), tmp);
                 IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
                 IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
                 scene1_chr_sprite_render(dev_in, comp, 2, world, 0xff7f7f7fu, 0, 0);
@@ -201,19 +260,27 @@ void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
                                                             D3DBLEND_SRCALPHA);
                         }
 
-                        float sx = 0.0f, sz = 0.0f;   /* dae18/24 × scale_f */
+                        /* Scaling args (objdump @ 0x457369-0x45738b):
+                         *   x = dae18×scale_f (eased),  y = dae24×scale_f
+                         *   (eased),  z = dae18×scale_f (fresh, NOT eased). */
+                        float sx = s_inject_scale_w * scale_f;
+                        float sz = s_inject_scale_h * scale_f;
+                        float z_scale = s_inject_scale_w * scale_f;
                         chr_walker_spawn_ease(age, &sx, &sz);
                         float world[16], scale[16], tmp[16];
                         mat4_translation(tmp,
-                            (float)actor[CHR_W_ACTOR_POS_X],
-                            (float)actor[CHR_W_ACTOR_POS_Y],
-                            (float)actor[CHR_W_ACTOR_POS_Z] + 0.02f);
-                        mat4_scaling(scale, sx, sz, 0.0f);  /* z = dae18×scale_f */
+                            chr_walker_actor_f(actor, CHR_W_ACTOR_POS_X),
+                            chr_walker_actor_f(actor, CHR_W_ACTOR_POS_Y),
+                            chr_walker_actor_f(actor, CHR_W_ACTOR_POS_Z) + 0.02f);
+                        mat4_scaling(scale, sx, sz, z_scale);
                         mat4_mul(tmp, scale, tmp);
-                        mat4_mul(world, CHR_W_BASE_MATRIX, tmp);
+                        mat4_mul(world, chr_walker_base_matrix(), tmp);
                         uint32_t color = ((uint32_t)alpha << 24) | 0x7f7fffu;
+                        /* tex dims = the validated Recette sheet (512×1024);
+                         * geometry/placement is tex-independent (diffuse-only
+                         * MVP — no sheet bound, white silhouette). */
                         scene1_chr_sprite_render(dev_in, actor, player_char,
-                                                 world, color, 0, 0);
+                                                 world, color, 512, 1024);
                     }
                     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, TRUE);
                 }
