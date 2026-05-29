@@ -26,6 +26,7 @@
 #include "call_trace.h"
 #include "scene1_camera.h"
 #include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
+#include "scene1_maplight.h"     /* FUN_00458f67 maplight builder + stage record */
 #include "scene1_fx_overlays.h"  /* scene1_fx_overlays — FUN_00454191 scaffold */
 #include "scene1_overlay.h"  /* scene1_overlay_render — 4-site dispatcher wiring */
 #include "scene1_records.h"
@@ -218,12 +219,11 @@ static void scene1_walk_depth_prepass_TODO(void)
 }
 
 /* FUN_00458f67 (2118 B) — sub-pass at L199, before any walker fires.
- * Purpose unknown; possibly a per-frame palette or scratch-texture
- * regeneration. */
-static void scene1_walk_pre_dispatch_TODO(void)
-{
-    /* TODO C8-followup: port FUN_00458f67. */
-}
+ * It is the per-stage FFP map light builder: constructs the D3DLIGHT8
+ * at engine DAT_06a49a40 from the current stage record's maplight mode
+ * and SetLight/LightEnable/LIGHTING.  Ported as scene1_build_maplight
+ * (src/scene1_maplight.{c,h}).  HOUSE = maplight:3 (time-of-day town
+ * light). */
 
 /* FUN_00459847 (1444 B) — projectile-table renderer (NOT walls/floor;
  * earlier comment was wrong).  Survey 2026-05-26 (decomp all.c L53983):
@@ -417,24 +417,51 @@ uint32_t scene1_render_draw_counter(void)  { return g_scene1_draw_counter; }
  * one on touches just the accessor and any global it needs.
  */
 
-/* palette + 0x1a38 (float fog_start).  Non-zero → enable fog. */
-static float scene1_palette_fog_start(void) { return 0.0f; }
+/* palette + 0x1a38 (float fog_start).  Non-zero → enable fog.  HOUSE
+ * (stage:0-1) = "fog:20:500" → near 20.0, read from the parsed record. */
+static float scene1_palette_fog_start(void)
+{
+    const stage_record_t *rec = scene1_current_stage_record();
+    return rec ? rec->fog[0] : 0.0f;
+}
 
-/* palette + 0x1a3c (float fog_end). */
-static float scene1_palette_fog_end(void) { return 0.0f; }
+/* palette + 0x1a3c (float fog_end).  HOUSE = 500.0. */
+static float scene1_palette_fog_end(void)
+{
+    const stage_record_t *rec = scene1_current_stage_record();
+    return rec ? rec->fog[1] : 0.0f;
+}
 
 /* palette + 0x1a40 (int combiner mode).  Indexes scene1_apply_palette
  * _combiner_mode's TSS COLORARG2 table mod 7. */
 static int scene1_palette_combiner_mode(void) { return 0; }
 
-/* palette + 0x1a90/94/98 (int per-channel fog color bytes). */
-static int scene1_palette_fog_color_r(void) { return 0; }
-static int scene1_palette_fog_color_g(void) { return 0; }
-static int scene1_palette_fog_color_b(void) { return 0; }
+/* palette + 0x1a90/94/98 (int per-channel fog color bytes).  HOUSE =
+ * "fogcolor:230:240:255" (light blue haze), read from the parsed record. */
+static int scene1_palette_fog_color_r(void)
+{
+    const stage_record_t *rec = scene1_current_stage_record();
+    return rec ? rec->fogcolor[0] : 0;
+}
+static int scene1_palette_fog_color_g(void)
+{
+    const stage_record_t *rec = scene1_current_stage_record();
+    return rec ? rec->fogcolor[1] : 0;
+}
+static int scene1_palette_fog_color_b(void)
+{
+    const stage_record_t *rec = scene1_current_stage_record();
+    return rec ? rec->fogcolor[2] : 0;
+}
 
-/* palette + 0x1ae0 (int lighting enable).  Non-zero → enable D3DRS
- * _LIGHTING + light 0 from DAT_06a49a40. */
-static int scene1_palette_lighting_enabled(void) { return 0; }
+/* palette + 0x1ae0 (int maplight mode).  Non-zero → enable D3DRS
+ * _LIGHTING + light 0 from DAT_06a49a40.  HOUSE (stage:0-1) = 3
+ * (time-of-day town light), read from the parsed stage record. */
+static int scene1_palette_lighting_enabled(void)
+{
+    const stage_record_t *rec = scene1_current_stage_record();
+    return rec ? rec->maplight : 0;
+}
 
 /* palette + 0x108 (int initial-asset flag).  Non-zero → run the L160-
  * L166 initial-asset draw block (needs DAT_068dcf98 too). */
@@ -710,8 +737,8 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1,    D3DTA_DIFFUSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SHADEMODE,              D3DSHADE_GOURAUD);
 
-    /* L199: FUN_00458f67 (2118 B) — pre-dispatch sub-pass. */
-    scene1_walk_pre_dispatch_TODO();
+    /* L199: FUN_00458f67 (2118 B) — build + set the per-stage map light. */
+    scene1_build_maplight((struct IDirect3DDevice8 *)dev);
 
     /* L200-L201: re-establish z_far=350 (idempotent — already there). */
     scene1_push_projection(dev, 350.0f);
@@ -748,22 +775,16 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     scene1_wide_followup((struct IDirect3DDevice8 *)dev);
 
     /* L220-L230: stage-palette lighting gate.  When palette + 0x1ae0
-     * != 0, light 0 is populated from DAT_06a49a40 + enabled;
-     * otherwise disabled.  HOUSE palette has 0 → lights off. */
+     * (maplight mode) != 0, light 0 is populated from DAT_06a49a40 +
+     * enabled; otherwise disabled.  HOUSE = maplight:3 → lights on. */
     {
-        BOOL lighting_on = (scene1_palette_lighting_enabled() != 0);
-        if (lighting_on) {
-            /* TODO C8-followup: populate light 0 from DAT_06a49a40 —
-             * a per-stage D3DLIGHT8 scratch that a separate helper
-             * (not yet identified) fills from the stage palette.
-             * Until it's ported, LightEnable(0, TRUE) without a
-             * SetLight call leaves whatever light 0 had previously
-             * (or a zero light if never set). */
-            IDirect3DDevice8_LightEnable(dev, 0, TRUE);
-        } else {
-            IDirect3DDevice8_LightEnable(dev, 0, FALSE);
-        }
-        IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, lighting_on);
+        /* Engine L54534-L54544: SetLight(0,&DAT_06a49a40) +
+         * LightEnable(0,TRUE) + LIGHTING when maplight != 0, else
+         * LightEnable(0,FALSE) + LIGHTING=FALSE.  The light struct was
+         * already built at L199 (scene1_build_maplight); rebind re-uses
+         * the cached one. */
+        int lighting_on = (scene1_palette_lighting_enabled() != 0);
+        scene1_maplight_rebind((struct IDirect3DDevice8 *)dev, lighting_on);
     }
 
     /* L231-L232: project back to z_far = 350. */

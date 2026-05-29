@@ -7,6 +7,41 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — PII.3d: per-stage maplight builder ported (FUN_00458f67)
+
+Ported the scene-1 per-stage FFP map-light builder — the `FUN_00458f67`
+sub-pass that was stubbed as `scene1_walk_pre_dispatch_TODO` ("purpose
+unknown"). New module `src/scene1_maplight.{c,h}`:
+`scene1_build_maplight` (L199 build) + `scene1_maplight_rebind`
+(L220-230 re-apply), wired into `scene1_render_meshes`. Constructs the
+`D3DLIGHT8` at engine `DAT_06a49a40` and does
+`SetLight(0)+LightEnable(0,TRUE)+D3DRS_LIGHTING` per the stage's
+`maplight` mode.
+
+**Erratum corrected (the key unblock):** the "HOUSE stage palette is
+all-zero → lighting off" assumption was wrong. The engine parses
+`stage.idx` straight into the `DAT_068dd2f8` table that `DAT_068dd2f0`
+indexes, so the live palette IS the parsed record. HOUSE (`stage:0-1`)
+is `maplight:3` (time-of-day town light), `fog:20:500`,
+`fogcolor:230:240:255`, `hikaridrawcode:2`, `hikarialpha:96`,
+`hikariadd:1`. Added `scene1_current_stage_record()` to bridge the
+renderer accessors to `g_stage.records[HOUSE]`; the lighting + fog
+(start/end/color) accessors in `scene1_render.c` now read the real
+record instead of returning 0. The `SetLight` args were never actually
+Ghidra-dropped — `FUN_00458f67` builds the struct field-by-field.
+
+The 4 `maplight` modes (0 sun / 1 animated pulse / 2 static / 3 town
+time-of-day) are all ported; mode-3 `MAPLIGHT3_PRESET` rows verified
+against decomp `local_98[0..0x1a]`. Day/night clock (`DAT_0438b1e0` /
+`DAT_0450fb88` / `DAT_0438b7d4`) unported → mode 3 uses the daytime
+row 0 (fresh-entry default). 8 new host tests (2886→2894), both exes
+build clean.
+
+This closes the lighting prerequisite for the two tracked HOUSE render
+diffs. **Still open:** gap #1 hikari god-rays (texture source + additive
+blend, `s_hook_animated_tex` still NULL) and visual re-verification of
+gap #2 (blinds on lit tris) — see `scene1-house-render-gaps.md`.
+
 ## 2026-05-29 — PII.3c: HOUSE shop interior BACKGROUND renders (draw loop A, user-verified)
 
 The shop room now paints behind the furniture — walls, back-wall shelves,

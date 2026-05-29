@@ -3016,6 +3016,15 @@ struct test_case {
     X(scene1_walker_phase1_compute_house_room_and_carpet) \
     X(scene1_walker_phase1_compute_count_zero_and_null) \
     \
+    X(maplight_null_rec_off) \
+    X(maplight_mode3_daytime) \
+    X(maplight_mode2_static_passthrough) \
+    X(maplight_mode0_sun) \
+    X(maplight_mode1_animated_pulse) \
+    X(maplight_chr_ambient_clamp) \
+    X(maplight_chr_ambient_clamp_low) \
+    X(maplight_current_stage_record_house) \
+    \
     X(banner_compute_y_counter_0_is_off_screen) \
     X(banner_compute_y_counter_1) \
     X(banner_compute_y_counter_60_mid_ramp) \

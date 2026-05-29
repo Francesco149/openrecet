@@ -1461,6 +1461,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_maplight.c",
     "src/scene1_render.c",
     "src/scene1_render.h"
    ]
@@ -4223,6 +4224,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_maplight.c",
+    "src/scene1_maplight.h",
     "src/scene1_render.c",
     "src/scene1_render.h"
    ]
@@ -21730,6 +21733,7 @@
    "src": [
     "src/audio_fade.c",
     "src/audio_fade.h",
+    "src/scene1_maplight.c",
     "src/scene1_particles_tick.c",
     "src/scene1_records_b_spawn.c",
     "src/scene1_spawn.c"
@@ -21761,6 +21765,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_maplight.c",
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
     "src/scene1_particles_tick.c",

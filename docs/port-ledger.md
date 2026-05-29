@@ -139,7 +139,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x415fab | FUN_00415fab | 540 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
 | 0x4161c7 | FUN_004161c7 | 4925 | ✓ | scene1_pass_f.c, scene1_pass_f.h, scene1_records.h (+5) |
 | 0x417504 | FUN_00417504 | 506 | ✓ | main.c, scene1_render.c, scene1_render.h |
-| 0x4176ff | FUN_004176ff | 30395 | ✓ | scene1_render.c, scene1_render.h |
+| 0x4176ff | FUN_004176ff | 30395 | ✓ | scene1_maplight.c, scene1_render.c, scene1_render.h |
 | 0x41edf1 | FUN_0041edf1 | 35 | ✓ | worker_load.h |
 | 0x41ee24 | FUN_0041ee24 | 365 | ✓ | sim.c |
 | 0x41f319 | FUN_0041f319 | 340 | ✓ | scene1_combat_sm.h |
@@ -220,7 +220,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x456d48 | FUN_00456d48 | 526 | ✓ | scene1_render.c, scene1_shop_walker.c, scene1_shop_walker.h (+1) |
 | 0x456f56 | FUN_00456f56 | 1982 | ✓ | scene1_render.c, scene1_render.h |
 | 0x458bdf | FUN_00458bdf | 904 | ✓ | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_render.c (+1) |
-| 0x458f67 | FUN_00458f67 | 2118 | ✓ | scene1_render.c, scene1_render.h |
+| 0x458f67 | FUN_00458f67 | 2118 | ✓ | scene1_maplight.c, scene1_maplight.h, scene1_render.c (+1) |
 | 0x4597ad | FUN_004597ad | 48 | ✓ | scene1_render.c, scene1_render.h |
 | 0x4597dd | FUN_004597dd | 106 | ✓ | scene1_render.c, scene1_render.h |
 | 0x459847 | FUN_00459847 | 1444 | ✓ | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_emit_record.h (+2) |
@@ -375,8 +375,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x5038b0 | FUN_005038b0 | 19 | ✓ | scene1_overlay_table.c, scene1_overlay_table.h, scene1_per_frame_open.c |
 | 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, scene1_combat_sm.c, scene1_per_frame_open.c (+5) |
 | 0x503954 | __ftol | 39 | ✓ | scene1_wide_followup_helpers.c |
-| 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, scene1_particles_tick.c (+2) |
-| 0x503a44 | FUN_00503a44 | 9 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_particles_tick.c (+3) |
+| 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, scene1_maplight.c (+3) |
+| 0x503a44 | FUN_00503a44 | 9 | ✓ | scene1_maplight.c, scene1_overlay.c, scene1_overlay.h (+4) |
 | 0x503d03 | FUN_00503d03 | 11 | ✓ | scene1_overlay_table.c, tables_item.c |
 | 0x503dd0 | FUN_00503dd0 | 10 | ✓ | scene1_records_b_spawn.c, scene1_records_b_spawn.h |
 | 0x503de4 | FUN_00503de4 | 344 | ✓ | storage.c |

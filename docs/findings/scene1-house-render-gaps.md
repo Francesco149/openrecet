@@ -25,15 +25,41 @@ User-reported diffs from the first full-room render (2026-05-29):
   adapters after the foreground loads (commit 15db713). User-verified
   fixed.
 
-## DEFERRED — scene-1 lighting + hikari god-ray overlay
+## LANDED (2026-05-29, PII.3d) — per-stage maplight builder
 
-Both remaining diffs trace to the unported scene-1 lighting path. The
-per-stage maplight (`D3DLIGHT8` at engine `DAT_06a49a40`) is a known
-TODO — see `src/scene1_shop_walker.c:509-519`: the engine does
-`SetLight + LightEnable(0,TRUE) + D3DRS_LIGHTING=TRUE` with per-stage
-light params whose `SetLight` args Ghidra drops; the port currently
-forces `D3DRS_LIGHTING=FALSE`. So lit surfaces get flat material
-shading instead of the engine's per-vertex lit gradient.
+`FUN_00458f67` (the per-stage FFP map-light builder, was stubbed as
+`scene1_walk_pre_dispatch_TODO`) is ported as `src/scene1_maplight.{c,h}`
+(`scene1_build_maplight` + `scene1_maplight_rebind`) and wired into
+`scene1_render_meshes` at both light sites (L199 build, L220-230 rebind).
+
+**Erratum corrected:** the earlier note that the HOUSE palette is
+all-zero (lighting off) was wrong. The engine parses `stage.idx`
+straight into the `DAT_068dd2f8` table that `DAT_068dd2f0` indexes, so
+the live stage palette IS the parsed record. HOUSE (`stage:0-1`) is
+`maplight:3` (time-of-day town light) with `lightdir/color/amb`,
+`fog:20:500`, `fogcolor:230:240:255`, `hikaridrawcode:2`,
+`hikarialpha:96`, `hikariadd:1`. The port's renderer accessors
+(`scene1_palette_lighting_enabled`, `..._fog_start/end`,
+`..._fog_color_*`) now read `g_stage.records[HOUSE]` via the new
+`scene1_current_stage_record()` bridge instead of returning 0.
+
+The `SetLight` args were NOT Ghidra-dropped — `FUN_00458f67` builds the
+full `D3DLIGHT8` field-by-field at `DAT_06a49a40`. The mode-3 preset
+table (`MAPLIGHT3_PRESET`, 3 time-of-day rows) is verified against the
+decomp `local_98[0..0x1a]`. The day/night clock (`DAT_0438b1e0` /
+`DAT_0450fb88` / `DAT_0438b7d4`) is unported, so mode 3 uses the
+daytime row 0 (the fresh-HOUSE-entry default). Unit-tested in
+`tests/test_scene1_maplight.c` (8 cases, all modes + chr-ambient clamp).
+
+**Still open after this chip:** gap #1 (hikari god-rays) below — the
+maplight prerequisite is now satisfied, but the hikari texture source +
+additive blend are still unwired (`s_hook_animated_tex` NULL). Gap #2
+(blinds on lit triangles) needs visual re-verification now that
+`D3DRS_LIGHTING` is enabled with the real directional light — note the
+visible delta also depends on the meshes carrying vertex normals + a
+material, which is a separate path.
+
+## DEFERRED — hikari god-ray overlay
 
 ### #1 — "frustum-ish" solid mesh in front of the window
 - **Symptom:** a frustum-shaped solid mesh sits in front of the window;
