@@ -1,0 +1,76 @@
+# Nightly build → single rolling 'nightly' pre-release.
+#
+# Cross-compiles openrecet.exe with mingw via the lean `.#ci` Nix shell
+# (no game assets needed — SE are runtime-extracted, see
+# docs/formats/se-pack.md), gates on the no-proprietary-bytes scan, then
+# updates ONE long-lived pre-release tagged `nightly`.
+#
+# Why one rolling release: GitHub notifies watchers when a *new* release
+# is published, but NOT when an existing release's assets are updated.
+# So we keep `nightly` stable and clobber its asset each run — watchers
+# are pinged at most once (when `nightly` first appears). It is marked
+# prerelease + make_latest:false so it never becomes the repo's "latest".
+# Real milestone tags (vX.Y) are cut by hand, separately, and DO notify.
+
+name: nightly
+
+on:
+  schedule:
+    - cron: '0 6 * * *'        # daily, 06:00 UTC
+  workflow_dispatch: {}         # manual "Run workflow" button
+
+permissions:
+  contents: write               # create/update the 'nightly' release
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history for the release-notes git log
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      # If cold builds of the .#ci closure get slow, add a Nix store cache
+      # here (e.g. DeterminateSystems/flakehub-cache-action or cachix).
+      # The lean shell is small (mingw gcc + make + python3) so it's
+      # deliberately omitted to keep the pipeline dependency-light.
+
+      - name: Build (mingw cross-compile)
+        run: nix develop .#ci --command make -C src
+
+      - name: Gate — no embedded proprietary bytes
+        run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py build/openrecet.exe
+
+      - name: Compose release notes
+        run: |
+          {
+            echo "Automated nightly build — unsigned, **bring your own Recettear**."
+            echo
+            echo "Source commit: \`${GITHUB_SHA}\`"
+            echo "Built: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo
+            echo "Ships **no game assets**. On first run it reads the sound"
+            echo "effects out of your own legitimately-owned retail"
+            echo "\`recettear.exe\` and caches them locally (see the README)."
+            echo
+            echo "### Recent changes"
+            git log -15 --pretty='- %s (%h)'
+          } > release-notes.md
+
+      - name: Publish to rolling 'nightly' pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly
+          prerelease: true
+          make_latest: false
+          body_path: release-notes.md
+          files: build/openrecet.exe
+          fail_on_unmatched_files: true

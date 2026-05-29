@@ -115,6 +115,23 @@
           '';
         };
 
+        # Lean shell for CI (the nightly build). Just the mingw toolchain,
+        # make, and a base python3 for the no-proprietary-bytes gate — none
+        # of the heavy RE/analysis closure (ghidra, dotnet, frida, imhex,
+        # opencv) the default shell pulls in. The build is asset-free
+        # (no embedded SE; runtime-extracted — docs/formats/se-pack.md), so
+        # CI needs no game files. See .github/workflows/nightly.yml.
+        devShells.ci = pkgs.mkShell {
+          name = "openrecet-ci";
+          packages = [
+            mingw32.gcc
+            mingw32.binutils
+            pkgs.gnumake
+            pkgs.python3      # stdlib only — for tools/ci/no_proprietary_bytes.py
+            pkgs.coreutils
+          ];
+        };
+
         # Package output: the openrecet.exe binary cross-compiled with mingw32.
         # Stub — wired up properly once src/ has a buildable program.
         packages.openrecet = pkgs.stdenv.mkDerivation {
