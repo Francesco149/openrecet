@@ -1723,6 +1723,42 @@ frames 39 and 60 too.
 
 ---
 
+## 51. Per-pass texture filtering is hand-set per draw group (not a global)
+
+The scene-1 mesh render doesn't pick one filter mode — each walker
+group sets its own min/mag/mip filter, and they disagree.  In
+`scene1_render_meshes` (FUN_00459dfd) the alpha pass sets
+`MIPFILTER=NONE` just before dispatching the records/people pre-pass;
+the pre-pass (`FUN_0045672a`) then overrides:
+
+- records sections A/B (engine `FUN_00456c4f`): `MAG/MINFILTER=LINEAR`
+- people billboard section C (@ 0x456a76):     `MAG/MINFILTER=POINT`
+
+So world-space record meshes get bilinear smoothing while NPC sprite
+billboards get nearest-neighbour (crisp pixels), within one frame, one
+draw call apart.  This matters for the texture-filtering 1:1-retail
+parity work: there is no single "correct" filter to match — faithful
+output requires reproducing each group's filter state in the right
+order.  Found while porting Cchr.2e (2026-05-29), objdump @ 0x456c4f /
+0x456a76.
+
+> 📍 `docs/findings/scene1-char-sprite-render.md` "Cchr.2e",
+> `src/scene1_chr_prepass.c` (the two `chr_prepass_*_setup` envelopes).
+
+## 52. The sprite pre-pass does two matrix multiplies it didn't need to
+
+`FUN_0045672a` sections A and B each build a world matrix as
+`Scaling × Translation` (and B adds a `RotationY`), then multiply the
+result by an explicitly-constructed `Scaling(1,1,1)` — a mathematical
+no-op.  Likewise the people pass computes its diffuse alpha as
+`(int)((float)alpha_byte · 255.0 / 255.0)` before the real per-entry
+multiply: the `·255/255` cancels exactly.  Both are almost certainly
+artifacts of a shared codegen macro / inlined helper that always emits
+the extra op.  The port keeps them verbatim (commented as no-ops) so
+the body stays a faithful mirror; a future "cleanup" that drops them is
+harmless here but is the kind of edit that silently diverges elsewhere.
+Found while porting Cchr.2e (2026-05-29), objdump @ 0x456838 / 0x456b3f.
+
 ## 50. Overlay-particle type 4 walks to a fixed point off-screen and goes "thunk"
 
 In the overlay-particle integrator (`FUN_00414929`, L12684-12734),
