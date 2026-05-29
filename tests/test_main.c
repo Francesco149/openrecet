@@ -1511,6 +1511,7 @@ struct test_case {
     \
     X(scene1_camera_init_clears_orient) \
     X(scene1_camera_house_default_snaps_to_oracle_pose) \
+    X(scene1_camera_house_groundtruth_matches_retail) \
     X(scene1_camera_anchor_alias_tracks_lookat) \
     X(scene1_camera_char_mode_below_2_collapses_offsets) \
     X(scene1_camera_yaw_orbits_eye) \

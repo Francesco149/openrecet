@@ -112,6 +112,36 @@ int test_scene1_camera_house_default_snaps_to_oracle_pose(void)
     return 0;
 }
 
+int test_scene1_camera_house_groundtruth_matches_retail(void)
+{
+    /* MVP HOUSE camera fix — scene1_camera_apply_house_groundtruth()
+     * injects the retail-captured pose inputs the port can't yet source
+     * from engine state.  After applying + a snap pose_compute, the eye
+     * and lookat must equal the retail HOUSE-furniture-frame ground truth
+     * (tools/dump_camera_groundtruth.py): eye=(-1, 22.2, 15),
+     * lookat=(-1, 1.2, 1).  Block-by-block, with yaw=π / char_mode=0 /
+     * adds = (radius 14, eye.y 21, lookat.y -1.8) / bias = (-0.3, 9.35):
+     *   bias_x clamp [-5,-1]: -0.3 → -1.0    bias_z ceiling 1.0: 9.35 → 1.0
+     *   class_off = (0,0,0) (uVar2<2)          floor_bias snap = 3.0
+     *   radius = 0 + 14 = 14
+     *   lookat = (-1, 0 + -1.8 + 3.0, 1) = (-1, 1.2, 1)
+     *   eye.x  = 14*sin(π) + -1            = -1
+     *   eye.y  = 0 + 21 + lookat.y(1.2)    = 22.2
+     *   eye.z  = 1 - 14*cos(π) = 1 + 14    = 15
+     */
+    reset_camera_world();           /* ends with scene1_camera_init (snap armed, adds=0) */
+    scene1_camera_apply_house_groundtruth();
+    scene1_camera_pose_compute();
+
+    T_ASSERT_NEAR(g_scene1_camera_lookat[0], -1.0f, 1e-4f);
+    T_ASSERT_NEAR(g_scene1_camera_lookat[1],  1.2f, 1e-4f);
+    T_ASSERT_NEAR(g_scene1_camera_lookat[2],  1.0f, 1e-4f);
+    T_ASSERT_NEAR(g_scene1_camera_eye[0],    -1.0f, 1e-4f);
+    T_ASSERT_NEAR(g_scene1_camera_eye[1],    22.2f, 1e-4f);
+    T_ASSERT_NEAR(g_scene1_camera_eye[2],    15.0f, 1e-4f);
+    return 0;
+}
+
 int test_scene1_camera_anchor_alias_tracks_lookat(void)
 {
     reset_camera_world();

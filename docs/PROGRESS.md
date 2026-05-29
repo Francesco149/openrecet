@@ -7,6 +7,52 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — HOUSE furniture orientation/scale RESOLVED: camera pose-input fix (user-verified)
+
+The Cf.minimal landing earlier today made HOUSE shop_table furniture visible
+but with wrong orientation + scale (furniture flung to screen edges, tilted on
+its side, underlit). **Now fixed — user-verified "finally correct furniture."**
+
+**Root cause: camera pose, not the per-mesh transform.** The view-build
+mechanism (`scene1_camera_build_view_matrix` = LookAtRH × RotZ) already matches
+the engine (FUN_0040120c), and the per-mesh WORLD chain is asm-verified — so
+the divergence was entirely in `scene1_camera_pose_compute`'s *inputs*, several
+of which the port had hard-coded to BSS-zero / placeholder values.
+
+**Method.** New `tools/dump_camera_groundtruth.py` (models on
+dump_phase2_groundtruth.py) drives retail to HOUSE via `--auto-z-spam` and reads
+the engine's camera globals at the furniture frame. Retail HOUSE:
+eye=(-1, 22.2, 15), lookat=(-1, 1.2, 1), yaw=π, fov=45° (already matched).
+Diffing the pose inputs against the port surfaced five wrong values:
+
+| global | port had | retail HOUSE | source |
+|---|---|---|---|
+| `_DAT_0695ef70` radius add | 0 (assumed BSS) | **14.0** | per-stage cam-param loader (unported) |
+| `_DAT_044e2c70` eye.y add   | 0 | **21.0** | "" |
+| `_DAT_069b2f78` lookat.y add| 0 | **-1.8** | "" |
+| `g_scene1_camera_yaw`       | 0 | **π** | FUN_00436f97 L589 (Cf block) |
+| `char_mode` (uVar2)         | 2 (hardcoded) | **0** | `*(int*)(&DAT_045105a4+slot*0x2dfc8)` |
+
+The yaw=0→π flip put the camera on the opposite side (180°); radius 4→14 was the
+2-3× scale; eye.y add 0→21 put the eye below the floor looking up at undersides.
+All five reconcile to retail's eye/lookat exactly (block-by-block).
+
+**Fix.** Made the three assumed-zero compose globals + the two bias sources
+settable in `scene1_camera.c`; added `scene1_camera_apply_house_groundtruth()`
+(sets the retail-captured values), wired behind the same `--force-walker-phase2
+0` path in main.c, applied *after* `scene1_camera_init()` (which now clears the
+overrides to boot-faithful 0 for test isolation + non-HOUSE scenes). Defaults
+unchanged → title-phase canaries unaffected. New host test
+`scene1_camera_house_groundtruth_matches_retail` asserts the port reproduces
+retail eye/lookat (2872 tests pass). Visual A/B: runs/house-cam-fix vs
+runs/house-phase2-on — three upright shop counters, correctly framed/scaled/lit.
+
+**Faithful-port follow-ups (PHC):** this is an MVP injection (Cf.minimal
+pattern). yaw=π is a direct write in the Cf block we already partially port;
+char_mode is a per-save-slot field; the three adds come from a per-stage
+camera-param loader (sentinel-terminated arrays ending at &DAT_044e2c70 /
+&DAT_069b2f78, see all.c L44697/933/964).
+
 ## 2026-05-29 — Cf writer-hunt RESOLVED: FUN_00436f97 block-21 fires on HOUSE entry (survey was wrong)
 
 The HOUSE shop_table render gap's "writer we can't find" is found — and it

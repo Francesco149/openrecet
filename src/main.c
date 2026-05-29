@@ -1013,8 +1013,21 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
 
     /* Cc.1: initialise scene-1 camera state.  Sets the first-frame
      * snap flag so the first scene1_render_camera_setup pass writes
-     * a real eye/lookat instead of accumulating from BSS-zero. */
+     * a real eye/lookat instead of accumulating from BSS-zero.  Also
+     * clears the compose-add overrides to boot-faithful 0. */
     scene1_camera_init();
+
+    /* Camera MVP fix — the phase-2 writer above made furniture visible,
+     * but with wrong orientation/scale because the port's pose_compute
+     * used BSS-zero assumptions (radius/eye-y/lookat-y adds) + a
+     * char_mode=2 hard-code + yaw=0 default, while retail HOUSE has
+     * adds=14/21/-1.8, char_mode=0, yaw=π (captured via
+     * tools/dump_camera_groundtruth.py).  Apply AFTER scene1_camera_init
+     * so the override survives the init's reset, then the first
+     * pose_compute snaps to the correct eye/lookat. */
+    if (g_force_walker_phase2_scene_type == 0) {
+        scene1_camera_apply_house_groundtruth();
+    }
 
     /* C8jb.fin — wire scene1_combat_sm_tick as the records_b_tick
      * state-machine hook.  This is the engine's FUN_0043865e (Mt.

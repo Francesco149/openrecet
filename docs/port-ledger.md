@@ -170,7 +170,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
 | 0x43647f | FUN_0043647f | 61 | ✓ | scene1_combat_sm.h |
 | 0x4364bc | FUN_004364bc | 359 | ✓ | tables_snews.h |
-| 0x436f97 | FUN_00436f97 | 4788 | ✓ | main.c, scene.c, scene1_alpha_walker.c (+11) |
+| 0x436f97 | FUN_00436f97 | 4788 | ✓ | main.c, scene.c, scene1_alpha_walker.c (+12) |
 | 0x43824b | FUN_0043824b | 940 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h |
 | 0x4385fb | FUN_004385fb | 99 | ✓ | scene1_spawn.c, scene1_spawn.h |
 | 0x43865e | FUN_0043865e | 8059 | ✓ | main.c, scene1_combat_sm.c, scene1_combat_sm.h (+3) |

@@ -45,6 +45,25 @@ static float g_smooth_lookat[3] = { 0, 0, 0 };
 /* Engine `_DAT_06a46f9c`: smoothed floor-height bias. */
 static float g_floor_bias = 0.0f;
 
+/* Compose-formula globals the port previously hard-coded to 0.0f as a
+ * "BSS-zero" assumption.  Retail HOUSE has them NON-zero — proven via
+ * tools/dump_camera_groundtruth.py at the HOUSE furniture frame:
+ *   _DAT_0695ef70 (radius add) = 14.0    = .rdata DAT_005c4fd4
+ *   _DAT_044e2c70 (eye.y  add) = 21.0    = .rdata DAT_005c4fd8
+ *   _DAT_069b2f78 (lookat.y add) = -1.8  = .rdata DAT_005c4fd0
+ *   DAT_056da1d8 (bias_x src) = -0.3,  DAT_056da1e0 (bias_z src) = 9.35
+ * These are loaded by an unported camera-param init (sentinel-terminated
+ * arrays ending at &DAT_044e2c70 / &DAT_069b2f78, see all.c L44697/933/964;
+ * values come from the per-stage camera config).  Default 0 keeps boot
+ * behaviour byte-identical; scene1_camera_apply_house_groundtruth() sets
+ * the retail-captured HOUSE values (flag-gated MVP, parallels Cf.minimal's
+ * scene1_postload_apply_walker_phase2_house_groundtruth). */
+static float g_radius_add = 0.0f;   /* _DAT_0695ef70 */
+static float g_eyey_add   = 0.0f;   /* _DAT_044e2c70 */
+static float g_looky_add  = 0.0f;   /* _DAT_069b2f78 */
+static float g_bias_x_src = 0.0f;   /* DAT_056da1d8 */
+static float g_bias_z_src = 0.0f;   /* DAT_056da1e0 */
+
 /* Engine `_DAT_0438b77c/74/78`: per-class offset triplet computed in
  * block B and read in blocks E/G/I. */
 static float g_class_off_x = 0.0f;  /* _DAT_0438b77c */
@@ -64,6 +83,42 @@ void scene1_camera_init(void)
     g_smooth_eye[0] = g_smooth_eye[1] = g_smooth_eye[2] = 0.0f;
     g_smooth_lookat[0] = g_smooth_lookat[1] = g_smooth_lookat[2] = 0.0f;
     g_floor_bias = 0.0f;
+    /* Reset the compose-add overrides to their boot-faithful 0.  Production
+     * calls scene1_camera_apply_house_groundtruth() AFTER this on HOUSE
+     * entry to set the real values; clearing here keeps non-HOUSE scenes
+     * (and test isolation) at the original BSS-zero behaviour. */
+    g_radius_add = 0.0f;
+    g_eyey_add   = 0.0f;
+    g_looky_add  = 0.0f;
+    g_bias_x_src = 0.0f;
+    g_bias_z_src = 0.0f;
+}
+
+/* MVP HOUSE camera fix — inject the retail-captured pose inputs the port
+ * can't yet source from engine state, so the HOUSE furniture renders with
+ * the correct framing/orientation/scale.  Parallels Cf.minimal's
+ * scene1_postload_apply_walker_phase2_house_groundtruth(); wired behind
+ * the same `--force-walker-phase2 0` path in main.c.
+ *
+ * Values from tools/dump_camera_groundtruth.py (retail new-game HOUSE):
+ *   eye=(-1, 22.2, 15), lookat=(-1, 1.2, 1), yaw=π, fov=45° (already
+ *   matched), z_roll=0.  This sets the five compose inputs + char_mode +
+ *   yaw that produce exactly those eye/lookat through pose_compute.
+ *
+ * Faithful-port follow-ups (PHC): yaw=π is a direct write in the Cf block
+ * (FUN_00436f97 L589); char_mode is *(int*)(&DAT_045105a4 + slot*0x2dfc8);
+ * radius/eyey/looky adds come from the per-stage camera-param loader. */
+void scene1_camera_apply_house_groundtruth(void)
+{
+    g_scene1_camera_char_mode = 0;   /* retail per-save-slot source = 0
+                                      * (port hard-coded 2; with 0 block B
+                                      * takes the uVar2<2 arm → offsets 0) */
+    g_radius_add        = 14.0f;     /* _DAT_0695ef70 */
+    g_eyey_add          = 21.0f;     /* _DAT_044e2c70 */
+    g_looky_add         = -1.8f;     /* _DAT_069b2f78 */
+    g_bias_x_src        = -0.3f;     /* DAT_056da1d8 (clamps to -1.0) */
+    g_bias_z_src        = 9.35f;     /* DAT_056da1e0 (clamps to  1.0) */
+    g_scene1_camera_yaw = 3.1415927f;/* _DAT_073de39c (Cf block L589) */
 }
 
 /* ─── FUN_00441c3e default-path pose helper ───────────────────────────── */
@@ -128,8 +183,8 @@ void scene1_camera_pose_compute(void)
 
     /* Block E (L86-L163) — default-path eye/lookat compute.  No class-1
      * arm (deferred Cc.2). */
-    float bias_x = 0.0f;  /* engine: local_10 = DAT_056da1d8 (BSS-zero) */
-    float bias_z = 0.0f;  /* engine: local_8  = DAT_056da1e0 (BSS-zero) */
+    float bias_x = g_bias_x_src;  /* engine: local_10 = DAT_056da1d8 */
+    float bias_z = g_bias_z_src;  /* engine: local_8  = DAT_056da1e0 */
 
     /* `(uVar2 > 1) → local_8 -= 5`.  Char_mode=2 (shop view) lifts the
      * eye 5 units further from the target along z. */
@@ -217,14 +272,14 @@ void scene1_camera_pose_compute(void)
      * Pitch downward ≈ atan(6.2 / 4) ≈ 57°.  Camera looks down toward
      * the static room interior centered near world-origin. */
     float yaw       = g_scene1_camera_yaw;
-    float radius_xz = g_class_off_y + 0.0f + cinematic;
+    float radius_xz = g_class_off_y + g_radius_add + cinematic;
 
     float lookat_x = bias_x;
-    float lookat_y = g_class_off_x + 0.0f + g_floor_bias;
+    float lookat_y = g_class_off_x + g_looky_add + g_floor_bias;
     float lookat_z = bias_z;
 
     float eye_x = radius_xz * sinf(yaw) + bias_x;
-    float eye_y = g_class_off_z + 0.0f + cinematic + lookat_y;
+    float eye_y = g_class_off_z + g_eyey_add + cinematic + lookat_y;
     float eye_z = bias_z - radius_xz * cosf(yaw);
 
     /* Block H (L188-L204) — smoothing lerp / first-frame snap. */

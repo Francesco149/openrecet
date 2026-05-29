@@ -2815,6 +2815,7 @@
     "src/scene.c",
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
+    "src/scene1_camera.c",
     "src/scene1_particles_tick.h",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
