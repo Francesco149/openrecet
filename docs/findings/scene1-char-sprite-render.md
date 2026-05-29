@@ -13,9 +13,23 @@
 > The `FUN_0044376a(0x56da1b8, 3, idx)` call inside `FUN_0048b850` spawns an
 > entity-effect, not a render-slot copy. So the next real chip for visible HOUSE
 > characters is **`FUN_0048b850` itself** (5030 B per-frame actor/camera
-> controller), armed by `FUN_0048b3f6` — there is no separate "8538 B copier".
-> (Two independent clean-context analyses + the live signature + the existing
-> port corroborate this.)**
+> controller) — there is no separate "8538 B copier". (Two independent clean-
+> context analyses + the live signature + the existing port corroborate this.)**
+>
+> **2026-05-30 — RUNTIME-CONFIRMED data flow (Frida call-trace, 60k-frame
+> auto-z-spam drive into the playable shop, `runs/calltrace-shop-probe`):**
+> `FUN_0048b850` **fires 40,558× from frame 4583 onward** — it IS the live
+> per-frame player controller in the playable HOUSE. Its caller is
+> **`FUN_0048670f`** (54,078×, 3 call sites @ all.c 86604/86718/87749), NOT
+> `FUN_0048b3f6` — the dispatcher gate at all.c:40595 takes the `FUN_0048670f`
+> branch because the scene-state `(&DAT_068dd3fc)[DAT_0438b4dc*0x6cf]` stays in
+> `[0,4]` in HOUSE; `FUN_0048b3f6` fired **0×**. The intro/event arm
+> (`FUN_004427d3 → FUN_0048407f`, the "cutscene" controller) fires only early
+> (frames 3046–5958) — it drives a *separate* 3D scene with its own visible
+> characters (this is the `FUN_0048407f` cutscene-parity chip, NOT the Cpop
+> target). Render path confirmed: `FUN_00459dfd → FUN_00456f56 (walker, 55,499×)
+> → FUN_0045a56f (leaf, 443,992×)` reads what `FUN_0048b850` fills. Net: the
+> Cpop chip = **`FUN_0048b850`, armed by `FUN_0048670f`**.
 >
 > **2026-05-30 — OBJDUMP GROUND TRUTH (corrects the survey's referent map too):**
 > A full `.text` scan for the absolute address `0x56dacc0` finds it **referenced
