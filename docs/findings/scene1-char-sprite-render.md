@@ -281,11 +281,34 @@ The Frida-inject MVP path is now scaffolded end-to-end:
    `--emit-expected` prints retail's `leaf_out` verts for the picked call
    to compare against the port.
 
-**Remaining:** run the capture against retail (needs the Windows host) and
-the visual A/B; confirm the `COLOROP=7/8` tail; then replace the injected
-`param_1` with the faithful actor-walker port (Cchr.2d).  Step-2 boot-wiring
-now happens *under the `--force-player-sprite` flag*; folding it into the
-normal boot waits on Cchr.2d giving it a real per-frame consumer.
+## Cchr.2b VALIDATED — bit-exact A/B vs retail (2026-05-29)
+
+Ran the capture against retail (run `runs/cchr2b`, free-roam HOUSE frame
+17544, player Recette at (-0.30, 0, 9.35)).  The leaf fired 8× that frame;
+the player call (char 0) had inputs: `sheet_w=128, scale_x100=100,
+y_origin=114, facing=6` (bank 4, **not** flipped), `anim=0, frame=2` →
+LUT cell 10; formdata `base=0, ncells=6, start=60, pos=[5,6,9,10,13,14]`;
+`color=0xff808080`, `tex=512×1024`.
+
+**`chr_sprite_build_quads` reproduces retail's full 36-vertex
+DrawPrimitiveUP buffer bit-for-bit** — locked in as the regression test
+`test_chr_sprite_retail_recette_house`.  The geometry math (sheet-pos →
+object XY, linear-atlas → half-texel UVs, the non-flipped facing branch,
+the `V0,V1,V2,V3,V0,V2` emission order) is ground-truth-correct.
+
+The standing player's flags `[7][8][9] = 0/0/0` take the **single
+DrawPrimitiveUP** tail (the `COLOROP=7/8` bracket is a *different* flag
+state — not exercised by a normal standing actor, still transcribed
+faithfully but A/B-unconfirmed for that branch).  Retail's `color =
+0xff808080` (mid-grey) is doubled to white by the scene's MODULATE2X —
+consistent with the brightness finding ([[openrecet_house_brightness_resolved]]).
+
+**Remaining:** the actor-walker port (Cchr.2d) that *builds* `param_1` per
+frame, which then feeds this validated leaf — at which point the
+`--force-player-sprite` inject is replaced by the real walk path and
+step-2 boot-wiring folds into the normal boot.  A port-side rendered
+visual (vs. the bit-exact proof here) additionally needs the sheet-texture
+load path; lower priority now that geometry is ground-truthed.
 
 ## Cross-refs
 

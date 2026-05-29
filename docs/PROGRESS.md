@@ -51,10 +51,22 @@ questions in `docs/findings/scene1-char-sprite-render.md`.
   end-to-end on a synthetic capture — the picked call's expected verts
   match the port's host-tested build_quads output exactly.
 
-Both exe targets build warning-free; host suite 2928 pass. Remaining
-needs the user: run the capture against retail + the visual A/B, confirm
-the COLOROP=7/8 tail, then port the actor walker (Cchr.2d). Full runbook
-in `docs/findings/scene1-char-sprite-render.md`.
+**VALIDATED — bit-exact A/B vs retail (same day).** Ran the capture
+(`runs/cchr2b`, free-roam HOUSE frame 17544, Recette at (-0.30,0,9.35)):
+the leaf fired 8× that frame; the player call (char 0) had `sheet_w=128,
+scale=100, y_origin=114, facing 6/bank 4, anim 0 frame 2 → cell 10,
+formdata ncells=6 start=60 pos=[5,6,9,10,13,14], color 0xff808080,
+tex 512×1024`. **`chr_sprite_build_quads` reproduces retail's full
+36-vertex DrawPrimitiveUP buffer bit-for-bit** — locked in as
+`test_chr_sprite_retail_recette_house` (2929 pass). The standing player's
+flags are 0/0/0 → single-draw tail (COLOROP=7/8 bracket is a different,
+unexercised flag state). A retail backbuffer screenshot of the matched
+frame confirms the character billboards render correctly.
+
+Both exe targets build warning-free. Remaining: the actor-walker port
+(Cchr.2d) that builds param_1 per frame to feed this validated leaf;
+then the --force-player-sprite inject is replaced by the real walk path.
+Full runbook in `docs/findings/scene1-char-sprite-render.md`.
 
 ## 2026-05-29 — Cchr.2a: character sprite-metadata loaders (chr/formdata + .idx)
 
