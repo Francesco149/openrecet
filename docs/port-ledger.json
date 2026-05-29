@@ -4299,6 +4299,8 @@
    "status": "ported",
    "src": [
     "src/chr_sprite_meta.h",
+    "src/scene1_chr_sprite.c",
+    "src/scene1_chr_sprite.h",
     "src/scene1_render.c",
     "src/scene1_shop_walker.c",
     "src/scene1_shop_walker.h"

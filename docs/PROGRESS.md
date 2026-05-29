@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — Cchr.2b: the HOUSE character sprite leaf renderer
+
+Ported `FUN_0045a56f` (1223 B) — the leaf that draws Recette / Tear / NPC
+billboards in the shop — into `src/scene1_chr_sprite.{c,h}`. This is the
+renderer Cchr.1 ground-truthed and Cchr.2a built the data layer for.
+
+- **`chr_sprite_build_quads()`** (pure, host-tested): the per-cell quad
+  geometry, faithful to objdump @ 0x45a56f. Resolved the two dropped
+  pieces the spec flagged: the 8-entry facing→bank/flip tables
+  `DAT_005c5a54`/`DAT_005c5a74` (8 dirs → 5 sprite banks + horizontal
+  mirror), and the dropped `sin` argument — the spawn shimmer is
+  `sin(age·π/2/20)·sheet_w·0.2`, dormant for a standing actor (age 0).
+  Per cell it reads the formdata frame entry (big-endian `base`@`char*4`,
+  `ncells`@+0x400 / `start`@+0x600 / sheet-pos@+0x800), maps sheet
+  position → object XY and the linear atlas walk (`start+i`) →
+  half-texel-inset UVs, and emits a 6-vertex TRILIST quad in the engine's
+  exact order V0,V1,V2,V3,V0,V2 with the `[7]/[8]/[9]` color/alpha gate.
+- **`scene1_chr_sprite_render()`** (Win32): SetTransform(WORLD) → build →
+  the flag-gated DrawPrimitiveUP tail (FVF 0x142, stride 0x18). The
+  `COLOROP=7/8` bracket on the special-flag branch is verbatim from
+  objdump and **pending Frida A/B** for its visual intent.
+
+All engine float constants decoded from the binary (1.0/100/0.5/32/0.2/
+π÷2/20). **9 host tests** (`test_scene1_chr_sprite.c`); 2928 total, all
+pass. Both exe targets build warning-free. Findings + resolved open
+questions in `docs/findings/scene1-char-sprite-render.md`.
+
+Next (strategy-B steps 4–5, needs the user / Frida + visual A/B): capture
+one retail player leaf-call, inject behind `--force-player-sprite`, A/B
+vs retail; boot-wiring of the Cchr.2a loaders (step 2) also still pending.
+
 ## 2026-05-29 — Cchr.2a: character sprite-metadata loaders (chr/formdata + .idx)
 
 First *code* chip of the Cchr.2 character-sprite port. Cchr.1 named the

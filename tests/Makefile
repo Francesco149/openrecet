@@ -59,6 +59,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/npc_schedule.c \
                  ../src/scene1_hud.c \
                  ../src/chr_sprite_meta.c \
+                 ../src/scene1_chr_sprite.c \
                  ../src/sha256.c ../src/se_pack.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
                  test_recet_ini.c test_input_poll.c test_input_trace.c \
@@ -97,6 +98,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_npc_schedule.c \
                  test_scene1_hud.c \
                  test_chr_sprite_meta.c \
+                 test_scene1_chr_sprite.c \
                  test_se_pack.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))

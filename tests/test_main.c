@@ -3070,7 +3070,17 @@ struct test_case {
     X(chr_meta_crlf_line_endings) \
     X(chr_meta_blocks_independent) \
     X(chr_meta_oob_and_null_safe) \
-    X(chr_meta_alloc_idempotent)
+    X(chr_meta_alloc_idempotent) \
+    \
+    X(chr_sprite_ncells_and_count) \
+    X(chr_sprite_flipped_geometry) \
+    X(chr_sprite_unflipped_geometry) \
+    X(chr_sprite_second_cell_atlas_advance) \
+    X(chr_sprite_color_gate_white) \
+    X(chr_sprite_color_gate_tint) \
+    X(chr_sprite_color_gate_unchanged) \
+    X(chr_sprite_null_and_degenerate_safe) \
+    X(chr_sprite_out_max_clamp)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

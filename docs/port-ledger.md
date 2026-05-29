@@ -227,7 +227,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4597ad | FUN_004597ad | 48 | ✓ | scene1_render.c, scene1_render.h |
 | 0x4597dd | FUN_004597dd | 106 | ✓ | scene1_render.c, scene1_render.h |
 | 0x459847 | FUN_00459847 | 1444 | ✓ | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_emit_record.h (+2) |
-| 0x45a56f | FUN_0045a56f | 1223 | ✓ | chr_sprite_meta.h, scene1_render.c, scene1_shop_walker.c (+1) |
+| 0x45a56f | FUN_0045a56f | 1223 | ✓ | chr_sprite_meta.h, scene1_chr_sprite.c, scene1_chr_sprite.h (+3) |
 | 0x45aa36 | FUN_0045aa36 | 4493 | ✓ | scene1_render.c, scene1_render.h |
 | 0x45bdc2 | FUN_0045bdc2 | 546 | ✓ | worker_load.h |
 | 0x45c051 | FUN_0045c051 | 3021 | ✓ | sim.c |

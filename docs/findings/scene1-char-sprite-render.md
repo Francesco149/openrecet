@@ -116,9 +116,13 @@ descriptor block.
    `0x359*6 = 0x1416`, the `param_2*0x359` here is likely a *frame-entry*
    (6-dword) count, i.e. the same packing — re-derive the `*0x400` /
    `+0x14` offsets via objdump when porting 2c.
-4. **Dropped FPU arg in the leaf:** `__ftol` (float→int, standard) and
-   `FUN_00503a44` (the `iVar4 < 0x14` time-shimmer alpha ramp) — minor
-   visual; objdump-verify when porting 2b ([[feedback_argless_trig_decomp]]).
+4. **Dropped FPU arg in the leaf — RESOLVED 2026-05-29 (objdump @ 0x45a85e).**
+   `FUN_00503954` = `__ftol` (float→int trunc, standard).  `FUN_00503a44`
+   = `sin(double on [esp])`; the dropped argument is
+   `(float)param_1[10] · (π/2) / 20.0` (spawn age over a 20-frame ease),
+   so the shimmer is `sin(age·π/2/20)·sheet_w·0.2` and is **0 for a
+   standing actor** (`param_1[10]==0` → the `jle` short-circuits param_4
+   to 0).  Ported faithfully in `chr_sprite_build_quads`.
 5. **The 68 idx filenames.** `chr_meta_idx_names()` returns NULL until the
    PTR list at 0x5c80c4 is transcribed; `chr_meta_load()` is a no-op until
    then.  Transcribe with objdump (deref 68 LE ptrs) when wiring 2a into
@@ -211,6 +215,45 @@ accessors, host-tested) + `src/chr_sprite_meta_load.c` (storage-backed
 `chr_formdata_load` / `chr_meta_load`, real-build only).
 9 host tests (`test_chr_sprite_meta.c`).  Not yet wired into boot
 (awaits the 68-name list + a decision on when to populate the descriptor).
+
+The 68-entry idx-filename PTR list @ 0x5c80c4 **was** transcribed
+(`chr_meta_idx_names()` is operational); only the boot call of
+`chr_formdata_load()` + `chr_meta_load()` (step 2) remains for real data.
+
+## What landed (Cchr.2b, 2026-05-29) — the leaf renderer
+
+`src/scene1_chr_sprite.{c,h}` ports `FUN_0045a56f`:
+
+- **`chr_sprite_build_quads()`** — the pure per-cell geometry (host-tested,
+  no D3D).  Faithful to objdump @ 0x45a56f: facing→bank/flip via the two
+  8-entry tables `DAT_005c5a54` = `{0,2,4,3,1,3,4,2}` / `DAT_005c5a74` =
+  `{1,1,1,1,1,0,0,0}` (8 dirs fold onto 5 banks + horizontal mirror); LUT
+  cell → formdata frame entry (`base = be_u32(formdata[char*4])`, then
+  `ncells`@+0x400 / `start`@+0x600 / sheet-pos@+0x800, all big-endian);
+  per cell a 6-vertex TRILIST quad (emit order **V0,V1,V2,V3,V0,V2**) with
+  the sheet-position → object XY, the *linear* atlas walk (`start+i`) →
+  half-texel-inset UVs, the spawn-age shimmer (`sin(age·π/2/20)·sheet_w·0.2`,
+  dormant at age 0), and the `[7]/[8]/[9]` color/alpha gate.
+- **`scene1_chr_sprite_render()`** (Win32) — `SetTransform(WORLD)` →
+  build → the flag-gated draw tail: when
+  `(actor[8]<1 || actor[9]!=0) && actor[7]>0` it brackets DrawPrimitiveUP
+  with `COLOROP=7/8` (verbatim from objdump; **pending Frida A/B** to pin
+  their visual intent), else a single DrawPrimitiveUP. FVF 0x142, stride
+  0x18.
+
+Constants decoded from the binary: 1.0/100.0/0.5/32.0/0.2/(π÷2)/20.0 at
+0x519364/68/5c, 0x519474, 0x5198d8, 0x519434, 0x519520.
+
+9 host tests (`test_scene1_chr_sprite.c`): ncells/count, flipped +
+non-flipped geometry, atlas advance across cells, all three color-gate
+branches, NULL/degenerate/truncated-formdata safety, `out_max` clamp.
+
+**Remaining for first visible pixels (strategy-B steps 4–5):** Frida-capture
+one retail player leaf-call (`param_1` struct, char id `DAT_056da1cc`,
+world matrix, color, sheet tex dims) at a HOUSE frame; inject behind
+`--force-player-sprite`; A/B vs retail; then replace the injected
+`param_1` with the faithful actor-walker port (Cchr.2d).  Boot-wiring of
+the loaders (step 2) is also still pending.
 
 ## Cross-refs
 
