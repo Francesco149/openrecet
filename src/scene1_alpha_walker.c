@@ -193,11 +193,12 @@ void scene1_alpha_walker(struct IDirect3DDevice8 *dev_in)
         IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
         IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
     } else {
-        /* L51-L52: ONE × ONE → DESTBLEND=DESTCOLOR (2),
-         * SRCBLEND=DESTCOLOR (2).  Pre-multiplied-pixel mode for
-         * some palette-driven post-effect.  Dormant in HOUSE. */
-        IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_DESTCOLOR);
-        IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_DESTCOLOR);
+        /* L51-L52: additive — DESTBLEND=ONE(2), SRCBLEND=ONE(2).
+         * Engine literal 2 is D3DBLEND_ONE (NOT D3DBLEND_DESTCOLOR=9 —
+         * a prior decode erratum); src + dest.  Dormant in HOUSE
+         * (wateradd == 0), live for additive water stages. */
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
     }
 
     /* ─── L56: top-level combiner mode ─────────────────────────────── */
@@ -235,31 +236,24 @@ void scene1_alpha_walker(struct IDirect3DDevice8 *dev_in)
          * pass-id 2.  Dispatches through PII.3b walker port. */
         scene1_walker_pass_render_house((struct IDirect3DDevice8 *)dev, 2);
 
-        /* L64-L74: inner palette blend-mode gate. */
+        /* L64-L74: inner palette blend-mode gate (hikariadd).  Engine
+         * literal 2 is D3DBLEND_ONE (NOT D3DBLEND_DESTCOLOR=9 — a prior
+         * decode erratum that turned the additive god-ray blend into a
+         * darkening multiply, so the rays never showed). */
         if (aw_palette_inner_blend_gate_1a5c() == 0) {
-            /* L65-L66: SRCBLEND=SRCALPHA(5) + DESTBLEND=INVSRCCOLOR(4).
-             * Wait — engine writes 0x13 (SRCBLEND) with 5 then DEST
-             * was already set above so writes the dest at 0x14 with 0x14.
-             *
-             * Re-reading the decomp:
-             *   SetRenderState(0x13, 5);  // SRCBLEND=SRCALPHA
-             *   uVar6 = 0x14; iVar3 = *DAT_073dfcbc;
-             *   (then below the if)
-             *   SetRenderState(uVar6, 2);
-             * So uVar6=0x14 picks DESTBLEND, then value=2 (DESTCOLOR).
-             */
+            /* Decomp L53649-53658, hikariadd == 0:
+             *   SetRenderState(0x13, 5);   // SRCBLEND = SRCALPHA
+             *   SetRenderState(0x14, 2);   // DESTBLEND = ONE
+             * → src*srcAlpha + dest (alpha-weighted additive). */
             IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
-            IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_DESTCOLOR);
+            IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
         } else {
-            /* L70-L71: DESTBLEND=DESTCOLOR(2) + SRCBLEND=DESTCOLOR(2).
-             * Same as the outer-gate non-zero arm — pre-multiplied
-             * variant.  Engine literal:
-             *   SetRenderState(0x14, 2);  // DESTBLEND=DESTCOLOR
-             *   uVar6 = 0x13; iVar3 = *DAT_073dfcbc;
-             *   SetRenderState(uVar6, 2); // SRCBLEND=DESTCOLOR
-             */
-            IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_DESTCOLOR);
-            IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_DESTCOLOR);
+            /* Decomp L53654-53658, hikariadd != 0 (HOUSE = 1):
+             *   SetRenderState(0x14, 2);   // DESTBLEND = ONE
+             *   SetRenderState(0x13, 2);   // SRCBLEND  = ONE
+             * → src + dest (pure additive — the god-ray glow). */
+            IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+            IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
         }
 
         /* L75: FUN_00454f03(palette+0x1a54) — combiner mode. */
