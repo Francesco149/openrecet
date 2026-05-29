@@ -7,6 +7,41 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — C7m re-scope: chr-render survey (FUN_004176ff) — dormant without the table-B integrator
+
+After C7j, picked the character sprites (Recette/Tear in the shop) as
+the next visible target. Two corrections fell out of the survey:
+
+1. **Pass 7 of the HUD aggregator is NOT chr render.** Body reads of
+   FUN_0046b00a (Vendors/market-stocking menu, gated DAT_0734b98c) and
+   FUN_00466b7b (sub-panel slide/scale transition, gated DAT_0438b7b0)
+   show both are dormant **shop menus** binding the terminal atlas, not
+   character renderers — same mislabel the survey flags for FUN_00459847.
+   Corrected `findings/scene1-walker.md`.
+
+2. **The real character renderer is `FUN_004176ff`** (30,395 B,
+   `scene1_walk_chr_TODO` in the 3D mesh-walker chain,
+   `src/scene1_render.c:854`) — surveyed in new
+   `findings/scene1-chr-walker.md`. It's the unified per-record
+   entity/particle/character 3D render walker over the records_a/b
+   tables (371 draw sub-calls, mostly D3DX matrix thunks + mesh leaves).
+
+   **Verdict (data-liveness sweep): porting it renders ZERO characters
+   on a fresh new-game HOUSE.** It is data-driven off `g_scene1_records_b`,
+   which is BSS-zero on HOUSE entry — the populator, the 25.7 KB
+   integrator `FUN_0043ae20` (INGAME arm `FUN_00442cef`), is unported/
+   stubbed. So "characters in the shop" is gated behind the two largest
+   functions in the scene, not a single chip.
+
+   Documented Route A (HOUSE-minimal `FUN_0043ae20` player-alloc subset
+   + incremental walker port) vs Route B (`--force-b-entity-type` smoke
+   harness to validate each render sub-pass without the integrator), and
+   recommends a **Frida retail trace FIRST** to find which sub-pass +
+   record fields actually draw the player, scoping a player-only path
+   instead of all ~5,308 lines.
+
+No code landed (survey-only); docs + INDEX updated.
+
 ## 2026-05-29 — C7j: scene-1 2D HUD aggregator begun (FUN_0040a765 shell + Passes 1-3)
 
 First chip of the **C7i ladder** — the last HOUSE-visible HUD blocker.
