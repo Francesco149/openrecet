@@ -3081,7 +3081,13 @@ struct test_case {
     X(chr_sprite_color_gate_unchanged) \
     X(chr_sprite_null_and_degenerate_safe) \
     X(chr_sprite_out_max_clamp) \
-    X(chr_sprite_retail_recette_house)
+    X(chr_sprite_retail_recette_house) \
+    X(chr_anim_tick_accumulates_below_duration) \
+    X(chr_anim_tick_advances_at_duration) \
+    X(chr_anim_tick_halt_holds_frame) \
+    X(chr_anim_tick_end_wraps_to_start) \
+    X(chr_anim_tick_timer_is_float) \
+    X(chr_anim_tick_null_safe)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

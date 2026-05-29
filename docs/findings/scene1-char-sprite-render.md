@@ -310,6 +310,62 @@ step-2 boot-wiring folds into the normal boot.  A port-side rendered
 visual (vs. the bit-exact proof here) additionally needs the sheet-texture
 load path; lower priority now that geometry is ground-truthed.
 
+## Cchr.2c — the animation frame tick (FUN_00482a71, 0x482a71, 118 B)
+
+Ported as `chr_anim_tick()` in `src/scene1_chr_sprite.c`. This is the
+one-tick animation advance for an actor sprite-state struct — the half of
+Cchr.2c that is a clean pure leaf (the "struct *populate*" half is the
+walker's job and lands with Cchr.2d). Signature
+`FUN_00482a71(int *state, int char_id, float dt)`.
+
+**Algorithm** (verbatim from objdump @ 0x482a71):
+
+```
+dur = (float) LUT[char][state[anim]][frame=state[4]].field5   // +0x14, int→float
+if (dur <= timer) {                 // x87 fcomp; advance when timer >= dur
+    state[4] = frame + 1
+    timer = 0
+    marker = LUT[char][state[anim]][frame+1].field0            // +0x00 of NEXT frame
+    if (marker == 0x3ff)        state[4] = frame                // HALT → hold
+    else if (marker == -1)    { state[4] = 0; state[3] = 0 }    // end → wrap
+}
+state[3] += 1                        // frame counter, unconditional
+timer += dt                          // dt = 1.0 at all engine call sites
+```
+
+The LUT addressing is `DAT_0438cee0 + (frame + char*0x359)*0x18 +
+anim*0x400` — i.e. char descriptor block (stride 0x5058 = 0x359*0x18),
+animation block (0x400 B = 0x100 dwords), frame (0x18 B = 6 dwords). This
+is exactly the `chr_meta_lut(char, anim, frame, field)` accessor Cchr.2a
+already exposes; the tick reads **field 5** (current frame duration) and
+**field 0** of the *next* frame (the HALT/end marker).
+
+**Decompiler correction — the timer [2] is a `float`, not an `int`.**
+Ghidra typed `param_1` as `int *` and emitted `param_1[2] = (int)(param_3
++ (float)param_1[2])`, but the asm is pure x87: `flds 0x8(%ecx)` /
+`fadds` / `fstps 0x8(%ecx)` (and `fldz` on reset, `fcomps` on the
+compare). The slot holds a float accumulator. The port stores/loads it via
+`memcpy` into the int32 slot (strict-aliasing-clean) — `test_chr_anim_tick_
+timer_is_float` pins this by accumulating fractional dt=0.5 across three
+ticks (an int-truncated timer would stay 0 forever). The engine durations
+are integer frame-counts and dt is always 1.0, so the float only matters
+for fidelity, not current call sites.
+
+**Benign deviation:** `chr_meta_lut` bounds the read to the LUT region and
+returns 0 past the end, where the engine reads raw adjacent memory. A
+correctly-authored animation always carries a 0x3ff/-1 terminator before
+that edge, so the marker read never falls off in practice; if it did, the
+port advances the frame (marker 0 ≠ HALT/end) rather than reading garbage.
+
+**6 host tests** (`test_chr_anim_tick_*`): below-duration accumulate,
+advance-at-duration, HALT hold, animation-end wrap (counter reset→++=1),
+the float-timer pin, and NULL-safe. 2935 total, all pass; both exe targets
+build warning-free.
+
+**Remaining for the ladder:** Cchr.2d (the walker `FUN_00456f56` that
+builds `state` per frame and calls this tick + the validated 2b leaf),
+then Cchr.2e (the records pre-pass `FUN_0045672a`).
+
 ## Cross-refs
 
 - `scene1-char-sprite-trace.md` — Cchr.0/Cchr.1 retail trace.

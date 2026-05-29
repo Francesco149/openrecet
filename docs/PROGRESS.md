@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — Cchr.2c: the actor animation frame tick
+
+Ported `FUN_00482a71` (118 B) — the per-tick sprite-animation advance —
+as `chr_anim_tick()` in `src/scene1_chr_sprite.{c,h}`. Given an actor
+sprite-state struct, its char id, and a dt, it walks the per-char frame
+LUT (the `chr_meta_lut` accessor Cchr.2a already exposes): when the frame
+timer reaches the current frame's duration (LUT field 5) it steps to the
+next frame, honoring the two markers on the *next* frame's field-0 cell —
+`0x3ff` (HALT → hold on the current frame) and `0xffffffff` (animation end
+→ wrap frame + counter to 0).
+
+- **Decompiler correction.** Ghidra typed the state struct as `int *` and
+  emitted `param_1[2] = (int)(param_3 + (float)param_1[2])`. objdump @
+  0x482a71 shows the timer slot `[2]` is a **float** accumulator (x87
+  `flds`/`fadds`/`fstps`/`fldz`/`fcomps`); only `[3]` (frame counter) and
+  `[4]` (frame idx) are ints. The port stores/loads `[2]` via `memcpy`
+  into the int32 slot, and a dedicated test pins float accumulation.
+- All engine call sites pass `dt = 1.0` (`0x3f800000`), so durations are
+  integer frame-counts; the float matters for fidelity, not for any
+  current caller.
+
+**6 host tests** (`test_chr_anim_tick_*`): below-duration accumulate,
+advance-at-duration, HALT hold, animation-end wrap, the float-timer pin,
+NULL-safe. **2935 total, all pass**; both exe targets build warning-free.
+This is the pure-leaf half of Cchr.2c — the struct *populate* half lands
+with the walker (Cchr.2d, `FUN_00456f56`), which will call this tick + the
+validated 2b leaf per frame. Findings in
+`docs/findings/scene1-char-sprite-render.md` "Cchr.2c".
+
 ## 2026-05-29 — Cchr.2b: the HOUSE character sprite leaf renderer
 
 Ported `FUN_0045a56f` (1223 B) — the leaf that draws Recette / Tear / NPC

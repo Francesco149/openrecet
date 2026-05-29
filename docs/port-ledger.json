@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 59,
   "stubbed": 14,
-  "ported": 287,
-  "unported": 2188,
+  "ported": 288,
+  "unported": 2187,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 360,
-  "pct_touched": 14.1,
+  "touched": 361,
+  "pct_touched": 14.2,
   "pct_verified": 2.3
  },
  "orphan_refs": [
@@ -7499,8 +7499,10 @@
    "size": 118,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_chr_sprite.h"
+   ]
   },
   {
    "va": "0x482ae7",

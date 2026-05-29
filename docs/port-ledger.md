@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **360** (14.1%) — verified 59, stubbed 14, ported 287
-- unported: **2188**
+- touched: **361** (14.2%) — verified 59, stubbed 14, ported 288
+- unported: **2187**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (59) — runtime-diffed vs retail
@@ -97,7 +97,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (287) — reimplemented, no probe yet
+## ported (288) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -307,6 +307,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47fc44 | FUN_0047fc44 | 596 | ✓ | audio_fade.h |
 | 0x480b65 | FUN_00480b65 | 1919 | ✓ | chara_skills.h |
 | 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h, scene1_particles_tick.h (+1) |
+| 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_chr_sprite.h |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |
 | 0x48407f | FUN_0048407f | 795 | ✓ | scene1_sim.c, scene1_sim.h |
 | 0x484dd1 | FUN_00484dd1 | 116 | ✓ | scene1_records_c_tick.c, scene1_records_c_tick.h |

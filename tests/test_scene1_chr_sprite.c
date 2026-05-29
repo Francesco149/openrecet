@@ -370,3 +370,150 @@ int test_chr_sprite_retail_recette_house(void)
     chr_meta_shutdown();
     return 0;
 }
+
+/* ── chr_anim_tick (Cchr.2c, engine FUN_00482a71) ──────────────────────── */
+
+/* Set one frame-LUT dword for char 0: block.LUT[anim*0x100 + frame*6 + field]. */
+static void set_lut(int anim, int frame, int field, int32_t v)
+{
+    uint8_t *blk = chr_meta_block(0);
+    int idx = anim * 0x100 + frame * 6 + field;
+    poke_i32(blk + CHR_META_OFF_LUT + idx * 4, v);
+}
+/* Read actor[2] reinterpreted as the float frame-timer (matches the port). */
+static float get_timer(const int32_t *actor)
+{
+    float f;
+    memcpy(&f, &actor[CHR_ACTOR_TIMER], sizeof f);
+    return f;
+}
+static void set_timer(int32_t *actor, float f)
+{
+    memcpy(&actor[CHR_ACTOR_TIMER], &f, sizeof f);
+}
+/* Fresh, zeroed descriptor block 0 for a tick test. */
+static int tick_setup(void)
+{
+    chr_meta_shutdown();
+    if (!chr_meta_alloc()) { T_FAIL("chr_meta_alloc failed"); }
+    if (chr_meta_block(0) == NULL) { T_FAIL("block 0 NULL"); }
+    return 0;
+}
+
+/* Timer below the current frame's duration → frame holds; timer += dt,
+ * counter ++.  (engine: the `jb` skip path.) */
+int test_chr_anim_tick_accumulates_below_duration(void)
+{
+    int r = tick_setup(); if (r) return r;
+    set_lut(0, 0, 5, 5);                       /* frame0 duration = 5 */
+
+    int32_t actor[0x11] = { 0 };
+    actor[CHR_ACTOR_FRAME]   = 0;
+    actor[CHR_ACTOR_COUNTER] = 0;
+    set_timer(actor, 2.0f);
+
+    chr_anim_tick(actor, 0, 1.0f);
+
+    T_ASSERT_EQ_I(actor[CHR_ACTOR_FRAME], 0);
+    T_ASSERT_EQ_I(actor[CHR_ACTOR_COUNTER], 1);
+    T_ASSERT_NEAR(get_timer(actor), 3.0f);
+    chr_meta_shutdown();
+    return 0;
+}
+
+/* Timer reaches duration → advance to next frame, timer resets to 0 then
+ * picks up dt; a normal next-frame marker leaves the advance standing. */
+int test_chr_anim_tick_advances_at_duration(void)
+{
+    int r = tick_setup(); if (r) return r;
+    set_lut(0, 0, 5, 2);                       /* frame0 duration = 2 */
+    set_lut(0, 1, 0, 7);                        /* frame1 marker = 7 (normal) */
+
+    int32_t actor[0x11] = { 0 };
+    actor[CHR_ACTOR_FRAME]   = 0;
+    actor[CHR_ACTOR_COUNTER] = 10;
+    set_timer(actor, 2.0f);                    /* == duration → advance */
+
+    chr_anim_tick(actor, 0, 1.0f);
+
+    T_ASSERT_EQ_I(actor[CHR_ACTOR_FRAME], 1);
+    T_ASSERT_EQ_I(actor[CHR_ACTOR_COUNTER], 11);
+    T_ASSERT_NEAR(get_timer(actor), 1.0f);     /* reset 0 then += dt */
+    chr_meta_shutdown();
+    return 0;
+}
+
+/* Next frame's field-0 marker == 0x3ff (HALT) → hold on the current frame
+ * (the engine's `dec eax` path); counter still advances. */
+int test_chr_anim_tick_halt_holds_frame(void)
+{
+    int r = tick_setup(); if (r) return r;
+    set_lut(0, 0, 5, 0);                        /* frame0 duration 0 → advance */
+    set_lut(0, 1, 0, 0x3ff);                    /* HALT */
+
+    int32_t actor[0x11] = { 0 };
+    actor[CHR_ACTOR_FRAME]   = 0;
+    actor[CHR_ACTOR_COUNTER] = 4;
+    set_timer(actor, 0.0f);
+
+    chr_anim_tick(actor, 0, 1.0f);
+
+    T_ASSERT_EQ_I(actor[CHR_ACTOR_FRAME], 0);   /* held */
+    T_ASSERT_EQ_I(actor[CHR_ACTOR_COUNTER], 5);
+    T_ASSERT_NEAR(get_timer(actor), 1.0f);
+    chr_meta_shutdown();
+    return 0;
+}
+
+/* Next frame's field-0 marker == 0xffffffff (animation end) → wrap frame
+ * and counter to 0; counter is then ++'d to 1 at the tail. */
+int test_chr_anim_tick_end_wraps_to_start(void)
+{
+    int r = tick_setup(); if (r) return r;
+    set_lut(0, 0, 5, 0);                        /* frame0 duration 0 → advance */
+    set_lut(0, 1, 0, (int32_t)0xffffffffu);     /* animation end */
+
+    int32_t actor[0x11] = { 0 };
+    actor[CHR_ACTOR_FRAME]   = 0;
+    actor[CHR_ACTOR_COUNTER] = 50;
+    set_timer(actor, 0.0f);
+
+    chr_anim_tick(actor, 0, 1.0f);
+
+    T_ASSERT_EQ_I(actor[CHR_ACTOR_FRAME], 0);   /* wrapped */
+    T_ASSERT_EQ_I(actor[CHR_ACTOR_COUNTER], 1);  /* reset 0, then ++ */
+    T_ASSERT_NEAR(get_timer(actor), 1.0f);
+    chr_meta_shutdown();
+    return 0;
+}
+
+/* The timer slot [2] is a FLOAT, not an int (Ghidra mistype): fractional
+ * dt must accumulate across ticks.  An int-truncated timer would stay 0
+ * forever for dt=0.5 and the frame would never advance. */
+int test_chr_anim_tick_timer_is_float(void)
+{
+    int r = tick_setup(); if (r) return r;
+    set_lut(0, 0, 5, 100);                       /* high duration: no advance */
+
+    int32_t actor[0x11] = { 0 };
+    actor[CHR_ACTOR_FRAME]   = 0;
+    actor[CHR_ACTOR_COUNTER] = 0;
+    set_timer(actor, 0.0f);
+
+    chr_anim_tick(actor, 0, 0.5f);
+    chr_anim_tick(actor, 0, 0.5f);
+    chr_anim_tick(actor, 0, 0.5f);
+
+    T_ASSERT_EQ_I(actor[CHR_ACTOR_FRAME], 0);
+    T_ASSERT_EQ_I(actor[CHR_ACTOR_COUNTER], 3);
+    T_ASSERT_NEAR(get_timer(actor), 1.5f);       /* float accumulation */
+    chr_meta_shutdown();
+    return 0;
+}
+
+/* NULL actor is a no-op (engine has no guard, but the port does). */
+int test_chr_anim_tick_null_safe(void)
+{
+    chr_anim_tick(NULL, 0, 1.0f);
+    return 0;
+}

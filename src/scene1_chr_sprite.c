@@ -6,6 +6,7 @@
 #include "scene1_chr_sprite.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "chr_sprite_meta.h"
 
@@ -160,6 +161,53 @@ int chr_sprite_build_quads(chr_sprite_vertex *out, int out_max,
     }
 
     return ncells;
+}
+
+/* Frame-time accumulator [2] is a float reinterpreted in the int32 slot
+ * (the engine's flds/fadds/fstps path — Ghidra mis-typed param_1 as int*).
+ * memcpy keeps it strict-aliasing-clean. */
+static float chr_actor_timer_get(const int32_t *actor)
+{
+    float f;
+    memcpy(&f, &actor[CHR_ACTOR_TIMER], sizeof f);
+    return f;
+}
+static void chr_actor_timer_set(int32_t *actor, float f)
+{
+    memcpy(&actor[CHR_ACTOR_TIMER], &f, sizeof f);
+}
+
+void chr_anim_tick(int32_t *actor, int char_id, float dt)
+{
+    if (actor == NULL)
+        return;
+
+    int   frame = actor[CHR_ACTOR_FRAME];
+    float timer = chr_actor_timer_get(actor);
+
+    /* current frame's duration: LUT field 5 (+0x14), loaded int→float. */
+    float dur = (float)chr_meta_lut(char_id, actor[CHR_ACTOR_ANIM], frame, 5);
+
+    if (dur <= timer) {                      /* engine: timer >= duration */
+        actor[CHR_ACTOR_FRAME] = frame + 1;
+        timer = 0.0f;
+
+        /* marker on the *next* frame's field-0 cell. (chr_meta_lut bounds
+         * the read to the LUT region and returns 0 past the end — so an
+         * unterminated tail just advances, a benign/safer deviation from
+         * the engine's raw read; real anims always carry a 0x3ff/-1.) */
+        int32_t marker = chr_meta_lut(char_id, actor[CHR_ACTOR_ANIM],
+                                      frame + 1, 0);
+        if (marker == CHR_META_HALT) {                  /* 0x3ff: hold */
+            actor[CHR_ACTOR_FRAME] = frame;
+        } else if (marker == (int32_t)CHR_META_ANIM_END) {  /* -1: wrap */
+            actor[CHR_ACTOR_FRAME]   = 0;
+            actor[CHR_ACTOR_COUNTER] = 0;
+        }
+    }
+
+    actor[CHR_ACTOR_COUNTER] = actor[CHR_ACTOR_COUNTER] + 1;
+    chr_actor_timer_set(actor, timer + dt);
 }
 
 #ifdef _WIN32

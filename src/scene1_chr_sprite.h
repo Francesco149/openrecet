@@ -29,6 +29,8 @@
  * --------------------------------------------------------------------
  * Actor sprite-state struct (engine param_1, stride 0x44 = 0x11 dwords):
  *   [0]  animation set     (×0x100 into the frame LUT)
+ *   [2]  frame timer        — FLOAT accumulator (NOT int; see chr_anim_tick)
+ *   [3]  frame counter      — int, ++/frame, zeroed on animation wrap
  *   [4]  current frame idx
  *   [6]  facing index      (→ the 8-entry bank/flip facing tables)
  *   [7]  flag — alpha/color gate ([7]>=1 → RGB forced to white)
@@ -46,6 +48,8 @@
 
 /* Actor-state dword indices the leaf reads from param_1. */
 #define CHR_ACTOR_ANIM    0
+#define CHR_ACTOR_TIMER   2   /* float bits — frame-time accumulator        */
+#define CHR_ACTOR_COUNTER 3   /* int — frames-since-anim-start, wrap-reset   */
 #define CHR_ACTOR_FRAME   4
 #define CHR_ACTOR_FACING  6
 #define CHR_ACTOR_FLAG7   7
@@ -90,6 +94,26 @@ int chr_sprite_build_quads(chr_sprite_vertex *out, int out_max,
                            uint32_t color,
                            const uint8_t *formdata, size_t formdata_sz,
                            int tex_w, int tex_h);
+
+/*
+ * Advance one actor's sprite animation by one tick (engine FUN_00482a71,
+ * 0x482a71, 118 B).  Walks the per-char frame LUT (chr_meta_lut): when the
+ * frame timer [2] reaches the current frame's duration (LUT field 5), it
+ * steps to the next frame, honoring the two LUT markers on the *next*
+ * frame's field-0 cell — 0x3ff (HALT: hold on the current frame) and
+ * 0xffffffff (animation end: wrap frame + counter to 0).
+ *
+ *   actor   — the sprite-state struct (param_1), >= 0x11 dwords; mutated
+ *             in place.  Reads/writes [2] as a FLOAT (the engine uses the
+ *             x87 flds/fadds/fstps path — Ghidra mis-typed it as int);
+ *             [3] (counter) and [4] (frame idx) are ints.
+ *   char_id — descriptor / frame-LUT index (engine param_2).
+ *   dt      — timer increment this tick (engine param_3; the engine call
+ *             sites pass 1.0, so durations are integer frame-counts).
+ *
+ * No-op on a NULL actor.  Faithful to objdump @ 0x482a71.
+ */
+void chr_anim_tick(int32_t *actor, int char_id, float dt);
 
 #ifdef _WIN32
 struct IDirect3DDevice8;
