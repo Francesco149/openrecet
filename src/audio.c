@@ -267,7 +267,8 @@ int audio_play_se_by_id(uint16_t id)
 #include <mmsystem.h>
 #include <stdio.h>
 
-#include "music.h"   /* g_music_swap_fn — bridge into music.c */
+#include "music.h"    /* g_music_swap_fn — bridge into music.c */
+#include "se_pack.h"  /* runtime SE cache (no embedded proprietary audio) */
 
 static uint32_t audio_trace_platform_now_ms(void)
 {
@@ -486,29 +487,33 @@ int audio_init(HWND hwnd)
     }
 
     /* ── SE resource-load loop ───────────────────────────────────────────
-     * Mirrors FUN_00498ef4's second loop: for each of the 110 SE table
-     * entries, FindResourceA(NULL, MAKEINTRESOURCE(id), "WAVE"),
-     * LoadResource/LockResource/SizeofResource, then
-     * IDirectMusicLoader::GetObject with a DMUS_OBJECTDESC that points
-     * at the in-memory blob. The custom resource type "WAVE" matches
-     * what windres embedded via tools/extract/se-rc.py.
+     * Mirrors FUN_00498ef4's second loop, but sources the WAV blobs from
+     * the runtime SE cache (se_pack) instead of resources embedded in our
+     * own exe — we ship no proprietary audio. se_pack_acquire() extracts
+     * the 110 `WAVE` resources from the user's retail recettear.exe on
+     * first run and caches them (docs/formats/se-pack.md). Each blob then
+     * feeds IDirectMusicLoader::GetObject via a memory-backed
+     * DMUS_OBJECTDESC, exactly as the original engine does after its own
+     * FindResource/LockResource.
      *
-     * Slot 2's ID 0x0135 is in the table but absent from the engine's
-     * (and our) .rsrc — FindResourceA returns NULL and we leave the
-     * slot's segment pointer NULL. audio_play_se(2) silently no-ops. */
+     * If the retail exe can't be found, se_pack_acquire() fails; we skip
+     * SE entirely (every slot stays NULL → audio_play_se no-ops), which
+     * is the same graceful degradation as a missing resource.
+     *
+     * Slot 2's ID 0x0135 is in the table but has no `WAVE` resource even
+     * in retail — se_pack records it as an empty (size-0) slot and we
+     * leave its segment NULL. audio_play_se(2) silently no-ops. */
     int se_loaded = 0;
     int se_missing = 0;
-    for (int slot = 0; slot < AUDIO_SE_COUNT; slot++) {
+    int se_have = (se_pack_acquire() == 0);
+    if (!se_have)
+        fprintf(stderr,
+                "audio: SE cache unavailable — sound effects disabled\n");
+    for (int slot = 0; se_have && slot < AUDIO_SE_COUNT; slot++) {
         uint16_t rid = audio_se_resource_ids[slot];
-        HRSRC rsrc = FindResourceA(NULL, MAKEINTRESOURCEA(rid),
-                                   AUDIO_SE_RESOURCE_TYPE);
-        if (!rsrc) {
-            se_missing++;
-            continue;
-        }
-        HGLOBAL hres = LoadResource(NULL, rsrc);
-        void   *blob = hres ? LockResource(hres) : NULL;
-        DWORD   size = SizeofResource(NULL, rsrc);
+        const se_blob_t *be = se_pack_blob(slot);
+        const void *blob = be ? be->data : NULL;
+        uint32_t    size = be ? be->size : 0;
         if (!blob || !size) {
             se_missing++;
             continue;

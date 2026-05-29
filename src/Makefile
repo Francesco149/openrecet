@@ -23,16 +23,12 @@ SRCS      := $(wildcard *.c)
 OBJS      := $(SRCS:.c=.o)
 DEPS      := $(OBJS:.o=.d)
 
-# SE WAVs are embedded as a custom-named ("WAVE") PE resource type so
-# audio_init's FindResourceA path finds them at runtime — same shape as
-# the original engine. The .rc is auto-generated from
-# vendor/unpacked/se-extracted/ by tools/extract/se-rc.py (which expects
-# that directory to be populated by tools/extract/se-wavs.py first).
-# The .rc and the .res.o are gitignored; both regenerate as needed.
-SE_RC     := se.rc
-SE_RES_O  := se.res.o
-RCFLAGS   ?= -O coff -c 65001
-OBJS      += $(SE_RES_O)
+# NOTE: SE sound-effect WAVs are NOT embedded in the binary. The shipped
+# exe carries no proprietary audio; src/se_pack.c extracts the SE from
+# the user's own retail recettear.exe at runtime and caches them
+# (docs/formats/se-pack.md). The old build-time embedding (se.rc →
+# se.res.o via tools/extract/se-rc.py) was retired in the public-release
+# detour; tools/extract/se-wavs.py is kept as a dev/reference extractor.
 
 # Two PE outputs from the same .o set:
 #   openrecet.exe       — GUI subsystem (linker flag -mwindows). The
@@ -62,17 +58,7 @@ $(OUT_DEBUG): $(OBJS)
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# SE WAV embedding: regenerate .rc when the generator changes; rebuild
-# .res.o when the .rc or any source WAV changes (windres tracks file
-# mtimes on the LHS but not the WAVs it pulls in, so list one as a
-# proxy dep to force re-link when the extract dir is updated).
-$(SE_RC): ../tools/extract/se-rc.py
-	python3 $< $@
-
-$(SE_RES_O): $(SE_RC) ../tools/extract/se-rc.py
-	$(WINDRES) $(RCFLAGS) -i $< -o $@
-
 clean:
-	rm -f $(OBJS) $(DEPS) $(SE_RC) $(SE_RES_O) $(OUT) $(OUT_DEBUG)
+	rm -f $(OBJS) $(DEPS) se.rc se.res.o $(OUT) $(OUT_DEBUG)
 
 -include $(DEPS)

@@ -634,6 +634,15 @@ struct test_case {
     X(audio_play_se_no_trace_when_closed) \
     X(audio_se_table_matches_vendor_bytes) \
     \
+    X(sha256_empty_vector) \
+    X(sha256_abc_vector) \
+    X(sha256_two_block_vector) \
+    X(sha256_streaming_matches_oneshot) \
+    X(se_pack_roundtrip) \
+    X(se_pack_rejects_bad_magic) \
+    X(se_pack_rejects_count_mismatch) \
+    X(se_pack_rejects_truncation) \
+    \
     X(fade_reset_zeroes_state) \
     X(fade_phase1_start_seeds_state) \
     X(fade_phase_out_start_seeds_state) \
