@@ -2544,6 +2544,19 @@ static void capture_backbuffer(void)
     wsprintfA(path, "%s\\frame_%05u.bmp", g_capture_dir, tag);
 
     FILE *fp = fopen(path, "wb");
+    if (!fp) {
+        /* fopen runs Windows-side under WSLInterop: g_capture_dir must be a
+         * Windows-resolvable path (drive-letter or \\wsl.localhost UNC), NOT
+         * a Unix /path or a relative dir (which resolves against the game
+         * asset cwd, not the repo).  Surface the failure loudly so capture
+         * runs don't silently produce an empty dir — see run-openrecet.sh,
+         * which auto-converts --capture-to via `wslpath -w`. */
+        fprintf(stderr,
+                "capture: FAILED to open '%s' (frame %u) — is --capture-to a "
+                "Windows-resolvable path? (use run-openrecet.sh, which "
+                "converts it)\n",
+                path, tag);
+    }
     if (fp) {
         fwrite(fhdr, 1, 14, fp);
         fwrite(ihdr, 1, 40, fp);
@@ -2553,6 +2566,8 @@ static void capture_backbuffer(void)
             fwrite(src + row * (DWORD)lr.Pitch, 1, row_bytes, fp);
         }
         fclose(fp);
+        fprintf(stderr, "capture: wrote %s (%lux%lu)\n",
+                path, (unsigned long)w, (unsigned long)h);
     }
 
     IDirect3DSurface8_UnlockRect(surf);

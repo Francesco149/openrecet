@@ -22,6 +22,15 @@
 #     --debug           launch build/openrecet-debug.exe instead of
 #                       openrecet.exe (console subsystem, stdio wired).
 #
+# Frame capture: pass `--capture-to <dir> --capture-frames a,b,c` (or
+# `--capture-every-ms N`).  <dir> may be repo-relative ("runs/foo") or an
+# absolute Unix path — this wrapper resolves it against the repo, mkdir -p's
+# it, and converts it to the Windows path the exe's fopen() needs (the exe
+# runs Windows-side under WSLInterop, so a bare Unix/relative path would
+# otherwise resolve against the game asset cwd or fail silently).  Frames land
+# as <dir>/frame_NNNNN.bmp (NNNNN = sim-frame index under --capture-frames).
+# Convert to PNG with e.g. `magick`/`ffmpeg`; view with eog.
+#
 # Always cd's to vendor/original/ first so asset paths resolve (see
 # memory/feedback_openrecet_run.md). --max-duration-ms is forwarded
 # from a default of 3000ms if not present in the argv — historically
@@ -91,6 +100,32 @@ if (( $1 )); then
 else
     shift
 fi
+
+# Rewrite the path-valued output flag(s) so a repo-relative or Unix path Just
+# Works: resolve against the repo, mkdir -p, and hand the exe the Windows path
+# its (Windows-side) fopen() needs.  Without this, --capture-to runs/foo lands
+# in the game asset dir, and an absolute /opt/... path fails fopen() silently.
+args=()
+while (( $# )); do
+    case "$1" in
+        --capture-to|--house-preview-dump)
+            flag="$1"; dir="$2"; shift 2
+            [[ "$dir" = /* ]] || dir="$ROOT/$dir"
+            mkdir -p "$dir"
+            args+=( "$flag" "$(wslpath -w "$dir")" )
+            ;;
+        --capture-to=*|--house-preview-dump=*)
+            flag="${1%%=*}"; dir="${1#*=}"; shift
+            [[ "$dir" = /* ]] || dir="$ROOT/$dir"
+            mkdir -p "$dir"
+            args+=( "$flag" "$(wslpath -w "$dir")" )
+            ;;
+        *)
+            args+=( "$1" ); shift
+            ;;
+    esac
+done
+set -- "${args[@]}"
 
 EXE_WIN="$(wslpath -w "$EXE")"
 cd "$ASSET_CWD"
