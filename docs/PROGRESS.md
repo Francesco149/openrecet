@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — Cchr.0: retail HOUSE character-render trace — FUN_004176ff is NOT the player renderer
+
+Ground-truthed the C7m premise with a new Frida dump mode
+(`tools/frida_capture.py --dump-records-b` + agent `dump_records_b*`).
+Drives retail to HOUSE unattended (auto-z-spam + turbo), anchors on the
+first frame either record table populates, and dumps the live contents of
+all three character-candidate tables — records_a (DAT_069b2f80), records_b
+(DAT_069324b0), the people table (DAT_0076bd54) — plus per-pass counts,
+g_player_pos, a per-frame DrawIndexedPrimitive heartbeat, and a backbuffer
+screenshot per dump frame.
+
+**Result (3 captures, all visually confirmed free-roam HOUSE with Recette +
+Tear on screen):** records_b = **0**, people table = **0 alive**,
+records_a = **6** — and all 6 are a single ambient particle emitter
+(type 0x1f, scale 0.1, staggered recycling ages, clustered at ~1.2,4.0,9.4
+= the sparkle by Tear). Per-frame DrawIndexedPrimitive holds at ~82 (static
+room + furniture); the character sprites add nothing to it.
+
+**Verdict:** the visible characters are **2D billboards on a dedicated
+sprite path**, not records walked by FUN_004176ff. This **falsifies the C7m
+conclusion** ("port FUN_0043ae20 25.7 KB integrator + FUN_004176ff 30 KB
+walker to get characters") — that pair renders particles/entities, of which
+a fresh HOUSE has none-but-ambient. New `findings/scene1-char-sprite-trace.md`
+records the trace + the Cchr.1 next chip: hook `render_quad_add` (0x404efc)
+in free-roam HOUSE and bucket by caller-VA to name the 2D player/companion
+sprite renderer and the player struct it reads. Corrected
+`scene1-chr-walker.md` + INDEX. Commits: 0070e31 (tooling), 44320a3 (docs).
+No C changed; no host-test impact.
+
 ## 2026-05-29 — C7m re-scope: chr-render survey (FUN_004176ff) — dormant without the table-B integrator
 
 After C7j, picked the character sprites (Recette/Tear in the shop) as
