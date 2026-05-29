@@ -534,11 +534,21 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
 
     /* ─── L38-L49: top render-state preamble (Pass A/B prelude) ────── */
 
-    /* L38-L39: TSS COLORARG2 + COLORARG1 = D3DTA_TEXTURE.  Pass A and
-     * B pull both color args from the bound texture (vertex diffuse
-     * is white per-vertex; the texture provides the color). */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_TEXTURE);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    /* L38-L39: TSS MINFILTER + MAGFILTER = D3DTEXF_LINEAR (bilinear).
+     *
+     * 2026-05-29 erratum: this was mis-ported as COLORARG2/COLORARG1 =
+     * D3DTA_TEXTURE.  The engine's two calls are
+     * `SetTextureStageState(0, 0x11, 2)` and `(0, 0x10, 2)` — types
+     * 0x11=D3DTSS_MINFILTER (17) and 0x10=D3DTSS_MAGFILTER (16), value
+     * 2=D3DTEXF_LINEAR (NOT COLORARG types 3/2 with value 2=D3DTA_TEXTURE
+     * — the constant 2 collides between the two enums).  The bogus
+     * COLORARG1=TEXTURE leaked past this dormant-in-HOUSE walker into the
+     * later hikari/window draws, which under MODULATE2X computed
+     * texture² and showed as rainbow triangles on the blinds.  Retail
+     * d3d_trace confirms FUN_004161c7 sets neither COLORARG (only the
+     * filters + COLOROP); COLORARG1 stays DIFFUSE all frame. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
 
     /* L40: ZENABLE = TRUE.  Depth test on. */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
@@ -589,9 +599,13 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
      * (raw RS 0x16 = D3DRS_CULLMODE.) */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_NONE);
 
-    /* L132-L133: TSS COLORARG2 + COLORARG1 = D3DTA_TEXTURE (re-asserted). */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_TEXTURE);
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    /* L132-L133: TSS MINFILTER + MAGFILTER = D3DTEXF_LINEAR (re-asserted).
+     * Same Ghidra type-confusion erratum as L38-L39 above — engine sets
+     * `(0,0x11,2)` + `(0,0x10,2)` (MIN/MAGFILTER=LINEAR), not COLORARG.
+     * Audit of FUN_004161c7's 8 inline TSS calls: all are MIN/MAGFILTER
+     * or COLOROP — it never touches COLORARG (retail d3d_trace agrees). */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
 
     /* L134: TSS COLOROP = 4 (MODULATE2X — re-asserted). */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);

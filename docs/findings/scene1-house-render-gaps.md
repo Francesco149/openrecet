@@ -8,6 +8,45 @@ texture-hook wiring, 2026-05-29. Capture: `runs/house-bg-tex/frame_03300.png`
 
 User-reported diffs from the first full-room render (2026-05-29):
 
+## OPEN HUNT LIST — HOUSE render discrepancies (post-brightness-fix, 2026-05-29)
+
+User-reported after the MODULATE2X brightness fix (commit 8d4e376) landed
+and matched retail 1:1 on base brightness. These are the remaining
+HOUSE visual gaps to hunt down (most cluster in the hikari/window
+god-ray subsystem, which is only partially ported):
+
+1. **Blinds: mangled rainbow triangles on the windows.** The old artifact
+   that PII.3d.2/.3 nominally fixed is visible again now that the scene is
+   at full (MODULATE2X) brightness. **Lead (trace-confirmed):** the port
+   draws the 8 hikari/water submeshes with COLORARG1=TEXTURE (so
+   MODULATE2X(TEXTURE×TEXTURE) = texture², which over-saturates per-vertex
+   colours into rainbow), while retail draws ALL 81 room/hikari submeshes
+   uniformly with COLORARG1=DIFFUSE (MODULATE2X(DIFFUSE×TEXTURE)).
+   Port frame 3300: 47×(5,0,2) + 8×(5,2,2); retail frame 14000:
+   81×(5,0,2). Fix = make the hikari/water binding use COLORARG1=DIFFUSE
+   (the per-slot TSS picker scene1_emit_apply_material_state /
+   FUN_00454fe4 likely sets ARG1=TEXTURE for these slots). Traces:
+   runs/port-d3d-house2 vs runs/retail-d3d-house.
+2. **Frustum over the LEFT window** — a visible opaque frustum/shape over
+   the left window even though the god rays themselves look right. Likely
+   a hikari god-ray billboard/quad rendering opaque (wrong blend or a mesh
+   that should be additive-only).
+3. **Missing god-ray/glow from the MIDDLE window** — retail emits a glow
+   shaft from the centre window that the port does not draw at all. A
+   missing draw (an additive billboard or hikari submesh the port's pass
+   skips). Cross-check vs the retail trace's DrawPrimitiveUP set
+   (FUN_0045a56f / FUN_0046f648 / FUN_00405354 / FUN_00406241) and the
+   stubbed walker passes.
+4. **Missing small shadow at the base of the centre table** — retail
+   draws a contact shadow under the table that the port omits. Likely a
+   blob/decal shadow draw (a small dark additive/modulate quad under
+   furniture) in a pass the port hasn't ported.
+
+> Methodology: each of these has retail ground truth in
+> `runs/retail-d3d-house/d3d_trace.jsonl` (frame 14000) — diff per-draw
+> state + the DrawPrimitiveUP/extra-indexed draws the port is missing
+> against `runs/port-d3d-house2` to localize each.
+
 ## RESOLVED
 
 ### Floor / walls / rug rendered as untextured "blurry grey"
