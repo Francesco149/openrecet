@@ -83,7 +83,44 @@ placeholder material colour show as an opaque rainbow frustum.
 User-verified: artifacts gone, frustum gone, hikari layer adds a soft
 glow. **Not retail-equivalent yet** — see below.
 
-## OPEN — retail HOUSE is uniformly ~2× brighter (lighting/material path)
+## RESOLVED (2026-05-29) — the uniform ~2× brightness was a COLOROP mistype
+
+**Root cause: the base room/furniture pass used `MODULATE` where the
+engine uses `MODULATE2X` (a literal ×2 on texture×diffuse).**  Found via
+a D3D state-trace A/B (D.4/D.5/D.6): captured the port at the HOUSE frame
+(`runs/port-d3d-house`) and retail at frame 14000 (`runs/retail-d3d-house`),
+then diffed per-draw COLOROP.  Retail drew 81/82 room submeshes under
+COLOROP=5 (MODULATE2X); the port drew 42/55 under COLOROP=4 (MODULATE).
+
+The setter is `FUN_00454f03` (`palette[0x1a40] % 7` → COLOROP), which the
+port had ported (`scene1_apply_palette_combiner_mode`) but with **two
+bugs**: (1) it wrote `D3DTSS_COLORARG2` instead of `D3DTSS_COLOROP`
+(type 3 vs type 1 — the value table {2,4,5,7,8,10,11} are D3DTEXTUREOP
+codes, not D3DTA args); (2) `scene1_palette_combiner_mode()` was stubbed
+to `0` instead of reading `rec->drawcode`.  HOUSE is `drawcode:2` →
+`2%7==2` → MODULATE2X.  The mistype was masked because the stubbed mode 0
+mapped to `map[0]=2=D3DTA_TEXTURE`, a harmless COLORARG2 value, so
+texturing still looked right while base brightness was halved.
+
+Fix (commit after f1c7b2f): both corrected in `src/scene1_render.c`.
+Post-fix port floor-centre RGB (227,176,79) ≈ retail (207,162,70), up
+from the old (90,70,28) (~0.43× → ~1.09×).  Re-capture
+`runs/port-d3d-house2/d3d_trace.jsonl`: all 55 room/furniture draws now
+COLOROP=5.  Methodology note: this is the canonical D3D-trace-diff win —
+the divergence was invisible to decompile reading (the port "looked
+right") and only surfaced under a per-draw render-state A/B.
+
+### Residual HOUSE gaps (separate subsystems, not brightness)
+
+Retail draws more total ops than the port at the HOUSE frame (974 vs
+663): +29 `DrawPrimitiveUP` (the 2D HUD via FUN_0040a765 / C7i + sprite
+overlays) and ~27 extra indexed draws from the still-stubbed walker
+passes (FUN_0045aa36 narrow-followup, FUN_00456f56 wide-b,
+FUN_004176ff chr).  These add the HUD + Recette + extra effect layers,
+not base-room brightness.  Tracked separately below + in the render
+ladder.
+
+## (historical) the uniform ~2× brightness investigation
 
 - **Symptom:** retail HOUSE (`/mnt/c/Users/headpats/Documents/house-3d.png`)
   has bright, blinding white-cyan ray shafts blooming out of the windows

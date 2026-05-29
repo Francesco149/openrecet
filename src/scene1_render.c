@@ -316,22 +316,37 @@ static void scene1_walk_tail_TODO(void)
     /* TODO C8-followup: port FUN_00405b1a. */
 }
 
-/* FUN_00454f03 (120 B) — TSS COLORARG2 from stage-palette mode
- * integer.  Ported inline — trivial enough that pulling it into a
- * separate file would cost more than it saves. */
+/* FUN_00454f03 (120 B) — TSS COLOROP from stage-palette mode integer.
+ * Ported inline — trivial enough that pulling it into a separate file
+ * would cost more than it saves.
+ *
+ * 2026-05-29: corrected from D3DTSS_COLORARG2 to D3DTSS_COLOROP.  The
+ * decomp's vtable call is `SetTextureStageState(dev, 0, 1, uVar2)` —
+ * type 1 is COLOROP, not COLORARG2 (type 3) — and the value table
+ * {2,4,5,7,8,10,11} are D3DTEXTUREOP codes (SELECTARG1 / MODULATE /
+ * MODULATE2X / ADD / ADDSIGNED / SUBTRACT / ADDSMOOTH), not D3DTA
+ * args.  Retail d3d_trace (runs/retail-d3d-house) confirms HOUSE room
+ * submeshes draw under COLOROP=MODULATE2X (drawcode 2 → mode%7==2),
+ * which is the ~2x base-pass brightness the port was missing.  (The
+ * old COLORARG2 mistype was masked because the stubbed mode 0 mapped
+ * to map[0]=2=D3DTA_TEXTURE, a harmless COLORARG2 value, so texturing
+ * still looked right while brightness was halved.) */
 static void scene1_apply_palette_combiner_mode(IDirect3DDevice8 *dev,
                                                int mode)
 {
-    /* Engine maps (mode % 7) to a TSS COLORARG2 value.  D3DTA names
-     * (DIFFUSE=0, CURRENT=1, TEXTURE=2, TFACTOR=3, SPECULAR=4,
-     * TEMP=5) only cover 0..5; values 7/8/10/11 fall outside the
-     * documented enum but the engine writes them anyway (D3D8
-     * retail runtime tolerates out-of-range here).  Reproduced
-     * verbatim. */
+    /* Engine maps (mode % 7) to a TSS COLOROP value. */
     int m = mode % 7;
     if (m < 0) m += 7;
-    static const DWORD map[7] = { 2, 4, 5, 7, 8, 10, 11 };
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2,
+    static const DWORD map[7] = {
+        D3DTOP_SELECTARG1,   /* 2  */
+        D3DTOP_MODULATE,     /* 4  */
+        D3DTOP_MODULATE2X,   /* 5  */
+        D3DTOP_ADD,          /* 7  */
+        D3DTOP_ADDSIGNED,    /* 8  */
+        D3DTOP_SUBTRACT,     /* 10 */
+        D3DTOP_ADDSMOOTH,    /* 11 */
+    };
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
                                           map[m]);
 }
 
@@ -441,9 +456,16 @@ static float scene1_palette_fog_end(void)
     return rec ? rec->fog[1] : 0.0f;
 }
 
-/* palette + 0x1a40 (int combiner mode).  Indexes scene1_apply_palette
- * _combiner_mode's TSS COLORARG2 table mod 7. */
-static int scene1_palette_combiner_mode(void) { return 0; }
+/* palette + 0x1a40 (int combiner mode) = the stage record's `drawcode`.
+ * Indexes scene1_apply_palette_combiner_mode's TSS COLOROP table mod 7.
+ * HOUSE is `drawcode:2` → mode%7==2 → MODULATE2X (verified vs retail
+ * d3d_trace).  Was stubbed to 0 (→ SELECTARG1 once the type was fixed,
+ * and a halved-brightness MODULATE under the old COLORARG2 mistype). */
+static int scene1_palette_combiner_mode(void)
+{
+    const stage_record_t *rec = scene1_current_stage_record();
+    return rec ? rec->drawcode : 0;
+}
 
 /* palette + 0x1a90/94/98 (int per-channel fog color bytes).  HOUSE =
  * "fogcolor:230:240:255" (light blue haze), read from the parsed record. */
