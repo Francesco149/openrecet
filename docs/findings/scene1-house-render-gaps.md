@@ -47,25 +47,39 @@ god-ray subsystem, which is only partially ported):
    cyan embedded sprite. Wiring house_hikari_texture()→g_scene1_mood_para
    turned the curtains GREEN.
 
-   **STILL OPEN (post-mood_para):** zoom diff runs/window_zoomdiff.png
-   (PORT / RETAIL / DIFF stacked, window band) shows the curtains are
-   STILL a major divergence cluster — the port's are a lighter,
-   triangulated green; retail's are smoother darker-green with fold
-   detail. Hypotheses to investigate next session:
-   - **Wrong/missing hikari frame**: the port binds a single `mood_para`
-     (loaded as "bmp/mood_para.tga", 0x200×0x200) but the engine loads
-     numbered `mood_para00.bmp..NN.bmp` and CYCLES them by
-     (draw_counter/wateranimspeed)%wateranimnum. If HOUSE has >1 frame,
-     the port is stuck on a wrong/static frame. Verify the real file(s)
-     + count from the stage table (DAT_068dec18/DAT_068ded18 per-stage).
-   - **The curtains may not be hikari at all** — they might be base-pass
-     geometry whose own texture the port binds wrong, with the hikari
-     shafts a SEPARATE overlay. Need to confirm whether the green curtain
-     is a base draw or the hikari draw (trace SetTexture→which submesh).
-   - **Triangulation/shading**: per-vertex lit colour interpolation or
-     the mood_para UV mapping differs.
-   ALWAYS lead the next session with a zoom DIFF (runs/window_zoomdiff.png
-   recipe) before changing code — see [[feedback_zoom_diff_render_debug]].
+   **RESOLVED (2026-05-29 PM, commits ec573a9 + 4a88b5a; user-confirmed
+   "lighting looks basically perfect now").** Two stacked root causes,
+   both pinned by a D3D state-trace A/B (runs/port-d3d-house9 frame 3300
+   vs runs/retail-d3d-house frame 14000) on the 5 hikari god-ray
+   submeshes of shop_1st.x (start_idx 4497/4521/4761/4833/5919, prim
+   8/8/24/24/16 — byte-identical draw set on both sides):
+
+   - **(a) wrong TEXTURE.** Retail binds `SetTexture(0, NULL)` for the
+     hikari draws — HOUSE's `DAT_073aa198[]` frame table is EMPTY, so the
+     glow is pure vertex-diffuse ×2 additive. The mood_para binding
+     (4070c3f) painted a flat-green texture where retail uses none. The
+     "HOUSE hikari prefix = mood_para" premise was wrong. Fix:
+     `house_hikari_texture()` returns NULL. → curtains became translucent
+     additive glow (right method) but CYAN (wrong hue).
+   - **(b) wrong FVF.** The hikari draws used FVF 0x142
+     (XYZ|DIFFUSE|TEX1, no NORMAL) where retail uses 0x152
+     (XYZ|NORMAL|DIFFUSE|TEX1). With D3DRS_LIGHTING on, no normals → FFP
+     lighting fell back to flat vertex colour (cyan) instead of the
+     normal-lit warm yellow-green. Root cause: `draw_loop_b_mesh` never
+     set the FVF; it relied on the base pass's one-time
+     SetVertexShader(0x152), which an earlier Pass-F/quad (FVF 0x142)
+     clobbered before the hikari pass. The engine's per-mesh draw helper
+     re-sets the FVF on every draw (retail ret_va 0xadf1b sets 0x152 56×
+     per frame). Fix: set MESH_FVF_XYZ_NORMAL_DIFFUSE_TEX1 per mesh in
+     `draw_loop_b_mesh` (like mesh_draw.c:51). → hue matched.
+
+   Curtain-band mean abs diff vs retail: 19.2/21.6/16.4 (mood_para) →
+   10.0/10.5/10.0 (null+FVF, balanced — residual is HUD overlap +
+   640-resize alignment + the unported day/night clock tint).
+   **Lesson:** when render state matches but the result diverges, diff
+   the FVF — a missing NORMAL silently changes FFP-lit output. Lead any
+   render-divergence with a zoom DIFF — see
+   [[feedback_zoom_diff_render_debug]].
 2. **Frustum over the LEFT window** — a visible opaque frustum/shape over
    the left window even though the god rays themselves look right. Likely
    a hikari god-ray billboard/quad rendering opaque (wrong blend or a mesh
