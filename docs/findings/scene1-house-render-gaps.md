@@ -99,8 +99,23 @@ glow. **Not retail-equivalent yet** — see below.
   This is the additive ray-shaft / billboard renderer. (Called with
   0/1 from `scene1_render_meshes` and 2/3 from the alpha walker.)
 - **Next chip:** port `FUN_00459847` (the additive billboard/ray walker).
-  Ground-truth the intensity with a same-res retail HOUSE capture
-  (Frida-remote harness) once the geometry lands.
+
+- **Retail ground truth (2026-05-29, `tools/frida_capture.py` HOUSE drive,
+  frame 14000):** retail renders HOUSE at **640×480** (ours is 1024×768).
+  Side-by-side: `runs/retail-house/diff_ours_vs_retail.png`; retail frame
+  `runs/retail-house/frames/frame_14000.bmp`.  Retail is **~1.85–2× brighter
+  everywhere**, not just at the windows:
+  - floor centre (away from windows): ours (96,74,36) vs retail (178,139,70)
+  - window/god-ray zone: ours (93,88,62) vs retail (182,171,123)
+  The base-pass COLOROP is MODULATE in both engine and port (ruled out as
+  the cause).  The near-uniform deficit + the brighter-at-windows gradient
+  points to the missing `FUN_00459847(3)` additive layer being LARGE
+  (ray billboards that bloom at the windows but spill across the room).
+  Re-diff after that chip lands; if a residual uniform gap remains,
+  re-examine D3DRS_AMBIENT (0xff000000) and the maplight direction (the
+  daytime preset (0.2,0.4,0.2) travels +y, so the +y-facing floor gets
+  ambient-only — verify retail lights the floor the same way).
+  Retail also draws the 2D HUD + Recette (separate subsystems).
 
 ## Suggested next chip (superseded — see above)
 
