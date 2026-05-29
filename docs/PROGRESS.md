@@ -7,6 +7,60 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — Cchr.2e: the records / people sprite pre-pass
+
+Ported `FUN_0045672a` (1317 B) — the render-side sibling of the Cchr.2d
+walker, dispatched from `scene1_render_meshes` at L246 (the slot the old
+`scene1_walk_alpha_pre_TODO` stub held, right after the alpha-pre
+`MIPFILTER=NONE` set) — as `src/scene1_chr_prepass.{c,h}`. Three record-draw
+sections, objdump-verified @ 0x45672a:
+
+- **Section A** — `g_scene1_records_b` slots (the 0x49-dword table, count
+  `DAT_0076b964`) whose `TYPE==0x61` are drawn as world-space 3D meshes via
+  the ported `scene1_emit_record` (engine `FUN_00455191(&DAT_073a9658)`).
+  World = `Scaling × Translation`, **no** billboard base matrix; two scale
+  modes gated on the slot's AGE field (`<0x46` → fixed `(-0.14,0.04,0.14)`;
+  else size-field-driven `(-0.5,1,0.5)·(field·0.2)`).
+- **Section B** — `g_scene1_records_a` slots (the 0x25-dword table, count
+  `DAT_0076b960`) whose `TYPE==0x97` (and `!=-1`), same mesh-draw path with
+  a `RotationY(ROT_X)` added: `rotY × Scaling(-s,s,s) × Translation`.
+- **Section C** — the 128-entry people billboard table (engine
+  `DAT_0076b970`, stride `0xba4`, **unported**): a depth co-sort (engine
+  `FUN_0045526a`) on the `+0x450` key, then each active, non-`0xff`-alpha
+  entry drawn camera-facing through the validated 2b leaf
+  `scene1_chr_sprite_render` (`base × Scaling(desc[+0x44]·0.05) ×
+  Translation`, per-entry alpha = `alpha_byte·mult`, color `| 0x7f7f7f`).
+
+Sections A/B share a one-time D3D envelope (engine `FUN_00456c4f`, applied
+lazily on the first drawn slot of either); Section C has its own. The
+Ghidra branch presentation (the `*piVar5 < 0x46` scale pick) was confirmed
+against objdump; the 8 float constants decoded from `.rdata`
+(`0.2 / 0.5 / -0.5 / 0.14 / 0.04 / -0.14 / 255.0 / 0.05`); the engine's
+redundant `Scaling(1,1,1)` multiplies are kept verbatim (no-ops) and
+commented.
+
+**DORMANT in HOUSE.** Sections A/B are wired to the **real** record globals
+(empty today — counts 0 — so they fire automatically once those populators
+land). Section C's people table has no port-side storage yet
+(`chr_prepass_people_base()` returns NULL → whole section skipped), same as
+the walker's NPC pass. No visible change on HOUSE entry from this chip.
+
+- **Host-tested** the one non-trivial helper: the index co-sort
+  `chr_prepass_sort` (engine `FUN_0045526a`, a stable strict-`<` bubble
+  sort). **5 tests** (basic, pre-sorted, signed keys, equal-key stability,
+  n≤1 no-op); **2952 total pass**. Both exe targets build warning-free.
+
+**Texture-filtering data point** (for the 1:1-retail follow-up): the A/B
+envelope sets `MAG/MINFILTER=LINEAR`; the C (people) envelope sets
+`MAG/MINFILTER=POINT`. The alpha pass that dispatches this pre-pass also sets
+`MIPFILTER=NONE` just before. Decoded @ 0x456a3c / 0x456c4f.
+
+The Cchr.2 ladder now has 2a–2e landed. Remaining for **visible HOUSE
+characters** is the actor populator chain (`FUN_0048b3f6` → `FUN_0048b850`
+→ `FUN_0044376a`, ~14 KB — the corrected attribution; *not* `FUN_00436f97`,
+which is the already-landed furniture writer). Findings in
+`docs/findings/scene1-char-sprite-render.md` "Cchr.2e".
+
 ## 2026-05-29 — Cchr.2d: the HOUSE character-sprite walker
 
 Ported `FUN_00456f56` (1982 B) — the per-frame driver that builds the world

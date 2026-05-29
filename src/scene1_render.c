@@ -24,6 +24,7 @@
 #include "mesh.h"            /* mesh_t (scene1_walk_initial_asset cast) */
 #include "scene1_alpha_walker.h"
 #include "scene1_chr_walker.h"   /* Cchr.2d — FUN_00456f56 character-sprite walker */
+#include "scene1_chr_prepass.h"  /* Cchr.2e — FUN_0045672a records/people pre-pass  */
 #include "call_trace.h"
 #include "scene1_camera.h"
 #include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
@@ -281,12 +282,9 @@ static void scene1_walk_narrow_followup_TODO(void)
  * remain TODO stubs because the engine's wide-followup data populator
  * for tables B/C is unported — every pass is dormant in HOUSE. */
 
-/* FUN_0045672a (1317 B) — sub at L246, before FUN_00458bdf.  Likely
- * the alpha-pass setup helper. */
-static void scene1_walk_alpha_pre_TODO(void)
-{
-    /* TODO C8-followup: port FUN_0045672a. */
-}
+/* FUN_0045672a (1317 B) — sub at L246, before FUN_00458bdf.  The records /
+ * people sprite pre-pass; ported as Cchr.2e (src/scene1_chr_prepass.{c,h}),
+ * dispatched below via scene1_chr_prepass_render(). */
 
 /* FUN_00458bdf (904 B) — alpha-pass mesh walker.  Landed 2026-05-23
  * as C8d (src/scene1_alpha_walker.{c,h}) with full state-writes +
@@ -828,7 +826,12 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * without trilinear. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MIPFILTER,
                                           D3DTEXF_NONE);
-    scene1_walk_alpha_pre_TODO();
+    /* L246: ★ FUN_0045672a ★ — the records / people sprite pre-pass (1317 B).
+     * Cchr.2e (2026-05-29) ports the three record-draw sections (records_b
+     * type 0x61 + records_a type 0x97 mesh draws, depth-sorted people
+     * billboards); dormant until the record/people tables populate (see
+     * scene1_chr_prepass.h). */
+    scene1_chr_prepass_render((struct IDirect3DDevice8 *)dev);
 
     /* L247: FUN_00458bdf (904 B) — alpha-pass walker.  C8d
      * (2026-05-23) ports the structure + state writes; inner

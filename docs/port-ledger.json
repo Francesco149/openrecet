@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 59,
   "stubbed": 14,
-  "ported": 290,
-  "unported": 2185,
+  "ported": 292,
+  "unported": 2183,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 363,
-  "pct_touched": 14.2,
+  "touched": 365,
+  "pct_touched": 14.3,
   "pct_verified": 2.3
  },
  "orphan_refs": [
@@ -4124,6 +4124,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_chr_prepass.c",
+    "src/scene1_chr_prepass.h",
     "src/scene1_emit_record.c",
     "src/scene1_emit_record.h",
     "src/scene1_render.c",
@@ -4140,8 +4142,11 @@
    "size": 102,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_chr_prepass.c",
+    "src/scene1_chr_prepass.h"
+   ]
   },
   {
    "va": "0x4552d0",
@@ -4167,6 +4172,8 @@
    "status": "ported",
    "src": [
     "src/chr_sprite_meta.h",
+    "src/scene1_chr_prepass.c",
+    "src/scene1_chr_prepass.h",
     "src/scene1_render.c",
     "src/scene1_render.h"
    ]
@@ -4177,8 +4184,11 @@
    "size": 249,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_chr_prepass.c",
+    "src/scene1_chr_prepass.h"
+   ]
   },
   {
    "va": "0x456d48",
@@ -4312,6 +4322,8 @@
    "status": "ported",
    "src": [
     "src/chr_sprite_meta.h",
+    "src/scene1_chr_prepass.c",
+    "src/scene1_chr_prepass.h",
     "src/scene1_chr_sprite.c",
     "src/scene1_chr_sprite.h",
     "src/scene1_chr_walker.h",
@@ -21748,6 +21760,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_chr_prepass.c",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
     "src/scene1_wide_followup_helpers.c"

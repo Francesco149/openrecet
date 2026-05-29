@@ -3099,7 +3099,12 @@ struct test_case {
     X(chr_walker_party_alpha_lowfade) \
     X(chr_walker_npc_alpha_offscreen_skip) \
     X(chr_walker_npc_alpha_full) \
-    X(chr_walker_npc_alpha_ramp)
+    X(chr_walker_npc_alpha_ramp) \
+    X(chr_prepass_sort_basic) \
+    X(chr_prepass_sort_already_sorted) \
+    X(chr_prepass_sort_negative_keys) \
+    X(chr_prepass_sort_stable_equal_keys) \
+    X(chr_prepass_sort_trivial_sizes)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

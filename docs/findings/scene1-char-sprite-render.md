@@ -405,8 +405,69 @@ advance-at-duration, HALT hold, animation-end wrap (counter reset→++=1),
 the float-timer pin, and NULL-safe. 2935 total, all pass; both exe targets
 build warning-free.
 
-**Remaining for the ladder:** Cchr.2e (the records pre-pass
-`FUN_0045672a`) and the actor-state **populator** `FUN_00436f97`.
+**Remaining for the ladder:** Cchr.2e landed 2026-05-29 (below). For
+*visible* HOUSE characters the remaining work is the actor populator chain
+`FUN_0048b3f6 → FUN_0048b850 → FUN_0044376a` (~14 KB; see the corrected
+populator survey in this file's header — `FUN_00436f97` is the furniture
+writer, already landed, NOT the character populator).
+
+## Cchr.2e — the records / people sprite pre-pass (FUN_0045672a, 0x45672a, 1317 B)
+
+Ported as `src/scene1_chr_prepass.{c,h}`. Dispatched from
+`scene1_render_meshes` (FUN_00459dfd) at L246 — the call right after the
+alpha-pre wrapper's `SetTSS(MIPFILTER, NONE)` (objdump: `0x45a472` SetTSS →
+`0x45a479 call 0x45672a`), where the `scene1_walk_alpha_pre_TODO` stub used
+to sit. Full asm @ 0x45672a → 0x456c4e.
+
+Three record-draw sections, in order:
+
+| § | source table | gate | draw | world matrix |
+|---|---|---|---|---|
+| A | `g_scene1_records_b` (stride 0x49 dw, count `DAT_0076b964`) | `TYPE==0x61` | `scene1_emit_record` (FUN_00455191) | `Scaling × T`, AGE-gated scale |
+| B | `g_scene1_records_a` (stride 0x25 dw, count `DAT_0076b960`) | `TYPE==0x97 && !=-1` | `scene1_emit_record` | `rotY(ROT_X) × Scaling(-s,s,s) × T` |
+| C | people table `DAT_0076b970` (stride 0xba4, 128 entries, **unported**) | active && alpha≠0xff && desc[+0x20]==0 | leaf `FUN_0045a56f` (Cchr.2b) | `base × Scaling(desc[+0x44]·0.05) × T` |
+
+Field map (objdump-anchored): in §A the iteration pointer sits at records_b
+`OFF_AGE` (38); the `<0x46` branch tests AGE, scale-size field is dword 66,
+pos at `OFF_POS_X/Y/Z` (23/24/25). §B reads records_a `OFF_TYPE` (12),
+`OFF_SCALE` (14), `OFF_POS_*` (0/1/2), `OFF_ROT_X` (6, the rotY angle). §C
+people-record byte offsets: sort key `+0x450`, desc idx `+0x424`, active
+`+0x428`, alpha `+0x3dc`, alpha-mult `+0xaf8`, pos `+0x3f0/3f4/3f8`;
+sprite-descriptor (`DAT_005c23f0`, stride 0x68) gate `+0x20`, char id /
+texture-table index `+0x24`, scale `+0x44`.
+
+`.rdata` constants (LE-decoded 2026-05-29): `0x5198d8`=0.2, `0x51935c`=0.5,
+`0x519c2c`=-0.5, `0x519c7c`=0.14, `0x519d78`=0.04, `0x519d74`=-0.14,
+`0x519630`=255.0 (the people-alpha `·255/255` is a verbatim no-op),
+`0x5198f8`=0.05. The engine's two `Scaling(1,1,1)` multiplies (one per §A/§B
+slot) are kept verbatim as commented no-ops. `FUN_00503954` == `__ftol`
+(truncate toward zero).
+
+D3D envelopes (one-time, applied lazily on the first drawn item):
+- §A/§B (engine `FUN_00456c4f`): `AMBIENT=0xff000000`, `LightEnable(0,TRUE)`,
+  `LIGHTING=TRUE`, `ZENABLE=TRUE`, `ZWRITEENABLE=TRUE`, `ALPHAREF=0`,
+  `ALPHAOP=SELECTARG1`, **`MAG/MINFILTER=LINEAR`**, `COLOROP=MODULATE2X`,
+  `SRC/DESTBLEND=ONE`, `FOGENABLE=FALSE`.
+- §C (engine @ 0x456a76): `FVF=0x142`, `FOGENABLE=FALSE`,
+  `ALPHAOP=MODULATE`, `COLOROP=8 (ADDSIGNED)`, `ALPHAARG1=TEXTURE`,
+  `ALPHAARG2=DIFFUSE`, **`MAG/MINFILTER=POINT`**, `ZENABLE=TRUE`,
+  `ZWRITEENABLE=FALSE`.
+
+(The LINEAR-vs-POINT filter split, plus the `MIPFILTER=NONE` the alpha pass
+sets just before, are the data points the texture-filtering 1:1 follow-up
+wants.)
+
+**DORMANT.** §A/§B are wired to the real `g_scene1_records_a/b` globals
+(counts 0 in HOUSE → fire when their populators land). §C's people table is
+unported; `chr_prepass_people_base()` returns NULL and the section is skipped
+whole — same dormant pattern as the walker's NPC pass. No visible change from
+this chip alone.
+
+**Host-tested** the one non-trivial helper, the index co-sort
+`chr_prepass_sort` (engine `FUN_0045526a` — a stable strict-`<` bubble sort
+carrying indices). **5 tests** (basic permutation, pre-sorted, signed keys,
+equal-key stability, n≤1 no-op). 2952 total pass; both exe targets build
+warning-free.
 
 ## Cchr.2d — the character-sprite walker (FUN_00456f56, 0x456f56, 1982 B)
 
