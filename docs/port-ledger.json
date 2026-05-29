@@ -2305,6 +2305,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_camera.c",
     "src/scene1_postload.h",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h",

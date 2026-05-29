@@ -93,22 +93,25 @@ int test_scene1_camera_house_default_snaps_to_oracle_pose(void)
     reset_camera_world();
     scene1_camera_pose_compute();
 
-    /* HOUSE + char_mode=2 + stage_view=0 + yaw=0 oracle (block-by-block
-     * derivation, see scene1_camera.c block G comment):
+    /* char_mode=2 + stage_view=0 + yaw=0 oracle, with the faithful compose
+     * adds (radius 14, eye.y 21, lookat.y -1.8) now set by camera_init:
      *   bias_x = -1.0 (clamp [-5, -1] applied to BSS-zero 0)
      *   bias_z = -5.0 (uVar2>=2 path)
      *   class_off = (0, 4, -9.2)
      *   floor_bias (snap) = 0 + 3.0 = 3.0
-     *   lookat = (-1, 3.0, -5)
-     *   eye    = (4 * sin(0) + -1, -9.2 + 3.0, -5 - 4 * cos(0))
-     *         = (-1, -6.2, -9)
+     *   radius_xz = class_off_y(4) + 14 = 18
+     *   lookat = (-1, class_off_x(0) + -1.8 + 3.0, -5) = (-1, 1.2, -5)
+     *   eye    = (18*sin(0) + -1, class_off_z(-9.2) + 21 + 1.2,
+     *             -5 - 18*cos(0))  = (-1, 13.0, -23)
+     * (This is the char_mode=2 path, not retail HOUSE — real HOUSE uses
+     * char_mode=0; see test_scene1_camera_house_groundtruth_matches_retail.)
      */
     T_ASSERT_NEAR(g_scene1_camera_lookat[0], -1.0f, 1e-5f);
-    T_ASSERT_NEAR(g_scene1_camera_lookat[1],  3.0f, 1e-5f);
+    T_ASSERT_NEAR(g_scene1_camera_lookat[1],  1.2f, 1e-5f);
     T_ASSERT_NEAR(g_scene1_camera_lookat[2], -5.0f, 1e-5f);
     T_ASSERT_NEAR(g_scene1_camera_eye[0],    -1.0f, 1e-5f);
-    T_ASSERT_NEAR(g_scene1_camera_eye[1],    -6.2f, 1e-5f);
-    T_ASSERT_NEAR(g_scene1_camera_eye[2],    -9.0f, 1e-5f);
+    T_ASSERT_NEAR(g_scene1_camera_eye[1],    13.0f, 1e-5f);
+    T_ASSERT_NEAR(g_scene1_camera_eye[2],   -23.0f, 1e-5f);
     return 0;
 }
 
@@ -170,19 +173,18 @@ int test_scene1_camera_char_mode_below_2_collapses_offsets(void)
      * Also (uVar2 & 1) == 0 (uVar2=0) ⇒ stage_view_mode=0 clamps apply:
      *   bias_x clamped from 0 to -1, bias_z stays 0 (no lower bound).
      *   class_off = (0, 0, 0)
-     *   floor_bias = 3.0
-     *   lookat = (-1, 3.0, 0)   — class_off_x=0, so y is just floor_bias
-     *   eye    = (0 * sin(0) + -1, 0 + 3.0, 0 - 0 * cos(0)) = (-1, 3.0, 0)
-     *
-     * Eye == lookat in this collapsed case — degenerate LookAtRH but the
-     * pose itself is well-defined.  scene1_camera_angle_compute will
-     * inject dz=0.01 to keep atan2 well-defined. */
+     *   floor_bias = 3.0,  radius_xz = 0 + 14 = 14
+     *   lookat = (-1, 0 + -1.8 + 3.0, 0) = (-1, 1.2, 0)
+     *   eye    = (14*sin(0) + -1, 0 + 21 + 1.2, 0 - 14*cos(0))
+     *          = (-1, 22.2, -14)
+     * This is the char_mode=0 / faithful-HOUSE arm (modulo bias + yaw which
+     * the full retail pose adds — see house_groundtruth test). */
     T_ASSERT_NEAR(g_scene1_camera_lookat[0], -1.0f, 1e-5f);
-    T_ASSERT_NEAR(g_scene1_camera_lookat[1],  3.0f, 1e-5f);
+    T_ASSERT_NEAR(g_scene1_camera_lookat[1],  1.2f, 1e-5f);
     T_ASSERT_NEAR(g_scene1_camera_lookat[2],  0.0f, 1e-5f);
-    T_ASSERT_NEAR(g_scene1_camera_eye[0], -1.0f, 1e-5f);
-    T_ASSERT_NEAR(g_scene1_camera_eye[1],  3.0f, 1e-5f);
-    T_ASSERT_NEAR(g_scene1_camera_eye[2],  0.0f, 1e-5f);
+    T_ASSERT_NEAR(g_scene1_camera_eye[0],  -1.0f, 1e-5f);
+    T_ASSERT_NEAR(g_scene1_camera_eye[1],  22.2f, 1e-5f);
+    T_ASSERT_NEAR(g_scene1_camera_eye[2], -14.0f, 1e-5f);
     return 0;
 }
 
@@ -193,12 +195,12 @@ int test_scene1_camera_yaw_orbits_eye(void)
     scene1_camera_init();
     scene1_camera_pose_compute();
 
-    /* yaw = π/2 ⇒ sin=1, cos=0.  Eye:
-     *   x = 4 * 1 + -1 = 3
-     *   z = -5 - 4 * 0 = -5
+    /* yaw = π/2 ⇒ sin=1, cos=0.  radius_xz = 18 (char_mode=2).  Eye:
+     *   x = 18 * 1 + -1 = 17
+     *   z = -5 - 18 * 0 = -5
      * Lookat unchanged from yaw=0 case (the radial multiplier is on the
      * eye only). */
-    T_ASSERT_NEAR(g_scene1_camera_eye[0],  3.0f, 1e-4f);
+    T_ASSERT_NEAR(g_scene1_camera_eye[0], 17.0f, 1e-4f);
     T_ASSERT_NEAR(g_scene1_camera_eye[2], -5.0f, 1e-4f);
     T_ASSERT_NEAR(g_scene1_camera_lookat[0], -1.0f, 1e-5f);
     T_ASSERT_NEAR(g_scene1_camera_lookat[2], -5.0f, 1e-5f);
@@ -210,18 +212,18 @@ int test_scene1_camera_yaw_orbits_eye(void)
 int test_scene1_camera_floor_bias_converges_to_fixed_point(void)
 {
     reset_camera_world();
-    /* First call snaps lookat.y to 3.0 (= class_off_x=0 + floor_bias=3.0).
-     * Subsequent steady-state calls run the bias through the recurrence
-     *   floor_bias' = 0.9 * floor_bias + 0.3
-     * which converges to a fixed point at 3.0 (no movement).  Since
-     * the bias starts at the fixed point, lookat.y stays exactly 3.0. */
+    /* First call snaps lookat.y to 1.2 (= class_off_x=0 + looky_add(-1.8)
+     * + floor_bias=3.0).  Subsequent steady-state calls run the bias
+     * through the recurrence floor_bias' = 0.9 * floor_bias + 0.3, which
+     * converges to a fixed point at 3.0 (no movement).  Since the bias
+     * starts at the fixed point, lookat.y stays exactly 1.2. */
     scene1_camera_pose_compute();
-    T_ASSERT_NEAR(g_scene1_camera_lookat[1], 3.0f, 1e-5f);
+    T_ASSERT_NEAR(g_scene1_camera_lookat[1], 1.2f, 1e-5f);
 
     for (int k = 0; k < 50; k++) {
         scene1_camera_pose_compute();
     }
-    T_ASSERT_NEAR(g_scene1_camera_lookat[1], 3.0f, 1e-3f);
+    T_ASSERT_NEAR(g_scene1_camera_lookat[1], 1.2f, 1e-3f);
     return 0;
 }
 
@@ -235,14 +237,15 @@ int test_scene1_camera_yaw_change_lerps_eye(void)
      * should only move 20% of the way (smoothing factor 0.2). */
     g_scene1_camera_yaw = 1.5707964f;
     scene1_camera_pose_compute();
-    /* Target eye.x at yaw=π/2 is 3.0; previous is -1.0.  After one
-     * 0.2-rate lerp: -1.0 + 0.2 * (3.0 - (-1.0)) = -0.2. */
-    T_ASSERT_NEAR(g_scene1_camera_eye[0], -0.2f, 1e-3f);
+    /* Target eye.x at yaw=π/2 is 17.0 (radius_xz=18); previous is -1.0.
+     * After one 0.2-rate lerp: -1.0 + 0.2 * (17.0 - (-1.0)) = 2.6. */
+    T_ASSERT_NEAR(g_scene1_camera_eye[0], 2.6f, 1e-3f);
 
-    /* After ~30 more calls it should converge to within ~0.01 of 3.0
-     * (geometric decay at rate 0.8^k). */
-    for (int k = 0; k < 30; k++) scene1_camera_pose_compute();
-    T_ASSERT_NEAR(g_scene1_camera_eye[0], 3.0f, 0.01f);
+    /* After ~45 more calls it should converge to within ~0.01 of 17.0
+     * (geometric decay at rate 0.8^k; the larger radius_xz=18 orbit needs
+     * a few more iterations than the old adds=0 oracle to clear 0.01). */
+    for (int k = 0; k < 45; k++) scene1_camera_pose_compute();
+    T_ASSERT_NEAR(g_scene1_camera_eye[0], 17.0f, 0.01f);
     return 0;
 }
 

@@ -83,13 +83,23 @@ void scene1_camera_init(void)
     g_smooth_eye[0] = g_smooth_eye[1] = g_smooth_eye[2] = 0.0f;
     g_smooth_lookat[0] = g_smooth_lookat[1] = g_smooth_lookat[2] = 0.0f;
     g_floor_bias = 0.0f;
-    /* Reset the compose-add overrides to their boot-faithful 0.  Production
-     * calls scene1_camera_apply_house_groundtruth() AFTER this on HOUSE
-     * entry to set the real values; clearing here keeps non-HOUSE scenes
-     * (and test isolation) at the original BSS-zero behaviour. */
-    g_radius_add = 0.0f;
-    g_eyey_add   = 0.0f;
-    g_looky_add  = 0.0f;
+    /* The three compose adds (radius/eye.y/lookat.y) are scene-1 camera
+     * CONSTANTS: they have no writer anywhere in the 2620-function decompile
+     * and retail holds them at 14/21/-1.8 at every in-scene frame measured
+     * (tools/dump_demvp_groundtruth.py).  Their .rdata source triplet is at
+     * DAT_005c4fd0 = {-1.8, 14, 21}.  The port previously zeroed them as a
+     * "BSS-zero" assumption + re-applied behind --force-walker-phase2; that
+     * was a bug (the bracketing eye/lookat collapse without them).  Set them
+     * to the faithful values here so every scene-1 camera pose is correct
+     * without the flag.  (PHC: the exact rdata→BSS copy site is still
+     * unidentified — a pre-scene read crashes, the page is unmapped before a
+     * scene allocates it — but the value is confirmed in every scene frame.)
+     * bias_x/z_src stay 0 here: those are NOT constants (computed by the
+     * FUN_00432e50 placement search, still unported — see the HOUSE-entry
+     * stand-in in scene1_camera_apply_house_groundtruth). */
+    g_radius_add = 14.0f;   /* _DAT_0695ef70 */
+    g_eyey_add   = 21.0f;   /* _DAT_044e2c70 */
+    g_looky_add  = -1.8f;   /* _DAT_069b2f78 */
     g_bias_x_src = 0.0f;
     g_bias_z_src = 0.0f;
 }
@@ -113,9 +123,9 @@ void scene1_camera_apply_house_groundtruth(void)
     g_scene1_camera_char_mode = 0;   /* retail per-save-slot source = 0
                                       * (port hard-coded 2; with 0 block B
                                       * takes the uVar2<2 arm → offsets 0) */
-    g_radius_add        = 14.0f;     /* _DAT_0695ef70 */
-    g_eyey_add          = 21.0f;     /* _DAT_044e2c70 */
-    g_looky_add         = -1.8f;     /* _DAT_069b2f78 */
+    /* radius/eye.y/lookat.y adds are now faithful constants set in
+     * scene1_camera_init() (see there); only the bias stand-in remains
+     * here (FUN_00432e50 placement search unported). */
     g_bias_x_src        = -0.3f;     /* DAT_056da1d8 (clamps to -1.0) */
     g_bias_z_src        = 9.35f;     /* DAT_056da1e0 (clamps to  1.0) */
     /* yaw=π is now written faithfully by scene1_postload_walker_phase2_init()
