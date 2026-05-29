@@ -55,7 +55,35 @@ void (*scene1_preload_get_post_house_callback(void))(void)
 #include "scene_map_meshes.h"
 #include "scene_table.h"
 #include "scene_walls.h"
+#include "scene1_walker_pass_init.h"
 #include "sprite.h"
+
+/* PII.3c texture-hook adapters — bind the selector-matched stage
+ * texture for draw loop A's kabe (wall) / yuka (floor) / jutan (rug)
+ * material classes.  Engine: the per-cache-slot SetTexture dispatch
+ * (decomp L52813-L52870) picks these per-stage textures rather than
+ * the mesh's embedded TextureFilename.  scene_walls/floor/jutan have
+ * already sprite_load'd the selector-matched .bmp into
+ * g_scene_X[selector]; without these hooks the slot binds NULL and
+ * the floor/walls/rug render as untextured grey. */
+static void *house_kabe_texture(void)
+{
+    int s = g_scene_walls_selector;
+    if (s < 0 || s >= SCENE_WALLS_COUNT) return NULL;
+    return g_scene_walls[s].tex;
+}
+static void *house_yuka_texture(void)
+{
+    int s = g_scene_floor_selector;
+    if (s < 0 || s >= SCENE_FLOOR_COUNT) return NULL;
+    return g_scene_floor[s].tex;
+}
+static void *house_jutan_texture(void)
+{
+    int s = g_scene_jutan_selector;
+    if (s < 0 || s >= SCENE_JUTAN_COUNT) return NULL;
+    return g_scene_jutan[s].tex;
+}
 
 /* Storage for the 2 fixed singletons + 21 chr portraits. Engine has
  * these at named globals (leve_win @ DAT_073d9ff0, mood_para @
@@ -243,6 +271,13 @@ int scene1_preload_house(void)
     loads += scene_floor_load_foreground_win32(g_scene1_preload_dev);
     loads += scene_jutan_load_foreground_win32(g_scene1_preload_dev);
     loads += scene_table_load_foreground_win32(g_scene1_preload_dev);
+
+    /* PII.3c — install the stage-texture hooks now that the
+     * selector-matched wall/floor/jutan textures are loaded, so draw
+     * loop A binds them for the room's kabe/yuka/jutan surfaces. */
+    scene1_walker_set_kabe_texture_hook(house_kabe_texture);
+    scene1_walker_set_yuka_texture_hook(house_yuka_texture);
+    scene1_walker_set_jutan_texture_hook(house_jutan_texture);
 
     fprintf(stderr,
             "scene1_preload: HOUSE branch fired — loads=%d "
