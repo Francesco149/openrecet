@@ -43,7 +43,8 @@ that subsystem.
 | [scene1-records-b-tick.md](scene1-records-b-tick.md) | `FUN_0043ae20` — 25.7 KB table-B per-frame integrator (consumer of the C8j allocators). | 2026-05-25 |
 | [scene1-records-b-state-machine.md](scene1-records-b-state-machine.md) | `FUN_0043865e` — per-record combat state machine (NPC scan, attack input, damage, knockback, hit FX). | 2026-05-25 |
 | [scene1-walker.md](scene1-walker.md) | `FUN_0040a765` (C7i) — scene-1 HUD walker survey; corrects the "3D mesh walker" mislabel + the Pass-7 "chr render" mislabel (it's shop menus). | 2026-05-23 |
-| [scene1-chr-walker.md](scene1-chr-walker.md) | `FUN_004176ff` (30 KB, `scene1_walk_chr_TODO`) — the real character/entity 3D render walker; verdict: dormant on HOUSE (table-B empty; needs FUN_0043ae20 integrator). | 2026-05-29 |
+| [scene1-chr-walker.md](scene1-chr-walker.md) | `FUN_004176ff` (30 KB, `scene1_walk_chr_TODO`) — character/entity 3D record walker. **⚠️ premise corrected by Cchr.0** — it does NOT draw the player; see scene1-char-sprite-trace.md. | 2026-05-29 |
+| [scene1-char-sprite-trace.md](scene1-char-sprite-trace.md) | Cchr.0 retail Frida trace: in free-roam HOUSE records_b + people table are both empty + records_a is only particles, yet Recette/Tear render → characters are 2D billboards on a dedicated sprite path, not the FUN_004176ff walker. Adds `--dump-records-b` tooling. | 2026-05-29 |
 | [scene1-walker-pass-init.md](scene1-walker-pass-init.md) | `FUN_00457714` — per-NPC mesh walker = the HOUSE shop_table furniture renderer (relabel of pass-init stub). | 2026-05-26 |
 | [scene1-house-render-gaps.md](scene1-house-render-gaps.md) | HOUSE render diffs vs retail post-PII.3c — floor/wall/rug textures (fixed) + god-ray/blinds lighting gaps (deferred to a scene-1 lighting chip). | 2026-05-29 |
 | [scene1-wide-followup.md](scene1-wide-followup.md) | `FUN_004161c7` — wide-frustum followup draw (z_far=2000) survey. | 2026-05-23 |

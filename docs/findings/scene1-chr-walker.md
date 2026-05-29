@@ -1,5 +1,20 @@
 # Scene-1 character / entity render walker — FUN_004176ff survey
 
+> **⚠️ CORRECTED 2026-05-29 by the Cchr.0 retail trace
+> ([`scene1-char-sprite-trace.md`](scene1-char-sprite-trace.md)).** This
+> survey's central premise — "the player/characters are records_b entries
+> drawn by FUN_004176ff, gated behind the 25.7 KB integrator FUN_0043ae20"
+> — is **falsified by ground truth**. In retail free-roam HOUSE, records_b
+> is empty, records_a holds only an ambient particle emitter, AND the
+> people table is empty, yet Recette + Tear are on screen. The character
+> sprites are **2D billboards from a dedicated sprite path**, not from any
+> table this walker reads (their draw adds nothing to the per-frame
+> `DrawIndexedPrimitive` count). Route A/B below would render
+> particles/entities, not the player. See the trace doc for the next chip
+> (Cchr.1: find the 2D player-sprite renderer). The FUN_004176ff body
+> survey below remains accurate; only its "this is how you get characters"
+> conclusion is wrong.
+
 **Status (2026-05-29):** Survey only — no code lands from this doc. Done
 as the C7m re-scope after the `scene1-walker.md` Pass-7 correction
 revealed that the 2D HUD aggregator does **not** render characters; the
