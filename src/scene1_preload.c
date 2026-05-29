@@ -98,15 +98,26 @@ static sprite_t g_scene1_chr_portraits[SCENE1_PRELOAD_CHR_PORTRAIT_COUNT];
  * engine's HOUSE asset loader (FUN_00474a9a L73104-73113) loads the
  * per-stage hikari frames "<prefix><NN>.bmp" into DAT_073aa198, and the
  * hikari pass (FUN_00457714 param_1==3) binds DAT_073aa198[anim_frame]
- * via SetTexture — NOT the hikari submesh's own embedded sprite.  For
- * HOUSE the prefix is `mood_para` (a single soft light/mood frame),
- * which scene1_preload already loads into g_scene1_mood_para.  Without
- * this hook the pass fell back to each hikari submesh's embedded sprite,
- * drawing the window blinds/curtains as cyan triangulated geometry
- * instead of the soft lit overlay.  Single-frame: ignore the anim cycle. */
+ * via SetTexture.
+ *
+ * GROUND TRUTH (D3D state-trace A/B, runs/retail-d3d-house frame 14000 vs
+ * runs/port-d3d-house7 frame 3300): for HOUSE the engine binds
+ * `SetTexture(0, NULL)` for all 5 hikari god-ray submeshes (start_idx
+ * 4497/4521/4761/4833/5919 of shop_1st.x, prim 8/8/24/24/16 — identical on
+ * both sides).  i.e. HOUSE's DAT_073aa198[] frame table is EMPTY, so the
+ * draws are pure vertex-diffuse × 2 additive glow (COLOROP=MODULATE2X,
+ * COLORARG1=DIFFUSE, SRC=ONE/DEST=ONE).  Two earlier wrong bindings:
+ *   - the submesh's embedded sprite (xfile/shop/hikari.bmp) → cyan
+ *     triangulated curtains;
+ *   - `mood_para` (commit 4070c3f) → over-saturated flat-green curtains.
+ * Both painted a texture where retail uses none.  `mood_para` is NOT the
+ * HOUSE hikari prefix — that assumption was wrong.  Return NULL to model
+ * the empty frame table and override the embedded-sprite fallback in
+ * pick_texture_for_action(); the green now comes only from the mesh's own
+ * lit vertex colours, matching retail's soft glow. */
 static void *house_hikari_texture(void)
 {
-    return g_scene1_mood_para.tex;
+    return NULL;
 }
 
 static IDirect3DDevice8 *g_scene1_preload_dev = NULL;
