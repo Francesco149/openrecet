@@ -362,9 +362,53 @@ advance-at-duration, HALT hold, animation-end wrap (counter reset→++=1),
 the float-timer pin, and NULL-safe. 2935 total, all pass; both exe targets
 build warning-free.
 
-**Remaining for the ladder:** Cchr.2d (the walker `FUN_00456f56` that
-builds `state` per frame and calls this tick + the validated 2b leaf),
-then Cchr.2e (the records pre-pass `FUN_0045672a`).
+**Remaining for the ladder:** Cchr.2e (the records pre-pass
+`FUN_0045672a`) and the actor-state **populator** `FUN_00436f97`.
+
+## Cchr.2d — the character-sprite walker (FUN_00456f56, 0x456f56, 1982 B)
+
+Ported as `src/scene1_chr_walker.{c,h}` — the per-frame driver that builds
+the world matrix + diffuse color for every actor billboard and hands each
+to the validated 2b leaf. Dispatched from `scene1_render_meshes` L248-L251
+(second WIDE-frustum slot, z_far 2000), replacing the old
+`scene1_walk_wide_b_TODO` stub. Full asm @ 0x456f56 + tail to 0x457713.
+
+**Four passes** (+ a preamble/mid/tail D3D-state envelope, all live):
+
+| pass | what | leaf call |
+|------|------|-----------|
+| preamble | FVF 0x142, additive-billboard TSS/RS, LightEnable(0,F), LIGHTING=F, `FUN_0047047b` (a 2nd dormant 0x43-billboard sub-walker — stubbed) | — |
+| 1 companion | `DAT_056da1d4 != -1`: one billboard, blend (ONE,ONE) | `(…,2,2,M,0xff7f7f7f)` |
+| 2 player/party | `DAT_056da1cc != -1`: 2-sweep loop over the 0x44-stride actor array (i=0 player @ slot-0x154, i=1 party gated on `DAT_056daae0`); spawn-pop ease + draw-order alpha; blend (SRCALPHA,INVSRCALPHA) | `(actor,id,id,M,alpha<<24\|0x7f7fff)` |
+| 3 NPC | people record table (the `DAT_0076c464` family, stride 0x2e9 — the SAME table `scene1_shop_walker` models): off-screen fade ramp | `(rec,0x43,0x43,M,a<<24\|0x7f7f7f)` |
+| 4 NPC sub | same table, type==1: `FUN_00456d48` (no-op stub in port, as in shop Pass F) | — |
+
+**Pure scalar math** (host-tested, the part where decoded constants live):
+- `chr_walker_fadein(counter)` — `(0x5a-counter)/30`, clamp ≤1.0.
+- `chr_walker_spawn_ease(age,&sx,&sz)` — age<20: `sx×=age/20`, `sz×=((20-age)/10+1)`.
+- `chr_walker_actor_alpha(age,is_party,prio,daae0)` — `(0x254-age)*8` skip-if-neg + 0x9b clamp; party override `daae0<10 → (daae0-10)*15+prio`.
+- `chr_walker_npc_alpha(pos,mult)` — pos<-75 skip; ramp `(pos+70)*50+255` over [-75,-70); ×mult; both stages `__ftol` (=`FUN_00503954`, truncate).
+
+All engine float constants decoded from .rdata @ 0x519xxx (byte-reversed
+LE): −75/−70/+70/50/255 (npc fade), 0.05 (npc scale), 0.02 (player z-bias),
+10/20 (ease), 0.03 (fade scale), 30 (fade divisor). The COLOROP=8
+(`D3DTOP_ADDSIGNED`) preamble value is verbatim from objdump; blend-value
+6 = `D3DBLEND_INVSRCALPHA`.
+
+**DORMANT in HOUSE.** The actor sprite-state array (`DAT_056dacc0` /
+companion `DAT_056dab40`) and the people table are populated by
+`FUN_00436f97` (4788 B) — the unported "Cf.* writer chunk" STATUS.md lists
+as the top HOUSE-pixel blocker. Until it ports, the four pass bodies
+iterate nothing (the `chr_walker_*` accessors return NULL / count 0) and no
+character billboards appear — exactly the state of the sibling walkers
+(`scene1_shop_walker` / `scene1_alpha_walker`). The D3D state envelope IS
+live and correct. When `FUN_00436f97` ports, point the accessors at the
+real engine state and the bodies fire verbatim.
+
+**12 host tests** (`test_chr_walker_*`); 2947 total pass; both exe targets
+build warning-free. NPC pass-3 record-field offsets (-0x6a4 pos, +4 mult,
+scale via `&DAT_005c23f0[type*0x68]+0x44 × 0.05`) are documented in the
+code for the follow-up that fills the people draw once the table populates.
 
 ## Cross-refs
 

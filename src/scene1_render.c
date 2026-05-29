@@ -23,6 +23,7 @@
 #include "render_quad.h"
 #include "mesh.h"            /* mesh_t (scene1_walk_initial_asset cast) */
 #include "scene1_alpha_walker.h"
+#include "scene1_chr_walker.h"   /* Cchr.2d — FUN_00456f56 character-sprite walker */
 #include "call_trace.h"
 #include "scene1_camera.h"
 #include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
@@ -291,14 +292,6 @@ static void scene1_walk_alpha_pre_TODO(void)
  * as C8d (src/scene1_alpha_walker.{c,h}) with full state-writes +
  * branch structure.  Two inner FUN_00459847 walker calls stay TODO
  * (same stub as scene1_walk_narrow_frustum_TODO below). */
-
-/* FUN_00456f56 (1982 B) — second wide-frustum pass mesh walker.
- * Likely handles a different draw-order category (transparent
- * props? particle quads in 3D space?). */
-static void scene1_walk_wide_b_TODO(void)
-{
-    /* TODO C8-followup: port FUN_00456f56. */
-}
 
 /* FUN_004176ff (30395 B) — the chr (character avatar) mesh walker.
  * The biggest function in scene-1 render.  Will fan into many sub-
@@ -847,7 +840,11 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     scene1_push_projection(dev, 2000.0f);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MIPFILTER,
                                           D3DTEXF_NONE);
-    scene1_walk_wide_b_TODO();
+    /* L248-L251: ★ FUN_00456f56 ★ — the character-sprite walker (1982 B).
+     * Cchr.2d (2026-05-29) ports the full D3D envelope + the four actor
+     * passes; the per-actor draws are dormant until the populator
+     * FUN_00436f97 ports the actor/people tables (see scene1_chr_walker.h). */
+    scene1_chr_walker_render((struct IDirect3DDevice8 *)dev);
 
     /* L252-L254: WIDE projection (re-set, idempotent) → chr walker. */
     scene1_push_projection(dev, 2000.0f);

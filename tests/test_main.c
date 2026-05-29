@@ -3087,7 +3087,19 @@ struct test_case {
     X(chr_anim_tick_halt_holds_frame) \
     X(chr_anim_tick_end_wraps_to_start) \
     X(chr_anim_tick_timer_is_float) \
-    X(chr_anim_tick_null_safe)
+    X(chr_anim_tick_null_safe) \
+    X(chr_walker_fadein_clamps_high) \
+    X(chr_walker_fadein_ramps) \
+    X(chr_walker_spawn_ease_midspawn) \
+    X(chr_walker_spawn_ease_age0) \
+    X(chr_walker_spawn_ease_fullspawn_noop) \
+    X(chr_walker_player_alpha_clamps) \
+    X(chr_walker_player_alpha_skip_negative) \
+    X(chr_walker_party_alpha_override) \
+    X(chr_walker_party_alpha_lowfade) \
+    X(chr_walker_npc_alpha_offscreen_skip) \
+    X(chr_walker_npc_alpha_full) \
+    X(chr_walker_npc_alpha_ramp)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

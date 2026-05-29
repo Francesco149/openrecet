@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 59,
   "stubbed": 14,
-  "ported": 288,
-  "unported": 2187,
+  "ported": 289,
+  "unported": 2186,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 361,
+  "touched": 362,
   "pct_touched": 14.2,
   "pct_verified": 2.3
  },
@@ -2824,11 +2824,14 @@
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
     "src/scene1_camera.c",
+    "src/scene1_chr_walker.c",
+    "src/scene1_chr_walker.h",
     "src/scene1_particles_tick.h",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
     "src/scene1_preload.c",
     "src/scene1_preload.h",
+    "src/scene1_render.c",
     "src/scene1_spawn.c",
     "src/scene1_spawn.h",
     "src/scene1_walker_pass_init.h",
@@ -4182,6 +4185,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_chr_walker.c",
+    "src/scene1_chr_walker.h",
     "src/scene1_render.c",
     "src/scene1_shop_walker.c",
     "src/scene1_shop_walker.h",
@@ -4197,6 +4202,8 @@
    "status": "ported",
    "src": [
     "src/chr_sprite_meta.h",
+    "src/scene1_chr_walker.c",
+    "src/scene1_chr_walker.h",
     "src/scene1_render.c",
     "src/scene1_render.h"
    ]
@@ -4301,6 +4308,7 @@
     "src/chr_sprite_meta.h",
     "src/scene1_chr_sprite.c",
     "src/scene1_chr_sprite.h",
+    "src/scene1_chr_walker.h",
     "src/scene1_render.c",
     "src/scene1_shop_walker.c",
     "src/scene1_shop_walker.h"
@@ -5778,8 +5786,11 @@
    "size": 296,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_chr_walker.c",
+    "src/scene1_chr_walker.h"
+   ]
   },
   {
    "va": "0x4705a3",
@@ -21730,6 +21741,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_chr_walker.c",
+    "src/scene1_chr_walker.h",
     "src/scene1_wide_followup_helpers.c"
    ]
   },

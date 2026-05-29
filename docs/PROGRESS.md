@@ -7,6 +7,39 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — Cchr.2d: the HOUSE character-sprite walker
+
+Ported `FUN_00456f56` (1982 B) — the per-frame driver that builds the world
+matrix + diffuse color for every actor billboard and hands each to the
+validated 2b leaf — as `src/scene1_chr_walker.{c,h}`. Wired into
+`scene1_render_meshes` (L248-L251, second WIDE-frustum slot), replacing the
+`scene1_walk_wide_b_TODO` stub.
+
+Four passes behind a live D3D state envelope: companion (char 2),
+player+party (2-sweep loop over the 0x44-stride actor array with spawn-pop
+ease + draw-order alpha), NPC billboards (the people record table, off-
+screen fade ramp, char 0x43), and an NPC sub-render pass (`FUN_00456d48`,
+a no-op stub as in shop Pass F). The intricate Ghidra float-as-int
+confusion (`2.8026e-45`=loop bound 2, `1.4013e-45`=1, etc.) was resolved
+against objdump @ 0x456f56; all .rdata float constants decoded; the NPC
+fade's `FUN_00503954` is `__ftol`.
+
+- **Pure, host-tested math** (where the constants live): `chr_walker_fadein`,
+  `chr_walker_spawn_ease`, `chr_walker_actor_alpha`, `chr_walker_npc_alpha`.
+  **12 host tests**; 2947 total pass.
+- **DORMANT in HOUSE** until the actor/people tables populate. Their
+  populator is `FUN_00436f97` (4788 B) — the unported "Cf.* writer chunk"
+  STATUS.md lists as the top HOUSE-pixel blocker. The D3D envelope is live;
+  the pass bodies reach data through accessors that return NULL/count 0
+  today (the established `scene1_shop_walker` dormant-walker pattern). This
+  is correct render code that draws nothing until the populator lands —
+  **don't expect visible HOUSE characters from this chip alone.**
+
+Both exe targets build warning-free. The Cchr.2 ladder now has 2a/2b/2c/2d
+landed; remaining is 2e (`FUN_0045672a` records pre-pass) and the populator
+`FUN_00436f97`. Findings in `docs/findings/scene1-char-sprite-render.md`
+"Cchr.2d".
+
 ## 2026-05-29 — Cchr.2c: the actor animation frame tick
 
 Ported `FUN_00482a71` (118 B) — the per-tick sprite-animation advance —
