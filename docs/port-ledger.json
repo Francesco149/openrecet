@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 59,
   "stubbed": 14,
-  "ported": 292,
-  "unported": 2183,
+  "ported": 294,
+  "unported": 2181,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 365,
-  "pct_touched": 14.3,
+  "touched": 367,
+  "pct_touched": 14.4,
   "pct_verified": 2.3
  },
  "orphan_refs": [
@@ -7952,8 +7952,10 @@
    "size": 11519,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.h"
+   ]
   },
   {
    "va": "0x48940e",
@@ -8088,8 +8090,10 @@
    "size": 663,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.h"
+   ]
   },
   {
    "va": "0x48b6ad",
@@ -8119,7 +8123,9 @@
    "src": [
     "src/main.c",
     "src/scene1_chr_walker.c",
-    "src/scene1_chr_walker.h"
+    "src/scene1_chr_walker.h",
+    "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h"
    ]
   },
   {
@@ -21471,6 +21477,7 @@
    "status": "ported",
    "src": [
     "src/scene1_particles_tick.c",
+    "src/scene1_player_ctrl.c",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h"
    ]

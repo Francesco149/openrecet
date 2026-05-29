@@ -3104,7 +3104,17 @@ struct test_case {
     X(chr_prepass_sort_already_sorted) \
     X(chr_prepass_sort_negative_keys) \
     X(chr_prepass_sort_stable_equal_keys) \
-    X(chr_prepass_sort_trivial_sizes)
+    X(chr_prepass_sort_trivial_sizes) \
+    X(player_facing_snap_horizontal_sets_sticky) \
+    X(player_facing_snap_vertical_clears_sticky) \
+    X(player_facing_snap_diagonals_sticky0) \
+    X(player_facing_snap_diagonals_sticky1) \
+    X(player_facing_snap_masks_input) \
+    X(player_cam_z_decay_step) \
+    X(player_cam_z_decay_floor) \
+    X(player_cam_shake_below_target_noop) \
+    X(player_cam_shake_above_target_scaled) \
+    X(player_cam_shake_zero_mag_no_div)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

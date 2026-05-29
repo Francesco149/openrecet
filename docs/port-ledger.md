@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **365** (14.3%) — verified 59, stubbed 14, ported 292
-- unported: **2183**
+- touched: **367** (14.4%) — verified 59, stubbed 14, ported 294
+- unported: **2181**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (59) — runtime-diffed vs retail
@@ -97,7 +97,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (292) — reimplemented, no probe yet
+## ported (294) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -320,11 +320,13 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x485413 | FUN_00485413 | 55 | ✓ | scene1_combat_sm.h |
 | 0x485979 | FUN_00485979 | 731 | ✓ | scene1_records_b_tick.h |
 | 0x485f8c | FUN_00485f8c | 316 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
+| 0x48670f | FUN_0048670f | 11519 | ✓ | scene1_player_ctrl.h |
 | 0x489c79 | FUN_00489c79 | 217 | ✓ | chara_skills.h |
 | 0x489d52 | FUN_00489d52 | 102 | ✓ | chara_skills.h |
 | 0x48a348 | FUN_0048a348 | 59 | ✓ | scene1_combat_sm.h |
 | 0x48a383 | FUN_0048a383 | 334 | ✓ | xp_curve.h |
-| 0x48b850 | FUN_0048b850 | 5030 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h |
+| 0x48b3f6 | FUN_0048b3f6 | 663 | ✓ | scene1_player_ctrl.h |
+| 0x48b850 | FUN_0048b850 | 5030 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h (+2) |
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
 | 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h |
 | 0x4901c2 | FUN_004901c2 | 151 | ✓ | main.c, save_bank.c, save_bank.h (+1) |
@@ -378,7 +380,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4c75e3 | FUN_004c75e3 | 4634 | ✓ | mesh_draw.c, scene1_emit_record.c |
 | 0x4c8f74 | FUN_004c8f74 | 704 | ✓ | mesh_load.c |
 | 0x4cdd9f | FUN_004cdd9f | 221 | ✓ | math3d.h |
-| 0x5031e4 | FUN_005031e4 | 9 | ✓ | scene1_particles_tick.c, scene1_records_b_spawn.c, scene1_records_b_spawn.h |
+| 0x5031e4 | FUN_005031e4 | 9 | ✓ | scene1_particles_tick.c, scene1_player_ctrl.c, scene1_records_b_spawn.c (+1) |
 | 0x5036af | FUN_005036af | 47 | ✓ | storage.c, tables_news.h |
 | 0x5038b0 | FUN_005038b0 | 19 | ✓ | scene1_overlay_table.c, scene1_overlay_table.h, scene1_per_frame_open.c |
 | 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, scene1_combat_sm.c, scene1_per_frame_open.c (+5) |
