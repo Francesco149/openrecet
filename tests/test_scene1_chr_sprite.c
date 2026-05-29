@@ -271,3 +271,102 @@ int test_chr_sprite_out_max_clamp(void)
     chr_meta_shutdown();
     return 0;
 }
+
+/* ── Retail ground-truth: Recette standing in the HOUSE ───────────────────
+ *
+ * Captured from retail via `frida_capture.py --chr-leaf` (run runs/cchr2b,
+ * free-roam frame 17544, player at (-0.30, 0, 9.35)).  The leaf
+ * FUN_0045a56f was called for char 0 (Recette) with these inputs; this
+ * test reconstructs the descriptor + formdata from the captured fields and
+ * asserts chr_sprite_build_quads reproduces retail's DrawPrimitiveUP
+ * vertex buffer (leaf_out) bit-for-bit.  This is the Cchr.2b A/B.
+ *
+ * Captured leaf_in: char_id=0, color=0xff808080, tex=512x1024, sheet_w=128,
+ * scale_x100=100, y_origin=114, facing=6 (bank 4, NOT flipped), anim=0,
+ * frame=2 → LUT cell 10; formdata base=0, ncells=6, start=60,
+ * sheet positions [5,6,9,10,13,14]. */
+static const chr_sprite_vertex RETAIL_RECETTE[36] = {
+    { 0.f, 82.f, 0.f, 0xff808080u, 0.811523438f, 0.0942382812f },
+    { 0.f, 50.f, 0.f, 0xff808080u, 0.811523438f, 0.124511719f },
+    { -32.f, 50.f, 0.f, 0xff808080u, 0.750976562f, 0.124511719f },
+    { -32.f, 82.f, 0.f, 0xff808080u, 0.750976562f, 0.0942382812f },
+    { 0.f, 82.f, 0.f, 0xff808080u, 0.811523438f, 0.0942382812f },
+    { -32.f, 50.f, 0.f, 0xff808080u, 0.750976562f, 0.124511719f },
+    { 32.f, 82.f, 0.f, 0xff808080u, 0.874023438f, 0.0942382812f },
+    { 32.f, 50.f, 0.f, 0xff808080u, 0.874023438f, 0.124511719f },
+    { 0.f, 50.f, 0.f, 0xff808080u, 0.813476562f, 0.124511719f },
+    { 0.f, 82.f, 0.f, 0xff808080u, 0.813476562f, 0.0942382812f },
+    { 32.f, 82.f, 0.f, 0xff808080u, 0.874023438f, 0.0942382812f },
+    { 0.f, 50.f, 0.f, 0xff808080u, 0.813476562f, 0.124511719f },
+    { 0.f, 50.f, 0.f, 0xff808080u, 0.936523438f, 0.0942382812f },
+    { 0.f, 18.f, 0.f, 0xff808080u, 0.936523438f, 0.124511719f },
+    { -32.f, 18.f, 0.f, 0xff808080u, 0.875976562f, 0.124511719f },
+    { -32.f, 50.f, 0.f, 0xff808080u, 0.875976562f, 0.0942382812f },
+    { 0.f, 50.f, 0.f, 0xff808080u, 0.936523438f, 0.0942382812f },
+    { -32.f, 18.f, 0.f, 0xff808080u, 0.875976562f, 0.124511719f },
+    { 32.f, 50.f, 0.f, 0xff808080u, 0.999023438f, 0.0942382812f },
+    { 32.f, 18.f, 0.f, 0xff808080u, 0.999023438f, 0.124511719f },
+    { 0.f, 18.f, 0.f, 0xff808080u, 0.938476562f, 0.124511719f },
+    { 0.f, 50.f, 0.f, 0xff808080u, 0.938476562f, 0.0942382812f },
+    { 32.f, 50.f, 0.f, 0xff808080u, 0.999023438f, 0.0942382812f },
+    { 0.f, 18.f, 0.f, 0xff808080u, 0.938476562f, 0.124511719f },
+    { 0.f, 18.f, 0.f, 0xff808080u, 0.0615234375f, 0.125488281f },
+    { 0.f, -14.f, 0.f, 0xff808080u, 0.0615234375f, 0.155761719f },
+    { -32.f, -14.f, 0.f, 0xff808080u, 0.0009765625f, 0.155761719f },
+    { -32.f, 18.f, 0.f, 0xff808080u, 0.0009765625f, 0.125488281f },
+    { 0.f, 18.f, 0.f, 0xff808080u, 0.0615234375f, 0.125488281f },
+    { -32.f, -14.f, 0.f, 0xff808080u, 0.0009765625f, 0.155761719f },
+    { 32.f, 18.f, 0.f, 0xff808080u, 0.124023438f, 0.125488281f },
+    { 32.f, -14.f, 0.f, 0xff808080u, 0.124023438f, 0.155761719f },
+    { 0.f, -14.f, 0.f, 0xff808080u, 0.0634765625f, 0.155761719f },
+    { 0.f, 18.f, 0.f, 0xff808080u, 0.0634765625f, 0.125488281f },
+    { 32.f, 18.f, 0.f, 0xff808080u, 0.124023438f, 0.125488281f },
+    { 0.f, -14.f, 0.f, 0xff808080u, 0.0634765625f, 0.155761719f },
+};
+
+static void poke_i32(uint8_t *p, int32_t v) { memcpy(p, &v, 4); }
+
+int test_chr_sprite_retail_recette_house(void)
+{
+    chr_meta_shutdown();
+    T_ASSERT(chr_meta_alloc());
+
+    /* Reconstruct char-0's descriptor block from the captured fields. */
+    uint8_t *blk = chr_meta_block(0);
+    T_ASSERT(blk != NULL);
+    poke_i32(blk + CHR_META_OFF_SHEET_W, 128);
+    poke_i32(blk + CHR_META_OFF_SCALE,   100);
+    poke_i32(blk + CHR_META_OFF_YORIGIN, 114);
+    /* LUT cell: anim 0, frame 2, bank 4 (facing 6) → idx 16 → 10. */
+    poke_i32(blk + CHR_META_OFF_LUT + 16 * 4, 10);
+
+    /* Reconstruct the formdata frame entry (base 0, big-endian). */
+    static uint8_t fd[0x900];
+    memset(fd, 0, sizeof(fd));
+    /* base = be_u32(fd[0]) = 0 (already zero). */
+    be16(fd + 0 + 10 * 2 + 0x400, 6);    /* ncells, at cell*2 */
+    be16(fd + 0 + 10 * 2 + 0x600, 60);   /* start  */
+    static const int pos[6] = { 5, 6, 9, 10, 13, 14 };
+    for (int i = 0; i < 6; i++)
+        be16(fd + 0 + (60 + i) * 2 + 0x800, pos[i]);
+
+    /* The captured actor sprite-state struct. */
+    int32_t actor[0x11] = { 0, 0, 1084227584, 25, 2, 0, 6, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0 };
+
+    chr_sprite_vertex v[CHR_SPRITE_MAX_VERTS];
+    int n = chr_sprite_build_quads(v, CHR_SPRITE_MAX_VERTS, actor, /*char_id*/0,
+                                   0xff808080u, fd, sizeof(fd),
+                                   /*tex_w*/512, /*tex_h*/1024);
+    T_ASSERT_EQ_I(n, 6);               /* 6 cells = prim_count/2 = 12/2 */
+    for (int i = 0; i < 36; i++) {
+        T_ASSERT_NEAR(v[i].x, RETAIL_RECETTE[i].x);
+        T_ASSERT_NEAR(v[i].y, RETAIL_RECETTE[i].y);
+        T_ASSERT_NEAR(v[i].z, RETAIL_RECETTE[i].z);
+        T_ASSERT_NEAR(v[i].u, RETAIL_RECETTE[i].u);
+        T_ASSERT_NEAR(v[i].v, RETAIL_RECETTE[i].v);
+        T_ASSERT_EQ_U(v[i].diffuse, RETAIL_RECETTE[i].diffuse);
+    }
+    chr_meta_shutdown();
+    return 0;
+}

@@ -3080,7 +3080,8 @@ struct test_case {
     X(chr_sprite_color_gate_tint) \
     X(chr_sprite_color_gate_unchanged) \
     X(chr_sprite_null_and_degenerate_safe) \
-    X(chr_sprite_out_max_clamp)
+    X(chr_sprite_out_max_clamp) \
+    X(chr_sprite_retail_recette_house)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)
