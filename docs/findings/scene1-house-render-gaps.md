@@ -59,41 +59,50 @@ additive blend are still unwired (`s_hook_animated_tex` NULL). Gap #2
 visible delta also depends on the meshes carrying vertex normals + a
 material, which is a separate path.
 
-## DEFERRED — hikari god-ray overlay
+## RESOLVED (2026-05-29, PII.3d.2 + .3) — hikari submesh texture + additive blend
 
-### #1 — "frustum-ish" solid mesh in front of the window
-- **Symptom:** a frustum-shaped solid mesh sits in front of the window;
-  in retail this region is animated **god rays** (光 = *hikari*).
-- **Hypothesis:** the god-ray geometry classifies as
-  `SCENE1_WALKER_SLOT_HIKARI` (param_1==3 / "hikari" texture prefix),
-  bound via `s_hook_animated_tex` — **also NULL in production** (not
-  wired by the kabe/yuka/jutan fix). With no hikari texture + no
-  additive blend, the ray geometry draws as an opaque solid frustum.
-- **Needs:** (a) a hikari/animated texture source + the
-  `animated_texture_hook` wired; (b) the additive-blend + light state
-  the rays draw under. There is no `scene_hikari` loader yet — the
-  hikari texture source is unidentified. Investigate the engine's
-  hikari overlay pass (the `param_1==3` walker invocation) + its blend
-  state before wiring.
+Gaps #1 (opaque "frustum" in front of the window) and #2 (rainbow
+solid-colour triangles on the window/blinds where lit) were the SAME
+bug, exposed by enabling the maplight: the hikari-flagged submeshes of
+`shop_1st.x` draw only in the alpha walker's pass 3 but bound a NULL
+texture, so under `COLOROP=MODULATE2X` lighting made each face's vivid
+placeholder material colour show as an opaque rainbow frustum.
 
-### #2 — blinds texture mangled on lit triangles
-- **Symptom:** the window-blinds texture is partially mangled, worse on
-  the right; each lit triangle renders as almost a solid color, and the
-  effect scales with god-ray intensity (only the *lit* parts are
-  affected).
-- **Hypothesis:** missing scene-1 per-vertex lighting. With
-  `D3DRS_LIGHTING=FALSE` and no per-stage `SetLight`, the engine's
-  smooth per-vertex light gradient collapses to flat per-face shading;
-  combined with whatever the hikari/light contribution modulates onto
-  those faces, the lit tris go solid-color. The "more god rays = more
-  mangled, only lit parts" coupling points squarely at the light/
-  hikari contribution, not the base texture (which is correct on the
-  unlit parts).
-- **Needs:** the same scene-1 lighting chip as #1 — port the per-stage
-  maplight (`DAT_06a49a40` D3DLIGHT8 + the dropped `SetLight` args) and
-  enable `D3DRS_LIGHTING`.
+- **.2** (`scene1_walker_pass_init.c`): the HIKARI/WATER pass now binds
+  the cache slot's own sprite — which is `xfile/shop/hikari.bmp` (a
+  64×64 soft blue-cyan light-shaft gradient, the embedded `hikari*`
+  texture of `shop_1st.x`). Equivalent to the engine's single-frame
+  `DAT_073aa198[0]` lookup. Also wired the `aw_palette_*` blend/combiner
+  gates to the live stage record (`hikariadd=1`, `hikaridrawcode=2`,
+  `hikarialpha=96`, `drawcode=2`).
+- **.3** (`scene1_alpha_walker.c`): fixed the blend-constant erratum —
+  the arms wrote `D3DBLEND_DESTCOLOR` (9) where the engine emits literal
+  `2 = D3DBLEND_ONE`, turning the additive god-ray blend into a darkening
+  multiply. Now additive (`src + dest`).
 
-## Suggested next chip
+User-verified: artifacts gone, frustum gone, hikari layer adds a soft
+glow. **Not retail-equivalent yet** — see below.
+
+## DEFERRED — the bright "blinding" window ray-shaft layer
+
+- **Symptom:** retail HOUSE (`/mnt/c/Users/headpats/Documents/house-3d.png`)
+  has bright, blinding white-cyan ray shafts blooming out of the windows
+  and a generally brighter scene. Our render has the correct base
+  lighting + the soft hikari-submesh glow, but not the dramatic shafts.
+- **Source identified:** `FUN_00459847(3)` — the alpha walker
+  (`FUN_00458bdf` L53671) calls it right after the hikari submesh pass
+  `FUN_00457714(3)`. It is **stubbed** in the port as
+  `aw_narrow_frustum_walker_TODO` (`scene1_alpha_walker.c`). Decomp
+  (0x459847, 1444 B): the `param_1==3` branch sets additive blend
+  (SetRenderState SRCBLEND=ONE/DESTBLEND=ONE, L54028-54038) and draws
+  from a record table `DAT_005c4cac` (stride 0x24) filtered to type 3.
+  This is the additive ray-shaft / billboard renderer. (Called with
+  0/1 from `scene1_render_meshes` and 2/3 from the alpha walker.)
+- **Next chip:** port `FUN_00459847` (the additive billboard/ray walker).
+  Ground-truth the intensity with a same-res retail HOUSE capture
+  (Frida-remote harness) once the geometry lands.
+
+## Suggested next chip (superseded — see above)
 
 **Scene-1 lighting + hikari god-ray overlay** — ports the per-stage
 maplight (resolve the Ghidra-dropped `SetLight` args via objdump, like
