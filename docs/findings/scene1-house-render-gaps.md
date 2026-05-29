@@ -35,23 +35,37 @@ god-ray subsystem, which is only partially ported):
    is dormant in HOUSE (draws nothing) but its render-state preamble runs
    and LEAKS into later passes — audit dormant walkers' state writes too.**
 
-   **STILL OPEN (state fixed, pixels still wrong):** the blend-state fixes
-   did NOT resolve the visible artifact — confirmed by user + a port↔retail
-   pixel diff (runs/house_diff_heat.png, cluster on the centre window).
-   High-res A/B (runs/window_zoom_ab.png): the window-side **curtains**
-   render in the port as **bright cyan-green, flat/triangulated**, vs
-   retail's **smooth darker-green lit fabric**.  Since the draw STATE now
-   matches retail, the remaining divergence is a **texture/shading** bug,
-   not blend: the hikari-flagged curtain submesh is binding the wrong
-   texture (likely the cyan `hikari.bmp` gradient from the PII.3d.2
-   binding, applied too broadly) and/or showing flat per-vertex colour
-   instead of the lit curtain fabric.  This is the hikari texture-
-   classification path (scene1_walker_pass_init.c pick_texture_for_action
-   / classify_slot), and overlaps hunt items #2/#3 (the frustum + missing
-   middle-window glow are the same hikari subsystem).  NEXT: trace which
-   texture the curtain submeshes bind vs what retail binds; the hikari
-   slot binding likely needs to be narrowed (only true light-shaft
-   submeshes get hikari.bmp; curtains keep their own texture).
+   **PARTIAL FIX — cyan→green (commit 4070c3f), but curtains still
+   diverge.** The hikari pass (FUN_00457714 param_1==2/3) binds the
+   engine's animated hikari texture DAT_073aa198[frame], NOT each hikari
+   submesh's embedded sprite. The engine loads those frames in the HOUSE
+   asset loader (FUN_00474a9a L73104-73113): `"<prefix><NN>.bmp"` where
+   the HOUSE prefix is `mood_para`, count = `*(int*)(&DAT_068ded18 +
+   stage*0x1b3c)`, via the "%s%02d.bmp" format (s__s_02d_bmp_005ca61c).
+   The port had loaded `mood_para` but mislabeled it "UI scratch" and
+   left s_hook_animated_tex NULL → the pass fell back to the submesh's
+   cyan embedded sprite. Wiring house_hikari_texture()→g_scene1_mood_para
+   turned the curtains GREEN.
+
+   **STILL OPEN (post-mood_para):** zoom diff runs/window_zoomdiff.png
+   (PORT / RETAIL / DIFF stacked, window band) shows the curtains are
+   STILL a major divergence cluster — the port's are a lighter,
+   triangulated green; retail's are smoother darker-green with fold
+   detail. Hypotheses to investigate next session:
+   - **Wrong/missing hikari frame**: the port binds a single `mood_para`
+     (loaded as "bmp/mood_para.tga", 0x200×0x200) but the engine loads
+     numbered `mood_para00.bmp..NN.bmp` and CYCLES them by
+     (draw_counter/wateranimspeed)%wateranimnum. If HOUSE has >1 frame,
+     the port is stuck on a wrong/static frame. Verify the real file(s)
+     + count from the stage table (DAT_068dec18/DAT_068ded18 per-stage).
+   - **The curtains may not be hikari at all** — they might be base-pass
+     geometry whose own texture the port binds wrong, with the hikari
+     shafts a SEPARATE overlay. Need to confirm whether the green curtain
+     is a base draw or the hikari draw (trace SetTexture→which submesh).
+   - **Triangulation/shading**: per-vertex lit colour interpolation or
+     the mood_para UV mapping differs.
+   ALWAYS lead the next session with a zoom DIFF (runs/window_zoomdiff.png
+   recipe) before changing code — see [[feedback_zoom_diff_render_debug]].
 2. **Frustum over the LEFT window** — a visible opaque frustum/shape over
    the left window even though the god rays themselves look right. Likely
    a hikari god-ray billboard/quad rendering opaque (wrong blend or a mesh
