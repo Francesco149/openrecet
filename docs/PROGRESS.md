@@ -7,6 +7,48 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — PII.3c: HOUSE shop interior BACKGROUND renders (draw loop A, user-verified)
+
+The shop room now paints behind the furniture — walls, back-wall shelves,
+wooden floor, the corner counter, and the carpet. User-verified live ("that
+seems to render the room correctly") on `--auto-z-spam` (runs/house-bg-on/
+frame_03300.png). Before this the 3 furniture meshes floated on a blank navy
+clear; now it's the actual Recettear shop.
+
+**The shop background is 3D, not a 2D layer** (corrected a stale survey
+premise). It's FUN_00457714 *draw loop A*: phase-1 instances drawn out of the
+per-stage `map:` mesh pool (engine DAT_068dcca0). Retail ground truth (new
+`tools/dump_phase1_groundtruth.py` → runs/phase1-groundtruth.json): HOUSE
+loads **11** map meshes; draw loop A draws **2** phase-1 instances —
+mesh idx 0 = `xfile/shop/shop_1st.x` (the room, 48 submeshes) at the origin,
+mesh idx 1 = `xfile/jutan/shop_jutan.x` (carpet) at (-2,0,-1).
+
+Four parts (commits d2d1753 + 6d17aff):
+1. **Map-mesh loader** (`src/scene_map_meshes.{c,h}`, FUN_00474681) — the
+   pool was never populated; the port loaded wall/floor/jutan/table *textures*
+   but not the `.x` *meshes*. Wired into `scene1_preload_house` right after
+   `mesh_tex_cache_reset()`; loading all 11 also repopulates the texture cache
+   draw loop A's classify→SetTexture path needs.
+2. **Phase-1 writer** (block-21 else-branch in `scene1_postload_walker_phase2_init`):
+   count dispatch (DAT_0438bfb0), mesh-index array (DAT_0438bfb8), transform
+   constant block.
+3. **Phase-1 matrix builder** (`scene1_walker_phase1_compute`): S(-0.2,0.2,0.2)
+   × RotY × T — phase 2's chain minus the mesh_type==4 flip.
+4. **Draw loop A** (`scene1_walker_pass_render_house`): per cache slot, draw
+   each phase-1 instance's map mesh; cull skipped (HOUSE threshold 1000 >> the
+   shop's ~25-unit camera distance).
+
+The subtle part was the **column→axis remap**: objdump of the phase-1 setup's
+`D3DXMatrixTranslation(pOut,x,y,z)` push order (call 0x4a34b0, esi=0x438c0a8 =
+shared-column index 15) gives x←rot_y-col, y←pos_x-col, z←pos_y-col,
+rot←mesh_type-col, read at index (15+i). Index 15 is never written → instance 0
+(room) at the origin; the constant block fills idx 16-19 → instance 1 (carpet).
+
+8 new host tests (2878→2886). NOT ported (not render-critical for HOUSE):
+per-mesh FUN_00471d45 (collision/bounds aux) + the DAT_068dcf98 single-mesh
+path (gated off for HOUSE). Remaining for full HOUSE: the 2D HUD overlay
+(FUN_0040a765, C7i) + Cr.2 overlay re-enable.
+
 ## 2026-05-29 — HOUSE inputs DE-MVP'd: furniture renders with NO flag (user-verified)
 
 The `--force-walker-phase2 0` MVP (which injected retail-captured ground
