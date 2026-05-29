@@ -353,6 +353,20 @@ void scene1_postload_walker_phase2_init(void)
         return;
     }
 
+    /* Camera yaw = π (engine FUN_00436f97 L589: `_DAT_073de39c = π`).
+     * FUN_00436f97 zeroes yaw at its top (L40) then writes π *only* in
+     * this alt-stage else-branch — i.e. exactly when this writer fires.
+     * Porting it here (rather than the flag-gated camera-groundtruth MVP)
+     * makes the 180° HOUSE camera flip faithful.  The sibling spawn-angle
+     * `_DAT_056db060 = π` (L590) is not modelled — it feeds the particle
+     * spawn-camera, not the render pose. */
+    g_scene1_camera_yaw = 3.1415927f;
+
+    /* iVar8 is the engine constant 3 (FUN_00436f97 L178 `iVar8 = 3`); it
+     * is NOT a per-game runtime input.  On the alt-stage path nothing
+     * reassigns it, so the scene_type-0 phase-2 count is always 3.  The
+     * settable `g_walker_ivar8` exists only so the host tests can exercise
+     * the count-dispatch arithmetic with synthetic values. */
     int ivar8 = g_walker_ivar8;
 
     /* Count dispatch (asm 0x4378f0-0x437946).  Only phase 2 count

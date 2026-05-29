@@ -118,7 +118,8 @@ void scene1_camera_apply_house_groundtruth(void)
     g_looky_add         = -1.8f;     /* _DAT_069b2f78 */
     g_bias_x_src        = -0.3f;     /* DAT_056da1d8 (clamps to -1.0) */
     g_bias_z_src        = 9.35f;     /* DAT_056da1e0 (clamps to  1.0) */
-    g_scene1_camera_yaw = 3.1415927f;/* _DAT_073de39c (Cf block L589) */
+    /* yaw=π is now written faithfully by scene1_postload_walker_phase2_init()
+     * (engine FUN_00436f97 L589), so it is no longer set here. */
 }
 
 /* ─── FUN_00441c3e default-path pose helper ───────────────────────────── */

@@ -131,6 +131,10 @@ int test_scene1_camera_house_groundtruth_matches_retail(void)
      */
     reset_camera_world();           /* ends with scene1_camera_init (snap armed, adds=0) */
     scene1_camera_apply_house_groundtruth();
+    /* yaw=π now comes from scene1_postload_walker_phase2_init() (the Cf
+     * block, engine FUN_00436f97 L589), not from apply_house_groundtruth.
+     * Set it here to reproduce the on-HOUSE-entry state this test asserts. */
+    g_scene1_camera_yaw = 3.1415927f;
     scene1_camera_pose_compute();
 
     T_ASSERT_NEAR(g_scene1_camera_lookat[0], -1.0f, 1e-4f);
