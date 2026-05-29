@@ -83,23 +83,12 @@ placeholder material colour show as an opaque rainbow frustum.
 User-verified: artifacts gone, frustum gone, hikari layer adds a soft
 glow. **Not retail-equivalent yet** — see below.
 
-## DEFERRED — the bright "blinding" window ray-shaft layer
+## OPEN — retail HOUSE is uniformly ~2× brighter (lighting/material path)
 
 - **Symptom:** retail HOUSE (`/mnt/c/Users/headpats/Documents/house-3d.png`)
   has bright, blinding white-cyan ray shafts blooming out of the windows
   and a generally brighter scene. Our render has the correct base
-  lighting + the soft hikari-submesh glow, but not the dramatic shafts.
-- **Source identified:** `FUN_00459847(3)` — the alpha walker
-  (`FUN_00458bdf` L53671) calls it right after the hikari submesh pass
-  `FUN_00457714(3)`. It is **stubbed** in the port as
-  `aw_narrow_frustum_walker_TODO` (`scene1_alpha_walker.c`). Decomp
-  (0x459847, 1444 B): the `param_1==3` branch sets additive blend
-  (SetRenderState SRCBLEND=ONE/DESTBLEND=ONE, L54028-54038) and draws
-  from a record table `DAT_005c4cac` (stride 0x24) filtered to type 3.
-  This is the additive ray-shaft / billboard renderer. (Called with
-  0/1 from `scene1_render_meshes` and 2/3 from the alpha walker.)
-- **Next chip:** port `FUN_00459847` (the additive billboard/ray walker).
-
+  lighting + the soft hikari-submesh glow, but is darker everywhere.
 - **Retail ground truth (2026-05-29, `tools/frida_capture.py` HOUSE drive,
   frame 14000):** retail renders HOUSE at **640×480** (ours is 1024×768).
   Side-by-side: `runs/retail-house/diff_ours_vs_retail.png`; retail frame
@@ -107,15 +96,49 @@ glow. **Not retail-equivalent yet** — see below.
   everywhere**, not just at the windows:
   - floor centre (away from windows): ours (96,74,36) vs retail (178,139,70)
   - window/god-ray zone: ours (93,88,62) vs retail (182,171,123)
-  The base-pass COLOROP is MODULATE in both engine and port (ruled out as
-  the cause).  The near-uniform deficit + the brighter-at-windows gradient
-  points to the missing `FUN_00459847(3)` additive layer being LARGE
-  (ray billboards that bloom at the windows but spill across the room).
-  Re-diff after that chip lands; if a residual uniform gap remains,
-  re-examine D3DRS_AMBIENT (0xff000000) and the maplight direction (the
-  daytime preset (0.2,0.4,0.2) travels +y, so the +y-facing floor gets
-  ambient-only — verify retail lights the floor the same way).
-  Retail also draws the 2D HUD + Recette (separate subsystems).
+
+### `FUN_00459847(3)` RULED OUT as the cause (2026-05-29)
+
+The earlier hypothesis ("the bright shafts are the missing
+`FUN_00459847(3)` additive layer") is **wrong**.  `FUN_00459847` is the
+additive **combat** projectile/effect billboard renderer: it walks
+`&DAT_0695f004` (the combat projectile/effect table, stride 0xa8, 512
+slots) and draws each record whose per-type render-class
+(`*(int *)(&DAT_005c4cac + type*0x24)`) equals `param_1`.  The class-3
+("additive") types are `{0x16,0x1b,0x1d,0x22,0x23,0x24,0x26,0x28,0x2e,0x61}`
+— all combat projectile/effect types (const `.data` table at 0x5c4cac,
+objdump file off 0x1c3490).  **In the HOUSE shop no projectiles spawn, so
+the table is empty and `FUN_00459847(3)` draws nothing.**  It cannot be
+the source of a *uniform* room-wide brightness deficit (an additive ray
+layer would bloom at the windows, not lift the floor centre too).  The
+table writers are combat code (spawn `FUN_0043a5d9`; sentinel -1 at
+decomp L36121/L46532; readers `FUN_0043865e/441aab/442cef/45aa36`), which
+corrects the 2026-05-26 "PHC #26 writerless" survey claim.  Porting
+`FUN_00459847` is legitimate **combat-scene** fidelity work but is
+unrelated to this gap — verify it with a dungeon/combat capture, not HOUSE.
+
+### Real suspects for the uniform ~2× deficit (next visual session)
+
+The maplight VALUE computation is faithful to `FUN_00458f67` (HOUSE
+daytime mode-3 row 0: diffuse (0.8,0.8,0.9), ambient (0.6,0.6,0.6);
+`SetLight`+`LightEnable(0,TRUE)`+`D3DRS_LIGHTING=TRUE` all match — see
+`src/scene1_maplight.c`).  So the deficit is downstream of the light
+values.  Candidates, cheapest first:
+1. **Mesh material** — FFP lighting multiplies the light by the mesh
+   MATERIAL (diffuse/ambient).  D3D8's default material is all-zero →
+   lit geometry would be black unless a material is set.  Verify the
+   room/furniture draws set `SetMaterial` with the values the engine
+   uses (the room mesh's embedded material, or an engine-set default).
+   A material at ~0.5 vs retail's ~1.0 would give exactly the ~2× gap.
+2. **Global `D3DRS_AMBIENT`** — if the engine sets the global ambient
+   render state (139/0x8B) to white-ish and the port leaves it default
+   black, every lit vertex loses its global-ambient term uniformly.
+3. **MODULATE vs MODULATE2X** — the base-pass COLOROP was reported as
+   MODULATE in both; re-confirm per-stage (a MODULATE2X somewhere
+   doubles brightness, which is exactly a ~2× factor).
+   Capture both sides' D3D state (D.4/D.5 d3d_trace) at the HOUSE frame
+   and diff SetMaterial + D3DRS_AMBIENT + the per-stage COLOROP.
+Retail also draws the 2D HUD + Recette (separate subsystems).
 
 ## Suggested next chip (superseded — see above)
 

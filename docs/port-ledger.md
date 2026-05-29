@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **357** (14.0%) — verified 58, stubbed 12, ported 287
-- unported: **2191**
+- touched: **358** (14.1%) — verified 58, stubbed 12, ported 288
+- unported: **2190**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (58) — runtime-diffed vs retail
@@ -94,7 +94,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (287) — reimplemented, no probe yet
+## ported (288) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -173,10 +173,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x436f97 | FUN_00436f97 | 4788 | ✓ | main.c, scene.c, scene1_alpha_walker.c (+12) |
 | 0x43824b | FUN_0043824b | 940 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h |
 | 0x4385fb | FUN_004385fb | 99 | ✓ | scene1_spawn.c, scene1_spawn.h |
-| 0x43865e | FUN_0043865e | 8059 | ✓ | main.c, scene1_combat_sm.c, scene1_combat_sm.h (+3) |
-| 0x43a5d9 | FUN_0043a5d9 | 1429 | ✓ | scene1_particles_tick.h, scene1_sim.c, scene1_sim.h |
+| 0x43865e | FUN_0043865e | 8059 | ✓ | main.c, scene1_combat_sm.c, scene1_combat_sm.h (+4) |
+| 0x43a5d9 | FUN_0043a5d9 | 1429 | ✓ | scene1_particles_tick.h, scene1_render.c, scene1_sim.c (+1) |
 | 0x43ab6e | FUN_0043ab6e | 690 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x4412b6 | FUN_004412b6 | 2037 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h |
+| 0x441aab | FUN_00441aab | 403 | ✓ | scene1_render.c |
 | 0x441c3e | FUN_00441c3e | 2217 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4424e7 | FUN_004424e7 | 429 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4426a7 | FUN_004426a7 | 300 | ✓ | scene1_sim.c, scene1_sim.h |

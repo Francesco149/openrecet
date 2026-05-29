@@ -225,24 +225,33 @@ static void scene1_walk_depth_prepass_TODO(void)
  * (src/scene1_maplight.{c,h}).  HOUSE = maplight:3 (time-of-day town
  * light). */
 
-/* FUN_00459847 (1444 B) — projectile-table renderer (NOT walls/floor;
- * earlier comment was wrong).  Survey 2026-05-26 (decomp all.c L53983):
- * walks &DAT_0695f004 stride 0xa8 (the PHC #26 projectile table),
- * filters by TYPE != -1 + slot[+0x77] != 3 + per-type class match
- * (`*(int *)(&DAT_005c4cac + iVar3 * 0x24) == param_1`), and emits via
- * the scene-tree dispatcher (FUN_00403d79/FUN_00404870/FUN_00404a20).
- * Called 4× per frame with class param ∈ {0, 1, 2, 3} — 0/1 from
- * scene1_render_meshes (this file), 2/3 from FUN_00458bdf (alpha walker).
+/* FUN_00459847 (1444 B) — additive COMBAT projectile/effect billboard
+ * renderer (NOT walls/floor).  Decomp all.c L53983 (by-address/459847.c):
+ * walks &DAT_0695f004 stride 0xa8 (the combat projectile/effect table)
+ * to &DAT_069b3004 (512 slots), filters by TYPE != -1 + slot[+0x77] != 3
+ * + per-type render-class match (`*(int *)(&DAT_005c4cac + type*0x24)
+ * == param_1`), and emits via the scene-tree dispatcher
+ * (FUN_00403d79/FUN_00404870/FUN_00404a20).  Called 4× per frame with
+ * render-class param ∈ {0,1,2,3} — 0/1 from scene1_render_meshes (this
+ * file), 2/3 from FUN_00458bdf (alpha walker, which sets the additive
+ * SRC=ONE/DEST=ONE blend for the class-3 pass).
  *
- * Doubly dormant in retail: the projectile table at 0x695f004 has no
- * writers anywhere in the binary (PHC #26), and the per-type class
- * attr table at 0x5c4cac also has no writers (PHC #19).  Porting this
- * yields zero visible pixels until something seeds those tables.
+ * 2026-05-29 erratum vs the 2026-05-26 survey: the table is NOT
+ * writerless.  Sentinel-init + spawn writers live in the combat code
+ * (FUN_0043a5d9 spawns; FUN_0043865e/FUN_00441aab/FUN_00442cef/
+ * FUN_0045aa36 read/update; L36121 + L46532 write the -1 sentinel).
+ * The per-type class table at 0x5c4cac is a const .data lookup (read
+ * only), not a writerless BSS table — the class-3 ("additive ray")
+ * types are {0x16,0x1b,0x1d,0x22,0x23,0x24,0x26,0x28,0x2e,0x61}, all
+ * combat projectile/effect types (objdump of vendor/unpacked, file off
+ * 0x1c3490).  So this is a real combat renderer, simply DORMANT in the
+ * HOUSE shop because no projectiles spawn there.  Porting it is combat-
+ * scene work (verify with a dungeon/combat capture), and it is NOT the
+ * source of retail's ~2x HOUSE brightness — see
+ * docs/findings/scene1-house-render-gaps.md.
  *
- * The TRUE walls/floor draw is `FUN_00455191(&DAT_068dcf98)` at L165
- * of scene1_render_meshes — see scene1_walk_initial_asset_TODO below.
- * For HOUSE specifically, palette+0x108 is zero (no 3D room mesh) — the
- * shop interior renders as 2D sprites + furniture via shop_walker. */
+ * For HOUSE specifically the shop interior renders as 3D room/furniture
+ * via FUN_00457714 draw loops A/B (PII.3b/PII.3c), not via this walker. */
 static void scene1_walk_narrow_frustum_TODO(int pass)
 {
     (void)pass;

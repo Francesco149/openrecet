@@ -102,14 +102,17 @@ static int aw_combiner_override(void) { return 0; }
  * = this file).  Pass-id 0 + 1 already dispatch through the
  * scene1_render.c arm. */
 
-/* FUN_00459847 (1444 B) — narrow-frustum mesh walker.  C8a has a
- * TODO stub `scene1_walk_narrow_frustum_TODO` for this; redeclare
- * here as above. */
+/* FUN_00459847 (1444 B) — additive COMBAT projectile/effect billboard
+ * renderer (see the long note in scene1_render.c).  The alpha walker
+ * fires it with pass 2 (non-additive) and pass 3 (additive SRC=ONE/
+ * DEST=ONE).  Dormant in HOUSE — the combat projectile/effect table it
+ * walks (&DAT_0695f004) is empty in the shop.  NOT the walls/floor
+ * walker (that earlier guess was wrong) and NOT the source of retail's
+ * ~2x HOUSE brightness.  Port is combat-scene work; verify with a
+ * dungeon capture. */
 static void aw_narrow_frustum_walker_TODO(int pass)
 {
-    /* TODO C8-followup: port FUN_00459847.  Walker B of the four
-     * mesh walkers — likely the engine's "walls/floor static room
-     * geometry" walker per the C8a survey. */
+    /* TODO (combat scene): port FUN_00459847's projectile/effect walk. */
     (void)pass;
 }
 

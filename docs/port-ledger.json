@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 58,
   "stubbed": 12,
-  "ported": 287,
-  "unported": 2191,
+  "ported": 288,
+  "unported": 2190,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 357,
-  "pct_touched": 14.0,
+  "touched": 358,
+  "pct_touched": 14.1,
   "pct_verified": 2.3
  },
  "orphan_refs": [
@@ -2869,7 +2869,8 @@
     "src/scene1_combat_sm.h",
     "src/scene1_particles_tick.h",
     "src/scene1_records_b_tick.c",
-    "src/scene1_records_b_tick.h"
+    "src/scene1_records_b_tick.h",
+    "src/scene1_render.c"
    ]
   },
   {
@@ -2881,6 +2882,7 @@
    "status": "ported",
    "src": [
     "src/scene1_particles_tick.h",
+    "src/scene1_render.c",
     "src/scene1_sim.c",
     "src/scene1_sim.h"
    ]
@@ -2926,8 +2928,10 @@
    "size": 403,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_render.c"
+   ]
   },
   {
    "va": "0x441c3e",
