@@ -353,6 +353,20 @@ static void draw_loop_b_mesh(IDirect3DDevice8 *dev,
     if (m->material_count <= 0 || !m->texture_slots) return;
     if (m->submesh_count <= 0) return;
 
+    /* FVF for the mesh VB (created with MESH_FVF_XYZ_NORMAL_DIFFUSE_TEX1
+     * in mesh.c).  The engine's per-mesh draw helper re-sets this before
+     * every DrawIndexedPrimitive (retail D3D trace: ret_va 0xadf1b sets
+     * SetVertexShader(0x152) 56× per HOUSE frame — once per mesh draw).
+     * draw_loop_b_mesh used to rely on the base pass's one-time
+     * SetVertexShader(0x152) in scene1_render.c, which held for draw
+     * loop A's base draws but NOT the hikari pass: by then an earlier
+     * sub-pass (Pass F / quad, FVF 0x142) had clobbered it, so the
+     * hikari god-ray submeshes drew with FVF 0x142 (no NORMAL) → FFP
+     * lighting fell back to flat vertex colour (cyan), not the
+     * normal-lit warm green retail produces.  Set it per mesh, like the
+     * standalone path (mesh_draw.c) and the engine. */
+    IDirect3DDevice8_SetVertexShader(dev, MESH_FVF_XYZ_NORMAL_DIFFUSE_TEX1);
+
     /* L52966: SetTransform(D3DTS_WORLD, &local_5f8[i]) — engine's
      * matrix_array[i] is one 64 B D3DMATRIX per phase-2 mesh. */
     IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
