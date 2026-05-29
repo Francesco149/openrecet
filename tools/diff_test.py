@@ -16,8 +16,10 @@ Pattern lifted from OpenLords2's tools/diff_test.py (Phase 4).  Scaled
 back here to the first target only; targets get added in D.2 / D.3.
 
 Targets:
-    rng_next15  — FUN_005041f6 (LCG step, DAT_006023a0)
-    audio_fade  — FUN_00499583 (BGM cos-curve fade, ±1 centibel)
+    rng_next15           — FUN_005041f6 (LCG step, DAT_006023a0)
+    audio_fade           — FUN_00499583 (BGM cos-curve fade, ±1 centibel)
+    boss_id_allowed      — FUN_00431990 (E.4 Tier 1: arg injection, pure)
+    floor_is_checkpoint  — FUN_0043195d (E.4 Tier 1: 2-global injection)
 
 Usage:
     nix develop --command python3 tools/diff_test.py
@@ -86,6 +88,27 @@ class EngineFadeOut(ctypes.Structure):
         ("centibel", ctypes.c_int32),
     ]
 
+class EngineBossIdIn(ctypes.Structure):
+    _fields_ = [
+        ("enemy_id", ctypes.c_int32),
+    ]
+
+class EngineBossIdOut(ctypes.Structure):
+    _fields_ = [
+        ("allowed", ctypes.c_int32),
+    ]
+
+class EngineCheckpointIn(ctypes.Structure):
+    _fields_ = [
+        ("dungeon_id", ctypes.c_int32),
+        ("next_floor", ctypes.c_int32),
+    ]
+
+class EngineCheckpointOut(ctypes.Structure):
+    _fields_ = [
+        ("is_checkpoint", ctypes.c_int32),
+    ]
+
 
 # ─── port lib loader ───────────────────────────────────────────────────────
 
@@ -105,6 +128,14 @@ def load_port_lib() -> ctypes.CDLL:
     lib.engine_audio_fade.restype  = None
     lib.engine_audio_fade.argtypes = [ctypes.POINTER(EngineFadeIn),
                                       ctypes.POINTER(EngineFadeOut)]
+
+    lib.engine_stage_gate_boss_id_allowed.restype  = None
+    lib.engine_stage_gate_boss_id_allowed.argtypes = [
+        ctypes.POINTER(EngineBossIdIn), ctypes.POINTER(EngineBossIdOut)]
+
+    lib.engine_stage_gate_floor_is_checkpoint.restype  = None
+    lib.engine_stage_gate_floor_is_checkpoint.argtypes = [
+        ctypes.POINTER(EngineCheckpointIn), ctypes.POINTER(EngineCheckpointOut)]
 
     return lib
 
@@ -206,6 +237,111 @@ def diff_audio_fade(retail: dict, port: dict) -> list[str]:
     return bad
 
 
+# stage_gate_boss_id_allowed ────────────────────────────────────────────────
+#
+# E.4 Tier 1 — pure cdecl(int)->int boss-id range predicate (FUN_00431990 →
+# src/stage_gate.c). The first diff target that injects an ARG instead of a
+# global: the retail side passes the id on the stack, the port calls the C
+# function directly. enemy_id is signed (the engine does signed compares; the
+# -1 empty-slot sentinel must return 0), so the vectors span negatives.
+#
+# The "true" id set is {0x17..0x19, 0x1b..0x1c, 0x29, 0x2b, 0x31, 0x36..0x37,
+# 0x3b..0x49}; everything else (incl -1) returns 0. The edge prefix enumerates
+# the whole interesting range [-2, 0x4d] contiguously so every boundary is hit
+# exactly, plus the i32 extremes, then random signed fill exercises the wider
+# domain.
+
+BOSS_ID_EDGES = list(range(-2, 0x4e)) + [
+    0x7FFFFFFF, -0x80000000, 0x4A, 0x50, 100, 1000, -1000,
+]
+
+def _to_i32(v: int) -> int:
+    """Wrap an arbitrary int into signed 32-bit range (two's complement)."""
+    v &= 0xFFFFFFFF
+    return v - 0x100000000 if v & 0x80000000 else v
+
+def gen_boss_id_vectors(n: int, rng: random.Random) -> list[dict]:
+    out: list[dict] = [{"enemy_id": e} for e in BOSS_ID_EDGES]
+    while len(out) < n:
+        out.append({"enemy_id": _to_i32(rng.getrandbits(32))})
+    return out[:n]
+
+def run_port_boss_id(lib: ctypes.CDLL, vec: dict) -> dict:
+    in_  = EngineBossIdIn(enemy_id=vec["enemy_id"])
+    out_ = EngineBossIdOut()
+    lib.engine_stage_gate_boss_id_allowed(ctypes.byref(in_), ctypes.byref(out_))
+    return {"allowed": int(out_.allowed)}
+
+def run_retail_boss_id(script, vec: dict) -> dict:
+    r = script.exports_sync.run_retail_stage_gate_boss_id_allowed(
+        vec["enemy_id"])
+    return {"allowed": int(r["allowed"])}
+
+def diff_boss_id(retail: dict, port: dict) -> list[str]:
+    return ["allowed"] if retail["allowed"] != port["allowed"] else []
+
+
+# stage_gate_floor_is_checkpoint ─────────────────────────────────────────────
+#
+# E.4 Tier 1 — the canonical STATEFUL pure-ish leaf (FUN_0043195d →
+# src/stage_gate.c). No args; reads two globals (DAT_0438b4c8 dungeon id,
+# DAT_0438b4cc next floor) and returns 0/1. This is the target that proves the
+# GLOBAL-injection path. Logic:
+#
+#   dungeon != 5:  next % 5 == 4           (signed idiv — matches C's %)
+#   dungeon == 5:  next >= 29
+#
+# next_floor is signed and goes through a signed idiv, so negative vectors
+# prove the C `%` and x86 idiv agree on sign. The edge set is the full cross
+# product of a curated dungeon set (incl the special 5 + i32 extremes) and a
+# next set straddling every %5 residue and the 29-boundary; random fill then
+# samples the wider 2-D domain.
+
+CHECKPOINT_DUNGEON_EDGES = [0, 1, 4, 5, 6, 9, -1, 0x7FFFFFFF, -0x80000000]
+CHECKPOINT_NEXT_EDGES = [
+    -0x80000000, -6, -5, -4, -1, 0, 1, 3, 4, 5, 9, 14, 19, 24,
+    28, 29, 30, 0x1C, 0x1D, 0x1E, 0x7FFFFFFF,
+]
+
+def gen_checkpoint_vectors(n: int, rng: random.Random) -> list[dict]:
+    out: list[dict] = [
+        {"dungeon_id": d, "next_floor": f}
+        for d in CHECKPOINT_DUNGEON_EDGES
+        for f in CHECKPOINT_NEXT_EDGES
+    ]
+    while len(out) < n:
+        # Bias dungeon toward the small valid range (with the special 5
+        # well-represented) and the floor toward the gameplay band, but
+        # keep a tail of full-range signed values.
+        if rng.random() < 0.5:
+            d = rng.randrange(0, 10)
+        else:
+            d = _to_i32(rng.getrandbits(32))
+        if rng.random() < 0.5:
+            f = rng.randrange(-8, 40)
+        else:
+            f = _to_i32(rng.getrandbits(32))
+        out.append({"dungeon_id": d, "next_floor": f})
+    return out[:n]
+
+def run_port_checkpoint(lib: ctypes.CDLL, vec: dict) -> dict:
+    in_  = EngineCheckpointIn(dungeon_id=vec["dungeon_id"],
+                              next_floor=vec["next_floor"])
+    out_ = EngineCheckpointOut()
+    lib.engine_stage_gate_floor_is_checkpoint(
+        ctypes.byref(in_), ctypes.byref(out_))
+    return {"is_checkpoint": int(out_.is_checkpoint)}
+
+def run_retail_checkpoint(script, vec: dict) -> dict:
+    r = script.exports_sync.run_retail_stage_gate_floor_is_checkpoint(
+        vec["dungeon_id"], vec["next_floor"])
+    return {"is_checkpoint": int(r["is_checkpoint"])}
+
+def diff_checkpoint(retail: dict, port: dict) -> list[str]:
+    return (["is_checkpoint"]
+            if retail["is_checkpoint"] != port["is_checkpoint"] else [])
+
+
 # ─── target registry ───────────────────────────────────────────────────────
 
 @dataclass
@@ -226,6 +362,16 @@ TARGETS: dict[str, Target] = {
         port=run_port_audio_fade,
         retail=run_retail_audio_fade,
         diff=diff_audio_fade),
+    "boss_id_allowed": Target(
+        gen=gen_boss_id_vectors,
+        port=run_port_boss_id,
+        retail=run_retail_boss_id,
+        diff=diff_boss_id),
+    "floor_is_checkpoint": Target(
+        gen=gen_checkpoint_vectors,
+        port=run_port_checkpoint,
+        retail=run_retail_checkpoint,
+        diff=diff_checkpoint),
 }
 
 

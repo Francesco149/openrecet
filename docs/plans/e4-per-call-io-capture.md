@@ -1,8 +1,18 @@
 # Phase E.4 — Per-call I/O capture (implementation plan)
 
 > Detailed executable plan for the heaviest chip in the leaf-first roadmap.
-> Pointed to from `harness-roadmap.md` §E.4. Status: **planned, not built**
-> (decided 2026-05-29 — build when the leaf loop's count-parity ceiling is hit).
+> Pointed to from `harness-roadmap.md` §E.4.
+>
+> **Status: Tier 1 LANDED (2026-05-29).** First two stateful leaves
+> (`stage_gate_boss_id_allowed` / `floor_is_checkpoint`) are bit-exact vs
+> retail through the existing `diff_test.py` oracle — see
+> `findings/pure-function-diff.md` §"E.4 Tier 1". Tiers 2–3 remain planned.
+>
+> **Plan correction (see Tier 1 below):** Tier 2's tick-freeze is NOT a
+> prerequisite for Tier 1 here — the `diff_test.py` harness already spawns
+> retail `CREATE_SUSPENDED` and never resumes, so the engine is frozen for
+> the whole run and there is no race. Tier 2 is only needed for a *live*
+> retail (capturing a leaf's I/O mid-scenario at a real frame).
 
 ## Why this is the critical chip
 
@@ -60,8 +70,19 @@ documents the `DAT_xxxxxxxx` it touches) — harvest them into the `Target` def.
 
 **Deliverable:** 2–3 stateful leaves green at 200 vectors each. Proves the
 pattern handles state without the heavy machinery below.
+**DONE (2026-05-29):** `stage_gate_boss_id_allowed` (arg injection) +
+`stage_gate_floor_is_checkpoint` (2-global injection), both 300/300 vs
+retail. Touched: `src/diff_entry.{c,h}`, `tests/diff_stubs.c` (added
+`g_scene1_combat_stage_id` + `g_enemylist` storage), `tests/Makefile`
+(`stage_gate.c` → DIFF_SRCS), `tools/frida/openrecet-agent.js` (2 RPCs +
+ADDR entries), `tools/diff_test.py` (structs/vectors/targets).
 
-**Depends on:** Tier 2's tick-freeze for the retail side to be safe.
+**Depends on:** ~~Tier 2's tick-freeze for the retail side to be safe.~~
+**Correction:** NOT needed for the `diff_test.py` path — retail is spawned
+`CREATE_SUSPENDED` and never resumed, so the engine never mutates the
+injected globals. Tier 2 is only a prerequisite when running against a
+*live* retail (Tier 3's mid-scenario I/O capture, or any future RPC that
+fires while the engine main thread is advancing).
 
 ---
 

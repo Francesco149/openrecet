@@ -47,4 +47,44 @@ typedef struct EngineFadeOut {
 
 void engine_audio_fade(const EngineFadeIn *in, EngineFadeOut *out);
 
+/* ── stage_gate_boss_id_allowed (FUN_00431990) ─────────────────────────
+ *
+ * E.4 Tier 1 (first STATEFUL/non-pure-RNG diff target): a pure boss-id
+ * range predicate.  No globals — proves the arg-injection path (the
+ * retail side passes the id as a cdecl stack arg, where rng/fade took
+ * none).  enemy_id is signed (the engine does signed compares; the -1
+ * empty-slot sentinel must return 0). */
+
+typedef struct EngineBossIdIn {
+    int32_t enemy_id;       /* injected as FUN_00431990's cdecl arg */
+} EngineBossIdIn;
+
+typedef struct EngineBossIdOut {
+    int32_t allowed;        /* 0/1 return of FUN_00431990 */
+} EngineBossIdOut;
+
+void engine_stage_gate_boss_id_allowed(const EngineBossIdIn *in,
+                                       EngineBossIdOut *out);
+
+/* ── stage_gate_floor_is_checkpoint (FUN_0043195d) ─────────────────────
+ *
+ * E.4 Tier 1: the canonical "stateful pure-ish leaf" — reads two globals
+ * (no args) and returns 0/1.  Proves the GLOBAL-injection path: the
+ * retail side snapshots+writes DAT_0438b4c8 (dungeon id) and
+ * DAT_0438b4cc (next floor), calls, reads back, restores.  next_floor is
+ * signed — the engine's `next % 5` is a signed idiv, matching C's `%`, so
+ * the vectors include negative next_floor to prove the sign agreement. */
+
+typedef struct EngineCheckpointIn {
+    int32_t dungeon_id;     /* injected pre-state for DAT_0438b4c8 */
+    int32_t next_floor;     /* injected pre-state for DAT_0438b4cc */
+} EngineCheckpointIn;
+
+typedef struct EngineCheckpointOut {
+    int32_t is_checkpoint;  /* 0/1 return of FUN_0043195d */
+} EngineCheckpointOut;
+
+void engine_stage_gate_floor_is_checkpoint(const EngineCheckpointIn *in,
+                                           EngineCheckpointOut *out);
+
 #endif /* OPENRECET_DIFF_ENTRY_H */

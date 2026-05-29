@@ -59,6 +59,12 @@ const ADDR = {
     fn_lcg_step:         0x005041f6,  // void→u15 (output in low 15 bits of u32)
     fn_audio_fade_apply: 0x00499583,  // BGM cos-curve fade dispatcher
 
+    // E.4 Tier 1 stateful diff targets (see docs/plans/e4-per-call-io-capture.md
+    // + docs/findings/pure-function-diff.md). stage_gate.{c,h} ports.
+    fn_stage_gate_boss_id:    0x00431990, // cdecl(int)->int boss-id range predicate
+    fn_stage_gate_checkpoint: 0x0043195d, // ()->int checkpoint-floor predicate
+                                          // (reads var_stage_dungeon_id + var_stage_next_floor)
+
     // game tick scheduler + clock (see docs/findings/winmain-and-bootstrap.md
     // §"Game tick scheduler"). Used by the turbo mode: the entry hook on
     // fn_tick advances a virtual clock by `g_turbo_step_ms` per call, and
@@ -150,6 +156,8 @@ const ADDR = {
                                        // pauses on scene transition (Phase
                                        // B)".
     var_lcg_seed:        0x006023a0,  // u32 — engine RNG state
+    var_stage_dungeon_id: 0x0438b4c8, // i32 DAT_0438b4c8 — current dungeon id
+    var_stage_next_floor: 0x0438b4cc, // i32 DAT_0438b4cc — next-floor id
     var_bgm_slider:      0x056e5778,  // u32 — BGM volume slider 0..9
     var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
     var_mci_debug_gate:  0x0438ccb4,  // u32 — non-zero recomputes fade
@@ -2727,6 +2735,65 @@ rpc.exports = {
             return {ret_value: ret & 0x7fff, post_state: post};
         } finally {
             seedPtr.writeU32(saved);
+        }
+    },
+
+    // E.4 Tier 1 — stage_gate_boss_id_allowed (FUN_00431990).
+    //
+    // Pure cdecl(int)->int range predicate; no engine globals. This is
+    // the first diff target that injects an ARG rather than a global —
+    // the id rides in on the stack ([esp+4]), Frida marshals it via the
+    // ['int'] arg list, and EAX comes back as the 0/1 result. No
+    // snapshot/restore needed (nothing in the engine is touched).
+    //
+    // Returns {allowed: 0|1}.
+    runRetailStageGateBossIdAllowed: function (enemy_id) {
+        if (!g_diff_test_enabled) {
+            throw new Error(
+                'runRetailStageGateBossIdAllowed: diff_test mode required ' +
+                '(init with diff_test: true)');
+        }
+        ensureBase();
+        const fn = new NativeFunction(rva(ADDR.fn_stage_gate_boss_id),
+                                      'int', ['int']);
+        return {allowed: fn(enemy_id | 0) | 0};
+    },
+
+    // E.4 Tier 1 — stage_gate_floor_is_checkpoint (FUN_0043195d).
+    //
+    // The canonical stateful pure-ish leaf: no args, reads two engine
+    // globals (DAT_0438b4c8 dungeon id, DAT_0438b4cc next floor) and
+    // returns 0/1. Snapshot both, inject the vector, call, read back,
+    // restore in a finally — so back-to-back vectors don't chain through
+    // a shared global. With the engine main thread suspended (diff_test
+    // mode) there's no concurrent reader/writer of either global between
+    // our snapshot and restore.
+    //
+    // Both globals are signed i32 in the engine (next_floor goes through
+    // a signed idiv for `% 5`); we round-trip the raw 32 bits via
+    // writeS32/readU32 so negative test vectors land bit-exact.
+    //
+    // Returns {is_checkpoint: 0|1}.
+    runRetailStageGateFloorIsCheckpoint: function (dungeon_id, next_floor) {
+        if (!g_diff_test_enabled) {
+            throw new Error(
+                'runRetailStageGateFloorIsCheckpoint: diff_test mode ' +
+                'required (init with diff_test: true)');
+        }
+        ensureBase();
+        const pDungeon = rva(ADDR.var_stage_dungeon_id);
+        const pFloor   = rva(ADDR.var_stage_next_floor);
+        const savedDungeon = pDungeon.readU32();
+        const savedFloor   = pFloor.readU32();
+        try {
+            pDungeon.writeS32(dungeon_id | 0);
+            pFloor.writeS32(next_floor | 0);
+            const fn = new NativeFunction(rva(ADDR.fn_stage_gate_checkpoint),
+                                          'int', []);
+            return {is_checkpoint: fn() | 0};
+        } finally {
+            pDungeon.writeU32(savedDungeon);
+            pFloor.writeU32(savedFloor);
         }
     },
 

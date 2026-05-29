@@ -25,9 +25,37 @@ until D.2 migrates `audio_fade_compute` over.
 
 ## Current targets
 
-| function name      | retail address  | port file   | what it does                                |
-|--------------------|-----------------|-------------|---------------------------------------------|
-| `rng_next15`       | `FUN_005041f6`  | `src/rng.c` | single LCG step (`*0x343fd + 0x269ec3`); 15-bit return  |
+| function name        | retail address  | port file          | what it does                                |
+|----------------------|-----------------|--------------------|---------------------------------------------|
+| `rng_next15`         | `FUN_005041f6`  | `src/rng.c`        | single LCG step (`*0x343fd + 0x269ec3`); 15-bit return  |
+| `audio_fade`         | `FUN_00499583`  | `src/audio_fade.c` | BGM cos-curve fade (±1 centibel; libm vs MSVC CRT)      |
+| `boss_id_allowed`    | `FUN_00431990`  | `src/stage_gate.c` | **E.4 Tier 1**: pure cdecl(int)→int boss-id range predicate (arg injection) |
+| `floor_is_checkpoint`| `FUN_0043195d`  | `src/stage_gate.c` | **E.4 Tier 1**: checkpoint-floor predicate reading 2 globals (global injection) |
+
+### E.4 Tier 1 — stateful leaves via the existing oracle (2026-05-29)
+
+The two `stage_gate` targets are the first **E.4 Tier 1** leaves: they
+generalise the pure-function oracle from "arg-less / RNG-state" to
+(a) **arg injection** — `boss_id_allowed` rides its id in on the cdecl
+stack arg (`mov 0x4(%esp),%eax`), Frida marshals it via `['int']`; and
+(b) **global injection** — `floor_is_checkpoint` reads `DAT_0438b4c8`
+(dungeon id) + `DAT_0438b4cc` (next floor), so the retail RPC snapshots,
+writes, calls, reads back, and restores both in a `finally`.
+
+**Key realisation:** the E.4 plan listed Tier 2 (engine-tick freeze +
+race-retry) as a prerequisite for stateful retail RPCs. But this harness
+already spawns retail `CREATE_SUSPENDED` and **never resumes it** — the
+engine main thread is frozen for the whole run, so there is no race
+surface and **Tier 1 stands alone on the existing infrastructure**. Tier
+2 is only needed for a *live* retail (e.g. capturing a leaf's I/O at a
+specific frame mid-scenario), not for the suspended-process oracle.
+
+These two leaves landed in the frame-59 work on **call-count parity
+only** and had never been body-verified; the diff proves their return
+values are bit-exact vs retail across the full input domain — including
+negative `next_floor` (the engine's `next % 5` is a signed `idiv`,
+matching C's `%`). Both pass 300/300 at `seed=0xdeadbeef`
+(2026-05-29, cutestation.soy).
 
 Each entry's host-side unit-test file (e.g. `tests/test_rng.c`)
 already proves the port matches our spec.  The diff test complements

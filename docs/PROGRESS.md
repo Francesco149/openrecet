@@ -7,6 +7,46 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — E.4 Tier 1: first STATEFUL diff targets (faithful-parity oracle)
+
+Extended the pure-function differential oracle (`tools/diff_test.py` +
+`tests/build/libengine_diff.so` + Frida `runRetail*` RPCs) from
+arg-less/RNG-state functions to its first two **stateful leaves**, per
+`docs/plans/e4-per-call-io-capture.md` Tier 1. These were the gap E.4
+exists to close: both leaves landed in the frame-59 burst work on
+**call-count parity only** and had never been body-verified — count
+parity can't catch a leaf that's called the right number of times but
+computes the wrong answer.
+
+- **`stage_gate_boss_id_allowed` (FUN_00431990)** — pure `cdecl(int)→int`
+  boss-id range predicate. First target that injects an **arg** (rides
+  in on `[esp+4]`, marshalled via Frida `['int']`) rather than a global.
+- **`stage_gate_floor_is_checkpoint` (FUN_0043195d)** — reads two globals
+  (`DAT_0438b4c8` dungeon id + `DAT_0438b4cc` next floor), returns 0/1.
+  First **global-injection** target: the retail RPC snapshots, writes,
+  calls, reads back, restores both in a `finally`. Vectors include
+  negative `next_floor` because the engine's `next % 5` is a signed
+  `idiv` matching C's `%` (verified bit-exact).
+
+Both pass **300/300 vs retail** (cutestation.soy, seeds 0xdeadbeef +
+0x1234); full default set (rng_next15 + audio_fade + both new) green, no
+regression. 2902 host tests still pass; both exes build.
+
+**Plan correction worth recording:** the E.4 plan listed Tier 2
+(engine-tick freeze + race-retry) as a prerequisite for stateful retail
+RPCs. It isn't — `diff_test.py` spawns retail `CREATE_SUSPENDED` and
+never resumes, so the engine main thread is frozen for the whole run and
+there's no race on the injected globals. **Tier 1 stands alone on the
+existing infrastructure;** Tier 2 is only needed for a *live* retail
+(mid-scenario per-call I/O capture). Docs updated:
+`findings/pure-function-diff.md`, `plans/e4-per-call-io-capture.md`,
+`harness-roadmap.md` §E.4.
+
+Touched: `src/diff_entry.{c,h}`, `tests/diff_stubs.c` (BSS-zero
+`g_scene1_combat_stage_id` + `g_enemylist` so `stage_gate.c` links into
+the host .so without dragging in scene1_combat_sm's heavy include web),
+`tests/Makefile`, `tools/frida/openrecet-agent.js`, `tools/diff_test.py`.
+
 ## 2026-05-29 — Public-release detour: repo goes public-ready (all 5 tasks)
 
 Executed `docs/plans/public-release-detour.md` end-to-end so the repo can

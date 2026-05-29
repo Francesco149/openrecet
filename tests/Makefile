@@ -113,7 +113,8 @@ OUT  := build/run_tests
 #
 # Extend DIFF_SRCS as new diff targets land.
 
-DIFF_SRCS    := ../src/diff_entry.c ../src/rng.c ../src/audio_fade.c diff_stubs.c
+DIFF_SRCS    := ../src/diff_entry.c ../src/rng.c ../src/audio_fade.c \
+                ../src/stage_gate.c diff_stubs.c
 DIFF_OBJS    := $(addprefix build/diff/,$(notdir $(DIFF_SRCS:.c=.o)))
 DIFF_DEPS    := $(DIFF_OBJS:.o=.d)
 DIFF_OUT     := build/libengine_diff.so

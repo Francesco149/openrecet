@@ -745,8 +745,13 @@ Port-side VAs come from `nm openrecet.exe` post-build.
 #### Phase E.4 — Per-call I/O capture
 
 > **Detailed executable plan: `docs/plans/e4-per-call-io-capture.md`** (2026-05-29).
-> Deferred: build when count-parity stops being enough (first invisible
-> behavioral divergence). Start with Tier 1 (small, reuses the diff_test.py oracle).
+> **Tier 1 LANDED (2026-05-29):** the diff_test.py oracle now covers the
+> first two STATEFUL leaves (`stage_gate_boss_id_allowed` arg-injection +
+> `floor_is_checkpoint` 2-global-injection), bit-exact vs retail at
+> 300/300 — see `findings/pure-function-diff.md` §"E.4 Tier 1". Tiers 2–3
+> remain deferred (build when count-parity stops being enough). Plan
+> correction: Tier 2's tick-freeze is NOT a Tier 1 prerequisite — retail
+> is spawned CREATE_SUSPENDED so there's no race on the injected globals.
 
 **Goal**: at every call boundary, capture {stack args, register
 state, memory writes} on both sides.

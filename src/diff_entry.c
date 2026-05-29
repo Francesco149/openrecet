@@ -30,6 +30,15 @@
 
 #include "rng.h"
 #include "audio_fade.h"
+#include "stage_gate.h"
+
+/* DAT_0438b4c8 (current dungeon id) is owned by scene1_combat_sm.c; the
+ * checkpoint predicate reads it.  We only need the storage symbol to
+ * inject into, so declare it extern here rather than dragging in the
+ * 950-line scene1_combat_sm.h.  (The diff lib gets the definition from
+ * tests/diff_stubs.c — scene1_combat_sm.c itself pulls a heavy include
+ * web that doesn't belong in the host .so.) */
+extern int32_t g_scene1_combat_stage_id;
 
 /* NOTE: audio_fade.c references audio_trace_emit_fade_start (audio.c) and
  * call_trace_enter (call_trace.c) from code paths we never invoke here.
@@ -60,4 +69,30 @@ void engine_audio_fade(const EngineFadeIn *in, EngineFadeOut *out)
      * SetVolume slot records lVolume — the same observable, with target
      * pinned to 0 (full target) on both sides. */
     out->centibel = audio_fade_compute(in->slider, 0);
+}
+
+void engine_stage_gate_boss_id_allowed(const EngineBossIdIn *in,
+                                       EngineBossIdOut *out)
+{
+    /* FUN_00431990 — pure cdecl(int)->int boss-id range predicate.  Our
+     * port mirrors the asm's signed compares verbatim.  Retail's
+     * runRetailStageGateBossIdAllowed RPC invokes the same function with
+     * the id as a stack arg and reads EAX — no globals on either side. */
+    out->allowed = stage_gate_boss_id_allowed(in->enemy_id);
+}
+
+void engine_stage_gate_floor_is_checkpoint(const EngineCheckpointIn *in,
+                                           EngineCheckpointOut *out)
+{
+    /* FUN_0043195d — checkpoint-floor predicate reading DAT_0438b4c8
+     * (dungeon id) + DAT_0438b4cc (next floor).  Inject both globals,
+     * then call.  Retail's runRetailStageGateFloorIsCheckpoint RPC
+     * snapshots+writes the same two globals and restores them in a
+     * finally.  No port-side restore is needed: these are stand-in
+     * globals with no other reader during a diff run, and each vector
+     * fully overwrites them (mirrors run_port_rng_next15, which reseeds
+     * rather than restoring). */
+    g_scene1_combat_stage_id = in->dungeon_id;   /* DAT_0438b4c8 */
+    stage_gate_set_next(in->next_floor);         /* DAT_0438b4cc */
+    out->is_checkpoint = stage_gate_floor_is_checkpoint();
 }
