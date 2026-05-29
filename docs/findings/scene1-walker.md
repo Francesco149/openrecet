@@ -230,15 +230,32 @@ if (state==1 && stage==0) FUN_00466b7b();  // 5305 B — HOUSE-only chr extras
 FUN_0043537e();                        // size unknown
 ```
 
-These three calls between Pass 6 and Pass 8 are where the *chr*
-(character portrait) and animation-blob HUD render. None are 3D
-either — they emit 2D quads from the chr atlas (`DAT_073cc920`).
+**CORRECTION (2026-05-29, C7m survey):** the "chr render" labels below
+are WRONG — same mislabel pattern this survey itself flags for
+FUN_00459847.  Body reads of both Pass-7 functions show they are
+**shop-menu / panel renderers**, not character-avatar renderers, and
+both bind the shop-terminal atlas `DAT_073d8748` (NOT the chr atlas
+`DAT_073cc920`):
 
-* `FUN_0046b00a` (3640 B) — per-chr render walker.
-* `FUN_00466b7b` (5305 B) — HOUSE-only chr extras (likely the player
-  + Tear in the shop).
-* Both are chip-sized in their own right; each is bigger than every
-  C7f/C7g/C7h port combined.
+* `FUN_0046b00a(0,0)` (3640 B) — the **Vendors / market-stocking
+  purchase menu**.  Early-returns when `DAT_0734b98c == 0` (menu
+  slide-in counter); draws a 400×320 panel + per-row item/price/count
+  text ("Venders", "%s x%d", "%d Left", "Confirm").  Dormant on an
+  idle shop.
+* `FUN_00466b7b()` (5305 B) — a **HOUSE sub-panel transition
+  animator**.  Early-returns when `DAT_0438b7b0 == 0`; runs a
+  slide/scale transition (`DAT_0730b5d0` phase 1/2) over the same
+  terminal atlas.  Dormant when no panel is opening.
+* `FUN_0043537e` (660 B) — small post-pass helper between Pass 7/8.
+
+**The actual Recette/Tear/NPC character avatars are NOT rendered here.**
+They are drawn by `FUN_004176ff` (30395 B) — `scene1_walk_chr_TODO` in
+the 3D mesh-walker chain (`scene1_render_meshes`, src/scene1_render.c),
+still a stub.  That 30 KB function is the real "characters in the shop"
+renderer and the single largest unported function in the scene; it is a
+C8-series climb, unrelated to this 2D HUD aggregator.  So Pass 7 here is
+low-value for visible HOUSE pixels (dormant menus); porting it only
+matters once the Vendors menu / sub-panel UI is in scope.
 
 ### Pass 8 — dialog text + sub-menu panels (L260..L709)
 
@@ -310,11 +327,13 @@ Roughly ranked by "what the user sees first" + "what's smallest":
   1059 B item tooltip). The held-item description + the per-NPC
   speech bubbles. Visible during normal play.
 
-* **C7m — Pass 6 + 7 — shop terminal panel + chr render**
-  (~80 lines + the FUN_0046b00a 3640 B + FUN_00466b7b 5305 B subs).
-  This is the big chip — the chr render walker is its own multi-
-  KB monster. Probably needs to fan into 2-3 sub-chips for the chr
-  walker alone.
+* **C7m — Pass 6 + 7 — shop terminal panel + Vendors/sub-panel menus**
+  (~80 lines + the FUN_0046b00a 3640 B Vendors menu + FUN_00466b7b
+  5305 B sub-panel transition). NOTE (2026-05-29): NOT chr render —
+  see the Pass 7 CORRECTION above. All shop-menu UI, dormant unless a
+  menu/panel is open, so LOW value for visible idle-HOUSE pixels. The
+  real character avatars are FUN_004176ff (scene1_walk_chr_TODO, 30 KB)
+  in the 3D walker — a separate C8-series climb.
 
 * **C7n — Pass 8 sub-menu panels** (~450 lines, split per case).
   News Summary / Advance Order / Charm Meter / Level Abilities —
