@@ -15,18 +15,25 @@ and matched retail 1:1 on base brightness. These are the remaining
 HOUSE visual gaps to hunt down (most cluster in the hikari/window
 god-ray subsystem, which is only partially ported):
 
-1. **Blinds: mangled rainbow triangles on the windows.** The old artifact
-   that PII.3d.2/.3 nominally fixed is visible again now that the scene is
-   at full (MODULATE2X) brightness. **Lead (trace-confirmed):** the port
-   draws the 8 hikari/water submeshes with COLORARG1=TEXTURE (so
-   MODULATE2X(TEXTURE×TEXTURE) = texture², which over-saturates per-vertex
-   colours into rainbow), while retail draws ALL 81 room/hikari submeshes
-   uniformly with COLORARG1=DIFFUSE (MODULATE2X(DIFFUSE×TEXTURE)).
-   Port frame 3300: 47×(5,0,2) + 8×(5,2,2); retail frame 14000:
-   81×(5,0,2). Fix = make the hikari/water binding use COLORARG1=DIFFUSE
-   (the per-slot TSS picker scene1_emit_apply_material_state /
-   FUN_00454fe4 likely sets ARG1=TEXTURE for these slots). Traces:
-   runs/port-d3d-house2 vs runs/retail-d3d-house.
+1. **Blinds: mangled rainbow triangles on the windows.** RESOLVED
+   (commits 463a810 + 960e4ee). Two Ghidra type-confusion bugs in the
+   HOUSE-dormant scene1_wide_followup walker leaked wrong state into the
+   later hikari/blind overlay draws:
+   (a) COLORARG1=TEXTURE leak — wide_followup mis-ported engine
+       MIN/MAGFILTER(0x11/0x10)=LINEAR as COLORARG2/COLORARG1=TEXTURE
+       (value 2 collides between D3DTEXF_LINEAR and D3DTA_TEXTURE), so
+       the overlay draws computed MODULATE2X(TEXTURE×TEXTURE)=texture².
+   (b) DESTBLEND=INVSRCCOLOR leak — wide_followup mis-ported engine
+       SetRenderState(SRCBLEND,5)+(DESTBLEND,6) (raw states 0x13/0x14)
+       as SetTextureStageState(MAGFILTER,5)+(MINFILTER,6), so it never
+       reset DESTBLEND from the earlier INVSRCCOLOR(4) to INVSRCALPHA(6).
+       Under alpha-blend that gave the colour-keyed red/blue/cyan overlay.
+   After both fixes the port's HOUSE draws match retail exactly:
+   base 42×(MODULATE2X, opaque), overlay 8×(SRCALPHA/INVSRCALPHA,
+   MODULATE2X, COLORARG1=DIFFUSE), additive 5×(ONE/ONE). Traces:
+   runs/port-d3d-house5 vs runs/retail-d3d-house. **Lesson: wide_followup
+   is dormant in HOUSE (draws nothing) but its render-state preamble runs
+   and LEAKS into later passes — audit dormant walkers' state writes too.**
 2. **Frustum over the LEFT window** — a visible opaque frustum/shape over
    the left window even though the god rays themselves look right. Likely
    a hikari god-ray billboard/quad rendering opaque (wrong blend or a mesh
