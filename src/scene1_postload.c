@@ -327,6 +327,23 @@ void scene1_postload_set_walker_phase2_ivar8(int ivar8)
     g_walker_ivar8 = ivar8;
 }
 
+void scene1_postload_apply_walker_phase2_house_groundtruth(void)
+{
+    /* Retail-captured new-game HOUSE inputs (see header).  scene_type 0,
+     * ivar8 3 (= retail phase2_count), and the 10 stage-position source
+     * pairs from the per-save-slot record at +0x2ce10.  Verified to
+     * reproduce retail's 3 live furniture meshes by the
+     * ..._retail_groundtruth_new_game_house host test. */
+    static const int32_t k_new_game_house_stage_positions[10][2] = {
+        {3, 3}, {1, 0}, {0, 1}, {9, 1}, {10, 3},
+        {11, 0}, {3, 6}, {6, 6}, {9, 6}, {12, 6},
+    };
+    g_walker_scene_type = 0;
+    g_walker_ivar8      = 3;
+    memcpy(g_walker_stage_positions, k_new_game_house_stage_positions,
+           sizeof g_walker_stage_positions);
+}
+
 void scene1_postload_walker_phase2_init(void)
 {
     int st = g_walker_scene_type;

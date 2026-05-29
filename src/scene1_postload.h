@@ -242,6 +242,20 @@ void scene1_postload_set_walker_phase2_stage_positions(const int32_t positions[1
  */
 void scene1_postload_set_walker_phase2_ivar8(int ivar8);
 
+/*
+ * Apply the retail-captured new-game HOUSE inputs (scene_type=0, ivar8=3,
+ * and the 10 stage-position pairs read from the per-save-slot record at
+ * &DAT_044e3798 + 0x2ce10).  Ground truth: tools/dump_phase2_groundtruth.py
+ * → runs/phase2-groundtruth.clean.json, validated bit-for-bit by the
+ * test_scene1_postload_walker_phase2_retail_groundtruth_new_game_house
+ * host test.  This is an MVP stand-in for the unported runtime sources of
+ * those three inputs (the DAT_068dd3fc selector + the save record); it lets
+ * `--force-walker-phase2 0` reproduce retail's 3 live furniture meshes so
+ * HOUSE furniture pixels surface for visual A/B.  Call before
+ * scene1_postload_walker_phase2_init (i.e. before scene1_preload_house).
+ */
+void scene1_postload_apply_walker_phase2_house_groundtruth(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -234,14 +234,18 @@ static int              g_force_b_entity_type         = -1;
 /* --force-walker-phase2 <N>: enable Cf.minimal writer chunk on HOUSE
  * entry with scene_type=N (valid range [0..4]).  -1 disables (default).
  *
- * scene_type 1 → 4 furniture meshes (slots 0..3).
- * scene_type 3 or 4 → 10 furniture meshes (slots 0..9).
+ * scene_type 0 → real new-game HOUSE: applies the retail-captured,
+ *   test-verified ground truth (count=3 furniture meshes, real layout).
+ * scene_type 1 → 4 furniture meshes (slots 0..3), synthetic positions.
+ * scene_type 3 or 4 → 10 furniture meshes (slots 0..9), synthetic.
  *
  * Acts on `scene1_postload_walker_phase2_init` from scene1_preload_house.
- * Engine doesn't fire FUN_00436f97 on initial HOUSE entry from title
- * (only on sub-scene re-entry); this CLI flag opts into the stand-in
- * wiring so HOUSE-from-title produces visible shop_table furniture
- * pixels via PII.3b's draw loop B. */
+ * FUN_00436f97 (block 21) DOES fire on new-game HOUSE entry (proven
+ * 2026-05-29 via the E.1 call tracer — earlier docs claiming otherwise
+ * were a static-analysis error).  This flag supplies the writer's three
+ * runtime inputs (scene_type / ivar8 / stage_positions) whose engine
+ * sources are not yet ported, so HOUSE-from-title produces visible
+ * shop_table furniture pixels via PII.3b's draw loop B. */
 static int              g_force_walker_phase2_scene_type = -1;
 
 /* Scene-0 (title) state now lives in scene_title.c as module globals
@@ -992,9 +996,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         scene1_postload_set_force_b_entity_type(g_force_b_entity_type);
     }
 
-    /* Cf.minimal — phase-2 walker writer.  Applied before scene1_preload_house
-     * fires so the writer sees the override on the first HOUSE entry. */
-    if (g_force_walker_phase2_scene_type >= 0) {
+    /* Cf — phase-2 walker writer.  Applied before scene1_preload_house
+     * fires so the writer sees the override on the first HOUSE entry.
+     * FUN_00436f97 (block 21) DOES run on new-game HOUSE entry (proven
+     * 2026-05-29 via the E.1 call tracer: called once @ engine frame
+     * 3200) — this flag supplies the writer's three runtime inputs, whose
+     * engine sources (DAT_068dd3fc selector + per-save-slot record) are
+     * not yet ported.  scene_type 0 = HOUSE: apply the retail-captured,
+     * test-verified new-game ground truth (count=3, real furniture
+     * layout).  Other scene_types keep the count-only synthetic sweep. */
+    if (g_force_walker_phase2_scene_type == 0) {
+        scene1_postload_apply_walker_phase2_house_groundtruth();
+    } else if (g_force_walker_phase2_scene_type > 0) {
         scene1_postload_set_walker_phase2_scene_type(g_force_walker_phase2_scene_type);
     }
 

@@ -111,14 +111,18 @@ int scene1_preload_house(void)
     scene1_postload_pose_player();
     scene1_postload_ambient_spawn();
 
-    /* Cf.minimal — phase-2 walker-array writer (engine FUN_00436f97
-     * alt-stage arm, decomp L34770+).  Stand-in wiring: same pattern
-     * as Cf.1 above (engine doesn't fire on initial HOUSE-from-title,
-     * only on sub-scene re-entry).  Gated on scene_type ∈ [0..4];
-     * default -1 → no-op, so HOUSE boot stays bit-exact unless
-     * `--force-walker-phase2 <N>` is set.  See
-     * docs/findings/scene1-walker-pass-init.md "Cf.survey landing"
-     * for the asm-decoded structure. */
+    /* Cf — phase-2 walker-array writer (engine FUN_00436f97 alt-stage
+     * arm, decomp L34770+).  Engine-correct: FUN_00436f97 block 21 DOES
+     * run on new-game HOUSE entry (proven 2026-05-29 via the E.1 call
+     * tracer — called once at engine frame 3200, before the first
+     * scene1_render_meshes).  Unlike the Cf.1 block-23 ambient loop above
+     * (genuinely HOUSE-dormant), this block-21 writer is live.  It stays
+     * gated on scene_type ∈ [0..4] (default -1 → no-op) only because its
+     * three runtime inputs — scene_type, ivar8, stage_positions — come
+     * from as-yet-unported engine state (the DAT_068dd3fc selector + the
+     * per-save-slot record); `--force-walker-phase2 0` supplies the
+     * retail-captured, test-verified new-game-HOUSE values.  See
+     * docs/findings/scene1-postload-init.md (2026-05-29 correction). */
     scene1_postload_walker_phase2_init();
 
     /* C8j.fin.c — table C smoke wiring.  Fires `_spawn_pickup` and/or
