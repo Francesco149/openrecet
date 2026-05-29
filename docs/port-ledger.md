@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **362** (14.2%) — verified 59, stubbed 14, ported 289
-- unported: **2186**
+- touched: **363** (14.2%) — verified 59, stubbed 14, ported 290
+- unported: **2185**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (59) — runtime-diffed vs retail
@@ -97,7 +97,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (289) — reimplemented, no probe yet
+## ported (290) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -184,7 +184,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4424e7 | FUN_004424e7 | 429 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4426a7 | FUN_004426a7 | 300 | ✓ | scene1_sim.c, scene1_sim.h |
 | 0x44375e | FUN_0044375e | 12 | ✓ | scene1_records_b_tick.c |
-| 0x44376a | FUN_0044376a | 8538 | ✓ | scene1_particles_tick.h, scene1_records.h, scene1_records_b_spawn.c (+3) |
+| 0x44376a | FUN_0044376a | 8538 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h (+6) |
 | 0x445a8c | FUN_00445a8c | 8952 | ✓ | scene1_records.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+1) |
 | 0x447f4f | FUN_00447f4f | 11826 | ✓ | main.c, scene1_combat_sm.h, scene1_particles_tick.c (+4) |
 | 0x44aef0 | FUN_0044aef0 | 96 | ✓ | scene1_records.h, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |
@@ -221,7 +221,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4552d0 | FUN_004552d0 | 5210 | ✓ | scene1_render.c, scene1_render.h, scene1_shop_walker.c (+2) |
 | 0x45672a | FUN_0045672a | 1317 | ✓ | chr_sprite_meta.h, scene1_render.c, scene1_render.h |
 | 0x456d48 | FUN_00456d48 | 526 | ✓ | scene1_chr_walker.c, scene1_chr_walker.h, scene1_render.c (+3) |
-| 0x456f56 | FUN_00456f56 | 1982 | ✓ | chr_sprite_meta.h, scene1_chr_walker.c, scene1_chr_walker.h (+2) |
+| 0x456f56 | FUN_00456f56 | 1982 | ✓ | chr_sprite_meta.h, main.c, scene1_camera.c (+5) |
 | 0x458bdf | FUN_00458bdf | 904 | ✓ | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_render.c (+1) |
 | 0x458f67 | FUN_00458f67 | 2118 | ✓ | scene1_maplight.c, scene1_maplight.h, scene1_render.c (+1) |
 | 0x4597ad | FUN_004597ad | 48 | ✓ | scene1_render.c, scene1_render.h |
@@ -322,6 +322,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x489d52 | FUN_00489d52 | 102 | ✓ | chara_skills.h |
 | 0x48a348 | FUN_0048a348 | 59 | ✓ | scene1_combat_sm.h |
 | 0x48a383 | FUN_0048a383 | 334 | ✓ | xp_curve.h |
+| 0x48b850 | FUN_0048b850 | 5030 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h |
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
 | 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h |
 | 0x4901c2 | FUN_004901c2 | 151 | ✓ | main.c, save_bank.c, save_bank.h (+1) |
@@ -362,12 +363,12 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49eb2a | FUN_0049eb2a | 488 | ✓ | tables_item.c, tables_item.h, tables_kyaku.c (+1) |
 | 0x49ed75 | FUN_0049ed75 | 515 | ✓ | tables_item.c, tables_item.h |
 | 0x49f012 | FUN_0049f012 | 851 | ✓ | scene_title.c |
-| 0x4a2a03 | FUN_004a2a03 | 13 |  | math3d.h, scene1_camera.c, scene1_pass_f.c (+4) |
+| 0x4a2a03 | FUN_004a2a03 | 13 |  | math3d.h, scene1_pass_f.c, scene1_records_b_spawn.c (+3) |
 | 0x4a2f35 | FUN_004a2f35 | 13 |  | math3d.h |
 | 0x4a33d2 | FUN_004a33d2 | 46 |  | math3d.h, scene1_render.c |
 | 0x4a3462 | FUN_004a3462 | 46 |  | math3d.h, scene1_render.c |
-| 0x4a3537 | FUN_004a3537 | 28 |  | scene1_camera.c, scene1_wide_followup_helpers.c |
-| 0x4a35d3 | FUN_004a35d3 | 28 |  | scene1_camera.c, scene1_records_b_spawn.c, scene1_records_b_spawn.h |
+| 0x4a3537 | FUN_004a3537 | 28 |  | scene1_wide_followup_helpers.c |
+| 0x4a35d3 | FUN_004a35d3 | 28 |  | scene1_records_b_spawn.c, scene1_records_b_spawn.h |
 | 0x4a3670 | FUN_004a3670 | 28 |  | scene1_wide_followup_helpers.c |
 | 0x4a3b52 | FUN_004a3b52 | 328 | ✓ | math3d.h |
 | 0x4a3ee8 | FUN_004a3ee8 | 148 | ✓ | main.c, math3d.h, mesh_draw.c (+2) |

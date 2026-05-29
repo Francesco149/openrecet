@@ -355,23 +355,29 @@ void scene1_camera_angle_compute(void)
     float pitch_atan = atan2f(dist,
                               g_scene1_camera_eye[1] - g_scene1_camera_lookat[1]);
 
-    /* L28: thunk_FUN_004a3537 = RotationY → writes 16-float matrix at
-     * &_DAT_0438cd78.  Ghidra typed `_DAT_0438cd78` as float because
-     * D3DXMatrixRotationY's first arg looks like a float pointer in
-     * the call site, but the function writes 64 bytes starting there.
+    /* Engine matrix build (objdump @ 0x4425bc-0x4425f1):
+     *   0x438cd78 = Rotation(angle = π/2 − pitch_atan)  via thunk 0x4a3553
+     *   0x438cdb8 = Rotation(angle = yaw_xz + π)        via thunk 0x4a35ef
+     *   0x438cdf8 = 0x438cd78 × 0x438cdb8               via Multiply 0x4a2a10
      *
-     * L30: thunk_FUN_004a35d3 = RotationX → writes matrix at &_DAT_0438cdb8.
-     * L31: thunk_FUN_004a2a03 = Multiply → out @ _DAT_0438cdf8.
-     *
-     * Net: orient = RotY(π/2 - pitch_atan) * RotX(yaw_xz + π). */
-    float angle_y = 1.5707964f - pitch_atan;
-    float angle_x = yaw_xz + 3.1415927f;
+     * CORRECTION (2026-05-29, call-trace + capture A/B): the two rotation
+     * thunks were mislabeled.  The (π/2 − pitch) angle feeds **RotationX**
+     * and the (yaw + π) angle feeds **RotationY** (the thunks jmp to
+     * distinct D3DX imports 0x5fdac0 / 0x5fdac4), so
+     *   orient = RotX(π/2 − pitch) × RotY(yaw + π).
+     * The old RotY(π/2 − pitch) × RotX(yaw + π) was edge-on for character
+     * billboards (FUN_00456f56 reads this as DAT_0438cdf8) — Recette drew
+     * as a diagonal line.  Verified: RotX(π/2 − pitch) × RotY(yaw + π)
+     * reproduces the captured HOUSE player world matrix to 5 decimals.
+     * (Consumed by the chr walker billboard base AND wide_followup Pass D.) */
+    float angle_x = 1.5707964f - pitch_atan;
+    float angle_y = yaw_xz + 3.1415927f;
 
-    float m_y[16];
     float m_x[16];
-    mat4_rotation_y(m_y, angle_y);
+    float m_y[16];
     mat4_rotation_x(m_x, angle_x);
-    mat4_mul(g_scene1_camera_orient, m_y, m_x);
+    mat4_rotation_y(m_y, angle_y);
+    mat4_mul(g_scene1_camera_orient, m_x, m_y);
 
     /* L32-L43: 8-azimuth loop (asm 0x4425f9..0x44266c).  Resets
      * g_scene1_camera_sample_counter to 0, then runs 8 iterations of

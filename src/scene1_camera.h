@@ -56,9 +56,10 @@ extern float g_scene1_camera_eye[3];
 extern float g_scene1_camera_lookat[3];
 
 /* Orientation matrix (engine: `_DAT_0438cdf8`, 4×4 row-major).  Written
- * by `scene1_camera_angle_compute()` as `RotY(π/2 - pitch) × RotX(yaw + π)`
- * where pitch/yaw are derived from eye-vs-lookat.  Consumed by
- * `scene1_wide_followup` Pass D's per-record matrix chain. */
+ * by `scene1_camera_angle_compute()` as `RotX(π/2 - pitch) × RotY(yaw + π)`
+ * where pitch/yaw are derived from eye-vs-lookat (axis labels corrected
+ * 2026-05-29 — see angle_compute).  Consumed by the chr-sprite walker's
+ * billboard base (FUN_00456f56) and `scene1_wide_followup` Pass D. */
 extern float g_scene1_camera_orient[16];
 
 /* Engine DAT_0438bfa8 / DAT_0438bfac — written by

@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 59,
   "stubbed": 14,
-  "ported": 289,
-  "unported": 2186,
+  "ported": 290,
+  "unported": 2185,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 362,
+  "touched": 363,
   "pct_touched": 14.2,
   "pct_verified": 2.3
  },
@@ -3077,6 +3077,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/main.c",
+    "src/scene1_chr_walker.c",
+    "src/scene1_chr_walker.h",
     "src/scene1_particles_tick.h",
     "src/scene1_records.h",
     "src/scene1_records_b_spawn.c",
@@ -4202,6 +4205,9 @@
    "status": "ported",
    "src": [
     "src/chr_sprite_meta.h",
+    "src/main.c",
+    "src/scene1_camera.c",
+    "src/scene1_camera.h",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
     "src/scene1_render.c",
@@ -8097,8 +8103,12 @@
    "size": 5030,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/main.c",
+    "src/scene1_chr_walker.c",
+    "src/scene1_chr_walker.h"
+   ]
   },
   {
    "va": "0x48cbf6",
@@ -10024,7 +10034,6 @@
    "status": "ported",
    "src": [
     "src/math3d.h",
-    "src/scene1_camera.c",
     "src/scene1_pass_f.c",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h",
@@ -10156,7 +10165,6 @@
    "is_call_target": false,
    "status": "ported",
    "src": [
-    "src/scene1_camera.c",
     "src/scene1_wide_followup_helpers.c"
    ]
   },
@@ -10177,7 +10185,6 @@
    "is_call_target": false,
    "status": "ported",
    "src": [
-    "src/scene1_camera.c",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h"
    ]
