@@ -560,6 +560,23 @@ let g_dump_b_anchor_frame      = -1;   // first count_b>0 frame, or -1
 let g_draw_count_this_frame    = 0;    // DrawIndexedPrimitive calls this frame
 let g_draw_count_max           = 0;    // peak per-frame draw count (diag)
 
+// Cchr.1 — 2D quad-add caller histogram.  Piggybacks on the dump_records_b
+// drive (same anchor + offset machinery): when g_quad_hist is set, the
+// agent hooks the engine's 2D quad emitter FUN_00404efc (render_quad_add)
+// plus DrawPrimitive(UP)/SetTexture, and records every call on the exact
+// frames the dump offsets fire (and the frame before, to catch the player
+// having moved).  Per the Cchr.0 trace the visible HOUSE characters are
+// 2D billboards on a dedicated sprite path — this names the caller VA +
+// texture block that emits the player/companion sprite by spotting the
+// bucket whose dst rect tracks g_player_pos.
+const FN_QUAD_ADD              = 0x00404efc;  // FUN_00404efc render_quad_add
+let g_quad_hist                = false;
+let g_quad_hist_hooked         = false;
+let g_quad_record              = false;  // armed for the current frame's draws
+let g_quad_events              = [];     // current frame's ordered draw events
+let g_quad_events_cap          = 6000;   // per-frame event hard cap (safety)
+let g_quad_hist_map            = {};     // cumulative per-ret_va aggregate
+
 // Memory-access watch (Phase D.7). When `mem_watch` is true, the agent
 // arms Frida's MemoryAccessMonitor over the regions in
 // `g_mem_watch_regions` and emits one `mem_access` record per trapped
@@ -1200,6 +1217,15 @@ function installInitHook() {
                     err('installAuto3dTrigger', e.message);
                 }
             }
+            // Cchr.1 quad-add caller trace — needs both the internal
+            // FUN_00404efc hook and the device draw vtable slots.
+            if (g_quad_hist) {
+                try {
+                    installQuadHistHooks(dev);
+                } catch (e) {
+                    err('installQuadHistHooks', e.message);
+                }
+            }
             // Signal "device ready" so RPC callers that depend on the
             // device being live (invokeMeshLoader, …) know when it's
             // safe to fire.
@@ -1719,6 +1745,152 @@ function emitRecordsBDump(frameNumber, offset) {
           people:            liveP});
 }
 
+// ─── Cchr.1 quad-add caller trace ───────────────────────────────────────
+//
+// Hooks the engine's 2D quad emitter FUN_00404efc plus the device draw /
+// SetTexture vtable slots.  Every hook is gated on g_quad_record (armed
+// one frame ahead of each dump offset by dumpRecordsBTick), so the global
+// overhead during the long fast-forward to free-roam is a single boolean
+// test per call.  Recorded events go into g_quad_events (the current
+// frame's ordered list, serialized + cleared at each offset) and, for
+// quad-adds, the cumulative per-ret_va g_quad_hist_map (dst-rect spread +
+// texture-block tally; the player sprite bucket is the one whose dst.x/y
+// range is wide because the player walked across the recorded frames).
+//
+// FUN_00404efc(float *dst, float *src, int dim_block, D3DCOLOR diffuse):
+//   dst = {x, y, w, h} (640-relative screen space, pre-scale)
+//   src = {left, top, right, bottom} texel coords
+//   dim_block: +0 = texture object ptr, +4 = tex_w, +8 = tex_h
+//              (each loaded texture has its own .data dim block → stable
+//               per-texture identity, reported as its Ghidra VA)
+function quadHistRecordAdd(retVa, dst, src, dim, diffuse) {
+    const dx = dst.readFloat(),     dy = dst.add(4).readFloat();
+    const dw = dst.add(8).readFloat(), dh = dst.add(12).readFloat();
+    let tw = 0, th = 0, tex0 = '0x0', dimVa = 0;
+    try {
+        tw    = dim.add(4).readU32();
+        th    = dim.add(8).readU32();
+        tex0  = '0x' + dim.readPointer().toString(16);
+        dimVa = toGhidraVa(dim);
+    } catch (e) { /* dim may be a non-.data pointer; tolerate */ }
+    const diff = '0x' + (diffuse >>> 0).toString(16);
+
+    if (g_quad_events.length < g_quad_events_cap) {
+        g_quad_events.push({
+            ev: 'quad', va: retVa,
+            dst: [dx, dy, dw, dh],
+            src: [src.readFloat(), src.add(4).readFloat(),
+                  src.add(8).readFloat(), src.add(12).readFloat()],
+            dim_va: dimVa, tex0: tex0, tw: tw, th: th, diffuse: diff,
+        });
+    }
+
+    const key = String(retVa);
+    let h = g_quad_hist_map[key];
+    if (!h) {
+        h = {va: retVa, count: 0,
+             dx_min: dx, dx_max: dx, dy_min: dy, dy_max: dy,
+             dims: {}, diffuse: diff, last_dst: null};
+        g_quad_hist_map[key] = h;
+    }
+    h.count++;
+    if (dx < h.dx_min) h.dx_min = dx;  if (dx > h.dx_max) h.dx_max = dx;
+    if (dy < h.dy_min) h.dy_min = dy;  if (dy > h.dy_max) h.dy_max = dy;
+    h.dims[dimVa] = (h.dims[dimVa] || 0) + 1;
+    h.last_dst = [dx, dy, dw, dh];
+}
+
+function installQuadHistHooks(devicePtr) {
+    if (g_quad_hist_hooked) return;
+
+    // Internal 2D quad emitter (the per-sprite caller VA lives here; the
+    // batch flush FUN_00405354 would collapse every sprite to one VA).
+    Interceptor.attach(rva(FN_QUAD_ADD), {
+        onEnter: function (args) {
+            if (!g_quad_record) return;
+            try {
+                quadHistRecordAdd(toGhidraVa(this.returnAddress),
+                                  args[0], args[1], args[2],
+                                  args[3].toUInt32());
+            } catch (e) { /* swallow — never break the render thread */ }
+        },
+    });
+
+    // Device draws + texture binds, so a player sprite drawn as a 3D
+    // billboard (DrawPrimitiveUP) instead of a 2D quad still surfaces,
+    // and so we can attribute each draw's bound texture.
+    const pushDev = function (ev) {
+        if (!g_quad_record) return;
+        if (g_quad_events.length < g_quad_events_cap) g_quad_events.push(ev);
+    };
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetTexture), {
+        onEnter: function (args) {
+            pushDev({ev: 'settex', va: toGhidraVa(this.returnAddress),
+                     stage: args[1].toUInt32(),
+                     texture: '0x' + args[2].toString(16)});
+        },
+    });
+    // SetTransform(state, *matrix) — billboards are positioned by the
+    // WORLD (0x100) matrix, NOT their (origin-local) vertices, so capture
+    // its translation row [m41,m42,m43] = offsets 48/52/56.  Matching that
+    // to g_player_pos names the player's sprite draw.
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetTransform), {
+        onEnter: function (args) {
+            if (!g_quad_record) return;
+            const ev = {ev: 'xform', va: toGhidraVa(this.returnAddress),
+                        state: args[1].toUInt32()};
+            try {
+                const m = args[2];
+                ev.translation = [m.add(48).readFloat(),
+                                  m.add(52).readFloat(),
+                                  m.add(56).readFloat()];
+            } catch (e) { /* tolerate */ }
+            if (g_quad_events.length < g_quad_events_cap) g_quad_events.push(ev);
+        },
+    });
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawPrimitive), {
+        onEnter: function (args) {
+            pushDev({ev: 'dp', va: toGhidraVa(this.returnAddress),
+                     prim_type: args[1].toUInt32(),
+                     start_vertex: args[2].toUInt32(),
+                     prim_count: args[3].toUInt32()});
+        },
+    });
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawPrimitiveUP), {
+        onEnter: function (args) {
+            if (!g_quad_record) return;
+            const ev = {ev: 'dpup', va: toGhidraVa(this.returnAddress),
+                        prim_type: args[1].toUInt32(),
+                        prim_count: args[2].toUInt32(),
+                        vb_stride: args[4].toUInt32()};
+            // Capture the first few vertices' position (first 3 floats of
+            // each vertex).  For a stride-24 world billboard these are
+            // world XYZ — matching a quad's centre to g_player_pos names
+            // the player sprite; for stride-32 RHW UI quads they're screen
+            // coords.  prim_type/topology is recorded so the reader knows
+            // the vertex count (strip: prim+2, list: prim*3).
+            try {
+                const vb = args[3];
+                const stride = ev.vb_stride;
+                const nv = Math.min(6, ev.prim_count + 2);
+                if (!vb.isNull() && stride >= 12) {
+                    const vs = [];
+                    for (let i = 0; i < nv; i++) {
+                        const p = vb.add(i * stride);
+                        vs.push([p.readFloat(), p.add(4).readFloat(),
+                                 p.add(8).readFloat()]);
+                    }
+                    ev.verts = vs;
+                }
+            } catch (e) { /* tolerate unreadable UP buffer */ }
+            pushDev(ev);
+        },
+    });
+
+    g_quad_hist_hooked = true;
+    log('quad-hist hooks installed (FUN_00404efc + 3 vtable slots)');
+}
+
 // Called from the Present hook every frame.  Polls count_b, anchors the
 // dump window on its first non-zero value, fires the configured offsets
 // (with optional screenshot), emits heartbeats, and signals done.
@@ -1760,14 +1932,47 @@ function dumpRecordsBTick(fn, devicePtr) {
             if (g_dump_records_b_capture && devicePtr) {
                 captureBackbuffer(devicePtr, fn);
             }
+            // Cchr.1: g_quad_events now holds THIS frame's draws (armed at
+            // the previous offset-1 frame).  Serialize the ordered list +
+            // player_pos so the screenshot, the records dump and the quad
+            // trace all describe the same frame.
+            if (g_quad_hist) {
+                const ppos = rva(ADDR.var_player_pos);
+                send({kind: 'quad_frame',
+                      frame: fn, offset_from_3d: off,
+                      player_pos: [ppos.readFloat(), ppos.add(4).readFloat(),
+                                   ppos.add(8).readFloat()],
+                      event_count: g_quad_events.length,
+                      events: g_quad_events});
+            }
         } catch (e) {
             err('emitRecordsBDump', e.message + ' @ ' + e.stack);
         }
     }
+
+    // Cchr.1 arming: record the NEXT frame's draws iff it is itself an
+    // offset frame (one frame of lead — the FUN_00404efc hook only buffers
+    // while g_quad_record is true).  Clear the per-frame buffer each tick
+    // so a serialized offset frame starts the next one clean.
+    if (g_quad_hist) {
+        g_quad_events = [];
+        g_quad_record = g_dump_records_b_offsets.indexOf(off + 1) >= 0;
+    }
+
     const lastOff =
         g_dump_records_b_offsets[g_dump_records_b_offsets.length - 1];
     if (off > lastOff && !g_dump_records_b_done) {
         g_dump_records_b_done = true;
+        if (g_quad_hist) {
+            // Flatten the cumulative per-ret_va aggregate (dst-rect spread
+            // + texture-block tallies) for the final verdict.
+            const buckets = Object.keys(g_quad_hist_map).map(function (k) {
+                return g_quad_hist_map[k];
+            }).sort(function (a, b) { return b.count - a.count; });
+            send({kind: 'quad_hist',
+                  first_frame: g_dump_b_anchor_frame, last_frame: fn,
+                  bucket_count: buckets.length, buckets: buckets});
+        }
         send({kind: 'dump_records_b_done',
               first_frame: g_dump_b_anchor_frame,
               last_frame:  fn});
@@ -2681,6 +2886,13 @@ rpc.exports = {
         } else {
             g_dump_records_b_offsets = [0, 30, 120, 300];
         }
+
+        // Cchr.1 quad-add caller trace (rides the dump_records_b drive).
+        g_quad_hist        = !!config.quad_hist;
+        g_quad_hist_hooked = false;
+        g_quad_record      = false;
+        g_quad_events      = [];
+        g_quad_hist_map    = {};
 
         // Memory-access watch (Phase D.7). The region list is parsed
         // here; the monitor is armed below (after ensureBase, before

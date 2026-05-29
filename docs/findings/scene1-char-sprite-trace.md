@@ -63,49 +63,113 @@ through the quad/sprite path, not as 3D `DrawSubset` meshes.
 The earlier "characters live in records_b / people table" assumption was
 never ground-truthed against retail; this trace does that and falsifies it.
 
-## Next chip (Cchr.1, proposed)
+# Cchr.1 — RESULT: the player/companion sprite path is the actor table + FUN_0045a56f
 
-Find the player/companion **sprite renderer**, not another record walker:
+**Status (2026-05-29):** ground-truthed via the `--quad-hist` trace
+(below).  The player (Recette), companion (Tear) and shop-object sprites
+are NOT records-table draws and NOT 2D screen-space quads — they are
+**world-space billboards** drawn by **`FUN_0045a56f`** (a sprite-sheet
+cell → multi-quad mesh → `DrawPrimitiveUP`), driven by the scene-1 **actor
+render walkers `FUN_00456f56` / `FUN_0045672a`** (called from the
+already-ported `scene1_render_meshes` = `FUN_00459dfd`), reading the
+**actor table based at `DAT_056da1b8`** (stride `0x44` = 68 B; the player's
+record is the one whose pos field IS the `g_player_pos` global,
+`DAT_056da1d8 = DAT_056da1b8 + 0x20`).
 
-1. Frida-hook the 2D quad emit (`render_quad_add` @ `0x404efc`, already
-   probed) during a free-roam HOUSE frame and bucket calls by source
-   texture / caller return-VA — the character billboards are the quads
-   whose screen position tracks `g_player_pos` projected to screen.
-2. From the caller VA, name the per-frame player-sprite function and the
-   struct it reads (player animation frame, facing, world pos).  That, not
-   FUN_0043ae20 / FUN_004176ff, is the minimal path to one visible
-   character in HOUSE.
-3. Tear (companion) is a second sprite on the same path; customers (when
-   present) likely populate the people table — re-run this dump during an
-   active customer event to confirm the people table fills then (it would
-   validate the people-table→FUN_004176ff render hypothesis for *customer*
-   sprites specifically, separate from the player path).
+## How it was traced (`--quad-hist`)
+
+Extended `tools/frida_capture.py --dump-records-b` with `--quad-hist`
+(agent: `installQuadHistHooks` + `quad_frame`/`quad_hist` messages).  On
+each free-roam dump-offset frame it records every call to the 2D quad
+emitter `FUN_00404efc` (caller-VA + dst rect + texture-dim block) **plus**
+every `DrawPrimitive(UP)` / `SetTexture` / `SetTransform(WORLD)` — so a
+sprite drawn as a world billboard (not a screen quad) still surfaces, with
+its bound texture and its world-matrix translation.  The decisive step:
+pair each `DrawPrimitiveUP` with the preceding `SetTransform(0x100)`
+translation and match it to `g_player_pos`.
+
+Run `runs/cchr1-xform`, free-roam frame 18018, `g_player_pos =
+(-0.30, 0.00, 9.35)` (Recette + Tear visible centre-bottom):
+
+| draw (caller VA → fn) | world translation | identity |
+|---|---|---|
+| `0x45aa31` → **FUN_0045a56f** (12-prim) | **(-0.30, 0.00, 9.35)** | **PLAYER sprite (Recette)** |
+| `0x45aa31` → FUN_0045a56f (12/14-prim) | (0.60, 2.95, 9.35) | **companion sprite (Tear)** |
+| `0x45aa31` → FUN_0045a56f | far (z ≈ -12..-14) | shop **object sprites** (shelf items) |
+| `0x45ae4a` → FUN_0045aa36 | (-0.30, 0.12, 9.35) | player **shadow** (binds shade tex `DAT_073cc8f0`) |
+| `0x46f722` → FUN_0046f648 | scattered, y ≈ 0.08 | object **shadow blobs** (dark `0xff202020` quads) |
+| `0x41e165` → FUN_004176ff | (~1.1, 3.8, 9.4) | **ambient sparkle particles** (records_a type `0x1f`) |
+
+The 6 `FUN_004176ff` billboards land exactly where Cchr.0 saw the records_a
+`0x1f` cluster ("the sparkle by Tear", ~1.2/4.0/9.4) — re-confirming that
+the 30 KB walker renders **particles**, not characters.
+
+## What this means for the port
+
+* The minimal "see a character in HOUSE" path is **NOT** `FUN_0043ae20`
+  (25.7 KB integrator) + `FUN_004176ff` (30 KB walker).  It is the actor
+  walker `FUN_00456f56`/`FUN_0045672a` + the sprite renderer `FUN_0045a56f`
+  + the `DAT_056da1b8` actor table (which is already populated on HOUSE
+  entry — `g_player_pos` is live).
+* `FUN_00456f56` / `FUN_0045672a` are two of the **14 walker stubs** inside
+  the ported `scene1_render_meshes` (`src/scene1_render.c`) — so wiring a
+  real port of them is the next chip, not a from-scratch subsystem.
+* `FUN_0045a56f` is a generic sprite-sheet renderer (many call sites
+  repo-wide, incl. the title/menu cluster `FUN_0046f6xx`); the HOUSE actor
+  path is the scene-1 caller subset.
+
+## Next chip (Cchr.2, proposed)
+
+Port the actor-render path to get Recette/Tear visible in HOUSE:
+
+1. Map the `DAT_056da1b8` actor-table struct (stride `0x44`): `+0x14`
+   alive/anim sentinel (`DAT_056da1cc`), `+0x1c` (`DAT_056da1d4`), `+0x20`
+   pos = `g_player_pos`, `+0x38` second pos triple (`DAT_056da1f0`); the
+   loop terminus is `&DAT_056dae14`.
+2. Port `FUN_0045a56f` (1223 B sprite-sheet → multi-quad billboard) — the
+   leaf renderer.  Validate its draw against the captured per-sprite
+   geometry (local ±16 × 48-104, 12-16 prims, stride-24 FVF + the
+   `&DAT_0438cdf8` billboard base matrix).
+3. Port `FUN_00456f56` (+ `FUN_0045672a`) and wire them in place of the
+   `scene1_render_meshes` walker stubs.  Shadows (`FUN_0045aa36` /
+   `FUN_0046f648`) are a separate, lower-priority pass.
 
 ## Repro
 
 ```
+# Cchr.0 (record tables):
 nix develop --command python3 tools/frida_capture.py \
   --run-dir runs/cchr0-people \
   --max-frames 1000000 --duration-ms 90000 \
   --hide-window --turbo --silent-audio --auto-z-spam \
   --dump-records-b --dump-records-b-capture \
-  --dump-records-b-offsets 0,4000,9000,16000 \
-  --dump-records-b-heartbeat 4096
+  --dump-records-b-offsets 0,4000,9000,16000 --dump-records-b-heartbeat 4096
+
+# Cchr.1 (quad/draw caller + world-transform trace):
+nix develop --command python3 tools/frida_capture.py \
+  --run-dir runs/cchr1-xform \
+  --max-frames 1000000 --duration-ms 120000 \
+  --hide-window --turbo --silent-audio --auto-z-spam \
+  --dump-records-b --dump-records-b-capture \
+  --dump-records-b-offsets 16000,18000 --dump-records-b-heartbeat 8192 \
+  --quad-hist
 ```
 
-Note: `--auto-z-spam` (button A) does **not** skip the opening tutorial
-event ("ESC Key: Event Skip" needs the keyboard ESC, polled outside the
-game button mask) — but it does reach free-roam on its own a few thousand
-frames later, which the offset window above lands in.
+Note: `--auto-z-spam` does **not** walk the player (pos is static across
+the trace), so the player-sprite bucket was identified by world-transform
+match to `g_player_pos`, not by dst-rect spread.  It reaches free-roam on
+its own a few thousand frames after the records anchor.
 
 ## Cross-refs
 
-* `tools/frida/openrecet-agent.js` — `dump_records_b*` mode (records A/B +
-  people-table reader, anchor-on-populate, heartbeat, screenshot).
-* `tools/frida_capture.py` — `--dump-records-b*` driver flags.
-* `docs/findings/scene1-chr-walker.md` — the C7m survey this corrects.
+* `tools/frida/openrecet-agent.js` — `dump_records_b*` + `quad_hist` modes
+  (`installQuadHistHooks`: `FUN_00404efc` + `DrawPrimitive(UP)`/`SetTexture`
+  /`SetTransform` capture, gated to dump-offset frames).
+* `tools/frida_capture.py` — `--quad-hist` driver flag + `quad_trace.jsonl`.
+* `docs/findings/scene1-chr-walker.md` — the C7m survey this corrects
+  (FUN_004176ff = particle/entity walker, not the character renderer).
 * `docs/findings/scene1-people-table.md` — people-table layout (L116
   FUN_004176ff-renders-it claim, now scoped to *customer* sprites only).
 * `docs/findings/scene1-record-populators.md` — tables A/B/C populators.
-</content>
-</invoke>
+* `src/scene1_render.c` — `scene1_render_meshes` (FUN_00459dfd) with the
+  14 walker stubs that `FUN_00456f56`/`FUN_0045672a` belong to.

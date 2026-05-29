@@ -295,6 +295,11 @@ class CaptureConfig:
     # Heartbeat interval (frames) for the records_b_sample progress message
     # (counts + per-frame draw tally). 0 disables.
     dump_records_b_heartbeat: int = 1024
+    # Cchr.1 — quad-add caller histogram (rides the dump_records_b drive).
+    # Hooks FUN_00404efc + DrawPrimitive(UP)/SetTexture and records every
+    # call on each dump-offset frame to <run_dir>/quad_trace.jsonl, naming
+    # the 2D caller VA + texture block that emits the player sprite.
+    quad_hist: bool = False
 
 
 @dataclass
@@ -328,6 +333,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     f_mem = mem_watch_jsonl.open("w") if cfg.mem_watch else None
     records_b_jsonl = run_dir / "records_b_dump.jsonl"
     f_recb = records_b_jsonl.open("w") if cfg.dump_records_b else None
+    quad_jsonl = run_dir / "quad_trace.jsonl"
+    f_quad = quad_jsonl.open("w") if cfg.quad_hist else None
 
     captured: list[int] = []
     last_mask: int | None = None
@@ -516,6 +523,32 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                         f"{p.get('emitted_people')}\n")
             return
 
+        if kind == "quad_frame":
+            if f_quad is not None:
+                f_quad.write(json.dumps(p) + "\n")
+                f_quad.flush()
+            f_log.write(f"[quad] frame={p.get('frame')} "
+                        f"off={p.get('offset_from_3d')} "
+                        f"events={p.get('event_count')} "
+                        f"player_pos={p.get('player_pos')}\n")
+            return
+
+        if kind == "quad_hist":
+            if f_quad is not None:
+                f_quad.write(json.dumps(p) + "\n")
+                f_quad.flush()
+            f_log.write(f"[quad] histogram: {p.get('bucket_count')} caller "
+                        f"buckets [frames {p.get('first_frame')}.."
+                        f"{p.get('last_frame')}]\n")
+            for b in (p.get("buckets") or [])[:20]:
+                va = b.get("va")
+                f_log.write(
+                    f"  va=0x{va:08x} n={b.get('count')} "
+                    f"dx=[{b.get('dx_min'):.0f}..{b.get('dx_max'):.0f}] "
+                    f"dy=[{b.get('dy_min'):.0f}..{b.get('dy_max'):.0f}] "
+                    f"dims={list((b.get('dims') or {}).keys())}\n")
+            return
+
         if kind == "dump_records_b_done":
             f_log.write(f"[records_b] dump window done "
                         f"[frames {p.get('first_frame')}..{p.get('last_frame')}]; "
@@ -631,6 +664,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         if cfg.dump_records_b_offsets is not None:
             init_cfg["dump_records_b_offsets"] = [
                 int(o) for o in cfg.dump_records_b_offsets]
+        if cfg.quad_hist:
+            init_cfg["quad_hist"] = True
     if cfg.mem_watch:
         init_cfg["mem_watch"] = True
         init_cfg["mem_watch_precise"] = bool(cfg.mem_watch_precise)
@@ -875,6 +910,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dump-records-b-heartbeat", type=int, default=1024,
                     help="frames between records_b_sample progress messages "
                          "for --dump-records-b (0 disables; default 1024)")
+    ap.add_argument("--quad-hist", action="store_true",
+                    help="Cchr.1: with --dump-records-b, also hook the 2D "
+                         "quad emitter FUN_00404efc + DrawPrimitive(UP)/"
+                         "SetTexture and record every call on each dump-offset "
+                         "frame to <run_dir>/quad_trace.jsonl. Buckets quad "
+                         "callers by return-VA so the player/companion sprite "
+                         "emitter (the bucket whose dst rect tracks the player) "
+                         "is named. Use dump offsets that land in free-roam "
+                         "HOUSE, ideally adjacent pairs so the player moved.")
     args = ap.parse_args(argv)
     fr_tuple: tuple[int, int] | None = None
     if args.force_resolution:
@@ -949,6 +993,7 @@ def main(argv: list[str] | None = None) -> int:
         dump_records_b_offsets=dump_records_b_offsets,
         dump_records_b_capture=args.dump_records_b_capture,
         dump_records_b_heartbeat=args.dump_records_b_heartbeat,
+        quad_hist=args.quad_hist,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

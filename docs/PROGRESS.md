@@ -7,6 +7,44 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — Cchr.1: RESOLVED — the HOUSE player/companion sprite path
+
+Followed up Cchr.0 (which falsified "characters live in records_b /
+people table") by naming the **actual** renderer, ground-truthed against
+retail. Extended the dump driver with a `--quad-hist` trace
+(`tools/frida_capture.py` + agent `installQuadHistHooks`): on each
+free-roam dump-offset frame it records every 2D quad-add (`FUN_00404efc`)
+**plus** every `DrawPrimitive(UP)` / `SetTexture` / `SetTransform(WORLD)`,
+so a sprite drawn as a world billboard (not a screen quad) surfaces with
+its bound texture and its world-matrix translation.
+
+**Result (run `runs/cchr1-xform`, free-roam frame 18018, `g_player_pos =
+(-0.30, 0, 9.35)`):** pairing each `DrawPrimitiveUP` with its preceding
+`SetTransform(0x100)` translation and matching to `g_player_pos` pins the
+whole scene:
+
+- **Player (Recette)** = `FUN_0045a56f` 12-prim sprite at exactly
+  (-0.30, 0.00, 9.35). **Companion (Tear)** = same renderer at
+  (0.60, 2.95, 9.35). Shop **object sprites** = same renderer, scattered.
+- `FUN_0045a56f` is a sprite-sheet → multi-quad billboard → `DrawPrimitiveUP`
+  (stride-24 FVF, `&DAT_0438cdf8` billboard base matrix) renderer, driven by
+  the scene-1 actor walkers **`FUN_00456f56` / `FUN_0045672a`** — which are
+  two of the 14 walker stubs inside the already-ported `scene1_render_meshes`
+  (`FUN_00459dfd`).
+- The walkers read the **actor table at `DAT_056da1b8`** (stride `0x44`;
+  the player's pos field IS `g_player_pos` = `DAT_056da1d8` = base+0x20).
+  This table is live on HOUSE entry — so the minimal "character in HOUSE"
+  path needs neither the 25.7 KB `FUN_0043ae20` integrator nor the 30 KB
+  `FUN_004176ff` walker (the latter's 6 billboards that frame were the
+  ambient `0x1f` particles, re-confirming Cchr.0).
+- Player **shadow** = `FUN_0045aa36` (binds the shade tex); object shadow
+  blobs = `FUN_0046f648` (dark `0xff202020` quads). Separate, lower-pri pass.
+
+Updated `findings/scene1-char-sprite-trace.md` (Cchr.1 RESULT + Cchr.2
+proposed port path), corrected `scene1-chr-walker.md` + INDEX. Tooling
+only (Frida JS + Python driver); no C changed, no host-test impact.
+Added `nodejs` to the dev-shell flake for `node --check` on the agent JS.
+
 ## 2026-05-29 — Cchr.0: retail HOUSE character-render trace — FUN_004176ff is NOT the player renderer
 
 Ground-truthed the C7m premise with a new Frida dump mode

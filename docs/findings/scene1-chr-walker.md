@@ -10,10 +10,18 @@
 > sprites are **2D billboards from a dedicated sprite path**, not from any
 > table this walker reads (their draw adds nothing to the per-frame
 > `DrawIndexedPrimitive` count). Route A/B below would render
-> particles/entities, not the player. See the trace doc for the next chip
-> (Cchr.1: find the 2D player-sprite renderer). The FUN_004176ff body
+> particles/entities, not the player. The FUN_004176ff body
 > survey below remains accurate; only its "this is how you get characters"
 > conclusion is wrong.
+>
+> **Cchr.1 (2026-05-29) RESOLVED the real path** (`scene1-char-sprite-trace.md`):
+> the player/Tear sprites are world billboards drawn by **`FUN_0045a56f`**
+> (sprite-sheet → multi-quad → `DrawPrimitiveUP`), driven by the actor
+> walkers **`FUN_00456f56` / `FUN_0045672a`** (two of the 14 stubs in
+> `scene1_render_meshes`) reading the **`DAT_056da1b8` actor table** (player
+> pos = `g_player_pos`).  Confirmed by world-transform match to
+> `g_player_pos` in retail; the 6 FUN_004176ff billboards in that frame were
+> the ambient `0x1f` particles, not characters.
 
 **Status (2026-05-29):** Survey only — no code lands from this doc. Done
 as the C7m re-scope after the `scene1-walker.md` Pass-7 correction
