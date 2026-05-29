@@ -35,11 +35,23 @@ all pass. Both exe targets build warning-free.
 Not yet wired into boot (awaits the 68-entry idx-filename PTR list at
 0x5c80c4 + a decision on descriptor-populate timing). Full dependency
 map + the Cchr.2b–e ladder + two MVP strategies (faithful-loaders-first
-vs Frida-inject-MVP) + open questions (leaf frame-LUT `0x1416`-vs-`0x141e`
-stride, `FUN_00482a71` indexing, dropped FPU args) are in
+vs Frida-inject-MVP) + open questions are in
 `docs/findings/scene1-char-sprite-render.md`. No retail-side validation
 yet — the parser is host-tested on synthetic `.idx` only; a Frida
 descriptor dump for bit-exactness is queued.
+
+**Followups (same day):** (1) the two open questions blocking the leaf
+port were resolved by objdump of `FUN_0045a56f` — the "frame-LUT stride
+mismatch" was an arithmetic slip (`0x359*6 = 0x1416` exactly = block
+stride; the facing table is a within-block bank offset), and
+`FUN_005038d0` is `__alloca_probe`, not a dropped FPU arg. (2) The
+68-entry idx-filename PTR list @ 0x5c80c4 was transcribed, so
+`chr_meta_load()` is now operational (recette/tear/.../prime; many slots
+share a sheet). (3) A complete, objdump-verified, turnkey port spec for
+the leaf renderer (`FUN_0045a56f`) + the chosen Frida-inject MVP step
+list are recorded in the findings doc. The leaf C transcription itself
+(Cchr.2b) is the next chip — its validation is a Frida player-call
+capture + visual A/B.
 
 ## 2026-05-29 — Cchr.1: RESOLVED — the HOUSE player/companion sprite path
 
