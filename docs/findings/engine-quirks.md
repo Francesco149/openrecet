@@ -1807,6 +1807,27 @@ in the small-loop UI/footstep range, consistent with that read.
 > `docs/findings/scene1-per-frame-open.md` §"FUN_00414929 — per-type
 > dispatch summary" step 4.
 
+## 53. The player-controller's dash-trail angle field is a float Ghidra reads as an int
+
+In the `0x56dab6c` trail/after-image fill (`FUN_0048b850` tail, decomp
+L89906+), Ghidra types the per-record `+0x3c` field as `int` and renders
+the angle accumulation as `… + (float)piVar9[-1]` — an int→float
+*conversion*.  The objdump (`0x48c9d3`) is `fadd DWORD PTR [ebx-4]`: a
+raw **float** add, no `fild`/conversion.  So `+0x3c` is a float and the
+`(float)` cast is a decompiler artifact; porting it as `(float)(int)x`
+would corrupt every trail record's angle.  The angle is then
+`2·table[anim_idx] + stored` (the table value is added to itself via
+`fadd st,st` before the field — *not* `table + table` from two memory
+reads, though the result is identical).  Ported faithfully as
+`player_ctrl_trail_orbit_pos` (Cpop.2, 2026-05-30).
+
+A sibling trap in the same function: the velocity-damping factor block
+(decomp L89665+, objdump `0x48c5a0`) calls `FUN_004856d7` and
+`FUN_0043647f` which Ghidra shows **argless** — the asm passes
+`push 0x96b` / `push 9` respectively (the dropped-arg pattern of
+quirk-class [[feedback_argless_trig_decomp]]).  Anyone porting that block
+must objdump it; the Ghidra signature hides which state slot is queried.
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of

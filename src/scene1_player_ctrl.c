@@ -56,3 +56,35 @@ void player_ctrl_camera_shake_clamp(float *shake_x, float *shake_y,
         *shake_y = (*shake_y * target) / mag;
     }
 }
+
+void player_ctrl_pulse_counters(int *down, int *phase, int *level)
+{
+    if (*down > 0)                   /* DAT_056db00c */
+        (*down)--;
+
+    if (*phase > 0) {                /* DAT_056db008 */
+        (*phase)++;                  /* engine pre-increments, then compares */
+        if (*phase < 0x1e) {         /* ramp the level up while in the first half */
+            if (*level < 10)         /* DAT_056db000, capped at 10 */
+                (*level)++;
+        } else {                     /* ramp it back down in the second half */
+            if (*level > 0)
+                (*level)--;
+        }
+        if (*phase > 0x3c)           /* wrap the 0..60 phase timer */
+            *phase = 0;
+    }
+}
+
+void player_ctrl_trail_orbit_pos(int anim_idx, float stored_angle,
+                                 float table_val, const float player[3],
+                                 float out[3])
+{
+    /* angle = 2*table[idx] + stored (engine: fld table; fadd st,st; fadd +0x3c) */
+    float angle = table_val + table_val + stored_angle;
+    float r = (float)anim_idx + 3.0f;             /* 0x519438 = 3.0 */
+
+    out[0] = sinf(angle) * r + player[0];         /* x — FUN_00503a44 = sin */
+    out[1] = player[1];                           /* y — copied straight (da1dc) */
+    out[2] = cosf(angle) * r + player[2];         /* z — FUN_00503994 = cos */
+}

@@ -138,3 +138,112 @@ int test_player_cam_shake_zero_mag_no_div(void)
     T_ASSERT_NEAR(y, 0.0f);
     return 0;
 }
+
+/* ── player_ctrl_pulse_counters ──────────────────────────────────────────── */
+
+int test_player_pulse_down_counter(void)
+{
+    /* the down-counter ticks toward 0 and never goes negative. */
+    int down = 2, phase = 0, level = 0;
+    player_ctrl_pulse_counters(&down, &phase, &level);
+    if (down != 1) T_FAIL("down 2→1");
+    player_ctrl_pulse_counters(&down, &phase, &level);
+    if (down != 0) T_FAIL("down 1→0");
+    player_ctrl_pulse_counters(&down, &phase, &level);
+    if (down != 0) T_FAIL("down floored at 0");
+    /* phase==0 means the level machine never runs. */
+    if (level != 0) T_FAIL("level untouched while phase==0");
+    return 0;
+}
+
+int test_player_pulse_phase_idle_when_zero(void)
+{
+    /* phase==0 → whole phase/level block skipped (the `0 < db008` guard). */
+    int down = 0, phase = 0, level = 5;
+    player_ctrl_pulse_counters(&down, &phase, &level);
+    if (phase != 0) T_FAIL("phase stays 0");
+    if (level != 5) T_FAIL("level stays 5");
+    return 0;
+}
+
+int test_player_pulse_level_ramps_up_then_holds(void)
+{
+    /* kicked to phase=1: level climbs by 1/frame while phase<0x1e, caps at 10. */
+    int down = 0, phase = 1, level = 0;
+    for (int i = 0; i < 10; i++)
+        player_ctrl_pulse_counters(&down, &phase, &level);
+    /* 10 frames: phase 1→11, level climbed to 10. */
+    if (phase != 11) T_FAIL("phase 1→11 over 10 frames (got %d)", phase);
+    if (level != 10) T_FAIL("level should reach the 10 cap (got %d)", level);
+    /* keep going while still <0x1e: level holds at the cap. */
+    player_ctrl_pulse_counters(&down, &phase, &level);
+    if (level != 10) T_FAIL("level holds at 10 cap (got %d)", level);
+    return 0;
+}
+
+int test_player_pulse_level_ramps_down_second_half(void)
+{
+    /* phase in [0x1e,0x3c]: level decrements toward 0 (the else branch). */
+    int down = 0, phase = 0x1d, level = 3;
+    player_ctrl_pulse_counters(&down, &phase, &level);  /* phase→0x1e, level 3→2 */
+    if (phase != 0x1e) T_FAIL("phase 0x1d→0x1e (got %d)", phase);
+    if (level != 2) T_FAIL("level decrements in second half (got %d)", level);
+    /* drive it to the floor and confirm it never goes negative. */
+    player_ctrl_pulse_counters(&down, &phase, &level);  /* level 2→1 */
+    player_ctrl_pulse_counters(&down, &phase, &level);  /* level 1→0 */
+    player_ctrl_pulse_counters(&down, &phase, &level);  /* level floored */
+    if (level != 0) T_FAIL("level floored at 0 (got %d)", level);
+    return 0;
+}
+
+int test_player_pulse_phase_wraps_at_60(void)
+{
+    /* phase pre-increments past 0x3c → wraps to 0 the same frame. */
+    int down = 0, phase = 0x3c, level = 0;
+    player_ctrl_pulse_counters(&down, &phase, &level);
+    /* 0x3c+1 = 0x3d > 0x3c → reset to 0. */
+    if (phase != 0) T_FAIL("phase wraps 0x3c→0 (got %d)", phase);
+    return 0;
+}
+
+/* ── player_ctrl_trail_orbit_pos ─────────────────────────────────────────── */
+
+int test_player_trail_orbit_zero_angle(void)
+{
+    /* angle = 2*0 + 0 = 0 → sin=0, cos=1; r = idx+3. */
+    float player[3] = { 10.0f, 5.0f, 20.0f };
+    float out[3];
+    player_ctrl_trail_orbit_pos(/*idx*/ 0, /*stored*/ 0.0f, /*table*/ 0.0f,
+                                player, out);
+    T_ASSERT_NEAR(out[0], 10.0f);          /* sin(0)*3 + 10 */
+    T_ASSERT_NEAR(out[1], 5.0f);           /* y copied straight */
+    T_ASSERT_NEAR(out[2], 23.0f);          /* cos(0)*3 + 20 */
+    return 0;
+}
+
+int test_player_trail_orbit_radius_and_angle(void)
+{
+    /* idx=5 → r=8; table=π/8, stored=π/4 → angle = 2·(π/8)+π/4 = π/2.
+     * sin(π/2)=1, cos(π/2)≈0. */
+    const float pi = 3.14159265358979f;
+    float player[3] = { 0.0f, 0.0f, 0.0f };
+    float out[3];
+    player_ctrl_trail_orbit_pos(5, pi / 4.0f, pi / 8.0f, player, out);
+    T_ASSERT_NEAR(out[0], 8.0f);           /* sin(π/2)*8 */
+    T_ASSERT_NEAR(out[1], 0.0f);
+    T_ASSERT_NEAR(out[2], 0.0f);           /* cos(π/2)*8 ≈ 0 */
+    return 0;
+}
+
+int test_player_trail_orbit_doubles_table(void)
+{
+    /* the table value is added TWICE (fadd st,st) — table=π/2 alone → angle=π. */
+    const float pi = 3.14159265358979f;
+    float player[3] = { 1.0f, 2.0f, 3.0f };
+    float out[3];
+    player_ctrl_trail_orbit_pos(0, 0.0f, pi / 2.0f, player, out);
+    /* angle = 2·(π/2) = π → sin≈0, cos=-1, r=3. */
+    T_ASSERT_NEAR(out[0], 1.0f);           /* sin(π)*3 + 1 ≈ 1 */
+    T_ASSERT_NEAR(out[2], 0.0f);           /* cos(π)*3 + 3 = -3+3 = 0 */
+    return 0;
+}

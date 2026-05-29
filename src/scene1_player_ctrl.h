@@ -57,4 +57,47 @@ float player_ctrl_camera_z_decay(float z);
 void player_ctrl_camera_shake_clamp(float *shake_x, float *shake_y,
                                     float target);
 
+/*
+ * Advance the player-controller's emote-bubble pulse counters one frame.
+ * Engine FUN_0048b850 @ all.c L89799-89817 (objdump 0x48b8c9-0x48b917):
+ *
+ *   if (*down > 0) (*down)--;                     // DAT_056db00c
+ *   if (*phase > 0) {                             // DAT_056db008
+ *       (*phase)++;                               // pre-incremented, then tested
+ *       if (*phase < 0x1e) { if (*level < 10) (*level)++; }   // DAT_056db000
+ *       else               { if (*level > 0)  (*level)--; }
+ *       if (*phase > 0x3c) *phase = 0;            // wrap the 0..60 phase
+ *   }
+ *
+ * `phase` (db008) is a 0..0x3c frame timer kicked to 1 elsewhere; `level`
+ * (db000, 0..10) is the emote-bubble scale/intensity it ramps up over the
+ * first ~30 frames and back down over the next (consumed by the bubble
+ * draw at all.c L6901+, a `sin(level·π/8)` scale).  `down` (db00c) is an
+ * independent down-counter.  Both `phase` comparisons use the
+ * *post-increment* value (matches the engine's `inc eax` before either
+ * `cmp`).
+ */
+void player_ctrl_pulse_counters(int *down, int *phase, int *level);
+
+/*
+ * Place one dash-trail / after-image record around the player.
+ * The geometric core of FUN_0048b850's `0x56dab6c` trail fill
+ * (all.c L89906-89933; objdump 0x48c9c6-0x48ca47) — the array the walker
+ * reads in sweep-0 (scene1-char-sprite-render.md).  Per active record:
+ *
+ *   angle = 2·table_val + stored_angle;     // table_val = (float[])0x5ce5c0[anim_idx]
+ *   r     = (float)anim_idx + 3.0;
+ *   out[0] = sinf(angle)·r + player[0];      // x   (FUN_00503a44 = sin)
+ *   out[1] = player[1];                      // y   (unchanged)
+ *   out[2] = cosf(angle)·r + player[2];      // z   (FUN_00503994 = cos)
+ *
+ * Note: the engine adds `stored_angle` via a raw `fadd DWORD [ebx-4]`
+ * (a *float* load) — Ghidra mistypes the +0x3c field as `(float)int`;
+ * it is a float.  `table_val` is supplied by the caller (the 0x5ce5c0
+ * per-anim phase table is read but not owned by this leaf).
+ */
+void player_ctrl_trail_orbit_pos(int anim_idx, float stored_angle,
+                                 float table_val, const float player[3],
+                                 float out[3]);
+
 #endif /* SCENE1_PLAYER_CTRL_H */

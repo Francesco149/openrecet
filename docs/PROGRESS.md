@@ -7,6 +7,39 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — Cpop.2: two more FUN_0048b850 pure leaves (emote-pulse counters + trail-orbit geometry)
+
+Continued the `FUN_0048b850` player-controller port begun in Cpop.1, adding
+the next two genuinely-pure leaves (both objdump-ground-truthed before
+writing), in `src/scene1_player_ctrl.{c,h}`:
+
+- **`player_ctrl_pulse_counters`** (decomp L89799-89817 / objdump
+  `0x48b8c9-0x48b917`): the emote-bubble pulse triple — `db00c` down-counter,
+  `db008` 0..0x3c phase timer, `db000` 0..10 intensity that ramps up while
+  `phase < 0x1e` and back down after, wrapping at `> 0x3c`.  Confirmed both
+  `phase` comparisons use the *post-increment* value (`inc eax` precedes both
+  `cmp`s).  `db000` feeds the `sin(level·π/8)` bubble-scale draw at all.c
+  L6901+.
+- **`player_ctrl_trail_orbit_pos`** (decomp L89906-89933 / objdump
+  `0x48c9c6-0x48ca47`): the geometric core of the `0x56dab6c` dash-trail /
+  after-image fill — the array the walker reads in sweep-0.  Per record,
+  `angle = 2·table[anim_idx] + stored`, `r = idx + 3.0`, then
+  `x = sin(angle)·r + px`, `y = py`, `z = cos(angle)·r + pz`.
+
+Two objdump catches vs the Ghidra decomp, both logged as **engine-quirks
+§53**: (1) the trail record's `+0x3c` angle field is a **float**
+(`fadd DWORD [ebx-4]`), which Ghidra mistypes as `(float)int` — porting it
+as the conversion would corrupt every record; (2) the adjacent
+velocity-damping block calls `FUN_004856d7(0x96b)` / `FUN_0043647f(9)` with
+args Ghidra drops (shown argless) — flagged for whoever ports that block next.
+
+8 host tests (2962 → 2970).  Module still unwired (caller chain
+`FUN_00442cef → FUN_0048670f` unported) → HOUSE behavior + all goldens
+bit-identical; no regen needed.  Remaining for the chip: the stateful body
+(the `local_8` zoom-target accumulation with its dropped-arg queries, the
+shake/velocity damping-factor selection, and the per-record trail spawn +
+expiry around the geometry leaf).
+
 ## 2026-05-30 — Cpop re-scope (trace-confirmed) + Cpop.1 player-controller leaf math
 
 Picked up the parked Cpop attempt (see the deleted `docs/HANDOFF-cpop1.md`).

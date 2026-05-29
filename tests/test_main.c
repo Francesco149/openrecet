@@ -3114,7 +3114,15 @@ struct test_case {
     X(player_cam_z_decay_floor) \
     X(player_cam_shake_below_target_noop) \
     X(player_cam_shake_above_target_scaled) \
-    X(player_cam_shake_zero_mag_no_div)
+    X(player_cam_shake_zero_mag_no_div) \
+    X(player_pulse_down_counter) \
+    X(player_pulse_phase_idle_when_zero) \
+    X(player_pulse_level_ramps_up_then_holds) \
+    X(player_pulse_level_ramps_down_second_half) \
+    X(player_pulse_phase_wraps_at_60) \
+    X(player_trail_orbit_zero_angle) \
+    X(player_trail_orbit_radius_and_angle) \
+    X(player_trail_orbit_doubles_table)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

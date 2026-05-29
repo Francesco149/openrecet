@@ -385,8 +385,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x5038b0 | FUN_005038b0 | 19 | ✓ | scene1_overlay_table.c, scene1_overlay_table.h, scene1_per_frame_open.c |
 | 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, scene1_combat_sm.c, scene1_per_frame_open.c (+5) |
 | 0x503954 | __ftol | 39 | ✓ | scene1_chr_prepass.c, scene1_chr_walker.c, scene1_chr_walker.h (+1) |
-| 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, scene1_maplight.c (+3) |
-| 0x503a44 | FUN_00503a44 | 9 | ✓ | scene1_maplight.c, scene1_overlay.c, scene1_overlay.h (+4) |
+| 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, scene1_maplight.c (+5) |
+| 0x503a44 | FUN_00503a44 | 9 | ✓ | scene1_maplight.c, scene1_overlay.c, scene1_overlay.h (+6) |
 | 0x503d03 | FUN_00503d03 | 11 | ✓ | scene1_overlay_table.c, tables_item.c |
 | 0x503dd0 | FUN_00503dd0 | 10 | ✓ | scene1_records_b_spawn.c, scene1_records_b_spawn.h |
 | 0x503de4 | FUN_00503de4 | 344 | ✓ | storage.c |

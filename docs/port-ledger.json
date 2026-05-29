@@ -21794,6 +21794,8 @@
     "src/audio_fade.h",
     "src/scene1_maplight.c",
     "src/scene1_particles_tick.c",
+    "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h",
     "src/scene1_records_b_spawn.c",
     "src/scene1_spawn.c"
    ]
@@ -21828,6 +21830,8 @@
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
     "src/scene1_particles_tick.c",
+    "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h",
     "src/scene1_records_c_spawn.c",
     "src/scene1_spawn.c",
     "src/scene1_wide_followup_helpers.c"
