@@ -7,6 +7,40 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — HOUSE render fidelity via D3D-trace A/B: brightness + blinds (5 fixes)
+
+Used the D3D state-trace pipeline (D.4 Frida + D.5 port + per-draw compare)
+to pin HOUSE render divergences against a fresh retail capture
+(`runs/retail-d3d-house`, frame 14000, `frida_capture.py --d3d-trace
+--auto-z-spam --turbo`). Each fix is trace-verified.
+
+- **`8d4e376` HOUSE ~2× brightness (RESOLVED, user-confirmed 1:1).**
+  `FUN_00454f03` was ported setting `D3DTSS_COLORARG2` not `D3DTSS_COLOROP`
+  (the value table {2,4,5,7,8,10,11} are D3DTEXTUREOP codes), and
+  `scene1_palette_combiner_mode()` was stubbed to 0 instead of
+  `rec->drawcode` (HOUSE `drawcode:2` → mode%7==2 → MODULATE2X). Base room
+  pass was MODULATE (1×) vs retail MODULATE2X (2×). Floor-centre
+  (90,70,28)→(227,176,79) ≈ retail (207,162,70).
+- **`463a810` + `960e4ee` blinds blend/arg leaks.** Two Ghidra
+  type-confusions in the HOUSE-dormant `scene1_wide_followup` (it draws
+  nothing but its state preamble RUNS and leaks): mis-ported engine
+  MIN/MAGFILTER(0x11/0x10) as COLORARG2/1=TEXTURE (→ texture² rainbow),
+  and SetRenderState(SRC/DESTBLEND, 0x13/0x14) as
+  SetTextureStageState(MAG/MINFILTER) (→ leaked DESTBLEND=INVSRCCOLOR
+  instead of INVSRCALPHA). Port HOUSE draw-state now matches retail
+  exactly. **Lesson: audit dormant walkers' state writes.**
+- **`4070c3f` hikari texture (PARTIAL).** The hikari pass binds the
+  engine's animated `DAT_073aa198[frame]` (loaded from `mood_para<NN>.bmp`
+  by FUN_00474a9a), not the submesh's embedded sprite. Port had loaded
+  `mood_para` but left the hook NULL → cyan fallback. Wired it → curtains
+  cyan→green. **Still diverges** (zoom diff `runs/window_zoomdiff.png`):
+  likely wrong/missing animation frame + the frustum/middle-glow/table-
+  shadow hunt items remain. Deferred to next session — see
+  `findings/scene1-house-render-gaps.md` hunt-list.
+- **`f1c7b2f`** ruled out `FUN_00459847` (combat additive-fx renderer,
+  dormant in HOUSE) as the brightness source; corrected the stale
+  "PHC #26 writerless" survey claim.
+
 ## 2026-05-29 — PII.3d: per-stage maplight builder ported (FUN_00458f67)
 
 Ported the scene-1 per-stage FFP map-light builder — the `FUN_00458f67`
