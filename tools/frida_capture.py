@@ -276,6 +276,25 @@ class CaptureConfig:
     # page's one-shot and mask the writer we're hunting. Set False for the
     # raw one-shot-per-page behavior.
     mem_watch_precise:      bool = True
+    # Cchr.0 table-B dump. When `dump_records_b` is true the agent shares
+    # the auto-3D trigger (anchor on first DrawIndexedPrimitive), then on
+    # each frame offset in `dump_records_b_offsets` (relative to that first
+    # 3D frame) reads the live scene-1 table-B render records + the three
+    # per-pass counts + player pos and emits one JSON object to
+    # `<run_dir>/records_b_dump.jsonl`. After the last offset it sends
+    # `dump_records_b_done` and the driver shuts down. Pair with
+    # `auto_z_spam` to drive a fresh new-game to HOUSE unattended. Answers:
+    # does retail's records_b hold a live player record on a fresh HOUSE,
+    # and which TYPE / owner-class / scale draws it (= which FUN_004176ff
+    # sub-pass renders the player avatar).
+    dump_records_b:         bool = False
+    dump_records_b_offsets: list[int] | None = None
+    # Also grab a backbuffer screenshot at each table-B dump frame (to
+    # <run_dir>/frames/<frame>.bmp) for visual confirmation of the scene.
+    dump_records_b_capture: bool = False
+    # Heartbeat interval (frames) for the records_b_sample progress message
+    # (counts + per-frame draw tally). 0 disables.
+    dump_records_b_heartbeat: int = 1024
 
 
 @dataclass
@@ -307,6 +326,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     f_call = call_trace_jsonl.open("w") if cfg.call_trace else None
     mem_watch_jsonl = run_dir / "mem_watch.jsonl"
     f_mem = mem_watch_jsonl.open("w") if cfg.mem_watch else None
+    records_b_jsonl = run_dir / "records_b_dump.jsonl"
+    f_recb = records_b_jsonl.open("w") if cfg.dump_records_b else None
 
     captured: list[int] = []
     last_mask: int | None = None
@@ -465,6 +486,43 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             done.set()
             return
 
+        if kind == "records_b_sample":
+            f_log.write(f"[records_b] sample frame={p.get('frame')} "
+                        f"count_b={p.get('count_b')} "
+                        f"count_a={p.get('count_a')} "
+                        f"count_c={p.get('count_c')} "
+                        f"draws={p.get('draws')} "
+                        f"draws_max={p.get('draws_max')} "
+                        f"anchored={p.get('anchored')}\n")
+            return
+
+        if kind == "records_b_populated":
+            f_log.write(f"[records_b] table populated @ frame={p.get('frame')} "
+                        f"count_a={p.get('count_a')} "
+                        f"count_b={p.get('count_b')}\n")
+            return
+
+        if kind == "records_b_dump":
+            if f_recb is not None:
+                f_recb.write(json.dumps(p) + "\n")
+                f_recb.flush()
+            f_log.write(f"[records_b] dump frame={p.get('frame')} "
+                        f"off={p.get('offset_from_3d')} "
+                        f"count_a={p.get('count_a')} "
+                        f"count_b={p.get('count_b')} "
+                        f"liveA={p.get('live_total_a')}/{p.get('emitted_a')} "
+                        f"liveB={p.get('live_total')}/{p.get('emitted')} "
+                        f"people={p.get('live_total_people')}/"
+                        f"{p.get('emitted_people')}\n")
+            return
+
+        if kind == "dump_records_b_done":
+            f_log.write(f"[records_b] dump window done "
+                        f"[frames {p.get('first_frame')}..{p.get('last_frame')}]; "
+                        f"signaling shutdown\n")
+            done.set()
+            return
+
         f_log.write(f"[unhandled] {p}\n")
 
     # ── auto-start frida-server if not already up ──
@@ -566,6 +624,13 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["auto_3d_trace_frames"] = int(cfg.auto_3d_trace_frames)
     if cfg.pre_3d_trace:
         init_cfg["pre_3d_trace"] = True
+    if cfg.dump_records_b:
+        init_cfg["dump_records_b"] = True
+        init_cfg["dump_records_b_capture"] = bool(cfg.dump_records_b_capture)
+        init_cfg["dump_records_b_heartbeat"] = int(cfg.dump_records_b_heartbeat)
+        if cfg.dump_records_b_offsets is not None:
+            init_cfg["dump_records_b_offsets"] = [
+                int(o) for o in cfg.dump_records_b_offsets]
     if cfg.mem_watch:
         init_cfg["mem_watch"] = True
         init_cfg["mem_watch_precise"] = bool(cfg.mem_watch_precise)
@@ -619,6 +684,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         f_call.close()
     if f_mem is not None:
         f_mem.close()
+    if f_recb is not None:
+        f_recb.close()
 
     return CaptureResult(
         exit_code=exit_code,
@@ -790,6 +857,24 @@ def main(argv: list[str] | None = None) -> int:
                          "cutscene), then shut down on first 3D draw. "
                          "Pair with --auto-z-spam to drive past the title "
                          "menu unattended.")
+    ap.add_argument("--dump-records-b", action="store_true",
+                    help="Cchr.0: dump scene-1 table-B render records at "
+                         "frame offsets from the first 3D draw (default "
+                         "0,5,30,60) to <run_dir>/records_b_dump.jsonl, then "
+                         "shut down. Pair with --auto-z-spam to drive a fresh "
+                         "new-game to HOUSE unattended. Finds the player "
+                         "render record + which FUN_004176ff sub-pass draws "
+                         "it.")
+    ap.add_argument("--dump-records-b-offsets", default="",
+                    help="comma-separated frame offsets from the anchor "
+                         "(first count_b>0 frame) for --dump-records-b "
+                         "(default 0,30,120,300)")
+    ap.add_argument("--dump-records-b-capture", action="store_true",
+                    help="also grab a backbuffer screenshot at each "
+                         "--dump-records-b dump frame (frames/<frame>.bmp)")
+    ap.add_argument("--dump-records-b-heartbeat", type=int, default=1024,
+                    help="frames between records_b_sample progress messages "
+                         "for --dump-records-b (0 disables; default 1024)")
     args = ap.parse_args(argv)
     fr_tuple: tuple[int, int] | None = None
     if args.force_resolution:
@@ -833,6 +918,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.auto_3d_trace and args.pre_3d_trace:
         ap.error("--auto-3d-trace and --pre-3d-trace are mutually exclusive")
 
+    dump_records_b_offsets: list[int] | None = None
+    if args.dump_records_b_offsets:
+        dump_records_b_offsets = [
+            int(x) for x in args.dump_records_b_offsets.split(",") if x]
+
     cfg = CaptureConfig(
         capture_frames=capture_frames,
         max_frames=args.max_frames,
@@ -855,6 +945,10 @@ def main(argv: list[str] | None = None) -> int:
         auto_3d_trace=args.auto_3d_trace,
         auto_3d_trace_frames=args.auto_3d_trace_frames,
         pre_3d_trace=args.pre_3d_trace,
+        dump_records_b=args.dump_records_b,
+        dump_records_b_offsets=dump_records_b_offsets,
+        dump_records_b_capture=args.dump_records_b_capture,
+        dump_records_b_heartbeat=args.dump_records_b_heartbeat,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

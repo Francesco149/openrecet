@@ -173,6 +173,30 @@ const ADDR = {
                                        // engine sits in WaitMessage forever).
                                        // See findings/winmain-and-bootstrap.md
                                        // line 79001.
+
+    // Cchr.0 — scene-1 table-B render-record dump (find the player record).
+    // Table B holds the NPC / entity / character render records the 3D
+    // chr-walker FUN_004176ff draws.  512 slots × 0x49 dw (0x124 B); the
+    // TYPE dword at +0x00 IS the free sentinel (0 = empty slot).  Field
+    // offsets per src/scene1_records.h (SCENE1_RECORDS_B_OFF_*).
+    var_records_b_base:  0x069324b0,  // slot 0, field 0 (= TYPE)
+    // table A: 4096 slots × 0x25 dw; slot base (field 0 = pos.x) is
+    // DAT_069b2f80, TYPE at offset 12 dw (+0x30) with -1 = empty sentinel.
+    var_records_a_base:  0x069b2f80,
+    var_records_a_count: 0x0076b960,  // g_scene1_records_a_count (Pass D)
+    var_records_b_count: 0x0076b964,  // g_scene1_records_b_count (Pass B+C)
+    var_records_c_count: 0x0076b968,  // g_scene1_records_c_count (alpha)
+    // engine player world position (3 contiguous floats),
+    // DAT_056da1d8/dc/e0 — many table-B spawns derive an alt-target from
+    // it; lets us tell whether a live record sits at the player.
+    var_player_pos:      0x056da1d8,
+    // in-shop "people" table — 128 entries × 0x2e9 dw (2980 B).  Each
+    // entry models one NPC / customer / event actor / (likely) the
+    // player; `alive` int at byte +0x44 (0 = empty).  This is the table
+    // the chr-walker FUN_004176ff actually renders character sprites from
+    // (see findings/scene1-people-table.md L116), NOT records_b.  Header
+    // fields per that survey.
+    var_people_base:     0x0076bd54,
 };
 
 // ─── COM vtable indices ─────────────────────────────────────────────────
@@ -508,6 +532,34 @@ let g_auto_3d_done_sent    = false;
 let g_pre_3d_trace         = false;
 let g_pre_3d_done_sent     = false;
 
+// Cchr.0 table-B dump mode.  When `dump_records_b` is set the agent polls
+// the records_b active-count (DAT_0076b964) every Present and anchors the
+// dump window on the FIRST frame where it goes non-zero — i.e. when the 3D
+// chr-walker FUN_004176ff is actually fed records (free-roam HOUSE), NOT
+// the first 3D draw.  The first 3D draw lands during the intro dialogue,
+// where the walker is dormant and the on-screen characters come from the
+// dialogue layer rather than table B (see findings/scene1-chr-walker.md +
+// the E.2 dialogue-frame note).  Anchoring on count_b>0 targets the frame
+// the player record actually exists.
+//
+// On the anchor frame and each subsequent frame whose offset is in
+// g_dump_records_b_offsets it reads the live records + the three per-pass
+// counts + player pos, emits a `records_b_dump` message, and (if
+// g_dump_records_b_capture) also grabs a backbuffer screenshot for visual
+// confirmation.  After the last offset it sends `dump_records_b_done`.
+// A `records_b_sample` heartbeat (counts + per-frame draw count) is emitted
+// every g_dump_records_b_heartbeat frames so a run that never populates
+// table B still reports progress instead of silently idling.
+let g_dump_records_b           = false;
+let g_dump_records_b_offsets   = [0, 30, 120, 300];
+let g_dump_records_b_fired     = new Set();
+let g_dump_records_b_done      = false;
+let g_dump_records_b_capture   = false;
+let g_dump_records_b_heartbeat = 1024;
+let g_dump_b_anchor_frame      = -1;   // first count_b>0 frame, or -1
+let g_draw_count_this_frame    = 0;    // DrawIndexedPrimitive calls this frame
+let g_draw_count_max           = 0;    // peak per-frame draw count (diag)
+
 // Memory-access watch (Phase D.7). When `mem_watch` is true, the agent
 // arms Frida's MemoryAccessMonitor over the regions in
 // `g_mem_watch_regions` and emits one `mem_access` record per trapped
@@ -780,6 +832,14 @@ function installPresentHook(devicePtr) {
             // this cycle were buffered with frameNo() == fn.
             if (g_mem_watch_enabled) {
                 memWatchFlush(fn);
+            }
+            // Cchr.0 table-B dump.  Anchors on count_b>0 and fires the
+            // configured offsets; reset the per-frame draw counter after.
+            if (g_dump_records_b) {
+                dumpRecordsBTick(fn, devicePtr);
+                g_draw_count_max = Math.max(g_draw_count_max,
+                                            g_draw_count_this_frame);
+                g_draw_count_this_frame = 0;
             }
             // Bump AFTER the capture decision. Audio/input events that
             // fired during the cycle leading to this Present have
@@ -1133,7 +1193,7 @@ function installInitHook() {
             // between auto_3d_trace (post-3D window) and pre_3d_trace
             // (inverse — pre-3D window, sends pre_3d_trace_done on
             // first 3D draw).
-            if (g_auto_3d_trace || g_pre_3d_trace) {
+            if (g_auto_3d_trace || g_pre_3d_trace || g_dump_records_b) {
                 try {
                     installAuto3dTrigger(dev);
                 } catch (e) {
@@ -1446,6 +1506,9 @@ function installAuto3dTrigger(devicePtr) {
     if (g_auto_3d_hooked) return;
     Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawIndexedPrimitive), {
         onEnter: function () {
+            // Per-frame draw tally (diag for the records_b dump heartbeat;
+            // distinguishes dialogue frames ~250 from walker frames ~1900).
+            g_draw_count_this_frame++;
             if (g_auto_3d_seen) return;
             g_auto_3d_seen = true;
             g_auto_3d_seen_frame = g_manual_frame_counter;
@@ -1474,6 +1537,241 @@ function callTraceFlush(frameNumber) {
           frame: frameNumber,
           count: events.length,
           events: events});
+}
+
+// ─── Cchr.0 table-B record dump ─────────────────────────────────────────
+
+const RECORD_B_STRIDE_DW = 0x49;   // 0x124 bytes per slot
+const RECORD_B_SLOTS     = 512;
+const RECORD_B_MAX_EMIT  = 96;     // cap live records emitted per dump
+
+const RECORD_A_STRIDE_DW = 0x25;   // 0x94 bytes per slot
+const RECORD_A_SLOTS     = 4096;
+const RECORD_A_MAX_EMIT  = 96;
+const RECORD_A_EMPTY      = 0xffffffff;  // TYPE==-1 sentinel (offset 12)
+
+const PEOPLE_STRIDE_DW   = 0x2e9;  // 2980 bytes per entry
+const PEOPLE_SLOTS       = 128;
+const PEOPLE_MAX_EMIT    = 128;
+// Header dword indices (byte offset / 4) per scene1-people-table.md.
+const PEOPLE_OFF_ALIVE   = 0x44 / 4;   // int, 0 = empty slot
+const PEOPLE_OFF_ACTION  = 0x5c / 4;   // int action_id
+const PEOPLE_OFF_STATE   = 0x910 / 4;  // int state_counter
+const PEOPLE_OFF_COOLDOWN= 0x934 / 4;  // int cooldown
+
+// Lower-case hex of `n` bytes at `p`, or null on a read fault.
+function hexBytes(p, n) {
+    try {
+        const u8 = new Uint8Array(p.readByteArray(n));
+        let s = '';
+        for (let i = 0; i < u8.length; i++) {
+            s += (u8[i] < 16 ? '0' : '') + u8[i].toString(16);
+        }
+        return s;
+    } catch (e) {
+        return null;
+    }
+}
+
+// An owner pointer stored in a record is a runtime-absolute address (the
+// engine computed it live), so dereference it directly — NOT via rva().
+// The chr-walker keys character type on owner+0x948; capture it plus a
+// head slice for context.  Guarded: a stale/NULL owner just returns null.
+function readOwnerClass(ownerVa) {
+    if (!ownerVa) return null;
+    try {
+        const p = ptr(ownerVa >>> 0);
+        return {class948: p.add(0x948).readU32(), head: hexBytes(p, 0x20)};
+    } catch (e) {
+        return {error: e.message};
+    }
+}
+
+// Read one live table-B slot into a structured record, or null if free.
+function dumpRecordBSlot(base, slot) {
+    const rec = base.add(slot * RECORD_B_STRIDE_DW * 4);
+    const dw  = function (n) { return rec.add(n * 4); };
+    const type = dw(0).readU32();
+    if (type === 0) return null;   // TYPE==0 sentinel: free slot
+    const ownerA = dw(4).readU32();   // +0x10 entity-alloc owner
+    const ownerB = dw(5).readU32();   // +0x14 npc-alloc owner
+    const f32 = function (n) { return dw(n).readFloat(); };
+    return {
+        slot:       slot,
+        type:       type,
+        flag_a:     dw(1).readU32(),
+        self_idx:   dw(2).readU32(),
+        flag_b:     dw(3).readS32(),
+        owner_a:    '0x' + (ownerA >>> 0).toString(16),
+        owner_b:    '0x' + (ownerB >>> 0).toString(16),
+        pos:        [f32(23), f32(24), f32(25)],
+        vel:        [f32(26), f32(27), f32(28)],
+        alt_pos:    [f32(29), f32(30), f32(31)],
+        rot_x:      f32(36),
+        rot_z:      f32(37),
+        age:        dw(38).readU32(),
+        scale_x:    f32(45),
+        scale_y:    f32(47),
+        owner_flag: dw(46).readU32(),
+        seq_id:     dw(71).readU32(),
+        owner_a_class: readOwnerClass(ownerA),
+        owner_b_class: readOwnerClass(ownerB),
+        raw:        hexBytes(rec, RECORD_B_STRIDE_DW * 4),
+    };
+}
+
+// Read one live table-A slot (stride 0x25 dw, TYPE at offset 12 with -1 =
+// empty), or null if free.  Field map per src/scene1_records.h.
+function dumpRecordASlot(base, slot) {
+    const rec = base.add(slot * RECORD_A_STRIDE_DW * 4);
+    const dw  = function (n) { return rec.add(n * 4); };
+    const type = dw(12).readU32();
+    if (type === RECORD_A_EMPTY) return null;   // -1 sentinel: free slot
+    const f32 = function (n) { return dw(n).readFloat(); };
+    return {
+        slot:    slot,
+        type:    dw(12).readS32(),
+        pos:     [f32(0), f32(1), f32(2)],
+        vel:     [f32(3), f32(4), f32(5)],
+        rot:     [f32(6), f32(7), f32(8)],
+        base_xyz:[f32(9), f32(10), f32(11)],
+        age:     dw(13).readU32(),
+        scale:   f32(14),
+        param1:  dw(16).readU32(),
+        param2:  dw(17).readU32(),
+        raw:     hexBytes(rec, RECORD_A_STRIDE_DW * 4),
+    };
+}
+
+// Read one live people-table entry (alive!=0 at +0x44), or null if empty.
+// Captures the integrator/render header fields; the character sprite the
+// chr-walker draws is keyed off these (pos + the ~2900 B sprite/AI scratch
+// we don't decode here).
+function dumpPeopleSlot(base, slot) {
+    const rec = base.add(slot * PEOPLE_STRIDE_DW * 4);
+    const dw  = function (n) { return rec.add(n * 4); };
+    const alive = dw(PEOPLE_OFF_ALIVE).readS32();
+    if (alive === 0) return null;
+    const f32 = function (n) { return dw(n).readFloat(); };
+    return {
+        slot:          slot,
+        alive:         alive,
+        pos:           [f32(0), f32(1), f32(2)],
+        target:        [f32(3), f32(4), f32(5)],
+        action_id:     dw(PEOPLE_OFF_ACTION).readS32(),
+        state_counter: dw(PEOPLE_OFF_STATE).readS32(),
+        cooldown:      dw(PEOPLE_OFF_COOLDOWN).readS32(),
+        head:          hexBytes(rec, 0x68),
+    };
+}
+
+// Scan both record tables, emit live records + counts + player pos for the
+// given frame / anchor-relative offset as a single `records_b_dump`
+// message.  Table A is included because retail's fresh-HOUSE characters
+// live in table A (count_a>0), not table B (count_b==0) — see the Cchr.0
+// trace finding.
+function emitRecordsBDump(frameNumber, offset) {
+    const baseB = rva(ADDR.var_records_b_base);
+    const liveB = [];
+    let liveTotalB = 0;
+    for (let s = 0; s < RECORD_B_SLOTS; s++) {
+        const r = dumpRecordBSlot(baseB, s);
+        if (r === null) continue;
+        liveTotalB++;
+        if (liveB.length < RECORD_B_MAX_EMIT) liveB.push(r);
+    }
+    const baseA = rva(ADDR.var_records_a_base);
+    const liveA = [];
+    let liveTotalA = 0;
+    for (let s = 0; s < RECORD_A_SLOTS; s++) {
+        const r = dumpRecordASlot(baseA, s);
+        if (r === null) continue;
+        liveTotalA++;
+        if (liveA.length < RECORD_A_MAX_EMIT) liveA.push(r);
+    }
+    const baseP = rva(ADDR.var_people_base);
+    const liveP = [];
+    let liveTotalP = 0;
+    for (let s = 0; s < PEOPLE_SLOTS; s++) {
+        const r = dumpPeopleSlot(baseP, s);
+        if (r === null) continue;
+        liveTotalP++;
+        if (liveP.length < PEOPLE_MAX_EMIT) liveP.push(r);
+    }
+    const ppos = rva(ADDR.var_player_pos);
+    send({kind: 'records_b_dump',
+          frame: frameNumber,
+          offset_from_3d: offset,
+          count_a: rva(ADDR.var_records_a_count).readS32(),
+          count_b: rva(ADDR.var_records_b_count).readS32(),
+          count_c: rva(ADDR.var_records_c_count).readS32(),
+          player_pos: [ppos.readFloat(),
+                       ppos.add(4).readFloat(),
+                       ppos.add(8).readFloat()],
+          live_total:    liveTotalB,
+          emitted:       liveB.length,
+          records:       liveB,
+          live_total_a:  liveTotalA,
+          emitted_a:     liveA.length,
+          records_a:     liveA,
+          live_total_people: liveTotalP,
+          emitted_people:    liveP.length,
+          people:            liveP});
+}
+
+// Called from the Present hook every frame.  Polls count_b, anchors the
+// dump window on its first non-zero value, fires the configured offsets
+// (with optional screenshot), emits heartbeats, and signals done.
+function dumpRecordsBTick(fn, devicePtr) {
+    if (!g_dump_records_b) return;
+
+    const countA = rva(ADDR.var_records_a_count).readS32();
+    const countB = rva(ADDR.var_records_b_count).readS32();
+
+    // Heartbeat — lets a non-populating run still report progress.
+    if (g_dump_records_b_heartbeat > 0 &&
+        (fn % g_dump_records_b_heartbeat) === 0) {
+        send({kind: 'records_b_sample',
+              frame: fn,
+              count_a: countA,
+              count_b: countB,
+              count_c: rva(ADDR.var_records_c_count).readS32(),
+              draws: g_draw_count_this_frame,
+              draws_max: g_draw_count_max,
+              anchored: g_dump_b_anchor_frame >= 0});
+    }
+
+    // Anchor on the first frame EITHER table is populated.  On a fresh
+    // retail HOUSE table A fills (characters/entities) while table B stays
+    // empty, so anchoring on count_b alone would never fire.
+    if (g_dump_b_anchor_frame < 0) {
+        if (countA <= 0 && countB <= 0) return;
+        g_dump_b_anchor_frame = fn;
+        send({kind: 'records_b_populated',
+              frame: fn, count_a: countA, count_b: countB});
+    }
+
+    const off = fn - g_dump_b_anchor_frame;
+    if (g_dump_records_b_offsets.indexOf(off) >= 0 &&
+        !g_dump_records_b_fired.has(off)) {
+        g_dump_records_b_fired.add(off);
+        try {
+            emitRecordsBDump(fn, off);
+            if (g_dump_records_b_capture && devicePtr) {
+                captureBackbuffer(devicePtr, fn);
+            }
+        } catch (e) {
+            err('emitRecordsBDump', e.message + ' @ ' + e.stack);
+        }
+    }
+    const lastOff =
+        g_dump_records_b_offsets[g_dump_records_b_offsets.length - 1];
+    if (off > lastOff && !g_dump_records_b_done) {
+        g_dump_records_b_done = true;
+        send({kind: 'dump_records_b_done',
+              first_frame: g_dump_b_anchor_frame,
+              last_frame:  fn});
+    }
 }
 
 // ─── memory-access watch (Phase D.7) ────────────────────────────────────
@@ -2360,6 +2658,30 @@ rpc.exports = {
         g_pre_3d_trace           = !!config.pre_3d_trace;
         g_pre_3d_done_sent       = false;
 
+        // Cchr.0 table-B dump.  Anchors on the first count_b>0 frame; pair
+        // with auto_z_spam to drive a fresh new-game to HOUSE.
+        // dump_records_b_offsets is an optional list of frame offsets from
+        // the anchor (default [0, 30, 120, 300]; sorted ascending so the
+        // terminal-done check reads the last entry).  dump_records_b_capture
+        // also grabs a backbuffer screenshot at each dump frame.
+        g_dump_records_b         = !!config.dump_records_b;
+        g_dump_records_b_capture = !!config.dump_records_b_capture;
+        g_dump_records_b_fired   = new Set();
+        g_dump_records_b_done    = false;
+        g_dump_b_anchor_frame    = -1;
+        g_draw_count_this_frame  = 0;
+        g_draw_count_max         = 0;
+        g_dump_records_b_heartbeat =
+            (config.dump_records_b_heartbeat | 0) || 1024;
+        if (Array.isArray(config.dump_records_b_offsets) &&
+            config.dump_records_b_offsets.length > 0) {
+            g_dump_records_b_offsets = config.dump_records_b_offsets
+                .map(function (o) { return o | 0; })
+                .sort(function (a, b) { return a - b; });
+        } else {
+            g_dump_records_b_offsets = [0, 30, 120, 300];
+        }
+
         // Memory-access watch (Phase D.7). The region list is parsed
         // here; the monitor is armed below (after ensureBase, before
         // resume) so the very first write — including an init-time
@@ -2424,6 +2746,9 @@ rpc.exports = {
               auto_3d_trace: g_auto_3d_trace,
               auto_3d_trace_frames: g_auto_3d_trace_frames,
               pre_3d_trace: g_pre_3d_trace,
+              dump_records_b: g_dump_records_b,
+              dump_records_b_offsets: g_dump_records_b_offsets,
+              dump_records_b_capture: g_dump_records_b_capture,
               mem_watch: wantMemWatch,
               mem_watch_regions: g_mem_watch_regions.length});
 
