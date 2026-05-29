@@ -4,6 +4,20 @@
 > sprite path) with the *port* dependency map + chip ladder. Started
 > 2026-05-29.
 
+> **2026-05-30 — ERRATA (corrects the survey below): the survey's item 3 is
+> WRONG. `FUN_0044376a` is NOT an "actor logical→render-slot copier (8538 B)".
+> It is the records_b entity-effect *spawn allocator* (signature
+> `(owner, type, flag)`; loops `idx * 0x124` over the entity array
+> `@0x069324b0`, 512 slots) and is ALREADY PORTED as
+> `scene1_record_b_spawn_entity()` (chips C8j.5–C8j.9a, `scene1_records_b_spawn.c`).
+> The `FUN_0044376a(0x56da1b8, 3, idx)` call inside `FUN_0048b850` spawns an
+> entity-effect, not a render-slot copy. The real per-frame render-slot fill is
+> **inline in `FUN_0048b850`** (the `0x56dacc0` write @0x48c961 + a `rep movsd`
+> @0x48c9b9). So the next real chip for visible HOUSE characters is
+> **`FUN_0048b850` itself** (5030 B per-frame actor/camera controller), armed by
+> `FUN_0048b3f6` — there is no separate "8538 B copier". (Two independent clean-
+> context analyses + the live signature + the existing port corroborate this.)**
+>
 > **2026-05-29 — POPULATOR SURVEY (objdump-grounded): the memory note
 > "FUN_00436f97 populates DAT_056dacc0" is WRONG. FUN_00436f97 *clears* the
 > party render array; a separate ~18 KB per-frame subsystem *fills* it.**
@@ -406,10 +420,12 @@ the float-timer pin, and NULL-safe. 2935 total, all pass; both exe targets
 build warning-free.
 
 **Remaining for the ladder:** Cchr.2e landed 2026-05-29 (below). For
-*visible* HOUSE characters the remaining work is the actor populator chain
-`FUN_0048b3f6 → FUN_0048b850 → FUN_0044376a` (~14 KB; see the corrected
-populator survey in this file's header — `FUN_00436f97` is the furniture
-writer, already landed, NOT the character populator).
+*visible* HOUSE characters the remaining work is the actor populator
+`FUN_0048b3f6 → FUN_0048b850` (~5.7 KB; see the ERRATA at this file's header —
+the render-slot fill is *inline* in `FUN_0048b850`, NOT a separate `FUN_0044376a`
+copier, which is the already-ported entity-effect spawn allocator. And
+`FUN_00436f97` is the furniture writer, already landed, NOT the character
+populator).
 
 ## Cchr.2e — the records / people sprite pre-pass (FUN_0045672a, 0x45672a, 1317 B)
 
