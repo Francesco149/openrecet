@@ -300,6 +300,12 @@ class CaptureConfig:
     # call on each dump-offset frame to <run_dir>/quad_trace.jsonl, naming
     # the 2D caller VA + texture block that emits the player sprite.
     quad_hist: bool = False
+    # Cchr.2b — character-sprite leaf capture (rides the dump_records_b
+    # drive). Hooks FUN_0045a56f at ENTER (its inputs) + its own
+    # DrawPrimitiveUP (the built vertex buffer) and writes one chr_leaf
+    # record per dump-offset frame to <run_dir>/chr_leaf.jsonl, so the
+    # port's chr_sprite_build_quads can be bit-compared against retail.
+    chr_leaf: bool = False
 
 
 @dataclass
@@ -335,6 +341,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     f_recb = records_b_jsonl.open("w") if cfg.dump_records_b else None
     quad_jsonl = run_dir / "quad_trace.jsonl"
     f_quad = quad_jsonl.open("w") if cfg.quad_hist else None
+    chr_leaf_jsonl = run_dir / "chr_leaf.jsonl"
+    f_leaf = chr_leaf_jsonl.open("w") if cfg.chr_leaf else None
 
     captured: list[int] = []
     last_mask: int | None = None
@@ -549,6 +557,21 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                     f"dims={list((b.get('dims') or {}).keys())}\n")
             return
 
+        if kind == "chr_leaf":
+            if f_leaf is not None:
+                f_leaf.write(json.dumps(p) + "\n")
+                f_leaf.flush()
+            n_in = sum(1 for e in (p.get("events") or [])
+                       if e.get("ev") == "leaf_in")
+            n_out = sum(1 for e in (p.get("events") or [])
+                        if e.get("ev") == "leaf_out")
+            f_log.write(f"[chr_leaf] frame={p.get('frame')} "
+                        f"off={p.get('offset_from_3d')} "
+                        f"player_char_id={p.get('player_char_id')} "
+                        f"leaf_in={n_in} leaf_out={n_out} "
+                        f"player_pos={p.get('player_pos')}\n")
+            return
+
         if kind == "dump_records_b_done":
             f_log.write(f"[records_b] dump window done "
                         f"[frames {p.get('first_frame')}..{p.get('last_frame')}]; "
@@ -666,6 +689,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 int(o) for o in cfg.dump_records_b_offsets]
         if cfg.quad_hist:
             init_cfg["quad_hist"] = True
+        if cfg.chr_leaf:
+            init_cfg["chr_leaf"] = True
     if cfg.mem_watch:
         init_cfg["mem_watch"] = True
         init_cfg["mem_watch_precise"] = bool(cfg.mem_watch_precise)
@@ -721,6 +746,10 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         f_mem.close()
     if f_recb is not None:
         f_recb.close()
+    if f_quad is not None:
+        f_quad.close()
+    if f_leaf is not None:
+        f_leaf.close()
 
     return CaptureResult(
         exit_code=exit_code,
@@ -919,6 +948,15 @@ def main(argv: list[str] | None = None) -> int:
                          "emitter (the bucket whose dst rect tracks the player) "
                          "is named. Use dump offsets that land in free-roam "
                          "HOUSE, ideally adjacent pairs so the player moved.")
+    ap.add_argument("--chr-leaf", action="store_true",
+                    help="Cchr.2b: with --dump-records-b, hook the character-"
+                         "sprite leaf renderer FUN_0045a56f at ENTER (its 5 "
+                         "inputs + the sheet tex dims + formdata base) and its "
+                         "own DrawPrimitiveUP (the built FVF-0x142 vertex "
+                         "buffer), writing one chr_leaf record per dump-offset "
+                         "frame to <run_dir>/chr_leaf.jsonl. Feed leaf_in into "
+                         "the port's chr_sprite_build_quads and bit-compare "
+                         "against leaf_out. Use HOUSE free-roam dump offsets.")
     args = ap.parse_args(argv)
     fr_tuple: tuple[int, int] | None = None
     if args.force_resolution:
@@ -994,6 +1032,7 @@ def main(argv: list[str] | None = None) -> int:
         dump_records_b_capture=args.dump_records_b_capture,
         dump_records_b_heartbeat=args.dump_records_b_heartbeat,
         quad_hist=args.quad_hist,
+        chr_leaf=args.chr_leaf,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

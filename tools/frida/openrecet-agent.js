@@ -197,7 +197,30 @@ const ADDR = {
     // (see findings/scene1-people-table.md L116), NOT records_b.  Header
     // fields per that survey.
     var_people_base:     0x0076bd54,
+
+    // Cchr.2b — the HOUSE character-sprite leaf renderer + its data
+    // globals (see docs/findings/scene1-char-sprite-render.md). The
+    // leaf-capture mode hooks the renderer at ENTER to dump its inputs
+    // and its own DrawPrimitiveUP to dump the resulting vertex buffer,
+    // so chr_sprite_build_quads can be bit-A/B'd against retail.
+    fn_chr_sprite_leaf:  0x0045a56f,  // FUN_0045a56f(param_1, char_id, char_id,
+                                      //   world_mtx, color) — cdecl, 5 stack args
+    var_chr_formdata:    0x00438abe0, // DAT_0438abe0 — u32 holding the
+                                      // chr/formdata.bin blob pointer
+    var_chr_desc_base:   0x00438ce88, // DAT_0438ce88 — per-char descriptor
+                                      // array base (stride 0x5058); sheet_w
+                                      // @+0x48, scale_x100 @+0x50, y_origin
+                                      // @+0x54, frame-LUT @+0x58
+    var_chr_tex_w:       0x073a9b1c,  // DAT_073a9b1c[char_id*0x10] — sheet tex w
+    var_chr_tex_h:       0x073a9b20,  // DAT_073a9b20[char_id*0x10] — sheet tex h
+    var_player_char_id:  0x056da1cc,  // DAT_056da1cc — player's char id
 };
+
+// The two DrawPrimitiveUP return addresses inside the leaf (the byte
+// after each `call [dev+0x120]`: 0x45a9f8+6 and 0x45aa2b+6). A
+// DrawPrimitiveUP whose caller VA is one of these is the leaf's own draw,
+// so its vertex buffer is the sprite geometry to capture.
+const CHR_LEAF_DRAW_RETS = [0x0045a9fe, 0x0045aa31];
 
 // ─── COM vtable indices ─────────────────────────────────────────────────
 
@@ -576,6 +599,16 @@ let g_quad_record              = false;  // armed for the current frame's draws
 let g_quad_events              = [];     // current frame's ordered draw events
 let g_quad_events_cap          = 6000;   // per-frame event hard cap (safety)
 let g_quad_hist_map            = {};     // cumulative per-ret_va aggregate
+
+// Cchr.2b leaf-capture (rides the dump_records_b drive + the g_quad_record
+// arming, like quad_hist). When set, hook the character-sprite leaf
+// renderer at ENTER (dump its 5 inputs + the sheet tex dims + the
+// formdata frame entry it resolves) and its own DrawPrimitiveUP (dump the
+// full FVF-0x142 vertex buffer it built), so the port's
+// chr_sprite_build_quads can be bit-compared against retail.
+let g_chr_leaf                 = false;
+let g_chr_leaf_hooked          = false;
+let g_chr_leaf_events          = [];     // current frame's leaf in/out events
 
 // Memory-access watch (Phase D.7). When `mem_watch` is true, the agent
 // arms Frida's MemoryAccessMonitor over the regions in
@@ -1224,6 +1257,14 @@ function installInitHook() {
                     installQuadHistHooks(dev);
                 } catch (e) {
                     err('installQuadHistHooks', e.message);
+                }
+            }
+            // Cchr.2b leaf capture — also rides the dump_records_b drive.
+            if (g_chr_leaf) {
+                try {
+                    installChrLeafHooks(dev);
+                } catch (e) {
+                    err('installChrLeafHooks', e.message);
                 }
             }
             // Signal "device ready" so RPC callers that depend on the
@@ -1891,6 +1932,163 @@ function installQuadHistHooks(devicePtr) {
     log('quad-hist hooks installed (FUN_00404efc + 3 vtable slots)');
 }
 
+// ─── Cchr.2b character-sprite leaf capture ──────────────────────────────
+//
+// Hook FUN_0045a56f (cdecl, 5 stack args) at ENTER and its own
+// DrawPrimitiveUP at the two in-leaf call sites.  On a recorded frame
+// (g_quad_record, armed by the dump_records_b drive) each call appends:
+//
+//   {ev:'leaf_in',  ret_va, char_id, char_id3, color, tex_w, tex_h,
+//                   actor:[17 i32], matrix:[16 f32],
+//                   fd_base, fd_ncells, fd_start}
+//   {ev:'leaf_out', ret_va, prim_type, prim_count, vb_stride,
+//                   verts:[[x,y,z, diffuse_u32, u,v], ...]}
+//
+// The reader pairs leaf_in/leaf_out by order (the leaf draws once per
+// call, immediately after building) and feeds leaf_in into the port's
+// chr_sprite_build_quads to bit-compare against leaf_out.
+function chrLeafReadActor(p) {
+    // param_1 = pointer to the actor sprite-state struct (>= 0x44 bytes).
+    const out = new Array(17);
+    for (let i = 0; i < 17; i++) out[i] = p.add(i * 4).readS32();
+    return out;
+}
+
+// The leaf's 8-entry facing→bank table (DAT_005c5a54), mirrored here so
+// the capture can resolve the LUT cell exactly as the renderer does.
+const CHR_FACING_BANK = [0, 2, 4, 3, 1, 3, 4, 2];
+
+function chrLeafBeU16(p) {
+    return (p.readU8() << 8) | p.add(1).readU8();
+}
+
+// Derive everything chr_sprite_build_quads consumes, straight from
+// retail's descriptor + formdata, so the host diff is self-contained
+// (no asset files needed): the descriptor fields, the resolved LUT cell,
+// and the formdata frame entry (ncells / start / the sheet-position
+// array).  All reads are wrapped — a bad pointer yields -1 fields, never
+// a render-thread crash.
+function chrLeafReadDerived(actor, charId) {
+    const out = {
+        sheet_w: -1, scale_x100: -1, y_origin: -1,
+        bank: -1, cell: -1,
+        fd_base: -1, fd_ncells: -1, fd_start: -1, fd_pos: [],
+    };
+    try {
+        const anim   = actor[0] | 0;
+        const frame  = actor[4] | 0;
+        const facing = actor[6] | 0;
+        const bank = (facing >= 0 && facing < 8) ? CHR_FACING_BANK[facing] : 0;
+        out.bank = bank;
+
+        const block = rva(ADDR.var_chr_desc_base).add(charId * 0x5058);
+        out.sheet_w    = block.add(0x48).readS32();
+        out.scale_x100 = block.add(0x50).readS32();
+        out.y_origin   = block.add(0x54).readS32();
+        const lutIdx = anim * 0x100 + frame * 6 + bank;
+        const cell = block.add(0x58 + lutIdx * 4).readS32();
+        out.cell = cell;
+
+        const blob = rva(ADDR.var_chr_formdata).readU32();
+        if (blob && cell >= 0) {
+            const bp = ptr(blob).add(charId * 4);
+            const base = (bp.readU8() << 24) | (bp.add(1).readU8() << 16) |
+                         (bp.add(2).readU8() << 8) | bp.add(3).readU8();
+            out.fd_base = base;
+            const cellAt = ptr(blob).add(base + cell * 2);
+            const ncells = chrLeafBeU16(cellAt.add(0x400));
+            const start  = chrLeafBeU16(cellAt.add(0x600));
+            out.fd_ncells = ncells;
+            out.fd_start  = start;
+            const cap = Math.min(ncells, 256);
+            for (let i = 0; i < cap; i++) {
+                out.fd_pos.push(
+                    chrLeafBeU16(ptr(blob).add(base + (start + i) * 2 + 0x800)));
+            }
+        }
+    } catch (e) { /* tolerate — partial derivation is still useful */ }
+    return out;
+}
+
+function installChrLeafHooks(devicePtr) {
+    if (g_chr_leaf_hooked) return;
+
+    // Leaf ENTER — dump the inputs.
+    Interceptor.attach(rva(ADDR.fn_chr_sprite_leaf), {
+        onEnter: function (args) {
+            if (!g_quad_record) return;
+            if (g_chr_leaf_events.length >= g_quad_events_cap) return;
+            try {
+                const charId = args[1].toInt32();
+                const tw = rva(ADDR.var_chr_tex_w)
+                               .add(charId * 0x10).readS32();
+                const th = rva(ADDR.var_chr_tex_h)
+                               .add(charId * 0x10).readS32();
+                const ev = {
+                    ev: 'leaf_in',
+                    ret_va: toGhidraVa(this.returnAddress),
+                    char_id: charId,
+                    char_id3: args[2].toInt32(),
+                    color: args[4].toUInt32(),
+                    tex_w: tw, tex_h: th,
+                    actor: chrLeafReadActor(args[0]),
+                    matrix: traceReadMatrix(args[3]),
+                };
+                const d = chrLeafReadDerived(ev.actor, charId);
+                ev.sheet_w = d.sheet_w;
+                ev.scale_x100 = d.scale_x100;
+                ev.y_origin = d.y_origin;
+                ev.bank = d.bank;
+                ev.cell = d.cell;
+                ev.fd_base = d.fd_base;
+                ev.fd_ncells = d.fd_ncells;
+                ev.fd_start = d.fd_start;
+                ev.fd_pos = d.fd_pos;
+                g_chr_leaf_events.push(ev);
+            } catch (e) { /* never break the render thread */ }
+        },
+    });
+
+    // The leaf's own DrawPrimitiveUP — dump the built vertex buffer.
+    Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawPrimitiveUP), {
+        onEnter: function (args) {
+            if (!g_quad_record) return;
+            if (g_chr_leaf_events.length >= g_quad_events_cap) return;
+            const retVa = toGhidraVa(this.returnAddress);
+            if (CHR_LEAF_DRAW_RETS.indexOf(retVa) < 0) return;
+            try {
+                const primCount = args[2].toUInt32();
+                const stride    = args[4].toUInt32();
+                const vb        = args[3];
+                const ev = {
+                    ev: 'leaf_out', ret_va: retVa,
+                    prim_type: args[1].toUInt32(),
+                    prim_count: primCount,
+                    vb_stride: stride,
+                    verts: [],
+                };
+                // TRIANGLELIST: vertex count = prim_count * 3.  Cap the
+                // payload at 900 verts (150 quads) for safety.
+                const nv = Math.min(primCount * 3, 900);
+                if (!vb.isNull() && stride >= 24) {
+                    for (let i = 0; i < nv; i++) {
+                        const p = vb.add(i * stride);
+                        ev.verts.push([
+                            p.readFloat(), p.add(4).readFloat(),
+                            p.add(8).readFloat(), p.add(12).readU32(),
+                            p.add(16).readFloat(), p.add(20).readFloat(),
+                        ]);
+                    }
+                }
+                g_chr_leaf_events.push(ev);
+            } catch (e) { /* tolerate */ }
+        },
+    });
+
+    g_chr_leaf_hooked = true;
+    log('chr-leaf-capture hooks installed (FUN_0045a56f + DrawPrimitiveUP)');
+}
+
 // Called from the Present hook every frame.  Polls count_b, anchors the
 // dump window on its first non-zero value, fires the configured offsets
 // (with optional screenshot), emits heartbeats, and signals done.
@@ -1945,6 +2143,20 @@ function dumpRecordsBTick(fn, devicePtr) {
                       event_count: g_quad_events.length,
                       events: g_quad_events});
             }
+            // Cchr.2b — this frame's leaf in/out events (armed at off-1).
+            if (g_chr_leaf) {
+                const ppos = rva(ADDR.var_player_pos);
+                let playerCharId = -1;
+                try { playerCharId = rva(ADDR.var_player_char_id).readS32(); }
+                catch (e) { /* tolerate */ }
+                send({kind: 'chr_leaf',
+                      frame: fn, offset_from_3d: off,
+                      player_pos: [ppos.readFloat(), ppos.add(4).readFloat(),
+                                   ppos.add(8).readFloat()],
+                      player_char_id: playerCharId,
+                      event_count: g_chr_leaf_events.length,
+                      events: g_chr_leaf_events});
+            }
         } catch (e) {
             err('emitRecordsBDump', e.message + ' @ ' + e.stack);
         }
@@ -1954,8 +2166,9 @@ function dumpRecordsBTick(fn, devicePtr) {
     // offset frame (one frame of lead — the FUN_00404efc hook only buffers
     // while g_quad_record is true).  Clear the per-frame buffer each tick
     // so a serialized offset frame starts the next one clean.
-    if (g_quad_hist) {
+    if (g_quad_hist || g_chr_leaf) {
         g_quad_events = [];
+        g_chr_leaf_events = [];
         g_quad_record = g_dump_records_b_offsets.indexOf(off + 1) >= 0;
     }
 
@@ -2890,6 +3103,10 @@ rpc.exports = {
         // Cchr.1 quad-add caller trace (rides the dump_records_b drive).
         g_quad_hist        = !!config.quad_hist;
         g_quad_hist_hooked = false;
+        // Cchr.2b leaf capture (rides the same dump_records_b drive).
+        g_chr_leaf         = !!config.chr_leaf;
+        g_chr_leaf_hooked  = false;
+        g_chr_leaf_events  = [];
         g_quad_record      = false;
         g_quad_events      = [];
         g_quad_hist_map    = {};
