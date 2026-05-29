@@ -725,6 +725,94 @@ int test_scene1_postload_walker_phase2_scene_type_4_count_10(void)
     return 0;
 }
 
+/* ── PII.3c — phase-1 (wall/floor/jutan) writer ─────────────────────── */
+
+int test_scene1_postload_walker_phase1_house_count_2(void)
+{
+    /* HOUSE (scene_type 0) → phase1_count = 2 (room + carpet). */
+    reset_world();
+    scene1_postload_set_walker_phase2_scene_type(0);
+    scene1_postload_set_walker_phase2_ivar8(3);
+    scene1_postload_walker_phase2_init();
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_count, 2);
+    return 0;
+}
+
+int test_scene1_postload_walker_phase1_count_dispatch(void)
+{
+    /* st 1 → 2, st 2 → ivar8, st 3/4 → 5. */
+    reset_world();
+    scene1_postload_set_walker_phase2_scene_type(1);
+    scene1_postload_walker_phase2_init();
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_count, 2);
+
+    reset_world();
+    scene1_postload_set_walker_phase2_scene_type(2);
+    scene1_postload_set_walker_phase2_ivar8(6);
+    scene1_postload_walker_phase2_init();
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_count, 6);
+
+    reset_world();
+    scene1_postload_set_walker_phase2_scene_type(3);
+    scene1_postload_walker_phase2_init();
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_count, 5);
+    return 0;
+}
+
+int test_scene1_postload_walker_phase1_house_mesh_index(void)
+{
+    /* DAT_0438bfb8: [0]=0 (room → map slot 0), [1..]=1 (carpet → slot 1). */
+    reset_world();
+    scene1_postload_set_walker_phase2_scene_type(0);
+    scene1_postload_set_walker_phase2_ivar8(3);
+    scene1_postload_walker_phase2_init();
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_mesh_index[0], 0);
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_mesh_index[1], 1);
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_mesh_index[2], 1);
+    return 0;
+}
+
+int test_scene1_postload_walker_phase1_house_transforms_match_retail(void)
+{
+    /* Retail ground truth (runs/phase1-groundtruth.json, asm-verified
+     * column→axis remap): instance 0 = the room at the origin (engine
+     * index 15, unwritten), instance 1 = the carpet at (-2, 0, -1)
+     * (engine index 16: X=col1[16]=-2, Y=col2[16]=0, Z=col3[16]=-1). */
+    reset_world();
+    scene1_postload_set_walker_phase2_scene_type(0);
+    scene1_postload_set_walker_phase2_ivar8(3);
+    scene1_postload_walker_phase2_init();
+
+    T_ASSERT(g_scene1_walker_phase1_pos_x[0] == 0.0f);
+    T_ASSERT(g_scene1_walker_phase1_pos_y[0] == 0.0f);
+    T_ASSERT(g_scene1_walker_phase1_pos_z[0] == 0.0f);
+    T_ASSERT(g_scene1_walker_phase1_rot_y[0] == 0.0f);
+
+    T_ASSERT(g_scene1_walker_phase1_pos_x[1] == -2.0f);
+    T_ASSERT(g_scene1_walker_phase1_pos_y[1] ==  0.0f);
+    T_ASSERT(g_scene1_walker_phase1_pos_z[1] == -1.0f);
+    T_ASSERT(g_scene1_walker_phase1_rot_y[1] ==  0.0f);
+
+    /* The full constant block (engine idx 17-19 → port 2-4). */
+    T_ASSERT(g_scene1_walker_phase1_pos_x[2] == 13.0f);
+    T_ASSERT(g_scene1_walker_phase1_pos_z[2] == -1.0f);
+    T_ASSERT(g_scene1_walker_phase1_pos_x[3] == -2.5f);
+    T_ASSERT(g_scene1_walker_phase1_pos_z[3] ==  8.0f);
+    T_ASSERT(g_scene1_walker_phase1_pos_x[4] == 13.0f);
+    T_ASSERT(g_scene1_walker_phase1_pos_z[4] ==  8.0f);
+    return 0;
+}
+
+int test_scene1_postload_walker_phase1_disabled_when_phase2_disabled(void)
+{
+    /* scene_type out of [0..4] → writer no-ops; phase-1 stays zero. */
+    reset_world();
+    scene1_postload_set_walker_phase2_scene_type(-1);
+    scene1_postload_walker_phase2_init();
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_count, 0);
+    return 0;
+}
+
 int test_scene1_postload_walker_phase2_mesh_type_pattern(void)
 {
     /* Engine asm-verified: slots {0,4,6,7,8,9} = ivar8; slots {1,2,3,5} = 4. */

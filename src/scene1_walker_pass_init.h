@@ -123,6 +123,41 @@ void scene1_walker_phase2_reset(void);
  */
 int scene1_walker_phase2_compute(float *out_matrices);
 
+/* ───────── PII.3c — phase 1 (wall/floor/jutan, draw loop A) ─────── */
+
+/* Phase-1 instance cap (engine reads share the same 20-entry columns
+ * as phase 2, at a different index range). */
+#define SCENE1_WALKER_PHASE1_MAX 20
+
+/* Phase-1 per-instance arrays.  Unlike phase 2 (which uses array
+ * indices 0..count-1 of the shared columns), the engine's phase-1
+ * setup loop (asm 0x457d8f..0x457e10) reads the shared columns at
+ * index (15 + i) and maps the COLUMNS to axes differently — verified
+ * by objdump of the D3DXMatrixTranslation(pOut,x,y,z) push order at
+ * the loop's call to 0x4a34b0:
+ *     x   ← [esi-0x50] = rot_y-column   [15+i]   (DAT_0438c01c region)
+ *     y   ← [esi]      = pos_x-column   [15+i]   (DAT_0438c06c region)
+ *     z   ← [esi+0x50] = pos_y-column   [15+i]   (DAT_0438c0bc region)
+ *     rot ← [esi-0xa0] = mesh_type-col  [15+i]   (DAT_0438bfcc region)
+ * We store the resolved AXIS values directly (the writer does the
+ * column→axis remap), so these arrays mean what they say. */
+extern int32_t g_scene1_walker_phase1_count;             /* engine DAT_0438bfb0 */
+extern int32_t g_scene1_walker_phase1_mesh_index[SCENE1_WALKER_PHASE1_MAX]; /* DAT_0438bfb8[i] → g_scene_map_meshes slot */
+extern float   g_scene1_walker_phase1_pos_x[SCENE1_WALKER_PHASE1_MAX];
+extern float   g_scene1_walker_phase1_pos_y[SCENE1_WALKER_PHASE1_MAX];
+extern float   g_scene1_walker_phase1_pos_z[SCENE1_WALKER_PHASE1_MAX];
+extern float   g_scene1_walker_phase1_rot_y[SCENE1_WALKER_PHASE1_MAX];
+
+/* Reset phase-1 state to BSS-zero (test setup + per-stage re-entry). */
+void scene1_walker_phase1_reset(void);
+
+/* Build one D3DMATRIX per phase-1 instance into out_matrices[i*16..].
+ * Composition (asm 0x457d94..0x457e10) — same chain as phase 2 minus
+ * the mesh_type==4 flip:
+ *     world = S(-0.2, 0.2, 0.2) × RotY(rot_y) × T(pos_x, pos_y, pos_z)
+ * Returns the count written (clamped to SCENE1_WALKER_PHASE1_MAX). */
+int scene1_walker_phase1_compute(float *out_matrices);
+
 /* ───────── PII.3b — outer cache-slot loop + draw loop B ─────────── */
 
 /* Engine DAT_073dddb4 — status-screen-open flag.  When != 0, draw

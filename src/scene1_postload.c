@@ -537,4 +537,56 @@ void scene1_postload_walker_phase2_init(void)
         g_scene1_walker_phase2_pos_y[i] = 0.0f;
         g_scene1_walker_phase2_pos_z[i] = 2.0f * (float)(sz - az);
     }
+
+    /* ── PII.3c — phase-1 (wall/floor/jutan) writer ──────────────────
+     * Same engine block-21 else-branch (asm 0x437918+), the phase-1
+     * half.  Draw loop A renders these out of the map-mesh pool
+     * (g_scene_map_meshes / engine DAT_068dcca0).
+     *
+     * Count dispatch (asm 0x437918-0x437946, DAT_0438bfb0):
+     *   st 0 → 2,  st 1 → 2,  st 2 → ivar8,  st 3/4 → 5.
+     * HOUSE (st 0) → 2 instances: the room + the carpet. */
+    int32_t phase1_count;
+    switch (st) {
+    case 0:
+    case 1:  phase1_count = 2;     break;
+    case 2:  phase1_count = ivar8; break;
+    default: phase1_count = 5;     break;   /* st 3, 4 */
+    }
+    if (phase1_count < 0) phase1_count = 0;
+    if (phase1_count > SCENE1_WALKER_PHASE1_MAX)
+        phase1_count = SCENE1_WALKER_PHASE1_MAX;
+    g_scene1_walker_phase1_count = phase1_count;
+
+    /* Mesh-index array (engine DAT_0438bfb8[]): [0]=0, [1..4]=uVar13=1
+     * (literal at FUN_00436f97 L395).  → map-mesh slot 0 = shop_1st.x
+     * (room) for instance 0, slot 1 = shop_jutan.x (carpet) for the
+     * rest.  Capture: phase1_mesh_index = [0,1,1,1,1,...]. */
+    g_scene1_walker_phase1_mesh_index[0] = 0;
+    for (int i = 1; i < SCENE1_WALKER_PHASE1_MAX; i++)
+        g_scene1_walker_phase1_mesh_index[i] = 1;
+
+    /* Transform block.  The engine builder reads the shared columns at
+     * index (15 + j); index 15 is never written (→ instance 0 at the
+     * origin), and the fixed constant block fills engine indices 16-19
+     * (→ port instances 1-4).  Axis remap is asm-verified (see
+     * scene1_walker_pass_init.h): X←rot_y-col, Y←pos_x-col, Z←pos_y-col,
+     * rot←mesh_type-col (the latter is 0 in this region).
+     *
+     * Engine constants (FUN_00436f97 L607-622):
+     *   X (col1[16..19]): -2.0, 13.0, -2.5, 13.0
+     *   Y (col2[16..19]):  0,    0,    0,    0
+     *   Z (col3[16..19]): -1.0, -1.0,  8.0,  8.0   */
+    static const float k_phase1_x[4] = { -2.0f, 13.0f, -2.5f, 13.0f };
+    static const float k_phase1_z[4] = { -1.0f, -1.0f,  8.0f,  8.0f };
+    g_scene1_walker_phase1_pos_x[0] = 0.0f;   /* engine idx 15 — unwritten */
+    g_scene1_walker_phase1_pos_y[0] = 0.0f;
+    g_scene1_walker_phase1_pos_z[0] = 0.0f;
+    g_scene1_walker_phase1_rot_y[0] = 0.0f;
+    for (int j = 0; j < 4 && j + 1 < SCENE1_WALKER_PHASE1_MAX; j++) {
+        g_scene1_walker_phase1_pos_x[j + 1] = k_phase1_x[j];
+        g_scene1_walker_phase1_pos_y[j + 1] = 0.0f;
+        g_scene1_walker_phase1_pos_z[j + 1] = k_phase1_z[j];
+        g_scene1_walker_phase1_rot_y[j + 1] = 0.0f;
+    }
 }

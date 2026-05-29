@@ -24,6 +24,27 @@ float   g_scene1_walker_phase2_pos_z    [SCENE1_WALKER_PHASE2_MAX];
 
 int32_t g_scene1_walker_phase2_count = 0;
 
+/* PII.3c — phase-1 (wall/floor/jutan) per-instance arrays.  Resolved
+ * AXIS values (the writer does the engine column→axis remap; see
+ * scene1_walker_pass_init.h). */
+int32_t g_scene1_walker_phase1_count = 0;
+int32_t g_scene1_walker_phase1_mesh_index[SCENE1_WALKER_PHASE1_MAX];
+float   g_scene1_walker_phase1_pos_x[SCENE1_WALKER_PHASE1_MAX];
+float   g_scene1_walker_phase1_pos_y[SCENE1_WALKER_PHASE1_MAX];
+float   g_scene1_walker_phase1_pos_z[SCENE1_WALKER_PHASE1_MAX];
+float   g_scene1_walker_phase1_rot_y[SCENE1_WALKER_PHASE1_MAX];
+
+void scene1_walker_phase1_reset(void)
+{
+    memset(g_scene1_walker_phase1_mesh_index, 0,
+           sizeof g_scene1_walker_phase1_mesh_index);
+    memset(g_scene1_walker_phase1_pos_x, 0, sizeof g_scene1_walker_phase1_pos_x);
+    memset(g_scene1_walker_phase1_pos_y, 0, sizeof g_scene1_walker_phase1_pos_y);
+    memset(g_scene1_walker_phase1_pos_z, 0, sizeof g_scene1_walker_phase1_pos_z);
+    memset(g_scene1_walker_phase1_rot_y, 0, sizeof g_scene1_walker_phase1_rot_y);
+    g_scene1_walker_phase1_count = 0;
+}
+
 /* ─── flag-byte hook ──────────────────────────────────────────────── */
 
 static scene1_walker_phase2_flag_fn s_flag_hook = NULL;
@@ -58,6 +79,7 @@ void scene1_walker_phase2_reset(void)
            sizeof(g_scene1_walker_phase2_pos_z));
     g_scene1_walker_phase2_count = 0;
     s_flag_hook = NULL;
+    scene1_walker_phase1_reset();
     scene1_walker_phase2b_reset_internal();
 }
 
@@ -161,6 +183,40 @@ int scene1_walker_phase2_compute(float *out_matrices)
         }
     }
 
+    return count;
+}
+
+/* PII.3c — phase-1 matrix builder.  Engine asm 0x457d94..0x457e10:
+ * per instance T(pos) then ×RotY(rot) then ×S(-0.2,0.2,0.2).  Same
+ * chain as phase 2 minus the mesh_type==4 flip (phase-1 setup has no
+ * such branch). */
+int scene1_walker_phase1_compute(float *out_matrices)
+{
+    if (!out_matrices) return 0;
+
+    int count = g_scene1_walker_phase1_count;
+    if (count < 0) count = 0;
+    if (count > SCENE1_WALKER_PHASE1_MAX) count = SCENE1_WALKER_PHASE1_MAX;
+    if (count == 0) return 0;
+
+    for (int i = 0; i < count; i++) {
+        float *world = out_matrices + i * 16;
+
+        mat4_translation(world,
+                         g_scene1_walker_phase1_pos_x[i],
+                         g_scene1_walker_phase1_pos_y[i],
+                         g_scene1_walker_phase1_pos_z[i]);
+        {
+            float ry[16];
+            mat4_rotation_y(ry, g_scene1_walker_phase1_rot_y[i]);
+            mat4_mul(world, ry, world);
+        }
+        {
+            float s[16];
+            mat4_scaling(s, K_NEG_PT_TWO, K_POINT_TWO, K_POINT_TWO);
+            mat4_mul(world, s, world);
+        }
+    }
     return count;
 }
 
@@ -279,6 +335,7 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
 #include "mesh.h"
 #include "mesh_load.h"
 #include "scene1_emit_record.h"
+#include "scene_map_meshes.h"
 #include "sprite.h"
 
 /* Engine `face_npc_ptr[face_i] == current_slot` is per-face NPC
@@ -397,6 +454,10 @@ void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
     static float phase2_matrices[SCENE1_WALKER_PHASE2_MAX * 16];
     int phase2_n = scene1_walker_phase2_compute(phase2_matrices);
 
+    /* PII.3c — phase-1 (wall/floor/jutan) matrices for draw loop A. */
+    static float phase1_matrices[SCENE1_WALKER_PHASE1_MAX * 16];
+    int phase1_n = scene1_walker_phase1_compute(phase1_matrices);
+
     /* L52806: FUN_00454f7c() barrier (same as scene1_emit_preamble). */
     scene1_emit_preamble((struct IDirect3DDevice8 *)dev);
 
@@ -446,8 +507,21 @@ void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
          * and never observable.  When the pulse path lands (likely
          * post-Cf.*), revisit. */
 
-        /* L52902-L52950: draw loop A (wall/floor/jutan, DAT_068dcca0).
-         * SKIPPED — PII.3c. */
+        /* L52902-L52950: draw loop A (wall/floor/jutan, DAT_068dcca0)
+         * — PII.3c.  Draw each phase-1 instance's mesh (room + carpet
+         * for HOUSE) filtered to this cache slot's textures.
+         *
+         * Engine distance-cull (L52908: threshold `*DAT_068dd2f0+0x1a78`
+         * vs eye-distance): the HOUSE threshold is 1000 world units while
+         * the room/carpet sit at the origin ~25 units from the camera, so
+         * the cull never rejects — we draw unconditionally.  Draw loop A
+         * is NOT gated on the status-screen flag (that gates only draw
+         * loop B), so it runs before that gate below. */
+        for (int i = 0; i < phase1_n; i++) {
+            mesh_t *m = scene_map_meshes_get(g_scene1_walker_phase1_mesh_index[i]);
+            if (!m) continue;
+            draw_loop_b_mesh(dev, m, slot, &phase1_matrices[i * 16]);
+        }
 
         /* L52952: draw loop B gate. */
         if (g_scene1_walker_status_screen_open != 0) continue;

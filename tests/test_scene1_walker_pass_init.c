@@ -579,3 +579,55 @@ int test_scene1_walker_phase2b_reset_defaults(void)
     T_ASSERT(scene1_walker_phase2_get_flag_hook() == NULL);
     return 0;
 }
+
+/* ─── PII.3c — phase-1 (wall/floor/jutan) matrix builder ───────────── */
+
+int test_scene1_walker_phase1_reset_defaults(void)
+{
+    g_scene1_walker_phase1_count = 5;
+    g_scene1_walker_phase1_pos_x[0] = 9.0f;
+    g_scene1_walker_phase1_mesh_index[0] = 7;
+    scene1_walker_phase1_reset();
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_count, 0);
+    T_ASSERT(g_scene1_walker_phase1_pos_x[0] == 0.0f);
+    T_ASSERT_EQ_I(g_scene1_walker_phase1_mesh_index[0], 0);
+    return 0;
+}
+
+int test_scene1_walker_phase1_compute_house_room_and_carpet(void)
+{
+    /* HOUSE: instance 0 = room at the origin, instance 1 = carpet at
+     * (-2, 0, -1), both rot 0.  Matrix chain = S(-0.2,0.2,0.2) × RotY ×
+     * T — identical to phase 2's no-flip path (ref_world_no_flip). */
+    scene1_walker_phase1_reset();
+    g_scene1_walker_phase1_count = 2;
+    g_scene1_walker_phase1_pos_x[0] = 0.0f;
+    g_scene1_walker_phase1_pos_y[0] = 0.0f;
+    g_scene1_walker_phase1_pos_z[0] = 0.0f;
+    g_scene1_walker_phase1_rot_y[0] = 0.0f;
+    g_scene1_walker_phase1_pos_x[1] = -2.0f;
+    g_scene1_walker_phase1_pos_y[1] =  0.0f;
+    g_scene1_walker_phase1_pos_z[1] = -1.0f;
+    g_scene1_walker_phase1_rot_y[1] =  0.0f;
+
+    float out[2 * 16];
+    int n = scene1_walker_phase1_compute(out);
+    T_ASSERT_EQ_I(n, 2);
+
+    float ref0[16], ref1[16];
+    ref_world_no_flip(ref0, 0.0f, 0.0f, 0.0f, 0.0f);
+    ref_world_no_flip(ref1, 0.0f, -2.0f, 0.0f, -1.0f);
+    T_ASSERT_MAT_NEAR(&out[0],  ref0, 1e-5f);
+    T_ASSERT_MAT_NEAR(&out[16], ref1, 1e-5f);
+    return 0;
+}
+
+int test_scene1_walker_phase1_compute_count_zero_and_null(void)
+{
+    scene1_walker_phase1_reset();
+    float out[16];
+    T_ASSERT_EQ_I(scene1_walker_phase1_compute(out), 0);
+    g_scene1_walker_phase1_count = 2;
+    T_ASSERT_EQ_I(scene1_walker_phase1_compute(NULL), 0);
+    return 0;
+}

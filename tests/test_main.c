@@ -1505,6 +1505,11 @@ struct test_case {
     X(scene1_postload_walker_phase2_scene_type_2_count_6) \
     X(scene1_postload_walker_phase2_scene_type_3_count_10) \
     X(scene1_postload_walker_phase2_scene_type_4_count_10) \
+    X(scene1_postload_walker_phase1_house_count_2) \
+    X(scene1_postload_walker_phase1_count_dispatch) \
+    X(scene1_postload_walker_phase1_house_mesh_index) \
+    X(scene1_postload_walker_phase1_house_transforms_match_retail) \
+    X(scene1_postload_walker_phase1_disabled_when_phase2_disabled) \
     X(scene1_postload_walker_phase2_mesh_type_pattern) \
     X(scene1_postload_walker_phase2_rot_y_pattern) \
     X(scene1_postload_walker_phase2_positions_default_anchor_subtract) \
@@ -3007,6 +3012,9 @@ struct test_case {
     X(scene1_walker_draw_b_mesh_index_wall_floor_path) \
     X(scene1_walker_draw_b_mesh_index_null_out_ok) \
     X(scene1_walker_phase2b_reset_defaults) \
+    X(scene1_walker_phase1_reset_defaults) \
+    X(scene1_walker_phase1_compute_house_room_and_carpet) \
+    X(scene1_walker_phase1_compute_count_zero_and_null) \
     \
     X(banner_compute_y_counter_0_is_off_screen) \
     X(banner_compute_y_counter_1) \
