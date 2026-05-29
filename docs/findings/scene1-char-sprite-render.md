@@ -11,12 +11,30 @@
 > `@0x069324b0`, 512 slots) and is ALREADY PORTED as
 > `scene1_record_b_spawn_entity()` (chips C8j.5–C8j.9a, `scene1_records_b_spawn.c`).
 > The `FUN_0044376a(0x56da1b8, 3, idx)` call inside `FUN_0048b850` spawns an
-> entity-effect, not a render-slot copy. The real per-frame render-slot fill is
-> **inline in `FUN_0048b850`** (the `0x56dacc0` write @0x48c961 + a `rep movsd`
-> @0x48c9b9). So the next real chip for visible HOUSE characters is
-> **`FUN_0048b850` itself** (5030 B per-frame actor/camera controller), armed by
-> `FUN_0048b3f6` — there is no separate "8538 B copier". (Two independent clean-
-> context analyses + the live signature + the existing port corroborate this.)**
+> entity-effect, not a render-slot copy. So the next real chip for visible HOUSE
+> characters is **`FUN_0048b850` itself** (5030 B per-frame actor/camera
+> controller), armed by `FUN_0048b3f6` — there is no separate "8538 B copier".
+> (Two independent clean-context analyses + the live signature + the existing
+> port corroborate this.)**
+>
+> **2026-05-30 — OBJDUMP GROUND TRUTH (corrects the survey's referent map too):**
+> A full `.text` scan for the absolute address `0x56dacc0` finds it **referenced
+> exactly once** — the walker read `mov esi,0x56dacc0` @`0x45722a` (in
+> FUN_00456f56). The survey's other two "referents" actually touch
+> `0x56dacf8` (= `0x56dacc0 + 0x38`, the per-slot **age** field): `0x4375ff`
+> (FUN_00436f97) does `mov [eax-0x154],ebx / mov [eax],ebx` and `0x48c961`
+> (FUN_0048b850) does `and DWORD [eax],0` stride `0x44` — **both are age
+> *clears*, not fills.** `0x48c961` specifically is FUN_0048b850's
+> companion-trail expiry (`dec [0x56daae0]; jz → zero the 0x56dacf8 ages`).
+> The real per-frame fill in FUN_0048b850's tail writes the **`0x56dab6c`
+> trail/after-image array** (5 slots, stride `0x44`, base+0x2c/0x30/0x34 = pos,
+> +0x38 = age), which is exactly what the walker reads in **sweep-0** as
+> `esi-0x154` (esi from `0x56dacc0`). I.e. FUN_0048b850 is the **player
+> dash-trail / after-image + camera-shake/zoom controller**; the standing
+> player/companion billboards the walker draws in sweep-0 come from this fill.
+> Implication: a faithful port is the ~634-line camera+trail controller, not a
+> small "copier"; the Cchr.2d MVP inject already draws a static standing actor,
+> so this chip is *motion/trail fidelity*, not "make characters appear".
 >
 > **2026-05-29 — POPULATOR SURVEY (objdump-grounded): the memory note
 > "FUN_00436f97 populates DAT_056dacc0" is WRONG. FUN_00436f97 *clears* the
