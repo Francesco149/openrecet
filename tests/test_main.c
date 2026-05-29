@@ -1103,6 +1103,12 @@ struct test_case {
     X(scene_table_pair_slot_order) \
     X(scene_table_null_loader_dry_run) \
     \
+    X(scene_map_meshes_house_count) \
+    X(scene_map_meshes_house_order) \
+    X(scene_map_meshes_count_cap) \
+    X(scene_map_meshes_invalid_stage) \
+    X(scene_map_meshes_empty_slot_skipped) \
+    \
     X(scene_sc1_dormant_default) \
     X(scene_sc1_var_mesh_loop) \
     X(scene_sc1_var_sprite_loop) \

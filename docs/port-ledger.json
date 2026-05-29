@@ -4115,7 +4115,8 @@
     "src/scene1_render.h",
     "src/scene1_shop_walker.c",
     "src/scene1_shop_walker.h",
-    "src/scene1_shop_walker_helpers.c"
+    "src/scene1_shop_walker_helpers.c",
+    "src/scene_map_meshes.h"
    ]
   },
   {
@@ -6098,6 +6099,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_map_meshes.h",
     "src/stage_palette.c",
     "src/stage_palette.h"
    ]
@@ -6125,6 +6127,7 @@
     "src/mesh_load.c",
     "src/mesh_load.h",
     "src/scene1_shop_walker.c",
+    "src/scene_map_meshes.c",
     "src/scene_table.h",
     "src/stage_palette.c",
     "src/stage_palette.h",

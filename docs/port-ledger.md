@@ -214,7 +214,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x454f03 | FUN_00454f03 | 120 | ✓ | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |
 | 0x454f7c | FUN_00454f7c | 104 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_walker_pass_init.c |
 | 0x454fe4 | FUN_00454fe4 | 429 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_render.c (+1) |
-| 0x455191 | FUN_00455191 | 217 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_render.c (+4) |
+| 0x455191 | FUN_00455191 | 217 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_render.c (+5) |
 | 0x4552d0 | FUN_004552d0 | 5210 | ✓ | scene1_render.c, scene1_render.h, scene1_shop_walker.c (+2) |
 | 0x45672a | FUN_0045672a | 1317 | ✓ | scene1_render.c, scene1_render.h |
 | 0x456d48 | FUN_00456d48 | 526 | ✓ | scene1_render.c, scene1_shop_walker.c, scene1_shop_walker.h (+1) |
@@ -251,8 +251,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4718d2 | FUN_004718d2 | 51 | ✓ | d3d_pool.h |
 | 0x47193c | FUN_0047193c | 488 | ✓ | scene1_dungeon_clear_banner.c, scene1_preload.c, scene_buy.c (+12) |
 | 0x471b24 | FUN_00471b24 | 467 | ✓ | mesh_load.c, mesh_load.h |
-| 0x471d45 | FUN_00471d45 | 2777 | ✓ | stage_palette.c, stage_palette.h |
-| 0x472836 | FUN_00472836 | 1609 | ✓ | mesh.h, mesh_load.c, mesh_load.h (+5) |
+| 0x471d45 | FUN_00471d45 | 2777 | ✓ | scene_map_meshes.h, stage_palette.c, stage_palette.h |
+| 0x472836 | FUN_00472836 | 1609 | ✓ | mesh.h, mesh_load.c, mesh_load.h (+6) |
 | 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_wide_followup.c, sysassets.c (+1) |
 | 0x47329b | FUN_0047329b | 151 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
 | 0x47333b | FUN_0047333b | 145 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |

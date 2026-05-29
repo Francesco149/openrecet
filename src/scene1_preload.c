@@ -52,6 +52,7 @@ void (*scene1_preload_get_post_house_callback(void))(void)
 
 #include "scene_floor.h"
 #include "scene_jutan.h"
+#include "scene_map_meshes.h"
 #include "scene_table.h"
 #include "scene_walls.h"
 #include "sprite.h"
@@ -158,11 +159,26 @@ int scene1_preload_house(void)
     mesh_tex_cache_reset();
 
     /* Engine FUN_00474681 — per-stage pre-load.  Probes the engine
-     * call site, invokes FUN_0043244c (cache clear, no-op for port),
-     * and the gated mesh/sprite preloaders (skip on BSS-zero HOUSE
-     * defaults).  Pointer-set is delegated to stage_palette_init_house
-     * below — see stage_palette.h "deviation note" for why. */
+     * call site, invokes FUN_0043244c (cache clear, no-op for port).
+     * Pointer-set is delegated to stage_palette_init_house below — see
+     * stage_palette.h "deviation note" for why. */
     stage_palette_load_for_stage();
+
+    /* FUN_00474681 mesh-load loop (PII.3c) — load the HOUSE stage's
+     * `map:` meshes into g_scene_map_meshes[] (engine DAT_068dcca0[]).
+     * Ground truth: 11 meshes; index 0 = shop_1st.x (the room), index
+     * 1 = shop_jutan.x (the carpet) — draw loop A renders those 2 as
+     * the shop interior background.  This must run AFTER
+     * mesh_tex_cache_reset() (above) so each mesh_load repopulates the
+     * freshly-cleared texture cache that draw loop A's per-slot
+     * classify→SetTexture path reads.  See scene_map_meshes.h. */
+    scene_map_meshes_reset();
+    {
+        int map_loaded = scene_map_meshes_load_house(g_scene1_preload_dev);
+        fprintf(stderr, "scene1_preload: map meshes loaded=%d "
+                "(shop_1st.x room + shop_jutan.x carpet + furniture pool)\n",
+                map_loaded);
+    }
 
     /* Stage palette HOUSE record reset + g_stage_palette pointer set.
      * The 2 conditional render-side reads (palette+0x52c, palette+0x108)

@@ -30,7 +30,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/tables_kyaku.c ../src/tables_news.c ../src/tables_oder.c ../src/tables_model.c \
                  ../src/tables_snews.c ../src/tables_stage.c ../src/tables_tuto.c \
                  ../src/xfile.c ../src/mesh.c ../src/mesh_load.c ../src/mesh_draw.c \
-                 ../src/scene_table.c ../src/scene_sc1.c ../src/stage_state.c \
+                 ../src/scene_table.c ../src/scene_map_meshes.c ../src/scene_sc1.c ../src/stage_state.c \
                  ../src/stage_palette.c \
                  ../src/scene1_records.c ../src/scene1_spawn.c ../src/scene1_particles_tick.c \
                  ../src/scene1_records_c_tick.c ../src/scene1_records_c_spawn.c \
@@ -66,7 +66,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_tables_kyaku.c test_tables_news.c test_tables_oder.c test_tables_model.c \
                  test_tables_snews.c test_tables_stage.c test_tables_tuto.c \
                  test_xfile.c test_mesh.c test_mesh_load.c test_mesh_draw.c \
-                 test_scene_table.c test_scene_sc1.c test_stage_state.c \
+                 test_scene_table.c test_scene_map_meshes.c test_scene_sc1.c test_stage_state.c \
                  test_stage_palette.c \
                  test_scene1_spawn.c test_scene1_particles_tick.c test_scene1_postload.c test_scene1_preload.c test_scene1_sim.c \
                  test_scene1_records_c_tick.c test_scene1_records_c_spawn.c \
