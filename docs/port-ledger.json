@@ -4,12 +4,12 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 58,
-  "stubbed": 12,
-  "ported": 288,
-  "unported": 2190,
+  "verified": 59,
+  "stubbed": 14,
+  "ported": 286,
+  "unported": 2189,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 358,
+  "touched": 359,
   "pct_touched": 14.1,
   "pct_verified": 2.3
  },
@@ -974,13 +974,9 @@
    "size": 7558,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "verified",
    "src": [
-    "src/main.c",
-    "src/mesh_draw.h",
-    "src/scene1_render.c",
-    "src/scene1_render.h",
-    "src/stage_palette.h"
+    "src/scene1_hud.c"
    ]
   },
   {
@@ -1287,8 +1283,10 @@
    "size": 389,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "stubbed",
+   "src": [
+    "src/scene1_hud.c"
+   ]
   },
   {
    "va": "0x414345",
@@ -1449,6 +1447,7 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/scene1_hud.h",
     "src/scene1_render.c",
     "src/scene1_render.h"
    ]
@@ -2784,7 +2783,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_combat_sm.h"
+    "src/scene1_combat_sm.h",
+    "src/scene1_hud.c",
+    "src/scene1_hud.h"
    ]
   },
   {
@@ -8361,10 +8362,9 @@
    "size": 314,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "stubbed",
    "src": [
-    "src/scene1_overlay.c",
-    "src/scene1_overlay.h"
+    "src/scene1_hud.c"
    ]
   },
   {

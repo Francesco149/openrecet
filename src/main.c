@@ -69,6 +69,7 @@
 #include "scene1_preload.h"
 #include "scene1_records.h"
 #include "scene1_render.h"
+#include "scene1_hud.h"
 #include "scene1_shop_walker.h"
 #include "stage_palette.h"
 #include "stage_state.h"
@@ -1901,7 +1902,8 @@ static void render_dispatch(void)
                  *     FUN_0045bbf9();   scene1_render_camera_setup
                  *                       (calls scene1_render_meshes
                  *                        which calls 14 walker stubs)
-                 *     FUN_0040a765();   2D HUD aggregator (C7i — TODO)
+                 *     FUN_0040a765();   2D HUD aggregator (C7j: shell +
+                 *                       Passes 1-3 landed; 4-9 = C7k+)
                  *     FUN_00417504();   scene1_render_overlay     (DEFER)
                  *     FUN_0045404b();   scene1_render_fx_tail
                  *
@@ -1946,6 +1948,14 @@ static void render_dispatch(void)
                  * BSS-zero in port today, so omitted; revisit when the
                  * scene-transition state machine ports.) */
                 scene1_render_camera_setup(g_dev);
+                /* C7j (2026-05-29): FUN_0040a765 2D HUD aggregator,
+                 * between the 3D walker and the overlay dispatcher
+                 * (engine FUN_004547ab L71).  Entry shell + Passes 1-3
+                 * landed; all dormant in HOUSE (Pass 1 DUNGEON-gated,
+                 * Pass 2 letterbox BSS-zero, Pass 3 status-screen
+                 * BSS-zero) so this is visually inert today but wires
+                 * the foundation later passes (C7k+) inherit. */
+                scene1_hud_render(g_dev);
                 scene1_render_overlay(g_dev);
                 /* scene1_render_fx_tail is moved out of this branch
                  * and called unconditionally below — engine has it

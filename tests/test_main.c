@@ -787,6 +787,15 @@ struct test_case {
     X(npc_schedule_event_active_get_set_roundtrip) \
     X(npc_schedule_accessors_out_of_range) \
     \
+    X(scene1_hud_letterbox_default_is_zero) \
+    X(scene1_hud_letterbox_deadzone_clamps_to_zero) \
+    X(scene1_hud_letterbox_above_deadzone_passes_through) \
+    X(scene1_hud_backdrop_color_predicate_true) \
+    X(scene1_hud_backdrop_color_predicate_false) \
+    X(scene1_hud_pass1_dormant_in_house) \
+    X(scene1_hud_pass1_active_only_ingame_dungeon) \
+    X(scene1_hud_status_screen_flag_roundtrip) \
+    \
     X(nowloading_reset_zeroes_state) \
     X(nowloading_set_active_normalises_to_zero_one) \
     X(nowloading_tick_idle_decays_alpha_by_32) \
