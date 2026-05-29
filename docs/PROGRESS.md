@@ -7,6 +7,45 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — HOUSE inputs DE-MVP'd: furniture renders with NO flag (user-verified)
+
+The `--force-walker-phase2 0` MVP (which injected retail-captured ground
+truth for the 8 HOUSE render inputs) is retired for 7 of 8 inputs — a real
+new-game HOUSE now renders shop-table furniture, correctly framed, with **no
+flag**. User-verified live ("I saw the furniture and it seemed to render
+correctly") on `--auto-z-spam` with no `--force-walker-phase2`.
+
+**Two retail Frida captures** (new `tools/dump_demvp_groundtruth.py`) resolved
+the open questions: furniture positions live at save-record **+0x2ce10** (not
++0x2ce20; reader was right), char_mode at +0x2ce0c = 0, scene_type = 0, and
+the cam-adds = 14/21/-1.8 at every in-scene frame.
+
+The 8 inputs, by resolution (commits after 4b049b7):
+| input | de-MVP source | commit |
+|---|---|---|
+| ivar8 | engine constant 3 (FUN_00436f97 L178) — not a runtime input | 1 |
+| yaw=π | ported into the Cf block (`walker_phase2_init`, FUN_00436f97 L589) | 1 |
+| radius/eye.y/lookat.y adds (14/21/-1.8) | scene-1 camera CONSTANTS (no writer in 2620 fns; set in `scene1_camera_init`) | 2 |
+| char_mode (0) | save record +0x2ce0c | 3 |
+| scene_type (0) | stage selector (HOUSE=0; PHC for the stage-table string loader) | 3 |
+| stage_positions | save record +0x2ce10, seeded from template DAT_005cf864 via ported FUN_0048ffd9 | 3 |
+| **bias_x/z (-0.3/9.35)** | **STILL a HOUSE stand-in** — output of the FUN_00432e50 placement search (2084 B, unported) | — |
+
+`scene1_postload_load_house_phase2_inputs()` is the new production HOUSE-entry
+loader (wired into `scene1_preload_house`); `--force-walker-phase2 N` is now
+only a test override for synthetic scene_type tiers 1..4. 2873 tests pass
+(new `..._load_house_inputs_from_save_record` proves the loader reproduces the
+3 live furniture meshes the retail-groundtruth setter test gets, with no
+injection).
+
+**Open PHCs** (faithful-port follow-ups): (a) bias placement search
+FUN_00432e50 + FUN_00436f97 block 228-276; (b) the cam-adds' rdata→BSS copy
+site (value confirmed, writer unidentified — pre-scene read crashes on the
+unmapped page); (c) scene_type from the ported DAT_068dd3fc stage-table
+string loader; (d) the port's `save_bank_init_all` leaves record +0x2ce0c at
+a -1 artifact vs retail's 0 (the loader establishes the new-game HOUSE fields
+explicitly until FUN_0049d36d lands).
+
 ## 2026-05-29 — HOUSE furniture orientation/scale RESOLVED: camera pose-input fix (user-verified)
 
 The Cf.minimal landing earlier today made HOUSE shop_table furniture visible
