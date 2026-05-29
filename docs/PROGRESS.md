@@ -7,6 +7,49 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — C7j: scene-1 2D HUD aggregator begun (FUN_0040a765 shell + Passes 1-3)
+
+First chip of the **C7i ladder** — the last HOUSE-visible HUD blocker.
+FUN_0040a765 (0x40a765, 7558 B) is the 2D HUD/overlay aggregator the
+engine runs between the 3D walker and the overlay dispatcher
+(`FUN_004547ab` L71: `camera_setup → FUN_0040a765 → overlay → fx_tail`).
+The survey (`findings/scene1-walker.md`) groups it into nine passes;
+this chip lands the entry shell + the first three:
+
+- **Pass 1** — entry guards + 2D state preset (`render_quad_state_setup`)
+  + stamina/HP backdrop. Backdrop gated `*DAT_068dd2f0 > 0` (DUNGEON
+  only) → **dormant in HOUSE**.
+- **Pass 2** — letterbox / cinema bars keyed off `DAT_0438b1dc` with the
+  engine's ±0.1 dead-zone clamp → BSS-zero → **dormant**.
+- **Pass 3** — status-screen takeover (`DAT_073dddb4`): render status
+  screen + early-return. BSS-zero outside the Q-menu → **dormant**.
+
+New module `src/scene1_hud.{c,h}`; `scene1_hud_render()` wired into
+`main.c` between `scene1_render_camera_setup` and `scene1_render_overlay`
+(engine order). Every pass past the state preset short-circuits on a
+BSS-zero gate in HOUSE, so the chip is **visually inert today** — it
+lands the structure + the 2D render-state preset the player-facing
+passes inherit (C7k+: item tooltip, HOUSE/DUNGEON sub-walkers, speech
+bubbles, shop terminal, chr render, sub-menu panels, day-counter flash).
+
+Globals mapped: scene mode → `g_scene_state`; stage type → stage record
+field 0 (`maptype`); HUD textures already loaded in `g_sysassets`
+(`shade_bmp` = DAT_073cc8f0, `system_bmp` = DAT_073aa188). Deferred
+sub-calls stubbed (faithful call-count): FUN_0049065b (2D-overlay-camera
+feed off a BSS-zero source block), FUN_004141c0 (status screen),
+FUN_0043647f (DUNGEON predicate).
+
+**Cr.2 correction:** `scene1_render_overlay` is already wired (main.c)
+and the COLORARG2 leak (PHC #18) was resolved 2026-05-26 — so the
+"Cr.2 overlay re-enable" item tracked in the HOUSE-visible memos was
+already done. C7i is the genuine last HOUSE-HUD blocker, now begun.
+
+Pure helpers (letterbox dead-zone, backdrop colour packing, pass-active
+predicate, status flag) host-tested: **+8 (2902 → 2910)**. Both exes
+build clean. Port-side HOUSE capture (`runs/c7j-house-check`,
+`--auto-z-spam --force-walker-phase2 0`) confirms the shop interior +
+furniture render unchanged — no regression from the inserted call.
+
 ## 2026-05-29 — E.4 Tier 1: first STATEFUL diff targets (faithful-parity oracle)
 
 Extended the pure-function differential oracle (`tools/diff_test.py` +
