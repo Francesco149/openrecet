@@ -21,6 +21,12 @@
 #                       the in-engine graceful-shutdown path. Tune both.
 #     --debug           launch build/openrecet-debug.exe instead of
 #                       openrecet.exe (console subsystem, stdio wired).
+#     --visible         suppress the default --hidden injection (watch live).
+#
+# Fast-probe defaults: this wrapper auto-injects --turbo, --silent-audio, and
+# --hidden when absent, so ad-hoc runs are quick + quiet and don't pop a
+# window (results are surfaced via --capture-to screenshots).  Pass the flag
+# explicitly to override, or --visible to keep the window on screen.
 #
 # Frame capture: pass `--capture-to <dir> --capture-frames a,b,c` (or
 # `--capture-every-ms N`).  <dir> may be repo-relative ("runs/foo") or an
@@ -83,23 +89,54 @@ if [[ ! -d "$ASSET_CWD" ]]; then
     exit 1
 fi
 
-# Inject a default --max-duration-ms if the caller didn't pass one. The
-# supervisor timeout above is the kernel-side safety net; this lets
-# openrecet's own message-pump take the graceful exit path most of the
-# time. 3s = same default as historic ad-hoc smoke runs.
-have_max_duration=0
+# ── Default-inject fast-probe flags + a deterministic exit bound ─────────
+# Scan argv once for what the caller already set.  --max-duration-ms is a
+# WALL-CLOCK timer (engine SetTimer), so on --turbo it idles long past the
+# capture; --max-frames is a SIM-FRAME bound (PostQuitMessage at frame N) and
+# exits the instant the shot is taken, turbo-speed-independent.  So when
+# capturing we bound by frame, not wall time.  (See feedback_fast_captures.md.)
+want_visible=0; have_max_duration=0; have_max_frames=0; cap_spec=""; prev=""
 for a in "$@"; do
-    [[ "$a" == "--max-duration-ms" || "$a" == --max-duration-ms=* ]] \
-        && { have_max_duration=1; break; }
+    case "$a" in
+        --visible)                                  want_visible=1 ;;
+        --max-duration-ms|--max-duration-ms=*)      have_max_duration=1 ;;
+        --max-frames|--max-frames=*)                have_max_frames=1 ;;
+        --capture-frames=*)                         cap_spec="${a#*=}" ;;
+    esac
+    [[ "$prev" == "--capture-frames" ]] && cap_spec="$a"
+    prev="$a"
 done
-
-set --   $(( have_max_duration ? 0 : 1 )) "$@"
-if (( $1 )); then
-    shift
-    set -- --max-duration-ms 3000 "$@"
-else
-    shift
+cap_max=0
+if [[ -n "$cap_spec" ]]; then
+    IFS=',' read -ra _cf <<< "$cap_spec"
+    for f in "${_cf[@]}"; do [[ "$f" =~ ^[0-9]+$ ]] && (( f > cap_max )) && cap_max=$f; done
 fi
+
+# Strip the wrapper-only --visible token before pass-through.
+if (( want_visible )); then
+    keep=(); for a in "$@"; do [[ "$a" == "--visible" ]] || keep+=( "$a" ); done
+    set -- "${keep[@]}"
+fi
+
+# Exit bound: capture runs exit a few sim-frames after the last shot; plain
+# smoke runs keep the historic 3s wall default.  Don't add the wall timer when
+# capturing — --max-frames governs and --timeout-ms (supervisor) is the net.
+if (( cap_max > 0 )); then
+    (( have_max_frames )) || set -- "$@" --max-frames $(( cap_max + 8 ))
+elif (( ! have_max_duration )); then
+    set -- --max-duration-ms 3000 "$@"
+fi
+
+# Quiet + quick + windowless unless overridden (each added only if absent).
+inject_if_absent() {  # $1 = flag to add when not already present in "$@"
+    local flag="$1"; shift
+    local a
+    for a in "$@"; do [[ "$a" == "$flag" ]] && { printf '%s\0' "$@"; return; }; done
+    printf '%s\0' "$flag" "$@"
+}
+mapfile -d '' -t _aw < <(inject_if_absent --turbo "$@");        set -- "${_aw[@]}"
+mapfile -d '' -t _aw < <(inject_if_absent --silent-audio "$@"); set -- "${_aw[@]}"
+(( want_visible )) || { mapfile -d '' -t _aw < <(inject_if_absent --hidden "$@"); set -- "${_aw[@]}"; }
 
 # Rewrite the path-valued output flag(s) so a repo-relative or Unix path Just
 # Works: resolve against the repo, mkdir -p, and hand the exe the Windows path
