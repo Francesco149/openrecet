@@ -7,6 +7,42 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — Cpop re-scope (trace-confirmed) + Cpop.1 player-controller leaf math
+
+Picked up the parked Cpop attempt (see the deleted `docs/HANDOFF-cpop1.md`).
+The whole Cpop premise was misattributed twice over; corrected with evidence,
+then runtime-confirmed the real chip before writing any port code:
+
+- **`FUN_0044376a` is NOT the "8538 B actor→render-slot copier."** It is the
+  records_b entity-effect spawn allocator (`(owner,type,flag)`; loops
+  `idx*0x124` over `@0x069324b0`) — already fully ported as
+  `scene1_record_b_spawn_entity()` (C8j.5–C8j.9a). Fixed the POPULATOR SURVEY
+  banner + memory notes (commit `5a8f14b`).
+- **Objdump ground truth** (`21042e7`): `0x56dacc0` (the party render array) is
+  referenced exactly once in `.text` — the walker read @`0x45722a`. The
+  survey's two "writer" referents (`0x4375ff`, `0x48c961`) both touch
+  `0x56dacf8` (= base+0x38 age) and are *clears*, not fills. The real
+  per-frame fill in `FUN_0048b850`'s tail writes the `0x56dab6c`
+  trail/after-image array (walker sweep-0 reads it as `esi-0x154`).
+- **Runtime confirmation** (`bf2cffe`; Frida call-trace, 60k-frame auto-z-spam
+  drive into the playable shop, `runs/calltrace-shop-probe`): `FUN_0048b850`
+  fires 40,558× from frame 4583 on — the live playable-HOUSE player controller.
+  Its caller is **`FUN_0048670f`** (not `FUN_0048b3f6`, which fires 0×: the
+  dispatcher gate @all.c:40595 takes the `0048670f` branch because the HOUSE
+  scene-state stays in `[0,4]`). The first-3D-draw scene is instead the
+  `FUN_004427d3 → FUN_0048407f` cutscene/event arm (frames ~3046–5958) — a
+  separate chip. So `--auto-3d-trace` captures the *wrong* scene for b850.
+
+**Cpop.1** (`076bcab`) starts the faithful `FUN_0048b850` port with its three
+genuinely-pure leaf computations (`src/scene1_player_ctrl.{c,h}`), host-tested
+per the chr_walker pattern: the 8→4 facing-octant snap with its sticky
+horizontal-bias bit (`DAT_056dae3c`), the `DAT_056daac0` camera-zoom decay
+(−0.03, floor −2.0), and the camera-shake magnitude clamp. 10 host tests
+(2952 → 2962). Module unwired (caller chain `FUN_00442cef → FUN_0048670f`
+unported) → HOUSE behavior + all goldens bit-identical; no regen needed.
+Remaining for the chip: the stateful body (head timer state-machines, the
+`local_8` zoom-target chain, the `0x56dab6c` trail fill) in later sub-chips.
+
 ## 2026-05-29 — Cchr.2e: the records / people sprite pre-pass
 
 Ported `FUN_0045672a` (1317 B) — the render-side sibling of the Cchr.2d
