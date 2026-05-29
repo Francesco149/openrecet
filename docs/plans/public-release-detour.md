@@ -1,10 +1,39 @@
 # Plan — public-release detour
 
-Status: **planned, not started.** Authored 2026-05-29 (end of the HOUSE
-hikari session) at the user's request, to be executed in a future
-session. Five loosely-coupled tasks that prepare the repo to go public.
-Research findings that de-risk each task are embedded inline so the
-executing session doesn't have to re-derive them.
+Status: **DONE — all five tasks landed 2026-05-29.** Authored at the end
+of the HOUSE hikari session; executed the same day. Five loosely-coupled
+tasks that prepare the repo to go public. Research findings that de-risk
+each task are embedded inline. Task spec preserved below as the record.
+
+Landing summary (commits, in order):
+- **Task 5** `6dd26a7` — `docs/reference/vendor-exe.md` (App ID 70400
+  confirmed; per-section encryption map; reproducible hashes).
+- **Task 2** `f4b597d` — runtime SE extraction. New `src/se_pack.c` +
+  `src/sha256.c`; cache at `%LOCALAPPDATA%\openrecet\se.pack` keyed on the
+  retail-exe sha256; `audio.c` sources SE from the cache; SE_RC/SE_RES_O
+  dropped from `src/Makefile`. Verified: built exe has 0 RIFF; first run
+  extracts 109/110 from the retail exe, second run loads the cache;
+  2902 host tests (+8). `docs/formats/se-pack.md`.
+- **Task 3** `6643ba9` — `.github/workflows/nightly.yml` (daily cron +
+  manual dispatch) builds via a new lean `devShells.ci`, gated by
+  `tools/ci/no_proprietary_bytes.py`, publishes to a rolling `nightly`
+  pre-release. Decisions: cache at LOCALAPPDATA, daily cron.
+- **Tasks 1+4** `726254e` — public README + ko-fi/AI-transparency; hero is
+  a labeled OpenRecet-vs-retail HOUSE side-by-side
+  (`docs/img/house-comparison.png`). Status framed as early/not-playable,
+  detail deferred to STATUS.md / port-ledger.md per user direction.
+
+Decisions made during execution (were open questions):
+- SE cache dir → `%LOCALAPPDATA%\openrecet\` (user choice).
+- Nightly cadence → daily cron + manual dispatch (user choice).
+- `se.pack` format → see `docs/formats/se-pack.md` (decided in-session).
+- README screenshot → labeled side-by-side hero with 2× clean labels;
+  HUD difference handled by a broad "early-stage / not playable" framing
+  + pointer to the ledger, not an itemized broken-features list.
+
+Not yet done (out of this session's hands): the nightly workflow only
+runs once the repo is public on GitHub with Actions enabled, and the
+`nightly` pre-release is auto-created on first run (no manual step needed).
 
 ## Why a detour
 

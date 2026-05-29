@@ -7,6 +7,45 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — Public-release detour: repo goes public-ready (all 5 tasks)
+
+Executed `docs/plans/public-release-detour.md` end-to-end so the repo can
+go public with a guarantee of **zero proprietary bytes** in the binary.
+
+- **Task 2 (the gating one) — stop embedding SE; extract at runtime
+  (`f4b597d`).** The shipped `openrecet.exe` no longer links any game
+  audio. New `src/se_pack.c` + `src/sha256.c`: `audio_init` calls
+  `se_pack_acquire()`, which locates the retail `recettear.exe`
+  (`OPENRECET_RETAIL_EXE` env, else `./recettear.exe`), hashes it, and
+  either loads a matching `%LOCALAPPDATA%\openrecet\se.pack` or extracts
+  the 110 `WAVE` resources via `LoadLibraryEx(...AS_DATAFILE)` +
+  `FindResource` and writes the cache (keyed on the exe sha256, so a game
+  update re-extracts). SteamStub leaves `.rsrc` unencrypted, so this reads
+  the *packed* exe directly — no Steamless at runtime. Dropped
+  SE_RC/SE_RES_O from `src/Makefile`. Format: `docs/formats/se-pack.md`.
+  **Verified:** built exe has 0 RIFF magic (only WAVE strings are Win32/
+  DirectMusic type+GUID names); first run logs `extracted 109/110`, second
+  run logs `loaded cache`; both preload 109/110 SE segments — identical to
+  the old embedded behaviour. 2902 host tests (+8: sha256 vectors,
+  se.pack round-trip/reject).
+- **Task 5 — pin the reference exe (`6dd26a7`).** `docs/reference/
+  vendor-exe.md`: packed+unpacked sha256/size/PE-ts, Steamless v3.1.0.5,
+  per-section encryption map (only `.text` differs). App ID **70400**
+  confirmed against the local appmanifest.
+- **Task 3 — CI nightly (`6643ba9`).** `.github/workflows/nightly.yml`
+  (daily cron + manual dispatch) cross-compiles via a new lean
+  `devShells.ci` (mingw + make + python3 only — not the full RE closure),
+  gated by `tools/ci/no_proprietary_bytes.py` (hard-fails on any RIFF),
+  publishing to a rolling `nightly` pre-release (asset clobber → no
+  watcher spam). Build is now asset-free, so CI needs no game files.
+- **Tasks 1+4 — public README (`726254e`).** Hero = labeled OpenRecet-vs-
+  retail HOUSE side-by-side (`docs/img/house-comparison.png`). Framed as
+  early-stage / not-playable, detail deferred to STATUS.md + port-ledger;
+  ko-fi (`ko-fi.com/lolisamurai`) + AI-driven-RE transparency.
+
+User decisions captured in the plan doc: cache → LOCALAPPDATA; cadence →
+daily cron; README → labeled side-by-side, broad status framing.
+
 ## 2026-05-29 — HOUSE render fidelity via D3D-trace A/B: brightness + blinds (5 fixes)
 
 Used the D3D state-trace pipeline (D.4 Frida + D.5 port + per-draw compare)
