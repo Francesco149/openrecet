@@ -607,22 +607,30 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
 
-    /* L134: TSS COLOROP = 4 (MODULATE2X — re-asserted). */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE2X);
+    /* L134: TSS COLOROP = MODULATE (engine raw 4).  (Was mis-ported as
+     * MODULATE2X=5; engine L13535 writes 4.) */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 
     /* L135: ZWRITEENABLE = TRUE (re-asserted). */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, TRUE);
 
-    /* L136: TSS MAGFILTER = 5 (D3DTEXF_LINEAR).  Engine raw 5; the D3D8
-     * enum has LINEAR = 2, but value 5 is GAUSSIANQUAD which the
-     * runtime tolerates for stage 0 as LINEAR on most drivers.  Engine
-     * writes 5 — kept verbatim.  (raw TSS 0x13 = D3DTSS_MAGFILTER.) */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, 5);
-
-    /* L137: TSS MINFILTER = 6 (D3DTEXF_ANISOTROPIC).  Engine raw 6;
-     * D3D8 enum has ANISOTROPIC = 3.  Engine writes 6 — kept
-     * verbatim. */
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, 6);
+    /* L136-L137: SRCBLEND = SRCALPHA (5), DESTBLEND = INVSRCALPHA (6).
+     *
+     * 2026-05-29 erratum: these were mis-ported as
+     * SetTextureStageState(MAGFILTER, 5) + (MINFILTER, 6).  The engine
+     * calls are SetRenderState (vtable+200), raw states 0x13/0x14 =
+     * D3DRS_SRCBLEND / D3DRS_DESTBLEND (NOT TSS filter types), values
+     * 5=SRCALPHA / 6=INVSRCALPHA (engine L13537-13538).  This is the
+     * blend pair the engine LEAVES set when this (HOUSE-dormant) walker
+     * returns; the missing DESTBLEND=INVSRCALPHA was the cause of the
+     * blinds/window-overlay rainbow — the later hikari draws inherited
+     * the earlier DESTBLEND=INVSRCCOLOR (L45-46) instead of being reset
+     * to INVSRCALPHA here, so under alpha-blend the lit blinds showed a
+     * colour-keyed (INVSRCCOLOR) overlay of red/blue/cyan triangles.
+     * Retail d3d_trace: all alpha-blended HOUSE draws are SRCALPHA/
+     * INVSRCALPHA (dst=6), never INVSRCCOLOR at draw time. */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
 
     /* L138: LightEnable(0, FALSE). */
     IDirect3DDevice8_LightEnable(dev, 0, FALSE);
