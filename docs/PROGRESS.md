@@ -46,8 +46,25 @@ rot←mesh_type-col, read at index (15+i). Index 15 is never written → instanc
 
 8 new host tests (2878→2886). NOT ported (not render-critical for HOUSE):
 per-mesh FUN_00471d45 (collision/bounds aux) + the DAT_068dcf98 single-mesh
-path (gated off for HOUSE). Remaining for full HOUSE: the 2D HUD overlay
-(FUN_0040a765, C7i) + Cr.2 overlay re-enable.
+path (gated off for HOUSE).
+
+**Follow-up same day (commit 15db713): floor/walls/rug textures fixed.** The
+room's kabe/yuka/jutan surfaces rendered untextured grey because draw loop A's
+per-stage SetTexture hooks (`s_hook_{kabe,yuka,jutan}_tex`) were NULL in
+production — only ever set in tests. `scene1_preload_house` now installs
+`house_{kabe,yuka,jutan}_texture` adapters (return `g_scene_X[selector].tex`)
+after the foreground loads. User-verified: wooden floor, textured walls, red
+patterned rug all render (runs/house-bg-tex/frame_03300.png).
+
+**Tracked render diffs vs retail** (`docs/findings/scene1-house-render-gaps.md`):
+two remaining diffs both trace to the unported scene-1 lighting path — (#1) a
+"frustum" solid mesh where retail has god rays (hikari, `param_1==3`, bound via
+the still-NULL `animated_texture_hook` + no additive blend); (#2) blinds
+texture goes solid-color on lit tris, scaling with god-ray intensity (missing
+per-vertex maplight, `D3DLIGHT8` at `DAT_06a49a40`, `SetLight` args Ghidra-
+dropped — see scene1_shop_walker.c:509). **Suggested next chip: scene-1
+lighting + hikari god-ray overlay** (closes both). Remaining beyond that: the
+2D HUD overlay (FUN_0040a765, C7i) + Cr.2 overlay re-enable.
 
 ## 2026-05-29 — HOUSE inputs DE-MVP'd: furniture renders with NO flag (user-verified)
 

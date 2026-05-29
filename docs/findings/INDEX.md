@@ -44,6 +44,7 @@ that subsystem.
 | [scene1-records-b-state-machine.md](scene1-records-b-state-machine.md) | `FUN_0043865e` — per-record combat state machine (NPC scan, attack input, damage, knockback, hit FX). | 2026-05-25 |
 | [scene1-walker.md](scene1-walker.md) | `FUN_0040a765` (C7i) — scene-1 HUD walker survey; corrects the "3D mesh walker" mislabel. | 2026-05-23 |
 | [scene1-walker-pass-init.md](scene1-walker-pass-init.md) | `FUN_00457714` — per-NPC mesh walker = the HOUSE shop_table furniture renderer (relabel of pass-init stub). | 2026-05-26 |
+| [scene1-house-render-gaps.md](scene1-house-render-gaps.md) | HOUSE render diffs vs retail post-PII.3c — floor/wall/rug textures (fixed) + god-ray/blinds lighting gaps (deferred to a scene-1 lighting chip). | 2026-05-29 |
 | [scene1-wide-followup.md](scene1-wide-followup.md) | `FUN_004161c7` — wide-frustum followup draw (z_far=2000) survey. | 2026-05-23 |
 | [scene1-leaf-chain.md](scene1-leaf-chain.md) | Mesh-emit leaf chain (5 fns in `FUN_00459dfd`); flat-`mesh_t` adapter notes. | 2026-05-23 |
 | [scene1-people-table.md](scene1-people-table.md) | `DAT_0076bd54` — 128-entry × 2980 B in-shop "people"/NPC table layout. | 2026-05-23 |
