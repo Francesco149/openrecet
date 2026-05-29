@@ -256,6 +256,33 @@ void scene1_postload_set_walker_phase2_ivar8(int ivar8);
  */
 void scene1_postload_apply_walker_phase2_house_groundtruth(void);
 
+/*
+ * Port of engine FUN_0048ffd9 — seed the active save-slot record's
+ * furniture array (+0x2ce10) from the static template (DAT_005cf864) row
+ * selected by the record's shop-tier field (+0x2cde0).  Called by the
+ * new-game record seeder (engine FUN_0049d36d); here, by the HOUSE-entry
+ * loader below.
+ */
+void scene1_postload_seed_house_furniture(void);
+
+/*
+ * Production HOUSE-entry input loader (de-MVP of --force-walker-phase2 0).
+ * Sources the Cf walker's scene_type / ivar8 / stage_positions and the
+ * camera char_mode from real engine state (the stage selector + the seeded
+ * per-save-slot record) instead of the flag-gated retail-capture injection.
+ * Call on HOUSE entry, before scene1_postload_walker_phase2_init().  The
+ * save arena must already be seeded (save_bank_init_all at boot).
+ */
+void scene1_postload_load_house_phase2_inputs(void);
+
+/*
+ * Test/debug override for the HOUSE-entry loader's scene_type.  <0 (the
+ * default) makes the loader use the real HOUSE value (0); >=0 forces that
+ * scene_type so `--force-walker-phase2 N` can still drive the synthetic
+ * tiers 1..4.
+ */
+void scene1_postload_set_house_scene_type_override(int scene_type);
+
 #ifdef __cplusplus
 }
 #endif

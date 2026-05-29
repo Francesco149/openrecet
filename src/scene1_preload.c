@@ -8,6 +8,7 @@
 
 #include "call_trace.h"
 #include "mesh_load.h"
+#include "scene1_camera.h"   /* scene1_camera_apply_house_groundtruth (bias stand-in) */
 #include "scene1_postload.h"
 #include "scene1_records.h"
 #include "stage_palette.h"
@@ -112,17 +113,20 @@ int scene1_preload_house(void)
     scene1_postload_ambient_spawn();
 
     /* Cf — phase-2 walker-array writer (engine FUN_00436f97 alt-stage
-     * arm, decomp L34770+).  Engine-correct: FUN_00436f97 block 21 DOES
-     * run on new-game HOUSE entry (proven 2026-05-29 via the E.1 call
-     * tracer — called once at engine frame 3200, before the first
-     * scene1_render_meshes).  Unlike the Cf.1 block-23 ambient loop above
-     * (genuinely HOUSE-dormant), this block-21 writer is live.  It stays
-     * gated on scene_type ∈ [0..4] (default -1 → no-op) only because its
-     * three runtime inputs — scene_type, ivar8, stage_positions — come
-     * from as-yet-unported engine state (the DAT_068dd3fc selector + the
-     * per-save-slot record); `--force-walker-phase2 0` supplies the
-     * retail-captured, test-verified new-game-HOUSE values.  See
-     * docs/findings/scene1-postload-init.md (2026-05-29 correction). */
+     * arm, decomp L34770+).  FUN_00436f97 block 21 runs on new-game HOUSE
+     * entry (proven 2026-05-29 via the E.1 call tracer — called once at
+     * engine frame 3200, before the first scene1_render_meshes).
+     *
+     * De-MVP: source the writer's inputs from real engine state instead of
+     * the old --force-walker-phase2 0 injection.  load_house_phase2_inputs
+     * sets scene_type (0 = HOUSE), ivar8 (engine const 3), stage_positions
+     * (the save-record furniture array, seeded from the template exactly as
+     * the engine's FUN_0048ffd9 does) and the camera char_mode (record
+     * +0x2ce0c = 0).  The camera bias_x/z stand-in (the one remaining MVP
+     * value — FUN_00432e50 placement search unported) is applied here too.
+     * Both run unconditionally now; HOUSE furniture renders with no flag. */
+    scene1_postload_load_house_phase2_inputs();
+    scene1_camera_apply_house_groundtruth();
     scene1_postload_walker_phase2_init();
 
     /* C8j.fin.c — table C smoke wiring.  Fires `_spawn_pickup` and/or

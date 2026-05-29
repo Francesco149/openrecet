@@ -20,7 +20,10 @@
 
 #include <string.h>
 
+#include "chara_equip.h"
 #include "rng.h"
+#include "save_bank.h"
+#include "scene1_camera.h"
 #include "scene1_particles_tick.h"
 #include "scene1_postload.h"
 #include "scene1_records.h"
@@ -64,6 +67,7 @@ static void reset_world(void)
     scene1_postload_set_walker_phase2_scene_type(-1);
     scene1_postload_set_walker_phase2_ivar8(0);
     scene1_postload_set_walker_phase2_stage_positions(NULL);
+    scene1_postload_set_house_scene_type_override(-1);
     scene1_walker_phase2_reset();
 }
 
@@ -968,5 +972,52 @@ int test_scene1_postload_walker_phase2_retail_groundtruth_new_game_house(void)
     T_ASSERT(g_scene1_walker_phase2_pos_x[2] == -10.0f);
     T_ASSERT(g_scene1_walker_phase2_pos_y[2] == 0.0f);
     T_ASSERT(g_scene1_walker_phase2_pos_z[2] == -2.0f);
+    return 0;
+}
+
+int test_scene1_postload_load_house_inputs_from_save_record(void)
+{
+    /* De-MVP: scene1_postload_load_house_phase2_inputs() sources the Cf
+     * walker's inputs + camera char_mode from REAL save state (the seeded
+     * per-slot record), reproducing the exact 3 live HOUSE furniture meshes
+     * the retail-groundtruth test above gets from the hardcoded MVP setters
+     * — but now with NO injection.  This proves the template seed
+     * (FUN_0048ffd9) + arena read replace --force-walker-phase2 0. */
+    reset_world();
+    save_bank_init_all();              /* clean arena: record fields all 0 */
+    chara_equip_set_current_bank(0);
+    g_scene1_camera_char_mode = 7;     /* sentinel — loader must reset to 0 */
+
+    scene1_postload_load_house_phase2_inputs();
+
+    /* char_mode resolved from the record (+0x2ce0c = 0); scene_type=0 is
+     * proven below by count==3 (scene_type 0 → count = ivar8 = 3). */
+    T_ASSERT_EQ_I(g_scene1_camera_char_mode, 0);
+
+    /* Furniture seeded into the arena (record+0x2ce10) = template row 0. */
+    static const int32_t row0[10][2] = {
+        {3, 3}, {1, 0}, {0, 1}, {9, 1}, {10, 3},
+        {11, 0}, {3, 6}, {6, 6}, {9, 6}, {12, 6},
+    };
+    uint8_t *rec = save_arena_base();   /* slot 0 */
+    const int32_t *furn = (const int32_t *)(rec + 0x2ce10);
+    for (int i = 0; i < 10; i++) {
+        T_ASSERT_EQ_I(furn[i * 2 + 0], row0[i][0]);
+        T_ASSERT_EQ_I(furn[i * 2 + 1], row0[i][1]);
+    }
+
+    /* Same 3 live meshes as the groundtruth test — now via the loader. */
+    scene1_postload_walker_phase2_init();
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_count, 3);
+    T_ASSERT_EQ_I(g_scene1_walker_phase2_mesh_type[0], 3);
+    T_ASSERT(g_scene1_walker_phase2_pos_x[0] == -2.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_z[0] == 0.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_x[1] == -4.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_z[1] == -8.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_x[2] == -10.0f);
+    T_ASSERT(g_scene1_walker_phase2_pos_z[2] == -2.0f);
+
+    /* yaw=π written by the init (Cf block, FUN_00436f97 L589). */
+    T_ASSERT(g_scene1_camera_yaw == 3.1415927f);
     return 0;
 }

@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 58,
   "stubbed": 12,
-  "ported": 286,
-  "unported": 2192,
+  "ported": 287,
+  "unported": 2191,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 356,
+  "touched": 357,
   "pct_touched": 14.0,
   "pct_verified": 2.3
  },
@@ -2306,7 +2306,9 @@
    "status": "ported",
    "src": [
     "src/scene1_camera.c",
+    "src/scene1_postload.c",
     "src/scene1_postload.h",
+    "src/scene1_preload.c",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h",
     "src/scene1_records_b_tick.h",
@@ -9472,8 +9474,11 @@
    "size": 495,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_postload.c",
+    "src/scene1_postload.h"
+   ]
   },
   {
    "va": "0x49d55c",

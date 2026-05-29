@@ -132,11 +132,13 @@ int test_scene1_camera_house_groundtruth_matches_retail(void)
      *   eye.y  = 0 + 21 + lookat.y(1.2)    = 22.2
      *   eye.z  = 1 - 14*cos(π) = 1 + 14    = 15
      */
-    reset_camera_world();           /* ends with scene1_camera_init (snap armed, adds=0) */
+    reset_camera_world();           /* sets char_mode=2; init sets adds=14/21/-1.8 */
+    /* In production these come from scene1_postload_load_house_phase2_inputs
+     * (char_mode from save-record +0x2ce0c = 0) + the Cf block (yaw=π,
+     * FUN_00436f97 L589); apply_house_groundtruth supplies only the bias
+     * stand-in.  Reproduce that on-HOUSE-entry state here. */
+    g_scene1_camera_char_mode = 0;
     scene1_camera_apply_house_groundtruth();
-    /* yaw=π now comes from scene1_postload_walker_phase2_init() (the Cf
-     * block, engine FUN_00436f97 L589), not from apply_house_groundtruth.
-     * Set it here to reproduce the on-HOUSE-entry state this test asserts. */
     g_scene1_camera_yaw = 3.1415927f;
     scene1_camera_pose_compute();
 

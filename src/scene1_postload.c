@@ -39,6 +39,9 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "chara_equip.h"      /* chara_equip_get_current_bank — active save slot */
+#include "save_bank.h"        /* save_arena_base + SAVE_BANK_STRIDE_BYTES */
+#include "scene1_camera.h"    /* g_scene1_camera_char_mode */
 #include "scene1_particles_tick.h"
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
@@ -342,6 +345,113 @@ void scene1_postload_apply_walker_phase2_house_groundtruth(void)
     g_walker_ivar8      = 3;
     memcpy(g_walker_stage_positions, k_new_game_house_stage_positions,
            sizeof g_walker_stage_positions);
+}
+
+/* ─── de-MVP: source the Cf inputs from real save state ──────────────────
+ *
+ * The furniture (x,z) pairs the Cf walker reads from save-record +0x2ce10
+ * are NOT computed — engine FUN_0048ffd9 copies them verbatim from a
+ * static .data template (DAT_005cf864) into the active save record, and
+ * the new-game record seeder FUN_0049d36d calls it.  The template is
+ * indexed by the shop-tier selector at record+0x2cde0 (0 on a fresh game).
+ * Rows 0..3 are the four HOUSE tiers (dumped from vendor/unpacked @
+ * file-offset 0x1ce064).  Ground truth: retail new-game HOUSE has tier 0 →
+ * row 0, confirmed live at record+0x2ce10 by tools/dump_demvp_groundtruth.py
+ * (which also confirmed char_mode +0x2ce0c = 0, scene_type = 0). */
+#define SCENE1_HOUSE_FURNITURE_TIERS 4
+static const int32_t
+k_house_furniture_template[SCENE1_HOUSE_FURNITURE_TIERS][10][2] = {
+    {{3,3},{1,0},{0,1}, {9,1},{10,3},{11,0},{3,6},{6,6},{9,6},{12,6}}, /* tier 0 */
+    {{4,3},{1,0},{0,1}, {9,1},{10,3},{11,0},{3,6},{6,6},{9,6},{12,6}}, /* tier 1 */
+    {{4,3},{1,0},{0,1},{14,1},{10,3},{11,0},{3,6},{6,6},{9,6},{12,6}}, /* tier 2 */
+    {{4,3},{1,0},{0,1},{14,1},{10,3},{11,0},{3,6},{6,6},{9,6},{12,6}}, /* tier 3 */
+};
+
+/* Per-slot save-record field offsets (within the 0x2dfc8-byte record). */
+#define SCENE1_REC_LAYOUT_SEL_OFF 0x2cde0   /* shop-tier selector (FUN_0048ffd9 index) */
+#define SCENE1_REC_CHARMODE_OFF   0x2ce0c   /* camera char_mode (DAT_045105a4) */
+#define SCENE1_REC_FURNITURE_OFF  0x2ce10   /* 10 × (int32 x, int32 z) furniture pairs */
+
+static uint8_t *scene1_active_save_record(void)
+{
+    int32_t slot = chara_equip_get_current_bank();
+    return save_arena_base() + (size_t)slot * SAVE_BANK_STRIDE_BYTES;
+}
+
+/* Test/debug scene_type override for the loader.  <0 (default) → use the
+ * real HOUSE value (0).  >=0 → force that scene_type so `--force-walker-
+ * phase2 N` can still exercise the synthetic tiers 1..4. */
+static int s_house_scene_type_override = -1;
+
+void scene1_postload_set_house_scene_type_override(int scene_type)
+{
+    s_house_scene_type_override = scene_type;
+}
+
+/* Port of engine FUN_0048ffd9 — seed the active record's furniture array
+ * (+0x2ce10) from the template row selected by the record's shop-tier
+ * field (+0x2cde0).  Engine reads the selector each iteration; we clamp to
+ * the four ported HOUSE tiers. */
+void scene1_postload_seed_house_furniture(void)
+{
+    uint8_t *rec = scene1_active_save_record();
+    int32_t tier;
+    memcpy(&tier, rec + SCENE1_REC_LAYOUT_SEL_OFF, sizeof tier);
+    if (tier < 0 || tier >= SCENE1_HOUSE_FURNITURE_TIERS) {
+        tier = 0;
+    }
+    int32_t *furn = (int32_t *)(rec + SCENE1_REC_FURNITURE_OFF);
+    for (int i = 0; i < 10; i++) {
+        furn[i * 2 + 0] = k_house_furniture_template[tier][i][0];
+        furn[i * 2 + 1] = k_house_furniture_template[tier][i][1];
+    }
+}
+
+/* Production HOUSE-entry loader.  Sources the Cf walker's three inputs +
+ * the camera char_mode from real engine state, replacing the
+ * --force-walker-phase2 MVP injection:
+ *   - scene_type: DAT_068dd3fc[stage*0x6cf].  HOUSE (stage 0) = 0; the
+ *     stage-table string loader that derives it for other stages is
+ *     unported, so HOUSE's known-0 is used here (PHC).
+ *   - ivar8: the engine constant 3 (FUN_00436f97 L178).
+ *   - stage_positions: the save-record furniture array (+0x2ce10), seeded
+ *     above from the template exactly as the Cf walker reads it.
+ *   - char_mode: save-record +0x2ce0c (0 on a fresh game).
+ * The bias_x/z_src camera inputs stay a HOUSE stand-in (the FUN_00432e50
+ * placement search is unported — see scene1_camera_apply_house_groundtruth). */
+void scene1_postload_load_house_phase2_inputs(void)
+{
+    uint8_t *rec = scene1_active_save_record();
+
+    /* Establish the new-game HOUSE record fields that the port's save-bank
+     * baseline does not (the full new-game record seeder FUN_0049d36d is
+     * unported, and the port's save_bank_init_all leaves these at a -1
+     * artifact rather than retail's 0): the shop-tier selector (+0x2cde0)
+     * and char_mode (+0x2ce0c) are both 0 on a fresh HOUSE per the live
+     * retail capture.  Writing them here makes the record faithful so the
+     * reads below source real (new-game-correct) state.  NOTE: scoped to
+     * the new-game HOUSE path — a loaded save would set these via save-load
+     * (gameplay-state sync not yet ported). */
+    const int32_t zero = 0;
+    memcpy(rec + SCENE1_REC_LAYOUT_SEL_OFF, &zero, sizeof zero);
+    memcpy(rec + SCENE1_REC_CHARMODE_OFF,   &zero, sizeof zero);
+
+    scene1_postload_seed_house_furniture();
+
+    g_walker_scene_type = (s_house_scene_type_override >= 0)
+                              ? s_house_scene_type_override
+                              : 0;   /* DAT_068dd3fc[0] for HOUSE (PHC) */
+    g_walker_ivar8      = 3;         /* engine constant (FUN_00436f97 L178) */
+
+    const int32_t *furn = (const int32_t *)(rec + SCENE1_REC_FURNITURE_OFF);
+    for (int i = 0; i < 10; i++) {
+        g_walker_stage_positions[i][0] = furn[i * 2 + 0];
+        g_walker_stage_positions[i][1] = furn[i * 2 + 1];
+    }
+
+    int32_t char_mode;
+    memcpy(&char_mode, rec + SCENE1_REC_CHARMODE_OFF, sizeof char_mode);
+    g_scene1_camera_char_mode = (int)char_mode;
 }
 
 void scene1_postload_walker_phase2_init(void)

@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **356** (14.0%) — verified 58, stubbed 12, ported 286
-- unported: **2192**
+- touched: **357** (14.0%) — verified 58, stubbed 12, ported 287
+- unported: **2191**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (58) — runtime-diffed vs retail
@@ -94,7 +94,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (286) — reimplemented, no probe yet
+## ported (287) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -149,7 +149,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x42e791 | FUN_0042e791 | 676 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h, scene1_particles_tick.h |
 | 0x430c00 | FUN_00430c00 | 109 | ✓ | scene1_sim.c, scene1_sim.h |
 | 0x430c6d | FUN_00430c6d | 3022 | ✓ | scene1_particles_tick.c, scene1_particles_tick.h |
-| 0x432e50 | FUN_00432e50 | 2084 | ✓ | scene1_camera.c, scene1_postload.h, scene1_records_b_spawn.c (+3) |
+| 0x432e50 | FUN_00432e50 | 2084 | ✓ | scene1_camera.c, scene1_postload.c, scene1_postload.h (+5) |
 | 0x433674 | FUN_00433674 | 2354 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h, scene1_records_c_tick.c (+1) |
 | 0x4341d4 | FUN_004341d4 | 42 | ✓ | storage.c |
 | 0x4341fe | FUN_004341fe | 903 | ✓ | lnkdatas_hash.h, main.c, storage.c (+1) |
@@ -345,6 +345,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a43d | FUN_0049a43d | 283 | ✓ | main.c, save_io.c, save_io.h (+2) |
 | 0x49b537 | FUN_0049b537 | 31 | ✓ | scene_title.c |
 | 0x49c050 | FUN_0049c050 | 1001 | ✓ | scene_title.c |
+| 0x49d36d | FUN_0049d36d | 495 | ✓ | scene1_postload.c, scene1_postload.h |
 | 0x49d8a4 | FUN_0049d8a4 | 355 | ✓ | sim.c |
 | 0x49db8a | FUN_0049db8a | 487 | ✓ | sim.c |
 | 0x49de08 | FUN_0049de08 | 6 | ✓ | scene_new_game.h |

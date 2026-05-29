@@ -996,38 +996,24 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         scene1_postload_set_force_b_entity_type(g_force_b_entity_type);
     }
 
-    /* Cf — phase-2 walker writer.  Applied before scene1_preload_house
-     * fires so the writer sees the override on the first HOUSE entry.
-     * FUN_00436f97 (block 21) DOES run on new-game HOUSE entry (proven
-     * 2026-05-29 via the E.1 call tracer: called once @ engine frame
-     * 3200) — this flag supplies the writer's three runtime inputs, whose
-     * engine sources (DAT_068dd3fc selector + per-save-slot record) are
-     * not yet ported.  scene_type 0 = HOUSE: apply the retail-captured,
-     * test-verified new-game ground truth (count=3, real furniture
-     * layout).  Other scene_types keep the count-only synthetic sweep. */
-    if (g_force_walker_phase2_scene_type == 0) {
-        scene1_postload_apply_walker_phase2_house_groundtruth();
-    } else if (g_force_walker_phase2_scene_type > 0) {
-        scene1_postload_set_walker_phase2_scene_type(g_force_walker_phase2_scene_type);
+    /* Cf — phase-2 walker writer inputs.  De-MVP'd: scene1_preload_house
+     * now calls scene1_postload_load_house_phase2_inputs() unconditionally,
+     * sourcing scene_type / ivar8 / stage_positions / char_mode from real
+     * engine state (the stage selector + the seeded per-save-slot record),
+     * so HOUSE furniture renders with NO flag.  `--force-walker-phase2 N`
+     * is now only a test override for the synthetic scene_type tiers 1..4
+     * (N<0, the default, leaves the real HOUSE value 0). */
+    if (g_force_walker_phase2_scene_type >= 0) {
+        scene1_postload_set_house_scene_type_override(
+            g_force_walker_phase2_scene_type);
     }
 
     /* Cc.1: initialise scene-1 camera state.  Sets the first-frame
-     * snap flag so the first scene1_render_camera_setup pass writes
-     * a real eye/lookat instead of accumulating from BSS-zero.  Also
-     * clears the compose-add overrides to boot-faithful 0. */
+     * snap flag so the first scene1_render_camera_setup pass writes a real
+     * eye/lookat, and sets the faithful compose-add constants (14/21/-1.8).
+     * The HOUSE bias stand-in + char_mode are applied per HOUSE entry by
+     * scene1_preload_house (load_house_phase2_inputs + the bias apply). */
     scene1_camera_init();
-
-    /* Camera MVP fix — the phase-2 writer above made furniture visible,
-     * but with wrong orientation/scale because the port's pose_compute
-     * used BSS-zero assumptions (radius/eye-y/lookat-y adds) + a
-     * char_mode=2 hard-code + yaw=0 default, while retail HOUSE has
-     * adds=14/21/-1.8, char_mode=0, yaw=π (captured via
-     * tools/dump_camera_groundtruth.py).  Apply AFTER scene1_camera_init
-     * so the override survives the init's reset, then the first
-     * pose_compute snaps to the correct eye/lookat. */
-    if (g_force_walker_phase2_scene_type == 0) {
-        scene1_camera_apply_house_groundtruth();
-    }
 
     /* C8jb.fin — wire scene1_combat_sm_tick as the records_b_tick
      * state-machine hook.  This is the engine's FUN_0043865e (Mt.

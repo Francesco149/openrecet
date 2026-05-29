@@ -30,7 +30,12 @@ float g_scene1_camera_eye[3]     = { 0, 0, 0 };
 float g_scene1_camera_lookat[3]  = { 0, 0, 0 };
 float g_scene1_camera_orient[16] = { 0 };
 
-int   g_scene1_camera_char_mode        = 2;     /* shop view; PHC #11 */
+int   g_scene1_camera_char_mode        = 0;     /* new-game HOUSE: record+0x2ce0c
+                                                 * = 0 (was hard-coded 2, PHC #11);
+                                                 * the production loader resets it
+                                                 * from the save record on HOUSE
+                                                 * entry (scene1_postload_load_
+                                                 * house_phase2_inputs). */
 int   g_scene1_camera_stage_view_mode  = 0;     /* HOUSE BSS-zero */
 float g_scene1_camera_z_roll           = 0.0f;  /* _DAT_006051c4 */
 
@@ -104,32 +109,23 @@ void scene1_camera_init(void)
     g_bias_z_src = 0.0f;
 }
 
-/* MVP HOUSE camera fix — inject the retail-captured pose inputs the port
- * can't yet source from engine state, so the HOUSE furniture renders with
- * the correct framing/orientation/scale.  Parallels Cf.minimal's
- * scene1_postload_apply_walker_phase2_house_groundtruth(); wired behind
- * the same `--force-walker-phase2 0` path in main.c.
+/* HOUSE camera bias stand-in — the LAST remaining MVP injection.
  *
- * Values from tools/dump_camera_groundtruth.py (retail new-game HOUSE):
- *   eye=(-1, 22.2, 15), lookat=(-1, 1.2, 1), yaw=π, fov=45° (already
- *   matched), z_roll=0.  This sets the five compose inputs + char_mode +
- *   yaw that produce exactly those eye/lookat through pose_compute.
- *
- * Faithful-port follow-ups (PHC): yaw=π is a direct write in the Cf block
- * (FUN_00436f97 L589); char_mode is *(int*)(&DAT_045105a4 + slot*0x2dfc8);
- * radius/eyey/looky adds come from the per-stage camera-param loader. */
+ * Of the original eight HOUSE camera/Cf inputs, seven are now faithful:
+ * cam-adds (scene1_camera_init constants), yaw (Cf block), char_mode +
+ * scene_type + stage_positions (scene1_postload_load_house_phase2_inputs,
+ * from real save state), and ivar8 (engine constant 3).  Only bias_x/z_src
+ * remain captured: retail's DAT_056da1d8 = -0.3 / DAT_056da1e0 = 9.35 are
+ * the OUTPUT of the FUN_00436f97 placement-search block (228-276), which
+ * runs an 8-azimuth free-spot search via FUN_00432e50 (2084 B, unported).
+ * Until that lands, inject the retail-captured result so the HOUSE camera
+ * target (and thus framing) is correct.  Called unconditionally on HOUSE
+ * entry now (not behind --force-walker-phase2).  PHC: port FUN_00432e50 +
+ * the placement block to derive these. */
 void scene1_camera_apply_house_groundtruth(void)
 {
-    g_scene1_camera_char_mode = 0;   /* retail per-save-slot source = 0
-                                      * (port hard-coded 2; with 0 block B
-                                      * takes the uVar2<2 arm → offsets 0) */
-    /* radius/eye.y/lookat.y adds are now faithful constants set in
-     * scene1_camera_init() (see there); only the bias stand-in remains
-     * here (FUN_00432e50 placement search unported). */
-    g_bias_x_src        = -0.3f;     /* DAT_056da1d8 (clamps to -1.0) */
-    g_bias_z_src        = 9.35f;     /* DAT_056da1e0 (clamps to  1.0) */
-    /* yaw=π is now written faithfully by scene1_postload_walker_phase2_init()
-     * (engine FUN_00436f97 L589), so it is no longer set here. */
+    g_bias_x_src = -0.3f;   /* DAT_056da1d8 (clamps to -1.0) */
+    g_bias_z_src =  9.35f;  /* DAT_056da1e0 (clamps to  1.0) */
 }
 
 /* ─── FUN_00441c3e default-path pose helper ───────────────────────────── */
