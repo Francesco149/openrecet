@@ -47,6 +47,7 @@
 
             # ── dynamic analysis / instrumentation ────────────────────
             frida-tools       # hook DirectX calls (under Windows via WSLInterop)
+            nodejs            # `node --check` for the Frida agent JS (tools/frida/*.js)
             # Wine intentionally NOT in the flake — modern nixpkgs wine for
             # 32-bit Win32 PE either builds from source (slow, fragile) or
             # uses the new wow64 mode that skips the 32-bit syswow64/ layer
