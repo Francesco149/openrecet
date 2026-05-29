@@ -132,6 +132,52 @@ addresses `formdata + base + edi*2`, with parallel sub-tables at
 `+0x400` (height/row) and `+0x600` (col) and `+0x800` (cell→atlas).
 The Cchr.1 decompile (`CONCAT11`/`CONCAT31` byte assembly) is faithful.
 
+## Cchr.2b leaf-renderer port spec (objdump-verified, turnkey)
+
+`FUN_0045a56f(int *param_1, float param_2 /*char_id*/, int param_3,
+undefined4 world_mtx, float param_5 /*color*/)` builds N textured
+billboard quads (one per 32×32 sprite cell) into a stack vertex buffer
+(FVF stride **0x18** = XYZ + DIFFUSE + UV) and draws via **DrawPrimitiveUP**.
+(`param_2`/`param_3` are both the char id = `DAT_056da1cc`.)
+
+**Prologue:** `mov eax,0x24054 ; call 0x5038d0` = `__alloca_probe` for the
+~36885-float buffer — in C just a local/heap array.  `SetTransform(0x100,
+world_mtx)` via vtable `[+0x94]`.
+
+**Constants:** 0x519364 = 1.0, 0x519368 = 100.0, 0x519474 = 32.0 (cell
+px), 0x51943c = π.  Helpers: `FUN_00503954` = `__ftol` (f→int trunc);
+`FUN_00503a44` = `sin` (double on `[esp]`).
+
+**Per-char setup:** `scale = chr_meta_scale_x100(char)/100.0`;
+`sheet_w = chr_meta_sheet_w(char)` (= ced0); `y_origin = ced0+0x34`
+(cedc); `cell = chr_meta_lut(char, anim, frame, facing-bank)` (the
+formdata cell index `edi`); `ncells/start` come from the formdata blob
+header (`DAT_0438abe0[base+0x400/0x600/0x800]`, base = bigendian u32 at
+`formdata[char*4]`).
+
+**Per-cell quad** (loop `local_18` cells; `iVar11 = sheet_w/32` =
+cells/row):
+- col = cell%iVar11, row = cell/iVar11; `px = col*32`; `x0 = -sheet_w/2 + px`
+- `py = y_origin - row*32`; world Y: bottom `(py-32)*scale`, top `py*scale`
+- atlas: `cols = ftol(tex_w/32)` (tex_w = `DAT_073a9b1c[param_3*0x10]`,
+  tex_h = `DAT_073a9b20[...]`); `arow_px = (cell/cols)<<5`
+- UV: u = `((cell%cols)*32+0.5)/tex_w` .. `((cell%cols+1)*32-0.5)/tex_w`;
+  v = `(arow_px+0.5)/tex_h` .. `(arow_px+32-0.5)/tex_h`
+- **facing flip** gated on `DAT_005c5a74[param_1[6]]` (0 = right): picks
+  `x0±shimmer` then world X `(x0±32)*scale`
+- **shimmer** (`param_1[10]` = spawn age): 0 → none; `>0` → `sheet_w*0.2`;
+  `<0x14` → `sin(arg)*sheet_w*0.2` (arg @ 0x45a85e: `±|fVar|*0x519434/
+  0x519520` — re-dump for exact; **dormant for the standing player,
+  param_1[10]==0**)
+- **color/alpha gate** (`param_1[7..9]`): `[7]>=1` → `color|0xffffff`;
+  else if `[8]>0 && [9]==0` → `color & 0xff9f209f | 0x9f209f`
+- z = 0; 6 verts/quad via the two 6-elem replicate loops (quad→2 tris).
+
+**Draw tail:** if `(param_1[8]<1 || param_1[9]!=0) && param_1[7]>0`:
+`SetTSS[+0xfc] ; DrawPrimitiveUP[+0x120](TRILIST, ncells*2, buf, 0x18) ;
+SetTSS[+0xfc]` else a single `DrawPrimitiveUP`.  (vtable offsets match
+the rest of the scene1 ports.)
+
 ## Two MVP strategies for first visible-pixel A/B (user's call)
 
 - **A — faithful-loaders-first.** Finish 2a wiring (formdata + idx names +
@@ -144,7 +190,19 @@ The Cchr.1 decompile (`CONCAT11`/`CONCAT31` byte assembly) is faithful.
   2 chips, then replace the injected data with the faithful loaders.
 
 Strategy B reaches visible verification fastest and matches how HOUSE
-furniture (Cf.minimal) was de-risked.  **Deferred to the user.**
+furniture (Cf.minimal) was de-risked.  **CHOSEN by the user 2026-05-29.**
+
+Concrete 2b/MVP step list (strategy B):
+1. Transcribe the 68 idx-filename PTR list @ 0x5c80c4 → `chr_meta_idx_names()`.
+2. Wire `chr_formdata_load()` + `chr_meta_load()` into boot (after storage
+   init) so `g_chr_formdata` + `g_chr_desc` hold real data.
+3. Port `FUN_0045a56f` per the spec above → `scene1_chr_sprite.{c,h}`
+   (host-test the per-cell quad geometry).
+4. Frida-capture one retail player leaf-call: `param_1` struct (0x44),
+   char_id (`DAT_056da1cc`), world matrix, color — at a HOUSE frame.
+5. Inject behind `--force-player-sprite`, call the leaf for the player,
+   A/B vs retail; then replace the injected `param_1` with the faithful
+   actor-walker port (Cchr.2d).
 
 ## What landed (Cchr.2a, 2026-05-29)
 
