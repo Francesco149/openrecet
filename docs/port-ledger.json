@@ -6801,7 +6801,8 @@
    "src": [
     "src/chr_sprite_meta.c",
     "src/chr_sprite_meta.h",
-    "src/chr_sprite_meta_load.c"
+    "src/chr_sprite_meta_load.c",
+    "src/main.c"
    ]
   },
   {

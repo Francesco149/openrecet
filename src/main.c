@@ -71,6 +71,9 @@
 #include "scene1_render.h"
 #include "scene1_hud.h"
 #include "scene1_shop_walker.h"
+#include "scene1_chr_sprite.h"
+#include "chr_sprite_meta.h"
+#include "sprite.h"
 #include "stage_palette.h"
 #include "stage_state.h"
 #include "tick.h"
@@ -158,6 +161,30 @@ static int              g_show_pass_f_test     = 0;
  * HOUSE default). */
 static char            *g_force_pass_d_mesh_path = NULL;
 static mesh_t          *g_force_pass_d_mesh      = NULL;
+
+/* --force-player-sprite <inject>: Cchr.2b first-pixels MVP (strategy-B
+ * step 5).  Reads a flat inject file (produced by tools/chr_leaf_to_inject.py
+ * from a retail --chr-leaf capture) holding ONE leaf call's inputs:
+ * char_id, color, sheet tex dims, the world matrix, the actor
+ * sprite-state struct, and an optional sheet texture to bind.  On HOUSE
+ * INGAME frames it injects those into scene1_chr_sprite_render so the
+ * ported leaf draws the player billboard on top of the scene, for visual
+ * A/B vs retail.  The Cchr.2a loaders (chr_formdata_load / chr_meta_load)
+ * are wired at boot under this flag so g_chr_formdata + the descriptor
+ * hold real data; build_quads then resolves the same cell retail did.
+ * Off by default — normal boot doesn't load the chr data. */
+static int              g_force_player_sprite      = 0;
+static char             g_fps_inject_path[MAX_PATH] = {0};
+static int              g_fps_loaded               = 0;  /* inject parsed ok */
+static int32_t          g_fps_actor[0x11]          = {0};
+static float            g_fps_world[16]            = {0};
+static int              g_fps_char_id              = 0;
+static uint32_t         g_fps_color                = 0xffffffffu;
+static int              g_fps_tex_w                = 0;
+static int              g_fps_tex_h                = 0;
+static char             g_fps_sheet[160]           = {0};  /* "" / "-" = none */
+static sprite_t         g_fps_sheet_sprite         = {0};
+static int              g_fps_sheet_tried          = 0;    /* lazy-load latch */
 
 /* --debug-pass-d-unlit: C8e.smoke visual smoke.  Brute-force state
  * override that mirrors the C8e.bridge proof-of-life — forces
@@ -566,6 +593,77 @@ static void force_pass_d_mesh_reload(void)
     scene1_shop_walker_set_pass_d_mesh(g_force_pass_d_mesh);
 }
 
+/* Parse a --force-player-sprite inject file.  Line-based, tolerant of
+ * blank/`#` lines and any key order:
+ *
+ *   char_id <int>
+ *   color   <hex u32>
+ *   tex     <w> <h>
+ *   world   <16 floats, row-major>
+ *   actor   <17 ints>          (the param_1 sprite-state struct dwords)
+ *   sheet   <name|->           (optional; bound via sprite_load, "-"=none)
+ *
+ * Returns 1 if at least char_id + tex + world + actor were seen. */
+static int force_player_sprite_load_inject(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        fprintf(stderr, "openrecet: force-player-sprite: cannot open %s\n", path);
+        return 0;
+    }
+    int have_char = 0, have_tex = 0, have_world = 0, have_actor = 0;
+    char line[1024];
+    while (fgets(line, sizeof(line), f)) {
+        char key[32];
+        if (sscanf(line, "%31s", key) != 1) continue;
+        if (key[0] == '#') continue;
+        const char *rest = line + strlen(key);
+        if (strcmp(key, "char_id") == 0) {
+            if (sscanf(rest, "%d", &g_fps_char_id) == 1) have_char = 1;
+        } else if (strcmp(key, "color") == 0) {
+            unsigned int c;
+            if (sscanf(rest, "%x", &c) == 1) g_fps_color = (uint32_t)c;
+        } else if (strcmp(key, "tex") == 0) {
+            if (sscanf(rest, "%d %d", &g_fps_tex_w, &g_fps_tex_h) == 2)
+                have_tex = 1;
+        } else if (strcmp(key, "world") == 0) {
+            int n = 0; const char *p = rest;
+            for (; n < 16; n++) {
+                int adv = 0;
+                if (sscanf(p, "%f%n", &g_fps_world[n], &adv) != 1) break;
+                p += adv;
+            }
+            if (n == 16) have_world = 1;
+        } else if (strcmp(key, "actor") == 0) {
+            int n = 0; const char *p = rest;
+            for (; n < 0x11; n++) {
+                int adv = 0, v = 0;
+                if (sscanf(p, "%d%n", &v, &adv) != 1) break;
+                g_fps_actor[n] = (int32_t)v;
+                p += adv;
+            }
+            if (n == 0x11) have_actor = 1;
+        } else if (strcmp(key, "sheet") == 0) {
+            char s[160];
+            if (sscanf(rest, "%159s", s) == 1)
+                lstrcpynA(g_fps_sheet, s, (int)sizeof(g_fps_sheet));
+        }
+    }
+    fclose(f);
+    if (!(have_char && have_tex && have_world && have_actor)) {
+        fprintf(stderr, "openrecet: force-player-sprite: %s missing required "
+                "keys (char_id/tex/world/actor)\n", path);
+        return 0;
+    }
+    fprintf(stderr, "force-player-sprite: char_id=%d color=0x%08x tex=%dx%d "
+            "anim=%d frame=%d facing=%d age=%d sheet=%s\n",
+            g_fps_char_id, (unsigned)g_fps_color, g_fps_tex_w, g_fps_tex_h,
+            g_fps_actor[CHR_ACTOR_ANIM], g_fps_actor[CHR_ACTOR_FRAME],
+            g_fps_actor[CHR_ACTOR_FACING], g_fps_actor[CHR_ACTOR_AGE],
+            g_fps_sheet[0] ? g_fps_sheet : "(none)");
+    return 1;
+}
+
 /* ─── WinMain — mirrors FUN_0047bfb3 ─────────────────────────────────────── */
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -673,6 +771,22 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * already shown on failure inside storage_init. */
     if (!storage_init()) {
         return 0;
+    }
+
+    /* --force-player-sprite: wire the Cchr.2a character-sprite loaders
+     * (engine FUN_004341fe tail + FUN_00479f78) now that storage is up,
+     * so g_chr_formdata + the per-char descriptor hold real data before
+     * the first HOUSE render.  Only under the flag — normal boot leaves
+     * the chr data unloaded (no consumer yet). */
+    if (g_force_player_sprite) {
+        int fd = chr_formdata_load();
+        int nidx = chr_meta_load();
+        fprintf(stderr, "force-player-sprite: chr_formdata_load=%d "
+                "chr_meta_load parsed %d idx files\n", fd, nidx);
+        g_fps_loaded = force_player_sprite_load_inject(g_fps_inject_path);
+        if (!fd || !g_fps_loaded)
+            fprintf(stderr, "force-player-sprite: disabled (formdata=%d "
+                    "inject=%d)\n", fd, g_fps_loaded);
     }
 
     /* TODO "init print ok"   — FUN_00451863 */
@@ -1999,6 +2113,35 @@ static void render_dispatch(void)
 
                 scene1_pass_f_render((struct IDirect3DDevice8 *)g_dev);
             }
+
+            /* --force-player-sprite: Cchr.2b first-pixels MVP.  Overlays
+             * the ported leaf renderer's player billboard on top of the
+             * HOUSE scene the INGAME branch just drew, inheriting its
+             * VIEW/PROJECTION (the captured world matrix is in the same
+             * HOUSE world space).  Lazily binds the sheet texture on the
+             * first frame; "-"/empty sheet → diffuse-only (white
+             * silhouette — still validates geometry/placement). */
+            if (g_force_player_sprite && g_fps_loaded && g_dev) {
+                if (!g_fps_sheet_tried) {
+                    g_fps_sheet_tried = 1;
+                    if (g_fps_sheet[0] && strcmp(g_fps_sheet, "-") != 0) {
+                        if (!sprite_load(g_dev, g_fps_sheet,
+                                         (uint32_t)g_fps_tex_w,
+                                         (uint32_t)g_fps_tex_h,
+                                         &g_fps_sheet_sprite)) {
+                            fprintf(stderr, "force-player-sprite: sheet load "
+                                    "failed (%s); drawing diffuse-only\n",
+                                    g_fps_sheet);
+                        }
+                    }
+                }
+                IDirect3DDevice8_SetTexture(g_dev, 0,
+                    (IDirect3DBaseTexture8 *)g_fps_sheet_sprite.tex);
+                scene1_chr_sprite_render((struct IDirect3DDevice8 *)g_dev,
+                                         g_fps_actor, g_fps_char_id,
+                                         g_fps_world, g_fps_color,
+                                         g_fps_tex_w, g_fps_tex_h);
+            }
             break;
         default:
             break;
@@ -2176,6 +2319,12 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char path_buf[MAX_PATH];
                 lstrcpynA(path_buf, val, (int)sizeof(path_buf));
                 g_force_pass_d_mesh_path = path_buf;
+            }
+        } else if (lstrcmpA(tok, "--force-player-sprite") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                lstrcpynA(g_fps_inject_path, val, (int)sizeof(g_fps_inject_path));
+                g_force_player_sprite = 1;
             }
         } else if (lstrcmpA(tok, "--debug-pass-d-unlit") == 0) {
             g_debug_pass_d_unlit = 1;

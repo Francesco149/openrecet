@@ -34,9 +34,27 @@ All engine float constants decoded from the binary (1.0/100/0.5/32/0.2/
 pass. Both exe targets build warning-free. Findings + resolved open
 questions in `docs/findings/scene1-char-sprite-render.md`.
 
-Next (strategy-B steps 4–5, needs the user / Frida + visual A/B): capture
-one retail player leaf-call, inject behind `--force-player-sprite`, A/B
-vs retail; boot-wiring of the Cchr.2a loaders (step 2) also still pending.
+**Followup (same day) — strategy-B steps 4–5 scaffolded end-to-end:**
+
+- **Frida leaf-capture** (`frida_capture.py --chr-leaf`): hooks the leaf
+  at ENTER + its DrawPrimitiveUP, riding the `--dump-records-b` HOUSE
+  free-roam drive. Writes `chr_leaf.jsonl` with `leaf_in` (the 5 inputs
+  + the descriptor/formdata-derived fields, so it's self-contained) and
+  `leaf_out` (the vertex buffer retail built). Agent + Python both
+  syntax-clean.
+- **`--force-player-sprite <inject>`** (main.c): wires the Cchr.2a loaders
+  at boot (under the flag), reads a flat inject file, and overlays the
+  ported leaf's player billboard on the HOUSE scene for visual A/B.
+- **`tools/chr_leaf_to_inject.py`**: turns a capture into the inject file
+  (picks the player's call by char-id + nearest-to-player matrix), and
+  `--emit-expected` dumps retail's `leaf_out` for comparison. Verified
+  end-to-end on a synthetic capture — the picked call's expected verts
+  match the port's host-tested build_quads output exactly.
+
+Both exe targets build warning-free; host suite 2928 pass. Remaining
+needs the user: run the capture against retail + the visual A/B, confirm
+the COLOROP=7/8 tail, then port the actor walker (Cchr.2d). Full runbook
+in `docs/findings/scene1-char-sprite-render.md`.
 
 ## 2026-05-29 — Cchr.2a: character sprite-metadata loaders (chr/formdata + .idx)
 

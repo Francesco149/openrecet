@@ -248,12 +248,44 @@ Constants decoded from the binary: 1.0/100.0/0.5/32.0/0.2/(π÷2)/20.0 at
 non-flipped geometry, atlas advance across cells, all three color-gate
 branches, NULL/degenerate/truncated-formdata safety, `out_max` clamp.
 
-**Remaining for first visible pixels (strategy-B steps 4–5):** Frida-capture
-one retail player leaf-call (`param_1` struct, char id `DAT_056da1cc`,
-world matrix, color, sheet tex dims) at a HOUSE frame; inject behind
-`--force-player-sprite`; A/B vs retail; then replace the injected
-`param_1` with the faithful actor-walker port (Cchr.2d).  Boot-wiring of
-the loaders (step 2) is also still pending.
+## Strategy-B steps 4–5 tooling (2026-05-29) — capture + inject
+
+The Frida-inject MVP path is now scaffolded end-to-end:
+
+1. **Capture (retail).** `frida_capture.py --chr-leaf` rides the
+   `--dump-records-b` HOUSE free-roam drive (same arming as `--quad-hist`)
+   and hooks `FUN_0045a56f` at ENTER + its two in-leaf DrawPrimitiveUP
+   sites.  Per dump-offset frame it writes one `chr_leaf` record to
+   `<run_dir>/chr_leaf.jsonl`: `leaf_in` (the 5 inputs **plus** the
+   descriptor + formdata-derived fields — `sheet_w`, `scale_x100`,
+   `y_origin`, facing `bank`, resolved `cell`, `fd_base/ncells/start`,
+   `fd_pos[]`) and `leaf_out` (the FVF-0x142 vertex buffer retail built).
+   Self-contained → bit-A/B with no asset files.
+
+   Example (HOUSE free-roam, adjacent offsets so the player moved):
+   ```
+   frida_capture.py --remote cutestation.soy:27042 --run-dir runs/cchr2b \
+     --turbo --silent-audio --auto-z-spam \
+     --dump-records-b --dump-records-b-offsets 8,9 --chr-leaf
+   ```
+
+2. **Inject (port).** `tools/chr_leaf_to_inject.py runs/cchr2b/chr_leaf.jsonl
+   -o inject.txt` picks the player's leaf call (char id == `player_char_id`,
+   matrix translation nearest `player_pos`) and writes the flat inject file.
+   Then `tools/run-openrecet.sh ... --force-player-sprite inject.txt`:
+   the loaders (`chr_formdata_load` + `chr_meta_load`) wire at boot so the
+   descriptor + blob are real, and the ported leaf draws the player
+   billboard over the HOUSE scene (inheriting its VIEW/PROJECTION).  Bind
+   the sheet with `--sheet <path>` on the converter (else diffuse-only =
+   white silhouette, which already validates geometry/placement).
+   `--emit-expected` prints retail's `leaf_out` verts for the picked call
+   to compare against the port.
+
+**Remaining:** run the capture against retail (needs the Windows host) and
+the visual A/B; confirm the `COLOROP=7/8` tail; then replace the injected
+`param_1` with the faithful actor-walker port (Cchr.2d).  Step-2 boot-wiring
+now happens *under the `--force-player-sprite` flag*; folding it into the
+normal boot waits on Cchr.2d giving it a real per-frame consumer.
 
 ## Cross-refs
 
