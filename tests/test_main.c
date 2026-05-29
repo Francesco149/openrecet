@@ -3060,7 +3060,17 @@ struct test_case {
     \
     X(scene1_fx_overlays_null_device_safe) \
     X(scene1_fx_overlays_default_counters_no_op) \
-    X(scene1_fx_overlays_active_counters_no_crash)
+    X(scene1_fx_overlays_active_counters_no_crash) \
+    \
+    X(chr_meta_header_fields) \
+    X(chr_meta_frames_packed) \
+    X(chr_meta_halt_marker) \
+    X(chr_meta_anim_terminator) \
+    X(chr_meta_second_animation) \
+    X(chr_meta_crlf_line_endings) \
+    X(chr_meta_blocks_independent) \
+    X(chr_meta_oob_and_null_safe) \
+    X(chr_meta_alloc_idempotent)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

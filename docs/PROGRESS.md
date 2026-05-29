@@ -7,6 +7,40 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-29 — Cchr.2a: character sprite-metadata loaders (chr/formdata + .idx)
+
+First *code* chip of the Cchr.2 character-sprite port. Cchr.1 named the
+leaf renderer `FUN_0045a56f`; surveying its data dependencies showed it
+reads a character-sprite-animation subsystem the port had not built —
+so Cchr.2 is a chip ladder (2a–2e), not 3 functions. This chip lands the
+**static data layer** both the leaf and the frame-tick depend on:
+
+- **`chr/formdata.bin` blob** (engine `DAT_0438abe0`): loaded raw by the
+  tail of `FUN_004341fe`; our `storage.c` port stops before that tail, so
+  it was unloaded. Ported as `chr_formdata_load()`.
+- **Per-character descriptor array** (engine `DAT_0438cea8`, 68 chars,
+  stride 0x5058): built by `FUN_00479f78` by parsing one `.idx` text file
+  per character. Ported faithfully as `chr_meta_parse_idx()` — the `.idx`
+  grammar was fully resolved (all sscanf formats are `"%s"`; the hold
+  marker keyword is `"HALT"` @ 0x5cb994; frames pack 6 dwords each,
+  `0x3ff`×6 = HALT, `0xffffffff` = end-of-animation, animations 0x100
+  dwords apart).
+
+New `src/chr_sprite_meta.{c,h}` (asset-independent data layer:
+alloc/parser/accessors — linked into the host suite) + `src/chr_sprite_meta_load.c`
+(storage-backed loaders — real build only, so the host suite needs no
+`storage.c`). **9 host tests** (`test_chr_sprite_meta.c`); 2919 total,
+all pass. Both exe targets build warning-free.
+
+Not yet wired into boot (awaits the 68-entry idx-filename PTR list at
+0x5c80c4 + a decision on descriptor-populate timing). Full dependency
+map + the Cchr.2b–e ladder + two MVP strategies (faithful-loaders-first
+vs Frida-inject-MVP) + open questions (leaf frame-LUT `0x1416`-vs-`0x141e`
+stride, `FUN_00482a71` indexing, dropped FPU args) are in
+`docs/findings/scene1-char-sprite-render.md`. No retail-side validation
+yet — the parser is host-tested on synthetic `.idx` only; a Frida
+descriptor dump for bit-exactness is queued.
+
 ## 2026-05-29 — Cchr.1: RESOLVED — the HOUSE player/companion sprite path
 
 Followed up Cchr.0 (which falsified "characters live in records_b /

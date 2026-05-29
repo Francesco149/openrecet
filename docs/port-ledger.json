@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 59,
   "stubbed": 14,
-  "ported": 286,
-  "unported": 2189,
+  "ported": 287,
+  "unported": 2188,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 359,
+  "touched": 360,
   "pct_touched": 14.1,
   "pct_verified": 2.3
  },
@@ -2375,6 +2375,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/chr_sprite_meta.c",
+    "src/chr_sprite_meta.h",
+    "src/chr_sprite_meta_load.c",
     "src/lnkdatas_hash.h",
     "src/main.c",
     "src/storage.c",
@@ -4157,6 +4160,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/chr_sprite_meta.h",
     "src/scene1_render.c",
     "src/scene1_render.h"
    ]
@@ -4192,6 +4196,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/chr_sprite_meta.h",
     "src/scene1_render.c",
     "src/scene1_render.h"
    ]
@@ -4293,6 +4298,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/chr_sprite_meta.h",
     "src/scene1_render.c",
     "src/scene1_shop_walker.c",
     "src/scene1_shop_walker.h"
@@ -6789,8 +6795,12 @@
    "size": 1227,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/chr_sprite_meta.c",
+    "src/chr_sprite_meta.h",
+    "src/chr_sprite_meta_load.c"
+   ]
   },
   {
    "va": "0x47a444",
