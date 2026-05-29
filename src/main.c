@@ -602,6 +602,20 @@ static void force_pass_d_mesh_reload(void)
     scene1_shop_walker_set_pass_d_mesh(g_force_pass_d_mesh);
 }
 
+/* Cchr.2f — post-house dispatcher.  scene1_preload owns a single
+ * post-house callback slot; route it through here so --force-pass-d-mesh
+ * and --force-chr-walker can both run on HOUSE entry (after the cache
+ * reset + foreground loads).  --force-chr-walker loads the player's
+ * walking sprite sheet so the chr-walker can SetTexture it; char 0 must
+ * match the inject player_char in scene1_chr_walker_set_inject below. */
+static void force_post_house_hook(void)
+{
+    if (g_force_pass_d_mesh_path)
+        force_pass_d_mesh_reload();
+    if (g_force_chr_walker)
+        scene1_preload_load_chr_sheet(0);
+}
+
 /* Parse a --force-player-sprite inject file.  Line-based, tolerant of
  * blank/`#` lines and any key order:
  *
@@ -975,8 +989,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * the hook fires AFTER the reset + after the HOUSE foreground
      * loads, so the mesh's texture slots land in fresh cache rows
      * the next sw_pass_d frame can resolve correctly. */
-    if (g_force_pass_d_mesh_path) {
-        scene1_preload_set_post_house_callback(force_pass_d_mesh_reload);
+    if (g_force_pass_d_mesh_path || g_force_chr_walker) {
+        scene1_preload_set_post_house_callback(force_post_house_hook);
     }
 
     /* --debug-pass-d-unlit: see flag comment above.  Wire the parsed

@@ -48,6 +48,8 @@ extern const int32_t g_scene1_chr_portrait_ids[SCENE1_PRELOAD_CHR_PORTRAIT_COUNT
 
 #ifdef _WIN32
 
+#include "sprite.h"   /* sprite_t — returned by scene1_preload_chr_sheet */
+
 struct IDirect3DDevice8;
 
 /*
@@ -73,6 +75,29 @@ void scene1_preload_init(struct IDirect3DDevice8 *dev);
  * chr portraits at w=h=0 don't count).
  */
 int scene1_preload_house(void);
+
+/*
+ * Cchr.2f (MVP) — load one character's walking sprite sheet
+ * ("bmp/chr/chr_%02d.bmp", engine s_bmp_chr_chr_02d_bmp_005c8d08) into a
+ * dedicated slot the chr-walker binds via SetTexture.  This is the
+ * player-sheet analog of the engine's HOUSE preload loop (FUN_00474a9a
+ * L73066) over the roster id table — except that table (the byte-verified
+ * g_scene1_chr_portrait_ids[] dump) excludes char 0 (the player), whose
+ * slot retail fills from the FUN_00431a80 active-char list.  Until that
+ * roster mechanism ports, this loads char 0 directly behind
+ * --force-chr-walker.  Idempotent: reloading the same id is a no-op;
+ * a different id frees the previous texture first.  Uses the device
+ * cached by scene1_preload_init().
+ */
+void scene1_preload_load_chr_sheet(int char_id);
+
+/*
+ * Return the loaded sprite sheet for `char_id`, or NULL if none is
+ * loaded for that id (or its texture failed to create).  The chr-walker
+ * reads .tex for SetTexture and .width/.height for the leaf's atlas UVs
+ * — the engine's DAT_073a9b18 record (+0 tex / +4 w / +8 h).
+ */
+const sprite_t *scene1_preload_chr_sheet(int char_id);
 
 #endif /* _WIN32 */
 

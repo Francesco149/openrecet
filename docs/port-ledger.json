@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 59,
   "stubbed": 14,
-  "ported": 294,
-  "unported": 2181,
+  "ported": 295,
+  "unported": 2180,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 367,
+  "touched": 368,
   "pct_touched": 14.4,
   "pct_verified": 2.3
  },
@@ -2238,8 +2238,11 @@
    "size": 156,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_preload.c",
+    "src/scene1_preload.h"
+   ]
   },
   {
    "va": "0x431b1c",

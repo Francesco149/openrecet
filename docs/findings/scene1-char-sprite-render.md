@@ -4,6 +4,44 @@
 > sprite path) with the *port* dependency map + chip ladder. Started
 > 2026-05-29.
 
+> **2026-05-30 — Cchr.2f: TEXTURE PATH RESOLVED + the visible standing player
+> is the SHOP-WALKER, not the chr-walker (pixel-diff ground truth).**
+> Wired the chr sprite-sheet texture: the leaf `FUN_0045a56f` binds nothing —
+> the *caller* does `SetTexture(0, DAT_073a9b18[char*0x10])` then calls the
+> leaf, which samples it (UVs use the texture's native +4/+8 dims).  The sheet
+> asset is **`"bmp/chr/chr%02d.bmp"` (NO underscore** — objdump @ 0x5c8d08; the
+> port's portrait loop + an earlier draft used `chr_%02d.bmp`, a typo that
+> silently failed `read_asset`).  Char 0's sheet is `bmp/chr/chr00.bmp`,
+> 512×1024.  New loader+getter `scene1_preload_load_chr_sheet` /
+> `scene1_preload_chr_sheet` (Win32) + the chr-walker bind landed; under
+> `--force-chr-walker` Recette now samples her sheet instead of a white quad.
+>
+> BUT she renders **blue + translucent**, because we injected into the
+> **`FUN_00456f56` chr-walker**, whose player draw is `or $0x7f7fff` (B=0xFF,
+> blue) + alpha-clamp 0x9b (≈60%) — objdump-confirmed faithful, but a
+> **situational/secondary** draw that **does not fire for the normal standing
+> player.**  Ground truth from the existing retail leaf capture
+> (`runs/cchr2b/chr_leaf.jsonl`, free-roam HOUSE frame 17544): the leaf fires
+> 8×; **player (char 0) + companion (char 1) are drawn ONLY from `ret_va
+> 0x4564d9` = `FUN_004552d0` (the shop-walker)** at **`color 0xff808080`
+> (opaque, neutral)**, reading the actor from **`DAT_056daae8 + char*0xb`**
+> (the 11-dword position-history ring `FUN_0048b850`'s tail fills) and binding
+> the SAME `DAT_073a9b18[char]` sheet (decomp `4552d0.c:445-450`; objdump
+> `0x45649f` SetTexture → `0x4564d4` leaf call).  NPCs (chars 35/36/37/38/39)
+> come from `ret_va 0x46f872` (`FUN_0046f648`); the chr-walker `FUN_00456f56`
+> only contributes the **companion** sub-draw (char 2, `0x4571cc`,
+> `0xff7f7f7f`) that frame — never the blue player path.
+>
+> **Implication — corrects the Cchr.1 premise.** The visible standing
+> Recette/Tear billboards are the **shop-walker** `FUN_004552d0` player/
+> companion draw (leaf call @ `4552d0.c:449`, currently a STUB in
+> `src/scene1_shop_walker.c`), fed by the `DAT_056daae8` ring (= `FUN_0048b850`
+> / the Cpop chip).  The chr-walker `FUN_00456f56` player path is a separate,
+> situational draw.  So solid-Recette = port the shop-walker player/companion
+> leaf draw + populate `DAT_056daae8` (faithfully via `FUN_0048b850`'s ring
+> shift, or an MVP inject).  The Cchr.2f sheet-loader infra is REUSED there
+> (same `DAT_073a9b18` table + bind).
+
 > **2026-05-30 — ERRATA (corrects the survey below): the survey's item 3 is
 > WRONG. `FUN_0044376a` is NOT an "actor logical→render-slot copier (8538 B)".
 > It is the records_b entity-effect *spawn allocator* (signature

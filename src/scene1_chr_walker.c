@@ -125,6 +125,7 @@ void scene1_chr_walker_set_inject(int enable, int player_char,
 
 #include "math3d.h"
 #include "scene1_camera.h"   /* g_scene1_camera_orient (= engine DAT_0438cdf8) */
+#include "scene1_preload.h"  /* scene1_preload_chr_sheet — the chr sheet table; pulls sprite.h */
 
 /* Engine billboard base matrix DAT_0438cdf8 — the camera orientation matrix
  * scene1_camera_angle_compute() publishes to g_scene1_camera_orient each
@@ -234,6 +235,11 @@ void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
             if (chr_walker_player_char() != -1) {
                 int player_char = chr_walker_player_char();
                 int blend_set = 0;
+                /* The player sprite sheet (engine DAT_073a9b18[char*0x10]);
+                 * NULL until scene1_preload_load_chr_sheet runs (under
+                 * --force-chr-walker).  Bound once on the first live actor,
+                 * mirroring the engine latch @ 0x456fe6 (local_24==0). */
+                const sprite_t *sheet = scene1_preload_chr_sheet(player_char);
                 for (int sweep = 0; sweep < 2; sweep++) {
                     if (sweep == 1 && chr_walker_party_daae0() == 0)
                         continue;
@@ -253,7 +259,14 @@ void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
                             continue;
 
                         if (!blend_set) {       /* bind on first live actor */
-                            blend_set = 1;       /* engine: DEST=6, SRC=5 */
+                            blend_set = 1;
+                            /* engine @ 0x456ff0: SetTexture(0, sheet) then
+                             * DEST=6, SRC=5.  When no sheet is loaded the
+                             * stage keeps whatever was bound → diffuse-only
+                             * white silhouette (geometry still validates). */
+                            if (sheet && sheet->tex)
+                                IDirect3DDevice8_SetTexture(dev, 0,
+                                    (IDirect3DBaseTexture8 *)sheet->tex);
                             IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND,
                                                             D3DBLEND_INVSRCALPHA);
                             IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,
@@ -276,11 +289,15 @@ void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
                         mat4_mul(tmp, scale, tmp);
                         mat4_mul(world, chr_walker_base_matrix(), tmp);
                         uint32_t color = ((uint32_t)alpha << 24) | 0x7f7fffu;
-                        /* tex dims = the validated Recette sheet (512×1024);
-                         * geometry/placement is tex-independent (diffuse-only
-                         * MVP — no sheet bound, white silhouette). */
+                        /* tex dims drive the leaf's atlas UVs (atlas_cols =
+                         * tex_w/32, V denom = tex_h) — engine reads them from
+                         * the sheet record's +4/+8 fields.  Source from the
+                         * loaded sprite; fall back to the validated Recette
+                         * 512×1024 when no sheet (diffuse-only, geometry only). */
+                        int tex_w = (sheet && sheet->tex) ? (int)sheet->width  : 512;
+                        int tex_h = (sheet && sheet->tex) ? (int)sheet->height : 1024;
                         scene1_chr_sprite_render(dev_in, actor, player_char,
-                                                 world, color, 512, 1024);
+                                                 world, color, tex_w, tex_h);
                     }
                     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, TRUE);
                 }
