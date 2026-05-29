@@ -22,6 +22,7 @@
 
 #include "scene1_render.h"   /* scene1_render_apply_palette_combiner_mode */
 #include "scene1_walker_pass_init.h"  /* scene1_walker_pass_render_house */
+#include "scene1_maplight.h"  /* scene1_current_stage_record */
 
 /* ─── engine scratch globals — module-local mirrors ──────────────────── */
 
@@ -42,30 +43,46 @@ static uint32_t g_scratch_006051ac = 0;
  * dormant. */
 static int aw_init_transform_count(void) { return 0; }
 
-/* DAT_068dd2f0 + 0x1a40 (int) — combiner mode for the final
- * FUN_00454f03 call inside the alpha-pass-guard branch. */
-static int aw_palette_combiner_mode_1a40(void) { return 0; }
+/* The 0x1a40..0x1a5c palette ints are the parsed stage.idx fields
+ * (DAT_068dd2f0 indexes the parsed table — see the erratum in
+ * scene1_maplight.{c,h}).  HOUSE (stage:0-1): drawcode 2, hikaridrawcode
+ * 2, hikarialpha 96, hikariadd 1; water* all 0 (no water).  Read them
+ * from the live record instead of the old all-zero stubs. */
 
-/* DAT_068dd2f0 + 0x1a44 (int) — combiner mode for the top-level
+/* DAT_068dd2f0 + 0x1a40 — drawcode: combiner mode for the final
+ * FUN_00454f03 call inside the alpha-pass-guard branch (after pass 3). */
+static int aw_palette_combiner_mode_1a40(void)
+{ const stage_record_t *r = scene1_current_stage_record(); return r ? r->drawcode : 0; }
+
+/* DAT_068dd2f0 + 0x1a44 — waterdrawcode: combiner mode for the top-level
  * FUN_00454f03 call right after the palette-gated blend swap. */
-static int aw_palette_combiner_mode_1a44(void) { return 0; }
+static int aw_palette_combiner_mode_1a44(void)
+{ const stage_record_t *r = scene1_current_stage_record(); return r ? r->waterdrawcode : 0; }
 
-/* DAT_068dd2f0 + 0x1a48 (int) — TEXTUREFACTOR per-channel low byte,
- * OR'd into the high byte slot.  HOUSE → 0 → factor = 0xff000000
- * (opaque black multiplicand, effectively kills the modulation). */
-static int aw_palette_texture_factor_1a48(void) { return 0; }
+/* DAT_068dd2f0 + 0x1a48 — wateralpha: TEXTUREFACTOR alpha (low byte
+ * OR'd into the high byte) for the water pass. */
+static int aw_palette_texture_factor_1a48(void)
+{ const stage_record_t *r = scene1_current_stage_record(); return r ? r->wateralpha : 0; }
 
-/* DAT_068dd2f0 + 0x1a50 (int) — blend-mode gate.  HOUSE → 0 → the
- * standard alpha-blend pair applies. */
-static int aw_palette_blend_gate_1a50(void) { return 0; }
+/* DAT_068dd2f0 + 0x1a50 — wateradd: blend-mode gate (0 → SRCALPHA/
+ * INVSRCALPHA "over"; non-zero → DESTCOLOR/DESTCOLOR additive). */
+static int aw_palette_blend_gate_1a50(void)
+{ const stage_record_t *r = scene1_current_stage_record(); return r ? r->wateradd : 0; }
 
-/* DAT_068dd2f0 + 0x1a54 (int) — combiner mode for the inner
- * alpha-pass-guard FUN_00454f03 call. */
-static int aw_palette_combiner_mode_1a54(void) { return 0; }
+/* DAT_068dd2f0 + 0x1a54 — hikaridrawcode: combiner mode for the inner
+ * alpha-pass-guard FUN_00454f03 call (before pass 3). */
+static int aw_palette_combiner_mode_1a54(void)
+{ const stage_record_t *r = scene1_current_stage_record(); return r ? r->hikaridrawcode : 0; }
 
-/* DAT_068dd2f0 + 0x1a5c (int) — inner blend-mode gate inside the
- * alpha-pass-guard branch. */
-static int aw_palette_inner_blend_gate_1a5c(void) { return 0; }
+/* DAT_068dd2f0 + 0x1a5c — hikariadd: inner blend-mode gate before the
+ * hikari pass (HOUSE = 1 → SRCBLEND=DESTCOLOR, DESTBLEND=DESTCOLOR). */
+static int aw_palette_inner_blend_gate_1a5c(void)
+{ const stage_record_t *r = scene1_current_stage_record(); return r ? r->hikariadd : 0; }
+
+/* DAT_068dd2f0 + 0x1a58 — hikarialpha: the __ftol TEXTUREFACTOR alpha
+ * set right before the hikari pass (HOUSE = 96). */
+static int aw_palette_hikari_alpha_1a58(void)
+{ const stage_record_t *r = scene1_current_stage_record(); return r ? r->hikarialpha : 0xff; }
 
 /* DAT_073dfcec — alpha-pass guard.  Same accessor name as the one
  * in scene1_render.c but local-scoped: zero means "render normally"
@@ -249,18 +266,17 @@ void scene1_alpha_walker(struct IDirect3DDevice8 *dev_in)
         scene1_render_apply_palette_combiner_mode(
             (struct IDirect3DDevice8 *)dev, aw_palette_combiner_mode_1a54());
 
-        /* L76-L79: TEXTUREFACTOR set from __ftol().  Ghidra dropped
-         * the float arg to ftol; likely a per-fade computed alpha.
-         * Until the source ports, we use a placeholder of 0xff —
-         * full opacity — which is the engine's "no fade" steady
-         * state. */
+        /* L76-L79 (decomp L53662-53663): TEXTUREFACTOR alpha set from
+         * __ftol(<dropped float>).  The dropped float is the hikari
+         * alpha (palette+0x1a58 = hikarialpha; HOUSE = 96), truncated
+         * to an int and packed into the high byte over white RGB.  A
+         * per-fade scalar may still modulate it once the fade counters
+         * port; for the steady state hikarialpha is the value. */
         {
-            DWORD factor = (0xffu << 24) | 0x00ffffffu;
+            DWORD alpha = (DWORD)(aw_palette_hikari_alpha_1a58() & 0xff);
+            DWORD factor = (alpha << 24) | 0x00ffffffu;
             IDirect3DDevice8_SetRenderState(dev, D3DRS_TEXTUREFACTOR, factor);
         }
-        /* TODO C8-followup: identify the __ftol source.  Likely
-         * palette+0x1a58 * fade_scalar from the palette's fade
-         * counters; surfaces once a starter ports. */
 
         /* L80-L82: restore TSS alpha state — may have been reset by
          * the FUN_00457714 call above. */

@@ -431,8 +431,28 @@ static IDirect3DBaseTexture8 *pick_texture_for_action(
                 ? (IDirect3DBaseTexture8 *)s_hook_jutan_tex() : NULL;
         case SCENE1_WALKER_SLOT_HIKARI:
         case SCENE1_WALKER_SLOT_WATER:
-            return s_hook_animated_tex
-                ? (IDirect3DBaseTexture8 *)s_hook_animated_tex() : NULL;
+            /* Engine binds the animated frame table DAT_073aa198[
+             * (draw_counter/wateranimspeed) % wateranimnum] (decomp
+             * L52825-52837 / L52871-52882).  For HOUSE the hikari
+             * effect is a single static frame whose texture is
+             * xfile/shop/hikari.bmp — loaded as the embedded material
+             * texture of shop_1st.x, so it already sits in the mesh tex
+             * cache at this very slot (the slot mesh_load flagged
+             * `hikari`, mesh_load.c:63).  With no animated-frame table
+             * ported, bind the slot's own sprite: identical result for
+             * the single-frame case, and it kills the NULL-texture
+             * fallback that drew the god-ray submeshes as opaque
+             * material-coloured frustum geometry.  An explicit
+             * animated-texture hook (water frame cycling) still wins
+             * when installed. */
+            if (s_hook_animated_tex)
+                return (IDirect3DBaseTexture8 *)s_hook_animated_tex();
+            if (slot < 0 || slot >= g_mesh_tex_cache.count) return NULL;
+            {
+                sprite_t *spr =
+                    (sprite_t *)g_mesh_tex_cache.entries[slot].sprite;
+                return spr ? (IDirect3DBaseTexture8 *)spr->tex : NULL;
+            }
         case SCENE1_WALKER_SLOT_SKIP:
         default:
             return NULL;
