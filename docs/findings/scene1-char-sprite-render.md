@@ -96,25 +96,41 @@ player state machine around all.c L34365 (values 0x1b/0x1c/0x1e/0x1f/
 0x28...).  `DAT_056da1d4` = the companion's id.  These select the
 descriptor block.
 
-## Open questions (resolve in the validated session)
+## Open questions
 
-1. **Leaf frame-LUT stride mismatch.** `FUN_00479f78` writes the LUT with
-   char stride `0x1416` dw; the leaf reads with `char*0x359*6 = 0x141e` dw
-   **+ a facing offset** from `DAT_005c5a54[param_1[6]]`.  0x141e − 0x1416
-   = 8.  Likely the facing offset / a decompiler const-fold; **objdump
-   `FUN_0045a56f` @ 0x45a56f before porting 2b** to nail the exact index
-   expression.
-2. **FUN_00482a71 indexing.** Frame-tick reads `DAT_0438cef4` (= cee0+0x14
-   within a 0x18-byte frame entry?) with `*param_1*0x400` + `param_2*0x359`
-   strides — does not obviously match the parser's 6-dword frame packing.
-   Reconcile via objdump at 2c.
-3. **Dropped FPU args in the leaf.** `FUN_005038d0` (ftol setup),
-   `__ftol`, `FUN_00503a44` (time shimmer) — objdump-verify the QWORD
-   loads (see [[feedback_argless_trig_decomp]]).
-4. **The 68 idx filenames.** `chr_meta_idx_names()` returns NULL until the
+1. **Leaf frame-LUT stride — RESOLVED 2026-05-29 (objdump @ 0x45a56f).**
+   No mismatch: `0x359 * 6 = 0x1416` **exactly** = the block stride in
+   dwords (an earlier note miscomputed it as `0x141e`).  The leaf index is
+   `facing + param_2*0x1416 + frame*6 + anim*0x100`, where
+   `facing = DAT_005c5a54[param_1[6]]` is a **within-block bank offset**
+   (per-facing-direction animation bank), NOT a stride term.  The parser's
+   layout and the reader agree — `chr_meta_lut(char, anim, frame, field)`
+   is directly usable by 2b; the facing bank is just an extra additive
+   dword offset to fold in.
+2. **`FUN_005038d0` — RESOLVED 2026-05-29.** It is `__alloca_probe` /
+   `__chkstk` for the ~36885-float (0x24054-byte) local vertex buffer
+   (`mov eax,0x24054 ; call 0x5038d0` at the prologue) — **not** a dropped
+   FPU arg.  In C the buffer is a stack/heap array; no probe needed.
+3. **`FUN_00482a71` indexing (2c).** Frame-tick reads `DAT_0438cef4`
+   (= cee0+0x14) with `*param_1*0x400` + `param_2*0x359` strides.  Given
+   `0x359*6 = 0x1416`, the `param_2*0x359` here is likely a *frame-entry*
+   (6-dword) count, i.e. the same packing — re-derive the `*0x400` /
+   `+0x14` offsets via objdump when porting 2c.
+4. **Dropped FPU arg in the leaf:** `__ftol` (float→int, standard) and
+   `FUN_00503a44` (the `iVar4 < 0x14` time-shimmer alpha ramp) — minor
+   visual; objdump-verify when porting 2b ([[feedback_argless_trig_decomp]]).
+5. **The 68 idx filenames.** `chr_meta_idx_names()` returns NULL until the
    PTR list at 0x5c80c4 is transcribed; `chr_meta_load()` is a no-op until
    then.  Transcribe with objdump (deref 68 LE ptrs) when wiring 2a into
    boot.
+
+### Leaf formdata-blob (`DAT_0438abe0`) indirection (objdump-confirmed)
+
+Per char `param_2`: `base = bigendian_u32(formdata[param_2*4 .. +3])`
+(byte order b0<<24|b1<<16|b2<<8|b3).  The LUT cell index `edi` then
+addresses `formdata + base + edi*2`, with parallel sub-tables at
+`+0x400` (height/row) and `+0x600` (col) and `+0x800` (cell→atlas).
+The Cchr.1 decompile (`CONCAT11`/`CONCAT31` byte assembly) is faithful.
 
 ## Two MVP strategies for first visible-pixel A/B (user's call)
 
