@@ -94,6 +94,21 @@ static sprite_t g_scene1_leve_win;
 static sprite_t g_scene1_mood_para;
 static sprite_t g_scene1_chr_portraits[SCENE1_PRELOAD_CHR_PORTRAIT_COUNT];
 
+/* HIKARI/WATER animated-texture hook (engine DAT_073aa198[frame]).  The
+ * engine's HOUSE asset loader (FUN_00474a9a L73104-73113) loads the
+ * per-stage hikari frames "<prefix><NN>.bmp" into DAT_073aa198, and the
+ * hikari pass (FUN_00457714 param_1==3) binds DAT_073aa198[anim_frame]
+ * via SetTexture — NOT the hikari submesh's own embedded sprite.  For
+ * HOUSE the prefix is `mood_para` (a single soft light/mood frame),
+ * which scene1_preload already loads into g_scene1_mood_para.  Without
+ * this hook the pass fell back to each hikari submesh's embedded sprite,
+ * drawing the window blinds/curtains as cyan triangulated geometry
+ * instead of the soft lit overlay.  Single-frame: ignore the anim cycle. */
+static void *house_hikari_texture(void)
+{
+    return g_scene1_mood_para.tex;
+}
+
 static IDirect3DDevice8 *g_scene1_preload_dev = NULL;
 
 /*
@@ -278,6 +293,9 @@ int scene1_preload_house(void)
     scene1_walker_set_kabe_texture_hook(house_kabe_texture);
     scene1_walker_set_yuka_texture_hook(house_yuka_texture);
     scene1_walker_set_jutan_texture_hook(house_jutan_texture);
+    /* Bind the real hikari/window texture (mood_para) so the hikari pass
+     * stops falling back to the cyan embedded submesh sprite. */
+    scene1_walker_set_animated_texture_hook(house_hikari_texture);
 
     fprintf(stderr,
             "scene1_preload: HOUSE branch fired — loads=%d "
