@@ -26,7 +26,7 @@
 ## Current front
 
 - **Phase:** Phase E — leaf-first execution parity (harness-roadmap.md §E)
-- **Top blocker:** Cf.* HOUSE shop_table writer chunk (no-decompile-writer region) — blocks visible HOUSE pixels; D.7 mem_watch would unblock
+- **Top blocker:** Character billboards in HOUSE — the chr-sprite walker (FUN_00456f56) is ported + wired but dormant: its actor/party render array (DAT_056dacc0) has no live writer.  Front chip = FUN_0048b850 (Cpop, in progress) + its unported caller FUN_0048670f.  (HOUSE 3D scene + furniture render by default since 2026-05-29; 2D HUD overlay C7i also remaining.)
 
 ## Where to read next
 
