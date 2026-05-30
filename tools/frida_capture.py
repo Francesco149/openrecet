@@ -134,6 +134,24 @@ def ensure_frida_server(remote: str, exe_wsl_path: Path,
     return False
 
 
+def parse_anchor_spec(spec: str) -> dict:
+    """Parse a `--capture-at-anchor` token `NAME[+k|-k]` into
+    {"name": str, "offset": int}. Anchor names are UPPER_SNAKE (no digits or
+    signs), so the first +/- begins the signed offset — same split rule the
+    port uses in src/main.c. A bare NAME means offset 0.
+    """
+    sep = len(spec)
+    for i, ch in enumerate(spec):
+        if ch in "+-":
+            sep = i
+            break
+    name = spec[:sep]
+    offset = int(spec[sep:], 10) if sep < len(spec) else 0
+    if not name:
+        raise ValueError(f"--capture-at-anchor: empty anchor name in {spec!r}")
+    return {"name": name, "offset": offset}
+
+
 def write_bmp_topdown_bgra(path: Path, w: int, h: int, pixels: bytes) -> None:
     """Mirror src/main.c::capture_backbuffer's on-disk layout exactly.
 
@@ -268,6 +286,15 @@ class CaptureConfig:
     # The driver appends them to `<run_dir>/anchors.jsonl`. Pair with
     # `auto_z_spam` to drive a fresh new-game to HOUSE unattended.
     anchor_trace:           bool = False
+    # TAS P2 retail side — anchor-relative capture (`--capture-at-anchor
+    # NAME[+k]`). A list of {"name": str, "offset": int}; each resolves to a
+    # backbuffer capture at (anchor_frame + offset) when NAME fires, so a
+    # capture lands on the SAME semantic instant on both targets despite the
+    # load jitter that makes absolute frame numbers meaningless. Mirrors the
+    # port's --capture-at-anchor (src/main.c). Implies anchor_trace (forced on
+    # below). The agent shuts itself down via `capture_at_anchor_done` once
+    # every requested anchor has fired and every resolved target is captured.
+    capture_at_anchor:      list[dict] | None = None
     # Memory-access watch (Phase D.7). When `mem_watch` is true the agent
     # arms Frida's MemoryAccessMonitor over `mem_watch_regions` and emits
     # one record per trapped access (faulting instruction VA + accessed
@@ -352,7 +379,10 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     chr_leaf_jsonl = run_dir / "chr_leaf.jsonl"
     f_leaf = chr_leaf_jsonl.open("w") if cfg.chr_leaf else None
     anchors_jsonl = run_dir / "anchors.jsonl"
-    f_anchor = anchors_jsonl.open("w", buffering=1) if cfg.anchor_trace else None
+    # capture_at_anchor forces the anchor poll on the agent side, so record
+    # the anchor stream here too even when --anchor-trace wasn't passed.
+    f_anchor = (anchors_jsonl.open("w", buffering=1)
+                if (cfg.anchor_trace or cfg.capture_at_anchor) else None)
 
     captured: list[int] = []
     last_mask: int | None = None
@@ -513,6 +543,13 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         if kind == "auto_3d_trace_done":
             f_log.write(f"[auto_3d] trace window done "
                         f"[frames {p.get('first_frame')}..{p.get('last_frame')}]; "
+                        f"signaling shutdown\n")
+            done.set()
+            return
+
+        if kind == "capture_at_anchor_done":
+            f_log.write(f"[capture_at_anchor] all requested anchors fired + "
+                        f"captures landed @ frame={p.get('frame')}; "
                         f"signaling shutdown\n")
             done.set()
             return
@@ -704,6 +741,14 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["pre_3d_trace"] = True
     if cfg.anchor_trace:
         init_cfg["anchor_trace"] = True
+    if cfg.capture_at_anchor:
+        # Implies the anchor poll; the agent also forces anchor_trace on, but
+        # set it here too so the `ready` echo + anchors.jsonl line up.
+        init_cfg["anchor_trace"] = True
+        init_cfg["capture_at_anchor"] = [
+            {"name": str(r["name"]), "offset": int(r.get("offset", 0))}
+            for r in cfg.capture_at_anchor
+        ]
     if cfg.dump_records_b:
         init_cfg["dump_records_b"] = True
         init_cfg["dump_records_b_capture"] = bool(cfg.dump_records_b_capture)
@@ -955,6 +1000,21 @@ def main(argv: list[str] | None = None) -> int:
                          "names src/anchor_trace.c writes on the port side, "
                          "so one spec aligns both targets. Pair with "
                          "--auto-z-spam to drive a fresh new-game to HOUSE.")
+    ap.add_argument("--capture-at-anchor", action="append", default=None,
+                    metavar="NAME[+k]",
+                    help="TAS P2: capture the backbuffer at frame "
+                         "(anchor_frame + k) when the named anchor fires, "
+                         "instead of a fixed absolute frame. Robust to the "
+                         "non-deterministic new-game->HOUSE load (which "
+                         "absolute --capture-frames can't hit). NAME is an "
+                         "UPPER_SNAKE anchor (BOOT / NEW_GAME / LOADING_START "
+                         "/ LOADING_END / HOUSE_FREEROAM); k is an optional "
+                         "signed offset (default 0). Repeatable. Mirrors the "
+                         "port's same-named flag. Implies --anchor-trace; the "
+                         "driver shuts down once every requested anchor has "
+                         "fired and its capture landed. Pair with --auto-z-spam "
+                         "+ --hide-window + --force-resolution. Example: "
+                         "--capture-at-anchor HOUSE_FREEROAM+30")
     ap.add_argument("--dump-records-b", action="store_true",
                     help="Cchr.0: dump scene-1 table-B render records at "
                          "frame offsets from the first 3D draw (default "
@@ -1039,6 +1099,14 @@ def main(argv: list[str] | None = None) -> int:
         dump_records_b_offsets = [
             int(x) for x in args.dump_records_b_offsets.split(",") if x]
 
+    capture_at_anchor: list[dict] | None = None
+    if args.capture_at_anchor:
+        try:
+            capture_at_anchor = [parse_anchor_spec(s)
+                                 for s in args.capture_at_anchor]
+        except ValueError as e:
+            ap.error(str(e))
+
     cfg = CaptureConfig(
         capture_frames=capture_frames,
         max_frames=args.max_frames,
@@ -1062,6 +1130,7 @@ def main(argv: list[str] | None = None) -> int:
         auto_3d_trace_frames=args.auto_3d_trace_frames,
         pre_3d_trace=args.pre_3d_trace,
         anchor_trace=args.anchor_trace,
+        capture_at_anchor=capture_at_anchor,
         dump_records_b=args.dump_records_b,
         dump_records_b_offsets=dump_records_b_offsets,
         dump_records_b_capture=args.dump_records_b_capture,

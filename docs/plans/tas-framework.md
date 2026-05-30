@@ -351,14 +351,27 @@ non-negotiable here — synthesis only converges if replay is reproducible.
       HOUSE_FREEROAM (3018), so the load-free anchor is more precise than
       `auto_3d_trace`'s first-DrawIndexedPrimitive trigger.
 - **P2 — anchor-relative capture + alignment map:** port-side
-  anchor-relative capture **landed** as `--capture-at-anchor NAME[+k]`
-  (2026-05-30) — captures resolve live when the anchor fires, immune to
-  the load jitter. Remaining: the *retail* side (resolve anchor+offset →
-  frame from the Frida anchor stream in `frida_capture.py`) and the
-  declarative `scenario.yaml` `anchors:`/`capture:` section so a scenario
-  expresses captures by anchor instead of plumbing the flag by hand.
-  Then re-run this session's case cross-target: capture port & retail at
-  `HOUSE_FREEROAM + k` and confirm the room aligns.
+  anchor-relative capture landed as `--capture-at-anchor NAME[+k]`
+  (2026-05-30); **retail side landed (2026-05-30)** — the Frida agent
+  (`anchorCaptureSchedule()`) resolves `anchor+offset → frame` live when
+  the anchor fires (offset 0 captures the anchor frame itself, future
+  offsets queue into the existing capture-pending set, past offsets drop),
+  and self-shuts-down via `capture_at_anchor_done` once every requested
+  anchor has fired and its capture landed; `frida_capture.py
+  --capture-at-anchor NAME[+k]` is the symmetric driver flag. **Validated
+  cross-target + dogfooded:** drove both targets to the HOUSE shop and
+  regenerated the README hero (`docs/img/house-comparison.png`) as an
+  anchor-aligned port|retail pair via the new `tools/compose_comparison.py`
+  — replacing the old hand-picked absolute-frame-3300 montage. The drive
+  surfaced a real **sub-state divergence** (engine-quirks §55): retail's
+  `HOUSE_FREEROAM` fires **twice** (the unported intro event + its own load
+  precede the playable shop), so retail needs the 2nd firing + ~1500 frames
+  while the port (no intro) needs ~+300 — the canonical "anchor as a
+  correctness signal" case. Remaining: the declarative `scenario.yaml`
+  `anchors:`/`capture:` section so a scenario expresses captures by anchor
+  instead of plumbing the flag by hand; and (future) a precise
+  "shop free-roam" anchor (records-B `count_b>0`) that names the playable
+  instant directly on both sides.
 - **P3 — canonical-state forcing + `tas_diff.py`:** named force profiles
   (pose/camera/freeze/overlay) applied symmetrically; one-command diff
   gallery. **Acceptance test: reproduce the deferred clean book + back-

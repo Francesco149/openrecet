@@ -7,6 +7,52 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — TAS P2 (retail side): anchor-relative capture; README hero regenerated anchor-aligned; HOUSE_FREEROAM double-fire found
+
+Built the retail half of TAS P2 (`docs/plans/tas-framework.md`): the Frida
+driver can now capture **relative to a named anchor** instead of a fragile
+absolute frame, symmetric with the port's `--capture-at-anchor` — so one
+anchor spec captures both targets at the same semantic instant despite the
+load jitter.
+
+- **Agent (`tools/frida/openrecet-agent.js`).** New `anchorCaptureSchedule()`
+  runs after each anchor emit in `anchorTick(frame, devicePtr)`: resolves
+  every matching `{name, offset}` request to `frame + offset` — offset 0
+  captures the anchor frame *immediately* (we're in Present.onEnter pre-flip,
+  the same sample point as the normal path), future offsets queue into the
+  existing `g_capture_pending` set, past offsets drop. A 1:1 port of
+  `src/main.c::anchor_capture_schedule()`. The agent self-shuts-down via a new
+  `capture_at_anchor_done` once every *distinct* requested anchor has fired
+  **and** every resolved target has been captured (waiting on the unfired-name
+  set, not just pending, so offset-0 / multi-anchor specs settle correctly).
+- **Driver (`tools/frida_capture.py`).** `--capture-at-anchor NAME[+k]`
+  (repeatable; `parse_anchor_spec()` splits on the first +/- like the port),
+  `CaptureConfig.capture_at_anchor`, init plumb (forces the anchor poll on),
+  a `capture_at_anchor_done` handler → `done.set()`, and the `anchors.jsonl`
+  sink now also opens for capture-at-anchor runs.
+- **Dogfood — README hero regenerated anchor-aligned.** Drove retail
+  (`--auto-z-spam --capture-at-anchor HOUSE_FREEROAM+…`, 1024×768, ~1 s under
+  turbo) and the port (`run-openrecet.sh --auto-z-spam --capture-at-anchor
+  HOUSE_FREEROAM+300`) to the HOUSE shop and rebuilt
+  `docs/img/house-comparison.png` as an anchor-aligned port|retail montage —
+  replacing the old hand-picked absolute-frame-3300 pairing. New reusable
+  composer `tools/compose_comparison.py` (real bold TTF resolved via fc-match,
+  **errors instead of silently shipping PIL's tiny bitmap default**; big
+  `--font-size 44` by default).
+- **Finding — `HOUSE_FREEROAM` fires twice on retail (engine-quirks §55).**
+  The sweep showed retail's `INGAME && !loading` edge rising at the *intro
+  bedroom event* (~3041), then again (~4588) after the intro→shop transition
+  runs **its own loading screen**; the playable top-down shop is the 2nd
+  firing + ~1500 frames (A-spam clearing tutorial dialog). The **port has no
+  intro** so it fires **once** (~1533) straight into the shop. Same anchor
+  name, genuinely different sub-state — the design-doc's "anchor as a
+  correctness signal" case. A future precise shop anchor (records-B
+  `count_b>0`) would name the playable instant directly on both sides.
+
+**Next (P2 cont.):** declarative `scenario.yaml` `anchors:`/`capture:`
+section so scenarios express captures by anchor instead of plumbing the flag
+by hand (threads through `scenario-test.py` for both targets).
+
 ## 2026-05-30 — TAS P1 (retail side): Frida anchor emitter; one trace, two targets, names align + load divergence localised
 
 Built the retail half of TAS P1 (`docs/plans/tas-framework.md`): the

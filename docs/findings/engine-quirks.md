@@ -1889,6 +1889,44 @@ the next suspect.)
 > `sprite_load_mipped`), `src/mesh_load.c:mesh_load_finalize_win32`,
 > `docs/findings/texture-loader.md`, `tools/pixel_diff.py`.
 
+## 55. The new-game intro plays a whole second load — so `HOUSE_FREEROAM` fires twice on retail
+
+The TAS anchor `HOUSE_FREEROAM` (scene-state `DAT_0438b1c0 == INGAME` &&
+`!loading`) is **not** a one-shot on retail: it rises **twice** during a
+fresh new-game.  Observed (retail, `--auto-z-spam --capture-at-anchor`,
+2026-05-30):
+
+| event           | retail frame | what's on screen |
+|-----------------|-------------:|------------------|
+| LOADING_END / HOUSE_FREEROAM (1st) | ~3041–3156 | the **bedroom intro event** (Recette's room, "ESC Key: Event Skip") |
+| LOADING_START / END (2nd load)     | between     | the intro→shop transition loads its own assets |
+| HOUSE_FREEROAM (2nd)               | ~4588       | the scripted **shop tutorial** (dialog boxes) |
+| (dialog clears, A-spam) | ~6088 (2nd+1500) | the **top-down free-roam shop** — the playable state |
+
+So `INGAME && !loading` becomes true the instant the *intro event* starts,
+long before the playable shop.  The intro is itself a sequence of scenes
+**with its own loading screen** (bedroom → load → shop), which is why the
+anchor edge fires a second time.  The truly comparable "playable HOUSE"
+instant is the **2nd** `HOUSE_FREEROAM` plus enough frames for the
+A-spam-advanced tutorial dialog to clear (~1500 under turbo).
+
+**Why it matters (port↔retail parity):** the **port has no intro event**
+(it's unported), so on the port `HOUSE_FREEROAM` fires **once** (~frame
+1533) straight into the top-down shop.  This is the canonical "anchor as a
+correctness signal" case from `docs/plans/tas-framework.md`: same anchor
+NAME, genuinely different sub-state, because the port is missing a scene.
+Practical consequence for anchor-relative capture: a bare `HOUSE_FREEROAM`
+offset lands in *different* content on each side — retail needs the 2nd
+firing + a large offset to reach the shop, the port needs a small offset.
+A future precise "shop free-roam" anchor (e.g. records-B `count_b>0`, which
+the chr-walker only sees in actual free-roam — see
+`scene1-chr-walker.md`) would name the playable instant directly on both
+sides; until then, capture the **2nd** retail `HOUSE_FREEROAM`.
+
+> 📍 `src/anchor_trace.c`, `tools/frida/openrecet-agent.js` (`anchorTick`),
+> `docs/plans/tas-framework.md` (P2 retail), `runs/rh-sweep/` (the offset
+> sweep that surfaced the double-fire).
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of

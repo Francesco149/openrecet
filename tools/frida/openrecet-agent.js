@@ -587,6 +587,21 @@ let g_anchor_initialized   = false;
 let g_anchor_prev_scene    = 0;      // previous-frame DAT_0438b1c0
 let g_anchor_prev_loading  = false;  // previous-frame (gate1||gate2)!=0
 
+// TAS P2 retail side — anchor-relative capture (`--capture-at-anchor
+// NAME[+k]`). The retail counterpart of the port's --capture-at-anchor
+// (src/main.c `struct anchor_capture_req` + anchor_capture_schedule()):
+// resolve "capture at anchor_frame + offset" live when the named anchor
+// fires, so a capture lands on the SAME semantic instant on both targets
+// despite the load jitter that makes absolute frame numbers meaningless.
+// g_cap_anchor_reqs is the parsed [{name, offset}] list; g_cap_anchor_unfired
+// tracks distinct requested names still waiting (so we only shut down once
+// every requested anchor has fired); g_cap_anchor_pending holds resolved
+// future target frames not yet captured (offset 0 captures immediately).
+let g_cap_anchor_reqs      = [];     // [{name:str, offset:int}]
+let g_cap_anchor_unfired   = new Set();  // distinct names not yet fired
+let g_cap_anchor_pending   = new Set();  // resolved target frames pending
+let g_cap_anchor_done_sent = false;
+
 // Cchr.0 table-B dump mode.  When `dump_records_b` is set the agent polls
 // the records_b active-count (DAT_0076b964) every Present and anchors the
 // dump window on the FIRST frame where it goes non-zero — i.e. when the 3D
@@ -895,6 +910,10 @@ function installPresentHook(devicePtr) {
                     err('Present.onEnter', e.message + ' @ ' + e.stack);
                 }
                 g_capture_pending.delete(fn);
+                // Anchor-relative captures share g_capture_pending; clear
+                // the resolved-target bookkeeping too so the shutdown check
+                // below can tell when every requested capture has landed.
+                g_cap_anchor_pending.delete(fn);
             }
             if (g_max_frames > 0 && fn >= g_max_frames) {
                 send({kind: 'max_frames_reached', frame: fn});
@@ -928,10 +947,22 @@ function installPresentHook(devicePtr) {
             // bump, so the emitted frame matches every other fn-keyed event.
             if (g_anchor_trace_enabled) {
                 try {
-                    anchorTick(fn);
+                    anchorTick(fn, devicePtr);
                 } catch (e) {
                     err('Present.onEnter.anchor', e.message);
                 }
+            }
+            // Anchor-relative capture shutdown: once every requested anchor
+            // has fired AND every resolved target frame has been captured,
+            // signal the driver to shut down (mirrors auto_3d_trace_done).
+            // Waiting on g_cap_anchor_unfired (not just pending) is what lets
+            // a multi-anchor spec or an offset-0 immediate capture settle
+            // before we tear down.
+            if (g_cap_anchor_reqs.length > 0 && !g_cap_anchor_done_sent &&
+                g_cap_anchor_unfired.size === 0 &&
+                g_cap_anchor_pending.size === 0) {
+                g_cap_anchor_done_sent = true;
+                send({kind: 'capture_at_anchor_done', frame: fn});
             }
             // Bump AFTER the capture decision. Audio/input events that
             // fired during the cycle leading to this Present have
@@ -1665,7 +1696,45 @@ function anchorIsHouseFreeroam(scene, loading) {
     return scene === ANCHOR_SCENE_INGAME && !loading;
 }
 
-function anchorTick(frame) {
+// Resolve any --capture-at-anchor requests matching the just-fired anchor
+// into concrete capture frames. 1:1 with the port's anchor_capture_schedule()
+// (src/main.c): offset 0 captures the anchor frame itself (we're in
+// Present.onEnter pre-flip, the same sample point the normal capture path
+// uses); a future offset is queued; a past offset is dropped. Removes NAME
+// from g_cap_anchor_unfired so the shutdown check knows it has fired.
+function anchorCaptureSchedule(name, frame, devicePtr) {
+    g_cap_anchor_unfired.delete(name);
+    for (let i = 0; i < g_cap_anchor_reqs.length; i++) {
+        const req = g_cap_anchor_reqs[i];
+        if (req.name !== name) continue;
+        const target = frame + req.offset;
+        if (target < frame) {
+            log('anchor: capture ' + name + (req.offset >= 0 ? '+' : '') +
+                req.offset + ' -> frame ' + target + ' is in the past (now ' +
+                frame + ') -- dropped');
+            continue;
+        }
+        if (target === frame) {
+            // Offset 0: capture now. The normal capture check (Present
+            // onEnter, before anchorTick) has already run for this frame,
+            // so we must grab the backbuffer directly here rather than
+            // adding `frame` to the pending set (which would miss it).
+            try {
+                captureBackbuffer(devicePtr, frame);
+            } catch (e) {
+                err('anchorCaptureSchedule', e.message + ' @ ' + e.stack);
+            }
+            log('anchor: captured at ' + name + '+0 -> frame ' + frame);
+            continue;
+        }
+        g_capture_pending.add(target);
+        g_cap_anchor_pending.add(target);
+        log('anchor: scheduled capture at ' + name +
+            (req.offset >= 0 ? '+' : '') + req.offset + ' -> frame ' + target);
+    }
+}
+
+function anchorTick(frame, devicePtr) {
     // Snapshot the engine globals. loading_active = OR of both gates
     // (all.c L50058 `(DAT_06a49958==0) && (DAT_06a49960==0)`); reading
     // both keeps parity with the port's nowloading_is_active().
@@ -1678,6 +1747,7 @@ function anchorTick(frame) {
         g_anchor_prev_scene   = scene;
         g_anchor_prev_loading = loading;
         send({kind: 'anchor', anchor: 'BOOT', frame: frame});
+        anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
     }
 
@@ -1690,16 +1760,20 @@ function anchorTick(frame) {
     // same tick, so the observable edge is TITLE → INGAME directly).
     if (ps === ANCHOR_SCENE_TITLE && scene === ANCHOR_SCENE_INGAME) {
         send({kind: 'anchor', anchor: 'NEW_GAME', frame: frame});
+        anchorCaptureSchedule('NEW_GAME', frame, devicePtr);
     }
     if (!pl && loading) {
         send({kind: 'anchor', anchor: 'LOADING_START', frame: frame});
+        anchorCaptureSchedule('LOADING_START', frame, devicePtr);
     }
     if (pl && !loading) {
         send({kind: 'anchor', anchor: 'LOADING_END', frame: frame});
+        anchorCaptureSchedule('LOADING_END', frame, devicePtr);
     }
     if (!anchorIsHouseFreeroam(ps, pl) &&
         anchorIsHouseFreeroam(scene, loading)) {
         send({kind: 'anchor', anchor: 'HOUSE_FREEROAM', frame: frame});
+        anchorCaptureSchedule('HOUSE_FREEROAM', frame, devicePtr);
     }
 
     g_anchor_prev_scene   = scene;
@@ -3186,6 +3260,23 @@ rpc.exports = {
         g_anchor_prev_scene    = 0;
         g_anchor_prev_loading  = false;
 
+        // TAS P2 retail — anchor-relative capture. capture_at_anchor is a
+        // list of {name, offset}; each resolves to a capture at
+        // anchor_frame + offset when NAME fires (see anchorCaptureSchedule).
+        // It implies the anchor poll, so force anchor_trace on when present.
+        g_cap_anchor_reqs      = [];
+        g_cap_anchor_unfired   = new Set();
+        g_cap_anchor_pending   = new Set();
+        g_cap_anchor_done_sent = false;
+        if (Array.isArray(config.capture_at_anchor)) {
+            for (const r of config.capture_at_anchor) {
+                if (!r || typeof r.name !== 'string') continue;
+                g_cap_anchor_reqs.push({name: r.name, offset: (r.offset | 0)});
+                g_cap_anchor_unfired.add(r.name);
+            }
+            if (g_cap_anchor_reqs.length > 0) g_anchor_trace_enabled = true;
+        }
+
         // Cchr.0 table-B dump.  Anchors on the first count_b>0 frame; pair
         // with auto_z_spam to drive a fresh new-game to HOUSE.
         // dump_records_b_offsets is an optional list of frame offsets from
@@ -3286,6 +3377,7 @@ rpc.exports = {
               auto_3d_trace_frames: g_auto_3d_trace_frames,
               pre_3d_trace: g_pre_3d_trace,
               anchor_trace: g_anchor_trace_enabled,
+              capture_at_anchor: g_cap_anchor_reqs,
               dump_records_b: g_dump_records_b,
               dump_records_b_offsets: g_dump_records_b_offsets,
               dump_records_b_capture: g_dump_records_b_capture,
