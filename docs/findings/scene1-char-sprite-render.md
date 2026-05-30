@@ -664,14 +664,25 @@ anim-idx +0x40):
   pass (zero each life at +0x38) when it hits 0.  The **steady-state**
   writer of this bank is still the unported Cf.* `FUN_00436f97`.
 
-**Next Cpop chip (open):** port the `dacc0` burst materialization.  The
-record-fill side is a clean memory op (structure validated above); the one
-unresolved piece is the **`da224`/`da460` source geometry** — the doubled
-strides (0x18 = 2×0xc position, 0x58 = 2×0x2c record) sample every other
-motion-history slot, and the negative `[edx-0x14]`/`[edx-0x4]` reads
-straddle slot boundaries.  Resolve which history slots these point at (read
-the writers of `da224`/`da460` + the walker's read of the `dacc0` bank)
-before porting, or the after-images land at the wrong positions.
+**Cpop.7 — `dacc0` burst materialization (ported 2026-05-30).**  Source
+geometry **resolved** (objdump `0x48c918-0x48c971`, verified against the
+decomp): there is **no slot straddling**.  Both motion-history rings are
+40-slot with slot 0 = newest (the live sample `player_ctrl_history_shift`
+writes): position base `da1fc` stride `0xc`, record base `da3dc` stride
+`0x2c`.  The burst samples **every other slot starting at slot 3** — slots
+**3, 5, 7, 9, 11** — into the bank's 5 records.  The "doubled" `0x18`
+(position) / `0x58` (record) strides are exactly 2× the slot pitches; the
+source pointer addresses each slot's *middle* component (`da224` =
+slot-3 comp-1) and the `[edx-0x4]`/`[edx]`/`[edx+4]` triple reads that one
+full slot — the `[edx-0x14]` in the raw asm is just the 3rd read *after*
+`edx += 0x18`, resolving to the same consecutive `da220`/`da224`/`da228`.
+Per record k (slot s = 3+2k): sprite-state ← `rec_hist[s]` (11 dwords),
+x/y/z ← `pos_hist[s]` (full slot), life ← `0x14`.  Drive on `daae0`:
+`>0` materializes then `daae0--`; the frame it reaches 0, a clear pass
+zeroes every record's life field (engine touches only the +0x38 dword), so
+the final burst frame fills then immediately retires the bank.  Ported as
+`player_ctrl_burst_materialize` (pure leaf, host-tested); the **steady-state**
+writer of this bank is still the unported Cf.* `FUN_00436f97`.
 
 ## Cross-refs
 

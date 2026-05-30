@@ -252,6 +252,46 @@ void player_ctrl_trail_advance(int32_t records[][PC_TRAIL_REC_DWORDS],
                                int decay_spawn,
                                pc_trail_events *ev);
 
+/* ── Cpop.7: dacc0 after-image burst materialization ─────────────────────
+ *
+ * The conditional burst writer of the *second* 5-record after-image bank
+ * (DAT_056dacc0, the actor sprite-state array STATUS.md names as the top
+ * HOUSE-pixel blocker).  Engine FUN_0048b850 @ all.c L90270-90298 (objdump
+ * 0x48c918-0x48c971); fires after the per-frame motion-history ring shift.
+ *
+ * Source geometry (resolved 2026-05-30 — objdump-verified, no slot
+ * straddling): both motion-history rings are 40-slot, slot 0 == newest
+ * (the live sample written by player_ctrl_history_shift).  The burst
+ * samples **every other slot starting at slot 3** — slots 3, 5, 7, 9, 11 —
+ * into the bank's 5 records.  The engine's "doubled" 0x18 (position) /
+ * 0x58 (record) strides are exactly 2× the 0xc / 0x2c slot pitches; the
+ * `[edx-0x4]/[edx]/[edx+4]` reads land on the three components of one full
+ * slot whose middle the source pointer addresses (da224 = slot-3 comp-1).
+ *
+ * Per destination record k (k = 0..4, source slot s = 3 + 2k):
+ *   - sprite-state[0..10] ← rec_hist[s] (11-dword copy)
+ *   - x/y/z (record [11..13]) ← pos_hist[s][0..2]   (full-slot copy)
+ *   - life (record [14], engine +0x38) ← 0x14
+ *
+ * Drive (in/out `counter` == DAT_056daae0):
+ *   - counter <= 0 → no-op, returns counter unchanged.
+ *   - counter  > 0 → materialize the 5 records, then counter-- ; if that
+ *     reaches 0, a clear pass zeroes every record's life field (engine
+ *     L90293-90297, only the +0x38 dword) — so the final burst frame fills
+ *     then immediately retires the bank.  Returns the decremented counter.
+ *
+ * Pure: the caller owns the bank + both history rings and the counter; the
+ * steady-state writer of this same bank remains the unported Cf.*
+ * FUN_00436f97.  Reuses the 0x44 PC_TRAIL_* record layout (sprite[0..10],
+ * x=11,y=12,z=13, life=14).
+ */
+#define PC_BURST_RECORDS   5    /* DAT_056dacc0 bank: 5 × 0x44-byte records */
+
+int player_ctrl_burst_materialize(int32_t bank[][PC_TRAIL_REC_DWORDS],
+                                  const float pos_hist[][3],
+                                  const int32_t rec_hist[][PC_ACTOR_REC_DWORDS],
+                                  int counter);
+
 /* ── Cchr.2h: player/companion actor-state model ─────────────────────────
  *
  * The engine globals the shop-walker player draw (FUN_004552d0 L357-454)

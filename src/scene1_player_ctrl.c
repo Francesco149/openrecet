@@ -223,6 +223,40 @@ void player_ctrl_trail_advance(int32_t records[][PC_TRAIL_REC_DWORDS],
     }
 }
 
+int player_ctrl_burst_materialize(int32_t bank[][PC_TRAIL_REC_DWORDS],
+                                  const float pos_hist[][3],
+                                  const int32_t rec_hist[][PC_ACTOR_REC_DWORDS],
+                                  int counter)
+{
+    /* engine: `if (0 < DAT_056daae0)` — nothing happens below the burst. */
+    if (counter <= 0)
+        return counter;
+
+    for (int k = 0; k < PC_BURST_RECORDS; k++) {
+        int s = 3 + 2 * k;                  /* source slot: 3, 5, 7, 9, 11 */
+        int32_t *rec = bank[k];
+
+        /* sprite-state ← history record slot (engine `rep movs`, 11 dwords). */
+        memcpy(&rec[PC_TRAIL_SPRITE], rec_hist[s],
+               PC_ACTOR_REC_DWORDS * sizeof rec[0]);
+
+        /* position ← full history position slot (x/y/z as raw float bits). */
+        memcpy(&rec[PC_TRAIL_X], &pos_hist[s][0], sizeof pos_hist[s][0]);
+        memcpy(&rec[PC_TRAIL_Y], &pos_hist[s][1], sizeof pos_hist[s][1]);
+        memcpy(&rec[PC_TRAIL_Z], &pos_hist[s][2], sizeof pos_hist[s][2]);
+
+        rec[PC_TRAIL_COUNTDOWN] = 0x14;     /* life, engine `[eax+0xc] = 0x14` */
+    }
+
+    counter--;
+    if (counter == 0) {
+        /* engine L90293-90297: zero each record's life field, nothing else. */
+        for (int k = 0; k < PC_BURST_RECORDS; k++)
+            bank[k][PC_TRAIL_COUNTDOWN] = 0;
+    }
+    return counter;
+}
+
 /* ── Cchr.2h: the player/companion actor-state model ─────────────────────
  *
  * The per-actor fields the shop-walker player draw (FUN_004552d0 L357-454,

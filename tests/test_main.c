@@ -3151,6 +3151,9 @@ struct test_case {
     X(player_trail_advance_copies_sprite_and_geometry) \
     X(player_trail_advance_spawns_at_600) \
     X(player_trail_advance_decay_alloc_order) \
+    X(player_burst_noop_when_counter_not_positive) \
+    X(player_burst_samples_every_other_slot_from_3) \
+    X(player_burst_final_frame_clears_life) \
     X(player_pose_seeds_actor0) \
     X(player_pose_empties_party_slots) \
     X(player_pose_passes_char_id) \

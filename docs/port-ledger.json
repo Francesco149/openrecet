@@ -2832,6 +2832,7 @@
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
     "src/scene1_particles_tick.h",
+    "src/scene1_player_ctrl.h",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
     "src/scene1_preload.c",

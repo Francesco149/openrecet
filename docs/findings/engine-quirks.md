@@ -1996,6 +1996,42 @@ via `memcpy` into the int32 record) as `player_ctrl_trail_advance`
 
 ---
 
+## 58. The `dacc0` after-image burst reads every *other* history slot, then clears itself on its last frame
+
+`FUN_0048b850`'s `dacc0` after-image burst (decomp L90270-90298, objdump
+`0x48c918-0x48c971`) has two non-obvious behaviours a faithful port has to
+honour:
+
+- **It samples every other motion-history slot, starting at slot 3.** The
+  engine walks the position source with a `0x18`-byte stride and the record
+  source with a `0x58`-byte stride — *exactly twice* the `0xc` / `0x2c`
+  per-slot pitches of the two 40-slot history rings. So the 5 burst records
+  draw from history slots **3, 5, 7, 9, 11**, not 0–4. Ghidra hides this:
+  the source pointer (`puVar6 = &DAT_056da224`) addresses each slot's
+  *middle* component, and the three reads `puVar6[-1]`/`puVar6[0]`/`puVar6[1]`
+  pull the full slot — but in raw asm the *third* read is `fld [edx-0x14]`
+  taken **after** `edx += 0x18`, which resolves to the same consecutive
+  `da220`/`da224`/`da228` as the other two. Read literally it looks like a
+  boundary-straddling scatter; it is a plain full-slot copy with a 2-slot
+  skip. (The doubled stride is presumably a cheap motion-blur spread — wider
+  temporal spacing between after-images than the dense dash trail's.)
+
+- **The final burst frame fills the bank and then immediately zeroes it.**
+  The drive counter `DAT_056daae0` gates the burst (`if (0 < daae0)`); each
+  active frame materializes all 5 records (life `0x14`) **then** does
+  `daae0--`, and on the frame that decrements it to 0 a clear pass walks the
+  bank zeroing **only** each record's `+0x38` life field. So the last
+  materialized burst is retired the same frame it was written — the sprite /
+  position dwords are left intact but dead (life 0). A port that treats the
+  fill and the counter-decrement as independent, or that clears the whole
+  record instead of just the life dword, diverges on that final frame.
+
+Ported faithfully as `player_ctrl_burst_materialize` (Cpop.7, 2026-05-30),
+host-tested; geometry objdump-verified. The *steady-state* writer of this
+same `dacc0` bank is the still-unported Cf.* `FUN_00436f97`.
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an

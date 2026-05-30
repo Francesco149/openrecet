@@ -556,6 +556,93 @@ int test_player_trail_advance_decay_alloc_order(void)
     return 0;
 }
 
+/* ── Cpop.7: dacc0 after-image burst materialization ─────────────────────── */
+
+/* Build the two 40-slot motion-history rings with recognisable per-slot
+ * marker values: position slot s = (s*100, s*100+1, s*100+2); record slot s
+ * dword j = s*1000 + j. */
+static void burst_fill_history(float pos[PC_HIST_SLOTS][3],
+                               int32_t rec[PC_HIST_SLOTS][PC_ACTOR_REC_DWORDS])
+{
+    for (int s = 0; s < PC_HIST_SLOTS; s++) {
+        pos[s][0] = (float)(s * 100);
+        pos[s][1] = (float)(s * 100 + 1);
+        pos[s][2] = (float)(s * 100 + 2);
+        for (int j = 0; j < PC_ACTOR_REC_DWORDS; j++)
+            rec[s][j] = s * 1000 + j;
+    }
+}
+
+int test_player_burst_noop_when_counter_not_positive(void)
+{
+    int32_t bank[PC_BURST_RECORDS][PC_TRAIL_REC_DWORDS] = {{0}};
+    float pos[PC_HIST_SLOTS][3];
+    int32_t rec[PC_HIST_SLOTS][PC_ACTOR_REC_DWORDS];
+    burst_fill_history(pos, rec);
+
+    /* counter 0 and -3 are both no-ops: bank untouched, counter returned as-is. */
+    if (player_ctrl_burst_materialize(bank, pos, rec, 0) != 0)
+        T_FAIL("counter 0 should return 0 unchanged");
+    if (player_ctrl_burst_materialize(bank, pos, rec, -3) != -3)
+        T_FAIL("negative counter should return unchanged");
+    for (int k = 0; k < PC_BURST_RECORDS; k++)
+        for (int j = 0; j < PC_TRAIL_REC_DWORDS; j++)
+            if (bank[k][j] != 0) T_FAIL("bank must stay zero when counter <= 0");
+    return 0;
+}
+
+int test_player_burst_samples_every_other_slot_from_3(void)
+{
+    int32_t bank[PC_BURST_RECORDS][PC_TRAIL_REC_DWORDS] = {{0}};
+    float pos[PC_HIST_SLOTS][3];
+    int32_t rec[PC_HIST_SLOTS][PC_ACTOR_REC_DWORDS];
+    burst_fill_history(pos, rec);
+
+    int ret = player_ctrl_burst_materialize(bank, pos, rec, 5);
+    if (ret != 4) T_FAIL("counter 5 should decrement to 4");
+
+    /* record k sources history slot s = 3 + 2k → 3, 5, 7, 9, 11. */
+    for (int k = 0; k < PC_BURST_RECORDS; k++) {
+        int s = 3 + 2 * k;
+        /* sprite-state copied verbatim from rec_hist[s]. */
+        for (int j = 0; j < PC_ACTOR_REC_DWORDS; j++)
+            if (bank[k][PC_TRAIL_SPRITE + j] != s * 1000 + j)
+                T_FAIL("record %d sprite should come from history slot %d", k, s);
+        /* full-slot position copy. */
+        T_ASSERT_NEAR(trail_get_f(bank[k], PC_TRAIL_X), (float)(s * 100));
+        T_ASSERT_NEAR(trail_get_f(bank[k], PC_TRAIL_Y), (float)(s * 100 + 1));
+        T_ASSERT_NEAR(trail_get_f(bank[k], PC_TRAIL_Z), (float)(s * 100 + 2));
+        /* life seeded to 0x14. */
+        if (bank[k][PC_TRAIL_COUNTDOWN] != 0x14)
+            T_FAIL("record %d life should seed to 0x14", k);
+    }
+    return 0;
+}
+
+int test_player_burst_final_frame_clears_life(void)
+{
+    int32_t bank[PC_BURST_RECORDS][PC_TRAIL_REC_DWORDS] = {{0}};
+    float pos[PC_HIST_SLOTS][3];
+    int32_t rec[PC_HIST_SLOTS][PC_ACTOR_REC_DWORDS];
+    burst_fill_history(pos, rec);
+
+    /* counter 1 → fills (life 0x14) then decrements to 0, which triggers the
+     * clear pass: every life field zeroed, the rest of the record left as
+     * just-filled (only the +0x38 dword is touched). */
+    int ret = player_ctrl_burst_materialize(bank, pos, rec, 1);
+    if (ret != 0) T_FAIL("counter 1 should decrement to 0");
+    for (int k = 0; k < PC_BURST_RECORDS; k++) {
+        int s = 3 + 2 * k;
+        if (bank[k][PC_TRAIL_COUNTDOWN] != 0)
+            T_FAIL("final burst frame must zero every life field");
+        /* sprite/position still hold the just-materialized sample. */
+        if (bank[k][PC_TRAIL_SPRITE] != s * 1000)
+            T_FAIL("clear pass must leave the sprite copy intact");
+        T_ASSERT_NEAR(trail_get_f(bank[k], PC_TRAIL_X), (float)(s * 100));
+    }
+    return 0;
+}
+
 /* ── Cchr.2h: house-standing actor-state model ───────────────────────────── */
 
 int test_player_pose_seeds_actor0(void)
