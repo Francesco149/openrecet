@@ -25,6 +25,7 @@
 #include "input.h"
 #include "anchor_trace.h"
 #include "input_trace.h"
+#include "input_segtrace.h"
 #include "layers.h"
 #include "tables.h"
 #include "recet_ini.h"
@@ -386,6 +387,23 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
 static char           *g_input_trace_record_path = NULL;
 static char           *g_input_trace_replay_path = NULL;
 
+/* --input-segtrace <file>: anchor-segmented input forcing (the TAS spam-Z
+ * replacement; see src/input_segtrace.h + docs/plans/tas-framework.md). Owns
+ * the input mask like --input-trace-replay, but timing is anchor-relative so
+ * the same trace drives the port and retail to the same instants despite load
+ * jitter. Its `{capture:N}` ops schedule anchor-relative backbuffer captures
+ * via the same g_capture_frames path --capture-at-anchor uses. */
+static char                   *g_input_segtrace_path = NULL;
+static struct input_segtrace   g_segtrace            = {0};
+
+/* True when input is harness-driven (absolute replay OR anchor-segmented
+ * forcing). Both own the input mask, so we suppress live DirectInput, pin
+ * g_paused=FALSE, and drive virtual time for a deterministic one-tick-per-loop. */
+static int input_harness_driven(void)
+{
+    return g_input_trace_replay_path != NULL || g_input_segtrace_path != NULL;
+}
+
 /* --anchor-trace-record <file>: emit the TAS anchor event stream
  * ({"anchor":NAME,"frame":N} JSONL) to <file>.  Always also echoed to
  * stderr (prefixed "anchor:") so it shows up in run-openrecet logs even
@@ -528,6 +546,7 @@ static mesh_t *house_preview_load_dump(const char *dir, IDirect3DDevice8 *dev);
  * sources via DI. */
 static void  recording_input_poll(void);
 static void  replay_input_poll(void);
+static void  segtrace_input_poll(void);
 static void  auto_z_spam_input_poll(void);
 static int   capture_frame_is_listed(uint32_t frame);
 
@@ -905,7 +924,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * Skipped under --input-trace-replay: a replay drives
      * g_input_state[0].buttons directly from the trace file, so we
      * don't want live keypresses leaking into the simulated frame. */
-    if (!g_input_trace_replay_path) {
+    if (!input_harness_driven()) {
         input_init(g_hInstance, g_hwnd);
     }
 
@@ -1307,6 +1326,20 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
     }
 
+    if (g_input_segtrace_path) {
+        if (input_segtrace_load(g_input_segtrace_path, &g_segtrace)) {
+            fprintf(stderr,
+                "openrecet: input segtrace ← %s (%zu segments)\n",
+                g_input_segtrace_path, g_segtrace.n_segs);
+        } else {
+            fprintf(stderr,
+                "openrecet: failed to load segtrace %s — disabled\n",
+                g_input_segtrace_path);
+            input_segtrace_free(&g_segtrace);
+            g_input_segtrace_path = NULL;
+        }
+    }
+
     /* "init daoudio ok" — FUN_00498ef4 — DirectMusic 8: Performance +
      * Loader + BGM AudioPath + preload all 21 segments. Sound-effect
      * path (2 more AudioPaths + 27 resource-loaded WAVs) lands in the
@@ -1500,7 +1533,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * The two are mutually exclusive (recording during replay would
      * just dump the trace back out); replay wins if both are passed. */
     void (*active_input_poll)(void) = input_poll;
-    if (g_input_trace_replay_path) {
+    if (g_input_segtrace_path) {
+        active_input_poll = segtrace_input_poll;
+    } else if (g_input_trace_replay_path) {
         active_input_poll = replay_input_poll;
     } else if (g_input_trace_record_path) {
         active_input_poll = recording_input_poll;
@@ -1539,7 +1574,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
              * mid-scenario (WM_ACTIVATE inactive would otherwise drop
              * us into WaitMessage waiting on user input that never
              * comes). */
-            if (g_input_trace_replay_path) g_paused = FALSE;
+            if (input_harness_driven()) g_paused = FALSE;
 
             if (g_paused) {
                 WaitMessage();
@@ -1549,7 +1584,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                  * exactly one ticked frame per loop iteration, no
                  * wall-clock gating, no Sleep. 20ms per call >
                  * threshold[0]=16.67ms so each call is TICKED. */
-                if (g_input_trace_replay_path) {
+                if (input_harness_driven()) {
                     uint32_t vms = (g_tick.frame_count + 1) * 20u;
                     tick_step_with_now(vms,
                                        g_d3d != NULL && g_dev != NULL,
@@ -1661,7 +1696,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     mesh_tex_cache_reset();
     fade_unload_system_texture();
     scene_title_unload_assets();
-    if (!g_input_trace_replay_path) {
+    if (!input_harness_driven()) {
         input_shutdown();
     }
     storage_shutdown();
@@ -2021,6 +2056,8 @@ static void anchor_emit_tee(const char *name, uint32_t frame, void *user)
         fflush(g_anchor_record_fp);
     }
     anchor_capture_schedule(name, frame);
+    /* Feed the anchor-segmented input forcing so `wait NAME` ops resolve. */
+    if (g_input_segtrace_path) input_segtrace_on_anchor(&g_segtrace, name, frame);
 }
 
 static void render_dispatch(void)
@@ -2661,6 +2698,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 lstrcpynA(rep_buf, val, (int)sizeof(rep_buf));
                 g_input_trace_replay_path = rep_buf;
             }
+        } else if (lstrcmpA(tok, "--input-segtrace") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char seg_buf[MAX_PATH];
+                lstrcpynA(seg_buf, val, (int)sizeof(seg_buf));
+                g_input_segtrace_path = seg_buf;
+            }
         } else if (lstrcmpA(tok, "--anchor-trace-record") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {
@@ -2799,6 +2843,32 @@ static void replay_input_poll(void)
 {
     g_input_state[0].buttons =
         input_trace_lookup(&g_replay_trace, g_tick.frame_count);
+    g_input_state[1].buttons = 0;
+}
+
+/* Capture sink for input_segtrace `{capture:N}` ops: append the resolved
+ * absolute frame to the same list --capture-frames / --capture-at-anchor use
+ * (capture_frame_is_listed() picks it up later in render_dispatch). */
+static void segtrace_capture_cb(uint32_t frame, void *user)
+{
+    (void)user;
+    if (g_capture_frames_count >= CAPTURE_FRAMES_MAX) {
+        fprintf(stderr, "segtrace: capture list full — dropping frame %u\n",
+                (unsigned)frame);
+        return;
+    }
+    g_capture_frames[g_capture_frames_count++] = frame;
+    fprintf(stderr, "segtrace: scheduled capture at frame %u\n", (unsigned)frame);
+}
+
+/* --input-segtrace replacement for input_poll: anchor-segmented forcing.
+ * Anchor fire-frames are fed in from anchor_emit_tee(); captures land via
+ * segtrace_capture_cb. */
+static void segtrace_input_poll(void)
+{
+    g_input_state[0].buttons =
+        input_segtrace_tick(&g_segtrace, g_tick.frame_count,
+                            segtrace_capture_cb, NULL);
     g_input_state[1].buttons = 0;
 }
 

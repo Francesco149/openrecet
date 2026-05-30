@@ -417,6 +417,14 @@ struct test_case {
     X(input_trace_record_when_closed_is_noop) \
     X(input_trace_record_open_rejects_null) \
     \
+    X(segtrace_no_wait_is_absolute) \
+    X(segtrace_wait_rebases_on_anchor) \
+    X(segtrace_double_anchor_resolves_successively) \
+    X(segtrace_spam_until_anchor_short_circuits) \
+    X(segtrace_capture_scheduled_at_base_plus_n) \
+    X(segtrace_calltrace_parsed_and_ignored) \
+    X(segtrace_rejects_unknown_key) \
+    \
     X(anchor_first_tick_emits_only_boot) \
     X(anchor_boot_loading_end) \
     X(anchor_new_game_to_house) \

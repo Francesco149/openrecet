@@ -170,9 +170,9 @@ while (( $# )); do
             args+=( "$1" "$(rewrite_path file-out "$2")" ); shift 2 ;;
         --input-trace-record=*|--anchor-trace-record=*)
             args+=( "${1%%=*}" "$(rewrite_path file-out "${1#*=}")" ); shift ;;
-        --input-trace-replay)
+        --input-trace-replay|--input-segtrace)
             args+=( "$1" "$(rewrite_path file-in "$2")" ); shift 2 ;;
-        --input-trace-replay=*)
+        --input-trace-replay=*|--input-segtrace=*)
             args+=( "${1%%=*}" "$(rewrite_path file-in "${1#*=}")" ); shift ;;
         *)
             args+=( "$1" ); shift ;;
