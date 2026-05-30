@@ -8,7 +8,6 @@
 
 #include "call_trace.h"
 #include "mesh_load.h"
-#include "scene1_camera.h"   /* scene1_camera_apply_house_groundtruth (bias stand-in) */
 #include "scene1_postload.h"
 #include "scene1_records.h"
 #include "stage_palette.h"
@@ -216,11 +215,11 @@ int scene1_preload_house(void)
      * sets scene_type (0 = HOUSE), ivar8 (engine const 3), stage_positions
      * (the save-record furniture array, seeded from the template exactly as
      * the engine's FUN_0048ffd9 does) and the camera char_mode (record
-     * +0x2ce0c = 0).  The camera bias_x/z stand-in (the one remaining MVP
-     * value — FUN_00432e50 placement search unported) is applied here too.
-     * Both run unconditionally now; HOUSE furniture renders with no flag. */
+     * +0x2ce0c = 0).  Runs unconditionally now; HOUSE furniture renders with
+     * no flag.  (The camera target bias is no longer injected here — the pose
+     * helper reads the LIVE player position g_scene1_player_pos, seeded by
+     * scene1_postload_pose_house_standing, so the camera follows the player.) */
     scene1_postload_load_house_phase2_inputs();
-    scene1_camera_apply_house_groundtruth();
     scene1_postload_walker_phase2_init();
 
     /* C8j.fin.c — table C smoke wiring.  Fires `_spawn_pickup` and/or

@@ -104,14 +104,6 @@ extern float g_scene1_camera_z_roll;
  * transition gets a clean start. */
 void scene1_camera_init(void);
 
-/* MVP HOUSE camera fix — inject the retail-captured pose inputs (yaw=π,
- * char_mode=0, the three non-zero compose adds, bias sources) that the
- * port can't yet source from engine state, so HOUSE furniture renders
- * with correct framing/orientation/scale.  Wired behind
- * `--force-walker-phase2 0` in main.c.  See the .c for ground-truth
- * provenance + faithful-port follow-up notes. */
-void scene1_camera_apply_house_groundtruth(void);
-
 /* Default-path port of FUN_00441c3e.  Reads:
  *   - `g_scene1_camera_char_mode` (stand-in for the +0x2dfc8 char rec)
  *   - `g_scene1_camera_stage_view_mode` (stand-in for the +0x6cf stage rec)

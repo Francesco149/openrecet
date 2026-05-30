@@ -56,18 +56,22 @@ static float g_floor_bias = 0.0f;
  *   _DAT_0695ef70 (radius add) = 14.0    = .rdata DAT_005c4fd4
  *   _DAT_044e2c70 (eye.y  add) = 21.0    = .rdata DAT_005c4fd8
  *   _DAT_069b2f78 (lookat.y add) = -1.8  = .rdata DAT_005c4fd0
- *   DAT_056da1d8 (bias_x src) = -0.3,  DAT_056da1e0 (bias_z src) = 9.35
  * These are loaded by an unported camera-param init (sentinel-terminated
  * arrays ending at &DAT_044e2c70 / &DAT_069b2f78, see all.c L44697/933/964;
  * values come from the per-stage camera config).  Default 0 keeps boot
- * behaviour byte-identical; scene1_camera_apply_house_groundtruth() sets
- * the retail-captured HOUSE values (flag-gated MVP, parallels Cf.minimal's
- * scene1_postload_apply_walker_phase2_house_groundtruth). */
+ * behaviour byte-identical.
+ *
+ * The camera target *bias* (engine `DAT_056da1d8`/`DAT_056da1e0`) is NOT a
+ * constant — it is the LIVE player position (`g_scene1_player_pos[0]`/`[2]`),
+ * read each frame in pose_compute (block E) and clamped to the room.  W3 made
+ * the player controller move those globals, so the camera now pans to follow
+ * the walking player, matching retail.  (Previously the port injected the
+ * retail-captured spawn −0.3/9.35 statically via a now-removed
+ * `scene1_camera_apply_house_groundtruth` stand-in, from when the player was
+ * frozen.) */
 static float g_radius_add = 0.0f;   /* _DAT_0695ef70 */
 static float g_eyey_add   = 0.0f;   /* _DAT_044e2c70 */
 static float g_looky_add  = 0.0f;   /* _DAT_069b2f78 */
-static float g_bias_x_src = 0.0f;   /* DAT_056da1d8 */
-static float g_bias_z_src = 0.0f;   /* DAT_056da1e0 */
 
 /* Engine `_DAT_0438b77c/74/78`: per-class offset triplet computed in
  * block B and read in blocks E/G/I. */
@@ -105,27 +109,6 @@ void scene1_camera_init(void)
     g_radius_add = 14.0f;   /* _DAT_0695ef70 */
     g_eyey_add   = 21.0f;   /* _DAT_044e2c70 */
     g_looky_add  = -1.8f;   /* _DAT_069b2f78 */
-    g_bias_x_src = 0.0f;
-    g_bias_z_src = 0.0f;
-}
-
-/* HOUSE camera bias stand-in — the LAST remaining MVP injection.
- *
- * Of the original eight HOUSE camera/Cf inputs, seven are now faithful:
- * cam-adds (scene1_camera_init constants), yaw (Cf block), char_mode +
- * scene_type + stage_positions (scene1_postload_load_house_phase2_inputs,
- * from real save state), and ivar8 (engine constant 3).  Only bias_x/z_src
- * remain captured: retail's DAT_056da1d8 = -0.3 / DAT_056da1e0 = 9.35 are
- * the OUTPUT of the FUN_00436f97 placement-search block (228-276), which
- * runs an 8-azimuth free-spot search via FUN_00432e50 (2084 B, unported).
- * Until that lands, inject the retail-captured result so the HOUSE camera
- * target (and thus framing) is correct.  Called unconditionally on HOUSE
- * entry now (not behind --force-walker-phase2).  PHC: port FUN_00432e50 +
- * the placement block to derive these. */
-void scene1_camera_apply_house_groundtruth(void)
-{
-    g_bias_x_src = -0.3f;   /* DAT_056da1d8 (clamps to -1.0) */
-    g_bias_z_src =  9.35f;  /* DAT_056da1e0 (clamps to  1.0) */
 }
 
 /* ─── FUN_00441c3e default-path pose helper ───────────────────────────── */
@@ -190,8 +173,12 @@ void scene1_camera_pose_compute(void)
 
     /* Block E (L86-L163) — default-path eye/lookat compute.  No class-1
      * arm (deferred Cc.2). */
-    float bias_x = g_bias_x_src;  /* engine: local_10 = DAT_056da1d8 */
-    float bias_z = g_bias_z_src;  /* engine: local_8  = DAT_056da1e0 */
+    /* engine: local_10 = DAT_056da1d8, local_8 = DAT_056da1e0 — the LIVE
+     * player position (g_scene1_player_pos[0]/[2]).  Reading it each frame is
+     * what makes the camera pan to follow the walking player (W3 controller
+     * writes these); the clamps below bound it to the room. */
+    float bias_x = g_scene1_player_pos[0];
+    float bias_z = g_scene1_player_pos[2];
 
     /* `(uVar2 > 1) → local_8 -= 5`.  Char_mode=2 (shop view) lifts the
      * eye 5 units further from the target along z. */

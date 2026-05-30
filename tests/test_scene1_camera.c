@@ -135,10 +135,12 @@ int test_scene1_camera_house_groundtruth_matches_retail(void)
     reset_camera_world();           /* sets char_mode=2; init sets adds=14/21/-1.8 */
     /* In production these come from scene1_postload_load_house_phase2_inputs
      * (char_mode from save-record +0x2ce0c = 0) + the Cf block (yaw=π,
-     * FUN_00436f97 L589); apply_house_groundtruth supplies only the bias
-     * stand-in.  Reproduce that on-HOUSE-entry state here. */
+     * FUN_00436f97 L589).  The camera target bias is the LIVE player position
+     * (g_scene1_player_pos), seeded by scene1_postload_pose_house_standing to
+     * the HOUSE spawn −0.3/9.35.  Reproduce that on-HOUSE-entry state here. */
     g_scene1_camera_char_mode = 0;
-    scene1_camera_apply_house_groundtruth();
+    g_scene1_player_pos[0] = -0.3f;
+    g_scene1_player_pos[2] =  9.35f;
     g_scene1_camera_yaw = 3.1415927f;
     scene1_camera_pose_compute();
 
@@ -148,6 +150,31 @@ int test_scene1_camera_house_groundtruth_matches_retail(void)
     T_ASSERT_NEAR(g_scene1_camera_eye[0],    -1.0f, 1e-4f);
     T_ASSERT_NEAR(g_scene1_camera_eye[1],    22.2f, 1e-4f);
     T_ASSERT_NEAR(g_scene1_camera_eye[2],    15.0f, 1e-4f);
+    return 0;
+}
+
+int test_scene1_camera_follows_walking_player(void)
+{
+    /* The camera target bias is the live player position; as the player walks
+     * left from the HOUSE spawn (px −0.3 → wall −1.5), the (smoothed) lookat.x
+     * must pan to follow it.  view_mode 0 clamps bias_x to [−5, −1], so the
+     * target goes −1.0 (player at −0.3, clamped) → −1.5 (player at −1.5). */
+    reset_camera_world();
+    g_scene1_camera_char_mode = 0;
+    g_scene1_camera_yaw = 3.1415927f;
+
+    g_scene1_player_pos[0] = -0.3f;
+    g_scene1_player_pos[2] =  9.35f;
+    scene1_camera_pose_compute();                 /* first-frame snap */
+    float lookat_x0 = g_scene1_camera_lookat[0];
+    T_ASSERT_NEAR(lookat_x0, -1.0f, 1e-4f);       /* clamp(-0.3) = -1.0 */
+
+    g_scene1_player_pos[0] = -1.5f;               /* walked to the left wall */
+    for (int i = 0; i < 80; i++) scene1_camera_pose_compute();   /* smooth-follow */
+
+    if (!(g_scene1_camera_lookat[0] < lookat_x0 - 0.1f))
+        T_FAIL("camera should pan left to follow the player");
+    T_ASSERT_NEAR(g_scene1_camera_lookat[0], -1.5f, 1e-3f);      /* clamp(-1.5) */
     return 0;
 }
 
