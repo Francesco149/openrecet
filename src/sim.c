@@ -37,6 +37,7 @@
 #include "input.h"        /* g_input_state for cur-buttons read */
 #include "nowloading.h"   /* nowloading_set_active(0) — drop the overlay gate */
 #include "scene.h"        /* g_scene_state dispatch */
+#include "scene1_intro_events.h"  /* STUB: post-new-game double-HF sequencer */
 #include "scene1_particles_tick.h"  /* engine FUN_0040fb3a — LAB_00453bed body */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
@@ -211,6 +212,14 @@ void sim_step_a(void)
      * the loading screen (the engine still draws font on top of the
      * loading overlay for any UI element that was alive pre-fade). */
     font_age_tick();
+
+    /* STUB: advance the post-new-game intro-event sequencer
+     * (src/scene1_intro_events.h) BEFORE the worker-busy check, so that on
+     * the frame it raises the second-event load gate, the check below sees
+     * the worker busy and holds the overlay. Dormant outside the new-game
+     * transition window; a no-op once its two HOUSE_FREEROAM edges are
+     * dispatched. */
+    scene1_intro_events_tick();
 
     /* Engine FUN_004536cb L50363-50367: while the primary asset-load
      * worker is busy, pump the scene-effect counters and short-circuit

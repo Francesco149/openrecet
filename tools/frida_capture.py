@@ -912,6 +912,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 auto_start_server: bool = True,
                 server_exe: Path = DEFAULT_FRIDA_SERVER_EXE,
                 input_trace_path: Path | None = None,
+                input_segtrace_path: Path | None = None,
                 force_input: bool = False,
                 hide_window: bool = False,
                 turbo: bool = False,
@@ -922,10 +923,16 @@ def run_capture(scenario: "Any", run_dir: Path, *,
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
     Returns the meta dict that scenario-test.py writes to run.json.
 
-    `input_trace_path` + `force_input` enable input injection: the agent
-    overwrites the engine's per-frame input mask with the sticky-trace
-    value on every input_poll LEAVE. Default off so legacy callers
-    capture an organic trace.
+    `input_trace_path` + `force_input` enable absolute-frame input injection:
+    the agent overwrites the engine's per-frame input mask with the
+    sticky-trace value on every input_poll LEAVE. Default off so legacy
+    callers capture an organic trace.
+
+    `input_segtrace_path` enables anchor-segmented forcing instead (TAS P3):
+    the agent owns the input mask AND schedules anchor-relative captures from
+    the trace's {capture} ops, so the caller should NOT also pass
+    capture_frames (the scenario's are empty in segtrace mode). Mutually
+    exclusive with input_trace_path / force_input. Implies anchor_trace.
 
     `hide_window` toggles the agent's ShowWindow → SW_HIDE rewrite plus
     the DAT_073dfca0 pause-flag compensation. scenario-test.py opts in
@@ -938,7 +945,9 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         duration_ms=int(getattr(scenario, "duration_ceiling_ms", 30_000)),
         remote=remote, exe=exe, cwd=cwd,
         auto_start_server=auto_start_server, server_exe=server_exe,
-        input_trace_path=input_trace_path, force_input=force_input,
+        input_trace_path=input_trace_path,
+        input_segtrace_path=input_segtrace_path,
+        force_input=force_input,
         hide_window=hide_window,
         turbo=turbo, turbo_step_ms=turbo_step_ms,
         silent_audio=silent_audio,

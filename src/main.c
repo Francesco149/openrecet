@@ -2430,8 +2430,16 @@ static void render_dispatch(void)
          * fires). In listed mode we capture ONLY listed frames — never
          * fall through to the wall-clock sampler, or a frame-0 grab would
          * sneak in before the first anchor resolves. The time-based path
-         * is the legacy smoke-test default (neither flag set). */
-        if (g_capture_frames_count > 0 || g_anchor_captures_count > 0) {
+         * is the legacy smoke-test default (neither flag set).
+         *
+         * A segtrace also counts as listed mode even before any capture is
+         * scheduled: its {capture} ops populate g_capture_frames only when a
+         * segment activates (its anchor fires), so until the first one
+         * resolves g_capture_frames_count is 0 — without this guard the
+         * wall-clock sampler would sneak in a spurious frame-0 grab and shift
+         * every capture-index golden by one. */
+        if (g_capture_frames_count > 0 || g_anchor_captures_count > 0
+                || g_input_segtrace_path != NULL) {
             should_capture =
                 capture_frame_is_listed(g_tick.frame_count);
         } else if (g_capture_last_ms == 0 ||

@@ -1,0 +1,40 @@
+# house-movement — anchor-segmented TAS scenario (segtrace format).
+#
+# Drives a fresh NEW GAME all the way into the HOUSE shop and walks
+# Recette left, capturing two anchor-relative frames: idle, then walking.
+# Unlike the absolute-frame scenarios (boot-idle, title-*), timing here is
+# keyed to the HOUSE_FREEROAM anchor, so the non-deterministic load
+# duration (±hundreds of frames, and wildly different port-vs-retail under
+# turbo) can't desync the two captures — see src/input_segtrace.h +
+# docs/plans/tas-framework.md.
+#
+# trace.jsonl is a SEGTRACE: its {wait}/{capture} ops drive timing, so this
+# file has no `capture_frames` (the {capture} ops are the source of truth;
+# goldens are keyed by capture order, cap_00 / cap_01).
+#
+# PARITY BASELINE (intended, converges over time):
+#   - The intro dialogue between the two HOUSE_FREEROAM anchors is stubbed
+#     on the port (src/scene1_intro_events.c) — it reproduces the anchor
+#     edges but renders nothing, so the same trace drives both targets.
+#   - The player movement controller (FUN_0048b850) is not ported yet, so
+#     cap_01 shows retail's Recette mid-stride against the port's player
+#     frozen in the (correct) idle pose. That gap closes when the
+#     controller lands; the trace is unchanged.
+
+description: |
+  New game → HOUSE → walk left. Three anchor-relative captures, all keyed to
+  the 2nd HOUSE_FREEROAM (which lands in the shop tutorial; free-roam is
+  ~1500 frames later once the A-spam clears the dialog — engine-quirks §55):
+  cap_00 idle free-roam (+1540), cap_01 walking after LEFT (+1640), cap_02
+  still walking (+1900). The port player is frozen (movement controller
+  unported) so the walking caps are the intended port(frozen)-vs-retail
+  (striding) parity baseline until FUN_0048b850 ports.
+
+# Headroom for the slower target. Under turbo, sim frames fly past while the
+# asset-load worker runs on wall-clock, so the absolute frame at the 2nd
+# HOUSE_FREEROAM + capture lands in the thousands (and differs per target).
+# This is a ceiling, not a target — the {capture} ops fire when their anchor
+# resolves. Raise it if a retail run logs the 2nd HOUSE_FREEROAM but not its
+# captures.
+max_frames: 16000
+duration_ceiling_ms: 120000

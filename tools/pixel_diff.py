@@ -42,6 +42,29 @@ except ImportError:
 import numpy as np
 
 
+def amplified_diff(a_rgb, b_rgb, amp=6.0):
+    """Amplified white-on-black pixel diff. `a_rgb`/`b_rgb` are H×W×3 uint8
+    arrays of equal shape. Returns (diff_rgb_uint8, differ_px, meanabs):
+
+      - diff_rgb: BLACK where the two images are bit-identical, scaled toward
+        WHITE by `amp` where they differ (per-pixel sum of |Δ| over channels).
+      - differ_px: count of pixels that differ at all.
+      - meanabs: mean per-channel absolute difference over the whole image.
+
+    The canonical OpenRecet render-parity diff (see tools/pixel_diff.py +
+    docs/findings). Factored out so the comparison gallery
+    (tools/comparison_page.py) renders the exact same diff the CLI does.
+    """
+    na = a_rgb.astype(int)
+    nb = b_rgb.astype(int)
+    perpx   = np.abs(na - nb).sum(2)              # 0..765 per pixel
+    differ  = int((perpx > 0).sum())
+    meanabs = float(perpx.mean() / 3.0)
+    d = np.clip(perpx.astype(float) * amp, 0, 255).astype(np.uint8)
+    diff_rgb = np.stack([d, d, d], axis=2)
+    return diff_rgb, differ, meanabs
+
+
 def parse_crop(s):
     if not s:
         return None
@@ -72,16 +95,9 @@ def main():
     if a.size != b.size:
         sys.exit(f"pixel_diff: size mismatch A{a.size} B{b.size} (crop both to match)")
 
-    na = np.asarray(a).astype(int)
-    nb = np.asarray(b).astype(int)
-    perpx = np.abs(na - nb).sum(2)              # 0..765 per pixel
-    differ = int((perpx > 0).sum())
-    total = perpx.size
-    meanabs = perpx.mean() / 3.0
-
-    # White-on-black amplified diff: any nonzero -> scaled toward white.
-    d = np.clip(perpx.astype(float) * args.amp, 0, 255).astype(np.uint8)
-    diff_img = Image.fromarray(np.stack([d, d, d], axis=2), "RGB")
+    diff_rgb, differ, meanabs = amplified_diff(np.asarray(a), np.asarray(b), args.amp)
+    total = diff_rgb.shape[0] * diff_rgb.shape[1]
+    diff_img = Image.fromarray(diff_rgb, "RGB")
 
     labels = (args.labels.split(",") + ["", "", ""])[:3]
     panels = [a, b, diff_img]

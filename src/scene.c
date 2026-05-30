@@ -5,6 +5,7 @@
 #include "nowloading.h"
 #include "npc_schedule.h"
 #include "save_bank.h"
+#include "scene1_intro_events.h"
 #include "scene_new_game.h"
 #include "stage_post_load.h"
 #include "worker_load.h"
@@ -62,6 +63,15 @@ void scene_post_fade_init(void)
 
     g_scene_state    = SCENE_STATE_INGAME;
     g_scene_substate = 0;
+
+    /* STUB: arm the intro-event sequencer (src/scene1_intro_events.h). The
+     * unported new-game intro runs TWO scripted events, each with its own
+     * load, so retail fires HOUSE_FREEROAM twice before the player can move.
+     * The port's single worker_load_spawn below fires it once; the stub
+     * injects the second LOADING/HOUSE_FREEROAM edge a few frames later so
+     * the TAS segtrace's second `wait HOUSE_FREEROAM` resolves on both
+     * targets. Replace with the real dialogue subsystem when it ports. */
+    scene1_intro_events_arm();
 
     /* Engine FUN_0049a59e L71-72 — the 16-global UI scratch reset
      * (FUN_004060ff) + DAT_0734b9a0 clear (FUN_004682d0).  Faithful

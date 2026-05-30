@@ -136,6 +136,17 @@ class Scenario:
     #     factor: 4
     zoom_text: dict | None = None
 
+    # Derived (see Scenario.load): True when trace.jsonl is a SEGTRACE — it
+    # carries {"wait":...} and/or {"capture":N} ops (see src/input_segtrace.h).
+    # Segtrace scenarios drive their own captures from the {capture} ops
+    # (anchor-relative), so `capture_frames` is unused and goldens are keyed by
+    # capture ORDER (cap_00.bmp, cap_01.bmp, …) rather than absolute frame.
+    # Plain {frame,buttons} traces keep the legacy absolute-frame path.
+    is_segtrace: bool = False
+    # Number of {capture} ops in a segtrace (the expected capture count). 0 for
+    # legacy scenarios (which use capture_frames instead).
+    n_captures: int = 0
+
     @classmethod
     def load(cls, scen_path: Path) -> "Scenario":
         if not scen_path.is_dir():
@@ -154,16 +165,76 @@ class Scenario:
                 "h":      int(zt_raw["h"]),
                 "factor": int(zt_raw.get("factor", 4)),
             }
+
+        is_segtrace, n_captures = _inspect_trace(scen_path / "trace.jsonl")
+
+        # Segtrace scenarios get their captures from the trace's {capture} ops,
+        # not capture_frames — force the latter EMPTY so neither the port nor
+        # the retail agent grabs the legacy [0,30,60] default (which the retail
+        # Frida path passes straight through to the agent, adding spurious
+        # captures that desync the cap-index pairing).
+        if is_segtrace:
+            capture_frames: list[int] = []
+        else:
+            capture_frames = [int(x) for x in data.get("capture_frames", [0, 30, 60])]
+
         return cls(
             name=scen_path.name,
             path=scen_path,
             description=str(data.get("description", "")),
             rng_seed=int(data.get("rng_seed", 1)),
             max_frames=int(data.get("max_frames", 60)),
-            capture_frames=[int(x) for x in data.get("capture_frames", [0, 30, 60])],
+            capture_frames=capture_frames,
             duration_ceiling_ms=int(data.get("duration_ceiling_ms", 30_000)),
             zoom_text=zoom_text,
+            is_segtrace=is_segtrace,
+            n_captures=n_captures,
         )
+
+
+def _inspect_trace(trace_path: Path) -> tuple[bool, int]:
+    """Classify a trace file. Returns (is_segtrace, n_captures).
+
+    A trace is a SEGTRACE if any line carries a `wait` or `capture` op (the
+    segment grammar in src/input_segtrace.h). `n_captures` counts `capture`
+    ops — the expected number of anchor-relative captures. Comments (`#`) and
+    blank lines are ignored, matching the C + Frida parsers. A missing file is
+    treated as a plain (legacy) trace with no captures."""
+    if not trace_path.exists():
+        return False, 0
+    is_seg = False
+    n_cap = 0
+    for raw in trace_path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if "wait" in rec:
+            is_seg = True
+        if "capture" in rec:
+            is_seg = True
+            n_cap += 1
+    return is_seg, n_cap
+
+
+def captured_bmps(run_dir: Path) -> list[Path]:
+    """Captured frame BMPs for a run, sorted by absolute engine frame.
+
+    For a segtrace run the absolute frame numbers jitter run-to-run (and
+    differ wildly port-vs-retail under turbo), so the Nth element here is the
+    Nth `{capture}` op's screenshot — the capture-ORDER key the goldens use."""
+    frames_dir = run_dir / "frames"
+    if not frames_dir.is_dir():
+        return []
+    def _fno(p: Path) -> int:
+        try:
+            return int(p.stem.split("_")[1])
+        except (IndexError, ValueError):
+            return -1
+    return sorted(frames_dir.glob("frame_*.bmp"), key=_fno)
 
 
 # ─── runner ───────────────────────────────────────────────────────────────
@@ -233,6 +304,19 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
     """
     import frida_capture  # late import: only needed for --target retail
     trace_path = _ensure_trace_exists(scen)
+
+    # Segtrace scenarios drive the agent's anchor-segmented forcing (it owns
+    # the input mask AND schedules captures from its {capture} ops), so pass
+    # input_segtrace_path instead of input_trace_path; force_input stays off.
+    if scen.is_segtrace:
+        return frida_capture.run_capture(
+            scen, run_dir, remote=remote,
+            input_segtrace_path=trace_path,
+            hide_window=True,
+            turbo=turbo, silent_audio=silent_audio,
+            force_resolution=_openrecet_screen_dims(),
+        )
+
     return frida_capture.run_capture(
         scen, run_dir, remote=remote,
         input_trace_path=trace_path, force_input=True,
@@ -256,7 +340,6 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
     stderr_log   = run_dir / "stderr.log"
 
     trace_path = _ensure_trace_exists(scen)
-    capture_frames_csv = ",".join(str(f) for f in scen.capture_frames)
 
     if not SUPERVISOR_EXE.exists():
         raise SystemExit(
@@ -265,20 +348,39 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
             f"make -C tools/supervisor"
         )
 
-    child_args = [
-        "--input-trace-replay", wslpath_w(trace_path),
-        "--rng-seed",           str(scen.rng_seed),
-        "--max-frames",         str(scen.max_frames),
-        "--capture-to",         wslpath_w(frames_dir),
-        "--capture-frames",     capture_frames_csv,
-        "--audio-trace",        wslpath_w(audio_jsonl),
-        "--max-duration-ms",    str(scen.duration_ceiling_ms),
-        # Hide the openrecet window so a captured run can't be clobbered
-        # by accidental keystrokes / focus steals. D3D renders to a
-        # video-memory back buffer regardless of window visibility, so
-        # the capture path is unaffected.
-        "--hidden",
-    ]
+    if scen.is_segtrace:
+        # Anchor-segmented forcing owns the input mask AND schedules the
+        # captures from its {capture} ops (anchor-relative, via
+        # segtrace_capture_cb → the same g_capture_frames path), so we drop
+        # --capture-frames entirely. --anchor-trace-record logs the resolved
+        # anchor frames for debugging / alignment.
+        anchors_jsonl = run_dir / "anchors.jsonl"
+        child_args = [
+            "--input-segtrace",      wslpath_w(trace_path),
+            "--anchor-trace-record", wslpath_w(anchors_jsonl),
+            "--rng-seed",            str(scen.rng_seed),
+            "--max-frames",          str(scen.max_frames),
+            "--capture-to",          wslpath_w(frames_dir),
+            "--audio-trace",         wslpath_w(audio_jsonl),
+            "--max-duration-ms",     str(scen.duration_ceiling_ms),
+            "--hidden",
+        ]
+    else:
+        capture_frames_csv = ",".join(str(f) for f in scen.capture_frames)
+        child_args = [
+            "--input-trace-replay", wslpath_w(trace_path),
+            "--rng-seed",           str(scen.rng_seed),
+            "--max-frames",         str(scen.max_frames),
+            "--capture-to",         wslpath_w(frames_dir),
+            "--capture-frames",     capture_frames_csv,
+            "--audio-trace",        wslpath_w(audio_jsonl),
+            "--max-duration-ms",    str(scen.duration_ceiling_ms),
+            # Hide the openrecet window so a captured run can't be clobbered
+            # by accidental keystrokes / focus steals. D3D renders to a
+            # video-memory back buffer regardless of window visibility, so
+            # the capture path is unaffected.
+            "--hidden",
+        ]
     if turbo:
         child_args.append("--turbo")
     if silent_audio:
@@ -326,37 +428,59 @@ def render_sidebyside(left_frames: Path, right_frames: Path,
                       out_path: Path,
                       left_label: str = "openrecet",
                       right_label: str = "retail",
-                      tile_wh: tuple[int, int] = (320, 240)) -> Path | None:
+                      tile_wh: tuple[int, int] = (320, 240),
+                      pair_by_index: bool = False) -> Path | None:
     """Drop a per-frame ours|retail PNG at `out_path`. Returns the path
     on success, None if either side captured nothing.
 
-    Pairs frames by *filename* (not by sorted-index position), so a
-    missing capture on one side becomes a placeholder tile rather than a
-    silent off-by-one across the whole sheet. The first row is a label
-    strip identifying which column is which target.
+    Pairs frames by *filename* by default, so a missing capture on one side
+    becomes a placeholder tile rather than a silent off-by-one across the
+    whole sheet. The first row is a label strip identifying the column.
+
+    `pair_by_index=True` (segtrace mode) pairs the Nth left capture with the
+    Nth right capture instead — the absolute frame numbers differ port-vs-
+    retail under anchor-relative timing, so filename pairing would never
+    line up. Rows are labelled by capture index (cap_NN).
     """
     from PIL import Image
 
     csm = load_contact_sheet_module()
 
-    lefts  = {p.name: p for p in csm.list_images(left_frames)}
-    rights = {p.name: p for p in csm.list_images(right_frames)}
-    names  = sorted(set(lefts) | set(rights))
-    if not names:
-        return None
-
     tw, th = tile_wh
     placeholder = Image.new("RGB", (tw, th), (40, 0, 0))
-
     tiles:  list[Image.Image] = []
     labels: list[str] = []
-    for n in names:
-        lp = lefts.get(n)
-        rp = rights.get(n)
-        tiles.append(csm.thumb(lp, tw, th) if lp else placeholder)
-        labels.append(f"{left_label} · {n}" if lp else f"{left_label} · (missing)")
-        tiles.append(csm.thumb(rp, tw, th) if rp else placeholder)
-        labels.append(f"{right_label} · {n}" if rp else f"{right_label} · (missing)")
+
+    if pair_by_index:
+        lefts  = sorted(csm.list_images(left_frames),
+                        key=lambda p: int(p.stem.split("_")[1]))
+        rights = sorted(csm.list_images(right_frames),
+                        key=lambda p: int(p.stem.split("_")[1]))
+        n = max(len(lefts), len(rights))
+        if n == 0:
+            return None
+        for i in range(n):
+            lp = lefts[i]  if i < len(lefts)  else None
+            rp = rights[i] if i < len(rights) else None
+            tiles.append(csm.thumb(lp, tw, th) if lp else placeholder)
+            labels.append(f"{left_label} · cap_{i:02d}" if lp
+                          else f"{left_label} · cap_{i:02d} (missing)")
+            tiles.append(csm.thumb(rp, tw, th) if rp else placeholder)
+            labels.append(f"{right_label} · cap_{i:02d}" if rp
+                          else f"{right_label} · cap_{i:02d} (missing)")
+    else:
+        lefts_m  = {p.name: p for p in csm.list_images(left_frames)}
+        rights_m = {p.name: p for p in csm.list_images(right_frames)}
+        names    = sorted(set(lefts_m) | set(rights_m))
+        if not names:
+            return None
+        for nm in names:
+            lp = lefts_m.get(nm)
+            rp = rights_m.get(nm)
+            tiles.append(csm.thumb(lp, tw, th) if lp else placeholder)
+            labels.append(f"{left_label} · {nm}" if lp else f"{left_label} · (missing)")
+            tiles.append(csm.thumb(rp, tw, th) if rp else placeholder)
+            labels.append(f"{right_label} · {nm}" if rp else f"{right_label} · (missing)")
 
     sheet = csm.grid(tiles, labels, cols=2)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -469,6 +593,57 @@ def _red_tint_overlay(golden_rgb, new_rgb, threshold: int = 1):
     return out, mask
 
 
+def _diff_segtrace(scen: Scenario, run_dir: Path, golden_dir: Path,
+                   diff_dir: Path) -> tuple[int, int]:
+    """Capture-INDEX diff for segtrace scenarios. Goldens are cap_NN.bmp
+    (Nth {capture} op); the run's Nth captured frame is compared to it,
+    irrespective of the (jittering) absolute frame number. Returns
+    (pass_count, fail_count)."""
+    import numpy as np
+    from PIL import Image
+
+    golden_caps = sorted(golden_dir.glob("cap_*.bmp"))
+    run_caps    = captured_bmps(run_dir)
+    n = max(len(golden_caps), len(run_caps))
+    if n == 0:
+        print(f"  no captures and no cap_*.bmp goldens — nothing to diff")
+        return 0, 0
+
+    passed = failed = 0
+    for i in range(n):
+        gld_p = golden_dir / f"cap_{i:02d}.bmp"
+        new_p = run_caps[i] if i < len(run_caps) else None
+
+        if new_p is None:
+            print(f"  FAIL cap_{i:02d}: not captured (golden present)")
+            failed += 1
+            continue
+        if not gld_p.exists():
+            print(f"  FAIL cap_{i:02d}: missing golden {gld_p.name} "
+                  f"(captured {new_p.name})")
+            failed += 1
+            continue
+
+        if sha256(new_p) == sha256(gld_p):
+            print(f"  pass cap_{i:02d} ({new_p.name})")
+            passed += 1
+            continue
+
+        new_img = Image.open(new_p).convert("RGB")
+        gld_img = Image.open(gld_p).convert("RGB")
+        if new_img.size != gld_img.size:
+            print(f"  FAIL cap_{i:02d}: size {new_img.size} vs golden {gld_img.size}")
+            failed += 1
+            continue
+        overlay, mask = _red_tint_overlay(np.asarray(gld_img), np.asarray(new_img))
+        diff_px = int(mask.sum())
+        Image.fromarray(overlay).save(diff_dir / f"cap_{i:02d}.png")
+        print(f"  FAIL cap_{i:02d}: {diff_px} px differ "
+              f"→ {(diff_dir / f'cap_{i:02d}.png').relative_to(ROOT)}")
+        failed += 1
+    return passed, failed
+
+
 def diff_against_golden(scen: Scenario, run_dir: Path, target: str) -> tuple[int, int]:
     """Bit-exact diff per frame. Returns (pass_count, fail_count).
 
@@ -483,10 +658,14 @@ def diff_against_golden(scen: Scenario, run_dir: Path, target: str) -> tuple[int
     if not golden_dir.is_dir():
         print(f"  scenario '{scen.name}' [{target}]: no golden directory at {golden_dir}")
         print(f"  re-run with --bless to create one from this run.")
-        return 0, len(scen.capture_frames)
+        n_expected = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
+        return 0, n_expected
 
     diff_dir = run_dir / "diff"
     diff_dir.mkdir(exist_ok=True)
+
+    if scen.is_segtrace:
+        return _diff_segtrace(scen, run_dir, golden_dir, diff_dir)
 
     passed = failed = 0
     for fi in scen.capture_frames:
@@ -538,6 +717,27 @@ def bless(scen: Scenario, run_dir: Path, target: str) -> int:
     import shutil
     golden_dir = scen.path / golden_subdir(target)
     golden_dir.mkdir(parents=True, exist_ok=True)
+
+    if scen.is_segtrace:
+        # Capture-INDEX goldens: the Nth captured frame becomes cap_NN.bmp.
+        # Wipe stale cap_*.bmp first so a run with fewer captures doesn't
+        # leave orphans that the index diff would then flag as missing.
+        for stale in golden_dir.glob("cap_*.bmp"):
+            stale.unlink()
+        run_caps = captured_bmps(run_dir)
+        copied = 0
+        for i, src in enumerate(run_caps):
+            shutil.copyfile(src, golden_dir / f"cap_{i:02d}.bmp")
+            copied += 1
+        audio_src = run_dir / "audio.jsonl"
+        if audio_src.exists():
+            shutil.copyfile(audio_src, golden_dir / "audio.jsonl")
+        anchors_src = run_dir / "anchors.jsonl"
+        if anchors_src.exists():
+            shutil.copyfile(anchors_src, golden_dir / "anchors.jsonl")
+        print(f"  blessed: {copied} capture(s) → {golden_dir.relative_to(ROOT)} "
+              f"(cap_00..cap_{max(copied-1,0):02d})")
+        return copied
 
     copied = 0
     for fi in scen.capture_frames:
@@ -601,6 +801,15 @@ def main(argv: list[str] | None = None) -> int:
                          "leaving the engine's audio code running normally. "
                          "Recommended alongside --turbo since DirectMusic "
                          "complains about being clocked at 200+ fps.")
+    ap.add_argument("--no-regen", action="store_true",
+                    help="after a --target both run, do NOT rebuild the "
+                         "interactive comparison gallery "
+                         "(runs/comparisons/index.html). Default rebuilds it "
+                         "and opens it in the Windows viewer. No effect for "
+                         "single-target runs.")
+    ap.add_argument("--no-open", action="store_true",
+                    help="rebuild the comparison gallery after a --target both "
+                         "run but don't auto-open it in the viewer.")
     args = ap.parse_args(argv)
 
     if args.target in ("openrecet", "both"):
@@ -645,14 +854,16 @@ def main(argv: list[str] | None = None) -> int:
                     m = run_scenario_capture(
                         scen, sub_dir,
                         turbo=args.turbo, silent_audio=args.silent_audio)
+                _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
                 print(f"    exit={m['exit_code']} elapsed_ms={m['elapsed_ms']} "
-                      f"captured={len(m['captured_frames'])}/{len(scen.capture_frames)}")
+                      f"captured={len(m['captured_frames'])}/{_exp}")
                 sub_meta[sub] = m
 
             sbs = render_sidebyside(
                 left_frames=run_dir / "openrecet" / "frames",
                 right_frames=run_dir / "retail"    / "frames",
                 out_path=run_dir / "sidebyside.png",
+                pair_by_index=scen.is_segtrace,
             )
             if sbs is not None:
                 print(f"  side-by-side: {sbs.relative_to(ROOT)}")
@@ -690,8 +901,9 @@ def main(argv: list[str] | None = None) -> int:
             meta = run_scenario_capture(
                 scen, run_dir,
                 turbo=args.turbo, silent_audio=args.silent_audio)
+        _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
         print(f"  exit={meta['exit_code']} elapsed_ms={meta['elapsed_ms']} "
-              f"captured={len(meta['captured_frames'])}/{len(scen.capture_frames)}")
+              f"captured={len(meta['captured_frames'])}/{_exp}")
 
         if args.bless:
             bless(scen, run_dir, args.target)
@@ -701,11 +913,40 @@ def main(argv: list[str] | None = None) -> int:
         total_pass += p
         total_fail += f
 
+    # After --target both, rebuild the interactive comparison gallery so the
+    # freshly-captured atlases are reflected without a second tool invocation.
+    # (Skipped under --no-regen, e.g. when regen-comparisons.py is driving the
+    # batch and will do its own final regen.)
+    if args.target == "both" and not args.no_regen:
+        _regen_comparison_gallery(scenarios, open_viewer=not args.no_open)
+
     if args.bless:
         return 0
 
     print(f"\n{total_pass} passed, {total_fail} failed")
     return 0 if total_fail == 0 else 1
+
+
+def _regen_comparison_gallery(scen_paths: list[Path], *, open_viewer: bool) -> None:
+    """Rebuild runs/comparisons/index.html (interactive atlas gallery) from the
+    latest --target both runs, optionally opening it in the Windows viewer."""
+    try:
+        import comparison_page
+    except ImportError as e:  # never fail a run over the gallery step
+        print(f"  comparison gallery: skipped ({e})")
+        return
+    runs_dir = ROOT / "runs" / "scenarios"
+    out_dir  = ROOT / "runs" / "comparisons"
+    # Regen the full index (all scenarios) so the page stays complete even when
+    # a single scenario was run; cheap — it only rebuilds atlases that have a
+    # both-run.
+    all_scens = discover_all()
+    items = comparison_page.collect_artifacts(all_scens, runs_dir, out_dir)
+    index = out_dir / "index.html"
+    comparison_page.render_html(items, index)
+    print(f"  comparison gallery → {index.relative_to(ROOT)}")
+    if open_viewer:
+        comparison_page.open_in_viewer(index)
 
 
 if __name__ == "__main__":

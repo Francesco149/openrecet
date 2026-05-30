@@ -7,6 +7,45 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — TAS scenarios on segtrace + interactive diff gallery + port double-HF stub
+
+Refactored the scenario harness off absolute-frame replay onto the
+**anchor-segmented** TAS primitives this branch built, added a HOUSE-movement
+scenario, and made the comparison gallery interactive
+(docs/plans/scenario-tas-refactor.md). Validated end-to-end **port + retail**:
+both sides capture 3/3 anchor-relative frames in actual HOUSE free-roam.
+
+- **Port double-`HOUSE_FREEROAM` stub** (`src/scene1_intro_events.c`) — retail's
+  new-game intro runs two scripted events each with its own load, so
+  `HOUSE_FREEROAM` fires *twice* before the player can move (engine-quirks §55);
+  the port reached HOUSE in one load and fired it once, stalling any segtrace's
+  second `wait HOUSE_FREEROAM`. A 4-state frame counter armed from
+  `scene_post_fade_init` injects a second load-gate cycle (raise/hold/drop via
+  `worker_load_begin/end`), so the port fires it twice too. Live:
+  `HF#1@1570 → LS#2@1577 → HF#2@1581`. New host test.
+- **Scenarios on segtrace** (`tools/scenario-test.py`) — auto-detects a segtrace
+  trace, drives the port with `--input-segtrace` (captures come from the
+  trace's `{capture}` ops), keys goldens by **capture order** (`cap_NN.bmp`).
+  Retail path threads `input_segtrace_path` through `frida_capture.run_capture`.
+  `cap_NN` are **bit-exact across runs** despite load-frame jitter. Fixed two
+  capture bugs surfaced by the first real both-run: the port grabbed a spurious
+  frame-0 via the wall-clock sampler before its first scheduled capture
+  (main.c), and the retail agent inherited the `[0,30,60]` `capture_frames`
+  default (segtrace scenarios now force it empty).
+- **Interactive gallery** (`tools/comparison_page.py`, factored from
+  `regen-comparisons.py` + `pixel_diff.amplified_diff`) — one atlas PNG per
+  capture: row 0 `[openrecet | retail]` always visible, row 1 the amplified
+  diff (black = bit-identical) revealed on click; right-click → Copy Image
+  yields the 3-up. `scenario-test --target both` auto-rebuilds + opens it.
+- **`tests/scenarios/house-movement/`** — new-game → HOUSE → walk-left segtrace
+  (cloned from the validated `traces/house_walk.jsonl`): A-spam clears the
+  intro + tutorial, then captures idle / walking-left / walking off the 2nd
+  `HOUSE_FREEROAM` (+1540/1640/1900, i.e. *after* the tutorial dialog —
+  engine-quirks §55). Port player frozen (controller unported) → the walking
+  caps are the intended port-vs-retail parity baseline until `FUN_0048b850`.
+
+3018 host tests pass; both exes build clean.
+
 ## 2026-05-30 — W1: player-controller tick wired live (FUN_0048670f entry, stub body)
 
 First step of the **movement-first** plan (docs/plans, approved this session):

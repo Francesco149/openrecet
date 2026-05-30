@@ -430,6 +430,7 @@ struct test_case {
     X(anchor_new_game_to_house) \
     X(anchor_house_freeroam_fires_once) \
     X(anchor_reentrant_loading) \
+    X(anchor_intro_events_double_house_freeroam) \
     X(anchor_jsonl_sink_format) \
     \
     X(render_quad_init_seeds_z_rhw_specular) \

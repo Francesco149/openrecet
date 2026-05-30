@@ -30,6 +30,7 @@
 #include "scene1_spawn.h"
 #include "sim.h"
 #include "worker_load.h"
+#include "scene1_intro_events.h"
 
 static void reset_world(void)
 {
@@ -52,6 +53,11 @@ static void reset_world(void)
 
     sim_init();
     worker_load_reset();
+    /* The new-game intro-event stub (src/scene1_intro_events.c) is armed by
+     * scene_post_fade_init; sim_step_a ticks it and short-circuits while it
+     * holds the load gate. A prior test may have left it armed, so reset it
+     * here for a hermetic sim_step_a aging count. */
+    scene1_intro_events_reset();
     g_input_state[0].buttons = 0;
     g_input_state[1].buttons = 0;
 }

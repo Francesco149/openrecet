@@ -1946,6 +1946,38 @@ sides; until then, capture the **2nd** retail `HOUSE_FREEROAM`.
 > `docs/plans/tas-framework.md` (P2 retail), `runs/rh-sweep/` (the offset
 > sweep that surfaced the double-fire).
 
+**2026-05-30 PM — the port now fires `HOUSE_FREEROAM` twice too (stub).**
+The "port fires once" above was the blocker for one TAS trace driving both
+targets: a segtrace's second `wait HOUSE_FREEROAM` (entered on firing #1)
+never resolved on the port, so the run stalled. `src/scene1_intro_events.c`
+is a minimal **stub** that reproduces the *anchor shape* without rendering
+the intro: armed from `scene_post_fade_init` (the new-game→INGAME flip), a
+4-state frame counter waits for the first load to clear (HF #1), then raises
+the worker-load gate (`worker_load_begin`) for a few frames and drops it
+(`worker_load_end`), driving a second `LOADING_START/END → HOUSE_FREEROAM`
+through the existing `anchor_trace` path. Live result (port,
+`traces/house_walk.jsonl`): `HF#1@1570 → LS#2@1577 → HF#2@1581`. When the
+real bedroom/tutorial intro subsystem ports, it replaces the stub and the
+*same* traces keep working — only the visuals fill in. It's ticked at the
+top of `sim_step_a` **before** the worker-busy check, so on the frame it
+raises the gate the same tick pumps the loading counters (test isolation:
+`reset_world()` must `scene1_intro_events_reset()` or a leaked arm short-
+circuits later sim aging).
+
+**Segtrace + listed-capture: the spurious frame-0 grab.** A related fix in
+`src/main.c::render_dispatch`: capture "listed mode" was keyed only on
+`g_capture_frames_count > 0 || g_anchor_captures_count > 0`. A segtrace
+schedules its `{capture}` ops *lazily* (only when a segment activates), so
+before the first one resolves both counts are 0 and the wall-clock sampler
+(the legacy smoke-test default) sneaks in a frame-0 screenshot — which then
+becomes `cap_00`, shifting every capture-index golden by one and breaking
+port↔retail alignment. Fixed by also treating `g_input_segtrace_path != NULL`
+as listed mode (never fall through to the time sampler under a segtrace).
+
+> 📍 `src/scene1_intro_events.{c,h}`, `src/scene.c` (arm), `src/sim.c`
+> (tick), `tests/test_anchor_trace.c` (`anchor_intro_events_double_house_freeroam`),
+> `tests/scenarios/house-movement/`.
+
 ## 56. The shake-target's `DAT_056daed8 == 1` test renders as a float `1.4013e-45`
 
 The inverse of §53.  In the `local_8` shake-target accumulation
