@@ -35,6 +35,13 @@ LEFT (`runs/w3-walk-watch`), then decoded the per-frame physics and ported it.
   LEFT-trajectory replay vs retail. 3024 host tests pass; both exes build clean.
 - **Deferred:** W3b (walk-cycle *frame* timing vs a retail record capture) and
   W4 (furniture/mesh collision `FUN_00483170`, companion, real `cc08` gate).
+- **Camera follow (4fd5ef7).** With the player now moving, the HOUSE camera
+  panned wrong: `scene1_camera_pose_compute` read the target bias from a static
+  seed (the old `apply_house_groundtruth` stand-in) instead of the live player
+  pos. The engine reads `DAT_056da1d8/e0` = `g_scene1_player_pos[0]/[2]` each
+  frame (clamped to the room), so the camera follows. Switched to the live read
+  + removed the stand-in; new `scene1_camera_follows_walking_player` test.
+  User-verified 1:1 vs retail.
 
 Also removed the capture/comparison tools' Windows image-viewer auto-open
 (`explorer.exe`) now that visuals go to the llm-feed push server (`cf5f5af`).
