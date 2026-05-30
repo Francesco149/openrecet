@@ -1968,6 +1968,32 @@ held boosts as **doubles**, `×1.3`, `+0.06`/`+0.03` rumble, `0.5`/`1.0`
 state overrides, `0.3 − clamp01(daedc−da1dc)·0.1` proximity ease) is
 objdump-verified bit-exact.
 
+## 57. Trail-record `x/y/z` are floats stored through an `int *`, so Ghidra prints `(int)` casts
+
+The dash-trail / after-image advance (`FUN_0048b850`, decomp L90315-90330)
+walks its record array through an `int *` (`piVar9`), so Ghidra types
+*every* field as `int` and renders the position writes as
+
+```c
+piVar9[-5] = (int)((local_14 + 3.0) * (float)fVar14 + DAT_056da1d8);  // x
+piVar9[-3] = (int)local_14;                                            // z
+```
+
+The `(int)` casts are pure decompiler artifacts of the pointer type — the
+objdump (`0x48ca06`, `0x48ca47`) is `fstp DWORD PTR [ebx-0x14]` /
+`fstp DWORD PTR [ebx-0xc]`: a plain **float store**, no `cvttss2si`/`ftol`
+truncation anywhere.  The fields are floats; the chr-sprite walker reads
+them back as floats.  A porter who trusts the decomp and writes
+`rec[X] = (int32_t)(...)` would quantise every after-image to integer world
+coordinates and visibly stair-step the trail.  This is §53/§56's int↔float
+confusion seen from the **store** side, driven by the *container* pointer's
+type rather than a single comparison's operand width — when a struct is
+walked through a mistyped pointer, audit each field's actual store width in
+objdump, not the array element type.  Ported faithfully (x/y/z as `float`
+via `memcpy` into the int32 record) as `player_ctrl_trail_advance`
+(Cpop.6, 2026-05-30); the `+3.0` radius (`0x519438`), the spawn threshold
+`600`, and the `0.7` spawn arg (`0x519748`) are all objdump-verified.
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of

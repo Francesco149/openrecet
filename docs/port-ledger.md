@@ -132,7 +132,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x41276e | FUN_0041276e | 795 |  | scene1_per_frame_open.c, scene1_per_frame_open.h |
 | 0x412a89 | FUN_00412a89 | 490 | ✓ | main.c, scene1_per_frame_open.c, scene1_per_frame_open.h |
 | 0x4132c1 | FUN_004132c1 | 92 | ✓ | scene1_per_frame_open.h |
-| 0x41331d | FUN_0041331d | 89 | ✓ | scene1_per_frame_open.h, scene1_records_b_tick.c |
+| 0x41331d | FUN_0041331d | 89 | ✓ | scene1_per_frame_open.h, scene1_player_ctrl.h, scene1_records_b_tick.c |
 | 0x414345 | FUN_00414345 | 1057 | ✓ | scene1_overlay.c, scene1_overlay.h |
 | 0x4147d5 | FUN_004147d5 | 62 | ✓ | scene1_combat_sm.h, scene1_records_b_tick.c |
 | 0x414813 | FUN_00414813 | 239 | ✓ | scene1_overlay.c |
@@ -187,7 +187,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4424e7 | FUN_004424e7 | 429 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4426a7 | FUN_004426a7 | 300 | ✓ | scene1_sim.c, scene1_sim.h |
 | 0x44375e | FUN_0044375e | 12 | ✓ | scene1_records_b_tick.c |
-| 0x44376a | FUN_0044376a | 8538 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h (+6) |
+| 0x44376a | FUN_0044376a | 8538 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h (+7) |
 | 0x445a8c | FUN_00445a8c | 8952 | ✓ | scene1_records.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+1) |
 | 0x447f4f | FUN_00447f4f | 11826 | ✓ | main.c, scene1_combat_sm.h, scene1_particles_tick.c (+4) |
 | 0x44aef0 | FUN_0044aef0 | 96 | ✓ | scene1_records.h, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |

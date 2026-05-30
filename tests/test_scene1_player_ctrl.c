@@ -450,6 +450,112 @@ int test_player_shake_target_proximity_ease(void)
     return 0;
 }
 
+/* ── Cpop.6: dash-trail / after-image record advance ─────────────────────── */
+
+/* Helpers: trail records carry mixed int/float fields in an int32 array. */
+static void trail_set_f(int32_t rec[PC_TRAIL_REC_DWORDS], int field, float v)
+{
+    memcpy(&rec[field], &v, sizeof v);
+}
+static float trail_get_f(const int32_t rec[PC_TRAIL_REC_DWORDS], int field)
+{
+    float v; memcpy(&v, &rec[field], sizeof v); return v;
+}
+
+int test_player_trail_advance_skips_dead_records(void)
+{
+    int32_t recs[PC_TRAIL_RECORDS][PC_TRAIL_REC_DWORDS] = {{0}};
+    int32_t ring[PC_ACTOR_REC_DWORDS] = {0};
+    float player[3] = { 1.0f, 2.0f, 3.0f };
+    float table[1] = { 0.0f };
+    pc_trail_events ev;
+
+    /* all countdowns 0 (and one negative) → untouched, no events. */
+    recs[2][PC_TRAIL_COUNTDOWN] = -5;
+    player_ctrl_trail_advance(recs, ring, player, table, /*decay*/ 1, &ev);
+
+    if (ev.alloc_count != 0) T_FAIL("dead records must not alloc-spawn");
+    if (ev.spawn_count != 0) T_FAIL("dead records must not spawn");
+    if (recs[2][PC_TRAIL_COUNTDOWN] != -5) T_FAIL("dead countdown unchanged");
+    return 0;
+}
+
+int test_player_trail_advance_copies_sprite_and_geometry(void)
+{
+    int32_t recs[PC_TRAIL_RECORDS][PC_TRAIL_REC_DWORDS] = {{0}};
+    int32_t ring[PC_ACTOR_REC_DWORDS];
+    for (int j = 0; j < PC_ACTOR_REC_DWORDS; j++) ring[j] = 700 + j;
+    float player[3] = { 10.0f, 5.0f, 20.0f };
+    float table[1] = { 0.0f };
+
+    /* one active record: idx 0, angle 0, life 100. */
+    recs[0][PC_TRAIL_COUNTDOWN] = 100;
+    recs[0][PC_TRAIL_IDX] = 0;
+    trail_set_f(recs[0], PC_TRAIL_ANGLE, 0.0f);
+
+    player_ctrl_trail_advance(recs, ring, player, table, /*decay*/ 0, NULL);
+
+    /* sprite-state snapshot copied verbatim. */
+    for (int j = 0; j < PC_ACTOR_REC_DWORDS; j++)
+        if (recs[0][PC_TRAIL_SPRITE + j] != 700 + j)
+            T_FAIL("sprite ring should be copied into the record");
+    /* angle 0 → sin=0,cos=1, r=idx+3=3: x=px, y=py, z=pz+3. */
+    T_ASSERT_NEAR(trail_get_f(recs[0], PC_TRAIL_X), 10.0f);
+    T_ASSERT_NEAR(trail_get_f(recs[0], PC_TRAIL_Y), 5.0f);
+    T_ASSERT_NEAR(trail_get_f(recs[0], PC_TRAIL_Z), 23.0f);
+    /* life counter decremented once. */
+    if (recs[0][PC_TRAIL_COUNTDOWN] != 99) T_FAIL("countdown should decrement");
+    return 0;
+}
+
+int test_player_trail_advance_spawns_at_600(void)
+{
+    int32_t recs[PC_TRAIL_RECORDS][PC_TRAIL_REC_DWORDS] = {{0}};
+    int32_t ring[PC_ACTOR_REC_DWORDS] = {0};
+    float player[3] = { 0.0f, 0.0f, 0.0f };
+    float table[1] = { 0.0f };
+    pc_trail_events ev;
+
+    /* record 1 exactly at the spawn threshold; record 3 just past it. */
+    recs[1][PC_TRAIL_COUNTDOWN] = 600;
+    recs[3][PC_TRAIL_COUNTDOWN] = 601;
+    player_ctrl_trail_advance(recs, ring, player, table, /*decay*/ 0, &ev);
+
+    if (ev.spawn_count != 1) T_FAIL("only the life==600 record spawns");
+    /* idx 0, angle 0: z = 0 + (0+3) = 3, x = y = 0. */
+    T_ASSERT_NEAR(ev.spawn_pos[0][2], 3.0f);
+    if (recs[1][PC_TRAIL_COUNTDOWN] != 599) T_FAIL("threshold rec still decrements");
+    if (recs[3][PC_TRAIL_COUNTDOWN] != 600) T_FAIL("601 record decrements, no spawn");
+    return 0;
+}
+
+int test_player_trail_advance_decay_alloc_order(void)
+{
+    int32_t recs[PC_TRAIL_RECORDS][PC_TRAIL_REC_DWORDS] = {{0}};
+    int32_t ring[PC_ACTOR_REC_DWORDS] = {0};
+    float player[3] = { 0.0f, 0.0f, 0.0f };
+    float table[1] = { 0.0f };
+    pc_trail_events ev;
+
+    /* records 0, 2, 4 active → alloc requested for each, in record order. */
+    recs[0][PC_TRAIL_COUNTDOWN] = 10;
+    recs[2][PC_TRAIL_COUNTDOWN] = 10;
+    recs[4][PC_TRAIL_COUNTDOWN] = 10;
+    player_ctrl_trail_advance(recs, ring, player, table, /*decay*/ 1, &ev);
+
+    if (ev.alloc_count != 3) T_FAIL("one alloc per active record when decay set");
+    if (ev.alloc_index[0] != 0 || ev.alloc_index[1] != 2 || ev.alloc_index[2] != 4)
+        T_FAIL("alloc requests should be in record order");
+
+    /* with decay clear, no alloc requests. */
+    recs[0][PC_TRAIL_COUNTDOWN] = 10;
+    recs[2][PC_TRAIL_COUNTDOWN] = 10;
+    recs[4][PC_TRAIL_COUNTDOWN] = 10;
+    player_ctrl_trail_advance(recs, ring, player, table, /*decay*/ 0, &ev);
+    if (ev.alloc_count != 0) T_FAIL("no alloc when decay flag clear");
+    return 0;
+}
+
 /* ── Cchr.2h: house-standing actor-state model ───────────────────────────── */
 
 int test_player_pose_seeds_actor0(void)

@@ -198,6 +198,60 @@ float player_ctrl_shake_target(float base, int held_968, int held_969,
                                int daed8_is_1, int db07c_is_0,
                                float daedc, float da1dc);
 
+/* ── Cpop.6: dash-trail / after-image record advance ─────────────────────
+ *
+ * The per-frame advance of the 5 after-image records (DAT_056dabac, stride
+ * 0x44 = 17 dwords, ending at DAT_056dad00) the chr-sprite walker draws
+ * behind a moving/dashing player.  Engine FUN_0048b850 @ all.c L90300-90334
+ * (objdump 0x48c991-0x48ca9d); the live consumer of the already-ported
+ * player_ctrl_trail_orbit_pos geometry leaf.
+ *
+ * Per record, only while its life counter is positive (signed `> 0`):
+ *   1. (gated on `decay_spawn`) request FUN_0044376a(&DAT_056da1b8, 3, i)
+ *      — fired BEFORE the copy, once per active record, when the
+ *      DAT_056dae14 down-counter ticked to 0 this frame.
+ *   2. snapshot the live sprite-state ring head (DAT_056daae8, 11 dwords)
+ *      into the record's sprite slot.
+ *   3. recompute the orbit position via player_ctrl_trail_orbit_pos
+ *      (angle = 2·table[idx] + stored_angle, r = idx + 3); x/y/z are
+ *      *floats* (the engine `fstp`s them — Ghidra mistypes them as int).
+ *   4. if the life counter is exactly 600, request
+ *      FUN_0041331d(0, x, y, z, 4, 0.7, 0xffffffff) at the new position.
+ *   5. decrement the life counter.
+ *
+ * The two engine side-effect calls are reported through `ev` (may be NULL)
+ * so the pure advance stays host-testable; the eventual _WIN32 controller
+ * body fires them.  `angle_table` is the read-only DAT_005ce5c0 per-anim
+ * phase table the leaf indexes by `idx`.
+ */
+#define PC_TRAIL_RECORDS     5
+#define PC_TRAIL_REC_DWORDS  17   /* 0x44-byte record stride */
+
+/* dword field indices within one trail record */
+#define PC_TRAIL_SPRITE      0    /* [0..10] 11-dword sprite-state snapshot   */
+#define PC_TRAIL_X           11   /* float — orbit x       (engine [ebx-0x14]) */
+#define PC_TRAIL_Y           12   /* float — player y      (engine [ebx-0x10]) */
+#define PC_TRAIL_Z           13   /* float — orbit z       (engine [ebx-0x0c]) */
+#define PC_TRAIL_COUNTDOWN   14   /* int   — life counter  (engine [ebx-0x08]) */
+#define PC_TRAIL_ANGLE       15   /* float — stored angle  (engine [ebx-0x04]) */
+#define PC_TRAIL_IDX         16   /* int   — anim/table id (engine [ebx])      */
+
+typedef struct {
+    /* FUN_0044376a(&DAT_056da1b8, 3, record_index) requests, in record order. */
+    int alloc_count;
+    int alloc_index[PC_TRAIL_RECORDS];
+    /* FUN_0041331d(0, x,y,z, 4, 0.7, 0xffffffff) requests (life counter hit 600). */
+    int   spawn_count;
+    float spawn_pos[PC_TRAIL_RECORDS][3];
+} pc_trail_events;
+
+void player_ctrl_trail_advance(int32_t records[][PC_TRAIL_REC_DWORDS],
+                               const int32_t sprite_ring[PC_ACTOR_REC_DWORDS],
+                               const float player[3],
+                               const float angle_table[],
+                               int decay_spawn,
+                               pc_trail_events *ev);
+
 /* ── Cchr.2h: player/companion actor-state model ─────────────────────────
  *
  * The engine globals the shop-walker player draw (FUN_004552d0 L357-454)

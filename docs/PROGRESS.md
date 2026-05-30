@@ -278,6 +278,40 @@ colour base/pulse (`4552d0.c:394-435`), and replacing the inject with the real
 **Retail screenshot pixel-diff deferred to after the full path lands** (per
 user); leaf-level ground truth already validates geometry + colour.
 
+## 2026-05-30 — Cpop.6: FUN_0048b850 dash-trail / after-image record advance
+
+Ported the per-frame advance of the 5 after-image records (`DAT_056dabac`,
+0x44-byte stride, ending at `DAT_056dad00`; decomp L90300-90334, objdump
+`0x48c991-0x48ca9d`) as `player_ctrl_trail_advance` — the **live consumer**
+of the Cpop.2 `player_ctrl_trail_orbit_pos` geometry leaf, and the loop the
+dormant chr-sprite walker reads to draw the trail behind a moving player.
+
+Per active record (life counter signed `> 0`): an optional alloc-spawn
+(`FUN_0044376a(…,3,i)`, gated on the `DAT_056dae14` decay edge, fired
+*before* the copy) → snapshot the live sprite-state ring head
+(`DAT_056daae8`, 11 dwords) into the record → recompute the orbit position
+via the leaf (`angle = 2·table[idx] + stored`, `r = idx+3`) → a birth-spawn
+(`FUN_0041331d(0,x,y,z,4,0.7,0xffffffff)`) the frame life is exactly `600`
+→ decrement life.  The two engine calls are reported through an out-param
+`pc_trail_events` (NULL-able) so the advance stays pure and host-testable;
+the eventual `_WIN32` controller body fires them.
+
+**New quirk — engine-quirks §57 (§53/§56 from the store side):** the
+record's `x/y/z` are **floats** (`fstp DWORD` at `0x48ca06`/`0x48ca47`), but
+Ghidra walks the record through an `int *` and so prints the writes as
+`piVar9[-5] = (int)(…)`.  Trusting the cast would quantise every after-image
+to integer world coords and stair-step the trail; the fields are stored
+into the int32 record via `memcpy` of the real float bits.  `+3.0`
+(`0x519438`), threshold `600`, and the `0.7` spawn arg (`0x519748`) are all
+objdump-verified.
+
+4 host tests (2997 → 3001): dead-record skip, sprite-copy + geometry +
+decrement, birth-spawn at exactly 600, and decay alloc-event ordering.
+Module still unwired → HOUSE behavior + goldens bit-identical, no regen.
+Remaining for the chip: the `DAT_056daae0` after-image ring shift
+(L90269-90296) and the footstep/proximity block (L90336-90370), then wiring
+the whole controller behind the `FUN_0048670f` caller chain.
+
 ## 2026-05-30 — Cpop.5: FUN_0048b850 shake-target accumulation — camera-shake-magnitude subsystem complete
 
 Ported the per-frame shake-*target* magnitude accumulation (`local_8`;

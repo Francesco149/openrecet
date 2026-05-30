@@ -1238,6 +1238,7 @@
    "status": "ported",
    "src": [
     "src/scene1_per_frame_open.h",
+    "src/scene1_player_ctrl.h",
     "src/scene1_records_b_tick.c"
    ]
   },
@@ -3085,6 +3086,7 @@
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
     "src/scene1_particles_tick.h",
+    "src/scene1_player_ctrl.h",
     "src/scene1_records.h",
     "src/scene1_records_b_spawn.c",
     "src/scene1_records_b_spawn.h",

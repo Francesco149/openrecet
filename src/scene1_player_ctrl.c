@@ -173,6 +173,56 @@ float player_ctrl_shake_target(float base, int held_968, int held_969,
     return t;
 }
 
+void player_ctrl_trail_advance(int32_t records[][PC_TRAIL_REC_DWORDS],
+                               const int32_t sprite_ring[PC_ACTOR_REC_DWORDS],
+                               const float player[3],
+                               const float angle_table[],
+                               int decay_spawn,
+                               pc_trail_events *ev)
+{
+    if (ev) { ev->alloc_count = 0; ev->spawn_count = 0; }
+
+    for (int i = 0; i < PC_TRAIL_RECORDS; i++) {
+        int32_t *rec = records[i];
+
+        /* [ebx-0x8] compared signed against 0 (`jle`): skip dead records. */
+        if (rec[PC_TRAIL_COUNTDOWN] <= 0)
+            continue;
+
+        /* The DAT_056dae14-decay alloc spawn fires per active record, before
+         * the sprite copy, when the caller's decay edge fired this frame. */
+        if (decay_spawn && ev)
+            ev->alloc_index[ev->alloc_count++] = i;
+
+        /* Snapshot the live sprite-state ring head into this record's slot. */
+        memcpy(&rec[PC_TRAIL_SPRITE], sprite_ring,
+               PC_ACTOR_REC_DWORDS * sizeof rec[0]);
+
+        /* Orbit position: angle = 2·table[idx] + stored_angle, r = idx+3.
+         * x/y/z are stored as raw float bits (engine `fstp DWORD`). */
+        int   idx = rec[PC_TRAIL_IDX];
+        float stored_angle;
+        memcpy(&stored_angle, &rec[PC_TRAIL_ANGLE], sizeof stored_angle);
+
+        float out[3];
+        player_ctrl_trail_orbit_pos(idx, stored_angle, angle_table[idx],
+                                    player, out);
+        memcpy(&rec[PC_TRAIL_X], &out[0], sizeof out[0]);
+        memcpy(&rec[PC_TRAIL_Y], &out[1], sizeof out[1]);
+        memcpy(&rec[PC_TRAIL_Z], &out[2], sizeof out[2]);
+
+        /* Spawn-at-birth: the frame the life counter is exactly 600. */
+        if (rec[PC_TRAIL_COUNTDOWN] == 600 && ev) {
+            ev->spawn_pos[ev->spawn_count][0] = out[0];
+            ev->spawn_pos[ev->spawn_count][1] = out[1];
+            ev->spawn_pos[ev->spawn_count][2] = out[2];
+            ev->spawn_count++;
+        }
+
+        rec[PC_TRAIL_COUNTDOWN]--;
+    }
+}
+
 /* ── Cchr.2h: the player/companion actor-state model ─────────────────────
  *
  * The per-actor fields the shop-walker player draw (FUN_004552d0 L357-454,

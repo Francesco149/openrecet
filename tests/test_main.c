@@ -3147,6 +3147,10 @@ struct test_case {
     X(player_shake_target_b8b0_and_rumble) \
     X(player_shake_target_state_overrides) \
     X(player_shake_target_proximity_ease) \
+    X(player_trail_advance_skips_dead_records) \
+    X(player_trail_advance_copies_sprite_and_geometry) \
+    X(player_trail_advance_spawns_at_600) \
+    X(player_trail_advance_decay_alloc_order) \
     X(player_pose_seeds_actor0) \
     X(player_pose_empties_party_slots) \
     X(player_pose_passes_char_id) \
