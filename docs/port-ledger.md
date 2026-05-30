@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **369** (14.5%) — verified 61, stubbed 14, ported 294
-- unported: **2179**
+- touched: **370** (14.5%) — verified 61, stubbed 14, ported 295
+- unported: **2178**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (61) — runtime-diffed vs retail
@@ -99,7 +99,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (294) — reimplemented, no probe yet
+## ported (295) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -328,6 +328,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x48a348 | FUN_0048a348 | 59 | ✓ | scene1_combat_sm.h |
 | 0x48a383 | FUN_0048a383 | 334 | ✓ | xp_curve.h |
 | 0x48b3f6 | FUN_0048b3f6 | 663 | ✓ | scene1_player_ctrl.h |
+| 0x48b6ad | FUN_0048b6ad | 407 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h |
 | 0x48b850 | FUN_0048b850 | 5030 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h (+3) |
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
 | 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h |

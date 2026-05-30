@@ -292,6 +292,35 @@ int player_ctrl_burst_materialize(int32_t bank[][PC_TRAIL_REC_DWORDS],
                                   const int32_t rec_hist[][PC_ACTOR_REC_DWORDS],
                                   int counter);
 
+/*
+ * Cpop.8 — the displayed HP/SP gauge tween.  Engine FUN_0048b6ad (0x48b6ad,
+ * 407 B) is the player controller's FIRST per-frame sub-update (called at the
+ * top of FUN_0048b850).  It eases two on-screen gauges toward their true
+ * values at a per-character speed — the classic bar that slides down a few
+ * frames after you take a hit.
+ *
+ *   Channel A — HP: `disp_hp` (DAT_056db0c4) follows `true_hp` (DAT_056db0bc,
+ *     the player-HP float; see scene1-records-b-state-machine.md Q2) at
+ *     `hp_rate`.  Tracks `counter` (DAT_056db0cc, frames spent un-settled,
+ *     reset to 0 the frame it lands) and `dir` (DAT_056db0d0, 1 = rising /
+ *     healing, 0 = falling / damage).
+ *   Channel B — SP: `disp_sp` (DAT_056db0c8) follows `true_sp` (DAT_056db0c0)
+ *     at `sp_rate`.  Clamp-on-overshoot only — no counter or direction.
+ *
+ * The targets db0bc/db0c0 are seeded from the chara record's [+0x3c..+0x42]
+ * bytes and mirrored into the follower pair db0c4/db0c8 at stage post-load
+ * (stage_post_load.h step 4).  Both rates come from the per-character record
+ * `rec = &DAT_04510648 + DAT_0438b7d8*0x6c + DAT_0438b1e0*0x2dfc8`:
+ *   hp_rate = (i16[rec+0x3c] + i16[rec+0x3e]) * 0.01
+ *   sp_rate = (i16[rec+0x40] + i16[rec+0x42]) * 0.01
+ * Resolved by the caller via player_ctrl_gauge_rate() so this leaf stays
+ * table-free (matching player_ctrl_trail_orbit_pos / player_ctrl_shake_target).
+ */
+float player_ctrl_gauge_rate(int16_t field_lo, int16_t field_hi);
+void  player_ctrl_gauge_track(float *disp_hp, float true_hp, float hp_rate,
+                              float *disp_sp, float true_sp, float sp_rate,
+                              int *counter, int *dir);
+
 /* ── Cchr.2h: player/companion actor-state model ─────────────────────────
  *
  * The engine globals the shop-walker player draw (FUN_004552d0 L357-454)

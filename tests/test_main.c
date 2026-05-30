@@ -3154,6 +3154,11 @@ struct test_case {
     X(player_burst_noop_when_counter_not_positive) \
     X(player_burst_samples_every_other_slot_from_3) \
     X(player_burst_final_frame_clears_life) \
+    X(player_gauge_rate_sums_then_scales) \
+    X(player_gauge_rises_and_clamps_with_dir1) \
+    X(player_gauge_falls_with_dir0) \
+    X(player_gauge_settled_resets_counter_keeps_dir) \
+    X(player_gauge_sp_channel_has_no_counter) \
     X(player_pose_seeds_actor0) \
     X(player_pose_empties_party_slots) \
     X(player_pose_passes_char_id) \

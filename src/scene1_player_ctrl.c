@@ -257,6 +257,47 @@ int player_ctrl_burst_materialize(int32_t bank[][PC_TRAIL_REC_DWORDS],
     return counter;
 }
 
+/* Cpop.8: the engine's gauge-rate derivation (FUN_0048b6ad, .rdata 0x5193a4
+ * = 0.01f).  Both fields are sign-extended 16-bit then summed — the order is
+ * immaterial, so callers may pass them in either order. */
+float player_ctrl_gauge_rate(int16_t field_lo, int16_t field_hi)
+{
+    return ((float)((int)field_lo + (int)field_hi)) * 0.01f;
+}
+
+void player_ctrl_gauge_track(float *disp_hp, float true_hp, float hp_rate,
+                             float *disp_sp, float true_sp, float sp_rate,
+                             int *counter, int *dir)
+{
+    /* Channel A — HP gauge (DAT_056db0c4 toward DAT_056db0bc).  Manages the
+     * run-length counter (db0cc) and direction flag (db0d0).  The engine
+     * branches `jae` then `jbe` so the equal case resets the counter and
+     * leaves the direction untouched (objdump 0x48b6bc-0x48b799). */
+    if (*disp_hp < true_hp) {              /* below target → rise toward it */
+        *disp_hp += hp_rate;
+        if (*disp_hp > true_hp) *disp_hp = true_hp;   /* clamp overshoot */
+        (*counter)++;
+        *dir = 1;
+    } else if (*disp_hp > true_hp) {       /* above target → fall toward it */
+        *disp_hp -= hp_rate;
+        if (*disp_hp < true_hp) *disp_hp = true_hp;
+        (*counter)++;
+        *dir = 0;
+    } else {                               /* already settled → reset counter */
+        *counter = 0;
+    }
+
+    /* Channel B — SP gauge (DAT_056db0c8 toward DAT_056db0c0).  Clamp-on-
+     * overshoot only; no counter or direction (objdump 0x48b7a0-0x48b842). */
+    if (*disp_sp < true_sp) {
+        *disp_sp += sp_rate;
+        if (*disp_sp > true_sp) *disp_sp = true_sp;
+    } else if (*disp_sp > true_sp) {
+        *disp_sp -= sp_rate;
+        if (*disp_sp < true_sp) *disp_sp = true_sp;
+    }
+}
+
 /* ── Cchr.2h: the player/companion actor-state model ─────────────────────
  *
  * The per-actor fields the shop-walker player draw (FUN_004552d0 L357-454,

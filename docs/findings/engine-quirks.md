@@ -2030,6 +2030,37 @@ Ported faithfully as `player_ctrl_burst_materialize` (Cpop.7, 2026-05-30),
 host-tested; geometry objdump-verified. The *steady-state* writer of this
 same `dacc0` bank is the still-unported Cf.* `FUN_00436f97`.
 
+## 59. The HP/SP gauges tween at a per-character speed, and the equal frame resets a counter without touching the direction
+
+`FUN_0048b6ad` (407 B), the very first thing `FUN_0048b850` does each frame,
+is the on-screen HP/SP bar follower: it eases two displayed gauges
+(`DAT_056db0c4`/`DAT_056db0c8`) toward their true values
+(`DAT_056db0bc` = player HP / `DAT_056db0c0` = SP) so the bar slides a few
+frames after a hit instead of snapping. Two things a faithful port has to get
+right:
+
+- **The step rate is per-character, packed as two summed int16s × 0.01.** It
+  reads `i16[rec+0x3c] + i16[rec+0x3e]` for HP and `i16[rec+0x40] +
+  i16[rec+0x42]` for SP, multiplies each sum by `0.01` (`.rdata 0x5193a4`),
+  where `rec = &DAT_04510648 + DAT_0438b7d8*0x6c + DAT_0438b1e0*0x2dfc8` (the
+  active character within the active stage). Two adjacent int16 fields summed
+  is an odd way to store one rate — likely a base+bonus split — but the order
+  is immaterial since it's an add.
+
+- **The two channels are asymmetric, and the equal case is a third branch.**
+  The HP channel tracks a run-length counter (`DAT_056db0cc`) and a direction
+  flag (`DAT_056db0d0`: 1 = rising/heal, 0 = falling/damage); the SP channel
+  tracks neither. The engine's branch order is `jae` then `jbe`, so it has
+  *three* outcomes, not two: below-target rises and sets dir 1, above-target
+  falls and sets dir 0, and **exactly-equal resets the counter to 0 while
+  leaving the direction flag at whatever it last was** (the equal branch is
+  `and db0cc,0` with no write to `db0d0`). A port that folds equal into the
+  ≥ branch, or that clears the direction on settle, diverges. Both channels
+  clamp overshoot to the target rather than stepping past it.
+
+Ported faithfully as `player_ctrl_gauge_track` (Cpop.8, 2026-05-30),
+host-tested; objdump-verified `0x48b6ad-0x48b843`.
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of

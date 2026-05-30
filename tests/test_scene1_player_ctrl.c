@@ -1,12 +1,14 @@
 /*
- * test_scene1_player_ctrl.c — Cpop.1 coverage.
+ * test_scene1_player_ctrl.c — Cpop.1-8 coverage.
  *
  * Exercises the pure leaf math of the HOUSE per-frame player controller
- * (engine FUN_0048b850): the 8→4 facing-octant snap with its sticky
- * horizontal bias, the camera zoom-bias decay + floor clamp, and the
- * camera-shake magnitude clamp.  The stateful controller body itself is
- * dormant (its caller chain FUN_00442cef→FUN_0048670f is unported) and not
- * host-testable; these leaves are where the decoded branch structure lives.
+ * (engine FUN_0048b850): the 8→4 facing-octant snap, camera zoom/shake
+ * decay + clamp, emote-pulse counters, the motion-history rings, the
+ * dash-trail + after-image burst fills, and the HP/SP gauge tween
+ * (FUN_0048b6ad, the controller's first callee).  The stateful controller
+ * body itself is dormant (its caller chain FUN_00442cef→FUN_0048670f is
+ * unported) and not host-testable; these leaves are where the decoded
+ * branch structure lives.
  */
 #include "t.h"
 
@@ -640,6 +642,77 @@ int test_player_burst_final_frame_clears_life(void)
             T_FAIL("clear pass must leave the sprite copy intact");
         T_ASSERT_NEAR(trail_get_f(bank[k], PC_TRAIL_X), (float)(s * 100));
     }
+    return 0;
+}
+
+/* ── Cpop.8: HP/SP displayed-gauge tween (FUN_0048b6ad) ───────────────────── */
+
+int test_player_gauge_rate_sums_then_scales(void)
+{
+    /* (i16 + i16) * 0.01, sign-extended.  0x5193a4 = 0.01f. */
+    T_ASSERT_NEAR(player_ctrl_gauge_rate(30, 20), 0.5f);
+    T_ASSERT_NEAR(player_ctrl_gauge_rate(-10, 5), -0.05f);
+    T_ASSERT_NEAR(player_ctrl_gauge_rate(0, 0), 0.0f);
+    return 0;
+}
+
+int test_player_gauge_rises_and_clamps_with_dir1(void)
+{
+    /* disp below target → rises by rate, counter ticks, dir = 1 (healing). */
+    float hp = 5.0f, sp = 0.0f;
+    int counter = 7, dir = -1;
+    player_ctrl_gauge_track(&hp, 10.0f, 2.0f, &sp, 0.0f, 1.0f, &counter, &dir);
+    T_ASSERT_NEAR(hp, 7.0f);
+    T_ASSERT_EQ_I(counter, 8);
+    T_ASSERT_EQ_I(dir, 1);
+    /* overshoot is clamped to the target, not stepped past it. */
+    player_ctrl_gauge_track(&hp, 7.5f, 2.0f, &sp, 0.0f, 1.0f, &counter, &dir);
+    T_ASSERT_NEAR(hp, 7.5f);
+    T_ASSERT_EQ_I(counter, 9);
+    return 0;
+}
+
+int test_player_gauge_falls_with_dir0(void)
+{
+    /* disp above target → falls by rate, counter ticks, dir = 0 (damage). */
+    float hp = 10.0f, sp = 0.0f;
+    int counter = 0, dir = 1;
+    player_ctrl_gauge_track(&hp, 4.0f, 2.0f, &sp, 0.0f, 1.0f, &counter, &dir);
+    T_ASSERT_NEAR(hp, 8.0f);
+    T_ASSERT_EQ_I(counter, 1);
+    T_ASSERT_EQ_I(dir, 0);
+    /* undershoot clamps up to the target. */
+    player_ctrl_gauge_track(&hp, 7.5f, 2.0f, &sp, 0.0f, 1.0f, &counter, &dir);
+    T_ASSERT_NEAR(hp, 7.5f);
+    T_ASSERT_EQ_I(dir, 0);
+    return 0;
+}
+
+int test_player_gauge_settled_resets_counter_keeps_dir(void)
+{
+    /* HP already at target → counter resets to 0, dir untouched. */
+    float hp = 6.0f, sp = 0.0f;
+    int counter = 42, dir = 1;
+    player_ctrl_gauge_track(&hp, 6.0f, 2.0f, &sp, 0.0f, 1.0f, &counter, &dir);
+    T_ASSERT_NEAR(hp, 6.0f);
+    T_ASSERT_EQ_I(counter, 0);
+    T_ASSERT_EQ_I(dir, 1);   /* the engine's equal branch leaves db0d0 alone */
+    return 0;
+}
+
+int test_player_gauge_sp_channel_has_no_counter(void)
+{
+    /* Channel B eases + clamps independently of the HP counter/dir. */
+    float hp = 3.0f, sp = 2.0f;
+    int counter = 0, dir = 0;
+    /* SP rises and clamps; HP holds (already settled → counter 0). */
+    player_ctrl_gauge_track(&hp, 3.0f, 1.0f, &sp, 2.4f, 1.0f, &counter, &dir);
+    T_ASSERT_NEAR(sp, 2.4f);     /* 2.0 + 1.0 overshoots 2.4 → clamp */
+    T_ASSERT_EQ_I(counter, 0);   /* HP settled, untouched by the SP move */
+    /* SP falls and clamps. */
+    sp = 5.0f;
+    player_ctrl_gauge_track(&hp, 3.0f, 1.0f, &sp, 4.7f, 1.0f, &counter, &dir);
+    T_ASSERT_NEAR(sp, 4.7f);
     return 0;
 }
 

@@ -7,6 +7,32 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — Cpop.8: FUN_0048b6ad HP/SP gauge tween — first controller callee
+
+With the after-image banks done (Cpop.6/7), `FUN_0048b850`'s pure-leaf vein is
+mined out, so this chip takes its **first callee** — `FUN_0048b6ad` (407 B),
+run at the controller's top — which is itself a clean leaf. It's the on-screen
+HP/SP bar follower: each frame it eases two displayed gauges
+(`DAT_056db0c4`/`db0c8`) toward their true values (`db0bc` = player HP /
+`db0c0` = SP) at a per-character rate, so the bar slides a few frames after a
+hit instead of snapping.
+
+- **Port (`src/scene1_player_ctrl.c`).** `player_ctrl_gauge_track` (the two
+  asymmetric channels) + `player_ctrl_gauge_rate` (the `(i16+i16)*0.01`
+  derivation, `.rdata 0x5193a4`). The HP channel tracks a run-length counter
+  (`db0cc`) and direction flag (`db0d0`: 1 = heal, 0 = damage); the SP channel
+  is clamp-only. objdump-verified `0x48b6ad-0x48b843` — the `jae`/`jbe` branch
+  order makes the equal frame a *third* outcome that resets the counter and
+  leaves the direction untouched (engine-quirks §59).
+- **Semantics resolved without Frida.** `db0bc` was already named player HP
+  (records-b-state-machine.md Q2) and `stage_post_load.h` step 4 already
+  documents the `db0bc/db0c0 → db0c4/db0c8` target→follower seed — so the
+  gauge-tween reading fell straight out of the existing finding corpus.
+- **5 host tests** (`test_player_gauge_*`); 3009 total pass; both exe targets
+  build warning-free. char-sprite-render finding + engine-quirks §59 updated;
+  the remaining `FUN_0048b850` pieces (intro spawn SM, proximity grid, dust
+  spawns) need the live-record callees first — noted in the finding.
+
 ## 2026-05-30 — TAS P2 (retail side): anchor-relative capture; README hero regenerated anchor-aligned; HOUSE_FREEROAM double-fire found
 
 Built the retail half of TAS P2 (`docs/plans/tas-framework.md`): the Frida

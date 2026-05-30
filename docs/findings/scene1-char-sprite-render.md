@@ -684,6 +684,38 @@ the final burst frame fills then immediately retires the bank.  Ported as
 `player_ctrl_burst_materialize` (pure leaf, host-tested); the **steady-state**
 writer of this bank is still the unported Cf.* `FUN_00436f97`.
 
+**Cpop.8 — `FUN_0048b6ad` HP/SP gauge tween (ported 2026-05-30).**  With the
+after-image banks done, the controller's pure-leaf vein is mined out; the
+*first* callee of `FUN_0048b850` (at its top, `FUN_0048b6ad`, 407 B) is itself
+a clean leaf and the next chip.  It eases two displayed gauges toward their
+true values at a per-character rate — the on-screen HP/SP bar that slides a
+few frames after a hit:
+
+- **Channel A (HP).**  `DAT_056db0c4` (displayed) follows `DAT_056db0bc` (=
+  player HP, resolved in `scene1-records-b-state-machine.md` Q2).  Rises/falls
+  by `rate`, clamping overshoot to the target; the equal frame resets the
+  run-length counter `DAT_056db0cc` to 0 and leaves the direction flag
+  `DAT_056db0d0` (1 = rising/heal, 0 = falling/damage) untouched.
+- **Channel B (SP).**  `DAT_056db0c8` follows `DAT_056db0c0`, clamp-on-
+  overshoot only — no counter or direction.
+
+The targets are seeded from the chara record's `[+0x3c..+0x42]` bytes and
+mirrored into the follower pair at post-load (`stage_post_load.h` step 4).
+Both rates are `(i16[rec+lo] + i16[rec+hi]) * 0.01` (`.rdata 0x5193a4`),
+`rec = &DAT_04510648 + DAT_0438b7d8*0x6c + DAT_0438b1e0*0x2dfc8` — resolved by
+the caller via `player_ctrl_gauge_rate()` so the leaf stays table-free.  Ported
+as `player_ctrl_gauge_track` (pure leaf, 5 host tests); objdump-verified
+`0x48b6ad-0x48b843` (the `jae`/`jbe` branch order = the equal-case counter
+reset).  engine-quirks §59.
+
+The remaining `FUN_0048b850` pieces (the `DAT_056da1bc` intro spawn-burst
+state machine, the `DAT_005cc2ec` proximity-activation grid at the tail, the
+dust `FUN_00447f4f` calls) are stateful / callee-dependent, not host-testable
+leaves; advancing them needs the live-record callees (`FUN_004897c6`,
+`FUN_0048cdcc`, `FUN_0048cbf6`, `FUN_0048a833`, `FUN_00483e7b`, `FUN_00483170`)
+that compute the per-frame actor sprite-state, then wiring the body behind
+`_WIN32`.
+
 ## Cross-refs
 
 - `scene1-char-sprite-trace.md` — Cchr.0/Cchr.1 retail trace.
