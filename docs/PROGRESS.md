@@ -28,7 +28,9 @@ run↔run) when absolute frame numbers can't.
   spawn/teardown maps to a *variable* frame count. Measured `LOADING_END`
   across identical replays: **1489 / 1519 / 1566 / 1594 / 1613 / 1752** —
   ~250-frame jitter. So absolute frames can't align two runs; this is
-  precisely why anchors exist. (Logged in engine-quirks.)
+  precisely why anchors exist. (A threaded load with variable duration is
+  normal engine behaviour — not an engine-quirk; the parity *implication*
+  is what matters, captured here + in the plan.)
 - **`src/anchor_trace.{c,h}`** (pure, 6 unit tests, ASan-clean): per-frame
   world snapshot (`scene_state`, `loading_active`) → rising-edge anchors
   `{"anchor":NAME,"frame":N}` JSONL. Anchors: `BOOT`, `NEW_GAME`

@@ -1891,43 +1891,6 @@ the next suspect.)
 
 ---
 
-## 55. The loading screen burns a *non-deterministic* number of frames
-
-The asset load between "New Game" and the playable HOUSE is gated on a
-worker **thread** (`FUN_00452cde` → `CreateThread`, ported in
-`src/worker_load.c`), not on a frame count. The main loop spins
-`nowloading` frames and short-circuits the sim while `worker_load_busy()`
-is true (`DAT_06a49954`, a volatile flag the worker clears on exit); the
-overlay drops on the first frame after it goes false (`sim_step_a` →
-`nowloading_set_active(0)`). So the number of loading frames is however
-many main-loop iterations complete before the worker thread finishes —
-which is **wall-clock / OS-scheduling dependent, not reproducible**.
-
-Normally that jitter is invisible (the game is realtime-throttled, so the
-load is "a second or two" either way). It becomes glaring under the TAS
-harness's `--turbo`/replay **virtual clock**: the loop runs as fast as the
-host allows, so the few milliseconds of thread spawn+teardown map to a
-*large, variable* frame span. Measured `LOADING_END` across six identical
-replays of the same trace+seed: **1489 / 1519 / 1566 / 1594 / 1613 /
-1752** — ~250 frames of spread for a load that does almost nothing
-(the port's INGAME loader callback is still mostly unported, so the worker
-mainly just spawns and exits).
-
-Consequence for parity work: **absolute frame numbers from boot do not
-identify a game state** once a threaded load sits between you and it. This
-is the entire reason the TAS framework anchors the timeline to *events*
-(`LOADING_END` / `HOUSE_FREEROAM`) and captures relative to them. Two
-replays whose HOUSE start differed by 139 absolute frames produced
-bit-identical `HOUSE_FREEROAM+0/+30` captures — same instant, different
-frame number. The *sim* is perfectly deterministic; only the load
-*duration* is not.
-
-> 📍 `src/worker_load.c`, `src/nowloading.c`, `src/sim.c:sim_step_a`
-> (`nowloading_set_active(0)` gate), `src/anchor_trace.c`,
-> `docs/plans/tas-framework.md` (P1).
-
----
-
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an
