@@ -3168,7 +3168,13 @@ struct test_case {
     X(player_gauge_falls_with_dir0) \
     X(player_gauge_settled_resets_counter_keeps_dir) \
     X(player_gauge_sp_channel_has_no_counter) \
-    X(player_ctrl_tick_is_pose_preserving_stub) \
+    X(player_ctrl_tick_no_input_preserves_idle_pose) \
+    X(player_ctrl_dpad_angle_cardinals) \
+    X(player_ctrl_dpad_angle_none_and_diagonal) \
+    X(player_ctrl_facing_octant_cardinals) \
+    X(player_ctrl_house_room_clamp) \
+    X(player_ctrl_walk_left_matches_retail) \
+    X(player_ctrl_walk_release_decays_and_idles) \
     X(player_pose_seeds_actor0) \
     X(player_pose_empties_party_slots) \
     X(player_pose_passes_char_id) \

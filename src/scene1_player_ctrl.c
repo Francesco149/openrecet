@@ -8,8 +8,10 @@
 #include <math.h>
 #include <string.h>
 
-#include "call_trace.h"          /* CALL_TRACE_ENTER_STUB */
-#include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record-field indices */
+#include "call_trace.h"          /* CALL_TRACE_ENTER / _STUB */
+#include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record-field indices, chr_anim_tick */
+#include "scene1_particles_tick.h" /* g_scene1_player_pos[3] (DAT_056da1d8/dc/e0) */
+#include "input.h"               /* g_input_state[].buttons (held d-pad mask) */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -326,6 +328,17 @@ static float   s_actor_scale_xz[PC_NUM_ACTORS] = { 0.0f, 0.0f, 0.0f };
 static float   s_actor_scale_y[PC_NUM_ACTORS]  = { 0.0f, 0.0f, 0.0f };
 static int32_t s_actor_record[PC_NUM_ACTORS][PC_ACTOR_REC_DWORDS];
 
+/* ── W3 free-roam walk state (the live player-controller globals) ──────────
+ *   s_player_vel    = (daabc, daac0, daac4)  — world velocity (x, y, z)
+ *   s_player_facing = db05c                  — world facing angle (radians)
+ *   s_facing_sticky = dae3c                  — diagonal-snap horizontal bias
+ * Reset to the idle standing pose by player_ctrl_pose_house_standing(): the
+ * idle capture shows facing +π/2 (oct 6), zero velocity. */
+static float s_player_vel[3]    = { 0.0f, 0.0f, 0.0f };
+static float s_player_facing    = 1.57079633f;   /* +π/2, idle facing */
+static int   s_facing_sticky    = 0;
+static int   s_was_moving       = 0;
+
 void player_ctrl_pose_house_standing(int player_char)
 {
     for (int i = 0; i < PC_NUM_ACTORS; i++) {
@@ -334,6 +347,12 @@ void player_ctrl_pose_house_standing(int player_char)
         s_actor_scale_y[i]  = 0.0f;
         memset(s_actor_record[i], 0, sizeof s_actor_record[i]);
     }
+
+    /* W3: reset the live walk state to the idle standing pose. */
+    s_player_vel[0] = s_player_vel[1] = s_player_vel[2] = 0.0f;
+    s_player_facing = 1.57079633f;   /* +π/2 (idle facing, oct 6) */
+    s_facing_sticky = 0;
+    s_was_moving    = 0;
 
     /* actor 0 = the standing player (companion slots 1/2 await the
      * DAT_056da1d0 char ids + DAT_056da1e4.. position port). */
@@ -370,15 +389,114 @@ const int32_t *player_ctrl_actor_record(int i)
     return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_record[i] : NULL;
 }
 
-/* ── W1: per-frame player-controller tick (engine FUN_0048670f) ───────────
+/* ── W3 free-roam walk leaves ─────────────────────────────────────────── */
+
+/* input.c d-pad mask bits (input_binding_mask[0..3]). */
+#define PC_BTN_UP    0x0004u
+#define PC_BTN_RIGHT 0x0001u
+#define PC_BTN_DOWN  0x0008u
+#define PC_BTN_LEFT  0x0002u
+
+int player_ctrl_dpad_angle(unsigned held_mask, float *out_angle)
+{
+    int dx = ((held_mask & PC_BTN_RIGHT) ? 1 : 0) - ((held_mask & PC_BTN_LEFT) ? 1 : 0);
+    int dz = ((held_mask & PC_BTN_DOWN)  ? 1 : 0) - ((held_mask & PC_BTN_UP)   ? 1 : 0);
+    if (dx == 0 && dz == 0)
+        return 0;
+    /* vx = sin(angle), vz = cos(angle)  ⇒  angle = atan2(dx, dz). */
+    if (out_angle)
+        *out_angle = atan2f((float)dx, (float)dz);
+    return 1;
+}
+
+int player_ctrl_facing_octant(float angle, float cam_yaw)
+{
+    /* b850 0x48bfd2: ((angle + cam_yaw + π/8) / 2π) * 8 + 8, ftol, & 7.
+     * The + π/8 is a half-octant round-to-nearest bias; the + 8 keeps the
+     * truncated value non-negative before the mask (faithful to the engine,
+     * whose `and eax,7` runs on the post-+8 positive int). */
+    float t = (angle + cam_yaw + 0.39269909f) / 6.28318548f;
+    return ((int)(t * 8.0f + 8.0f)) & 7;
+}
+
+void player_ctrl_house_room_clamp(float *px, float *pz)
+{
+    /* FUN_00486435 small-room arm ((&DAT_04510578)[...] < 3). cc08 != 4 holds
+     * in the controllable state, so the px stop is unconditional here. */
+    if (*pz > 9.5f)
+        *pz = 9.5f;
+    if (*pz > 7.0f && *px < -1.5f)
+        *px = -1.5f;
+}
+
+/* ── W3: per-frame player-controller tick (engine FUN_0048670f driver) ─────
  *
  * Wired into the live HOUSE frame (scene1_ingame_default_arm_tick, before
  * scene1_records_b_tick — the engine's order at FUN_00442cef L40593-40598).
- * Stub for now: the actor pose stays as seeded by player_ctrl_pose_house_
- * standing() until the free-roam movement (W2) and walk animation (W3) land.
- * Marked with the STUB call-trace variant so call-count parity surfaces it as
- * incomplete rather than hiding behind a matching count. */
+ * Reproduces the controllable (cc08==1, da1bc==0) free-roam walk validated
+ * against runs/w3-walk-watch: per held-direction frame, accumulate velocity
+ * from the facing angle, clamp |v| ≤ 0.175, integrate the player position,
+ * clamp to the room bounds, then damp by 0.82.  Order matches the engine
+ * (impulse → clamp → integrate → damp) so the end-of-frame state equals the
+ * retail per-frame watch (px, vx post-damp) to all measured digits.
+ *
+ * The outer cc08 state machine isn't ported; this drives whenever a d-pad
+ * direction is held in HOUSE free-roam.  Furniture/mesh collision
+ * (FUN_00483170) and the companion are deferred (W4); the walk-cycle frame
+ * timing (chr_anim_tick dt) is mechanism-only pending a retail record capture
+ * (W3b). */
 void scene1_player_ctrl_tick(void)
 {
-    CALL_TRACE_ENTER_STUB(0x48670fu);
+    CALL_TRACE_ENTER(0x48670fu);
+
+    if (s_actor_char[0] == -1)        /* no live player actor (pre-HOUSE) */
+        return;
+
+    float angle;
+    int moving = player_ctrl_dpad_angle(g_input_state[0].buttons, &angle);
+
+    if (moving) {
+        s_player_facing = angle;
+        s_player_vel[0] += sinf(angle) * PC_WALK_ACCEL;   /* daabc += sin·0.1 */
+        s_player_vel[2] += cosf(angle) * PC_WALK_ACCEL;   /* daac4 += cos·0.1 */
+    }
+
+    /* clamp |(vx,vz)| ≤ 0.175 (the b850 local_8 velocity cap; reuses the
+     * camera_shake_clamp leaf — that "shake" naming is the W1 misnomer). */
+    player_ctrl_camera_shake_clamp(&s_player_vel[0], &s_player_vel[2],
+                                   PC_WALK_SPEED_CAP);
+
+    /* facing octant from the (world) facing angle + HOUSE camera yaw, then the
+     * diagonal sticky-snap leaf (identity for cardinals). */
+    int oct = player_ctrl_facing_octant(s_player_facing, PC_HOUSE_CAM_YAW);
+    oct = player_ctrl_facing_snap(oct, &s_facing_sticky);
+
+    /* integrate position (flat HOUSE floor: px += vx, pz += vz), then the
+     * room-bounds clamp (FUN_00486435). */
+    g_scene1_player_pos[0] += s_player_vel[0];
+    g_scene1_player_pos[2] += s_player_vel[2];
+    player_ctrl_house_room_clamp(&g_scene1_player_pos[0], &g_scene1_player_pos[2]);
+
+    /* damp (grounded-steady 0.82) — runs every frame, so velocity decays to 0
+     * after the d-pad is released (validated by the release tail). */
+    s_player_vel[0] *= PC_WALK_DAMP;
+    s_player_vel[2] *= PC_WALK_DAMP;
+
+    /* actor record: anim id (0 idle / 1 walk = daae8) + facing octant (dab00).
+     * Restart the walk cycle on the idle→walk edge; advance it while moving. */
+    s_actor_record[0][CHR_ACTOR_FACING] = oct;
+    if (moving) {
+        if (!s_was_moving) {
+            s_actor_record[0][CHR_ACTOR_ANIM]    = 1;   /* walk */
+            s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
+            s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
+            union { float f; int32_t i; } z = { .f = 0.0f };
+            s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
+        }
+        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+    } else if (s_was_moving) {
+        s_actor_record[0][CHR_ACTOR_ANIM]  = 0;         /* back to idle */
+        s_actor_record[0][CHR_ACTOR_FRAME] = 0;
+    }
+    s_was_moving = moving;
 }

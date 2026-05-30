@@ -4,13 +4,13 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 61,
-  "stubbed": 15,
-  "ported": 294,
-  "unported": 2178,
+  "verified": 62,
+  "stubbed": 14,
+  "ported": 296,
+  "unported": 2176,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 370,
-  "pct_touched": 14.5,
+  "touched": 372,
+  "pct_touched": 14.6,
   "pct_verified": 2.4
  },
  "orphan_refs": [
@@ -7565,8 +7565,11 @@
    "size": 3339,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h"
+   ]
   },
   {
    "va": "0x483e7b",
@@ -7924,8 +7927,11 @@
    "size": 200,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h"
+   ]
   },
   {
    "va": "0x4864fd",
@@ -7951,7 +7957,7 @@
    "size": 11519,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "stubbed",
+   "status": "verified",
    "src": [
     "src/scene1_player_ctrl.c"
    ]

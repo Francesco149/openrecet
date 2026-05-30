@@ -357,10 +357,45 @@ const int32_t *player_ctrl_actor_record(int i);
  * HOUSE branch) else the FUN_0048b3f6 variant.  Both gates are open in HOUSE;
  * faithfully reproducing them is deferred to a later sub-chip.
  *
- * W1 wires the entry as a documented stub (no body yet); the free-roam
- * movement (W2), walk animation (W3), and FUN_0048b850 effects (W4) fill it.
- * See docs/plans + docs/findings/scene1-char-sprite-render.md.
+ * W3 (2026-05-31) fills the controllable free-roam walk: read the held
+ * d-pad → facing angle → velocity accumulate/clamp/integrate/damp →
+ * room-bounds clamp → actor anim/facing.  Ground-truth-validated against
+ * runs/w3-walk-watch (retail, HOUSE walk-left); see the walk-physics §
+ * in docs/findings/engine-quirks.md.  The walk-cycle *frame timing*
+ * (chr_anim_tick dt) is mechanism-only, not yet frame-validated vs a retail
+ * record capture (W3b); furniture/mesh collision (FUN_00483170) is W4.
  */
 void scene1_player_ctrl_tick(void);
+
+/* ── W3 free-roam walk leaves (pure, host-testable) ──────────────────────
+ *
+ * Engine constants (objdump of FUN_0048b850 / FUN_00486435, 2026-05-31):
+ *   accel    0.1   per held frame    (velocity impulse, player-struct code)
+ *   cap      0.175 = b850 local_8 base (the |v| clamp, all.c L90010)
+ *   damp     0.82  = grounded-steady factor (all.c L90177)
+ * Octant formula (b850 0x48bfd2-0x48bffb): consts 8.0 / 2π / (π/8); the
+ * camera-yaw term DAT_073de39c is -π for the fixed HOUSE camera (solved from
+ * the watch: idle ang +π/2 → oct 6, LEFT ang −π/2 → oct 2). */
+#define PC_WALK_ACCEL      0.1f
+#define PC_WALK_SPEED_CAP  0.175f
+#define PC_WALK_DAMP       0.82f
+#define PC_HOUSE_CAM_YAW   (-3.14159265f)
+
+/* Decode the held button mask (input.c bits: UP 0x04 / RIGHT 0x01 /
+ * DOWN 0x08 / LEFT 0x02) into a world-space facing angle (db05c convention:
+ * vx = sin(angle), vz = cos(angle), so angle = atan2(dx, dz) with
+ * dx = +right/-left, dz = +down/-up).  Returns 1 and writes *out_angle when
+ * any direction is held; 0 (leaving *out_angle untouched) when none is. */
+int player_ctrl_dpad_angle(unsigned held_mask, float *out_angle);
+
+/* Engine facing octant from a world facing angle + the scene camera yaw.
+ * oct = (int)((angle + cam_yaw + π/8) * 8/(2π) + 8) & 7  (b850 ftol formula;
+ * the +8 keeps the value positive before the mask, mirroring the engine). */
+int player_ctrl_facing_octant(float angle, float cam_yaw);
+
+/* FUN_00486435 (small-room arm, room-type < 3): clamp the player into the
+ * HOUSE shop bounds — pz ≤ 9.5, and px ≥ −1.5 while pz > 7.0 (the left-wall
+ * stop the walk-left capture hits).  In/out via pointers. */
+void player_ctrl_house_room_clamp(float *px, float *pz);
 
 #endif /* SCENE1_PLAYER_CTRL_H */

@@ -7,6 +7,38 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — W3: HOUSE free-roam walk movement ported (ground-truth-validated)
+
+Made Recette walk in the HOUSE shop. Followed the **ground-truth-first**
+approach: drove retail past the two new-game intro events via the
+anchor-segmented TAS segtrace and `--watch`'d 15 movement globals while holding
+LEFT (`runs/w3-walk-watch`), then decoded the per-frame physics and ported it.
+
+- **Movement model (engine-quirks §61).** Per controllable frame: velocity
+  impulse `v += (sin,cos)(db05c)·0.1` from the d-pad facing angle, clamp
+  `|v| ≤ 0.175` (b850 `local_8`), integrate the player position, room-bounds
+  clamp (`FUN_00486435`: px≥−1.5 / pz≤9.5), damp `v *= 0.82`. The facing octant
+  is the objdump-decoded b850 ftol `(int)((db05c+camyaw+π/8)·8/2π+8)&7` with the
+  HOUSE camera yaw `DAT_073de39c = −π`. The arithmetic reproduces the retail
+  per-frame `px`/`vx` watch to 1e-4 (incl. the wall clamp + the 0.82 release tail).
+- **Key RE correction.** The walk velocity is written **through the player
+  struct** (`*(float*)(player+0x904)`), so it never appears as `DAT_056daabc =`
+  in the decomp — which is why §60's "`FUN_0048b850` sets the velocity" was
+  imprecise (b850's only sin/cos accumulate is the `da1bc`-gated stun/hop path,
+  speed 0.3, not the 0.1 walk). Lesson logged: grep the struct offset, not the
+  `DAT_` alias, for actor state.
+- **Port (`src/scene1_player_ctrl.c`).** `scene1_player_ctrl_tick` is no longer a
+  stub: pure leaves `player_ctrl_dpad_angle` / `_facing_octant` /
+  `_house_room_clamp` + the impulse→clamp→integrate→damp tick (engine order),
+  driving `g_scene1_player_pos` + the actor record (anim id + facing octant;
+  walk cycle via the already-ported `chr_anim_tick`). 6 new host tests incl. the
+  LEFT-trajectory replay vs retail. 3024 host tests pass; both exes build clean.
+- **Deferred:** W3b (walk-cycle *frame* timing vs a retail record capture) and
+  W4 (furniture/mesh collision `FUN_00483170`, companion, real `cc08` gate).
+
+Also removed the capture/comparison tools' Windows image-viewer auto-open
+(`explorer.exe`) now that visuals go to the llm-feed push server (`cf5f5af`).
+
 ## 2026-05-30 — TAS scenarios on segtrace + interactive diff gallery + port double-HF stub
 
 Refactored the scenario harness off absolute-frame replay onto the

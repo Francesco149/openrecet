@@ -17,6 +17,8 @@
 
 #include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record-field indices */
 #include "scene1_player_ctrl.h"
+#include "input.h"               /* g_input_state[].buttons */
+#include "scene1_particles_tick.h" /* g_scene1_player_pos[3] */
 
 static int near_f(float a, float b)
 {
@@ -716,25 +718,145 @@ int test_player_gauge_sp_channel_has_no_counter(void)
     return 0;
 }
 
-/* ── W1: the per-frame controller tick (FUN_0048670f stub) ────────────────── */
+/* ── W3: the per-frame free-roam walk controller (FUN_0048670f) ───────────── */
 
-int test_player_ctrl_tick_is_pose_preserving_stub(void)
+int test_player_ctrl_tick_no_input_preserves_idle_pose(void)
 {
-    /* W1 wires scene1_player_ctrl_tick() into the live frame as a stub: until
-     * the movement (W2) / animation (W3) chips land it must NOT disturb the
-     * pose seeded at HOUSE entry.  This baseline flips to a real assertion once
-     * W2 makes the tick move the player. */
+    /* With no d-pad held the tick must leave the seeded idle pose untouched:
+     * zero velocity (no integrate), idle facing octant 6 re-derived identically,
+     * anim/frame/counter/timer all as seeded. */
+    g_input_state[0].buttons = 0;
     player_ctrl_pose_house_standing(0);
+    g_scene1_player_pos[0] = -0.3f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 9.35f;
 
     int32_t rec_before[PC_ACTOR_REC_DWORDS];
     memcpy(rec_before, player_ctrl_actor_record(0), sizeof rec_before);
 
     scene1_player_ctrl_tick();
 
-    if (player_ctrl_actor_char(0) != 0)         T_FAIL("tick changed actor0 char");
-    T_ASSERT_NEAR(player_ctrl_actor_scale_xz(0), 1.0f);
-    T_ASSERT_NEAR(player_ctrl_actor_scale_y(0), 1.0f);
+    if (player_ctrl_actor_char(0) != 0) T_FAIL("tick changed actor0 char");
+    T_ASSERT_NEAR(g_scene1_player_pos[0], -0.3f);   /* didn't move */
+    T_ASSERT_NEAR(g_scene1_player_pos[2], 9.35f);
     T_ASSERT_MEM_EQ(player_ctrl_actor_record(0), rec_before, sizeof rec_before);
+    return 0;
+}
+
+int test_player_ctrl_dpad_angle_cardinals(void)
+{
+    /* vx = sin(angle), vz = cos(angle): RIGHT +x → +π/2, LEFT −x → −π/2,
+     * DOWN +z → 0, UP −z → π. */
+    float a;
+    if (!player_ctrl_dpad_angle(0x0001u, &a)) T_FAIL("RIGHT should move");
+    T_ASSERT_NEAR(a,  1.57079633f);
+    if (!player_ctrl_dpad_angle(0x0002u, &a)) T_FAIL("LEFT should move");
+    T_ASSERT_NEAR(a, -1.57079633f);
+    if (!player_ctrl_dpad_angle(0x0008u, &a)) T_FAIL("DOWN should move");
+    T_ASSERT_NEAR(a,  0.0f);
+    if (!player_ctrl_dpad_angle(0x0004u, &a)) T_FAIL("UP should move");
+    T_ASSERT_NEAR(a,  3.14159265f);
+    return 0;
+}
+
+int test_player_ctrl_dpad_angle_none_and_diagonal(void)
+{
+    float a = 123.0f;
+    if (player_ctrl_dpad_angle(0x0000u, &a)) T_FAIL("no dir should not move");
+    T_ASSERT_NEAR(a, 123.0f);                     /* left untouched */
+    if (player_ctrl_dpad_angle(0x0010u, &a)) T_FAIL("button A is not a dir");
+    /* UP+LEFT: dx=-1, dz=-1 → atan2(-1,-1) = -3π/4. */
+    if (!player_ctrl_dpad_angle(0x0004u | 0x0002u, &a)) T_FAIL("UP+LEFT moves");
+    T_ASSERT_NEAR(a, -2.35619449f);
+    /* opposing LEFT+RIGHT cancel → no move. */
+    if (player_ctrl_dpad_angle(0x0001u | 0x0002u, &a)) T_FAIL("L+R cancel");
+    return 0;
+}
+
+int test_player_ctrl_facing_octant_cardinals(void)
+{
+    /* HOUSE cam yaw −π: idle +π/2 → 6, LEFT −π/2 → 2, DOWN 0 → 4, UP π → 0. */
+    if (player_ctrl_facing_octant( 1.57079633f, PC_HOUSE_CAM_YAW) != 6) T_FAIL("RIGHT oct 6");
+    if (player_ctrl_facing_octant(-1.57079633f, PC_HOUSE_CAM_YAW) != 2) T_FAIL("LEFT oct 2");
+    if (player_ctrl_facing_octant( 0.0f,        PC_HOUSE_CAM_YAW) != 4) T_FAIL("DOWN oct 4");
+    if (player_ctrl_facing_octant( 3.14159265f, PC_HOUSE_CAM_YAW) != 0) T_FAIL("UP oct 0");
+    return 0;
+}
+
+int test_player_ctrl_house_room_clamp(void)
+{
+    float px, pz;
+    px = -1.625f; pz = 9.35f;                    /* past the left wall, pz>7 */
+    player_ctrl_house_room_clamp(&px, &pz);
+    T_ASSERT_NEAR(px, -1.5f);
+    px = -3.0f; pz = 5.0f;                        /* pz<7 → no px stop */
+    player_ctrl_house_room_clamp(&px, &pz);
+    T_ASSERT_NEAR(px, -3.0f);
+    px = 0.0f; pz = 12.0f;                        /* pz clamps to 9.5 */
+    player_ctrl_house_room_clamp(&px, &pz);
+    T_ASSERT_NEAR(pz, 9.5f);
+    return 0;
+}
+
+int test_player_ctrl_walk_left_matches_retail(void)
+{
+    /* Ground truth: runs/w3-walk-watch, retail HOUSE walk-left from idle
+     * (px −0.3, pz 9.35).  Holding LEFT, the per-frame px sequence is
+     * −0.4, −0.575, −0.75, −0.925, −1.1, −1.275, −1.45, then the left-wall
+     * clamp pins −1.5.  (impulse 0.1 → cap 0.175 → integrate → damp 0.82.) */
+    static const float want_px[] = {
+        -0.4f, -0.575f, -0.75f, -0.925f, -1.1f, -1.275f, -1.45f, -1.5f, -1.5f,
+    };
+    g_input_state[0].buttons = 0;
+    player_ctrl_pose_house_standing(0);
+    g_scene1_player_pos[0] = -0.3f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 9.35f;
+
+    g_input_state[0].buttons = 0x0002u;          /* hold LEFT */
+    for (size_t i = 0; i < sizeof want_px / sizeof want_px[0]; i++) {
+        scene1_player_ctrl_tick();
+        T_ASSERT_NEAR(g_scene1_player_pos[0], want_px[i]);
+        T_ASSERT_NEAR(g_scene1_player_pos[2], 9.35f);         /* pure-x walk */
+    }
+    /* facing octant 2 (LEFT) + walk anim id 1. */
+    const int32_t *rec = player_ctrl_actor_record(0);
+    if (rec[CHR_ACTOR_FACING] != 2) T_FAIL("LEFT walk facing should be oct 2");
+    if (rec[CHR_ACTOR_ANIM]   != 1) T_FAIL("walking anim id should be 1");
+    return 0;
+}
+
+int test_player_ctrl_walk_release_decays_and_idles(void)
+{
+    /* After releasing the d-pad: anim → idle (0) immediately, and the residual
+     * velocity decays by 0.82/frame (retail release tail).  Walk RIGHT from a
+     * wall-free spot so the decay shows as continued +x creep, then stops. */
+    g_input_state[0].buttons = 0;
+    player_ctrl_pose_house_standing(0);
+    g_scene1_player_pos[0] = 0.0f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 5.0f;               /* pz<7 → no wall clamp */
+
+    g_input_state[0].buttons = 0x0001u;          /* RIGHT */
+    for (int i = 0; i < 6; i++) scene1_player_ctrl_tick();
+    if (player_ctrl_actor_record(0)[CHR_ACTOR_ANIM] != 1) T_FAIL("should be walking");
+    float px_walk = g_scene1_player_pos[0];
+    if (px_walk <= 0.0f) T_FAIL("RIGHT walk should increase px");
+
+    g_input_state[0].buttons = 0;                /* release */
+    scene1_player_ctrl_tick();
+    if (player_ctrl_actor_record(0)[CHR_ACTOR_ANIM] != 0) T_FAIL("release → idle anim");
+    float px_after = g_scene1_player_pos[0];
+    if (px_after <= px_walk) T_FAIL("residual velocity should still creep +x");
+
+    /* many idle frames later the velocity has decayed to rest: the residual
+     * per-frame step is negligible (0.82^60 ≈ 5e-6 of the initial). */
+    for (int i = 0; i < 59; i++) scene1_player_ctrl_tick();
+    float p_a = g_scene1_player_pos[0];
+    scene1_player_ctrl_tick();
+    float step = g_scene1_player_pos[0] - p_a;
+    if (step < 0.0f) step = -step;
+    if (step > 1e-3f) T_FAIL("velocity should have decayed to rest");
     return 0;
 }
 

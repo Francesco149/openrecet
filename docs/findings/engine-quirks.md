@@ -2144,6 +2144,51 @@ gated behind unported intro/dialogue — drive to the live state and diff.*
 
 ---
 
+## 61. HOUSE free-roam walk physics: accel 0.1, speed cap 0.175, damp 0.82 — and the velocity is written *through the player-struct pointer*, so it never shows as a `DAT_056daabc =` literal
+
+Ground truth: `runs/w3-walk-watch` (a `--watch` of 15 movement globals over a
+TAS segtrace driving a new game into HOUSE free-roam and holding LEFT;
+[[reference_tas_anchor_forcing]]). The per-frame trajectory is fully
+determined and the model reproduces it to all measured digits:
+
+**Per controllable frame** (`DAT_0438cc08 == 1`, `DAT_056da1bc == 0`):
+1. direction held → facing angle `db05c` (world: `vx=sin`, `vz=cos`, so
+   `angle = atan2(dx, dz)`; DOWN 0, UP π, RIGHT +π/2, LEFT −π/2), then
+   **`daabc += sin(db05c)·0.1`, `daac4 += cos(db05c)·0.1`** (accel 0.1);
+   anim id `daae8` → 1 (walk), else 0 (idle).
+2. clamp `|(daabc,daac4)| ≤ 0.175` (`FUN_0048b850` @ all.c L90010; the
+   `local_8` base is 0.175 with no skill/dash modifiers).
+3. facing octant `dab00 = (int)((db05c + DAT_073de39c + π/8)·8/2π + 8) & 7`
+   (objdump 0x48bfd2-0x48bffb; consts 8.0 / 2π / π/8; the `+8` keeps the
+   ftol arg positive before `& 7`). `DAT_073de39c` (scene camera yaw) is **−π**
+   for the fixed HOUSE camera — solved exactly from idle +π/2→oct 6, LEFT
+   −π/2→oct 2. Then the diagonal sticky-snap (quirk-free leaf).
+4. integrate `da1d8 += daabc`, `da1e0 += daac4` (`FUN_00483170`/`FUN_004830f1`;
+   flat HOUSE floor — no mesh hit in this capture).
+5. room-bounds clamp **`FUN_00486435`**: small-room arm (`(&DAT_04510578)[…]
+   < 3`) does `pz ≤ 9.5` and, while `pz > 7.0`, `px ≥ −1.5` — the left wall the
+   capture pins at `px=-1.5`. (NOT the full collision mesh; that's furniture.)
+6. damp `daabc,daac4 *= 0.82` (grounded-steady branch L90177).
+
+**The watch reads at end-of-frame (post-damp)**, so the recorded `vx` is the
+*next* frame's starting velocity: steady `vx_read = -0.1435 = -0.175·0.82`, and
+`px` steps by the *pre*-damp `-0.175`. The release tail confirms the 0.82 to
+three digits (`-0.11767/-0.14350 = 0.820`) with no impulse once the d-pad is up.
+
+**Why the §60 "`FUN_0048b850` sets `daabc=sin·speed`" was imprecise:** the only
+sin/cos velocity *accumulate* in `FUN_0048b850` (L90074) is gated on
+`da1bc ∈ [1,14]` (a stun/hop mode) and uses `0438ccbc·0.01 = 0.3`, NOT the walk.
+The real walk impulse (`0.1`) is in the controllable player-struct code and
+writes the velocity as `*(float*)(player + 0x904)` — so it never renders as a
+`DAT_056daabc =` line in the decomp and a grep for the named global misses it.
+Lesson: for player/actor state, grep the struct offset, not just the `DAT_` alias.
+
+Ported (W3, 2026-05-31) in `scene1_player_ctrl_tick` (`src/scene1_player_ctrl.c`),
+host-test-validated against this trajectory; walk-cycle *frame timing* and
+furniture/mesh collision are deferred (W3b / W4).
+
+---
+
 That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an

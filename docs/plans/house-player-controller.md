@@ -78,13 +78,25 @@ effects branches — stubbable for the first milestone.
   UP then walks (pz `9.35→8.941`, walk anim). Empirically confirmed the movement
   controller (below).
 
-- **W3 — port the free-roam movement controller `FUN_0048b850` (Cpop).** It
-  reads the decoded move-intent (`DAT_056daeac` ← d-pad), sets velocity from the
-  facing angle (`daabc = sin(db05c)·speed`, `daac4 = cos(db05c)·speed`, gravity
-  `daac0 -= 0.03`), facing octant `dab00`, walk anim `daae8`. Many leaves
-  already extracted (Cpop.1–8). Then **`FUN_00483170`** (physics integrator:
-  applies velocity to `da1d8/dc/e0` + collision `FUN_00432e50`). Validate each
-  against retail via the differential call-trace + per-frame position watch.
+- **W3 — free-roam *movement* ported + validated. ✅ DONE (2026-05-31).**
+  Ground-truth-first (per the chosen approach): captured `runs/w3-walk-watch`
+  (retail HOUSE walk-left, 15-global `--watch`) and decoded the full physics —
+  accel 0.1, speed cap 0.175, damp 0.82, facing-octant ftol formula
+  (cam-yaw −π), room-bounds clamp `FUN_00486435` (px≥−1.5/pz≤9.5). Implemented
+  in `scene1_player_ctrl_tick` (no longer a stub): impulse→clamp→integrate→damp
+  in engine order, so the end-of-frame state matches the retail per-frame watch
+  to 1e-4. Pure leaves `player_ctrl_dpad_angle` / `_facing_octant` /
+  `_house_room_clamp` + 6 new host tests (incl. the LEFT trajectory replay).
+  Writeup: engine-quirks §61. **KEY correction to §60/W2:** the walk velocity is
+  written through the player-struct pointer (`player+0x904`), not as the named
+  `DAT_056daabc` — that's why it isn't in `FUN_0048b850`'s body (whose only
+  sin/cos accumulate is the `da1bc`-gated stun/hop path, speed 0.3, not 0.1).
+
+  Deferred: **W3b** — walk-cycle *frame* timing (the `chr_anim_tick` dt + the
+  full `daae8` 11-dword record) needs a record-watch capture to validate
+  frame-for-frame; today the cycle runs on the already-tested mechanism with
+  dt=1.0. **W4** — furniture/mesh collision (`FUN_00483170`/`FUN_004830f1` +
+  `FUN_00432e50`), the companion actor, and the real `cc08` controllable gate.
 
 - **W4 — wire it into the live `cc08==1` controllable arm of `FUN_0048670f`**
   and diff the controller globals (position, velocity, facing, anim) vs retail
