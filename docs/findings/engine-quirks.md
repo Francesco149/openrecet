@@ -2061,6 +2061,55 @@ right:
 Ported faithfully as `player_ctrl_gauge_track` (Cpop.8, 2026-05-30),
 host-tested; objdump-verified `0x48b6ad-0x48b843`.
 
+## 60. HOUSE free-roam walking is real, but it's gated behind two intro events and lives in `FUN_0048b850` (Cpop), not the `FUN_0048670f` state machine
+
+**Superseded correction (2026-05-30):** an earlier draft of this quirk claimed
+the HOUSE shop had *no* d-pad free-roam — concluded from a purely static decode
+of `FUN_0048670f`'s `DAT_0438cc08` state machine, every branch of which routes
+the d-pad to a menu cursor (`cc08==0xf`), a placement/pan pair (`cc08==0x12`),
+or a scripted approach (`cc08==4`). That conclusion was **wrong**, and the way
+it was wrong is the lesson: the playable controller state is **gated behind the
+new-game intro**, so static reading of the *idle/scripted* branches can't see
+the movement path that only runs once the player is controllable.
+
+**Ground truth (TAS anchor-segmented drive + per-frame watch + differential
+call-trace, see `docs/plans/tas-framework.md`):** on a new game the sequence is
+`big load → HOUSE_FREEROAM#1 (2D fixed-picture dialogue event) → hidden load →
+HOUSE_FREEROAM#2 (3D-house-background dialogue event) → controllable`. Both
+events are `ESC`-skippable (ESC then `Z`/confirm), or advanced line-by-line by
+spamming `Z`. **`ESC` only skips while an event is playing — once controllable,
+`ESC` opens the pause menu.** Driving a deterministic trace past both events and
+then holding **UP** moved the player: `DAT_056da1e0` (pz) `9.35 → 8.941`,
+`DAT_056daae8`(anim id) `→ 1` (walk), facing `DAT_056dab00 → 0` — i.e. real
+directional free-roam walking, in controller state `cc08==1`.
+
+A differential call-trace (idle frame vs UP-held frame) shows the per-frame
+free-roam call set is **`FUN_0048670f` → `FUN_0048b850` + `FUN_00483170` +
+`FUN_0048a833` + `FUN_00432e50` + `FUN_004897c6` + `FUN_00482a71` +
+`FUN_00486435`** every controllable frame (movement is *nonzero velocity*, not a
+distinct function). The roles:
+
+- **`FUN_0048b850` (Cpop, 5 KB) is the movement controller** — not "camera
+  effects" as W1 assumed. It sets velocity from a facing angle:
+  `DAT_056daabc = sin(db05c)*speed`, `DAT_056daac4 = cos(db05c)*speed`
+  (`FUN_00503a44`/`FUN_00503994`), applies gravity `DAT_056daac0 -= 0.03`, sets
+  the facing octant `DAT_056dab00` and walk anim `DAT_056daae8`. The d-pad
+  reaches it through a decoded movement-intent mask `DAT_056daeac` (raw
+  `dddd6` decode is upstream).
+- **`FUN_00483170` (3.3 KB) is the physics integrator** — applies the velocity
+  (`daabc`/`daac0`/`daac4`) to `DAT_056da1d8`/`dc`/`e0` with collision via
+  `FUN_00432e50`, and the vertical/gravity term on `da1dc`.
+- **`FUN_0048670f`** is the outer state machine (events, counter menus, scripted
+  approach); in the controllable state (`cc08==1`) it drives `FUN_0048b850`.
+
+So this **re-validates the original `project_next_char_controller` direction**
+(continue `FUN_0048b850`/Cpop) and corrects the W1 reframing that called
+`FUN_0048b850` an effects sub-controller. The HOUSE char-parity target is the
+real free-roam movement path (`FUN_0048b850` + `FUN_00483170`), reachable
+deterministically via the anchor-segmented TAS trace. The methodology note:
+*never conclude "feature X doesn't exist" from static decode of a state that's
+gated behind unported intro/dialogue — drive to the live state and diff.*
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of

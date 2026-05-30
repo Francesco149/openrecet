@@ -1,8 +1,17 @@
 # HOUSE player controller — movement-first wiring plan
 
-> Approved 2026-05-30. Progress: **W1 landed** (`fcb2a46`); **W2 blocked on a
-> target-verification question** (see "W2 open question" below). Companion
-> memory: `project_next_char_controller`. Narrative: `docs/PROGRESS.md`.
+> Approved 2026-05-30. Progress: **W1 landed** (`fcb2a46`). **W2's
+> verification question is RESOLVED (2026-05-30) by empirical TAS ground truth
+> — and it overturns BOTH the W1 reframing and my own first (wrong) static
+> conclusion.** Free-roam HOUSE walking **does** exist; it is gated behind the
+> two new-game intro dialogue events, and it lives in **`FUN_0048b850` (Cpop)**
+> — the movement controller (velocity from facing angle, walk anim, facing) —
+> integrated by **`FUN_00483170`** (physics) and driven by `FUN_0048670f`'s
+> controllable `cc08==1` state. This **re-validates** the original
+> `project_next_char_controller` direction (continue Cpop). Confirmed via the
+> anchor-segmented TAS trace + per-frame watch + differential call-trace
+> (engine-quirks §60). See the "⚠ W2 — RESOLVED" section below.
+> Narrative: `docs/PROGRESS.md`.
 
 ## Context
 
@@ -61,43 +70,50 @@ effects branches — stubbable for the first milestone.
   default arm before records-B. Baseline test
   `test_player_ctrl_tick_is_pose_preserving_stub`.
 
-- **W2 — free-roam input decode → movement.** Decode the movement bits of
-  `DAT_073dddd4/dddd6`, integrate `g_scene1_player_pos` (engine step sizes +
-  ported collision `FUN_00432e50`), write facing octant `DAT_056dab00` + sticky.
-  Input→octant as a host-tested leaf; mutation in the tick. Stub non-playable
-  `cc08` branches + `FUN_0048b850`/`0048a833`/`004897c6` sub-calls. Payoff: the
-  player slides under input. **⚠ blocked — see open question.**
+- **W2 — reach the controllable state deterministically. ✅ DONE via TAS
+  (2026-05-30).** The blocker was never "where is movement" but "how to *reach*
+  the controllable state past the two unported intro events." Solved by the
+  anchor-segmented TAS trace (`traces/house_zspam.jsonl`): `wait HOUSE_FREEROAM`
+  → Z-spam event1 → `wait HOUSE_FREEROAM` → Z-spam event2 → controllable. Holding
+  UP then walks (pz `9.35→8.941`, walk anim). Empirically confirmed the movement
+  controller (below).
 
-- **W3 — animation record walk-cycle + facing.** Set actor anim-id
-  (`DAT_056daae8[0]`) from movement state and advance the walk-frame timer/frame
-  fields. Resolve whether the frame advance is the chr-sprite frame tick
-  (`FUN_00482a71`, unported) or inline in `FUN_0048670f`. Payoff: the walking
-  player animates — the visible milestone.
+- **W3 — port the free-roam movement controller `FUN_0048b850` (Cpop).** It
+  reads the decoded move-intent (`DAT_056daeac` ← d-pad), sets velocity from the
+  facing angle (`daabc = sin(db05c)·speed`, `daac4 = cos(db05c)·speed`, gravity
+  `daac0 -= 0.03`), facing octant `dab00`, walk anim `daae8`. Many leaves
+  already extracted (Cpop.1–8). Then **`FUN_00483170`** (physics integrator:
+  applies velocity to `da1d8/dc/e0` + collision `FUN_00432e50`). Validate each
+  against retail via the differential call-trace + per-frame position watch.
 
-- **W4 — wire `FUN_0048b850`'s body (Cpop effects).** Stand up persistent
-  controller state; call the done Cpop leaves against it; stub the ~13 unported
-  callees (3 large as no-ops). Live camera shake/zoom, after-image trail, gauge
-  tween. State-diffable vs retail via the trace harness.
+- **W4 — wire it into the live `cc08==1` controllable arm of `FUN_0048670f`**
+  and diff the controller globals (position, velocity, facing, anim) vs retail
+  Frida ground truth at matched anchors. Visible payoff: Recette walks under
+  the arrow keys, matching retail.
 
-## ⚠ W2 open question — verify the target before porting
+## ⚠ W2 — RESOLVED (2026-05-30): free-roam IS real; it's `FUN_0048b850`, gated behind the intro
 
-Reading `FUN_0048670f`'s `DAT_0438cc08` state machine (decomp
-`docs/decompiled/all.c:86539-88178`):
+My first static pass concluded the HOUSE shop had *no* d-pad free-roam, from
+decoding `FUN_0048670f`'s `cc08` branches (all of which route the d-pad to menus
+/ scripted approach). **That was wrong** — and the failure mode is the lesson:
+the controllable state runs only *after* two new-game intro dialogue events
+(2D fixed-picture, then 3D-house-background), so the movement path is invisible
+to a static read of the idle/scripted branches.
 
-- `cc08==0xf` is **shop-counter menu/cursor navigation** (haggling:
-  `DAT_0438cc0c = (cursor ± 1) % count` from `dddd6 & 4/8`), with facing 6/2
-  (left/right) from `da1d8 <= da1f0`.
-- The player-**position** writes (`DAT_056da1d8 -= 0.125`, `da1e0 ± 0.05`) seen
-  earlier are in the **scripted `cc08==4`** branch, not input-driven free-roam.
+Empirical ground truth (anchor-segmented TAS drive + watch + differential
+call-trace; engine-quirks §60): driving past both events and holding UP walks
+the player (`pz 9.35→8.941`, anim→walk, facing→0) in state `cc08==1`. The
+per-frame free-roam call set is `FUN_0048670f → FUN_0048b850 + FUN_00483170 +
+FUN_0048a833 + FUN_00432e50 + …`; the **movement controller is `FUN_0048b850`
+(Cpop)** (velocity from facing angle, walk anim, facing) and **`FUN_00483170`**
+integrates it with collision. This **re-validates the original
+`project_next_char_controller` Cpop direction** and corrects W1's "FUN_0048b850
+is just effects" reframing — it is the movement controller.
 
-So `FUN_0048670f` may be largely the **selling-interaction** controller, with
-top-down free-roam *walking* input in a different `cc08` sub-state or another
-function. **Before W2 ports anything, confirm where free-roam walk-by-input
-lives.** Fastest disambiguator: a Frida call-trace while *actually walking*
-Recette around the shop on retail (the `--auto-z-spam` drive won't walk — needs
-real directional input or a recorded movement trace). Alternatively a full
-`cc08`-state decode. Do not port a "movement" chip against an unverified target
-(dropped-FPU / int↔float mislabel risk — engine-quirks §53/§56 pattern).
+Verification risk note: watch for dropped-FPU / int↔float mislabels in
+`FUN_0048b850`/`FUN_00483170` (engine-quirks §53/§56 pattern); confirm the
+sin/cos angle args + step sizes against `objdump`; validate every leaf with the
+differential call-trace + position watch rather than trusting the decomp.
 
 ## Verification
 

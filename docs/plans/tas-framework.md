@@ -10,9 +10,21 @@
 > one A-spam trace drove both sides; anchor NAMES match, the deterministic
 > title→new-game prefix aligned exactly (frame 59 on both), and the
 > divergence localised to the load (HOUSE_FREEROAM retail 3018 vs port
-> 1748). Remaining: P1 retail clock/RNG pins (deferred — anchors already
-> absorb the load divergence), P2 retail anchor-relative capture +
-> `scenario.yaml`, P3 forcing + `tas_diff.py`, P4 autonomous synthesis.
+> 1748).
+>
+> **P3 input forcing — retail side ✅ (2026-05-30):** anchor-segmented input
+> forcing (`--input-segtrace`) on the Frida agent + driver — a JSONL superset
+> with `{wait:ANCHOR}` segment breaks (spam-until-anchor short-circuit, handles
+> the double HOUSE_FREEROAM) and `{capture:N}` anchor-relative screenshots; plus
+> `--watch NAME=0xVA:type` per-frame state probe and `tools/montage_frames.py`
+> (3×3 montage, auto-opens in the Windows viewer). This **obsoletes
+> `--auto-z-spam`** (use `wait ANCHOR` instead). Validated end-to-end: drove a
+> new game past both intro events to HOUSE free-roam and walked the player under
+> a held direction — found the movement controller via differential call-trace
+> (see "Behavioral probing" below; engine-quirks §60). Remaining: P1 retail
+> clock/RNG pins (deferred), P2 `scenario.yaml`, **port-side `--input-segtrace`
+> mirror** (`src/input_segtrace.{c,h}` + host tests), anchor-relative
+> call-trace arming, `tas_diff.py`, P4 autonomous synthesis.
 >
 > Motivated by the texture-filtering verification session: the mip fix was
 > *correct* but I could not produce the clean book/blind pixel-diffs the
@@ -270,6 +282,43 @@ substrate; this is the closed loop built on top.
    parity test bed: replay the synthesised trace on *both* targets (design
    principle) and any anchor/state divergence is a port bug. The synthesised
    full-game trace becomes the ultimate behavioural acceptance test.
+
+### Behavioral probing — "what does this input/function do?" (validated 2026-05-30)
+
+The synthesis loop above answers *"how do I reach state X?"*. The complementary
+question the RE work constantly hits is *"what code implements behavior Y, and
+what globals does it touch?"* — and this session proved a concrete, repeatable
+loop for it, the one the user named: **"we can see new functions that fire when
+we do something."** The primitives (all landed this session) compose into an
+autonomous behavioral probe:
+
+1. **Drive deterministically to the live state** — anchor-segmented input
+   forcing (`--input-segtrace`, P3): `wait ANCHOR` segments + spam-until-anchor
+   short-circuit reach a state gated behind unported intro/loads, robust to load
+   jitter. (This is what made the HOUSE controllable state reachable at all.)
+2. **Watch ground-truth state** — `--watch NAME=0xVA:type` emits the chosen
+   globals every frame (`watch.jsonl`); transitions localise *when* a behavior
+   begins (e.g. `pz` starts changing the frame UP is held).
+3. **Differential call-trace** — run the same drive twice (or one run spanning
+   idle→action), trace a VA set, and diff the per-frame call set: **functions
+   that fire (or fire differently) only under the action are the implementers.**
+   A tiny hand-picked VA set keeps the load fast (the full safe set slows it
+   ~7×); the *general* version arms the full set with anchor-relative emission.
+4. **Visual verification** — in-trace `{"capture":N}` ops screenshot
+   deterministic, anchor-relative frames; `tools/montage_frames.py` tiles them
+   3×3 and opens them, so each run is a glanceable timeline that confirms "did
+   we hit the expected state / where did it get stuck."
+
+This loop found the HOUSE movement controller (`FUN_0048b850` + `FUN_00483170`)
+and corrected a wrong static conclusion (engine-quirks §60) in a handful of
+runs. **Next tooling step toward autonomy:** wrap propose→drive→watch→diff into
+a single script that, given a target VA set and an action segment, returns the
+ranked "newly-active / position-writing" functions automatically — and add
+**anchor-relative call-trace arming** (mirror `--capture-at-anchor`) so the full
+VA set can be diffed without the absolute-frame fragility this session hit.
+The key methodology rule (learned the hard way): **never conclude a feature is
+absent from a static decode of a state gated behind unported intro/dialogue —
+drive to the live state and diff.**
 
 **Scaling notes.** Start with the simplest cases (title → new game → HOUSE)
 where waypoints are few and the input is short. The architecture must scale:
