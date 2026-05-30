@@ -19,9 +19,12 @@
 #include <stdint.h>
 
 #include "math3d.h"          /* mat4_translation / scaling / rotation_x / mul */
+#include "call_trace.h"      /* E.2 CALL_TRACE_ENTER probe */
 #include "scene1_camera.h"   /* g_scene1_camera_orient (= billboard base DAT_0438cdf8) */
 #include "scene1_chr_sprite.h" /* scene1_chr_sprite_render + CHR_ACTOR_* (player draw) */
 #include "scene1_emit_record.h" /* scene1_emit_record — per-record draw helper */
+#include "scene1_particles_tick.h" /* g_scene1_player_pos (DAT_056da1d8) */
+#include "scene1_player_ctrl.h" /* player_ctrl_actor_* — the real actor model */
 #include "scene1_preload.h"  /* scene1_preload_chr_sheet — the DAT_073a9b18 sheet */
 #include "scene1_records.h"  /* per-pass active counts */
 #include "scene1_render.h"   /* scene1_render_push_projection +
@@ -512,35 +515,16 @@ static void sw_pass_f(IDirect3DDevice8 *dev)
  * idle/damage sin-pulse modulation (L397-435) are deferred — an idle
  * standing actor with no shake/damage stays 0xff808080 (capture-confirmed).
  *
- * MVP: no engine global is populated yet (DAT_056daae8 is the position-
- * history ring FUN_0048b850 fills — the Cpop chip).  Until that ports,
- * scene1_shop_walker_set_player_inject seeds one player record; the draw
- * binds its sheet via scene1_preload_chr_sheet (Cchr.2f).  Faithful
- * follow-up: read the real DAT_056da1cc/1d8/dae18/daae8 globals + the
- * lighting/colour-pulse blocks. */
-static int     s_sw_pl_active   = 0;
-static int     s_sw_pl_char     = 0;
-static float   s_sw_pl_pos[3]   = { 0.0f, 0.0f, 0.0f };
-static int32_t s_sw_pl_actor[CHR_ACTOR_AGE + 1];   /* the 11-dword record */
-
-void scene1_shop_walker_set_player_inject(int enable, int char_id,
-                                          float px, float py, float pz,
-                                          int anim, int frame, int facing)
-{
-    s_sw_pl_active = enable ? 1 : 0;
-    if (!enable)
-        return;
-    s_sw_pl_char  = char_id;
-    s_sw_pl_pos[0] = px;
-    s_sw_pl_pos[1] = py;
-    s_sw_pl_pos[2] = pz;
-    for (int i = 0; i <= CHR_ACTOR_AGE; i++)
-        s_sw_pl_actor[i] = 0;
-    s_sw_pl_actor[CHR_ACTOR_ANIM]   = anim;
-    s_sw_pl_actor[CHR_ACTOR_FRAME]  = frame;
-    s_sw_pl_actor[CHR_ACTOR_FACING] = facing;
-}
-
+ * Cchr.2h — de-MVP'd.  The per-call scene1_shop_walker_set_player_inject is
+ * gone; the draw now reads the real engine-global actor model owned by
+ * scene1_player_ctrl (char id DAT_056da1cc[i], scale DAT_056dae18[i] /
+ * DAT_056dae24[i], the DAT_056daae8 sprite-state record) + the player
+ * position g_scene1_player_pos (DAT_056da1d8).  scene1_postload_pose_house_
+ * standing() seeds actor 0 on HOUSE entry; when FUN_0048b850 (Cpop) lands
+ * it becomes the live per-frame writer of the same globals and this loop is
+ * unchanged.  Companion (actor i>0) awaits the DAT_056da1d0 char id +
+ * DAT_056da1e4.. position slots; the colour base/pulse (L394-435) is still
+ * deferred (idle standing = 0xff808080, capture-confirmed). */
 static void sw_pass_light(IDirect3DDevice8 *dev)
 {
     if (sw_light_pass_gate() != 0) return;         /* DAT_0438b8bc == 0 */
@@ -554,41 +538,78 @@ static void sw_pass_light(IDirect3DDevice8 *dev)
         IDirect3DDevice8_SetRenderState(dev, D3DRS_AMBIENT,  0xff000000u);
     }
 
-    /* L364-367: actor count = 1, or 1/3 under the DAT_0438b1a0 mode.
-     * MVP draws the injected player only (companion = a follow-up). */
+    /* L364-367: actor count = 1 (standard HOUSE), or 1/3 under the
+     * DAT_0438b1a0 party-render mode.  Slots whose char id is -1 are gated
+     * out below, so only the seeded player (actor 0) draws today. */
     int actor_count;
     if (sw_dat_0438b1a0() == 1) {
         actor_count = (sw_stage_record0() != 0) ? 1 : 3;
     } else {
         actor_count = 1;
     }
-    (void)actor_count;
 
-    if (!s_sw_pl_active)
-        return;
-
-    const sprite_t *sheet = scene1_preload_chr_sheet(s_sw_pl_char);
-    if (sheet == NULL || sheet->tex == NULL)
-        return;                                    /* no sheet → nothing to draw */
-
-    /* fade = (0x5a − counter)/30 clamp 1.0; counter stubbed 0 → fade 1.0. */
+    /* fade = (0x5a − DAT_0438b4b4)/30 clamp 1.0; the fade counter is stubbed
+     * 0 (no spawn-in animation ported) → fade 1.0. */
     float fade = (float)(0x5a - 0) / 30.0f;
     if (fade > 1.0f) fade = 1.0f;
-    float scale_f = fade * 0.03f;                  /* dae18 = dae24 = 1.0 */
+    float scale_f = fade * 0.03f;
 
-    float world[16], scale[16], tmp[16];
-    mat4_translation(tmp, s_sw_pl_pos[0], s_sw_pl_pos[1], s_sw_pl_pos[2]);
-    mat4_scaling(scale, scale_f, scale_f, scale_f);
-    mat4_mul(tmp, scale, tmp);                     /* scale × translation */
-    mat4_mul(world, g_scene1_camera_orient, tmp);  /* base × (scale×T) */
+    /* Character sprites use POINT (nearest) filtering — sharp pixel-art, no
+     * bilinear smear (the sw_pass top set LINEAR for the 3D meshes; the
+     * engine flips to POINT here for the billboards).  Engine FUN_004552d0
+     * @ 0x456055/0x456067: SetTextureStageState(0, MAG/MINFILTER, POINT)
+     * just before the actor-draw loop — objdump-confirmed, retail d3d-trace
+     * shows the prim-12 chr leaf draws at (POINT,POINT,NONE) vs the 3D
+     * meshes' (LINEAR,LINEAR,LINEAR).  Restored to LINEAR after the loop so
+     * the trailing passes (sw_pass_g etc.) keep the bilinear mesh filter. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_POINT);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_POINT);
 
-    /* L448: bind the player's sheet (engine SetTexture(0, DAT_073a9b18[char])). */
-    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)sheet->tex);
+    for (int i = 0; i < actor_count; i++) {
+        int   char_id  = player_ctrl_actor_char(i);
+        float scale_xz = player_ctrl_actor_scale_xz(i);
+        float scale_y  = player_ctrl_actor_scale_y(i);
 
-    /* L449: colour 0xff808080 (opaque neutral; pulse modulation deferred). */
-    scene1_chr_sprite_render((struct IDirect3DDevice8 *)dev, s_sw_pl_actor,
-                             s_sw_pl_char, world, 0xff808080u,
-                             (int)sheet->width, (int)sheet->height);
+        /* L443 gate: dae18[i] > 0 && dae24[i] > 0 && DAT_056da1cc[i] != -1. */
+        if (char_id == -1 || scale_xz <= 0.0f || scale_y <= 0.0f)
+            continue;
+
+        const int32_t *actor = player_ctrl_actor_record(i);
+        if (actor == NULL)
+            continue;
+
+        /* Actor position = DAT_056da1d8 + i*3.  Actor 0 is the player
+         * (g_scene1_player_pos); companion slots aren't modeled yet. */
+        if (i != 0)
+            continue;
+        float px = g_scene1_player_pos[0];
+        float py = g_scene1_player_pos[1];
+        float pz = g_scene1_player_pos[2];
+
+        const sprite_t *sheet = scene1_preload_chr_sheet(char_id);
+        if (sheet == NULL || sheet->tex == NULL)
+            continue;                              /* no sheet → skip this actor */
+
+        float world[16], scale[16], tmp[16];
+        mat4_translation(tmp, px, py, pz);
+        mat4_scaling(scale, scale_f * scale_xz, scale_f * scale_y,
+                     scale_f * scale_xz);
+        mat4_mul(tmp, scale, tmp);                 /* scale × translation */
+        mat4_mul(world, g_scene1_camera_orient, tmp);  /* base × (scale×T) */
+
+        /* L448: bind sheet (engine SetTexture(0, DAT_073a9b18[char])). */
+        IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)sheet->tex);
+
+        /* L449: colour 0xff808080 (opaque neutral; pulse modulation deferred). */
+        scene1_chr_sprite_render((struct IDirect3DDevice8 *)dev, actor,
+                                 char_id, world, 0xff808080u,
+                                 (int)sheet->width, (int)sheet->height);
+    }
+
+    /* Restore LINEAR for the trailing mesh/sprite passes (engine re-asserts
+     * bilinear after the character draws). */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
 }
 
 /* Pass G walks DAT_0076bdc0..DAT_007c8fc0, stride 0x2e9 dwords.
@@ -612,6 +633,10 @@ static void sw_pass_g(IDirect3DDevice8 *dev)
 
 void scene1_shop_walker(struct IDirect3DDevice8 *dev_in)
 {
+    /* E.2 probe — the WIDE-frustum shop walker FUN_004552d0 @ 0x4552d0
+     * (owns the standing player/companion billboard draw in sw_pass_light). */
+    CALL_TRACE_ENTER(0x4552d0u);
+
     if (!dev_in) return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 

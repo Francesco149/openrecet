@@ -1745,6 +1745,25 @@ order.  Found while porting Cchr.2e (2026-05-29), objdump @ 0x456c4f /
 > 📍 `docs/findings/scene1-char-sprite-render.md` "Cchr.2e",
 > `src/scene1_chr_prepass.c` (the two `chr_prepass_*_setup` envelopes).
 
+**2026-05-30 extension (Cchr.2h).** The same POINT-for-character rule holds
+in the *wide-frustum shop-walker* player/companion draw `FUN_004552d0`: at
+`0x456055`/`0x456067` it does `SetTextureStageState(0, MAG/MINFILTER, POINT)`
+just before the actor-draw loop (objdump-confirmed; `ebx=1`).  A retail
+d3d-trace of a HOUSE frame at 1024×768 shows the prim-12 character leaf
+draws at `(MAG,MIN,MIP)=(POINT,POINT,NONE)` while every `DrawIndexedPrimitive`
+3D mesh is `(LINEAR,LINEAR,LINEAR)` — both sides identical for the meshes.
+The port's `sw_pass_light` inherited the pass-top LINEAR and drew the
+billboard bilinear (visibly soft vs retail's crisp pixels at high res); fixed
+by mirroring the POINT set + restoring LINEAR after the loop.  Validated by a
+matched-resolution port-vs-retail pixel diff (`runs/cchr2h-retail`): player
+world matrix is float-identical and dx=dy=0, so the only divergence was the
+sampler state.  (Methodology note: the perceived "port 3D slightly sharper"
+is **not** a filter-state difference — both are trilinear `(2,2,2)` — so it's
+a deeper mipmap/LOD/gamma question, separate from this fix.)
+
+> 📍 `src/scene1_shop_walker.c` `sw_pass_light` (the POINT set/restore around
+> the actor loop), retail ground truth in `runs/cchr2h-retail-d3d`.
+
 ## 52. The sprite pre-pass does two matrix multiplies it didn't need to
 
 `FUN_0045672a` sections A and B each build a world matrix as

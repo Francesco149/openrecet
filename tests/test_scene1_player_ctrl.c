@@ -11,7 +11,9 @@
 #include "t.h"
 
 #include <math.h>
+#include <stdint.h>
 
+#include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record-field indices */
 #include "scene1_player_ctrl.h"
 
 static int near_f(float a, float b)
@@ -245,5 +247,58 @@ int test_player_trail_orbit_doubles_table(void)
     /* angle = 2·(π/2) = π → sin≈0, cos=-1, r=3. */
     T_ASSERT_NEAR(out[0], 1.0f);           /* sin(π)*3 + 1 ≈ 1 */
     T_ASSERT_NEAR(out[2], 0.0f);           /* cos(π)*3 + 3 = -3+3 = 0 */
+    return 0;
+}
+
+/* ── Cchr.2h: house-standing actor-state model ───────────────────────────── */
+
+int test_player_pose_seeds_actor0(void)
+{
+    /* runs/cchr2b leaf ground truth: char 0, scale 1/1, record
+     * anim 0 / timer 5.0f / counter 25 / frame 2 / facing 6. */
+    player_ctrl_pose_house_standing(0);
+
+    if (player_ctrl_actor_char(0) != 0) T_FAIL("actor0 char should be 0");
+    T_ASSERT_NEAR(player_ctrl_actor_scale_xz(0), 1.0f);
+    T_ASSERT_NEAR(player_ctrl_actor_scale_y(0), 1.0f);
+
+    const int32_t *rec = player_ctrl_actor_record(0);
+    if (rec == NULL) T_FAIL("actor0 record should be non-NULL");
+    if (rec[CHR_ACTOR_ANIM]    != 0)  T_FAIL("anim should be 0");
+    if (rec[CHR_ACTOR_COUNTER] != 25) T_FAIL("counter should be 25");
+    if (rec[CHR_ACTOR_FRAME]   != 2)  T_FAIL("frame should be 2");
+    if (rec[CHR_ACTOR_FACING]  != 6)  T_FAIL("facing should be 6");
+    /* TIMER is float bits (5.0f). */
+    union { float f; int32_t i; } t; t.i = rec[CHR_ACTOR_TIMER];
+    T_ASSERT_NEAR(t.f, 5.0f);
+    return 0;
+}
+
+int test_player_pose_empties_party_slots(void)
+{
+    player_ctrl_pose_house_standing(0);
+    /* slots 1/2 stay empty (char -1, scale 0) until companion lands. */
+    if (player_ctrl_actor_char(1) != -1) T_FAIL("actor1 char should be -1");
+    if (player_ctrl_actor_char(2) != -1) T_FAIL("actor2 char should be -1");
+    T_ASSERT_NEAR(player_ctrl_actor_scale_xz(1), 0.0f);
+    T_ASSERT_NEAR(player_ctrl_actor_scale_y(2), 0.0f);
+    return 0;
+}
+
+int test_player_pose_passes_char_id(void)
+{
+    /* the char id is whatever DAT_056da1cc holds (the wrapper passes it). */
+    player_ctrl_pose_house_standing(7);
+    if (player_ctrl_actor_char(0) != 7) T_FAIL("actor0 char should track arg");
+    return 0;
+}
+
+int test_player_actor_accessors_out_of_range(void)
+{
+    player_ctrl_pose_house_standing(0);
+    if (player_ctrl_actor_char(-1) != -1)  T_FAIL("oob -1 → -1");
+    if (player_ctrl_actor_char(3)  != -1)  T_FAIL("oob 3 → -1");
+    if (player_ctrl_actor_record(3) != NULL) T_FAIL("oob record → NULL");
+    T_ASSERT_NEAR(player_ctrl_actor_scale_xz(99), 0.0f);
     return 0;
 }

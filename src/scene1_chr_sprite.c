@@ -216,6 +216,8 @@ void chr_anim_tick(int32_t *actor, int char_id, float dt)
 #define CINTERFACE
 #include <d3d8.h>
 
+#include "call_trace.h"   /* E.2 CALL_TRACE_ENTER probe */
+
 /* g_chr_formdata / g_chr_formdata_size come from chr_sprite_meta.h above. */
 
 #define CHR_SPRITE_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)  /* 0x142 */
@@ -225,6 +227,9 @@ void scene1_chr_sprite_render(struct IDirect3DDevice8 *dev_in,
                               const float world[16], uint32_t color,
                               int tex_w, int tex_h)
 {
+    /* E.2 probe — the HOUSE character sprite leaf FUN_0045a56f @ 0x45a56f. */
+    CALL_TRACE_ENTER(0x45a56fu);
+
     if (dev_in == NULL || actor == NULL)
         return;
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;

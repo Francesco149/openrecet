@@ -59,6 +59,17 @@ void scene1_postload_init_stage_defaults(void);
 void scene1_postload_pose_player(void);
 
 /*
+ * Cchr.2h — seed the HOUSE *standing* player pose: set g_scene1_player_pos
+ * to the leaf-validated standing position (-0.30, 0, 9.35) and seed the
+ * player-controller actor-state model (char id / scale / sprite-state
+ * record) via player_ctrl_pose_house_standing().  Call on HOUSE entry
+ * AFTER pose_player (it intentionally overrides the (-40,0,-60) pre-gate
+ * default).  De-MVP of scene1_shop_walker_set_player_inject; faithful
+ * spawn-placement (DAT_0438b1ec) is the remaining follow-up.
+ */
+void scene1_postload_pose_house_standing(void);
+
+/*
  * Block-23 of engine FUN_00436f97 (L690-700).  No-op when
  * `g_stage_palette == NULL` or `g_stage_palette->ambient_spawn_flag
  * == 0` (the engine gate at `*(DAT_068dd2f0 + 0x1b28) != 0`).  When

@@ -3122,7 +3122,11 @@ struct test_case {
     X(player_pulse_phase_wraps_at_60) \
     X(player_trail_orbit_zero_angle) \
     X(player_trail_orbit_radius_and_angle) \
-    X(player_trail_orbit_doubles_table)
+    X(player_trail_orbit_doubles_table) \
+    X(player_pose_seeds_actor0) \
+    X(player_pose_empties_party_slots) \
+    X(player_pose_passes_char_id) \
+    X(player_actor_accessors_out_of_range)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

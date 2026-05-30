@@ -43,11 +43,13 @@
 #include "save_bank.h"        /* save_arena_base + SAVE_BANK_STRIDE_BYTES */
 #include "scene1_camera.h"    /* g_scene1_camera_char_mode */
 #include "scene1_particles_tick.h"
+#include "scene1_player_ctrl.h"   /* player_ctrl_pose_house_standing */
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
 #include "scene1_spawn.h"
 #include "scene1_walker_pass_init.h"
 #include "stage_palette.h"
+#include "stage_post_load.h"      /* stage_post_load_get_dat_056da1cc (player char) */
 
 float g_scene1_stage_player_default_pos[3] = {-40.0f, 0.0f, -60.0f};
 
@@ -94,6 +96,27 @@ void scene1_postload_pose_player(void)
     g_scene1_player_pos[0] = g_scene1_stage_player_default_pos[0];
     g_scene1_player_pos[1] = g_scene1_stage_player_default_pos[1];
     g_scene1_player_pos[2] = g_scene1_stage_player_default_pos[2];
+}
+
+void scene1_postload_pose_house_standing(void)
+{
+    /* Cchr.2h — the HOUSE standing player pose (de-MVP of the per-call
+     * scene1_shop_walker_set_player_inject).
+     *
+     * Position: the engine derives the runtime standing position from
+     * door/spawn placement (DAT_0438b1ec → DAT_056da1d8, all.c:34425); that
+     * placement isn't ported, so until it lands we seed the leaf-validated
+     * value directly — runs/cchr2b HOUSE frame 17544 / scene1-char-sprite-
+     * trace.md both give (-0.30, 0, 9.35).  This OVERRIDES the (-40,0,-60)
+     * stage default that pose_player set as the engine pre-gate mirror.
+     *
+     * The remaining actor state (char id, scale, sprite-state record) is
+     * seeded in scene1_player_ctrl from the same capture. */
+    g_scene1_player_pos[0] = -0.30f;
+    g_scene1_player_pos[1] =  0.0f;
+    g_scene1_player_pos[2] =  9.35f;
+
+    player_ctrl_pose_house_standing(stage_post_load_get_dat_056da1cc());
 }
 
 void scene1_postload_ambient_spawn(void)

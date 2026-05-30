@@ -4,6 +4,32 @@
 > sprite path) with the *port* dependency map + chip ladder. Started
 > 2026-05-29.
 
+> **2026-05-30 — Cchr.2h LANDED: de-MVP'd the player draw + fixed the sprite
+> filter; validated by a matched-res retail pixel diff.** Replaced the
+> per-call `scene1_shop_walker_set_player_inject` MVP with the real
+> engine-global actor model (`scene1_player_ctrl`: char id `DAT_056da1cc`,
+> scale `DAT_056dae18`/`dae24`, the 11-dword `DAT_056daae8` sprite-state
+> record), seeded on HOUSE entry by `scene1_postload_pose_house_standing()`
+> from the runs/cchr2b leaf ground truth (pos -0.30/0/9.35, char 0, anim 0 /
+> frame 2 / facing 6 / counter 25 / timer 5.0f, color 0xff808080).  The
+> player now draws **by default** (no `--force-chr-walker`; `--no-chr-player`
+> suppresses it).  Position is a documented HOUSE-entry constant — the engine
+> spawn-placement (`DAT_0438b1ec`→`DAT_056da1d8`) isn't ported (follow-up).
+> **Ground-truth validation (the call-diff/d3d-trace tooling):** the port's
+> player WORLD matrix is *float-identical* to the retail leaf matrix and lands
+> at dx=dy=0 in a matched-1024×768 pixel diff (`runs/cchr2h-retail`); the
+> shop-walker `FUN_004552d0` fires 1×/frame (call-trace parity).  **Sprite
+> filter fix:** the diff showed the billboard was bilinear-soft vs retail's
+> crisp pixels — the engine sets `MAG/MINFILTER=POINT` at `FUN_004552d0`
+> @0x456055/67 before the actor loop; the port inherited the pass-top LINEAR.
+> Fixed in `sw_pass_light` (POINT around the loop, LINEAR restored after).
+> See engine-quirks §51 extension.  Added CALL_TRACE probes on 0x4552d0 +
+> 0x45a56f.  **Remaining:** companion (char 1) + colour pulse + the idle
+> *animation* (port holds a static frame 2; retail's idle anim cycles) +
+> 2D HUD (C7i).  Separately surfaced: the **3D mesh** textures read slightly
+> sharper in the port than retail even though the filter STATE matches
+> (trilinear both) — a deeper mipmap/LOD question, queued.
+
 > **2026-05-30 — Cchr.2f: TEXTURE PATH RESOLVED + the visible standing player
 > is the SHOP-WALKER, not the chr-walker (pixel-diff ground truth).**
 > Wired the chr sprite-sheet texture: the leaf `FUN_0045a56f` binds nothing —

@@ -6,6 +6,9 @@
 #include "scene1_player_ctrl.h"
 
 #include <math.h>
+#include <string.h>
+
+#include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record-field indices */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -87,4 +90,75 @@ void player_ctrl_trail_orbit_pos(int anim_idx, float stored_angle,
     out[0] = sinf(angle) * r + player[0];         /* x — FUN_00503a44 = sin */
     out[1] = player[1];                           /* y — copied straight (da1dc) */
     out[2] = cosf(angle) * r + player[2];         /* z — FUN_00503994 = cos */
+}
+
+/* ── Cchr.2h: the player/companion actor-state model ─────────────────────
+ *
+ * The per-actor fields the shop-walker player draw (FUN_004552d0 L357-454,
+ * the loop over actor i = 0=player, 1/2=companion) reads each frame:
+ *
+ *   char id  (&DAT_056da1cc)[i]      — gate: != -1 (slot in use)
+ *   XZ scale (&DAT_056dae18)[i]      — gate: > 0
+ *   Y  scale (&DAT_056dae24)[i]      — gate: > 0
+ *   record   (&DAT_056daae8)[i*0xb]  — 11-dword sprite-state the leaf samples
+ *
+ * Actor *position* is the separate DAT_056da1d8 array (actor 0 ==
+ * g_scene1_player_pos); the draw side combines it with these fields.
+ *
+ * FUN_0048b850 (the per-frame player controller; Cpop) is these globals'
+ * live writer — the ring shift at 48b850.c:483-584 fills DAT_056daae8 from
+ * the live input/anim state and the spawn fade-in routine settles dae18/
+ * dae24 to 1.0.  Until that body lands, player_ctrl_pose_house_standing()
+ * seeds actor 0 from the runs/cchr2b retail leaf ground truth (HOUSE frame
+ * 17544): char 0, scale 1.0/1.0, record anim 0 / timer 5.0f / counter 25 /
+ * frame 2 / facing 6 (the idle standing pose; renders at color 0xff808080).
+ * This replaces the per-call scene1_shop_walker_set_player_inject MVP. */
+
+static int32_t s_actor_char[PC_NUM_ACTORS]     = { -1, -1, -1 };
+static float   s_actor_scale_xz[PC_NUM_ACTORS] = { 0.0f, 0.0f, 0.0f };
+static float   s_actor_scale_y[PC_NUM_ACTORS]  = { 0.0f, 0.0f, 0.0f };
+static int32_t s_actor_record[PC_NUM_ACTORS][PC_ACTOR_REC_DWORDS];
+
+void player_ctrl_pose_house_standing(int player_char)
+{
+    for (int i = 0; i < PC_NUM_ACTORS; i++) {
+        s_actor_char[i]     = -1;
+        s_actor_scale_xz[i] = 0.0f;
+        s_actor_scale_y[i]  = 0.0f;
+        memset(s_actor_record[i], 0, sizeof s_actor_record[i]);
+    }
+
+    /* actor 0 = the standing player (companion slots 1/2 await the
+     * DAT_056da1d0 char ids + DAT_056da1e4.. position port). */
+    s_actor_char[0]     = player_char;
+    s_actor_scale_xz[0] = 1.0f;   /* DAT_056dae18[0] — settled spawn scale */
+    s_actor_scale_y[0]  = 1.0f;   /* DAT_056dae24[0] */
+
+    /* DAT_056daae8[0] idle pose.  TIMER is float bits (5.0f); the rest int. */
+    union { float f; int32_t i; } timer; timer.f = 5.0f;
+    s_actor_record[0][CHR_ACTOR_ANIM]    = 0;
+    s_actor_record[0][CHR_ACTOR_TIMER]   = timer.i;
+    s_actor_record[0][CHR_ACTOR_COUNTER] = 25;
+    s_actor_record[0][CHR_ACTOR_FRAME]   = 2;
+    s_actor_record[0][CHR_ACTOR_FACING]  = 6;
+}
+
+int player_ctrl_actor_char(int i)
+{
+    return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_char[i] : -1;
+}
+
+float player_ctrl_actor_scale_xz(int i)
+{
+    return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_scale_xz[i] : 0.0f;
+}
+
+float player_ctrl_actor_scale_y(int i)
+{
+    return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_scale_y[i] : 0.0f;
+}
+
+const int32_t *player_ctrl_actor_record(int i)
+{
+    return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_record[i] : NULL;
 }

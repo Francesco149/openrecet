@@ -19,6 +19,12 @@
 #ifndef SCENE1_PLAYER_CTRL_H
 #define SCENE1_PLAYER_CTRL_H
 
+#include <stdint.h>
+
+/* Per-actor slots the shop-walker player draw walks (0=player, 1/2=party). */
+#define PC_NUM_ACTORS        3
+#define PC_ACTOR_REC_DWORDS  11   /* DAT_056daae8 ring stride (sprite-state) */
+
 /*
  * Snap an 8-way movement octant to the 4-way sprite facing the engine
  * actually draws (0=down? 2=right, 4=up?, 6=left — engine octant ids),
@@ -99,5 +105,25 @@ void player_ctrl_pulse_counters(int *down, int *phase, int *level);
 void player_ctrl_trail_orbit_pos(int anim_idx, float stored_angle,
                                  float table_val, const float player[3],
                                  float out[3]);
+
+/* ── Cchr.2h: player/companion actor-state model ─────────────────────────
+ *
+ * The engine globals the shop-walker player draw (FUN_004552d0 L357-454)
+ * reads per actor i: char id (DAT_056da1cc[i]), XZ/Y scale (DAT_056dae18[i]
+ * / DAT_056dae24[i]), and the 11-dword sprite-state record (DAT_056daae8 +
+ * i*0xb).  FUN_0048b850 is their live writer; until it lands, the pose
+ * function below seeds actor 0 from the runs/cchr2b retail leaf ground
+ * truth.  Position is the separate g_scene1_player_pos (DAT_056da1d8).
+ */
+
+/* Seed actor 0 = the standing player (idle pose), empty slots 1/2.
+ * `player_char` is the engine's DAT_056da1cc (0 = Recette on HOUSE entry). */
+void player_ctrl_pose_house_standing(int player_char);
+
+/* Read accessors for the draw side (i out of range → -1 / 0 / NULL). */
+int            player_ctrl_actor_char(int i);
+float          player_ctrl_actor_scale_xz(int i);
+float          player_ctrl_actor_scale_y(int i);
+const int32_t *player_ctrl_actor_record(int i);
 
 #endif /* SCENE1_PLAYER_CTRL_H */

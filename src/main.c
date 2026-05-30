@@ -76,6 +76,7 @@
 #include "chr_sprite_meta.h"
 #include "sprite.h"
 #include "stage_palette.h"
+#include "stage_post_load.h" /* stage_post_load_get_dat_056da1cc (player char) */
 #include "stage_state.h"
 #include "tick.h"
 #include "d3d_trace.h"
@@ -183,6 +184,12 @@ static int              g_force_player_sprite      = 0;
  * world matrix), this validates the WALKER's own matrix/alpha chain.
  * Diffuse-only (no sheet bound).  See scene1-char-sprite-render.md banner. */
 static int              g_force_chr_walker         = 0;
+/* --no-chr-player (Cchr.2h): suppress the default standing-player billboard.
+ * The player now draws by default on HOUSE entry (the real engine-global
+ * actor model, seeded by scene1_postload_pose_house_standing); this disables
+ * the pose seed (char id stays -1 → the sw_pass_light gate skips it) for A/B
+ * vs the player-less scene. */
+static int              g_no_chr_player            = 0;
 static char             g_fps_inject_path[MAX_PATH] = {0};
 static int              g_fps_loaded               = 0;  /* inject parsed ok */
 static int32_t          g_fps_actor[0x11]          = {0};
@@ -602,18 +609,23 @@ static void force_pass_d_mesh_reload(void)
     scene1_shop_walker_set_pass_d_mesh(g_force_pass_d_mesh);
 }
 
-/* Cchr.2f — post-house dispatcher.  scene1_preload owns a single
- * post-house callback slot; route it through here so --force-pass-d-mesh
- * and --force-chr-walker can both run on HOUSE entry (after the cache
- * reset + foreground loads).  --force-chr-walker loads the player's
- * walking sprite sheet so the chr-walker can SetTexture it; char 0 must
- * match the inject player_char in scene1_chr_walker_set_inject below. */
-static void force_post_house_hook(void)
+/* Cchr.2h — post-house dispatcher.  scene1_preload owns a single post-house
+ * callback slot (fires once per HOUSE entry, after the mesh-cache reset +
+ * foreground sprite loads).  Always registered; routes the optional
+ * --force-pass-d-mesh reload AND the default standing-player setup:
+ *   - load the player char's walking sprite sheet (DAT_073a9b18[char]); and
+ *   - seed the HOUSE standing pose (position + the player_ctrl actor model)
+ * so sw_pass_light draws Recette by default.  --no-chr-player suppresses the
+ * player setup (the sheet load + pose), leaving the actor model's char id
+ * at -1 → the draw gate skips it. */
+static void post_house_hook(void)
 {
     if (g_force_pass_d_mesh_path)
         force_pass_d_mesh_reload();
-    if (g_force_chr_walker)
-        scene1_preload_load_chr_sheet(0);
+    if (!g_no_chr_player) {
+        scene1_preload_load_chr_sheet(stage_post_load_get_dat_056da1cc());
+        scene1_postload_pose_house_standing();
+    }
 }
 
 /* Parse a --force-player-sprite inject file.  Line-based, tolerant of
@@ -796,12 +808,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         return 0;
     }
 
-    /* --force-player-sprite: wire the Cchr.2a character-sprite loaders
-     * (engine FUN_004341fe tail + FUN_00479f78) now that storage is up,
-     * so g_chr_formdata + the per-char descriptor hold real data before
-     * the first HOUSE render.  Only under the flag — normal boot leaves
-     * the chr data unloaded (no consumer yet). */
-    if (g_force_player_sprite || g_force_chr_walker) {
+    /* Cchr.2a character-sprite loaders (engine FUN_004341fe tail +
+     * FUN_00479f78): load g_chr_formdata + the per-char descriptors so the
+     * billboard leaf has real cell data before the first HOUSE render.
+     * Cchr.2h: the standing player draws by default, so these load by
+     * default too (suppressed only by --no-chr-player).  --force-player-
+     * sprite still pulls them for its captured-matrix inject path. */
+    if (g_force_player_sprite || !g_no_chr_player) {
         int fd = chr_formdata_load();
         int nidx = chr_meta_load();
         fprintf(stderr, "chr-sprite loaders: chr_formdata_load=%d "
@@ -812,9 +825,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                 fprintf(stderr, "force-player-sprite: disabled (formdata=%d "
                         "inject=%d)\n", fd, g_fps_loaded);
         }
-        if (g_force_chr_walker && !fd)
-            fprintf(stderr, "force-chr-walker: disabled (formdata load "
-                    "failed)\n");
+        if (!g_no_chr_player && !fd)
+            fprintf(stderr, "chr-player: disabled (formdata load failed)\n");
     }
 
     /* TODO "init print ok"   — FUN_00451863 */
@@ -989,9 +1001,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * the hook fires AFTER the reset + after the HOUSE foreground
      * loads, so the mesh's texture slots land in fresh cache rows
      * the next sw_pass_d frame can resolve correctly. */
-    if (g_force_pass_d_mesh_path || g_force_chr_walker) {
-        scene1_preload_set_post_house_callback(force_post_house_hook);
-    }
+    /* Cchr.2h: always register the post-house hook — it now owns the default
+     * standing-player setup (sheet + pose) on top of the optional
+     * --force-pass-d-mesh reload.  --no-chr-player gates the player half. */
+    scene1_preload_set_post_house_callback(post_house_hook);
 
     /* --debug-pass-d-unlit: see flag comment above.  Wire the parsed
      * value into the walker before the first render tick. */
@@ -1151,22 +1164,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             g_force_walker_phase2_scene_type);
     }
 
-    /* --force-chr-walker: seed the standing-Recette player billboard.
-     * Cchr.2g re-targeted this from the FUN_00456f56 chr-walker (whose
-     * player path is the situational blue 0x7f7fff draw — ground-truthed as
-     * NOT the normal standing player) to the SHOP-walker's player draw
-     * (FUN_004552d0 L357-454, color 0xff808080), which the retail leaf
-     * capture (runs/cchr2b, HOUSE frame 17544) shows IS the visible player.
-     * Pose = the Cchr.2b-validated billboard (char 0, anim 0, frame 2,
-     * facing 6); pos = new-game HOUSE groundtruth (-0.30, 0, 9.35).  The
-     * sheet loads via the post-house hook (scene1_preload_load_chr_sheet). */
-    if (g_force_chr_walker) {
-        scene1_shop_walker_set_player_inject(1, /*char_id=*/0,
-                                             /*px=*/-0.30f, /*py=*/0.0f,
-                                             /*pz=*/9.35f,
-                                             /*anim=*/0, /*frame=*/2,
-                                             /*facing=*/6);
-    }
+    /* Cchr.2h: the standing player now draws by default — seeded by the
+     * post-house hook (sheet load + scene1_postload_pose_house_standing),
+     * reading the real engine-global actor model in sw_pass_light.  The old
+     * --force-chr-walker per-call inject is retired; the flag is still parsed
+     * (now a no-op, since char billboards are default) so existing run
+     * scripts don't error.  --no-chr-player suppresses the default draw. */
 
     /* Cc.1: initialise scene-1 camera state.  Sets the first-frame
      * snap flag so the first scene1_render_camera_setup pass writes a real
@@ -2447,7 +2450,9 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 }
             }
         } else if (lstrcmpA(tok, "--force-chr-walker") == 0) {
-            g_force_chr_walker = 1;
+            g_force_chr_walker = 1;   /* Cchr.2h: now a no-op (default behavior) */
+        } else if (lstrcmpA(tok, "--no-chr-player") == 0) {
+            g_no_chr_player = 1;
         } else if (lstrcmpA(tok, "--ambient-spawn-pose") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {

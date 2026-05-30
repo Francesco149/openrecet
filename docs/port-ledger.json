@@ -4,14 +4,14 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 59,
+  "verified": 61,
   "stubbed": 14,
-  "ported": 295,
+  "ported": 293,
   "unported": 2180,
   "orphan_refs_not_in_function_table": 6,
   "touched": 368,
   "pct_touched": 14.4,
-  "pct_verified": 2.3
+  "pct_verified": 2.4
  },
  "orphan_refs": [
   "0x40f640",
@@ -4157,14 +4157,9 @@
    "size": 5210,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "verified",
    "src": [
-    "src/main.c",
-    "src/scene1_render.c",
-    "src/scene1_render.h",
-    "src/scene1_shop_walker.c",
-    "src/scene1_shop_walker.h",
-    "src/scene1_shop_walker_helpers.c"
+    "src/scene1_shop_walker.c"
    ]
   },
   {
@@ -4324,17 +4319,9 @@
    "size": 1223,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "verified",
    "src": [
-    "src/chr_sprite_meta.h",
-    "src/scene1_chr_prepass.c",
-    "src/scene1_chr_prepass.h",
-    "src/scene1_chr_sprite.c",
-    "src/scene1_chr_sprite.h",
-    "src/scene1_chr_walker.h",
-    "src/scene1_render.c",
-    "src/scene1_shop_walker.c",
-    "src/scene1_shop_walker.h"
+    "src/scene1_chr_sprite.c"
    ]
   },
   {
@@ -8131,8 +8118,7 @@
     "src/scene1_chr_walker.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
-    "src/scene1_shop_walker.c",
-    "src/scene1_shop_walker.h"
+    "src/scene1_shop_walker.c"
    ]
   },
   {
