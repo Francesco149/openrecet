@@ -640,6 +640,39 @@ build warning-free. NPC pass-3 record-field offsets (-0x6a4 pos, +4 mult,
 scale via `&DAT_005c23f0[type*0x68]+0x44 × 0.05`) are documented in the
 code for the follow-up that fills the people draw once the table populates.
 
+## Cpop after-image banks (FUN_0048b850 tail; decoded 2026-05-30)
+
+The controller tail writes two adjacent 5-record after-image banks, both
+using the **same 0x44-byte record layout** (11-dword sprite-state copy,
+then `x`/`y`/`z` floats, then a life counter at +0x38, then angle +0x3c /
+anim-idx +0x40):
+
+- **`DAT_056dab6c` bank** — the *dynamic* dash trail (records walked via
+  `ebx = DAT_056dabac = base+0x40`, bases `dab6c..dac7c`, loop ends at
+  `DAT_056dad00`).  Ported as `player_ctrl_trail_advance` (Cpop.6): per
+  active record, snapshot the live ring head + recompute the orbit
+  position via `player_ctrl_trail_orbit_pos`, spawn at life==600, decrement.
+
+- **`DAT_056dacc0` bank** — *this is the actor sprite-state array named as
+  the STATUS top HOUSE-pixel blocker.*  Bases `dacc0..dadd0`, ending exactly
+  at `DAT_056dae14` (the decay counter referenced immediately after).  The
+  materialization loop (decomp L90269-90296, objdump `0x48c918-0x48c971`)
+  is a **conditional burst writer**: only when `DAT_056daae0 > 0` does it
+  copy 5 samples into the bank (sprite-state ← `da460` stride 0x58,
+  position ← `da224` reading `[edx-0x14]`/`[edx-0x4]`/`[edx]` as z/x/y at
+  stride 0x18), seeding each life to `0x14`, then `daae0--` and a clear
+  pass (zero each life at +0x38) when it hits 0.  The **steady-state**
+  writer of this bank is still the unported Cf.* `FUN_00436f97`.
+
+**Next Cpop chip (open):** port the `dacc0` burst materialization.  The
+record-fill side is a clean memory op (structure validated above); the one
+unresolved piece is the **`da224`/`da460` source geometry** — the doubled
+strides (0x18 = 2×0xc position, 0x58 = 2×0x2c record) sample every other
+motion-history slot, and the negative `[edx-0x14]`/`[edx-0x4]` reads
+straddle slot boundaries.  Resolve which history slots these point at (read
+the writers of `da224`/`da460` + the walker's read of the `dacc0` bank)
+before porting, or the after-images land at the wrong positions.
+
 ## Cross-refs
 
 - `scene1-char-sprite-trace.md` — Cchr.0/Cchr.1 retail trace.
