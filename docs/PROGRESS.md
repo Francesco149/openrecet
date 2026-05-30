@@ -278,6 +278,38 @@ colour base/pulse (`4552d0.c:394-435`), and replacing the inject with the real
 **Retail screenshot pixel-diff deferred to after the full path lands** (per
 user); leaf-level ground truth already validates geometry + colour.
 
+## 2026-05-30 — Cpop.5: FUN_0048b850 shake-target accumulation — camera-shake-magnitude subsystem complete
+
+Ported the per-frame shake-*target* magnitude accumulation (`local_8`;
+decomp L89957-90008, objdump `0x48be33-0x48bfa0`) as
+`player_ctrl_shake_target` — the scalar the already-ported
+`player_ctrl_camera_shake_clamp` limits the shake vector to.  With this the
+**whole camera-shake-magnitude subsystem is ported**: zoom decay (Cpop.1),
+magnitude clamp (Cpop.1), per-frame damp factor (Cpop.4), and now the
+target accumulation that drives the clamp.
+
+The accumulation: `base` (0.175, or a per-state amplitude-table value the
+caller resolves) → `+0.02`/`+0.08` held boosts → `×1.3` action boost →
+`+= db074` (when `DAT_0438b8b0 == -1`) → `+0.06`/`+0.03` rumble (gated on
+`DAT_056dae9c`, `DAT_056daeac` bits) → state overrides (`db048==1` → 0.5;
+`db048∈{4,5}` → char `0x29` ? 1.0 : 0.5) → a proximity-ease override
+`0.3 − clamp01(daedc − da1dc)·0.1`.  All constants objdump-verified
+(the two held boosts are 64-bit `faddl` doubles in the binary).
+
+**New quirk — engine-quirks §56 (the inverse of §53):** the proximity-ease
+gate `DAT_056daed8 == 1` is an **integer** compare (`cmp %edi,…` with
+`edi==1`), but Ghidra renders it as the float literal `1.4013e-45` (the
+denormal whose bits are `0x00000001`).  The same `edi==1`/`ebx==0` register
+convention in this function also flips the rendered polarity of
+`DAT_056db034 == 1` and `DAT_056db048 == 1` — always check the `cmp`
+operand register before trusting a decomp `== 0`/`== 1`.
+
+6 host tests, one per branch (2991 → 2997).  Module still unwired → HOUSE
+behavior + goldens bit-identical, no regen.  Remaining for the chip: the
+`0x56dab6c` per-record trail spawn/expiry loop (the visible after-image
+fill around the already-ported orbit geometry leaf), then wiring the whole
+controller behind the `FUN_0048670f` caller chain.
+
 ## 2026-05-30 — Cpop.4: FUN_0048b850 camera-shake damping-factor selector
 
 Ported the per-frame shake-vector decay selector (decomp L90160-90198,

@@ -384,6 +384,72 @@ int test_player_shake_damp_held_reaches_state_block(void)
     return 0;
 }
 
+/* ── Cpop.5: shake-target magnitude accumulation ─────────────────────────── */
+
+/* args: (base, held_968, held_969, boost, b8b0_neg1, db074, dae9c_active,
+ *        daeac, db048, da1cc, daed8_is_1, db07c_is_0, daedc, da1dc) */
+
+int test_player_shake_target_base_passthrough(void)
+{
+    /* All gates off → just the base. */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.175f, 0,0,0,0,0.0f,0,0, 0,0, 0,0, 0.0f,0.0f), 0.175f);
+    return 0;
+}
+
+int test_player_shake_target_held_adds(void)
+{
+    /* held 0x968 → +0.02, held 0x969 → +0.08 (both → +0.10). */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.175f, 1,0,0,0,0.0f,0,0, 0,0, 0,0, 0.0f,0.0f), 0.195f);
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.175f, 0,1,0,0,0.0f,0,0, 0,0, 0,0, 0.0f,0.0f), 0.255f);
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.175f, 1,1,0,0,0.0f,0,0, 0,0, 0,0, 0.0f,0.0f), 0.275f);
+    return 0;
+}
+
+int test_player_shake_target_boost_multiplies_after_adds(void)
+{
+    /* boost ×1.3 applies after the held adds: (0.175 + 0.02) * 1.3. */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.175f, 1,0,1,0,0.0f,0,0, 0,0, 0,0, 0.0f,0.0f),
+                  (0.175f + 0.02f) * 1.3f);
+    return 0;
+}
+
+int test_player_shake_target_b8b0_and_rumble(void)
+{
+    /* b8b0==-1 → += db074;  then rumble bit2 → +0.06 (bit1 ignored when bit2 set). */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.1f, 0,0,0,1,0.5f,1,0x3, 0,0, 0,0, 0.0f,0.0f),
+                  0.1f + 0.5f + 0.06f);
+    /* rumble bit1 only → +0.03. */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.1f, 0,0,0,0,0.0f,1,0x1, 0,0, 0,0, 0.0f,0.0f),
+                  0.1f + 0.03f);
+    /* dae9c inactive → no rumble add even with bits set. */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.1f, 0,0,0,0,0.0f,0,0x3, 0,0, 0,0, 0.0f,0.0f), 0.1f);
+    return 0;
+}
+
+int test_player_shake_target_state_overrides(void)
+{
+    /* db048==1 forces 0.5 regardless of prior accumulation. */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.175f, 1,1,1,0,0.0f,0,0, 1,0, 0,0, 0.0f,0.0f), 0.5f);
+    /* db048==4/5: char 0x29 → 1.0, else 0.5. */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.175f, 0,0,0,0,0.0f,0,0, 4,0x29, 0,0, 0.0f,0.0f), 1.0f);
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.175f, 0,0,0,0,0.0f,0,0, 5,0x00, 0,0, 0.0f,0.0f), 0.5f);
+    return 0;
+}
+
+int test_player_shake_target_proximity_ease(void)
+{
+    /* daed8==1 && db07c==0: t = 0.3 - clamp01(daedc - da1dc)*0.1, overriding all. */
+    /* diff 0.5 (in range) → 0.3 - 0.05 = 0.25. */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.9f, 1,1,1,0,0.0f,0,0, 0,0, 1,1, 1.0f,0.5f), 0.25f);
+    /* diff > 1 clamps to 1 → 0.3 - 0.1 = 0.2. */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.9f, 0,0,0,0,0.0f,0,0, 0,0, 1,1, 5.0f,0.5f), 0.2f);
+    /* diff < 0 clamps to 0 → 0.3. */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.9f, 0,0,0,0,0.0f,0,0, 0,0, 1,1, 0.0f,0.5f), 0.3f);
+    /* db07c != 0 disables the block (db07c_is_0 == 0 here) → base passes through. */
+    T_ASSERT_NEAR(player_ctrl_shake_target(0.42f, 0,0,0,0,0.0f,0,0, 0,0, 1,0, 1.0f,0.5f), 0.42f);
+    return 0;
+}
+
 /* ── Cchr.2h: house-standing actor-state model ───────────────────────────── */
 
 int test_player_pose_seeds_actor0(void)

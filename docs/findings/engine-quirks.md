@@ -1946,6 +1946,28 @@ sides; until then, capture the **2nd** retail `HOUSE_FREEROAM`.
 > `docs/plans/tas-framework.md` (P2 retail), `runs/rh-sweep/` (the offset
 > sweep that surfaced the double-fire).
 
+## 56. The shake-target's `DAT_056daed8 == 1` test renders as a float `1.4013e-45`
+
+The inverse of §53.  In the `local_8` shake-target accumulation
+(`FUN_0048b850`, decomp L90000), Ghidra shows the gate as
+`if ((DAT_056daed8 == 1.4013e-45) && (DAT_056db07c == 0))`.  `1.4013e-45`
+is the smallest positive denormal float — its bit pattern is exactly
+`0x00000001`.  The objdump (`0x48bf4c`) is `cmp %edi, 0x56daed8` with
+**`edi == 1`** (an *integer* compare), not an `fld`/`fcomp`: so
+`DAT_056daed8` is an **int flag tested `== 1`**, and the float literal is
+the decompiler typing the integer `1` through a float lens.  Port it as
+`daed8 == 1` (int); writing `== 1.4013e-45f` would compile but reads as
+nonsense and risks a float-equality foot-gun.
+
+Same chip, same `edi == 1` / `ebx == 0` register convention also flips two
+nearby Ghidra-rendered comparisons (`DAT_056db034 == 1`, `DAT_056db048 ==
+1`) — always confirm the `cmp` operand register before trusting a decomp
+`== 0` vs `== 1`.  Ported faithfully as `player_ctrl_shake_target`
+(Cpop.5, 2026-05-30); the full constant set (init `0.175`, `+0.02`/`+0.08`
+held boosts as **doubles**, `×1.3`, `+0.06`/`+0.03` rumble, `0.5`/`1.0`
+state overrides, `0.3 − clamp01(daedc−da1dc)·0.1` proximity ease) is
+objdump-verified bit-exact.
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of

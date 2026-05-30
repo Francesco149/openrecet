@@ -162,6 +162,42 @@ float player_ctrl_shake_damp_factor(int mode_nonzero, int grounded,
                                     int flag_6ca, int held_96b,
                                     int edge_9, int db100, int db048);
 
+/*
+ * Cpop.5: accumulate the per-frame camera-shake *target* magnitude
+ * (`local_8`), the scalar the shake-vector clamp (player_ctrl_camera_shake_clamp)
+ * limits the vector to.  Engine FUN_0048b850 @ all.c L89957-90008
+ * (objdump 0x48be33-0x48bfa0).  Together with the zoom decay, the
+ * magnitude clamp, and the Cpop.4 per-frame damp factor, this completes
+ * the camera-shake-magnitude subsystem.
+ *
+ *   t = base;                              // 0.175, or per-state amplitude table
+ *   if (held_968) t += 0.02;               // FUN_004856d7(0x968)  [double const]
+ *   if (held_969) t += 0.08;               // FUN_004856d7(0x969)  [double const]
+ *   if (boost)    t *= 1.3;                // edge 0xb|0xc | db010>0 | db01c>0
+ *   if (b8b0_is_neg1) t += db074;          // DAT_0438b8b0 == -1
+ *   if (dae9c_active) {                    // DAT_056dae9c != 0
+ *       if (daeac & 2)      t += 0.06;
+ *       else if (daeac & 1) t += 0.03;
+ *   }
+ *   if (db048 == 1) t = 0.5;                               // overrides
+ *   if (db048 == 4 || db048 == 5) t = (da1cc == 0x29) ? 1.0 : 0.5;
+ *   if (daed8_is_1 && db07c_is_0)          // DAT_056daed8 == 1 (INT; quirk §56)
+ *       t = 0.3 - clamp01(daedc - da1dc) * 0.1;            // proximity ease
+ *   return t;
+ *
+ * `base` is resolved by the caller: 0.175 when `*DAT_068dd2f0 == 0`, else
+ * the per-state shake-amplitude table value (`0x73ae058 + state*0x40`,
+ * +0x1c, or +0x20 when DAT_056db034 == 1).  Boolean predicates are passed
+ * in (the leaf-first convention); the two boost adds are 64-bit doubles in
+ * the binary but fold to the same float result.
+ */
+float player_ctrl_shake_target(float base, int held_968, int held_969,
+                               int boost, int b8b0_is_neg1, float db074,
+                               int dae9c_active, int daeac,
+                               int db048, int da1cc,
+                               int daed8_is_1, int db07c_is_0,
+                               float daedc, float da1dc);
+
 /* ── Cchr.2h: player/companion actor-state model ─────────────────────────
  *
  * The engine globals the shop-walker player draw (FUN_004552d0 L357-454)

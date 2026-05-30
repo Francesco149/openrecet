@@ -3141,6 +3141,12 @@ struct test_case {
     X(player_shake_damp_idle_settle_0998) \
     X(player_shake_damp_state_block) \
     X(player_shake_damp_held_reaches_state_block) \
+    X(player_shake_target_base_passthrough) \
+    X(player_shake_target_held_adds) \
+    X(player_shake_target_boost_multiplies_after_adds) \
+    X(player_shake_target_b8b0_and_rumble) \
+    X(player_shake_target_state_overrides) \
+    X(player_shake_target_proximity_ease) \
     X(player_pose_seeds_actor0) \
     X(player_pose_empties_party_slots) \
     X(player_pose_passes_char_id) \

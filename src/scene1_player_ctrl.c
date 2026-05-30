@@ -140,6 +140,39 @@ float player_ctrl_shake_damp_factor(int mode_nonzero, int grounded,
     return 0.82f;                           /* db048==2, or grounded fall-through */
 }
 
+float player_ctrl_shake_target(float base, int held_968, int held_969,
+                               int boost, int b8b0_is_neg1, float db074,
+                               int dae9c_active, int daeac,
+                               int db048, int da1cc,
+                               int daed8_is_1, int db07c_is_0,
+                               float daedc, float da1dc)
+{
+    float t = base;
+
+    if (held_968) t += 0.02f;        /* faddl 0x5199e8 — double in binary */
+    if (held_969) t += 0.08f;        /* faddl 0x519fb0 */
+    if (boost)    t *= 1.3f;         /* fmuls 0x519b90 */
+    if (b8b0_is_neg1) t += db074;    /* DAT_0438b8b0 == -1 → += _DAT_056db074 */
+
+    if (dae9c_active) {              /* DAT_056dae9c != 0 */
+        if (daeac & 2)        t += 0.06f;
+        else if (daeac & 1)   t += 0.03f;
+    }
+
+    if (db048 == 1)                  /* state override (later wins) */
+        t = 0.5f;
+    if (db048 == 4 || db048 == 5)
+        t = (da1cc == 0x29) ? 1.0f : 0.5f;
+
+    if (daed8_is_1 && db07c_is_0) {  /* §56: DAT_056daed8 == 1 is an INT test */
+        t = daedc - da1dc;
+        if (t > 1.0f) t = 1.0f;      /* clamp to [0,1] */
+        if (t < 0.0f) t = 0.0f;
+        t = 0.3f - t * 0.1f;         /* proximity-ease toward the target */
+    }
+    return t;
+}
+
 /* ── Cchr.2h: the player/companion actor-state model ─────────────────────
  *
  * The per-actor fields the shop-walker player draw (FUN_004552d0 L357-454,
