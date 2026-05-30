@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record-field indices */
+#include "chr_sprite_meta.h"     /* chr_meta_alloc/block, CHR_META_OFF_LUT, ANIM_END */
 #include "scene1_player_ctrl.h"
 #include "input.h"               /* g_input_state[].buttons */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos[3] */
@@ -720,26 +721,47 @@ int test_player_gauge_sp_channel_has_no_counter(void)
 
 /* ── W3: the per-frame free-roam walk controller (FUN_0048670f) ───────────── */
 
-int test_player_ctrl_tick_no_input_preserves_idle_pose(void)
+int test_player_ctrl_idle_animates_and_holds_position(void)
 {
-    /* With no d-pad held the tick must leave the seeded idle pose untouched:
-     * zero velocity (no integrate), idle facing octant 6 re-derived identically,
-     * anim/frame/counter/timer all as seeded. */
+    /* With no d-pad held the player stays put (zero velocity) and keeps idle
+     * facing (oct 6), but the idle animation BREATHES — retail's idle cycles
+     * a 4-frame loop at ~10 ticks/frame (runs/w3b-anim-watch), so the tick
+     * advances the anim every frame.  Set up a char-0 idle LUT (anim 0, frames
+     * 0..3 duration 10, frame-4 = ANIM_END wrap) to make the cadence concrete. */
+    chr_meta_shutdown();
+    if (!chr_meta_alloc()) T_FAIL("chr_meta_alloc failed");
+    uint8_t *blk = chr_meta_block(0);
+    for (int fr = 0; fr < 4; fr++) {
+        int32_t dur = 10;
+        memcpy(blk + CHR_META_OFF_LUT + (0 * 0x100 + fr * 6 + 5) * 4, &dur, 4);
+    }
+    int32_t end = (int32_t)CHR_META_ANIM_END;
+    memcpy(blk + CHR_META_OFF_LUT + (0 * 0x100 + 4 * 6 + 0) * 4, &end, 4);
+
     g_input_state[0].buttons = 0;
-    player_ctrl_pose_house_standing(0);
+    player_ctrl_pose_house_standing(0);          /* seeds anim 0, frame 2, timer 5, counter 25 */
     g_scene1_player_pos[0] = -0.3f;
     g_scene1_player_pos[1] = 0.0f;
     g_scene1_player_pos[2] = 9.35f;
 
-    int32_t rec_before[PC_ACTOR_REC_DWORDS];
-    memcpy(rec_before, player_ctrl_actor_record(0), sizeof rec_before);
-
     scene1_player_ctrl_tick();
 
+    const int32_t *rec = player_ctrl_actor_record(0);
     if (player_ctrl_actor_char(0) != 0) T_FAIL("tick changed actor0 char");
-    T_ASSERT_NEAR(g_scene1_player_pos[0], -0.3f);   /* didn't move */
+    T_ASSERT_NEAR(g_scene1_player_pos[0], -0.3f);    /* didn't move */
     T_ASSERT_NEAR(g_scene1_player_pos[2], 9.35f);
-    T_ASSERT_MEM_EQ(player_ctrl_actor_record(0), rec_before, sizeof rec_before);
+    if (rec[CHR_ACTOR_ANIM]   != 0)  T_FAIL("idle anim id should stay 0");
+    if (rec[CHR_ACTOR_FACING] != 6)  T_FAIL("idle facing should stay oct 6");
+    if (rec[CHR_ACTOR_FRAME]  != 2)  T_FAIL("frame holds at 2 (timer 5<10)");
+    if (rec[CHR_ACTOR_COUNTER] != 26) T_FAIL("idle is animating: counter should advance 25→26");
+    union { float f; int32_t i; } t; t.i = rec[CHR_ACTOR_TIMER];
+    T_ASSERT_NEAR(t.f, 6.0f);                        /* timer 5 → 6 (breathing) */
+
+    /* five more ticks (timer 6→10 then advance) → frame steps to 3. */
+    for (int i = 0; i < 5; i++) scene1_player_ctrl_tick();
+    if (player_ctrl_actor_record(0)[CHR_ACTOR_FRAME] != 3) T_FAIL("idle should breathe to frame 3");
+
+    chr_meta_shutdown();
     return 0;
 }
 

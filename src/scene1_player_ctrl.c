@@ -337,7 +337,6 @@ static int32_t s_actor_record[PC_NUM_ACTORS][PC_ACTOR_REC_DWORDS];
 static float s_player_vel[3]    = { 0.0f, 0.0f, 0.0f };
 static float s_player_facing    = 1.57079633f;   /* +π/2, idle facing */
 static int   s_facing_sticky    = 0;
-static int   s_was_moving       = 0;
 
 void player_ctrl_pose_house_standing(int player_char)
 {
@@ -352,7 +351,6 @@ void player_ctrl_pose_house_standing(int player_char)
     s_player_vel[0] = s_player_vel[1] = s_player_vel[2] = 0.0f;
     s_player_facing = 1.57079633f;   /* +π/2 (idle facing, oct 6) */
     s_facing_sticky = 0;
-    s_was_moving    = 0;
 
     /* actor 0 = the standing player (companion slots 1/2 await the
      * DAT_056da1d0 char ids + DAT_056da1e4.. position port). */
@@ -483,20 +481,20 @@ void scene1_player_ctrl_tick(void)
     s_player_vel[2] *= PC_WALK_DAMP;
 
     /* actor record: anim id (0 idle / 1 walk = daae8) + facing octant (dab00).
-     * Restart the walk cycle on the idle→walk edge; advance it while moving. */
+     * On an idle↔walk transition, restart the new animation at frame 0;
+     * otherwise let it continue so the idle's breathing loop keeps the phase
+     * it was seeded with.  chr_anim_tick advances the cycle EVERY frame —
+     * retail's idle animates too (a 4-frame breathing loop, ~10 ticks/frame;
+     * validated runs/w3b-anim-watch), not just the walk. */
     s_actor_record[0][CHR_ACTOR_FACING] = oct;
-    if (moving) {
-        if (!s_was_moving) {
-            s_actor_record[0][CHR_ACTOR_ANIM]    = 1;   /* walk */
-            s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
-            s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
-            union { float f; int32_t i; } z = { .f = 0.0f };
-            s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
-        }
-        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
-    } else if (s_was_moving) {
-        s_actor_record[0][CHR_ACTOR_ANIM]  = 0;         /* back to idle */
-        s_actor_record[0][CHR_ACTOR_FRAME] = 0;
+
+    int target_anim = moving ? 1 : 0;
+    if (s_actor_record[0][CHR_ACTOR_ANIM] != target_anim) {
+        union { float f; int32_t i; } z = { .f = 0.0f };
+        s_actor_record[0][CHR_ACTOR_ANIM]    = target_anim;
+        s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
+        s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
+        s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
     }
-    s_was_moving = moving;
+    chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
 }

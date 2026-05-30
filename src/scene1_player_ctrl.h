@@ -361,9 +361,10 @@ const int32_t *player_ctrl_actor_record(int i);
  * d-pad → facing angle → velocity accumulate/clamp/integrate/damp →
  * room-bounds clamp → actor anim/facing.  Ground-truth-validated against
  * runs/w3-walk-watch (retail, HOUSE walk-left); see the walk-physics §
- * in docs/findings/engine-quirks.md.  The walk-cycle *frame timing*
- * (chr_anim_tick dt) is mechanism-only, not yet frame-validated vs a retail
- * record capture (W3b); furniture/mesh collision (FUN_00483170) is W4.
+ * in docs/findings/engine-quirks.md.  The actor anim is advanced EVERY frame
+ * via chr_anim_tick (dt=1.0) for both idle and walk — retail's idle breathes
+ * (a 4-frame loop at ~10 ticks/frame, validated runs/w3b-anim-watch), not just
+ * the walk cycle.  Furniture/mesh collision (FUN_00483170) is W4.
  */
 void scene1_player_ctrl_tick(void);
 

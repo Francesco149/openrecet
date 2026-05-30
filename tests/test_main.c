@@ -3169,7 +3169,7 @@ struct test_case {
     X(player_gauge_falls_with_dir0) \
     X(player_gauge_settled_resets_counter_keeps_dir) \
     X(player_gauge_sp_channel_has_no_counter) \
-    X(player_ctrl_tick_no_input_preserves_idle_pose) \
+    X(player_ctrl_idle_animates_and_holds_position) \
     X(player_ctrl_dpad_angle_cardinals) \
     X(player_ctrl_dpad_angle_none_and_diagonal) \
     X(player_ctrl_facing_octant_cardinals) \
