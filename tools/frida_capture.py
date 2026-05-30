@@ -204,6 +204,20 @@ class CaptureConfig:
     # input at 0 every frame.
     input_trace_path: Path | None = None
     force_input:      bool = False
+    # TAS P3 — anchor-segmented input forcing (the auto_z_spam replacement).
+    # A JSONL superset of input_trace: `{"wait":NAME}` ops rebase the segment
+    # frame-0 onto the live anchor stream, so the logical trace lands the same
+    # on port and retail despite load jitter. Owns the input mask when set
+    # (checked before force_input) and implies anchor_trace.
+    input_segtrace_path: Path | None = None
+    # Per-frame global watch: list of {name, va, type:'f32'|'s32'|'u16'}. The
+    # agent reads each address once per frame and emits a `watch` record;
+    # the driver appends to <run_dir>/watch.jsonl. A general state probe for
+    # locating when a value begins changing under a forced input.
+    watch: list[dict[str, Any]] | None = None
+    # When true, tile captured frames into 3x3 montages and open them with the
+    # default Windows image viewer at the end of the run (quick inspection).
+    montage: bool = True
     # Window hide. When true the agent rewrites the engine's first
     # ShowWindow call to SW_HIDE and writes 1 to DAT_073dfca0 so the
     # engine's main loop doesn't sit in WaitMessage forever (the flag
@@ -383,6 +397,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     # the anchor stream here too even when --anchor-trace wasn't passed.
     f_anchor = (anchors_jsonl.open("w", buffering=1)
                 if (cfg.anchor_trace or cfg.capture_at_anchor) else None)
+    watch_jsonl = run_dir / "watch.jsonl"
+    f_watch = (watch_jsonl.open("w", buffering=1) if cfg.watch else None)
 
     captured: list[int] = []
     last_mask: int | None = None
@@ -534,6 +550,14 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                     "frame":  frame,
                 }) + "\n")
             f_log.write(f"[anchor] {name} @ frame={frame}\n")
+            return
+
+        if kind == "watch":
+            if f_watch is not None:
+                f_watch.write(json.dumps({
+                    "frame": int(p.get("frame", -1)),
+                    "vals":  p.get("vals", {}),
+                }) + "\n")
             return
 
         if kind == "auto_3d_scene_reached":
@@ -709,6 +733,36 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         f_log.write(f"[input] loaded {len(trace_entries)} entries from "
                     f"{cfg.input_trace_path} (force_input={cfg.force_input})\n")
 
+    # TAS P3 — anchor-segmented input trace. Same JSONL style as above, plus
+    # `{"wait":"ANCHOR_NAME"}` segment-break ops. Order is preserved (it is the
+    # logical timeline); `{frame,buttons}` entries are segment-relative. Lowers
+    # to the agent's segtrace state machine, which rebases on the live anchors.
+    segtrace_ops: list[dict[str, Any]] = []
+    if cfg.input_segtrace_path and cfg.input_segtrace_path.exists():
+        for raw in cfg.input_segtrace_path.read_text().splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            rec = json.loads(line)
+            if "wait" in rec:
+                segtrace_ops.append({"wait": str(rec["wait"])})
+            elif "capture" in rec:
+                # Screenshot the deterministic frame base+N (N frames after the
+                # current segment's anchor) — for visual state verification.
+                segtrace_ops.append({"capture": int(rec["capture"])})
+            elif "calltrace" in rec:
+                # Arm the call tracer anchor-relative (no absolute frame guess):
+                # N -> [base, base+N]; [start,len] -> [base+start, base+start+len].
+                ct = rec["calltrace"]
+                segtrace_ops.append({"calltrace": (
+                    [int(ct[0]), int(ct[1])] if isinstance(ct, list) else int(ct))})
+            else:
+                mask_val = rec["buttons"]
+                mask = int(mask_val, 16) if isinstance(mask_val, str) else int(mask_val)
+                segtrace_ops.append({"frame": int(rec["frame"]), "mask": mask})
+        f_log.write(f"[input] loaded {len(segtrace_ops)} segtrace ops from "
+                    f"{cfg.input_segtrace_path}\n")
+
     t0 = time.monotonic()
     init_cfg: dict[str, Any] = {
         "capture_frames": list(cfg.capture_frames),
@@ -741,6 +795,17 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["pre_3d_trace"] = True
     if cfg.anchor_trace:
         init_cfg["anchor_trace"] = True
+    if segtrace_ops:
+        # Anchor-segmented forcing owns the input mask and needs the anchor
+        # poll for its `wait` ops; the agent forces anchor_trace on too.
+        init_cfg["input_segtrace"] = segtrace_ops
+        init_cfg["anchor_trace"] = True
+    if cfg.watch:
+        init_cfg["watch"] = [
+            {"name": str(w["name"]), "va": int(w["va"]),
+             "type": str(w.get("type", "s32"))}
+            for w in cfg.watch
+        ]
     if cfg.capture_at_anchor:
         # Implies the anchor poll; the agent also forces anchor_trace on, but
         # set it here too so the `ready` echo + anchors.jsonl line up.
@@ -821,6 +886,16 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         f_leaf.close()
     if f_anchor is not None:
         f_anchor.close()
+    if f_watch is not None:
+        f_watch.close()
+
+    # Tile captured frames into 3x3 montages + open in the Windows viewer.
+    if cfg.montage and captured:
+        try:
+            from montage_frames import build_montages
+            build_montages(run_dir, do_open=True)
+        except Exception as e:  # never fail a capture over the montage step
+            f_log.write(f"[montage] skipped: {e}\n")
 
     return CaptureResult(
         exit_code=exit_code,
@@ -912,9 +987,23 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--input-trace", type=Path, default=None,
                     help="sparse JSONL trace ({frame, buttons:'0xNNNN'}) to "
                          "replay against retail. Implies --force-input.")
+    ap.add_argument("--input-segtrace", type=Path, default=None,
+                    help="anchor-segmented JSONL trace: same as --input-trace "
+                         "plus {\"wait\":\"ANCHOR\"} ops that rebase following "
+                         "frames onto the live anchor stream (deterministic "
+                         "across load jitter). Supersedes --auto-z-spam; "
+                         "implies --anchor-trace.")
     ap.add_argument("--force-input", action="store_true",
                     help="overwrite the engine's input mask each frame "
                          "with the trace value (or 0 if no trace given)")
+    ap.add_argument("--watch", action="append", default=None,
+                    metavar="NAME=0xVA[:type]",
+                    help="per-frame global watch (repeatable). type is "
+                         "f32|s32|u16 (default s32). Writes watch.jsonl. "
+                         "e.g. --watch px=0x056da1d8:f32 --watch cc08=0x0438cc08")
+    ap.add_argument("--no-montage", action="store_true",
+                    help="don't tile captured frames into 3x3 montages / "
+                         "auto-open them in the Windows image viewer")
     ap.add_argument("--hide-window", action="store_true",
                     help="rewrite the engine's first ShowWindow to SW_HIDE "
                          "and force its pause flag (DAT_073dfca0) to 1, so "
@@ -1091,6 +1180,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.auto_z_spam and args.input_trace is not None:
         ap.error("--auto-z-spam and --input-trace are mutually exclusive")
+    if args.input_segtrace is not None and (
+            args.input_trace is not None or args.auto_z_spam):
+        ap.error("--input-segtrace is mutually exclusive with --input-trace "
+                 "and --auto-z-spam (it owns the input mask)")
     if args.auto_3d_trace and args.pre_3d_trace:
         ap.error("--auto-3d-trace and --pre-3d-trace are mutually exclusive")
 
@@ -1107,6 +1200,19 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as e:
             ap.error(str(e))
 
+    watch: list[dict[str, Any]] | None = None
+    if args.watch:
+        watch = []
+        for spec in args.watch:
+            # NAME=0xVA[:type]
+            try:
+                name, rest = spec.split("=", 1)
+                va_str, _, typ = rest.partition(":")
+                watch.append({"name": name, "va": int(va_str, 0),
+                              "type": typ or "s32"})
+            except ValueError:
+                ap.error(f"--watch: expected NAME=0xVA[:type], got {spec!r}")
+
     cfg = CaptureConfig(
         capture_frames=capture_frames,
         max_frames=args.max_frames,
@@ -1115,6 +1221,9 @@ def main(argv: list[str] | None = None) -> int:
         auto_start_server=not args.no_auto_start,
         server_exe=args.server_exe,
         input_trace_path=args.input_trace,
+        input_segtrace_path=args.input_segtrace,
+        watch=watch,
+        montage=not args.no_montage,
         force_input=args.force_input or args.input_trace is not None,
         hide_window=args.hide_window,
         turbo=args.turbo, turbo_step_ms=args.turbo_step_ms,

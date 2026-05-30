@@ -602,6 +602,102 @@ let g_cap_anchor_unfired   = new Set();  // distinct names not yet fired
 let g_cap_anchor_pending   = new Set();  // resolved target frames pending
 let g_cap_anchor_done_sent = false;
 
+// TAS P3 retail side — anchor-segmented input forcing (`--input-segtrace`),
+// the deterministic replacement for the `auto_z_spam` hack. The op list is a
+// strict superset of the sparse {frame,mask} input trace: a `{wait:NAME}` op
+// breaks the timeline into segments, each counted from the frame its opening
+// anchor fired. So a logical trace ("mash A at title; wait HOUSE_FREEROAM;
+// spam A through the dialogue; wait HOUSE_FREEROAM again [2nd load]; spam the
+// 3D dialogue then hold UP") lowers identically onto port and retail despite
+// load-frame jitter. Two key properties:
+//   * spam-until-anchor: a segment's entries may run arbitrarily long; the
+//     terminating `wait` SHORT-CIRCUITS the moment its anchor fires (at a
+//     frame strictly after the segment was entered), abandoning the remaining
+//     entries. This is how we A-spam an unknown-length dialogue and stop
+//     exactly when the next load completes.
+//   * an anchor may recur (HOUSE_FREEROAM fires twice on a new game — the
+//     intro forces a second load, engine-quirks §55); a later `wait` on the
+//     same name resolves against the NEXT firing (strictly > segment entry).
+// With no `wait` ops the single segment has base 0 → identical to an absolute
+// trace. The fired-frame map is fed by segtraceOnAnchor() from
+// anchorCaptureSchedule(); mirrors the resolve-on-fire shape of g_cap_anchor_*.
+let g_segtrace_active   = false;
+let g_segtrace_segments = [];   // [{entries:[{frame,mask}], wait:str|null}]
+let g_segtrace_seg      = 0;    // current segment index
+let g_segtrace_entry    = 0;    // next entry within the current segment
+let g_segtrace_base     = 0;    // absolute frame of the current segment's frame 0
+let g_segtrace_base_arm = 0;    // frame the current segment was entered (wait guard)
+let g_segtrace_sticky   = 0;    // last applied mask (held between entries)
+let g_segtrace_fired    = {};   // anchor name -> frame it most recently fired
+let g_ct_windows        = [];   // [[lo,hi],...] anchor-relative call-trace windows
+let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows authoritative
+
+// Lower a flat op list into segments: a maximal run of entries terminated by
+// the `wait` that follows them (or null for the last). Op kinds:
+//   {wait:NAME}    — segment break; next segment's frame 0 = NAME's fire frame
+//   {frame,mask}   — set the input mask at base+frame
+//   {capture:N}    — screenshot the deterministic frame base+N (a few frames
+//                    after this segment's anchor, for visual state checks)
+//   {calltrace:N}  — arm the call tracer for [base, base+N] (N frames from this
+//                    segment's anchor) — anchor-relative, no absolute frames
+function segtraceBuildSegments(ops) {
+    const segs = [{entries: [], captures: [], calltraces: [], wait: null}];
+    for (let i = 0; i < ops.length; i++) {
+        const op = ops[i];
+        if (op && typeof op.wait === 'string') {
+            segs[segs.length - 1].wait = op.wait;
+            segs.push({entries: [], captures: [], calltraces: [], wait: null});
+        } else if (op && op.capture !== undefined) {
+            segs[segs.length - 1].captures.push(op.capture | 0);
+        } else if (op && op.calltrace !== undefined) {
+            // Scalar N -> [0, N]; [start, len] -> base-relative window.
+            const ct = op.calltrace;
+            segs[segs.length - 1].calltraces.push(
+                Array.isArray(ct) ? [ct[0] | 0, ct[1] | 0] : [0, ct | 0]);
+        } else {
+            segs[segs.length - 1].entries.push(
+                {frame: op.frame | 0, mask: (op.mask | 0) & 0xffff});
+        }
+    }
+    return segs;
+}
+
+// Run once when a segment becomes active (base known): queue its capture
+// frames (base+N) for the Present hook and arm its call-trace windows
+// ([base, base+N]) for callTraceShouldEmit. Both land on deterministic,
+// anchor-relative frames regardless of load jitter.
+function segtraceOnSegmentEnter(seg) {
+    if (!seg) return;
+    for (let i = 0; i < seg.captures.length; i++) {
+        const tgt = g_segtrace_base + seg.captures[i];
+        g_capture_pending.add(tgt);
+        log('segtrace: capture scheduled at base+' + seg.captures[i] +
+            ' -> frame ' + tgt);
+    }
+    for (let i = 0; i < seg.calltraces.length; i++) {
+        const start = seg.calltraces[i][0], len = seg.calltraces[i][1];
+        const lo = g_segtrace_base + start, hi = lo + len;
+        g_ct_windows.push([lo, hi]);
+        log('segtrace: call-trace armed for frames ' + lo + '..' + hi +
+            ' (base+' + start + '..base+' + (start + len) + ')');
+    }
+}
+
+// Per-frame global watch (`--watch NAME=0xVA:type`). When set, the agent
+// reads each address once per input_poll LEAVE and emits a single
+// {kind:"watch", frame, vals:{name:value}} record. A lightweight,
+// general-purpose state probe — e.g. player pos DAT_056da1d8/dc/e0 (f32),
+// controller state DAT_0438cc08 (s32), record-active count DAT_0076b964 (s32)
+// — for locating *when* a state begins changing under a forced input.
+let g_watch = [];                    // [{name:str, va:int, type:'f32'|'s32'|'u16'}]
+
+function watchRead(w) {
+    const p = rva(w.va);
+    if (w.type === 'f32') return p.readFloat();
+    if (w.type === 'u16') return p.readU16();
+    return p.readS32();
+}
+
 // Cchr.0 table-B dump mode.  When `dump_records_b` is set the agent polls
 // the records_b active-count (DAT_0076b964) every Present and anchors the
 // dump window on the FIRST frame where it goes non-zero — i.e. when the 3D
@@ -1017,7 +1113,12 @@ function installInputHook() {
                 // engine ran multiple ticks between Presents (shouldn't
                 // — input_poll is called once per tick — but defensive)
                 // this still picks the most-recent applicable entry.
-                if (g_input_force_active) {
+                if (g_segtrace_active) {
+                    // Anchor-segmented forcing (supersedes auto_z_spam).
+                    // segtraceTick rebases on the live anchor stream so the
+                    // logical trace lands identically despite load jitter.
+                    rva(ADDR.var_input_mask).writeU16(segtraceTick(fn));
+                } else if (g_input_force_active) {
                     while (g_input_trace_i < g_input_trace.length &&
                            g_input_trace[g_input_trace_i].frame <= fn) {
                         g_input_last_forced =
@@ -1043,6 +1144,15 @@ function installInputHook() {
                       t_ms: nowMs(),
                       frame: fn,
                       buttons: mask});
+
+                if (g_watch.length) {
+                    const vals = {};
+                    for (let i = 0; i < g_watch.length; i++) {
+                        try { vals[g_watch[i].name] = watchRead(g_watch[i]); }
+                        catch (e) { vals[g_watch[i].name] = null; }
+                    }
+                    send({kind: 'watch', frame: fn, vals: vals});
+                }
             } catch (e) {
                 err('input_poll.onLeave', e.message);
             }
@@ -1636,8 +1746,20 @@ function callTraceShouldEmit() {
         // sets g_auto_3d_seen + sends pre_3d_trace_done on first call.
         return !g_auto_3d_seen;
     }
+    const fn = g_manual_frame_counter;
+    // Anchor-relative windows from segtrace `{calltrace:...}` ops: deterministic
+    // arming keyed to segment anchors, not absolute frames. When the trace
+    // declares ANY calltrace op (window mode), the windows are authoritative for
+    // the WHOLE run — emit iff inside an armed window — so frames before the
+    // first window is armed are NOT traced (a still-empty list ≠ "trace all").
+    if (g_ct_window_mode) {
+        for (let i = 0; i < g_ct_windows.length; i++) {
+            if (fn >= g_ct_windows[i][0] && fn <= g_ct_windows[i][1]) return true;
+        }
+        return false;
+    }
     if (g_call_trace_frames === null) return true;
-    return g_call_trace_frames.has(g_manual_frame_counter);
+    return g_call_trace_frames.has(fn);
 }
 
 // Hook DrawIndexedPrimitive once the D3D device is live and mark
@@ -1702,7 +1824,47 @@ function anchorIsHouseFreeroam(scene, loading) {
 // Present.onEnter pre-flip, the same sample point the normal capture path
 // uses); a future offset is queued; a past offset is dropped. Removes NAME
 // from g_cap_anchor_unfired so the shutdown check knows it has fired.
+// Record an anchor's fire-frame for the input-segtrace state machine. Called
+// for every emitted anchor (incl. BOOT) from anchorCaptureSchedule, so a
+// `wait` op can resolve against any anchor name. Latest-wins: an anchor that
+// re-fires (e.g. a second HOUSE_FREEROAM after a reload) updates the frame.
+function segtraceOnAnchor(name, frame) {
+    g_segtrace_fired[name] = frame;
+}
+
+// Resolve the input mask for engine frame `fn` under an anchor-segmented
+// trace. Each frame: if the current segment's terminating `wait` anchor has
+// fired strictly after the segment was entered, advance to the next segment
+// (rebasing onto the fire-frame and abandoning any remaining entries — the
+// spam-until-anchor short-circuit); otherwise apply this segment's entries
+// whose absolute frame (base + frame) has arrived. The sticky mask holds.
+function segtraceTick(fn) {
+    for (;;) {
+        const seg = g_segtrace_segments[g_segtrace_seg];
+        if (!seg) break;
+        if (seg.wait !== null) {
+            const af = g_segtrace_fired[seg.wait];
+            if (af !== undefined && af > g_segtrace_base_arm) {
+                g_segtrace_seg++;
+                g_segtrace_base     = af;
+                g_segtrace_base_arm = af;
+                g_segtrace_entry    = 0;
+                segtraceOnSegmentEnter(g_segtrace_segments[g_segtrace_seg]);
+                continue;  // re-evaluate the next segment this same frame
+            }
+        }
+        while (g_segtrace_entry < seg.entries.length &&
+               g_segtrace_base + seg.entries[g_segtrace_entry].frame <= fn) {
+            g_segtrace_sticky = seg.entries[g_segtrace_entry].mask & 0xffff;
+            g_segtrace_entry++;
+        }
+        break;
+    }
+    return g_segtrace_sticky;
+}
+
 function anchorCaptureSchedule(name, frame, devicePtr) {
+    segtraceOnAnchor(name, frame);
     g_cap_anchor_unfired.delete(name);
     for (let i = 0; i < g_cap_anchor_reqs.length; i++) {
         const req = g_cap_anchor_reqs[i];
@@ -3164,6 +3326,41 @@ rpc.exports = {
         g_input_last_forced  = 0;
         g_input_force_active = !!config.force_input;
 
+        // TAS P3 — anchor-segmented input forcing. input_segtrace is the
+        // ordered op list ({wait:NAME} | {frame:k, mask:int}); when present it
+        // owns the input mask (checked before force_input / auto_z_spam) and
+        // implies the anchor poll (a `wait` op needs the fired-frame stream).
+        g_segtrace_active   = false;
+        g_segtrace_segments = [];
+        g_segtrace_seg      = 0;
+        g_segtrace_entry    = 0;
+        g_segtrace_base     = 0;
+        g_segtrace_base_arm = 0;
+        g_segtrace_sticky   = 0;
+        g_segtrace_fired    = {};
+        g_ct_windows        = [];
+        g_ct_window_mode    = false;
+        if (Array.isArray(config.input_segtrace) &&
+            config.input_segtrace.length > 0) {
+            g_segtrace_segments = segtraceBuildSegments(config.input_segtrace);
+            g_segtrace_active = true;
+            // Window mode: if any segment declares a calltrace op, the call
+            // tracer emits ONLY inside armed anchor-relative windows.
+            g_ct_window_mode = g_segtrace_segments.some(
+                function (s) { return s.calltraces.length > 0; });
+            // Segment 0 has base 0 from boot; arm its captures/call-trace now.
+            segtraceOnSegmentEnter(g_segtrace_segments[0]);
+        }
+
+        // Per-frame global watch. [{name, va, type}] read each input_poll.
+        g_watch = Array.isArray(config.watch)
+            ? config.watch.map(function (w) {
+                  return {name: String(w.name), va: w.va | 0,
+                          type: (w.type === 'f32' || w.type === 'u16')
+                                ? w.type : 's32'};
+              })
+            : [];
+
         g_hide_window         = !!config.hide_window;
         g_show_window_handled = false;
 
@@ -3259,6 +3456,9 @@ rpc.exports = {
         g_anchor_initialized   = false;
         g_anchor_prev_scene    = 0;
         g_anchor_prev_loading  = false;
+        // A `wait` op resolves against the live anchor stream, so segtrace
+        // needs the anchor poll running regardless of --anchor-trace.
+        if (g_segtrace_active) g_anchor_trace_enabled = true;
 
         // TAS P2 retail — anchor-relative capture. capture_at_anchor is a
         // list of {name, offset}; each resolves to a capture at
