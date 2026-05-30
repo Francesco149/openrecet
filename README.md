@@ -18,6 +18,9 @@ copyrighted content** — you bring your own copy of the game. MIT licensed
 reproduced close to 1:1; the 2D HUD and character sprites on the retail
 side are still being worked on.*
 
+In memory of Andrew Dice / [@SpaceDrakeCF](https://x.com/SpaceDrakeCF)
+and Carpe Fulgur.
+
 ## Status — early, not yet playable
 
 This is **early-stage** and **not playable yet**. A real boot path runs
