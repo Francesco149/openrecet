@@ -99,9 +99,6 @@ def main(argv: list[str] | None = None) -> int:
                     help="leave audio output audible. Default silences it "
                          "since this script is typically a background batch "
                          "and BGM looping over and over is annoying.")
-    ap.add_argument("--open", action="store_true",
-                    help="open the rebuilt index.html in the default Windows "
-                         "viewer when done (WSL)")
     args = ap.parse_args(argv)
 
     scenarios = discover_scenarios()
@@ -130,8 +127,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"index: {OUT_DIR / 'index.html'}")
     print(f"open in browser:")
     print(f"  file://{OUT_DIR / 'index.html'}")
-    if args.open:
-        comparison_page.open_in_viewer(OUT_DIR / "index.html")
 
     n_present = sum(1 for it in items if it["captures"])
     n_missing = len(items) - n_present

@@ -804,12 +804,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-regen", action="store_true",
                     help="after a --target both run, do NOT rebuild the "
                          "interactive comparison gallery "
-                         "(runs/comparisons/index.html). Default rebuilds it "
-                         "and opens it in the Windows viewer. No effect for "
+                         "(runs/comparisons/index.html). Default rebuilds it. "
+                         "Push it to the llm-feed to view. No effect for "
                          "single-target runs.")
-    ap.add_argument("--no-open", action="store_true",
-                    help="rebuild the comparison gallery after a --target both "
-                         "run but don't auto-open it in the viewer.")
     args = ap.parse_args(argv)
 
     if args.target in ("openrecet", "both"):
@@ -918,7 +915,7 @@ def main(argv: list[str] | None = None) -> int:
     # (Skipped under --no-regen, e.g. when regen-comparisons.py is driving the
     # batch and will do its own final regen.)
     if args.target == "both" and not args.no_regen:
-        _regen_comparison_gallery(scenarios, open_viewer=not args.no_open)
+        _regen_comparison_gallery(scenarios)
 
     if args.bless:
         return 0
@@ -927,9 +924,9 @@ def main(argv: list[str] | None = None) -> int:
     return 0 if total_fail == 0 else 1
 
 
-def _regen_comparison_gallery(scen_paths: list[Path], *, open_viewer: bool) -> None:
+def _regen_comparison_gallery(scen_paths: list[Path]) -> None:
     """Rebuild runs/comparisons/index.html (interactive atlas gallery) from the
-    latest --target both runs, optionally opening it in the Windows viewer."""
+    latest --target both runs. Push it to the llm-feed to view."""
     try:
         import comparison_page
     except ImportError as e:  # never fail a run over the gallery step
@@ -945,8 +942,6 @@ def _regen_comparison_gallery(scen_paths: list[Path], *, open_viewer: bool) -> N
     index = out_dir / "index.html"
     comparison_page.render_html(items, index)
     print(f"  comparison gallery → {index.relative_to(ROOT)}")
-    if open_viewer:
-        comparison_page.open_in_viewer(index)
 
 
 if __name__ == "__main__":

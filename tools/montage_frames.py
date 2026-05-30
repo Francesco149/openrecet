@@ -4,12 +4,13 @@
 The Frida/port capture harnesses drop per-frame screenshots into
 ``<run-dir>/frames/`` (``frame_NNNNN.bmp``). Eyeballing a dozen of them one at a
 time is slow; this groups every 9 (sorted by engine frame) into a labelled 3x3
-montage PNG and — on WSL — opens each with the default Windows image viewer.
+montage PNG written to ``<run-dir>/``. Push the montage to the llm-feed to view
+it (the auto-launch of the Windows image viewer was removed — see push_comparison.py
+and the llm-feed workflow).
 
 Usage::
 
     python3 tools/montage_frames.py --run-dir runs/house-zspam2
-    python3 tools/montage_frames.py --run-dir runs/foo --no-open   # just write
 
 The grid reads left-to-right, top-to-bottom in frame order; each cell is
 captioned with its engine frame number so a montage doubles as a timeline.
@@ -20,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -57,20 +57,7 @@ def collect_frames(frames_dir: Path) -> list[Path]:
     return [by_no[n] for n in sorted(by_no)]
 
 
-def _open_windows(path: Path) -> None:
-    """Open with the default Windows viewer (WSL); no-op + note otherwise."""
-    try:
-        win = subprocess.run(["wslpath", "-w", str(path.resolve())],
-                             capture_output=True, text=True, check=True).stdout.strip()
-        # `explorer.exe <file>` launches the file's default handler. It returns
-        # nonzero even on success, so don't check=True here.
-        subprocess.run(["explorer.exe", win], check=False)
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        print(f"montage_frames: could not auto-open {path} (not on WSL?)",
-              file=sys.stderr)
-
-
-def build_montages(run_dir: Path, do_open: bool = True) -> list[Path]:
+def build_montages(run_dir: Path) -> list[Path]:
     frames_dir = run_dir / "frames"
     if not frames_dir.is_dir():
         print(f"montage_frames: no frames dir at {frames_dir}", file=sys.stderr)
@@ -108,9 +95,6 @@ def build_montages(run_dir: Path, do_open: bool = True) -> list[Path]:
         out_paths.append(out)
         print(f"montage_frames: wrote {out} ({len(chunk)} frames)")
 
-    if do_open:
-        for out in out_paths:
-            _open_windows(out)
     return out_paths
 
 
@@ -119,10 +103,8 @@ def main(argv: list[str] | None = None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--run-dir", type=Path, required=True,
                     help="capture run dir containing frames/")
-    ap.add_argument("--no-open", action="store_true",
-                    help="write montage PNGs but don't launch the viewer")
     args = ap.parse_args(argv)
-    paths = build_montages(args.run_dir, do_open=not args.no_open)
+    paths = build_montages(args.run_dir)
     return 0 if paths else 1
 
 

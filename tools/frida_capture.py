@@ -889,11 +889,12 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     if f_watch is not None:
         f_watch.close()
 
-    # Tile captured frames into 3x3 montages + open in the Windows viewer.
+    # Tile captured frames into 3x3 montage PNG(s) under run_dir. (Auto-open in
+    # the Windows viewer was removed — push the montage to the llm-feed to view.)
     if cfg.montage and captured:
         try:
             from montage_frames import build_montages
-            build_montages(run_dir, do_open=True)
+            build_montages(run_dir)
         except Exception as e:  # never fail a capture over the montage step
             f_log.write(f"[montage] skipped: {e}\n")
 

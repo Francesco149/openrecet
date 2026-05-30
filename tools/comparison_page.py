@@ -32,7 +32,6 @@ from __future__ import annotations
 import datetime as dt
 import html
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -299,21 +298,6 @@ def collect_artifacts(scenarios: list[Path], runs_dir: Path, out_dir: Path,
                 item["run_dir_rel"] = str(run_dir)
         items.append(item)
     return items
-
-
-# ─── viewer ─────────────────────────────────────────────────────────────────
-
-
-def open_in_viewer(path: Path) -> None:
-    """Open `path` with the default Windows viewer (WSL); no-op + note
-    otherwise. Factored from montage_frames._open_windows."""
-    try:
-        win = subprocess.run(["wslpath", "-w", str(path.resolve())],
-                             capture_output=True, text=True, check=True).stdout.strip()
-        subprocess.run(["explorer.exe", win], check=False)
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        print(f"comparison_page: could not auto-open {path} (not on WSL?)",
-              file=sys.stderr)
 
 
 # ─── HTML ───────────────────────────────────────────────────────────────────
