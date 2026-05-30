@@ -411,6 +411,7 @@ struct test_case {
     X(input_trace_lookup_empty_trace) \
     X(input_trace_load_round_trips_real_file) \
     X(input_trace_load_missing_file_returns_zero) \
+    X(input_trace_parse_grows_past_old_fixed_cap) \
     X(input_trace_record_emits_first_frame_and_changes) \
     X(input_trace_record_reopen_truncates) \
     X(input_trace_record_when_closed_is_noop) \

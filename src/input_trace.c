@@ -207,10 +207,51 @@ static int parse_entry(const char **pp, const char *end,
     return 1;
 }
 
+void input_trace_free(struct input_trace *trace)
+{
+    if (!trace) return;
+    free(trace->entries);
+    trace->entries = NULL;
+    trace->count   = 0;
+    trace->cap     = 0;
+}
+
+/* Append one entry, growing the heap table on demand (doubling, seeded
+ * at 256). Returns 1 on success, 0 if the sanity ceiling is hit or the
+ * allocation fails — both reported loudly so a runaway file isn't a
+ * silent truncation like the old fixed-array cap. */
+static int trace_push(struct input_trace *out, struct input_trace_entry e)
+{
+    if (out->count >= INPUT_TRACE_MAX_ENTRIES) {
+        fprintf(stderr,
+            "input_trace: exceeded %u-entry sanity ceiling — refusing "
+            "(corrupt or runaway trace?)\n",
+            (unsigned)INPUT_TRACE_MAX_ENTRIES);
+        return 0;
+    }
+    if (out->count >= out->cap) {
+        size_t ncap = out->cap ? out->cap * 2 : 256;
+        struct input_trace_entry *ne =
+            realloc(out->entries, ncap * sizeof *ne);
+        if (!ne) {
+            fprintf(stderr, "input_trace: out of memory growing table to "
+                            "%zu entries\n", ncap);
+            return 0;
+        }
+        out->entries = ne;
+        out->cap     = ncap;
+    }
+    out->entries[out->count++] = e;
+    return 1;
+}
+
 int input_trace_parse_buf(const char *buf, size_t len, struct input_trace *out)
 {
     if (!buf || !out) return 0;
-    out->count = 0;
+    /* Start clean: drop any prior table so the caller can reuse an
+     * `out` across loads. Partial state on failure is preserved (the
+     * entries parsed before the bad line) for diagnostics. */
+    input_trace_free(out);
 
     const char *p   = buf;
     const char *end = buf + len;
@@ -221,13 +262,11 @@ int input_trace_parse_buf(const char *buf, size_t len, struct input_trace *out)
         skip_ws_and_comments(&p, end);
         if (p >= end) break;
 
-        if (out->count >= INPUT_TRACE_MAX_ENTRIES) return 0;
-
         struct input_trace_entry e = {0};
         if (!parse_entry(&p, end, &e)) return 0;
 
         if (have_prev && e.frame <= last_frame) return 0;
-        out->entries[out->count++] = e;
+        if (!trace_push(out, e)) return 0;
         last_frame = e.frame;
         have_prev  = 1;
     }
@@ -240,16 +279,39 @@ int input_trace_load(const char *path, struct input_trace *out)
     FILE *fp = fopen(path, "rb");
     if (!fp) return 0;
 
-    /* Bounded read — 1 MiB is plenty for any sane scenario (a fully
-     * dense 1-hour 60FPS trace would still fit). */
-    static char buf[1u << 20];
-    size_t n = fread(buf, 1, sizeof buf, fp);
+    /* Slurp the whole file into a growing heap buffer — no fixed cap,
+     * so a full-game trace (multi-MiB) loads instead of silently
+     * failing. Chunked read works on non-seekable inputs too. */
+    char  *buf = NULL;
+    size_t len = 0, cap = 0;
+    for (;;) {
+        if (len == cap) {
+            size_t ncap = cap ? cap * 2 : (1u << 16);
+            char *nb = realloc(buf, ncap);
+            if (!nb) {
+                fprintf(stderr, "input_trace: out of memory reading %s\n", path);
+                free(buf);
+                fclose(fp);
+                return 0;
+            }
+            buf = nb;
+            cap = ncap;
+        }
+        size_t got = fread(buf + len, 1, cap - len, fp);
+        len += got;
+        if (got == 0) break;   /* EOF or error */
+    }
+    int read_err = ferror(fp);
     fclose(fp);
-    if (n == sizeof buf) {
-        out->count = 0;
+    if (read_err) {
+        fprintf(stderr, "input_trace: read error on %s\n", path);
+        free(buf);
         return 0;
     }
-    return input_trace_parse_buf(buf, n, out);
+
+    int rc = input_trace_parse_buf(buf, len, out);
+    free(buf);
+    return rc;
 }
 
 uint16_t input_trace_lookup(const struct input_trace *trace, uint32_t frame)

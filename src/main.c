@@ -1245,6 +1245,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             fprintf(stderr,
                 "openrecet: failed to load input trace %s — replay disabled\n",
                 g_input_trace_replay_path);
+            input_trace_free(&g_replay_trace);   /* drop any partial table */
             g_input_trace_replay_path = NULL;
         }
     }
@@ -1587,6 +1588,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     audio_shutdown();
     audio_trace_close();
     input_trace_record_close();
+    input_trace_free(&g_replay_trace);
     sprite_destroy(&g_show_sprite);
     if (g_show_mesh) { mesh_free(g_show_mesh); g_show_mesh = NULL; }
     if (g_house_preview_mesh) {

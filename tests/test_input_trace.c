@@ -24,6 +24,7 @@ int test_input_trace_parse_single_line(void)
     T_ASSERT_EQ_U(tr.count, 1);
     T_ASSERT_EQ_U(tr.entries[0].frame, 0);
     T_ASSERT_EQ_U(tr.entries[0].mask,  0);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -40,6 +41,7 @@ int test_input_trace_parse_sparse_three_lines(void)
     T_ASSERT_EQ_U(tr.entries[1].mask,  0x10);
     T_ASSERT_EQ_U(tr.entries[2].frame, 31);
     T_ASSERT_EQ_U(tr.entries[2].mask,  0);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -53,6 +55,7 @@ int test_input_trace_parse_decimal_buttons(void)
     T_ASSERT(input_trace_parse_buf(buf, sizeof(buf) - 1, &tr) == 1);
     T_ASSERT_EQ_U(tr.count, 2);
     T_ASSERT_EQ_U(tr.entries[1].mask, 16);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -68,6 +71,7 @@ int test_input_trace_parse_skips_comments_and_blank_lines(void)
     T_ASSERT(input_trace_parse_buf(buf, sizeof(buf) - 1, &tr) == 1);
     T_ASSERT_EQ_U(tr.count, 2);
     T_ASSERT_EQ_U(tr.entries[1].frame, 30);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -80,6 +84,7 @@ int test_input_trace_parse_buttons_key_first_also_works(void)
     T_ASSERT_EQ_U(tr.count, 1);
     T_ASSERT_EQ_U(tr.entries[0].frame, 30);
     T_ASSERT_EQ_U(tr.entries[0].mask,  0x10);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -92,6 +97,7 @@ int test_input_trace_parse_rejects_out_of_order_frames(void)
     T_ASSERT(input_trace_parse_buf(buf, sizeof(buf) - 1, &tr) == 0);
     /* First entry was accepted before the second one failed. */
     T_ASSERT_EQ_U(tr.count, 1);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -105,6 +111,7 @@ int test_input_trace_parse_rejects_duplicate_frames(void)
         "{\"frame\":10,\"buttons\":1}\n";
     struct input_trace tr = {0};
     T_ASSERT(input_trace_parse_buf(buf, sizeof(buf) - 1, &tr) == 0);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -142,12 +149,12 @@ int test_input_trace_parse_empty_buffer(void)
 
 int test_input_trace_lookup_before_first_returns_zero(void)
 {
+    const char buf[] = "{\"frame\":10,\"buttons\":\"0x10\"}\n";
     struct input_trace tr = {0};
-    tr.entries[0].frame = 10;
-    tr.entries[0].mask  = 0x10;
-    tr.count = 1;
+    T_ASSERT(input_trace_parse_buf(buf, sizeof(buf) - 1, &tr) == 1);
     T_ASSERT_EQ_U(input_trace_lookup(&tr, 0), 0);
     T_ASSERT_EQ_U(input_trace_lookup(&tr, 9), 0);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -155,16 +162,18 @@ int test_input_trace_lookup_holds_between_entries(void)
 {
     /* Sparse semantics: mask set at frame 30 stays in effect at
      * frames 31..N until the next entry. */
+    const char buf[] =
+        "{\"frame\":0,\"buttons\":0}\n"
+        "{\"frame\":30,\"buttons\":\"0x10\"}\n"
+        "{\"frame\":31,\"buttons\":0}\n";
     struct input_trace tr = {0};
-    tr.entries[0] = (struct input_trace_entry){0, 0};
-    tr.entries[1] = (struct input_trace_entry){30, 0x10};
-    tr.entries[2] = (struct input_trace_entry){31, 0};
-    tr.count = 3;
+    T_ASSERT(input_trace_parse_buf(buf, sizeof(buf) - 1, &tr) == 1);
 
     T_ASSERT_EQ_U(input_trace_lookup(&tr, 29), 0);
     T_ASSERT_EQ_U(input_trace_lookup(&tr, 30), 0x10);
     T_ASSERT_EQ_U(input_trace_lookup(&tr, 31), 0);
     T_ASSERT_EQ_U(input_trace_lookup(&tr, 99999), 0);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -196,6 +205,7 @@ int test_input_trace_load_round_trips_real_file(void)
     T_ASSERT_EQ_U(tr.count, 2);
     T_ASSERT_EQ_U(tr.entries[1].frame, 42);
     T_ASSERT_EQ_U(tr.entries[1].mask,  0x10);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -203,6 +213,43 @@ int test_input_trace_load_missing_file_returns_zero(void)
 {
     struct input_trace tr = {0};
     T_ASSERT(input_trace_load("/tmp/openrecet_does_not_exist_xyzzy", &tr) == 0);
+    return 0;
+}
+
+int test_input_trace_parse_grows_past_old_fixed_cap(void)
+{
+    /* Regression: the table used to be a fixed 4096-entry array, so any
+     * longer trace silently failed the *whole* load (an 8256-entry
+     * trace returned 0 → "replay disabled"). The heap table must now
+     * grow to hold N ≫ 4096 entries. Build a dense N-line trace
+     * (strictly-increasing frames) and confirm every entry round-trips. */
+    const uint32_t N = 9000;   /* > the old 4096 cap, ~ the 8256 that bit us */
+    /* Each line ≤ 32 bytes; size generously. */
+    size_t capb = (size_t)N * 40 + 16;
+    char *buf = malloc(capb);
+    T_ASSERT(buf != NULL);
+
+    size_t off = 0;
+    for (uint32_t i = 0; i < N; i++) {
+        int w = snprintf(buf + off, capb - off,
+                         "{\"frame\":%u,\"buttons\":\"0x%04x\"}\n",
+                         (unsigned)i, (unsigned)(i & 0x3fff));
+        T_ASSERT(w > 0 && (size_t)w < capb - off);
+        off += (size_t)w;
+    }
+
+    struct input_trace tr = {0};
+    int rc = input_trace_parse_buf(buf, off, &tr);
+    free(buf);
+    T_ASSERT(rc == 1);
+    T_ASSERT_EQ_U(tr.count, N);
+    /* Spot-check entries past the old cap. */
+    T_ASSERT_EQ_U(tr.entries[4096].frame, 4096);
+    T_ASSERT_EQ_U(tr.entries[N - 1].frame, N - 1);
+    T_ASSERT_EQ_U(tr.entries[N - 1].mask,  (N - 1) & 0x3fff);
+    /* lookup still binary-searches correctly at the tail. */
+    T_ASSERT_EQ_U(input_trace_lookup(&tr, N - 1), (N - 1) & 0x3fff);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -241,6 +288,7 @@ int test_input_trace_record_emits_first_frame_and_changes(void)
     T_ASSERT_EQ_U(tr.entries[1].mask,  0x10);
     T_ASSERT_EQ_U(tr.entries[2].frame, 32);
     T_ASSERT_EQ_U(tr.entries[2].mask,  0);
+    input_trace_free(&tr);
     return 0;
 }
 
@@ -268,6 +316,7 @@ int test_input_trace_record_reopen_truncates(void)
     T_ASSERT(rc == 1);
     T_ASSERT_EQ_U(tr.count, 1);
     T_ASSERT_EQ_U(tr.entries[0].mask, 0);
+    input_trace_free(&tr);
     return 0;
 }
 

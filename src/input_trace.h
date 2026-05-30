@@ -64,12 +64,27 @@ struct input_trace_entry {
     uint16_t mask;      /* 14-bit button mask, OR of input_binding_mask[] bits */
 };
 
-#define INPUT_TRACE_MAX_ENTRIES 4096
+/* Sanity ceiling, NOT a working limit. The entry table grows on the
+ * heap (see `struct input_trace`), so a normal trace is bounded only by
+ * memory — this constant exists solely to make a runaway / corrupt file
+ * fail loudly instead of OOM-ing. 16 M change-points is far past a
+ * full-game TAS run (≈1 M at ~10 transitions/s over tens of hours). The
+ * old fixed 4096-entry array silently failed the *whole* load on any
+ * longer trace (an 8256-entry trace returned 0 → "replay disabled"). */
+#define INPUT_TRACE_MAX_ENTRIES (1u << 24)
 
 struct input_trace {
-    struct input_trace_entry entries[INPUT_TRACE_MAX_ENTRIES];
-    size_t                   count;
+    struct input_trace_entry *entries;   /* heap; NULL when count == 0 */
+    size_t                    count;      /* live entries               */
+    size_t                    cap;        /* allocated capacity         */
 };
+
+/* Release the heap storage owned by `trace` and reset it to the empty
+ * state. Idempotent: safe on a zero-initialized trace and safe to call
+ * twice. MUST be called on any trace passed to `input_trace_parse_buf`
+ * or `input_trace_load` — even when those return 0, a partial table may
+ * have been allocated (e.g. the valid entries before a malformed line). */
+void input_trace_free(struct input_trace *trace);
 
 /* Parse a sparse JSONL trace from `path`. Returns 1 on success and
  * fills `out`. Returns 0 if the file can't be opened or any line fails
