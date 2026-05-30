@@ -7,6 +7,33 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — W4 scoping: HOUSE collision is a full mesh subsystem + `{wait_until}` TAS op
+
+Scoped W4 (collision + companion) ground-truth-first before committing to a
+port. Two findings reshaped the front:
+
+- **Companion is moot at this game stage.** Retail renders only Recette at first
+  HOUSE free-roam (verified from the `w3-walk-watch` montage); the actor-1/2
+  slots aren't drawn yet, so there's no companion to port.
+- **Collision is a full triangle-mesh subsystem, not a few AABBs**
+  (engine-quirks §62). Drove retail into the counter / walls / central round
+  table and `--watch`'d `px/pz/vx/vz`: furniture blocks the player everywhere
+  (counter at `pz=8.941`), the room is large (`pz` 9.35…−7.27), and the response
+  is position-block + **velocity slide** along the surface — walking LEFT into
+  the round table slides the player *around its circular edge* (`px 0.69→−0.67`
+  as `pz` climbs), which only a real mesh produces. The port walks through all
+  of it (the ~3 MB/level `DAT_007ca434` collision mesh isn't loaded; `FUN_00432e50`
+  query + `FUN_00483170` slide-resolve are unported). So real parity needs the
+  subsystem (mesh loader → query → slide-resolve), not a per-room approximation.
+
+- **New TAS primitive `{wait_until}`** (`5b6a755`, tas-framework P3b) — a
+  segtrace segment can break on a live-global predicate instead of an anchor
+  (`{"wait_until":{"va":"0x056da1e0","op":"<=","val":2.0}}` = hold UP until
+  `pz≤2.0`), removing frame-count guessing for movement drives. Authored the
+  canonical collision ground-truth traces with it: `traces/house_collide.jsonl`
+  (multi-dir sweep) + `traces/house_table_collide.jsonl` (clean head-on
+  round-table hit). agent.js + frida_capture.py.
+
 ## 2026-05-31 — W3: HOUSE free-roam walk movement ported (ground-truth-validated)
 
 Made Recette walk in the HOUSE shop. Followed the **ground-truth-first**

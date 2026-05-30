@@ -2193,3 +2193,42 @@ That's the tour.  None of these prevent the game from running, all of
 them are charming in their own way, and at least three of them
 (quirks 1, 2, and 7) made us double-check the decompilation against an
 external reference before believing what we were reading.
+
+## 62. HOUSE collision is a full triangle-mesh subsystem with velocity sliding — not room-bounds clamps or furniture AABBs
+
+W4 scoping (2026-05-31). The W3 port stops the player with a hardcoded
+`FUN_00486435` room clamp (`pz≤9.5`, `px≥−1.5` when `pz>7`). Retail ground
+truth shows that clamp is only a spawn-corner approximation: real HOUSE
+navigation is governed by the per-level **collision mesh** queried by
+`FUN_00432e50` (point→triangle ground/wall query: returns ground height +
+surface normal + a hit flag from `&DAT_007ca434 + level*0x2f8020`, per-triangle
+0x98-byte records with plane eqs + type codes) and resolved by `FUN_00483170`
+(integrate velocity, **slide along the contacted surface**, radial furniture
+push, per-actor floor clamp).
+
+Ground truth captured with the new `{wait_until}` TAS op (§see tas-framework
+P3b) — `runs/w4-collide` (multi-direction sweep) and `runs/w4-table`/`-table3`
+(round-table hit), `--watch px/pz/vx/vz`:
+
+- **Furniture/walls block the player comprehensively.** Holding UP from spawn
+  (px −0.30, pz 9.35) pins at the **counter** at `pz=8.941` (velocity keeps
+  pushing, position frozen). The room is large (`pz` 9.35…−7.27, `px` −0.30…
+  3.10) and every wall/table stops the player.
+- **The response is position-block + velocity SLIDE**, not a hard stop: walking
+  RIGHT into an angled wall redirects motion along it (e.g. `vz` bleeds in over
+  frames while `vx` decays — the `FUN_00483170` reflection at all.c L134-148),
+  and walking LEFT into the **central round table** slides the player *around*
+  its circular edge (`px 0.69→−0.67` while `pz` climbs 1.5→2.84 — a curved
+  trajectory only a real mesh produces). A clean head-on approach instead pins
+  flat against the table face at `px≈0.729`.
+- **The port walks through all of it** (only the spawn-corner clamp exists; the
+  ~3 MB/level `DAT_007ca434` collision mesh is **not loaded** in the port — the
+  render mesh is a separate structure).
+
+Consequence for the port: furniture collision does **not** reduce to a handful
+of AABBs, so a hand-built per-room approximation would be unfaithful (it can't
+reproduce the round-table slide). Real parity needs the subsystem: (1) a
+collision-mesh loader to populate `DAT_007ca434`, (2) `FUN_00432e50` (the 2 KB
+triangle query), (3) `FUN_00483170`/`FUN_004830f1` (the slide-resolve). The
+canonical validation drives are `traces/house_collide.jsonl` +
+`traces/house_table_collide.jsonl` (replay → match `px/pz` per-frame).
