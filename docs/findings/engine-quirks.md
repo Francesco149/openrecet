@@ -1840,12 +1840,31 @@ would corrupt every trail record's angle.  The angle is then
 reads, though the result is identical).  Ported faithfully as
 `player_ctrl_trail_orbit_pos` (Cpop.2, 2026-05-30).
 
-A sibling trap in the same function: the velocity-damping factor block
-(decomp L89665+, objdump `0x48c5a0`) calls `FUN_004856d7` and
-`FUN_0043647f` which Ghidra shows **argless** — the asm passes
-`push 0x96b` / `push 9` respectively (the dropped-arg pattern of
-quirk-class [[feedback_argless_trig_decomp]]).  Anyone porting that block
-must objdump it; the Ghidra signature hides which state slot is queried.
+A sibling trap in the same function: every `FUN_004856d7` /
+`FUN_0043647f` call in `FUN_0048b850` is shown **argless** by Ghidra,
+but both are `cdecl(int key)` input queries and the asm always pushes a
+literal key id (the dropped-arg pattern of quirk-class
+[[feedback_argless_trig_decomp]]).  Recovered from objdump 2026-05-30 —
+anyone porting these blocks must use these, not the Ghidra signature:
+
+- **`FUN_004856d7(key)`** (`0x4856d7`) — "is binding `key` currently
+  **held**?"  Walks the 5-slot per-state input-binding table
+  (`0x4510648 + state*0x2dfc8 + joy*0x6c`), `>>6` each entry, returns 1
+  on the first match else 0.
+- **`FUN_0043647f(key)`** (`0x43647f`) — "is `key` in this frame's
+  **edge/event** list?"  Scans `DAT_0438b93c[0..DAT_0438b938)` (gated on
+  `DAT_068dd2f8[state] > 0`), returns 1 on match.
+
+Resolved call sites:
+- **shake-damp-factor selector** (decomp L90160+, objdump `0x48c5a0`):
+  `FUN_004856d7(0x96b)` (×2, push `esi=0x96b` @ `0x48c5b2`/`0x48c5f1`),
+  `FUN_0043647f(0x9)` (@ `0x48c5dd`).
+- **`local_8` zoom-shake target chain** (decomp L89963+, objdump
+  `0x48be6d`+): `FUN_004856d7(0x968)` → `+0.02`, `FUN_004856d7(0x969)` →
+  `+0.08`, `FUN_0043647f(0xb)` / `FUN_0043647f(0xc)` → `×1.3`.
+
+(The earlier "`push 0x96b` / `push 9`" note conflated the two blocks;
+the local_8 chain uses different ids.)
 
 ## 54. Mesh textures get a full mip chain; 2D UI textures do not — two different loaders
 

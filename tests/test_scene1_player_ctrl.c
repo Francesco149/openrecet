@@ -250,6 +250,83 @@ int test_player_trail_orbit_doubles_table(void)
     return 0;
 }
 
+/* ── Cpop.3: motion-history ring shift ───────────────────────────────────── */
+
+int test_player_history_shift_writes_newest_to_slot0(void)
+{
+    float pos[PC_HIST_SLOTS][3] = {{0}};
+    int32_t rec[PC_HIST_SLOTS][PC_ACTOR_REC_DWORDS] = {{0}};
+    float cur_pos[3] = { 11.0f, 22.0f, 33.0f };
+    int32_t cur_rec[PC_ACTOR_REC_DWORDS];
+    for (int j = 0; j < PC_ACTOR_REC_DWORDS; j++) cur_rec[j] = 100 + j;
+
+    player_ctrl_history_shift(pos, rec, cur_pos, cur_rec);
+
+    T_ASSERT_NEAR(pos[0][0], 11.0f);
+    T_ASSERT_NEAR(pos[0][1], 22.0f);
+    T_ASSERT_NEAR(pos[0][2], 33.0f);
+    for (int j = 0; j < PC_ACTOR_REC_DWORDS; j++)
+        if (rec[0][j] != 100 + j) T_FAIL("rec slot0 should copy cur_rec");
+    return 0;
+}
+
+int test_player_history_shift_moves_old_samples_down(void)
+{
+    float pos[PC_HIST_SLOTS][3] = {{0}};
+    int32_t rec[PC_HIST_SLOTS][PC_ACTOR_REC_DWORDS] = {{0}};
+    int32_t dummy_rec[PC_ACTOR_REC_DWORDS] = {0};
+
+    /* Three distinct frames: positions x = 1, 2, 3. */
+    float p1[3] = { 1.0f, 0.0f, 0.0f };
+    float p2[3] = { 2.0f, 0.0f, 0.0f };
+    float p3[3] = { 3.0f, 0.0f, 0.0f };
+    player_ctrl_history_shift(pos, rec, p1, dummy_rec);
+    player_ctrl_history_shift(pos, rec, p2, dummy_rec);
+    player_ctrl_history_shift(pos, rec, p3, dummy_rec);
+
+    /* Newest first: slot0 = 3 (last), slot1 = 2, slot2 = 1. */
+    T_ASSERT_NEAR(pos[0][0], 3.0f);
+    T_ASSERT_NEAR(pos[1][0], 2.0f);
+    T_ASSERT_NEAR(pos[2][0], 1.0f);
+    return 0;
+}
+
+int test_player_history_shift_record_lockstep(void)
+{
+    float pos[PC_HIST_SLOTS][3] = {{0}};
+    int32_t rec[PC_HIST_SLOTS][PC_ACTOR_REC_DWORDS] = {{0}};
+    float cur_pos[3] = {0};
+    int32_t rec_a[PC_ACTOR_REC_DWORDS], rec_b[PC_ACTOR_REC_DWORDS];
+    for (int j = 0; j < PC_ACTOR_REC_DWORDS; j++) { rec_a[j] = j; rec_b[j] = 1000 + j; }
+
+    player_ctrl_history_shift(pos, rec, cur_pos, rec_a);
+    player_ctrl_history_shift(pos, rec, cur_pos, rec_b);
+
+    /* slot0 = rec_b (newest), slot1 = rec_a (shifted down in lockstep). */
+    for (int j = 0; j < PC_ACTOR_REC_DWORDS; j++) {
+        if (rec[0][j] != 1000 + j) T_FAIL("rec slot0 should be newest (rec_b)");
+        if (rec[1][j] != j)        T_FAIL("rec slot1 should be prior (rec_a)");
+    }
+    return 0;
+}
+
+int test_player_history_shift_oldest_falls_off(void)
+{
+    float pos[PC_HIST_SLOTS][3] = {{0}};
+    int32_t rec[PC_HIST_SLOTS][PC_ACTOR_REC_DWORDS] = {{0}};
+    int32_t dummy_rec[PC_ACTOR_REC_DWORDS] = {0};
+
+    /* Push PC_HIST_SLOTS+1 frames; the first must have been evicted. */
+    for (int f = 1; f <= PC_HIST_SLOTS + 1; f++) {
+        float cp[3] = { (float)f, 0.0f, 0.0f };
+        player_ctrl_history_shift(pos, rec, cp, dummy_rec);
+    }
+    /* Ring holds frames N+1 .. 2 (newest..oldest); frame 1 is gone. */
+    T_ASSERT_NEAR(pos[0][0], (float)(PC_HIST_SLOTS + 1));
+    T_ASSERT_NEAR(pos[PC_HIST_SLOTS - 1][0], 2.0f);   /* oldest surviving */
+    return 0;
+}
+
 /* ── Cchr.2h: house-standing actor-state model ───────────────────────────── */
 
 int test_player_pose_seeds_actor0(void)

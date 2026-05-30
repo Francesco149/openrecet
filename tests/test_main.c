@@ -3131,6 +3131,10 @@ struct test_case {
     X(player_trail_orbit_zero_angle) \
     X(player_trail_orbit_radius_and_angle) \
     X(player_trail_orbit_doubles_table) \
+    X(player_history_shift_writes_newest_to_slot0) \
+    X(player_history_shift_moves_old_samples_down) \
+    X(player_history_shift_record_lockstep) \
+    X(player_history_shift_oldest_falls_off) \
     X(player_pose_seeds_actor0) \
     X(player_pose_empties_party_slots) \
     X(player_pose_passes_char_id) \

@@ -106,6 +106,32 @@ void player_ctrl_trail_orbit_pos(int anim_idx, float stored_angle,
                                  float table_val, const float player[3],
                                  float out[3]);
 
+/* Cpop.3: per-frame motion-history ring depth.  The engine keeps two
+ * parallel 40-slot ring buffers the after-image/trail draw samples — a
+ * 3-float position history (DAT_056da1fc, 40·0xc bytes) and an 11-dword
+ * sprite-state record history (DAT_056da3dc, 40·0x2c bytes) — laid out
+ * back-to-back, ending exactly at the shake globals DAT_056daabc. */
+#define PC_HIST_SLOTS 40
+
+/*
+ * Advance the player-controller's motion-history rings one frame.
+ * Engine FUN_0048b850 @ all.c L90243-90269 (objdump 0x48c8a9-0x48c90f):
+ * a full memmove-style shift — slot[i] = slot[i-1] from the oldest end
+ * down to slot 1 (the engine walks pointers high→low, copying each
+ * 3-dword position and 11-dword record forward by one), then writes the
+ * newest sample into slot 0: position 0 = the live player pos
+ * (DAT_056da1d8/1dc/1e0) and record 0 = the live sprite-state record
+ * (DAT_056daae8).  Index 0 is newest; increasing index is older.
+ *
+ * Pure: no engine globals or callees — the caller owns both arrays and
+ * supplies the current sample.  `pos_hist`/`rec_hist` hold PC_HIST_SLOTS
+ * slots each; `cur_rec` is PC_ACTOR_REC_DWORDS dwords.
+ */
+void player_ctrl_history_shift(float pos_hist[][3],
+                               int32_t rec_hist[][PC_ACTOR_REC_DWORDS],
+                               const float cur_pos[3],
+                               const int32_t cur_rec[PC_ACTOR_REC_DWORDS]);
+
 /* ── Cchr.2h: player/companion actor-state model ─────────────────────────
  *
  * The engine globals the shop-walker player draw (FUN_004552d0 L357-454)

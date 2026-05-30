@@ -278,6 +278,41 @@ colour base/pulse (`4552d0.c:394-435`), and replacing the inject with the real
 **Retail screenshot pixel-diff deferred to after the full path lands** (per
 user); leaf-level ground truth already validates geometry + colour.
 
+## 2026-05-30 — Cpop.3: FUN_0048b850 motion-history ring shift + resolved the §53 dropped-arg input queries
+
+Continued the `FUN_0048b850` player-controller port with its next pure
+leaf and cleared the groundwork the Cpop.2 note flagged as remaining.
+
+- **`player_ctrl_history_shift`** (`src/scene1_player_ctrl.{c,h}`; decomp
+  L90243-90269, objdump `0x48c8a9-0x48c90f`): the per-frame motion-history
+  ring shift the after-image / trail draw samples.  The engine keeps **two
+  parallel 40-slot rings** laid out back-to-back — a 3-float position
+  history (`DAT_056da1fc`, 40·0xc B) and an 11-dword sprite-state record
+  history (`DAT_056da3dc`, 40·0x2c B), the record ring ending exactly at the
+  shake globals `DAT_056daabc` (the memory adjacency confirms the slot
+  count).  Each frame it memmoves every slot one place toward "older"
+  (`slot[i] = slot[i-1]`, walked high→low via two pointer loops + a
+  `rep movsl` for the 11-dword record) then writes slot 0 = the live player
+  pos / live `DAT_056daae8` record.  Pure: no engine globals or callees, so
+  it ports as a leaf over caller-owned arrays (the chr_walker pattern).
+  4 host tests (2981 → 2985).
+- **Resolved the §53 dropped-arg input queries** (objdump, no code yet):
+  every `FUN_004856d7` / `FUN_0043647f` call in `FUN_0048b850` is shown
+  argless by Ghidra but both are `cdecl(int key)` — `004856d7` = "is
+  binding `key` **held**?", `0043647f` = "is `key` in this frame's
+  **edge/event** list?".  Recovered the literal key ids at every call site:
+  the **shake-damp selector** uses `004856d7(0x96b)`×2 + `0043647f(0x9)`;
+  the **`local_8` zoom-shake target chain** uses `004856d7(0x968)` (+0.02),
+  `004856d7(0x969)` (+0.08), `0043647f(0xb)`/`0043647f(0xc)` (×1.3).  This
+  corrects the earlier "0x96b / 9" note (which conflated the two blocks) and
+  unblocks porting both — engine-quirks §53 updated.
+
+Module still unwired (caller chain `FUN_00442cef → FUN_0048670f`
+unported) → HOUSE behavior + all goldens bit-identical; no regen needed.
+Remaining for the chip: the `local_8` target + shake-damp blocks (now with
+their args resolved) and the `0x56dab6c` per-record trail spawn/expiry loop
+around the already-ported orbit geometry leaf.
+
 ## 2026-05-30 — Cpop.2: two more FUN_0048b850 pure leaves (emote-pulse counters + trail-orbit geometry)
 
 Continued the `FUN_0048b850` player-controller port begun in Cpop.1, adding

@@ -92,6 +92,27 @@ void player_ctrl_trail_orbit_pos(int anim_idx, float stored_angle,
     out[2] = cosf(angle) * r + player[2];         /* z — FUN_00503994 = cos */
 }
 
+void player_ctrl_history_shift(float pos_hist[][3],
+                               int32_t rec_hist[][PC_ACTOR_REC_DWORDS],
+                               const float cur_pos[3],
+                               const int32_t cur_rec[PC_ACTOR_REC_DWORDS])
+{
+    /* Shift every slot one place toward "older" (slot[i] = slot[i-1]),
+     * matching the engine's high→low pointer walk; then slot 0 takes the
+     * live sample.  The engine moves position (3 dwords) and the
+     * sprite-state record (11 dwords) in lockstep per slot. */
+    for (int i = PC_HIST_SLOTS - 1; i > 0; i--) {
+        pos_hist[i][0] = pos_hist[i - 1][0];
+        pos_hist[i][1] = pos_hist[i - 1][1];
+        pos_hist[i][2] = pos_hist[i - 1][2];
+        memcpy(rec_hist[i], rec_hist[i - 1], sizeof rec_hist[i]);
+    }
+    pos_hist[0][0] = cur_pos[0];
+    pos_hist[0][1] = cur_pos[1];
+    pos_hist[0][2] = cur_pos[2];
+    memcpy(rec_hist[0], cur_rec, sizeof rec_hist[0]);
+}
+
 /* ── Cchr.2h: the player/companion actor-state model ─────────────────────
  *
  * The per-actor fields the shop-walker player draw (FUN_004552d0 L357-454,
