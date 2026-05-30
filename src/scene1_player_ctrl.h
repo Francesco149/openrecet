@@ -341,4 +341,26 @@ float          player_ctrl_actor_scale_xz(int i);
 float          player_ctrl_actor_scale_y(int i);
 const int32_t *player_ctrl_actor_record(int i);
 
+/*
+ * ── W1: the per-frame player-controller tick (FUN_0048670f entry) ─────────
+ *
+ * Engine FUN_0048670f (0x48670f, 11.5 KB) is the HOUSE player driver — it
+ * reads the input masks, moves the player, and sets the animation record,
+ * calling FUN_0048b850 (the Cpop camera/effects sub-controller) as a sub-step.
+ * Runtime-confirmed live in HOUSE (scene1_player_ctrl.h top: fires 40,558×
+ * from frame 4583).
+ *
+ * Call order (engine FUN_00442cef / scene1_ingame_default_arm_tick,
+ * all.c L40593-40598): the controller runs FIRST — before FUN_0043ae20
+ * (records-B), gated on `DAT_0438be94 < 0x78` and a dispatcher that picks
+ * FUN_0048670f when `0 <= DAT_068dd3fc[DAT_0438b4dc*0x6cf] <= 4` (the live
+ * HOUSE branch) else the FUN_0048b3f6 variant.  Both gates are open in HOUSE;
+ * faithfully reproducing them is deferred to a later sub-chip.
+ *
+ * W1 wires the entry as a documented stub (no body yet); the free-roam
+ * movement (W2), walk animation (W3), and FUN_0048b850 effects (W4) fill it.
+ * See docs/plans + docs/findings/scene1-char-sprite-render.md.
+ */
+void scene1_player_ctrl_tick(void);
+
 #endif /* SCENE1_PLAYER_CTRL_H */

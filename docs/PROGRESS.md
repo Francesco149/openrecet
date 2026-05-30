@@ -7,6 +7,30 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — W1: player-controller tick wired live (FUN_0048670f entry, stub body)
+
+First step of the **movement-first** plan (docs/plans, approved this session):
+get the HOUSE player to walk + animate by porting `FUN_0048670f` (the 11.5 KB
+input→movement→anim driver), with the done Cpop leaves of `FUN_0048b850` (its
+camera/effects sub-controller) wiring in afterward.
+
+Investigation reframed the controller architecture: `FUN_0048b850` (Cpop, leaves
+done) is the *effects* sub-controller — wiring it produces no visible change.
+The actual walking/animation lives in its caller `FUN_0048670f`, which the
+engine runs FIRST in the default sim arm (`FUN_00442cef` L40595-40598, before
+the records-B tick).
+
+- **`scene1_player_ctrl_tick()`** (`src/scene1_player_ctrl.c`) — the
+  `FUN_0048670f` entry, wired into `scene1_ingame_default_arm_tick()`
+  (`src/scene1_sim.c`) **before** `scene1_records_b_tick()` to match the engine
+  order. Stub body (`CALL_TRACE_ENTER_STUB(0x48670f)`) so call-count parity
+  surfaces it as incomplete; the actor pose stays as seeded by
+  `player_ctrl_pose_house_standing()` until W2 (free-roam movement) / W3 (walk
+  animation) land.
+- **1 baseline host test** (`test_player_ctrl_tick_is_pose_preserving_stub`)
+  locks in "the stub doesn't disturb the seeded pose" — flips to a real
+  movement assertion in W2. 3010 total pass; both exes build warning-free.
+
 ## 2026-05-30 — Cpop.8: FUN_0048b6ad HP/SP gauge tween — first controller callee
 
 With the after-image banks done (Cpop.6/7), `FUN_0048b850`'s pure-leaf vein is

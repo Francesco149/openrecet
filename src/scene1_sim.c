@@ -41,6 +41,7 @@
 #include "scene1_sim.h"
 
 #include "scene1_particles_tick.h"
+#include "scene1_player_ctrl.h"
 #include "scene1_records_b_tick.h"
 #include "scene1_records_c_tick.h"
 #include "call_trace.h"
@@ -69,6 +70,12 @@ void scene1_ingame_default_arm_tick(void)
 {
     /* E.2 probe — FUN_00442cef @ 0x442cef. */
     CALL_TRACE_ENTER(0x442cefu);
+
+    /* FUN_00442cef L40595-40598 — the player controller runs FIRST, before
+     * the records-B tick, gated on DAT_0438be94 < 0x78 and a dispatcher that
+     * selects FUN_0048670f (the live HOUSE branch) over the FUN_0048b3f6
+     * variant.  Both gates open in HOUSE; W1 wires the entry (stub body). */
+    scene1_player_ctrl_tick();
 
     /* FUN_00442cef L40603 — gated on DAT_0438b4b4 == 0 (BSS-zero in
      * HOUSE → gate opens).  C8j-tick.1 ports the SKELETON ONLY (outer

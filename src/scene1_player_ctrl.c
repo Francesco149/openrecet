@@ -8,6 +8,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "call_trace.h"          /* CALL_TRACE_ENTER_STUB */
 #include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record-field indices */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
@@ -367,4 +368,17 @@ float player_ctrl_actor_scale_y(int i)
 const int32_t *player_ctrl_actor_record(int i)
 {
     return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_record[i] : NULL;
+}
+
+/* ── W1: per-frame player-controller tick (engine FUN_0048670f) ───────────
+ *
+ * Wired into the live HOUSE frame (scene1_ingame_default_arm_tick, before
+ * scene1_records_b_tick — the engine's order at FUN_00442cef L40593-40598).
+ * Stub for now: the actor pose stays as seeded by player_ctrl_pose_house_
+ * standing() until the free-roam movement (W2) and walk animation (W3) land.
+ * Marked with the STUB call-trace variant so call-count parity surfaces it as
+ * incomplete rather than hiding behind a matching count. */
+void scene1_player_ctrl_tick(void)
+{
+    CALL_TRACE_ENTER_STUB(0x48670fu);
 }

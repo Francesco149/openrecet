@@ -5,8 +5,8 @@
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
   "verified": 61,
-  "stubbed": 14,
-  "ported": 295,
+  "stubbed": 15,
+  "ported": 294,
   "unported": 2178,
   "orphan_refs_not_in_function_table": 6,
   "touched": 370,
@@ -7951,9 +7951,9 @@
    "size": 11519,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "stubbed",
    "src": [
-    "src/scene1_player_ctrl.h"
+    "src/scene1_player_ctrl.c"
    ]
   },
   {
@@ -8091,7 +8091,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_player_ctrl.h"
+    "src/scene1_player_ctrl.h",
+    "src/scene1_sim.c"
    ]
   },
   {

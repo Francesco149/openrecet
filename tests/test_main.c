@@ -3159,6 +3159,7 @@ struct test_case {
     X(player_gauge_falls_with_dir0) \
     X(player_gauge_settled_resets_counter_keeps_dir) \
     X(player_gauge_sp_channel_has_no_counter) \
+    X(player_ctrl_tick_is_pose_preserving_stub) \
     X(player_pose_seeds_actor0) \
     X(player_pose_empties_party_slots) \
     X(player_pose_passes_char_id) \

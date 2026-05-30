@@ -716,6 +716,28 @@ int test_player_gauge_sp_channel_has_no_counter(void)
     return 0;
 }
 
+/* ── W1: the per-frame controller tick (FUN_0048670f stub) ────────────────── */
+
+int test_player_ctrl_tick_is_pose_preserving_stub(void)
+{
+    /* W1 wires scene1_player_ctrl_tick() into the live frame as a stub: until
+     * the movement (W2) / animation (W3) chips land it must NOT disturb the
+     * pose seeded at HOUSE entry.  This baseline flips to a real assertion once
+     * W2 makes the tick move the player. */
+    player_ctrl_pose_house_standing(0);
+
+    int32_t rec_before[PC_ACTOR_REC_DWORDS];
+    memcpy(rec_before, player_ctrl_actor_record(0), sizeof rec_before);
+
+    scene1_player_ctrl_tick();
+
+    if (player_ctrl_actor_char(0) != 0)         T_FAIL("tick changed actor0 char");
+    T_ASSERT_NEAR(player_ctrl_actor_scale_xz(0), 1.0f);
+    T_ASSERT_NEAR(player_ctrl_actor_scale_y(0), 1.0f);
+    T_ASSERT_MEM_EQ(player_ctrl_actor_record(0), rec_before, sizeof rec_before);
+    return 0;
+}
+
 /* ── Cchr.2h: house-standing actor-state model ───────────────────────────── */
 
 int test_player_pose_seeds_actor0(void)

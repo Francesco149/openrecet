@@ -10,7 +10,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **370** (14.5%) — verified 61, stubbed 14, ported 295
+- touched: **370** (14.5%) — verified 61, stubbed 15, ported 294
 - unported: **2178**
 - orphan refs (in src/, not in function table): 6
 
@@ -80,7 +80,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49b425 | FUN_0049b425 | 207 | ✓ | render_quad.c |
 | 0x49de18 | FUN_0049de18 | 8 | ✓ | scene_new_game.c |
 
-## stubbed (14) — wired, body incomplete
+## stubbed (15) — wired, body incomplete
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -95,11 +95,12 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x454191 | FUN_00454191 | 1391 | ✓ | scene1_fx_overlays.c |
 | 0x459dfd | FUN_00459dfd | 1906 | ✓ | scene1_render.c |
 | 0x485712 | FUN_00485712 | 317 | ✓ | stage_post_load.c |
+| 0x48670f | FUN_0048670f | 11519 | ✓ | scene1_player_ctrl.c |
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (295) — reimplemented, no probe yet
+## ported (294) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -322,12 +323,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4856d7 | FUN_004856d7 | 59 | ✓ | scene1_player_ctrl.h |
 | 0x485979 | FUN_00485979 | 731 | ✓ | scene1_records_b_tick.h |
 | 0x485f8c | FUN_00485f8c | 316 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
-| 0x48670f | FUN_0048670f | 11519 | ✓ | scene1_player_ctrl.h |
 | 0x489c79 | FUN_00489c79 | 217 | ✓ | chara_skills.h |
 | 0x489d52 | FUN_00489d52 | 102 | ✓ | chara_skills.h |
 | 0x48a348 | FUN_0048a348 | 59 | ✓ | scene1_combat_sm.h |
 | 0x48a383 | FUN_0048a383 | 334 | ✓ | xp_curve.h |
-| 0x48b3f6 | FUN_0048b3f6 | 663 | ✓ | scene1_player_ctrl.h |
+| 0x48b3f6 | FUN_0048b3f6 | 663 | ✓ | scene1_player_ctrl.h, scene1_sim.c |
 | 0x48b6ad | FUN_0048b6ad | 407 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h |
 | 0x48b850 | FUN_0048b850 | 5030 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h (+3) |
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
