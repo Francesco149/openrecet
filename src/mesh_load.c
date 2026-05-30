@@ -346,7 +346,7 @@ long mesh_load_finalize_win32(mesh_t *m, struct IDirect3DDevice8 *dev)
         snprintf(full, sizeof full, "%s%s", dir, e->name);
         sprite_t *s = (sprite_t *)calloc(1, sizeof *s);
         if (!s) return E_OUTOFMEMORY;
-        if (!sprite_load((IDirect3DDevice8 *)dev, full, 0, 0, s)) {
+        if (!sprite_load_mipped((IDirect3DDevice8 *)dev, full, 0, 0, s)) {
             /* Texture missing on disk. Leave sprite NULL (renderer
              * will skip texturing this slot) and free the placeholder.
              * Engine's FUN_00471b24 shows a MessageBox on miss; we

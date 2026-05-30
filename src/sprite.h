@@ -51,6 +51,18 @@ int  sprite_load(IDirect3DDevice8 *dev, const char *name,
                  uint32_t expected_w, uint32_t expected_h,
                  sprite_t *out);
 
+/* Same as sprite_load, but generates a full box-filtered mip chain
+ * (Levels=0). Mirrors the engine's MESH texture loader FUN_00471b24,
+ * which calls D3DXCreateTextureFromFileInMemoryEx(MipLevels=0,
+ * MipFilter=D3DX_DEFAULT) — vs the 2D UI loader FUN_0047193c, which
+ * passes MipLevels=1 (no mips). Minified 3D meshes (book, table, the
+ * back-room blinds) sample the smoothed mips in retail; without them
+ * the port read visibly sharper at distance. See engine-quirks §54 and
+ * docs/findings/texture-loader.md. */
+int  sprite_load_mipped(IDirect3DDevice8 *dev, const char *name,
+                        uint32_t expected_w, uint32_t expected_h,
+                        sprite_t *out);
+
 void sprite_destroy(sprite_t *s);
 
 /* Draw the sprite at screen-space (x, y) at native pixel size, with

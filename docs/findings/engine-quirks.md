@@ -1847,6 +1847,48 @@ A sibling trap in the same function: the velocity-damping factor block
 quirk-class [[feedback_argless_trig_decomp]]).  Anyone porting that block
 must objdump it; the Ghidra signature hides which state slot is queried.
 
+## 54. Mesh textures get a full mip chain; 2D UI textures do not — two different loaders
+
+The engine has **two** texture loaders that both wrap
+`D3DXCreateTextureFromFileInMemoryEx` (statically-linked d3dx8), and
+they pass **different `MipLevels`**:
+
+- **`FUN_0047193c`** (the documented `texture-loader.md` loader) — loads
+  **2D UI** assets (`bmp/system.bmp`, `fps2.tga`, `nowloading.tga`,
+  `savewindow.tga`, `ive_window.tga`, …) with **`MipLevels=1`** (objdump
+  `0x471a68`/`0x471ab2` push `$0x1`). No mip chain — correct, since these
+  draw 1:1 in screen space where only level 0 is ever sampled.
+- **`FUN_00471b24`** — the **mesh/3D texture** loader (called from the
+  mesh-texture-cache miss path `FUN_00472836` @ `0x472ca6`, keyed on the
+  cache count `DAT_073cb108`).  It passes **`MipLevels=0`** → D3DX builds
+  a **complete mip chain**, with `MipFilter=D3DX_DEFAULT` (= box filter).
+  objdump `0x471ce6`: the `MipLevels` arg reads the zero register (the
+  same `edi=0` the adjacent `Usage`/`Format`/`pSrcInfo`/`pPalette` NULL
+  args use); the forced `0xff00ff00` green colour-key confirms the BMP
+  path.
+
+**Why it matters (the texture-filtering parity bug, 2026-05-30):** the
+port's `sprite_create` created every texture with `Levels=1`, so minified
+3D meshes (the back-room shelf trim, the green star book, the window
+blinds) sampled the **sharp base level** while retail sampled a smoothed
+mip — the port read visibly *crisper* than retail even though the sampler
+filter STATE matched (both trilinear `2,2,2`; engine-quirks §51/§53).
+**Fix:** `sprite_load_mipped` (used only by the mesh loader
+`mesh_load_finalize_win32`) creates `Levels=0` and box-filter-generates
+each level (straight 2×2 average, matching `D3DX_FILTER_BOX`); 2D UI
+sprites keep `Levels=1`.  Validated by a matched-1024×768 retail pixel
+diff of the static back-wall shelf trim: **OLD port differed from retail
+on 14862 px, NEW port on 282 px (mean 0.00/ch)** — bit-identical where
+the camera aligns.  The old `texture-loader.md` "MipLevels 1" note was
+correct *for `FUN_0047193c`* but was wrongly assumed global.  (`MIPMAPLODBIAS`
+is still stubbed to 0 in the port — `scene1_device_lodbias()`; if a future
+state-aligned free-roam diff shows a uniform over/under-blur, that bias is
+the next suspect.)
+
+> 📍 `src/sprite.c` (`sprite_create_impl` / `box_downsample` /
+> `sprite_load_mipped`), `src/mesh_load.c:mesh_load_finalize_win32`,
+> `docs/findings/texture-loader.md`, `tools/pixel_diff.py`.
+
 ---
 
 That's the tour.  None of these prevent the game from running, all of

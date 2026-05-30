@@ -7,6 +7,44 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — Mipmap fix: 3D mesh textures now match retail's filtering (+ pixel_diff tool)
+
+Closed the queued HOUSE texture-filtering parity gap
+([[project_texture_filtering_parity]] item 2). The port created **every**
+texture with `CreateTexture(Levels=1)` — no mip chain — so minified 3D
+meshes (back-room shelf trim, the green star book, the window blinds)
+sampled the sharp base level and read *crisper* than retail, even though
+the sampler filter STATE already matched (trilinear `2,2,2`).
+
+- **Root cause (objdump ground truth, engine-quirks §54).** Retail has
+  **two** d3dx8 texture loaders. `FUN_0047193c` (the one `texture-loader.md`
+  documented) loads **2D UI** assets with `MipLevels=1` — no mips, correct
+  for 1:1 blits. But **3D mesh** textures load via a *separate* loader
+  **`FUN_00471b24`** (mesh-cache miss path `FUN_00472836`, keyed on
+  `DAT_073cb108`) which passes **`MipLevels=0`** → a full box-filtered mip
+  chain (`MipFilter=D3DX_DEFAULT` = `D3DX_FILTER_BOX`). The decompiled
+  "MipLevels 1" note was right for the UI loader but wrongly assumed global.
+- **Fix.** `src/sprite.c`: `sprite_create_impl` + `box_downsample` generate
+  a `Levels=0` chain by straight 2×2 averaging (matches D3DX box filter);
+  new `sprite_load_mipped` is used **only** by the mesh loader
+  (`mesh_load_finalize_win32`). UI sprites keep `Levels=1`, mirroring retail.
+- **Verified.** Matched-1024×768 port-vs-retail diff of the static
+  back-wall shelf trim: OLD differed on **14862 px**, NEW on **282 px
+  (mean 0.00/ch)** — bit-identical where the camera aligns. Full-frame
+  (dialog-masked) OLD 86.2 → NEW 83.5; many minified-mesh tiles dropped to
+  exact 0. Build clean, **2974/2974** host tests pass.
+- **New tool:** `tools/pixel_diff.py` — the canonical render-parity format
+  `[A | B | amplified white-diff]` (white = differs); prints differing-px
+  count + mean abs-diff. Reusable for all future comparisons.
+
+**Deferred (determinism wall):** clean *book* and *back-blind* diffs vs
+retail are blocked — every retail capture I have is mid-intro, with the
+dialog box occluding the front book and the un-ported 2D HUD (1,000-pix
+banner, Day wheel) over the back blinds, while the port is in free-roam.
+A clean diff needs port + retail at the same dialog-free state with an
+aligned/frozen camera — the first real use-case for the planned TAS
+framework (`docs/plans/tas-framework.md`).
+
 ## 2026-05-30 — Cchr.2f/2g: solid textured Recette in HOUSE + the real player-draw path (doc-drift audit)
 
 Session began as a doc-drift audit (user: "what do you mean by visible house

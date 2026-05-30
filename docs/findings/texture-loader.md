@@ -89,6 +89,14 @@ ppTexture        slot_ptr (output)
   overrides). Whether the shipping Steam build's flow ever ships a path
   that resolves only via disk (no storage entry) is still an open
   question — worth grepping for callers that use literal paths.
-- The 8× working-buffer size suggests mip levels are generated even
+- ~~The 8× working-buffer size suggests mip levels are generated even
   though `MipLevels=1` is passed — possibly a sentinel meaning "auto" in
-  some D3DX revisions. Confirm by hooking the real d3dx8 call.
+  some D3DX revisions.~~ **RESOLVED 2026-05-30 (engine-quirks §54).** This
+  loader (`FUN_0047193c`) really does pass `MipLevels=1` (no mips) and
+  only loads **2D UI** assets, which draw 1:1 — so no mips is correct.
+  The **3D mesh** textures load via a *separate* loader **`FUN_00471b24`**
+  (objdump `0x471ce6`) which passes **`MipLevels=0`** → a full box-filtered
+  mip chain. The two loaders were conflated; the `MipLevels` value is
+  per-loader, not a global sentinel. The port now mirrors both: mesh
+  textures get `sprite_load_mipped` (box-filtered chain), UI keeps
+  `Levels=1`.
