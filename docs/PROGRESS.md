@@ -7,6 +7,44 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — Cchr.2f/2g: solid textured Recette in HOUSE + the real player-draw path (doc-drift audit)
+
+Session began as a doc-drift audit (user: "what do you mean by visible house
+pixels — we're already rendering the 3D scene"). They were right:
+
+- **Doc drift fixed** (`a504506`).  `STATUS.md`'s top blocker ("Cf.* writer
+  blocks visible HOUSE pixels") was stale since 2026-05-29 — the Cf.* writer
+  landed and HOUSE furniture/background render by default.  Root cause: a
+  hardcoded `CURRENT_BLOCKER` in `tools/gen_port_ledger.py`.  Corrected +
+  regenerated; the real front is **character billboards**.
+
+- **Cchr.2f** (`83b4dc1`): wired the chr sprite-sheet texture.  The leaf
+  (`FUN_0045a56f`) binds nothing — the caller does `SetTexture(0,
+  DAT_073a9b18[char])`.  Added a sheet loader+getter
+  (`scene1_preload_{load_,}chr_sheet`); the asset is `"bmp/chr/chr%02d.bmp"`
+  (NO underscore — objdump; the old code's `chr_%02d.bmp` silently failed).
+  **Key pixel-diff finding** (existing `runs/cchr2b` leaf capture, HOUSE frame
+  17544): the visible standing player (char 0) + companion (char 1) are drawn
+  **only** by `FUN_004552d0` (the **shop-walker**) at `0xff808080`, reading the
+  `DAT_056daae8` position-history ring (`FUN_0048b850` fills it) — **NOT** the
+  `FUN_00456f56` chr-walker, whose blue `0x7f7fff` player path is situational.
+  Corrects the Cchr.1 premise.
+
+- **Cchr.2g** (`bf4efaa`): ported the shop-walker's player draw (the port had
+  it as a mislabeled, stubbed "light pass" `sw_pass_light`).  Behind an MVP
+  inject (`scene1_shop_walker_set_player_inject`, `--force-chr-walker`
+  re-targeted), **solid opaque Recette now renders** in HOUSE.
+
+- **bmp colorkey fringe** (`7378abe`): a green halo around the billboard traced
+  to `bmp.c` keeping the key RGB at alpha 0 → bilinear bled green.  D3DX's
+  colorkey writes transparent BLACK; zero RGB too.  Fixes every keyed sprite.
+
+Remaining for the full (un-MVP'd) player: the companion (char 1 sheet), the
+colour base/pulse (`4552d0.c:394-435`), and replacing the inject with the real
+`DAT_056daae8` ring (`FUN_0048b850` / Cpop) + `DAT_056da1cc/1d8/dae18` globals.
+**Retail screenshot pixel-diff deferred to after the full path lands** (per
+user); leaf-level ground truth already validates geometry + colour.
+
 ## 2026-05-30 — Cpop.2: two more FUN_0048b850 pure leaves (emote-pulse counters + trail-orbit geometry)
 
 Continued the `FUN_0048b850` player-controller port begun in Cpop.1, adding
