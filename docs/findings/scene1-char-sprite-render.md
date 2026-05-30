@@ -41,6 +41,20 @@
 > leaf draw + populate `DAT_056daae8` (faithfully via `FUN_0048b850`'s ring
 > shift, or an MVP inject).  The Cchr.2f sheet-loader infra is REUSED there
 > (same `DAT_073a9b18` table + bind).
+>
+> **2026-05-30 — Cchr.2g LANDED: solid standing Recette renders.** Ported the
+> shop-walker's player draw (the mislabeled "light pass" `sw_pass_light` in
+> `src/scene1_shop_walker.c` — `DAT_056da1cc` is the player char id, not a
+> light-tex slot): `world = base × Scaling(scale_f) × Translation(pos)`,
+> `SetTexture(0, DAT_073a9b18[char])`, leaf at `0xff808080`.  Fed by an MVP
+> inject (`scene1_shop_walker_set_player_inject`, behind `--force-chr-walker`,
+> re-targeted off the blue chr-walker path); sheet via Cchr.2f.  Recette now
+> draws **opaque + naturally coloured** (A/B: `runs/shop-player-tex` vs the
+> blue `runs/chr-walker-tex`).  Deferred: the colour base/pulse (4552d0.c:394-
+> 435, idle = 0xff808080), the companion (char 1), and replacing the inject
+> with the real `DAT_056daae8` ring (`FUN_0048b850` / Cpop) + `DAT_056da1cc/
+> 1d8/dae18` globals.  Retail *screenshot* pixel-diff still open (leaf-level
+> ground truth exists; a Frida HOUSE screenshot would add a visual baseline).
 
 > **2026-05-30 — ERRATA (corrects the survey below): the survey's item 3 is
 > WRONG. `FUN_0044376a` is NOT an "actor logical→render-slot copier (8538 B)".

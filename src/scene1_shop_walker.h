@@ -291,6 +291,20 @@ const mesh_t *scene1_shop_walker_get_pass_d_mesh(void);
 void scene1_shop_walker_set_debug_pass_d_unlit(int on);
 int  scene1_shop_walker_get_debug_pass_d_unlit(void);
 
+/*
+ * Cchr.2g (MVP) — seed the standing player billboard the shop-walker's
+ * sw_pass_light section draws (engine FUN_004552d0 L357-454, the visible
+ * player/companion draw at color 0xff808080).  Until FUN_0048b850 fills the
+ * DAT_056daae8 ring + the DAT_056da1cc/1d8/dae18 player globals, this
+ * supplies one player record (char/pos/anim/frame/facing); the sheet is
+ * bound from scene1_preload_chr_sheet(char) (load it via
+ * scene1_preload_load_chr_sheet first).  enable=0 disables.  No-op on the
+ * host build (the draw is Win32-only).
+ */
+void scene1_shop_walker_set_player_inject(int enable, int char_id,
+                                          float px, float py, float pz,
+                                          int anim, int frame, int facing);
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;

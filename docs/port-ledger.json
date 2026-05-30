@@ -4159,6 +4159,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/main.c",
     "src/scene1_render.c",
     "src/scene1_render.h",
     "src/scene1_shop_walker.c",
@@ -4224,7 +4225,8 @@
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
     "src/scene1_render.c",
-    "src/scene1_render.h"
+    "src/scene1_render.h",
+    "src/scene1_shop_walker.c"
    ]
   },
   {
@@ -8128,7 +8130,9 @@
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
     "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h"
+    "src/scene1_player_ctrl.h",
+    "src/scene1_shop_walker.c",
+    "src/scene1_shop_walker.h"
    ]
   },
   {

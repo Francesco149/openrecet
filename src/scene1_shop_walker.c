@@ -19,7 +19,10 @@
 #include <stdint.h>
 
 #include "math3d.h"          /* mat4_translation / scaling / rotation_x / mul */
+#include "scene1_camera.h"   /* g_scene1_camera_orient (= billboard base DAT_0438cdf8) */
+#include "scene1_chr_sprite.h" /* scene1_chr_sprite_render + CHR_ACTOR_* (player draw) */
 #include "scene1_emit_record.h" /* scene1_emit_record — per-record draw helper */
+#include "scene1_preload.h"  /* scene1_preload_chr_sheet — the DAT_073a9b18 sheet */
 #include "scene1_records.h"  /* per-pass active counts */
 #include "scene1_render.h"   /* scene1_render_push_projection +
                                 scene1_render_apply_palette_combiner_mode */
@@ -489,71 +492,103 @@ static void sw_pass_f(IDirect3DDevice8 *dev)
     }
 }
 
-/* Light pass — gated by sw_light_pass_gate() == 0 AND
- * sw_palette_lighting_enabled() != 0.  Sets up to 3 lights with
- * a per-light alpha fade controlled by sw_dat_0438b4b4.
+/* ─── player/companion billboard draw (engine FUN_004552d0 L357-454) ─────
+ * MISLABEL CORRECTED 2026-05-30: this section was read as a "light pass"
+ * (DAT_056da1cc taken for a per-light tex slot).  It is the **visible
+ * standing player + companion billboard draw** — the leaf call at
+ * 4552d0.c:449 `FUN_0045a56f(&DAT_056daae8 + i*0xb, char, char, world,
+ * 0xff808080)`, preceded by `SetTexture(0, DAT_073a9b18[char])`
+ * (objdump 0x45649f→0x4564d4).  Ground-truthed via runs/cchr2b leaf
+ * capture: at HOUSE frame 17544 the player (char 0) + companion (char 1)
+ * are drawn ONLY from here at color 0xff808080, NOT from the FUN_00456f56
+ * chr-walker (whose blue 0x7f7fff player path is situational).
  *
- * For HOUSE: palette+0x1ae0 == 0 → both inner-gate calls short-
- * circuit, no lights set or enabled.  We still write the top-level
- * AMBIENT reset at the tail of this block via the engine's L455
- * SetRenderState(AMBIENT, ?) — but the inner block dropped that
- * write's value via __ftol-mediated Ghidra arg loss.  Until the
- * AMBIENT value source is identified, we skip the write (no
- * consumer cares for HOUSE).
- */
+ * Per actor i (0=player, 1=companion):
+ *   world = DAT_0438cdf8(billboard base) × Scaling(scale_f·dae18,
+ *           scale_f·dae24, scale_f·dae18) × Translation(DAT_056da1d8[i*3]);
+ *   scale_f = fade·0.03, fade = (0x5a − DAT_0438b4b4)/30 clamp 1.0;
+ *   the leaf reads anim/frame/facing/flags/shimmer from DAT_056daae8[i*0xb].
+ * The per-channel colour base (4552d0.c:394 __ftol → 0x80) + the player's
+ * idle/damage sin-pulse modulation (L397-435) are deferred — an idle
+ * standing actor with no shake/damage stays 0xff808080 (capture-confirmed).
+ *
+ * MVP: no engine global is populated yet (DAT_056daae8 is the position-
+ * history ring FUN_0048b850 fills — the Cpop chip).  Until that ports,
+ * scene1_shop_walker_set_player_inject seeds one player record; the draw
+ * binds its sheet via scene1_preload_chr_sheet (Cchr.2f).  Faithful
+ * follow-up: read the real DAT_056da1cc/1d8/dae18/daae8 globals + the
+ * lighting/colour-pulse blocks. */
+static int     s_sw_pl_active   = 0;
+static int     s_sw_pl_char     = 0;
+static float   s_sw_pl_pos[3]   = { 0.0f, 0.0f, 0.0f };
+static int32_t s_sw_pl_actor[CHR_ACTOR_AGE + 1];   /* the 11-dword record */
+
+void scene1_shop_walker_set_player_inject(int enable, int char_id,
+                                          float px, float py, float pz,
+                                          int anim, int frame, int facing)
+{
+    s_sw_pl_active = enable ? 1 : 0;
+    if (!enable)
+        return;
+    s_sw_pl_char  = char_id;
+    s_sw_pl_pos[0] = px;
+    s_sw_pl_pos[1] = py;
+    s_sw_pl_pos[2] = pz;
+    for (int i = 0; i <= CHR_ACTOR_AGE; i++)
+        s_sw_pl_actor[i] = 0;
+    s_sw_pl_actor[CHR_ACTOR_ANIM]   = anim;
+    s_sw_pl_actor[CHR_ACTOR_FRAME]  = frame;
+    s_sw_pl_actor[CHR_ACTOR_FACING] = facing;
+}
+
 static void sw_pass_light(IDirect3DDevice8 *dev)
 {
-    if (sw_light_pass_gate() != 0) return;
+    if (sw_light_pass_gate() != 0) return;         /* DAT_0438b8bc == 0 */
 
     if (sw_palette_lighting_enabled() != 0) {
-        /* L359-L363: SetLight(?, ?) + LightEnable(0, TRUE) +
-         *   SetRenderState(LIGHTING, TRUE) +
-         *   SetRenderState(AMBIENT, 0xff000000).
-         *
-         * TODO C8-followup: SetLight args are dropped in Ghidra
-         * decomp.  Likely (light_index=0, &DAT_06a49a40) per the
-         * adjacent scene1_render_meshes light branch.  Until the
-         * DAT_06a49a40 per-stage D3DLIGHT8 scratch ports, even
-         * enabling the light has no defined effect (zero light). */
+        /* L359-363: maplight enable (HOUSE: palette+0x1ae0 == 0 → skipped).
+         * SetLight args dropped in decomp; the DAT_06a49a40 D3DLIGHT8 scratch
+         * isn't ported, so this stays a bare enable (no effect for HOUSE). */
         IDirect3DDevice8_LightEnable(dev, 0, TRUE);
         IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, TRUE);
         IDirect3DDevice8_SetRenderState(dev, D3DRS_AMBIENT,  0xff000000u);
     }
 
-    /* L364-L367: light count = 1 unless sw_dat_0438b1a0 == 1 in
-     * which case the count is computed from sw_stage_record0 (1 or
-     * 3 based on a sign trick).
-     *
-     *   local_14 = (DAT_0438b1a0 == 1)
-     *              ? (((-(uint)(stage_record0 != 0)) & 0xfffffffe) + 3)
-     *              : 1
-     *
-     * stage_record0 == 0 → ((0 & 0xfffffffe) + 3) = 3.
-     * stage_record0 != 0 → ((0xfffffffe) + 3) = 1.
-     * DAT_0438b1a0 != 1 → 1 light.
-     */
-    int light_count;
+    /* L364-367: actor count = 1, or 1/3 under the DAT_0438b1a0 mode.
+     * MVP draws the injected player only (companion = a follow-up). */
+    int actor_count;
     if (sw_dat_0438b1a0() == 1) {
-        light_count = (sw_stage_record0() != 0)
-                          ? 1   /* engine: (0xfffffffe + 3) = 1 */
-                          : 3;  /* engine: (0           + 3) = 3 */
+        actor_count = (sw_stage_record0() != 0) ? 1 : 3;
     } else {
-        light_count = 1;
+        actor_count = 1;
     }
+    (void)actor_count;
 
-    /* L370-L453: per-light loop computing pose + alpha-fade from
-     * DAT_056da1d8 (positions, 3 floats/light) + DAT_056dae18
-     * (scales) + DAT_056daae8 (per-light sprite record) +
-     * DAT_056da1cc (per-light tex slot).  Alpha fade-in is
-     * (90 - DAT_0438b4b4) / 30.0 clamped to 1.0, scaled to 0.03.
-     *
-     * TODO C8-followup: port the per-light pose + draw.  Dormant
-     * for HOUSE since none of the data globals are populated by
-     * any port today (stage_palette init zeroes them). */
-    (void)light_count;
+    if (!s_sw_pl_active)
+        return;
 
-    /* L455: SetRenderState(AMBIENT, ?) — value source is dropped
-     * in decomp.  Skip until identified. */
+    const sprite_t *sheet = scene1_preload_chr_sheet(s_sw_pl_char);
+    if (sheet == NULL || sheet->tex == NULL)
+        return;                                    /* no sheet → nothing to draw */
+
+    /* fade = (0x5a − counter)/30 clamp 1.0; counter stubbed 0 → fade 1.0. */
+    float fade = (float)(0x5a - 0) / 30.0f;
+    if (fade > 1.0f) fade = 1.0f;
+    float scale_f = fade * 0.03f;                  /* dae18 = dae24 = 1.0 */
+
+    float world[16], scale[16], tmp[16];
+    mat4_translation(tmp, s_sw_pl_pos[0], s_sw_pl_pos[1], s_sw_pl_pos[2]);
+    mat4_scaling(scale, scale_f, scale_f, scale_f);
+    mat4_mul(tmp, scale, tmp);                     /* scale × translation */
+    mat4_mul(world, g_scene1_camera_orient, tmp);  /* base × (scale×T) */
+
+    /* L448: bind the player's sheet (engine SetTexture(0, DAT_073a9b18[char])). */
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)sheet->tex);
+
+    /* L449: colour 0xff808080 (opaque neutral; pulse modulation deferred). */
+    scene1_chr_sprite_render((struct IDirect3DDevice8 *)dev, s_sw_pl_actor,
+                             s_sw_pl_char, world, 0xff808080u,
+                             (int)sheet->width, (int)sheet->height);
 }
 
 /* Pass G walks DAT_0076bdc0..DAT_007c8fc0, stride 0x2e9 dwords.

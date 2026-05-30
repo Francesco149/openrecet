@@ -1151,16 +1151,21 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             g_force_walker_phase2_scene_type);
     }
 
-    /* --force-chr-walker: seed the standing-Recette render slot the Cchr.2d
-     * walker draws.  Pose = the Cchr.2b-validated billboard (char 0, anim 0,
-     * frame 2, facing 6); pos = new-game HOUSE groundtruth (-0.30, 0, 9.35);
-     * age 100 = fully spawned (no ease) with positive draw-order alpha.
-     * Static slot — the walker reads it every INGAME frame. */
+    /* --force-chr-walker: seed the standing-Recette player billboard.
+     * Cchr.2g re-targeted this from the FUN_00456f56 chr-walker (whose
+     * player path is the situational blue 0x7f7fff draw — ground-truthed as
+     * NOT the normal standing player) to the SHOP-walker's player draw
+     * (FUN_004552d0 L357-454, color 0xff808080), which the retail leaf
+     * capture (runs/cchr2b, HOUSE frame 17544) shows IS the visible player.
+     * Pose = the Cchr.2b-validated billboard (char 0, anim 0, frame 2,
+     * facing 6); pos = new-game HOUSE groundtruth (-0.30, 0, 9.35).  The
+     * sheet loads via the post-house hook (scene1_preload_load_chr_sheet). */
     if (g_force_chr_walker) {
-        scene1_chr_walker_set_inject(1, /*player_char=*/0,
-                                     /*anim=*/0, /*frame=*/2, /*facing=*/6,
-                                     /*px=*/-0.30f, /*py=*/0.0f, /*pz=*/9.35f,
-                                     /*age=*/100);
+        scene1_shop_walker_set_player_inject(1, /*char_id=*/0,
+                                             /*px=*/-0.30f, /*py=*/0.0f,
+                                             /*pz=*/9.35f,
+                                             /*anim=*/0, /*frame=*/2,
+                                             /*facing=*/6);
     }
 
     /* Cc.1: initialise scene-1 camera state.  Sets the first-frame
