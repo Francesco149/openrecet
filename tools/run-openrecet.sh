@@ -138,28 +138,44 @@ mapfile -d '' -t _aw < <(inject_if_absent --turbo "$@");        set -- "${_aw[@]
 mapfile -d '' -t _aw < <(inject_if_absent --silent-audio "$@"); set -- "${_aw[@]}"
 (( want_visible )) || { mapfile -d '' -t _aw < <(inject_if_absent --hidden "$@"); set -- "${_aw[@]}"; }
 
-# Rewrite the path-valued output flag(s) so a repo-relative or Unix path Just
-# Works: resolve against the repo, mkdir -p, and hand the exe the Windows path
-# its (Windows-side) fopen() needs.  Without this, --capture-to runs/foo lands
-# in the game asset dir, and an absolute /opt/... path fails fopen() silently.
+# Rewrite the path-valued flag(s) so a repo-relative or Unix path Just Works:
+# resolve against the repo and hand the exe the Windows path its (Windows-side)
+# fopen() needs.  Without this, --capture-to runs/foo lands in the game asset
+# dir, an absolute /opt/... path fails fopen() silently, and an
+# --input-trace-replay path fails as a UNC fopen (the TAS papercut).
+#
+# Three path kinds, different prep:
+#   dir-out  (--capture-to, --house-preview-dump):   mkdir -p the dir itself.
+#   file-out (--input-trace-record):                 mkdir -p its PARENT dir.
+#   file-in  (--input-trace-replay):                 must exist; warn if not.
+# All three get wslpath -w'd.
+rewrite_path() {  # $1=kind (dir-out|file-out|file-in)  $2=path  → echoes win path
+    local kind="$1" path="$2"
+    [[ "$path" = /* ]] || path="$ROOT/$path"
+    case "$kind" in
+        dir-out)  mkdir -p "$path" ;;
+        file-out) mkdir -p "$(dirname "$path")" ;;
+        file-in)  [[ -e "$path" ]] || echo "run-openrecet: warning: input trace not found: $path" >&2 ;;
+    esac
+    wslpath -w "$path"
+}
 args=()
 while (( $# )); do
     case "$1" in
         --capture-to|--house-preview-dump)
-            flag="$1"; dir="$2"; shift 2
-            [[ "$dir" = /* ]] || dir="$ROOT/$dir"
-            mkdir -p "$dir"
-            args+=( "$flag" "$(wslpath -w "$dir")" )
-            ;;
+            args+=( "$1" "$(rewrite_path dir-out "$2")" ); shift 2 ;;
         --capture-to=*|--house-preview-dump=*)
-            flag="${1%%=*}"; dir="${1#*=}"; shift
-            [[ "$dir" = /* ]] || dir="$ROOT/$dir"
-            mkdir -p "$dir"
-            args+=( "$flag" "$(wslpath -w "$dir")" )
-            ;;
+            args+=( "${1%%=*}" "$(rewrite_path dir-out "${1#*=}")" ); shift ;;
+        --input-trace-record)
+            args+=( "$1" "$(rewrite_path file-out "$2")" ); shift 2 ;;
+        --input-trace-record=*)
+            args+=( "${1%%=*}" "$(rewrite_path file-out "${1#*=}")" ); shift ;;
+        --input-trace-replay)
+            args+=( "$1" "$(rewrite_path file-in "$2")" ); shift 2 ;;
+        --input-trace-replay=*)
+            args+=( "${1%%=*}" "$(rewrite_path file-in "${1#*=}")" ); shift ;;
         *)
-            args+=( "$1" ); shift
-            ;;
+            args+=( "$1" ); shift ;;
     esac
 done
 set -- "${args[@]}"
