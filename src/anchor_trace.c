@@ -1,0 +1,102 @@
+/*
+ * anchor_trace.c — see anchor_trace.h.
+ *
+ * Edge-triggered anchor emitter. The anchor set is a static table of
+ * (name, edge-predicate) pairs; `anchor_trace_tick` walks it once per
+ * frame and emits each anchor whose predicate sees a rising edge between
+ * the previous and current world snapshot.
+ *
+ * Scene-state values mirror src/scene.h (kept local so the module stays
+ * Win32-free / engine-global-free and unit-testable in isolation).
+ */
+#include "anchor_trace.h"
+
+#define ANCHOR_SCENE_TITLE   0
+#define ANCHOR_SCENE_INGAME  1
+/* SCENE_STATE_LOADING (8) is written then overwritten with INGAME inside
+ * a single sim tick (scene.c scene_post_fade_init), so no observer ever
+ * sees it between frames — we don't anchor on it directly. */
+
+/* A "playable HOUSE" frame: in-game AND the loading overlay has dropped. */
+static int is_house_freeroam(const struct anchor_world *w)
+{
+    return w->scene_state == ANCHOR_SCENE_INGAME && !w->loading_active;
+}
+
+/* ─── edge predicates ──────────────────────────────────────────────────
+ * Each returns nonzero when its anchor's rising edge fired between the
+ * previous snapshot `p` and the current one `c`. */
+
+static int ev_new_game(const struct anchor_world *p, const struct anchor_world *c)
+{
+    /* Title → in-game: the "new game" (or continue) commit. The engine
+     * passes through LOADING in the same tick, so the observable edge is
+     * TITLE → INGAME directly. */
+    return p->scene_state == ANCHOR_SCENE_TITLE
+        && c->scene_state == ANCHOR_SCENE_INGAME;
+}
+
+static int ev_loading_start(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->loading_active && c->loading_active;
+}
+
+static int ev_loading_end(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->loading_active && !c->loading_active;
+}
+
+static int ev_house_freeroam(const struct anchor_world *p, const struct anchor_world *c)
+{
+    /* Rising edge of the compound "playable HOUSE" predicate. Fires once
+     * when the in-game scene first becomes load-free — i.e. the moment a
+     * render-parity capture against HOUSE is meaningful. Robust whether
+     * the load-overlay drops before or after the INGAME flip. */
+    return !is_house_freeroam(p) && is_house_freeroam(c);
+}
+
+struct anchor_def {
+    const char *name;
+    int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
+};
+
+/* Table order = emission order when several fire on the same frame.
+ * NEW_GAME / LOADING_START before LOADING_END / HOUSE_FREEROAM is the
+ * causal order. */
+static const struct anchor_def g_anchors[] = {
+    { "NEW_GAME",       ev_new_game       },
+    { "LOADING_START",  ev_loading_start  },
+    { "LOADING_END",    ev_loading_end    },
+    { "HOUSE_FREEROAM", ev_house_freeroam },
+};
+#define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
+
+void anchor_trace_tick(struct anchor_trace_state *st, uint32_t frame,
+                       struct anchor_world cur,
+                       anchor_sink_fn sink, void *user)
+{
+    if (!st->initialized) {
+        /* First tick: mark t0 and seed the baseline. No edge predicates
+         * run — there is no "previous" world to edge against, and firing
+         * them against a zero baseline would spuriously emit (e.g. a
+         * boot that begins with the loading overlay already up). */
+        st->initialized = 1;
+        st->prev        = cur;
+        if (sink) sink("BOOT", frame, user);
+        return;
+    }
+
+    for (int i = 0; i < ANCHOR_COUNT; i++) {
+        if (g_anchors[i].fired(&st->prev, &cur)) {
+            if (sink) sink(g_anchors[i].name, frame, user);
+        }
+    }
+    st->prev = cur;
+}
+
+void anchor_trace_sink_jsonl(const char *name, uint32_t frame, void *user)
+{
+    FILE *fp = (FILE *)user;
+    if (!fp) return;
+    fprintf(fp, "{\"anchor\":\"%s\",\"frame\":%u}\n", name, frame);
+}

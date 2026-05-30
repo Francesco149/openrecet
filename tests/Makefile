@@ -21,6 +21,7 @@ LDFLAGS := $(SAN)
 
 SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash.c ../src/lnk_lzss.c \
                  ../src/recet_ini.c ../src/input.c ../src/input_trace.c \
+                 ../src/anchor_trace.c \
                  ../src/call_trace.c \
                  ../src/rng.c ../src/math3d.c ../src/prewindow.c ../src/tick.c \
                  ../src/render_quad.c ../src/scene.c ../src/scene_title.c ../src/scene_buy.c ../src/scene_floor.c ../src/scene_jutan.c ../src/scene_pause.c ../src/scene_walls.c ../src/scene_worldmap.c ../src/sim.c ../src/music.c ../src/audio.c ../src/audio_mci.c ../src/audio_fade.c ../src/audio_se_names.c ../src/save_bank.c ../src/save_io.c ../src/settings.c ../src/sysassets.c ../src/nowloading.c ../src/worker_load.c ../src/fade.c ../src/font.c ../src/font_atlas.c ../src/font_alloc.c ../src/font_upload.c \
@@ -65,7 +66,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_player_ctrl.c \
                  ../src/sha256.c ../src/se_pack.c
 SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_hash.c test_lnk_lzss.c \
-                 test_recet_ini.c test_input_poll.c test_input_trace.c \
+                 test_recet_ini.c test_input_poll.c test_input_trace.c test_anchor_trace.c \
                  test_rng.c test_math3d.c test_prewindow.c test_tick.c \
                  test_render_quad.c test_scene.c test_scene_title.c test_scene_title_sim.c test_scene_title_settings.c test_scene_buy.c test_scene_floor.c test_scene_jutan.c test_scene_pause.c test_scene_walls.c test_scene_worldmap.c test_sim.c test_music.c test_audio.c test_audio_mci.c test_audio_fade.c test_audio_trace.c test_audio_se_table.c test_save_bank.c test_save_io.c test_settings.c test_sysassets.c test_nowloading.c test_worker_load.c test_fade.c test_font.c test_font_atlas.c test_font_alloc.c test_font_upload.c \
                  test_tables_buysell.c test_tables_chara.c test_tables_config.c \

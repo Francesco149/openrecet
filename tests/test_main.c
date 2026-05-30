@@ -417,6 +417,13 @@ struct test_case {
     X(input_trace_record_when_closed_is_noop) \
     X(input_trace_record_open_rejects_null) \
     \
+    X(anchor_first_tick_emits_only_boot) \
+    X(anchor_boot_loading_end) \
+    X(anchor_new_game_to_house) \
+    X(anchor_house_freeroam_fires_once) \
+    X(anchor_reentrant_loading) \
+    X(anchor_jsonl_sink_format) \
+    \
     X(render_quad_init_seeds_z_rhw_specular) \
     X(render_quad_add_one_emits_six_vertices) \
     X(render_quad_uv_half_texel_inset_asymmetry) \
