@@ -7,6 +7,43 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — TAS P0 papercuts: input-trace table un-capped + run-script path translation
+
+Cleared both P0 papercuts in `docs/plans/tas-framework.md` — the two things
+that bit the texture-filtering session and block scaling the input-trace
+replay toward a full-game TAS run.
+
+- **Un-capped the replay table (`src/input_trace.{c,h}`).** The table was a
+  fixed `entries[4096]` array, so any longer trace silently failed the
+  *whole* load (`input_trace_parse_buf` → 0 → main.c "replay disabled"); an
+  8256-entry trace was the original bite. Now `struct input_trace` carries a
+  heap `entries` pointer grown by doubling `realloc` (seeded 256), released
+  by a new `input_trace_free`. `input_trace_load` also slurps the file into
+  a growing heap buffer — removing the *second* silent cap (the old static
+  1 MiB read buffer). `INPUT_TRACE_MAX_ENTRIES` is now only a 16 M-entry
+  **sanity ceiling** that fails loudly on `stderr`, far past a full-game run
+  (~1 M transitions). main.c frees `g_replay_trace` at shutdown + on the
+  load-failure path.
+- **Tests.** Rewrote the two lookup tests that poked the (now-heap) array
+  directly to build via `parse_buf`; added `input_trace_free` to every
+  allocating test (ASan-clean); new regression
+  `input_trace_parse_grows_past_old_fixed_cap` builds a 9000-entry trace
+  (> the old 4096) and round-trips it. **2975/2975** host tests pass.
+- **`tools/run-openrecet.sh` path translation.** Generalised the
+  `--capture-to` path-rewrite into a `rewrite_path` helper covering three
+  path kinds and now also `--input-trace-replay` (file-in: warn if missing)
+  and `--input-trace-record` (file-out: `mkdir -p` parent). All `wslpath
+  -w`'d so a repo-relative/Unix path Just Works — no more hand-copying the
+  trace into the game dir to dodge the UNC `fopen` failure.
+- **Verified end-to-end** (debug exe): record to `runs/.../rec.jsonl`
+  (repo-relative) wrote `\\wsl.localhost\…\rec.jsonl`; replay of a synthetic
+  9000-entry trace logged `input trace replaying ← … (9000 entries)` — the
+  exact case that used to print "replay disabled". Missing-file replay emits
+  the new warning.
+
+Remaining P0 item: document the one-shot capture recipe (deferred). P1
+(determinism pinning) unchanged.
+
 ## 2026-05-30 — Mipmap fix: 3D mesh textures now match retail's filtering (+ pixel_diff tool)
 
 Closed the queued HOUSE texture-filtering parity gap

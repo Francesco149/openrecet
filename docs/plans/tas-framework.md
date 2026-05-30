@@ -212,21 +212,28 @@ substrate; this is the closed loop built on top.
 where waypoints are few and the input is short. The architecture must scale:
 the oracle grows as we RE more subsystems; the waypoint chain grows linearly
 with game progress; checkpointing keeps per-step cost bounded; the trace
-format (sparse `{frame,buttons}`) already handles arbitrary length once the
-`INPUT_TRACE_MAX_ENTRIES` cap is lifted (P0). Determinism pinning (P1) is
+format (sparse `{frame,buttons}`) handles arbitrary length now that the
+`INPUT_TRACE_MAX_ENTRIES` cap is lifted (P0 ✅). Determinism pinning (P1) is
 non-negotiable here — synthesis only converges if replay is reproducible.
 
 ## Phased implementation
 
 - **P0 — papercut fixes (cheap, do first; unblock the current workflow):**
-  1. `INPUT_TRACE_MAX_ENTRIES` (4096) silently fails the whole load when a
-     trace is longer (my 8256-entry trace → "replay disabled"). Either
-     bump the cap, or load the first N with a clear
-     `"trace truncated at N entries"` warning instead of returning 0.
-  2. `tools/run-openrecet.sh`: translate the `--input-trace-replay` path
-     via `wslpath -w` (like `--capture-to`); today an unprefixed/UNC path
-     fails the exe's `fopen` and you must hand-copy the trace into the
-     game dir.
+  1. ✅ **DONE (2026-05-30).** `INPUT_TRACE_MAX_ENTRIES` (was 4096) silently
+     failed the whole load when a trace was longer (the 8256-entry trace →
+     "replay disabled"). Fixed by making the replay table heap-grown
+     (`struct input_trace.entries` is now a doubling `realloc` buffer, freed
+     via `input_trace_free`) and slurping the whole file dynamically — both
+     fixed caps removed (the entry array AND the old 1 MiB read buffer). The
+     constant is now only a 16 M-entry *sanity ceiling* that fails **loudly**
+     (`stderr`), far past a full-game run. Regression test
+     `input_trace_parse_grows_past_old_fixed_cap` (9000 entries).
+  2. ✅ **DONE (2026-05-30).** `tools/run-openrecet.sh` now translates
+     `--input-trace-replay` / `--input-trace-record` paths via `wslpath -w`
+     (resolving repo-relative against the root, like `--capture-to`); replay
+     paths warn if the file is missing, record paths `mkdir -p` their parent.
+     Verified end-to-end: a repo-relative replay of the 9000-entry trace
+     loads (`replaying ← \\wsl.localhost\…\big.jsonl (9000 entries)`).
   3. Document the working capture recipe (turbo + silent-audio + trace
      replay + capture-frames) in one place so it's not re-derived.
 - **P1 — determinism pinning + anchor emission (do together):**
