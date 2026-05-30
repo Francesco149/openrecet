@@ -41,8 +41,10 @@ replay toward a full-game TAS run.
   exact case that used to print "replay disabled". Missing-file replay emits
   the new warning.
 
-Remaining P0 item: document the one-shot capture recipe (deferred). P1
-(determinism pinning) unchanged.
+Also documented the verified one-shot capture recipe (replay + capture in a
+single repo-relative `run-openrecet.sh` invocation → `frame_NNNNN.bmp`) in
+`tas-framework.md`, closing P0 item 3. **All three P0 papercuts done**; P1
+(determinism pinning) is the next TAS milestone.
 
 ## 2026-05-30 — Mipmap fix: 3D mesh textures now match retail's filtering (+ pixel_diff tool)
 

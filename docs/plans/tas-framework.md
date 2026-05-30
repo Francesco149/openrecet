@@ -234,8 +234,8 @@ non-negotiable here — synthesis only converges if replay is reproducible.
      paths warn if the file is missing, record paths `mkdir -p` their parent.
      Verified end-to-end: a repo-relative replay of the 9000-entry trace
      loads (`replaying ← \\wsl.localhost\…\big.jsonl (9000 entries)`).
-  3. Document the working capture recipe (turbo + silent-audio + trace
-     replay + capture-frames) in one place so it's not re-derived.
+  3. ✅ **DONE (2026-05-30).** Working capture recipe documented below
+     (and verified end-to-end after papercuts 1+2).
 - **P1 — determinism pinning + anchor emission (do together):**
   - **Pin the non-input variation** so the same trace is reproducible on
     each side and comparable across them: RNG seed (`DAT_006023a0` — the
@@ -263,6 +263,31 @@ non-negotiable here — synthesis only converges if replay is reproducible.
   in baby steps. Scale target: a full-game TAS run. Depends on P0 (trace
   cap), P1 (determinism + oracle/anchor emission), and benefits from P3
   (forcing/freeze for stable probing). See the dedicated section above.
+
+## Capture recipe (port side, verified 2026-05-30)
+
+One invocation replays an input trace and screenshots chosen frames.
+Repo-relative paths Just Work after papercut 2 (the wrapper `wslpath -w`'s
+both flags); `--turbo --silent-audio --hidden` are auto-injected by
+`run-openrecet.sh`, and a frame-capture run auto-bounds itself a few
+frames past the last capture (so no `--max-frames`/`--max-duration-ms`
+needed):
+
+```sh
+tools/run-openrecet.sh \
+    --input-trace-replay runs/<scn>/trace.jsonl \
+    --capture-to         runs/<scn> \
+    --capture-frames     40,90,150
+# → runs/<scn>/frame_00040.bmp … (1024×768), logs
+#   "input trace replaying ← … (N entries)" + a "capture: wrote …" line each.
+```
+
+Notes: trace frames are 0-based sim frames (`g_tick.frame_count`); the
+sparse mask holds between change-points; under replay the engine is
+unpaused and DirectInput is bypassed, so the replayed mask is exactly
+what sim sees. Add `--debug` to surface the stderr log lines above. To
+record instead, swap in `--input-trace-record runs/<scn>/rec.jsonl`
+(its parent dir is auto-created).
 
 ## Open questions
 
