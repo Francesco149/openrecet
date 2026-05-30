@@ -7,6 +7,64 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — TAS P1 (retail side): Frida anchor emitter; one trace, two targets, names align + load divergence localised
+
+Built the retail half of TAS P1 (`docs/plans/tas-framework.md`): the
+Frida agent now emits the **same named anchors** as the port's
+`src/anchor_trace.c`, so one input trace drives both targets and the
+harness aligns them by event instead of by absolute frame.
+
+- **Agent (`tools/frida/openrecet-agent.js`).** New `anchorTick(frame)`
+  is a 1:1 mirror of `anchor_trace.c`'s edge logic — samples the engine
+  scene-state (`DAT_0438b1c0`) and the two loading gates
+  (`DAT_06a49958 || DAT_06a49960`, the OR the engine itself tests at
+  all.c L50058) once per Present and emits `{kind:"anchor",anchor:NAME,
+  frame:N}` on rising edges. Same names, same wire shape, same causal
+  table order (BOOT seeded on first tick; then NEW_GAME / LOADING_START /
+  LOADING_END / HOUSE_FREEROAM). Read-only poll, rides the existing
+  Present hook; gated on `config.anchor_trace`. Frame is the agent's
+  manual per-Present counter (retail's canonical frame numbering).
+- **Driver (`tools/frida_capture.py`).** `--anchor-trace` flag +
+  `CaptureConfig.anchor_trace`; the `kind:"anchor"` handler appends to
+  `<run_dir>/anchors.jsonl` (mirrors trace.jsonl/audio.jsonl). Pairs
+  with `--auto-z-spam` to drive a fresh new-game→HOUSE unattended.
+- **Validation — one trace, both targets.** Drove retail
+  (`--turbo --silent-audio --hide-window --auto-z-spam --anchor-trace`,
+  riding `--dump-records-b` for a bounded auto-shutdown at HOUSE). The
+  recorded A-spam `trace.jsonl` was then replayed on the **port**
+  (`run-openrecet.sh --input-trace-replay … --anchor-trace-record …`).
+  Result:
+
+  | anchor          | retail | port  | gap   |
+  |-----------------|-------:|------:|------:|
+  | BOOT            |      0 |     0 |     0 |
+  | NEW_GAME        |     59 |    59 | **0** |
+  | LOADING_START   |     59 |    59 | **0** |
+  | LOADING_END     |   3018 |  1748 | +1270 |
+  | HOUSE_FREEROAM  |   3018 |  1748 | +1270 |
+
+  The deterministic title→new-game prefix aligns **exactly** (frame 59
+  on both — the same trace produces the same commit frame, confirming
+  the sim advances one step/frame identically on each side), and the
+  divergence is localised **precisely to the load** (+1270 frames) —
+  exactly the design-principle prediction: anchor-frame gap = the
+  non-deterministic loading duration, which absolute framing can't
+  absorb but anchors do. Retail genuinely reached free-roam (records-B
+  dump: `player_pos [-0.30,0,9.35]` = the canonical standing pose, 8
+  live entity records).
+- **Anchor precision note.** Retail's *first 3D draw* (frame 2988)
+  precedes *HOUSE_FREEROAM* (3018) by 30 frames — 3D draws fire behind
+  the still-raised loading overlay. So the load-free `HOUSE_FREEROAM`
+  anchor is a strictly more precise "playable HOUSE" marker than the
+  ad-hoc `auto_3d_trace` "first DrawIndexedPrimitive" trigger it's
+  slated to subsume.
+
+**Next (P2 retail):** resolve `anchor+offset → frame` from the Frida
+anchor stream in `frida_capture.py` (retail-side `--capture-at-anchor`,
+mirroring the port flag) + a declarative `scenario.yaml`
+`anchors:`/`capture:` section, then re-run a render-parity case
+cross-target at `HOUSE_FREEROAM + k` and confirm the room aligns.
+
 ## 2026-05-30 — TAS P1 (port side): anchor emission + anchor-relative capture; loading-screen non-determinism characterised
 
 Built the port half of TAS P1 (`docs/plans/tas-framework.md`):

@@ -1,12 +1,18 @@
 # TAS framework — deterministic anchors for port↔retail parity (plan)
 
-> **Status: IN PROGRESS.** P0 (papercuts) ✅ and **P1 port-side** ✅
-> (2026-05-30): determinism characterised (sim bit-exact; loading-screen
-> frame-count is the leak, ~250-frame jitter measured) + anchor emission
-> landed (`src/anchor_trace.{c,h}`, `--anchor-trace-record`,
-> `--capture-at-anchor`). Remaining: P1 retail side (Frida `kind:"anchor"`
-> + clock/RNG pins), P2 retail anchor-relative capture + `scenario.yaml`,
-> P3 forcing + `tas_diff.py`, P4 autonomous synthesis.
+> **Status: IN PROGRESS.** P0 (papercuts) ✅, **P1 port-side** ✅, and
+> **P1 retail anchor emission** ✅ (2026-05-30): determinism characterised
+> (sim bit-exact; loading-screen frame-count is the leak, ~250-frame
+> jitter measured) + anchor emission landed on **both** targets
+> (`src/anchor_trace.{c,h}` + `--anchor-trace-record`/`--capture-at-anchor`
+> on the port; Frida agent `kind:"anchor"` + `frida_capture.py
+> --anchor-trace` → `anchors.jsonl` on retail). **Validated cross-target:**
+> one A-spam trace drove both sides; anchor NAMES match, the deterministic
+> title→new-game prefix aligned exactly (frame 59 on both), and the
+> divergence localised to the load (HOUSE_FREEROAM retail 3018 vs port
+> 1748). Remaining: P1 retail clock/RNG pins (deferred — anchors already
+> absorb the load divergence), P2 retail anchor-relative capture +
+> `scenario.yaml`, P3 forcing + `tas_diff.py`, P4 autonomous synthesis.
 >
 > Motivated by the texture-filtering verification session: the mip fix was
 > *correct* but I could not produce the clean book/blind pixel-diffs the
@@ -333,11 +339,17 @@ non-negotiable here — synthesis only converges if replay is reproducible.
     anchor-relative capture resolved live, immune to the load jitter —
     proven by two replays whose `HOUSE_FREEROAM+0/+30` captures were
     **bit-identical** despite a +139-frame absolute offset.
-    - **Open (retail side):** the Frida agent `kind:"anchor"` message
-      reading the same globals via their VAs (`g_scene_state` 0x0438b1c0,
-      the nowloading gate `DAT_06a49958`), same wire format, so one spec
-      drives both sides. Then validate: both emit the same anchor *names*,
-      record the per-side frames + gap (the divergence metric).
+    - **Retail side DONE (2026-05-30).** The Frida agent `anchorTick()`
+      mirrors `anchor_trace.c` 1:1 — reads `DAT_0438b1c0` (scene) +
+      `DAT_06a49958||DAT_06a49960` (loading, the engine's own OR) each
+      Present and emits `{kind:"anchor",anchor:NAME,frame:N}`;
+      `frida_capture.py --anchor-trace` writes `anchors.jsonl`.
+      **Validated:** one trace drove both; names matched, NEW_GAME +
+      LOADING_START aligned at frame 59 on both, LOADING_END/
+      HOUSE_FREEROAM diverged retail 3018 / port 1748 (+1270 = the load
+      gap). Also observed: retail's first 3D draw (2988) precedes
+      HOUSE_FREEROAM (3018), so the load-free anchor is more precise than
+      `auto_3d_trace`'s first-DrawIndexedPrimitive trigger.
 - **P2 — anchor-relative capture + alignment map:** port-side
   anchor-relative capture **landed** as `--capture-at-anchor NAME[+k]`
   (2026-05-30) — captures resolve live when the anchor fires, immune to

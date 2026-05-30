@@ -158,6 +158,24 @@ const ADDR = {
     var_lcg_seed:        0x006023a0,  // u32 — engine RNG state
     var_stage_dungeon_id: 0x0438b4c8, // i32 DAT_0438b4c8 — current dungeon id
     var_stage_next_floor: 0x0438b4cc, // i32 DAT_0438b4cc — next-floor id
+
+    // TAS anchor sources (P1 retail side — see docs/plans/tas-framework.md
+    // + src/anchor_trace.{c,h}). The retail counterparts of the port's
+    // g_scene_state + nowloading_is_active() that the edge-triggered anchor
+    // emitter samples once per Present.
+    var_scene_state:     0x0438b1c0,  // i32 DAT_0438b1c0 — scene mode:
+                                       // 0 TITLE / 1 INGAME / 8 LOADING (the
+                                       // INGAME-dispatch global widely keyed
+                                       // as `DAT_0438b1c0 == 1`).
+    var_nowloading_gate:  0x06a49958, // i32 DAT_06a49958 — worker "still
+                                       // loading" gate (primary).
+    var_nowloading_gate2: 0x06a49960, // i32 DAT_06a49960 — secondary load
+                                       // gate. The engine's loading-overlay
+                                       // test is `(DAT_06a49958==0) &&
+                                       // (DAT_06a49960==0)` (all.c L50058),
+                                       // so loading_active = OR of the two —
+                                       // the port collapses both in
+                                       // nowloading_is_active().
     var_bgm_slider:      0x056e5778,  // u32 — BGM volume slider 0..9
     var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
     var_mci_debug_gate:  0x0438ccb4,  // u32 — non-zero recomputes fade
@@ -555,6 +573,20 @@ let g_auto_3d_done_sent    = false;
 let g_pre_3d_trace         = false;
 let g_pre_3d_done_sent     = false;
 
+// TAS anchor emitter (P1 retail side — see docs/plans/tas-framework.md).
+// The retail counterpart of the port's src/anchor_trace.c: once per
+// Present we snapshot {scene_state, loading_active} off the engine
+// globals and emit an `{kind:"anchor", anchor:NAME, frame:N}` message for
+// every anchor whose rising edge fired vs the previous snapshot. Same
+// anchor NAMES + wire shape as the port, so one spec aligns both sides.
+// The edge logic below is a 1:1 mirror of anchor_trace.c (BOOT on the
+// first tick, then NEW_GAME / LOADING_START / LOADING_END / HOUSE_FREEROAM
+// in causal table order); keep the two in lockstep.
+let g_anchor_trace_enabled = false;
+let g_anchor_initialized   = false;
+let g_anchor_prev_scene    = 0;      // previous-frame DAT_0438b1c0
+let g_anchor_prev_loading  = false;  // previous-frame (gate1||gate2)!=0
+
 // Cchr.0 table-B dump mode.  When `dump_records_b` is set the agent polls
 // the records_b active-count (DAT_0076b964) every Present and anchors the
 // dump window on the FIRST frame where it goes non-zero — i.e. when the 3D
@@ -890,6 +922,16 @@ function installPresentHook(devicePtr) {
                 g_draw_count_max = Math.max(g_draw_count_max,
                                             g_draw_count_this_frame);
                 g_draw_count_this_frame = 0;
+            }
+            // TAS anchor emit. Sample scene/loading state for THIS frame
+            // (frameNo() == fn) and emit any rising-edge anchors before the
+            // bump, so the emitted frame matches every other fn-keyed event.
+            if (g_anchor_trace_enabled) {
+                try {
+                    anchorTick(fn);
+                } catch (e) {
+                    err('Present.onEnter.anchor', e.message);
+                }
             }
             // Bump AFTER the capture decision. Audio/input events that
             // fired during the cycle leading to this Present have
@@ -1604,6 +1646,64 @@ function callTraceFlush(frameNumber) {
           frame: frameNumber,
           count: events.length,
           events: events});
+}
+
+// ─── TAS anchor emitter (mirrors src/anchor_trace.c) ────────────────────
+//
+// Called once per Present with the manual frame number. Reads the engine
+// scene-state + the two loading gates, computes rising edges against the
+// previous snapshot, and emits each fired anchor as
+// `{kind:"anchor", anchor:NAME, frame:N}`. The first call seeds the
+// baseline and emits BOOT (no edge predicates run — there is no previous
+// world to edge against). Edge rules + table order are identical to the
+// port so the emitted NAMES line up; only the per-side frame numbers
+// differ (that divergence is the whole point — see the plan).
+const ANCHOR_SCENE_TITLE  = 0;
+const ANCHOR_SCENE_INGAME = 1;
+
+function anchorIsHouseFreeroam(scene, loading) {
+    return scene === ANCHOR_SCENE_INGAME && !loading;
+}
+
+function anchorTick(frame) {
+    // Snapshot the engine globals. loading_active = OR of both gates
+    // (all.c L50058 `(DAT_06a49958==0) && (DAT_06a49960==0)`); reading
+    // both keeps parity with the port's nowloading_is_active().
+    const scene = rva(ADDR.var_scene_state).readS32();
+    const loading = (rva(ADDR.var_nowloading_gate).readS32() !== 0) ||
+                    (rva(ADDR.var_nowloading_gate2).readS32() !== 0);
+
+    if (!g_anchor_initialized) {
+        g_anchor_initialized  = true;
+        g_anchor_prev_scene   = scene;
+        g_anchor_prev_loading = loading;
+        send({kind: 'anchor', anchor: 'BOOT', frame: frame});
+        return;
+    }
+
+    const ps = g_anchor_prev_scene, pl = g_anchor_prev_loading;
+
+    // Table order = emission order when several fire on one frame; matches
+    // anchor_trace.c's g_anchors[] (causal: NEW_GAME / LOADING_START before
+    // LOADING_END / HOUSE_FREEROAM).
+    // NEW_GAME — TITLE → INGAME (the engine passes through LOADING in the
+    // same tick, so the observable edge is TITLE → INGAME directly).
+    if (ps === ANCHOR_SCENE_TITLE && scene === ANCHOR_SCENE_INGAME) {
+        send({kind: 'anchor', anchor: 'NEW_GAME', frame: frame});
+    }
+    if (!pl && loading) {
+        send({kind: 'anchor', anchor: 'LOADING_START', frame: frame});
+    }
+    if (pl && !loading) {
+        send({kind: 'anchor', anchor: 'LOADING_END', frame: frame});
+    }
+    if (!anchorIsHouseFreeroam(ps, pl) &&
+        anchorIsHouseFreeroam(scene, loading)) {
+        send({kind: 'anchor', anchor: 'HOUSE_FREEROAM', frame: frame});
+    }
+
+    g_anchor_prev_scene   = scene;
+    g_anchor_prev_loading = loading;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────
@@ -3076,6 +3176,16 @@ rpc.exports = {
         g_pre_3d_trace           = !!config.pre_3d_trace;
         g_pre_3d_done_sent       = false;
 
+        // TAS anchor emitter (P1 retail side). When anchor_trace:true the
+        // Present hook samples the scene/loading globals each frame and
+        // emits {kind:"anchor",...} on rising edges. Pure read-only poll —
+        // pairs with auto_z_spam (drive past the title to HOUSE) and the
+        // capture flags. Reset the edge state so a re-init starts clean.
+        g_anchor_trace_enabled = !!config.anchor_trace;
+        g_anchor_initialized   = false;
+        g_anchor_prev_scene    = 0;
+        g_anchor_prev_loading  = false;
+
         // Cchr.0 table-B dump.  Anchors on the first count_b>0 frame; pair
         // with auto_z_spam to drive a fresh new-game to HOUSE.
         // dump_records_b_offsets is an optional list of frame offsets from
@@ -3175,6 +3285,7 @@ rpc.exports = {
               auto_3d_trace: g_auto_3d_trace,
               auto_3d_trace_frames: g_auto_3d_trace_frames,
               pre_3d_trace: g_pre_3d_trace,
+              anchor_trace: g_anchor_trace_enabled,
               dump_records_b: g_dump_records_b,
               dump_records_b_offsets: g_dump_records_b_offsets,
               dump_records_b_capture: g_dump_records_b_capture,

@@ -260,6 +260,14 @@ class CaptureConfig:
     # covers title screen + intro cutscene up to (not including) the
     # first HOUSE 3D frame.
     pre_3d_trace:           bool = False
+    # TAS anchor emitter (P1 retail side — docs/plans/tas-framework.md).
+    # When `anchor_trace` is true the agent samples the engine scene/loading
+    # globals each Present and emits {kind:"anchor", anchor:NAME, frame:N}
+    # on rising edges (BOOT / NEW_GAME / LOADING_START / LOADING_END /
+    # HOUSE_FREEROAM — same names the port writes from src/anchor_trace.c).
+    # The driver appends them to `<run_dir>/anchors.jsonl`. Pair with
+    # `auto_z_spam` to drive a fresh new-game to HOUSE unattended.
+    anchor_trace:           bool = False
     # Memory-access watch (Phase D.7). When `mem_watch` is true the agent
     # arms Frida's MemoryAccessMonitor over `mem_watch_regions` and emits
     # one record per trapped access (faulting instruction VA + accessed
@@ -343,6 +351,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     f_quad = quad_jsonl.open("w") if cfg.quad_hist else None
     chr_leaf_jsonl = run_dir / "chr_leaf.jsonl"
     f_leaf = chr_leaf_jsonl.open("w") if cfg.chr_leaf else None
+    anchors_jsonl = run_dir / "anchors.jsonl"
+    f_anchor = anchors_jsonl.open("w", buffering=1) if cfg.anchor_trace else None
 
     captured: list[int] = []
     last_mask: int | None = None
@@ -482,6 +492,18 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 ev_out["frame"] = frame
                 f_mem.write(json.dumps(ev_out) + "\n")
             f_log.write(f"[mem_watch] frame={frame} accesses={len(events)}\n")
+            return
+
+        if kind == "anchor":
+            name  = str(p.get("anchor", "?"))
+            frame = int(p.get("frame", -1))
+            last_engine_frame = max(last_engine_frame, frame)
+            if f_anchor is not None:
+                f_anchor.write(json.dumps({
+                    "anchor": name,
+                    "frame":  frame,
+                }) + "\n")
+            f_log.write(f"[anchor] {name} @ frame={frame}\n")
             return
 
         if kind == "auto_3d_scene_reached":
@@ -680,6 +702,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["auto_3d_trace_frames"] = int(cfg.auto_3d_trace_frames)
     if cfg.pre_3d_trace:
         init_cfg["pre_3d_trace"] = True
+    if cfg.anchor_trace:
+        init_cfg["anchor_trace"] = True
     if cfg.dump_records_b:
         init_cfg["dump_records_b"] = True
         init_cfg["dump_records_b_capture"] = bool(cfg.dump_records_b_capture)
@@ -750,6 +774,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         f_quad.close()
     if f_leaf is not None:
         f_leaf.close()
+    if f_anchor is not None:
+        f_anchor.close()
 
     return CaptureResult(
         exit_code=exit_code,
@@ -921,6 +947,14 @@ def main(argv: list[str] | None = None) -> int:
                          "cutscene), then shut down on first 3D draw. "
                          "Pair with --auto-z-spam to drive past the title "
                          "menu unattended.")
+    ap.add_argument("--anchor-trace", action="store_true",
+                    help="TAS P1: sample the engine scene/loading globals "
+                         "each Present and emit rising-edge anchors "
+                         "(BOOT / NEW_GAME / LOADING_START / LOADING_END / "
+                         "HOUSE_FREEROAM) to <run_dir>/anchors.jsonl. Same "
+                         "names src/anchor_trace.c writes on the port side, "
+                         "so one spec aligns both targets. Pair with "
+                         "--auto-z-spam to drive a fresh new-game to HOUSE.")
     ap.add_argument("--dump-records-b", action="store_true",
                     help="Cchr.0: dump scene-1 table-B render records at "
                          "frame offsets from the first 3D draw (default "
@@ -1027,6 +1061,7 @@ def main(argv: list[str] | None = None) -> int:
         auto_3d_trace=args.auto_3d_trace,
         auto_3d_trace_frames=args.auto_3d_trace_frames,
         pre_3d_trace=args.pre_3d_trace,
+        anchor_trace=args.anchor_trace,
         dump_records_b=args.dump_records_b,
         dump_records_b_offsets=dump_records_b_offsets,
         dump_records_b_capture=args.dump_records_b_capture,
