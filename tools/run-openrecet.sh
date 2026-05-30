@@ -146,7 +146,7 @@ mapfile -d '' -t _aw < <(inject_if_absent --silent-audio "$@"); set -- "${_aw[@]
 #
 # Three path kinds, different prep:
 #   dir-out  (--capture-to, --house-preview-dump):   mkdir -p the dir itself.
-#   file-out (--input-trace-record):                 mkdir -p its PARENT dir.
+#   file-out (--input-trace-record, --anchor-trace-record): mkdir -p PARENT.
 #   file-in  (--input-trace-replay):                 must exist; warn if not.
 # All three get wslpath -w'd.
 rewrite_path() {  # $1=kind (dir-out|file-out|file-in)  $2=path  → echoes win path
@@ -166,9 +166,9 @@ while (( $# )); do
             args+=( "$1" "$(rewrite_path dir-out "$2")" ); shift 2 ;;
         --capture-to=*|--house-preview-dump=*)
             args+=( "${1%%=*}" "$(rewrite_path dir-out "${1#*=}")" ); shift ;;
-        --input-trace-record)
+        --input-trace-record|--anchor-trace-record)
             args+=( "$1" "$(rewrite_path file-out "$2")" ); shift 2 ;;
-        --input-trace-record=*)
+        --input-trace-record=*|--anchor-trace-record=*)
             args+=( "${1%%=*}" "$(rewrite_path file-out "${1#*=}")" ); shift ;;
         --input-trace-replay)
             args+=( "$1" "$(rewrite_path file-in "$2")" ); shift 2 ;;

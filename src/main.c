@@ -23,6 +23,7 @@
 #include "storage.h"
 #include "sprite.h"
 #include "input.h"
+#include "anchor_trace.h"
 #include "input_trace.h"
 #include "layers.h"
 #include "tables.h"
@@ -353,6 +354,11 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  *                                g_paused=FALSE so a window deactivation
  *                                can't stall the replay. Pairs with
  *                                --rng-seed for full determinism.
+ *   --anchor-trace-record <file> emit the TAS anchor event stream
+ *                                ({"anchor":NAME,"frame":N} JSONL) to
+ *                                <file>; also echoed to stderr. Keyed on
+ *                                g_tick.frame_count (== --capture-frames
+ *                                index). See src/anchor_trace.h.
  *   --rng-seed <n>               replace `rng_seed_from_now()` with
  *                                `rng_seed(n)` so the title's BG scroll
  *                                + cursor pulse phase are deterministic
@@ -374,6 +380,17 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  */
 static char           *g_input_trace_record_path = NULL;
 static char           *g_input_trace_replay_path = NULL;
+
+/* --anchor-trace-record <file>: emit the TAS anchor event stream
+ * ({"anchor":NAME,"frame":N} JSONL) to <file>.  Always also echoed to
+ * stderr (prefixed "anchor:") so it shows up in run-openrecet logs even
+ * without a file sink.  See src/anchor_trace.h.  The stream is keyed on
+ * g_tick.frame_count — the same index --capture-frames uses — so an
+ * anchor frame is directly comparable to a capture frame. */
+static char                     *g_anchor_trace_record_path = NULL;
+static FILE                     *g_anchor_record_fp         = NULL;
+static struct anchor_trace_state g_anchor_state             = {0};
+
 static int             g_rng_seed_set            = 0;
 static uint32_t        g_rng_seed_value          = 1;
 static uint32_t        g_max_frames              = 0;
@@ -1234,6 +1251,22 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
     }
 
+    /* Anchor-trace record: open the file sink before the loop so the
+     * BOOT anchor (first ticked frame) is captured.  Failure is
+     * non-fatal — the stderr echo still emits the stream. */
+    if (g_anchor_trace_record_path) {
+        g_anchor_record_fp = fopen(g_anchor_trace_record_path, "w");
+        if (g_anchor_record_fp) {
+            fprintf(stderr, "openrecet: anchor trace recording → %s\n",
+                    g_anchor_trace_record_path);
+        } else {
+            fprintf(stderr,
+                "openrecet: failed to open anchor trace for recording %s "
+                "(stderr echo still active)\n",
+                g_anchor_trace_record_path);
+        }
+    }
+
     /* Input-trace replay: parse the file now (one shot at boot — the
      * file is small and lookups are binary search at runtime). */
     if (g_input_trace_replay_path) {
@@ -1589,6 +1622,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     audio_trace_close();
     input_trace_record_close();
     input_trace_free(&g_replay_trace);
+    if (g_anchor_record_fp) { fclose(g_anchor_record_fp); g_anchor_record_fp = NULL; }
     sprite_destroy(&g_show_sprite);
     if (g_show_mesh) { mesh_free(g_show_mesh); g_show_mesh = NULL; }
     if (g_house_preview_mesh) {
@@ -1920,6 +1954,19 @@ static mesh_t *house_preview_load_dump(const char *dir, IDirect3DDevice8 *dev)
  * live here. The capture has to run before Present because
  * D3DSWAPEFFECT_DISCARD leaves the post-Present back buffer undefined.
  */
+/* Tee sink for the anchor stream: stderr (always, prefixed) + the
+ * optional --anchor-trace-record file (pure JSONL).  `user` is unused —
+ * both destinations are module globals. */
+static void anchor_emit_tee(const char *name, uint32_t frame, void *user)
+{
+    (void)user;
+    fprintf(stderr, "anchor: {\"anchor\":\"%s\",\"frame\":%u}\n", name, frame);
+    if (g_anchor_record_fp) {
+        anchor_trace_sink_jsonl(name, frame, g_anchor_record_fp);
+        fflush(g_anchor_record_fp);
+    }
+}
+
 static void render_dispatch(void)
 {
     if (!g_dev) return;
@@ -1931,6 +1978,20 @@ static void render_dispatch(void)
     /* E.2: same gate for the port-side call tracer.  CALL_TRACE_ENTER
      * macros below check the per-frame emit flag this sets. */
     call_trace_begin_frame(g_tick.frame_count);
+
+    /* TAS P1: emit the anchor event stream.  Runs every ticked frame
+     * (including nowloading frames) so the load-overlay edges are seen.
+     * The snapshot is read here, after sim_a/sim_b have committed this
+     * frame's scene_state + loading gate.  Always active (the BOOT
+     * anchor + stderr echo cost nothing); the file sink is opt-in. */
+    {
+        struct anchor_world w = {
+            .scene_state    = g_scene_state,
+            .loading_active = nowloading_is_active(),
+        };
+        anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
+                          anchor_emit_tee, NULL);
+    }
 
     /* E.2 probe — FUN_004547ab @ 0x4547ab (render dispatch root).
      * Must be AFTER call_trace_begin_frame so the first emit lands in
@@ -2537,6 +2598,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char rep_buf[MAX_PATH];
                 lstrcpynA(rep_buf, val, (int)sizeof(rep_buf));
                 g_input_trace_replay_path = rep_buf;
+            }
+        } else if (lstrcmpA(tok, "--anchor-trace-record") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char anc_buf[MAX_PATH];
+                lstrcpynA(anc_buf, val, (int)sizeof(anc_buf));
+                g_anchor_trace_record_path = anc_buf;
             }
         } else if (lstrcmpA(tok, "--rng-seed") == 0) {
             char *val = strtok(NULL, " ");
