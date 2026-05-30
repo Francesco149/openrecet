@@ -7,6 +7,56 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-30 — TAS P1 (port side): anchor emission + anchor-relative capture; loading-screen non-determinism characterised
+
+Built the port half of TAS P1 (`docs/plans/tas-framework.md`):
+deterministic *event* anchors that let the harness align port↔retail (and
+run↔run) when absolute frame numbers can't.
+
+- **Determinism, characterised.** The port *sim* is already bit-exact
+  given the same inputs — under `--input-trace-replay` the clock is a pure
+  virtual counter (one tick/loop, no QPC/Sleep) and `--rng-seed` pins the
+  LCG. Verified: a trace double-replayed on the port is **byte-identical**
+  (sha256-equal BMPs) at both title and HOUSE frames, with **no new
+  pinning work**. The RNG seed is currently a no-op on *visible* output
+  for title + HOUSE-freeroam (pure functions of input); it matters for
+  later RNG-driven content (wiring already pinnable).
+- **The real leak: the loading screen's frame count.** The new-game→HOUSE
+  asset load is worker-thread gated (`src/worker_load.c` `CreateThread`);
+  the main loop spins `nowloading` frames until `worker_load_busy()`
+  drops, and under the turbo virtual clock the few ms of thread
+  spawn/teardown maps to a *variable* frame count. Measured `LOADING_END`
+  across identical replays: **1489 / 1519 / 1566 / 1594 / 1613 / 1752** —
+  ~250-frame jitter. So absolute frames can't align two runs; this is
+  precisely why anchors exist. (Logged in engine-quirks.)
+- **`src/anchor_trace.{c,h}`** (pure, 6 unit tests, ASan-clean): per-frame
+  world snapshot (`scene_state`, `loading_active`) → rising-edge anchors
+  `{"anchor":NAME,"frame":N}` JSONL. Anchors: `BOOT`, `NEW_GAME`
+  (TITLE→INGAME), `LOADING_START`/`LOADING_END` (nowloading edges),
+  `HOUSE_FREEROAM`. Wired into `main.c` `render_dispatch`; `stderr` echo +
+  optional `--anchor-trace-record <file>` (run-openrecet path-translated).
+  Keyed on `g_tick.frame_count` == the `--capture-frames` index.
+- **`--capture-at-anchor NAME[+k]`** — anchor-relative capture resolved
+  live when the anchor fires, immune to the jitter. **Proof:** two
+  identical replays, `HOUSE_FREEROAM` at frame 1613 vs 1752 (+139 jitter),
+  yet `HOUSE_FREEROAM+0` and `+30` captures were **bit-identical** content
+  across both — absolute framing would have caught two different states.
+  Also fixed a latent bug: anchor-only capture (count 0 until the anchor
+  fires) used to fall into the legacy `--capture-every-ms` sampler and
+  grab a spurious `frame_00000.bmp`; listed-mode now triggers on pending
+  anchor captures too. **2981/2981** host tests pass.
+- **Design targets recorded** (from this session's direction): the
+  *anchor-segmented trace timeline* (frames counted per-segment, `wait
+  ANCHOR` gaps span non-deterministic loads with zero counted frames) and
+  *one harness retiring the ad-hoc capture flags* (`--capture-frames`,
+  `--capture-every-ms`, `--auto-z-spam`, the Frida `auto_3d_trace`/`dump_b`
+  modes all fold into named anchors). See tas-framework.md.
+
+**Next (P1/P2 retail side):** Frida agent `kind:"anchor"` emitting the
+same names off the retail globals + clock/RNG pins, then anchor-relative
+capture in `frida_capture.py` and a `scenario.yaml anchors:`/`capture:`
+section.
+
 ## 2026-05-30 — TAS P0 papercuts: input-trace table un-capped + run-script path translation
 
 Cleared both P0 papercuts in `docs/plans/tas-framework.md` — the two things
