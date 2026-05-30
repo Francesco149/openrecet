@@ -359,6 +359,11 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  *                                <file>; also echoed to stderr. Keyed on
  *                                g_tick.frame_count (== --capture-frames
  *                                index). See src/anchor_trace.h.
+ *   --capture-at-anchor NAME[+k] capture at frame (anchor_frame + k)
+ *                                when anchor NAME fires — robust to the
+ *                                non-deterministic load frame (unlike a
+ *                                fixed --capture-frames). Repeatable.
+ *                                Needs --capture-to. k may be signed.
  *   --rng-seed <n>               replace `rng_seed_from_now()` with
  *                                `rng_seed(n)` so the title's BG scroll
  *                                + cursor pulse phase are deterministic
@@ -398,6 +403,25 @@ static uint32_t        g_max_frames              = 0;
 #define CAPTURE_FRAMES_MAX  32
 static uint32_t        g_capture_frames[CAPTURE_FRAMES_MAX];
 static int             g_capture_frames_count    = 0;
+
+/* --capture-at-anchor NAME[+k|-k]: schedule a capture at frame
+ * (anchor_frame + k) when the named anchor fires.  This is the
+ * anchor-relative capture the TAS framework needs: the absolute frame an
+ * event lands on is non-deterministic (the new-game->HOUSE load jitters
+ * ~100 frames run-to-run, see anchor_trace.h), so "capture at frame N"
+ * can't reliably hit a specific instant — but "HOUSE_FREEROAM + 5"
+ * always does.  When the anchor fires, anchor_capture_schedule() appends
+ * the resolved frame to g_capture_frames; the normal capture_frame_is_
+ * listed() path (checked later in the SAME render_dispatch) picks it up.
+ * Negative offsets that resolve before the current frame are dropped
+ * (you can't capture the past). Requires --capture-to. */
+#define ANCHOR_CAPTURE_MAX  16
+struct anchor_capture_req {
+    char    name[24];
+    int32_t offset;
+};
+static struct anchor_capture_req g_anchor_captures[ANCHOR_CAPTURE_MAX];
+static int             g_anchor_captures_count   = 0;
 
 /* --d3d-trace <path> + --d3d-trace-frames i,j,k.  See d3d_trace.h.
  * Path nonzero turns the emitter on; if frames list is empty, every
@@ -1954,9 +1978,40 @@ static mesh_t *house_preview_load_dump(const char *dir, IDirect3DDevice8 *dev)
  * live here. The capture has to run before Present because
  * D3DSWAPEFFECT_DISCARD leaves the post-Present back buffer undefined.
  */
+/* Resolve any --capture-at-anchor requests matching the just-fired
+ * anchor into concrete capture frames.  Called from the anchor sink, so
+ * it runs in render_dispatch BEFORE the capture_frame_is_listed() check
+ * later in the same frame — an offset of 0 therefore captures the anchor
+ * frame itself. */
+static void anchor_capture_schedule(const char *name, uint32_t frame)
+{
+    for (int i = 0; i < g_anchor_captures_count; i++) {
+        if (lstrcmpA(g_anchor_captures[i].name, name) != 0) continue;
+        int64_t target = (int64_t)frame + g_anchor_captures[i].offset;
+        if (target < (int64_t)frame) {
+            /* offset resolved into the past — can't capture a frame we've
+             * already presented. */
+            fprintf(stderr,
+                "anchor: capture %s%+d → frame %lld is in the past "
+                "(now %u) — dropped\n",
+                name, (int)g_anchor_captures[i].offset,
+                (long long)target, frame);
+            continue;
+        }
+        if (g_capture_frames_count >= CAPTURE_FRAMES_MAX) {
+            fprintf(stderr, "anchor: capture list full — dropping %s%+d\n",
+                    name, (int)g_anchor_captures[i].offset);
+            continue;
+        }
+        g_capture_frames[g_capture_frames_count++] = (uint32_t)target;
+        fprintf(stderr, "anchor: scheduled capture at %s%+d → frame %u\n",
+                name, (int)g_anchor_captures[i].offset, (uint32_t)target);
+    }
+}
+
 /* Tee sink for the anchor stream: stderr (always, prefixed) + the
- * optional --anchor-trace-record file (pure JSONL).  `user` is unused —
- * both destinations are module globals. */
+ * optional --anchor-trace-record file (pure JSONL) + anchor-relative
+ * capture scheduling.  `user` is unused — destinations are globals. */
 static void anchor_emit_tee(const char *name, uint32_t frame, void *user)
 {
     (void)user;
@@ -1965,6 +2020,7 @@ static void anchor_emit_tee(const char *name, uint32_t frame, void *user)
         anchor_trace_sink_jsonl(name, frame, g_anchor_record_fp);
         fflush(g_anchor_record_fp);
     }
+    anchor_capture_schedule(name, frame);
 }
 
 static void render_dispatch(void)
@@ -2332,7 +2388,13 @@ static void render_dispatch(void)
          * tick.c bumps it AFTER this returns. */
         int should_capture = 0;
         unsigned now_ms = timeGetTime();
-        if (g_capture_frames_count > 0) {
+        /* Listed mode = an explicit frame list OR pending anchor-relative
+         * captures (which populate the list at runtime when their anchor
+         * fires). In listed mode we capture ONLY listed frames — never
+         * fall through to the wall-clock sampler, or a frame-0 grab would
+         * sneak in before the first anchor resolves. The time-based path
+         * is the legacy smoke-test default (neither flag set). */
+        if (g_capture_frames_count > 0 || g_anchor_captures_count > 0) {
             should_capture =
                 capture_frame_is_listed(g_tick.frame_count);
         } else if (g_capture_last_ms == 0 ||
@@ -2605,6 +2667,25 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char anc_buf[MAX_PATH];
                 lstrcpynA(anc_buf, val, (int)sizeof(anc_buf));
                 g_anchor_trace_record_path = anc_buf;
+            }
+        } else if (lstrcmpA(tok, "--capture-at-anchor") == 0) {
+            /* NAME[+k|-k] — e.g. HOUSE_FREEROAM+5, LOADING_END, NEW_GAME+0 */
+            char *val = strtok(NULL, " ");
+            if (val && g_anchor_captures_count < ANCHOR_CAPTURE_MAX) {
+                struct anchor_capture_req *req =
+                    &g_anchor_captures[g_anchor_captures_count];
+                /* Split on the first +/- (anchor names are UPPER_SNAKE,
+                 * no digits or signs), the rest is a signed offset. */
+                int   off = 0;
+                char *sep = val;
+                while (*sep && *sep != '+' && *sep != '-') sep++;
+                if (*sep) { off = (int)strtol(sep, NULL, 10); }
+                size_t nlen = (size_t)(sep - val);
+                if (nlen >= sizeof(req->name)) nlen = sizeof(req->name) - 1;
+                memcpy(req->name, val, nlen);
+                req->name[nlen] = '\0';
+                req->offset     = off;
+                g_anchor_captures_count++;
             }
         } else if (lstrcmpA(tok, "--rng-seed") == 0) {
             char *val = strtok(NULL, " ");
