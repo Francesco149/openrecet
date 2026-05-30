@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **368** (14.4%) — verified 61, stubbed 14, ported 293
-- unported: **2180**
+- touched: **369** (14.5%) — verified 61, stubbed 14, ported 294
+- unported: **2179**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (61) — runtime-diffed vs retail
@@ -99,7 +99,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (293) — reimplemented, no probe yet
+## ported (294) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -173,7 +173,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x435644 | FUN_00435644 | 79 | ✓ | title_save_dialog.c |
 | 0x435693 | FUN_00435693 | 58 | ✓ | scene_worldmap.h, title_save_dialog.c, title_save_dialog.h |
 | 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
-| 0x43647f | FUN_0043647f | 61 | ✓ | scene1_combat_sm.h, scene1_hud.c, scene1_hud.h |
+| 0x43647f | FUN_0043647f | 61 | ✓ | scene1_combat_sm.h, scene1_hud.c, scene1_hud.h (+1) |
 | 0x4364bc | FUN_004364bc | 359 | ✓ | tables_snews.h |
 | 0x436f97 | FUN_00436f97 | 4788 | ✓ | main.c, scene.c, scene1_alpha_walker.c (+15) |
 | 0x43824b | FUN_0043824b | 940 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h |
@@ -319,6 +319,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x484e97 | FUN_00484e97 | 286 | ✓ | scene1_records_c_spawn.h |
 | 0x48526d | FUN_0048526d | 142 | ✓ | scene1_postload.h, scene1_preload.c |
 | 0x485413 | FUN_00485413 | 55 | ✓ | scene1_combat_sm.h |
+| 0x4856d7 | FUN_004856d7 | 59 | ✓ | scene1_player_ctrl.h |
 | 0x485979 | FUN_00485979 | 731 | ✓ | scene1_records_b_tick.h |
 | 0x485f8c | FUN_00485f8c | 316 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
 | 0x48670f | FUN_0048670f | 11519 | ✓ | scene1_player_ctrl.h |

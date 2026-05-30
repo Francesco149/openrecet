@@ -327,6 +327,63 @@ int test_player_history_shift_oldest_falls_off(void)
     return 0;
 }
 
+/* ── Cpop.4: shake-damp factor selector ──────────────────────────────────── */
+
+/* args: (mode_nonzero, grounded, flag_6ca, held_96b, edge_9, db100, db048) */
+
+int test_player_shake_damp_mode_nonzero(void)
+{
+    /* DAT_056da1bc != 0 short-circuits to 0.97 regardless of the rest. */
+    T_ASSERT_NEAR(player_ctrl_shake_damp_factor(1, 1, 0, 0, 0, 0, 0), 0.97f);
+    T_ASSERT_NEAR(player_ctrl_shake_damp_factor(1, 0, 1, 1, 1, 9, 3), 0.97f);
+    return 0;
+}
+
+int test_player_shake_damp_not_grounded(void)
+{
+    /* grounded false (da1dc != daf88) → 0.99. */
+    T_ASSERT_NEAR(player_ctrl_shake_damp_factor(0, 0, 0, 0, 0, 0, 0), 0.99f);
+    return 0;
+}
+
+int test_player_shake_damp_flag_set_not_held(void)
+{
+    /* grounded, flag_6ca != 0, binding not held → 0.95. */
+    T_ASSERT_NEAR(player_ctrl_shake_damp_factor(0, 1, 1, 0, 0, 0, 0), 0.95f);
+    return 0;
+}
+
+int test_player_shake_damp_idle_settle_0998(void)
+{
+    /* grounded, gate fails (edge_9 set, not held) → slow settle 0.998. */
+    T_ASSERT_NEAR(player_ctrl_shake_damp_factor(0, 1, 0, 0, 1, 0, 0), 0.998f);
+    /* alt: not-edge but db100>=1, still not held → also 0.998. */
+    T_ASSERT_NEAR(player_ctrl_shake_damp_factor(0, 1, 0, 0, 0, 1, 0), 0.998f);
+    return 0;
+}
+
+int test_player_shake_damp_state_block(void)
+{
+    /* Reach the db048 block: grounded, flag==0, held==0, edge==0, db100==0
+     * → gate ((!edge && db100<1) || held) = true. */
+    /* db048 == 3 → 0.95 */
+    T_ASSERT_NEAR(player_ctrl_shake_damp_factor(0, 1, 0, 0, 0, 0, 3), 0.95f);
+    /* db048 == 2 → 0.82 */
+    T_ASSERT_NEAR(player_ctrl_shake_damp_factor(0, 1, 0, 0, 0, 0, 2), 0.82f);
+    /* db048 other, grounded → 0.82 (the 0.98 arm is unreachable when grounded) */
+    T_ASSERT_NEAR(player_ctrl_shake_damp_factor(0, 1, 0, 0, 0, 0, 7), 0.82f);
+    return 0;
+}
+
+int test_player_shake_damp_held_reaches_state_block(void)
+{
+    /* held_96b satisfies BOTH the 0.95-skip (flag||held) and the gate
+     * (…||held), so a held binding lands in the db048 block even with
+     * flag_6ca set and edge_9 set: db048==2 → 0.82. */
+    T_ASSERT_NEAR(player_ctrl_shake_damp_factor(0, 1, 1, 1, 1, 0, 2), 0.82f);
+    return 0;
+}
+
 /* ── Cchr.2h: house-standing actor-state model ───────────────────────────── */
 
 int test_player_pose_seeds_actor0(void)

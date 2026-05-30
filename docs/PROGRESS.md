@@ -278,6 +278,27 @@ colour base/pulse (`4552d0.c:394-435`), and replacing the inject with the real
 **Retail screenshot pixel-diff deferred to after the full path lands** (per
 user); leaf-level ground truth already validates geometry + colour.
 
+## 2026-05-30 — Cpop.4: FUN_0048b850 camera-shake damping-factor selector
+
+Ported the per-frame shake-vector decay selector (decomp L90160-90198,
+objdump `0x48c538-0x48c6a0`) as `player_ctrl_shake_damp_factor` — using the
+input-query args resolved in Cpop.3.  Each frame the shake vector
+(`DAT_056daabc`, `DAT_056daac4`) is multiplied by one of six factors picked
+by a short decision tree; the leaf returns that factor and the caller
+applies it (the zoom bias `DAT_056daac0 *= 0.95` is the unconditional
+companion at `LAB_0048c6a6`, left to the controller body).  All six `.rdata`
+constants objdump-verified bit-exact: `0.97` (mode≠0), `0.99` (airborne),
+`0.95` (grounded + held-gate), `0.998` (idle settle), `0.98`/`0.82` (the
+`DAT_056db048` state block).  Kept the in-engine-dead `0.98` arm faithfully
+(it's only reachable when *not* grounded, but the block is gated on grounded
+upstream — a real decompiled branch, preserved not optimized away).
+6 host tests, one per branch (2985 → 2991).
+
+Module still unwired → HOUSE behavior + goldens bit-identical, no regen.
+Remaining: the `local_8` zoom-shake *target* accumulation (the other half
+of the shake magnitude, feeding the already-ported clamp) and the
+`0x56dab6c` trail spawn/expiry loop.
+
 ## 2026-05-30 — Cpop.3: FUN_0048b850 motion-history ring shift + resolved the §53 dropped-arg input queries
 
 Continued the `FUN_0048b850` player-controller port with its next pure

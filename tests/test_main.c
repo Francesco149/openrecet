@@ -3135,6 +3135,12 @@ struct test_case {
     X(player_history_shift_moves_old_samples_down) \
     X(player_history_shift_record_lockstep) \
     X(player_history_shift_oldest_falls_off) \
+    X(player_shake_damp_mode_nonzero) \
+    X(player_shake_damp_not_grounded) \
+    X(player_shake_damp_flag_set_not_held) \
+    X(player_shake_damp_idle_settle_0998) \
+    X(player_shake_damp_state_block) \
+    X(player_shake_damp_held_reaches_state_block) \
     X(player_pose_seeds_actor0) \
     X(player_pose_empties_party_slots) \
     X(player_pose_passes_char_id) \

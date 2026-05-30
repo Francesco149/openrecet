@@ -132,6 +132,36 @@ void player_ctrl_history_shift(float pos_hist[][3],
                                const float cur_pos[3],
                                const int32_t cur_rec[PC_ACTOR_REC_DWORDS]);
 
+/*
+ * Cpop.4: select the per-frame camera-shake damping factor.
+ * Engine FUN_0048b850 @ all.c L90160-90198 (objdump 0x48c538-0x48c6a0):
+ * the shake vector (DAT_056daabc, DAT_056daac4) is multiplied each frame
+ * by one of six decay factors chosen by this tree; this returns that
+ * factor.  (The zoom-bias DAT_056daac0 is *separately* and
+ * *unconditionally* multiplied by 0.95 at LAB_0048c6a6 right after — not
+ * returned here; the controller body applies it.)
+ *
+ *   if (mode_nonzero)                 → 0.97   // DAT_056da1bc != 0
+ *   else if (!grounded)               → 0.99   // DAT_056da1dc != DAT_056daf88
+ *   else if (flag_6ca && !held_96b)   → 0.95   // (DAT_068dd2f0[0x6ca]!=0) && !held
+ *   else if (!( (!edge_9 && db100<1) || held_96b ))  → 0.998
+ *   else {                                       // the DAT_056db048 state block
+ *       if (db048 == 3)               → 0.95
+ *       else if (db048 != 2 && !grounded) → 0.98   // dead in-engine (this arm is
+ *                                                  //   only reached when grounded),
+ *                                                  //   kept for faithfulness
+ *       else                          → 0.82       // db048==2, or grounded
+ *   }
+ *
+ * `flag_6ca` is DAT_068dd2f0[0x6ca] (tested != 0); `held_96b` is
+ * FUN_004856d7(0x96b) ("is binding 0x96b held"); `edge_9` is
+ * FUN_0043647f(9) ("is key 9 in this frame's edge list").  The caller
+ * supplies the two query results (the leaf-first convention).
+ */
+float player_ctrl_shake_damp_factor(int mode_nonzero, int grounded,
+                                    int flag_6ca, int held_96b,
+                                    int edge_9, int db100, int db048);
+
 /* ── Cchr.2h: player/companion actor-state model ─────────────────────────
  *
  * The engine globals the shop-walker player draw (FUN_004552d0 L357-454)

@@ -113,6 +113,33 @@ void player_ctrl_history_shift(float pos_hist[][3],
     memcpy(rec_hist[0], cur_rec, sizeof rec_hist[0]);
 }
 
+float player_ctrl_shake_damp_factor(int mode_nonzero, int grounded,
+                                    int flag_6ca, int held_96b,
+                                    int edge_9, int db100, int db048)
+{
+    if (mode_nonzero)                       /* DAT_056da1bc != 0 */
+        return 0.97f;
+    if (!grounded)                          /* da1dc != daf88 */
+        return 0.99f;
+
+    /* grounded: continue only if (flag_6ca==0 || held); else damp 0.95. */
+    if (flag_6ca != 0 && !held_96b)
+        return 0.95f;
+
+    /* reach the db048 state block only if this gate holds; else 0.998. */
+    if (!(((!edge_9) && db100 < 1) || held_96b))
+        return 0.998f;
+
+    /* DAT_056db048 state block (engine L90165-90178). */
+    if (db048 != 2) {
+        if (db048 == 3)
+            return 0.95f;
+        if (!grounded)                      /* unreachable here in-engine; faithful */
+            return 0.98f;
+    }
+    return 0.82f;                           /* db048==2, or grounded fall-through */
+}
+
 /* ── Cchr.2h: the player/companion actor-state model ─────────────────────
  *
  * The per-actor fields the shop-walker player draw (FUN_004552d0 L357-454,

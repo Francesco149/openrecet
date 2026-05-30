@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 61,
   "stubbed": 14,
-  "ported": 293,
-  "unported": 2180,
+  "ported": 294,
+  "unported": 2179,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 368,
-  "pct_touched": 14.4,
+  "touched": 369,
+  "pct_touched": 14.5,
   "pct_verified": 2.4
  },
  "orphan_refs": [
@@ -2791,7 +2791,8 @@
    "src": [
     "src/scene1_combat_sm.h",
     "src/scene1_hud.c",
-    "src/scene1_hud.h"
+    "src/scene1_hud.h",
+    "src/scene1_player_ctrl.h"
    ]
   },
   {
@@ -7812,8 +7813,10 @@
    "size": 59,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.h"
+   ]
   },
   {
    "va": "0x485712",
