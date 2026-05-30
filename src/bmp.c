@@ -66,6 +66,11 @@ int bmp_load_mem(const void *buf, size_t size, uint32_t color_key,
             uint8_t b = s[0], g = s[1], r = s[2];
             uint8_t a = (bpp_src == 4) ? s[3] : 0xFF;
             if (use_key && b == key_b && g == key_g && r == key_r) {
+                /* Match D3DX's colorkey: matched texels become transparent
+                 * BLACK (0x00000000), not key-colour-with-alpha-0.  Keeping
+                 * the green RGB makes bilinear filtering bleed a green fringe
+                 * around keyed sprites (visible as a halo on chr billboards). */
+                b = g = r = 0;
                 a = 0;
             }
             d[0] = b; d[1] = g; d[2] = r; d[3] = a;

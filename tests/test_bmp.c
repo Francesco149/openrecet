@@ -118,9 +118,10 @@ int test_bmp_color_key(void)
     bmp_image img = {0};
     T_ASSERT(bmp_load_mem(file, fs, 0x00FF00u, &img));
 
-    /* Pixel 0: green, keyed → A=0 */
+    /* Pixel 0: green, keyed → transparent BLACK 0x00000000 (D3DX colorkey
+     * behavior; zeroing RGB avoids a green bilinear fringe — see bmp.c). */
     T_ASSERT_EQ_U(img.pixels[0],  0x00);
-    T_ASSERT_EQ_U(img.pixels[1],  0xFF);
+    T_ASSERT_EQ_U(img.pixels[1],  0x00);
     T_ASSERT_EQ_U(img.pixels[2],  0x00);
     T_ASSERT_EQ_U(img.pixels[3],  0x00);
 
