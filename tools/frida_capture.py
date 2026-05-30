@@ -746,6 +746,20 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             rec = json.loads(line)
             if "wait" in rec:
                 segtrace_ops.append({"wait": str(rec["wait"])})
+            elif "wait_until" in rec:
+                # Threshold segment-break: hold this segment's input until a
+                # live global crosses a comparator (e.g. UP until pz<=3), then
+                # rebase. `va` accepts a 0x-string or int; `type` defaults f32,
+                # `op` defaults "<=".  Removes frame-count guessing for moves.
+                w = rec["wait_until"]
+                va = w["va"]
+                va = int(va, 16) if isinstance(va, str) else int(va)
+                segtrace_ops.append({"wait_until": {
+                    "va": va,
+                    "type": str(w.get("type", "f32")),
+                    "op": str(w.get("op", "<=")),
+                    "val": float(w["val"]),
+                }})
             elif "capture" in rec:
                 # Screenshot the deterministic frame base+N (N frames after the
                 # current segment's anchor) — for visual state verification.

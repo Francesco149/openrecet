@@ -641,12 +641,24 @@ let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows a
 //   {calltrace:N}  — arm the call tracer for [base, base+N] (N frames from this
 //                    segment's anchor) — anchor-relative, no absolute frames
 function segtraceBuildSegments(ops) {
-    const segs = [{entries: [], captures: [], calltraces: [], wait: null}];
+    const seg0 = () => ({entries: [], captures: [], calltraces: [],
+                         wait: null, wait_until: null});
+    const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
         const op = ops[i];
         if (op && typeof op.wait === 'string') {
             segs[segs.length - 1].wait = op.wait;
-            segs.push({entries: [], captures: [], calltraces: [], wait: null});
+            segs.push(seg0());
+        } else if (op && op.wait_until && typeof op.wait_until === 'object') {
+            // Threshold segment-break: like `wait`, but fires when a live
+            // global crosses a comparator (e.g. hold UP until pz<=3). The
+            // next segment rebases onto the frame the predicate first holds.
+            const w = op.wait_until;
+            segs[segs.length - 1].wait_until = {
+                va: w.va | 0, type: w.type || 'f32',
+                op: String(w.op || '<='), val: +w.val,
+            };
+            segs.push(seg0());
         } else if (op && op.capture !== undefined) {
             segs[segs.length - 1].captures.push(op.capture | 0);
         } else if (op && op.calltrace !== undefined) {
@@ -1832,6 +1844,28 @@ function segtraceOnAnchor(name, frame) {
     g_segtrace_fired[name] = frame;
 }
 
+// Evaluate a `wait_until` predicate against the live global it names. Reuses
+// the watch `rva`+typed-read path; a read fault reads as "not yet" (false) so
+// a transiently-unmapped address never wedges the trace.
+function segtraceWaitUntilHolds(w) {
+    let cur;
+    try {
+        const p = rva(w.va);
+        cur = (w.type === 'f32') ? p.readFloat()
+            : (w.type === 'u16') ? p.readU16()
+            : p.readS32();
+    } catch (e) { return false; }
+    switch (w.op) {
+        case '<=': return cur <= w.val;
+        case '>=': return cur >= w.val;
+        case '<':  return cur <  w.val;
+        case '>':  return cur >  w.val;
+        case '==': return cur === w.val;
+        case '!=': return cur !== w.val;
+        default:   return false;
+    }
+}
+
 // Resolve the input mask for engine frame `fn` under an anchor-segmented
 // trace. Each frame: if the current segment's terminating `wait` anchor has
 // fired strictly after the segment was entered, advance to the next segment
@@ -1851,6 +1885,26 @@ function segtraceTick(fn) {
                 g_segtrace_entry    = 0;
                 segtraceOnSegmentEnter(g_segtrace_segments[g_segtrace_seg]);
                 continue;  // re-evaluate the next segment this same frame
+            }
+        } else if (seg.wait_until !== null && fn > g_segtrace_base_arm) {
+            // Hold this segment's input until a live global crosses the
+            // comparator (polled each frame), then rebase onto this frame.
+            // Strictly-after-entry guard mirrors the anchor `wait` path so a
+            // predicate already true at entry still elapses ≥1 frame.
+            if (segtraceWaitUntilHolds(seg.wait_until)) {
+                if (!seg.wait_until._fired) {
+                    seg.wait_until._fired = true;
+                    log('segtrace: wait_until 0x' +
+                        (seg.wait_until.va >>> 0).toString(16) + ' ' +
+                        seg.wait_until.op + ' ' + seg.wait_until.val +
+                        ' satisfied at frame ' + fn);
+                }
+                g_segtrace_seg++;
+                g_segtrace_base     = fn;
+                g_segtrace_base_arm = fn;
+                g_segtrace_entry    = 0;
+                segtraceOnSegmentEnter(g_segtrace_segments[g_segtrace_seg]);
+                continue;
             }
         }
         while (g_segtrace_entry < seg.entries.length &&

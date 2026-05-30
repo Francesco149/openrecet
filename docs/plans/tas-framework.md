@@ -17,6 +17,15 @@
 > with `{wait:ANCHOR}` segment breaks (spam-until-anchor short-circuit, handles
 > the double HOUSE_FREEROAM) and `{capture:N}` anchor-relative screenshots; plus
 > `--watch NAME=0xVA:type` per-frame state probe and `tools/montage_frames.py`
+>
+> **P3b — threshold segment-break `{wait_until}` ✅ (2026-05-31):** a segment can
+> break on a *live-global predicate* instead of an anchor — `{"wait_until":
+> {"va":"0x056da1e0","type":"f32","op":"<=","val":2.0}}` holds the segment's
+> input until the comparator holds (e.g. UP until `pz<=2.0`), then rebases the
+> next segment onto that frame. Removes frame-count guessing for movement drives
+> (stop at a position, not after N frames). Reuses the watch `rva`+typed-read;
+> ops `<= >= < > == !=`. Used to author the W4 collision ground-truth drives
+> (`traces/house_collide.jsonl`, `traces/house_table_collide.jsonl`).
 > (3×3 montage, auto-opens in the Windows viewer). This **obsoletes
 > `--auto-z-spam`** (use `wait ANCHOR` instead). Validated end-to-end: drove a
 > new game past both intro events to HOUSE free-roam and walked the player under
