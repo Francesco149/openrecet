@@ -70,38 +70,44 @@ RENDER spine FUN_004547ab (VERIFIED)
 
 ## Prioritized roadmap
 
-### P0 — Tear glow particles (user #1) — **BLOCKED on a table-identity check**
+### P0 — Tear glow particles (user #1) — **table-identity RESOLVED (2026-06-01 probe); renderer hunt next**
 
 The companion wing-sparkle is emitted (`co_emit_wing_sparkle`, `FUN_00447f4f`,
 type-0x1f, every 4th frame) and aged (`scene1_particles_tick.c`, grav −0.001 /
 damp 0.97 / kill 0x20) but **nothing draws it**.
 
-**Blocker (resolve first, 1 Frida capture):** §73 attributes the sparkle to
-**records-A** type-0x1f (the spawn writes the records-A table, stride 0x25). But the
-only type-0x1f *render* arm — `FUN_004176ff` L1180–1236 — walks **records-B**
-(stride 0x49), and the function's records-A sweep has **no** 0x1f arm. So the two
-candidate tables disagree. Porting the L1180 arm against records-B would draw
-nothing if the sparkle truly lives in records-A. **Action:** spawn a sparkle in
-HOUSE (happens automatically while walking), Frida-watch which of
-`DAT_069b2fb0[*]` (records-A) vs `DAT_069324b0[*]` (records-B) receives type 0x1f
-and which `DrawPrimitiveUP` reads it. Then port the renderer against the confirmed
-table.
+**PROBE RESULT (`runs/tear-glow-probe/`, retail `--dump-records-b`):** the sparkles
+are unambiguously **records-A type-0x1f**. At any free-roam frame there are **~8
+live type-0x1f records-A slots**, scale 0.1, at Tear's hover position (≈(1.2, 4.0,
+9.0) — y≈4 = the flying fairy, vs Recette at y=0), ages stepping 1/5/9/…/29 (the
+every-4-frame emit, kill at 32). **records-B is EMPTY (count_b==0) the entire run**
+(free-roam AND the tutorial dialogue). So:
+- The port's **emit + sim are correct** — same table, same ~8-live steady state.
+- `FUN_004176ff`'s only 0x1f arm (L1180) walks **records-B**, which never populates
+  → that arm never runs in free-roam. **Do NOT port L1180 for the Tear glow** (the
+  earlier P0.1 plan was wrong).
 
-**Chip P0.1 — type-0x1f glow billboard renderer.** Model on `scene1_pass_f.c`
-(the already-ported type-0x92 arm of the sibling walker `FUN_004161c7`). The 0x1f
-arm: bind the glow atlas (`DAT_073cc940`, sticky for the sweep), world matrix =
-`scale·0.002 · RotY(0.6285 rad, const 0x3f20d97c) · per-particle RotX/RotY`,
-fixed atlas UV sub-rect (u 0.00195–0.7519, v 0.248–0.998), greyscale-fade diffuse
-`(age>0x70 ? age·−0x20+0xeff : 0xff)`, **additive** blend. ~150 LOC.
-**Validation:** `pixel_diff` the fairy region vs a retail `--capture-at-anchor`
-frame at the same companion pose. **Risks:** the `thunk_FUN_004a*` matrix-helper
-args are FPU-stack-mangled in Ghidra — confirm the per-particle column→rotation
-mapping via objdump at `0x418618`–`0x4186cb` before trusting the decomp; confirm
-`DAT_073cc940` is the glow atlas and the blend is `SRC=ONE/DEST=ONE` via d3d-trace.
+**Renderer hunt (the actual blocker now).** No function in the free-roam executed
+set both branches on `== 0x1f` *and* draws, except `FUN_004176ff`'s dead records-B
+arm. So the records-A 0x1f sparkle is drawn by a **type-indexed** general records-A
+billboard loop (type → texture/param table, no `== 0x1f` literal) — which is why a
+branch-search misses it. **Next probe:** hook `DrawPrimitiveUP` (+ `SetTexture`) on
+a free-roam frame (`--dump-records-b --quad-hist`), match a draw's world geometry to
+a known sparkle position (e.g. ≈(1.2,4.0,9.0)), and read off the renderer's
+return-VA. Candidates to check first: a pass of `FUN_004161c7` other than the
+0x92 Pass-F that `pass_f` ported (it walks records-A), and `FUN_0040fb3a`'s
+render-side sibling.
 
-**Also retire:** reclassify `FUN_004176ff` in the ledger (it is a stub, not
-"ported"); a faithful records-B sweep skeleton (texture bind + loop envelope) is a
-natural co-chip that also unblocks the ~15 other glow arms (0x1e/0x26/0x2a/0x5a/0x6c…).
+**Open visibility question (settle before investing):** the scale-0.1 additive
+sparkle was not obviously visible in the static retail probe frames. Confirm retail
+*visibly* renders it (a port-vs-retail pixel diff at a matched Tear pose) — if it's
+near-invisible, the port may already match and this drops in priority.
+
+**Chip P0.1 (revised) — records-A type-0x1f glow billboard renderer**, modeled on
+`scene1_pass_f.c` (the analogous records-A type-0x92 renderer) but walking the
+records-A table for type 0x1f, once the renderer-hunt confirms the exact draw
+(texture, blend, UV, matrix). Reclassify `FUN_004176ff` ledger status (it is the
+`scene1_walk_chr_TODO` stub, not "ported").
 
 ### P1 — Dialogue (user #2)
 
