@@ -2455,3 +2455,27 @@ off-map, walk-LEFT) on both targets with deterministic scenarios
   proper — the squeeze/trap when the player navigates BEHIND the counter into
   the central round table (`shop_table01.x` @ z∈[−2.5,2.5]); the cardinal-walk
   box does not depend on it.
+
+## 68. Multi-object HOUSE collision ported: the central table blocks 1:1
+
+W4.6 (2026-05-31). Ported the per-object query/raycast (§67's remaining piece).
+`FUN_00432e50`/`FUN_00433674` loop over every placed collision object and
+subtract its world origin `DAT_0438c058/0a8/0f8` before testing the object's
+local-space triangles. `collision_object` gained a `float origin[3]`;
+`collision_query_ground` and `collision_raycast` translate the probe into each
+object's local frame (and add `origin_y` back to the returned floor height).
+
+The HOUSE object table (captured live with `tools/dump_collision_objects.py`,
+new-game tier 0) is hardcoded in `collision_house.c`: room (`shop_1st.x` @ 0) +
+carpet (`shop_jutan.x` @ −2,0,−1) + 3 display tables (`shop_table01.x` @ −2,0,0
+and `shop_table02.x` @ −4,0,−8 / −10,0,−2). The origins equal the already-ported
+render placement (`g_scene1_walker_phase1/phase2_pos`); the `FUN_0044c88f` writer
+that fills `DAT_0438c058` per stage/tier is still unported, so the table is
+new-game-HOUSE specific for now.
+
+Validation: the `house-walk-table` scenario (the w4-table3 navigation
+RIGHT 14f → UP 51f → LEFT 70f, rebased onto the HOUSE_FREEROAM anchor) walks the
+player around the counter to the central round table. The port pins HEAD-ON at
+**px=0.729 pz=0.107 — bit-identical to retail** (`runs/w4-table3/watch.jsonl`,
+§62). No regression: the four cardinal pins stay exact (the room is object 0 at
+origin 0; the furniture sits at the back, clear of the spawn strip).

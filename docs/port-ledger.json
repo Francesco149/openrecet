@@ -2315,6 +2315,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/collision_house.c",
     "src/collision_mesh.h",
     "src/collision_query.c",
     "src/collision_query.h",
@@ -3404,6 +3405,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/collision_house.c",
     "src/stage_palette.h"
    ]
   },

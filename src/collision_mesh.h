@@ -83,6 +83,12 @@ typedef struct {
     int            tri_count;
     float          aabb_min[3]; /* over the triangle *vertices* (unpadded) */
     float          aabb_max[3];
+    /* World placement origin (engine DAT_0438c058/0a8/0f8 per slot).  The
+     * query/raycast translate the probe point into this object's local frame
+     * by subtracting `origin` (FUN_00432e50 L127-129: `px - DAT_0438c058`).
+     * The room (slot 0) is at (0,0,0); placed furniture carries its origin so
+     * the same local-space triangles serve every instance.  Zero by default. */
+    float          origin[3];
 } collision_object;
 
 /* A whole level's collision: one object per loaded map mesh. */

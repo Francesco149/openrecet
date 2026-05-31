@@ -117,8 +117,14 @@ int collision_query_ground(const collision_mesh *m,
     best.plane[0] = best.plane[1] = best.plane[2] = best.plane[3] = 0.0f;
 
     for (int oi = 0; oi < m->object_count; oi++) {
+        const collision_object *o = &m->objects[oi];
         collision_hit h;
-        if (collision_query_ground_object(&m->objects[oi], px, py, pz, &h)) {
+        /* Translate the probe into this object's local frame (FUN_00432e50
+         * L127-129 subtracts the per-object origin DAT_0438c058/0a8/0f8). */
+        if (collision_query_ground_object(o, px - o->origin[0],
+                                          py - o->origin[1],
+                                          pz - o->origin[2], &h)) {
+            h.height += o->origin[1];   /* local floor Y → world Y */
             if (!best.hit || h.height > best.height) {
                 h.object = oi;
                 best = h;

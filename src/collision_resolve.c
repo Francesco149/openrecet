@@ -35,12 +35,18 @@ int collision_raycast(const collision_mesh *m,
 
     for (int oi = 0; oi < m->object_count; oi++) {
         const collision_object *o = &m->objects[oi];
+        /* Ray origin in this object's local frame (subtract DAT_0438c058 per
+         * object — FUN_00433674 L139-141).  The ray DIRECTION is unaffected by
+         * a pure translation, and the returned fraction/normal stay valid. */
+        const float lpx = pos[0] - o->origin[0];
+        const float lpy = pos[1] - o->origin[1];
+        const float lpz = pos[2] - o->origin[2];
         for (int ti = 0; ti < o->tri_count; ti++) {
             const collision_tri *t = &o->tris[ti];
             if (collision_raycast_type_excluded(t->type)) continue;
 
             const float nx = t->n[0], ny = t->n[1], nz = t->n[2], d = t->d;
-            float sd = pos[0]*nx + pos[1]*ny + pos[2]*nz + d;   /* signed dist */
+            float sd = lpx*nx + lpy*ny + lpz*nz + d;            /* signed dist */
             if (sd < 0.0f) continue;                            /* behind face */
             float dn = dir[0]*nx + dir[1]*ny + dir[2]*nz;
             if (dn >= 0.0f) continue;                           /* not approaching */
@@ -53,9 +59,9 @@ int collision_raycast(const collision_mesh *m,
                 float cx = dir[1]*e[2] - dir[2]*e[1];
                 float cy = dir[2]*e[0] - dir[0]*e[2];
                 float cz = dir[0]*e[1] - dir[1]*e[0];
-                float dot = (pos[0]-t->v[k][0])*cx
-                          + (pos[1]-t->v[k][1])*cy
-                          + (pos[2]-t->v[k][2])*cz;
+                float dot = (lpx-t->v[k][0])*cx
+                          + (lpy-t->v[k][1])*cy
+                          + (lpz-t->v[k][2])*cz;
                 if (dot < 0.0f) { inside = 0; break; }
             }
             if (!inside) continue;

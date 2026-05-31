@@ -1,0 +1,24 @@
+# house-walk-table — W4 repro #1 (table): walk into the central round table.
+#
+# Reproduces the w4-table3 retail navigation (RIGHT 14f → UP 51f → LEFT 70f)
+# rebased onto the 2nd HOUSE_FREEROAM anchor: go RIGHT past the counter's right
+# edge (px>0.5), UP behind it to the back, then LEFT into the central round
+# table (shop_table01.x @ world origin (-2,0,0), z∈[-2.5,2.5]).
+#
+# Retail ground truth (runs/w4-table3/watch.jsonl): the player pins HEAD-ON
+# against the table face at px=0.729 pz=0.107 (engine-quirks §62). Without the
+# multi-object furniture collision the port walks straight through (the table
+# has no collision object — only shop_1st.x is loaded). With it, the port should
+# pin at the same face.
+#
+# Validate: --player-pos-log (port) vs runs/w4-table3/watch.jsonl (retail) —
+# both rebase to the 2nd HOUSE_FREEROAM. cap_00 idle (+1540), cap_01 pinned
+# against the table (+1760).
+
+description: |
+  New game → HOUSE → navigate behind the counter (RIGHT, UP) then LEFT into the
+  central round table. Retail pins head-on at px=0.729 pz=0.107 (w4-table3).
+  cap_00 idle (+1540), cap_01 against the table (+1760).
+
+max_frames: 16000
+duration_ceiling_ms: 180000
