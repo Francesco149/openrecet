@@ -1,4 +1,5 @@
 # new-game→HOUSE intro + 2× HOUSE_FREEROAM anchor (from house-wall-collide); recording rebased to anchor+1565.
+# Source: openrecet-trace-24212-0.raw.jsonl (user F2/F3 recording, 2026-05-31) — thorough collision tour, 22 captures.
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 12, "buttons": "0x0010"}
 {"frame": 14, "buttons": "0x0000"}
@@ -1587,102 +1588,94 @@
 {"frame": 1500, "buttons": "0x0000"}
 {"capture": 1540}
 {"frame": 1565, "buttons": "0x0000"}
-{"frame": 1572, "buttons": "0x0001"}
-{"frame": 1630, "buttons": "0x0005"}
-{"frame": 1631, "buttons": "0x0004"}
-{"frame": 1640, "buttons": "0x0005"}
-{"frame": 1661, "buttons": "0x0004"}
-{"frame": 1664, "buttons": "0x0006"}
-{"frame": 1666, "buttons": "0x0002"}
-{"frame": 1699, "buttons": "0x0006"}
-{"frame": 1711, "buttons": "0x0004"}
-{"frame": 1713, "buttons": "0x0005"}
-{"frame": 1722, "buttons": "0x0004"}
-{"frame": 1726, "buttons": "0x0006"}
-{"frame": 1731, "buttons": "0x0002"}
-{"frame": 1757, "buttons": "0x0006"}
-{"frame": 1771, "buttons": "0x0002"}
-{"frame": 1778, "buttons": "0x000a"}
-{"frame": 1783, "buttons": "0x0008"}
-{"frame": 1785, "buttons": "0x0009"}
-{"frame": 1796, "buttons": "0x0008"}
-{"frame": 1797, "buttons": "0x000a"}
-{"frame": 1821, "buttons": "0x000b"}
-{"frame": 1822, "buttons": "0x0009"}
-{"frame": 1836, "buttons": "0x0008"}
-{"frame": 1838, "buttons": "0x000a"}
-{"frame": 1852, "buttons": "0x0008"}
-{"frame": 1858, "buttons": "0x0009"}
-{"frame": 1859, "buttons": "0x0008"}
-{"frame": 1870, "buttons": "0x0009"}
-{"frame": 1879, "buttons": "0x0001"}
-{"frame": 1886, "buttons": "0x0005"}
-{"frame": 1899, "buttons": "0x0001"}
-{"frame": 1923, "buttons": "0x0005"}
-{"frame": 1924, "buttons": "0x0001"}
-{"frame": 1930, "buttons": "0x0009"}
-{"frame": 1942, "buttons": "0x0001"}
-{"frame": 1968, "buttons": "0x0009"}
-{"frame": 1993, "buttons": "0x0001"}
-{"frame": 2001, "buttons": "0x0004"}
-{"frame": 2014, "buttons": "0x0006"}
-{"frame": 2025, "buttons": "0x0004"}
-{"frame": 2027, "buttons": "0x0005"}
-{"frame": 2033, "buttons": "0x0004"}
+{"frame": 1571, "buttons": "0x0001"}
+{"frame": 1641, "buttons": "0x0005"}
+{"frame": 1669, "buttons": "0x0006"}
+{"frame": 1671, "buttons": "0x0002"}
+{"frame": 1702, "buttons": "0x0006"}
+{"frame": 1722, "buttons": "0x0005"}
+{"frame": 1749, "buttons": "0x0004"}
+{"frame": 1756, "buttons": "0x0006"}
+{"frame": 1774, "buttons": "0x0004"}
+{"frame": 1789, "buttons": "0x0006"}
+{"frame": 1802, "buttons": "0x0004"}
+{"frame": 1803, "buttons": "0x0005"}
+{"frame": 1833, "buttons": "0x0001"}
+{"frame": 1862, "buttons": "0x0005"}
+{"frame": 1870, "buttons": "0x0001"}
+{"frame": 1894, "buttons": "0x0005"}
+{"frame": 1900, "buttons": "0x0001"}
+{"frame": 1909, "buttons": "0x0009"}
+{"frame": 1917, "buttons": "0x0008"}
+{"frame": 1933, "buttons": "0x0009"}
+{"frame": 1939, "buttons": "0x0008"}
+{"frame": 1949, "buttons": "0x000a"}
+{"frame": 1953, "buttons": "0x0008"}
+{"frame": 1977, "buttons": "0x000a"}
+{"frame": 1992, "buttons": "0x0002"}
+{"frame": 1996, "buttons": "0x0003"}
+{"frame": 1998, "buttons": "0x0005"}
+{"frame": 2028, "buttons": "0x0004"}
+{"frame": 2036, "buttons": "0x0006"}
+{"frame": 2038, "buttons": "0x0004"}
 {"frame": 2042, "buttons": "0x0005"}
-{"frame": 2052, "buttons": "0x0004"}
-{"frame": 2069, "buttons": "0x0006"}
+{"frame": 2044, "buttons": "0x0004"}
+{"frame": 2049, "buttons": "0x0005"}
+{"frame": 2057, "buttons": "0x0004"}
+{"frame": 2058, "buttons": "0x0006"}
 {"frame": 2074, "buttons": "0x0002"}
-{"frame": 2087, "buttons": "0x0006"}
-{"frame": 2101, "buttons": "0x0002"}
-{"frame": 2109, "buttons": "0x000a"}
-{"frame": 2123, "buttons": "0x0002"}
-{"frame": 2129, "buttons": "0x0006"}
-{"frame": 2169, "buttons": "0x0004"}
-{"frame": 2171, "buttons": "0x0005"}
-{"frame": 2180, "buttons": "0x0004"}
-{"frame": 2181, "buttons": "0x0006"}
-{"frame": 2194, "buttons": "0x0002"}
-{"frame": 2228, "buttons": "0x0006"}
-{"frame": 2245, "buttons": "0x0002"}
-{"frame": 2272, "buttons": "0x0006"}
-{"frame": 2292, "buttons": "0x0002"}
-{"frame": 2312, "buttons": "0x0006"}
-{"frame": 2372, "buttons": "0x0005"}
-{"frame": 2378, "buttons": "0x0004"}
-{"frame": 2408, "buttons": "0x0005"}
-{"frame": 2434, "buttons": "0x0004"}
-{"frame": 2463, "buttons": "0x0006"}
-{"frame": 2469, "buttons": "0x0004"}
-{"frame": 2478, "buttons": "0x0005"}
-{"frame": 2504, "buttons": "0x0004"}
-{"frame": 2519, "buttons": "0x0005"}
-{"frame": 2540, "buttons": "0x0004"}
-{"frame": 2541, "buttons": "0x0006"}
-{"frame": 2546, "buttons": "0x0002"}
-{"frame": 2584, "buttons": "0x0006"}
-{"frame": 2601, "buttons": "0x0002"}
-{"frame": 2617, "buttons": "0x000a"}
-{"frame": 2619, "buttons": "0x0008"}
-{"frame": 2628, "buttons": "0x0000"}
-{"frame": 2631, "buttons": "0x0001"}
-{"frame": 2638, "buttons": "0x0000"}
-{"capture": 1621}
-{"capture": 1691}
-{"capture": 1745}
-{"capture": 1805}
-{"capture": 1851}
-{"capture": 1905}
-{"capture": 1951}
-{"capture": 2031}
-{"capture": 2060}
-{"capture": 2154}
-{"capture": 2157}
-{"capture": 2212}
-{"capture": 2252}
-{"capture": 2295}
-{"capture": 2354}
-{"capture": 2391}
-{"capture": 2444}
-{"capture": 2507}
-{"capture": 2566}
+{"frame": 2099, "buttons": "0x000a"}
+{"frame": 2106, "buttons": "0x0002"}
+{"frame": 2120, "buttons": "0x0006"}
+{"frame": 2127, "buttons": "0x0002"}
+{"frame": 2134, "buttons": "0x0006"}
+{"frame": 2147, "buttons": "0x0004"}
+{"frame": 2150, "buttons": "0x0005"}
+{"frame": 2160, "buttons": "0x0004"}
+{"frame": 2170, "buttons": "0x0006"}
+{"frame": 2195, "buttons": "0x0005"}
+{"frame": 2198, "buttons": "0x0004"}
+{"frame": 2200, "buttons": "0x0006"}
+{"frame": 2243, "buttons": "0x0002"}
+{"frame": 2251, "buttons": "0x000a"}
+{"frame": 2261, "buttons": "0x0002"}
+{"frame": 2276, "buttons": "0x0006"}
+{"frame": 2282, "buttons": "0x0002"}
+{"frame": 2302, "buttons": "0x000a"}
+{"frame": 2313, "buttons": "0x0002"}
+{"frame": 2331, "buttons": "0x000a"}
+{"frame": 2356, "buttons": "0x0002"}
+{"frame": 2373, "buttons": "0x000a"}
+{"frame": 2388, "buttons": "0x0002"}
+{"frame": 2408, "buttons": "0x000a"}
+{"frame": 2409, "buttons": "0x0002"}
+{"frame": 2416, "buttons": "0x0006"}
+{"frame": 2455, "buttons": "0x0002"}
+{"frame": 2462, "buttons": "0x000a"}
+{"frame": 2485, "buttons": "0x0008"}
+{"frame": 2499, "buttons": "0x0009"}
+{"frame": 2515, "buttons": "0x0001"}
+{"frame": 2548, "buttons": "0x0009"}
+{"frame": 2550, "buttons": "0x0001"}
+{"frame": 2551, "buttons": "0x0000"}
+{"capture": 1596}
+{"capture": 1625}
+{"capture": 1698}
+{"capture": 1742}
+{"capture": 1774}
+{"capture": 1808}
+{"capture": 1838}
+{"capture": 1874}
+{"capture": 1918}
+{"capture": 1968}
+{"capture": 2036}
+{"capture": 2089}
+{"capture": 2150}
+{"capture": 2194}
+{"capture": 2231}
+{"capture": 2289}
+{"capture": 2316}
+{"capture": 2358}
+{"capture": 2393}
+{"capture": 2445}
+{"capture": 2493}
