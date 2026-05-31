@@ -2479,3 +2479,46 @@ player around the counter to the central round table. The port pins HEAD-ON at
 **px=0.729 pz=0.107 — bit-identical to retail** (`runs/w4-table3/watch.jsonl`,
 §62). No regression: the four cardinal pins stay exact (the room is object 0 at
 origin 0; the furniture sits at the back, clear of the spawn strip).
+
+## 69. HOUSE table-corner edge-slide divergence is a CONTROLLER bug, not collision
+
+W4.7 follow-up (2026-05-31). The `house-walk-tables` bench tracks retail
+**bit-for-bit through rel frame 1820** (the whole head-on slide along the central
+round table's front edge, obj 2 / tri 33), then diverges at **rel 1821** — where
+the recorded input starts STEERING (d-pad left→up-left→down) at the table's
+front-left corner. The port leaves the corner (radial push shoves it +x and it
+walks back); retail slides AROUND the corner. The 9-frame drill-in scenario
+`house-table-corner` (caps rel 1805–1851, between this bench's cap_04 and cap_05)
+pins this moment as a permanent regression guard.
+
+**The previous "port FUN_00483170's curved slide branch (L116–186)" plan was
+WRONG.** Disassembled and disproved:
+- The slide branch fires ONLY when the destination floor type ∈ {1,2} (slopes):
+  asm `0x4835a1`/`0x4835a8` `cmp floortype,1` / `cmp ,2`, else → block path.
+  HOUSE tris are all type 0 (§63), so it NEVER fires for the table.
+- All 8 velocity (`DAT_056daabc`/`daac4`) write sites in `FUN_00483170` are inside
+  that slopes-only branch (or the entity-proximity clamp / the `+0.005` nudge) —
+  `objdump` `fstp …aabc/aac4` at `0x4834ee/503`, `0x4837f1/801/80a`, `0x4838d9/eb`,
+  `0x4839d3`. **None are in the radial-push path** (`0x483a40–0x483c55`). So the
+  resolver provably never redirects velocity for a type-0 table.
+- The radial push itself is faithfully ported: single push, `(1−frac)` penetration
+  scaling (`fld1; fsubs frac` at `0x483bc3`), push types {1,2,7} + normal-gated
+  type-0 (`|nrm.y|<0.75`). Matches `collision_resolve.c` exactly.
+
+So **the collision side is faithful.** Frame-aligned port-vs-retail velocity
+(captured `daabc`/`daac4` via Frida) is bit-identical through the steady slide
+(rel 1816–1820, dv=0), then at the corner **retail holds the slide velocity
+(−0.1015,+0.1015 post-damp = 45° at speed 0.175) for ~2 more frames while the
+port immediately rotates** toward the new steer direction. The gap is the player
+controller's facing→impulse: the port uses raw `atan2(dpad)` every frame
+(`scene1_player_ctrl.c` `player_ctrl_dpad_angle`), but the engine's walk impulse
+(`FUN_0048b850` L319–326: `daabc += sin(_DAT_056db05c)·accel`) uses a STORED
+facing-direction `_DAT_056db05c`, updated by the cc08 state machine in
+`FUN_0048670f` — which during diagonal transitions changes more slowly/stickily
+(8-way octant + the `DAT_056dae3c` sticky-diagonal bias, cf. `player_ctrl_facing_snap`)
+than raw `atan2`. **Next chip: port the engine's `db05c` facing-direction update
+(the cc08==1 free-roam path) and drive the impulse from it, instead of the raw
+d-pad angle — without regressing the 1820 bit-identical frames or the cardinal
+walks (W3).** Method to reproduce: `tools/scenario-test.py house-table-corner
+--target both`; per-frame px/pz/vx/vz via `tools/frida_capture.py … --watch
+vx=0x056daabc:f32 --watch vz=0x056daac4:f32`.

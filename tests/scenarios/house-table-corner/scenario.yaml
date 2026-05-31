@@ -1,0 +1,22 @@
+# house-table-corner — 9-frame drill-in on the central-table corner divergence.
+#
+# Same (old) full-slide segtrace as house-walk-tables, but captures ONLY the
+# 9 anchor-relative frames 1805..1851 (between that bench's cap_04 and cap_05),
+# bracketing the rel-1821 divergence where the port leaves the central round
+# table's front-left corner instead of sliding around it (engine-quirks §69).
+#
+# This is a PERMANENT regression guard for that exact moment: it stays valid even
+# after the full table-slide trace is re-recorded, because it pins the known-bad
+# corner-rounding frames against retail ground truth.
+#   port:   tools/scenario-test.py house-table-corner --target openrecet
+#   both:   tools/scenario-test.py house-table-corner --target both   # visual port|retail
+#   retail: tools/scenario-test.py house-table-corner --target retail --bless  # regen golden-retail
+# px/pz ground truth: golden-retail/watch.jsonl (diff via tools/wall_collide_diff.py).
+
+description: |
+  New game → HOUSE → slide against the central round table; capture 9 frames
+  (rel 1805–1851) drilling into the table-corner collision divergence. Permanent
+  regression guard derived from the house-walk-tables full-slide trace.
+
+max_frames: 16000
+duration_ceiling_ms: 180000
