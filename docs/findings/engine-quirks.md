@@ -2970,3 +2970,55 @@ companion-glow / people passes — the standard count-stub pattern.
 > draw), `all.c:51618+` (`FUN_004552d0` solid player draw), `all.c:90242+`
 > (`FUN_0048b850` tail writer); leaves Cpop.3/6/7 in `scene1_player_ctrl.{c,h}`.
 > Reconciles/corrects §75 + `scene1_chr_walker.h` "DORMANT IN HOUSE".
+
+## 77. `FUN_0048670f`'s prologue/tail are inert in HOUSE free-roam: the save-gate stays 0, the tail rumble is BSS-gated off, and the room-clamp is order-independent of the damp — so the engine's structure can be reproduced bit-exactly (controller un-MVP Chip 3)
+
+Chip 3 of the controller un-MVP (`house-controller-unmvp.md`) reshaped the
+hand-rolled `scene1_player_ctrl_tick` into the faithful `FUN_0048670f` outer
+skeleton (prologue guard → spawn/transition stubs → cc08 dispatch shell → tail).
+Three behavioural facts make the off-near-path pieces provably inert in steady
+HOUSE free-roam, so the skeleton is **byte-identical** to the prior build (no new
+`simplified` body, only `stubbed` entries):
+
+- **The prologue guard `FUN_00434d6a` returns 0 in HOUSE.** It is the save/load
+  dialog ramp gate (already ported as `title_save_dialog_gate_tick`): `if
+  (DAT_0438b148 < 1) return 0`. `DAT_0438b148` is BSS-zero and **only `FUN_00434d6a`
+  itself writes it** — and only by *incrementing* an already-≥1 value, never
+  raising it from 0. The dialog is opened elsewhere (title screen), and its
+  closing-mode ramps the counter back to 0 (returning 1, not -1) on close. So
+  any HOUSE frame sees 0 → returns 0 → the engine does **not** early-return.
+  (The `-1` early-return only fires while that dialog actively pumps, which never
+  happens in-shop.) **Gotcha for the host suite:** this is global state shared
+  with the title tests, which leave it set — the player-ctrl tick tests must
+  `title_save_dialog_reset()` in setup or the new guard silently early-returns
+  (the player stops walking). Fixed in `test_scene1_player_ctrl.c`.
+- **The tail `FUN_00485861` (screen-rumble, `LAB_004893ff`) is BSS-gated off.**
+  Its whole body is under `if (DAT_0438b764 != 0)`, BSS-zero in HOUSE free-roam,
+  so the faithful free-roam behaviour is a no-op → safe structural stub
+  (`CALL_TRACE_ENTER_STUB(0x485861)`). Same for `FUN_0046f621` (per-frame RNG-pool
+  churn): no effect on the player position/sprite the benches sample.
+- **The room-bounds clamp `FUN_00486435` belongs in the tail, and moving it there
+  is bit-exact.** The engine runs the clamp unconditionally in the tail
+  (`LAB_004893ff`, `all.c:88173`), *after* `FUN_0048b850`'s mesh collide + damp —
+  the free-roam path reaches it via `goto LAB_004893ff` (`all.c:87758`). The
+  port had it inside the arm, right after the b850 body; relocating it to the
+  tail (after the anim-record update) is safe because the clamp touches only
+  position while the damp touches velocity and the anim update touches the sprite
+  record — three disjoint state sets (the §75 order-independence, now also
+  covering the anim update). Verified: a port-vs-port differential (bless a
+  pre-Chip-3 golden, diff the post-Chip-3 build) is **22/22 byte-identical** on
+  the full house-walk-tables collision tour, house-table-corner stays 9/9.
+
+The cc08 dispatch itself is **not** ported in Chip 3 — `scene1_player_ctrl_tick`
+routes unconditionally to the free-roam arm (the port has no live `DAT_0438cc08`
+writer), so the `PORT-DEBT(simplified, FUN_0048670f)` stays open until Chip 4
+ports the real dispatch + the cc08==1 arm (the step-1 d-pad impulse, which lives
+in the controllable code at `all.c:87749`, buried deep in the counter/customer
+interaction nest — *not* a shallow switch).
+
+> 📍 src `scene1_player_ctrl.c` (the `FUN_0048670f` skeleton:
+> `player_ctrl_prologue_churn`/`_scene_transition_tick`/`_cc08_freeroam_arm`/
+> `_tail_rumble` + the reshaped `scene1_player_ctrl_tick`), `title_save_dialog.c`
+> (`FUN_00434d6a`), `tests/test_scene1_player_ctrl.c` (the gate-reset fix);
+> decomp `all.c:86539-88176` (`FUN_0048670f`: 86575 guard, 86599-86721
+> transition arms, 88171-88175 tail). Builds on §75/§76.

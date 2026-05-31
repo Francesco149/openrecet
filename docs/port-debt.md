@@ -48,7 +48,7 @@ _none_
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_0048670f | src/scene1_player_ctrl.c:691 | hand-rolled free-roam controller; the |
+| FUN_0048670f | src/scene1_player_ctrl.c:794 | the cc08 dispatch is still a SHELL — |
 
 ## hardcode (1)
 

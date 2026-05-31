@@ -48,9 +48,9 @@
   {
    "kind": "simplified",
    "engine_fn": "FUN_0048670f",
-   "desc": "hand-rolled free-roam controller; the",
+   "desc": "the cc08 dispatch is still a SHELL \u2014",
    "file": "src/scene1_player_ctrl.c",
-   "line": 691,
+   "line": 794,
    "kind_known": true
   },
   {

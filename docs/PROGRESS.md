@@ -7,6 +7,38 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-01 — controller un-MVP Chip 3: the faithful `FUN_0048670f` skeleton shell
+
+Reshaped the hand-rolled `scene1_player_ctrl_tick` into the engine's
+`FUN_0048670f` outer structure (`plans/house-controller-unmvp.md` Chip 3,
+`engine-quirks.md` §77). **Neutral and bit-exact** — no behaviour change, retires
+no debt, adds only `stubbed` ledger entries (379→381 touched, stubbed 15→17). The
+scaffold sets up Chip 4 (the real cc08 dispatch + cc08==1 arm) on a skeleton that
+matches the engine instead of a flat hand-rolled tick.
+
+- **Shape:** prologue guard `FUN_00434d6a` (reused the already-ported
+  `title_save_dialog_gate_tick`; `==-1 → return`) → prologue stubs
+  (`player_ctrl_prologue_churn` = `FUN_0046f621`; `player_ctrl_scene_transition_tick`
+  = the `DAT_0450f470/485/488/495` fade arms + customer-spawn refresh, returns 0)
+  → **cc08 dispatch shell** (`player_ctrl_cc08_freeroam_arm` = the extracted
+  free-roam body, routed unconditionally — no live cc08 writer yet) → tail
+  `LAB_004893ff` (room-clamp `FUN_00486435` **moved here from inside the arm** +
+  `player_ctrl_tail_rumble` = `FUN_00485861`).
+- **Why it's inert / bit-exact (§77):** the save-gate is BSS-zero in HOUSE (only
+  the title opens it; its closing-ramp keeps it 0), `FUN_00485861` is BSS-gated
+  off, and the room-clamp touches only position while the damp/anim touch
+  velocity/sprite — three disjoint state sets, so relocating the clamp to the
+  tail is order-independent.
+- **Gotcha fixed:** the new save-gate guard exposed a host-test isolation leak —
+  prior title tests leave `DAT_0438b148` set, which made the tick early-return
+  (player stops walking). The 4 tick tests now `title_save_dialog_reset()` in
+  setup.
+- **Verification:** port-vs-port differential (bless a pre-Chip-3 golden, diff
+  the post-Chip-3 build) = **house-walk-tables 22/22 byte-identical**;
+  house-table-corner **9/9** vs the retail-derived golden; **3050 host tests**
+  pass; both PE exes warning-free. The `FUN_0048670f` `PORT-DEBT(simplified)`
+  stays open (the dispatch is still a shell) — retired in Chip 4.
+
 ## 2026-05-31 — un-MVP Step 3.4: retire the hardcoded HOUSE furniture table → live placement
 
 Landed plan Step 3.4 (`plans/un-mvp-structural-parity.md`): `collision_house.c`

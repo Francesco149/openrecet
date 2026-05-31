@@ -20,6 +20,8 @@
 #include "scene1_player_ctrl.h"
 #include "input.h"               /* g_input_state[].buttons */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos[3] */
+#include "title_save_dialog.h"   /* title_save_dialog_reset — clear the FUN_0048670f
+                                  * prologue save-gate (FUN_00434d6a) between tests */
 
 static int near_f(float a, float b)
 {
@@ -739,6 +741,7 @@ int test_player_ctrl_idle_animates_and_holds_position(void)
     memcpy(blk + CHR_META_OFF_LUT + (0 * 0x100 + 4 * 6 + 0) * 4, &end, 4);
 
     g_input_state[0].buttons = 0;
+    title_save_dialog_reset();                   /* clear the FUN_0048670f save-gate */
     player_ctrl_pose_house_standing(0);          /* seeds anim 0, frame 2, timer 5, counter 25 */
     g_scene1_player_pos[0] = -0.3f;
     g_scene1_player_pos[1] = 0.0f;
@@ -854,6 +857,7 @@ int test_player_ctrl_walk_anim_starts_at_counter_zero(void)
     int32_t end = (int32_t)CHR_META_ANIM_END;
     memcpy(blk + CHR_META_OFF_LUT + (1 * 0x100 + 4 * 6 + 0) * 4, &end, 4);
 
+    title_save_dialog_reset();                   /* clear the FUN_0048670f save-gate */
     player_ctrl_pose_house_standing(0);          /* idle: anim 0, counter 25 */
     g_scene1_player_pos[0] = -0.3f;
     g_scene1_player_pos[1] = 0.0f;
@@ -916,6 +920,7 @@ int test_player_ctrl_walk_left_matches_retail(void)
         -0.4f, -0.575f, -0.75f, -0.925f, -1.1f, -1.275f, -1.45f, -1.5f, -1.5f,
     };
     g_input_state[0].buttons = 0;
+    title_save_dialog_reset();                   /* clear the FUN_0048670f save-gate */
     player_ctrl_pose_house_standing(0);
     g_scene1_player_pos[0] = -0.3f;
     g_scene1_player_pos[1] = 0.0f;
@@ -940,6 +945,7 @@ int test_player_ctrl_walk_release_decays_and_idles(void)
      * velocity decays by 0.82/frame (retail release tail).  Walk RIGHT from a
      * wall-free spot so the decay shows as continued +x creep, then stops. */
     g_input_state[0].buttons = 0;
+    title_save_dialog_reset();                   /* clear the FUN_0048670f save-gate */
     player_ctrl_pose_house_standing(0);
     g_scene1_player_pos[0] = 0.0f;
     g_scene1_player_pos[1] = 0.0f;

@@ -5,12 +5,12 @@
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
   "verified": 63,
-  "stubbed": 15,
+  "stubbed": 17,
   "ported": 301,
-  "unported": 2169,
+  "unported": 2167,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 379,
-  "pct_touched": 14.9,
+  "touched": 381,
+  "pct_touched": 15.0,
   "pct_verified": 2.5,
   "port_debt": 5
  },
@@ -1320,6 +1320,7 @@
    "status": "ported",
    "src": [
     "src/scene1_combat_sm.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_records_b_tick.c"
    ]
   },
@@ -5720,8 +5721,10 @@
    "size": 39,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "stubbed",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x46f648",
@@ -7883,8 +7886,10 @@
    "size": 280,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "stubbed",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x485979",

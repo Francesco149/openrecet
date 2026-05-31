@@ -15,6 +15,7 @@
 #include "collision_house.h"     /* collision_house_get — live room mesh */
 #include "collision_resolve.h"   /* collision_resolve_player (FUN_00483170) */
 #include "stage_palette.h"       /* g_stage_palette->mode (*DAT_068dd2f0) */
+#include "title_save_dialog.h"   /* title_save_dialog_gate_tick (FUN_00434d6a guard) */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -672,35 +673,64 @@ static void player_ctrl_b850_move(void)
     player_ctrl_b850_render_tail();
 }
 
-/* ── W3: per-frame player-controller tick (engine FUN_0048670f driver) ─────
+/* ── FUN_0048670f structural skeleton (Chip 3) ──────────────────────────────
  *
- * Wired into the live HOUSE frame (scene1_ingame_default_arm_tick, before
- * scene1_records_b_tick — the engine's order at FUN_00442cef L40593-40598).
- * Reproduces the controllable (cc08==1, da1bc==0) free-roam walk validated
- * against runs/w3-walk-watch: per held-direction frame, accumulate velocity
- * from the facing angle, clamp |v| ≤ 0.175, integrate the player position,
- * clamp to the room bounds, then damp by 0.82.  Order matches the engine
- * (impulse → clamp → integrate → damp) so the end-of-frame state equals the
- * retail per-frame watch (px, vx post-damp) to all measured digits.
+ * Faithful outer shape of the engine's INGAME interaction controller
+ * (FUN_0048670f, all.c:86539-88178; engine-quirks §75).  The prologue guard,
+ * the periodic customer-spawn refresh, the scene-transition fade handlers, and
+ * the screen-rumble tail are all OFF the HOUSE free-roam near-path — they land
+ * here as structural stubs (real VA + CALL_TRACE_ENTER_STUB where the engine
+ * call is a standalone function, faithful no-op bodies that are correctly inert
+ * in steady free-roam).  The cc08 dispatch is a SHELL: it routes cc08==1
+ * (free-roam walk) to the ported arm (player_ctrl_cc08_freeroam_arm) and every
+ * other state to "unported" — Chip 4 fleshes the dispatch + the cc08==1 arm
+ * (the d-pad impulse step) faithfully and retires the simplified debt.
  *
- * The outer cc08 state machine isn't ported; this drives whenever a d-pad
- * direction is held in HOUSE free-roam.  Furniture/mesh collision
- * (FUN_00483170) and the companion are deferred (W4); the walk-cycle frame
- * timing (chr_anim_tick dt) is mechanism-only pending a retail record capture
- *
- * PORT-DEBT(simplified, FUN_0048670f): hand-rolled free-roam controller; the
- * real cc08 state machine driving the impulse from stored db05c facing is not
- * structurally ported (only behaviourally matched — §69). The port drives
- * whenever a d-pad is held, ignoring the unported cc08 event-gate (intro /
- * dialogue / non-controllable states — §60). Retire = plan Step 3.1.
- * (W3b). */
-void scene1_player_ctrl_tick(void)
+ * This chip is NEUTRAL: no behaviour change, benches bit-exact (the only
+ * reorder, moving the room-clamp into the tail, is order-independent vs the
+ * anim update / damp — §75), and it adds only `stubbed` ledger entries. */
+
+/* FUN_0046f621 (0x46f621, 39 B): the engine's per-frame RNG-pool churn,
+ * called unconditionally on FUN_0048670f's main path (all.c:86722).  Has no
+ * effect on the player position/sprite the benches sample; structural stub. */
+static void player_ctrl_prologue_churn(void)
 {
-    CALL_TRACE_ENTER(0x48670fu);
+    CALL_TRACE_ENTER_STUB(0x46f621u);
+}
 
-    if (s_actor_char[0] == -1)        /* no live player actor (pre-HOUSE) */
-        return;
+/* FUN_0048670f prologue + scene-transition arms (all.c:86579-86721): the
+ * periodic customer-spawn refresh (the DAT_005ce3c4 actor loop, gated
+ * DAT_0438b8cc%8==3, spawning shop customers via FUN_004147d5) and the four
+ * scene-transition fade handlers (DAT_0450f470/485/495/488 — each runs a fade
+ * + its own move/clamp and early-returns).  None of these flags is set during
+ * steady HOUSE free-roam (the entry fade is long done, no customer this frame),
+ * so the engine falls straight through to the controller.  Inline regions of
+ * FUN_0048670f (no standalone VA), modelled as a no-op that signals "no
+ * transition active" → the caller falls through.  Returns nonzero only when a
+ * transition consumed the frame (never, in this chip). */
+static int player_ctrl_scene_transition_tick(void)
+{
+    return 0;
+}
 
+/* FUN_00485861 (0x485861, 280 B): the FUN_0048670f tail screen-rumble update
+ * (LAB_004893ff).  Gated on DAT_0438b764 (BSS-zero in HOUSE free-roam → the
+ * whole body is skipped), so the faithful free-roam behaviour is a no-op;
+ * structural stub. */
+static void player_ctrl_tail_rumble(void)
+{
+    CALL_TRACE_ENTER_STUB(0x485861u);
+}
+
+/* The cc08==1 free-roam walk arm: read the held d-pad → walk impulse (step 1)
+ * → FUN_0048b850 body (clamp/octant/integrate+collide/damp + render tail) →
+ * actor anim record.  This is the controllable (cc08==1, da1bc==0) walk
+ * validated against runs/w3-walk-watch — byte-identical per-frame to retail
+ * (px, vx post-damp) and through the house-table-corner slide (§69/§75).  The
+ * room-bounds clamp is NOT here: the engine runs it in the tail (FUN_00486435
+ * @ LAB_004893ff), AFTER this arm. */
+static void player_ctrl_cc08_freeroam_arm(void)
+{
     /* Decode the d-pad → (facing, moving), applying the engine's opposing-pair
      * rejection: a conflicting L+R / U+D frame holds the stored facing + the
      * previous moving state instead of snapping to the net axis (§69). */
@@ -721,24 +751,12 @@ void scene1_player_ctrl_tick(void)
      * → damp (engine-quirks §75). */
     player_ctrl_b850_move();
 
-    /* Room-bounds clamp (FUN_00486435), which the engine runs UNCONDITIONALLY at
-     * the TAIL of FUN_0048670f (L1640 LAB_004893ff) — AFTER FUN_0048b850's mesh
-     * collision.  The mesh resolver gives the right wall (px 3.10) + counter
-     * (pz 8.94); this clamp gives the front (pz≤9.5) + left (px≥-1.5 when pz>7)
-     * HOUSE bounds, which aren't in the room mesh or any placed object (§67) —
-     * together they reproduce retail's box px[-1.5,3.1] pz[8.94,9.5].  This clamp
-     * touches position and b850's damp touches velocity, so the engine's split
-     * (damp inside b850, clamp here) is order-independent (§75). */
-    player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
-                                 &g_scene1_player_pos[2]);
-
     /* actor record: anim id (0 idle / 1 walk = daae8).  The facing octant (dab00)
      * was set by player_ctrl_b850_move above.  On an idle↔walk transition, restart
      * the new animation at frame 0; otherwise let it continue so the idle's
      * breathing loop keeps the phase it was seeded with.  chr_anim_tick advances
      * the cycle EVERY frame — retail's idle animates too (a 4-frame breathing
      * loop, ~10 ticks/frame; validated runs/w3b-anim-watch), not just the walk. */
-
     int target_anim = moving ? 1 : 0;
     if (s_actor_record[0][CHR_ACTOR_ANIM] != target_anim) {
         /* idle↔walk transition: seed the new anim at frame 0 / counter 0 and do
@@ -762,4 +780,61 @@ void scene1_player_ctrl_tick(void)
     } else {
         chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
     }
+}
+
+/* ── W3: per-frame player-controller tick (engine FUN_0048670f driver) ─────
+ *
+ * Wired into the live HOUSE frame (scene1_ingame_default_arm_tick, before
+ * scene1_records_b_tick — the engine's order at FUN_00442cef L40593-40598).
+ * Chip 3 (above) gives it the faithful FUN_0048670f outer skeleton; the
+ * controllable (cc08==1, da1bc==0) free-roam walk it routes to is validated
+ * against runs/w3-walk-watch (per held-direction frame: impulse → clamp →
+ * integrate → damp), byte-identical per-frame to the retail watch.
+ *
+ * PORT-DEBT(simplified, FUN_0048670f): the cc08 dispatch is still a SHELL —
+ * the port has no live cc08 writer, so it always routes the free-roam arm,
+ * driving whenever a d-pad is held and ignoring the unported cc08 event-gate
+ * (intro / dialogue / counter / non-controllable states — §60/§75).  The
+ * prologue spawn-refresh + transition fades + tail rumble are structural
+ * stubs.  Retire = Chip 4 (the faithful cc08 dispatch + cc08==1 arm). */
+void scene1_player_ctrl_tick(void)
+{
+    CALL_TRACE_ENTER(0x48670fu);
+
+    /* prologue guard FUN_00434d6a (all.c:86575): the save/load dialog gate.
+     * Returns -1 only while that dialog pumps (DAT_0438b148 BSS-zero → returns
+     * 0 in HOUSE); the engine early-returns on -1. */
+    if (title_save_dialog_gate_tick() == -1)
+        return;
+
+    if (s_actor_char[0] == -1)        /* no live player actor (pre-HOUSE) */
+        return;
+
+    /* prologue: periodic customer-spawn refresh + per-frame RNG churn
+     * (FUN_0046f621) — both inert in steady free-roam (structural stub). */
+    player_ctrl_prologue_churn();
+
+    /* scene-transition fade handlers (DAT_0450f470/485/488/495): none fires in
+     * steady HOUSE free-roam → fall through to the controller. */
+    if (player_ctrl_scene_transition_tick())
+        return;
+
+    /* cc08 dispatch shell (DAT_0438cc08): cc08==1 = free-roam walk → the ported
+     * arm; every other state is unported (Chip 4).  The port models only
+     * free-roam, so route there unconditionally. */
+    player_ctrl_cc08_freeroam_arm();
+
+    /* tail LAB_004893ff: the room-bounds clamp (FUN_00486435) runs
+     * UNCONDITIONALLY here — AFTER FUN_0048b850's mesh collision (§75).  The
+     * mesh resolver gives the right wall (px 3.10) + counter (pz 8.94); this
+     * clamp gives the front (pz≤9.5) + left (px≥-1.5 when pz>7) HOUSE bounds,
+     * which aren't in the room mesh or any placed object (§67) — together they
+     * reproduce retail's box px[-1.5,3.1] pz[8.94,9.5].  The clamp touches
+     * position while b850's damp + the anim update touch velocity / the sprite
+     * record, so the engine's split (damp inside b850, clamp in the tail) is
+     * order-independent — moving it here from the old in-arm position is
+     * bit-exact.  Then FUN_00485861 (screen-rumble; no-op in free-roam). */
+    player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
+                                 &g_scene1_player_pos[2]);
+    player_ctrl_tail_rumble();
 }

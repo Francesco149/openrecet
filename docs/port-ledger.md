@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **379** (14.9%) — verified 63, stubbed 15, ported 301
-- unported: **2169**
+- touched: **381** (15.0%) — verified 63, stubbed 17, ported 301
+- unported: **2167**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (63) — runtime-diffed vs retail
@@ -82,7 +82,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49b425 | FUN_0049b425 | 207 | ✓ | render_quad.c |
 | 0x49de18 | FUN_0049de18 | 8 | ✓ | scene_new_game.c |
 
-## stubbed (15) — wired, body incomplete
+## stubbed (17) — wired, body incomplete
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -96,7 +96,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45404b | FUN_0045404b | 326 | ✓ | scene1_render.c |
 | 0x454191 | FUN_00454191 | 1391 | ✓ | scene1_fx_overlays.c |
 | 0x459dfd | FUN_00459dfd | 1906 | ✓ | scene1_render.c |
+| 0x46f621 | FUN_0046f621 | 39 | ✓ | scene1_player_ctrl.c |
 | 0x485712 | FUN_00485712 | 317 | ✓ | stage_post_load.c |
+| 0x485861 | FUN_00485861 | 280 | ✓ | scene1_player_ctrl.c |
 | 0x48b850 | FUN_0048b850 | 5030 | ✓ | scene1_player_ctrl.c |
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
@@ -137,7 +139,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4132c1 | FUN_004132c1 | 92 | ✓ | scene1_per_frame_open.h |
 | 0x41331d | FUN_0041331d | 89 | ✓ | scene1_per_frame_open.h, scene1_player_ctrl.h, scene1_records_b_tick.c |
 | 0x414345 | FUN_00414345 | 1057 | ✓ | scene1_overlay.c, scene1_overlay.h |
-| 0x4147d5 | FUN_004147d5 | 62 | ✓ | scene1_combat_sm.h, scene1_records_b_tick.c |
+| 0x4147d5 | FUN_004147d5 | 62 | ✓ | scene1_combat_sm.h, scene1_player_ctrl.c, scene1_records_b_tick.c |
 | 0x414813 | FUN_00414813 | 239 | ✓ | scene1_overlay.c |
 | 0x414902 | FUN_00414902 | 39 | ✓ | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_preload.c (+2) |
 | 0x414ee2 | FUN_00414ee2 | 4006 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_overlay_helpers.c (+4) |

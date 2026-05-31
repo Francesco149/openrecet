@@ -1,11 +1,12 @@
 # Plan: faithful full port of the HOUSE game-state controller (FUN_0048670f → FUN_0048b850 → FUN_00483170)
 
-> **Status (2026-06-01):** ACTIVE. Foundation + Chips 1–2 landed
-> (`4090a36` §75 + chip plan, `202883c` Chip 1, Chip 2 this commit). This is the
-> durable repo copy of the approved chip plan — the summary lives in
-> `un-mvp-structural-parity.md` Step 3.1/3.2, the structural map in
-> `engine-quirks.md` §75 (+ §76 for the Chip 2 render-bank finding), the
-> per-step source map below.
+> **Status (2026-06-01):** ACTIVE. Foundation + Chips 1–3 landed
+> (`4090a36` §75 + chip plan, `202883c` Chip 1, `de44cd7` Chip 2, Chip 3 this
+> commit). This is the durable repo copy of the approved chip plan — the summary
+> lives in `un-mvp-structural-parity.md` Step 3.1/3.2, the structural map in
+> `engine-quirks.md` §75 (+ §76 Chip 2 render-banks, §77 Chip 3 skeleton), the
+> per-step source map below. **Next: Chip 4** (the cc08 dispatch + cc08==1 arm,
+> retires the last `PORT-DEBT(simplified, FUN_0048670f)`).
 
 ## Context
 
@@ -120,12 +121,34 @@ Steps 5/6 are order-independent (pos vs vel).
     lights the banks, and opening `chr-walker` Pass 2 (needs the real
     `DAT_0438b4b4` entry-fade gate sourced — see §76).
 
-- **Chip 3 — `FUN_0048670f` prologue + per-frame bookkeeping + tail (skeleton shell).**
-  Faithful outer structure: actor-record refresh, the `DAT_0450f470/485/488/495`
-  transition-flag handlers (port reachable, structural-stub off-near-path fades),
-  `b74c/750/924/b4e0` counters, common tail `LAB_004893ff` (`FUN_00486435` clamp +
-  `FUN_00485861`). cc08 dispatch shell still routes cc08==1 to the free-roam body.
-  No behaviour change; benches bit-exact. Adds only `stubbed` entries.
+- **Chip 3 — `FUN_0048670f` prologue + per-frame bookkeeping + tail (skeleton shell). ✅ DONE.**
+  `scene1_player_ctrl_tick` is now shaped as the faithful `FUN_0048670f`:
+  - **prologue guard** `FUN_00434d6a` (`title_save_dialog_gate_tick`, the
+    save/load gate — *reused*, already fully ported): `if (...==-1) return`.
+    BSS-zero → returns 0 in HOUSE (and the engine's own closing-ramp keeps it 0
+    post-dialog), so the guard is inert in free-roam. Exposed a host-test
+    isolation leak (a prior title test left the counter set) — fixed by resetting
+    the gate in the 4 tick tests.
+  - **prologue stubs** `player_ctrl_prologue_churn` (`FUN_0046f621`, RNG churn,
+    `CALL_TRACE_ENTER_STUB(0x46f621)`) + `player_ctrl_scene_transition_tick`
+    (the `DAT_0450f470/485/488/495` fade arms + customer-spawn refresh — inline
+    FUN_0048670f regions, no standalone VA; returns 0 = "no transition" → fall
+    through).
+  - **cc08 dispatch shell** `player_ctrl_cc08_freeroam_arm` = the extracted
+    existing free-roam body (d-pad intent → impulse → `player_ctrl_b850_move`
+    → anim record). The port has no live cc08 writer, so it routes there
+    unconditionally; every other state is unported (Chip 4).
+  - **tail `LAB_004893ff`**: `player_ctrl_house_room_clamp` (`FUN_00486435`)
+    **moved here from inside the arm** (the engine runs it in the tail, after
+    b850; order-independent vs damp/anim → bit-exact — §75) + `player_ctrl_tail_rumble`
+    (`FUN_00485861`, screen-rumble, BSS-gated no-op in free-roam,
+    `CALL_TRACE_ENTER_STUB(0x485861)`).
+  - **Neutral, bit-exact:** retires no debt and adds no `simplified` body — only
+    2 `stubbed` ledger entries (379→381 touched, stubbed 15→17). Verified
+    byte-identical to the pre-chip build via a port-vs-port differential
+    (house-walk-tables 22/22) + house-table-corner 9/9 vs the retail-derived
+    golden + 3050 host tests. The `FUN_0048670f` `PORT-DEBT(simplified)` stays
+    open (the dispatch is still a shell) — retired in Chip 4. See `engine-quirks.md` §77.
 
 - **Chip 4 — `FUN_0048670f` cc08 dispatch + cc08==1 arm faithfully → retire simplified
   debt.** Port the cc08==1 free-roam arm (d-pad masks `DAT_073dddd4/dddd6`, proximity →
