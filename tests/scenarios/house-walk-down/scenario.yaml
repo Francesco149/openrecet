@@ -1,0 +1,26 @@
+# house-walk-down — W4 repro #2: walk DOWN toward the front floor edge.
+#
+# Same new-game → HOUSE → 2nd HOUSE_FREEROAM anchor as house-wall-collide, but
+# holds DOWN (0x0008) for 900 frames instead of RIGHT. The port (radial-push-only
+# resolver) walks off the front of the map; retail blocks at the front. This is
+# the ground-truth bench for the floor-edge try-move + step-height gate
+# (FUN_004830f1 / FUN_00432e50 step gate; see engine-quirks §66, memory
+# project_w4_collision_status repro #2).
+#
+# Quantitative signal is the per-frame world pos — capture it on BOTH targets:
+#   tools/run-openrecet.sh --input-segtrace tests/scenarios/house-walk-down/trace.jsonl \
+#     --player-pos-log runs/down-port/pos.jsonl --capture-to runs/down-port/frames \
+#     --max-frames 4500 --timeout-ms 180000
+#   nix develop --command python3 tools/frida_capture.py \
+#     --input-segtrace tests/scenarios/house-walk-down/trace.jsonl \
+#     --watch px=0x056da1d8:f32 --watch pz=0x056da1e0:f32 --watch py=0x056da1dc:f32 \
+#     --out runs/down-retail --remote cutestation.soy:27042 --hide-window --turbo --silent-audio
+# Diff with tools/wall_collide_diff.py (anchor-phase search).
+
+description: |
+  New game → HOUSE → hold DOWN into the front of the room. cap_00 idle (+1540),
+  cap_01 after walking down (+2400). Pair with --player-pos-log / --watch +
+  tools/wall_collide_diff.py for the px/pz/py accuracy diff.
+
+max_frames: 16000
+duration_ceiling_ms: 180000

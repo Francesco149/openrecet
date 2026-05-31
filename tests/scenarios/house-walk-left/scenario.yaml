@@ -1,0 +1,20 @@
+# house-walk-left — W4 repro #1: walk LEFT into the central furniture / counter.
+#
+# Same new-game → HOUSE → 2nd HOUSE_FREEROAM anchor as house-wall-collide, but
+# holds LEFT (0x0002) for 600 frames. Retail blocks the squeeze between the stool
+# and the counter; the port (no furniture collision — the round table/stool have
+# no world placement) lets the player squeeze in and get trapped in a radial-push
+# pocket. Ground-truth bench for the furniture world-placement + furniture
+# collision meshes (FUN_00436f97 stage_positions → DAT_0438c058; engine-quirks
+# §65, memory project_w4_collision_status repro #1).
+#
+# Capture per-frame pos on BOTH targets (see house-walk-down/scenario.yaml for
+# the invocation) and diff with tools/wall_collide_diff.py.
+
+description: |
+  New game → HOUSE → hold LEFT into the central table / behind-counter furniture.
+  cap_00 idle (+1540), cap_01 after walking left (+2100). Pair with
+  --player-pos-log / --watch + tools/wall_collide_diff.py.
+
+max_frames: 16000
+duration_ceiling_ms: 180000

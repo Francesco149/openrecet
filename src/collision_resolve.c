@@ -82,12 +82,42 @@ int collision_raycast(const collision_mesh *m,
     return 1;
 }
 
+/* Head-height offset the engine adds to the query Y inside FUN_00432e50
+ * (decomp L140: `local_c = … + 1.5`).  A floor is "above-plane" (and thus a
+ * valid ground) only when the query point at py+1.5 sits above its plane — so
+ * any floor higher than py+1.5 (the counter TOP at y≈2.2 from a grounded
+ * player at y≈0) is rejected.  This is the engine's implicit step-height gate:
+ * the player can mount a ≤1.5-tall lip but never climbs the counter. */
+#define CR_HEAD_HEIGHT 1.5f
+
 void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3],
                               int palette_mode)
 {
-    /* Integrate the planar velocity (FUN_00483170 L203-204). */
-    pos[0] += vel[0];
-    pos[2] += vel[2];
+    collision_hit h;
+
+    /* Try-move gate (FUN_004830f1 + the FUN_00483170 bVar11 integration at
+     * L107-205).  The engine integrates the planar velocity only when the
+     * destination keeps the player over a floor; otherwise it slides.  We
+     * model that as: take the full move iff the destination is over a floor
+     * (probed at py+1.5, head height); else integrate each axis separately so
+     * a blocked edge stops only the into-edge component (retail "X blocked, Z
+     * free").  This blocks the room's IMPLICIT walls — the left wall (px=-1.5)
+     * and the front floor edge (pz=9.5) are mesh boundaries with no modeled
+     * vertical face, so the radial push below never catches them; only the
+     * floor probe does.  Modeled faces (the right wall at px=3.10) keep their
+     * floor underneath, so the gate is a no-op there and the radial push does
+     * the 1:1 pin.  Ground truth: runs/{down,left}-retail pin pz=9.5 / px=-1.5;
+     * runs/wall-retail pins px=3.1019 (engine-quirks §66/§67). */
+    const float ny = pos[1] + CR_HEAD_HEIGHT;
+    const float nx = pos[0] + vel[0];
+    const float nz = pos[2] + vel[2];
+    if (collision_query_ground(m, nx, ny, nz, &h)) {
+        pos[0] = nx;
+        pos[2] = nz;
+    } else {
+        if (collision_query_ground(m, nx, ny, pos[2], &h)) pos[0] = nx;
+        if (collision_query_ground(m, pos[0], ny, nz, &h)) pos[2] = nz;
+    }
 
     /* Radial push (FUN_00483170 L84404-84445).  Ray count is 8, but **20** when
      * the stage is HOUSE-class (`*DAT_068dd2f0` == stage-palette mode 0) AND the
@@ -135,9 +165,9 @@ void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3
         }
     }
 
-    /* Ground snap (flat HOUSE floor): set Y to the floor under the player. */
-    collision_hit h;
-    if (collision_query_ground(m, pos[0], pos[1] + 1.0f, pos[2], &h))
+    /* Ground snap (flat HOUSE floor): set Y to the floor under the player,
+     * probed at the same py+1.5 head height as the try-move/engine query. */
+    if (collision_query_ground(m, pos[0], pos[1] + CR_HEAD_HEIGHT, pos[2], &h))
         pos[1] = h.height;
 }
 

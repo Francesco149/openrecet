@@ -2318,6 +2318,7 @@
     "src/collision_mesh.h",
     "src/collision_query.c",
     "src/collision_query.h",
+    "src/collision_resolve.c",
     "src/collision_resolve.h",
     "src/scene1_camera.c",
     "src/scene1_postload.c",

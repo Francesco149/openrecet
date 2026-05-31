@@ -2396,3 +2396,51 @@ calls it) revealed which resolver model actually fits HOUSE:
   NOT a collision-accuracy error. The contour (counter jut included) is reproduced
   1:1; this front is closed. The pre-fix "px~1.55, ~0.6 short" figure was the old
   radial-push resolver, before the 20-ray + (1−frac) fix landed.
+
+## 67. HOUSE off-map walk: the floor-edge try-move blocks it, with an implicit +1.5 step gate; exact pins need the multi-object query
+
+W4 full-resolver pass (2026-05-31). Drove the two parked repros (walk-DOWN
+off-map, walk-LEFT) on both targets with deterministic scenarios
+(`tests/scenarios/house-walk-{down,left}`) + retail Frida watch
+(`runs/{down,left}-retail`), and ported the missing front of `FUN_00483170`.
+
+- **Retail cardinal pins from the spawn (px=-0.30, pz=9.35), holding each
+  d-pad:** RIGHT px=3.1019, LEFT px=-1.500, DOWN(+z) pz=9.500, UP(-z) pz=8.941.
+  All four are *position-block + velocity-slide* (vx/vz stays at the 0.1435
+  into-wall value, position frozen, py=0 — no fall). So the player is boxed in
+  a thin front strip in front of the sales counter.
+- **The radial push (the 20-ray FUN_00433674) only catches RIGHT.** RIGHT is a
+  modeled vertical face with an *inward* (−x) normal, so the player (approaching
+  from −x) is on the +normal side and the ray hits it. The front wall (tri
+  263-268, z≈10.3) has an *outward* (+z) normal — both the port AND the engine
+  raycast back-face-cull it (`0 ≤ originDist && dir·n < 0`), so the radial push
+  never blocks DOWN. (Confirmed: the port's mesh normal formula `(C−B)×(B−A)` is
+  identical to the engine's, so they agree on the +z outward normal.) The
+  pre-fix port walked clean off the map — pz→92, px→−76.
+- **DOWN/LEFT are blocked by the FLOOR-EDGE TRY-MOVE (FUN_004830f1), not the
+  radial push.** `FUN_004830f1` is `FUN_00432e50(pos+vel)` — accept the move iff
+  the destination is over a floor; else slide per-axis. `FUN_00483170` gates the
+  velocity integration (`bVar11`) on it. Porting that gate ahead of the radial
+  push (replacing the unconditional `pos += vel`) stops the off-map walk and
+  keeps RIGHT **bit-identical** (`wall_collide_diff.py` still shift-+1
+  RMS Δpx=0.0000). `src/collision_resolve.c`.
+- **The step-height gate is IMPLICIT in a +1.5 head-height offset.**
+  `FUN_00432e50` adds **+1.5** to the query Y before the per-triangle above-plane
+  gate (decomp L140: `local_c = … + 1.5`). A floor counts only when the query
+  point at py+1.5 is above its plane, so any floor taller than py+1.5 (the
+  counter TOP at y≈2.2 from a grounded player at y≈0) is rejected — the player
+  mounts a ≤1.5 lip but never climbs the counter. The W4.3 try-move "climbed the
+  counter" (§66) because it probed at py+1.0 and/or without this gate; the
+  resolver now probes at py+1.5 (`CR_HEAD_HEIGHT`) for the try-move AND the
+  ground snap. No separate step-gate needed.
+- **The exact retail box still needs the MULTI-OBJECT query.** `FUN_00432e50`
+  subtracts a per-object world origin `DAT_0438c058/0a8/0f8` and loops over
+  *every* placed object — room (`shop_1st.x`) + carpet (`shop_jutan.x`) + the
+  furniture (tables/jihanki). The port loads only `shop_1st.x` at origin 0, so
+  its floor extends to the room-mesh edge (DOWN edge pz=10.3, LEFT edge
+  px=−10.25) instead of stopping at the furniture that hems retail into
+  px[−1.5,3.1] pz[8.94,9.5]. So the off-map walk is now *bounded to the room
+  floor edge* (a strict improvement) but the tight box awaits the furniture
+  world-placement (`FUN_00436f97` → `DAT_0438c058`, §65) loaded as extra
+  collision objects. That is the next chip (repro #1 + the exact DOWN/LEFT pin
+  share this one cause).

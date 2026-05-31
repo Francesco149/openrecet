@@ -157,7 +157,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x431a80 | FUN_00431a80 | 156 | ✓ | scene1_preload.c, scene1_preload.h |
 | 0x43289b | FUN_0043289b | 555 | ✓ | collision_mesh.c, collision_mesh.h |
 | 0x432ac6 | FUN_00432ac6 | 906 | ✓ | collision_mesh.c, collision_mesh.h |
-| 0x432e50 | FUN_00432e50 | 2084 | ✓ | collision_mesh.h, collision_query.c, collision_query.h (+8) |
+| 0x432e50 | FUN_00432e50 | 2084 | ✓ | collision_mesh.h, collision_query.c, collision_query.h (+9) |
 | 0x433674 | FUN_00433674 | 2354 | ✓ | collision_resolve.c, collision_resolve.h, scene1_records_b_tick.c (+3) |
 | 0x4341d4 | FUN_004341d4 | 42 | ✓ | storage.c |
 | 0x4341fe | FUN_004341fe | 903 | ✓ | chr_sprite_meta.c, chr_sprite_meta.h, chr_sprite_meta_load.c (+4) |
