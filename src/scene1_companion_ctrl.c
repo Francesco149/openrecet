@@ -18,7 +18,8 @@
 #include "call_trace.h"           /* CALL_TRACE_ENTER */
 #include "scene1_player_ctrl.h"   /* actor record (mut/read) */
 #include "scene1_chr_sprite.h"    /* CHR_ACTOR_* record-field indices */
-#include "scene1_particles_tick.h"/* g_scene1_actor_pos + g_scene1_player_ground_y */
+#include "scene1_particles_tick.h"/* g_scene1_actor_pos + g_scene1_player_ground_y + g_scene1_camera_yaw */
+#include "scene1_spawn.h"         /* scene1_spawn (FUN_00447f4f) + the dab58 init global */
 
 /* ── engine float constants (FUN_0048a4d1 .rdata, objdump 2026-05-31) ──
  *   0x5198cc = 0.15 (spring + Y lerp)   0x519bc4 = 0.35 (velocity clamp)
@@ -48,6 +49,39 @@
 #define CO_ACTOR        2          /* the companion is actor slot 2 */
 #define CO_TARGET       0          /* it follows actor 0 (the player) */
 
+/* ── wing-glow sparkle emit (FUN_0048a833 tail, LAB_0048b2a0) ──────────────
+ * Every 4th frame the companion driver drops one type-0x1f "scene-counter wave"
+ * particle just off the fairy along her facing — the glowing-wing sparkle.
+ * Ported from the asm; Ghidra dropped the spawn's type + scale args, recovered
+ * from objdump @ 0x48b38e (the 0x1c = 7-dword cleanup), see engine-quirks §73:
+ *
+ *   if (b4b4==0 && dae20>0 && dae2c>0 && (b8f8!=0 || db054%4==0) && b1a0==0)
+ *     angle = facing·2π/8 − camera_yaw
+ *     spawn(0, da1f0−sin(angle)·0.6, da1f4+1.1, da1f8−cos(angle)·0.6, 0x1f, 0.1, …)
+ *
+ * The four non-frame gate terms are all true in HOUSE free-roam, so only the
+ * every-4th-frame rate term varies:
+ *   - DAT_0438b4b4 (scene fade-in countdown) is 0 once faded in (port stubs 0);
+ *   - _DAT_056dae20 / _DAT_056dae2c (companion render scale cw/ch) are 1.0 (>0)
+ *     for the live fairy;
+ *   - DAT_0438b1a0 (config `easydisp`) defaults 0;
+ *   - DAT_0438b8f8 (per-frame-emit override) is 0 → the every-4th-frame branch.
+ * DAT_056db054 is the per-frame bob counter (s_bob_counter), reset to 0 with the
+ * scene — the SAME counter the bob reads, so the %4 phase rides the §71-
+ * validated bob alignment (the engine reads db054 once per frame for both).
+ *
+ * The spawned particle is faithful but INVISIBLE today — the table-A glow-
+ * billboard renderer (FUN_004176ff, 30 KB) is unported (only pass_f / type 0x92
+ * draws).  The integrator (scene1_particles_tick) DOES age + kill type 0x1f
+ * (grav −0.001, damp 0.97, kill age 0x20), so the emit cannot leak slots; the
+ * sparkle becomes visible for free once that renderer lands. */
+#define CO_SPARKLE_PERIOD  4
+#define CO_SPARKLE_OFFSET  0.6f    /* .rdata 0x51969c — facing-dir push */
+#define CO_SPARKLE_Y       1.1f    /* .rdata 0x519724 — +Y above the fairy */
+#define CO_SPARKLE_TYPE    0x1f    /* recovered: reused `push $0x1f` (cos arg) */
+#define CO_SPARKLE_SCALE   0.1f    /* recovered: reused 0.1 const push (param_6) */
+#define CO_TWO_PI          6.2831855f   /* .rdata 0x519398 */
+
 /* Per-scene hover-bob phase counter — engine DAT_056db054.  The engine's real
  * writer is the per-frame open FUN_00483e7b (++ every frame); modeled here as a
  * companion-local counter (the companion is currently db054's only port reader,
@@ -73,6 +107,23 @@ static void co_set_anim(int32_t *rec, int anim_id)
     rec[CHR_ACTOR_TIMER]   = z.i;
     rec[CHR_ACTOR_COUNTER] = 0;
     rec[CHR_ACTOR_ANIM]    = anim_id;
+}
+
+/* Drop one wing-glow sparkle at the fairy's current facing (engine LAB_0048b2a0,
+ * read after the spring-follow has set the post-move position + facing octant). */
+static void co_emit_wing_sparkle(const int32_t *rec, const float *comp)
+{
+    int   facing = rec[CHR_ACTOR_FACING];      /* DAT_056dab58 octant */
+    float angle  = (float)facing * CO_TWO_PI / 8.0f - g_scene1_camera_yaw;
+    /* The type-0x1f init body re-reads dab58 for its per-particle jitter; the
+     * companion controller IS the engine's dab58 writer, so keep the spawn-side
+     * model (g_scene1_spawn_scene_counter_dab58) in step with the live facing. */
+    g_scene1_spawn_scene_counter_dab58 = facing;
+    scene1_spawn(0,
+                 comp[0] - sinf(angle) * CO_SPARKLE_OFFSET,
+                 comp[1] + CO_SPARKLE_Y,
+                 comp[2] - cosf(angle) * CO_SPARKLE_OFFSET,
+                 CO_SPARKLE_TYPE, CO_SPARKLE_SCALE, 0);
 }
 
 void scene1_companion_ctrl_tick(void)
@@ -138,6 +189,12 @@ void scene1_companion_ctrl_tick(void)
         if (prec)
             rec[CHR_ACTOR_FACING] = prec[CHR_ACTOR_FACING];
     }
+
+    /* Wing-glow sparkle (FUN_0048a833 tail): emit every 4th frame, off the
+     * post-move fairy along her facing.  Uses the PRE-increment counter so it
+     * shares the bob's db054 phase (the engine reads db054 once per frame). */
+    if (s_bob_counter % CO_SPARKLE_PERIOD == 0)
+        co_emit_wing_sparkle(rec, comp);
 
     s_bob_counter++;
 }

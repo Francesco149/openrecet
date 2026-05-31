@@ -2702,3 +2702,81 @@ resets, so a boot load survives to the first HOUSE draw. Ported:
 sheet-id-keyed `g_chr_sheets[]` (was an 8-slot char-keyed LRU). The 21-entry
 customer loop and the rest of `FUN_00472f5d`'s UI/effect textures stay deferred
 PORT-DEBT (customer billboards + HUD are separate fronts).
+
+## 73. HOUSE companion wing-glow sparkle: FUN_0048a833 tail emit, type 0x1f, with two Ghidra-dropped spawn args recovered from the asm
+
+W-companion-glow (2026-05-31). Closed §71's deferred "fairy's glowing-wing
+sparkle (FUN_00447f4f emit)" PORT-DEBT — the **emit side**. The companion driver
+`FUN_0048a833` ends (`LAB_0048b2a0`, all.c-equivalent L353-366) with a particle
+spawn that drops one sparkle just off the fairy every 4th frame, along her
+facing. It's the ambient glow on Tear's wings.
+
+**The emit (decompiled L353-366):**
+```c
+if (DAT_0438b4b4 == 0 && 0.0 < _DAT_056dae20 && 0.0 < _DAT_056dae2c &&
+    (DAT_0438b8f8 != 0 || DAT_056db054 % 4 == 0) && DAT_0438b1a0 == 0) {
+  angle = (float)DAT_056dab58 * 2π/8 - _DAT_073de39c;       // facing octant → world angle
+  FUN_00447f4f(0, da1f0 - sin(angle)*0.6, da1f4 + 1.1, da1f8 - cos(angle)*0.6, …);
+}
+```
+- `DAT_056dab58` = the companion's facing octant (the same value the chr-sprite
+  walker reads to pick the sprite direction; in the port = actor-2
+  `rec[CHR_ACTOR_FACING]`). `_DAT_073de39c` = `g_scene1_camera_yaw` (= π in HOUSE).
+- `da1f0/f4/f8` = the companion (actor 2) position (= `g_scene1_actor_pos[2]`),
+  post-spring-follow. The sparkle sits 0.6 toward the facing direction and +1.1
+  in Y (up at the wings).
+
+**Two args Ghidra dropped — recovered from `objdump` @ `0x48b38e`.** The decomp
+shows `FUN_00447f4f(0, x, y, z)` (4 args), but the call's stack cleanup is
+`add $0x1c,%esp` = **28 bytes = 7 dwords**, and the spawn API is
+`FUN_00447f4f(slot, x, y, z, type, scale, param7)`. The compiler **reused two
+values already on the stack** from the immediately-prior `cos` helper
+(`FUN_00503994`) call:
+- `push $0x1f` (the cos helper's 2nd arg) is left at `[esp+0x10]` → becomes
+  **type = 0x1f (31)** — the "scene-counter wave" particle.
+- the `0.1` const push (`flds 0x5193a0`) is left at `[esp+0x14]` → becomes
+  **scale = 0.1** (`param_6`).
+- `param_7` is an `esi` leftover, **unread** by type 0x1f (its init body
+  `init_type_1f_100` + integrator `decay_drift_grav_pre` use only pos/RNG).
+
+This is the same "the engine relies on a value the optimizer already pushed"
+pattern as the §61 facing write and the §69 db05c read — invisible to a decomp
+that trusts Ghidra's inferred arg count. The `.rdata` constants
+(`0x51969c=0.6`, `0x519724=1.1`, `0x519398=2π`, `0x519378=8.0`) were read out of
+the PE to confirm.
+
+**Gate:** the four non-frame terms are all true in HOUSE free-roam, so only the
+every-4th-frame rate term varies: `b4b4` (scene fade-in countdown) is 0 once
+faded in; `dae20/dae2c` (companion render scale cw/ch) are 1.0 (>0) for the live
+fairy; `b1a0` (config `easydisp`) defaults 0; `b8f8` (per-frame-emit override) is
+0 → the `db054 % 4 == 0` branch. `db054` is the per-frame bob counter — the same
+counter §71's hover-bob reads (the engine reads `db054` once per frame for both),
+so the `%4` phase rides §71's validated bob alignment.
+
+**Port:** `scene1_companion_ctrl.c` `co_emit_wing_sparkle()` + a call at the tick
+tail (pre-`s_bob_counter++`, so it shares the bob's counter value). Calls
+`scene1_spawn(0, …, 0x1f, 0.1f, 0)` and keeps `g_scene1_spawn_scene_counter_dab58`
+(the init body's `DAT_056dab58` model) in step with the facing.
+
+**Faithful but INVISIBLE today.** The spawned type-0x1f particle is integrated
++ killed by `scene1_particles_tick` (`decay_drift_grav_pre`: grav −0.001, damp
+0.97, kill age 0x20 — so no slot leak), but the table-A glow-billboard renderer
+that would *draw* it, `FUN_004176ff` (30 KB), is unported — only `pass_f` (type
+0x92) draws today. The sparkle becomes visible for free once that renderer lands;
+porting it is a separate, large front. Validation here is the emit law/rate/
+position only (host tests `companion_wing_sparkle_emit` + `_period`).
+
+**Gotcha — populating records_a in HOUSE wakes the half-ported Pass F.** Landing
+this emit surfaced a *latent* render bug: `scene1_records_counter_scan()` (live at
+the top of the HOUSE render, `scene1_render.c`) recomputes
+`g_scene1_records_a_count` from occupied slots, so the first type-0x1f sparkle
+flips the count 0→1. That woke `scene1_pass_f_render` (an MVP that draws only type
+0x92) which wrote its state preamble (`LIGHTING=FALSE`, texture-stage SELECTARG1,
+CULLMODE=NONE) and then drew nothing — **leaking that state into the frame**, a
+scene-wide lighting regression (highlights/windows shifted; `house-table-corner`
+went 9/9 → 0/9, ~58k px, ~7.5%). Before this emit, *nothing* populated records_a
+in HOUSE, so Pass F's `count>0` gate never fired. Fix: Pass F now scans for a
+drawable 0x92 slot and returns **before any device-state write** when there is
+none (a live-wired MVP must be a true no-op when it has nothing to draw). The
+real fix is the full `FUN_004176ff`/`FUN_004161c7` render with complete state
+management. `house-table-corner` back to 9/9 with the emit live.

@@ -3184,6 +3184,8 @@ struct test_case {
     X(companion_springs_and_copies_facing) \
     X(companion_hover_bob) \
     X(companion_velocity_clamp) \
+    X(companion_wing_sparkle_emit) \
+    X(companion_wing_sparkle_period) \
     X(player_pose_passes_char_id) \
     X(player_actor_accessors_out_of_range) \
     \

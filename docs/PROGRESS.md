@@ -7,6 +7,45 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — HOUSE companion wing-glow sparkle emit ported (faithful, render-gated)
+
+Closed §71's deferred "fairy's glowing-wing sparkle (FUN_00447f4f emit)"
+PORT-DEBT — the **emit side** (engine-quirks §73). `FUN_0048a833`'s tail
+(`LAB_0048b2a0`) drops one particle just off the companion every 4th frame, along
+her facing — Tear's ambient wing glow.
+
+Two spawn args Ghidra dropped were **recovered from the asm** (`objdump @
+0x48b38e`): the call's `add $0x1c,%esp` = 28-byte / 7-dword cleanup vs the decomp's
+4 visible args means the compiler **reused two values already pushed for the
+prior `cos` helper** — `push $0x1f` → **type = 0x1f** (scene-counter-wave
+particle), and the `0.1` const push → **scale = 0.1** (`param_6`). Same
+optimizer-reuse pattern as §61/§69. The `.rdata` constants (0.6 offset, +1.1 Y,
+2π/8 angle) were read from the PE to confirm. Position: `comp ± dir(facing·2π/8 −
+camera_yaw)·0.6`, `+1.1` Y. Gate's only frame-varying term is `db054 % 4 == 0`
+(the §71-validated bob counter); the other four terms (fade-done, render-scale>0,
+`easydisp==0`, per-frame-override off) are all true in HOUSE free-roam.
+
+Port: `scene1_companion_ctrl.c` `co_emit_wing_sparkle()` at the tick tail.
+**Faithful but invisible today** — the spawned type-0x1f particle is ticked +
+killed by `scene1_particles_tick` (`decay_drift_grav_pre`, kill age 0x20 → no slot
+leak) but the table-A glow-billboard **renderer** `FUN_004176ff` (30 KB) is
+unported (only `pass_f`/type-0x92 draws). It becomes visible for free once that
+renderer lands; the renderer is a separate large front. **3048 host tests pass**
+(+2: `companion_wing_sparkle_emit` validates type/scale/slot/position exactly;
+`_period` validates the every-4th-frame rate). User chose this faithful-emit scope
+over pursuing the 30 KB renderer for visible pixels.
+
+**Also fixed a latent Pass F state-leak the emit exposed.** Populating records_a
+in HOUSE flips `g_scene1_records_a_count` 0→1 (via the per-frame
+`scene1_records_counter_scan`), which woke the MVP `scene1_pass_f_render` (draws
+only type 0x92): it wrote its state preamble (`LIGHTING=FALSE`, texture-stage,
+CULLMODE) then drew nothing → scene-wide lighting regression (`house-table-corner`
+0/9, ~58k px / 7.5%, highlights shifted). Caught by an A/B against the parent
+build + white-diff before relying on it. Fix: Pass F scans for a drawable 0x92
+slot and returns **before any device-state write** when there is none — a
+live-wired MVP must no-op cleanly. `house-table-corner` back to **9/9** with the
+emit live (engine-quirks §73 "Gotcha").
+
 ## 2026-05-31 — un-MVP HOUSE chr-sheet cache → boot FUN_00472f5d party load (the roster pointer was a static-read error)
 
 Closed §71's deferred "un-MVP the chr-sheet cache → roster loader FUN_00431a80"

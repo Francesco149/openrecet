@@ -15,7 +15,8 @@
 #include "scene1_chr_sprite.h"      /* CHR_ACTOR_* indices */
 #include "scene1_player_ctrl.h"     /* pose seed + actor accessors */
 #include "scene1_companion_ctrl.h"
-#include "scene1_particles_tick.h"  /* g_scene1_actor_pos, ground_y */
+#include "scene1_particles_tick.h"  /* g_scene1_actor_pos, ground_y, camera_yaw */
+#include "scene1_spawn.h"           /* wing-glow emit → scene1_spawn trace */
 
 static int near_f(float a, float b)
 {
@@ -99,5 +100,52 @@ int test_companion_velocity_clamp(void)
     scene1_companion_ctrl_tick();
     float step = g_scene1_actor_pos[2][0] - x0;
     T_NEAR(step, 0.35f);
+    return 0;
+}
+
+/* Wing-glow sparkle (engine-quirks §73): on the first frame (bob counter 0) the
+ * controller emits one type-0x1f particle just off the fairy, along her facing.
+ * With the player inside the follow radius the fairy is stationary, so the spawn
+ * position is exact: facing octant 2 (idle side-rule, comp.x>player.x), camera
+ * yaw 0 → angle = 2·2π/8 = π/2 → spawn at
+ *   (0.6 − sin(π/2)·0.6, 3.0 + 1.1, 9.35 − cos(π/2)·0.6) = (0.0, 4.1, 9.35). */
+int test_companion_wing_sparkle_emit(void)
+{
+    setup(-0.3f, 9.35f);                    /* player left, inside 1.5 radius → idle */
+    g_scene1_camera_yaw = 0.0f;
+    scene1_spawn_trace_reset();
+
+    scene1_companion_ctrl_tick();           /* counter 0 → emit */
+
+    if (g_scene1_spawn_trace_count != 1) T_FAIL("expected exactly 1 emit, got %d",
+                                                 g_scene1_spawn_trace_count);
+    scene1_spawn_call_t e = g_scene1_spawn_trace[0];
+    if (e.type != 0x1f)        T_FAIL("sparkle type should be 0x1f, got 0x%x", e.type);
+    if (e.slot_hint != 0)      T_FAIL("sparkle slot_hint should be 0");
+    T_NEAR(e.scale, 0.1f);                  /* recovered reused-push scale */
+    T_NEAR(e.x, 0.0f);
+    T_NEAR(e.y, 4.1f);
+    T_NEAR(e.z, 9.35f);
+    return 0;
+}
+
+/* The emit fires every 4th frame (db054 % 4 == 0), riding the bob counter: ticks
+ * 0 and 4 emit, 1/2/3 don't.  Five ticks → two sparkles. */
+int test_companion_wing_sparkle_period(void)
+{
+    setup(-0.3f, 9.35f);                    /* stationary fairy */
+    g_scene1_camera_yaw = 0.0f;
+    scene1_spawn_trace_reset();
+
+    scene1_companion_ctrl_tick();           /* counter 0 → emit (1) */
+    if (g_scene1_spawn_trace_count != 1) T_FAIL("frame 0 should emit");
+    scene1_companion_ctrl_tick();           /* counter 1 → no */
+    scene1_companion_ctrl_tick();           /* counter 2 → no */
+    scene1_companion_ctrl_tick();           /* counter 3 → no */
+    if (g_scene1_spawn_trace_count != 1) T_FAIL("frames 1-3 should not emit (got %d)",
+                                                 g_scene1_spawn_trace_count);
+    scene1_companion_ctrl_tick();           /* counter 4 → emit (2) */
+    if (g_scene1_spawn_trace_count != 2) T_FAIL("frame 4 should emit (got %d)",
+                                                 g_scene1_spawn_trace_count);
     return 0;
 }

@@ -115,6 +115,28 @@ void scene1_pass_f_render(struct IDirect3DDevice8 *dev_in)
 {
     if (!dev_in) return;
     if (g_scene1_records_a_count <= 0) return;
+
+    int count = g_scene1_records_a_count;
+    if (count > SCENE1_RECORDS_A_COUNT) count = SCENE1_RECORDS_A_COUNT;
+
+    /* Nothing-to-draw guard.  This MVP renders only type-0x92 quads, but it is
+     * wired LIVE into the HOUSE render path, where records_a is now populated by
+     * non-0x92 particles (e.g. the companion wing-glow, type 0x1f — §73).
+     * Writing the state preamble below (texture-stage SELECTARG1, CULLMODE=NONE,
+     * LIGHTING=FALSE) and then drawing nothing leaks that state into the rest of
+     * the frame — a scene-wide lighting regression.  The engine's full
+     * FUN_004161c7 manages state across all six passes; until that lands, treat
+     * "no drawable 0x92 slot" as a no-op and leave device state untouched. */
+    {
+        int have_drawable = 0;
+        for (int slot = 0; slot < count; slot++) {
+            const int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
+            if (r[SCENE1_RECORDS_A_OFF_TYPE] == 0x92 &&
+                r[SCENE1_RECORDS_A_OFF_AGE]  >= 0) { have_drawable = 1; break; }
+        }
+        if (!have_drawable) return;
+    }
+
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
 
     /* Diffuse-only texture stage: SELECTARG1 with COLORARG1 =
@@ -137,9 +159,6 @@ void scene1_pass_f_render(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
 
     IDirect3DDevice8_SetVertexShader(dev, SCENE1_PASS_F_FVF);
-
-    int count = g_scene1_records_a_count;
-    if (count > SCENE1_RECORDS_A_COUNT) count = SCENE1_RECORDS_A_COUNT;
 
     for (int slot = 0; slot < count; slot++) {
         const int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];

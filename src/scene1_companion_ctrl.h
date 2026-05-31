@@ -27,6 +27,12 @@
  * FUN_0048a833's other branches (intro standing-pose, random-wander) are
  * retail-only (gated behind the unported §60 event-gate; the port reaches
  * free-roam directly) and are intentionally not ported — see FINDINGS.md.
+ *
+ * Wing-glow sparkle (engine-quirks §73): the controller also ports FUN_0048a833's
+ * tail emit (LAB_0048b2a0) — one type-0x1f particle dropped just off the fairy
+ * along her facing every 4th frame.  Faithful but invisible today; the table-A
+ * glow-billboard renderer (FUN_004176ff) is unported, so the spawned particle is
+ * ticked + killed but not drawn.  See the emit block in the .c for the gate.
  */
 #ifndef OPENRECET_SCENE1_COMPANION_CTRL_H
 #define OPENRECET_SCENE1_COMPANION_CTRL_H
