@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-01 — controller un-MVP Chip 4: real `cc08` dispatch + faithful `cc08==1` arm, last `FUN_0048670f` simplified debt retired
+
+Retired the final `PORT-DEBT(simplified, FUN_0048670f)` — the cc08 dispatch
+SHELL Chip 3 left open (`plans/house-controller-unmvp.md` Chip 4,
+`engine-quirks.md` §78). Structural only; the controllable walk math is
+unchanged (already bit-exact, §69).
+
+- **Real dispatch:** `cc08` (`DAT_0438cc08`) is now a live module global set to
+  1 (free-roam) at HOUSE entry by the ported `FUN_004850ec`
+  (`player_ctrl_cc08_enter_freeroam`); the tick dispatches on it (`==1` →
+  free-roam arm, else → the inert unported event/menu/dialogue arm). The setter
+  omits the engine's `DAT_074b2ec4` latch reset (unported scene-exit subsystem)
+  → `CALL_TRACE_ENTER_STUB`.
+- **Faithful `cc08==1` arm** (`all.c:919-1225`): wraps the unchanged walk in the
+  engine's guard chain — customer-approach escalation → `cc04==0` gate
+  (`DAT_0438cc04`) → proximity detection → d-pad interaction → walk. All four
+  guards are inert in steady free-roam (no live customer / item / interaction
+  target), so control reaches the walk identically to Chip 3.
+- **Not lipstick:** `test_player_ctrl_dispatch_gates_on_cc08` forces `cc08=0xf`
+  and shows a held d-pad produces no movement, then `cc08←1` resumes it — the
+  dispatch genuinely gates on the state. `cc08` stays 1 only because the
+  transitions that would leave free-roam (customer approach → 4, counter →
+  0x32, talk → cc04) are unported features (honest stubbed states), not a
+  simplified body.
+- **Verification:** bit-exact via a stash-and-rebuild baseline at HEAD —
+  `house-walk-tables` 22/22 + `house-table-corner` 9/9 port-side goldens
+  byte-identical before and after; 3051 host tests (+1); both PE exes
+  warning-free. Debt 5→4 (simplified 3→2). No visual change (no `regen-
+  comparisons` needed). **Next: Chip 5+** — flesh out gameplay cc08 states
+  (shop counter, dialogue, menus) as each becomes reachable.
+
 ## 2026-06-01 — controller un-MVP Chip 3: the faithful `FUN_0048670f` skeleton shell
 
 Reshaped the hand-rolled `scene1_player_ctrl_tick` into the engine's
