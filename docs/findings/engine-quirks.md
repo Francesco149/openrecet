@@ -2337,3 +2337,32 @@ FUN_00433674; `collision_resolve_player` = integrate + 8-ray radial push
 FUN_00483170 L207-247 + ground snap). The standoff is approximate (room wall
 settles px≈2.5 vs retail 2.29) pending bit-exact tuning against the w4-table3
 trajectory once furniture is placed.
+
+## 66. HOUSE wall collision wired live: radial push blocks; floor-edge try-move climbs the counter
+
+W4.3 live (2026-05-31). Wiring the resolver into the player tick (`collision_house.c`
+builds the room mesh from `shop_1st.x` at HOUSE entry; `scene1_player_ctrl_tick`
+calls it) revealed which resolver model actually fits HOUSE:
+
+- **The radial push (FUN_00483170, `collision_resolve_player`) is the working
+  model.** 8 head-height rays hit the modeled vertical faces of the room walls +
+  the counter front and push the player out. Blocks correctly: holding RIGHT now
+  pins px≈1.55 (was a clean walk-through to px≈41.5). No counter-climb.
+- **The pure floor-edge try-move (FUN_004830f1, `collision_resolve_player_floor`)
+  does NOT work alone, even though §64 says HOUSE walls are an off-floor probe.**
+  FUN_004830f1 is `FUN_00432e50(pos + velocity)` — accept the move iff the
+  destination is over a floor triangle. But `shop_1st.x` models the **counter as
+  a solid block with a walkable TOP triangle** (world y≈2.2). The try-move finds
+  that top as a valid floor and the player **climbs onto the counter** (py 0→2.21,
+  px walks on to ≈4.1). Retail does not — so retail's ground query must gate
+  step-up height (reject a floor whose height jumps too far above the player),
+  which is not yet ported. The full engine resolver runs the try-move (walls) AND
+  the radial push (furniture) together; for the room-only case the radial push
+  alone is the faithful subset.
+- **Accuracy gap (open):** the radial push's fixed ~1-unit standoff pins the
+  player ~0.6 short of the wall — px≈1.55 vs retail 2.15 at the counter row. The
+  right wall is a **contour, not a plane**: retail pins px 2.15@pz9.23,
+  2.29@pz4.51, 3.10@pz−0.65 (room widens toward the front). Tuning the standoff
+  (push by penetration depth / raycast fraction, not a full ray vector;
+  non-cumulative across rays) against retail is the W4.3 follow-up — measured by
+  `tools/wall_collide_diff.py` over `tests/scenarios/house-wall-collide`.

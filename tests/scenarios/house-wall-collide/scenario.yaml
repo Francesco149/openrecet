@@ -1,0 +1,67 @@
+# house-wall-collide — anchor-segmented TAS scenario (segtrace format).
+#
+# Drives a fresh NEW GAME into the HOUSE shop, then walks Recette RIGHT into the
+# shop's right wall to exercise the W4 collision resolver. Two anchor-relative
+# captures (idle, then pressed against the wall), so the non-deterministic load
+# duration can't desync the port-vs-retail captures (keyed to the 2nd
+# HOUSE_FREEROAM anchor — see src/input_segtrace.h, docs/plans/tas-framework.md).
+#
+# WHY THIS SCENARIO EXISTS
+#   The live HOUSE walk used to use a crude 2-line bounds clamp
+#   (player_ctrl_house_room_clamp) that only blocked the LEFT wall above pz=7 —
+#   so holding RIGHT walked the player clean through the right wall (px sailed to
+#   ~41 vs retail's pin). Fixed 2026-05-31 by building the room collision mesh
+#   from shop_1st.x at HOUSE entry (collision_house.c) and running the real
+#   resolver (collision_resolve_player / FUN_00483170) in the tick. This scenario
+#   is the regression guard + the port-vs-retail accuracy bench while the
+#   resolver's standoff is tuned.
+#
+# trace.jsonl is a SEGTRACE: its {capture} ops drive timing, so no
+# `capture_frames` here. Goldens are keyed by capture order: cap_00 / cap_01.
+#
+# STATE DIFF (the point of this scenario)
+#   The visual caps show roughly where the player ends up, but the precise
+#   accuracy signal is the per-frame world position px/pz. Capture it on BOTH
+#   targets and diff with tools/wall_collide_diff.py:
+#
+#     # port (frames auto-push to the feed via the --capture-to hook):
+#     tools/run-openrecet.sh --timeout-ms 140000 \
+#       --input-segtrace tests/scenarios/house-wall-collide/trace.jsonl \
+#       --capture-to runs/wall-cmp-port/frames \
+#       --player-pos-log runs/wall-cmp-port/pos.jsonl \
+#       --max-frames 2200 2>runs/wall-cmp-port/run.log
+#
+#     # retail (Frida; needs the Windows host + frida-server, see memory
+#     # feedback_frida_remote / reference_tas_anchor_forcing):
+#     nix develop --command python3 tools/frida_capture.py \
+#       --input-segtrace tests/scenarios/house-wall-collide/trace.jsonl \
+#       --watch px=0x056da1d8:f32 --watch pz=0x056da1e0:f32 \
+#       --out runs/wall-cmp-retail --remote cutestation.soy:27042 \
+#       --hide-window --turbo --silent-audio
+#
+#     # diff (rebases both to the 2nd HOUSE_FREEROAM anchor, reports px/pz Δ):
+#     tools/wall_collide_diff.py \
+#       --port runs/wall-cmp-port/pos.jsonl --port-log runs/wall-cmp-port/run.log \
+#       --retail runs/wall-cmp-retail/watch.jsonl \
+#       --retail-log runs/wall-cmp-retail/agent.log
+#
+# GROUND TRUTH (retail watch, runs/w4-collide | w4-table3): the right wall is
+# NOT a flat plane — the px pin follows the room contour:
+#     pz ~9.23  →  px 2.15   (counter row; this scenario's pose)
+#     pz  4.51  →  px 2.29
+#     pz -0.65  →  px 3.10   (room widens toward the front)
+# Current port (radial-push resolver) pins px~1.55 at the counter row — blocks
+# correctly (no passthrough) but ~0.6 short; standoff tuning is the open follow-up.
+
+description: |
+  New game → HOUSE → walk RIGHT into the right wall. Two anchor-relative captures
+  keyed to the 2nd HOUSE_FREEROAM: cap_00 idle free-roam (+1540), cap_01 pressed
+  against the right wall after holding RIGHT (+1780). Pair with --player-pos-log
+  (port) / --watch (retail) + tools/wall_collide_diff.py for the px/pz accuracy
+  diff — the visual caps alone don't show the sub-unit standoff.
+
+# Headroom for the slower target. Under turbo the absolute frame at the 2nd
+# HOUSE_FREEROAM + capture lands in the thousands and differs per target; this is
+# a ceiling, not a target ({capture} fires when its anchor resolves).
+max_frames: 16000
+duration_ceiling_ms: 120000

@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 62,
   "stubbed": 14,
-  "ported": 298,
-  "unported": 2174,
+  "ported": 299,
+  "unported": 2173,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 374,
+  "touched": 375,
   "pct_touched": 14.7,
   "pct_verified": 2.4
  },
@@ -2318,6 +2318,7 @@
     "src/collision_mesh.h",
     "src/collision_query.c",
     "src/collision_query.h",
+    "src/collision_resolve.h",
     "src/scene1_camera.c",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
@@ -2834,6 +2835,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/collision_house.h",
     "src/main.c",
     "src/scene.c",
     "src/scene1_alpha_walker.c",
@@ -7567,8 +7569,11 @@
    "size": 127,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/collision_resolve.c",
+    "src/collision_resolve.h"
+   ]
   },
   {
    "va": "0x483170",

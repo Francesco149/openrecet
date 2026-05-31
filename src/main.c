@@ -414,6 +414,15 @@ static char                     *g_anchor_trace_record_path = NULL;
 static FILE                     *g_anchor_record_fp         = NULL;
 static struct anchor_trace_state g_anchor_state             = {0};
 
+/* --player-pos-log <file>: per-frame JSONL dump of the player world position
+ * ({"frame":N,"px":..,"py":..,"pz":..}) while in the INGAME (HOUSE) scene.
+ * The port-side equivalent of the retail Frida --watch on 0x056da1d8 — used to
+ * verify collision/movement behavior (e.g. wall blocking) from a TAS drive
+ * without a debugger.  g_scene1_player_pos lives in scene1_particles_tick.h. */
+extern float                     g_scene1_player_pos[3];
+static char                     *g_player_pos_log_path      = NULL;
+static FILE                     *g_player_pos_log_fp        = NULL;
+
 static int             g_rng_seed_set            = 0;
 static uint32_t        g_rng_seed_value          = 1;
 static uint32_t        g_max_frames              = 0;
@@ -1310,6 +1319,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
     }
 
+    /* Player-pos log: open the per-frame world-position sink.  Non-fatal. */
+    if (g_player_pos_log_path) {
+        g_player_pos_log_fp = fopen(g_player_pos_log_path, "w");
+        if (g_player_pos_log_fp) {
+            fprintf(stderr, "openrecet: player-pos log → %s\n",
+                    g_player_pos_log_path);
+        } else {
+            fprintf(stderr,
+                "openrecet: failed to open player-pos log %s\n",
+                g_player_pos_log_path);
+        }
+    }
+
     /* Input-trace replay: parse the file now (one shot at boot — the
      * file is small and lookups are binary search at runtime). */
     if (g_input_trace_replay_path) {
@@ -1682,6 +1704,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     input_trace_record_close();
     input_trace_free(&g_replay_trace);
     if (g_anchor_record_fp) { fclose(g_anchor_record_fp); g_anchor_record_fp = NULL; }
+    if (g_player_pos_log_fp) { fclose(g_player_pos_log_fp); g_player_pos_log_fp = NULL; }
     sprite_destroy(&g_show_sprite);
     if (g_show_mesh) { mesh_free(g_show_mesh); g_show_mesh = NULL; }
     if (g_house_preview_mesh) {
@@ -2084,6 +2107,17 @@ static void render_dispatch(void)
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);
+    }
+
+    /* Player-pos log: one JSONL row per frame while in the HOUSE/INGAME scene
+     * (read after sim has committed this frame's player position). */
+    if (g_player_pos_log_fp && g_scene_state == SCENE_STATE_INGAME) {
+        fprintf(g_player_pos_log_fp,
+                "{\"frame\":%u,\"px\":%.5f,\"py\":%.5f,\"pz\":%.5f}\n",
+                g_tick.frame_count,
+                g_scene1_player_pos[0], g_scene1_player_pos[1],
+                g_scene1_player_pos[2]);
+        fflush(g_player_pos_log_fp);
     }
 
     /* E.2 probe — FUN_004547ab @ 0x4547ab (render dispatch root).
@@ -2719,6 +2753,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char anc_buf[MAX_PATH];
                 lstrcpynA(anc_buf, val, (int)sizeof(anc_buf));
                 g_anchor_trace_record_path = anc_buf;
+            }
+        } else if (lstrcmpA(tok, "--player-pos-log") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char pos_buf[MAX_PATH];
+                lstrcpynA(pos_buf, val, (int)sizeof(pos_buf));
+                g_player_pos_log_path = pos_buf;
             }
         } else if (lstrcmpA(tok, "--capture-at-anchor") == 0) {
             /* NAME[+k|-k] — e.g. HOUSE_FREEROAM+5, LOADING_END, NEW_GAME+0 */

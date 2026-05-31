@@ -113,3 +113,35 @@ void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3
     if (collision_query_ground(m, pos[0], pos[1] + 1.0f, pos[2], &h))
         pos[1] = h.height;
 }
+
+void collision_resolve_player_floor(const collision_mesh *m,
+                                    float pos[3], const float vel[3])
+{
+    /* FUN_004830f1: query the floor at (pos + delta); floor found → move OK,
+     * else blocked.  The query point is lifted +1.0 above the player so the
+     * downward-5u floor solve in collision_query_ground reaches a y≈0 floor
+     * (mirrors the engine's py+dy probe with the flat-floor approximation). */
+    const float probe_y = pos[1] + 1.0f;
+    collision_hit h;
+
+    float nx = pos[0] + vel[0];
+    float nz = pos[2] + vel[2];
+
+    if (collision_query_ground(m, nx, probe_y, nz, &h)) {
+        /* Destination is over the floor — take the whole move. */
+        pos[0] = nx;
+        pos[2] = nz;
+    } else {
+        /* Off-floor: slide.  Try each axis alone so a wall blocks only the
+         * into-wall component (retail "X blocked, Z free").  Test X against
+         * the *current* Z, then Z against the (possibly updated) X. */
+        if (collision_query_ground(m, nx, probe_y, pos[2], &h))
+            pos[0] = nx;
+        if (collision_query_ground(m, pos[0], probe_y, nz, &h))
+            pos[2] = nz;
+    }
+
+    /* Ground snap (flat HOUSE floor). */
+    if (collision_query_ground(m, pos[0], pos[1] + 1.0f, pos[2], &h))
+        pos[1] = h.height;
+}

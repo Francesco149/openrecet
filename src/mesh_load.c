@@ -311,6 +311,21 @@ mesh_t *mesh_load(const char *xfile_path, int param_3)
     free(buf);
     return m;
 }
+
+xfile_t *mesh_load_parse_xfile(const char *xfile_path)
+{
+    if (!xfile_path || !xfile_path[0]) return NULL;
+
+    /* Base path only — collision uses the render `.x`, not the `_s.x`
+     * easydisp variant (see collision_mesh.h provenance). */
+    void  *buf = NULL;
+    size_t sz  = storage_or_disk(xfile_path, &buf);
+    if (sz == 0) return NULL;
+
+    xfile_t *xf = xfile_parse((const char *)buf, sz, xfile_path);
+    free(buf);
+    return xf;
+}
 #else
 mesh_t *mesh_load(const char *xfile_path, int param_3)
 {

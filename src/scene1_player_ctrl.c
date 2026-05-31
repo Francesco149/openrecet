@@ -12,6 +12,8 @@
 #include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record-field indices, chr_anim_tick */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos[3] (DAT_056da1d8/dc/e0) */
 #include "input.h"               /* g_input_state[].buttons (held d-pad mask) */
+#include "collision_house.h"     /* collision_house_get — live room mesh */
+#include "collision_resolve.h"   /* collision_resolve_player (FUN_00483170) */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -469,11 +471,31 @@ void scene1_player_ctrl_tick(void)
     int oct = player_ctrl_facing_octant(s_player_facing, PC_HOUSE_CAM_YAW);
     oct = player_ctrl_facing_snap(oct, &s_facing_sticky);
 
-    /* integrate position (flat HOUSE floor: px += vx, pz += vz), then the
-     * room-bounds clamp (FUN_00486435). */
-    g_scene1_player_pos[0] += s_player_vel[0];
-    g_scene1_player_pos[2] += s_player_vel[2];
-    player_ctrl_house_room_clamp(&g_scene1_player_pos[0], &g_scene1_player_pos[2]);
+    /* Integrate + collide.  When the room collision mesh is built (live HOUSE
+     * via collision_house_build), run the mesh resolver: it integrates
+     * (px += vx, pz += vz), pushes the player out of any wall/counter face with
+     * the 8-ray radial probe, and snaps Y to the floor (collision_resolve_player,
+     * FUN_00483170).  This blocks the room walls + counter — replacing the crude
+     * 2-line bounds clamp that left the right wall (and all of pz<7 on the left)
+     * wide open.  The radial push is the right model here because the counter
+     * has a walkable-looking TOP triangle: a pure floor-edge try-move
+     * (collision_resolve_player_floor) would let the player climb onto it (the
+     * engine's ground query gates step-height; that gate isn't ported yet).
+     * Known gap: the radial push's standoff stops the player ~0.6 short of the
+     * wall (px≈1.55 vs retail 2.15 at the counter row) — see PROGRESS / §65.
+     * Furniture-on-floor (round table) collision is deferred with its placement
+     * chip (§65).  The clamp stays as a fallback for the no-mesh case. */
+    {
+        const collision_mesh *cm = collision_house_get();
+        if (cm) {
+            collision_resolve_player(cm, g_scene1_player_pos, s_player_vel);
+        } else {
+            g_scene1_player_pos[0] += s_player_vel[0];
+            g_scene1_player_pos[2] += s_player_vel[2];
+            player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
+                                         &g_scene1_player_pos[2]);
+        }
+    }
 
     /* damp (grounded-steady 0.82) — runs every frame, so velocity decays to 0
      * after the d-pad is released (validated by the release tail). */

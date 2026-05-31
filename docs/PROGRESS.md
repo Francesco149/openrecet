@@ -7,6 +7,48 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — W4.3 LIVE: room collision wired into the player walk (walls block)
+
+Fixed the reported bug — **holding RIGHT walked the player straight through the
+shop's right wall** (and the left wall was open below pz=7, with a teleport-snap
+in the pz>7 corner). Root cause: the live walk only ran the crude 2-line
+`player_ctrl_house_room_clamp` (left wall above pz=7 + pz≤9.5); the real mesh
+resolver was host-test-only, never wired in.
+
+- **Room collision mesh built live.** `src/collision_house.{c,h}` parses
+  `shop_1st.x` at HOUSE entry (`scene1_preload`, right after the map-mesh load)
+  → `collision_object_build(COLLISION_PAD_SMALL)` → 1909 tris (matches the W4.1
+  self-validation exactly; world x[−43,45] z[−40.4,10.6]). Needed a new
+  `mesh_load_parse_xfile` (mesh_load.c) because the render `mesh_t` drops the raw
+  geometry + material names collision needs — so collision re-parses the same
+  `.x` bytes through the same storage path.
+- **Resolver wired into the tick.** `scene1_player_ctrl_tick` now runs
+  `collision_resolve_player` (FUN_00483170 radial push) when the mesh is built,
+  replacing the clamp (kept as a no-mesh fallback). **Result: px 41.5 → 1.55**
+  (blocked, no passthrough, no counter-climb). 3040 host tests pass (+5).
+- **Tried the faithful floor-edge try-move** (`collision_resolve_player_floor`,
+  FUN_004830f1 = ground query at the destination, §64). It reproduces the engine
+  model but **let the player climb onto the counter top** (a valid floor
+  triangle: py 0→2.21, px→4.1) — retail's ground query gates step-height, which
+  isn't ported. So the radial push is the right model for now; the floor fn is
+  kept (documented) for the combined try-move + step-gate the tuning pass needs.
+- **Open accuracy gap:** radial-push standoff pins px≈1.55 vs retail **2.15** at
+  the counter row (Δ≈−0.6; the wall is a contour, not a plane: 2.15@pz9.23,
+  2.29@pz4.51, 3.10@pz−0.65). Blocks correctly but stops short. Tuning to
+  perfection vs retail is the tracked follow-up.
+
+**Tooling landed alongside (so the tuning is measurable + visible):**
+- `--player-pos-log <file>` — port-side per-frame px/py/pz JSONL (the port's
+  `--watch`). `traces/house_wall_repro.jsonl` is the repro drive.
+- `tests/scenarios/house-wall-collide/` — deterministic walk-into-wall scenario
+  (blessed port golden) + `tools/wall_collide_diff.py` (rebases port pos.jsonl vs
+  retail watch.jsonl on the HOUSE_FREEROAM anchor; reports px/pz Δ). Retail
+  capture recipe is in the scenario.yaml.
+- **Feed auto-push:** any `--capture-to` run now montages+pushes to the feed
+  (PostToolUse hook → `tools/feed_push_run.py`); `scenario-test --target both`
+  auto-pushes the amplified port|retail `comparison` (`tools/push_comparison.py`).
+  Idempotent + best-effort. See memory `feedback_capture_autopush`.
+
 ## 2026-05-31 — W4.3 (WIP): slide-resolver raycast + radial push; BLOCKED on furniture placement
 
 Ported the player slice of the slide-resolver as host-tested scaffolding

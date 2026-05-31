@@ -207,6 +207,18 @@ mesh_t *mesh_load_from_buf(const void *data, size_t len,
                            const char *path_for_diagnostics, int param_3);
 
 #ifdef _WIN32
+/*
+ * Load + parse a `.x` through the same storage path mesh_load uses, but stop
+ * at the parsed xfile_t (no render-mesh build, no GPU upload). The caller owns
+ * the result and must xfile_free() it. Returns NULL on storage-miss/parse-fail.
+ *
+ * Used by the collision-mesh builder (collision_house.c): the render mesh_t
+ * drops the raw geometry + material names that collision_object_build needs,
+ * so collision re-parses the same `.x` bytes into an xfile_t. Uses the BASE
+ * path only (no `_s.x` easydisp variant — collision wants the render mesh).
+ */
+xfile_t *mesh_load_parse_xfile(const char *xfile_path);
+
 struct IDirect3DDevice8;
 
 /*

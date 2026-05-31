@@ -39,6 +39,22 @@ int collision_raycast(const collision_mesh *m,
  */
 void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3]);
 
+/*
+ * Faithful HOUSE wall resolve: the engine's try-move probe (FUN_004830f1 →
+ * FUN_00432e50, the off-floor block model of engine-quirks §64).  Integrates
+ * `vel` into `pos` by querying the floor at the *destination*: if the moved
+ * point is still over a floor triangle the move is taken, else it is blocked.
+ * Done per-axis so a wall slides the free axis (the "X blocked, Z free" retail
+ * behavior).  Snaps Y to the floor afterward.  No standoff fudge — the pin is
+ * the floor edge, so it follows the room's real (non-rectangular) wall contour.
+ *
+ * This handles room walls + the counter (floor ends at both).  Furniture that
+ * sits ON the floor (round table) is NOT blocked by this — that needs the
+ * radial push above + furniture placement (deferred, engine-quirks §65).
+ */
+void collision_resolve_player_floor(const collision_mesh *m,
+                                    float pos[3], const float vel[3]);
+
 /* True if `type` is excluded from the radial-push raycast (furniture-special
  * types 5,6,8..16).  Walls are type 0 (kept) and distinguished by normal. */
 int collision_raycast_type_excluded(int type);

@@ -52,6 +52,7 @@ void (*scene1_preload_get_post_house_callback(void))(void)
 #include "scene_floor.h"
 #include "scene_jutan.h"
 #include "scene_map_meshes.h"
+#include "collision_house.h"
 #include "scene_table.h"
 #include "scene_walls.h"
 #include "scene1_walker_pass_init.h"
@@ -271,6 +272,12 @@ int scene1_preload_house(void)
                 "(shop_1st.x room + shop_jutan.x carpet + furniture pool)\n",
                 map_loaded);
     }
+
+    /* W4.3 — build the ROOM collision mesh from shop_1st.x so the player
+     * controller's walk actually blocks on walls + counter (replaces the
+     * crude 2-line bounds clamp).  Furniture collision is deferred with its
+     * placement chip (engine-quirks §65).  See collision_house.h. */
+    collision_house_build();
 
     /* Stage palette HOUSE record reset + g_stage_palette pointer set.
      * The 2 conditional render-side reads (palette+0x52c, palette+0x108)
