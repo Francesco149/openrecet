@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — W4.3 (WIP): slide-resolver raycast + radial push; BLOCKED on furniture placement
+
+Ported the player slice of the slide-resolver as host-tested scaffolding
+(`5f0f084`). `src/collision_resolve.{c,h}`: `collision_raycast` (ray-vs-mesh,
+`FUN_00433674`) + `collision_resolve_player` (integrate + the 8-ray radial push
+`FUN_00483170` L207-247 + ground snap). HOUSE has no type-1/2 wall triangles, so
+the engine's atan2 wall-slide never fires — blocking is the radial push's
+~1-unit standoff (rays hit vertical type-0 faces and push the player out).
+Validated: synthetic raycast (exact) + the real `shop_1st.x` room wall pins the
+player (px≈2.5; retail 2.29, standoff tuning pending).
+
+**BLOCKED (engine-quirks §65): furniture world-placement is unported.** Driving
+the resolver against the `runs/w4-table3` table-hit revealed the furniture
+meshes (`shop_table01/02.x`, `shop_jihanki*.x`) parse to geometry at their
+**local origin** (AABB ±2.5) — they do NOT self-place like the room mesh
+(`shop_1st.x`, whose `.x` frames carry the world translations). Their world
+positions live in the engine's per-object origin table `DAT_0438c058`, populated
+by `FUN_00436f97` (block 21) from a `stage_positions` source that is still
+unported (the render path fakes it via `--force-walker-phase2`, main.c:285). So
+the round-table block can't be positioned yet (that test is skipped), and the
+resolver is **not wired into the live player tick** — wiring it now would block
+walls but let the player walk through the table, a visible partial state.
+
+**Next chip:** port the furniture world-placement (`FUN_00436f97` stage_positions
+→ `DAT_0438c058`) — unblocks BOTH the faked furniture render positions AND W4.3
+furniture collision. Then wire the resolver into `scene1_player_ctrl_tick`
+(replacing the `player_ctrl_house_room_clamp` seam at scene1_player_ctrl.c:476)
+and tune the standoff to the w4-table3 / w4-collide trajectories (px/pz to ~1e-3).
+
 ## 2026-05-31 — W4.1+W4.2: HOUSE collision mesh ingestion + ground query ported
 
 Built the faithful foundation of the W4 collision subsystem (the geometry +
