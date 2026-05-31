@@ -2226,14 +2226,22 @@ static void render_dispatch(void)
          * against retail (engine-quirks §69). */
         float vx = 0.0f, vz = 0.0f, facing = 0.0f; int sticky = 0;
         player_ctrl_debug_state(&vx, &vz, &facing, &sticky);
+        /* W3b: actor-0 walk-cycle state (anim id / counter / cycle-frame) so the
+         * chr_anim_tick timing can be diffed against retail (runs/w3b-anim-watch). */
+        const int32_t *rec = player_ctrl_actor_record(0);
+        int a_anim = rec ? rec[CHR_ACTOR_ANIM]    : -1;
+        int a_cnt  = rec ? rec[CHR_ACTOR_COUNTER] : -1;
+        int a_frm  = rec ? rec[CHR_ACTOR_FRAME]   : -1;
+        int a_oct  = rec ? rec[CHR_ACTOR_FACING]  : -1;
         fprintf(g_player_pos_log_fp,
                 "{\"frame\":%u,\"px\":%.5f,\"py\":%.5f,\"pz\":%.5f,"
                 "\"vx\":%.6f,\"vz\":%.6f,\"facing\":%.6f,\"sticky\":%d,"
-                "\"buttons\":%u}\n",
+                "\"buttons\":%u,\"anim\":%d,\"counter\":%d,\"aframe\":%d,\"oct\":%d}\n",
                 g_tick.frame_count,
                 g_scene1_player_pos[0], g_scene1_player_pos[1],
                 g_scene1_player_pos[2],
-                vx, vz, facing, sticky, g_input_state[0].buttons);
+                vx, vz, facing, sticky, g_input_state[0].buttons,
+                a_anim, a_cnt, a_frm, a_oct);
         fflush(g_player_pos_log_fp);
     }
 

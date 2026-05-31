@@ -580,11 +580,25 @@ void scene1_player_ctrl_tick(void)
 
     int target_anim = moving ? 1 : 0;
     if (s_actor_record[0][CHR_ACTOR_ANIM] != target_anim) {
+        /* idle↔walk transition: seed the new anim at frame 0 / counter 0 and do
+         * NOT advance it this frame.  Retail observes counter==0 on the
+         * transition frame, with the per-frame increment beginning the NEXT
+         * frame (runs/w3b-anim-watch: walk starts at counter 0, then 1,2,…).
+         * The old code reset counter=0 then ran chr_anim_tick unconditionally,
+         * which incremented it to 1 on the seed frame — leaving the whole
+         * walk-cycle phase 1 tick AHEAD of retail for the entire walk (the
+         * cumulative sprite drift seen at the house-table-corner cap_08, §W3b).
+         * Skipping the tick here is equivalent to suppressing only that
+         * increment: on a seed frame (frame 0, timer 0) chr_anim_tick can't
+         * advance or wrap anyway, so its sole effect would be the ++ we don't
+         * want.  Internal wraps still ++ to 1 (counter→0 then ++), matching
+         * retail's steady wrap (counter 36→1). */
         union { float f; int32_t i; } z = { .f = 0.0f };
         s_actor_record[0][CHR_ACTOR_ANIM]    = target_anim;
         s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
         s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
         s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
+    } else {
+        chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
     }
-    chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
 }

@@ -3173,6 +3173,7 @@ struct test_case {
     X(player_ctrl_dpad_angle_cardinals) \
     X(player_ctrl_dpad_angle_none_and_diagonal) \
     X(player_ctrl_dpad_intent_opposing_pair_holds) \
+    X(player_ctrl_walk_anim_starts_at_counter_zero) \
     X(player_ctrl_facing_octant_cardinals) \
     X(player_ctrl_house_room_clamp) \
     X(player_ctrl_walk_left_matches_retail) \

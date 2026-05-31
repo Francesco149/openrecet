@@ -835,6 +835,52 @@ int test_player_ctrl_dpad_intent_opposing_pair_holds(void)
     return 0;
 }
 
+int test_player_ctrl_walk_anim_starts_at_counter_zero(void)
+{
+    /* §W3b: on the idle→walk transition the walk anim seeds at counter 0 /
+     * frame 0 and must NOT advance that frame — retail observes counter==0 on
+     * the transition frame (runs/w3b-anim-watch), then 1,2,…, with the cycle
+     * frame advancing 0→1 at counter 10 (f0 spans counter 0..9).  The pre-fix
+     * code reset counter=0 then ran chr_anim_tick unconditionally, leaving the
+     * counter at 1 on the seed frame and the whole walk cycle 1 tick ahead. */
+    chr_meta_shutdown();
+    if (!chr_meta_alloc()) T_FAIL("chr_meta_alloc failed");
+    uint8_t *blk = chr_meta_block(0);
+    /* walk anim (id 1): 4 frames, duration 9 each, frame 4 = ANIM_END wrap. */
+    for (int fr = 0; fr < 4; fr++) {
+        int32_t dur = 9;
+        memcpy(blk + CHR_META_OFF_LUT + (1 * 0x100 + fr * 6 + 5) * 4, &dur, 4);
+    }
+    int32_t end = (int32_t)CHR_META_ANIM_END;
+    memcpy(blk + CHR_META_OFF_LUT + (1 * 0x100 + 4 * 6 + 0) * 4, &end, 4);
+
+    player_ctrl_pose_house_standing(0);          /* idle: anim 0, counter 25 */
+    g_scene1_player_pos[0] = -0.3f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 9.35f;
+    g_input_state[0].buttons = 0x0002u;          /* hold LEFT → moving */
+
+    scene1_player_ctrl_tick();                   /* idle→walk transition frame */
+    const int32_t *rec = player_ctrl_actor_record(0);
+    if (rec[CHR_ACTOR_ANIM]    != 1) T_FAIL("should transition to walk (anim 1)");
+    if (rec[CHR_ACTOR_FRAME]   != 0) T_FAIL("walk seeds at frame 0");
+    if (rec[CHR_ACTOR_COUNTER] != 0) T_FAIL("transition frame must observe counter 0, not 1");
+
+    scene1_player_ctrl_tick();                   /* first post-transition frame */
+    if (player_ctrl_actor_record(0)[CHR_ACTOR_COUNTER] != 1)
+        T_FAIL("counter should be 1 the frame after the transition");
+
+    /* 9 more ticks → counter 10, walk frame advances 0→1 (f0 = counter 0..9). */
+    for (int i = 0; i < 9; i++) scene1_player_ctrl_tick();
+    rec = player_ctrl_actor_record(0);
+    if (rec[CHR_ACTOR_COUNTER] != 10) T_FAIL("counter should reach 10");
+    if (rec[CHR_ACTOR_FRAME]   != 1)  T_FAIL("walk frame must advance 0→1 at counter 10");
+
+    g_input_state[0].buttons = 0;
+    chr_meta_shutdown();
+    return 0;
+}
+
 int test_player_ctrl_facing_octant_cardinals(void)
 {
     /* HOUSE cam yaw −π: idle +π/2 → 6, LEFT −π/2 → 2, DOWN 0 → 4, UP π → 0. */

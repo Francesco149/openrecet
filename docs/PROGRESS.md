@@ -7,6 +7,33 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — W3b: HOUSE walk-cycle anim ran 1 tick ahead of retail, fixed bit-exact
+
+Follow-up to W4.7: the `house-table-corner` cap_08 visual residual (character
+looked slightly off at rel 1851 while the player **world position was bit-exact**)
+turned out to be the player's **walk-animation-cycle phase**, drifting cumulatively
+over the slide (char-region pixel diff grew 20.8%→25.4%→32.0% across rel
+1829/1841/1851). Closed it against retail ground truth (engine-quirks §70).
+
+`runs/w3b-anim-watch` (retail per-frame `anim/counter/frame`) gives the cycle law:
+4 frames × 9 ticks, counter-driven, wrapping counter 36→1. The port's idle→walk
+transition seeded `counter=0` then ran `chr_anim_tick` unconditionally — its
+end-of-call `counter++` left the **seed frame at counter 1**, where retail observes
+**0**. That single +1 offset persisted through every wrap, so the whole walk cycle
+ran exactly **1 tick ahead** — invisible early, visibly out-of-phase by the end of
+a long walk.
+
+Fix (`scene1_player_ctrl.c`): on an idle↔walk transition, seed the new anim and
+**skip `chr_anim_tick` that frame** (on a seed frame it can't advance or wrap, so
+this suppresses only the unwanted `++`; internal wraps still `++` to 1). Driving
+the port through the exact `w3b-anim-watch` trace, actor `counter` + cycle-`frame`
+now match retail **bit-for-bit over 11097 frames, 0 mismatches** (idle + walk).
+Corner cap_08 char-region diff dropped **32.0%→25.2%**, now flat with cap_06 (drift
+gone); player position stays bit-exact (max |Δpos| 0.000008). The remaining ~25% is
+the **untouched Tear companion sprite** + octant sprite content — separate fronts.
+**3042 host tests pass** (+1 `player_ctrl_walk_anim_starts_at_counter_zero`). The
+`--player-pos-log` JSONL now also carries `anim/counter/aframe/oct`.
+
 ## 2026-05-31 — W4.7 closed: HOUSE table-corner divergence was an opposing-pair d-pad, fixed bit-exact
 
 Closed the last open HOUSE free-roam divergence (engine-quirks §69): holding a

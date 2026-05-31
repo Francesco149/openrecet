@@ -2558,3 +2558,42 @@ pos-log now carries `vx/vz/facing/sticky/buttons`), then `facing_reconstruct.py`
 strip (stays pinned at spawn) — the **unported cc08 event-gate** (the port's
 controller drives whenever a d-pad is held, ignoring intro/dialogue
 non-controllable states). Not a controller-physics bug.
+
+## 70. HOUSE walk-cycle anim ran 1 tick ahead: the idle→walk seed frame must observe counter 0
+
+W3b (2026-05-31). Drilling into the `house-table-corner` cap_08 residual (the
+character looked slightly off at rel 1851 while the player **world position was
+bit-exact**) found it was the player's **walk-animation-cycle phase**, drifting
+cumulatively over the slide — the char-region pixel diff grew 20.8% → 25.4% →
+32.0% across rel 1829/1841/1851.
+
+Ground truth `runs/w3b-anim-watch` (retail per-frame `anim/timer/counter/frame`,
+a LEFT-walk drive) gives the cycle law:
+
+- **The walk cycle is counter-driven, 4 frames × 9 ticks, wrapping counter 36→1.**
+  `counter` increments every frame; cycle `frame` advances 0→1 at counter 10,
+  1→2 at 19, 2→3 at 28, then wraps. The cold-start frame 0 spans counter **0..9
+  (10 ticks)** only because the counter begins at 0; every wrapped cycle begins at
+  counter 1, so steady frame 0 is 9 ticks. The `timer` field stays 0 throughout —
+  retail does not use a separate per-frame timer for this anim.
+- **The bug: the port's idle→walk transition seeded `counter=0` then ran
+  `chr_anim_tick` unconditionally, whose end-of-call `counter++` left the seed
+  frame at counter 1.** Retail observes counter **0** on the transition frame
+  (increment starts the NEXT frame). That single +1 offset persisted through every
+  wrap, so the port's whole walk cycle ran exactly **1 tick ahead** of retail —
+  invisible early, visibly out-of-phase by the end of a long walk.
+- **Fix (`scene1_player_ctrl.c`):** on an idle↔walk transition, seed the new anim
+  (frame 0 / counter 0 / timer 0) and **skip `chr_anim_tick` that frame** — on a
+  seed frame it can neither advance nor wrap, so skipping suppresses only the
+  unwanted `++`. Internal wraps still `++` to 1 (counter→0 then ++), matching
+  retail's steady wrap (counter 36→1). The non-transition path is unchanged
+  (ticks every frame, so idle keeps breathing — §quirk idle-animates).
+
+Validation: driving the port through the exact `w3b-anim-watch` trace, the actor
+`counter` + cycle-`frame` now match retail **bit-for-bit over 11097 frames, 0
+mismatches** (idle and walk segments). The corner cap_08 char-region diff dropped
+**32.0% → 25.2%** and is now flat with cap_06 — the accumulating drift is gone.
+Player position stays bit-exact (max |Δpos| 0.000008). The remaining ~25% is the
+**untouched Tear companion sprite** (a constant lower cluster, its own
+position/anim system) + octant-specific sprite content, both separate fronts.
+Regression guard: host test `player_ctrl_walk_anim_starts_at_counter_zero`.
