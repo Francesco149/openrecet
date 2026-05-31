@@ -38,6 +38,8 @@ void scene_post_fade_init(void)
      * index from DAT_0438b1e0; until save-slot UI lands, we hardcode
      * bank 0 — matches the engine's behaviour on a fresh boot where
      * DAT_0438b1e0 is BSS-zero.
+     * PORT-DEBT(hardcode, NONE): active save-slot pinned to bank 0; engine
+     * sources it from DAT_0438b1e0. Retire = save-slot UI lands (plan Step 3.5).
      *
      * Position note: the engine calls FUN_0049001c (= save_bank_init_one)
      * much later in the commit block (~L213).  Our port hoists it

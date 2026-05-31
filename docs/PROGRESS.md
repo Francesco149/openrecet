@@ -7,6 +7,42 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — un-MVP Step 1: PORT-DEBT registry (make the hidden debt visible)
+
+Landed Step 1 of `plans/un-mvp-structural-parity.md`: the *other* kind of debt
+the port-ledger can't see — MVP shortcuts, synthetic-data tables, simplified
+state machines, and `--force-*` injections living INSIDE code the ledger already
+calls "ported". They silently cap structural parity, so they now have one
+canonical grep-able marker + a derived registry that can't go stale.
+
+- **Tag convention:** `PORT-DEBT(<kind>, <engine-fn-or-NONE>): <one-line + retire
+  cond>`, `<kind>` ∈ `stub | synthetic-data | simplified | hardcode | scaffold |
+  force-flag`. The middle field names the engine fn that retires it (the
+  migration unit — porting one fn may clear several tags).
+- **Registry:** `tools/gen_port_debt.py` scans `src/` → `docs/port-debt.{md,json}`
+  (grouped by kind + retiring fn), with a `--check` mode (exit 3 if stale).
+  Wired into `tools/git-hooks/pre-commit` next to the port-ledger regen.
+  `gen_port_ledger.py` independently re-counts the markers for a one-line STATUS
+  headline (own scan — no inter-tool dependency; both are pure functions of src/).
+- **First migration pass — 7 load-bearing debts tagged** (3 simplified, 2
+  synthetic-data, 1 stub, 1 hardcode) across 6 retiring engine fns: the
+  hand-rolled controller (`FUN_0048670f`), hardcoded HOUSE furniture origins
+  (`FUN_0044c88f`) + the postload subset that should write them (`FUN_00436f97`),
+  the Pass-F-only render (`FUN_004161c7`), the fx-overlay outer-gate stub
+  (`FUN_00454191`), the chr-walker single-slot inject vs the Cpop populator
+  (`FUN_0048b850`), and the bank-0 save-slot hardcode.
+
+**Scope decision (deliberate, documented):** the ~50 `--force-*` mentions in
+`main.c` and the unwired-allocator `--force-b-*` smoke types in
+`scene1_records_b_tick.c` were **NOT** tagged. Per the user: the `--force-*`
+flags are *old MVPs* — production HOUSE-with-collisions runs with **no** `--force`
+anything, so they're dormant test tooling, not active parity caps. (Deleting the
+now-unused force-flag scaffolding is its own future cleanup, not a structural
+parity gap.) The 124 `deferred`/platform-note comments are likewise mostly
+narrative, not synthetic stubs. The registry tracks what *production* fakes; it
+grows as more such shortcuts are found. **3048 host tests pass** (comments +
+tooling only).
+
 ## 2026-05-31 — HOUSE companion wing-glow sparkle emit ported (faithful, render-gated)
 
 Closed §71's deferred "fairy's glowing-wing sparkle (FUN_00447f4f emit)"

@@ -1,0 +1,83 @@
+{
+ "_generated_by": "tools/gen_port_debt.py",
+ "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
+ "counts": {
+  "total": 7,
+  "by_kind": {
+   "stub": 1,
+   "synthetic-data": 2,
+   "simplified": 3,
+   "hardcode": 1,
+   "scaffold": 0,
+   "force-flag": 0
+  },
+  "unknown_kinds": {},
+  "retiring_engine_fns": 6,
+  "by_engine_fn": {
+   "FUN_004161c7": 1,
+   "FUN_00436f97": 1,
+   "FUN_0044c88f": 1,
+   "FUN_00454191": 1,
+   "FUN_0048670f": 1,
+   "FUN_0048b850": 1
+  }
+ },
+ "tags": [
+  {
+   "kind": "hardcode",
+   "engine_fn": "NONE",
+   "desc": "active save-slot pinned to bank 0; engine",
+   "file": "src/scene.c",
+   "line": 41,
+   "kind_known": true
+  },
+  {
+   "kind": "simplified",
+   "engine_fn": "FUN_004161c7",
+   "desc": "ports ONLY Pass F (L423-481), not the",
+   "file": "src/scene1_pass_f.c",
+   "line": 8,
+   "kind_known": true
+  },
+  {
+   "kind": "simplified",
+   "engine_fn": "FUN_00436f97",
+   "desc": "ports only block-11 i=0 + block-23 of",
+   "file": "src/scene1_postload.c",
+   "line": 9,
+   "kind_known": true
+  },
+  {
+   "kind": "simplified",
+   "engine_fn": "FUN_0048670f",
+   "desc": "hand-rolled free-roam controller; the",
+   "file": "src/scene1_player_ctrl.c",
+   "line": 522,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00454191",
+   "desc": "outer-gate scaffold only; the 3 inner render",
+   "file": "src/scene1_fx_overlays.c",
+   "line": 9,
+   "kind_known": true
+  },
+  {
+   "kind": "synthetic-data",
+   "engine_fn": "FUN_0044c88f",
+   "desc": "hardcoded new-game tier-0 furniture",
+   "file": "src/collision_house.c",
+   "line": 30,
+   "kind_known": true
+  },
+  {
+   "kind": "synthetic-data",
+   "engine_fn": "FUN_0048b850",
+   "desc": "hand-built single render slot",
+   "file": "src/scene1_chr_walker.c",
+   "line": 84,
+   "kind_known": true
+  }
+ ]
+}

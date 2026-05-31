@@ -5,6 +5,10 @@
  * checks; both inner render branches are deferred (the counter starters
  * that would activate them are unported today).  CALL_TRACE_ENTER_STUB
  * keeps the partial port visible in call_trace_diff as `≈`.
+ *
+ * PORT-DEBT(stub, FUN_00454191): outer-gate scaffold only; the 3 inner render
+ * branches (alpha quad + screen-capture dim + white-flash overlay) are deferred
+ * until the counter starters port. Retire = full FUN_00454191 body.
  */
 
 #include "scene1_fx_overlays.h"

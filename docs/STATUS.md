@@ -23,6 +23,10 @@
 6 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
+**Port debt:** 7 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+inside code the table above calls "ported" (they silently cap structural parity).
+Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
+
 ## Current front
 
 - **Phase:** Phase E — leaf-first execution parity (harness-roadmap.md §E)
@@ -32,6 +36,7 @@
 
 - `STATUS.md` (this file) — 60-second orientation.
 - `port-ledger.md` / `.json` — per-function port status (derived).
+- `port-debt.md` / `.json` — MVP/synthetic shortcuts inside ported code (derived).
 - `PROGRESS.md` — dated narrative changelog.
 - `findings/INDEX.md` — map of subsystem RE writeups.
 - `harness-roadmap.md` — verification/tooling phases (A–E).

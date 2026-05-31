@@ -11,7 +11,8 @@
   "orphan_refs_not_in_function_table": 6,
   "touched": 379,
   "pct_touched": 14.9,
-  "pct_verified": 2.5
+  "pct_verified": 2.5,
+  "port_debt": 7
  },
  "orphan_refs": [
   "0x40f640",
@@ -2839,6 +2840,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/collision_house.c",
     "src/collision_house.h",
     "src/main.c",
     "src/scene.c",

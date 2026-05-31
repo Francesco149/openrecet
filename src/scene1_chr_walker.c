@@ -80,7 +80,11 @@ int chr_walker_npc_alpha(float pos, float mult)
  * scalars the walker reads, so it can draw a standing actor in HOUSE
  * before the ~18 KB FUN_0048b850/FUN_0044376a populator ports.  Storage +
  * the public setter live outside _WIN32 so the host build links them; the
- * render path (and the accessors that read them) is _WIN32-only. */
+ * render path (and the accessors that read them) is _WIN32-only.
+ * PORT-DEBT(synthetic-data, FUN_0048b850): hand-built single render slot
+ * standing in for the unported Cpop populator that fills the actor/party
+ * render array DAT_056dacc0; companion_char/actor return -1/NULL (player
+ * only). Retire = plan Step 3.2 (FUN_0048b850 + caller FUN_0048670f). */
 #include "scene1_chr_sprite.h"     /* CHR_ACTOR_* dword indices */
 
 /* Actor sprite-state field byte/dword layout (param_1 to the leaf, the

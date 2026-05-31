@@ -4,6 +4,10 @@
  * MVP port of FUN_004161c7 lines L423-481 (Pass F of the wide-followup
  * walker).  Walks g_scene1_records_a for type-0x92 slots and emits one
  * color-cycle billboard quad per match.
+ *
+ * PORT-DEBT(simplified, FUN_004161c7): ports ONLY Pass F (L423-481), not the
+ * surrounding A-E context; standalone-smoke divergences documented in the .h.
+ * Retire = full FUN_004161c7 wide-followup port (plan Step 3).
  */
 
 #include "scene1_pass_f.h"

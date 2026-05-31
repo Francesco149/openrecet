@@ -56,6 +56,10 @@ CURRENT_BLOCKER = (
 PROBE_FULL_RE = re.compile(r"CALL_TRACE_ENTER\(\s*0x([0-9a-fA-F]+)u?\s*\)")
 PROBE_STUB_RE = re.compile(r"CALL_TRACE_ENTER_STUB\(\s*0x([0-9a-fA-F]+)u?\s*\)")
 FUN_RE = re.compile(r"FUN_([0-9a-fA-F]{6,8})")
+# PORT-DEBT(...) markers — MVP/synthetic shortcuts inside ported code. The full
+# registry is tools/gen_port_debt.py → docs/port-debt.{md,json}; here we only
+# count them (own scan, no inter-tool dependency) for the STATUS headline.
+PORT_DEBT_RE = re.compile(r"PORT-DEBT\(\s*[a-z-]+\s*,")
 
 
 def load_engine_functions() -> dict[int, dict]:
@@ -98,6 +102,18 @@ def scan_src() -> tuple[dict[int, list[str]], dict[int, list[str]], dict[int, li
     return sort(verified), sort(stubbed), sort(ported)
 
 
+def count_port_debt() -> int:
+    """Count PORT-DEBT(...) markers in src/ (the registry's headline number).
+
+    Independent re-derivation of tools/gen_port_debt.py's total so STATUS stays
+    self-contained — no read of the derived port-debt.json, no tool ordering
+    dependency. Both scans are pure functions of src/, so they agree."""
+    n = 0
+    for path in sorted(SRC.rglob("*.c")) + sorted(SRC.rglob("*.h")):
+        n += len(PORT_DEBT_RE.findall(path.read_text(errors="replace")))
+    return n
+
+
 def classify(funcs, call_targets, verified, stubbed, ported):
     """Assign one status per engine VA, plus collect 'ported but not an engine
     function' VAs (the indirect/vtable-target hint)."""
@@ -127,7 +143,7 @@ def classify(funcs, call_targets, verified, stubbed, ported):
     return entries, orphans
 
 
-def summarize(entries, funcs, orphans):
+def summarize(entries, funcs, orphans, port_debt=0):
     real = {va: e for va, e in entries.items() if not e["is_thunk"]}
     by = lambda s: sum(1 for e in real.values() if e["status"] == s)
     counts = {
@@ -143,6 +159,7 @@ def summarize(entries, funcs, orphans):
     counts["touched"] = touched
     counts["pct_touched"] = round(100.0 * touched / max(1, counts["non_thunk_functions"]), 1)
     counts["pct_verified"] = round(100.0 * counts["verified"] / max(1, counts["non_thunk_functions"]), 1)
+    counts["port_debt"] = port_debt
     return counts
 
 
@@ -188,6 +205,10 @@ def render_status(counts) -> str:
 {c['orphan_refs_not_in_function_table']} VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
+**Port debt:** {c['port_debt']} `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+inside code the table above calls "ported" (they silently cap structural parity).
+Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
+
 ## Current front
 
 - **Phase:** {CURRENT_PHASE}
@@ -197,6 +218,7 @@ def render_status(counts) -> str:
 
 - `STATUS.md` (this file) — 60-second orientation.
 - `port-ledger.md` / `.json` — per-function port status (derived).
+- `port-debt.md` / `.json` — MVP/synthetic shortcuts inside ported code (derived).
 - `PROGRESS.md` — dated narrative changelog.
 - `findings/INDEX.md` — map of subsystem RE writeups.
 - `harness-roadmap.md` — verification/tooling phases (A–E).
@@ -259,7 +281,7 @@ def main() -> int:
     call_targets = load_call_targets()
     verified, stubbed, ported = scan_src()
     entries, orphans = classify(funcs, call_targets, verified, stubbed, ported)
-    counts = summarize(entries, funcs, orphans)
+    counts = summarize(entries, funcs, orphans, count_port_debt())
 
     out = {
         LEDGER_JSON: render_json(entries, orphans, counts),

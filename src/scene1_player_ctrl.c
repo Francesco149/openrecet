@@ -518,6 +518,12 @@ void player_ctrl_house_room_clamp(float *px, float *pz)
  * direction is held in HOUSE free-roam.  Furniture/mesh collision
  * (FUN_00483170) and the companion are deferred (W4); the walk-cycle frame
  * timing (chr_anim_tick dt) is mechanism-only pending a retail record capture
+ *
+ * PORT-DEBT(simplified, FUN_0048670f): hand-rolled free-roam controller; the
+ * real cc08 state machine driving the impulse from stored db05c facing is not
+ * structurally ported (only behaviourally matched — §69). The port drives
+ * whenever a d-pad is held, ignoring the unported cc08 event-gate (intro /
+ * dialogue / non-controllable states — §60). Retire = plan Step 3.1.
  * (W3b). */
 void scene1_player_ctrl_tick(void)
 {

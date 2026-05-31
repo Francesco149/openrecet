@@ -6,6 +6,11 @@
  * 23 logical blocks are deferred (see docs/findings/scene1-postload-
  * init.md).
  *
+ * PORT-DEBT(simplified, FUN_00436f97): ports only block-11 i=0 + block-23 of
+ * the 710-line state-entry init; the other 23 logical blocks (incl. the
+ * DAT_0438c058 furniture stage_positions writer) are deferred. Retire = plan
+ * Step 3.4 — also retires collision_house.c's hardcoded k_house_objects[].
+ *
  * Asm reference for block-23 (verified via objdump -d at 0x438199):
  *
  *   fld    DWORD PTR ds:0x56db05c   ; copy of camera_yaw_alt → DAT_0438b4ac

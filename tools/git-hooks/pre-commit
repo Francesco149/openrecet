@@ -3,8 +3,9 @@
 # Linux-only regression nets BEFORE a commit lands, converting the project's
 # "agent remembers to run make" convention into an enforced gate.
 #
-#   1. Regenerate the derived port ledger (STATUS.md, port-ledger.{json,md})
-#      and stage it so it always tracks HEAD with zero manual steps.
+#   1. Regenerate the derived registries (STATUS.md, port-ledger.{json,md},
+#      port-debt.{json,md}) and stage them so they always track HEAD with zero
+#      manual steps.
 #   2. If any C source/header or test changed, build + run the 2870-test
 #      ASan/UBSan suite (~10s) and abort the commit on failure.
 #
@@ -17,7 +18,16 @@ cd "$(git rev-parse --show-toplevel)"
 # nix wrapper — python3/make live in the dev shell on this host.
 run() { nix develop --command "$@"; }
 
-# --- 1. Regenerate + stage the derived ledger ----------------------------
+# --- 1. Regenerate + stage the derived registries ------------------------
+# port-debt first (independent), then the ledger (its STATUS headline re-counts
+# the same PORT-DEBT markers, so both reflect the staged tree).
+if run python3 tools/gen_port_debt.py >/tmp/oc_debt.log 2>&1; then
+    git add docs/port-debt.json docs/port-debt.md 2>/dev/null || true
+else
+    echo "pre-commit: port-debt generation failed:" >&2
+    cat /tmp/oc_debt.log >&2
+    exit 1
+fi
 if run python3 tools/gen_port_ledger.py >/tmp/oc_ledger.log 2>&1; then
     git add docs/STATUS.md docs/port-ledger.json docs/port-ledger.md 2>/dev/null || true
 else

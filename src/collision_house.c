@@ -27,6 +27,10 @@
  * for the new-game HOUSE layout (the FUN_0044c88f writer that fills
  * DAT_0438c058 per stage/tier is not yet ported; mesh-index→.x map is
  * scene_map_meshes.h: 0=shop_1st, 1=shop_jutan, 3=shop_table01, 4=shop_table02). */
+/* PORT-DEBT(synthetic-data, FUN_0044c88f): hardcoded new-game tier-0 furniture
+   origins; the real per-stage/tier DAT_0438c058 writer (FUN_0044c88f /
+   FUN_00436f97 stage_positions) is unported, so this can't generalise past
+   tier 0. Retire = engine-quirks §65/§67, plan Step 3.4. */
 typedef struct { const char *xfile; float origin[3]; float rot_y; } house_collision_obj;
 static const house_collision_obj k_house_objects[] = {
     /* xfile,                        origin (DAT_0438c058),   rot_y (DAT_0438c008) */
