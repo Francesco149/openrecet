@@ -2822,3 +2822,95 @@ not the furniture origins (cf. the `FUN_0044376a` misattribution, §see ledger).
 > 📍 `src/collision_house.c` (build), `src/scene1_postload.c`
 > (`scene1_postload_walker_phase2_init`), `tools/dump_collision_objects.py`
 > (the slot-map + VA list that revealed the aliasing).
+
+## 75. The HOUSE in-game controller is a 3-function pipeline keyed on `cc08`; the free-roam walk is split across all three, and the walk impulse lives in the controllable code, NOT `FUN_0048b850`
+
+Structural map for the un-MVP of the hand-rolled `scene1_player_ctrl_tick`
+(`PORT-DEBT(simplified, FUN_0048670f)`) → the real engine decomposition. The
+in-game tick is **three** functions, all keyed on the state id `DAT_0438cc08`
+("cc08"); the HOUSE free-roam walk is **spread across all three plus a tail
+clamp**, which is exactly why a single hand-rolled function could approximate it
+but not mirror it.
+
+**The three functions:**
+- **`FUN_0048670f`** (1637 lines, `all.c:86539-88178`) — the whole INGAME
+  interaction controller. A cc08 state machine: shop-counter haggling, customer
+  approach, menus, cutscene timing, **and** free-roam walking (the `cc08==1`
+  arm). Runs **first** in the default sim arm (`FUN_00442cef`).
+- **`FUN_0048b850`** ("Cpop", 5 KB, `all.c:89757+`) — the movement/effects
+  sub-controller `FUN_0048670f`'s `cc08==1` arm calls. Velocity clamp, facing
+  octant, the integrate-and-collide call, damp, particle/after-image effects,
+  and the actor render-slot population.
+- **`FUN_00483170`** — physics integrate + collide. **Already ported** as
+  `collision_resolve_player` (§66/§69).
+
+**cc08 state inventory (`FUN_0048670f` dispatch):**
+
+| cc08 | hex | role | near-path |
+|----:|----:|------|-----------|
+| 0 | 0x00 | free-roam entry / idle-anim init | yes (entry) |
+| 1 | 0x01 | **free-roam walk** (d-pad → `FUN_0048b850`) | **yes (core)** |
+| 2 | 0x02 | in-scene NPC/prop crowd | later |
+| 3 | 0x03 | camera/viewpoint preview on entry | entry-adjacent |
+| 4 | 0x04 | scripted NPC approach lock | stub |
+| 10 | 0x0a | customer approach setup → 0x17/4 | stub |
+| 15 | 0x0f | shop-front cursor / counter proximity | stub |
+| 16 | 0x10 | object-interaction router | stub |
+| 17 | 0x11 | fade-in input guard → 0xf | stub |
+| 18 | 0x12 | menu / camera-pan cursor | stub |
+| 23 | 0x17 | customer dialogue cutscene → 3 | stub |
+| 30 | 0x1e | NPC dialogue choice select | stub |
+| 50 | 0x32 | shop counter menu | stub |
+
+Per-frame machinery that runs **regardless of state** (must be ported, not
+stubbed): the actor-record spawn refresh (`DAT_005ce3c4` loop), the
+scene-transition flag early-returns (`DAT_0450f470/485/488/495` — fades), the
+camera-shake ramp counters (`DAT_0438b74c/750`), the event-timing counters
+(`DAT_0438b924/b4e0`), and the common tail `LAB_004893ff` (room-bounds clamp
+`FUN_00486435` → `FUN_00485861` → return).
+
+**The free-roam per-frame pipeline, and where each step actually lives** (this is
+the load-bearing finding — it reconciles §61 and §69):
+
+| # | step | constant | function / site |
+|--:|------|----------|-----------------|
+| 1 | walk **impulse** `daabc/daac4 += sin/cos(db05c)·0.1` + anim id `daae8` | accel **0.1** | **`FUN_0048670f` cc08==1 controllable code** — written as `*(float*)(player+0x904)`, invisible to a `DAT_056daabc =` grep (§61) |
+| 2 | speed-cap + velocity clamp `|v| ≤ 0.175` | cap **0.175** | `FUN_0048b850` @ L90010 (cap tree resolves to 0.175 in HOUSE: `*DAT_068dd2f0==0`, no dash/run) |
+| 3 | facing octant `dab00` + sticky-diagonal snap | π/8, 2π, 8 | `FUN_0048b850` @ 0x48bfd2 + the `dae3c` snap (L90016-90048) |
+| 4 | integrate `da1d8 += daabc; da1e0 += daac4` + collide | — | `FUN_00483170` (called from `FUN_0048b850` @ L90122) = `collision_resolve_player` |
+| 5 | room-bounds clamp `pz≤9.5; px≥−1.5 when pz>7` | — | `FUN_00486435` in the `FUN_0048670f` **tail** = `player_ctrl_house_room_clamp` |
+| 6 | damp `daabc,daac4 *= 0.82` | **0.82** | `FUN_0048b850` damp tree @ L90161-90198 (resolves to 0.82 when grounded `da1dc==daf88`, `db048==0`, no dash) |
+
+Steps 5 and 6 are order-independent (clamp touches position, damp touches
+velocity), so the engine's split (damp inside `FUN_0048b850`, room-clamp in the
+`670f` tail) and the hand-rolled tick's order (room-clamp then damp) produce the
+**same** end-of-frame state.
+
+**The §61/§69 reconciliation (do not re-derive this):** §69 cited "the walk
+impulse at `FUN_0048b850` L319-326" — that is **imprecise**. Those lines
+(`daabc += sin(db05c)·(ccbc·0.01)`) are the **da1bc-gated stun/hop path** (accel
+0.3, fires only for `da1bc ∈ [1,0xf)` with `db048 != 1`), and in normal
+free-roam **`da1bc == 0`** so that path is skipped entirely (§61, authoritative).
+The real walk impulse is step 1 above, in the controllable code, accel **0.1**.
+Implication for the port: **the impulse is ported in the `FUN_0048670f` chip
+(cc08==1), not the `FUN_0048b850` chip.** `FUN_0048b850`'s free-roam-active body
+is steps 2/3/4/6 + the render-slot fill; its dash/egg-spawn/`da1bc`/`db048`-
+cutscene branches are structurally present but **gate off** in HOUSE.
+
+**The render-slot population (the other `FUN_0048b850` job, §71's missing writer):**
+`FUN_0048b850`'s tail (L90242+) does the motion-history ring shifts (after-image
+trails) and copies the 0xb-dword actor record `DAT_056daae8` into the actor
+render array, calling `FUN_0044376a(&DAT_056da1b8)` (the per-actor spawn/record
+allocator) — this is the live writer of `DAT_056dacc0` that
+`scene1_chr_walker.c`'s `PORT-DEBT(synthetic-data)` single-slot inject stands in
+for.
+
+This map is the foundation for the controller un-MVP chip series (plan
+`un-mvp-structural-parity.md` Step 3.1/3.2): Chip 1 = `FUN_0048b850` free-roam
+body (steps 2/3/4/6), Chip 2 = its render-slot populator, Chip 3 = `FUN_0048670f`
+prologue/bookkeeping/tail shell, Chip 4 = `FUN_0048670f` cc08 dispatch + the
+cc08==1 arm (step 1 impulse) with off-path states as structural stubs.
+
+> 📍 Decomp `all.c:86539-88178` (`FUN_0048670f`), `all.c:89757+`
+> (`FUN_0048b850`); src `scene1_player_ctrl.c` (leaves 24-327 + tick 528),
+> `collision_resolve.c` (`FUN_00483170`); reconciles §60/§61/§69/§71.

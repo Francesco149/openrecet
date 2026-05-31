@@ -120,6 +120,37 @@ Spine-first, in dependency order, each node retiring concrete debt:
 Re-derive ordering from `docs/port-debt.md` (the registry, once it exists) +
 `STATUS.md` blocker as each node lands.
 
+**Controller un-MVP — chip breakdown (Steps 3.1 + 3.2 expanded, 2026-05-31).**
+The full structural map of the in-game controller is engine-quirks **§75**: the
+tick is a 3-function pipeline (`FUN_0048670f` cc08 dispatch → `FUN_0048b850`
+movement/effects → `FUN_00483170` collision, already ported), and the HOUSE
+free-roam walk is split across all three. **Key correction:** the walk impulse
+(`daabc += sin(db05c)·0.1`) lives in `FUN_0048670f`'s **cc08==1 controllable
+code** (written as `*(player+0x904)`, §61), **not** in `FUN_0048b850` (whose only
+sin/cos accumulate is the `da1bc`-gated stun/hop path, accel 0.3, dead in
+free-roam) — so §69's "impulse at FUN_0048b850 L319-326" was imprecise. Chips
+(bottom-up, each bit-exact on `house-walk-*`/`house-table-corner`/`wall_collide_diff`,
+each adds only *structural stubs* never new *simplified* bodies):
+
+1. **Chip 1** — `FUN_0048b850` free-roam body: speed-cap+clamp(0.175),
+   facing octant `dab00`+sticky, call `collision_resolve_player`, damp tree
+   (→0.82 grounded); dash/egg/`da1bc`/cutscene branches structurally
+   gated-off. Tick calls it instead of doing clamp/octant/collision/damp inline.
+2. **Chip 2** — `FUN_0048b850` render-slot populator (`DAT_056dacc0` fill via the
+   `FUN_0044376a` record copy) → retires `PORT-DEBT(synthetic-data, FUN_0048b850)`
+   (`scene1_chr_walker.c:84`).
+3. **Chip 3** — `FUN_0048670f` prologue + per-frame bookkeeping + tail shell
+   (actor refresh, transition-flag fades, `b74c/750/924/b4e0` counters,
+   `FUN_00486435` tail clamp). cc08 dispatch shell routes cc08==1 to the free-roam
+   body. No behaviour change.
+4. **Chip 4** — `FUN_0048670f` cc08 dispatch + cc08==1 arm faithfully (the
+   **step-1 walk impulse** lives here), off-path states as
+   `CALL_TRACE_ENTER_STUB`; deletes the hand-rolled tick → retires
+   `PORT-DEBT(simplified, FUN_0048670f)`. Add `CALL_TRACE_ENTER(0x48670f)` +
+   Frida hook-and-diff → "verified".
+5. **Chip 5+** — flesh out gameplay cc08 states (shop counter, dialogue, menus)
+   as each becomes reachable; each replaces a stub, adds no debt.
+
 ## Definition of done (per node)
 
 - Real `FUN_xxx` faithfully ported (control flow + globals + sub-calls match).
