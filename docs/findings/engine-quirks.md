@@ -2232,3 +2232,43 @@ collision-mesh loader to populate `DAT_007ca434`, (2) `FUN_00432e50` (the 2 KB
 triangle query), (3) `FUN_00483170`/`FUN_004830f1` (the slide-resolve). The
 canonical validation drives are `traces/house_collide.jsonl` +
 `traces/house_table_collide.jsonl` (replay → match `px/pz` per-frame).
+
+## 63. Collision mesh is parsed from the render `.x` (material-name typed); vertex pool ×0.2, records negate X into player/world space
+
+W4.1 (2026-05-31). How the per-object collision triangle mesh (§62) is built
+from disk, ground-truthed by porting the loader + self-validating extent.
+
+- **Source = the render `.x`, no separate file.** `FUN_00472836` first tries a
+  `<name>_s.x` companion, then falls back to the base `<name>.x`. The HOUSE shop
+  ships **no** `_s.x`, so collision triangles are read from the same
+  `xfile/shop/shop_1st.x` etc. the engine renders. The parser `FUN_00471d45`
+  walks every `Mesh`, applies the frame transform, and classifies each face by
+  the **material name** it references in the `MeshMaterialList` (not the frame
+  name). shop_1st.x's materials are numeric (`Material__189_0`) + `nohit` +
+  `xof_default`, so its faces are type **0** (generic solid) or **4** (`nohit`).
+- **Type-code table** (material-name prefix → code, `FUN_00471d45` chain;
+  decoded from the unpacked exe at `0x5c8364…`): `mizu`(water)=5, `gake`/`yuki_`
+  =6, `toumei`/`kabe`(wall)=7, `dame`/`Plane`(floor)=2, `hit`=3, `hikari`(light)
+  /`nohit`=4, `crystal`=15, `taimatu`(torch)=16, `takara`(treasure)=13,
+  `taru`(barrel)=12, `shokudai`(candle)=14, `tree01`=8, `tree02`=9, `kusa01`=10,
+  `kusa02`=11, default=0. **Type 4 faces are DROPPED** from the built mesh
+  (`FUN_0043289b` `if (type != 4)`), so `nohit`/`hikari` never collide.
+- **Coordinate space.** The vertex pool (`DAT_0432a754`, stride 0xc) holds
+  frame-transformed coords **×0.2** (`FUN_00471d45` L344-346). The per-triangle
+  record (`FUN_00432ac6`) then **negates X** when it stores the verts/normal, so
+  records live in the engine *world* space the player position
+  (`DAT_056da1d8/dc/e0`) moves in — i.e. a built record is directly comparable
+  to the live player pos. Plane normal = `(C−B)×(B−A)`, `d = −n·A`, plus `|n|²`;
+  AABB padded per-level (HOUSE = small: x/z ±0.5, y −0.5/+3.0; the y pad is
+  asymmetric for head clearance).
+- **Self-validation.** Building shop_1st.x in the port yields **1909 triangles**
+  spanning world `x[−43.0,45.0] y[−0.57,20.2] z[−40.4,10.6]` — the back-wall/
+  counter edge at z≈10.6 matches the retail counter (§62, pz≈8.9–9.5) and the
+  floor sits at y≈0, confirming the ×0.2 + X-negation. The mesh is much larger
+  than the player-reachable core (§62's px −1.5…3.1 / pz −7.3…9.35) because it
+  includes unreachable outer walls/backdrop.
+
+Port: `src/collision_mesh.{c,h}` reuses the oracle-validated `xfile` parser for
+the text and replicates only the transform/scale/classify/plane-build. The
+2777-byte `.x` text state machine `FUN_00471d45` is NOT re-ported. Query
+(`FUN_00432e50`) + slide-resolve (`FUN_00483170`) are W4.2/W4.3.

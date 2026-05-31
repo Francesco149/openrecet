@@ -3179,7 +3179,12 @@ struct test_case {
     X(player_pose_seeds_actor0) \
     X(player_pose_empties_party_slots) \
     X(player_pose_passes_char_id) \
-    X(player_actor_accessors_out_of_range)
+    X(player_actor_accessors_out_of_range) \
+    \
+    X(collision_classify) \
+    X(collision_tri_build_flat) \
+    X(collision_tri_build_large_pad) \
+    X(collision_vendor_shop_1st)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

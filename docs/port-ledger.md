@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **372** (14.6%) — verified 62, stubbed 14, ported 296
-- unported: **2176**
+- touched: **374** (14.7%) — verified 62, stubbed 14, ported 298
+- unported: **2174**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (62) — runtime-diffed vs retail
@@ -100,7 +100,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (296) — reimplemented, no probe yet
+## ported (298) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -155,7 +155,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x430c00 | FUN_00430c00 | 109 | ✓ | scene1_sim.c, scene1_sim.h |
 | 0x430c6d | FUN_00430c6d | 3022 | ✓ | scene1_particles_tick.c, scene1_particles_tick.h |
 | 0x431a80 | FUN_00431a80 | 156 | ✓ | scene1_preload.c, scene1_preload.h |
-| 0x432e50 | FUN_00432e50 | 2084 | ✓ | scene1_camera.c, scene1_postload.c, scene1_postload.h (+4) |
+| 0x43289b | FUN_0043289b | 555 | ✓ | collision_mesh.c, collision_mesh.h |
+| 0x432ac6 | FUN_00432ac6 | 906 | ✓ | collision_mesh.c, collision_mesh.h |
+| 0x432e50 | FUN_00432e50 | 2084 | ✓ | collision_mesh.h, scene1_camera.c, scene1_postload.c (+5) |
 | 0x433674 | FUN_00433674 | 2354 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h, scene1_records_c_tick.c (+1) |
 | 0x4341d4 | FUN_004341d4 | 42 | ✓ | storage.c |
 | 0x4341fe | FUN_004341fe | 903 | ✓ | chr_sprite_meta.c, chr_sprite_meta.h, chr_sprite_meta_load.c (+4) |
@@ -259,7 +261,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4718d2 | FUN_004718d2 | 51 | ✓ | d3d_pool.h |
 | 0x47193c | FUN_0047193c | 488 | ✓ | scene1_dungeon_clear_banner.c, scene1_preload.c, scene_buy.c (+12) |
 | 0x471b24 | FUN_00471b24 | 467 | ✓ | mesh_load.c, mesh_load.h, sprite.h |
-| 0x471d45 | FUN_00471d45 | 2777 | ✓ | scene_map_meshes.h, stage_palette.c, stage_palette.h |
+| 0x471d45 | FUN_00471d45 | 2777 | ✓ | collision_mesh.c, collision_mesh.h, scene_map_meshes.h (+2) |
 | 0x472836 | FUN_00472836 | 1609 | ✓ | mesh.h, mesh_load.c, mesh_load.h (+6) |
 | 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_wide_followup.c, sysassets.c (+1) |
 | 0x47329b | FUN_0047329b | 151 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |

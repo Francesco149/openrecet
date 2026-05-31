@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 62,
   "stubbed": 14,
-  "ported": 296,
-  "unported": 2176,
+  "ported": 298,
+  "unported": 2174,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 372,
-  "pct_touched": 14.6,
+  "touched": 374,
+  "pct_touched": 14.7,
   "pct_verified": 2.4
  },
  "orphan_refs": [
@@ -2289,8 +2289,11 @@
    "size": 555,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/collision_mesh.c",
+    "src/collision_mesh.h"
+   ]
   },
   {
    "va": "0x432ac6",
@@ -2298,8 +2301,11 @@
    "size": 906,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/collision_mesh.c",
+    "src/collision_mesh.h"
+   ]
   },
   {
    "va": "0x432e50",
@@ -2309,6 +2315,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/collision_mesh.h",
     "src/scene1_camera.c",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
@@ -6139,6 +6146,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/collision_mesh.c",
+    "src/collision_mesh.h",
     "src/scene_map_meshes.h",
     "src/stage_palette.c",
     "src/stage_palette.h"
