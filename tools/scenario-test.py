@@ -57,6 +57,9 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import frame_io   # noqa: E402 — png-or-bmp frame discovery
+
 
 ROOT       = Path(__file__).resolve().parent.parent
 SCENARIOS  = ROOT / "tests" / "scenarios"
@@ -234,7 +237,7 @@ def captured_bmps(run_dir: Path) -> list[Path]:
             return int(p.stem.split("_")[1])
         except (IndexError, ValueError):
             return -1
-    return sorted(frames_dir.glob("frame_*.bmp"), key=_fno)
+    return sorted(frame_io.frame_glob(frames_dir), key=_fno)
 
 
 # ─── runner ───────────────────────────────────────────────────────────────
@@ -409,7 +412,7 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
         )
     elapsed_ms = int((dt.datetime.now(dt.timezone.utc) - t0).total_seconds() * 1000)
 
-    captured = sorted(frames_dir.glob("frame_*.bmp"))
+    captured = frame_io.frame_glob(frames_dir)
     meta = {
         "scenario":      scen.name,
         "exit_code":     proc.returncode,
@@ -602,11 +605,11 @@ def _diff_segtrace(scen: Scenario, run_dir: Path, golden_dir: Path,
     import numpy as np
     from PIL import Image
 
-    golden_caps = sorted(golden_dir.glob("cap_*.bmp"))
+    golden_caps = frame_io.frame_glob(golden_dir, "cap_")
     run_caps    = captured_bmps(run_dir)
     n = max(len(golden_caps), len(run_caps))
     if n == 0:
-        print(f"  no captures and no cap_*.bmp goldens — nothing to diff")
+        print(f"  no captures and no cap_*.bmp/png goldens — nothing to diff")
         return 0, 0
 
     passed = failed = 0
@@ -669,16 +672,16 @@ def diff_against_golden(scen: Scenario, run_dir: Path, target: str) -> tuple[int
 
     passed = failed = 0
     for fi in scen.capture_frames:
-        name = f"frame_{fi:05d}.bmp"
-        new_p = run_dir / "frames" / name
-        gld_p = golden_dir / name
+        stem = f"frame_{fi:05d}"
+        new_p = frame_io.frame_path(run_dir / "frames", stem)
+        gld_p = frame_io.frame_path(golden_dir, stem)
 
-        if not new_p.exists():
+        if new_p is None:
             print(f"  FAIL frame {fi:05d}: not captured")
             failed += 1
             continue
-        if not gld_p.exists():
-            print(f"  FAIL frame {fi:05d}: missing golden {gld_p}")
+        if gld_p is None:
+            print(f"  FAIL frame {fi:05d}: missing golden {stem}")
             failed += 1
             continue
 
@@ -719,15 +722,15 @@ def bless(scen: Scenario, run_dir: Path, target: str) -> int:
     golden_dir.mkdir(parents=True, exist_ok=True)
 
     if scen.is_segtrace:
-        # Capture-INDEX goldens: the Nth captured frame becomes cap_NN.bmp.
-        # Wipe stale cap_*.bmp first so a run with fewer captures doesn't
-        # leave orphans that the index diff would then flag as missing.
-        for stale in golden_dir.glob("cap_*.bmp"):
+        # Capture-INDEX goldens: the Nth captured frame becomes cap_NN.png.
+        # Wipe stale cap_* (png + legacy bmp) first so a run with fewer captures
+        # doesn't leave orphans that the index diff would then flag as missing.
+        for stale in list(golden_dir.glob("cap_*.bmp")) + list(golden_dir.glob("cap_*.png")):
             stale.unlink()
         run_caps = captured_bmps(run_dir)
         copied = 0
         for i, src in enumerate(run_caps):
-            shutil.copyfile(src, golden_dir / f"cap_{i:02d}.bmp")
+            shutil.copyfile(src, golden_dir / f"cap_{i:02d}{src.suffix}")
             copied += 1
         audio_src = run_dir / "audio.jsonl"
         if audio_src.exists():
@@ -741,12 +744,11 @@ def bless(scen: Scenario, run_dir: Path, target: str) -> int:
 
     copied = 0
     for fi in scen.capture_frames:
-        name = f"frame_{fi:05d}.bmp"
-        src = run_dir / "frames" / name
-        if not src.exists():
-            print(f"  bless: WARNING — captured frame missing: {src}")
+        src = frame_io.frame_path(run_dir / "frames", f"frame_{fi:05d}")
+        if src is None:
+            print(f"  bless: WARNING — captured frame missing: frame_{fi:05d}")
             continue
-        shutil.copyfile(src, golden_dir / name)
+        shutil.copyfile(src, golden_dir / src.name)
         copied += 1
 
     audio_src = run_dir / "audio.jsonl"

@@ -40,6 +40,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 # amplified_diff lives in pixel_diff.py (no hyphen → importable).
 from pixel_diff import amplified_diff
+import frame_io   # png-or-bmp frame discovery
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -99,7 +100,7 @@ def _frame_no(p: Path) -> int:
 def _list_frames(frames_dir: Path) -> list[Path]:
     if not frames_dir.is_dir():
         return []
-    return sorted(frames_dir.glob("frame_*.bmp"), key=_frame_no)
+    return sorted(frame_io.frame_glob(frames_dir), key=_frame_no)
 
 
 def _panel(img: Image.Image, label: str) -> Image.Image:

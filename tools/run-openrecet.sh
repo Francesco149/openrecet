@@ -159,12 +159,23 @@ rewrite_path() {  # $1=kind (dir-out|file-out|file-in)  $2=path  → echoes win 
     esac
     wslpath -w "$path"
 }
+# Unix path of --capture-to, remembered so we can compress its BMP frames →
+# lossless PNG after the run (the exe writes BMP; everything downstream is PIL).
+capture_dir_unix=""
+norm_unix() { local p="$1"; [[ "$p" = /* ]] || p="$ROOT/$p"; echo "$p"; }
+
 args=()
 while (( $# )); do
     case "$1" in
-        --capture-to|--house-preview-dump)
+        --capture-to)
+            capture_dir_unix="$(norm_unix "$2")"
             args+=( "$1" "$(rewrite_path dir-out "$2")" ); shift 2 ;;
-        --capture-to=*|--house-preview-dump=*)
+        --capture-to=*)
+            capture_dir_unix="$(norm_unix "${1#*=}")"
+            args+=( "${1%%=*}" "$(rewrite_path dir-out "${1#*=}")" ); shift ;;
+        --house-preview-dump)
+            args+=( "$1" "$(rewrite_path dir-out "$2")" ); shift 2 ;;
+        --house-preview-dump=*)
             args+=( "${1%%=*}" "$(rewrite_path dir-out "${1#*=}")" ); shift ;;
         --input-trace-record|--anchor-trace-record|--player-pos-log)
             args+=( "$1" "$(rewrite_path file-out "$2")" ); shift 2 ;;
@@ -182,4 +193,12 @@ set -- "${args[@]}"
 
 EXE_WIN="$(wslpath -w "$EXE")"
 cd "$ASSET_CWD"
+
+# When capturing, run (not exec) so we can compress the BMP frames the exe wrote
+# into lossless PNG afterwards (saves ~20× disk; readers handle png-or-bmp).
+if [[ -n "$capture_dir_unix" ]]; then
+    "$SUPERVISOR" "$timeout_ms" "$EXE_WIN" "$@"; rc=$?
+    python3 "$ROOT/tools/frame_io.py" "$capture_dir_unix" >/dev/null 2>&1 || true
+    exit $rc
+fi
 exec "$SUPERVISOR" "$timeout_ms" "$EXE_WIN" "$@"

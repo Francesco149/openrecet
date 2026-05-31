@@ -36,6 +36,9 @@ import sys
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import frame_io   # noqa: E402 — png-or-bmp frame discovery
+
 FEED_PY = Path(os.environ.get("LLM_FEED_PY", "/opt/src/llm-feed/feed.py"))
 FEED_PORT = int(os.environ.get("LLM_FEED_PORT", "8777"))
 MARKER = ".feed_pushed"
@@ -52,9 +55,9 @@ def feed_up() -> bool:
 
 
 def find_frames_dir(run_dir: Path) -> Path:
-    """Prefer <run>/frames if it holds frame BMPs, else <run> itself."""
+    """Prefer <run>/frames if it holds capture frames (png or bmp), else <run>."""
     sub = run_dir / "frames"
-    if sub.is_dir() and any(sub.glob("frame_*.bmp")):
+    if sub.is_dir() and frame_io.frame_glob(sub):
         return sub
     return run_dir
 
@@ -102,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0  # feed down; silent no-op (best-effort)
 
     frames_dir = find_frames_dir(run_dir)
-    frames = sorted(frames_dir.glob("frame_*.bmp"))
+    frames = frame_io.frame_glob(frames_dir)
     if not frames:
         return 0  # nothing capture-like here
 
@@ -121,8 +124,7 @@ def main(argv: list[str] | None = None) -> int:
 
     rc = run_feed(
         "montage",
-        "--frames-dir", str(frames_dir),
-        "--glob", "frame_*.bmp",
+        "--frames", *[str(p) for p in frames],
         "--title", title,
         "--note", note,
     )

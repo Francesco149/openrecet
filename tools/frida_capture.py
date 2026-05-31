@@ -49,6 +49,9 @@ from typing import Any
 
 import frida
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import frame_io   # noqa: E402 — lossless PNG frame writer (vs 3 MB BMPs)
+
 
 ROOT       = Path(__file__).resolve().parent.parent
 AGENT_JS   = ROOT / "tools" / "frida" / "openrecet-agent.js"
@@ -446,11 +449,11 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 f_log.write(f"[frame] frame={frame} BAD payload "
                             f"(w={w} h={h} got={len(data) if data else 0} expect={w*h*4})\n")
                 return
-            bmp_path = frames_dir / f"frame_{frame:05d}.bmp"
-            write_bmp_topdown_bgra(bmp_path, w, h, data)
+            png_path = frames_dir / f"frame_{frame:05d}.png"
+            frame_io.write_frame_png(png_path, w, h, data)
             captured.append(frame)
             last_engine_frame = max(last_engine_frame, frame)
-            f_log.write(f"[frame] {bmp_path.name} {w}x{h}\n")
+            f_log.write(f"[frame] {png_path.name} {w}x{h}\n")
             return
 
         if kind == "bgm_swap":
