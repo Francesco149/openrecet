@@ -772,6 +772,28 @@ def discover_all() -> list[Path]:
                    if p.is_dir() and (p / "scenario.yaml").exists()])
 
 
+def _autopush_comparison(scenario: str) -> None:
+    """Build + push the amplified port|retail diff (`comparison` feed item) for
+    the latest --target both run of `scenario`. Best-effort: silent no-op if the
+    feed is down or PIL/numpy/push_comparison aren't available."""
+    try:
+        import urllib.request
+        try:
+            with urllib.request.urlopen(
+                "http://localhost:8777/healthz", timeout=2
+            ) as r:
+                if r.status != 200:
+                    return
+        except Exception:
+            return
+        subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "push_comparison.py"), scenario],
+            timeout=180, check=False,
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"  comparison auto-push skipped: {e}")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("scenario", nargs="?",
@@ -866,6 +888,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  side-by-side: {sbs.relative_to(ROOT)}")
             else:
                 print(f"  side-by-side: SKIPPED (no frames captured on at least one side)")
+
+            # Auto-push the amplified port|retail diff (the feed `comparison`
+            # type — click-to-reveal pixel diff) to the live feed. This is the
+            # "diff when applicable" auto-push: it only fires for --target both
+            # (a deterministic retail-vs-port pair). Best-effort — needs the
+            # feed up + PIL/numpy; never fail the run over it. See memory
+            # feedback_capture_autopush.
+            _autopush_comparison(scen.name)
 
             # Optional zoomed-text companion. Only fires for scenarios
             # whose YAML carries `zoom_text:` — see Scenario.zoom_text.
