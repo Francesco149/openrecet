@@ -340,6 +340,9 @@ static int32_t s_actor_record[PC_NUM_ACTORS][PC_ACTOR_REC_DWORDS];
 static float s_player_vel[3]    = { 0.0f, 0.0f, 0.0f };
 static float s_player_facing    = 1.57079633f;   /* +π/2, idle facing */
 static int   s_facing_sticky    = 0;
+static int   s_player_moving    = 0;              /* last frame's moving state
+                                                   * (held across opposing-pair
+                                                   * d-pad frames, §69) */
 
 void player_ctrl_pose_house_standing(int player_char)
 {
@@ -354,6 +357,7 @@ void player_ctrl_pose_house_standing(int player_char)
     s_player_vel[0] = s_player_vel[1] = s_player_vel[2] = 0.0f;
     s_player_facing = 1.57079633f;   /* +π/2 (idle facing, oct 6) */
     s_facing_sticky = 0;
+    s_player_moving = 0;
 
     /* actor 0 = the standing player (companion slots 1/2 await the
      * DAT_056da1d0 char ids + DAT_056da1e4.. position port). */
@@ -390,6 +394,18 @@ const int32_t *player_ctrl_actor_record(int i)
     return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_record[i] : NULL;
 }
 
+/* Debug accessor for the per-frame controller state (W4.7 facing analysis):
+ * the post-tick world velocity (daabc/daac4) and the stored facing db05c.
+ * Read by --player-pos-log to reconstruct/compare the impulse heading vs
+ * retail (engine-quirks §69). NULL-safe; any out param may be NULL. */
+void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky)
+{
+    if (vx)     *vx     = s_player_vel[0];
+    if (vz)     *vz     = s_player_vel[2];
+    if (facing) *facing = s_player_facing;
+    if (sticky) *sticky = s_facing_sticky;
+}
+
 /* ── W3 free-roam walk leaves ─────────────────────────────────────────── */
 
 /* input.c d-pad mask bits (input_binding_mask[0..3]). */
@@ -408,6 +424,38 @@ int player_ctrl_dpad_angle(unsigned held_mask, float *out_angle)
     if (out_angle)
         *out_angle = atan2f((float)dx, (float)dz);
     return 1;
+}
+
+/* Decode the held d-pad into a movement intent (facing + moving flag), applying
+ * the engine's OPPOSING-PAIR REJECTION (engine-quirks §69):
+ *
+ *   When LEFT+RIGHT (or UP+DOWN) are both held the frame's d-pad is an invalid
+ *   transient — the engine discards it entirely and REPEATS the previous frame's
+ *   movement: the stored facing db05c is held and the previous moving state
+ *   persists, so the player keeps walking along its current heading rather than
+ *   snapping to the net axis.  Verified against retail at the rel-1822 central-
+ *   table corner: with LEFT+RIGHT+DOWN held for one frame, retail's velocity is
+ *   *byte-identical* to the prior frame (0.14350 @ -45°, the held down-left
+ *   heading), not the atan2(0,+1)=0° straight-down the raw d-pad would give.
+ *
+ * Otherwise (a clean cardinal / valid diagonal / empty d-pad) the facing updates
+ * to atan2(dx,dz) exactly as before, so the W3 cardinal walks + wall slide are
+ * unaffected (they never press an opposing pair).
+ *
+ * *io_facing is updated in place when a valid direction is held; held across
+ * opposing-pair / idle frames.  Returns the moving flag for this frame. */
+int player_ctrl_dpad_intent(unsigned held, float *io_facing, int prev_moving)
+{
+    int both_h = (held & PC_BTN_LEFT) && (held & PC_BTN_RIGHT);
+    int both_v = (held & PC_BTN_UP)   && (held & PC_BTN_DOWN);
+    if (both_h || both_v)
+        return prev_moving;           /* hold facing + previous moving state */
+
+    float angle;
+    int moving = player_ctrl_dpad_angle(held, &angle);
+    if (moving && io_facing)
+        *io_facing = angle;
+    return moving;
 }
 
 int player_ctrl_facing_octant(float angle, float cam_yaw)
@@ -453,13 +501,16 @@ void scene1_player_ctrl_tick(void)
     if (s_actor_char[0] == -1)        /* no live player actor (pre-HOUSE) */
         return;
 
-    float angle;
-    int moving = player_ctrl_dpad_angle(g_input_state[0].buttons, &angle);
+    /* Decode the d-pad → (facing, moving), applying the engine's opposing-pair
+     * rejection: a conflicting L+R / U+D frame holds the stored facing + the
+     * previous moving state instead of snapping to the net axis (§69). */
+    int moving = player_ctrl_dpad_intent(g_input_state[0].buttons,
+                                         &s_player_facing, s_player_moving);
+    s_player_moving = moving;
 
     if (moving) {
-        s_player_facing = angle;
-        s_player_vel[0] += sinf(angle) * PC_WALK_ACCEL;   /* daabc += sin·0.1 */
-        s_player_vel[2] += cosf(angle) * PC_WALK_ACCEL;   /* daac4 += cos·0.1 */
+        s_player_vel[0] += sinf(s_player_facing) * PC_WALK_ACCEL; /* daabc += sin·0.1 */
+        s_player_vel[2] += cosf(s_player_facing) * PC_WALK_ACCEL; /* daac4 += cos·0.1 */
     }
 
     /* clamp |(vx,vz)| ≤ 0.175 (the b850 local_8 velocity cap; reuses the

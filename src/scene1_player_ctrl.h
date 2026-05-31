@@ -341,6 +341,10 @@ float          player_ctrl_actor_scale_xz(int i);
 float          player_ctrl_actor_scale_y(int i);
 const int32_t *player_ctrl_actor_record(int i);
 
+/* Debug accessor: post-tick velocity (vx,vz), stored facing db05c, sticky flag.
+ * Any out param may be NULL. Used by --player-pos-log (engine-quirks §69). */
+void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky);
+
 /*
  * ── W1: the per-frame player-controller tick (FUN_0048670f entry) ─────────
  *
@@ -388,6 +392,14 @@ void scene1_player_ctrl_tick(void);
  * dx = +right/-left, dz = +down/-up).  Returns 1 and writes *out_angle when
  * any direction is held; 0 (leaving *out_angle untouched) when none is. */
 int player_ctrl_dpad_angle(unsigned held_mask, float *out_angle);
+
+/* Decode the held d-pad into a movement intent, applying the engine's
+ * opposing-pair rejection: a conflicting L+R or U+D frame is discarded and the
+ * previous facing (*io_facing) + moving state (prev_moving) persist, so the
+ * player keeps walking its stored heading instead of snapping to the net axis
+ * (engine-quirks §69, verified byte-identical at the rel-1822 table corner).
+ * Otherwise updates *io_facing to atan2(dx,dz).  Returns this frame's moving. */
+int player_ctrl_dpad_intent(unsigned held, float *io_facing, int prev_moving);
 
 /* Engine facing octant from a world facing angle + the scene camera yaw.
  * oct = (int)((angle + cam_yaw + π/8) * 8/(2π) + 8) & 7  (b850 ftol formula;

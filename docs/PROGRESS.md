@@ -7,6 +7,42 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — W4.7 closed: HOUSE table-corner divergence was an opposing-pair d-pad, fixed bit-exact
+
+Closed the last open HOUSE free-roam divergence (engine-quirks §69): holding a
+steer through the central round table's front-left corner, the port left the
+corner while retail slid around it. The standing hypothesis was "port the engine's
+stored `db05c` facing slewed by an 8-way/sticky law" — **disproved**.
+
+Ground-truth-first, **no new retail capture needed**: reconstructed retail's
+per-frame impulse heading from the existing `golden-retail/watch.jsonl` velocities.
+The HOUSE velocity recurrence `V_n = 0.82·clamp₀.₁₇₅(V_{n-1} + 0.1·dir(d_n))` has
+clamp+damp both direction-preserving, so the heading `d_n` is recoverable by
+solving `atan2(V_{n-1}+0.1·dir(d)) = θ(V_n)` per frame
+(`tools/facing_reconstruct.py`, new). Retail's heading equals raw `atan2(dpad)` on
+**every frame but one**:
+
+- The entire divergence is **one frame (rel 1822)**, where the recorded input is
+  `0x0b` = **LEFT+RIGHT+DOWN** — the human held both L and R for a frame while
+  rolling from down-left to down-right. The port's `atan2` cancels L+R → straight
+  DOWN and **snaps** facing; retail's velocity at 1822 is **byte-identical to
+  1821** (`0.14350 @ −45°`) — it discarded the conflicting frame and kept walking
+  the held heading. The visible multi-frame drift downstream is just the momentum
+  accumulator rotating after that single bad frame.
+- **Root cause: opposing-pair rejection.** `db05c` is plain `atan2(dpad)` (written
+  through the player-struct pointer, like the velocity in §61 — no literal write
+  exists to grep), with one correction: when L&R or U&D are both held the engine
+  ignores the frame's d-pad and **repeats the previous facing + moving state**.
+  Dormant for cardinals/valid-diagonals, so the W3 walks + wall slide can't regress.
+
+Fix: `player_ctrl_dpad_intent()` (`scene1_player_ctrl.c`), driven from the tick.
+Port↔retail now **bit-exact** across the whole corner (rel 1805–1851: max |Δθ|
+0.0°, max |Δpos| 0.00000); `house-table-corner` port golden blessed as a permanent
+guard. **3041 host tests pass** (+1). The `--player-pos-log` JSONL now also carries
+`vx/vz/facing/sticky/buttons` for future facing analysis. Remaining post-corner
+`house-walk-tables` drift is the **unported cc08 event-gate** (§60), a separate
+known limitation, not a controller-physics bug.
+
 ## 2026-05-31 — W4.3 closed: wall collision proven physically identical (per-frame)
 
 Validation pass on the W4.3 follow-up ("standoff tuning" — the scenario.yaml +

@@ -795,6 +795,46 @@ int test_player_ctrl_dpad_angle_none_and_diagonal(void)
     return 0;
 }
 
+int test_player_ctrl_dpad_intent_opposing_pair_holds(void)
+{
+    /* §69: an opposing-pair d-pad frame (L+R or U+D both held) is rejected —
+     * the engine HOLDS the stored facing + previous moving state rather than
+     * snapping to the net axis.  Mirrors the rel-1822 table corner: while
+     * walking down-left (−45°), one frame of LEFT+RIGHT+DOWN must keep facing
+     * at −45° and keep moving, NOT turn to straight-DOWN (0°). */
+    float facing = -0.78539816f;   /* −π/4 (down-left), the held heading */
+
+    /* LEFT+RIGHT+DOWN with prev_moving=1 → hold facing, stay moving. */
+    int mv = player_ctrl_dpad_intent(0x0002u | 0x0001u | 0x0008u, &facing, 1);
+    if (!mv) T_FAIL("opposing pair while moving must stay moving");
+    T_ASSERT_NEAR(facing, -0.78539816f);          /* unchanged */
+
+    /* UP+DOWN both held → same hold behaviour. */
+    facing = 1.0f;
+    mv = player_ctrl_dpad_intent(0x0004u | 0x0008u, &facing, 1);
+    if (!mv) T_FAIL("U+D opposing pair while moving must stay moving");
+    T_ASSERT_NEAR(facing, 1.0f);                   /* unchanged */
+
+    /* Opposing pair while previously idle → stays idle (prev_moving=0). */
+    facing = 0.5f;
+    mv = player_ctrl_dpad_intent(0x0002u | 0x0001u, &facing, 0);
+    if (mv) T_FAIL("opposing pair while idle must stay idle");
+    T_ASSERT_NEAR(facing, 0.5f);                   /* unchanged */
+
+    /* A clean direction still updates facing (down-right = +π/4). */
+    facing = -0.78539816f;
+    mv = player_ctrl_dpad_intent(0x0001u | 0x0008u, &facing, 1);
+    if (!mv) T_FAIL("clean diagonal must move");
+    T_ASSERT_NEAR(facing,  0.78539816f);           /* +π/4, updated */
+
+    /* Empty d-pad → not moving, facing untouched. */
+    facing = 0.25f;
+    mv = player_ctrl_dpad_intent(0x0000u, &facing, 1);
+    if (mv) T_FAIL("empty d-pad must not move");
+    T_ASSERT_NEAR(facing, 0.25f);
+    return 0;
+}
+
 int test_player_ctrl_facing_octant_cardinals(void)
 {
     /* HOUSE cam yaw −π: idle +π/2 → 6, LEFT −π/2 → 2, DOWN 0 → 4, UP π → 0. */

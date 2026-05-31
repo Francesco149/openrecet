@@ -2516,9 +2516,45 @@ controller's facing→impulse: the port uses raw `atan2(dpad)` every frame
 facing-direction `_DAT_056db05c`, updated by the cc08 state machine in
 `FUN_0048670f` — which during diagonal transitions changes more slowly/stickily
 (8-way octant + the `DAT_056dae3c` sticky-diagonal bias, cf. `player_ctrl_facing_snap`)
-than raw `atan2`. **Next chip: port the engine's `db05c` facing-direction update
-(the cc08==1 free-roam path) and drive the impulse from it, instead of the raw
-d-pad angle — without regressing the 1820 bit-identical frames or the cardinal
-walks (W3).** Method to reproduce: `tools/scenario-test.py house-table-corner
---target both`; per-frame px/pz/vx/vz via `tools/frida_capture.py … --watch
-vx=0x056daabc:f32 --watch vz=0x056daac4:f32`.
+than raw `atan2`. (The "stored db05c slewed by an 8-way/sticky law" hypothesis
+in this paragraph turned out to be **wrong** — see the resolution below.)
+
+**RESOLVED 2026-05-31 (W4.7) — it's a single-frame OPPOSING-PAIR d-pad, not a
+facing slew.** Reconstructed retail's per-frame impulse heading from the existing
+`golden-retail/watch.jsonl` velocities (no new capture needed): the recurrence is
+`V_n = 0.82·clamp₀.₁₇₅(V_{n-1} + 0.1·(sin d_n, cos d_n))`, and since clamp+damp
+both preserve direction, `d_n` is recoverable by solving
+`atan2(V_{n-1} + 0.1·dir(d_n)) = θ(V_n)` per frame (`tools/facing_reconstruct.py`).
+Result: retail's heading equals raw `atan2(dpad)` on **every** frame **except one**.
+
+- The whole divergence is **rel 1822**, where the recorded input is `0x0b` =
+  **LEFT+RIGHT+DOWN** (the human momentarily held both L and R while rolling the
+  d-pad from down-left `0x0a` to down-right `0x09`). The port's `atan2` cancels
+  L+R → straight DOWN (0°) and **snaps** facing; retail's velocity at 1822 is
+  **byte-identical to 1821** (`0.14350 @ −45°`, the held down-left heading) — it
+  ignored the conflicting frame entirely. The multi-frame *trajectory* drift §69
+  saw downstream is just the momentum accumulator slowly rotating after that one
+  bad frame.
+- So `db05c` is **not** slewed/sticky and is **not** written from `atan2(dpad)`
+  anywhere as a literal (like the velocity in §61, the free-roam facing write is
+  through the player-struct pointer — invisible to a `_DAT_056db05c =` grep). The
+  base law is plain `db05c = atan2(dpad)`; the **only** correction is opposing-pair
+  rejection: **when L&R or U&D are both held, the engine discards the frame's
+  d-pad and repeats the previous facing + previous moving state** (keeps walking
+  the stored heading). Cardinals/valid-diagonals/empty d-pad are unchanged, so the
+  W3 cardinal walks + wall slide can't regress (they never press an opposing pair).
+
+Fix: `player_ctrl_dpad_intent()` in `scene1_player_ctrl.c` (the tick decodes the
+d-pad through it; `player_ctrl_dpad_angle` unchanged). Validation: port↔retail now
+**bit-exact (max |Δθ| 0.0°, max |Δpos| 0.00000) across the whole corner rel
+1805–1851** (`tools/facing_reconstruct.py`; `house-table-corner` port golden
+blessed); 3041 host tests pass (+1: `player_ctrl_dpad_intent_opposing_pair_holds`).
+Method to reproduce: `tools/run-openrecet.sh --input-segtrace
+tests/scenarios/house-table-corner/trace.jsonl --player-pos-log out.jsonl …` (the
+pos-log now carries `vx/vz/facing/sticky/buttons`), then `facing_reconstruct.py`.
+
+**Next gap (separate, already known — §60):** past the corner the
+`house-walk-tables` bench shows retail stop responding to held RIGHT at the front
+strip (stays pinned at spawn) — the **unported cc08 event-gate** (the port's
+controller drives whenever a d-pad is held, ignoring intro/dialogue
+non-controllable states). Not a controller-physics bug.

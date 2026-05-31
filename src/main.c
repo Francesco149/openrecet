@@ -71,6 +71,7 @@
 #include "scene1_preload.h"
 #include "scene1_records.h"
 #include "scene1_render.h"
+#include "scene1_player_ctrl.h"
 #include "scene1_hud.h"
 #include "scene1_shop_walker.h"
 #include "scene1_chr_sprite.h"
@@ -2220,11 +2221,19 @@ static void render_dispatch(void)
     /* Player-pos log: one JSONL row per frame while in the HOUSE/INGAME scene
      * (read after sim has committed this frame's player position). */
     if (g_player_pos_log_fp && g_scene_state == SCENE_STATE_INGAME) {
+        /* W4.7: also dump velocity (daabc/daac4), stored facing (db05c) and the
+         * held d-pad mask, so the facing-slew law can be reconstructed/diffed
+         * against retail (engine-quirks §69). */
+        float vx = 0.0f, vz = 0.0f, facing = 0.0f; int sticky = 0;
+        player_ctrl_debug_state(&vx, &vz, &facing, &sticky);
         fprintf(g_player_pos_log_fp,
-                "{\"frame\":%u,\"px\":%.5f,\"py\":%.5f,\"pz\":%.5f}\n",
+                "{\"frame\":%u,\"px\":%.5f,\"py\":%.5f,\"pz\":%.5f,"
+                "\"vx\":%.6f,\"vz\":%.6f,\"facing\":%.6f,\"sticky\":%d,"
+                "\"buttons\":%u}\n",
                 g_tick.frame_count,
                 g_scene1_player_pos[0], g_scene1_player_pos[1],
-                g_scene1_player_pos[2]);
+                g_scene1_player_pos[2],
+                vx, vz, facing, sticky, g_input_state[0].buttons);
         fflush(g_player_pos_log_fp);
     }
 
