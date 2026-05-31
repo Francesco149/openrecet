@@ -108,6 +108,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--shift-window", type=int, default=3,
                     help="± frames to search for the best anchor-phase alignment "
                          "(distinguishes load jitter from a real gap; default 3)")
+    ap.add_argument("--tol", type=float, default=0.05,
+                    help="per-frame |Δpx|/|Δpz| tolerance for the divergence-onset "
+                         "progression metric (default 0.05)")
     args = ap.parse_args(argv)
 
     port_abs = load_port(args.port)
@@ -206,18 +209,51 @@ def main(argv: list[str] | None = None) -> int:
         mark = "  <- best" if s == best_s else ""
         print(f"   shift {s:+d}: RMS Δpx={d['rms']:.4f}  "
               f"max|Δpx|={abs(d['mx_px']):.4f}  max|Δpz|={abs(d['mx_pz']):.4f}{mark}")
-    if best_s != 0 and best["rms"] < rms0["rms"] - 1e-9:
-        verdict = ("BIT-IDENTICAL" if best["rms"] < 1e-6 else "physically identical")
-        print(f"\n   => {verdict} at shift {best_s:+d} "
-              f"(RMS Δpx={best['rms']:.4f}, max|Δpx|={abs(best['mx_px']):.4f}). "
-              f"The shift-0 residual is a {best_s:+d}-frame anchor-phase offset "
-              f"(load jitter), NOT a collision-accuracy gap.")
-    elif best_s == 0 and best["rms"] < 1e-6:
-        print("\n   => BIT-IDENTICAL at shift 0 — no anchor offset, no gap.")
+    # Divergence onset at the best shift: the FIRST anchor-relative frame where
+    # the (offset-corrected) trajectories part by more than --tol.  This is the
+    # progression metric — the trace tracks retail bit-for-bit up to here, then
+    # an unported behaviour (e.g. the FUN_00483170 curved slide-along-surface)
+    # takes over.  As that path is ported, the onset frame advances.  Auto-
+    # detecting the best integer shift here corrects the benign 1-frame load-
+    # jitter lead so it doesn't masquerade as (or hide) a real divergence.
+    tol = args.tol
+
+    def tracked_prefix(shift):
+        """(frames tracked within tol from the first shared frame, onset_rel)."""
+        keys = sorted(r for r in port if (r + shift) in retail)
+        n = 0
+        for rel in keys:
+            ppx, ppz = port[rel]
+            rpx, rpz = retail[rel + shift]
+            if max(abs(ppx - rpx), abs(ppz - rpz)) > tol:
+                return n, rel, keys
+            n += 1
+        return n, None, keys
+
+    # Pick the shift that MAXIMISES the bit-for-bit prefix (corrects the benign
+    # load-jitter lead) — not the global-RMS-best shift, which a large late
+    # divergence would skew away from the clean early alignment.
+    onset_s = max(range(-args.shift_window, args.shift_window + 1),
+                  key=lambda s: tracked_prefix(s)[0])
+    tracked, onset, keys = tracked_prefix(onset_s)
+    best_s = onset_s            # report the onset against the alignment that found it
+    best = diff_at(best_s)      # RMS over the full overlap at that alignment
+    print(f"\nDIVERGENCE ONSET (best shift {best_s:+d}, tol {tol}):")
+    if onset is None:
+        kind = "BIT-IDENTICAL" if best["rms"] < 1e-6 else "physically identical"
+        off = (f"  (corrected a {best_s:+d}-frame load-jitter lead)"
+               if best_s != 0 else "")
+        print(f"   => {kind}: tracks within tol for ALL {len(keys)} shared "
+              f"frames (best RMS Δpx={best['rms']:.4f}){off}.  No trajectory gap.")
     else:
-        print(f"\n   => Residual persists at every shift (best RMS Δpx="
-              f"{best['rms']:.4f} @ shift {best_s:+d}): a real trajectory "
-              f"divergence, not anchor jitter.")
+        print(f"   => tracks bit-for-bit from rel {keys[0]} through rel "
+              f"{onset - 1} ({tracked} frames), then DIVERGES at rel {onset} "
+              f"(port {tuple(round(v,3) for v in port[onset])} vs retail "
+              f"{tuple(round(v,3) for v in retail[onset + best_s])}).")
+        print(f"      best-shift RMS Δpx={best['rms']:.4f} — a REAL trajectory "
+              f"divergence past rel {onset} (an unported behaviour), NOT anchor "
+              f"jitter.  PROGRESSION METRIC: {tracked} frames tracked (raise it "
+              f"by porting the divergent path).")
     return 0
 
 

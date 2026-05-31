@@ -1,0 +1,29 @@
+# house-walk-tables — W4 table-collision regression bench (user-recorded).
+#
+# Distilled from a live F2/F3 recording (openrecet-trace-21348-0.raw.jsonl):
+# the player slides against all three HOUSE display tables with diagonal
+# movement, with 19 F3 capture points along the path. Built with
+# tools/distill_trace.py --house-segtrace, so it replays from boot on both the
+# port and retail (new-game→HOUSE intro + 2× HOUSE_FREEROAM anchor, recording
+# rebased to anchor+1565). See memory feedback_user_recorded_traces.
+#
+# Purpose: regression guard for the multi-object furniture collision
+# (engine-quirks §67/§68) — incl. the left table's π/2 placement rotation — as
+# we move onto the full retail-faithful scene-loading path. Validate per-frame
+# px/pz against retail:
+#   port:   tools/run-openrecet.sh --input-segtrace .../trace.jsonl \
+#             --player-pos-log runs/tables-port/pos.jsonl --max-frames 4000
+#   retail: tools/frida_capture.py --input-segtrace .../trace.jsonl \
+#             --watch px=0x056da1d8:f32 --watch pz=0x056da1e0:f32 \
+#             --run-dir runs/tables-retail --remote cutestation.soy:27042 \
+#             --hide-window --turbo --silent-audio --max-frames 7000
+#   diff:   tools/wall_collide_diff.py --port ... --retail ...
+# or one-shot visual: tools/scenario-test.py house-walk-tables --target both.
+
+description: |
+  New game → HOUSE → slide against all three display tables (diagonal movement),
+  19 capture points along the path. User-recorded (F2/F3) + distilled. Regression
+  bench for the multi-object furniture collision vs retail.
+
+max_frames: 16000
+duration_ceiling_ms: 180000
