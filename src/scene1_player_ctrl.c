@@ -14,6 +14,7 @@
 #include "input.h"               /* g_input_state[].buttons (held d-pad mask) */
 #include "collision_house.h"     /* collision_house_get — live room mesh */
 #include "collision_resolve.h"   /* collision_resolve_player (FUN_00483170) */
+#include "stage_palette.h"       /* g_stage_palette->mode (*DAT_068dd2f0) */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -488,7 +489,10 @@ void scene1_player_ctrl_tick(void)
     {
         const collision_mesh *cm = collision_house_get();
         if (cm) {
-            collision_resolve_player(cm, g_scene1_player_pos, s_player_vel);
+            /* palette mode 0 = HOUSE (*DAT_068dd2f0); gates the 20-ray push. */
+            int palette_mode = g_stage_palette ? g_stage_palette->mode : 0;
+            collision_resolve_player(cm, g_scene1_player_pos, s_player_vel,
+                                     palette_mode);
         } else {
             g_scene1_player_pos[0] += s_player_vel[0];
             g_scene1_player_pos[2] += s_player_vel[2];

@@ -129,10 +129,13 @@ int test_resolve_room_wall_blocks(void)
     float pos[3] = { 1.0f, 0.0f, 5.0f };
     for (int i = 0; i < 60; i++) {
         float vel[3] = { 0.175f, 0.0f, 0.0f };
-        collision_resolve_player(&m, pos, vel);
+        collision_resolve_player(&m, pos, vel, /*palette_mode=*/0);  /* HOUSE: 20 rays */
     }
-    fprintf(stderr, "  [room wall RIGHT] px=%.3f (retail ~2.29)\n", (double)pos[0]);
-    T_ASSERT(pos[0] > 1.5f && pos[0] < 3.5f);    /* pinned near the wall */
+    fprintf(stderr, "  [room wall RIGHT] px=%.4f (retail 3.102, 1:1)\n", (double)pos[0]);
+    /* Penetration-scaled radial push (FUN_00483170): the player settles AGAINST
+     * the wall at px≈3.102 (retail pin for this approach — runs/wall-retail),
+     * not bouncing off.  Tight window around the retail value. */
+    T_ASSERT(pos[0] > 3.08f && pos[0] < 3.13f);
 
     collision_object_free(&obj);
     return 0;

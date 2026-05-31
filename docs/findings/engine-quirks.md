@@ -2359,10 +2359,28 @@ calls it) revealed which resolver model actually fits HOUSE:
   which is not yet ported. The full engine resolver runs the try-move (walls) AND
   the radial push (furniture) together; for the room-only case the radial push
   alone is the faithful subset.
-- **Accuracy gap (open):** the radial push's fixed ~1-unit standoff pins the
-  player ~0.6 short of the wall — px≈1.55 vs retail 2.15 at the counter row. The
-  right wall is a **contour, not a plane**: retail pins px 2.15@pz9.23,
-  2.29@pz4.51, 3.10@pz−0.65 (room widens toward the front). Tuning the standoff
-  (push by penetration depth / raycast fraction, not a full ray vector;
-  non-cumulative across rays) against retail is the W4.3 follow-up — measured by
-  `tools/wall_collide_diff.py` over `tests/scenarios/house-wall-collide`.
+- **RESOLVED to 1:1 (2026-05-31) — two Ghidra-dropped details, both confirmed
+  against retail (`runs/wall-retail` Frida probe):**
+  1. **20 rays, not 8.** The ray count is `8`, or **`20` when `*DAT_068dd2f0`
+     (stage-palette mode) == 0 AND pz > 0.7` (asm 0x4837xx)** — i.e. HOUSE at the
+     back of the room. The extra 12 rays sample the wall/counter at stacked
+     heights (`(i/8+1)·0.08 + py+0.1`) and use a 1.03 (not 1.05) cos scale. The
+     retail call graph confirms it: `FUN_00433674` is called **exactly 20×** per
+     `FUN_00483170` per frame at the counter row.
+  2. **The push is penetration-scaled, `(1 − frac)·dir`, not the full `dir`.**
+     Ghidra rendered the push as `px -= sin · 1.0`; the asm at **0x483bc3** is
+     `fld1; fsubs frac; … fmuls dir; fsubrs px` → `px -= (1 − frac)·dir_x`,
+     `pz -= (1 − frac)·dir_z` where `frac` is the raycast hit fraction. This is
+     the whole game: a full-vector push makes the player **bounce ~1 unit off the
+     wall every frame** (oscillates 2.2↔3.1); the penetration-scaled push lands
+     the player **exactly against the wall** — Δpx per frame cancels the into-wall
+     velocity to the digit (retail: px=3.1019 dead constant, vx=0.1435, while the
+     push's z-component slides the player along at −0.042/frame).
+  With both fixed the port reproduces retail's trajectory frame-for-frame: holding
+  RIGHT from the back-right corner the player **slides −z down the wall** at a
+  constant px=3.1019, settling at (3.103, 0.684) — bit-identical px to retail, pz
+  within one slide-frame (an intro-onset phase offset, not physics). Validated by
+  `tools/wall_collide_diff.py` + the `house-wall-collide --target both` amplified
+  comparison. (The earlier "contour 2.15/2.29/3.10" reading was an artifact of a
+  different approach trajectory; for the straight-RIGHT approach the wall section
+  is a constant px=3.1019.)

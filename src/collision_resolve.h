@@ -34,10 +34,13 @@ int collision_raycast(const collision_mesh *m,
 
 /*
  * Resolve one player-physics frame in place: integrate `vel` into `pos`, apply
- * the 8-ray radial push (FUN_00483170 L207-247), and snap Y to the floor.
- * `pos`/`vel` are world-space (x,y,z).  The mesh is the loaded HOUSE collision.
+ * the radial push (FUN_00483170 L84404-84445), and snap Y to the floor.
+ * `pos`/`vel` are world-space (x,y,z).  `palette_mode` is the stage-palette
+ * mode (`*DAT_068dd2f0`; 0 = HOUSE) — it selects 20 rays at stacked heights +
+ * the 1.03 cos scale when the player is past pz=0.7, vs the plain 8-ray push.
  */
-void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3]);
+void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3],
+                              int palette_mode);
 
 /*
  * Faithful HOUSE wall resolve: the engine's try-move probe (FUN_004830f1 →

@@ -82,21 +82,38 @@ int collision_raycast(const collision_mesh *m,
     return 1;
 }
 
-void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3])
+void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3],
+                              int palette_mode)
 {
     /* Integrate the planar velocity (FUN_00483170 L203-204). */
     pos[0] += vel[0];
     pos[2] += vel[2];
 
-    /* Radial push: 8 horizontal rays around the player at head height
-     * (FUN_00483170 L207-247).  *DAT_068dd2f0 != 0 in HOUSE so the count stays
-     * 8 and the cos scale stays ×1.05. */
-    const int nray = 8;
+    /* Radial push (FUN_00483170 L84404-84445).  Ray count is 8, but **20** when
+     * the stage is HOUSE-class (`*DAT_068dd2f0` == stage-palette mode 0) AND the
+     * player is past pz=0.7 — the extra 12 rays sample the wall/counter at
+     * stacked heights so the back of the room is sealed.  Confirmed against
+     * retail: the resolver calls the raycast exactly 20×/frame at the HOUSE
+     * counter row (runs/wall-retail call-trace).  `pos[2]` is read post-integrate
+     * each call, so the count drops back to 8 once the player slides to pz≤0.7. */
+    int nray = 8;
+    if (palette_mode == 0 && pos[2] > 0.7f) nray = 20;
+
     for (int i = 0; i < nray; i++) {
+        /* Ray height (L84413-84416): base rays 0..7 at py+0.7; the stacked rays
+         * 8..19 climb in 0.08 steps from py+0.1, so the lower wall/counter faces
+         * are sampled too. */
+        float ry = pos[1] + 0.7f;
+        if (i > 7) ry = (float)(i / 8 + 1) * 0.08f + pos[1] + 0.1f;
+
         float ang = (float)i * (2.0f * CR_PI / (float)nray) + CR_PI;
         float dx = sinf(ang);
         float dz = cosf(ang) * 1.05f;
-        float rp[3] = { pos[0], pos[1] + 0.7f, pos[2] };
+        /* HOUSE-class (mode 0): forward-ish rays (cos·1.05 > 0.1) use the tighter
+         * 1.03 scale instead of 1.05 (L84422-84425). */
+        if (palette_mode == 0 && dz > 0.1f) dz = cosf(ang) * 1.03f;
+
+        float rp[3] = { pos[0], ry, pos[2] };
         float rd[3] = { dx, 0.0f, dz };
         float frac, nrm[3];
         int type;
@@ -105,7 +122,17 @@ void collision_resolve_player(const collision_mesh *m, float pos[3], float vel[3
         int push = 0;
         if (type == 1 || type == 2 || type == 7) push = 1;        /* wall types */
         else if (type == 0 && fabsf(nrm[1]) < 0.75f) push = 1;    /* vertical type-0 */
-        if (push) { pos[0] -= dx; pos[2] -= dz; }
+        if (push) {
+            /* Push out by the PENETRATION depth (1 − frac), not the full ray
+             * (FUN_00483170 asm 0x483bc3: `fld1; fsubs frac` → the Ghidra decomp
+             * dropped this factor and showed a bare `* 1.0`).  Scaling by the
+             * unpenetrated remainder is what makes the player settle *against*
+             * the wall (Δpx exactly cancels the into-wall velocity) instead of
+             * bouncing off by a full unit.  Verified 1:1 vs retail. */
+            float s = 1.0f - frac;
+            pos[0] -= s * dx;
+            pos[2] -= s * dz;
+        }
     }
 
     /* Ground snap (flat HOUSE floor): set Y to the floor under the player. */

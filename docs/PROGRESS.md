@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — W4.3 1:1: HOUSE wall collision bit-exact vs retail
+
+Took the room-wall collision from "blocks but ~0.6 short" to **1:1 with retail**,
+ground-truth-first (retail Frida call-graph + watch, not eyeballing). Two
+Ghidra-dropped details in `FUN_00483170`'s radial push, both confirmed against
+`runs/wall-retail` (engine-quirks §66):
+
+- **20 rays, not 8.** Ray count is 8, or **20 when `*DAT_068dd2f0` (stage-palette
+  mode) == 0 AND pz > 0.7** — HOUSE at the back of the room. Extra 12 rays at
+  stacked heights + a 1.03 cos scale. Confirmed by the retail call graph:
+  `FUN_00433674` fires **exactly 20×/frame** per resolver call (call-trace probe
+  over `traces/house_wall_probe.jsonl`).
+- **Penetration-scaled push.** Ghidra showed `px -= sin·1.0`; the asm at 0x483bc3
+  is `px -= (1 − frac)·dir` (frac = raycast hit fraction). A full-vector push
+  bounces the player ~1 unit off the wall every frame (oscillates 2.2↔3.1); the
+  `(1−frac)` push lands it **exactly against the wall** — Δpx cancels the
+  into-wall velocity to the digit. Found by disassembling the push site after the
+  decompile + a per-ray host probe (`tests/probe_wall_rays.c`).
+
+Result: holding RIGHT from the back-right corner the player slides −z down the
+wall at a constant **px=3.1019** (retail: 3.1019 dead constant), settling at
+(3.103, 0.684) — bit-identical px frame-for-frame, pz within one slide-frame
+(intro-onset phase). `collision_resolve_player` now takes the palette mode;
+3040 host tests pass. Validated via `tools/wall_collide_diff.py` + the
+`house-wall-collide --target both` amplified port|retail comparison (user
+confirmed the only visible diff is the Tear companion sprite layered over
+Recette — unrelated to collision). Scenario runs now default to `--turbo
+--silent-audio`.
+
 ## 2026-05-31 — W4.3 LIVE: room collision wired into the player walk (walls block)
 
 Fixed the reported bug — **holding RIGHT walked the player straight through the
