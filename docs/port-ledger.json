@@ -5,8 +5,8 @@
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
   "verified": 63,
-  "stubbed": 14,
-  "ported": 302,
+  "stubbed": 15,
+  "ported": 301,
   "unported": 2169,
   "orphan_refs_not_in_function_table": 6,
   "touched": 379,
@@ -8168,14 +8168,9 @@
    "size": 5030,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "stubbed",
    "src": [
-    "src/main.c",
-    "src/scene1_chr_walker.c",
-    "src/scene1_chr_walker.h",
-    "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h",
-    "src/scene1_shop_walker.c"
+    "src/scene1_player_ctrl.c"
    ]
   },
   {

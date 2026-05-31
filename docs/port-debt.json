@@ -51,7 +51,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "hand-rolled free-roam controller; the",
    "file": "src/scene1_player_ctrl.c",
-   "line": 522,
+   "line": 587,
    "kind_known": true
   },
   {

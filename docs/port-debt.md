@@ -51,7 +51,7 @@ the answer to *"what's still faked in code that looks done?"*
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_0048670f | src/scene1_player_ctrl.c:522 | hand-rolled free-roam controller; the |
+| FUN_0048670f | src/scene1_player_ctrl.c:587 | hand-rolled free-roam controller; the |
 
 ## hardcode (1)
 

@@ -503,6 +503,71 @@ void player_ctrl_house_room_clamp(float *px, float *pz)
         *px = -1.5f;
 }
 
+/* ── FUN_0048b850 (Cpop) free-roam body ────────────────────────────────────
+ *
+ * The movement/effects sub-controller that FUN_0048670f's cc08==1 arm calls
+ * each frame (engine-quirks §75).  Ported here = the free-roam-ACTIVE position
+ * physics: velocity clamp (|v|≤0.175), facing octant dab00 + sticky-snap, the
+ * integrate-and-collide call (FUN_00483170), and the damp.
+ *
+ * NOT here, deliberately (each ports in its own engine site / chip):
+ *   - the walk IMPULSE (daabc/daac4 += sin/cos(db05c)·0.1) — that's
+ *     FUN_0048670f's cc08==1 controllable code (step 1), written through
+ *     *(player+0x904) so it never shows as a DAT_056daabc= literal (§61);
+ *     it stays in scene1_player_ctrl_tick below until the cc08 dispatch lands.
+ *   - the room-bounds clamp (FUN_00486435) — the FUN_0048670f tail.
+ *   - the render-slot population + after-image/particle effects (Chip 2).
+ *
+ * The engine's dash / da1bc stun-hop / db048-cutscene speed branches all gate
+ * OFF in HOUSE free-roam (da1bc==0, *DAT_068dd2f0==0), so the cap tree collapses
+ * to 0.175 and the damp tree to 0.82 — the values W3 validated (§61). */
+static void player_ctrl_b850_move(void)
+{
+    /* _STUB: body is the free-roam position-physics subset only; the render-slot
+     * populator + after-image/particle effects are Chip 2, so a call-trace diff
+     * should still surface this row as ≠ until those land (cf. mark-stubbed-ports). */
+    CALL_TRACE_ENTER_STUB(0x48b850u);
+
+    /* step 2: clamp |(vx,vz)| ≤ 0.175 (b850 local_8 cap @ all.c L90010; reuses
+     * the camera_shake_clamp leaf — the "shake" naming is the W1 misnomer). */
+    player_ctrl_camera_shake_clamp(&s_player_vel[0], &s_player_vel[2],
+                                   PC_WALK_SPEED_CAP);
+
+    /* step 3: facing octant dab00 from the (world) facing + HOUSE camera yaw,
+     * then the diagonal sticky-snap (identity for cardinals).  dab00 IS the
+     * actor record FACING field (daae8[0]+0x18), read by the draw side + the
+     * companion (§71/§73), so write it here. */
+    int oct = player_ctrl_facing_octant(s_player_facing, PC_HOUSE_CAM_YAW);
+    oct = player_ctrl_facing_snap(oct, &s_facing_sticky);
+    s_actor_record[0][CHR_ACTOR_FACING] = oct;
+
+    /* step 4: integrate + collide (FUN_00483170).  When the room collision mesh
+     * is built (live HOUSE via collision_house_build), run the mesh resolver: it
+     * integrates (px+=vx, pz+=vz), pushes the player out of any wall/counter
+     * face with the radial probe, snaps Y to the floor (collision_resolve_player).
+     * The radial push is the right model here because the counter has a
+     * walkable-looking TOP triangle: a pure floor-edge try-move would let the
+     * player climb onto it (the step-height gate isn't ported).  Furniture-on-
+     * floor round-table collision is deferred with its placement chip (§65).
+     * The no-mesh fallback (pre-HOUSE) just integrates. */
+    const collision_mesh *cm = collision_house_get();
+    if (cm) {
+        /* palette mode 0 = HOUSE (*DAT_068dd2f0); gates the 20-ray push. */
+        int palette_mode = g_stage_palette ? g_stage_palette->mode : 0;
+        collision_resolve_player(cm, g_scene1_player_pos, s_player_vel,
+                                 palette_mode);
+    } else {
+        g_scene1_player_pos[0] += s_player_vel[0];
+        g_scene1_player_pos[2] += s_player_vel[2];
+    }
+
+    /* step 6: damp.  The engine's damp tree (all.c L90161-90198) collapses to
+     * ×0.82 in HOUSE free-roam (grounded da1dc==daf88, db048==0, no dash); runs
+     * every frame so velocity decays to 0 after the d-pad is released. */
+    s_player_vel[0] *= PC_WALK_DAMP;
+    s_player_vel[2] *= PC_WALK_DAMP;
+}
+
 /* ── W3: per-frame player-controller tick (engine FUN_0048670f driver) ─────
  *
  * Wired into the live HOUSE frame (scene1_ingame_default_arm_tick, before
@@ -539,75 +604,36 @@ void scene1_player_ctrl_tick(void)
                                          &s_player_facing, s_player_moving);
     s_player_moving = moving;
 
+    /* step 1: walk impulse.  daabc/daac4 += sin/cos(db05c)·0.1 — FUN_0048670f's
+     * cc08==1 controllable code, written through *(player+0x904) so it never
+     * shows as a DAT_056daabc= literal (§61).  Stays in the controller; the
+     * clamp/octant/integrate/damp are FUN_0048b850 (player_ctrl_b850_move). */
     if (moving) {
         s_player_vel[0] += sinf(s_player_facing) * PC_WALK_ACCEL; /* daabc += sin·0.1 */
         s_player_vel[2] += cosf(s_player_facing) * PC_WALK_ACCEL; /* daac4 += cos·0.1 */
     }
 
-    /* clamp |(vx,vz)| ≤ 0.175 (the b850 local_8 velocity cap; reuses the
-     * camera_shake_clamp leaf — that "shake" naming is the W1 misnomer). */
-    player_ctrl_camera_shake_clamp(&s_player_vel[0], &s_player_vel[2],
-                                   PC_WALK_SPEED_CAP);
+    /* FUN_0048b850 free-roam body: clamp → octant(→FACING) → integrate+collide
+     * → damp (engine-quirks §75). */
+    player_ctrl_b850_move();
 
-    /* facing octant from the (world) facing angle + HOUSE camera yaw, then the
-     * diagonal sticky-snap leaf (identity for cardinals). */
-    int oct = player_ctrl_facing_octant(s_player_facing, PC_HOUSE_CAM_YAW);
-    oct = player_ctrl_facing_snap(oct, &s_facing_sticky);
+    /* Room-bounds clamp (FUN_00486435), which the engine runs UNCONDITIONALLY at
+     * the TAIL of FUN_0048670f (L1640 LAB_004893ff) — AFTER FUN_0048b850's mesh
+     * collision.  The mesh resolver gives the right wall (px 3.10) + counter
+     * (pz 8.94); this clamp gives the front (pz≤9.5) + left (px≥-1.5 when pz>7)
+     * HOUSE bounds, which aren't in the room mesh or any placed object (§67) —
+     * together they reproduce retail's box px[-1.5,3.1] pz[8.94,9.5].  This clamp
+     * touches position and b850's damp touches velocity, so the engine's split
+     * (damp inside b850, clamp here) is order-independent (§75). */
+    player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
+                                 &g_scene1_player_pos[2]);
 
-    /* Integrate + collide.  When the room collision mesh is built (live HOUSE
-     * via collision_house_build), run the mesh resolver: it integrates
-     * (px += vx, pz += vz), pushes the player out of any wall/counter face with
-     * the 8-ray radial probe, and snaps Y to the floor (collision_resolve_player,
-     * FUN_00483170).  This blocks the room walls + counter — replacing the crude
-     * 2-line bounds clamp that left the right wall (and all of pz<7 on the left)
-     * wide open.  The radial push is the right model here because the counter
-     * has a walkable-looking TOP triangle: a pure floor-edge try-move
-     * (collision_resolve_player_floor) would let the player climb onto it (the
-     * engine's ground query gates step-height; that gate isn't ported yet).
-     * Known gap: the radial push's standoff stops the player ~0.6 short of the
-     * wall (px≈1.55 vs retail 2.15 at the counter row) — see PROGRESS / §65.
-     * Furniture-on-floor (round table) collision is deferred with its placement
-     * chip (§65).  The clamp stays as a fallback for the no-mesh case. */
-    {
-        const collision_mesh *cm = collision_house_get();
-        if (cm) {
-            /* palette mode 0 = HOUSE (*DAT_068dd2f0); gates the 20-ray push. */
-            int palette_mode = g_stage_palette ? g_stage_palette->mode : 0;
-            collision_resolve_player(cm, g_scene1_player_pos, s_player_vel,
-                                     palette_mode);
-        } else {
-            g_scene1_player_pos[0] += s_player_vel[0];
-            g_scene1_player_pos[2] += s_player_vel[2];
-        }
-
-        /* Hardcoded room-bounds clamp (FUN_00486435), which the engine runs
-         * UNCONDITIONALLY at the tail of the player controller FUN_0048670f
-         * (L1640 LAB_004893ff) — i.e. AFTER the mesh collision (FUN_00483170,
-         * called from FUN_0048b850).  The mesh resolver gives the right wall
-         * (px 3.10) + counter (pz 8.94); this clamp gives the front (pz≤9.5) +
-         * left (px≥-1.5 when pz>7) HOUSE bounds, which are NOT in the room mesh
-         * or any placed object (the floor extends past them; the captured
-         * collision objects all sit at the back — engine-quirks §67).  Together
-         * they reproduce retail's box px[-1.5,3.1] pz[8.94,9.5].  The clamp only
-         * touches pz>9.5 / px<-1.5, so it leaves the mesh-driven right/up pins
-         * untouched.  (Runs in both branches; it was the W3 no-mesh fallback,
-         * but the engine applies it with the mesh too.) */
-        player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
-                                     &g_scene1_player_pos[2]);
-    }
-
-    /* damp (grounded-steady 0.82) — runs every frame, so velocity decays to 0
-     * after the d-pad is released (validated by the release tail). */
-    s_player_vel[0] *= PC_WALK_DAMP;
-    s_player_vel[2] *= PC_WALK_DAMP;
-
-    /* actor record: anim id (0 idle / 1 walk = daae8) + facing octant (dab00).
-     * On an idle↔walk transition, restart the new animation at frame 0;
-     * otherwise let it continue so the idle's breathing loop keeps the phase
-     * it was seeded with.  chr_anim_tick advances the cycle EVERY frame —
-     * retail's idle animates too (a 4-frame breathing loop, ~10 ticks/frame;
-     * validated runs/w3b-anim-watch), not just the walk. */
-    s_actor_record[0][CHR_ACTOR_FACING] = oct;
+    /* actor record: anim id (0 idle / 1 walk = daae8).  The facing octant (dab00)
+     * was set by player_ctrl_b850_move above.  On an idle↔walk transition, restart
+     * the new animation at frame 0; otherwise let it continue so the idle's
+     * breathing loop keeps the phase it was seeded with.  chr_anim_tick advances
+     * the cycle EVERY frame — retail's idle animates too (a 4-frame breathing
+     * loop, ~10 ticks/frame; validated runs/w3b-anim-watch), not just the walk. */
 
     int target_anim = moving ? 1 : 0;
     if (s_actor_record[0][CHR_ACTOR_ANIM] != target_anim) {

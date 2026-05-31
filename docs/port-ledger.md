@@ -10,7 +10,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **379** (14.9%) — verified 63, stubbed 14, ported 302
+- touched: **379** (14.9%) — verified 63, stubbed 15, ported 301
 - unported: **2169**
 - orphan refs (in src/, not in function table): 6
 
@@ -82,7 +82,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49b425 | FUN_0049b425 | 207 | ✓ | render_quad.c |
 | 0x49de18 | FUN_0049de18 | 8 | ✓ | scene_new_game.c |
 
-## stubbed (14) — wired, body incomplete
+## stubbed (15) — wired, body incomplete
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -97,11 +97,12 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x454191 | FUN_00454191 | 1391 | ✓ | scene1_fx_overlays.c |
 | 0x459dfd | FUN_00459dfd | 1906 | ✓ | scene1_render.c |
 | 0x485712 | FUN_00485712 | 317 | ✓ | stage_post_load.c |
+| 0x48b850 | FUN_0048b850 | 5030 | ✓ | scene1_player_ctrl.c |
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (302) — reimplemented, no probe yet
+## ported (301) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -337,7 +338,6 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x48a833 | FUN_0048a833 | 3011 | ✓ | scene1_companion_ctrl.c, scene1_companion_ctrl.h, scene1_particles_tick.h (+2) |
 | 0x48b3f6 | FUN_0048b3f6 | 663 | ✓ | scene1_player_ctrl.h, scene1_sim.c |
 | 0x48b6ad | FUN_0048b6ad | 407 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h |
-| 0x48b850 | FUN_0048b850 | 5030 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h (+3) |
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
 | 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h |
 | 0x4901c2 | FUN_004901c2 | 151 | ✓ | main.c, save_bank.c, save_bank.h (+1) |
