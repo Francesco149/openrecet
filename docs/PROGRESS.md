@@ -7,6 +7,46 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — W4.1+W4.2: HOUSE collision mesh ingestion + ground query ported
+
+Built the faithful foundation of the W4 collision subsystem (the geometry +
+query halves; the slide-resolver W4.3 is next). Ground-truth-first throughout.
+
+- **W4.1 — collision mesh ingestion (`047d1bc`).** `src/collision_mesh.{c,h}`
+  builds the per-object triangle collision mesh the engine queries. Key RE
+  (engine-quirks §63): collision geometry is parsed from the **render `.x`**
+  (no `_s.x` ships for HOUSE; `FUN_00472836` falls back to the base file), each
+  face's collision **type comes from its referenced material name**
+  (`FUN_00471d45` keyword chain, decoded from the unpacked exe: `Plane`→2,
+  `kabe`→7, `nohit`→4-and-dropped, … the shop is all type 0/4). The vertex pool
+  is ×0.2-scaled; the per-triangle record (`FUN_00432ac6`: plane eq, padded
+  AABB, edges) **negates X** into the player/world coordinate space. We reuse
+  the oracle-validated `xfile` parser and replicate only the transform/scale/
+  classify/build — the 2777-byte `.x` text state machine is not re-ported.
+  Self-validation: building the real `shop_1st.x` yields 1909 triangles spanning
+  world `z[−40.4,10.6]` with the counter/back-wall edge at z≈10.6 (matches
+  retail §62) and floor at y≈0.
+- **W4.2 — ground query (`19bea6c`).** `src/collision_query.{c,h}` ports
+  `FUN_00432e50`: for a world point, find the highest floor triangle under it
+  (above-plane gate + XZ point-in-triangle + ground-height solve, within 5u
+  below), returning height + surface normal. Type exclusion {7,8..16}; worldmap
+  grid/tiling + dynamic props skipped (HOUSE-gated off). Key model
+  (engine-quirks §64): **HOUSE walls are implicit** — the floor mesh ends at
+  them, so an off-floor probe is the block signal; there are no participating
+  vertical wall triangles. Vendor self-check: query the real shop floor at the
+  room origin → `hit, height=0.000, normal=(0,1,0)`; off-room → miss.
+- **Tests:** 16 new host tests (exact synthetic plane/AABB/query math + vendor
+  self-consistency on `shop_1st.x`). 3035 pass; both exes build clean.
+- **W4.3 (next) is the slide-resolver `FUN_00483170`.** Replaying the captured
+  `runs/w4-table3` drive pins the retail ground truth: right-wall slide pins
+  `px=2.2935` (X blocked, Z free), round-table head-on freezes `px=0.7286,
+  pz=0.1067` while vx keeps pushing. Re-reading the resolver against this:
+  HOUSE has no type-1/2 triangles so the atan2 wall-slide loop never fires —
+  blocking is **try-move probe** (off-floor) + **radial furniture push**
+  (`FUN_00433674`, the round-table stop). W4.3 must port both (player/actor-0
+  slice only; enemy + companion loops stubbed) and resolve the Ghidra-dropped
+  `FUN_004830f1` args, validated by replaying the w4 traces to match px/pz.
+
 ## 2026-05-31 — W4 scoping: HOUSE collision is a full mesh subsystem + `{wait_until}` TAS op
 
 Scoped W4 (collision + companion) ground-truth-first before committing to a
