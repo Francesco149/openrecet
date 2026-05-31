@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — un-MVP Step 3.4: retire the hardcoded HOUSE furniture table → live placement
+
+Landed plan Step 3.4 (`plans/un-mvp-structural-parity.md`): `collision_house.c`
+no longer hardcodes the 5 new-game-tier-0 furniture objects. `collision_house_build`
+now iterates the **live ported placement** (`g_scene1_walker_phase1/phase2_pos_*`,
+counts, mesh indices) that `scene1_postload_walker_phase2_init` already writes
+from the real save-record furniture template — so the collision object set is
+sourced from the same data the render path uses, with no duplicated table.
+
+- **The key finding (engine-quirks §74):** the per-object collision origin arrays
+  (`DAT_0438c058/0a8/0f8`, rot `DAT_0438c008`) are **the same memory** as the
+  render walker's placement columns (`DAT_0438c06c/0bc/10c`, rot `DAT_0438c01c`),
+  offset by exactly 5 dwords — the phase-1/phase-2 slot split. One engine write,
+  two aliased readers. So "the origins equal the render placement" (§67) is
+  literal, and porting the render placement *is* porting the furniture writer.
+- **Mapping:** phase-1 mesh_index → stage `map[]` path (same source as
+  `scene_map_meshes`); phase-2 mesh_type → `scene1_walker_draw_b_mesh_index` →
+  `scene_table_filename` (`xfile/table/shop_table0N.x`).
+- **Validation:** built objects are byte-identical to the old literals for HOUSE
+  tier 0 (room@0, carpet@−2,0,−1, table01@−2,0,0, table02@−4,0,−8, table02@
+  −10,0,−2 rot π/2 — confirmed live in a `house-movement` drive), so wall
+  collision stays bit-exact (§66); 3048 host tests pass; both PE binaries build
+  clean. Now generalises past tier 0 (any tier/scene_type the writer handles).
+- **Debt:** retires `PORT-DEBT(synthetic-data, FUN_0044c88f)` (7→6); the
+  attribution to `FUN_0044c88f` was wrong (it writes *actor* spawn positions
+  `DAT_056da1dc`, not furniture origins — cf. the `FUN_0044376a` misattribution).
+  The `scene1_postload.c` `FUN_00436f97` debt comment is corrected to note block-21
+  (the placement writer) is ported + now consumed by collision.
+
 ## 2026-05-31 — un-MVP Step 1: PORT-DEBT registry (make the hidden debt visible)
 
 Landed Step 1 of `plans/un-mvp-structural-parity.md`: the *other* kind of debt

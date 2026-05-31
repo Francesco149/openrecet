@@ -2780,3 +2780,45 @@ drawable 0x92 slot and returns **before any device-state write** when there is
 none (a live-wired MVP must be a true no-op when it has nothing to draw). The
 real fix is the full `FUN_004176ff`/`FUN_004161c7` render with complete state
 management. `house-table-corner` back to 9/9 with the emit live.
+
+## 74. HOUSE collision-object origins are the render placement arrays, offset-aliased by the 5-slot phase split — not a separate table
+
+W4 furniture-placement de-MVP (2026-05-31, plan Step 3.4). `collision_house.c`
+hardcoded the 5 new-game-tier-0 furniture objects (room, carpet, 3 tables) with
+literal origins. Retiring that meant finding the real `DAT_0438c058` writer —
+and the surprise is there isn't a *separate* one.
+
+The per-object collision arrays the query (`FUN_00432e50`) subtracts are
+**bit-for-bit the same memory** as the render walker's per-instance placement
+columns, just at a different base address inside the same parallel-array block:
+
+```
+  render rot_y   DAT_0438c01c   collision rot  DAT_0438c008   Δ = 0x14 (5 dwords)
+  render pos_x   DAT_0438c06c   collision ox   DAT_0438c058   Δ = 0x14
+  render pos_y   DAT_0438c0bc   collision oy   DAT_0438c0a8   Δ = 0x14
+  render pos_z   DAT_0438c10c   collision oz   DAT_0438c0f8   Δ = 0x14
+```
+
+So `collision_ox[k] == render_pos_x[k-5]`, etc. The 5-dword skew is exactly the
+phase split: `FUN_00436f97` writes phase-1 instances (room/carpet/walls) into
+collision slots `0..count1-1` and phase-2 instances (furniture) into slots
+`(i-count1)+5`, while the render walker reads phase-2 at index `i` of its own
+`+0x14`-shifted view. One write, two aliased readers — which is why §67's "the
+origins equal the render placement" is literally true, not merely numerically.
+
+Consequence for the port: `scene1_postload_walker_phase2_init` already ports
+that placement (block 21, sourced from the real save-record furniture template
+via the `FUN_0048ffd9` seeder), so `collision_house_build` now iterates the same
+live `g_scene1_walker_phase1/phase2_pos_*` arrays — phase-1 mesh_index → stage
+`map[]` path, phase-2 mesh_type → `scene1_walker_draw_b_mesh_index` → shop_table
+`.x` — instead of a hardcoded table. For HOUSE tier 0 the built objects are
+byte-identical to the old literals (room@0, carpet@−2,0,−1, table01@−2,0,0,
+table02@−4,0,−8, table02@−10,0,−2 rot π/2), so wall collision stays bit-exact
+(§66), but it now generalises to every tier/stage the writer handles, with no
+duplicated placement data. The earlier `PORT-DEBT` attribution to `FUN_0044c88f`
+was wrong — that function writes the *actor* spawn positions (`DAT_056da1dc`),
+not the furniture origins (cf. the `FUN_0044376a` misattribution, §see ledger).
+
+> 📍 `src/collision_house.c` (build), `src/scene1_postload.c`
+> (`scene1_postload_walker_phase2_init`), `tools/dump_collision_objects.py`
+> (the slot-map + VA list that revealed the aliasing).

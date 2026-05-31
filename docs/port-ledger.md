@@ -201,7 +201,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x44b16c | FUN_0044b16c | 84 | ✓ | scene1_combat_sm.h |
 | 0x44b219 | FUN_0044b219 | 60 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x44b255 | FUN_0044b255 | 1 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
-| 0x44c88f | FUN_0044c88f | 299 | ✓ | collision_house.c, stage_palette.h |
+| 0x44c88f | FUN_0044c88f | 299 | ✓ | stage_palette.h |
 | 0x44f13d | FUN_0044f13d | 4870 | ✓ | scene1_postload.h |
 | 0x451790 | FUN_00451790 | 211 | ✓ | main.c, prewindow.h, rng.h (+1) |
 | 0x451863 | FUN_00451863 | 17 | ✓ | audio_mci.c, audio_mci.h, main.c |

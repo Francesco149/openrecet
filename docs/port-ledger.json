@@ -12,7 +12,7 @@
   "touched": 379,
   "pct_touched": 14.9,
   "pct_verified": 2.5,
-  "port_debt": 7
+  "port_debt": 6
  },
  "orphan_refs": [
   "0x40f640",
@@ -3412,7 +3412,6 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/collision_house.c",
     "src/stage_palette.h"
    ]
   },
