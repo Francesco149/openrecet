@@ -7,6 +7,42 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — un-MVP HOUSE chr-sheet cache → boot FUN_00472f5d party load (the roster pointer was a static-read error)
+
+Closed §71's deferred "un-MVP the chr-sheet cache → roster loader FUN_00431a80"
+PORT-DEBT — by first discovering the pointer itself was the same kind of
+static-read error §71 kept hitting (engine-quirks §72).
+
+Tracing the **only three writers** of the engine's chr-sheet table
+`DAT_073a9b18[100]` settles where the HOUSE player+companion sheets actually load:
+**`FUN_00472f5d`** — the boot **"read systemtex"** init (its caller logs
+`read_systemtex_ok` immediately after) — runs a fixed 3-iteration loop loading
+`chr00/01/02.bmp` into slots 0/1/2, the resident main party (player 0,
+companion/Tear 1, guest 2). The 21-entry HOUSE customer table (`FUN_00474a9a`)
+**excludes** 0/1/2, and the roster `FUN_00431a80` is **dungeon-only** — its sole
+caller `FUN_00473c15` early-returns when `*DAT_068dd2f0==0` (HOUSE), so it never
+runs there and cannot feed HOUSE sheets. So the player+companion sheets come from
+the **boot** load, not any roster.
+
+Port: replaced the 8-slot char-keyed LRU placeholder with the engine's 100-slot
+**sheet-id-keyed** table; added `scene1_preload_chr_party_sheets()` (the
+`FUN_00472f5d` slice) driven from `scene1_preload_init` (boot, device live); dropped
+the `post_house_hook` hardcoded `{player,1}` loads (now boot-loaded), pose seeding
+kept. chr sheets are `sprite_t` outside the mesh-tex cache HOUSE entry resets, so
+the boot load survives to the first HOUSE draw (boot log: `chr00/01/02 → loaded
+512x1024`).
+
+Validation: **pixel-exact** — all 9 `house-table-corner` frames are bit-identical
+between this build and the prior user-confirmed MVP build (stash A/B, compared by
+capture order since the absolute frame number jitters ~300 with the load moved to
+boot — anchor-relative content unchanged). So player(0)+companion(1) render
+unchanged; only the load structure/timing moves to the engine's real point. **3046
+host tests pass.** Local `house-table-corner` openrecet golden re-blessed (it had
+gone stale across the controller/anim/companion commits; goldens are gitignored
+dev artifacts, not a CI gate). Deferred PORT-DEBT: the rest of `FUN_00472f5d`
+(UI/effect textures) + the 21-entry customer billboards + the dungeon roster
+`FUN_00431a80` (for dungeon party/enemy sheets) remain unported, separate fronts.
+
 ## 2026-05-31 — HOUSE companion (Tear) renders + spring-follows through the real controller
 
 Closed §70's biggest remaining HOUSE character-parity gap: the **untouched Tear
