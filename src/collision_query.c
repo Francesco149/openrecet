@@ -120,10 +120,18 @@ int collision_query_ground(const collision_mesh *m,
         const collision_object *o = &m->objects[oi];
         collision_hit h;
         /* Translate the probe into this object's local frame (FUN_00432e50
-         * L127-129 subtracts the per-object origin DAT_0438c058/0a8/0f8). */
-        if (collision_query_ground_object(o, px - o->origin[0],
-                                          py - o->origin[1],
-                                          pz - o->origin[2], &h)) {
+         * L127-129 subtracts the per-object origin DAT_0438c058/0a8/0f8), then
+         * rotate by RotY(-rot_y) (L133-140) so the local-space triangles serve
+         * a rotated instance (the left HOUSE table is at π/2). */
+        float lx = px - o->origin[0];
+        float lz = pz - o->origin[2];
+        if (o->rot_y != 0.0f) {
+            float c = cosf(o->rot_y), s = sinf(o->rot_y);
+            float rx = lx * c - lz * s;   /* RotY(-rot_y): (x,z) un-rotated */
+            float rz = lx * s + lz * c;
+            lx = rx; lz = rz;
+        }
+        if (collision_query_ground_object(o, lx, py - o->origin[1], lz, &h)) {
             h.height += o->origin[1];   /* local floor Y → world Y */
             if (!best.hit || h.height > best.height) {
                 h.object = oi;

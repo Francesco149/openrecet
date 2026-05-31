@@ -89,6 +89,12 @@ typedef struct {
      * The room (slot 0) is at (0,0,0); placed furniture carries its origin so
      * the same local-space triangles serve every instance.  Zero by default. */
     float          origin[3];
+    /* World placement Y-rotation (engine DAT_0438c008 per slot).  After the
+     * translation, the query/raycast rotate the probe into the object's local
+     * frame by RotY(-rot_y) (FUN_00432e50 L133-140 builds RotY(-DAT_0438c008)
+     * and transforms the translated point).  Zero for most objects; the
+     * left HOUSE table (`shop_table02.x` @ -10,0,-2) is at π/2. */
+    float          rot_y;
 } collision_object;
 
 /* A whole level's collision: one object per loaded map mesh. */

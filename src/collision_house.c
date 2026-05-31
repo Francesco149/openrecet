@@ -27,13 +27,14 @@
  * for the new-game HOUSE layout (the FUN_0044c88f writer that fills
  * DAT_0438c058 per stage/tier is not yet ported; mesh-index→.x map is
  * scene_map_meshes.h: 0=shop_1st, 1=shop_jutan, 3=shop_table01, 4=shop_table02). */
-typedef struct { const char *xfile; float origin[3]; } house_collision_obj;
+typedef struct { const char *xfile; float origin[3]; float rot_y; } house_collision_obj;
 static const house_collision_obj k_house_objects[] = {
-    { "xfile/shop/shop_1st.x",      {  0.0f, 0.0f,  0.0f } }, /* room   (mesh 0) */
-    { "xfile/jutan/shop_jutan.x",   { -2.0f, 0.0f, -1.0f } }, /* carpet (mesh 1) */
-    { "xfile/table/shop_table01.x", { -2.0f, 0.0f,  0.0f } }, /* table  (mesh 3) */
-    { "xfile/table/shop_table02.x", { -4.0f, 0.0f, -8.0f } }, /* table  (mesh 4) */
-    { "xfile/table/shop_table02.x", {-10.0f, 0.0f, -2.0f } }, /* table  (mesh 4) */
+    /* xfile,                        origin (DAT_0438c058),   rot_y (DAT_0438c008) */
+    { "xfile/shop/shop_1st.x",      {  0.0f, 0.0f,  0.0f }, 0.0f        }, /* room   (slot 0) */
+    { "xfile/jutan/shop_jutan.x",   { -2.0f, 0.0f, -1.0f }, 0.0f        }, /* carpet (slot 1) */
+    { "xfile/table/shop_table01.x", { -2.0f, 0.0f,  0.0f }, 0.0f        }, /* table  (slot 5) */
+    { "xfile/table/shop_table02.x", { -4.0f, 0.0f, -8.0f }, 0.0f        }, /* table  (slot 6) */
+    { "xfile/table/shop_table02.x", {-10.0f, 0.0f, -2.0f }, 1.5707964f  }, /* table  (slot 7, π/2) */
 };
 #define HOUSE_OBJECT_COUNT ((int)(sizeof k_house_objects / sizeof k_house_objects[0]))
 
@@ -76,9 +77,10 @@ void collision_house_build(void)
         }
         xfile_free(xf);
         memcpy(objs[n].origin, spec->origin, sizeof objs[n].origin);
+        objs[n].rot_y = spec->rot_y;
         fprintf(stderr, "collision_house: built %d tris from %s @ "
-                "(%.1f,%.1f,%.1f)\n", objs[n].tri_count, spec->xfile,
-                spec->origin[0], spec->origin[1], spec->origin[2]);
+                "(%.1f,%.1f,%.1f) rot=%.3f\n", objs[n].tri_count, spec->xfile,
+                spec->origin[0], spec->origin[1], spec->origin[2], spec->rot_y);
         n++;
     }
 

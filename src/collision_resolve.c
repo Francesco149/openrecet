@@ -35,12 +35,20 @@ int collision_raycast(const collision_mesh *m,
 
     for (int oi = 0; oi < m->object_count; oi++) {
         const collision_object *o = &m->objects[oi];
-        /* Ray origin in this object's local frame (subtract DAT_0438c058 per
-         * object — FUN_00433674 L139-141).  The ray DIRECTION is unaffected by
-         * a pure translation, and the returned fraction/normal stay valid. */
-        const float lpx = pos[0] - o->origin[0];
-        const float lpy = pos[1] - o->origin[1];
-        const float lpz = pos[2] - o->origin[2];
+        /* Ray origin + direction in this object's local frame: translate by
+         * -origin (FUN_00433674 L139-141) then rotate by RotY(-rot_y) (the same
+         * placement transform as the ground query).  The returned fraction is
+         * the parameter along the ray — rotation-invariant — so the caller's
+         * push (which uses the WORLD direction × frac) stays correct. */
+        float lpx = pos[0] - o->origin[0];
+        float lpy = pos[1] - o->origin[1];
+        float lpz = pos[2] - o->origin[2];
+        float ldx = dir[0], ldy = dir[1], ldz = dir[2];
+        if (o->rot_y != 0.0f) {
+            float c = cosf(o->rot_y), s = sinf(o->rot_y);
+            float rx = lpx*c - lpz*s, rz = lpx*s + lpz*c;  lpx = rx; lpz = rz;
+            float dx2 = ldx*c - ldz*s, dz2 = ldx*s + ldz*c; ldx = dx2; ldz = dz2;
+        }
         for (int ti = 0; ti < o->tri_count; ti++) {
             const collision_tri *t = &o->tris[ti];
             if (collision_raycast_type_excluded(t->type)) continue;
@@ -48,17 +56,17 @@ int collision_raycast(const collision_mesh *m,
             const float nx = t->n[0], ny = t->n[1], nz = t->n[2], d = t->d;
             float sd = lpx*nx + lpy*ny + lpz*nz + d;            /* signed dist */
             if (sd < 0.0f) continue;                            /* behind face */
-            float dn = dir[0]*nx + dir[1]*ny + dir[2]*nz;
+            float dn = ldx*nx + ldy*ny + ldz*nz;
             if (dn >= 0.0f) continue;                           /* not approaching */
 
             /* Ray-inside-triangle: (pos − v[k]) · (dir × edge[k]) ≥ 0 for all k
-             * (FUN_00433674 L234-236). */
+             * (FUN_00433674 L234-236).  Local-frame point + direction. */
             int inside = 1;
             for (int k = 0; k < 3; k++) {
                 const float *e = t->edge[k];
-                float cx = dir[1]*e[2] - dir[2]*e[1];
-                float cy = dir[2]*e[0] - dir[0]*e[2];
-                float cz = dir[0]*e[1] - dir[1]*e[0];
+                float cx = ldy*e[2] - ldz*e[1];
+                float cy = ldz*e[0] - ldx*e[2];
+                float cz = ldx*e[1] - ldy*e[0];
                 float dot = (lpx-t->v[k][0])*cx
                           + (lpy-t->v[k][1])*cy
                           + (lpz-t->v[k][2])*cz;

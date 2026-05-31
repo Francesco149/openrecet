@@ -1826,6 +1826,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             /* original: FUN_00452911() — open in-game pause menu.
              * Skeleton: just close on ESC for now. */
             PostMessageA(hwnd, WM_CLOSE, 0, 0);
+        } else if (wParam == VK_F10) {
+            /* Debug: print the live player world position to stdout, for
+             * finding coordinates to build collision TAS traces.  Visible on
+             * the console build (openrecet-debug.exe). */
+            printf("[F10] player pos  px=%.4f  py=%.4f  pz=%.4f\n",
+                   g_scene1_player_pos[0], g_scene1_player_pos[1],
+                   g_scene1_player_pos[2]);
+            fflush(stdout);
         }
         return 0;
 
