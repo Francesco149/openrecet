@@ -2384,3 +2384,15 @@ calls it) revealed which resolver model actually fits HOUSE:
   comparison. (The earlier "contour 2.15/2.29/3.10" reading was an artifact of a
   different approach trajectory; for the straight-RIGHT approach the wall section
   is a constant px=3.1019.)
+- **Per-frame validation (2026-05-31, follow-up pass).** The endpoint match above
+  understates it: the *whole trajectory* is physically identical. `wall_collide_diff.py`
+  now searches a ±3-frame anchor-phase window — diffing `port[rel]` against
+  `retail[rel+shift]` — and at **shift +1** the residual collapses to **RMS Δpx =
+  0.0000, max|Δpx| = 0.0000, max|Δpz| = 0.0000** across all 2547 shared frames
+  (vs RMS 0.0147 / max 0.175 at shift 0). So `port[rel] == retail[rel+1]` exactly,
+  through the counter-row contact (px≈2.15 @ pz≈9.27, frame 1580), the contour, and
+  the resting pin. The shift-0 "0.175 gap" is purely the **single-frame anchor-phase
+  offset** from load-frame-count jitter (the determinism leak — sim is bit-exact),
+  NOT a collision-accuracy error. The contour (counter jut included) is reproduced
+  1:1; this front is closed. The pre-fix "px~1.55, ~0.6 short" figure was the old
+  radial-push resolver, before the 20-ray + (1−frac) fix landed.

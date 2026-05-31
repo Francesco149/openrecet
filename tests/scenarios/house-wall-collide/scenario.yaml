@@ -46,12 +46,20 @@
 #       --retail-log runs/wall-cmp-retail/agent.log
 #
 # GROUND TRUTH (retail watch, runs/w4-collide | w4-table3): the right wall is
-# NOT a flat plane — the px pin follows the room contour:
-#     pz ~9.23  →  px 2.15   (counter row; this scenario's pose)
-#     pz  4.51  →  px 2.29
-#     pz -0.65  →  px 3.10   (room widens toward the front)
-# Current port (radial-push resolver) pins px~1.55 at the counter row — blocks
-# correctly (no passthrough) but ~0.6 short; standoff tuning is the open follow-up.
+# NOT a flat plane — the px pin follows the room contour. For the straight-RIGHT
+# approach this scenario drives, the player contacts at the counter row (pz~9.27,
+# px~2.15), then slides −z down the wall, settling at the front section px=3.1019.
+#
+# RESOLVED 1:1 (2026-05-31, commit ee37235 + this validation pass). The port
+# trajectory is PHYSICALLY IDENTICAL to retail across the *entire* slide — the
+# counter-row contact, the contour, and the resting pin — modulo a single-frame
+# anchor-phase offset (the load-jitter determinism leak; sim is bit-exact). Proof:
+#   tools/wall_collide_diff.py --port runs/<port>/pos.jsonl ... --retail runs/wall-retail/watch.jsonl
+#     shift  0: RMS Δpx=0.0147  max|Δpx|=0.1750   (looks like a 0.17 gap, but...)
+#     shift +1: RMS Δpx=0.0000  max|Δpx|=0.0000  <- best  => physically identical
+# i.e. port[rel] == retail[rel+1] for all 2547 shared frames. The earlier
+# "px~1.55, ~0.6 short" reading was a PRE-FIX (old resolver) artifact. No
+# collision-accuracy gap remains; this scenario is now purely a regression guard.
 
 description: |
   New game → HOUSE → walk RIGHT into the right wall. Two anchor-relative captures

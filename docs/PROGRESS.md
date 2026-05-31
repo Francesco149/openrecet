@@ -7,6 +7,32 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — W4.3 closed: wall collision proven physically identical (per-frame)
+
+Validation pass on the W4.3 follow-up ("standoff tuning" — the scenario.yaml +
+ledger still said the resolver pinned px~1.55, ~0.6 short at the counter row).
+That figure was **pre-fix** (old radial-push resolver); the committed `pos.jsonl`
+that fed it predated commit ee37235 by 18 min. Regenerated a fresh port drive
+against the current build and diffed per-frame vs the retail watch ground truth
+(`runs/wall-retail`):
+
+- **No gap remains.** Endpoint is bit-exact (port (3.1034, 0.6837) == retail).
+  More importantly the *whole trajectory* matches: `tools/wall_collide_diff.py`
+  now does a ±3-frame **anchor-phase search**, and at **shift +1** the residual
+  is **RMS Δpx = 0.0000, max|Δpx| = 0.0000, max|Δpz| = 0.0000** over all 2547
+  shared frames — `port[rel] == retail[rel+1]` exactly. The shift-0 "max|Δpx|=0.175"
+  is purely a **one-frame anchor-phase offset** (load-frame-count jitter, the known
+  determinism leak — sim is bit-exact), not a collision error.
+- The counter-row contour point (px≈2.15 @ pz≈9.27) **is** hit transiently during
+  the slide and matches retail — the counter jut is reproduced 1:1, not just the
+  px=3.10 front section. The whole "right wall is a contour, port stops short"
+  premise is resolved.
+- **Tool hardening:** `wall_collide_diff.py` gained the `--shift-window` search +
+  a verdict line ("physically identical at shift +1 … NOT a collision-accuracy
+  gap" vs "residual persists at every shift → real divergence"), so anchor jitter
+  can't masquerade as a gap in future runs. Stale "0.6 short / open follow-up"
+  language corrected in scenario.yaml, the contour comment, and engine-quirks §66.
+
 ## 2026-05-31 — W4.3 1:1: HOUSE wall collision bit-exact vs retail
 
 Took the room-wall collision from "blocks but ~0.6 short" to **1:1 with retail**,
