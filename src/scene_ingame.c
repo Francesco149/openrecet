@@ -9,16 +9,24 @@
  */
 
 #include "scene_ingame.h"
+#include "stage_palette.h"
 
 #ifdef _WIN32
 
 unsigned int scene_ingame_clear_argb(void)
 {
-    /* Dark navy — distinct from the title's 0xff17f0ff debug pink so
-     * the cross-fade endpoint is visually unambiguous. Replace with
-     * the engine's real per-stage palette clear (DAT_068dd2f0 + 0x1aa8)
-     * when the stage system lands. */
-    return 0xff203050u;
+    /* Engine clear (FUN_004547ab L33-44): pack the stage palette's clear_r/g/b
+     * low bytes into ARGB (alpha 0xff) and Clear() to it.  HOUSE's palette is
+     * zero → black, matching retail (the old placeholder navy 0xff203050 showed
+     * up as a full-frame delta in every port|retail diff).  Black fallback when
+     * the palette pointer isn't set yet. */
+    if (g_stage_palette) {
+        unsigned r = (unsigned)g_stage_palette->clear_r & 0xffu;
+        unsigned g = (unsigned)g_stage_palette->clear_g & 0xffu;
+        unsigned b = (unsigned)g_stage_palette->clear_b & 0xffu;
+        return 0xff000000u | (r << 16) | (g << 8) | b;
+    }
+    return 0xff000000u;
 }
 
 #endif /* _WIN32 */
