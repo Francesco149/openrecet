@@ -2316,6 +2316,8 @@
    "status": "ported",
    "src": [
     "src/collision_mesh.h",
+    "src/collision_query.c",
+    "src/collision_query.h",
     "src/scene1_camera.c",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
@@ -7574,6 +7576,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/collision_query.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h"
    ]

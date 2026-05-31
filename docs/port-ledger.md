@@ -157,7 +157,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x431a80 | FUN_00431a80 | 156 | ✓ | scene1_preload.c, scene1_preload.h |
 | 0x43289b | FUN_0043289b | 555 | ✓ | collision_mesh.c, collision_mesh.h |
 | 0x432ac6 | FUN_00432ac6 | 906 | ✓ | collision_mesh.c, collision_mesh.h |
-| 0x432e50 | FUN_00432e50 | 2084 | ✓ | collision_mesh.h, scene1_camera.c, scene1_postload.c (+5) |
+| 0x432e50 | FUN_00432e50 | 2084 | ✓ | collision_mesh.h, collision_query.c, collision_query.h (+7) |
 | 0x433674 | FUN_00433674 | 2354 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h, scene1_records_c_tick.c (+1) |
 | 0x4341d4 | FUN_004341d4 | 42 | ✓ | storage.c |
 | 0x4341fe | FUN_004341fe | 903 | ✓ | chr_sprite_meta.c, chr_sprite_meta.h, chr_sprite_meta_load.c (+4) |
@@ -316,7 +316,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h, scene1_particles_tick.h (+1) |
 | 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_chr_sprite.h |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |
-| 0x483170 | FUN_00483170 | 3339 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h |
+| 0x483170 | FUN_00483170 | 3339 | ✓ | collision_query.h, scene1_player_ctrl.c, scene1_player_ctrl.h |
 | 0x48407f | FUN_0048407f | 795 | ✓ | scene1_sim.c, scene1_sim.h |
 | 0x484dd1 | FUN_00484dd1 | 116 | ✓ | scene1_records_c_tick.c, scene1_records_c_tick.h |
 | 0x484e45 | FUN_00484e45 | 82 | ✓ | scene1_combat_sm.h |

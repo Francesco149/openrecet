@@ -3184,7 +3184,14 @@ struct test_case {
     X(collision_classify) \
     X(collision_tri_build_flat) \
     X(collision_tri_build_large_pad) \
-    X(collision_vendor_shop_1st)
+    X(collision_vendor_shop_1st) \
+    \
+    X(query_type_excluded) \
+    X(query_floor_hit) \
+    X(query_floor_miss_outside) \
+    X(query_floor_miss_too_high) \
+    X(query_below_floor_rejected) \
+    X(query_vendor_shop_floor)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

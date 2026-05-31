@@ -2272,3 +2272,36 @@ Port: `src/collision_mesh.{c,h}` reuses the oracle-validated `xfile` parser for
 the text and replicates only the transform/scale/classify/plane-build. The
 2777-byte `.x` text state machine `FUN_00471d45` is NOT re-ported. Query
 (`FUN_00432e50`) + slide-resolve (`FUN_00483170`) are W4.2/W4.3.
+
+## 64. HOUSE walls are *implicit* — the floor mesh ends at them; an off-floor ground-probe is the block signal
+
+W4.2 (2026-05-31). Porting the point→triangle query `FUN_00432e50` clarified
+how HOUSE collision actually blocks the player, which is not what "wall
+triangles" suggests.
+
+- **The query finds the highest floor under (x,z).** For each non-excluded
+  triangle it does an above-plane gate (`n·p + d > 0`, winding-sensitive), an XZ
+  point-in-triangle test (3 edge cross-products ≥ 0), and a ground-height solve
+  (`y = −(n.x·x + n.z·z + d)/n.y`), keeping the highest. A hit only counts if the
+  ground is within 5 units below the query Y. It returns the height + a surface
+  normal recomputed from the winning triangle's edges.
+- **HOUSE collision triangles are all type 0** (numeric materials → solid; §63),
+  and the shop floor is a flat mesh at **y≈0**. There are **no vertical "wall"
+  triangles** participating in the ground query — a vertical face has `n.y≈0`
+  (no ground solution) and projects to a line in XZ (no area to be "inside").
+- **So walls are implicit: the floor mesh simply does not extend under or past
+  them.** The slide-resolver (`FUN_00483170`, W4.3) probes the *intended* next
+  position with `FUN_004830f1`→`FUN_00432e50`; if that probe finds **no** floor
+  triangle (the point is off the floor edge — into the counter base, past a
+  wall, over the round-table footprint), the move is **blocked** and the
+  resolver slides along the remaining axes. This is what produces §62's
+  position-block + velocity-slide without any AABB-per-furniture list.
+- Self-validation: the port's query at the room origin `(0,2,0)` on the real
+  `shop_1st.x` returns `hit=1, height=0.000, normal=(0,1,0)`; `(0,2,100)` (off
+  the room) returns no hit — exactly the implicit-wall behaviour.
+
+Port `src/collision_query.{c,h}`. The worldmap 15×15 grid cell-select +
+40-unit tiling wrap (`DAT_073e03ac`, gated off for HOUSE) and the dynamic-prop
+path (`DAT_0438c150`) are NOT ported; we test every triangle (the per-triangle
+AABB reject keeps the result identical). Bit-exact-vs-retail Frida validation is
+deferred to the W4.3 trajectory replay.
