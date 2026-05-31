@@ -423,6 +423,101 @@ extern float                     g_scene1_player_pos[3];
 static char                     *g_player_pos_log_path      = NULL;
 static FILE                     *g_player_pos_log_fp        = NULL;
 
+/* ─── in-engine TAS trace recorder (F2 start/stop, F3 capture-point) ──────────
+ * Buffers the per-frame player-1 button mask while recording, plus a list of
+ * capture frames (F3).  On stop, dumps a RAW recording (every frame's mask,
+ * relative to the F2 press) to a unique file and prints the path to stdout;
+ * tools/distill_trace.py collapses it into the sparse change-point trace format
+ * (+ optional new-game→HOUSE intro wrap).  Console build (openrecet-debug.exe)
+ * so stdout is visible while you drive in real time. */
+static int       g_trace_rec_active       = 0;
+static uint32_t  g_trace_rec_start_frame  = 0;
+static uint16_t *g_trace_rec_masks        = NULL;
+static uint32_t  g_trace_rec_count        = 0;
+static uint32_t  g_trace_rec_cap          = 0;
+static uint32_t  g_trace_rec_caps[256];
+static int       g_trace_rec_caps_count   = 0;
+static int       g_trace_rec_seq          = 0;
+#define TRACE_REC_MAX_FRAMES  600000u   /* ~2.8 h at 60fps — a hard backstop */
+
+static void trace_rec_start(void)
+{
+    if (!g_trace_rec_masks) {
+        g_trace_rec_cap   = 4096;
+        g_trace_rec_masks = (uint16_t *)malloc(g_trace_rec_cap * sizeof(uint16_t));
+        if (!g_trace_rec_masks) { g_trace_rec_cap = 0; return; }
+    }
+    g_trace_rec_count       = 0;
+    g_trace_rec_caps_count  = 0;
+    g_trace_rec_start_frame = g_tick.frame_count;
+    g_trace_rec_active      = 1;
+    printf("[trace-rec] recording STARTED at frame %u (F2 to stop, F3 to mark a capture)\n",
+           g_trace_rec_start_frame);
+    fflush(stdout);
+}
+
+/* Append this frame's player-1 button mask (called once per ticked frame). */
+static void trace_rec_tick(uint16_t mask)
+{
+    if (!g_trace_rec_active) return;
+    if (g_trace_rec_count >= TRACE_REC_MAX_FRAMES) return;
+    if (g_trace_rec_count >= g_trace_rec_cap) {
+        uint32_t ncap = g_trace_rec_cap * 2;
+        uint16_t *nb = (uint16_t *)realloc(g_trace_rec_masks, ncap * sizeof(uint16_t));
+        if (!nb) return;               /* keep what we have; stop growing */
+        g_trace_rec_masks = nb;
+        g_trace_rec_cap   = ncap;
+    }
+    g_trace_rec_masks[g_trace_rec_count++] = mask;
+}
+
+static void trace_rec_add_capture(void)
+{
+    if (!g_trace_rec_active) {
+        printf("[trace-rec] F3 ignored — not recording (press F2 first)\n");
+        fflush(stdout);
+        return;
+    }
+    if (g_trace_rec_caps_count < (int)(sizeof g_trace_rec_caps / sizeof g_trace_rec_caps[0])) {
+        uint32_t rel = g_trace_rec_count;   /* relative frame of the NEXT recorded frame */
+        g_trace_rec_caps[g_trace_rec_caps_count++] = rel;
+        printf("[trace-rec] capture point #%d at relative frame %u\n",
+               g_trace_rec_caps_count, rel);
+        fflush(stdout);
+    }
+}
+
+static void trace_rec_stop(void)
+{
+    if (!g_trace_rec_active) return;
+    g_trace_rec_active = 0;
+
+    char path[256];
+    snprintf(path, sizeof path, "openrecet-trace-%lu-%d.raw.jsonl",
+             (unsigned long)GetCurrentProcessId(), g_trace_rec_seq++);
+    FILE *f = fopen(path, "w");
+    if (!f) {
+        printf("[trace-rec] ERROR: could not open %s for writing\n", path);
+        fflush(stdout);
+        return;
+    }
+    /* RAW recording: one row per recorded frame (relative frame + mask), then
+     * the capture points.  tools/distill_trace.py collapses the per-frame rows
+     * into sparse change-points and (optionally) wraps a bootable segtrace. */
+    fprintf(f, "{\"_rec\":\"openrecet-tas-raw-v1\",\"frames\":%u,\"start_abs\":%u}\n",
+            g_trace_rec_count, g_trace_rec_start_frame);
+    for (uint32_t i = 0; i < g_trace_rec_count; i++)
+        fprintf(f, "{\"frame\":%u,\"buttons\":\"0x%04x\"}\n", i, g_trace_rec_masks[i]);
+    for (int c = 0; c < g_trace_rec_caps_count; c++)
+        fprintf(f, "{\"capture\":%u}\n", g_trace_rec_caps[c]);
+    fclose(f);
+    printf("[trace-rec] recording STOPPED: %u frames, %d capture(s)\n",
+           g_trace_rec_count, g_trace_rec_caps_count);
+    printf("[trace-rec] wrote %s\n", path);
+    printf("[trace-rec] distill: nix develop --command python3 tools/distill_trace.py %s\n", path);
+    fflush(stdout);
+}
+
 static int             g_rng_seed_set            = 0;
 static uint32_t        g_rng_seed_value          = 1;
 static uint32_t        g_max_frames              = 0;
@@ -1826,14 +1921,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             /* original: FUN_00452911() — open in-game pause menu.
              * Skeleton: just close on ESC for now. */
             PostMessageA(hwnd, WM_CLOSE, 0, 0);
-        } else if (wParam == VK_F10) {
-            /* Debug: print the live player world position to stdout, for
-             * finding coordinates to build collision TAS traces.  Visible on
-             * the console build (openrecet-debug.exe). */
-            printf("[F10] player pos  px=%.4f  py=%.4f  pz=%.4f\n",
-                   g_scene1_player_pos[0], g_scene1_player_pos[1],
-                   g_scene1_player_pos[2]);
-            fflush(stdout);
+        } else if (wParam == VK_F2) {
+            /* TAS recorder: toggle start/stop.  (F10 was avoided — Win32 traps
+             * F10 as the system-menu key, which pauses the message loop.) */
+            if (g_trace_rec_active) trace_rec_stop();
+            else                    trace_rec_start();
+        } else if (wParam == VK_F3) {
+            /* Mark a capture point at the current frame in the recording. */
+            trace_rec_add_capture();
         }
         return 0;
 
@@ -2116,6 +2211,11 @@ static void render_dispatch(void)
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);
     }
+
+    /* TAS recorder: capture this frame's player-1 input mask (read here, before
+     * the engine clears g_input_state at the end of the tick).  Records every
+     * ticked frame while active so the recording is complete from the F2 press. */
+    trace_rec_tick(g_input_state[0].buttons);
 
     /* Player-pos log: one JSONL row per frame while in the HOUSE/INGAME scene
      * (read after sim has committed this frame's player position). */
