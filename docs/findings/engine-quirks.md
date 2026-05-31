@@ -2433,14 +2433,25 @@ off-map, walk-LEFT) on both targets with deterministic scenarios
   counter" (§66) because it probed at py+1.0 and/or without this gate; the
   resolver now probes at py+1.5 (`CR_HEAD_HEIGHT`) for the try-move AND the
   ground snap. No separate step-gate needed.
-- **The exact retail box still needs the MULTI-OBJECT query.** `FUN_00432e50`
-  subtracts a per-object world origin `DAT_0438c058/0a8/0f8` and loops over
-  *every* placed object — room (`shop_1st.x`) + carpet (`shop_jutan.x`) + the
-  furniture (tables/jihanki). The port loads only `shop_1st.x` at origin 0, so
-  its floor extends to the room-mesh edge (DOWN edge pz=10.3, LEFT edge
-  px=−10.25) instead of stopping at the furniture that hems retail into
-  px[−1.5,3.1] pz[8.94,9.5]. So the off-map walk is now *bounded to the room
-  floor edge* (a strict improvement) but the tight box awaits the furniture
-  world-placement (`FUN_00436f97` → `DAT_0438c058`, §65) loaded as extra
-  collision objects. That is the next chip (repro #1 + the exact DOWN/LEFT pin
-  share this one cause).
+- **CORRECTION — the front/left box is a HARDCODED CLAMP, not mesh geometry
+  and not furniture.** The DOWN (pz≤9.5) and LEFT (px≥−1.5 when pz>7) bounds are
+  `FUN_00486435`, a 200-byte room-bounds clamp the engine runs UNCONDITIONALLY
+  at the tail of the player controller `FUN_0048670f` (L1640 `LAB_004893ff`),
+  *after* the mesh collision (`FUN_00483170`, called from `FUN_0048b850`). For
+  the HOUSE small-room arm (selector `(&DAT_04510578)[slot*0xb7f2] < 3`):
+  `if pz>9.5: pz=9.5; if cc08≠4 && pz>7 && px<−1.5: px=−1.5`. Verified: neither
+  the room mesh (floor query at x=−0.3 is clear flat floor to pz=10.3, no wall;
+  the only front geometry is a y≤0 sill at z=10.32 the player's ≥0.26 rays miss)
+  NOR the captured collision objects explain the box — the live object table
+  (`tools/dump_collision_objects.py`) is room@0 + carpet@(−2,0,−1) + 3 tables
+  (`shop_table01/02.x`) all at the BACK (z 0/−2/−8), none near the spawn
+  (z=9.35). So: the mesh gives the right wall (px 3.10) + counter (pz 8.94); the
+  clamp gives the front (pz 9.5) + left (px −1.5). The port already had the
+  clamp (`player_ctrl_house_room_clamp`) but it was wired as the W3 *no-mesh
+  fallback* — restoring it after the resolver (the engine runs both) makes all
+  four cardinals match retail to the digit (DOWN 9.500, LEFT −1.500/9.350, RIGHT
+  3.1034 still bit-identical). The multi-object query (`FUN_00432e50` subtracts
+  `DAT_0438c058` per object) IS still unported, but it only matters for repro #1
+  proper — the squeeze/trap when the player navigates BEHIND the counter into
+  the central round table (`shop_table01.x` @ z∈[−2.5,2.5]); the cardinal-walk
+  box does not depend on it.

@@ -496,9 +496,22 @@ void scene1_player_ctrl_tick(void)
         } else {
             g_scene1_player_pos[0] += s_player_vel[0];
             g_scene1_player_pos[2] += s_player_vel[2];
-            player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
-                                         &g_scene1_player_pos[2]);
         }
+
+        /* Hardcoded room-bounds clamp (FUN_00486435), which the engine runs
+         * UNCONDITIONALLY at the tail of the player controller FUN_0048670f
+         * (L1640 LAB_004893ff) — i.e. AFTER the mesh collision (FUN_00483170,
+         * called from FUN_0048b850).  The mesh resolver gives the right wall
+         * (px 3.10) + counter (pz 8.94); this clamp gives the front (pz≤9.5) +
+         * left (px≥-1.5 when pz>7) HOUSE bounds, which are NOT in the room mesh
+         * or any placed object (the floor extends past them; the captured
+         * collision objects all sit at the back — engine-quirks §67).  Together
+         * they reproduce retail's box px[-1.5,3.1] pz[8.94,9.5].  The clamp only
+         * touches pz>9.5 / px<-1.5, so it leaves the mesh-driven right/up pins
+         * untouched.  (Runs in both branches; it was the W3 no-mesh fallback,
+         * but the engine applies it with the mesh too.) */
+        player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
+                                     &g_scene1_player_pos[2]);
     }
 
     /* damp (grounded-steady 0.82) — runs every frame, so velocity decays to 0
