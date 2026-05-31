@@ -1,12 +1,14 @@
 # Plan: faithful full port of the HOUSE game-state controller (FUN_0048670f → FUN_0048b850 → FUN_00483170)
 
-> **Status (2026-06-01):** ACTIVE. Foundation + Chips 1–3 landed
-> (`4090a36` §75 + chip plan, `202883c` Chip 1, `de44cd7` Chip 2, Chip 3 this
-> commit). This is the durable repo copy of the approved chip plan — the summary
-> lives in `un-mvp-structural-parity.md` Step 3.1/3.2, the structural map in
-> `engine-quirks.md` §75 (+ §76 Chip 2 render-banks, §77 Chip 3 skeleton), the
-> per-step source map below. **Next: Chip 4** (the cc08 dispatch + cc08==1 arm,
-> retires the last `PORT-DEBT(simplified, FUN_0048670f)`).
+> **Status (2026-06-01):** ACTIVE. Foundation + Chips 1–4 landed
+> (`4090a36` §75 + chip plan, `202883c` Chip 1, `de44cd7` Chip 2, `52c4878`
+> Chip 3, Chip 4 this commit). This is the durable repo copy of the approved
+> chip plan — the summary lives in `un-mvp-structural-parity.md` Step 3.1/3.2,
+> the structural map in `engine-quirks.md` §75 (+ §76 Chip 2 render-banks, §77
+> Chip 3 skeleton, §78 Chip 4 dispatch), the per-step source map below. **Chip 4
+> retired the last `PORT-DEBT(simplified, FUN_0048670f)`** (debt 5→4). **Next:
+> Chip 5+** (flesh out gameplay cc08 states — shop counter, dialogue, menus — as
+> each becomes reachable; each replaces a stub, adds no debt).
 
 ## Context
 
@@ -151,12 +153,25 @@ Steps 5/6 are order-independent (pos vs vel).
     open (the dispatch is still a shell) — retired in Chip 4. See `engine-quirks.md` §77.
 
 - **Chip 4 — `FUN_0048670f` cc08 dispatch + cc08==1 arm faithfully → retire simplified
-  debt.** Port the cc08==1 free-roam arm (d-pad masks `DAT_073dddd4/dddd6`, proximity →
-  cc08==4, door/exit, `cc04==0` walk; the **step-1 impulse lives here**). Off-path
-  states (4,10,0xf,0x10,0x11,0x12,0x17,0x1e,0x32,2,3) → `CALL_TRACE_ENTER_STUB`
-  structural stubs. **Delete** the hand-rolled tick body.
-  - Retires: `PORT-DEBT(simplified, FUN_0048670f)`; debt 5→4. Add
-    `CALL_TRACE_ENTER(0x48670f)` + Frida hook-and-diff at HOUSE_FREEROAM → "verified".
+  debt. ✅ DONE (§78).** `cc08` (`DAT_0438cc08`) is now a real module global set to 1
+  (free-roam) at HOUSE entry by the ported **`FUN_004850ec`**
+  (`player_ctrl_cc08_enter_freeroam`); the tick dispatches on it (`==1` → free-roam arm,
+  else → `player_ctrl_cc08_unported_arm`, the inert event/menu/dialogue states). The
+  cc08==1 arm wraps the **unchanged** validated walk in the engine's guard structure —
+  customer-approach escalation (922-957) → `cc04==0` gate (`s_cc04` = `DAT_0438cc04`) →
+  proximity detection (961-1082) → d-pad interaction (1086-1214) → walk (1216) — all four
+  guards **inert** in steady free-roam (no live customer/item/target), so control reaches
+  the walk identically to Chip 3 (bit-exact). Inline regions carry no `CALL_TRACE` marker
+  (not standalone VAs), matching `_scene_transition_tick`.
+  - **Real dispatch, not lipstick:** `test_player_ctrl_dispatch_gates_on_cc08` forces
+    `cc08=0xf` → a held d-pad produces no movement (walk dead off free-roam), then `cc08←1`
+    resumes it. `cc08` *stays* 1 only because the transition writers are unported features
+    (stubbed states), not a simplified body.
+  - Retired: `PORT-DEBT(simplified, FUN_0048670f)`; debt **5→4** (simplified 3→2). The
+    impulse's exact engine site stays the opaque `*(player+0x904)` controllable write (§61),
+    so the walk math is unchanged. Bit-exact: `house-walk-tables` 22/22, `house-table-corner`
+    9/9; +1 host test (3051). Deferred: `CALL_TRACE_ENTER(0x48670f)` Frida hook-and-diff at
+    HOUSE_FREEROAM → "verified" (the probe is wired; the live diff is a verification pass).
 
 - **Chip 5+ — flesh out gameplay cc08 states** (shop counter, dialogue, menus) as each
   becomes reachable. Each replaces a stub, adds no debt. End state: full FUN_0048670f

@@ -5,14 +5,14 @@
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
   "verified": 63,
-  "stubbed": 17,
+  "stubbed": 18,
   "ported": 301,
-  "unported": 2167,
+  "unported": 2166,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 381,
+  "touched": 382,
   "pct_touched": 15.0,
   "pct_verified": 2.5,
-  "port_debt": 5
+  "port_debt": 4
  },
  "orphan_refs": [
   "0x40f640",
@@ -7778,8 +7778,10 @@
    "size": 18,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "stubbed",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x4850fe",

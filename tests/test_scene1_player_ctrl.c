@@ -974,6 +974,42 @@ int test_player_ctrl_walk_release_decays_and_idles(void)
     return 0;
 }
 
+/* ── Chip 4: the cc08 dispatch actually gates the walk ─────────────────────── */
+
+int test_player_ctrl_dispatch_gates_on_cc08(void)
+{
+    /* The retired PORT-DEBT(simplified) was "the dispatch always routes the
+     * free-roam arm regardless of cc08".  Prove the dispatch is real: with a
+     * held d-pad, the player walks only while cc08 == 1 (free-roam); forcing any
+     * other cc08 state freezes the controller (the unported arm is a no-op). */
+    g_input_state[0].buttons = 0;
+    title_save_dialog_reset();
+    player_ctrl_pose_house_standing(0);          /* sets cc08 = 1 (free-roam) */
+    if (player_ctrl_cc08() != 1) T_FAIL("HOUSE entry should set cc08 = 1");
+    g_scene1_player_pos[0] = 0.0f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 5.0f;               /* pz<7 → no wall clamp */
+
+    /* free-roam: RIGHT walks (px increases). */
+    g_input_state[0].buttons = 0x0001u;          /* RIGHT */
+    for (int i = 0; i < 4; i++) scene1_player_ctrl_tick();
+    if (g_scene1_player_pos[0] <= 0.0f) T_FAIL("cc08==1 RIGHT should walk +x");
+
+    /* force a non-free-roam state (stands in for an event/menu transition): the
+     * held d-pad must now produce NO movement — the dispatch routes to the inert
+     * unported arm, not the walk. */
+    player_ctrl_debug_set_cc08(0xf);             /* counter-cursor state */
+    float frozen = g_scene1_player_pos[0];
+    for (int i = 0; i < 8; i++) scene1_player_ctrl_tick();
+    T_ASSERT_NEAR(g_scene1_player_pos[0], frozen);   /* no walk while cc08 != 1 */
+
+    /* back to free-roam → walks again. */
+    player_ctrl_debug_set_cc08(1);
+    scene1_player_ctrl_tick();
+    if (g_scene1_player_pos[0] <= frozen) T_FAIL("cc08←1 should resume the walk");
+    return 0;
+}
+
 /* ── Cchr.2h: house-standing actor-state model ───────────────────────────── */
 
 int test_player_pose_seeds_actor0(void)

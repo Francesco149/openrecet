@@ -2971,54 +2971,74 @@ companion-glow / people passes — the standard count-stub pattern.
 > (`FUN_0048b850` tail writer); leaves Cpop.3/6/7 in `scene1_player_ctrl.{c,h}`.
 > Reconciles/corrects §75 + `scene1_chr_walker.h` "DORMANT IN HOUSE".
 
-## 77. `FUN_0048670f`'s prologue/tail are inert in HOUSE free-roam: the save-gate stays 0, the tail rumble is BSS-gated off, and the room-clamp is order-independent of the damp — so the engine's structure can be reproduced bit-exactly (controller un-MVP Chip 3)
+## 77. `FUN_0048670f`'s prologue guard and tail rumble are BSS-gated off in HOUSE free-roam, and the room-bounds clamp runs in the tail (after `FUN_0048b850`), disjoint from the damp
 
-Chip 3 of the controller un-MVP (`house-controller-unmvp.md`) reshaped the
-hand-rolled `scene1_player_ctrl_tick` into the faithful `FUN_0048670f` outer
-skeleton (prologue guard → spawn/transition stubs → cc08 dispatch shell → tail).
-Three behavioural facts make the off-near-path pieces provably inert in steady
-HOUSE free-roam, so the skeleton is **byte-identical** to the prior build (no new
-`simplified` body, only `stubbed` entries):
+Three behaviours of the engine's INGAME controller (`FUN_0048670f`, the cc08
+dispatcher §75) that hold throughout steady HOUSE free-roam:
 
-- **The prologue guard `FUN_00434d6a` returns 0 in HOUSE.** It is the save/load
-  dialog ramp gate (already ported as `title_save_dialog_gate_tick`): `if
-  (DAT_0438b148 < 1) return 0`. `DAT_0438b148` is BSS-zero and **only `FUN_00434d6a`
-  itself writes it** — and only by *incrementing* an already-≥1 value, never
-  raising it from 0. The dialog is opened elsewhere (title screen), and its
-  closing-mode ramps the counter back to 0 (returning 1, not -1) on close. So
-  any HOUSE frame sees 0 → returns 0 → the engine does **not** early-return.
-  (The `-1` early-return only fires while that dialog actively pumps, which never
-  happens in-shop.) **Gotcha for the host suite:** this is global state shared
-  with the title tests, which leave it set — the player-ctrl tick tests must
-  `title_save_dialog_reset()` in setup or the new guard silently early-returns
-  (the player stops walking). Fixed in `test_scene1_player_ctrl.c`.
-- **The tail `FUN_00485861` (screen-rumble, `LAB_004893ff`) is BSS-gated off.**
-  Its whole body is under `if (DAT_0438b764 != 0)`, BSS-zero in HOUSE free-roam,
-  so the faithful free-roam behaviour is a no-op → safe structural stub
-  (`CALL_TRACE_ENTER_STUB(0x485861)`). Same for `FUN_0046f621` (per-frame RNG-pool
-  churn): no effect on the player position/sprite the benches sample.
-- **The room-bounds clamp `FUN_00486435` belongs in the tail, and moving it there
-  is bit-exact.** The engine runs the clamp unconditionally in the tail
+- **The prologue guard `FUN_00434d6a` returns 0.** It is the save/load dialog
+  ramp gate: `if (DAT_0438b148 < 1) return 0`. `DAT_0438b148` is BSS-zero and
+  **only `FUN_00434d6a` itself writes it** — and only by *incrementing* an
+  already-≥1 value, never raising it from 0. The dialog is opened from the title
+  screen, and its closing mode ramps the counter back to 0 (returning 1, not -1)
+  on close. So any HOUSE frame sees 0 → returns 0 → the controller does **not**
+  early-return. The `-1` early-return (which aborts the whole tick) only fires
+  while that save/load dialog is actively pumping, which never happens in-shop.
+- **The tail screen-rumble `FUN_00485861` (`LAB_004893ff`) is wholly gated on
+  `DAT_0438b764`**, BSS-zero in free-roam, so its entire body is skipped — the
+  tail rumble is a no-op until something kicks `DAT_0438b764` (the camera-shake
+  subsystem, e.g. a dungeon hit). The per-frame RNG-pool churn `FUN_0046f621`
+  likewise touches no player-visible state.
+- **The room-bounds clamp `FUN_00486435` runs unconditionally in the tail**
   (`LAB_004893ff`, `all.c:88173`), *after* `FUN_0048b850`'s mesh collide + damp —
-  the free-roam path reaches it via `goto LAB_004893ff` (`all.c:87758`). The
-  port had it inside the arm, right after the b850 body; relocating it to the
-  tail (after the anim-record update) is safe because the clamp touches only
-  position while the damp touches velocity and the anim update touches the sprite
-  record — three disjoint state sets (the §75 order-independence, now also
-  covering the anim update). Verified: a port-vs-port differential (bless a
-  pre-Chip-3 golden, diff the post-Chip-3 build) is **22/22 byte-identical** on
-  the full house-walk-tables collision tour, house-table-corner stays 9/9.
+  the free-roam path reaches it via `goto LAB_004893ff` (`all.c:87758`). It is
+  order-independent of the damp: the clamp touches only the player *position*
+  while the damp touches *velocity* (and the anim update touches the sprite
+  record) — three disjoint state sets. The small-room arm clamps `pz ≤ 9.5` and
+  `px ≥ -1.5` while `pz > 7.0` (§67); these HOUSE bounds are not in the room
+  collision mesh or any placed object.
 
-The cc08 dispatch itself is **not** ported in Chip 3 — `scene1_player_ctrl_tick`
-routes unconditionally to the free-roam arm (the port has no live `DAT_0438cc08`
-writer), so the `PORT-DEBT(simplified, FUN_0048670f)` stays open until Chip 4
-ports the real dispatch + the cc08==1 arm (the step-1 d-pad impulse, which lives
-in the controllable code at `all.c:87749`, buried deep in the counter/customer
-interaction nest — *not* a shallow switch).
+> 📍 decomp `all.c:86539-88176` (`FUN_0048670f`: 86575 guard `FUN_00434d6a`,
+> 88171-88175 tail `LAB_004893ff` → `FUN_00486435`/`FUN_00485861`). Port:
+> `scene1_player_ctrl.c`, `title_save_dialog.c`. Builds on §75/§76.
 
-> 📍 src `scene1_player_ctrl.c` (the `FUN_0048670f` skeleton:
-> `player_ctrl_prologue_churn`/`_scene_transition_tick`/`_cc08_freeroam_arm`/
-> `_tail_rumble` + the reshaped `scene1_player_ctrl_tick`), `title_save_dialog.c`
-> (`FUN_00434d6a`), `tests/test_scene1_player_ctrl.c` (the gate-reset fix);
-> decomp `all.c:86539-88176` (`FUN_0048670f`: 86575 guard, 86599-86721
-> transition arms, 88171-88175 tail). Builds on §75/§76.
+## 78. `FUN_004850ec` is the engine's canonical "enter free-roam" setter (`cc08=1`); the `cc08==1` arm wraps the walk in nested escalation/`cc04`/proximity/interaction guards
+
+Two structural facts about the retail `cc08` dispatch (§75), filling in §75's
+state table:
+
+- **`FUN_004850ec` (0x4850ec, 18 B) is the canonical "hand control back to the
+  player" setter:** `DAT_074b2ec4 = 0; DAT_0438cc08 = 1;` — it clears the
+  scene-exit latch (`DAT_074b2ec4`, read at the dispatch's `all.c` exit arm) and
+  sets the in-game state id to free-roam. The engine calls it on every path that
+  returns to free-roam: scene entry, and the close of a dialogue / menu / counter
+  state. So `cc08==1` is the resting state, and the other states are entered
+  transiently by their own transitions (customer approach → `cc08=4`, counter
+  open → `cc08=0x32`, …) and return via `FUN_004850ec`.
+- **The `cc08==1` free-roam arm (`all.c:919-1225`) is a nested guard chain around
+  the `FUN_0048b850` walk call**, not a flat "read d-pad and move":
+  1. **customer-approach escalation** (922-957) — when the shop-customer count
+     `(&DAT_0450fb98)[shop]` crosses 1 / 2 / 6 / 0xd thresholds the controller
+     flips `cc08=4` (scripted approach) and consumes the frame;
+  2. **`cc04==0` gate** (958) — `DAT_0438cc04` is the free-roam interaction
+     sub-state: 0 = walking, 1/2 = an object/customer interaction is mid-flight
+     (the `all.c:1227+` arms);
+  3. **proximity / approach detection** (961-1082) — reads the nearest customer
+     (`DAT_056da1f0`) and item-pickup positions vs the player to raise the
+     talk / pick-up affordance bools and tick the approach timers
+     (`DAT_0438be7c/be80`, the `DAT_056db000` gauge);
+  4. **d-pad interaction** (1086-1214, under `db048==0`) — the action-button
+     masks (`DAT_073dddd4 & 0x20` cancel/exit, `& 0x40` talk, `& 0x10` object/
+     door) each require a live target;
+  5. **the walk** — `FUN_0048b850()` (1216) only when none of the above consumed
+     the frame.
+
+  With no customer/item present and `cc04==0`, all four guards fall through and
+  the arm is just the walk — but the guards run every free-roam frame, which is
+  why the proximity/approach timers advance even while the player is only walking.
+  The other `cc08` states (`0,2,3,4,0xa,0xf,0x10,0x11,0x12,0x17,0x1e,0x32`) are
+  inline regions that each fall through to the common tail `LAB_004893ff`.
+
+> 📍 decomp `all.c:919-1225` (the `cc08==1` arm), `all.c:85361-85366`
+> (`FUN_004850ec`). Port: `scene1_player_ctrl.c` (`player_ctrl_cc08_*`). Builds
+> on §75.

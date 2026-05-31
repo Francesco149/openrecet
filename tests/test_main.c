@@ -3178,6 +3178,7 @@ struct test_case {
     X(player_ctrl_house_room_clamp) \
     X(player_ctrl_walk_left_matches_retail) \
     X(player_ctrl_walk_release_decays_and_idles) \
+    X(player_ctrl_dispatch_gates_on_cc08) \
     X(player_pose_seeds_actor0) \
     X(player_pose_seeds_companion_actor2) \
     X(companion_inside_radius_idle) \

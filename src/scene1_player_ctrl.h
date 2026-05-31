@@ -363,6 +363,15 @@ int            player_ctrl_burst_count(void);
  * Any out param may be NULL. Used by --player-pos-log (engine-quirks §69). */
 void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky);
 
+/* ── FUN_0048670f cc08 dispatch state (Chip 4, engine-quirks §78) ────────────
+ * The in-game interaction state the controller dispatches on each frame
+ * (DAT_0438cc08): 1 = free-roam walk; other values are the unported event /
+ * camera / counter / menu / dialogue arms. */
+void player_ctrl_cc08_enter_freeroam(void); /* FUN_004850ec: set cc08 = 1 (HOUSE entry) */
+int  player_ctrl_cc08(void);                /* read cc08 */
+void player_ctrl_debug_set_cc08(int state); /* test hook: force cc08 (stands in for the
+                                             * unported state-transition writers) */
+
 /*
  * ── W1: the per-frame player-controller tick (FUN_0048670f entry) ─────────
  *

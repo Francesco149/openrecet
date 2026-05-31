@@ -345,6 +345,22 @@ static int   s_player_moving    = 0;              /* last frame's moving state
                                                    * (held across opposing-pair
                                                    * d-pad frames, §69) */
 
+/* ── FUN_0048670f cc08 dispatch state (engine-quirks §78, Chip 4) ───────────
+ *   s_cc08 = DAT_0438cc08 — the in-game interaction state the controller
+ *            dispatches on each frame.  1 = free-roam walk; the other values
+ *            are the event / camera / counter / menu / dialogue arms (see the
+ *            state table in plans/house-controller-unmvp.md).
+ *   s_cc04 = DAT_0438cc04 — the free-roam interaction sub-state.  0 = walking;
+ *            1/2 = an object/customer interaction is active (cc08==1 arm).
+ * The port sets cc08 to 1 at HOUSE entry (player_ctrl_cc08_enter_freeroam =
+ * FUN_004850ec) and leaves cc04 at 0; the transitions that would drive them off
+ * free-roam (customer approach → cc08=4, counter open → cc08=0x32, talk → cc04)
+ * are unported features, so both stay at their free-roam values in steady play.
+ * That keeps the dispatch a real read of live state (not the old unconditional
+ * shell) while the off-path arms remain honest stubs. */
+static int   s_cc08             = 1;              /* DAT_0438cc08 */
+static int   s_cc04             = 0;              /* DAT_0438cc04 */
+
 /* ── FUN_0048b850 tail render-bank state (Chip 2; engine all.c L90242+) ─────
  * The two after-image banks the chr-sprite walker (FUN_00456f56) draws —
  *   s_trail_bank = DAT_056dab6c (walker sweep 0, always read)
@@ -386,6 +402,12 @@ void player_ctrl_pose_house_standing(int player_char)
     s_player_facing = 1.57079633f;   /* +π/2 (idle facing, oct 6) */
     s_facing_sticky = 0;
     s_player_moving = 0;
+
+    /* Enter free-roam: cc08 = 1 (via the engine's FUN_004850ec), cc04 = 0
+     * (walking, no interaction).  This is the HOUSE-entry state the dispatch in
+     * scene1_player_ctrl_tick reads each frame (§78). */
+    player_ctrl_cc08_enter_freeroam();
+    s_cc04 = 0;
 
     /* Clear the b850-tail render banks + history rings (scene entry empties the
      * after-image state; the rings refill from the live sample each frame). */
@@ -491,6 +513,39 @@ void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky)
     if (sticky) *sticky = s_facing_sticky;
 }
 
+/* ── FUN_0048670f cc08 dispatch state writer + accessors (Chip 4) ──────────── */
+
+/* FUN_004850ec (0x4850ec, 18 B): the canonical "enter HOUSE free-roam" setter.
+ * The engine body is `DAT_074b2ec4 = 0; DAT_0438cc08 = 1;` — it clears the
+ * scene-exit latch then sets the in-game state id to free-roam.  The port models
+ * the cc08 write (the observable state transition); the DAT_074b2ec4 latch is
+ * the unported scene-exit subsystem (read only at the dispatch's all.c:344
+ * `DAT_074b2ec4 == 1` arm, itself unported), so its reset is omitted — _STUB
+ * marks the body as not-yet-complete end-to-end (cf. mark-stubbed-ports).  The
+ * engine calls this on every path that hands control back to the player (scene
+ * entry, dialogue/menu close); the port calls it from
+ * player_ctrl_pose_house_standing at HOUSE entry. */
+void player_ctrl_cc08_enter_freeroam(void)
+{
+    CALL_TRACE_ENTER_STUB(0x4850ecu);
+    s_cc08 = 1;
+}
+
+/* Read the current cc08 dispatch state (DAT_0438cc08). */
+int player_ctrl_cc08(void)
+{
+    return s_cc08;
+}
+
+/* Debug/test hook: force the cc08 state id.  Stands in for the unported
+ * state-transition writers (customer-approach → 4, counter-open → 0x32, talk →
+ * the cc04 path, …) so the host suite can verify the dispatch actually gates the
+ * walk on cc08 rather than driving unconditionally. */
+void player_ctrl_debug_set_cc08(int state)
+{
+    s_cc08 = state;
+}
+
 /* ── W3 free-roam walk leaves ─────────────────────────────────────────── */
 
 /* input.c d-pad mask bits (input_binding_mask[0..3]). */
@@ -574,7 +629,7 @@ void player_ctrl_house_room_clamp(float *px, float *pz)
  *   - the walk IMPULSE (daabc/daac4 += sin/cos(db05c)·0.1) — that's
  *     FUN_0048670f's cc08==1 controllable code (step 1), written through
  *     *(player+0x904) so it never shows as a DAT_056daabc= literal (§61);
- *     it stays in scene1_player_ctrl_tick below until the cc08 dispatch lands.
+ *     it lives in the cc08==1 arm (player_ctrl_cc08_freeroam_arm below).
  *   - the room-bounds clamp (FUN_00486435) — the FUN_0048670f tail.
  *   - the render-slot population + after-image/particle effects (Chip 2).
  *
@@ -673,22 +728,20 @@ static void player_ctrl_b850_move(void)
     player_ctrl_b850_render_tail();
 }
 
-/* ── FUN_0048670f structural skeleton (Chip 3) ──────────────────────────────
+/* ── FUN_0048670f structural skeleton ───────────────────────────────────────
  *
  * Faithful outer shape of the engine's INGAME interaction controller
- * (FUN_0048670f, all.c:86539-88178; engine-quirks §75).  The prologue guard,
- * the periodic customer-spawn refresh, the scene-transition fade handlers, and
- * the screen-rumble tail are all OFF the HOUSE free-roam near-path — they land
- * here as structural stubs (real VA + CALL_TRACE_ENTER_STUB where the engine
- * call is a standalone function, faithful no-op bodies that are correctly inert
- * in steady free-roam).  The cc08 dispatch is a SHELL: it routes cc08==1
- * (free-roam walk) to the ported arm (player_ctrl_cc08_freeroam_arm) and every
- * other state to "unported" — Chip 4 fleshes the dispatch + the cc08==1 arm
- * (the d-pad impulse step) faithfully and retires the simplified debt.
- *
- * This chip is NEUTRAL: no behaviour change, benches bit-exact (the only
- * reorder, moving the room-clamp into the tail, is order-independent vs the
- * anim update / damp — §75), and it adds only `stubbed` ledger entries. */
+ * (FUN_0048670f, all.c:86539-88178; engine-quirks §75/§77/§78).  The prologue
+ * guard, the periodic customer-spawn refresh, the scene-transition fade
+ * handlers, and the screen-rumble tail are all OFF the HOUSE free-roam near-path
+ * — they land here as structural stubs (real VA + CALL_TRACE_ENTER_STUB where
+ * the engine call is a standalone function, faithful no-op bodies that are
+ * correctly inert in steady free-roam — §77).  The cc08 dispatch reads the live
+ * state id (DAT_0438cc08, set to free-roam by FUN_004850ec at HOUSE entry):
+ * cc08==1 routes the free-roam arm (player_ctrl_cc08_freeroam_arm), every other
+ * state the unported event/menu/dialogue arm.  The cc08==1 arm wraps the walk in
+ * the engine's escalation/cc04/proximity/interaction guards (§78), all inert in
+ * steady free-roam so control reaches the walk unchanged. */
 
 /* FUN_0046f621 (0x46f621, 39 B): the engine's per-frame RNG-pool churn,
  * called unconditionally on FUN_0048670f's main path (all.c:86722).  Has no
@@ -722,15 +775,78 @@ static void player_ctrl_tail_rumble(void)
     CALL_TRACE_ENTER_STUB(0x485861u);
 }
 
-/* The cc08==1 free-roam walk arm: read the held d-pad → walk impulse (step 1)
- * → FUN_0048b850 body (clamp/octant/integrate+collide/damp + render tail) →
- * actor anim record.  This is the controllable (cc08==1, da1bc==0) walk
- * validated against runs/w3-walk-watch — byte-identical per-frame to retail
- * (px, vx post-damp) and through the house-table-corner slide (§69/§75).  The
- * room-bounds clamp is NOT here: the engine runs it in the tail (FUN_00486435
- * @ LAB_004893ff), AFTER this arm. */
+/* ── cc08==1 arm inert sub-regions (FUN_0048670f all.c:919-1313) ─────────────
+ *
+ * Inline regions of the free-roam arm that surround the walk, modelled here as
+ * the engine's logical sub-steps.  Each is inert in steady HOUSE free-roam — its
+ * inputs (shop-customer count, nearest-customer/item position, a live
+ * interaction target) have no writer in the port yet — so they reduce to a no-op
+ * and control reaches the walk exactly as before (the chip is bit-exact).  They
+ * are NOT standalone engine functions (no per-region VA), so they carry no
+ * CALL_TRACE marker — matching player_ctrl_scene_transition_tick (Chip 3).  Each
+ * is the home a future chip fleshes out as the corresponding feature lands.
+ *
+ * customer-approach escalation (922-957): when shop customers are present
+ * ((&DAT_0450fb98)[shop] > 0) the controller escalates to cc08==4 (scripted
+ * approach) and consumes the frame.  No customer is spawned in the port, so the
+ * three count-gated guards are all false → returns 0 ("no escalation"). */
+static int player_ctrl_cc08_customer_escalate(void)
+{
+    return 0;
+}
+
+/* proximity / approach detection (961-1082): reads the nearest-customer and
+ * item-pickup positions vs the player to raise the talk / pick-up affordance
+ * bools and tick the approach timers (DAT_0438be7c/be80, the db000 gauge).  With
+ * no live customer or item the affordances stay false and the only writes are to
+ * approach-timer globals that don't feed back into this frame's walk → no-op. */
+static void player_ctrl_cc08_proximity_detect(void)
+{
+}
+
+/* d-pad interaction (1086-1214, the db048==0 block): the action-button masks
+ * (cancel 0x20 → menu/exit, confirm 0x40 → talk-to-customer, 0x10 → object
+ * interaction / door) each require a live target; none is wired in the port, so
+ * every branch falls through to the walk → returns 0 ("no interaction
+ * consumed"). */
+static int player_ctrl_cc08_dpad_interact(void)
+{
+    return 0;
+}
+
+/* The cc08==1 free-roam walk arm (FUN_0048670f all.c:919-1225).  Surrounds the
+ * validated walk with the engine's guard structure: customer-approach
+ * escalation → cc04==0 gate → proximity detection → d-pad interaction → walk.
+ * All four guards are inert in steady free-roam (above), so control reaches the
+ * walk identically to the pre-Chip-4 arm.
+ *
+ * The walk itself: read the held d-pad → walk impulse (step 1) → FUN_0048b850
+ * body (clamp/octant/integrate+collide/damp + render tail) → actor anim record.
+ * This is the controllable (cc08==1, cc04==0, da1bc==0) walk validated against
+ * runs/w3-walk-watch — byte-identical per-frame to retail (px, vx post-damp) and
+ * through the house-table-corner slide (§69/§75).  The room-bounds clamp is NOT
+ * here: the engine runs it in the tail (FUN_00486435 @ LAB_004893ff). */
 static void player_ctrl_cc08_freeroam_arm(void)
 {
+    /* customer-approach escalation: inert (no customers) → falls through. */
+    if (player_ctrl_cc08_customer_escalate())
+        return;
+
+    /* cc04 interaction sub-state: 0 = walking; 1/2 = an object/customer
+     * interaction is active (dialogue/haggle — the all.c:1227+ arms, unported).
+     * cc04 stays 0 in the port, so the interaction branch is dead. */
+    if (s_cc04 != 0)
+        return;                       /* cc04 != 0: unported interaction arm */
+
+    /* proximity / approach detection: inert (no customer/item live). */
+    player_ctrl_cc08_proximity_detect();
+
+    /* d-pad interaction (door/talk/pickup): inert (no target) → falls through. */
+    if (player_ctrl_cc08_dpad_interact())
+        return;
+
+    /* ===== the validated free-roam walk (all.c:1216 + the controllable impulse) ===== */
+
     /* Decode the d-pad → (facing, moving), applying the engine's opposing-pair
      * rejection: a conflicting L+R / U+D frame holds the stored facing + the
      * previous moving state instead of snapping to the net axis (§69). */
@@ -782,21 +898,34 @@ static void player_ctrl_cc08_freeroam_arm(void)
     }
 }
 
-/* ── W3: per-frame player-controller tick (engine FUN_0048670f driver) ─────
+/* The unported cc08 dispatch arms (FUN_0048670f all.c:358-918): the event /
+ * camera / counter / menu / dialogue states (0,2,3,4,0xa,0xf,0x10,0x11,0x12,
+ * 0x17,0x1e,0x32).  Each is reached only by a state transition the port doesn't
+ * make yet (customer approach → 4, counter open → 0x32, …), so with cc08 pinned
+ * to free-roam they are dead — they would each fall through to the common tail
+ * (LAB_004893ff).  Inline regions (no per-state VA), modelled as one inert no-op
+ * that lands the dispatch on the tail, faithful to the engine's gotos. */
+static void player_ctrl_cc08_unported_arm(void)
+{
+}
+
+/* ── per-frame player-controller tick (engine FUN_0048670f driver) ─────────
  *
  * Wired into the live HOUSE frame (scene1_ingame_default_arm_tick, before
  * scene1_records_b_tick — the engine's order at FUN_00442cef L40593-40598).
- * Chip 3 (above) gives it the faithful FUN_0048670f outer skeleton; the
- * controllable (cc08==1, da1bc==0) free-roam walk it routes to is validated
- * against runs/w3-walk-watch (per held-direction frame: impulse → clamp →
- * integrate → damp), byte-identical per-frame to the retail watch.
+ * Chip 3 gave it the faithful FUN_0048670f outer skeleton (prologue guard →
+ * spawn/transition stubs → dispatch → tail); Chip 4 makes the cc08 dispatch a
+ * real read of the live state id (DAT_0438cc08) instead of an unconditional
+ * route, with the off-path arms as honest stubs (§78).
  *
- * PORT-DEBT(simplified, FUN_0048670f): the cc08 dispatch is still a SHELL —
- * the port has no live cc08 writer, so it always routes the free-roam arm,
- * driving whenever a d-pad is held and ignoring the unported cc08 event-gate
- * (intro / dialogue / counter / non-controllable states — §60/§75).  The
- * prologue spawn-refresh + transition fades + tail rumble are structural
- * stubs.  Retire = Chip 4 (the faithful cc08 dispatch + cc08==1 arm). */
+ * cc08 is set to 1 (free-roam) at HOUSE entry by player_ctrl_cc08_enter_freeroam
+ * (FUN_004850ec); the transitions that would drive it elsewhere are unported, so
+ * it stays 1 in steady play and the dispatch lands on the free-roam arm — but it
+ * now genuinely gates on cc08 (test_player_ctrl_dispatch_gates_on_cc08), so a
+ * future writer that sets another state immediately takes effect.  The
+ * controllable (cc08==1, cc04==0, da1bc==0) free-roam walk it routes to is
+ * validated against runs/w3-walk-watch (per held-direction frame: impulse →
+ * clamp → integrate → damp), byte-identical per-frame to the retail watch. */
 void scene1_player_ctrl_tick(void)
 {
     CALL_TRACE_ENTER(0x48670fu);
@@ -819,10 +948,13 @@ void scene1_player_ctrl_tick(void)
     if (player_ctrl_scene_transition_tick())
         return;
 
-    /* cc08 dispatch shell (DAT_0438cc08): cc08==1 = free-roam walk → the ported
-     * arm; every other state is unported (Chip 4).  The port models only
-     * free-roam, so route there unconditionally. */
-    player_ctrl_cc08_freeroam_arm();
+    /* cc08 dispatch (DAT_0438cc08): cc08==1 = free-roam walk → the ported arm;
+     * every other state is an unported event/menu/dialogue arm.  Reads the live
+     * state id — a real dispatch, not the old unconditional route. */
+    if (s_cc08 == 1)
+        player_ctrl_cc08_freeroam_arm();
+    else
+        player_ctrl_cc08_unported_arm();
 
     /* tail LAB_004893ff: the room-bounds clamp (FUN_00486435) runs
      * UNCONDITIONALLY here — AFTER FUN_0048b850's mesh collision (§75).  The

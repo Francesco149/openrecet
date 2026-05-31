@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **381** (15.0%) — verified 63, stubbed 17, ported 301
-- unported: **2167**
+- touched: **382** (15.0%) — verified 63, stubbed 18, ported 301
+- unported: **2166**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (63) — runtime-diffed vs retail
@@ -82,7 +82,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49b425 | FUN_0049b425 | 207 | ✓ | render_quad.c |
 | 0x49de18 | FUN_0049de18 | 8 | ✓ | scene_new_game.c |
 
-## stubbed (17) — wired, body incomplete
+## stubbed (18) — wired, body incomplete
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -97,6 +97,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x454191 | FUN_00454191 | 1391 | ✓ | scene1_fx_overlays.c |
 | 0x459dfd | FUN_00459dfd | 1906 | ✓ | scene1_render.c |
 | 0x46f621 | FUN_0046f621 | 39 | ✓ | scene1_player_ctrl.c |
+| 0x4850ec | FUN_004850ec | 18 | ✓ | scene1_player_ctrl.c |
 | 0x485712 | FUN_00485712 | 317 | ✓ | stage_post_load.c |
 | 0x485861 | FUN_00485861 | 280 | ✓ | scene1_player_ctrl.c |
 | 0x48b850 | FUN_0048b850 | 5030 | ✓ | scene1_player_ctrl.c |

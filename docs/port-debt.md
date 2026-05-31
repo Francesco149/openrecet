@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **5**
-- distinct retiring engine functions: **4**
+- total open debts: **4**
+- distinct retiring engine functions: **3**
 
 | kind | count | meaning |
 |------|------:|---------|
 | stub | 1 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 3 | reduced control flow / state machine vs retail |
+| simplified | 2 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -30,7 +30,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004161c7 | 1 |
 | FUN_00436f97 | 1 |
 | FUN_00454191 | 1 |
-| FUN_0048670f | 1 |
 
 ## stub (1)
 
@@ -42,13 +41,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 _none_
 
-## simplified (3)
+## simplified (2)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_0048670f | src/scene1_player_ctrl.c:794 | the cc08 dispatch is still a SHELL — |
 
 ## hardcode (1)
 
