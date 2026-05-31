@@ -813,16 +813,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--run-dir-root", type=Path, default=ROOT / "runs" / "scenarios",
                     help="where to write per-scenario run artifacts "
                          "(default: runs/scenarios/)")
-    ap.add_argument("--turbo", action="store_true",
+    ap.add_argument("--turbo", action=argparse.BooleanOptionalAction, default=True,
                     help="bypass the engine's 60 FPS frame limiter and feed "
                          "it a virtual 16.6 ms timestep — the game runs as "
                          "fast as the host can chew through it. Affects both "
-                         "targets. Pair with --silent-audio.")
-    ap.add_argument("--silent-audio", action="store_true",
+                         "targets. ON by default (--no-turbo to disable for a "
+                         "scenario that needs real-time pacing).")
+    ap.add_argument("--silent-audio", action=argparse.BooleanOptionalAction,
+                    default=True,
                     help="force audio paths silent (centibel -10000) while "
-                         "leaving the engine's audio code running normally. "
-                         "Recommended alongside --turbo since DirectMusic "
-                         "complains about being clocked at 200+ fps.")
+                         "leaving the engine's audio code running normally. ON "
+                         "by default (turbo clocks DirectMusic at 200+ fps and "
+                         "the user otherwise hears menu clicks); --no-silent-audio "
+                         "to disable.")
     ap.add_argument("--no-regen", action="store_true",
                     help="after a --target both run, do NOT rebuild the "
                          "interactive comparison gallery "
