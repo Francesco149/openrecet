@@ -3191,7 +3191,14 @@ struct test_case {
     X(query_floor_miss_outside) \
     X(query_floor_miss_too_high) \
     X(query_below_floor_rejected) \
-    X(query_vendor_shop_floor)
+    X(query_vendor_shop_floor) \
+    \
+    X(raycast_type_excluded) \
+    X(raycast_hits_wall) \
+    X(raycast_misses_short) \
+    X(raycast_misses_behind) \
+    X(resolve_room_wall_blocks) \
+    X(resolve_table_blocks)
 
 #define T_DECL(n) extern int test_##n(void);
 TESTS(T_DECL)

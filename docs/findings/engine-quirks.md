@@ -2305,3 +2305,35 @@ Port `src/collision_query.{c,h}`. The worldmap 15×15 grid cell-select +
 path (`DAT_0438c150`) are NOT ported; we test every triangle (the per-triangle
 AABB reject keeps the result identical). Bit-exact-vs-retail Frida validation is
 deferred to the W4.3 trajectory replay.
+
+## 65. Furniture collision needs a world-placement table separate from the `.x`; the room mesh self-places, furniture does not
+
+W4.3 (2026-05-31). Porting the slide-resolver surfaced that the HOUSE collision
+mesh splits into two placement regimes.
+
+- **The room mesh `shop_1st.x` self-places.** Its frames carry per-submesh
+  translations (Box02 at +23, …), so the W4.1 build (which bakes the frame
+  transform) lands the room/walls in world space directly — the right wall, back
+  wall, counter all sit where the player meets them. The radial-push resolver
+  (8 rays, ~1-unit standoff) correctly pins the player against them.
+- **The furniture meshes do NOT self-place.** `shop_table01/02.x`,
+  `shop_jihanki*.x` all parse to geometry centred on their **local origin**
+  (AABB ≈ ±2.5), with no world translation in the `.x`. Their world positions
+  come from the engine's per-object origin table `DAT_0438c058/0a8/0f8` (the
+  query/raycast subtract it: `query_pt − origin`), populated by `FUN_00436f97`
+  (block 21) from a `stage_positions` source that is **not yet ported** (main.c
+  documents the render path working around it with synthetic / test-captured
+  positions via `--force-walker-phase2`). So in the W4.1 world-space build every
+  furniture object overlaps at the origin.
+- **Consequence:** wall/counter collision works today; **furniture collision
+  (the central round table, vending machines) is blocked** on porting the
+  furniture world-placement — the same `DAT_0438c058` data the render path still
+  fakes. Until then the resolver is host-tested for the room wall only and is
+  **not wired into the live player tick** (wiring it would block walls but let
+  the player walk through the table — a visible partial state).
+
+Resolver port: `src/collision_resolve.{c,h}` (`collision_raycast` = ray-vs-mesh
+FUN_00433674; `collision_resolve_player` = integrate + 8-ray radial push
+FUN_00483170 L207-247 + ground snap). The standoff is approximate (room wall
+settles px≈2.5 vs retail 2.29) pending bit-exact tuning against the w4-table3
+trajectory once furniture is placed.

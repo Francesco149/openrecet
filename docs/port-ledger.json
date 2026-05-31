@@ -2335,6 +2335,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/collision_resolve.c",
+    "src/collision_resolve.h",
     "src/scene1_records_b_tick.c",
     "src/scene1_records_b_tick.h",
     "src/scene1_records_c_tick.c",
@@ -7577,6 +7579,8 @@
    "status": "ported",
    "src": [
     "src/collision_query.h",
+    "src/collision_resolve.c",
+    "src/collision_resolve.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h"
    ]
