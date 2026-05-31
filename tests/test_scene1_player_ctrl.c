@@ -1024,3 +1024,70 @@ int test_player_actor_accessors_out_of_range(void)
     T_ASSERT_NEAR(player_ctrl_actor_scale_xz(99), 0.0f);
     return 0;
 }
+
+/* ── Chip 2: the FUN_0048b850-tail render banks the chr-walker reads ─────── */
+
+int test_player_render_bank_accessor_contract(void)
+{
+    /* Two banks of PC_TRAIL_RECORDS / PC_BURST_RECORDS slots; out-of-range
+     * sweep or index → NULL.  Reset leaves every slot dormant (life == 0) and
+     * the burst counter zero, so the walker iterates and draws nothing. */
+    player_ctrl_pose_house_standing(0);
+
+    if (player_ctrl_render_bank_slot(2, 0)  != NULL) T_FAIL("bad sweep → NULL");
+    if (player_ctrl_render_bank_slot(0, -1) != NULL) T_FAIL("idx -1 → NULL");
+    if (player_ctrl_render_bank_slot(0, PC_TRAIL_RECORDS) != NULL) T_FAIL("trail oob → NULL");
+    if (player_ctrl_render_bank_slot(1, PC_BURST_RECORDS) != NULL) T_FAIL("burst oob → NULL");
+    if (player_ctrl_burst_count() != 0) T_FAIL("burst counter starts 0");
+
+    for (int sweep = 0; sweep <= 1; sweep++) {
+        int n = sweep ? PC_BURST_RECORDS : PC_TRAIL_RECORDS;
+        for (int i = 0; i < n; i++) {
+            const int32_t *slot = player_ctrl_render_bank_slot(sweep, i);
+            if (slot == NULL) T_FAIL("in-range slot should be non-NULL");
+            if (slot[14] != 0) T_FAIL("reset slot life must be 0 (dormant)");
+        }
+    }
+    return 0;
+}
+
+int test_player_render_banks_stay_dormant_while_walking(void)
+{
+    /* Driving the controller (idle + several walk frames) runs the b850 tail
+     * every frame — motion-history shift, burst fill, trail advance.  In
+     * free-roam nothing spawns an after-image, so both banks must stay empty
+     * (every life field 0) and the burst counter stay 0.  This exercises the
+     * wired tail and pins the dormant invariant. */
+    chr_meta_shutdown();
+    if (!chr_meta_alloc()) T_FAIL("chr_meta_alloc failed");
+    uint8_t *blk = chr_meta_block(0);
+    for (int fr = 0; fr < 4; fr++) {
+        int32_t dur = 10;
+        memcpy(blk + CHR_META_OFF_LUT + (0 * 0x100 + fr * 6 + 5) * 4, &dur, 4);
+    }
+    int32_t end = (int32_t)CHR_META_ANIM_END;
+    memcpy(blk + CHR_META_OFF_LUT + (0 * 0x100 + 4 * 6 + 0) * 4, &end, 4);
+
+    player_ctrl_pose_house_standing(0);
+    g_scene1_player_pos[0] = -0.3f;
+    g_scene1_player_pos[1] = 0.0f;
+    g_scene1_player_pos[2] = 9.35f;
+
+    g_input_state[0].buttons = 0;
+    scene1_player_ctrl_tick();                 /* one idle frame */
+    g_input_state[0].buttons = 0x0002u;        /* hold LEFT */
+    for (int i = 0; i < 8; i++) scene1_player_ctrl_tick();
+
+    if (player_ctrl_burst_count() != 0) T_FAIL("walk must not kick the burst counter");
+    for (int sweep = 0; sweep <= 1; sweep++) {
+        int n = sweep ? PC_BURST_RECORDS : PC_TRAIL_RECORDS;
+        for (int i = 0; i < n; i++) {
+            const int32_t *slot = player_ctrl_render_bank_slot(sweep, i);
+            if (slot[14] != 0) T_FAIL("after-image bank must stay empty in free-roam");
+        }
+    }
+
+    g_input_state[0].buttons = 0;
+    chr_meta_shutdown();
+    return 0;
+}

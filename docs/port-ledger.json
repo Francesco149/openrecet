@@ -12,7 +12,7 @@
   "touched": 379,
   "pct_touched": 14.9,
   "pct_verified": 2.5,
-  "port_debt": 6
+  "port_debt": 5
  },
  "orphan_refs": [
   "0x40f640",
@@ -3103,9 +3103,8 @@
    "status": "ported",
    "src": [
     "src/main.c",
-    "src/scene1_chr_walker.c",
-    "src/scene1_chr_walker.h",
     "src/scene1_particles_tick.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
     "src/scene1_records.h",
     "src/scene1_records_b_spawn.c",
@@ -4243,6 +4242,8 @@
     "src/scene1_camera.h",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
+    "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h",
     "src/scene1_render.c",
     "src/scene1_render.h",
     "src/scene1_shop_walker.c"

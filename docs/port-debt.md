@@ -11,13 +11,13 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **6**
-- distinct retiring engine functions: **5**
+- total open debts: **5**
+- distinct retiring engine functions: **4**
 
 | kind | count | meaning |
 |------|------:|---------|
 | stub | 1 | wired call boundary, body incomplete |
-| synthetic-data | 1 | hand-made table standing in for real engine data |
+| synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 3 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
@@ -31,7 +31,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00436f97 | 1 |
 | FUN_00454191 | 1 |
 | FUN_0048670f | 1 |
-| FUN_0048b850 | 1 |
 
 ## stub (1)
 
@@ -39,11 +38,9 @@ the answer to *"what's still faked in code that looks done?"*
 |--------|----------|------------------|
 | FUN_00454191 | src/scene1_fx_overlays.c:9 | outer-gate scaffold only; the 3 inner render |
 
-## synthetic-data (1)
+## synthetic-data (0)
 
-| retire | location | what's synthetic |
-|--------|----------|------------------|
-| FUN_0048b850 | src/scene1_chr_walker.c:84 | hand-built single render slot |
+_none_
 
 ## simplified (3)
 
@@ -51,7 +48,7 @@ the answer to *"what's still faked in code that looks done?"*
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_0048670f | src/scene1_player_ctrl.c:587 | hand-rolled free-roam controller; the |
+| FUN_0048670f | src/scene1_player_ctrl.c:691 | hand-rolled free-roam controller; the |
 
 ## hardcode (1)
 

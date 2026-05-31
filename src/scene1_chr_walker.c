@@ -75,50 +75,19 @@ int chr_walker_npc_alpha(float pos, float mult)
     return a;                            /* caller skips when <= 0 */
 }
 
-/* ── MVP render-slot inject (populator-survey 2026-05-29) ────────────────
- * Port-side backing for one hand-built player render slot + the gate
- * scalars the walker reads, so it can draw a standing actor in HOUSE
- * before the ~18 KB FUN_0048b850/FUN_0044376a populator ports.  Storage +
- * the public setter live outside _WIN32 so the host build links them; the
- * render path (and the accessors that read them) is _WIN32-only.
- * PORT-DEBT(synthetic-data, FUN_0048b850): hand-built single render slot
- * standing in for the unported Cpop populator that fills the actor/party
- * render array DAT_056dacc0; companion_char/actor return -1/NULL (player
- * only). Retire = plan Step 3.2 (FUN_0048b850 + caller FUN_0048670f). */
+/* ── render-bank slot layout (the 0x44-byte actor struct) ────────────────
+ * The walker reads its two after-image banks (sweep 0 = DAT_056dab6c trail,
+ * sweep 1 = DAT_056dacc0 burst) through the player-controller accessors; the
+ * banks are owned and written by FUN_0048b850's tail (Chip 2, see
+ * scene1_player_ctrl.c / engine-quirks §76).  Each slot's fields: */
 #include "scene1_chr_sprite.h"     /* CHR_ACTOR_* dword indices */
+#include "scene1_player_ctrl.h"    /* player_ctrl_render_bank_slot/burst_count/actor_* */
 
-/* Actor sprite-state field byte/dword layout (param_1 to the leaf, the
- * 0x44-byte struct; see scene1_chr_sprite.h CHR_ACTOR_*). */
 #define CHR_W_ACTOR_POS_X   0xb    /* dword: +0x2c */
 #define CHR_W_ACTOR_POS_Y   0xc    /* dword: +0x30 */
 #define CHR_W_ACTOR_POS_Z   0xd    /* dword: +0x34 (engine adds +0.02) */
 #define CHR_W_ACTOR_ALIVE   0xe    /* dword: +0x38 (>0 gate; == spawn age) */
 #define CHR_W_ACTOR_SLOTS   5      /* (&DAT_056dae14 - &DAT_056dacc0)/0x44 */
-#define CHR_W_ACTOR_DWORDS  0x11   /* the 0x44-byte actor struct */
-
-static int     s_inject_active        = 0;
-static int32_t s_inject_slot0[CHR_W_ACTOR_DWORDS];
-static int     s_inject_player_char   = -1;
-
-void scene1_chr_walker_set_inject(int enable, int player_char,
-                                  int anim, int frame, int facing,
-                                  float px, float py, float pz, int age)
-{
-    s_inject_active = enable ? 1 : 0;
-    if (!enable)
-        return;
-    s_inject_player_char = player_char;
-    for (int i = 0; i < CHR_W_ACTOR_DWORDS; i++)
-        s_inject_slot0[i] = 0;
-    s_inject_slot0[CHR_ACTOR_ANIM]   = anim;    /* [0] */
-    s_inject_slot0[CHR_ACTOR_FRAME]  = frame;   /* [4] */
-    s_inject_slot0[CHR_ACTOR_FACING] = facing;  /* [6] */
-    /* [0xb..0xd] pos + [0xe] alive/age (pos stored as float bits). */
-    __builtin_memcpy(&s_inject_slot0[CHR_W_ACTOR_POS_X], &px, sizeof px);
-    __builtin_memcpy(&s_inject_slot0[CHR_W_ACTOR_POS_Y], &py, sizeof py);
-    __builtin_memcpy(&s_inject_slot0[CHR_W_ACTOR_POS_Z], &pz, sizeof pz);
-    s_inject_slot0[CHR_W_ACTOR_ALIVE] = age;    /* [0xe] */
-}
 
 /* ── Win32 render path (engine FUN_00456f56, full) ──────────────────────── */
 #ifdef _WIN32
@@ -143,35 +112,48 @@ static const float *chr_walker_base_matrix(void)
     return CHR_W_BASE_MATRIX;
 }
 
-/* ── dormant engine-state accessors ─────────────────────────────────────
- * The actor sprite-state array (DAT_056dacc0 / companion DAT_056dab40) and
- * the people record table are populated by the unported FUN_00436f97 (the
- * "Cf.* writer chunk").  Until it ports there is no port-side storage, so
- * these return "absent / empty" and the four passes below iterate nothing.
- * When FUN_00436f97 ports, point these at the real engine state and the
- * bodies fire verbatim — exactly the scene1_shop_walker count-stub pattern. */
+/* ── engine-state accessors ──────────────────────────────────────────────
+ * Pass 2's after-image banks + scale bases now point at the REAL engine state
+ * (the player controller, scene1_player_ctrl.c — the live FUN_0048b850-tail
+ * writer), replacing the dead synthetic single-slot inject.  The banks are
+ * empty in HOUSE free-roam, and the Pass-2 entry gate (chr_walker_player_char)
+ * is held closed until the entry-fade counter ports (see its note), so Pass 2
+ * still draws nothing — the correct steady-state.
+ *
+ * Pass 1 (the companion-glow billboard DAT_056dab40 / gate DAT_056da1d4) and
+ * Passes 3/4 (the people record table) stay dormant too: their writers are
+ * separate unported sub-chips (the companion-glow record and FUN_00436f97's
+ * people table).  When those port, swap the two accessors below to the real
+ * state — exactly the scene1_shop_walker count-stub pattern. */
 static int            chr_walker_top_gate(void)        { return 0; }   /* DAT_0438b8bc == 0 → run passes */
 static int            chr_walker_fade_counter(void)    { return 0; }   /* DAT_0438b4b4 (0 ≤ 0x5a → run) */
-static int            chr_walker_companion_char(void)  { return -1; }  /* DAT_056da1d4 (== -1 → skip; MVP draws player only) */
-static int            chr_walker_player_char(void)                     /* DAT_056da1cc (== -1 → skip) */
-                      { return s_inject_active ? s_inject_player_char : -1; }
-static const int32_t *chr_walker_companion_actor(void) { return NULL; }/* &DAT_056dab40 (MVP: no companion) */
-/* DAT_056dacc0 / -0x154.  MVP seeds only sweep-0 (the player array, always
- * run, no daae0 gate) slot 0; everything else is the dormant empty default. */
+static int            chr_walker_companion_char(void)  { return -1; }  /* DAT_056da1d4 (== -1 → skip; glow record unported) */
+/* DAT_056da1cc.  The live player char is player_ctrl_actor_char(0), but Pass 2
+ * stays DORMANT (return -1) for two reasons, both of which make opening it a
+ * no-win until a later chip: (1) its two after-image banks are empty in
+ * free-roam, so it would draw nothing; (2) the engine scopes the whole
+ * companion+player block to the scene-entry fade window (DAT_0438b4b4 < 0x5b),
+ * which this port stubs to "always in-window" (chr_walker_fade_counter == 0) —
+ * so running Pass 2 every frame would toggle z-write state outside the window
+ * retail does, diverging in steady-state walk.  Opening Pass 2 = source the
+ * real fade counter + have bank content (the dash-spawn chip). */
+static int            chr_walker_player_char(void)     { return -1; }
+static const int32_t *chr_walker_companion_actor(void) { return NULL; }/* &DAT_056dab40 (companion-glow record unported) */
+/* sweep 0 = DAT_056dab6c trail bank (always run), sweep 1 = DAT_056dacc0 burst
+ * bank (gated on the burst count below); both empty in free-roam. */
 static const int32_t *chr_walker_party_slot(int sweep, int idx)
 {
-    if (s_inject_active && sweep == 0 && idx == 0)
-        return s_inject_slot0;
-    return NULL;
+    return player_ctrl_render_bank_slot(sweep, idx);
 }
-static int            chr_walker_party_daae0(void)     { return 0; }   /* DAT_056daae0 (0 → skip party sweep) */
+static int            chr_walker_party_daae0(void)     { return player_ctrl_burst_count(); } /* DAT_056daae0 */
 static int            chr_walker_people_count(void)    { return 0; }   /* DAT_0076c464..DAT_007c9664 */
 static int            chr_walker_tail_blend_gate(void) { return 0; }   /* DAT_0438ccc8 */
 
-/* Scale bases DAT_056dae18 / DAT_056dae24 — FUN_00436f97 block D inits both
- * to 1.0; the spawn/scale math multiplies them by scale_f (= fade × 0.03). */
-static const float s_inject_scale_w = 1.0f;
-static const float s_inject_scale_h = 1.0f;
+/* Scale bases DAT_056dae18 / DAT_056dae24 (actor 0) — the after-image
+ * billboards scale by the player's scale base × scale_f (= fade × 0.03).  The
+ * controller settles both to 1.0 at the standing pose. */
+static float chr_walker_scale_xz(void) { return player_ctrl_actor_scale_xz(0); }
+static float chr_walker_scale_y(void)  { return player_ctrl_actor_scale_y(0); }
 
 /* Reinterpret an actor dword as the float the engine stores there. */
 static float chr_walker_actor_f(const int32_t *actor, int dword)
@@ -280,9 +262,9 @@ void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
                         /* Scaling args (objdump @ 0x457369-0x45738b):
                          *   x = dae18×scale_f (eased),  y = dae24×scale_f
                          *   (eased),  z = dae18×scale_f (fresh, NOT eased). */
-                        float sx = s_inject_scale_w * scale_f;
-                        float sz = s_inject_scale_h * scale_f;
-                        float z_scale = s_inject_scale_w * scale_f;
+                        float sx = chr_walker_scale_xz() * scale_f;
+                        float sz = chr_walker_scale_y()  * scale_f;
+                        float z_scale = chr_walker_scale_xz() * scale_f;
                         chr_walker_spawn_ease(age, &sx, &sz);
                         float world[16], scale[16], tmp[16];
                         mat4_translation(tmp,

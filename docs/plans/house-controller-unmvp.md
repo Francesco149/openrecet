@@ -1,10 +1,11 @@
 # Plan: faithful full port of the HOUSE game-state controller (FUN_0048670f → FUN_0048b850 → FUN_00483170)
 
-> **Status (2026-05-31 PM):** ACTIVE. Foundation + Chip 1 landed
-> (`4090a36` §75 + chip plan, `202883c` Chip 1). This is the durable repo copy of
-> the approved chip plan — the summary lives in `un-mvp-structural-parity.md`
-> Step 3.1/3.2, the structural map in `engine-quirks.md` §75, the per-step source
-> map below.
+> **Status (2026-06-01):** ACTIVE. Foundation + Chips 1–2 landed
+> (`4090a36` §75 + chip plan, `202883c` Chip 1, Chip 2 this commit). This is the
+> durable repo copy of the approved chip plan — the summary lives in
+> `un-mvp-structural-parity.md` Step 3.1/3.2, the structural map in
+> `engine-quirks.md` §75 (+ §76 for the Chip 2 render-bank finding), the
+> per-step source map below.
 
 ## Context
 
@@ -98,17 +99,26 @@ Steps 5/6 are order-independent (pos vs vel).
   is independent). `CALL_TRACE_ENTER_STUB(0x48b850)` (body incomplete — render-slot is
   Chip 2). 3048/0, both exes clean.
 
-- **Chip 2 — `FUN_0048b850` render-slot populator → retire synthetic-data debt.**
-  Replace the hand-built single render slot (`scene1_chr_walker.c:78-121`,
-  `scene1_chr_walker_set_inject`) with the real actor-render-array fill
-  (`DAT_056dacc0`, 5 slots × 0x44) that `FUN_0048b850`'s tail writes from the live
-  actor state via the `FUN_0044376a` record copy (`all.c` L90242+: motion-history ring
-  shifts + the 0xb-dword record copy into the render array). Player char 0 + companion
-  char 1 (§71). The draw side already reads the array live.
-  - Retires: `PORT-DEBT(synthetic-data, FUN_0048b850)` (`scene1_chr_walker.c:84`); debt 6→5.
-  - **VISIBLE chip — drive the exe (HOUSE), capture, `regen-comparisons.py`, push the
-    diff to the feed. Goldens may shift companion facing → surface for the USER's
-    feed-diff verification; do NOT self-bless or treat as regression.**
+- **Chip 2 — `FUN_0048b850` render-slot populator → retire synthetic-data debt. ✅ DONE.**
+  The premise ("`chr-walker` is the player draw, the inject stands in for it")
+  was wrong (see §76): `FUN_00456f56` draws ADDITIVE after-image banks, the solid
+  player draws via `FUN_004552d0` (`scene1_shop_walker`), and the inject was DEAD
+  code (never called since Cchr.2h retired `--force-chr-walker`). So Chip 2:
+  - `scene1_player_ctrl.c` now OWNS the two render banks (`DAT_056dab6c` trail /
+    `DAT_056dacc0` burst) + the two 40-slot history rings + the burst/decay
+    counters, and wires the b850 tail (`player_ctrl_b850_render_tail`:
+    history-shift → burst → decay-edge → trail-advance) as their live writer.
+  - `scene1_chr_walker.c` reads the banks via `player_ctrl_render_bank_slot()` /
+    `player_ctrl_burst_count()`; the synthetic inject + `set_inject` are deleted.
+  - **NET-ZERO visible** (NOT the anticipated golden shift): the banks are dormant
+    in free-roam (no dash spawn / zero burst counter), so the walker draws no
+    after-images. House-walk-tables byte-identical to the pre-chip build;
+    house-table-corner 9/9; +2 host tests (3050 pass).
+  - Retired: `PORT-DEBT(synthetic-data, FUN_0048b850)`; debt 6→5 (synthetic-data
+    now 0).
+  - **Deferred to a later b850 sub-chip:** the dash/`FUN_0044376a` spawn that
+    lights the banks, and opening `chr-walker` Pass 2 (needs the real
+    `DAT_0438b4b4` entry-fade gate sourced — see §76).
 
 - **Chip 3 — `FUN_0048670f` prologue + per-frame bookkeeping + tail (skeleton shell).**
   Faithful outer structure: actor-record refresh, the `DAT_0450f470/485/488/495`

@@ -29,17 +29,21 @@
  *   Pass 4 NPC sub  — same table, type==1: delegates to FUN_00456d48
  *                     (already ported in scene1_shop_walker).
  *
- * ── DORMANT IN HOUSE (today) ────────────────────────────────────────────
- * The actor sprite-state array (DAT_056dacc0 / companion DAT_056dab40) and
- * the people record table are populated by FUN_00436f97 (4788 B) — the
- * unported "Cf.* writer chunk" that STATUS.md lists as the top HOUSE-pixel
- * blocker.  Until it ports, those tables are empty, so the four pass bodies
- * iterate nothing and no character billboards appear — exactly the state of
- * the sibling walkers (scene1_shop_walker / scene1_alpha_walker).  The live
- * D3D state envelope IS correct; the dormant data is reached through the
- * chr_walker_*_slot accessors (return NULL / count 0 today).  When
- * FUN_00436f97 ports, swap those accessors to the real engine state and the
- * bodies fire verbatim.
+ * ── WHAT THIS WALKER DRAWS ───────────────────────────────────────────────
+ * This is NOT the solid player/companion draw — those render via the sibling
+ * FUN_004552d0 (scene1_shop_walker), reading the live actor model.  This
+ * walker draws the ADDITIVE overlays: the two player after-image banks
+ * (sweep 0 = DAT_056dab6c trail, sweep 1 = DAT_056dacc0 burst), a companion
+ * glow (DAT_056dab40), and the NPC people billboards.
+ *
+ * Pass 2's two banks now read the REAL engine state — the player char/scale +
+ * the banks themselves — from scene1_player_ctrl (the live FUN_0048b850-tail
+ * writer, Chip 2).  In HOUSE free-roam they are empty (no dash/burst spawns an
+ * after-image), so Pass 2 iterates and draws nothing — the correct steady
+ * state.  Pass 1 (companion glow DAT_056dab40 / gate DAT_056da1d4) and
+ * Passes 3/4 (people record table, FUN_00436f97) stay dormant pending their
+ * own writers; they are reached through the chr_walker_* accessors (NULL /
+ * count 0 today).  The live D3D state envelope IS correct throughout.
  *
  * The pure scalar math each pass needs — fade-in, spawn-pop ease, draw-order
  * alpha, the NPC off-screen fade ramp — is split out as host-testable leaf
@@ -93,44 +97,17 @@ int chr_walker_actor_alpha(int age, int is_party, int prio_base, int daae0);
  */
 int chr_walker_npc_alpha(float pos, float mult);
 
-/* ── MVP render-slot inject (populator-survey 2026-05-29) ────────────────
- *
- * The faithful per-frame populator of the walker's actor array (DAT_056dacc0)
- * is the ~18 KB FUN_0048b850 → FUN_0044376a subsystem (see the findings-doc
- * "POPULATOR SURVEY" banner — FUN_00436f97 only CLEARS the array).  Until
- * that ports, this inject hand-builds ONE player render slot so the ported
- * walker draws a standing actor in HOUSE end-to-end (matrix + alpha + D3D
- * state + leaf), validating everything but the populator.
- *
- * `scene1_chr_walker_set_inject` activates the inject and fills the player
- * sweep-0 slot 0 from the standing-pose fields below.  Pass `enable == 0`
- * to deactivate (the accessors revert to the dormant NULL/empty defaults).
- * Diffuse-only by design (no chr sheet bound), like the --force-player-
- * sprite leaf validation — it proves the walker's matrix/alpha/state path.
- *
- *   player_char — descriptor / formdata index (0 = Recette).
- *   anim/frame/facing — the leaf sprite-state ([0],[4],[6]); a static
- *     standing pose (anim 0, frame 2, facing 6 = the Cchr.2b-validated
- *     Recette billboard).  The timer/counter ([2]/[3]) are left 0 — the
- *     leaf selects the cell from `frame` directly (chr_anim_tick is not
- *     run here).
- *   px/py/pz — world position ([0xb..0xd], float); the new-game HOUSE
- *     groundtruth is (-0.30, 0, 9.35).
- *   age — the spawn/alive timer ([0xe]); >= 20 is fully spawned (no ease),
- *     and < 0x254 keeps the draw-order alpha positive.
- */
-void scene1_chr_walker_set_inject(int enable, int player_char,
-                                  int anim, int frame, int facing,
-                                  float px, float py, float pz, int age);
-
 #ifdef _WIN32
 struct IDirect3DDevice8;
 
 /*
  * Win32 render path (engine FUN_00456f56, full).  Lays down the live
  * additive-billboard D3D state envelope and runs the four actor passes.
- * Dormant in HOUSE until the actor/people tables populate (see header
- * note) OR scene1_chr_walker_set_inject seeds the MVP slot.
+ * Pass 2's player + party after-image banks read the REAL engine state via
+ * the scene1_player_ctrl accessors (the FUN_0048b850-tail writer, Chip 2);
+ * both banks are empty in HOUSE free-roam so nothing draws there.  Pass 1
+ * (companion glow) and Passes 3/4 (people table) stay dormant pending their
+ * own writers (see the .c accessor note).
  */
 void scene1_chr_walker_render(struct IDirect3DDevice8 *dev);
 #endif /* _WIN32 */

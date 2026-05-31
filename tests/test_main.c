@@ -3188,6 +3188,8 @@ struct test_case {
     X(companion_wing_sparkle_period) \
     X(player_pose_passes_char_id) \
     X(player_actor_accessors_out_of_range) \
+    X(player_render_bank_accessor_contract) \
+    X(player_render_banks_stay_dormant_while_walking) \
     \
     X(collision_classify) \
     X(collision_tri_build_flat) \

@@ -344,6 +344,33 @@ static int   s_player_moving    = 0;              /* last frame's moving state
                                                    * (held across opposing-pair
                                                    * d-pad frames, §69) */
 
+/* ── FUN_0048b850 tail render-bank state (Chip 2; engine all.c L90242+) ─────
+ * The two after-image banks the chr-sprite walker (FUN_00456f56) draws —
+ *   s_trail_bank = DAT_056dab6c (walker sweep 0, always read)
+ *   s_burst_bank = DAT_056dacc0 (walker sweep 1, daae0-gated)
+ * — and the two 40-slot motion-history rings that feed the burst:
+ *   s_pos_hist = DAT_056da1fc (3-float pos),  s_rec_hist = DAT_056da3dc
+ *   (the 11-dword sprite-state record).  FUN_0048b850's tail is the engine's
+ *   live writer of all four; this module owns them (the b850 state lives here)
+ *   and scene1_chr_walker.c reads the banks through player_ctrl_render_bank_
+ *   slot() / player_ctrl_burst_count().  Each bank slot is the PC_TRAIL_*
+ *   0x44-byte record (sprite[0..10], x/y/z at 0xb..0xd, life/age at 0xe — the
+ *   walker's active gate), so the layout matches what the draw side reads.
+ *
+ * DORMANT in HOUSE free-roam: nothing lights the banks today — no dash spawns
+ * a trail record (their countdowns stay 0; the FUN_0044376a dash-alloc path is
+ * a later b850 sub-chip) and the burst counter DAT_056daae0 stays 0.  So every
+ * frame the ring shift runs (real work) but both bank fills find nothing to do
+ * and the walker draws no after-images, matching retail's plain walk.  This is
+ * the faithful replacement for the synthetic single-slot inject that
+ * scene1_chr_walker.c previously hand-built. */
+static float   s_pos_hist[PC_HIST_SLOTS][3];
+static int32_t s_rec_hist[PC_HIST_SLOTS][PC_ACTOR_REC_DWORDS];
+static int32_t s_trail_bank[PC_TRAIL_RECORDS][PC_TRAIL_REC_DWORDS];
+static int32_t s_burst_bank[PC_BURST_RECORDS][PC_TRAIL_REC_DWORDS];
+static int     s_burst_count = 0;   /* DAT_056daae0 (burst/egg after-image counter) */
+static int     s_decay_spawn = 0;   /* DAT_056dae14 down-counter (trail alloc edge) */
+
 void player_ctrl_pose_house_standing(int player_char)
 {
     for (int i = 0; i < PC_NUM_ACTORS; i++) {
@@ -358,6 +385,15 @@ void player_ctrl_pose_house_standing(int player_char)
     s_player_facing = 1.57079633f;   /* +π/2 (idle facing, oct 6) */
     s_facing_sticky = 0;
     s_player_moving = 0;
+
+    /* Clear the b850-tail render banks + history rings (scene entry empties the
+     * after-image state; the rings refill from the live sample each frame). */
+    memset(s_pos_hist,   0, sizeof s_pos_hist);
+    memset(s_rec_hist,   0, sizeof s_rec_hist);
+    memset(s_trail_bank, 0, sizeof s_trail_bank);
+    memset(s_burst_bank, 0, sizeof s_burst_bank);
+    s_burst_count = 0;
+    s_decay_spawn = 0;
 
     /* actor 0 = the standing player. */
     s_actor_char[0]     = player_char;
@@ -417,6 +453,29 @@ const int32_t *player_ctrl_actor_record(int i)
 int32_t *player_ctrl_actor_record_mut(int i)
 {
     return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_record[i] : NULL;
+}
+
+/* Render banks the chr-sprite walker (FUN_00456f56) reads each frame: sweep 0 =
+ * the dash-trail bank (DAT_056dab6c), sweep 1 = the burst bank (DAT_056dacc0).
+ * Each slot is a PC_TRAIL_REC_DWORDS (0x44-byte) record — sprite-state[0..10],
+ * pos x/y/z at [0xb..0xd], life/age at [0xe] (the walker's > 0 active gate).
+ * Returns NULL for an out-of-range sweep/idx. */
+const int32_t *player_ctrl_render_bank_slot(int sweep, int idx)
+{
+    if (idx < 0)
+        return NULL;
+    if (sweep == 0 && idx < PC_TRAIL_RECORDS)
+        return s_trail_bank[idx];
+    if (sweep == 1 && idx < PC_BURST_RECORDS)
+        return s_burst_bank[idx];
+    return NULL;
+}
+
+/* The burst-bank sweep gate DAT_056daae0 (the egg/spell after-image counter the
+ * walker's sweep-1 loop is conditioned on). */
+int player_ctrl_burst_count(void)
+{
+    return s_burst_count;
 }
 
 /* Debug accessor for the per-frame controller state (W4.7 facing analysis):
@@ -521,6 +580,47 @@ void player_ctrl_house_room_clamp(float *px, float *pz)
  * The engine's dash / da1bc stun-hop / db048-cutscene speed branches all gate
  * OFF in HOUSE free-roam (da1bc==0, *DAT_068dd2f0==0), so the cap tree collapses
  * to 0.175 and the damp tree to 0.82 — the values W3 validated (§61). */
+/* FUN_0048b850 tail (engine all.c L90242+): the per-frame motion-history ring
+ * shift, the conditional after-image burst fill (DAT_056dacc0), and the
+ * dash-trail advance (DAT_056dab6c) — the Cpop.3/6/7 leaves, wired here as the
+ * live writer of the chr-walker render banks (engine-quirks §76).
+ *
+ * Engine order (must hold: burst reads the rings the shift just wrote):
+ *   shift rings → burst fill → decay edge → trail advance.
+ * Dormant in free-roam (see the bank-storage note): the shift runs but the
+ * burst counter is 0 and no trail record is active, so the fills do nothing. */
+static void player_ctrl_b850_render_tail(void)
+{
+    const float cur_pos[3] = { g_scene1_player_pos[0],
+                               g_scene1_player_pos[1],
+                               g_scene1_player_pos[2] };
+
+    /* 1. shift both 40-slot motion-history rings; slot 0 ← live (pos, record). */
+    player_ctrl_history_shift(s_pos_hist, s_rec_hist, cur_pos,
+                              s_actor_record[0]);
+
+    /* 2. burst bank (DAT_056dacc0): materialize 5 after-images from the rings
+     *    while the burst counter is positive (egg/spell flash).  daae0 == 0 in
+     *    free-roam → no-op, returns the counter unchanged. */
+    s_burst_count = player_ctrl_burst_materialize(s_burst_bank, s_pos_hist,
+                                                  s_rec_hist, s_burst_count);
+
+    /* 3. decay-spawn edge: the DAT_056dae14 down-counter reaching 0 this frame
+     *    fires the per-record FUN_0044376a alloc inside the advance.  Stays 0
+     *    in free-roam (kicked only by the unported dash path). */
+    int decay_spawn = 0;
+    if (s_decay_spawn > 0 && --s_decay_spawn == 0)
+        decay_spawn = 1;
+
+    /* 4. trail bank (DAT_056dab6c): advance the active after-image records.  No
+     *    record is spawned in free-roam, so the advance only ever touches
+     *    countdown>0 slots — none today — and never indexes the per-anim angle
+     *    table (DAT_005ce5c0), which the dash-spawn sub-chip will source.
+     *    ev=NULL drops the (unreached) spawn callbacks. */
+    player_ctrl_trail_advance(s_trail_bank, s_actor_record[0], cur_pos,
+                              /*angle_table=*/NULL, decay_spawn, /*ev=*/NULL);
+}
+
 static void player_ctrl_b850_move(void)
 {
     /* _STUB: body is the free-roam position-physics subset only; the render-slot
@@ -566,6 +666,10 @@ static void player_ctrl_b850_move(void)
      * every frame so velocity decays to 0 after the d-pad is released. */
     s_player_vel[0] *= PC_WALK_DAMP;
     s_player_vel[2] *= PC_WALK_DAMP;
+
+    /* FUN_0048b850 tail: motion-history rings + after-image render-bank fill
+     * (engine-quirks §76).  Runs every frame; dormant in free-roam. */
+    player_ctrl_b850_render_tail();
 }
 
 /* ── W3: per-frame player-controller tick (engine FUN_0048670f driver) ─────

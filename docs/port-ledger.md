@@ -192,7 +192,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4424e7 | FUN_004424e7 | 429 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4426a7 | FUN_004426a7 | 300 | ✓ | scene1_sim.c, scene1_sim.h |
 | 0x44375e | FUN_0044375e | 12 | ✓ | scene1_records_b_tick.c |
-| 0x44376a | FUN_0044376a | 8538 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h (+7) |
+| 0x44376a | FUN_0044376a | 8538 | ✓ | main.c, scene1_particles_tick.h, scene1_player_ctrl.c (+6) |
 | 0x445a8c | FUN_00445a8c | 8952 | ✓ | scene1_records.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+1) |
 | 0x447f4f | FUN_00447f4f | 11826 | ✓ | main.c, scene1_combat_sm.h, scene1_companion_ctrl.c (+5) |
 | 0x44aef0 | FUN_0044aef0 | 96 | ✓ | scene1_records.h, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |
@@ -230,7 +230,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45672a | FUN_0045672a | 1317 | ✓ | chr_sprite_meta.h, scene1_chr_prepass.c, scene1_chr_prepass.h (+2) |
 | 0x456c4f | FUN_00456c4f | 249 | ✓ | scene1_chr_prepass.c, scene1_chr_prepass.h |
 | 0x456d48 | FUN_00456d48 | 526 | ✓ | scene1_chr_walker.c, scene1_chr_walker.h, scene1_render.c (+3) |
-| 0x456f56 | FUN_00456f56 | 1982 | ✓ | chr_sprite_meta.h, main.c, scene1_camera.c (+6) |
+| 0x456f56 | FUN_00456f56 | 1982 | ✓ | chr_sprite_meta.h, main.c, scene1_camera.c (+8) |
 | 0x458bdf | FUN_00458bdf | 904 | ✓ | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_render.c (+1) |
 | 0x458f67 | FUN_00458f67 | 2118 | ✓ | scene1_maplight.c, scene1_maplight.h, scene1_render.c (+1) |
 | 0x4597ad | FUN_004597ad | 48 | ✓ | scene1_render.c, scene1_render.h |

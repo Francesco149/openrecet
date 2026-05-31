@@ -136,9 +136,13 @@ each adds only *structural stubs* never new *simplified* bodies):
    facing octant `dab00`+sticky, call `collision_resolve_player`, damp tree
    (→0.82 grounded); dash/egg/`da1bc`/cutscene branches structurally
    gated-off. Tick calls it instead of doing clamp/octant/collision/damp inline.
-2. **Chip 2** — `FUN_0048b850` render-slot populator (`DAT_056dacc0` fill via the
-   `FUN_0044376a` record copy) → retires `PORT-DEBT(synthetic-data, FUN_0048b850)`
-   (`scene1_chr_walker.c:84`).
+2. **Chip 2 ✅** — `FUN_0048b850` render-bank populator. `scene1_player_ctrl.c`
+   owns the two after-image banks (`DAT_056dab6c` trail / `DAT_056dacc0` burst) +
+   history rings + counters and wires the b850 tail as their live writer;
+   `scene1_chr_walker.c` reads them + the dead synthetic inject is deleted →
+   retires `PORT-DEBT(synthetic-data, FUN_0048b850)` (debt 6→5). Net-zero visible
+   (banks dormant in free-roam; `chr-walker` draws after-image EFFECTS, not the
+   player — that draws via `FUN_004552d0`). See `engine-quirks.md` §76.
 3. **Chip 3** — `FUN_0048670f` prologue + per-frame bookkeeping + tail shell
    (actor refresh, transition-flag fades, `b74c/750/924/b4e0` counters,
    `FUN_00486435` tail clamp). cc08 dispatch shell routes cc08==1 to the free-roam

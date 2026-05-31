@@ -2914,3 +2914,59 @@ cc08==1 arm (step 1 impulse) with off-path states as structural stubs.
 > 📍 Decomp `all.c:86539-88178` (`FUN_0048670f`), `all.c:89757+`
 > (`FUN_0048b850`); src `scene1_player_ctrl.c` (leaves 24-327 + tick 528),
 > `collision_resolve.c` (`FUN_00483170`); reconciles §60/§61/§69/§71.
+
+## 76. The `chr-walker` (`FUN_00456f56`) draws AFTER-IMAGE EFFECT banks, not the player — its `DAT_056dacc0`/`DAT_056dab6c` arrays are `FUN_0048b850`-tail trails, empty in free-roam (controller un-MVP Chip 2)
+
+Chip 2 of the controller un-MVP (plan `house-controller-unmvp.md`) set out to
+"retire the synthetic single-slot inject by wiring the real
+`DAT_056dacc0` populator." Tracing the two walkers reconciled what that array
+actually is — and corrected the §75 / `scene1_chr_walker.h` premise that
+`FUN_00456f56` is the player draw:
+
+- **The solid player + companion draw via `FUN_004552d0` (`scene1_shop_walker`)**,
+  reading the live actor model (`DAT_056da1cc` char, `DAT_056dae18/24` scales,
+  the `DAT_056daae8` sprite-state record) — i.e. the `player_ctrl_actor_*`
+  accessors. This has been the visible-player path since Cchr.2g (`bf4efaa`).
+- **`FUN_00456f56` (`chr-walker`) draws the ADDITIVE overlays:** the two player
+  after-image banks (sweep 0 = `DAT_056dab6c` dash-trail, sweep 1 =
+  `DAT_056dacc0` burst), a companion glow (`DAT_056dab40`), and the NPC people
+  billboards. The sweep-0/1 banks are **5×0x44 effect records** (sprite[0..10],
+  pos x/y/z at 0xb..0xd, life/age at 0xe), written by `FUN_0048b850`'s tail
+  (`all.c` L90242+): the motion-history ring shift (Cpop.3), the burst fill
+  (Cpop.7 → `DAT_056dacc0`), and the dash-trail advance (Cpop.6 → `DAT_056dab6c`).
+- **The synthetic inject (`scene1_chr_walker_set_inject`) was DEAD code** — never
+  called since the `--force-chr-walker` flag was retired to a no-op in Cchr.2h.
+  So `chr-walker`'s Pass 2 was gated closed (`player_char == -1`) and the walker
+  drew nothing; the player was solid via the shop-walker the whole time.
+
+**Chip 2 retired the `PORT-DEBT(synthetic-data, FUN_0048b850)` cleanly:** the
+hand-built single slot is gone; `scene1_player_ctrl.c` now owns the two banks +
+the two 40-slot history rings + the burst/decay counters, and the b850 tail
+(`player_ctrl_b850_render_tail`, history-shift → burst → decay-edge →
+trail-advance) is wired as their live writer. `scene1_chr_walker.c` reads the
+banks via `player_ctrl_render_bank_slot()` / `player_ctrl_burst_count()`.
+
+**Net-zero visible: the banks are DORMANT in HOUSE free-roam.** Nothing spawns a
+trail record (the dash/`FUN_0044376a` alloc path is a later b850 sub-chip) and
+the burst counter stays 0, so both banks stay empty and the walker draws no
+after-images — matching retail's plain walk. House-walk-tables frames are
+**byte-identical** to the pre-chip build; house-table-corner stays 9/9.
+
+**Why Pass 2 must stay gated closed (do not re-open without sourcing the fade
+counter):** the engine scopes the whole companion+player block to the
+scene-entry fade window (`DAT_0438b4b4 < 0x5b`), which the port stubs to
+"always in-window" (`chr_walker_fade_counter == 0`). Pointing
+`chr_walker_player_char` at the live `player_ctrl_actor_char(0)` opens Pass 2
+**every** frame, toggling z-write state (`ZWRITEENABLE = TRUE` at the end of
+sweep 0) outside the window retail does — which shifts steady-state walk frames.
+Since the banks are empty there is nothing to draw, so opening Pass 2 is pure
+risk until a later chip sources the real `DAT_0438b4b4` gate AND the banks carry
+content (the dash-spawn path). Pass 2 therefore stays dormant like the
+companion-glow / people passes — the standard count-stub pattern.
+
+> 📍 src `scene1_player_ctrl.c` (`player_ctrl_b850_render_tail` + banks +
+> `player_ctrl_render_bank_slot`/`_burst_count`), `scene1_chr_walker.c`
+> (accessors + dormant Pass 2 note); decomp `all.c:52392+` (`FUN_00456f56`
+> draw), `all.c:51618+` (`FUN_004552d0` solid player draw), `all.c:90242+`
+> (`FUN_0048b850` tail writer); leaves Cpop.3/6/7 in `scene1_player_ctrl.{c,h}`.
+> Reconciles/corrects §75 + `scene1_chr_walker.h` "DORMANT IN HOUSE".
