@@ -2657,4 +2657,48 @@ trajectory through the law (one-step mean 0.0036, facing 621/621, bob 2.806–3.
 2.806–3.194) + 4 host tests. **Deferred PORT-DEBT:** the fairy's glowing wing
 sparkle (the `FUN_00447f4f` emit + spawn_origin-anchored particle handlers); and
 un-MVP the placeholder chr-sheet cache → the real roster loader `FUN_00431a80`
-(`DAT_073a9b18[char·0x10]`).
+(`DAT_073a9b18[char·0x10]`).  *(The "→ FUN_00431a80" pointer here is a static-read
+error — see §72.)*
+
+## 72. HOUSE party chr sheets load from the boot "read systemtex" init (FUN_00472f5d, sheets 0/1/2), NOT the roster FUN_00431a80
+
+W-rostersheets (2026-05-31). Un-MVP follow-up to §71. The deferred note ("un-MVP
+the chr-sheet cache → the real roster loader `FUN_00431a80`") was itself a
+**static-read error** of exactly the kind §71 kept hitting. Tracing the *only*
+three writers of the engine's chr-sheet table `DAT_073a9b18` (a 100-record
+`{tex,w,h}` array — `FUN_00504076(&DAT_073a9b18,0x10,100,…)`) settles where the
+HOUSE player+companion sheets actually come from:
+
+- **`FUN_00472f5d`** (the boot **"read systemtex"** init — its caller
+  `FUN_0047b2e7` logs `read_systemtex_ok` immediately after it; also re-run on
+  device-reset). Among ~25 UI/system bitmaps it runs a **fixed 3-iteration loop**
+  (`all.c` L71646; loop bound `&DAT_073a9b48 − &DAT_073a9b18 = 0x30 = 3` slots)
+  loading `bmp/chr/chr%02d.bmp` for ids **0, 1, 2** into `DAT_073a9b18[0/1/2]` —
+  the resident **main party**: player = sheet 0, companion (Tear) = sheet 1, the
+  3rd party slot = sheet 2. Dims come from the per-chr record array
+  (`DAT_0438cec8`, stride `0x1416`), which is **BSS-zero at boot**, so the loader
+  passes `w=h=0` and the decoder takes the native atlas size. **This is the real
+  loader for the HOUSE player+companion sheets.**
+- **`FUN_00474a9a`** HOUSE branch (`all.c` L73059) loads the fixed **21-entry
+  NPC/customer table** `{10,35,29,28,32,…,66,67}` (`g_scene1_chr_portrait_ids`,
+  `0x5c8058`) on HOUSE entry — the shop's customer billboards. **Excludes 0/1/2.**
+- **`FUN_00473c15`** (DUNGEON) — the *only* caller of the roster builder
+  `FUN_00431a80`, and it **early-returns when `*DAT_068dd2f0==0`** (i.e. in
+  HOUSE). So `FUN_00431a80` **never runs in HOUSE** and cannot feed HOUSE sheets.
+  It builds a per-char "active this dungeon floor" bool array (looks up the
+  stage/event range `DAT_0438b4cc` in the table at `0x53f8e8`, marks
+  `roster[char]=1`), consumed only by the dungeon preloader's enemy/party sheet +
+  mesh loads.
+
+**Consequence for the port:** the player(0)+companion(1) sheets must load at the
+**boot** "read systemtex" point (`scene1_preload_init`, which already holds the
+live device), as a fixed `{0,1,2}` set keyed by **sheet id**, NOT on-demand from
+the player/companion char id at HOUSE entry and NOT via any roster. The actor draw
+(`FUN_004552d0`) then binds `DAT_073a9b18[char_id]` per actor (player char 0,
+companion char 1, guest char 3→`-1` skipped, §71). chr sheets are `sprite_t`
+(their own `IDirect3DTexture8`), outside the mesh-tex cache that HOUSE entry
+resets, so a boot load survives to the first HOUSE draw. Ported:
+`scene1_preload_chr_party_sheets()` (the `FUN_00472f5d` slice) into a 100-slot
+sheet-id-keyed `g_chr_sheets[]` (was an 8-slot char-keyed LRU). The 21-entry
+customer loop and the rest of `FUN_00472f5d`'s UI/effect textures stay deferred
+PORT-DEBT (customer billboards + HUD are separate fronts).

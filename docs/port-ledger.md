@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **378** (14.8%) — verified 63, stubbed 14, ported 301
-- unported: **2170**
+- touched: **379** (14.9%) — verified 63, stubbed 14, ported 302
+- unported: **2169**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (63) — runtime-diffed vs retail
@@ -101,7 +101,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (301) — reimplemented, no probe yet
+## ported (302) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -264,7 +264,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x471b24 | FUN_00471b24 | 467 | ✓ | mesh_load.c, mesh_load.h, sprite.h |
 | 0x471d45 | FUN_00471d45 | 2777 | ✓ | collision_mesh.c, collision_mesh.h, scene_map_meshes.h (+2) |
 | 0x472836 | FUN_00472836 | 1609 | ✓ | mesh.h, mesh_load.c, mesh_load.h (+6) |
-| 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_wide_followup.c, sysassets.c (+1) |
+| 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_preload.c, scene1_preload.h (+3) |
 | 0x47329b | FUN_0047329b | 151 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
 | 0x47333b | FUN_0047333b | 145 | ✓ | main.c, scene_buy.c, scene_buy.h (+1) |
 | 0x4733d5 | FUN_004733d5 | 159 | ✓ | main.c, scene_title.c, scene_title.h (+1) |
@@ -402,6 +402,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x503dd0 | FUN_00503dd0 | 10 | ✓ | scene1_records_b_spawn.c, scene1_records_b_spawn.h |
 | 0x503de4 | FUN_00503de4 | 344 | ✓ | storage.c |
 | 0x503f3c | FUN_00503f3c | 140 | ✓ | storage.c |
+| 0x504076 | FUN_00504076 | 106 | ✓ | scene1_preload.c |
 | 0x5041ec | FUN_005041ec | 10 | ✓ | main.c, rng.h |
 | 0x5041f6 | FUN_005041f6 | 30 | ✓ | diff_entry.c, diff_entry.h, npc_schedule.c (+6) |
 | 0x5045eb | FUN_005045eb | 220 | ✓ | main.c, prewindow.h, rng.h |

@@ -780,21 +780,19 @@ static void force_pass_d_mesh_reload(void)
 /* Cchr.2h — post-house dispatcher.  scene1_preload owns a single post-house
  * callback slot (fires once per HOUSE entry, after the mesh-cache reset +
  * foreground sprite loads).  Always registered; routes the optional
- * --force-pass-d-mesh reload AND the default standing-player setup:
- *   - load the player char's walking sprite sheet (DAT_073a9b18[char]); and
- *   - seed the HOUSE standing pose (position + the player_ctrl actor model)
- * so sw_pass_light draws Recette by default.  --no-chr-player suppresses the
- * player setup (the sheet load + pose), leaving the actor model's char id
- * at -1 → the draw gate skips it. */
+ * --force-pass-d-mesh reload AND the default standing-player pose setup
+ * (position + the player_ctrl actor model) so sw_pass_light draws Recette by
+ * default.  The party walking-sprite sheets (player 0, companion 1, guest 2)
+ * are now loaded at boot by scene1_preload_chr_party_sheets() — the engine's
+ * FUN_00472f5d "read systemtex" point (§72) — not here.  --no-chr-player
+ * suppresses the pose so the actor model's char id stays -1 → the draw gate
+ * skips it (the sheets stay resident, harmless, exactly as in the engine). */
 static void post_house_hook(void)
 {
     if (g_force_pass_d_mesh_path)
         force_pass_d_mesh_reload();
-    if (!g_no_chr_player) {
-        scene1_preload_load_chr_sheet(stage_post_load_get_dat_056da1cc());
-        scene1_preload_load_chr_sheet(1);   /* companion fairy (actor 2, char 1) */
+    if (!g_no_chr_player)
         scene1_postload_pose_house_standing();
-    }
 }
 
 /* Parse a --force-player-sprite inject file.  Line-based, tolerant of

@@ -77,19 +77,23 @@ void scene1_preload_init(struct IDirect3DDevice8 *dev);
 int scene1_preload_house(void);
 
 /*
- * Cchr.2f (MVP) — load one character's walking sprite sheet
- * ("bmp/chr/chr_%02d.bmp", engine s_bmp_chr_chr_02d_bmp_005c8d08) into a
- * dedicated slot the chr-walker binds via SetTexture.  This is the
- * player-sheet analog of the engine's HOUSE preload loop (FUN_00474a9a
- * L73066) over the roster id table — except that table (the byte-verified
- * g_scene1_chr_portrait_ids[] dump) excludes char 0 (the player), whose
- * slot retail fills from the FUN_00431a80 active-char list.  Until that
- * roster mechanism ports, this loads char 0 directly behind
- * --force-chr-walker.  Idempotent: reloading the same id is a no-op;
- * a different id frees the previous texture first.  Uses the device
+ * Cchr.2j — load one character's walking sprite sheet
+ * ("bmp/chr/chr%02d.bmp", engine s_bmp_chr_chr_02d_bmp_005c8540) into the
+ * engine's DAT_073a9b18[100] sheet table at slot == sheet id (== actor char
+ * id at draw, §72).  Idempotent: a slot that already holds a texture is left
+ * alone.  Out-of-range ids (< 0 or >= 100) are ignored.  Uses the device
  * cached by scene1_preload_init().
  */
 void scene1_preload_load_chr_sheet(int char_id);
+
+/*
+ * Boot "read systemtex" party-sheet load — the FUN_00472f5d chr loop
+ * (all.c L71646): loads the resident main party sheets chr00/01/02.bmp into
+ * slots 0/1/2 (player, companion, guest).  Called from scene1_preload_init at
+ * boot, the engine's actual load point — NOT on-demand from HOUSE entry or via
+ * the dungeon roster FUN_00431a80 (which never runs in HOUSE; see §72).
+ */
+void scene1_preload_chr_party_sheets(void);
 
 /*
  * Return the loaded sprite sheet for `char_id`, or NULL if none is

@@ -122,55 +122,65 @@ static void *house_hikari_texture(void)
 
 static IDirect3DDevice8 *g_scene1_preload_dev = NULL;
 
-/* Cchr.2f — character walking sprite sheets (the engine's DAT_073a9b18[char*0x10]
- * record: tex + native w/h).  A small fixed cache keyed by char id, rather than
- * the full 100-entry table — HOUSE needs the player (char 0) AND the companion
- * fairy (char 1) resident at once (engine-quirks §71); 8 slots leave room for
- * the future FUN_00431a80 roster.  scene1_preload_chr_sheet returns the slot for
- * a given char id, NULL if not loaded. */
-#define CHR_SHEET_SLOTS 8
+/* Cchr.2j — character walking sprite sheets: the engine's DAT_073a9b18[100]
+ * record array (FUN_00504076(&DAT_073a9b18, 0x10, 100, …): 100 × {tex, w, h}).
+ * Keyed directly by SHEET id — which IS the actor char id at draw time
+ * (FUN_004552d0 binds DAT_073a9b18[char_id]; player char 0, companion char 1,
+ * §71).  This replaces the earlier 8-slot char-keyed LRU placeholder; the table
+ * is now the full engine-sized id-indexed array, so a load lands in its own slot
+ * with no eviction.  Two engine writers fill it (engine-quirks §72):
+ *   - FUN_00472f5d, the boot "read systemtex" init — loads the resident main
+ *     party chr00/01/02 into slots 0/1/2 (scene1_preload_chr_party_sheets below).
+ *   - FUN_00474a9a HOUSE branch — the 21-entry customer table (still the dead
+ *     g_chr_portraits w=h=0 path; customer billboards are a separate front).
+ * The DUNGEON roster FUN_00431a80 never runs in HOUSE (its sole caller
+ * early-returns), so it does NOT feed these sheets — the §71 "→ FUN_00431a80"
+ * note was a static-read error. */
+#define CHR_SHEET_SLOTS 100
 static sprite_t g_chr_sheets[CHR_SHEET_SLOTS];
-static int      g_chr_sheet_ids[CHR_SHEET_SLOTS] =
-    { -1, -1, -1, -1, -1, -1, -1, -1 };
 
 void scene1_preload_load_chr_sheet(int char_id)
 {
-    if (char_id < 0)
+    if (char_id < 0 || char_id >= CHR_SHEET_SLOTS)
         return;
-    for (int i = 0; i < CHR_SHEET_SLOTS; i++)        /* already resident? */
-        if (g_chr_sheet_ids[i] == char_id && g_chr_sheets[i].tex != NULL)
-            return;
-
-    int slot = -1;                                   /* first empty slot */
-    for (int i = 0; i < CHR_SHEET_SLOTS; i++)
-        if (g_chr_sheet_ids[i] == -1 || g_chr_sheets[i].tex == NULL) { slot = i; break; }
-    if (slot == -1) {                                /* cache full — reuse slot 0 */
-        slot = 0;
-        if (g_chr_sheets[0].tex != NULL)
-            sprite_destroy(&g_chr_sheets[0]);
-    }
-    g_chr_sheet_ids[slot] = char_id;
+    if (g_chr_sheets[char_id].tex != NULL)           /* already resident */
+        return;
 
     char path[64];
-    /* Engine string @ 0x5c8d08 is "bmp/chr/chr%02d.bmp" — NO underscore
+    /* Engine string @ 0x5c8540 is "bmp/chr/chr%02d.bmp" — NO underscore
      * (objdump-verified against the unpacked exe; the existing portrait
      * loop's "chr_%02d.bmp" is a latent typo, harmless only because that
      * loop's results are still unconsumed). */
     snprintf(path, sizeof path, "bmp/chr/chr%02d.bmp", char_id);
     /* expected_w/h are ignored by sprite_load (decodes at native size); the
-     * resulting .width/.height are the engine's +4/+8 atlas dims. */
-    int ok = sprite_load(g_scene1_preload_dev, path, 0, 0, &g_chr_sheets[slot]);
+     * resulting .width/.height are the engine's +4/+8 atlas dims.  Mirrors the
+     * engine, which passes the BSS-zero DAT_0438cec8 dims (0/0) at boot. */
+    int ok = sprite_load(g_scene1_preload_dev, path, 0, 0, &g_chr_sheets[char_id]);
     fprintf(stderr,
             "scene1_preload: chr sheet %s -> %s (%ux%u)\n",
             path, ok ? "loaded" : "FAILED (diffuse-only fallback)",
-            g_chr_sheets[slot].width, g_chr_sheets[slot].height);
+            g_chr_sheets[char_id].width, g_chr_sheets[char_id].height);
+}
+
+/* FUN_00472f5d chr loop (all.c L71646-71658): the boot "read systemtex" init
+ * loads the resident main-party sheets chr00/01/02.bmp into DAT_073a9b18[0/1/2].
+ * Fixed 3-iteration loop in the engine (loop bound &DAT_073a9b48 − &DAT_073a9b18
+ * = 0x30 = 3 slots).  Player = sheet 0, companion (Tear) = sheet 1, 3rd party
+ * slot = sheet 2 (resident but draw-gated off in HOUSE free-roam — its actor's
+ * char id is -1, §71/§72). */
+#define CHR_PARTY_SHEET_COUNT 3
+void scene1_preload_chr_party_sheets(void)
+{
+    for (int id = 0; id < CHR_PARTY_SHEET_COUNT; id++)
+        scene1_preload_load_chr_sheet(id);
 }
 
 const sprite_t *scene1_preload_chr_sheet(int char_id)
 {
-    for (int i = 0; i < CHR_SHEET_SLOTS; i++)
-        if (g_chr_sheet_ids[i] == char_id && g_chr_sheets[i].tex != NULL)
-            return &g_chr_sheets[i];
+    if (char_id < 0 || char_id >= CHR_SHEET_SLOTS)
+        return NULL;
+    if (g_chr_sheets[char_id].tex != NULL)
+        return &g_chr_sheets[char_id];
     return NULL;
 }
 
@@ -187,6 +197,13 @@ void scene1_preload_init(struct IDirect3DDevice8 *dev)
 {
     g_scene1_preload_dev = (IDirect3DDevice8 *)dev;
     worker_load_set_cb(1 /* INGAME */, scene1_preload_house_cb);
+
+    /* Boot "read systemtex" party-sheet load (FUN_00472f5d, engine-quirks §72).
+     * The device is live here (main.c passes g_dev), and chr sheets are sprite_t
+     * outside the mesh-tex cache that HOUSE entry resets, so these survive to the
+     * first HOUSE draw — matching the engine's boot-time load of the resident
+     * party (player 0, companion 1, guest 2). */
+    scene1_preload_chr_party_sheets();
 }
 
 int scene1_preload_house(void)
