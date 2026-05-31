@@ -43,6 +43,7 @@
 #include "save_bank.h"        /* save_arena_base + SAVE_BANK_STRIDE_BYTES */
 #include "scene1_camera.h"    /* g_scene1_camera_char_mode */
 #include "scene1_particles_tick.h"
+#include "scene1_companion_ctrl.h"/* scene1_companion_ctrl_reset (actor-2 bob) */
 #include "scene1_player_ctrl.h"   /* player_ctrl_pose_house_standing */
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
@@ -117,6 +118,10 @@ void scene1_postload_pose_house_standing(void)
     g_scene1_player_pos[2] =  9.35f;
 
     player_ctrl_pose_house_standing(stage_post_load_get_dat_056da1cc());
+
+    /* Reset the companion hover-bob phase (engine DAT_056db054) on scene entry,
+     * alongside the actor-2 seed inside pose_house_standing. */
+    scene1_companion_ctrl_reset();
 }
 
 void scene1_postload_ambient_spawn(void)

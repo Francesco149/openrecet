@@ -4,14 +4,14 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 62,
+  "verified": 63,
   "stubbed": 14,
-  "ported": 299,
-  "unported": 2173,
+  "ported": 301,
+  "unported": 2170,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 375,
-  "pct_touched": 14.7,
-  "pct_verified": 2.4
+  "touched": 378,
+  "pct_touched": 14.8,
+  "pct_verified": 2.5
  },
  "orphan_refs": [
   "0x40f640",
@@ -2844,7 +2844,9 @@
     "src/scene1_alpha_walker.h",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
+    "src/scene1_companion_ctrl.h",
     "src/scene1_particles_tick.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
@@ -7599,8 +7601,10 @@
    "size": 516,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_companion_ctrl.c"
+   ]
   },
   {
    "va": "0x48407f",
@@ -8099,8 +8103,10 @@
    "size": 866,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "verified",
+   "src": [
+    "src/scene1_companion_ctrl.c"
+   ]
   },
   {
    "va": "0x48a833",
@@ -8108,8 +8114,14 @@
    "size": 3011,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_companion_ctrl.c",
+    "src/scene1_companion_ctrl.h",
+    "src/scene1_particles_tick.h",
+    "src/scene1_player_ctrl.h",
+    "src/scene1_sim.c"
+   ]
   },
   {
    "va": "0x48b3f6",

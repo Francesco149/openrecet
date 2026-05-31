@@ -341,6 +341,12 @@ float          player_ctrl_actor_scale_xz(int i);
 float          player_ctrl_actor_scale_y(int i);
 const int32_t *player_ctrl_actor_record(int i);
 
+/* Mutable record access for the companion controller (scene1_companion_ctrl,
+ * engine FUN_0048a833) — it owns the actor-2 record's anim/facing fields the
+ * same way scene1_player_ctrl_tick owns actor 0's.  Returns NULL if i is out of
+ * range.  PC_ACTOR_REC_DWORDS dwords. */
+int32_t       *player_ctrl_actor_record_mut(int i);
+
 /* Debug accessor: post-tick velocity (vx,vz), stored facing db05c, sticky flag.
  * Any out param may be NULL. Used by --player-pos-log (engine-quirks §69). */
 void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky);

@@ -41,6 +41,7 @@
 #include "scene1_sim.h"
 
 #include "scene1_particles_tick.h"
+#include "scene1_companion_ctrl.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_records_b_tick.h"
 #include "scene1_records_c_tick.h"
@@ -76,6 +77,11 @@ void scene1_ingame_default_arm_tick(void)
      * selects FUN_0048670f (the live HOUSE branch) over the FUN_0048b3f6
      * variant.  Both gates open in HOUSE; W1 wires the entry (stub body). */
     scene1_player_ctrl_tick();
+
+    /* FUN_00442cef → FUN_0048670f runs the companion controller FUN_0048a833
+     * right after the player driver — it hover-follows actor 2 (the bobbing
+     * fairy) toward the player.  No-op unless actor 2 is live. */
+    scene1_companion_ctrl_tick();
 
     /* FUN_00442cef L40603 — gated on DAT_0438b4b4 == 0 (BSS-zero in
      * HOUSE → gate opens).  C8j-tick.1 ports the SKELETON ONLY (outer

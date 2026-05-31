@@ -419,8 +419,11 @@ static struct anchor_trace_state g_anchor_state             = {0};
  * ({"frame":N,"px":..,"py":..,"pz":..}) while in the INGAME (HOUSE) scene.
  * The port-side equivalent of the retail Frida --watch on 0x056da1d8 — used to
  * verify collision/movement behavior (e.g. wall blocking) from a TAS drive
- * without a debugger.  g_scene1_player_pos lives in scene1_particles_tick.h. */
-extern float                     g_scene1_player_pos[3];
+ * without a debugger.  The actor positions live in scene1_particles_tick.h as
+ * the contiguous g_scene1_actor_pos[3][3] (slot 0 = player, slot 2 = companion);
+ * g_scene1_player_pos is its slot-0 alias macro. */
+extern float                     g_scene1_actor_pos[3][3];
+#define g_scene1_player_pos      (g_scene1_actor_pos[0])
 static char                     *g_player_pos_log_path      = NULL;
 static FILE                     *g_player_pos_log_fp        = NULL;
 
@@ -789,6 +792,7 @@ static void post_house_hook(void)
         force_pass_d_mesh_reload();
     if (!g_no_chr_player) {
         scene1_preload_load_chr_sheet(stage_post_load_get_dat_056da1cc());
+        scene1_preload_load_chr_sheet(1);   /* companion fairy (actor 2, char 1) */
         scene1_postload_pose_house_standing();
     }
 }
@@ -2233,15 +2237,24 @@ static void render_dispatch(void)
         int a_cnt  = rec ? rec[CHR_ACTOR_COUNTER] : -1;
         int a_frm  = rec ? rec[CHR_ACTOR_FRAME]   : -1;
         int a_oct  = rec ? rec[CHR_ACTOR_FACING]  : -1;
+        /* §71: companion (actor 2 — the fairy) position + facing/anim, so the
+         * hover-follow can be diffed against retail (runs/companion-truth). */
+        const int32_t *crec = player_ctrl_actor_record(2);
+        int c_char = player_ctrl_actor_char(2);
+        int c_anim = crec ? crec[CHR_ACTOR_ANIM]   : -1;
+        int c_oct  = crec ? crec[CHR_ACTOR_FACING] : -1;
         fprintf(g_player_pos_log_fp,
                 "{\"frame\":%u,\"px\":%.5f,\"py\":%.5f,\"pz\":%.5f,"
                 "\"vx\":%.6f,\"vz\":%.6f,\"facing\":%.6f,\"sticky\":%d,"
-                "\"buttons\":%u,\"anim\":%d,\"counter\":%d,\"aframe\":%d,\"oct\":%d}\n",
+                "\"buttons\":%u,\"anim\":%d,\"counter\":%d,\"aframe\":%d,\"oct\":%d,"
+                "\"cchar\":%d,\"cx\":%.5f,\"cy\":%.5f,\"cz\":%.5f,\"canim\":%d,\"coct\":%d}\n",
                 g_tick.frame_count,
                 g_scene1_player_pos[0], g_scene1_player_pos[1],
                 g_scene1_player_pos[2],
                 vx, vz, facing, sticky, g_input_state[0].buttons,
-                a_anim, a_cnt, a_frm, a_oct);
+                a_anim, a_cnt, a_frm, a_oct,
+                c_char, g_scene1_actor_pos[2][0], g_scene1_actor_pos[2][1],
+                g_scene1_actor_pos[2][2], c_anim, c_oct);
         fflush(g_player_pos_log_fp);
     }
 

@@ -7,6 +7,33 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-05-31 — HOUSE companion (Tear) renders + spring-follows through the real controller
+
+Closed §70's biggest remaining HOUSE character-parity gap: the **untouched Tear
+companion**. Now rendered and driven through the real engine path (engine-quirks
+§71), ground-truth-first the whole way (`runs/companion-truth/`, a 25-global
+retail Frida capture over the new-game→HOUSE tour).
+
+Static reads kept being wrong; the capture inverted each: (1) the live companion
+is **actor 2 / char 1** (a bobbing fairy), not actor 1 (char 3, disabled at
+free-roam by FUN_00436f97); (2) its position `da1f0/f4/f8` **aliases the particle
+spawn_origin** (modeled as one contiguous `g_scene1_actor_pos[3][3]`); (3) the
+visible follow is the **spring helper FUN_0048a4d1** (stay 1.5 from the player,
+0.15 gain, 0.35 clamp, sin Y-bob) — NOT the fixed-±1.3 hover block first
+hypothesised (which fit 20× worse); (4) facing **copies the player when moving**,
+**side-rule when idle**; (5) the engine draw default is **3 actors** (`local_14 =
+float-bits-of-int-3`), not the port's player-only MVP of 1.
+
+Validation: replaying retail's own player trajectory through the ported law
+reproduces the companion XZ to **one-step mean 0.0036** (facing 621/621, bob band
+2.806–3.197); the port's live drive obeys it to mean 0.0024 (facing 341/341, bob
+2.806–3.194). User-confirmed visually (the silver-haired fairy beside Recette,
+facing left toward her). **3046 host tests** (+5). New: `scene1_companion_ctrl.{c,h}`,
+contiguous actor-pos array, multi-char chr-sheet cache, draw-default fix.
+**Deferred:** the fairy's glowing-wing sparkle (FUN_00447f4f emit) + un-MVP the
+chr-sheet cache → roster loader FUN_00431a80; plus auto-shift frame-alignment in
+scenario-test for the residual ±1 load-jitter (next task).
+
 ## 2026-05-31 — W3b: HOUSE walk-cycle anim ran 1 tick ahead of retail, fixed bit-exact
 
 Follow-up to W4.7: the `house-table-corner` cap_08 visual residual (character

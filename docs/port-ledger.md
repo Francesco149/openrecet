@@ -10,11 +10,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **375** (14.7%) — verified 62, stubbed 14, ported 299
-- unported: **2173**
+- touched: **378** (14.8%) — verified 63, stubbed 14, ported 301
+- unported: **2170**
 - orphan refs (in src/, not in function table): 6
 
-## verified (62) — runtime-diffed vs retail
+## verified (63) — runtime-diffed vs retail
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -70,6 +70,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4844ef | FUN_004844ef | 310 | ✓ | chara_equip.c |
 | 0x48670f | FUN_0048670f | 11519 | ✓ | scene1_player_ctrl.c |
 | 0x48a331 | FUN_0048a331 | 23 | ✓ | xp_curve.c |
+| 0x48a4d1 | FUN_0048a4d1 | 866 | ✓ | scene1_companion_ctrl.c |
 | 0x48fe43 | FUN_0048fe43 | 315 | ✓ | scene1_dungeon_clear_banner.c |
 | 0x48ff93 | FUN_0048ff93 | 70 | ✓ | save_bank.c |
 | 0x48ffd9 | FUN_0048ffd9 | 67 | ✓ | save_bank.c |
@@ -100,7 +101,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (299) — reimplemented, no probe yet
+## ported (301) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -178,7 +179,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
 | 0x43647f | FUN_0043647f | 61 | ✓ | scene1_combat_sm.h, scene1_hud.c, scene1_hud.h (+1) |
 | 0x4364bc | FUN_004364bc | 359 | ✓ | tables_snews.h |
-| 0x436f97 | FUN_00436f97 | 4788 | ✓ | collision_house.h, main.c, scene.c (+16) |
+| 0x436f97 | FUN_00436f97 | 4788 | ✓ | collision_house.h, main.c, scene.c (+18) |
 | 0x43824b | FUN_0043824b | 940 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h |
 | 0x4385fb | FUN_004385fb | 99 | ✓ | scene1_spawn.c, scene1_spawn.h |
 | 0x43865e | FUN_0043865e | 8059 | ✓ | main.c, scene1_combat_sm.c, scene1_combat_sm.h (+4) |
@@ -318,6 +319,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |
 | 0x4830f1 | FUN_004830f1 | 127 | ✓ | collision_resolve.c, collision_resolve.h |
 | 0x483170 | FUN_00483170 | 3339 | ✓ | collision_query.h, collision_resolve.c, collision_resolve.h (+2) |
+| 0x483e7b | FUN_00483e7b | 516 | ✓ | scene1_companion_ctrl.c |
 | 0x48407f | FUN_0048407f | 795 | ✓ | scene1_sim.c, scene1_sim.h |
 | 0x484dd1 | FUN_00484dd1 | 116 | ✓ | scene1_records_c_tick.c, scene1_records_c_tick.h |
 | 0x484e45 | FUN_00484e45 | 82 | ✓ | scene1_combat_sm.h |
@@ -332,6 +334,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x489d52 | FUN_00489d52 | 102 | ✓ | chara_skills.h |
 | 0x48a348 | FUN_0048a348 | 59 | ✓ | scene1_combat_sm.h |
 | 0x48a383 | FUN_0048a383 | 334 | ✓ | xp_curve.h |
+| 0x48a833 | FUN_0048a833 | 3011 | ✓ | scene1_companion_ctrl.c, scene1_companion_ctrl.h, scene1_particles_tick.h (+2) |
 | 0x48b3f6 | FUN_0048b3f6 | 663 | ✓ | scene1_player_ctrl.h, scene1_sim.c |
 | 0x48b6ad | FUN_0048b6ad | 407 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h |
 | 0x48b850 | FUN_0048b850 | 5030 | ✓ | main.c, scene1_chr_walker.c, scene1_chr_walker.h (+3) |

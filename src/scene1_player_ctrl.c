@@ -359,8 +359,7 @@ void player_ctrl_pose_house_standing(int player_char)
     s_facing_sticky = 0;
     s_player_moving = 0;
 
-    /* actor 0 = the standing player (companion slots 1/2 await the
-     * DAT_056da1d0 char ids + DAT_056da1e4.. position port). */
+    /* actor 0 = the standing player. */
     s_actor_char[0]     = player_char;
     s_actor_scale_xz[0] = 1.0f;   /* DAT_056dae18[0] — settled spawn scale */
     s_actor_scale_y[0]  = 1.0f;   /* DAT_056dae24[0] */
@@ -372,6 +371,27 @@ void player_ctrl_pose_house_standing(int player_char)
     s_actor_record[0][CHR_ACTOR_COUNTER] = 25;
     s_actor_record[0][CHR_ACTOR_FRAME]   = 2;
     s_actor_record[0][CHR_ACTOR_FACING]  = 6;
+
+    /* actor 2 = the bobbing fairy companion (char id 1 = DAT_056da1d4).  At
+     * HOUSE free-roam entry FUN_00435c98 sets (da1cc,da1d0,da1d4) = (0,3,1),
+     * then FUN_00436f97 DISABLES actor 1 (da1d0 → -1) and settles all live
+     * actor scales to 1.0 with record FACING = 4 — so actor 1 stays char -1
+     * (left as the loop default above; never renders) while actor 2 is the
+     * live companion.  Validated against the retail capture (runs/companion-
+     * truth/FINDINGS.md, engine-quirks §71).  scene1_companion_ctrl_tick is the
+     * live writer of its position + anim/facing from here on. */
+    s_actor_char[2]     = 1;
+    s_actor_scale_xz[2] = 1.0f;
+    s_actor_scale_y[2]  = 1.0f;
+    s_actor_record[2][CHR_ACTOR_FACING] = 4;   /* FUN_00436f97 scene-entry default */
+
+    /* Companion position (DAT_056da1f0/f4/f8 = g_scene1_actor_pos[2], aliased by
+     * g_scene1_spawn_origin).  Seed to the retail controllable-onset value
+     * (0.6, 3.0, 9.35) beside the player spawn; the controller's 0.1 lerp
+     * settles any residual within ~1 s. */
+    g_scene1_actor_pos[2][0] = 0.6f;
+    g_scene1_actor_pos[2][1] = 3.0f;
+    g_scene1_actor_pos[2][2] = 9.35f;
 }
 
 int player_ctrl_actor_char(int i)
@@ -390,6 +410,11 @@ float player_ctrl_actor_scale_y(int i)
 }
 
 const int32_t *player_ctrl_actor_record(int i)
+{
+    return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_record[i] : NULL;
+}
+
+int32_t *player_ctrl_actor_record_mut(int i)
 {
     return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_record[i] : NULL;
 }

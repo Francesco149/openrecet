@@ -992,14 +992,18 @@ int test_player_pose_seeds_actor0(void)
     return 0;
 }
 
-int test_player_pose_empties_party_slots(void)
+int test_player_pose_seeds_companion_actor2(void)
 {
     player_ctrl_pose_house_standing(0);
-    /* slots 1/2 stay empty (char -1, scale 0) until companion lands. */
-    if (player_ctrl_actor_char(1) != -1) T_FAIL("actor1 char should be -1");
-    if (player_ctrl_actor_char(2) != -1) T_FAIL("actor2 char should be -1");
+    /* HOUSE free-roam: actor 1 (guest, char 3) is DISABLED (char -1, the engine
+     * FUN_00436f97 free-roam path); actor 2 is the live companion fairy
+     * (char id 1, scale 1.0) — engine-quirks §71 / runs/companion-truth. */
+    if (player_ctrl_actor_char(1) != -1) T_FAIL("actor1 (guest) char should be -1");
     T_ASSERT_NEAR(player_ctrl_actor_scale_xz(1), 0.0f);
-    T_ASSERT_NEAR(player_ctrl_actor_scale_y(2), 0.0f);
+
+    if (player_ctrl_actor_char(2) != 1)  T_FAIL("actor2 (companion) char should be 1");
+    T_ASSERT_NEAR(player_ctrl_actor_scale_xz(2), 1.0f);
+    T_ASSERT_NEAR(player_ctrl_actor_scale_y(2),  1.0f);
     return 0;
 }
 

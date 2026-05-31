@@ -538,14 +538,18 @@ static void sw_pass_light(IDirect3DDevice8 *dev)
         IDirect3DDevice8_SetRenderState(dev, D3DRS_AMBIENT,  0xff000000u);
     }
 
-    /* L364-367: actor count = 1 (standard HOUSE), or 1/3 under the
-     * DAT_0438b1a0 party-render mode.  Slots whose char id is -1 are gated
-     * out below, so only the seeded player (actor 0) draws today. */
-    int actor_count;
+    /* L364-367: actor count.  The engine DEFAULT is 3 (the player + 2 companion
+     * slots) — `local_14 = 4.2039e-45`, i.e. the float bit-pattern of int 3,
+     * used as the loop bound (engine all.c L51980 `do … while(i != local_14)`).
+     * The DAT_0438b1a0 (config `easydisp`) party-render override only RECOMPUTES
+     * it (3 − 2·(stage_record0!=0) → 1 or 3).  An earlier MVP wrongly defaulted
+     * to 1 (player-only); restoring the engine default lets the live companion
+     * (actor 2, the bobbing fairy — char id 1) draw.  Per-slot the loop still
+     * gates on char != -1 && scale > 0, so the free-roam-disabled actor 1
+     * (char -1) is skipped (engine-quirks §71). */
+    int actor_count = 3;
     if (sw_dat_0438b1a0() == 1) {
         actor_count = (sw_stage_record0() != 0) ? 1 : 3;
-    } else {
-        actor_count = 1;
     }
 
     /* fade = (0x5a − DAT_0438b4b4)/30 clamp 1.0; the fade counter is stubbed
@@ -578,13 +582,13 @@ static void sw_pass_light(IDirect3DDevice8 *dev)
         if (actor == NULL)
             continue;
 
-        /* Actor position = DAT_056da1d8 + i*3.  Actor 0 is the player
-         * (g_scene1_player_pos); companion slots aren't modeled yet. */
-        if (i != 0)
-            continue;
-        float px = g_scene1_player_pos[0];
-        float py = g_scene1_player_pos[1];
-        float pz = g_scene1_player_pos[2];
+        /* Actor position = the contiguous engine block (&DAT_056da1d8)[i*3]:
+         * slot 0 = player, slot 2 = the companion fairy (driven by
+         * scene1_companion_ctrl_tick).  Slot 1 (guest) is gated out above by
+         * its char id == -1 at free-roam (see player_ctrl_pose_house_standing). */
+        float px = g_scene1_actor_pos[i][0];
+        float py = g_scene1_actor_pos[i][1];
+        float pz = g_scene1_actor_pos[i][2];
 
         const sprite_t *sheet = scene1_preload_chr_sheet(char_id);
         if (sheet == NULL || sheet->tex == NULL)

@@ -65,8 +65,23 @@ extern "C" {
  *                            Distinct from _DAT_073de39c above — they have
  *                            different writers; sharing is unsafe.)
  */
-extern float g_scene1_player_pos[3];
-extern float g_scene1_spawn_origin[3];
+/*
+ * Actor position array — the engine's contiguous 3×3 float block at
+ * DAT_056da1d8 (`(&DAT_056da1d8)[actor*3]`).  Slot 0 is the player
+ * (DAT_056da1d8/dc/e0), slot 1 the (free-roam-disabled) guest actor
+ * (DAT_056da1e4/e8/ec), slot 2 the companion / fairy (DAT_056da1f0/f4/f8).
+ *
+ * The companion slot DOUBLES as the particle "spawn origin" anchor: several
+ * integrator handlers read DAT_056da1f0/f4/f8 to position effects on the
+ * companion (sparkles etc.).  So g_scene1_spawn_origin and actor 2's position
+ * are the SAME memory in the engine — modeled here as one array with both
+ * historical names kept as aliases (every existing call site is unchanged).
+ * The companion controller (scene1_companion_ctrl, engine FUN_0048a833) is the
+ * live writer of slot 2; see runs/companion-truth/FINDINGS.md (engine §71).
+ */
+extern float g_scene1_actor_pos[3][3];
+#define g_scene1_player_pos   (g_scene1_actor_pos[0])
+#define g_scene1_spawn_origin (g_scene1_actor_pos[2])
 extern int   g_scene1_scene_alive;
 extern float g_scene1_camera_yaw;
 extern float g_scene1_camera_anchor[2];

@@ -2597,3 +2597,64 @@ Player position stays bit-exact (max |Δpos| 0.000008). The remaining ~25% is th
 **untouched Tear companion sprite** (a constant lower cluster, its own
 position/anim system) + octant-specific sprite content, both separate fronts.
 Regression guard: host test `player_ctrl_walk_anim_starts_at_counter_zero`.
+
+## 71. HOUSE companion (Tear) is actor 2 / char 1, a spring-follow fairy — FUN_0048a4d1, not the actor-1 spring
+
+W-companion (2026-05-31). Rendering the HOUSE companion turned on a chain of
+ground-truth surprises that each inverted a plausible static read. Captured via
+`tools/frida_capture.py --watch` over 25 globals across the new-game→HOUSE tour
+(`runs/companion-truth/`):
+
+- **The live companion is actor 2 (char id 1), NOT actor 1.** `FUN_00435c98`
+  inits the three actor char ids `(da1cc,da1d0,da1d4) = (0,3,1)`, but
+  `FUN_00436f97` (scene-entry) then **disables actor 1** (`da1d0 → -1`) for the
+  free-roam case and settles all live scales to 1.0 with record FACING 4. So at
+  HOUSE free-roam only actor 0 (player, char 0) and **actor 2 (char 1)** render;
+  actor 1 (char 3, a guest) never does. The actor-1 spring at the top of
+  `FUN_0048a833` (`LAB_0048a899`, da1e4) is therefore dead here.
+
+- **Actor-2 position `da1f0/f4/f8` ALIASES the particle `spawn_origin`.** Several
+  integrator handlers read `da1f0/f4/f8` to anchor effects on the companion —
+  it's the same memory as the engine's "spawn origin". Modeled in the port as one
+  contiguous `g_scene1_actor_pos[3][3]` with `g_scene1_player_pos` = slot 0 and
+  `g_scene1_spawn_origin` = slot 2 (alias macros; every old call site unchanged).
+
+- **The visible follow is the SPRING helper `FUN_0048a4d1`, not a fixed-offset
+  hover.** A first hypothesis (port the `FUN_0048a833` `local_c!=0` else block:
+  ±1.3 side offset, 0.1 lerp, 2.0 deadzone) reproduced retail XZ to only one-step
+  mean 0.075. The real driver is `FUN_0048a4d1` (which the dispatcher invokes for
+  the controllable companion): **stay 1.5 units from the player on the
+  companion's bearing** — `desired = player.xz + dir(comp−player)·1.5` when
+  `dist>1.5`; `vel = (desired−comp)·0.15` clamped to 0.35; `comp.xz += vel`. That
+  law reproduces retail XZ to **one-step mean 0.0036** (20× better). Y is a slow
+  hover bob: `comp.y += (sin(db054·0.04)·0.2 + ground_y + 3.0 − comp.y)·0.15`
+  (`ground_y = DAT_056daf88 ≈ 0` in HOUSE → bob band 2.8–3.2). Constants
+  objdump-verified (0x5198cc=0.15, 0x519bc4=0.35, 0x5198c4=0.04, 0x5198d8=0.2,
+  0x519438=3.0).
+
+- **Facing is two rules, not one.** When the companion MOVED this frame
+  (`|Δcomp|>0.01`) it **copies the player's facing octant** (`dab58 =
+  dab00[target·0xb]`, verified 621/621). When idle it takes the standing-pose
+  **side-rule** `dab58 = (comp.x ≤ player.x) ? 6 : 2` (95% of idle frames). The
+  port collapses both into one free-roam controller (it has no §60 intro window);
+  seeding only the engine's scene-entry FACING 4 left the idle fairy facing
+  *down* instead of *left toward Recette* — a user-visible miss until the
+  side-rule was added.
+
+- **The draw default was wrong.** `FUN_004552d0`'s actor loop bound is
+  `local_14 = 4.2039e-45` = the float bit-pattern of **int 3** — i.e. it draws 3
+  actors BY DEFAULT (`DAT_0438b1a0`/`easydisp==1` only *recomputes* it to 1/3).
+  The port had defaulted to 1 (player-only MVP); restoring the engine default of
+  3 (with the per-slot `char!=-1 && scale>0` gate) lets the companion draw.
+
+Port: `src/scene1_companion_ctrl.{c,h}` (FUN_0048a4d1), wired after the player
+controller in `scene1_ingame_default_arm_tick`; actor-2 seed in
+`player_ctrl_pose_house_standing`; contiguous actor-pos array in
+`scene1_particles_tick.{c,h}`; draw fix + multi-char sheet cache in
+`scene1_shop_walker.c` / `scene1_preload.c`. Validation: replaying retail's player
+trajectory through the law (one-step mean 0.0036, facing 621/621, bob 2.806–3.197)
++ the port's own drive (one-step mean 0.0024, follow ≤1.5, facing 341/341, bob
+2.806–3.194) + 4 host tests. **Deferred PORT-DEBT:** the fairy's glowing wing
+sparkle (the `FUN_00447f4f` emit + spawn_origin-anchored particle handlers); and
+un-MVP the placeholder chr-sheet cache → the real roster loader `FUN_00431a80`
+(`DAT_073a9b18[char·0x10]`).

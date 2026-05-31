@@ -3179,7 +3179,11 @@ struct test_case {
     X(player_ctrl_walk_left_matches_retail) \
     X(player_ctrl_walk_release_decays_and_idles) \
     X(player_pose_seeds_actor0) \
-    X(player_pose_empties_party_slots) \
+    X(player_pose_seeds_companion_actor2) \
+    X(companion_inside_radius_idle) \
+    X(companion_springs_and_copies_facing) \
+    X(companion_hover_bob) \
+    X(companion_velocity_clamp) \
     X(player_pose_passes_char_id) \
     X(player_actor_accessors_out_of_range) \
     \

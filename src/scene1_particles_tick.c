@@ -46,8 +46,8 @@
 /* Engine-global stubs — see header.  Writable so tests + downstream
  * ports can populate.  BSS-zero default mirrors the engine state at
  * INGAME entry today. */
-float g_scene1_player_pos[3];
-float g_scene1_spawn_origin[3];
+float g_scene1_actor_pos[3][3];   /* slot0=player, slot1=guest, slot2=companion
+                                   * (= g_scene1_spawn_origin); see header. */
 int   g_scene1_scene_alive;
 float g_scene1_camera_yaw;
 float g_scene1_camera_anchor[2];
