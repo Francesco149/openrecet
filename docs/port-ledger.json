@@ -6,13 +6,13 @@
   "non_thunk_functions": 2548,
   "verified": 67,
   "stubbed": 17,
-  "ported": 309,
-  "unported": 2155,
+  "ported": 310,
+  "unported": 2154,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 393,
-  "pct_touched": 15.4,
+  "touched": 394,
+  "pct_touched": 15.5,
   "pct_verified": 2.6,
-  "port_debt": 8
+  "port_debt": 9
  },
  "orphan_refs": [
   "0x40f640",
@@ -741,8 +741,10 @@
    "size": 162,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_dialogue_run.c"
+   ]
   },
   {
    "va": "0x405b1a",
@@ -5613,7 +5615,9 @@
    "status": "ported",
    "src": [
     "src/scene1_dialogue.c",
-    "src/scene1_dialogue.h"
+    "src/scene1_dialogue.h",
+    "src/scene1_dialogue_run.c",
+    "src/scene1_dialogue_run.h"
    ]
   },
   {
@@ -5643,7 +5647,9 @@
    "status": "ported",
    "src": [
     "src/scene1_dialogue.c",
-    "src/scene1_dialogue.h"
+    "src/scene1_dialogue.h",
+    "src/scene1_dialogue_run.c",
+    "src/scene1_dialogue_run.h"
    ]
   },
   {

@@ -1,0 +1,209 @@
+/*
+ * scene1_dialogue_run.c — opening-prologue dialogue runtime. See the header.
+ *
+ * Ports FUN_0046c320 (per-frame update) + the reveal-completion tail of
+ * FUN_0046c9a2 (the DAT_073a3e04 END latch / DAT_073a3e00 START reset). The
+ * draw calls / glyph rasterization are deferred; this drives the data model +
+ * the TEXT_ANIM_START/END anchor signals. Handler ground truth: raw-disasm of
+ * the 0x46d8xx–0x46ddxx stubs, see docs/findings/opening-prologue.md
+ * §"handler bodies + runtime tick".
+ */
+#include "scene1_dialogue_run.h"
+
+/* Input bits (g_input_state[N].buttons — binding slots, see input.h). */
+#define IVE_BTN_ADVANCE   0x10   /* face button A (confirm/advance)          */
+#define IVE_BTN_FF        0x60   /* held 0x20|0x40 = fast-forward / held-adv  */
+#define IVE_BTN_FF_TURBO  0x40   /* held → 0x50 internal steps + reveal slam  */
+#define IVE_BTN_FF_X2     0x20   /* held → 2 internal steps                   */
+
+/* Reveal cap (DAT_073a3e00 ceiling) + the WAITKEY dwell gate. */
+#define IVE_REVEAL_MAX    0x800
+#define IVE_DWELL_GATE    15     /* DAT_073a3e08 >= 0xf before advance accepted */
+#define IVE_BOX_OPEN_MAX  0xf    /* DAT_073a3e14 fully-open                    */
+
+/*
+ * Reveal-completion budget (the FUN_0046c9a2 tail). budget_px =
+ * (reveal-4)*speed/32; each of the line's rows subtracts its rendered width;
+ * the line is fully revealed (END) iff the budget still clears every row by
+ * >2px. `speed` is the text-speed table DAT_005c78e0[idx] = {16,32,1024}
+ * (slow/normal/fast) — normal is the fresh-config default.
+ *
+ * PORT-DEBT(deferred, FUN_0046c9a2): the real per-row width comes from the
+ * glyph rasterizer (FUN_00405a52), deferred to the visual pass. We use a
+ * nominal row width; this only affects the *typewriter speed* of a naturally-
+ * revealing line. Under the validated advance-spam trace the reveal is slammed
+ * to IVE_REVEAL_MAX, so the END edge is exact regardless of the metric.
+ */
+#define IVE_REVEAL_SPEED  32     /* DAT_005c78dc, normal text speed           */
+#define IVE_ROW_PX        320    /* nominal rendered row width (deferred)     */
+
+/* Walk-loop handler return codes (the 0x46c320 contract). */
+enum { IVE_R_STOP = 0, IVE_R_CONTINUE = 1, IVE_R_YIELD = 2, IVE_R_COMPLETE = 3 };
+
+void ive_runtime_init(struct ive_runtime *rt, const struct ive_program *prog)
+{
+    /* Mirror the engine's per-script reset (the FUN near all.c:67085):
+     * DAT_073a6bd0/DAT_073a3e14 cleared, line state empty, gate up. */
+    rt->prog      = prog;
+    rt->active    = 1;
+    rt->complete  = 0;
+    rt->cmd       = 0;
+    rt->reveal    = 0;
+    rt->revealed  = 0;
+    rt->dwell     = 0;
+    rt->wait      = 0;
+    rt->box_open  = 0;
+    rt->new_line  = 0;
+    rt->line_row  = -1;          /* no current line (box closed) */
+    rt->line_rows = 0;
+    rt->line_idx  = 0;
+    rt->accum     = 0;
+    rt->speaker   = 0;
+    rt->portrait  = 0;
+    rt->prev_held = 0;
+}
+
+/* msg-show (0x46d97b): set up the current line, reset the reveal counter, raise
+ * the new-line flag. a1 = row_start (-1 ⇒ continue from accumulator), a2 = rows. */
+static void op_msg_show(struct ive_runtime *rt, int32_t a1, int32_t a2)
+{
+    if (a1 == -1) {
+        rt->line_row = rt->accum;
+    } else {
+        rt->line_row = a1;
+        rt->accum    = a1;
+    }
+    rt->reveal    = 0;
+    rt->dwell     = 0;
+    rt->accum    += a2;
+    rt->line_rows = a2;
+    rt->new_line  = 1;
+    rt->line_idx++;
+}
+
+/* msg-waitkey (0x46d93c): block until the line has dwelt >=15 frames AND the
+ * player asks to advance (held fast-forward, or a fresh advance edge). */
+static int op_msg_waitkey(const struct ive_runtime *rt, uint16_t held, uint16_t edge)
+{
+    if (rt->dwell < IVE_DWELL_GATE) return IVE_R_STOP;
+    if (held & IVE_BTN_FF)          return IVE_R_YIELD;      /* held 0x20/0x40 */
+    if (edge & IVE_BTN_ADVANCE)     return IVE_R_YIELD;      /* fresh A-press; SE 0x144 deferred */
+    return IVE_R_STOP;
+}
+
+/* Execute one command; returns the walk return code. Visual/audio handlers are
+ * deferred no-ops (ret 1 / advance) — only the state model that the anchors
+ * observe is driven here. */
+static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
+                    uint16_t held, uint16_t edge)
+{
+    switch (c->op) {
+    case IVE_OP_END:            /* NULL fn — idle (walk stops, no advance) */
+        return IVE_R_STOP;
+    case IVE_OP_END_SCRIPT:     /* end: (0x46dd76) → ret 3 */
+        return IVE_R_COMPLETE;
+    case IVE_OP_WAIT:           /* wait:n (0x46dcd6) → ret 2, sets the gate */
+        rt->wait = c->a1;
+        return IVE_R_YIELD;
+    case IVE_OP_MSG_SHOW:       /* (0x46d97b) → ret 2 */
+        op_msg_show(rt, c->a1, c->a2);
+        return IVE_R_YIELD;
+    case IVE_OP_MSG_WAITKEY:    /* (0x46d93c) → ret 0/2 */
+        return op_msg_waitkey(rt, held, edge);
+    case IVE_OP_MSG_CLEAR:      /* <C> (0x46d9e1) → DAT_073a6a38=-1, ret 1 */
+        rt->line_row = -1;
+        return IVE_R_CONTINUE;
+    case IVE_OP_MSG_SPEAKER:    /* msg:a:b (0x46d9f3) → ret 1 */
+        rt->speaker  = c->a1;
+        rt->portrait = c->a2;
+        return IVE_R_CONTINUE;
+    default:                    /* every setup op (chr/bg/se/fade/light/...): ret 1 */
+        return IVE_R_CONTINUE;
+    }
+}
+
+/* The FUN_0046c9a2 completion tail: latch the START reset + the END flag.
+ * Draws/glyph raster deferred. */
+static void ive_completion(struct ive_runtime *rt)
+{
+    if (rt->line_row < 0)            /* no current line — box clearing */
+        return;
+
+    if (rt->new_line) {
+        rt->reveal   = 1;            /* START edge (DAT_073a3e00 → 1) */
+        rt->new_line = 0;
+    }
+
+    /* budget = (reveal-4)*speed/32; revealed iff it clears every row by >2px. */
+    long budget = (long)(rt->reveal - 4) * IVE_REVEAL_SPEED / 32;
+    long total  = (long)rt->line_rows * IVE_ROW_PX;
+    rt->revealed = (budget > total + 2) ? 1 : 0;
+}
+
+void ive_runtime_step(struct ive_runtime *rt, uint16_t held)
+{
+    uint16_t edge = (uint16_t)(held & ~rt->prev_held);
+    rt->prev_held = held;
+
+    if (!rt->active || rt->complete)
+        return;
+
+    /* Internal step count (DAT_005c78ec): held 0x20 → 2, held 0x40 → 0x50
+     * (the prologue scene permits fast-forward, local_104 ≡ 1), else 1. */
+    int steps = 1;
+    if (held & IVE_BTN_FF_X2)        steps = 2;
+    else if (held & IVE_BTN_FF_TURBO) steps = 0x50;
+
+    /* Reveal + dwell loop (the inner do-while, run `steps` times). */
+    for (int s = 0; s < steps; s++) {
+        if (rt->reveal > 0) {
+            rt->reveal++;
+            if (edge & IVE_BTN_ADVANCE)  rt->reveal = IVE_REVEAL_MAX;  /* edge 0x10 slam */
+            if (held & IVE_BTN_FF_TURBO) rt->reveal = IVE_REVEAL_MAX;  /* held FF slam   */
+            if (rt->reveal > IVE_REVEAL_MAX) rt->reveal = IVE_REVEAL_MAX;
+        }
+        if (rt->revealed)
+            rt->dwell++;
+    }
+
+    /* Box open/close + the `wait:` countdown — the wait only ticks down while
+     * the box is fully open (line shown) or fully closed (no line). */
+    for (int s = 0; s < steps; s++) {
+        if (rt->line_row < 0) {
+            if (rt->box_open < 1) {
+                if (rt->wait > 0) rt->wait--;
+            } else {
+                rt->box_open--;
+            }
+        } else if (rt->box_open < IVE_BOX_OPEN_MAX) {
+            rt->box_open++;
+        } else {
+            if (rt->wait > 0) rt->wait--;
+        }
+    }
+
+    if (rt->wait > 0) {              /* wait gate — hold the walk */
+        ive_completion(rt);
+        return;
+    }
+
+    /* Command walk: run setup ops same-frame, stop on yield/block/complete. */
+    for (;;) {
+        if (rt->cmd < 0 || rt->cmd >= rt->prog->n_cmds)
+            break;                  /* defensive — table is END-terminated */
+        const struct ive_cmd *c = &rt->prog->cmds[rt->cmd];
+        int r = ive_exec(rt, c, held, edge);
+        if (r == IVE_R_STOP)
+            break;                  /* block (no advance) */
+        if (r == IVE_R_COMPLETE) {
+            rt->complete = 1;
+            rt->active   = 0;       /* dialogue gate drops */
+            break;
+        }
+        rt->cmd++;                  /* CONTINUE and YIELD both advance past the cmd */
+        if (r == IVE_R_YIELD)
+            break;
+    }
+
+    ive_completion(rt);
+}

@@ -444,6 +444,9 @@ struct test_case {
     X(dialogue_bgset_and_se_name_tables) \
     X(dialogue_chr_subops) \
     X(dialogue_rmb_and_end_keywords) \
+    X(dialogue_run_two_lines_anchor_sequence) \
+    X(dialogue_run_start_precedes_end) \
+    X(dialogue_run_waitkey_dwell_gate) \
     \
     X(render_quad_init_seeds_z_rhw_specular) \
     X(render_quad_add_one_emits_six_vertices) \
