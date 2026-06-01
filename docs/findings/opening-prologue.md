@@ -189,3 +189,130 @@ python3 tools/scenario-test.py intro-dialogue-lines --target retail \
 (`--target both` once the dialogue driver `0x46c9a2` is ported — currently only
 the retail/Frida side emits the text anchors; the port's `anchor_world`
 dialogue fields are zero until then.)
+
+## RESOLVED — the `.ivt` script language (interpreter ground truth)
+
+> Done 2026-06-01. The `0x46c` cluster is a **text event-script interpreter**.
+> `FUN_0046ddea` (the "parser", 5119 B of code) is a **compiler**: it reads a
+> line-based text script and emits the 12-byte `{fn,arg1,arg2}` command triplets
+> the update loop (`0x46c320`) walks. The scripts are **real proprietary data
+> files** present at runtime — porting the interpreter means reading the game's
+> own scripts, NOT embedding any.
+
+**Script file path.** `FUN_0046ddea` builds `iv/iv%d_%d.ivt` from
+`DAT_005c7a2c`/`DAT_005c7a30` (the scene/sub indices, set by the scene-entry
+selector around `all.c:45251-45550`), then `FUN_005038b0`-opens it (falls back
+to a raw-read of an uncompressed copy via `FUN_004346bf` when the pack lookup
+misses). Files live in `iv/` in the install dir (215 of them; SJIS-encoded,
+**English text inline in the EN build**). They are game assets — never
+redistribute; the port reads them from the retail install at runtime, same as
+meshes/bmps/SE.
+
+**Line format.** CR/CRLF/LF tolerant. Lines beginning `\r \n / \t` are skipped
+(blank / `//` comment / indented continuation). A `;` in a line triggers a
+syntax-error `MessageBoxA`. Each significant line is one script command.
+
+**Command vocabulary** (keyword strings at `0x5c7a..0x5c7b`, confirmed against
+real scripts e.g. `iv0_1.ivt`):
+
+- **Background / scene**: `bgset:<bmp>`, `bgscroll:<spd>`, `polybg:<xfile>`,
+  `lighton:<a>:<b>`, `lightoff`, `windowpos:<x>,<y>`, `windowset:...`,
+  `color:...`.
+- **Character ops** (`chr:<N>:<op>...`): `dir:left|right`, `grp:<tga> W,H`,
+  `col:r,g,b,a`, `colto:r,g,b,a`, `fadeframe:<n>`, `move:x,y`, `moveto:x,y`,
+  `speed:<f>`, `center:<n>`, `anim:...`, blend modes `normal_shade` /
+  `normal_add` / `add` / `add_shade`, `disp`.
+- **Flow / timing**: `wait:<frames>`, `skipon` / `skipoff` (toggles the ESC
+  "skip this event?" prompt, `0x46c2cb`).
+- **Audio**: `se:<bin>`, `music:<f>`, `holdmusic:...`, `mfadein:<n>`,
+  `mfadeout:<n>`, `fadein`/`fadeinb`/`fadeout`/`fadeoutb`/`fadeframe:<n>`.
+- **Message**: `msg:<a>:<b>:<text>` — the dialogue beat. In-text markup:
+  `<BR>` (line break within the box), `<KEY>` (wait-for-advance = one
+  `TEXT_ANIM` cycle), `<C>` (clear box), `<W>` (?). The reveal counter
+  (`DAT_073a3e00`) climbs over the line's glyphs; `<KEY>` is the per-line
+  advance gate the `TEXT_ANIM_START/END` anchors straddle.
+
+**Command return contract** (the `0x46c320` loop, `all.c:181-195`): each
+triplet's `fn(arg1,arg2)` returns `0`=stop-this-frame (don't advance the
+index), `2`=advance one then break (yield a frame — e.g. `wait`/`msg`-await),
+`3`=special flag-set + return, other-nonzero=advance and run the next command
+same frame. So setup commands (`chr:*`, `bgset`, …) return nonzero-continue and
+fall through instantly; `wait`/`msg` yield.
+
+**Validation note (46 anchors vs msg-count).** No single `iv0_*` has exactly 46
+`msg:` lines; the opening may be a multi-script sequence and/or `<KEY>`/`<C>`
+splits a `msg:` into several reveal cycles. The exact opening script index
+(which `5c7a2c/5c7a30` the new-game path selects) is the first thing to pin in
+the port — drive new-game on retail and read `DAT_005c7a2c/30` at the
+`FUN_0046c295` load.
+
+### Implementation map — parser → command-table → handlers
+
+`FUN_0046ddea` is a **one-pass compiler**. For each non-comment line it runs a
+chain of `FUN_00479f4d(keyword, line, len)` (strncmp-prefix) tests; the first
+match parses the line's numeric args (`FUN_00503d03`=atoi, `FUN_00503c2b`+
+`__ftol`=atof→int) and stores one (or two) 12-byte command triplets:
+
+```
+(&DAT_0735f4f8)[i*3 + 0] = handler fn ptr   // 0 terminates the program
+(&DAT_0735f4f8)[i*3 + 1] = arg1             // DAT_0735f4fc
+(&DAT_0735f4f8)[i*3 + 2] = arg2             // DAT_0735f500
+```
+
+The update loop (`0x46c320`) calls `handler(arg1,arg2)`; return code: `0`=stop
+frame (don't advance i), `2`=advance+break (yield a frame), `3`=special (flag +
+return 1), other-nonzero=advance+run next same frame. Setup commands return
+continue and collapse into one frame; `wait`/`msg`-await yield.
+
+Handlers are tiny stubs at `0x46d8xx–0x46ddxx` (Ghidra labels them `LAB_*`
+inside the `0x46ddea` span — they are separate fns preceding the parser):
+
+| keyword | handler | args | notes |
+|---|---|---|---|
+| `color:i:r,g,b,a` | `0x46d8d3` | i, packed-rgba | |
+| `bgset:<bmp>` | `0x46d912` | bg slot | name→`DAT_07350df0[slot*0x100]`, `DAT_073a3df0++` |
+| `polybg:<x>` | `0x46d912` | 0 | name→`DAT_0734fff0[*0x100]`, `DAT_073a3dfc++` |
+| `bgscroll:<f>` | `0x46d8a5` | ftol(spd) | |
+| `windowset` | `0x46d8c6` | | |
+| `windowpos:x,y` | `0x46d8e6` | x, y | |
+| `skipon`/`skipoff` | `0x46d8fc` | 0/1 | toggles `0x46c2cb` ESC prompt |
+| `fadein:f:r,g,b,a` | `0x46dd2c` | packed, frames | (`fadeinb`/`fadeoutb` = no-op marker) |
+| `fadeout:f:r,g,b,a` | `0x46dd53` | packed, frames | |
+| `lighton:a:b` | `0x46dd7a` | a, b | |
+| `lightoff` | `0x46ddb1` | | |
+| `wait:<n>` | `0x46dcd6` | frames | **yield (ret 2)** |
+| `music:<n>` | `0x46dcef` | n | |
+| `holdmusic` | `0x46dce3` | | |
+| `mfadein:<n>`/`mfadeout:<n>` | `0x46dd02`/`0x46dd15` | n | |
+| `se:<bin>` | `0x46d885` | se idx | name→`DAT_0734b9b0[idx*0x100]`, `DAT_0735dd80++` (cap 0x3f) |
+| `chr:N:dir:L/R` | `0x46da1e` | N, 0/1 | |
+| `chr:N:move:x,y` | `0x46da33`+`0x46dc0a` | N, x / y | two triplets |
+| `chr:N:moveto:x,y` | `0x46da6e`+`0x46dc30` | N, x / y | two triplets |
+| `chr:N:center:n` | `0x46da59` | N, n | |
+| `chr:N:speed:f` | `0x46dc45` | N, ftol(f) | |
+| `chr:N:anim:..` | `0x46dc97` | N, .. | |
+| `chr:N:fadeframe:n` | `0x46dc82` | N, n | |
+| `chr:N:normal_shade/normal_add/add_shade/add` | `0x46dcac` | N, 0/1/2/3 | blend mode |
+| `chr:N:col:r,g,b,a` | `0x46da83` | N, packed | |
+| `chr:N:colto:r,g,b,a` | `0x46db20` | N, packed | fade toward |
+| `chr:N:grp:<tga> W,H` | `0x46dc97`(name path) | N, name-table idx | registers chrname in `DAT_07357830`/dims `DAT_073a3ab8/abc` |
+| `chr:N:disp` | `0x46da09` | N | |
+| `msg:a:b:<text>` | msg-parser | builds glyph/line table | sets `DAT_073a6a38`(glyph byte-offset), `DAT_073a6bd0`(char count), `DAT_073a6a30`(line idx); `<BR><KEY><C><W>` markup |
+
+Aux tables the parser fills (all per-script, reset on load): bg-name
+`DAT_07350df0`, polybg `DAT_0734fff0`, se-path `DAT_0734b9b0`, chrname
+`DAT_07357830`+dims `DAT_073a3ab8`, glyph table `DAT_073652b8` (stride 0x40),
+per-line `(offset,count)` walked by `DAT_073a6bcc/a30`.
+
+**Defer boundary (this port = structural):** port faithfully = the data model
+(command table + aux tables), the parser, the loader, the update sequencer
+(`0x46c320`: reveal counter, advance button, command walk), the reveal-
+completion state in `0x46c9a2` (the `DAT_073a3e04` END logic + `DAT_073a3e00`
+START reset) and the `TEXT_ANIM_*` anchor emission. **Defer:** the D3D draw
+calls in `0x46c9a2` (bg/chr/window/glyph blits), glyph **rasterization**, and
+exact per-glyph **advance widths** — under the spam-A trace the reveal is forced
+to `0x800`, so the END edge fires as soon as a non-empty line is current
+regardless of glyph widths (use char-count × nominal advance as the budget
+proxy). The chr-anim float loop + `thunk_FUN_005041f6` jitter reads in `0x46c320`
+/`0x46c9a2` are the **dust RNG-stream** consumers — port them to close that front
+too ([[scene1-rng-stream-parity]] unification).
