@@ -102,10 +102,27 @@ Verified 1:1: emit cadence (every 16 frames, ground-truth probe median 16),
 spawn (4 RNG: vel + rot.z), tick (drift/damp/kill 0x20), render state (matches
 the retail full-state extract exactly).
 
-## Depth — RESOLVED via the player's depth-write (commit b1acf7c)
+## Depth — b1acf7c REVERTED (it broke the glow + shadow); still OPEN
 
-The dust drew in FRONT of the walking player; retail draws it behind. The cause
-was a missing **ZWRITE on the player sprite**, NOT a wrong draw path.
+> **2026-06-01 UPDATE — commit b1acf7c was WRONG and is reverted.** Making the
+> player/companion sprites write Z with `ALPHATEST ref 0 GREATEREQUAL` passes
+> *every* texel, so the whole **transparent** sprite quad laid down a Z
+> footprint — an invisible occluding RECTANGLE at the actor's depth. That
+> rectangle (a) occluded **Tear's own wing-glow** (drawn later, z-tested) → the
+> blue glow vanished, and (b) punched a rectangular hole in the dust/shadow
+> **around Recette** → the "shadow bug" the user reported. Both confirmed
+> visually (port-vs-retail walk-down-dense). Reverted to the pre-b1acf7c state
+> (sprites don't write Z); the glow is restored.
+>
+> **The real fix (TODO):** retail almost certainly alpha-tests the sprite with
+> `ref > 0` so **only the opaque silhouette** writes Z (the dust behind her body
+> is occluded; the glow beside Tear and the floor around her are not). Re-capture
+> the *exact* sprite ALPHAREF/ALPHAFUNC/ZWRITE at the retail draw **and** confirm
+> the wing-glow's draw order/Z relative to the sprite via a fresh d3d-trace before
+> re-attempting. Do NOT use ref 0.
+
+The (still-unresolved) symptom: the dust drew in FRONT of the walking player;
+retail draws it behind. The original (mis-)diagnosis below is kept for the record.
 
 > **Correction to an earlier misread.** I first labelled the draw `0x45aa31` in
 > the walking d3d-trace as "shadow" and concluded the free-roam player was a late

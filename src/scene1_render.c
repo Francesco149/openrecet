@@ -865,11 +865,13 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * the floor dust puff at the walking player's feet (scene1_walk_dust.c).
      * This is the engine-faithful position (FUN_004176ff runs here); drawing it
      * earlier leaks blend state into wide_followup's counter-shadow pass.
-     * DEPTH CAVEAT: in retail free-roam the PLAYER is the late 2D sprite
-     * (FUN_00405354, ZENABLE=0, drawn last) so the dust reads as behind her; the
-     * port still draws the player early via sw_pass_light (FUN_004552d0), so the
-     * dust currently draws in front of the walker.  Resolves when the free-roam
-     * 2D player-sprite path is ported.  See docs/findings/scene1-walk-dust.md. */
+     * DEPTH (open): the dust is z-tested (ZENABLE=1, ZWRITE=0).  In retail it
+     * reads BEHIND the walker; the port's sprites do not write Z (the b1acf7c
+     * full-quad Z-write was reverted — it occluded Tear's wing-glow + punched a
+     * rectangular hole in the dust/shadow around Recette), so the dust currently
+     * draws in front.  The faithful fix needs the real sprite alpha-test (only
+     * the opaque silhouette should write Z) re-captured from retail — see
+     * docs/findings/scene1-walk-dust.md "Depth". */
     scene1_walk_dust_render((struct IDirect3DDevice8 *)dev);
     scene1_walk_chr_TODO();
 

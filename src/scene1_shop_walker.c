@@ -569,19 +569,18 @@ static void sw_pass_light(IDirect3DDevice8 *dev)
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_POINT);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_POINT);
 
-    /* Player/companion sprites WRITE depth (retail GT — the FUN_0045a56f draw
-     * 0x45aa31 runs at ZENABLE=1, ZWRITEENABLE=1, ALPHATEST ref 0 GREATEREQUAL,
-     * i.e. the whole sprite quad lays down a Z footprint).  This is what makes
-     * later z-tested billboards — the foot dust (records-A 0xe) and the wing-glow
-     * — read as BEHIND the walker: they're occluded by the player's written Z.
-     * Without it the dust draws in front (engine-quirks; docs/findings/
-     * scene1-walk-dust.md).  Restored to ZWRITE off after the loop so the
-     * trailing transparent passes keep their inherited state. */
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE,         TRUE);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE,    TRUE);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHATESTENABLE, TRUE);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAREF,        0);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAFUNC,       D3DCMP_GREATEREQUAL);
+    /* NOTE (2026-06-01): a previous change (b1acf7c) made the sprites WRITE Z
+     * here with ALPHATEST ref 0 GREATEREQUAL (pass-all), intending to occlude
+     * the later foot-dust billboard.  But ref-0 passes EVERY texel, so the whole
+     * transparent sprite quad laid down a Z footprint — an invisible occluding
+     * RECTANGLE at the actor's depth.  That rectangle (a) occluded Tear's own
+     * wing-glow (drawn later, z-tested) → glow vanished, and (b) punched a
+     * rectangular hole in the dust/shadow around Recette → the "shadow bug".
+     * Reverted: the sprites no longer write Z (pre-b1acf7c known-good state).
+     * The faithful dust-occlusion fix needs the REAL retail sprite alpha-test
+     * (almost certainly ref>0, so only the opaque silhouette writes Z) + the
+     * glow draw order re-verified by a fresh d3d-trace — see
+     * docs/findings/scene1-walk-dust.md "Depth" + the reopened task. */
 
     for (int i = 0; i < actor_count; i++) {
         int   char_id  = player_ctrl_actor_char(i);
@@ -628,11 +627,6 @@ static void sw_pass_light(IDirect3DDevice8 *dev)
      * bilinear after the character draws). */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
-
-    /* Stop writing depth again — the player's Z footprint stays in the buffer to
-     * occlude the later dust/glow billboards, but trailing transparent passes
-     * must not lay down new Z (matches the inherited ZWRITE=0 state). */
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
 }
 
 /* Pass G walks DAT_0076bdc0..DAT_007c8fc0, stride 0x2e9 dwords.
