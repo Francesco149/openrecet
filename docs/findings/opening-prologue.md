@@ -239,12 +239,18 @@ index), `2`=advance one then break (yield a frame — e.g. `wait`/`msg`-await),
 same frame. So setup commands (`chr:*`, `bgset`, …) return nonzero-continue and
 fall through instantly; `wait`/`msg` yield.
 
-**Validation note (46 anchors vs msg-count).** No single `iv0_*` has exactly 46
-`msg:` lines; the opening may be a multi-script sequence and/or `<KEY>`/`<C>`
-splits a `msg:` into several reveal cycles. The exact opening script index
-(which `5c7a2c/5c7a30` the new-game path selects) is the first thing to pin in
-the port — drive new-game on retail and read `DAT_005c7a2c/30` at the
-`FUN_0046c295` load.
+**Opening script — PINNED (retail probe, 2026-06-01).** The opening prologue is
+a **two-script sequence**: `iv1_1.ivt` (`5c7a2c=1, 5c7a30=1`) then `iv1_2.ivt`
+(`1,2`). Probe (`runs/intro-script-probe`, house-walk-down trace, seed 1, turbo,
+14000 frames): `DAT_0438b1c8` (dlg gate) first hits 1 at engine-frame **11664**
+with `5c7a2c/30 = 1,1`; while the gate is up the pair takes both `(1,1)` and
+`(1,2)`. Message counts: **iv1_1 = 16 msg + iv1_2 = 30 msg = 46** — exactly the
+46 `TEXT_ANIM_END` anchors Phase 0 captured. iv1_1 = Tear wakes Recette ("She is
+still asleep… WAKE UP, PLEASE!… Today is the day we set for opening the store!");
+iv1_2 = downstairs ("Sorry I kept you waiting!… Capitalism, ho!… we need to take
+care of a few matters before we open"). So the port loads iv1_1, runs it to its
+end command, then loads iv1_2 — the script transition is what the
+`scene1_intro_events` stub's fake 2nd-load gate was approximating.
 
 ### Implementation map — parser → command-table → handlers
 
