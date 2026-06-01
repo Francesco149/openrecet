@@ -444,6 +444,22 @@ void player_ctrl_pose_house_standing(int player_char)
     s_actor_scale_y[2]  = 1.0f;
     s_actor_record[2][CHR_ACTOR_FACING] = 4;   /* FUN_00436f97 scene-entry default */
 
+    /* Idle anim pose — seed the companion's sprite-state record to the SAME
+     * resting pose as the player (ANIM 0, TIMER 5.0f, COUNTER 25, FRAME 2),
+     * not the zero-init FRAME 0.  Ground truth: the retail idle companion
+     * record (runs/cchr2b/chr_leaf.jsonl, frame 17544) is [0,0,5.0f,25,2,0,2,…]
+     * — bit-identical to actor 0's idle seed bar the facing.  co_set_anim
+     * leaves FRAME untouched at idle (CO_ANIM_IDLE==0 already matches the zero
+     * ANIMSEL, so it early-returns), so this seed is what the leaf draws.
+     * FRAME selects which chr01/chr02 cells the body + wing-glow sample; the
+     * old FRAME 0 drew the wrong wing pose (the glow read 8 spread-wing cells
+     * vs retail's 6 folded-wing cells at FRAME 2), so Tear's glow diverged from
+     * retail.  See docs/findings/scene1-wing-glow.md. */
+    s_actor_record[2][CHR_ACTOR_ANIM]    = 0;
+    s_actor_record[2][CHR_ACTOR_TIMER]   = timer.i;   /* 5.0f bits */
+    s_actor_record[2][CHR_ACTOR_COUNTER] = 25;
+    s_actor_record[2][CHR_ACTOR_FRAME]   = 2;
+
     /* Companion position (DAT_056da1f0/f4/f8 = g_scene1_actor_pos[2], aliased by
      * g_scene1_spawn_origin).  Seed to the retail controllable-onset value
      * (0.6, 3.0, 9.35) beside the player spawn; the controller's 0.1 lerp

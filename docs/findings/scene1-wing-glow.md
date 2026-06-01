@@ -131,3 +131,35 @@ state sequencing remain in the `scene1_walk_chr_TODO` stub.
 `PORT-DEBT(simplified, FUN_004176ff L3876)` — the boosted-glow sub-branch
 (`if (DAT_0438b8f8 == 2) { intensity*=2; scale*=3; }`) is not ported
 (`DAT_0438b8f8` unexposed, 0 in free-roam → dormant).
+
+## Update 2026-06-01 — the wing-glow renderer was correct; the bug was the companion's idle ANIM FRAME (0 → 2)
+
+After landing the Pass-1 wing billboard (above), the glow still didn't match
+retail 1:1: it sat offset to Tear's right with a dark wedge between her body and
+the glow, and her hair read warm-grey instead of retail's silvery-blue. User
+read: "her palette is more blue in retail / the glow isn't extending far enough."
+
+Investigation (`runs/wingglow-cmp/`, port `--chr-leaf`-style stderr probe vs
+retail `runs/cchr2b/chr_leaf.jsonl`) showed the **renderer was already correct**
+— color `0xff7f7f7f` (decompile-confirmed, `456f56.c` L67), additive ONE/ONE,
+chr02 sheet, world matrix bit-equal to the body's. The divergence was upstream:
+the port's **companion sprite-state record was frozen at anim FRAME 0**, but
+retail's idle companion rests at **FRAME 2**. FRAME drives which chr01/chr02
+cells the leaf emits, and at FRAME 0 the glow (char 2) resolves an **8-cell
+spread-wing** layout that does *not* overlap the 6-cell body, whereas at FRAME 2
+both resolve the same 6-cell `[1,2,5,6,9,10]` folded-wing layout so the glow
+overlaps the body exactly. Full table + ground truth: engine-quirks **§81**.
+
+**Fix (committed):** seed actor 2's record with the idle pose `ANIM 0 / TIMER
+5.0f / COUNTER 25 / FRAME 2` in `scene1_player_ctrl.c` pose-house-standing
+(mirroring actor 0). The port's leaf inputs now bit-match retail's chr_leaf
+capture (char 1: base 1666 / 6 cells / start 55; char 2: base 3100 / 6 cells /
+start 92 — identical fd_pos). The glow now washes over Tear's body and her hair
+reads silvery-blue. The body palette was never wrong — the "bluer" look is the
+additive glow correctly overlapping her silhouette. Residual vs the golden is
+the unsynced hover-bob Y phase (house-movement timing baseline).
+
+**Deferred:** the companion's idle anim is not ticked (frozen at the seeded
+FRAME 2), mirroring the player's near-static breathing idle. If retail's idle
+companion has a subtle breathing loop, advancing it is a follow-up (needs its
+own multi-frame chr_leaf ground truth).
