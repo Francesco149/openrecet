@@ -4,14 +4,14 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 64,
-  "stubbed": 18,
-  "ported": 305,
-  "unported": 2161,
+  "verified": 67,
+  "stubbed": 17,
+  "ported": 304,
+  "unported": 2160,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 387,
+  "touched": 388,
   "pct_touched": 15.2,
-  "pct_verified": 2.5,
+  "pct_verified": 2.6,
   "port_debt": 8
  },
  "orphan_refs": [
@@ -1075,7 +1075,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_chr_shadow.c"
+    "src/scene1_chr_shadow.c",
+    "src/scene1_motes.c"
    ]
   },
   {
@@ -5721,8 +5722,10 @@
    "size": 894,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "verified",
+   "src": [
+    "src/scene1_motes.c"
+   ]
   },
   {
    "va": "0x46f621",
@@ -5730,9 +5733,9 @@
    "size": 39,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "stubbed",
+   "status": "verified",
    "src": [
-    "src/scene1_player_ctrl.c"
+    "src/scene1_motes.c"
    ]
   },
   {
@@ -5741,9 +5744,9 @@
    "size": 239,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "verified",
    "src": [
-    "src/scene1_chr_shadow.c"
+    "src/scene1_motes.c"
    ]
   },
   {
@@ -5828,7 +5831,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_chr_shadow.c"
+    "src/scene1_chr_shadow.c",
+    "src/scene1_motes.c",
+    "src/scene1_motes.h"
    ]
   },
   {
@@ -7557,6 +7562,8 @@
    "src": [
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h",
+    "src/scene1_motes.c",
+    "src/scene1_motes.h",
     "src/scene1_particles_tick.h",
     "src/scene1_records_b_tick.h"
    ]
@@ -10233,6 +10240,7 @@
    "status": "ported",
    "src": [
     "src/math3d.h",
+    "src/scene1_motes.c",
     "src/scene1_render.c"
    ]
   },

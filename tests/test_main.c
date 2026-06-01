@@ -3105,6 +3105,11 @@ struct test_case {
     X(chr_shadow_alpha_clamps) \
     X(chr_shadow_gates) \
     X(chr_shadow_normal_abs_threshold) \
+    X(motes_spawn_rng_count) \
+    X(motes_warmup_spawns_all) \
+    X(motes_tick_drifts_once) \
+    X(motes_respawn_rng_and_bounce) \
+    X(motes_reset_clears) \
     X(chr_sprite_retail_recette_house) \
     X(chr_anim_tick_accumulates_below_duration) \
     X(chr_anim_tick_advances_at_duration) \

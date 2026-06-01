@@ -3253,3 +3253,62 @@ player-Y vs floor-Y agreement with retail** — a useful cross-check.
 > `DAT_073a6e84` table — the missing table contact-shadow in
 > scene1-house-render-gaps.md §4) are the natural follow-up; they need the object
 > table modelled. Builds on §71 (companion = actor 2), W4.2 (collision query).
+
+## 83. HOUSE ambient motes: a dead pause path makes them simple back-wall drifters; render is a dark contact blob, not the visible sparkle
+
+The free-roam ambient-mote subsystem is three functions sharing one 100-byte
+SoA record array (base `DAT_073a7f80`, stride `0x64`, count `DAT_005c7dd4 == 6`):
+
+- **`FUN_0046f621`** (warmup pump): the FIRST call ever (latch `DAT_073a8bb8`)
+  runs the sim **180×**; every later call runs it once. Called once/frame on
+  `FUN_0048670f`'s main path (all.c:86722), i.e. the free-roam controller.
+- **`FUN_0046f2a3`** (894 B, sim): spawns one mote per call until the cursor
+  (`DAT_073a8bb4`) hits 6, then integrates all 6. **The shared-LCG consumer.**
+- **`FUN_0046f648`** (render): one dark quad per mote, drawn from inside the
+  ground-shadow pass (`FUN_00470385` @ the `FUN_0045aa36` L122 slot).
+
+**The motes live at the BACK of the room.** Spawn places them at
+`x = idx·4.6 − 14` (∈ [−14, 9]), `z = −11 − unit·4` (∈ [−15, −11]), `y = 0`.
+With the HOUSE camera (eye ≈ (−1, 22, 15), lookat ≈ (−1, 1.2, 1)) that's the
+top of the screen, up by the back-wall windows — far from the player's z≈9.35.
+
+**The per-tick "pause/crossing" machinery is dead code.** objdump @ 0x46f4dc /
+0x46f502 (dir+1) and 0x46f50e / 0x46f54f (dir−1) compute a flag `ecx` from
+`x vs vthresh` and then re-test `x vs vthresh` for the pause-set — with the
+opposite sense, using the SAME current `x`. The two are mutually exclusive, so
+the pause counter (`+0x54`) is **never** set, the `+0x54 > 0` branch (and its
+lone `rng15` direction-flip roll) never runs, and `vthresh`/`mode` end up
+vestigial (they feed only this dead path). The motes are therefore pure
+one-axis drifters: `x += dir·speed·0.05` each tick, and at the room bounds
+(`x > 25` for dir+, `x < −15` for dir−) they **bounce** — flip direction and
+re-roll z/vthresh/mode (x is NOT reset). So "respawn" is a bounce, not a
+teleport.
+
+**RNG order (must match retail in count AND order — the foot-dust stream
+depends on it, scene1-rng-stream-parity.md):**
+- spawn: **7 rolls** (8 if the first mode roll ≥ prob/2): dir·sign(`rng15`),
+  z(`unit`), speed(`unit`), vthresh·sign(`rng15`), vthresh·mag(`unit`),
+  prob(`rng15`%100), mode-r1(`rng15`%100)[, mode-r2(`rng15`%100)].
+- bounce: **4 rolls** (5 likewise): z, vthresh·sign, vthresh·mag,
+  mode-r1[, mode-r2]. **speed + prob are NOT re-rolled.**
+The 180× warmup front-loads 6 spawns (+ rare bounces) onto the first HOUSE
+frame, exactly where retail runs `FUN_0046f621`.
+
+**`FUN_0046f648` draws the dark CONTACT blob, not the bright sparkle.** It sets
+no texture/FVF/blend — it inherits the shadow pass's envelope (shade.bmp,
+`SRCBLEND=ZERO/DESTBLEND=SRCCOLOR` multiplicative darken, ZWRITE off), draws the
+shared ±256 quad `DAT_0064bd88` at `Scaling(−0.0046, 0.0046, 0.0046) ·
+Translation(x, y+0.08, z)`, tinted `0xff202020`. Result: a small soft dark spot
+on the back floor — visually subtle (verified by a bright-red/10× debug build:
+the blobs sit at the back-wall window line). The actual VISIBLE floating
+sparkle is a SEPARATE bright-sprite pass keyed off the per-record sprite-anim
+header (`+0x00..+0x14`, stepped by `FUN_00482a51/71` via the
+`DAT_005c7ce0[type·2]` LUT) — unported, and NOT read by the contact render, so
+the anim header is a documented stub here.
+
+> Port: `scene1_motes.c` (`scene1_motes_tick` / `_sim_once` / `_render`),
+> wired at `scene1_player_ctrl.c` (controller prologue, replacing the old
+> `player_ctrl_prologue_churn` no-op) + `scene1_chr_shadow.c` L122. Data tables
+> `DAT_005c7dd8` (type = {0,1,6,7,9,8}) / `DAT_005c7ce0` are static `.data`.
+> The steady per-frame dust consumer `FUN_0046c9a2` is still unported, so the
+> foot-dust *phase* won't fully match retail until that lands too (both needed).

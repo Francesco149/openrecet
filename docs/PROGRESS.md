@@ -7,6 +7,38 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-01 — HOUSE ambient motes (`FUN_0046f621`/`FUN_0046f2a3`/`FUN_0046f648`) ported
+
+Ported the free-roam ambient-mote subsystem as `src/scene1_motes.c`
+(+ `scene1_motes.h`), retiring the `player_ctrl_prologue_churn` no-op stub.
+Engine RE in `findings/engine-quirks.md` §83.
+
+- **Sim** (`FUN_0046f2a3` + the 180× warmup `FUN_0046f621`): 6 motes
+  (`DAT_005c7dd4`), each a one-axis floor drifter `x += dir·speed·0.05` that
+  bounces at the room bounds (x>25 / x<−15) re-rolling depth/threshold/mode.
+  Ported from objdump so the shared-LCG consumption is bit-faithful in **count
+  and order**: spawn = 7 rolls (8 if the first mode roll misses), bounce = 4 (5)
+  — speed + prob are not re-rolled. This is the sporadic free-roam RNG consumer
+  in `findings/scene1-rng-stream-parity.md`; its position in the call order
+  (controller prologue, before `FUN_0048b850`'s dust emit) is what the foot-dust
+  stream depends on. The per-tick pause/counter path is **provably dead** (the
+  `ecx`/threshold conditions are mutually exclusive in both drift directions) →
+  reproduced verbatim so the counter stays 0 the way retail's does.
+- **Render** (`FUN_0046f648`): a dark `0xff202020` shade.bmp blob per mote at
+  `Scaling(−0.0046,…)·Translation(x, y+0.08, z)`, drawn inside the ground-shadow
+  pass's envelope (the `FUN_00470385` @ `FUN_0045aa36` L122 slot,
+  `scene1_chr_shadow.c`). The motes sit at the back-wall window line (z≈−14);
+  this is the dark CONTACT pass, subtle by design — the visible bright sparkle
+  is a separate unported sprite pass (the per-record anim header is a documented
+  stub). Verified on-screen + correctly placed via a bright-red/10× debug build.
+- **Tests:** 5 host tests (`test_scene1_motes.c`) lock the spawn/bounce RNG
+  step counts, the type table, the warmup spawning all 6, single-tick drift, and
+  the dead-pause invariant. Full suite 3062 green.
+- **Not yet closed:** the steady per-frame dust consumer `FUN_0046c9a2` is still
+  unported, so the foot-dust *phase* won't fully phase-match retail until that
+  lands too (both are required — see the rng-stream doc). Retail position/stream
+  cross-check via Frida is the next validation step.
+
 ## 2026-06-01 — Csh.1: HOUSE character ground shadow (`FUN_0045aa36`) — player + companion, validated vs retail
 
 Ported the scene-1 shadow pass `FUN_0045aa36` (4493 B, `FUN_00459dfd` L205) as

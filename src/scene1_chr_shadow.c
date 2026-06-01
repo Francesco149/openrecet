@@ -96,6 +96,7 @@ void chr_shadow_build_actor(int i, const float pos[3],
 #include "scene1_player_ctrl.h"     /* player_ctrl_actor_char / _scale_xz / _scale_y */
 #include "collision_house.h"        /* collision_house_get */
 #include "collision_query.h"        /* collision_query_ground (FUN_00432e50) */
+#include "scene1_motes.h"           /* scene1_motes_render (FUN_0046f648) */
 
 #define SHADOW_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)   /* 0x142 */
 
@@ -207,15 +208,20 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
                                          quad, sizeof(shadow_vertex));
     }
 
-    /* ── dormant blocks (engine L122-365), HOUSE free-roam ledger ──────────
+    /* ── L122 FUN_00470385: ambient motes + object/furniture shadow blobs ──
+     * FUN_00470385 draws the 6 ambient floor motes (FUN_0046f648) FIRST, then
+     * the object/furniture contact-shadow blobs (DAT_073a6e84, count
+     * DAT_005c7dd0).  The motes are now ported (scene1_motes.c) and draw here
+     * inside this pass's render envelope — soft dark shade.bmp blobs tinted
+     * 0xff202020, multiplied into the floor.  The object/furniture blobs (the
+     * "missing table contact-shadow" in scene1-house-render-gaps.md §4) still
+     * need the DAT_073a6e84 table modelled → deferred follow-up chip. */
+    scene1_motes_render(dev);
+
+    /* ── remaining dormant blocks (engine L123-365), HOUSE free-roam ledger ─
      * Every remaining shadow consumer walks a table HOUSE free-roam leaves
      * empty, so none draw.  Kept as documented stubs (the scene1_shop_walker
      * count-stub convention) until their tables are modelled:
-     *   L122 FUN_00470385  — object/furniture shadow blobs (DAT_073a6e84,
-     *                        count DAT_005c7dd0) + ambient motes FUN_0046f648.
-     *                        The "missing table contact-shadow" in
-     *                        scene1-house-render-gaps.md §4; needs the object
-     *                        table model — a clean follow-up chip.
      *   L123 Block B       — customer / people shadows (DAT_0076c374 stride
      *                        0x2e9): no customers in free-roam.
      *   L189 Block C       — DAT_069324d4 effects (count DAT_0076b964 == 0).

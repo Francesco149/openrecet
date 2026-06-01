@@ -20,6 +20,7 @@
 #include "scene1_spawn.h"        /* scene1_spawn (FUN_00447f4f) — foot-dust emit */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 (shared DAT_056db054) */
 #include "rng.h"                 /* rng_next_unit (FUN_00471089) — dust jitter */
+#include "scene1_motes.h"        /* scene1_motes_tick (FUN_0046f621 mote pump) */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -794,14 +795,6 @@ static void player_ctrl_b850_move(void)
  * the engine's escalation/cc04/proximity/interaction guards (§78), all inert in
  * steady free-roam so control reaches the walk unchanged. */
 
-/* FUN_0046f621 (0x46f621, 39 B): the engine's per-frame RNG-pool churn,
- * called unconditionally on FUN_0048670f's main path (all.c:86722).  Has no
- * effect on the player position/sprite the benches sample; structural stub. */
-static void player_ctrl_prologue_churn(void)
-{
-    CALL_TRACE_ENTER_STUB(0x46f621u);
-}
-
 /* FUN_0048670f prologue + scene-transition arms (all.c:86579-86721): the
  * periodic customer-spawn refresh (the DAT_005ce3c4 actor loop, gated
  * DAT_0438b8cc%8==3, spawning shop customers via FUN_004147d5) and the four
@@ -990,9 +983,14 @@ void scene1_player_ctrl_tick(void)
     if (s_actor_char[0] == -1)        /* no live player actor (pre-HOUSE) */
         return;
 
-    /* prologue: periodic customer-spawn refresh + per-frame RNG churn
-     * (FUN_0046f621) — both inert in steady free-roam (structural stub). */
-    player_ctrl_prologue_churn();
+    /* prologue: per-frame ambient-mote pump (FUN_0046f621 → the spawn/drift
+     * sim FUN_0046f2a3, now ported in scene1_motes.c).  The first call runs
+     * the 180× warmup that seeds the 6 motes; later calls tick once.  This is
+     * a live consumer of the shared LCG (sporadic bound-cross respawns) — its
+     * position in the call order, BEFORE FUN_0048b850's dust emit, is what the
+     * foot-dust RNG-stream parity depends on.  (The periodic customer-spawn
+     * refresh that also lives in this prologue stays inert — no customers.) */
+    scene1_motes_tick();
 
     /* scene-transition fade handlers (DAT_0450f470/485/488/495): none fires in
      * steady HOUSE free-roam → fall through to the controller. */
