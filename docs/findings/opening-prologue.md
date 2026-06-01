@@ -407,3 +407,31 @@ trace wants re-tuning to the true per-line cadence) or retail paces slower for a
 reason not yet visible port-side. **Resolving it needs a retail anchor-cadence
 capture (Frida remote) to diff against** — the box/text draws are deferred to the
 visual pass regardless, so the per-line *pixel* parity is not blocked on this.
+
+### RESOLVED — port↔retail cadence is frame-exact (retail capture, 2026-06-01)
+
+Captured the retail side via Frida (`--target retail`, remote
+`cutestation.soy:27042`, run `…retail-20260601T193256Z`) and diffed the 46-line
+reveal/advance cadence (TEXT_ANIM_END inter-line gaps) against the port:
+
+```
+retail gaps: 106 166 106 46 46 118 118 46 22 22 46 106 22 22 46 389 22 46 22 78 …
+port   gaps: 106 166 106 46 46 118 118 46 22 22 46 106 22 22 46 286 22 46 22 78 …
+                                                       ^^^ only difference
+44 / 45 inter-line gaps are FRAME-EXACT identical.
+```
+
+The single divergence is gap #16 — the **iv1_1 → iv1_2 script transition**:
+retail 389 frames, port 286 (Δ103). That is the **inter-script load screen**
+retail shows between the two scripts, which the port deliberately does not
+reproduce (the driver loads iv1_2 in-memory; the load-gate/HOUSE_FREEROAM dance
+stays with the intro-events stub — see `scene1_intro_dialogue.h` scope). So the
+interpreter itself is **bit-exact in pacing** to retail; the lone gap is the
+known-deferred load screen.
+
+Both sides "race" through lines at ~22–118 frames each (the advance-spam slams
+the reveal — NOT 320 frames/line); the 320-frame trace segments are just
+over-budgeted. So the earlier "32/46 captured" port-side number is **purely a
+segtrace wait/capture timing artifact** (fast-firing anchors vs the per-segment
+wait), not an engine divergence — retail captured 46/46 of the identical
+sequence. Per-line PIXEL parity remains deferred (text/box draws not yet ported).

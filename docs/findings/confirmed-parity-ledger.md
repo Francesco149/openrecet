@@ -55,6 +55,14 @@
 
 ## Still UNVERIFIED (don't assert either way)
 
+- **Opening-prologue dialogue cadence — MACHINE-frame-exact, awaiting user
+  eyeball.** A `scenario-test intro-dialogue-lines` port↔retail diff (2026-06-01)
+  found **44/45 inter-line TEXT_ANIM_END gaps identical to the frame**; the lone
+  difference is the iv1_1→iv1_2 transition (retail +103 frames = the deferred
+  inter-script load screen). Strong, but it is an automated frame-diff, not a
+  user-eyeballed render — and the per-line TEXT/box PIXELS are still deferred
+  (draws not ported), so do NOT yet claim visual 1:1. See
+  `docs/findings/opening-prologue.md` §"port↔retail cadence is frame-exact".
 - Wing-glow size/intensity exact match (port glow looked smaller at one matched
   frame — never human-confirmed; could be Tear position).
 - Object/furniture contact-shadow-BLOB pass (`FUN_00470385` object table,
