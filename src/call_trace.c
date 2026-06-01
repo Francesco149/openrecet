@@ -11,10 +11,13 @@
 #endif
 
 #define CALL_TRACE_FRAMES_MAX 256
+#define CALL_TRACE_WINDOWS_MAX 64
 
 static FILE         *g_f               = NULL;
 static unsigned      g_frames[CALL_TRACE_FRAMES_MAX];
 static size_t        g_n_frames        = 0;
+static unsigned      g_windows[CALL_TRACE_WINDOWS_MAX][2];  /* [lo, hi) */
+static size_t        g_n_windows       = 0;
 static unsigned      g_cur_frame       = 0;
 static int           g_emit_this_frame = 0;
 static const char   *g_module_base     = NULL;
@@ -46,14 +49,36 @@ void call_trace_init_from_cli(const char *path,
 #endif
 }
 
+int call_trace_is_open(void)
+{
+    return g_f != NULL;
+}
+
+void call_trace_arm_window(unsigned lo, unsigned hi)
+{
+    if (!g_f || hi <= lo) return;
+    if (g_n_windows >= CALL_TRACE_WINDOWS_MAX) return;
+    g_windows[g_n_windows][0] = lo;
+    g_windows[g_n_windows][1] = hi;
+    g_n_windows++;
+}
+
 void call_trace_begin_frame(unsigned frame)
 {
     g_cur_frame = frame;
     if (!g_f) { g_emit_this_frame = 0; return; }
-    if (g_n_frames == 0) { g_emit_this_frame = 1; return; }
+    /* "Trace everything" only when neither a frame list nor a window was
+     * supplied (legacy --call-trace with no --call-trace-frames).  Once a
+     * {calltrace} window is armed, emission is window-gated. */
+    if (g_n_frames == 0 && g_n_windows == 0) { g_emit_this_frame = 1; return; }
     g_emit_this_frame = 0;
     for (size_t i = 0; i < g_n_frames; i++) {
-        if (g_frames[i] == frame) { g_emit_this_frame = 1; break; }
+        if (g_frames[i] == frame) { g_emit_this_frame = 1; return; }
+    }
+    for (size_t i = 0; i < g_n_windows; i++) {
+        if (frame >= g_windows[i][0] && frame < g_windows[i][1]) {
+            g_emit_this_frame = 1; return;
+        }
     }
 }
 

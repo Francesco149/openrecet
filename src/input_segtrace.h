@@ -16,10 +16,12 @@
  *   {"capture":N}        screenshot the deterministic frame base+N (N frames
  *                        after this segment's anchor) — emitted via the
  *                        capture callback so main.c routes it to its capture set.
- *   {"calltrace":...}    retail-side behavioral-probe op; PARSED BUT IGNORED on
- *                        the port (the port's call tracer is the compile-time
- *                        CALL_TRACE_ENTER system, not a runtime VA window). Kept
- *                        in the grammar so one trace file loads on both targets.
+ *   {"calltrace":[S,L]}  arm the call tracer for the L-frame window starting at
+ *                        base+S (S frames after this segment's anchor) — the
+ *                        port mirror of the Frida agent's window mode.  Resolved
+ *                        like {capture} and reported via the calltrace callback
+ *                        so main.c routes it to call_trace_arm_window().  A bare
+ *                        scalar {"calltrace":N} means [0, N] (N frames from base).
  *
  * Within a segment, frames are relative to that segment's base (the anchor
  * frame; base 0 for the boot segment). A trace with NO `wait` ops is a single
@@ -45,12 +47,20 @@ struct seg_entry {
     uint16_t mask;    /* 14-bit button mask */
 };
 
+/* One base-relative call-trace window (resolved to [base+start, base+start+len)). */
+struct seg_calltrace {
+    uint32_t start;   /* relative to the segment base */
+    uint32_t len;     /* window length in frames */
+};
+
 /* A maximal run of entries terminated by a `wait` (or the trace end). */
 struct seg_segment {
     struct seg_entry *entries;
     size_t            n_entries, cap_entries;
     uint32_t         *captures;     /* base-relative capture frames (N) */
     size_t            n_captures, cap_captures;
+    struct seg_calltrace *calltraces;   /* base-relative call-trace windows */
+    size_t            n_calltraces, cap_calltraces;
     char              wait[24];     /* terminating anchor name; "" if none */
     int               has_wait;
 };
@@ -71,11 +81,29 @@ struct input_segtrace {
 
     /* Anchor fire-frame map (latest-wins), fed by input_segtrace_on_anchor. */
     struct { char name[24]; uint32_t frame; int set; } fired[SEGTRACE_MAX_FIRED];
+
+    /* Call-trace window callback (set once via input_segtrace_set_calltrace_cb);
+     * fired per resolved {calltrace} op when its segment becomes active. */
+    void (*ct_cb)(uint32_t lo, uint32_t hi, void *user);
+    void  *ct_user;
 };
 
 /* Capture callback: invoked once per scheduled `{capture:N}` with the resolved
  * absolute frame (base+N) when its segment becomes active. */
 typedef void (*segtrace_capture_fn)(uint32_t frame, void *user);
+
+/* Call-trace window callback: invoked once per scheduled `{calltrace:[S,L]}`
+ * with the resolved absolute half-open window [base+S, base+S+L). */
+typedef void (*segtrace_calltrace_fn)(uint32_t lo, uint32_t hi, void *user);
+
+/* Set the call-trace window callback (and its user ptr).  Resolved windows fire
+ * through it as their segments become active, same timing as captures. */
+void input_segtrace_set_calltrace_cb(struct input_segtrace *st,
+                                     segtrace_calltrace_fn cb, void *user);
+
+/* True if the loaded trace declares ≥1 {calltrace} op (any segment).  Lets the
+ * harness auto-enable call-tracing from the trace alone. */
+int  input_segtrace_has_calltrace(const struct input_segtrace *st);
 
 /* Parse a trace from an in-memory buffer / file into `out` (cleared first).
  * Returns 1 on success, 0 on malformed input or OOM. */

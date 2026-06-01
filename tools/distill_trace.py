@@ -31,6 +31,7 @@ HOUSE_ANCHOR_OFFSET = 1565   # recording frame 0 → anchor+1565 (idle spam ends
 def load_raw(path):
     masks = {}   # frame -> "0xNNNN"
     caps = []
+    cts = []     # call-trace windows: [start, len] (F4 toggle pairs)
     for ln in Path(path).read_text().splitlines():
         s = ln.strip()
         if not s or s.startswith("#"):
@@ -42,8 +43,12 @@ def load_raw(path):
             masks[int(o["frame"])] = o["buttons"]
         elif "capture" in o:
             caps.append(int(o["capture"]))
+        elif "calltrace" in o:
+            v = o["calltrace"]
+            cts.append([int(v[0]), int(v[1])] if isinstance(v, list)
+                       else [0, int(v)])
     if not masks:
-        return [], sorted(caps), 0
+        return [], sorted(caps), cts, 0
     n = max(masks) + 1
     # distil: emit a change-point whenever the mask differs from the previous
     series = [masks.get(i, "0x0000") for i in range(n)]
@@ -53,22 +58,24 @@ def load_raw(path):
         if m != prev:
             changes.append((i, m))
             prev = m
-    return changes, sorted(caps), n
+    return changes, sorted(caps), cts, n
 
 
-def emit_flat(changes, caps, total):
+def emit_flat(changes, caps, cts, total):
     out = []
     for f, m in changes:
         out.append(json.dumps({"frame": f, "buttons": m}))
     for c in caps:
         out.append(json.dumps({"capture": c}))
+    for start, length in cts:
+        out.append(json.dumps({"calltrace": [start, length]}))
     # a trailing release so the trace doesn't end mid-hold
     if changes and changes[-1][1] != "0x0000":
         out.append(json.dumps({"frame": total, "buttons": "0x0000"}))
     return "\n".join(out) + "\n"
 
 
-def emit_house_segtrace(changes, caps):
+def emit_house_segtrace(changes, caps, cts):
     """Prepend the proven new-game→HOUSE intro (segments 0+1 + the segment-2
     spam up to the 2nd HOUSE_FREEROAM + frame 1500), then the recording rebased
     to anchor+HOUSE_ANCHOR_OFFSET, then the recorded captures rebased."""
@@ -97,6 +104,10 @@ def emit_house_segtrace(changes, caps):
         out.append(json.dumps({"frame": off + f, "buttons": m}))
     for c in caps:
         out.append(json.dumps({"capture": off + c}))
+    # call-trace windows are anchor-relative within the final segment, so the
+    # start rebases by the same offset; the length is unchanged.
+    for start, length in cts:
+        out.append(json.dumps({"calltrace": [off + start, length]}))
     return "\n".join(out) + "\n"
 
 
@@ -108,16 +119,17 @@ def main(argv=None):
                     help="wrap as a bootable new-game→HOUSE segtrace")
     args = ap.parse_args(argv)
 
-    changes, caps, total = load_raw(args.raw)
+    changes, caps, cts, total = load_raw(args.raw)
     if not changes:
         print("distill_trace: no input frames found in", args.raw, file=sys.stderr)
         return 1
-    text = (emit_house_segtrace(changes, caps) if args.house_segtrace
-            else emit_flat(changes, caps, total))
+    text = (emit_house_segtrace(changes, caps, cts) if args.house_segtrace
+            else emit_flat(changes, caps, cts, total))
     if args.out:
         Path(args.out).write_text(text)
         print(f"distill_trace: {len(changes)} change-points, {len(caps)} capture(s), "
-              f"{total} frames → {args.out}", file=sys.stderr)
+              f"{len(cts)} call-trace window(s), {total} frames → {args.out}",
+              file=sys.stderr)
     else:
         sys.stdout.write(text)
     return 0

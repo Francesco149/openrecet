@@ -277,4 +277,11 @@ nix develop --command python3 tools/freeroam_reach.py --out runs/freeroam-reach.
 
 > Follow-up (tracked): productize step 1 as a TAS "call-graph-trace on/off" segtrace
 > op + scenario flag so this plugs into any input trace without hand-editing
-> (`plans/` TODO, user-requested 2026-06-01).
+> (`plans/` TODO, user-requested 2026-06-01). **✅ DONE 2026-06-01:** the
+> `{calltrace:[start,len]}` op is now the single source of truth on BOTH targets.
+> Author it live with **F4** in the in-engine recorder (`run-openrecet.sh --debug`);
+> `distill_trace.py` carries it into the trace; replaying auto-enables *windowed*
+> call-tracing with no `--call-trace` flag (port: `call_trace_arm_window` +
+> auto-open; retail: `frida_capture` auto-enable). `scenario-test.py --target both`
+> drops port+retail `call_trace.jsonl` ready for `call_trace_diff.py`. So the survey
+> in Appendix C step 1 now reduces to: add the op (or F4-mark it) → replay.

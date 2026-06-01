@@ -1079,6 +1079,11 @@ def main(argv: list[str] | None = None) -> int:
                          "E.1 — per-frame ordered call list for leaf-first "
                          "porting. Pair with --call-trace-frames or output "
                          "saturates the Frida wire.")
+    ap.add_argument("--no-call-trace", action="store_true",
+                    help="opt out of the automatic call-trace enable that "
+                         "fires when --input-segtrace declares a {calltrace} "
+                         "op (the op is normally the single source of truth — "
+                         "no --call-trace flag needed).")
     ap.add_argument("--call-trace-vas-file", type=Path, default=None,
                     help="override the default engine VA list. JSON: either "
                          "a bare array of ints, or the metadata-dict form "
@@ -1187,6 +1192,20 @@ def main(argv: list[str] | None = None) -> int:
     call_trace_frames: list[int] | None = None
     if args.call_trace_frames:
         call_trace_frames = [int(x) for x in args.call_trace_frames.split(",") if x]
+
+    # Auto-enable call-trace when the input segtrace declares a {calltrace} op.
+    # The op is the single source of truth (it also drives the port + the agent's
+    # window mode), so a marked trace needs no --call-trace flag.  --no-call-trace
+    # opts out.
+    if (args.input_segtrace is not None and not args.call_trace
+            and not args.no_call_trace):
+        try:
+            if '"calltrace"' in args.input_segtrace.read_text():
+                args.call_trace = True
+                print("[capture] auto-enabled call-trace from segtrace "
+                      "calltrace op", file=sys.stderr)
+        except OSError:
+            pass
 
     call_trace_vas: list[int] | None = None
     if args.call_trace:

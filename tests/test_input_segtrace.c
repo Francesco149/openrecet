@@ -9,7 +9,8 @@
  *     successive firings (strictly-after-entry guard)
  *   - spam-until-anchor: long pre-wait entries abandoned when the anchor fires
  *   - `{capture:N}` schedules base+N via the callback
- *   - `{calltrace:...}` parsed + ignored (scalar and [start,len])
+ *   - `{calltrace:[S,L]}` / scalar `{calltrace:N}` resolve to absolute windows
+ *     [base+S, base+S+L) via the calltrace callback; has_calltrace reports them
  *   - parse rejects unknown keys
  */
 #define _GNU_SOURCE
@@ -135,10 +136,19 @@ int test_segtrace_capture_scheduled_at_base_plus_n(void)
     return 0;
 }
 
-int test_segtrace_calltrace_parsed_and_ignored(void)
+struct ct_log { uint32_t lo[8], hi[8]; int n; };
+static void ct_cb(uint32_t lo, uint32_t hi, void *user)
 {
-    /* Both scalar and [start,len] calltrace ops must parse without error and
-     * not disturb the input entries (port ignores them). */
+    struct ct_log *c = (struct ct_log *)user;
+    if (c->n < 8) { c->lo[c->n] = lo; c->hi[c->n] = hi; c->n++; }
+}
+
+int test_segtrace_calltrace_resolves_to_windows(void)
+{
+    /* Scalar {calltrace:N} == [0,N]; [start,len] is anchor-relative. Both
+     * resolve to absolute half-open windows [base+start, base+start+len) via
+     * the calltrace callback when the segment activates, without disturbing
+     * the input entries. */
     const char buf[] =
         "{\"wait\":\"HOUSE_FREEROAM\"}\n"
         "{\"calltrace\":200}\n"
@@ -148,9 +158,33 @@ int test_segtrace_calltrace_parsed_and_ignored(void)
     struct input_segtrace st = {0};
     T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
     T_ASSERT_EQ_U(st.n_segs, 2);
+    T_ASSERT_EQ_U(input_segtrace_has_calltrace(&st), 1);
+
+    struct ct_log log = {0};
+    input_segtrace_set_calltrace_cb(&st, ct_cb, &log);
+    /* boot seg has no calltrace ops */
+    input_segtrace_tick(&st, 0, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    /* anchor @10 → seg1 base=10; windows resolve to [10,210) and [1510,2190) */
     input_segtrace_on_anchor(&st, "HOUSE_FREEROAM", 10);
     T_ASSERT_EQ_U(input_segtrace_tick(&st, 10, NULL, NULL), 0x0000);
+    T_ASSERT_EQ_U(log.n, 2);
+    T_ASSERT_EQ_U(log.lo[0], 10);   T_ASSERT_EQ_U(log.hi[0], 210);
+    T_ASSERT_EQ_U(log.lo[1], 1510); T_ASSERT_EQ_U(log.hi[1], 2190);
+    /* input entries unaffected */
     T_ASSERT_EQ_U(input_segtrace_tick(&st, 17, NULL, NULL), 0x0008); /* DOWN at base+7 */
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_no_calltrace_reports_zero(void)
+{
+    const char buf[] =
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n"
+        "{\"capture\":5}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(input_segtrace_has_calltrace(&st), 0);
     input_segtrace_free(&st);
     return 0;
 }

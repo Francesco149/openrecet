@@ -54,6 +54,17 @@ void call_trace_begin_frame(unsigned frame);
 void call_trace_end_frame(void);
 void call_trace_shutdown(void);
 
+/* Arm an anchor-resolved [lo, hi) frame window for emission.  Called by the
+ * segtrace replayer when a {calltrace:[start,len]} op resolves — the port
+ * mirror of the Frida agent's window mode (tools/frida/openrecet-agent.js).
+ * Frames in ANY armed window emit, in addition to any --call-trace-frames
+ * list.  No-op if the trace file isn't open. */
+void call_trace_arm_window(unsigned lo, unsigned hi);
+
+/* True once the call_trace output file is open.  Lets the segtrace wiring
+ * auto-open the file from a {calltrace} op only when nothing opened it yet. */
+int  call_trace_is_open(void);
+
 /* Emit one JSONL row.  ret_addr is captured by the probe macro so the
  * value is the caller's PC, not the macro expansion's.  `stub` carries
  * forward into the emitted JSON as `"stub": true` when nonzero — used

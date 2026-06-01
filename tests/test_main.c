@@ -422,7 +422,8 @@ struct test_case {
     X(segtrace_double_anchor_resolves_successively) \
     X(segtrace_spam_until_anchor_short_circuits) \
     X(segtrace_capture_scheduled_at_base_plus_n) \
-    X(segtrace_calltrace_parsed_and_ignored) \
+    X(segtrace_calltrace_resolves_to_windows) \
+    X(segtrace_no_calltrace_reports_zero) \
     X(segtrace_rejects_unknown_key) \
     \
     X(anchor_first_tick_emits_only_boot) \

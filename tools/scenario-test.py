@@ -384,6 +384,14 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
             # the capture path is unaffected.
             "--hidden",
         ]
+    # Call-graph trace: when the scenario trace declares a {calltrace} op, write
+    # the port's call_trace.jsonl into the run dir.  The window(s) come from the
+    # op itself (the port arms call_trace_arm_window as the trace replays), so no
+    # --call-trace-frames is needed.  Retail auto-enables the same way via
+    # frida_capture — the op is the single source of truth on both targets.
+    if '"calltrace"' in trace_path.read_text():
+        child_args += ["--call-trace", wslpath_w(run_dir / "call_trace.jsonl")]
+
     if turbo:
         child_args.append("--turbo")
     if silent_audio:

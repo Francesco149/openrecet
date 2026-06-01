@@ -66,19 +66,6 @@ static int parse_string(const char **pp, const char *end, char *out, size_t cap)
     return 1;
 }
 
-/* Skip a `[ ... ]` array value (we don't need its contents for `calltrace`). */
-static int skip_array(const char **pp, const char *end)
-{
-    const char *p = *pp;
-    if (p >= end || *p != '[') return 0;
-    p++;
-    while (p < end && *p != ']') p++;
-    if (p >= end) return 0;
-    p++;
-    *pp = p;
-    return 1;
-}
-
 /* ─── segment building ──────────────────────────────────────────────────── */
 
 static struct seg_segment *push_segment(struct input_segtrace *st)
@@ -120,12 +107,27 @@ static int push_capture(struct seg_segment *s, uint32_t n)
     return 1;
 }
 
+static int push_calltrace(struct seg_segment *s, uint32_t start, uint32_t len)
+{
+    if (s->n_calltraces >= s->cap_calltraces) {
+        size_t ncap = s->cap_calltraces ? s->cap_calltraces * 2 : 4;
+        struct seg_calltrace *nc = realloc(s->calltraces, ncap * sizeof *nc);
+        if (!nc) return 0;
+        s->calltraces = nc; s->cap_calltraces = ncap;
+    }
+    s->calltraces[s->n_calltraces].start = start;
+    s->calltraces[s->n_calltraces].len   = len;
+    s->n_calltraces++;
+    return 1;
+}
+
 void input_segtrace_free(struct input_segtrace *st)
 {
     if (!st) return;
     for (size_t i = 0; i < st->n_segs; i++) {
         free(st->segs[i].entries);
         free(st->segs[i].captures);
+        free(st->segs[i].calltraces);
     }
     free(st->segs);
     memset(st, 0, sizeof *st);
@@ -153,6 +155,7 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         int      got_frame = 0, got_mask = 0, got_wait = 0, got_capture = 0;
         int      got_calltrace = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
+        uint32_t ct_start = 0, ct_len = 0;
         char     waitname[24] = {0};
 
         for (;;) {
@@ -182,9 +185,25 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                 if (!parse_number(&p, end, &capture)) return 0;
                 got_capture = 1;
             } else if (klen == 9 && memcmp(ks, "calltrace", 9) == 0) {
-                /* Retail-side op — parse + ignore (scalar or [start,len]). */
-                if (p < end && *p == '[') { if (!skip_array(&p, end)) return 0; }
-                else { uint32_t dummy; if (!parse_number(&p, end, &dummy)) return 0; }
+                /* {calltrace:[start,len]} (anchor-relative window) or scalar
+                 * {calltrace:N} == [0, N].  Drives the call tracer on BOTH
+                 * targets — the same op the Frida agent consumes. */
+                if (p < end && *p == '[') {
+                    p++;  /* '[' */
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (!parse_number(&p, end, &ct_start)) return 0;
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (p >= end || *p != ',') return 0;
+                    p++;
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (!parse_number(&p, end, &ct_len)) return 0;
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (p >= end || *p != ']') return 0;
+                    p++;
+                } else {
+                    if (!parse_number(&p, end, &ct_len)) return 0;
+                    ct_start = 0;
+                }
                 got_calltrace = 1;
             } else {
                 return 0;  /* unknown key */
@@ -206,7 +225,7 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         } else if (got_capture) {
             if (!push_capture(cur, capture)) return 0;
         } else if (got_calltrace) {
-            /* ignored on the port */
+            if (!push_calltrace(cur, ct_start, ct_len)) return 0;
         } else {
             if (!got_frame || !got_mask || mask > 0xffffu) return 0;
             if (!push_entry(cur, frame, (uint16_t)mask)) return 0;
@@ -285,6 +304,33 @@ static void schedule_captures(struct input_segtrace *st, size_t seg_idx,
         cb(st->base + s->captures[i], user);
 }
 
+/* Resolve this segment's call-trace windows to absolute [base+start,
+ * base+start+len) and fire them through the registered callback. */
+static void schedule_calltraces(struct input_segtrace *st, size_t seg_idx)
+{
+    if (!st->ct_cb || seg_idx >= st->n_segs) return;
+    const struct seg_segment *s = &st->segs[seg_idx];
+    for (size_t i = 0; i < s->n_calltraces; i++) {
+        uint32_t lo = st->base + s->calltraces[i].start;
+        st->ct_cb(lo, lo + s->calltraces[i].len, st->ct_user);
+    }
+}
+
+void input_segtrace_set_calltrace_cb(struct input_segtrace *st,
+                                     segtrace_calltrace_fn cb, void *user)
+{
+    if (!st) return;
+    st->ct_cb = cb; st->ct_user = user;
+}
+
+int input_segtrace_has_calltrace(const struct input_segtrace *st)
+{
+    if (!st) return 0;
+    for (size_t i = 0; i < st->n_segs; i++)
+        if (st->segs[i].n_calltraces) return 1;
+    return 0;
+}
+
 uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                              segtrace_capture_fn capture_cb, void *user)
 {
@@ -294,6 +340,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         st->cur_seg = 0; st->cur_entry = 0;
         st->base = 0; st->base_arm = 0;
         schedule_captures(st, 0, capture_cb, user);
+        schedule_calltraces(st, 0);
     }
     for (;;) {
         if (st->cur_seg >= st->n_segs) break;
@@ -304,6 +351,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 st->cur_seg++;
                 st->base = af; st->base_arm = af; st->cur_entry = 0;
                 schedule_captures(st, st->cur_seg, capture_cb, user);
+                schedule_calltraces(st, st->cur_seg);
                 continue;  /* re-evaluate the next segment this same frame */
             }
             /* not resolved: fall through and keep applying this segment's

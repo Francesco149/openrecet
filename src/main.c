@@ -441,6 +441,9 @@ static uint32_t  g_trace_rec_count        = 0;
 static uint32_t  g_trace_rec_cap          = 0;
 static uint32_t  g_trace_rec_caps[256];
 static int       g_trace_rec_caps_count   = 0;
+static uint32_t  g_trace_rec_ct[256][2];      /* [start,len] call-trace windows (F4) */
+static int       g_trace_rec_ct_count     = 0;
+static int       g_trace_rec_ct_open       = -1; /* open-window start frame, or -1 */
 static int       g_trace_rec_seq          = 0;
 #define TRACE_REC_MAX_FRAMES  600000u   /* ~2.8 h at 60fps — a hard backstop */
 
@@ -453,9 +456,12 @@ static void trace_rec_start(void)
     }
     g_trace_rec_count       = 0;
     g_trace_rec_caps_count  = 0;
+    g_trace_rec_ct_count    = 0;
+    g_trace_rec_ct_open     = -1;
     g_trace_rec_start_frame = g_tick.frame_count;
     g_trace_rec_active      = 1;
-    printf("[trace-rec] recording STARTED at frame %u (F2 to stop, F3 to mark a capture)\n",
+    printf("[trace-rec] recording STARTED at frame %u "
+           "(F2 stop, F3 capture-point, F4 call-trace window on/off)\n",
            g_trace_rec_start_frame);
     fflush(stdout);
 }
@@ -491,10 +497,51 @@ static void trace_rec_add_capture(void)
     }
 }
 
+/* F4: toggle a call-trace window.  First press opens at the current relative
+ * frame; second press closes it (recording [start, len]).  distill_trace.py
+ * turns each window into a {calltrace:[start,len]} op that auto-enables windowed
+ * call-tracing on both the port and retail. */
+static void trace_rec_toggle_calltrace(void)
+{
+    if (!g_trace_rec_active) {
+        printf("[trace-rec] F4 ignored — not recording (press F2 first)\n");
+        fflush(stdout);
+        return;
+    }
+    if (g_trace_rec_ct_open < 0) {
+        g_trace_rec_ct_open = (int)g_trace_rec_count;
+        printf("[trace-rec] call-trace window OPEN at relative frame %u (F4 to close)\n",
+               g_trace_rec_count);
+    } else {
+        uint32_t start = (uint32_t)g_trace_rec_ct_open;
+        uint32_t len   = g_trace_rec_count - start;
+        if (g_trace_rec_ct_count <
+                (int)(sizeof g_trace_rec_ct / sizeof g_trace_rec_ct[0])) {
+            g_trace_rec_ct[g_trace_rec_ct_count][0] = start;
+            g_trace_rec_ct[g_trace_rec_ct_count][1] = len;
+            g_trace_rec_ct_count++;
+            printf("[trace-rec] call-trace window CLOSED: [%u, %u]\n", start, len);
+        }
+        g_trace_rec_ct_open = -1;
+    }
+    fflush(stdout);
+}
+
 static void trace_rec_stop(void)
 {
     if (!g_trace_rec_active) return;
     g_trace_rec_active = 0;
+    /* Auto-close a still-open call-trace window at the final frame. */
+    if (g_trace_rec_ct_open >= 0) {
+        uint32_t start = (uint32_t)g_trace_rec_ct_open;
+        if (g_trace_rec_ct_count <
+                (int)(sizeof g_trace_rec_ct / sizeof g_trace_rec_ct[0])) {
+            g_trace_rec_ct[g_trace_rec_ct_count][0] = start;
+            g_trace_rec_ct[g_trace_rec_ct_count][1] = g_trace_rec_count - start;
+            g_trace_rec_ct_count++;
+        }
+        g_trace_rec_ct_open = -1;
+    }
 
     char path[256];
     snprintf(path, sizeof path, "openrecet-trace-%lu-%d.raw.jsonl",
@@ -514,9 +561,12 @@ static void trace_rec_stop(void)
         fprintf(f, "{\"frame\":%u,\"buttons\":\"0x%04x\"}\n", i, g_trace_rec_masks[i]);
     for (int c = 0; c < g_trace_rec_caps_count; c++)
         fprintf(f, "{\"capture\":%u}\n", g_trace_rec_caps[c]);
+    for (int c = 0; c < g_trace_rec_ct_count; c++)
+        fprintf(f, "{\"calltrace\":[%u,%u]}\n",
+                g_trace_rec_ct[c][0], g_trace_rec_ct[c][1]);
     fclose(f);
-    printf("[trace-rec] recording STOPPED: %u frames, %d capture(s)\n",
-           g_trace_rec_count, g_trace_rec_caps_count);
+    printf("[trace-rec] recording STOPPED: %u frames, %d capture(s), %d call-trace window(s)\n",
+           g_trace_rec_count, g_trace_rec_caps_count, g_trace_rec_ct_count);
     printf("[trace-rec] wrote %s\n", path);
     printf("[trace-rec] distill: nix develop --command python3 tools/distill_trace.py %s\n", path);
     fflush(stdout);
@@ -656,6 +706,7 @@ static void  recording_input_poll(void);
 static void  replay_input_poll(void);
 static void  segtrace_input_poll(void);
 static void  auto_z_spam_input_poll(void);
+static void  segtrace_ct_cb(uint32_t lo, uint32_t hi, void *user);
 static int   capture_frame_is_listed(uint32_t frame);
 
 /* Cross-process singleton lock. A second openrecet instance trying to
@@ -1451,6 +1502,22 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             fprintf(stderr,
                 "openrecet: input segtrace ← %s (%zu segments)\n",
                 g_input_segtrace_path, g_segtrace.n_segs);
+            /* Call-graph-trace ops drive the port's tracer directly: route
+             * resolved windows to call_trace_arm_window via the callback, and
+             * if the trace declares a window but no --call-trace path was
+             * given, auto-open a default output so a bare replay just works. */
+            input_segtrace_set_calltrace_cb(&g_segtrace, segtrace_ct_cb, NULL);
+            if (input_segtrace_has_calltrace(&g_segtrace) &&
+                !call_trace_is_open()) {
+                static char ctpath[256];
+                snprintf(ctpath, sizeof ctpath,
+                         "openrecet-calltrace-%lu.jsonl",
+                         (unsigned long)GetCurrentProcessId());
+                call_trace_init_from_cli(ctpath, NULL, 0);
+                fprintf(stderr,
+                    "openrecet: call-trace auto-enabled from segtrace "
+                    "calltrace op → %s\n", ctpath);
+            }
         } else {
             fprintf(stderr,
                 "openrecet: failed to load segtrace %s — disabled\n",
@@ -1932,6 +1999,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         } else if (wParam == VK_F3) {
             /* Mark a capture point at the current frame in the recording. */
             trace_rec_add_capture();
+        } else if (wParam == VK_F4) {
+            /* Toggle a call-graph-trace window in the recording. */
+            trace_rec_toggle_calltrace();
         }
         return 0;
 
@@ -3044,6 +3114,16 @@ static void segtrace_capture_cb(uint32_t frame, void *user)
     }
     g_capture_frames[g_capture_frames_count++] = frame;
     fprintf(stderr, "segtrace: scheduled capture at frame %u\n", (unsigned)frame);
+}
+
+/* Call-trace window sink for input_segtrace `{calltrace:[start,len]}` ops:
+ * arm the resolved [lo, hi) window on the port's call tracer. */
+static void segtrace_ct_cb(uint32_t lo, uint32_t hi, void *user)
+{
+    (void)user;
+    call_trace_arm_window(lo, hi);
+    fprintf(stderr, "segtrace: armed call-trace window [%u, %u)\n",
+            (unsigned)lo, (unsigned)hi);
 }
 
 /* --input-segtrace replacement for input_poll: anchor-segmented forcing.
