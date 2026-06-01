@@ -1,0 +1,7 @@
+# house-walk-down-dense — per-frame captures while walking DOWN, to verify the
+# foot dust (records-A 0xe): fresh puffs guaranteed, port vs retail at matched
+# anchor-relative frames (Recette's phase matches 1:1 so the dust should too).
+description: |
+  Hold DOWN; capture every frame anchor+1592..1628. Foot-dust depth + phase check.
+max_frames: 16000
+duration_ceiling_ms: 180000

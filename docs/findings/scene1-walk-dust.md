@@ -102,29 +102,30 @@ Verified 1:1: emit cadence (every 16 frames, ground-truth probe median 16),
 spawn (4 RNG: vel + rot.z), tick (drift/damp/kill 0x20), render state (matches
 the retail full-state extract exactly).
 
-## OPEN: depth — needs the free-roam 2D player-sprite path (NEXT CHIP)
+## Depth — RESOLVED via the player's depth-write (commit b1acf7c)
 
-The dust renders in FRONT of the walking player; retail draws it behind. Root
-cause is **structural, not in the dust**: a d3d-trace of a free-roam *walking*
-frame (`runs/walkdust-d3d`, frame 5495) shows the player+companion are the
-**final draws** — the 2D quad batch flush **`0x405396`/`0x4063bc`** (vb
-`0x605208`, **ZENABLE=0, ZWRITE=0, blend 5/6**, drawn LAST, after the
-FUN_004176ff particle pass incl. the dust at 0x41e97b). There is **no
-`FUN_004552d0`/`0045a56f` draw** in the free-roam walking frame. So in free-roam
-the player is a late 2D sprite (always on top → occludes the dust); the
-`FUN_004552d0` 3D path the port uses (`sw_pass_light`) only draws the player in
-the standing/cutscene state (the Cchr.2f/2h pixel validation was frame 17544, a
-standing pose). The port draws the free-roam player through the wrong path.
+The dust drew in FRONT of the walking player; retail draws it behind. The cause
+was a missing **ZWRITE on the player sprite**, NOT a wrong draw path.
 
-**Fix (full path, user-approved):** port the free-roam 2D character-sprite path
-(emitter → `FUN_00404efc` render_quad_add → `FUN_00405354` flush @0x405396,
-ZENABLE=0), and gate off the `FUN_004552d0` player draw in free-roam. First step:
-identify the 2D character-quad EMITTER VA — quad_hist (`tools/frida_capture.py
---quad-hist`, currently armed only via the dump_records_b drive, not the
-segtrace — needs wiring) or static call-graph from the FUN_00404efc caller set
-(`404e61/404e98/405b1a/405d70/406c64/406d50/409925/407cac/...`). Then the dust's
-engine position (after wing-glow) is correct and depth resolves naturally.
-See [[feedback_full_path_call_graph]].
+> **Correction to an earlier misread.** I first labelled the draw `0x45aa31` in
+> the walking d3d-trace as "shadow" and concluded the free-roam player was a late
+> 2D sprite (`0x405396`). WRONG. Per Cchr.1's quad_hist+SetTransform identity
+> (docs/findings/scene1-char-sprite-trace.md), **`0x45aa31` is `FUN_0045a56f`
+> drawing the player + companion + object SPRITES** (it spans 0x45a56f-0x45aa35);
+> `0x405396`/`0x4063bc` are the 2D **HUD**; the shadows are `0x45ae4a`
+> (FUN_0045aa36) / `0x46f722` (FUN_0046f648). So the free-roam player IS the 3D
+> `FUN_0045a56f` sprite the port already draws (via `sw_pass_light`), drawn before
+> the dust — the lesson: attribute draw VAs via the quad_hist identity table, not
+> by guessing from the address.
+
+Retail's player draw (`0x45aa31`, full-state extract `runs/walkdust-d3d` f5495):
+**ZENABLE=1, ZWRITEENABLE=1, ALPHATEST ref 0 GREATEREQUAL** (pass-all → the whole
+sprite quad lays down a Z footprint), blend SRCALPHA/INVSRCALPHA. The port's
+`sw_pass_light` set no Z state → inherited ZWRITE=0 → the player wrote no depth,
+so the later z-tested dust (and wing-glow) weren't occluded. Fix: set
+ZENABLE/ZWRITEENABLE/ALPHATEST around the `sw_pass_light` actor loop (restore
+ZWRITE off after). The dust stays at its engine position (after the wing-glow)
+and is now occluded by the player's Z. See [[feedback_full_path_call_graph]].
 
 Related: `docs/findings/scene1-wing-glow.md` (the 0x1f sibling arm),
 `docs/findings/scene1-char-sprite-render.md` (the FUN_004552d0 standing path),
