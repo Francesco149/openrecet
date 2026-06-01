@@ -146,12 +146,19 @@ positions**, not the render state:
   sprite Z is in front of it; the port reproduced the clip but, with the full-quad
   AREF-0 Z + the mis-positioned actors, it rectangularly cut the dust around her.
 
-**Faithful path (blocked, do in order):** (a) port the **furniture/object
-shadows** FUN_0046f648 (#2, currently stubbed) — they're a real free-roam pixel
-gap drawn every frame; (b) fix Tear's hover position so her Z matches retail; then
-(c) re-enable the sprite Z-write (#3, ZWR1 AREF0) so the dust reads behind the
-walker exactly as retail — verified against this draw order. Until (b), the
-sprite Z-write must stay OFF (the current reverted state) or the glow dies again.
+**Faithful path:** the only thing the dust occlusion actually needs is the
+**sprite Z-write** (#3, ZWR1 AREF0) — that is what makes the dust read behind the
+walker. The shadow passes (#1/#2) are **ZWRITE=0** (multiply-darken), so they do
+**NOT** write depth and are **irrelevant to the occlusion** (an earlier note here
+wrongly listed "port furniture shadows first" as a prerequisite — corrected). The
+real blocker is **Tear's position**: re-enabling the sprite Z-write occludes her
+own wing-glow because her mis-positioned quad lands in front of the glow. So:
+(a) fix Tear's hover position so her Z matches retail; then (b) re-enable the
+sprite Z-write. Until (a), the sprite Z-write must stay OFF (current reverted
+state) or the glow dies again. (Porting the furniture/object dynamic shadow-blob
+pass FUN_00470385/FUN_0046f648 is a *separate, minor, independent* cosmetic chip —
+the visible furniture shadows already match retail via the baked 3D meshes; see
+[[confirmed-parity-ledger]].)
 
 The original (mis-)diagnosis below is kept for the record.
 

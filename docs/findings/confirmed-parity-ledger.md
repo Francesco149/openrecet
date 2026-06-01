@@ -34,6 +34,7 @@
 | Player walk + collision (HOUSE) | bit-exact px/pz vs retail (mesh resolver) | engine-quirks §60–70; wall_collide_diff | 2026-05-31 |
 | Character ground shadow (player+Tear, Csh.1) | "pretty spot on" | user, feed `20260601T122354_6f81` (cap_06 feet zoom) | 2026-06-01 |
 | Foot-dust EMIT cadence | every 16 frames (median gap 16) | Frida ground-truth probe | 2026-06-01 |
+| **Furniture shadows** | the visible furniture/floor shadows are the **real baked 3D meshes** (real mesh loader), NOT a placeholder — table-base zoom-diff is all-black | `house-walk-tables` cap_10 zoom-diff, feed 2026-06-01 | 2026-06-01 |
 
 ## CONFIRMED NOT 1:1 (human-flagged — do NOT hand-wave)
 
@@ -54,8 +55,11 @@
 
 - Wing-glow size/intensity exact match (port glow looked smaller at one matched
   frame — never human-confirmed; could be Tear position).
-- Furniture/object shadows (`FUN_0046f648`) — **stubbed in the port**; retail
-  draws 6 of them every free-roam frame (draw-order GT). Not yet ported/seen.
+- Dynamic contact-shadow-BLOB pass (`FUN_00470385`/`FUN_0046f648`) — **stubbed**
+  (no src ref); retail draws ~6 soft multiply blobs under objects every frame
+  (draw-order GT). These are an *augmentation on top of* the already-matching
+  baked mesh shadows; visible impact is small/localized (house-render-gaps §4).
+  ZWRITE=0 → irrelevant to dust occlusion. Separate minor cosmetic chip.
 - Ambient motes (`FUN_0046f2a3`, 6 live in HOUSE) — stubbed; never rendered.
 
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].
