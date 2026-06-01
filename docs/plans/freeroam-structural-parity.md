@@ -60,6 +60,8 @@ SIM spine   FUN_004536cb (sim_a, stubbed body)         ← steady arm faithful; 
       └ FUN_0046f621 ambient particle motes — STUBBED no-op, VISIBLE (floating dust absent)
 RENDER spine FUN_004547ab (VERIFIED)
   ├ 3D mesh walker (room/furniture)     — drawn (PII.3b + C8 walkers); some leaf draws stubbed
+  ├ FUN_0045aa36 ground-shadow pass     — ✅ Csh.1 2026-06-01: player+Tear shadow drawn (Block A);
+  │     object/furniture shadow blobs (FUN_00470385) still stubbed (needs object table)
   ├ FUN_004176ff table-A/B glow walker  — TODO STUB → no particle/glow billboards (P0 Tear glow)
   ├ FUN_0040a765 HUD aggregator (shell ported) → passes 4–9 absent:
   │     FUN_00409925 always-on HUD (gold/gauge/day/panel) — P2

@@ -91,9 +91,13 @@ god-ray subsystem, which is only partially ported):
    (FUN_0045a56f / FUN_0046f648 / FUN_00405354 / FUN_00406241) and the
    stubbed walker passes.
 4. **Missing small shadow at the base of the centre table** — retail
-   draws a contact shadow under the table that the port omits. Likely a
-   blob/decal shadow draw (a small dark additive/modulate quad under
-   furniture) in a pass the port hasn't ported.
+   draws a contact shadow under the table that the port omits. This is
+   `FUN_00470385` (object/furniture shadow blobs, table `DAT_073a6e84`,
+   count `DAT_005c7dd0`), called mid-`FUN_0045aa36` (the shadow pass).
+   The **character** shadows from that pass (player + Tear, Block A)
+   LANDED 2026-06-01 as Csh.1 (`scene1_chr_shadow.c`, engine-quirks §82);
+   the object/furniture blobs stay a documented stub until the
+   `DAT_073a6e84` object table is modelled — the natural next shadow chip.
 
 > Methodology: each of these has retail ground truth in
 > `runs/retail-d3d-house/d3d_trace.jsonl` (frame 14000) — diff per-draw

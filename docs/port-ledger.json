@@ -4,13 +4,13 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 63,
+  "verified": 64,
   "stubbed": 18,
-  "ported": 301,
-  "unported": 2166,
+  "ported": 305,
+  "unported": 2161,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 382,
-  "pct_touched": 15.0,
+  "touched": 387,
+  "pct_touched": 15.2,
   "pct_verified": 2.5,
   "port_debt": 7
  },
@@ -1073,8 +1073,10 @@
    "size": 23,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_chr_shadow.c"
+   ]
   },
   {
    "va": "0x40d132",
@@ -2328,6 +2330,8 @@
     "src/collision_resolve.c",
     "src/collision_resolve.h",
     "src/scene1_camera.c",
+    "src/scene1_chr_shadow.c",
+    "src/scene1_chr_shadow.h",
     "src/scene1_postload.c",
     "src/scene1_postload.h",
     "src/scene1_records_b_spawn.c",
@@ -4325,6 +4329,7 @@
    "src": [
     "src/scene1_alpha_walker.c",
     "src/scene1_alpha_walker.h",
+    "src/scene1_chr_shadow.h",
     "src/scene1_emit_record.h",
     "src/scene1_render.c",
     "src/scene1_render.h"
@@ -4358,10 +4363,9 @@
    "size": 4493,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "verified",
    "src": [
-    "src/scene1_render.c",
-    "src/scene1_render.h"
+    "src/scene1_chr_shadow.c"
    ]
   },
   {
@@ -5734,8 +5738,10 @@
    "size": 239,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_chr_shadow.c"
+   ]
   },
   {
    "va": "0x46f737",
@@ -5817,8 +5823,10 @@
    "size": 246,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_chr_shadow.c"
+   ]
   },
   {
    "va": "0x47047b",
@@ -7604,6 +7612,8 @@
     "src/collision_query.h",
     "src/collision_resolve.c",
     "src/collision_resolve.h",
+    "src/scene1_chr_shadow.c",
+    "src/scene1_chr_shadow.h",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h"
    ]
@@ -10468,8 +10478,10 @@
    "size": 13,
    "is_thunk": false,
    "is_call_target": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/math3d.h"
+   ]
   },
   {
    "va": "0x4a4461",
@@ -10612,8 +10624,10 @@
    "size": 13,
    "is_thunk": false,
    "is_call_target": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/math3d.h"
+   ]
   },
   {
    "va": "0x4a4f5f",

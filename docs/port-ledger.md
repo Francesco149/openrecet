@@ -10,11 +10,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **382** (15.0%) — verified 63, stubbed 18, ported 301
-- unported: **2166**
+- touched: **387** (15.2%) — verified 64, stubbed 18, ported 305
+- unported: **2161**
 - orphan refs (in src/, not in function table): 6
 
-## verified (63) — runtime-diffed vs retail
+## verified (64) — runtime-diffed vs retail
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -52,6 +52,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4552d0 | FUN_004552d0 | 5210 | ✓ | scene1_shop_walker.c |
 | 0x457714 | FUN_00457714 | 5323 | ✓ | scene1_walker_pass_init.c |
 | 0x45a56f | FUN_0045a56f | 1223 | ✓ | scene1_chr_sprite.c |
+| 0x45aa36 | FUN_0045aa36 | 4493 | ✓ | scene1_chr_shadow.c |
 | 0x45bbf9 | FUN_0045bbf9 | 134 | ✓ | scene1_render.c |
 | 0x4681f6 | FUN_004681f6 | 42 | ✓ | tables_item.c |
 | 0x4682d0 | FUN_004682d0 | 8 | ✓ | scene_new_game.c |
@@ -105,7 +106,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (301) — reimplemented, no probe yet
+## ported (305) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -133,6 +134,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x40c90e | FUN_0040c90e | 20 | ✓ | scene1_spawn.c |
 | 0x40cea6 | FUN_0040cea6 | 226 | ✓ | sim.c |
 | 0x40cf88 | FUN_0040cf88 | 403 | ✓ | music.c |
+| 0x40d11b | FUN_0040d11b | 23 | ✓ | scene1_chr_shadow.c |
 | 0x40d132 | FUN_0040d132 | 9497 | ✓ | scene1_overlay.h, scene1_overlay_helpers.c |
 | 0x40f64b | FUN_0040f64b | 128 | ✓ | scene1_per_frame_open.h, scene1_preload.c, scene1_records.c (+1) |
 | 0x41276e | FUN_0041276e | 795 |  | scene1_per_frame_open.c, scene1_per_frame_open.h |
@@ -162,7 +164,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x431a80 | FUN_00431a80 | 156 | ✓ | scene1_preload.c, scene1_preload.h |
 | 0x43289b | FUN_0043289b | 555 | ✓ | collision_mesh.c, collision_mesh.h |
 | 0x432ac6 | FUN_00432ac6 | 906 | ✓ | collision_mesh.c, collision_mesh.h |
-| 0x432e50 | FUN_00432e50 | 2084 | ✓ | collision_house.c, collision_mesh.h, collision_query.c (+10) |
+| 0x432e50 | FUN_00432e50 | 2084 | ✓ | collision_house.c, collision_mesh.h, collision_query.c (+12) |
 | 0x433674 | FUN_00433674 | 2354 | ✓ | collision_resolve.c, collision_resolve.h, scene1_records_b_tick.c (+3) |
 | 0x4341d4 | FUN_004341d4 | 42 | ✓ | storage.c |
 | 0x4341fe | FUN_004341fe | 903 | ✓ | chr_sprite_meta.c, chr_sprite_meta.h, chr_sprite_meta_load.c (+4) |
@@ -238,8 +240,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x458f67 | FUN_00458f67 | 2118 | ✓ | scene1_maplight.c, scene1_maplight.h, scene1_render.c (+1) |
 | 0x4597ad | FUN_004597ad | 48 | ✓ | scene1_render.c, scene1_render.h |
 | 0x4597dd | FUN_004597dd | 106 | ✓ | scene1_render.c, scene1_render.h |
-| 0x459847 | FUN_00459847 | 1444 | ✓ | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_emit_record.h (+2) |
-| 0x45aa36 | FUN_0045aa36 | 4493 | ✓ | scene1_render.c, scene1_render.h |
+| 0x459847 | FUN_00459847 | 1444 | ✓ | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_chr_shadow.h (+3) |
 | 0x45bdc2 | FUN_0045bdc2 | 546 | ✓ | worker_load.h |
 | 0x45c051 | FUN_0045c051 | 3021 | ✓ | sim.c |
 | 0x45de68 | FUN_0045de68 | 433 | ✓ | scene_worldmap.h, tables_event.c, tables_event.h |
@@ -256,7 +257,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46bf38 | FUN_0046bf38 | 230 | ✓ | mesh_load.h, scene_sc1.c, scene_sc1.h (+1) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x46c039 | FUN_0046c039 | 87 | ✓ | sim.c |
+| 0x46f648 | FUN_0046f648 | 239 | ✓ | scene1_chr_shadow.c |
 | 0x46f737 | FUN_0046f737 | 347 | ✓ | scene1_shop_walker.c |
+| 0x470385 | FUN_00470385 | 246 | ✓ | scene1_chr_shadow.c |
 | 0x47047b | FUN_0047047b | 296 | ✓ | scene1_chr_walker.c, scene1_chr_walker.h |
 | 0x4705a3 | FUN_004705a3 | 327 | ✓ | scene1_shop_walker.c, scene1_shop_walker.h |
 | 0x470d44 | FUN_00470d44 | 292 | ✓ | scene1_shop_walker.c |
@@ -322,7 +325,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_chr_sprite.h, scene1_companion_ctrl.c |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |
 | 0x4830f1 | FUN_004830f1 | 127 | ✓ | collision_resolve.c, collision_resolve.h |
-| 0x483170 | FUN_00483170 | 3339 | ✓ | collision_query.h, collision_resolve.c, collision_resolve.h (+2) |
+| 0x483170 | FUN_00483170 | 3339 | ✓ | collision_query.h, collision_resolve.c, collision_resolve.h (+4) |
 | 0x483e7b | FUN_00483e7b | 516 | ✓ | scene1_companion_ctrl.c |
 | 0x48407f | FUN_0048407f | 795 | ✓ | scene1_sim.c, scene1_sim.h |
 | 0x484dd1 | FUN_00484dd1 | 116 | ✓ | scene1_records_c_tick.c, scene1_records_c_tick.h |
@@ -390,6 +393,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4a3670 | FUN_004a3670 | 28 |  | scene1_wide_followup_helpers.c |
 | 0x4a3b52 | FUN_004a3b52 | 328 | ✓ | math3d.h |
 | 0x4a3ee8 | FUN_004a3ee8 | 148 | ✓ | main.c, math3d.h, mesh_draw.c (+2) |
+| 0x4a4454 | FUN_004a4454 | 13 |  | math3d.h |
+| 0x4a4f52 | FUN_004a4f52 | 13 |  | math3d.h |
 | 0x4aaad7 | FUN_004aaad7 | 278 | ✓ | mesh.c, mesh.h |
 | 0x4c75e3 | FUN_004c75e3 | 4634 | ✓ | mesh_draw.c, scene1_emit_record.c |
 | 0x4c8f74 | FUN_004c8f74 | 704 | ✓ | mesh_load.c |

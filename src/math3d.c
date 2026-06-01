@@ -104,6 +104,37 @@ void mat4_scaling(float out[16], float sx, float sy, float sz)
     out[10] = sz;
 }
 
+void plane_from_point_normal(float out[4], const float point[3],
+                             const float normal[3])
+{
+    out[0] = normal[0];
+    out[1] = normal[1];
+    out[2] = normal[2];
+    out[3] = -(point[0] * normal[0] +
+               point[1] * normal[1] +
+               point[2] * normal[2]);
+}
+
+void mat4_shadow(float out[16], const float light[4], const float plane[4])
+{
+    /* Normalise the plane (a,b,c,d) by 1/|(a,b,c)| — D3DXPlaneNormalize, the
+     * 0x4a4df3 call at the top of the engine's slot-27 impl. */
+    float a = plane[0], b = plane[1], c = plane[2], d = plane[3];
+    float n = sqrtf(a * a + b * b + c * c);
+    if (n != 0.0f) {
+        float inv = 1.0f / n;
+        a *= inv; b *= inv; c *= inv; d *= inv;
+    }
+
+    float lx = light[0], ly = light[1], lz = light[2], lw = light[3];
+    float dot = a * lx + b * ly + c * lz + d * lw;
+
+    out[ 0] = dot - lx * a;  out[ 1] = -ly * a;  out[ 2] = -lz * a;  out[ 3] = -lw * a;
+    out[ 4] = -lx * b;  out[ 5] = dot - ly * b;  out[ 6] = -lz * b;  out[ 7] = -lw * b;
+    out[ 8] = -lx * c;  out[ 9] = -ly * c;  out[10] = dot - lz * c;  out[11] = -lw * c;
+    out[12] = -lx * d;  out[13] = -ly * d;  out[14] = -lz * d;  out[15] = dot - lw * d;
+}
+
 void mat4_rotation_x(float out[16], float radians)
 {
     float c = cosf(radians), s = sinf(radians);

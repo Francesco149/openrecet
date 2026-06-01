@@ -26,6 +26,7 @@
 #include "scene1_chr_walker.h"   /* Cchr.2d — FUN_00456f56 character-sprite walker */
 #include "scene1_chr_prepass.h"  /* Cchr.2e — FUN_0045672a records/people pre-pass  */
 #include "scene1_wing_glow.h"    /* P0.1 — FUN_004176ff records-A type-0x1f arm      */
+#include "scene1_chr_shadow.h"   /* Csh.1 — FUN_0045aa36 player/companion ground shadow */
 #include "call_trace.h"
 #include "scene1_camera.h"
 #include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
@@ -260,13 +261,10 @@ static void scene1_walk_narrow_frustum_TODO(int pass)
     (void)pass;
 }
 
-/* FUN_0045aa36 (4493 B) — sub-pass between FUN_00459847(0) and the
- * fog-enable branch.  Substantial — multi-chip on its own. */
-static void scene1_walk_narrow_followup_TODO(void)
-{
-    /* TODO C8-followup: port FUN_0045aa36.  May overlap with the
-     * narrow walker; survey first. */
-}
+/* FUN_0045aa36 (4493 B) — the ground-shadow pass between FUN_00459847(0)
+ * and the fog-enable branch.  Ported as Csh.1 (src/scene1_chr_shadow.c):
+ * render-state envelope + Block A (player + companion ground shadow).
+ * Dispatched below via scene1_chr_shadow_render(). */
 
 /* FUN_004552d0 (5210 B) — the WIDE-frustum mesh walker.  Landed
  * 2026-05-23 as C8c (src/scene1_shop_walker.{c,h}) with all 7
@@ -772,7 +770,12 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
     /* L203-L205: pre-walker → first narrow-frustum walker → followup. */
     scene1_walk_pre_pass(dev);
     scene1_walk_narrow_frustum_TODO(0);
-    scene1_walk_narrow_followup_TODO();
+    /* L205: ★ FUN_0045aa36 ★ — the ground-shadow pass (4493 B).  Csh.1
+     * (2026-06-01, src/scene1_chr_shadow.c) ports the render-state envelope
+     * + Block A (the live player + companion ground shadow); the six dormant
+     * shadow tables (customers / objects / combat / spawn-flash) stay
+     * documented stubs (see scene1_chr_shadow.c). */
+    scene1_chr_shadow_render((struct IDirect3DDevice8 *)dev);
 
     /* L206-L214: fog gate, this time just FOGENABLE.  Same condition
      * as L170-L184; engine doesn't re-write the parameters. */

@@ -3190,3 +3190,66 @@ controllable state) — not done.
 > Leaf cell selection: `scene1_chr_sprite.c` `chr_sprite_build_quads`.
 > GT: `tools/frida_capture.py --chr-leaf` → `chr_leaf.jsonl` (`runs/comp-anim-probe`,
 > `runs/cchr2b`). Builds on §71 (companion = actor 2 / char 1), §80 (sparkle trail).
+
+## 82. Character ground shadows (`FUN_0045aa36`) are a D3DXMatrixShadow projection of a ±256 shade quad, NOT a sprite-attached blob — size shrinks with height, alpha = `(int)(height·5)`, multiplicative-darken blend
+
+The HOUSE shadow pass `FUN_0045aa36` (0x45aa36, 4493 B, engine `FUN_00459dfd`
+L205 — right after `FUN_00459847(0)`) draws ground shadows for *seven* distinct
+actor/effect tables, all with one recipe: the static ±256 XZ quad `DAT_0064bd88`
+(`all.c` L9111 init; UVs sample the 64×64 `shade.bmp` blob at `(0.5..63.5)/256`),
+textured with `shade.bmp` (`DAT_073cc8f0`), **projected onto the actor's floor
+plane by a D3DXMatrixShadow**, grey-keyed, drawn as a 2-prim `TRIANGLESTRIP`.
+
+Only **Block A** (L59-121, the `DAT_056da1b8` actor table) is live in free-roam:
+the player (actor 0) + companion (actor 2) shadow. The other six blocks walk
+empty tables (customers / objects / combat projectiles / spawn-flash).
+
+Two non-obvious things:
+
+1. **The world matrix is `Shadow · Scaling · Translation`** (built `W1 =
+   Scaling*Translation` at L99-100, then `W = Shadow*W1` at L108-109; verified by
+   the push order at objdump 0x45ad53 — `Multiply(out, Shadow, W1)`). The shadow
+   matrix is `D3DXMatrixShadow(light=(0,1,0,0), plane)` where `plane =
+   PlaneFromPointNormal((0,0.2,0), (-n.x, n.y, -n.z))` and `n` is the **floor
+   surface normal from the `FUN_00432e50` ground query** (ported as
+   `collision_query_ground`, W4.2). On HOUSE's flat floor `n=(0,1,0)` so the
+   shadow matrix is nearly a no-op (just lays the flat quad on the plane) and the
+   placement is all in Scaling·Translation — but on a slope it skews the quad to
+   lie on the surface. The engine caches the per-actor floor height + normal in
+   `DAT_056daf94` / `DAT_056daebc..ec4` via `FUN_00483170`; the shadow re-reads
+   them. The port re-queries `collision_query_ground` at draw time (deterministic,
+   same result).
+
+2. **Two newly-identified D3DX PSGP helpers.** The matrix thunks dispatch through
+   the `FUN_004cdd9f` PSGP table (`PTR_LAB_005fda48`, copied from the default impls
+   at `PTR_FUN_005fdb30`). Slot 12 (`*0x5fda78`, default @ 0x4a4f65) =
+   **D3DXPlaneFromPointNormal** → `(n, -dot(point,n))`, NOT normalised. Slot 27
+   (`*0x5fdab4`, default @ 0x4a5c86) = **D3DXMatrixShadow** → normalises the plane,
+   `dot = P·L` (4-component), `out._ii = dot - L_i·P_i`, off-diagonal `-L_j·P_i`
+   (row-major). Both ported into `math3d.c` (`plane_from_point_normal`,
+   `mat4_shadow`).
+
+Geometry/colour (per live actor `i`, objdump 0x45ab90-0x45ae44, `.rdata` consts):
+- `height = pos.y - floor_y`
+- `alpha  = clamp((int)(height·5.0), 0..255)`   — grey level; **truncates** (ftol).
+- `size   = clamp(0.038 - height·0.0015, .025..038) · 0.14`
+- gates: `char != -1`; floor hit (`daf94 != -100`); `|n.y| >= 0.7`;
+  `scale_xz > 0`; `scale_y > 0`.
+- **companion (i==2) tweak (L86-89):** `size ×= 0.9`, `alpha += 0x40` — a smaller,
+  more-opaque shadow than the player's.
+- colour = `0xFF<a><a><a>` (opaque grey); the translucency is the **blend**:
+  `SRCBLEND=ZERO, DESTBLEND=SRCCOLOR` → `result = DST · SRC.rgb`, multiplicative
+  darkening (set up at L48-54; `ALPHABLENDENABLE` + `COLOROP=ADD` + `ALPHAOP=
+  MODULATE` precede it, but the ZERO/SRCCOLOR pair is what darkens).
+
+Consequence: a player standing with feet ≈ on the floor has `height ≈ 0` → faint
+shadow; the companion floats (`height ≈ 3`) → its `+0x40` term keeps the shadow
+visible. So the **player shadow strength is a direct function of the port's
+player-Y vs floor-Y agreement with retail** — a useful cross-check.
+
+> Port: `scene1_chr_shadow.c` (`chr_shadow_build_actor` pure core + Win32 pass),
+> wired at `scene1_render.c` L205. Helpers: `math3d.c` `mat4_shadow` /
+> `plane_from_point_normal`. Object/furniture shadows (`FUN_00470385`,
+> `DAT_073a6e84` table — the missing table contact-shadow in
+> scene1-house-render-gaps.md §4) are the natural follow-up; they need the object
+> table modelled. Builds on §71 (companion = actor 2), W4.2 (collision query).

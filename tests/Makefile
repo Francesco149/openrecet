@@ -64,6 +64,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_chr_sprite.c \
                  ../src/scene1_chr_walker.c \
                  ../src/scene1_chr_prepass.c \
+                 ../src/scene1_chr_shadow.c \
                  ../src/scene1_player_ctrl.c \
                  ../src/scene1_companion_ctrl.c \
                  ../src/scene1_intro_events.c \
@@ -110,6 +111,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_chr_sprite.c \
                  test_scene1_chr_walker.c \
                  test_scene1_chr_prepass.c \
+                 test_scene1_chr_shadow.c \
                  test_scene1_player_ctrl.c \
                  test_scene1_companion_ctrl.c \
                  test_collision_mesh.c test_collision_query.c test_collision_resolve.c \

@@ -7,6 +7,42 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-01 — Csh.1: HOUSE character ground shadow (`FUN_0045aa36`) — player + companion, validated vs retail
+
+Ported the scene-1 shadow pass `FUN_0045aa36` (4493 B, `FUN_00459dfd` L205) as
+`src/scene1_chr_shadow.c` (+ `scene1_chr_shadow.h`): the render-state envelope
+(verbatim) + **Block A**, the player + companion (Tear) ground shadow — the only
+one of the function's seven shadow tables that's live in HOUSE free-roam.
+Engine RE in `findings/engine-quirks.md` §82.
+
+- **Recipe:** the static ±256 XZ quad `DAT_0064bd88` (UVs sample the 64×64
+  `shade.bmp` blob), projected onto the actor's floor plane by a
+  **D3DXMatrixShadow**, grey-keyed, drawn as a 2-prim `TRIANGLESTRIP` under a
+  multiplicative-darken blend (`SRCBLEND=ZERO, DESTBLEND=SRCCOLOR`).
+- **Two new D3DX PSGP helpers** identified from the `FUN_004cdd9f` dispatch table
+  and ported into `math3d.c`: `plane_from_point_normal` (slot 12, @0x4a4f65) and
+  `mat4_shadow` (slot 27, @0x4a5c86, normalises the plane internally).
+- **Geometry/colour** (objdump-recovered): `height = pos.y - floor_y`;
+  `alpha = clamp((int)(height·5), 0..255)`; `size = clamp(0.038 - height·0.0015,
+  .025..038)·0.14`; companion (i==2) gets `size×0.9`, `alpha+0x40`. Floor height
+  + normal come from `collision_query_ground` (W4.2 port of the same
+  `FUN_00432e50` the engine queries).
+- **Floor-probe fix:** a grounded player (`y == floor == 0`) made the port's
+  `collision_query_ground` miss (it needs clearance above the floor; the engine's
+  `FUN_00432e50` hits at `y` via an internal +1.5), so the player got no shadow.
+  Query the floor at `y + 1.5` (the resolver's `CR_HEAD_HEIGHT` probe); height
+  still uses the true `pos.y`. Frida confirms retail draws the player shadow
+  (`DAT_056daf94 = 0` hit, `py = 0`).
+- **Validated:** Frida retail capture of `house-walk-tables` cap_06 — the player
+  shadow under Recette matches retail closely (feed: "Csh.1 shadow VALIDATED").
+  Companion shadow draws too; residual diff there is the known wing-anim phase
+  jitter, not the shadow. 5 host unit tests added (`test_scene1_chr_shadow.c`),
+  full suite 3057 green.
+- **Dormant follow-up:** the six other shadow blocks (customers / objects /
+  combat / spawn-flash) stay documented stubs. `FUN_00470385` object/furniture
+  shadows (the missing table contact-shadow, `scene1-house-render-gaps.md` §4)
+  need the object table modelled — the natural next shadow chip.
+
 ## 2026-06-01 — controller un-MVP Chip 4: real `cc08` dispatch + faithful `cc08==1` arm, last `FUN_0048670f` simplified debt retired
 
 Retired the final `PORT-DEBT(simplified, FUN_0048670f)` — the cc08 dispatch

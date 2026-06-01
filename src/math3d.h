@@ -65,6 +65,21 @@ void mat4_rotation_x(float out[16], float radians);
 void mat4_rotation_y(float out[16], float radians);
 void mat4_rotation_z(float out[16], float radians);
 
+/* D3DXPlaneFromPointNormal(pOut, pPoint, pNormal).  pOut = (n.x, n.y, n.z,
+ * -dot(point, normal)) — the plane through `point` with normal `normal`.
+ * NOT normalised (the engine normalises later, inside mat4_shadow).  Matches
+ * the engine's thunk_FUN_004a4f52 (PSGP slot 12, default impl @ 0x4a4f65). */
+void plane_from_point_normal(float out[4], const float point[3],
+                             const float normal[3]);
+
+/* D3DXMatrixShadow(pOut, pLight, pPlane).  Builds the row-major projection
+ * matrix that flattens geometry onto `plane` along the light direction
+ * `light` (light[3] == 0 → directional, == 1 → point).  The plane is
+ * normalised internally (all four components scaled by 1/|n|).  Matches the
+ * engine's thunk_FUN_004a4454 (PSGP slot 27, default impl @ 0x4a5c86):
+ *   dot = P·L (4-component);  out._ii = dot - L_i*P_i, off-diagonal -L_j*P_i. */
+void mat4_shadow(float out[16], const float light[4], const float plane[4]);
+
 /* General 4×4 inverse via cofactor expansion.  Matches
  * D3DXMatrixInverse(out, NULL, in) — the engine's thunk_FUN_004a2f35
  * lands here (the second arg is `pDeterminant`, always NULL at the
