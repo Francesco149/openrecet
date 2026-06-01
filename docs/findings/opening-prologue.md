@@ -64,16 +64,89 @@ arm) runs, every frame (n≈1600 over the 1600-frame window unless noted):
   `operator_new`/`malloc` for string buffers).
 - Staging: `0x44baad`, `0x452d07`, `0x45281c` (fade/character setup).
 
-## Open (next, for the anchors + driver port)
+## RESOLVED — the dialogue subsystem (sequencer + reveal counter + anchor signals)
 
-1. **Find the script/event sequencer** that advances the prologue line-by-line
-   (consumes the advance button, picks the next line, drives `FUN_0048407f`'s
-   pose changes). Likely in the 0x46c / 0x47 cluster above; trace the caller of
-   the text-box (`0x47c29d`) and the advance-button reader.
-2. **Text-reveal counter** (for `TEXT_ANIM_START`/`TEXT_ANIM_END`): the
-   per-char scroll-reveal index in the `0x47c29d` text-box path. START = index
-   leaves 0 for a new line; END = index == line length.
-3. Whether the prologue is one INGAME sub-mode or a sequence of scripted events.
+> Done 2026-06-01. Supersedes the "Open" guesses below. **Correction:**
+> `0x47c29d` is the glyph-cache **debug overlay** (`OVER_FONT`/`TOTAL=` counter
+> over the per-character rasterizer pool `DAT_073de66c`, stride 0x1c) — NOT the
+> dialogue line engine. The real prologue dialogue subsystem is the **`0x46c`
+> cluster**, gated by `DAT_0438b1c8 == 1` (dialogue active):
+
+| VA | function | role |
+|----|----------|------|
+| `0x46c01e`* | dialogue **init/reset** | zeroes the reveal state; sets text-speed `DAT_005c78dc = (&DAT_005c78e0)[DAT_056e5784]` (the 0..2 text-speed setting) |
+| `0x46c295` | **script loader** | `PTR_DAT_005c78d0 = &DAT_0735f4f8` (the command table); `FUN_0046ddea` parses the event script; `DAT_073a6bd4 = 0` (cmd index); sets `DAT_073a3e20=1` (disable) on parse-fail |
+| `0x46c2cb` | ESC **skip-event** prompt | the trailing yes/no (`FUN_00434def` "Do you want to skip this event?") — confirms the §Drivers note; off the Z-spam path |
+| **`0x46c320`** | per-frame **update** | advances the reveal counter, reads the advance button, runs the script command loop. Called from the INGAME state-1 arm `FUN_004536cb` (L50514/50630) gated on `DAT_0438b1c8==1` |
+| **`0x46c9a2`** | per-frame **draw** + reveal-completion | draws the box text char-by-char; sets the "fully revealed" flag. **Also the steady free-roam dust RNG consumer** — see the unification note below |
+
+*the init reset block is at `all.c:67055-67099` (zeroes `DAT_073a3e00`/`e04`/`e08`).
+
+### The two anchor signals (single global each, per-frame observable)
+
+- **`TEXT_ANIM_START`** = `DAT_073a3e00` (reveal counter) **resets to 1**
+  (`0x46c9a2`, `all.c:67768-67769`: `if (DAT_073a6d74==1) DAT_073a3e00 = 1;`).
+  Per frame the update (`0x46c320`) climbs the counter `1,2,…` clamped at
+  `0x800`; on a new line the draw forces it back to 1. A per-frame sampler sees
+  the value **decrease** (e.g. `0x800 → 1`) exactly on the new-line frame →
+  clean rising/new-line edge. (`DAT_073a6d74` is the one-frame "new line" pulse,
+  set by a script command and cleared in the draw — too transient to sample;
+  the counter reset is the robust proxy.)
+- **`TEXT_ANIM_END`** = `DAT_073a3e04` (the "fully revealed / awaiting input"
+  flag) **rises 0→1** (`0x46c9a2`, `all.c:67771-67801`). The draw sets it 1,
+  then clears to 0 while the per-char reveal budget
+  `local_10 = (DAT_073a3e00-4)·DAT_005c78dc / 32` is still being consumed by the
+  `DAT_073a6bd0` (= line char-count) glyphs; it settles at 1 once the whole line
+  draws with budget to spare. It gates the post-complete blink timer
+  `DAT_073a3e08` (`0x46c320`, `all.c:67238-67240`). So `e04` 0→1 = "line
+  finished revealing, settled, awaiting advance" — exactly the user's
+  "text animation finished" edge. Both edges **recur per line**.
+
+Advance button (skip typewriter / next line): C = `0x10`
+(`(DAT_073dddfe|DAT_073dddd4)&0x10`), A = `0x40`
+(`(DAT_073dddfa|DAT_073dddd0)&0x40`) — both jump `DAT_073a3e00 = 0x800`
+(`0x46c320`, `all.c:67226-67232`). Next-line advance: the script command loop
+walks `PTR_DAT_005c78d0 + DAT_073a6bd4*0xc` (12-byte `{fn,arg1,arg2}` triplets);
+a command returning **2** breaks → `DAT_073a6bd4++` (next line); **3** = special
+(set a flag, return); **0** = end (`all.c:67321-67335`).
+
+### Glossary of the dialogue globals
+
+| addr | meaning |
+|------|---------|
+| `DAT_0438b1c8` | dialogue-active gate (`==1` while the prologue dialogue runs) |
+| `DAT_073a3e00` | per-char reveal counter (1‥0x800) — **START signal** |
+| `DAT_073a3e04` | "fully revealed / awaiting input" flag — **END signal** |
+| `DAT_073a3e08` | post-complete blink/idle timer (ticks while `e04!=0`) |
+| `DAT_073a3e20` | dialogue-disabled (script parse failed / done) |
+| `DAT_073a6bd0` | current line char count |
+| `DAT_073a6bd4` | script command index |
+| `DAT_073a6a38` | glyph-table byte offset of the current line (`<0` = no line) |
+| `DAT_073a6d74` | one-frame "new line" pulse |
+| `PTR_DAT_005c78d0` | script command table base (`&DAT_0735f4f8`) |
+| `DAT_005c78dc` | reveal speed (px per counter tick), from `DAT_005c78e0[DAT_056e5784]` |
+| `DAT_005c78ec` | text updates/frame (speed-up while advance held) |
+
+### Unification: `FUN_0046c9a2` IS the dust RNG consumer
+
+`scene1-rng-stream-parity.md` flagged `0x46c9a2` (3800 B, reached via the render
+root `FUN_004547ab → FUN_0046c090 → FUN_0046c9a2`) as the last unported steady
+per-frame free-roam LCG consumer blocking foot-dust *phase* parity, and the
+2026-06-01 ambient-motes PROGRESS entry calls it out as "Not yet closed." It is
+the **same function** as the dialogue text-box draw here. So porting `0x46c9a2`
+closes **both** fronts: (a) the dialogue reveal/draw + the `TEXT_ANIM_END`
+signal, and (b) the free-roam RNG-stream completeness for dust positions. Its
+LCG reads (the `0x46cf81` int caller in the rng-callers table) are the box's
+sparkle/effect emits — they run in free-roam too, which is why it's a *steady*
+consumer, not prologue-only.
+
+## Open (older guesses — superseded by RESOLVED above)
+
+1. ~~Find the script/event sequencer~~ → `0x46c320` (update) + `0x46c295` (loader).
+2. ~~Text-reveal counter~~ → `DAT_073a3e00` (START) / `DAT_073a3e04` (END), above.
+3. Whether the prologue is one INGAME sub-mode or a sequence of scripted events
+   → **scripted events**: the `PTR_DAT_005c78d0` command table walked by
+   `DAT_073a6bd4`, parsed from the event script by `FUN_0046ddea`.
 
 ## Reproduce
 

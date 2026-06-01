@@ -43,7 +43,7 @@ per-frame consumers from one-time intro work:
 | caller | function | rate | port status |
 |--------|----------|------|-------------|
 | `0x44a750…0x44a86b` (float ×6) | `FUN_00447f4f` (`scene1_spawn`) | **6 calls / 4 frames** | ✅ MATCHES — the wing-sparkle emit (type 0x1f, every 4th frame). Port does exactly this. |
-| `0x46cf81` (int) | `FUN_0046c9a2` (3800 B) | ~0.27 / frame, steady | ❌ UNPORTED — called from the **render root** (`FUN_004547ab → FUN_0046c090 → FUN_0046c9a2`); a per-frame effect updater (candidate: the hikari/ambient-glow residual HOUSE gap). |
+| `0x46cf81` (int) | `FUN_0046c9a2` (3800 B) | ~0.27 / frame, steady | ❌ UNPORTED — called from the **render root** (`FUN_004547ab → FUN_0046c090 → FUN_0046c9a2`). **IDENTIFIED 2026-06-01: this is the dialogue text-box DRAW** (per-char reveal + the `TEXT_ANIM_END` flag `DAT_073a3e04`) — see `opening-prologue.md` §RESOLVED. Porting it closes BOTH the dialogue front and this dust-RNG front. (Not the hikari/ambient-glow — that guess is retired.) |
 | `0x46f56b…0x46f5dc` (int+float) | `FUN_0046f2a3` (894 B) | sporadic (bound-cross respawns) | ❌ STUBBED — the **ambient motes** (`FUN_0046f621` no-op'd as `player_ctrl_prologue_churn`). 6 motes live in HOUSE (`DAT_005c7dd4==6`). |
 | `0x49018c` / `0x490e56` cluster | `FUN_0049001c` / `FUN_00490e56` | **intro-only** (absent from free-roam windows) | n/a — new-game save/news/order generation; not a steady-state desync source. |
 
