@@ -10,6 +10,8 @@
  */
 #include "scene1_dialogue_run.h"
 
+#include <math.h>
+
 /* Input bits (g_input_state[N].buttons — binding slots, see input.h). */
 #define IVE_BTN_ADVANCE   0x10   /* face button A (confirm/advance)          */
 #define IVE_BTN_FF        0x60   /* held 0x20|0x40 = fast-forward / held-adv  */
@@ -39,6 +41,38 @@
 
 /* Walk-loop handler return codes (the 0x46c320 contract). */
 enum { IVE_R_STOP = 0, IVE_R_CONTINUE = 1, IVE_R_YIELD = 2, IVE_R_COMPLETE = 3 };
+
+/* FUN_0046c86f — the dialogue box open/close scale + alpha "wobble". Pure math
+ * (the engine calls cos twice with the same angle param1·3π/15). `closing` is
+ * the engine's `DAT_073a6a38 < 0` (no current line → box shrinking shut).
+ *   sx/sy = x/y scale (≈1 at fully-open 15), alpha = box fade 0..255. */
+void ive_box_scale(int n, float *sx, float *sy, int *alpha, int closing)
+{
+    float lim = (float)n * 0.2f + 0.4f;
+    if (lim > 1.0f) lim = 1.0f;
+
+    float amp;
+    if (n < 6)        amp = 0.8f;
+    else if (n < 0xb) amp = 0.3f;
+    else if (n < 0x10) amp = 0.1f;
+    else              amp = 0.0f;
+
+    int a = n * 0x56;
+    if (a > 0xff) a = 0xff;
+    *alpha = a;
+
+    float c = cosf((float)n * 9.424778f / 15.0f);
+    *sx = c * amp * 0.125f + 1.0f;
+    *sy = (1.0f - c * amp * 0.125f) * lim;
+
+    if (closing) {                       /* box shutting (no current line) */
+        *sx = 1.0f;
+        float t = 1.0f - (float)(0xf - n) * 0.15f;
+        *sy = (t < 0.0f) ? 0.0f : t;
+        int ia = n * 0x32 - 0x1ef;
+        *alpha = (ia < 0) ? 0 : ia;
+    }
+}
 
 /* Bounds-checked standee accessor (the chr handlers index by the chr number). */
 static struct ive_standee *ive_standee_at(struct ive_runtime *rt, int n)
@@ -171,6 +205,13 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
         return IVE_R_CONTINUE;
     case IVE_OP_BGSCROLL:       /* bgscroll:f (0x46d8a5): scroll mode/speed */
         rt->scene.bg_mode = c->a1;     /* DAT_073a6d94 */
+        return IVE_R_CONTINUE;
+    case IVE_OP_WINDOWPOS:      /* windowpos:x,mode (0x46d8e6) */
+        rt->scene.box_pos_off  = c->a1;  /* DAT_005c7980 */
+        rt->scene.box_pos_mode = c->a2;  /* DAT_005c7984 */
+        return IVE_R_CONTINUE;
+    case IVE_OP_WINDOWSET:      /* windowset (0x46d8c6): top-banner counter */
+        rt->scene.window_open_ctr = c->a1;  /* DAT_005c797c */
         return IVE_R_CONTINUE;
 
     /* ── character-standee setup (settled-state subset; tweens deferred) ──

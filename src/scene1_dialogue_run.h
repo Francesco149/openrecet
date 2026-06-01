@@ -89,6 +89,10 @@ struct ive_scene_state {
  * ive_runtime_init (the engine runs it in the per-script loader FUN_0046c295). */
 void ive_scene_state_reset(struct ive_scene_state *s);
 
+/* FUN_0046c86f — dialogue box open/close scale + alpha. `n` = box_open (0..15),
+ * `closing` = no current line. Outputs x/y scale + alpha (0..255). */
+void ive_box_scale(int n, float *sx, float *sy, int *alpha, int closing);
+
 /* Live interpreter state. One per running script. Field comments give the
  * engine global each mirrors. Zero-initialise then ive_runtime_init(). */
 struct ive_runtime {

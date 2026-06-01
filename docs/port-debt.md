@@ -77,6 +77,6 @@ _none_
 
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
-| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:31 | the real per-row width comes from the |
-| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:83 | box_pos_mode/off (DAT_005c7984/80) are |
+| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:33 | the real per-row width comes from the |
+| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:117 | box_pos_mode/off (DAT_005c7984/80) are |
 

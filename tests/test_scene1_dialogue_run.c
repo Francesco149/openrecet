@@ -185,6 +185,30 @@ int test_dialogue_run_chr_col_channels(void)
     return 0;
 }
 
+/* ─── box open/close scale (FUN_0046c86f) ─────────────────────────────────── */
+
+int test_dialogue_box_scale_open_and_closing(void)
+{
+    float sx, sy; int a;
+
+    /* Fully open (15), not closing: alpha clamps to 255, scale ≈ 1. */
+    ive_box_scale(15, &sx, &sy, &a, 0);
+    T_ASSERT_EQ_I(a, 0xff);
+    T_ASSERT(sx > 0.95f && sx < 1.05f);
+    T_ASSERT(sy > 0.95f && sy < 1.05f);
+
+    /* Closing path at open 15: sx=1, sy = 1-(15-15)*0.15 = 1, alpha = 15*50-495 = 255. */
+    ive_box_scale(15, &sx, &sy, &a, 1);
+    T_ASSERT(sx == 1.0f);
+    T_ASSERT(sy == 1.0f);
+    T_ASSERT_EQ_I(a, 0xff);
+
+    /* Closing, nearly shut (open 1): sy = 1-(15-1)*0.15 = -1.1 → clamped 0. */
+    ive_box_scale(1, &sx, &sy, &a, 1);
+    T_ASSERT(sy == 0.0f);
+    return 0;
+}
+
 /* ─── scene-state reset (FUN_0046c0ae) ───────────────────────────────────── */
 
 /* Every standee in the 200-entry table gets the exact init bit patterns: all
