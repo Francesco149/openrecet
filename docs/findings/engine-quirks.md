@@ -3042,3 +3042,40 @@ state table:
 > 📍 decomp `all.c:919-1225` (the `cc08==1` arm), `all.c:85361-85366`
 > (`FUN_004850ec`). Port: `scene1_player_ctrl.c` (`player_ctrl_cc08_*`). Builds
 > on §75.
+
+## 79. The Tear wing-glow (records-A type 0x1f) is drawn by `FUN_004176ff`'s records-A sweep **catch-all `else`** as a blue billboard — records-B is empty in free-roam, so its L1180 0x1f arm is a decoy
+
+§73 found the emit (records-A type-0x1f, every 4th frame off the fairy). The
+render side, resolved 2026-06-01 by a live retail probe (`--dump-records-b`
++ `--quad-hist`, `runs/tear-glow-probe/` + `runs/tear-glow-draws/`):
+
+- **The sparkles live in records-A** (`DAT_069b2f80`, stride 0x25, TYPE at +0x30).
+  At any free-roam frame there are ~8 live type-0x1f slots, scale 0.1, clustered at
+  Tear's hover pos ≈(1.2, 4.0, 9.0) (y≈4 = the flying fairy; Recette is y=0), ages
+  stepping 1/5/9/…/29 (emit-every-4, kill at 32). **records-B (`DAT_069324b0`) is
+  EMPTY (`count_b==0`)** the whole run — free-roam *and* the tutorial dialogue.
+- **So `FUN_004176ff`'s only int-`== 0x1f` arm (L1180, the records-B sweep) NEVER
+  runs in free-roam** — it's a decoy. Porting it would draw nothing.
+- The actual renderer is `FUN_004176ff`'s **records-A sweep** (L1422–~L1995, base
+  `&DAT_069b2fb8`, count `DAT_0076b960`). A `--quad-hist` draw trace shows it emit
+  6 `DrawPrimitiveUP` billboards at exactly the 0x1f positions (±256 obj-space quad,
+  TRIANGLESTRIP, FVF 0x142, glow atlas, per-particle world matrix).
+- **Why a `== 0x1f` grep can't find it:** the records-A sweep dispatches type as a
+  **float-reinterpreted** constant (`fVar22 = pfVar15[-2]`, e.g. `== 1.23314e-43`
+  = 0x58). Its explicit arms are {0x58,0x93,0x5a,0x56,0x42,0x41,0x61,0x72,0x62,0x1,
+  0x2}; **0x1f is not one**, so it falls into the sweep's **catch-all `else`** (≈L1708),
+  which is the wing-glow arm.
+- **The blue:** that `else` writes the vertex diffuse as `B=uVar5, R=G=uVar5/2`
+  (`uVar5` = age-fade intensity, `age·0x10` clamped 0xff then ramped down) →
+  D3DCOLOR ≈ `0xFF7F7FFF`, a bright translucent **blue** — matching what the user
+  sees. (The records-B L1180 arm, by contrast, is greyscale — another sign it's the
+  wrong path.)
+
+Lesson: a particle "type" can be read as `int` in one sweep and `float-bits` in
+another within the *same* function; and a type with no explicit arm is still drawn
+(by the catch-all). Grep both encodings, and never trust an arm fires without
+confirming its table is non-empty at runtime.
+
+> 📍 decomp `4176ff.c` records-A sweep L1422-1995 (`else` ≈L1708), the decoy at
+> L1180. Probe: `runs/tear-glow-probe/`, `runs/tear-glow-draws/`. Port target:
+> a records-A blue-billboard renderer modeled on `scene1_pass_f.c`. Builds on §73.

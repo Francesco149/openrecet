@@ -87,27 +87,47 @@ every-4-frame emit, kill at 32). **records-B is EMPTY (count_b==0) the entire ru
   → that arm never runs in free-roam. **Do NOT port L1180 for the Tear glow** (the
   earlier P0.1 plan was wrong).
 
-**Renderer hunt (the actual blocker now).** No function in the free-roam executed
-set both branches on `== 0x1f` *and* draws, except `FUN_004176ff`'s dead records-B
-arm. So the records-A 0x1f sparkle is drawn by a **type-indexed** general records-A
-billboard loop (type → texture/param table, no `== 0x1f` literal) — which is why a
-branch-search misses it. **Next probe:** hook `DrawPrimitiveUP` (+ `SetTexture`) on
-a free-roam frame (`--dump-records-b --quad-hist`), match a draw's world geometry to
-a known sparkle position (e.g. ≈(1.2,4.0,9.0)), and read off the renderer's
-return-VA. Candidates to check first: a pass of `FUN_004161c7` other than the
-0x92 Pass-F that `pass_f` ported (it walks records-A), and `FUN_0040fb3a`'s
-render-side sibling.
+**Renderer IDENTIFIED (2026-06-01, `runs/tear-glow-draws/` `--quad-hist` draw trace).**
+On a free-roam frame, **`FUN_004176ff` emits 6 `DrawPrimitiveUP` billboards at exactly
+the records-A 0x1f positions** ((1.38,3.91,8.82), (1.11,4.34,9.35), (1.18,3.57,9.59),
+…). So `FUN_004176ff` **is** the renderer — via its **records-A sweep**
+(L1422–~L1995, base `&DAT_069b2fb8`, count `DAT_0076b960`), not the dead records-B
+L1180 arm. The user confirms the glow is a bright translucent blue. (Also seen in the
+same trace: `FUN_0046f648` draws the 6 ambient motes = P3; `FUN_0045a56f` the
+character bodies.)
 
-**Open visibility question (settle before investing):** the scale-0.1 additive
-sparkle was not obviously visible in the static retail probe frames. Confirm retail
-*visibly* renders it (a port-vs-retail pixel diff at a matched Tear pose) — if it's
-near-invisible, the port may already match and this drops in priority.
+**Why the branch-search missed it:** the records-A sweep dispatches type as a
+**float-reinterpreted** constant (`fVar22 = pfVar15[-2]`, compared to `1.23314e-43`
+= 0x58, etc.), and its explicit arms are {0x58,0x93,0x5a,0x56,0x42,0x41,0x61,0x72,
+0x62,0x1,0x2} — **0x1f is not among them**. The 0x1f particles fall into the sweep's
+**catch-all `else`** (≈L1708), which is the wing-glow arm.
 
-**Chip P0.1 (revised) — records-A type-0x1f glow billboard renderer**, modeled on
-`scene1_pass_f.c` (the analogous records-A type-0x92 renderer) but walking the
-records-A table for type 0x1f, once the renderer-hunt confirms the exact draw
-(texture, blend, UV, matrix). Reclassify `FUN_004176ff` ledger status (it is the
-`scene1_walk_chr_TODO` stub, not "ported").
+**The draw recipe (for the port chip):**
+- **Geometry:** ±256 object-space quad, `D3DPT_TRIANGLESTRIP`, prim_count 2, FVF
+  `0x142` (XYZ|DIFFUSE|TEX1, stride 24) — identical shape to `scene1_pass_f.c`.
+- **Texture:** the glow atlas (runtime handle observed `0x15a3d1b0`), bound by
+  `FUN_004176ff` itself.
+- **World matrix:** per-particle `translate(pos) · scale(scale·0.0005) · billboard
+  (DAT_0438cdf8)` via `thunk_FUN_004a3462`=mat_translation, `004a33d2`=mat_scaling,
+  `004a2a03`=mat_mul (already identified helpers; `DAT_0438cdf8` billboard matrix is
+  ported). `scale` = records-A field +0x38 (the 0.1 from the emit).
+- **Diffuse (the blue):** intensity `uVar5` = age-fade (`age·0x10` clamped 0xff, then
+  ramped down past a late-age threshold). The catch-all builds D3DCOLOR with
+  **B=uVar5, R=G=uVar5/2** → ≈`0xFF7F7FFF` light blue. (Other arms tint differently;
+  0x1f→else→blue.)
+- **Blend:** additive/translucent (confirm `SRCBLEND/DESTBLEND` from the sweep
+  preamble via d3d-trace; `--quad-hist` didn't record renderstate).
+
+**Chip P0.1 (final) — records-A wing-glow billboard renderer.** Port the records-A
+sweep's catch-all (0x1f) arm, modeled on `scene1_pass_f.c` (the analogous records-A
+0x92 renderer): walk records-A for the non-explicit types, build the per-particle
+billboard matrix, set the blue age-fade diffuse, bind the glow atlas, draw the ±256
+tristrip. Validate with a **zoomed port-vs-retail diff on Tear** (push to feed *with*
+the diff panel — user expects this). **Risks:** the `thunk_FUN_004a*` matrix args are
+FPU-stack-mangled in Ghidra — recover the exact compose order via objdump at the
+sweep's call sites before trusting the decomp; pin the blend mode + the exact `uVar5`
+age formula. Reclassify `FUN_004176ff` ledger status (it is the `scene1_walk_chr_TODO`
+stub, not fully "ported").
 
 ### P1 — Dialogue (user #2)
 
