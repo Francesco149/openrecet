@@ -46,4 +46,13 @@ int     scene1_intro_dialogue_text_revealed(void); /* DAT_073a3e04 != 0     */
  * pair fires here. Zero outside the bracket. */
 int     scene1_intro_dialogue_loading(void);
 
+/* Borrow the live interpreter state for the DRAW pass (FUN_0046c9a2 port in
+ * scene1_dialogue_draw.c). Return NULL while dormant/loading/done — the draw
+ * only runs when a script is active. The returned pointers are valid until the
+ * next tick. (Forward-declared structs so callers needn't pull the run header.) */
+struct ive_runtime;
+struct ive_program;
+const struct ive_runtime *scene1_intro_dialogue_runtime(void);
+const struct ive_program *scene1_intro_dialogue_program(void);
+
 #endif /* OPENRECET_SCENE1_INTRO_DIALOGUE_H */

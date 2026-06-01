@@ -40,6 +40,46 @@
 /* Walk-loop handler return codes (the 0x46c320 contract). */
 enum { IVE_R_STOP = 0, IVE_R_CONTINUE = 1, IVE_R_YIELD = 2, IVE_R_COMPLETE = 3 };
 
+/* FUN_0046c0ae — per-script reset of the standee table + scene-render scalars.
+ * The loader (FUN_0046c295) runs this before parsing. Field indices/bit patterns
+ * are verbatim from the init loop (docs/decompiled/by-address/46c0ae.c). */
+void ive_scene_state_reset(struct ive_scene_state *s)
+{
+    for (int i = 0; i < IVE_STANDEE_COUNT; i++) {
+        int32_t *f = s->standees[i].field;
+        for (int k = 0; k < IVE_STANDEE_FIELDS; k++)
+            f[k] = 0;
+        f[3]  = 0x44480000;  /* 800.0f                              */
+        f[5]  = 0x40000000;  /* 2.0f                                */
+        f[6]  = 0x40000000;  /* 2.0f                                */
+        f[15] = 0x437f0000;  /* current colour r = 255.0f           */
+        f[16] = 0x437f0000;  /* g                                   */
+        f[17] = 0x437f0000;  /* b                                   */
+        f[18] = 0x437f0000;  /* a                                   */
+        f[19] = 0x437f0000;  /* target colour r (chr:colto)         */
+        f[20] = 0x437f0000;  /* g                                   */
+        f[21] = 0x437f0000;  /* b                                   */
+        f[22] = 0x437f0000;  /* a                                   */
+    }
+    s->bg_active       = 0;   /* DAT_073a3df0 */
+    s->bg_fade         = 0;   /* DAT_073a3df4 */
+    s->bg_scroll       = 0;   /* DAT_073a6d84 */
+    s->bg_index        = 0;   /* DAT_073a6d90 */
+    s->bg_mode         = 0;   /* DAT_073a6d94 */
+    s->shake_bg        = 0;   /* DAT_073a6d98 */
+    s->shake_chr       = 0;   /* DAT_073a6d9c */
+    s->choice_fade     = 0;   /* DAT_073a6da4 */
+    s->skip_prompt     = 0;   /* DAT_073a3e18 */
+    s->blink           = 0;   /* DAT_073a3e0c */
+    s->window_open_ctr = -1;  /* DAT_005c797c */
+    s->choice_mode     = -1;  /* DAT_073a6bcc */
+    /* PORT-DEBT(deferred, FUN_0046c9a2): box_pos_mode/off (DAT_005c7984/80) are
+     * NOT reset by FUN_0046c0ae and their defaults + the windowpos handler body
+     * are an unresolved RE gap — zeroed here, pinned in Layer 1. */
+    s->box_pos_mode    = 0;
+    s->box_pos_off     = 0;
+}
+
 void ive_runtime_init(struct ive_runtime *rt, const struct ive_program *prog)
 {
     /* Mirror the engine's per-script reset (the FUN near all.c:67085):
@@ -61,6 +101,7 @@ void ive_runtime_init(struct ive_runtime *rt, const struct ive_program *prog)
     rt->speaker   = 0;
     rt->portrait  = 0;
     rt->prev_held = 0;
+    ive_scene_state_reset(&rt->scene);
 }
 
 /* msg-show (0x46d97b): set up the current line, reset the reveal counter, raise

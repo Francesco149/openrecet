@@ -6,13 +6,13 @@
   "non_thunk_functions": 2548,
   "verified": 67,
   "stubbed": 17,
-  "ported": 310,
-  "unported": 2154,
+  "ported": 313,
+  "unported": 2151,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 394,
-  "pct_touched": 15.5,
+  "touched": 397,
+  "pct_touched": 15.6,
   "pct_verified": 2.6,
-  "port_debt": 9
+  "port_debt": 10
  },
  "orphan_refs": [
   "0x40f640",
@@ -632,8 +632,11 @@
    "size": 55,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/render_quad.c",
+    "src/render_quad.h"
+   ]
   },
   {
    "va": "0x404e98",
@@ -5572,8 +5575,11 @@
    "size": 30,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/main.c",
+    "src/scene1_dialogue_draw.h"
+   ]
   },
   {
    "va": "0x46c0ae",
@@ -5581,8 +5587,11 @@
    "size": 487,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_dialogue_run.c",
+    "src/scene1_dialogue_run.h"
+   ]
   },
   {
    "va": "0x46c295",
@@ -5594,7 +5603,9 @@
    "src": [
     "src/scene1_dialogue.c",
     "src/scene1_dialogue.h",
-    "src/scene1_dialogue_load.c"
+    "src/scene1_dialogue_load.c",
+    "src/scene1_dialogue_run.c",
+    "src/scene1_dialogue_run.h"
    ]
   },
   {
@@ -5646,10 +5657,14 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/main.c",
     "src/scene1_dialogue.c",
     "src/scene1_dialogue.h",
+    "src/scene1_dialogue_draw.c",
+    "src/scene1_dialogue_draw.h",
     "src/scene1_dialogue_run.c",
-    "src/scene1_dialogue_run.h"
+    "src/scene1_dialogue_run.h",
+    "src/scene1_intro_dialogue.h"
    ]
   },
   {

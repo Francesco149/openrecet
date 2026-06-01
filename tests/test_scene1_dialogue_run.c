@@ -105,3 +105,68 @@ int test_dialogue_run_waitkey_dwell_gate(void)
     T_ASSERT(line2_at >= 15);
     return 0;
 }
+
+/* ─── scene-state reset (FUN_0046c0ae) ───────────────────────────────────── */
+
+/* Every standee in the 200-entry table gets the exact init bit patterns: all
+ * fields zero except f[3]=800.0f, f[5]=f[6]=2.0f, f[15..22]=255.0f. A layout
+ * slip in struct ive_standee (the negative-offset draw indices) fails here
+ * before any visual pass. */
+int test_dialogue_scene_state_reset_standee_defaults(void)
+{
+    static struct ive_scene_state s;
+    /* Poison first so we know reset clears it. */
+    for (int i = 0; i < IVE_STANDEE_COUNT; i++)
+        for (int k = 0; k < IVE_STANDEE_FIELDS; k++)
+            s.standees[i].field[k] = (int32_t)0xDEADBEEF;
+
+    ive_scene_state_reset(&s);
+
+    for (int i = 0; i < IVE_STANDEE_COUNT; i++) {
+        const int32_t *f = s.standees[i].field;
+        for (int k = 0; k < IVE_STANDEE_FIELDS; k++) {
+            int32_t want = 0;
+            if (k == 3)                 want = 0x44480000;  /* 800.0f */
+            else if (k == 5 || k == 6)  want = 0x40000000;  /* 2.0f   */
+            else if (k >= 15 && k <= 22) want = 0x437f0000; /* 255.0f */
+            T_ASSERT_EQ_I(f[k], want);
+        }
+        /* Semantic accessors land on the right fields. */
+        T_ASSERT_EQ_I(f[IVE_ST_X],       0);
+        T_ASSERT_EQ_I(f[IVE_ST_ACTIVE],  0);
+        T_ASSERT_EQ_I(f[IVE_ST_MIRROR],  0);
+        T_ASSERT_EQ_I(f[IVE_ST_GRAPHIC], 0);
+        T_ASSERT_EQ_I(f[IVE_ST_BLEND],   0);
+        T_ASSERT_EQ_I(f[IVE_ST_W],       0x44480000);
+        T_ASSERT_EQ_I(f[IVE_ST_COL_R],   0x437f0000);
+        T_ASSERT_EQ_I(f[IVE_ST_COL_TR],  0x437f0000);
+    }
+    return 0;
+}
+
+/* The scene scalars get their FUN_0046c0ae values; window_open_ctr/choice_mode
+ * init to -1, the rest to 0. ive_runtime_init must wire the reset through. */
+int test_dialogue_scene_state_reset_scalars(void)
+{
+    static struct ive_scene_state s;
+    s.bg_active = 9; s.bg_index = 9; s.window_open_ctr = 9; s.choice_mode = 9;
+    ive_scene_state_reset(&s);
+    T_ASSERT_EQ_I(s.bg_active,       0);
+    T_ASSERT_EQ_I(s.bg_fade,         0);
+    T_ASSERT_EQ_I(s.bg_scroll,       0);
+    T_ASSERT_EQ_I(s.bg_index,        0);
+    T_ASSERT_EQ_I(s.shake_bg,        0);
+    T_ASSERT_EQ_I(s.shake_chr,       0);
+    T_ASSERT_EQ_I(s.window_open_ctr, -1);
+    T_ASSERT_EQ_I(s.choice_mode,     -1);
+
+    /* And ive_runtime_init runs the reset on its embedded scene state. */
+    static struct ive_program prog;
+    static struct ive_runtime rt;
+    T_ASSERT(scene1_dialogue_parse("msg:0:1:A<KEY>\r\nend:\r\n", &prog) == 1);
+    rt.scene.bg_index = 7;
+    ive_runtime_init(&rt, &prog);
+    T_ASSERT_EQ_I(rt.scene.bg_index,        0);
+    T_ASSERT_EQ_I(rt.scene.window_open_ctr, -1);
+    return 0;
+}

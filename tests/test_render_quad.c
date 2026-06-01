@@ -366,3 +366,41 @@ int test_render_quad_rotated_preserves_z_rhw_specular(void)
     }
     return 0;
 }
+
+/* ─── mirrored add (FUN_00404e61) ────────────────────────────────────── */
+
+int test_render_quad_mirrored_swaps_source_u(void)
+{
+    /* render_quad_add_mirrored must equal render_quad_add with the source
+     * left/right edges swapped — identical geometry, U coords flipped. */
+    const float dst[4]         = { 100.0f, 50.0f, 64.0f, 32.0f };
+    const float src[4]         = {  8.0f,  4.0f, 40.0f, 20.0f };  /* l,t,r,b */
+    const float src_swapped[4] = { 40.0f,  4.0f,  8.0f, 20.0f };  /* r,t,l,b */
+
+    render_quad_init(640);
+    render_quad_add_mirrored(dst, src, 64, 32, 0x11223344u);
+    render_quad_vtx_t mir[6];
+    memcpy(mir, render_quad_buffer(), sizeof mir);
+    T_ASSERT_EQ_U(render_quad_vertex_count(), 6u);
+
+    render_quad_init(640);
+    render_quad_add(dst, src_swapped, 64, 32, 0x11223344u);
+    const render_quad_vtx_t *ref = render_quad_buffer();
+    for (int i = 0; i < 6; i++) {
+        T_ASSERT_FEQ(mir[i].x, ref[i].x);
+        T_ASSERT_FEQ(mir[i].y, ref[i].y);
+        T_ASSERT_FEQ(mir[i].u, ref[i].u);
+        T_ASSERT_FEQ(mir[i].v, ref[i].v);
+        T_ASSERT_EQ_U(mir[i].diffuse, ref[i].diffuse);
+    }
+
+    /* The U coords must actually differ from a non-mirrored add (sanity). */
+    render_quad_init(640);
+    render_quad_add(dst, src, 64, 32, 0x11223344u);
+    const render_quad_vtx_t *plain = render_quad_buffer();
+    int any_u_differs = 0;
+    for (int i = 0; i < 6; i++)
+        if (!feq(mir[i].u, plain[i].u)) any_u_differs = 1;
+    T_ASSERT(any_u_differs);
+    return 0;
+}

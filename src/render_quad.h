@@ -70,6 +70,14 @@ int render_quad_add(const float dst[4], const float src[4],
                     uint32_t tex_w, uint32_t tex_h,
                     uint32_t diffuse);
 
+/* Append one HORIZONTALLY-MIRRORED quad (FUN_00404e61). Identical to
+ * render_quad_add but the source left/right edges are swapped, flipping the
+ * sampled texture about its vertical axis (the engine's left-facing-vs-right-
+ * facing sprite path). Same dst/tex/diffuse conventions as render_quad_add. */
+int render_quad_add_mirrored(const float dst[4], const float src[4],
+                             uint32_t tex_w, uint32_t tex_h,
+                             uint32_t diffuse);
+
 /* Total vertex count currently pending in the buffer. */
 uint32_t render_quad_vertex_count(void);
 

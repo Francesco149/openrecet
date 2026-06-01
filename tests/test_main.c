@@ -447,6 +447,8 @@ struct test_case {
     X(dialogue_run_two_lines_anchor_sequence) \
     X(dialogue_run_start_precedes_end) \
     X(dialogue_run_waitkey_dwell_gate) \
+    X(dialogue_scene_state_reset_standee_defaults) \
+    X(dialogue_scene_state_reset_scalars) \
     \
     X(render_quad_init_seeds_z_rhw_specular) \
     X(render_quad_add_one_emits_six_vertices) \
@@ -463,6 +465,7 @@ struct test_case {
     X(render_quad_rotated_scales_by_screen_w) \
     X(render_quad_rotated_does_not_touch_vertex_counter) \
     X(render_quad_rotated_preserves_z_rhw_specular) \
+    X(render_quad_mirrored_swaps_source_u) \
     \
     X(scene_title_assets_count_is_seven) \
     X(scene_title_assets_paths_match_pe) \

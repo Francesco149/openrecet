@@ -25,6 +25,7 @@
 #include "input.h"
 #include "anchor_trace.h"
 #include "scene1_intro_dialogue.h"   /* TEXT_ANIM anchor sources */
+#include "scene1_dialogue_draw.h"    /* opening-prologue dialogue render pass */
 #include "input_trace.h"
 #include "input_segtrace.h"
 #include "layers.h"
@@ -2523,6 +2524,12 @@ static void render_dispatch(void)
                  * Pass 2 letterbox BSS-zero, Pass 3 status-screen
                  * BSS-zero) so this is visually inert today but wires
                  * the foundation later passes (C7k+) inherit. */
+                /* Opening-prologue dialogue (FUN_0046c9a2, via the engine's
+                 * render root FUN_004547ab→FUN_0046c090).  Drawn after the 3D
+                 * scene — the prologue's painted 2D bg covers the HOUSE — and
+                 * before the HUD, which overlays it (cap_20: money HUD over the
+                 * dialogue bg).  No-op unless a script is active. */
+                scene1_dialogue_draw(g_dev);
                 scene1_hud_render(g_dev);
                 scene1_render_overlay(g_dev);
                 /* scene1_render_fx_tail is moved out of this branch

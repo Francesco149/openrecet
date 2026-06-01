@@ -179,6 +179,19 @@ int render_quad_add(const float dst[4], const float src[4],
     return 1;
 }
 
+/* ─── mirrored add (FUN_00404e61) ────────────────────────────────────── */
+
+int render_quad_add_mirrored(const float dst[4], const float src[4],
+                             uint32_t tex_w, uint32_t tex_h,
+                             uint32_t diffuse)
+{
+    /* The engine copies src into a local with left/right swapped, then
+     * defers to FUN_00404efc (render_quad_add). src is {left,top,right,bottom}
+     * so swapping [0]↔[2] mirrors the sampled region about its vertical axis. */
+    const float mirrored[4] = { src[2], src[1], src[0], src[3] };
+    return render_quad_add(dst, mirrored, tex_w, tex_h, diffuse);
+}
+
 /* ─── D3D wrappers (Win32 only) ──────────────────────────────────────── */
 
 #ifdef _WIN32

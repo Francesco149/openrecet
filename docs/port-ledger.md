@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **394** (15.5%) — verified 67, stubbed 17, ported 310
-- unported: **2154**
+- touched: **397** (15.6%) — verified 67, stubbed 17, ported 313
+- unported: **2151**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (67) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (310) — reimplemented, no probe yet
+## ported (313) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -126,6 +126,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x404a20 | FUN_00404a20 | 45 | ✓ | scene1_render.c, scene1_render.h, scene1_shop_walker.c (+2) |
 | 0x404bb8 | FUN_00404bb8 | 84 | ✓ | scene1_camera.c, scene1_camera.h, scene1_overlay.h (+2) |
 | 0x404e44 | FUN_00404e44 | 29 | ✓ | prewindow.c, prewindow.h, render_quad.c (+1) |
+| 0x404e61 | FUN_00404e61 | 55 | ✓ | render_quad.c, render_quad.h |
 | 0x4054c0 | FUN_004054c0 | 146 | ✓ | font_draw.h |
 | 0x405744 | FUN_00405744 | 373 |  | debug_param_tick.h |
 | 0x405a52 | FUN_00405a52 | 162 | ✓ | scene1_dialogue_run.c |
@@ -260,9 +261,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46bf38 | FUN_0046bf38 | 230 | ✓ | mesh_load.h, scene_sc1.c, scene_sc1.h (+1) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x46c039 | FUN_0046c039 | 87 | ✓ | sim.c |
-| 0x46c295 | FUN_0046c295 | 54 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c |
+| 0x46c090 | FUN_0046c090 | 30 | ✓ | main.c, scene1_dialogue_draw.h |
+| 0x46c0ae | FUN_0046c0ae | 487 | ✓ | scene1_dialogue_run.c, scene1_dialogue_run.h |
+| 0x46c295 | FUN_0046c295 | 54 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c (+2) |
 | 0x46c320 | FUN_0046c320 | 1353 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_run.c (+1) |
-| 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_run.c (+1) |
+| 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ | main.c, scene1_dialogue.c, scene1_dialogue.h (+5) |
 | 0x46ddea | FUN_0046ddea | 5119 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c |
 | 0x46f737 | FUN_0046f737 | 347 | ✓ | scene1_shop_walker.c |
 | 0x470385 | FUN_00470385 | 246 | ✓ | scene1_chr_shadow.c, scene1_motes.c, scene1_motes.h |

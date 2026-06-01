@@ -30,6 +30,58 @@
 
 #include <stdint.h>
 
+/* ─── scene-render state (FUN_0046c0ae reset / FUN_0046c9a2 draw) ─────────
+ *
+ * The standee character table + the scene-render scalars the dialogue DRAW
+ * (FUN_0046c9a2) consumes. Per-line scalars (reveal / box_open / line_row …)
+ * live on `struct ive_runtime` below; this holds the ones that don't. Reset by
+ * ive_scene_state_reset (the FUN_0046c0ae init the loader FUN_0046c295 runs).
+ */
+#define IVE_STANDEE_COUNT  200   /* engine standee table size (FUN_0046c0ae)   */
+#define IVE_STANDEE_FIELDS 28    /* 0x1c-int per-entry stride                  */
+
+/* One character-standee record — the raw 28-int engine layout (struct base =
+ * engine &DAT_073a3e70). The draw walks the table from &DAT_073a3ea8 =
+ * &field[14]; the semantic offsets below come from the FUN_0046c0ae init
+ * defaults + the FUN_0046c9a2 draw loop. Stored as raw ints because the engine
+ * touches the colour/position words as both int and float (bit-cast at use). */
+struct ive_standee { int32_t field[IVE_STANDEE_FIELDS]; };
+
+/* Semantic field offsets within ive_standee.field[]. */
+enum {
+    IVE_ST_X       = 1,   /* x position          (draw piVar5[-0xd])             */
+    IVE_ST_W       = 3,   /* init 800.0f                                         */
+    IVE_ST_ACTIVE  = 11,  /* active/displayed    (draw piVar5[-3], chr:disp)     */
+    IVE_ST_MIRROR  = 12,  /* mirror flag (==1)   (draw piVar5[-2], chr:dir)      */
+    IVE_ST_GRAPHIC = 14,  /* chrname graphic idx (draw *piVar5,    chr:grp/anim) */
+    IVE_ST_COL_R   = 15,  /* current colour rgba float (15..18)                  */
+    IVE_ST_COL_TR  = 19,  /* target  colour rgba float (19..22, chr:colto fade)  */
+    IVE_ST_BLEND   = 27   /* blend mode          (draw piVar5[0xd], chr:blend)   */
+};
+
+struct ive_scene_state {
+    struct ive_standee standees[IVE_STANDEE_COUNT];
+
+    int32_t bg_active;        /* DAT_073a3df0 — bg name count; >0 = draw bg      */
+    int32_t bg_fade;          /* DAT_073a3df4 — bg fade-overlay alpha driver     */
+    int32_t bg_scroll;        /* DAT_073a6d84 — horizontal scroll (÷1000)        */
+    int32_t bg_index;         /* DAT_073a6d90 — active bg slot                   */
+    int32_t bg_mode;          /* DAT_073a6d94 — 0 = static, else scroll/shake    */
+    int32_t shake_bg;         /* DAT_073a6d98 — rmb: bg-shake countdown          */
+    int32_t shake_chr;        /* DAT_073a6d9c — rmb: chr-shake countdown         */
+    int32_t choice_fade;      /* DAT_073a6da4 — choice/menu fade state           */
+    int32_t skip_prompt;      /* DAT_073a3e18 — ESC skip-event prompt counter    */
+    int32_t blink;            /* DAT_073a3e0c — next-line arrow blink phase      */
+    int32_t window_open_ctr;  /* DAT_005c797c — init -1                          */
+    int32_t choice_mode;      /* DAT_073a6bcc — init -1                          */
+    int32_t box_pos_mode;     /* DAT_005c7984 — windowpos mode (RE gap: see .c)  */
+    int32_t box_pos_off;      /* DAT_005c7980 — windowpos offset (RE gap)        */
+};
+
+/* Reproduce FUN_0046c0ae's standee-table + scalar reset. Pure C; called from
+ * ive_runtime_init (the engine runs it in the per-script loader FUN_0046c295). */
+void ive_scene_state_reset(struct ive_scene_state *s);
+
 /* Live interpreter state. One per running script. Field comments give the
  * engine global each mirrors. Zero-initialise then ive_runtime_init(). */
 struct ive_runtime {
@@ -55,6 +107,8 @@ struct ive_runtime {
     int      portrait;      /* DAT_073a3e10 — active portrait/face index       */
 
     uint16_t prev_held;     /* previous frame's held mask (for edge = cur&~prev) */
+
+    struct ive_scene_state scene;  /* render state (bg / standees / box pos)   */
 };
 
 /* Arm `rt` to run `prog` from its first command. `prog` is borrowed (must

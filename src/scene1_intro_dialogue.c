@@ -8,6 +8,8 @@
 #include "scene1_dialogue.h"
 #include "scene1_dialogue_run.h"
 
+#include <stddef.h>   /* NULL */
+
 /* The opening prologue is scene selector 1, sub 1 then 2 (DAT_005c7a2c=1,
  * DAT_005c7a30 = 1 → 2). Pinned via runs/intro-script-probe. */
 #define IVE_OPENING_SCENE 1
@@ -130,4 +132,14 @@ int32_t scene1_intro_dialogue_text_reveal(void)
 int scene1_intro_dialogue_text_revealed(void)
 {
     return scene1_intro_dialogue_active() ? (g_rt.revealed ? 1 : 0) : 0;
+}
+
+const struct ive_runtime *scene1_intro_dialogue_runtime(void)
+{
+    return scene1_intro_dialogue_active() ? &g_rt : NULL;
+}
+
+const struct ive_program *scene1_intro_dialogue_program(void)
+{
+    return scene1_intro_dialogue_active() ? g_rt.prog : NULL;
 }
