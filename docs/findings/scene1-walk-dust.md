@@ -121,8 +121,39 @@ the retail full-state extract exactly).
 > the wing-glow's draw order/Z relative to the sprite via a fresh d3d-trace before
 > re-attempting. Do NOT use ref 0.
 
-The (still-unresolved) symptom: the dust drew in FRONT of the walking player;
-retail draws it behind. The original (mis-)diagnosis below is kept for the record.
+### Retail free-roam draw order — GROUND TRUTH (runs/walkdust-d3d, frame 5495)
+
+Mined from the existing retail d3d-trace (ret_va + live Z/alpha/blend state per
+draw; add 0x400000 to the trace's ret_va):
+
+| # | ret_va | function | Z | blend | note |
+|---|--------|----------|---|-------|------|
+| 1 | 0x45ae4a | FUN_0045aa36 player/companion shadow | ZEN1 **ZWR0** | ZERO/SRCCOLOR | multiply-darken (ported, Csh.1) |
+| 2 | 0x46f722 ×6 | FUN_0046f648 **furniture/object shadows** | ZEN1 **ZWR0** | ZERO/SRCCOLOR | **STUBBED in the port** |
+| 3 | 0x45aa31 ×7 | FUN_0045a56f player+companion+NPC sprites | ZEN1 **ZWR1**, AREF0 GE | SRCALPHA/INVSRCALPHA | sprites DO write Z |
+| 4 | 0x41e165 ×8 | FUN_004176ff wing-glow | ZEN1 ZWR0 | ONE/ONE | z-tested |
+| 5 | 0x41e97b ×2 | FUN_004176ff dust | ZEN1 ZWR0 | SRCALPHA/INVSRCCOLOR | z-tested |
+| 6 | 0x405396 / 0x4063bc | 2D HUD | ZEN0 | — | last |
+
+**So retail *does* write Z on the sprites with AREF 0 — b1acf7c's STATE reading
+was correct.** The reason it broke the PORT but not retail is **Z values /
+positions**, not the render state:
+- The wing-glow (#4) is z-tested. In retail it survives because Tear's sprite Z
+  (#3) sits *behind* the glow at her correct hover position. In the port Tear is
+  **slightly mis-positioned** (the persistent companion bug, [[project_next_char_controller]]),
+  so her quad's Z landed *in front of* the glow → occluded it.
+- The dust (#5) reads behind the walker in retail because the player's opaque-ish
+  sprite Z is in front of it; the port reproduced the clip but, with the full-quad
+  AREF-0 Z + the mis-positioned actors, it rectangularly cut the dust around her.
+
+**Faithful path (blocked, do in order):** (a) port the **furniture/object
+shadows** FUN_0046f648 (#2, currently stubbed) — they're a real free-roam pixel
+gap drawn every frame; (b) fix Tear's hover position so her Z matches retail; then
+(c) re-enable the sprite Z-write (#3, ZWR1 AREF0) so the dust reads behind the
+walker exactly as retail — verified against this draw order. Until (b), the
+sprite Z-write must stay OFF (the current reverted state) or the glow dies again.
+
+The original (mis-)diagnosis below is kept for the record.
 
 > **Correction to an earlier misread.** I first labelled the draw `0x45aa31` in
 > the walking d3d-trace as "shadow" and concluded the free-roam player was a late
