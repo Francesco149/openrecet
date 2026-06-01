@@ -385,3 +385,25 @@ mask (`g_input_state[N].buttons`); the runtime derives the edge as `cur & ~prev`
 down when cleared; the `wait` counter `DAT_073a6d7c` only decrements while the
 box is fully open (==0xf) or fully closed (<1) — so the box anim delays `wait`.
 Modeled for frame-fidelity; the per-line anchor rebase absorbs it either way.
+
+### LANDED + live-validated — runtime wired, all 46 anchors fire (2026-06-01)
+
+The interpreter (`scene1_dialogue_run`) + driver (`scene1_intro_dialogue`) are
+wired (scene.c arm / sim.c tick / main.c anchor feed). A port-side
+`scenario-test intro-dialogue-lines --target openrecet` run
+(`runs/scenarios/intro-dialogue-lines-openrecet-*`) emits **all 46
+TEXT_ANIM_START + 46 TEXT_ANIM_END anchors** (92 rows in `anchors.jsonl`) — the
+full iv1_1 (16) + iv1_2 (30) sequence, where before the port emitted none.
+
+**Open: port-side capture is 32/46 (pacing).** The port advances ~53 frames per
+line (ENDs span frames 2925–5379); each trace segment budgets 320 input frames
+of A-pulsing before its `wait TEXT_ANIM_END`+capture. So the port races ahead —
+several lines END inside one segment's button phase, and that segment's single
+wait/capture misses the extra ENDs (→ 32 captured). The reveal-slam + dwell-gate
+logic is **raw-disasm-verified faithful** (0x46c5d6 edge-0x10 → reveal=0x800;
+WAITKEY dwell `>=0xf`), so this is a port↔retail *cadence* question, not a logic
+bug: either retail also races (the 320-frame segments are over-budgeted and the
+trace wants re-tuning to the true per-line cadence) or retail paces slower for a
+reason not yet visible port-side. **Resolving it needs a retail anchor-cadence
+capture (Frida remote) to diff against** — the box/text draws are deferred to the
+visual pass regardless, so the per-line *pixel* parity is not blocked on this.
