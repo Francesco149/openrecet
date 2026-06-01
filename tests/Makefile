@@ -69,6 +69,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_player_ctrl.c \
                  ../src/scene1_companion_ctrl.c \
                  ../src/scene1_intro_events.c \
+                 ../src/scene1_dialogue.c \
                  ../src/collision_mesh.c ../src/collision_query.c ../src/collision_resolve.c \
                  ../src/collision_house.c \
                  ../src/sha256.c ../src/se_pack.c
@@ -117,7 +118,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_player_ctrl.c \
                  test_scene1_companion_ctrl.c \
                  test_collision_mesh.c test_collision_query.c test_collision_resolve.c \
-                 test_se_pack.c
+                 test_se_pack.c test_scene1_dialogue.c
 
 OBJS := $(addprefix build/,$(notdir $(SRCS_DECODERS:.c=.o)) $(SRCS_TESTS:.c=.o))
 DEPS := $(OBJS:.o=.d)

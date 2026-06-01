@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 67,
   "stubbed": 17,
-  "ported": 304,
-  "unported": 2160,
+  "ported": 309,
+  "unported": 2155,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 388,
-  "pct_touched": 15.2,
+  "touched": 393,
+  "pct_touched": 15.4,
   "pct_verified": 2.6,
   "port_debt": 8
  },
@@ -2437,6 +2437,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_dialogue_load.c",
     "src/scene1_overlay_table.c",
     "src/scene1_overlay_table.h",
     "src/scene1_per_frame_open.c",
@@ -5587,8 +5588,12 @@
    "size": 54,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_dialogue.c",
+    "src/scene1_dialogue.h",
+    "src/scene1_dialogue_load.c"
+   ]
   },
   {
    "va": "0x46c2cb",
@@ -5605,8 +5610,11 @@
    "size": 1353,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_dialogue.c",
+    "src/scene1_dialogue.h"
+   ]
   },
   {
    "va": "0x46c869",
@@ -5632,8 +5640,11 @@
    "size": 3800,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_dialogue.c",
+    "src/scene1_dialogue.h"
+   ]
   },
   {
    "va": "0x46da33",
@@ -5704,8 +5715,12 @@
    "size": 5119,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_dialogue.c",
+    "src/scene1_dialogue.h",
+    "src/scene1_dialogue_load.c"
+   ]
   },
   {
    "va": "0x46f1e9",
@@ -6858,6 +6873,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_dialogue.c",
     "src/tables.c",
     "src/tables_enemylist.c",
     "src/tables_news.c",
@@ -21809,6 +21825,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_dialogue_load.c",
     "src/scene1_overlay_table.c",
     "src/scene1_overlay_table.h",
     "src/scene1_per_frame_open.c"
@@ -21952,8 +21969,10 @@
    "size": 77,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_dialogue.c"
+   ]
   },
   {
    "va": "0x503c78",
@@ -21972,6 +21991,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_dialogue.c",
     "src/scene1_overlay_table.c",
     "src/tables_item.c"
    ]
