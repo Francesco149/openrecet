@@ -22,6 +22,7 @@
 
 | subsystem | divergence | deferred when / why | revisit trigger |
 |---|---|---|---|
+| Recette **idle** animation phase | idle pose "slightly off" on `house-movement` **cap_00 (first frame = idle free-roam)**; she's **1:1 while moving** (cap_01/02). Likely idle-phase accuracy, not position. | user, 2026-06-01 ("probably accuracy issues on idle phase that we'll chase later") | idle-animation faithfulness pass; isolate idle-phase counter vs retail |
 | Tear (companion) appearance | "slightly off" — position and/or anim phase (unisolated); wing-flap phase adds comparison noise | persistent; investigate once everything else is spot on | needed for faithful sprite-Z dust occlusion (#5) |
 | Foot-dust position/phase | RNG-stream desync vs retail | user: visible bugs first | after the visible free-roam render gaps close |
 | Ambient mote positions (`FUN_0046f648`) | a few tiny dots don't match in the diff; very faint, hard to spot even in retail | user: "not worth chasing the visual parity for now" (2026-06-01); sim is structurally faithful (1×/frame = retail post-warmup) | when chasing free-roam visual parity, after structural parity up to free-roam |
@@ -31,7 +32,7 @@
 
 | subsystem | scope | evidence | date |
 |---|---|---|---|
-| **Recette position + walk phase** (free-roam) | exact frame-for-frame on the walk benches; she reads pure-black in the port-vs-retail diff | user, on the `house-walk-down-dense` feed comparison | 2026-06-01 |
+| **Recette position + walk phase** (free-roam, **MOVING only**) | exact frame-for-frame on the walk benches; she reads pure-black in the port-vs-retail diff. **Scope = while moving** — her *idle* phase is separately flagged off (see NOT-1:1 + Deferred). | user, on the `house-walk-down-dense` feed comparison | 2026-06-01 |
 | Player walk + collision (HOUSE) | bit-exact px/pz vs retail (mesh resolver) | engine-quirks §60–70; wall_collide_diff | 2026-05-31 |
 | **Character ground shadow** (player+Tear, Csh.1) | **user-confirmed 1:1** | user (explicit), + feed `20260601T122354_6f81` cap_06 feet zoom | 2026-06-01 |
 | Foot-dust EMIT cadence | every 16 frames (median gap 16) | Frida ground-truth probe | 2026-06-01 |
@@ -41,6 +42,7 @@
 
 | subsystem | what's wrong | note |
 |---|---|---|
+| **Recette idle animation phase** | idle pose **slightly off** at `house-movement` **cap_00 (first frame, idle free-roam)** — while her **walking is confirmed 1:1** (cap_01/02). | user, 2026-06-01. Likely an idle-phase *accuracy* issue (the idle anim counter / start phase), NOT position — she's pure-black in the diff once moving. Chase later; do NOT hand-wave as jitter. ([[project_next_char_controller]]) |
 | **Tear (companion) appearance** | "slightly off" — a **persistent** known issue. **NOT isolated**: could be position OR animation phase; the wing-flap not being exactly 1:1 per frame also adds comparison noise. | NOT jitter to dismiss. Do NOT assert it's "position." Investigate closely **later, once everything else is spot on** (user, 2026-06-01). It's the suspected reason b1acf7c's sprite Z occluded her glow, but the exact cause isn't pinned. ([[project_next_char_controller]]) |
 | **Foot-dust occlusion** | dust draws IN FRONT of the walker; retail draws it behind | needs faithful sprite Z-write (see draw-order GT) — NOT yet solved; b1acf7c's attempt was reverted |
 | **Foot-dust position/phase** | diverges from retail | likely free-roam RNG-stream completeness ([[scene1-rng-stream-parity]]) — but treat as a real structural gap to CLOSE, not "just RNG" |
