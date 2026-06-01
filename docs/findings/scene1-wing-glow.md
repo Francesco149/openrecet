@@ -109,13 +109,19 @@ effect**, NOT a particle:
 base returns NULL today). Tear's *body* renders via the companion-controller path
 (§71), but that path does not yet issue the additive blue wing pass.
 
-**Next chip (separate, not the particle wing-glow):** port the additive blue
-chr-sprite pass for the companion — either by wiring `FUN_00456f56`'s pass-2
-(L120, blue tint + the glow sprite) into the companion render, or by un-dormanting
-the chr_walker/chr_prepass actor draws once FUN_00436f97 populates the tables.
-Needs: the wing sprite index (`DAT_056da1cc`), its texture, the `0x7f7fff` tint,
-and the additive envelope (already set up in `chr_prepass_ab_setup`). Tracked
-separately from this records-A 0x1f chip, which is correct + complete.
+**✅ LANDED 2026-06-01 (commit 6d5b10d) — `scene1_chr_walker.c` Pass 1.** The wing
+is `FUN_00456f56` **Pass 1** (companion glow, L49-69), NOT Pass 2: an additive
+billboard at the companion position drawn from char-descriptor 2 / sheet 2
+(chr02.bmp = the fairy glow sheet, engine `DAT_073a9b38`), grey tint `0xff7f7f7f`
+(blue from the texture). The port had Pass 1 fully scaffolded but stubbed
+(`chr_walker_companion_actor()` returned NULL). Wired it to live state:
+`player_ctrl_actor_record(2)` (= `&DAT_056dab40` = actor[2], the same companion
+anim-state record `scene1_shop_walker` draws the solid body from),
+`player_ctrl_actor_char(2)` gate (= `DAT_056da1d4`), `g_scene1_actor_pos[2]`, glow
+scale 1.0·scale_f (`_DAT_056dae20/2c` settle to 1.0, §71), chr sheet 2 bound,
+additive ONE/ONE. The big translucent-cyan wing now renders and closely matches
+retail (`runs/wingglow-cmp/wing_after.png`). Residual = companion position offset
+(player controller unported, P4) + Tear's body sprite palette (separate).
 
 ## PORT-DEBT
 
