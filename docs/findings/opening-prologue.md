@@ -435,3 +435,60 @@ over-budgeted. So the earlier "32/46 captured" port-side number is **purely a
 segtrace wait/capture timing artifact** (fast-firing anchors vs the per-segment
 wait), not an engine divergence — retail captured 46/46 of the identical
 sequence. Per-line PIXEL parity remains deferred (text/box draws not yet ported).
+
+### RESOLVED — the script-load / gate / transition subsystem (gap #16, 2026-06-01)
+
+The +103-frame gap #16 (iv1_1→iv1_2) is a **real loading-overlay bracket** retail
+shows between the two scripts. Full retail anchor timeline (Frida,
+`…retail-20260601T193256Z`, `agent.log`):
+
+```
+frame   71  NEW_GAME + LOADING_START #1        (title→ingame; HOUSE scene load begins)
+frame 3011  LOADING_END #1 + HOUSE_FREEROAM #1 (2940-frame scene load done)
+frame 3332  iv1_1 line 1 START   → 16 lines, last END @ 4418
+frame 4581  LOADING_START #2                   (iv1_2 inter-script load)
+frame 4649  LOADING_END #2 + HOUSE_FREEROAM #2 (68-frame load)
+frame 4807  iv1_2 line 1 END     → 30 lines, last END @ 5937
+```
+
+So retail fires **exactly 2 LOADING brackets + 2 HOUSE_FREEROAM** (matching what
+the `scene1_intro_events` stub fakes — but the stub fires #2 in the *wrong place*,
+~10 f after #1, before any dialogue):
+- **#1** = the new-game HOUSE scene load (port: `scene_post_fade_init` →
+  `worker_load_spawn`). **iv1_1 has NO bracket of its own** — it's loaded under #1
+  and its first line just appears ~321 f after HF #1.
+- **#2** = the iv1_1→iv1_2 load (the gap-#16 +103). This is the piece the port
+  skipped.
+
+**The gate `DAT_0438b1c8`** is a 3-state machine: `0`=idle, `2`=armed/loading,
+`1`=running. Arming a script (`FUN_0044ba2c(scene,sub,p3)`): refuse if gate≠0,
+else write selector `DAT_005c7a2c/30`, set gate=**2**, call `FUN_00452d07(p3)`
+(the loader). `FUN_00452d07` spawns a **secondary worker thread** (`CreateThread`
+→ `LAB_00452aab`) that reads the .ivt + its bg/chr/se assets and, on completion
+(`FUN_004528b3`), flips gate **2→1** and the dialogue runs (`FUN_0046c320` each
+frame while gate==1). On `end:` (ret 3) the per-frame pump (`FUN_004538xx`
+L50630) sets gate=**0**, clears `DAT_0438bf74`, fires a transition, then
+`FUN_0044baad()` — which arms the **queued** next script (`DAT_06a4706c` set by
+`FUN_0044ba6b`): gate=2 again → load #2 → gate=1 → iv1_2. After the last script
+nothing is queued → done. (The exact opening-arm entry is the scene-1 new-game
+event path; not pinned, not needed for the structural port.)
+
+**The transition effect** (`FUN_0045281c`/`FUN_004526f5`/`FUN_004526ab`/
+`FUN_00452569`) is a 10×10 grid "shatter/melt" over a 640×480 space (cell stride
+0xc; x=col·64−288, y=216−row·48):
+- `FUN_00452569`: seed per-cell RNG velocities (3 rot `06a47130/34/38` + 3 pos
+  `06a475fc/600/604`, each `(rand−0.5)·k·0.5`) via `FUN_00471089`.
+- `FUN_0045281c(mode,dur)` = **shatter-OUT**: `DAT_0438bf7c=−1`, flat grid, runs
+  `dur` frames then auto-clears (`bf7c=0`). Typical `dur=0x11` (17).
+- `FUN_004526f5(mode,dur)` = **melt-IN**: `bf7c=1`, grid pre-advanced 30 steps
+  (starts fully shattered), counts to `dur+1` and **holds** (cleared elsewhere).
+- `FUN_004526ab`: per-frame counter `DAT_0438bf78` ±1; `FUN_00452809` sets the
+  `DAT_0438bf74` "transition active" flag. The grid render (warped quads scaled
+  by `bf78`) is **render — deferred to the visual pass**; only the `dur`-frame
+  timing matters for cadence.
+
+**Determinism caveat:** bracket #2's 68-frame duration is a real async asset
+load (iv1_2's TGAs), so it is **not byte-reproducible** — the port models it as a
+fixed/representative hold (PORT-DEBT) since the dialogue assets aren't loaded/
+rendered yet. The structure (a loading bracket in the right place → LOADING/HF #2)
+is what closes the front; the exact 103 stays environment-dependent.

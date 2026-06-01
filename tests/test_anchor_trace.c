@@ -6,9 +6,6 @@
 #define _GNU_SOURCE   /* fmemopen */
 #include "t.h"
 #include "anchor_trace.h"
-#include "nowloading.h"
-#include "scene1_intro_events.h"
-#include "worker_load.h"
 
 #include <string.h>
 
@@ -138,56 +135,50 @@ int test_anchor_reentrant_loading(void)
     return 0;
 }
 
-/* ── intro-events stub: the port fires HOUSE_FREEROAM TWICE ──────────────
+/* ── the opening prologue fires HOUSE_FREEROAM TWICE ─────────────────────
  *
- * Models one sim frame's gate logic (scene1_intro_events_tick BEFORE the
- * worker-busy check, then sim_step_a's "clear the overlay when not busy"),
- * samples the resulting world into anchor_trace, and asserts the stub turns
- * the port's single new-game load into the retail-shaped double
- * HOUSE_FREEROAM the TAS segtrace waits on. See src/scene1_intro_events.c. */
-static void ie_model_frame(struct anchor_trace_state *st, uint32_t frame,
-                           struct rec *r)
-{
-    /* sim_step_a order: intro tick first (may raise/drop the gate), then the
-     * worker-busy check clears the overlay when the worker is idle. */
-    scene1_intro_events_tick();
-    if (!worker_load_busy())
-        nowloading_set_active(0);
-
-    struct anchor_world w = W(1 /*INGAME*/, nowloading_is_active());
-    anchor_trace_tick(st, frame, w, rec_sink, r);
-}
-
-int test_anchor_intro_events_double_house_freeroam(void)
+ * Retail (Frida `…retail-20260601T193256Z`) brackets the new-game→playable
+ * path with two load overlays → two HOUSE_FREEROAM edges:
+ *   #1 = the new-game HOUSE scene load (worker_load); iv1_1 runs after it.
+ *   #2 = the iv1_1→iv1_2 inter-script load (src/scene1_intro_dialogue.c's
+ *        D_LOAD bracket, ~68 frames), now driving anchor_world.loading_active
+ *        via scene1_intro_dialogue_loading() — this replaced the old
+ *        scene1_intro_events double-load stub.
+ * The TAS segtraces `wait HOUSE_FREEROAM` twice, the 2nd resolving on #2.
+ * Both loading windows are Win32-runtime concerns; here we drive the anchor
+ * module with the world shape they produce and assert the edge logic turns it
+ * into the retail-shaped double bracket. */
+int test_anchor_dialogue_double_house_freeroam(void)
 {
     struct anchor_trace_state st = {0};
     struct rec r = {0};
 
-    nowloading_reset();
-    worker_load_reset();
-    scene1_intro_events_reset();
-
     /* Frame 0: BOOT baseline at the title, idle. */
     anchor_trace_tick(&st, 0, W(0 /*TITLE*/, 0), rec_sink, &r);
 
-    /* Frame 1: new-game commit. scene_post_fade_init flips to INGAME, kicks
-     * the first load (busy + overlay up), and arms the stub. */
-    worker_load_begin();
-    scene1_intro_events_arm();
-    ie_model_frame(&st, 1, &r);          /* NEW_GAME + LOADING_START */
+    /* Frame 1: new-game commit → INGAME with the scene load up (overlay raised
+     * the same tick scene_post_fade_init flips state). NEW_GAME + LOADING_START #1. */
+    anchor_trace_tick(&st, 1, W(1 /*INGAME*/, 1 /*loading*/), rec_sink, &r);
 
-    /* Frame 2: the first (real) load completes — the worker thread drops
-     * busy; the gate clears this frame. */
-    worker_load_end();
-    ie_model_frame(&st, 2, &r);          /* LOADING_END + HOUSE_FREEROAM #1 */
+    /* Frame 2: the scene load completes. LOADING_END #1 + HOUSE_FREEROAM #1. */
+    anchor_trace_tick(&st, 2, W(1, 0), rec_sink, &r);
 
-    /* Frames 3.. : the stub observes free-roam, waits out its delay, then
-     * raises + drops the second-event load. Run enough frames to cover the
-     * whole sequence. */
-    for (uint32_t f = 3; f <= 30; f++)
-        ie_model_frame(&st, f, &r);
+    /* Frames 3..9: iv1_1 dialogue runs, scene load-free (no load anchors). */
+    for (uint32_t f = 3; f <= 9; f++)
+        anchor_trace_tick(&st, f, W(1, 0), rec_sink, &r);
 
-    /* Count the HOUSE_FREEROAM firings — the property under test. */
+    /* Frame 10: iv1_1 ends; the dialogue raises its inter-script loading
+     * bracket (D_LOAD). LOADING_START #2. */
+    anchor_trace_tick(&st, 10, W(1, 1), rec_sink, &r);
+
+    /* Frames 11..77: the 68-frame bracket holds (loading stays up). */
+    for (uint32_t f = 11; f <= 77; f++)
+        anchor_trace_tick(&st, f, W(1, 1), rec_sink, &r);
+
+    /* Frame 78: bracket drops; iv1_2 begins. LOADING_END #2 + HOUSE_FREEROAM #2. */
+    anchor_trace_tick(&st, 78, W(1, 0), rec_sink, &r);
+
+    /* Count the HOUSE_FREEROAM / LOADING firings — the property under test. */
     int n_hf = 0, n_ls = 0;
     for (int i = 0; i < r.n; i++) {
         if (strcmp(r.name[i], "HOUSE_FREEROAM") == 0) n_hf++;
@@ -209,10 +200,6 @@ int test_anchor_intro_events_double_house_freeroam(void)
     }
     T_ASSERT(idx_hf1 >= 0 && idx_ls2 >= 0);
     T_ASSERT(idx_hf1 < idx_ls2);
-
-    scene1_intro_events_reset();
-    worker_load_reset();
-    nowloading_reset();
     return 0;
 }
 

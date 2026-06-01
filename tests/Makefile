@@ -68,7 +68,6 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_motes.c \
                  ../src/scene1_player_ctrl.c \
                  ../src/scene1_companion_ctrl.c \
-                 ../src/scene1_intro_events.c \
                  ../src/scene1_intro_dialogue.c \
                  ../src/scene1_dialogue.c \
                  ../src/scene1_dialogue_run.c \

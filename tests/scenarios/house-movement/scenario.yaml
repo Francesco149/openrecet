@@ -13,9 +13,12 @@
 # goldens are keyed by capture order, cap_00 / cap_01).
 #
 # PARITY BASELINE (intended, converges over time):
-#   - The intro dialogue between the two HOUSE_FREEROAM anchors is stubbed
-#     on the port (src/scene1_intro_events.c) — it reproduces the anchor
-#     edges but renders nothing, so the same trace drives both targets.
+#   - The 2nd HOUSE_FREEROAM is the iv1_1→iv1_2 inter-script load bracket,
+#     driven by the opening-prologue dialogue (src/scene1_intro_dialogue.c's
+#     D_LOAD state) — it reproduces the anchor edges but renders no text yet,
+#     so the same trace drives both targets. (HF#2 now lands at its faithful
+#     position, after iv1_1's 16 lines are A-spammed through, not ~10 frames
+#     after HF#1 as the retired scene1_intro_events stub placed it.)
 #   - The player movement controller (FUN_0048b850) is not ported yet, so
 #     cap_01 shows retail's Recette mid-stride against the port's player
 #     frozen in the (correct) idle pose. That gap closes when the

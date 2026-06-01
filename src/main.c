@@ -2280,7 +2280,11 @@ static void render_dispatch(void)
     {
         struct anchor_world w = {
             .scene_state    = g_scene_state,
-            .loading_active = nowloading_is_active(),
+            /* Primary worker-load gate (new-game HOUSE scene load = LOADING #1)
+             * OR the dialogue's inter-script bracket (iv1_1→iv1_2 = LOADING #2,
+             * replacing the retired scene1_intro_events stub). */
+            .loading_active = nowloading_is_active()
+                              || scene1_intro_dialogue_loading(),
             .dlg_active     = scene1_intro_dialogue_active(),
             .text_reveal    = scene1_intro_dialogue_text_reveal(),
             .text_revealed  = scene1_intro_dialogue_text_revealed(),

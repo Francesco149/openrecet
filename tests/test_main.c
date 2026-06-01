@@ -431,7 +431,7 @@ struct test_case {
     X(anchor_new_game_to_house) \
     X(anchor_house_freeroam_fires_once) \
     X(anchor_reentrant_loading) \
-    X(anchor_intro_events_double_house_freeroam) \
+    X(anchor_dialogue_double_house_freeroam) \
     X(anchor_text_start_per_line) \
     X(anchor_text_end_rising_edge) \
     X(anchor_text_gated_on_dlg_active) \

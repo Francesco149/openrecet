@@ -7,6 +7,38 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-01 — Inter-script load bracket ported; `scene1_intro_events` stub retired
+
+Closed gap #16 (the iv1_1→iv1_2 transition) structurally and retired the fake
+double-load stub. RE in `findings/opening-prologue.md` §"the script-load / gate
+/ transition subsystem" — the engine's `DAT_0438b1c8` gate is a 0/2/1 machine
+(idle/loading/running): `FUN_0044ba2c` arms a script (gate=2 + `FUN_00452d07`
+threaded load), the load thread flips 2→1, and on `end:` the pump drops to 0 +
+`FUN_0044baad` arms the queued next script. Retail (Frida
+`…retail-20260601T193256Z`) fires **2 LOADING brackets + 2 HOUSE_FREEROAM**:
+#1 = the new-game HOUSE scene load (71→3011), #2 = the iv1_1→iv1_2 inter-script
+load (4581→4649, 68 frames). iv1_1 runs under #1 with no bracket of its own.
+
+- **`scene1_intro_dialogue.c`** gains a `D_LOAD` state between the two scripts:
+  it raises `scene1_intro_dialogue_loading()` for the 68-frame bracket, which
+  `main.c` ORs into `anchor_world.loading_active`. This produces LOADING_START/
+  END #2 + HOUSE_FREEROAM #2 at the **faithful position** (after iv1_1's last
+  line) — where the retired stub fired them ~10 frames after HF#1 (wrong place).
+  PORT-DEBT: the 68 is synthetic (iv1_2's assets aren't loaded/rendered yet); the
+  residual ~35 frames of gap #16 (retail 389 vs port ~354) is the deferred
+  shatter/melt transition (`FUN_0045281c`/`004526f5`), which is render.
+- **Retired `scene1_intro_events.{c,h}`** (the stub) — removed its arm/tick from
+  `scene.c`/`sim.c`, the build entry, and rewrote `test_anchor_dialogue_double_
+  house_freeroam` to drive the anchor module with the dialogue-shaped snapshots.
+- **Validated** (port, `scenario-test intro-dialogue-lines --target openrecet`):
+  the anchor stream is now NEW_GAME → LOADING/HF #1 → 16 iv1_1 lines → LOADING_
+  START #2 @ 4089 → LOADING_END/HF #2 @ 4157 (68 f) → 30 iv1_2 lines — exactly
+  retail's 2/2/46 shape. `house-movement` still reaches all 3 captures (no
+  stall); its pixel diffs are pre-existing (stale local golden vs the recent
+  wing-flap/motes animations — a stub build fails them identically), so the
+  house-* port goldens want a re-bless, independent of this change. Host suite
+  3075 green.
+
 ## 2026-06-01 — HOUSE ambient motes (`FUN_0046f621`/`FUN_0046f2a3`/`FUN_0046f648`) ported
 
 Ported the free-roam ambient-mote subsystem as `src/scene1_motes.c`

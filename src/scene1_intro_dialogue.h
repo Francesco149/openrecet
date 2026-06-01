@@ -6,22 +6,27 @@
  * scene1_dialogue_run interpreter, and exposes the TEXT_ANIM_START/END anchor
  * state (DAT_0438b1c8 / DAT_073a3e00 / DAT_073a3e04) for anchor_trace.
  *
- * Scope (additive, structural): this drives ONLY the dialogue interpreter +
- * its anchor signals. It deliberately does NOT touch g_scene_state, the
- * worker-load gate, or the HOUSE_FREEROAM edges — the scene1_intro_events stub
- * still produces those, so existing house-* traces are unaffected. The
- * inter-script load screen retail shows between iv1_1 and iv1_2 is also not
- * reproduced here (the per-line anchor rebase absorbs it); the box/text draws
- * are deferred to the visual pass. Retiring scene1_intro_events fully (so the
- * dialogue drives the real gate-drop + transition) is a later chip.
+ * Scope (structural): this drives the dialogue interpreter, its anchor signals,
+ * AND the inter-script loading bracket (iv1_1 → iv1_2). Between the two scripts
+ * it raises a loading flag (scene1_intro_dialogue_loading) for the retail-
+ * measured 68-frame window — which main.c folds into anchor_world.loading_active
+ * so the 2nd LOADING_START/END + HOUSE_FREEROAM fire at the faithful position
+ * (after iv1_1's last line). This RETIRES the scene1_intro_events stub, which
+ * faked that pair ~10 frames after the 1st HOUSE_FREEROAM (wrong place). It still
+ * does NOT touch g_scene_state or the primary worker-load gate (the new-game
+ * HOUSE scene load = LOADING/HOUSE_FREEROAM #1 stays with worker_load); iv1_1
+ * runs under that load and has no bracket of its own, matching retail. The
+ * box/text draws + the shatter/melt transition visuals are deferred to the
+ * visual pass. See opening-prologue.md "the script-load / gate / transition
+ * subsystem" for the full retail timeline + the synthetic-68 PORT-DEBT note.
  */
 #ifndef OPENRECET_SCENE1_INTRO_DIALOGUE_H
 #define OPENRECET_SCENE1_INTRO_DIALOGUE_H
 
 #include <stdint.h>
 
-/* Arm the opening-dialogue sequence (call at NEW GAME, alongside
- * scene1_intro_events_arm). The first script loads lazily on the first tick. */
+/* Arm the opening-dialogue sequence (call at NEW GAME). The first script loads
+ * lazily on the first tick. */
 void scene1_intro_dialogue_arm(void);
 
 /* Return to dormant (no script running, anchors report inactive). */
@@ -35,5 +40,10 @@ void scene1_intro_dialogue_tick(uint16_t held);
 int     scene1_intro_dialogue_active(void);        /* DAT_0438b1c8 == 1     */
 int32_t scene1_intro_dialogue_text_reveal(void);   /* DAT_073a3e00          */
 int     scene1_intro_dialogue_text_revealed(void); /* DAT_073a3e04 != 0     */
+
+/* Nonzero during the iv1_1→iv1_2 loading bracket (gate==2 in the engine).
+ * OR this into anchor_world.loading_active so the 2nd LOADING/HOUSE_FREEROAM
+ * pair fires here. Zero outside the bracket. */
+int     scene1_intro_dialogue_loading(void);
 
 #endif /* OPENRECET_SCENE1_INTRO_DIALOGUE_H */

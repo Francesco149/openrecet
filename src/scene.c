@@ -6,7 +6,6 @@
 #include "npc_schedule.h"
 #include "save_bank.h"
 #include "scene1_intro_dialogue.h"
-#include "scene1_intro_events.h"
 #include "scene_new_game.h"
 #include "stage_post_load.h"
 #include "worker_load.h"
@@ -67,18 +66,14 @@ void scene_post_fade_init(void)
     g_scene_state    = SCENE_STATE_INGAME;
     g_scene_substate = 0;
 
-    /* STUB: arm the intro-event sequencer (src/scene1_intro_events.h). The
-     * unported new-game intro runs TWO scripted events, each with its own
-     * load, so retail fires HOUSE_FREEROAM twice before the player can move.
-     * The port's single worker_load_spawn below fires it once; the stub
-     * injects the second LOADING/HOUSE_FREEROAM edge a few frames later so
-     * the TAS segtrace's second `wait HOUSE_FREEROAM` resolves on both
-     * targets. Replace with the real dialogue subsystem when it ports. */
-    scene1_intro_events_arm();
-
-    /* Arm the opening-prologue dialogue (iv1_1 → iv1_2). Additive: feeds the
-     * TEXT_ANIM anchors only; the load-gate/HOUSE_FREEROAM dance stays with the
-     * stub above. See src/scene1_intro_dialogue.h. */
+    /* Arm the opening-prologue dialogue (iv1_1 → iv1_2). Drives the TEXT_ANIM
+     * anchors AND the inter-script loading bracket: between the two scripts it
+     * raises a loading flag (scene1_intro_dialogue_loading) for the retail-
+     * measured 68-frame window, producing the 2nd LOADING/HOUSE_FREEROAM pair
+     * the TAS segtraces wait on. (The new-game HOUSE scene load below =
+     * LOADING/HOUSE_FREEROAM #1; iv1_1 runs under it with no bracket, matching
+     * retail.) This replaces the old scene1_intro_events double-load stub.
+     * See src/scene1_intro_dialogue.h. */
     scene1_intro_dialogue_arm();
 
     /* Engine FUN_0049a59e L71-72 — the 16-global UI scratch reset
