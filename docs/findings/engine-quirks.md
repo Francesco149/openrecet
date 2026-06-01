@@ -3124,7 +3124,7 @@ actual vertex bytes — don't theorise the recipe from the decompile alone,
 > Recipe + GT: `docs/findings/scene1-wing-glow.md`. Port: `src/scene1_wing_glow.c`.
 > Tool: `tools/dump_wingglow_groundtruth.py`. Builds on §73, §79.
 
-## 81. The HOUSE companion (Tear) idle pose is anim FRAME 2, not 0 — frame-0 made her body+wing-glow sample the wrong chr01/chr02 cells, so the additive wing-glow diverged from retail
+## 81. The HOUSE companion (Tear) idle-FLAPS her wings — a 4-frame anim loop the port left FROZEN, so her body+wing-glow stuck on one chr01/chr02 cell set and the additive glow diverged from retail
 
 `scene1_wing_glow.c`/`scene1_chr_walker.c` Pass 1 + `scene1_shop_walker.c`
 draw Tear's **body** (chr01, sheet 1) and her additive **wing-glow** (chr02,
@@ -3133,44 +3133,60 @@ sprite-state record (engine `&DAT_056dab40` = actor 2). The leaf picks which
 sprite cells to emit from the record's `(ANIM, FRAME, facing-bank)` via the
 formdata LUT — so the record's **FRAME field decides the wing pose**.
 
-The port seeded actor 2's record with the zero-init **FRAME 0** (only char id /
-scale / facing / position were set in `player_ctrl` pose-house-standing; the
-anim fields were left zero, and `scene1_companion_ctrl`'s `co_set_anim`
-early-returns at idle since `CO_ANIM_IDLE==0` already matches the zero ANIMSEL,
-so it never advances FRAME either). Retail's idle companion rests at **FRAME 2**.
+The port left actor 2's anim fields at the **zero-init FRAME 0 and never
+advanced them**: `player_ctrl` pose-house-standing set only char id / scale /
+facing / position, and `scene1_companion_ctrl` ran the spring-follow + facing
+but **never ticked the sprite animation** (its `co_set_anim` only *resets* the
+cycle on an idle↔moving transition, and early-returns at steady idle since
+`CO_ANIM_IDLE==0` matches the zero ANIMSEL). So Tear's wings were frozen on one
+pose while the player (actor 0) was ticked every frame.
 
-**Ground truth** (`runs/cchr2b/chr_leaf.jsonl`, retail HOUSE free-roam frame
-17544): the idle companion record is `[0,0,5.0f,25,2,0,2,0,0,0,0]` —
-`ANIM 0, TIMER 5.0f, COUNTER 25, FRAME 2, FACING 2` — **bit-identical to the
-player's (actor 0) idle seed bar the facing**. At that FRAME the leaf reads, for
-both body and glow, the same 6-cell folded-wing layout (only the per-char
-formdata base differs):
+**Ground truth** — retail's idle companion ANIMATES a **4-frame wing-flap loop**
+(`runs/comp-anim-probe`, Frida `--chr-leaf` over a 120-frame window):
 
-| char | sheet | fd_base | fd_ncells | fd_start | fd_pos |
-|---|---|---|---|---|---|
-| 1 (body) | chr01 | 1666 | 6 | 55 | [1,2,5,6,9,10] |
-| 2 (glow) | chr02 | 3100 | 6 | 92 | [1,2,5,6,9,10] |
+| anim FRAME | cell | glow cells (`fd_ncells`) | wing |
+|---|---|---|---|
+| 0 | 8 | 8 `[2,3,5,6,7,9,10,11]` | **spread (big glow)** |
+| 1 | 9 | 8 | **spread** |
+| 2 | 10 | 6 `[1,2,5,6,9,10]` | folded (smallest) |
+| 3 | 11 | 7 | intermediate |
 
-Identical `fd_pos` ⇒ the glow's quads **exactly overlap the body's**, so the
-additive blue washes over Tear's silhouette (this is what reads as her
-"bluer" hair/face in retail — it's the glow, not the body palette, which is
-bit-identical between targets).
+…then wraps 3→0; each frame is held ~8–12 ticks (cycle ~44 frames). It advances
+**+1 per engine frame** — consecutive retail frames 17544/17545 show `COUNTER
+25→26`, `TIMER 5.0f→6.0f` (`runs/cchr2b/chr_leaf.jsonl`), i.e. `chr_anim_tick`
+with `dt=1.0` called once per frame. At the folded **FRAME 2** the body (chr01)
+and glow (chr02) resolve the *same* 6-cell layout (only the per-char formdata
+base differs — body `fd_base 1666`/`fd_start 55`, glow `3100`/`92`, both
+`fd_pos [1,2,5,6,9,10]`), so the glow's quads exactly overlap the body and the
+additive blue washes over her silhouette; at the spread frames 0/1 the glow's
+8 cells extend *wider than* the body (the wings). (This overlap is what reads
+as Tear's "bluer" hair/face in retail — it's the glow, not the body palette,
+which is bit-identical between targets.)
 
-At the buggy **FRAME 0**, the leaf instead resolves `cell=8`, where char 1 and
-char 2's formdata genuinely diverge: body = 6 cells `[1,2,5,6,9,10]`, glow =
-**8** cells `[2,3,5,6,7,9,10,11]` (`fd_start 76`). So the frame-0 glow drew a
-*different, wider, spread-wing* shape than the body — it sat offset to Tear's
-right with a dark wedge between body and glow, and her hair showed its raw
-(warmer) texture because the glow didn't cover it.
+Because the leaf reads the live FRAME, a frozen FRAME stuck the glow on one
+pose: seeding it to FRAME 2 (an early mis-fix) picked the *folded/smallest*
+pose, and the zero-init FRAME 0 picked the spread pose but never flapped.
 
-**Fix:** seed actor 2's record with the idle pose `ANIM 0 / TIMER 5.0f /
-COUNTER 25 / FRAME 2` alongside the existing char/scale/facing/position seed
-(`scene1_player_ctrl.c` pose-house-standing). The port's leaf output then
-bit-matches the table above; the glow washes over the body and the hair reads
-silvery-blue, matching retail. Residual vs the golden is the unsynced hover-bob
-Y phase (the known house-movement timing baseline), not the glow.
+**Fix:** tick the companion's sprite anim every non-transition frame in
+`scene1_companion_ctrl_tick` via `chr_anim_tick(rec, char, 1.0f)` — mirroring
+the player controller (`scene1_player_ctrl.c` L919). On an idle↔moving
+transition `co_set_anim` already reset the cycle to frame 0, so skip the tick
+that frame (CO_REC_ANIMSEL changed). The wings now flap faithfully (validated
++1/frame against the table above); the glow washes over the body and her hair
+reads silvery-blue.
 
-> 📍 Seed: `scene1_player_ctrl.c` (actor 2, alongside actor 0's idle seed).
+**DEFERRED — flap PHASE alignment (user: "we will chase phase later", 2026-06-01).**
+The port's flap *mechanism* matches retail, but its *phase* at the
+house-movement capture anchor is offset: the port animates the companion all
+through the ~1540-frame stubbed intro/tutorial, so its cycle position at
+free-roam differs from retail's. Retail is on a *spread* frame at all three
+house-movement captures; the port lands on a folded/intermediate phase. This is
+the same load-jitter / intro-timing baseline as Tear's hover-bob Y (cf. the
+deferred scenario auto-shift, [[project_next_char_controller]]). Chasing it
+means aligning the anim start to free-roam onset (or gating the tick to the
+controllable state) — not done.
+
+> 📍 Tick: `scene1_companion_ctrl.c` `scene1_companion_ctrl_tick`.
 > Leaf cell selection: `scene1_chr_sprite.c` `chr_sprite_build_quads`.
-> GT tool: `tools/frida_capture.py --chr-leaf` → `chr_leaf.jsonl`. Builds on
-> §71 (companion = actor 2 / char 1), §80 (the sparkle-trail glow renderer).
+> GT: `tools/frida_capture.py --chr-leaf` → `chr_leaf.jsonl` (`runs/comp-anim-probe`,
+> `runs/cchr2b`). Builds on §71 (companion = actor 2 / char 1), §80 (sparkle trail).

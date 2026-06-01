@@ -7557,7 +7557,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_chr_sprite.h"
+    "src/scene1_chr_sprite.h",
+    "src/scene1_companion_ctrl.c"
    ]
   },
   {

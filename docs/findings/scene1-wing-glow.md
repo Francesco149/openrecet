@@ -132,34 +132,42 @@ state sequencing remain in the `scene1_walk_chr_TODO` stub.
 (`if (DAT_0438b8f8 == 2) { intensity*=2; scale*=3; }`) is not ported
 (`DAT_0438b8f8` unexposed, 0 in free-roam → dormant).
 
-## Update 2026-06-01 — the wing-glow renderer was correct; the bug was the companion's idle ANIM FRAME (0 → 2)
+## Update 2026-06-01 — the wing-glow renderer was correct; the bug was that Tear's wings ANIMATE (a 4-frame flap) and the port left them FROZEN
 
 After landing the Pass-1 wing billboard (above), the glow still didn't match
 retail 1:1: it sat offset to Tear's right with a dark wedge between her body and
 the glow, and her hair read warm-grey instead of retail's silvery-blue. User
 read: "her palette is more blue in retail / the glow isn't extending far enough."
 
-Investigation (`runs/wingglow-cmp/`, port `--chr-leaf`-style stderr probe vs
-retail `runs/cchr2b/chr_leaf.jsonl`) showed the **renderer was already correct**
-— color `0xff7f7f7f` (decompile-confirmed, `456f56.c` L67), additive ONE/ONE,
-chr02 sheet, world matrix bit-equal to the body's. The divergence was upstream:
-the port's **companion sprite-state record was frozen at anim FRAME 0**, but
-retail's idle companion rests at **FRAME 2**. FRAME drives which chr01/chr02
-cells the leaf emits, and at FRAME 0 the glow (char 2) resolves an **8-cell
-spread-wing** layout that does *not* overlap the 6-cell body, whereas at FRAME 2
-both resolve the same 6-cell `[1,2,5,6,9,10]` folded-wing layout so the glow
-overlaps the body exactly. Full table + ground truth: engine-quirks **§81**.
+Investigation showed the **renderer was already correct** — color `0xff7f7f7f`
+(decompile-confirmed, `456f56.c` L67), additive ONE/ONE, chr02 sheet, world
+matrix bit-equal to the body's. The divergence was upstream: the leaf picks
+which chr01/chr02 cells to emit from the companion record's **FRAME** field, and
+the port left that **frozen** (zero-init, never ticked) while the player's anim
+*was* ticked every frame.
 
-**Fix (committed):** seed actor 2's record with the idle pose `ANIM 0 / TIMER
-5.0f / COUNTER 25 / FRAME 2` in `scene1_player_ctrl.c` pose-house-standing
-(mirroring actor 0). The port's leaf inputs now bit-match retail's chr_leaf
-capture (char 1: base 1666 / 6 cells / start 55; char 2: base 3100 / 6 cells /
-start 92 — identical fd_pos). The glow now washes over Tear's body and her hair
-reads silvery-blue. The body palette was never wrong — the "bluer" look is the
-additive glow correctly overlapping her silhouette. Residual vs the golden is
-the unsynced hover-bob Y phase (house-movement timing baseline).
+Retail's idle companion **animates a 4-frame wing-flap** (ground truth
+`runs/comp-anim-probe`, Frida `--chr-leaf` over 120 frames, +1/frame):
+frames **0,1 = spread** (8 glow cells, big glow), **2 = folded** (6 cells,
+smallest, overlaps the body exactly), **3 = intermediate** (7 cells), wrap 3→0,
+~44-frame cycle. Full table: engine-quirks **§81**.
 
-**Deferred:** the companion's idle anim is not ticked (frozen at the seeded
-FRAME 2), mirroring the player's near-static breathing idle. If retail's idle
-companion has a subtle breathing loop, advancing it is a follow-up (needs its
-own multi-frame chr_leaf ground truth).
+A first mis-fix *seeded* the companion to a fixed FRAME 2 — which is the
+**folded/smallest** pose (the user correctly flagged it as a downgrade). The
+real fix is to **animate**, not to pick a frame.
+
+**Fix (shipped):** tick the companion's sprite anim every non-transition frame
+in `scene1_companion_ctrl_tick` via `chr_anim_tick(rec, char, 1.0f)`, mirroring
+the player controller (`scene1_player_ctrl.c` L919). The companion record is
+left at its zero-init anim-start (FRAME 0) and advanced from there. Tear's wings
+now flap faithfully; the glow washes over her body and her hair reads
+silvery-blue. The body palette was never wrong — the "bluer" look is the
+additive glow correctly overlapping her silhouette.
+
+**Deferred — flap PHASE alignment (user: "we will chase phase later").** The
+flap *mechanism* matches retail (+1/frame, 4-frame loop) but its *phase* at the
+house-movement capture anchor is offset: the port animates the companion through
+the ~1540-frame stubbed intro, so its cycle position at free-roam differs from
+retail (which is on a spread frame at all three captures). Same load-jitter /
+intro-timing baseline as Tear's hover-bob Y. Chasing it = align the anim start
+to free-roam onset / gate the tick to the controllable state.

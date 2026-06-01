@@ -179,6 +179,7 @@ void scene1_companion_ctrl_tick(void)
      * standing-pose facing into one free-roam controller since it has no §60
      * intro window).  This is the fairy's resting orientation (octant 2 = facing
      * left toward Recette at the spawn offset). */
+    int prev_animsel = rec[CO_REC_ANIMSEL];
     float mvx = comp[0] - pre_x, mvz = comp[2] - pre_z;
     float moved = sqrtf(mvx * mvx + mvz * mvz);
     if (moved <= CO_MOVE_EPS) {
@@ -189,6 +190,21 @@ void scene1_companion_ctrl_tick(void)
         if (prec)
             rec[CHR_ACTOR_FACING] = prec[CHR_ACTOR_FACING];
     }
+
+    /* Advance the companion's sprite animation every non-transition frame,
+     * exactly as the player controller ticks actor 0 (scene1_player_ctrl.c
+     * L919).  The engine runs the generic per-actor sprite anim-tick
+     * (FUN_00482a71 / chr_anim_tick) on the companion too: Tear's idle wings
+     * FLAP in a 4-frame loop (the wing-glow leaf reads the live FRAME → frames
+     * 0,1 are the spread / largest pose, 2 is folded / smallest, 3 mid; ground
+     * truth runs/comp-anim-probe, engine-quirks §81), so freezing the FRAME
+     * stuck the glow on one pose and diverged from retail's animated wings.
+     * On an idle↔moving transition co_set_anim already reset the cycle
+     * to frame 0, so — mirroring the player — skip the tick on that frame
+     * (CO_REC_ANIMSEL changed) and advance only when the anim is unchanged.
+     * See docs/findings/scene1-wing-glow.md, engine-quirks §81. */
+    if (rec[CO_REC_ANIMSEL] == prev_animsel)
+        chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
 
     /* Wing-glow sparkle (FUN_0048a833 tail): emit every 4th frame, off the
      * post-move fairy along her facing.  Uses the PRE-increment counter so it

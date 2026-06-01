@@ -319,7 +319,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47fc44 | FUN_0047fc44 | 596 | ✓ | audio_fade.h |
 | 0x480b65 | FUN_00480b65 | 1919 | ✓ | chara_skills.h |
 | 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_combat_sm.c, scene1_combat_sm.h, scene1_particles_tick.h (+1) |
-| 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_chr_sprite.h |
+| 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_chr_sprite.h, scene1_companion_ctrl.c |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |
 | 0x4830f1 | FUN_004830f1 | 127 | ✓ | collision_resolve.c, collision_resolve.h |
 | 0x483170 | FUN_00483170 | 3339 | ✓ | collision_query.h, collision_resolve.c, collision_resolve.h (+2) |

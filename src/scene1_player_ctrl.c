@@ -444,21 +444,15 @@ void player_ctrl_pose_house_standing(int player_char)
     s_actor_scale_y[2]  = 1.0f;
     s_actor_record[2][CHR_ACTOR_FACING] = 4;   /* FUN_00436f97 scene-entry default */
 
-    /* Idle anim pose — seed the companion's sprite-state record to the SAME
-     * resting pose as the player (ANIM 0, TIMER 5.0f, COUNTER 25, FRAME 2),
-     * not the zero-init FRAME 0.  Ground truth: the retail idle companion
-     * record (runs/cchr2b/chr_leaf.jsonl, frame 17544) is [0,0,5.0f,25,2,0,2,…]
-     * — bit-identical to actor 0's idle seed bar the facing.  co_set_anim
-     * leaves FRAME untouched at idle (CO_ANIM_IDLE==0 already matches the zero
-     * ANIMSEL, so it early-returns), so this seed is what the leaf draws.
-     * FRAME selects which chr01/chr02 cells the body + wing-glow sample; the
-     * old FRAME 0 drew the wrong wing pose (the glow read 8 spread-wing cells
-     * vs retail's 6 folded-wing cells at FRAME 2), so Tear's glow diverged from
-     * retail.  See docs/findings/scene1-wing-glow.md. */
-    s_actor_record[2][CHR_ACTOR_ANIM]    = 0;
-    s_actor_record[2][CHR_ACTOR_TIMER]   = timer.i;   /* 5.0f bits */
-    s_actor_record[2][CHR_ACTOR_COUNTER] = 25;
-    s_actor_record[2][CHR_ACTOR_FRAME]   = 2;
+    /* The companion's sprite anim is left at its zero-init ANIM-START (ANIM 0,
+     * FRAME 0, TIMER 0, COUNTER 0) and ADVANCED every frame by
+     * scene1_companion_ctrl_tick's chr_anim_tick — Tear's idle wings FLAP in a
+     * 4-frame loop, and the wing-glow leaf reads the live FRAME (frames 0/1 =
+     * spread, 2 = folded, 3 = mid; ground truth runs/comp-anim-probe).
+     * An earlier attempt to seed a fixed pose here (FRAME 2, matching retail's
+     * mid-anim chr_leaf snapshot at frame 17544) froze the wings on one phase
+     * and diverged from retail's animated wings — the fix is to animate, not to
+     * pick a frame.  See docs/findings/scene1-wing-glow.md, engine-quirks §81. */
 
     /* Companion position (DAT_056da1f0/f4/f8 = g_scene1_actor_pos[2], aliased by
      * g_scene1_spawn_origin).  Seed to the retail controllable-onset value
