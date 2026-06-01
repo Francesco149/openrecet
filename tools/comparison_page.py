@@ -192,12 +192,15 @@ def build_scenario_atlases(run_dir: Path, dest_dir: Path, *,
                   f"cap_{i:02d}")
                  for i in range(max(len(left), len(right)))]
     else:
-        # Pair by filename (same absolute frame on both targets).
-        lmap = {p.name: p for p in left}
-        rmap = {p.name: p for p in right}
-        names = sorted(set(lmap) | set(rmap))
-        pairs = [(i, lmap.get(n), rmap.get(n), f"frame {_frame_no(Path(n)):05d}")
-                 for i, n in enumerate(names)]
+        # Pair by frame NUMBER (same absolute frame on both targets). Key on the
+        # parsed number, NOT p.name — the port writes frame_NNNNN.bmp and retail
+        # writes frame_NNNNN.png, so a full-filename key never matches and every
+        # capture would render one-sided ("missing" on both panels).
+        lmap = {_frame_no(p): p for p in left}
+        rmap = {_frame_no(p): p for p in right}
+        nums = sorted(set(lmap) | set(rmap))
+        pairs = [(i, lmap.get(n), rmap.get(n), f"frame {n:05d}")
+                 for i, n in enumerate(nums)]
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     out: list[dict] = []
@@ -265,15 +268,24 @@ def collect_artifacts(scenarios: list[Path], runs_dir: Path, out_dir: Path,
     items: list[dict] = []
     for sp in scenarios:
         name = sp.name
-        is_seg, _ = inspect_trace(sp / "trace.jsonl")
+        is_seg, n_caps = inspect_trace(sp / "trace.jsonl")
 
         desc = ""
+        data: dict = {}
         try:
             data = yaml.safe_load((sp / "scenario.yaml").read_text()) or {}
             desc = str(data.get("description", ""))
         except Exception as e:  # pragma: no cover
             print(f"  WARN: cannot read scenario.yaml for {name}: {e}",
                   file=sys.stderr)
+
+        # Probe / call-trace scenarios define no {capture} ops and no
+        # capture_frames — they produce no frames to compare, so skip them from
+        # the visual gallery rather than render a permanently-empty card
+        # (e.g. intro-prologue, which only binds a {calltrace}).
+        expected_caps = n_caps if is_seg else len(data.get("capture_frames") or [])
+        if expected_caps == 0:
+            continue
 
         run_dir = latest_both_run(name, runs_dir)
         item = {

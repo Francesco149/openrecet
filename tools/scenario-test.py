@@ -628,15 +628,16 @@ def _diff_segtrace(scen: Scenario, run_dir: Path, golden_dir: Path,
 
     passed = failed = 0
     for i in range(n):
-        gld_p = golden_dir / f"cap_{i:02d}.bmp"
+        # png-or-bmp aware: port goldens are cap_NN.bmp, retail cap_NN.png.
+        gld_p = frame_io.frame_path(golden_dir, f"cap_{i:02d}")
         new_p = run_caps[i] if i < len(run_caps) else None
 
         if new_p is None:
             print(f"  FAIL cap_{i:02d}: not captured (golden present)")
             failed += 1
             continue
-        if not gld_p.exists():
-            print(f"  FAIL cap_{i:02d}: missing golden {gld_p.name} "
+        if gld_p is None:
+            print(f"  FAIL cap_{i:02d}: missing golden cap_{i:02d} "
                   f"(captured {new_p.name})")
             failed += 1
             continue
@@ -654,6 +655,11 @@ def _diff_segtrace(scen: Scenario, run_dir: Path, golden_dir: Path,
             continue
         overlay, mask = _red_tint_overlay(np.asarray(gld_img), np.asarray(new_img))
         diff_px = int(mask.sum())
+        if diff_px == 0:
+            # Pixel-identical; sha differed only via re-encoding. Pass.
+            print(f"  pass cap_{i:02d} ({new_p.name}, identical pixels)")
+            passed += 1
+            continue
         Image.fromarray(overlay).save(diff_dir / f"cap_{i:02d}.png")
         print(f"  FAIL cap_{i:02d}: {diff_px} px differ "
               f"→ {(diff_dir / f'cap_{i:02d}.png').relative_to(ROOT)}")
@@ -717,6 +723,13 @@ def diff_against_golden(scen: Scenario, run_dir: Path, target: str) -> tuple[int
         g_rgb = np.asarray(gld_img)
         overlay, mask = _red_tint_overlay(g_rgb, n_rgb)
         diff_px = int(mask.sum())
+        if diff_px == 0:
+            # Pixel-identical: the sha256 differed only because the file was
+            # re-encoded (retail PNGs aren't byte-stable across captures). That
+            # is a pass, not a 0-px "failure".
+            print(f"  pass frame {fi:05d} (identical pixels, re-encoded golden)")
+            passed += 1
+            continue
         Image.fromarray(overlay).save(diff_dir / f"frame_{fi:05d}.png")
         print(f"  FAIL frame {fi:05d}: {diff_px} px differ "
               f"→ {(diff_dir / f'frame_{fi:05d}.png').relative_to(ROOT)}")
