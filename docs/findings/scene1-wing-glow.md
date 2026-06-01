@@ -81,6 +81,42 @@ the raw pixel diff. Sparkle **count** parity at the frame is not yet
 verified (would need a port-side records-A dump). Revisit once the movement
 controller (`FUN_0048b850`, plan P4) lands and positions align.
 
+## Two distinct effects: trail sparkles (this chip) vs. the wing billboard (NOT this chip)
+
+User feedback after landing (2026-06-01): the type-0x1f trail sparkles now render
+("3-4 faint blue dots at Tear's back") but **Tear's big glowing wings are still
+missing**. Investigation (`runs/wingglow-d3d` d3d-trace, retail wing crop
+`runs/wingglow-cmp/retail_wing_tight.png`) shows the wings are a **separate
+effect**, NOT a particle:
+
+- Retail's "wings" = a large, **solid translucent-cyan triangular billboard** at
+  Tear's body — not a cluster of sparkles.
+- It is **not a records-A/B particle**: the GT dump shows all live records-A slots
+  are type-0x1f sparkles (scale 0.1), and records-B is empty in free-roam.
+- Near Tear, `FUN_0045a56f` (the chr-sprite leaf, ret_va 0x45aa31) draws **two**
+  billboards: the body (alpha-blend `src5/dst6`, tex 0x172bc130) **and an additive
+  one** (`src2/dst2`=ONE/ONE, tex 0x172bc650, separate vb). The additive draw is
+  the wing.
+- The engine callers confirm it: `FUN_00456f56` (chr walker) invokes
+  `FUN_0045a56f` per actor with different tints — the body pass uses grey
+  `0xff7f7f7f` (L68), the **wing pass uses blue `…| 0x7f7fff`** (L120, sprite index
+  `DAT_056da1cc`). So the wing is the **additive blue second pass of the
+  character-sprite renderer**.
+
+**Why the port doesn't show it:** the chr-sprite per-actor / people passes
+(`scene1_chr_walker.c` FUN_00456f56, `scene1_chr_prepass.c` Section C) are
+**dormant** — gated on the actor/people-table populator **FUN_00436f97** (people
+base returns NULL today). Tear's *body* renders via the companion-controller path
+(§71), but that path does not yet issue the additive blue wing pass.
+
+**Next chip (separate, not the particle wing-glow):** port the additive blue
+chr-sprite pass for the companion — either by wiring `FUN_00456f56`'s pass-2
+(L120, blue tint + the glow sprite) into the companion render, or by un-dormanting
+the chr_walker/chr_prepass actor draws once FUN_00436f97 populates the tables.
+Needs: the wing sprite index (`DAT_056da1cc`), its texture, the `0x7f7fff` tint,
+and the additive envelope (already set up in `chr_prepass_ab_setup`). Tracked
+separately from this records-A 0x1f chip, which is correct + complete.
+
 ## PORT-DEBT
 
 `PORT-DEBT(partial, FUN_004176ff)` — only the records-A 0x1f arm is ported;
