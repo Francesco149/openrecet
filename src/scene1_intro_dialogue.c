@@ -34,6 +34,7 @@ static int                g_state    = D_IDLE;
 static int                g_load_ctr = 0;     /* frames elapsed in D_LOAD */
 static struct ive_program g_prog;   /* reused per script (~160 KiB) */
 static struct ive_runtime g_rt;
+static unsigned           g_script_gen = 0;  /* bumps per loaded script (asset reload key) */
 
 void scene1_intro_dialogue_arm(void)
 {
@@ -62,6 +63,7 @@ static int start_script(int sub)
     if (!scene1_dialogue_load(IVE_OPENING_SCENE, sub, &g_prog))
         return 0;
     ive_runtime_init(&g_rt, &g_prog);
+    g_script_gen++;   /* the render pass reloads bg/chr assets on a new gen */
     return 1;
 #else
     (void)sub;
@@ -142,4 +144,9 @@ const struct ive_runtime *scene1_intro_dialogue_runtime(void)
 const struct ive_program *scene1_intro_dialogue_program(void)
 {
     return scene1_intro_dialogue_active() ? g_rt.prog : NULL;
+}
+
+unsigned scene1_intro_dialogue_generation(void)
+{
+    return g_script_gen;
 }

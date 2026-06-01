@@ -158,7 +158,14 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
         rt->speaker  = c->a1;
         rt->portrait = c->a2;
         return IVE_R_CONTINUE;
-    default:                    /* every setup op (chr/bg/se/fade/light/...): ret 1 */
+    case IVE_OP_BG:             /* bgset (0x46d912): active bg + clear scroll px */
+        rt->scene.bg_index  = c->a1;   /* DAT_073a6d90 */
+        rt->scene.bg_scroll = 0;       /* DAT_073a6d84 */
+        return IVE_R_CONTINUE;
+    case IVE_OP_BGSCROLL:       /* bgscroll:f (0x46d8a5): scroll mode/speed */
+        rt->scene.bg_mode = c->a1;     /* DAT_073a6d94 */
+        return IVE_R_CONTINUE;
+    default:                    /* every other setup op (chr/se/fade/light/...): ret 1 */
         return IVE_R_CONTINUE;
     }
 }

@@ -106,6 +106,31 @@ int test_dialogue_run_waitkey_dwell_gate(void)
     return 0;
 }
 
+/* ─── bg handler (bgset 0x46d912) ────────────────────────────────────────── */
+
+/* bgset:<name> stores the name at parse time (prog->bg[slot], n_bg++) and, at
+ * runtime, sets the active bg index (DAT_073a6d90) + clears the scroll px
+ * (DAT_073a6d84). Two bgset commands → the last one wins. */
+int test_dialogue_run_bgset_sets_active_index(void)
+{
+    static struct ive_program prog;
+    static struct ive_runtime rt;
+    T_ASSERT(scene1_dialogue_parse(
+        "bgset:room0.tga\r\nbgset:room1.tga\r\nmsg:0:1:A<KEY>\r\nend:\r\n",
+        &prog) == 1);
+    T_ASSERT_EQ_I(prog.n_bg, 2);
+
+    ive_runtime_init(&rt, &prog);
+    T_ASSERT_EQ_I(rt.scene.bg_index, 0);   /* reset default */
+
+    /* One step runs the setup ops (both bgset, then the SPEAKER) up to the
+     * first SHOW yield — so the second bgset (slot 1) is the active index. */
+    ive_runtime_step(&rt, 0);
+    T_ASSERT_EQ_I(rt.scene.bg_index, 1);
+    T_ASSERT_EQ_I(rt.scene.bg_scroll, 0);
+    return 0;
+}
+
 /* ─── scene-state reset (FUN_0046c0ae) ───────────────────────────────────── */
 
 /* Every standee in the 200-entry table gets the exact init bit patterns: all

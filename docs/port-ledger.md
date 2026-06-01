@@ -258,7 +258,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4682c5 | FUN_004682c5 | 11 | ✓ | stage_load_pulse.h |
 | 0x4682e3 | FUN_004682e3 | 11 | ✓ | stage_load_pulse.h |
 | 0x468338 | FUN_00468338 | 2490 | ✓ | stage_load_pulse.c, stage_load_pulse.h |
-| 0x46bf38 | FUN_0046bf38 | 230 | ✓ | mesh_load.h, scene_sc1.c, scene_sc1.h (+1) |
+| 0x46bf38 | FUN_0046bf38 | 230 | ✓ | mesh_load.h, scene1_dialogue_draw.c, scene_sc1.c (+2) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x46c039 | FUN_0046c039 | 87 | ✓ | sim.c |
 | 0x46c090 | FUN_0046c090 | 30 | ✓ | main.c, scene1_dialogue_draw.h |

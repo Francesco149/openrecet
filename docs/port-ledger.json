@@ -5540,6 +5540,7 @@
    "status": "ported",
    "src": [
     "src/mesh_load.h",
+    "src/scene1_dialogue_draw.c",
     "src/scene_sc1.c",
     "src/scene_sc1.h",
     "src/worker_load.h"
