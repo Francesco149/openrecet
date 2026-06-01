@@ -269,6 +269,9 @@ static void draw_box_and_text(IDirect3DDevice8 *dev, const struct ive_runtime *r
             const float dst[4] = { (local_c + 208.0f) - sx * 208.0f, dy, sx * 416.0f, sy * 176.0f };
             const float src[4] = { 0.0f, 0.0f, 416.0f, 176.0f };
             render_quad_add_mirrored(dst, src, g_window.width, g_window.height, col);
+            render_quad_flush(dev);               /* MUST flush — else the next bind
+                                                   * (nameplate) draws this box quad
+                                                   * with the wrong texture. */
         } else {                                  /* mode 0 — centre box, lower strip */
             local_c -= 64.0f;
             const float dst[4] = { (local_c + 208.0f) - sx * 208.0f, dy, sx * 416.0f, sy * 176.0f };
