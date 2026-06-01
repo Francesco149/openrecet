@@ -50,6 +50,12 @@ void scene1_companion_ctrl_tick(void);
  * HOUSE entry from scene1_postload, alongside the actor seed. */
 void scene1_companion_ctrl_reset(void);
 
+/* Read the shared per-frame phase counter DAT_056db054 (the companion bob phase).
+ * Other db054 readers (the player foot-dust emit) call this; it returns the
+ * current frame's value (this counter is incremented at the end of the companion
+ * tick, which runs after the player tick). */
+int scene1_companion_db054(void);
+
 #ifdef __cplusplus
 }
 #endif

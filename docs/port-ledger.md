@@ -151,7 +151,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x415fab | FUN_00415fab | 540 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
 | 0x4161c7 | FUN_004161c7 | 4925 | ✓ | scene1_pass_f.c, scene1_pass_f.h, scene1_records.h (+5) |
 | 0x417504 | FUN_00417504 | 506 | ✓ | main.c, scene1_hud.h, scene1_render.c (+1) |
-| 0x4176ff | FUN_004176ff | 30395 | ✓ | scene1_companion_ctrl.c, scene1_companion_ctrl.h, scene1_maplight.c (+4) |
+| 0x4176ff | FUN_004176ff | 30395 | ✓ | scene1_companion_ctrl.c, scene1_companion_ctrl.h, scene1_maplight.c (+6) |
 | 0x41edf1 | FUN_0041edf1 | 35 | ✓ | worker_load.h |
 | 0x41ee24 | FUN_0041ee24 | 365 | ✓ | sim.c |
 | 0x41f319 | FUN_0041f319 | 340 | ✓ | scene1_combat_sm.h |
@@ -199,7 +199,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x44375e | FUN_0044375e | 12 | ✓ | scene1_records_b_tick.c |
 | 0x44376a | FUN_0044376a | 8538 | ✓ | main.c, scene1_particles_tick.h, scene1_player_ctrl.c (+6) |
 | 0x445a8c | FUN_00445a8c | 8952 | ✓ | scene1_records.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+1) |
-| 0x447f4f | FUN_00447f4f | 11826 | ✓ | main.c, scene1_combat_sm.h, scene1_companion_ctrl.c (+5) |
+| 0x447f4f | FUN_00447f4f | 11826 | ✓ | main.c, scene1_combat_sm.h, scene1_companion_ctrl.c (+6) |
 | 0x44aef0 | FUN_0044aef0 | 96 | ✓ | scene1_records.h, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |
 | 0x44af50 | FUN_0044af50 | 419 | ✓ | scene1_records_c_spawn.c, scene1_records_c_spawn.h |
 | 0x44b0f3 | FUN_0044b0f3 | 60 | ✓ | scene1_particles_tick.c, scene1_records_c_spawn.c, scene1_records_c_spawn.h (+1) |
@@ -264,7 +264,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4705a3 | FUN_004705a3 | 327 | ✓ | scene1_shop_walker.c, scene1_shop_walker.h |
 | 0x470d44 | FUN_00470d44 | 292 | ✓ | scene1_shop_walker.c |
 | 0x471050 | FUN_00471050 | 11 | ✓ | main.c, prewindow.h, rng.h |
-| 0x471089 | FUN_00471089 | 34 | ✓ | rng.h, scene1_combat_sm.c, scene1_combat_sm.h (+5) |
+| 0x471089 | FUN_00471089 | 34 | ✓ | rng.h, scene1_combat_sm.c, scene1_combat_sm.h (+6) |
 | 0x47183b | FUN_0047183b | 151 | ✓ | d3d_pool.c, d3d_pool.h, scene.c |
 | 0x4718d2 | FUN_004718d2 | 51 | ✓ | d3d_pool.h |
 | 0x47193c | FUN_0047193c | 488 | ✓ | scene1_dungeon_clear_banner.c, scene1_preload.c, scene_buy.c (+12) |

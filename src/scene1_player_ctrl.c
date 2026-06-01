@@ -6,6 +6,7 @@
 #include "scene1_player_ctrl.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "call_trace.h"          /* CALL_TRACE_ENTER / _STUB */
@@ -16,6 +17,9 @@
 #include "collision_resolve.h"   /* collision_resolve_player (FUN_00483170) */
 #include "stage_palette.h"       /* g_stage_palette->mode (*DAT_068dd2f0) */
 #include "title_save_dialog.h"   /* title_save_dialog_gate_tick (FUN_00434d6a guard) */
+#include "scene1_spawn.h"        /* scene1_spawn (FUN_00447f4f) — foot-dust emit */
+#include "scene1_companion_ctrl.h" /* scene1_companion_db054 (shared DAT_056db054) */
+#include "rng.h"                 /* rng_next_unit (FUN_00471089) — dust jitter */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -687,6 +691,40 @@ static void player_ctrl_b850_render_tail(void)
                               /*angle_table=*/NULL, decay_spawn, /*ev=*/NULL);
 }
 
+/* FUN_0048b850 L457-476 (asm 0x48c758-0x48c821): the grounded-walk foot dust.
+ * After the integrate+damp, while the player is on the floor and moving, the
+ * engine sprays a faint type-0xe records-A particle at the feet every 16th
+ * frame.  The particle's spawn + age/kill are already ported (scene1_spawn,
+ * scene1_particles_tick); the draw is scene1_walk_dust.c.  See
+ * docs/findings/scene1-walk-dust.md + engine-quirks.
+ *
+ * Gates: not paused (DAT_0438b1a0==0, inert in free-roam), grounded
+ * (da1dc==daf88 — always true in free-roam: no jump), horizontal speed > 0.1
+ * (post-damp velocity), and (db054 & 0xf)==0.  The engine's extra running emit
+ * (DAT_056db034==1) is dormant here — there is no dash in HOUSE free-roam, and
+ * the measured live type-0xe count (~2/frame) matches the every-16-frame emit
+ * with the 0x20-tick lifetime alone (records/walkdust-types).
+ *
+ * RNG: two rng_next_unit() are consumed per emit, z-jitter first then x-jitter
+ * (asm order); the engine reuses these arg slots as the type(0xe)/scale(0.125)
+ * args of FUN_00447f4f, which is why the decompile showed FUN_00471089(0xe,...). */
+static void player_ctrl_b850_foot_dust(void)
+{
+    float vx = s_player_vel[0], vz = s_player_vel[2];
+    if (vx * vx + vz * vz <= 0.1f * 0.1f)   /* |v| <= 0.1 → not moving enough */
+        return;
+    if ((scene1_companion_db054() & 0xf) != 0)
+        return;
+
+    float zj = (rng_next_unit() - 0.5f) * 0.5f;   /* rng #1 → z jitter */
+    float xj = (rng_next_unit() - 0.5f) * 0.5f;   /* rng #2 → x jitter */
+    scene1_spawn(0,
+                 g_scene1_player_pos[0] + xj,
+                 g_scene1_player_pos[1] + 0.5f,
+                 g_scene1_player_pos[2] + zj,
+                 0xe, 0.125f, 1);
+}
+
 static void player_ctrl_b850_move(void)
 {
     /* _STUB: body is the free-roam position-physics subset only; the render-slot
@@ -732,6 +770,9 @@ static void player_ctrl_b850_move(void)
      * every frame so velocity decays to 0 after the d-pad is released. */
     s_player_vel[0] *= PC_WALK_DAMP;
     s_player_vel[2] *= PC_WALK_DAMP;
+
+    /* FUN_0048b850 L457-476: foot dust at the feet while grounded + moving. */
+    player_ctrl_b850_foot_dust();
 
     /* FUN_0048b850 tail: motion-history rings + after-image render-bank fill
      * (engine-quirks §76).  Runs every frame; dormant in free-roam. */

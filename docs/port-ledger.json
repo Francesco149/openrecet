@@ -12,7 +12,7 @@
   "touched": 387,
   "pct_touched": 15.2,
   "pct_verified": 2.5,
-  "port_debt": 7
+  "port_debt": 8
  },
  "orphan_refs": [
   "0x40f640",
@@ -1470,6 +1470,8 @@
     "src/scene1_maplight.c",
     "src/scene1_render.c",
     "src/scene1_render.h",
+    "src/scene1_walk_dust.c",
+    "src/scene1_walk_dust.h",
     "src/scene1_wing_glow.c",
     "src/scene1_wing_glow.h"
    ]
@@ -3165,6 +3167,7 @@
     "src/scene1_companion_ctrl.c",
     "src/scene1_particles_tick.c",
     "src/scene1_pass_f.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_records.h",
     "src/scene1_spawn.c",
     "src/scene1_spawn.h"
@@ -5954,6 +5957,7 @@
     "src/scene1_combat_sm.h",
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_records_b_tick.c",
     "src/scene1_records_c_spawn.c",
     "src/scene1_spawn.c"

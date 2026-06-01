@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **7**
-- distinct retiring engine functions: **5**
+- total open debts: **8**
+- distinct retiring engine functions: **6**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 3 | wired call boundary, body incomplete |
+| stub | 4 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 3 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -30,15 +30,17 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff | 2 |
 | FUN_004161c7 | 1 |
 | FUN_004176ff L3876 | 1 |
+| FUN_004176ff L4958 | 1 |
 | FUN_00436f97 | 1 |
 | FUN_00454191 | 1 |
 
-## stub (3)
+## stub (4)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
+| FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
 | FUN_00454191 | src/scene1_fx_overlays.c:9 | outer-gate scaffold only; the 3 inner render |
 
 ## synthetic-data (0)

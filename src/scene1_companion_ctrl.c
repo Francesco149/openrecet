@@ -94,6 +94,17 @@ void scene1_companion_ctrl_reset(void)
     s_bob_counter = 0;
 }
 
+/* The shared per-frame phase counter DAT_056db054.  The engine has ONE db054
+ * that several subsystems read within a frame; here it backs the companion bob.
+ * The player controller's foot-dust emit (FUN_0048b850, scene1_player_ctrl.c)
+ * is another db054 reader — it runs in the player tick, BEFORE this tick
+ * increments the counter, so both see this frame's value (matches the engine,
+ * where FUN_0048b850 reads db054 and the companion update is nested inside it). */
+int scene1_companion_db054(void)
+{
+    return s_bob_counter;
+}
+
 /* On an idle↔moving transition reseed the anim cycle (frame/timer/counter → 0)
  * and write the new id into both the ANIM field and the field-5 selector; an
  * unchanged state leaves the record alone.  Mirrors FUN_0048a4d1's anim block. */

@@ -685,6 +685,17 @@ function segtraceOnSegmentEnter(seg) {
         g_capture_pending.add(tgt);
         log('segtrace: capture scheduled at base+' + seg.captures[i] +
             ' -> frame ' + tgt);
+        // Anchor-relative d3d-trace arming: when d3d-trace is enabled with a
+        // (possibly empty) frame Set, also trace each capture frame (±2) so a
+        // render-state read lands on the same deterministic, jitter-immune
+        // instants the screenshots do. Lets a segtrace drive d3d-trace without
+        // guessing absolute frames (the load jitter shifts the anchor by
+        // hundreds of frames run-to-run).
+        if (g_d3d_trace_enabled && g_d3d_trace_frames !== null) {
+            for (let d = -2; d <= 2; d++) g_d3d_trace_frames.add(tgt + d);
+            log('segtrace: d3d-trace armed at frames ' + (tgt - 2) +
+                '..' + (tgt + 2));
+        }
     }
     for (let i = 0; i < seg.calltraces.length; i++) {
         const start = seg.calltraces[i][0], len = seg.calltraces[i][1];

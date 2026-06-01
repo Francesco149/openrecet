@@ -1,0 +1,12 @@
+# house-walk-down-mid — walk DOWN bench for the foot-dust depth check.
+#
+# New game → HOUSE → 2nd HOUSE_FREEROAM, then hold DOWN (0x0008) from anchor+1565
+# and capture mid-walk (anchor+1600/1640/1680/1720/1760).  Used to verify the
+# walk-dust (records-A type 0xe) renders BEHIND Recette when she walks toward the
+# camera — retail draws the dust before the character sprites (which are last,
+# ZENABLE=0, on top).  See docs/findings/scene1-walk-dust.md.
+description: |
+  Hold DOWN in HOUSE free-roam; 5 mid-walk captures. Checks the foot dust draws
+  behind the walking player (depth/order parity).
+max_frames: 16000
+duration_ceiling_ms: 180000

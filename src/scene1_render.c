@@ -26,6 +26,7 @@
 #include "scene1_chr_walker.h"   /* Cchr.2d — FUN_00456f56 character-sprite walker */
 #include "scene1_chr_prepass.h"  /* Cchr.2e — FUN_0045672a records/people pre-pass  */
 #include "scene1_wing_glow.h"    /* P0.1 — FUN_004176ff records-A type-0x1f arm      */
+#include "scene1_walk_dust.h"    /* FUN_004176ff records-A type-0xe arm (foot dust)  */
 #include "scene1_chr_shadow.h"   /* Csh.1 — FUN_0045aa36 player/companion ground shadow */
 #include "call_trace.h"
 #include "scene1_camera.h"
@@ -860,6 +861,16 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * passes) stays unported in scene1_walk_chr_TODO. */
     scene1_push_projection(dev, 2000.0f);
     scene1_wing_glow_render((struct IDirect3DDevice8 *)dev);
+    /* The records-A type-0xe arm (L4958, after the 0x1f arm in FUN_004176ff):
+     * the floor dust puff at the walking player's feet (scene1_walk_dust.c).
+     * This is the engine-faithful position (FUN_004176ff runs here); drawing it
+     * earlier leaks blend state into wide_followup's counter-shadow pass.
+     * DEPTH CAVEAT: in retail free-roam the PLAYER is the late 2D sprite
+     * (FUN_00405354, ZENABLE=0, drawn last) so the dust reads as behind her; the
+     * port still draws the player early via sw_pass_light (FUN_004552d0), so the
+     * dust currently draws in front of the walker.  Resolves when the free-roam
+     * 2D player-sprite path is ported.  See docs/findings/scene1-walk-dust.md. */
+    scene1_walk_dust_render((struct IDirect3DDevice8 *)dev);
     scene1_walk_chr_TODO();
 
     /* L255-L257: project back to z_far=350 → tail. */
