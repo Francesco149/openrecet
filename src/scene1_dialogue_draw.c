@@ -277,6 +277,54 @@ static void draw_box_and_text(IDirect3DDevice8 *dev, const struct ive_runtime *r
             render_quad_flush(dev);
         }
         local_c += 80.0f;                         /* LAB_0046d30c */
+
+        /* ── speaker nameplate + next-line arrow (lines 283-345) ── */
+        int nalpha = (box_open - 4) * 0x3c;       /* (box_open-4)*60, clamp 255 */
+        if (nalpha > 0xff) nalpha = 0xff;
+        /* bVar1: mode 0 + non-choice draws NO nameplate (the centre box has no
+         * name tab); every other mode does. */
+        int draw_plate = !(mode == 0 && rt->scene.choice_mode < 0);
+        if (mode != 2 && rt->line_row >= 0 && nalpha > 0) {
+            uint32_t ncol = ((uint32_t)nalpha << 24) | 0xffffffu;
+
+            if (draw_plate && g_nameplate.tex) {
+                float sl, st, sr, sb;
+                if (rt->scene.choice_mode < 0) {  /* name image from the 7-tall grid */
+                    int idx = rt->portrait;       /* DAT_073a3e10 */
+                    int col = idx / 7;
+                    float ty = (float)((idx % 7) * 32);
+                    if (idx > 0x15) {
+                        col = (idx - 0x16) / 8;
+                        ty  = (float)(((idx - 0x16) % 8) << 5) + 256.0f;
+                    }
+                    float tx = (float)(col * 128);
+                    sl = tx; st = ty; sr = tx + 128.0f; sb = ty + 32.0f;
+                } else {                          /* choice prompt cell */
+                    sl = 640.0f; st = 224.0f; sr = 768.0f; sb = 256.0f;
+                }
+                float nx = (mode == 1) ? (local_c + 72.0f) : (local_c + 56.0f);
+                float ny = (float)(rt->scene.box_pos_off + 0xc);
+                const float dst[4] = { nx, ny, 128.0f, 32.0f };
+                const float src[4] = { sl, st, sr, sb };
+                render_quad_bind(dev, &g_nameplate);
+                render_quad_add(dst, src, g_nameplate.width, g_nameplate.height, ncol);
+                render_quad_flush(dev);
+            }
+
+            if (rt->revealed != 0 && g_window.tex) {  /* blinking next-line arrow */
+                static int s_blink = 0;            /* DAT_073a3e0c (draw-only cosmetic) */
+                int cell = (s_blink / 5) % 0x14;
+                if (cell > 4) cell = 0;
+                s_blink++;
+                float nx = local_c + 256.0f;
+                float ny = (float)(rt->scene.box_pos_off + 0x68);
+                const float dst[4] = { nx, ny, 64.0f, 64.0f };
+                const float src[4] = { 416.0f, (float)(cell << 6), 480.0f, (float)((cell + 1) * 0x40) };
+                render_quad_bind(dev, &g_window);
+                render_quad_add(dst, src, g_window.width, g_window.height, ncol);
+                render_quad_flush(dev);
+            }
+        }
     }
 
     /* ── glyph text (lines 350-388) ── */

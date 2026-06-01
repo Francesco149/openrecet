@@ -492,3 +492,70 @@ load (iv1_2's TGAs), so it is **not byte-reproducible** — the port models it a
 fixed/representative hold (PORT-DEBT) since the dialogue assets aren't loaded/
 rendered yet. The structure (a loading bracket in the right place → LOADING/HF #2)
 is what closes the front; the exact 103 stays environment-dependent.
+
+### RESOLVED — the DRAW pass (FUN_0046c9a2 ported, 2026-06-02)
+
+The deferred visual side is now ported as `src/scene1_dialogue_draw.c`
+(`scene1_dialogue_draw`, hooked into main.c's INGAME render after the 3D scene,
+before the HUD). Built in layers; all verified vs the `golden-retail/cap_*.png`
+goldens (feed). Most infra was reused: `render_quad` (2D quads) + `font_draw_text`
+(glyphs) + `sprite_load` (TGAs).
+
+**Asset load** (FUN_0046bf38): bg names → `g_bg[]` (1024×512), `ive_window.tga`
+→ `g_window`, `chrname.tga` → `g_nameplate`, chr grp names → `g_chr[]`. Loaded on
+the first draw of each script (sim has no D3D device), keyed by a driver
+generation counter. iv1_1 = bedroom (2D bg); iv1_2 = the shop (live 3D HOUSE, no
+ive bg).
+
+**Handler field map** (the 0x46da09–0x46dcac stubs, raw-disasm; standee struct
+base = `&DAT_073a3e70`, stride 0x70 / 28 ints, 200 entries):
+| handler | VA | writes | field |
+|---|---|---|---|
+| disp | 0x46da09 | active = a2 (**=1**, LAB_0046efd4) | 11 |
+| dir | 0x46da1e | mirror = a2 | 12 |
+| move:x | 0x46da33 | x current(1)+target(3) | 1,3 |
+| moveto:x | 0x46da6e | target(3) only | 3 |
+| move/moveto:y | 0x46dc0a/0x46dc30 | y current(2)+target(4) | 2,4 |
+| center | 0x46da59 | offset | 7 |
+| speed | 0x46dc45 | tween speed = a2/DAT_0051958c | 5,6 |
+| anim/grp | 0x46dc97 | graphic index = a2 | 14 |
+| fadeframe | 0x46dc82 | — | 9 |
+| col | 0x46da83 | current(15-18)+target(19-22) from packed argb | 15-22 |
+| colto | 0x46db20 | target(19-22) only | 19-22 |
+| blend | 0x46dcac | mode = a2 | 27 |
+
+The port keeps the **settled** pose only: move/colto SNAP current=target (the
+per-frame tween + speed/fadeframe are PORT-DEBT — the goldens are at the settled
+per-line anchor). col/colto channel order: field15=b,16=g,17=r,18=a; the draw
+repacks `a<<24|b<<16|g<<8|r` (the engine's order, R/B-swapped vs D3DCOLOR).
+
+**Standee draw** (46c9a2 153-209): skip if field11==0 or `chrname[field14]`
+empty; src=(0,0,chr_w,chr_h); blend field27 ≥2 = additive (SRCALPHA/ONE) else
+normal, bit0 → COLOROP ADD(7) vs MODULATE(4); dst=(field1,field2,w+.5,h+.5);
+field12==1 → mirrored quad.
+
+**windowpos:x,mode** (0x46d8e6) → `DAT_005c7980`=x off / `DAT_005c7984`=mode.
+**windowset:N** (0x46d8c6) → `DAT_005c797c` top-banner. **bgset:N** (0x46d912) →
+`DAT_073a6d90` active bg + clear scroll. **bgscroll** (0x46d8a5) → `DAT_073a6d94`.
+**rmb:a,b** (0x46d926) → `DAT_073a6d98/9c` shakes.
+
+**Box** (210-282) via `ive_box_scale` (FUN_0046c86f: cos(n·3π/15) wobble, alpha
+(n)·0x56, closing-shrink path). 4 position modes off `DAT_005c7984`:
+0=centre (src lower strip 0,176..416,352, **no nameplate**), -1=left, 1/other=
+mirrored (src upper 0,0..416,176, **with nameplate**), 2=text-only/no frame. Box
+X = speaker-standee centre (`local_c` = halfwidth + x ± centre-offset). dst_y =
+`DAT_005c7980` + 88 − sy·88. **The prologue uses mode 1** (nameplate drawn;
+proven by retail showing the Tear/Recette name tabs).
+
+**Nameplate + arrow** (283-345): name image from `chrname.tga` in a 7-tall ×
+128×32 grid indexed by `DAT_073a3e10` (the msg `b` arg / portrait idx); alpha
+(box_open−4)·0x3c; only when mode≠0/2 ∧ box_open≥5. Blinking next-line arrow
+(window-tex cell, `(blink/5)%20` capped 4) when `DAT_073a3e04` (END) set.
+
+**Glyph text** (350-388) via FUN_00405a52 (truncate row to the per-frame reveal
+budget `(reveal−4)·speed/32`, SJIS-aware) → FUN_0047d464. The dialogue glyph
+scale 0.65·(`_DAT_0052912c`/100) with the default font-size global **76** =
+0.65·0.76 = 0.494 = `font_draw_text`'s built-in factor, so `font_draw_text`
+(scale 1.0) is reused verbatim. Text x = box `local_c` − 16; per-row y +=30 from
+`DAT_005c7980`+56. PORT-DEBT: the font-size (`_DAT_0052912c`) + text-speed
+(`DAT_056e5784`) settings aren't wired (assume defaults 76 / normal).
