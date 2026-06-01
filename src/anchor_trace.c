@@ -55,6 +55,25 @@ static int ev_house_freeroam(const struct anchor_world *p, const struct anchor_w
     return !is_house_freeroam(p) && is_house_freeroam(c);
 }
 
+static int ev_text_anim_start(const struct anchor_world *p, const struct anchor_world *c)
+{
+    /* A new dialogue line begins its typewriter reveal. The engine forces
+     * the reveal counter to 1 on the new-line frame (DAT_073a3e00, 0x46c9a2);
+     * it only equals 1 then (init 0, then climbs 1,2,…0x800), so reveal==1
+     * with a different previous value is the exact per-line edge — and fires
+     * the first line too (0→1). Gated on the current frame's dialogue-active
+     * (the reveal globals are stale outside dialogue). Recurs per line. */
+    return c->dlg_active && c->text_reveal == 1 && p->text_reveal != 1;
+}
+
+static int ev_text_anim_end(const struct anchor_world *p, const struct anchor_world *c)
+{
+    /* The current line finished scrolling and settled: the fully-revealed
+     * flag rises 0→1 (DAT_073a3e04, 0x46c9a2). The deterministic "text
+     * animation done, awaiting advance" edge. Recurs per line. */
+    return c->dlg_active && c->text_revealed && !p->text_revealed;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -64,10 +83,12 @@ struct anchor_def {
  * NEW_GAME / LOADING_START before LOADING_END / HOUSE_FREEROAM is the
  * causal order. */
 static const struct anchor_def g_anchors[] = {
-    { "NEW_GAME",       ev_new_game       },
-    { "LOADING_START",  ev_loading_start  },
-    { "LOADING_END",    ev_loading_end    },
-    { "HOUSE_FREEROAM", ev_house_freeroam },
+    { "NEW_GAME",        ev_new_game        },
+    { "LOADING_START",   ev_loading_start   },
+    { "LOADING_END",     ev_loading_end     },
+    { "HOUSE_FREEROAM",  ev_house_freeroam  },
+    { "TEXT_ANIM_START", ev_text_anim_start },
+    { "TEXT_ANIM_END",   ev_text_anim_end   },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

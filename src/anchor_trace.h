@@ -51,6 +51,14 @@
 struct anchor_world {
     int32_t scene_state;     /* g_scene_state: 0 TITLE / 1 INGAME / 8 LOADING */
     int     loading_active;  /* nowloading_is_active() — the worker-load gate */
+
+    /* Opening-prologue dialogue reveal state (TEXT_ANIM_START/END — see
+     * docs/findings/opening-prologue.md §RESOLVED). Sourced from the dialogue
+     * engine globals once it's ported (DAT_0438b1c8 / DAT_073a3e00 /
+     * DAT_073a3e04); zero until then, so the text edges never fire. */
+    int     dlg_active;      /* DAT_0438b1c8 == 1 — dialogue running */
+    int32_t text_reveal;     /* DAT_073a3e00 — per-char reveal counter (1..0x800) */
+    int     text_revealed;   /* DAT_073a3e04 != 0 — current line fully revealed */
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

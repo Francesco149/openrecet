@@ -216,6 +216,91 @@ int test_anchor_intro_events_double_house_freeroam(void)
     return 0;
 }
 
+/* ─── opening-prologue dialogue anchors (TEXT_ANIM_START/END) ───────────────
+ * Build a world with the dialogue fields set. Scene/loading don't matter for
+ * these edges (gated only on dlg_active), so default them to INGAME/idle. */
+static struct anchor_world WD(int dlg_active, int32_t reveal, int revealed)
+{
+    struct anchor_world w = {0};
+    w.scene_state   = 1; /* INGAME */
+    w.dlg_active    = dlg_active;
+    w.text_reveal   = reveal;
+    w.text_revealed = revealed;
+    return w;
+}
+
+/* Count how many times `name` fired in a recording. */
+static int rec_count(const struct rec *r, const char *name)
+{
+    int n = 0;
+    for (int i = 0; i < r->n; i++)
+        if (strcmp(r->name[i], name) == 0) n++;
+    return n;
+}
+
+/* TEXT_ANIM_START fires on the reveal counter's reset to 1 (new line), and
+ * recurs for each line — including the first (0→1). It does NOT fire while the
+ * counter merely climbs (1,2,3,…). */
+int test_anchor_text_start_per_line(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+
+    anchor_trace_tick(&st, 0, WD(0, 0, 0), rec_sink, &r);   /* BOOT, baseline */
+    /* First line: reveal 0 → 1 (START), then climbs (no edge). */
+    anchor_trace_tick(&st, 1, WD(1, 1, 0), rec_sink, &r);   /* START */
+    anchor_trace_tick(&st, 2, WD(1, 2, 0), rec_sink, &r);
+    anchor_trace_tick(&st, 3, WD(1, 3, 0), rec_sink, &r);
+    /* Skip-to-full clamps at 0x800 — still no START. */
+    anchor_trace_tick(&st, 4, WD(1, 0x800, 1), rec_sink, &r);
+    /* Next line: counter forced back to 1 → START again. */
+    anchor_trace_tick(&st, 5, WD(1, 1, 0), rec_sink, &r);   /* START */
+    anchor_trace_tick(&st, 6, WD(1, 2, 0), rec_sink, &r);
+
+    T_ASSERT_EQ_I(rec_count(&r, "TEXT_ANIM_START"), 2);
+    return 0;
+}
+
+/* TEXT_ANIM_END fires on the fully-revealed flag's 0→1 rise, once per line. */
+int test_anchor_text_end_rising_edge(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+
+    anchor_trace_tick(&st, 0, WD(0, 0, 0), rec_sink, &r);   /* BOOT */
+    anchor_trace_tick(&st, 1, WD(1, 1, 0), rec_sink, &r);   /* revealing */
+    anchor_trace_tick(&st, 2, WD(1, 40, 0), rec_sink, &r);  /* revealing */
+    anchor_trace_tick(&st, 3, WD(1, 80, 1), rec_sink, &r);  /* END (0→1) */
+    anchor_trace_tick(&st, 4, WD(1, 81, 1), rec_sink, &r);  /* held, no edge */
+    /* New line: flag drops back to 0, then rises again → 2nd END. */
+    anchor_trace_tick(&st, 5, WD(1, 1, 0), rec_sink, &r);
+    anchor_trace_tick(&st, 6, WD(1, 80, 1), rec_sink, &r);  /* END */
+
+    int end_idx = -1;
+    for (int i = 0; i < r.n; i++)
+        if (strcmp(r.name[i], "TEXT_ANIM_END") == 0) { end_idx = i; break; }
+    T_ASSERT(end_idx >= 0);
+    T_ASSERT_EQ_U(r.frame[end_idx], 3);     /* first END on frame 3 */
+    T_ASSERT_EQ_I(rec_count(&r, "TEXT_ANIM_END"), 2);
+    return 0;
+}
+
+/* Both text edges are gated on dlg_active: identical reveal-state movement
+ * with dialogue inactive fires nothing (the globals are stale out of dialogue). */
+int test_anchor_text_gated_on_dlg_active(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+
+    anchor_trace_tick(&st, 0, WD(0, 0, 0), rec_sink, &r);   /* BOOT */
+    anchor_trace_tick(&st, 1, WD(0, 1, 0), rec_sink, &r);   /* reveal==1 but inactive */
+    anchor_trace_tick(&st, 2, WD(0, 80, 1), rec_sink, &r);  /* flag 0→1 but inactive */
+
+    T_ASSERT_EQ_I(rec_count(&r, "TEXT_ANIM_START"), 0);
+    T_ASSERT_EQ_I(rec_count(&r, "TEXT_ANIM_END"), 0);
+    return 0;
+}
+
 /* The JSONL convenience sink emits the exact shared wire format. */
 int test_anchor_jsonl_sink_format(void)
 {

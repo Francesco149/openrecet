@@ -181,6 +181,18 @@ const ADDR = {
                                        // so loading_active = OR of the two —
                                        // the port collapses both in
                                        // nowloading_is_active().
+
+    // Opening-prologue dialogue anchors (TEXT_ANIM_START/END — see
+    // docs/findings/opening-prologue.md §RESOLVED). The dialogue engine is
+    // the 0x46c cluster, gated by DAT_0438b1c8==1; the per-char typewriter
+    // reveal counter DAT_073a3e00 resets to 1 on each new line (START), and
+    // the "fully revealed / awaiting input" flag DAT_073a3e04 rises 0->1 when
+    // a line finishes scrolling (END). Both recur per line.
+    var_dlg_active:        0x0438b1c8, // i32 — dialogue active gate (==1).
+    var_dlg_reveal_ctr:    0x073a3e00, // i32 — per-char reveal counter
+                                       // (1..0x800); resets to 1 per new line.
+    var_dlg_revealed_flag: 0x073a3e04, // i32 — line fully-revealed flag (0->1).
+
     var_bgm_slider:      0x056e5778,  // u32 — BGM volume slider 0..9
     var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
     var_mci_debug_gate:  0x0438ccb4,  // u32 — non-zero recomputes fade
@@ -596,6 +608,8 @@ let g_anchor_trace_enabled = false;
 let g_anchor_initialized   = false;
 let g_anchor_prev_scene    = 0;      // previous-frame DAT_0438b1c0
 let g_anchor_prev_loading  = false;  // previous-frame (gate1||gate2)!=0
+let g_anchor_prev_reveal   = 0;      // previous-frame DAT_073a3e00 (reveal ctr)
+let g_anchor_prev_revflag  = 0;      // previous-frame DAT_073a3e04 (revealed)
 
 // TAS P2 retail side — anchor-relative capture (`--capture-at-anchor
 // NAME[+k]`). The retail counterpart of the port's --capture-at-anchor
@@ -2020,17 +2034,25 @@ function anchorTick(frame, devicePtr) {
     const scene = rva(ADDR.var_scene_state).readS32();
     const loading = (rva(ADDR.var_nowloading_gate).readS32() !== 0) ||
                     (rva(ADDR.var_nowloading_gate2).readS32() !== 0);
+    // Dialogue reveal state (only meaningful while dlgActive; stale otherwise,
+    // so both text edges below are gated on the current-frame dlgActive).
+    const dlgActive = rva(ADDR.var_dlg_active).readS32() === 1;
+    const reveal    = rva(ADDR.var_dlg_reveal_ctr).readS32();
+    const revflag   = rva(ADDR.var_dlg_revealed_flag).readS32();
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
         g_anchor_prev_scene   = scene;
         g_anchor_prev_loading = loading;
+        g_anchor_prev_reveal  = reveal;
+        g_anchor_prev_revflag = revflag;
         send({kind: 'anchor', anchor: 'BOOT', frame: frame});
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
     }
 
     const ps = g_anchor_prev_scene, pl = g_anchor_prev_loading;
+    const pr = g_anchor_prev_reveal, pf = g_anchor_prev_revflag;
 
     // Table order = emission order when several fire on one frame; matches
     // anchor_trace.c's g_anchors[] (causal: NEW_GAME / LOADING_START before
@@ -2054,9 +2076,27 @@ function anchorTick(frame, devicePtr) {
         send({kind: 'anchor', anchor: 'HOUSE_FREEROAM', frame: frame});
         anchorCaptureSchedule('HOUSE_FREEROAM', frame, devicePtr);
     }
+    // TEXT_ANIM_START — a new dialogue line begins its typewriter reveal: the
+    // reveal counter is forced to 1 (DAT_073a3e00, 0x46c9a2). It only equals 1
+    // on the new-line frame (init=0, then climbs 1,2,…0x800), so reveal==1 with
+    // prev!=1 is the exact per-line rising edge (fires the first line too:
+    // 0->1). Mirrors anchor_trace.c ev_text_anim_start.
+    if (dlgActive && reveal === 1 && pr !== 1) {
+        send({kind: 'anchor', anchor: 'TEXT_ANIM_START', frame: frame});
+        anchorCaptureSchedule('TEXT_ANIM_START', frame, devicePtr);
+    }
+    // TEXT_ANIM_END — the line finished scrolling and settled: the
+    // fully-revealed flag rises 0->1 (DAT_073a3e04, 0x46c9a2). This is the
+    // deterministic "text animation done, awaiting advance" edge.
+    if (dlgActive && revflag !== 0 && pf === 0) {
+        send({kind: 'anchor', anchor: 'TEXT_ANIM_END', frame: frame});
+        anchorCaptureSchedule('TEXT_ANIM_END', frame, devicePtr);
+    }
 
     g_anchor_prev_scene   = scene;
     g_anchor_prev_loading = loading;
+    g_anchor_prev_reveal  = reveal;
+    g_anchor_prev_revflag = revflag;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────
