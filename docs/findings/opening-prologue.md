@@ -162,3 +162,30 @@ python3 tools/scenario-test.py intro-prologue --target retail --frida-remote cut
 
 Scenario: `tests/scenarios/intro-prologue/` (spam-A head + a `{calltrace:[0,1600]}`
 bound to the 1st HOUSE_FREEROAM = the prologue segment).
+
+## Phase-0 capture results (retail, anchors validated)
+
+`runs/dlg-anchor-probe` — the spam-A intro trace replayed on retail (seed 1)
+with `--anchor-trace`. The new `TEXT_ANIM_START`/`END` edges fire cleanly:
+
+- **46 dialogue lines** in the opening prologue: exactly **46 `TEXT_ANIM_START`
+  + 46 `TEXT_ANIM_END`** pairs, each START→END 1–4 frames apart (the spam-A
+  trace skips the typewriter via the `0x10` skip, so reveal is near-instant).
+- The lines run **between the two `HOUSE_FREEROAM` anchors** — 1st at frame
+  11792 (prologue start), first line END at 12114, last line END ~13122, then
+  `LOADING_START 13285 / LOADING_END 13295 / HOUSE_FREEROAM 13295` (the real
+  free-roam boundary the `scene1_intro_events` stub fakes with its 2nd load).
+  Confirms the prologue is one INGAME-state-1 span gated by `DAT_0438b1c8==1`,
+  not a scene-state hop.
+
+Per-line reference images: `tests/scenarios/intro-dialogue-lines/` — rebases on
+`TEXT_ANIM_END` and `{capture:0}`s each of the 46 settled lines:
+
+```
+python3 tools/scenario-test.py intro-dialogue-lines --target retail \
+  --frida-remote cutestation.soy:27042
+```
+
+(`--target both` once the dialogue driver `0x46c9a2` is ported — currently only
+the retail/Frida side emits the text anchors; the port's `anchor_world`
+dialogue fields are zero until then.)

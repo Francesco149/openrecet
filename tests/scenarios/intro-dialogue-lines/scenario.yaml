@@ -1,0 +1,24 @@
+# intro-dialogue-lines — per-line opening-prologue dialogue capture (Phase 0).
+#
+# Drives new-game → opening prologue (Recette/Tear), then captures ONE frame per
+# dialogue line at the moment that line finishes its typewriter reveal. The
+# trace rebases on the TEXT_ANIM_END anchor (DAT_073a3e04 rises 0->1, the
+# "line fully revealed / awaiting advance" edge — docs/findings/opening-
+# prologue.md §RESOLVED) and screenshots {capture:0} = the settled-line frame,
+# then mashes A to advance to the next line. 46 lines (count established by
+# runs/dlg-anchor-probe; the prologue runs between the two HOUSE_FREEROAM
+# anchors). Because the anchors absorb the load-screen frame jitter, the SAME
+# trace lines up port and retail per line once the dialogue driver (0x46c9a2)
+# is ported — until then only the retail (Frida) side emits the anchors.
+#
+# Capture:
+#   python3 tools/scenario-test.py intro-dialogue-lines --target retail \
+#     --frida-remote cutestation.soy:27042
+# (--target both once the port renders dialogue.)
+
+description: |
+  New game → opening prologue; one capture per dialogue line at TEXT_ANIM_END
+  (46 lines). Phase-0 per-line reference images for the opening cutscene/dialogue.
+
+max_frames: 24000
+duration_ceiling_ms: 240000
