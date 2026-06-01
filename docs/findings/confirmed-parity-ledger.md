@@ -24,6 +24,7 @@
 |---|---|---|---|
 | Tear (companion) appearance | "slightly off" — position and/or anim phase (unisolated); wing-flap phase adds comparison noise | persistent; investigate once everything else is spot on | needed for faithful sprite-Z dust occlusion (#5) |
 | Foot-dust position/phase | RNG-stream desync vs retail | user: visible bugs first | after the visible free-roam render gaps close |
+| Ambient mote positions (`FUN_0046f648`) | a few tiny dots don't match in the diff; very faint, hard to spot even in retail | user: "not worth chasing the visual parity for now" (2026-06-01); sim is structurally faithful (1×/frame = retail post-warmup) | when chasing free-roam visual parity, after structural parity up to free-roam |
 | Wing-flap phase alignment | flap phase not aligned at capture anchor | "chase phase later" (§81) | companion-controller faithfulness pass |
 
 ## CONFIRMED 1:1 (human-verified)
@@ -43,6 +44,7 @@
 | **Tear (companion) appearance** | "slightly off" — a **persistent** known issue. **NOT isolated**: could be position OR animation phase; the wing-flap not being exactly 1:1 per frame also adds comparison noise. | NOT jitter to dismiss. Do NOT assert it's "position." Investigate closely **later, once everything else is spot on** (user, 2026-06-01). It's the suspected reason b1acf7c's sprite Z occluded her glow, but the exact cause isn't pinned. ([[project_next_char_controller]]) |
 | **Foot-dust occlusion** | dust draws IN FRONT of the walker; retail draws it behind | needs faithful sprite Z-write (see draw-order GT) — NOT yet solved; b1acf7c's attempt was reverted |
 | **Foot-dust position/phase** | diverges from retail | likely free-roam RNG-stream completeness ([[scene1-rng-stream-parity]]) — but treat as a real structural gap to CLOSE, not "just RNG" |
+| **Ambient motes** (`FUN_0046f648`, ported 2026-06-01) | a few faint dots don't match in the zoom-diff | user-flagged 2026-06-01. The **sim is structurally 1:1** (warmup-once then 1 call/frame, exactly retail — call-trace verified on `house-wall-collide`); the visual mismatch is the same family as the Tear-phase + dust position divergences (positions, not structure). Render only the DARK contact pass — the bright sparkle is a separate unported sprite pass. Deferred (faint, not worth chasing now). |
 
 ## REGRESSIONS caught + fixed this session
 
@@ -55,11 +57,12 @@
 
 - Wing-glow size/intensity exact match (port glow looked smaller at one matched
   frame — never human-confirmed; could be Tear position).
-- Dynamic contact-shadow-BLOB pass (`FUN_00470385`/`FUN_0046f648`) — **stubbed**
-  (no src ref); retail draws ~6 soft multiply blobs under objects every frame
-  (draw-order GT). These are an *augmentation on top of* the already-matching
-  baked mesh shadows; visible impact is small/localized (house-render-gaps §4).
-  ZWRITE=0 → irrelevant to dust occlusion. Separate minor cosmetic chip.
-- Ambient motes (`FUN_0046f2a3`, 6 live in HOUSE) — stubbed; never rendered.
+- Object/furniture contact-shadow-BLOB pass (`FUN_00470385` object table,
+  `DAT_073a6e84`) — still **stubbed** (no src ref); retail draws ~6 soft multiply
+  blobs under objects every frame (draw-order GT). An *augmentation on top of* the
+  already-matching baked mesh shadows; visible impact small/localized
+  (house-render-gaps §4). ZWRITE=0 → irrelevant to dust occlusion. The sibling
+  ambient-mote render (`FUN_0046f648`) that `FUN_00470385` also calls IS now
+  ported; the object-table blobs remain. Separate minor cosmetic chip.
 
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].

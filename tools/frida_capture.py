@@ -383,6 +383,30 @@ class CaptureResult:
 def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     frames_dir   = run_dir / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
+
+    # Auto-enable call-trace when the input segtrace declares a {calltrace} op
+    # (the op is the single source of truth — it also arms the agent's window
+    # and drives the port).  The CLI main() does this too; run_capture callers
+    # (scenario-test --target both) reach the engine through here instead, so
+    # without this the agent armed + emitted events but f_call stayed None and
+    # the retail call_trace.jsonl was never written.
+    if (not cfg.call_trace and cfg.input_segtrace_path is not None):
+        try:
+            if '"calltrace"' in Path(cfg.input_segtrace_path).read_text():
+                cfg.call_trace = True
+        except OSError:
+            pass
+    # ...and load the default bisect-vetted Frida-safe VA list (same default
+    # the CLI uses) when call-trace is on but no explicit VAs were passed, so
+    # the agent actually hooks something to emit.
+    if cfg.call_trace and not cfg.call_trace_vas:
+        ct_path = (ROOT / "tools" / "ttd" / "data" /
+                   "engine_function_vas_frida_safe.json")
+        if ct_path.exists():
+            raw = json.loads(ct_path.read_text())
+            cfg.call_trace_vas = (raw["vas"] if isinstance(raw, dict)
+                                  and "vas" in raw else list(raw))
+
     audio_jsonl  = run_dir / "audio.jsonl"
     trace_jsonl  = run_dir / "trace.jsonl"
     agent_log    = run_dir / "agent.log"
