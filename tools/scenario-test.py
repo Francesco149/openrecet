@@ -318,6 +318,9 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
             hide_window=True,
             turbo=turbo, silent_audio=silent_audio,
             force_resolution=_openrecet_screen_dims(),
+            # Pin retail's LCG to the same seed the port uses (--rng-seed
+            # below), so RNG-driven positions are comparable, not seed-shifted.
+            rng_seed=scen.rng_seed,
         )
 
     return frida_capture.run_capture(
@@ -329,6 +332,9 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
         hide_window=True,
         turbo=turbo, silent_audio=silent_audio,
         force_resolution=_openrecet_screen_dims(),
+        # Pin retail's LCG to the same seed the port uses (--rng-seed), so
+        # RNG-driven positions are comparable, not seed-shifted.
+        rng_seed=scen.rng_seed,
     )
 
 

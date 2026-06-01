@@ -253,6 +253,12 @@ class CaptureConfig:
     # retail path defaults this to openrecet's resolution so the
     # side-by-sides line up by construction.
     force_resolution: tuple[int, int] | None = None
+    # RNG seed pin. When set, the agent forces DAT_006023a0 to this value
+    # right after the engine's one WinMain wall-clock reseed (FUN_005041ec) —
+    # the mirror of the port's --rng-seed. Makes RNG-driven positions
+    # (foot-dust, ambient motes, particle jitter) directly comparable across
+    # targets instead of seed-shifted. None = leave retail's wall-clock seed.
+    rng_seed: int | None = None
     # D3D state-trace emitter (Phase D.4). When `d3d_trace` is true,
     # the agent hooks IDirect3DDevice8 vtable slots and buffers one
     # event per state-change or draw call; the Present hook flushes
@@ -821,6 +827,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     if cfg.force_resolution is not None:
         init_cfg["force_resolution"] = [int(cfg.force_resolution[0]),
                                         int(cfg.force_resolution[1])]
+    if cfg.rng_seed is not None:
+        init_cfg["rng_seed"] = int(cfg.rng_seed) & 0xffffffff
     if cfg.d3d_trace:
         init_cfg["d3d_trace"] = True
         if cfg.d3d_trace_frames is not None:
@@ -965,7 +973,8 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 turbo: bool = False,
                 turbo_step_ms: int = 17,
                 silent_audio: bool = False,
-                force_resolution: tuple[int, int] | None = None) -> dict:
+                force_resolution: tuple[int, int] | None = None,
+                rng_seed: int | None = None) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
     Returns the meta dict that scenario-test.py writes to run.json.
@@ -999,6 +1008,10 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         turbo=turbo, turbo_step_ms=turbo_step_ms,
         silent_audio=silent_audio,
         force_resolution=force_resolution,
+        # Default to the scenario's own seed (the port pins the same value via
+        # --rng-seed) so comparisons share one LCG stream unless overridden.
+        rng_seed=(rng_seed if rng_seed is not None
+                  else getattr(scenario, "rng_seed", None)),
     )
     result = _run_capture_impl(cfg, run_dir)
     meta = {
@@ -1207,6 +1220,12 @@ def main(argv: list[str] | None = None) -> int:
                          "(cumulative {ret_va: count}). Finds which subsystems "
                          "advance the RNG stream per frame — the metric for "
                          "foot-dust / particle RNG parity vs the port.")
+    ap.add_argument("--rng-seed", type=lambda s: int(s, 0), default=None,
+                    help="Pin DAT_006023a0 to this value right after the "
+                         "engine's WinMain reseed (FUN_005041ec) — the mirror "
+                         "of openrecet's --rng-seed. Makes RNG-driven positions "
+                         "(foot-dust, motes, particles) comparable across "
+                         "targets. Omit to keep retail's wall-clock seed.")
     args = ap.parse_args(argv)
     fr_tuple: tuple[int, int] | None = None
     if args.force_resolution:
@@ -1310,6 +1329,7 @@ def main(argv: list[str] | None = None) -> int:
         turbo=args.turbo, turbo_step_ms=args.turbo_step_ms,
         silent_audio=args.silent_audio,
         force_resolution=fr_tuple,
+        rng_seed=args.rng_seed,
         d3d_trace=args.d3d_trace,
         d3d_trace_frames=d3d_trace_frames,
         call_trace=args.call_trace,

@@ -156,6 +156,11 @@ const ADDR = {
                                        // pauses on scene transition (Phase
                                        // B)".
     var_lcg_seed:        0x006023a0,  // u32 — engine RNG state
+    rng_set_seed:        0x005041ec,  // void(seed) — DAT_006023a0 = seed; the
+                                       // engine's srand, called EXACTLY once at
+                                       // WinMain (FUN_005045eb wall-clock reseed,
+                                       // all.c:78946).  Pin point — mirrors the
+                                       // port's --rng-seed.
     var_stage_dungeon_id: 0x0438b4c8, // i32 DAT_0438b4c8 — current dungeon id
     var_stage_next_floor: 0x0438b4cc, // i32 DAT_0438b4cc — next-floor id
 
@@ -485,6 +490,11 @@ let g_diff_test_enabled = false;
 // and the captures don't line up for side-by-side diffs.
 let g_force_resolution_w = 0;
 let g_force_resolution_h = 0;
+
+// rng_seed: when non-null, pin DAT_006023a0 to this value right after the
+// engine's one WinMain wall-clock reseed (FUN_005041ec), so retail and the
+// port (which uses --rng-seed) share the same LCG sequence in comparisons.
+let g_rng_seed = null;
 
 // Mesh dump runtime state. `g_mesh_dump_filters` is a list of substrings;
 // when set, only paths containing any of them get dumped (case-sensitive
@@ -1416,6 +1426,28 @@ function installForceResolutionHook(w, h) {
         },
     });
     log('force_resolution: armed on FUN_0047a474 exit (' + w + '×' + h + ')');
+}
+
+// ─── RNG seed pinning ───────────────────────────────────────────────────
+// Force DAT_006023a0 to `seed` right after the engine's lone WinMain reseed
+// (FUN_005041ec @ 0x5041ec, called once from all.c:78946).  The port pins the
+// same point via --rng-seed (rng.c rng_seed_from_now is replaced by
+// rng_seed(n)); pinning both makes every RNG-driven position — foot-dust,
+// ambient motes, particle jitter — directly comparable instead of seed-shifted.
+function installRngSeedHook(seed) {
+    const seedPtr = rva(ADDR.var_lcg_seed);
+    Interceptor.attach(rva(ADDR.rng_set_seed), {
+        onLeave: function () {
+            try {
+                seedPtr.writeU32(seed >>> 0);
+                send({kind: 'log',
+                      msg: 'rng_seed: DAT_006023a0 pinned = ' + (seed >>> 0)});
+            } catch (e) {
+                err('rng_seed.onLeave', e.message);
+            }
+        },
+    });
+    log('rng_seed: armed on FUN_005041ec exit (seed=' + (seed >>> 0) + ')');
 }
 
 function installSilentAudioHook() {
@@ -3507,6 +3539,11 @@ rpc.exports = {
             g_force_resolution_h = config.force_resolution[1] | 0;
         }
 
+        // rng_seed: pin DAT_006023a0 to this value (mirrors the port's
+        // --rng-seed) so RNG-driven positions are comparable across targets.
+        g_rng_seed = (config.rng_seed === null || config.rng_seed === undefined)
+                   ? null : (config.rng_seed >>> 0);
+
         // D3D state-trace (Phase D.4). When d3d_trace:true, the agent
         // installs vtable hooks on Direct3DDevice8 methods as soon as
         // the device pointer is live (driven by the d3d_init_wrapper
@@ -3739,6 +3776,11 @@ rpc.exports = {
             if (g_force_resolution_w > 0 && g_force_resolution_h > 0) {
                 installForceResolutionHook(g_force_resolution_w,
                                            g_force_resolution_h);
+            }
+            // RNG seed pin — must install pre-resume so we catch the single
+            // WinMain reseed (FUN_005041ec) before any RNG consumption.
+            if (g_rng_seed !== null) {
+                installRngSeedHook(g_rng_seed);
             }
             // Mesh dump — must install pre-resume so we catch every
             // FUN_00472836 invocation including the first ones during
