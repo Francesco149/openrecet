@@ -64,10 +64,23 @@ jobs:
             git log -15 --pretty='- %s (%h)'
           } > release-notes.md
 
+      # Move the 'nightly' tag onto the commit we just built.  Without this
+      # the tag stays pinned to wherever it was first created, so the release
+      # links to stale source even though the binary is fresh —
+      # softprops/action-gh-release attaches to an existing tag but never
+      # repoints it.  Force-update the ref (actions/checkout persists the
+      # GITHUB_TOKEN and `contents: write` permits the tag push).  Silent:
+      # tag pushes don't notify, and the release already exists.
+      - name: Repoint 'nightly' tag to the built commit
+        run: |
+          git tag -f nightly "${GITHUB_SHA}"
+          git push -f origin "refs/tags/nightly"
+
       - name: Publish to rolling 'nightly' pre-release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly
+          target_commitish: ${{ github.sha }}
           name: Nightly
           prerelease: true
           make_latest: false
