@@ -18,6 +18,7 @@
 
 #include "render_quad.h"   /* render_quad_* + <d3d8.h> (IDirect3DDevice8) */
 #include "sprite.h"        /* sprite_t, sprite_load, sprite_destroy        */
+#include "font_draw.h"     /* font_draw_text (glyph blit)                  */
 #include "scene1_intro_dialogue.h"
 #include "scene1_dialogue_run.h"
 
@@ -174,9 +175,45 @@ static void draw_standees(IDirect3DDevice8 *dev,
     }
 }
 
-/* ─── dialogue window box (FUN_0046c9a2 lines 210-282) ───────────────────── */
-static void draw_box(IDirect3DDevice8 *dev, const struct ive_runtime *rt,
-                     const struct ive_program *prog)
+/* The text-speed table value DAT_005c78dc (px per reveal tick). The fresh-config
+ * default is "normal" = 32 (same as ive_completion's IVE_REVEAL_SPEED). The
+ * speed setting (DAT_056e5784 0..2) isn't wired port-side yet — PORT-DEBT. */
+#define DLG_REVEAL_SPEED 32
+
+/* FUN_00405a52 — draw one text row truncated to `max_chars` logical (SJIS-aware)
+ * characters; returns the engine's char count (iVar3: chars before the final).
+ * The truncated row is rendered via font_draw_text at scale 1.0 — which equals
+ * FUN_0047d464's 0.65·(76/100) glyph scale (the font-size global _DAT_0052912c
+ * defaults to 76, the same 0.76 baked into font_draw_text). */
+static int dialogue_draw_row(IDirect3DDevice8 *dev, float x, float y,
+                             const char *row, uint32_t color, int max_chars)
+{
+    char buf[256];
+    int i1 = 0, i2 = 0, i3 = 0;
+    if (max_chars != 0 && row[0] != '\0') {
+        for (;;) {
+            if (i3 < max_chars) buf[i2] = row[i1];
+            if ((signed char)row[i1] < 1) {          /* SJIS lead / control → 2 bytes */
+                if (i3 < max_chars) { buf[i2 + 1] = row[i1 + 1]; i2 += 2; }
+                i1 += 2;
+            } else {
+                i1 += 1;
+                if (i3 < max_chars) i2 += 1;
+            }
+            if (row[i1] == '\0') break;
+            i3 += 1;
+        }
+    }
+    buf[i2] = '\0';
+    font_draw_text(dev, x, y, buf, color, 1.0f);
+    return i3;
+}
+
+/* ─── dialogue window box + text (FUN_0046c9a2 lines 210-388) ───────────────
+ * The box and the glyph text share `local_c` (the speaker-relative centre), so
+ * they're ported together to mirror the engine's flow. */
+static void draw_box_and_text(IDirect3DDevice8 *dev, const struct ive_runtime *rt,
+                              const struct ive_program *prog)
 {
     if (g_window.tex == NULL)
         return;
@@ -191,55 +228,77 @@ static void draw_box(IDirect3DDevice8 *dev, const struct ive_runtime *rt,
         render_quad_flush(dev);
     }
 
-    int box_open = rt->box_open;          /* DAT_073a3e14 */
-    if (box_open < 1)
-        return;                            /* box closed */
+    float local_c = 16.0f;                     /* engine default (line 224) */
+    int box_open  = rt->box_open;              /* DAT_073a3e14 */
+    int mode      = rt->scene.box_pos_mode;    /* DAT_005c7984 */
 
-    float sx = 1.0f, sy = 1.0f;
-    int alpha = 0xff;
-    ive_box_scale(box_open, &sx, &sy, &alpha, rt->line_row < 0);
+    if (box_open >= 1) {
+        float sx = 1.0f, sy = 1.0f;
+        int alpha = 0xff;
+        ive_box_scale(box_open, &sx, &sy, &alpha, rt->line_row < 0);
 
-    /* Centre reference (local_c): half the speaker standee's graphic width + its
-     * x ± its centre offset (field 7). The box is positioned relative to the
-     * speaker (DAT_073a6da0). */
-    int spk = rt->speaker;
-    float local_c = 0.0f;
-    if (spk >= 0 && spk < IVE_STANDEE_COUNT) {
-        const struct ive_standee *s = &rt->scene.standees[spk];
-        int g = s->field[IVE_ST_GRAPHIC];
-        float halfw = (g >= 0 && g < prog->n_chrname) ? (float)(prog->chr_w[g] / 2) : 0.0f;
-        float x   = ive_word_f(s->field[1]);
-        float ctr = ive_word_f(s->field[7]);
-        local_c = (s->field[12] == 0) ? (halfw + x + ctr) : (halfw + x - ctr);
+        /* Centre reference: half the speaker standee's graphic width + its x ±
+         * its centre offset (field 7). */
+        int spk = rt->speaker;
+        if (spk >= 0 && spk < IVE_STANDEE_COUNT) {
+            const struct ive_standee *s = &rt->scene.standees[spk];
+            int g = s->field[IVE_ST_GRAPHIC];
+            float halfw = (g >= 0 && g < prog->n_chrname) ? (float)(prog->chr_w[g] / 2) : 0.0f;
+            float x   = ive_word_f(s->field[1]);
+            float ctr = ive_word_f(s->field[7]);
+            local_c = (s->field[12] == 0) ? (halfw + x + ctr) : (halfw + x - ctr);
+        } else {
+            local_c = 0.0f;
+        }
+
+        float off    = (float)rt->scene.box_pos_off;
+        uint32_t col = ((uint32_t)alpha << 24) | 0xffffffu;
+        float dy     = (off + 88.0f) - sy * 88.0f;
+        render_quad_bind(dev, &g_window);
+
+        if (mode == 2) {
+            /* text-only narration box — no frame body */
+        } else if (mode == -1) {                  /* left-aligned */
+            local_c = (local_c - 416.0f) + 32.0f;
+            const float dst[4] = { (local_c + 208.0f) - sx * 208.0f, dy, sx * 416.0f, sy * 176.0f };
+            const float src[4] = { 0.0f, 0.0f, 416.0f, 176.0f };
+            render_quad_add(dst, src, g_window.width, g_window.height, col);
+            render_quad_flush(dev);
+        } else if (mode != 0) {                   /* mirrored frame */
+            local_c -= 32.0f;
+            const float dst[4] = { (local_c + 208.0f) - sx * 208.0f, dy, sx * 416.0f, sy * 176.0f };
+            const float src[4] = { 0.0f, 0.0f, 416.0f, 176.0f };
+            render_quad_add_mirrored(dst, src, g_window.width, g_window.height, col);
+        } else {                                  /* mode 0 — centre box, lower strip */
+            local_c -= 64.0f;
+            const float dst[4] = { (local_c + 208.0f) - sx * 208.0f, dy, sx * 416.0f, sy * 176.0f };
+            const float src[4] = { 0.0f, 176.0f, 416.0f, 352.0f };
+            render_quad_add(dst, src, g_window.width, g_window.height, col);
+            render_quad_flush(dev);
+        }
+        local_c += 80.0f;                         /* LAB_0046d30c */
     }
 
-    int mode      = rt->scene.box_pos_mode;   /* DAT_005c7984 */
-    float off     = (float)rt->scene.box_pos_off;
-    uint32_t col  = ((uint32_t)alpha << 24) | 0xffffffu;
-    float dy      = (off + 88.0f) - sy * 88.0f;
-
-    render_quad_bind(dev, &g_window);
-
-    if (mode == 2) {
-        /* text-only narration box — no frame body (local_c adjust only). */
+    /* ── glyph text (lines 350-388) ── */
+    if (rt->line_row < 0)
         return;
-    } else if (mode == -1) {                  /* left-aligned */
-        local_c = (local_c - 416.0f) + 32.0f;
-        const float dst[4] = { (local_c + 208.0f) - sx * 208.0f, dy, sx * 416.0f, sy * 176.0f };
-        const float src[4] = { 0.0f, 0.0f, 416.0f, 176.0f };
-        render_quad_add(dst, src, g_window.width, g_window.height, col);
-    } else if (mode != 0) {                   /* mirrored frame */
-        local_c -= 32.0f;
-        const float dst[4] = { (local_c + 208.0f) - sx * 208.0f, dy, sx * 416.0f, sy * 176.0f };
-        const float src[4] = { 0.0f, 0.0f, 416.0f, 176.0f };
-        render_quad_add_mirrored(dst, src, g_window.width, g_window.height, col);
-    } else {                                  /* mode 0 — centre box, lower strip */
-        local_c -= 64.0f;
-        const float dst[4] = { (local_c + 208.0f) - sx * 208.0f, dy, sx * 416.0f, sy * 176.0f };
-        const float src[4] = { 0.0f, 176.0f, 416.0f, 352.0f };
-        render_quad_add(dst, src, g_window.width, g_window.height, col);
+    float budget = (float)(rt->reveal - 4) * (float)DLG_REVEAL_SPEED / 32.0f;
+    if (budget <= 0.0f)
+        return;
+    float base_y = (float)rt->scene.box_pos_off + 48.0f;
+    float text_x = local_c - 16.0f;
+    uint32_t color = (rt->scene.choice_mode >= 0) ? 0xffffff00u : 0xffffffffu;
+    float row_y = 0.0f;
+    for (int r = 0; r < rt->line_rows; r++) {
+        int gi = rt->line_row + r;
+        if (gi < 0 || gi >= IVE_MAX_ROWS) break;
+        int max_chars = (int)budget;
+        int consumed = dialogue_draw_row(dev, text_x, row_y + base_y + 8.0f,
+                                         prog->glyph[gi], color, max_chars);
+        budget -= (float)consumed;
+        if (budget <= 0.0f) break;
+        row_y += 30.0f;                           /* 0x1e */
     }
-    render_quad_flush(dev);
 }
 
 void scene1_dialogue_draw(IDirect3DDevice8 *dev)
@@ -256,9 +315,9 @@ void scene1_dialogue_draw(IDirect3DDevice8 *dev)
     render_quad_state_setup(dev);   /* FUN_0049b425 — 2D alpha-blend preset */
     draw_background(dev, rt, prog);
     draw_standees(dev, rt, prog);
-    draw_box(dev, rt, prog);
+    draw_box_and_text(dev, rt, prog);
 
-    /* Nameplate + glyph text land next (Layer 3b); fades/skip-prompt = Layer 4. */
+    /* Nameplate land next; fades/skip-prompt = Layer 4. */
 }
 
 #endif /* _WIN32 */
