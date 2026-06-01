@@ -5,6 +5,7 @@
 #include "nowloading.h"
 #include "npc_schedule.h"
 #include "save_bank.h"
+#include "scene1_intro_dialogue.h"
 #include "scene1_intro_events.h"
 #include "scene_new_game.h"
 #include "stage_post_load.h"
@@ -74,6 +75,11 @@ void scene_post_fade_init(void)
      * the TAS segtrace's second `wait HOUSE_FREEROAM` resolves on both
      * targets. Replace with the real dialogue subsystem when it ports. */
     scene1_intro_events_arm();
+
+    /* Arm the opening-prologue dialogue (iv1_1 → iv1_2). Additive: feeds the
+     * TEXT_ANIM anchors only; the load-gate/HOUSE_FREEROAM dance stays with the
+     * stub above. See src/scene1_intro_dialogue.h. */
+    scene1_intro_dialogue_arm();
 
     /* Engine FUN_0049a59e L71-72 — the 16-global UI scratch reset
      * (FUN_004060ff) + DAT_0734b9a0 clear (FUN_004682d0).  Faithful

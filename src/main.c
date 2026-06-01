@@ -24,6 +24,7 @@
 #include "sprite.h"
 #include "input.h"
 #include "anchor_trace.h"
+#include "scene1_intro_dialogue.h"   /* TEXT_ANIM anchor sources */
 #include "input_trace.h"
 #include "input_segtrace.h"
 #include "layers.h"
@@ -2280,6 +2281,9 @@ static void render_dispatch(void)
         struct anchor_world w = {
             .scene_state    = g_scene_state,
             .loading_active = nowloading_is_active(),
+            .dlg_active     = scene1_intro_dialogue_active(),
+            .text_reveal    = scene1_intro_dialogue_text_reveal(),
+            .text_revealed  = scene1_intro_dialogue_text_revealed(),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);

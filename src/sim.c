@@ -37,6 +37,7 @@
 #include "input.h"        /* g_input_state for cur-buttons read */
 #include "nowloading.h"   /* nowloading_set_active(0) — drop the overlay gate */
 #include "scene.h"        /* g_scene_state dispatch */
+#include "scene1_intro_dialogue.h" /* opening-prologue dialogue (TEXT_ANIM) */
 #include "scene1_intro_events.h"  /* STUB: post-new-game double-HF sequencer */
 #include "scene1_particles_tick.h"  /* engine FUN_0040fb3a — LAB_00453bed body */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
@@ -249,6 +250,14 @@ void sim_step_a(void)
                                &g_sim_buttons[i].held);
         g_sim_buttons[i].cur = cur;
     }
+
+    /* Opening-prologue dialogue. Ticks on INGAME, non-loading frames (we only
+     * reach here with the worker idle), driving the iv1_1→iv1_2 reveal +
+     * TEXT_ANIM_START/END anchors off player 1's held buttons. Dormant unless
+     * armed at new-game; a no-op once the 46 lines complete.
+     * See src/scene1_intro_dialogue.h. */
+    if (g_scene_state == SCENE_STATE_INGAME)
+        scene1_intro_dialogue_tick(g_input_state[0].buttons);
 
     /* Engine FUN_004536cb L50470-50471: two unconditional per-frame
      * helpers, run between the button mode-cycle block (above) and
