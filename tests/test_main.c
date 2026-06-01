@@ -443,6 +443,7 @@ struct test_case {
     X(dialogue_two_msgs_stack_rows) \
     X(dialogue_bgset_and_se_name_tables) \
     X(dialogue_chr_subops) \
+    X(dialogue_rmb_and_end_keywords) \
     \
     X(render_quad_init_seeds_z_rhw_specular) \
     X(render_quad_add_one_emits_six_vertices) \

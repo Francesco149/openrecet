@@ -126,6 +126,32 @@ int test_dialogue_bgset_and_se_name_tables(void)
     return 0;
 }
 
+/* rmb:a,b emits IVE_OP_RMB with both args incremented (engine `atoi+1`);
+ * end: emits the IVE_OP_END_SCRIPT terminator (handler 0x46dd76, ret 3) ahead
+ * of the always-appended NULL IVE_OP_END idle row. */
+int test_dialogue_rmb_and_end_keywords(void)
+{
+    static struct ive_program prog;
+    const char *s =
+        "rmb:40,40\r\n"
+        "end:\r\n";
+    int ok = scene1_dialogue_parse(s, &prog);
+    T_ASSERT(ok == 1);
+
+    int r = nth_op(&prog, IVE_OP_RMB, 0);
+    T_ASSERT(r >= 0);
+    T_ASSERT_EQ_I(prog.cmds[r].a1, 41);     /* 40 + 1 */
+    T_ASSERT_EQ_I(prog.cmds[r].a2, 41);
+
+    int e = nth_op(&prog, IVE_OP_END_SCRIPT, 0);
+    T_ASSERT(e >= 0);
+    T_ASSERT(r < e);                        /* rmb before end */
+    /* The compiler still appends the NULL idle terminator after end:. */
+    T_ASSERT_EQ_I(prog.cmds[prog.n_cmds - 1].op, IVE_OP_END);
+    T_ASSERT(e < prog.n_cmds - 1);
+    return 0;
+}
+
 /* chr sub-ops: dir, the move:x,y pair, blend mode, disp. */
 int test_dialogue_chr_subops(void)
 {

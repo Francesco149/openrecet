@@ -213,6 +213,12 @@ static void parse_line(struct ive_program *p, const char *line)
              (int32_t)(((uint32_t)(r & 0xff) << 16) | ((uint32_t)(g & 0xff) << 8) | (uint32_t)(b & 0xff)));
     } else if (kw(line, "bgscroll:", 9)) {
         emit(p, IVE_OP_BGSCROLL, ive_atof_i(line + 9), 0);
+    } else if (kw(line, "rmb:", 4)) {
+        /* rmb:a,b — screen-shake jitter (engine 0x46d926). Both args are
+         * stored as atoi(arg)+1 (the engine's `iVar1 + 1`). */
+        int a = ive_atoi(line + 4) + 1;
+        arg = past(line + 4, ',');
+        emit(p, IVE_OP_RMB, a, (arg ? ive_atoi(arg) : 0) + 1);
     } else if (kw(line, "bgset:", 6)) {
         if (p->n_bg < IVE_MAX_NAMES) copy_name(p->bg[p->n_bg], line + 6); else p->overflow = 1;
         emit(p, IVE_OP_BG, p->n_bg, 0);
@@ -258,6 +264,13 @@ static void parse_line(struct ive_program *p, const char *line)
         int v = ive_atoi(line + 8);
         arg = past(line + 8, ':');
         emit(p, IVE_OP_LIGHTON, v, arg ? ive_atoi(arg) : 0);
+    } else if (kw(line, "end:", 4)) {
+        /* end: — script terminator (engine 0x46dd76, returns 3 → the walk
+         * marks the scene's seen-flag and signals completion). Every
+         * prologue script ends with this; the trailing IVE_OP_END (NULL fn)
+         * the compiler always appends only *idles* the walk, it does not end
+         * the script. See docs/findings/opening-prologue.md §handler bodies. */
+        emit(p, IVE_OP_END_SCRIPT, 0, 0);
     } else if (kw(line, "wait:", 5)) {
         emit(p, IVE_OP_WAIT, ive_atoi(line + 5), 0);
     } else if (kw(line, "music:", 6)) {

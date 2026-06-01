@@ -58,7 +58,7 @@ enum ive_op {
     IVE_OP_FADEOUT,        /* 0x46dd53  fadeout:f:r,g,b,a               */
     IVE_OP_LIGHTON,        /* 0x46dd7a  lighton:a:b                     */
     IVE_OP_LIGHTOFF,       /* 0x46ddb1  lightoff                        */
-    IVE_OP_RMB2,           /* 0x46dd76  (4-char marker after fade)      */
+    IVE_OP_END_SCRIPT,     /* 0x46dd76  end: — script terminator (ret 3) */
     IVE_OP_WAIT,           /* 0x46dcd6  wait:n            (YIELD)       */
     IVE_OP_MUSIC,          /* 0x46dcef  music:n                         */
     IVE_OP_HOLDMUSIC,      /* 0x46dce3  holdmusic                       */

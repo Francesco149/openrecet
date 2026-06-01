@@ -322,3 +322,66 @@ regardless of glyph widths (use char-count × nominal advance as the budget
 proxy). The chr-anim float loop + `thunk_FUN_005041f6` jitter reads in `0x46c320`
 /`0x46c9a2` are the **dust RNG-stream** consumers — port them to close that front
 too ([[scene1-rng-stream-parity]] unification).
+
+### RESOLVED — handler bodies + runtime tick (raw-disasm, 2026-06-01)
+
+> The `0x46d8xx–0x46ddxx` handler stubs are computed-call-only (absent from the
+> decompiled C). Disassembled from `vendor/unpacked/` (image base 0x400000).
+> This nails the **return-code contract** (drives walk yield-timing) and the
+> **msg-path state writes** (drive the `TEXT_ANIM_*` anchors).
+
+**Return codes (the `0x46c320` walk contract).** Every handler ends `push $N;
+pop %eax; ret`. Observed: **all `chr:*` handlers, `color/bgset/polybg/bgscroll/
+rmb/windowset/windowpos/skip*/fadein/fadeout/light*/music/holdmusic/mfade*/se/
+msg-speaker/msg-clear` → ret 1** (advance + run next command same frame).
+**Yield/block ops:** `wait` (`0x46dcd6`, sets `DAT_073a6d7c=arg`, **ret 2**),
+`msg`-show (`0x46d97b`, **ret 2**), `msg`-waitkey (`0x46d93c`, **ret 0** until
+`DAT_073a3e08>=15` AND advance-edge `(DAT_073dddfe|DAT_073dddd4)&0x10`, then
+**ret 2** + SE 0x144), `end:` (`0x46dd76`, **ret 3** → walk's special path:
+`DAT_04510b38[scene]=1` + `DAT_056e5790[scene]=1` seen-flags, c320 returns 1).
+
+**Two keywords the landed parser was MISSING** (both present in `iv1_1.ivt`):
+- **`rmb:a,b`** → handler `0x46d926`, args `atoi(a)+1, atoi(b)+1` → `DAT_073a6d98
+  /DAT_073a6d9c` (screen-shake jitter counters; the `thunk_FUN_005041f6` reads
+  in `0x46c9a2` gated on them are **dust-RNG-stream consumers**).
+- **`end:`** → handler `0x46dd76` (ret 3, the script terminator). NOTE: the
+  parser also appends a NULL-fn `IVE_OP_END` row; a NULL handler in the walk just
+  *idles* at the last command (LAB_0046c518, ret 0) — it does **not** end the
+  script. The real end is the `end:`→ret-3 path. Every prologue script ends with
+  an explicit `end:` line.
+
+**msg-path state writes (the anchor source).** `msg:a:b:text` compiles to
+SPEAKER + SHOW [+WAITKEY][+CLEAR][+WAIT(10)]:
+- **SPEAKER `0x46d9f3`**: `DAT_073a6da0=a` (speaker idx), `DAT_073a3e10=b`
+  (portrait/face idx). ret 1.
+- **SHOW `0x46d97b`** (the reveal beat): `DAT_073a6a38 = (a1==-1 ? DAT_005c7a28
+  : a1)`; `DAT_005c7a28 += a2` (running glyph-offset accumulator);
+  **`DAT_073a3e00=0`** (reveal counter), **`DAT_073a3e08=0`** (dwell);
+  `DAT_073a6bd0=a2` (line glyph count); **`DAT_073a6d74=1`** (new-line flag);
+  `DAT_073a6a30++` (line index); saves per-line offset/count to
+  `(&DAT_073a6a3c)[line]` / `(&DAT_073a6bd8)[line]`. ret 2 (yield).
+- **CLEAR `0x46d9e1`**: `DAT_073a6a38=-1`, `DAT_073a6a34=-1` (no current line →
+  `0x46c9a2` skips the completion block; box closes). ret 1.
+
+**Anchor mechanics (combined `0x46c320`-then-`0x46c9a2` per frame).** SHOW sets
+`e00=0`+`d74=1` (frame N). `0x46c9a2` (runs after c320, same frame): if
+`-1<DAT_073a6a38` and `d74==1` → **`DAT_073a3e00=1`** (START edge) + `d74=0`;
+tentatively `e04=1`, then `e04=0` if the reveal budget `(e00-4)*DAT_005c78dc/32`
+doesn't cover the line's glyph advances. `0x46c320` next frames: while `e00>0`,
+`e00++` (×`DAT_005c78ec` steps/frame); **advance-edge `0x10` forces `e00=0x800`**;
+held `0x40`+scene-FF-flag forces `0x800`; held `0x20`→2 steps. Once `e04!=0`,
+`e08++` each tick (the WAITKEY dwell). So per line: **START** = `e00` →1 (frame
+after SHOW), **END** = `e04` 0→1 (budget covers line; immediate next frame under
+advance-spam since `0x10` slams `e00`→0x800). Port edges:
+`anchor_world.text_reveal==1` / `text_revealed` (`anchor_trace.c`).
+
+**Input masks.** `DAT_073dddd0`(p1)/`DAT_073dddfa`(p2) = **held** at record
+offset 0; `DAT_073dddd4`(p1)/`DAT_073dddfe`(p2) = **pressed-edge** at offset +4
+(stride 0x2a). Bit **0x10** = face button A (binding slot 4 = confirm/advance) —
+the bit the `intro-dialogue-lines` trace pulses. The port keeps only the held
+mask (`g_input_state[N].buttons`); the runtime derives the edge as `cur & ~prev`.
+
+**Box open/close gate.** `DAT_073a3e14` (0..15) ramps up when a line is shown,
+down when cleared; the `wait` counter `DAT_073a6d7c` only decrements while the
+box is fully open (==0xf) or fully closed (<1) — so the box anim delays `wait`.
+Modeled for frame-fidelity; the per-line anchor rebase absorbs it either way.
