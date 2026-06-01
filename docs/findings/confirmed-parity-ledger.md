@@ -32,9 +32,9 @@
 |---|---|---|---|
 | **Recette position + walk phase** (free-roam) | exact frame-for-frame on the walk benches; she reads pure-black in the port-vs-retail diff | user, on the `house-walk-down-dense` feed comparison | 2026-06-01 |
 | Player walk + collision (HOUSE) | bit-exact px/pz vs retail (mesh resolver) | engine-quirks §60–70; wall_collide_diff | 2026-05-31 |
-| Character ground shadow (player+Tear, Csh.1) | "pretty spot on" | user, feed `20260601T122354_6f81` (cap_06 feet zoom) | 2026-06-01 |
+| **Character ground shadow** (player+Tear, Csh.1) | **user-confirmed 1:1** | user (explicit), + feed `20260601T122354_6f81` cap_06 feet zoom | 2026-06-01 |
 | Foot-dust EMIT cadence | every 16 frames (median gap 16) | Frida ground-truth probe | 2026-06-01 |
-| **Furniture shadows** | the visible furniture/floor shadows are the **real baked 3D meshes** (real mesh loader), NOT a placeholder — table-base zoom-diff is all-black | `house-walk-tables` cap_10 zoom-diff, feed 2026-06-01 | 2026-06-01 |
+| **Furniture shadows** | **user-confirmed 1:1** — the real baked 3D meshes (real mesh loader), NOT a placeholder; table-base zoom-diff all-black | user (explicit) + `house-walk-tables` cap_10 zoom-diff, feed 2026-06-01 | 2026-06-01 |
 
 ## CONFIRMED NOT 1:1 (human-flagged — do NOT hand-wave)
 
