@@ -25,6 +25,7 @@
 #include "scene1_alpha_walker.h"
 #include "scene1_chr_walker.h"   /* Cchr.2d — FUN_00456f56 character-sprite walker */
 #include "scene1_chr_prepass.h"  /* Cchr.2e — FUN_0045672a records/people pre-pass  */
+#include "scene1_wing_glow.h"    /* P0.1 — FUN_004176ff records-A type-0x1f arm      */
 #include "call_trace.h"
 #include "scene1_camera.h"
 #include "scene1_emit_record.h"  /* scene1_emit_record — PII.1 */
@@ -849,8 +850,13 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * FUN_00436f97 ports the actor/people tables (see scene1_chr_walker.h). */
     scene1_chr_walker_render((struct IDirect3DDevice8 *)dev);
 
-    /* L252-L254: WIDE projection (re-set, idempotent) → chr walker. */
+    /* L252-L254: WIDE projection (re-set, idempotent) → chr walker
+     * (FUN_004176ff).  Only the records-A type-0x1f arm is ported so far
+     * (P0.1, scene1_wing_glow.c — the companion wing-glow sparkle); the
+     * rest of the 30 KB function (other particle-type arms + records-B
+     * passes) stays unported in scene1_walk_chr_TODO. */
     scene1_push_projection(dev, 2000.0f);
+    scene1_wing_glow_render((struct IDirect3DDevice8 *)dev);
     scene1_walk_chr_TODO();
 
     /* L255-L257: project back to z_far=350 → tail. */

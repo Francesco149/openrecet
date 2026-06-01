@@ -2,19 +2,21 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 4,
+  "total": 7,
   "by_kind": {
-   "stub": 1,
+   "stub": 3,
    "synthetic-data": 0,
-   "simplified": 2,
+   "simplified": 3,
    "hardcode": 1,
    "scaffold": 0,
    "force-flag": 0
   },
   "unknown_kinds": {},
-  "retiring_engine_fns": 3,
+  "retiring_engine_fns": 5,
   "by_engine_fn": {
+   "FUN_004176ff": 2,
    "FUN_004161c7": 1,
+   "FUN_004176ff L3876": 1,
    "FUN_00436f97": 1,
    "FUN_00454191": 1
   }
@@ -38,10 +40,34 @@
   },
   {
    "kind": "simplified",
+   "engine_fn": "FUN_004176ff L3876",
+   "desc": "the engine's boosted-glow",
+   "file": "src/scene1_wing_glow.c",
+   "line": 34,
+   "kind_known": true
+  },
+  {
+   "kind": "simplified",
    "engine_fn": "FUN_00436f97",
    "desc": "of the 710-line state-entry init this",
    "file": "src/scene1_postload.c",
    "line": 9,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_004176ff",
+   "desc": "only the records-A type-0x1f arm is",
+   "file": "src/scene1_wing_glow.c",
+   "line": 29,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_004176ff",
+   "desc": "only the records-A 0x1f arm is ported;",
+   "file": "src/scene1_wing_glow.h",
+   "line": 19,
    "kind_known": true
   },
   {

@@ -70,7 +70,19 @@ RENDER spine FUN_004547ab (VERIFIED)
 
 ## Prioritized roadmap
 
-### P0 — Tear glow particles (user #1) — **table-identity RESOLVED (2026-06-01 probe); renderer hunt next**
+### P0 — Tear glow particles (user #1) — **✅ LANDED 2026-06-01 (`src/scene1_wing_glow.c`)**
+
+> **Landed.** The renderer is `FUN_004176ff`'s records-A **main**-sweep arm
+> L3818 (NOT the L1422 sweep / "catch-all" theorised below — see the correction
+> in `docs/findings/scene1-wing-glow.md` + engine-quirks §80). Recipe recovered
+> from retail GT (`tools/dump_wingglow_groundtruth.py`): additive ONE/ONE, grey
+> age-fade diffuse × bright-blue `effect.bmp` 32×32 cell, ±256 quad,
+> `RotZ·billboard·S·T`. Port draws bright additive blue at Tear (verified
+> +67,+100,+140 RGB at the glow core). The original prose below is left for the
+> investigation record; the renderer hunt is done. **Open follow-up:** aggregate
+> glow is smaller than retail at the matched frame — suspect the frozen player
+> (controller unported, P4) offsetting Tear + the unported Tear sprite palette,
+> not the renderer; revisit after P4.
 
 The companion wing-sparkle is emitted (`co_emit_wing_sparkle`, `FUN_00447f4f`,
 type-0x1f, every 4th frame) and aged (`scene1_particles_tick.c`, grav −0.001 /

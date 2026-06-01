@@ -3079,3 +3079,47 @@ confirming its table is non-empty at runtime.
 > 📍 decomp `4176ff.c` records-A sweep L1422-1995 (`else` ≈L1708), the decoy at
 > L1180. Probe: `runs/tear-glow-probe/`, `runs/tear-glow-draws/`. Port target:
 > a records-A blue-billboard renderer modeled on `scene1_pass_f.c`. Builds on §73.
+>
+> ⚠️ **Superseded by §80** — the "L1422 sweep / catch-all `else` ≈L1708 / blue
+> *diffuse* `0xFF7F7FFF`" claims above are WRONG. Kept only as a record of the
+> wrong turn. Read §80 for the verified arm + recipe.
+
+## 80. The Tear wing-glow is the records-A **main** sweep arm L3818 (grey age-fade diffuse × *blue texture*, additive) — §79's L1422/catch-all/blue-diffuse theory was wrong
+
+Landed 2026-06-01 as `src/scene1_wing_glow.c` (chip P0.1). §79 correctly placed
+the sparkles in records-A type-0x1f, but mis-located *and* mis-coloured the draw.
+Corrections, all confirmed against retail ground truth
+(`tools/dump_wingglow_groundtruth.py` for the vbuf, `--d3d-trace` state-replay at
+the draw; `runs/wingglow-gt*`, `runs/wingglow-d3d`):
+
+- **Two records-A sweeps, not one.** L1422 (base `&DAT_069b2fb8`) is an *earlier*
+  additive pass whose explicit arms are {0x58,0x93,0x5a,0x56,0x42,0x41,0x61,0x72,
+  0x62} — **0x1f is not among them and falls through to no-draw there** (the L1708
+  "catch-all" is a sub-switch *inside* the 0x41/0x61/0x72/0x62 arm, not a main-type
+  default). The real draw is the **main** records-A sweep (L2608+, base
+  `&DAT_069b2f80`, type read as **int** at +0x30), arm **L3818**
+  (`iVar16 == 0x1f || 0x64 || 0x6d || 0x65 || 0x68 || 0x6c`), draw at **ret_va
+  0x41e165**.
+- **The blue is the TEXTURE, not the diffuse.** The arm writes a **grey** diffuse
+  `0xFF·iii` with `i = (age>0)?(0x7f − 4·age):0x7f` (age-fade), then MODULATEs it
+  against a bright pale-blue 32×32 cell of `bmp/effect.bmp` (UVs u[0.252,0.373]
+  v[0.502,0.623]) under **additive ONE/ONE** blend. §79's `0xFF7F7FFF` blue-diffuse
+  was a misread.
+- **The vbuf geometry is unreachable statically.** `&DAT_0064b548` is a BSS
+  billboard template (±256 quad, FVF 0x142) whose xyz+uv are **never written in
+  the decompile** — had to be read live from retail. Per-slot world =
+  `RotZ(rot.z)·billboard·Scale(scale·0.005)·Translate(pos)`.
+
+Verified: port now draws additive blue at Tear (brightest pixel +67,+100,+140 RGB).
+Residual aggregate-glow gap vs retail is the frozen player (controller unported →
+Tear hovers offset) + the unported Tear sprite palette, not the renderer.
+
+Lesson (reinforcing §79): a `--quad-hist` *position* trace tells you a function
+draws *somewhere*, but not which arm, what blend, or what the vertex buffer holds.
+For a render port, replay the full `--d3d-trace` state at the draw and dump the
+actual vertex bytes — don't theorise the recipe from the decompile alone,
+*especially* when the buffer is BSS with no visible initialiser.
+
+> 📍 arm `4176ff.c` L3818, draw ret_va 0x41e165, tex `DAT_073cc8c0`=effect.bmp.
+> Recipe + GT: `docs/findings/scene1-wing-glow.md`. Port: `src/scene1_wing_glow.c`.
+> Tool: `tools/dump_wingglow_groundtruth.py`. Builds on §73, §79.

@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **4**
-- distinct retiring engine functions: **3**
+- total open debts: **7**
+- distinct retiring engine functions: **5**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 1 | wired call boundary, body incomplete |
+| stub | 3 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 2 | reduced control flow / state machine vs retail |
+| simplified | 3 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -27,25 +27,30 @@ the answer to *"what's still faked in code that looks done?"*
 
 | engine fn | open debts |
 |-----------|-----------:|
+| FUN_004176ff | 2 |
 | FUN_004161c7 | 1 |
+| FUN_004176ff L3876 | 1 |
 | FUN_00436f97 | 1 |
 | FUN_00454191 | 1 |
 
-## stub (1)
+## stub (3)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
+| FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
+| FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_00454191 | src/scene1_fx_overlays.c:9 | outer-gate scaffold only; the 3 inner render |
 
 ## synthetic-data (0)
 
 _none_
 
-## simplified (2)
+## simplified (3)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
+| FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
 
 ## hardcode (1)

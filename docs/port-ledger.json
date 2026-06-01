@@ -12,7 +12,7 @@
   "touched": 382,
   "pct_touched": 15.0,
   "pct_verified": 2.5,
-  "port_debt": 4
+  "port_debt": 7
  },
  "orphan_refs": [
   "0x40f640",
@@ -1467,7 +1467,9 @@
     "src/scene1_companion_ctrl.h",
     "src/scene1_maplight.c",
     "src/scene1_render.c",
-    "src/scene1_render.h"
+    "src/scene1_render.h",
+    "src/scene1_wing_glow.c",
+    "src/scene1_wing_glow.h"
    ]
   },
   {

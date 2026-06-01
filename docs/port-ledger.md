@@ -149,7 +149,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x415fab | FUN_00415fab | 540 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
 | 0x4161c7 | FUN_004161c7 | 4925 | ✓ | scene1_pass_f.c, scene1_pass_f.h, scene1_records.h (+5) |
 | 0x417504 | FUN_00417504 | 506 | ✓ | main.c, scene1_hud.h, scene1_render.c (+1) |
-| 0x4176ff | FUN_004176ff | 30395 | ✓ | scene1_companion_ctrl.c, scene1_companion_ctrl.h, scene1_maplight.c (+2) |
+| 0x4176ff | FUN_004176ff | 30395 | ✓ | scene1_companion_ctrl.c, scene1_companion_ctrl.h, scene1_maplight.c (+4) |
 | 0x41edf1 | FUN_0041edf1 | 35 | ✓ | worker_load.h |
 | 0x41ee24 | FUN_0041ee24 | 365 | ✓ | sim.c |
 | 0x41f319 | FUN_0041f319 | 340 | ✓ | scene1_combat_sm.h |
