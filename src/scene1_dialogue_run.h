@@ -29,6 +29,13 @@
 #include "scene1_dialogue.h"
 
 #include <stdint.h>
+#include <string.h>
+
+/* The standee position/colour fields hold float bit patterns in int32 storage
+ * (the engine touches them as both). Bit-cast helpers shared by the handlers
+ * (scene1_dialogue_run.c) and the draw (scene1_dialogue_draw.c). */
+static inline float   ive_word_f(int32_t w) { float f; memcpy(&f, &w, 4); return f; }
+static inline int32_t ive_f_word(float f)   { int32_t w; memcpy(&w, &f, 4); return w; }
 
 /* ─── scene-render state (FUN_0046c0ae reset / FUN_0046c9a2 draw) ─────────
  *

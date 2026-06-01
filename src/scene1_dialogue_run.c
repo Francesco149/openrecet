@@ -40,6 +40,13 @@
 /* Walk-loop handler return codes (the 0x46c320 contract). */
 enum { IVE_R_STOP = 0, IVE_R_CONTINUE = 1, IVE_R_YIELD = 2, IVE_R_COMPLETE = 3 };
 
+/* Bounds-checked standee accessor (the chr handlers index by the chr number). */
+static struct ive_standee *ive_standee_at(struct ive_runtime *rt, int n)
+{
+    if (n < 0 || n >= IVE_STANDEE_COUNT) return NULL;
+    return &rt->scene.standees[n];
+}
+
 /* FUN_0046c0ae — per-script reset of the standee table + scene-render scalars.
  * The loader (FUN_0046c295) runs this before parsing. Field indices/bit patterns
  * are verbatim from the init loop (docs/decompiled/by-address/46c0ae.c). */
@@ -165,7 +172,84 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
     case IVE_OP_BGSCROLL:       /* bgscroll:f (0x46d8a5): scroll mode/speed */
         rt->scene.bg_mode = c->a1;     /* DAT_073a6d94 */
         return IVE_R_CONTINUE;
-    default:                    /* every other setup op (chr/se/fade/light/...): ret 1 */
+
+    /* ── character-standee setup (settled-state subset; tweens deferred) ──
+     * Each writes standees[a1] (the chr index N). The animated paths
+     * (move-tween, colto fade, fadeframe, speed) are PORT-DEBT: the goldens
+     * are captured at the settled per-line anchor, so the final static pose
+     * matches without porting the per-frame interpolation. For move/moveto we
+     * SNAP the current field to the target so the settled pose is correct
+     * without the update-loop tween. Handler ground truth: raw-disasm of the
+     * 0x46da09–0x46dcac stubs (docs/findings/opening-prologue.md §handler bodies). */
+    case IVE_OP_CHR_DISP: {     /* 0x46da09 — active flag (field 11) */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) s->field[IVE_ST_ACTIVE] = c->a2;
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_DIR: {      /* 0x46da1e — mirror flag (field 12) */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) s->field[IVE_ST_MIRROR] = c->a2;
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_ANIM: {     /* 0x46dc97 (grp/anim) — graphic index (field 14) */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) s->field[IVE_ST_GRAPHIC] = c->a2;
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_MOVE_X: {   /* 0x46da33 — x: sets current(1) AND target(3) */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) s->field[1] = s->field[3] = ive_f_word((float)c->a2);
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_MOVE_Y: {   /* 0x46dc0a — y: current(2) AND target(4) */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) s->field[2] = s->field[4] = ive_f_word((float)c->a2);
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_MOVETO_X: { /* 0x46da6e — target(3); snap current(1) [settled] */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) s->field[3] = s->field[1] = ive_f_word((float)c->a2);
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_MOVETO_Y: { /* 0x46dc30 — target(4); snap current(2) [settled] */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) s->field[4] = s->field[2] = ive_f_word((float)c->a2);
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_CENTER: {   /* 0x46da59 — centering offset (field 7) */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) s->field[7] = ive_f_word((float)c->a2);
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_COL:        /* 0x46da83 — set current (15-18) + target (19-22) */
+    case IVE_OP_CHR_COLTO: {    /* 0x46db20 — colour fade target; snap [settled] */
+        /* col sets current+target; colto sets only the target and the update
+         * loop tweens current toward it. At the settled anchor the tween has
+         * finished (current==target), so for both we snap current=target. This
+         * matters for full-screen fade overlays (a fade-to-transparent must
+         * settle invisible, not at the reset opaque-white). */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) {
+            uint32_t p = (uint32_t)c->a2;            /* a<<24|r<<16|g<<8|b */
+            int32_t ch0 = ive_f_word((float)( p        & 0xff));  /* b */
+            int32_t ch1 = ive_f_word((float)((p >> 8)  & 0xff));  /* g */
+            int32_t ch2 = ive_f_word((float)((p >> 16) & 0xff));  /* r */
+            int32_t ch3 = ive_f_word((float)((p >> 24) & 0xff));  /* a */
+            s->field[15] = s->field[19] = ch0;
+            s->field[16] = s->field[20] = ch1;
+            s->field[17] = s->field[21] = ch2;
+            s->field[18] = s->field[22] = ch3;
+        }
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_BLEND: {    /* 0x46dcac — blend mode (field 27) */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) s->field[IVE_ST_BLEND] = c->a2;
+        return IVE_R_CONTINUE;
+    }
+    /* DEFERRED (PORT-DEBT): CHR_SPEED / CHR_FADEFRAME + the move/col tween
+     * intermediate frames — animated, irrelevant at the settled capture anchor. */
+    default:                    /* every other setup op (se/fade/light/music/...): ret 1 */
         return IVE_R_CONTINUE;
     }
 }

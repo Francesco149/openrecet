@@ -25,8 +25,10 @@
 
 /* ─── loaded assets (one set per running script) ─────────────────────────
  * Reloaded when the driver's script generation changes (iv1_1 → iv1_2). */
-static sprite_t  g_bg[IVE_MAX_NAMES];   /* DAT_073571f0 — bg images (by slot) */
+static sprite_t  g_bg[IVE_MAX_NAMES];   /* DAT_073571f0 — bg images (by slot)   */
 static int       g_bg_count   = 0;
+static sprite_t  g_chr[IVE_MAX_NAMES];  /* DAT_0734f9b0 — chr graphics (by slot) */
+static int       g_chr_count  = 0;
 static unsigned  g_loaded_gen = (unsigned)-1;
 
 static void free_assets(void)
@@ -35,6 +37,10 @@ static void free_assets(void)
         sprite_destroy(&g_bg[i]);
     memset(g_bg, 0, sizeof g_bg);
     g_bg_count = 0;
+    for (int i = 0; i < g_chr_count; i++)
+        sprite_destroy(&g_chr[i]);
+    memset(g_chr, 0, sizeof g_chr);
+    g_chr_count = 0;
 }
 
 /* FUN_0046bf38 (bg subset): load each parsed bg name into its slot. The engine
@@ -55,6 +61,17 @@ static void ensure_assets(IDirect3DDevice8 *dev, const struct ive_program *prog)
          * native size for UV normalisation (src is divided by s->width/height). */
         if (sprite_load(dev, prog->bg[i], 0x400, 0x200, &g_bg[i]))
             g_bg_count = i + 1;
+    }
+
+    /* chr standee graphics (FUN_0046bf38 third loop): each registered grp name
+     * → its slot, with the script-declared W,H as the expected dims. */
+    int nc = prog->n_chrname;
+    if (nc > IVE_MAX_NAMES) nc = IVE_MAX_NAMES;
+    for (int i = 0; i < nc; i++) {
+        if (prog->chrname[i][0] == '\0') continue;
+        if (sprite_load(dev, prog->chrname[i],
+                        (uint32_t)prog->chr_w[i], (uint32_t)prog->chr_h[i], &g_chr[i]))
+            g_chr_count = i + 1;
     }
     g_loaded_gen = gen;
 }
@@ -92,6 +109,60 @@ static void draw_background(IDirect3DDevice8 *dev,
     render_quad_flush(dev);
 }
 
+/* ─── character standees (FUN_0046c9a2 lines 153-209) ────────────────────── */
+static void draw_standees(IDirect3DDevice8 *dev,
+                          const struct ive_runtime *rt,
+                          const struct ive_program *prog)
+{
+    for (int i = 0; i < IVE_STANDEE_COUNT; i++) {
+        const struct ive_standee *s = &rt->scene.standees[i];
+        if (s->field[IVE_ST_ACTIVE] == 0)              /* not displayed */
+            continue;
+        int g = s->field[IVE_ST_GRAPHIC];
+        if (g < 0 || g >= prog->n_chrname || prog->chrname[g][0] == '\0')
+            continue;                                  /* no graphic registered */
+        if (g >= g_chr_count || g_chr[g].tex == NULL)
+            continue;                                  /* texture failed to load */
+        const sprite_t *tex = &g_chr[g];
+        float w = (float)prog->chr_w[g];
+        float h = (float)prog->chr_h[g];
+
+        render_quad_bind(dev, tex);
+
+        /* Colour: ftol the 4 channel floats, repack exactly as the engine does
+         * (color = ch18<<24 | ch15<<16 | ch16<<8 | ch17). */
+        int c15 = (int)ive_word_f(s->field[15]);
+        int c16 = (int)ive_word_f(s->field[16]);
+        int c17 = (int)ive_word_f(s->field[17]);
+        int c18 = (int)ive_word_f(s->field[18]);
+        uint32_t color = ((uint32_t)c18 << 24) | ((uint32_t)c15 << 16)
+                       | ((uint32_t)c16 << 8)  |  (uint32_t)c17;
+
+        /* Blend mode (field 27): >=2 = additive (SRCALPHA/ONE), else normal
+         * (SRCALPHA/INVSRCALPHA); bit0 picks COLOROP ADD vs MODULATE. */
+        int blend = s->field[IVE_ST_BLEND];
+        if (blend >= 2) {
+            IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+            IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
+        } else {
+            IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
+            IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+        }
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+            (blend & 1) ? D3DTOP_ADD : D3DTOP_MODULATE);
+
+        /* dst (x = field1, y = field2; chr-shake jitter on y deferred to L4). */
+        float y = (float)(int)ive_word_f(s->field[2]);
+        const float dst[4] = { ive_word_f(s->field[1]), y, w + 0.5f, h + 0.5f };
+        const float src[4] = { 0.0f, 0.0f, w, h };
+        if (s->field[IVE_ST_MIRROR] == 1)
+            render_quad_add_mirrored(dst, src, tex->width, tex->height, color);
+        else
+            render_quad_add(dst, src, tex->width, tex->height, color);
+        render_quad_flush(dev);
+    }
+}
+
 void scene1_dialogue_draw(IDirect3DDevice8 *dev)
 {
     const struct ive_runtime *rt = scene1_intro_dialogue_runtime();
@@ -105,8 +176,9 @@ void scene1_dialogue_draw(IDirect3DDevice8 *dev)
 
     render_quad_state_setup(dev);   /* FUN_0049b425 — 2D alpha-blend preset */
     draw_background(dev, rt, prog);
+    draw_standees(dev, rt, prog);
 
-    /* Standees / box / nameplate / text land in Layers 2-4. */
+    /* Box / nameplate / text land in Layers 3-4. */
 }
 
 #endif /* _WIN32 */

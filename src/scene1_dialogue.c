@@ -128,6 +128,13 @@ static void parse_chr(struct ive_program *p, const char *line)
             /* dims trail the path after a space: "...tga W,H" */
             const char *sp = sub + 4;
             while (*sp && *sp != ' ' && *sp != '\r' && *sp != '\n') sp++;
+            /* The name ends at the space (the engine's name copy stops there,
+             * all.c:68536 `if (cVar7 == ' ') break`). copy_name only stops at
+             * CR/LF, so strip the trailing " W,H" it pulled in — else
+             * sprite_load gets "tear.tga 128,256" and the standee never loads. */
+            int namelen = (int)(sp - (sub + 4));
+            if (namelen >= 0 && namelen < IVE_NAME_BYTES)
+                p->chrname[idx][namelen] = '\0';
             p->chr_w[idx] = (*sp == ' ') ? ive_atoi(sp + 1) : 0;
             const char *comma = (*sp == ' ') ? past(sp + 1, ',') : NULL;
             p->chr_h[idx] = comma ? ive_atoi(comma) : 0;
@@ -137,7 +144,11 @@ static void parse_chr(struct ive_program *p, const char *line)
         }
         emit(p, IVE_OP_CHR_ANIM, n, idx);
     } else if (kw(sub, "disp", 4)) {
-        emit(p, IVE_OP_CHR_DISP, n, 0);
+        /* Engine emits a2=1 (LAB_0046efd4): the disp handler 0x46da09 writes
+         * standees[N].field[11] = a2, which the draw's active gate checks. (The
+         * old a2=0 stub left every standee inactive — fine while the visual was
+         * deferred, wrong now that standees render.) */
+        emit(p, IVE_OP_CHR_DISP, n, 1);
     }
     /* else: unrecognised chr sub-op — engine would MessageBox; we drop it. */
 }

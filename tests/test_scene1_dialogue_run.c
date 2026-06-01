@@ -131,6 +131,60 @@ int test_dialogue_run_bgset_sets_active_index(void)
     return 0;
 }
 
+/* ─── chr standee handlers (settled-state subset) ─────────────────────────── */
+
+/* grp registers a graphic + slot, disp activates (a2=1), moveto snaps the
+ * current position to the target (tween deferred), dir sets the mirror flag. */
+int test_dialogue_run_chr_disp_grp_moveto_dir(void)
+{
+    static struct ive_program prog;
+    static struct ive_runtime rt;
+    T_ASSERT(scene1_dialogue_parse(
+        "chr:1:grp:tear.tga 128,256\r\n"
+        "chr:1:moveto:300,400\r\n"
+        "chr:1:dir:right\r\n"
+        "chr:1:disp\r\n"
+        "msg:0:1:A<KEY>\r\nend:\r\n", &prog) == 1);
+    T_ASSERT_EQ_I(prog.n_chrname, 1);
+    T_ASSERT_EQ_I(prog.chr_w[0], 128);
+    T_ASSERT_EQ_I(prog.chr_h[0], 256);
+
+    ive_runtime_init(&rt, &prog);
+    ive_runtime_step(&rt, 0);   /* run the setup ops up to the first SHOW */
+
+    const struct ive_standee *s = &rt.scene.standees[1];
+    T_ASSERT_EQ_I(s->field[IVE_ST_ACTIVE],  1);   /* disp → active            */
+    T_ASSERT_EQ_I(s->field[IVE_ST_GRAPHIC], 0);   /* grp slot 0               */
+    T_ASSERT_EQ_I(s->field[IVE_ST_MIRROR],  1);   /* dir:right                */
+    T_ASSERT(ive_word_f(s->field[1]) == 300.0f);  /* moveto x (current snap)  */
+    T_ASSERT(ive_word_f(s->field[3]) == 300.0f);  /* moveto x (target)        */
+    T_ASSERT(ive_word_f(s->field[2]) == 400.0f);  /* moveto y (current snap)  */
+    /* an untouched standee stays inactive */
+    T_ASSERT_EQ_I(rt.scene.standees[0].field[IVE_ST_ACTIVE], 0);
+    return 0;
+}
+
+/* col:r,g,b,a unpacks (engine pack a<<24|r<<16|g<<8|b) into the 4 colour floats:
+ * field15=b, 16=g, 17=r, 18=a; current (15-18) AND target (19-22) get the same. */
+int test_dialogue_run_chr_col_channels(void)
+{
+    static struct ive_program prog;
+    static struct ive_runtime rt;
+    T_ASSERT(scene1_dialogue_parse(
+        "chr:1:col:10,20,30,40\r\nmsg:0:1:A<KEY>\r\nend:\r\n", &prog) == 1);
+    ive_runtime_init(&rt, &prog);
+    ive_runtime_step(&rt, 0);
+
+    const struct ive_standee *s = &rt.scene.standees[1];
+    T_ASSERT(ive_word_f(s->field[15]) == 30.0f);  /* b */
+    T_ASSERT(ive_word_f(s->field[16]) == 20.0f);  /* g */
+    T_ASSERT(ive_word_f(s->field[17]) == 10.0f);  /* r */
+    T_ASSERT(ive_word_f(s->field[18]) == 40.0f);  /* a */
+    T_ASSERT(ive_word_f(s->field[19]) == 30.0f);  /* target = same */
+    T_ASSERT(ive_word_f(s->field[22]) == 40.0f);
+    return 0;
+}
+
 /* ─── scene-state reset (FUN_0046c0ae) ───────────────────────────────────── */
 
 /* Every standee in the 200-entry table gets the exact init bit patterns: all
