@@ -99,6 +99,7 @@ int chr_walker_npc_alpha(float pos, float mult)
 #include "math3d.h"
 #include "scene1_camera.h"   /* g_scene1_camera_orient (= engine DAT_0438cdf8) */
 #include "scene1_preload.h"  /* scene1_preload_chr_sheet — the chr sheet table; pulls sprite.h */
+#include "scene1_particles_tick.h"  /* g_scene1_actor_pos[2] = companion pos (_DAT_056da1f0/f4/f8) */
 
 /* Engine billboard base matrix DAT_0438cdf8 — the camera orientation matrix
  * scene1_camera_angle_compute() publishes to g_scene1_camera_orient each
@@ -127,7 +128,11 @@ static const float *chr_walker_base_matrix(void)
  * state — exactly the scene1_shop_walker count-stub pattern. */
 static int            chr_walker_top_gate(void)        { return 0; }   /* DAT_0438b8bc == 0 → run passes */
 static int            chr_walker_fade_counter(void)    { return 0; }   /* DAT_0438b4b4 (0 ≤ 0x5a → run) */
-static int            chr_walker_companion_char(void)  { return -1; }  /* DAT_056da1d4 (== -1 → skip; glow record unported) */
+/* Companion wing-glow (Pass 1): the actor[2] anim-state record (engine
+ * &DAT_056dab40, = the live companion model scene1_shop_walker draws the solid
+ * body from) and the companion-present gate (engine DAT_056da1d4 != -1, = the
+ * companion's char id 1).  Both come from the live player-controller state. */
+static int            chr_walker_companion_char(void)  { return player_ctrl_actor_char(2); }
 /* DAT_056da1cc.  The live player char is player_ctrl_actor_char(0), but Pass 2
  * stays DORMANT (return -1) for two reasons, both of which make opening it a
  * no-win until a later chip: (1) its two after-image banks are empty in
@@ -138,7 +143,7 @@ static int            chr_walker_companion_char(void)  { return -1; }  /* DAT_05
  * retail does, diverging in steady-state walk.  Opening Pass 2 = source the
  * real fade counter + have bank content (the dash-spawn chip). */
 static int            chr_walker_player_char(void)     { return -1; }
-static const int32_t *chr_walker_companion_actor(void) { return NULL; }/* &DAT_056dab40 (companion-glow record unported) */
+static const int32_t *chr_walker_companion_actor(void) { return player_ctrl_actor_record(2); }/* &DAT_056dab40 = actor[2] */
 /* sweep 0 = DAT_056dab6c trail bank (always run), sweep 1 = DAT_056dacc0 burst
  * bank (gated on the burst count below); both empty in free-roam. */
 static const int32_t *chr_walker_party_slot(int sweep, int idx)
@@ -200,21 +205,39 @@ void scene1_chr_walker_render(struct IDirect3DDevice8 *dev_in)
             float fade = chr_walker_fadein(counter);
             float scale_f = fade * CHR_W_FADE_SCALE;
 
-            /* ── Pass 1: the companion billboard (char id 2) ───────────── */
+            /* ── Pass 1: the companion (Tear) wing-glow billboard ───────────
+             * Engine FUN_00456f56 L49-69: an ADDITIVE billboard at the
+             * companion position, drawn from char-descriptor 2 / sheet 2
+             * (chr02.bmp = the fairy glow sheet, engine DAT_073a9b38), tinted
+             * grey 0xff7f7f7f (the blue is the texture, like the trail
+             * sparkles).  The actor record is actor[2] (the live companion
+             * anim-state, = engine &DAT_056dab40); world = base × Scaling(cw,
+             * ch, cw) × Translation(companion pos), cw/ch = _DAT_056dae20/2c ·
+             * scale_f.  The glow scale cw/ch settles to 1.0 at the standing
+             * pose (engine-quirks §71); the port does not separately model the
+             * dae20/dae2c globals, so 1.0 is used. */
             const int32_t *comp = chr_walker_companion_actor();
             if (comp != NULL && chr_walker_companion_char() != -1) {
-                /* world = base × Scaling(cw,ch,cw) × Translation(pos).
-                 * companion pos = _DAT_056da1f0/f4/f8, scale cw/ch =
-                 * _DAT_056dae20/2c × scale_f.  Reached only when populated. */
-                float world[16], scale[16], tmp[16];
-                (void)scale_f;
-                mat4_translation(tmp, 0.0f, 0.0f, 0.0f);    /* pos placeholder */
-                mat4_scaling(scale, 0.0f, 0.0f, 0.0f);      /* (cw,ch,cw)·scale_f */
-                mat4_mul(tmp, scale, tmp);
-                mat4_mul(world, chr_walker_base_matrix(), tmp);
-                IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
-                IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
-                scene1_chr_sprite_render(dev_in, comp, 2, world, 0xff7f7f7fu, 0, 0);
+                const sprite_t *wing = scene1_preload_chr_sheet(2); /* DAT_073a9b38 */
+                if (wing != NULL && wing->tex != NULL) {
+                    float cw = 1.0f * scale_f;   /* _DAT_056dae20 · scale_f */
+                    float ch = 1.0f * scale_f;   /* _DAT_056dae2c · scale_f */
+                    float world[16], scale[16], tmp[16];
+                    mat4_translation(tmp,
+                                     g_scene1_actor_pos[2][0],
+                                     g_scene1_actor_pos[2][1],
+                                     g_scene1_actor_pos[2][2]);
+                    mat4_scaling(scale, cw, ch, cw);
+                    mat4_mul(tmp, scale, tmp);
+                    mat4_mul(world, chr_walker_base_matrix(), tmp);
+                    /* L67: SetTexture(0, DAT_073a9b38) then additive ONE/ONE. */
+                    IDirect3DDevice8_SetTexture(dev, 0,
+                        (IDirect3DBaseTexture8 *)wing->tex);
+                    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
+                    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+                    scene1_chr_sprite_render(dev_in, comp, 2, world, 0xff7f7f7fu,
+                                             (int)wing->width, (int)wing->height);
+                }
             }
 
             /* ── Pass 2: the player + party billboards ─────────────────── */
