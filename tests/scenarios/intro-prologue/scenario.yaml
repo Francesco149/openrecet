@@ -1,0 +1,22 @@
+# intro-prologue — opening cutscene + dialogue ground-truth (Phase 0).
+#
+# Same spam-advance head as the house-* traces (mashes A through title →
+# new-game → opening prologue), but the {calltrace} is bound to the *1st*
+# HOUSE_FREEROAM and spans the prologue (the segment BETWEEN the two
+# HOUSE_FREEROAM waits) instead of the post-2nd-freeroam window.  Used to
+# identify which engine functions/sub-states drive the opening Recette/Tear
+# prologue (it runs inside scene-state 1, NOT scene-states 2/3 — verified
+# 2026-06-01: DAT_0438b1c0 stays 1 the whole intro).
+#
+# Capture:
+#   python3 tools/scenario-test.py intro-prologue --target retail \
+#     --frida-remote cutestation.soy:27042
+# then call_trace_diff / aggregate the prologue call_trace.jsonl.
+
+description: |
+  New game → opening prologue (Recette/Tear), call-trace over the prologue
+  segment (1st HOUSE_FREEROAM + 1600 frames). Phase-0 ground-truth for the
+  opening cutscene/dialogue subsystem.
+
+max_frames: 16000
+duration_ceiling_ms: 180000
