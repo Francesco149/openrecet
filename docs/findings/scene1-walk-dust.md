@@ -139,23 +139,29 @@ draw; add 0x400000 to the trace's ret_va):
 was correct.** The reason it broke the PORT but not retail is **Z values /
 positions**, not the render state:
 - The wing-glow (#4) is z-tested. In retail it survives because Tear's sprite Z
-  (#3) sits *behind* the glow at her correct hover position. In the port Tear is
-  **slightly mis-positioned** (the persistent companion bug, [[project_next_char_controller]]),
-  so her quad's Z landed *in front of* the glow → occluded it.
+  (#3) sits *behind* the glow. In the port, re-enabling the sprite Z-write put
+  Tear's quad Z *in front of* the glow → occluded it. WHY her quad differs from
+  retail is **not isolated** — Tear is a persistent not-1:1 ([[project_next_char_controller]])
+  but it could be a **position** error or an **animation-phase** error, and the
+  wing-flap not being exactly 1:1 per frame adds comparison noise.
 - The dust (#5) reads behind the walker in retail because the player's opaque-ish
   sprite Z is in front of it; the port reproduced the clip but, with the full-quad
-  AREF-0 Z + the mis-positioned actors, it rectangularly cut the dust around her.
+  AREF-0 Z + Tear's off appearance, it rectangularly cut the dust around her.
 
 **Faithful path:** the only thing the dust occlusion actually needs is the
 **sprite Z-write** (#3, ZWR1 AREF0) — that is what makes the dust read behind the
 walker. The shadow passes (#1/#2) are **ZWRITE=0** (multiply-darken), so they do
 **NOT** write depth and are **irrelevant to the occlusion** (an earlier note here
 wrongly listed "port furniture shadows first" as a prerequisite — corrected). The
-real blocker is **Tear's position**: re-enabling the sprite Z-write occludes her
-own wing-glow because her mis-positioned quad lands in front of the glow. So:
-(a) fix Tear's hover position so her Z matches retail; then (b) re-enable the
-sprite Z-write. Until (a), the sprite Z-write must stay OFF (current reverted
+real blocker is **Tear's not-yet-1:1 appearance** (position and/or animation phase,
+**not isolated** — investigate closely later, once everything else is spot on, per
+the user 2026-06-01): re-enabling the sprite Z-write occludes her own wing-glow.
+So: (a) isolate + fix Tear's divergence so her Z matches retail; (b) THEN re-enable
+the sprite Z-write. Until (a), the sprite Z-write must stay OFF (current reverted
 state) or the glow dies again. (Porting the furniture/object dynamic shadow-blob
+pass FUN_00470385/FUN_0046f648 is a *separate, minor, independent* cosmetic chip —
+the visible furniture shadows already match retail via the baked 3D meshes; see
+[[confirmed-parity-ledger]].) (Porting the furniture/object dynamic shadow-blob
 pass FUN_00470385/FUN_0046f648 is a *separate, minor, independent* cosmetic chip —
 the visible furniture shadows already match retail via the baked 3D meshes; see
 [[confirmed-parity-ledger]].)

@@ -22,7 +22,7 @@
 
 | subsystem | divergence | deferred when / why | revisit trigger |
 |---|---|---|---|
-| Tear (companion) position | "slightly off" hover position | persistent; not blocking play | needed for faithful sprite-Z dust occlusion (#5) |
+| Tear (companion) appearance | "slightly off" — position and/or anim phase (unisolated); wing-flap phase adds comparison noise | persistent; investigate once everything else is spot on | needed for faithful sprite-Z dust occlusion (#5) |
 | Foot-dust position/phase | RNG-stream desync vs retail | user: visible bugs first | after the visible free-roam render gaps close |
 | Wing-flap phase alignment | flap phase not aligned at capture anchor | "chase phase later" (§81) | companion-controller faithfulness pass |
 
@@ -40,7 +40,7 @@
 
 | subsystem | what's wrong | note |
 |---|---|---|
-| **Tear (companion) position** | "slightly off" — a **persistent** known issue | NOT jitter to dismiss; her wrong Z is what made b1acf7c occlude her glow. Real fix pending ([[project_next_char_controller]]). |
+| **Tear (companion) appearance** | "slightly off" — a **persistent** known issue. **NOT isolated**: could be position OR animation phase; the wing-flap not being exactly 1:1 per frame also adds comparison noise. | NOT jitter to dismiss. Do NOT assert it's "position." Investigate closely **later, once everything else is spot on** (user, 2026-06-01). It's the suspected reason b1acf7c's sprite Z occluded her glow, but the exact cause isn't pinned. ([[project_next_char_controller]]) |
 | **Foot-dust occlusion** | dust draws IN FRONT of the walker; retail draws it behind | needs faithful sprite Z-write (see draw-order GT) — NOT yet solved; b1acf7c's attempt was reverted |
 | **Foot-dust position/phase** | diverges from retail | likely free-roam RNG-stream completeness ([[scene1-rng-stream-parity]]) — but treat as a real structural gap to CLOSE, not "just RNG" |
 
