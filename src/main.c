@@ -2315,14 +2315,16 @@ static void render_dispatch(void)
                 "{\"frame\":%u,\"px\":%.5f,\"py\":%.5f,\"pz\":%.5f,"
                 "\"vx\":%.6f,\"vz\":%.6f,\"facing\":%.6f,\"sticky\":%d,"
                 "\"buttons\":%u,\"anim\":%d,\"counter\":%d,\"aframe\":%d,\"oct\":%d,"
-                "\"cchar\":%d,\"cx\":%.5f,\"cy\":%.5f,\"cz\":%.5f,\"canim\":%d,\"coct\":%d}\n",
+                "\"cchar\":%d,\"cx\":%.5f,\"cy\":%.5f,\"cz\":%.5f,\"canim\":%d,\"coct\":%d,"
+                "\"rng\":%d}\n",
                 g_tick.frame_count,
                 g_scene1_player_pos[0], g_scene1_player_pos[1],
                 g_scene1_player_pos[2],
                 vx, vz, facing, sticky, g_input_state[0].buttons,
                 a_anim, a_cnt, a_frm, a_oct,
                 c_char, g_scene1_actor_pos[2][0], g_scene1_actor_pos[2][1],
-                g_scene1_actor_pos[2][2], c_anim, c_oct);
+                g_scene1_actor_pos[2][2], c_anim, c_oct,
+                (int32_t)g_rng_seed);
         fflush(g_player_pos_log_fp);
     }
 

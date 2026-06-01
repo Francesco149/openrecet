@@ -358,6 +358,12 @@ class CaptureConfig:
     # record per dump-offset frame to <run_dir>/chr_leaf.jsonl, so the
     # port's chr_sprite_build_quads can be bit-compared against retail.
     chr_leaf: bool = False
+    # RNG caller histogram — hook FUN_005041f6 (the shared global LCG) and
+    # tally the immediate caller VA. Writes <run_dir>/rng_callers.json (a
+    # cumulative {ret_va: count} map). Finds which subsystems advance the
+    # shared RNG stream per frame, the metric for foot-dust / particle RNG
+    # parity vs the port.
+    rng_callers: bool = False
 
 
 @dataclass
@@ -658,6 +664,27 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                         f"player_pos={p.get('player_pos')}\n")
             return
 
+        if kind == "rng_callers":
+            # Cumulative {ret_va: count}. Overwrite a single JSON file so the
+            # last flush holds the full run total; also log a short top-N.
+            hist = p.get("hist") or {}
+            try:
+                (run_dir / "rng_callers.json").write_text(
+                    json.dumps({"frame": p.get("frame"), "hist": hist},
+                               indent=2))
+                # Also append each cumulative snapshot so windows can be
+                # diffed (free-roam vs intro) post-hoc.
+                with (run_dir / "rng_callers.jsonl").open("a") as fh:
+                    fh.write(json.dumps({"frame": p.get("frame"),
+                                         "hist": hist}) + "\n")
+            except Exception:
+                pass
+            top = sorted(hist.items(), key=lambda kv: -kv[1])[:12]
+            f_log.write(f"[rng_callers] frame={p.get('frame')} "
+                        f"distinct={len(hist)} top="
+                        + ", ".join(f"{k}:{v}" for k, v in top) + "\n")
+            return
+
         if kind == "dump_records_b_done":
             f_log.write(f"[records_b] dump window done "
                         f"[frames {p.get('first_frame')}..{p.get('last_frame')}]; "
@@ -842,6 +869,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             init_cfg["quad_hist"] = True
         if cfg.chr_leaf:
             init_cfg["chr_leaf"] = True
+    if cfg.rng_callers:
+        init_cfg["rng_callers"] = True
     if cfg.mem_watch:
         init_cfg["mem_watch"] = True
         init_cfg["mem_watch_precise"] = bool(cfg.mem_watch_precise)
@@ -1172,6 +1201,12 @@ def main(argv: list[str] | None = None) -> int:
                          "frame to <run_dir>/chr_leaf.jsonl. Feed leaf_in into "
                          "the port's chr_sprite_build_quads and bit-compare "
                          "against leaf_out. Use HOUSE free-roam dump offsets.")
+    ap.add_argument("--rng-callers", action="store_true",
+                    help="Hook the shared LCG FUN_005041f6 and tally the "
+                         "immediate caller VA. Writes <run_dir>/rng_callers.json "
+                         "(cumulative {ret_va: count}). Finds which subsystems "
+                         "advance the RNG stream per frame — the metric for "
+                         "foot-dust / particle RNG parity vs the port.")
     args = ap.parse_args(argv)
     fr_tuple: tuple[int, int] | None = None
     if args.force_resolution:
@@ -1292,6 +1327,7 @@ def main(argv: list[str] | None = None) -> int:
         dump_records_b_heartbeat=args.dump_records_b_heartbeat,
         quad_hist=args.quad_hist,
         chr_leaf=args.chr_leaf,
+        rng_callers=args.rng_callers,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

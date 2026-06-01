@@ -761,6 +761,18 @@ let g_draw_count_max           = 0;    // peak per-frame draw count (diag)
 const FN_QUAD_ADD              = 0x00404efc;  // FUN_00404efc render_quad_add
 let g_quad_hist                = false;
 let g_quad_hist_hooked         = false;
+
+// RNG caller histogram. When `rng_callers` is set, the agent hooks the
+// engine LCG FUN_005041f6 (the single global generator on DAT_006023a0,
+// the source of both rng_next15 and rng_next_unit) at ENTER and tallies
+// the immediate caller VA. A periodic flush sends the cumulative
+// {ret_va: count} map. Used to find which subsystems advance the shared
+// RNG stream per frame — the metric for foot-dust / particle RNG parity
+// against the port (see scene1-walk-dust.md).
+const FN_RNG_LCG              = 0x005041f6;  // FUN_005041f6 (LCG step)
+let g_rng_callers            = false;
+let g_rng_callers_hooked     = false;
+let g_rng_callers_map        = {};
 let g_quad_record              = false;  // armed for the current frame's draws
 let g_quad_events              = [];     // current frame's ordered draw events
 let g_quad_events_cap          = 6000;   // per-frame event hard cap (safety)
@@ -1175,6 +1187,14 @@ function installInputHook() {
                         catch (e) { vals[g_watch[i].name] = null; }
                     }
                     send({kind: 'watch', frame: fn, vals: vals});
+                }
+
+                // RNG caller histogram: flush the cumulative map periodically
+                // (the host overwrites a single dict, so the last flush is the
+                // full run total) and the reader can also see growth over time.
+                if (g_rng_callers && (fn % 200 === 0)) {
+                    send({kind: 'rng_callers', frame: fn,
+                          hist: g_rng_callers_map});
                 }
             } catch (e) {
                 err('input_poll.onLeave', e.message);
@@ -2331,6 +2351,36 @@ function installQuadHistHooks(devicePtr) {
 
     g_quad_hist_hooked = true;
     log('quad-hist hooks installed (FUN_00404efc + 3 vtable slots)');
+}
+
+// ─── RNG caller histogram ───────────────────────────────────────────────
+function installRngCallerHook() {
+    if (g_rng_callers_hooked) return;
+    ensureBase();
+    // The int LCG: direct callers (rng_next15 via the 0x471084 jmp-thunk, or
+    // direct calls) show their real VA. Float callers via FUN_00471089 all
+    // collapse to the wrapper VA 0x471092 — broken open by the 2nd hook below.
+    Interceptor.attach(rva(FN_RNG_LCG), {
+        onEnter: function () {
+            try {
+                const k = '0x' + toGhidraVa(this.returnAddress).toString(16);
+                g_rng_callers_map[k] = (g_rng_callers_map[k] || 0) + 1;
+            } catch (e) { /* never break the engine over a tally */ }
+        },
+    });
+    // FUN_00471089 (rng_next_unit, the float variant): record its real caller
+    // under a 'u:' prefix so the float consumers (dust, wing-sparkle, motes,
+    // spawn jitter) are distinguishable from the collapsed 0x471092 bucket.
+    Interceptor.attach(rva(0x00471089), {
+        onEnter: function () {
+            try {
+                const k = 'u:0x' + toGhidraVa(this.returnAddress).toString(16);
+                g_rng_callers_map[k] = (g_rng_callers_map[k] || 0) + 1;
+            } catch (e) { /* tolerate */ }
+        },
+    });
+    g_rng_callers_hooked = true;
+    log('rng-callers hook installed on FUN_005041f6 + FUN_00471089');
 }
 
 // ─── Cchr.2b character-sprite leaf capture ──────────────────────────────
@@ -3577,6 +3627,11 @@ rpc.exports = {
         g_quad_events      = [];
         g_quad_hist_map    = {};
 
+        // RNG caller histogram (finds per-frame shared-LCG consumers).
+        g_rng_callers        = !!config.rng_callers;
+        g_rng_callers_hooked = false;
+        g_rng_callers_map    = {};
+
         // Memory-access watch (Phase D.7). The region list is parsed
         // here; the monitor is armed below (after ensureBase, before
         // resume) so the very first write — including an init-time
@@ -3705,6 +3760,10 @@ rpc.exports = {
             // image load (well before this point), so enable() succeeds.
             if (wantMemWatch) {
                 installMemoryWatch(g_mem_watch_regions, g_mem_watch_precise);
+            }
+            // RNG caller histogram — a single Interceptor on the LCG step.
+            if (g_rng_callers) {
+                installRngCallerHook();
             }
         }
     },
