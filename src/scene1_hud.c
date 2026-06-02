@@ -224,6 +224,13 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
      * It is drawn unconditionally by the aggregator (the dormant passes
      * above it draw nothing), so we call it here at the equivalent
      * point. */
+
+    /* FUN_00409925's tail (LAB_0040a5fd): the bottom-right "Button 4: Change
+     * Camera" control hint.  Drawn before FUN_00406d50 in the engine; self-
+     * gates on no-dialogue-active.  The rest of FUN_00409925 is shop/stocking
+     * UI, dormant in free-roam. */
+    scene1_top_hud_camera_hint(dev_in);
+
     scene1_top_hud_render(dev_in);
 }
 

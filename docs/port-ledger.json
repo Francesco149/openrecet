@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 72,
   "stubbed": 17,
-  "ported": 328,
-  "unported": 2131,
+  "ported": 329,
+  "unported": 2130,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 417,
+  "touched": 418,
   "pct_touched": 16.4,
   "pct_verified": 2.8,
   "port_debt": 11
@@ -971,8 +971,12 @@
    "size": 3434,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_hud.c",
+    "src/scene1_top_hud.c",
+    "src/scene1_top_hud.h"
+   ]
   },
   {
    "va": "0x40a68f",

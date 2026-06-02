@@ -34,6 +34,7 @@ float scene1_top_hud_clock_phase(void)           { return g_hud_clock_phase; }
 
 #include "render_quad.h"
 #include "sysassets.h"
+#include "scene1_intro_dialogue.h"   /* dialogue-active gate for the camera hint */
 #include "call_trace.h"
 
 #ifndef M_PI_F
@@ -169,6 +170,36 @@ void scene1_top_hud_render(struct IDirect3DDevice8 *dev_in)
 
     /* The DUNGEON minimap block (gated *DAT_068dd2f0 > 0) is dormant in
      * HOUSE (maptype 0) and deferred. */
+}
+
+/* The bottom-right "Button 4: Change Camera" control hint — the tail of
+ * FUN_00409925 (decomp LAB_0040a5fd, the only part of that 3.4 KB HOUSE-town
+ * HUD function that draws in free-roam; the rest is shop/stocking UI).  A
+ * single baked sprite from bmp/data_win.tga (g_sysassets.data_win_tga,
+ * DAT_073d8678): src (288,352)-(488,384), dst (440,440) size 200x32.
+ *
+ * Gate: `DAT_0438b1c8 == 0 && DAT_0438b4e8 == 0` — drawn only when NO dialogue
+ * is active (so it's hidden during the iv1_1/iv1_2 cutscenes, which show the
+ * "[ESC] Event Skip" hint instead, and appears in free-roam).  DAT_0438b4e8 is
+ * a transient menu/transition flag (BSS-zero in free-roam), treated as 0. */
+void scene1_top_hud_camera_hint(struct IDirect3DDevice8 *dev_in)
+{
+    if (!dev_in) return;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+
+    /* DAT_0438b1c8 == 0: no dialogue active. */
+    if (scene1_intro_dialogue_active()) return;
+
+    const sprite_t *tex = &g_sysassets.data_win_tga;
+    if (!tex->tex) return;
+
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)tex->tex);
+    {
+        const float dst[4] = { 440.0f, 440.0f, 200.0f, 32.0f };
+        const float src[4] = { 288.0f, 352.0f, 488.0f, 384.0f };
+        render_quad_add(dst, src, tex->width, tex->height, 0xffffffffu);
+    }
+    render_quad_flush(dev);
 }
 
 #endif /* _WIN32 */

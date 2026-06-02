@@ -35,6 +35,10 @@ float scene1_top_hud_clock_phase(void);
 struct IDirect3DDevice8;
 /* Render the persistent top HUD (FUN_00406d50). */
 void scene1_top_hud_render(struct IDirect3DDevice8 *dev);
+
+/* The bottom-right "Button 4: Change Camera" control hint (FUN_00409925's
+ * LAB_0040a5fd tail).  Self-gates on no-dialogue-active; drawn in free-roam. */
+void scene1_top_hud_camera_hint(struct IDirect3DDevice8 *dev);
 #endif
 
 #endif /* SCENE1_TOP_HUD_H */
