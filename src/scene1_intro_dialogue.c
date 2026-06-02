@@ -118,30 +118,46 @@ void scene1_intro_dialogue_tick(uint16_t held)
 
 void scene1_intro_dialogue_skip_to_end(void)
 {
-    /* The ESC skip-event "Yes" teardown at port altitude. Retail's
-     * FUN_00453384 b1c0==9 arm restores the resume state and calls the
-     * skip-kind teardown (FUN_00435612 / FUN_004844ef / FUN_00473c03 for the
-     * general/dialogue kind) — which tears the running event down and drops
-     * the player into HOUSE free-roam on the already-loaded scene (the
-     * new-game HOUSE load happened before iv1_1; the prologue plays *over*
-     * the HOUSE — see the header). So skipping jumps straight to free-roam:
-     * no inter-script load bracket, no remaining lines.
+    /* The ESC skip-event "Yes" teardown at port altitude. CORRECTION (user-
+     * confirmed 2026-06-02): a skip ends only the *current* script, not the
+     * whole prologue. The opening is a two-script sequence (iv1_1 → iv1_2);
+     * skipping iv1_1 advances to iv1_2 (the 2nd dialogue, which plays over the
+     * HOUSE free-roam map), and only skipping iv1_2 drops into free control.
      *
-     * At this altitude that is exactly "make the dialogue subsystem dormant":
-     * D_DONE + an inactive runtime → scene1_intro_dialogue_active()/_loading()
-     * report 0, the dialogue draw stops, and the free-roam controllers take
-     * the tick. Idempotent; safe to call from any state (mid-iv1_1, the load
-     * bracket, or mid-iv1_2).
+     * Engine mechanism: the skip teardown forces the running script to its
+     * end:-equivalent — the dialogue gate (DAT_0438b1c8) drops to 0, then
+     * FUN_0044baad arms the queued next script (DAT_06a4706c), exactly as a
+     * natural end: does. So at this altitude a skip == "the current script
+     * just completed": we replay the same state-machine transition the normal
+     * g_rt.complete path takes in scene1_intro_dialogue_tick (D_SCRIPT1 →
+     * D_LOAD → D_SCRIPT2, D_SCRIPT2 → D_DONE). Idempotent across states.
      *
      * PORT-DEBT(simplified, FUN_00473c03): the engine teardown also restores the
-     * snapshot resume state (DAT_06a499a8 + FUN_00473c03's camera/player reseat). The
-     * prologue resumes to the fixed free-roam spawn, which the player/companion
-     * controllers already establish, so the observable end state matches; the
-     * exact reseat calls land with the broader event-teardown port. */
-    g_state       = D_DONE;
-    g_load_ctr    = 0;
-    g_rt.active   = 0;
-    g_rt.complete = 0;
+     * snapshot resume state (DAT_06a499a8 + FUN_00473c03's camera/player reseat),
+     * irrelevant here — the dialogue plays over the already-spawned HOUSE. */
+    switch (g_state) {
+    case D_SCRIPT1:
+        /* End iv1_1 → raise the inter-script load bracket → iv1_2 (same as the
+         * natural g_rt.complete transition in _tick). */
+        g_state       = D_LOAD;
+        g_load_ctr    = 0;
+        g_rt.active   = 0;
+        g_rt.complete = 0;
+        break;
+    case D_LOAD:
+        /* Skipping during the inter-script load → go straight to iv1_2. */
+        g_state    = D_SCRIPT2;
+        g_load_ctr = 0;
+        break;
+    case D_SCRIPT2:
+    default:
+        /* End iv1_2 (the last script) → free-roam. */
+        g_state       = D_DONE;
+        g_load_ctr    = 0;
+        g_rt.active   = 0;
+        g_rt.complete = 0;
+        break;
+    }
 }
 
 int scene1_intro_dialogue_active(void)

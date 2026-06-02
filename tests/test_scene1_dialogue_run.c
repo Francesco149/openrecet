@@ -133,8 +133,8 @@ int test_dialogue_run_bgset_sets_active_index(void)
 
 /* ─── chr standee handlers (settled-state subset) ─────────────────────────── */
 
-/* grp registers a graphic + slot, disp activates (a2=1), moveto snaps the
- * current position to the target (tween deferred), dir sets the mirror flag. */
+/* grp registers a graphic + slot, disp activates (a2=1), moveto sets the TARGET
+ * only (current tweens toward it — engine 0x46da6e), dir sets the mirror flag. */
 int test_dialogue_run_chr_disp_grp_moveto_dir(void)
 {
     static struct ive_program prog;
@@ -156,16 +156,20 @@ int test_dialogue_run_chr_disp_grp_moveto_dir(void)
     T_ASSERT_EQ_I(s->field[IVE_ST_ACTIVE],  1);   /* disp → active            */
     T_ASSERT_EQ_I(s->field[IVE_ST_GRAPHIC], 0);   /* grp slot 0               */
     T_ASSERT_EQ_I(s->field[IVE_ST_MIRROR],  1);   /* dir:right                */
-    T_ASSERT(ive_word_f(s->field[1]) == 300.0f);  /* moveto x (current snap)  */
-    T_ASSERT(ive_word_f(s->field[3]) == 300.0f);  /* moveto x (target)        */
-    T_ASSERT(ive_word_f(s->field[2]) == 400.0f);  /* moveto y (current snap)  */
+    T_ASSERT(ive_word_f(s->field[3]) == 300.0f);  /* moveto x → TARGET only   */
+    T_ASSERT(ive_word_f(s->field[4]) == 400.0f);  /* moveto y → TARGET only   */
+    /* disp runs in the command walk AFTER the tween loop, so on this first
+     * step the standee isn't tweened yet — current stays at the reset 0. */
+    T_ASSERT(ive_word_f(s->field[1]) == 0.0f);
+    T_ASSERT(ive_word_f(s->field[2]) == 0.0f);
     /* an untouched standee stays inactive */
     T_ASSERT_EQ_I(rt.scene.standees[0].field[IVE_ST_ACTIVE], 0);
     return 0;
 }
 
-/* col:r,g,b,a unpacks (engine pack a<<24|r<<16|g<<8|b) into the 4 colour floats:
- * field15=b, 16=g, 17=r, 18=a; current (15-18) AND target (19-22) get the same. */
+/* col:r,g,b,a unpacks (engine pack a<<24|r<<16|g<<8|b) into the 4 CURRENT colour
+ * floats (field15=b,16=g,17=r,18=a); col does NOT touch the delta fields
+ * (19-22), which stay at their reset 255 (only chr:colto writes them). */
 int test_dialogue_run_chr_col_channels(void)
 {
     static struct ive_program prog;
@@ -180,8 +184,67 @@ int test_dialogue_run_chr_col_channels(void)
     T_ASSERT(ive_word_f(s->field[16]) == 20.0f);  /* g */
     T_ASSERT(ive_word_f(s->field[17]) == 10.0f);  /* r */
     T_ASSERT(ive_word_f(s->field[18]) == 40.0f);  /* a */
-    T_ASSERT(ive_word_f(s->field[19]) == 30.0f);  /* target = same */
-    T_ASSERT(ive_word_f(s->field[22]) == 40.0f);
+    T_ASSERT(ive_word_f(s->field[19]) == 255.0f); /* delta untouched by col */
+    return 0;
+}
+
+/* chr:colto fade: col sets the current colour, fadeframe sets the frame count,
+ * colto computes the per-frame delta toward the target (field19-22) + the
+ * countdown (field10 = field9), and the tween applies it. This is the kuro
+ * black-overlay fade-from-black + the sigh/zzz effect fades. */
+int test_dialogue_run_chr_colto_fade(void)
+{
+    static struct ive_program prog;
+    static struct ive_runtime rt;
+    T_ASSERT(scene1_dialogue_parse(
+        "chr:1:col:255,255,255,255\r\n"
+        "chr:1:fadeframe:10\r\n"
+        "chr:1:colto:255,255,255,0\r\n"
+        "chr:1:disp\r\n"
+        "msg:0:1:A<KEY>\r\nend:\r\n", &prog) == 1);
+    ive_runtime_init(&rt, &prog);
+    ive_runtime_step(&rt, 0);   /* setup ops; disp activates AFTER the tween */
+
+    struct ive_standee *s = &rt.scene.standees[1];
+    T_ASSERT(ive_word_f(s->field[18]) == 255.0f); /* alpha: full, not yet faded */
+    T_ASSERT_EQ_I(s->field[9], 10);               /* fadeframe count            */
+    T_ASSERT_EQ_I(s->field[10], 10);              /* colto countdown = field9   */
+    /* delta a (field22) = (0 - 255) / 10 = -25.5 */
+    T_ASSERT(ive_word_f(s->field[22]) < -25.0f && ive_word_f(s->field[22]) > -26.0f);
+
+    /* 10 more steps drain the countdown → alpha fades to ~0 (255 - 10*25.5). */
+    for (int i = 0; i < 10; i++) ive_runtime_step(&rt, 0);
+    T_ASSERT_EQ_I(s->field[10], 0);
+    T_ASSERT(ive_word_f(s->field[18]) < 1.0f);
+    return 0;
+}
+
+/* chr:move sets current AND target; chr:speed sets the per-frame step (×1000
+ * fixed-point → /1000); the tween slides current toward target by speed. This
+ * is Tear's slide-in (move:-390 → moveto:-100 speed:5 → 5 px/frame). */
+int test_dialogue_run_chr_move_tween(void)
+{
+    static struct ive_program prog;
+    static struct ive_runtime rt;
+    T_ASSERT(scene1_dialogue_parse(
+        "chr:1:move:-390,0\r\n"
+        "chr:1:moveto:-100,0\r\n"
+        "chr:1:speed:5\r\n"
+        "chr:1:disp\r\n"
+        "msg:0:1:A<KEY>\r\nend:\r\n", &prog) == 1);
+    ive_runtime_init(&rt, &prog);
+    ive_runtime_step(&rt, 0);   /* setup ops; current = -390, target = -100 */
+
+    struct ive_standee *s = &rt.scene.standees[1];
+    T_ASSERT(ive_word_f(s->field[1]) == -390.0f); /* move → current */
+    T_ASSERT(ive_word_f(s->field[3]) == -100.0f); /* moveto → target */
+    T_ASSERT(ive_word_f(s->field[5]) == 5.0f);    /* speed:5 → 5.0 px/frame */
+
+    /* Each step slides current +5 toward -100; -390→-100 = 290 px / 5 = 58. */
+    ive_runtime_step(&rt, 0);
+    T_ASSERT(ive_word_f(s->field[1]) == -385.0f);
+    for (int i = 0; i < 80; i++) ive_runtime_step(&rt, 0);
+    T_ASSERT(ive_word_f(s->field[1]) == -100.0f); /* settled at target */
     return 0;
 }
 

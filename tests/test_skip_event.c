@@ -133,11 +133,23 @@ int test_skip_event_tick_closed_is_noop(void)
 
 int test_skip_to_end_forces_dormant(void)
 {
-    /* scene1_intro_dialogue_skip_to_end() drives the prologue dialogue to
-     * D_DONE — active()/loading() report 0 (free-roam takes the tick). The
-     * host build can't lazy-load a script (storage is Win32-only), so we
-     * assert the post-condition holds from the armed state. */
+    /* scene1_intro_dialogue_skip_to_end() ends only the CURRENT script (user-
+     * confirmed: skipping iv1_1 advances to iv1_2, the 2nd dialogue over the
+     * free-roam map; only skipping iv1_2 reaches free control). So a skip from
+     * iv1_1 (D_SCRIPT1) lands in the inter-script load bracket (D_LOAD) — the
+     * dialogue is not active, but it is loading the next script, NOT dormant. */
     scene1_intro_dialogue_arm();          /* → D_SCRIPT1 */
+    scene1_intro_dialogue_skip_to_end();
+    T_ASSERT_EQ_I(scene1_intro_dialogue_active(), 0);
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);   /* → iv1_2, not free-roam */
+
+    /* A second skip (during the load) jumps straight to iv1_2 (D_SCRIPT2). The
+     * host build can't lazy-load a script (storage is Win32-only), so iv1_2's
+     * runtime stays inactive — active()/loading() both 0 from D_SCRIPT2. */
+    scene1_intro_dialogue_skip_to_end();
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 0);
+
+    /* Skipping the last script (iv1_2) → fully dormant (free control). */
     scene1_intro_dialogue_skip_to_end();
     T_ASSERT_EQ_I(scene1_intro_dialogue_active(), 0);
     T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 0);

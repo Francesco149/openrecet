@@ -32,6 +32,17 @@ static int ive_atof_i(const char *s)
     return (int)strtod(s, NULL);
 }
 
+/* atof → fixed-point ×1000 int (chr:speed). The speed handler FUN_0046dc45
+ * computes field5/6 = (a2 & 0xffff) / 1000.0, and empirically (retail probe
+ * runs/dlg-opening-probe: chr:0 speed:5 → field5 == 5.0) the arg reaches the
+ * handler as the script value ×1000. So "speed:5" → a2 = 5000 → 5.0 px/frame,
+ * "speed:0.5" → 500 → 0.5. Round-to-nearest; clamp to the engine's 16-bit mask. */
+static int ive_atof_milli(const char *s)
+{
+    long v = (long)(strtod(s, NULL) * 1000.0 + (strtod(s, NULL) < 0 ? -0.5 : 0.5));
+    return (int)(v & 0xffff);
+}
+
 /* Advance past the next byte `c`; returns NULL if EOL/EOS hit first. The
  * engine's `for(;*p!=c;p++){}` relies on a '\r' terminator being present;
  * we additionally stop at '\0'/'\n' so a malformed line cannot run off. */
@@ -93,7 +104,7 @@ static void parse_chr(struct ive_program *p, const char *line)
     } else if (kw(sub, "center:", 7)) {
         emit(p, IVE_OP_CHR_CENTER, n, ive_atoi(line + 13));
     } else if (kw(sub, "speed:", 6)) {
-        emit(p, IVE_OP_CHR_SPEED, n, ive_atof_i(line + 12));
+        emit(p, IVE_OP_CHR_SPEED, n, ive_atof_milli(line + 12));
     } else if (kw(sub, "anim:", 5)) {
         emit(p, IVE_OP_CHR_ANIM, n, ive_atoi(line + 11));
     } else if (kw(sub, "fadeframe:", 10)) {

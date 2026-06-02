@@ -450,6 +450,8 @@ struct test_case {
     X(dialogue_run_bgset_sets_active_index) \
     X(dialogue_run_chr_disp_grp_moveto_dir) \
     X(dialogue_run_chr_col_channels) \
+    X(dialogue_run_chr_colto_fade) \
+    X(dialogue_run_chr_move_tween) \
     X(dialogue_box_scale_open_and_closing) \
     X(dialogue_scene_state_reset_standee_defaults) \
     X(dialogue_scene_state_reset_scalars) \

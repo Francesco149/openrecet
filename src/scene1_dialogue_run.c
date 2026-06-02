@@ -97,10 +97,10 @@ void ive_scene_state_reset(struct ive_scene_state *s)
         f[16] = 0x437f0000;  /* g                                   */
         f[17] = 0x437f0000;  /* b                                   */
         f[18] = 0x437f0000;  /* a                                   */
-        f[19] = 0x437f0000;  /* target colour r (chr:colto)         */
-        f[20] = 0x437f0000;  /* g                                   */
-        f[21] = 0x437f0000;  /* b                                   */
-        f[22] = 0x437f0000;  /* a                                   */
+        f[19] = 0x437f0000;  /* colour delta b (chr:colto, per-frame) */
+        f[20] = 0x437f0000;  /* g — reset 255.0 verbatim per FUN_0046c0ae, */
+        f[21] = 0x437f0000;  /* r   but dead until a colto recomputes them */
+        f[22] = 0x437f0000;  /* a   (field10 countdown gates the apply)    */
     }
     s->bg_active       = 0;   /* DAT_073a3df0 */
     s->bg_fade         = 0;   /* DAT_073a3df4 */
@@ -247,14 +247,14 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
         if (s) s->field[2] = s->field[4] = ive_f_word((float)c->a2);
         return IVE_R_CONTINUE;
     }
-    case IVE_OP_CHR_MOVETO_X: { /* 0x46da6e — target(3); snap current(1) [settled] */
+    case IVE_OP_CHR_MOVETO_X: { /* 0x46da6e — target(3) ONLY; current(1) tweens toward it */
         struct ive_standee *s = ive_standee_at(rt, c->a1);
-        if (s) s->field[3] = s->field[1] = ive_f_word((float)c->a2);
+        if (s) s->field[3] = ive_f_word((float)c->a2);
         return IVE_R_CONTINUE;
     }
-    case IVE_OP_CHR_MOVETO_Y: { /* 0x46dc30 — target(4); snap current(2) [settled] */
+    case IVE_OP_CHR_MOVETO_Y: { /* 0x46dc30 — target(4) ONLY */
         struct ive_standee *s = ive_standee_at(rt, c->a1);
-        if (s) s->field[4] = s->field[2] = ive_f_word((float)c->a2);
+        if (s) s->field[4] = ive_f_word((float)c->a2);
         return IVE_R_CONTINUE;
     }
     case IVE_OP_CHR_CENTER: {   /* 0x46da59 — centering offset (field 7) */
@@ -262,24 +262,52 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
         if (s) s->field[7] = ive_f_word((float)c->a2);
         return IVE_R_CONTINUE;
     }
-    case IVE_OP_CHR_COL:        /* 0x46da83 — set current (15-18) + target (19-22) */
-    case IVE_OP_CHR_COLTO: {    /* 0x46db20 — colour fade target; snap [settled] */
-        /* col sets current+target; colto sets only the target and the update
-         * loop tweens current toward it. At the settled anchor the tween has
-         * finished (current==target), so for both we snap current=target. This
-         * matters for full-screen fade overlays (a fade-to-transparent must
-         * settle invisible, not at the reset opaque-white). */
+    case IVE_OP_CHR_SPEED: {    /* 0x46dc45 — move step field5=field6=(a2&0xffff)/1000 */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) {
+            float v = (float)(c->a2 & 0xffff) / 1000.0f;
+            s->field[5] = s->field[6] = ive_f_word(v);
+        }
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_FADEFRAME: { /* 0x46dc82 — field9 = colour-fade frame count */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) s->field[9] = c->a2;
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_COL: {      /* 0x46da83 — set CURRENT colour (15-18) only */
         struct ive_standee *s = ive_standee_at(rt, c->a1);
         if (s) {
             uint32_t p = (uint32_t)c->a2;            /* a<<24|r<<16|g<<8|b */
-            int32_t ch0 = ive_f_word((float)( p        & 0xff));  /* b */
-            int32_t ch1 = ive_f_word((float)((p >> 8)  & 0xff));  /* g */
-            int32_t ch2 = ive_f_word((float)((p >> 16) & 0xff));  /* r */
-            int32_t ch3 = ive_f_word((float)((p >> 24) & 0xff));  /* a */
-            s->field[15] = s->field[19] = ch0;
-            s->field[16] = s->field[20] = ch1;
-            s->field[17] = s->field[21] = ch2;
-            s->field[18] = s->field[22] = ch3;
+            s->field[15] = ive_f_word((float)( p        & 0xff));  /* B */
+            s->field[16] = ive_f_word((float)((p >> 8)  & 0xff));  /* G */
+            s->field[17] = ive_f_word((float)((p >> 16) & 0xff));  /* R */
+            s->field[18] = ive_f_word((float)((p >> 24) & 0xff));  /* A */
+        }
+        return IVE_R_CONTINUE;
+    }
+    case IVE_OP_CHR_COLTO: {    /* 0x46db20 — per-frame deltas (19-22) toward target */
+        /* colto sets field10 = fadeframe count (field9) and the per-frame delta
+         * field19-22 = (target_ch - current_ch)/field9 (channels B,G,R,A); the
+         * tween loop adds the delta to current(15-18) each step for field10
+         * frames. The kuro black-overlay fade (col 255a → colto 0a over
+         * fadeframe:240) and Tear's "sigh"/zzz effect fades all ride this. */
+        struct ive_standee *s = ive_standee_at(rt, c->a1);
+        if (s) {
+            uint32_t p = (uint32_t)c->a2;
+            float tb = (float)( p        & 0xff);    /* target B */
+            float tg = (float)((p >> 8)  & 0xff);    /* target G */
+            float tr = (float)((p >> 16) & 0xff);    /* target R */
+            float ta = (float)((p >> 24) & 0xff);    /* target A */
+            int frames = s->field[9];                /* field9 fadeframe */
+            s->field[10] = frames;                   /* countdown = field9 */
+            if (frames > 0) {
+                float f = (float)frames;
+                s->field[19] = ive_f_word((tb - ive_word_f(s->field[15])) / f);
+                s->field[20] = ive_f_word((tg - ive_word_f(s->field[16])) / f);
+                s->field[21] = ive_f_word((tr - ive_word_f(s->field[17])) / f);
+                s->field[22] = ive_f_word((ta - ive_word_f(s->field[18])) / f);
+            }
         }
         return IVE_R_CONTINUE;
     }
@@ -288,10 +316,43 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
         if (s) s->field[IVE_ST_BLEND] = c->a2;
         return IVE_R_CONTINUE;
     }
-    /* DEFERRED (PORT-DEBT): CHR_SPEED / CHR_FADEFRAME + the move/col tween
-     * intermediate frames — animated, irrelevant at the settled capture anchor. */
     default:                    /* every other setup op (se/fade/light/music/...): ret 1 */
         return IVE_R_CONTINUE;
+    }
+}
+
+/* The per-frame standee tween (FUN_0046c320 lines 107-134). For each active
+ * standee: move its current position (field1/2) toward the target (field3/4) by
+ * `speed` (field5/6) with a ±(speed-1) deadband, then — while field10 > 0 —
+ * advance its current colour (field15-18) by the per-frame delta (field19-22)
+ * and decrement field10. Runs once per internal step (DAT_005c78ec), gated in
+ * the engine on choice_mode==-1 (always true in the prologue). This is what
+ * slides Tear in from the left and fades the kuro black overlay / effect
+ * sprites; previously snapped (PORT-DEBT, now retired). */
+static void ive_run_tween(struct ive_runtime *rt)
+{
+    for (int i = 0; i < IVE_STANDEE_COUNT; i++) {
+        int32_t *f = rt->scene.standees[i].field;
+        if (f[IVE_ST_ACTIVE] == 0)            /* field11 — not displayed */
+            continue;
+
+        float spx = ive_word_f(f[5]), spy = ive_word_f(f[6]);
+        float cx = ive_word_f(f[1]), tx = ive_word_f(f[3]);
+        float cy = ive_word_f(f[2]), ty = ive_word_f(f[4]);
+        if ((spx - 1.0f) + tx < cx) cx -= spx;
+        if (cx < tx - (spx - 1.0f)) cx += spx;
+        if ((spy - 1.0f) + ty < cy) cy -= spy;
+        if (cy < ty - (spy - 1.0f)) cy += spy;
+        f[1] = ive_f_word(cx);
+        f[2] = ive_f_word(cy);
+
+        if (f[10] > 0) {                      /* field10 colour-fade countdown */
+            f[10]--;
+            f[15] = ive_f_word(ive_word_f(f[15]) + ive_word_f(f[19]));
+            f[16] = ive_f_word(ive_word_f(f[16]) + ive_word_f(f[20]));
+            f[17] = ive_f_word(ive_word_f(f[17]) + ive_word_f(f[21]));
+            f[18] = ive_f_word(ive_word_f(f[18]) + ive_word_f(f[22]));
+        }
     }
 }
 
@@ -333,7 +394,10 @@ void ive_runtime_step(struct ive_runtime *rt, uint16_t held)
     if (held & IVE_BTN_FF_X2)        steps = 2;
     else if (held & IVE_BTN_FF_TURBO) steps = 0x50;
 
-    /* Reveal + dwell loop (the inner do-while, run `steps` times). */
+    /* Reveal + dwell + standee tween loop (the inner do-while, run `steps`
+     * times). The engine runs the reveal counter, the dwell, the shake
+     * countdowns and the standee position/colour tween in the same uVar6
+     * iteration (FUN_0046c320 lines 73-160). */
     for (int s = 0; s < steps; s++) {
         if (rt->reveal > 0) {
             rt->reveal++;
@@ -343,6 +407,7 @@ void ive_runtime_step(struct ive_runtime *rt, uint16_t held)
         }
         if (rt->revealed)
             rt->dwell++;
+        ive_run_tween(rt);
     }
 
     /* Box open/close + the `wait:` countdown — the wait only ticks down while

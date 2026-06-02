@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **406** (15.9%) — verified 67, stubbed 17, ported 322
-- unported: **2142**
+- touched: **408** (16.0%) — verified 67, stubbed 17, ported 324
+- unported: **2140**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (67) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (322) — reimplemented, no probe yet
+## ported (324) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -183,7 +183,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x434dd6 | FUN_00434dd6 | 25 | ✓ | choice_box.c, choice_box.h |
 | 0x434def | FUN_00434def | 227 | ✓ | choice_box.c, choice_box.h, scene.h (+3) |
 | 0x434ed2 | FUN_00434ed2 | 581 | ✓ | choice_box.c, choice_box.h, skip_event.c (+1) |
-| 0x435612 | FUN_00435612 | 8 | ✓ | scene1_intro_dialogue.c, scene_title.c, skip_event.c (+2) |
+| 0x435612 | FUN_00435612 | 8 | ✓ | scene_title.c, skip_event.c, title_save_dialog.c (+1) |
 | 0x43561a | FUN_0043561a | 11 | ✓ | scene_worldmap.h, title_save_dialog.c, title_save_dialog.h |
 | 0x435625 | FUN_00435625 | 6 | ✓ | skip_event.c, title_save_dialog.c, title_save_dialog.h |
 | 0x435644 | FUN_00435644 | 79 | ✓ | title_save_dialog.c |
@@ -213,6 +213,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x44b16c | FUN_0044b16c | 84 | ✓ | scene1_combat_sm.h |
 | 0x44b219 | FUN_0044b219 | 60 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
 | 0x44b255 | FUN_0044b255 | 1 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
+| 0x44baad | FUN_0044baad | 109 | ✓ | scene1_intro_dialogue.c |
 | 0x44c88f | FUN_0044c88f | 299 | ✓ | stage_palette.h |
 | 0x44f13d | FUN_0044f13d | 4870 | ✓ | scene1_postload.h |
 | 0x451790 | FUN_00451790 | 211 | ✓ | main.c, prewindow.h, rng.h (+1) |
@@ -233,7 +234,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4532bc | FUN_004532bc | 29 | ✓ | scene1_fx_overlays.h, scene1_records_b_tick.c, scene1_records_b_tick.h (+3) |
 | 0x453373 | FUN_00453373 | 8 | ✓ | main.c, sim.h |
 | 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.c, esc_dispatch.h, skip_event.c |
-| 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c, scene.h, scene1_intro_dialogue.c (+2) |
+| 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c, scene.h, scene1_intro_dialogue.h (+1) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |
 | 0x454f7c | FUN_00454f7c | 104 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_walker_pass_init.c |
@@ -272,6 +273,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46c320 | FUN_0046c320 | 1353 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_run.c (+4) |
 | 0x46c86f | FUN_0046c86f | 307 | ✓ | scene1_dialogue_run.c, scene1_dialogue_run.h |
 | 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ | main.c, scene1_dialogue.c, scene1_dialogue.h (+5) |
+| 0x46dc45 | FUN_0046dc45 | 61 |  | scene1_dialogue.c |
 | 0x46ddea | FUN_0046ddea | 5119 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c |
 | 0x46f737 | FUN_0046f737 | 347 | ✓ | scene1_shop_walker.c |
 | 0x470385 | FUN_00470385 | 246 | ✓ | scene1_chr_shadow.c, scene1_motes.c, scene1_motes.h |

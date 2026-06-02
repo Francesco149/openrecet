@@ -1,0 +1,13 @@
+# intro-opening — the iv1_1 opening BEFORE line 1: the slow fade-from-black
+# (chr:5 kuro.tga, col 255a → colto 0a over fadeframe:240) and Tear's slide-in
+# (chr:0 move:-390 → moveto:-100 speed:5 → 5 px/frame). Idles after
+# HOUSE_FREEROAM #1 and captures 8 frames across the fade + slide. Verifies the
+# standee position/colour tween port (scene1_dialogue_run ive_run_tween).
+#
+#   python3 tools/scenario-test.py intro-opening --target both \
+#     --frida-remote cutestation.soy:27042
+description: |
+  iv1_1 opening: fade-from-black (kuro) + Tear slide-in, 8 frames pre-line-1.
+max_frames: 24000
+duration_ceiling_ms: 240000
+n_captures: 8
