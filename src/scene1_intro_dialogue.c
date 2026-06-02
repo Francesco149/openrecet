@@ -116,6 +116,34 @@ void scene1_intro_dialogue_tick(uint16_t held)
     }
 }
 
+void scene1_intro_dialogue_skip_to_end(void)
+{
+    /* The ESC skip-event "Yes" teardown at port altitude. Retail's
+     * FUN_00453384 b1c0==9 arm restores the resume state and calls the
+     * skip-kind teardown (FUN_00435612 / FUN_004844ef / FUN_00473c03 for the
+     * general/dialogue kind) — which tears the running event down and drops
+     * the player into HOUSE free-roam on the already-loaded scene (the
+     * new-game HOUSE load happened before iv1_1; the prologue plays *over*
+     * the HOUSE — see the header). So skipping jumps straight to free-roam:
+     * no inter-script load bracket, no remaining lines.
+     *
+     * At this altitude that is exactly "make the dialogue subsystem dormant":
+     * D_DONE + an inactive runtime → scene1_intro_dialogue_active()/_loading()
+     * report 0, the dialogue draw stops, and the free-roam controllers take
+     * the tick. Idempotent; safe to call from any state (mid-iv1_1, the load
+     * bracket, or mid-iv1_2).
+     *
+     * PORT-DEBT(simplified, FUN_00473c03): the engine teardown also restores the
+     * snapshot resume state (DAT_06a499a8 + FUN_00473c03's camera/player reseat). The
+     * prologue resumes to the fixed free-roam spawn, which the player/companion
+     * controllers already establish, so the observable end state matches; the
+     * exact reseat calls land with the broader event-teardown port. */
+    g_state       = D_DONE;
+    g_load_ctr    = 0;
+    g_rt.active   = 0;
+    g_rt.complete = 0;
+}
+
 int scene1_intro_dialogue_active(void)
 {
     return ((g_state == D_SCRIPT1 || g_state == D_SCRIPT2) && g_rt.active) ? 1 : 0;

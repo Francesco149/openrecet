@@ -32,6 +32,13 @@ void scene1_intro_dialogue_arm(void);
 /* Return to dormant (no script running, anchors report inactive). */
 void scene1_intro_dialogue_reset(void);
 
+/* The ESC skip-event "Yes" teardown: force-complete the prologue and drop to
+ * HOUSE free-roam (D_DONE + inactive runtime). Mirrors retail's FUN_00453384
+ * b1c0==9 skip arm at port altitude. Idempotent; callable from any state.
+ * Driven by skip_event (src/skip_event.h) on confirm. See the .c for the
+ * engine teardown PORT-DEBT note. */
+void scene1_intro_dialogue_skip_to_end(void);
+
 /* Advance one frame. Call once per INGAME, non-loading frame with player 1's
  * held button mask (g_input_state[0].buttons). No-op while dormant/done. */
 void scene1_intro_dialogue_tick(uint16_t held);

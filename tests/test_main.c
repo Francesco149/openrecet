@@ -702,6 +702,19 @@ struct test_case {
     X(esc_swallow_in_game) \
     X(esc_disabled_swallows_everywhere) \
     \
+    X(skip_event_disabled_is_noop) \
+    X(skip_event_arm_requires_skippable) \
+    X(skip_event_arm_opens) \
+    X(skip_event_rearm_is_idempotent) \
+    X(skip_event_first_tick_swallows_input) \
+    X(skip_event_yes_confirms) \
+    X(skip_event_no_then_a_cancels) \
+    X(skip_event_b_cancels) \
+    X(skip_event_cursor_toggles_back) \
+    X(skip_event_phase_climbs_to_cap) \
+    X(skip_event_tick_closed_is_noop) \
+    X(skip_to_end_forces_dormant) \
+    \
     X(scene_new_game_save_dialog_state_clear_zeroes) \
     X(scene_new_game_save_dialog_state_setter_roundtrip) \
     X(scene_new_game_ui_scratch_clear_sentinels_first_two) \

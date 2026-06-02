@@ -10,6 +10,22 @@
   `main.c` WM_KEYDOWN. ESC routes title→quit, in-game/dialogue→swallow. Unit
   tested (`test_esc_dispatch.c`), host suite green. The reported wrong-quit bug
   is fixed.
+- **Phase B: DONE** (this session). `src/skip_event.{c,h}` — prompt state
+  machine + `scene1_intro_dialogue_skip_to_end()` (force prologue → free-roam).
+  Arm wired into `esc_pressed()`, modal tick into `sim.c`. 12 host tests, suite
+  green, both exes build. **Gated off live via `g_skip_event_enabled=0`** (no
+  soft-lock from an unrendered prompt); Phase C flips it on. The interactive
+  Yes/No input is observable-behavior (PORT-DEBT — the engine choreography is
+  not statically legible; `DAT_06a499c8` cancel counter is never set positive in
+  the corpus). See `docs/findings/esc-skip-event.md` "Port status".
+- **NEXT = Phase C (needs a golden — HUMAN/RE GATE):** render the gold "Do you
+  want to skip this event?" banner + light scene-darken (`FUN_00454191`) and
+  reconcile the confirm choreography against a live retail prompt-over-HOUSE
+  golden. The golden is **blocked on reproducing `DAT_0438b1c8 == 0` on a real
+  dialogue line** — the turbo/forced Frida playthrough leaves it stuck at 1.
+  Most reliable unblock: a **user-recorded playthrough trace** (F2/F3 recorder,
+  faithful line pacing) that settles a line with `b1c8==0`, then inject ESC +
+  capture. Then port the banner render and set `g_skip_event_enabled=1`.
 - **Skip-arm trigger CRACKED.** The skip arms via `FUN_0045337b → FUN_00453384(0)`
   **iff `DAT_0438b1c8 == 0`** (dialogue sub-state) + the `cVar4`/`DAT_0438bf7c==0`/
   `DAT_0438be98==0` terms. Confirmed an arm by spamming the skip from frame ~50

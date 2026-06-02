@@ -2,11 +2,11 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 10,
+  "total": 13,
   "by_kind": {
    "stub": 4,
    "synthetic-data": 0,
-   "simplified": 3,
+   "simplified": 6,
    "hardcode": 1,
    "scaffold": 0,
    "force-flag": 0
@@ -14,7 +14,7 @@
   "unknown_kinds": {
    "deferred": 2
   },
-  "retiring_engine_fns": 7,
+  "retiring_engine_fns": 10,
   "by_engine_fn": {
    "FUN_004176ff": 2,
    "FUN_0046c9a2": 2,
@@ -22,7 +22,10 @@
    "FUN_004176ff L3876": 1,
    "FUN_004176ff L4958": 1,
    "FUN_00436f97": 1,
-   "FUN_00454191": 1
+   "FUN_00453384": 1,
+   "FUN_004536cb": 1,
+   "FUN_00454191": 1,
+   "FUN_00473c03": 1
   }
  },
  "tags": [
@@ -72,6 +75,30 @@
    "desc": "of the 710-line state-entry init this",
    "file": "src/scene1_postload.c",
    "line": 9,
+   "kind_known": true
+  },
+  {
+   "kind": "simplified",
+   "engine_fn": "FUN_00453384",
+   "desc": "the Yes/No selection + A-confirm /",
+   "file": "src/skip_event.c",
+   "line": 83,
+   "kind_known": true
+  },
+  {
+   "kind": "simplified",
+   "engine_fn": "FUN_004536cb",
+   "desc": "retail freezes the *entire",
+   "file": "src/sim.c",
+   "line": 258,
+   "kind_known": true
+  },
+  {
+   "kind": "simplified",
+   "engine_fn": "FUN_00473c03",
+   "desc": "the engine teardown also restores the",
+   "file": "src/scene1_intro_dialogue.c",
+   "line": 136,
    "kind_known": true
   },
   {

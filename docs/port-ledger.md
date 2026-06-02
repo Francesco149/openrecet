@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **402** (15.8%) — verified 67, stubbed 17, ported 318
-- unported: **2146**
+- touched: **404** (15.9%) — verified 67, stubbed 17, ported 320
+- unported: **2144**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (67) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (318) — reimplemented, no probe yet
+## ported (320) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -180,8 +180,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x434c2c | FUN_00434c2c | 125 | ✓ | bmp_lzw.c, bmp_lzw.h |
 | 0x434ca9 | FUN_00434ca9 | 58 | ✓ | bmp_lzw.c, bmp_lzw.h |
 | 0x434dbf | FUN_00434dbf | 23 | ✓ | main.c |
+| 0x434dd6 | FUN_00434dd6 | 25 | ✓ | skip_event.h |
 | 0x434def | FUN_00434def | 227 | ✓ | scene_title.c |
-| 0x435612 | FUN_00435612 | 8 | ✓ | scene_title.c, title_save_dialog.c, title_save_dialog.h |
+| 0x435612 | FUN_00435612 | 8 | ✓ | scene1_intro_dialogue.c, scene_title.c, title_save_dialog.c (+1) |
 | 0x43561a | FUN_0043561a | 11 | ✓ | scene_worldmap.h, title_save_dialog.c, title_save_dialog.h |
 | 0x435625 | FUN_00435625 | 6 | ✓ | title_save_dialog.c, title_save_dialog.h |
 | 0x435644 | FUN_00435644 | 79 | ✓ | title_save_dialog.c |
@@ -230,8 +231,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4532b1 | FUN_004532b1 | 11 | ✓ | scene1_fx_overlays.h, scene1_render.h, sim.h |
 | 0x4532bc | FUN_004532bc | 29 | ✓ | scene1_fx_overlays.h, scene1_records_b_tick.c, scene1_records_b_tick.h (+3) |
 | 0x453373 | FUN_00453373 | 8 | ✓ | main.c, sim.h |
-| 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.c, esc_dispatch.h |
-| 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c |
+| 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.c, esc_dispatch.h, skip_event.h |
+| 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c, scene1_intro_dialogue.c, scene1_intro_dialogue.h (+2) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |
 | 0x454f7c | FUN_00454f7c | 104 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_walker_pass_init.c |
@@ -299,6 +300,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4739dc | FUN_004739dc | 31 | ✓ | worker_load.h |
 | 0x4739fb | FUN_004739fb | 31 | ✓ | worker_load.h |
 | 0x473a3e | FUN_00473a3e | 453 | ✓ | main.c, scene_pause.c, scene_pause.h (+1) |
+| 0x473c03 | FUN_00473c03 | 9 | ✓ | scene1_intro_dialogue.c |
 | 0x473c15 | FUN_00473c15 | 2476 | ✓ | scene1_preload.c, scene1_preload.h, worker_load.h |
 | 0x4746fc | FUN_004746fc | 48 | ✓ | worker_load.h |
 | 0x47472c | FUN_0047472c | 34 | ✓ | worker_load.h |
@@ -321,7 +323,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47b0ef | FUN_0047b0ef | 120 | ✓ | input.c, input.h |
 | 0x47b1f2 | FUN_0047b1f2 | 99 |  | input.c |
 | 0x47b29e | FUN_0047b29e | 73 | ✓ | main.c, prewindow.c, scene.h (+1) |
-| 0x47b2e7 | FUN_0047b2e7 | 1061 |  | esc_dispatch.h, main.c |
+| 0x47b2e7 | FUN_0047b2e7 | 1061 |  | esc_dispatch.h, main.c, skip_event.h |
 | 0x47bfb3 | FUN_0047bfb3 | 629 | ✓ | main.c |
 | 0x47c228 | FUN_0047c228 | 61 | ✓ | font.h, main.c |
 | 0x47c3a5 | FUN_0047c3a5 | 207 | ✓ | font.h, font_atlas.c, font_atlas.h (+1) |
@@ -375,7 +377,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ | audio.c, audio.h, music.c (+1) |
 | 0x49933c | FUN_0049933c | 439 | ✓ | scene1_combat_sm.h, scene_title.c |
-| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, scene1_combat_sm.h (+6) |
+| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, scene1_combat_sm.h (+7) |
 | 0x499538 | FUN_00499538 | 20 | ✓ | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ | music.h |
 | 0x499579 | FUN_00499579 | 10 | ✓ | worker_load.c, worker_load.h |

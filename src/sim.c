@@ -38,6 +38,7 @@
 #include "nowloading.h"   /* nowloading_set_active(0) — drop the overlay gate */
 #include "scene.h"        /* g_scene_state dispatch */
 #include "scene1_intro_dialogue.h" /* opening-prologue dialogue (TEXT_ANIM + inter-script load) */
+#include "skip_event.h"            /* ESC "skip this event?" prompt */
 #include "scene1_particles_tick.h"  /* engine FUN_0040fb3a — LAB_00453bed body */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
@@ -247,8 +248,22 @@ void sim_step_a(void)
      * TEXT_ANIM_START/END anchors off player 1's held buttons. Dormant unless
      * armed at new-game; a no-op once the 46 lines complete.
      * See src/scene1_intro_dialogue.h. */
-    if (g_scene_state == SCENE_STATE_INGAME)
-        scene1_intro_dialogue_tick(g_input_state[0].buttons);
+    if (g_scene_state == SCENE_STATE_INGAME) {
+        if (skip_event_open()) {
+            /* The skip-event prompt is modal (retail FUN_004536cb routes the
+             * frame to LAB_00453cfb, skipping the scene tick, while the prompt
+             * is up): freeze the dialogue and run the prompt. On "Yes" tear the
+             * event down to free-roam; "No"/cancel resumes the dialogue next
+             * frame (the runtime is left untouched). See src/skip_event.h.
+             * PORT-DEBT(simplified, FUN_004536cb): retail freezes the *entire*
+             * in-game sim here (LAB_00453cfb); the port freezes the dialogue —
+             * the only prologue consumer — and lets the (stubbed) siblings run. */
+            if (skip_event_tick(g_input_state[0].buttons) == SKIP_EVENT_CONFIRMED)
+                scene1_intro_dialogue_skip_to_end();
+        } else {
+            scene1_intro_dialogue_tick(g_input_state[0].buttons);
+        }
+    }
 
     /* Engine FUN_004536cb L50470-50471: two unconditional per-frame
      * helpers, run between the button mode-cycle block (above) and

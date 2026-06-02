@@ -236,10 +236,31 @@ golden capture.
   everywhere. `main.c` WM_KEYDOWN calls it. Fixes the wrong-quit bug. Unit-tested
   (`test_esc_dispatch.c`). PORT-DEBT: the (C) overlay-open suppress is title-only
   until the pause menu lands; `g_esc_disabled` has no producer yet.
-- **Phase B (pending):** the skip-event state machine + `scene1_intro_dialogue_
-  skip_to_end()` (functional prologue skip).
-- **Phase C (pending):** the faithful yes/no prompt render + the live-traced
-  confirm choreography, verified vs retail goldens.
+- **Phase B (LANDED 2026-06-02):** `src/skip_event.{c,h}` — the prompt state
+  machine (`skip_event_arm`/`_tick`/`_open`/`_close` + phase/selection getters)
+  + `scene1_intro_dialogue_skip_to_end()` (force the prologue to D_DONE →
+  free-roam). Arm wired into `esc_pressed()` (in-game ESC → `skip_event_arm(
+  scene1_intro_dialogue_active())`); the modal tick wired into `sim.c` (prompt
+  open → freeze dialogue, run prompt; CONFIRMED → skip_to_end). 12 host tests
+  (`test_skip_event.c`), suite green; both exes build.
+  - **Gated OFF live:** `g_skip_event_enabled` defaults to 0, so the arm is a
+    no-op and in-game ESC keeps the Phase A swallow — an armed-but-unrendered
+    prompt would freeze the dialogue with no visible Yes/No (soft-lock). Phase C
+    flips it on with the banner render.
+  - **Faithful vs PORT-DEBT:** the arm gate + open/teardown *structure* are from
+    the disasm; the interactive Yes/No / confirm / cancel *input* is modelled to
+    the user-confirmed observable behavior (cursor defaults Yes, Left/Right
+    toggles, A confirms, B cancels). The exact engine choreography is **not
+    statically legible** — the auto-confirm counter (`FUN_004532df`) climbs only
+    while ESC is *disabled*, and the cancel counter `DAT_06a499c8` is **never set
+    positive anywhere in the decompiled corpus** — so the real selection storage
+    + confirm/cancel path resolve through state the static dump doesn't express.
+    Reconcile against a live golden when Phase C lands.
+- **Phase C (pending):** the faithful yes/no prompt render (gold banner +
+  light scene-darken, per the user screenshot) + the live-traced confirm
+  choreography, verified vs retail goldens. Flips `g_skip_event_enabled` on.
+  BLOCKER: a clean retail prompt-over-HOUSE golden (reproduce `b1c8==0` on a
+  real dialogue line — needs a faithful/user-recorded playthrough trace).
 
 ## Port mapping
 
@@ -249,5 +270,10 @@ golden capture.
 | `DAT_06a49954` (esc-disabled) | `g_esc_disabled` |
 | `DAT_0438b1c0` (sub-mode) | `g_scene_state` (coarse; finer values pending) |
 | `FUN_0049a585` (quit gate) | title-only check (PORT-DEBT) |
-| `FUN_00453384` / `FUN_004532df` | pending (Phase B) |
+| `FUN_0045337b` → `FUN_00453384` arm | `skip_event_arm()` (skip_event.c) |
+| `DAT_06a499a0` (prompt-open) | `skip_event_open()` / `g_open` |
+| `DAT_06a4999c` (render phase) | `skip_event_phase()` / `g_phase` |
+| `DAT_06a4997c` (skip-kind=0) | `g_kind` (fixed 0; selection is `g_sel`, PORT-DEBT) |
+| `FUN_004532df` confirm counter | observable A-confirm (PORT-DEBT: counter choreography) |
+| skip teardown (`FUN_00473c03` …) | `scene1_intro_dialogue_skip_to_end()` |
 | `FUN_00454191` (render) | pending (Phase C) |

@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **10**
-- distinct retiring engine functions: **7**
+- total open debts: **13**
+- distinct retiring engine functions: **10**
 
 | kind | count | meaning |
 |------|------:|---------|
 | stub | 4 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 3 | reduced control flow / state machine vs retail |
+| simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -36,7 +36,10 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff L3876 | 1 |
 | FUN_004176ff L4958 | 1 |
 | FUN_00436f97 | 1 |
+| FUN_00453384 | 1 |
+| FUN_004536cb | 1 |
 | FUN_00454191 | 1 |
+| FUN_00473c03 | 1 |
 
 ## stub (4)
 
@@ -51,13 +54,16 @@ the answer to *"what's still faked in code that looks done?"*
 
 _none_
 
-## simplified (3)
+## simplified (6)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
+| FUN_00453384 | src/skip_event.c:83 | the Yes/No selection + A-confirm / |
+| FUN_004536cb | src/sim.c:258 | retail freezes the *entire |
+| FUN_00473c03 | src/scene1_intro_dialogue.c:136 | the engine teardown also restores the |
 
 ## hardcode (1)
 
