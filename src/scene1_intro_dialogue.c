@@ -52,17 +52,6 @@ void scene1_intro_dialogue_reset(void)
     g_rt.complete = 0;
 }
 
-int scene1_intro_dialogue_in_progress(void)
-{
-    /* True from NEW GAME (arm → D_SCRIPT1) through the end of iv1_2 (→ D_DONE),
-     * gaplessly across the inter-script load (D_LOAD) and the frames between
-     * lines where no box is up. Unlike scene1_intro_dialogue_active() (which
-     * tracks only the per-line dialogue gate and drops in those gaps), this
-     * brackets the whole prologue — the window over which the music selector
-     * must hold the title track before the HOUSE theme. */
-    return g_state != D_IDLE && g_state != D_DONE;
-}
-
 /* Load script `sub` of the opening scene and arm the interpreter on it.
  * Returns 1 on success; 0 (and the caller gives up) if the script is missing. */
 static int start_script(int sub)

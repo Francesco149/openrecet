@@ -228,7 +228,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x452dc1 | FUN_00452dc1 | 60 | ✓ | scene_floor.h, worker_load.c |
 | 0x452dfd | FUN_00452dfd | 60 | ✓ | scene_jutan.h, worker_load.c |
 | 0x452e39 | FUN_00452e39 | 60 | ✓ | scene_table.h, worker_load.c |
-| 0x452eed | FUN_00452eed | 41 | ✓ | worker_load.c, worker_load.h |
+| 0x452eed | FUN_00452eed | 41 | ✓ | music.c, worker_load.c, worker_load.h |
 | 0x452f16 | FUN_00452f16 | 66 | ✓ | worker_load.h |
 | 0x452f58 | FUN_00452f58 | 491 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_overlay_helpers.c (+2) |
 | 0x4532b1 | FUN_004532b1 | 11 | ✓ | scene1_fx_overlays.h, scene1_render.h, sim.h |

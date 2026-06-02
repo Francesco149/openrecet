@@ -31,7 +31,6 @@
 #include "scene_title.h"   /* g_scene_title_anim — for music_step_default */
 #include "scene.h"         /* g_scene_state — live scene mode (DAT_0438b1c0) */
 #include "worker_load.h"   /* worker_load_busy — swap-suppression while loading */
-#include "scene1_intro_dialogue.h"  /* scene1_intro_dialogue_in_progress — prologue bracket */
 #include "scene1_player_ctrl.h"     /* player_ctrl_cc08 — shop open/closed state */
 #include "call_trace.h"
 
@@ -384,24 +383,22 @@ void music_step_default(void)
         .shop_fever           = 0,                       /* deferred */
     };
 
-    /* Swap-suppression gate (engine FUN_00452911 → DAT_06a49954 global-pause
-     * at the dispatch site). Retail keeps the title theme playing across the
-     * whole new-game → HOUSE-load → opening-prologue window and only swaps to
-     * the HOUSE theme when real free-roam control begins (verified:
-     * runs/bgm-probe, track 0 holds frames 72..11983, → 9 at 11984).
+    /* Swap-suppression gate. The engine gates the dispatch on FUN_00452911(),
+     * which returns DAT_06a49954 — and that global is set to 1 ONLY by the two
+     * scene-load worker spawns (FUN_00452cde / FUN_00452eed, each a
+     * CreateThread) and cleared when the load thread finishes. So it is purely
+     * the loader-busy flag: the BGM swap is held *only* while the scene is
+     * loading, and fires the instant the load completes.
      *
-     * The port signal that brackets that whole window is
-     * scene1_intro_dialogue_in_progress() — true from new game through the end
-     * of the iv1_2 script, gaplessly across the inter-script load and the
-     * between-line gaps (cc08 is NOT usable here: the port sets it to the
-     * free-roam value at HOUSE entry, since the iv1_2 dialogue plays *over*
-     * live free-roam). We also hold while the scene loader is busy (the
-     * new-game HOUSE load). When the prologue completes (and nothing's
-     * loading) the gate opens and the close theme lands. Title screen is
-     * scene_state 0, so neither term applies there and the title swap fires
-     * normally. */
-    g_music.global_pause =
-        (worker_load_busy() || scene1_intro_dialogue_in_progress()) ? 1 : 0;
+     * The opening cutscene therefore does NOT keep the title theme — the
+     * selector returns the HOUSE track (9) all through it (the selector's only
+     * "keep current" skip is for dialogue script (5c7a2c==0,5c7a30==1), and the
+     * opening is (1,1)/(1,2), so that branch never fires here). The title theme
+     * plays during the title screen + the new-game scene load; the home theme
+     * lands the moment that load finishes — i.e. at the cutscene start — and
+     * plays under the whole prologue. Verified against the decompile
+     * (FUN_0049966a dispatch + FUN_00452911); see audio-backend.md. */
+    g_music.global_pause = worker_load_busy() ? 1 : 0;
 
     music_step(&g_music, &ctx);
 }

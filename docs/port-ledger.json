@@ -3921,6 +3921,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/music.c",
     "src/worker_load.c",
     "src/worker_load.h"
    ]

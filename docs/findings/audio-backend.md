@@ -377,21 +377,29 @@ Retail capture (`runs/bgm-probe`, house-walk-down trace, seed default, turbo,
 
 ```
 frame      1  state=0 (title)   track=0   bgm/retitle2010 — title theme
-frame     72  state=1 (INGAME)  track=0   *** title theme PERSISTS into the game ***
-frame  11984  state=1 (INGAME)  track=9   bgm/close.wav — shop-CLOSED / home theme
+frame     72  state=1 (INGAME)  track=0   new game; HOUSE scene-load starts (worker busy)
+frame  11984  state=1 (INGAME)  track=9   bgm/close.wav — load completes → cutscene starts
 ```
 
-Two findings that shape the port wiring (`music_step_default` currently pins
-`scene_state=0`, so it never leaves the title track):
+Two findings that shape the port wiring (`music_step_default` was pinning
+`scene_state=0`, so it never left the title track):
 
-1. **The title theme keeps playing through the whole opening prologue** — new
-   game does NOT immediately swap BGM. The selector's swap is suppressed during
-   the scene-load + dialogue window (the loading sub-state gate
-   `DAT_0438beb0`/`be94` and `FUN_00452911` global-pause keep the swap from
-   firing), so `retitle2010` carries the new-game cutscene. The BGM only changes
-   when real free-roam control begins.
+1. **The BGM swaps the instant the scene load completes — i.e. at the opening
+   cutscene START — not at free-roam.** (CORRECTED 2026-06-02: an earlier reading
+   of this capture mistook the long load for "title persists through the
+   prologue." It does not — see the decompile below.) The dispatch is gated
+   *only* by `FUN_00452911()`, which returns `DAT_06a49954`. That global is set
+   to 1 **only** by the two scene-load worker spawns (`FUN_00452cde` /
+   `FUN_00452eed`, each a `CreateThread`) and cleared when the load thread
+   finishes — it is purely the **loader-busy** flag. So `retitle2010` plays over
+   the title screen + the new-game scene load, then the home theme lands the
+   moment that load finishes and plays *under* the whole opening cutscene. The
+   capture's frame 11984 is the load-completion in that (long-loading) trace, not
+   a post-prologue boundary. The selector's only "keep current" skip is for
+   dialogue script `(5c7a2c==0, 5c7a30==1)`; the opening is `(1,1)`/`(1,2)`, so
+   that branch never fires for it — the selector returns track 9 throughout.
 
-2. **HOUSE free-roam BGM = track 9 (`bgm/close.wav`)** — the closed-shop / home
+2. **HOUSE cutscene/free-roam BGM = track 9 (`bgm/close.wav`)** — the closed-shop / home
    theme. The selector's state-1 stage branch (FUN_0049966a `all.c`-equiv
    `49966a.c:86-150`) is:
 
@@ -413,22 +421,21 @@ Two findings that shape the port wiring (`music_step_default` currently pins
    free-roam) → track 9. Once the player opens the shop (`cc08 == 4`) it becomes
    track 8 (`open`) or 18 (`feaver`, the fever-sale variant).
 
-**LANDED (2026-06-02).** `music_step_default` now feeds the live `g_scene_state`
-+ HOUSE stage inputs (`scene_type=0`, `shop_open = player_ctrl_cc08()==4`) to the
+**LANDED (2026-06-02).** `music_step_default` feeds the live `g_scene_state` +
+HOUSE stage inputs (`scene_type=0`, `shop_open = player_ctrl_cc08()==4`) to the
 selector, and `music_select_track`'s state-1 branch returns
 `music_stage_track(scene_type, shop_open, fever)` — the full engine stage switch
-(close 9 / open 8 / fever 18 for types 0..4, dungeon BGM for 5+). The swap is
-gated (via `g_music.global_pause`) on
-`worker_load_busy() || scene1_intro_dialogue_in_progress()` — the latter is a new
-gapless NEW_GAME→D_DONE bracket (cc08 is unusable as the prologue marker because
-the port sets it to the free-roam value at HOUSE entry, with iv1_2 playing over
-live free-roam). Verified end-to-end: house-walk-down port run swaps track 0→9 at
-the frame after `CONV_POSE_END` (prologue end), i.e. the title theme holds through
-the whole prologue then the close theme lands at free-roam — matching the retail
-structure. The absolute swap frame differs from retail's 11984 only by the port's
-synthetic-load prologue timing (PORT-DEBT, engine-quirks §85). The fever variant
-+ the dungeon stages await those scenes porting (they have no live `scene_type`
-producer yet — HOUSE is hardcoded type 0).
+(close 9 / open 8 / fever 18 for types 0..4, dungeon BGM for 5+). The swap gate
+(`g_music.global_pause`) is `worker_load_busy()` — and only that, mirroring the
+engine's `FUN_00452911`/`DAT_06a49954` loader-busy flag (NOT a prologue bracket:
+an earlier version also OR'd in an intro-dialogue-in-progress term, which wrongly
+held the title theme through the cutscene — removed 2026-06-02 after the user
+flagged the BGM should change at the cutscene start). Verified end-to-end:
+house-walk-down port run swaps track 0→9 at the frame after `LOADING_END` /
+`HOUSE_FREEROAM` (the new-game load completing = the cutscene start), so the home
+theme plays under the whole opening, exactly as retail. The fever variant + the
+dungeon stages await those scenes porting (no live `scene_type` producer yet —
+HOUSE is hardcoded type 0).
 
 ## Next steps
 
