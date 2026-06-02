@@ -94,10 +94,22 @@ face-to-face conversation pose is active; non-0 → free-roam.** BSS-zero, so th
 producer must explicitly SET it after the event to release the pose.
 
 Writers (all.c):
-- **`FUN_00470a46`** (0x470a46, 766 B) — `[save] = 0` → **starts** the
-  conversation pose. This is the talk-event entry; pair with `FUN_004708f7`
-  (0x4708f7, read each tick at the FUN_0048407f tail) + `FUN_00470970` /
-  `FUN_00470d44` (the 0x4708–0x470d "talk manager" cluster).
+- **`FUN_00470a46`** (0x470a46, 766 B) — the **new-game intro event timeline**,
+  sequenced by the `DAT_0438b924` event timer relative to base `DAT_005c7df0`.
+  Beats: base → `FUN_0044ba2c(10)` (arm iv1 dialogue); base+0x104 →
+  `FUN_0044ba2c(10,2)` (arm iv1_2); base+0x122 → `FUN_004526f5(0,0x1e)`
+  (shatter/melt transition, **render-deferred** per `opening-prologue.md`
+  gap #16); then once `FUN_004528b3()!=0` (transition done) → `FUN_0045281c()`,
+  **`DAT_0450f470[save]=0`** (release → conversation pose ON), `DAT_0438b924=0xc0`,
+  set facing (Tear.x vs Recette.x), and **directly pose both actors**:
+  `FUN_00482a51(&DAT_056daae8, 6)` (player anim 6), `FUN_00482a51(&DAT_056dab40,
+  4)` (companion anim 4). [`FUN_00482a51(record, anim_id)` = the anim-SET helper
+  (set id + reset frame); `FUN_00482a71` = the per-frame anim-STEP.] So the pose
+  is armed at the END of the intro transition and then **maintained every frame
+  by FUN_0048407f** while the flag stays 0. The producer thus depends on the
+  intro event timer + the deferred shatter transition — it is its own chip.
+  Pair with `FUN_004708f7` (0x4708f7, read each tick at the FUN_0048407f tail) +
+  `FUN_00470970` / `FUN_00470d44` (the 0x4708–0x470d "talk manager" cluster).
 - **`FUN_004852fb`** (0x4852fb) — `[save] = 1` under a stage condition
   (`DAT_0450fb84[..]==8` …) → releases the pose on scene transition. Its sibling
   `FUN_0048526d` (0x48526d) is the same conversation-enter setup minus the flag.
