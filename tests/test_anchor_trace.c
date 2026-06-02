@@ -347,6 +347,29 @@ int test_anchor_extra_sprite_ramped_fade_in(void)
     return 0;
 }
 
+/* DLG_LINE_CLEAR / DLG_LINE_SHOW edge off dlg_line_present — frame the
+ * between-lines (box-gone) gap. */
+int test_anchor_dlg_line_edges(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+    struct anchor_world w = { 0 };
+    w.scene_state = 1;
+
+    w.dlg_line_present = 1;
+    anchor_trace_tick(&st, 0, w, rec_sink, &r);   /* BOOT, baseline present=1 */
+    w.dlg_line_present = 0;
+    anchor_trace_tick(&st, 1, w, rec_sink, &r);   /* line dismissed → CLEAR */
+    w.dlg_line_present = 1;
+    anchor_trace_tick(&st, 2, w, rec_sink, &r);   /* next line → SHOW */
+
+    T_ASSERT_EQ_I(rec_count(&r, "DLG_LINE_CLEAR"), 1);
+    T_ASSERT_EQ_I(rec_count(&r, "DLG_LINE_SHOW"), 1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "DLG_LINE_CLEAR")], 1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "DLG_LINE_SHOW")], 2);
+    return 0;
+}
+
 /* The JSONL convenience sink emits the exact shared wire format. */
 int test_anchor_jsonl_sink_format(void)
 {

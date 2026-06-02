@@ -67,6 +67,12 @@ struct anchor_world {
      * lifecycle anchors so a TAS trace can frame the fade in/out of any effect
      * sprite without hard-coding which standee/line it is. */
     int32_t fx_alpha;
+
+    /* 1 while a dialogue line is shown (DAT_073a6a38 >= 0); 0 between lines (box
+     * closing/gone) or outside dialogue. Drives DLG_LINE_CLEAR (1→0, the
+     * box-dismissed edge) / DLG_LINE_SHOW (0→1) so a trace can frame exactly the
+     * between-lines gap (after a line is dismissed, before the next appears). */
+    int dlg_line_present;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

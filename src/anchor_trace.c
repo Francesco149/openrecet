@@ -97,6 +97,16 @@ static int ev_fx_end(const struct anchor_world *p, const struct anchor_world *c)
     return p->fx_alpha > 0 && c->fx_alpha == 0;            /* fully gone */
 }
 
+/* Dialogue line shown/dismissed edges — frame the between-lines (box-gone) gap. */
+static int ev_dlg_line_clear(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->dlg_line_present && !c->dlg_line_present;    /* line dismissed */
+}
+static int ev_dlg_line_show(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->dlg_line_present && c->dlg_line_present;    /* next line shown */
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -116,6 +126,8 @@ static const struct anchor_def g_anchors[] = {
     { "EXTRA_SPRITE_FADED_IN", ev_fx_faded_in },
     { "EXTRA_SPRITE_FADEOUT",  ev_fx_fadeout  },
     { "EXTRA_SPRITE_END",      ev_fx_end      },
+    { "DLG_LINE_CLEAR",        ev_dlg_line_clear },
+    { "DLG_LINE_SHOW",         ev_dlg_line_show  },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

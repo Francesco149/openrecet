@@ -620,6 +620,7 @@ let g_anchor_prev_loading  = false;  // previous-frame (gate1||gate2)!=0
 let g_anchor_prev_reveal   = 0;      // previous-frame DAT_073a3e00 (reveal ctr)
 let g_anchor_prev_revflag  = 0;      // previous-frame DAT_073a3e04 (revealed)
 let g_anchor_prev_fxalpha  = 0;      // previous-frame max extra-sprite alpha
+let g_anchor_prev_linep    = 0;      // previous-frame DAT_073a6a38 >= 0 (line shown)
 
 // Extra/effect-sprite standee table (the sigh / zzz / kuro fade etc). Base =
 // &DAT_073a3e70, stride 0x70; field11 (active) at +0x2c, field18 (alpha float)
@@ -2100,6 +2101,8 @@ function anchorTick(frame, devicePtr) {
     const reveal    = rva(ADDR.var_dlg_reveal_ctr).readS32();
     const revflag   = rva(ADDR.var_dlg_revealed_flag).readS32();
     const fxAlpha   = anchorFxAlpha(dlgActive);
+    // DAT_073a6a38 >= 0 — a dialogue line is shown (box open); < 0 between lines.
+    const linePresent = dlgActive && rva(0x073a6a38).readS32() >= 0;
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
@@ -2108,6 +2111,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_reveal  = reveal;
         g_anchor_prev_revflag = revflag;
         g_anchor_prev_fxalpha = fxAlpha;
+        g_anchor_prev_linep   = linePresent;
         send({kind: 'anchor', anchor: 'BOOT', frame: frame});
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -2116,6 +2120,7 @@ function anchorTick(frame, devicePtr) {
     const ps = g_anchor_prev_scene, pl = g_anchor_prev_loading;
     const pr = g_anchor_prev_reveal, pf = g_anchor_prev_revflag;
     const px = g_anchor_prev_fxalpha;
+    const plp = g_anchor_prev_linep;
 
     // Table order = emission order when several fire on one frame; matches
     // anchor_trace.c's g_anchors[] (causal: NEW_GAME / LOADING_START before
@@ -2174,12 +2179,23 @@ function anchorTick(frame, devicePtr) {
         send({kind: 'anchor', anchor: 'EXTRA_SPRITE_END', frame: frame});
         anchorCaptureSchedule('EXTRA_SPRITE_END', frame, devicePtr);
     }
+    // DLG_LINE_CLEAR / DLG_LINE_SHOW — line dismissed (box closing) / next line
+    // shown. Frame the between-lines gap. Mirror of anchor_trace.c ev_dlg_line_*.
+    if (plp && !linePresent) {
+        send({kind: 'anchor', anchor: 'DLG_LINE_CLEAR', frame: frame});
+        anchorCaptureSchedule('DLG_LINE_CLEAR', frame, devicePtr);
+    }
+    if (!plp && linePresent) {
+        send({kind: 'anchor', anchor: 'DLG_LINE_SHOW', frame: frame});
+        anchorCaptureSchedule('DLG_LINE_SHOW', frame, devicePtr);
+    }
 
     g_anchor_prev_scene   = scene;
     g_anchor_prev_loading = loading;
     g_anchor_prev_reveal  = reveal;
     g_anchor_prev_revflag = revflag;
     g_anchor_prev_fxalpha = fxAlpha;
+    g_anchor_prev_linep   = linePresent;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────

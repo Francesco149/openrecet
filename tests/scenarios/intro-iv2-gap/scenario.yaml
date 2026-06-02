@@ -1,0 +1,24 @@
+# intro-iv2-gap — the iv1_2 (2nd dialogue) OPENING: after the fade-from-black,
+# during the character slide-in, BEFORE the first line appears. Retail plays
+# Recette's HOUSE freeroam sprite a look-up-at-Tear pose + a blink animation
+# here (≥3 blinks) that the port doesn't reproduce. Reaches iv1_2 via the 2nd
+# HOUSE_FREEROAM (A-mashes through iv1_1), then IDLES (fade/slide/waits are
+# input-independent) and captures densely (HF#2 +14..+138 every 2) so every
+# blink frame is caught. The zoom crops onto Recette's freeroam sprite (cap_03 =
+# eyes open → cap_04 = eyes closed). Reference scenario for the deferred
+# look-up/blink port (task: Recette freeroam look-up/blink anim during iv1_2).
+#
+#   python3 tools/scenario-test.py intro-iv2-gap --target both \
+#     --frida-remote cutestation.soy:27042
+description: |
+  iv1_2 opening (post-fade, during char slide-in) — Recette look-up + blink,
+  zoomed onto her sprite; dense reference for diffing vs retail.
+max_frames: 24000
+duration_ceiling_ms: 240000
+n_captures: 63
+zoom_text:
+  x: 468
+  y: 578
+  w: 104
+  h: 150
+  factor: 4

@@ -182,6 +182,15 @@ int32_t scene1_intro_dialogue_text_reveal(void)
     return scene1_intro_dialogue_active() ? g_rt.reveal : 0;
 }
 
+int scene1_intro_dialogue_line_present(void)
+{
+    /* DAT_073a6a38 >= 0 — a dialogue line is currently shown (the box is open /
+     * opening). Goes < 0 the frame a line is cleared (<C> / MSG_CLEAR), i.e. the
+     * box-dismissed edge. Gated on dialogue-active. Feeds the DLG_LINE_CLEAR /
+     * DLG_LINE_SHOW anchors that frame the between-lines (box-gone) gap. */
+    return (scene1_intro_dialogue_active() && g_rt.line_row >= 0) ? 1 : 0;
+}
+
 int32_t scene1_intro_dialogue_fx_alpha(void)
 {
     /* Max alpha (0-255) over the active "extra/effect" standees — index >= 2

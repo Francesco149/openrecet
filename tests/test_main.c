@@ -437,6 +437,7 @@ struct test_case {
     X(anchor_text_gated_on_dlg_active) \
     X(anchor_extra_sprite_lifecycle) \
     X(anchor_extra_sprite_ramped_fade_in) \
+    X(anchor_dlg_line_edges) \
     X(anchor_jsonl_sink_format) \
     \
     X(dialogue_skips_comments_and_terminates) \

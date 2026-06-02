@@ -58,6 +58,10 @@ int     scene1_intro_dialogue_text_revealed(void); /* DAT_073a3e04 != 0     */
  * outside dialogue. Feeds anchor_world.fx_alpha → the EXTRA_SPRITE_* anchors. */
 int32_t scene1_intro_dialogue_fx_alpha(void);
 
+/* 1 while a dialogue line is shown (DAT_073a6a38 >= 0), 0 when none / outside
+ * dialogue. Feeds anchor_world.dlg_line_present → DLG_LINE_CLEAR/SHOW. */
+int scene1_intro_dialogue_line_present(void);
+
 /* Nonzero during the iv1_1→iv1_2 loading bracket (gate==2 in the engine).
  * OR this into anchor_world.loading_active so the 2nd LOADING/HOUSE_FREEROAM
  * pair fires here. Zero outside the bracket. */
