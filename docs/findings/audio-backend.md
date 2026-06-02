@@ -363,6 +363,59 @@ Extracted via `tools/analyze/pe.py` against `vendor/unpacked/recettear.unpacked.
 The mingw-w64 `libdxguid.a` exports these symbols natively, so the port
 links against `-ldxguid` (already in `LIBS` in `src/Makefile`).
 
+## Music-past-the-title: retail ground truth (2026-06-02)
+
+Retail capture (`runs/bgm-probe`, house-walk-down trace, seed default, turbo,
+16000 frames) watching `current_track` (`DAT_005d1960`) + `g_scene_state`
+(`DAT_0438b1c0`):
+
+```
+frame      1  state=0 (title)   track=0   bgm/retitle2010 — title theme
+frame     72  state=1 (INGAME)  track=0   *** title theme PERSISTS into the game ***
+frame  11984  state=1 (INGAME)  track=9   bgm/close.wav — shop-CLOSED / home theme
+```
+
+Two findings that shape the port wiring (`music_step_default` currently pins
+`scene_state=0`, so it never leaves the title track):
+
+1. **The title theme keeps playing through the whole opening prologue** — new
+   game does NOT immediately swap BGM. The selector's swap is suppressed during
+   the scene-load + dialogue window (the loading sub-state gate
+   `DAT_0438beb0`/`be94` and `FUN_00452911` global-pause keep the swap from
+   firing), so `retitle2010` carries the new-game cutscene. The BGM only changes
+   when real free-roam control begins.
+
+2. **HOUSE free-roam BGM = track 9 (`bgm/close.wav`)** — the closed-shop / home
+   theme. The selector's state-1 stage branch (FUN_0049966a `all.c`-equiv
+   `49966a.c:86-150`) is:
+
+   ```
+   switch (DAT_068dd3fc[DAT_0438b4dc * 0x6cf]) {   // scene_type; stage idx DAT_0438b4dc
+     case 0..4:                                     // town/home-type stages
+       if (DAT_0438cc08 == 4)  track = FUN_0045e7b7() ? 18 : 8;  // shop OPEN → open / fever
+       else                    track = 9;                        // shop CLOSED → close
+       break;
+     case 5,9 → 5(ruins); 6,0xe,0xf → 4(forest); 7,0xc → 0x14(water);
+     case 10,0xb → 3(cave); 0xd,0x10 → 2(sougen); 0x11..0x14 → 0x11(lastd01)
+   }
+   ```
+
+   The HOUSE is stage 0; its `scene_type` field `DAT_068dd3fc[0]` is **0**
+   (already read by `scene1_postload.c:482` for the camera view-mode — it's the
+   SAME field at offset 0, not a separate music-id column). So HOUSE + shop
+   closed (`DAT_0438cc08 != 4`, which is the case during the prologue + initial
+   free-roam) → track 9. Once the player opens the shop (`cc08 == 4`) it becomes
+   track 8 (`open`) or 18 (`feaver`, the fever-sale variant).
+
+**Port wiring needed (task open):** feed `music_step_default`'s ctx the live
+`g_scene_state`, the dialogue gate (`DAT_0438b1c8` + script sel `DAT_005c7a2c/30`),
+the stage index + `scene_type`, and the shop-open flag (`DAT_0438cc08`); add the
+stage-branch (case 0..4 → 9/8/18) + the loading/dialogue swap-suppression to
+`music_select_track`. The scene_type field is already available
+(`stage_state` / `scene1_postload`); `DAT_0438cc08` is the shop-open state the
+free-roam controller sets. Structural change is clear; exact swap-frame fidelity
+(the 11984 edge) depends on the load-gate sub-states.
+
 ## Next steps
 
 In rough order of impact:
