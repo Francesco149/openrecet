@@ -1,0 +1,13 @@
+# intro-fade — the iv1_1 fade-from-black (chr:5 kuro.tga, alpha 255→0 over
+# fadeframe:240) captured ANCHORED to EXTRA_SPRITE_FADEOUT so port + retail line
+# up on the same fade phase (not a fixed HOUSE_FREEROAM offset, which is
+# arm-jitter-sensitive). 5 frames across the 240-frame fade. Diagnoses whether
+# the user-flagged "fade not quite 1:1" is a phase artifact or a render delta.
+#
+#   python3 tools/scenario-test.py intro-fade --target both \
+#     --frida-remote cutestation.soy:27042
+description: |
+  iv1_1 fade-from-black anchored to EXTRA_SPRITE_FADEOUT — 5 frames.
+max_frames: 24000
+duration_ceiling_ms: 240000
+n_captures: 5
