@@ -4,14 +4,14 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 72,
+  "verified": 73,
   "stubbed": 17,
-  "ported": 329,
-  "unported": 2130,
+  "ported": 330,
+  "unported": 2128,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 418,
-  "pct_touched": 16.4,
-  "pct_verified": 2.8,
+  "touched": 420,
+  "pct_touched": 16.5,
+  "pct_verified": 2.9,
   "port_debt": 11
  },
  "orphan_refs": [
@@ -953,8 +953,10 @@
    "size": 504,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_merchant_hud.c"
+   ]
   },
   {
    "va": "0x407cac",
@@ -971,11 +973,9 @@
    "size": 3434,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "verified",
    "src": [
-    "src/scene1_hud.c",
-    "src/scene1_top_hud.c",
-    "src/scene1_top_hud.h"
+    "src/scene1_merchant_hud.c"
    ]
   },
   {
@@ -7642,8 +7642,11 @@
    "size": 368,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_merchant_hud.c",
+    "src/scene1_merchant_hud.h"
+   ]
   },
   {
    "va": "0x482033",

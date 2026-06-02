@@ -92,6 +92,7 @@ int scene1_hud_pass1_backdrop_active(int scene_mode, int stage_type, int pred)
 #include "scene.h"            /* g_scene_state (DAT_0438b1c0) */
 #include "scene1_maplight.h"  /* scene1_current_stage_record (DAT_068dd2f0) */
 #include "scene1_top_hud.h"   /* FUN_00406d50 — persistent clock/day/money HUD */
+#include "scene1_merchant_hud.h"  /* FUN_00409925 body — bottom-left Merchant Level HUD */
 #include "call_trace.h"
 
 /* FUN_0049065b — Pass-1 sub-init (deferred; see header comment). */
@@ -225,10 +226,15 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
      * above it draw nothing), so we call it here at the equivalent
      * point. */
 
-    /* FUN_00409925's tail (LAB_0040a5fd): the bottom-right "Button 4: Change
-     * Camera" control hint.  Drawn before FUN_00406d50 in the engine; self-
-     * gates on no-dialogue-active.  The rest of FUN_00409925 is shop/stocking
-     * UI, dormant in free-roam. */
+    /* FUN_00409925 (the HOUSE-town HUD), in engine order:
+     *   - body L124-L179: the bottom-left "Merchant Level" badge + XP bar
+     *     (scene1_merchant_hud_render); always drawn here.
+     *   - tail LAB_0040a5fd: the bottom-right "Button 4: Change Camera" hint
+     *     (scene1_top_hud_camera_hint); self-gates on no-dialogue-active.
+     * The leading item-tooltip block and the trailing shop/stocking UI are
+     * event/shop-state gated and dormant in free-roam.  FUN_00406d50 (the top
+     * HUD) is emitted later by the aggregator, so it draws last. */
+    scene1_merchant_hud_render(dev_in);
     scene1_top_hud_camera_hint(dev_in);
 
     scene1_top_hud_render(dev_in);

@@ -10,11 +10,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **418** (16.4%) — verified 72, stubbed 17, ported 329
-- unported: **2130**
+- touched: **420** (16.5%) — verified 73, stubbed 17, ported 330
+- unported: **2128**
 - orphan refs (in src/, not in function table): 7
 
-## verified (72) — runtime-diffed vs retail
+## verified (73) — runtime-diffed vs retail
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -24,6 +24,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x406241 | FUN_00406241 | 390 | ✓ | render_quad.c |
 | 0x4063c7 | FUN_004063c7 | 394 | ✓ | render_quad.c |
 | 0x406d50 | FUN_00406d50 | 1445 | ✓ | scene1_top_hud.c |
+| 0x409925 | FUN_00409925 | 3434 | ✓ | scene1_merchant_hud.c |
 | 0x40a765 | FUN_0040a765 | 7558 | ✓ | scene1_hud.c |
 | 0x40fb3a | FUN_0040fb3a | 8071 | ✓ | scene1_particles_tick.c |
 | 0x414929 | FUN_00414929 | 1465 | ✓ | scene1_particles_tick.c |
@@ -113,7 +114,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (329) — reimplemented, no probe yet
+## ported (330) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -141,7 +142,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x406584 | FUN_00406584 | 1017 | ✓ | sim.c |
 | 0x406a60 | FUN_00406a60 | 516 | ✓ | scene1_top_hud.c, scene1_top_hud.h |
 | 0x4072f5 | FUN_004072f5 | 1983 | ✓ | chara_skills.h |
-| 0x409925 | FUN_00409925 | 3434 | ✓ | scene1_hud.c, scene1_top_hud.c, scene1_top_hud.h |
+| 0x407ab4 | FUN_00407ab4 | 504 | ✓ | scene1_merchant_hud.c |
 | 0x40c90e | FUN_0040c90e | 20 | ✓ | scene1_spawn.c |
 | 0x40cea6 | FUN_0040cea6 | 226 | ✓ | sim.c |
 | 0x40cf88 | FUN_0040cf88 | 403 | ✓ | music.c |
@@ -350,6 +351,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47e711 | FUN_0047e711 | 403 | ✓ | sim.c |
 | 0x47fc44 | FUN_0047fc44 | 596 | ✓ | audio_fade.h |
 | 0x480b65 | FUN_00480b65 | 1919 | ✓ | chara_skills.h |
+| 0x481ec3 | FUN_00481ec3 | 368 | ✓ | scene1_merchant_hud.c, scene1_merchant_hud.h |
 | 0x482a51 | FUN_00482a51 | 32 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_combat_sm.c (+3) |
 | 0x482a71 | FUN_00482a71 | 118 | ✓ | scene1_bg_npc.c, scene1_bg_npc.h, scene1_chr_sprite.h (+3) |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ | scene1_records_b_tick.c |

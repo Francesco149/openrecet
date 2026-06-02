@@ -3563,3 +3563,45 @@ sim ticks per rendered frame, so rendered-frames-per-virtual-second is below 60 
 expected, not a bug. Glyph layout in fps2.tga: "Fps" label at (0,0)-(23,12);
 digit `d` at x = `d*0x12+0x21 .. d*0x12+0x31` (16 px wide, 32 px tall), drawn
 right-shifted by 8 px per non-space char of the 2-wide formatted value.
+
+## 87. Bottom-left "Merchant Level" HUD (`FUN_00409925` body) draws its frame with COLOROP=ADDSIGNED so a 0x7f-grey pulse idles at native brightness and *adds* a glow — PORTED, 1:1
+
+The bottom-left HUD — the circular level-number badge, the gold "Merchant Level"
+label, and the experience bar — is the body (decomp L124-L179 / asm
+0x409cf0-0x409f6x) of `FUN_00409925`, the HOUSE-town HUD whose tail
+(`LAB_0040a5fd`) is the already-ported "Button 4: Change Camera" hint. Three
+192×40 layers from `item_win.tga` (DAT_073d8748): a back frame (src
+(640,544)-(832,584)), the experience-bar fill (src row y 592-632, width
+`clamp((xp-floor)/(next-floor),0,1)*142` at dst x = ox+39), and a front frame
+(src (640,640)-(832,680)) over the bar. The level number is the sub-helper
+`FUN_00481ec3` from a dedicated large-digit row (src y 848-888, 32 px/digit,
+displayed as `level+1`).
+
+**The quirk:** the three frame layers are drawn with `SetTextureStageState(0,
+D3DTSS_COLOROP, D3DTOP_ADDSIGNED)` (asm 0x409d0b), then reverted to MODULATE
+(asm 0x409f3e) for the digits. ADDSIGNED computes `result = Arg1 + Arg2 - 0.5`
+= `texture + diffuse - 0.5`. The diffuse is a grey glow pulse
+`gray = abs((int)(sinf(phase·π/30)·64)) + 0x7f` (range 0x7f..0xbf, phase
+`DAT_0064827c` 0..29) built as `0xff000000 | gray·0x010101`. At rest (phase 0,
+gray 0x7f ≈ 0.5) the frame shows at its **native** texture brightness; as the
+pulse climbs during an experience gain it *adds* up to +0.25 — a breathing glow,
+NOT a MODULATE dim. Reading it as MODULATE (the render_quad default) would render
+the gold frame at half brightness — wrong. The `·64` multiply on the sin result
+is dropped by Ghidra (the argless-trig pattern, [[feedback_argless_trig_decomp]])
+and recovered from asm 0x409d66.
+
+The decomp's apparent fourth quad (locals set at L167-L176, then only a flush)
+is a dead store — asm shows exactly three `404efc` calls; that block's only live
+effect is `local_14 = ox+16`, the level-number x anchor.
+
+**Gating** (the trap from the top HUD, §… 1349470): the body has NO internal
+dialogue gate. Its visibility == the top HUD's — emitted by aggregator
+`FUN_0040a765` on the INGAME + HOUSE(stage 0) + status-screen-closed path, and
+suppressed by the same screen-covering-cutscene guard (`covers_screen`, iv1_1)
+that wraps `scene1_hud_render` in main.c. So it stays visible during the iv1_2
+dialogue over the live HOUSE (retail-confirmed: `intro-iv2-gap` golden-retail
+shows the badge) and is hidden during the iv1_1 opening. Ported in
+`scene1_merchant_hud.{c,h}`, called from `scene1_hud_render` just before the
+camera hint. Pixel-diffed 1:1 vs retail at native 640 (0.07% / 13 px,
+white-diff black). The "LEVEL UP!" pop (`FUN_00407ab4`, gated `DAT_0438b920>0`)
+is dormant at rest and deferred — needs the level-up event subsystem.
