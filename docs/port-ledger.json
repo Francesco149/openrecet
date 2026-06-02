@@ -2550,6 +2550,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/choice_box.c",
+    "src/choice_box.h",
     "src/main.c"
    ]
   },
@@ -2561,6 +2563,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/choice_box.c",
+    "src/choice_box.h",
     "src/skip_event.h"
    ]
   },
@@ -2572,6 +2576,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/choice_box.c",
+    "src/choice_box.h",
     "src/scene.h",
     "src/scene_title.c",
     "src/skip_event.h"
@@ -2585,6 +2591,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/choice_box.c",
+    "src/choice_box.h",
     "src/skip_event.h"
    ]
   },
@@ -5637,6 +5645,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/choice_box.h",
     "src/scene.h",
     "src/skip_event.h"
    ]
@@ -7235,6 +7244,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/choice_box.c",
     "src/font.h",
     "src/font_draw.c",
     "src/font_draw.h"
@@ -7286,6 +7296,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/choice_box.c",
     "src/font_draw.h"
    ]
   },
@@ -9338,6 +9349,7 @@
    "src": [
     "src/audio.h",
     "src/audio_se_names.h",
+    "src/choice_box.c",
     "src/scene1_combat_sm.h",
     "src/scene1_per_frame_open.h",
     "src/scene1_records_b_tick.c",

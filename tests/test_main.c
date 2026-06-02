@@ -715,6 +715,17 @@ struct test_case {
     X(skip_event_tick_closed_is_noop) \
     X(skip_to_end_forces_dormant) \
     \
+    X(choice_box_open_lays_state) \
+    X(choice_box_open_anim_then_interactive) \
+    X(choice_box_yes_returns_opt0) \
+    X(choice_box_no_returns_opt1) \
+    X(choice_box_b_cancels_to_opt1) \
+    X(choice_box_b_ignored_when_mode0) \
+    X(choice_box_cursor_toggles_both_ways) \
+    X(choice_box_default_sel_honoured) \
+    X(choice_box_reset_closes) \
+    X(choice_box_poll_when_closed_is_inactive) \
+    \
     X(scene_new_game_save_dialog_state_clear_zeroes) \
     X(scene_new_game_save_dialog_state_setter_roundtrip) \
     X(scene_new_game_ui_scratch_clear_sentinels_first_two) \
