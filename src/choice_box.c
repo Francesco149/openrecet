@@ -195,12 +195,20 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
     /* text + options only once fully open (matches the engine alpha ramp:
      * the prompt/options fade in over the open anim — drawn at cap). */
     if (cb_active >= 4) {
-        /* prompt text, centred. Row 0 at y=184; row 1 (if any) at y=208. */
-        font_draw_text_centered(dev, 320.0f, 184.0f, cb_text + 1,
-                                0xffffffffu, 1.0f);
-        if (cb_rows >= 2)
+        /* prompt text, centred. FUN_0043537e L62-71: a ONE-row prompt (ac08==1
+         * — the skip prompt, which has no '<' delimiters) draws at y=192
+         * (0x43400000); a TWO-row prompt draws row 0 at y=184 (0x43380000) and
+         * row 1 at y=208 (0x43500000). The port previously always used 184, so
+         * the 1-row skip prompt sat 8px too high. */
+        if (cb_rows == 1) {
+            font_draw_text_centered(dev, 320.0f, 192.0f, cb_text + 1,
+                                    0xffffffffu, 1.0f);
+        } else {
+            font_draw_text_centered(dev, 320.0f, 184.0f, cb_text + 1,
+                                    0xffffffffu, 1.0f);
             font_draw_text_centered(dev, 320.0f, 208.0f, cb_text + 1 + 0x100,
                                     0xffffffffu, 1.0f);
+        }
 
         /* "Yes" / "No" — BOTH full brightness. The engine (FUN_0043537e
          * L73-76) draws both at 0x7f7f7f under MODULATE2X = full white; the
