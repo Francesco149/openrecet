@@ -46,6 +46,12 @@ void scene1_intro_dialogue_tick(uint16_t held);
 /* Anchor sources (feed anchor_world). Report zero/inactive while dormant. */
 int     scene1_intro_dialogue_active(void);        /* DAT_0438b1c8 == 1     */
 
+/* 1 from NEW GAME through the end of the iv1_2 script (gaplessly across the
+ * inter-script load + the frames between lines), 0 while dormant/done. Unlike
+ * _active(), this brackets the WHOLE opening prologue — used by the music
+ * selector to hold the title track until free-roam (see music.c). */
+int     scene1_intro_dialogue_in_progress(void);
+
 /* The FUN_0046c2cb skip gate: 1 iff a dialogue line is up AND it has been
  * displayed for ≥2 frames (the engine's `1 < DAT_073a3e18` skip_prompt test —
  * which is why ESC skips "any time during the dialogue"). esc_dispatch passes

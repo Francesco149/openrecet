@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 68,
   "stubbed": 17,
-  "ported": 326,
-  "unported": 2137,
+  "ported": 327,
+  "unported": 2136,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 411,
-  "pct_touched": 16.1,
+  "touched": 412,
+  "pct_touched": 16.2,
   "pct_verified": 2.7,
   "port_debt": 11
  },
@@ -4694,8 +4694,10 @@
    "size": 6,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/music.h"
+   ]
   },
   {
    "va": "0x45e80f",

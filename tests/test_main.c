@@ -585,6 +585,9 @@ struct test_case {
     X(music_select_title_post_stop_no_change) \
     X(music_select_title_submenu_open_uses_table_lookup) \
     X(music_select_title_invalid_language_falls_back_to_zero) \
+    X(music_stage_track_house_open_closed_fever) \
+    X(music_stage_track_dungeon_types) \
+    X(music_select_ingame_house_closed_is_close_track) \
     X(music_select_forced_override_wins) \
     X(music_select_pause_modal_routes_to_over) \
     X(music_select_pause_modal_other_b_not_one_skips_override) \

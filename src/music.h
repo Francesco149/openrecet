@@ -64,16 +64,20 @@ enum {
     MUSIC_TRACK_STOP     = -2,        /* explicit stop sentinel */
     MUSIC_TRACK_TITLE    = 0,         /* bgm/retitle2010.wma */
     MUSIC_TRACK_TOWN     = 1,         /* bgm/town.wma   — town overworld + shop idle */
+    MUSIC_TRACK_SOUGEN   = 2,         /* bgm/sougen.wma — grasslands */
     MUSIC_TRACK_CAVE     = 3,         /* bgm/cave.wma */
     MUSIC_TRACK_FOREST   = 4,         /* bgm/forest.wma */
     MUSIC_TRACK_RUINS    = 5,         /* bgm/ruins.wma */
     MUSIC_TRACK_BOSS     = 6,         /* bgm/boss.wma */
     MUSIC_TRACK_OVER     = 7,         /* bgm/over.wma   — game over / pause modal */
     MUSIC_TRACK_OPEN     = 8,         /* bgm/open.wma   — shop open */
-    MUSIC_TRACK_CLOSE    = 9,         /* bgm/close.wma  — shop close */
+    MUSIC_TRACK_CLOSE    = 9,         /* bgm/close.wma  — shop close / home */
     MUSIC_TRACK_FANFARE  = 0xb,       /* bgm/fanfare.wma */
     MUSIC_TRACK_CLEAR    = 0xd,       /* bgm/clear.wma */
     MUSIC_TRACK_RIVAL    = 0xf,       /* bgm/rival.wma */
+    MUSIC_TRACK_LASTD    = 0x11,      /* bgm/lastd01.wma — last dungeon */
+    MUSIC_TRACK_FEVER    = 0x12,      /* bgm/feaver.wma  — shop "fever" / big sale */
+    MUSIC_TRACK_WATER    = 0x14,      /* bgm/water.wma */
 };
 
 #define MUSIC_SE_STOP_SLOTS  0x6e  /* 110 — sweep length at top of selector */
@@ -142,6 +146,17 @@ typedef struct music_select_ctx {
     int32_t  title_frame_counter;  /* DAT_09643518 — relevant only when scene==0 */
     int32_t  title_cursor_anim;    /* DAT_09643520 — needed for FUN_0049a558 */
     int32_t  title_submenu_state;  /* DAT_09643524 — needed for FUN_0049a558 */
+
+    /* In-game stage-BGM inputs (the engine's state-1 stage switch,
+     * FUN_0049966a 49966a.c:86-150 = `DAT_068dd3fc[stage*0x6cf]`):
+     *   scene_type — the per-stage music/scene type. HOUSE = 0 (→ shop
+     *                close/open theme); dungeon types map to field BGM.
+     *   shop_open  — DAT_0438cc08 == 4 (the shop is open for business).
+     *   shop_fever — the "fever"/big-sale variant flag (FUN_0045e7b7);
+     *                only consulted when shop_open. Deferred → 0 for now. */
+    int32_t  scene_type;           /* DAT_068dd3fc[DAT_0438b4dc*0x6cf] */
+    int32_t  shop_open;            /* DAT_0438cc08 == 4 */
+    int32_t  shop_fever;           /* FUN_0045e7b7() != 0 */
 } music_select_ctx_t;
 
 /* Reset g_music to the engine's BSS-zero values + the documented
@@ -162,6 +177,11 @@ void music_init(void);
  * unless the cursor has fully folded out *and* a submenu is open. */
 int32_t music_select_track(const music_state_t      *m,
                            const music_select_ctx_t *ctx);
+
+/* Per-stage BGM selector (the engine state-1 stage switch). Maps a stage
+ * `scene_type` + shop open/fever flags to a track index. HOUSE = type 0 →
+ * close(9)/open(8)/fever(18). Unknown types → MUSIC_TRACK_NONE. Pure. */
+int32_t music_stage_track(int32_t scene_type, int shop_open, int shop_fever);
 
 /* Full sim_b body. Mirrors FUN_0049966a end-to-end with the documented
  * stubs (no real audio I/O). `ctx` describes the engine state the

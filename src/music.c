@@ -29,6 +29,10 @@
 
 #include "audio_fade.h"    /* audio_fade_apply_progress for the per-tick fade tail */
 #include "scene_title.h"   /* g_scene_title_anim — for music_step_default */
+#include "scene.h"         /* g_scene_state — live scene mode (DAT_0438b1c0) */
+#include "worker_load.h"   /* worker_load_busy — swap-suppression while loading */
+#include "scene1_intro_dialogue.h"  /* scene1_intro_dialogue_in_progress — prologue bracket */
+#include "scene1_player_ctrl.h"     /* player_ctrl_cc08 — shop open/closed state */
 #include "call_trace.h"
 
 music_state_t g_music;
@@ -104,6 +108,37 @@ void music_init(void)
     g_music.language            = -1;
 }
 
+/* ─── per-stage BGM (engine state-1 stage switch, 49966a.c:86-150) ──────
+ *
+ * Maps a stage's `scene_type` (DAT_068dd3fc[stage*0x6cf]) to its BGM track.
+ * Types 0..4 are the town/home stages: when the shop is open they play
+ * open(8) / fever(18), otherwise the closed-shop / home theme close(9).
+ * Types 5+ are the dungeon fields. Unknown types → NONE (keep current). */
+int32_t music_stage_track(int32_t scene_type, int shop_open, int shop_fever)
+{
+    switch (scene_type) {
+    case 0: case 1: case 2: case 3: case 4:
+        if (shop_open) {
+            return shop_fever ? MUSIC_TRACK_FEVER : MUSIC_TRACK_OPEN;  /* 18 / 8 */
+        }
+        return MUSIC_TRACK_CLOSE;             /* 9  — bgm/close.wav (home) */
+    case 5: case 9:
+        return MUSIC_TRACK_RUINS;             /* 5  — bgm/ruins.wav */
+    case 6: case 0xe: case 0xf:
+        return MUSIC_TRACK_FOREST;            /* 4  — bgm/forest.wav */
+    case 7: case 0xc:
+        return MUSIC_TRACK_WATER;             /* 0x14 — bgm/water.wav */
+    case 10: case 0xb:
+        return MUSIC_TRACK_CAVE;              /* 3  — bgm/cave.wav */
+    case 0xd: case 0x10:
+        return MUSIC_TRACK_SOUGEN;            /* 2  — bgm/sougen.wav */
+    case 0x11: case 0x12: case 0x13: case 0x14:
+        return MUSIC_TRACK_LASTD;             /* 0x11 — bgm/lastd01.wav */
+    default:
+        return MUSIC_TRACK_NONE;              /* engine leaves uVar5 = -1 */
+    }
+}
+
 /* ─── pure-C selector ────────────────────────────────────────────────── */
 
 int32_t music_select_track(const music_state_t      *m,
@@ -168,11 +203,10 @@ int32_t music_select_track(const music_state_t      *m,
         return MUSIC_TRACK_TOWN;              /* 1 */
     }
 
-    /* Other states (1..5, 10, 11, 12…) — combat/dungeon paths.
-     * The engine reads `quest_pending`, combat counters, and a per-stage
-     * music ID from `&DAT_068dd3fc[stage * 0x6cf]`. We don't have the
-     * stage descriptor table loaded yet, so this branch defaults to
-     * "no change" for now. Lands when stage scenes port. */
+    /* Other states (1..5, 10, 11, 12…) — in-game free-roam / combat /
+     * dungeon paths. The engine (FUN_0049966a) reads `quest_pending`, the
+     * combat counters, then the per-stage music type
+     * `&DAT_068dd3fc[stage * 0x6cf]` (= ctx->scene_type). */
     if (m->quest_pending != 0) {
         return MUSIC_TRACK_FANFARE;           /* 0xb */
     }
@@ -183,8 +217,10 @@ int32_t music_select_track(const music_state_t      *m,
     if (m->combat_b > 0) {
         return MUSIC_TRACK_CLOSE;             /* 9 — fade-out path */
     }
-    /* Stage-table lookup stub: returns "no change" until stage ports. */
-    return MUSIC_TRACK_NONE;
+    /* Per-stage BGM by scene_type (engine 49966a.c:86-150). HOUSE = type 0:
+     * shop open → open(8)/fever(18), else close(9 — the home/closed-shop
+     * theme, which is what plays through the opening + initial free-roam). */
+    return music_stage_track(ctx->scene_type, ctx->shop_open, ctx->shop_fever);
 }
 
 /* ─── full step (FUN_0049966a body) ──────────────────────────────────── */
@@ -326,11 +362,16 @@ void music_step_default(void)
     /* E.2 probe — FUN_0049966a @ 0x49966a (engine sim_b music selector). */
     CALL_TRACE_ENTER(0x49966au);
 
-    /* Scene state is pinned at 0 (title) — no carrier global yet. The
-     * other ctx fields come from g_scene_title_anim (the same globals
-     * the engine reads at DAT_096435..). */
+    /* Live scene state (DAT_0438b1c0): 0 = title, 1 = INGAME (HOUSE). The
+     * selector reads it to leave the title track once the game starts. */
+    const int32_t scene_state = g_scene_state;
+
+    /* HOUSE is the only ported in-game stage: stage 0, scene_type 0 (the
+     * shop/home). cc08 == 4 means the shop is open for business; in the
+     * opening + initial free-roam it's the closed/home state, so the
+     * close theme (track 9) plays. The fever variant isn't ported yet. */
     const music_select_ctx_t ctx = {
-        .scene_state          = 0,
+        .scene_state          = scene_state,
         .title_frame_counter  = (int32_t)g_scene_title_anim.frame_counter,
         .title_cursor_anim    = (int32_t)g_scene_title_anim.cursor_anim,
         .title_submenu_state  = 0,  /* DAT_09643524 — submenu sub-state.
@@ -338,6 +379,29 @@ void music_step_default(void)
                                      * yet (press-dispatch branches not
                                      * ported), so it's always 0 → title
                                      * lookup returns -1 → masked to 0. */
+        .scene_type           = 0,                       /* HOUSE */
+        .shop_open            = (player_ctrl_cc08() == 4),
+        .shop_fever           = 0,                       /* deferred */
     };
+
+    /* Swap-suppression gate (engine FUN_00452911 → DAT_06a49954 global-pause
+     * at the dispatch site). Retail keeps the title theme playing across the
+     * whole new-game → HOUSE-load → opening-prologue window and only swaps to
+     * the HOUSE theme when real free-roam control begins (verified:
+     * runs/bgm-probe, track 0 holds frames 72..11983, → 9 at 11984).
+     *
+     * The port signal that brackets that whole window is
+     * scene1_intro_dialogue_in_progress() — true from new game through the end
+     * of the iv1_2 script, gaplessly across the inter-script load and the
+     * between-line gaps (cc08 is NOT usable here: the port sets it to the
+     * free-roam value at HOUSE entry, since the iv1_2 dialogue plays *over*
+     * live free-roam). We also hold while the scene loader is busy (the
+     * new-game HOUSE load). When the prologue completes (and nothing's
+     * loading) the gate opens and the close theme lands. Title screen is
+     * scene_state 0, so neither term applies there and the title swap fires
+     * normally. */
+    g_music.global_pause =
+        (worker_load_busy() || scene1_intro_dialogue_in_progress()) ? 1 : 0;
+
     music_step(&g_music, &ctx);
 }

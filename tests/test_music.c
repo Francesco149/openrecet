@@ -583,3 +583,49 @@ int test_music_step_pending_fade_phase_drives_animation(void)
     audio_fade_reset();
     return 0;
 }
+
+/* ─── per-stage BGM (music_stage_track) ─────────────────────────────────── */
+
+/* HOUSE (scene_type 0): closed shop → close(9), open → open(8), fever → 18. */
+int test_music_stage_track_house_open_closed_fever(void)
+{
+    T_ASSERT_EQ_I(music_stage_track(0, /*open*/0, /*fever*/0), MUSIC_TRACK_CLOSE); /* 9 */
+    T_ASSERT_EQ_I(music_stage_track(0, /*open*/1, /*fever*/0), MUSIC_TRACK_OPEN);  /* 8 */
+    T_ASSERT_EQ_I(music_stage_track(0, /*open*/1, /*fever*/1), MUSIC_TRACK_FEVER); /* 18 */
+    /* fever only matters when open. */
+    T_ASSERT_EQ_I(music_stage_track(0, /*open*/0, /*fever*/1), MUSIC_TRACK_CLOSE);
+    return 0;
+}
+
+/* Dungeon scene_types map to their field BGM (engine 49966a.c switch). */
+int test_music_stage_track_dungeon_types(void)
+{
+    T_ASSERT_EQ_I(music_stage_track(5,  0, 0), MUSIC_TRACK_RUINS);   /* 5  */
+    T_ASSERT_EQ_I(music_stage_track(6,  0, 0), MUSIC_TRACK_FOREST);  /* 4  */
+    T_ASSERT_EQ_I(music_stage_track(7,  0, 0), MUSIC_TRACK_WATER);   /* 20 */
+    T_ASSERT_EQ_I(music_stage_track(10, 0, 0), MUSIC_TRACK_CAVE);    /* 3  */
+    T_ASSERT_EQ_I(music_stage_track(0xd,0, 0), MUSIC_TRACK_SOUGEN);  /* 2  */
+    T_ASSERT_EQ_I(music_stage_track(0x11,0,0), MUSIC_TRACK_LASTD);   /* 17 */
+    /* unknown type → keep current (NONE). */
+    T_ASSERT_EQ_I(music_stage_track(0x40, 0, 0), MUSIC_TRACK_NONE);
+    return 0;
+}
+
+/* State-1 INGAME free-roam (HOUSE closed shop) routes through the selector to
+ * the close theme — this is the "music changes past the title" path. */
+int test_music_select_ingame_house_closed_is_close_track(void)
+{
+    music_state_t m; music_init(); m = g_music;
+    music_select_ctx_t c = {
+        .scene_state = 1,        /* INGAME */
+        .scene_type  = 0,        /* HOUSE  */
+        .shop_open   = 0,        /* closed (opening + initial free-roam) */
+        .shop_fever  = 0,
+    };
+    T_ASSERT_EQ_I(music_select_track(&m, &c), MUSIC_TRACK_CLOSE); /* 9 */
+
+    /* Open the shop → open theme. */
+    c.shop_open = 1;
+    T_ASSERT_EQ_I(music_select_track(&m, &c), MUSIC_TRACK_OPEN);  /* 8 */
+    return 0;
+}

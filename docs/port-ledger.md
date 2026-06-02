@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **411** (16.1%) — verified 68, stubbed 17, ported 326
-- unported: **2137**
+- touched: **412** (16.2%) — verified 68, stubbed 17, ported 327
+- unported: **2136**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (68) — runtime-diffed vs retail
@@ -109,7 +109,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (326) — reimplemented, no probe yet
+## ported (327) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -258,6 +258,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45e1a5 | FUN_0045e1a5 | 175 | ✓ | sim.c |
 | 0x45e2dd | FUN_0045e2dd | 118 | ✓ | sim.c |
 | 0x45e3dc | FUN_0045e3dc | 175 | ✓ | sim.c |
+| 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ | music.h |
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ | npc_schedule.h |
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ | tables_tuto.h |
 | 0x4682bf | FUN_004682bf | 6 | ✓ | stage_load_pulse.h |
