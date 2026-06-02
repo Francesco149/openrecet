@@ -23,7 +23,7 @@
 6 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 13 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 12 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code the table above calls "ported" (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 

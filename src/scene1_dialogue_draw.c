@@ -22,6 +22,8 @@
 #include "sysassets.h"     /* g_sysassets.data_win_tga — the skip-tip atlas */
 #include "scene1_intro_dialogue.h"
 #include "scene1_dialogue_run.h"
+#include "skip_event.h"    /* skip_event_open() — gate the choice-box draw  */
+#include "choice_box.h"    /* choice_box_draw() — the ESC skip prompt       */
 
 #include <string.h>
 
@@ -389,6 +391,13 @@ void scene1_dialogue_draw(IDirect3DDevice8 *dev)
     draw_standees(dev, rt, prog);
     draw_box_and_text(dev, rt, prog);
     draw_skip_tip(dev, rt);
+
+    /* FUN_0046c090 tail: when the ESC skip prompt is open (DAT_073a3dec==1),
+     * the engine draws the choice box (FUN_0043537e + FUN_00435747) over the
+     * dialogue. The box freezes the dialogue tick (sim.c), so `rt` is the
+     * settled line underneath. */
+    if (skip_event_open())
+        choice_box_draw(dev);
 
     /* Remaining Layer 4: rmb screen-shake RNG reads + the choice/menu fade
      * overlay (DAT_073a6da4; no choices in the prologue). */

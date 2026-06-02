@@ -149,6 +149,13 @@ int scene1_intro_dialogue_active(void)
     return ((g_state == D_SCRIPT1 || g_state == D_SCRIPT2) && g_rt.active) ? 1 : 0;
 }
 
+int scene1_intro_dialogue_skippable(void)
+{
+    /* FUN_0046c2cb gate: a line is up and skip_prompt (DAT_073a3e18, bumped
+     * every dialogue frame by FUN_0046c320) is past 1. */
+    return (scene1_intro_dialogue_active() && g_rt.scene.skip_prompt > 1) ? 1 : 0;
+}
+
 int scene1_intro_dialogue_loading(void)
 {
     return (g_state == D_LOAD) ? 1 : 0;

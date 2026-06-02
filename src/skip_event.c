@@ -1,44 +1,45 @@
 /*
- * skip_event.c — see skip_event.h. The ESC "skip this event?" prompt state
- * machine. Pure C; host-tested.
+ * skip_event.c — see skip_event.h. The ESC "Do you want to skip this event?"
+ * prompt: the FUN_0046c2cb gate + the FUN_0046c320 poll branch, wired onto the
+ * generic choice box (src/choice_box.c). Pure C; host-tested.
+ *
+ * Engine flow (golden runs/skip-golden/arm485/frame_00514.png):
+ *   WndProc ESC → FUN_0045337b → FUN_00453384 (b1c8==1) → FUN_0046c2cb:
+ *       if (skip_prompt > 1 && !already-open)
+ *           DAT_073a3dec = 1;                 // prompt open
+ *           FUN_00434def("Do you want to skip this event?", 1, 0);
+ *   per frame, FUN_0046c320 (the dialogue update) at the top:
+ *       if (DAT_073a3dec == 1) { r = FUN_00434ed2();
+ *           r==1 (Yes) → close, run the skip teardown (FUN_00435612)
+ *           r==2 (No)  → close, resume the dialogue }
  */
 #include "skip_event.h"
+#include "choice_box.h"
 
-/* Button bits (src/input.c input_binding_mask[]): the engine's 14-bit mask. */
-#define SKIP_BTN_RIGHT  0x0001
-#define SKIP_BTN_LEFT   0x0002
-#define SKIP_BTN_UP     0x0004
-#define SKIP_BTN_DOWN   0x0008
-#define SKIP_BTN_A      0x0010   /* confirm */
-#define SKIP_BTN_B      0x0020   /* cancel  */
+#define SKIP_PROMPT_TEXT "Do you want to skip this event?"
 
-#define SKIP_PHASE_MAX  0x0c     /* DAT_06a4999c cap (FUN_004532df / FUN_004536cb) */
+int g_skip_event_enabled = 1;   /* Phase C render landed — choice box draws */
 
-enum { SEL_YES = 0, SEL_NO = 1 };
-
-int g_skip_event_enabled = 0;   /* off until Phase C render — see header */
-
-static int      g_open      = 0;   /* DAT_06a499a0 */
-static int      g_phase     = 0;   /* DAT_06a4999c — open/render anim (0..0xc) */
-static int      g_sel       = SEL_YES;
+static int      g_open      = 0;   /* DAT_073a3dec — prompt-open flag */
 static int      g_first     = 0;   /* swallow input on the first tick after arm */
-static uint16_t g_prev_held = 0;   /* for edge = held & ~prev                  */
+static uint16_t g_prev_held = 0;   /* for edge = held & ~prev */
 
 int skip_event_arm(int skippable)
 {
     if (!g_skip_event_enabled)
         return 0;
     if (g_open)
-        return 1;          /* idempotent re-press — retail re-arm is a no-op */
+        return 1;          /* DAT_073a3dec==1 → re-press is a no-op */
     if (!skippable)
-        return 0;          /* FUN_00453384 gate rejected (not interruptible) */
+        return 0;          /* FUN_0046c2cb gate: skip_prompt <= 1 → not yet */
 
-    /* Open. Retail: DAT_06a4999c = 1, DAT_06a499a0 = 1, DAT_06a4997c = 0,
-     * + the prompt-open SE FUN_00499519(0x16b) (deferred — audio hook). */
+    /* FUN_0046c2cb: DAT_073a3dec = 1; FUN_00434def(prompt, 1, 0). The engine
+     * also snapshots the resume state (FUN_00435625/44 → DAT_073a3e2c/30/34);
+     * at our altitude "Yes" always tears the prologue down (PORT-DEBT, see the
+     * tick + scene1_intro_dialogue_skip_to_end). */
+    choice_box_open(SKIP_PROMPT_TEXT, /*mode=*/1, /*sel=*/0);
     g_open  = 1;
-    g_phase = 1;
-    g_sel   = SEL_YES;     /* cursor defaults to Yes (user screenshot) */
-    g_first = 1;           /* don't let a button held at open-time act as input */
+    g_first = 1;           /* don't read a button held at open-time as input */
     return 1;
 }
 
@@ -49,9 +50,8 @@ int skip_event_open(void)
 
 void skip_event_close(void)
 {
+    choice_box_reset();
     g_open      = 0;
-    g_phase     = 0;
-    g_sel       = SEL_YES;
     g_first     = 0;
     g_prev_held = 0;
 }
@@ -59,61 +59,34 @@ void skip_event_close(void)
 skip_result_t skip_event_tick(uint16_t held)
 {
     uint16_t edge;
+    int      r;
 
     if (!g_open)
         return SKIP_EVENT_PENDING;
 
-    /* Open animation: climb the render phase toward the cap (the banner fades
-     * in; the retail render gates on DAT_06a4999c > 1). */
-    if (g_phase < SKIP_PHASE_MAX)
-        g_phase++;
-
-    /* First tick after arming: seed the edge baseline from the current mask so
-     * a button already held when ESC opened the prompt isn't read as a fresh
-     * press (e.g. an A held to fast-forward dialogue must not instant-confirm). */
+    /* First tick after arming: seed the edge baseline so a button already held
+     * when ESC opened the prompt (e.g. an A held to fast-forward the dialogue)
+     * isn't read as a fresh press. The choice box also needs an open-anim frame
+     * before it accepts input, but the baseline seed is still correct here. */
     if (g_first) {
         g_first     = 0;
         g_prev_held = held;
+        choice_box_poll(0, 1);
         return SKIP_EVENT_PENDING;
     }
 
     edge        = (uint16_t)(held & ~g_prev_held);
     g_prev_held = held;
 
-    /* PORT-DEBT(simplified, FUN_00453384): the Yes/No selection + A-confirm /
-     * B-cancel below is modelled to the user-confirmed observable behavior. The
-     * engine's real selection global + the confirm/cancel counter choreography
-     * aren't statically legible (the cancel counter DAT_06a499c8 is never set
-     * positive in the corpus; the auto-confirm climbs only while ESC is
-     * disabled) — reconcile against a live golden when Phase C lands. */
-    /* Yes/No cursor — Left/Right (or Up/Down) toggles between the two. */
-    if (edge & (SKIP_BTN_LEFT | SKIP_BTN_UP))
-        g_sel = SEL_YES;
-    else if (edge & (SKIP_BTN_RIGHT | SKIP_BTN_DOWN))
-        g_sel = SEL_NO;
-
-    /* B = cancel outright (resume the event). */
-    if (edge & SKIP_BTN_B) {
+    /* FUN_0046c320: poll the choice box, act on a committed option. */
+    r = choice_box_poll(edge, 1);
+    if (r == CB_OPT0) {            /* Yes → skip (FUN_00435612 teardown) */
+        skip_event_close();
+        return SKIP_EVENT_CONFIRMED;
+    }
+    if (r == CB_OPT1) {            /* No / B-cancel → resume the dialogue */
         skip_event_close();
         return SKIP_EVENT_CANCELLED;
     }
-
-    /* A = commit the current selection. */
-    if (edge & SKIP_BTN_A) {
-        int yes = (g_sel == SEL_YES);
-        skip_event_close();
-        return yes ? SKIP_EVENT_CONFIRMED : SKIP_EVENT_CANCELLED;
-    }
-
-    return SKIP_EVENT_PENDING;
-}
-
-int skip_event_phase(void)
-{
-    return g_phase;
-}
-
-int skip_event_selection(void)
-{
-    return g_sel;
+    return SKIP_EVENT_PENDING;     /* CB_BUSY — anim/nav this frame */
 }

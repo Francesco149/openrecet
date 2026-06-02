@@ -180,12 +180,12 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x434c2c | FUN_00434c2c | 125 | ✓ | bmp_lzw.c, bmp_lzw.h |
 | 0x434ca9 | FUN_00434ca9 | 58 | ✓ | bmp_lzw.c, bmp_lzw.h |
 | 0x434dbf | FUN_00434dbf | 23 | ✓ | choice_box.c, choice_box.h, main.c |
-| 0x434dd6 | FUN_00434dd6 | 25 | ✓ | choice_box.c, choice_box.h, skip_event.h |
-| 0x434def | FUN_00434def | 227 | ✓ | choice_box.c, choice_box.h, scene.h (+2) |
-| 0x434ed2 | FUN_00434ed2 | 581 | ✓ | choice_box.c, choice_box.h, skip_event.h |
-| 0x435612 | FUN_00435612 | 8 | ✓ | scene1_intro_dialogue.c, scene_title.c, title_save_dialog.c (+1) |
+| 0x434dd6 | FUN_00434dd6 | 25 | ✓ | choice_box.c, choice_box.h |
+| 0x434def | FUN_00434def | 227 | ✓ | choice_box.c, choice_box.h, scene.h (+3) |
+| 0x434ed2 | FUN_00434ed2 | 581 | ✓ | choice_box.c, choice_box.h, skip_event.c (+1) |
+| 0x435612 | FUN_00435612 | 8 | ✓ | scene1_intro_dialogue.c, scene_title.c, skip_event.c (+2) |
 | 0x43561a | FUN_0043561a | 11 | ✓ | scene_worldmap.h, title_save_dialog.c, title_save_dialog.h |
-| 0x435625 | FUN_00435625 | 6 | ✓ | title_save_dialog.c, title_save_dialog.h |
+| 0x435625 | FUN_00435625 | 6 | ✓ | skip_event.c, title_save_dialog.c, title_save_dialog.h |
 | 0x435644 | FUN_00435644 | 79 | ✓ | title_save_dialog.c |
 | 0x435693 | FUN_00435693 | 58 | ✓ | scene_worldmap.h, title_save_dialog.c, title_save_dialog.h |
 | 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
@@ -232,8 +232,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4532b1 | FUN_004532b1 | 11 | ✓ | scene1_fx_overlays.h, scene1_render.h, sim.h |
 | 0x4532bc | FUN_004532bc | 29 | ✓ | scene1_fx_overlays.h, scene1_records_b_tick.c, scene1_records_b_tick.h (+3) |
 | 0x453373 | FUN_00453373 | 8 | ✓ | main.c, sim.h |
-| 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.c, esc_dispatch.h, skip_event.h |
-| 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c, scene.h, scene1_intro_dialogue.c (+3) |
+| 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.c, esc_dispatch.h, skip_event.c |
+| 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c, scene.h, scene1_intro_dialogue.c (+2) |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |
 | 0x454f7c | FUN_00454f7c | 104 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_walker_pass_init.c |
@@ -265,11 +265,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46bf38 | FUN_0046bf38 | 230 | ✓ | mesh_load.h, scene1_dialogue_draw.c, scene_sc1.c (+2) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x46c039 | FUN_0046c039 | 87 | ✓ | sim.c |
-| 0x46c090 | FUN_0046c090 | 30 | ✓ | main.c, scene1_dialogue_draw.h |
+| 0x46c090 | FUN_0046c090 | 30 | ✓ | main.c, scene1_dialogue_draw.c, scene1_dialogue_draw.h |
 | 0x46c0ae | FUN_0046c0ae | 487 | ✓ | scene1_dialogue_run.c, scene1_dialogue_run.h |
 | 0x46c295 | FUN_0046c295 | 54 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c (+2) |
-| 0x46c2cb | FUN_0046c2cb | 85 | ✓ | choice_box.h, scene.h, skip_event.h |
-| 0x46c320 | FUN_0046c320 | 1353 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_run.c (+2) |
+| 0x46c2cb | FUN_0046c2cb | 85 | ✓ | choice_box.h, scene.h, scene1_intro_dialogue.c (+3) |
+| 0x46c320 | FUN_0046c320 | 1353 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_run.c (+4) |
 | 0x46c86f | FUN_0046c86f | 307 | ✓ | scene1_dialogue_run.c, scene1_dialogue_run.h |
 | 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ | main.c, scene1_dialogue.c, scene1_dialogue.h (+5) |
 | 0x46ddea | FUN_0046ddea | 5119 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c |
@@ -325,7 +325,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47b0ef | FUN_0047b0ef | 120 | ✓ | input.c, input.h |
 | 0x47b1f2 | FUN_0047b1f2 | 99 |  | input.c |
 | 0x47b29e | FUN_0047b29e | 73 | ✓ | main.c, prewindow.c, scene.h (+1) |
-| 0x47b2e7 | FUN_0047b2e7 | 1061 |  | esc_dispatch.h, main.c, skip_event.h |
+| 0x47b2e7 | FUN_0047b2e7 | 1061 |  | esc_dispatch.h, main.c |
 | 0x47bfb3 | FUN_0047bfb3 | 629 | ✓ | main.c |
 | 0x47c228 | FUN_0047c228 | 61 | ✓ | font.h, main.c |
 | 0x47c3a5 | FUN_0047c3a5 | 207 | ✓ | font.h, font_atlas.c, font_atlas.h (+1) |
@@ -379,7 +379,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ | audio.c, audio.h, music.c (+1) |
 | 0x49933c | FUN_0049933c | 439 | ✓ | scene1_combat_sm.h, scene_title.c |
-| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+8) |
+| 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+7) |
 | 0x499538 | FUN_00499538 | 20 | ✓ | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ | music.h |
 | 0x499579 | FUN_00499579 | 10 | ✓ | worker_load.c, worker_load.h |

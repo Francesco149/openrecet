@@ -710,8 +710,6 @@ struct test_case {
     X(skip_event_yes_confirms) \
     X(skip_event_no_then_a_cancels) \
     X(skip_event_b_cancels) \
-    X(skip_event_cursor_toggles_back) \
-    X(skip_event_phase_climbs_to_cap) \
     X(skip_event_tick_closed_is_noop) \
     X(skip_to_end_forces_dormant) \
     \

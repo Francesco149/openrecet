@@ -45,6 +45,12 @@ void scene1_intro_dialogue_tick(uint16_t held);
 
 /* Anchor sources (feed anchor_world). Report zero/inactive while dormant. */
 int     scene1_intro_dialogue_active(void);        /* DAT_0438b1c8 == 1     */
+
+/* The FUN_0046c2cb skip gate: 1 iff a dialogue line is up AND it has been
+ * displayed for ≥2 frames (the engine's `1 < DAT_073a3e18` skip_prompt test —
+ * which is why ESC skips "any time during the dialogue"). esc_dispatch passes
+ * this as skip_event_arm()'s `skippable`. */
+int     scene1_intro_dialogue_skippable(void);     /* 1 < DAT_073a3e18      */
 int32_t scene1_intro_dialogue_text_reveal(void);   /* DAT_073a3e00          */
 int     scene1_intro_dialogue_text_revealed(void); /* DAT_073a3e04 != 0     */
 

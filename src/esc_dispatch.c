@@ -27,7 +27,7 @@ esc_result_t esc_pressed(void)
      * the window-level action is to swallow; the prompt drives the skip from
      * the sim tick. */
     if (g_scene_state != SCENE_STATE_TITLE) {
-        skip_event_arm(scene1_intro_dialogue_active());
+        skip_event_arm(scene1_intro_dialogue_skippable());
         return ESC_RESULT_SWALLOW;
     }
 

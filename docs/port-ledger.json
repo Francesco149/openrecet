@@ -12,7 +12,7 @@
   "touched": 406,
   "pct_touched": 15.9,
   "pct_verified": 2.6,
-  "port_debt": 13
+  "port_debt": 12
  },
  "orphan_refs": [
   "0x40f640",
@@ -2564,8 +2564,7 @@
    "status": "ported",
    "src": [
     "src/choice_box.c",
-    "src/choice_box.h",
-    "src/skip_event.h"
+    "src/choice_box.h"
    ]
   },
   {
@@ -2580,6 +2579,7 @@
     "src/choice_box.h",
     "src/scene.h",
     "src/scene_title.c",
+    "src/skip_event.c",
     "src/skip_event.h"
    ]
   },
@@ -2593,6 +2593,7 @@
    "src": [
     "src/choice_box.c",
     "src/choice_box.h",
+    "src/skip_event.c",
     "src/skip_event.h"
    ]
   },
@@ -2628,6 +2629,7 @@
    "src": [
     "src/scene1_intro_dialogue.c",
     "src/scene_title.c",
+    "src/skip_event.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
    ]
@@ -2653,6 +2655,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/skip_event.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
    ]
@@ -4019,7 +4022,7 @@
    "src": [
     "src/esc_dispatch.c",
     "src/esc_dispatch.h",
-    "src/skip_event.h"
+    "src/skip_event.c"
    ]
   },
   {
@@ -4034,8 +4037,7 @@
     "src/scene.h",
     "src/scene1_intro_dialogue.c",
     "src/scene1_intro_dialogue.h",
-    "src/skip_event.c",
-    "src/skip_event.h"
+    "src/skip_event.c"
    ]
   },
   {
@@ -5607,6 +5609,7 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/scene1_dialogue_draw.c",
     "src/scene1_dialogue_draw.h"
    ]
   },
@@ -5647,6 +5650,9 @@
    "src": [
     "src/choice_box.h",
     "src/scene.h",
+    "src/scene1_intro_dialogue.c",
+    "src/scene1_intro_dialogue.h",
+    "src/skip_event.c",
     "src/skip_event.h"
    ]
   },
@@ -5662,6 +5668,8 @@
     "src/scene1_dialogue.h",
     "src/scene1_dialogue_run.c",
     "src/scene1_dialogue_run.h",
+    "src/scene1_intro_dialogue.c",
+    "src/skip_event.c",
     "src/skip_event.h"
    ]
   },
@@ -7137,8 +7145,7 @@
    "status": "ported",
    "src": [
     "src/esc_dispatch.h",
-    "src/main.c",
-    "src/skip_event.h"
+    "src/main.c"
    ]
   },
   {
@@ -9356,7 +9363,6 @@
     "src/scene1_records_b_tick.h",
     "src/scene_title.c",
     "src/scene_title.h",
-    "src/skip_event.c",
     "src/title_save_dialog.c"
    ]
   },
