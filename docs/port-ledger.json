@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 67,
   "stubbed": 17,
-  "ported": 320,
-  "unported": 2144,
+  "ported": 322,
+  "unported": 2142,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 404,
+  "touched": 406,
   "pct_touched": 15.9,
   "pct_verified": 2.6,
   "port_debt": 13
@@ -2572,7 +2572,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene_title.c"
+    "src/scene.h",
+    "src/scene_title.c",
+    "src/skip_event.h"
    ]
   },
   {
@@ -2581,8 +2583,10 @@
    "size": 581,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/skip_event.h"
+   ]
   },
   {
    "va": "0x435117",
@@ -4019,6 +4023,7 @@
    "status": "ported",
    "src": [
     "src/esc_dispatch.c",
+    "src/scene.h",
     "src/scene1_intro_dialogue.c",
     "src/scene1_intro_dialogue.h",
     "src/skip_event.c",
@@ -5630,8 +5635,11 @@
    "size": 85,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene.h",
+    "src/skip_event.h"
+   ]
   },
   {
    "va": "0x46c320",
@@ -5644,7 +5652,8 @@
     "src/scene1_dialogue.c",
     "src/scene1_dialogue.h",
     "src/scene1_dialogue_run.c",
-    "src/scene1_dialogue_run.h"
+    "src/scene1_dialogue_run.h",
+    "src/skip_event.h"
    ]
   },
   {

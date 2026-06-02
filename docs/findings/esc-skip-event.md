@@ -6,6 +6,54 @@
 > in a script/dialogue → a yes/no "skip event?" prompt. This doc maps the engine
 > subsystem and tracks the port.
 
+## ⭐ MAJOR CORRECTION (2026-06-02) — the skip prompt is the choice box, NOT FUN_00453384
+
+**The whole `FUN_00453384` / `DAT_06a49998` / `FUN_00454191` subsystem this doc
+chased is the PAUSE MENU, not the dialogue skip.** Proven live: forcing
+`DAT_0438b1c8 = 0` (free-roam context) + ESC opened the **pause menu** (Save /
+Exit Game / Options, radial-blur RTT — `runs/skip-golden/golden/frame_00513.png`);
+user confirmed "the radial blur thing is a pause menu thing". `FUN_00453384`'s
+arm globals (`DAT_06a49998/9c/a0`, render `FUN_00454191`) are the pause/general
+overlay; they stay 0 during the real skip, which is why every "arm" watch failed.
+
+**The REAL prologue-dialogue skip** (golden: `runs/skip-golden/arm485/
+frame_00514.png` — the gold "Do you want to skip this event?" Yes/No over the
+HOUSE, captured by a faithful ESC at normal speed, no force):
+
+```
+WndProc FUN_0047b2e7 (ESC, b1c0==1) → FUN_0045337b → FUN_00453384(0)
+  → b1c8==1 branch → FUN_0046c2cb():
+      if (DAT_073a6db0 == 0 && 1 < DAT_073a3e18 && DAT_073a3dec == 0) {
+          DAT_073a3e2c = FUN_00435625();           // snapshot resume state
+          FUN_00435644(&DAT_073a3e30,&DAT_073a3e34);
+          DAT_073a3dec = 1;                         // prompt OPEN flag
+          FUN_00434def("Do you want to skip this event?", 1, 0);  // choice box
+          return 1;                                 // handled (FUN_00453384 plays 0x143, returns)
+      }
+```
+
+- **Gate = `DAT_073a3e18` (`skip_prompt`) > 1.** `FUN_0046c320` (the dialogue
+  update) does `DAT_073a3e18++` **every dialogue frame** — so 2+ frames into any
+  line it's skippable. THIS is why ESC works "any time during the dialogue"
+  (user was right). `DAT_073a3e18` is ALREADY ported: `ive_scene_state.skip_prompt`.
+- **Render = the engine's generic CHOICE BOX** (`FUN_00434def`): writes the
+  prompt text to `&DAT_0438af3b`, sets `DAT_0438af34 = 1` (box active — this is
+  what `FUN_00434dd6` checks), `DAT_0438ac08 = 2` (Yes/No), `DAT_0438ac24 =
+  selection` (param_3=0 → Yes default). NOT `FUN_00454191`.
+- **Poll/confirm = `FUN_00434ed2`** (called from `FUN_0046c320` when
+  `DAT_073a3dec==1`): returns 1 when a choice is committed → `DAT_073a3dec=0`
+  (close) → Yes (`DAT_073a3e2c==0`) runs `FUN_00435612` (teardown → free-roam);
+  No resumes. Selection nav lives in the choice-box input (`DAT_0438ac24`).
+- The prompt is **stable/interactive** when open (frames 514-694 all show it on
+  Yes awaiting a choice; ESC re-presses are no-ops since `DAT_073a3dec==1`).
+
+**Port implications:** the skip is the choice-box subsystem (`FUN_00434def` +
+`FUN_00434ed2` + the `FUN_0046c2cb` gate), wired off the already-ported
+`skip_prompt` counter — NOT a bespoke `DAT_06a49998` state machine. `src/
+skip_event.c`'s observable Yes/No logic is correct, but its engine-correspondence
+comments point at the pause path and must be reframed; the faithful render is the
+choice box, not `FUN_00454191`. See "Port status" + the plan's Phase B/C.
+
 ## The dispatch (WndProc `FUN_0047b2e7`, `by-address/47b2e7.c:96-114`)
 
 ```
@@ -227,6 +275,46 @@ Probe tooling (kept): `--arm-skip-at-frame N` in `frida_capture.py` → agent
 `arm_skip_at_frame` spams `FUN_0045337b` each frame from N (input phase, not
 mid-render) until `DAT_06a49998>0`. Reproduces the arm for choreography traces +
 golden capture.
+
+## Live retail capture at NORMAL speed (2026-06-02, Phase C golden attempt)
+
+Drove retail (`cutestation.soy:27042`, unpacked exe) at **normal speed** to a
+settled prologue line 0 via a boot→`HOUSE_FREEROAM`→`TEXT_ANIM_END`→idle segtrace
+(`runs/skip-golden/trace.jsonl`), watching the arm-gate globals + injecting a
+**faithful** WndProc ESC (the agent's `FUN_0047b2e7(hwnd,WM_KEYDOWN,VK_ESCAPE,0)`
+path — verified it matches the real ESC branch: `param_2==0x100 && param_3==0x1b
+&& a54==0 && b1c0==1 → FUN_0045337b → FUN_00453384(0)`). Findings:
+
+1. **The skip IS advertised on the settled line.** The captured frame
+   (`runs/skip-golden/arm485/frames/frame_00484.png`, on the feed) shows line 0
+   "Oh, for the love of… She is still asleep." over the HOUSE with **a
+   bottom-right "ESC key Event Skip" hint**. So the game says the event is
+   skippable right there.
+2. **But a faithful ESC does NOT arm it.** Injecting ESC across a 240-frame
+   window on the settled line: `DAT_06a49998`/`DAT_06a499a0` never moved.
+3. **The sole blocker is `DAT_0438b1c8`.** On the settled line (f480-490) the
+   `LAB_004534df` gate terms ALL pass — `bf7c=0, be98=0, s90(06a49990)=0,
+   a54=0` — only **`b1c8==1`**. `FUN_00453384`'s arm path is gated `if (b1c8==0)
+   {…arm…} else {FUN_0046c2cb → 0x143/0x16a SE; no arm}`, so `b1c8==1` blocks.
+4. **`b1c8==1` for the WHOLE dialogue** (even idling on a settled line; 0 only at
+   the f72-83 fade — identical to the turbo runs). So the forced playthrough
+   never reaches `b1c8==0` on a line.
+5. **CORRECTION to the prior "`bf7c==-1` stuck" finding:** that was a *turbo*
+   artifact. At normal speed `bf7c==0` on the settled line — it is NOT the
+   blocker. The blocker is squarely `b1c8`.
+
+**Open contradiction (needs the user):** the game advertises the skip on the
+settled line (hint shown), yet `FUN_00453384`'s `b1c8==0` gate blocks the arm and
+`b1c8` is pinned at 1 across the whole dialogue. Either (a) the skip really only
+arms at the f72-83 fade and the hint is just persistently drawn (mid-line ESC
+plays the 0x143/0x16a "can't" SE and does nothing), or (b) in *real* play `b1c8`
+reaches 0 on settled lines and the Frida forced-input playthrough diverges
+(keeps it at 1). The fade-arm test (ESC across f70-310, covering the b1c8==0
+f72-83 window) ALSO failed to arm — so even the fade path has an unidentified
+extra reject (gate terms there not yet watched). Resolve by asking the user the
+precise repro (when they press ESC + whether a "can't" sound plays mid-line),
+then either capture at the real arm moment or state-force `b1c8=0` to grab the
+`FUN_00454191` render golden.
 
 ## Port status
 

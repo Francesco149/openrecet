@@ -41,7 +41,18 @@ extern int32_t g_scene_state;
 
 /* Engine scene sub-state. Engine global DAT_0438b1c8. Used by
  * FUN_004547ab's state==1 branch to pick between several in-game
- * render flavours. Initialised to 0 by FUN_0047b29e. */
+ * render flavours. Initialised to 0 by FUN_0047b29e.
+ *
+ * It also selects the *ESC context* within the in-game state (b1c0==1):
+ *   b1c8 != 0  — a script/cutscene is playing (the prologue dialogue is
+ *                b1c8==1 throughout). ESC → the dialogue "skip this event?"
+ *                prompt, via FUN_00453384's b1c8!=0 branch → FUN_0046c2cb →
+ *                FUN_00434def (the choice box), gated on the dialogue's own
+ *                skip_prompt counter DAT_073a3e18 > 1.
+ *   b1c8 == 0  — free-roam. ESC → the PAUSE menu (FUN_00453384's b1c8==0 arm →
+ *                DAT_06a49998/9c/a0 + the FUN_00454191 radial-blur RTT render).
+ * (Confirmed live 2026-06-02: forcing b1c8=0 mid-dialogue + ESC pops the pause
+ * menu, not the skip. See docs/findings/esc-skip-event.md "MAJOR CORRECTION".) */
 extern int32_t g_scene_substate;
 
 /* Scene-state values. Named so dispatch code reads better than the

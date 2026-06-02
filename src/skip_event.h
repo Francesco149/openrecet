@@ -33,6 +33,20 @@
  *   reconciled against the golden when Phase C (render) lands.
  *
  * Pure C, no Win32 — the host suite drives it directly (test_skip_event.c).
+ *
+ * ⭐ CORRECTION (2026-06-02, after capturing the retail golden): the engine
+ * globals named above (DAT_06a499a0/9c/98/7c + the FUN_00454191 render) are the
+ * PAUSE MENU, not the dialogue skip. The REAL prologue skip is the engine's
+ * generic CHOICE BOX: WndProc → FUN_00453384 (b1c8!=0) → FUN_0046c2cb →
+ * FUN_00434def("Do you want to skip this event?", 1, 0), gated on the dialogue's
+ * skip_prompt counter DAT_073a3e18 > 1 (already ported as
+ * ive_scene_state.skip_prompt; FUN_0046c320 bumps it every dialogue frame),
+ * polled by FUN_00434ed2, selection in DAT_0438ac24. The OBSERVABLE Yes/No logic
+ * below is correct (golden: runs/skip-golden/arm485/frame_00514.png), but the
+ * faithful port should reuse the choice-box subsystem off skip_prompt rather
+ * than this bespoke counter model — see docs/findings/esc-skip-event.md "MAJOR
+ * CORRECTION" + the plan's Phase B/C. The mapping comments here are retained
+ * only to show what was (mis)mapped.
  */
 #ifndef OPENRECET_SKIP_EVENT_H
 #define OPENRECET_SKIP_EVENT_H

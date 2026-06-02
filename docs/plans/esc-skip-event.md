@@ -18,14 +18,41 @@
   Yes/No input is observable-behavior (PORT-DEBT — the engine choreography is
   not statically legible; `DAT_06a499c8` cancel counter is never set positive in
   the corpus). See `docs/findings/esc-skip-event.md` "Port status".
-- **NEXT = Phase C (needs a golden — HUMAN/RE GATE):** render the gold "Do you
-  want to skip this event?" banner + light scene-darken (`FUN_00454191`) and
-  reconcile the confirm choreography against a live retail prompt-over-HOUSE
-  golden. The golden is **blocked on reproducing `DAT_0438b1c8 == 0` on a real
-  dialogue line** — the turbo/forced Frida playthrough leaves it stuck at 1.
-  Most reliable unblock: a **user-recorded playthrough trace** (F2/F3 recorder,
-  faithful line pacing) that settles a line with `b1c8==0`, then inject ESC +
-  capture. Then port the banner render and set `g_skip_event_enabled=1`.
+- **⭐ GOLDEN CAPTURED + subsystem corrected (2026-06-02).** The retail prompt is
+  `runs/skip-golden/arm485/frame_00514.png` — the gold "Do you want to skip this
+  event?" Yes/No over the HOUSE. **The whole `FUN_00453384`/`DAT_06a49998`/
+  `FUN_00454191` model was the PAUSE menu** (radial blur — user-confirmed). The
+  REAL skip is the engine CHOICE BOX: `FUN_0046c2cb → FUN_00434def(...)`, gated on
+  `DAT_073a3e18` (skip_prompt, already ported as `ive_scene_state.skip_prompt`,
+  bumped every dialogue frame by `FUN_0046c320`), polled by `FUN_00434ed2`,
+  selection `DAT_0438ac24`. ESC works any time ≥2 frames into a line (skip_prompt
+  > 1) — no `b1c8==0` needed; `b1c8==1` is correct for the dialogue. See findings
+  "MAJOR CORRECTION". (RE method lesson: should've read the screenshot first, not
+  the wrong globals.)
+- **NEXT = Phase B/C reframe (no longer blocked):**
+  - Port the choice-box subsystem: `FUN_00434def` (open + text layout into
+    `&DAT_0438af3b`, `DAT_0438af34=1`, `DAT_0438ac08`=2, `DAT_0438ac24`=sel) +
+    `FUN_00434ed2` (poll/commit) + the `FUN_0046c2cb` gate (`skip_prompt>1 &&
+    DAT_073a3dec==0 && DAT_073a6db0==0`). Wire the WndProc ESC → that, off the
+    already-ported `skip_prompt`.
+  - Re-point `src/skip_event.c` at the choice-box globals (observable Yes/No
+    logic stays; render is the choice box, NOT `FUN_00454191`), then set
+    `g_skip_event_enabled=1` and verify the port's prompt vs the f514 golden.
+
+  **Reproduce the golden** (runs/ is gitignored — re-capture in one command;
+  build the boot→line0→idle segtrace then drive retail at normal speed, faithful
+  ESC at the settled line, no force/turbo):
+  ```
+  sed -n '1,216p' tests/scenarios/intro-dialogue-lines/trace.jsonl > runs/skip-golden/trace.jsonl
+  printf '%s\n' '{"capture":0}' '{"frame":0,"buttons":"0x0000"}' \
+    '{"frame":400,"buttons":"0x0000"}' '{"capture":30}' '{"capture":60}' \
+    '{"capture":90}' '{"capture":150}' '{"capture":240}' >> runs/skip-golden/trace.jsonl
+  nix develop --command python3 tools/frida_capture.py --run-dir runs/skip-golden/g \
+    --input-segtrace runs/skip-golden/trace.jsonl --silent-audio --hide-window \
+    --force-resolution 1024x768 --duration-ms 70000 --max-frames 4000 \
+    --arm-skip-at-frame 485
+  # → runs/skip-golden/g/frames/frame_00514.png = the prompt over the HOUSE.
+  ```
 - **Skip-arm trigger CRACKED.** The skip arms via `FUN_0045337b → FUN_00453384(0)`
   **iff `DAT_0438b1c8 == 0`** (dialogue sub-state) + the `cVar4`/`DAT_0438bf7c==0`/
   `DAT_0438be98==0` terms. Confirmed an arm by spamming the skip from frame ~50
