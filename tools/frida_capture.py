@@ -259,6 +259,9 @@ class CaptureConfig:
     # (foot-dust, ambient motes, particle jitter) directly comparable across
     # targets instead of seed-shifted. None = leave retail's wall-clock seed.
     rng_seed: int | None = None
+    # Skip-event probe: directly call FUN_0045337b (WndProc ESC skip entry)
+    # once at this manual frame. -1/None = disabled. See esc-skip-event.md.
+    arm_skip_at_frame: int | None = None
     # D3D state-trace emitter (Phase D.4). When `d3d_trace` is true,
     # the agent hooks IDirect3DDevice8 vtable slots and buffers one
     # event per state-change or draw call; the Present hook flushes
@@ -848,6 +851,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         "turbo_step_ms":  int(cfg.turbo_step_ms),
         "silent_audio":   bool(cfg.silent_audio),
     }
+    if cfg.arm_skip_at_frame is not None:
+        init_cfg["arm_skip_at_frame"] = int(cfg.arm_skip_at_frame)
     if cfg.force_resolution is not None:
         init_cfg["force_resolution"] = [int(cfg.force_resolution[0]),
                                         int(cfg.force_resolution[1])]
@@ -1244,6 +1249,11 @@ def main(argv: list[str] | None = None) -> int:
                          "(cumulative {ret_va: count}). Finds which subsystems "
                          "advance the RNG stream per frame — the metric for "
                          "foot-dust / particle RNG parity vs the port.")
+    ap.add_argument("--arm-skip-at-frame", type=int, default=None,
+                    help="Directly call FUN_0045337b (the WndProc ESC skip-event "
+                         "entry) once at this manual frame. Probes prologue "
+                         "skippability + the skip-prompt counter choreography, "
+                         "since the skip is keyboard-ESC-only (not DInput).")
     ap.add_argument("--rng-seed", type=lambda s: int(s, 0), default=None,
                     help="Pin DAT_006023a0 to this value right after the "
                          "engine's WinMain reseed (FUN_005041ec) — the mirror "
@@ -1354,6 +1364,7 @@ def main(argv: list[str] | None = None) -> int:
         silent_audio=args.silent_audio,
         force_resolution=fr_tuple,
         rng_seed=args.rng_seed,
+        arm_skip_at_frame=args.arm_skip_at_frame,
         d3d_trace=args.d3d_trace,
         d3d_trace_frames=d3d_trace_frames,
         call_trace=args.call_trace,

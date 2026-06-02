@@ -78,6 +78,50 @@ system-atlas array near `data_win.tga`'s `DAT_073d8678`).
 input-segtrace harness (which overwrites the player-0 mask at `input_poll`),
 i.e. retail goldens are capturable without a human at the keyboard.
 
+## Is the opening prologue even skippable? (investigation 2026-06-02)
+
+Tried to trigger the skip on the prologue, both ways, on retail
+(`cutestation.soy:27042`):
+
+1. **DInput injection** of game-button `0x100` (the line-108 path) — pulsed 14×
+   on a settled line (`b1c0==1`, `b1c8==0`). The skip globals
+   (`DAT_06a49998/9c/a0/7c`, `DAT_06a499c8`) **never moved**. The injected mask
+   reaches `DAT_073dddd0` (verified via `--watch raw`), so the edge fired — yet
+   no arm. ⇒ `0x100` is not the prologue's skip trigger; the skip is
+   **keyboard-ESC-only** (WndProc → `FUN_0045337b`), not DInput-reachable.
+2. **Direct call** of `FUN_0045337b` via a new Frida probe (`--arm-skip-at-frame`)
+   at frames 120 and 250 (settled lines) — still **no arm**.
+
+**The prologue IS skippable** (user-confirmed 2026-06-02: ESC → yes/no → confirm
+Yes). The probe failed to arm for a **harness-state** reason, now isolated.
+
+Watching the precise arm conditions of `FUN_00453384`'s `LAB_004534df` (for
+selection `s7c==0`): arm requires
+`cVar4==1 ∧ DAT_0438bf7c==0 ∧ DAT_06a49990==0 ∧ DAT_0438be98==0`.
+The early gate inputs were all clear (`DAT_0438af34/b148==0` ⇒ `FUN_00434dd6`
+false; `DAT_06a4995c/0438b4e0/0438cc08/0438b928==0`), but **`DAT_0438bf7c == -1`
+throughout the dialogue** (from the dialogue-active frame onward) → the
+`DAT_0438bf7c==0` term fails → no arm.
+
+`DAT_0438bf7c` is set to `-1` by **`FUN_0045281c`** (the scene melt/shatter
+transition; `FUN_0045281c(0,0x11)` — the same transition the inter-script load
+bracket uses, deferred PORT-DEBT in the port). It's cleared back to 0 when the
+transition completes (`FUN_004528b3`/`FUN_004526ab` per-frame). In the
+**turbo + Frida-injected** capture it stays stuck at -1 (the transition never
+settles in the fast-forward/spawn context), so the skip can't arm there. In real
+play it returns to 0 between lines, which is when ESC arms the prompt.
+
+**Implication for capture:** the skip is **keyboard-ESC-only** (WndProc, not the
+DInput button mask) AND needs `DAT_0438bf7c==0` (transition settled). Neither the
+input-segtrace nor a turbo direct-call reproduces that cleanly. Options to get
+Phase C goldens: (a) a non-turbo retail run + direct-call timed to a
+`DAT_0438bf7c==0` window, (b) inject a real `WM_KEYDOWN/VK_ESCAPE` to the retail
+HWND from the agent, or (c) a user screenshot of the prompt.
+
+Probe tooling (kept): `--arm-skip-at-frame N` in `frida_capture.py` → agent
+`arm_skip_at_frame` → direct-calls `FUN_0045337b` once at frame N in
+Present.onEnter.
+
 ## Port status
 
 - **Phase A (LANDED 2026-06-02):** `src/esc_dispatch.{c,h}` — `esc_pressed()`

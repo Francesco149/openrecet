@@ -438,6 +438,15 @@ let g_show_window_handled = false;  // pin to first call only
 // pipeline.
 let g_manual_frame_counter = 0;
 
+// Skip-event probe: when >= 0, directly invoke FUN_0045337b (the WndProc ESC
+// → skip-event entry, FUN_00453384(0)) once at this frame. Used to confirm
+// prologue skippability + observe the skip-prompt counter choreography, since
+// the skip is keyboard-ESC-only (WndProc) and not reachable via DInput
+// injection. See docs/findings/esc-skip-event.md.
+let g_arm_skip_at_frame = -1;
+let g_arm_skip_done      = false;
+let g_arm_skip_fn        = null;   // NativeFunction(FUN_0045337b), lazy-built
+
 // Input injection. When g_input_force_active is true, the input_poll
 // onLeave hook overwrites DAT_073dddd0 (var_input_mask) with the
 // sticky-trace mask for the current engine frame, then re-emits the
@@ -1118,6 +1127,21 @@ function installPresentHook(devicePtr) {
                 g_cap_anchor_pending.size === 0) {
                 g_cap_anchor_done_sent = true;
                 send({kind: 'capture_at_anchor_done', frame: fn});
+            }
+            // Skip-event probe: force-call the WndProc ESC skip entry once.
+            if (g_arm_skip_at_frame >= 0 && !g_arm_skip_done &&
+                fn >= g_arm_skip_at_frame) {
+                try {
+                    if (g_arm_skip_fn === null) {
+                        g_arm_skip_fn = new NativeFunction(rva(0x0045337b),
+                                                           'void', []);
+                    }
+                    g_arm_skip_fn();
+                    send({kind: 'arm_skip', frame: fn});
+                } catch (e) {
+                    err('arm_skip', e.message);
+                }
+                g_arm_skip_done = true;
             }
             // Bump AFTER the capture decision. Audio/input events that
             // fired during the cycle leading to this Present have
@@ -3547,6 +3571,9 @@ rpc.exports = {
                                 ? w.type : 's32'};
               })
             : [];
+
+        g_arm_skip_at_frame   = (config.arm_skip_at_frame === undefined)
+                                ? -1 : (config.arm_skip_at_frame | 0);
 
         g_hide_window         = !!config.hide_window;
         g_show_window_handled = false;
