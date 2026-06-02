@@ -187,8 +187,14 @@ frames late**. That is the phase the user saw.
 **Exact HF#2-anchored phase alignment is §85-blocked**: it depends on the
 port's synthetic inter-script load *duration* (68 frames vs retail's 59), which
 is not byte-reproducible. So the durable methodology is to anchor blink captures
-to `CONV_POSE_START` (the cycle's own reset edge), which `intro-iv2-blink` now
-does — proving the anim itself is 1:1 regardless of the load offset.
+to the pose's own cycle. Anchoring to `CONV_POSE_START` (the pose-entry reset)
+turned out to land in retail's load fade and only catch the eyes-open hold, so
+`intro-iv2-blink` instead anchors to **`CONV_POSE_BLINK`** (eyes-closed =
+state 6 AND an odd anim-6 frame = cell 39) after `HOUSE_FREEROAM` (iv1_2 load
+done): the blink recurs every cycle, so it resolves post-fade on BOTH targets
+(port frames 3619.., retail 4448.. = the first post-HF#2 blink) and both
+montages open ON the eyes-closed frame — proving the blink anim itself is 1:1
+regardless of the load offset.
 
 **Open fix (toward absolute parity), in priority order:** (a) hold the pose
 across the whole intro (trigger on `intro_dialogue_active`, not `generation>=2`)
