@@ -30,6 +30,10 @@
 #include "call_trace.h"
 
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>   /* GetEnvironmentVariableA — debug skip-prompt force */
+#include <stdlib.h>    /* atol */
+#endif
 
 #include "debug_param_tick.h" /* engine FUN_00405552 — debug-param tick gate */
 #include "fade.h"         /* fade_tick — engine's per-frame fade counter advance */
@@ -249,6 +253,24 @@ void sim_step_a(void)
      * armed at new-game; a no-op once the 46 lines complete.
      * See src/scene1_intro_dialogue.h. */
     if (g_scene_state == SCENE_STATE_INGAME) {
+#ifdef _WIN32
+        /* Debug-only: the port harness has no ESC-injection path (ESC is a
+         * WM_KEYDOWN, not a game button), so to capture the skip-prompt golden
+         * we arm it at a fixed frame. OPENRECET_FORCE_SKIP_AT = the
+         * g_sim_frame_count to arm at; lands during an active dialogue line so
+         * the choice box draws over it. No-op when unset. */
+        {
+            static long s_force_skip = -2;   /* -2 unread, -1 disabled */
+            if (s_force_skip == -2) {
+                char buf[16];
+                DWORD n = GetEnvironmentVariableA("OPENRECET_FORCE_SKIP_AT",
+                                                  buf, sizeof buf);
+                s_force_skip = (n > 0 && n < sizeof buf) ? atol(buf) : -1;
+            }
+            if (s_force_skip >= 0 && (long)g_sim_frame_count == s_force_skip)
+                skip_event_arm(1);
+        }
+#endif
         if (skip_event_open()) {
             /* The skip-event prompt is modal (retail FUN_004536cb routes the
              * frame to LAB_00453cfb, skipping the scene tick, while the prompt

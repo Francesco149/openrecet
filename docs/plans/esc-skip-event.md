@@ -4,6 +4,18 @@
 > Companion RE doc: `docs/findings/esc-skip-event.md` (the authoritative,
 > continuously-updated subsystem map). Read that first.
 
+## ✅ PHASE B/C LANDED (2026-06-02 PM) — choice-box port
+
+The reframe below is DONE. The skip prompt is now the engine choice box
+(`src/choice_box.{c,h}`: FUN_00434def/ed2/dbf + FUN_0043537e/435747 render),
+with `src/skip_event.c` as the FUN_0046c2cb gate + FUN_0046c320 poll glue, the
+render hooked into `scene1_dialogue_draw` (FUN_0046c090 tail), and
+`g_skip_event_enabled=1`. 10 choice-box host tests + reworked skip_event tests,
+suite green, both exes build. See `docs/findings/esc-skip-event.md` "✅ Phase
+B/C LANDED" for the full mapping. **Only remaining: a port-side render golden
+(human-verify deferred) — capture via `OPENRECET_FORCE_SKIP_AT` (no ESC-inject
+path in the port harness).** Everything below is the historical run-up.
+
 ## STATUS (2026-06-02) — read this before resuming
 
 - **Phase A: DONE & committed** (`b4ccaed`). `src/esc_dispatch.{c,h}` +

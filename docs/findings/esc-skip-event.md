@@ -316,6 +316,47 @@ precise repro (when they press ESC + whether a "can't" sound plays mid-line),
 then either capture at the real arm moment or state-force `b1c8=0` to grab the
 `FUN_00454191` render golden.
 
+## ✅ Phase B/C LANDED via the choice box (2026-06-02 PM)
+
+The MAJOR CORRECTION above is now realised in code. The skip prompt is the
+generic engine **choice box**, ported as `src/choice_box.{c,h}`:
+
+- `choice_box_open` = **FUN_00434def** (open + `'<'`-delimited prompt layout into
+  the `DAT_0438af3b` buffer; `DAT_0438ac08`=rows, `DAT_0438af34`=1, `DAT_0438ac24`
+  =sel, `DAT_0438b144`=mode).
+- `choice_box_poll` = **FUN_00434ed2** (grow-in anim `af34` 1→4; nav `ac24^=1` on
+  L/R; A→`af30` 1/2, B(mode 1)→`af30` 3; close anim `ac14` → returns the option).
+  Return map: `CB_OPT0`=Yes, `CB_OPT1`=No/cancel.
+- `choice_box_draw` = **FUN_0043537e + FUN_00435747** — `savewindow.tga`
+  (`DAT_073d8dc0`) banner growing from centre, centred prompt (`FUN_0047d14c`),
+  "Yes"/"No" (`FUN_0047ca05`, `DAT_005adfd4`/`5adfd8`), 40×40 hand cursor from
+  `nowloading.tga` (`DAT_073cc770`, src (192,0)-(232,40)) bobbing ±8px at the
+  selected option (x = sel·0x7c+212). 10 host tests (`test_choice_box.c`).
+
+`src/skip_event.c` is now the thin event glue: the **FUN_0046c2cb** gate
+(`scene1_intro_dialogue_skippable()` = active && `skip_prompt`(DAT_073a3e18) > 1)
+opens the box; the **FUN_0046c320** poll branch maps Yes→CONFIRMED (teardown via
+`scene1_intro_dialogue_skip_to_end`), No/B→CANCELLED (resume). Render hooked into
+`scene1_dialogue_draw` (the **FUN_0046c090** tail: `skip_event_open()` →
+`choice_box_draw`). **`g_skip_event_enabled` flipped to 1** — the prompt renders,
+no soft-lock. The old "input choreography not statically legible" PORT-DEBT is
+**retired** (it was legible in the choice box; the dead end was the pause-menu
+counters).
+
+**Deferred (next session, human-verify):** a port-side golden of the rendered
+prompt vs `runs/skip-golden/arm485/frame_00514.png`. The port harness has **no
+ESC-injection path** (ESC is a WM_KEYDOWN, not a game button, and the segtrace
+owns only the button mask), so a debug force was added:
+`OPENRECET_FORCE_SKIP_AT=<g_sim_frame_count>` (sim.c, `_WIN32` only) arms the
+prompt at that frame during an active dialogue line. Capture recipe: run the
+`intro-dialogue-lines` segtrace on `--target us` with that env set to a frame on
+a settled line, screenshot the window, compare to the retail golden. Residual RE
+gaps (all minor/cosmetic): the open-anim text alpha ramp (FPU-ambiguous in the
+disasm — drawn at full alpha once capped), the 6-frame cursor slide on nav
+(`DAT_0438ac18` velocity lerp — snapped instead), and the `DAT_073a3e2c`
+resume-vs-restart branch (prologue Yes always skips). SE side effects
+(`FUN_00499519` 0x143/0x13d/0x146) routed through `audio_play_se_by_id` (Win32).
+
 ## Port status
 
 - **Phase A (LANDED 2026-06-02):** `src/esc_dispatch.{c,h}` — `esc_pressed()`

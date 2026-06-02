@@ -60,7 +60,7 @@ _none_
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_004536cb | src/sim.c:258 | retail freezes the *entire |
+| FUN_004536cb | src/sim.c:280 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:136 | the engine teardown also restores the |
 
 ## hardcode (1)
