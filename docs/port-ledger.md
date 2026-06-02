@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **399** (15.7%) — verified 67, stubbed 17, ported 315
-- unported: **2149**
+- touched: **402** (15.8%) — verified 67, stubbed 17, ported 318
+- unported: **2146**
 - orphan refs (in src/, not in function table): 6
 
 ## verified (67) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (315) — reimplemented, no probe yet
+## ported (318) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -217,7 +217,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x451863 | FUN_00451863 | 17 | ✓ | audio_mci.c, audio_mci.h, main.c |
 | 0x451ea7 | FUN_00451ea7 | 1343 | ✓ | audio_mci.h |
 | 0x452569 | FUN_00452569 | 312 | ✓ | prewindow.c, prewindow.h |
-| 0x452911 | FUN_00452911 | 6 | ✓ | main.c, music.c, worker_load.c (+1) |
+| 0x452911 | FUN_00452911 | 6 | ✓ | esc_dispatch.c, esc_dispatch.h, music.c (+2) |
 | 0x452d07 | FUN_00452d07 | 55 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x452d3e | FUN_00452d3e | 71 | ✓ | scene_buy.h, worker_load.c |
 | 0x452d85 | FUN_00452d85 | 60 | ✓ | scene1_preload.h, scene_walls.h, worker_load.c |
@@ -230,6 +230,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4532b1 | FUN_004532b1 | 11 | ✓ | scene1_fx_overlays.h, scene1_render.h, sim.h |
 | 0x4532bc | FUN_004532bc | 29 | ✓ | scene1_fx_overlays.h, scene1_records_b_tick.c, scene1_records_b_tick.h (+3) |
 | 0x453373 | FUN_00453373 | 8 | ✓ | main.c, sim.h |
+| 0x45337b | FUN_0045337b | 9 | ✓ | esc_dispatch.c, esc_dispatch.h |
+| 0x453384 | FUN_00453384 | 821 | ✓ | esc_dispatch.c |
 | 0x454e69 | FUN_00454e69 | 154 | ✓ | layers.c, layers.h, main.c |
 | 0x454f03 | FUN_00454f03 | 120 | ✓ | mesh_draw.c, mesh_draw.h, scene1_alpha_walker.c (+5) |
 | 0x454f7c | FUN_00454f7c | 104 | ✓ | scene1_emit_record.c, scene1_emit_record.h, scene1_walker_pass_init.c |
@@ -319,7 +321,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47b0ef | FUN_0047b0ef | 120 | ✓ | input.c, input.h |
 | 0x47b1f2 | FUN_0047b1f2 | 99 |  | input.c |
 | 0x47b29e | FUN_0047b29e | 73 | ✓ | main.c, prewindow.c, scene.h (+1) |
-| 0x47b2e7 | FUN_0047b2e7 | 1061 |  | main.c |
+| 0x47b2e7 | FUN_0047b2e7 | 1061 |  | esc_dispatch.h, main.c |
 | 0x47bfb3 | FUN_0047bfb3 | 629 | ✓ | main.c |
 | 0x47c228 | FUN_0047c228 | 61 | ✓ | font.h, main.c |
 | 0x47c3a5 | FUN_0047c3a5 | 207 | ✓ | font.h, font_atlas.c, font_atlas.h (+1) |
@@ -381,6 +383,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a324 | FUN_0049a324 | 127 | ✓ | save_io.c, save_io.h, scene_title.h |
 | 0x49a3a3 | FUN_0049a3a3 | 154 | ✓ | main.c, scene_title.c, scene_title.h (+1) |
 | 0x49a43d | FUN_0049a43d | 283 | ✓ | main.c, save_io.c, save_io.h (+2) |
+| 0x49a585 | FUN_0049a585 | 25 | ✓ | esc_dispatch.c, esc_dispatch.h |
 | 0x49b537 | FUN_0049b537 | 31 | ✓ | scene_title.c |
 | 0x49c050 | FUN_0049c050 | 1001 | ✓ | scene_title.c |
 | 0x49d36d | FUN_0049d36d | 495 | ✓ | scene1_postload.c, scene1_postload.h |

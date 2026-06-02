@@ -8,16 +8,16 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-███░░░░░░░░░░░░░░░░░  15.7% touched   (2.6% runtime-verified)
+███░░░░░░░░░░░░░░░░░  15.8% touched   (2.6% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
 | verified  |    67 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    17 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   315 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **399** | verified + stubbed + ported                         |
-| unported  |  2149 | exists in engine, never referenced from src/             |
+| ported    |   318 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **402** | verified + stubbed + ported                         |
+| unported  |  2146 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 6 VAs are referenced in src/ but absent from the function table

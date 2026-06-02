@@ -698,6 +698,10 @@ struct test_case {
     X(scene_post_fade_init_clears_substate) \
     X(scene_post_fade_init_starts_fade_in) \
     \
+    X(esc_quit_only_at_title) \
+    X(esc_swallow_in_game) \
+    X(esc_disabled_swallows_everywhere) \
+    \
     X(scene_new_game_save_dialog_state_clear_zeroes) \
     X(scene_new_game_save_dialog_state_setter_roundtrip) \
     X(scene_new_game_ui_scratch_clear_sentinels_first_two) \

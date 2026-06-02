@@ -37,6 +37,7 @@
 #include "fade.h"
 #include "nowloading.h"
 #include "scene.h"
+#include "esc_dispatch.h"
 #include "scene_ingame.h"
 #include "scene_title.h"
 #include "scene_buy.h"
@@ -1990,9 +1991,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
     case WM_KEYDOWN:
         if (wParam == VK_ESCAPE) {
-            /* original: FUN_00452911() — open in-game pause menu.
-             * Skeleton: just close on ESC for now. */
-            PostMessageA(hwnd, WM_CLOSE, 0, 0);
+            /* Context-sensitive ESC routing (engine WndProc FUN_0047b2e7 ESC
+             * arm). Only the title-screen / no-overlay case quits; in-game and
+             * dialogue contexts swallow ESC (the skip-event prompt lands in a
+             * later phase). See src/esc_dispatch.c. */
+            if (esc_pressed() == ESC_RESULT_QUIT)
+                PostMessageA(hwnd, WM_CLOSE, 0, 0);
         } else if (wParam == VK_F2) {
             /* TAS recorder: toggle start/stop.  (F10 was avoided — Win32 traps
              * F10 as the system-menu key, which pauses the message loop.) */

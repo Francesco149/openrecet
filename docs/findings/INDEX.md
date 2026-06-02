@@ -53,6 +53,12 @@ that subsystem.
 | [scene1-people-table.md](scene1-people-table.md) | `DAT_0076bd54` — 128-entry × 2980 B in-shop "people"/NPC table layout. | 2026-05-23 |
 | [sim-step-a-dispatch.md](sim-step-a-dispatch.md) | `FUN_004536cb` / `sim_step_a` — full survey + chip ladder for the INGAME sim caller. | 2026-05-23 |
 
+## Input / UI
+
+| Doc | Covers | Last touched |
+|-----|--------|--------------|
+| [esc-skip-event.md](esc-skip-event.md) | Context-sensitive ESC dispatch (WndProc `FUN_0047b2e7`) + the skip-event yes/no prompt (`FUN_00453384`/`454191`); pause-menu gate. Phase A (dispatch) landed. | 2026-06-02 |
+
 ## Audio
 
 | Doc | Covers | Last touched |

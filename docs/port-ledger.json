@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 67,
   "stubbed": 17,
-  "ported": 315,
-  "unported": 2149,
+  "ported": 318,
+  "unported": 2146,
   "orphan_refs_not_in_function_table": 6,
-  "touched": 399,
-  "pct_touched": 15.7,
+  "touched": 402,
+  "pct_touched": 15.8,
   "pct_verified": 2.6,
   "port_debt": 10
  },
@@ -3790,7 +3790,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/main.c",
+    "src/esc_dispatch.c",
+    "src/esc_dispatch.h",
     "src/music.c",
     "src/worker_load.c",
     "src/worker_load.h"
@@ -3999,8 +4000,11 @@
    "size": 9,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/esc_dispatch.c",
+    "src/esc_dispatch.h"
+   ]
   },
   {
    "va": "0x453384",
@@ -4008,8 +4012,10 @@
    "size": 821,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/esc_dispatch.c"
+   ]
   },
   {
    "va": "0x4536b9",
@@ -7102,6 +7108,7 @@
    "is_call_target": false,
    "status": "ported",
    "src": [
+    "src/esc_dispatch.h",
     "src/main.c"
    ]
   },
@@ -9550,8 +9557,11 @@
    "size": 25,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/esc_dispatch.c",
+    "src/esc_dispatch.h"
+   ]
   },
   {
    "va": "0x49a59e",

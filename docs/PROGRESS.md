@@ -7,6 +7,30 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-02 — Context-sensitive ESC dispatch (Phase A); skip-event prompt RE'd
+
+ESC was a skeleton in `main.c` WM_KEYDOWN that always `PostMessage(WM_CLOSE)` →
+the "quit the game?" box popped in every context (incl. mid-dialogue). Restored
+the engine's per-context routing (WndProc `FUN_0047b2e7` ESC arm): new
+`src/esc_dispatch.{c,h}` with `esc_pressed()` — title → quit; any in-game
+sub-mode (free-roam, dialogue) → swallow; `g_esc_disabled` (mirror of
+`DAT_06a49954`) swallows everywhere. `main.c` calls it and only quits on
+`ESC_RESULT_QUIT`. Pure C, unit-tested (`test_esc_dispatch.c`, 3 cases); host
+suite 3085 green, Win32 build clean.
+
+This is **Phase A** of the plan to make ESC functional across contexts (plan
+`~/.claude/plans/hidden-wiggling-snail.md`). It fixes the reported wrong-quit bug.
+RE of the full subsystem — the skip-event state machine (`FUN_00453384`), the
+yes/no prompt render (`FUN_00454191`, render-to-texture scene-snapshot fade), and
+the pause-menu gate (`FUN_0049a585`/`FUN_0049a59e`) — is written up in
+`findings/esc-skip-event.md`. Notable: the prompt also arms via DInput button bit
+`0x100`, so retail goldens are capturable through the input-segtrace harness.
+**Pending:** Phase B (skip-event state machine + `scene1_intro_dialogue_skip_to_
+end`, the functional prologue skip) and Phase C (faithful prompt render, gated on
+retail goldens + a live Frida trace of the confirm counters). PORT-DEBT: the
+quit-gate overlay-suppress (`DAT_09643520/544`) is title-only until the pause menu
+lands; `g_esc_disabled` has no producer yet.
+
 ## 2026-06-02 — Opening-prologue dialogue Layer 4a: the "ESC Key: Event Skip" tip
 
 Ported the draw tail of `FUN_0046c9a2` (lines 67831-67843) — the fixed
