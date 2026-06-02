@@ -171,15 +171,25 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
 
     float s = (float)cb_active / 4.0f;             /* open scale, 0.25 → 1.0 */
 
-    /* backdrop banner — savewindow.tga, src (0,0)-(512,128), col 0xff7f7f7f */
+    /* backdrop banner — savewindow.tga, src (0,0)-(512,128), col 0xff7f7f7f.
+     * The engine (FUN_0043537e L31) sets COLOROP = D3DTOP_MODULATE2X (8) for the
+     * banner+text, so the 0x7f7f7f (~half) vertex colour reads as full
+     * brightness (texel·0.5·2); it resets to MODULATE (4) at L77. Without the
+     * 2X the banner is drawn at ~50% under the inherited MODULATE → the prompt
+     * looks dim. Mirror the engine: 2X for the banner, MODULATE for everything
+     * after (the text/cursor below are full-white, so MODULATE is correct). */
     sprite_t *bg = &g_sysassets.savewindow_tga;
     if (bg->tex != NULL) {
         const float dst[4] = { 320.0f - s * 256.0f, 224.0f - s * 64.0f,
                                s * 512.0f, s * 128.0f };
         const float src[4] = { 0.0f, 0.0f, 512.0f, 128.0f };
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                              D3DTOP_MODULATE2X);
         render_quad_bind(dev, bg);
         render_quad_add(dst, src, bg->width, bg->height, 0xff7f7f7fu);
         render_quad_flush(dev);
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                              D3DTOP_MODULATE);
     }
 
     /* text + options only once fully open (matches the engine alpha ramp:

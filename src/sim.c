@@ -285,6 +285,22 @@ void sim_step_a(void)
         } else {
             scene1_intro_dialogue_tick(g_input_state[0].buttons);
         }
+
+        /* Drive the dialogue gate b1c8 (g_scene1_ingame_paused_flag) from the
+         * prologue dialogue state. Engine FUN_004536cb gates the free-roam
+         * controller FUN_00442cef on `DAT_0438b1c8 == 0` (by-address/4536cb.c
+         * L227) — so while the prologue dialogue is RUNNING (iv1_1/iv1_2) or
+         * LOADING its next script, the player/companion/records/combat
+         * controllers (scene1_ingame_default_arm_tick / scene1_combat_sm) must
+         * NOT run. Without this the player is controllable over the iv1_2
+         * dialogue (the 2nd prologue dialogue plays over the live HOUSE) — most
+         * visibly after an ESC-skip of iv1_1 jumps straight onto it. The
+         * dialogue itself is ticked above; here we mirror the gate the in-game
+         * sub-dispatch reads. (b1c8 is 1 while running, 2 while loading in the
+         * engine; only the ==0 test matters, so 1 covers both.) */
+        g_scene1_ingame_paused_flag =
+            (scene1_intro_dialogue_active() || scene1_intro_dialogue_loading())
+                ? 1 : 0;
     }
 
     /* Engine FUN_004536cb L50470-50471: two unconditional per-frame
