@@ -74,6 +74,29 @@ static int ev_text_anim_end(const struct anchor_world *p, const struct anchor_wo
     return c->dlg_active && c->text_revealed && !p->text_revealed;
 }
 
+/* ─── extra/effect-sprite lifecycle (fx_alpha edges) ───────────────────────
+ * The four phases of any dialogue effect sprite's fade, off the aggregate
+ * fx_alpha (max alpha over active index>=2 standees). For an instant-appear
+ * sprite (e.g. the sigh, whose col snaps alpha to 255 the frame it shows),
+ * START and FADED_IN coincide; for one that ramps, they straddle the fade-in.
+ * All recur per sprite. "FULL" = 255 (the engine's opaque). */
+static int ev_fx_start(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->fx_alpha == 0 && c->fx_alpha > 0;            /* sprite appears */
+}
+static int ev_fx_faded_in(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return c->fx_alpha >= 255 && p->fx_alpha < 255;        /* reached full opacity */
+}
+static int ev_fx_fadeout(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->fx_alpha >= 255 && c->fx_alpha < 255 && c->fx_alpha > 0; /* leaves full */
+}
+static int ev_fx_end(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->fx_alpha > 0 && c->fx_alpha == 0;            /* fully gone */
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -89,6 +112,10 @@ static const struct anchor_def g_anchors[] = {
     { "HOUSE_FREEROAM",  ev_house_freeroam  },
     { "TEXT_ANIM_START", ev_text_anim_start },
     { "TEXT_ANIM_END",   ev_text_anim_end   },
+    { "EXTRA_SPRITE_START",    ev_fx_start    },
+    { "EXTRA_SPRITE_FADED_IN", ev_fx_faded_in },
+    { "EXTRA_SPRITE_FADEOUT",  ev_fx_fadeout  },
+    { "EXTRA_SPRITE_END",      ev_fx_end      },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

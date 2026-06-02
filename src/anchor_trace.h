@@ -59,6 +59,14 @@ struct anchor_world {
     int     dlg_active;      /* DAT_0438b1c8 == 1 — dialogue running */
     int32_t text_reveal;     /* DAT_073a3e00 — per-char reveal counter (1..0x800) */
     int     text_revealed;   /* DAT_073a3e04 != 0 — current line fully revealed */
+
+    /* Catch-all dialogue "extra/effect sprite" visibility (the sigh / zzz /
+     * sweat-drop etc. pop-ups + the kuro fade-from-black) — max alpha (0-255)
+     * over the active non-character standees (index >= 2; chr 0/1 are the
+     * persistent speakers). 0 outside dialogue. Drives the four EXTRA_SPRITE_*
+     * lifecycle anchors so a TAS trace can frame the fade in/out of any effect
+     * sprite without hard-coding which standee/line it is. */
+    int32_t fx_alpha;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

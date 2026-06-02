@@ -435,6 +435,8 @@ struct test_case {
     X(anchor_text_start_per_line) \
     X(anchor_text_end_rising_edge) \
     X(anchor_text_gated_on_dlg_active) \
+    X(anchor_extra_sprite_lifecycle) \
+    X(anchor_extra_sprite_ramped_fade_in) \
     X(anchor_jsonl_sink_format) \
     \
     X(dialogue_skips_comments_and_terminates) \

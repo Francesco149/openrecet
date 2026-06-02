@@ -182,6 +182,28 @@ int32_t scene1_intro_dialogue_text_reveal(void)
     return scene1_intro_dialogue_active() ? g_rt.reveal : 0;
 }
 
+int32_t scene1_intro_dialogue_fx_alpha(void)
+{
+    /* Max alpha (0-255) over the active "extra/effect" standees — index >= 2
+     * (chr 0/1 are the persistent speaker characters; 4/5/6+ are the sigh / zzz
+     * / sweat-drop pop-ups + the kuro fade-from-black). Gated on dialogue-active
+     * so the EXTRA_SPRITE_* anchors don't fire on stale state. The scan range
+     * mirrors the retail agent (anchorTick) so both sides agree. */
+    if (!scene1_intro_dialogue_active())
+        return 0;
+    int maxa = 0;
+    for (int i = 2; i <= 31 && i < IVE_STANDEE_COUNT; i++) {
+        const int32_t *f = g_rt.scene.standees[i].field;
+        if (f[IVE_ST_ACTIVE] == 0)
+            continue;
+        int a = (int)ive_word_f(f[18]);   /* current alpha */
+        if (a < 0)   a = 0;
+        if (a > 255) a = 255;
+        if (a > maxa) maxa = a;
+    }
+    return maxa;
+}
+
 int scene1_intro_dialogue_text_revealed(void)
 {
     return scene1_intro_dialogue_active() ? (g_rt.revealed ? 1 : 0) : 0;

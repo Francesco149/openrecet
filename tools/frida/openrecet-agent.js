@@ -619,6 +619,26 @@ let g_anchor_prev_scene    = 0;      // previous-frame DAT_0438b1c0
 let g_anchor_prev_loading  = false;  // previous-frame (gate1||gate2)!=0
 let g_anchor_prev_reveal   = 0;      // previous-frame DAT_073a3e00 (reveal ctr)
 let g_anchor_prev_revflag  = 0;      // previous-frame DAT_073a3e04 (revealed)
+let g_anchor_prev_fxalpha  = 0;      // previous-frame max extra-sprite alpha
+
+// Extra/effect-sprite standee table (the sigh / zzz / kuro fade etc). Base =
+// &DAT_073a3e70, stride 0x70; field11 (active) at +0x2c, field18 (alpha float)
+// at +0x48. Scan index 2..31 (chr 0/1 are the persistent speakers) — the same
+// range as the port's scene1_intro_dialogue_fx_alpha so both sides agree.
+const FX_STANDEE_BASE  = 0x073a3e70;
+const FX_STANDEE_STRIDE = 0x70;
+function anchorFxAlpha(dlgActive) {
+    if (!dlgActive) return 0;
+    let maxa = 0;
+    for (let i = 2; i <= 31; i++) {
+        const sb = FX_STANDEE_BASE + i * FX_STANDEE_STRIDE;
+        if (rva(sb + 0x2c).readS32() === 0) continue;   // field11 active
+        let a = rva(sb + 0x48).readFloat() | 0;          // field18 alpha
+        if (a < 0) a = 0; else if (a > 255) a = 255;
+        if (a > maxa) maxa = a;
+    }
+    return maxa;
+}
 
 // TAS P2 retail side — anchor-relative capture (`--capture-at-anchor
 // NAME[+k]`). The retail counterpart of the port's --capture-at-anchor
@@ -2079,6 +2099,7 @@ function anchorTick(frame, devicePtr) {
     const dlgActive = rva(ADDR.var_dlg_active).readS32() === 1;
     const reveal    = rva(ADDR.var_dlg_reveal_ctr).readS32();
     const revflag   = rva(ADDR.var_dlg_revealed_flag).readS32();
+    const fxAlpha   = anchorFxAlpha(dlgActive);
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
@@ -2086,6 +2107,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_loading = loading;
         g_anchor_prev_reveal  = reveal;
         g_anchor_prev_revflag = revflag;
+        g_anchor_prev_fxalpha = fxAlpha;
         send({kind: 'anchor', anchor: 'BOOT', frame: frame});
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -2093,6 +2115,7 @@ function anchorTick(frame, devicePtr) {
 
     const ps = g_anchor_prev_scene, pl = g_anchor_prev_loading;
     const pr = g_anchor_prev_reveal, pf = g_anchor_prev_revflag;
+    const px = g_anchor_prev_fxalpha;
 
     // Table order = emission order when several fire on one frame; matches
     // anchor_trace.c's g_anchors[] (causal: NEW_GAME / LOADING_START before
@@ -2132,11 +2155,31 @@ function anchorTick(frame, devicePtr) {
         send({kind: 'anchor', anchor: 'TEXT_ANIM_END', frame: frame});
         anchorCaptureSchedule('TEXT_ANIM_END', frame, devicePtr);
     }
+    // EXTRA_SPRITE_* — the dialogue effect-sprite (sigh / zzz / sweat / kuro
+    // fade) lifecycle off the aggregate fx_alpha. 1:1 mirror of anchor_trace.c
+    // ev_fx_*; START/FADED_IN coincide for an instant-appear sprite.
+    if (px === 0 && fxAlpha > 0) {
+        send({kind: 'anchor', anchor: 'EXTRA_SPRITE_START', frame: frame});
+        anchorCaptureSchedule('EXTRA_SPRITE_START', frame, devicePtr);
+    }
+    if (fxAlpha >= 255 && px < 255) {
+        send({kind: 'anchor', anchor: 'EXTRA_SPRITE_FADED_IN', frame: frame});
+        anchorCaptureSchedule('EXTRA_SPRITE_FADED_IN', frame, devicePtr);
+    }
+    if (px >= 255 && fxAlpha < 255 && fxAlpha > 0) {
+        send({kind: 'anchor', anchor: 'EXTRA_SPRITE_FADEOUT', frame: frame});
+        anchorCaptureSchedule('EXTRA_SPRITE_FADEOUT', frame, devicePtr);
+    }
+    if (px > 0 && fxAlpha === 0) {
+        send({kind: 'anchor', anchor: 'EXTRA_SPRITE_END', frame: frame});
+        anchorCaptureSchedule('EXTRA_SPRITE_END', frame, devicePtr);
+    }
 
     g_anchor_prev_scene   = scene;
     g_anchor_prev_loading = loading;
     g_anchor_prev_reveal  = reveal;
     g_anchor_prev_revflag = revflag;
+    g_anchor_prev_fxalpha = fxAlpha;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────

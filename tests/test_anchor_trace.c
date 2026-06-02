@@ -31,6 +31,16 @@ static struct anchor_world W(int32_t scene, int loading)
     return w;
 }
 
+/* In-game world with a given extra-sprite alpha (dialogue active). */
+static struct anchor_world Wfx(int32_t fx_alpha)
+{
+    struct anchor_world w = { 0 };
+    w.scene_state = 1;     /* INGAME */
+    w.dlg_active  = 1;
+    w.fx_alpha    = fx_alpha;
+    return w;
+}
+
 /* First tick always emits exactly BOOT, regardless of the snapshot, and
  * runs no edge predicates (no spurious loading edge from a zero prev). */
 int test_anchor_first_tick_emits_only_boot(void)
@@ -225,6 +235,14 @@ static int rec_count(const struct rec *r, const char *name)
     return n;
 }
 
+/* Index of the first emission of `name` (or 0 if absent). */
+static int rec_first_idx(const struct rec *r, const char *name)
+{
+    for (int i = 0; i < r->n; i++)
+        if (strcmp(r->name[i], name) == 0) return i;
+    return 0;
+}
+
 /* TEXT_ANIM_START fires on the reveal counter's reset to 1 (new line), and
  * recurs for each line — including the first (0→1). It does NOT fire while the
  * counter merely climbs (1,2,3,…). */
@@ -285,6 +303,47 @@ int test_anchor_text_gated_on_dlg_active(void)
 
     T_ASSERT_EQ_I(rec_count(&r, "TEXT_ANIM_START"), 0);
     T_ASSERT_EQ_I(rec_count(&r, "TEXT_ANIM_END"), 0);
+    return 0;
+}
+
+/* The four EXTRA_SPRITE_* anchors over the fx_alpha aggregate: an instant-
+ * appear sprite (alpha snaps 0→255) fires START+FADED_IN together, then
+ * FADEOUT when it leaves full, then END when it reaches 0. */
+int test_anchor_extra_sprite_lifecycle(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+
+    anchor_trace_tick(&st, 0, Wfx(0),   rec_sink, &r);   /* BOOT, baseline fx=0 */
+    anchor_trace_tick(&st, 1, Wfx(255), rec_sink, &r);   /* appears full: START + FADED_IN */
+    anchor_trace_tick(&st, 2, Wfx(255), rec_sink, &r);   /* still full: nothing */
+    anchor_trace_tick(&st, 3, Wfx(180), rec_sink, &r);   /* drops: FADEOUT */
+    anchor_trace_tick(&st, 4, Wfx(60),  rec_sink, &r);   /* still fading: nothing */
+    anchor_trace_tick(&st, 5, Wfx(0),   rec_sink, &r);   /* gone: END */
+
+    T_ASSERT_EQ_I(rec_count(&r, "EXTRA_SPRITE_START"),    1);
+    T_ASSERT_EQ_I(rec_count(&r, "EXTRA_SPRITE_FADED_IN"), 1);
+    T_ASSERT_EQ_I(rec_count(&r, "EXTRA_SPRITE_FADEOUT"),  1);
+    T_ASSERT_EQ_I(rec_count(&r, "EXTRA_SPRITE_END"),      1);
+    return 0;
+}
+
+/* A sprite that ramps in over several frames: START at 0→>0, FADED_IN only
+ * when it actually reaches full (not on the first nonzero frame). */
+int test_anchor_extra_sprite_ramped_fade_in(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+
+    anchor_trace_tick(&st, 0, Wfx(0),   rec_sink, &r);   /* BOOT */
+    anchor_trace_tick(&st, 1, Wfx(64),  rec_sink, &r);   /* START (no FADED_IN yet) */
+    anchor_trace_tick(&st, 2, Wfx(180), rec_sink, &r);   /* still ramping */
+    anchor_trace_tick(&st, 3, Wfx(255), rec_sink, &r);   /* FADED_IN */
+
+    T_ASSERT_EQ_I(rec_count(&r, "EXTRA_SPRITE_START"),    1);
+    T_ASSERT_EQ_I(rec_count(&r, "EXTRA_SPRITE_FADED_IN"), 1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "EXTRA_SPRITE_START")],    1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "EXTRA_SPRITE_FADED_IN")], 3);
     return 0;
 }
 

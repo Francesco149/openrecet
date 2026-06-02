@@ -54,6 +54,10 @@ int     scene1_intro_dialogue_skippable(void);     /* 1 < DAT_073a3e18      */
 int32_t scene1_intro_dialogue_text_reveal(void);   /* DAT_073a3e00          */
 int     scene1_intro_dialogue_text_revealed(void); /* DAT_073a3e04 != 0     */
 
+/* Max alpha (0-255) over active extra/effect standees (index >= 2), or 0
+ * outside dialogue. Feeds anchor_world.fx_alpha → the EXTRA_SPRITE_* anchors. */
+int32_t scene1_intro_dialogue_fx_alpha(void);
+
 /* Nonzero during the iv1_1→iv1_2 loading bracket (gate==2 in the engine).
  * OR this into anchor_world.loading_active so the 2nd LOADING/HOUSE_FREEROAM
  * pair fires here. Zero outside the bracket. */

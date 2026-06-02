@@ -1,0 +1,17 @@
+# intro-sigh — the per-line effect sprite (chr:6 tameiki = "sigh") between lines
+# 1 and 2 of iv1_1, framed by the EXTRA_SPRITE_* anchors (catch-all dialogue
+# extra/effect-sprite lifecycle: START / FADED_IN / FADEOUT / END off fx_alpha).
+# Drives to line 1's settled reveal, advances ONE press, waits for the next
+# EXTRA_SPRITE_START (the sigh — the earlier kuro fade-from-black has already
+# fired+ended), then captures 3 frames at the appearance/fade-in (anchor+0,1,2)
+# and 3 deeper in the fade-out (anchor+28,29,30) — a quick faithfulness check
+# that effect sprites render 1:1 vs retail through their fade.
+#
+#   python3 tools/scenario-test.py intro-sigh --target both \
+#     --frida-remote cutestation.soy:27042
+description: |
+  iv1_1 sigh effect sprite (chr:6) framed by EXTRA_SPRITE_START — 3 fade-in +
+  3 fade-out frames; verifies extra-sprite fade renders 1:1 vs retail.
+max_frames: 24000
+duration_ceiling_ms: 240000
+n_captures: 6

@@ -2293,6 +2293,7 @@ static void render_dispatch(void)
             .dlg_active     = scene1_intro_dialogue_active(),
             .text_reveal    = scene1_intro_dialogue_text_reveal(),
             .text_revealed  = scene1_intro_dialogue_text_revealed(),
+            .fx_alpha       = scene1_intro_dialogue_fx_alpha(),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);
