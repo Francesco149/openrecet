@@ -78,6 +78,22 @@ system-atlas array near `data_win.tga`'s `DAT_073d8678`).
 input-segtrace harness (which overwrites the player-0 mask at `input_poll`),
 i.e. retail goldens are capturable without a human at the keyboard.
 
+## SUMMARY — skip trigger condition cracked (2026-06-02)
+
+The skip arms via `FUN_0045337b → FUN_00453384(0)` **iff `DAT_0438b1c8 == 0`**
+(the dialogue sub-state) and the `cVar4`/`bf7c`/`be98` terms below. That window =
+the cutscene fade/load AND, in real play, settled dialogue lines. **Confirmed
+arm:** spamming the skip from frame ~50 (`b1c8==0`) opened the prompt
+(`s98:1→2→3`, `sa0=1`) and confirmed (`DAT_0438b1c0=9`) — captured the prompt
+opening (`runs/skip-prompt-golden/frame_00052.png`) + the RTT scene-transition.
+Arms at frames 120-456 failed only because the Frida forced/turbo playthrough
+leaves `b1c8=1` stuck there (dialogue not cycling like real play). Render =
+the gold "Do you want to skip this event?" banner (user screenshot) + a light
+scene-darken; the heavy radial-blur is the *transition*, shared with the pause
+menu. Choreography + render fns mapped below. **Remaining:** reproduce `b1c8==0`
+on a real dialogue line (faithful pacing / user trace) for an over-HOUSE golden,
+then port Phase B (state machine, arm-when-b1c8==0) + Phase C (banner render).
+
 ## Is the opening prologue even skippable? (investigation 2026-06-02)
 
 Tried to trigger the skip on the prologue, both ways, on retail
@@ -159,6 +175,26 @@ posted keystrokes through the engine's PeekMessage pump). Open next steps:
 (b) try a non-hidden run or `SendMessage` (same-thread → synchronous WndProc);
 (c) if delivery works but the arm still fails, trace `FUN_00453384`'s branch to
 find the rejecting gate term at frame 456+.
+
+### ROOT CAUSE of the non-arm: dialogue sub-state `DAT_0438b1c8`
+
+`FUN_00453384`'s arm path is gated `if (DAT_0438b1c8 == 0) { …arm… } else
+{ FUN_0046c2cb() → SE 0x143 / cVar4=0 → no arm }`. Watched live during the
+cutscene: `DAT_06a49954` (esc-disabled) is 1 at f72 then **0** from f83 (NOT the
+blocker), but **`DAT_0438b1c8` = 1 from ~f87 onward** (0 only at f72-83, briefly
+2 at f84). So the arm gate's `b1c8==0` branch is never taken once the cutscene
+is running → every arm attempt (DInput, direct call, WndProc-dispatch) is
+rejected. In real play `b1c8` must return to 0 at skippable moments (settled line
+awaiting input); the **Frida forced/turbo playthrough leaves the dialogue stuck
+with `b1c8=1`** (lines not advancing/cycling like real play), so the gate always
+rejects. This — not delivery — is why nothing armed.
+
+**Next step (fresh session):** drive the dialogue *faithfully* so `b1c8` cycles to
+0 — advance lines with correctly-timed A-presses to a settled TEXT_ANIM_END
+state, screenshot-verify the line is up AND watch `b1c8==0`, THEN inject ESC and
+trace the arm + the FUN_00453384 → FUN_00454191 call graph. A user-recorded
+playthrough trace (proper line pacing) is the most reliable way to get that
+state. Probe `arm_skip_at_frame` should fire only while `b1c8==0`.
 
 ### Indicative choreography (early direct-call probe; unfaithful, see caveat)
 

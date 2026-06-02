@@ -1233,14 +1233,17 @@ function installInputHook() {
                     fn < g_arm_skip_at_frame + 240) {
                     try {
                         if (g_esc_post === null) {
-                            const u32 = Process.findModuleByName('user32.dll');
+                            // DIAGNOSTIC delivery-hack: call the engine WndProc
+                            // directly with the ESC keydown message — bypasses
+                            // the hidden-window message pump to isolate "ESC not
+                            // delivered" vs "arm gate rejects". Runs the full
+                            // WndProc ESC dispatch (FUN_00452911 → b1c0 → 0045337b).
                             g_esc_post = new NativeFunction(
-                                u32.findExportByName('PostMessageA'),
-                                'int', ['pointer','uint','uint','pointer']);
+                                rva(0x0047b2e7), 'int',
+                                ['pointer','uint','uint','pointer']);
                         }
                         const hwnd = rva(0x073dfc7c).readPointer();
-                        g_esc_post(hwnd, 0x100, 0x1b, ptr(0));   // WM_KEYDOWN
-                        g_esc_post(hwnd, 0x101, 0x1b, ptr(0));   // WM_KEYUP
+                        g_esc_post(hwnd, 0x100, 0x1b, ptr(0));   // WndProc(WM_KEYDOWN,ESC)
                         if (rva(0x06a49998).readS32() > 0) {
                             send({kind: 'arm_skip', frame: fn});
                             g_arm_skip_done = true;
