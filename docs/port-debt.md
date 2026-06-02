@@ -11,7 +11,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **12**
+- total open debts: **11**
 - distinct retiring engine functions: **9**
 
 | kind | count | meaning |
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **2 tag(s) use an unknown kind**: deferred (2).
+> ⚠️  **1 tag(s) use an unknown kind**: deferred (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -31,13 +31,13 @@ the answer to *"what's still faked in code that looks done?"*
 | engine fn | open debts |
 |-----------|-----------:|
 | FUN_004176ff | 2 |
-| FUN_0046c9a2 | 2 |
 | FUN_004161c7 | 1 |
 | FUN_004176ff L3876 | 1 |
 | FUN_004176ff L4958 | 1 |
 | FUN_00436f97 | 1 |
 | FUN_004536cb | 1 |
 | FUN_00454191 | 1 |
+| FUN_0046c9a2 | 1 |
 | FUN_00473c03 | 1 |
 
 ## stub (4)
@@ -81,6 +81,5 @@ _none_
 
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
-| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:33 | the real per-row width comes from the |
-| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:117 | box_pos_mode/off (DAT_005c7984/80) are |
+| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:115 | box_pos_mode/off (DAT_005c7984/80) are |
 

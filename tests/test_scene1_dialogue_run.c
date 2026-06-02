@@ -248,6 +248,33 @@ int test_dialogue_run_chr_move_tween(void)
     return 0;
 }
 
+/* Natural (no-input) typewriter reveal is CHARACTER-based: budget =
+ * (reveal-4)*32/32 chars; the line is END (revealed) once the budget clears
+ * every row's ive_row_count with >2 to spare. For a 1-row "ABCDE" (count 4),
+ * revealed iff (reveal-4) - 4 > 2, i.e. reveal >= 11. Locks the fix that lets a
+ * settled line auto-complete (book icon appears) so ONE advance press moves on,
+ * instead of the old nominal-pixel metric that never completed. */
+int test_dialogue_run_natural_reveal_char_budget(void)
+{
+    static struct ive_program prog;
+    static struct ive_runtime rt;
+    T_ASSERT(scene1_dialogue_parse("msg:0:1:ABCDE<KEY>\r\nend:\r\n", &prog) == 1);
+    ive_runtime_init(&rt, &prog);
+
+    ive_runtime_step(&rt, 0);              /* SHOW yields; reveal latches to 1 */
+    T_ASSERT_EQ_I(rt.revealed, 0);
+
+    /* Climb the reveal counter with no input; it must NOT complete before
+     * reveal 11, and must be complete at 11. */
+    int flip = -1;
+    for (int i = 0; i < 40 && flip < 0; i++) {
+        ive_runtime_step(&rt, 0);
+        if (rt.revealed) flip = rt.reveal;
+    }
+    T_ASSERT_EQ_I(flip, 11);
+    return 0;
+}
+
 /* ─── box open/close scale (FUN_0046c86f) ─────────────────────────────────── */
 
 int test_dialogue_box_scale_open_and_closing(void)

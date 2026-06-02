@@ -24,20 +24,18 @@
 #define IVE_BOX_OPEN_MAX  0xf    /* DAT_073a3e14 fully-open                    */
 
 /*
- * Reveal-completion budget (the FUN_0046c9a2 tail). budget_px =
- * (reveal-4)*speed/32; each of the line's rows subtracts its rendered width;
- * the line is fully revealed (END) iff the budget still clears every row by
- * >2px. `speed` is the text-speed table DAT_005c78e0[idx] = {16,32,1024}
- * (slow/normal/fast) — normal is the fresh-config default.
- *
- * PORT-DEBT(deferred, FUN_0046c9a2): the real per-row width comes from the
- * glyph rasterizer (FUN_00405a52), deferred to the visual pass. We use a
- * nominal row width; this only affects the *typewriter speed* of a naturally-
- * revealing line. Under the validated advance-spam trace the reveal is slammed
- * to IVE_REVEAL_MAX, so the END edge is exact regardless of the metric.
- */
+ * Reveal-completion budget (the FUN_0046c9a2 tail). The reveal is CHARACTER-
+ * based, not pixel-based (retail probe runs/dlg-reveal-probe: a 2-row ~42-char
+ * line reveals — DAT_073a3e04 rises 0→1 — at reveal≈47 with speed 32, i.e.
+ * ~1 char/frame). budget = (reveal-4)*speed/32 logical characters; each row
+ * subtracts FUN_00405a52's return (the row's full logical char count, minus the
+ * final = ive_row_count); the line is fully revealed (END) iff the budget still
+ * clears every row by >2. `speed` is DAT_005c78dc = DAT_005c78e0[idx] =
+ * {16,32,1024} (slow/normal/fast); normal (32) is the fresh-config default
+ * confirmed live. (The earlier nominal-pixel metric made the typewriter take
+ * ~640 frames, so a settled line never auto-completed — the player had to press
+ * Z to slam the reveal, then again to advance.) */
 #define IVE_REVEAL_SPEED  32     /* DAT_005c78dc, normal text speed           */
-#define IVE_ROW_PX        320    /* nominal rendered row width (deferred)     */
 
 /* Walk-loop handler return codes (the 0x46c320 contract). */
 enum { IVE_R_STOP = 0, IVE_R_CONTINUE = 1, IVE_R_YIELD = 2, IVE_R_COMPLETE = 3 };
@@ -356,8 +354,30 @@ static void ive_run_tween(struct ive_runtime *rt)
     }
 }
 
-/* The FUN_0046c9a2 completion tail: latch the START reset + the END flag.
- * Draws/glyph raster deferred. */
+/* FUN_00405a52's char-count return: the row's full logical character count,
+ * minus the final char (the engine's iVar3 — it stops incrementing before the
+ * last). SJIS-aware: any byte < 0x20 / >= 0x80 (signed < 1) starts a 2-byte
+ * pair. Font-independent, so the reveal-completion latch lives here in the
+ * (host-tested) runtime rather than the Win32 draw, matching the engine's
+ * char-based budget. */
+static int ive_row_count(const char *row)
+{
+    if (row == NULL || row[0] == '\0')
+        return 0;
+    int i1 = 0, i3 = 0;
+    for (;;) {
+        i1 += ((signed char)row[i1] < 1) ? 2 : 1;   /* advance past 1 glyph */
+        if (row[i1] == '\0')
+            break;
+        i3 += 1;
+    }
+    return i3;
+}
+
+/* The FUN_0046c9a2 completion tail: latch the START reset (DAT_073a3e00 → 1)
+ * + the END flag (DAT_073a3e04). Char-based reveal budget — see the comment on
+ * IVE_REVEAL_SPEED. The line is fully revealed iff the running budget clears
+ * every row's char count with >2 to spare. */
 static void ive_completion(struct ive_runtime *rt)
 {
     if (rt->line_row < 0)            /* no current line — box clearing */
@@ -368,10 +388,21 @@ static void ive_completion(struct ive_runtime *rt)
         rt->new_line = 0;
     }
 
-    /* budget = (reveal-4)*speed/32; revealed iff it clears every row by >2px. */
-    long budget = (long)(rt->reveal - 4) * IVE_REVEAL_SPEED / 32;
-    long total  = (long)rt->line_rows * IVE_ROW_PX;
-    rt->revealed = (budget > total + 2) ? 1 : 0;
+    /* budget = (reveal-4)*speed/32 logical chars (the engine's local_10). */
+    float budget = (float)(rt->reveal - 4) * (float)IVE_REVEAL_SPEED / 32.0f;
+    if (budget <= 0.0f) {
+        rt->revealed = 0;
+        return;
+    }
+    rt->revealed = 1;
+    for (int r = 0; r < rt->line_rows; r++) {
+        int gi = rt->line_row + r;
+        if (gi < 0 || gi >= IVE_MAX_ROWS)
+            break;
+        budget -= (float)ive_row_count(rt->prog->glyph[gi]);
+        if (budget <= 2.0f) rt->revealed = 0;   /* row not fully cleared → still revealing */
+        if (budget <= 0.0f) break;
+    }
 }
 
 void ive_runtime_step(struct ive_runtime *rt, uint16_t held)
