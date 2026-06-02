@@ -55,6 +55,8 @@ shots:
   #    live HOUSE map -> top HUD shows). Needs a full-screen (non-zoomed) iv1_2
   #    frame carrying an EXTRA_SPRITE. run_dir/cap pinned once captured.
   - name: hero-iv1_2-dialogue
-    scenario: intro-iv2
-    cap: null
-    note: "iv1_2 second dialogue + extra sprite, HOUSE top HUD visible"
+    scenario: intro-dialogue-lines
+    run_dir: runs/scenarios/intro-dialogue-lines-both-20260602T235052Z
+    cap: 18              # first-iv1_2 lines (HUD onset, cap16-19 align port=retail);
+                         # Recette pointing pose. HUD visible on both (bgset gate fix).
+    note: "iv1_2 second dialogue, HOUSE top HUD visible (clock/Day/money) over the live map"
