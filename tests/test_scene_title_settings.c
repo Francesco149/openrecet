@@ -28,15 +28,6 @@
 /* Convenience: fresh-boot 4-slot menu (NEW_GAME, RANKING, OPTIONS, EXIT). */
 static void mk_menu(scene_title_menu_t *m) { scene_title_menu_init_fresh(m); }
 
-/* One discrete D-pad press = hold one frame, release one frame. The menu's
- * auto-repeat throttle moves the cursor exactly once per press; consecutive
- * held frames would NOT each move (press → 13-frame delay → every 5). */
-static void tap(scene_title_anim_t *a, scene_title_menu_t *m, uint16_t dir)
-{
-    scene_title_sim(a, m, 0, dir);
-    scene_title_sim(a, m, 0, 0);
-}
-
 /* Each test starts from a known baseline: audio_fade reset (9/9/9),
  * settings reset (default 1/0), fresh anim. */
 static void setup(scene_title_anim_t *a, scene_title_menu_t *m)
@@ -52,10 +43,9 @@ static void setup(scene_title_anim_t *a, scene_title_menu_t *m)
  * way so a regression breaks here cleanly. */
 static int enter_settings(scene_title_anim_t *a, scene_title_menu_t *m)
 {
-    /* Move cursor to OPTIONS (index 2 in the 4-slot fresh menu). Two discrete
-     * DOWN presses (auto-repeat: one move per press). */
-    tap(a, m, SCENE_TITLE_INPUT_DOWN);  /* 0 → 1 */
-    tap(a, m, SCENE_TITLE_INPUT_DOWN);  /* 1 → 2 */
+    /* Move cursor to OPTIONS (index 2 in the 4-slot fresh menu). */
+    scene_title_sim(a, m, 0, SCENE_TITLE_INPUT_DOWN);  /* 0 → 1 */
+    scene_title_sim(a, m, 0, SCENE_TITLE_INPUT_DOWN);  /* 1 → 2 */
     T_ASSERT_EQ_U(a->cursor_pos, 2u);
     T_ASSERT_EQ_I(m->items[2], SCENE_TITLE_MENU_OPTIONS);
 
@@ -107,8 +97,8 @@ int test_settings_input_gated_during_slide_in(void)
     setup(&a, &m);
 
     /* Move cursor to OPTIONS + A-press; let the pulse complete. */
-    tap(&a, &m, SCENE_TITLE_INPUT_DOWN);
-    tap(&a, &m, SCENE_TITLE_INPUT_DOWN);
+    scene_title_sim(&a, &m, 0, SCENE_TITLE_INPUT_DOWN);
+    scene_title_sim(&a, &m, 0, SCENE_TITLE_INPUT_DOWN);
     scene_title_sim(&a, &m, SCENE_TITLE_INPUT_A, 0);
     for (int i = 0; i < 14; i++) scene_title_sim(&a, &m, 0, 0);
     T_ASSERT_EQ_I(a.submenu_state, 2);
@@ -138,11 +128,11 @@ int test_settings_down_wraps_cursor_mod_six(void)
     setup(&a, &m);
     if (enter_settings(&a, &m)) return 1;
 
-    /* Six DOWN presses → cursor walks 0..5 and wraps back to 0. */
-    for (int i = 0; i < 6; i++) tap(&a, &m, SCENE_TITLE_INPUT_DOWN);
+    /* Hold DOWN for 6 frames → cursor walks 0..5 and wraps back. */
+    for (int i = 0; i < 6; i++) scene_title_sim(&a, &m, 0, SCENE_TITLE_INPUT_DOWN);
     T_ASSERT_EQ_U(a.submenu_cursor, 0u);
 
-    tap(&a, &m, SCENE_TITLE_INPUT_DOWN);
+    scene_title_sim(&a, &m, 0, SCENE_TITLE_INPUT_DOWN);
     T_ASSERT_EQ_U(a.submenu_cursor, 1u);
     return 0;
 }
@@ -155,9 +145,9 @@ int test_settings_up_wraps_cursor_backwards(void)
     if (enter_settings(&a, &m)) return 1;
 
     /* From cursor=0, UP wraps to 5. */
-    tap(&a, &m, SCENE_TITLE_INPUT_UP);
+    scene_title_sim(&a, &m, 0, SCENE_TITLE_INPUT_UP);
     T_ASSERT_EQ_U(a.submenu_cursor, 5u);
-    tap(&a, &m, SCENE_TITLE_INPUT_UP);
+    scene_title_sim(&a, &m, 0, SCENE_TITLE_INPUT_UP);
     T_ASSERT_EQ_U(a.submenu_cursor, 4u);
     return 0;
 }
@@ -262,8 +252,8 @@ int test_settings_clear_row_consumes_a_press_no_exit(void)
     setup(&a, &m);
     if (enter_settings(&a, &m)) return 1;
 
-    /* Walk to row 5 (Clear all data) — five discrete DOWN presses. */
-    for (int i = 0; i < 5; i++) tap(&a, &m, SCENE_TITLE_INPUT_DOWN);
+    /* Walk to row 5 (Clear all data). */
+    for (int i = 0; i < 5; i++) scene_title_sim(&a, &m, 0, SCENE_TITLE_INPUT_DOWN);
     T_ASSERT_EQ_U(a.submenu_cursor, 5u);
 
     /* A press on row 5 should NOT exit. Engine opens a confirm modal;
@@ -388,10 +378,10 @@ int test_settings_main_menu_other_actions_still_publish(void)
     scene_title_menu_t m;
     setup(&a, &m);
 
-    /* Move to EXIT (index 3) and run full pulse — three discrete DOWN presses. */
-    tap(&a, &m, SCENE_TITLE_INPUT_DOWN);   /* 0 → 1 */
-    tap(&a, &m, SCENE_TITLE_INPUT_DOWN);   /* 1 → 2 (OPTIONS) */
-    tap(&a, &m, SCENE_TITLE_INPUT_DOWN);   /* 2 → 3 (EXIT) */
+    /* Move to EXIT (index 3) and run full pulse. */
+    scene_title_sim(&a, &m, 0, SCENE_TITLE_INPUT_DOWN);   /* 0 → 1 */
+    scene_title_sim(&a, &m, 0, SCENE_TITLE_INPUT_DOWN);   /* 1 → 2 (OPTIONS) */
+    scene_title_sim(&a, &m, 0, SCENE_TITLE_INPUT_DOWN);   /* 2 → 3 (EXIT) */
     T_ASSERT_EQ_U(a.cursor_pos, 3u);
 
     scene_title_sim(&a, &m, SCENE_TITLE_INPUT_A, 0);
