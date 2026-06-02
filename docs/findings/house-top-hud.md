@@ -39,14 +39,26 @@ retail exactly. Port: `src/scene1_top_hud.{c,h}` (2026-06-02).
 The HUD (the whole `FUN_0040a765` scene-HUD block) is NOT drawn during a
 full-screen-background cutscene.  In `FUN_004547ab`'s INGAME dispatch, when a
 dialogue is active (`DAT_0438b1c8 == 1`) the scene+HUD block runs only if
-`FUN_0046c869() == 0`, i.e. `DAT_073a3df0 == 0`.  `DAT_073a3df0` is the parsed
-**bg-layer count of the active dialogue script**: the opening **iv1_1** has a
-painted bg (`polybg:`) → non-zero → scene+HUD **suppressed** (only the dialogue
-draws); **iv1_2** plays as an overlay **over the live HOUSE map** (no bg → 0) →
-scene + HUD **drawn behind it**; free-roam (no dialogue) → drawn.  So the HUD
-appears from iv1_2 onward, NOT during the first cutscene (user-reported
-2026-06-02).  Port: `scene1_intro_dialogue_covers_screen()` (1 during
-D_SCRIPT1=iv1_1) gates the `scene1_hud_render` call in main.c's INGAME render.
+`FUN_0046c869() == 0`, i.e. `DAT_073a3df0 == 0`.  `DAT_073a3df0` is the count of
+**`bgset:` directives** parsed from the active dialogue script (incremented per
+`bgset:` in the .ivt compiler; **`polybg:` is a SEPARATE counter `DAT_073a3dfc`
+that does NOT gate the HUD** — an earlier draft of this note wrongly attributed
+iv1_1's gate to `polybg:`).  Measured on the real scripts (port `[HUDGATE]`
+instrumentation, 2026-06-03): **iv1_1 `n_bg=1, n_polybg=0`** (it carries a
+`bgset:` full-screen painted bg) → non-zero → scene+HUD **suppressed** (only the
+dialogue draws); **iv1_2 `n_bg=0, n_polybg=0`** — it plays as an overlay **over
+the live HOUSE map** (no `bgset:`) → 0 → scene + HUD **drawn behind it**;
+free-roam (no dialogue) → drawn.  So the HUD appears from iv1_2 onward, NOT
+during the first cutscene (user-reported 2026-06-02, user-confirmed working
+2026-06-03).
+
+**Port (faithful gate, 2026-06-03):** `scene1_intro_dialogue_covers_screen()`
+returns `scene1_intro_dialogue_active() && g_rt.prog->n_bg > 0` — the EXACT
+`FUN_0046c869` gate keyed on the active script's `bgset:` count (`ive_program.n_bg`
+= `DAT_073a3df0`), gating `scene1_hud_render` in main.c's INGAME render.  This
+replaced an earlier `g_state == D_SCRIPT1` phase heuristic: that coincided with
+the n_bg result for the prologue (iv1_1=1 / iv1_2=0) but was per-phase, so it
+would have mis-gated any other full-screen-bg dialogue.
 
 ---
 

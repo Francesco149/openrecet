@@ -167,15 +167,19 @@ int scene1_intro_dialogue_active(void)
 
 int scene1_intro_dialogue_covers_screen(void)
 {
-    /* iv1_1 (D_SCRIPT1) is the opening cutscene: its script paints a full-
-     * screen bg, so the engine's FUN_0046c869 returns non-zero and
-     * FUN_004547ab suppresses the whole scene + HUD render behind it.  iv1_2
-     * (D_SCRIPT2) is an overlay over the live HOUSE map (no bg → scene + HUD
-     * drawn behind it).  We hold this for the whole D_SCRIPT1 phase (incl. the
-     * pre-load frame) so the persistent top HUD never flashes over the
-     * cutscene.  The D_LOAD bracket is covered separately by the nowloading
-     * gate. */
-    return (g_state == D_SCRIPT1) ? 1 : 0;
+    /* Exact FUN_0046c869 gate: FUN_004547ab suppresses the scene + HUD block
+     * (FUN_0040a765) behind an *active* dialogue iff DAT_073a3df0 — the count of
+     * `bgset:` directives parsed from the ACTIVE script — is non-zero.  This is
+     * per-SCRIPT, not per-phase: the opening iv1_1 carries a `bgset:` (full-
+     * screen painted bg) → n_bg=1 → HUD suppressed; iv1_2 is an overlay over the
+     * live HOUSE map (no `bgset:`) → n_bg=0 → HUD drawn behind it; every other
+     * dialogue gates the same way.  When no dialogue is active the engine takes
+     * the free-roam branch and always draws the HUD (DAT_0438b1c8 == 0), so we
+     * report "not covering".  (`polybg:` is a *different* counter, DAT_073a3dfc /
+     * n_polybg, and does NOT gate the HUD — only `bgset:` does.) */
+    if (!scene1_intro_dialogue_active() || g_rt.prog == NULL)
+        return 0;
+    return (g_rt.prog->n_bg > 0) ? 1 : 0;
 }
 
 int scene1_intro_dialogue_skippable(void)
