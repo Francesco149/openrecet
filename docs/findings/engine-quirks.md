@@ -3482,3 +3482,21 @@ swapped the audible `DMUS_SEGF_SECONDARY` (0x80) macro for `DMUS_SEGF_QUEUE`
 Lesson: when a decompile shows a bare hex flag, resolve it against the SDK header
 values, don't name it from memory — 0x80/0x100/0x200 (SECONDARY/QUEUE/CONTROL)
 are easy to transpose.
+
+## 89. Menu cursor auto-repeat cadence: move on press, 13-frame delay, then every 5
+
+The title/settings menu cursor reads the directional **pressed-edge** mask
+(`DAT_073dddd6 & 4/8`), and that edge **auto-repeats** while a direction is held.
+Measured on retail (`runs/title-repeat`: boot, hold DOWN on the title menu, watch
+the cursor global `DAT_09643540`): the cursor moves at hold-frames **0, 13, 18,
+23, 28, …** — i.e. one move on press, a **13-frame delay**, then one every **5
+frames**. (Digital D-pad/keyboard input, not analog — the segtrace drives the
+button mask directly. The analog-stick debounce `DAT_0438c14c = 0x1e` is a
+separate path.)
+
+The port originally read `held` and moved every frame (60 Hz), which also beeped
+the cursor SE 60×/s. Ported the throttle as `scene_title_dir_fires()` (constants
+`TITLE_REPEAT_DELAY=13`, `TITLE_REPEAT_INTERVAL=5`) + a per-frame
+`scene_title_repeat_clear()` that drops the latch on release so a re-press fires
+immediately. Applies to the main-menu UP/DOWN and the settings UP/DOWN +
+LEFT/RIGHT sliders; the SE fires only on actual moves.
