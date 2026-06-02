@@ -79,6 +79,18 @@ int scene1_conversation_pose_player_state(void)
     return rec ? rec[CHR_ACTOR_STATE] : 0;
 }
 
+int scene1_conversation_pose_player_blink(void)
+{
+    if (player_ctrl_actor_char(0) == -1)
+        return 0;
+    const int32_t *rec = player_ctrl_actor_record(0);
+    if (!rec || rec[CHR_ACTOR_STATE] != CONV_POSE_PLAYER_ANIM)
+        return 0;
+    /* Recette anim 6 frame loop = cells [38,39,38,39] (durations 20/6/32/6), so
+     * an ODD frame index is cell 39 — eyes closed, i.e. mid-blink. */
+    return (rec[CHR_ACTOR_FRAME] & 1) ? 1 : 0;
+}
+
 void scene1_conversation_pose_tick(void)
 {
     CALL_TRACE_ENTER(0x48407fu);

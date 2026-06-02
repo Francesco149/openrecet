@@ -80,6 +80,11 @@ struct anchor_world {
      * trace can anchor to the pose's OWN edge (the blink resets on it) instead
      * of a fixed HOUSE_FREEROAM+N — see engine-quirks §85/§86. 0 pre-HOUSE. */
     int conv_pose_state;
+
+    /* 1 while Recette is mid-blink (eyes closed, cell 39) during the pose; 0
+     * otherwise. Drives CONV_POSE_BLINK — a clean post-load sync point (the
+     * pose-entry edge lands in the load fade; the blink does not). */
+    int conv_pose_blink;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

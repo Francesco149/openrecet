@@ -393,6 +393,30 @@ int test_anchor_conv_pose_edges(void)
     return 0;
 }
 
+/* CONV_POSE_BLINK fires on the rising edge of the eyes-closed flag (recurs per
+ * blink), independent of the START/END state edges. */
+int test_anchor_conv_pose_blink(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+    struct anchor_world w = { 0 };
+    w.scene_state = 1;
+    w.conv_pose_state = 6;
+
+    anchor_trace_tick(&st, 0, w, rec_sink, &r);   /* BOOT (blink=0 baseline) */
+    w.conv_pose_blink = 1;
+    anchor_trace_tick(&st, 1, w, rec_sink, &r);   /* eyes close → BLINK */
+    anchor_trace_tick(&st, 2, w, rec_sink, &r);   /* held closed → nothing */
+    w.conv_pose_blink = 0;
+    anchor_trace_tick(&st, 3, w, rec_sink, &r);   /* eyes open → nothing */
+    w.conv_pose_blink = 1;
+    anchor_trace_tick(&st, 4, w, rec_sink, &r);   /* next blink → BLINK */
+
+    T_ASSERT_EQ_I(rec_count(&r, "CONV_POSE_BLINK"), 2);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "CONV_POSE_BLINK")], 1);
+    return 0;
+}
+
 /* The JSONL convenience sink emits the exact shared wire format. */
 int test_anchor_jsonl_sink_format(void)
 {

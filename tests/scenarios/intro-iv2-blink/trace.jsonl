@@ -3055,13 +3055,12 @@
 {"frame": 2997, "buttons": "0x0000"}
 {"frame": 2998, "buttons": "0x0010"}
 {"frame": 2999, "buttons": "0x0000"}
-# iv1_1 mashed through; now wait the inter-script load (2nd LOADING_START), then the
-# CONV_POSE_START that follows it = the iv1_2 conversation-pose entry (the blink cycle
-# reset) on BOTH targets despite retail posing during iv1_1 too (port@3439, retail@4241).
-# Capturing +0..+124 from that shared edge samples the SAME blink phase, isolating the
-# anim from the §85 prologue load-offset. Loop 38(d20)->39(d6)->38(d32)->39(d6)=64 ticks.
-{"wait": "LOADING_START"}
-{"wait": "CONV_POSE_START"}
+{"wait": "HOUSE_FREEROAM"}
+# iv1_2 loaded (post-fade) at HF#2; now wait the next CONV_POSE_BLINK (eyes close,
+# cell 39) — a clean post-load sync point on BOTH targets regardless of the §85
+# load-offset, since the blink recurs every cycle. Capture +0..+30 (eyes-closed
+# window is 6 ticks; then the d32 open hold) so both montages open ON the blink.
+{"wait": "CONV_POSE_BLINK"}
 {"capture": 0}
 {"capture": 2}
 {"capture": 4}
@@ -3078,50 +3077,3 @@
 {"capture": 26}
 {"capture": 28}
 {"capture": 30}
-{"capture": 32}
-{"capture": 34}
-{"capture": 36}
-{"capture": 38}
-{"capture": 40}
-{"capture": 42}
-{"capture": 44}
-{"capture": 46}
-{"capture": 48}
-{"capture": 50}
-{"capture": 52}
-{"capture": 54}
-{"capture": 56}
-{"capture": 58}
-{"capture": 60}
-{"capture": 62}
-{"capture": 64}
-{"capture": 66}
-{"capture": 68}
-{"capture": 70}
-{"capture": 72}
-{"capture": 74}
-{"capture": 76}
-{"capture": 78}
-{"capture": 80}
-{"capture": 82}
-{"capture": 84}
-{"capture": 86}
-{"capture": 88}
-{"capture": 90}
-{"capture": 92}
-{"capture": 94}
-{"capture": 96}
-{"capture": 98}
-{"capture": 100}
-{"capture": 102}
-{"capture": 104}
-{"capture": 106}
-{"capture": 108}
-{"capture": 110}
-{"capture": 112}
-{"capture": 114}
-{"capture": 116}
-{"capture": 118}
-{"capture": 120}
-{"capture": 122}
-{"capture": 124}

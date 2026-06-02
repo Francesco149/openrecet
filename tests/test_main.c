@@ -439,6 +439,7 @@ struct test_case {
     X(anchor_extra_sprite_ramped_fade_in) \
     X(anchor_dlg_line_edges) \
     X(anchor_conv_pose_edges) \
+    X(anchor_conv_pose_blink) \
     X(anchor_jsonl_sink_format) \
     \
     X(dialogue_skips_comments_and_terminates) \

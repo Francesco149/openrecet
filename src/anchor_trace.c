@@ -122,6 +122,12 @@ static int ev_conv_pose_end(const struct anchor_world *p, const struct anchor_wo
     return p->conv_pose_state == ANCHOR_CONV_POSE_STATE
         && c->conv_pose_state != ANCHOR_CONV_POSE_STATE;
 }
+/* Rising edge of the eyes-closed (cell 39) blink frame — the post-load sync
+ * point for phase comparison (the pose-entry edge lands in the load fade). */
+static int ev_conv_pose_blink(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->conv_pose_blink && c->conv_pose_blink;
+}
 
 struct anchor_def {
     const char *name;
@@ -146,6 +152,7 @@ static const struct anchor_def g_anchors[] = {
     { "DLG_LINE_SHOW",         ev_dlg_line_show  },
     { "CONV_POSE_START",       ev_conv_pose_start },
     { "CONV_POSE_END",         ev_conv_pose_end   },
+    { "CONV_POSE_BLINK",       ev_conv_pose_blink },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

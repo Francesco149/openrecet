@@ -200,6 +200,10 @@ const ADDR = {
     // blink cycle resets on (the port mirror is the actor record's
     // CHR_ACTOR_STATE, scene1_conversation_pose_player_state()).
     var_player_state:      0x056daafc, // i32 — actor 0 state (6 = conversation)
+    var_player_frame:      0x056daaf8, // i32 — actor 0 anim frame idx. Anim 6's
+                                       // loop is cells [38,39,38,39] → odd frame
+                                       // = cell 39 (eyes closed). Drives
+                                       // CONV_POSE_BLINK (post-load sync point).
 
     var_bgm_slider:      0x056e5778,  // u32 — BGM volume slider 0..9
     var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
@@ -630,6 +634,7 @@ let g_anchor_prev_revflag  = 0;      // previous-frame DAT_073a3e04 (revealed)
 let g_anchor_prev_fxalpha  = 0;      // previous-frame max extra-sprite alpha
 let g_anchor_prev_linep    = 0;      // previous-frame DAT_073a6a38 >= 0 (line shown)
 let g_anchor_prev_convstate = 0;     // previous-frame DAT_056daafc (player state)
+let g_anchor_prev_convblink = false; // previous-frame eyes-closed (blink) flag
 
 // Extra/effect-sprite standee table (the sigh / zzz / kuro fade etc). Base =
 // &DAT_073a3e70, stride 0x70; field11 (active) at +0x2c, field18 (alpha float)
@@ -2112,8 +2117,11 @@ function anchorTick(frame, devicePtr) {
     const fxAlpha   = anchorFxAlpha(dlgActive);
     // DAT_073a6a38 >= 0 — a dialogue line is shown (box open); < 0 between lines.
     const linePresent = dlgActive && rva(0x073a6a38).readS32() >= 0;
-    // DAT_056daafc — player actor state (6 = iv1_2 conversation pose).
+    // DAT_056daafc — player actor state (6 = iv1_2 conversation pose); when
+    // posed, an odd anim-6 frame (DAT_056daaf8) is cell 39 = eyes closed (blink).
     const convState = rva(ADDR.var_player_state).readS32();
+    const convBlink = (convState === 6) &&
+                      ((rva(ADDR.var_player_frame).readS32() & 1) !== 0);
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
@@ -2124,6 +2132,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_fxalpha = fxAlpha;
         g_anchor_prev_linep   = linePresent;
         g_anchor_prev_convstate = convState;
+        g_anchor_prev_convblink = convBlink;
         send({kind: 'anchor', anchor: 'BOOT', frame: frame});
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -2213,6 +2222,12 @@ function anchorTick(frame, devicePtr) {
         send({kind: 'anchor', anchor: 'CONV_POSE_END', frame: frame});
         anchorCaptureSchedule('CONV_POSE_END', frame, devicePtr);
     }
+    // CONV_POSE_BLINK — eyes close (cell 39) during the pose. The post-load sync
+    // point for blink-phase comparison. Mirror of anchor_trace.c ev_conv_pose_blink.
+    if (!g_anchor_prev_convblink && convBlink) {
+        send({kind: 'anchor', anchor: 'CONV_POSE_BLINK', frame: frame});
+        anchorCaptureSchedule('CONV_POSE_BLINK', frame, devicePtr);
+    }
 
     g_anchor_prev_scene   = scene;
     g_anchor_prev_loading = loading;
@@ -2221,6 +2236,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_fxalpha = fxAlpha;
     g_anchor_prev_linep   = linePresent;
     g_anchor_prev_convstate = convState;
+    g_anchor_prev_convblink = convBlink;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────
