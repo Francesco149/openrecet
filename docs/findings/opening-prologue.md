@@ -582,3 +582,40 @@ the `ive_window.tga` box quad (POINT vs LINEAR / box-filtered mip — cf.
 `engine-quirks.md §54` and the chr-sprite POINT-filter fix). Drill into the box
 quad's sampler state vs retail before assuming a geometry/UV bug. Not yet
 investigated.
+
+### RESOLVED — standee tween, char-reveal, per-script skip, FX anchors (2026-06-02 PM)
+
+The deferred animation layer is now ported (user-verified bit-identical for the
+slide-in, fade-from-black, effect sprites, and per-line text). See
+`engine-quirks.md` §84 for the mechanics. Summary of what landed:
+
+- **Standee move/colto tween** (`ive_run_tween` in `scene1_dialogue_run.c`):
+  `moveto` sets target-only; current slides by `speed` (×1000 fixed-point /
+  1000.0); `colto` computes per-frame deltas (field19-22) + countdown (field10),
+  applied to current colour (field15-18). Drives Tear's `-390→-100 @5px/frame`
+  slide-in and the kuro fade-from-black (`col …,255 → colto …,0` over
+  `fadeframe:240`). Effect pop-ups (sigh/zzz) snap to full alpha then fade out.
+- **Char-based reveal** (`ive_completion` + `ive_row_count`): the END /
+  book-icon flag latches when the `(reveal-4)·32/32`-char budget clears every
+  row; a settled line now auto-completes (~char-length frames) so ONE advance
+  press moves on (was: press to slam, press again to advance).
+- **Per-script skip** (`scene1_intro_dialogue_skip_to_end`): ESC-skip ends only
+  the CURRENT script — iv1_1 → iv1_2 (the 2nd dialogue over the free-roam map),
+  iv1_2 → free control — mirroring the engine's `end:`→`FUN_0044baad`
+  queued-next-script teardown (NOT a jump straight to free-roam).
+- **`EXTRA_SPRITE_*` catch-all anchors** (`anchor_trace.c` + the Frida agent):
+  START / FADED_IN / FADEOUT / END over `fx_alpha` (max alpha of active index>=2
+  standees). Lets a TAS trace frame any effect sprite's fade deterministically.
+  Scenarios: `intro-opening` (fade+slide), `intro-sigh` (effect-sprite check),
+  `intro-fade` (phase-anchored fade).
+
+**Remaining real deltas (NOT 1:1, tracked — do not handwave):**
+1. **Dialogue box-edge halo** — a ~1px halo around the `ive_window.tga` bubble
+   border (scaling/texture-filter mismatch; suspect POINT vs LINEAR / box-mip,
+   cf. §54 + the box-edge note above). Everything inside/outside the box is
+   pixel-exact; only the frame edge differs.
+2. **FPS overlay** — the bottom-right `Fps` counter (benign environment
+   artifact; see `benign-divergence-registry`).
+3. **Absolute prologue timing** — the synthetic load brackets arm the scripts at
+   a different offset than retail (phase; §85). Per-effect render is bit-exact;
+   only the wall-clock start drifts.

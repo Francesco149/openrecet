@@ -3312,3 +3312,73 @@ the anim header is a documented stub here.
 > `DAT_005c7dd8` (type = {0,1,6,7,9,8}) / `DAT_005c7ce0` are static `.data`.
 > The steady per-frame dust consumer `FUN_0046c9a2` is still unported, so the
 > foot-dust *phase* won't fully match retail until that lands too (both needed).
+
+## 84. Opening-prologue dialogue: standee position/colour tween, char-based reveal, and effect-sprite fades (the `.ivt` animation model)
+
+The `0x46c` dialogue interpreter animates its character/effect standees through a
+per-frame tween loop (`FUN_0046c320` lines 107-134) the port had deferred (it
+SNAPped everything to its final pose). Three non-obvious mechanics, all
+raw-disasm + retail-probe (`runs/dlg-opening-probe`) confirmed:
+
+**Position tween (`chr:move`/`moveto`/`speed`).** `move:x,y` (0x46da33/0x46dc0a)
+sets BOTH current (field1/2) and target (field3/4); `moveto:x,y`
+(0x46da6e/0x46dc30) sets the **target only**. Each frame the current slides
+toward the target by `speed` (field5/6) with a ±(speed-1) deadband. `speed:f`
+(0x46dc45) is a **×1000 fixed-point** arg: handler does `field5 = (a2 & 0xffff) /
+1000.0`, and the parser passes `round(atof·1000)` — so `speed:5` → field5 = 5.0
+px/frame (retail-confirmed: Tear's `move:-390 → moveto:-100 speed:5` slides at
+exactly 5 px/frame, the divisor `DAT_0051958c` = 1000.0).
+
+**Colour fade (`chr:col`/`colto`/`fadeframe`).** `col:r,g,b,a` (0x46da83) sets
+the CURRENT colour floats (field15=b,16=g,17=r,18=a) only. `colto` (0x46db20)
+does NOT store a target — it computes the **per-frame delta** field19-22 =
+`(target_ch - current_ch)/fadeframe` and sets the countdown field10 = field9
+(`fadeframe`, set by 0x46dc82). The tween adds field19-22 to field15-18 each
+frame while field10 > 0. So the slow fade-from-black is just `chr:5` =
+`kuro.tga` (a 640×480 black image), `col …,255` → `colto …,0` over
+`fadeframe:240` ≈ -1.06 alpha/frame; "fade in from black" is a standee colour
+tween, not a dedicated fade op.
+
+**Effect sprites appear at FULL alpha, then fade OUT.** A pop-up like the sigh
+(`chr:6 tameiki.tga`) scripts `col …,0 / colto …,255 / … / col …,255 / colto
+…,0` — but every `chr:*` setup command returns 1 (advance+run-next same frame),
+so they all execute in ONE frame and the **second** `col …,255` overwrites the
+fade-in. Net: the sprite snaps to alpha 255 the frame it shows, then the second
+`colto …,0` fades it out over its `fadeframe`. (Verified bit-identical vs retail
+via the `EXTRA_SPRITE_*`-anchored `intro-sigh` scenario.)
+
+**Text reveal is CHARACTER-based, not pixel-based.** The END flag
+(`DAT_073a3e04`, the "book-icon / awaiting-advance" gate) is latched in the DRAW
+(`FUN_0046c9a2` 350-388): budget = `(reveal-4)·DAT_005c78dc/32` **logical
+characters** (`DAT_005c78dc` = text speed, default **32**; table
+`DAT_005c78e0`={16,32,1024} slow/normal/fast); each row subtracts
+`FUN_00405a52`'s return = the row's full logical char count minus the final;
+END iff the budget clears every row by >2. The reveal counter climbs +1/frame,
+so a line typewriters in ≈ its char-length frames (retail probe: a 2-row
+~42-char line's END rises at reveal≈47). Port: `scene1_dialogue_run.c`
+`ive_completion` + `ive_row_count` (SJIS-aware). (The old nominal-320-px metric
+made a line take ~640 frames to "complete", so it never auto-completed — the
+player had to press the advance to slam the reveal, then again to advance; with
+the real metric the book icon appears on its own and ONE press advances.)
+
+Port: `scene1_dialogue_run.c` (`ive_run_tween`, the col/colto/move/speed
+handlers, `ive_completion`), `scene1_dialogue.c` parser (`ive_atof_milli`).
+
+## 85. PHASE-ALIGNMENT (open, defer): the port arms the prologue scripts at a different load-offset than retail, so fixed-anchor-offset captures sample animations at the wrong phase
+
+Captures keyed to a *fixed* offset from `HOUSE_FREEROAM` (e.g. the first
+`intro-opening` revision) sample the iv1_1 fade-from-black / Tear slide at a
+slightly different point on port vs retail, because the port's new-game HOUSE
+load + the iv1_1→iv1_2 inter-script load are **synthetic fixed-frame brackets**
+(PORT-DEBT — the real async asset loads aren't reproduced; see
+`opening-prologue.md` §"script-load / gate / transition subsystem"). So iv1_1
+*arms* a few-dozen frames earlier/later than retail relative to `HOUSE_FREEROAM`,
+shifting every subsequent animation's phase. The animations themselves render
+bit-identically — proven by re-capturing anchored to the animation's OWN edge
+(`EXTRA_SPRITE_FADEOUT` for the kuro fade → 0.07 mean|abs|/ch vs retail). **For
+parity captures, anchor to the per-effect `EXTRA_SPRITE_*` / `TEXT_ANIM_*` edges,
+never a fixed `HOUSE_FREEROAM`+N.** Open work to make the *absolute* timing match
+(not just per-effect phase): model the real load durations so the prologue arms
+at retail's offset. Low priority (the synthetic load timing is
+environment-dependent / not byte-reproducible anyway), but tracked here so the
+phase gap isn't mistaken for a render bug later.
