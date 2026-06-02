@@ -3364,6 +3364,43 @@ the real metric the book icon appears on its own and ONE press advances.)
 Port: `scene1_dialogue_run.c` (`ive_run_tween`, the col/colto/move/speed
 handlers, `ive_completion`), `scene1_dialogue.c` parser (`ive_atof_milli`).
 
+## 86. Conversation pose (iv1_2): the freeroam chibis pose to face + animate at each other (Recette anim 6 look-up/blink, Tear anim 4 talk) — PORTED, blink-phase deferred to §85
+
+`FUN_0048407f`'s conversation branch (the master event-actor tick) poses the two
+HOUSE freeroam sprites whenever the talk-event flag `DAT_0450f470[save] == 0`:
+they turn to face each other on the X axis (Tear.x ≤ Recette.x → Recette octant
+2 / Tear octant 6 / player facing-angle `db05c` = −π/2; else 6 / 2 / +π/2), then
+**Recette enters anim/state 6** (「ティアの話を聞くよ」 — a look-up at Tear whose
+4-entry loop 38(d20)→39(d6)→38(d32)→39(d6) IS the blink: cell 38 eyes-open held
+20/32 ticks, cell 39 eyes-closed 6 ticks) and **Tear enters anim/state 4** (her
+talking pose). The state field (record dword 5 = engine `daafc`/`dab54`, the same
+field the companion ctrl calls `CO_REC_ANIMSEL`) gates the enter so the cycle
+resets only on the transition into the state; the per-frame `FUN_00482a71`
+anim-step (= `chr_anim_tick`) then advances the blink. Released to idle (anim 0)
+when the flag is set.
+
+Ported in `scene1_conversation_pose.{c,h}` (the pure branch + a tick that holds
+the pose on the live actor records during iv1_2 and steps both actors' anim).
+Wired at the top of `scene1_ingame_default_arm_tick`; the companion controller
+yields its own anim/facing selection while `scene1_conversation_pose_active()`,
+and the player's freeroam arm was already gated off for the dialogue. User-
+verified 1:1 vs retail (`intro-iv2-gap`) **modulo** the known-deferred Tear
+position (confirmed-parity ledger) + the radial-burst billboard near Tear (a
+talk-manager effect spawn, still unported) + the blink **phase** (next §).
+
+**PORT-DEBT — the producer + the blink phase.** The faithful talk-flag producer
+is the intro event timeline `FUN_00470a46` (clears the flag at the END of the
+deferred shatter transition `FUN_004526f5(0,0x1e)`, once `FUN_004528b3()!=0`) +
+`FUN_004852fb` (sets it on scene-out). That path is entangled with the still-
+deferred shatter-transition render, so the port derives the flag from the iv1_2
+dialogue lifecycle (`scene1_intro_dialogue_active() && generation>=2`) instead.
+This enters the pose at the iv1_2-**arm** edge, whereas retail clears the flag
+~`0x122−0x104 + 30 = 0x4a` frames later (after the shatter transition completes),
+so the blink cycle — which resets on entry — is **phase-shifted** at any fixed
+HOUSE_FREEROAM+N capture (the §85 mechanism, plus this deterministic producer
+offset). The blink anim itself is faithful (rate + sequence); only the entry
+frame differs. See `conversation-pose-driver.md`.
+
 ## 85. PHASE-ALIGNMENT (open, defer): the port arms the prologue scripts at a different load-offset than retail, so fixed-anchor-offset captures sample animations at the wrong phase
 
 Captures keyed to a *fixed* offset from `HOUSE_FREEROAM` (e.g. the first

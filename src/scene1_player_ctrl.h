@@ -363,6 +363,9 @@ int            player_ctrl_burst_count(void);
  * Any out param may be NULL. Used by --player-pos-log (engine-quirks §69). */
 void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky);
 
+/* Set the stored world facing db05c (conversation-pose ±π/2 write). */
+void player_ctrl_set_facing_angle(float angle);
+
 /* ── FUN_0048670f cc08 dispatch state (Chip 4, engine-quirks §78) ────────────
  * The in-game interaction state the controller dispatches on each frame
  * (DAT_0438cc08): 1 = free-roam walk; other values are the unported event /

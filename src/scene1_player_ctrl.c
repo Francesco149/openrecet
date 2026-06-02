@@ -529,6 +529,13 @@ void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky)
     if (sticky) *sticky = s_facing_sticky;
 }
 
+/* Set the stored world facing db05c (the conversation-pose driver's ±π/2 write,
+ * FUN_0048407f; scene1_conversation_pose.c).  Held until the next walk frame. */
+void player_ctrl_set_facing_angle(float angle)
+{
+    s_player_facing = angle;
+}
+
 /* ── FUN_0048670f cc08 dispatch state writer + accessors (Chip 4) ──────────── */
 
 /* FUN_004850ec (0x4850ec, 18 B): the canonical "enter HOUSE free-roam" setter.

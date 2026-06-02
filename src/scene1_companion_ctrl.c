@@ -17,6 +17,7 @@
 
 #include "call_trace.h"           /* CALL_TRACE_ENTER */
 #include "scene1_player_ctrl.h"   /* actor record (mut/read) */
+#include "scene1_conversation_pose.h" /* yield anim/facing while the pose is held */
 #include "scene1_chr_sprite.h"    /* CHR_ACTOR_* record-field indices */
 #include "scene1_particles_tick.h"/* g_scene1_actor_pos + g_scene1_player_ground_y + g_scene1_camera_yaw */
 #include "scene1_spawn.h"         /* scene1_spawn (FUN_00447f4f) + the dab58 init global */
@@ -190,16 +191,26 @@ void scene1_companion_ctrl_tick(void)
      * standing-pose facing into one free-roam controller since it has no §60
      * intro window).  This is the fairy's resting orientation (octant 2 = facing
      * left toward Recette at the spawn offset). */
+    /* While the iv1_2 conversation pose is held, FUN_0048407f's branch owns
+     * Tear's anim (4 = talk) + facing and the per-actor anim step already ran in
+     * scene1_conversation_pose_tick — yield the free-roam selection + the tick
+     * below (the engine's FUN_0048a4d1 anim block is likewise gated off in the
+     * event arm).  The spring-follow position / Y-bob / wing-sparkle still run:
+     * the player is stationary during the dialogue so Tear holds her offset. */
+    int in_conversation = scene1_conversation_pose_active();
+
     int prev_animsel = rec[CO_REC_ANIMSEL];
     float mvx = comp[0] - pre_x, mvz = comp[2] - pre_z;
     float moved = sqrtf(mvx * mvx + mvz * mvz);
-    if (moved <= CO_MOVE_EPS) {
-        co_set_anim(rec, CO_ANIM_IDLE);
-        rec[CHR_ACTOR_FACING] = (comp[0] <= player[0]) ? 6 : 2;
-    } else {
-        co_set_anim(rec, CO_ANIM_MOVING);
-        if (prec)
-            rec[CHR_ACTOR_FACING] = prec[CHR_ACTOR_FACING];
+    if (!in_conversation) {
+        if (moved <= CO_MOVE_EPS) {
+            co_set_anim(rec, CO_ANIM_IDLE);
+            rec[CHR_ACTOR_FACING] = (comp[0] <= player[0]) ? 6 : 2;
+        } else {
+            co_set_anim(rec, CO_ANIM_MOVING);
+            if (prec)
+                rec[CHR_ACTOR_FACING] = prec[CHR_ACTOR_FACING];
+        }
     }
 
     /* Advance the companion's sprite animation every non-transition frame,
@@ -214,7 +225,7 @@ void scene1_companion_ctrl_tick(void)
      * to frame 0, so — mirroring the player — skip the tick on that frame
      * (CO_REC_ANIMSEL changed) and advance only when the anim is unchanged.
      * See docs/findings/scene1-wing-glow.md, engine-quirks §81. */
-    if (rec[CO_REC_ANIMSEL] == prev_animsel)
+    if (!in_conversation && rec[CO_REC_ANIMSEL] == prev_animsel)
         chr_anim_tick(rec, player_ctrl_actor_char(CO_ACTOR), 1.0f);
 
     /* Wing-glow sparkle (FUN_0048a833 tail): emit every 4th frame, off the

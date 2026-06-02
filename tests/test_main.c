@@ -3251,6 +3251,13 @@ struct test_case {
     X(companion_velocity_clamp) \
     X(companion_wing_sparkle_emit) \
     X(companion_wing_sparkle_period) \
+    X(conversation_pose_faces_tear_left) \
+    X(conversation_pose_faces_tear_right) \
+    X(conversation_pose_equal_x_takes_left_branch) \
+    X(conversation_pose_holds_phase_in_state) \
+    X(conversation_pose_release_to_idle) \
+    X(conversation_pose_release_idempotent) \
+    X(conversation_pose_null_safe) \
     X(player_pose_passes_char_id) \
     X(player_actor_accessors_out_of_range) \
     X(player_render_bank_accessor_contract) \

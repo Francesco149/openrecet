@@ -42,6 +42,7 @@
 
 #include "scene1_particles_tick.h"
 #include "scene1_companion_ctrl.h"
+#include "scene1_conversation_pose.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_records_b_tick.h"
 #include "scene1_records_c_tick.h"
@@ -71,6 +72,15 @@ void scene1_ingame_default_arm_tick(void)
 {
     /* E.2 probe — FUN_00442cef @ 0x442cef. */
     CALL_TRACE_ENTER(0x442cefu);
+
+    /* FUN_0048407f conversation branch (the event-actor tick): hold the iv1_2
+     * face-to-face pose on the freeroam chibis (Recette look-up/blink anim 6,
+     * Tear talk anim 4) and advance their sprite anim.  Runs FIRST, before the
+     * freeroam controllers, mirroring the branch's position ahead of the
+     * per-actor anim step + the spring-follow.  Inert outside the conversation;
+     * the companion controller reads scene1_conversation_pose_active() to yield
+     * its anim/facing while the pose is held. */
+    scene1_conversation_pose_tick();
 
     /* FUN_00442cef L40595-40598 — the player controller runs FIRST, before
      * the records-B tick, gated on DAT_0438be94 < 0x78 and a dispatcher that

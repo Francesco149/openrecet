@@ -51,6 +51,9 @@
 #define CHR_ACTOR_TIMER   2   /* float bits — frame-time accumulator        */
 #define CHR_ACTOR_COUNTER 3   /* int — frames-since-anim-start, wrap-reset   */
 #define CHR_ACTOR_FRAME   4
+#define CHR_ACTOR_STATE   5   /* int — actor state machine (engine daafc/dab54:
+                               * 0 free-roam, 4 Tear-talk, 6 Recette-listen).
+                               * The companion ctrl names this CO_REC_ANIMSEL. */
 #define CHR_ACTOR_FACING  6
 #define CHR_ACTOR_FLAG7   7
 #define CHR_ACTOR_FLAG8   8

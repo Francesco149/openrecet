@@ -68,6 +68,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_motes.c \
                  ../src/scene1_player_ctrl.c \
                  ../src/scene1_companion_ctrl.c \
+                 ../src/scene1_conversation_pose.c \
                  ../src/scene1_intro_dialogue.c \
                  ../src/skip_event.c \
                  ../src/choice_box.c \
@@ -120,6 +121,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_motes.c \
                  test_scene1_player_ctrl.c \
                  test_scene1_companion_ctrl.c \
+                 test_scene1_conversation_pose.c \
                  test_collision_mesh.c test_collision_query.c test_collision_resolve.c \
                  test_se_pack.c test_scene1_dialogue.c test_scene1_dialogue_run.c \
                  test_skip_event.c test_choice_box.c

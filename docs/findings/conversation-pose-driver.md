@@ -1,5 +1,14 @@
 # Conversation-pose driver — FUN_0048407f + the talk-event flag (DAT_0450f470)
 
+> **PORTED 2026-06-02 PM** (`scene1_conversation_pose.{c,h}`; engine-quirks §86).
+> The pose is user-verified 1:1 vs retail (`intro-iv2-gap`) modulo: (a) the
+> known-deferred Tear position (confirmed-parity ledger), (b) the radial-burst
+> billboard near Tear (still unported — see "Deferred" below), and (c) the blink
+> **phase** at fixed-offset captures (the producer-timing PORT-DEBT in step 3 +
+> engine-quirks §85; blink anim itself is faithful — only the pose-entry frame
+> is offset because the port enters at the iv1_2-arm edge, not retail's end-of-
+> shatter-transition flag clear). Next: blink-phase sync, then the radial lines.
+>
 > RE'd 2026-06-02 PM. Closes the "iv1_2 opening freeroam-sprite anims" gap
 > (`opening-prologue.md` §"Remaining real deltas" #4): during the iv1_2 (and any
 > face-to-face) conversation, retail poses the **HOUSE freeroam chibi actors** —

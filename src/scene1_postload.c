@@ -51,6 +51,7 @@
 #include "scene1_camera.h"    /* g_scene1_camera_char_mode */
 #include "scene1_particles_tick.h"
 #include "scene1_companion_ctrl.h"/* scene1_companion_ctrl_reset (actor-2 bob) */
+#include "scene1_conversation_pose.h"/* scene1_conversation_pose_reset */
 #include "scene1_player_ctrl.h"   /* player_ctrl_pose_house_standing */
 #include "scene1_records_b_spawn.h"
 #include "scene1_records_c_spawn.h"
@@ -129,6 +130,9 @@ void scene1_postload_pose_house_standing(void)
     /* Reset the companion hover-bob phase (engine DAT_056db054) on scene entry,
      * alongside the actor-2 seed inside pose_house_standing. */
     scene1_companion_ctrl_reset();
+
+    /* Drop any held iv1_2 conversation pose latch on scene entry. */
+    scene1_conversation_pose_reset();
 }
 
 void scene1_postload_ambient_spawn(void)
