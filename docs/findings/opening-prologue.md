@@ -628,8 +628,40 @@ slide-in, fade-from-black, effect sprites, and per-line text). See
    dialogue, NOT the dialogue standees. Reference capture: the **`intro-iv2-gap`**
    scenario (reaches iv1_2 via the 2nd HOUSE_FREEROAM, idles through the opening,
    captures HF#2 +14..+138 every 2 frames; zoom crop `(520,578) 104×150` frames
-   both Recette + Tear — port|retail paired by capture index). cap_03 = eyes
-   open → cap_04 = eyes closed on retail; port static.
+   both Recette + Tear — port|retail paired by capture index). cap_04 = eyes
+   open → cap_05 = eyes closed on retail; port static.
+
+   **CHARACTERIZED (2026-06-02 PM, follow-up RE).** The visible characters in the
+   pre-box opening window (cap_00–53) are the **small HOUSE freeroam chibi
+   sprites** (player Recette + companion Tear), NOT the dialogue standees — the
+   big `512×512` portrait standees (`02tear_00.tga` / `01recette_04.tga`) + the
+   dialogue box only slide in **~cap_54** (verified: cap_60 shows the box +
+   nameplate "Recette" + the eyes-closed `recette_04` portrait). So this is a
+   **HOUSE freeroam cutscene that plays BEFORE the iv1_2 dialogue box.** Both
+   freeroam actors are already drawn by the ported pipeline (walker `FUN_00456f56`
+   → leaf `FUN_0045a56f`), so the gap is **animation-index selection + frame
+   advance**: retail sets cutscene anim indices on the actors (Recette look-up,
+   Tear angry) and plays their frame cycles (the blink is a frame cycle of an
+   idle/reaction anim; the radial-burst is a 2-frame effect billboard), while the
+   port leaves them in a static default frame. The per-character `.idx` animation
+   blocks (`chr_sprite_meta`) already carry these poses — what's missing is the
+   driver that selects + ticks them in this window.
+   - **NOT** the `iv1_2.ivt` `chr:4 giku.tga` / `chr:5 hatena.tga` effect
+     standees: those are EXTRA_SPRITE effects that fire MUCH later in the script
+     (lines 82/57, after ~8 advanced msgs) and ride the **big portraits**, not
+     the freeroam sprites. The idle scenario never advances that far. The
+     pre-box radial-lines are a separate freeroam effect (source TBD).
+   - **Full iv1_2.ivt RE'd** (extracted via `recettear-repacker/lnk_unpack`,
+     SJIS): opening = `fadeinb:240` → chr:0(Tear) slide `-500→-100` → `wait:60`
+     → chr:1(Recette) slide `480→240` grp `recette_04` → `wait:60` → first
+     `msg`. Confirms the standee layer carries no look-up/blink/anger ops in the
+     opening — the anims are freeroam-side.
+   - **Next step (per repo methodology):** a retail Frida call-graph over
+     cap_00–20 to pin the driver fn that sets the freeroam actors' anim index in
+     this window (is it a HOUSE intro-event state machine, or emergent
+     companion/player reaction?), then port that + ensure the actor frame-advance
+     ticks. Sub-chips: freeroam idle eye-blink (likely reusable across all
+     free-roam), scripted look-up/angry pose select, radial-burst effect.
 5. **Dialogue text doesn't fade to transparent on dismiss** — when a line is
    dismissed, retail fades the glyph text out as the box closes; the port pops it
    off. Investigate the box-close alpha applied to the text in `FUN_0046c9a2`.
