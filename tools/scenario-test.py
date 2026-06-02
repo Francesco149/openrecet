@@ -538,10 +538,16 @@ def render_sidebyside_zoom(left_frames: Path, right_frames: Path,
     out_w  = crop_w * factor
     out_h  = crop_h * factor
 
-    lefts  = {p.name: p for p in csm.list_images(left_frames)}
-    rights = {p.name: p for p in csm.list_images(right_frames)}
-    names  = sorted(set(lefts) | set(rights))
-    if not names:
+    # Pair by CAPTURE ORDER (index), not filename: the two targets number their
+    # frames by absolute engine frame (frame_NNNNN), which differs run-to-run and
+    # target-to-target, but the Nth captured frame on each side is the same
+    # {capture} op (same anchor + offset). Pairing by name would never match
+    # (port frame_03210.bmp vs retail frame_04524.png), leaving every retail tile
+    # "(missing)".
+    left_list  = csm.list_images(left_frames)
+    right_list = csm.list_images(right_frames)
+    n_rows = max(len(left_list), len(right_list))
+    if n_rows == 0:
         return None
 
     placeholder = Image.new("RGB", (out_w, out_h), (40, 0, 0))
@@ -570,15 +576,15 @@ def render_sidebyside_zoom(left_frames: Path, right_frames: Path,
     tiles:  list[Image.Image] = []
     labels: list[str] = []
     suffix = f" · zoom ×{factor} @ ({crop_x},{crop_y}) {crop_w}×{crop_h}"
-    for n in names:
-        lp = lefts.get(n)
-        rp = rights.get(n)
+    for i in range(n_rows):
+        lp = left_list[i]  if i < len(left_list)  else None
+        rp = right_list[i] if i < len(right_list) else None
         tiles.append(zoom_tile(lp) if lp else placeholder)
-        labels.append(f"{left_label} · {n}{suffix}" if lp
-                      else f"{left_label} · (missing){suffix}")
+        labels.append(f"{left_label} · cap_{i:02d} {lp.name}{suffix}" if lp
+                      else f"{left_label} · cap_{i:02d} (missing){suffix}")
         tiles.append(zoom_tile(rp) if rp else placeholder)
-        labels.append(f"{right_label} · {n}{suffix}" if rp
-                      else f"{right_label} · (missing){suffix}")
+        labels.append(f"{right_label} · cap_{i:02d} {rp.name}{suffix}" if rp
+                      else f"{right_label} · cap_{i:02d} (missing){suffix}")
 
     # The zoom tiles are large (1000+ px per side typical); a default
     # 18-px label strip with ~10-px bitmap font is unreadable against
