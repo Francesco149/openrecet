@@ -47,6 +47,12 @@ const ADDR = {
     // *when* the device pointer is live.
     fn_d3d_init_wrapper: 0x0047ac6a,
 
+    // FUN_004523e6 — the bottom-right "Fps NN" debug overlay draw. NOP'd
+    // (Interceptor.replace) when hiding fps for clean comparisons: its value
+    // is wall-clock derived, a noisy cross-target / golden delta. Mirrors the
+    // port's capture-default-hide so both targets match.
+    fn_fps_draw:         0x004523e6,
+
     // audio entry points (see docs/findings/audio-backend.md table).
     fn_audio_play_track: 0x00499200,  // BGM swap
     fn_audio_play_se:    0x00499c63,  // SE start/stop
@@ -502,6 +508,12 @@ let g_turbo_clock_cb = null;
 // DAT_09643108 first becomes non-null), since the AudioPath instance
 // has to exist before we can read its vtable.
 let g_silent_audio_enabled = false;
+
+// FPS overlay suppression. Captures hide the "Fps NN" overlay by default
+// (its value is wall-clock derived → noisy diff); config.show_fps re-enables
+// it. Implemented by Interceptor.replace'ing FUN_004523e6 with a no-op.
+let g_hide_fps         = true;
+let g_hide_fps_cb      = null;   // NativeCallback retainer (GC would eat it)
 let g_silent_audio_hooked  = false;
 
 // Differential test mode (Phase D). When true, the agent is set up
@@ -3715,6 +3727,10 @@ rpc.exports = {
         g_silent_audio_enabled = !!config.silent_audio;
         g_silent_audio_hooked  = false;
 
+        // FPS overlay: hidden by default for clean comparisons; show_fps
+        // re-enables it (matches the port's --show-fps / capture-default-hide).
+        g_hide_fps = (config.show_fps !== true);
+
         // force_resolution: [w, h] or null. When set, hook recet.ini
         // parse exit and overwrite the engine's screen-size globals.
         g_force_resolution_w = 0;
@@ -3956,6 +3972,19 @@ rpc.exports = {
             }
             if (g_silent_audio_enabled) {
                 installSilentAudioHook();
+            }
+            // FPS overlay hide — NOP FUN_004523e6 so retail captures match
+            // the port's capture-default-hide. Pre-resume is fine (replace
+            // takes effect before the first render). show_fps skips it.
+            if (g_hide_fps) {
+                try {
+                    g_hide_fps_cb = new NativeCallback(function () {},
+                                                       'void', []);
+                    Interceptor.replace(rva(ADDR.fn_fps_draw), g_hide_fps_cb);
+                    log('fps overlay hidden (FUN_004523e6 NOP)');
+                } catch (e) {
+                    err('hideFps', e.message);
+                }
             }
             // Resolution injection — must install pre-resume so we
             // catch the recet.ini parse onLeave before window creation.

@@ -244,6 +244,10 @@ class CaptureConfig:
     # normally — PlaySegmentEx, fade animations, segment-state queueing
     # all happen — only the master attenuation is pinned to silence.
     silent_audio:     bool = False
+    # Show the "Fps NN" debug overlay. Default False = hidden (its value is
+    # wall-clock derived → noisy cross-target diff); mirrors the port's
+    # capture-default-hide so both targets match in comparisons.
+    show_fps:         bool = False
     # Force back-buffer resolution. When set to (w, h), the agent
     # hooks the engine's recet.ini parse exit and overwrites the two
     # screen-size globals (DAT_005cbc04/08), so retail captures at the
@@ -850,6 +854,7 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         "turbo":          bool(cfg.turbo),
         "turbo_step_ms":  int(cfg.turbo_step_ms),
         "silent_audio":   bool(cfg.silent_audio),
+        "show_fps":       bool(cfg.show_fps),
     }
     if cfg.arm_skip_at_frame is not None:
         init_cfg["arm_skip_at_frame"] = int(cfg.arm_skip_at_frame)
@@ -1121,6 +1126,11 @@ def main(argv: list[str] | None = None) -> int:
                          "PlaySegmentEx / fade animations / segment state "
                          "all run normally — only DirectMusic's master "
                          "attenuation is forced to silence.")
+    ap.add_argument("--show-fps", action="store_true",
+                    help="show the bottom-right 'Fps NN' debug overlay. "
+                         "Default hidden (NOP FUN_004523e6): its value is "
+                         "wall-clock derived so it's a noisy cross-target / "
+                         "golden delta. Mirrors the port's --show-fps.")
     ap.add_argument("--force-resolution", default=None,
                     metavar="WxH",
                     help="hook the engine's recet.ini parse exit and "
@@ -1362,6 +1372,7 @@ def main(argv: list[str] | None = None) -> int:
         hide_window=args.hide_window,
         turbo=args.turbo, turbo_step_ms=args.turbo_step_ms,
         silent_audio=args.silent_audio,
+        show_fps=args.show_fps,
         force_resolution=fr_tuple,
         rng_seed=args.rng_seed,
         arm_skip_at_frame=args.arm_skip_at_frame,
