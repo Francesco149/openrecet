@@ -19,11 +19,15 @@ the corpus). Wired the gate by incrementing the runtime's `skip_prompt`
 (`DAT_073a3e18`, the free-running per-tick counter `FUN_0046c320` bumps at the
 top of each frame) once per `ive_runtime_step`.
 
-**Verified** vs the retail goldens (feed montage `Layer 4a — ESC-skip tip`): the
-tip text pixel-matches retail in the `cap_00` zoom and renders correctly over
-both iv1_1 (bedroom) and iv1_2 (live-HOUSE) lines; the diff is clean in the tip
-region (residual white = pre-existing benign — teapot filtering, FPS overlay,
-iv1_2 standee tween phase). Build green, host suite 3082 pass. RE writeup:
+**User-verified 1:1** (feed montage `Layer 4a — ESC-skip tip`): the tip text
+pixel-matches retail in the `cap_00` zoom and renders correctly over both iv1_1
+(bedroom) and iv1_2 (live-HOUSE) lines; the diff is clean in the tip region
+(residual white = pre-existing benign — teapot filtering, FPS overlay, iv1_2
+standee tween phase). The user also flagged a **separate** open follow-up: the
+dialogue **box edge** is slightly off vs retail (text + tip perfect) — suspected
+texture-filter mismatch on the `ive_window.tga` quad; logged in
+`findings/opening-prologue.md`, not yet drilled into. Build green, host suite
+3082 pass. RE writeup:
 `findings/opening-prologue.md` §"ESC Key: Event Skip tip". Remaining Layer 4: the
 `rmb` screen-shake RNG reads (`DAT_073a6d98/9c`; closes the foot-dust RNG-phase
 front in `scene1-rng-stream-parity.md`) and the choice/menu fade overlay

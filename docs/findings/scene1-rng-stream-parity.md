@@ -43,7 +43,7 @@ per-frame consumers from one-time intro work:
 | caller | function | rate | port status |
 |--------|----------|------|-------------|
 | `0x44a750…0x44a86b` (float ×6) | `FUN_00447f4f` (`scene1_spawn`) | **6 calls / 4 frames** | ✅ MATCHES — the wing-sparkle emit (type 0x1f, every 4th frame). Port does exactly this. |
-| `0x46cf81` (int) | `FUN_0046c9a2` (3800 B) | ~0.27 / frame, steady | ❌ UNPORTED — called from the **render root** (`FUN_004547ab → FUN_0046c090 → FUN_0046c9a2`). **IDENTIFIED 2026-06-01: this is the dialogue text-box DRAW** (per-char reveal + the `TEXT_ANIM_END` flag `DAT_073a3e04`) — see `opening-prologue.md` §RESOLVED. Porting it closes BOTH the dialogue front and this dust-RNG front. (Not the hikari/ambient-glow — that guess is retired.) |
+| `0x46cf81` (int) | `FUN_0046c9a2` (3800 B) | ~0.27 / frame, steady | ⚠️ PARTIAL — `FUN_0046c9a2` (the dialogue DRAW) is now ported (`scene1_dialogue_draw.c`, 2026-06-02), **but `0x46cf81` is NOT the per-char reveal**. It is the return addr of the **standee-shake** rng read (`call 0x471084` @ `0x46cf7c`, decompiled line 191), gated on `DAT_073a6d9c != 0` — the `rmb:` chr-shake countdown. The bg-shake sibling read @ `0x46cc51` (gated `DAT_073a6d98`) does NOT appear in the free-roam window because the bedroom/HOUSE bg is static (the read is in the scroll branch `DAT_073a6d84|DAT_073a6d94 != 0`). **STILL UNPORTED:** the `IVE_OP_RMB` exec handler (set `shake_bg/shake_chr`), the per-step decay (`FUN_0046c320` 101-105), and the two gated rng reads in the draw. These are the remaining consumer — see the rmb note below. |
 | `0x46f56b…0x46f5dc` (int+float) | `FUN_0046f2a3` (894 B) | sporadic (bound-cross respawns) | ❌ STUBBED — the **ambient motes** (`FUN_0046f621` no-op'd as `player_ctrl_prologue_churn`). 6 motes live in HOUSE (`DAT_005c7dd4==6`). |
 | `0x49018c` / `0x490e56` cluster | `FUN_0049001c` / `FUN_00490e56` | **intro-only** (absent from free-roam windows) | n/a — new-game save/news/order generation; not a steady-state desync source. |
 
@@ -51,6 +51,36 @@ per-frame consumers from one-time intro work:
 `FUN_00471089` body's internal `call FUN_005041f6` after Interceptor relocated
 the adjacent `0x471084` thunk) — it equals the float total, **not** a real
 consumer; ignore it.
+
+## The `rmb` screen-shake consumer (scoped 2026-06-02)
+
+The `0x46cf81` consumer is the **standee-shake** rng read inside the dialogue
+draw. It only fires while `DAT_073a6d9c > 0`, which the `rmb:a,b` command sets
+(handler `0x46d926` → `shake_bg = atoi(a)+1`, `shake_chr = atoi(b)+1`), decayed
+one-per-step by `FUN_0046c320`. Read offset = `(rng() & 0x1f) - 0x10` → ±16 px
+of **Y jitter** per active standee per frame (x is untouched).
+
+Confirmed by extracting the scripts (`tools/extract/data-bin.py`):
+- **`iv1_1.ivt:117`** has a live `rmb:40,40`, fired right before the
+  **"WAKE UP, PLEASE!"** line (`intro-dialogue-lines` **cap_05**). So 41 frames
+  of bg+chr shake straddle that line; since the line reveals in ~16 frames the
+  shake is *still active* at the cap_05 TEXT_ANIM_END anchor.
+- **`iv1_2.ivt:23`** has it **commented out** (`//rmb:40,40`).
+
+**Why the bedroom doesn't visibly shake the bg:** the bg-shake read (`0x46cc51`,
+`DAT_073a6d98`) lives in the scroll branch (`else` of
+`DAT_073a6d84==0 && DAT_073a6d94==0`). iv1_1's bg is static → that branch is
+skipped → `shake_bg` decays unused. Only the **standee** Y-jitter is visible.
+
+**Verification blocker for the prologue path:** at cap_05 the standee-shake
+Y-offset can't be cleanly isolated in a port↔retail diff because the standee
+**tween** PORT-DEBT (settled-pose-only; see `opening-prologue.md`) already
+diverges the character silhouettes there. So porting the rmb reads is **not
+prologue-anchor-verifiable** until the tweens land. Its clean verification stays
+the free-roam **foot-dust phase** check (the Reproduce recipe below). Sequencing:
+either (a) port standee tweens first to deconfound cap_05, or (b) verify rmb via
+the free-roam `--rng-callers` pipeline against the retail host. Left unimplemented
+this session to avoid landing an unverified RNG-consuming render change.
 
 ## Port vs retail — the measured gap
 

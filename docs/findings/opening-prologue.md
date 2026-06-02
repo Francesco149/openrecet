@@ -574,3 +574,11 @@ text pixel-matches retail (feed `cap_00` zoom). **User-verifiable: visible
 bottom-right of every prologue line.** Remaining Layer 4: the `rmb` screen-shake
 RNG reads (`DAT_073a6d98/9c`-gated; closes the foot-dust RNG-phase front) and the
 choice/menu fade overlay (`DAT_073a6da4`; no choices in the prologue).
+
+**Open follow-up (user-flagged 2026-06-02):** the dialogue **box (bubble) edge**
+has a slight port↔retail difference at its border — text + tip are pixel-perfect,
+but the box frame edge is subtly off. Suspect a **texture-filtering** mismatch on
+the `ive_window.tga` box quad (POINT vs LINEAR / box-filtered mip — cf.
+`engine-quirks.md §54` and the chr-sprite POINT-filter fix). Drill into the box
+quad's sampler state vs retail before assuming a geometry/UV bug. Not yet
+investigated.
