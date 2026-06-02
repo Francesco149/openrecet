@@ -118,6 +118,15 @@ typedef struct {
      * point — consumers will switch to scene_state transitions as
      * post-fade scenes land. */
     uint32_t fade_counter;
+
+    /* D-pad auto-repeat state for menu navigation. The engine's directional
+     * edge auto-repeats while a direction is held: one move on press, then a
+     * delay, then a steady interval (measured on retail, runs/title-repeat:
+     * hold DOWN → moves at hold-frame 0, 13, 18, 23, … i.e. delay 13 then
+     * every 5). `repeat_dir` is the bit currently repeating (0 = none),
+     * `repeat_ctr` counts frames since the press. See scene_title.c. */
+    uint16_t repeat_dir;
+    uint32_t repeat_ctr;
 } scene_title_anim_t;
 
 /* Marker for "no action pending". -1 sits outside any valid menu code

@@ -88,7 +88,15 @@ int test_scene_title_sim_cursor_anim_clamps_at_zero(void)
     return 0;
 }
 
-int test_scene_title_sim_down_held_wraps_cursor(void)
+/* One discrete D-pad press = hold one frame, release one frame. With the
+ * auto-repeat throttle each press moves the cursor exactly once. */
+static void title_tap(scene_title_anim_t *a, scene_title_menu_t *m, uint16_t dir)
+{
+    scene_title_sim(a, m, 0, dir);   /* press → immediate move           */
+    scene_title_sim(a, m, 0, 0);     /* release → clears the repeat latch */
+}
+
+int test_scene_title_sim_down_taps_wrap_cursor(void)
 {
     scene_title_anim_t a;
     scene_title_menu_t m;
@@ -97,32 +105,60 @@ int test_scene_title_sim_down_held_wraps_cursor(void)
     /* Fresh boot menu has 4 entries. */
     T_ASSERT_EQ_I(m.count, 4);
 
-    /* Hold DOWN for `count` frames → cursor walks through every slot
-     * and wraps back to 0. */
+    /* `count` distinct DOWN presses walk through every slot and wrap to 0. */
     for (int i = 0; i < m.count; i++) {
-        scene_title_sim(&a, &m, 0, INPUT_DOWN);
+        title_tap(&a, &m, INPUT_DOWN);
     }
     T_ASSERT_EQ_U(a.cursor_pos, 0u);
 
-    /* One more frame: cursor moves to 1. */
-    scene_title_sim(&a, &m, 0, INPUT_DOWN);
+    /* One more press: cursor moves to 1. */
+    title_tap(&a, &m, INPUT_DOWN);
     T_ASSERT_EQ_U(a.cursor_pos, 1u);
     return 0;
 }
 
-int test_scene_title_sim_up_held_wraps_cursor_backwards(void)
+int test_scene_title_sim_up_taps_wrap_cursor_backwards(void)
 {
     scene_title_anim_t a;
     scene_title_menu_t m;
     scene_title_anim_init_fresh(&a);
     mk_menu(&m);
 
-    /* From cursor=0, one UP → wraps to count-1. */
-    scene_title_sim(&a, &m, 0, INPUT_UP);
+    /* From cursor=0, one UP press → wraps to count-1. */
+    title_tap(&a, &m, INPUT_UP);
     T_ASSERT_EQ_U(a.cursor_pos, (uint32_t)(m.count - 1));
 
-    scene_title_sim(&a, &m, 0, INPUT_UP);
+    title_tap(&a, &m, INPUT_UP);
     T_ASSERT_EQ_U(a.cursor_pos, (uint32_t)(m.count - 2));
+    return 0;
+}
+
+/* The auto-repeat cadence itself (measured on retail, runs/title-repeat): hold
+ * DOWN continuously → move on press, then a 13-frame delay, then one every 5. */
+int test_scene_title_sim_cursor_autorepeat_cadence(void)
+{
+    scene_title_anim_t a;
+    scene_title_menu_t m;
+    scene_title_anim_init_fresh(&a);
+    mk_menu(&m);
+
+    int moves = 0;
+    uint32_t last = a.cursor_pos;
+    int first_move_frame = -1, second_move_frame = -1;
+    for (int f = 0; f < 30; f++) {
+        scene_title_sim(&a, &m, 0, INPUT_DOWN);   /* held continuously */
+        if (a.cursor_pos != last) {
+            if (first_move_frame < 0)       first_move_frame = f;
+            else if (second_move_frame < 0) second_move_frame = f;
+            moves++;
+            last = a.cursor_pos;
+        }
+    }
+    /* Move on the very first held frame, then nothing until 13 frames later. */
+    T_ASSERT_EQ_I(first_move_frame, 0);
+    T_ASSERT_EQ_I(second_move_frame, 13);
+    /* 30 held frames → presses at 0,13,18,23,28 = 5 moves. */
+    T_ASSERT_EQ_I(moves, 5);
     return 0;
 }
 
@@ -214,11 +250,12 @@ int test_scene_title_sim_pending_action_exit_on_exit_item(void)
     scene_title_anim_init_fresh(&a);
     mk_menu(&m);   /* fresh boot: NEW_GAME, OPTIONS, RANKING, EXIT (4 items) */
 
-    /* Move to EXIT (index 3 on the fresh menu — last entry). DOWN three
-     * times. Cursor anim is 0 → can move; menu->count is 4. */
-    scene_title_sim(&a, &m, 0, INPUT_DOWN);  /* 0 → 1 */
-    scene_title_sim(&a, &m, 0, INPUT_DOWN);  /* 1 → 2 */
-    scene_title_sim(&a, &m, 0, INPUT_DOWN);  /* 2 → 3 (EXIT) */
+    /* Move to EXIT (index 3 on the fresh menu — last entry). Three discrete
+     * DOWN presses (auto-repeat: one move per press). Cursor anim is 0 → can
+     * move; menu->count is 4. */
+    title_tap(&a, &m, INPUT_DOWN);  /* 0 → 1 */
+    title_tap(&a, &m, INPUT_DOWN);  /* 1 → 2 */
+    title_tap(&a, &m, INPUT_DOWN);  /* 2 → 3 (EXIT) */
     T_ASSERT_EQ_U(a.cursor_pos, 3u);
     T_ASSERT_EQ_I(m.items[3], SCENE_TITLE_MENU_EXIT);
 

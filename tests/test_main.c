@@ -496,8 +496,9 @@ struct test_case {
     X(scene_title_sim_frame_counter_advances_on_idle) \
     X(scene_title_sim_pulse_phase_ticks_every_frame) \
     X(scene_title_sim_cursor_anim_clamps_at_zero) \
-    X(scene_title_sim_down_held_wraps_cursor) \
-    X(scene_title_sim_up_held_wraps_cursor_backwards) \
+    X(scene_title_sim_down_taps_wrap_cursor) \
+    X(scene_title_sim_up_taps_wrap_cursor_backwards) \
+    X(scene_title_sim_cursor_autorepeat_cadence) \
     X(scene_title_sim_a_pressed_starts_select_phase) \
     X(scene_title_sim_select_phase_pins_at_fifteen) \
     X(scene_title_sim_pending_action_default_is_none) \

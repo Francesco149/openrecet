@@ -158,6 +158,43 @@ void scene_title_anim_init_fresh(scene_title_anim_t *out)
 #define TITLE_SE_CONFIRM   0x0143
 #define TITLE_SE_CURSOR    0x0146
 
+/* D-pad auto-repeat cadence, measured on retail (runs/title-repeat: hold DOWN
+ * on the title menu → cursor moves at hold-frame 0, 13, 18, 23, …). One move
+ * on press, then a 13-frame delay, then one every 5 frames while held. */
+#define TITLE_REPEAT_DELAY     13
+#define TITLE_REPEAT_INTERVAL  5
+
+/* Auto-repeat tick for a held direction `bit`. Returns 1 on the frames a move
+ * should fire: immediately on a fresh press / direction change, then after
+ * TITLE_REPEAT_DELAY held frames, then every TITLE_REPEAT_INTERVAL. Tracks one
+ * active direction in the anim (menus only hold one cardinal at a time);
+ * `scene_title_repeat_clear` resets it when that direction is released so a
+ * re-press fires immediately. Replaces the old fire-every-frame behavior. */
+static int scene_title_dir_fires(scene_title_anim_t *anim, uint16_t held,
+                                 uint16_t bit)
+{
+    if (!(held & bit)) return 0;
+    if (anim->repeat_dir != bit) {     /* fresh press or switched direction */
+        anim->repeat_dir = bit;
+        anim->repeat_ctr = 0;
+        return 1;                      /* immediate move */
+    }
+    anim->repeat_ctr++;
+    if (anim->repeat_ctr < (uint32_t)TITLE_REPEAT_DELAY) return 0;
+    return ((anim->repeat_ctr - TITLE_REPEAT_DELAY) % TITLE_REPEAT_INTERVAL) == 0;
+}
+
+/* Drop the auto-repeat latch when its direction is no longer held, so the next
+ * press of any direction starts a fresh press-delay-interval cycle. Called once
+ * per frame before the directional dispatch. */
+static void scene_title_repeat_clear(scene_title_anim_t *anim, uint16_t held)
+{
+    if (anim->repeat_dir && !(held & anim->repeat_dir)) {
+        anim->repeat_dir = 0;
+        anim->repeat_ctr = 0;
+    }
+}
+
 /* Settings submenu — 6 rows. Codes match the per-row dispatch in
  * FUN_0049a59e lines 371-475. */
 #define SETTINGS_ROW_BGM       0
@@ -286,23 +323,24 @@ static void scene_title_settings_step(scene_title_anim_t *anim,
         return;
     }
 
-    /* Cursor move. Engine checks UP and DOWN independently (not
-     * else-if). On a real D-pad they're mutually exclusive, but we
-     * mirror the engine's structure. */
-    if (held & TITLE_INPUT_UP) {
+    /* Cursor move. Engine checks UP and DOWN independently (not else-if).
+     * Auto-repeat throttled to the measured retail cadence (press → delay →
+     * interval); the cursor SE fires only on the frames a move actually
+     * happens (was: every held frame, which beeped at 60 Hz). */
+    if (scene_title_dir_fires(anim, held, TITLE_INPUT_UP)) {
         anim->submenu_cursor = (anim->submenu_cursor + 5) % SETTINGS_ROW_COUNT;
         audio_play_se_by_id(TITLE_SE_CURSOR);
     }
-    if (held & TITLE_INPUT_DOWN) {
+    if (scene_title_dir_fires(anim, held, TITLE_INPUT_DOWN)) {
         anim->submenu_cursor = (anim->submenu_cursor + 7) % SETTINGS_ROW_COUNT;
         audio_play_se_by_id(TITLE_SE_CURSOR);
     }
 
-    /* LEFT precedence over RIGHT (engine line 398). */
+    /* LEFT precedence over RIGHT (engine line 398), same auto-repeat. */
     int changed = 0;
-    if (held & TITLE_INPUT_LEFT) {
+    if (scene_title_dir_fires(anim, held, TITLE_INPUT_LEFT)) {
         scene_title_settings_apply_slider((int)anim->submenu_cursor, -1, &changed);
-    } else if (held & TITLE_INPUT_RIGHT) {
+    } else if (scene_title_dir_fires(anim, held, TITLE_INPUT_RIGHT)) {
         scene_title_settings_apply_slider((int)anim->submenu_cursor, +1, &changed);
     }
     if (changed) {
@@ -355,6 +393,11 @@ void scene_title_sim(scene_title_anim_t *anim,
                      uint16_t held)
 {
     if (!anim || !menu) return;
+
+    /* Release the D-pad auto-repeat latch if its direction is no longer held,
+     * so the next press starts a fresh press→delay→interval cycle. Runs once
+     * per frame ahead of both the main-menu and settings directional dispatch. */
+    scene_title_repeat_clear(anim, held);
 
     /* Engine FUN_0049a59e top: handle a pending settings exit. Runs
      * before the cursor_anim ramp so the slide-out animation can
@@ -438,21 +481,18 @@ void scene_title_sim(scene_title_anim_t *anim,
                     /* UP / DOWN move the cursor with engine wrap math:
                      *   UP   → (count - 1 + cursor) % count
                      *   DOWN → (count + 1 + cursor) % count
-                     * Engine plays the cursor SE 0x146 on either move. The
-                     * move (and so the SE) keys off `held` and auto-repeats
-                     * while the direction is down — confirmed against retail
-                     * (the title cursor scrolls + beeps continuously while
-                     * held). Same per-move-SE pattern as the settings submenu
-                     * above. (Repeat cadence is the held auto-repeat rate; the
-                     * port currently moves once per frame — matching the
-                     * engine's throttled repeat is a shared input-fidelity
-                     * follow-up, see the settings submenu.) */
-                    if (held & TITLE_INPUT_UP) {
+                     * Engine plays the cursor SE 0x146 on each move, and the
+                     * directional edge auto-repeats while held — one move on
+                     * press, then a 13-frame delay, then every 5 frames
+                     * (measured on retail, runs/title-repeat). scene_title_
+                     * dir_fires throttles both the move and the SE to that
+                     * cadence (was: a move + beep every frame). */
+                    if (scene_title_dir_fires(anim, held, TITLE_INPUT_UP)) {
                         anim->cursor_pos = (anim->cursor_pos
                                             + (uint32_t)(menu->count - 1))
                                            % (uint32_t)menu->count;
                         audio_play_se_by_id(TITLE_SE_CURSOR);
-                    } else if (held & TITLE_INPUT_DOWN) {
+                    } else if (scene_title_dir_fires(anim, held, TITLE_INPUT_DOWN)) {
                         anim->cursor_pos = (anim->cursor_pos
                                             + (uint32_t)(menu->count + 1))
                                            % (uint32_t)menu->count;
