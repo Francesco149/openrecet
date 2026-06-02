@@ -21,6 +21,7 @@
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 (shared DAT_056db054) */
 #include "rng.h"                 /* rng_next_unit (FUN_00471089) — dust jitter */
 #include "scene1_motes.h"        /* scene1_motes_tick (FUN_0046f621 mote pump) */
+#include "scene1_intro_dialogue.h" /* prologue gate — suppress the walk arm */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -999,8 +1000,21 @@ void scene1_player_ctrl_tick(void)
 
     /* cc08 dispatch (DAT_0438cc08): cc08==1 = free-roam walk → the ported arm;
      * every other state is an unported event/menu/dialogue arm.  Reads the live
-     * state id — a real dispatch, not the old unconditional route. */
-    if (s_cc08 == 1)
+     * state id — a real dispatch, not the old unconditional route.
+     *
+     * Prologue guard: while the opening dialogue is running (iv1_1/iv1_2) or
+     * loading its next script, the engine is in a cc08 != 1 (event) state, so
+     * the free-roam WALK arm does NOT run and the player is immobile. The port
+     * sets cc08=1 at HOUSE entry — *before* the prologue — so without this guard
+     * the player walks during iv1_2 (the 2nd dialogue plays over the live
+     * HOUSE), most visibly after an ESC skip of iv1_1 jumps onto it. Suppress
+     * ONLY the walk arm: scene1_motes_tick (above), records/particles, and the
+     * bounds-clamp tail still run, so the load/scene path is untouched (gating
+     * the whole controller broke the load — it skipped the mote/RNG pump).
+     * PORT-DEBT: the faithful fix is cc08 timing — it should flip to 1 only at
+     * the real free-roam boundary (FUN_004850ec), after the prologue. */
+    if (s_cc08 == 1 &&
+        !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading())
         player_ctrl_cc08_freeroam_arm();
     else
         player_ctrl_cc08_unported_arm();
