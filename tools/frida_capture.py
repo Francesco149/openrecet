@@ -1007,6 +1007,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 turbo: bool = False,
                 turbo_step_ms: int = 17,
                 silent_audio: bool = False,
+                show_fps: bool = False,
                 force_resolution: tuple[int, int] | None = None,
                 rng_seed: int | None = None) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
@@ -1041,6 +1042,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         hide_window=hide_window,
         turbo=turbo, turbo_step_ms=turbo_step_ms,
         silent_audio=silent_audio,
+        show_fps=show_fps,
         force_resolution=force_resolution,
         # Default to the scenario's own seed (the port pins the same value via
         # --rng-seed) so comparisons share one LCG stream unless overridden.
