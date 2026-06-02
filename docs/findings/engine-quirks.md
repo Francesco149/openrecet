@@ -3458,3 +3458,27 @@ bridge (like `g_music_swap_fn`). Verified end-to-end: the `intro-dialogue-lines`
 port run loads + plays all 12 opening-cutscene voice/SE clips (`tea_mataku`,
 `re_fue`, `piko`, … ×2 for the repeated `tea_mataku`) with zero load/play
 failures.
+
+## 88. SE PlaySegmentEx flag is 0x80 = DMUS_SEGF_SECONDARY (overlay), NOT DMUS_SEGF_QUEUE (which is 0x100) — the SE-inaudible bug
+
+Both SE play paths — `FUN_00499c63` (resource SEs → path A) and `FUN_0049933c`
+(filename/voice SEs → path B) — call `PlaySegmentEx` with `dwFlags = 0x80`. That
+constant is **`DMUS_SEGF_SECONDARY`** (`dmusici.h`: SECONDARY = 0x80, QUEUE =
+0x100, CONTROL = 0x200). SEs are *secondary* segments: they overlay whatever is
+already playing on the AudioPath. Play one WITHOUT the SECONDARY flag and it goes
+on as the **primary** timeline segment, which is not how a one-shot sound effect
+sounds — in practice it produces no audible output alongside the BGM.
+
+The port had both call sites coded as `DMUS_SEGF_QUEUE`, in the belief that
+`0x80 == QUEUE`. The macro is **0x100**, so the port was sending the wrong flag
+and *every* SE was silent (menu cursor/confirm beeps, dialogue voice lines) while
+the BGM — a genuine primary segment on its own path — played fine. This is the
+long-standing "SEs inaudible on the user's host" open issue (audio-backend.md):
+the 2026-05-21 "revert to DMUS_SEGF_QUEUE (0x80) for engine fidelity" actually
+swapped the audible `DMUS_SEGF_SECONDARY` (0x80) macro for `DMUS_SEGF_QUEUE`
+(0x100). Fix: use `DMUS_SEGF_SECONDARY` at both `audio_play_se_win32` and
+`audio_play_se_file_win32` — matches the engine's real 0x80 and restores audio.
+
+Lesson: when a decompile shows a bare hex flag, resolve it against the SDK header
+values, don't name it from memory — 0x80/0x100/0x200 (SECONDARY/QUEUE/CONTROL)
+are easy to transpose.

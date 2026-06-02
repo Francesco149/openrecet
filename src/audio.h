@@ -143,7 +143,7 @@ int  audio_play_track(int32_t track);
 
 /* SE trigger — currently a trace-only shell. The full FUN_00499c63
  * port (volume-blend with the fade curve via audio_fade_compute,
- * PlaySegmentEx onto the SE AudioPath with DMUS_SEGF_QUEUE=0x80,
+ * PlaySegmentEx onto the SE AudioPath with DMUS_SEGF_SECONDARY=0x80,
  * QueryInterface-upgrade of the returned SegmentState to
  * SegmentState8) lands in a follow-up commit. Per engine-quirks #46
  * every SE in vendor data routes to path A (DAT_0964310c); path B

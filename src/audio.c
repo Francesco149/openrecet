@@ -690,8 +690,8 @@ int audio_play_track(int32_t track)
  *      (the SE-A slider). We route this through audio_fade_apply.
  *   4. Stop any prior playback of THIS segment on the performance
  *      (engine emits an extra explicit Stop before the new PlaySegmentEx
- *       to defeat queueing for repeat-same-slot triggers — see Q-D)
- *   5. PlaySegmentEx(seg, NULL, NULL, DMUS_SEGF_QUEUE=0x80, 0, &state,
+ *       to reset a repeat-same-slot trigger)
+ *   5. PlaySegmentEx(seg, NULL, NULL, DMUS_SEGF_SECONDARY=0x80, 0, &state,
  *                    NULL, path_se_a)
  *   6. state->QueryInterface(IID_IDirectMusicSegmentState8, &se_states[slot])
  *   7. state->Release()
@@ -712,26 +712,27 @@ static int audio_play_se_win32(int slot)
         g_audio.se_states[slot] = NULL;
     }
 
-    /* Engine: explicit Stop on this segment before PlaySegmentEx.
-     * Defeats DMUS_SEGF_QUEUE's same-path queueing when the player
-     * re-triggers the same slot in quick succession.
+    /* Engine: explicit Stop on this segment before PlaySegmentEx, so a
+     * rapid re-trigger of the same slot restarts cleanly.
      * Stop's first segment arg is typed as IDirectMusicSegment* — pass
      * the un-upgraded interface (Segment8 is a Segment by inheritance). */
     IDirectMusicPerformance8_Stop(
         g_audio.performance, (IDirectMusicSegment *)seg, NULL, 0, 0);
 
     IDirectMusicSegmentState *state = NULL;
-    /* dwFlags = DMUS_SEGF_QUEUE (0x80) — engine fidelity. Queues the
-     * new segment back-to-back on the same AudioPath; with the
-     * explicit Stop just above the queue is always empty so this fires
-     * immediately. BGM lives on a separate AudioPath so SE queueing
-     * doesn't preempt it. */
+    /* dwFlags = DMUS_SEGF_SECONDARY (0x80) — the engine's actual flag at the
+     * FUN_00499c63 +0xb4 call. SEs play as SECONDARY (overlay) segments on
+     * top of whatever else is on the path; without this they'd play as the
+     * PRIMARY timeline segment and not be heard alongside the BGM.
+     * (Historic bug: this was coded as DMUS_SEGF_QUEUE, which is 0x100 — a
+     * DIFFERENT flag — and left every SE inaudible. 0x80 == SECONDARY, NOT
+     * QUEUE; see engine-quirks §88.) */
     HRESULT hr = IDirectMusicPerformance8_PlaySegmentEx(
         g_audio.performance,
         (IUnknown *)seg,
         NULL,                       /* segment name (unused) */
         NULL,                       /* transition */
-        DMUS_SEGF_QUEUE,            /* engine value at FUN_00499c63 +0xb4 call */
+        DMUS_SEGF_SECONDARY,        /* 0x80 — engine value at FUN_00499c63 +0xb4 */
         0,                          /* start time = now */
         &state,
         NULL,                       /* from */
@@ -770,7 +771,7 @@ static int audio_play_se_win32(int slot)
  *   5. Download(performance).
  *   6. (SetVolume on path_se_b already done by the shell's audio_fade_apply.)
  *   7. Stop(file_seg, …) on the performance — reset a re-trigger.
- *   8. PlaySegmentEx(file_seg, …, DMUS_SEGF_QUEUE, …, path_se_b).
+ *   8. PlaySegmentEx(file_seg, …, DMUS_SEGF_SECONDARY=0x80, …, path_se_b).
  *   9. QI the returned SegmentState → SegmentState8 into file_state;
  *      Release the un-upgraded pointer.
  */
@@ -826,7 +827,8 @@ static int audio_play_se_file_win32(const char *path)
         (IUnknown *)g_audio.file_seg,
         NULL,                       /* segment name */
         NULL,                       /* transition */
-        DMUS_SEGF_QUEUE,            /* engine value 0x80 at +0xb4 call */
+        DMUS_SEGF_SECONDARY,        /* 0x80 — engine value at FUN_0049933c +0xb4
+                                     * (SECONDARY overlay, NOT QUEUE=0x100; §88) */
         0,                          /* start = now */
         &state,
         NULL,                       /* from */

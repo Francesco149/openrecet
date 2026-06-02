@@ -22,21 +22,27 @@
   drives a real PlaySegmentEx with QueryInterface upgrade to
   `IDirectMusicSegmentState8`.
 - **Phase-B engine deviations reverted (2026-05-21):**
-  - SE PlaySegmentEx uses `DMUS_SEGF_QUEUE` (0x80) — engine fidelity.
-    BGM lives on a separate AudioPath so SE queueing doesn't preempt
-    it.
+  - SE PlaySegmentEx flag — see the RESOLVED note just below; the
+    "engine fidelity" value here was wrong.
   - Init-time `SetVolume(0, 0)` on the SE paths dropped.
-  - **Observed regression on the user's Windows host:** SEs are
-    inaudible after the revert (BGM still plays). The previous
-    workaround (init-time SetVolume + SECONDARY flag) was audible.
-    `fade_start` trace events confirm `audio_fade_apply` does fire
-    per SE with centibel=0; PlaySegmentEx returns success. Likely
-    missing: something the engine sets up at boot that we haven't
-    ported yet (candidates: `FUN_004901c2` save-arena init touches
-    `_DAT_056e5780` and other fields that may feed back into audio
-    state; `recet.ini`'s `mu`/`se` aren't wired into the runtime
-    sliders yet). Tracked as an open issue — not patched with a
-    deviation; we'll find the missing piece.
+  - **Observed regression on the user's Windows host:** SEs were
+    inaudible (BGM still plays). The previous workaround (SECONDARY
+    flag) was audible. Tracked as an open issue.
+
+- **RESOLVED (2026-06-02) — SEs were inaudible because of a flag
+  constant mix-up.** The engine's SE PlaySegmentEx `dwFlags` is **0x80 =
+  `DMUS_SEGF_SECONDARY`** (overlay playback), at both `FUN_00499c63`
+  (resource SEs, path A) and `FUN_0049933c` (filename/voice SEs, path B).
+  The port had it coded as `DMUS_SEGF_QUEUE` — but that macro is **0x100**,
+  a *different* flag. So every SE played as a PRIMARY-timeline segment
+  instead of a secondary overlay and was never heard (BGM was fine: it's a
+  genuine primary segment on its own path). The 2026-05-21 "revert to
+  DMUS_SEGF_QUEUE (0x80) for engine fidelity" was the regression — it
+  swapped the audible SECONDARY (0x80) macro for the QUEUE (0x100) macro
+  under the wrong belief that 0x80 == QUEUE. Fixed both call sites to
+  `DMUS_SEGF_SECONDARY`. This unblocks the menu SEs AND the dialogue voice
+  lines. See engine-quirks §88. (User-verifiable: menu cursor/confirm
+  beeps + the opening voice lines.)
 - `--audio-trace` opt-in JSONL emitter live (bgm_swap + se_play + fade_start)
 
 The engine uses DirectMusic 8 (not DirectSound directly). All WAV files
