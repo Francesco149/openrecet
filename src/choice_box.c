@@ -202,17 +202,24 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
             font_draw_text_centered(dev, 320.0f, 208.0f, cb_text + 1 + 0x100,
                                     0xffffffffu, 1.0f);
 
-        /* "Yes" / "No" — the unselected one dimmed, FUN_0047ca05 at x 252/376. */
-        uint32_t col_yes = (cb_sel == 0) ? 0xffffffffu : 0xff7f7f7fu;
-        uint32_t col_no  = (cb_sel == 1) ? 0xffffffffu : 0xff7f7f7fu;
-        font_draw_text(dev, 252.0f, cb_b14c + 232.0f, "Yes", col_yes, 1.0f);
-        font_draw_text(dev, 376.0f, cb_b14c + 232.0f, "No",  col_no,  1.0f);
+        /* "Yes" / "No" — BOTH full brightness. The engine (FUN_0043537e
+         * L73-76) draws both at 0x7f7f7f under MODULATE2X = full white; the
+         * selection is shown ONLY by the hand cursor, NOT by dimming the
+         * unselected option. (The lone 0x7f fade there is a commit-time close
+         * anim — deferred.) FUN_0047ca05 at x 252/376. */
+        font_draw_text(dev, 252.0f, cb_b14c + 232.0f, "Yes", 0xffffffffu, 1.0f);
+        font_draw_text(dev, 376.0f, cb_b14c + 232.0f, "No",  0xffffffffu, 1.0f);
 
         /* hand cursor — nowloading.tga, 40×40 region (192,0)-(232,40), at the
-         * selected option (x = sel*0x7c + 212), bobbing ±8px (sin wobble). */
+         * selected option (x = sel*0x7c + 212), bobbing toward it. The engine
+         * (FUN_00435747) takes the ABS of the sin: bob = |sin(phase·0.1)|·8, so
+         * the hand wobbles LEFT-only (0..8 toward the option) at the |sin|
+         * frequency (period π). A plain sin is half that frequency (looked too
+         * slow) and swings +8 to the RIGHT of the option (overshoot) — both the
+         * user-reported symptoms. */
         sprite_t *cur = &g_sysassets.nowloading_tga;
         if (cur->tex != NULL) {
-            float bob = sinf((float)cb_bob * 0.1f) * 8.0f;
+            float bob = fabsf(sinf((float)cb_bob * 0.1f)) * 8.0f;
             float cx  = (float)(cb_sel * 0x7c) + 212.0f - bob;
             float cy  = cb_b14c + 244.0f - 20.0f;
             const float dst[4] = { cx, cy, 40.0f, 40.0f };
