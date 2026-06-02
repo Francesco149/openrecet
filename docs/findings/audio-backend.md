@@ -407,14 +407,22 @@ Two findings that shape the port wiring (`music_step_default` currently pins
    free-roam) → track 9. Once the player opens the shop (`cc08 == 4`) it becomes
    track 8 (`open`) or 18 (`feaver`, the fever-sale variant).
 
-**Port wiring needed (task open):** feed `music_step_default`'s ctx the live
-`g_scene_state`, the dialogue gate (`DAT_0438b1c8` + script sel `DAT_005c7a2c/30`),
-the stage index + `scene_type`, and the shop-open flag (`DAT_0438cc08`); add the
-stage-branch (case 0..4 → 9/8/18) + the loading/dialogue swap-suppression to
-`music_select_track`. The scene_type field is already available
-(`stage_state` / `scene1_postload`); `DAT_0438cc08` is the shop-open state the
-free-roam controller sets. Structural change is clear; exact swap-frame fidelity
-(the 11984 edge) depends on the load-gate sub-states.
+**LANDED (2026-06-02).** `music_step_default` now feeds the live `g_scene_state`
++ HOUSE stage inputs (`scene_type=0`, `shop_open = player_ctrl_cc08()==4`) to the
+selector, and `music_select_track`'s state-1 branch returns
+`music_stage_track(scene_type, shop_open, fever)` — the full engine stage switch
+(close 9 / open 8 / fever 18 for types 0..4, dungeon BGM for 5+). The swap is
+gated (via `g_music.global_pause`) on
+`worker_load_busy() || scene1_intro_dialogue_in_progress()` — the latter is a new
+gapless NEW_GAME→D_DONE bracket (cc08 is unusable as the prologue marker because
+the port sets it to the free-roam value at HOUSE entry, with iv1_2 playing over
+live free-roam). Verified end-to-end: house-walk-down port run swaps track 0→9 at
+the frame after `CONV_POSE_END` (prologue end), i.e. the title theme holds through
+the whole prologue then the close theme lands at free-roam — matching the retail
+structure. The absolute swap frame differs from retail's 11984 only by the port's
+synthetic-load prologue timing (PORT-DEBT, engine-quirks §85). The fever variant
++ the dungeon stages await those scenes porting (they have no live `scene_type`
+producer yet — HOUSE is hardcoded type 0).
 
 ## Next steps
 
