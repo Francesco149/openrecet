@@ -107,6 +107,22 @@ static int ev_dlg_line_show(const struct anchor_world *p, const struct anchor_wo
     return !p->dlg_line_present && c->dlg_line_present;    /* next line shown */
 }
 
+/* Conversation pose (engine-quirks §86) entered / left — the player actor state
+ * field rises to / falls from 6 (the Recette listen-pose state). The blink
+ * cycle resets on this edge, so it is the per-effect anchor §85 prescribes for
+ * phase-aligned captures. Recurs per conversation. */
+#define ANCHOR_CONV_POSE_STATE 6
+static int ev_conv_pose_start(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->conv_pose_state != ANCHOR_CONV_POSE_STATE
+        && c->conv_pose_state == ANCHOR_CONV_POSE_STATE;
+}
+static int ev_conv_pose_end(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->conv_pose_state == ANCHOR_CONV_POSE_STATE
+        && c->conv_pose_state != ANCHOR_CONV_POSE_STATE;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -128,6 +144,8 @@ static const struct anchor_def g_anchors[] = {
     { "EXTRA_SPRITE_END",      ev_fx_end      },
     { "DLG_LINE_CLEAR",        ev_dlg_line_clear },
     { "DLG_LINE_SHOW",         ev_dlg_line_show  },
+    { "CONV_POSE_START",       ev_conv_pose_start },
+    { "CONV_POSE_END",         ev_conv_pose_end   },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

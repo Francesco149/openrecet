@@ -370,6 +370,29 @@ int test_anchor_dlg_line_edges(void)
     return 0;
 }
 
+/* CONV_POSE_START / CONV_POSE_END fire on the player state field's rising to /
+ * falling from 6 (the iv1_2 conversation pose; engine-quirks §86). */
+int test_anchor_conv_pose_edges(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+    struct anchor_world w = { 0 };
+    w.scene_state = 1;
+
+    anchor_trace_tick(&st, 0, w, rec_sink, &r);   /* BOOT, baseline state=0 */
+    w.conv_pose_state = 6;
+    anchor_trace_tick(&st, 1, w, rec_sink, &r);   /* 0→6 → START */
+    anchor_trace_tick(&st, 2, w, rec_sink, &r);   /* held 6 → nothing */
+    w.conv_pose_state = 0;
+    anchor_trace_tick(&st, 3, w, rec_sink, &r);   /* 6→0 → END */
+
+    T_ASSERT_EQ_I(rec_count(&r, "CONV_POSE_START"), 1);
+    T_ASSERT_EQ_I(rec_count(&r, "CONV_POSE_END"), 1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "CONV_POSE_START")], 1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "CONV_POSE_END")], 3);
+    return 0;
+}
+
 /* The JSONL convenience sink emits the exact shared wire format. */
 int test_anchor_jsonl_sink_format(void)
 {

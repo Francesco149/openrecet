@@ -71,6 +71,14 @@ int scene1_conversation_pose_active(void)
     return s_pose_active;
 }
 
+int scene1_conversation_pose_player_state(void)
+{
+    if (player_ctrl_actor_char(0) == -1)
+        return 0;
+    const int32_t *rec = player_ctrl_actor_record(0);
+    return rec ? rec[CHR_ACTOR_STATE] : 0;
+}
+
 void scene1_conversation_pose_tick(void)
 {
     CALL_TRACE_ENTER(0x48407fu);

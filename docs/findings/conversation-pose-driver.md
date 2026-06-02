@@ -158,6 +158,45 @@ window (NOT the iv1_2.ivt `giku.tga`/`hatena.tga` standee effects — those ride
 the big portraits later in the script). Source TBD — likely a talk-manager
 effect spawn; identify alongside `FUN_00470a46`.
 
+## Blink-phase investigation (2026-06-02 PM) — CONV_POSE_START/END anchor
+
+Added a `CONV_POSE_START`/`CONV_POSE_END` TAS anchor (player state `daafc`→/from 6)
+to BOTH targets (`anchor_trace.c` + the Frida agent) and ran `intro-iv2-blink`
+(pose-anchored variant). Mapping the port + retail anchor timelines by their
+shared structural anchors (`runs/scenarios/intro-iv2-blink-both-20260602T160927Z`):
+
+| event | port frame | retail frame | rel. to that target's HF#2 |
+|---|---|---|---|
+| HF#1 (iv1_1 load done) | 1890 | 2759 | — |
+| **CONV_POSE_START (iv1_1!)** | *(none)* | **2710** | retail poses *during iv1_1* |
+| inter-script `LOADING_START` | 3370 | 4240 | — |
+| CONV_POSE_END / START (load blip) | *(n/a)* | 4240 / **4241** | HF#2 − 58 |
+| HF#2 (iv1_2 load done) | 3438 | 4299 | — |
+| **CONV_POSE_START (iv1_2 entry)** | **3439** | (= 4241) | port HF#2 **+1** |
+
+**Two findings.** (1) Retail's talk flag `DAT_0450f470` is **BSS-zero (pose ON)
+from the intro start**, so retail poses the chibis across the WHOLE intro
+(iv1_1 + iv1_2), only blipping off for 1 frame at the inter-script load
+(`END@4240`/`START@4241`). The port poses **only during iv1_2** (the
+`generation>=2` proxy). (2) For iv1_2, retail re-enters the pose at the
+inter-script **load START** (4241, HF#2 − 58), but the port re-enters only after
+the load **completes** and the iv1_2 dialogue goes active (3439, HF#2 + 1) — so
+relative to HF#2 the port's blink cycle (which resets on entry) starts **~59
+frames late**. That is the phase the user saw.
+
+**Exact HF#2-anchored phase alignment is §85-blocked**: it depends on the
+port's synthetic inter-script load *duration* (68 frames vs retail's 59), which
+is not byte-reproducible. So the durable methodology is to anchor blink captures
+to `CONV_POSE_START` (the cycle's own reset edge), which `intro-iv2-blink` now
+does — proving the anim itself is 1:1 regardless of the load offset.
+
+**Open fix (toward absolute parity), in priority order:** (a) hold the pose
+across the whole intro (trigger on `intro_dialogue_active`, not `generation>=2`)
+so the port poses during iv1_1 like retail; (b) re-enter the iv1_2 pose at the
+inter-script load START (mirror retail's 1-frame `daafc` blip) rather than after
+the load — both pieces of modelling the real `DAT_0450f470` flag lifecycle
+(the `FUN_00470a46` producer), still gated on the deferred shatter transition.
+
 ## Cross-refs
 - `opening-prologue.md` §"Remaining real deltas" #4 (the gap), §"What actually
   drives the prologue" (FUN_0048407f first noted as the actor animator).

@@ -193,6 +193,14 @@ const ADDR = {
                                        // (1..0x800); resets to 1 per new line.
     var_dlg_revealed_flag: 0x073a3e04, // i32 — line fully-revealed flag (0->1).
 
+    // Conversation pose (engine-quirks §86): the player actor state-machine
+    // field DAT_056daafc. FUN_0048407f sets it to 6 (Recette listen-pose) while
+    // the talk-event flag DAT_0450f470 is clear during the iv1_2 face-to-face,
+    // 0 in free-roam. Drives CONV_POSE_START/END — the per-effect anchor the
+    // blink cycle resets on (the port mirror is the actor record's
+    // CHR_ACTOR_STATE, scene1_conversation_pose_player_state()).
+    var_player_state:      0x056daafc, // i32 — actor 0 state (6 = conversation)
+
     var_bgm_slider:      0x056e5778,  // u32 — BGM volume slider 0..9
     var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
     var_mci_debug_gate:  0x0438ccb4,  // u32 — non-zero recomputes fade
@@ -621,6 +629,7 @@ let g_anchor_prev_reveal   = 0;      // previous-frame DAT_073a3e00 (reveal ctr)
 let g_anchor_prev_revflag  = 0;      // previous-frame DAT_073a3e04 (revealed)
 let g_anchor_prev_fxalpha  = 0;      // previous-frame max extra-sprite alpha
 let g_anchor_prev_linep    = 0;      // previous-frame DAT_073a6a38 >= 0 (line shown)
+let g_anchor_prev_convstate = 0;     // previous-frame DAT_056daafc (player state)
 
 // Extra/effect-sprite standee table (the sigh / zzz / kuro fade etc). Base =
 // &DAT_073a3e70, stride 0x70; field11 (active) at +0x2c, field18 (alpha float)
@@ -2103,6 +2112,8 @@ function anchorTick(frame, devicePtr) {
     const fxAlpha   = anchorFxAlpha(dlgActive);
     // DAT_073a6a38 >= 0 — a dialogue line is shown (box open); < 0 between lines.
     const linePresent = dlgActive && rva(0x073a6a38).readS32() >= 0;
+    // DAT_056daafc — player actor state (6 = iv1_2 conversation pose).
+    const convState = rva(ADDR.var_player_state).readS32();
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
@@ -2112,6 +2123,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_revflag = revflag;
         g_anchor_prev_fxalpha = fxAlpha;
         g_anchor_prev_linep   = linePresent;
+        g_anchor_prev_convstate = convState;
         send({kind: 'anchor', anchor: 'BOOT', frame: frame});
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -2189,6 +2201,18 @@ function anchorTick(frame, devicePtr) {
         send({kind: 'anchor', anchor: 'DLG_LINE_SHOW', frame: frame});
         anchorCaptureSchedule('DLG_LINE_SHOW', frame, devicePtr);
     }
+    // CONV_POSE_START / CONV_POSE_END — the player actor state rises to / falls
+    // from 6 (the iv1_2 listen pose). The blink resets on this edge, so it is
+    // the per-effect anchor for phase-aligned captures (§85/§86). Mirror of
+    // anchor_trace.c ev_conv_pose_*.
+    if (g_anchor_prev_convstate !== 6 && convState === 6) {
+        send({kind: 'anchor', anchor: 'CONV_POSE_START', frame: frame});
+        anchorCaptureSchedule('CONV_POSE_START', frame, devicePtr);
+    }
+    if (g_anchor_prev_convstate === 6 && convState !== 6) {
+        send({kind: 'anchor', anchor: 'CONV_POSE_END', frame: frame});
+        anchorCaptureSchedule('CONV_POSE_END', frame, devicePtr);
+    }
 
     g_anchor_prev_scene   = scene;
     g_anchor_prev_loading = loading;
@@ -2196,6 +2220,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_revflag = revflag;
     g_anchor_prev_fxalpha = fxAlpha;
     g_anchor_prev_linep   = linePresent;
+    g_anchor_prev_convstate = convState;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────

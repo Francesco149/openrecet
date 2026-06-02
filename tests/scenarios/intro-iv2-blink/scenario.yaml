@@ -1,0 +1,24 @@
+# intro-iv2-blink — the iv1_2 conversation pose, anchored to its OWN edge
+# (CONV_POSE_START = player state daafc->6) instead of HOUSE_FREEROAM+N. The
+# blink cycle (Recette anim 6: 38 eyes-open d20 -> 39 eyes-closed d6 -> 38 d32
+# -> 39 d6, 64 ticks) resets on the pose entry, so capturing +0..+124 from that
+# edge samples the SAME blink phase on port and retail — the §85 fix for the
+# phase offset the fixed-anchor intro-iv2-gap shows (the port enters the pose at
+# the iv1_2-arm edge, retail at the end of the shatter transition; engine-quirks
+# §86). Use this to verify the blink anim itself is 1:1; use intro-iv2-gap for
+# the broader (absolute-timing) reference.
+#
+#   python3 tools/scenario-test.py intro-iv2-blink --target both \
+#     --frida-remote cutestation.soy:27042
+description: |
+  iv1_2 conversation pose anchored to CONV_POSE_START (the blink cycle reset),
+  zoomed onto Recette's freeroam sprite — phase-aligned blink reference.
+max_frames: 24000
+duration_ceiling_ms: 240000
+n_captures: 63
+zoom_text:
+  x: 520
+  y: 578
+  w: 104
+  h: 150
+  factor: 4

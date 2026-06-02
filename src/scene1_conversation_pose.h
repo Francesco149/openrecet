@@ -79,6 +79,11 @@ void scene1_conversation_pose_tick(void);
  * (the pose owns them); 0 in free-roam. */
 int  scene1_conversation_pose_active(void);
 
+/* The live player actor state field (CHR_ACTOR_STATE = engine DAT_056daafc):
+ * 6 while the conversation pose is held, 0 in free-roam, 0 with no live player.
+ * Feeds anchor_world.conv_pose_state → the CONV_POSE_START/END anchors. */
+int scene1_conversation_pose_player_state(void);
+
 /* Return to dormant (scene change / new game). */
 void scene1_conversation_pose_reset(void);
 

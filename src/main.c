@@ -25,6 +25,7 @@
 #include "input.h"
 #include "anchor_trace.h"
 #include "scene1_intro_dialogue.h"   /* TEXT_ANIM anchor sources */
+#include "scene1_conversation_pose.h"/* CONV_POSE anchor source */
 #include "scene1_dialogue_draw.h"    /* opening-prologue dialogue render pass */
 #include "input_trace.h"
 #include "input_segtrace.h"
@@ -2295,6 +2296,7 @@ static void render_dispatch(void)
             .text_revealed  = scene1_intro_dialogue_text_revealed(),
             .fx_alpha       = scene1_intro_dialogue_fx_alpha(),
             .dlg_line_present = scene1_intro_dialogue_line_present(),
+            .conv_pose_state  = scene1_conversation_pose_player_state(),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);

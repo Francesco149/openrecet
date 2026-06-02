@@ -73,6 +73,13 @@ struct anchor_world {
      * box-dismissed edge) / DLG_LINE_SHOW (0→1) so a trace can frame exactly the
      * between-lines gap (after a line is dismissed, before the next appears). */
     int dlg_line_present;
+
+    /* Player actor state-machine field (record dword 5 = engine DAT_056daafc;
+     * CHR_ACTOR_STATE). 6 = the iv1_2 face-to-face conversation pose (Recette
+     * looking up at Tear); 0 = free-roam. Drives CONV_POSE_START/END so a TAS
+     * trace can anchor to the pose's OWN edge (the blink resets on it) instead
+     * of a fixed HOUSE_FREEROAM+N — see engine-quirks §85/§86. 0 pre-HOUSE. */
+    int conv_pose_state;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;
