@@ -430,22 +430,33 @@ void scene_title_sim(scene_title_anim_t *anim,
              * just keeps incrementing past the input window. */
             if (anim->frame_counter < 0x1bc6) {
                 if (pressed & TITLE_INPUT_A) {
-                    /* Start the select countdown. Engine plays sound
-                     * 0x143 here via FUN_00499519 — stubbed. */
+                    /* Start the select countdown. Engine plays the confirm
+                     * SE 0x143 here via FUN_00499519. */
                     anim->select_phase = 1;
+                    audio_play_se_by_id(TITLE_SE_CONFIRM);
                 } else if (menu->count > 0) {
                     /* UP / DOWN move the cursor with engine wrap math:
                      *   UP   → (count - 1 + cursor) % count
                      *   DOWN → (count + 1 + cursor) % count
-                     * Engine plays sound 0x146 on either move — stubbed. */
+                     * Engine plays the cursor SE 0x146 on either move. The
+                     * move (and so the SE) keys off `held` and auto-repeats
+                     * while the direction is down — confirmed against retail
+                     * (the title cursor scrolls + beeps continuously while
+                     * held). Same per-move-SE pattern as the settings submenu
+                     * above. (Repeat cadence is the held auto-repeat rate; the
+                     * port currently moves once per frame — matching the
+                     * engine's throttled repeat is a shared input-fidelity
+                     * follow-up, see the settings submenu.) */
                     if (held & TITLE_INPUT_UP) {
                         anim->cursor_pos = (anim->cursor_pos
                                             + (uint32_t)(menu->count - 1))
                                            % (uint32_t)menu->count;
+                        audio_play_se_by_id(TITLE_SE_CURSOR);
                     } else if (held & TITLE_INPUT_DOWN) {
                         anim->cursor_pos = (anim->cursor_pos
                                             + (uint32_t)(menu->count + 1))
                                            % (uint32_t)menu->count;
+                        audio_play_se_by_id(TITLE_SE_CURSOR);
                     }
                 }
             }
