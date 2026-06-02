@@ -619,3 +619,18 @@ slide-in, fade-from-black, effect sprites, and per-line text). See
 3. **Absolute prologue timing** — the synthetic load brackets arm the scripts at
    a different offset than retail (phase; §85). Per-effect render is bit-exact;
    only the wall-clock start drifts.
+4. **iv1_2 opening freeroam-sprite anims (NOT ported)** — during the iv1_2 (2nd
+   dialogue) opening, after the fade-from-black and during the character
+   slide-in, retail plays HOUSE freeroam-sprite animations the port doesn't:
+   (a) **Recette looks up at Tear + blinks** (≥3 blink cycles), and (b) **Tear
+   strikes an angry pose with a billboard radial-lines effect** (manga anger
+   marks). Both are freeroam character/effect anims that run *during* the
+   dialogue, NOT the dialogue standees. Reference capture: the **`intro-iv2-gap`**
+   scenario (reaches iv1_2 via the 2nd HOUSE_FREEROAM, idles through the opening,
+   captures HF#2 +14..+138 every 2 frames; zoom crop `(520,578) 104×150` frames
+   both Recette + Tear — port|retail paired by capture index). cap_03 = eyes
+   open → cap_04 = eyes closed on retail; port static.
+5. **Dialogue text doesn't fade to transparent on dismiss** — when a line is
+   dismissed, retail fades the glyph text out as the box closes; the port pops it
+   off. Investigate the box-close alpha applied to the text in `FUN_0046c9a2`.
+   Same `intro-iv2-gap` scenario captures the dismiss window.

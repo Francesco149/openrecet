@@ -7,6 +7,45 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-02 (PM) — Opening-prologue animation layer: tween, char-reveal, per-script skip, choice-box render, FX/line anchors
+
+Closed the user-reported faithfulness gaps in the opening prologue. Mechanics in
+`engine-quirks.md` §84-85; remaining deltas in `findings/opening-prologue.md`
+§"Remaining real deltas" + the confirmed-parity ledger.
+
+- **Standee tween** (`scene1_dialogue_run.c` `ive_run_tween`): `moveto` =
+  target-only + slide by `speed` (×1000 fixed-point /1000); `col` = current
+  colour, `colto` = per-frame delta + countdown. Drives Tear's −390→−100 @5px/f
+  slide-in, the kuro fade-from-black, and the sigh/zzz effect fades — all
+  user-confirmed bit-identical (retail-probe + `intro-opening`/`intro-sigh`/
+  `intro-fade`). Was SNAPped (deferred PORT-DEBT), now faithful.
+- **Char-based text reveal** (`ive_completion` + `ive_row_count`): END/book-icon
+  latches at `(reveal-4)·32/32` chars (was a nominal-px metric → never
+  auto-completed). A line now typewriters in ~its char-length; book icon appears
+  on its own; ONE advance press moves on.
+- **Per-script ESC skip** (`scene1_intro_dialogue_skip_to_end`): ends only the
+  CURRENT script — iv1_1 → iv1_2 (the 2nd dialogue over free-roam), iv1_2 → free
+  control (was: straight to free-roam).
+- **Player gated during the dialogue** (`scene1_player_ctrl.c`): the free-roam
+  walk arm is suppressed while the prologue dialogue is active/loading (engine
+  gates FUN_00442cef on `b1c8==0`) — fixes being able to walk over iv1_2. (A
+  first attempt gating the whole in-game arm broke the load — reverted; the
+  surgical walk-only gate keeps the mote/RNG pump running.)
+- **Choice box (ESC Yes/No)** (`choice_box.c`): MODULATE2X banner (was dim),
+  un-dimmed unselected option (selection = cursor only), `|sin|` cursor bob (was
+  too slow + overshot right), one-row prompt text y=192 (was 8px high). Verified
+  vs `runs/skip-golden/arm485` via the new `intro-skip-prompt` scenario
+  (`OPENRECET_FORCE_SKIP_AT=1`).
+- **Anchors**: catch-all `EXTRA_SPRITE_{START,FADED_IN,FADEOUT,END}` (effect-
+  sprite fade lifecycle over `fx_alpha`) + `DLG_LINE_CLEAR/SHOW` (between-lines
+  box-gone gap), on both the port (`anchor_trace.c`) and the Frida agent. New
+  `scenario-test` zoom pairs port|retail by capture order (was filename → retail
+  "missing").
+- **Remaining deltas (deferred, tracked)**: box-edge halo; FPS overlay; absolute
+  prologue timing (§85); and the iv1_2-opening freeroam anims the port doesn't do
+  — Recette look-up + blink, Tear angry pose + radial-lines, text fade-to-
+  transparent on dismiss — all captured by the `intro-iv2-gap` reference scenario.
+
 ## 2026-06-02 — Context-sensitive ESC dispatch (Phase A); skip-event prompt RE'd
 
 ESC was a skeleton in `main.c` WM_KEYDOWN that always `PostMessage(WM_CLOSE)` →
