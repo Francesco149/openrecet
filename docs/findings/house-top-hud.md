@@ -48,3 +48,12 @@ persistent-money draw is identifiable by its format string too.
 Verification loop (autonomous): `tools/pixel_diff.py` on
 `tests/scenarios/house-walk-tables` cap_05, crop 0,0,360,150 — tweak until the
 top-left blob clears.
+
+## Call-graph evidence (2026-06-02)
+
+Retail's cap_05 render-call counts (`docs/findings/house-cap05-retail-callgraph.txt`,
+extracted from the captured retail call_trace) show **`FUN_00414ee2` called 9×**
+this frame — the overlay-layer draw fires once per registered HUD element. That
+is where the clock/day/money land. The registrar that pushes those 9 records is
+the port-side gap. (Port vs retail va-sets are NOT directly comparable — separate
+binaries — but the retail-side list is ground truth for what to port.)

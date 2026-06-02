@@ -48,3 +48,11 @@ x[372-398] y[68-93] blob clears.
 Tooling: a retail `call_trace.jsonl` already exists for this run
 (`runs/scenarios/house-walk-tables-both-20260602T042259Z/retail/`) — extend the
 probe set to the actor-iterate functions, or add a Frida actor-ring dump.
+
+## Call-graph evidence (2026-06-02)
+
+Retail cap_05 calls the 3D character walkers `FUN_00459847` (4×), `FUN_004552d0`,
+`FUN_00458bdf`, `FUN_00456f56`, `FUN_0045672a` (`docs/findings/house-cap05-retail-callgraph.txt`).
+The port renders fewer characters (it draws Recette + the offset Tear). The
+missing back-window actor is drawn by this walker family — pin the actor index
+via an actor-ring dump, then ensure the port spawns + walks it.
