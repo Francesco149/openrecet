@@ -445,7 +445,7 @@ let g_manual_frame_counter = 0;
 // injection. See docs/findings/esc-skip-event.md.
 let g_arm_skip_at_frame = -1;
 let g_arm_skip_done      = false;
-let g_arm_skip_fn        = null;   // NativeFunction(FUN_0045337b), lazy-built
+let g_esc_post           = null;   // NativeFunction(user32!PostMessageA), lazy
 
 // Input injection. When g_input_force_active is true, the input_poll
 // onLeave hook overwrites DAT_073dddd0 (var_input_mask) with the
@@ -1128,21 +1128,6 @@ function installPresentHook(devicePtr) {
                 g_cap_anchor_done_sent = true;
                 send({kind: 'capture_at_anchor_done', frame: fn});
             }
-            // Skip-event probe: force-call the WndProc ESC skip entry once.
-            if (g_arm_skip_at_frame >= 0 && !g_arm_skip_done &&
-                fn >= g_arm_skip_at_frame) {
-                try {
-                    if (g_arm_skip_fn === null) {
-                        g_arm_skip_fn = new NativeFunction(rva(0x0045337b),
-                                                           'void', []);
-                    }
-                    g_arm_skip_fn();
-                    send({kind: 'arm_skip', frame: fn});
-                } catch (e) {
-                    err('arm_skip', e.message);
-                }
-                g_arm_skip_done = true;
-            }
             // Bump AFTER the capture decision. Audio/input events that
             // fired during the cycle leading to this Present have
             // already observed frameNo() == fn (this is the desired
@@ -1235,6 +1220,34 @@ function installInputHook() {
                         catch (e) { vals[g_watch[i].name] = null; }
                     }
                     send({kind: 'watch', frame: fn, vals: vals});
+                }
+
+                // Skip-event probe: inject a REAL keyboard ESC (WM_KEYDOWN +
+                // WM_KEYUP VK_ESCAPE) to the engine window each frame across a
+                // window — the faithful trigger (the engine's own message pump
+                // dispatches it to WndProc FUN_0047b2e7 at the real loop point,
+                // i.e. NOT a direct function call). Mirrors the user spamming
+                // ESC. Stops once the skip arms (DAT_06a49998 > 0).
+                if (g_arm_skip_at_frame >= 0 && !g_arm_skip_done &&
+                    fn >= g_arm_skip_at_frame &&
+                    fn < g_arm_skip_at_frame + 240) {
+                    try {
+                        if (g_esc_post === null) {
+                            const u32 = Process.findModuleByName('user32.dll');
+                            g_esc_post = new NativeFunction(
+                                u32.findExportByName('PostMessageA'),
+                                'int', ['pointer','uint','uint','pointer']);
+                        }
+                        const hwnd = rva(0x073dfc7c).readPointer();
+                        g_esc_post(hwnd, 0x100, 0x1b, ptr(0));   // WM_KEYDOWN
+                        g_esc_post(hwnd, 0x101, 0x1b, ptr(0));   // WM_KEYUP
+                        if (rva(0x06a49998).readS32() > 0) {
+                            send({kind: 'arm_skip', frame: fn});
+                            g_arm_skip_done = true;
+                        }
+                    } catch (e) {
+                        err('arm_skip', e.message);
+                    }
                 }
 
                 // RNG caller histogram: flush the cumulative map periodically

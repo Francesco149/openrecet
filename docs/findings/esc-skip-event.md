@@ -111,16 +111,86 @@ transition completes (`FUN_004528b3`/`FUN_004526ab` per-frame). In the
 settles in the fast-forward/spawn context), so the skip can't arm there. In real
 play it returns to 0 between lines, which is when ESC arms the prompt.
 
-**Implication for capture:** the skip is **keyboard-ESC-only** (WndProc, not the
-DInput button mask) AND needs `DAT_0438bf7c==0` (transition settled). Neither the
-input-segtrace nor a turbo direct-call reproduces that cleanly. Options to get
-Phase C goldens: (a) a non-turbo retail run + direct-call timed to a
-`DAT_0438bf7c==0` window, (b) inject a real `WM_KEYDOWN/VK_ESCAPE` to the retail
-HWND from the agent, or (c) a user screenshot of the prompt.
+### CORRECTION (user, 2026-06-02)
+
+- **The prologue is skippable by pressing ESC *at any time during the dialogue*,
+  not just the fade-in** (user is 100% sure). My direct-call probe
+  (`FUN_0045337b` via Frida) armed only when called during the `b1c0==0`
+  fade/title window and NOT during `b1c0==1` (dialogue) — so the **direct call is
+  not a faithful reproduction** of what the real ESC keypress does during the
+  dialogue. The real path likely needs the actual `WM_KEYDOWN/VK_ESCAPE` (full
+  WndProc dispatch) or additional state the bare call misses. Treat the
+  choreography trace below as *indicative*, not authoritative.
+- **The radial-blur RTT effect I captured (`runs/skip-prompt-golden/` f56) is the
+  free-roam PAUSE menu**, not the skip prompt — arming at the title spuriously
+  triggered the pause-style transition. The **real skip prompt** (user screenshot)
+  is a gold scroll banner over a *mildly darkened* HOUSE — no swirl. So
+  `FUN_00454191`'s render is the banner + a light scene-darken; the heavy
+  render-to-texture blur belongs to the pause menu (`FUN_0049a59e` family).
+
+**Implementation approach (revised):** rather than perfectly reproduce the engine
+counter choreography via Frida (the direct-call model is unfaithful, and it's not
+needed for a faithful *observable* result), implement the prompt + skip to match
+the **user screenshot** (render) and the **observable behavior** (ESC anytime in
+the dialogue → yes/no → Yes skips to HOUSE / No resumes), verified against the
+screenshot + the user pressing ESC in the port.
+
+### Frame-model correction + harness delivery wall (2026-06-02)
+
+**The real dialogue lines are at ~frame 456+, not 72-250.** Screenshot
+calibration (`runs/skip-calib/`, `runs/skip-fullcap/`) shows the new-game HOUSE
+cutscene plays a long **bedroom intro / fade** from `b1c0==1` (frame 72) until
+**line 0's dialogue box appears ~frame 456** (`runs/skip-fullcap/frame_00456.png`
+= the cap_00 "Oh, for the love of…" line). Every earlier skip probe (frames
+120-300) fired during the *intro* (bedroom, no dialogue box) — never on an actual
+dialogue line — which is why none armed. **Lesson:** screenshot-verify the state
+before trusting a global; `b1c0==1` ≠ "a dialogue line is up". The full
+`intro-dialogue-lines/trace.jsonl` (with its `HOUSE_FREEROAM` anchor) is what
+reaches the lines; truncated prefixes leave the cutscene stalled on the bedroom.
+
+**Still cannot trigger the skip in the Frida harness.** Tried: DInput button
+`0x100` injection, direct `FUN_0045337b` call, and `PostMessageA(WM_KEYDOWN/
+WM_KEYUP, VK_ESCAPE)` to the engine HWND — none armed (`DAT_06a49998` stayed 0),
+even at frame 456+ with the dialogue box up. A call-trace on the skip funcs did
+NOT show `FUN_0045337b` firing from my posted ESC → **the posted key message
+isn't reaching WndProc** (the `--hide-window` window likely doesn't dispatch
+posted keystrokes through the engine's PeekMessage pump). Open next steps:
+(a) hook WndProc `FUN_0047b2e7` and log `(msg,wParam)` to confirm delivery;
+(b) try a non-hidden run or `SendMessage` (same-thread → synchronous WndProc);
+(c) if delivery works but the arm still fails, trace `FUN_00453384`'s branch to
+find the rejecting gate term at frame 456+.
+
+### Indicative choreography (early direct-call probe; unfaithful, see caveat)
+
+The arm only fires while **`DAT_0438b1c0 == 0`** (the title / new-game-load / fade
+*into* the cutscene — the "black screen" the user spams ESC on). During the
+dialogue proper (`b1c0==1`) the `if (b1c0==1){…}` sub-block of `FUN_00453384`'s
+`cVar4` gate rejects it — which is why arming at frames 120/150/250 (deep in
+dialogue) never armed, but **spamming `FUN_0045337b` from frame ~50 armed
+immediately**. (User: "I can trigger it by spamming ESC at the black screen.")
+
+Observed choreography (`--arm-skip-at-frame 50`, spam each frame until armed):
+```
+f51  b1c0=0  s98=2  s9c=2  sa0=1   ← prompt OPEN (sa0=1); FUN_004532df climbs s98, FUN_004536cb climbs s9c
+f52  b1c0=0  s98=3  s9c=3          ← s98==3 …
+f53  b1c0=9  s98=4  s9c=4          ← FUN_004536cb:127 sets DAT_0438b1c0=9 (skip CONFIRMED)
+f54+ b1c0=9  s98→0xc(cap) s9c→0xc  ← teardown/close anim; FUN_00453384's b1c0==9 arm fires the real skip once s98>0xb
+```
+So: `DAT_06a499a0=1` = prompt open; `DAT_06a4999c` = the open/fade anim (render
+gate, draws when >1); `DAT_06a49998` = confirm counter (==3 → state 9); state 9
++ `s98>0xb` → the actual event teardown/resume. Selection `DAT_06a4997c` stayed 0
+(Yes) throughout — the user's screenshot shows the cursor on **Yes** by default.
+
+**Render reference:** retail screenshot (`/mnt/c/Users/headpats/Documents/skip.png`,
+mirrored to the feed) — a gold scroll banner **"Do you want to skip this event?"**
+with **👉 Yes / No** over a darkened HOUSE. My Frida captures (`runs/skip-prompt-
+golden/`) show the same prompt opening over the title + the `FUN_00454191`
+render-to-texture **radial-blur** scene-snapshot transition.
 
 Probe tooling (kept): `--arm-skip-at-frame N` in `frida_capture.py` → agent
-`arm_skip_at_frame` → direct-calls `FUN_0045337b` once at frame N in
-Present.onEnter.
+`arm_skip_at_frame` spams `FUN_0045337b` each frame from N (input phase, not
+mid-render) until `DAT_06a49998>0`. Reproduces the arm for choreography traces +
+golden capture.
 
 ## Port status
 
