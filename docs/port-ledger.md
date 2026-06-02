@@ -10,11 +10,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **412** (16.2%) — verified 69, stubbed 17, ported 326
-- unported: **2136**
+- touched: **413** (16.2%) — verified 70, stubbed 17, ported 326
+- unported: **2135**
 - orphan refs (in src/, not in function table): 7
 
-## verified (69) — runtime-diffed vs retail
+## verified (70) — runtime-diffed vs retail
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -39,6 +39,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x44284b | FUN_0044284b | 1083 | ✓ | scene1_records_c_tick.c |
 | 0x442cef | FUN_00442cef | 2490 | ✓ | scene1_sim.c |
 | 0x451874 | FUN_00451874 | 47 | ✓ | audio_mci.c |
+| 0x4523e6 | FUN_004523e6 | 387 | ✓ | scene1_fps.c |
 | 0x4526ab | FUN_004526ab | 74 | ✓ | fade.c |
 | 0x4526f5 | FUN_004526f5 | 276 | ✓ | fade.c |
 | 0x45281c | FUN_0045281c | 151 | ✓ | fade.c |

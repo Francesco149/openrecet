@@ -77,6 +77,7 @@
 #include "scene1_render.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_hud.h"
+#include "scene1_fps.h"
 #include "scene1_shop_walker.h"
 #include "scene1_chr_sprite.h"
 #include "scene1_chr_walker.h"
@@ -2676,6 +2677,16 @@ static void render_dispatch(void)
     if (g_show_sprite.tex) {
         sprite_draw(g_dev, &g_show_sprite, 32.0f, 32.0f);
     }
+
+    /* Engine FUN_004547ab L51252-51254: the bottom-right "Fps NN" debug
+     * overlay (FUN_004523e6), gated on `DAT_0438cce0 == 0` (recet.ini
+     * [setup] dispfps, default 0 → shown).  Drawn last, just before
+     * EndScene, so it sits on top of everything.  Retail ships with the
+     * default so the counter is visible in every captured frame. */
+    if (g_ini.dispfps == 0) {
+        scene1_fps_render(g_dev);
+    }
+
     IDirect3DDevice8_EndScene(g_dev);
 
     if (g_capture_dir) {
@@ -2720,6 +2731,14 @@ static void render_dispatch(void)
     }
 
     IDirect3DDevice8_Present(g_dev, NULL, NULL, NULL, NULL);
+
+    /* Engine FUN_004547ab LAB_00454da2 (L51311-51324): bump the rendered-
+     * frame counter + refresh the once-per-second fps average AFTER
+     * Present, so the value drawn this frame reflects frames up to the
+     * previous one.  Driven by the tick virtual clock (deterministic
+     * under --turbo) rather than a raw timeGetTime so capture goldens
+     * stay reproducible. */
+    scene1_fps_tick(tick_now_ms());
 
     /* D.5: fflush so a mid-scenario crash still leaves the trace on
      * disk through the last completed frame. */

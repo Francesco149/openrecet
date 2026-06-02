@@ -221,9 +221,18 @@ These backfill enough state for the scene-1 load chain to fire.
 - **C7o — `FUN_00453d9c` (243 B) + `FUN_00453e8f` (444 B) +
   `FUN_00453147` (362 B).** Frame composition. Probably alpha-layer
   / overlay / UI quad system. Could fan out further.
-- **C7p — `FUN_004523e6` (387 B) FPS counter.** Easy with the font
-  system already in place; depends on g_dispfps config + an internal
-  counter we can wire to `g_tick.frame_count`.
+- **C7p — `FUN_004523e6` (387 B) FPS counter. ✅ LANDED 2026-06-02**
+  (`src/scene1_fps.{c,h}`).  Draws the bottom-right "Fps NN" overlay:
+  a "Fps" label sprite + up to two digit glyphs sampled from
+  `bmp/fps2.tga` (`g_sysassets.fps2_tga`, DAT_073d9fe0).  Gated on
+  `g_ini.dispfps == 0` (recet.ini `[setup] dispfps`, engine default 0 →
+  shown; retail's capture shows it, see engine-quirks §90).  The value
+  (DAT_073de63c — a once-per-second frame-count÷elapsed average,
+  computed in FUN_004547ab's tail) is driven off `tick_now_ms()` (the
+  virtual clock) instead of a raw `timeGetTime` so capture goldens stay
+  reproducible under --turbo; the displayed number is therefore a benign
+  environment divergence vs retail (e.g. 15 vs 87), label/position/glyphs
+  are 1:1.  Verified vs retail cap_05 (feed 2026-06-02).
 
 ### Polish
 

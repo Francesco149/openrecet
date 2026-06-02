@@ -3537,3 +3537,29 @@ a `scene_title_dir_fires` throttle in the menu — was wrong: the menu already r
 the repeat-gated `DAT_073dddd6`, so throttling there double-counted. Reverted in
 favour of the one-line ring fix, which corrects every consumer at once.)
 (Analog-stick → digital is a separate debounce path, `DAT_0438c14c = 0x1e`.)
+
+## 90. The bottom-right "Fps NN" overlay is ON by default (`dispfps == 0` shows it) and is a benign timing divergence in captures
+
+`FUN_004523e6` draws the debug FPS counter — a "Fps" label + up to two digit
+glyphs sampled from `bmp/fps2.tga` (DAT_073d9fe0, 256×32) — in the bottom-right
+corner (label at screen 594,468; digits at 616/624,462). It is called near the
+end of every `FUN_004547ab` frame, **gated on `DAT_0438cce0 == 0`**, where
+`DAT_0438cce0 = GetPrivateProfileIntA("setup","dispfps",0,…)`. The default is
+**0 → counter shown**: a stock retail install (no `dispfps`, or `dispfps=0`)
+displays it, which is why every retail house-walk-tables capture has "Fps 8x" in
+the corner. `dispfps=1` hides it. (Counter-intuitive naming — the value is a
+*disable*-when-nonzero flag, default-on.)
+
+The displayed value `DAT_073de63c` is computed in `FUN_004547ab`'s tail (decomp
+L51311-51324), AFTER Present: `frames_this_window * 1000 / elapsed_ms`, refreshed
+once per ~second, where the clock is `timeGetTime()`. This is inherently
+machine/timing dependent, so the **number never matches retail run-to-run** — a
+benign environment divergence (the label glyph, position, and digit rendering ARE
+1:1). The port (`src/scene1_fps.c`, C7p, 2026-06-02) drives the value off
+`tick_now_ms()` (the tick virtual clock) instead, so under `--turbo` the value is
+*deterministic* and capture goldens stay reproducible; in realtime it tracks wall
+time like the engine. The turbo value reads low (~15) because turbo pumps several
+sim ticks per rendered frame, so rendered-frames-per-virtual-second is below 60 —
+expected, not a bug. Glyph layout in fps2.tga: "Fps" label at (0,0)-(23,12);
+digit `d` at x = `d*0x12+0x21 .. d*0x12+0x31` (16 px wide, 32 px tall), drawn
+right-shifted by 8 px per non-space char of the 2-wide formatted value.
