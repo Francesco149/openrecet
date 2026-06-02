@@ -21,6 +21,7 @@
 #include "math3d.h"          /* mat4_translation / scaling / rotation_x / mul */
 #include "call_trace.h"      /* E.2 CALL_TRACE_ENTER probe */
 #include "scene1_camera.h"   /* g_scene1_camera_orient (= billboard base DAT_0438cdf8) */
+#include "scene1_bg_npc.h"   /* scene1_bg_npc_sprite_render (FUN_0046f737) */
 #include "scene1_chr_sprite.h" /* scene1_chr_sprite_render + CHR_ACTOR_* (player draw) */
 #include "scene1_emit_record.h" /* scene1_emit_record — per-record draw helper */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos (DAT_056da1d8) */
@@ -866,8 +867,13 @@ void scene1_shop_walker(struct IDirect3DDevice8 *dev_in)
     /* ─── L357-L456: light pass (gated, dormant in HOUSE) ──────────── */
     sw_pass_light(dev);
 
-    /* ─── L457: between-pass sweep (dormant in HOUSE) ──────────────── */
-    sw_pass_between_TODO();
+    /* ─── L457: between-pass sweep ─────────────────────────────────── */
+    sw_pass_between_TODO();                 /* FUN_004705a3 (DAT_073a6ea8, dormant) */
+    /* FUN_0046f737: the background-window NPC bright character billboards (the
+     * townsfolk drifting past the back window; their dark shadows draw earlier
+     * in the shadow pass).  Was a hidden stub here until ported. */
+    scene1_bg_npc_sprite_render(dev_in);
+    /* FUN_00470d44 (talk-flag NPC overlay, DAT_0450f470) still TODO. */
 
     /* ─── L460-L514: Pass G ────────────────────────────────────────── */
     sw_pass_g(dev);

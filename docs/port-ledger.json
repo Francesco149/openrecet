@@ -4,9 +4,9 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 68,
+  "verified": 69,
   "stubbed": 17,
-  "ported": 327,
+  "ported": 326,
   "unported": 2136,
   "orphan_refs_not_in_function_table": 7,
   "touched": 412,
@@ -1082,8 +1082,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_chr_shadow.c",
-    "src/scene1_motes.c"
+    "src/scene1_bg_npc.c",
+    "src/scene1_chr_shadow.c"
    ]
   },
   {
@@ -5811,7 +5811,7 @@
    "is_call_target": true,
    "status": "verified",
    "src": [
-    "src/scene1_motes.c"
+    "src/scene1_bg_npc.c"
    ]
   },
   {
@@ -5822,7 +5822,7 @@
    "is_call_target": true,
    "status": "verified",
    "src": [
-    "src/scene1_motes.c"
+    "src/scene1_bg_npc.c"
    ]
   },
   {
@@ -5833,7 +5833,7 @@
    "is_call_target": true,
    "status": "verified",
    "src": [
-    "src/scene1_motes.c"
+    "src/scene1_bg_npc.c"
    ]
   },
   {
@@ -5842,9 +5842,9 @@
    "size": 347,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "ported",
+   "status": "verified",
    "src": [
-    "src/scene1_shop_walker.c"
+    "src/scene1_bg_npc.c"
    ]
   },
   {
@@ -5918,9 +5918,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_chr_shadow.c",
-    "src/scene1_motes.c",
-    "src/scene1_motes.h"
+    "src/scene1_bg_npc.c",
+    "src/scene1_bg_npc.h",
+    "src/scene1_chr_shadow.c"
    ]
   },
   {
@@ -5943,6 +5943,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_bg_npc.h",
     "src/scene1_shop_walker.c",
     "src/scene1_shop_walker.h"
    ]
@@ -5996,6 +5997,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_bg_npc.h",
     "src/scene1_shop_walker.c"
    ]
   },
@@ -7660,10 +7662,10 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_bg_npc.c",
+    "src/scene1_bg_npc.h",
     "src/scene1_combat_sm.c",
     "src/scene1_combat_sm.h",
-    "src/scene1_motes.c",
-    "src/scene1_motes.h",
     "src/scene1_particles_tick.h",
     "src/scene1_records_b_tick.h"
    ]
@@ -7676,6 +7678,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_bg_npc.c",
+    "src/scene1_bg_npc.h",
     "src/scene1_chr_sprite.h",
     "src/scene1_companion_ctrl.c",
     "src/scene1_conversation_pose.c",
@@ -10352,7 +10356,6 @@
    "status": "ported",
    "src": [
     "src/math3d.h",
-    "src/scene1_motes.c",
     "src/scene1_render.c"
    ]
   },

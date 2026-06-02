@@ -20,7 +20,7 @@
 #include "scene1_spawn.h"        /* scene1_spawn (FUN_00447f4f) — foot-dust emit */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 (shared DAT_056db054) */
 #include "rng.h"                 /* rng_next_unit (FUN_00471089) — dust jitter */
-#include "scene1_motes.h"        /* scene1_motes_tick (FUN_0046f621 mote pump) */
+#include "scene1_bg_npc.h"       /* scene1_bg_npc_tick (FUN_0046f621 NPC pump) */
 #include "scene1_intro_dialogue.h" /* prologue gate — suppress the walk arm */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
@@ -991,14 +991,14 @@ void scene1_player_ctrl_tick(void)
     if (s_actor_char[0] == -1)        /* no live player actor (pre-HOUSE) */
         return;
 
-    /* prologue: per-frame ambient-mote pump (FUN_0046f621 → the spawn/drift
-     * sim FUN_0046f2a3, now ported in scene1_motes.c).  The first call runs
-     * the 180× warmup that seeds the 6 motes; later calls tick once.  This is
-     * a live consumer of the shared LCG (sporadic bound-cross respawns) — its
-     * position in the call order, BEFORE FUN_0048b850's dust emit, is what the
-     * foot-dust RNG-stream parity depends on.  (The periodic customer-spawn
+    /* prologue: per-frame background-window-NPC pump (FUN_0046f621 → the
+     * spawn/drift sim FUN_0046f2a3, ported in scene1_bg_npc.c).  The first call
+     * runs the 180× warmup that seeds the 6 NPCs; later calls tick once.  This
+     * is a live consumer of the shared LCG (sporadic bound-cross respawns) —
+     * its position in the call order, BEFORE FUN_0048b850's dust emit, is what
+     * the foot-dust RNG-stream parity depends on.  (The periodic customer-spawn
      * refresh that also lives in this prologue stays inert — no customers.) */
-    scene1_motes_tick();
+    scene1_bg_npc_tick();
 
     /* scene-transition fade handlers (DAT_0450f470/485/488/495): none fires in
      * steady HOUSE free-roam → fall through to the controller. */
@@ -1015,9 +1015,9 @@ void scene1_player_ctrl_tick(void)
      * sets cc08=1 at HOUSE entry — *before* the prologue — so without this guard
      * the player walks during iv1_2 (the 2nd dialogue plays over the live
      * HOUSE), most visibly after an ESC skip of iv1_1 jumps onto it. Suppress
-     * ONLY the walk arm: scene1_motes_tick (above), records/particles, and the
+     * ONLY the walk arm: scene1_bg_npc_tick (above), records/particles, and the
      * bounds-clamp tail still run, so the load/scene path is untouched (gating
-     * the whole controller broke the load — it skipped the mote/RNG pump).
+     * the whole controller broke the load — it skipped the NPC/RNG pump).
      * PORT-DEBT: the faithful fix is cc08 timing — it should flip to 1 only at
      * the real free-roam boundary (FUN_004850ec), after the prologue. */
     if (s_cc08 == 1 &&

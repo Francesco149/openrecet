@@ -7,6 +7,31 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-02 (PM) — Background-window NPC sprites ("motes" → bg_npc)
+
+The shop's back-window townsfolk now draw their **bright character sprites**, not
+just the dark contact shadows. The subsystem long misnamed **"ambient floor
+motes"** (`scene1_motes`) is actually the **background-NPC system** — 6 NPCs that
+drift past the window. The sim + dark shadow were already ported; the **bright
+sprite render `FUN_0046f737` was a hidden stub** (the `scene1_shop_walker` L457
+between-pass sweep, yet marked ✓ in the ledger).
+
+- Diagnosed via a port d3d-trace at a free-roam frame on a user-recorded trace
+  (`openrecet-trace-25120`): every quad was accounted for, none were NPC sprites.
+  Root-caused to the stubbed `FUN_0046f737`.
+- Renamed `scene1_motes.{c,h}` → `scene1_bg_npc.{c,h}` (+ test, symbols, includers);
+  the dark pass is now `scene1_bg_npc_shadow_render`, the new bright pass is
+  `scene1_bg_npc_sprite_render`. Restructured the record so its leading 11 dwords
+  are the chr-actor sprite-state header the shared leaf consumes, and added the
+  sprite-anim stepping (`FUN_00482a51` set + `chr_anim_tick` advance).
+- Ported `FUN_0046f737`: per NPC, sheet `DAT_073a9b18[DAT_005c7ce0[type*2]]`
+  (the 6 types → `chr{10,35,36,37,38,39}.bmp`), billboard × Scale(0.03), drawn
+  via `scene1_chr_sprite_render` at `0xff7f7f7f`. Wired at the engine's L457 slot.
+- **User-verified** rendering (screenshots + in-game, feed 2026-06-02). Deferred:
+  exact anim-phase/identity vs retail. Note: there is **no** separate genuine
+  ambient-mote effect today; a faint real ambient particle (the "tiny dots" in
+  diffs) is expected to re-emerge later — see `docs/findings/scene1-bg-npc.md`.
+
 ## 2026-06-02 (PM) — Audio: dialogue voice lines, music-past-the-title, main-menu SEs
 
 Wired the three audio gaps in the ported slice (title → new game → prologue →

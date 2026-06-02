@@ -3254,10 +3254,19 @@ player-Y vs floor-Y agreement with retail** — a useful cross-check.
 > scene1-house-render-gaps.md §4) are the natural follow-up; they need the object
 > table modelled. Builds on §71 (companion = actor 2), W4.2 (collision query).
 
-## 83. HOUSE ambient motes: a dead pause path makes them simple back-wall drifters; render is a dark contact blob, not the visible sparkle
+## 83. HOUSE background-window NPCs (mislabelled "ambient motes"): dead pause path → simple back-wall drifters; a dark contact shadow + a bright character sprite
 
-The free-roam ambient-mote subsystem is three functions sharing one 100-byte
-SoA record array (base `DAT_073a7f80`, stride `0x64`, count `DAT_005c7dd4 == 6`):
+> **CORRECTION (2026-06-02):** this is NOT an ambient-particle effect — it is the
+> **background-window NPC system** (the townsfolk drifting past the shop's back
+> window).  The "bright sparkle" the section below calls unported is the NPC's
+> **character sprite** (`FUN_0046f737`), now **ported + user-verified** (the
+> red/10×-debug observation below — "blobs at the back-wall window line" — was
+> literally these NPCs).  See [[scene1-bg-npc]].  Renamed `scene1_motes` →
+> `scene1_bg_npc`.  The drift/RNG/dark-shadow mechanics documented here remain
+> accurate.
+
+The subsystem is four functions sharing one 100-byte SoA record array (base
+`DAT_073a7f80`, stride `0x64`, count `DAT_005c7dd4 == 6` NPCs):
 
 - **`FUN_0046f621`** (warmup pump): the FIRST call ever (latch `DAT_073a8bb8`)
   runs the sim **180×**; every later call runs it once. Called once/frame on
@@ -3303,13 +3312,18 @@ on the back floor — visually subtle (verified by a bright-red/10× debug build
 the blobs sit at the back-wall window line). The actual VISIBLE floating
 sparkle is a SEPARATE bright-sprite pass keyed off the per-record sprite-anim
 header (`+0x00..+0x14`, stepped by `FUN_00482a51/71` via the
-`DAT_005c7ce0[type·2]` LUT) — unported, and NOT read by the contact render, so
-the anim header is a documented stub here.
+`DAT_005c7ce0[type·2]` LUT). **UPDATE 2026-06-02:** that bright pass is
+`FUN_0046f737` and is now ported (`scene1_bg_npc_sprite_render`) — it is the
+NPC's character billboard (sheet `DAT_073a9b18[char]`, scale 0.03, `0xff7f7f7f`),
+not a sparkle.
 
-> Port: `scene1_motes.c` (`scene1_motes_tick` / `_sim_once` / `_render`),
-> wired at `scene1_player_ctrl.c` (controller prologue, replacing the old
-> `player_ctrl_prologue_churn` no-op) + `scene1_chr_shadow.c` L122. Data tables
-> `DAT_005c7dd8` (type = {0,1,6,7,9,8}) / `DAT_005c7ce0` are static `.data`.
+> Port: `scene1_bg_npc.c` (`scene1_bg_npc_tick` / `_sim_once` /
+> `_shadow_render` [dark] / `_sprite_render` [bright, FUN_0046f737]), wired at
+> `scene1_player_ctrl.c` (controller prologue, replacing the old
+> `player_ctrl_prologue_churn` no-op), `scene1_chr_shadow.c` L122 (shadow), and
+> `scene1_shop_walker.c` L457 (sprite). Data tables `DAT_005c7dd8`
+> (type = {0,1,6,7,9,8}) / `DAT_005c7ce0` (type→sheet char, → chr{10,35..39}) are
+> static `.data`. See [[scene1-bg-npc]].
 > The steady per-frame dust consumer `FUN_0046c9a2` is still unported, so the
 > foot-dust *phase* won't fully match retail until that lands too (both needed).
 

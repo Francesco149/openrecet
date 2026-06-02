@@ -24,8 +24,8 @@ match**, cumulatively.
 ## The call order (why upstream consumers matter)
 
 In `FUN_0048670f` (the free-roam controller dispatcher), every arm calls
-`FUN_0046f621()` (ambient motes) **before** `FUN_0048b850()` (the controller
-whose tail emits the dust). So the motes churn the shared LCG *ahead of* the
+`FUN_0046f621()` (background-window NPCs) **before** `FUN_0048b850()` (the controller
+whose tail emits the dust). So the NPCs churn the shared LCG *ahead of* the
 dust read, each frame.
 
 ## Live retail probe — the per-frame consumer map
@@ -44,7 +44,7 @@ per-frame consumers from one-time intro work:
 |--------|----------|------|-------------|
 | `0x44a750…0x44a86b` (float ×6) | `FUN_00447f4f` (`scene1_spawn`) | **6 calls / 4 frames** | ✅ MATCHES — the wing-sparkle emit (type 0x1f, every 4th frame). Port does exactly this. |
 | `0x46cf81` (int) | `FUN_0046c9a2` (3800 B) | ~0.27 / frame, steady | ⚠️ PARTIAL — `FUN_0046c9a2` (the dialogue DRAW) is now ported (`scene1_dialogue_draw.c`, 2026-06-02), **but `0x46cf81` is NOT the per-char reveal**. It is the return addr of the **standee-shake** rng read (`call 0x471084` @ `0x46cf7c`, decompiled line 191), gated on `DAT_073a6d9c != 0` — the `rmb:` chr-shake countdown. The bg-shake sibling read @ `0x46cc51` (gated `DAT_073a6d98`) does NOT appear in the free-roam window because the bedroom/HOUSE bg is static (the read is in the scroll branch `DAT_073a6d84|DAT_073a6d94 != 0`). **STILL UNPORTED:** the `IVE_OP_RMB` exec handler (set `shake_bg/shake_chr`), the per-step decay (`FUN_0046c320` 101-105), and the two gated rng reads in the draw. These are the remaining consumer — see the rmb note below. |
-| `0x46f56b…0x46f5dc` (int+float) | `FUN_0046f2a3` (894 B) | sporadic (bound-cross respawns) | ❌ STUBBED — the **ambient motes** (`FUN_0046f621` no-op'd as `player_ctrl_prologue_churn`). 6 motes live in HOUSE (`DAT_005c7dd4==6`). |
+| `0x46f56b…0x46f5dc` (int+float) | `FUN_0046f2a3` (894 B) | sporadic (bound-cross respawns) | ✅ PORTED — the **background-window NPCs** (`scene1_bg_npc`, FUN_0046f621/2a3/648/737). 6 NPCs live in HOUSE (`DAT_005c7dd4==6`). See [[scene1-bg-npc]]. |
 | `0x49018c` / `0x490e56` cluster | `FUN_0049001c` / `FUN_00490e56` | **intro-only** (absent from free-roam windows) | n/a — new-game save/news/order generation; not a steady-state desync source. |
 
 `0xbb21033` in the float-hooked run is a Frida-relocation artifact (the
@@ -88,12 +88,12 @@ Port instrumented with a per-frame `g_rng_seed` dump (`--player-pos-log` now
 carries `"rng"`); same trace; per-frame LCG-step counts:
 
 - **Retail steady free-roam:** every frame consumes ≥1 LCG step; the wing-sparkle
-  adds 6 every 4th frame → a `7,1,1,1` cadence, plus sporadic mote/effect spikes.
+  adds 6 every 4th frame → a `7,1,1,1` cadence, plus sporadic NPC/effect spikes.
 - **Port steady free-roam:** `{0: most frames, 6: every 4th frame}` — the sparkle
   matches, but the port consumes **0** on the in-between frames where retail
   consumes ≥1.
 
-The missing per-frame consumption = **`FUN_0046c9a2`** (steady) + **the motes**
+The missing per-frame consumption = **`FUN_0046c9a2`** (steady) + **the NPCs**
 (`FUN_0046f2a3`, sporadic). Both must be ported, RNG-faithful and in the engine
 call order, before the foot-dust jitter can phase-match retail.
 
@@ -103,8 +103,8 @@ Foot-dust *position* parity is an **RNG-stream-completeness** problem, not a
 dust-renderer bug. Closing it = porting the remaining free-roam RNG consumers
 faithfully (each is also a *visible* gap):
 
-1. **Ambient motes** — `FUN_0046f621` + `FUN_0046f2a3` (sim) + `FUN_0046f648`
-   (render). Self-contained, visible (6 floating motes), in plan P3.
+1. **Ambient NPCs** — `FUN_0046f621` + `FUN_0046f2a3` (sim) + `FUN_0046f648`
+   (render). Self-contained, visible (6 floating NPCs), in plan P3.
 2. **`FUN_0046c9a2`** (via `FUN_0046c090`, render root) — the steady per-frame
    consumer; likely the hikari/ambient-glow effect (also a candidate cause of the
    dust's *brightness* divergence — "counter-shadow lightening" — if it darkens
@@ -120,7 +120,7 @@ nix develop --command python3 tools/frida_capture.py --remote cutestation.soy:27
   --rng-callers --max-frames 6000 --duration-ms 150000 --turbo --silent-audio --hide-window --no-montage
 # port side (per-frame g_rng_seed):
 tools/run-openrecet.sh --input-segtrace tests/scenarios/house-walk-down-dense/trace.jsonl \
-  --player-pos-log runs/mote-probe/port_pos.jsonl --max-frames 8000 --turbo --silent-audio --hide-window
+  --player-pos-log runs/NPC-probe/port_pos.jsonl --max-frames 8000 --turbo --silent-audio --hide-window
 ```
 
 Related: `scene1-walk-dust.md` (the dust chip), `scene1-wing-glow.md` (the 0x1f
