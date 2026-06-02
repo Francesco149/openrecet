@@ -156,7 +156,13 @@ facing during the conversation**, then **releasing back to idle**. Faithful port
 Deferred / still open: the **radial-burst billboard** near Tear in the pre-box
 window (NOT the iv1_2.ivt `giku.tga`/`hatena.tga` standee effects — those ride
 the big portraits later in the script). Source TBD — likely a talk-manager
-effect spawn; identify alongside `FUN_00470a46`.
+effect spawn; identify alongside `FUN_00470a46`. **NOTE (2026-06-02, user):** the
+radial lines also have a **phase desync** vs retail — like the blink, their
+animation is offset, almost certainly the SAME root cause (the port enters the
+pose / talk-event state at a different intro offset than retail; §85 + the
+producer PORT-DEBT). When porting the radial-burst, give it its own per-effect
+TAS anchor (à la `CONV_POSE_BLINK`) and verify the animation is 1:1 anchored to
+that edge, separately from chasing absolute timing.
 
 ## Blink-phase investigation (2026-06-02 PM) — CONV_POSE_START/END anchor
 
