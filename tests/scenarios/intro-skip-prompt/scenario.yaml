@@ -1,0 +1,16 @@
+# intro-skip-prompt — the ESC "Do you want to skip this event?" Yes/No choice box
+# over a settled prologue line. The port harness has no ESC-injection, so arm via
+# OPENRECET_FORCE_SKIP_AT=1 (sim.c debug: arms on the first fully-revealed line).
+# cap_00 = prompt on Yes (default); cap_01 = after one Right (No). Verifies the
+# choice-box render (both options full-brightness, hand cursor bob) vs the retail
+# golden runs/skip-golden/arm485/frame_00514.png (faithful ESC capture).
+#
+#   OPENRECET_FORCE_SKIP_AT=1 python3 tools/scenario-test.py intro-skip-prompt \
+#     --target openrecet
+# (retail side = the existing skip-golden; no harness ESC arm.)
+description: |
+  ESC skip Yes/No choice box over a settled line (port, FORCE_SKIP_AT). cap_00
+  Yes / cap_01 No. Diff vs runs/skip-golden/arm485.
+max_frames: 24000
+duration_ceiling_ms: 240000
+n_captures: 2

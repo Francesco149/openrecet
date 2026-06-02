@@ -256,19 +256,25 @@ void sim_step_a(void)
 #ifdef _WIN32
         /* Debug-only: the port harness has no ESC-injection path (ESC is a
          * WM_KEYDOWN, not a game button), so to capture the skip-prompt golden
-         * we arm it at a fixed frame. OPENRECET_FORCE_SKIP_AT = the
-         * g_sim_frame_count to arm at; lands during an active dialogue line so
-         * the choice box draws over it. No-op when unset. */
+         * we arm it from an env var. OPENRECET_FORCE_SKIP_AT = a g_sim_frame_count
+         * threshold; the prompt arms ONCE on the first fully-revealed dialogue
+         * line at or after that frame (text_revealed → a settled line the choice
+         * box can draw over). Anchor-rebased traces don't know absolute frames,
+         * so set it to 1 to arm on the very first settled line. No-op when
+         * unset. */
         {
-            static long s_force_skip = -2;   /* -2 unread, -1 disabled */
+            static long s_force_skip = -2;   /* -2 unread, -1 disabled/done */
             if (s_force_skip == -2) {
                 char buf[16];
                 DWORD n = GetEnvironmentVariableA("OPENRECET_FORCE_SKIP_AT",
                                                   buf, sizeof buf);
                 s_force_skip = (n > 0 && n < sizeof buf) ? atol(buf) : -1;
             }
-            if (s_force_skip >= 0 && (long)g_sim_frame_count == s_force_skip)
+            if (s_force_skip >= 0 && (long)g_sim_frame_count >= s_force_skip &&
+                !skip_event_open() && scene1_intro_dialogue_text_revealed()) {
                 skip_event_arm(1);
+                s_force_skip = -1;           /* arm once */
+            }
         }
 #endif
         if (skip_event_open()) {
