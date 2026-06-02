@@ -453,6 +453,8 @@ struct test_case {
     X(dialogue_run_start_precedes_end) \
     X(dialogue_run_waitkey_dwell_gate) \
     X(dialogue_run_bgset_sets_active_index) \
+    X(dialogue_run_se_fires_voice_bridge) \
+    X(dialogue_run_se_null_bridge_is_noop) \
     X(dialogue_run_chr_disp_grp_moveto_dir) \
     X(dialogue_run_chr_col_channels) \
     X(dialogue_run_chr_colto_fade) \

@@ -20,7 +20,7 @@
 | unported  |  2137 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
-6 VAs are referenced in src/ but absent from the function table
+7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
 **Port debt:** 11 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts

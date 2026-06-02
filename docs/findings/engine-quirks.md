@@ -3419,3 +3419,42 @@ never a fixed `HOUSE_FREEROAM`+N.** Open work to make the *absolute* timing matc
 at retail's offset. Low priority (the synthetic load timing is
 environment-dependent / not byte-reproducible anyway), but tracked here so the
 phase gap isn't mistaken for a render bug later.
+
+## 87. Filename-loaded SE / voice clips live on SE AudioPath B (not the "dead" path it was assumed to be); single-slot loader replaces the prior clip
+
+Two distinct SE playback paths exist, and they target **different AudioPaths**:
+
+- **Resource-baked SEs** (`FUN_00499c63`, the 110-entry `WAVE`-resource table)
+  route to **SE path A** (`DAT_0964310c`). Their per-row +4 channel flag is
+  all-zero in vendor data, so the path-B route + voice-stealing scan inside
+  `FUN_00499c63` are dead (engine-quirk §46).
+- **Filename-loaded SEs / voice clips** (`FUN_0049933c`) route to **SE path B**
+  (`DAT_09643110`) with the SE-B slider (`DAT_056e577c`) volume. So path B is
+  **not** dead overall — §46's "path B is dead" applies only to the *resource*
+  dispatcher; the filename path uses it exclusively. This is the path the
+  opening-cutscene voice lines play through.
+
+`FUN_0049933c` is a **single-slot** loader: one segment (`DAT_09643034`) + its
+play-state (`DAT_09642e78`). Each call `Unload`s + `Release`s the previous clip
+before `LoadObjectFromFile`-ing the new one, so only one filename SE plays at a
+time — a new dialogue line's voice cuts off the previous one. Segments get
+`SetRepeats(0)` (play once) and `PlaySegmentEx(DMUS_SEGF_QUEUE=0x80)` on path B.
+Missing files `MessageBoxA` "File not found" in the engine (the port logs to
+stderr instead — no modal in headless runs).
+
+The clips are loose `bin/se/.../*.bin` files in the install dir — plain
+RIFF/WAVE PCM (16-bit/44.1 kHz/mono), `.bin` extension notwithstanding;
+`LoadObjectFromFile` reads the RIFF header, not the extension. They resolve
+against the `SetSearchDirectory(cwd)` set at `audio_init` (the game dir), same
+as the BGM `.wma` loads — read at runtime from the retail install, never
+redistributed.
+
+The `.ivt` `se:<bin>` command (`IVE_OP_SE`, handler `0x46d885`) names the clip
+by path; the dialogue tick fires `FUN_0049933c` the instant the command walk
+reaches it (ret 1, same frame as the following `msg` line), so the voice lands
+as the line appears. Port: `src/audio.c::audio_play_se_file` (mirror of
+`FUN_0049933c`) reached from the pure-C interpreter via the `g_ive_se_play_fn`
+bridge (like `g_music_swap_fn`). Verified end-to-end: the `intro-dialogue-lines`
+port run loads + plays all 12 opening-cutscene voice/SE clips (`tea_mataku`,
+`re_fue`, `piko`, … ×2 for the repeated `tea_mataku`) with zero load/play
+failures.

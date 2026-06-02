@@ -256,6 +256,31 @@ int audio_play_se_by_id(uint16_t id)
     return audio_play_se(slot);
 }
 
+static int audio_play_se_file_win32(const char *path);  /* fwd — _WIN32 block */
+
+int audio_play_se_file(const char *path)
+{
+    if (!path || !*path) return 0;
+
+    /* Apply the SE-B slider on path_se_b (Win32) and emit the trace
+     * event. Engine FUN_0049933c reads the SE-B slider DAT_056e577c and
+     * SetVolumes path_se_b (DAT_09643110) just before PlaySegmentEx; the
+     * fade-apply hook routes AUDIO_FADE_CHANNEL_SE_B → path_se_b. We do
+     * it here (before the Win32 body) for parity with audio_play_se's
+     * shell ordering — the path-level volume set is order-independent of
+     * the segment load below. */
+    audio_fade_apply(AUDIO_FADE_CHANNEL_SE_B);
+
+    /* slot = -1 marks a filename SE in the trace; `name` carries the path. */
+    audio_trace_emit_se_play(-1, path);
+
+#ifdef _WIN32
+    return audio_play_se_file_win32(path);
+#else
+    return 1;
+#endif
+}
+
 /* ─── Win32 / DirectMusic 8 backend ────────────────────────────────── */
 
 #ifdef _WIN32
@@ -269,6 +294,7 @@ int audio_play_se_by_id(uint16_t id)
 
 #include "music.h"    /* g_music_swap_fn — bridge into music.c */
 #include "se_pack.h"  /* runtime SE cache (no embedded proprietary audio) */
+#include "scene1_dialogue_run.h"  /* g_ive_se_play_fn — se: voice bridge */
 
 static uint32_t audio_trace_platform_now_ms(void)
 {
@@ -288,6 +314,8 @@ static struct {
     IDirectMusicSegment8      *se_segments[AUDIO_SE_COUNT];            /* DAT_09642e7c[] */
     IDirectMusicSegmentState8 *se_states[AUDIO_SE_COUNT];              /* DAT_09642c6c[] (QI-upgraded) */
     int                        se_loaded_count;
+    IDirectMusicSegment8      *file_seg;          /* DAT_09643034 — single filename-SE/voice slot */
+    IDirectMusicSegmentState8 *file_state;        /* DAT_09642e78 — its QI-upgraded play-state    */
     int32_t                    current_track;     /* DAT_005d1960 (mirror) */
     int                        com_initialized;
     int                        all_loaded;        /* DAT_096430fc */
@@ -298,6 +326,12 @@ static struct {
 static void audio_play_track_adapter(int32_t track)
 {
     (void)audio_play_track(track);
+}
+
+/* Installed into g_ive_se_play_fn — the dialogue interpreter's se: bridge. */
+static void audio_play_se_file_adapter(const char *path)
+{
+    (void)audio_play_se_file(path);
 }
 
 /* audio_fade.c invokes this when audio_fade_apply fires; we route the
@@ -563,6 +597,7 @@ int audio_init(HWND hwnd)
     /* Bridge into music.c: install our swap callback. From here on
      * every selector swap_call_count++ also triggers a real play. */
     g_music_swap_fn = audio_play_track_adapter;
+    g_ive_se_play_fn = audio_play_se_file_adapter;
 
     fprintf(stderr,
             "audio: init ok — %d BGM segments + %d/%d SE segments preloaded"
@@ -720,6 +755,96 @@ static int audio_play_se_win32(int slot)
     return 1;
 }
 
+/* ── audio_play_se_file Win32 body — mirrors FUN_0049933c ────────────
+ *
+ * The filename-SE / voice path. Single segment slot (g_audio.file_seg /
+ * .file_state == engine DAT_09643034 / DAT_09642e78):
+ *
+ *   1. Guard: DAT_096430fc (all_loaded) must be set.
+ *   2. If a previous filename SE is loaded: Unload(performance) it,
+ *      Release its play-state, Release the segment, NULL both.
+ *   3. LoadObjectFromFile(CLSID_DirectMusicSegment, IID_*Segment8,
+ *      wide(path)) → file_seg. On failure the engine MessageBoxes
+ *      "file not found"; we log to stderr (no modal in headless runs).
+ *   4. SetRepeats(0) — voice/SE play once (no loop).
+ *   5. Download(performance).
+ *   6. (SetVolume on path_se_b already done by the shell's audio_fade_apply.)
+ *   7. Stop(file_seg, …) on the performance — reset a re-trigger.
+ *   8. PlaySegmentEx(file_seg, …, DMUS_SEGF_QUEUE, …, path_se_b).
+ *   9. QI the returned SegmentState → SegmentState8 into file_state;
+ *      Release the un-upgraded pointer.
+ */
+static int audio_play_se_file_win32(const char *path)
+{
+    if (!g_audio.all_loaded || !g_audio.performance || !g_audio.loader)
+        return 0;
+
+    /* Release the prior filename SE so only one voice line plays at a
+     * time (engine: seg->Unload(perf) + state->Release + seg->Release). */
+    if (g_audio.file_seg) {
+        IDirectMusicSegment8_Unload(
+            g_audio.file_seg, (IUnknown *)g_audio.performance);
+        if (g_audio.file_state) {
+            IDirectMusicSegmentState8_Release(g_audio.file_state);
+            g_audio.file_state = NULL;
+        }
+        IDirectMusicSegment8_Release(g_audio.file_seg);
+        g_audio.file_seg = NULL;
+    }
+
+    WCHAR path_w[MAX_PATH];
+    if (!audio_a_to_w(path, path_w, MAX_PATH)) return 0;
+
+    HRESULT hr = IDirectMusicLoader8_LoadObjectFromFile(
+        g_audio.loader,
+        &CLSID_DirectMusicSegment,
+        &IID_IDirectMusicSegment8,
+        path_w,
+        (void **)&g_audio.file_seg);
+    if (FAILED(hr) || !g_audio.file_seg) {
+        /* Engine: MessageBoxA(NULL, path, "File not found", 0). We log
+         * instead — a missing voice clip shouldn't wedge a headless run. */
+        fprintf(stderr, "audio: voice/SE LoadObjectFromFile(%s) failed "
+                "(hr=0x%08lx)\n", path, (unsigned long)hr);
+        g_audio.file_seg = NULL;
+        return 0;
+    }
+
+    /* Play once — voice lines / one-off SEs don't loop. */
+    IDirectMusicSegment8_SetRepeats(g_audio.file_seg, 0);
+    IDirectMusicSegment8_Download(
+        g_audio.file_seg, (IUnknown *)g_audio.performance);
+
+    /* Stop any in-flight playback of this exact segment before re-queue
+     * (engine perf->Stop(seg, NULL, 0, 0) at +0x14). */
+    IDirectMusicPerformance8_Stop(
+        g_audio.performance, (IDirectMusicSegment *)g_audio.file_seg, NULL, 0, 0);
+
+    IDirectMusicSegmentState *state = NULL;
+    hr = IDirectMusicPerformance8_PlaySegmentEx(
+        g_audio.performance,
+        (IUnknown *)g_audio.file_seg,
+        NULL,                       /* segment name */
+        NULL,                       /* transition */
+        DMUS_SEGF_QUEUE,            /* engine value 0x80 at +0xb4 call */
+        0,                          /* start = now */
+        &state,
+        NULL,                       /* from */
+        (IUnknown *)g_audio.path_se_b);
+    if (FAILED(hr) || !state) {
+        fprintf(stderr, "audio: voice/SE PlaySegmentEx(%s) failed "
+                "(hr=0x%08lx)\n", path, (unsigned long)hr);
+        return 0;
+    }
+
+    /* QI-upgrade the state and store it (engine writes DAT_09642e78). */
+    IDirectMusicSegmentState_QueryInterface(
+        state, &IID_IDirectMusicSegmentState8,
+        (void **)&g_audio.file_state);
+    IDirectMusicSegmentState_Release(state);
+    return 1;
+}
+
 void audio_shutdown(void)
 {
     /* Detach the music bridge first so any in-flight tick can't reach
@@ -727,6 +852,7 @@ void audio_shutdown(void)
      * hook so a stray audio_fade_apply caller doesn't reach into a
      * torn-down g_audio. */
     g_music_swap_fn = NULL;
+    g_ive_se_play_fn = NULL;
     audio_fade_set_apply_hook(NULL);
 
     if (g_audio.performance) {
@@ -759,6 +885,17 @@ void audio_shutdown(void)
             IDirectMusicSegment8_Release(g_audio.se_segments[i]);
             g_audio.se_segments[i] = NULL;
         }
+    }
+    /* The single filename-SE / voice slot (DAT_09643034 / DAT_09642e78). */
+    if (g_audio.file_state) {
+        IDirectMusicSegmentState8_Release(g_audio.file_state);
+        g_audio.file_state = NULL;
+    }
+    if (g_audio.file_seg) {
+        IDirectMusicSegment8_Unload(g_audio.file_seg,
+                                    (IUnknown *)g_audio.performance);
+        IDirectMusicSegment8_Release(g_audio.file_seg);
+        g_audio.file_seg = NULL;
     }
     if (g_audio.path_se_b) {
         IDirectMusicAudioPath_Release(g_audio.path_se_b);

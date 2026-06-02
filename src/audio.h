@@ -169,6 +169,28 @@ int audio_play_se(int slot);
  * to `audio_play_se(slot)`. */
 int audio_play_se_by_id(uint16_t id);
 
+/* Filename-loaded SE / voice clip — mirror of FUN_0049933c.
+ *
+ * The opening cutscene (and other event scripts) play voice lines and
+ * one-off SEs by *path* rather than by the resource-baked SE table —
+ * the `.ivt` `se:<bin>` command names a loose RIFF/WAVE file relative to
+ * the game dir, e.g. "bin/se/01ti/event/tea_mataku.bin" (Tear's voice).
+ * The engine carries a SINGLE filename-SE slot: each call Unloads the
+ * previous segment before loading the new one (so only one voice line
+ * plays at a time), and routes playback to SE AudioPath B with the SE-B
+ * slider volume — distinct from the resource SEs on path A.
+ *
+ * `path` is the game-relative path from the script (NUL-terminated,
+ * ASCII). Resolved by IDirectMusicLoader against the search directory
+ * set at audio_init (the cwd / game dir), same as the BGM .wma loads.
+ * Returns 1 on a successful PlaySegmentEx, 0 otherwise (backend not
+ * ready, file not found, load/play failure). The .bin files are retail
+ * assets — read at runtime from the install, never redistributed.
+ *
+ * Pure-C shell (emits the audio_trace + SE-B fade) with the DirectMusic
+ * body under _WIN32; a no-op returning 1 on the test build. */
+int audio_play_se_file(const char *path);
+
 #ifdef _WIN32
 /* Drop-in replacement for the default audio_fade apply hook that
  * clamps every SetVolume call to -10000 centibel (silence). Engine's

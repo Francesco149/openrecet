@@ -122,6 +122,20 @@ struct ive_runtime {
     struct ive_scene_state scene;  /* render state (bg / standees / box pos)   */
 };
 
+/* ── audio bridge (se: voice / SE playback) ──────────────────────────────
+ *
+ * The `se:<bin>` command (IVE_OP_SE) plays a filename-loaded voice/SE clip
+ * the instant the walk reaches it (engine FUN_0046d885 → the dialogue tick
+ * fires FUN_0049933c with the script's se-path). The interpreter is pure C
+ * (host-testable, no windows.h), so playback is reached through this
+ * function pointer — mirrors the music.c `g_music_swap_fn` bridge. The Win32
+ * audio backend installs `audio_play_se_file` here at audio_init; it stays
+ * NULL in the test build (and before audio_init), so se: commands are silent
+ * no-ops there. The `path` passed is the game-relative `.bin` path from the
+ * script's se name table (e.g. "bin/se/01ti/event/tea_mataku.bin"). */
+typedef void (*ive_se_play_fn_t)(const char *path);
+extern ive_se_play_fn_t g_ive_se_play_fn;
+
 /* Arm `rt` to run `prog` from its first command. `prog` is borrowed (must
  * outlive the runtime). Sets active=1; the dialogue gate is now up. */
 void ive_runtime_init(struct ive_runtime *rt, const struct ive_program *prog);

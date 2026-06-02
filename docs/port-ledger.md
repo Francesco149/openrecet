@@ -12,7 +12,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
 - touched: **411** (16.1%) — verified 68, stubbed 17, ported 326
 - unported: **2137**
-- orphan refs (in src/, not in function table): 6
+- orphan refs (in src/, not in function table): 7
 
 ## verified (68) — runtime-diffed vs retail
 
@@ -383,7 +383,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49791f | FUN_0049791f | 868 | ✓ | chara_skills.h |
 | 0x498ef4 | FUN_00498ef4 | 736 | ✓ | audio.c, audio.h, main.c |
 | 0x499200 | FUN_00499200 | 219 | ✓ | audio.c, audio.h, music.c (+1) |
-| 0x49933c | FUN_0049933c | 439 | ✓ | scene1_combat_sm.h, scene_title.c |
+| 0x49933c | FUN_0049933c | 439 | ✓ | audio.c, audio.h, scene1_combat_sm.h (+3) |
 | 0x499519 | FUN_00499519 | 23 | ✓ | audio.h, audio_se_names.h, choice_box.c (+7) |
 | 0x499538 | FUN_00499538 | 20 | ✓ | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ | music.h |

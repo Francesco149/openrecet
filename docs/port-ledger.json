@@ -8,7 +8,7 @@
   "stubbed": 17,
   "ported": 326,
   "unported": 2137,
-  "orphan_refs_not_in_function_table": 6,
+  "orphan_refs_not_in_function_table": 7,
   "touched": 411,
   "pct_touched": 16.1,
   "pct_verified": 2.7,
@@ -19,6 +19,7 @@
   "0x452e75",
   "0x452eb1",
   "0x4676d4",
+  "0x46d885",
   "0x475040",
   "0x49de24"
  ],
@@ -9344,7 +9345,11 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/audio.c",
+    "src/audio.h",
     "src/scene1_combat_sm.h",
+    "src/scene1_dialogue_run.c",
+    "src/scene1_dialogue_run.h",
     "src/scene_title.c"
    ]
   },

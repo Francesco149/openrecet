@@ -12,6 +12,10 @@
 
 #include <math.h>
 
+/* Audio bridge — NULL in the test build and before audio_init (see header).
+ * audio.c installs audio_play_se_file here so se: commands play voice/SE. */
+ive_se_play_fn_t g_ive_se_play_fn = NULL;
+
 /* Input bits (g_input_state[N].buttons — binding slots, see input.h). */
 #define IVE_BTN_ADVANCE   0x10   /* face button A (confirm/advance)          */
 #define IVE_BTN_FF        0x60   /* held 0x20|0x40 = fast-forward / held-adv  */
@@ -314,7 +318,18 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
         if (s) s->field[IVE_ST_BLEND] = c->a2;
         return IVE_R_CONTINUE;
     }
-    default:                    /* every other setup op (se/fade/light/music/...): ret 1 */
+    case IVE_OP_SE:             /* se:<bin> (0x46d885) → FUN_0049933c voice/SE */
+        /* a1 indexes the parsed se name table. The engine fires the clip the
+         * instant the walk reaches the command (ret 1, same frame), so the
+         * voice lands as the following msg line shows. The backend is
+         * single-slot, so a new line's voice stops the previous one. NULL
+         * bridge (test build / pre-audio_init) = silent no-op. */
+        if (g_ive_se_play_fn && rt->prog &&
+            c->a1 >= 0 && c->a1 < IVE_MAX_NAMES) {
+            g_ive_se_play_fn(rt->prog->se[c->a1]);
+        }
+        return IVE_R_CONTINUE;
+    default:                    /* remaining setup ops (fade/light/music/...): ret 1 */
         return IVE_R_CONTINUE;
     }
 }

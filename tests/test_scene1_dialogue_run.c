@@ -131,6 +131,69 @@ int test_dialogue_run_bgset_sets_active_index(void)
     return 0;
 }
 
+/* ─── se: voice / SE bridge (IVE_OP_SE → g_ive_se_play_fn) ─────────────────── */
+
+/* Capture stub for the audio bridge. The Win32 backend installs
+ * audio_play_se_file here at audio_init; in the host build it's NULL (silent
+ * no-op) unless a test wires it, so we capture the path it would have played. */
+static char  g_se_capture[8][256];
+static int   g_se_capture_n;
+static void  se_capture_stub(const char *path)
+{
+    if (g_se_capture_n < 8)
+        snprintf(g_se_capture[g_se_capture_n], 256, "%s", path ? path : "(null)");
+    g_se_capture_n++;
+}
+
+/* se:<bin> stores the path in prog->se[slot] at parse time and, at runtime,
+ * fires the bridge with that exact path the frame the walk reaches it (ret 1,
+ * same frame as the following SHOW). Each se: plays once per script run. */
+int test_dialogue_run_se_fires_voice_bridge(void)
+{
+    static struct ive_program prog;
+    static struct ive_runtime rt;
+    T_ASSERT(scene1_dialogue_parse(
+        "se:bin/se/01ti/event/tea_mataku.bin\r\n"
+        "msg:0:2:Good grief<KEY><C>\r\n"
+        "se:bin/se/wav/piko.bin\r\n"
+        "msg:0:2:Beep<KEY><C>\r\n"
+        "end:\r\n", &prog) == 1);
+    /* Both se: names captured at parse, in order. */
+    T_ASSERT_EQ_I(prog.n_se, 2);
+    T_ASSERT(strcmp(prog.se[0], "bin/se/01ti/event/tea_mataku.bin") == 0);
+    T_ASSERT(strcmp(prog.se[1], "bin/se/wav/piko.bin") == 0);
+
+    g_se_capture_n = 0;
+    g_ive_se_play_fn = se_capture_stub;
+    ive_runtime_init(&rt, &prog);
+
+    struct drive_result r = drive(&rt, 400);
+    g_ive_se_play_fn = NULL;     /* restore — don't leak into later tests */
+
+    T_ASSERT_EQ_I(r.complete, 1);
+    /* Exactly two voice/SE plays, each with the right path, in script order. */
+    T_ASSERT_EQ_I(g_se_capture_n, 2);
+    T_ASSERT(strcmp(g_se_capture[0], "bin/se/01ti/event/tea_mataku.bin") == 0);
+    T_ASSERT(strcmp(g_se_capture[1], "bin/se/wav/piko.bin") == 0);
+    return 0;
+}
+
+/* A NULL bridge (test build / before audio_init) is a silent no-op: se:
+ * commands still parse + walk, the script completes, nothing crashes. */
+int test_dialogue_run_se_null_bridge_is_noop(void)
+{
+    static struct ive_program prog;
+    static struct ive_runtime rt;
+    T_ASSERT(scene1_dialogue_parse(
+        "se:bin/se/wav/piko.bin\r\nmsg:0:1:A<KEY>\r\nend:\r\n", &prog) == 1);
+
+    g_ive_se_play_fn = NULL;
+    ive_runtime_init(&rt, &prog);
+    struct drive_result r = drive(&rt, 200);
+    T_ASSERT_EQ_I(r.complete, 1);
+    return 0;
+}
+
 /* ─── chr standee handlers (settled-state subset) ─────────────────────────── */
 
 /* grp registers a graphic + slot, disp activates (a2=1), moveto sets the TARGET

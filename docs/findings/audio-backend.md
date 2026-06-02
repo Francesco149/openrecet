@@ -412,12 +412,18 @@ In rough order of impact:
    values, just whatever the ini said at boot, so persistent volume
    changes need both (a) this saveback and (b) a slider→`g_ini`
    mirror call from the settings exit-save handler.
-5. **Filename-based SE feedback (FUN_0049933c)** — the SE-B slider
-   row plays a separate filename-loaded SE (`re_sys01a_b` w/ inc/dec
-   variants) instead of the resource-baked 0x146 cursor tick. Port
-   substitutes 0x146 for both directions; resurrecting the filename
-   path requires a DirectMusicLoader::LoadObjectFromFile shim that
-   parallels the resource-based SE load chain.
+5. ~~**Filename-based SE feedback (FUN_0049933c)**~~ **Done 2026-06-02** —
+   ported as `src/audio.c::audio_play_se_file(const char *path)`, the
+   single-slot DirectMusicLoader `LoadObjectFromFile` → `SetRepeats(0)`
+   → `Download` → `PlaySegmentEx(QUEUE)` chain on **SE path B** with the
+   SE-B slider volume (engine-quirks §87). Reached from the pure-C
+   opening-dialogue interpreter (`IVE_OP_SE`) via the `g_ive_se_play_fn`
+   bridge, so the `.ivt` `se:<bin>` voice lines + one-off SEs play (Tear's
+   `tea_mataku`, Recette's `re_fue`, the `piko` chime, …). The clips are
+   loose `bin/se/.../*.bin` RIFF/WAVE files read from the install dir at
+   runtime. The settings-menu SE-B inc/dec feedback row (`re_sys01a_b`)
+   can now reuse this instead of the 0x146 substitute — left as a small
+   follow-up since the settings render is still deferred.
 6. **Engine bug-for-bug compatibility** — the EN-build `SetParam(
    GUID_StandardMIDIFile, ...)` call (gated on `DAT_0438b170 == 1`)
    never fires in the current Steam build. If a future build sets that
