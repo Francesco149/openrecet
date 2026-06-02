@@ -17,7 +17,7 @@ max_frames: 24000
 duration_ceiling_ms: 240000
 n_captures: 63
 zoom_text:
-  x: 468
+  x: 520
   y: 578
   w: 104
   h: 150
