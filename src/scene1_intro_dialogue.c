@@ -165,6 +165,19 @@ int scene1_intro_dialogue_active(void)
     return ((g_state == D_SCRIPT1 || g_state == D_SCRIPT2) && g_rt.active) ? 1 : 0;
 }
 
+int scene1_intro_dialogue_covers_screen(void)
+{
+    /* iv1_1 (D_SCRIPT1) is the opening cutscene: its script paints a full-
+     * screen bg, so the engine's FUN_0046c869 returns non-zero and
+     * FUN_004547ab suppresses the whole scene + HUD render behind it.  iv1_2
+     * (D_SCRIPT2) is an overlay over the live HOUSE map (no bg → scene + HUD
+     * drawn behind it).  We hold this for the whole D_SCRIPT1 phase (incl. the
+     * pre-load frame) so the persistent top HUD never flashes over the
+     * cutscene.  The D_LOAD bracket is covered separately by the nowloading
+     * gate. */
+    return (g_state == D_SCRIPT1) ? 1 : 0;
+}
+
 int scene1_intro_dialogue_skippable(void)
 {
     /* FUN_0046c2cb gate: a line is up and skip_prompt (DAT_073a3e18, bumped

@@ -663,6 +663,16 @@ static int             g_turbo                   = 0;
 static int             g_auto_z_spam             = 0;
 static int             g_silent_audio            = 0;
 
+/* --show-fps: force the bottom-right "Fps NN" debug overlay ON during
+ * capture/comparison runs.  The fps VALUE is wall-clock derived and so a
+ * non-deterministic, noisy delta in cross-target diffs and a churning
+ * golden; to keep comparisons clean the overlay is HIDDEN by default
+ * whenever we're capturing frames (g_capture_dir set), regardless of the
+ * recet.ini [setup] dispfps key.  Outside capture mode normal play still
+ * honours dispfps.  Retail's Frida agent applies the mirror knob
+ * (forces DAT_0438cce0=1) so both targets match. */
+static int             g_show_fps                = 0;
+
 /* --no-singleton: bypass the cross-process singleton mutex acquired in
  * WinMain. Off by default — concurrent openrecet instances clobber
  * each other's save state and leak orphan windows during test
@@ -2540,7 +2550,17 @@ static void render_dispatch(void)
                  * before the HUD, which overlays it (cap_20: money HUD over the
                  * dialogue bg).  No-op unless a script is active. */
                 scene1_dialogue_draw(g_dev);
-                scene1_hud_render(g_dev);
+                /* The persistent top HUD (clock/Day/money, in scene1_hud_render's
+                 * FUN_0040a765 tail) is SUPPRESSED while a full-screen-bg
+                 * cutscene covers the scene — the iv1_1 opening dialogue.  Engine
+                 * FUN_004547ab skips the whole scene+HUD block when a dialogue is
+                 * active AND FUN_0046c869() (DAT_073a3df0) is non-zero; iv1_2
+                 * (over the live HOUSE map) and free-roam draw the HUD.  Without
+                 * this the HUD wrongly overlaid the opening cutscene's painted bg
+                 * (user-reported 2026-06-02). */
+                if (!scene1_intro_dialogue_covers_screen()) {
+                    scene1_hud_render(g_dev);
+                }
                 scene1_render_overlay(g_dev);
                 /* scene1_render_fx_tail is moved out of this branch
                  * and called unconditionally below — engine has it
@@ -2681,10 +2701,18 @@ static void render_dispatch(void)
     /* Engine FUN_004547ab L51252-51254: the bottom-right "Fps NN" debug
      * overlay (FUN_004523e6), gated on `DAT_0438cce0 == 0` (recet.ini
      * [setup] dispfps, default 0 → shown).  Drawn last, just before
-     * EndScene, so it sits on top of everything.  Retail ships with the
-     * default so the counter is visible in every captured frame. */
-    if (g_ini.dispfps == 0) {
-        scene1_fps_render(g_dev);
+     * EndScene, so it sits on top of everything.
+     *
+     * During capture/comparison runs the overlay is HIDDEN by default
+     * (its value is wall-clock derived → a noisy cross-target / golden
+     * delta), regardless of dispfps; --show-fps forces it back on.  In
+     * normal play it honours dispfps.  (Retail's Frida agent forces
+     * DAT_0438cce0=1 to match.) */
+    {
+        int show_fps = g_capture_dir ? g_show_fps : (g_ini.dispfps == 0);
+        if (show_fps) {
+            scene1_fps_render(g_dev);
+        }
     }
 
     IDirect3DDevice8_EndScene(g_dev);
@@ -3118,6 +3146,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
             g_turbo = 1;
         } else if (lstrcmpA(tok, "--silent-audio") == 0) {
             g_silent_audio = 1;
+        } else if (lstrcmpA(tok, "--show-fps") == 0) {
+            g_show_fps = 1;
         } else if (lstrcmpA(tok, "--no-singleton") == 0) {
             g_no_singleton = 1;
         } else if (lstrcmpA(tok, "--no-msgbox-hook") == 0) {

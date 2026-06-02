@@ -67,6 +67,15 @@ int scene1_intro_dialogue_line_present(void);
  * pair fires here. Zero outside the bracket. */
 int     scene1_intro_dialogue_loading(void);
 
+/* 1 while a full-screen-background cutscene is up — the iv1_1 first dialogue,
+ * whose painted bg covers the whole screen.  Models the engine's FUN_0046c869
+ * (`return DAT_073a3df0`): when a dialogue is active AND its script paints a
+ * bg, FUN_004547ab SKIPS the entire scene+HUD render block and draws only the
+ * dialogue.  iv1_2 (D_SCRIPT2) plays as an OVERLAY over the live HOUSE map (no
+ * bg → returns 0) so the scene + top HUD ARE drawn behind it.  Used to gate
+ * the persistent top HUD off during the opening cutscene.  Zero outside iv1_1. */
+int     scene1_intro_dialogue_covers_screen(void);
+
 /* Borrow the live interpreter state for the DRAW pass (FUN_0046c9a2 port in
  * scene1_dialogue_draw.c). Return NULL while dormant/loading/done — the draw
  * only runs when a script is active. The returned pointers are valid until the

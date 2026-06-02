@@ -34,6 +34,20 @@ All draws use **`bmp/item_win.tga`** (DAT_073d8748, 1024×1024 =
 For the new-game cap_05 the values are day=0→"Day 1" and money=1000 → matches
 retail exactly. Port: `src/scene1_top_hud.{c,h}` (2026-06-02).
 
+### Enable gate (when is the HUD shown) — FUN_0046c869 / DAT_073a3df0
+
+The HUD (the whole `FUN_0040a765` scene-HUD block) is NOT drawn during a
+full-screen-background cutscene.  In `FUN_004547ab`'s INGAME dispatch, when a
+dialogue is active (`DAT_0438b1c8 == 1`) the scene+HUD block runs only if
+`FUN_0046c869() == 0`, i.e. `DAT_073a3df0 == 0`.  `DAT_073a3df0` is the parsed
+**bg-layer count of the active dialogue script**: the opening **iv1_1** has a
+painted bg (`polybg:`) → non-zero → scene+HUD **suppressed** (only the dialogue
+draws); **iv1_2** plays as an overlay **over the live HOUSE map** (no bg → 0) →
+scene + HUD **drawn behind it**; free-roam (no dialogue) → drawn.  So the HUD
+appears from iv1_2 onward, NOT during the first cutscene (user-reported
+2026-06-02).  Port: `scene1_intro_dialogue_covers_screen()` (1 during
+D_SCRIPT1=iv1_1) gates the `scene1_hud_render` call in main.c's INGAME render.
+
 ---
 
 > 2026-06-02. The HOUSE/town free-roam screen has a persistent top-left HUD

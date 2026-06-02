@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 72,
   "stubbed": 17,
-  "ported": 327,
-  "unported": 2132,
+  "ported": 328,
+  "unported": 2131,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 416,
-  "pct_touched": 16.3,
+  "touched": 417,
+  "pct_touched": 16.4,
   "pct_verified": 2.8,
   "port_debt": 11
  },
@@ -5692,8 +5692,12 @@
    "size": 6,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/main.c",
+    "src/scene1_intro_dialogue.c",
+    "src/scene1_intro_dialogue.h"
+   ]
   },
   {
    "va": "0x46c86f",
