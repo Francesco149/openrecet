@@ -19,6 +19,7 @@
 #include "render_quad.h"   /* render_quad_* + <d3d8.h> (IDirect3DDevice8) */
 #include "sprite.h"        /* sprite_t, sprite_load, sprite_destroy        */
 #include "font_draw.h"     /* font_draw_text (glyph blit)                  */
+#include "sysassets.h"     /* g_sysassets.data_win_tga — the skip-tip atlas */
 #include "scene1_intro_dialogue.h"
 #include "scene1_dialogue_run.h"
 
@@ -352,6 +353,26 @@ static void draw_box_and_text(IDirect3DDevice8 *dev, const struct ive_runtime *r
     }
 }
 
+/* ─── "ESC Key Event Skip" tip (FUN_0046c9a2 lines 67831-67843, the draw tail) ─
+ * The very last quad of the draw: a fixed bottom strip from data_win.tga,
+ * gated on `DAT_073a3e18 > 1` (≥2 dialogue frames elapsed) AND
+ * `DAT_073a6db0 == 0` (the skip-disable flag, only ever 0 → always true). The
+ * texture is the boot-time system atlas g_sysassets.data_win_tga, so no
+ * per-script load is needed. src (288,384)-(488,416) → dst (440,440) 200×32. */
+static void draw_skip_tip(IDirect3DDevice8 *dev, const struct ive_runtime *rt)
+{
+    if (rt->scene.skip_prompt <= 1)
+        return;
+    sprite_t *tip = &g_sysassets.data_win_tga;
+    if (tip->tex == NULL)
+        return;
+    const float dst[4] = { 440.0f, 440.0f, 200.0f, 32.0f };
+    const float src[4] = { 288.0f, 384.0f, 488.0f, 416.0f };
+    render_quad_bind(dev, tip);
+    render_quad_add(dst, src, tip->width, tip->height, 0xffffffffu);
+    render_quad_flush(dev);
+}
+
 void scene1_dialogue_draw(IDirect3DDevice8 *dev)
 {
     const struct ive_runtime *rt = scene1_intro_dialogue_runtime();
@@ -367,8 +388,10 @@ void scene1_dialogue_draw(IDirect3DDevice8 *dev)
     draw_background(dev, rt, prog);
     draw_standees(dev, rt, prog);
     draw_box_and_text(dev, rt, prog);
+    draw_skip_tip(dev, rt);
 
-    /* Nameplate land next; fades/skip-prompt = Layer 4. */
+    /* Remaining Layer 4: rmb screen-shake RNG reads + the choice/menu fade
+     * overlay (DAT_073a6da4; no choices in the prologue). */
 }
 
 #endif /* _WIN32 */

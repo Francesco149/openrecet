@@ -559,3 +559,18 @@ scale 0.65·(`_DAT_0052912c`/100) with the default font-size global **76** =
 (scale 1.0) is reused verbatim. Text x = box `local_c` − 16; per-row y +=30 from
 `DAT_005c7980`+56. PORT-DEBT: the font-size (`_DAT_0052912c`) + text-speed
 (`DAT_056e5784`) settings aren't wired (assume defaults 76 / normal).
+
+**"ESC Key: Event Skip" tip** (the draw tail, 67831-67843; ported 2026-06-02 as
+`draw_skip_tip`) — the very last quad: a fixed bottom strip from the boot-time
+`data_win.tga` atlas (`DAT_073d8678`, src 288,384..488,416 → dst 440,440 200×32,
+colour 0xffffffff). Gated `DAT_073a3e18 > 1 ∧ DAT_073a6db0 == 0`. `DAT_073a3e18`
+is the free-running per-tick counter `FUN_0046c320` bumps at the top of every
+frame (reset by `FUN_0046c0ae`) — so the tip appears from the dialogue's 2nd
+frame onward. **`DAT_073a6db0` (the skip-disable flag) is only ever *written* 0**
+(reset in `FUN_0046c0ae`, no setter in the corpus) → the gate is effectively
+always true; the "skip disabled" branch is dead in this build. The port reuses
+`g_sysassets.data_win_tga` (already loaded), so no per-script asset load. Tip
+text pixel-matches retail (feed `cap_00` zoom). **User-verifiable: visible
+bottom-right of every prologue line.** Remaining Layer 4: the `rmb` screen-shake
+RNG reads (`DAT_073a6d98/9c`-gated; closes the foot-dust RNG-phase front) and the
+choice/menu fade overlay (`DAT_073a6da4`; no choices in the prologue).

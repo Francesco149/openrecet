@@ -321,6 +321,12 @@ void ive_runtime_step(struct ive_runtime *rt, uint16_t held)
     if (!rt->active || rt->complete)
         return;
 
+    /* DAT_073a3e18++ — the free-running per-tick counter FUN_0046c320 bumps at
+     * the top of every frame (before the reveal/wait logic). Gates the
+     * "ESC Key Event Skip" prompt, drawn once it exceeds 1 — see
+     * scene1_dialogue_draw's draw_skip_tip. */
+    rt->scene.skip_prompt++;
+
     /* Internal step count (DAT_005c78ec): held 0x20 → 2, held 0x40 → 0x50
      * (the prologue scene permits fast-forward, local_104 ≡ 1), else 1. */
     int steps = 1;

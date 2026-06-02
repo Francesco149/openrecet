@@ -7,6 +7,28 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-02 — Opening-prologue dialogue Layer 4a: the "ESC Key: Event Skip" tip
+
+Ported the draw tail of `FUN_0046c9a2` (lines 67831-67843) — the fixed
+bottom-right "ESC Key: Event Skip" tip — as `draw_skip_tip` in
+`scene1_dialogue_draw.c`. It's a sub-rect of the boot-time `data_win.tga` atlas
+(`DAT_073d8678`, already loaded as `g_sysassets.data_win_tga`): src
+288,384..488,416 → dst 440,440 200×32. Gated `DAT_073a3e18 > 1 ∧
+DAT_073a6db0 == 0`; the second flag is dead (only ever written 0 — no setter in
+the corpus). Wired the gate by incrementing the runtime's `skip_prompt`
+(`DAT_073a3e18`, the free-running per-tick counter `FUN_0046c320` bumps at the
+top of each frame) once per `ive_runtime_step`.
+
+**Verified** vs the retail goldens (feed montage `Layer 4a — ESC-skip tip`): the
+tip text pixel-matches retail in the `cap_00` zoom and renders correctly over
+both iv1_1 (bedroom) and iv1_2 (live-HOUSE) lines; the diff is clean in the tip
+region (residual white = pre-existing benign — teapot filtering, FPS overlay,
+iv1_2 standee tween phase). Build green, host suite 3082 pass. RE writeup:
+`findings/opening-prologue.md` §"ESC Key: Event Skip tip". Remaining Layer 4: the
+`rmb` screen-shake RNG reads (`DAT_073a6d98/9c`; closes the foot-dust RNG-phase
+front in `scene1-rng-stream-parity.md`) and the choice/menu fade overlay
+(`DAT_073a6da4`; no choices in the prologue).
+
 ## 2026-06-02 — Opening-prologue dialogue RENDER ported (FUN_0046c9a2), user-verified 1:1
 
 The deferred visual side of the prologue dialogue now renders — `FUN_0046c9a2`
