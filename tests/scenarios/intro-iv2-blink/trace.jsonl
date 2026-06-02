@@ -3056,10 +3056,11 @@
 {"frame": 2998, "buttons": "0x0010"}
 {"frame": 2999, "buttons": "0x0000"}
 {"wait": "HOUSE_FREEROAM"}
-# iv1_2 loaded (post-fade) at HF#2; now wait the next CONV_POSE_BLINK (eyes close,
-# cell 39) — a clean post-load sync point on BOTH targets regardless of the §85
-# load-offset, since the blink recurs every cycle. Capture +0..+30 (eyes-closed
-# window is 6 ticks; then the d32 open hold) so both montages open ON the blink.
+# iv1_2 loaded (post-fade) at HF#2; wait the next CONV_POSE_BLINK (anim-6 frame 1,
+# a UNIQUE once-per-cycle eyes-closed marker) so port + retail land on the SAME
+# blink. Capture +0..+44: shows the frame-1 blink (closed +0..+6), the d32 open
+# hold, and the frame-3 blink (+38). Cadence is provably identical (blink intervals
+# 38,26 on both); this just aligns the capture phase. engine-quirks §86.
 {"wait": "CONV_POSE_BLINK"}
 {"capture": 0}
 {"capture": 2}
@@ -3077,3 +3078,10 @@
 {"capture": 26}
 {"capture": 28}
 {"capture": 30}
+{"capture": 32}
+{"capture": 34}
+{"capture": 36}
+{"capture": 38}
+{"capture": 40}
+{"capture": 42}
+{"capture": 44}

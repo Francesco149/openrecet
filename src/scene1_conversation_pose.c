@@ -86,9 +86,13 @@ int scene1_conversation_pose_player_blink(void)
     const int32_t *rec = player_ctrl_actor_record(0);
     if (!rec || rec[CHR_ACTOR_STATE] != CONV_POSE_PLAYER_ANIM)
         return 0;
-    /* Recette anim 6 frame loop = cells [38,39,38,39] (durations 20/6/32/6), so
-     * an ODD frame index is cell 39 — eyes closed, i.e. mid-blink. */
-    return (rec[CHR_ACTOR_FRAME] & 1) ? 1 : 0;
+    /* Recette anim 6 frame loop = cells [38(d20),39(d6),38(d32),39(d6)]: BOTH
+     * frame 1 and frame 3 are cell 39 (eyes closed), but they sit at different
+     * cycle phases (the next blink is +38 after frame 1, +26 after frame 3). To
+     * give CONV_POSE_BLINK a UNIQUE once-per-cycle sync point — so port + retail
+     * captures land on the SAME blink instead of whichever eyes-closed frame
+     * came first post-load — anchor on frame 1 only (the d20-preceded blink). */
+    return rec[CHR_ACTOR_FRAME] == 1 ? 1 : 0;
 }
 
 void scene1_conversation_pose_tick(void)

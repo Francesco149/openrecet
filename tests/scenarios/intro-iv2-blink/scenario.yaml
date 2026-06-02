@@ -11,12 +11,13 @@
 #   python3 tools/scenario-test.py intro-iv2-blink --target both \
 #     --frida-remote cutestation.soy:27042
 description: |
-  iv1_2 conversation pose synced at the next CONV_POSE_BLINK after the iv1_2
-  load (HF#2) — both montages open ON Recette's eyes-closed blink, zoomed onto
-  her freeroam sprite. Post-load, so clear of retail's load fade.
+  iv1_2 conversation pose synced at the anim-6 frame-1 blink (CONV_POSE_BLINK, a
+  unique once-per-cycle eyes-closed marker) after the iv1_2 load (HF#2) — both
+  montages land on the SAME blink, zoomed onto Recette's freeroam sprite. Spans
+  +0..+44 (the frame-1 blink, the d32 open hold, the frame-3 blink at +38).
 max_frames: 24000
 duration_ceiling_ms: 240000
-n_captures: 16
+n_captures: 23
 zoom_text:
   x: 520
   y: 578

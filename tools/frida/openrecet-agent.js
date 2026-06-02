@@ -201,9 +201,12 @@ const ADDR = {
     // CHR_ACTOR_STATE, scene1_conversation_pose_player_state()).
     var_player_state:      0x056daafc, // i32 — actor 0 state (6 = conversation)
     var_player_frame:      0x056daaf8, // i32 — actor 0 anim frame idx. Anim 6's
-                                       // loop is cells [38,39,38,39] → odd frame
-                                       // = cell 39 (eyes closed). Drives
-                                       // CONV_POSE_BLINK (post-load sync point).
+                                       // loop is cells [38(d20),39(d6),38(d32),
+                                       // 39(d6)]; frame 1 = the d20-preceded
+                                       // eyes-closed/cell-39 blink — a UNIQUE
+                                       // once-per-cycle CONV_POSE_BLINK sync
+                                       // (frame 3 is also cell 39 but a different
+                                       // cycle phase: next blink +26 vs +38).
 
     var_bgm_slider:      0x056e5778,  // u32 — BGM volume slider 0..9
     var_bgm_audiopath:   0x09643108,  // IDirectMusicAudioPath * (COM ptr)
@@ -2121,7 +2124,7 @@ function anchorTick(frame, devicePtr) {
     // posed, an odd anim-6 frame (DAT_056daaf8) is cell 39 = eyes closed (blink).
     const convState = rva(ADDR.var_player_state).readS32();
     const convBlink = (convState === 6) &&
-                      ((rva(ADDR.var_player_frame).readS32() & 1) !== 0);
+                      (rva(ADDR.var_player_frame).readS32() === 1);
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;

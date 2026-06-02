@@ -195,12 +195,21 @@ port's synthetic inter-script load *duration* (68 frames vs retail's 59), which
 is not byte-reproducible. So the durable methodology is to anchor blink captures
 to the pose's own cycle. Anchoring to `CONV_POSE_START` (the pose-entry reset)
 turned out to land in retail's load fade and only catch the eyes-open hold, so
-`intro-iv2-blink` instead anchors to **`CONV_POSE_BLINK`** (eyes-closed =
-state 6 AND an odd anim-6 frame = cell 39) after `HOUSE_FREEROAM` (iv1_2 load
-done): the blink recurs every cycle, so it resolves post-fade on BOTH targets
-(port frames 3619.., retail 4448.. = the first post-HF#2 blink) and both
-montages open ON the eyes-closed frame — proving the blink anim itself is 1:1
-regardless of the load offset.
+`intro-iv2-blink` instead anchors to **`CONV_POSE_BLINK`** after `HOUSE_FREEROAM`
+(iv1_2 load done), post-fade.
+
+**The blink anim is 1:1 (user-confirmed).** Anim 6 = `38(d20) 39(d6) 38(d32)
+39(d6)` (verified against the real `recette.idx`), so per 64-tick cycle there
+are TWO eyes-closed (cell 39) frames — frame 1 (next blink +38) and frame 3
+(next blink +26). The CONV_POSE_BLINK anchor logs the SAME interval pattern on
+both targets — port `[38,26,38,26]`, retail `[38,26,38,26]` — so the advance
+logic is identical, NOT off. A first montage *looked* mismatched only because an
+"any eyes-closed" anchor caught a frame-1 blink on the port but a frame-3 blink
+on retail (port's next blink at +38, off-window; retail's at +26 = cap_13). Fixed
+by firing CONV_POSE_BLINK on **frame 1 only** — a unique once-per-cycle marker
+(both sides now fire it exactly 64 frames apart) so port + retail land on the
+SAME blink. The aligned `intro-iv2-blink` montage (`+0..+44`) is user-confirmed
+to match in every frame, proving the blink is 1:1 regardless of the §85 offset.
 
 **Open fix (toward absolute parity), in priority order:** (a) hold the pose
 across the whole intro (trigger on `intro_dialogue_active`, not `generation>=2`)

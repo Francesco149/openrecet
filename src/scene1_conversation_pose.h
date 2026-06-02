@@ -84,9 +84,11 @@ int  scene1_conversation_pose_active(void);
  * Feeds anchor_world.conv_pose_state → the CONV_POSE_START/END anchors. */
 int scene1_conversation_pose_player_state(void);
 
-/* 1 when Recette is mid-blink (eyes closed) during the conversation pose: state
- * 6 AND an odd anim-6 frame index (cell 39). Feeds anchor_world.conv_pose_blink
- * → the CONV_POSE_BLINK anchor (a clean post-load sync point; engine-quirks §86). */
+/* 1 on the anim-6 frame-1 blink (the d20-preceded eyes-closed/cell-39 frame)
+ * during the conversation pose. A UNIQUE once-per-cycle marker (frames 1 and 3
+ * are both cell 39 but at different cycle phases — see the .c). Feeds
+ * anchor_world.conv_pose_blink → CONV_POSE_BLINK, a clean post-load sync point
+ * that lands on the SAME blink on port + retail (engine-quirks §86). */
 int scene1_conversation_pose_player_blink(void);
 
 /* Return to dormant (scene change / new game). */
