@@ -7,6 +7,43 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-02 (PM) — Audio: dialogue voice lines, music-past-the-title, main-menu SEs
+
+Wired the three audio gaps in the ported slice (title → new game → prologue →
+HOUSE). Backend was already built (engine-quirks §87, `findings/audio-backend.md`);
+this is the trigger/selector wiring. Audibility pending the user's listen-check
+(scenario runs default `--silent-audio`); all paths verified to load + play
+without errors.
+
+- **Voice lines during dialogue** (`audio_play_se_file` = port of `FUN_0049933c`).
+  The `.ivt` `se:<bin>` command (was the interpreter's no-op default) now plays
+  the named loose RIFF/WAVE clip via a single-slot DirectMusic `LoadObjectFromFile`
+  → `PlaySegmentEx(QUEUE)` on **SE path B** (the filename path, distinct from the
+  resource SE table on path A — §87 corrects the "path B is dead" note). Reached
+  from the pure-C interpreter via a new `g_ive_se_play_fn` bridge (mirrors
+  `g_music_swap_fn`). Verified: the `intro-dialogue-lines` port run loads + plays
+  all 12 opening voice/SE clips (`tea_mataku` ×2, `re_fue`, `piko`, …), 0 failures.
+- **Music changes past the title** (`music_stage_track` + live `music_step_default`).
+  `music_step_default` had `scene_state` pinned to 0, so the port played the title
+  BGM forever. It now feeds the live `g_scene_state` + HOUSE stage inputs to the
+  selector, which returns the per-stage track (HOUSE type 0 → close 9 / open 8 /
+  fever 18). The swap is gated on `worker_load_busy() ||
+  scene1_intro_dialogue_in_progress()` (a new gapless NEW_GAME→D_DONE bracket) so
+  the title theme holds through the whole prologue, then the close theme
+  (`bgm/close.wav`) lands at free-roam. Retail ground truth: `runs/bgm-probe`
+  (track 0 holds frames 72–11983, → 9 at 11984). Port: 0→9 at the frame after
+  `CONV_POSE_END` (prologue end); absolute frame differs only by the synthetic-load
+  timing (PORT-DEBT §85).
+- **Main-menu SEs** (`scene_title.c`): the title cursor-move (0x146) + select
+  (0x143) SEs were stubbed — now wired on held-move / A-press (same pattern as the
+  already-shipping settings submenu; user-confirmed the retail cursor auto-repeats
+  while held). Confirm SE verified firing on the new-game A-press. The held
+  auto-repeat *rate* (shared with the settings menu) is a noted input-fidelity
+  follow-up.
+
++8 host tests (3125 pass). Commits: filename-SE loader + dialogue `se:`; music
+selector wiring; main-menu SEs; ground-truth + landed docs.
+
 ## 2026-06-02 (PM) — Opening-prologue animation layer: tween, char-reveal, per-script skip, choice-box render, FX/line anchors
 
 Closed the user-reported faithfulness gaps in the opening prologue. Mechanics in
