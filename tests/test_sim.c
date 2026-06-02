@@ -56,55 +56,46 @@ int test_sim_button_ring_held_clears_pressed_next_frame(void)
 
 int test_sim_button_ring_repeat_pulses_after_settle(void)
 {
-    /* Drive the ring with a held A for many frames. Track which frames
-     * surface the bit in `held`. The engine clamps the repeat counter
-     * to 4 when it hits 0 (via a `< 1 → 4` reload that runs BEFORE the
-     * decrement and is mutually exclusive with it). Net effect: the
-     * bit re-fires on the frame that hits rep=0, AND on the next frame
-     * (the reload-to-4 path skips the gate), then 3 frames of gating
-     * before the next 2-frame fire window. */
+    /* Drive the ring with a held A for many frames and track which frames
+     * surface the bit in `held` (the auto-repeat pulse). Engine FUN_004536cb
+     * (50386-50402) per held-unchanged frame: `if (counter < 1) counter = 4;
+     * else { counter--; clear bit; }`. So the bit fires ONCE on press, then
+     * the counter (armed to 0xc) decrements with the bit gated every frame,
+     * and the *only* re-fire is the frame it enters at 0 (reload-to-4, no
+     * gate). Net cadence: press, then +13, then every +5 — single pulses,
+     * matching the retail measurement (runs/title-repeat: moves at hold-frame
+     * 0, 13, 18, 23). See engine-quirks §89. */
     uint16_t prev = 0;
     int16_t  rep[16] = {0};
     uint16_t pressed = 0, held = 0;
 
-    /* Frame 1: rising edge → fire. */
+    /* Frame 1: rising edge → fire, counter armed to 0xc. */
     sim_button_ring_update(0x0010, &prev, rep, &pressed, &held);
     T_ASSERT_EQ_U(held, 0x10u);
     T_ASSERT_EQ_I(rep[4], 0x0c);
 
-    /* Frames 2..12 (11 frames): counter decrements 12→11→...→2.
-     * After each, the new value is > 0 so the bit is gated out. */
-    for (int i = 0; i < 11; i++) {
+    /* Frames 2..13 (12 frames): counter decrements 12→11→…→0, the bit gated
+     * out every frame (unconditional clear). */
+    for (int i = 0; i < 12; i++) {
         sim_button_ring_update(0x0010, &prev, rep, &pressed, &held);
         T_ASSERT_EQ_U(held, 0x00u);
     }
-    T_ASSERT_EQ_I(rep[4], 1);
-
-    /* Frame 13: counter goes 1→0 — the `else` decrement leaves rep=0
-     * and the `0 > 0` check fails so the bit is *not* gated. Fire. */
-    sim_button_ring_update(0x0010, &prev, rep, &pressed, &held);
-    T_ASSERT_EQ_U(held,   0x10u);
     T_ASSERT_EQ_I(rep[4], 0);
 
-    /* Frame 14: counter is 0 entering → hits the `< 1` reload path
-     * which sets rep=4 WITHOUT decrementing, so the gate branch never
-     * runs. Bit fires again. (Engine quirk.) */
+    /* Frame 14: counter is 0 entering → reload to 4 WITHOUT gating. Fire.
+     * (= 13 frames after the press pulse — the initial repeat delay.) */
     sim_button_ring_update(0x0010, &prev, rep, &pressed, &held);
     T_ASSERT_EQ_U(held,   0x10u);
     T_ASSERT_EQ_I(rep[4], 4);
 
-    /* Frames 15..17: counter 4→3→2→1 — bit gated each frame. */
-    for (int i = 0; i < 3; i++) {
+    /* Frames 15..18 (4 frames): counter 4→0, bit gated each frame. */
+    for (int i = 0; i < 4; i++) {
         sim_button_ring_update(0x0010, &prev, rep, &pressed, &held);
         T_ASSERT_EQ_U(held, 0x00u);
     }
-    T_ASSERT_EQ_I(rep[4], 1);
+    T_ASSERT_EQ_I(rep[4], 0);
 
-    /* Frame 18: counter 1→0 — fire. */
-    sim_button_ring_update(0x0010, &prev, rep, &pressed, &held);
-    T_ASSERT_EQ_U(held, 0x10u);
-
-    /* Frame 19: 0 → reload to 4 without gating — fire again. */
+    /* Frame 19: counter 0 → reload to 4, fire again (every +5 from here). */
     sim_button_ring_update(0x0010, &prev, rep, &pressed, &held);
     T_ASSERT_EQ_U(held,   0x10u);
     T_ASSERT_EQ_I(rep[4], 4);

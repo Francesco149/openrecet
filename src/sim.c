@@ -96,12 +96,21 @@ void sim_button_ring_update(uint16_t cur,
                 repeat[i] = 0xc;
             }
             if (repeat[i] < 1) {
+                /* Counter reached 0: reload to 4 and let the bit through
+                 * (the auto-repeat pulse). Mutually exclusive with the
+                 * decrement-and-gate branch below — engine FUN_004536cb
+                 * `if (counter < 1) counter = 4; else { counter--; clear; }`. */
                 repeat[i] = 4;
             } else {
+                /* Counter still settling: decrement and gate the bit out of
+                 * `held` UNCONDITIONALLY. The engine clears the repeat bit on
+                 * every frame it takes this branch (50394-50396), including
+                 * the 1→0 frame. (The old port gated only while the post-
+                 * decrement value was >0, which let the bit through one frame
+                 * early AND again on the next reload frame — a double-pulse
+                 * that made the cursor repeat ~2× too fast vs retail. §89.) */
                 repeat[i] = (int16_t)(repeat[i] - 1);
-                if (repeat[i] > 0) {
-                    held = (uint16_t)(held & ~bit);
-                }
+                held = (uint16_t)(held & ~bit);
             }
         }
     }

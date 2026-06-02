@@ -41,10 +41,11 @@
  *   prev    (DAT_073dddd2):  the previous frame's `cur`, latched at the
  *                            tail of sim_a's ring update
  *   pressed (DAT_073dddd4):  ~prev & cur — bits that rose this frame
- *   held    (DAT_073dddd6):  cur ANDed with a key-repeat gate (a bit
- *                            held continuously appears in `held` only
- *                            every 4 frames after the initial 12-frame
- *                            settle window). See `sim_button_ring_update`.
+ *   held    (DAT_073dddd6):  cur ANDed with a key-repeat gate — a bit held
+ *                            continuously surfaces on the press frame, then
+ *                            once 13 frames later, then every 5 frames
+ *                            (the auto-repeat the title/settings menus read
+ *                            for cursor movement). See `sim_button_ring_update`.
  *   repeat  (DAT_073dddda):  one short per bit, [0..16). The values run
  *                            in the engine's `*= -1`-as-signed-clamp
  *                            pattern (see decompile for details).
@@ -79,9 +80,12 @@ extern uint32_t g_sim_frame_count;
  *     repeat counter latches to 0xc (12).
  *   - unchanged (bit's value same as prev):
  *       counter > 0xc → clamp to 0xc
- *       counter < 1   → reset to 4 (the auto-repeat reload value)
- *       else          → decrement; while counter > 0 the bit is
- *                       cleared from the `held` mask.
+ *       counter < 1   → reset to 4 (the auto-repeat reload value); the bit
+ *                       passes through `held` this frame (the repeat pulse)
+ *       else          → decrement AND clear the bit from `held`
+ *                       (UNCONDITIONALLY — engine 50394-50396). The two
+ *                       branches are mutually exclusive, so the bit fires
+ *                       only on the reload frame: press, +13, then every +5.
  *   - falling edge (bit clear in cur, set in prev): counter latches
  *     to 0xc.  `held` already reflects cur (=0) so no extra masking.
  *

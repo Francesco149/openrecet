@@ -3483,20 +3483,43 @@ Lesson: when a decompile shows a bare hex flag, resolve it against the SDK heade
 values, don't name it from memory — 0x80/0x100/0x200 (SECONDARY/QUEUE/CONTROL)
 are easy to transpose.
 
-## 89. Menu cursor auto-repeat cadence: move on press, 13-frame delay, then every 5
+## 89. Input auto-repeat lives in the button ring (FUN_004536cb), and its repeat-bit clear is UNCONDITIONAL — the cursor cadence is press, +13, then +5
 
-The title/settings menu cursor reads the directional **pressed-edge** mask
-(`DAT_073dddd6 & 4/8`), and that edge **auto-repeats** while a direction is held.
-Measured on retail (`runs/title-repeat`: boot, hold DOWN on the title menu, watch
-the cursor global `DAT_09643540`): the cursor moves at hold-frames **0, 13, 18,
-23, 28, …** — i.e. one move on press, a **13-frame delay**, then one every **5
-frames**. (Digital D-pad/keyboard input, not analog — the segtrace drives the
-button mask directly. The analog-stick debounce `DAT_0438c14c = 0x1e` is a
-separate path.)
+The menu cursor's auto-repeat is NOT a menu feature — it's baked into the
+per-frame input button ring `FUN_004536cb` (50380-50404), which derives two edge
+masks per player from the held mask + a 16-entry per-bit counter array (record
+stride 0x2a: held@0, prev@2, **pressed**@4 = `~prev & held`, **held/repeat**@6 =
+`held` minus the gated bits, then 16 counters @8):
 
-The port originally read `held` and moved every frame (60 Hz), which also beeped
-the cursor SE 60×/s. Ported the throttle as `scene_title_dir_fires()` (constants
-`TITLE_REPEAT_DELAY=13`, `TITLE_REPEAT_INTERVAL=5`) + a per-frame
-`scene_title_repeat_clear()` that drops the latch on release so a re-press fires
-immediately. Applies to the main-menu UP/DOWN and the settings UP/DOWN +
-LEFT/RIGHT sliders; the SE fires only on actual moves.
+```
+edge   = ~prev & held;            // DAT_073dddd4 — pure rising edge; A reads this
+repeat = held;                    // DAT_073dddd6 — gated below; directions read this
+for each of 16 bits:
+  if (held^prev bit changed)  counter = 0xc;                 // press/release: arm to 12
+  else if (counter < 1)       counter = 4;                   // reload → bit passes (pulse)
+  else                      { counter--; repeat &= ~bit; }   // settling → gate the bit OUT
+prev = held;
+```
+
+The two `else` branches are mutually exclusive, and the gate clear in the second
+is **unconditional** — every frame the counter is `>= 1` it both decrements AND
+clears the bit. So a held direction surfaces in `repeat` (DAT_073dddd6) on the
+press frame (counter armed to 0xc, bit not yet gated), then the counter counts
+`0xc → 0` over the next 12 frames with the bit gated, and the *only* re-pulse is
+the frame it enters at 0 (reload-to-4, no gate). Net cadence: **press, +13, then
+every +5** — single pulses. Confirmed by retail measurement (`runs/title-repeat`:
+hold DOWN on the title menu, watch cursor `DAT_09643540` → moves at hold-frames
+0, 13, 18, 23). The title/settings menus read `DAT_073dddd6` for UP/DOWN/LEFT/
+RIGHT (so they inherit the repeat) and `DAT_073dddd4` for A (pure edge → no
+repeat, one select per press).
+
+**Port bug (fixed 2026-06-02).** `sim_button_ring_update` (the port of this ring)
+had the gate clear as `counter--; if (counter > 0) clear;` — gating only while the
+*post-decrement* value stayed positive. That let the bit through on the `1 → 0`
+frame AND again on the next reload frame: a **double pulse** that repeated the
+cursor ~2× too fast vs retail (the user's "the repeat rate is slower in retail").
+The engine clears unconditionally; fixed to match. (A first, localized attempt —
+a `scene_title_dir_fires` throttle in the menu — was wrong: the menu already reads
+the repeat-gated `DAT_073dddd6`, so throttling there double-counted. Reverted in
+favour of the one-line ring fix, which corrects every consumer at once.)
+(Analog-stick → digital is a separate debounce path, `DAT_0438c14c = 0x1e`.)
