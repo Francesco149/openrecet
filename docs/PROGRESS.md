@@ -7,6 +7,40 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-02 — Opening-prologue dialogue RENDER ported (FUN_0046c9a2), user-verified 1:1
+
+The deferred visual side of the prologue dialogue now renders — `FUN_0046c9a2`
+ported as `src/scene1_dialogue_draw.c`, hooked into main.c's INGAME render after
+the 3D scene. Built in verifiable layers (plan
+`~/.claude/plans/vectorized-scribbling-backus.md`); each landed as its own commit
+gated on a feed-pushed port-vs-retail pixel diff:
+
+- **L0 scaffold** (50cafa4): `scene1_dialogue_draw` stub + render hook;
+  `render_quad_add_mirrored` (FUN_00404e61); `struct ive_standee[200]` +
+  `ive_scene_state_reset` (FUN_0046c0ae) on the runtime; state borrow.
+- **L1 background** (99160b4): FUN_0046bf38 bg load + bgset/bgscroll; the painted
+  2D bg (iv1_1 bedroom; iv1_2 = live 3D HOUSE). Bedroom matches retail 1:1.
+- **L2 standees** (213c12b): chr:N:* settled-state handlers + the standee draw
+  loop. Tear/Recette match retail position/pose/mirror. Fixed two latent parser
+  bugs: chr:disp emitted a2=0 (→1, the active flag); chrname kept the trailing
+  " W,H" (→ truncate at space, else sprite_load fails).
+- **L3 box+nameplate+text** (2d69c16/9de8fac/d8dcd4e): FUN_0046c86f box wobble +
+  the 4 box-position modes (prologue = mode 1) + windowpos/windowset; the speaker
+  nameplate (chrname.tga grid) + next-line arrow; the glyph reveal loop
+  (FUN_00405a52 truncation → reused font_draw_text, since the dialogue glyph
+  scale 0.65·0.76 equals font_draw_text's built-in with the default font-size 76).
+- **Fix** (85004c1): the mirrored (mode-1) box branch was missing
+  `render_quad_flush` → the box quad drew with the nameplate texture bound,
+  splattering the whole chrname name-sheet flipped over the scene. One-line fix.
+
+**User-verified 1:1** vs the retail goldens (cap_00/10/20) — bg, standees, box,
+nameplate, and dialogue text all match. RE writeup: `findings/opening-prologue.md`
+§"the DRAW pass". Remaining (Layer 4): the "ESC Key Event Skip" tip
+(`DAT_073d8678`), the next-line bubble/arrow, bg/choice fades, and the `rmb`
+screen-shake LCG reads — the last of which closes the foot-dust RNG-phase front
+(`findings/scene1-rng-stream-parity.md`). PORT-DEBT: animated chr tweens +
+font-size/text-speed settings deferred. Host suite 3082 green.
+
 ## 2026-06-01 — Inter-script load bracket ported; `scene1_intro_events` stub retired
 
 Closed gap #16 (the iv1_1→iv1_2 transition) structurally and retired the fake
