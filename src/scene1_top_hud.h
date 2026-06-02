@@ -1,0 +1,40 @@
+#ifndef SCENE1_TOP_HUD_H
+#define SCENE1_TOP_HUD_H
+
+#include <stdint.h>
+
+/*
+ * scene1_top_hud.{c,h} — the persistent HOUSE/town top-left HUD:
+ * the gold clock dial + rotating hand, the "Day N" badge, and the
+ * player's money ("1,000pix") on the gold vine banner.
+ *
+ * Port of FUN_00406d50 (0x406d50, 1445 B), called unconditionally from
+ * the HUD aggregator FUN_0040a765 (decomp L6980) and so drawn every
+ * INGAME HUD frame.  Uses bmp/item_win.tga (g_sysassets.item_win_tga,
+ * DAT_073d8748) for the frame, hand, digit glyphs, comma, and pix icon.
+ * Sub-helpers: the rotated clock hand is render_quad_draw_rotated_rect
+ * (FUN_00406241); the number rows are scene1_top_hud_draw_number
+ * (FUN_00406a60).  See docs/findings/house-top-hud.md.
+ *
+ * The displayed values come from the running game state, which is only
+ * partially modelled in the port yet, so they live behind setters that
+ * default to the new-game HOUSE values (day 1, 1000 pix, clock phase 0)
+ * — which is exactly what the house-walk-tables cap_05 shows.
+ */
+
+/* Game-state inputs (defaults match a fresh new-game HOUSE frame). */
+void scene1_top_hud_set_day(int day);          /* DAT_0450fb84[slot]; rendered as day+1 */
+void scene1_top_hud_set_money(int money);      /* DAT_0438b918 */
+void scene1_top_hud_set_clock_phase(float p);  /* DAT_0438b7d4 (time-of-day, 0..3.5) */
+
+int   scene1_top_hud_day(void);
+int   scene1_top_hud_money(void);
+float scene1_top_hud_clock_phase(void);
+
+#ifdef _WIN32
+struct IDirect3DDevice8;
+/* Render the persistent top HUD (FUN_00406d50). */
+void scene1_top_hud_render(struct IDirect3DDevice8 *dev);
+#endif
+
+#endif /* SCENE1_TOP_HUD_H */

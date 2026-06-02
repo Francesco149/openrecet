@@ -1,5 +1,41 @@
 # HOUSE persistent top HUD — clock dial + Day badge + money
 
+## ✅ SOLVED 2026-06-02 — it's `FUN_00406d50`, NOT the overlay system
+
+The "Where it almost certainly IS" guess below (the overlay particle system /
+`FUN_00414ee2` registrar) was **WRONG**. The persistent HUD is drawn by
+**`FUN_00406d50`** (0x406d50, 1445 B), called *unconditionally* from
+`FUN_0040a765` at decomp L6980 (so it runs every INGAME HUD frame; the
+surrounding shop/summary passes are the dormant ones the static survey
+mistook the whole aggregator for). Confirmed: `FUN_00406d50` fired 1× in the
+cap_05 retail call graph, and the font text drawers (`FUN_0047d14c`/`ca05`)
+did **not** — so "Day"/"1,000pix" are **sprite-glyph numbers**, not font text.
+
+All draws use **`bmp/item_win.tga`** (DAT_073d8748, 1024×1024 =
+`g_sysassets.item_win_tga`, already loaded):
+
+- **Frame** (gold clock ring + banner + Day-badge disc): `FUN_00404efc` with
+  src (480,0)-(768,128) → dst (0, `-128*letterbox`, 230.4, 102.4).
+- **Clock hand**: `FUN_00406241(41.6, 57.6, angle, dst{-12.8,-43.2,12.8,8}, src_uv{0.4541,0.1260,0.4834,0.1865}, white)` — a **rotated** 4-vert
+  triangle-strip (its own vbuf DAT_00605208, FVF 0x1c4, *normalized* UVs).
+  `angle = π/2 − (DAT_0438b7d4·π/3)` where DAT_0438b7d4 is the time-of-day
+  phase (advanced +0.005/frame in shop hours, 50646-50653).
+- **Day number**: `FUN_00406a60(x≈90, 60.8, day+1, icon=0, white, comma=0)` —
+  `day = DAT_0450fb84[slot] + 1`, capped 9999 (the "1" in the badge).
+- **Money**: `FUN_00406a60(244.8, 22.4, DAT_0438b918, icon=1, white, comma=1)`
+  — the "1,000pix": comma=1 inserts a thousands-comma sprite (src 752,144),
+  icon=1 draws the "pix" sprite (src 776,144-830,174).
+- `FUN_00406a60` digit `d` glyph: src (`d*24+512`, 144)-(`d*24+536`, 168),
+  drawn right→left, 12.8 px pitch. Number formatted `"%d"`.
+- A gated anim element (`DAT_00529704>0`, `FUN_0046c86f` scale/alpha) =
+  new-event notification icon; dormant in steady free-roam.
+- DUNGEON minimap block (gated `*DAT_068dd2f0 > 0`) — dormant in HOUSE.
+
+For the new-game cap_05 the values are day=0→"Day 1" and money=1000 → matches
+retail exactly. Port: `src/scene1_top_hud.{c,h}` (2026-06-02).
+
+---
+
 > 2026-06-02. The HOUSE/town free-roam screen has a persistent top-left HUD
 > (`house-walk-tables` cap_05 shows it cleanly): a **time-of-day clock wheel**
 > (colored sectors + a rotating hand, concentric ornate gold rings), a **"Day 1"

@@ -154,6 +154,19 @@ void render_quad_draw_rotated(IDirect3DDevice8 *dev,
                               float half_size, float rotation_rad,
                               const float uv[4], uint32_t diffuse);
 
+/* FUN_00406241 — rotated rectangular quad (the HOUSE top-HUD clock hand).
+ * Like render_quad_draw_rotated but takes an arbitrary destination rect
+ * (corners relative to the centre) instead of a square half_size:
+ *   dst[4] = (x0, y0, x1, y1) corners, 640-relative pixels (pre-rotation).
+ *   uv[4]  = (u0, v0, u1, v1) NORMALISED (0..1) texture coords.
+ * Emits a 4-vertex TRIANGLESTRIP, no g_offset (engine omits it).  Caller
+ * must flush any pending batch first; resets the vertex counter on exit. */
+void render_quad_draw_rotated_rect(IDirect3DDevice8 *dev,
+                                   float center_x, float center_y,
+                                   float angle_rad,
+                                   const float dst[4], const float uv[4],
+                                   uint32_t diffuse);
+
 #endif /* _WIN32 */
 
 #endif /* OPENRECET_RENDER_QUAD_H */

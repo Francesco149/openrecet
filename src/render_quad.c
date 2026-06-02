@@ -264,4 +264,46 @@ void render_quad_draw_rotated(IDirect3DDevice8 *dev,
     g_vcount = 0;
 }
 
+/* ─── rotated rectangle (FUN_00406241) ───────────────────────────────────
+ *
+ * Like render_quad_draw_rotated but takes an arbitrary destination
+ * rectangle (corners relative to the rotation centre) and *normalized*
+ * UVs (0..1), matching the engine's FUN_00406241 — used by the HOUSE top
+ * HUD clock hand.  Vertex order (TRIANGLESTRIP): (x0,y0),(x0,y1),(x1,y0),
+ * (x1,y1).  No g_offset is applied (the engine routine omits it).
+ */
+void render_quad_draw_rotated_rect(IDirect3DDevice8 *dev,
+                                   float center_x, float center_y,
+                                   float angle_rad,
+                                   const float dst[4], const float uv[4],
+                                   uint32_t diffuse)
+{
+    /* E.2 probe — FUN_00406241 @ 0x406241. */
+    CALL_TRACE_ENTER(0x406241u);
+
+    IDirect3DDevice8_SetVertexShader(dev, RENDER_QUAD_FVF);
+
+    const float s = sinf(angle_rad);   /* FUN_00503a44 */
+    const float c = cosf(angle_rad);   /* FUN_00503994 */
+    const float cx[4] = { dst[0], dst[0], dst[2], dst[2] };
+    const float cy[4] = { dst[1], dst[3], dst[1], dst[3] };
+
+    for (int k = 0; k < 4; k++) {
+        /* Engine asm: x = (cos*y - sin*x + cx) * screen_w / 640;
+         *             y = (cos*x + sin*y + cy) * screen_w / 640. */
+        g_vbuf[k].x = ((c * cy[k] - s * cx[k]) + center_x) * g_screen_w / 640.0f;
+        g_vbuf[k].y = ((c * cx[k] + s * cy[k]) + center_y) * g_screen_w / 640.0f;
+        g_vbuf[k].diffuse = diffuse;
+    }
+    g_vbuf[0].u = uv[0]; g_vbuf[0].v = uv[1];
+    g_vbuf[1].u = uv[0]; g_vbuf[1].v = uv[3];
+    g_vbuf[2].u = uv[2]; g_vbuf[2].v = uv[1];
+    g_vbuf[3].u = uv[2]; g_vbuf[3].v = uv[3];
+
+    IDirect3DDevice8_DrawPrimitiveUP(
+        dev, D3DPT_TRIANGLESTRIP, 2,
+        g_vbuf, sizeof(render_quad_vtx_t));
+    g_vcount = 0;
+}
+
 #endif /* _WIN32 */

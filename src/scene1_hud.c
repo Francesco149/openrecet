@@ -91,6 +91,7 @@ int scene1_hud_pass1_backdrop_active(int scene_mode, int stage_type, int pred)
 #include "sysassets.h"
 #include "scene.h"            /* g_scene_state (DAT_0438b1c0) */
 #include "scene1_maplight.h"  /* scene1_current_stage_record (DAT_068dd2f0) */
+#include "scene1_top_hud.h"   /* FUN_00406d50 — persistent clock/day/money HUD */
 #include "call_trace.h"
 
 /* FUN_0049065b — Pass-1 sub-init (deferred; see header comment). */
@@ -215,7 +216,15 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
 
     /* Passes 4-9 (item tooltip, HOUSE/DUNGEON sub-walkers, speech
      * bubbles, shop terminal, chr render, dialog/sub-menu panels,
-     * day-counter flash) land as later chips (C7k..C7p). */
+     * day-counter flash) land as later chips (C7k..C7p).  Most are
+     * dormant in free-roam (shop/event-state gated).
+     *
+     * The one persistent member is FUN_00406d50 (decomp L6980): the
+     * gold clock dial + rotating hand + "Day N" badge + money banner.
+     * It is drawn unconditionally by the aggregator (the dormant passes
+     * above it draw nothing), so we call it here at the equivalent
+     * point. */
+    scene1_top_hud_render(dev_in);
 }
 
 #endif /* _WIN32 */
