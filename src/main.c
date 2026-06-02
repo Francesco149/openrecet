@@ -2709,7 +2709,10 @@ static void render_dispatch(void)
      * normal play it honours dispfps.  (Retail's Frida agent forces
      * DAT_0438cce0=1 to match.) */
     {
-        int show_fps = g_capture_dir ? g_show_fps : (g_ini.dispfps == 0);
+        int show_fps;
+        if (g_show_fps)          show_fps = 1;                  /* --show-fps: always on */
+        else if (g_capture_dir)  show_fps = 0;                  /* captures: hidden by default */
+        else                     show_fps = (g_ini.dispfps == 0); /* play: honour dispfps (0=on) */
         if (show_fps) {
             scene1_fps_render(g_dev);
         }
