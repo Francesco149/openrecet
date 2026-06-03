@@ -147,6 +147,7 @@ struct input_segtrace {
     size_t   cur_entry;
     uint32_t base;       /* absolute frame of the current segment's frame 0 */
     uint32_t base_arm;   /* frame the current segment was entered (wait guard) */
+    char     base_anchor[24]; /* anchor name that entered the current segment */
     uint16_t sticky;     /* last applied mask (held between entries) */
 
     /* Anchor fire-frame map (latest-wins), fed by input_segtrace_on_anchor. */

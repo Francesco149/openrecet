@@ -578,6 +578,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         st->started = 1;
         st->cur_seg = 0; st->cur_entry = 0;
         st->base = 0; st->base_arm = 0;
+        st->base_anchor[0] = '\0';
         rearm_setrngs(st, 0);
         rearm_escs(st, 0);
         rearm_gframes(st, 0);
@@ -590,9 +591,19 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         struct seg_segment *s = &st->segs[st->cur_seg];
         if (s->has_wait) {
             uint32_t af;
-            if (anchor_fired_frame(st, s->wait, &af) && af > st->base_arm) {
+            /* A DIFFERENT next anchor may fire on the SAME frame the current
+             * segment was entered (recording-adjacent anchors compress to one
+             * frame on replay), so it resolves at af >= entry. The SAME anchor
+             * recurring (HOUSE_FREEROAM twice) must take the NEXT firing, so it
+             * requires af > entry. Without the per-name distinction a same-frame
+             * anchor cluster stalls the whole {wait} chain. Mirrors the JS agent. */
+            int same_name = (strcmp(s->wait, st->base_anchor) == 0);
+            if (anchor_fired_frame(st, s->wait, &af) &&
+                (same_name ? af > st->base_arm : af >= st->base_arm)) {
                 st->cur_seg++;
                 st->base = af; st->base_arm = af; st->cur_entry = 0;
+                strncpy(st->base_anchor, s->wait, sizeof st->base_anchor - 1);
+                st->base_anchor[sizeof st->base_anchor - 1] = '\0';
                 rearm_setrngs(st, st->cur_seg);
                 rearm_escs(st, st->cur_seg);
                 rearm_gframes(st, st->cur_seg);
