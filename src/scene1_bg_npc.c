@@ -332,10 +332,28 @@ void scene1_bg_npc_shadow_render(struct IDirect3DDevice8 *dev_in)
 /* ── bright character-sprite render (FUN_0046f737, 0x46f737, 347 B) ───────────
  * Per active NPC: world = billboard(DAT_0438cdf8) × Scale(0.03) × Translate(pos),
  * bind sheet DAT_073a9b18[char] (char = DAT_005c7ce0[type*2]), draw via the
- * shared chr-sprite leaf at colour 0xff7f7f7f.  The engine inherits its render
- * state from the surrounding shop-walker billboard pass; we set a self-contained
- * sprite envelope here (alpha-blend, ZWRITE off, POINT filter for the pixel-art
- * sheets) so the draw is correct regardless of caller order. */
+ * shared chr-sprite leaf at colour 0xff7f7f7f.  The engine sets NO render state
+ * in FUN_0046f737 / FUN_0045a56f — both inherit the surrounding shop-walker
+ * sprite envelope.  We set a self-contained envelope so the draw is correct
+ * regardless of the port's (deliberately divergent) pass state.
+ *
+ * Z-WRITE (2026-06-03, user-flagged "NPCs overlap in weird ways more than
+ * retail"): retail draws these sprites with ZWRITEENABLE=TRUE.  Ground truth =
+ * runs/walkdust-d3d frame 5495, the FUN_0045a56f leaf draws (ret_va 0x45aa31):
+ * the player (z≈+8.7), companion (z≈+9.3) and all five bg-NPCs (z≈−11..−15) draw
+ * at ZEN1 ZWR1 AREF0 GE SRCALPHA/INVSRCALPHA; only Tear's additive wing-glow
+ * (ONE/ONE) is ZWR0.  With ZWRITE off, our NPCs were painter-ordered (spawn idx)
+ * instead of depth-sorted → the weird overlaps.  We restore retail's ZWR1.
+ *
+ * Why this is SAFE here but NOT for the player sprite (which stays deferred —
+ * the b1acf7c regression): the bg-NPCs are FAR (z≈−11..−15, behind the window).
+ * Everything drawn AFTER the sprite pass (wing-glow + foot-dust, both z-tested)
+ * sits at the player's NEAR depth (z≈+9), so it passes the depth test over the
+ * NPCs' far Z-writes and is unaffected; the NPC + furniture shadows already drew
+ * BEFORE the sprites.  The near player/companion ZWR1 is the dangerous one — its
+ * Z lands at the same depth as the glow/dust drawn right after, and Tear's pose
+ * isn't yet 1:1, so it occludes her own glow (confirmed-parity-ledger.md).  We
+ * restore ZWRITE=FALSE at function exit so the trailing passes are untouched. */
 #define BG_NPC_SPRITE_SCALE 0.03f
 
 void scene1_bg_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
@@ -354,7 +372,7 @@ void scene1_bg_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAREF, 0);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, TRUE);  /* retail ZWR1 — far-depth, safe (see header) */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_NONE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_LIGHTING, FALSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_FOGENABLE, FALSE);
@@ -401,7 +419,9 @@ void scene1_bg_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
                                  (int)sheet->width, (int)sheet->height);
     }
 
-    /* restore LINEAR for trailing passes (mirrors sw_pass_light). */
+    /* restore ZWRITE off + LINEAR filter for trailing passes (the wing-glow +
+     * foot-dust + sw_pass_g draws are ZWR0; mirrors sw_pass_light's restore). */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
 }
