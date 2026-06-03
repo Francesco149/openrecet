@@ -5,6 +5,22 @@ walks** in HOUSE free-roam. Subtle — you must zoom her feet to see it (retail
 ref: feed `20260601T122354_6f81`, and `runs/walkdust/verify_4965.png`). The port
 floor was bare. Identified 2026-06-01.
 
+## Reproducible reference for the OCCLUSION bug (2026-06-03)
+
+The dust is rendering but **not occluded by Recette's body** (it draws over her
+feet/legs instead of behind). Canonical reproducible frame to debug against, from
+the anchor-segmented + RNG-pinned trace `dlg-skip-8604` (bit-exact across runs):
+
+- Feed trace `20260603T125428_c63b`, frame **f=828** (`frame_0186.png`), crop
+  **`box=600,449,635,486`** (1024×768) shows the dust NOT occluded.
+- Saved: `docs/findings/refs/dust-not-occluded_8604_f828.png`.
+- Reproduce: `distill_trace.py runs/recordings/dlg-skip-8604.raw.jsonl
+  --anchor-segments` → `export_trace.py --caprange 0,505`. See `docs/trace-workflow.md`.
+
+The uncommitted GREATER sprite Z-write in `src/scene1_shop_walker.c` is the
+candidate fix to verify against this frame. Occlusion is a DEPTH-relationship gap
+(dust emit Y vs body), not a Z-state bug — see the §2026-06-03 note below.
+
 ## What it is
 
 A **records-A particle, type 0xe**, emitted at the player's feet while grounded

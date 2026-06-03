@@ -821,8 +821,8 @@ Also removed the capture/comparison tools' Windows image-viewer auto-open
 
 Refactored the scenario harness off absolute-frame replay onto the
 **anchor-segmented** TAS primitives this branch built, added a HOUSE-movement
-scenario, and made the comparison gallery interactive
-(docs/plans/scenario-tas-refactor.md). Validated end-to-end **port + retail**:
+scenario, and made the comparison gallery interactive (planning doc since
+superseded — see docs/trace-workflow.md). Validated end-to-end **port + retail**:
 both sides capture 3/3 anchor-relative frames in actual HOUSE free-roam.
 
 - **Port double-`HOUSE_FREEROAM` stub** (`src/scene1_intro_events.c`) — retail's

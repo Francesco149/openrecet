@@ -5,7 +5,7 @@ plus per-frame + whole-trace metadata, ready to push to the llm-feed as a
 `trace` card (tools/../../llm-feed/feed.py trace --dir <run-dir>).
 
 This is the producer side of the frame-by-frame trace viewer
-(docs/plans/trace-viewer.md, Phase 3). It:
+(see docs/trace-workflow.md). It:
 
   1. Resolves a runnable segtrace from either a distilled `.trace.jsonl` or a
      RAW recording (openrecet-trace-*.raw.jsonl → distilled via distill_trace,
