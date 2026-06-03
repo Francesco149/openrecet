@@ -29,6 +29,14 @@
  *                        separate caprange callback that drives a lo/hi window
  *                        test in the host (NOT the bounded capture list), so a
  *                        single op can span hundreds of frames.
+ *   {"esc":N}            synthesise an ESC keypress at frame base+N (fires once,
+ *                        before that frame's sim) by routing to the engine's
+ *                        real esc_pressed() dispatch — so a recorded
+ *                        dialogue-skip (ESC arms the skip-event prompt) replays
+ *                        faithfully.  The live recorder drops ESC (it's a WndProc
+ *                        VK_ESCAPE, not in the button mask); this op is how it
+ *                        round-trips.  The retail Frida agent mirrors it by
+ *                        posting WM_KEYDOWN(VK_ESCAPE) at the same frame.
  *   {"rngseed":[F,V]}    force the global LCG state to V (a bare uint32) at the
  *                        instant frame base+F is reached — BEFORE that frame's
  *                        sim RNG consumers run (it fires in the per-frame tick,
@@ -90,6 +98,13 @@ struct seg_setrng {
     int      fired;   /* runtime: cleared on segment activation, set on fire */
 };
 
+/* One base-relative ESC synthesis: fire the engine's ESC dispatch when absolute
+ * frame base+frame is reached (fires once; see {esc} in the doc). */
+struct seg_esc {
+    uint32_t frame;   /* relative to the segment base */
+    int      fired;   /* runtime: cleared on segment activation, set on fire */
+};
+
 /* A maximal run of entries terminated by a `wait` (or the trace end). */
 struct seg_segment {
     struct seg_entry *entries;
@@ -102,6 +117,8 @@ struct seg_segment {
     size_t            n_capranges, cap_capranges;
     struct seg_setrng *setrngs;     /* base-relative LCG-state forces */
     size_t            n_setrngs, cap_setrngs;
+    struct seg_esc   *escs;         /* base-relative ESC synthesis points */
+    size_t            n_escs, cap_escs;
     char              wait[24];     /* terminating anchor name; "" if none */
     int               has_wait;
 };
@@ -140,6 +157,12 @@ struct input_segtrace {
      * host owns the lo/hi window state. */
     void (*cr_cb)(uint32_t lo, uint32_t hi, void *user);
     void  *cr_user;
+
+    /* ESC-synthesis callback (set once via input_segtrace_set_esc_cb); fired per
+     * {esc} op when its frame base+frame is reached (in-tick, before sim).  Kept
+     * a callback so this module stays free of the engine's WndProc/dispatch. */
+    void (*esc_cb)(void *user);
+    void  *esc_user;
 };
 
 /* Capture callback: invoked once per scheduled `{capture:N}` with the resolved
@@ -158,6 +181,10 @@ typedef void (*segtrace_rngseed_fn)(uint32_t value, void *user);
  * resolved half-open window [base+S, base+S+C) when its segment becomes active. */
 typedef void (*segtrace_caprange_fn)(uint32_t lo, uint32_t hi, void *user);
 
+/* ESC-synthesis callback: invoked once per `{esc:N}` op at frame base+N (before
+ * that frame's sim consumers). */
+typedef void (*segtrace_esc_fn)(void *user);
+
 /* Set the call-trace window callback (and its user ptr).  Resolved windows fire
  * through it as their segments become active, same timing as captures. */
 void input_segtrace_set_calltrace_cb(struct input_segtrace *st,
@@ -172,6 +199,11 @@ void input_segtrace_set_rngseed_cb(struct input_segtrace *st,
  * through it as their segments become active, same timing as captures. */
 void input_segtrace_set_caprange_cb(struct input_segtrace *st,
                                     segtrace_caprange_fn cb, void *user);
+
+/* Set the ESC-synthesis callback (and its user ptr).  Fires per {esc} op when
+ * its frame is reached during input_segtrace_tick. */
+void input_segtrace_set_esc_cb(struct input_segtrace *st,
+                               segtrace_esc_fn cb, void *user);
 
 /* True if the loaded trace declares ≥1 {calltrace} op (any segment).  Lets the
  * harness auto-enable call-tracing from the trace alone. */

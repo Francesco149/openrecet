@@ -725,7 +725,7 @@ let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows a
 //                    segment's anchor) — anchor-relative, no absolute frames
 function segtraceBuildSegments(ops) {
     const seg0 = () => ({entries: [], captures: [], calltraces: [], setrngs: [],
-                         wait: null, wait_until: null});
+                         escs: [], wait: null, wait_until: null});
     const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
         const op = ops[i];
@@ -757,6 +757,11 @@ function segtraceBuildSegments(ops) {
             segs[segs.length - 1].setrngs.push(
                 {frame: op.rngseed[0] | 0, value: op.rngseed[1] >>> 0,
                  fired: false});
+        } else if (op && op.esc !== undefined) {
+            // {esc:N} — synthesise an ESC keypress at the base-relative frame N,
+            // mirroring the port's {esc} op so a recorded dialogue-skip replays
+            // on retail too (arms the skip-event prompt / quits at title).
+            segs[segs.length - 1].escs.push({frame: op.esc | 0, fired: false});
         } else {
             segs[segs.length - 1].entries.push(
                 {frame: op.frame | 0, mask: (op.mask | 0) & 0xffff});
@@ -2047,6 +2052,19 @@ function segtraceWaitUntilHolds(w) {
 // (rebasing onto the fire-frame and abandoning any remaining entries — the
 // spam-until-anchor short-circuit); otherwise apply this segment's entries
 // whose absolute frame (base + frame) has arrived. The sticky mask holds.
+// Synthesise an ESC keypress on retail by calling the engine WndProc directly
+// with WM_KEYDOWN VK_ESCAPE (the same faithful path the skip-event probe uses:
+// runs the full WndProc ESC dispatch FUN_0047b2e7, NOT a bypass). Lazily builds
+// the NativeFunction. Shared by the {esc} segtrace op and the arm-skip probe.
+function synthesizeEscRetail() {
+    if (g_esc_post === null) {
+        g_esc_post = new NativeFunction(
+            rva(0x0047b2e7), 'int', ['pointer','uint','uint','pointer']);
+    }
+    const hwnd = rva(0x073dfc7c).readPointer();
+    g_esc_post(hwnd, 0x100, 0x1b, ptr(0));   // WndProc(WM_KEYDOWN, VK_ESCAPE)
+}
+
 function segtraceTick(fn) {
     for (;;) {
         const seg = g_segtrace_segments[g_segtrace_seg];
@@ -2097,6 +2115,18 @@ function segtraceTick(fn) {
                 sr.fired = true;
                 log('segtrace: forced rng seed = ' + (sr.value >>> 0) +
                     ' at frame ' + fn + ' (base+' + sr.frame + ')');
+            }
+        }
+        // ESC synthesis fires in the same pre-sim window (mirrors the port's
+        // fire_escs in input_segtrace_tick). Fires once per op.
+        for (let i = 0; i < seg.escs.length; i++) {
+            const e = seg.escs[i];
+            if (!e.fired && g_segtrace_base + e.frame <= fn) {
+                try { synthesizeEscRetail(); }
+                catch (ex) { err('segtrace-esc', ex.message); }
+                e.fired = true;
+                log('segtrace: synthesised ESC at frame ' + fn +
+                    ' (base+' + e.frame + ')');
             }
         }
         break;

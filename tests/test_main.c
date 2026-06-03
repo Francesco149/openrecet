@@ -429,6 +429,8 @@ struct test_case {
     X(segtrace_rngseed_rebases_on_anchor) \
     X(segtrace_rngseed_absent_never_fires) \
     X(segtrace_rngseed_rejects_scalar) \
+    X(segtrace_esc_fires_once_at_frame) \
+    X(segtrace_esc_rebases_on_anchor) \
     X(segtrace_rejects_unknown_key) \
     \
     X(anchor_first_tick_emits_only_boot) \

@@ -31,6 +31,7 @@ HOUSE_ANCHOR_OFFSET = 1565   # recording frame 0 → anchor+1565 (idle spam ends
 def load_raw(path):
     masks = {}   # frame -> "0xNNNN"
     caps = []
+    escs = []    # relative frames an ESC keypress was recorded (dialogue-skip)
     cts = []     # call-trace windows: [start, len] (F4 toggle pairs)
     rng_seed = None   # live LCG state snapshotted at record-start (header field)
     for ln in Path(path).read_text().splitlines():
@@ -46,12 +47,14 @@ def load_raw(path):
             masks[int(o["frame"])] = o["buttons"]
         elif "capture" in o:
             caps.append(int(o["capture"]))
+        elif "esc" in o:
+            escs.append(int(o["esc"]))
         elif "calltrace" in o:
             v = o["calltrace"]
             cts.append([int(v[0]), int(v[1])] if isinstance(v, list)
                        else [0, int(v)])
     if not masks:
-        return [], sorted(caps), cts, 0, rng_seed
+        return [], sorted(caps), sorted(escs), cts, 0, rng_seed
     n = max(masks) + 1
     # distil: emit a change-point whenever the mask differs from the previous
     series = [masks.get(i, "0x0000") for i in range(n)]
@@ -61,10 +64,10 @@ def load_raw(path):
         if m != prev:
             changes.append((i, m))
             prev = m
-    return changes, sorted(caps), cts, n, rng_seed
+    return changes, sorted(caps), sorted(escs), cts, n, rng_seed
 
 
-def emit_flat(changes, caps, cts, total, rng_seed=None):
+def emit_flat(changes, caps, escs, cts, total, rng_seed=None):
     out = []
     # Re-pin the LCG to the live state at record-start so the recording's
     # RNG-driven behaviour reproduces on playback (foot-dust jitter, NPC motion).
@@ -74,6 +77,8 @@ def emit_flat(changes, caps, cts, total, rng_seed=None):
         out.append(json.dumps({"frame": f, "buttons": m}))
     for c in caps:
         out.append(json.dumps({"capture": c}))
+    for e in escs:
+        out.append(json.dumps({"esc": e}))
     for start, length in cts:
         out.append(json.dumps({"calltrace": [start, length]}))
     # a trailing release so the trace doesn't end mid-hold
@@ -82,7 +87,7 @@ def emit_flat(changes, caps, cts, total, rng_seed=None):
     return "\n".join(out) + "\n"
 
 
-def emit_house_segtrace(changes, caps, cts, rng_seed=None):
+def emit_house_segtrace(changes, caps, escs, cts, rng_seed=None):
     """Prepend the proven new-game→HOUSE intro (segments 0+1 + the segment-2
     spam up to the 2nd HOUSE_FREEROAM + frame 1500), then the recording rebased
     to anchor+HOUSE_ANCHOR_OFFSET, then the recorded captures rebased."""
@@ -118,6 +123,10 @@ def emit_house_segtrace(changes, caps, cts, rng_seed=None):
         out.append(json.dumps({"frame": off + f, "buttons": m}))
     for c in caps:
         out.append(json.dumps({"capture": off + c}))
+    # ESC presses (dialogue-skip) rebase by the same offset so they fire at the
+    # same anchor-relative instant the recording captured them.
+    for e in escs:
+        out.append(json.dumps({"esc": off + e}))
     # call-trace windows are anchor-relative within the final segment, so the
     # start rebases by the same offset; the length is unchanged.
     for start, length in cts:
@@ -133,18 +142,19 @@ def main(argv=None):
                     help="wrap as a bootable new-game→HOUSE segtrace")
     args = ap.parse_args(argv)
 
-    changes, caps, cts, total, rng_seed = load_raw(args.raw)
+    changes, caps, escs, cts, total, rng_seed = load_raw(args.raw)
     if not changes:
         print("distill_trace: no input frames found in", args.raw, file=sys.stderr)
         return 1
-    text = (emit_house_segtrace(changes, caps, cts, rng_seed) if args.house_segtrace
-            else emit_flat(changes, caps, cts, total, rng_seed))
+    text = (emit_house_segtrace(changes, caps, escs, cts, rng_seed) if args.house_segtrace
+            else emit_flat(changes, caps, escs, cts, total, rng_seed))
     if args.out:
         Path(args.out).write_text(text)
         seedmsg = (f", rng_seed {rng_seed}" if rng_seed is not None
                    else ", no rng_seed (pre-rngseed recording)")
         print(f"distill_trace: {len(changes)} change-points, {len(caps)} capture(s), "
-              f"{len(cts)} call-trace window(s), {total} frames{seedmsg} → {args.out}",
+              f"{len(escs)} esc(s), {len(cts)} call-trace window(s), "
+              f"{total} frames{seedmsg} → {args.out}",
               file=sys.stderr)
     else:
         sys.stdout.write(text)

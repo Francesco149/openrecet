@@ -306,6 +306,56 @@ int test_segtrace_rngseed_rejects_scalar(void)
     return 0;
 }
 
+struct esc_log { int n; };
+static void esc_cb(void *user) { ((struct esc_log *)user)->n++; }
+
+int test_segtrace_esc_fires_once_at_frame(void)
+{
+    /* {esc:N} fires the callback exactly once when the absolute frame base+N is
+     * reached — not before, not again on later ticks. */
+    const char buf[] =
+        "{\"esc\":10}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.segs[0].n_escs, 1);
+    struct esc_log log = {0};
+    input_segtrace_set_esc_cb(&st, esc_cb, &log);
+    input_segtrace_tick(&st, 0, NULL, NULL);
+    input_segtrace_tick(&st, 9, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    input_segtrace_tick(&st, 10, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 1);
+    input_segtrace_tick(&st, 11, NULL, NULL);
+    input_segtrace_tick(&st, 50, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 1);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_esc_rebases_on_anchor(void)
+{
+    /* In a waited segment the {esc} frame is base-relative: it fires at the
+     * anchor-resolved base+frame. */
+    const char buf[] =
+        "{\"wait\":\"HOUSE_FREEROAM\"}\n"
+        "{\"esc\":30}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    struct esc_log log = {0};
+    input_segtrace_set_esc_cb(&st, esc_cb, &log);
+    input_segtrace_tick(&st, 0, NULL, NULL);
+    input_segtrace_on_anchor(&st, "HOUSE_FREEROAM", 1000);
+    input_segtrace_tick(&st, 1000, NULL, NULL);
+    input_segtrace_tick(&st, 1029, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    input_segtrace_tick(&st, 1030, NULL, NULL);   /* base+30 */
+    T_ASSERT_EQ_U(log.n, 1);
+    input_segtrace_free(&st);
+    return 0;
+}
+
 int test_segtrace_no_calltrace_reports_zero(void)
 {
     const char buf[] =

@@ -446,6 +446,8 @@ static uint32_t  g_trace_rec_count        = 0;
 static uint32_t  g_trace_rec_cap          = 0;
 static uint32_t  g_trace_rec_caps[256];
 static int       g_trace_rec_caps_count   = 0;
+static uint32_t  g_trace_rec_esc[256];        /* relative frames an ESC was pressed */
+static int       g_trace_rec_esc_count    = 0;
 static uint32_t  g_trace_rec_ct[256][2];      /* [start,len] call-trace windows (F4) */
 static int       g_trace_rec_ct_count     = 0;
 static int       g_trace_rec_ct_open       = -1; /* open-window start frame, or -1 */
@@ -462,6 +464,7 @@ static void trace_rec_start(void)
     }
     g_trace_rec_count       = 0;
     g_trace_rec_caps_count  = 0;
+    g_trace_rec_esc_count   = 0;
     g_trace_rec_ct_count    = 0;
     g_trace_rec_ct_open     = -1;
     g_trace_rec_start_frame = g_tick.frame_count;
@@ -505,6 +508,23 @@ static void trace_rec_add_capture(void)
         g_trace_rec_caps[g_trace_rec_caps_count++] = rel;
         printf("[trace-rec] capture point #%d at relative frame %u\n",
                g_trace_rec_caps_count, rel);
+        fflush(stdout);
+    }
+}
+
+/* Record an ESC keypress at the current relative frame (called from the WndProc
+ * VK_ESCAPE arm while recording).  ESC isn't in the button mask — it's a WndProc
+ * key that arms the skip-event prompt / quits — so without this a recorded
+ * dialogue-skip would replay with the dialogue NOT skipped.  trace_rec_stop
+ * emits these as {"esc":REL} rows; distill_trace.py rebases them onto the
+ * segtrace, and the {esc} op replays the real esc_pressed() dispatch. */
+static void trace_rec_add_esc(void)
+{
+    if (!g_trace_rec_active) return;
+    if (g_trace_rec_esc_count < (int)(sizeof g_trace_rec_esc / sizeof g_trace_rec_esc[0])) {
+        uint32_t rel = g_trace_rec_count;   /* relative frame of the NEXT recorded frame */
+        g_trace_rec_esc[g_trace_rec_esc_count++] = rel;
+        printf("[trace-rec] ESC recorded at relative frame %u\n", rel);
         fflush(stdout);
     }
 }
@@ -575,12 +595,16 @@ static void trace_rec_stop(void)
         fprintf(f, "{\"frame\":%u,\"buttons\":\"0x%04x\"}\n", i, g_trace_rec_masks[i]);
     for (int c = 0; c < g_trace_rec_caps_count; c++)
         fprintf(f, "{\"capture\":%u}\n", g_trace_rec_caps[c]);
+    for (int c = 0; c < g_trace_rec_esc_count; c++)
+        fprintf(f, "{\"esc\":%u}\n", g_trace_rec_esc[c]);
     for (int c = 0; c < g_trace_rec_ct_count; c++)
         fprintf(f, "{\"calltrace\":[%u,%u]}\n",
                 g_trace_rec_ct[c][0], g_trace_rec_ct[c][1]);
     fclose(f);
-    printf("[trace-rec] recording STOPPED: %u frames, %d capture(s), %d call-trace window(s)\n",
-           g_trace_rec_count, g_trace_rec_caps_count, g_trace_rec_ct_count);
+    printf("[trace-rec] recording STOPPED: %u frames, %d capture(s), %d esc(s), "
+           "%d call-trace window(s)\n",
+           g_trace_rec_count, g_trace_rec_caps_count, g_trace_rec_esc_count,
+           g_trace_rec_ct_count);
     printf("[trace-rec] wrote %s\n", path);
     printf("[trace-rec] distill: nix develop --command python3 tools/distill_trace.py %s\n", path);
     fflush(stdout);
@@ -746,6 +770,7 @@ static void  auto_z_spam_input_poll(void);
 static void  segtrace_ct_cb(uint32_t lo, uint32_t hi, void *user);
 static void  segtrace_rng_cb(uint32_t value, void *user);
 static void  segtrace_caprange_cb(uint32_t lo, uint32_t hi, void *user);
+static void  segtrace_esc_cb(void *user);
 static int   capture_frame_is_listed(uint32_t frame);
 
 /* Cross-process singleton lock. A second openrecet instance trying to
@@ -1553,6 +1578,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             /* {caprange:[S,C]} ops open a contiguous capture window for the
              * frame-by-frame trace export (export_trace.py). */
             input_segtrace_set_caprange_cb(&g_segtrace, segtrace_caprange_cb, NULL);
+            /* {esc:N} ops synthesise the engine ESC dispatch (dialogue-skip
+             * replay) — see segtrace_esc_cb. */
+            input_segtrace_set_esc_cb(&g_segtrace, segtrace_esc_cb, NULL);
             if (input_segtrace_has_calltrace(&g_segtrace) &&
                 !call_trace_is_open()) {
                 static char ctpath[256];
@@ -2037,7 +2065,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             /* Context-sensitive ESC routing (engine WndProc FUN_0047b2e7 ESC
              * arm). Only the title-screen / no-overlay case quits; in-game and
              * dialogue contexts swallow ESC (the skip-event prompt lands in a
-             * later phase). See src/esc_dispatch.c. */
+             * later phase). See src/esc_dispatch.c.  Log it FIRST so a recording
+             * keeps the keypress (ESC isn't in the button mask) — the {esc} op
+             * replays this exact dispatch. */
+            if (g_trace_rec_active) trace_rec_add_esc();
             if (esc_pressed() == ESC_RESULT_QUIT)
                 PostMessageA(hwnd, WM_CLOSE, 0, 0);
         } else if (wParam == VK_F2) {
@@ -3285,6 +3316,19 @@ static void segtrace_caprange_cb(uint32_t lo, uint32_t hi, void *user)
     }
     fprintf(stderr, "segtrace: capture range [%u, %u)\n",
             (unsigned)g_capture_range_lo, (unsigned)g_capture_range_hi);
+}
+
+/* ESC sink for input_segtrace `{esc:N}` ops: route to the engine's real ESC
+ * dispatch, identical to a live VK_ESCAPE WndProc press (arms the in-game
+ * skip-event prompt; quits at the title).  Lets a recorded dialogue-skip
+ * replay faithfully.  Mirrors the retail agent's WM_KEYDOWN(VK_ESCAPE) post. */
+static void segtrace_esc_cb(void *user)
+{
+    (void)user;
+    esc_result_t r = esc_pressed();
+    fprintf(stderr, "segtrace: synthesised ESC (result=%d)\n", (int)r);
+    if (r == ESC_RESULT_QUIT && g_hwnd)
+        PostMessageA(g_hwnd, WM_CLOSE, 0, 0);
 }
 
 /* --input-segtrace replacement for input_poll: anchor-segmented forcing.

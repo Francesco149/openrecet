@@ -150,6 +150,20 @@ static int push_setrng(struct seg_segment *s, uint32_t frame, uint32_t value)
     return 1;
 }
 
+static int push_esc(struct seg_segment *s, uint32_t frame)
+{
+    if (s->n_escs >= s->cap_escs) {
+        size_t ncap = s->cap_escs ? s->cap_escs * 2 : 4;
+        struct seg_esc *ne = realloc(s->escs, ncap * sizeof *ne);
+        if (!ne) return 0;
+        s->escs = ne; s->cap_escs = ncap;
+    }
+    s->escs[s->n_escs].frame = frame;
+    s->escs[s->n_escs].fired = 0;
+    s->n_escs++;
+    return 1;
+}
+
 void input_segtrace_free(struct input_segtrace *st)
 {
     if (!st) return;
@@ -159,6 +173,7 @@ void input_segtrace_free(struct input_segtrace *st)
         free(st->segs[i].calltraces);
         free(st->segs[i].capranges);
         free(st->segs[i].setrngs);
+        free(st->segs[i].escs);
     }
     free(st->segs);
     memset(st, 0, sizeof *st);
@@ -185,10 +200,11 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
          * frame+buttons entry. */
         int      got_frame = 0, got_mask = 0, got_wait = 0, got_capture = 0;
         int      got_calltrace = 0, got_setrng = 0, got_caprange = 0;
+        int      got_esc = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
         uint32_t ct_start = 0, ct_len = 0;
         uint32_t cr_start = 0, cr_count = 0;
-        uint32_t rng_frame = 0, rng_value = 0;
+        uint32_t rng_frame = 0, rng_value = 0, esc_frame = 0;
         char     waitname[24] = {0};
 
         for (;;) {
@@ -276,6 +292,10 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                 if (p >= end || *p != ']') return 0;
                 p++;
                 got_setrng = 1;
+            } else if (klen == 3 && memcmp(ks, "esc", 3) == 0) {
+                /* {esc:N} — synthesise an ESC keypress at base+N (scalar). */
+                if (!parse_number(&p, end, &esc_frame)) return 0;
+                got_esc = 1;
             } else {
                 return 0;  /* unknown key */
             }
@@ -301,6 +321,8 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             if (!push_caprange(cur, cr_start, cr_count)) return 0;
         } else if (got_setrng) {
             if (!push_setrng(cur, rng_frame, rng_value)) return 0;
+        } else if (got_esc) {
+            if (!push_esc(cur, esc_frame)) return 0;
         } else {
             if (!got_frame || !got_mask || mask > 0xffffu) return 0;
             if (!push_entry(cur, frame, (uint16_t)mask)) return 0;
@@ -424,12 +446,27 @@ void input_segtrace_set_rngseed_cb(struct input_segtrace *st,
     st->rng_cb = cb; st->rng_user = user;
 }
 
+void input_segtrace_set_esc_cb(struct input_segtrace *st,
+                               segtrace_esc_fn cb, void *user)
+{
+    if (!st) return;
+    st->esc_cb = cb; st->esc_user = user;
+}
+
 /* Clear a segment's {rngseed} fire flags so they re-arm on segment activation. */
 static void rearm_setrngs(struct input_segtrace *st, size_t seg_idx)
 {
     if (seg_idx >= st->n_segs) return;
     struct seg_segment *s = &st->segs[seg_idx];
     for (size_t i = 0; i < s->n_setrngs; i++) s->setrngs[i].fired = 0;
+}
+
+/* Clear a segment's {esc} fire flags so they re-arm on segment activation. */
+static void rearm_escs(struct input_segtrace *st, size_t seg_idx)
+{
+    if (seg_idx >= st->n_segs) return;
+    struct seg_segment *s = &st->segs[seg_idx];
+    for (size_t i = 0; i < s->n_escs; i++) s->escs[i].fired = 0;
 }
 
 /* Fire any of the active segment's {rngseed} ops whose frame base+frame has been
@@ -442,6 +479,20 @@ static void fire_setrngs(struct input_segtrace *st, struct seg_segment *s,
         if (!sr->fired && st->base + sr->frame <= frame) {
             if (st->rng_cb) st->rng_cb(sr->value, st->rng_user);
             sr->fired = 1;
+        }
+    }
+}
+
+/* Fire any of the active segment's {esc} ops whose frame base+frame has been
+ * reached, once each, via the registered callback (NULL-safe). */
+static void fire_escs(struct input_segtrace *st, struct seg_segment *s,
+                      uint32_t frame)
+{
+    for (size_t i = 0; i < s->n_escs; i++) {
+        struct seg_esc *e = &s->escs[i];
+        if (!e->fired && st->base + e->frame <= frame) {
+            if (st->esc_cb) st->esc_cb(st->esc_user);
+            e->fired = 1;
         }
     }
 }
@@ -463,6 +514,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         st->cur_seg = 0; st->cur_entry = 0;
         st->base = 0; st->base_arm = 0;
         rearm_setrngs(st, 0);
+        rearm_escs(st, 0);
         schedule_captures(st, 0, capture_cb, user);
         schedule_calltraces(st, 0);
         schedule_capranges(st, 0);
@@ -476,6 +528,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 st->cur_seg++;
                 st->base = af; st->base_arm = af; st->cur_entry = 0;
                 rearm_setrngs(st, st->cur_seg);
+                rearm_escs(st, st->cur_seg);
                 schedule_captures(st, st->cur_seg, capture_cb, user);
                 schedule_calltraces(st, st->cur_seg);
                 schedule_capranges(st, st->cur_seg);
@@ -493,6 +546,9 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         /* Force the LCG at base+frame BEFORE the caller hands this frame to sim
          * (the port ticks segtrace in input_poll, ahead of the RNG consumers). */
         fire_setrngs(st, s, frame);
+        /* ESC fires in the same pre-sim window as {rngseed} so a recorded
+         * dialogue-skip arms the skip prompt before that frame's sim runs. */
+        fire_escs(st, s, frame);
         break;
     }
     return st->sticky;
