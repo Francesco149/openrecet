@@ -4,9 +4,10 @@
  *
  * Locks the RNG-stream fidelity the foot-dust parity depends on: spawn
  * consumes exactly 7 (or 8) shared-LCG steps in a fixed order, a bound-cross
- * "respawn" exactly 4 (or 5), and the per-tick pause/counter path is dead
- * (never advances) — see scene1_bg_npc.c.  Also checks the drift + the 180×
- * entry warmup spawning all 6 NPCs.
+ * "respawn" exactly 4 (or 5) — see scene1_bg_npc.c.  Also checks the drift, the
+ * 180× entry warmup spawning all 6 NPCs, and the "stop & look through the
+ * window" pause path: a leftward (dir==-1) mode==2 NPC that crosses its vthresh
+ * sets the pause counter, holds anim 3 for 180 ticks, then resumes.
  */
 #include "t.h"
 
@@ -53,8 +54,10 @@ int test_bg_npc_spawn_rng_count(void)
     return 0;
 }
 
-/* The 180× warmup seeds all 6 NPCs with the right type table, drifts them,
- * and never trips the dead pause path. */
+/* The 180× warmup seeds all 6 NPCs with the right type table and drifts them.
+ * (pause may legitimately be set on a warmup NPC that crosses its vthresh — it
+ * is bounded to [0,180), not asserted 0; the dedicated crossing test below
+ * exercises the pause path directly.) */
 int test_bg_npc_warmup_spawns_all(void)
 {
     static const int want_type[SCENE1_BG_NPC_COUNT] = { 0, 1, 6, 7, 9, 8 };
@@ -71,9 +74,61 @@ int test_bg_npc_warmup_spawns_all(void)
             T_FAIL("NPC %d type=%d want %d", i, m->type, want_type[i]);
         if (m->x == (float)i * 4.6f - 14.0f)
             T_FAIL("NPC %d never drifted (x still %g)", i, (double)m->x);
-        if (m->pause != 0)
-            T_FAIL("NPC %d pause=%d — dead path triggered", i, m->pause);
+        if (m->pause < 0 || m->pause >= 0xb4)
+            T_FAIL("NPC %d pause=%d out of [0,180)", i, m->pause);
     }
+    return 0;
+}
+
+/* "Stop & look through the window": a leftward (dir==-1) mode==2 NPC that
+ * crosses its vthresh (old_x > vthresh && new_x <= vthresh) sets pause=1, then
+ * holds position in anim 3 until the counter reaches 180, consuming exactly one
+ * shared-LCG step at expiry (the dir-flip coin).  A rightward NPC at the
+ * mirror-image setup must NOT pause (the binary's asymmetric guard). */
+int test_bg_npc_leftward_crossing_pauses(void)
+{
+    scene1_bg_npc_reset();
+    rng_seed(7u);
+    scene1_bg_npc_tick();              /* warmup → spawn cursor past count */
+    for (int i = 1; i < SCENE1_BG_NPC_COUNT; i++) g_scene1_bg_npc[i].dir = 0;
+
+    scene1_bg_npc_t *m = &g_scene1_bg_npc[0];
+    /* poised one drift step above vthresh, moving left → will cross it. */
+    m->dir = -1; m->visible = 0; m->z = -12.0f;
+    m->speed = 0.9f; m->prob = 50; m->mode = 2; m->vthresh = -3.0f;
+    m->x = -2.96f; m->pause = 0;
+
+    scene1_bg_npc_sim_once();          /* x: -2.96 → -3.005 ≤ -3.0 → cross */
+    if (m->pause != 1)
+        T_FAIL("leftward mode-2 crossing did not set pause (pause=%d, x=%g)",
+               m->pause, (double)m->x);
+
+    /* held position + counts to 180, then clears.  x must not move while paused. */
+    float held_x = m->x;
+    int ticks = 0;
+    while (m->pause != 0 && ticks < 256) {
+        uint32_t s_before = g_rng_seed;
+        scene1_bg_npc_sim_once();
+        ticks++;
+        if (m->pause != 0) {
+            if (s_before != g_rng_seed)
+                T_FAIL("pause tick %d consumed RNG before expiry", ticks);
+            if (m->x != held_x)
+                T_FAIL("NPC drifted while paused (x=%g want %g)",
+                       (double)m->x, (double)held_x);
+        }
+    }
+    if (ticks != 179)
+        T_FAIL("pause held %d ticks, want 179 (1→180)", ticks);
+
+    /* rightward mirror image must NOT pause (asymmetric guard). */
+    scene1_bg_npc_t *r = &g_scene1_bg_npc[1];
+    r->dir = 1; r->visible = 0; r->z = -12.0f;
+    r->speed = 0.9f; r->prob = 50; r->mode = 2; r->vthresh = 3.0f;
+    r->x = 2.96f; r->pause = 0;
+    scene1_bg_npc_sim_once();
+    if (r->pause != 0)
+        T_FAIL("rightward mode-2 crossing wrongly set pause (pause=%d)", r->pause);
     return 0;
 }
 

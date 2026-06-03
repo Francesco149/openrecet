@@ -3167,6 +3167,7 @@ struct test_case {
     X(chr_shadow_normal_abs_threshold) \
     X(bg_npc_spawn_rng_count) \
     X(bg_npc_warmup_spawns_all) \
+    X(bg_npc_leftward_crossing_pauses) \
     X(bg_npc_tick_drifts_once) \
     X(bg_npc_respawn_rng_and_bounce) \
     X(bg_npc_reset_clears) \

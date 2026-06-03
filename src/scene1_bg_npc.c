@@ -20,11 +20,22 @@
  *   (bg_npc_anim_set / chr_anim_tick) consumes NO RNG, so it does not perturb
  *   the stream.
  *
- * Dead pause/counter path: objdump shows the per-tick "crossing" guard is
- * mutually exclusive in BOTH drift directions — pause (+0x54) is never set, so
- * the +0x54>0 branch (and its lone RNG roll) never runs.  We reproduce the
- * exact arithmetic so the flag stays 0 the same way retail's does; the NPCs are
- * pure one-axis drifters that respawn at the room bounds.
+ * Pause / "stop & look through the window" path (CORRECTED 2026-06-03 — an
+ * earlier note here wrongly called this dead).  A `mode==2` NPC that is drifting
+ * LEFT (dir == -1) and crosses its per-NPC threshold (+0x58 `vthresh`) sets the
+ * pause counter (+0x54), enters anim 3 for 180 ticks, then flips direction and
+ * resumes.  This is the townsperson who briefly stops and faces the window.
+ * The crossing test is ASYMMETRIC in the binary (objdump 0x46f4bf-0x46f559):
+ *   • dir == -1: the old-x compare is captured BEFORE the x update, so the guard
+ *     is a genuine downward crossing  `old_x > vthresh && new_x <= vthresh`  →
+ *     pause IS set.
+ *   • dir == +1: x is updated BEFORE both compares, so the guard reduces to
+ *     `new_x < vthresh && new_x >= vthresh` — self-contradictory → pause is
+ *     never set.  We faithfully reproduce that asymmetry (rightward NPCs never
+ *     pause; only leftward ones do).
+ * The lone RNG roll in the pause path fires once, when the counter reaches 180
+ * (a dir-flip coin); it therefore DOES perturb the shared LCG stream — relevant
+ * to free-roam RNG-stream parity (findings/scene1-rng-stream-parity.md).
  */
 
 #include "scene1_bg_npc.h"
@@ -174,9 +185,10 @@ static void bg_npc_tick(scene1_bg_npc_t *m)
         /* unspawned slot → engine requests anim 0 (no drift, no RNG). */
         bg_npc_anim_set(m->arec, 0);
     } else if (m->pause > 0) {
-        /* +0x54>0 pause/blink state.  DEAD in practice (pause is never set —
-         * see file header), reproduced for completeness: anim 3, count to 180,
-         * then maybe flip dir off one rng15. */
+        /* +0x54>0 "stopped & looking" state (objdump 0x46f429-0x46f45f): hold
+         * anim 3, count the pause up to 180, then clear it and maybe flip the
+         * drift direction off one rng15 bit.  Reached when the drift branch
+         * below trips the leftward vthresh crossing. */
         bg_npc_anim_set(m->arec, 3);
         if (++m->pause == 0xb4) {
             m->pause = 0;
@@ -187,16 +199,27 @@ static void bg_npc_tick(scene1_bg_npc_t *m)
         bg_npc_anim_set(m->arec, bg_npc_drift_anim_mode(m));
 
         /* drift along X by dir·speed·0.05.  arec[FACING] records the sprite
-         * facing (the engine's "flip": 6 for dir+, 2 for dir-). */
+         * facing (the engine's "flip": 6 for dir+, 2 for dir-).  A mode==2 NPC
+         * that crosses its `vthresh` enters the pause/look state — but the
+         * crossing test is asymmetric in the binary (see file header). */
         int respawn = 0;
         if (m->dir == 1) {
+            /* rightward: x is updated before both vthresh compares → the guard
+             * `new_x < vthresh && new_x >= vthresh` can never hold, so a
+             * rightward NPC never pauses (objdump 0x46f4bf-0x46f50c). */
             m->x += (float)m->dir * m->speed * 0.05f;
             m->arec[CHR_ACTOR_FACING] = 6;
             if (m->x > 25.0f) respawn = 1;
         } else {                                  /* dir == -1 */
+            /* leftward: capture old_x BEFORE the update so the guard is a real
+             * downward crossing `old_x > vthresh && new_x <= vthresh`; on a
+             * mode==2 NPC that sets pause → stop & look (objdump 0x46f50e-0x46f559). */
+            float old_x = m->x;
             m->x += (float)m->dir * m->speed * 0.05f;
             m->arec[CHR_ACTOR_FACING] = 2;
             if (m->x < -15.0f) respawn = 1;
+            if (m->mode >= 2 && old_x > m->vthresh && m->x <= m->vthresh)
+                m->pause = 1;
         }
         if (respawn)
             bg_npc_respawn(m);

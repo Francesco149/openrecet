@@ -3604,3 +3604,37 @@ and hides it only during the iv1_1 screen-covering opening.
 The "LEVEL UP!" pop drawn just below the badge is a separate helper
 (`FUN_00407ab4`, gated `0 < DAT_0438b920`, the level-up animation counter that
 the per-frame updater at decomp L4831 holds at 0 except during a level-up).
+
+## 91. Back-window NPCs "stop & look": a leftward (dir==-1) mode==2 NPC pauses on a vthresh crossing — and the binary's crossing guard is ASYMMETRIC (rightward NPCs never pause)
+
+The shop's back-window townsfolk (`scene1_bg_npc`, FUN_0046f2a3) are not pure
+one-axis drifters: a subset stop and face the window for ~180 ticks, then turn
+around. This is gated on a per-NPC threshold `vthresh` (+0x58) and `mode` (+0x5c):
+a `mode==2` NPC that **crosses** its vthresh sets the pause counter (+0x54),
+holds anim 3 while it counts up to 180, then clears it and flips drift direction
+off one RNG bit.
+
+**The crossing test is asymmetric in the binary** (objdump 0x46f4bf-0x46f559),
+and it is a *real* asymmetry, not a decomp artifact:
+
+- **dir == -1 (leftward):** the old-x compare (`ecx = old_x > vthresh`) is
+  captured at 0x46f50e **before** the x update at 0x46f52f, so the guard is a
+  genuine downward crossing `old_x > vthresh && new_x <= vthresh` → pause IS set.
+- **dir == +1 (rightward):** x is updated at 0x46f4d1 **before** both vthresh
+  compares (0x46f4dc and 0x46f502 both read the post-update value), so the guard
+  reduces to `new_x < vthresh && new_x >= vthresh` — self-contradictory → pause
+  is **never** set. Rightward NPCs walk straight past; only leftward ones pause.
+
+So in retail you see townsfolk occasionally stop and look through the window,
+but only while drifting one direction. The pause path consumes the shared LCG
+exactly **once**, at expiry (the dir-flip coin at 0x46f44a), so it perturbs the
+free-roam RNG stream — relevant to `scene1-rng-stream-parity.md`.
+
+**Port bug fixed 2026-06-03:** the original port dropped the crossing check
+entirely (an earlier note here wrongly called the pause path "dead" — it
+confused the genuinely-dead +1 guard for the live -1 one). NPCs never stopped.
+`scene1_bg_npc.c`'s drift branch now reproduces the asymmetric guard; the pause
+branch (anim 3, count to 180, RNG dir-flip) was already correct, just never
+reached. User-flagged from the README hero ("NPCs in retail occasionally stop to
+look through the window, which we don't"). Locked by
+`tests/test_scene1_bg_npc.c::test_bg_npc_leftward_crossing_pauses`.
