@@ -1,5 +1,11 @@
 # Frame-by-frame TAS trace viewer (openrecet ⇄ llm-feed)
 
+> **✅ BUILT 2026-06-03 (autonomous).** All 7 phases landed + the feed
+> pagination ask. See "Build status" at the bottom for what shipped, how it was
+> verified, and the one determinism boundary found. Demo trace live on the feed:
+> `http://localhost:8777/trace.html?id=20260603T045417_e05a` (60-frame HOUSE
+> free-roam window).
+
 > **Autonomous build spec.** Written 2026-06-03 for next session to execute
 > top-to-bottom. The user will `/clear` first, then I build this autonomously and
 > they review tomorrow. Work the phases in order; each has an acceptance check.
@@ -234,3 +240,48 @@ reproducible dense-dust frame — this delivers it).
   `input_segtrace_tick`, callback wired in main.c, retail mirror in the agent,
   distill propagation. `{caprange}` and `{esc}` are the same shape.
 - Frame BMP→PNG: `tools/frame_io.py`.
+
+---
+
+## Build status (2026-06-03, autonomous)
+
+All seven phases shipped + the extra feed-pagination ask. Commits:
+
+**openrecet** (this repo):
+- `ab3722b` Phase 1 — `{caprange}` op + `--capture-range` (contiguous capture, bypasses the 32 cap). Host test `segtrace_caprange_resolves_to_window`.
+- `b716750` Phase 2 — ESC record (`{"esc":REL}` raw rows) + `{esc:N}` replay op (fires `esc_pressed()`), distill propagation, Frida-agent mirror. Host tests `esc_fires_once`/`esc_rebases`. Proven: `{"esc":30}` synthesises ESC at the title (→ QUIT).
+- `484b0b3` Phase 3 — `tools/export_trace.py` (drive a trace, write `frames/` + `meta.jsonl` + `global.json`). Proven 60/60 on the house drive.
+- `ea44646` harness fix — `run-openrecet.sh` no longer imposes the 3s wall auto-exit when `--max-frames`/`--input-segtrace` is set (it was cutting the window to 1 frame under turbo).
+
+**llm-feed** (`/opt/src/llm-feed`, commit `b84b79c`):
+- Phase 4 — `feed.py trace --dir` (pairs per-frame meta by frame number; `global.json` verbatim).
+- Phase 5 — `web/trace.html` + `web/trace.js` viewer (new `/trace.html` `/trace.js` routes): step ←/→ ±10, ,/. ±1, Home/End, play at fps, `c` marks captures → `trace id=… captures=…`, drag-box → the same `crop … frame=f=<n>` string.
+- Phase 6 — `app.js renderTrace` animated preview card + "open viewer" link.
+- Phase 7 — `feed.py trace-export <id> -o out.jsonl` reconstructs the runnable segtrace from `global.trace_jsonl`.
+- Pagination — main feed renders newest 10; older backlog behind a "load more" (+10/click); new polled items always render on top.
+
+### Reproducibility — what "1:1" delivers today
+
+Drove the same trace twice (rng-pinned via `{rngseed}`) and diffed both the
+per-frame `--player-pos-log` (sim) and the captured PNGs (render):
+
+- **Sim is anchor-relative bit-exact.** Aligned to the 2nd `HOUSE_FREEROAM`
+  base, every `px/pz/anim/counter/aframe/oct` + the `rng` field match frame-for-
+  frame across runs once `{rngseed}` has fired. The only pos-log divergence is
+  the `rng` value *before* the pin frame — irrelevant to a window captured after
+  it. **The foot-dust + character are therefore reproducible** (dust position is
+  the pinned LCG) — exactly the dense-dust frame the occlusion work
+  ([[project_freeroam_smoke_effect]]) was blocked on.
+- **Residual whole-image diff = the top HUD clock.** Cross-run the PNGs differ
+  in only ~0.3 % of pixels, localized to `x[343..548] y[13..94]` — the
+  time-of-day HUD digits, driven by the absolute virtual clock (`frame_count *
+  17 ms`). This is the documented **load-frame-count determinism leak** (the
+  "phase" the user named): the *absolute* frame jitters ±5 run-to-run, so any
+  absolute-clock-keyed render element (the clock) drifts. The sim doesn't.
+
+So: **pin rng → the sim + dust + character replay frame-by-frame identically**;
+the open item to also pin the time-of-day HUD is a frame-count/phase pin at the
+anchor (would force `g_tick.frame_count`, which the anchor/capture system itself
+keys off — needs care, deliberately not attempted autonomously). For the
+dust-occlusion debugging loop this boundary is harmless: crop over the
+dust/feet and the region is reproducible.
