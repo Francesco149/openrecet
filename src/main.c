@@ -450,6 +450,7 @@ static uint32_t  g_trace_rec_ct[256][2];      /* [start,len] call-trace windows 
 static int       g_trace_rec_ct_count     = 0;
 static int       g_trace_rec_ct_open       = -1; /* open-window start frame, or -1 */
 static int       g_trace_rec_seq          = 0;
+static uint32_t  g_trace_rec_rng_at_start  = 1;  /* LCG state snapshotted at F2 */
 #define TRACE_REC_MAX_FRAMES  600000u   /* ~2.8 h at 60fps — a hard backstop */
 
 static void trace_rec_start(void)
@@ -464,10 +465,16 @@ static void trace_rec_start(void)
     g_trace_rec_ct_count    = 0;
     g_trace_rec_ct_open     = -1;
     g_trace_rec_start_frame = g_tick.frame_count;
+    /* Snapshot the live LCG state NOW — this is the pre-state the first recorded
+     * frame's sim consumers will read.  distill_trace.py re-injects it via a
+     * {rngseed} op at the recorded segment's first frame so the recording's
+     * RNG-driven behaviour (foot-dust jitter, NPC motion) reproduces on playback
+     * regardless of how much RNG the prepended boot/intro consumed. */
+    g_trace_rec_rng_at_start = g_rng_seed;
     g_trace_rec_active      = 1;
-    printf("[trace-rec] recording STARTED at frame %u "
+    printf("[trace-rec] recording STARTED at frame %u (rng state %u) "
            "(F2 stop, F3 capture-point, F4 call-trace window on/off)\n",
-           g_trace_rec_start_frame);
+           g_trace_rec_start_frame, (unsigned)g_trace_rec_rng_at_start);
     fflush(stdout);
 }
 
@@ -560,8 +567,10 @@ static void trace_rec_stop(void)
     /* RAW recording: one row per recorded frame (relative frame + mask), then
      * the capture points.  tools/distill_trace.py collapses the per-frame rows
      * into sparse change-points and (optionally) wraps a bootable segtrace. */
-    fprintf(f, "{\"_rec\":\"openrecet-tas-raw-v1\",\"frames\":%u,\"start_abs\":%u}\n",
-            g_trace_rec_count, g_trace_rec_start_frame);
+    fprintf(f, "{\"_rec\":\"openrecet-tas-raw-v1\",\"frames\":%u,\"start_abs\":%u,"
+               "\"rng_seed_at_start\":%u}\n",
+            g_trace_rec_count, g_trace_rec_start_frame,
+            (unsigned)g_trace_rec_rng_at_start);
     for (uint32_t i = 0; i < g_trace_rec_count; i++)
         fprintf(f, "{\"frame\":%u,\"buttons\":\"0x%04x\"}\n", i, g_trace_rec_masks[i]);
     for (int c = 0; c < g_trace_rec_caps_count; c++)
@@ -722,6 +731,7 @@ static void  replay_input_poll(void);
 static void  segtrace_input_poll(void);
 static void  auto_z_spam_input_poll(void);
 static void  segtrace_ct_cb(uint32_t lo, uint32_t hi, void *user);
+static void  segtrace_rng_cb(uint32_t value, void *user);
 static int   capture_frame_is_listed(uint32_t frame);
 
 /* Cross-process singleton lock. A second openrecet instance trying to
@@ -1522,6 +1532,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
              * if the trace declares a window but no --call-trace path was
              * given, auto-open a default output so a bare replay just works. */
             input_segtrace_set_calltrace_cb(&g_segtrace, segtrace_ct_cb, NULL);
+            /* {rngseed:[F,V]} ops force the LCG state at a recorded segment's
+             * first frame so its RNG-driven behaviour reproduces regardless of
+             * the prepended intro (see input_segtrace.h). */
+            input_segtrace_set_rngseed_cb(&g_segtrace, segtrace_rng_cb, NULL);
             if (input_segtrace_has_calltrace(&g_segtrace) &&
                 !call_trace_is_open()) {
                 static char ctpath[256];
@@ -3213,6 +3227,15 @@ static void segtrace_ct_cb(uint32_t lo, uint32_t hi, void *user)
     call_trace_arm_window(lo, hi);
     fprintf(stderr, "segtrace: armed call-trace window [%u, %u)\n",
             (unsigned)lo, (unsigned)hi);
+}
+
+/* RNG-state sink for input_segtrace `{rngseed:[frame,value]}` ops: force the
+ * global LCG to `value` (mirrors the retail agent's DAT_006023a0 write). */
+static void segtrace_rng_cb(uint32_t value, void *user)
+{
+    (void)user;
+    rng_seed(value);
+    fprintf(stderr, "segtrace: forced rng seed = %u\n", (unsigned)value);
 }
 
 /* --input-segtrace replacement for input_poll: anchor-segmented forcing.

@@ -837,6 +837,14 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 ct = rec["calltrace"]
                 segtrace_ops.append({"calltrace": (
                     [int(ct[0]), int(ct[1])] if isinstance(ct, list) else int(ct))})
+            elif "rngseed" in rec:
+                # Force the engine LCG (DAT_006023a0) to value at base+frame —
+                # mirrors the port's rng_seed() so both targets share one RNG
+                # stream from the anchor (cross-target parity for the recorded
+                # segment). Array form [frame, value] only.
+                rs = rec["rngseed"]
+                segtrace_ops.append({"rngseed": [int(rs[0]),
+                                                 int(rs[1]) & 0xffffffff]})
             else:
                 mask_val = rec["buttons"]
                 mask = int(mask_val, 16) if isinstance(mask_val, str) else int(mask_val)

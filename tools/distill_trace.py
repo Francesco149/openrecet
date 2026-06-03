@@ -32,12 +32,15 @@ def load_raw(path):
     masks = {}   # frame -> "0xNNNN"
     caps = []
     cts = []     # call-trace windows: [start, len] (F4 toggle pairs)
+    rng_seed = None   # live LCG state snapshotted at record-start (header field)
     for ln in Path(path).read_text().splitlines():
         s = ln.strip()
         if not s or s.startswith("#"):
             continue
         o = json.loads(s)
         if "_rec" in o:
+            if o.get("rng_seed_at_start") is not None:
+                rng_seed = int(o["rng_seed_at_start"]) & 0xffffffff
             continue
         if "buttons" in o and "frame" in o:
             masks[int(o["frame"])] = o["buttons"]
@@ -48,7 +51,7 @@ def load_raw(path):
             cts.append([int(v[0]), int(v[1])] if isinstance(v, list)
                        else [0, int(v)])
     if not masks:
-        return [], sorted(caps), cts, 0
+        return [], sorted(caps), cts, 0, rng_seed
     n = max(masks) + 1
     # distil: emit a change-point whenever the mask differs from the previous
     series = [masks.get(i, "0x0000") for i in range(n)]
@@ -58,11 +61,15 @@ def load_raw(path):
         if m != prev:
             changes.append((i, m))
             prev = m
-    return changes, sorted(caps), cts, n
+    return changes, sorted(caps), cts, n, rng_seed
 
 
-def emit_flat(changes, caps, cts, total):
+def emit_flat(changes, caps, cts, total, rng_seed=None):
     out = []
+    # Re-pin the LCG to the live state at record-start so the recording's
+    # RNG-driven behaviour reproduces on playback (foot-dust jitter, NPC motion).
+    if rng_seed is not None:
+        out.append(json.dumps({"rngseed": [0, rng_seed]}))
     for f, m in changes:
         out.append(json.dumps({"frame": f, "buttons": m}))
     for c in caps:
@@ -75,7 +82,7 @@ def emit_flat(changes, caps, cts, total):
     return "\n".join(out) + "\n"
 
 
-def emit_house_segtrace(changes, caps, cts):
+def emit_house_segtrace(changes, caps, cts, rng_seed=None):
     """Prepend the proven new-game→HOUSE intro (segments 0+1 + the segment-2
     spam up to the 2nd HOUSE_FREEROAM + frame 1500), then the recording rebased
     to anchor+HOUSE_ANCHOR_OFFSET, then the recorded captures rebased."""
@@ -99,6 +106,13 @@ def emit_house_segtrace(changes, caps, cts):
         prefix.append(ln)
     out = list(prefix)
     off = HOUSE_ANCHOR_OFFSET
+    # Re-pin the LCG to the record-start state at the recorded segment's first
+    # frame (base+off) — BEFORE the recorded inputs — so the recording's
+    # RNG-driven behaviour reproduces regardless of how much RNG the prepended
+    # intro consumed.  The recorded segment is anchored at the 2nd HOUSE_FREEROAM
+    # wait, so off is relative to that anchor.
+    if rng_seed is not None:
+        out.append(json.dumps({"rngseed": [off, rng_seed]}))
     out.append(json.dumps({"capture": off - 25}))   # idle cap just before motion
     for f, m in changes:
         out.append(json.dumps({"frame": off + f, "buttons": m}))
@@ -119,16 +133,18 @@ def main(argv=None):
                     help="wrap as a bootable new-game→HOUSE segtrace")
     args = ap.parse_args(argv)
 
-    changes, caps, cts, total = load_raw(args.raw)
+    changes, caps, cts, total, rng_seed = load_raw(args.raw)
     if not changes:
         print("distill_trace: no input frames found in", args.raw, file=sys.stderr)
         return 1
-    text = (emit_house_segtrace(changes, caps, cts) if args.house_segtrace
-            else emit_flat(changes, caps, cts, total))
+    text = (emit_house_segtrace(changes, caps, cts, rng_seed) if args.house_segtrace
+            else emit_flat(changes, caps, cts, total, rng_seed))
     if args.out:
         Path(args.out).write_text(text)
+        seedmsg = (f", rng_seed {rng_seed}" if rng_seed is not None
+                   else ", no rng_seed (pre-rngseed recording)")
         print(f"distill_trace: {len(changes)} change-points, {len(caps)} capture(s), "
-              f"{len(cts)} call-trace window(s), {total} frames → {args.out}",
+              f"{len(cts)} call-trace window(s), {total} frames{seedmsg} → {args.out}",
               file=sys.stderr)
     else:
         sys.stdout.write(text)

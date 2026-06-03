@@ -177,6 +177,98 @@ int test_segtrace_calltrace_resolves_to_windows(void)
     return 0;
 }
 
+struct rng_log { uint32_t v[8]; int n; };
+static void rng_cb(uint32_t value, void *user)
+{
+    struct rng_log *r = (struct rng_log *)user;
+    if (r->n < 8) r->v[r->n++] = value;
+}
+
+int test_segtrace_rngseed_fires_once_at_frame(void)
+{
+    /* {rngseed:[frame,value]} fires the callback exactly once when the absolute
+     * frame base+frame is reached — not before, not again on later ticks. */
+    const char buf[] =
+        "{\"rngseed\":[10,2756183931]}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n"
+        "{\"frame\":12,\"buttons\":\"0x0004\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.n_segs, 1);
+    T_ASSERT_EQ_U(st.segs[0].n_setrngs, 1);
+    struct rng_log log = {0};
+    input_segtrace_set_rngseed_cb(&st, rng_cb, &log);
+    /* before the target frame → no fire */
+    input_segtrace_tick(&st, 0, NULL, NULL);
+    input_segtrace_tick(&st, 9, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    /* at the target frame → fires once with the value */
+    input_segtrace_tick(&st, 10, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 1);
+    T_ASSERT_EQ_U(log.v[0], 2756183931u);
+    /* later ticks must NOT re-fire */
+    input_segtrace_tick(&st, 11, NULL, NULL);
+    input_segtrace_tick(&st, 20, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 1);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_rngseed_rebases_on_anchor(void)
+{
+    /* In a waited segment the {rngseed} frame is base-relative: it fires at the
+     * anchor-resolved base+frame, BEFORE that frame's input entry. */
+    const char buf[] =
+        "{\"wait\":\"HOUSE_FREEROAM\"}\n"
+        "{\"rngseed\":[1565,42]}\n"
+        "{\"frame\":1565,\"buttons\":\"0x0010\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.n_segs, 2);
+    struct rng_log log = {0};
+    input_segtrace_set_rngseed_cb(&st, rng_cb, &log);
+    /* boot segment has no setrng */
+    input_segtrace_tick(&st, 0, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    /* anchor @1000 → base=1000; setrng fires at 1000+1565 = 2565 */
+    input_segtrace_on_anchor(&st, "HOUSE_FREEROAM", 1000);
+    input_segtrace_tick(&st, 1000, NULL, NULL);
+    input_segtrace_tick(&st, 2564, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    /* at 2565 the seed fires; the input entry at base+1565 also applies */
+    T_ASSERT_EQ_U(input_segtrace_tick(&st, 2565, NULL, NULL), 0x0010);
+    T_ASSERT_EQ_U(log.n, 1);
+    T_ASSERT_EQ_U(log.v[0], 42);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_rngseed_absent_never_fires(void)
+{
+    const char buf[] =
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n"
+        "{\"frame\":5,\"buttons\":\"0x0004\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.segs[0].n_setrngs, 0);
+    struct rng_log log = {0};
+    input_segtrace_set_rngseed_cb(&st, rng_cb, &log);
+    for (uint32_t f = 0; f <= 20; f++) input_segtrace_tick(&st, f, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_rngseed_rejects_scalar(void)
+{
+    /* {rngseed} requires the [frame,value] array form (no 1-arg shorthand). */
+    const char buf[] = "{\"rngseed\":5}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 0);
+    input_segtrace_free(&st);
+    return 0;
+}
+
 int test_segtrace_no_calltrace_reports_zero(void)
 {
     const char buf[] =

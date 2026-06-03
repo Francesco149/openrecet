@@ -724,7 +724,7 @@ let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows a
 //   {calltrace:N}  — arm the call tracer for [base, base+N] (N frames from this
 //                    segment's anchor) — anchor-relative, no absolute frames
 function segtraceBuildSegments(ops) {
-    const seg0 = () => ({entries: [], captures: [], calltraces: [],
+    const seg0 = () => ({entries: [], captures: [], calltraces: [], setrngs: [],
                          wait: null, wait_until: null});
     const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
@@ -749,6 +749,14 @@ function segtraceBuildSegments(ops) {
             const ct = op.calltrace;
             segs[segs.length - 1].calltraces.push(
                 Array.isArray(ct) ? [ct[0] | 0, ct[1] | 0] : [0, ct | 0]);
+        } else if (op && op.rngseed !== undefined && Array.isArray(op.rngseed)) {
+            // {rngseed:[frame,value]} — force DAT_006023a0 to `value` at the
+            // base-relative `frame`, mirroring the port's rng_seed() so both
+            // targets share one LCG stream from the anchor (cross-target RNG
+            // parity for the recorded segment).
+            segs[segs.length - 1].setrngs.push(
+                {frame: op.rngseed[0] | 0, value: op.rngseed[1] >>> 0,
+                 fired: false});
         } else {
             segs[segs.length - 1].entries.push(
                 {frame: op.frame | 0, mask: (op.mask | 0) & 0xffff});
@@ -2078,6 +2086,18 @@ function segtraceTick(fn) {
                g_segtrace_base + seg.entries[g_segtrace_entry].frame <= fn) {
             g_segtrace_sticky = seg.entries[g_segtrace_entry].mask & 0xffff;
             g_segtrace_entry++;
+        }
+        // Force the LCG state at base+frame BEFORE this frame's sim consumers.
+        // segtraceTick runs in input_poll.onLeave, ahead of sim (mirrors the
+        // port's input_segtrace_tick firing in input_poll). Fires once.
+        for (let i = 0; i < seg.setrngs.length; i++) {
+            const sr = seg.setrngs[i];
+            if (!sr.fired && g_segtrace_base + sr.frame <= fn) {
+                rva(ADDR.var_lcg_seed).writeU32(sr.value >>> 0);
+                sr.fired = true;
+                log('segtrace: forced rng seed = ' + (sr.value >>> 0) +
+                    ' at frame ' + fn + ' (base+' + sr.frame + ')');
+            }
         }
         break;
     }

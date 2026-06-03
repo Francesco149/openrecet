@@ -22,6 +22,18 @@
  *                        like {capture} and reported via the calltrace callback
  *                        so main.c routes it to call_trace_arm_window().  A bare
  *                        scalar {"calltrace":N} means [0, N] (N frames from base).
+ *   {"rngseed":[F,V]}    force the global LCG state to V (a bare uint32) at the
+ *                        instant frame base+F is reached — BEFORE that frame's
+ *                        sim RNG consumers run (it fires in the per-frame tick,
+ *                        which the port runs in input_poll, ahead of sim).  Lets
+ *                        a recorded segment reproduce its RNG-driven behaviour
+ *                        (foot-dust jitter, NPC motion) regardless of how much
+ *                        RNG the prepended boot/intro consumed: the distiller
+ *                        snapshots the live LCG at record-start and re-injects it
+ *                        at the recorded segment's first frame.  Fires once.  The
+ *                        retail Frida agent mirrors it onto DAT_006023a0 at the
+ *                        same frame, so both targets share one LCG stream from
+ *                        the anchor (cross-target RNG parity).
  *
  * Within a segment, frames are relative to that segment's base (the anchor
  * frame; base 0 for the boot segment). A trace with NO `wait` ops is a single
@@ -53,6 +65,14 @@ struct seg_calltrace {
     uint32_t len;     /* window length in frames */
 };
 
+/* One base-relative LCG-state force: set the global RNG state to `value` when
+ * absolute frame base+frame is reached (fires once; see {rngseed} in the doc). */
+struct seg_setrng {
+    uint32_t frame;   /* relative to the segment base */
+    uint32_t value;   /* LCG state to install */
+    int      fired;   /* runtime: cleared on segment activation, set on fire */
+};
+
 /* A maximal run of entries terminated by a `wait` (or the trace end). */
 struct seg_segment {
     struct seg_entry *entries;
@@ -61,6 +81,8 @@ struct seg_segment {
     size_t            n_captures, cap_captures;
     struct seg_calltrace *calltraces;   /* base-relative call-trace windows */
     size_t            n_calltraces, cap_calltraces;
+    struct seg_setrng *setrngs;     /* base-relative LCG-state forces */
+    size_t            n_setrngs, cap_setrngs;
     char              wait[24];     /* terminating anchor name; "" if none */
     int               has_wait;
 };
@@ -86,6 +108,12 @@ struct input_segtrace {
      * fired per resolved {calltrace} op when its segment becomes active. */
     void (*ct_cb)(uint32_t lo, uint32_t hi, void *user);
     void  *ct_user;
+
+    /* RNG-state force callback (set once via input_segtrace_set_rngseed_cb);
+     * fired per {rngseed} op when its frame base+frame is reached (in-tick,
+     * before sim).  Kept a callback so this module stays free of rng.h. */
+    void (*rng_cb)(uint32_t value, void *user);
+    void  *rng_user;
 };
 
 /* Capture callback: invoked once per scheduled `{capture:N}` with the resolved
@@ -96,10 +124,19 @@ typedef void (*segtrace_capture_fn)(uint32_t frame, void *user);
  * with the resolved absolute half-open window [base+S, base+S+L). */
 typedef void (*segtrace_calltrace_fn)(uint32_t lo, uint32_t hi, void *user);
 
+/* RNG-state force callback: invoked once per `{rngseed:[F,V]}` op with the
+ * LCG state V, at the frame base+F (before that frame's sim consumers). */
+typedef void (*segtrace_rngseed_fn)(uint32_t value, void *user);
+
 /* Set the call-trace window callback (and its user ptr).  Resolved windows fire
  * through it as their segments become active, same timing as captures. */
 void input_segtrace_set_calltrace_cb(struct input_segtrace *st,
                                      segtrace_calltrace_fn cb, void *user);
+
+/* Set the RNG-state force callback (and its user ptr).  Fires per {rngseed} op
+ * when its frame is reached during input_segtrace_tick. */
+void input_segtrace_set_rngseed_cb(struct input_segtrace *st,
+                                   segtrace_rngseed_fn cb, void *user);
 
 /* True if the loaded trace declares ≥1 {calltrace} op (any segment).  Lets the
  * harness auto-enable call-tracing from the trace alone. */
