@@ -22240,6 +22240,7 @@
     "src/diff_entry.c",
     "src/diff_entry.h",
     "src/npc_schedule.c",
+    "src/rng.c",
     "src/rng.h",
     "src/save_bank.c",
     "src/scene1_overlay.c",

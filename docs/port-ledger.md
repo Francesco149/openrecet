@@ -445,7 +445,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x503f3c | FUN_00503f3c | 140 | ✓ | storage.c |
 | 0x504076 | FUN_00504076 | 106 | ✓ | scene1_preload.c |
 | 0x5041ec | FUN_005041ec | 10 | ✓ | main.c, rng.h |
-| 0x5041f6 | FUN_005041f6 | 30 | ✓ | diff_entry.c, diff_entry.h, npc_schedule.c (+6) |
+| 0x5041f6 | FUN_005041f6 | 30 | ✓ | diff_entry.c, diff_entry.h, npc_schedule.c (+7) |
 | 0x5045eb | FUN_005045eb | 220 | ✓ | main.c, prewindow.h, rng.h |
 | 0x50bcff | FUN_0050bcff | 194 | ✓ | rng.h |
 

@@ -92,6 +92,39 @@ db054 / 140/140 cframe-mismatch**; with `{phasepin}` after the load tail,
 was the **unpinned RNG wing-sparkles** (#5), not phase. Proof that #3/#4 were a
 deterministic phase-origin offset, not a logic bug.
 
+## RNG consumption (the `rngcalls` row + `--drill`)
+
+Pinning the same seed is not enough if the two targets *consume* RNG differently
+— the streams desync from a shared seed. The probe always captures a cumulative
+LCG-call count (`rngcalls`, port `src/rng.c` `g_rng_call_count` ↔ retail hook on
+`FUN_005041f6`) and reports per-frame consumption:
+
+- `rngcalls ALIGNED` — same per-frame consumption; a seeded RNG diff is then a
+  genuine value bug, and sparkle/dust diffs are clean.
+- `rngcalls DESYNC` — the targets consume different amounts; the row names the
+  first divergent db054 + the net port−retail delta. A **negative** delta = the
+  port under-consumes = a missing/under-emitting consumer (often an unported
+  particle emitter through `FUN_00447f4f` `scene1_spawn`).
+
+`--drill` then captures retail's LCG **caller VAs** for `count+120` frames after
+the phasepin (single run, load-jitter immune) and rolls them up by enclosing
+function — the who-consumed-RNG list. Cross-check each `FUN_` against the port's
+ported consumers; a function retail uses more is the lead. Worked example
+(`house-walk-down-dense`): retail consumes via `FUN_00447f4f` (spawn jitter, the
+dominant), `FUN_00442cef` (1/frame), `FUN_0048b850` (player ctrl); the port runs
+−40 over the window → fewer particle spawns (the missing ambient particles).
+
+**Pragmatic alignment:** if porting a missing consumer is its own rabbit hole,
+insert matching **dummy `rng_next15()` calls** tagged `PORT-DEBT(...)` so the
+stream stays aligned for comparison, and retire them when the real emitter lands.
+
+### DISCIPLINE: re-check determinism after EVERY rng-touching change
+
+Any change that adds/removes/reorders an `rng_next15` call — porting a consumer,
+a dummy stub, a spawn tweak — can desync the stream. **Re-run
+`tools/phase_probe.py <scenario>` after it** and confirm `rngcalls` stays
+`ALIGNED` (or improves). Treat a new `rngcalls DESYNC` as a regression.
+
 ## The draw-side twin
 
 This tool reads the SIM-side counters. For the DRAW side — per-pass NDC-z, anim

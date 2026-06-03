@@ -2478,7 +2478,7 @@ static void render_dispatch(void)
                 "\"buttons\":%u,\"anim\":%d,\"counter\":%d,\"aframe\":%d,\"oct\":%d,"
                 "\"cchar\":%d,\"cx\":%.5f,\"cy\":%.5f,\"cz\":%.5f,\"canim\":%d,\"coct\":%d,"
                 "\"cframe\":%d,\"ccnt\":%d,\"ctimer\":%.4f,\"db054\":%d,"
-                "\"rng\":%d}\n",
+                "\"rng\":%d,\"rngcalls\":%lu}\n",
                 g_tick.frame_count,
                 g_scene1_player_pos[0], g_scene1_player_pos[1],
                 g_scene1_player_pos[2],
@@ -2487,7 +2487,7 @@ static void render_dispatch(void)
                 c_char, g_scene1_actor_pos[2][0], g_scene1_actor_pos[2][1],
                 g_scene1_actor_pos[2][2], c_anim, c_oct,
                 c_frm, c_cnt, c_tmr.f, db054,
-                (int32_t)g_rng_seed);
+                (int32_t)g_rng_seed, rng_call_count());
         fflush(g_player_pos_log_fp);
     }
 

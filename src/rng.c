@@ -7,6 +7,14 @@
 
 uint32_t g_rng_seed = 1;
 
+/* Cumulative count of LCG steps (rng_next15 calls) since boot — the port mirror
+ * of hooking the engine's LCG FUN_005041f6.  Lets the phase probe diff per-frame
+ * RNG *consumption* port↔retail (the `rngcalls` counter) to find where the two
+ * streams desync even under a shared seed.  See tools/phase_probe.py. */
+unsigned long g_rng_call_count = 0;
+
+unsigned long rng_call_count(void) { return g_rng_call_count; }
+
 void rng_seed(uint32_t seed)
 {
     g_rng_seed = seed;
@@ -14,6 +22,7 @@ void rng_seed(uint32_t seed)
 
 uint16_t rng_next15(void)
 {
+    g_rng_call_count++;
     g_rng_seed = g_rng_seed * 0x343fdu + 0x269ec3u;
     return (uint16_t)((g_rng_seed >> 16) & 0x7fffu);
 }

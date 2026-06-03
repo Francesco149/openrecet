@@ -390,6 +390,16 @@ class CaptureConfig:
     # parity vs the port.
     rng_callers: bool = False
 
+    # RNG-consumption probe (tools/phase_probe.py). rng_count: emit a cumulative
+    # LCG-call total as vals.rngcalls in each per-frame watch record (diff
+    # per-frame RNG consumption port↔retail). rng_callsites: an ABSOLUTE [lo,hi)
+    # frame range over which to also record the CALLER VA of every LCG step
+    # (incl. periodic consumers) → <run_dir>/rng_callsites.json; the
+    # who-consumed-it drill-down that reveals unported RNG consumers (e.g. the
+    # missing ambient particles).
+    rng_count: bool = False
+    rng_callsites: int | None = None   # N frames after the {phasepin} to capture
+
 
 @dataclass
 class CaptureResult:
@@ -758,6 +768,20 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                         + ", ".join(f"{k}:{v}" for k, v in top) + "\n")
             return
 
+        if kind == "rng_callsites":
+            # Per-frame caller histograms over the armed [lo,hi) range — the
+            # who-consumed-RNG drill-down. {frames: {frame: {va: count}}}.
+            frames = p.get("frames") or {}
+            try:
+                (run_dir / "rng_callsites.json").write_text(json.dumps(
+                    {"lo": p.get("lo"), "hi": p.get("hi"), "frames": frames},
+                    indent=2))
+            except Exception:
+                pass
+            f_log.write(f"[rng_callsites] frames [{p.get('lo')},{p.get('hi')}) "
+                        f"captured={len(frames)} frame-buckets\n")
+            return
+
         if kind == "dump_records_b_done":
             f_log.write(f"[records_b] dump window done "
                         f"[frames {p.get('first_frame')}..{p.get('last_frame')}]; "
@@ -993,6 +1017,10 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             init_cfg["chr_leaf"] = True
     if cfg.rng_callers:
         init_cfg["rng_callers"] = True
+    if cfg.rng_count:
+        init_cfg["rng_count"] = True
+    if cfg.rng_callsites:
+        init_cfg["rng_callsites"] = int(cfg.rng_callsites)
     if cfg.mem_watch:
         init_cfg["mem_watch"] = True
         init_cfg["mem_watch_precise"] = bool(cfg.mem_watch_precise)
@@ -1407,6 +1435,13 @@ def main(argv: list[str] | None = None) -> int:
                          "(cumulative {ret_va: count}). Finds which subsystems "
                          "advance the RNG stream per frame — the metric for "
                          "foot-dust / particle RNG parity vs the port.")
+    ap.add_argument("--rng-count", action="store_true",
+                    help="Emit a cumulative LCG-call total as vals.rngcalls in "
+                         "each per-frame watch record (RNG-consumption diff).")
+    ap.add_argument("--rng-callsites", type=int, metavar="N",
+                    help="record the caller VA of every LCG step for N frames "
+                         "AFTER the {phasepin} fire → rng_callsites.json "
+                         "(who-consumed-RNG drill-down; catches periodic callers).")
     ap.add_argument("--arm-skip-at-frame", type=int, default=None,
                     help="Directly call FUN_0045337b (the WndProc ESC skip-event "
                          "entry) once at this manual frame. Probes prologue "
@@ -1551,6 +1586,8 @@ def main(argv: list[str] | None = None) -> int:
         quad_hist=args.quad_hist,
         chr_leaf=args.chr_leaf,
         rng_callers=args.rng_callers,
+        rng_count=args.rng_count,
+        rng_callsites=args.rng_callsites,
     )
     args.run_dir.mkdir(parents=True, exist_ok=True)
     result = _run_capture_impl(cfg, args.run_dir)

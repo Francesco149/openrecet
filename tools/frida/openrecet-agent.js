@@ -906,6 +906,21 @@ const FN_RNG_LCG              = 0x005041f6;  // FUN_005041f6 (LCG step)
 let g_rng_callers            = false;
 let g_rng_callers_hooked     = false;
 let g_rng_callers_map        = {};
+// RNG-CONSUMPTION probe (tools/phase_probe.py). g_rng_count: when set, the LCG
+// hook keeps a cumulative call total emitted as vals.rngcalls in the per-frame
+// watch — lets the probe diff per-frame RNG *consumption* port↔retail to find
+// where the two streams desync under a shared seed. g_rng_cs_[lo,hi): a
+// base-relative-resolved frame range over which the hook also records the
+// CALLER VA of every LCG step (incl. periodic every-X-frame consumers), buffered
+// per absolute frame and flushed as {kind:'rng_callsites'} — the who-consumed-it
+// drill-down for the desync frame.
+let g_rng_count             = false;
+let g_rng_count_total       = 0;
+let g_rng_cs_lo             = -1;   // absolute frame range [lo,hi) for call-site capture
+let g_rng_cs_hi             = -1;
+let g_rng_cs_buf            = {};   // {frame: {"0xVA": count}}
+let g_rng_cs_flushed        = false;
+let g_rng_cs_len            = 0;    // frames-after-phasepin to capture call sites
 let g_quad_record              = false;  // armed for the current frame's draws
 let g_quad_events              = [];     // current frame's ordered draw events
 let g_quad_events_cap          = 6000;   // per-frame event hard cap (safety)
@@ -1313,12 +1328,13 @@ function installInputHook() {
                       frame: fn,
                       buttons: mask});
 
-                if (g_watch.length) {
+                if (g_watch.length || g_rng_count) {
                     const vals = {};
                     for (let i = 0; i < g_watch.length; i++) {
                         try { vals[g_watch[i].name] = watchRead(g_watch[i]); }
                         catch (e) { vals[g_watch[i].name] = null; }
                     }
+                    if (g_rng_count) vals.rngcalls = g_rng_count_total;
                     send({kind: 'watch', frame: fn, vals: vals});
                 }
 
@@ -1359,6 +1375,13 @@ function installInputHook() {
                 if (g_rng_callers && (fn % 200 === 0)) {
                     send({kind: 'rng_callers', frame: fn,
                           hist: g_rng_callers_map});
+                }
+                if (g_rng_cs_hi >= 0 && !g_rng_cs_flushed && fn >= g_rng_cs_hi) {
+                    send({kind: 'rng_callsites',
+                          lo: g_rng_cs_lo, hi: g_rng_cs_hi, frames: g_rng_cs_buf});
+                    g_rng_cs_flushed = true;
+                    log('rng_callsites flushed: frames [' + g_rng_cs_lo + ',' +
+                        g_rng_cs_hi + ')');
                 }
             } catch (e) {
                 err('input_poll.onLeave', e.message);
@@ -2206,8 +2229,14 @@ function segtraceTick(fn) {
                 rva(0x056dab48).writeS32(0);   // companion anim TIMER (float 0.0 == 0)
                 rva(0x056dab4c).writeS32(0);   // companion anim COUNTER
                 pp.fired = true;
+                if (g_rng_cs_len > 0) {           // arm call-site capture from here
+                    g_rng_cs_lo = fn; g_rng_cs_hi = fn + g_rng_cs_len;
+                    g_rng_cs_buf = {}; g_rng_cs_flushed = false;
+                }
                 log('segtrace: phasepin - companion phase reset to 0 (db054 was ' +
-                    was + ') at frame ' + fn + ' (base+' + pp.frame + ')');
+                    was + ') at frame ' + fn + ' (base+' + pp.frame + ')'
+                    + (g_rng_cs_len > 0 ? ' [rng-callsites ' + g_rng_cs_lo + '..'
+                       + g_rng_cs_hi + ']' : ''));
             }
         }
         break;
@@ -2724,7 +2753,19 @@ function installQuadHistHooks(devicePtr) {
     log('quad-hist hooks installed (FUN_00404efc + 3 vtable slots)');
 }
 
-// ─── RNG caller histogram ───────────────────────────────────────────────
+// Tally one LCG caller VA into the current frame's call-site bucket, if the
+// live frame is inside the armed [lo,hi) range. Reads the frame counter only
+// while armed (cheap when off).
+function rngCsTally(k) {
+    if (g_rng_cs_hi < 0) return;
+    const f = g_manual_frame_counter;   // the real sim frame (== fn in input_poll)
+    if (f < g_rng_cs_lo || f >= g_rng_cs_hi) return;
+    let m = g_rng_cs_buf[f];
+    if (!m) { m = {}; g_rng_cs_buf[f] = m; }
+    m[k] = (m[k] || 0) + 1;
+}
+
+// ─── RNG caller histogram / consumption probe ───────────────────────────────
 function installRngCallerHook() {
     if (g_rng_callers_hooked) return;
     ensureBase();
@@ -2733,9 +2774,11 @@ function installRngCallerHook() {
     // collapse to the wrapper VA 0x471092 — broken open by the 2nd hook below.
     Interceptor.attach(rva(FN_RNG_LCG), {
         onEnter: function () {
+            g_rng_count_total++;
             try {
                 const k = '0x' + toGhidraVa(this.returnAddress).toString(16);
-                g_rng_callers_map[k] = (g_rng_callers_map[k] || 0) + 1;
+                if (g_rng_callers) g_rng_callers_map[k] = (g_rng_callers_map[k] || 0) + 1;
+                rngCsTally(k);
             } catch (e) { /* never break the engine over a tally */ }
         },
     });
@@ -2746,12 +2789,15 @@ function installRngCallerHook() {
         onEnter: function () {
             try {
                 const k = 'u:0x' + toGhidraVa(this.returnAddress).toString(16);
-                g_rng_callers_map[k] = (g_rng_callers_map[k] || 0) + 1;
+                if (g_rng_callers) g_rng_callers_map[k] = (g_rng_callers_map[k] || 0) + 1;
+                rngCsTally(k);
             } catch (e) { /* tolerate */ }
         },
     });
     g_rng_callers_hooked = true;
-    log('rng-callers hook installed on FUN_005041f6 + FUN_00471089');
+    log('rng LCG hook installed on FUN_005041f6 + FUN_00471089 '
+        + '(callers=' + g_rng_callers + ' count=' + g_rng_count
+        + ' callsites=[' + g_rng_cs_lo + ',' + g_rng_cs_hi + '))');
 }
 
 // ─── Cchr.2b character-sprite leaf capture ──────────────────────────────
@@ -4026,6 +4072,11 @@ rpc.exports = {
 
         // RNG caller histogram (finds per-frame shared-LCG consumers).
         g_rng_callers        = !!config.rng_callers;
+        g_rng_count          = !!config.rng_count;
+        // rng_callsites = N frames after the {phasepin} fire to record LCG
+        // caller VAs over (resolved agent-side at the pin, so it's load-jitter
+        // immune — same single run as the watch). 0/absent = off.
+        g_rng_cs_len         = config.rng_callsites | 0;
         g_rng_callers_hooked = false;
         g_rng_callers_map    = {};
 
@@ -4176,8 +4227,9 @@ rpc.exports = {
             if (wantMemWatch) {
                 installMemoryWatch(g_mem_watch_regions, g_mem_watch_precise);
             }
-            // RNG caller histogram — a single Interceptor on the LCG step.
-            if (g_rng_callers) {
+            // RNG caller histogram / consumption probe — a single Interceptor
+            // on the LCG step, shared by callers / rngcalls-count / call-sites.
+            if (g_rng_callers || g_rng_count || g_rng_cs_len > 0) {
                 installRngCallerHook();
             }
             // ESC-record hook (recorder) — capture WndProc ESC-skip presses.

@@ -26,6 +26,12 @@
  * `1` to its initial-data slot independently). */
 extern uint32_t g_rng_seed;
 
+/* Cumulative LCG-step (rng_next15) count since boot — RNG-consumption probe
+ * (tools/phase_probe.py `rngcalls`).  Mirror of the engine LCG FUN_005041f6,
+ * so port↔retail per-frame RNG consumption can be diffed under a shared seed. */
+extern unsigned long g_rng_call_count;
+unsigned long rng_call_count(void);
+
 void     rng_seed(uint32_t seed);
 
 /* One LCG step. Returns the 15-bit value the engine exposes via

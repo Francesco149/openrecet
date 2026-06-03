@@ -117,14 +117,18 @@ def run_port(trace: Path, start: int, count: int, run_dir: Path) -> None:
         subprocess.run(cmd, check=True, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
 
 
-def run_retail(trace: Path, run_dir: Path, max_frames: int, remote: str) -> None:
+def run_retail(trace: Path, run_dir: Path, max_frames: int, remote: str,
+               cs_len: int = 0) -> None:
     cmd = [sys.executable, str(ROOT / "tools" / "frida_capture.py"),
            "--remote", remote, "--run-dir", str(run_dir),
            "--input-segtrace", str(trace),
            "--turbo", "--silent-audio", "--force-resolution", "1024x768",
-           "--max-frames", str(max_frames), "--hide-window", "--no-montage"]
+           "--max-frames", str(max_frames), "--hide-window", "--no-montage",
+           "--rng-count"]  # per-frame RNG-consumption count (vals.rngcalls)
     for name, va, typ in STD_WATCHES:
         cmd += ["--watch", f"{name}=0x{va:08x}:{typ}"]
+    if cs_len:
+        cmd += ["--rng-callsites", str(cs_len)]
     print(f"  retail: frida_capture --input-segtrace … --watch ×{len(STD_WATCHES)} "
           f"--max-frames {max_frames}", flush=True)
     with (run_dir / "drive.log").open("w") as log:
@@ -147,6 +151,33 @@ def load_retail(run_dir: Path) -> tuple[list[dict], int | None]:
             if m:
                 pin_frame = int(m.group(1))
     return rows, pin_frame
+
+
+def load_funcs() -> list[tuple[int, int, str]]:
+    """(entry, size, name) sorted by entry, from the Ghidra function table."""
+    import csv
+    out = []
+    fp = ROOT / "docs" / "decompiled" / "functions.csv"
+    if not fp.exists():
+        return out
+    for r in csv.DictReader(fp.open()):
+        try:
+            out.append((int(r["entry"], 16), int(r["size"]), r["name"]))
+        except (KeyError, ValueError):
+            pass
+    out.sort()
+    return out
+
+
+def enclosing_fn(funcs: list[tuple[int, int, str]], va: int) -> str:
+    import bisect
+    starts = [a for a, _, _ in funcs]
+    i = bisect.bisect_right(starts, va) - 1
+    if i >= 0:
+        a, sz, nm = funcs[i]
+        if va < a + sz:
+            return nm
+    return f"0x{va:06x}"
 
 
 def classify(offsets: list[int]) -> tuple[str, str]:
@@ -177,6 +208,10 @@ def main() -> int:
                     help="retail frame cap (must reach 2nd anchor + window; default 6500)")
     ap.add_argument("--reuse", action="store_true",
                     help="skip the runs, just re-analyze existing run dirs")
+    ap.add_argument("--drill", action="store_true",
+                    help="after the verdict, capture retail's RNG call sites over "
+                         "the window (names the consumers that desync — incl. "
+                         "unported ones like ambient particles, for porting)")
     args = ap.parse_args()
 
     trace = resolve_trace(args.trace)
@@ -202,9 +237,12 @@ def main() -> int:
         print(f"phase_probe: {name}  window={start},{count}  "
               f"phasepin@base+{pin_at}{rng}")
 
+    # --drill captures retail RNG call sites for `count+120` frames after the
+    # phasepin (covers the whole window) IN THE SAME run — load-jitter immune.
+    cs_len = (count + 120) if (args.drill and not args.no_pin) else 0
     if not args.reuse:
         run_port(work, start, count, out / "port")
-        run_retail(work, out / "retail", args.max_frames, args.remote)
+        run_retail(work, out / "retail", args.max_frames, args.remote, cs_len)
 
     port = load_port(out / "port")
     ret_rows, pin_frame = load_retail(out / "retail")
@@ -262,6 +300,34 @@ def main() -> int:
         print(f"  {'rng':<10} {'UNPINNED':<13} {match}/{len(rng_off)} match — "
               f"add a {{rngseed}} op for a clean RNG comparison")
 
+    # rngcalls — per-frame RNG CONSUMPTION (cumulative LCG calls, rebased to the
+    # first aligned frame).  If port and retail consume the same per frame the
+    # rebased totals stay equal; the first db054 they differ is the consumption
+    # desync point (often an unported RNG consumer — e.g. ambient particles).
+    cs_div = None
+    if all("rngcalls" in portmap[v] and "rngcalls" in retmap[v] for v in common):
+        pbase = portmap[common[0]]["rngcalls"]
+        rbase = retmap[common[0]]["rngcalls"]
+        diffs = []
+        for v in common:
+            pc = portmap[v]["rngcalls"] - pbase
+            rc = retmap[v]["rngcalls"] - rbase
+            diffs.append(pc - rc)
+            if cs_div is None and pc != rc:
+                cs_div = v
+        s = sorted(set(diffs))
+        if s == [0]:
+            print(f"  {'rngcalls':<10} {'ALIGNED':<13} "
+                  f"per-frame RNG consumption matches retail")
+        else:
+            tot = diffs[-1]
+            print(f"  {'rngcalls':<10} {'DESYNC':<13} consumption diverges at "
+                  f"db054={cs_div} (retail abs frame "
+                  f"{retmap.get(cs_div,{}).get('frame','?')}); "
+                  f"net port−retail {tot:+d} calls over the window")
+            if rank["DRIFT"] > rank[worst]:
+                worst = "DRIFT"
+
     print()
     if worst == "ALIGNED":
         print("  VERDICT: ✅ PHASE-CLEAN — all counters bit-exact vs retail. "
@@ -273,6 +339,39 @@ def main() -> int:
     else:
         print("  VERDICT: ❌ LOGIC DRIFT — a counter diverges per-frame (offset "
               "grows). This is a real port logic error; see the DRIFT row above.")
+    # --drill: capture retail's RNG CALL SITES over the aligned window (or just
+    # around the consumption-desync frame) so the consumers that diverge — often
+    # unported ones, e.g. ambient particles — are named by VA for porting.
+    if args.drill and not args.no_pin:
+        cs_path = out / "retail" / "rng_callsites.json"
+        print(f"\n  --drill: retail RNG call sites over the post-phasepin window")
+        if cs_path.exists():
+            cs = json.loads(cs_path.read_text())
+            agg: dict[str, int] = {}
+            for fr, callers in cs.get("frames", {}).items():
+                for va, n in callers.items():
+                    agg[va] = agg.get(va, 0) + n
+            funcs = load_funcs()
+            # roll call-SITE counts up into their enclosing FUNCTION (the unit we
+            # cross-check against the port); drop out-of-image junk resolutions.
+            byfn: dict[str, int] = {}
+            for va, n in agg.items():
+                v = int(va.replace("u:", ""), 16)
+                if not (0x401000 <= v <= 0x5ff000):
+                    continue
+                fn = enclosing_fn(funcs, v)
+                byfn[fn] = byfn.get(fn, 0) + n
+            print(f"  retail RNG consumers over the window "
+                  f"({len(cs.get('frames', {}))} frames), by function:")
+            for fn, n in sorted(byfn.items(), key=lambda kv: -kv[1]):
+                print(f"    {fn:<16} {n:>6} LCG calls")
+            print("  Cross-check each FUN_ against the port's ported consumers; a "
+                  "retail caller the port under-uses = an unported/under-emitting "
+                  "RNG consumer (e.g. a missing particle emitter through "
+                  "FUN_00447f4f scene1_spawn).")
+        else:
+            print("  (no rng_callsites.json — the window may not have been reached)")
+
     print(f"\n  data: {out}/  (port/meta.jsonl, retail/watch.jsonl)")
     return 0
 
