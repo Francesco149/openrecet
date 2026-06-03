@@ -64,9 +64,25 @@ position as retail. The divergence is **appearance**: (a) the missing face glow
 position during fast motion is still worth a synced check, but the cap_03 diffs
 above are render/anim, not position.
 
+## Preliminary root-cause notes (2026-06-03)
+
+- **Companion additive glow billboard (chr02.bmp, ONE/ONE) scale MATCHES retail**
+  — d3d-trace basis length 0.030 on both, blend 2/2 on both, pos (0.6, ~3.0,
+  9.35). So #1 is NOT a glow-billboard *scale* bug. In the **bottomwall** trace
+  the port glow sits at Y≈2.90 vs retail 3.05, but that trace is **unsynced**
+  (port f656 vs retail f538) so the 0.15 is just **bob phase** between two sims —
+  inconclusive for cap_03. **#1 must be re-checked on a SYNCED walk d3d-trace**
+  (port+retail at the same cap), now capturable via `--d3d-trace` windowing.
+- Working hypothesis: #1 (face glow position), #3 (anim frame), #4 (eyes) may
+  share ONE root — the companion bob/anim **phase counter** (`s_bob_counter` vs
+  the engine's shared `DAT_056db054`). #2 (wing/hair layering) is a separate
+  draw-order question.
+
 ## Next
 
-Root-cause #1 (face glow) first — it's the most visually prominent and is a
+Capture a SYNCED walk d3d-trace (port + retail, same cap as cap_03) and compare
+the companion glow billboard + body-sprite world matrices + textures there, to
+separate the bob-phase confound. Then root-cause #1 (face glow) — it's the most visually prominent and is a
 render/blend/draw-order question localizable from the wing-glow draw vs the body
 sprite (no anim-phase confound). Then #2 (wing/hair layering). #3/#4 (anim frame)
 fold into the deferred `s_bob_counter` → shared `DAT_056db054` phase alignment.
