@@ -142,67 +142,79 @@ def emit_house_segtrace(changes, caps, escs, cts, rng_seed=None):
     return "\n".join(out) + "\n"
 
 
-def pick_anchor(anchors, name):
-    """Return the chosen recorded anchor firing of `name` (the LAST one — for a
-    re-entrant anchor that's the final/settled occurrence), or None."""
-    hits = [a for a in anchors if a["name"] == name]
-    return hits[-1] if hits else None
+def _held_mask_at(changes, frame):
+    """The button mask held at `frame` = the last change-point with f <= frame."""
+    held = "0x0000"
+    for f, m in changes:
+        if f <= frame:
+            held = m
+        else:
+            break
+    return held
 
 
-def emit_anchor_rebase(changes, caps, escs, cts, total, rng_seed, anchor,
-                       pin_gframe=False):
-    """Split a recording at a recorded anchor so everything AFTER it replays
-    anchor-relative (a `{wait:NAME}` then frames rebased by the anchor's relative
-    frame) — a 100%-reproducible offset regardless of boot/load jitter. Inputs
-    BEFORE the anchor drive the navigation flat (they only need to *reach* the
-    anchor; menus/dialogue wait for input). RNG is re-pinned at the anchor to the
-    LCG state recorded THERE (anchor['rng']) so post-anchor RNG (dust/NPC) is
-    reproducible and faithful; falls back to the record-start seed if absent.
+def emit_anchor_segments(changes, caps, escs, cts, total, anchors, rng_seed,
+                         pin_rng=True, pin_gframe=False):
+    """Convert a recording that carries recorded anchor firings into an
+    ANCHOR-GATED segtrace: every recorded anchor becomes a `{wait:NAME}` sync
+    point, and all inputs/escs/captures between two anchors are emitted relative
+    to the preceding one. The segtrace's spam-until-anchor + base mechanism then
+    re-syncs the timeline at each anchor, so the trace replays correctly under
+    turbo/load jitter WITHOUT rebasing anything by hand — an ESC `N frames after a
+    dialogue anchor` always fires N frames after that anchor actually lands, and a
+    walk after FREEROAM_START always starts at the same sim instant.
 
-    `anchor` is one entry from load_raw()'s anchors list. With pin_gframe, also
-    emit a {gframe:[0, anchor_gframe]} op (experimental — pins the global frame
-    counter so frame-count-derived state like the time-of-day HUD clock matches)."""
-    ar = anchor["frame"]                       # anchor's relative frame
-    name = anchor["name"]
-    pin_rng = anchor["rng"] if anchor["rng"] is not None else rng_seed
+    Same-frame anchors are deduped (one sync point per distinct frame, first-named
+    wins); BOOT is dropped (it's the implicit start). With pin_rng (default), each
+    anchor re-pins the LCG to the value recorded THERE — this erases the extra RNG
+    the stretched turbo load consumed, so post-anchor RNG (dust/NPC) is faithful
+    and reproducible. pin_gframe additionally pins the global frame counter
+    (EXPERIMENTAL). Captures: the producer (export_trace caprange) adds the window
+    relative to the final anchor; recorded {capture}s are also carried per-segment."""
+    # distinct-frame sync points, in frame order
+    seen, syncs = set(), []
+    for a in sorted(anchors, key=lambda x: x["frame"]):
+        if a["name"] == "BOOT" or a["frame"] in seen:
+            continue
+        seen.add(a["frame"])
+        syncs.append(a)
 
-    out = [f"# anchor-rebased at {name} (rel frame {ar}, gframe "
-           f"{anchor['gframe']}, rng {pin_rng}); post-anchor inputs are "
-           f"{name}-relative for a jitter-immune offset."]
+    out = ["# anchor-segmented replay: each recorded anchor is a {wait} sync point;"
+           " inputs/escs after it are relative to it (turbo/jitter-immune)."]
 
-    # ── segment 0: pre-anchor navigation, flat (drives to the anchor) ──
+    def emit_window(lo, hi, first):
+        """Emit inputs/escs/caps/cts with lo <= f < hi, rebased by -lo. `first`
+        seeds the held-mask baseline at frame 0 so a hold spanning `lo` carries."""
+        out.append(json.dumps({"frame": 0, "buttons": _held_mask_at(changes, lo)
+                               if not first else "0x0000"}))
+        for f, m in changes:
+            if lo < f < hi:
+                out.append(json.dumps({"frame": f - lo, "buttons": m}))
+        for e in escs:
+            if lo <= e < hi:
+                out.append(json.dumps({"esc": e - lo}))
+        for c in caps:
+            if lo <= c < hi:
+                out.append(json.dumps({"capture": c - lo}))
+        for s, l in cts:
+            if lo <= s < hi:
+                out.append(json.dumps({"calltrace": [s - lo, l]}))
+
+    # segment 0: boot → first anchor (flat from frame 0)
     if rng_seed is not None:
         out.append(json.dumps({"rngseed": [0, rng_seed]}))
-    for f, m in changes:
-        if f < ar:
-            out.append(json.dumps({"frame": f, "buttons": m}))
-    for e in escs:
-        if e < ar:
-            out.append(json.dumps({"esc": e}))
-    # a trailing release so seg-0 doesn't end mid-hold while we wait for the anchor
-    out.append(json.dumps({"frame": max(ar - 1, 0), "buttons": "0x0000"}))
+    first_hi = syncs[0]["frame"] if syncs else total + 1
+    emit_window(0, first_hi, first=True)
 
-    # ── wait for the anchor, then everything after it, rebased to anchor+0 ──
-    out.append(json.dumps({"wait": name}))
-    if pin_gframe and anchor["gframe"] is not None:
-        out.append(json.dumps({"gframe": [0, anchor["gframe"]]}))
-    if pin_rng is not None:
-        out.append(json.dumps({"rngseed": [0, pin_rng]}))
-    out.append(json.dumps({"frame": 0, "buttons": "0x0000"}))
-    for f, m in changes:
-        if f >= ar:
-            out.append(json.dumps({"frame": f - ar, "buttons": m}))
-    for c in caps:
-        if c >= ar:
-            out.append(json.dumps({"capture": c - ar}))
-    for e in escs:
-        if e >= ar:
-            out.append(json.dumps({"esc": e - ar}))
-    for start, length in cts:
-        if start >= ar:
-            out.append(json.dumps({"calltrace": [start - ar, length]}))
-    if changes and changes[-1][1] != "0x0000":
-        out.append(json.dumps({"frame": total - ar, "buttons": "0x0000"}))
+    for i, a in enumerate(syncs):
+        out.append(json.dumps({"wait": a["name"]}))
+        if pin_gframe and a["gframe"] is not None:
+            out.append(json.dumps({"gframe": [0, a["gframe"]]}))
+        if pin_rng and a["rng"] is not None:
+            out.append(json.dumps({"rngseed": [0, a["rng"]]}))
+        lo = a["frame"]
+        hi = syncs[i + 1]["frame"] if i + 1 < len(syncs) else total + 1
+        emit_window(lo, hi, first=False)
     return "\n".join(out) + "\n"
 
 
@@ -212,14 +224,18 @@ def main(argv=None):
     ap.add_argument("-o", "--out", help="output path (default stdout)")
     ap.add_argument("--house-segtrace", action="store_true",
                     help="wrap as a bootable new-game→HOUSE segtrace")
-    ap.add_argument("--anchor-rebase", metavar="NAME",
-                    help="split at a recorded anchor (e.g. FREEROAM_START): inputs "
-                         "after it become anchor-relative (jitter-immune offset), "
-                         "RNG re-pinned at the anchor. Requires the raw recording "
-                         "to carry {anchor} rows (recorder ≥ anchor-logging build).")
+    ap.add_argument("--anchor-segments", action="store_true",
+                    help="emit an ANCHOR-GATED segtrace: every recorded anchor "
+                         "becomes a {wait} sync point and inputs/escs after it are "
+                         "relative to it, so the trace replays correctly under "
+                         "turbo/load jitter with no hand-rebasing. Requires the raw "
+                         "to carry {anchor} rows (recorder ≥ anchor-logging build). "
+                         "Default RNG-pins at each anchor to the recorded value.")
+    ap.add_argument("--no-pin-rng", action="store_true",
+                    help="with --anchor-segments, do NOT re-pin RNG at each anchor.")
     ap.add_argument("--pin-gframe", action="store_true",
-                    help="with --anchor-rebase, also pin the global frame counter "
-                         "at the anchor (experimental — for frame-count-derived "
+                    help="with --anchor-segments, also pin the global frame counter "
+                         "at each anchor (experimental — for frame-count-derived "
                          "state like the time-of-day HUD clock).")
     args = ap.parse_args(argv)
 
@@ -227,16 +243,14 @@ def main(argv=None):
     if not changes:
         print("distill_trace: no input frames found in", args.raw, file=sys.stderr)
         return 1
-    if args.anchor_rebase:
-        a = pick_anchor(anchors, args.anchor_rebase)
-        if a is None:
-            names = sorted({x["name"] for x in anchors})
-            print(f"distill_trace: anchor {args.anchor_rebase!r} not in recording "
-                  f"(have: {', '.join(names) or 'none'}). Re-record with the "
-                  f"anchor-logging build.", file=sys.stderr)
+    if args.anchor_segments:
+        if not anchors:
+            print("distill_trace: no {anchor} rows in recording — re-record with "
+                  "the anchor-logging build (recorder ≥ 2026-06-03).", file=sys.stderr)
             return 1
-        text = emit_anchor_rebase(changes, caps, escs, cts, total, rng_seed, a,
-                                  pin_gframe=args.pin_gframe)
+        text = emit_anchor_segments(changes, caps, escs, cts, total, anchors,
+                                    rng_seed, pin_rng=not args.no_pin_rng,
+                                    pin_gframe=args.pin_gframe)
     elif args.house_segtrace:
         text = emit_house_segtrace(changes, caps, escs, cts, rng_seed)
     else:
