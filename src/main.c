@@ -432,6 +432,11 @@ extern float                     g_scene1_actor_pos[3][3];
 static char                     *g_player_pos_log_path      = NULL;
 static FILE                     *g_player_pos_log_fp        = NULL;
 
+/* --dust-log <file>: per-frame depth dump of the walk-dust particles + actor
+ * anchors (scene1_walk_dust.c writes via the extern FILE*). */
+extern FILE                     *g_dust_log_fp;
+static char                     *g_dust_log_path            = NULL;
+
 /* ─── in-engine TAS trace recorder (F2 start/stop, F3 capture-point) ──────────
  * Buffers the per-frame player-1 button mask while recording, plus a list of
  * capture frames (F3).  On stop, dumps a RAW recording (every frame's mask,
@@ -1579,6 +1584,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
     }
 
+    if (g_dust_log_path) {
+        g_dust_log_fp = fopen(g_dust_log_path, "w");
+        fprintf(stderr, g_dust_log_fp ? "openrecet: dust log → %s\n"
+                                      : "openrecet: failed to open dust log %s\n",
+                g_dust_log_path);
+    }
+
     /* Input-trace replay: parse the file now (one shot at boot — the
      * file is small and lookups are binary search at runtime). */
     if (g_input_trace_replay_path) {
@@ -1612,6 +1624,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             /* {caprange:[S,C]} ops open a contiguous capture window for the
              * frame-by-frame trace export (export_trace.py). */
             input_segtrace_set_caprange_cb(&g_segtrace, segtrace_caprange_cb, NULL);
+            /* Engage d3d-trace windowed mode now (silent until the caprange op
+             * resolves the window) so --d3d-trace over a segtrace doesn't dump
+             * every frame from boot. */
+            if (g_d3d_trace_path)
+                d3d_trace_set_window(0, 0);
             /* {esc:N} ops synthesise the engine ESC dispatch (dialogue-skip
              * replay) — see segtrace_esc_cb. */
             input_segtrace_set_esc_cb(&g_segtrace, segtrace_esc_cb, NULL);
@@ -3155,6 +3172,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 lstrcpynA(pos_buf, val, (int)sizeof(pos_buf));
                 g_player_pos_log_path = pos_buf;
             }
+        } else if (lstrcmpA(tok, "--dust-log") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char dust_buf[MAX_PATH];
+                lstrcpynA(dust_buf, val, (int)sizeof(dust_buf));
+                g_dust_log_path = dust_buf;
+            }
         } else if (lstrcmpA(tok, "--capture-at-anchor") == 0) {
             /* NAME[+k|-k] — e.g. HOUSE_FREEROAM+5, LOADING_END, NEW_GAME+0 */
             char *val = strtok(NULL, " ");
@@ -3367,6 +3391,11 @@ static void segtrace_caprange_cb(uint32_t lo, uint32_t hi, void *user)
     }
     fprintf(stderr, "segtrace: capture range [%u, %u)\n",
             (unsigned)g_capture_range_lo, (unsigned)g_capture_range_hi);
+    /* Mirror the window into the d3d-trace emitter so --d3d-trace captures the
+     * same anchor-relative window (jitter-immune) without an absolute frame
+     * list — no-op when --d3d-trace is off. */
+    if (g_d3d_trace_path)
+        d3d_trace_set_window(g_capture_range_lo, g_capture_range_hi);
 }
 
 /* ESC sink for input_segtrace `{esc:N}` ops: route to the engine's real ESC

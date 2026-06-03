@@ -279,3 +279,233 @@ anchor-gated export (`runs/trace-export/dust-fixed`, `frame_NNNNN` = anchor-rela
 > reference is jitter-immune (the documented `frame_0186` reproduces bit-exactly from
 > a fresh raw replay). `feed.py montage` refuses trace-export dirs → use the `trace`
 > card. See `docs/trace-workflow.md`.
+
+## 2026-06-03d — INSTRUMENTED both sides at the stationary wall; authoritative vel+age+pos
+
+Pulled per-particle ground truth on BOTH engines at the stationary bottom-wall
+(player pinned at **(-0.3,0,9.5)** on both — `--watch px/py/pz` confirms retail
+is NOT moving, killing the earlier "trailing dust from a moving player" theory).
+
+**Tools built this session:**
+- Port `--dust-log <file>` (`src/scene1_walk_dust.c` + `main.c` +
+  `tools/run-openrecet.sh` + `tools/export_trace.py --dust-log`): per live
+  type-0xe slot, dumps world pos + projected NDC-z + each actor anchor's NDC-z.
+- Retail authoritative dump: `distill_trace --anchor-segments
+  runs/recordings/retail-bottomwall.raw.jsonl` → `frida_capture --dump-records-b
+  --dump-records-b-offsets <off…>` (offsets are relative to records-A
+  first-populate ≈ HOUSE entry; the stationary tail is off ~370–460). The
+  `records_a` rows carry **type, age, pos, vel, scale** — the real spawn state.
+  Also `--d3d-trace` over the same anchor-pinned replay gives the char+dust draw
+  WORLD matrices (→ NDC-z). Runs: `runs/retail-bw-d3d3/4`, `runs/retail-bw-recA/2`,
+  `runs/trace-export/bw-dustlog`.
+
+**Confirmed facts:**
+- **Char Z-write is a NO-OP here.** Z-ON vs a hard `#if 0` Z-OFF build (only that
+  block differs) are **pixel-identical on 0/219 frames** (feet AND glow). The
+  uncommitted `sw_pass_light` Z-write does nothing in this scene — it is NOT the
+  dust-occlusion fix. (Earlier "it clips the glow" was stale pre-session exports.)
+- **Spawn velocity MATCHES** the port formula: retail age-1 vel e.g.
+  (+0.18,-0.23,+0.30); vy≈(u-0.5)*0.5, vxz≈trig*u*0.5; damp≈0.95/frame; kill age
+  0x20 — all consistent with `init_type_shared_unit_half` + the type-0xe tick.
+- **Emit Y=0.5 matches** (retail age-1 Y=0.500 exactly = no Y jitter, = port).
+- **The gap is the DUST OCCLUSION (behind-fraction), and it is a POSITION effect,
+  not render:** retail dust is **~62% behind the foot** (d3d, 87 draws); port
+  **1.9%** (7532) — even projecting PORT positions through the RETAIL matrices.
+
+**Still OPEN — the exact divergent parameter.** The raw Z/Y distributions look
+*similar* (below-player-Z: retail 20% vs port 28%; Z median retail 9.57 vs port
+9.66; Y median retail 0.61 vs port 0.50 — retail is if anything HIGHER-Y = nearer),
+yet the behind-fraction is 62% vs 2%. Sampling (102 retail vs 7532 port) explains
+some spread but not a 30× behind-gap. Candidate causes still to pin against the
+disassembly + this GT data:
+  1. **Emit XZ jitter** — port `xj=zj=(u-0.5)*0.5` (±0.25 each). Retail emit jitter
+     (6 samples) xj∈[-0.23,+0.17], zj∈[-0.07,+0.38] — looks ASYMMETRIC/larger; verify
+     the real emit math (FUN_0048b850 emit site, the `FUN_00447f4f` arg order).
+  2. **The foot/char reference depth** used in the behind test — re-verify the char
+     DRAW anchor Z (FUN_00456f56 actor.z+0.02 vs player pos) on both sides; a small
+     char-Z offset flips many marginal dust draws.
+  3. **RNG-stream / velocity-distribution** parity (the port's per-frame RNG may
+     desync, biasing the vxz direction distribution).
+Next: a multi-angle disassembly verification of the emit (FUN_0048b850 tail) +
+spawn (FUN_00447f4f type-0xe) + tick (type-0xe drift) against the captured retail
+vel/age/pos, recomputing the behind-test with a consistent char-anchor on both
+sides. (See [[project_freeroam_smoke_effect]] §2026-06-03d.)
+
+### Seed-sweep diff: the SPAWN is BIT-EXACT (2026-06-03d)
+
+Per the user's suggestion — call the particle-param code with a forced RNG seed on
+BOTH engines, sweep seeds, diff. Built it for `FUN_00447f4f` (the type-0xe spawn):
+- Port: host program seeds `g_rng_seed`, calls `scene1_spawn(0,-0.3,0.5,9.5,0xe,0.125,1)`,
+  reads slot 0 vel/rot/scale (`/tmp` sweep; links rng.c+scene1_spawn.c+scene1_records.c).
+- Retail: new agent RPC `runRetailDustSpawn` (tools/frida/openrecet-agent.js) — forces
+  `DAT_006023a0`, snapshots+empties slot 0, calls `FUN_00447f4f` via NativeFunction
+  (cdecl, 7 args), reads back the slot, restores. Driven by a small diff_test.open_frida
+  harness (retail spawned suspended, frozen-process call).
+- **Result: BIT-EXACT across all 12 seeds** (vel.x/y/z, rot.z, scale, age all identical
+  to 6 dp). So the spawn's velocity/rotation math AND its RNG-consumption order are
+  faithful — the dust POSITION divergence is NOT in the spawn.
+=> Remaining suspect for port=front/retail=behind: the **EMIT jitter** in FUN_0048b850
+   (the xj/zj added to the spawn position, 2 rng calls BEFORE the spawn — can't be
+   exercised by the spawn-call diff since it lives in the controller), or the type-0xe
+   TICK drift. Verify the emit site's exact per-axis jitter math from the disassembly.
+
+## 2026-06-03e — NARROWING (READ THIS FIRST): emit/spawn/tick are bit-exact; the gap is the CHAR DRAW path
+
+Triple-confirmed (disassembly = captured retail GT = port C) — do NOT re-investigate these:
+- **EMIT jitter** (FUN_0048b850 tail, asm 0x48c758-0x48c821): `X = px + (R2-0.5)*0.5`,
+  `Y = py + 0.5` (NO jitter), `Z = pz + (R1-0.5)*0.5`; both XZ jitters are (rng-0.5)*0.5,
+  symmetric **±0.25**; RNG order **Z-first (R1) then X (R2)**. Port
+  `player_ctrl_b850_foot_dust` matches bit-exact.
+- **SPAWN** (FUN_00447f4f type-0xe = init_type_shared_unit_half): vel.x=sin(a)·u1·0.5,
+  vel.z=cos(a)·u1·0.5, vel.y=(u3-0.5)·0.5, rot.z=u4·2π, age=0, scale=param6 verbatim,
+  pos=spawn(x,y,z) verbatim (no anchor-back / no ×3 for 0xe). 4 rng draws. Confirmed BOTH
+  by disasm AND a **seed-sweep diff** (port host `scene1_spawn` vs retail
+  `runRetailDustSpawn` RPC, 12 seeds → vel/rot/scale/age identical to 6dp).
+- **TICK** (handle_type_group_drift_e_2b / FUN_0040fb3a type-0xe @ 0x41113d): `pos +=
+  vel * SLOT_SCALE(0.125)`, vel `*= 0.95`, age++ unconditional, kill at age 0x20, no rot
+  bump. Port matches bit-exact.
+- **Dust WORLD position** therefore matches: retail dust mean (z−9.5)=+0.16 (genuinely
+  ~0.16 *behind* the foot in world Z), port +0.157 — identical.
+
+Measurement correction:
+- The earlier "**retail 62% behind vs port 1.9%**" was an **artifact of an inconsistent
+  char-anchor reference**. Recomputed with the char DRAW WORLD-translation as the occluder
+  on both sides (= foot z=9.5, projected per-frame): retail **0%** behind the foot anchor,
+  port 1.9% — i.e. against the FOOT-ANCHOR depth, BOTH engines draw the dust *in front*
+  (the +0.5 Y lift dominates the +0.16 Z push in this projection). So a translation-point
+  NDC-z compare does NOT reproduce the visible bug.
+- The **char Z-write A/B in `sw_pass_light` was a NO-OP (0/219 frames)** — but that was the
+  WRONG draw path. The free-roam char is NOT drawn by sw_pass_light. scene1_chr_sprite_render
+  has callers in: **scene1_chr_walker.c** (player+companion), **scene1_chr_prepass.c** (a
+  PREPASS), scene1_shop_walker.c (sw_pass_light), scene1_bg_npc.c, main.c. Find which one
+  draws the free-roam player (ret_va 0x45aa31) and whether it writes Z.
+
+OPEN — the real chain to dig (render/depth, NOT the particle math):
+1. The free-roam char draw is at **ret_va 0x45aa31** and in retail carries **ZWRITE=1,
+   ZFUNC=LESSEQUAL, ALPHATEST ref0 GREATEREQUAL** (d3d trace runs/retail-bw-d3d4); it draws
+   as a **14-prim fan** (multi-cell sprite body, NOT a 2-tri billboard), BEFORE every dust
+   draw. Does the PORT char draw write Z? (scene1_chr_sprite_render sets NO depth state.)
+2. **CRUX — char per-vertex depth:** does the char quad have VERTICAL depth extent (body
+   pixels above the foot at a NEARER depth → can occlude the +0.16-behind dust), or is it a
+   camera-facing CONSTANT-depth billboard (engine-quirks §92 — then a Z-write occludes
+   nothing, since the dust is nearer than the whole quad)? §92 says constant-depth; the
+   workflow assumed vertical-extent. RESOLVE THIS before adding any char Z-write: transform
+   the char DrawPrimitiveUP verts (foot vs head local-Y) through WORLD·VIEW·PROJ from the
+   retail d3d trace and compare NDC-z. If constant-depth, the occluder is something else
+   (2D painter order, a Z-prepass, or per-vertex Z on the sprite quad).
+3. **scene1_chr_prepass.c** — what is this prepass and does retail run a char Z-prepass that
+   establishes the body depth the dust later tests against?
+
+Tooling/data: spawn seed-sweep harness (`runRetailDustSpawn` RPC + port host prog), records
+dump runs/retail-bw-recA2 (type 0xe vel/age/pos), runs/retail-bw-d3d4 (char+dust matrices),
+runs/trace-export/bw-dustlog. Workflow: dust-emit-disasm-verify (wf_5947468d-e69).
+
+### 2026-06-03e CRUX RESOLVED: char is CONSTANT-depth → char Z-write is NOT the fix
+
+Transformed the char quad local verts through the RETAIL char WORLD·VIEW·PROJ
+(runs/retail-bw-d3d4): ndcz = **0.956269 for every local-Y from −400 to +400** — the
+whole sprite body (foot→head) is at ONE depth (the foot anchor). The local-Y world
+direction (0,0.5547,−0.8321) dotted with the VIEW pitch rows = 0 (engine-quirks §92).
+The dust (−0.3,0.5,9.66) projects to ndcz **0.955150 — NEARER than the entire char**.
+So a char Z-write writes 0.9563 across the body and the nearer dust passes LESSEQUAL →
+draws in front regardless. **The char-sprite Z-write CANNOT occlude this dust** (the
+workflow synthesis was wrong on this point; it assumed a vertical-extent quad). This also
+fully explains the sw_pass_light Z-write no-op.
+
+=> The retail "dust-behind-boot" is therefore NOT a char-depth occlusion. Remaining real
+   occluder candidates (next dig): (a) the **3D bottom-wall / floor / furniture MESH**
+   (real per-pixel depth, written before the sprites) occluding the dust at world Z≈9.66
+   — check whether the PORT's wall mesh depth or the dust's Z-test against it differs;
+   (b) **scene1_chr_prepass** — a possible char Z-PREPASS writing per-pixel body depth at
+   the true (non-constant) sprite footprint; (c) verify the retail draw ORDER in the
+   bottomwall capture (char-before-dust vs dust-before-char) — painter's order with the
+   alpha-blended char.
+
+### 2026-06-03e chain dig: real char path = scene1_chr_walker, draws with ZWRITE=FALSE
+
+- The free-roam char (Recette+companion) is drawn by **scene1_chr_walker_render**
+  (scene1_render.c L855, the DEFAULT path — `--force-chr-walker` is now a no-op). NOT
+  sw_pass_light — which is why the earlier sw_pass_light Z-write A/B was a no-op (wrong path).
+- chr_walker sets **D3DRS_ZWRITEENABLE=FALSE** at L195 for the whole char/wing pass and only
+  re-enables ZWRITE=TRUE *after* the player draw (L311). So the PORT char draws with
+  **ZWRITE=0**. Retail's char draw (ret_va 0x45aa31) has **ZWRITE=1** (d3d trace, all frames).
+  => concrete render-state divergence on the real path.
+- BUT the char is constant-depth (above), so this Z-write only occludes dust that is FARTHER
+  than the char's single depth — and dust↔char are a **near-tie** (~0.001 ndcz; the sign even
+  flipped between two captures, char anchor 0.9542 vs 0.9563 vs dust 0.95515). So whether
+  matching retail's ZWRITE=1 actually pushes "most" dust behind is knife-edge and must be
+  tested EMPIRICALLY, not by offline ndcz.
+- Retail bottomwall DRAW ORDER (runs/retail-bw-d3d4): 3D-mesh… → pcShadow → furnShadow×6 →
+  CHAR×7 → 3D-mesh… → CHAR×1 → GLOW×8 → DUST×2 → HUD. So the dust z-tests against BOTH the
+  char (if it writes Z) AND the 3D meshes drawn before it. A 3D bottom-wall/furniture mesh
+  occluder is still a live alternative to the char Z-write.
+
+NEXT (a judgement call — re-enters the known Tear-glow entanglement):
+  (1) Empirically A/B: set ZWRITE=TRUE around the chr_walker player draw (match retail) +
+      restore after, re-render the bottomwall, and check if the dust now reads behind like
+      retail — AND whether Tear's wing-glow survives (the b1acf7c-class regression; Tear is
+      still not-1:1, [[project_confirmed_parity_ledger]]). The char being CONSTANT-depth and
+      the glow being a constant-depth billboard at Tear's anchor means the glow should pass
+      LESSEQUAL if Tear's quad depth == glow depth — verify.
+  (2) If the char ZWRITE doesn't reproduce "mostly behind", the occluder is the 3D mesh —
+      capture per-pixel mesh depth at the dust footprint (bottom wall/counter) port vs retail.
+
+## 2026-06-03f — RESOLVED: render contract is now faithful; char Z-write is the real retail state (committed) and a confirmed dust no-op; the remaining gap is TEAR
+
+Built the **Phase-0 per-draw render contract** end to end (`tools/d3d_state_diff.py`
+replays the d3d-trace state machine → per-Draw ZENABLE/ZWRITE/ZFUNC/ALPHATEST*/blend,
+keyed by ret_va) and ran it on BOTH sides at the bottomwall (retail `runs/retail-bw-d3d4`,
+port `runs/port-bw-d3d` via the new `export_trace.py --d3d-trace` + d3d-trace caprange
+windowing). This finally ground-truths the whole chain instead of theorising:
+
+**The earlier "free-roam char = chr_walker, NOT sw_pass_light" conclusion was WRONG.**
+Per-draw VA attribution (port `nm`):
+- Free-roam **player + companion** draw at `0x441d7a` = **`scene1_shop_walker` (sw_pass_light
+  = the FUN_004552d0 port)** — *this* is the retail free-roam char path. The retail char
+  render-state (ZWRITE=1 / ZFUNC=LE / ALPHATEST ref0 GREATER / SRCALPHA·INVSRCALPHA) is set
+  inside **FUN_004552d0** itself (asm 0x4552f0–0x4553fb), NOT in the leaf FUN_0045a56f (which
+  sets only SetTransform + SetTextureStageState + DrawPrimitiveUP) and NOT in the prepass
+  FUN_0045672a (which sets ZWRITE=0).
+- `scene1_chr_walker_render` only draws the **additive companion-glow billboard** (`0x41e751`,
+  ONE/ONE, ZWRITE=0) — which is why the chr_walker Z-write A/B was a no-op (wrong path).
+- bg-NPCs `0x41c347` (ZWRITE=1, landed 2c96b97), shadows `0x41d858`/`0x41c085`, glow
+  `0x448ee9`, **dust `0x44673f`** all map 1:1 to the retail draw order.
+
+**Port now matches retail's contract** (the uncommitted `sw_pass_light` ZWRITE=1 + ALPHATEST
+GREATER ref0 is exactly FUN_004552d0's state). Verified by `d3d_state_diff.py` port-vs-retail.
+
+**Char Z-write is a pixel-exact dust no-op — CONFIRMED empirically, not just by §92.** A clean
+pixel-aligned A/B (same port sim, only the `OPENRECET_NO_CHAR_ZWRITE` block toggled,
+`runs/port-bw-d3d` vs `runs/port-bw-d3d-noz`) is **0/24 frames different** — feet AND glow.
+The char is constant-depth (§92): player ndcz 0.9540, live dust ndcz 0.9530/0.9533 (NEARER) →
+dust passes ZFUNC=LE and draws in front regardless. **This proves the CHAR is not the dust
+occluder — it does NOT prove the dust is fixed.** The Z-write is still the correct retail state
+(committed for structural fidelity) and is regression-free (no glow kill, no square cutouts —
+GREATER, not GREATEREQUAL), but it is orthogonal to the occlusion bug.
+
+**THE DUST-OCCLUSION BUG IS STILL OPEN (user, 2026-06-03f).** Both the port AND the retail
+*snapshot I diffed* show the dust drawing in front — but those two captures are **unsynced**
+(different recordings, different anim phase) and neither is a confirmed occluded-dust frame, so
+they prove nothing. Retail DOES occlude this dust (user ref `20260603T022400_3466` cap_14 — the
+dress hem covers the puff top). Since the char is ruled out as the occluder (constant-depth,
+A/B no-op), the real occluder is **something drawn with ZWRITE=1 before the dust that is NOT the
+char** — i.e. a **3D mesh** (bottom wall / floor / furniture / counter), Phase 4. Next: get a
+confirmed occluded-dust retail frame + its synced-state port frame, then compare per-pixel mesh
+depth at the dust footprint. **Do NOT mark resolved.**
+
+**Tear position is NOT off (correction).** Retail's companion world pos (d3d-trace char#2/#8,
+frame 538) = **(+0.600, +3.056, +9.350)**, and the port actor[2] = (0.6, 3.08, 9.35) — they
+match. Recette matches too (retail char#1 = port player = (-0.3, 0, 9.5)). The apparent Tear
+"tilt/float" in the unsynced `feed_feet_3p` crop is **animation-phase**, not a position bug. Any
+real Tear divergence (anim phase / orientation) must be checked on SYNCED state, not screen
+crops of two different recordings.
+
+Minor residual contract deltas (`d3d_state_diff.py diff`, non-blocking): port glow/dust/HUD
+carry **ALPHAFUNC=GREATEREQUAL** where retail keeps **GREATER** (ref0 → only differs for
+exactly-α0 texels; benign for ONE/ONE glow + INVSRCCOLOR dust), and the 2D HUD draws with
+**ZENABLE=1** where retail has ZENABLE=0 (HUD is last + near-depth, no visible effect). Log
+these in the contract checklist; fix opportunistically.
+
+Tooling kept: `tools/d3d_state_diff.py` (dump/diff per-draw contract), `export_trace.py
+--d3d-trace` (+ `d3d_trace_set_window` caprange arming in main.c/d3d_trace.c — port d3d-trace
+is now anchor-relative + jitter-immune), `runs/port-bw-d3d{,-noz}`.

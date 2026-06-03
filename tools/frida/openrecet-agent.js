@@ -4496,6 +4496,50 @@ rpc.exports = {
         }
     },
 
+    // Walk-dust param diff — call FUN_00447f4f (records-A spawn) for a
+    // given type with a FORCED RNG seed, read back the slot's RNG-computed
+    // fields (vel/rot/scale/age/pos). Lets the port↔retail particle-param
+    // computation be diffed bit-for-bit across seeds, isolated from the
+    // per-frame RNG stream + render. Snapshot/restore slot 0, the records
+    // count, and the LCG seed so the frozen engine state is untouched.
+    // Args are passed cdecl (the engine fn is __cdecl). Returns the slot
+    // fields as JS numbers.
+    runRetailDustSpawn: function (seed_u32, x, y, z, type, scale) {
+        if (!g_diff_test_enabled) {
+            throw new Error('runRetailDustSpawn: diff_test mode required');
+        }
+        ensureBase();
+        const seedPtr  = rva(ADDR.var_lcg_seed);
+        const base     = rva(ADDR.var_records_a_base);   // 0x069b2f80
+        const countPtr = rva(ADDR.var_records_a_count);  // 0x0076b960
+        const STRIDE   = RECORD_A_STRIDE_DW * 4;         // 0x94
+        const slot0    = base;                            // we force the spawn into slot 0
+        const savedSeed  = seedPtr.readU32();
+        const savedCount = countPtr.readS32();
+        const savedSlot  = slot0.readByteArray(STRIDE);
+        try {
+            seedPtr.writeU32(seed_u32 >>> 0);
+            countPtr.writeS32(0);
+            slot0.add(12 * 4).writeS32(-1);  // type = -1 (empty) so the spawn takes slot 0
+            const fn = new NativeFunction(
+                rva(0x00447f4f), 'void',
+                ['int', 'float', 'float', 'float', 'int', 'float', 'int']);
+            fn(0, x, y, z, type | 0, scale, 1);
+            const f = (n) => slot0.add(n * 4).readFloat();
+            const i = (n) => slot0.add(n * 4).readS32();
+            return {
+                pos:  [f(0), f(1), f(2)],
+                vel:  [f(3), f(4), f(5)],
+                rot:  [f(6), f(7), f(8)],
+                type: i(12), age: i(13), scale: f(14),
+            };
+        } finally {
+            slot0.writeByteArray(savedSlot);
+            countPtr.writeS32(savedCount);
+            seedPtr.writeU32(savedSeed);
+        }
+    },
+
     // Force the engine to regenerate its font atlas via the legit
     // boot-time path (FUN_0047c474). Engine gates the regen call on
     // `DAT_073dfd00 != 0` (raised by `font:` in config.idx); we set

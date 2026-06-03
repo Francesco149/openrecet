@@ -339,12 +339,27 @@ void d3d_trace_install(IDirect3DDevice8 *dev)
     (void)dev;
 }
 
+/* Optional half-open emit window [lo, hi).  hi<=lo = inactive.  Set from the
+ * {caprange} segtrace callback so the port d3d-trace emits exactly the
+ * anchor-relative capture window (jitter-immune) without a fixed frame list —
+ * the window can exceed D3D_TRACE_FRAMES_MAX.  ORed with the explicit list. */
+static unsigned g_win_lo = 0, g_win_hi = 0;
+static int      g_windowed = 0;   /* once set, suppresses the emit-all default */
+
+void d3d_trace_set_window(unsigned lo, unsigned hi)
+{
+    g_windowed = 1;
+    g_win_lo = lo; g_win_hi = hi;
+}
+
 void d3d_trace_begin_frame(unsigned frame)
 {
     g_cur_frame = frame;
     if (!g_f) { g_emit_this_frame = 0; return; }
-    if (g_n_frames == 0) { g_emit_this_frame = 1; return; }
-    g_emit_this_frame = 0;
+    /* emit-all default only when neither a frame list nor a window is in play */
+    if (g_n_frames == 0 && !g_windowed) { g_emit_this_frame = 1; return; }
+    g_emit_this_frame = (g_win_hi > g_win_lo && frame >= g_win_lo && frame < g_win_hi)
+                        ? 1 : 0;
     for (size_t i = 0; i < g_n_frames; i++) {
         if (g_frames[i] == frame) { g_emit_this_frame = 1; break; }
     }

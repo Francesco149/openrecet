@@ -58,6 +58,10 @@ void d3d_trace_install(IDirect3DDevice8 *dev);
  * (per-frame filter check). */
 void d3d_trace_begin_frame(unsigned frame);
 
+/* Set a half-open emit window [lo, hi) (hi<=lo disables).  Driven by the
+ * {caprange} segtrace op so --d3d-trace captures the anchor-relative window. */
+void d3d_trace_set_window(unsigned lo, unsigned hi);
+
 /* Called once per frame from render_dispatch after Present.  fflush()'s
  * the trace file. */
 void d3d_trace_end_frame(void);

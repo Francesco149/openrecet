@@ -141,6 +141,12 @@ def main(argv=None) -> int:
     ap.add_argument("--name", default="", help="human label for the trace")
     ap.add_argument("--scenario", default="", help="scenario id (free-form, → global)")
     ap.add_argument("--fps", type=int, default=20, help="playback fps hint (→ global)")
+    ap.add_argument("--dust-log", action="store_true",
+                    help="also dump per-frame walk-dust particle + actor depths "
+                         "to <run-dir>/dustlog.txt (debug)")
+    ap.add_argument("--d3d-trace", action="store_true",
+                    help="also capture a per-draw d3d_trace.jsonl over the "
+                         "caprange window (→ tools/d3d_state_diff.py)")
     ap.add_argument("--max-frames", type=int, default=4000,
                     help="absolute frame budget (must exceed the window end; "
                          "the window is anchor-relative so allow headroom)")
@@ -216,6 +222,13 @@ def main(argv=None) -> int:
         "--player-pos-log", str(meta_path),
         "--max-frames", str(args.max_frames),
     ]
+    if args.dust_log:
+        cmd += ["--dust-log", str(run_dir / "dustlog.txt")]
+    if args.d3d_trace:
+        # The {caprange} op also arms the d3d-trace window (main.c
+        # segtrace_caprange_cb → d3d_trace_set_window), so the trace emits
+        # exactly the captured frames, anchor-relative.
+        cmd += ["--d3d-trace", str(run_dir / "d3d_trace.jsonl")]
     print(f"export_trace: driving port → {run_dir}", file=sys.stderr)
     print("export_trace:   " + " ".join(cmd), file=sys.stderr)
     rc = subprocess.run(cmd, cwd=str(ROOT)).returncode

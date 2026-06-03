@@ -117,7 +117,10 @@ void scene1_wing_glow_render(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHATESTENABLE, TRUE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAREF, 0);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
+    /* Retail draws at AF=GREATER (d3d-trace 0x41e165) — NOT GreaterEqual; the
+     * comment above said GT but the code set GE.  ONE/ONE additive makes alpha==0
+     * texels contribute ~0, so this is mostly a state-parity fix, but match retail. */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAFUNC, D3DCMP_GREATER);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, FALSE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_NONE);
