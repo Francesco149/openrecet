@@ -28,6 +28,21 @@ anchored, RNG-pinned trace are bit-identical.
    `--caprange START,COUNT` = COUNT frames starting START frames after the trace's
    **final `wait` anchor** (anchor-relative; jitter-immune). `--max-frames` must
    exceed where the window lands in turbo (anchors stretch — give headroom, e.g. 4500).
+
+   **A RAW recording is auto anchor-gated** (`emit_anchor_segments`) when it carries
+   `{anchor}` rows — every recorded anchor becomes a `{wait}` sync point, so the
+   caprange resolves to `last_anchor_frame + START`, not boot. (Before 2026-06-03
+   export_trace flat-distilled raws → the caprange anchored to boot frame 0 and
+   turbo load-stretch drifted the window run-to-run; that's fixed.) `--flat` forces
+   the legacy boot-anchored distil; `--house-segtrace` the boot→HOUSE wrap.
+
+   **Exported frames are renumbered to anchor-relative 0-based** (`frame_00000.png`
+   = window start). The engine names frames by absolute `g_tick.frame_count` (which
+   jitters with load time); export_trace subtracts the first captured frame so the
+   FILENAME *is* the stable anchor-relative index. So a reference like `frame_00186`
+   / `crop … frame=f=186` resolves to the same sim instant in every replay of the
+   same trace — paste it back and it's found instantly. `meta.jsonl` keeps the
+   absolute frame as `frame_abs`; `global.json` records `final_anchor` + `frame_base_abs`.
 3. Push as a `trace` card (NixOS: feed.py needs `nix run nixpkgs#python3 --`):
    ```
    nix run nixpkgs#python3 -- /opt/src/llm-feed/feed.py trace \
@@ -111,9 +126,13 @@ Parser/struct: `src/input_segtrace.{c,h}` (host-tested in
 - Anchor-relative capture + RNG-pin-per-anchor ⇒ the sim is **bit-exact** across
   runs. Validated: two runs of an `--anchor-segments` trace were 0/504 frames
   different even though the final anchor fired at 641 vs 647 (load jitter).
-- Because the anchor frame jitters, **absolute frame numbers (filenames) differ
-  between runs** — compare by **anchor-relative INDEX** (sort each run's frames,
-  pair i-th to i-th), or compare `meta.jsonl` with the `"frame":N` field stripped.
+- The anchor frame jitters in absolute terms, but **export_trace renumbers frames
+  to anchor-relative 0-based**, so the **filenames already ARE the anchor-relative
+  index** — `frame_00186.png` is the same sim instant in every run. Compare two runs
+  directly by filename (or `meta.jsonl` with the `frame_abs` field stripped). The raw
+  absolute frame is preserved as `meta.frame_abs` if you need it. (Verified: the
+  documented `frame_0186` standing-dust repro reproduces bit-exactly — 0.000 mean
+  abs diff — from a fresh raw replay.)
 - PNG encode is deterministic, so identical framebuffer ⇒ identical bytes ⇒ `cmp`/
   `md5` per index is a valid bit-exactness test.
 - Residual leak (when present): the time-of-day HUD clock keys off the absolute

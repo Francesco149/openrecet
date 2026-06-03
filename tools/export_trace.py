@@ -69,20 +69,43 @@ def is_raw_recording(path: Path) -> bool:
     return False
 
 
-def resolve_trace(src: Path, house_segtrace: bool) -> tuple[str, list[dict]]:
+def resolve_trace(src: Path, house_segtrace: bool,
+                  force_flat: bool = False) -> tuple[str, list[dict]]:
     """Return (jsonl_text, ops) for the runnable segtrace.
 
-    A RAW recording is distilled first (flat, or --house-segtrace wrapped); an
+    A RAW recording carrying {anchor} rows is ANCHOR-GATED by default
+    (emit_anchor_segments): every recorded anchor becomes a {wait} sync point, so
+    the {caprange} we append below lands in the FINAL segment and is resolved as
+    `last_anchor_frame + start` — i.e. capture-index 0 == the last recorded
+    anchor's frame, jitter-immune. Without this the caprange anchors to boot
+    (frame 0) and turbo load-stretch drifts the captured window run-to-run (the
+    frame_0186↔frame_00500 ambiguity). --house-segtrace forces the legacy boot→HOUSE
+    wrap; force_flat forces the old flat emit (caprange anchored to boot). An
     already-distilled trace is used verbatim."""
     if is_raw_recording(src):
-        changes, caps, escs, cts, total, rng_seed, _anchors = distill_trace.load_raw(str(src))
+        changes, caps, escs, cts, total, rng_seed, anchors = distill_trace.load_raw(str(src))
         if not changes:
             raise SystemExit(f"export_trace: no input frames in {src}")
-        text = (distill_trace.emit_house_segtrace(changes, caps, escs, cts, rng_seed)
-                if house_segtrace
-                else distill_trace.emit_flat(changes, caps, escs, cts, total, rng_seed))
+        if house_segtrace:
+            text = distill_trace.emit_house_segtrace(changes, caps, escs, cts, rng_seed)
+        elif anchors and not force_flat:
+            text = distill_trace.emit_anchor_segments(
+                changes, caps, escs, cts, total, anchors, rng_seed)
+        else:
+            if not anchors:
+                print("export_trace: WARNING raw carries no {anchor} rows — FLAT "
+                      "fallback (caprange anchored to boot; capture-index drifts "
+                      "with turbo load jitter). Re-record with the anchor-logging "
+                      "build for stable frame refs.", file=sys.stderr)
+            text = distill_trace.emit_flat(changes, caps, escs, cts, total, rng_seed)
         ops = [json.loads(l) for l in text.splitlines()
                if l.strip() and not l.startswith("#")]
+        if not house_segtrace and anchors and not force_flat:
+            last_anchor = next((o["wait"] for o in reversed(ops) if "wait" in o), None)
+            print(f"export_trace: anchor-gated ({len(anchors)} anchor rows) — "
+                  f"caprange relative to the last anchor "
+                  f"({last_anchor or '?'}); frame refs are jitter-immune",
+                  file=sys.stderr)
         return text, ops
     # already distilled
     return src.read_text(), load_ops(src)
@@ -111,6 +134,10 @@ def main(argv=None) -> int:
                     help="output dir (frames/ + meta.jsonl + global.json)")
     ap.add_argument("--house-segtrace", action="store_true",
                     help="distil a RAW recording as a bootable new-game→HOUSE segtrace")
+    ap.add_argument("--flat", action="store_true",
+                    help="force the legacy FLAT distil (caprange anchored to boot); "
+                         "by default a RAW recording with {anchor} rows is "
+                         "anchor-gated so frame refs are jitter-immune")
     ap.add_argument("--name", default="", help="human label for the trace")
     ap.add_argument("--scenario", default="", help="scenario id (free-form, → global)")
     ap.add_argument("--fps", type=int, default=20, help="playback fps hint (→ global)")
@@ -140,7 +167,7 @@ def main(argv=None) -> int:
     work_path = run_dir / "trace.work.jsonl"
     global_path = run_dir / "global.json"
 
-    text, ops = resolve_trace(src, args.house_segtrace)
+    text, ops = resolve_trace(src, args.house_segtrace, force_flat=args.flat)
     rng_seed = extract_rng_seed(ops)
 
     # Strip pre-existing scalar {capture:N} ops. A recording (and the distilled
@@ -195,21 +222,34 @@ def main(argv=None) -> int:
     if rc != 0:
         print(f"export_trace: WARNING run-openrecet exited {rc}", file=sys.stderr)
 
-    # Collect the captured frames (PNG, frame-indexed).
+    # Collect the captured frames (PNG, frame-indexed by ABSOLUTE engine frame).
     frames = frame_glob(frames_dir)
     if not frames:
         print("export_trace: ERROR no frames captured — was the window reached "
               "before --max-frames? Check the anchor/offset.", file=sys.stderr)
         return 1
-    captured_nums = []
+    abs_by_path: list[tuple[int, "Path"]] = []
     for p in frames:
         digits = "".join(c for c in p.stem if c.isdigit())
-        captured_nums.append(int(digits))
-    captured_set = set(captured_nums)
+        abs_by_path.append((int(digits), p))
+    abs_by_path.sort(key=lambda t: t[0])
+    captured_abs = [n for n, _ in abs_by_path]
+    captured_set = set(captured_abs)
 
-    # Trim the player-pos-log to exactly the captured frames so
-    # (frame count == meta line count) holds, keyed by frame number.
-    meta_by_frame: dict[int, dict] = {}
+    # ── Jitter-immune renumbering ───────────────────────────────────────────
+    # The engine names frames by ABSOLUTE g_tick.frame_count, which drifts
+    # run-to-run with turbo boot/load stretch (the anchor that bases the caprange
+    # fires at a different absolute frame each run). The SIM is bit-exact by
+    # anchor-relative index, so we renormalise: subtract the first captured frame
+    # so files+meta become 0-based ANCHOR-RELATIVE indices. frame_00186 is then
+    # the same sim instant in every replay of the same trace — a crop reference
+    # `frame=f=186` is instantly findable regardless of jitter. (In --flat mode
+    # base_abs is the boot offset, so this is a harmless near-no-op renumber.)
+    base_abs = captured_abs[0]
+    rel_of = {n: n - base_abs for n in captured_abs}
+
+    # Read the player-pos-log (keyed by absolute frame) before we renumber.
+    meta_by_abs: dict[int, dict] = {}
     if meta_path.exists():
         for ln in meta_path.read_text().splitlines():
             s = ln.strip()
@@ -220,21 +260,42 @@ def main(argv=None) -> int:
             except json.JSONDecodeError:
                 continue
             if "frame" in o and int(o["frame"]) in captured_set:
-                meta_by_frame[int(o["frame"])] = o
-    # rewrite meta.jsonl in captured-frame order (one row per frame; rows with no
-    # pos-log entry — e.g. a non-INGAME frame — get a minimal stub)
+                meta_by_abs[int(o["frame"])] = o
+
+    # Rename the PNGs to frame_<rel>.<ext>. rel < abs (base_abs >= first frame),
+    # so ascending order never collides with a not-yet-renamed source.
+    for n, p in abs_by_path:
+        rel = rel_of[n]
+        target = p.with_name(f"frame_{rel:05d}{p.suffix}")
+        if target != p:
+            p.rename(target)
+
+    # Rewrite meta.jsonl in anchor-relative order: frame = rel index, and keep the
+    # absolute engine frame as frame_abs for traceability. Rows with no INGAME
+    # pos-log entry get a minimal stub.
     with meta_path.open("w") as f:
-        for n in captured_nums:
-            row = meta_by_frame.get(n, {"frame": n})
+        for n in captured_abs:
+            rel = rel_of[n]
+            row = dict(meta_by_abs.get(n, {}))
+            row["frame"] = rel
+            row["frame_abs"] = n
             f.write(json.dumps(row) + "\n")
 
+    # The final {wait} anchor the caprange is based on (informational/debug).
+    final_anchor = next((o["wait"] for o in reversed(ops) if "wait" in o), None)
+
     # Whole-trace blob. trace_jsonl is the runnable ops array (the round-trip
-    # source); rng_seed_at_start + anchor_offset make the window reconstructable.
+    # source); rng_seed_at_start + the anchor base make the window reconstructable.
+    # frame_base = absolute frame of frame_00000 (jittery; for debug only — refs
+    # use the anchor-relative index which is what the filenames now encode).
     global_blob = {
         "schema": "openrecet-trace-v1",
         "rng_seed_at_start": rng_seed,
         "anchor_offset": cr_start,
         "caprange": [cr_start, cr_count],
+        "frames_anchor_relative": True,
+        "final_anchor": final_anchor,
+        "frame_base_abs": base_abs,
         "trace_jsonl": ops,
         "source_raw": src.name,
         "scenario": args.scenario,

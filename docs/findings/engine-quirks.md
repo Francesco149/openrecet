@@ -3638,3 +3638,28 @@ branch (anim 3, count to 180, RNG dir-flip) was already correct, just never
 reached. User-flagged from the README hero ("NPCs in retail occasionally stop to
 look through the window, which we don't"). Locked by
 `tests/test_scene1_bg_npc.c::test_bg_npc_leftward_crossing_pauses`.
+
+## 92. Free-roam sprites (chars, dust, wing-glow) are FULL camera-facing billboards (`DAT_0438cdf8`) → each quad has CONSTANT view-depth = its anchor's depth
+
+`FUN_004424e7` builds the shared billboard orientation `DAT_0438cdf8 =
+RotationX(π/2 − camElev) · RotationY(camAz + π)` once per frame from the
+camera→target vector. Every free-roam sprite billboard (char/companion/NPC via
+`FUN_0045a56f`, foot-dust + wing-glow via `FUN_004176ff`) is built as
+`RotZ(rot)·Scale(s)·DAT_0438cdf8·Translate(anchor)` and its **local quad is at
+Z=0** (`FUN_0045a56f` writes `0.0` to all four vertex Z slots). Verified against
+the retail d3d trace (`runs/walkdust-d3d` f5495, WORLD·VIEW): the char billboard's
+local-Y world-direction is `(0, +0.5547, −0.8321)` and the VIEW pitch rows are
+`(0,0.5547,0.8321)/(0,−0.8321,0.5547)`, so moving up the sprite changes view-Z by
+`0.5547·0.8321 + (−0.8321)·0.5547 = exactly 0`. **The quad is perpendicular to the
+view axis → the whole sprite (head to feet) sits at ONE depth = the depth of its
+anchor translation.** Consequence for occlusion: the player/companion sprite is
+anchored at the **feet** (`FUN_004552d0` standing path `(px,py,pz)`; `FUN_00456f56`
+free-roam path `(actor.x, actor.y, actor.z+0.02)`), while foot-dust is emitted at
+**`py+0.5`** (engine-quirks dust recipe, [[scene1-walk-dust]]). Higher world-Y is
+nearer a down-tilted camera (~`0.42` view-units per `0.5` Y), so **fresh dust at the
+current feet is always NEARER than the feet-anchored char quad and draws in FRONT —
+in retail too**; the body only occludes dust that has **drifted behind the walker's
+feet-plane** in world Z (confirmed in the retail trace: NDC-z has fresh dust in
+front at f5495–5528, trailing dust behind at f5597+). So "the body should hide the
+puff at her feet" is NOT how retail works — see `docs/findings/scene1-walk-dust.md`
+§2026-06-03b.

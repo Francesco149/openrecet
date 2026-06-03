@@ -242,3 +242,40 @@ dust reproduces on playback (and on retail, same LCG stream) so the depth can be
 pixel-diffed. Next: capture the dust + character vertex Z (the existing
 `runs/walkdust-d3d` only logs the vb pointer) and find why retail's body occludes
 the `py+0.5` dust.
+
+## 2026-06-03b — RESOLVED (geometry): fresh feet-dust is *supposed* to draw in front; only TRAILING dust is occluded
+
+Mined the WORLD/VIEW/PROJ matrices straight out of the retail d3d trace
+(`runs/walkdust-d3d`, the `SetTransform` rows it already logs) instead of guessing.
+Result, now in [[engine-quirks]] §92: the char and dust billboards share the
+camera-facing orientation `DAT_0438cdf8`, which makes **each quad perpendicular to
+the view axis → a single constant view-depth = the depth of its anchor**. The char
+anchor is the **feet** (`FUN_004552d0` `(px,py,pz)`; `FUN_00456f56`
+`(actor.x,actor.y,actor.z+0.02)` — both Y≈0 at the floor, confirmed: retail char
+anchor Y = 0.000 every frame); the dust anchor is **`py+0.5`**. Transforming both
+anchors through the retail VIEW (pitch rows `0.5547/0.8321`):
+
+- A point `0.5` higher in world-Y is ~`0.42` view-units **nearer** the down-tilted
+  camera. So **fresh dust at the current feet is geometrically NEARER than the
+  whole (constant-depth) char quad → it draws in front, with the Z-write ON or OFF.**
+  This is exactly what the port shows at the repro frame, and it is **correct retail
+  behaviour** — not a bug. Projecting char-anchor vs dust-anchor to NDC-z per frame:
+  fresh-dust frames (f5495–5528) read **dust in front**; only after the dust drifts
+  **behind the walker's feet-plane** (f5597+, walking toward camera) does it read
+  **behind** and get occluded by the body's feet-depth Z footprint.
+
+**So the occlusion the Z-write actually buys is for TRAILING dust** (puffs left
+behind as she walks toward the camera), NOT the fresh puff at her feet. The earlier
+"dust not occluded" repro (`frame_0186`, standing/just-moving, fresh dust over the
+lower dress) is the *expected* in-front case — verifying the Z-write against it was
+testing the wrong frame. **Open / next:** A/B the Z-write ON vs OFF on a
+**trailing-dust** frame (she walking toward camera, an older puff overlapping her
+torso) to confirm the body occludes it — that is the frame that proves whether the
+uncommitted `sw_pass_light` Z-write should land. Reproduce via the now-stable
+anchor-gated export (`runs/trace-export/dust-fixed`, `frame_NNNNN` = anchor-relative).
+
+> **Tooling fixed alongside (2026-06-03):** `export_trace.py` now auto anchor-gates
+> raw recordings and renumbers frames to anchor-relative 0-based, so a `frame_NNNNN`
+> reference is jitter-immune (the documented `frame_0186` reproduces bit-exactly from
+> a fresh raw replay). `feed.py montage` refuses trace-export dirs → use the `trace`
+> card. See `docs/trace-workflow.md`.
