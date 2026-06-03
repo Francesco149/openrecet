@@ -123,6 +123,30 @@ tools/run-openrecet.sh --input-segtrace tests/scenarios/house-walk-down-dense/tr
   --player-pos-log runs/NPC-probe/port_pos.jsonl --max-frames 8000 --turbo --silent-audio --hide-window
 ```
 
+## Reproducible RNG for recorded traces — the `{rngseed}` segtrace op (2026-06-03)
+
+The RNG-stream work above (and any future RNG parity, e.g. bg-NPC frame-exact
+timing) needs a recorded trace to **reproduce its RNG-driven behaviour on
+playback** — otherwise the `distill --house-segtrace` rebase onto a standard
+intro leaves the LCG at a different phase than the live recording, and the dense
+occludable-dust frame you recorded won't recur. Solved by a new segtrace op
+(commit d553861):
+
+- `src/main.c trace_rec_start()` snapshots the live `g_rng_seed` at F2; the raw
+  header carries `rng_seed_at_start`.
+- `tools/distill_trace.py` emits `{"rngseed":[frame,value]}` at the recorded
+  segment's first frame (house: `[1565, S]`; flat: `[0, S]`).
+- On playback the op forces the global LCG to `S` **before** that frame's sim
+  consumers (port: `input_segtrace_tick` rng_cb → `rng_seed()`; retail agent:
+  `DAT_006023a0` write in `segtraceTick`) — so the recorded segment replays
+  against the identical LCG state regardless of the prepended intro, and **port +
+  retail share one LCG stream from the anchor** (cross-target RNG parity).
+
+So the canonical RNG-parity workflow is now: record (F2…walk…F2) → `distill_trace
+--house-segtrace` → `scenario-test --target both`; the recorded window's RNG
+positions match frame-for-frame (modulo the load-frame anchor shift, which does
+not desync the LCG). Op grammar in `src/input_segtrace.h`.
+
 Related: `scene1-walk-dust.md` (the dust chip), `scene1-wing-glow.md` (the 0x1f
 sibling), `project_freeroam_smoke_effect` / `openrecet_house_brightness_resolved`
 memories, `docs/plans/freeroam-structural-parity.md` P3.

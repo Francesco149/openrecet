@@ -191,3 +191,38 @@ and is now occluded by the player's Z. See [[feedback_full_path_call_graph]].
 Related: `docs/findings/scene1-wing-glow.md` (the 0x1f sibling arm),
 `docs/findings/scene1-char-sprite-render.md` (the FUN_004552d0 standing path),
 `project_freeroam_smoke_effect` memory, engine-quirks.
+
+## 2026-06-03 — Z-write re-attempted with GREATER; depth, not state, is the gap
+
+Re-enabled the sprite Z-write in `sw_pass_light` but with **ALPHAFUNC=GREATER**
+(ref 0 → alpha>0, opaque-silhouette only), not GREATEREQUAL. The bg-NPC session
+(2c96b97) re-read the SAME frame-5495 trace as **AFUNC=5 = D3DCMP_GREATER** (the
+b1acf7c row table above says "GREATEREQUAL" — that was the misread that punched
+the square cut-outs). GREATER is **glow-safe**: an intra-port baseline-vs-fixed
+A/B (`house-walk-down-dense`) is **bit-identical on every frame where Tear's glow
+is visible** — the b1acf7c regression (transparent quad writing Z) is gone.
+
+**But the fix is a visual no-op so far, and the reason is DEPTH, not render
+state.** Two confirmations:
+- The emit Y offset is **decompile-confirmed faithful** (not eyeballed):
+  `FUN_0048b850` L463-475 spawns `FUN_00447f4f(0, X+jit, DAT_056da1dc+0.5,
+  Z+jit, 0xe, 0.125)` — i.e. the dust sits at **player_y + 0.5**. The port matches
+  (`scene1_player_ctrl.c player_ctrl_b850_foot_dust`).
+- With ZFUNC **LESSEQUAL** and the dust at `py+0.5` (higher in world-Y → nearer a
+  down-tilted camera than the character billboard at `py`), the dust depth is ≤
+  the sprite depth where they overlap, so it **passes the z-test and draws in
+  front regardless of the sprite Z-write**. User-confirmed: the faint foot-dust
+  wisps over Recette's body are NOT occluded even with the fix
+  (`20260603T024835_2a6c`). Retail occludes the same dust (the dress hem covers
+  its top, `20260603T022400_3466` cap_14) — so retail's character body Z must be
+  *nearer* than the dust at the overlap, which the port doesn't reproduce yet.
+
+So the occlusion needs the **character/dust DEPTH relationship** fixed (why retail
+occludes at `py+0.5`), not just the Z-write. The Z-write is kept (faithful state,
+glow-safe) but **uncommitted** pending a reproducible dense-dust frame. That frame
+now exists via the new **`{rngseed}` segtrace op** (commit d553861,
+[[scene1-rng-stream-parity]]): record a dense-dust walk, distill, and the recorded
+dust reproduces on playback (and on retail, same LCG stream) so the depth can be
+pixel-diffed. Next: capture the dust + character vertex Z (the existing
+`runs/walkdust-d3d` only logs the vb pointer) and find why retail's body occludes
+the `py+0.5` dust.
