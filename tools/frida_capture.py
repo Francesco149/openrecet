@@ -213,6 +213,18 @@ class CaptureConfig:
     # on port and retail despite load jitter. Owns the input mask when set
     # (checked before force_input) and implies anchor_trace.
     input_segtrace_path: Path | None = None
+    # ── Retail-side trace RECORDER (attach + observe) ──
+    # When attach_match is set, attach to an ALREADY-RUNNING retail process
+    # (matched by name substring, case-insensitive) instead of spawning the
+    # unpacked dump. This is the only way the user can key the game by hand
+    # (a Frida-spawned process can't take keyboard input). Pairs with
+    # record_trace_path: the agent emits per-frame input_state + anchors
+    # (now carrying gframe + rng), and the driver writes a port-format
+    # `.raw.jsonl` so the captured play distils + replays deterministically
+    # (distill --anchor-segments re-pins RNG per anchor) exactly like a port
+    # F2 recording. Record mode disables all forcing/turbo/hide.
+    attach_match: str | None = None
+    record_trace_path: Path | None = None
     # Per-frame global watch: list of {name, va, type:'f32'|'s32'|'u16'}. The
     # agent reads each address once per frame and emits a `watch` record;
     # the driver appends to <run_dir>/watch.jsonl. A general state probe for
@@ -450,6 +462,14 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     last_mask: int | None = None
     last_engine_frame = -1
     done = threading.Event()
+    # Recorder buffers (record_trace_path set): DENSE per-frame input masks and
+    # the anchor firings (with gframe + rng), assembled into a port-format raw
+    # at finalize. Dense because distill_trace.load_raw fills missing frames
+    # with 0x0000 (so a held button would be lost if we only logged changes).
+    rec_inputs: dict[int, int] = {}
+    rec_anchors: list[dict[str, int]] = []
+    rec_escs: list[int] = []
+    recording = cfg.record_trace_path is not None
 
     def on_message(message: dict[str, Any], data: bytes | None):
         nonlocal last_mask, last_engine_frame
@@ -521,6 +541,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             frame = int(p["frame"])
             mask  = int(p["buttons"])
             last_engine_frame = max(last_engine_frame, frame)
+            if recording:
+                rec_inputs[frame] = mask            # DENSE — every frame
             # Sparse: only emit when the mask changes.
             if mask != last_mask:
                 f_trace.write(json.dumps({
@@ -595,7 +617,21 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                     "anchor": name,
                     "frame":  frame,
                 }) + "\n")
-            f_log.write(f"[anchor] {name} @ frame={frame}\n")
+            if recording:
+                rec_anchors.append({
+                    "anchor": name, "frame": frame,
+                    "gframe": int(p.get("gframe", 0)),
+                    "rng":    int(p.get("rng", 0)) & 0xffffffff,
+                })
+            f_log.write(f"[anchor] {name} @ frame={frame}"
+                        + (f" gframe={p.get('gframe')} rng={p.get('rng')}"
+                           if recording else "") + "\n")
+            return
+
+        if kind == "esc_record":
+            if recording:
+                rec_escs.append(int(p.get("frame", -1)))
+                f_log.write(f"[esc_record] frame={p.get('frame')}\n")
             return
 
         if kind == "watch":
@@ -760,13 +796,31 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         f_log.close(); f_audio.close(); f_trace.close()
         raise SystemExit(msg) from e
 
-    # ── spawn target on the Windows side ──
-    win_exe = wslpath_w(cfg.exe)
-    win_cwd = wslpath_w(cfg.cwd)
-    f_log.write(f"[spawn] {win_exe} (cwd {win_cwd})\n")
-
-    pid = device.spawn([win_exe], cwd=win_cwd)
-    session = device.attach(pid)
+    # ── attach to a running retail (recorder) OR spawn the unpacked dump ──
+    is_attach = cfg.attach_match is not None
+    if is_attach:
+        needle = cfg.attach_match.lower()
+        procs = device.enumerate_processes()
+        matches = [pr for pr in procs if needle in pr.name.lower()]
+        if not matches:
+            names = ", ".join(sorted({pr.name for pr in procs
+                                      if "rec" in pr.name.lower()})) or "(none)"
+            msg = (f"\nfrida_capture --attach: no running process matching "
+                   f"{cfg.attach_match!r} at {cfg.remote}.\n"
+                   f"  Launch Recettear (Steam) first, then re-run.\n"
+                   f"  candidate 'rec*' processes seen: {names}\n")
+            f_log.write(msg); f_log.close(); f_audio.close(); f_trace.close()
+            raise SystemExit(msg)
+        proc = matches[0]
+        pid = proc.pid
+        f_log.write(f"[attach] {proc.name} pid={pid} (match {cfg.attach_match!r})\n")
+        session = device.attach(pid)
+    else:
+        win_exe = wslpath_w(cfg.exe)
+        win_cwd = wslpath_w(cfg.cwd)
+        f_log.write(f"[spawn] {win_exe} (cwd {win_cwd})\n")
+        pid = device.spawn([win_exe], cwd=win_cwd)
+        session = device.attach(pid)
 
     # Detach handler — fires when the target dies (crash, exit, kill from
     # outside).  Without this the driver sits waiting on `done` for the
@@ -845,6 +899,18 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 rs = rec["rngseed"]
                 segtrace_ops.append({"rngseed": [int(rs[0]),
                                                  int(rs[1]) & 0xffffffff]})
+            elif "caprange" in rec:
+                # {caprange:[start,count]} — contiguous capture window
+                # [base+start, base+start+count). The agent expands it into its
+                # capture set on segment enter (same window export_trace renders
+                # on the port), so one exported trace.work.jsonl captures the
+                # SAME anchor-relative frames on both targets.
+                cr = rec["caprange"]
+                segtrace_ops.append({"caprange": [int(cr[0]), int(cr[1])]})
+            elif "esc" in rec:
+                # {esc:N} — synthesise an ESC keypress at base+N (dialogue-skip
+                # replay), mirroring the port's {esc} op.
+                segtrace_ops.append({"esc": int(rec["esc"])})
             else:
                 mask_val = rec["buttons"]
                 mask = int(mask_val, 16) if isinstance(mask_val, str) else int(mask_val)
@@ -933,21 +999,44 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             }
             for r in (cfg.mem_watch_regions or [])
         ]
+    if recording:
+        # Observe-only: the user drives the live game by hand, so disable ALL
+        # forcing/turbo/hide and just emit input_state + anchors. anchor_trace
+        # is forced on so we capture the {anchor,gframe,rng} rows the raw needs.
+        init_cfg["anchor_trace"]  = True
+        init_cfg["record_esc"]    = True        # capture WndProc ESC-skip presses
+        init_cfg["force_input"]   = False
+        init_cfg["turbo"]         = False
+        init_cfg["hide_window"]   = False
+        init_cfg.pop("input_segtrace", None)
+        init_cfg.pop("input_trace", None)
+        init_cfg["capture_frames"] = []
+        init_cfg["max_frames"]     = 0          # 0 = no auto-shutdown
+        f_log.write("[record] observe-only mode — drive the game by hand; "
+                    "close Recettear (or Ctrl-C) to finish the recording\n")
+
     script.exports_sync.init(init_cfg)
-    device.resume(pid)
+    if not is_attach:
+        device.resume(pid)        # attach: the process is already running
 
     # ── wait for max_frames signal or wall-clock ceiling ──
     deadline = t0 + (cfg.duration_ms / 1000.0)
-    while not done.is_set() and time.monotonic() < deadline:
-        # If we've captured every frame the scenario asked for AND the
-        # engine has run past max_frames, we can shut down even without
-        # the explicit signal (the agent only fires that on a Present).
-        if (cfg.capture_frames
-                and set(captured) >= set(cfg.capture_frames)
-                and last_engine_frame >= cfg.max_frames):
-            f_log.write(f"[done] all frames captured ({len(captured)})\n")
-            break
-        time.sleep(0.05)
+    try:
+        while not done.is_set() and time.monotonic() < deadline:
+            # If we've captured every frame the scenario asked for AND the
+            # engine has run past max_frames, we can shut down even without
+            # the explicit signal (the agent only fires that on a Present).
+            if (cfg.capture_frames
+                    and set(captured) >= set(cfg.capture_frames)
+                    and last_engine_frame >= cfg.max_frames):
+                f_log.write(f"[done] all frames captured ({len(captured)})\n")
+                break
+            time.sleep(0.05)
+    except KeyboardInterrupt:
+        # Ctrl-C: fall through to the shutdown + (recorder) raw write below so a
+        # hand-driven recording is still saved instead of lost.
+        f_log.write("[interrupt] Ctrl-C — finishing + writing any recording\n")
+        print("\nfrida_capture: interrupted — finishing up…", file=sys.stderr)
 
     elapsed_ms = int((time.monotonic() - t0) * 1000)
     exit_code = 0
@@ -961,11 +1050,40 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         session.detach()
     except Exception as e:
         f_log.write(f"[shutdown] session detach: {e}\n")
-    try:
-        device.kill(pid)
-    except Exception as e:
-        f_log.write(f"[shutdown] kill pid={pid}: {e}\n")
-        exit_code = 1
+    if not is_attach:
+        try:
+            device.kill(pid)
+        except Exception as e:
+            f_log.write(f"[shutdown] kill pid={pid}: {e}\n")
+            exit_code = 1
+    else:
+        f_log.write(f"[shutdown] attach mode — leaving pid={pid} alive\n")
+
+    # ── write the recorded raw trace (port-format .raw.jsonl) ──
+    if recording and rec_inputs:
+        out = cfg.record_trace_path
+        n = max(rec_inputs) + 1
+        seed = next((a["rng"] for a in sorted(rec_anchors, key=lambda a: a["frame"])),
+                    None)
+        lines = [json.dumps({"_rec": "openrecet-tas-raw-v1", "frames": n,
+                             "start_abs": 0, "rng_seed_at_start": seed})]
+        # DENSE per-frame input rows (sticky-fill gaps so a held button that the
+        # agent only re-emitted on change is still dense; defensive — the agent
+        # emits every frame, but a dropped wire message would otherwise read 0).
+        sticky = 0
+        for i in range(n):
+            sticky = rec_inputs.get(i, sticky)
+            lines.append(json.dumps({"frame": i, "buttons": f"0x{sticky:04x}"}))
+        for a in rec_anchors:
+            lines.append(json.dumps({"anchor": a["anchor"], "frame": a["frame"],
+                                     "gframe": a["gframe"], "rng": a["rng"]}))
+        for ef in rec_escs:                       # WndProc ESC-skip presses
+            lines.append(json.dumps({"esc": ef}))
+        out.write_text("\n".join(lines) + "\n")
+        f_log.write(f"[record] wrote {n} frames + {len(rec_anchors)} anchors + "
+                    f"{len(rec_escs)} esc → {out}\n")
+        print(f"frida_capture: recorded {n} frames + {len(rec_anchors)} anchors + "
+              f"{len(rec_escs)} esc → {out}", file=sys.stderr)
 
     f_audio.close(); f_trace.close(); f_log.close()
     if f_d3d is not None:
@@ -1106,6 +1224,20 @@ def main(argv: list[str] | None = None) -> int:
                          "frames onto the live anchor stream (deterministic "
                          "across load jitter). Supersedes --auto-z-spam; "
                          "implies --anchor-trace.")
+    ap.add_argument("--attach", nargs="?", const="recettear", default=None,
+                    metavar="NAME",
+                    help="attach to an ALREADY-RUNNING retail process (match by "
+                         "name substring, default 'recettear') instead of spawning "
+                         "the unpacked dump. The only way to drive the game by hand "
+                         "(Frida-spawned processes can't take keyboard input). "
+                         "Pair with --record-trace.")
+    ap.add_argument("--record-trace", type=Path, default=None, metavar="OUT.raw.jsonl",
+                    help="RECORD mode: observe the live game (no forcing/turbo/hide) "
+                         "and write a port-format raw recording (dense per-frame "
+                         "inputs + {anchor,gframe,rng} rows) to OUT. Drive the game "
+                         "by hand, then close it (or Ctrl-C) to finish. Distil with "
+                         "`distill_trace.py OUT --anchor-segments` for deterministic "
+                         "replay. Implies --attach if no spawn target makes sense.")
     ap.add_argument("--force-input", action="store_true",
                     help="overwrite the engine's input mask each frame "
                          "with the trace value (or 0 if no trace given)")
@@ -1367,15 +1499,24 @@ def main(argv: list[str] | None = None) -> int:
             except ValueError:
                 ap.error(f"--watch: expected NAME=0xVA[:type], got {spec!r}")
 
+    # --record-trace implies attach (you can't drive a spawned process by hand).
+    attach_match = args.attach
+    if args.record_trace is not None and attach_match is None:
+        attach_match = "recettear"
+
     cfg = CaptureConfig(
         capture_frames=capture_frames,
         max_frames=args.max_frames,
-        duration_ms=args.duration_ms,
+        duration_ms=(600_000 if (args.record_trace is not None
+                                  and args.duration_ms == 30_000)
+                     else args.duration_ms),
         remote=args.remote, exe=args.exe, cwd=args.cwd,
         auto_start_server=not args.no_auto_start,
         server_exe=args.server_exe,
         input_trace_path=args.input_trace,
         input_segtrace_path=args.input_segtrace,
+        attach_match=attach_match,
+        record_trace_path=args.record_trace,
         watch=watch,
         montage=not args.no_montage,
         force_input=args.force_input or args.input_trace is not None,

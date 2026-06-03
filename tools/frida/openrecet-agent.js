@@ -60,6 +60,14 @@ const ADDR = {
     // input poll (see docs/findings/winmain-and-bootstrap.md §"Input poll").
     fn_input_poll:       0x0047b73c,
 
+    // WndProc ESC → skip-event entry (FUN_00453384(0)). Called when the user
+    // presses ESC during a skippable event (the intro dialogues). The {esc}
+    // replay path PostMessageA(WM_KEYDOWN,ESC)s into WndProc → here; hooking
+    // its ENTRY captures the user's real ESC presses for the recorder (ESC is
+    // keyboard/WndProc-only, NOT in the DInput mask DAT_073dddd0). See
+    // docs/findings/esc-skip-event.md.
+    fn_wndproc_esc_skip: 0x0045337b,
+
     // pure-math functions used by the state-forcing differential tests.
     // see docs/decompiled/by-address/{5041f6,499583}.c
     fn_lcg_step:         0x005041f6,  // void→u15 (output in low 15 bits of u32)
@@ -641,6 +649,7 @@ let g_pre_3d_done_sent     = false;
 // first tick, then NEW_GAME / LOADING_START / LOADING_END / HOUSE_FREEROAM
 // in causal table order); keep the two in lockstep.
 let g_anchor_trace_enabled = false;
+let g_record_esc           = false;  // recorder: hook FUN_0045337b → {esc_record}
 let g_anchor_initialized   = false;
 let g_anchor_prev_scene    = 0;      // previous-frame DAT_0438b1c0
 let g_anchor_prev_loading  = false;  // previous-frame (gate1||gate2)!=0
@@ -710,6 +719,7 @@ let g_segtrace_seg      = 0;    // current segment index
 let g_segtrace_entry    = 0;    // next entry within the current segment
 let g_segtrace_base     = 0;    // absolute frame of the current segment's frame 0
 let g_segtrace_base_arm = 0;    // frame the current segment was entered (wait guard)
+let g_segtrace_base_anchor = null; // anchor name that entered the current segment
 let g_segtrace_sticky   = 0;    // last applied mask (held between entries)
 let g_segtrace_fired    = {};   // anchor name -> frame it most recently fired
 let g_ct_windows        = [];   // [[lo,hi],...] anchor-relative call-trace windows
@@ -724,8 +734,8 @@ let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows a
 //   {calltrace:N}  — arm the call tracer for [base, base+N] (N frames from this
 //                    segment's anchor) — anchor-relative, no absolute frames
 function segtraceBuildSegments(ops) {
-    const seg0 = () => ({entries: [], captures: [], calltraces: [], setrngs: [],
-                         escs: [], wait: null, wait_until: null});
+    const seg0 = () => ({entries: [], captures: [], capranges: [], calltraces: [],
+                         setrngs: [], escs: [], wait: null, wait_until: null});
     const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
         const op = ops[i];
@@ -744,6 +754,13 @@ function segtraceBuildSegments(ops) {
             segs.push(seg0());
         } else if (op && op.capture !== undefined) {
             segs[segs.length - 1].captures.push(op.capture | 0);
+        } else if (op && op.caprange !== undefined && Array.isArray(op.caprange)) {
+            // {caprange:[start,count]} — contiguous capture window [base+start,
+            // base+start+count). Mirrors the port's caprange so a trace.work.jsonl
+            // exported for the port renders the SAME anchor-relative window on
+            // retail (frame-for-frame port↔retail dust/depth comparison).
+            segs[segs.length - 1].capranges.push(
+                [op.caprange[0] | 0, op.caprange[1] | 0]);
         } else if (op && op.calltrace !== undefined) {
             // Scalar N -> [0, N]; [start, len] -> base-relative window.
             const ct = op.calltrace;
@@ -792,6 +809,18 @@ function segtraceOnSegmentEnter(seg) {
             log('segtrace: d3d-trace armed at frames ' + (tgt - 2) +
                 '..' + (tgt + 2));
         }
+    }
+    for (let i = 0; i < seg.capranges.length; i++) {
+        const start = seg.capranges[i][0], count = seg.capranges[i][1];
+        const lo = g_segtrace_base + start;
+        for (let k = 0; k < count; k++) g_capture_pending.add(lo + k);
+        log('segtrace: caprange scheduled base+' + start + '..base+' +
+            (start + count) + ' -> frames ' + lo + '..' + (lo + count) +
+            ' (' + count + ' frames)');
+        // Arm anchor-relative d3d-trace on the window edges if enabled (a full
+        // contiguous d3d-trace would be huge; the ±2 round each capture in the
+        // scalar-capture path covers point reads — for a caprange the consumer
+        // can re-run with explicit --d3d-trace-frames if needed).
     }
     for (let i = 0; i < seg.calltraces.length; i++) {
         const start = seg.calltraces[i][0], len = seg.calltraces[i][1];
@@ -1329,6 +1358,23 @@ function installInputHook() {
         },
     });
     log('input hook installed');
+}
+
+// ─── ESC-record hook (recorder) ─────────────────────────────────────────
+// ESC is keyboard/WndProc-only — it never appears in the DInput mask
+// (DAT_073dddd0) the input hook samples, so the recorder would miss the
+// user's dialogue-skip ESC presses. Hook the WndProc ESC→skip-event entry
+// (FUN_0045337b, the same function the {esc} replay path posts into) and
+// emit an {esc_record, frame} message on each call. The driver writes these
+// as {esc} rows in the raw, so a recorded ESC skip replays via the {esc} op
+// exactly the way the port's F2 recorder captures it.
+function installEscRecordHook() {
+    Interceptor.attach(rva(ADDR.fn_wndproc_esc_skip), {
+        onEnter: function () {
+            send({kind: 'esc_record', frame: frameNo()});
+        },
+    });
+    log('esc-record hook installed (FUN_0045337b)');
 }
 
 // ─── window-hide hook ───────────────────────────────────────────────────
@@ -2071,11 +2117,22 @@ function segtraceTick(fn) {
         if (!seg) break;
         if (seg.wait !== null) {
             const af = g_segtrace_fired[seg.wait];
-            if (af !== undefined && af > g_segtrace_base_arm) {
+            // Resolution guard: a DIFFERENT next anchor may fire on the SAME
+            // frame the current segment was entered (recording-adjacent anchors
+            // compress to one frame on replay), so it resolves at af >= entry.
+            // The SAME anchor recurring (HOUSE_FREEROAM twice) must take the
+            // NEXT firing, so it requires af > entry. Without the per-name
+            // distinction a same-frame anchor cluster stalls the whole chain.
+            const sameName  = (seg.wait === g_segtrace_base_anchor);
+            const resolved  = (af !== undefined) &&
+                              (sameName ? af > g_segtrace_base_arm
+                                        : af >= g_segtrace_base_arm);
+            if (resolved) {
                 g_segtrace_seg++;
-                g_segtrace_base     = af;
-                g_segtrace_base_arm = af;
-                g_segtrace_entry    = 0;
+                g_segtrace_base       = af;
+                g_segtrace_base_arm   = af;
+                g_segtrace_base_anchor = seg.wait;
+                g_segtrace_entry      = 0;
                 segtraceOnSegmentEnter(g_segtrace_segments[g_segtrace_seg]);
                 continue;  // re-evaluate the next segment this same frame
             }
@@ -2093,9 +2150,10 @@ function segtraceTick(fn) {
                         ' satisfied at frame ' + fn);
                 }
                 g_segtrace_seg++;
-                g_segtrace_base     = fn;
-                g_segtrace_base_arm = fn;
-                g_segtrace_entry    = 0;
+                g_segtrace_base       = fn;
+                g_segtrace_base_arm   = fn;
+                g_segtrace_base_anchor = null;   // wait_until entry is not anchor-named
+                g_segtrace_entry      = 0;
                 segtraceOnSegmentEnter(g_segtrace_segments[g_segtrace_seg]);
                 continue;
             }
@@ -2167,6 +2225,19 @@ function anchorCaptureSchedule(name, frame, devicePtr) {
     }
 }
 
+// Emit an anchor message carrying the absolute engine frame counter
+// (var_frame_counter = DAT_073dfcfc) and the live LCG state
+// (var_lcg_seed = DAT_006023a0). The recorder (frida_capture --record-trace)
+// needs both to write the port-format raw row {anchor,frame,gframe,rng} so
+// distill --anchor-segments can re-pin RNG per anchor — i.e. a retail-recorded
+// trace replays deterministically the same way a port F2 recording does.
+function sendAnchor(name, frame) {
+    let gframe = 0, rng = 0;
+    try { gframe = rva(ADDR.var_frame_counter).readU32(); } catch (e) {}
+    try { rng    = rva(ADDR.var_lcg_seed).readU32(); } catch (e) {}
+    send({kind: 'anchor', anchor: name, frame: frame, gframe: gframe, rng: rng});
+}
+
 function anchorTick(frame, devicePtr) {
     // Snapshot the engine globals. loading_active = OR of both gates
     // (all.c L50058 `(DAT_06a49958==0) && (DAT_06a49960==0)`); reading
@@ -2198,7 +2269,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_linep   = linePresent;
         g_anchor_prev_convstate = convState;
         g_anchor_prev_convblink = convBlink;
-        send({kind: 'anchor', anchor: 'BOOT', frame: frame});
+        sendAnchor('BOOT', frame);
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
     }
@@ -2214,20 +2285,20 @@ function anchorTick(frame, devicePtr) {
     // NEW_GAME — TITLE → INGAME (the engine passes through LOADING in the
     // same tick, so the observable edge is TITLE → INGAME directly).
     if (ps === ANCHOR_SCENE_TITLE && scene === ANCHOR_SCENE_INGAME) {
-        send({kind: 'anchor', anchor: 'NEW_GAME', frame: frame});
+        sendAnchor('NEW_GAME', frame);
         anchorCaptureSchedule('NEW_GAME', frame, devicePtr);
     }
     if (!pl && loading) {
-        send({kind: 'anchor', anchor: 'LOADING_START', frame: frame});
+        sendAnchor('LOADING_START', frame);
         anchorCaptureSchedule('LOADING_START', frame, devicePtr);
     }
     if (pl && !loading) {
-        send({kind: 'anchor', anchor: 'LOADING_END', frame: frame});
+        sendAnchor('LOADING_END', frame);
         anchorCaptureSchedule('LOADING_END', frame, devicePtr);
     }
     if (!anchorIsHouseFreeroam(ps, pl) &&
         anchorIsHouseFreeroam(scene, loading)) {
-        send({kind: 'anchor', anchor: 'HOUSE_FREEROAM', frame: frame});
+        sendAnchor('HOUSE_FREEROAM', frame);
         anchorCaptureSchedule('HOUSE_FREEROAM', frame, devicePtr);
     }
     // TEXT_ANIM_START — a new dialogue line begins its typewriter reveal: the
@@ -2236,43 +2307,43 @@ function anchorTick(frame, devicePtr) {
     // prev!=1 is the exact per-line rising edge (fires the first line too:
     // 0->1). Mirrors anchor_trace.c ev_text_anim_start.
     if (dlgActive && reveal === 1 && pr !== 1) {
-        send({kind: 'anchor', anchor: 'TEXT_ANIM_START', frame: frame});
+        sendAnchor('TEXT_ANIM_START', frame);
         anchorCaptureSchedule('TEXT_ANIM_START', frame, devicePtr);
     }
     // TEXT_ANIM_END — the line finished scrolling and settled: the
     // fully-revealed flag rises 0->1 (DAT_073a3e04, 0x46c9a2). This is the
     // deterministic "text animation done, awaiting advance" edge.
     if (dlgActive && revflag !== 0 && pf === 0) {
-        send({kind: 'anchor', anchor: 'TEXT_ANIM_END', frame: frame});
+        sendAnchor('TEXT_ANIM_END', frame);
         anchorCaptureSchedule('TEXT_ANIM_END', frame, devicePtr);
     }
     // EXTRA_SPRITE_* — the dialogue effect-sprite (sigh / zzz / sweat / kuro
     // fade) lifecycle off the aggregate fx_alpha. 1:1 mirror of anchor_trace.c
     // ev_fx_*; START/FADED_IN coincide for an instant-appear sprite.
     if (px === 0 && fxAlpha > 0) {
-        send({kind: 'anchor', anchor: 'EXTRA_SPRITE_START', frame: frame});
+        sendAnchor('EXTRA_SPRITE_START', frame);
         anchorCaptureSchedule('EXTRA_SPRITE_START', frame, devicePtr);
     }
     if (fxAlpha >= 255 && px < 255) {
-        send({kind: 'anchor', anchor: 'EXTRA_SPRITE_FADED_IN', frame: frame});
+        sendAnchor('EXTRA_SPRITE_FADED_IN', frame);
         anchorCaptureSchedule('EXTRA_SPRITE_FADED_IN', frame, devicePtr);
     }
     if (px >= 255 && fxAlpha < 255 && fxAlpha > 0) {
-        send({kind: 'anchor', anchor: 'EXTRA_SPRITE_FADEOUT', frame: frame});
+        sendAnchor('EXTRA_SPRITE_FADEOUT', frame);
         anchorCaptureSchedule('EXTRA_SPRITE_FADEOUT', frame, devicePtr);
     }
     if (px > 0 && fxAlpha === 0) {
-        send({kind: 'anchor', anchor: 'EXTRA_SPRITE_END', frame: frame});
+        sendAnchor('EXTRA_SPRITE_END', frame);
         anchorCaptureSchedule('EXTRA_SPRITE_END', frame, devicePtr);
     }
     // DLG_LINE_CLEAR / DLG_LINE_SHOW — line dismissed (box closing) / next line
     // shown. Frame the between-lines gap. Mirror of anchor_trace.c ev_dlg_line_*.
     if (plp && !linePresent) {
-        send({kind: 'anchor', anchor: 'DLG_LINE_CLEAR', frame: frame});
+        sendAnchor('DLG_LINE_CLEAR', frame);
         anchorCaptureSchedule('DLG_LINE_CLEAR', frame, devicePtr);
     }
     if (!plp && linePresent) {
-        send({kind: 'anchor', anchor: 'DLG_LINE_SHOW', frame: frame});
+        sendAnchor('DLG_LINE_SHOW', frame);
         anchorCaptureSchedule('DLG_LINE_SHOW', frame, devicePtr);
     }
     // CONV_POSE_START / CONV_POSE_END — the player actor state rises to / falls
@@ -2280,17 +2351,17 @@ function anchorTick(frame, devicePtr) {
     // the per-effect anchor for phase-aligned captures (§85/§86). Mirror of
     // anchor_trace.c ev_conv_pose_*.
     if (g_anchor_prev_convstate !== 6 && convState === 6) {
-        send({kind: 'anchor', anchor: 'CONV_POSE_START', frame: frame});
+        sendAnchor('CONV_POSE_START', frame);
         anchorCaptureSchedule('CONV_POSE_START', frame, devicePtr);
     }
     if (g_anchor_prev_convstate === 6 && convState !== 6) {
-        send({kind: 'anchor', anchor: 'CONV_POSE_END', frame: frame});
+        sendAnchor('CONV_POSE_END', frame);
         anchorCaptureSchedule('CONV_POSE_END', frame, devicePtr);
     }
     // CONV_POSE_BLINK — eyes close (cell 39) during the pose. The post-load sync
     // point for blink-phase comparison. Mirror of anchor_trace.c ev_conv_pose_blink.
     if (!g_anchor_prev_convblink && convBlink) {
-        send({kind: 'anchor', anchor: 'CONV_POSE_BLINK', frame: frame});
+        sendAnchor('CONV_POSE_BLINK', frame);
         anchorCaptureSchedule('CONV_POSE_BLINK', frame, devicePtr);
     }
 
@@ -3607,10 +3678,22 @@ function bytesToHex(arr) {
 
 function ensureBase() {
     if (g_base) return;
-    const mod = Process.findModuleByName(MODULE_NAME);
-    if (!mod) throw new Error('module not found: ' + MODULE_NAME);
+    // The unpacked dump (spawn path) is recettear.unpacked.exe; the real
+    // Steam-launched retail (attach/record path) is recettear.exe — SteamStub
+    // decrypts the original .text in place at the same VAs the dump was taken
+    // from, so the offsets resolve identically against either module base.
+    // Try the dump name, then the packed name, then the process main module.
+    let mod = Process.findModuleByName(MODULE_NAME) ||
+              Process.findModuleByName('recettear.exe');
+    if (!mod) {
+        try { mod = Process.mainModule; } catch (e) {}
+    }
+    if (!mod) throw new Error('module not found: ' + MODULE_NAME +
+                              ' / recettear.exe / mainModule');
     g_base = mod.base;
+    g_module_resolved = mod.name;
 }
+let g_module_resolved = MODULE_NAME;
 
 // Capture FUN_00499583's would-be SetVolume argument for a given BGM
 // slider value, without touching real audio output.
@@ -3728,6 +3811,7 @@ rpc.exports = {
         g_segtrace_entry    = 0;
         g_segtrace_base     = 0;
         g_segtrace_base_arm = 0;
+        g_segtrace_base_anchor = null;
         g_segtrace_sticky   = 0;
         g_segtrace_fired    = {};
         g_ct_windows        = [];
@@ -3857,6 +3941,7 @@ rpc.exports = {
         // pairs with auto_z_spam (drive past the title to HOUSE) and the
         // capture flags. Reset the edge state so a re-init starts clean.
         g_anchor_trace_enabled = !!config.anchor_trace;
+        g_record_esc           = !!config.record_esc;
         g_anchor_initialized   = false;
         g_anchor_prev_scene    = 0;
         g_anchor_prev_loading  = false;
@@ -4071,6 +4156,32 @@ rpc.exports = {
             // RNG caller histogram — a single Interceptor on the LCG step.
             if (g_rng_callers) {
                 installRngCallerHook();
+            }
+            // ESC-record hook (recorder) — capture WndProc ESC-skip presses.
+            if (g_record_esc) {
+                try { installEscRecordHook(); }
+                catch (e) { err('installEscRecordHook', e.message); }
+            }
+            // ATTACH path: when we attach to an already-running retail (the
+            // recorder), the d3d-init wrapper already ran, so installInitHook's
+            // onLeave will never fire and the Present hook (which advances the
+            // frame counter + drives anchorTick) would never install. Detect
+            // the live device global and install the Present hook now.
+            try {
+                const dev = rva(ADDR.var_d3d_device).readPointer();
+                if (!dev.isNull() && !g_present_hooked) {
+                    g_device_inst = dev;
+                    log('attach: existing IDirect3DDevice8* = ' + dev +
+                        ' — installing Present hook now');
+                    installPresentHook(dev);
+                    if (g_d3d_trace_enabled) {
+                        try { installD3dTraceHooks(dev); } catch (e) {
+                            err('attach installD3dTraceHooks', e.message);
+                        }
+                    }
+                }
+            } catch (e) {
+                err('attach device discovery', e.message);
             }
         }
     },
