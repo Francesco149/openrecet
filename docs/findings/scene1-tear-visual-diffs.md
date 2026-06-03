@@ -1,0 +1,77 @@
+# Tear (companion) visual diffs vs retail — free-roam walk
+
+User-inspected catalog of the remaining Tear divergences in HOUSE free-roam,
+recorded 2026-06-03. These are the concrete chips behind the standing
+[[project_next_char_controller]] "Tear not-1:1" + the deferred wing-flap phase.
+
+## Exact reference trace (reproduce these diffs)
+
+- **Scenario:** `house-walk-down-dense` run `--target both` (synced port↔retail,
+  Recette's WALK phase is 1:1 — see `reference_parity_trace_walk_down_dense`).
+- **Run dir:** `runs/scenarios/house-walk-down-dense-both-20260603T204609Z`,
+  frame **`cap_03`** (port `openrecet/frames/`, retail `retail/frames/`, sorted
+  index 3).
+- **Feed comparison:** id `20260603T210245_3a18` — `[RETAIL | PORT | DIFF]` of
+  Tear at IDENTICAL screen coords (crop box `(575,600,665,715)` of the 1024×768
+  `cap_03` frames, upscaled 6×). Panels: RETAIL x≈10–550, PORT x≈560–1100,
+  DIFF x≈1110–1650.
+- **Caveat:** this scenario is **NOT RNG-pinned** (`scenario.yaml` is a synthetic
+  A-spam boot + hold-DOWN; no `{rngseed}` op), so the wing-sparkle particles and
+  foot-dust spawn at **different RNG phase** on the two sides — see diff #5. The
+  *sprite/glow/anim* diffs below are NOT explained by RNG and are real.
+
+## The differences (user inspection, cap_03)
+
+1. **Blue glow ON HER FACE — present in retail, MISSING in port.**
+   (feed crop `box=5,207,122,373` = retail-panel Tear face.) Retail shows a soft
+   blue cast across Tear's face/upper body that the port lacks. Open question:
+   is it an **extra glow layer**, the **wings enhanced with a bloom**, or simply
+   the wing-glow billboard **drawn on top with an additive blend** that bleeds
+   onto the face? → audit the wing-glow draw order/blend vs the face sprite;
+   likely the additive 0x1f/glow billboard (`scene1_wing_glow.c`,
+   `docs/findings/scene1-wing-glow.md`) should overlap the face. NOT yet root-caused.
+
+2. **Wings render OVER her hair in retail (layering / draw order).**
+   (feed crop `box=186,217,246,322`.) In retail the wing sprite draws on top of
+   her hair; the port's layering differs. → a draw-order / Z or painter-order
+   issue between the wing billboard and the body sprite.
+
+3. **Sprite is a slightly different ANIMATION FRAME.** (same crop as #2.) The
+   hand pixels differ between port and retail → Tear's body-anim phase is off by
+   a frame or two. Consistent with the companion anim/bob phase riding a
+   *local* `s_bob_counter` instead of the engine's shared `DAT_056db054`
+   (`scene1_companion_ctrl.c` L86-107) — the deferred "chase phase later".
+
+4. **Eyes are different — and NOT just from the blue glow.** (feed crop
+   `box=50,393,137,446`.) The eye pixels differ independently of the face glow →
+   another symptom of the wrong anim frame (#3), or a different blink/expression
+   sub-state.
+
+5. **Blue wing-sparkle particles: phase/RNG mismatched.** (feed crop
+   `box=201,324,353,525` = DIFF panel.) The trailing 0x1f sparkles light up in
+   the diff. **Expected** for this un-pinned trace (different RNG phase
+   cross-target) — to verify the sparkle render/occlusion the trace must be
+   RNG-pinned (`{rngseed}`, [[scene1-rng-stream-parity]]); otherwise this is
+   phase noise, not a render bug.
+
+## Position vs phase — verdict
+
+Tear's **world position is NOT the bug**: at the stationary bottomwall her draw
+pos = retail's exactly ((0.6, 3.056, 9.35), d3d-trace char#2/#8 vs port actor[2],
+`scene1-walk-dust.md` §2026-06-03f). At cap_03 she sits at ~the same SCREEN
+position as retail. The divergence is **appearance**: (a) the missing face glow
+(#1), (b) wing-over-hair layering (#2), (c) a wrong anim frame (#3/#4). Spring
+position during fast motion is still worth a synced check, but the cap_03 diffs
+above are render/anim, not position.
+
+## Next
+
+Root-cause #1 (face glow) first — it's the most visually prominent and is a
+render/blend/draw-order question localizable from the wing-glow draw vs the body
+sprite (no anim-phase confound). Then #2 (wing/hair layering). #3/#4 (anim frame)
+fold into the deferred `s_bob_counter` → shared `DAT_056db054` phase alignment.
+#5 needs an RNG-pinned trace to even assess.
+
+Cross-refs: `docs/findings/scene1-wing-glow.md`, `scene1_companion_ctrl.c`,
+[[project_next_char_controller]], [[reference_parity_trace_walk_down_dense]],
+engine-quirks §71 (bob) / §81 (wing flap).
