@@ -22,14 +22,35 @@ recorded 2026-06-03. These are the concrete chips behind the standing
 
 ## The differences (user inspection, cap_03)
 
-1. **Blue glow ON HER FACE — present in retail, MISSING in port.**
-   (feed crop `box=5,207,122,373` = retail-panel Tear face.) Retail shows a soft
-   blue cast across Tear's face/upper body that the port lacks. Open question:
-   is it an **extra glow layer**, the **wings enhanced with a bloom**, or simply
-   the wing-glow billboard **drawn on top with an additive blend** that bleeds
-   onto the face? → audit the wing-glow draw order/blend vs the face sprite;
-   likely the additive 0x1f/glow billboard (`scene1_wing_glow.c`,
-   `docs/findings/scene1-wing-glow.md`) should overlap the face. NOT yet root-caused.
+1. **Blue glow ON HER FACE — present in retail, MISSING in port. ✅ RESOLVED
+   2026-06-03 (commit pending).** It was **neither** an extra layer nor a
+   blend/draw-order bug — it was a **per-pass projection (z_far) depth bias** that
+   inverted the body↔glow depth so the additive wing-glow was Z-occluded behind
+   her head. Ground truth from a SYNCED port↔retail d3d-trace at cap_03
+   (`/tmp`-built `d3d_state_diff`-style matrix extract):
+   - Both sides draw exactly **body (pc12, alpha, ZW1) + glow (pc14, additive
+     ONE/ONE, ZW0)** at the same world pos, glow after body — NO missing pass.
+   - The glow is `ZENABLE=1 ZWRITE=0 ZFUNC=LE`, so it is **depth-tested** against
+     the body's Z-write. Whichever is nearer in NDC wins.
+   - **Retail:** char-body pass projection `z_far=1450` → body ndcz **0.94798**;
+     glow pass `z_far=2000` → glow ndcz **0.94780** (NEARER) → glow passes LE →
+     **draws over her head**.
+   - **Port (bug):** char-body `z_far=3025` → body ndcz **0.94785**; glow
+     `z_far=2000` → glow ndcz **0.94801** (FARTHER) → glow fails LE → **occluded**.
+   - The body z_far comes from `FUN_004552d0` L334: `2200-(local_14-11)*75`,
+     `local_14 = DAT_0438b778 + DAT_044e2c70`. The port's `scene1_shop_walker.c`
+     stub `sw_dat_044e2c70()` returned **0** (mislabeled "BSS sub-frame counter")
+     so `local_14=0`→`z_far=3025`. `DAT_044e2c70` is actually the camera
+     **eye.y-add constant 21.0** (`.rdata DAT_005c4fd8`; `scene1_camera.c` already
+     had it). With 21.0, `local_14=21`→`z_far=1450`, matching retail; the glow now
+     washes over her head/hair (user-confirmed "perfect" 2026-06-03).
+   - **Mechanism is the same flipped-depth class as the dust occlusion** (the port
+     drew the char body NEARER than effects that should sit in front; dust is the
+     mirror). The per-pass z_far bias is the engine's billboard depth-layering — see
+     engine-quirks §93. **Diagnostic toggle proof:** disabling the body Z-write
+     (`OPENRECET_NO_CHAR_ZWRITE`) did NOT fix it (it only un-occludes the trail
+     sparkles, a separate minor effect) — ruling Z-write out and pointing at the
+     projection, before the trace pinned z_far.
 
 2. **Wings render OVER her hair in retail (layering / draw order).**
    (feed crop `box=186,217,246,322`.) In retail the wing sprite draws on top of

@@ -3663,3 +3663,43 @@ feet-plane** in world Z (confirmed in the retail trace: NDC-z has fresh dust in
 front at f5495–5528, trailing dust behind at f5597+). So "the body should hide the
 puff at her feet" is NOT how retail works — see `docs/findings/scene1-walk-dust.md`
 §2026-06-03b.
+
+## 93. Billboard depth layering is done by swapping the PROJECTION z_far per pass — two billboards at the SAME world position get DIFFERENT NDC depth purely from the active projection
+
+The scene-1 renderer controls which billboards occlude which **not** only via
+draw order + Z-state, but by **swapping `D3DTS_PROJECTION` between passes** — each
+pass calls the perspective build (`scene1_render_push_projection`, engine
+`FUN_00459dfd`/`FUN_004552d0`) with a **different `z_far`** while near stays `1.0`.
+Because `ndcz = z_far·(d−1)/(d·(z_far−1))` depends on `z_far`, the **same world
+point projects to a different NDC-z under a different `z_far`** — a larger `z_far`
+maps a given depth NEARER (smaller ndcz). Measured live (house free-roam, synced
+d3d-trace):
+
+| pass | z_far | PROJ[10] |
+|---|---|---|
+| room/near meshes | 350 | −1.00287 |
+| **char body** (`FUN_004552d0`) | **1450** | −1.00069 |
+| wide scenery / chr **glow** / dust | 2000 | −1.00050 |
+| (close-up override) | 1100 / 3025 | … |
+
+The char-body `z_far` is computed in `FUN_004552d0`: `z_far = 2200 −
+(local_14 − 11)·75`, `local_14 = DAT_0438b778 + DAT_044e2c70`. In HOUSE free-roam
+`DAT_0438b778 = 0` and **`DAT_044e2c70 = 21.0`** (the camera eye.y-add constant,
+`.rdata DAT_005c4fd8`), so `local_14 = 21 → z_far = 1450`. The body therefore lands
+**farther** in NDC than the additive wing-glow drawn under `z_far = 2000`, so the
+glow (ZWRITE=0, ZFUNC=LESSEQUAL) passes the depth test and **draws over her head**
+— this is what produces Tear's blue-washed hair/face. If the body shared the glow's
+`z_far` (or a larger one) the glow would be occluded behind her.
+
+So in retail, **billboard occlusion is partly governed by the per-pass projection,
+not only by draw order + Z-state**: two billboards at the same world XYZ and scale
+land at different NDC depth purely from which `z_far` was live at each draw (larger
+`z_far` → nearer in NDC). The char body sits at `z_far` 1450 — between the near
+meshes (350) and the effect layer (2000) — so the additive effects (glow, sparkles)
+read in front of her while she still occludes the room geometry behind. The dust
+layer (also `z_far` 2000) is governed the same way.
+
+(How this manifests as a *port divergence* — and how to recognise/diagnose it when a
+stub feeds the wrong `z_far` — is written up port-side in
+`docs/findings/scene1-tear-visual-diffs.md` #1, not here; this section records
+retail behaviour only.)

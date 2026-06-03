@@ -103,8 +103,19 @@ static int sw_stage_record0(void) { return 0; }
  * BSS-zero.  Reads as 0.0f. */
 static float sw_dat_0438b778(void) { return 0.0f; }
 
-/* DAT_044e2c70 — float, sub-frame phase counter.  BSS-zero. */
-static float sw_dat_044e2c70(void) { return 0.0f; }
+/* DAT_044e2c70 — camera "eye.y add" config constant = 21.0 (.rdata
+ * source DAT_005c4fd8), NOT a BSS-zero counter (the old stub mislabelled
+ * it).  Loaded by the unported per-stage camera-param init; scene1_camera.c
+ * already carries this value (g_eyey_add = 21.0, see its compose-formula
+ * note).  It feeds the char-pass z_far: local_14 = DAT_0438b778(0 in
+ * free-roam) + DAT_044e2c70(21) = 21 → z_far = 2200-(21-11)*75 = 1450.
+ * Returning 0 here gave z_far = 3025, which drew the char body NEARER than
+ * the additive wing-glow (z_far 2000) so the glow failed the ZFUNC=LE test
+ * and was occluded — retail's 1450 puts the body FARTHER so the glow draws
+ * over her head.  Proven by a synced port↔retail d3d-trace at the
+ * house-walk-down-dense cap_03 (retail char z_far 1450.06, glow 2000.19).
+ * See docs/findings/scene1-tear-visual-diffs.md / engine-quirks. */
+static float sw_dat_044e2c70(void) { return 21.0f; }
 
 /* DAT_045105a4 + DAT_0438b1e0 * 0x2dfc8 — per-stage sub-record at
  * offset 0 (int).  Selector + record table both BSS-zero at boot
