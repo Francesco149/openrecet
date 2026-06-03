@@ -341,9 +341,11 @@ void scene1_bg_npc_shadow_render(struct IDirect3DDevice8 *dev_in)
  * retail"): retail draws these sprites with ZWRITEENABLE=TRUE.  Ground truth =
  * runs/walkdust-d3d frame 5495, the FUN_0045a56f leaf draws (ret_va 0x45aa31):
  * the player (z≈+8.7), companion (z≈+9.3) and all five bg-NPCs (z≈−11..−15) draw
- * at ZEN1 ZWR1 AREF0 GE SRCALPHA/INVSRCALPHA; only Tear's additive wing-glow
+ * at ZEN1 ZWR1, ALPHAREF0 + ALPHAFUNC=GREATER (alpha>0, transparent texels
+ * culled from the Z-write), SRCALPHA/INVSRCALPHA; only Tear's additive wing-glow
  * (ONE/ONE) is ZWR0.  With ZWRITE off, our NPCs were painter-ordered (spawn idx)
- * instead of depth-sorted → the weird overlaps.  We restore retail's ZWR1.
+ * instead of depth-sorted → the weird overlaps.  We restore retail's ZWR1 (and
+ * its GREATER alpha-test, so overlapping NPCs don't Z-punch square holes).
  *
  * Why this is SAFE here but NOT for the player sprite (which stays deferred —
  * the b1acf7c regression): the bg-NPCs are FAR (z≈−11..−15, behind the window).
@@ -370,7 +372,13 @@ void scene1_bg_npc_sprite_render(struct IDirect3DDevice8 *dev_in)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHATESTENABLE, TRUE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAREF, 0);
-    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
+    /* retail AFUNC=5 = D3DCMP_GREATER (NOT GreaterEqual): with ref 0 the test is
+     * alpha > 0, so fully-transparent texels FAIL and do not write Z.  Critical
+     * now that ZWRITE is on: GreaterEqual (alpha >= 0, pass-all) made the whole
+     * transparent quad lay down a Z footprint → square cut-outs where NPC sprites
+     * overlap (the same "transparent quad = invisible occluding rectangle" bug as
+     * the player b1acf7c).  GREATER restricts Z-writes to the opaque silhouette. */
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_ALPHAFUNC, D3DCMP_GREATER);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZENABLE, TRUE);
     IDirect3DDevice8_SetRenderState(dev, D3DRS_ZWRITEENABLE, TRUE);  /* retail ZWR1 — far-depth, safe (see header) */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE, D3DCULL_NONE);
