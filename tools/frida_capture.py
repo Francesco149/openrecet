@@ -911,6 +911,12 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # {esc:N} — synthesise an ESC keypress at base+N (dialogue-skip
                 # replay), mirroring the port's {esc} op.
                 segtrace_ops.append({"esc": int(rec["esc"])})
+            elif "phasepin" in rec:
+                # {phasepin:N} — at base+N, zero the companion's load-dependent
+                # free-roam phase (db054 + anim cycle) so a port↔retail trace
+                # comparison is phase-clean (engine-quirks §94). Mirrors the
+                # port's {phasepin} op.
+                segtrace_ops.append({"phasepin": int(rec["phasepin"])})
             else:
                 mask_val = rec["buttons"]
                 mask = int(mask_val, 16) if isinstance(mask_val, str) else int(mask_val)

@@ -95,6 +95,32 @@ void scene1_companion_ctrl_reset(void)
     s_bob_counter = 0;
 }
 
+/* Trace-harness phase normalization (the segtrace `{phasepin}` op).  The
+ * companion's free-roam phase — the db054 bob/sparkle counter AND the sprite
+ * anim cycle (FRAME/TIMER/COUNTER) — is a per-scene frame count whose value at
+ * free-roam onset depends on how long the pre-free-roam intro ran.  Retail
+ * freezes db054 through the `recet_op.wmv` intro video and only ticks it from
+ * the conversation (db054==43 at HOUSE_FREEROAM, engine-quirks §94); the port
+ * SKIPS the video (§13), so its counter accumulates ~1518 extra ticks by
+ * free-roam.  The per-frame increment + facing LAWS are bit-exact (constant
+ * offset, zero drift — `scene1-tear-visual-diffs.md` §"#3/#4 determinism
+ * verdict"), so this is a load-time-dependent phase ORIGIN, not a logic gap.
+ * This resets that origin to a canonical zero so a trace comparison against a
+ * retail run (pinned the same way) is phase-clean.  Trace/comparison ONLY — the
+ * shipped game keeps the engine-faithful free-running counter (retail's own
+ * free-roam phase is equally load-dependent). */
+void scene1_companion_ctrl_phasepin(void)
+{
+    s_bob_counter = 0;
+    int32_t *rec = player_ctrl_actor_record_mut(CO_ACTOR);
+    if (rec) {
+        union { float f; int32_t i; } z = { .f = 0.0f };
+        rec[CHR_ACTOR_FRAME]   = 0;
+        rec[CHR_ACTOR_TIMER]   = z.i;
+        rec[CHR_ACTOR_COUNTER] = 0;
+    }
+}
+
 /* The shared per-frame phase counter DAT_056db054.  The engine has ONE db054
  * that several subsystems read within a frame; here it backs the companion bob.
  * The player controller's foot-dust emit (FUN_0048b850, scene1_player_ctrl.c)

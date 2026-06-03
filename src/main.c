@@ -811,6 +811,7 @@ static void  segtrace_rng_cb(uint32_t value, void *user);
 static void  segtrace_caprange_cb(uint32_t lo, uint32_t hi, void *user);
 static void  segtrace_esc_cb(void *user);
 static void  segtrace_gframe_cb(uint32_t value, void *user);
+static void  segtrace_phasepin_cb(void *user);
 static int   capture_frame_is_listed(uint32_t frame);
 
 /* Cross-process singleton lock. A second openrecet instance trying to
@@ -1636,6 +1637,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             /* {gframe:[F,V]} ops pin the global frame counter (EXPERIMENTAL) —
              * see segtrace_gframe_cb. */
             input_segtrace_set_gframe_cb(&g_segtrace, segtrace_gframe_cb, NULL);
+            /* {phasepin:N} ops normalize the companion's load-dependent free-roam
+             * phase for clean trace comparison — see segtrace_phasepin_cb. */
+            input_segtrace_set_phasepin_cb(&g_segtrace, segtrace_phasepin_cb, NULL);
             if (input_segtrace_has_calltrace(&g_segtrace) &&
                 !call_trace_is_open()) {
                 static char ctpath[256];
@@ -3385,6 +3389,18 @@ static void segtrace_gframe_cb(uint32_t value, void *user)
     fprintf(stderr, "segtrace: pinned global frame counter %u -> %u\n",
             (unsigned)g_tick.frame_count, (unsigned)value);
     g_tick.frame_count = value;
+}
+
+/* {phasepin} — normalize the companion's load-dependent free-roam phase (db054
+ * bob/sparkle counter + sprite anim cycle) to a canonical zero, so a trace
+ * comparison against a retail run pinned the same way is phase-clean.  See
+ * scene1_companion_ctrl_phasepin + engine-quirks §94. */
+static void segtrace_phasepin_cb(void *user)
+{
+    (void)user;
+    fprintf(stderr, "segtrace: phasepin — companion phase reset to 0 "
+            "(db054 was %d)\n", scene1_companion_db054());
+    scene1_companion_ctrl_phasepin();
 }
 
 /* Capture-range sink for input_segtrace `{caprange:[start,count]}` ops: open

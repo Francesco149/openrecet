@@ -56,6 +56,13 @@ void scene1_companion_ctrl_reset(void);
  * tick, which runs after the player tick). */
 int scene1_companion_db054(void);
 
+/* Trace-harness ONLY: normalize the companion's load-time-dependent free-roam
+ * phase (db054 bob/sparkle counter + the sprite anim FRAME/TIMER/COUNTER) to a
+ * canonical zero, so a port↔retail trace comparison (both pinned at the same
+ * anchor) is phase-clean.  Wired to the segtrace `{phasepin}` op; the shipped
+ * game never calls it.  See the .c banner + engine-quirks §94. */
+void scene1_companion_ctrl_phasepin(void);
+
 #ifdef __cplusplus
 }
 #endif

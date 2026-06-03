@@ -735,7 +735,7 @@ let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows a
 //                    segment's anchor) — anchor-relative, no absolute frames
 function segtraceBuildSegments(ops) {
     const seg0 = () => ({entries: [], captures: [], capranges: [], calltraces: [],
-                         setrngs: [], escs: [], wait: null, wait_until: null});
+                         setrngs: [], escs: [], phasepins: [], wait: null, wait_until: null});
     const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
         const op = ops[i];
@@ -779,6 +779,14 @@ function segtraceBuildSegments(ops) {
             // mirroring the port's {esc} op so a recorded dialogue-skip replays
             // on retail too (arms the skip-event prompt / quits at title).
             segs[segs.length - 1].escs.push({frame: op.esc | 0, fired: false});
+        } else if (op && op.phasepin !== undefined) {
+            // {phasepin:N} — at the base-relative frame N, normalize the
+            // companion's load-dependent free-roam phase: zero the db054
+            // bob/sparkle counter (DAT_056db054) and the companion sprite anim
+            // cycle (FRAME/TIMER/COUNTER = DAT_056dab50/48/4c).  Mirrors the
+            // port's {phasepin} so a port<->retail trace comparison is phase-clean
+            // (engine-quirks 94, scene1-tear-visual-diffs.md).
+            segs[segs.length - 1].phasepins.push({frame: op.phasepin | 0, fired: false});
         } else {
             segs[segs.length - 1].entries.push(
                 {frame: op.frame | 0, mask: (op.mask | 0) & 0xffff});
@@ -2185,6 +2193,21 @@ function segtraceTick(fn) {
                 e.fired = true;
                 log('segtrace: synthesised ESC at frame ' + fn +
                     ' (base+' + e.frame + ')');
+            }
+        }
+        // {phasepin} fires in the same pre-sim window (mirrors the port's
+        // fire_phasepins). Zeroes the companion's load-dependent free-roam phase.
+        for (let i = 0; i < seg.phasepins.length; i++) {
+            const pp = seg.phasepins[i];
+            if (!pp.fired && g_segtrace_base + pp.frame <= fn) {
+                const was = rva(0x056db054).readS32();
+                rva(0x056db054).writeS32(0);   // DAT_056db054 bob/sparkle counter
+                rva(0x056dab50).writeS32(0);   // companion anim FRAME
+                rva(0x056dab48).writeS32(0);   // companion anim TIMER (float 0.0 == 0)
+                rva(0x056dab4c).writeS32(0);   // companion anim COUNTER
+                pp.fired = true;
+                log('segtrace: phasepin - companion phase reset to 0 (db054 was ' +
+                    was + ') at frame ' + fn + ' (base+' + pp.frame + ')');
             }
         }
         break;

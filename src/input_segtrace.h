@@ -115,6 +115,16 @@ struct seg_gframe {
     int      fired;   /* runtime: cleared on segment activation, set on fire */
 };
 
+/* One base-relative phase normalization: reset the companion's load-time-
+ * dependent free-roam phase (db054 bob/sparkle counter + sprite anim cycle) to a
+ * canonical zero when absolute frame base+frame is reached (fires once; see
+ * {phasepin} in the doc).  Trace-comparison ONLY — factors out the intro-length
+ * phase offset (engine-quirks §94) so port↔retail diffs are phase-clean. */
+struct seg_phasepin {
+    uint32_t frame;   /* relative to the segment base */
+    int      fired;   /* runtime: cleared on segment activation, set on fire */
+};
+
 /* A maximal run of entries terminated by a `wait` (or the trace end). */
 struct seg_segment {
     struct seg_entry *entries;
@@ -131,6 +141,8 @@ struct seg_segment {
     size_t            n_escs, cap_escs;
     struct seg_gframe *gframes;     /* base-relative global-frame-counter forces */
     size_t            n_gframes, cap_gframes;
+    struct seg_phasepin *phasepins; /* base-relative companion-phase normalizers */
+    size_t            n_phasepins, cap_phasepins;
     char              wait[24];     /* terminating anchor name; "" if none */
     int               has_wait;
 };
@@ -183,6 +195,12 @@ struct input_segtrace {
      * tick.h.  EXPERIMENTAL — see struct seg_gframe. */
     void (*gf_cb)(uint32_t value, void *user);
     void  *gf_user;
+
+    /* Phase-normalization callback (set once via input_segtrace_set_phasepin_cb);
+     * fired per {phasepin} op when its frame base+frame is reached.  Kept a
+     * callback so this module stays free of the companion controller. */
+    void (*pp_cb)(void *user);
+    void  *pp_user;
 };
 
 /* Capture callback: invoked once per scheduled `{capture:N}` with the resolved
@@ -223,6 +241,16 @@ typedef void (*segtrace_gframe_fn)(uint32_t value, void *user);
  * {gframe} op when its frame is reached during input_segtrace_tick. */
 void input_segtrace_set_gframe_cb(struct input_segtrace *st,
                                   segtrace_gframe_fn cb, void *user);
+
+/* Phase-normalization callback: invoked once per `{phasepin:N}` op at frame
+ * base+N (before that frame's sim consumers).  Resets the companion's
+ * load-dependent free-roam phase so a trace comparison is phase-clean. */
+typedef void (*segtrace_phasepin_fn)(void *user);
+
+/* Set the phase-normalization callback (and its user ptr).  Fires per {phasepin}
+ * op when its frame is reached during input_segtrace_tick. */
+void input_segtrace_set_phasepin_cb(struct input_segtrace *st,
+                                    segtrace_phasepin_fn cb, void *user);
 
 /* Set the capture-range callback (and its user ptr).  Resolved windows fire
  * through it as their segments become active, same timing as captures. */
