@@ -129,6 +129,16 @@ static int ev_conv_pose_blink(const struct anchor_world *p, const struct anchor_
     return !p->conv_pose_blink && c->conv_pose_blink;
 }
 
+/* Rising edge of "the opening prologue has fully ended" — the player just gained
+ * free control (intro state machine reached D_DONE, after the 2nd ESC→confirm
+ * skip or natural completion). This is the sync point to rebase a recorded
+ * free-roam walk onto: unlike HOUSE_FREEROAM (load-overlay drop, still mid-iv1_2
+ * conversation), it lands at controllable free roam. Fires once per prologue. */
+static int ev_freeroam_start(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->intro_done && c->intro_done;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -153,6 +163,7 @@ static const struct anchor_def g_anchors[] = {
     { "CONV_POSE_START",       ev_conv_pose_start },
     { "CONV_POSE_END",         ev_conv_pose_end   },
     { "CONV_POSE_BLINK",       ev_conv_pose_blink },
+    { "FREEROAM_START",        ev_freeroam_start  },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 

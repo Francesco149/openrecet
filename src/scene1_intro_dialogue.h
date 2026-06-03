@@ -46,6 +46,12 @@ void scene1_intro_dialogue_tick(uint16_t held);
 /* Anchor sources (feed anchor_world). Report zero/inactive while dormant. */
 int     scene1_intro_dialogue_active(void);        /* DAT_0438b1c8 == 1     */
 
+/* 1 once the whole opening sequence has ended (state machine == D_DONE → the
+ * player has free control). 0 while dormant (pre-arm) or any script/inter-script
+ * load is still running. Drives anchor_world.intro_done / the FREEROAM_START
+ * anchor — the post-skip "free roam begins" sync point. */
+int     scene1_intro_dialogue_done(void);          /* g_state == D_DONE     */
+
 /* The FUN_0046c2cb skip gate: 1 iff a dialogue line is up AND it has been
  * displayed for ≥2 frames (the engine's `1 < DAT_073a3e18` skip_prompt test —
  * which is why ESC skips "any time during the dialogue"). esc_dispatch passes

@@ -105,6 +105,16 @@ struct seg_esc {
     int      fired;   /* runtime: cleared on segment activation, set on fire */
 };
 
+/* One base-relative global-frame-counter force: set g_tick.frame_count to `value`
+ * when absolute frame base+frame is reached (fires once; see {gframe} in the
+ * doc). EXPERIMENTAL — pins frame-count-derived state (e.g. time-of-day HUD
+ * clock) so an anchor-rebased trace reproduces it across runs. */
+struct seg_gframe {
+    uint32_t frame;   /* relative to the segment base */
+    uint32_t value;   /* global frame counter to install */
+    int      fired;   /* runtime: cleared on segment activation, set on fire */
+};
+
 /* A maximal run of entries terminated by a `wait` (or the trace end). */
 struct seg_segment {
     struct seg_entry *entries;
@@ -119,6 +129,8 @@ struct seg_segment {
     size_t            n_setrngs, cap_setrngs;
     struct seg_esc   *escs;         /* base-relative ESC synthesis points */
     size_t            n_escs, cap_escs;
+    struct seg_gframe *gframes;     /* base-relative global-frame-counter forces */
+    size_t            n_gframes, cap_gframes;
     char              wait[24];     /* terminating anchor name; "" if none */
     int               has_wait;
 };
@@ -163,6 +175,13 @@ struct input_segtrace {
      * a callback so this module stays free of the engine's WndProc/dispatch. */
     void (*esc_cb)(void *user);
     void  *esc_user;
+
+    /* Global-frame-counter force callback (set once via
+     * input_segtrace_set_gframe_cb); fired per {gframe} op when its frame
+     * base+frame is reached.  Kept a callback so this module stays free of
+     * tick.h.  EXPERIMENTAL — see struct seg_gframe. */
+    void (*gf_cb)(uint32_t value, void *user);
+    void  *gf_user;
 };
 
 /* Capture callback: invoked once per scheduled `{capture:N}` with the resolved
@@ -194,6 +213,15 @@ void input_segtrace_set_calltrace_cb(struct input_segtrace *st,
  * when its frame is reached during input_segtrace_tick. */
 void input_segtrace_set_rngseed_cb(struct input_segtrace *st,
                                    segtrace_rngseed_fn cb, void *user);
+
+/* Global-frame-counter force callback: invoked once per `{gframe:[F,V]}` op with
+ * the value V, at the frame base+F.  EXPERIMENTAL (see struct seg_gframe). */
+typedef void (*segtrace_gframe_fn)(uint32_t value, void *user);
+
+/* Set the global-frame-counter force callback (and its user ptr).  Fires per
+ * {gframe} op when its frame is reached during input_segtrace_tick. */
+void input_segtrace_set_gframe_cb(struct input_segtrace *st,
+                                  segtrace_gframe_fn cb, void *user);
 
 /* Set the capture-range callback (and its user ptr).  Resolved windows fire
  * through it as their segments become active, same timing as captures. */

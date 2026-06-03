@@ -453,6 +453,10 @@ static int       g_trace_rec_ct_count     = 0;
 static int       g_trace_rec_ct_open       = -1; /* open-window start frame, or -1 */
 static int       g_trace_rec_seq          = 0;
 static uint32_t  g_trace_rec_rng_at_start  = 1;  /* LCG state snapshotted at F2 */
+/* Anchor firings captured during recording (see trace_rec_add_anchor). */
+struct trace_rec_anchor { char name[24]; uint32_t rel; uint32_t gframe; uint32_t rng; };
+static struct trace_rec_anchor g_trace_rec_anchors[256];
+static int       g_trace_rec_anchor_count = 0;
 #define TRACE_REC_MAX_FRAMES  600000u   /* ~2.8 h at 60fps — a hard backstop */
 
 static void trace_rec_start(void)
@@ -462,10 +466,11 @@ static void trace_rec_start(void)
         g_trace_rec_masks = (uint16_t *)malloc(g_trace_rec_cap * sizeof(uint16_t));
         if (!g_trace_rec_masks) { g_trace_rec_cap = 0; return; }
     }
-    g_trace_rec_count       = 0;
-    g_trace_rec_caps_count  = 0;
-    g_trace_rec_esc_count   = 0;
-    g_trace_rec_ct_count    = 0;
+    g_trace_rec_count        = 0;
+    g_trace_rec_caps_count   = 0;
+    g_trace_rec_esc_count    = 0;
+    g_trace_rec_ct_count     = 0;
+    g_trace_rec_anchor_count = 0;
     g_trace_rec_ct_open     = -1;
     g_trace_rec_start_frame = g_tick.frame_count;
     /* Snapshot the live LCG state NOW — this is the pre-state the first recorded
@@ -527,6 +532,26 @@ static void trace_rec_add_esc(void)
         printf("[trace-rec] ESC recorded at relative frame %u\n", rel);
         fflush(stdout);
     }
+}
+
+/* Record an anchor firing while recording: its relative frame (for rebasing
+ * subsequent inputs anchor-relative on replay → 100%-reproducible offset) AND
+ * the absolute global frame counter g_tick.frame_count (`gframe`) at that instant
+ * — some engine state (the time-of-day HUD clock, DAT_073dfcfc-derived) is keyed
+ * off the absolute frame, so logging it lets distill optionally PIN the frame
+ * counter at an anchor later.  Called from anchor_emit_tee for every anchor.
+ * `gframe` is the absolute frame the anchor fired on (== g_tick.frame_count). */
+static void trace_rec_add_anchor(const char *name, uint32_t gframe)
+{
+    if (!g_trace_rec_active) return;
+    if (g_trace_rec_anchor_count >=
+            (int)(sizeof g_trace_rec_anchors / sizeof g_trace_rec_anchors[0]))
+        return;
+    struct trace_rec_anchor *a = &g_trace_rec_anchors[g_trace_rec_anchor_count++];
+    snprintf(a->name, sizeof a->name, "%s", name);
+    a->rel    = g_trace_rec_count;   /* relative frame of the current recorded frame */
+    a->gframe = gframe;              /* absolute global frame counter */
+    a->rng    = g_rng_seed;          /* LCG state AT the anchor → pin for repro */
 }
 
 /* F4: toggle a call-trace window.  First press opens at the current relative
@@ -600,11 +625,19 @@ static void trace_rec_stop(void)
     for (int c = 0; c < g_trace_rec_ct_count; c++)
         fprintf(f, "{\"calltrace\":[%u,%u]}\n",
                 g_trace_rec_ct[c][0], g_trace_rec_ct[c][1]);
+    /* Anchor firings: relative frame (for anchor-relative input rebasing) + the
+     * absolute global frame counter (gframe) at that instant.  distill_trace.py
+     * uses these to wait on / rebase to an anchor (FREEROAM_START etc.) for a
+     * 100%-reproducible offset, and can optionally pin the frame counter. */
+    for (int c = 0; c < g_trace_rec_anchor_count; c++)
+        fprintf(f, "{\"anchor\":\"%s\",\"frame\":%u,\"gframe\":%u,\"rng\":%u}\n",
+                g_trace_rec_anchors[c].name, g_trace_rec_anchors[c].rel,
+                g_trace_rec_anchors[c].gframe, g_trace_rec_anchors[c].rng);
     fclose(f);
     printf("[trace-rec] recording STOPPED: %u frames, %d capture(s), %d esc(s), "
-           "%d call-trace window(s)\n",
+           "%d call-trace window(s), %d anchor(s)\n",
            g_trace_rec_count, g_trace_rec_caps_count, g_trace_rec_esc_count,
-           g_trace_rec_ct_count);
+           g_trace_rec_ct_count, g_trace_rec_anchor_count);
     printf("[trace-rec] wrote %s\n", path);
     printf("[trace-rec] distill: nix develop --command python3 tools/distill_trace.py %s\n", path);
     fflush(stdout);
@@ -771,6 +804,7 @@ static void  segtrace_ct_cb(uint32_t lo, uint32_t hi, void *user);
 static void  segtrace_rng_cb(uint32_t value, void *user);
 static void  segtrace_caprange_cb(uint32_t lo, uint32_t hi, void *user);
 static void  segtrace_esc_cb(void *user);
+static void  segtrace_gframe_cb(uint32_t value, void *user);
 static int   capture_frame_is_listed(uint32_t frame);
 
 /* Cross-process singleton lock. A second openrecet instance trying to
@@ -1581,6 +1615,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             /* {esc:N} ops synthesise the engine ESC dispatch (dialogue-skip
              * replay) — see segtrace_esc_cb. */
             input_segtrace_set_esc_cb(&g_segtrace, segtrace_esc_cb, NULL);
+            /* {gframe:[F,V]} ops pin the global frame counter (EXPERIMENTAL) —
+             * see segtrace_gframe_cb. */
+            input_segtrace_set_gframe_cb(&g_segtrace, segtrace_gframe_cb, NULL);
             if (input_segtrace_has_calltrace(&g_segtrace) &&
                 !call_trace_is_open()) {
                 static char ctpath[256];
@@ -2330,6 +2367,7 @@ static void anchor_emit_tee(const char *name, uint32_t frame, void *user)
 {
     (void)user;
     fprintf(stderr, "anchor: {\"anchor\":\"%s\",\"frame\":%u}\n", name, frame);
+    if (g_trace_rec_active) trace_rec_add_anchor(name, frame);
     if (g_anchor_record_fp) {
         anchor_trace_sink_jsonl(name, frame, g_anchor_record_fp);
         fflush(g_anchor_record_fp);
@@ -2371,6 +2409,7 @@ static void render_dispatch(void)
             .dlg_line_present = scene1_intro_dialogue_line_present(),
             .conv_pose_state  = scene1_conversation_pose_player_state(),
             .conv_pose_blink  = scene1_conversation_pose_player_blink(),
+            .intro_done       = scene1_intro_dialogue_done(),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);
@@ -3298,6 +3337,18 @@ static void segtrace_rng_cb(uint32_t value, void *user)
     (void)user;
     rng_seed(value);
     fprintf(stderr, "segtrace: forced rng seed = %u\n", (unsigned)value);
+}
+
+/* Global-frame-counter sink for input_segtrace `{gframe:[frame,value]}` ops:
+ * pin g_tick.frame_count to `value`.  EXPERIMENTAL — makes frame-count-derived
+ * state (e.g. the time-of-day HUD clock) reproduce across runs of an anchor-
+ * rebased trace, at the cost of a one-frame discontinuity in the counter. */
+static void segtrace_gframe_cb(uint32_t value, void *user)
+{
+    (void)user;
+    fprintf(stderr, "segtrace: pinned global frame counter %u -> %u\n",
+            (unsigned)g_tick.frame_count, (unsigned)value);
+    g_tick.frame_count = value;
 }
 
 /* Capture-range sink for input_segtrace `{caprange:[start,count]}` ops: open

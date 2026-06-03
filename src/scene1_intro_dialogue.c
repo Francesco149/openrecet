@@ -165,6 +165,14 @@ int scene1_intro_dialogue_active(void)
     return ((g_state == D_SCRIPT1 || g_state == D_SCRIPT2) && g_rt.active) ? 1 : 0;
 }
 
+int scene1_intro_dialogue_done(void)
+{
+    /* D_DONE is reached only when the last script (iv1_2) ends or is skipped —
+     * the moment free control begins. D_IDLE (dormant, pre-arm) is NOT done, so
+     * the FREEROAM_START rising edge fires once per prologue, after the skip. */
+    return (g_state == D_DONE) ? 1 : 0;
+}
+
 int scene1_intro_dialogue_covers_screen(void)
 {
     /* Exact FUN_0046c869 gate: FUN_004547ab suppresses the scene + HUD block

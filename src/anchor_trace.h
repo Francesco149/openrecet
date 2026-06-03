@@ -85,6 +85,16 @@ struct anchor_world {
      * otherwise. Drives CONV_POSE_BLINK — a clean post-load sync point (the
      * pose-entry edge lands in the load fade; the blink does not). */
     int conv_pose_blink;
+
+    /* 1 once the opening prologue dialogue sequence has fully ended (iv1_1 →
+     * iv1_2 both complete or skipped → the intro state machine reaches D_DONE),
+     * i.e. the player has just gained free control. 0 while any intro script is
+     * still running (incl. the inter-script load) and 0 pre-HOUSE / dormant.
+     * Drives FREEROAM_START — the canonical "player-controllable free roam
+     * begins" sync point, which lands AFTER the 2nd ESC→confirm skip (unlike
+     * HOUSE_FREEROAM, which fires when the load overlay drops, still mid-iv1_2).
+     * This is the anchor to rebase a recorded free-roam walk onto. */
+    int intro_done;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

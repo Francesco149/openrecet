@@ -75,7 +75,7 @@ def resolve_trace(src: Path, house_segtrace: bool) -> tuple[str, list[dict]]:
     A RAW recording is distilled first (flat, or --house-segtrace wrapped); an
     already-distilled trace is used verbatim."""
     if is_raw_recording(src):
-        changes, caps, escs, cts, total, rng_seed = distill_trace.load_raw(str(src))
+        changes, caps, escs, cts, total, rng_seed, _anchors = distill_trace.load_raw(str(src))
         if not changes:
             raise SystemExit(f"export_trace: no input frames in {src}")
         text = (distill_trace.emit_house_segtrace(changes, caps, escs, cts, rng_seed)
@@ -142,6 +142,33 @@ def main(argv=None) -> int:
 
     text, ops = resolve_trace(src, args.house_segtrace)
     rng_seed = extract_rng_seed(ops)
+
+    # Strip pre-existing scalar {capture:N} ops. A recording (and the distilled
+    # segtrace it produces) carries its own single-frame F3 capture points; those
+    # fire independently of our contiguous window and land at scattered absolute
+    # frames (e.g. base+1540, base+1780). The viewer sorts ALL captured PNGs by
+    # frame number, so a stray capture 240 frames past the window glues onto the
+    # window's tail and reads as a one-frame "jump" (the f=3410→3650 artifact).
+    # We capture exactly the caprange window, so these scalar captures are pure
+    # pollution — drop them. {esc}/{rngseed}/inputs are kept (they affect the sim).
+    def _is_scalar_capture(line: str) -> bool:
+        s = line.strip()
+        if not s or s.startswith("#"):
+            return False
+        try:
+            o = json.loads(s)
+        except json.JSONDecodeError:
+            return False
+        return isinstance(o, dict) and "capture" in o and "caprange" not in o
+
+    n_stripped = sum(1 for ln in text.splitlines() if _is_scalar_capture(ln))
+    if n_stripped:
+        text = "\n".join(ln for ln in text.splitlines()
+                         if not _is_scalar_capture(ln)) + "\n"
+        ops = [o for o in ops if not (isinstance(o, dict)
+                                      and "capture" in o and "caprange" not in o)]
+        print(f"export_trace: stripped {n_stripped} scalar {{capture}} op(s) "
+              "(contiguous caprange supersedes them)", file=sys.stderr)
 
     # Inject the caprange op (in the final segment — it's appended after the last
     # wait) unless the trace already declares one.
