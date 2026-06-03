@@ -5,7 +5,35 @@ walks** in HOUSE free-roam. Subtle — you must zoom her feet to see it (retail
 ref: feed `20260601T122354_6f81`, and `runs/walkdust/verify_4965.png`). The port
 floor was bare. Identified 2026-06-01.
 
-## Reproducible reference for the OCCLUSION bug (2026-06-03)
+## ✅ OCCLUSION RESOLVED 2026-06-04 — it was the records-A z_far (2000→500), NOT a 3D-mesh occluder
+
+The long-open "dust draws in front of the walker" bug — and the §2026-06-03f
+conclusion that "the char is ruled out, the real occluder is a 3D mesh (Phase 4)"
+— were **both wrong about the cause**. The real cause is the **per-pass projection
+`z_far`** the dust draws under (the same mechanism as the Tear wing-glow occlusion,
+[[feedback_zfar_depth_footgun]], engine-quirks §93):
+
+- Retail's records-A render (`FUN_004176ff`) builds its **own** projection with a
+  hardcoded **`z_far = 500.0`** (`.rdata DAT_005199d8`, objdump-confirmed at the
+  `0x419c5c` `D3DXMatrixPerspectiveFovRH` build; near 1.0, aspect 4:3). All its
+  effects — the wing-glow **sparkles** (`0x41e165`) AND the foot **dust**
+  (`0x41e97b`) — draw at `z_far = 500` (synced d3d-trace, exact).
+- The port (`scene1_render.c` L862) pushed **`z_far = 2000`** before
+  `wing_glow_render` + `walk_dust_render` (it assumed `FUN_004176ff` inherited the
+  wide chr-walker projection). At 2000 the dust's NDC depth is compressed **nearer**
+  than the walker's body (which writes Z at `z_far = 1450`), so **every** puff
+  passed `ZFUNC=LE` and drew in front.
+- Fix: push `z_far = 500.0f` for the records-A effects. The dust depth now spreads
+  so puffs that have drifted **behind the walker's feet-plane** fall behind her body
+  (ndcz > body) and are **occluded by the dress hem**, while fresh dust at the feet
+  stays in front — matching retail. Verified: at cap_03, port dust(Y0.48) ndcz
+  0.95432 > Recette body 0.95419 → behind; dust(Y0.56) ndcz 0.95415 < body → in
+  front. User-verified in-game 2026-06-04. The dust ZWRITE is **not** involved (the
+  b1acf7c full-quad-Z-write hunt was a dead end).
+- **Exact 1:1** of *which* puffs occlude still needs the dust spawn **phase/RNG**
+  matched to retail (deferred, same baseline as the Tear flap/bob phase).
+
+## Reproducible reference for the OCCLUSION bug (2026-06-03, pre-fix)
 
 The dust is rendering but **not occluded by Recette's body** (it draws over her
 feet/legs instead of behind). Canonical reproducible frame to debug against, from

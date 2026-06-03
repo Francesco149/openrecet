@@ -854,24 +854,31 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * FUN_00436f97 ports the actor/people tables (see scene1_chr_walker.h). */
     scene1_chr_walker_render((struct IDirect3DDevice8 *)dev);
 
-    /* L252-L254: WIDE projection (re-set, idempotent) → chr walker
-     * (FUN_004176ff).  Only the records-A type-0x1f arm is ported so far
-     * (P0.1, scene1_wing_glow.c — the companion wing-glow sparkle); the
-     * rest of the 30 KB function (other particle-type arms + records-B
-     * passes) stays unported in scene1_walk_chr_TODO. */
-    scene1_push_projection(dev, 2000.0f);
+    /* L252-L254: records-A render (FUN_004176ff) sets its OWN projection — a
+     * NARROW z_far = 500.0 (hardcoded .rdata const DAT_005199d8, objdump-confirmed
+     * at the 0x419c5c projection build; near 1.0, aspect 4:3, fov from the camera
+     * global).  This is NOT the wide z_far=2000 of the preceding chr-walker glow
+     * pass — the records-A effects (the wing-glow sparkles AND the foot dust) draw
+     * under z_far=500, proven by a synced port↔retail d3d-trace (records-A sparkle
+     * 0x41e165 + dust 0x41e97b both at z_far 500.00; engine-quirks §93).
+     *
+     * Only the records-A type-0x1f arm (wing-glow sparkle, scene1_wing_glow.c) and
+     * type-0xe arm (foot dust, scene1_walk_dust.c) are ported; the rest of the
+     * 30 KB function stays in scene1_walk_chr_TODO. */
+    scene1_push_projection(dev, 500.0f);
     scene1_wing_glow_render((struct IDirect3DDevice8 *)dev);
     /* The records-A type-0xe arm (L4958, after the 0x1f arm in FUN_004176ff):
      * the floor dust puff at the walking player's feet (scene1_walk_dust.c).
      * This is the engine-faithful position (FUN_004176ff runs here); drawing it
      * earlier leaks blend state into wide_followup's counter-shadow pass.
-     * DEPTH (open): the dust is z-tested (ZENABLE=1, ZWRITE=0).  In retail it
-     * reads BEHIND the walker; the port's sprites do not write Z (the b1acf7c
-     * full-quad Z-write was reverted — it occluded Tear's wing-glow + punched a
-     * rectangular hole in the dust/shadow around Recette), so the dust currently
-     * draws in front.  The faithful fix needs the real sprite alpha-test (only
-     * the opaque silhouette should write Z) re-captured from retail — see
-     * docs/findings/scene1-walk-dust.md "Depth". */
+     * DEPTH: the dust is z-tested (ZENABLE=1, ZWRITE=0) against the char body's
+     * Z-write.  Under the correct z_far=500 the dust's NDC depth spreads so older
+     * puffs that have drifted behind the walker's feet-plane fall BEHIND her body
+     * and are occluded (matching retail) — under the old z_far=2000 every puff was
+     * compressed NEARER than the body and drew in front.  This was the long-open
+     * "dust draws in front" bug: it was the SAME per-pass z_far class as the
+     * wing-glow occlusion, not a sprite-Z-write problem (see
+     * docs/findings/scene1-walk-dust.md "Depth" + engine-quirks §93). */
     scene1_walk_dust_render((struct IDirect3DDevice8 *)dev);
     scene1_walk_chr_TODO();
 
