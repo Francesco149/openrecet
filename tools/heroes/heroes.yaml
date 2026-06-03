@@ -31,6 +31,7 @@ shots:
     scenario: house-idle
     run_dir: runs/scenarios/house-idle-both-20260602T232424Z
     cap: 2               # +5000: port 3-NPC beat (user-pointed), Recette idle, HUD+hint+FPS
+    show_fps: true       # this hero wants the FPS overlay; --rerun passes --show-fps
     note: "HOUSE free-roam: Recette idle, back-window NPCs, HUD + camera hint, FPS shown"
 
   # 2. iv1_1 first dialogue + the "sigh" (tameiki, chr:6) extra sprite. NO HUD

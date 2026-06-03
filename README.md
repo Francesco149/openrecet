@@ -13,10 +13,24 @@ copyrighted content** — you bring your own copy of the game. MIT licensed
 
 ![OpenRecet (left) vs the original retail engine (right) — the HOUSE shop interior](docs/img/house-comparison.png)
 
-*OpenRecet (left) rendering the shop interior next to the original engine
-(right). The 3D room — geometry, textures, lighting, window god-rays — is
-reproduced close to 1:1; the 2D HUD and character sprites on the retail
-side are still being worked on.*
+*OpenRecet (left) next to the original engine (right), free-roaming in the
+shop. The 3D room (geometry, textures, lighting, window god-rays), the
+persistent top HUD (clock / day / money), the "Change Camera" hint, the FPS
+overlay, Recette, and the townsfolk drifting past the back window are all
+reproduced close to 1:1. (The NPCs' exact drift phase isn't pinned yet, so
+they're at slightly different spots in the two windows.)*
+
+A few more side-by-sides from the opening — each is OpenRecet (left) vs the
+retail engine (right), captured from the same deterministic input trace:
+
+![iv1_1 'sigh' effect sprite](docs/img/hero-iv1_1-sigh.png)
+![iv1_2 look-up pose, zoomed](docs/img/hero-iv1_2-pose.png)
+![iv1_2 dialogue with the HUD](docs/img/hero-iv1_2-dialogue.png)
+
+*Top to bottom: the iv1_1 "sigh" effect sprite mid-fade (full-screen
+cutscene, no HUD); a zoom on Recette's look-up pose at the iv1_2 opening; and
+an iv1_2 dialogue line — note the top HUD, which the engine draws over the
+live map during iv1_2 but suppresses behind iv1_1's full-screen background.*
 
 In memory of Andrew Dice / [@SpaceDrakeCF](https://x.com/SpaceDrakeCF)
 and Carpe Fulgur.

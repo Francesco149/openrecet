@@ -16,17 +16,28 @@ Recipe: tools/heroes/heroes.yaml. For each shot:
   3. locate that frame file (png or bmp), optionally zoom-crop both identically,
   4. compose_comparison.py -> docs/img/<name>.png.
 
-  # recompose every hero from the latest existing both-runs (fast, host-free)
+  # FULL regen from the committed scenarios — captures port+retail fresh, then
+  # composes every hero. The one command to rebuild all README heroes from a
+  # clean checkout. Needs the Frida retail host (see feedback_frida_remote).
+  regen-heroes.py --rerun
+
+  # fast recompose from the latest existing both-runs (no capture; only works if
+  # the runs/ dirs are still around from this session)
   regen-heroes.py
 
-  # one shot, and push the result to the live feed for eyeballing
+  # one shot, pushed to the live feed for eyeballing
   regen-heroes.py --shot hero-iv1_1-sigh --push
 
-  # drive scenario-test --target both first, then compose (needs Frida host)
-  regen-heroes.py --shot house-comparison --rerun
+What's persisted (so the heroes regenerate without hunting for traces):
+  * the scenarios — tests/scenarios/{house-idle,intro-sigh,intro-iv2-gap,
+    intro-dialogue-lines}/ (committed: scenario.yaml + trace.jsonl),
+  * this recipe (tools/heroes/heroes.yaml: scenario + cap index + show_fps),
+  * the deterministic cap index per shot (anchor-relative → stable across runs).
+The `run_dir` pins are an ephemeral convenience (re-compose without re-capturing)
+and live under gitignored runs/; when absent, --rerun recreates them.
 
-A shot whose `cap` is null (not yet chosen) or whose both-run dir is missing is
-skipped with a warning, so a partial recipe still regenerates the ready shots.
+A shot whose `cap` is null (not yet chosen) is skipped with a warning, so a
+partial recipe still regenerates the ready shots.
 """
 
 from __future__ import annotations
@@ -115,10 +126,13 @@ def push_feed(img: Path, title: str, note: str) -> None:
                     "--title", title, "--note", note], cwd=REPO)
 
 
-def rerun_scenario(scenario: str, frida_remote: str) -> None:
-    print(f"  -> scenario-test {scenario} --target both")
-    subprocess.run(["python3", str(SCENARIO_TEST), scenario,
-                    "--target", "both", "--frida-remote", frida_remote], cwd=REPO)
+def rerun_scenario(scenario: str, frida_remote: str, show_fps: bool) -> None:
+    cmd = ["python3", str(SCENARIO_TEST), scenario, "--target", "both",
+           "--frida-remote", frida_remote]
+    if show_fps:
+        cmd.append("--show-fps")
+    print(f"  -> {' '.join(cmd[2:])}")
+    subprocess.run(cmd, cwd=REPO)
 
 
 def do_shot(shot: dict, args: argparse.Namespace, tmpdir: Path) -> bool:
@@ -127,12 +141,26 @@ def do_shot(shot: dict, args: argparse.Namespace, tmpdir: Path) -> bool:
     print(f"[{name}] scenario={scenario} cap={shot.get('cap')}")
 
     if args.rerun:
-        rerun_scenario(scenario, args.frida_remote)
-
-    run_dir = (REPO / shot["run_dir"]) if shot.get("run_dir") else \
-        newest_both_run(scenario)
+        # Capture fresh, then compose from the run we just made — NOT the pinned
+        # run_dir (which is an ephemeral, gitignored convenience handle).
+        rerun_scenario(scenario, args.frida_remote, bool(shot.get("show_fps")))
+        run_dir = newest_both_run(scenario)
+    else:
+        # Default: re-compose from the pinned run if it still exists, else the
+        # newest matching both-run. (`runs/` is gitignored, so on a clean
+        # checkout neither exists — use --rerun to capture from the committed
+        # scenario.)
+        run_dir = None
+        pin = REPO / shot["run_dir"] if shot.get("run_dir") else None
+        if pin is not None and pin.exists():
+            run_dir = pin
+        else:
+            run_dir = newest_both_run(scenario)
+            if pin is not None and run_dir is not None:
+                print(f"  (pinned run_dir gone; using newest {run_dir.name})")
     if run_dir is None or not run_dir.exists():
-        print(f"  ! no both-run dir for {scenario} (skipping)", file=sys.stderr)
+        print(f"  ! no both-run dir for {scenario} — run with --rerun to "
+              f"capture it (needs the Frida retail host)", file=sys.stderr)
         return False
 
     a = side_frame(run_dir, "openrecet", shot)
