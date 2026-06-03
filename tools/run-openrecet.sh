@@ -95,21 +95,30 @@ fi
 # capture; --max-frames is a SIM-FRAME bound (PostQuitMessage at frame N) and
 # exits the instant the shot is taken, turbo-speed-independent.  So when
 # capturing we bound by frame, not wall time.  (See feedback_fast_captures.md.)
-want_visible=0; have_max_duration=0; have_max_frames=0; cap_spec=""; prev=""
+want_visible=0; have_max_duration=0; have_max_frames=0
+cap_spec=""; range_spec=""; have_segtrace=0; prev=""
 for a in "$@"; do
     case "$a" in
         --visible)                                  want_visible=1 ;;
         --max-duration-ms|--max-duration-ms=*)      have_max_duration=1 ;;
         --max-frames|--max-frames=*)                have_max_frames=1 ;;
         --capture-frames=*)                         cap_spec="${a#*=}" ;;
+        --capture-range=*)                          range_spec="${a#*=}" ;;
+        --input-segtrace|--input-segtrace=*)        have_segtrace=1 ;;
     esac
     [[ "$prev" == "--capture-frames" ]] && cap_spec="$a"
+    [[ "$prev" == "--capture-range"  ]] && range_spec="$a"
     prev="$a"
 done
 cap_max=0
 if [[ -n "$cap_spec" ]]; then
     IFS=',' read -ra _cf <<< "$cap_spec"
     for f in "${_cf[@]}"; do [[ "$f" =~ ^[0-9]+$ ]] && (( f > cap_max )) && cap_max=$f; done
+fi
+# --capture-range START,COUNT — the window ends at START+COUNT.
+if [[ "$range_spec" =~ ^([0-9]+),([0-9]+)$ ]]; then
+    rend=$(( BASH_REMATCH[1] + BASH_REMATCH[2] ))
+    (( rend > cap_max )) && cap_max=$rend
 fi
 
 # Strip the wrapper-only --visible token before pass-through.
@@ -123,6 +132,13 @@ fi
 # capturing — --max-frames governs and --timeout-ms (supervisor) is the net.
 if (( cap_max > 0 )); then
     (( have_max_frames )) || set -- "$@" --max-frames $(( cap_max + 8 ))
+elif (( have_max_frames || have_segtrace )); then
+    # Caller bounded the run explicitly (--max-frames) or is replaying a
+    # segtrace whose {caprange}/{capture} ops resolve at runtime (the wrapper
+    # can't see the absolute frame). Either way, do NOT impose the 3s wall
+    # auto-exit — it fires before a long anchor-gated window is reached.
+    # --timeout-ms (supervisor) remains the hard safety net.
+    :
 elif (( ! have_max_duration )); then
     set -- --max-duration-ms 3000 "$@"
 fi
