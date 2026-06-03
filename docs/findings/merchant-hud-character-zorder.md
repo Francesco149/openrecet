@@ -1,4 +1,21 @@
-# Merchant-Level HUD vs standing-character draw order (OPEN)
+# Merchant-Level HUD vs iv1_2 dialogue-character draw order (RESOLVED 2026-06-03)
+
+**RESOLVED.** Root cause: the port drew the dialogue (`scene1_dialogue_draw`)
+BEFORE the HUD (`scene1_hud_render`); retail draws it AFTER. The "standing
+character" that occludes the HUD is the **iv1_2 conversation character**, drawn by
+the dialogue system (`FUN_0046c090`, render_quad 2D quads) — not a free-roam
+billboard. Engine render root `FUN_004547ab` dialogue-active path: `FUN_0045bbf9
+(scene) → FUN_0040a765 (HUD) → FUN_00417504 (overlay) → FUN_0045404b (fx_tail) →
+FUN_0046c090 (dialogue, LAST)`. Confirmed THREE ways: (1) that code order; (2) a
+fresh retail iv1_2 d3d-trace `runs/iv2-hud-zorder-d3d` frame 5100 — the
+merchant-HUD ADDSIGNED render_quad draws, then the dialogue render_quad batch
+draws after it; (3) that frame's pixels show Tear's leg over "Merchant Leve|l".
+Fix: moved `scene1_dialogue_draw` after `scene1_hud_render` + `scene1_render_overlay`
+in main.c. Historical investigation kept below for context.
+
+---
+
+# Merchant-Level HUD vs standing-character draw order (was OPEN)
 
 **2026-06-03, user-flagged from the README hero.** In retail the lower part of
 Tear's standing sprite (her knee) **occludes** the right end of the bottom-left

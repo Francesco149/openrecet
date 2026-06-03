@@ -2544,12 +2544,6 @@ static void render_dispatch(void)
                  * Pass 2 letterbox BSS-zero, Pass 3 status-screen
                  * BSS-zero) so this is visually inert today but wires
                  * the foundation later passes (C7k+) inherit. */
-                /* Opening-prologue dialogue (FUN_0046c9a2, via the engine's
-                 * render root FUN_004547ab→FUN_0046c090).  Drawn after the 3D
-                 * scene — the prologue's painted 2D bg covers the HOUSE — and
-                 * before the HUD, which overlays it (cap_20: money HUD over the
-                 * dialogue bg).  No-op unless a script is active. */
-                scene1_dialogue_draw(g_dev);
                 /* The persistent top HUD (clock/Day/money, in scene1_hud_render's
                  * FUN_0040a765 tail) is SUPPRESSED while a full-screen-bg
                  * cutscene covers the scene — the iv1_1 opening dialogue.  Engine
@@ -2562,6 +2556,23 @@ static void render_dispatch(void)
                     scene1_hud_render(g_dev);
                 }
                 scene1_render_overlay(g_dev);
+                /* Opening-prologue / iv1_2 dialogue (FUN_0046c090 → FUN_0046c9a2).
+                 * Drawn LAST — AFTER the HUD + overlay — per the engine render
+                 * root FUN_004547ab, whose dialogue-active path is
+                 *   FUN_0045bbf9 (scene) → FUN_0040a765 (HUD) → FUN_00417504
+                 *   (overlay) → FUN_0045404b (fx_tail) → FUN_0046c090 (dialogue).
+                 * So the iv1_2 conversation characters OCCLUDE the HUD (Tear's knee
+                 * over the Merchant Level badge) and the iv1_1 full-screen bg covers
+                 * the scene.  Retail-confirmed three ways (code order; the iv1_2
+                 * d3d-trace runs/iv2-hud-zorder-d3d frame 5100 draws the merchant-HUD
+                 * quad before the later dialogue quads; and that frame's pixels show
+                 * the leg over "Merchant Leve|l").  Was MISORDERED before the HUD,
+                 * so our HUD wrongly drew on top of the characters
+                 * (docs/findings/merchant-hud-character-zorder.md).  fx_tail is the
+                 * no-op stub called unconditionally below, so dialogue-before-fx_tail
+                 * here is visually identical to retail's dialogue-after-fx_tail.
+                 * No-op unless a script is active. */
+                scene1_dialogue_draw(g_dev);
                 /* scene1_render_fx_tail is moved out of this branch
                  * and called unconditionally below — engine has it
                  * both inline here AND in the LAB_00454be4 fallthrough
