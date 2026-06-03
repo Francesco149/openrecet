@@ -3703,3 +3703,31 @@ layer (also `z_far` 2000) is governed the same way.
 stub feeds the wrong `z_far` — is written up port-side in
 `docs/findings/scene1-tear-visual-diffs.md` #1, not here; this section records
 retail behaviour only.)
+
+## 94. The per-scene phase counter DAT_056db054 is FROZEN through the intro video — it only ticks while the HOUSE per-frame open runs
+
+`DAT_056db054` (the per-scene counter that drives the companion hover-bob
+`sin(db054·0.04)·0.2`, the every-4th-frame wing-sparkle emit, and the §83/§81
+periodic spawns in `FUN_00483e7b`) is **reset to 0 in `FUN_00436f97`** (the HOUSE
+stage-position setup) and incremented **+1 per frame** only by the HOUSE per-frame
+drivers — `FUN_0048b850` (free-roam player tick, L490) and `FUN_0048407f` (the
+conversation-pose driver, L84658). It is **NOT** incremented during the
+`recet_op.wmv` intro video or the loading screens that precede the HOUSE scene
+(the HOUSE sim isn't pumping those frames).
+
+Ground truth (retail Frida `--watch db054=0x056db054`, `runs/tear-phase/retail`,
+new-game→HOUSE on the `house-walk-down-dense` trace):
+
+```
+BOOT@0  NEW_GAME@71  LOADING_START@71 ........ (intro video, db054 == 0) ........
+CONV_POSE_START@1683  ← db054 first becomes >0 here (HOUSE per-frame open starts)
+LOADING_END / HOUSE_FREEROAM@1725  ← db054 == 43  (only 42 frames of conversation)
+... thereafter db054 == (frame − 1683), a clean +1/frame monotone with no resets ...
+```
+
+So at any HOUSE moment retail's `db054` equals *the number of HOUSE-active frames
+since the conversation began* — the ~1610 frames retail spends in the intro video +
+load contribute **nothing**. This is the retail-side fact behind the port's
+Tear anim-phase divergence (the port skips the video, so its db054/companion-anim
+phase is offset at free-roam — that port consequence is written up in
+`scene1-tear-visual-diffs.md` §"#3/#4 determinism verdict", not here).

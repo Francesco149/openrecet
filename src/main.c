@@ -76,6 +76,7 @@
 #include "scene1_records.h"
 #include "scene1_render.h"
 #include "scene1_player_ctrl.h"
+#include "scene1_companion_ctrl.h"  /* scene1_companion_db054 — pos-log phase field */
 #include "scene1_hud.h"
 #include "scene1_fps.h"
 #include "scene1_shop_walker.h"
@@ -2458,11 +2459,21 @@ static void render_dispatch(void)
         int c_char = player_ctrl_actor_char(2);
         int c_anim = crec ? crec[CHR_ACTOR_ANIM]   : -1;
         int c_oct  = crec ? crec[CHR_ACTOR_FACING] : -1;
+        /* Companion (Tear) anim-PHASE state, for the retail-vs-port determinism
+         * diff (the deferred §81 "chase phase later"): the FRAME cell + its
+         * COUNTER/TIMER drive the wing-flap pose, and db054 drives the hover-bob
+         * + every-4th-frame sparkle.  Engine: FRAME=DAT_056dab50,
+         * COUNTER=DAT_056dab4c, TIMER=DAT_056dab48, db054=DAT_056db054. */
+        int c_frm = crec ? crec[CHR_ACTOR_FRAME]   : -1;
+        int c_cnt = crec ? crec[CHR_ACTOR_COUNTER] : -1;
+        union { int32_t i; float f; } c_tmr = { .i = crec ? crec[CHR_ACTOR_TIMER] : 0 };
+        int db054 = scene1_companion_db054();
         fprintf(g_player_pos_log_fp,
                 "{\"frame\":%u,\"px\":%.5f,\"py\":%.5f,\"pz\":%.5f,"
                 "\"vx\":%.6f,\"vz\":%.6f,\"facing\":%.6f,\"sticky\":%d,"
                 "\"buttons\":%u,\"anim\":%d,\"counter\":%d,\"aframe\":%d,\"oct\":%d,"
                 "\"cchar\":%d,\"cx\":%.5f,\"cy\":%.5f,\"cz\":%.5f,\"canim\":%d,\"coct\":%d,"
+                "\"cframe\":%d,\"ccnt\":%d,\"ctimer\":%.4f,\"db054\":%d,"
                 "\"rng\":%d}\n",
                 g_tick.frame_count,
                 g_scene1_player_pos[0], g_scene1_player_pos[1],
@@ -2471,6 +2482,7 @@ static void render_dispatch(void)
                 a_anim, a_cnt, a_frm, a_oct,
                 c_char, g_scene1_actor_pos[2][0], g_scene1_actor_pos[2][1],
                 g_scene1_actor_pos[2][2], c_anim, c_oct,
+                c_frm, c_cnt, c_tmr.f, db054,
                 (int32_t)g_rng_seed);
         fflush(g_player_pos_log_fp);
     }

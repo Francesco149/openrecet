@@ -99,6 +99,56 @@ above are render/anim, not position.
   the engine's shared `DAT_056db054`). #2 (wing/hair layering) is a separate
   draw-order question.
 
+## #3/#4 determinism verdict — PHASE-ORIGIN offset, NOT a logic error (2026-06-04)
+
+Ran the determinism cross-check the working hypothesis called for: drive the SAME
+synced trace (`house-walk-down-dense`) on both targets and log the companion's
+phase state **per sim-frame**, then diff at matched anchor-relative frames.
+
+- **Retail:** `frida_capture.py --input-segtrace … --watch db054=0x056db054:s32
+  --watch cframe=0x056dab50:s32 --watch ccnt=0x056dab4c:s32 --watch
+  coct=0x056dab58:s32 …` → `runs/tear-phase/retail/watch.jsonl` (one row/frame).
+  (Companion record VAs from `FUN_0048a4d1`: ANIM=`0x56dab40` TIMER=`0x56dab48`
+  COUNTER=`0x56dab4c` FRAME=`0x56dab50` ANIMSEL=`0x56dab54` FACING=`0x56dab58`.)
+- **Port:** `export_trace.py … --caprange 1540,140` → `meta.jsonl`, after
+  extending `--player-pos-log` (src/main.c) with `cframe/ccnt/ctimer/db054`
+  (`scene1_companion_db054()` + actor-2 record).
+- **Align by anchor-relative frame** (port meta `i` ↔ retail `abs = retail_anchor
+  + port_seg0 + i`; both HOUSE_FREEROAM). Recette's walk is 1:1 so the player is
+  the same instant at each matched frame.
+
+**Result (140 frames):**
+
+| metric | port − retail | interpretation |
+|---|---|---|
+| `db054` (bob / sparkle phase) | **+1518, constant, zero drift** | pure phase shift |
+| anim COUNTER (`ccnt`) | **+19 (mod the 40-frame cycle)**, constant | pure phase shift |
+| facing octant (`coct`) | **0/140 mismatches** | bit-identical |
+
+The increment law and the facing law are **bit-exact** — the offset is a single
+constant with no per-frame drift, on a deterministic (constant-offset, replayable)
+harness. So #3/#4 are **NOT a logic error and NOT harness non-determinism**; they
+are a deterministic **phase-ORIGIN** offset.
+
+**Root cause:** `DAT_056db054` is frozen at 0 through retail's intro video and only
+starts ticking at the conversation/HOUSE per-frame open (engine-quirks §94): retail
+`db054 == 43` at HOUSE_FREEROAM. The **port skips the intro video** (§13), so its
+HOUSE postload — which resets `s_bob_counter` (`scene1_postload.c:132`, the faithful
+mirror of `FUN_00436f97`) — fires ~1518 frames "earlier" in companion-phase terms,
+and the counter then accumulates that whole stub through to free-roam (port
+`db054 ≈ 1561` at its anchor). The reset *site* is already engine-correct; the
+*intro length feeding it* is not. This is the deferred "chase phase later"
+([[project_next_char_controller]], §81), now quantified.
+
+**Fix is a structural choice (needs a call):** the video retail uses to "pad"
+db054's relationship doesn't exist in the port, so there's no single mechanical
+mirror. Options: (a) at free-roam onset, re-seed `s_bob_counter` (and the companion
+anim cycle) to retail's measured db054-at-that-moment; (b) make the port's
+pre-free-roam HOUSE timeline frame-match retail's (hard — depends on the absent
+video); (c) accept a known fixed phase offset and phase-align it out in comparisons
+(the `d3d_state_diff.py phase` tool already measures the offset N). Data:
+`runs/tear-phase/{port/meta.jsonl,retail/watch.jsonl}`.
+
 ## Next
 
 Capture a SYNCED walk d3d-trace (port + retail, same cap as cap_03) and compare
