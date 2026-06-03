@@ -177,6 +177,43 @@ int test_segtrace_calltrace_resolves_to_windows(void)
     return 0;
 }
 
+struct cr_log { uint32_t lo[8], hi[8]; int n; };
+static void cr_cb(uint32_t lo, uint32_t hi, void *user)
+{
+    struct cr_log *c = (struct cr_log *)user;
+    if (c->n < 8) { c->lo[c->n] = lo; c->hi[c->n] = hi; c->n++; }
+}
+
+int test_segtrace_caprange_resolves_to_window(void)
+{
+    /* Scalar {caprange:N} == [0,N); [start,count] is anchor-relative. Both
+     * resolve to absolute half-open windows [base+start, base+start+count) via
+     * the caprange callback when the segment activates. */
+    const char buf[] =
+        "{\"wait\":\"HOUSE_FREEROAM\"}\n"
+        "{\"caprange\":3}\n"
+        "{\"caprange\":[1565,120]}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.n_segs, 2);
+    T_ASSERT_EQ_U(st.segs[1].n_capranges, 2);
+
+    struct cr_log log = {0};
+    input_segtrace_set_caprange_cb(&st, cr_cb, &log);
+    /* boot seg has no caprange ops */
+    input_segtrace_tick(&st, 0, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 0);
+    /* anchor @1000 → base=1000; windows resolve to [1000,1003) and [2565,2685) */
+    input_segtrace_on_anchor(&st, "HOUSE_FREEROAM", 1000);
+    input_segtrace_tick(&st, 1000, NULL, NULL);
+    T_ASSERT_EQ_U(log.n, 2);
+    T_ASSERT_EQ_U(log.lo[0], 1000); T_ASSERT_EQ_U(log.hi[0], 1003);
+    T_ASSERT_EQ_U(log.lo[1], 2565); T_ASSERT_EQ_U(log.hi[1], 2685);
+    input_segtrace_free(&st);
+    return 0;
+}
+
 struct rng_log { uint32_t v[8]; int n; };
 static void rng_cb(uint32_t value, void *user)
 {

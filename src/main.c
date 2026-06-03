@@ -594,6 +594,19 @@ static uint32_t        g_max_frames              = 0;
 static uint32_t        g_capture_frames[CAPTURE_FRAMES_MAX];
 static int             g_capture_frames_count    = 0;
 
+/* --capture-range START,COUNT (absolute) and the {caprange:[S,C]} segtrace op:
+ * a CONTIGUOUS half-open capture window [lo, hi).  Unlike g_capture_frames[]
+ * (capped at CAPTURE_FRAMES_MAX), this is a single range test, so it can span
+ * the hundreds of frames a frame-by-frame trace export needs.  hi <= lo means
+ * "no range".  Multiple ops widen to cover the union (min lo, max hi). */
+static uint32_t        g_capture_range_lo        = 0;
+static uint32_t        g_capture_range_hi        = 0;   /* half-open; hi<=lo = off */
+
+static int capture_range_active(void) { return g_capture_range_hi > g_capture_range_lo; }
+static int capture_in_range(uint32_t f) {
+    return capture_range_active() && f >= g_capture_range_lo && f < g_capture_range_hi;
+}
+
 /* --capture-at-anchor NAME[+k|-k]: schedule a capture at frame
  * (anchor_frame + k) when the named anchor fires.  This is the
  * anchor-relative capture the TAS framework needs: the absolute frame an
@@ -732,6 +745,7 @@ static void  segtrace_input_poll(void);
 static void  auto_z_spam_input_poll(void);
 static void  segtrace_ct_cb(uint32_t lo, uint32_t hi, void *user);
 static void  segtrace_rng_cb(uint32_t value, void *user);
+static void  segtrace_caprange_cb(uint32_t lo, uint32_t hi, void *user);
 static int   capture_frame_is_listed(uint32_t frame);
 
 /* Cross-process singleton lock. A second openrecet instance trying to
@@ -1536,6 +1550,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
              * first frame so its RNG-driven behaviour reproduces regardless of
              * the prepended intro (see input_segtrace.h). */
             input_segtrace_set_rngseed_cb(&g_segtrace, segtrace_rng_cb, NULL);
+            /* {caprange:[S,C]} ops open a contiguous capture window for the
+             * frame-by-frame trace export (export_trace.py). */
+            input_segtrace_set_caprange_cb(&g_segtrace, segtrace_caprange_cb, NULL);
             if (input_segtrace_has_calltrace(&g_segtrace) &&
                 !call_trace_is_open()) {
                 static char ctpath[256];
@@ -2772,7 +2789,7 @@ static void render_dispatch(void)
          * wall-clock sampler would sneak in a spurious frame-0 grab and shift
          * every capture-index golden by one. */
         if (g_capture_frames_count > 0 || g_anchor_captures_count > 0
-                || g_input_segtrace_path != NULL) {
+                || capture_range_active() || g_input_segtrace_path != NULL) {
             should_capture =
                 capture_frame_is_listed(g_tick.frame_count);
         } else if (g_capture_last_ms == 0 ||
@@ -3116,6 +3133,20 @@ static void parse_cmdline(LPSTR lpCmdLine)
                     if (*end != ',') break;
                 }
             }
+        } else if (lstrcmpA(tok, "--capture-range") == 0) {
+            /* START,COUNT — a contiguous half-open capture window [START,
+             * START+COUNT) that bypasses CAPTURE_FRAMES_MAX.  For frame-by-frame
+             * trace export (the {caprange} op is the anchor-relative form). */
+            char *val = strtok(NULL, " ");
+            if (val) {
+                char *end = NULL;
+                long start = strtol(val, &end, 10);
+                long count = (end && *end == ',') ? strtol(end + 1, NULL, 10) : 0;
+                if (start >= 0 && count > 0) {
+                    g_capture_range_lo = (uint32_t)start;
+                    g_capture_range_hi = (uint32_t)(start + count);
+                }
+            }
         } else if (lstrcmpA(tok, "--d3d-trace") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {
@@ -3238,6 +3269,24 @@ static void segtrace_rng_cb(uint32_t value, void *user)
     fprintf(stderr, "segtrace: forced rng seed = %u\n", (unsigned)value);
 }
 
+/* Capture-range sink for input_segtrace `{caprange:[start,count]}` ops: open
+ * (or widen) the contiguous capture window [lo, hi).  Drives capture_in_range()
+ * later in render_dispatch — distinct from the bounded g_capture_frames[] list
+ * so a single op can capture hundreds of consecutive frames. */
+static void segtrace_caprange_cb(uint32_t lo, uint32_t hi, void *user)
+{
+    (void)user;
+    if (hi <= lo) return;
+    if (!capture_range_active()) {
+        g_capture_range_lo = lo; g_capture_range_hi = hi;
+    } else {  /* widen to the union of all ranges */
+        if (lo < g_capture_range_lo) g_capture_range_lo = lo;
+        if (hi > g_capture_range_hi) g_capture_range_hi = hi;
+    }
+    fprintf(stderr, "segtrace: capture range [%u, %u)\n",
+            (unsigned)g_capture_range_lo, (unsigned)g_capture_range_hi);
+}
+
 /* --input-segtrace replacement for input_poll: anchor-segmented forcing.
  * Anchor fire-frames are fed in from anchor_emit_tee(); captures land via
  * segtrace_capture_cb. */
@@ -3275,6 +3324,7 @@ static void auto_z_spam_input_poll(void)
 
 static int capture_frame_is_listed(uint32_t frame)
 {
+    if (capture_in_range(frame)) return 1;
     for (int i = 0; i < g_capture_frames_count; i++) {
         if (g_capture_frames[i] == frame) return 1;
     }
@@ -3347,7 +3397,7 @@ static void capture_backbuffer(void)
      * the same number. Without --capture-frames (legacy time-based
      * capture), fall back to the monotonic capture counter. */
     char path[MAX_PATH];
-    unsigned tag = (g_capture_frames_count > 0)
+    unsigned tag = (g_capture_frames_count > 0 || capture_range_active())
                        ? (unsigned)g_tick.frame_count
                        : g_capture_count;
     wsprintfA(path, "%s\\frame_%05u.bmp", g_capture_dir, tag);

@@ -22,6 +22,13 @@
  *                        like {capture} and reported via the calltrace callback
  *                        so main.c routes it to call_trace_arm_window().  A bare
  *                        scalar {"calltrace":N} means [0, N] (N frames from base).
+ *   {"caprange":[S,C]}   schedule a CONTIGUOUS capture of the C deterministic
+ *                        frames base+S .. base+S+C-1 (C frames from base+S) —
+ *                        the frame-by-frame trace-export op.  Resolved like
+ *                        {capture} when its segment activates, but routed via a
+ *                        separate caprange callback that drives a lo/hi window
+ *                        test in the host (NOT the bounded capture list), so a
+ *                        single op can span hundreds of frames.
  *   {"rngseed":[F,V]}    force the global LCG state to V (a bare uint32) at the
  *                        instant frame base+F is reached — BEFORE that frame's
  *                        sim RNG consumers run (it fires in the per-frame tick,
@@ -65,6 +72,16 @@ struct seg_calltrace {
     uint32_t len;     /* window length in frames */
 };
 
+/* One base-relative contiguous capture range (resolved to the half-open frame
+ * window [base+start, base+start+count)).  Unlike {capture:N} (which appends a
+ * single frame to the bounded g_capture_frames[] list), a {caprange} drives a
+ * lo/hi window test, so it can span hundreds of frames for a frame-by-frame
+ * trace export without overflowing the capture-list cap (see {caprange} doc). */
+struct seg_caprange {
+    uint32_t start;   /* relative to the segment base */
+    uint32_t count;   /* number of consecutive frames to capture */
+};
+
 /* One base-relative LCG-state force: set the global RNG state to `value` when
  * absolute frame base+frame is reached (fires once; see {rngseed} in the doc). */
 struct seg_setrng {
@@ -81,6 +98,8 @@ struct seg_segment {
     size_t            n_captures, cap_captures;
     struct seg_calltrace *calltraces;   /* base-relative call-trace windows */
     size_t            n_calltraces, cap_calltraces;
+    struct seg_caprange *capranges;     /* base-relative contiguous capture windows */
+    size_t            n_capranges, cap_capranges;
     struct seg_setrng *setrngs;     /* base-relative LCG-state forces */
     size_t            n_setrngs, cap_setrngs;
     char              wait[24];     /* terminating anchor name; "" if none */
@@ -114,6 +133,13 @@ struct input_segtrace {
      * before sim).  Kept a callback so this module stays free of rng.h. */
     void (*rng_cb)(uint32_t value, void *user);
     void  *rng_user;
+
+    /* Capture-range callback (set once via input_segtrace_set_caprange_cb);
+     * fired per {caprange} op when its segment becomes active, with the resolved
+     * half-open window [base+start, base+start+count).  Kept a callback so the
+     * host owns the lo/hi window state. */
+    void (*cr_cb)(uint32_t lo, uint32_t hi, void *user);
+    void  *cr_user;
 };
 
 /* Capture callback: invoked once per scheduled `{capture:N}` with the resolved
@@ -128,6 +154,10 @@ typedef void (*segtrace_calltrace_fn)(uint32_t lo, uint32_t hi, void *user);
  * LCG state V, at the frame base+F (before that frame's sim consumers). */
 typedef void (*segtrace_rngseed_fn)(uint32_t value, void *user);
 
+/* Capture-range callback: invoked once per `{caprange:[S,C]}` op with the
+ * resolved half-open window [base+S, base+S+C) when its segment becomes active. */
+typedef void (*segtrace_caprange_fn)(uint32_t lo, uint32_t hi, void *user);
+
 /* Set the call-trace window callback (and its user ptr).  Resolved windows fire
  * through it as their segments become active, same timing as captures. */
 void input_segtrace_set_calltrace_cb(struct input_segtrace *st,
@@ -137,6 +167,11 @@ void input_segtrace_set_calltrace_cb(struct input_segtrace *st,
  * when its frame is reached during input_segtrace_tick. */
 void input_segtrace_set_rngseed_cb(struct input_segtrace *st,
                                    segtrace_rngseed_fn cb, void *user);
+
+/* Set the capture-range callback (and its user ptr).  Resolved windows fire
+ * through it as their segments become active, same timing as captures. */
+void input_segtrace_set_caprange_cb(struct input_segtrace *st,
+                                    segtrace_caprange_fn cb, void *user);
 
 /* True if the loaded trace declares ≥1 {calltrace} op (any segment).  Lets the
  * harness auto-enable call-tracing from the trace alone. */

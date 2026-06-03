@@ -121,6 +121,20 @@ static int push_calltrace(struct seg_segment *s, uint32_t start, uint32_t len)
     return 1;
 }
 
+static int push_caprange(struct seg_segment *s, uint32_t start, uint32_t count)
+{
+    if (s->n_capranges >= s->cap_capranges) {
+        size_t ncap = s->cap_capranges ? s->cap_capranges * 2 : 4;
+        struct seg_caprange *nc = realloc(s->capranges, ncap * sizeof *nc);
+        if (!nc) return 0;
+        s->capranges = nc; s->cap_capranges = ncap;
+    }
+    s->capranges[s->n_capranges].start = start;
+    s->capranges[s->n_capranges].count = count;
+    s->n_capranges++;
+    return 1;
+}
+
 static int push_setrng(struct seg_segment *s, uint32_t frame, uint32_t value)
 {
     if (s->n_setrngs >= s->cap_setrngs) {
@@ -143,6 +157,7 @@ void input_segtrace_free(struct input_segtrace *st)
         free(st->segs[i].entries);
         free(st->segs[i].captures);
         free(st->segs[i].calltraces);
+        free(st->segs[i].capranges);
         free(st->segs[i].setrngs);
     }
     free(st->segs);
@@ -169,9 +184,10 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
          * a wait op, a capture op, a calltrace op (ignored), or a
          * frame+buttons entry. */
         int      got_frame = 0, got_mask = 0, got_wait = 0, got_capture = 0;
-        int      got_calltrace = 0, got_setrng = 0;
+        int      got_calltrace = 0, got_setrng = 0, got_caprange = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
         uint32_t ct_start = 0, ct_len = 0;
+        uint32_t cr_start = 0, cr_count = 0;
         uint32_t rng_frame = 0, rng_value = 0;
         char     waitname[24] = {0};
 
@@ -222,6 +238,27 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                     ct_start = 0;
                 }
                 got_calltrace = 1;
+            } else if (klen == 8 && memcmp(ks, "caprange", 8) == 0) {
+                /* {caprange:[start,count]} (anchor-relative contiguous window)
+                 * or scalar {caprange:N} == [0, N].  Same parse shape as
+                 * {calltrace}, but feeds the host's lo/hi capture-window test. */
+                if (p < end && *p == '[') {
+                    p++;  /* '[' */
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (!parse_number(&p, end, &cr_start)) return 0;
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (p >= end || *p != ',') return 0;
+                    p++;
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (!parse_number(&p, end, &cr_count)) return 0;
+                    while (p < end && (*p == ' ' || *p == '\t')) p++;
+                    if (p >= end || *p != ']') return 0;
+                    p++;
+                } else {
+                    if (!parse_number(&p, end, &cr_count)) return 0;
+                    cr_start = 0;
+                }
+                got_caprange = 1;
             } else if (klen == 7 && memcmp(ks, "rngseed", 7) == 0) {
                 /* {rngseed:[frame,value]} — force the LCG state to `value` at
                  * base+frame.  Array form only (a seed has no 1-arg shorthand);
@@ -260,6 +297,8 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             if (!push_capture(cur, capture)) return 0;
         } else if (got_calltrace) {
             if (!push_calltrace(cur, ct_start, ct_len)) return 0;
+        } else if (got_caprange) {
+            if (!push_caprange(cur, cr_start, cr_count)) return 0;
         } else if (got_setrng) {
             if (!push_setrng(cur, rng_frame, rng_value)) return 0;
         } else {
@@ -352,11 +391,30 @@ static void schedule_calltraces(struct input_segtrace *st, size_t seg_idx)
     }
 }
 
+/* Resolve this segment's capture ranges to absolute half-open [base+start,
+ * base+start+count) windows and fire them through the registered callback. */
+static void schedule_capranges(struct input_segtrace *st, size_t seg_idx)
+{
+    if (!st->cr_cb || seg_idx >= st->n_segs) return;
+    const struct seg_segment *s = &st->segs[seg_idx];
+    for (size_t i = 0; i < s->n_capranges; i++) {
+        uint32_t lo = st->base + s->capranges[i].start;
+        st->cr_cb(lo, lo + s->capranges[i].count, st->cr_user);
+    }
+}
+
 void input_segtrace_set_calltrace_cb(struct input_segtrace *st,
                                      segtrace_calltrace_fn cb, void *user)
 {
     if (!st) return;
     st->ct_cb = cb; st->ct_user = user;
+}
+
+void input_segtrace_set_caprange_cb(struct input_segtrace *st,
+                                    segtrace_caprange_fn cb, void *user)
+{
+    if (!st) return;
+    st->cr_cb = cb; st->cr_user = user;
 }
 
 void input_segtrace_set_rngseed_cb(struct input_segtrace *st,
@@ -407,6 +465,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         rearm_setrngs(st, 0);
         schedule_captures(st, 0, capture_cb, user);
         schedule_calltraces(st, 0);
+        schedule_capranges(st, 0);
     }
     for (;;) {
         if (st->cur_seg >= st->n_segs) break;
@@ -419,6 +478,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 rearm_setrngs(st, st->cur_seg);
                 schedule_captures(st, st->cur_seg, capture_cb, user);
                 schedule_calltraces(st, st->cur_seg);
+                schedule_capranges(st, st->cur_seg);
                 continue;  /* re-evaluate the next segment this same frame */
             }
             /* not resolved: fall through and keep applying this segment's

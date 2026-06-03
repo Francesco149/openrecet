@@ -423,6 +423,7 @@ struct test_case {
     X(segtrace_spam_until_anchor_short_circuits) \
     X(segtrace_capture_scheduled_at_base_plus_n) \
     X(segtrace_calltrace_resolves_to_windows) \
+    X(segtrace_caprange_resolves_to_window) \
     X(segtrace_no_calltrace_reports_zero) \
     X(segtrace_rngseed_fires_once_at_frame) \
     X(segtrace_rngseed_rebases_on_anchor) \
