@@ -1,0 +1,14 @@
+{
+  "_doc": "Retail-side field spec for the execution+dataflow trace (docs/plans/execution-flow-trace.md). Maps each instrumented engine VA -> the declared payload the Frida agent reads at that call, joined to the port's CALL_TRACE_* fields by (va, field-name). VA keys + global VAs accept 0x-hex or decimal. src: global (read DAT at va) | arg (stack param index, 1-based) | argderef (deref arg[index] + off) | retval (onLeave). type: i32|u32|f32|hex.",
+  "fields": {
+    "0x4526ab": {
+      "name": "fade_tick",
+      "fields": [
+        {"name": "phase",    "src": "global", "va": "0x438bf7c", "type": "i32"},
+        {"name": "counter",  "src": "global", "va": "0x438bf78", "type": "i32"},
+        {"name": "duration", "src": "global", "va": "0x5c5934",  "type": "i32"},
+        {"name": "mode",     "src": "global", "va": "0x438bf80", "type": "i32"}
+      ]
+    }
+  }
+}

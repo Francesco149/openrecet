@@ -632,6 +632,9 @@ let g_call_trace_frames  = null;    // Set<int> or null (null = every frame)
 let g_call_trace_vas     = [];      // [int] Ghidra-VAs to hook
 let g_call_trace_hooked  = false;
 let g_call_trace_buffer  = [];
+let g_call_trace_fields  = {};      // {va:int -> [fieldspec]} declared payloads
+let g_ct_seq             = 0;       // per-frame execution-order counter
+let g_ct_seq_frame       = -1;      // frame g_ct_seq was last reset for
 
 // Mid-frame buffer cap.  Each event is ~80 bytes JSON.  At 1M events
 // per send() we're well under GLib's 128MiB DBus message ceiling
@@ -3489,6 +3492,55 @@ function installMemoryWatch(regions, precise) {
     return true;
 }
 
+// Read one declared field (flow-trace payload) per tools/flow/retail_fields.json.
+// `args` is the Frida onEnter args array (args[1] = first stack param). Returns
+// null on any fault so a transiently-bad address never wedges the trace.
+function flowReadTyped(ptr, type) {
+    switch (type) {
+        case 'u32': return ptr.readU32();
+        case 'f32': return ptr.readFloat();
+        case 'hex': return '0x' + ptr.readU32().toString(16);
+        case 'i32':
+        default:    return ptr.readS32();
+    }
+}
+
+function flowReadField(args, f) {
+    try {
+        if (f.src === 'global') {
+            return flowReadTyped(rva(f.va | 0), f.type);
+        }
+        if (f.src === 'argderef') {
+            return flowReadTyped(args[f.index | 0].add(f.off | 0), f.type);
+        }
+        if (f.src === 'arg') {
+            const a = args[f.index | 0];
+            if (f.type === 'f32') {
+                // Reinterpret the 32-bit stack slot's bits as a float.
+                const b = Memory.alloc(4);
+                b.writeU32(a.toUInt32());
+                return b.readFloat();
+            }
+            if (f.type === 'u32') return a.toUInt32();
+            if (f.type === 'hex') return '0x' + a.toUInt32().toString(16);
+            return a.toInt32();
+        }
+    } catch (_) {
+        return null;
+    }
+    return null;   // retval handled onLeave (later increment)
+}
+
+// Per-frame execution-order seq for the retail call buffer — mirrors the port's
+// g_seq so flow_diff.py aligns the chain. Reset when the frame advances.
+function ctNextSeq() {
+    if (g_manual_frame_counter !== g_ct_seq_frame) {
+        g_ct_seq = 0;
+        g_ct_seq_frame = g_manual_frame_counter;
+    }
+    return g_ct_seq++;
+}
+
 function installCallTraceHooks(vasArray) {
     if (g_call_trace_hooked) return;
     // closures capture `va` directly (let-binding per iteration) so each
@@ -3498,14 +3550,24 @@ function installCallTraceHooks(vasArray) {
         const va = vasArray[i] | 0;
         try {
             Interceptor.attach(rva(va), {
-                onEnter: function () {
+                onEnter: function (args) {
                     if (!callTraceShouldEmit()) return;
-                    g_call_trace_buffer.push({
+                    const rec = {
                         va:     va,
                         ret_va: traceRetVa(this.returnAddress),
+                        seq:    ctNextSeq(),
                         ts:     nowMs(),
                         thr:    this.threadId,
-                    });
+                    };
+                    const spec = g_call_trace_fields[va];
+                    if (spec) {
+                        const f = {};
+                        for (let k = 0; k < spec.length; k++) {
+                            f[spec[k].name] = flowReadField(args, spec[k]);
+                        }
+                        rec.f = f;
+                    }
+                    g_call_trace_buffer.push(rec);
                     // Cap: per-frame flush is fine for steady-state but
                     // the pre-Present startup window (CRT/MFC init with
                     // 1979 hooks firing) can dump hundreds of thousands
@@ -4284,6 +4346,20 @@ rpc.exports = {
                 config.call_trace_frames.map(function (f) { return f | 0; }));
         } else {
             g_call_trace_frames = null;
+        }
+        // Flow-trace declared payloads (tools/flow/retail_fields.json, keyed by
+        // engine VA). Normalise the va keys to ints so the onEnter lookup
+        // (g_call_trace_fields[va]) hits.
+        g_call_trace_fields = {};
+        g_ct_seq = 0;
+        g_ct_seq_frame = -1;
+        if (config.call_trace_fields && typeof config.call_trace_fields === 'object') {
+            const src = config.call_trace_fields;
+            for (const k in src) {
+                if (Object.prototype.hasOwnProperty.call(src, k)) {
+                    g_call_trace_fields[(k | 0) || parseInt(k, 0)] = src[k];
+                }
+            }
         }
 
         // Auto-Z-spam + auto-3D-trace.  Pair these to drive retail past

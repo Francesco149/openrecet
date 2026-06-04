@@ -318,6 +318,10 @@ class CaptureConfig:
     call_trace:        bool = False
     call_trace_vas:    list[int] | None = None
     call_trace_frames: list[int] | None = None
+    # Flow-trace declared payloads: {va:int -> [fieldspec]} read from
+    # tools/flow/retail_fields.json. Attaches an `f:{}` payload to each matching
+    # call so flow_diff.py can match the data moved. None = no payloads.
+    call_trace_fields: dict | None = None
     # Auto-Z spam + auto-3D-trace.  When `auto_z_spam` is true the
     # agent's input_poll onLeave forces button-A every other 2-frame
     # block (~15 presses/sec) — fast enough to clear the intro
@@ -451,6 +455,25 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             raw = json.loads(ct_path.read_text())
             cfg.call_trace_vas = (raw["vas"] if isinstance(raw, dict)
                                   and "vas" in raw else list(raw))
+    # Load the flow-trace declared-payload spec (default; opt out with
+    # --no-call-trace-fields). Flatten {va_str -> {fields:[...]}} to
+    # {va_int -> [fields]} for the agent, and ensure the spec'd VAs are hooked.
+    if cfg.call_trace and cfg.call_trace_fields is None:
+        ff_path = ROOT / "tools" / "flow" / "retail_fields.json"
+        if ff_path.exists():
+            data = json.loads(ff_path.read_text()).get("fields", {})
+            flat = {str(int(va, 0) if isinstance(va, str) else int(va)):
+                    entry["fields"]
+                    for va, entry in data.items() if "fields" in entry}
+            cfg.call_trace_fields = flat
+            # A field-spec VA must be hooked to read its payload — add any
+            # missing ones to the VA list.
+            if cfg.call_trace_vas is None:
+                cfg.call_trace_vas = []
+            have = set(cfg.call_trace_vas)
+            for va_s in flat:
+                if int(va_s) not in have:
+                    cfg.call_trace_vas.append(int(va_s))
 
     audio_jsonl  = run_dir / "audio.jsonl"
     trace_jsonl  = run_dir / "trace.jsonl"
@@ -1115,6 +1138,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["call_trace_vas"] = [int(v) for v in (cfg.call_trace_vas or [])]
         if cfg.call_trace_frames is not None:
             init_cfg["call_trace_frames"] = [int(f) for f in cfg.call_trace_frames]
+        if cfg.call_trace_fields:
+            init_cfg["call_trace_fields"] = cfg.call_trace_fields
     if cfg.auto_z_spam:
         init_cfg["auto_z_spam"] = True
     if cfg.auto_3d_trace:
