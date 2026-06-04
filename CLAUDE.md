@@ -47,9 +47,10 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
 - **Show visuals on the llm-feed** (`/opt/src/llm-feed/feed.py`, localhost:8777) — push
   images/montages/comparisons with the diff, never eog/explorer. Healthz-check + start it
   if down at session start.
-- **Commits:** logical units as you go; co-author trailer is auto-injected (don't type it);
-  the pre-commit hook regenerates the port ledger + runs host tests on C changes. Commit/
-  push only when asked. **No branches** — commit to master (until nightly users matter).
+- **Commits:** **commit in logical units as you go, without waiting to be asked** (user
+  policy 2026-06-05); co-author trailer is auto-injected (don't type it); the pre-commit
+  hook regenerates the port ledger + runs host tests on C changes. **Push** only when asked.
+  **No branches** — commit to master (until nightly users matter).
 
 ## Run / build (host tools need `nix develop --command` prefix)
 - **Build:** `nix develop --command make -C src` (mingw32; **don't** override `CC`) →

@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-05 — Render-parity diff engine (Phase 1): per-draw vertex capture + `--explain`
+
+Foundation for the frame-by-frame 1:1 sweep. The d3d-trace command-stream diff
+saw only `prim_type`/`count`/`stride` for an immediate-mode draw — not the
+vertices. Closed that gap end-to-end:
+
+- **FVF decoder + `render_diff.py --explain`.** Decodes each aligned `Draw*UP`
+  draw's captured vertices (FVF from the in-effect `SetVertexShader`, stride
+  fallback otherwise) and names the **first divergent (vertex, field)** —
+  `vertex 2 POSITION.z: retail=-7.2 port=-6.5 (Δ+0.7, fvf=0x142)`. Vertex bytes
+  are excluded from the alignment key, so a pure-vertex divergence (same
+  command, different verts) still surfaces. Float compares use `--vertex-eps`
+  (the engine isn't byte-identical); DIFFUSE/SPECULAR exact; one-sided draws →
+  `[structural]`. Synthetic-trace tested across field/count/structural/color/
+  fallback paths.
+- **Port capture (`src/d3d_trace.c` + `--d3d-trace-verts`).** `d3d_prim_vcount`
+  + hex emit append `vb_nverts`/`vb_bytes` (+ `ib_*` for indexed-UP) to each UP
+  draw, 64 KiB/draw cap. Wired through `main.c` and `export_trace.py`. Build
+  clean, 3169 host tests pass.
+- **Retail capture (Frida agent + frida_capture `--d3d-trace-verts`).** Mirror
+  `primVcount` + `readByteArray`→hex, same field names + cap. Validated on a
+  live retail title capture: port and retail **decode the same `(1024,768,0,1)`
+  screen corner**, FVF `0x1c4` (XYZRHW|DIFFUSE|SPECULAR|TEX1, 2D/HUD) and `0x142`
+  (XYZ|DIFFUSE|TEX1, 3D billboards). On an unsynced title pair `--explain`
+  correctly reports structural draw differences, not fabricated field diffs.
+- Only UP draws captured; VB-backed mesh draws + stable texture-identity are the
+  remaining Phase-1 items. Schema: `findings/d3d-trace.md`; usage:
+  `findings/render-diff.md §--explain`.
+
 ## 2026-06-04 (evening) — Load-a-save arc: working arena + continue picker + post-fade branch
 
 New front: the title-screen **Continue / load a save** flow. Landed the data
