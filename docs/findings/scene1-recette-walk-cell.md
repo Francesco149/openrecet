@@ -124,6 +124,27 @@ at max, about to wrap) still diverges WITHOUT turbo — a 1-frame draw-vs-anim-t
 order effect at the wrap, or a sub-frame capture effect. Localized to 4 frames/cycle.
 Tracked here; not the headline divergence.
 
+**1-minute no-turbo walk (user-directed drift test, 2026-06-04):** captured retail
+no-turbo over ~1 min of walking-in-place (trace `house-walk-1min-noturbo`, two 200-frame
+windows: start + ~58s in), diffed vs the port reference by walk phase (af,cnt):
+
+| window | divergent | (af,cnt) | run-len | magnitude |
+|---|---|---|---|---|
+| EARLY (start) | 22/200 | {(0,9),(1,18),(2,27),(3,36)} | all **1** | 23–28 |
+| LATE (~58s in) | 22/200 | {(0,9),(1,18),(2,27),(3,36)} | all **1** | 23–28 |
+
+Identical early vs late → the wrap-frame lag is **fixed at exactly 1 frame, does NOT
+drift/accumulate** over a minute. The 4 wrap frames per cycle are the ONLY divergence;
+everything else is bit-black. Feed montage 2026-06-04 (EARLY vs LATE cycle).
+
+**Two open follow-ups (agreed with user):**
+1. **Fix the wrap-frame 1-frame lag** — likely the draw-vs-`chr_anim_tick` order at the
+   counter wrap (the drawn cell advances a frame off from retail only on the wrap frame).
+   Investigate `chr_anim_tick` counter→aframe advance vs when the render samples it.
+2. **Make turbo capture not jitter** — the screenshot stream slips ±1 frame at cycle
+   transitions under `--turbo`. Either fix the turbo capture timing, or make
+   phase_probe/recette_anim_probe align frames by (aframe,counter) instead of raw db054.
+
 **Status:** walk cell looks 1:1 on the plateau (no-turbo bit-exact + user ground-truth
 + bit-exact records + deterministic port cell-log). **Awaiting user confirmation on the
 no-turbo montage before any ledger change** — per the standing rule, NOT self-closing.
