@@ -741,7 +741,13 @@ static int             g_rng_seed_set            = 0;
 static uint32_t        g_rng_seed_value          = 1;
 static uint32_t        g_max_frames              = 0;
 
-#define CAPTURE_FRAMES_MAX  32
+/* Bounded list of one-shot {capture:N} frames. Sized to cover the longest
+ * per-line capture scenario (intro-dialogue-lines: 46 lines → 46 captures); the
+ * retail Frida agent has no such cap, so a smaller port limit silently dropped
+ * captures past index 31 and the comparison page reported "no capture on
+ * openrecet side" for the tail lines. 64 gives headroom. (Contiguous frame-by-
+ * frame exports use the unbounded {caprange} lo/hi window, not this list.) */
+#define CAPTURE_FRAMES_MAX  64
 static uint32_t        g_capture_frames[CAPTURE_FRAMES_MAX];
 static int             g_capture_frames_count    = 0;
 

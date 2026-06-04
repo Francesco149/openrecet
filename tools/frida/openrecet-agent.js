@@ -795,6 +795,13 @@ function segtraceBuildSegments(ops) {
             // port's {phasepin} so a port<->retail trace comparison is phase-clean
             // (engine-quirks 94, scene1-tear-visual-diffs.md).
             segs[segs.length - 1].phasepins.push({frame: op.phasepin | 0, fired: false});
+        } else if (op && op.savefile !== undefined) {
+            // {savefile:"<relpath>"} — trace-global embedded-save ref. The save
+            // override is harness-driven (tools/trace_save.py decompresses the blob;
+            // retail redirect is a TODO), so the agent just skips it. Crucially this
+            // prevents the op falling into the input-entry `else` below, where its
+            // missing frame/mask would inject a phantom frame-0 release.
+            /* no-op */
         } else {
             segs[segs.length - 1].entries.push(
                 {frame: op.frame | 0, mask: (op.mask | 0) & 0xffff});
