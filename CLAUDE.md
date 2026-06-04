@@ -61,8 +61,19 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
 - **Disassembly/hex:** use `vendor/unpacked/` (not `vendor/original/`, still SteamStub-
   encrypted). Decompiled C (gitignored): `docs/decompiled/all.c` + `functions.csv`.
 - **Retail introspection (Frida):** `--remote cutestation.soy:27042` (assume the host is up;
-  don't gate progress on it). Drive port↔retail together with
-  `tools/scenario-test.py --target both`.
+  don't gate progress on it).
+- **THE unified harness — one command for driving port/retail tests.**
+  `tools/scenario-test.py <scenario> --target {openrecet|retail|both}` is the single
+  standard entry point. It owns the whole TAS stack — input replay / anchor segtraces,
+  **save virtualization** (`{savefile}` → sandboxed, never touches the real save), frame
+  **alignment**, resolution pinning, and `--turbo` (the **forced fixed 17ms/frame** virtual
+  clock — bit-identical on both sides → 1:1 frame mapping, lag-immune). Add trace capture in
+  the SAME command: `--call-trace` (→ `flow_diff.py`, the execution+dataflow drill-in),
+  `--d3d-trace [--d3d-trace-verts]` (→ `render_diff.py [--explain]`). Don't hand-wire
+  `run-openrecet.sh` + `frida_capture.py` for synced captures — that's the old path
+  scenario-test supersedes (those remain the low-level primitives it calls). Scenarios live
+  in `tests/scenarios/`; record new ones with the in-engine F2/F3 recorder (see
+  `docs/trace-workflow.md`).
 
 ## Where to read next (by need)
 - **Is FUN_x ported / coverage:** `docs/STATUS.md` + `docs/port-ledger.{md,json}` (derived).
