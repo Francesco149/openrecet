@@ -3783,6 +3783,10 @@ segtrace op (sticky u32 write):
 {"poke": [1545, 111450424, 1]}    # 111450424 == 0x06a49938, after HOUSE_FREEROAM
 ```
 
+(headless, in a capture). To turn it on for *interactive* play / clip recording,
+launch the game normally and attach with `tools/dev_overlay.py` (holds
+`DAT_06a49938=1`; `--full` also sets `DAT_06a4993c=1` for the verbose hex-dump).
+
 and the overlay appears: the live player coords render as
 `X: -0.300000 / Y: 0.000000 / Z: 9.500000` (= `DAT_056da1d8/dc/e0`), the per-frame
 `%d` rng value on the row above, plus a debug tile-grid top-right. Visual pushed to
