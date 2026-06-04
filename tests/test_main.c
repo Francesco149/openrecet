@@ -1215,6 +1215,7 @@ struct test_case {
     X(stage_state_house_defaults) \
     X(stage_state_idempotent) \
     X(stage_state_overwrites_stale) \
+    X(stage_state_reads_loaded_save_selectors) \
     \
     X(stage_palette_size) \
     X(stage_palette_offsets) \

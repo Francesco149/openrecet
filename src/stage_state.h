@@ -63,9 +63,26 @@
 #define STAGE_HOUSE_TABLE_SELECTOR_DEFAULT  0
 
 /*
- * Seed the per-stage runtime state for stage 0 (HOUSE). Writes the
- * four selector globals to their fresh-game defaults. Safe to call
- * before or after the worker bodies have been registered.
+ * Working-bank dword indices of the four selectors. The engine reads
+ * them at HOUSE asset-load time, e.g. the wall loader FUN_0047474e:
+ *   *(int *)(&DAT_0451057c + DAT_0438b1e0 * 0x2dfc8)
+ * (DAT_0451057c = working-bank base + 0x2cde4 = dword 0xb379). A
+ * loaded save carries the player's purchased wall/floor/carpet/table
+ * upgrades in these fields; a fresh new game leaves them 0 (== the
+ * *_DEFAULT above). They fold the standalone g_scene_*_selector
+ * globals back onto the real per-stage record.
+ */
+#define STAGE_FIELD_WALLS_SELECTOR_DWORD  0xb379
+#define STAGE_FIELD_FLOOR_SELECTOR_DWORD  0xb37a
+#define STAGE_FIELD_JUTAN_SELECTOR_DWORD  0xb37b
+#define STAGE_FIELD_TABLE_SELECTOR_DWORD  0xb37c
+
+/*
+ * Seed the per-stage runtime state for stage 0 (HOUSE) from the active
+ * working-save slot's selector fields (the loaded game's shop
+ * upgrades). On a zeroed working arena (boot, or a fresh new game)
+ * every selector reads 0 — the engine fresh-game defaults. Safe to
+ * call before or after the worker bodies have been registered.
  */
 void stage_init_house(void);
 

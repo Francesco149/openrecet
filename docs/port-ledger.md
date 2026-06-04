@@ -320,7 +320,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x473c15 | FUN_00473c15 | 2476 | ✓ | scene1_preload.c, scene1_preload.h, worker_load.h |
 | 0x4746fc | FUN_004746fc | 48 | ✓ | worker_load.h |
 | 0x47472c | FUN_0047472c | 34 | ✓ | worker_load.h |
-| 0x47474e | FUN_0047474e | 142 | ✓ | main.c, scene1_preload.c, scene_floor.c (+5) |
+| 0x47474e | FUN_0047474e | 142 | ✓ | main.c, scene1_preload.c, scene_floor.c (+6) |
 | 0x4747dc | FUN_004747dc | 142 | ✓ | main.c, scene1_preload.c, scene_floor.c (+3) |
 | 0x47486a | FUN_0047486a | 142 | ✓ | main.c, scene1_preload.c, scene_jutan.c (+2) |
 | 0x4748f8 | FUN_004748f8 | 169 | ✓ | mesh_load.h, scene1_preload.c, scene_table.c (+2) |

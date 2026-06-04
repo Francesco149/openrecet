@@ -6776,6 +6776,7 @@
     "src/scene_jutan.c",
     "src/scene_walls.c",
     "src/scene_walls.h",
+    "src/stage_state.h",
     "src/worker_load.h"
    ]
   },
