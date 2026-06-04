@@ -51,6 +51,7 @@ import frida
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import frame_io   # noqa: E402 — lossless PNG frame writer (vs 3 MB BMPs)
+import trace_save  # noqa: E402 — TAS save interception (resolve {savefile})
 
 
 ROOT       = Path(__file__).resolve().parent.parent
@@ -1683,6 +1684,10 @@ def main(argv: list[str] | None = None) -> int:
         server_exe=args.server_exe,
         input_trace_path=args.input_trace,
         input_segtrace_path=args.input_segtrace,
+        # Seed the replay sandbox from the trace's {savefile} op (so a recorded
+        # "continue" trace replays from its embedded save; @fresh boots fresh).
+        save_ref=(trace_save.resolve_save(args.input_segtrace)
+                  if (args.input_segtrace and args.record_trace is None) else None),
         attach_match=attach_match,
         record_trace_path=args.record_trace,
         watch=watch,
