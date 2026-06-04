@@ -777,6 +777,15 @@ static int pfo_load_one_file(const char *name, int file_idx)
         buf_len = n;
     }
 
+    /* The "secondary-table chunk" (bytes 0..0x4330) is the 2D-overlay
+     * particle TEMPLATE table (engine DAT_00733820).  Only set 0
+     * (effect1.dat) is read by the overlay spawner FUN_00414345 (it
+     * hardcodes DAT_00733884 = set-0 base), so load just that one — it
+     * carries template 0x3b (`目玉商品`), the shop-display sparkle. */
+    if (file_idx == 0 && buf_len >= PFO_SECONDARY_CHUNK_BYTES) {
+        scene1_overlay_templates_load_chunk(buf, buf_len);
+    }
+
     /* Skip the secondary-table chunk; pass the parent-template chunk
      * onwards.  If the file is shorter than the secondary chunk size,
      * there's no parent data to load — leave defaults intact. */

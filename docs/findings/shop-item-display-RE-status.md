@@ -21,7 +21,69 @@ residual is the item sparkle/glint effect** (deferred — see "Remaining" below)
   port already computes that matrix via `scene1_camera_angle_compute`) turned the
   swords to face the camera → 1:1.
 
-## Remaining (deferred)
+## Item sparkle/glint — EMITTER CRACKED (2026-06-04, live call-graph)
+
+The sparkle emitter was found by a Frida **call-trace on the overlay spawn**
+(hook `0x414345` + its wrappers, read the caller `ret_va` at a loaded-shop
+free-roam frame — `runs/sr-sparkle`, `tests/traces/save-roundtrip/sr_sparkle.jsonl`,
+`/tmp/sparkle_vas.json`). Three prior **static** guesses all misfired
+(`FUN_0042353c`/`FUN_0042439e` = a scripted event sequence, NOT this), so the
+live ret_va was decisive — same technique that found the renderer.
+
+- **Call chain:** spawn `FUN_00414345` ← wrapper `FUN_004147d5` ← **emitter at
+  `0x4867ee`, inside `FUN_0048670f`** (the big HOUSE free-roam update / Cpop
+  caller). 81 spawn calls steady across the window, every 8th frame.
+- **The emitter** (top of `FUN_0048670f`, all.c:86579-86598; asm 0x486737-0x4867fa):
+  ```c
+  if (DAT_0438b8cc % 8 == 3) {                 // fires once every 8 frames
+      for (piVar16 = &DAT_005ce3c4;            // 7 candidate back-row COLUMNS
+           piVar16 != &DAT_005ce3e0; piVar16++) {  // = {1,2,3,4,11,12,13}
+          int f = FUN_004860c8(*piVar16, 0);   // furniture index at cell (col,0)
+          if (DAT_0450fee8[f] == 0 &&          // bank dword 0xb1d4 — furniture gate
+              DAT_044f7030[*piVar16] != -1) {  // working-bank dword 0x4e26 (display grid) occupied
+              FUN_004147d5(&DAT_056da1b8,
+                  2*col - 9 + (rng-0.5),        // x  (col 1→-7, 2→-5, 4→-1 = the 3 swords' X)
+                  rng + 2.0,                    // y  (just above the item)
+                  (rng-0.5) - 7.0,              // z  (≈ -7, the back stand)
+                  0x3b, 0x3e99999a /*scale 0.3*/, 0xffffffff /*white*/);
+          }
+      }
+  }
+  ```
+  Three `FUN_00471089()` (RNG 0..1) per occupied cell. `&DAT_056da1b8` = owner.
+- **Template `0x3b` (59) = `目玉商品`** ("featured display item") in `ef/effect1.dat`
+  record 59 — DECISIVE confirmation. Numeric fields (record byte 0x64, 18 dwords):
+  texture_type **19**, type_shape 0, spawn_count 1, scale_base_mul 1.0,
+  tpl5 0.99, age_stagger 1.0, **fade_out_def 24** (→ lifetime 24 frames; spawned
+  every 8 ⇒ ~3 alive per item = the doc's "3 per item"), scale_x 1.0,
+  scale_y_ratio/blend_off/blend_mix 0.5, fade_in 8, fade_out 16, layer_pair 0x100.
+- `FUN_004860c8(col,row)` (all.c:86191) maps a grid cell → the furniture index
+  whose origin (per-furniture grid origins `DAT_045105a8/ac` = working-bank dword
+  0xb384) covers it; returns -1 if none. Gates so only cells on a real display
+  stand sparkle.
+
+### Port pipeline gap (what blocks rendering today)
+The overlay particle SYSTEM is ported (`scene1_overlay_spawn`=FUN_00414345,
+`scene1_overlay_render`=FUN_00414ee2) but its **template table
+`g_scene1_overlay_templates` is empty** (memset-0; nothing populates it). The
+real loader is engine **`FUN_00412a89`** (all.c:11262): default-inits the table,
+then reads `ef/effect{1..4}.dat` copying each file's **first 0x4330 bytes** (100
+records × 0xac) into the overlay template table `DAT_00733820` (`DAT_00733884` =
+base+0x64 = the numeric fields) and the next 38000 into the parent table. The
+port's **PFO.7** (`scene1_pfo_parent_table_load_all`) ported ONLY the 38000-byte
+parent chunk — the **0x4330 overlay-template chunk is unported**. Shapes + layer
+textures load via **O.10** (`FUN_00474f4f`, `scene1_overlay_table_load_all`) +
+sysassets. So the work is: (1) load `effect1.dat` bytes 0..0x4330 →
+`g_scene1_overlay_templates` (port stride 43 dw; field k = file byte rec*0xac +
+0x64 + k*4), (2) port the emitter into the `FUN_0048670f` prologue (currently a
+no-op in `scene1_player_ctrl.c`), porting `FUN_004860c8` too. RNG: 3 LCG draws
+per occupied cell every 8 frames — must stay phase-aligned (`phase_probe`).
+
+The `.idx`/`effect_set.idx` text files are the effect-EDITOR's export (writers
+`FUN_00411ac7`/`FUN_00411e3f`/`FUN_00412175`), NOT runtime loaders — `ef/` has
+only the binary `.dat`. Ignore them for the port.
+
+### Older d3d-trace scoping (superseded by the call-graph above, kept for record)
 - **Item sparkle/glint** — the yellow 4-point twinkle stars retail draws over
   each display item (the only residual the user flagged after confirming the
   swords 1:1). **Scoped via the retail d3d-trace** (`runs/sr-retail/

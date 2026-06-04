@@ -96,6 +96,107 @@ int test_scene1_overlay_init_zeros_templates_and_shapes(void)
     return 0;
 }
 
+/* ─── template-table loader (effect1.dat chunk) ───────────────────── */
+
+#define DAT_REC_BYTES   0xacu
+#define DAT_NUM_OFF     0x64u
+#define DAT_NUM_FIELDS  18
+#define DAT_REC_COUNT   100
+
+/* Write numeric field `k` of record `t` into a raw effect1.dat-shaped
+ * chunk (record byte t*0xac, numeric region at +0x64). */
+static void dat_set_field(unsigned char *buf, int t, int k, int32_t v)
+{
+    size_t off = (size_t)t * DAT_REC_BYTES + DAT_NUM_OFF + (size_t)k * 4u;
+    memcpy(buf + off, &v, sizeof v);
+}
+
+int test_overlay_templates_load_chunk_maps_record_3b(void)
+{
+    static unsigned char buf[DAT_REC_COUNT * DAT_REC_BYTES];
+    memset(buf, 0, sizeof buf);
+
+    /* Poison every record's NAME region (bytes 0..0x63) — the loader must
+     * read fields from +0x64, never leak the name into a field. */
+    for (int t = 0; t < DAT_REC_COUNT; t++)
+        memset(buf + (size_t)t * DAT_REC_BYTES, 0xAB, DAT_NUM_OFF);
+
+    /* Real effect1.dat values for template 0x3b (`目玉商品`). */
+    const int32_t f3b[DAT_NUM_FIELDS] = {
+        19,          /* texture_type */
+        0,           /* type_shape   */
+        1,           /* spawn_count  */
+        0x3f800000,  /* scale_base_mul = 1.0 */
+        0x35861700,  /* init_arg_4 (~9.98e-7) */
+        1065185444,  /* tpl5 = 0.99 */
+        0,           /* tpl6 */
+        0x3f800000,  /* age_stagger = 1.0 */
+        24,          /* fade_out_default — sparkle lifetime */
+        0,           /* age_birth_mod */
+        1065353212,  /* scale_x ≈ 1.0 */
+        0,           /* tpl11 */
+        0x3f000000,  /* scale_y_ratio = 0.5 */
+        0x3f000000,  /* blend_offset = 0.5 */
+        0x3f000000,  /* blend_mix = 0.5 */
+        8,           /* fade_in_dur */
+        16,          /* fade_out_dur */
+        0x100,       /* layer_pair: layer byte 0, blend_mode byte 1 */
+    };
+    for (int k = 0; k < DAT_NUM_FIELDS; k++)
+        dat_set_field(buf, 0x3b, k, f3b[k]);
+
+    scene1_overlay_templates_reset();
+    scene1_overlay_templates_load_chunk(buf, sizeof buf);
+
+    for (int k = 0; k < DAT_NUM_FIELDS; k++)
+        T_ASSERT_EQ_I(g_scene1_overlay_templates[0x3b * SCENE1_OVERLAY_TEMPLATE_STRIDE + k],
+                      f3b[k]);
+
+    /* Spot-check the named offsets the spawner/renderer actually read. */
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[0x3b * SCENE1_OVERLAY_TEMPLATE_STRIDE +
+                  SCENE1_OVERLAY_TPL_OFF_TEXTURE_TYPE], 19);
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[0x3b * SCENE1_OVERLAY_TEMPLATE_STRIDE +
+                  SCENE1_OVERLAY_TPL_OFF_FADE_OUT_DEFAULT], 24);
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[0x3b * SCENE1_OVERLAY_TEMPLATE_STRIDE +
+                  SCENE1_OVERLAY_TPL_OFF_LAYER_PAIR], 0x100);
+    return 0;
+}
+
+int test_overlay_templates_load_chunk_boundaries(void)
+{
+    static unsigned char buf[DAT_REC_COUNT * DAT_REC_BYTES];
+    memset(buf, 0, sizeof buf);
+    /* Distinct marker in field 0 of records 0 and 99 (last). */
+    dat_set_field(buf, 0,  SCENE1_OVERLAY_TPL_OFF_TEXTURE_TYPE, 0x1111);
+    dat_set_field(buf, 99, SCENE1_OVERLAY_TPL_OFF_TEXTURE_TYPE, 0x9999);
+
+    scene1_overlay_templates_reset();
+    scene1_overlay_templates_load_chunk(buf, sizeof buf);
+
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[0  * SCENE1_OVERLAY_TEMPLATE_STRIDE + 0], 0x1111);
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[99 * SCENE1_OVERLAY_TEMPLATE_STRIDE + 0], 0x9999);
+    /* Record 100 is past the file — must stay zero (never spawned). */
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[100 * SCENE1_OVERLAY_TEMPLATE_STRIDE + 0], 0);
+    return 0;
+}
+
+int test_overlay_templates_load_chunk_short_buffer_safe(void)
+{
+    /* A buffer that ends mid-table: the loader must stop at the first
+     * record whose numeric region would run past the end, no OOB. */
+    static unsigned char buf[5 * DAT_REC_BYTES];
+    memset(buf, 0, sizeof buf);
+    dat_set_field(buf, 2, SCENE1_OVERLAY_TPL_OFF_TEXTURE_TYPE, 0x2222);
+
+    scene1_overlay_templates_reset();
+    scene1_overlay_templates_load_chunk(buf, sizeof buf);
+
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[2 * SCENE1_OVERLAY_TEMPLATE_STRIDE + 0], 0x2222);
+    /* Record 5 was never in the buffer. */
+    T_ASSERT_EQ_I(g_scene1_overlay_templates[5 * SCENE1_OVERLAY_TEMPLATE_STRIDE + 0], 0);
+    return 0;
+}
+
 /* ─── spawn: preamble + claim ─────────────────────────────────────── */
 
 int test_overlay_spawn_writes_first_free_slot(void)

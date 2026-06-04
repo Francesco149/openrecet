@@ -150,10 +150,10 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x40d132 | FUN_0040d132 | 9497 | ✓ | scene1_overlay.h, scene1_overlay_helpers.c |
 | 0x40f64b | FUN_0040f64b | 128 | ✓ | scene1_per_frame_open.h, scene1_preload.c, scene1_records.c (+1) |
 | 0x41276e | FUN_0041276e | 795 |  | scene1_per_frame_open.c, scene1_per_frame_open.h |
-| 0x412a89 | FUN_00412a89 | 490 | ✓ | main.c, scene1_per_frame_open.c, scene1_per_frame_open.h |
+| 0x412a89 | FUN_00412a89 | 490 | ✓ | main.c, scene1_overlay.c, scene1_overlay.h (+2) |
 | 0x4132c1 | FUN_004132c1 | 92 | ✓ | scene1_per_frame_open.h |
 | 0x41331d | FUN_0041331d | 89 | ✓ | scene1_per_frame_open.h, scene1_player_ctrl.h, scene1_records_b_tick.c |
-| 0x414345 | FUN_00414345 | 1057 | ✓ | scene1_overlay.c, scene1_overlay.h |
+| 0x414345 | FUN_00414345 | 1057 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_per_frame_open.c |
 | 0x4147d5 | FUN_004147d5 | 62 | ✓ | scene1_combat_sm.h, scene1_player_ctrl.c, scene1_records_b_tick.c |
 | 0x414813 | FUN_00414813 | 239 | ✓ | scene1_overlay.c |
 | 0x414902 | FUN_00414902 | 39 | ✓ | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_preload.c (+2) |

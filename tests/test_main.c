@@ -2621,6 +2621,9 @@ struct test_case {
     X(overlay_spawn_count_caps_loop) \
     X(overlay_spawn_zero_count_writes_one_slot) \
     X(overlay_spawn_invalid_template_id_noop) \
+    X(overlay_templates_load_chunk_maps_record_3b) \
+    X(overlay_templates_load_chunk_boundaries) \
+    X(overlay_templates_load_chunk_short_buffer_safe) \
     X(overlay_spawn_fade_out_uses_param7_when_positive) \
     X(overlay_spawn_fade_out_uses_template_when_param7_zero) \
     X(overlay_spawn_fade_out_uses_template_when_param7_negative) \

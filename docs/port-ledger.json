@@ -1227,6 +1227,8 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/scene1_overlay.c",
+    "src/scene1_overlay.h",
     "src/scene1_per_frame_open.c",
     "src/scene1_per_frame_open.h"
    ]
@@ -1320,7 +1322,8 @@
    "status": "ported",
    "src": [
     "src/scene1_overlay.c",
-    "src/scene1_overlay.h"
+    "src/scene1_overlay.h",
+    "src/scene1_per_frame_open.c"
    ]
   },
   {

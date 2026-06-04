@@ -51,6 +51,7 @@
 #ifndef SCENE1_OVERLAY_H
 #define SCENE1_OVERLAY_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -171,6 +172,12 @@ extern int32_t g_scene1_overlay_templates[SCENE1_OVERLAY_TEMPLATE_COUNT *
 
 /* Zero the template table (parser-equivalent reset). */
 void scene1_overlay_templates_reset(void);
+
+/* Populate the template table from ef/effect1.dat's first 0x4330 bytes
+ * (engine FUN_00412a89 set-0 arm).  `chunk` points at the file start;
+ * copies 100 records × 18 numeric fields (record byte 0x64) into the
+ * table.  See scene1_overlay.c for the layout. */
+void scene1_overlay_templates_load_chunk(const void *chunk, size_t chunk_len);
 
 /* ---- Per-shape texture/UV table ------------------------------------ */
 /*

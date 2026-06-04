@@ -1,0 +1,16 @@
+{"savefile": "_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"rngseed": [0, 1750336112]}
+{"calltrace": [0, 220]}
+{"capture": 120}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 360, "buttons": "0x0000"}

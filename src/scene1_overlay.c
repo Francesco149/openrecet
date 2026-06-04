@@ -57,6 +57,47 @@ void scene1_overlay_templates_reset(void)
     memset(g_scene1_overlay_templates, 0, sizeof g_scene1_overlay_templates);
 }
 
+/*
+ * scene1_overlay_templates_load_chunk — populate the template table from
+ * the first 0x4330 bytes of `ef/effect1.dat` (engine FUN_00412a89, the
+ * `local_8 = &DAT_00733820; fread(local_8, 1, 0x4330, file)` arm — set 0,
+ * the ONLY set FUN_00414345 reads via DAT_00733884).
+ *
+ * On-disk layout: 100 records × 0xac bytes.  Each record is a 100-byte
+ * Shift-JIS name (`目玉商品` = template 0x3b = the shop-display sparkle)
+ * followed by 18 numeric dwords at byte 0x64 — exactly the engine's
+ * `(&DAT_00733884)[t*0x2b + 0..17]` view, which is what the spawner's
+ * tpl_get_i/f read.  Copy field k → g_scene1_overlay_templates[t*43 + k].
+ * Records 100..255 stay zero (never spawned).
+ */
+#define SCENE1_OVERLAY_DAT_RECORD_BYTES  0xacu  /* 172 */
+#define SCENE1_OVERLAY_DAT_NUM_OFFSET    0x64u  /* numeric fields start (DAT_00733884) */
+#define SCENE1_OVERLAY_DAT_NUM_FIELDS    18     /* dw 0..17 (texture_type..layer_pair) */
+#define SCENE1_OVERLAY_DAT_RECORD_COUNT  100
+
+void scene1_overlay_templates_load_chunk(const void *chunk, size_t chunk_len)
+{
+    if (chunk == NULL) return;
+    const unsigned char *p = (const unsigned char *)chunk;
+
+    int n = SCENE1_OVERLAY_DAT_RECORD_COUNT;
+    if (n > SCENE1_OVERLAY_TEMPLATE_COUNT) n = SCENE1_OVERLAY_TEMPLATE_COUNT;
+
+    for (int t = 0; t < n; t++) {
+        size_t base = (size_t)t * SCENE1_OVERLAY_DAT_RECORD_BYTES +
+                      SCENE1_OVERLAY_DAT_NUM_OFFSET;
+        if (base + (size_t)SCENE1_OVERLAY_DAT_NUM_FIELDS * 4u > chunk_len) {
+            break;   /* short file — leave the rest at defaults */
+        }
+        for (int k = 0; k < SCENE1_OVERLAY_DAT_NUM_FIELDS; k++) {
+            int32_t v;
+            memcpy(&v, p + base + (size_t)k * 4u, sizeof v);
+            g_scene1_overlay_templates[
+                t * SCENE1_OVERLAY_TEMPLATE_STRIDE + k] = v;
+        }
+    }
+}
+
 void scene1_overlay_shapes_reset(void)
 {
     memset(g_scene1_overlay_shapes, 0, sizeof g_scene1_overlay_shapes);
