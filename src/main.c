@@ -2117,10 +2117,20 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                 /* Under --input-trace-replay, drive virtual time so
                  * the tick scheduler never returns DELAYED — we want
                  * exactly one ticked frame per loop iteration, no
-                 * wall-clock gating, no Sleep. 20ms per call >
-                 * threshold[0]=16.67ms so each call is TICKED. */
+                 * wall-clock gating, no Sleep. 17ms per call >
+                 * threshold[0]=16.67ms so each call is TICKED.
+                 *
+                 * 17ms (NOT 20) is deliberate: it is byte-identical to
+                 * the retail Frida agent's turbo virtual clock
+                 * (g_turbo_step_ms=17, += per FUN_0047be92 entry), so
+                 * both sides feed the dispatcher the SAME now_ms sequence
+                 * ((N+1)*17) — the timestep is forced identical, giving a
+                 * 1:1 port↔retail frame mapping for any ms-timed logic
+                 * (animations/fades/RNG that key off tick_now_ms), not
+                 * just frame-counted sim. Don't diverge this from the
+                 * agent. */
                 if (input_harness_driven()) {
-                    uint32_t vms = (g_tick.frame_count + 1) * 20u;
+                    uint32_t vms = (g_tick.frame_count + 1) * 17u;
                     tick_step_with_now(vms,
                                        g_d3d != NULL && g_dev != NULL,
                                        &tick_cb, NULL);
