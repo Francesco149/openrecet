@@ -1356,6 +1356,14 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     )
 
 
+def _drop_frame0(frames) -> list[int]:
+    """Call-trace frame list minus frame 0 (the retail boot transient), unless
+    0 is the only frame (then keep it so the trace isn't empty)."""
+    fl = [int(f) for f in frames]
+    rest = [f for f in fl if f != 0]
+    return rest if rest else fl
+
+
 def run_capture(scenario: "Any", run_dir: Path, *,
                 remote: str = DEFAULT_REMOTE,
                 exe: Path = RETAIL_EXE,
@@ -1372,7 +1380,10 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 show_fps: bool = False,
                 force_resolution: tuple[int, int] | None = None,
                 rng_seed: int | None = None,
-                save_ref: str | None = None) -> dict:
+                save_ref: str | None = None,
+                d3d_trace: bool = False,
+                d3d_trace_verts: bool = False,
+                call_trace: bool = False) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
     Returns the meta dict that scenario-test.py writes to run.json.
@@ -1412,6 +1423,20 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         rng_seed=(rng_seed if rng_seed is not None
                   else getattr(scenario, "rng_seed", None)),
         save_ref=save_ref,
+        # Trace the captured frames (aligned port↔retail) when enabled; the
+        # call_trace_fields spec auto-loads in the core runner.
+        d3d_trace=d3d_trace,
+        d3d_trace_verts=d3d_trace_verts,
+        d3d_trace_frames=(list(scenario.capture_frames)
+                          if d3d_trace and scenario.capture_frames else None),
+        call_trace=call_trace,
+        # Drop frame 0 from the call-trace: on retail every pre-first-Present
+        # boot call (CRT/MFC + engine init, 1979 hooks) is buffered and flushed
+        # into frame 0 — millions of events that are the boot transient, never a
+        # useful comparison frame. d3d frame 0 (the first rendered title frame)
+        # is unaffected and kept.
+        call_trace_frames=(_drop_frame0(scenario.capture_frames)
+                           if call_trace and scenario.capture_frames else None),
     )
     result = _run_capture_impl(cfg, run_dir)
     meta = {

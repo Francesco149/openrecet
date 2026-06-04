@@ -287,7 +287,10 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
                                 remote: str, *,
                                 turbo: bool = False,
                                 silent_audio: bool = False,
-                                show_fps: bool = False) -> dict:
+                                show_fps: bool = False,
+                                d3d_trace: bool = False,
+                                d3d_trace_verts: bool = False,
+                                call_trace: bool = False) -> dict:
     """Drive the retail unpacked exe via Frida; capture matching artifacts.
 
     Delegates to tools/frida_capture.run_capture with input injection
@@ -329,6 +332,8 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
             # below), so RNG-driven positions are comparable, not seed-shifted.
             rng_seed=scen.rng_seed,
             save_ref=save_ref,
+            d3d_trace=d3d_trace, d3d_trace_verts=d3d_trace_verts,
+            call_trace=call_trace,
         )
 
     return frida_capture.run_capture(
@@ -344,13 +349,18 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
         # RNG-driven positions are comparable, not seed-shifted.
         rng_seed=scen.rng_seed,
         save_ref=save_ref,
+        d3d_trace=d3d_trace, d3d_trace_verts=d3d_trace_verts,
+        call_trace=call_trace,
     )
 
 
 def run_scenario_capture(scen: Scenario, run_dir: Path, *,
                          turbo: bool = False,
                          silent_audio: bool = False,
-                         show_fps: bool = False) -> dict:
+                         show_fps: bool = False,
+                         d3d_trace: bool = False,
+                         d3d_trace_verts: bool = False,
+                         call_trace: bool = False) -> dict:
     """Drive the exe through this scenario; capture frames + audio trace."""
     frames_dir   = run_dir / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
@@ -423,6 +433,27 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
     # frida_capture — the op is the single source of truth on both targets.
     if '"calltrace"' in trace_path.read_text():
         child_args += ["--call-trace", wslpath_w(run_dir / "call_trace.jsonl")]
+
+    # Explicit render/flow trace flags (scenario-test --d3d-trace / --call-trace
+    # [+ --d3d-trace-verts]). Trace the aligned capture_frames so port↔retail
+    # diff by the same indices; for segtraces the {caprange}/{calltrace} ops arm
+    # the windows, so no frame list is passed.
+    ct_frames = (",".join(str(f) for f in scen.capture_frames)
+                 if scen.capture_frames and not scen.is_segtrace else "")
+    if d3d_trace:
+        child_args += ["--d3d-trace", wslpath_w(run_dir / "d3d_trace.jsonl")]
+        if d3d_trace_verts:
+            child_args += ["--d3d-trace-verts"]
+        if ct_frames:
+            child_args += ["--d3d-trace-frames", ct_frames]
+    if call_trace and "--call-trace" not in child_args:
+        child_args += ["--call-trace", wslpath_w(run_dir / "call_trace.jsonl")]
+        # Mirror the retail side: drop frame 0 (the boot transient) so port↔
+        # retail call-traces cover the same steady frames.
+        ct_only = [f for f in scen.capture_frames if f != 0] or scen.capture_frames
+        if ct_frames:
+            child_args += ["--call-trace-frames",
+                           ",".join(str(f) for f in ct_only)]
 
     if turbo:
         child_args.append("--turbo")
@@ -895,6 +926,19 @@ def main(argv: list[str] | None = None) -> int:
                          "show_fps). Off by default (captures hide it — its "
                          "wall-clock value makes a noisy cross-target diff). Used "
                          "for the README hero shots, which want the FPS shown.")
+    ap.add_argument("--d3d-trace", action="store_true",
+                    help="capture an aligned per-draw d3d_trace.jsonl on each "
+                         "target (over the scenario's capture_frames) for "
+                         "tools/render_diff.py. The one knob — alignment, save "
+                         "virtualization, and resolution are already handled.")
+    ap.add_argument("--d3d-trace-verts", action="store_true",
+                    help="with --d3d-trace, also capture FVF-decodable vertex "
+                         "bytes so render_diff.py --explain names the first "
+                         "divergent (vertex, field).")
+    ap.add_argument("--call-trace", action="store_true",
+                    help="capture an aligned call_trace.jsonl on each target "
+                         "(with declared payloads) for tools/flow_diff.py — the "
+                         "execution+dataflow drill-in.")
     ap.add_argument("--no-regen", action="store_true",
                     help="after a --target both run, do NOT rebuild the "
                          "interactive comparison gallery "
@@ -941,12 +985,18 @@ def main(argv: list[str] | None = None) -> int:
                     m = run_scenario_capture_retail(
                         scen, sub_dir, args.frida_remote,
                         turbo=args.turbo, silent_audio=args.silent_audio,
-                        show_fps=args.show_fps)
+                        show_fps=args.show_fps,
+                        d3d_trace=args.d3d_trace,
+                        d3d_trace_verts=args.d3d_trace_verts,
+                        call_trace=args.call_trace)
                 else:
                     m = run_scenario_capture(
                         scen, sub_dir,
                         turbo=args.turbo, silent_audio=args.silent_audio,
-                        show_fps=args.show_fps)
+                        show_fps=args.show_fps,
+                        d3d_trace=args.d3d_trace,
+                        d3d_trace_verts=args.d3d_trace_verts,
+                        call_trace=args.call_trace)
                 _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
                 print(f"    exit={m['exit_code']} elapsed_ms={m['elapsed_ms']} "
                       f"captured={len(m['captured_frames'])}/{_exp}")
@@ -998,12 +1048,18 @@ def main(argv: list[str] | None = None) -> int:
             meta = run_scenario_capture_retail(
                 scen, run_dir, args.frida_remote,
                 turbo=args.turbo, silent_audio=args.silent_audio,
-                show_fps=args.show_fps)
+                show_fps=args.show_fps,
+                d3d_trace=args.d3d_trace,
+                d3d_trace_verts=args.d3d_trace_verts,
+                call_trace=args.call_trace)
         else:
             meta = run_scenario_capture(
                 scen, run_dir,
                 turbo=args.turbo, silent_audio=args.silent_audio,
-                show_fps=args.show_fps)
+                show_fps=args.show_fps,
+                d3d_trace=args.d3d_trace,
+                d3d_trace_verts=args.d3d_trace_verts,
+                call_trace=args.call_trace)
         _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
         print(f"  exit={meta['exit_code']} elapsed_ms={meta['elapsed_ms']} "
               f"captured={len(meta['captured_frames'])}/{_exp}")
