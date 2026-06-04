@@ -31,9 +31,20 @@ path that was entirely missing — the port had no live game-state arena at all
   bank 0 + seeds working slot 0 + arms the opening prologue; CONTINUE preserves
   the picker-loaded working slot, skips the reset AND the prologue. +2 tests.
 
-The picker is reachable and drives a real load; it's human-visible once its
-render lands (M2, deferred) and the loaded state shows once gameplay reads the
-working arena.
+- **M2 — picker render + END-TO-END VERIFIED (human, with the user's save).**
+  `scene_title_render` draws the picker when submenu_state==1 (functional
+  vertical-list stand-in; faithful 3-col FUN_0049b556 grid is PORT-DEBT). Booted
+  the port with the user's real save (`--save-override` the fa7c8 blob; cut trace
+  `tests/traces/save-roundtrip/trace-to-picker.jsonl`): title **LOAD GAME** →
+  picker shows **slot 1 occupied = 440 G** (others empty) → load → **HOUSE
+  free-roam with NO opening prologue** (continue path correct). Decor now sourced
+  from the loaded save (stage selector chip). **Confirmed the items-on-display
+  gap**: the back-table swords the save has out (`[O O _ _]`) do NOT render — the
+  shop-display renderer is unported (task D). Feed has the picker + loaded-shop
+  montages.
+- **stage selectors from save** (commit b23191d): `stage_init_house` reads the
+  four wall/floor/carpet/table selectors from working-bank dwords 0xb379..0xb37c
+  (first gameplay subsystem to read the working arena).
 
 - **Items-on-display RE (task D) — UNMAPPED, do not port blind.** A fan-out map
   was wrong twice: `FUN_00456f56` is the dormant CHARACTER walker (not items),
