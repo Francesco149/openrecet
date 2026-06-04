@@ -2,21 +2,25 @@
 """tools/trace_space.py — stretch a distilled segtrace's inputs for replay headroom.
 
 A TEMPORARY robustness hack (pending real menu anchors): the recorded input
-change-points fire too tightly for the replay to keep up — an action (open a
-menu, press Z on a display) lands before the player has settled/arrived, so a
-menu never opens and the {wait:ANCHOR} after it stalls. Spacing the inputs out
-(holding each state ~`--gap` frames longer) gives the player ample time to reach
-each menu/display before the next action.
+change-points fire too tightly for the replay to keep up — a MENU action lands
+before the previous animation/menu has settled, so the {wait:ANCHOR} after it
+stalls. We add headroom by spacing the IDLE GAPS between presses — but NOT the
+held inputs, because stretching a held DIRECTION changes how far the character
+walks (it then never reaches the interact spot). Per the rule:
 
-Per anchor segment, each input {frame} change-point is pushed later by an
-accumulating `gap` (so every held state — a walk, a stop, a Z hold — lasts
-longer); {esc}/{capture}/{caprange} frames are remapped onto the stretched
-timeline. {wait}/{rngseed}/{savefile} ops are untouched (anchors re-sync each
-segment, so the stretch is local and jitter-immune). Over-walking is safe in the
-collision-bounded shop (the player pins against the wall/display).
+  * a stretch held for MORE than 2 frames (a deliberate hold — movement, a held
+    direction) is PRESERVED exactly; and
+  * a stretch held for ≤2 frames (a tap, or an idle gap between presses) gets
+    `--gap` frames of headroom added AFTER it.
+
+So movement stays frame-exact (reaches the sword), while the rapid menu taps get
+breathing room. Per anchor segment; {esc}/{capture}/{caprange} frames are
+remapped onto the stretched timeline; {wait}/{rngseed}/{savefile} untouched
+(anchors re-sync each segment, so the stretch is local and jitter-immune).
 
 Usage:
     tools/trace_space.py IN.trace.jsonl -o OUT.trace.jsonl --gap 60
+    tools/trace_space.py IN -o OUT --gap 60 --hold-thresh 2
 """
 from __future__ import annotations
 
@@ -26,14 +30,20 @@ import sys
 from pathlib import Path
 
 
-def space_trace(lines: list[str], gap: int) -> list[str]:
-    out: list[str] = []
-    shift = 0  # accumulated frame shift within the current segment
+def _mask(b) -> int:
+    return int(b, 16) if isinstance(b, str) else int(b)
 
-    def remap_frame_op(o: dict, key: str) -> dict:
-        o = dict(o)
-        o[key] = int(o[key]) + shift
-        return o
+
+def space_trace(lines: list[str], gap: int) -> list[str]:
+    """Inject idle frames into the gaps where NO inputs are pressed (mask==0),
+    preserving every held-input stretch exactly. Per anchor segment: walk the
+    input change-points; when a change-point's mask is 0 (an idle gap), push all
+    subsequent ops in the segment later by `gap` (= extend that idle wait). A
+    non-zero mask (a press / held direction — movement) adds no shift, so its
+    duration to the next change-point is untouched. esc/capture/caprange frames
+    ride the accumulated shift; wait/rngseed/savefile are untouched."""
+    out: list[str] = []
+    shift = 0  # accumulated idle injected so far in the current segment
 
     for ln in lines:
         s = ln.strip()
@@ -47,13 +57,15 @@ def space_trace(lines: list[str], gap: int) -> list[str]:
             continue
 
         if "wait" in o:
-            shift = 0                      # new segment: reset the stretch
+            shift = 0                      # new segment: reset
             out.append(json.dumps(o))
         elif "buttons" in o and "frame" in o:
-            # An input change-point: emit at the shifted frame, then widen the
-            # gap so every SUBSEQUENT op in this segment is pushed further.
-            out.append(json.dumps(remap_frame_op(o, "frame")))
-            shift += gap
+            # Emit at the shifted frame. If this stretch holds NO inputs (mask 0),
+            # extend it by `gap` (inject an idle wait); held inputs are preserved.
+            out.append(json.dumps({"frame": int(o["frame"]) + shift,
+                                   "buttons": o["buttons"]}))
+            if _mask(o["buttons"]) == 0:
+                shift += gap
         elif "esc" in o:
             out.append(json.dumps({"esc": int(o["esc"]) + shift}))
         elif "capture" in o:

@@ -204,15 +204,24 @@ def emit_anchor_segments(changes, caps, escs, cts, total, anchors, rng_seed,
            " inputs/escs after it are relative to it (turbo/jitter-immune)."]
 
     def emit_window(lo, hi, first):
-        """Emit inputs/escs/caps/cts with lo <= f < hi, rebased by -lo. `first`
-        seeds the held-mask baseline at frame 0 so a hold spanning `lo` carries."""
+        """Emit inputs/escs/caps/cts in (lo, hi], rebased by -lo. `first` seeds the
+        held-mask baseline at frame 0 so a hold spanning `lo` carries.
+
+        The upper bound is INCLUSIVE (`<= hi`): an input-TRIGGERED anchor (e.g.
+        PAUSE_OPEN, opened by a Z) fires on the SAME frame as the triggering press,
+        so the press sits exactly at `hi`. Excluding it (the old `< hi`) dropped
+        the trigger — on replay the player reached the menu but never pressed the
+        button, so the anchor never fired and the {wait} stalled. Including it lets
+        the replay press the button → cause the anchor → resolve the wait. (For
+        state-triggered anchors the frame-`hi` input is just the held state
+        continuing; the next segment's baseline carries it, so no double-apply.)"""
         out.append(json.dumps({"frame": 0, "buttons": _held_mask_at(changes, lo)
                                if not first else "0x0000"}))
         for f, m in changes:
-            if lo < f < hi:
+            if lo < f <= hi:
                 out.append(json.dumps({"frame": f - lo, "buttons": m}))
         for e in escs:
-            if lo <= e < hi:
+            if lo < e <= hi:
                 out.append(json.dumps({"esc": e - lo}))
         for c in caps:
             if lo <= c < hi:
