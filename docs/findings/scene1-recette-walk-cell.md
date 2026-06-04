@@ -49,6 +49,55 @@ back-solve which of `{ANIM, FRAME, FACING}` (and which memory address) actually
 drives it. Confirm `param_1[4]`'s true address and check whether the probe is
 watching it. The pixel montage says WHICH frames; the index log says WHY.
 
+## 2026-06-04 PM re-investigation — measured findings (NOT yet resolved)
+
+Worked entirely from the cached `runs/phase-probe/house-walk-down-dense` capture
+plus a fresh 250-frame extension. Everything below is data, not eyeball.
+
+**The anim RECORD is bit-exact every frame.** Port vs retail `(anim,counter,aframe,oct)`
+match on ALL frames db054 40–84 (and the 250-frame run: `p.aframe` ALIGNED). And
+`FUN_0045a56f` computes the drawn cell *directly* from the watched `aframe`
+(`param_1[4]` = 0x56daaf8). So the cell SHOULD be a pure function of the matching
+record — yet the rendered crop diverges on ~18% of frames.
+
+**The divergence is real and in the ARMS/DRESS, not dust.** Per-band mean|Δ| on a
+matching frame: head 0.0, arms 0.0, dress ~3, feet ~12 (feet = the dust floor). On
+a flagged frame: head ~6, arms ~26, dress ~23, feet ~15. The arms/dress light up;
+the feet (dust) are the SAME on matched and flagged frames. So the reverted
+"it's just foot-dust" claim is **wrong** — confirmed by the user's eye too
+(arm bent up / boot forward).
+
+**But it is NOT a fixed wrong-cell bug — it splits into three effects:**
+
+1. **Capture-sync JITTER (±1 frame) at cycle transitions.** The flagged frames
+   *move between two runs of the same scenario*: the 45-frame run flagged db054
+   {42,51,60,69}; the 250-frame run flagged {41} and cleared {42,51,60,69}. A
+   deterministic engine cell bug would flag the SAME frames every run. Shifting
+   flags = the port and retail *screenshot streams* are ±1 frame out of phase at
+   walk-cycle transitions (invisible on plateaus, a 1-cell mismatch at edges).
+
+2. **A STABLE 1-frame component at the counter-WRAP frames.** db054 {50,59,68}
+   (last frame of each aframe plateau, counter at max, about to wrap) diverge in
+   BOTH runs. This is the candidate *real* signal: on the wrap frame retail's
+   drawn cell may advance to the next aframe while the port's doesn't (or vice
+   versa) — a draw-vs-anim-tick ORDER difference of 1 frame. Entangled with (1),
+   so not yet proven.
+
+3. **A cumulative RNG desync from db054≈88.** `phase_probe` VERDICT = LOGIC DRIFT:
+   `rngcalls` DESYNC at db054=88 (port consumes +1 RNG call), after which the
+   crop diverges continuously (88 frames straight in the 250-run). This is the
+   known free-roam RNG over-consumption ([[scene1-rng-stream-parity]]),
+   garbling all *late* frames — separate from the walk cell.
+
+**Decisive test still owed (do NOT close without it):** instrument the actual
+walk-cell INDEX the code computes on BOTH sides — port: log `cell`/`aframe`-at-draw
+in `chr_sprite_build_quads` keyed by db054; retail: Frida hook `FUN_0045a56f`
+@0x45a5b6 logging `param_1[4]` + `iVar14` per call — and diff by db054. That
+removes ALL capture-sync ambiguity: if the computed cell indices match every
+frame, the cell IS 1:1 and the pixel blips are capture timing (effects 1+2 are
+tooling); if they differ at wrap frames, effect 2 is a real engine draw/tick-order
+bug to fix. **Until that test runs, the walk cell stays OPEN / NOT-confirmed.**
+
 ## The finding (and the correction it forces)
 
 `phase_probe house-walk-down-dense` reports the PLAYER anim **record** fields
