@@ -442,6 +442,8 @@ let g_device_inst = null;  // NativePointer — IDirect3DDevice8*
 let g_present_hooked = false;
 let g_capture_pending = new Set();  // frame numbers to dump on next Present
 let g_capture_all = false;          // if true, dump every Present
+let g_capture_stride = 1;           // with capture_all: capture every Nth frame
+let g_capture_dir = null;           // Windows dir: write raw frames here (no Frida xfer)
 let g_max_frames = 0;               // 0 = no cap; stop = die after that many sim frames
 
 // TAS save virtualization. When set (Windows path to a per-run sandbox dir),
@@ -1193,6 +1195,26 @@ function captureBackbuffer(devicePtr, frameNumber, captureVals) {
             }
             const ab = blob.readByteArray(total);
 
+            // Same-machine fast path: when a capture dir is set, write the raw
+            // BGRX blob straight to a WSL-accessible file (the agent runs on the
+            // same host as WSL) instead of shipping ~3 MB/frame over the Frida
+            // channel. Python reads the .raw files afterwards. Filename carries
+            // w×h so the reader needs no sidecar. Enables whole-trace capture.
+            if (g_capture_dir) {
+                try {
+                    const name = 'frame_' + ('00000' + frameNumber).slice(-5) +
+                                 '_' + w + 'x' + h + '.raw';
+                    const f = new File(g_capture_dir + '\\' + name, 'wb');
+                    f.write(ab);
+                    f.close();
+                    // Lightweight notify (no pixel payload) so Python records the
+                    // frame + its capture-time watch vals without the transfer.
+                    send({kind: 'frame_file', frame: frameNumber, w: w, h: h,
+                          file: name, t_ms: nowMs(), vals: captureVals || null});
+                } catch (e) { err('captureBackbuffer/file', e.message); }
+                return;
+            }
+
             send({
                 kind:  'frame',
                 frame: frameNumber,
@@ -1236,7 +1258,13 @@ function installPresentHook(devicePtr) {
             // of this onEnter — see the comment on g_manual_frame_counter
             // for why we don't trust engine-side DAT_073dfcfc here.
             const fn = frameNo();
-            const want = g_capture_all || g_capture_pending.has(fn);
+            // capture_all honours an optional stride (every Nth frame) so a
+            // whole-trace replay can be sampled at a transfer-feasible rate over
+            // remote Frida (each frame ships ~3 MB of RGBA). stride<=1 = every
+            // frame. Explicit g_capture_pending frames always capture.
+            const want = g_capture_pending.has(fn) ||
+                (g_capture_all && (g_capture_stride <= 1 ||
+                                   (fn % g_capture_stride) === 0));
             if (want) {
                 // Read the watched sim-state HERE (Present onEnter, post-render)
                 // so the screenshot carries its own atomic state label. The
@@ -4039,6 +4067,9 @@ rpc.exports = {
             for (const f of config.capture_frames) g_capture_pending.add(f);
         }
         g_capture_all = !!config.capture_all;
+        g_capture_stride = (config.capture_stride | 0) > 0 ? (config.capture_stride | 0) : 1;
+        g_capture_dir = (typeof config.capture_dir === 'string'
+                         && config.capture_dir) ? config.capture_dir : null;
         g_max_frames  = config.max_frames | 0;
         g_save_sandbox = (typeof config.save_sandbox === 'string'
                           && config.save_sandbox) ? config.save_sandbox : null;

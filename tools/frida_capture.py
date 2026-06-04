@@ -193,6 +193,8 @@ def write_bmp_topdown_bgra(path: Path, w: int, h: int, pixels: bytes) -> None:
 @dataclass
 class CaptureConfig:
     capture_frames: list[int] = field(default_factory=list)
+    capture_all: bool = False      # capture every (strided) frame — whole-trace view
+    capture_stride: int = 1        # with capture_all: every Nth frame
     max_frames:     int = 60
     duration_ms:    int = 30_000   # wall-clock ceiling
     remote:         str = DEFAULT_REMOTE
@@ -545,6 +547,19 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             # Capture-time sim-state label (Present onEnter, post-render) — the
             # screenshot's OWN db054/aframe/etc., atomic with the pixels. Align
             # screenshots by THIS, not the per-tick watch.jsonl (turbo-robust).
+            cvals = p.get("vals")
+            if cvals is not None and f_frames_meta is not None:
+                f_frames_meta.write(json.dumps({"frame": frame, "vals": cvals}) + "\n")
+            return
+
+        if kind == "frame_file":
+            # Same-machine fast path: the agent already wrote the raw BGRX blob to
+            # <frames_dir>/<file>. Just record the frame (no transfer); the .raw is
+            # converted to PNG after the run.
+            frame = int(p["frame"])
+            captured.append(frame)
+            last_engine_frame = max(last_engine_frame, frame)
+            f_log.write(f"[frame_file] {p.get('file')} {p.get('w')}x{p.get('h')}\n")
             cvals = p.get("vals")
             if cvals is not None and f_frames_meta is not None:
                 f_frames_meta.write(json.dumps({"frame": frame, "vals": cvals}) + "\n")
@@ -1058,6 +1073,12 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     t0 = time.monotonic()
     init_cfg: dict[str, Any] = {
         "capture_frames": list(cfg.capture_frames),
+        "capture_all":    bool(cfg.capture_all),
+        "capture_stride": int(cfg.capture_stride),
+        # Whole-trace capture: the agent writes raw frames straight to the
+        # (WSL-accessible) frames dir instead of shipping each over Frida. Only
+        # for capture_all (scenario windowed captures keep the message path).
+        "capture_dir":    (wslpath_w(frames_dir) if cfg.capture_all else ""),
         "max_frames":     cfg.max_frames,
         "input_trace":    trace_entries,
         "force_input":    bool(cfg.force_input),
@@ -1263,6 +1284,29 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     if f_frames_meta is not None:
         f_frames_meta.close()
 
+    # Whole-trace capture: the agent wrote raw BGRX frames straight to disk
+    # (frame_NNNNN_WxH.raw). Convert them to PNG here (same BGRX→PNG path the
+    # 'frame' message uses), then drop the .raw. Done in frame order.
+    raws = sorted(frames_dir.glob("frame_*_*x*.raw"),
+                  key=lambda p: int(p.name.split("_")[1]))
+    if raws:
+        import re as _re
+        n_conv = 0
+        for rp in raws:
+            m = _re.match(r"frame_(\d+)_(\d+)x(\d+)\.raw", rp.name)
+            if not m:
+                continue
+            fr, w, h = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            data = rp.read_bytes()
+            if len(data) != w * h * 4:
+                f_log.write(f"[raw->png] {rp.name} bad size {len(data)} "
+                            f"(expect {w*h*4})\n")
+                continue
+            frame_io.write_frame_png(frames_dir / f"frame_{fr:05d}.png", w, h, data)
+            rp.unlink()
+            n_conv += 1
+        f_log.write(f"[raw->png] converted {n_conv} raw frame(s) → PNG\n")
+
     # Tile captured frames into 3x3 montage PNG(s) under run_dir. (Auto-open in
     # the Windows viewer was removed — push the montage to the llm-feed to view.)
     if cfg.montage and captured:
@@ -1368,6 +1412,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="where to write frames/audio.jsonl/trace.jsonl/agent.log")
     ap.add_argument("--capture-frames", default="",
                     help="comma-separated engine-frame indices to capture")
+    ap.add_argument("--capture-all", action="store_true",
+                    help="capture the WHOLE run (every Nth frame, see "
+                         "--capture-stride) — for verifying a full trace replay")
+    ap.add_argument("--capture-stride", type=int, default=1,
+                    help="with --capture-all, capture every Nth frame (keeps the "
+                         "~3 MB/frame transfer feasible over remote Frida)")
     ap.add_argument("--max-frames", type=int, default=60)
     ap.add_argument("--duration-ms", type=int, default=30_000)
     ap.add_argument("--no-auto-start", action="store_true",
@@ -1675,6 +1725,8 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = CaptureConfig(
         capture_frames=capture_frames,
+        capture_all=args.capture_all,
+        capture_stride=args.capture_stride,
         max_frames=args.max_frames,
         duration_ms=(600_000 if (args.record_trace is not None
                                   and args.duration_ms == 30_000)
