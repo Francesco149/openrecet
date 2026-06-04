@@ -128,6 +128,23 @@ Parser/struct: `src/input_segtrace.{c,h}` (host-tested in
 A trace can carry the exact save it ran against and force the game to load THAT
 save on replay, ignoring whatever `save.dat` is on disk. This is what lets a
 "continue an existing save" trace replay deterministically from any game state.
+**Replay NEVER reads or writes the user's real save** — both targets sandbox all
+save I/O into a per-run dir.
+
+- **Three save modes** (the trace's `{savefile}` op): `@fresh` (boot with no save →
+  fresh menu, no LOAD GAME — all current new-game scenarios); a `<blob>` ref
+  (decompressed embedded save → "continue" traces); or absent (legacy). Mark a
+  trace fresh: `tools/trace_embed_save.py --fresh <trace.jsonl>`.
+- **Write protection**: every replay sandboxes writes. Port: `--save-write-dir
+  <dir>`. Retail: the agent hooks `CreateFileW/A` and redirects `save.dat`/
+  `_save.dat` into `<run>/saveout`. `run-openrecet.sh` sandboxes writes by default
+  (pass `--save-write` to write the real save). So a recording can't clobber the
+  real save either.
+- **Multi-save recordings**: the recorder captures each save the game writes
+  (`{save_write}` rows → `*-recsave-N.bin`); `distill_trace.py` folds them into a
+  `<trace>.saves.json` sidecar. Replay reproduces the saves live (the sandbox is
+  the virtual save state), so loads naturally read the last-written save — the
+  sidecar is the ground truth for divergence verification.
 
 - **Storage:** the save blob is gzip-compressed + content-addressed as
   `<sha256>.sav.gz` (sha over the raw 18 MB arena), in a shared store
