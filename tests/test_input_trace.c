@@ -75,6 +75,28 @@ int test_input_trace_parse_skips_comments_and_blank_lines(void)
     return 0;
 }
 
+int test_input_trace_parse_skips_savefile_op(void)
+{
+    /* A TAS save-interception {savefile} op embedded into a legacy
+     * (absolute-frame) trace must be SKIPPED, not abort the load — else
+     * replay is disabled and no input reaches the sim (the title-scenario
+     * "controls dead under replay" regression). The frame/buttons entries
+     * around it parse normally. */
+    const char buf[] =
+        "# embedded save\n"
+        "{\"savefile\":\"../_saves/abc123.sav.gz\"}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n"
+        "{\"frame\":30,\"buttons\":\"0x0008\"}\n";
+    struct input_trace tr = {0};
+    T_ASSERT(input_trace_parse_buf(buf, sizeof(buf) - 1, &tr) == 1);
+    T_ASSERT_EQ_U(tr.count, 2);
+    T_ASSERT_EQ_U(tr.entries[0].frame, 0);
+    T_ASSERT_EQ_U(tr.entries[1].frame, 30);
+    T_ASSERT_EQ_U(tr.entries[1].mask, 0x0008);
+    input_trace_free(&tr);
+    return 0;
+}
+
 int test_input_trace_parse_buttons_key_first_also_works(void)
 {
     /* The two keys may appear in either order. */

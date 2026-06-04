@@ -399,6 +399,7 @@ struct test_case {
     X(input_trace_parse_sparse_three_lines) \
     X(input_trace_parse_decimal_buttons) \
     X(input_trace_parse_skips_comments_and_blank_lines) \
+    X(input_trace_parse_skips_savefile_op) \
     X(input_trace_parse_buttons_key_first_also_works) \
     X(input_trace_parse_rejects_out_of_order_frames) \
     X(input_trace_parse_rejects_duplicate_frames) \

@@ -245,6 +245,27 @@ static int trace_push(struct input_trace *out, struct input_trace_entry e)
     return 1;
 }
 
+/* True if the object at `p` is a trace-global op the absolute-frame replay
+ * doesn't model and should SKIP (not error on). Currently just the TAS
+ * save-interception `{"savefile":...}` op, which the segtrace parser stores
+ * but the legacy parser has no use for. Without this skip, embedding a save
+ * into a legacy (absolute-frame) trace fails the whole load — disabling
+ * replay so no input is delivered (the title scenarios' "controls dead under
+ * replay" bug). Mirrors input_segtrace's savefile handling. */
+static int line_is_skippable_op(const char *p, const char *end)
+{
+    if (p >= end || *p != '{') return 0;
+    p++;
+    while (p < end && (*p == ' ' || *p == '\t')) p++;
+    if (p >= end || *p != '"') return 0;
+    p++;
+    const char *ks = p;
+    while (p < end && *p != '"') p++;
+    if (p >= end) return 0;
+    size_t klen = (size_t)(p - ks);
+    return klen == 8 && memcmp(ks, "savefile", 8) == 0;
+}
+
 int input_trace_parse_buf(const char *buf, size_t len, struct input_trace *out)
 {
     if (!buf || !out) return 0;
@@ -261,6 +282,14 @@ int input_trace_parse_buf(const char *buf, size_t len, struct input_trace *out)
     for (;;) {
         skip_ws_and_comments(&p, end);
         if (p >= end) break;
+
+        /* Skip trace-global op lines (e.g. {"savefile":...}) the legacy
+         * frame/buttons parser doesn't model, so an embedded save doesn't
+         * disable replay. Advance past the line. */
+        if (line_is_skippable_op(p, end)) {
+            while (p < end && *p != '\n') p++;
+            continue;
+        }
 
         struct input_trace_entry e = {0};
         if (!parse_entry(&p, end, &e)) return 0;
