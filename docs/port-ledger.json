@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 73,
   "stubbed": 17,
-  "ported": 331,
-  "unported": 2127,
+  "ported": 333,
+  "unported": 2125,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 421,
-  "pct_touched": 16.5,
+  "touched": 423,
+  "pct_touched": 16.6,
   "pct_verified": 2.9,
   "port_debt": 11
  },
@@ -2540,8 +2540,10 @@
    "size": 127,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_continue_picker.c"
+   ]
   },
   {
    "va": "0x434d6a",
@@ -8576,7 +8578,9 @@
    "status": "ported",
    "src": [
     "src/save_work.c",
-    "src/save_work.h"
+    "src/save_work.h",
+    "src/title_continue_picker.c",
+    "src/title_continue_picker.h"
    ]
   },
   {
@@ -9412,6 +9416,7 @@
     "src/scene1_records_b_tick.h",
     "src/scene_title.c",
     "src/scene_title.h",
+    "src/title_continue_picker.c",
     "src/title_save_dialog.c"
    ]
   },
@@ -9679,8 +9684,11 @@
    "size": 67,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/title_continue_picker.c",
+    "src/title_continue_picker.h"
+   ]
   },
   {
    "va": "0x49b537",
@@ -9690,7 +9698,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene_title.c"
+    "src/scene_title.c",
+    "src/title_continue_picker.c",
+    "src/title_continue_picker.h"
    ]
   },
   {

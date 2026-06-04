@@ -1000,6 +1000,18 @@ struct test_case {
     X(save_work_load_slot_bad_source_is_noop) \
     X(save_work_sync_from_save_copies_whole_arena) \
     \
+    X(picker_open_identity_and_cursor) \
+    X(picker_open_clamps_scroll) \
+    X(picker_open_overwrite_mode) \
+    X(picker_cursor_down_up) \
+    X(picker_cursor_right_arms_column_scroll) \
+    X(picker_cursor_left_arms_column_scroll) \
+    X(picker_cursor_clamps_at_ends) \
+    X(picker_scroll_anim_commits_after_5) \
+    X(picker_confirm_occupied_loads) \
+    X(picker_confirm_empty_slot_rejected) \
+    X(picker_cancel) \
+    \
     X(font_init_zeros_state) \
     X(font_init_is_idempotent) \
     X(font_age_tick_advances_in_use_only) \

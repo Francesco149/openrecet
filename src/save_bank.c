@@ -90,6 +90,8 @@ int      save_header_get_se_slider(void)    { return (int)header_dwords()[1]; }
 int      save_header_get_bgm_slider(void)   { return (int)header_dwords()[2]; }
 int      save_header_get_se_b_slider(void)  { return (int)header_dwords()[3]; }
 int      save_header_get_slider3(void)      { return (int)header_dwords()[5]; }
+int      save_header_get_last_slot(void)    { return (int)header_dwords()[SAVE_HEADER_FIELD_LAST_SLOT]; }
+void     save_header_set_last_slot(int v)   { header_dwords()[SAVE_HEADER_FIELD_LAST_SLOT] = (uint32_t)v; }
 
 static int clamp_slider(int v)
 {

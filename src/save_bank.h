@@ -139,6 +139,11 @@
 #define SAVE_HEADER_SE_B_DEFAULT     9
 #define SAVE_HEADER_SLIDER3_DEFAULT  1
 
+/* Shared-header dword index of the "last-used save slot" the continue
+ * picker seeds its cursor from. Engine `DAT_056e578c` (= header + 0x1c
+ * = dword 7; header dword 6 / DAT_056e5788 is the hidden-char unlock). */
+#define SAVE_HEADER_FIELD_LAST_SLOT  7
+
 /* ── Arena access ── */
 
 /* Returns a pointer to the start of the shared header (== base of the
@@ -231,6 +236,8 @@ void     save_header_set_se_slider(int v);
 void     save_header_set_bgm_slider(int v);
 void     save_header_set_se_b_slider(int v);
 void     save_header_set_slider3(int v);
+int      save_header_get_last_slot(void);
+void     save_header_set_last_slot(int v);
 
 /* ── Test helpers ── */
 
