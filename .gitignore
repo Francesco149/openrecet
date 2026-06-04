@@ -18,6 +18,16 @@ tests/scenarios/**/golden/
 # Frida agent. Same redistribution concern: vendor texture bytes.
 tests/scenarios/**/golden-retail/
 
+# ─── TAS save-interception blobs (user save data; never auto-commit) ──────
+# Content-addressed save blobs a trace embeds (tools/trace_save.py) + the raw
+# snapshot the recorder dumps. These hold the user's personal save state, so
+# they stay out of git by default; a specific blob is committed deliberately
+# only if a trace genuinely needs it to replay (and the user OKs sharing it).
+tests/scenarios/_saves/
+*.sav.gz
+*.save.bin
+openrecet-trace-*.raw.jsonl
+
 # ─── Ghidra projects (large, contain analysis state derived from original) ─
 ghidra/projects/
 ghidra/*.rep/
