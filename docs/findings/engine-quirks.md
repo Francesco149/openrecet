@@ -3772,3 +3772,28 @@ consumes the step (`(void)rng_next15()` at the default-arm tail) but renders
 nothing, which is what the retail build does. After that, `phase_probe
 house-walk-down-dense` reports `rng` **and** `rngcalls` ALIGNED (bit-exact LCG
 state at every db054). See `docs/findings/freeroam-rng-consumption.md`.
+
+**Seeing it on retail (confirmed 2026-06-04).** The grid IS drawn by
+`FUN_00451ea7`, gated at its call site by `if (DAT_06a49938 == 1)` — and
+`DAT_06a49938` is the same debug-menu activation gate `debug_param_tick.c`
+documents as BSS-zero in normal play. Force it on with the Frida `{poke}`
+segtrace op (sticky u32 write):
+
+```
+{"poke": [1545, 111450424, 1]}    # 111450424 == 0x06a49938, after HOUSE_FREEROAM
+```
+
+and the overlay appears: the live player coords render as
+`X: -0.300000 / Y: 0.000000 / Z: 9.500000` (= `DAT_056da1d8/dc/e0`), the per-frame
+`%d` rng value on the row above, plus a debug tile-grid top-right. Visual pushed to
+the llm-feed (2026-06-04). So the quirk isn't theoretical — it's a real, fully
+wired dev HUD the retail build simply never flips on.
+
+The grid `DAT_06a47aac` is a **shared** debug text-buffer: `FUN_00451874` (the
+80-col char-grid writer) is called from ~15 sites across subsystems, so the live
+overlay also shows event-script state, message/dialogue counters, a `muteki`
+(無敵 = "invincible") debug-godmode flag, free-texture/handle counts, etc. — each
+subsystem scribbles its own row. Only the X/Y/Z+rng row is traced here (it's the
+one that touches the determinism stream via §95's per-frame LCG step); the rest is
+a grab-bag dev readout. The labels render through the engine's 8×8 **ASCII** font
+atlas (so the JP fields show as romaji).

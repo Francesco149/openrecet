@@ -735,7 +735,8 @@ let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows a
 //                    segment's anchor) — anchor-relative, no absolute frames
 function segtraceBuildSegments(ops) {
     const seg0 = () => ({entries: [], captures: [], capranges: [], calltraces: [],
-                         setrngs: [], escs: [], phasepins: [], wait: null, wait_until: null});
+                         setrngs: [], escs: [], phasepins: [], pokes: [],
+                         wait: null, wait_until: null});
     const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
         const op = ops[i];
@@ -774,6 +775,13 @@ function segtraceBuildSegments(ops) {
             segs[segs.length - 1].setrngs.push(
                 {frame: op.rngseed[0] | 0, value: op.rngseed[1] >>> 0,
                  fired: false});
+        } else if (op && op.poke !== undefined && Array.isArray(op.poke)) {
+            // {poke:[frame, va, val]} — STICKY: from the base-relative `frame`
+            // on, write u32 `val` into Ghidra-VA `va` every frame. Holds a flag
+            // set (e.g. the debug-overlay gate DAT_06a49938=1) against any engine
+            // reset. Distinct from {rngseed}/{phasepin}, which fire exactly once.
+            segs[segs.length - 1].pokes.push(
+                {frame: op.poke[0] | 0, va: op.poke[1] | 0, val: op.poke[2] >>> 0});
         } else if (op && op.esc !== undefined) {
             // {esc:N} — synthesise an ESC keypress at the base-relative frame N,
             // mirroring the port's {esc} op so a recorded dialogue-skip replays
@@ -2204,6 +2212,21 @@ function segtraceTick(fn) {
                 sr.fired = true;
                 log('segtrace: forced rng seed = ' + (sr.value >>> 0) +
                     ' at frame ' + fn + ' (base+' + sr.frame + ')');
+            }
+        }
+        // {poke} STICKY writes: hold a u32 global at `val` every frame from
+        // base+frame on (e.g. enable the debug-overlay gate DAT_06a49938=1).
+        for (let i = 0; i < seg.pokes.length; i++) {
+            const pk = seg.pokes[i];
+            if (g_segtrace_base + pk.frame <= fn) {
+                try { rva(pk.va).writeU32(pk.val); }
+                catch (ex) { err('segtrace-poke', ex.message); }
+                if (!pk.logged) {
+                    pk.logged = true;
+                    log('segtrace: poke 0x' + (pk.va >>> 0).toString(16) +
+                        ' = ' + pk.val + ' (sticky) from frame ' + fn +
+                        ' (base+' + pk.frame + ')');
+                }
             }
         }
         // ESC synthesis fires in the same pre-sim window (mirrors the port's

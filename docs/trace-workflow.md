@@ -111,6 +111,7 @@ Frida agent mirrors them (TODO: `FREEROAM_START` not yet on the retail side).
 | `{"rngseed":[frame,value]}` | force the LCG state to `value` at base+frame (before that frame's sim). |
 | `{"esc":N}` | synthesise the engine ESC dispatch at base+N (arms the skip prompt in-event; quits at the title). |
 | `{"calltrace":N}` or `[start,len]` | arm the call tracer for an anchor-relative window. |
+| `{"poke":[frame,va,val]}` | **RETAIL-ONLY** — sticky u32 write: hold global `va` (decimal Ghidra VA) at `val` every frame from base+frame on. Use to flip an engine flag that has no input path, e.g. enable the dev coord overlay with `[1545, 111450424, 1]` (`0x06a49938=1`; engine-quirks §95). No port mirror. |
 | `{"gframe":[frame,value]}` | **EXPERIMENTAL** — pin `g_tick.frame_count` to `value` at base+frame (for frame-count-derived state like the time-of-day HUD clock). **Do NOT combine with `{caprange}`** — the caprange window is computed from the real anchor frame but `capture_in_range` tests the pinned counter, so capture breaks. |
 
 Button bits (`src/input.c`): UP `0x04`, RIGHT `0x01`, DOWN `0x08`, LEFT `0x02`,

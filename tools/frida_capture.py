@@ -935,6 +935,14 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # {esc:N} — synthesise an ESC keypress at base+N (dialogue-skip
                 # replay), mirroring the port's {esc} op.
                 segtrace_ops.append({"esc": int(rec["esc"])})
+            elif "poke" in rec:
+                # {poke:[frame, va, val]} — STICKY u32 write: hold global `va` at
+                # `val` every frame from base+frame on (e.g. enable the debug-
+                # overlay gate DAT_06a49938=1). Retail-only; no port mirror.
+                pk = rec["poke"]
+                segtrace_ops.append({"poke": [int(pk[0]),
+                                              int(pk[1]) & 0xffffffff,
+                                              int(pk[2]) & 0xffffffff]})
             elif "phasepin" in rec:
                 # {phasepin:N} — at base+N, zero the companion's load-dependent
                 # free-roam phase (db054 + anim cycle) so a port↔retail trace
