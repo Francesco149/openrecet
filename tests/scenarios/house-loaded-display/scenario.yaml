@@ -1,0 +1,7 @@
+# house-loaded-display — load the user's save and watch the shop-display
+# sparkle (目玉商品, template 0x3b) over the back-table swords (cols 1,2,4).
+description: |
+  Continue/load the fa7c82 save → HOUSE free-roam with 3 swords on the back
+  stand; capture LOADING_END+120..168 to eyeball the per-item sparkle emitter.
+max_frames: 22000   # turbo load-stretch headroom (matches the save-roundtrip runs)
+duration_ceiling_ms: 180000
