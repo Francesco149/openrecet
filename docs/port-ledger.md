@@ -10,11 +10,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **424** (16.6%) — verified 73, stubbed 17, ported 334
+- touched: **424** (16.6%) — verified 72, stubbed 17, ported 335
 - unported: **2124**
 - orphan refs (in src/, not in function table): 7
 
-## verified (73) — runtime-diffed vs retail
+## verified (72) — runtime-diffed vs retail
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -43,7 +43,6 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x442cef | FUN_00442cef | 2490 | ✓ | scene1_sim.c |
 | 0x451874 | FUN_00451874 | 47 | ✓ | audio_mci.c |
 | 0x4523e6 | FUN_004523e6 | 387 | ✓ | scene1_fps.c |
-| 0x4526ab | FUN_004526ab | 74 | ✓ | fade.c |
 | 0x4526f5 | FUN_004526f5 | 276 | ✓ | fade.c |
 | 0x45281c | FUN_0045281c | 151 | ✓ | fade.c |
 | 0x4528b3 | FUN_004528b3 | 47 | ✓ | fade.c |
@@ -114,7 +113,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (334) — reimplemented, no probe yet
+## ported (335) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -229,6 +228,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x451863 | FUN_00451863 | 17 | ✓ | audio_mci.c, audio_mci.h, main.c |
 | 0x451ea7 | FUN_00451ea7 | 1343 | ✓ | audio_mci.h |
 | 0x452569 | FUN_00452569 | 312 | ✓ | prewindow.c, prewindow.h |
+| 0x4526ab | FUN_004526ab | 74 | ✓ | fade.c, fade.h, sim.c |
 | 0x452911 | FUN_00452911 | 6 | ✓ | esc_dispatch.c, esc_dispatch.h, music.c (+2) |
 | 0x452d07 | FUN_00452d07 | 55 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x452d3e | FUN_00452d3e | 71 | ✓ | scene_buy.h, worker_load.c |

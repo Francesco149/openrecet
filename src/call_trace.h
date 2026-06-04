@@ -101,4 +101,35 @@ void call_trace_enter(uint32_t ghidra_va, const void *ret_addr, int stub);
 #define CALL_TRACE_ENTER_STUB(ghidra_va) \
     call_trace_enter((uint32_t)(ghidra_va), __builtin_return_address(0), 1)
 
+/* ── field-bearing event (BEGIN/FIELD/END) ─────────────────────────────────
+ * Emit a call event carrying a DECLARED PAYLOAD — the salient inputs/state the
+ * function used — so tools/flow_diff.py can match the data moved, not just that
+ * the function ran.  The retail side declares the same-named fields in
+ * tools/flow/retail_fields.json (joined by va + field-name).  See
+ * docs/plans/execution-flow-trace.md.
+ *
+ * Usage (at function entry, BEFORE any traced sub-call):
+ *     CALL_TRACE_BEGIN(0x48670f);
+ *     CALL_TRACE_I32("col", col);
+ *     CALL_TRACE_F32("rng0", rng0);
+ *     CALL_TRACE_END();
+ *
+ * Each field is captured at the call site (exact C values — free + precise).
+ * Like the ENTER probes these compile to a cheap gated no-op when --call-trace
+ * is off.  CALL_TRACE_ENTER(va) remains the no-payload form. */
+void call_trace_begin(uint32_t ghidra_va, const void *ret_addr);
+void call_trace_field_i32(const char *name, int32_t v);
+void call_trace_field_u32(const char *name, uint32_t v);
+void call_trace_field_f32(const char *name, float v);
+void call_trace_field_hex(const char *name, uint32_t v);
+void call_trace_end(void);
+
+#define CALL_TRACE_BEGIN(ghidra_va) \
+    call_trace_begin((uint32_t)(ghidra_va), __builtin_return_address(0))
+#define CALL_TRACE_I32(name, v) call_trace_field_i32((name), (int32_t)(v))
+#define CALL_TRACE_U32(name, v) call_trace_field_u32((name), (uint32_t)(v))
+#define CALL_TRACE_F32(name, v) call_trace_field_f32((name), (float)(v))
+#define CALL_TRACE_HEX(name, v) call_trace_field_hex((name), (uint32_t)(v))
+#define CALL_TRACE_END()        call_trace_end()
+
 #endif /* OPENRECET_CALL_TRACE_H */

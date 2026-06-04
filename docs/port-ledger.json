@@ -4,14 +4,14 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 73,
+  "verified": 72,
   "stubbed": 17,
-  "ported": 334,
+  "ported": 335,
   "unported": 2124,
   "orphan_refs_not_in_function_table": 7,
   "touched": 424,
   "pct_touched": 16.6,
-  "pct_verified": 2.9,
+  "pct_verified": 2.8,
   "port_debt": 11
  },
  "orphan_refs": [
@@ -3768,9 +3768,11 @@
    "size": 74,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "verified",
+   "status": "ported",
    "src": [
-    "src/fade.c"
+    "src/fade.c",
+    "src/fade.h",
+    "src/sim.c"
    ]
   },
   {

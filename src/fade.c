@@ -56,8 +56,15 @@ void fade_phase_out_start(int32_t mode, int32_t duration)
 
 void fade_tick(void)
 {
-    /* E.2 probe — FUN_004526ab @ 0x4526ab. */
-    CALL_TRACE_ENTER(0x4526abu);
+    /* E.2 probe — FUN_004526ab @ 0x4526ab.  Flow-trace seed: capture the
+     * fade state this tick consumes (the "data used") as a declared payload
+     * — retail mirror in tools/flow/retail_fields.json. */
+    CALL_TRACE_BEGIN(0x4526abu);
+    CALL_TRACE_I32("phase",    g_fade_phase);
+    CALL_TRACE_I32("counter",  g_fade_counter);
+    CALL_TRACE_I32("duration", g_fade_duration);
+    CALL_TRACE_I32("mode",     g_fade_mode);
+    CALL_TRACE_END();
 
     if (g_fade_phase == 0) return;
 
