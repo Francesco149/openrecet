@@ -3398,9 +3398,10 @@ static void segtrace_gframe_cb(uint32_t value, void *user)
 static void segtrace_phasepin_cb(void *user)
 {
     (void)user;
-    fprintf(stderr, "segtrace: phasepin — companion phase reset to 0 "
+    fprintf(stderr, "segtrace: phasepin — player+companion phase reset to 0 "
             "(db054 was %d)\n", scene1_companion_db054());
     scene1_companion_ctrl_phasepin();
+    player_ctrl_phasepin();   /* actor-0 anim cycle — normalizes the IDLE origin */
 }
 
 /* Capture-range sink for input_segtrace `{caprange:[start,count]}` ops: open

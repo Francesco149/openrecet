@@ -2251,12 +2251,18 @@ function segtraceTick(fn) {
                 rva(0x056dab50).writeS32(0);   // companion anim FRAME
                 rva(0x056dab48).writeS32(0);   // companion anim TIMER (float 0.0 == 0)
                 rva(0x056dab4c).writeS32(0);   // companion anim COUNTER
+                // player (actor 0) anim cycle — the i*0x2c mirror of the above;
+                // normalizes Recette's load-dependent IDLE phase origin so a
+                // pure-idle comparison is phase-clean (mirrors player_ctrl_phasepin).
+                rva(0x056daaf8).writeS32(0);   // player anim FRAME
+                rva(0x056daaf0).writeS32(0);   // player anim TIMER (float 0.0 == 0)
+                rva(0x056daaf4).writeS32(0);   // player anim COUNTER
                 pp.fired = true;
                 if (g_rng_cs_len > 0) {           // arm call-site capture from here
                     g_rng_cs_lo = fn; g_rng_cs_hi = fn + g_rng_cs_len;
                     g_rng_cs_buf = {}; g_rng_cs_flushed = false;
                 }
-                log('segtrace: phasepin - companion phase reset to 0 (db054 was ' +
+                log('segtrace: phasepin - player+companion phase reset to 0 (db054 was ' +
                     was + ') at frame ' + fn + ' (base+' + pp.frame + ')'
                     + (g_rng_cs_len > 0 ? ' [rng-callsites ' + g_rng_cs_lo + '..'
                        + g_rng_cs_hi + ']' : ''));

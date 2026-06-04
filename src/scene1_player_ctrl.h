@@ -347,6 +347,12 @@ const int32_t *player_ctrl_actor_record(int i);
  * range.  PC_ACTOR_REC_DWORDS dwords. */
 int32_t       *player_ctrl_actor_record_mut(int i);
 
+/* Trace-harness `{phasepin}` for the player (actor 0): zero the anim cycle
+ * (FRAME/TIMER/COUNTER) so an IDLE-window port↔retail comparison normalizes the
+ * load-dependent phase origin (the companion twin lives in scene1_companion_ctrl).
+ * Comparison ONLY — the shipped game keeps the free-running cycle. */
+void           player_ctrl_phasepin(void);
+
 /* ── FUN_0048b850 tail render banks (Chip 2) ─────────────────────────────────
  * The two after-image banks the chr-sprite walker (FUN_00456f56) draws, owned
  * and written by the b850 tail (player_ctrl_b850_render_tail, engine all.c

@@ -494,6 +494,28 @@ int32_t *player_ctrl_actor_record_mut(int i)
     return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_record[i] : NULL;
 }
 
+/* Trace-harness phase normalization (the segtrace `{phasepin}` op) for the
+ * PLAYER (actor 0).  The companion side resets its own cycle in
+ * scene1_companion_ctrl_phasepin; this is the player twin.  Recette's idle
+ * breathing / walk anim cycle (FRAME/TIMER/COUNTER) free-runs from a seed laid
+ * at scene entry, so at free-roam onset its phase ORIGIN depends on how long the
+ * (non-deterministic) pre-free-roam load/dialogue ran — the same load-dependent
+ * origin the companion has (engine-quirks §94).  While WALKING the idle↔walk
+ * transition reset re-origins the cycle so a walk trace is already phase-clean
+ * without this; a pure-IDLE comparison (e.g. house-movement cap_00) is NOT, and
+ * needs this to normalize the origin.  Zeroes FRAME/TIMER/COUNTER (not ANIM/
+ * FACING — those are state, not phase) so a retail run pinned the same way is
+ * phase-clean.  Trace/comparison ONLY: the shipped game keeps the engine-
+ * faithful free-running cycle (retail's own origin is equally load-dependent —
+ * we normalize it in the TAS harness, NOT by re-seeding the shipped game). */
+void player_ctrl_phasepin(void)
+{
+    union { float f; int32_t i; } z = { .f = 0.0f };
+    s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
+    s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
+    s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
+}
+
 /* Render banks the chr-sprite walker (FUN_00456f56) reads each frame: sweep 0 =
  * the dash-trail bank (DAT_056dab6c), sweep 1 = the burst bank (DAT_056dacc0).
  * Each slot is a PC_TRAIL_REC_DWORDS (0x44-byte) record — sprite-state[0..10],

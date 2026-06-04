@@ -79,17 +79,24 @@ through `frida_capture.py`):
 
 ```jsonc
 {"wait": "HOUSE_FREEROAM"}
-{"phasepin": 1552}     // at base+1552, zero db054 + the companion anim cycle on BOTH targets
+{"phasepin": 1552}     // at base+1552, zero db054 + the player & companion anim cycles on BOTH targets
 ```
 
-It zeros `db054` (`0x056db054`) and the companion anim cycle
-(`FRAME/TIMER/COUNTER` = `0x056dab50/48/4c`) so both sides share one clock from
-that frame. `phase_probe.py` injects it automatically just before the capture
+It zeros `db054` (`0x056db054`), the companion anim cycle
+(`FRAME/TIMER/COUNTER` = `0x056dab50/48/4c`) AND the player anim cycle (the
+`i*0x2c` mirror at `0x056daaf8/aaf0/aaf4`) so both sides share one clock from
+that frame. (Port: `scene1_companion_ctrl_phasepin` + `player_ctrl_phasepin`;
+agent: the `{phasepin}` handler.) The player reset matters for **idle** windows —
+a walk trace self-aligns the player via its idle↔walk transition reset, but a
+pure-idle comparison (e.g. `house-idle`) needs the origin normalized like the
+companion. `phase_probe.py` injects it automatically just before the capture
 window. **Fire it AFTER the post-anchor load settles**: there is a residual
 ~47-frame `db054` freeze right after HOUSE_FREEROAM (the load tail) — pinning at
 `base+0` leaves a +47 residual; pinning late (the tool defaults `window_start−40`)
 gives a clean 0/N. Trace-comparison only — the shipped game keeps the
-engine-faithful free-running counter.
+engine-faithful free-running counter (retail's own origin is equally
+load-dependent and very possibly non-deterministic, so we normalize it in the
+TAS harness rather than re-seed the shipped game).
 
 Alternative in the toolbox (the user's "wait-to-sync"): idle at the anchor until
 a counter reaches a high common target (a `wait_until db054 >= N`, N above the
@@ -163,12 +170,11 @@ Covers the PLAYER (actor 0, `p.*`) and COMPANION (actor 2, `c.*`) anim records
 an NPC's anim phase, add its record VAs to `STD_WATCHES` and the matching field
 to the port pos-log (`src/main.c`); the record array is `&DAT_056daae8[i*0xb]`
 (0x2c-byte stride per actor), so each new actor is the same six fields at
-`base + i*0x2c`. The `{phasepin}` reset is still **companion-only** on the agent
-side — the player's load-dependent IDLE phase origin is not zeroed, but its
-idle↔walk transition reset re-origins it, so a walk-heavy trace lands the player
-ALIGNED without one. Generalizing `{phasepin}` to every live actor (so a
-pure-idle trace is also phase-clean) is the remaining follow-up
-([[project_next_char_controller]] "auto-settling phase-sync").
+`base + i*0x2c`. `{phasepin}` now resets BOTH the player (actor 0) and companion
+(actor 2) anim cycles + `db054`, so both idle and walk windows are phase-clean.
+Generalizing it to NPC actors (so an NPC-anim comparison is also phase-clean) is
+the remaining follow-up ([[project_next_char_controller]] "auto-settling
+phase-sync").
 
 ## Worked result — player + companion both 1:1 (2026-06-04)
 
