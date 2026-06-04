@@ -60,6 +60,15 @@ Not needed for the ambient free-roam render; port after the main grid.
   item: `[0]` → texture-handle index into `DAT_073d8778`; `DAT_095d380c[i*0xb3]`
   → 32×32 icon index. Loaded by the gameplay-table loader.
 
+## The port hook ALREADY EXISTS
+`src/scene1_wide_followup.c` is the port of `FUN_004161c7` (C8f.1). It already
+documents the merchandise block (L325-360) — the `DAT_044f7030` grid loop +
+"Both FUN_00415fab and FUN_00485f8c are unported … the outer gate keeps the loop
+[skipped] until DAT_044f7030 ports." That data now ports (working arena, dword
+0x4e26, loaded by `save_work_load_slot`). So the chip is: port `FUN_00415fab`,
+read the grid from `save_work`, and un-gate the existing loop. The driver
+plumbing is done.
+
 ## Port plan (task D)
 1. Expose the working-bank display grid (dword 0x4e26, 300 cells) — trivial
    accessor on `save_work` (the array is already loaded by `save_work_load_slot`).
