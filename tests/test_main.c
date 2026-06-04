@@ -991,6 +991,15 @@ struct test_case {
     X(save_io_write_arena_one_null_succeeds) \
     X(save_io_write_then_load_round_trip) \
     \
+    X(save_work_arena_geometry) \
+    X(save_work_active_slot_default_and_set) \
+    X(save_work_load_slot_copies_bank) \
+    X(save_work_load_slot_recomputes_item_count) \
+    X(save_work_load_slot_full_table_keeps_copied_count) \
+    X(save_work_load_slot_honours_active_slot) \
+    X(save_work_load_slot_bad_source_is_noop) \
+    X(save_work_sync_from_save_copies_whole_arena) \
+    \
     X(font_init_zeros_state) \
     X(font_init_is_idempotent) \
     X(font_age_tick_advances_in_use_only) \

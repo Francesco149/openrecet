@@ -115,6 +115,23 @@
 #define SAVE_BANK_CHARA_STRIDE_DWORDS  0x1b    /* 27 dwords = 108 bytes */
 #define SAVE_BANK_CHARA_COUNT          8
 
+/* ── Inventory / item-slot table (within a bank) ── */
+
+/* Dword index of the first item-slot entry. The table is 20000 dwords
+ * of item IDs; an empty slot reads 0xFFFFFFFF (-1). Engine base
+ * `DAT_044e37b0` = working-bank + 0x18. */
+#define SAVE_BANK_ITEM_TABLE_DWORD   6
+#define SAVE_BANK_ITEM_TABLE_COUNT   20000
+
+/* Dword index of the live "inventory count" field — the index of the
+ * first empty item slot, recomputed on load. Engine `DAT_0450f2b0`. */
+#define SAVE_BANK_FIELD_ITEM_COUNT   0xaec6
+
+/* Dword index of the "bank occupied" marker the title slot-picker tests
+ * for emptiness (== 0 ⇒ never-played slot). Engine `DAT_056e6288`
+ * (= save-bank + 0x8). */
+#define SAVE_BANK_FIELD_OCCUPIED     2
+
 /* ── Shared header default slider values (engine-init constants) ── */
 
 #define SAVE_HEADER_SE_DEFAULT       9

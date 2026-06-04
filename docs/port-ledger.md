@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **420** (16.5%) — verified 73, stubbed 17, ported 330
-- unported: **2128**
+- touched: **421** (16.5%) — verified 73, stubbed 17, ported 331
+- unported: **2127**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (73) — runtime-diffed vs retail
@@ -114,7 +114,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (330) — reimplemented, no probe yet
+## ported (331) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -378,7 +378,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
 | 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h |
 | 0x4901c2 | FUN_004901c2 | 151 | ✓ | main.c, save_bank.c, save_bank.h (+1) |
-| 0x4902aa | FUN_004902aa | 84 | ✓ | save_bank.h |
+| 0x490259 | FUN_00490259 | 81 | ✓ | save_work.c, save_work.h |
+| 0x4902aa | FUN_004902aa | 84 | ✓ | save_bank.h, save_work.c, save_work.h |
 | 0x4902fe | FUN_004902fe | 682 | ✓ | audio_fade.h, main.c, save_bank.h (+2) |
 | 0x4905a8 | FUN_004905a8 | 179 | ✓ | main.c, save_io.c, save_io.h (+1) |
 | 0x490820 | FUN_00490820 | 348 | ✓ | scene1_records_b_tick.c, scene1_records_b_tick.h |
