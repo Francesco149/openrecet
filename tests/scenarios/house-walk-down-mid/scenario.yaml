@@ -8,5 +8,5 @@
 description: |
   Hold DOWN in HOUSE free-roam; 5 mid-walk captures. Checks the foot dust draws
   behind the walking player (depth/order parity).
-max_frames: 16000
+max_frames: 22000  # retail turbo load-stretch: 2nd HOUSE_FREEROAM lands ~15400; capture offset needs headroom
 duration_ceiling_ms: 180000

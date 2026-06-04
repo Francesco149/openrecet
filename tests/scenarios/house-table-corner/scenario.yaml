@@ -18,5 +18,5 @@ description: |
   (rel 1805–1851) drilling into the table-corner collision divergence. Permanent
   regression guard derived from the house-walk-tables full-slide trace.
 
-max_frames: 16000
+max_frames: 22000  # retail turbo load-stretch: 2nd HOUSE_FREEROAM lands ~15400; capture offset needs headroom
 duration_ceiling_ms: 180000

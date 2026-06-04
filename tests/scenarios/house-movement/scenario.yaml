@@ -39,5 +39,5 @@ description: |
 # This is a ceiling, not a target — the {capture} ops fire when their anchor
 # resolves. Raise it if a retail run logs the 2nd HOUSE_FREEROAM but not its
 # captures.
-max_frames: 16000
+max_frames: 22000  # retail turbo load-stretch: 2nd HOUSE_FREEROAM lands ~15400; capture offset needs headroom
 duration_ceiling_ms: 120000

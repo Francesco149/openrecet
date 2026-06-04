@@ -18,5 +18,5 @@ description: |
   segment (1st HOUSE_FREEROAM + 1600 frames). Phase-0 ground-truth for the
   opening cutscene/dialogue subsystem.
 
-max_frames: 16000
+max_frames: 22000  # retail turbo load-stretch: 2nd HOUSE_FREEROAM lands ~15400; capture offset needs headroom
 duration_ceiling_ms: 180000

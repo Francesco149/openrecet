@@ -666,3 +666,24 @@ slide-in, fade-from-black, effect sprites, and per-line text). See
    dismissed, retail fades the glyph text out as the box closes; the port pops it
    off. Investigate the box-close alpha applied to the text in `FUN_0046c9a2`.
    Same `intro-iv2-gap` scenario captures the dismiss window.
+6. **Animation PHASE misalignments (flagged 2026-06-04, user-observed; investigate
+   later).** Several intro/dialogue animations are captured at a different *phase*
+   than retail (or than the prior golden), even though the capture anchoring is
+   honest. Two specific sightings so far:
+   - **Speech-bubble bounce-in** (`intro-dialogue-lines`, cap_16+): the dialogue
+     box's bouncy appear animation lands on a different bounce frame. cap_00–15
+     (pre-bubble iv1_1 lines) stay bit-exact; the bubble lines drift.
+   - **Standee slide-in tween** (`intro-iv2-blink`, the CONV_POSE_BLINK capture):
+     the big portrait standees' slide-in is at a divergent tween position.
+   These are PHASE (timing-origin) diffs, NOT artificial-alignment artifacts:
+   audited 2026-06-04, **no scenario uses `{gframe}`/`{phasepin}`/`{rngseed}` or
+   any frame-shift/best-match** — captures are pure `{wait:ANCHOR}` + anchor-
+   relative `{capture:N}`, and `intro-dialogue-lines` is **46/46 bit-identical
+   across two current-build runs** (deterministic per-anchor). So the phase that
+   drifts is the *animation's* load/RNG-dependent origin (same class as the
+   db054 walk-cell phase, engine-quirks §94 / `phase_probe`), surfaced *because*
+   the anchoring is honest. To probe: `tools/phase_probe.py` + the per-frame
+   phase-counter method (`reference_phase_divergence_method`) on the bubble's
+   bounce counter and the standee tween field, vs retail on a synced trace.
+   Likely one shared origin-pin fixes multiple anims. Deferred per user
+   (alongside dust / NPC-RNG / Tear-wing particles).

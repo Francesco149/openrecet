@@ -113,12 +113,45 @@ Frida agent mirrors them (TODO: `FREEROAM_START` not yet on the retail side).
 | `{"calltrace":N}` or `[start,len]` | arm the call tracer for an anchor-relative window. |
 | `{"poke":[frame,va,val]}` | **RETAIL-ONLY** — sticky u32 write: hold global `va` (decimal Ghidra VA) at `val` every frame from base+frame on. Use to flip an engine flag that has no input path, e.g. enable the dev coord overlay with `[1545, 111450424, 1]` (`0x06a49938=1`; engine-quirks §95). No port mirror. |
 | `{"gframe":[frame,value]}` | **EXPERIMENTAL** — pin `g_tick.frame_count` to `value` at base+frame (for frame-count-derived state like the time-of-day HUD clock). **Do NOT combine with `{caprange}`** — the caprange window is computed from the real anchor frame but `capture_in_range` tests the pinned counter, so capture breaks. |
+| `{"savefile":"<relpath>"}` | Trace-global embedded-save ref (NOT segment-scoped) — a path, relative to the trace file's dir, to a content-addressed gzip blob (`<sha256>.sav.gz`, usually under `tests/scenarios/_saves/`). On replay the **Python harness** decompresses it and overrides whatever `save.dat` is on disk via the port's `--save-override` (the port can't gunzip, so it only records the ref). Lets a trace pin its exact save state — a "continue an existing save" trace replays the same save regardless of the live game's progress. See the **Save interception** section below + [[project_tas_save_interception]]. |
 
 Button bits (`src/input.c`): UP `0x04`, RIGHT `0x01`, DOWN `0x08`, LEFT `0x02`,
 Z/A (confirm) `0x10`, ESC `0x100`.
 
 Parser/struct: `src/input_segtrace.{c,h}` (host-tested in
 `tests/test_input_segtrace.c`). Distill emits these from a raw recording.
+
+---
+
+## Save interception (embedded saves)
+
+A trace can carry the exact save it ran against and force the game to load THAT
+save on replay, ignoring whatever `save.dat` is on disk. This is what lets a
+"continue an existing save" trace replay deterministically from any game state.
+
+- **Storage:** the save blob is gzip-compressed + content-addressed as
+  `<sha256>.sav.gz` (sha over the raw 18 MB arena), in a shared store
+  `tests/scenarios/_saves/`. 18 MB → ~57 KB; identical saves across scenarios
+  dedupe to one blob. The trace references it with the trace-global
+  `{"savefile":"../_saves/<sha>.sav.gz"}` op (see the ops table).
+- **Embed a save into existing traces:**
+  ```
+  nix develop --command python3 tools/trace_embed_save.py <save.dat> --all-scenarios
+  # or specific traces:  tools/trace_embed_save.py <save.dat> tests/scenarios/foo/trace.jsonl
+  ```
+- **Recorded traces capture it automatically:** the F2 recorder snapshots the
+  boot save; `distill_trace.py … -o out.jsonl` folds it into the content store and
+  embeds the ref.
+- **Replay overrides the disk save:** the harness (`scenario-test.py`,
+  `frida_capture.py`) decompresses the ref and passes the port `--save-override
+  <raw>`; the port loads it instead of `save.dat` at boot. (The port can't gunzip,
+  so loading is harness-driven; `tools/trace_save.py` owns store/resolve/embed.)
+  Proven: an override with bgm-slider=2 vs a disk save with bgm=5 → the port loads
+  bgm=2 ("on-disk save.dat ignored"). **Retail (Frida) redirect is NOT yet wired**
+  — port-side only so far.
+- **Git policy:** blobs are gitignored by default (user save data). Commit a
+  specific `.sav.gz` (force-add) only for a committed trace that genuinely needs it
+  to replay. See [[project_tas_save_interception]].
 
 ---
 
