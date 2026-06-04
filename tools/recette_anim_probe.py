@@ -1,9 +1,21 @@
 #!/usr/bin/env python3
 """
-tools/recette_anim_probe.py — autonomously flag frames where Recette's RENDERED
-walk cell diverges from retail, even though her actor-record anim counters match.
+tools/recette_anim_probe.py — flag frames where Recette's body crop diverges from
+retail in `house-walk-down-dense`.
 
-WHY THIS EXISTS (the open lead, found 2026-06-04 by user eyeball)
+⚠️ RESOLVED 2026-06-04 — IT IS NOT A WALK-CELL DETECTOR. The "different walk cell"
+lead this tool was built to chase was DISPROVEN: the drawn player cell is a pure
+function of the bit-exact anim record (FUN_0045a56f @0x45a5b6 — no unwatched cell
+source), so the cell IS 1:1. What this tool's top-half metric actually flags is
+the **foot-dust** (records-A 0xe, the deferred sibling) drifting up into the body
+crop — its box does NOT clear the rising dust. Decisive: on identical-record+pos
+frames (db054 42 vs 78, she walks in place at a wall) the FACE patch is port↔retail
+0.00, and retail's OWN f42-vs-f78 face diff equals the port↔retail f42 diff = pure
+dust. Keep this only as a dust-divergence repro/visualizer; do NOT read its flags
+as cell errors. Full writeup: docs/findings/scene1-recette-walk-cell.md +
+project_confirmed_parity_ledger.
+
+WHY IT WAS BUILT (the since-disproven lead, 2026-06-04 user eyeball)
 -----------------------------------------------------------------
 `phase_probe house-walk-down-dense` reports the player anim RECORD fields
 (ANIM/COUNTER/FRAME/FACING at &DAT_056daae8[0]) as bit-exact 1:1 vs retail on
