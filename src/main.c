@@ -56,6 +56,7 @@
 #include "audio_fade.h"
 #include "save_bank.h"
 #include "save_io.h"
+#include "sha256.h"
 #include "font.h"
 #include "font_alloc.h"
 #include "font_atlas.h"
@@ -472,6 +473,19 @@ static uint32_t  g_trace_rec_rng_at_start  = 1;  /* LCG state snapshotted at F2 
 struct trace_rec_anchor { char name[24]; uint32_t rel; uint32_t gframe; uint32_t rng; };
 static struct trace_rec_anchor g_trace_rec_anchors[256];
 static int       g_trace_rec_anchor_count = 0;
+
+/* TAS save interception (capture side). At F2 record-start we snapshot the
+ * in-memory save arena — the exact save the game booted with — into a held
+ * buffer + its sha256 hex. trace_rec_stop dumps it next to the raw recording
+ * as `openrecet-trace-<pid>-<seq>.save.bin` and emits a {"savefile":...} row.
+ * distill_trace.py then content-addresses + gzip-compresses it into the trace's
+ * `_saves/` store and rewrites the ref. So a recorded trace carries the exact
+ * save it ran against, and replay overrides whatever save.dat is on disk
+ * (--save-override). Snapshotting at START (not stop) captures the boot save
+ * before any in-session new-game/save could overwrite the arena. */
+static uint8_t  *g_trace_rec_save_snap     = NULL;   /* SAVE_BANK_ARENA_BYTES */
+static char      g_trace_rec_save_sha[65]  = {0};    /* lowercase hex, 64 + NUL */
+static int       g_trace_rec_save_ok       = 0;      /* snapshot valid this run */
 #define TRACE_REC_MAX_FRAMES  600000u   /* ~2.8 h at 60fps — a hard backstop */
 
 static void trace_rec_start(void)
@@ -494,10 +508,37 @@ static void trace_rec_start(void)
      * RNG-driven behaviour (foot-dust jitter, NPC motion) reproduces on playback
      * regardless of how much RNG the prepended boot/intro consumed. */
     g_trace_rec_rng_at_start = g_rng_seed;
+
+    /* Snapshot the boot save arena (the exact save state replay must reproduce).
+     * Held until trace_rec_stop dumps it + emits the {savefile} row. */
+    g_trace_rec_save_ok = 0;
+    if (!g_trace_rec_save_snap) {
+        g_trace_rec_save_snap = (uint8_t *)malloc(SAVE_BANK_ARENA_BYTES);
+    }
+    if (g_trace_rec_save_snap) {
+        memcpy(g_trace_rec_save_snap, save_arena_base(), SAVE_BANK_ARENA_BYTES);
+        uint8_t digest[SHA256_DIGEST_LEN];
+        sha256(g_trace_rec_save_snap, SAVE_BANK_ARENA_BYTES, digest);
+        static const char hexd[] = "0123456789abcdef";
+        for (int i = 0; i < SHA256_DIGEST_LEN; i++) {
+            g_trace_rec_save_sha[i * 2]     = hexd[digest[i] >> 4];
+            g_trace_rec_save_sha[i * 2 + 1] = hexd[digest[i] & 0xf];
+        }
+        g_trace_rec_save_sha[64] = '\0';
+        g_trace_rec_save_ok = 1;
+    } else {
+        printf("[trace-rec] WARNING: could not allocate save snapshot buffer "
+               "(%u bytes) — trace will carry no savefile\n",
+               (unsigned)SAVE_BANK_ARENA_BYTES);
+    }
+
     g_trace_rec_active      = 1;
     printf("[trace-rec] recording STARTED at frame %u (rng state %u) "
            "(F2 stop, F3 capture-point, F4 call-trace window on/off)\n",
            g_trace_rec_start_frame, (unsigned)g_trace_rec_rng_at_start);
+    if (g_trace_rec_save_ok)
+        printf("[trace-rec] save snapshot: sha256=%s (%u bytes)\n",
+               g_trace_rec_save_sha, (unsigned)SAVE_BANK_ARENA_BYTES);
     fflush(stdout);
 }
 
@@ -615,9 +656,40 @@ static void trace_rec_stop(void)
         g_trace_rec_ct_open = -1;
     }
 
+    unsigned long pid = (unsigned long)GetCurrentProcessId();
+    int seq = g_trace_rec_seq++;
+
+    /* Dump the boot save snapshot next to the raw recording (same pid+seq) and
+     * remember its basename so we can emit a {savefile} row pointing at it. The
+     * row is relative (same dir as the raw); distill_trace.py resolves it,
+     * content-addresses + gzips into the trace's _saves/ store. */
+    char save_name[256] = {0};
+    if (g_trace_rec_save_ok && g_trace_rec_save_snap) {
+        snprintf(save_name, sizeof save_name,
+                 "openrecet-trace-%lu-%d.save.bin", pid, seq);
+        FILE *sf = fopen(save_name, "wb");
+        if (sf) {
+            size_t wrote = fwrite(g_trace_rec_save_snap, 1,
+                                  SAVE_BANK_ARENA_BYTES, sf);
+            fclose(sf);
+            if (wrote != SAVE_BANK_ARENA_BYTES) {
+                printf("[trace-rec] WARNING: save snapshot short write "
+                       "(%zu/%u) — dropping savefile row\n",
+                       wrote, (unsigned)SAVE_BANK_ARENA_BYTES);
+                save_name[0] = '\0';
+            } else {
+                printf("[trace-rec] wrote save snapshot %s (sha256=%s)\n",
+                       save_name, g_trace_rec_save_sha);
+            }
+        } else {
+            printf("[trace-rec] WARNING: could not open %s — dropping "
+                   "savefile row\n", save_name);
+            save_name[0] = '\0';
+        }
+    }
+
     char path[256];
-    snprintf(path, sizeof path, "openrecet-trace-%lu-%d.raw.jsonl",
-             (unsigned long)GetCurrentProcessId(), g_trace_rec_seq++);
+    snprintf(path, sizeof path, "openrecet-trace-%lu-%d.raw.jsonl", pid, seq);
     FILE *f = fopen(path, "w");
     if (!f) {
         printf("[trace-rec] ERROR: could not open %s for writing\n", path);
@@ -631,6 +703,13 @@ static void trace_rec_stop(void)
                "\"rng_seed_at_start\":%u}\n",
             g_trace_rec_count, g_trace_rec_start_frame,
             (unsigned)g_trace_rec_rng_at_start);
+    /* Embedded-save reference: the boot save this trace ran against, dumped
+     * above as save_name (raw uncompressed). Carries sha256 + size so distill
+     * can content-address it without re-reading. Sibling of the raw file, so
+     * the ref is a bare basename. Omitted if the snapshot failed. */
+    if (save_name[0])
+        fprintf(f, "{\"savefile\":\"%s\",\"sha256\":\"%s\",\"size\":%u}\n",
+                save_name, g_trace_rec_save_sha, (unsigned)SAVE_BANK_ARENA_BYTES);
     for (uint32_t i = 0; i < g_trace_rec_count; i++)
         fprintf(f, "{\"frame\":%u,\"buttons\":\"0x%04x\"}\n", i, g_trace_rec_masks[i]);
     for (int c = 0; c < g_trace_rec_caps_count; c++)
