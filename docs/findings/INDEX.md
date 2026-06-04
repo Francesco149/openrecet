@@ -77,7 +77,7 @@ that subsystem.
 | [texture-loader.md](texture-loader.md) | `FUN_0047193c` — texture loader; disk/storage lookup + BMP/TGA dispatch. | 2026-05-20 |
 | [mesh-loader.md](mesh-loader.md) | `xfile/*.x` mesh loader (`FUN_00472836` chain) — parser + build + D3D8 upload + orchestrator. | 2026-05-23 |
 | [save-working-arena.md](save-working-arena.md) | The TWO save arenas: disk-mirror (`save_bank.c`) vs live **working** arena (`save_work.c`, `DAT_044e3798`). `FUN_00490259` per-slot load, the title→load→game flow, the continue-picker dispatch. The "load a save" data path. | 2026-06-04 |
-| [shop-item-display-RE-status.md](shop-item-display-RE-status.md) | **Items-on-display renderer — UNMAPPED.** Kills two wrong leads (`FUN_00456f56` = char walker not items; bank `0x9e76` = ranking not display) + a call-graph-diff plan to actually find it. Read before attempting the shop merchandise render. | 2026-06-04 |
+| [shop-item-display-RE-status.md](shop-item-display-RE-status.md) | **Items-on-display renderer — MAPPED** (porting spec). FUN_00415fab (per-item billboard) + FUN_004161c7 (15×20 grid driver) + display grid @ working-bank dword 0x4e26. Found via d3d-trace caller analysis. Read before attempting the shop merchandise render. | 2026-06-04 |
 
 ## Diff / trace harness
 

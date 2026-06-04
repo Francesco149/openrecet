@@ -160,8 +160,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x414ee2 | FUN_00414ee2 | 4006 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_overlay_helpers.c (+4) |
 | 0x415e90 | FUN_00415e90 | 36 | ✓ | scene1_overlay.c, scene1_overlay.h |
 | 0x415f2e | FUN_00415f2e | 125 | ✓ | scene1_wide_followup.h, scene1_wide_followup_helpers.c |
-| 0x415fab | FUN_00415fab | 540 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
-| 0x4161c7 | FUN_004161c7 | 4925 | ✓ | scene1_pass_f.c, scene1_pass_f.h, scene1_records.h (+5) |
+| 0x415fab | FUN_00415fab | 540 | ✓ | save_bank.h, scene1_wide_followup.c, scene1_wide_followup.h |
+| 0x4161c7 | FUN_004161c7 | 4925 | ✓ | save_bank.h, scene1_pass_f.c, scene1_pass_f.h (+6) |
 | 0x417504 | FUN_00417504 | 506 | ✓ | main.c, scene1_hud.h, scene1_render.c (+1) |
 | 0x4176ff | FUN_004176ff | 30395 | ✓ | scene1_companion_ctrl.c, scene1_companion_ctrl.h, scene1_maplight.c (+6) |
 | 0x41edf1 | FUN_0041edf1 | 35 | ✓ | worker_load.h |

@@ -1440,6 +1440,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/save_bank.h",
     "src/scene1_wide_followup.c",
     "src/scene1_wide_followup.h"
    ]
@@ -1452,6 +1453,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/save_bank.h",
     "src/scene1_pass_f.c",
     "src/scene1_pass_f.h",
     "src/scene1_records.h",

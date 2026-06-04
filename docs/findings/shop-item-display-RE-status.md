@@ -1,73 +1,88 @@
-# Shop "items on display" renderer — RE status (NOT yet portable)
+# Shop "items on display" renderer — MAPPED (porting spec)
 
-**Date:** 2026-06-04 · **Status:** UNMAPPED — do not port blind. This doc
-records two corrections that kill the obvious-but-wrong leads, and a sound plan
-to actually locate the renderer.
+**Date:** 2026-06-04 · **Status:** ✅ MAPPED via d3d-trace caller analysis on
+retail. Ready to port. (Earlier this doc said UNMAPPED + killed two wrong leads;
+those corrections still stand — see the bottom.)
 
-## Why this doc exists
-After the load-a-save arc landed (W1/M1/W2 — the working arena + continue
-picker), the next goal is rendering the merchandise the player has placed on the
-shop's display furniture in the HOUSE free-roam scene. A fan-out search produced
-a confident-looking map that is **wrong in two ways**. Both are documented here
-so nobody burns a session porting the wrong function.
+## How it was found
+Booted retail with the user's save (the save-roundtrip trace's load prefix,
+`trace-to-picker`/`retail_load`), reached HOUSE free-roam with 3 swords on
+display, and ran `frida_capture.py --d3d-trace`. The d3d-trace records `ret_va`
+(caller) per draw. Grouping `DrawPrimitiveUP` by caller at the captured
+free-roam frame showed **`0x004161c3 ×3`** — exactly the 3 swords. That return
+address is the tail `DrawPrimitiveUP` of `FUN_00415fab`. (Method: the per-draw
+caller VA is the reliable way to find an unknown renderer — far better than the
+curated call-trace VA list or static guessing.)
 
-## Correction 1 — `FUN_00456f56` is the CHARACTER walker, not item display
-The search claimed `FUN_00456f56` is the "master loop over 100 display records".
-It is not. Per [[openrecet_scene1_render_ladder]] / STATUS.md and the
-char-sprite findings, `FUN_00456f56` is the **chr-sprite walker** (dormant; its
-actor/party array `DAT_056dacc0` has no live writer). Verified: `DAT_056dacc0`
-is referenced exactly once in the whole decompile — inside `FUN_00456f56`
-(all.c:52465) — consistent with "actor array", not "100 bank item records". The
-standing player/companion are drawn by `FUN_004552d0` (shop-walker) reading the
-`DAT_056daae8` position ring. None of these touch on-display merchandise.
+## The subsystem (3 functions + 1 grid + the item table)
 
-## Correction 2 — bank dword `0x9e76` is the RANKING table, not shop display
-`save_bank.h` labels bank dwords `0x9e76..0xa586` (100 records × 18 dwords) as
-"item-grid scratch", which made it the obvious display-placement candidate.
-**The only engine reference to that region (byte offset `0x279d8`, based global
-`DAT_0450b170`) is `FUN_0049f012`** (all.c:103801) — the **RANKING screen**
-builder, called from title menu code 7 (`FUN_0049f012(1)`). It zeroes the 100
-`(id,count)` record heads, then condenses the global ranking table
-`DAT_095d3808` (stride `0xb3` = 179 dwords × 100 entries) into them via an
-item lookup `FUN_004681f6(id*100)`. So `0x9e76` is a **per-bank ranking
-summary**, not the shop-floor display. (Recommend re-labelling it in
-save_bank.h: `0x9e76` = ranking-summary records, `DAT_0450b170` based.)
+### `FUN_00415fab` @ 0x415fab (540 B) — per-item billboard renderer
+`FUN_00415fab(int gx, int gy, uint item, float z)`:
+- World pos from the **display-grid cell**: `x = gx*2 - 9`, `z = gy*2 - 6.5`,
+  `y = z_param + 1.9` (`thunk_FUN_004a3462` builds the transform).
+- `iVar3 = FUN_004681f6(item >> 6)` — resolve the item record index.
+- **Texture**: `DAT_073d8778[ DAT_095d3808[iVar3*0xb3] * 0x10 ]` → `SetTexture`
+  (cached against `DAT_0076b95c`).
+- **Icon UV**: icon index `DAT_095d380c[iVar3*0xb3]`; 32×32 cell in an 8-wide
+  atlas → the 4 UVs at `DAT_0064e5d8..`. (`item & 0x10` forces icon 0.)
+- `SetTransform(WORLD)` + `DrawPrimitiveUP(TRIANGLESTRIP, 2, &DAT_0064e5d8, 0x18)`
+  — one textured quad. (`0x18` stride = pos+diffuse+uv vertex.)
 
-Net: neither the function nor the bank region the fan-out identified is the
-shop display. The shop-display item state is most likely a **runtime structure**
-(not a saved bank field) populated by the shop-management "place item" UI, and
-drawn somewhere in the HOUSE 3D pass.
+### `FUN_004161c7` @ 0x4161c7 (4925 B) — the HOUSE free-roam shop render (DRIVER)
+Called from the scene render (51179 / 54533 / 92170). The ambient-merchandise
+block (all.c ~L13622):
+```c
+if (DAT_0438b1c0 == 1 && *DAT_068dd2f0 == 0) {        // free-roam && stage-palette gate
+    piVar11 = &DAT_044f7030 + iVar10;                  // display grid base (see below)
+    for (row = 0; row != 0xf; row++)                   // 15 rows
+        for (col = 0; col != 0x14; col++, piVar11++)   // 20 cols  (= 300 cells)
+            if (*piVar11 != -1) FUN_00415fab(...);      // draw each occupied cell
+    FUN_00485f8c();                                     // + interaction-mode overlay
+}
+```
 
-## How to actually find it (next-session plan)
-The reliable method here is the project's own call-graph capture, NOT static
-guessing ([[feedback_full_path_call_graph]], [[reference_tas_anchor_forcing]]):
+### `FUN_00485f8c` @ 0x485f8c (316 B) — display-management overlay (secondary)
+Draws the items on the ONE stand the player is editing (gated `DAT_0438cc08==2`,
+furniture index `DAT_0438bea4`, item-id row `DAT_074b28d8`, furniture type 3 =
+2×2 grid / 4 = 1×4 row). Grid origin per furniture in the working bank (next).
+Not needed for the ambient free-roam render; port after the main grid.
 
-1. **Get a retail HOUSE frame WITH items on display.** Use a save that has
-   merchandise out for sale (the user's real save likely qualifies — loads at
-   boot into the save arena). Drive retail to free-roam in the shop via the TAS
-   anchor-forcing harness (`--input-segtrace`, FREEROAM_START anchor).
-2. **Frida call-graph diff:** capture the per-frame call graph (the E.1/E.2
-   tracer, `tools/frida_capture.py --call-trace`) on TWO retail states — shop
-   with displayed items vs. an empty shop — and diff. The functions that fire
-   only when items are displayed are the renderer + its driver loop.
-3. **Find the runtime display array:** mem-watch (`tools/mem_watch.py`, the D.7
-   tool) the writes that happen when an item is placed on a stand, OR static-
-   trace back from the renderer found in step 2 to the array it iterates.
-4. Candidate billboard primitives to expect at the bottom of the chain:
-   `FUN_0045a56f` (sprite billboard → DrawPrimitiveUP) and/or the mesh helper
-   `FUN_00455191` — but confirm via the call-graph diff, do not assume.
+## The data (in the working arena — already built, `save_work.c`)
+- **Display grid `DAT_044f7030` = working-bank dword `0x4e26`** — a 15×20 = 300
+  cell grid, one **item ID per cell** (`-1` = empty). This is exactly the
+  `save_bank.h` entry "`[0x4e26..+299] 0xFFFFFFFF × 300`" (was unlabeled). THIS
+  is the shop display state — **NOT** 0x9e76 (that's the ranking summary).
+  Indexed `&DAT_044f7030 + DAT_0438b1e0*0x2dfc8` (active working slot).
+- **Per-furniture grid origins `DAT_045105a8`/`DAT_045105ac` = working-bank dword
+  `0xb384`** (x/y), stride 8 bytes, indexed by furniture index `DAT_0438bea4`.
+  (Used by the FUN_00485f8c overlay; the main grid uses cell col/row directly.)
+- **Item table `DAT_095d3808`** (stride `0xb3` dwords = 179, 100 entries) — per
+  item: `[0]` → texture-handle index into `DAT_073d8778`; `DAT_095d380c[i*0xb3]`
+  → 32×32 icon index. Loaded by the gameplay-table loader.
 
-## What IS solid (the load arc this unblocks)
-- Working arena (`save_work.c`) loads a chosen save into live slot 0 (W1).
-- Continue picker (`title_continue_picker.c`) drives the load (M1).
-- Post-fade branches new vs continue (`scene.c`, W2).
-Once the real display renderer + its source array are identified, the loaded
-working bank (or the runtime display array it feeds) is the data source — that's
-the visible payoff. See [[save-working-arena.md]] (docs/findings/).
+## Port plan (task D)
+1. Expose the working-bank display grid (dword 0x4e26, 300 cells) — trivial
+   accessor on `save_work` (the array is already loaded by `save_work_load_slot`).
+2. Port `FUN_00415fab` (per-item quad: world pos from cell, item texture +
+   32×32 icon UV, one DrawPrimitiveUP). Needs the item-table texture/icon lookup
+   (`DAT_095d3808`/`DAT_073d8778`/`DAT_095d380c`) — check what's already loaded
+   by the tables loader.
+3. Port the `FUN_004161c7` ambient block: the 15×20 grid loop calling the
+   renderer per occupied cell, gated on free-roam. Wire into the HOUSE render
+   chain (`scene1_render`) in the right draw-order slot.
+4. Verify vs the retail capture: `runs/sr-retail/` (frame 922 = 3 swords on the
+   back table; `d3d_trace.jsonl` has the exact per-item draws @ ret_va 0x4161c3).
+5. Defer `FUN_00485f8c` (display-management overlay) until the editing UI lands.
 
-## Smaller, safer "missing for this game state" wins (no blind RE)
-If the display renderer RE stalls, these read known working-bank fields and are
-lower-risk than the unmapped display path:
-- **Top HUD** (clock / day / money): money = working bank dword 3, day =
-  `0xb0fe`, week = `0xb0fa`. STATUS.md already flags the top HUD as the next
-  target (overlay-registrar unported). Wire it to `save_work_dwords_at(0)`.
+## Verification artifacts
+- `runs/sr-retail/frames/frame_00922.png` — retail loaded shop, 3 swords visible.
+- `runs/sr-retail/d3d_trace.jsonl` — the draws; `DrawPrimitiveUP @ ret_va
+  0x4161c3 ×3` = the merchandise.
+- Port comparison (current gap): `runs/sr-load/` — same load on the port, back
+  table EMPTY (renderer unported).
+
+## The two corrected wrong leads (kept for the record)
+- `FUN_00456f56` is the dormant CHARACTER-sprite walker (`DAT_056dacc0` actor
+  array), NOT item display.
+- Bank dword `0x9e76` (100×18) is the per-bank RANKING summary (`FUN_0049f012`),
+  NOT the shop display. (The display is `0x4e26`, above.)

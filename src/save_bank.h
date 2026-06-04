@@ -46,7 +46,11 @@
  *   [3]              u32 initial_pix (1000 — Recettear's starting gold)
  *   [4]              u16 = 2 + u16 padding
  *   [6..6+19999]     0xFFFFFFFF × 20000 (item slot table, 80 KB)
- *   [0x4e26..+299]   0xFFFFFFFF × 300
+ *   [0x4e26..+299]   SHOP DISPLAY GRID — 15×20 = 300 cells, one item ID
+ *                    per cell (0xFFFFFFFF = empty). The free-roam shop
+ *                    render (FUN_004161c7) loops these and draws each
+ *                    occupied cell via FUN_00415fab (DAT_044f7030 base).
+ *                    See findings/shop-item-display-RE-status.md.
  *   [0x9e76..0xa586] 100 records × 18 dwords — per-bank RANKING summary
  *                    (NOT shop-floor display items, despite the old
  *                    "item-grid scratch" label). Only reader/writer is
