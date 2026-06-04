@@ -1069,7 +1069,7 @@ function releaseSurface(surf) {
     release(surf);
 }
 
-function captureBackbuffer(devicePtr, frameNumber) {
+function captureBackbuffer(devicePtr, frameNumber, captureVals) {
     ensureSurfaceFns(devicePtr);
 
     // ── 1. GetBackBuffer → bbSurf (video memory, not lockable) ──
@@ -1161,6 +1161,13 @@ function captureBackbuffer(devicePtr, frameNumber) {
                 pitch: rowBytes,
                 fmt:   fmt,
                 t_ms:  nowMs(),
+                // Capture-time watch read (Present onEnter, post-render): the
+                // screenshot's OWN sim-state label, sampled at the exact instant
+                // the backbuffer is grabbed. Robust to the turbo tick/present
+                // decoupling that desyncs the separately-emitted per-tick
+                // {watch} record from the rendered frame. Consumers should align
+                // screenshots by these vals, not the {watch} stream's db054.
+                vals:  captureVals || null,
             }, ab);
         } finally {
             const unlockRect = new NativeFunction(
@@ -1191,8 +1198,22 @@ function installPresentHook(devicePtr) {
             const fn = frameNo();
             const want = g_capture_all || g_capture_pending.has(fn);
             if (want) {
+                // Read the watched sim-state HERE (Present onEnter, post-render)
+                // so the screenshot carries its own atomic state label. The
+                // separate per-tick {watch} record is read at input_poll and,
+                // under turbo (sim-tick decoupled from Present), can name a
+                // different sim frame than the one actually on screen.
+                let captureVals = null;
+                if (g_watch.length || g_rng_count) {
+                    captureVals = {};
+                    for (let i = 0; i < g_watch.length; i++) {
+                        try { captureVals[g_watch[i].name] = watchRead(g_watch[i]); }
+                        catch (e) { captureVals[g_watch[i].name] = null; }
+                    }
+                    if (g_rng_count) captureVals.rngcalls = g_rng_count_total;
+                }
                 try {
-                    captureBackbuffer(devicePtr, fn);
+                    captureBackbuffer(devicePtr, fn, captureVals);
                 } catch (e) {
                     err('Present.onEnter', e.message + ' @ ' + e.stack);
                 }

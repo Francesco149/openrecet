@@ -467,6 +467,11 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 if (cfg.anchor_trace or cfg.capture_at_anchor) else None)
     watch_jsonl = run_dir / "watch.jsonl"
     f_watch = (watch_jsonl.open("w", buffering=1) if cfg.watch else None)
+    # frames_meta.jsonl: per-screenshot capture-time sim-state (db054/aframe/…),
+    # sampled at Present onEnter atomically with the pixels. Turbo-robust frame↔
+    # state alignment (vs the per-tick watch.jsonl). Written only when --watch is on.
+    frames_meta_jsonl = run_dir / "frames_meta.jsonl"
+    f_frames_meta = (frames_meta_jsonl.open("w", buffering=1) if cfg.watch else None)
 
     captured: list[int] = []
     last_mask: int | None = None
@@ -527,6 +532,12 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             captured.append(frame)
             last_engine_frame = max(last_engine_frame, frame)
             f_log.write(f"[frame] {png_path.name} {w}x{h}\n")
+            # Capture-time sim-state label (Present onEnter, post-render) — the
+            # screenshot's OWN db054/aframe/etc., atomic with the pixels. Align
+            # screenshots by THIS, not the per-tick watch.jsonl (turbo-robust).
+            cvals = p.get("vals")
+            if cvals is not None and f_frames_meta is not None:
+                f_frames_meta.write(json.dumps({"frame": frame, "vals": cvals}) + "\n")
             return
 
         if kind == "bgm_swap":
@@ -1144,6 +1155,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         f_anchor.close()
     if f_watch is not None:
         f_watch.close()
+    if f_frames_meta is not None:
+        f_frames_meta.close()
 
     # Tile captured frames into 3x3 montage PNG(s) under run_dir. (Auto-open in
     # the Windows viewer was removed — push the montage to the llm-feed to view.)
