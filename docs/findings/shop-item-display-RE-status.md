@@ -32,17 +32,26 @@ residual is the item sparkle/glint effect** (deferred — see "Remaining" below)
     ret_va `0x4159ca` and one shared star texture (handle `0x172fcf30`).
     NOT Pass C and NOT `FUN_00415fab` (those are the item billboards at
     `0x4161c3`).
-  - The port already has `FUN_00414ee2` as `scene1_overlay_render`, but it is
-    **dormant in HOUSE** (its record table count `DAT_0076b948` is BSS-zero — the
-    records that represent these sparkles are never spawned).
-  - **So the missing piece is the EMITTER** that pushes a sparkle 2D-overlay
-    record per occupied display cell each frame. NOT yet pinned: `FUN_0045ed12`
-    (walks the grid + resolver) is only a predicate — it returns 1 if any
-    displayed item-id is in a special range (`4000<id<0xfa7 || ==0xfab || ==0xfb0
-    || 0xfb8<id<0xfc3`), not a spawner. Next session: find who writes the
-    `FUN_00414ee2` overlay-record table with texture `0x172fcf30` at the
-    projected item positions (likely a per-display-item twinkle spawner), port
-    it, and the already-wired `scene1_overlay_render` will draw them.
+  - **Positions are 3D WORLD, not screen-space** — `SetTransform(WORLD)` per
+    draw. Verified against the item draws in the same frame: the 9 sparkle
+    transforms cluster into 3 groups of 3, each at one item (item X = -7/-5/-1,
+    Z=-6.5, Y=1.9; sparkles X≈item±0.4, Y≈2.0-2.7 just above, Z≈-6.5..-7.4 with a
+    small per-spark scatter + Y jitter = the twinkle animation).
+  - **The port already has BOTH halves of this system:** the renderer
+    `FUN_00414ee2` (`scene1_overlay_render`) AND the spawn API `FUN_00414345`
+    (`scene1_overlay_spawn`, template-driven). It's dormant in HOUSE only because
+    nothing spawns the sparkle records.
+  - **NOT the dust/wing particle system** (checked + ruled out 2026-06-04): dust
+    (records-A type 0xe, draw 0x41e97b) and wing-glow (records-A type 0x1f, draw
+    0x41e165) are arms of `FUN_004176ff`. The sparkles are the `FUN_00414345`/
+    `FUN_00414ee2` overlay-template system instead.
+  - **So the one missing piece is the EMITTER + the sparkle template:** find the
+    HOUSE free-roam tick code that loops occupied display cells and calls the
+    overlay spawn (`FUN_00414345`) ~3× per item with the twinkle template (star
+    texture `0x172fcf30`, randomized scatter), then port it and wire it into the
+    HOUSE tick — `scene1_overlay_render` already draws whatever it spawns.
+    (`FUN_0045ed12`, a grid+resolver predicate for special item-ids
+    `4000<id<0xfa7 || ==0xfab || ==0xfb0 || 0xfb8<id<0xfc3`, is NOT it.)
 - `FUN_00485f8c` (display-management overlay, editing mode `DAT_0438cc08==2`).
 
 ---
