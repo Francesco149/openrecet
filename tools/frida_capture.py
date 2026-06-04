@@ -213,6 +213,14 @@ class CaptureConfig:
     # on port and retail despite load jitter. Owns the input mask when set
     # (checked before force_input) and implies anchor_trace.
     input_segtrace_path: Path | None = None
+    # TAS save virtualization. When set, the agent redirects every
+    # save.dat/_save.dat open into a per-run sandbox so the replay NEVER reads or
+    # writes the user's real save. `save_ref` is the trace's resolved {savefile}:
+    #   "@fresh"   → empty sandbox (game boots fresh, no LOAD GAME)
+    #   <raw path> → that decompressed save is seeded into the sandbox as save.dat
+    #   None       → still sandboxed (write-protection) but unseeded
+    # Only used in SPAWN (replay) mode; attach/record leaves the real save alone.
+    save_ref: str | None = None
     # ── Retail-side trace RECORDER (attach + observe) ──
     # When attach_match is set, attach to an ALREADY-RUNNING retail process
     # (matched by name substring, case-insensitive) instead of spawning the
@@ -976,6 +984,30 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         f_log.write(f"[input] loaded {len(segtrace_ops)} segtrace ops from "
                     f"{cfg.input_segtrace_path}\n")
 
+    # TAS save virtualization (spawn/replay only): create a per-run sandbox and
+    # tell the agent to redirect all save.dat/_save.dat I/O into it, so the replay
+    # never touches the user's real save. Seed it from the trace's {savefile}:
+    #   "@fresh" / None → empty sandbox (game boots fresh; writes land here)
+    #   <raw path>      → seed that save as <sandbox>/save.dat (a "continue" trace)
+    save_sandbox_win = None
+    if cfg.attach_match is None:   # spawn/replay only — never sandbox a live attach
+        import shutil
+        sandbox = run_dir / "saveout"
+        sandbox.mkdir(parents=True, exist_ok=True)
+        if cfg.save_ref and cfg.save_ref != "@fresh":
+            seed = Path(cfg.save_ref)
+            if seed.exists():
+                shutil.copyfile(seed, sandbox / "save.dat")
+                shutil.copyfile(seed, sandbox / "_save.dat")
+                f_log.write(f"[save] seeded sandbox from {seed}\n")
+            else:
+                f_log.write(f"[save] WARNING seed save missing: {seed}\n")
+        else:
+            f_log.write("[save] @fresh — empty sandbox (game boots fresh)\n")
+        save_sandbox_win = wslpath_w(sandbox)
+        f_log.write(f"[save] sandbox → {save_sandbox_win} "
+                    f"(real save.dat protected)\n")
+
     t0 = time.monotonic()
     init_cfg: dict[str, Any] = {
         "capture_frames": list(cfg.capture_frames),
@@ -988,6 +1020,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         "silent_audio":   bool(cfg.silent_audio),
         "show_fps":       bool(cfg.show_fps),
     }
+    if save_sandbox_win is not None:
+        init_cfg["save_sandbox"] = save_sandbox_win
     if cfg.arm_skip_at_frame is not None:
         init_cfg["arm_skip_at_frame"] = int(cfg.arm_skip_at_frame)
     if cfg.force_resolution is not None:
@@ -1199,7 +1233,8 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 silent_audio: bool = False,
                 show_fps: bool = False,
                 force_resolution: tuple[int, int] | None = None,
-                rng_seed: int | None = None) -> dict:
+                rng_seed: int | None = None,
+                save_ref: str | None = None) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
     Returns the meta dict that scenario-test.py writes to run.json.
@@ -1238,6 +1273,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         # --rng-seed) so comparisons share one LCG stream unless overridden.
         rng_seed=(rng_seed if rng_seed is not None
                   else getattr(scenario, "rng_seed", None)),
+        save_ref=save_ref,
     )
     result = _run_capture_impl(cfg, run_dir)
     meta = {

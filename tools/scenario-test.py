@@ -310,6 +310,11 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
     import frida_capture  # late import: only needed for --target retail
     trace_path = _ensure_trace_exists(scen)
 
+    # TAS save virtualization (retail): resolve the trace's {savefile} so the
+    # agent sandboxes save I/O — the replay NEVER reads or writes the user's real
+    # save.dat. @fresh → empty sandbox (fresh boot); a blob → seeded as save.dat.
+    save_ref = trace_save.resolve_save(trace_path)
+
     # Segtrace scenarios drive the agent's anchor-segmented forcing (it owns
     # the input mask AND schedules captures from its {capture} ops), so pass
     # input_segtrace_path instead of input_trace_path; force_input stays off.
@@ -323,6 +328,7 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
             # Pin retail's LCG to the same seed the port uses (--rng-seed
             # below), so RNG-driven positions are comparable, not seed-shifted.
             rng_seed=scen.rng_seed,
+            save_ref=save_ref,
         )
 
     return frida_capture.run_capture(
@@ -337,6 +343,7 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
         # Pin retail's LCG to the same seed the port uses (--rng-seed), so
         # RNG-driven positions are comparable, not seed-shifted.
         rng_seed=scen.rng_seed,
+        save_ref=save_ref,
     )
 
 

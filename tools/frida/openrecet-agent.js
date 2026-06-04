@@ -428,6 +428,14 @@ let g_present_hooked = false;
 let g_capture_pending = new Set();  // frame numbers to dump on next Present
 let g_capture_all = false;          // if true, dump every Present
 let g_max_frames = 0;               // 0 = no cap; stop = die after that many sim frames
+
+// TAS save virtualization. When set (Windows path to a per-run sandbox dir),
+// every save.dat/_save.dat file open is redirected into the sandbox so a trace
+// replay NEVER touches the user's real save (read OR write). Seeded by the
+// harness: a "continue" trace pre-places its save in the sandbox; "@fresh"
+// leaves it empty (game boots fresh + any write lands in the sandbox).
+let g_save_sandbox = null;
+const g_save_redirect_keep = [];    // keep redirected path strings alive past onEnter
 let g_boot_ms = 0;
 let g_start_real_ms = Date.now();
 
@@ -1508,6 +1516,55 @@ function installShowWindowHook() {
 // IDOK = 1 per WinUser.h. Hardcoded everywhere from MSVC's CRT to the
 // SDK.
 const IDOK = 1;
+
+// TAS save virtualization — redirect every save.dat/_save.dat open into the
+// per-run sandbox so a replay can never read or write the user's real save.
+// Hooks kernel32!CreateFileW + CreateFileA: the CRT's fopen("save.dat", ...)
+// funnels through one of these regardless of static/dynamic CRT linkage, so it's
+// robust to the build. On a matching open we rewrite the path argument in place
+// to <sandbox>\<basename>. Reads of a non-existent sandbox file fail cleanly →
+// the engine boots fresh (the @fresh case); writes create the sandbox file.
+function installSaveRedirectHook(sandboxWin) {
+    sandboxWin = String(sandboxWin).replace(/[\\/]+$/, '');
+
+    function isSaveBase(name) {
+        const m = /[^\\/]*$/.exec(name);
+        const b = (m ? m[0] : name).toLowerCase();
+        return b === 'save.dat' || b === '_save.dat';
+    }
+    function saveBase(name) {
+        const m = /[^\\/]*$/.exec(name);
+        return m ? m[0] : name;
+    }
+
+    function attachOne(exportName, wide) {
+        // Frida 17.x: resolve the module instance first, then the export off it
+        // (the legacy Module.getExportByName(name, export) global was removed).
+        const k32 = Process.findModuleByName('kernel32.dll');
+        const addr = k32 ? k32.findExportByName(exportName) : null;
+        if (!addr) { err('saveRedirect', 'no ' + exportName); return; }
+        Interceptor.attach(addr, {
+            onEnter: function (args) {
+                try {
+                    const p = args[0];
+                    if (p.isNull()) return;
+                    const orig = wide ? p.readUtf16String() : p.readAnsiString();
+                    if (!orig || !isSaveBase(orig)) return;
+                    const np = sandboxWin + '\\' + saveBase(orig);
+                    const buf = wide ? Memory.allocUtf16String(np)
+                                     : Memory.allocAnsiString(np);
+                    g_save_redirect_keep.push(buf);   // outlive the call
+                    args[0] = buf;
+                    log('saveRedirect ' + exportName + ': ' + orig + ' -> ' + np);
+                } catch (e) { err('saveRedirect.onEnter', e.message); }
+            }
+        });
+    }
+
+    attachOne('CreateFileW', true);
+    attachOne('CreateFileA', false);
+    log('save redirect armed → sandbox ' + sandboxWin);
+}
 
 function installMessageBoxHook() {
     const u32 = Process.findModuleByName('user32.dll');
@@ -3908,6 +3965,8 @@ rpc.exports = {
         }
         g_capture_all = !!config.capture_all;
         g_max_frames  = config.max_frames | 0;
+        g_save_sandbox = (typeof config.save_sandbox === 'string'
+                          && config.save_sandbox) ? config.save_sandbox : null;
 
         // Input injection setup. The driver passes a pre-sorted list of
         // {frame, mask} entries (sparse trace, post-dense expansion is
@@ -4222,6 +4281,12 @@ rpc.exports = {
             // subsequent installers — or from the engine's own boot path
             // — gets caught and never blocks the harness.
             installMessageBoxHook();
+            // Save virtualization FIRST — must catch the engine's boot save-load
+            // (CreateFile on save.dat) before it runs, so the real save is never
+            // read or written by a replay. Pre-resume install guarantees it.
+            if (g_save_sandbox) {
+                installSaveRedirectHook(g_save_sandbox);
+            }
             installInitHook();
             installAudioHooks();
             installInputHook();
