@@ -28,6 +28,7 @@
 #include "scene1_records_c_tick.h"
 #include "scene1_sim.h"
 #include "scene1_spawn.h"
+#include "rng.h"
 #include "sim.h"
 #include "worker_load.h"
 #include "scene1_intro_dialogue.h"
@@ -255,6 +256,30 @@ int test_scene1_ingame_default_arm_ticks_particles_and_c(void)
     T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_AGE), 1);
     /* Table C tick fired → pickup-bob AGE 10→11. */
     T_ASSERT_EQ_I(c_slot_get_i(0, SCENE1_RECORDS_C_OFF_AGE), 11);
+    return 0;
+}
+
+int test_scene1_ingame_default_arm_consumes_debug_overlay_rng(void)
+{
+    /* engine-quirks §95: FUN_00442cef's tail (after FUN_0040fb3a +
+     * FUN_004426a7) burns exactly ONE raw LCG step every frame on the
+     * invisible dev coordinate readout (442cef.c L421).  The transition arm
+     * (FUN_004427d3) shares scene1_particles_tick but has NO such tail, so
+     * the default arm must consume exactly one MORE rng step than the
+     * transition arm from an identical hermetic world.  Omitting it desynced
+     * the whole RNG stream by 1 step/frame vs retail — see
+     * docs/findings/freeroam-rng-consumption.md. */
+    reset_world();
+    unsigned long c0 = rng_call_count();
+    scene1_ingame_transition_arm_tick();
+    unsigned long trans = rng_call_count() - c0;
+
+    reset_world();
+    c0 = rng_call_count();
+    scene1_ingame_default_arm_tick();
+    unsigned long deflt = rng_call_count() - c0;
+
+    T_ASSERT_EQ_U(deflt - trans, 1u);
     return 0;
 }
 

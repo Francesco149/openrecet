@@ -46,6 +46,7 @@
 #include "scene1_player_ctrl.h"
 #include "scene1_records_b_tick.h"
 #include "scene1_records_c_tick.h"
+#include "rng.h"
 #include "call_trace.h"
 
 /* Engine flag stand-ins.  All BSS-zero default → HOUSE selects the
@@ -108,6 +109,21 @@ void scene1_ingame_default_arm_tick(void)
      * every code path of the function including the early-return pause
      * branches. */
     scene1_particles_tick();
+
+    /* FUN_00442cef tail, immediately after FUN_0040fb3a (scene1_particles_
+     * tick) + FUN_004426a7 (unported, consumes no RNG): the engine's
+     * developer coordinate overlay.  It calls the raw LCG once
+     * (thunk_FUN_005041f6 @ 0x471084 → 442cef.c L421) and sprintf()s the
+     * result as "%d", then the player X/Y/Z (DAT_056da1d8/dc/e0) as
+     * "X:%f"/"Y:%f"/"Z:%f", into the debug text grid at DAT_06a47aac rows
+     * 4-6 (FUN_00451874).  That grid is NOT drawn in the retail Steam build,
+     * so we faithfully consume the RNG step — it advances the shared LCG
+     * (DAT_006023a0) every frame and is the LAST consumer of the tick — but
+     * intentionally render nothing.  Omitting it desynced the whole RNG
+     * stream by 1 step/frame vs retail (foot-dust/wing-sparkle positions
+     * drifted from db054~37 on); see docs/findings/freeroam-rng-consumption.md.
+     * The return value is discarded (only the state advance matters). */
+    (void)rng_next15();
 }
 
 void scene1_ingame_tick(void)

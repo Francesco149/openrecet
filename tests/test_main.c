@@ -1562,6 +1562,7 @@ struct test_case {
     X(sim_step_a_state_a_skips_integrator) \
     X(sim_step_a_state_c_skips_integrator) \
     X(scene1_ingame_default_arm_ticks_particles_and_c) \
+    X(scene1_ingame_default_arm_consumes_debug_overlay_rng) \
     X(scene1_ingame_transition_flag_picks_transition_arm) \
     X(scene1_ingame_skip_flag_skips_all_ticks) \
     X(scene1_ingame_paused_flag_picks_transition_arm) \

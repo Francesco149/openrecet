@@ -1,5 +1,31 @@
 # Free-roam RNG-consumption desync + the missing ambient emitter (2026-06-04)
 
+## ✅ Lead A RESOLVED 2026-06-04 — it was an invisible dev coordinate overlay, NOT a missing emitter
+
+`phase_probe house-walk-down-dense` now reports **`rng` AND `rngcalls` ALIGNED**
+(bit-exact LCG state at every db054). Fix: `src/scene1_sim.c` consumes one
+`rng_next15()` at the tail of `scene1_ingame_default_arm_tick` (commit below).
+
+The original hypothesis (a missing every-16-frame ambient emitter through
+`scene1_spawn`) was **WRONG**. The numeric per-frame `rngcalls` diff showed a
+steady **−1 read/frame on EVERY frame** (a flat consumer), not a +N step every 16
+frames (a periodic emitter). The every-16 foot-dust (`FUN_0048b850` → `scene1_spawn`
+type 0xe) and the every-4 wing-sparkle were already **bit-exact in the port**.
+
+Root cause (drilled with a `--call-trace` hook on `0x447f4f` + the per-frame
+`rngcalls` numeric diff): the **dev coordinate overlay** at the tail of
+`FUN_00442cef` (decompile L421, asm `0x443601`) calls the raw LCG once per frame
+to print `"%d"` (the rng value) + `"X/Y/Z:%f"` (player pos) into an **unrendered**
+debug text grid (`DAT_06a47aac` via `FUN_00451874`). Invisible, but it still
+advances `DAT_006023a0` every frame and is the tick's LAST rng consumer — so
+omitting it desynced the whole downstream stream by 1 step/frame (first visible at
+db054≈37, the frame the trace's walk begins). Written up as **engine-quirks §95**;
+regression test `test_scene1_ingame_default_arm_consumes_debug_overlay_rng`.
+
+Lead B (player-anim phase normalization) is still open — see below.
+
+---
+
 Status at session end. Two leads, both surfaced by the new phase/RNG tooling
 (`tools/phase_probe.py`, `docs/phase-debugging.md`). **Pick up here next session.**
 

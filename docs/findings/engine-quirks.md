@@ -3731,3 +3731,44 @@ load contribute **nothing**. This is the retail-side fact behind the port's
 Tear anim-phase divergence (the port skips the video, so its db054/companion-anim
 phase is offset at free-roam — that port consequence is written up in
 `scene1-tear-visual-diffs.md` §"#3/#4 determinism verdict", not here).
+
+---
+
+## 95. The INGAME sim burns one LCG step per frame on an invisible dev coordinate readout — a permanent fingerprint on the determinism stream
+
+At the very tail of `FUN_00442cef` (the default-running INGAME arm, decompile
+`442cef.c` L417-429, asm `0x4435f7`-`0x44364b`), after the table-A/B/C ticks,
+the engine runs a **developer coordinate overlay** every frame, unconditionally:
+
+```c
+FUN_0040fb3a();                 // table-A particle tick (= scene1_particles_tick)
+FUN_004426a7();                 // (consumes no RNG)
+uVar4 = thunk_FUN_005041f6();   // <-- ONE raw LCG step, every frame
+FUN_005038ff(buf, "%d",   uVar4);          FUN_00451874(0,4,buf);  // the rng value
+FUN_005038ff(buf, "X:%f", DAT_056da1d8);   FUN_00451874(0,4,buf);  // player X
+FUN_005038ff(buf, "Y:%f", DAT_056da1dc);   FUN_00451874(0,5,buf);  // player Y
+FUN_005038ff(buf, "Z:%f", DAT_056da1e0);   FUN_00451874(0,6,buf);  // player Z
+```
+
+`thunk_FUN_005041f6` is the bare `jmp 0x5041f6` at `0x471084` — the raw LCG
+(not the `& 0x7fff` unit wrapper `FUN_00471089`). `FUN_00451874` just copies the
+formatted chars into the debug text-grid at `DAT_06a47aac` (80 cols × rows 4-6);
+**that grid is never drawn in the retail Steam build**, so the overlay is
+invisible. But the LCG state `DAT_006023a0` is advanced once per frame regardless,
+and this is the **last** RNG consumer of the tick.
+
+Why it matters: it's a textbook "observation changes the system" quirk. A feature
+that renders *nothing* still leaves a deterministic fingerprint — +1 LCG step per
+INGAME frame, forever. Any determinism comparison that omits it desyncs the entire
+shared RNG stream by one step per frame, so every *downstream* RNG-driven position
+(foot-dust jitter, wing-sparkle, ambient particles) drifts even when each emitter's
+own logic is bit-exact. We found it the hard way: with the companion anim counters
+and the periodic emitters all verified bit-exact, `phase_probe`'s `rngcalls` still
+showed a steady −1/frame port deficit (first visible at db054≈37, the frame the
+trace's walk begins). The culprit was this single invisible `%d`/`X:%f` readout.
+
+Port note (not part of the quirk, for cross-ref): `src/scene1_sim.c` faithfully
+consumes the step (`(void)rng_next15()` at the default-arm tail) but renders
+nothing, which is what the retail build does. After that, `phase_probe
+house-walk-down-dense` reports `rng` **and** `rngcalls` ALIGNED (bit-exact LCG
+state at every db054). See `docs/findings/freeroam-rng-consumption.md`.

@@ -22246,6 +22246,7 @@
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
     "src/scene1_records_c_spawn.c",
+    "src/scene1_sim.c",
     "src/scene1_spawn.c"
    ]
   },

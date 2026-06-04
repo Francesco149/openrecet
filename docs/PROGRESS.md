@@ -7,6 +7,31 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-04 (pm) — Free-roam RNG-consumption gap CLOSED: invisible dev coord-overlay (§95)
+
+`phase_probe house-walk-down-dense` now reports **`rng` AND `rngcalls` ALIGNED**
+(bit-exact LCG state at every db054) — the steady free-roam RNG desync is gone.
+
+- **Root cause was NOT the hypothesized missing every-16 emitter.** The per-frame
+  `rngcalls` numeric diff showed a flat **−1 read/frame on every frame** (not a
+  periodic +N step). The every-16 foot-dust (`FUN_0048b850`→`scene1_spawn` type
+  0xe) and every-4 wing-sparkle were already bit-exact. Drilled the real consumer
+  with a `--call-trace` hook on `scene1_spawn` (0x447f4f) + the numeric diff.
+- **The culprit:** `FUN_00442cef`'s tail runs an **invisible developer coordinate
+  overlay** every frame — one raw LCG step (`thunk_FUN_005041f6`, 442cef.c L421)
+  formatted as `"%d"`/`"X:%f"`/`"Y/Z"` into the unrendered debug text grid
+  (`DAT_06a47aac` via `FUN_00451874`). The overlay draws nothing in the Steam
+  build but still advances the shared LCG once/frame and is the tick's LAST
+  consumer → omitting it desynced the whole downstream stream by 1 step/frame
+  (first visible db054≈37). **engine-quirks §95.**
+- **Fix:** `src/scene1_sim.c` consumes `(void)rng_next15()` at the default-arm
+  tail (faithful: consume, render nothing). Regression test
+  `test_scene1_ingame_default_arm_consumes_debug_overlay_rng` (default arm burns
+  exactly 1 more LCG step than the transition arm). Aligned diff at db054=64 =
+  **1.4% px** (residual = Lead B player-anim phase + benign FPS overlay §90).
+- **Lead B still open:** player (Recette) anim cycle is not phase-normalized by
+  `{phasepin}` (companion-only today). See `findings/freeroam-rng-consumption.md`.
+
 ## 2026-06-04 — Phase/determinism tooling + Tear anim-phase root-caused; two leads open
 
 Built the standing **phase/determinism toolchain** and used it to crack the Tear
