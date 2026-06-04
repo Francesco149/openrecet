@@ -10037,6 +10037,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/save_bank.h",
     "src/scene_title.c"
    ]
   },

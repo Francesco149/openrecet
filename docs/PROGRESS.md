@@ -7,6 +7,43 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-04 (evening) — Load-a-save arc: working arena + continue picker + post-fade branch
+
+New front: the title-screen **Continue / load a save** flow. Landed the data
+path that was entirely missing — the port had no live game-state arena at all
+(it faked the per-stage record with 4 hardcoded selector globals).
+
+- **W1 — working arena (`save_work.{c,h}`).** Ported the engine's SECOND save
+  arena: the live/working arena (`DAT_044e2c88` header / `DAT_044e3798` banks)
+  that gameplay actually reads, distinct from the disk-mirror save arena
+  (`save_bank.c`). `save_work_load_slot` (FUN_00490259) copies a chosen save
+  bank → active working slot + recomputes the live inventory count (first empty
+  item slot @dword 0xaec6). `save_work_sync_from_save` (FUN_004902aa).
+  8 host tests. Architecture: `findings/save-working-arena.md`.
+- **M1 — continue slot-picker (`title_continue_picker.{c,h}`).** FUN_0049b537 +
+  the FUN_0049a59e `DAT_09643524==1` body: a 3-row grid cursor over the 100
+  save slots with the engine's column-scroll slide animation; A on an occupied
+  slot (bank dword 2 != 0) loads it via save_work_load_slot, B cancels.
+  11 host tests. + save-header last-used-slot accessors (DAT_056e578c, dword 7).
+- **W2 — title integration + post-fade branch.** Menu dispatch now matches the
+  engine switch (codes {0,5}→NEW, {1,4}→picker; was {0,4,5}→fade).
+  `scene_post_fade_init` splits on `continue_mode` (DAT_0438bed4): NEW resets
+  bank 0 + seeds working slot 0 + arms the opening prologue; CONTINUE preserves
+  the picker-loaded working slot, skips the reset AND the prologue. +2 tests.
+
+The picker is reachable and drives a real load; it's human-visible once its
+render lands (M2, deferred) and the loaded state shows once gameplay reads the
+working arena.
+
+- **Items-on-display RE (task D) — UNMAPPED, do not port blind.** A fan-out map
+  was wrong twice: `FUN_00456f56` is the dormant CHARACTER walker (not items),
+  and bank `0x9e76` (100×18 records) is the per-bank RANKING summary consumed by
+  `FUN_0049f012` (ranking screen) — NOT the shop-floor display. Corrected
+  `save_bank.h`'s misleading "item-grid scratch" label. The real shop-display
+  renderer + its (likely runtime, not saved) source array need a call-graph
+  diff on a retail HOUSE frame with merchandise out. Plan:
+  `findings/shop-item-display-RE-status.md`.
+
 ## 2026-06-04 (pm) — Free-roam RNG-consumption gap CLOSED: invisible dev coord-overlay (§95)
 
 `phase_probe house-walk-down-dense` now reports **`rng` AND `rngcalls` ALIGNED**

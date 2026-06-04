@@ -47,7 +47,11 @@
  *   [4]              u16 = 2 + u16 padding
  *   [6..6+19999]     0xFFFFFFFF × 20000 (item slot table, 80 KB)
  *   [0x4e26..+299]   0xFFFFFFFF × 300
- *   [0x9e76..0xa586] 100 records × 18 dwords (item-grid scratch)
+ *   [0x9e76..0xa586] 100 records × 18 dwords — per-bank RANKING summary
+ *                    (NOT shop-floor display items, despite the old
+ *                    "item-grid scratch" label). Only reader/writer is
+ *                    FUN_0049f012 (ranking screen, based DAT_0450b170).
+ *                    See findings/shop-item-display-RE-status.md.
  *   [0xaec6]         0
  *   [0xafc7..+299]   0xFFFFFFFF × 300
  *   [0xb0f6]         u32 gold_objective (1000)

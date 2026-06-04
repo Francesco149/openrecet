@@ -418,7 +418,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49e9a7 | FUN_0049e9a7 | 387 | ✓ | tables_item.c, tables_kyaku.c, tables_kyaku.h (+3) |
 | 0x49eb2a | FUN_0049eb2a | 488 | ✓ | tables_item.c, tables_item.h, tables_kyaku.c (+1) |
 | 0x49ed75 | FUN_0049ed75 | 515 | ✓ | tables_item.c, tables_item.h |
-| 0x49f012 | FUN_0049f012 | 851 | ✓ | scene_title.c |
+| 0x49f012 | FUN_0049f012 | 851 | ✓ | save_bank.h, scene_title.c |
 | 0x4a2a03 | FUN_004a2a03 | 13 |  | math3d.h, scene1_pass_f.c, scene1_records_b_spawn.c (+3) |
 | 0x4a2f35 | FUN_004a2f35 | 13 |  | math3d.h |
 | 0x4a33d2 | FUN_004a33d2 | 46 |  | math3d.h, scene1_render.c |
