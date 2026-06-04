@@ -95,3 +95,15 @@ plumbing is done.
   array), NOT item display.
 - Bank dword `0x9e76` (100×18) is the per-bank RANKING summary (`FUN_0049f012`),
   NOT the shop display. (The display is `0x4e26`, above.)
+
+## Prerequisites — already present in the port (scoped 2026-06-04)
+- `FUN_004681f6` (item-id → record slot): **ported** (`tables_item.c`).
+- Per-category item icon textures: **loaded** (`sysassets.item_icons[33]`).
+- 32×32 tile-UV math + the resolver pattern (`DAT_095d3808`→`DAT_073d8778`
+  texture bank, `DAT_095d380c` icon index): scaffolded in
+  `scene1_wide_followup_helpers.c` (the wide-followup's own "Pass D" resolver —
+  reusable shape, though a separate pass from the 0x4e26 display grid).
+- Display grid data (working-bank 0x4e26): **loaded** by `save_work_load_slot`.
+So the remaining work is just `FUN_00415fab` (the quad build + its specific
+texture/icon lookup) + un-gating the `scene1_wide_followup.c` grid loop to read
+`save_work`. A clean, self-contained chip for a fresh session.
