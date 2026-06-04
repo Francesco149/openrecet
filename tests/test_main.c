@@ -450,6 +450,8 @@ struct test_case {
     X(anchor_dlg_line_edges) \
     X(anchor_conv_pose_edges) \
     X(anchor_conv_pose_blink) \
+    X(anchor_pause_edges) \
+    X(anchor_title_return) \
     X(anchor_jsonl_sink_format) \
     \
     X(dialogue_skips_comments_and_terminates) \

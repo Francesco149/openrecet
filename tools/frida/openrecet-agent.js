@@ -69,6 +69,12 @@ const ADDR = {
     var_save_arena:      0x056e5770,
     fn_save_write:       0x004905a8,
 
+    // In-game PAUSE menu state (DAT_0438b150; set 1 by scene_pause_state_init,
+    // cleared 0 on close). Drives the PAUSE_OPEN/PAUSE_CLOSE anchors so the
+    // save/quit-to-title menu navigation in a TAS trace re-syncs to the menu's
+    // own edge instead of drifting between the coarse LOADING anchors.
+    var_pause_state:     0x0438b150,
+
     // WndProc ESC → skip-event entry (FUN_00453384(0)). Called when the user
     // presses ESC during a skippable event (the intro dialogues). The {esc}
     // replay path PostMessageA(WM_KEYDOWN,ESC)s into WndProc → here; hooking
@@ -685,6 +691,7 @@ let g_anchor_prev_fxalpha  = 0;      // previous-frame max extra-sprite alpha
 let g_anchor_prev_linep    = 0;      // previous-frame DAT_073a6a38 >= 0 (line shown)
 let g_anchor_prev_convstate = 0;     // previous-frame DAT_056daafc (player state)
 let g_anchor_prev_convblink = false; // previous-frame eyes-closed (blink) flag
+let g_anchor_prev_pause     = false; // previous-frame DAT_0438b150 != 0 (pause open)
 
 // Extra/effect-sprite standee table (the sigh / zzz / kuro fade etc). Base =
 // &DAT_073a3e70, stride 0x70; field11 (active) at +0x2c, field18 (alpha float)
@@ -2469,6 +2476,8 @@ function anchorTick(frame, devicePtr) {
     const convState = rva(ADDR.var_player_state).readS32();
     const convBlink = (convState === 6) &&
                       (rva(ADDR.var_player_frame).readS32() === 1);
+    // DAT_0438b150 != 0 — the in-game PAUSE menu is open.
+    const pauseActive = rva(ADDR.var_pause_state).readS32() !== 0;
 
     if (!g_anchor_initialized) {
         g_anchor_initialized  = true;
@@ -2480,6 +2489,7 @@ function anchorTick(frame, devicePtr) {
         g_anchor_prev_linep   = linePresent;
         g_anchor_prev_convstate = convState;
         g_anchor_prev_convblink = convBlink;
+        g_anchor_prev_pause   = pauseActive;
         sendAnchor('BOOT', frame);
         anchorCaptureSchedule('BOOT', frame, devicePtr);
         return;
@@ -2575,6 +2585,24 @@ function anchorTick(frame, devicePtr) {
         sendAnchor('CONV_POSE_BLINK', frame);
         anchorCaptureSchedule('CONV_POSE_BLINK', frame, devicePtr);
     }
+    // PAUSE_OPEN / PAUSE_CLOSE — the in-game pause menu opens/closes (DAT_0438b150
+    // 0->1 / 1->0). Anchors the save/quit-to-title navigation. Mirror of
+    // anchor_trace.c ev_pause_open / ev_pause_close.
+    if (!g_anchor_prev_pause && pauseActive) {
+        sendAnchor('PAUSE_OPEN', frame);
+        anchorCaptureSchedule('PAUSE_OPEN', frame, devicePtr);
+    }
+    if (g_anchor_prev_pause && !pauseActive) {
+        sendAnchor('PAUSE_CLOSE', frame);
+        anchorCaptureSchedule('PAUSE_CLOSE', frame, devicePtr);
+    }
+    // TITLE_RETURN — quit to the title/main menu from in-game (scene INGAME ->
+    // TITLE). The reverse of NEW_GAME; anchors the title-menu load-slot
+    // navigation. Mirror of anchor_trace.c ev_title_return.
+    if (ps === ANCHOR_SCENE_INGAME && scene === ANCHOR_SCENE_TITLE) {
+        sendAnchor('TITLE_RETURN', frame);
+        anchorCaptureSchedule('TITLE_RETURN', frame, devicePtr);
+    }
 
     g_anchor_prev_scene   = scene;
     g_anchor_prev_loading = loading;
@@ -2584,6 +2612,7 @@ function anchorTick(frame, devicePtr) {
     g_anchor_prev_linep   = linePresent;
     g_anchor_prev_convstate = convState;
     g_anchor_prev_convblink = convBlink;
+    g_anchor_prev_pause   = pauseActive;
 }
 
 // ─── Cchr.0 table-B record dump ─────────────────────────────────────────

@@ -95,6 +95,13 @@ struct anchor_world {
      * HOUSE_FREEROAM, which fires when the load overlay drops, still mid-iv1_2).
      * This is the anchor to rebase a recorded free-roam walk onto. */
     int intro_done;
+
+    /* 1 while the in-game PAUSE menu is open (engine DAT_0438b150 != 0; set 1 by
+     * scene_pause_state_init, cleared 0 on close). Drives PAUSE_OPEN (0→1) /
+     * PAUSE_CLOSE (1→0) so the save/pause-menu navigation in a TAS trace re-syncs
+     * to the menu's own edges instead of drifting between the coarse LOADING
+     * anchors (the save→quit-to-title→reload flow). 0 outside the pause menu. */
+    int pause_active;
 };
 
 /* Sink for one emitted anchor. `name` is a stable UPPER_SNAKE token;

@@ -417,6 +417,53 @@ int test_anchor_conv_pose_blink(void)
     return 0;
 }
 
+/* PAUSE_OPEN / PAUSE_CLOSE fire on the pause-menu flag's 0→1 / 1→0 edges, and
+ * recur per pause (the save→quit-to-title flow opens it more than once). */
+int test_anchor_pause_edges(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+    struct anchor_world w = { 0 };
+    w.scene_state = 1;
+
+    anchor_trace_tick(&st, 0, w, rec_sink, &r);   /* BOOT, pause=0 baseline */
+    w.pause_active = 1;
+    anchor_trace_tick(&st, 1, w, rec_sink, &r);   /* 0→1 → PAUSE_OPEN */
+    anchor_trace_tick(&st, 2, w, rec_sink, &r);   /* held → nothing */
+    w.pause_active = 0;
+    anchor_trace_tick(&st, 3, w, rec_sink, &r);   /* 1→0 → PAUSE_CLOSE */
+    w.pause_active = 1;
+    anchor_trace_tick(&st, 4, w, rec_sink, &r);   /* 0→1 → PAUSE_OPEN (recurs) */
+
+    T_ASSERT_EQ_I(rec_count(&r, "PAUSE_OPEN"), 2);
+    T_ASSERT_EQ_I(rec_count(&r, "PAUSE_CLOSE"), 1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "PAUSE_OPEN")], 1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "PAUSE_CLOSE")], 3);
+    return 0;
+}
+
+/* TITLE_RETURN fires on the INGAME→TITLE edge (quit to title), the reverse of
+ * NEW_GAME. A subsequent TITLE→INGAME fires NEW_GAME, not TITLE_RETURN. */
+int test_anchor_title_return(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+    struct anchor_world w = { 0 };
+    w.scene_state = 1;  /* INGAME */
+
+    anchor_trace_tick(&st, 0, w, rec_sink, &r);   /* BOOT, baseline INGAME */
+    w.scene_state = 0;  /* TITLE */
+    anchor_trace_tick(&st, 1, w, rec_sink, &r);   /* INGAME→TITLE → TITLE_RETURN */
+    w.scene_state = 1;  /* INGAME */
+    anchor_trace_tick(&st, 2, w, rec_sink, &r);   /* TITLE→INGAME → NEW_GAME */
+
+    T_ASSERT_EQ_I(rec_count(&r, "TITLE_RETURN"), 1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "TITLE_RETURN")], 1);
+    T_ASSERT_EQ_I(rec_count(&r, "NEW_GAME"), 1);
+    T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "NEW_GAME")], 2);
+    return 0;
+}
+
 /* The JSONL convenience sink emits the exact shared wire format. */
 int test_anchor_jsonl_sink_format(void)
 {

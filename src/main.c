@@ -2651,6 +2651,7 @@ static void render_dispatch(void)
             .conv_pose_state  = scene1_conversation_pose_player_state(),
             .conv_pose_blink  = scene1_conversation_pose_player_blink(),
             .intro_done       = scene1_intro_dialogue_done(),
+            .pause_active     = (g_scene_pause_state_b150 != 0),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);

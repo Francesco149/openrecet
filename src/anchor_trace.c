@@ -139,6 +139,30 @@ static int ev_freeroam_start(const struct anchor_world *p, const struct anchor_w
     return !p->intro_done && c->intro_done;
 }
 
+/* Returned to the title / main menu from in-game (the quit-to-title step of a
+ * save→reload flow). scene_state INGAME→TITLE. Mirror of ev_new_game (the
+ * forward TITLE→INGAME edge); the engine passes through LOADING within a single
+ * tick, so the observable inter-frame edge is INGAME→TITLE directly. Lets a TAS
+ * trace rebase the title-menu load-slot navigation onto this sync point. */
+static int ev_title_return(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->scene_state == ANCHOR_SCENE_INGAME
+        && c->scene_state == ANCHOR_SCENE_TITLE;
+}
+
+/* The in-game PAUSE menu opened / closed (DAT_0438b150 0→1 / 1→0). The save and
+ * "quit to title" options are reached from here; anchoring the open lets the
+ * menu-navigation segment re-sync instead of drifting from the preceding
+ * free-roam/LOADING anchor. Recurs per pause. */
+static int ev_pause_open(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return !p->pause_active && c->pause_active;
+}
+static int ev_pause_close(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->pause_active && !c->pause_active;
+}
+
 struct anchor_def {
     const char *name;
     int (*fired)(const struct anchor_world *prev, const struct anchor_world *cur);
@@ -164,6 +188,9 @@ static const struct anchor_def g_anchors[] = {
     { "CONV_POSE_END",         ev_conv_pose_end   },
     { "CONV_POSE_BLINK",       ev_conv_pose_blink },
     { "FREEROAM_START",        ev_freeroam_start  },
+    { "PAUSE_OPEN",            ev_pause_open      },
+    { "PAUSE_CLOSE",           ev_pause_close     },
+    { "TITLE_RETURN",          ev_title_return    },
 };
 #define ANCHOR_COUNT ((int)(sizeof(g_anchors) / sizeof(g_anchors[0])))
 
