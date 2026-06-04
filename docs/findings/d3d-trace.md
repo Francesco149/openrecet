@@ -86,6 +86,33 @@ doesn't break on pointer identity.
 {"op":"DrawIndexedPrimitiveUP","args":{"prim_type":4,"min_vtx_idx":0,"num_vtx_indices":N,"prim_count":N,"ib":"0xNN","ib_fmt":N,"vb":"0xNN","vb_stride":N},"ret_va":N,"frame":N}
 ```
 
+### Vertex-byte capture (`--d3d-trace-verts` / `d3d_trace_verts`)
+
+Off by default.  When enabled, every **immediate-mode** draw (`DrawPrimitiveUP`,
+`DrawIndexedPrimitiveUP`) additionally carries its raw vertex bytes so
+`tools/render_diff.py --explain` can FVF-decode and name the first divergent
+vertex field.  Extra `args` fields:
+
+```jsonc
+// DrawPrimitiveUP
+"vb_nverts": 6,            // vertex count = vcount(prim_type, prim_count)
+"vb_bytes":  "0000804400…" // lowercase hex, vb_nverts × vb_stride bytes
+"vb_over":   98304         // present INSTEAD of vb_bytes if over the 64 KiB cap
+// DrawIndexedPrimitiveUP also adds:
+"ib_nidx":   N,            // index count = vcount(prim_type, prim_count)
+"ib_bytes":  "…",          // ib_nidx × (ib_fmt==101 ? 2 : 4) bytes, hex
+"vb_nverts": min_vtx_idx + num_vtx_indices   // dumped from vertex 0 so abs indices resolve
+```
+
+The FVF in effect is the most-recent `SetVertexShader` handle (fixed-function
+FVF codes; the engine uses `0x142` = XYZ|DIFFUSE|TEX1 stride-24 for 3D billboards
+and `0x1c4` = XYZRHW|DIFFUSE|SPECULAR|TEX1 stride-32 for 2D/HUD quads).  Both
+sides (`src/d3d_trace.c` `d3d_prim_vcount` + the Frida agent's `primVcount`) emit
+byte-for-byte identical hex, validated on the title screen (port + retail decode
+the same `(1024,768,0,1)` screen corner).  Only the UP paths are captured — VB-
+backed `DrawPrimitive`/`DrawIndexedPrimitive` (3D mesh geometry via a locked VB)
+are deferred.
+
 ### `ret_va` field
 
 Module-relative offset of the immediate caller's return address

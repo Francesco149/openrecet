@@ -147,6 +147,11 @@ def main(argv=None) -> int:
     ap.add_argument("--d3d-trace", action="store_true",
                     help="also capture a per-draw d3d_trace.jsonl over the "
                          "caprange window (→ tools/d3d_state_diff.py)")
+    ap.add_argument("--d3d-trace-verts", action="store_true",
+                    help="with --d3d-trace, also capture each immediate-mode "
+                         "draw's FVF-decodable vertex bytes (→ "
+                         "tools/render_diff.py --explain). Mirror on the "
+                         "retail side with frida_capture.py --d3d-trace-verts.")
     ap.add_argument("--max-frames", type=int, default=4000,
                     help="absolute frame budget (must exceed the window end; "
                          "the window is anchor-relative so allow headroom)")
@@ -229,6 +234,8 @@ def main(argv=None) -> int:
         # segtrace_caprange_cb → d3d_trace_set_window), so the trace emits
         # exactly the captured frames, anchor-relative.
         cmd += ["--d3d-trace", str(run_dir / "d3d_trace.jsonl")]
+        if args.d3d_trace_verts:
+            cmd += ["--d3d-trace-verts"]
     print(f"export_trace: driving port → {run_dir}", file=sys.stderr)
     print("export_trace:   " + " ".join(cmd), file=sys.stderr)
     rc = subprocess.run(cmd, cwd=str(ROOT)).returncode

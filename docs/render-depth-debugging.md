@@ -36,6 +36,12 @@ python3 tools/frida_capture.py --remote cutestation.soy:27042 \
     --d3d-trace --turbo --silent-audio --force-resolution 1024x768 --max-frames 4000
 ```
 
+Add `--d3d-trace-verts` to BOTH commands to also capture per-draw vertex bytes,
+then `tools/render_diff.py --explain` names the first divergent vertex *field*
+(`vertex 2 POSITION.z: retail … port …`) on the aligned draws — the
+binary-independent complement to `depthdiff` (which matches by world-pos).  See
+`docs/findings/render-diff.md` §`--explain`.
+
 cap_NN ⇒ absolute frame = (first captured frame) + NN, on each side independently.
 
 ## Step 2 — find the bug: `d3d_state_diff.py depthdiff`

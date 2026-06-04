@@ -8,16 +8,16 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-███░░░░░░░░░░░░░░░░░  16.7% touched   (2.9% runtime-verified)
+███░░░░░░░░░░░░░░░░░  16.6% touched   (2.9% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
 | verified  |    73 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    17 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   335 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **425** | verified + stubbed + ported                         |
-| unported  |  2123 | exists in engine, never referenced from src/             |
+| ported    |   334 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **424** | verified + stubbed + ported                         |
+| unported  |  2124 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
@@ -34,10 +34,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 - **Phase:** Foundation for frame-by-frame 1:1 parity (plan: `plans/` — render-parity
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
-- **Active work:** Phase 1 — the render-parity diff engine. Extend the d3d-trace (Frida
-  agent + `src/d3d_trace.c`) to capture per-draw **vertex buffers** (FVF-decoded) and
-  **texture identity**, then `tools/render_diff.py --explain` names the first divergent
-  draw/field. This is the tool that makes render parity mechanical.
+- **Active work:** Phase 1 — the render-parity diff engine. **Vertex capture LANDED**
+  (2026-06-05): both sides (`src/d3d_trace.c` + Frida agent) capture per-draw vertex bytes
+  under `--d3d-trace-verts`; `tools/render_diff.py --explain` FVF-decodes aligned draws and
+  names the first divergent **(vertex, field)** (e.g. `vertex 2 POSITION.z: retail -7.2 port
+  -6.5`). Validated: synthetic field/count/structural/color paths + port↔retail decode the
+  same screen corner on the title. Schema: `findings/d3d-trace.md`; usage:
+  `findings/render-diff.md §--explain`. **Remaining Phase 1:** stable **texture identity**
+  (content-hash / source-name instead of the raw pointer the opaque-pointer mode
+  approximates). **Phase 2 (next):** run the synced sweep from frame 0 of the main menu —
+  `export_trace --d3d-trace-verts` + `frida_capture --d3d-trace-verts` over a segtrace, then
+  `--explain` frame-by-frame, fixing the first real divergence each time.
 - **Sparkle is deferred ON PURPOSE — do not re-attack early.** The shop-display "目玉商品"
   sparkle (template 0x3b) has verified bit-1:1 data (texture/UV/world-matrix) but isn't yet
   visibly 1:1. It is finished **last**, only once the entire command stream UP TO its frame

@@ -53,6 +53,13 @@ void d3d_trace_init_from_cli(const char *path,
 /* Remember the traced device pointer.  No vtable mutation. */
 void d3d_trace_install(IDirect3DDevice8 *dev);
 
+/* Enable per-draw vertex (and index, for indexed-UP) byte capture on the
+ * immediate-mode draw wrappers.  Off by default — adds `vb_nverts`/
+ * `vb_bytes` (+ `ib_nidx`/`ib_bytes`) to each Draw*UP row so
+ * tools/render_diff.py --explain can FVF-decode and name the first
+ * divergent vertex field.  Wired from --d3d-trace-verts. */
+void d3d_trace_set_capture_verts(int on);
+
 /* Called once per frame from render_dispatch with the upcoming sim-
  * frame index.  Caches whether emit should happen this frame
  * (per-frame filter check). */

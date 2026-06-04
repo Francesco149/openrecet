@@ -105,10 +105,136 @@ def opaqueify_pointers(events: list[dict]) -> list[dict]:
     return out
 
 
+# Vertex-content fields are NOT part of a draw's structural identity — two
+# draws align on (op, prim args, stride, pointer-id), and `--explain` then
+# decodes the bytes to name the first divergent vertex field.  Excluding
+# them from the key means a pure-vertex divergence (same command, different
+# vertices) aligns as an "equal" block that --explain still inspects.
+_NONKEY_ARGS = frozenset((
+    "vb_bytes", "vb_nverts", "ib_bytes", "ib_nidx", "vb_over", "ib_over",
+))
+
+
 def _event_key(evt: dict) -> tuple[str, tuple]:
-    """SequenceMatcher hash key — drops `ret_va` and `frame` (those are
-    side-metadata, not part of the call's semantic identity)."""
-    return (evt["op"], _canon_args(evt.get("args", {})))
+    """SequenceMatcher hash key — drops `ret_va`/`frame` (side-metadata) and
+    the vertex-content fields (decoded separately by --explain)."""
+    args = {k: v for k, v in evt.get("args", {}).items()
+            if k not in _NONKEY_ARGS}
+    return (evt["op"], _canon_args(args))
+
+
+# ── FVF vertex decode (for --explain) ─────────────────────────────────────
+#
+# The d3d-trace captures each immediate-mode draw's raw vertex bytes
+# (`vb_bytes`, lowercase hex) + count (`vb_nverts`) when run with vertex
+# capture on (port `--d3d-trace-verts`, Frida `d3d_trace_verts`).  The FVF
+# in effect is the most-recent SetVertexShader handle (fixed-function FVF
+# codes have the high bits clear), tracked while walking the event stream.
+# Given (fvf, stride, bytes) we decode each vertex into named fields so a
+# divergence reads as "vertex 2 POSITION.z: retail X vs port Y" instead of
+# an opaque hex-string mismatch.
+
+import struct  # noqa: E402  (kept local to the decode section)
+
+# D3DFVF bit flags (d3d8types.h).
+_FVF_POSITION_MASK = 0x00E
+_FVF_XYZ           = 0x002   # 3 floats
+_FVF_XYZRHW        = 0x004   # 4 floats (x,y,z,rhw)
+_FVF_XYZB1         = 0x006   # 3 floats + 1 blend weight
+_FVF_NORMAL        = 0x010   # 3 floats
+_FVF_PSIZE         = 0x020   # 1 float
+_FVF_DIFFUSE       = 0x040   # 1 u32 (BGRA)
+_FVF_SPECULAR      = 0x080   # 1 u32
+_FVF_TEXCOUNT_MASK = 0xF00
+_FVF_TEXCOUNT_SHIFT = 8
+
+# Best-effort stride→FVF fallback for draws whose SetVertexShader landed
+# before the capture window (so the tracked FVF is unknown).  Keyed on the
+# vertex strides this engine actually emits; the tracked FVF always wins
+# when present.
+_STRIDE_FVF_FALLBACK = {
+    24: 0x142,   # XYZ | DIFFUSE | TEX1            (12+4+8) — sparkle/items/dust
+    28: 0x144,   # XYZRHW | DIFFUSE | TEX1         (16+4+8)
+    32: 0x1c4,   # XYZRHW | DIFFUSE | SPECULAR | TEX1 (16+4+4+8) — 2D/HUD quads
+    20: 0x102,   # XYZ | TEX1                      (12+8)
+    16: 0x042,   # XYZ | DIFFUSE                   (12+4)
+}
+
+
+def fvf_field_layout(fvf: int) -> list[tuple[str, str, int]]:
+    """Return the ordered field layout for an FVF: (name, kind, n_floats).
+    kind ∈ {"f","color"}; for "color" n_floats is 1 (a u32)."""
+    layout: list[tuple[str, str, int]] = []
+    pos = fvf & _FVF_POSITION_MASK
+    if pos == _FVF_XYZRHW:
+        layout.append(("POSITION", "f", 4))   # x,y,z,rhw
+    elif pos == _FVF_XYZ:
+        layout.append(("POSITION", "f", 3))
+    elif pos >= _FVF_XYZB1:
+        # blend-weighted positions: 3 pos floats + (count) blend weights.
+        nblend = (pos - _FVF_XYZ) // 2
+        layout.append(("POSITION", "f", 3))
+        if nblend:
+            layout.append(("BLENDWEIGHT", "f", nblend))
+    if fvf & _FVF_NORMAL:
+        layout.append(("NORMAL", "f", 3))
+    if fvf & _FVF_PSIZE:
+        layout.append(("PSIZE", "f", 1))
+    if fvf & _FVF_DIFFUSE:
+        layout.append(("DIFFUSE", "color", 1))
+    if fvf & _FVF_SPECULAR:
+        layout.append(("SPECULAR", "color", 1))
+    ntex = (fvf & _FVF_TEXCOUNT_MASK) >> _FVF_TEXCOUNT_SHIFT
+    for t in range(ntex):
+        layout.append((f"TEX{t}", "f", 2))   # default 2D texcoords
+    return layout
+
+
+def decode_vertices(vb_hex: str, nverts: int, stride: int,
+                    fvf: int) -> list[dict] | None:
+    """Decode `nverts` vertices from `vb_hex` (lowercase hex) using `fvf`
+    (or the stride fallback).  Returns a list of per-vertex dicts mapping
+    field name → value (list[float] for "f", int for "color").  None if the
+    bytes can't be decoded (bad length / unknown layout)."""
+    try:
+        raw = bytes.fromhex(vb_hex)
+    except ValueError:
+        return None
+    if stride <= 0 or nverts <= 0 or len(raw) < nverts * stride:
+        return None
+    if not fvf:
+        fvf = _STRIDE_FVF_FALLBACK.get(stride, 0)
+    layout = fvf_field_layout(fvf) if fvf else None
+    out: list[dict] = []
+    for v in range(nverts):
+        base = v * stride
+        vert: dict = {}
+        if layout is None:
+            # Unknown FVF: expose the raw little-endian floats so a diff
+            # still localises which 4-byte lane changed.
+            nlanes = stride // 4
+            vert["RAW_f"] = list(
+                struct.unpack_from(f"<{nlanes}f", raw, base))
+        else:
+            off = base
+            ok = True
+            for name, kind, n in layout:
+                if off + 4 * n > base + stride:
+                    ok = False
+                    break
+                if kind == "color":
+                    vert[name] = struct.unpack_from("<I", raw, off)[0]
+                    off += 4
+                else:
+                    vert[name] = list(
+                        struct.unpack_from(f"<{n}f", raw, off))
+                    off += 4 * n
+            if not ok:
+                nlanes = stride // 4
+                vert = {"RAW_f": list(
+                    struct.unpack_from(f"<{nlanes}f", raw, base))}
+        out.append(vert)
+    return out
 
 
 # ── state-coalescing collapse ─────────────────────────────────────────────
@@ -253,6 +379,165 @@ def diff_frame(frame: int,
     return fd
 
 
+# ── --explain: vertex-level divergence ────────────────────────────────────
+#
+# Aligns the two command streams (same SequenceMatcher key as the structural
+# diff), then for each aligned immediate-mode draw pair decodes both sides'
+# vertices and names the FIRST divergent (vertex, field).  A pure-vertex
+# divergence (identical command, different vertices) shows up here even though
+# the structural diff calls the block "equal".
+
+
+_UP_DRAWS = frozenset(("DrawPrimitiveUP", "DrawIndexedPrimitiveUP"))
+
+
+def annotate_fvf(events: list[dict]) -> None:
+    """Tag each draw event with `_fvf` = the most-recent SetVertexShader
+    handle in effect (0 if none seen in-window).  Mutates in place."""
+    cur = 0
+    for e in events:
+        if e["op"] == "SetVertexShader":
+            cur = e.get("args", {}).get("handle", 0) or 0
+        elif e["op"].startswith("Draw"):
+            e["_fvf"] = cur
+
+
+def _floats_diverge(a: float, b: float, eps: float) -> bool:
+    return abs(a - b) > max(eps, eps * max(abs(a), abs(b)))
+
+
+@dataclass
+class Divergence:
+    frame:   int
+    op:      str
+    ret_va:  int
+    kind:    str         # "field" | "count" | "decode" | "structural"
+    detail:  str
+    r_index: int = -1
+    p_index: int = -1
+
+
+def _first_field_divergence(frame: int, ri: int, pi: int,
+                            rdraw: dict, pdraw: dict,
+                            eps: float) -> Divergence | None:
+    """Decode both draws' vertices and return the first divergent field,
+    or None if they match (within eps).  Assumes both are UP draws with
+    vb_bytes present."""
+    rargs, pargs = rdraw.get("args", {}), pdraw.get("args", {})
+    rb, pb = rargs.get("vb_bytes"), pargs.get("vb_bytes")
+    op = rdraw["op"]
+    ret_va = rdraw.get("ret_va", 0)
+    if rb is None or pb is None:
+        return None                      # capture-verts not on for this side
+    stride = rargs.get("vb_stride", 0)
+    rn = int(rargs.get("vb_nverts", 0))
+    pn = int(pargs.get("vb_nverts", 0))
+    if rn != pn:
+        return Divergence(frame, op, ret_va, "count",
+                          f"vertex count differs: retail={rn} port={pn} "
+                          f"(stride={stride})", ri, pi)
+    rfvf = rdraw.get("_fvf", 0)
+    rverts = decode_vertices(rb, rn, stride, rfvf)
+    pverts = decode_vertices(pb, pn, stride, pdraw.get("_fvf", rfvf))
+    if rverts is None or pverts is None:
+        if rb != pb:
+            return Divergence(frame, op, ret_va, "decode",
+                              f"raw vb_bytes differ (undecodable; "
+                              f"stride={stride}, nverts={rn})", ri, pi)
+        return None
+    for v, (rv, pv) in enumerate(zip(rverts, pverts)):
+        for name in rv:
+            a, b = rv[name], pv.get(name)
+            if name.startswith("DIFFUSE") or name.startswith("SPECULAR") \
+                    or name == "RAW_u":
+                if a != b:
+                    return Divergence(
+                        frame, op, ret_va, "field",
+                        f"vertex {v} {name}: retail=0x{a:08x} "
+                        f"port=0x{b:08x}", ri, pi)
+            else:
+                # list of floats
+                for k, (fa, fb) in enumerate(zip(a, b or [])):
+                    if _floats_diverge(fa, fb, eps):
+                        comp = "." + "xyzw"[k] if name == "POSITION" \
+                            and k < 4 else f"[{k}]"
+                        return Divergence(
+                            frame, op, ret_va, "field",
+                            f"vertex {v} {name}{comp}: retail={fa:.5g} "
+                            f"port={fb:.5g} (Δ{fb - fa:+.5g}, fvf=0x{rfvf:x}"
+                            f", stride={stride})", ri, pi)
+    return None
+
+
+def explain_frame(frame: int, retail: list[dict], port: list[dict],
+                  eps: float) -> list[Divergence]:
+    """Find vertex-level + structural draw divergences for one frame, in
+    command-stream order."""
+    annotate_fvf(retail)
+    annotate_fvf(port)
+    r_keys = [_event_key(e) for e in retail]
+    p_keys = [_event_key(e) for e in port]
+    sm = difflib.SequenceMatcher(a=r_keys, b=p_keys, autojunk=False)
+    found: list[Divergence] = []
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            for i, j in zip(range(i1, i2), range(j1, j2)):
+                if retail[i]["op"] in _UP_DRAWS:
+                    d = _first_field_divergence(frame, i, j,
+                                                retail[i], port[j], eps)
+                    if d:
+                        found.append(d)
+        else:
+            # structural: a draw present on one side only, or a command
+            # mismatch.  Report the draws involved (the upstream cause of a
+            # downstream vertex divergence is usually here).
+            for i in range(i1, i2):
+                if retail[i]["op"].startswith("Draw"):
+                    found.append(Divergence(
+                        frame, retail[i]["op"], retail[i].get("ret_va", 0),
+                        "structural",
+                        f"retail-only draw (tag={tag})", r_index=i))
+            for j in range(j1, j2):
+                if port[j]["op"].startswith("Draw"):
+                    found.append(Divergence(
+                        frame, port[j]["op"], port[j].get("ret_va", 0),
+                        "structural",
+                        f"port-only draw (tag={tag})", p_index=j))
+    return found
+
+
+def print_explain(retail_by_frame: dict[int, list[dict]],
+                  port_by_frame: dict[int, list[dict]],
+                  frames: list[int], eps: float, first_only: bool) -> bool:
+    """Print the vertex-level divergence report.  Returns True if any
+    divergence was found."""
+    any_div = False
+    for f in frames:
+        divs = explain_frame(f, retail_by_frame.get(f, []),
+                             port_by_frame.get(f, []), eps)
+        if not divs:
+            continue
+        any_div = True
+        print()
+        print("=" * 78)
+        print(f"FRAME {f}: {len(divs)} draw divergence(s)")
+        shown = divs[:1] if first_only else divs
+        for d in shown:
+            loc = []
+            if d.r_index >= 0:
+                loc.append(f"r#{d.r_index}")
+            if d.p_index >= 0:
+                loc.append(f"p#{d.p_index}")
+            print(f"  [{d.kind}] {d.op} @ret_va={d.ret_va:#x} "
+                  f"({','.join(loc)})")
+            print(f"      {d.detail}")
+        if first_only and len(divs) > 1:
+            print(f"  … +{len(divs) - 1} more (use --explain-all)")
+    if not any_div:
+        print("  ✓ no draw/vertex divergence on the compared frame(s)")
+    return any_div
+
+
 # ── pretty printer ────────────────────────────────────────────────────────
 
 
@@ -380,6 +665,17 @@ def main(argv: list[str] | None = None) -> int:
              "allocator-address noise when both sides allocate the same "
              "set of objects in the same order (typical walker-draw "
              "case).")
+    ap.add_argument("--explain", action="store_true",
+        help="vertex-level mode: decode each aligned immediate-mode draw's "
+             "captured vertices (vb_bytes, from --d3d-trace-verts / "
+             "d3d_trace_verts) and name the FIRST divergent (vertex, field) "
+             "per frame. Implies --opaque-pointers so UP data pointers align.")
+    ap.add_argument("--explain-all", action="store_true",
+        help="with --explain, show every draw divergence per frame, not "
+             "just the first.")
+    ap.add_argument("--vertex-eps", type=float, default=1e-4,
+        help="float tolerance for --explain field compares "
+             "(abs+relative, default %(default)g)")
     ap.add_argument("--max-divergences", type=int, default=20,
         help="max diff blocks to print per frame (default %(default)d)")
     ap.add_argument("--quiet", action="store_true",
@@ -401,6 +697,12 @@ def main(argv: list[str] | None = None) -> int:
                    for f, evts in retail_raw.items()}
     port_filt   = {f: apply_scope(evts, p_scope)
                    for f, evts in port_raw.items()}
+
+    # --explain aligns immediate-mode draws whose `vb` is a transient CPU
+    # data pointer (always differs port↔retail); opaque-pointers maps those
+    # to first-seen ids so the draws line up.
+    if args.explain:
+        args.opaque_pointers = True
 
     # opaque-pointers (applied BEFORE coalesce — synthetic ids are
     # what coalesce should look at, otherwise a SetTexture(0,0xa) call
@@ -436,6 +738,12 @@ def main(argv: list[str] | None = None) -> int:
                 f"  retail frames: {sorted(retail_filt)}\n"
                 f"  port frames:   {sorted(port_filt)}")
         frames = common
+
+    # --explain: vertex-level report instead of the structural block diff.
+    if args.explain:
+        diverged = print_explain(retail_filt, port_filt, frames,
+                                 args.vertex_eps, not args.explain_all)
+        return 1 if diverged else 0
 
     # diff
     frame_diffs = [diff_frame(f, retail_filt[f], port_filt[f]) for f in frames]

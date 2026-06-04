@@ -52,6 +52,13 @@ static size_t        g_n_frames      = 0;
 static unsigned      g_cur_frame     = 0;
 static int           g_emit_this_frame = 0;
 static const char   *g_module_base   = NULL;
+static int           g_capture_verts = 0;   /* --d3d-trace-verts */
+
+/* Cap a single draw's captured vertex/index bytes.  Immediate-mode (UP)
+ * draws are tiny (a quad is 4×24 B); the cap only guards a pathological
+ * large UP draw from bloating the trace — over-cap draws emit a
+ * `"vb_over":<nbytes>` marker instead of the bytes. */
+#define D3D_TRACE_VB_CAP 65536uL
 
 /* ── JSONL emission helpers ──────────────────────────────────────── */
 
@@ -97,6 +104,53 @@ static void d3d_trace_emit_material(const D3DMATERIAL8 *mat)
         fprintf(g_f, "%.9g", (double)p[i]);
     }
     fputc(']', g_f);
+}
+
+/* Number of vertices a (prim_type, prim_count) draw references — needed to
+ * know how many `stride`-byte vertices to dump from an immediate-mode
+ * vertex array.  Mirrors tools/render_diff.py's decode expectations. */
+static unsigned d3d_prim_vcount(D3DPRIMITIVETYPE t, unsigned pc)
+{
+    switch (t) {
+    case D3DPT_POINTLIST:     return pc;
+    case D3DPT_LINELIST:      return pc * 2u;
+    case D3DPT_LINESTRIP:     return pc ? pc + 1u : 0u;
+    case D3DPT_TRIANGLELIST:  return pc * 3u;
+    case D3DPT_TRIANGLESTRIP: return pc ? pc + 2u : 0u;
+    case D3DPT_TRIANGLEFAN:   return pc ? pc + 2u : 0u;
+    default:                  return 0u;
+    }
+}
+
+/* Write raw bytes as lowercase hex (no `0x`, 2 chars/byte) to the trace. */
+static void d3d_emit_hex(const void *data, unsigned long nbytes)
+{
+    static const char hx[] = "0123456789abcdef";
+    const unsigned char *b = (const unsigned char *)data;
+    for (unsigned long i = 0; i < nbytes; i++) {
+        fputc(hx[b[i] >> 4], g_f);
+        fputc(hx[b[i] & 0xf], g_f);
+    }
+}
+
+/* Emit `,"<count_key>":N[,"<bytes_key>":"hex"]` for a buffer of `count`
+ * elements × `elem_size` bytes at `data`.  Over the cap → a `_over` marker
+ * instead of bytes.  Caller has already written the fixed draw args; this
+ * appends inside the same `args` object (before its closing brace). */
+static void d3d_emit_buf(const char *count_key, unsigned count,
+                         const char *bytes_key, const char *over_key,
+                         const void *data, unsigned elem_size)
+{
+    unsigned long nbytes = (unsigned long)count * (unsigned long)elem_size;
+    fprintf(g_f, ",\"%s\":%u", count_key, count);
+    if (!count || !data || !nbytes) return;
+    if (nbytes > D3D_TRACE_VB_CAP) {
+        fprintf(g_f, ",\"%s\":%lu", over_key, nbytes);
+        return;
+    }
+    fprintf(g_f, ",\"%s\":\"", bytes_key);
+    d3d_emit_hex(data, nbytes);
+    fputc('"', g_f);
 }
 
 /* ── per-method wrappers ─────────────────────────────────────────── */
@@ -267,9 +321,14 @@ HRESULT d3d_trace_DrawPrimitiveUP(IDirect3DDevice8 *p,
         fprintf(g_f,
                 "{\"op\":\"DrawPrimitiveUP\","
                 "\"args\":{\"prim_type\":%u,\"prim_count\":%u,"
-                "\"vb\":\"0x%lx\",\"vb_stride\":%u}",
+                "\"vb\":\"0x%lx\",\"vb_stride\":%u",
                 (unsigned)prim_type, (unsigned)prim_count,
                 (unsigned long)(uintptr_t)data, (unsigned)stride);
+        if (g_capture_verts)
+            d3d_emit_buf("vb_nverts",
+                         d3d_prim_vcount(prim_type, (unsigned)prim_count),
+                         "vb_bytes", "vb_over", data, (unsigned)stride);
+        fputc('}', g_f);
         d3d_trace_emit_tail(d3d_trace_ret_va(ret));
     }
     return IDirect3DDevice8_DrawPrimitiveUP(p, prim_type, prim_count,
@@ -292,12 +351,25 @@ HRESULT d3d_trace_DrawIndexedPrimitiveUP(IDirect3DDevice8 *p,
                 "\"args\":{\"prim_type\":%u,\"min_vtx_idx\":%u,"
                 "\"num_vtx_indices\":%u,\"prim_count\":%u,"
                 "\"ib\":\"0x%lx\",\"ib_fmt\":%u,"
-                "\"vb\":\"0x%lx\",\"vb_stride\":%u}",
+                "\"vb\":\"0x%lx\",\"vb_stride\":%u",
                 (unsigned)prim_type, (unsigned)min_vertex_idx,
                 (unsigned)vertex_count, (unsigned)prim_count,
                 (unsigned long)(uintptr_t)index_data,
                 (unsigned)index_format,
                 (unsigned long)(uintptr_t)data, (unsigned)stride);
+        if (g_capture_verts) {
+            unsigned idx_size =
+                (index_format == D3DFMT_INDEX16) ? 2u : 4u;
+            d3d_emit_buf("ib_nidx",
+                         d3d_prim_vcount(prim_type, (unsigned)prim_count),
+                         "ib_bytes", "ib_over", index_data, idx_size);
+            /* The vertex array spans [0, min_vtx_idx+vertex_count); dump
+             * from base so absolute indices in ib_bytes resolve. */
+            d3d_emit_buf("vb_nverts",
+                         (unsigned)min_vertex_idx + (unsigned)vertex_count,
+                         "vb_bytes", "vb_over", data, (unsigned)stride);
+        }
+        fputc('}', g_f);
         d3d_trace_emit_tail(d3d_trace_ret_va(ret));
     }
     return IDirect3DDevice8_DrawIndexedPrimitiveUP(p, prim_type,
@@ -330,6 +402,11 @@ void d3d_trace_init_from_cli(const char *path,
     }
 
     g_module_base = (const char *)GetModuleHandleA(NULL);
+}
+
+void d3d_trace_set_capture_verts(int on)
+{
+    g_capture_verts = on ? 1 : 0;
 }
 
 void d3d_trace_install(IDirect3DDevice8 *dev)

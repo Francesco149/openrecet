@@ -864,6 +864,7 @@ static int             g_anchor_captures_count   = 0;
 static char           *g_d3d_trace_path                            = NULL;
 static unsigned        g_d3d_trace_frames[D3D_TRACE_FRAMES_MAX];
 static int             g_d3d_trace_frames_count                    = 0;
+static int             g_d3d_trace_verts                           = 0;
 
 /* --call-trace <path> + --call-trace-frames i,j,k.  See call_trace.h.
  * Port-side per-frame function-entry tracer; symmetric counterpart of
@@ -1339,6 +1340,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                                 g_d3d_trace_frames_count > 0
                                     ? g_d3d_trace_frames : NULL,
                                 (size_t)g_d3d_trace_frames_count);
+        d3d_trace_set_capture_verts(g_d3d_trace_verts);
         d3d_trace_install(g_dev);
     }
 
@@ -3519,6 +3521,8 @@ static void parse_cmdline(LPSTR lpCmdLine)
                     if (*end != ',') break;
                 }
             }
+        } else if (lstrcmpA(tok, "--d3d-trace-verts") == 0) {
+            g_d3d_trace_verts = 1;
         } else if (lstrcmpA(tok, "--call-trace") == 0) {
             char *val = strtok(NULL, " ");
             if (val) {

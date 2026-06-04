@@ -618,6 +618,7 @@ let g_d3d_trace_enabled = false;
 let g_d3d_trace_frames  = null;     // Set<int> or null
 let g_d3d_trace_hooked  = false;
 let g_d3d_trace_buffer  = [];       // events for current frame, flushed at Present
+let g_d3d_trace_verts   = false;    // capture per-draw vertex/index bytes
 
 // Call tracer (Phase E.1). When `call_trace` is true the agent
 // Interceptor.attach()es onEnter on every Ghidra-VA in
@@ -1968,6 +1969,59 @@ function traceReadMaterial(ptrArg) {
     return out;
 }
 
+// D3DPRIMITIVETYPE → vertex/index count referenced by a (type, prim_count)
+// draw — needed to know how many stride-byte vertices to dump from an
+// immediate-mode array.  Mirrors d3d_prim_vcount() in src/d3d_trace.c +
+// the decode in tools/render_diff.py.
+function primVcount(t, pc) {
+    switch (t) {
+        case 1: return pc;            // POINTLIST
+        case 2: return pc * 2;        // LINELIST
+        case 3: return pc ? pc + 1 : 0; // LINESTRIP
+        case 4: return pc * 3;        // TRIANGLELIST
+        case 5: return pc ? pc + 2 : 0; // TRIANGLESTRIP
+        case 6: return pc ? pc + 2 : 0; // TRIANGLEFAN
+        default: return 0;
+    }
+}
+
+// Same per-draw byte cap as the port (D3D_TRACE_VB_CAP). UP draws are tiny;
+// the cap only guards a pathological large draw from bloating the wire.
+const D3D_TRACE_VB_CAP = 65536;
+const _HEX = '0123456789abcdef';
+
+// Read `nbytes` from `ptr` as a lowercase hex string (matching the port's
+// d3d_emit_hex). Returns null on a null/zero/over-cap/failed read so the
+// caller can emit an `_over`/absent marker instead.
+function traceReadHex(ptr, nbytes) {
+    if (ptr.isNull() || nbytes <= 0) return null;
+    if (nbytes > D3D_TRACE_VB_CAP) return undefined;   // over cap
+    let bytes;
+    try {
+        bytes = new Uint8Array(ptr.readByteArray(nbytes));
+    } catch (_) {
+        return null;
+    }
+    let s = '';
+    for (let i = 0; i < bytes.length; i++) {
+        const b = bytes[i];
+        s += _HEX[b >> 4] + _HEX[b & 0xf];
+    }
+    return s;
+}
+
+// Append vertex/index byte fields to a draw event's args.  `countKey`/
+// `bytesKey`/`overKey` name the JSON fields; `count`×`elemSize` bytes are
+// read from `dataPtr`.  Always sets the count; sets bytes or an over-marker.
+function traceAddBuf(args, countKey, count, bytesKey, overKey,
+                     dataPtr, elemSize) {
+    args[countKey] = count;
+    if (!count) return;
+    const hex = traceReadHex(dataPtr, count * elemSize);
+    if (hex === undefined) args[overKey] = count * elemSize;
+    else if (hex !== null) args[bytesKey] = hex;
+}
+
 function traceEmit(ev) {
     g_d3d_trace_buffer.push(ev);
 }
@@ -2111,14 +2165,19 @@ function installD3dTraceHooks(devicePtr) {
     Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawPrimitiveUP), {
         onEnter: function (args) {
             if (!traceShouldEmit()) return;
-            traceEmit({
-                op: 'DrawPrimitiveUP',
-                args: {prim_type:  args[1].toUInt32(),
-                       prim_count: args[2].toUInt32(),
+            const primType = args[1].toUInt32();
+            const primCount = args[2].toUInt32();
+            const stride = args[4].toUInt32();
+            const a = {prim_type:  primType,
+                       prim_count: primCount,
                        vb:         '0x' + args[3].toString(16),
-                       vb_stride:  args[4].toUInt32()},
-                ret_va: traceRetVa(this.returnAddress),
-            });
+                       vb_stride:  stride};
+            if (g_d3d_trace_verts) {
+                traceAddBuf(a, 'vb_nverts', primVcount(primType, primCount),
+                            'vb_bytes', 'vb_over', args[3], stride);
+            }
+            traceEmit({op: 'DrawPrimitiveUP', args: a,
+                       ret_va: traceRetVa(this.returnAddress)});
         },
     });
 
@@ -2145,18 +2204,30 @@ function installD3dTraceHooks(devicePtr) {
     Interceptor.attach(vtableSlot(devicePtr, V_Dev_DrawIndexedPrimitiveUP), {
         onEnter: function (args) {
             if (!traceShouldEmit()) return;
-            traceEmit({
-                op: 'DrawIndexedPrimitiveUP',
-                args: {prim_type:        args[1].toUInt32(),
-                       min_vtx_idx:      args[2].toUInt32(),
-                       num_vtx_indices:  args[3].toUInt32(),
-                       prim_count:       args[4].toUInt32(),
+            const primType = args[1].toUInt32();
+            const minVtxIdx = args[2].toUInt32();
+            const numVtx = args[3].toUInt32();
+            const primCount = args[4].toUInt32();
+            const ibFmt = args[6].toUInt32();
+            const stride = args[8].toUInt32();
+            const a = {prim_type:        primType,
+                       min_vtx_idx:      minVtxIdx,
+                       num_vtx_indices:  numVtx,
+                       prim_count:       primCount,
                        ib:               '0x' + args[5].toString(16),
-                       ib_fmt:           args[6].toUInt32(),
+                       ib_fmt:           ibFmt,
                        vb:               '0x' + args[7].toString(16),
-                       vb_stride:        args[8].toUInt32()},
-                ret_va: traceRetVa(this.returnAddress),
-            });
+                       vb_stride:        stride};
+            if (g_d3d_trace_verts) {
+                // ibFmt: D3DFMT_INDEX16 (101) → 2-byte indices, else 4-byte.
+                const idxSize = (ibFmt === 101) ? 2 : 4;
+                traceAddBuf(a, 'ib_nidx', primVcount(primType, primCount),
+                            'ib_bytes', 'ib_over', args[5], idxSize);
+                traceAddBuf(a, 'vb_nverts', minVtxIdx + numVtx,
+                            'vb_bytes', 'vb_over', args[7], stride);
+            }
+            traceEmit({op: 'DrawIndexedPrimitiveUP', args: a,
+                       ret_va: traceRetVa(this.returnAddress)});
         },
     });
 
@@ -4183,6 +4254,7 @@ rpc.exports = {
         // small for render-heavy scenarios; INGAME frames can run 1000+
         // state-change calls each). Null = unfiltered (every frame).
         g_d3d_trace_enabled = !!config.d3d_trace;
+        g_d3d_trace_verts   = !!config.d3d_trace_verts;
         g_d3d_trace_hooked  = false;
         g_d3d_trace_buffer  = [];
         if (Array.isArray(config.d3d_trace_frames)) {

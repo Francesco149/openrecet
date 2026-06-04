@@ -299,6 +299,11 @@ class CaptureConfig:
     # unfiltered trace generates megabytes per second).
     d3d_trace:        bool = False
     d3d_trace_frames: list[int] | None = None
+    # When set (with d3d_trace), each immediate-mode draw also carries its
+    # FVF-decodable vertex bytes (vb_nverts/vb_bytes, + ib_* for indexed-UP)
+    # so tools/render_diff.py --explain can name the first divergent vertex
+    # field.  Mirror of the port's --d3d-trace-verts.
+    d3d_trace_verts:  bool = False
     # Call tracer (Phase E.1). When `call_trace` is true the agent
     # Interceptor.attach()es onEnter on every VA in `call_trace_vas`
     # and emits one record per invocation to `<run_dir>/call_trace.jsonl`.
@@ -1101,6 +1106,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["rng_seed"] = int(cfg.rng_seed) & 0xffffffff
     if cfg.d3d_trace:
         init_cfg["d3d_trace"] = True
+        if cfg.d3d_trace_verts:
+            init_cfg["d3d_trace_verts"] = True
         if cfg.d3d_trace_frames is not None:
             init_cfg["d3d_trace_frames"] = [int(f) for f in cfg.d3d_trace_frames]
     if cfg.call_trace:
@@ -1503,6 +1510,13 @@ def main(argv: list[str] | None = None) -> int:
                     help="comma-separated frame numbers to limit the D3D "
                          "trace to. Default empty = every frame (large!). "
                          "Use this for any non-title scenario.")
+    ap.add_argument("--d3d-trace-verts", action="store_true",
+                    help="with --d3d-trace, also capture each immediate-mode "
+                         "draw's FVF-decodable vertex bytes (vb_nverts/"
+                         "vb_bytes, + ib_* for indexed-UP) so "
+                         "tools/render_diff.py --explain can name the first "
+                         "divergent vertex field. Mirror of the port's "
+                         "--d3d-trace-verts.")
     ap.add_argument("--call-trace", action="store_true",
                     help="hook every engine function entry (default list: "
                          "tools/ttd/data/engine_function_vas_frida_safe.json, "
@@ -1753,6 +1767,7 @@ def main(argv: list[str] | None = None) -> int:
         rng_seed=args.rng_seed,
         arm_skip_at_frame=args.arm_skip_at_frame,
         d3d_trace=args.d3d_trace,
+        d3d_trace_verts=args.d3d_trace_verts,
         d3d_trace_frames=d3d_trace_frames,
         call_trace=args.call_trace,
         call_trace_vas=call_trace_vas,

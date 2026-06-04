@@ -39,6 +39,46 @@ python3 tools/render_diff.py \
     --opaque-pointers
 ```
 
+## `--explain`: vertex-level divergence (the render-parity engine)
+
+The structural diff above sees only the *command* stream — for an
+immediate-mode draw it compares `prim_type`/`prim_count`/`stride`, not the
+vertices themselves.  `--explain` closes that gap: capture each side with
+vertex bytes on, and the tool FVF-decodes every aligned draw's vertices and
+names the **first divergent (vertex, field)** — so a depth bug reads as
+`vertex 2 POSITION.z: retail=-7.2 port=-6.5` instead of an opaque hex
+mismatch.
+
+```fish
+# capture BOTH sides with --d3d-trace-verts (synced via a segtrace window):
+python3 tools/export_trace.py tests/scenarios/<scn>/trace.jsonl \
+    --caprange <start>,<count> --run-dir runs/<x>/port --d3d-trace --d3d-trace-verts
+python3 tools/frida_capture.py --remote cutestation.soy:27042 \
+    --run-dir runs/<x>/retail --input-segtrace runs/<x>/port/trace.work.jsonl \
+    --d3d-trace --d3d-trace-verts --turbo --silent-audio --force-resolution 1024x768
+
+# explain (implies --opaque-pointers so UP data pointers align):
+python3 tools/render_diff.py --explain \
+    --retail runs/<x>/retail/d3d_trace.jsonl --port runs/<x>/port/d3d_trace.jsonl
+#   FRAME 707: 1 draw divergence(s)
+#     [field] DrawPrimitiveUP @ret_va=0x415e61 (r#1,p#1)
+#         vertex 2 POSITION.z: retail=-7.2 port=-6.5 (Δ+0.7, fvf=0x142, stride=24)
+```
+
+Semantics: vertex-content fields (`vb_bytes` etc.) are excluded from the
+SequenceMatcher key, so a *pure-vertex* divergence (identical command,
+different vertices) aligns as an "equal" block that `--explain` still inspects.
+Float compares use `--vertex-eps` (abs+relative, default `1e-4`) — the engine
+is not byte-identical, so an epsilon, not `==`, is correct; DIFFUSE/SPECULAR
+colors compare exact.  A draw present on one side only is reported as
+`[structural]`.  `--explain-all` shows every divergence per frame (default:
+first only).  FVF comes from the in-effect `SetVertexShader` handle, falling
+back to a stride table when it landed before the capture window.
+
+Decode + each verdict path (field / count / structural / color / stride
+fallback) are exercised by the synthetic-trace checks; the round-trip
+(port + retail decode the same screen corner) is validated on the title.
+
 ## What the diff prints
 
 Per frame, the tool runs `difflib.SequenceMatcher` over `(op,
