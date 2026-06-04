@@ -226,3 +226,44 @@ plumbing is done.
 So the remaining work is just `FUN_00415fab` (the quad build + its specific
 texture/icon lookup) + un-gating the `scene1_wide_followup.c` grid loop to read
 `save_work`. A clean, self-contained chip for a fresh session.
+
+---
+
+## Sparkle render-side findings (2026-06-04/05) — durable; the WIP code was stashed
+
+The sparkle emitter was fully RE'd (above) and a WIP implementation built, but the WIP
+render is NOT yet 1:1 and was **stashed outside the repo** (`../openrecet-sparkle-wip.patch`)
+pending the frame-0-forward 1:1 sweep (it will likely be redone from scratch once
+everything upstream of the sparkle frame is structurally 1:1 — see `docs/FRONT.md`). These
+render-side facts are hard-won and durable — re-use them, don't re-derive:
+
+**Verified CORRECT (bit-exact vs retail):**
+- Template `0x3b` = `目玉商品` from `ef/effect1.dat` (now loaded by `scene1_overlay_templates_load_chunk`, committed): texture_type 19, type_shape 0, spawn_count 1, fade_out_default 24, layer_pair 0x100.
+- The port's effect00.bmp GPU texture cell (64,64,32,32) IS the yellow 4-point star (verified via a `LockRect` readback: pixel (80,80) BGRA matches the file). texture / UV / decode all correct.
+- The composed sparkle **WORLD matrix is bit-identical to retail's** traced matrix: scale ≈ 1.125e-4 (3×3 = `[-1.125e-4,0,~0; 0,6.24e-5,-9.36e-5; 0,-9.36e-5,-6.24e-5]`), translations at the 3 sword columns (x=2·col-9 = -7/-5/-1, y≈2.3, z≈-7.2). Emitter positions + RNG verified.
+
+**The render is one of the FUN_004176ff `FUN_00414ee2` calls, NOT the shop driver's.** The
+sparkle slot is **layer 0, mode 0** (slot[5]=template layer byte=0, slot[7]=param_10=0 via
+the `FUN_004147d5` wrapper). `FUN_004161c7` (wide_followup) only calls `FUN_00414ee2(1,0)`
+— it does NOT draw the sparkle. The sparkle draws via a `FUN_00414ee2(0,0)` call inside
+`FUN_004176ff` (the records-A dust/wing pass, port `scene1_render.c` ~L868 under
+`scene1_push_projection(dev, 500.0f)`; calls at objdump 0x417885/0x4178b0).
+
+**Exact render state at the sparkle draw** (retail d3d-trace `runs/sr-retail/d3d_trace.jsonl`,
+free-roam frame 707, `DrawPrimitiveUP` ret_va 0x415e61, `SetTexture 0x172fcf30`):
+SRCBLEND=ONE / DESTBLEND=ONE (additive); COLOROP=MODULATE, **COLORARG1=DIFFUSE(0),
+COLORARG2=TEXTURE(2)** (⇒ vertex-colour × texel = the yellow star; the port's default
+COLORARG2=CURRENT gave flat white — this was the "white blob" bug); ALPHAOP=MODULATE,
+ALPHAARG1=TEXTURE, ALPHAARG2=DIFFUSE; ZENABLE=1, ZWRITE=0, ALPHABLENDENABLE=1; MIN/MAG
+filter=LINEAR. `SetTransform(WORLD)` per draw = the billboard matrix above.
+
+**The open render problem (for the 1:1 sweep, not now):** placing the `(0,0)` render so it
+(a) has the camera-facing billboard pre-matrix live, (b) uses the additive+MODULATE+TEXTURE
+state, and (c) does NOT corrupt the shop-item pass. WIP attempts: at the wide_followup site
+the position was correct but the state writes leaked and broke the swords; at
+`scene1_render_overlay` (FUN_00417504, the 2D-overlay/HUD pass) the state was clean but the
+2D transforms put the 3D-world sparkle off-position; in the `FUN_004176ff` records-A pass
+(z_far=500) the state+projection were right but the sparkle still landed off the stand —
+likely a view/pre-matrix interaction to resolve once the upstream HOUSE render is verified
+1:1 (so the divergence isolates instead of compounding). Diagnose with the Phase-1
+render-diff engine, pinned.
