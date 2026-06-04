@@ -11,7 +11,10 @@
 
 #include "t.h"
 #include "fade.h"
+#include "save_bank.h"
+#include "save_work.h"
 #include "scene.h"
+#include "scene_title.h"
 
 int test_scene_set_title_writes_title_and_zero_substate(void)
 {
@@ -45,6 +48,52 @@ int test_scene_post_fade_init_clears_substate(void)
     scene_post_fade_init();
 
     T_ASSERT_EQ_I(g_scene_substate, 0);
+    return 0;
+}
+
+int test_scene_post_fade_new_game_resets_and_seeds_working(void)
+{
+    /* NEW GAME branch (continue_mode == 0): bank 0 is reset to fresh
+     * (gold = 1000) AND working slot 0 is seeded from it. */
+    save_bank_arena_clear();
+    save_work_clear();
+    g_scene_title_anim.continue_mode = 0;
+    /* Stale pre-state that the reset must clobber. */
+    save_bank_dwords_at(0)[SAVE_BANK_FIELD_GOLD] = 5000;
+
+    g_scene_state = SCENE_STATE_TITLE;
+    fade_reset();
+    scene_post_fade_init();
+
+    T_ASSERT_EQ_U(save_bank_dwords_at(0)[SAVE_BANK_FIELD_GOLD], 1000u);
+    T_ASSERT_EQ_U(save_work_dwords_at(0)[SAVE_BANK_FIELD_GOLD], 1000u);
+    return 0;
+}
+
+int test_scene_post_fade_continue_preserves_loaded_save(void)
+{
+    /* CONTINUE branch (continue_mode == 1): the picker already loaded a
+     * save into working slot 0; post-fade must NOT reset the save bank
+     * nor clobber the working slot. */
+    save_bank_arena_clear();
+    save_work_clear();
+    /* Simulate a played save in bank 7 + the picker having loaded it. */
+    save_bank_dwords_at(0)[SAVE_BANK_FIELD_GOLD] = 5000;   /* must survive */
+    save_work_set_active_slot(0);
+    save_work_dwords_at(0)[SAVE_BANK_FIELD_GOLD] = 8888;   /* loaded state */
+    g_scene_title_anim.continue_mode = 1;
+
+    g_scene_state = SCENE_STATE_TITLE;
+    fade_reset();
+    scene_post_fade_init();
+
+    T_ASSERT_EQ_I(g_scene_state, (int)SCENE_STATE_INGAME);
+    /* Save bank NOT reset (still 5000, not 1000). */
+    T_ASSERT_EQ_U(save_bank_dwords_at(0)[SAVE_BANK_FIELD_GOLD], 5000u);
+    /* Working slot preserved (loaded value intact). */
+    T_ASSERT_EQ_U(save_work_dwords_at(0)[SAVE_BANK_FIELD_GOLD], 8888u);
+
+    g_scene_title_anim.continue_mode = 0;   /* restore for later tests */
     return 0;
 }
 

@@ -31,6 +31,7 @@
 #include "settings.h"     /* non-audio rows 3 & 4 */
 #include "sim.h"          /* g_sim_buttons for scene_title_sim_default */
 #include "title_save_dialog.h" /* FUN_00434d6a/4356cd/etc. — title-frame cluster */
+#include "title_continue_picker.h" /* continue/load slot picker (DAT_09643524==1) */
 
 scene_title_menu_t  g_scene_title_menu;
 scene_title_anim_t  g_scene_title_anim;
@@ -138,6 +139,9 @@ void scene_title_anim_init_fresh(scene_title_anim_t *out)
     /* `pending_action` lives outside the engine's BSS-zero region — our
      * own outbox field. -1 = no action pending. */
     out->pending_action   = SCENE_TITLE_ACTION_NONE;
+    /* Continue/load is off by default; -1 = no slot loaded. (memset
+     * already zeroed continue_mode.) */
+    out->continue_load_bank = -1;
     /* Submenu fields land in their BSS-zero engine defaults: state=0
      * (main menu), cursor=0, dirty=0. memset above already zeroes
      * them — listed here for documentation. */
@@ -414,6 +418,31 @@ void scene_title_sim(scene_title_anim_t *anim,
         return;
     }
 
+    /* Continue/load slot picker — engine state DAT_09643524 == 1
+     * (FUN_0049a59e L100795). A on an occupied slot has already loaded
+     * the save into the working arena (title_continue_picker_step);
+     * we just start the fade into the in-game scene. B returns to the
+     * main menu. */
+    if (anim->cursor_anim == 10 && anim->submenu_state == 1) {
+        int load_bank = -1;
+        title_picker_result_t r =
+            title_continue_picker_step((uint16_t)pressed, (uint16_t)held,
+                                       &load_bank);
+        if (r == TITLE_PICKER_LOAD) {
+            /* Engine FUN_0049a59e L100907: DAT_0964351c++ (fade) after
+             * FUN_00490259. DAT_0438bed4 stays 0 (CONTINUE). */
+            anim->continue_mode      = 1;
+            anim->continue_load_bank = load_bank;
+            anim->fade_counter       = 1;
+        } else if (r == TITLE_PICKER_CANCEL) {
+            /* Back out: slide the main menu back in. */
+            anim->submenu_state    = 0;
+            anim->menu_folding_out = 1;
+        }
+        anim->pulse_phase++;
+        return;
+    }
+
     /* Main menu input — gated on cursor_anim == 0 && submenu_state == 0.
      * Engine: line 491-552 (`else` of all the submenu state branches).
      */
@@ -504,16 +533,27 @@ void scene_title_sim(scene_title_anim_t *anim,
                         anim->submenu_cursor   = 0;
                         anim->menu_folding_out = 0;   /* slide submenu in */
                     } else if (code == SCENE_TITLE_MENU_NEW_GAME
-                            || code == SCENE_TITLE_MENU_NEW_HAS_SAVE
                             || code == SCENE_TITLE_MENU_CONT_HAS_SAVE) {
-                        /* Engine FUN_0049a59e L529-532: start scene
-                         * fade-out. Counter ticks at the top of every
-                         * subsequent sim frame until the destination
-                         * init completes. The engine also sets
-                         * DAT_0438bed4 = 1 here (NEW-vs-CONTINUE flag
-                         * read by the post-fade init branch) — not
-                         * wired yet because no destination is ported. */
-                        anim->fade_counter = 1;
+                        /* Engine FUN_0049a59e L101072: codes {0,5} →
+                         * NEW game (DAT_0438bed4 = 1). Start the scene
+                         * fade-out; the counter ticks at the top of
+                         * every subsequent sim frame and the post-fade
+                         * commit runs the fresh-bank new-game path. */
+                        anim->continue_mode = 0;
+                        anim->fade_counter  = 1;
+                    } else if (code == SCENE_TITLE_MENU_CONTINUE_ANY
+                            || code == SCENE_TITLE_MENU_NEW_HAS_SAVE) {
+                        /* Engine FUN_0049a59e L101099: codes {1,4} →
+                         * open the continue/load slot picker
+                         * (DAT_09643524 = 1, DAT_0438bed4 = 0). The
+                         * picker seeds its cursor from the last-used
+                         * save slot and slides in like the settings
+                         * submenu. (Code 4 = new-into-slot; only its
+                         * load path is wired — see picker PORT-DEBT.) */
+                        title_continue_picker_open(
+                            code, save_header_get_last_slot());
+                        anim->submenu_state    = 1;
+                        anim->menu_folding_out = 0;   /* slide picker in */
                     } else if (anim->pending_action == SCENE_TITLE_ACTION_NONE) {
                         anim->pending_action = code;
                     }

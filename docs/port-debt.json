@@ -39,9 +39,9 @@
   {
    "kind": "hardcode",
    "engine_fn": "NONE",
-   "desc": "active save-slot pinned to bank 0; engine",
+   "desc": "active save-slot pinned to bank 0;",
    "file": "src/scene.c",
-   "line": 41,
+   "line": 48,
    "kind_known": true
   },
   {

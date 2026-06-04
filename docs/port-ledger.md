@@ -379,7 +379,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x48d5d6 | FUN_0048d5d6 | 842 | ✓ | chara_skills.h |
 | 0x48dbfb | FUN_0048dbfb | 2209 | ✓ | scene1_particles_tick.h |
 | 0x4901c2 | FUN_004901c2 | 151 | ✓ | main.c, save_bank.c, save_bank.h (+1) |
-| 0x490259 | FUN_00490259 | 81 | ✓ | save_work.c, save_work.h, title_continue_picker.c (+1) |
+| 0x490259 | FUN_00490259 | 81 | ✓ | save_work.c, save_work.h, scene.c (+3) |
 | 0x4902aa | FUN_004902aa | 84 | ✓ | save_bank.h, save_work.c, save_work.h |
 | 0x4902fe | FUN_004902fe | 682 | ✓ | audio_fade.h, main.c, save_bank.h (+2) |
 | 0x4905a8 | FUN_004905a8 | 179 | ✓ | main.c, save_io.c, save_io.h (+1) |

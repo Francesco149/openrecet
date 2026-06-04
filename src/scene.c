@@ -7,6 +7,8 @@
 #include "save_bank.h"
 #include "scene1_intro_dialogue.h"
 #include "scene_new_game.h"
+#include "scene_title.h"   /* g_scene_title_anim.continue_mode */
+#include "save_work.h"     /* seed working slot 0 */
 #include "stage_post_load.h"
 #include "worker_load.h"
 
@@ -27,54 +29,72 @@ void scene_post_fade_init(void)
      * INGAME write below immediately replaces it. */
     g_scene_state    = SCENE_STATE_LOADING;
 
+    /* NEW-vs-CONTINUE flag (engine DAT_0438bed4): the title dispatch /
+     * slot-picker stored it on the anim. 1 = continue (the picker has
+     * ALREADY loaded the chosen save into working slot 0); 0 = new. */
+    const int continue_mode = g_scene_title_anim.continue_mode;
+
     /* Engine FUN_0049a59e L65 — write DAT_09643684 = 0 between the
      * LOADING and INGAME state writes (= save-dialog state reset).
      * No-op observable today; surfaces in call_trace for parity. */
     scene_new_game_clear_save_dialog_state();
 
-    /* Engine FUN_0049a59e L213 (the `DAT_0438bed4 != 0` branch — the
-     * NEW GAME path). Reset bank 0 (the active save slot's data) to
-     * its fresh "new game" state. The engine reads the active slot
-     * index from DAT_0438b1e0; until save-slot UI lands, we hardcode
-     * bank 0 — matches the engine's behaviour on a fresh boot where
-     * DAT_0438b1e0 is BSS-zero.
-     * PORT-DEBT(hardcode, NONE): active save-slot pinned to bank 0; engine
-     * sources it from DAT_0438b1e0. Retire = save-slot UI lands (plan Step 3.5).
-     *
-     * Position note: the engine calls FUN_0049001c (= save_bank_init_one)
-     * much later in the commit block (~L213).  Our port hoists it
-     * forward here so the bank is ready before fade_phase_out_start
-     * + worker_load_spawn — the worker reads bank state to load
-     * per-chara assets.  Faithful when no observer sits between the
-     * two positions; we currently have none. */
-    save_bank_init_one(0);
+    if (!continue_mode) {
+        /* ── NEW GAME (engine `DAT_0438bed4 != 0` branch, L213) ──
+         * Reset bank 0 (the active save slot) to its fresh "new game"
+         * state. The engine reads the active slot index from
+         * DAT_0438b1e0; until full save-slot routing lands, we hardcode
+         * bank 0 — matches a fresh boot where DAT_0438b1e0 is BSS-zero.
+         * PORT-DEBT(hardcode, NONE): active save-slot pinned to bank 0;
+         * engine sources it from DAT_0438b1e0. Retire when the save-slot
+         * routing fully lands.
+         *
+         * Position note: the engine calls FUN_0049001c much later in the
+         * commit block (~L213); our port hoists it forward so the bank
+         * is ready before fade_phase_out_start + worker_load_spawn. */
+        save_bank_init_one(0);
+
+        /* Seed the working slot 0 (live game state) from the freshly
+         * reset bank — so the working arena is consistent with the
+         * CONTINUE path (which loaded its save into working slot 0 at
+         * picker-confirm time). FUN_00490259 analog. */
+        save_work_set_active_slot(0);
+        save_work_load_slot(0);
+    } else {
+        /* ── CONTINUE / load (engine `DAT_0438bed4 == 0` branch,
+         * L100620) ── The slot picker already loaded the chosen save
+         * into working slot 0 (save_work_load_slot at confirm time).
+         * We must NOT reset the bank here — that would wipe the loaded
+         * data. The deeper engine continue-branch reads resume fields
+         * (substate DAT_0438b1c0, etc.) from the working bank; those
+         * surface as the in-game scene starts reading the working arena
+         * (task D / items-on-display). */
+        save_work_set_active_slot(0);
+    }
 
     /* Engine FUN_0049a59e L100757 — FUN_00435c98 fires right after
-     * FUN_0049001c (= save_bank_init_one) in the NEW GAME post-fade
-     * commit branch.  Body: chara XP threshold seeding, position
-     * carry-forward, scratch reset for the per-stage tick state.
-     * See src/stage_post_load.h. */
+     * the bank setup in BOTH branches.  Body: chara XP threshold
+     * seeding, position carry-forward, scratch reset for the per-stage
+     * tick state.  See src/stage_post_load.h. */
     stage_post_load_init();
 
-    /* Engine FUN_0049a59e L232 — FUN_00490e56(0) fires inside the
-     * NEW GAME branch right before FUN_00473474.  Body: per-bank NPC
-     * schedule status array INIT pass (resets event_active flag,
-     * walks 600 NPCs writing mode-dependent status values).  See
-     * src/npc_schedule.h. */
-    npc_schedule_apply(0);
+    /* Engine: FUN_00490e56 — per-bank NPC schedule status INIT pass
+     * (resets event_active, walks 600 NPCs writing mode-dependent
+     * status).  The NEW branch passes 0 (L232); the CONTINUE branch
+     * passes 1 (L100622).  See src/npc_schedule.h. */
+    npc_schedule_apply(continue_mode ? 1 : 0);
 
     g_scene_state    = SCENE_STATE_INGAME;
     g_scene_substate = 0;
 
-    /* Arm the opening-prologue dialogue (iv1_1 → iv1_2). Drives the TEXT_ANIM
-     * anchors AND the inter-script loading bracket: between the two scripts it
-     * raises a loading flag (scene1_intro_dialogue_loading) for the retail-
-     * measured 68-frame window, producing the 2nd LOADING/HOUSE_FREEROAM pair
-     * the TAS segtraces wait on. (The new-game HOUSE scene load below =
-     * LOADING/HOUSE_FREEROAM #1; iv1_1 runs under it with no bracket, matching
-     * retail.) This replaces the old scene1_intro_events double-load stub.
-     * See src/scene1_intro_dialogue.h. */
-    scene1_intro_dialogue_arm();
+    /* Arm the opening-prologue dialogue (iv1_1 → iv1_2) — NEW GAME only.
+     * It drives the TEXT_ANIM anchors AND the inter-script loading
+     * bracket (the 2nd LOADING/HOUSE_FREEROAM pair the TAS segtraces
+     * wait on). A CONTINUE resumes mid-play, so the prologue must NOT
+     * replay. See src/scene1_intro_dialogue.h. */
+    if (!continue_mode) {
+        scene1_intro_dialogue_arm();
+    }
 
     /* Engine FUN_0049a59e L71-72 — the 16-global UI scratch reset
      * (FUN_004060ff) + DAT_0734b9a0 clear (FUN_004682d0).  Faithful

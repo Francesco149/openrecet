@@ -8579,6 +8579,8 @@
    "src": [
     "src/save_work.c",
     "src/save_work.h",
+    "src/scene.c",
+    "src/scene_title.c",
     "src/title_continue_picker.c",
     "src/title_continue_picker.h"
    ]

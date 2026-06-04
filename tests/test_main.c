@@ -721,6 +721,8 @@ struct test_case {
     X(scene_set_title_writes_title_and_zero_substate) \
     X(scene_post_fade_init_lands_in_ingame) \
     X(scene_post_fade_init_clears_substate) \
+    X(scene_post_fade_new_game_resets_and_seeds_working) \
+    X(scene_post_fade_continue_preserves_loaded_save) \
     X(scene_post_fade_init_starts_fade_in) \
     \
     X(esc_quit_only_at_title) \

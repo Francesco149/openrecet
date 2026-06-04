@@ -118,6 +118,19 @@ typedef struct {
      * point — consumers will switch to scene_state transitions as
      * post-fade scenes land. */
     uint32_t fade_counter;
+
+    /* NEW-vs-CONTINUE flag for the post-fade commit (engine
+     * DAT_0438bed4). 0 = new game (fresh-bank reset + opening
+     * prologue); 1 = continue/load (the picker already loaded the
+     * chosen save into the working arena — post-fade must NOT reset
+     * the bank and must skip the prologue). Set by the dispatch /
+     * picker branches; read by scene_post_fade_init via
+     * g_scene_title_anim. */
+    int      continue_mode;
+    /* The save-bank index the picker loaded (the picker selection).
+     * -1 when not continuing. Diagnostic / future use; the load itself
+     * already happened in the picker. */
+    int      continue_load_bank;
 } scene_title_anim_t;
 
 /* Marker for "no action pending". -1 sits outside any valid menu code
