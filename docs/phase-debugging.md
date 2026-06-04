@@ -15,20 +15,32 @@ Don't eyeball sprites to answer it. Run the tool.
 nix develop --command python3 tools/phase_probe.py house-walk-down-dense
 ```
 
-It drives the PORT and RETAIL on the same synced trace, logs the companion phase
-counters per sim-frame on both, aligns them by `db054` value, and prints a
-verdict per counter:
+It drives the PORT and RETAIL on the same synced trace, logs the PLAYER (actor 0,
+`p.*`) and COMPANION (actor 2, `c.*`) anim-phase counters per sim-frame on both,
+aligns them by `db054` value, and prints a verdict per counter:
 
 ```
   counter    verdict       detail
-  cframe     ALIGNED       bit-exact
-  ccnt       ALIGNED       bit-exact
-  coct       ALIGNED       bit-exact
-  canim      ALIGNED       bit-exact
-  rng        UNPINNED      0/37 match — add a {rngseed} op for a clean RNG comparison
+  c.cframe   ALIGNED       bit-exact
+  c.ccnt     ALIGNED       bit-exact
+  c.coct     ALIGNED       bit-exact
+  c.canim    ALIGNED       bit-exact
+  p.aframe   ALIGNED       bit-exact
+  p.counter  ALIGNED       bit-exact
+  p.oct      ALIGNED       bit-exact
+  p.anim     ALIGNED       bit-exact
+  rngcalls   ALIGNED       per-frame RNG consumption matches retail (authoritative)
+  rng        SAMPLE-SKEW   raw state matches at +1 frame (33/44); consumption ALIGNED → …
 
   VERDICT: ✅ PHASE-CLEAN — all counters bit-exact vs retail.
 ```
+
+Both actors' records live in the `&DAT_056daae8[i*0xb]` array (11-dword stride),
+so the player (actor 0) fields are the exact `i*0x2c`-byte mirror of the companion
+(actor 2) fields — see `STD_WATCHES` in the tool. The player walk anim is
+phase-aligned by its idle↔walk transition reset (frame 0 / counter 0), which is
+why a walk-heavy trace (`house-walk-down-dense`) lands the player ALIGNED without
+needing a player-side `{phasepin}` (the pin is still companion-only).
 
 Verdicts:
 - **ALIGNED / PHASE-CLEAN** — counters bit-exact. Any remaining visual diff is
@@ -106,6 +118,17 @@ LCG-call count (`rngcalls`, port `src/rng.c` `g_rng_call_count` ↔ retail hook 
   port under-consumes = a missing/under-emitting consumer (often an unported
   particle emitter through `FUN_00447f4f` `scene1_spawn`).
 
+`rngcalls` is the **authoritative** RNG row — it is the only RNG signal that sets
+the verdict. The raw `rng` STATE word (the LCG seed `DAT_006023a0`) is reported
+too but is **diagnostic only**: the port logs it at end-of-sim (pos-log) while
+retail's `--watch` reads it at the frame boundary, so even with bit-identical
+consumption the two sample the same stream ~1 frame apart (empirically
+`retail[N] == port[N+1]`). The tool detects this and prints `rng SAMPLE-SKEW`
+(or `SAMPLE-PHASE`) — it does **not** escalate the verdict. (Raw LCG state is
+non-linear, so a constant 1-frame skew otherwise reads as dozens of distinct
+offsets and `classify()` would mislabel it `DRIFT` — that was a false positive,
+fixed 2026-06-04: trust `rngcalls`, not the raw `rng` row.)
+
 `--drill` then captures retail's LCG **caller VAs** for `count+120` frames after
 the phasepin (single run, load-jitter immune) and rolls them up by enclosing
 function — the who-consumed-RNG list. Cross-check each `FUN_` against the port's
@@ -135,12 +158,28 @@ when it shouldn't be" / wrong layer → that one.
 
 ## Extending
 
-Companion-focused today (`STD_WATCHES` in `phase_probe.py` + the port
-`--player-pos-log` fields). To probe the player or an NPC's anim phase, add its
-record VAs to `STD_WATCHES` and the matching field to the port pos-log
-(`src/main.c`). The `{phasepin}` reset is likewise companion-only on the agent
-side — generalizing it to all live actors is the open follow-up
+Covers the PLAYER (actor 0, `p.*`) and COMPANION (actor 2, `c.*`) anim records
+(`STD_WATCHES` in `phase_probe.py` ↔ the port `--player-pos-log` fields). To add
+an NPC's anim phase, add its record VAs to `STD_WATCHES` and the matching field
+to the port pos-log (`src/main.c`); the record array is `&DAT_056daae8[i*0xb]`
+(0x2c-byte stride per actor), so each new actor is the same six fields at
+`base + i*0x2c`. The `{phasepin}` reset is still **companion-only** on the agent
+side — the player's load-dependent IDLE phase origin is not zeroed, but its
+idle↔walk transition reset re-origins it, so a walk-heavy trace lands the player
+ALIGNED without one. Generalizing `{phasepin}` to every live actor (so a
+pure-idle trace is also phase-clean) is the remaining follow-up
 ([[project_next_char_controller]] "auto-settling phase-sync").
+
+## Worked result — player + companion both 1:1 (2026-06-04)
+
+`phase_probe.py house-walk-down-dense` over a 45-frame window: **all eight
+counters ALIGNED** — player `anim/counter/aframe/oct` and companion
+`cframe/ccnt/coct/canim` bit-exact, including the walk-cycle wrap (counter 32→1,
+aframe 2→3→0→1) landing on the *same* frame on both targets. `rngcalls` ALIGNED;
+`rng` SAMPLE-SKEW (consumption-clean, sampled +1 frame). This closes the deferred
+"chase phase later" coverage gap: **character animation phase is genuinely 1:1**
+for both Recette and Tear in free-roam walk. Data:
+`runs/phase-probe/house-walk-down-dense/`.
 
 Cross-refs: `docs/findings/scene1-tear-visual-diffs.md`, engine-quirks §94,
 `docs/trace-workflow.md`, [[reference_phase_divergence_method]].

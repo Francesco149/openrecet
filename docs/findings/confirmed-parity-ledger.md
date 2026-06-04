@@ -27,7 +27,7 @@
 | Foot-dust position/phase | RNG-stream desync vs retail | user: visible bugs first | after the visible free-roam render gaps close |
 | Background-window NPC anim/identity phase (`scene1_bg_npc`, was "ambient motes") | sprites now RENDER + animate (user-verified 2026-06-02); exact per-frame char/anim-phase vs retail not yet pinned | sprites landed 2026-06-02; phase a faithfulness follow-up | bg-npc anim-phase pass; see [[scene1-bg-npc]] |
 | Suspected real ambient particle (the "tiny dots") | a few tiny dots don't match in diffs; very faint | was wrongly attributed to "ambient motes" (that's the NPC system, now resolved); a genuine faint ambient effect likely exists but is unfound | when chasing free-roam visual parity; find the real effect, don't re-conflate with bg-npc |
-| Wing-flap phase alignment | flap phase not aligned at capture anchor | "chase phase later" (§81) | companion-controller faithfulness pass |
+| Wing-flap phase alignment | flap phase not aligned at capture anchor. **Narrowed 2026-06-04:** the companion sim-side anim COUNTERS (`cframe/ccnt/canim/coct` = the wing-flap FRAME cell + its counter) are **machine-verified bit-exact** vs retail on the `{phasepin}`'d `house-walk-down-dense` trace (`phase_probe.py`), so the *law* is 1:1 — the remaining flap-phase noise is the documented **load-dependent phase ORIGIN** offset (+1518 db054, normalized only for comparisons by `{phasepin}`), not a per-frame logic error. | "chase phase later" (§81) | companion-controller faithfulness pass; the origin offset needs a structural fix (re-seed at free-roam onset) — see scene1-tear-visual-diffs.md #3/#4 |
 
 ## CONFIRMED 1:1 (human-verified)
 
@@ -84,5 +84,19 @@
   background-NPC contact-shadow render (`FUN_0046f648`, `scene1_bg_npc`) that
   `FUN_00470385` also calls IS ported; the object-table blobs remain. Separate
   minor cosmetic chip.
+
+- **Character anim-phase counters — MACHINE-verified bit-exact (player +
+  companion), 2026-06-04.** `phase_probe.py house-walk-down-dense` over a
+  45-frame window: the PLAYER walk anim (`anim/counter/aframe/oct`) AND the
+  COMPANION anim (`cframe/ccnt/canim/coct`) are ALIGNED to the frame on both
+  targets, *including* the walk-cycle wrap (counter 32→1) landing on the same
+  frame. `rngcalls` (consumption) ALIGNED; raw `rng` SAMPLE-SKEW (consumption-
+  clean, sampled +1 frame). The player aligned **without** a player-side
+  `{phasepin}` (its idle↔walk transition reset re-origins the cycle), so this
+  *corroborates the already-user-confirmed walk row above at the counter level*.
+  The companion alignment is on the `{phasepin}`'d trace (laws bit-exact; the
+  shipped-game origin offset is separate — see the Wing-flap deferred row). NOT a
+  new human confirmation — a machine proof that the sim-side anim laws are 1:1.
+  Data: `runs/phase-probe/house-walk-down-dense/`; playbook `docs/phase-debugging.md`.
 
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].

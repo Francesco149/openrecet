@@ -38,8 +38,12 @@ Usage:
   nix develop --command python3 tools/phase_probe.py <trace.jsonl> --window 1540,140
 
 Outputs land in runs/phase-probe/<scenario>/{port,retail}/ and a verdict to stdout.
-Companion-focused today; player/NPC actor phase VAs are a documented follow-up
-(extend STD_WATCHES + the port pos-log).  Cross-refs: docs/phase-debugging.md,
+Covers the PLAYER (actor 0, p.*) and COMPANION (actor 2, c.*) anim records; NPC
+actor phase VAs are the remaining follow-up (extend STD_WATCHES + the port
+pos-log).  NB the {phasepin} reset is still companion-only on the agent side, so
+the player's load-dependent IDLE phase origin is not zeroed — a walk-heavy trace
+(house-walk-down-dense) re-origins the player anim at the first idle→walk
+transition, which is why the player comes out aligned there.  Cross-refs: docs/phase-debugging.md,
 docs/render-depth-debugging.md (the draw-side `d3d_state_diff.py phase` twin),
 docs/findings/scene1-tear-visual-diffs.md, engine-quirks §94.
 """
@@ -54,19 +58,42 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# The standard companion phase-counter watch set (retail Ghidra VAs).  Each entry
-# is (name, va, type) and the matching field name in the port's player-pos-log.
+# The standard phase-counter watch set (retail Ghidra VAs).  Each entry is
+# (name, va, type) and the name MUST match the matching field in the port's
+# player-pos-log (src/main.c) so the per-frame diff lines up.
+#
+# Two actors are covered.  Both records live in the &DAT_056daae8[i*0xb] array
+# (11-dword stride = 0x2c bytes), so the player (actor 0) fields are the exact
+# i*0x2c mirror of the companion (actor 2) fields — verified against the engine
+# anim writer at all.c:84565+ (FUN_0048670f) and §94/§71:
+#   PLAYER  (actor 0): ANIM 0x56daae8  TIMER 0x56daaf0  COUNTER 0x56daaf4
+#                      FRAME 0x56daaf8  STATE 0x56daafc  FACING 0x56dab00
+#   COMPANION(actor 2): ANIM 0x56dab40  TIMER 0x56dab48  COUNTER 0x56dab4c
+#                      FRAME 0x56dab50  ANIMSEL 0x56dab54 FACING 0x56dab58
 STD_WATCHES = [
     ("db054",    0x056db054, "s32"),   # bob/sparkle per-scene counter (§94)
+    # companion (actor 2)
     ("cframe",   0x056dab50, "s32"),   # companion sprite anim FRAME cell
     ("ccnt",     0x056dab4c, "s32"),   # companion anim COUNTER
     ("ctimer",   0x056dab48, "f32"),   # companion anim TIMER (float)
     ("canim",    0x056dab40, "s32"),   # companion anim id
     ("coct",     0x056dab58, "s32"),   # companion facing octant
+    # player (actor 0) — names match the port pos-log's actor-0 fields
+    ("aframe",   0x056daaf8, "s32"),   # player sprite anim FRAME cell
+    ("counter",  0x056daaf4, "s32"),   # player anim COUNTER
+    ("anim",     0x056daae8, "s32"),   # player anim id (0 idle / 1 walk)
+    ("oct",      0x056dab00, "s32"),   # player facing octant
     ("rng",      0x006023a0, "s32"),   # engine LCG state DAT_006023a0
 ]
-# Counters compared for the verdict (rng handled separately).
-PHASE_COUNTERS = ["cframe", "ccnt", "coct", "canim"]
+# Counters compared for the verdict (rng handled separately).  Each is
+# (port_meta_key, display_label); the companion (c.*) and player (p.*) groups
+# are labelled so the table is readable side by side.
+PHASE_COUNTERS = [
+    ("cframe",  "c.cframe"),   ("ccnt",    "c.ccnt"),
+    ("coct",    "c.coct"),     ("canim",   "c.canim"),
+    ("aframe",  "p.aframe"),   ("counter", "p.counter"),
+    ("oct",     "p.oct"),      ("anim",    "p.anim"),
+]
 
 
 def resolve_trace(arg: str) -> Path:
@@ -276,35 +303,32 @@ def main() -> int:
     print(f"  {'-'*10} {'-'*13} {'-'*40}")
     worst = "ALIGNED"
     rank = {"ALIGNED": 0, "CONST-OFFSET": 1, "DRIFT": 2}
-    for c in PHASE_COUNTERS:
-        offs = [portmap[v][c] - retmap[v][c] for v in common
-                if c in portmap[v] and c in retmap[v]]
+    for key, label in PHASE_COUNTERS:
+        offs = [portmap[v][key] - retmap[v][key] for v in common
+                if key in portmap[v] and key in retmap[v]]
         if not offs:
             continue
         verdict, detail = classify(offs)
         if rank[verdict] > rank[worst]:
             worst = verdict
         # first frame an offset changes (for DRIFT)
-        print(f"  {c:<10} {verdict:<13} {detail}")
-    # RNG
-    rng_off = [portmap[v]["rng"] - retmap[v]["rng"] for v in common
-               if "rng" in portmap[v] and "rng" in retmap[v]]
-    rng_pinned = '"rngseed"' in work.read_text()
-    if rng_pinned:
-        v, d = classify(rng_off)
-        print(f"  {'rng':<10} {v:<13} {d}")
-        if rank[v] > rank[worst]:
-            worst = v
-    else:
-        match = sum(1 for o in rng_off if o == 0)
-        print(f"  {'rng':<10} {'UNPINNED':<13} {match}/{len(rng_off)} match — "
-              f"add a {{rngseed}} op for a clean RNG comparison")
-
-    # rngcalls — per-frame RNG CONSUMPTION (cumulative LCG calls, rebased to the
-    # first aligned frame).  If port and retail consume the same per frame the
-    # rebased totals stay equal; the first db054 they differ is the consumption
-    # desync point (often an unported RNG consumer — e.g. ambient particles).
+        print(f"  {label:<10} {verdict:<13} {detail}")
+    # ── RNG ──────────────────────────────────────────────────────────────
+    # Two RNG signals with very different robustness:
+    #   • rngcalls = per-frame CONSUMPTION (cumulative LCG-call count, rebased).
+    #     This is the AUTHORITATIVE determinism signal and the only RNG row that
+    #     sets the verdict — equal per-frame consumption ⇒ the streams stay in
+    #     lock-step from a shared seed.
+    #   • rng = the raw LCG STATE word.  It is SAMPLING-PHASE sensitive: the port
+    #     logs it at end-of-sim (pos-log) while retail's --watch reads it at the
+    #     frame boundary, so even with bit-identical consumption the two sample
+    #     the SAME stream ~1 frame apart (empirically retail[N] == port[N+1]).
+    #     A nonzero raw-state diff with ALIGNED consumption is thus a sampling
+    #     skew, NOT logic — so the raw row is diagnostic only and never escalates
+    #     the verdict (raw LCG state is non-linear, so classify() would otherwise
+    #     read a constant 1-frame skew as dozens of distinct offsets = bogus DRIFT).
     cs_div = None
+    consumption_aligned = None
     if all("rngcalls" in portmap[v] and "rngcalls" in retmap[v] for v in common):
         pbase = portmap[common[0]]["rngcalls"]
         rbase = retmap[common[0]]["rngcalls"]
@@ -315,10 +339,10 @@ def main() -> int:
             diffs.append(pc - rc)
             if cs_div is None and pc != rc:
                 cs_div = v
-        s = sorted(set(diffs))
-        if s == [0]:
+        consumption_aligned = (sorted(set(diffs)) == [0])
+        if consumption_aligned:
             print(f"  {'rngcalls':<10} {'ALIGNED':<13} "
-                  f"per-frame RNG consumption matches retail")
+                  f"per-frame RNG consumption matches retail (authoritative)")
         else:
             tot = diffs[-1]
             print(f"  {'rngcalls':<10} {'DESYNC':<13} consumption diverges at "
@@ -327,6 +351,35 @@ def main() -> int:
                   f"net port−retail {tot:+d} calls over the window")
             if rank["DRIFT"] > rank[worst]:
                 worst = "DRIFT"
+
+    # Raw LCG STATE — diagnostic only (sampling-phase sensitive; see above).
+    rng_pinned = '"rngseed"' in work.read_text()
+    have = [v for v in common if "rng" in portmap[v] and "rng" in retmap[v]]
+    u32 = lambda x: x & 0xFFFFFFFF
+    if not rng_pinned:
+        match = sum(1 for v in have if portmap[v]["rng"] == retmap[v]["rng"])
+        print(f"  {'rng':<10} {'UNPINNED':<13} {match}/{len(have)} match — "
+              f"add a {{rngseed}} op for a clean RNG comparison")
+    elif have:
+        same = sum(1 for v in have if portmap[v]["rng"] == retmap[v]["rng"])
+        if same == len(have):
+            print(f"  {'rng':<10} {'ALIGNED':<13} raw LCG state bit-exact")
+        else:
+            # identical consumption but state differs ⇒ test the end-of-sim vs
+            # frame-boundary 1-frame sampling skew (retail[N] == port[N+1]).
+            skew = sum(1 for v in have if (v + 1) in portmap
+                       and u32(portmap[v + 1]["rng"]) == u32(retmap[v]["rng"]))
+            if consumption_aligned and skew >= 0.5 * max(1, len(have) - 1):
+                print(f"  {'rng':<10} {'SAMPLE-SKEW':<13} raw state matches at "
+                      f"+1 frame ({skew}/{len(have) - 1}); consumption ALIGNED → "
+                      f"end-of-sim vs frame-boundary sampling, NOT logic")
+            elif consumption_aligned:
+                print(f"  {'rng':<10} {'SAMPLE-PHASE':<13} raw state differs but "
+                      f"consumption ALIGNED → off-phase sampling, NOT logic")
+            else:
+                vr, d = classify([portmap[v]["rng"] - retmap[v]["rng"]
+                                  for v in have])
+                print(f"  {'rng':<10} {vr:<13} {d}  (corroborates rngcalls DESYNC)")
 
     print()
     if worst == "ALIGNED":
