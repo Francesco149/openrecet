@@ -76,23 +76,56 @@ insert matching **dummy `rng_next15()` calls** (3 reads every 16th db054 frame)
 tagged `PORT-DEBT(...)` to re-align the stream, retiring them when the real
 emitter lands. **Re-run `phase_probe` after — `rngcalls` must return to ALIGNED.**
 
-## Lead B — Recette (player) anim is NOT phase-normalized
+## Lead B — Recette (player) anim phase — ✅ RESOLVED 2026-06-04
 
-`{phasepin}` resets only the **companion** phase (db054 + companion anim cycle
-`DAT_056dab40/48/4c/50`). The **player's** anim cycle is still load-offset, which
-is why the user saw Recette in a mismatched anim frame in the phase-fixed diff
-(feed `20260603T232805_45c4`). `phase_probe` also only verifies companion
-counters today.
+The player (actor 0) anim record is the `i*0x2c`-byte mirror of the companion in
+`&DAT_056daae8[i*0xb]` (verified vs the engine writer at all.c:84565+):
+ANIM `0x56daae8` / TIMER `0x56daaf0` / COUNTER `0x56daaf4` / FRAME `0x56daaf8` /
+FACING `0x56dab00`. (`0x56dab00` IS the player facing — because it's the FACING
+field of actor 0, which *confirms* the array layout rather than refuting it.)
 
-**NEXT STEP:** find the player (actor 0) anim FRAME/COUNTER engine VA — verify
-empirically (Frida `--watch` candidates correlated with the port pos-log's
-`aframe`, OR the player anim writer in the decompile; note `DAT_056dab00` is the
-player *facing* octant, and the companion's record is the special `dab40` block,
-so the dab00-as-array assumption is unverified). Then extend `{phasepin}` to reset
-**all live actors'** anim cycles (the chosen "auto-settling phase-sync —
-normalizes ALL scene phase counters") and add the player row to
-`phase_probe.STD_WATCHES`. If her FRAME counter then matches but she still renders
-differently → a real anim-code/cell-mapping bug.
+- Added the player row to `phase_probe.STD_WATCHES` (`p.*` vs the companion `c.*`);
+  names match the port pos-log's actor-0 fields (commit a79f8b0).
+- Extended `{phasepin}` to also reset the player anim cycle (`player_ctrl_phasepin`
+  + the Frida agent; commit cb9f465) so an **idle** comparison normalizes the
+  player origin (a walk trace already self-aligns via the idle↔walk transition
+  reset).
+- **Verified bit-exact:** `phase_probe house-walk-down-dense` AND
+  `house-idle --window 120,80` → all eight `p.*`/`c.*` counters ALIGNED, incl. the
+  walk-cycle wrap landing on the same frame. **Character anim phase is 1:1 for
+  Recette AND Tear, walk AND idle.** The earlier "mismatched anim frame" diff was
+  the load-dependent ORIGIN (now harness-normalized), not a logic/cell bug.
+
+NPC anim phase is the remaining `{phasepin}` follow-up.
+
+## Lead C — IDLE-only RNG over-consumption (+1 LCG/frame) — OPEN (found 2026-06-04)
+
+`phase_probe house-idle --window 120,80` → **`rngcalls DESYNC`: the port
+over-consumes ~+1 LCG/frame** (net +79 over the 80-frame window, first divergence
+db054=42). Per-frame pattern is a clean 4-cycle: **retail 6,0,0,0 vs port 7,1,1,1**
+— the port burns exactly **1 extra LCG every frame**. `house-walk-down-dense` is
+`rngcalls` ALIGNED, so this is **idle-specific**.
+
+- The port's +1/frame is the **§95 dev-overlay consume** — the unconditional
+  `(void)rng_next15()` at the `scene1_ingame_default_arm_tick` tail (`scene1_sim.c`).
+- **Retail does NOT consume it on these idle frames:** an idle `--drill` lists
+  retail's RNG consumers as `FUN_00447f4f` (spawn) + `FUN_0046f2a3` only — **no
+  `FUN_00442cef`** (the overlay's enclosing fn). The playbook's *walk* drill DID
+  list `FUN_00442cef` at 1/frame. So the overlay's LCG step fires on **walk but
+  not idle** in retail → it is **conditional**, which §95 (and the port) modelled
+  as unconditional.
+- **Open mechanism (do NOT fix blind):** the decompile shows the overlay tail
+  (`442cef.c` LAB_004435f7, L417-430) as *unconditional*, and the thunk at
+  `0x471084` is a real `jmp 0x5041f6` (so the step IS counted by the retail hook).
+  Yet retail skips it on idle; the only early return is L143 (`DAT_0438becc % 3`,
+  not idle-related). The `--drill` counts didn't reconcile with the aligned window
+  (FUN_00447f4f ~5.8/frame in the drill vs ~1.5/frame aligned), so the exact gate
+  isn't nailed. **NEXT:** Frida-trace `FUN_00442cef` entry/exit + the overlay call
+  site on a synced idle-vs-walk window to find what gates the tail consume; OR
+  empirically gate the port consume on player-moving and confirm BOTH traces go
+  `rngcalls` ALIGNED (then revise §95 "unconditional" → "moving-gated"). Affects
+  only RNG-stream parity for TAS comparisons (idle sparkle/dust phase), NOT the
+  anim-phase result above.
 
 ## Captures/diffs must be phase + RNG aligned
 
