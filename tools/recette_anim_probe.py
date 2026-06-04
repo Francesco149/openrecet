@@ -77,14 +77,29 @@ def load_pairs(run: Path):
     for l in (run / "port" / "meta.jsonl").read_text().splitlines():
         if '"db054"' in l:
             r = json.loads(l); port[r["db054"]] = r
+    # Align the retail SCREENSHOT to its db054 using the capture-time state
+    # (frames_meta.jsonl — read at Present onEnter, atomic with the pixels) when
+    # available; fall back to the per-tick watch.jsonl for old runs. The watch
+    # stream is read one sim-tick before the render, so under turbo it mislabels
+    # screenshots by a frame at walk-cycle transitions (715b74c).
     ret = {}
-    for l in (run / "retail" / "watch.jsonl").read_text().splitlines():
-        o = json.loads(l)
-        if o["frame"] <= pin:
-            continue
-        d = o["vals"].get("db054")
-        if d is not None and d not in ret:
-            ret[d] = o["frame"]
+    frames_meta = run / "retail" / "frames_meta.jsonl"
+    if frames_meta.exists():
+        for l in frames_meta.read_text().splitlines():
+            o = json.loads(l)
+            if o["frame"] <= pin:
+                continue
+            d = (o.get("vals") or {}).get("db054")
+            if d is not None and d not in ret:
+                ret[d] = o["frame"]
+    else:
+        for l in (run / "retail" / "watch.jsonl").read_text().splitlines():
+            o = json.loads(l)
+            if o["frame"] <= pin:
+                continue
+            d = o["vals"].get("db054")
+            if d is not None and d not in ret:
+                ret[d] = o["frame"]
     return [(d, port[d]["frame"], ret[d], port[d]) for d in sorted(set(port) & set(ret))]
 
 

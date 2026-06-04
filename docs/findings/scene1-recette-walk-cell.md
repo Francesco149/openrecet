@@ -1,13 +1,29 @@
-# Recette's RENDERED walk cell diverges from retail (render-side, not phase)
+# Recette's RENDERED walk cell — RESOLVED: cell is 1:1; the "divergence" was a CAPTURE-LABEL off-by-one
 
-**Status: OPEN — DEFINITELY NOT 1:1 (human-verified twice). Found 2026-06-04 (user eyeball).**
+**Status: RESOLVED 2026-06-04 — walk cell is 1:1, HUMAN-CONFIRMED.** The user
+confirmed "that capture is fully 1:1" on the capture-time-aligned turbo montage
+(feed 2026-06-04). The real root cause was a **capture tooling bug**, not the engine:
+the Frida agent read the `--watch` state (db054/aframe) at `input_poll` — **one
+sim-tick before the frame was rendered** — so every retail screenshot was labeled
+with the prior tick's state. Aligned by that off-by-one label, port↔retail screenshots
+mismatched at every walk-cycle transition (turbo's sim/Present decoupling made it
+run-to-run variable), and the "counter-wrap residual" was the same off-by-one. Fixed
+by reading the state at the CAPTURE instant (Present onEnter) → `frames_meta.jsonl`
+(commit 715b74c). With capture-time alignment the SAME turbo capture is bit-1:1 with
+the port (arms-diff ≤1.4, many 0.00) on every frame including the wraps.
 
-> ## ⛔ DO NOT mark this 1:1 again without explicit human verification (2026-06-04)
+> ## ⚠️ The 50ae50a mistake (kept as a lesson)
 >
-> A prior autonomous pass (commit `50ae50a`, **REVERTED**) wrongly closed this as
-> "the cell is 1:1, the divergence is just foot-dust." That was wrong. The user
-> re-verified by eye on feed montage **`20260604T042804_860e`** (the very montage
-> that pass pushed as "proof"): on the flagged frame **db054=42** the port draws a
+> A first autonomous pass (commit `50ae50a`, **REVERTED**) closed this as "the cell
+> is 1:1, the divergence is just foot-dust." That reasoning was WRONG (the divergence
+> was in the arms/dress, not dust) even though the *conclusion* (cell is 1:1) happened
+> to be right for the wrong reason. The lesson stands: **do not assert 1:1 without
+> explicit human verification AND a proven mechanism.** This close has both — the user
+> confirmed the capture-time-aligned montage, and the mechanism (capture-label
+> off-by-one) is proven by the fix making port↔retail bit-match.
+>
+> The original eyeball evidence (feed `20260604T042804_860e`): on flagged frame
+> **db054=42** the port draws a
 > **genuinely different pose** — right hand **bent upward** (retail: hand
 > horizontal/down) and **left boot forward** (retail: different stride). The
 > white-diff panel lights up the **entire silhouette** (head outline, arm, torso,
@@ -137,13 +153,21 @@ Identical early vs late → the wrap-frame lag is **fixed at exactly 1 frame, do
 drift/accumulate** over a minute. The 4 wrap frames per cycle are the ONLY divergence;
 everything else is bit-black. Feed montage 2026-06-04 (EARLY vs LATE cycle).
 
-**Two open follow-ups (agreed with user):**
-1. **Fix the wrap-frame 1-frame lag** — likely the draw-vs-`chr_anim_tick` order at the
-   counter wrap (the drawn cell advances a frame off from retail only on the wrap frame).
-   Investigate `chr_anim_tick` counter→aframe advance vs when the render samples it.
-2. **Make turbo capture not jitter** — the screenshot stream slips ±1 frame at cycle
-   transitions under `--turbo`. Either fix the turbo capture timing, or make
-   phase_probe/recette_anim_probe align frames by (aframe,counter) instead of raw db054.
+**Both follow-ups RESOLVED 2026-06-04 — same root cause:**
+1. ~~Fix the wrap-frame 1-frame lag~~ — was NOT an engine bug. Same capture-label
+   off-by-one: the watch was read one tick before the render, so the wrap frame (where
+   aframe advances) was mislabeled. Vanishes with capture-time alignment.
+2. ~~Make turbo capture not jitter~~ — **DONE (715b74c):** the Frida agent now reads the
+   watched state at the capture instant (Present onEnter) and writes it to
+   `retail/frames_meta.jsonl`; `recette_anim_probe` (and any screenshot-diff consumer)
+   aligns retail frames by that capture-time db054 instead of the per-tick `watch.jsonl`.
+   The same turbo capture is then bit-1:1 with the port. (phase_probe's verdict diffs
+   *records*, not screenshots, so it is unaffected and keeps using `watch.jsonl`.)
+
+The `OPENRECET_CELL_LOG` port instrument (env-gated, logs the computed cell index per
+draw) stays in `scene1_chr_sprite.c` as a debug tool — it proved the port's cell is a
+deterministic pure function of the record, which let us localize the bug to capture
+labeling rather than the engine.
 
 **Status:** walk cell looks 1:1 on the plateau (no-turbo bit-exact + user ground-truth
 + bit-exact records + deterministic port cell-log). **Awaiting user confirmation on the
