@@ -51,6 +51,15 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   policy 2026-06-05); co-author trailer is auto-injected (don't type it); the pre-commit
   hook regenerates the port ledger + runs host tests on C changes. **Push** only when asked.
   **No branches** — commit to master (until nightly users matter).
+- **Session hygiene — suggest `/clear` at milestone breakpoints + orient fast.** When a
+  self-contained arc lands (a foundational tool, a sweep phase, a chip + its verification)
+  and the next arc is a fresh effort, proactively offer the user a `/clear` to reset context
+  — long contexts get summarized and slow. Make first-session orientation as fast as
+  possible: this file auto-loads, `docs/FRONT.md` is the 60-second current-front read, and
+  the "Where to read next" map below routes by need. **Durable knowledge — process,
+  conventions, harness facts — lives HERE (or `docs/`), not in `~/.claude` auto-memory**
+  (which stays thin + pointer-only). If you catch yourself writing a process fact to
+  auto-memory, put it in this file instead and leave only a pointer in memory.
 
 ## Run / build (host tools need `nix develop --command` prefix)
 - **Build:** `nix develop --command make -C src` (mingw32; **don't** override `CC`) →
