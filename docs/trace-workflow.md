@@ -93,7 +93,10 @@ anchored, RNG-pinned trace are bit-identical.
 
 Anchor list lives in `src/anchor_trace.c` (`g_anchors[]`): `BOOT`, `NEW_GAME`,
 `LOADING_START/END`, `HOUSE_FREEROAM`, `TEXT_ANIM_START/END`, `EXTRA_SPRITE_*`,
-`DLG_LINE_SHOW/CLEAR`, `CONV_POSE_START/END/BLINK`, `FREEROAM_START`. The port
+`DLG_LINE_SHOW/CLEAR`, `CONV_POSE_START/END/BLINK`, `FREEROAM_START`,
+`PAUSE_OPEN/PAUSE_CLOSE` (in-game pause menu open/close, `DAT_0438b150`),
+`TITLE_RETURN` (quit-to-title, INGAME→TITLE — re-syncs the save→reload menu
+flow). The port
 emits `anchor: {...}` on stderr; the recorder logs them into the raw; the retail
 Frida agent mirrors them (TODO: `FREEROAM_START` not yet on the retail side).
 
