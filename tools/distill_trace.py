@@ -23,6 +23,9 @@
 import argparse, json, sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import trace_save
+
 ROOT = Path(__file__).resolve().parent.parent
 HOUSE_INTRO_REF = ROOT / "tests/scenarios/house-wall-collide/trace.jsonl"
 HOUSE_ANCHOR_OFFSET = 1565   # recording frame 0 → anchor+1565 (idle spam ends +1500)
@@ -35,6 +38,7 @@ def load_raw(path):
     cts = []     # call-trace windows: [start, len] (F4 toggle pairs)
     anchors = [] # recorded anchor firings: {name, frame(rel), gframe, rng}
     rng_seed = None   # live LCG state snapshotted at record-start (header field)
+    savefile = None   # {path, sha256, size} of the boot save snapshot, if recorded
     for ln in Path(path).read_text().splitlines():
         s = ln.strip()
         if not s or s.startswith("#"):
@@ -43,6 +47,13 @@ def load_raw(path):
         if "_rec" in o:
             if o.get("rng_seed_at_start") is not None:
                 rng_seed = int(o["rng_seed_at_start"]) & 0xffffffff
+            continue
+        if "savefile" in o:
+            savefile = {
+                "path": str(o["savefile"]),
+                "sha256": (str(o["sha256"]) if o.get("sha256") else None),
+                "size": (int(o["size"]) if o.get("size") is not None else None),
+            }
             continue
         if "anchor" in o:
             anchors.append({
@@ -62,7 +73,7 @@ def load_raw(path):
             cts.append([int(v[0]), int(v[1])] if isinstance(v, list)
                        else [0, int(v)])
     if not masks:
-        return [], sorted(caps), sorted(escs), cts, 0, rng_seed, anchors
+        return [], sorted(caps), sorted(escs), cts, 0, rng_seed, anchors, savefile
     n = max(masks) + 1
     # distil: emit a change-point whenever the mask differs from the previous
     series = [masks.get(i, "0x0000") for i in range(n)]
@@ -72,7 +83,7 @@ def load_raw(path):
         if m != prev:
             changes.append((i, m))
             prev = m
-    return changes, sorted(caps), sorted(escs), cts, n, rng_seed, anchors
+    return changes, sorted(caps), sorted(escs), cts, n, rng_seed, anchors, savefile
 
 
 def emit_flat(changes, caps, escs, cts, total, rng_seed=None):
@@ -237,9 +248,14 @@ def main(argv=None):
                     help="with --anchor-segments, also pin the global frame counter "
                          "at each anchor (experimental — for frame-count-derived "
                          "state like the time-of-day HUD clock).")
+    ap.add_argument("--saves-dir",
+                    help="content store for the embedded save blob (default: the "
+                         "trace's _saves/ store, shared across scenarios).")
+    ap.add_argument("--no-savefile", action="store_true",
+                    help="do not carry the recording's boot save into the trace.")
     args = ap.parse_args(argv)
 
-    changes, caps, escs, cts, total, rng_seed, anchors = load_raw(args.raw)
+    changes, caps, escs, cts, total, rng_seed, anchors, savefile = load_raw(args.raw)
     if not changes:
         print("distill_trace: no input frames found in", args.raw, file=sys.stderr)
         return 1
@@ -257,14 +273,35 @@ def main(argv=None):
         text = emit_flat(changes, caps, escs, cts, total, rng_seed)
     if args.out:
         Path(args.out).write_text(text)
+        # Carry the recorded boot save into the distilled trace: content-address +
+        # gzip it into the trace's _saves/ store and embed the {savefile} ref. The
+        # raw's savefile path is relative to the RAW file's directory.
+        save_msg = ""
+        if savefile and not args.no_savefile:
+            raw_save = (Path(args.raw).resolve().parent / savefile["path"])
+            if raw_save.exists():
+                store = (Path(args.saves_dir).resolve() if args.saves_dir
+                         else trace_save.default_store_dir(args.out))
+                sha, blob = trace_save.store_save(raw_save, store,
+                                                  sha=savefile.get("sha256"))
+                ref = trace_save._rel_ref(args.out, blob)
+                trace_save.embed_in_trace(args.out, ref, sha=sha)
+                save_msg = f", save {sha[:12]}…→{ref}"
+            else:
+                save_msg = (f", SAVE MISSING ({raw_save} not found — re-run "
+                            f"distill from the recording's dir)")
         seedmsg = (f", rng_seed {rng_seed}" if rng_seed is not None
                    else ", no rng_seed (pre-rngseed recording)")
         print(f"distill_trace: {len(changes)} change-points, {len(caps)} capture(s), "
               f"{len(escs)} esc(s), {len(cts)} call-trace window(s), "
-              f"{len(anchors)} anchor(s), {total} frames{seedmsg} → {args.out}",
+              f"{len(anchors)} anchor(s), {total} frames{seedmsg}{save_msg} → {args.out}",
               file=sys.stderr)
     else:
         sys.stdout.write(text)
+        if savefile:
+            print("distill_trace: recording carries a savefile but output is stdout "
+                  "— pass -o to embed it (content store needs a trace location).",
+                  file=sys.stderr)
     return 0
 
 

@@ -59,6 +59,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import frame_io   # noqa: E402 — png-or-bmp frame discovery
+import trace_save  # noqa: E402 — TAS save interception (embedded {savefile} op)
 
 
 ROOT       = Path(__file__).resolve().parent.parent
@@ -392,6 +393,15 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
             # the capture path is unaffected.
             "--hidden",
         ]
+    # TAS save interception: when the trace declares a {savefile} op, decompress
+    # its content-addressed blob and pass --save-override so the port boots from
+    # the trace's embedded save instead of whatever save.dat is in ASSET_CWD. This
+    # is what lets a trace pin its exact save state (and ignore an advanced
+    # on-disk save) — see tools/trace_save.py + src/input_segtrace.h.
+    save_override = trace_save.resolve_save(trace_path)
+    if save_override:
+        child_args += ["--save-override", wslpath_w(Path(save_override))]
+
     # Call-graph trace: when the scenario trace declares a {calltrace} op, write
     # the port's call_trace.jsonl into the run dir.  The window(s) come from the
     # op itself (the port arms call_trace_arm_window as the trace replays), so no
