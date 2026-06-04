@@ -8,16 +8,16 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-███░░░░░░░░░░░░░░░░░  16.6% touched   (2.9% runtime-verified)
+███░░░░░░░░░░░░░░░░░  16.7% touched   (2.9% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
 | verified  |    73 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    17 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   334 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **424** | verified + stubbed + ported                         |
-| unported  |  2124 | exists in engine, never referenced from src/             |
+| ported    |   335 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **425** | verified + stubbed + ported                         |
+| unported  |  2123 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
@@ -29,8 +29,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 
 ## Current front
 
-- **Phase:** Phase E — leaf-first execution parity (harness-roadmap.md §E)
-- **Top blocker:** Character billboards in HOUSE — the chr-sprite walker (FUN_00456f56) is ported + wired but dormant: its actor/party render array (DAT_056dacc0) has no live writer.  Front chip = FUN_0048b850 (Cpop, in progress) + its unported caller FUN_0048670f.  (HOUSE 3D scene + furniture render by default since 2026-05-29; 2D HUD overlay C7i also remaining.)
+> Hand-edited in `docs/FRONT.md` (the one status block); injected here verbatim.
+
+- **Phase:** Foundation for frame-by-frame 1:1 parity (plan: `plans/` — render-parity
+  diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
+  frame 0 of the main menu.
+- **Active work:** Phase 1 — the render-parity diff engine. Extend the d3d-trace (Frida
+  agent + `src/d3d_trace.c`) to capture per-draw **vertex buffers** (FVF-decoded) and
+  **texture identity**, then `tools/render_diff.py --explain` names the first divergent
+  draw/field. This is the tool that makes render parity mechanical.
+- **First consumer (deferred until the engine lands):** finish the shop-display "目玉商品"
+  sparkle (template 0x3b). Data is verified bit-1:1 vs retail (texture/UV/world-matrix);
+  it draws via the records-A pass but isn't yet visibly 1:1 — the engine will name why.
+- **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
+  "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
+  regression.
 
 ## Where to read next
 

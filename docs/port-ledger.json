@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 73,
   "stubbed": 17,
-  "ported": 334,
-  "unported": 2124,
+  "ported": 335,
+  "unported": 2123,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 424,
-  "pct_touched": 16.6,
+  "touched": 425,
+  "pct_touched": 16.7,
   "pct_verified": 2.9,
   "port_debt": 11
  },
@@ -1323,7 +1323,8 @@
    "src": [
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
-    "src/scene1_per_frame_open.c"
+    "src/scene1_per_frame_open.c",
+    "src/scene1_player_ctrl.c"
    ]
   },
   {
@@ -8103,8 +8104,10 @@
    "size": 215,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x48619f",

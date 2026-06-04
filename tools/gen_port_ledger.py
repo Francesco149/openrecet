@@ -42,16 +42,25 @@ LEDGER_JSON = REPO / "docs" / "port-ledger.json"
 LEDGER_MD = REPO / "docs" / "port-ledger.md"
 STATUS_MD = REPO / "docs" / "STATUS.md"
 
-# These are kept out of band so STATUS stays a 60-second read.  Edit the two
-# lines below when the active front moves; everything else is derived.
-CURRENT_PHASE = "Phase E — leaf-first execution parity (harness-roadmap.md §E)"
-CURRENT_BLOCKER = (
-    "Character billboards in HOUSE — the chr-sprite walker (FUN_00456f56) is "
-    "ported + wired but dormant: its actor/party render array (DAT_056dacc0) "
-    "has no live writer.  Front chip = FUN_0048b850 (Cpop, in progress) + its "
-    "unported caller FUN_0048670f.  (HOUSE 3D scene + furniture render by "
-    "default since 2026-05-29; 2D HUD overlay C7i also remaining.)"
-)
+# The active front is the ONE hand-edited status block.  It lives in docs/FRONT.md
+# (between the FRONT:BEGIN/FRONT:END markers) and is injected here verbatim, so STATUS
+# can never drift from reality.  Everything else in STATUS is derived from code.
+FRONT_MD = REPO / "docs" / "FRONT.md"
+
+
+def read_front() -> str:
+    """Return the hand-edited 'current front' block from docs/FRONT.md (the text
+    between the FRONT:BEGIN / FRONT:END markers).  Falls back to a stub if missing."""
+    try:
+        text = FRONT_MD.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return "- (docs/FRONT.md missing — add it; see gen_port_ledger.py read_front)"
+    begin = text.find("<!-- FRONT:BEGIN -->")
+    end = text.find("<!-- FRONT:END -->")
+    if begin == -1 or end == -1:
+        return text.strip()
+    body = text[begin + len("<!-- FRONT:BEGIN -->"):end].strip()
+    return body
 
 PROBE_FULL_RE = re.compile(r"CALL_TRACE_ENTER\(\s*0x([0-9a-fA-F]+)u?\s*\)")
 PROBE_STUB_RE = re.compile(r"CALL_TRACE_ENTER_STUB\(\s*0x([0-9a-fA-F]+)u?\s*\)")
@@ -211,8 +220,9 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 
 ## Current front
 
-- **Phase:** {CURRENT_PHASE}
-- **Top blocker:** {CURRENT_BLOCKER}
+> Hand-edited in `docs/FRONT.md` (the one status block); injected here verbatim.
+
+{read_front()}
 
 ## Where to read next
 
