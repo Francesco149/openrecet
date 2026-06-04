@@ -139,14 +139,15 @@ static int ev_freeroam_start(const struct anchor_world *p, const struct anchor_w
     return !p->intro_done && c->intro_done;
 }
 
-/* Returned to the title / main menu from in-game (the quit-to-title step of a
- * save→reload flow). scene_state INGAME→TITLE. Mirror of ev_new_game (the
- * forward TITLE→INGAME edge); the engine passes through LOADING within a single
- * tick, so the observable inter-frame edge is INGAME→TITLE directly. Lets a TAS
+/* Returned to the title / main menu (the quit-to-title step of a save→reload
+ * flow). Rising edge of scene_state == TITLE from any non-TITLE state — the
+ * quit-to-title passes through LOADING (observed: the recorder saw scene go
+ * INGAME→LOADING→TITLE, so a strict INGAME→TITLE edge missed it). The BOOT
+ * baseline seed suppresses a spurious fire at the initial title. Lets a TAS
  * trace rebase the title-menu load-slot navigation onto this sync point. */
 static int ev_title_return(const struct anchor_world *p, const struct anchor_world *c)
 {
-    return p->scene_state == ANCHOR_SCENE_INGAME
+    return p->scene_state != ANCHOR_SCENE_TITLE
         && c->scene_state == ANCHOR_SCENE_TITLE;
 }
 

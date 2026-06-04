@@ -456,8 +456,14 @@ int test_anchor_title_return(void)
     anchor_trace_tick(&st, 1, w, rec_sink, &r);   /* INGAME→TITLE → TITLE_RETURN */
     w.scene_state = 1;  /* INGAME */
     anchor_trace_tick(&st, 2, w, rec_sink, &r);   /* TITLE→INGAME → NEW_GAME */
+    /* Quit-to-title via LOADING: INGAME→LOADING(8)→TITLE still fires once, on the
+     * frame TITLE is reached (the real engine path the recorder observed). */
+    w.scene_state = 8;  /* LOADING */
+    anchor_trace_tick(&st, 3, w, rec_sink, &r);   /* INGAME→LOADING → nothing */
+    w.scene_state = 0;  /* TITLE */
+    anchor_trace_tick(&st, 4, w, rec_sink, &r);   /* LOADING→TITLE → TITLE_RETURN */
 
-    T_ASSERT_EQ_I(rec_count(&r, "TITLE_RETURN"), 1);
+    T_ASSERT_EQ_I(rec_count(&r, "TITLE_RETURN"), 2);
     T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "TITLE_RETURN")], 1);
     T_ASSERT_EQ_I(rec_count(&r, "NEW_GAME"), 1);
     T_ASSERT_EQ_U(r.frame[rec_first_idx(&r, "NEW_GAME")], 2);

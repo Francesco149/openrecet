@@ -2596,10 +2596,11 @@ function anchorTick(frame, devicePtr) {
         sendAnchor('PAUSE_CLOSE', frame);
         anchorCaptureSchedule('PAUSE_CLOSE', frame, devicePtr);
     }
-    // TITLE_RETURN — quit to the title/main menu from in-game (scene INGAME ->
-    // TITLE). The reverse of NEW_GAME; anchors the title-menu load-slot
+    // TITLE_RETURN — quit to the title/main menu (rising edge of scene == TITLE
+    // from any non-TITLE state; the quit-to-title passes through LOADING, so a
+    // strict INGAME→TITLE edge misses it). Anchors the title-menu load-slot
     // navigation. Mirror of anchor_trace.c ev_title_return.
-    if (ps === ANCHOR_SCENE_INGAME && scene === ANCHOR_SCENE_TITLE) {
+    if (ps !== ANCHOR_SCENE_TITLE && scene === ANCHOR_SCENE_TITLE) {
         sendAnchor('TITLE_RETURN', frame);
         anchorCaptureSchedule('TITLE_RETURN', frame, devicePtr);
     }
