@@ -1,6 +1,7 @@
 # Plan — Execution + dataflow trace (the divergence drill-in)
 
-**Status:** design approved 2026-06-05 (user). Building incrementally.
+**Status:** core tooling LANDED 2026-06-05 (increments 1–3). Now growing field
+coverage along the Phase-2 sweep (increments 4–5).
 **Why:** the d3d render-diff (`render_diff.py --explain`) names the *wrong draw*; it
 does not name the *logic cascade* that produced the wrong state. The call-trace
 (`call_trace_diff.py`) names *which functions ran* but is **data-blind, order-blind, and
@@ -83,15 +84,36 @@ stop — that's the cascade root. `call_trace_diff.py` (Counter view) stays for 
 coverage; `flow_diff.py` is the ordered+data drill-in.
 
 ## Incremental landing (commit as you go)
-1. **Port C: BEGIN/FIELD/END + `seq`/`depth`** in `call_trace.c/.h`; one seed probe with
-   fields. Build + host test. ← start here
-2. **Retail spec + Frida reader**: `retail_fields.json` + agent reads declared fields at
-   hooked VAs (reuse `diff_test.py` readers). Validate the seed fn decodes the same values.
-3. **`flow_diff.py`**: seq-ordered align + field compare + first-divergence + pillar tag.
-4. **Seed one real path** end-to-end (candidate: `FUN_0048670f` HOUSE free-roam update →
-   the sparkle emitter, or the player controller) and root-cause a live divergence.
+1. ✅ **Port C: BEGIN/FIELD/END + `seq`** in `call_trace.c/.h`; seed probe `fade_tick`.
+   Validated on a title capture (`seq:45, f:{phase,counter,duration,mode}`). `depth`
+   deferred (port lacks exit hooks; `seq` order is enough for chain alignment now).
+2. ✅ **Retail spec + Frida reader**: `tools/flow/retail_fields.json` + `agent.js`
+   `flowReadField` (global/arg/argderef) + per-frame `ctNextSeq()`. Validated live: retail
+   `fade_tick` reads `f:{phase:0,counter:0,duration:170,mode:0}` from its globals.
+3. ✅ **`flow_diff.py`**: seq-ordered chain align + field compare + first-divergence
+   ([chain]/[data]) + `--mapped-only`. Validated synthetic + real (names
+   `duration: retail=170 port=0`). Pillar attribution = the `benign` field mark (full
+   tagging deferred).
+4. **Seed one real path** end-to-end on a SYNCED segtrace capture (`export_trace
+   --d3d-trace-verts` + `frida_capture` with the field spec): declare fields down one chain
+   (candidate: the player controller, or `FUN_0048670f` HOUSE update → sparkle emitter) and
+   root-cause a live divergence. ← next
 5. **Grow coverage with the Phase-2 sweep**: every function the frame-0-forward sweep
-   touches declares its fields — coverage tracks the sweep, not a big-bang instrumentation.
+   touches gets its fields declared (port `CALL_TRACE_*` + a `retail_fields.json` entry) —
+   coverage tracks the sweep, not a big-bang instrumentation.
+
+## Workflow (once both sides carry fields)
+```sh
+# synced capture (segtrace window), BOTH sides with call-trace + the field spec:
+python3 tools/export_trace.py tests/scenarios/<scn>/trace.jsonl --caprange S,N \
+    --run-dir runs/<x>/port --call-trace            # port emits CALL_TRACE_* payloads
+python3 tools/frida_capture.py --remote cutestation.soy:27042 \
+    --run-dir runs/<x>/retail --input-segtrace runs/<x>/port/trace.work.jsonl \
+    --call-trace --turbo --silent-audio             # retail reads retail_fields.json
+# root-cause: first call (in order) whose inputs matched but output/state diverged
+python3 tools/flow_diff.py --mapped-only \
+    --retail runs/<x>/retail/call_trace.jsonl --port runs/<x>/port/call_trace.jsonl
+```
 
 ## Special cases (the "documented exceptions")
 Benign divergences are declared, not silently tolerated: raw pointers / heap addresses

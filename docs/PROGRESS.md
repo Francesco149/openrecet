@@ -7,6 +7,33 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-05 — Execution + dataflow trace: the divergence drill-in
+
+User-directed next layer: d3d `--explain` names the wrong *draw* but not the *logic
+cascade* that produced the wrong state. The existing call-trace was data-blind,
+order-blind, and reported an unordered set diff (gap analysis in
+`plans/execution-flow-trace.md`). Built the per-frame, both-sides execution+dataflow
+trace that matches the call chain AND the data moved, naming the first call whose
+inputs matched but output/state diverged. Data capture = declared payloads per fn
+(user's choice), joined by (va, field-name). Three increments:
+
+- **Port `CALL_TRACE_BEGIN/FIELD/END` + per-frame `seq`** (`call_trace.c/.h`): a
+  field-bearing event assembled into a static buffer, fwritten atomically at END;
+  `seq` stamped on every event for chain alignment. Seed: `fade_tick` declares
+  phase/counter/duration/mode. `run-openrecet.sh` path-rewrites `--call-trace`.
+- **Retail field spec + Frida reader** (`tools/flow/retail_fields.json` + `agent.js`):
+  `flowReadField` (global/arg/argderef via `rva`) + `ctNextSeq`; onEnter attaches
+  `f:{}` when the va has a spec. Validated live: retail `fade_tick` reads
+  `{phase:0,counter:0,duration:170,mode:0}` from its globals.
+- **`flow_diff.py`**: seq-ordered chain align (difflib over the va sequence) + per-field
+  compare (float eps, int/hex exact, benign = presence-only) → first `[chain]`/`[data]`
+  divergence. `--mapped-only` for sparse port coverage. Validated synthetic + real
+  (names `duration: retail=170 port=0`). Supersedes the Counter-based `call_trace_diff`
+  for drill-in.
+
+Coverage grows with the Phase-2 sweep (each touched function declares fields on both
+sides). Commit policy also changed this day: commit in logical units as you go.
+
 ## 2026-06-05 — Render-parity diff engine (Phase 1): per-draw vertex capture + `--explain`
 
 Foundation for the frame-by-frame 1:1 sweep. The d3d-trace command-stream diff

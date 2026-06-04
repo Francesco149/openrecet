@@ -16,9 +16,18 @@
   same screen corner on the title. Schema: `findings/d3d-trace.md`; usage:
   `findings/render-diff.md §--explain`. **Remaining Phase 1:** stable **texture identity**
   (content-hash / source-name instead of the raw pointer the opaque-pointer mode
-  approximates). **Phase 2 (next):** run the synced sweep from frame 0 of the main menu —
-  `export_trace --d3d-trace-verts` + `frida_capture --d3d-trace-verts` over a segtrace, then
-  `--explain` frame-by-frame, fixing the first real divergence each time.
+  approximates).
+- **Execution + dataflow trace LANDED (2026-06-05) — the PRIMARY divergence drill-in.**
+  d3d `--explain` names the wrong *draw*; this names the *logic cascade* that produced the
+  wrong state. The port call-tracer carries declared payloads (`CALL_TRACE_BEGIN/FIELD/END`,
+  per-frame `seq`); the Frida agent reads the same-named fields from retail per
+  `tools/flow/retail_fields.json`; `tools/flow_diff.py` aligns the per-frame call CHAIN by
+  `seq` and names the first call whose inputs matched but output/state diverged
+  ([chain]/[data]). Plan + workflow: `plans/execution-flow-trace.md`. Coverage grows with
+  the sweep — each touched function declares its fields on both sides.
+- **Phase 2 (next):** synced frame-0-forward sweep — `export_trace` + `frida_capture` over a
+  segtrace with BOTH `--d3d-trace-verts` and `--call-trace`; `flow_diff` to root-cause the
+  first divergence, `--explain` to confirm the draw; fix; advance.
 - **Sparkle is deferred ON PURPOSE — do not re-attack early.** The shop-display "目玉商品"
   sparkle (template 0x3b) has verified bit-1:1 data (texture/UV/world-matrix) but isn't yet
   visibly 1:1. It is finished **last**, only once the entire command stream UP TO its frame
