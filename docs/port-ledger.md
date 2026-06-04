@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **423** (16.6%) — verified 73, stubbed 17, ported 333
-- unported: **2125**
+- touched: **424** (16.6%) — verified 73, stubbed 17, ported 334
+- unported: **2124**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (73) — runtime-diffed vs retail
@@ -114,7 +114,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (333) — reimplemented, no probe yet
+## ported (334) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -406,6 +406,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a585 | FUN_0049a585 | 25 | ✓ | esc_dispatch.c, esc_dispatch.h |
 | 0x49b4f4 | FUN_0049b4f4 | 67 | ✓ | title_continue_picker.c, title_continue_picker.h |
 | 0x49b537 | FUN_0049b537 | 31 | ✓ | scene_title.c, title_continue_picker.c, title_continue_picker.h |
+| 0x49b556 | FUN_0049b556 | 2810 | ✓ | scene_title.c |
 | 0x49c050 | FUN_0049c050 | 1001 | ✓ | scene_title.c |
 | 0x49d36d | FUN_0049d36d | 495 | ✓ | scene1_postload.c, scene1_postload.h |
 | 0x49d8a4 | FUN_0049d8a4 | 355 | ✓ | sim.c |

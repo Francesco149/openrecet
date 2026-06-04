@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 73,
   "stubbed": 17,
-  "ported": 333,
-  "unported": 2125,
+  "ported": 334,
+  "unported": 2124,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 423,
+  "touched": 424,
   "pct_touched": 16.6,
   "pct_verified": 2.9,
   "port_debt": 11
@@ -9712,8 +9712,10 @@
    "size": 2810,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_title.c"
+   ]
   },
   {
    "va": "0x49c050",

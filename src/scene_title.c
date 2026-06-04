@@ -782,6 +782,59 @@ static void scene_title_settings_render_panel(IDirect3DDevice8 *dev,
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 }
 
+/* ── Continue / load slot-picker panel (submenu_state == 1) ──
+ *
+ * PORT-DEBT(render): the faithful engine picker (FUN_0049b556, 2810 B)
+ * draws a 3-column grid of slot cells from the DAT_073d8748 /
+ * DAT_073da020 textures with per-cell brightness pulse. This is a
+ * functional vertical-list stand-in: navigable (the cursor + scroll
+ * come straight from the ported picker state machine) and showing each
+ * save's real summary, so the load flow is verifiable. Retire when the
+ * faithful grid renderer ports. */
+static void scene_title_continue_render_panel(IDirect3DDevice8 *dev,
+                                              float ox, float oy)
+{
+    const title_continue_picker_t *p = &g_title_continue_picker;
+
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    title_quad(dev, SCENE_TITLE_TEX_DUNGEON,
+               ox + 120.0f, oy + 16.0f, 400.0f, 420.0f,
+                 0.0f,   0.0f, 320.0f, 360.0f,
+               0xFFFFFFFFu);
+
+    font_draw_text_centered(dev, ox + 320.0f, oy + 28.0f,
+                            p->overwrite_mode ? "NEW GAME — CHOOSE FILE"
+                                              : "LOAD GAME",
+                            0xFFFFFFFFu, 1.0f);
+
+    const int VISIBLE = 8;
+    int top = p->scroll;
+    if (top > p->slot_count - VISIBLE) top = p->slot_count - VISIBLE;
+    if (top < 0) top = 0;
+
+    const float row_x = ox + 168.0f;
+    const float row_y = oy + 72.0f;
+    char buf[64];
+
+    for (int r = 0; r < VISIBLE; r++) {
+        const int slot = top + r;
+        if (slot >= p->slot_count) break;
+        const int bank = p->slot_index[slot];
+        const uint32_t *bd = save_bank_dwords_at(bank);
+        const uint32_t color = (slot == p->cursor) ? 0xFFFFFF00u
+                                                   : 0xFF9F9F9Fu;
+        if (bd && bd[SAVE_BANK_FIELD_OCCUPIED] != 0) {
+            snprintf(buf, sizeof buf, "%2d   %u G   Day %u",
+                     bank + 1,
+                     (unsigned)bd[SAVE_BANK_FIELD_GOLD],
+                     (unsigned)bd[SAVE_BANK_FIELD_DAY_INDEX]);
+        } else {
+            snprintf(buf, sizeof buf, "%2d   - empty -", bank + 1);
+        }
+        font_draw_text(dev, row_x, row_y + (float)r * 42.0f, buf, color, 1.0f);
+    }
+}
+
 void scene_title_render(IDirect3DDevice8 *dev,
                         const scene_title_menu_t *menu,
                         const scene_title_anim_t *anim)
@@ -969,9 +1022,17 @@ void scene_title_render(IDirect3DDevice8 *dev,
                    0xFFFFFFFFu);
     }
 
-    /* Sub-menu states 1 / 3 / 4 (load-game / confirm / ranking-fade)
-     * intentionally not ported here — their producers and state-machine
-     * arms haven't landed. Tracked in PROGRESS as deferred. */
+    /* Continue / load slot picker — engine FUN_0049c644 dispatches to
+     * FUN_0049b556 when cursor_anim > 0 and submenu_state == 1. Slides
+     * in from the right like settings (x = 640 - cursor_anim * 64). */
+    if ((int)anim->cursor_anim > 0 && anim->submenu_state == 1) {
+        const float ox = 640.0f - (float)(int)anim->cursor_anim * 64.0f;
+        const float oy = 48.0f;
+        scene_title_continue_render_panel(dev, ox, oy);
+    }
+
+    /* Sub-menu states 3 / 4 (confirm / ranking-fade) intentionally not
+     * ported here — their producers haven't landed. Deferred. */
 
     /* Final flush guard — restore additive→modulate already done. */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
