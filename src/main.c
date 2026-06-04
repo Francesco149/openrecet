@@ -403,6 +403,15 @@ static char           *g_input_trace_replay_path = NULL;
 static char                   *g_input_segtrace_path = NULL;
 static struct input_segtrace   g_segtrace            = {0};
 
+/* --save-override <file>: TAS save interception. At boot, load the named raw
+ * (UNCOMPRESSED) save into the arena instead of the on-disk save.dat/_save.dat,
+ * so a replayed trace reproduces its exact recorded save state regardless of
+ * whatever save the live game has. The trace's `{savefile}` op points at a
+ * gzip-compressed blob; the Python harness decompresses it to a temp file and
+ * passes that path here (the port can't gunzip). NULL = normal save.dat path.
+ * See src/input_segtrace.h ({savefile} op) + docs/trace-workflow.md. */
+static char                   *g_save_override_path  = NULL;
+
 /* True when input is harness-driven (absolute replay OR anchor-segmented
  * forcing). Both own the input mask, so we suppress live DirectInput, pin
  * g_paused=FALSE, and drive virtual time for a deterministic one-tick-per-loop. */
@@ -1651,6 +1660,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                     "openrecet: call-trace auto-enabled from segtrace "
                     "calltrace op → %s\n", ctpath);
             }
+            /* The trace declares an embedded save but no --save-override was
+             * passed — the harness forgot to decompress + wire it. The replay
+             * will load the on-disk save.dat instead of the trace's save, which
+             * usually means a wrong/diverged run. Warn loudly. */
+            if (g_segtrace.has_savefile && !g_save_override_path) {
+                fprintf(stderr,
+                    "openrecet: WARNING — segtrace declares savefile \"%s\" "
+                    "but no --save-override given; using on-disk save.dat "
+                    "(replay may diverge). The harness should decompress the "
+                    "blob and pass --save-override.\n",
+                    g_segtrace.savefile);
+            }
         } else {
             fprintf(stderr,
                 "openrecet: failed to load segtrace %s — disabled\n",
@@ -1720,7 +1741,20 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * alongside lnkdatas.bin. We use bare filenames so the engine's
      * cwd-resolution (storage_init's prior chdir) places us in the
      * same directory. */
-    if (save_io_try_load("save.dat", "_save.dat")) {
+    /* TAS save interception: when --save-override is given, load THAT raw save
+     * (no backup fallback) instead of the on-disk save.dat/_save.dat. Lets a
+     * replayed trace pin its exact recorded save state — the trace's {savefile}
+     * op, decompressed by the harness, lands here. The override path beats
+     * whatever the live game has on disk (the whole point: re-test a trace and
+     * it loads the EMBEDDED save, not the advanced on-disk one). */
+    const char *save_primary = g_save_override_path ? g_save_override_path : "save.dat";
+    const char *save_backup  = g_save_override_path ? NULL                : "_save.dat";
+    if (g_save_override_path) {
+        fprintf(stderr,
+                "save_io: --save-override active — loading %s "
+                "(on-disk save.dat ignored)\n", g_save_override_path);
+    }
+    if (save_io_try_load(save_primary, save_backup)) {
         /* On a successful load, the audio sliders in the header may
          * differ from the fresh defaults — re-sync audio_fade and
          * re-apply the BGM volume so any music already playing picks
@@ -3173,6 +3207,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char seg_buf[MAX_PATH];
                 lstrcpynA(seg_buf, val, (int)sizeof(seg_buf));
                 g_input_segtrace_path = seg_buf;
+            }
+        } else if (lstrcmpA(tok, "--save-override") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char save_ovr_buf[MAX_PATH];
+                lstrcpynA(save_ovr_buf, val, (int)sizeof(save_ovr_buf));
+                g_save_override_path = save_ovr_buf;
             }
         } else if (lstrcmpA(tok, "--anchor-trace-record") == 0) {
             char *val = strtok(NULL, " ");

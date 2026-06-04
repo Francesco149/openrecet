@@ -50,6 +50,17 @@
  *                        same frame, so both targets share one LCG stream from
  *                        the anchor (cross-target RNG parity).
  *
+ *   {"savefile":"<relpath>"} declare the save the trace booted with — a path
+ *                        (relative to the trace file's directory) to a
+ *                        content-addressed, gzip-compressed save blob (usually
+ *                        tests/scenarios/_saves/<sha256>.sav.gz). On replay the
+ *                        Python harness decompresses it and overrides whatever
+ *                        save.dat is on disk via `--save-override`, so the trace
+ *                        reproduces its exact save state regardless of the live
+ *                        game's save. The port itself only records the ref (it
+ *                        can't gunzip); loading is harness-driven. Not segment-
+ *                        scoped — a trace-global declaration.
+ *
  * Within a segment, frames are relative to that segment's base (the anchor
  * frame; base 0 for the boot segment). A trace with NO `wait` ops is a single
  * segment with base 0 — identical to an absolute input_trace replay.
@@ -152,6 +163,19 @@ struct seg_segment {
 struct input_segtrace {
     struct seg_segment *segs;
     size_t              n_segs, cap_segs;
+
+    /* Optional embedded-save reference, from a `{"savefile":"<relpath>"}` op
+     * (see input_segtrace.h doc). Path is relative to the trace file's own
+     * directory; the value points at the save blob a recorded trace booted
+     * with (usually a content-addressed `.sav.gz` under tests/scenarios/_saves).
+     *
+     * The port does NOT load this directly — the blob is gzip-compressed and
+     * decompression lives in the Python harness, which resolves the ref and
+     * passes the decompressed raw via `--save-override`. This field is parsed
+     * and stored only so (a) the C parser doesn't reject the op, and (b) the
+     * ref is inspectable/loggable. `has_savefile` is 0 when no op was seen. */
+    char     savefile[256];
+    int      has_savefile;
 
     /* Runtime state (advanced by input_segtrace_tick). */
     int      started;

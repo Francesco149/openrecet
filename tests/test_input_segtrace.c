@@ -376,3 +376,32 @@ int test_segtrace_rejects_unknown_key(void)
     input_segtrace_free(&st);
     return 0;
 }
+
+int test_segtrace_savefile_op_stores_ref(void)
+{
+    /* The {savefile} op is trace-global: parsed, stored in st.savefile, and
+     * does NOT count as a segment-breaking op. has_savefile rises 0→1. */
+    const char buf[] =
+        "{\"savefile\":\"../_saves/abc123.sav.gz\"}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n"
+        "{\"frame\":4,\"buttons\":\"0x0004\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.has_savefile, 1);
+    T_ASSERT(strcmp(st.savefile, "../_saves/abc123.sav.gz") == 0);
+    /* One boot segment with the two input entries — savefile is not a wait. */
+    T_ASSERT_EQ_U(st.n_segs, 1);
+    T_ASSERT_EQ_U(st.segs[0].n_entries, 2);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_no_savefile_clears_flag(void)
+{
+    const char buf[] = "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.has_savefile, 0);
+    input_segtrace_free(&st);
+    return 0;
+}

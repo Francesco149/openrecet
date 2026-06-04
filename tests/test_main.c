@@ -432,6 +432,8 @@ struct test_case {
     X(segtrace_esc_fires_once_at_frame) \
     X(segtrace_esc_rebases_on_anchor) \
     X(segtrace_rejects_unknown_key) \
+    X(segtrace_savefile_op_stores_ref) \
+    X(segtrace_no_savefile_clears_flag) \
     \
     X(anchor_first_tick_emits_only_boot) \
     X(anchor_boot_loading_end) \
