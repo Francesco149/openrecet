@@ -2114,6 +2114,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             if (g_paused) {
                 WaitMessage();
             } else {
+                /* Set the trace frame for the WHOLE upcoming tick BEFORE
+                 * tick_step runs. frame_count increments AFTER render
+                 * (inside tick_step), so here it is the index of the frame
+                 * about to render. Setting the d3d/call-trace frame now —
+                 * not inside render_dispatch (which runs after the
+                 * scheduler + sim probes) — keeps the scheduler
+                 * (FUN_0047be92) and sim probes in the SAME bucket as the
+                 * render, so flow_diff's per-frame call chain is whole and
+                 * seq is monotonic (scheduler → sim → render). */
+                d3d_trace_begin_frame(g_tick.frame_count);
+                call_trace_begin_frame(g_tick.frame_count);
+
                 /* Under --input-trace-replay, drive virtual time so
                  * the tick scheduler never returns DELAYED — we want
                  * exactly one ticked frame per loop iteration, no
@@ -2634,13 +2646,12 @@ static void render_dispatch(void)
 {
     if (!g_dev) return;
 
-    /* D.5: re-evaluate frame filter so the call-site wrappers know
-     * whether to emit this frame.  No-op when --d3d-trace is off. */
-    d3d_trace_begin_frame(g_tick.frame_count);
-
-    /* E.2: same gate for the port-side call tracer.  CALL_TRACE_ENTER
-     * macros below check the per-frame emit flag this sets. */
-    call_trace_begin_frame(g_tick.frame_count);
+    /* NOTE: d3d_trace_begin_frame + call_trace_begin_frame are now called at
+     * the TOP of the main-loop iteration (before tick_step), so the scheduler
+     * + sim probes share this frame's bucket. render_dispatch runs after them
+     * within the same tick, with frame_count unchanged, so the draws here land
+     * in the same frame — do NOT re-call begin_frame here (it would reset seq
+     * mid-frame and split the chain). */
 
     /* TAS P1: emit the anchor event stream.  Runs every ticked frame
      * (including nowloading frames) so the load-overlay edges are seen.
@@ -2724,8 +2735,8 @@ static void render_dispatch(void)
     }
 
     /* E.2 probe — FUN_004547ab @ 0x4547ab (render dispatch root).
-     * Must be AFTER call_trace_begin_frame so the first emit lands in
-     * the new frame's bucket. */
+     * call_trace_begin_frame ran at the top of this iteration, so this
+     * lands in the current frame's bucket after the scheduler+sim probes. */
     CALL_TRACE_ENTER(0x4547abu);
 
     /* Engine FUN_004547ab L17: unconditional scene-effect counter pump.
