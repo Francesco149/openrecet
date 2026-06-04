@@ -1,0 +1,10 @@
+# Cut copy of trace.jsonl to verify the continue/load picker render: at the
+# title the cursor defaults to LOAD GAME (save has score), so a single Z opens
+# the picker; no further input keeps it open. Replay with --save-override.
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 40, "buttons": "0x0010"}
+{"frame": 43, "buttons": "0x0000"}
+{"capture": 120}
+{"capture": 170}
+{"capture": 230}
+{"capture": 300}
