@@ -127,6 +127,28 @@ if (( want_visible )); then
     set -- "${keep[@]}"
 fi
 
+# TAS save protection by default. run-openrecet.sh is the testing/recording entry
+# point — a casual run or an in-game save during a recording must NEVER overwrite
+# the user's real save.dat. So unless the caller explicitly chose a save policy
+# (--save-write for real writes, or a sandbox/override/fresh already), redirect
+# all save writes into a sandbox dir. Recordings are thus write-safe out of the
+# box (the boot save is still READ, so a "continue" recording starts correctly).
+have_save_policy=0
+for a in "$@"; do
+    case "$a" in
+        --save-write|--save-write=*|--save-write-dir|--save-write-dir=*|\
+        --save-override|--save-override=*|--save-fresh)
+            have_save_policy=1 ;;
+    esac
+done
+if (( ! have_save_policy )); then
+    SAVE_SANDBOX="$ROOT/runs/save-sandbox"
+    mkdir -p "$SAVE_SANDBOX"
+    set -- "$@" --save-write-dir "$(wslpath -w "$SAVE_SANDBOX")"
+    echo "run-openrecet: save writes sandboxed → $SAVE_SANDBOX (real save.dat protected;" \
+         "pass --save-write to write the real save)" >&2
+fi
+
 # Exit bound: capture runs exit a few sim-frames after the last shot; plain
 # smoke runs keep the historic 3s wall default.  Don't add the wall timer when
 # capturing — --max-frames governs and --timeout-ms (supervisor) is the net.

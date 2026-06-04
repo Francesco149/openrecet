@@ -501,7 +501,61 @@ static int       g_trace_rec_anchor_count = 0;
 static uint8_t  *g_trace_rec_save_snap     = NULL;   /* SAVE_BANK_ARENA_BYTES */
 static char      g_trace_rec_save_sha[65]  = {0};    /* lowercase hex, 64 + NUL */
 static int       g_trace_rec_save_ok       = 0;      /* snapshot valid this run */
+
+/* Saves WRITTEN during a recording (req: a trace may save multiple times; each
+ * goes to its own file + a {save_write} row). Captured via the save_io write
+ * notify; distilled into the trace so replay can verify the written state. */
+struct trace_rec_save_write { uint32_t rel; char sha[65]; char file[260]; };
+static struct trace_rec_save_write g_trace_rec_saves[64];
+static int       g_trace_rec_saves_count   = 0;
 #define TRACE_REC_MAX_FRAMES  600000u   /* ~2.8 h at 60fps — a hard backstop */
+
+/* Lowercase-hex a SHA-256 digest into `out` (>= 65 bytes). */
+static void sha256_hex(const uint8_t digest[SHA256_DIGEST_LEN], char *out)
+{
+    static const char hexd[] = "0123456789abcdef";
+    for (int i = 0; i < SHA256_DIGEST_LEN; i++) {
+        out[i * 2]     = hexd[digest[i] >> 4];
+        out[i * 2 + 1] = hexd[digest[i] & 0xf];
+    }
+    out[64] = '\0';
+}
+
+/* save_io write-notify: fires after each in-game save during a recording. Dumps
+ * the just-written arena to its own numbered file + records a {save_write} entry
+ * so a multi-save trace carries each save (req: "each save to its own file").
+ * Loads during the recording read the live arena (= the last written state), so
+ * the recorded session is self-consistent without file hooking. */
+static void trace_rec_on_save_write(void *user)
+{
+    (void)user;
+    if (!g_trace_rec_active) return;
+    if (g_trace_rec_saves_count >=
+            (int)(sizeof g_trace_rec_saves / sizeof g_trace_rec_saves[0]))
+        return;
+    struct trace_rec_save_write *sw = &g_trace_rec_saves[g_trace_rec_saves_count];
+
+    uint8_t digest[SHA256_DIGEST_LEN];
+    sha256(save_arena_base(), SAVE_BANK_ARENA_BYTES, digest);
+    sha256_hex(digest, sw->sha);
+    sw->rel = g_tick.frame_count - g_trace_rec_start_frame;
+    snprintf(sw->file, sizeof sw->file,
+             "openrecet-trace-%lu-recsave-%d.bin",
+             (unsigned long)GetCurrentProcessId(), g_trace_rec_saves_count);
+
+    FILE *f = fopen(sw->file, "wb");
+    if (f) {
+        size_t wrote = fwrite(save_arena_base(), 1, SAVE_BANK_ARENA_BYTES, f);
+        fclose(f);
+        if (wrote == SAVE_BANK_ARENA_BYTES) {
+            printf("[trace-rec] captured in-session save #%d at rel frame %u "
+                   "(sha256=%s) → %s\n",
+                   g_trace_rec_saves_count, sw->rel, sw->sha, sw->file);
+            g_trace_rec_saves_count++;
+        }
+    }
+    fflush(stdout);
+}
 
 static void trace_rec_start(void)
 {
@@ -530,16 +584,12 @@ static void trace_rec_start(void)
     if (!g_trace_rec_save_snap) {
         g_trace_rec_save_snap = (uint8_t *)malloc(SAVE_BANK_ARENA_BYTES);
     }
+    g_trace_rec_saves_count = 0;
     if (g_trace_rec_save_snap) {
         memcpy(g_trace_rec_save_snap, save_arena_base(), SAVE_BANK_ARENA_BYTES);
         uint8_t digest[SHA256_DIGEST_LEN];
         sha256(g_trace_rec_save_snap, SAVE_BANK_ARENA_BYTES, digest);
-        static const char hexd[] = "0123456789abcdef";
-        for (int i = 0; i < SHA256_DIGEST_LEN; i++) {
-            g_trace_rec_save_sha[i * 2]     = hexd[digest[i] >> 4];
-            g_trace_rec_save_sha[i * 2 + 1] = hexd[digest[i] & 0xf];
-        }
-        g_trace_rec_save_sha[64] = '\0';
+        sha256_hex(digest, g_trace_rec_save_sha);
         g_trace_rec_save_ok = 1;
     } else {
         printf("[trace-rec] WARNING: could not allocate save snapshot buffer "
@@ -725,6 +775,15 @@ static void trace_rec_stop(void)
     if (save_name[0])
         fprintf(f, "{\"savefile\":\"%s\",\"sha256\":\"%s\",\"size\":%u}\n",
                 save_name, g_trace_rec_save_sha, (unsigned)SAVE_BANK_ARENA_BYTES);
+    /* In-session saves the game wrote during the recording (req: multiple saves
+     * per trace, each to its own file). Each references its own dumped arena +
+     * the relative frame it was written. distill folds them into the content
+     * store for replay/divergence verification. */
+    for (int c = 0; c < g_trace_rec_saves_count; c++)
+        fprintf(f, "{\"save_write\":{\"index\":%d,\"frame\":%u,\"file\":\"%s\","
+                   "\"sha256\":\"%s\",\"size\":%u}}\n",
+                c, g_trace_rec_saves[c].rel, g_trace_rec_saves[c].file,
+                g_trace_rec_saves[c].sha, (unsigned)SAVE_BANK_ARENA_BYTES);
     for (uint32_t i = 0; i < g_trace_rec_count; i++)
         fprintf(f, "{\"frame\":%u,\"buttons\":\"0x%04x\"}\n", i, g_trace_rec_masks[i]);
     for (int c = 0; c < g_trace_rec_caps_count; c++)
@@ -1822,6 +1881,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * audio_fade slider state is then synced from the save header so
      * the per-channel apply hook draws from one source of truth. */
     save_bank_set_header_init_hook(save_bank_apply_bgm_via_audio_fade);
+    /* TAS recorder: capture each in-game save written during a recording (the
+     * callback no-ops unless F2 recording is active). */
+    save_io_set_write_notify(trace_rec_on_save_write, NULL);
     save_bank_init_all();
     fprintf(stderr,
             "save_bank: arena initialized (header magic=0x%08x, "

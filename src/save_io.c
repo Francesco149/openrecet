@@ -241,12 +241,29 @@ static int write_arena_to(const char *path)
     return (wrote == SAVE_BANK_ARENA_BYTES) ? 1 : 0;
 }
 
+/* Optional write-notify (set by save_io_set_write_notify). Fires once per
+ * save_io_write_arena AFTER the write — the recorder uses it to capture each
+ * save the game makes during a recording (req: multiple saves per trace, each to
+ * its own file) for replay/divergence verification. NULL = no notify. */
+static void (*g_save_io_write_notify)(void *user) = NULL;
+static void  *g_save_io_write_notify_user         = NULL;
+
+void save_io_set_write_notify(void (*fn)(void *user), void *user)
+{
+    g_save_io_write_notify      = fn;
+    g_save_io_write_notify_user = user;
+}
+
 int save_io_write_arena(const char *primary, const char *backup)
 {
     /* Engine FUN_004905a8 writes BOTH files unconditionally — no
      * atomic temp+rename, just back-to-back fopen("wb"). We match. */
     int ok_primary = write_arena_to(primary);
     int ok_backup  = write_arena_to(backup);
+
+    if (g_save_io_write_notify) {
+        g_save_io_write_notify(g_save_io_write_notify_user);
+    }
 
     if (ok_primary || ok_backup) {
         fprintf(stderr,

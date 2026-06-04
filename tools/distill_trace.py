@@ -39,6 +39,7 @@ def load_raw(path):
     anchors = [] # recorded anchor firings: {name, frame(rel), gframe, rng}
     rng_seed = None   # live LCG state snapshotted at record-start (header field)
     savefile = None   # {path, sha256, size} of the boot save snapshot, if recorded
+    save_writes = []  # in-session saves the game wrote during the recording
     for ln in Path(path).read_text().splitlines():
         s = ln.strip()
         if not s or s.startswith("#"):
@@ -54,6 +55,15 @@ def load_raw(path):
                 "sha256": (str(o["sha256"]) if o.get("sha256") else None),
                 "size": (int(o["size"]) if o.get("size") is not None else None),
             }
+            continue
+        if "save_write" in o:
+            sw = o["save_write"]
+            save_writes.append({
+                "index": int(sw.get("index", len(save_writes))),
+                "frame": int(sw.get("frame", 0)),
+                "path": str(sw["file"]),
+                "sha256": (str(sw["sha256"]) if sw.get("sha256") else None),
+            })
             continue
         if "anchor" in o:
             anchors.append({
@@ -73,7 +83,7 @@ def load_raw(path):
             cts.append([int(v[0]), int(v[1])] if isinstance(v, list)
                        else [0, int(v)])
     if not masks:
-        return [], sorted(caps), sorted(escs), cts, 0, rng_seed, anchors, savefile
+        return [], sorted(caps), sorted(escs), cts, 0, rng_seed, anchors, savefile, save_writes
     n = max(masks) + 1
     # distil: emit a change-point whenever the mask differs from the previous
     series = [masks.get(i, "0x0000") for i in range(n)]
@@ -83,7 +93,7 @@ def load_raw(path):
         if m != prev:
             changes.append((i, m))
             prev = m
-    return changes, sorted(caps), sorted(escs), cts, n, rng_seed, anchors, savefile
+    return changes, sorted(caps), sorted(escs), cts, n, rng_seed, anchors, savefile, save_writes
 
 
 def emit_flat(changes, caps, escs, cts, total, rng_seed=None):
@@ -255,7 +265,7 @@ def main(argv=None):
                     help="do not carry the recording's boot save into the trace.")
     args = ap.parse_args(argv)
 
-    changes, caps, escs, cts, total, rng_seed, anchors, savefile = load_raw(args.raw)
+    changes, caps, escs, cts, total, rng_seed, anchors, savefile, save_writes = load_raw(args.raw)
     if not changes:
         print("distill_trace: no input frames found in", args.raw, file=sys.stderr)
         return 1
@@ -290,6 +300,30 @@ def main(argv=None):
             else:
                 save_msg = (f", SAVE MISSING ({raw_save} not found — re-run "
                             f"distill from the recording's dir)")
+        # In-session saves the recording captured (req: multiple saves per trace).
+        # Fold each into the content store and write a <out>.saves.json sidecar
+        # manifest ({index, frame, ref, sha}). Replay reproduces the saves live
+        # (the sandbox virtualization), so these aren't replay ops — they're the
+        # recorded ground truth for divergence verification (compare a replay's
+        # sandbox writes to these). Kept out of trace.jsonl so no parser needs a
+        # new op.
+        if save_writes and not args.no_savefile:
+            store = (Path(args.saves_dir).resolve() if args.saves_dir
+                     else trace_save.default_store_dir(args.out))
+            manifest = []
+            for sw in save_writes:
+                raw_sw = (Path(args.raw).resolve().parent / sw["path"])
+                if not raw_sw.exists():
+                    save_msg += f", SAVE_WRITE#{sw['index']} MISSING ({raw_sw})"
+                    continue
+                sha, blob = trace_save.store_save(raw_sw, store, sha=sw.get("sha256"))
+                manifest.append({"index": sw["index"], "frame": sw["frame"],
+                                 "ref": trace_save._rel_ref(args.out, blob),
+                                 "sha256": sha})
+            if manifest:
+                side = Path(args.out).with_suffix(Path(args.out).suffix + ".saves.json")
+                side.write_text(json.dumps(manifest, indent=2) + "\n")
+                save_msg += f", {len(manifest)} in-session save(s)→{side.name}"
         seedmsg = (f", rng_seed {rng_seed}" if rng_seed is not None
                    else ", no rng_seed (pre-rngseed recording)")
         print(f"distill_trace: {len(changes)} change-points, {len(caps)} capture(s), "

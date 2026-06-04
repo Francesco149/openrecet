@@ -109,4 +109,10 @@ int save_io_write_arena(const char *primary, const char *backup);
  * for later divergence verification). Pure-C; the dir is copied internally. */
 void save_io_set_write_dir(const char *dir);
 
+/* Register a callback fired once per save_io_write_arena (after the write). The
+ * TAS recorder uses it to snapshot each save the game makes during a recording
+ * (so a trace with multiple saves carries each to its own file). Pass NULL to
+ * clear. The callback reads the live arena via save_arena_base(). */
+void save_io_set_write_notify(void (*fn)(void *user), void *user);
+
 #endif /* OPENRECET_SAVE_IO_H */
