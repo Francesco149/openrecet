@@ -7,6 +7,38 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-04 — Phase/determinism tooling + Tear anim-phase root-caused; two leads open
+
+Built the standing **phase/determinism toolchain** and used it to crack the Tear
+anim-phase question and surface two concrete next leads.
+
+- **Tear anim-phase (#3/#4) = deterministic phase-ORIGIN offset, NOT a logic bug.**
+  Per-frame counter diff on the synced `house-walk-down-dense` trace: port `db054`
+  is **+1518 constant, zero drift**; companion FRAME/COUNTER/facing bit-exact once
+  phase-aligned. Root: retail freezes `db054` through the `recet_op.wmv` intro
+  video (=43 at HOUSE_FREEROAM); the port skips the video so its counter
+  accumulates the skipped frames. **engine-quirks §94**; verdict in
+  `findings/scene1-tear-visual-diffs.md`.
+- **`{phasepin}` segtrace op** (port `input_segtrace.c` + Frida agent +
+  frida_capture passthrough): zeros the companion's load-dependent phase (db054 +
+  anim cycle) on BOTH targets at an anchor-relative frame so trace comparisons are
+  phase-clean. Fire it AFTER the ~47-frame post-anchor load tail. Result: companion
+  cframe/ccnt/facing **0/139** vs retail.
+- **`tools/phase_probe.py`** — one-command port↔retail phase/determinism verdict
+  (ALIGNED / CONST-OFFSET / DRIFT), auto phase+RNG pinning, `--drill` RNG
+  call-site capture. Playbook **`docs/phase-debugging.md`**. The draw-side twin is
+  `d3d_state_diff.py phase`.
+- **RNG-consumption tracking**: port `g_rng_call_count` (rng.c) + a retail LCG hook
+  → `rngcalls` counter both sides; `--drill` rolls retail's LCG callers up by
+  function. Surfaced that the port under-consumes ~40 LCG calls/window.
+- **Two leads left open** (`findings/freeroam-rng-consumption.md`): (A) the RNG
+  desync = a missing **every-16-frame ambient emitter** through `scene1_spawn`
+  (next: drill `FUN_00447f4f`'s caller, then port or dummy-stub-as-PORT-DEBT);
+  (B) **Recette (player) anim** isn't phase-normalized (extend `{phasepin}` to all
+  actors + add the player to the probe).
+- Discipline set: **re-check determinism (`phase_probe`) after every RNG-touching
+  change**; captures/diffs must be phase **and** RNG aligned.
+
 ## 2026-06-02 (PM) — Background-window NPC sprites ("motes" → bg_npc)
 
 The shop's back-window townsfolk now draw their **bright character sprites**, not
