@@ -44,6 +44,28 @@ Three things have since changed how work should be structured:
   `tools/gen_port_ledger.py` (and by the pre-commit hook). Read STATUS first;
   don't hand-track status in PROGRESS.md.
 
+## Knowledge hygiene & parity facts (read this)
+
+The biggest time-sink isn't hard bugs — it's **stale knowledge** sending you to
+re-litigate work that already landed, or to flip a parity fact that was already
+human-confirmed. Rules:
+
+- **Live status is derived, not remembered.** The current front lives in
+  `docs/FRONT.md` (→ injected into `STATUS.md`); per-function status is the derived
+  `port-ledger`. **Auto-memory holds durable facts only** (user prefs, `feedback_*`
+  conventions, `reference_*` playbooks) — NOT point-in-time "current blocker / what's
+  next" snapshots. Old `project_*` status snapshots are archived under
+  `memory/archive/`; do not trust them for current state.
+- **Confirmed-1:1 is authoritative.** `docs/findings/confirmed-parity-ledger.md` records
+  parity facts a human verified against retail. A tool "divergence" (render_diff /
+  call_seq_diff / a fresh decompile read) on a confirmed-1:1 item is a **lead to
+  investigate**, NOT a regression to assume. It may be a benign structural difference, a
+  flawed test, or a later-game-relevant variation — investigate before flipping it. Don't
+  be quick to overturn a well-evidenced prior conclusion.
+- **Verify before pruning, archive don't delete.** When cleaning docs/memory, confirm the
+  claim against code + git history + the derived ledger first; move superseded narrative
+  to `docs/archive/` / `memory/archive/` so the trail survives.
+
 ## Why subagents, not a separate Sonnet session
 
 - The user shouldn't have to model-switch and orchestrate manually.
