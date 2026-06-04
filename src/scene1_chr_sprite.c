@@ -7,8 +7,19 @@
 
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "chr_sprite_meta.h"
+#include "scene1_companion_ctrl.h"   /* scene1_companion_db054() — cell-log tag */
+
+/* Walk-cell investigation (2026-06-04): when OPENRECET_CELL_LOG is set, dump the
+ * computed cell index + its inputs per draw, tagged by db054, to that path. This
+ * is immune to screenshot timing — it logs what the engine actually computes, so
+ * the port's drawn-cell sequence can be diffed against retail's (Frida FUN_0045a56f
+ * @0x45a5b6) and the record-derived truth.  Cf. scene1-recette-walk-cell.md. */
+static FILE *s_cell_log = NULL;
+static int   s_cell_log_init = 0;
 
 /* ── engine constants (objdump @ 0x45a56f, decoded 2026-05-29) ──────────
  *   0x519364 = 1.0   0x519368 = 100.0   0x51935c = 0.5 (half-texel)
@@ -63,6 +74,21 @@ int chr_sprite_build_quads(chr_sprite_vertex *out, int out_max,
                                 actor[CHR_ACTOR_FRAME], bank);
     if (cell < 0)
         return 0;
+
+    if (!s_cell_log_init) {
+        const char *p = getenv("OPENRECET_CELL_LOG");
+        if (p && *p) s_cell_log = fopen(p, "w");
+        s_cell_log_init = 1;
+    }
+    if (s_cell_log) {
+        fprintf(s_cell_log,
+                "{\"db054\":%d,\"char\":%d,\"anim\":%d,\"frame\":%d,"
+                "\"facing\":%d,\"bank\":%d,\"cell\":%d}\n",
+                scene1_companion_db054(), char_id,
+                actor[CHR_ACTOR_ANIM], actor[CHR_ACTOR_FRAME],
+                facing, bank, (int)cell);
+        fflush(s_cell_log);
+    }
 
     /* base = big-endian u32 at formdata[char_id*4]; the +0x400/+0x600/
      * +0x800 sub-tables are all relative to it. */

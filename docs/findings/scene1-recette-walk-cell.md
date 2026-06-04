@@ -98,6 +98,39 @@ frame, the cell IS 1:1 and the pixel blips are capture timing (effects 1+2 are
 tooling); if they differ at wrap frames, effect 2 is a real engine draw/tick-order
 bug to fix. **Until that test runs, the walk cell stays OPEN / NOT-confirmed.**
 
+## 2026-06-04 PM — NO-TURBO test (user-directed) — walk cell matches; turbo was the artifact
+
+User wrote down retail's ground-truth walk sequence (RF → Lf-slight → LF → Rf-slight,
+repeating cleanly into the wall) and confirmed the PORT follows it; predicted the
+divergence was a retail-side **turbo** capture artifact. Re-captured retail with
+`--turbo` OFF (`frida_capture … --duration-ms 120000`, no turbo) and compared to the
+port keyed by walk phase `(aframe,counter)` (db054 isn't reset without the phasepin,
+so phase is the universal key):
+
+| comparison | result |
+|---|---|
+| port vs **NO-TURBO** retail | **arms-diff 0.00 (bit-identical) on 31/36 walk frames** |
+| port vs **TURBO** retail | diverges on every phase (capture frame↔phase mapping unreliable) |
+| residual (both turbo + no-turbo) | only the 4 **counter-wrap** frames cnt 9/18/27/36 (~22–28) |
+
+So the big "different walk cell" divergence **was a turbo-side capture jitter** — the
+screenshot stream slips ±1 frame at cycle transitions, which a fixed-crop diff reads
+as a different cell. With turbo off the walk poses are pixel-identical. (Also confirms
+the records were right all along: bit-exact, no walk reset, inputs registered every
+frame — the input-drop and RNG hypotheses are both out; RNG doesn't pick the cell.)
+
+**Remaining real residual (small):** the last frame of each aframe plateau (counter
+at max, about to wrap) still diverges WITHOUT turbo — a 1-frame draw-vs-anim-tick
+order effect at the wrap, or a sub-frame capture effect. Localized to 4 frames/cycle.
+Tracked here; not the headline divergence.
+
+**Status:** walk cell looks 1:1 on the plateau (no-turbo bit-exact + user ground-truth
++ bit-exact records + deterministic port cell-log). **Awaiting user confirmation on the
+no-turbo montage before any ledger change** — per the standing rule, NOT self-closing.
+Tooling follow-up: phase_probe/recette_anim_probe need turbo-jitter-robust frame↔phase
+alignment (align screenshots by (aframe,counter), not raw db054) so this class of
+capture artifact stops masquerading as a render divergence.
+
 ## The finding (and the correction it forces)
 
 `phase_probe house-walk-down-dense` reports the PLAYER anim **record** fields
