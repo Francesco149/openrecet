@@ -3,6 +3,7 @@
 # then captures swept +2600..+5200 to catch the deterministic 3-NPC-at-the-
 # back-window beat (per user: capturing well past the tour reliably shows 3
 # NPCs at once). Drive with --show-fps. bg_npc drift is deterministic (seed=1).
+# embedded save: 739e8ba655601ba5bf08d447afe1bd0972921fc3fb0e599da8d17cbd1601778b (override via --save-override on replay; see tools/trace_save.py)
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 12, "buttons": "0x0010"}
 {"frame": 14, "buttons": "0x0000"}
@@ -1664,3 +1665,4 @@
 {"capture": 5000}
 {"capture": 5020}
 {"capture": 5040}
+{"savefile": "@fresh"}

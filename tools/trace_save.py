@@ -35,6 +35,11 @@ SAVE_ARENA_BYTES = 0x011f7530   # SAVE_BANK_ARENA_BYTES (src/save_bank.h) = 18,8
 SAVE_SUFFIX = ".sav.gz"
 _CACHE_DIR = Path(tempfile.gettempdir()) / "openrecet-save-cache"
 
+# Sentinel ref for a "fresh game" trace: boot with no save (fresh menu, no LOAD
+# GAME), regardless of the user's disk save. resolve_save returns it verbatim;
+# the harness maps it to the port's --save-fresh (and a fresh boot on retail).
+FRESH_REF = "@fresh"
+
 
 def sha256_file(path: str | os.PathLike) -> str:
     h = hashlib.sha256()
@@ -167,6 +172,8 @@ def resolve_save(trace_path: str | os.PathLike, ref: str | None = None) -> str |
         ref = read_ref(trace_path)
     if not ref:
         return None
+    if ref == FRESH_REF:
+        return FRESH_REF   # caller maps to --save-fresh / fresh retail boot
     blob = (Path(trace_path).resolve().parent / ref).resolve()
     if not blob.exists():
         raise FileNotFoundError(

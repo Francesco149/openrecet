@@ -1,3 +1,4 @@
+# embedded save: 739e8ba655601ba5bf08d447afe1bd0972921fc3fb0e599da8d17cbd1601778b (override via --save-override on replay; see tools/trace_save.py)
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 12, "buttons": "0x0010"}
 {"frame": 14, "buttons": "0x0000"}
@@ -1620,3 +1621,4 @@
 {"capture": 1627}
 {"capture": 1628}
 {"frame": 1900, "buttons": "0x0000"}
+{"savefile": "@fresh"}

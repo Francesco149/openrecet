@@ -2144,11 +2144,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * settings-menu slider changes applied during this run) to BOTH
      * save.dat and _save.dat. Default is OFF so harness/smoke runs
      * don't accidentally overwrite the user's real save. */
-    /* Write the final arena when explicitly opted in (--save-write, live game)
-     * OR when a sandbox write-dir is set (replay capture — the write is
-     * redirected by save_io into the sandbox, never the real files, so this is
-     * safe and gives a final-state save for divergence verification). */
-    if (g_save_write || g_save_write_dir) {
+    /* Write the final arena only when explicitly opted in (--save-write). The
+     * sandbox write-dir (when set) redirects this AND any mid-run save the game
+     * makes into the sandbox — but we don't FORCE a shutdown write just because
+     * a sandbox exists (that would dump 18 MB of unchanged arena every replay).
+     * The writes worth verifying are the game's own mid-run saves, which the
+     * redirect already captures. */
+    if (g_save_write) {
         save_io_write_arena("save.dat", "_save.dat");
     }
 

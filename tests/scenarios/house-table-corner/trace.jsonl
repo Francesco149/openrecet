@@ -1,6 +1,7 @@
 # house-table-corner — 9-frame drill-in between house-walk-tables cap_04 (rel 1805) and cap_05 (rel 1851),
 # bracketing the rel-1821 table-corner collision divergence. Same (old) full-slide trace; captures replaced.
 # Permanent regression guard for the central-table corner slide (engine-quirks §69). See house-walk-tables for the full-path bench.
+# embedded save: 739e8ba655601ba5bf08d447afe1bd0972921fc3fb0e599da8d17cbd1601778b (override via --save-override on replay; see tools/trace_save.py)
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 12, "buttons": "0x0010"}
 {"frame": 14, "buttons": "0x0000"}
@@ -1677,3 +1678,4 @@
 {"capture": 1841}
 {"capture": 1847}
 {"capture": 1851}
+{"savefile": "@fresh"}

@@ -32,14 +32,47 @@ SCENARIOS = ROOT / "tests" / "scenarios"
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("save", help="raw save file to embed (e.g. the game's save.dat)")
+    ap.add_argument("save", nargs="?",
+                    help="raw save file to embed (e.g. the game's save.dat); "
+                         "omit with --fresh")
     ap.add_argument("traces", nargs="*", help="trace.jsonl files to embed into")
+    ap.add_argument("--fresh", action="store_true",
+                    help="embed the @fresh sentinel (boot with no save → fresh "
+                         "menu, no LOAD GAME) instead of a save file. For "
+                         "'new game' scenarios that must be save-independent.")
     ap.add_argument("--all-scenarios", action="store_true",
                     help="embed into every tests/scenarios/*/trace.jsonl")
     ap.add_argument("--saves-dir",
                     help="override the content store dir (default: per-trace _saves/)")
     args = ap.parse_args(argv)
 
+    traces = [Path(t) for t in args.traces]
+    # In --fresh mode the first positional may actually be a trace, not a save.
+    if args.fresh and args.save and args.save.endswith(".jsonl"):
+        traces.insert(0, Path(args.save))
+        args.save = None
+    if args.all_scenarios:
+        traces += sorted(SCENARIOS.glob("*/trace.jsonl"))
+    if not traces:
+        print("trace_embed_save: no traces given (pass paths or --all-scenarios)",
+              file=sys.stderr)
+        return 1
+
+    if args.fresh:
+        n = 0
+        for tp in traces:
+            if not tp.exists():
+                print(f"  SKIP {tp} (not found)", file=sys.stderr)
+                continue
+            trace_save.embed_in_trace(tp, trace_save.FRESH_REF)
+            print(f"  embedded @fresh → {tp}")
+            n += 1
+        print(f"trace_embed_save: marked {n} trace(s) @fresh (boot with no save)")
+        return 0
+
+    if not args.save:
+        print("trace_embed_save: need a save file (or pass --fresh)", file=sys.stderr)
+        return 1
     save = Path(args.save)
     if not save.exists():
         print(f"trace_embed_save: save not found: {save}", file=sys.stderr)
@@ -50,14 +83,6 @@ def main(argv=None):
               f"{trace_save.SAVE_ARENA_BYTES} (SAVE_BANK_ARENA_BYTES). Embedding "
               f"anyway; the port loads any size <= arena, but a wrong size usually "
               f"means the wrong file.", file=sys.stderr)
-
-    traces = [Path(t) for t in args.traces]
-    if args.all_scenarios:
-        traces += sorted(SCENARIOS.glob("*/trace.jsonl"))
-    if not traces:
-        print("trace_embed_save: no traces given (pass paths or --all-scenarios)",
-              file=sys.stderr)
-        return 1
 
     sha = trace_save.sha256_file(save)
     print(f"trace_embed_save: save {save} sha256={sha} ({size} bytes)")

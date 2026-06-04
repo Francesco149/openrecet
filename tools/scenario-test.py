@@ -393,14 +393,21 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
             # the capture path is unaffected.
             "--hidden",
         ]
-    # TAS save interception: when the trace declares a {savefile} op, decompress
-    # its content-addressed blob and pass --save-override so the port boots from
-    # the trace's embedded save instead of whatever save.dat is in ASSET_CWD. This
-    # is what lets a trace pin its exact save state (and ignore an advanced
-    # on-disk save) — see tools/trace_save.py + src/input_segtrace.h.
-    save_override = trace_save.resolve_save(trace_path)
-    if save_override:
-        child_args += ["--save-override", wslpath_w(Path(save_override))]
+    # TAS save interception (port). The trace's {savefile} op selects the boot
+    # save; writes ALWAYS go to a per-run sandbox so a replay can never overwrite
+    # the user's real save.dat. See tools/trace_save.py + src/input_segtrace.h.
+    #   @fresh  → --save-fresh   (boot with no save; fresh menu, no LOAD GAME)
+    #   <blob>  → --save-override (decompressed embedded save)
+    #   (none)  → on-disk save.dat (legacy; only the live game writes it)
+    save_ref = trace_save.resolve_save(trace_path)
+    if save_ref == trace_save.FRESH_REF:
+        child_args += ["--save-fresh"]
+    elif save_ref:
+        child_args += ["--save-override", wslpath_w(Path(save_ref))]
+    # Sandbox all save writes (write-protection + capture for verification).
+    save_out_dir = run_dir / "saveout"
+    save_out_dir.mkdir(parents=True, exist_ok=True)
+    child_args += ["--save-write-dir", wslpath_w(save_out_dir)]
 
     # Call-graph trace: when the scenario trace declares a {calltrace} op, write
     # the port's call_trace.jsonl into the run dir.  The window(s) come from the
