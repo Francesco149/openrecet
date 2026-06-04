@@ -51,9 +51,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `seq` and names the first call whose inputs matched but output/state diverged
   ([chain]/[data]). Plan + workflow: `plans/execution-flow-trace.md`. Coverage grows with
   the sweep — each touched function declares its fields on both sides.
-- **Phase 2 (next):** synced frame-0-forward sweep — `export_trace` + `frida_capture` over a
-  segtrace with BOTH `--d3d-trace-verts` and `--call-trace`; `flow_diff` to root-cause the
-  first divergence, `--explain` to confirm the draw; fix; advance.
+- **Unified harness LANDED (2026-06-05):** `tools/scenario-test.py <scn> --target both
+  --call-trace --d3d-trace --d3d-trace-verts` = ONE command for a synced port↔retail capture
+  (save-virtualized, aligned, **forced 17ms/frame 1:1 timestep** both sides). Flow-trace
+  frame attribution is clean (scheduler→sim→render in seq order). See CLAUDE.md "Run/build".
+- **Phase 2 — IN PROGRESS, immediate next step:** grow flow-trace **field coverage** down the
+  title call chain. Today only `fade_tick` declares a payload (port `CALL_TRACE_*` +
+  `tools/flow/retail_fields.json`); the chain aligns but `flow_diff` mostly sees call
+  PRESENCE, not data. Pick the title's ported functions (the ~26 that fire on boot-idle
+  frame 30), declare their salient inputs on both sides, then walk frame-0-forward fixing the
+  first real `[data]`/`[chain]` divergence (`flow_diff --mapped-only`), `--explain` to confirm
+  the draw. Capture: `scenario-test boot-idle --target both --call-trace --d3d-trace
+  --d3d-trace-verts`; diff frames 30/60 (frame 0 = boot transient, auto-dropped for
+  call-trace).
 - **Sparkle is deferred ON PURPOSE — do not re-attack early.** The shop-display "目玉商品"
   sparkle (template 0x3b) has verified bit-1:1 data (texture/UV/world-matrix) but isn't yet
   visibly 1:1. It is finished **last**, only once the entire command stream UP TO its frame
