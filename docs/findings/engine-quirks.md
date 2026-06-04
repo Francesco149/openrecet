@@ -3801,3 +3801,55 @@ subsystem scribbles its own row. Only the X/Y/Z+rng row is traced here (it's the
 one that touches the determinism stream via §95's per-frame LCG step); the rest is
 a grab-bag dev readout. The labels render through the engine's 8×8 **ASCII** font
 atlas (so the JP fields show as romaji).
+
+---
+
+## 96. The hidden debug menu has a 1024-bit save-flag editor — a built-in story-flag cheat that writes straight into the save
+
+Riding on §95's dev overlay (enable with `DAT_06a49938=1`; the full menu with
+`DAT_06a4993c=1`, e.g. `tools/dev_overlay.py --full`) is a **bit-grid flag
+editor**. `FUN_00451ea7`'s `DAT_06a4993c==1` branch renders a 16-wide × 64-tall
+grid of `%02X` cells, and the menu input handler (`FUN_004518a3` neighbourhood,
+asm `0x4523xx`) edits it:
+
+```c
+// d-pad moves the cursor over the grid:
+DAT_06a49944 = column (0..15)      // left/right, mod 0x10
+DAT_06a49948 = row    (0..63)      // up/down,   mod 0x40
+// the action button (buttons & 0x10) toggles the selected cell:
+flag[row*0x10 + col + slot*0x2dfc8] ^= 1;   // XOR the low bit
+```
+
+So it is a **1024-entry boolean bank** (`DAT_0450f3e0`, i.e. offset `+0x2bc48`
+inside the active save slot `DAT_044e3798 + DAT_0438b1e0*0x2dfc8`), and "setting a
+bit" is a one-bit `^= 1` toggle — the `%02X` readout is really just `00`/`01` per
+cell.
+
+**These are the game's event / story-progression flags.** At three independent
+gameplay sites the bank is read with the canonical scenario-gate pattern — flag
+*indices* come out of a script/scenario record, prerequisites are checked, then a
+completion flag is set:
+
+```c
+// FUN_0045de68 (scenario condition eval), also FUN_00450877 / FUN_00462403:
+if (flag[rec[-0x2f]] == 0 && flag[rec[-0x2e]] != 0 && ...)   // prereqs
+    flag[rec[-0x2f]] = 1;                                    // mark event done
+```
+
+So toggling cells artificially advances/gates story events (scenes seen, NPCs
+met, dungeons/recipes unlocked, tutorial steps, …). A few cells are dev toggles
+rather than story flags — e.g. cell **[0]** is read in `FUN_00489c79` (a combat
+hit calc) and forces a value to 1 when set. The bank is read almost entirely
+through accessors (only 4 raw references to `DAT_0450f3e0` exist in the whole
+image), which is why individual cell *meanings* aren't greppable; the mechanism,
+though, is certain.
+
+Two gotchas: it edits the **save-slot struct**, so anything toggled **persists if
+you save that slot** (it's a save editor, not a RAM cheat); and it acts on the
+**active slot** (`DAT_0438b1e0`). To map specific flags: toggle a cell, save, and
+diff the save file, or hook the scenario accessor (`FUN_0045de68`) and watch which
+indices each event checks. Sibling debug-menu pages (`FUN_00451b07`, cursor modes
+in `FUN_004518a3`) edit other save fields directly — a PIX/money editor (caps at
+9,999,999, ±100/1000/10000 steps), a chapter/progress counter, and a per-adventurer
+stat editor (it iterates the party records — the `Louie` name string is right
+there in the table).
