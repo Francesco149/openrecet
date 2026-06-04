@@ -34,7 +34,6 @@
 | subsystem | scope | evidence | date |
 |---|---|---|---|
 | **Recette position + walk phase** (free-roam, **MOVING only**) | exact frame-for-frame on the walk benches; she reads pure-black in the port-vs-retail diff. **Scope = while moving** — her *idle* phase is separately flagged off (see NOT-1:1 + Deferred). | user, on the `house-walk-down-dense` feed comparison | 2026-06-01 |
-| **Recette RENDERED walk cell** (free-roam, the drawn sprite — not just the record) | **machine-verified 1:1.** The cell is a pure function of the bit-exact anim record (`cell = DAT_0438cee0[facing,FRAME,ANIM]`, FUN_0045a56f @0x45a5b6 — no unwatched state feeds it). Decisive: on `house-walk-down-dense` db054=42 vs 78 (identical record+pos, she walks in place at a wall) the **FACE patch is port↔retail 0.00** when no dust intervenes. The prior NOT-1:1 flag was a detector false-positive on foot-dust. | autonomous trace + disasm + pixel test, supersedes the 2026-06-04 user eyeball | 2026-06-04 |
 | Player walk + collision (HOUSE) | bit-exact px/pz vs retail (mesh resolver) | engine-quirks §60–70; wall_collide_diff | 2026-05-31 |
 | **Character ground shadow** (player+Tear, Csh.1) | **user-confirmed 1:1** | user (explicit), + feed `20260601T122354_6f81` cap_06 feet zoom | 2026-06-01 |
 | Foot-dust EMIT cadence | every 16 frames (median gap 16) | Frida ground-truth probe | 2026-06-01 |
@@ -54,7 +53,7 @@
 | **Dialogue text fade-to-transparent on dismiss** | when a line is dismissed retail fades the glyph text out as the box closes; the port pops it off. | user-flagged 2026-06-02. `intro-iv2-gap` captures the dismiss window. Box-close alpha on the text in `FUN_0046c9a2`. opening-prologue.md #5. |
 | **Recette idle animation phase** | idle pose **slightly off** at `house-movement` **cap_00 (first frame, idle free-roam)** — while her **walking is confirmed 1:1** (cap_01/02). **Narrowed 2026-06-04:** `phase_probe house-idle --window 120,80` shows the player idle anim cycle (`p.aframe/counter/anim/oct`) **machine-verified bit-exact** vs retail once `{phasepin}` normalizes the origin (now covers actor 0) → the idle anim *law* is 1:1; the visible cap_00 diff is the load-dependent phase ORIGIN (harness-normalized, not re-seeded per the shipped game), **plus** a separate idle-only RNG over-consumption (see Deferred) that can shift idle sparkle/effect phase. | user, 2026-06-01. NOT position (pure-black once moving) and NOT an anim-counter logic bug. Chase the visible residual via the idle-RNG gate + a phasepin'd idle pixel-diff; do NOT hand-wave as jitter. ([[project_next_char_controller]]) |
 | **Tear (companion) appearance** | "slightly off" — a **persistent** known issue. **NOT isolated**: could be position OR animation phase; the wing-flap not being exactly 1:1 per frame also adds comparison noise. | NOT jitter to dismiss. Do NOT assert it's "position." Investigate closely **later, once everything else is spot on** (user, 2026-06-01). It's the suspected reason b1acf7c's sprite Z occluded her glow, but the exact cause isn't pinned. ([[project_next_char_controller]]) |
-| ~~**Recette RENDERED walk cell**~~ — **MOVED TO 1:1, 2026-06-04** | was flagged as a different drawn walk cell on ~18% of frames. **Disproven**: the cell is a pure function of the bit-exact record (no unwatched cell source exists), and on identical-record+pos frames the FACE is port↔retail 0.00. The flagged frames were **foot-dust** drifting over the body crop (the detector's "top-half" box does not actually clear the rising dust). See the CONFIRMED-1:1 row above + `scene1-recette-walk-cell.md`. The real residual is foot-dust (next row), already deferred. | resolved 2026-06-04 |
+| **Recette RENDERED walk cell** | on ~18% of free-roam walk frames (db054 42/50/51/59/60/68/69/84 on house-walk-down-dense) Recette is drawn on a **different walk cell** than retail — legs a different step, **hand bent upward + boot forward** — even though the anim RECORD counters (anim/counter/aframe/oct) are bit-exact AND her on-screen X matches. | user-flagged 2026-06-04, **RE-VERIFIED by user on feed `20260604T042804_860e`** after an autonomous pass (`50ae50a`, **REVERTED**) wrongly closed it as "just foot-dust." NOT phase (counters aligned), NOT position, NOT off-by-one, NOT dust (whole-silhouette diff incl. head outline + arm pose). The drawn cell is NOT a pure fn of the watched fields → an unwatched cell-indexing FRAME. ⛔ Do NOT mark 1:1 without explicit human verification. Detector: `tools/recette_anim_probe.py`. Investigation: `scene1-recette-walk-cell.md`. |
 | **Foot-dust position/phase** | diverges from retail | likely free-roam RNG-stream completeness ([[scene1-rng-stream-parity]]) — but treat as a real structural gap to CLOSE, not "just RNG" |
 | ~~**Ambient motes** (`FUN_0046f648`)~~ — **RECLASSIFIED 2026-06-02** | this was never ambient motes: it is the **background-window NPC system** (`scene1_bg_npc`, the townsfolk drifting past the back window). Sim + dark contact-shadow were ported 2026-06-01; the **bright character sprite** (`FUN_0046f737`) landed 2026-06-02 and is **user-verified rendering** (in-game + feed). See [[scene1-bg-npc]]. Residual: exact anim-phase/identity vs retail (deferred), and the genuinely-faint "tiny dots" that may be a *real* separate ambient effect not yet found (do NOT re-conflate). |
 
@@ -86,18 +85,18 @@
   `FUN_00470385` also calls IS ported; the object-table blobs remain. Separate
   minor cosmetic chip.
 
-- **Character anim phase + DRAWN cell — MACHINE-verified bit-exact (player +
-  companion), 2026-06-04.** `phase_probe.py house-walk-down-dense` over a 45-frame
-  window: the PLAYER anim *record* (`anim/counter/aframe/oct` at `&DAT_056daae8[0]`)
-  AND the COMPANION anim (`cframe/ccnt/canim/coct`) are ALIGNED to the frame, incl.
-  the walk-cycle wrap. `rngcalls` ALIGNED; raw `rng` SAMPLE-SKEW. **The DRAWN cell
-  is 1:1 too** — it is a pure function of that record (`cell =
-  DAT_0438cee0[facing,FRAME,ANIM]`, FUN_0045a56f @0x45a5b6; disasm confirms no
-  unwatched cell source), and on identical-record+pos frames the port↔retail FACE
-  diff is 0.00 when dust doesn't intervene. The earlier "RENDERED walk cell
-  diverges ~18%" eyeball was a **foot-dust** false-positive in the body crop
-  (`recette_anim_probe.py` top-half box does not clear the rising dust) — see
-  `scene1-recette-walk-cell.md`. Companion alignment is on the `{phasepin}`'d
+- **Character anim-phase RECORD COUNTERS — MACHINE-verified bit-exact (player +
+  companion), 2026-06-04. ⚠️ counters only — the player's DRAWN cell is NOT 1:1
+  (see the CONFIRMED NOT-1:1 row).** `phase_probe.py house-walk-down-dense` over a
+  45-frame window: the PLAYER anim *record* (`anim/counter/aframe/oct` at
+  `&DAT_056daae8[0]`) AND the COMPANION anim (`cframe/ccnt/canim/coct`) are ALIGNED
+  to the frame, incl. the walk-cycle wrap. `rngcalls` ALIGNED; raw `rng`
+  SAMPLE-SKEW. **BUT this proves only the sim-side RECORD counters match — the
+  user then eyeballed the aligned montage and found Recette's RENDERED walk cell
+  diverges on ~18% of frames** (db054 42/50/51/59/60/68/69/84), where the record
+  fields are identical yet the drawn legs are a different step. So the rendered
+  cell is sourced from something the record-watch misses (ring / STATE / sub-frame)
+  — see `scene1-recette-walk-cell.md`. Companion alignment is on the `{phasepin}`'d
   trace. Data: `runs/phase-probe/house-walk-down-dense/`.
 
 See [[scene1-walk-dust]] (draw-order ground truth), [[scene1-rng-stream-parity]].

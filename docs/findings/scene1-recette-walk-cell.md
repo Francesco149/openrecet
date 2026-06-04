@@ -1,110 +1,138 @@
-# Recette's RENDERED walk cell — RESOLVED: the cell is 1:1, the "divergence" is foot-dust
+# Recette's RENDERED walk cell diverges from retail (render-side, not phase)
 
-**Status: RESOLVED 2026-06-04 (autonomous follow-up). The lead's premise was
-WRONG — there is no render-side walk-cell divergence.** The drawn player cell IS
-a pure function of the bit-exact anim record, and it matches retail. The
-`recette_anim_probe` detector was measuring the **foot-dust** (records-A 0xe, the
-already-deferred sibling) drifting over the body crop, not a walk cell.
+**Status: OPEN — DEFINITELY NOT 1:1 (human-verified twice). Found 2026-06-04 (user eyeball).**
 
-## What the lead claimed (and why it was wrong)
+> ## ⛔ DO NOT mark this 1:1 again without explicit human verification (2026-06-04)
+>
+> A prior autonomous pass (commit `50ae50a`, **REVERTED**) wrongly closed this as
+> "the cell is 1:1, the divergence is just foot-dust." That was wrong. The user
+> re-verified by eye on feed montage **`20260604T042804_860e`** (the very montage
+> that pass pushed as "proof"): on the flagged frame **db054=42** the port draws a
+> **genuinely different pose** — right hand **bent upward** (retail: hand
+> horizontal/down) and **left boot forward** (retail: different stride). The
+> white-diff panel lights up the **entire silhouette** (head outline, arm, torso,
+> legs) — dust cannot move a head outline or bend an arm. The aligned frame
+> db054=78 is near-black (truly 1:1) save a small foot puff.
+>
+> **Why the "just dust" reasoning was wrong:** the closing pass argued that f42 and
+> f78 have a *byte-identical watched record* (`anim1/af3/oct4/cnt28`), so the port
+> *must* draw an identical sprite at both, so the f42 flag *must* be external
+> (dust). But look at the **PORT panels themselves**: port-f42 (arm up) ≠ port-f78
+> (arm low). The port draws **different poses at f42 vs f78** despite the "same"
+> watched record. **Therefore the drawn cell is NOT a pure function of the watched
+> fields `{anim, aframe, oct, cnt}`.** There is an unwatched input feeding the cell
+> (see "Sharpened lead" below). The disasm that "proved" purity used a field
+> mapping that does not match what the probe calls `aframe`. The divergence is
+> **real**; it is the original `dc15080` finding, restored.
 
-The earlier lead (commit dc15080) said: the player anim *record* counters
-(`ANIM/COUNTER/FRAME/FACING` at `&DAT_056daae8[0]`) are bit-exact 1:1 vs retail,
-yet on ~18% of `house-walk-down-dense` frames Recette is drawn on a *different
-walk cell*, so "the DRAWN cell is sourced from state the record-watch misses."
+## Sharpened lead (2026-06-04, post-revert) — the cell-indexing FRAME is unwatched
 
-That last step does not hold. Tracing the actual draw (user directive: log the
-cell the code computes, trace the whole path) shows the cell is a **pure function
-of the watched record** — so if the record matches, the cell matches. The pixel
-difference the detector flagged comes from **outside the sprite**.
-
-## The code path (FUN_004552d0 → FUN_0045a56f), confirmed by disasm
-
-The free-roam player is drawn by the shop-walker dispatch `FUN_004552d0`
-(port: `scene1_shop_walker.c`), which at its player loop calls
-`FUN_0045a56f(&DAT_056daae8 + actor*0xb, char_id, …)` (port:
-`scene1_chr_sprite_render` → `chr_sprite_build_quads`). The cell index is computed
-at the **top of FUN_0045a56f** (objdump @ `0x45a58f–0x45a5b6`):
+The reverted pass disassembled the draw `FUN_0045a56f` (@`0x45a58f–0x45a5b6`) as:
 
 ```
-ecx = DAT_005c5a54[ param_1[6] ]                 ; facing → within-frame bank base
-eax = (char_id*0x359 + param_1[4]) * 6           ; (char*stride + FRAME)*6
-eax = ecx + eax*2 + (param_1[0] << 8)            ; + ANIM*0x100
-edi = DAT_0438cee0[ eax ]                         ; <-- iVar14 = the drawn cell
+cell = DAT_0438cee0[ DAT_005c5a54[FACING] + (char_id*0x359 + FRAME)*6 + ANIM*0x100 ]
 ```
 
-So `cell = f(ANIM=param_1[0], FRAME=param_1[4], FACING=param_1[6], char_id)` only
-— exactly the fields `phase_probe` watches (all bit-exact) plus a constant
-`char_id`. The port's `chr_meta_lut(char_id, anim, frame, bank)` reproduces this
-(per-char block stride `0x5058 B = 0x1416 dw = 0x359*6 dw`; bank =
-`DAT_005c5a54[facing]-0x16`). **No unwatched state (STATE 0x56daafc, TIMER
-0x56daaf0, the FUN_0048b850 ring) feeds the cell.** The lead's three candidate
-"hidden cell sources" are all irrelevant to the cell.
+That algebra is fine, but it **proves the opposite of what the pass concluded**:
+the cell is a pure function of `{ANIM=param_1[0], FRAME=param_1[4], FACING=param_1[6]}`.
+If those matched AND the table matched, port-f42 and port-f78 would be identical —
+but they are visibly different poses. So **at least one of those three inputs
+differs between f42 and f78 yet is reported "same" by the probe.** The prime
+suspect: the probe's **`aframe`** is NOT `param_1[4]` (the table-indexing FRAME).
+There is a separate frame counter driving the cell that `phase_probe` does not
+watch (or watches at the wrong address).
 
-## The decisive measurement (cached `runs/phase-probe/house-walk-down-dense`)
+**Next concrete step (do this, don't theorize):** instrument the *computed cell
+index* `iVar14` directly — log it port-side at the FUN_0045a56f draw, capture it
+retail-side via Frida at `0x45a5b6`, over the db054 40–84 window, and diff. Then
+back-solve which of `{ANIM, FRAME, FACING}` (and which memory address) actually
+drives it. Confirm `param_1[4]`'s true address and check whether the probe is
+watching it. The pixel montage says WHICH frames; the index log says WHY.
 
-`house-walk-down-dense` drives Recette to **walk in place against a wall**
-(`px=-0.300 py=0.000 pz=9.500`, `vz=0.1435`, constant). So the walk cycle
-advances while her world position is fixed — which gives a clean controlled test:
+## The finding (and the correction it forces)
 
-`db054=42` (flagged DIV, 18% top-half) and `db054=78` (aligned) have a
-**byte-identical player record** (`anim1 / aframe3 / oct4 / cnt28`) **and
-identical position**. The player sprite is therefore rendered pixel-identically
-on both frames on each side. Yet the detector flags 42 and not 78 → the flag
-cannot be the sprite.
+`phase_probe house-walk-down-dense` reports the PLAYER anim **record** fields
+(`ANIM 0x56daae8 / COUNTER 0x56daaf4 / FRAME 0x56daaf8 / FACING 0x56dab00`,
+i.e. `&DAT_056daae8[0]`) as **bit-exact 1:1** vs retail on every frame. That was
+read as "Recette's anim phase is 1:1" (commits a79f8b0/cb9f465) — **too strong.**
 
-Numeric proof on dust-free vs dust-prone patches (mean |Δ|/px, port↔retail):
+The user eyeballed the phase+RNG-aligned walk montage and found Recette on a
+**different walk cell** on ~18% of frames. Confirmed at **db054=60**: both sides
+log `aframe=1 anim=1 cnt=10 oct=4` AND her on-screen X matches (centroid dX≈0px),
+yet her **legs are a different walk step** (port feet near-together/one boot
+forward; retail mid-stride). So:
 
-| patch | port f42-vs-f78 | retail f42-vs-f78 | PvR @ f42 | PvR @ f78 |
-|---|---|---|---|---|
-| **FACE** (solid, dust-free at f78) | **0.00** | 15.94 | 15.94 | **0.00** |
-| DRESS-core | 10.72 | 28.41 | 31.71 | **0.00** |
+- The divergence is **NOT** a phase-counter desync (the record counters are
+  aligned), **NOT** position (centroid matches), and **NOT** an off-by-one capture
+  skew (it hits non-transition frames — db054 50, 59, 68 — and the divergent
+  frames are irregular, not periodic; user-confirmed).
+- Therefore the **rendered** player cell is **not a pure function of the record
+  fields phase_probe watches.** The walker draw is reading some OTHER state for
+  the cell.
 
-- `FACE port f42-vs-f78 = 0.00`: the port draws the face **pixel-identically**
-  for the identical record (cell = pure function ✓).
-- `FACE PvR @ f78 = 0.00`: when no dust intervenes, the **port face == retail
-  face bit-exactly** — a clean 1:1 confirmation of the walk cell.
-- `FACE PvR @ f42 = 15.94 = retail f42-vs-f78`: the entire frame-42 "divergence"
-  is **retail's own** frame-to-frame change — a semi-transparent dust mote over
-  the face at f42 that is gone by f78. The port's dust (different RNG/timing)
-  didn't cover that spot that frame.
+**So: the player anim is 1:1 at the record-counter level but the DRAWN walk cell
+diverges on ~18% of frames.** Correct the ledger/claims accordingly.
 
-Whole-crop self-diffs corroborate: `port f42-vs-f78 = 13.3%`, `retail = 32.6%`
-strong-diff — **both sides vary frame-to-frame at identical player state**,
-i.e. the variation is dynamic surroundings, not the cell.
+## Divergent frames (house-walk-down-dense, 45-frame window db054 40–84)
 
-Visual (feed montage 2026-06-04, + `/tmp/walkcell_{body,head,legs,feet}.png`):
-body / dress / feet **silhouettes are identical** at 8–14×; the diff is a soft
-**dust cloud** at the feet/lower dress (different position/density per side) that
-puffs **up into the torso and over the head** — that upward dust is the "arc"
-the top-half metric caught. The user's "legs a different walk step" read was the
-dust cloud partly obscuring the dress hem, not a different cell.
+`db054 = 42, 50, 51, 59, 60, 68, 69, 84` — 8/45 (18%). (User flagged f=2,10,11,19,20
+= db054 42,50,51,59,60; the metric also caught 68,69,84 — "there's more", confirmed.)
+No single aframe value is implicated (flagged at aframe 0/1/2/3), so it is not a
+static cell→sprite mapping bug; it is dynamic/frame-specific.
 
-## Consequences
+## The autonomous detector — `tools/recette_anim_probe.py`
 
-- **Recette's drawn walk cell is CONFIRMED 1:1** (not just the record counters —
-  the rendered sprite too, since it is a pure function of the matching record).
-  Ledger updated accordingly.
-- The remaining `house-walk-down-dense` body-crop divergence is the
-  **foot-dust** (records-A 0xe) — the explicitly **deferred** sibling
-  ([[project_freeroam_smoke_effect]]; separate session per user). Nothing new to
-  fix here.
-- `tools/recette_anim_probe.py` measures dust, **not** walk cells — its top-half
-  box does not actually avoid the dust (puffs rise into the torso/head). It is
-  annotated as such (re-scoped to a documentation/repro tool); do not treat its
-  flags as cell divergences.
+```sh
+nix develop --command python3 tools/phase_probe.py house-walk-down-dense   # aligned frames
+nix develop --command python3 tools/recette_anim_probe.py house-walk-down-dense --push
+```
 
-## Secondary (sub-threshold, also dust): character tint
+Crops a tight **Recette-only** box `(486,610,566,734)` that EXCLUDES Tear + her
+wing-glow (Tear stands to Recette's right, x>~570), diffs port vs retail, and
+flags a frame when the **top-half** strong-diff fraction (mean|abs|>30/255, head+
+torso rows) exceeds **8%** — the user's "diff mostly white up to the top = different
+anim cell" heuristic. Calibration: ALIGNED frames score **0.0%** top-half,
+DIVERGENT frames **16–19%** (clean separation). It builds a 4× `[PORT|RETAIL|diff
+×6]` montage of the flagged frames (`runs/recette-anim-probe/<scenario>/`) to
+eyeball — read the UPPER body; the feet are obscured by foot-dust.
 
-A small per-frame dress-tint wobble (sum|Δ|≤24, below the detector's >30
-threshold) tracks the dust too — the frame-42 port dress shows a green/tan bump
-(G 83→94) = translucent dust over the red dress, not a missing colour pulse.
-FUN_004552d0 L397–435 *does* compute a `db054`/`sin`-driven player-only colour
-(actor 0), passed as the colour arg to FUN_0045a56f; the port draws flat
-`0xff808080`. That path is a real (minor) candidate gap but is **not** what
-caused the flagged frames here — leave as a separate low-priority item, do not
-conflate with the (closed) walk-cell question.
+## Investigation leads (next session)
+
+The drawn player cell comes from the shop-walker (`FUN_004552d0`) / chr-sprite
+walker (`FUN_00456f56`), which read a sprite-state record. Candidates for the
+cell source that diverges while the live actor-record matches:
+
+1. **The FUN_0048b850 motion/sprite-history ring** (`DAT_056da3dc` rec-hist /
+   `DAT_056da1fc` pos-hist, 40 slots). If the walker draws from a ring SLOT (a
+   delayed/historical record) rather than the live actor[0] record, a port ring-
+   fill/index difference would change the drawn cell while the live record matches.
+   The ring fill is `player_ctrl.c` (s_rec_hist/s_pos_hist) — check the slot the
+   draw selects + the fill order vs retail.
+2. **The STATE field `0x56daafc`** (CHR_ACTOR_STATE) — phase_probe does NOT watch
+   it. Add it to `STD_WATCHES` (+ the port pos-log) and re-diff; if it differs on
+   the flagged frames, that is the cell discriminator.
+3. **A sub-frame / finer anim timer** the render samples (the record TIMER
+   `0x56daaf0` is also unwatched — add it too).
+
+Method: extend `phase_probe.STD_WATCHES` with STATE (`0x56daafc`) + TIMER
+(`0x56daaf0`) + the ring slot index, re-run, and see which differs ONLY on the 8
+flagged db054. OR instrument the actual blit: capture the cell index the
+walker passes to the sprite draw on both sides (port d3d-trace / a draw probe;
+retail Frida on the walker) over the window and diff. Whichever field/slot differs
+exactly on `{42,50,51,59,60,68,69,84}` is the render-side cell source to fix.
+
+**Don't stop at the pixel diff — confirm in the CODE (user directive 2026-06-04):**
+for the flagged frames, log the actual walk-cell index the rendering code
+*computes* on BOTH sides at the same sim frame (not just the record field), and
+**trace the whole code path** from the actor record → the walker draw → the cell
+passed to the sprite blit. The pixel diff says WHICH frames diverge; the code
+trace says WHERE in the path port and retail compute a different cell. Pin the
+exact instruction/branch (port d3d-trace / draw probe + retail Frida on
+`FUN_004552d0`/`FUN_00456f56`) so the fix targets the real divergence, not a
+guess. The visual detector (`recette_anim_probe.py`) and the code trace are
+complementary: use both.
 
 Cross-refs: `docs/phase-debugging.md`, `tools/phase_probe.py`,
-`docs/decompiled/by-address/{4552d0,45a56f}.c`, [[reference_phase_probe_tool]],
-[[project_confirmed_parity_ledger]], [[project_freeroam_smoke_effect]].
+`docs/findings/scene1-tear-visual-diffs.md`, [[reference_phase_probe_tool]],
+[[project_confirmed_parity_ledger]]. Deferred sibling divergences (separate
+session, user): background-window NPCs, foot-dust/smoke, Tear's wing particles.
