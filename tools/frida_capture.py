@@ -882,6 +882,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             if not line or line.startswith("#"):
                 continue
             rec = json.loads(line)
+            if "buttons" not in rec:
+                continue   # skip non-input ops (e.g. trace-global {savefile})
             mask_val = rec["buttons"]
             mask = int(mask_val, 16) if isinstance(mask_val, str) else int(mask_val)
             trace_entries.append({"frame": int(rec["frame"]), "mask": mask})
@@ -960,6 +962,13 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # comparison is phase-clean (engine-quirks §94). Mirrors the
                 # port's {phasepin} op.
                 segtrace_ops.append({"phasepin": int(rec["phasepin"])})
+            elif "savefile" in rec:
+                # {savefile:"<relpath>"} — trace-global embedded-save ref. The save
+                # override is harness-driven (the port gets --save-override; a retail
+                # redirect is a TODO), so it's not a per-frame segtrace op — skip it
+                # here. (Without this it'd fall into the input-entry else and KeyError
+                # on the absent "buttons".)
+                continue
             else:
                 mask_val = rec["buttons"]
                 mask = int(mask_val, 16) if isinstance(mask_val, str) else int(mask_val)

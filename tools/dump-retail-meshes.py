@@ -213,6 +213,8 @@ def run(paths: list[str], dump_all: bool, expect_count: int,
             if not line or line.startswith("#"):
                 continue
             rec = json.loads(line)
+            if "buttons" not in rec:
+                continue   # skip non-input ops (e.g. trace-global {savefile})
             mask_val = rec["buttons"]
             mask = int(mask_val, 16) if isinstance(mask_val, str) else int(mask_val)
             trace_entries.append({"frame": int(rec["frame"]), "mask": mask})

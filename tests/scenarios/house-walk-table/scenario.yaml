@@ -20,5 +20,5 @@ description: |
   central round table. Retail pins head-on at px=0.729 pz=0.107 (w4-table3).
   cap_00 idle (+1540), cap_01 against the table (+1760).
 
-max_frames: 16000
+max_frames: 22000  # retail turbo load-stretch lands 2nd HOUSE_FREEROAM ~15200; +capture offset needs headroom
 duration_ceiling_ms: 180000

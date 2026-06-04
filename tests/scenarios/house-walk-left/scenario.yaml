@@ -16,5 +16,5 @@ description: |
   cap_00 idle (+1540), cap_01 after walking left (+2100). Pair with
   --player-pos-log / --watch + tools/wall_collide_diff.py.
 
-max_frames: 16000
+max_frames: 22000  # retail turbo load-stretch lands 2nd HOUSE_FREEROAM ~15200; +capture offset needs headroom
 duration_ceiling_ms: 180000

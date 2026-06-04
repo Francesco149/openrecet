@@ -32,5 +32,5 @@ description: |
   (diagonal movement), 22 capture points along the path. User-recorded (F2/F3) +
   distilled. Regression bench for the multi-object furniture collision vs retail.
 
-max_frames: 16000
+max_frames: 22000  # retail turbo load-stretch lands 2nd HOUSE_FREEROAM ~15200; +capture offset needs headroom
 duration_ceiling_ms: 180000

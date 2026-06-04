@@ -71,5 +71,5 @@ description: |
 # Headroom for the slower target. Under turbo the absolute frame at the 2nd
 # HOUSE_FREEROAM + capture lands in the thousands and differs per target; this is
 # a ceiling, not a target ({capture} fires when its anchor resolves).
-max_frames: 16000
+max_frames: 22000  # retail turbo load-stretch lands 2nd HOUSE_FREEROAM ~15200; +capture offset needs headroom
 duration_ceiling_ms: 120000
