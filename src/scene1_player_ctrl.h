@@ -353,6 +353,11 @@ int32_t       *player_ctrl_actor_record_mut(int i);
  * Comparison ONLY — the shipped game keeps the free-running cycle. */
 void           player_ctrl_phasepin(void);
 
+/* This frame's player walk-intent (the d-pad moving state, §69).  The §95
+ * dev-overlay RNG consume (scene1_sim.c) is gated on it — the overlay's LCG step
+ * fires every render frame only while the player is moving. */
+int            player_ctrl_is_moving(void);
+
 /* ── FUN_0048b850 tail render banks (Chip 2) ─────────────────────────────────
  * The two after-image banks the chr-sprite walker (FUN_00456f56) draws, owned
  * and written by the b850 tail (player_ctrl_b850_render_tail, engine all.c

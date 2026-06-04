@@ -98,34 +98,41 @@ field of actor 0, which *confirms* the array layout rather than refuting it.)
 
 NPC anim phase is the remaining `{phasepin}` follow-up.
 
-## Lead C — IDLE-only RNG over-consumption (+1 LCG/frame) — OPEN (found 2026-06-04)
+## Lead C — IDLE-only RNG over-consumption — ✅ RESOLVED 2026-06-04 (§95 overlay was movement-gated)
 
-`phase_probe house-idle --window 120,80` → **`rngcalls DESYNC`: the port
-over-consumes ~+1 LCG/frame** (net +79 over the 80-frame window, first divergence
-db054=42). Per-frame pattern is a clean 4-cycle: **retail 6,0,0,0 vs port 7,1,1,1**
-— the port burns exactly **1 extra LCG every frame**. `house-walk-down-dense` is
-`rngcalls` ALIGNED, so this is **idle-specific**.
+`phase_probe house-idle --window 120,80` showed **`rngcalls DESYNC`: the port
+over-consumed +1 LCG/frame** (net +79 over the window; per-frame 4-cycle **retail
+6,0,0,0 vs port 7,1,1,1** — exactly 1 extra LCG every frame). `house-walk-down-dense`
+was ALIGNED, so it was **idle-specific**.
 
-- The port's +1/frame is the **§95 dev-overlay consume** — the unconditional
-  `(void)rng_next15()` at the `scene1_ingame_default_arm_tick` tail (`scene1_sim.c`).
-- **Retail does NOT consume it on these idle frames:** an idle `--drill` lists
-  retail's RNG consumers as `FUN_00447f4f` (spawn) + `FUN_0046f2a3` only — **no
-  `FUN_00442cef`** (the overlay's enclosing fn). The playbook's *walk* drill DID
-  list `FUN_00442cef` at 1/frame. So the overlay's LCG step fires on **walk but
-  not idle** in retail → it is **conditional**, which §95 (and the port) modelled
-  as unconditional.
-- **Open mechanism (do NOT fix blind):** the decompile shows the overlay tail
-  (`442cef.c` LAB_004435f7, L417-430) as *unconditional*, and the thunk at
-  `0x471084` is a real `jmp 0x5041f6` (so the step IS counted by the retail hook).
-  Yet retail skips it on idle; the only early return is L143 (`DAT_0438becc % 3`,
-  not idle-related). The `--drill` counts didn't reconcile with the aligned window
-  (FUN_00447f4f ~5.8/frame in the drill vs ~1.5/frame aligned), so the exact gate
-  isn't nailed. **NEXT:** Frida-trace `FUN_00442cef` entry/exit + the overlay call
-  site on a synced idle-vs-walk window to find what gates the tail consume; OR
-  empirically gate the port consume on player-moving and confirm BOTH traces go
-  `rngcalls` ALIGNED (then revise §95 "unconditional" → "moving-gated"). Affects
-  only RNG-stream parity for TAS comparisons (idle sparkle/dust phase), NOT the
-  anim-phase result above.
+**Root cause:** the **§95 dev-overlay consume** at the `scene1_ingame_default_arm_tick`
+tail was **unconditional**, but retail's overlay LCG step is **movement-gated** —
+ground truth from raw per-render-frame `rngcalls`:
+- **walk:** both targets consume +1 on EVERY render frame (overlay fires).
+- **idle:** retail consumes **0** on every non-sim frame AND no extra step on the
+  sim-tick frames (the burst is pure spawn work); the un-gated port burned +1/frame.
+- idle `--drill` lists retail's consumers as `FUN_00447f4f` + `FUN_0046f2a3` only —
+  **no `FUN_00442cef`**; the walk drill DID list it at 1/frame.
+
+So the overlay step fires every render frame **only while the player is moving**.
+(The decompile tail reads unconditional and the thunk `0x471084` is a real
+`jmp 0x5041f6`, so the precise in-engine gate isn't pinned — but the observed
+retail behaviour is unambiguous. §95 corrected with a CORRECTION banner.)
+
+**Fix:** `scene1_sim.c` gates the consume on the player's walk-intent
+(`scene1_debug_overlay_consume_rng()` → `if (player_ctrl_is_moving()) rng_next15();`).
+Regression test `test_scene1_ingame_default_arm_consumes_debug_overlay_rng`
+rewritten to assert idle→0 / moving→1.
+
+**Validated:** post-fix `phase_probe` → `house-walk-down-dense` ALIGNED (the gate
+is a no-op when always-moving); `house-idle` steady +1/frame leak gone (net +79 →
+±5). The residual **±5 single-frame spike is retail run-to-run capture variance**,
+not a port bug: across re-runs it flips sign and frame (+5 @ db054=49 → −5 @
+db054=61; the walk trace likewise showed a one-off +5 that vanished on re-run). It
+is one ~5-LCG spawn (foot-dust jitter) landing one frame inside vs outside the
+window — a non-deterministic-in-retail spawn phase the TAS harness can't pin, and
+the same class as the deferred foot-dust position/phase divergence. NOT chased
+further.
 
 ## Captures/diffs must be phase + RNG aligned
 

@@ -516,6 +516,15 @@ void player_ctrl_phasepin(void)
     s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
 }
 
+/* This frame's player walk-intent (s_player_moving = the d-pad-derived moving
+ * state set by scene1_player_ctrl_tick, §69).  Read by the §95 dev-overlay
+ * RNG-consume gate in scene1_sim.c — the overlay's LCG step fires every render
+ * frame ONLY while the player is moving (engine-quirks §95). */
+int player_ctrl_is_moving(void)
+{
+    return s_player_moving;
+}
+
 /* Render banks the chr-sprite walker (FUN_00456f56) reads each frame: sweep 0 =
  * the dash-trail bank (DAT_056dab6c), sweep 1 = the burst bank (DAT_056dacc0).
  * Each slot is a PC_TRAIL_REC_DWORDS (0x44-byte) record — sprite-state[0..10],

@@ -3734,11 +3734,28 @@ phase is offset at free-roam — that port consequence is written up in
 
 ---
 
-## 95. The INGAME sim burns one LCG step per frame on an invisible dev coordinate readout — a permanent fingerprint on the determinism stream
+## 95. The INGAME sim burns one LCG step per frame (while the player is MOVING) on an invisible dev coordinate readout — a fingerprint on the determinism stream
+
+> **CORRECTION 2026-06-04 — the step is MOVEMENT-GATED, not unconditional.**
+> Originally written as "+1 LCG step every INGAME frame, forever." Ground truth
+> from raw per-render-frame `rngcalls` (phase_probe, retail `--watch` of the LCG
+> hook): on `house-walk-down-dense` retail consumes **+1/render-frame on every
+> frame** (the overlay), but on `house-idle` retail consumes **0** on every
+> non-sim frame and **no** extra overlay step on the sim-tick frames either —
+> i.e. the overlay's LCG step fires **every render frame ONLY while the player is
+> moving**, and not at all when idle. (An idle `--drill` confirms `FUN_00442cef`
+> is absent from the RNG-consumer list; the walk drill lists it at 1/frame.) The
+> per-frame fingerprint is therefore *movement-conditional*. The exact in-engine
+> gate is not fully pinned — the decompile tail below reads as unconditional and
+> the thunk at `0x471084` is a real `jmp 0x5041f6` (so the step IS counted) — but
+> the observed retail behaviour is unambiguous. Port consequence + fix:
+> `docs/findings/freeroam-rng-consumption.md` Lead C (the consume is gated on the
+> player's walk-intent so both idle and walk stay RNG-aligned).
 
 At the very tail of `FUN_00442cef` (the default-running INGAME arm, decompile
 `442cef.c` L417-429, asm `0x4435f7`-`0x44364b`), after the table-A/B/C ticks,
-the engine runs a **developer coordinate overlay** every frame, unconditionally:
+the engine runs a **developer coordinate overlay** (its LCG step gated on player
+movement — see the correction above):
 
 ```c
 FUN_0040fb3a();                 // table-A particle tick (= scene1_particles_tick)
@@ -3767,11 +3784,15 @@ and the periodic emitters all verified bit-exact, `phase_probe`'s `rngcalls` sti
 showed a steady −1/frame port deficit (first visible at db054≈37, the frame the
 trace's walk begins). The culprit was this single invisible `%d`/`X:%f` readout.
 
-Port note (not part of the quirk, for cross-ref): `src/scene1_sim.c` faithfully
-consumes the step (`(void)rng_next15()` at the default-arm tail) but renders
-nothing, which is what the retail build does. After that, `phase_probe
-house-walk-down-dense` reports `rng` **and** `rngcalls` ALIGNED (bit-exact LCG
-state at every db054). See `docs/findings/freeroam-rng-consumption.md`.
+Port note (not part of the quirk, for cross-ref): `src/scene1_sim.c` consumes the
+step **only while the player is moving** (`scene1_debug_overlay_consume_rng()` →
+`if (player_ctrl_is_moving()) (void)rng_next15();` at the default-arm tail) and
+renders nothing, matching retail. The earlier unconditional consume matched walk
+(every walk frame moves) but over-consumed +1/frame on IDLE; the movement gate
+keeps both `house-walk-down-dense` AND `house-idle` `rngcalls`-ALIGNED. (Residual
+±5 single-frame spikes are retail capture variance — one ~5-LCG spawn landing in
+vs out of the window, sign/frame flips across re-runs.) See
+`docs/findings/freeroam-rng-consumption.md` Lead C.
 
 **Seeing it on retail (confirmed 2026-06-04).** The grid IS drawn by
 `FUN_00451ea7`, gated at its call site by `if (DAT_06a49938 == 1)` — and

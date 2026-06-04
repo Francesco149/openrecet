@@ -61,6 +61,11 @@ void scene1_ingame_transition_arm_tick(void);
  */
 void scene1_ingame_default_arm_tick(void);
 
+/* §95 dev-overlay LCG step (FUN_00442cef tail), movement-gated: consumes exactly
+ * one raw LCG step iff the player is moving this frame, nothing when idle.
+ * Called from the default arm's tail; exposed for the gate's unit test. */
+void scene1_debug_overlay_consume_rng(void);
+
 /*
  * Run one INGAME sim tick.  Dispatches to the appropriate sub-arm per
  * the engine's state-1 flag check.  Safe to call with sentinel-empty

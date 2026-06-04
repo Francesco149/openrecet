@@ -117,13 +117,30 @@ void scene1_ingame_default_arm_tick(void)
      * result as "%d", then the player X/Y/Z (DAT_056da1d8/dc/e0) as
      * "X:%f"/"Y:%f"/"Z:%f", into the debug text grid at DAT_06a47aac rows
      * 4-6 (FUN_00451874).  That grid is NOT drawn in the retail Steam build,
-     * so we faithfully consume the RNG step — it advances the shared LCG
-     * (DAT_006023a0) every frame and is the LAST consumer of the tick — but
-     * intentionally render nothing.  Omitting it desynced the whole RNG
-     * stream by 1 step/frame vs retail (foot-dust/wing-sparkle positions
-     * drifted from db054~37 on); see docs/findings/freeroam-rng-consumption.md.
-     * The return value is discarded (only the state advance matters). */
-    (void)rng_next15();
+     * so we faithfully consume the RNG step but render nothing.
+     *
+     * §95 REVISED 2026-06-04: the step is **movement-gated** — retail consumes
+     * it every render frame ONLY while the player is MOVING, and 0 frames when
+     * idle.  Ground truth (raw per-render-frame rngcalls): on
+     * house-walk-down-dense both targets consume +1/frame; on house-idle retail
+     * consumes 0 on every non-sim frame (and the sim-tick burst carries NO extra
+     * overlay step) while the un-gated port burned +1/frame → a +1/frame idle
+     * over-consumption (phase_probe `rngcalls DESYNC`, retail 6,0,0,0 vs port
+     * 7,1,1,1 per 4-frame cycle).  The earlier "consume unconditionally" matched
+     * walk only because every walk frame moves.  Gate on this frame's player
+     * walk-intent so both idle AND walk stay rngcalls-ALIGNED.  See
+     * docs/findings/freeroam-rng-consumption.md (Lead C). */
+    scene1_debug_overlay_consume_rng();
+}
+
+/* §95 dev-overlay LCG step, movement-gated (see scene1_ingame_default_arm_tick's
+ * tail comment).  Extracted so the gate is unit-testable in isolation: it
+ * consumes exactly one raw LCG step iff the player is moving this frame, and
+ * nothing when idle — matching retail's per-render-frame overlay consumption. */
+void scene1_debug_overlay_consume_rng(void)
+{
+    if (player_ctrl_is_moving())
+        (void)rng_next15();
 }
 
 void scene1_ingame_tick(void)
