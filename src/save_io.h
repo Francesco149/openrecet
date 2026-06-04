@@ -102,4 +102,11 @@ void save_io_scan_for_title_menu(scene_title_save_t *out);
  * Pure-C. Uses libc fopen/fwrite/fclose. */
 int save_io_write_arena(const char *primary, const char *backup);
 
+/* Redirect ALL subsequent save_io_write_arena output into `dir` (writes go to
+ * <dir>/<basename> instead of the cwd's real save.dat/_save.dat). Pass NULL or
+ * "" to clear. Used by the TAS harness so replaying a trace NEVER overwrites the
+ * user's real save — writes land in a per-run sandbox (which also captures them
+ * for later divergence verification). Pure-C; the dir is copied internally. */
+void save_io_set_write_dir(const char *dir);
+
 #endif /* OPENRECET_SAVE_IO_H */

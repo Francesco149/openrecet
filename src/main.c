@@ -413,6 +413,21 @@ static struct input_segtrace   g_segtrace            = {0};
  * See src/input_segtrace.h ({savefile} op) + docs/trace-workflow.md. */
 static char                   *g_save_override_path  = NULL;
 
+/* --save-fresh: boot with a FRESH (empty) save — skip save_io_try_load so the
+ * arena keeps its save_bank_init_all state (no score / no cleared adventures →
+ * the title menu shows NEW GAME with no LOAD GAME / CONTINUE). For "fresh game"
+ * scenarios, makes the title menu deterministic regardless of the user's actual
+ * save progress (which would otherwise add a LOAD GAME row and desync goldens).
+ * Mutually exclusive with --save-override (override wins if both given). */
+static int                     g_save_fresh          = 0;
+
+/* --save-write-dir <dir>: redirect ALL save writes (save_io_write_arena) into
+ * <dir>/save.dat + <dir>/_save.dat instead of the cwd's real files. Replaying a
+ * trace must NEVER overwrite the user's actual save — so the harness always sets
+ * this to a per-run sandbox. Also captures what a scenario wrote, for later
+ * divergence verification. NULL = write to the real cwd files (live game only). */
+static char                   *g_save_write_dir      = NULL;
+
 /* True when input is harness-driven (absolute replay OR anchor-segmented
  * forcing). Both own the input mask, so we suppress live DirectInput, pin
  * g_paused=FALSE, and drive virtual time for a deterministic one-tick-per-loop. */
@@ -1749,12 +1764,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
              * passed — the harness forgot to decompress + wire it. The replay
              * will load the on-disk save.dat instead of the trace's save, which
              * usually means a wrong/diverged run. Warn loudly. */
-            if (g_segtrace.has_savefile && !g_save_override_path) {
+            if (g_segtrace.has_savefile && !g_save_override_path && !g_save_fresh) {
                 fprintf(stderr,
                     "openrecet: WARNING — segtrace declares savefile \"%s\" "
-                    "but no --save-override given; using on-disk save.dat "
-                    "(replay may diverge). The harness should decompress the "
-                    "blob and pass --save-override.\n",
+                    "but neither --save-override nor --save-fresh given; using "
+                    "on-disk save.dat (replay may diverge). The harness should "
+                    "resolve the ref (@fresh → --save-fresh; blob → decompress "
+                    "+ --save-override).\n",
                     g_segtrace.savefile);
             }
         } else {
@@ -1832,14 +1848,30 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * op, decompressed by the harness, lands here. The override path beats
      * whatever the live game has on disk (the whole point: re-test a trace and
      * it loads the EMBEDDED save, not the advanced on-disk one). */
+    /* Redirect all save WRITES into the sandbox so a replay never touches the
+     * user's real save.dat/_save.dat (and the sandbox captures what was written,
+     * for divergence verification). Set before any write can occur. */
+    if (g_save_write_dir) {
+        save_io_set_write_dir(g_save_write_dir);
+        fprintf(stderr,
+                "save_io: --save-write-dir active — save writes redirect to %s "
+                "(real save.dat/_save.dat protected)\n", g_save_write_dir);
+    }
+
     const char *save_primary = g_save_override_path ? g_save_override_path : "save.dat";
     const char *save_backup  = g_save_override_path ? NULL                : "_save.dat";
-    if (g_save_override_path) {
+    if (g_save_fresh && !g_save_override_path) {
+        /* Fresh boot: skip the disk-save load entirely. The arena keeps its
+         * save_bank_init_all state (fresh — no score, no continue), so the title
+         * menu shows NEW GAME with no LOAD GAME row, deterministically. */
         fprintf(stderr,
-                "save_io: --save-override active — loading %s "
-                "(on-disk save.dat ignored)\n", g_save_override_path);
-    }
-    if (save_io_try_load(save_primary, save_backup)) {
+                "save_io: --save-fresh active — booting with a fresh save "
+                "(no save.dat loaded; title menu shows no LOAD GAME)\n");
+    } else if (save_io_try_load(save_primary, save_backup)) {
+        if (g_save_override_path)
+            fprintf(stderr,
+                    "save_io: --save-override active — loaded %s "
+                    "(on-disk save.dat ignored)\n", g_save_override_path);
         /* On a successful load, the audio sliders in the header may
          * differ from the fresh defaults — re-sync audio_fade and
          * re-apply the BGM volume so any music already playing picks
@@ -2112,7 +2144,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * settings-menu slider changes applied during this run) to BOTH
      * save.dat and _save.dat. Default is OFF so harness/smoke runs
      * don't accidentally overwrite the user's real save. */
-    if (g_save_write) {
+    /* Write the final arena when explicitly opted in (--save-write, live game)
+     * OR when a sandbox write-dir is set (replay capture — the write is
+     * redirected by save_io into the sandbox, never the real files, so this is
+     * safe and gives a final-state save for divergence verification). */
+    if (g_save_write || g_save_write_dir) {
         save_io_write_arena("save.dat", "_save.dat");
     }
 
@@ -3299,6 +3335,15 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char save_ovr_buf[MAX_PATH];
                 lstrcpynA(save_ovr_buf, val, (int)sizeof(save_ovr_buf));
                 g_save_override_path = save_ovr_buf;
+            }
+        } else if (lstrcmpA(tok, "--save-fresh") == 0) {
+            g_save_fresh = 1;
+        } else if (lstrcmpA(tok, "--save-write-dir") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char save_wd_buf[MAX_PATH];
+                lstrcpynA(save_wd_buf, val, (int)sizeof(save_wd_buf));
+                g_save_write_dir = save_wd_buf;
             }
         } else if (lstrcmpA(tok, "--anchor-trace-record") == 0) {
             char *val = strtok(NULL, " ");

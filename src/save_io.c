@@ -191,9 +191,49 @@ int save_io_try_load(const char *primary, const char *backup)
 
 /* ─── disk write ─────────────────────────────────────────────────────── */
 
+/* Optional write-redirect dir (set by save_io_set_write_dir). When non-empty,
+ * every save_io_write_arena output path is rewritten to <dir>/<basename> — so a
+ * trace replay's save writes land in a sandbox instead of the user's real
+ * save.dat/_save.dat. The whole point: NEVER overwrite the real save during
+ * replay (and capture what was written, for divergence verification). */
+static char g_save_io_write_dir[512] = {0};
+
+void save_io_set_write_dir(const char *dir)
+{
+    if (!dir || !dir[0]) {
+        g_save_io_write_dir[0] = '\0';
+        return;
+    }
+    /* Strip a trailing slash so we can append "/<name>" uniformly. */
+    size_t n = strlen(dir);
+    while (n > 0 && (dir[n - 1] == '/' || dir[n - 1] == '\\')) n--;
+    if (n >= sizeof g_save_io_write_dir) n = sizeof g_save_io_write_dir - 1;
+    memcpy(g_save_io_write_dir, dir, n);
+    g_save_io_write_dir[n] = '\0';
+}
+
+/* Last path component of `path` (after the final '/' or '\\'), or `path`. */
+static const char *path_basename(const char *path)
+{
+    const char *base = path;
+    for (const char *p = path; *p; p++) {
+        if (*p == '/' || *p == '\\') base = p + 1;
+    }
+    return base;
+}
+
 static int write_arena_to(const char *path)
 {
     if (!path) return 0;
+
+    /* Redirect into the sandbox dir when one is set (replay write-protection). */
+    char redirected[640];
+    if (g_save_io_write_dir[0]) {
+        snprintf(redirected, sizeof redirected, "%s/%s",
+                 g_save_io_write_dir, path_basename(path));
+        path = redirected;
+    }
+
     FILE *fp = fopen(path, "wb");
     if (!fp) return 0;
     size_t wrote = fwrite(save_arena_base(), 1, SAVE_BANK_ARENA_BYTES, fp);
