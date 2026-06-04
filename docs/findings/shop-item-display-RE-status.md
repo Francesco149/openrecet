@@ -22,10 +22,27 @@ residual is the item sparkle/glint effect** (deferred — see "Remaining" below)
   swords to face the camera → 1:1.
 
 ## Remaining (deferred)
-- **Item sparkle/glint** — the twinkle effect retail draws over display items is
-  not yet ported (the only residual the user flagged). Likely a Pass C-style
-  emitter or a separate overlay tied to the display grid; its record table is
-  BSS-zero in HOUSE today (`g_scene1_records_c` count 0). Next chip.
+- **Item sparkle/glint** — the yellow 4-point twinkle stars retail draws over
+  each display item (the only residual the user flagged after confirming the
+  swords 1:1). **Scoped via the retail d3d-trace** (`runs/sr-retail/
+  d3d_trace.jsonl`, free-roam frame 817, 3 swords on display):
+  - The sparkles are **2D-overlay quads** drawn by `FUN_00414ee2` (the 2D overlay
+    dispatcher) at ret_va `0x415e61` — **9 draws = 3 per item** — each a
+    TRIANGLESTRIP quad (FVF 0x142, stride 24) with `SetTransform(WORLD)` at
+    ret_va `0x4159ca` and one shared star texture (handle `0x172fcf30`).
+    NOT Pass C and NOT `FUN_00415fab` (those are the item billboards at
+    `0x4161c3`).
+  - The port already has `FUN_00414ee2` as `scene1_overlay_render`, but it is
+    **dormant in HOUSE** (its record table count `DAT_0076b948` is BSS-zero — the
+    records that represent these sparkles are never spawned).
+  - **So the missing piece is the EMITTER** that pushes a sparkle 2D-overlay
+    record per occupied display cell each frame. NOT yet pinned: `FUN_0045ed12`
+    (walks the grid + resolver) is only a predicate — it returns 1 if any
+    displayed item-id is in a special range (`4000<id<0xfa7 || ==0xfab || ==0xfb0
+    || 0xfb8<id<0xfc3`), not a spawner. Next session: find who writes the
+    `FUN_00414ee2` overlay-record table with texture `0x172fcf30` at the
+    projected item positions (likely a per-display-item twinkle spawner), port
+    it, and the already-wired `scene1_overlay_render` will draw them.
 - `FUN_00485f8c` (display-management overlay, editing mode `DAT_0438cc08==2`).
 
 ---
