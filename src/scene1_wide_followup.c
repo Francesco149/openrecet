@@ -20,6 +20,9 @@
 
 #include <stdint.h>
 
+#include "save_bank.h"       /* SAVE_BANK_FIELD_DISPLAY_GRID + grid dims */
+#include "save_work.h"       /* working-arena display grid (dword 0x4e26) */
+#include "scene.h"           /* g_scene_state (DAT_0438b1c0 — free-roam gate) */
 #include "scene1_camera.h"   /* g_scene1_camera_eye (Pass E fan billboard) */
 #include "scene1_overlay.h"  /* scene1_overlay_render — mid_block_1 wiring */
 #include "scene1_pass_f.h"   /* Pass F is already ported (C8g.2 MVP) */
@@ -27,6 +30,7 @@
 #include "scene1_records_c_tick.h" /* SCENE1_RECORDS_C_OFF_* slot offsets */
 #include "scene1_render.h"   /* scene1_render_push_projection */
 #include "sysassets.h"       /* g_sysassets.magicjem_tga.tex (Pass C texture) */
+#include "tables_item.h"     /* g_item + tables_item_find_slot_by_id (resolver) */
 
 /* ─── engine scratch globals — module-local mirrors ────────────────────
  *
@@ -57,13 +61,17 @@ static int wf_pass_abe_count(void) { return g_scene1_records_b_count; }
 static int wf_pass_cd_count(void) { return g_scene1_records_c_count; }
 
 /* DAT_0438b1e0 — stage-record selector, multiplied by 0x2dfc8 to index
- * DAT_044f7030 for the mid block 2 cell walk.  BSS-zero → 0 (which
- * selects the first stage record). */
-static int wf_stage_selector(void) { return 0; }
+ * DAT_044f7030 for the mid block 2 cell walk.  This is the active
+ * working slot; the live game always runs in slot 0 (its only engine
+ * writer is `= 0`).  Routed through save_work so the cell walk reads the
+ * same bank the loaded save populated. */
+static int wf_stage_selector(void) { return save_work_active_slot(); }
 
-/* DAT_0438b1c0 — mid block 2 outer gate.  BSS-zero → 0 → cell walk
- * dormant (gate requires == 1). */
-static int wf_mid2_outer_gate(void) { return 0; }
+/* DAT_0438b1c0 — mid block 2 outer gate.  The engine merchandise loop
+ * runs only in free-roam (DAT_0438b1c0 == 1).  g_scene_state is the
+ * port's mirror of that global (set to 1 at HOUSE entry by
+ * prewindow_init / FUN_00451790). */
+static int wf_mid2_outer_gate(void) { return g_scene_state; }
 
 /* *DAT_068dd2f0 + 0 (int) — stage palette field 0.  BSS-zero → 0 →
  * mid block 2 inner gate satisfied (requires == 0), but the outer
@@ -314,6 +322,79 @@ static void wf_pass_c(IDirect3DDevice8 *dev)
     }
 }
 
+/* FUN_00415fab @ 0x415fab (540 B) — per-cell shop-display billboard.
+ *
+ * Args recovered from objdump @0x416a02-0x416a07 (the decompiler
+ * dropped them): FUN_00415fab(col, row, item, z) — col 0..19, row
+ * 0..14, item = the cell's raw dword, z = 0.0 from the driver.
+ *
+ * Draws one textured 32×32-icon quad for the merchandise the player
+ * placed on a shop display.  Reuses the Pass C vbuf (engine
+ * DAT_0064e5d8 == g_wf_pass_c_vbuf): the per-cell world matrix
+ * transforms the static quad XYZ, and only diffuse + UV are rewritten.
+ *
+ * Item → icon resolution (engine L26-43):
+ *   slot = FUN_004681f6(item >> 6)        // item record index
+ *   cat  = record[slot].category   (+0x38) // == DAT_095d3808[slot*0xb3]
+ *   icon = record[slot].subindex   (+0x3c) // == DAT_095d380c[slot*0xb3]
+ *   tex  = item_icons[cat]                 // == DAT_073d8778[cat*0x10]
+ *   tex_h= item_icons[cat].height          // == DAT_073d8780[cat*0x10]
+ * `item & 0x10` forces icon 0 (engine L33-35).  A resolver miss
+ * (slot < 0) or an unloaded category texture skips the draw. */
+static void wf_render_display_item(IDirect3DDevice8 *dev,
+                                   int col, int row, uint32_t item, float z)
+{
+    /* Resolve the item record (engine L26: FUN_004681f6(item >> 6)). */
+    int slot = tables_item_find_slot_by_id(&g_item, (int)item >> 6);
+    if (slot < 0) return;
+
+    int cat  = g_item.records[slot].category;   /* +0x38 (DAT_095d3808) */
+    int icon = g_item.records[slot].subindex;   /* +0x3c (DAT_095d380c) */
+    if (item & 0x10) icon = 0;                   /* engine L33-35 */
+
+    if (cat < 0 || cat >= SYSASSETS_ITEM_CATEGORIES) return;
+    const sprite_t *page = &g_sysassets.item_icons[cat];
+    if (!page->tex || page->height == 0) return;  /* category never loaded */
+
+    /* World matrix: T(cell) × S(0.0192) × pre-matrix (engine L16-20). */
+    float world[16];
+    wf_display_item_compose_world(world, col, row, z);
+
+    /* Bind the category icon page via the engine's L28-31 cache guard
+     * (DAT_0076b95c, shared with the driver's g_tex_cache_last). */
+    IDirect3DTexture8 *tex = page->tex;
+    if (g_tex_cache_last != (uintptr_t)tex) {
+        g_tex_cache_last = (uintptr_t)tex;
+        IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)tex);
+    }
+
+    IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD,
+                                  (const D3DMATRIX *)world);
+
+    /* Icon UV box (engine L36-47).  v0/v1 (left geo) take u_right,
+     * v2/v3 (right geo) take u_left — the engine maps the icon
+     * horizontally flipped relative to the canonical quad. */
+    float u_left, u_right, v_top, v_bot;
+    wf_display_item_uv_box(icon, (float)page->height,
+                           &u_left, &u_right, &v_top, &v_bot);
+
+    /* Diffuse = 0xff000000 on all 4 verts (engine L22-25 puVar2 loop). */
+    g_wf_pass_c_vbuf[0].diffuse = 0xff000000u;
+    g_wf_pass_c_vbuf[1].diffuse = 0xff000000u;
+    g_wf_pass_c_vbuf[2].diffuse = 0xff000000u;
+    g_wf_pass_c_vbuf[3].diffuse = 0xff000000u;
+    g_wf_pass_c_vbuf[0].u = u_right; g_wf_pass_c_vbuf[0].v = v_top;  /* TL geo */
+    g_wf_pass_c_vbuf[1].u = u_right; g_wf_pass_c_vbuf[1].v = v_bot;  /* BL geo */
+    g_wf_pass_c_vbuf[2].u = u_left;  g_wf_pass_c_vbuf[2].v = v_top;  /* TR geo */
+    g_wf_pass_c_vbuf[3].u = u_left;  g_wf_pass_c_vbuf[3].v = v_bot;  /* BR geo */
+
+    IDirect3DDevice8_DrawPrimitiveUP(dev,
+                                     D3DPT_TRIANGLESTRIP,
+                                     2,
+                                     g_wf_pass_c_vbuf,
+                                     sizeof(wf_pass_c_vertex));
+}
+
 /* Mid block 2 — projection swap to z_far=350 + conditional 15×20
  * cell walk + projection back to z_far=2000.  Cell walk gated on
  * (DAT_0438b1c0 == 1) && (palette+0 == 0).
@@ -340,25 +421,33 @@ static void wf_mid_block_2(IDirect3DDevice8 *dev)
     /* Projection to z_far = 350 (the engine's narrow z_far). */
     scene1_render_push_projection((struct IDirect3DDevice8 *)dev, 350.0f);
 
-    /* Engine L37 (top of FUN_004161c7) computes the per-stage base
-     * offset unconditionally — used here in the cell walk.  We compute
-     * it lazily inside the dormant gate; the value is BSS-zero today
-     * so it's a no-op either way. */
-    int stage_base_offset = wf_stage_selector() * 0x2dfc8;
-    (void)stage_base_offset;
-
+    /* Engine L206-220: free-roam merchandise walk.  The grid base is
+     * `&DAT_044f7030 + DAT_0438b1e0 * 0x2dfc8` — i.e. the active working
+     * bank's display grid (bank-relative dword SAVE_BANK_FIELD_DISPLAY_GRID
+     * = 0x4e26, 15×20 = 300 cells, row-major, -1 = empty).  Loaded by
+     * save_work_load_slot on Continue/load. */
     if (wf_mid2_outer_gate() == 1 && wf_palette_field_0() == 0) {
-        /* TODO C8f-followup: port the 15×20 cell walk.
-         *
-         *   1. Compute base pointer = DAT_044f7030 + stage_sel * 0x2dfc8.
-         *   2. For each cell (15 rows × 20 cols, stride 1 dword):
-         *        if (*cell != -1) FUN_00415fab();
-         *   3. After the loop: FUN_00485f8c().
-         *
-         * Both FUN_00415fab and FUN_00485f8c are unported — they
-         * surface as their own chips once the stage record at
-         * DAT_044f7030 ports.  Today the outer gate keeps the loop
-         * dormant. */
+        uint32_t *bank = save_work_dwords_at(wf_stage_selector());
+        if (bank) {
+            const int32_t *grid =
+                (const int32_t *)(bank + SAVE_BANK_FIELD_DISPLAY_GRID);
+            int cell = 0;
+            for (int row = 0; row != SAVE_BANK_DISPLAY_GRID_ROWS; row++) {
+                for (int col = 0; col != SAVE_BANK_DISPLAY_GRID_COLS;
+                     col++, cell++) {
+                    if (grid[cell] != -1) {
+                        wf_render_display_item(dev, col, row,
+                                               (uint32_t)grid[cell], 0.0f);
+                    }
+                }
+            }
+        }
+
+        /* Engine L220: FUN_00485f8c() — the display-management overlay
+         * (items on the ONE stand the player is editing).  Deferred to
+         * its own chip until the editing UI lands; it is gated on the
+         * editing mode (DAT_0438cc08 == 2), inert during plain
+         * free-roam. */
     }
 
     /* Projection back to z_far = 2000 (wide). */
@@ -531,6 +620,16 @@ void scene1_wide_followup(struct IDirect3DDevice8 *dev_in)
 
     /* ─── L37: texture-cache reset ─────────────────────────────────── */
     g_tex_cache_last = 0;
+
+    /* Publish the live billboard orientation matrix (engine DAT_0438cdf8)
+     * as this walker's pre-matrix.  Pass C, the Pass E spear, and the
+     * shop-display items (FUN_00415fab) all left-multiply &DAT_0438cdf8 —
+     * the camera-facing RotX(π/2-pitch)×RotY(yaw+π) that scene1_camera_
+     * angle_compute writes each frame.  Without it the quads keep the
+     * identity stand-in and render edge-on (display swords showed as a
+     * thin sliver); g_scene1_camera_orient turns them to face the camera
+     * exactly as retail does. */
+    wf_pass_c_set_pre_matrix(g_scene1_camera_orient);
 
     /* ─── L38-L49: top render-state preamble (Pass A/B prelude) ────── */
 

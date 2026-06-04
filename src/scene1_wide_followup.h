@@ -147,6 +147,19 @@ void         wf_pass_c_compose_world(float out[16], const int32_t *slot);
 void         wf_pass_c_set_pre_matrix(const float m[16]);
 const float *wf_pass_c_get_pre_matrix(void);
 
+/* ─── Shop "items on display" helpers (FUN_00415fab, D3D-free) ─────────
+ *
+ * World transform + icon UV box for one display-grid cell.  See the
+ * helpers TU for the engine line-number map.  `col` 0..19, `row` 0..14,
+ * `z` is the per-cell height param (0.0 from the free-roam driver).
+ * `icon` is the item subindex (item_id % 100); `tex_height` is the
+ * per-category icon-page height.  Reuses the Pass C pre-matrix.  */
+void         wf_display_item_compose_world(float out[16],
+                                           int col, int row, float z);
+void         wf_display_item_uv_box(int icon, float tex_height,
+                                    float *u_left, float *u_right,
+                                    float *v_top, float *v_bot);
+
 /* ─── Pass A helpers (D3D-free, host-linkable) ─────────────────────────
  *
  * Walks g_scene1_records_b (stride 0x49) for type ∈ {0x77, 0xa2}, draws

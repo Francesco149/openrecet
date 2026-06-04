@@ -140,6 +140,16 @@
  * (= save-bank + 0x8). */
 #define SAVE_BANK_FIELD_OCCUPIED     2
 
+/* Shop "items on display" grid — engine `&DAT_044f7030` (working-bank
+ * dword 0x4e26): 15 rows × 20 cols = 300 cells, row-major, one item ID
+ * per cell (0xFFFFFFFF = empty). Walked by the free-roam shop render
+ * (FUN_004161c7 mid block 2) drawing each occupied cell via
+ * FUN_00415fab. See findings/shop-item-display-RE-status.md. */
+#define SAVE_BANK_FIELD_DISPLAY_GRID   0x4e26
+#define SAVE_BANK_DISPLAY_GRID_ROWS    15
+#define SAVE_BANK_DISPLAY_GRID_COLS    20
+#define SAVE_BANK_DISPLAY_GRID_CELLS   300
+
 /* ── Shared header default slider values (engine-init constants) ── */
 
 #define SAVE_HEADER_SE_DEFAULT       9

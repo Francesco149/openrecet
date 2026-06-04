@@ -1442,7 +1442,8 @@
    "src": [
     "src/save_bank.h",
     "src/scene1_wide_followup.c",
-    "src/scene1_wide_followup.h"
+    "src/scene1_wide_followup.h",
+    "src/scene1_wide_followup_helpers.c"
    ]
   },
   {
@@ -3678,7 +3679,8 @@
     "src/main.c",
     "src/prewindow.h",
     "src/rng.h",
-    "src/scene.h"
+    "src/scene.h",
+    "src/scene1_wide_followup.c"
    ]
   },
   {
@@ -10379,7 +10381,8 @@
    "status": "ported",
    "src": [
     "src/math3d.h",
-    "src/scene1_render.c"
+    "src/scene1_render.c",
+    "src/scene1_wide_followup_helpers.c"
    ]
   },
   {
@@ -10400,7 +10403,8 @@
    "status": "ported",
    "src": [
     "src/math3d.h",
-    "src/scene1_render.c"
+    "src/scene1_render.c",
+    "src/scene1_wide_followup_helpers.c"
    ]
   },
   {

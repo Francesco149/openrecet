@@ -896,3 +896,66 @@ int wf_pass_d_resolve_item(int type_key, wf_pass_d_item_resolved *out)
  * Pass D pulses that slot specifically.  Default -1 → no record matches
  * the `local_18 == DAT_056dae40` test → no pulse.  */
 int g_wf_pass_d_selected_slot = -1;
+
+/* ─── Shop "items on display" (FUN_00415fab) helpers ──────────────────
+ *
+ * The free-roam shop render (FUN_004161c7 mid block 2) walks a 15×20
+ * cell grid and draws each occupied cell as one textured 32×32-icon
+ * quad via FUN_00415fab.  The D3D-free pieces of that renderer — the
+ * world transform and the icon UV box — live here so they are host-
+ * testable.  Engine body: docs/decompiled/by-address/415fab.c.  */
+
+/* World matrix for a display cell.  Engine FUN_00415fab L16-20:
+ *
+ *   local_8 = col*2 - 9                                  // world X
+ *   Translation(M, local_8, z + 1.9, row*2 - 6.5);      // thunk_FUN_004a3462
+ *   Scaling(S, 0.0192, 0.0192, 0.0192);                 // thunk_FUN_004a33d2
+ *   M = S * M                       // thunk_FUN_004a2a03(M, S, M)
+ *   M = DAT_0438cdf8 * M            // thunk_FUN_004a2a03(M, &DAT_0438cdf8, M)
+ *
+ * Identical chain shape to wf_pass_c_compose_world (T then left-mul S
+ * then left-mul the DAT_0438cdf8 pre-matrix) — only the scale source
+ * differs (a fixed 0.0192 here vs the per-record scale there), so it
+ * reuses the same pre-matrix stand-in.  0.0192f == raw 0x3c9d4952. */
+void wf_display_item_compose_world(float out[16], int col, int row, float z)
+{
+    float pos_x = (float)col * 2.0f - 9.0f;
+    float pos_y = z + 1.9f;
+    float pos_z = (float)row * 2.0f - 6.5f;
+
+    float scratch[16];
+
+    mat4_translation(out, pos_x, pos_y, pos_z);
+
+    mat4_scaling(scratch, 0.0192f, 0.0192f, 0.0192f);
+    mat4_mul(out, scratch, out);
+
+    mat4_mul(out, wf_pass_c_get_pre_matrix(), out);
+}
+
+/* Icon UV box for a 32×32 cell in the per-category icon page.  Engine
+ * FUN_00415fab L32-47:
+ *
+ *   col_px = (icon % 8) * 32                       // 8 icons per row
+ *   u_left  = (col_px + 0.5)  / 256.0              // page is 256 wide
+ *   u_right = (col_px + 31.5) / 256.0
+ *   row_px = (icon / 8) * 32
+ *   v_top  = (row_px + 0.5)  / tex_height          // V uses the real height
+ *   v_bot  = (row_px + 31.0) / tex_height          // note 31.0, not 31.5
+ *
+ * The asymmetry (U denominator fixed 256, V denominator = texture
+ * height; U inset 0.5/31.5, V inset 0.5/31.0) is engine-verbatim.
+ * `icon` is the item record's subindex (item_id % 100); the caller
+ * forces it to 0 when the cell's `item & 0x10` flag is set.  */
+void wf_display_item_uv_box(int icon, float tex_height,
+                            float *u_left, float *u_right,
+                            float *v_top, float *v_bot)
+{
+    float col_px = (float)(icon % 8) * 32.0f;
+    *u_left  = (col_px + 0.5f)  / 256.0f;
+    *u_right = (col_px + 31.5f) / 256.0f;
+
+    float row_px = (float)(icon / 8) * 32.0f;
+    *v_top = (row_px + 0.5f)  / tex_height;
+    *v_bot = (row_px + 31.0f) / tex_height;
+}

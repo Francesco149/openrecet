@@ -1,7 +1,38 @@
-# Shop "items on display" renderer — MAPPED (porting spec)
+# Shop "items on display" renderer — PORTED & 1:1
 
-**Date:** 2026-06-04 · **Status:** ✅ MAPPED via d3d-trace caller analysis on
-retail. Ready to port. (Earlier this doc said UNMAPPED + killed two wrong leads;
+**Date:** 2026-06-04 · **Status:** ✅ **LANDED & human-verified 1:1 vs retail.**
+The merchandise on shop displays now renders (Worn Swords on the back stand of
+the user's loaded save). The user confirmed it is **1:1 with retail; the only
+residual is the item sparkle/glint effect** (deferred — see "Remaining" below).
+
+## What landed
+- `FUN_00415fab` ported as `wf_render_display_item` (per-cell icon billboard) in
+  `scene1_wide_followup.c`; args recovered via objdump @0x416a02 (col, row, item,
+  z=0). Resolver `tables_item_find_slot_by_id(item>>6)` → record `.category`
+  (+0x38) + `.subindex` (+0x3c); texture `g_sysassets.item_icons[cat]`. UV +
+  world helpers are host-tested in `scene1_wide_followup_helpers.c`.
+- The `FUN_004161c7` mid-block-2 grid walk un-gated: 15×20 cells from the working
+  arena (`save_work_dwords_at(slot) + SAVE_BANK_FIELD_DISPLAY_GRID` = dword
+  0x4e26), gated on `g_scene_state == 1` (free-roam).
+- **Key fix:** the per-item quad left-multiplies engine `DAT_0438cdf8` (the
+  camera-facing billboard matrix). The walker had been using an identity
+  pre-matrix stand-in, so items first rendered edge-on (thin sliver). Wiring
+  `wf_pass_c_set_pre_matrix(g_scene1_camera_orient)` at the walker entry (the
+  port already computes that matrix via `scene1_camera_angle_compute`) turned the
+  swords to face the camera → 1:1.
+
+## Remaining (deferred)
+- **Item sparkle/glint** — the twinkle effect retail draws over display items is
+  not yet ported (the only residual the user flagged). Likely a Pass C-style
+  emitter or a separate overlay tied to the display grid; its record table is
+  BSS-zero in HOUSE today (`g_scene1_records_c` count 0). Next chip.
+- `FUN_00485f8c` (display-management overlay, editing mode `DAT_0438cc08==2`).
+
+---
+*Original mapping notes (kept for the record):*
+
+**Status:** ✅ MAPPED via d3d-trace caller analysis on retail.
+(Earlier this doc said UNMAPPED + killed two wrong leads;
 those corrections still stand — see the bottom.)
 
 ## How it was found

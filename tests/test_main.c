@@ -1822,6 +1822,11 @@ struct test_case {
     X(wf_pass_d_resolver_override_round_trips) \
     X(wf_pass_d_resolver_null_out_is_safe) \
     X(wf_pass_d_selected_slot_default_is_minus_1) \
+    X(wf_display_item_world_origin_cell) \
+    X(wf_display_item_world_inner_cell) \
+    X(wf_display_item_uv_box_icon_0) \
+    X(wf_display_item_uv_box_icon_9_wraps_to_row_1) \
+    X(wf_display_item_uv_box_respects_tex_height) \
     \
     X(records_c_tick_empty_table_is_noop) \
     X(records_c_tick_sentinel_slots_skipped) \

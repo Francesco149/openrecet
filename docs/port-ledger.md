@@ -160,7 +160,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x414ee2 | FUN_00414ee2 | 4006 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_overlay_helpers.c (+4) |
 | 0x415e90 | FUN_00415e90 | 36 | ✓ | scene1_overlay.c, scene1_overlay.h |
 | 0x415f2e | FUN_00415f2e | 125 | ✓ | scene1_wide_followup.h, scene1_wide_followup_helpers.c |
-| 0x415fab | FUN_00415fab | 540 | ✓ | save_bank.h, scene1_wide_followup.c, scene1_wide_followup.h |
+| 0x415fab | FUN_00415fab | 540 | ✓ | save_bank.h, scene1_wide_followup.c, scene1_wide_followup.h (+1) |
 | 0x4161c7 | FUN_004161c7 | 4925 | ✓ | save_bank.h, scene1_pass_f.c, scene1_pass_f.h (+6) |
 | 0x417504 | FUN_00417504 | 506 | ✓ | main.c, scene1_hud.h, scene1_render.c (+1) |
 | 0x4176ff | FUN_004176ff | 30395 | ✓ | scene1_companion_ctrl.c, scene1_companion_ctrl.h, scene1_maplight.c (+6) |
@@ -225,7 +225,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x44baad | FUN_0044baad | 109 | ✓ | scene1_intro_dialogue.c |
 | 0x44c88f | FUN_0044c88f | 299 | ✓ | stage_palette.h |
 | 0x44f13d | FUN_0044f13d | 4870 | ✓ | scene1_postload.h |
-| 0x451790 | FUN_00451790 | 211 | ✓ | main.c, prewindow.h, rng.h (+1) |
+| 0x451790 | FUN_00451790 | 211 | ✓ | main.c, prewindow.h, rng.h (+2) |
 | 0x451863 | FUN_00451863 | 17 | ✓ | audio_mci.c, audio_mci.h, main.c |
 | 0x451ea7 | FUN_00451ea7 | 1343 | ✓ | audio_mci.h |
 | 0x452569 | FUN_00452569 | 312 | ✓ | prewindow.c, prewindow.h |
@@ -422,8 +422,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49f012 | FUN_0049f012 | 851 | ✓ | save_bank.h, scene_title.c |
 | 0x4a2a03 | FUN_004a2a03 | 13 |  | math3d.h, scene1_pass_f.c, scene1_records_b_spawn.c (+3) |
 | 0x4a2f35 | FUN_004a2f35 | 13 |  | math3d.h |
-| 0x4a33d2 | FUN_004a33d2 | 46 |  | math3d.h, scene1_render.c |
-| 0x4a3462 | FUN_004a3462 | 46 |  | math3d.h, scene1_render.c |
+| 0x4a33d2 | FUN_004a33d2 | 46 |  | math3d.h, scene1_render.c, scene1_wide_followup_helpers.c |
+| 0x4a3462 | FUN_004a3462 | 46 |  | math3d.h, scene1_render.c, scene1_wide_followup_helpers.c |
 | 0x4a3537 | FUN_004a3537 | 28 |  | scene1_wide_followup_helpers.c |
 | 0x4a35d3 | FUN_004a35d3 | 28 |  | scene1_records_b_spawn.c, scene1_records_b_spawn.h |
 | 0x4a3670 | FUN_004a3670 | 28 |  | scene1_wide_followup_helpers.c |

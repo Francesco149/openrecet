@@ -1573,3 +1573,71 @@ int test_wf_pass_d_selected_slot_default_is_minus_1(void)
     T_ASSERT_EQ_I(g_wf_pass_d_selected_slot, -1);
     return 0;
 }
+
+/* ─── shop "items on display" (FUN_00415fab) helpers ─────────────────── */
+
+int test_wf_display_item_world_origin_cell(void)
+{
+    /* col=0, row=0, z=0 → pos = (0*2-9, 0+1.9, 0*2-6.5) = (-9, 1.9, -6.5).
+     * Identity pre-matrix → out = S(0.0192) × T(pos). */
+    float world[16];
+    wf_display_item_compose_world(world, 0, 0, 0.0f);
+
+    T_ASSERT_NEAR_WF(world[0],  0.0192f, 1e-6f);
+    T_ASSERT_NEAR_WF(world[5],  0.0192f, 1e-6f);
+    T_ASSERT_NEAR_WF(world[10], 0.0192f, 1e-6f);
+    T_ASSERT_NEAR_WF(world[12], -9.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[13],  1.9f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[14], -6.5f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[15],  1.0f, 1e-6f);
+    return 0;
+}
+
+int test_wf_display_item_world_inner_cell(void)
+{
+    /* col=5, row=3, z=0 → pos = (5*2-9, 1.9, 3*2-6.5) = (1, 1.9, -0.5). */
+    float world[16];
+    wf_display_item_compose_world(world, 5, 3, 0.0f);
+
+    T_ASSERT_NEAR_WF(world[12],  1.0f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[13],  1.9f, 1e-5f);
+    T_ASSERT_NEAR_WF(world[14], -0.5f, 1e-5f);
+    return 0;
+}
+
+int test_wf_display_item_uv_box_icon_0(void)
+{
+    /* icon 0, 256-tall page → 32×32 cell at column 0, row 0.
+     * U inset 0.5/31.5 over 256; V inset 0.5/31.0 over tex_height. */
+    float ul, ur, vt, vb;
+    wf_display_item_uv_box(0, 256.0f, &ul, &ur, &vt, &vb);
+    T_ASSERT_NEAR_WF(ul,  0.5f  / 256.0f, 1e-8f);
+    T_ASSERT_NEAR_WF(ur, 31.5f  / 256.0f, 1e-8f);
+    T_ASSERT_NEAR_WF(vt,  0.5f  / 256.0f, 1e-8f);
+    T_ASSERT_NEAR_WF(vb, 31.0f  / 256.0f, 1e-8f);
+    return 0;
+}
+
+int test_wf_display_item_uv_box_icon_9_wraps_to_row_1(void)
+{
+    /* icon 9 → col = 9%8 = 1 (col_px 32), row = 9/8 = 1 (row_px 32). */
+    float ul, ur, vt, vb;
+    wf_display_item_uv_box(9, 256.0f, &ul, &ur, &vt, &vb);
+    T_ASSERT_NEAR_WF(ul, (32.0f + 0.5f)  / 256.0f, 1e-8f);
+    T_ASSERT_NEAR_WF(ur, (32.0f + 31.5f) / 256.0f, 1e-8f);
+    T_ASSERT_NEAR_WF(vt, (32.0f + 0.5f)  / 256.0f, 1e-8f);
+    T_ASSERT_NEAR_WF(vb, (32.0f + 31.0f) / 256.0f, 1e-8f);
+    return 0;
+}
+
+int test_wf_display_item_uv_box_respects_tex_height(void)
+{
+    /* V denominator is the real page height, U denominator stays 256. */
+    float ul, ur, vt, vb;
+    wf_display_item_uv_box(0, 64.0f, &ul, &ur, &vt, &vb);
+    T_ASSERT_NEAR_WF(ul,  0.5f / 256.0f, 1e-8f);
+    T_ASSERT_NEAR_WF(ur, 31.5f / 256.0f, 1e-8f);
+    T_ASSERT_NEAR_WF(vt,  0.5f / 64.0f,  1e-8f);
+    T_ASSERT_NEAR_WF(vb, 31.0f / 64.0f,  1e-8f);
+    return 0;
+}
