@@ -492,6 +492,7 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     rec_inputs: dict[int, int] = {}
     rec_anchors: list[dict[str, int]] = []
     rec_escs: list[int] = []
+    rec_saves: list[dict[str, Any]] = []   # save_capture events (boot + writes)
     recording = cfg.record_trace_path is not None
 
     def on_message(message: dict[str, Any], data: bytes | None):
@@ -584,6 +585,33 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         if kind == "max_frames_reached":
             f_log.write(f"[max_frames] engine frame={p.get('frame')}\n")
             done.set()
+            return
+
+        if kind == "save_capture":
+            # The agent shipped an 18 MB save-arena snapshot ('boot' = initial,
+            # 'write' = an in-session save). Write it next to the raw recording
+            # and remember it; finalize emits the {savefile}/{save_write} rows so
+            # distill folds it like a port F2 recording.
+            if not recording:
+                return
+            which = str(p.get("which", "write"))
+            idx   = int(p.get("index", len(rec_saves)))
+            size  = int(p.get("size", 0))
+            if data is None or len(data) != size:
+                f_log.write(f"[save_capture] BAD payload which={which} "
+                            f"size={size} got={0 if data is None else len(data)}\n")
+                return
+            import hashlib
+            sha = hashlib.sha256(data).hexdigest()
+            base = cfg.record_trace_path.stem.replace(".raw", "")
+            fname = (f"{base}.save.bin" if which == "boot"
+                     else f"{base}-recsave-{idx}.bin")
+            (cfg.record_trace_path.parent / fname).write_bytes(data)
+            rec_saves.append({"which": which, "index": idx,
+                              "frame": int(p.get("frame", 0)),
+                              "file": fname, "sha256": sha, "size": size})
+            f_log.write(f"[save_capture] {which} #{idx} @frame={p.get('frame')} "
+                        f"sha={sha[:12]} → {fname}\n")
             return
 
         if kind == "d3d_trace_batch":
@@ -989,11 +1017,16 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     # never touches the user's real save. Seed it from the trace's {savefile}:
     #   "@fresh" / None → empty sandbox (game boots fresh; writes land here)
     #   <raw path>      → seed that save as <sandbox>/save.dat (a "continue" trace)
+    import shutil
     save_sandbox_win = None
-    if cfg.attach_match is None:   # spawn/replay only — never sandbox a live attach
-        import shutil
-        sandbox = run_dir / "saveout"
-        sandbox.mkdir(parents=True, exist_ok=True)
+    capture_saves = False
+    sandbox = run_dir / "saveout"
+    sandbox.mkdir(parents=True, exist_ok=True)
+    if cfg.attach_match is None:
+        # SPAWN / REPLAY: sandbox seeded from the trace's {savefile}. The replay
+        # never touches the real save.
+        #   "@fresh" / None → empty sandbox (game boots fresh; writes land here)
+        #   <raw path>      → seed that save as <sandbox>/save.dat (a "continue" trace)
         if cfg.save_ref and cfg.save_ref != "@fresh":
             seed = Path(cfg.save_ref)
             if seed.exists():
@@ -1005,8 +1038,21 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         else:
             f_log.write("[save] @fresh — empty sandbox (game boots fresh)\n")
         save_sandbox_win = wslpath_w(sandbox)
-        f_log.write(f"[save] sandbox → {save_sandbox_win} "
-                    f"(real save.dat protected)\n")
+        f_log.write(f"[save] sandbox → {save_sandbox_win} (real save protected)\n")
+    elif recording:
+        # ATTACH / RECORD: protect the recording too — seed the sandbox with a
+        # COPY of the user's real save (so in-game Continue/Load read it) and
+        # redirect all writes there, so live play during the recording does NOT
+        # alter the real save. Also capture the save state (boot + each write) so
+        # the recorded trace carries its saves for the port to replay against.
+        capture_saves = True
+        for nm in ("save.dat", "_save.dat"):
+            real = cfg.cwd / nm
+            if real.exists():
+                shutil.copyfile(real, sandbox / nm)
+        save_sandbox_win = wslpath_w(sandbox)
+        f_log.write(f"[save] RECORD sandbox (seeded from real save) → "
+                    f"{save_sandbox_win}; real save protected; capture_saves on\n")
 
     t0 = time.monotonic()
     init_cfg: dict[str, Any] = {
@@ -1022,6 +1068,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     }
     if save_sandbox_win is not None:
         init_cfg["save_sandbox"] = save_sandbox_win
+    if capture_saves:
+        init_cfg["capture_saves"] = True
     if cfg.arm_skip_at_frame is not None:
         init_cfg["arm_skip_at_frame"] = int(cfg.arm_skip_at_frame)
     if cfg.force_resolution is not None:
@@ -1175,11 +1223,24 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                                      "gframe": a["gframe"], "rng": a["rng"]}))
         for ef in rec_escs:                       # WndProc ESC-skip presses
             lines.append(json.dumps({"esc": ef}))
+        # Save captures: the boot save → {savefile} row (the trace's initial save),
+        # each in-session write → {save_write} row. Same raw format the port F2
+        # recorder emits, so distill_trace.py folds them unchanged.
+        n_saves = 0
+        for sv in rec_saves:
+            if sv["which"] == "boot":
+                lines.append(json.dumps({"savefile": sv["file"],
+                                         "sha256": sv["sha256"], "size": sv["size"]}))
+            else:
+                lines.append(json.dumps({"save_write": {
+                    "index": sv["index"], "frame": sv["frame"],
+                    "file": sv["file"], "sha256": sv["sha256"], "size": sv["size"]}}))
+            n_saves += 1
         out.write_text("\n".join(lines) + "\n")
         f_log.write(f"[record] wrote {n} frames + {len(rec_anchors)} anchors + "
-                    f"{len(rec_escs)} esc → {out}\n")
+                    f"{len(rec_escs)} esc + {n_saves} save(s) → {out}\n")
         print(f"frida_capture: recorded {n} frames + {len(rec_anchors)} anchors + "
-              f"{len(rec_escs)} esc → {out}", file=sys.stderr)
+              f"{len(rec_escs)} esc + {n_saves} save(s) → {out}", file=sys.stderr)
 
     f_audio.close(); f_trace.close(); f_log.close()
     if f_d3d is not None:

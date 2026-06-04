@@ -60,6 +60,15 @@ const ADDR = {
     // input poll (see docs/findings/winmain-and-bootstrap.md §"Input poll").
     fn_input_poll:       0x0047b73c,
 
+    // TAS save capture (retail recorder). The engine reserves the ~18 MB save
+    // arena at DAT_056e5770 (size 0x011f7530; see src/save_bank.h). FUN_004905a8
+    // writes it to save.dat/_save.dat. The recorder snapshots the arena at
+    // record-start (the trace's initial save) and after each FUN_004905a8 write
+    // (each in-session save), so a retail recording carries its save state for
+    // the port to replay against.
+    var_save_arena:      0x056e5770,
+    fn_save_write:       0x004905a8,
+
     // WndProc ESC → skip-event entry (FUN_00453384(0)). Called when the user
     // presses ESC during a skippable event (the intro dialogues). The {esc}
     // replay path PostMessageA(WM_KEYDOWN,ESC)s into WndProc → here; hooking
@@ -436,6 +445,15 @@ let g_max_frames = 0;               // 0 = no cap; stop = die after that many si
 // leaves it empty (game boots fresh + any write lands in the sandbox).
 let g_save_sandbox = null;
 const g_save_redirect_keep = [];    // keep redirected path strings alive past onEnter
+
+// TAS save CAPTURE (retail recorder). When set, snapshot the 18 MB save arena at
+// record-start (the trace's initial save) and after each FUN_004905a8 write (each
+// in-session save), sending the bytes to the driver so a retail recording carries
+// its save state for the port to replay against.
+let g_capture_saves      = false;
+let g_save_boot_captured = false;
+let g_save_write_idx     = 0;
+const SAVE_ARENA_SIZE    = 0x011f7530;
 let g_boot_ms = 0;
 let g_start_real_ms = Date.now();
 
@@ -1564,6 +1582,33 @@ function installSaveRedirectHook(sandboxWin) {
     attachOne('CreateFileW', true);
     attachOne('CreateFileA', false);
     log('save redirect armed → sandbox ' + sandboxWin);
+}
+
+// Snapshot the live save arena and ship it to the driver, which writes it to a
+// .bin + a {savefile}/{save_write} raw row (same format the port F2 recorder
+// emits, so distill_trace.py handles it unchanged). `which` is 'boot' (initial)
+// or 'write' (an in-session save); `frame` is the recorder-relative frame.
+function captureSaveArena(which, frame, index) {
+    try {
+        const bytes = rva(ADDR.var_save_arena).readByteArray(SAVE_ARENA_SIZE);
+        if (!bytes) { err('captureSaveArena', 'null arena read'); return; }
+        send({kind: 'save_capture', which: which, frame: frame | 0,
+              index: index | 0, size: SAVE_ARENA_SIZE}, bytes);
+        log('save_capture ' + which + ' #' + (index | 0) +
+            ' @frame ' + (frame | 0) + ' (' + SAVE_ARENA_SIZE + ' bytes)');
+    } catch (e) { err('captureSaveArena', e.message); }
+}
+
+// Hook FUN_004905a8 (engine save-write) — snapshot the arena AFTER each write so
+// the recording captures every in-session save the game made.
+function installSaveWriteHook() {
+    Interceptor.attach(rva(ADDR.fn_save_write), {
+        onLeave: function () {
+            if (!g_capture_saves) return;
+            captureSaveArena('write', g_manual_frame_counter, g_save_write_idx++);
+        }
+    });
+    log('save-write capture hook armed (FUN_004905a8)');
 }
 
 function installMessageBoxHook() {
@@ -3967,6 +4012,9 @@ rpc.exports = {
         g_max_frames  = config.max_frames | 0;
         g_save_sandbox = (typeof config.save_sandbox === 'string'
                           && config.save_sandbox) ? config.save_sandbox : null;
+        g_capture_saves      = !!config.capture_saves;
+        g_save_boot_captured = false;
+        g_save_write_idx     = 0;
 
         // Input injection setup. The driver passes a pre-sorted list of
         // {frame, mask} entries (sparse trace, post-dense expansion is
@@ -4286,6 +4334,15 @@ rpc.exports = {
             // read or written by a replay. Pre-resume install guarantees it.
             if (g_save_sandbox) {
                 installSaveRedirectHook(g_save_sandbox);
+            }
+            // TAS save capture (retail recorder): snapshot the boot save (the
+            // state the game loaded) + arm the per-write hook. Boot capture runs
+            // here at install (= attach) time, when the arena already holds the
+            // loaded save.
+            if (g_capture_saves) {
+                installSaveWriteHook();
+                captureSaveArena('boot', 0, 0);
+                g_save_boot_captured = true;
             }
             installInitHook();
             installAudioHooks();
