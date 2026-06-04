@@ -24,6 +24,21 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   parity a human verified vs retail. A tool/decompile "divergence" on a confirmed-1:1 item
   is a **lead to investigate**, NOT an assumed regression (may be benign-structural, a
   flawed test, or later-game variation). Don't lightly overturn well-evidenced conclusions.
+- **Parity is multi-pillar — attribute every divergence to a pillar BEFORE suspecting
+  logic.** An observed difference comes from one of: (1) **logic / data→output** — the
+  pure-function contract we actually port (same inputs ⇒ same output); (2) **phase** —
+  load-dependent counter/anim-cycle ORIGIN (retail freezes `db054` through the intro video
+  the port skips ⇒ a *constant* offset, not a bug; normalized by `{phasepin}`); (3) **RNG**
+  — same LCG consumption order/count ⇒ same values for a seed, but the seed/phase origin may
+  differ (and may even be non-deterministic in retail); normalized by `{rngseed}`; (4)
+  **upstream inputs** — if a frame's inputs already diverge, don't blame that frame's code
+  (fix the path in order, frame 0 forward). **Normalize phase + RNG + inputs, THEN compare:
+  if output is bit-identical under pinning, the logic is "confirmed 1:1 given same data"
+  even when the raw un-pinned output differs.** Record that distinction (data-1:1 vs
+  observed-1:1, with which pillars are off-but-accepted) so a known phase/seed-origin offset
+  is never re-suspected as wrong logic. `tools/phase_probe.py` gives the verdict:
+  ALIGNED / CONST-OFFSET (= phase, accept) / DRIFT (= real logic divergence). Playbook:
+  `docs/phase-debugging.md`.
 - **Verify before pruning; archive, don't delete** (`docs/archive/`, `memory/archive/`).
 - **Full port, not MVP.** Tag MVP/synthetic shortcuts with `PORT-DEBT(tag, ...)`
   (registry: `docs/port-debt.md`). Retire them; don't let them silently cap parity.
