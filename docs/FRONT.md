@@ -46,9 +46,13 @@
   flush vcounts are now `[6,6,6,6,24,18]`, bit-identical to retail (pixel-benign — engine-
   quirks §98). Tooling notes: `input_poll` (0x47b73c) marked **`chain_benign`** (the TAS
   harness substitutes synthetic input, so the port never runs the engine's DirectInput poll);
-  Frida arg indexing is **0-based**. **Remaining title gaps:** only the benign FPS overlay
-  (896px, environment artifact — benign-divergence registry) + un-probed retail-internal
-  funcs (CRT/MCI/audio — coverage gaps, not divergences). **Immediate next step:** extend the
+  Frida arg indexing is **0-based**. **Pixel parity:** `boot-idle` frames 0/30/60 are **0-px
+  port-vs-LIVE-retail** (bit-identical); `golden-retail` was re-blessed 2026-06-05. (The old
+  "benign 896px FPS overlay" was a STALE golden — captured on a day retail's runtime `dispfps`
+  gate read 0 so the bottom-right FPS box baked in; live retail draws no FPS today, the
+  function just early-outs. The 2026-05-27 benign-divergence-registry note no longer
+  reproduces.) **Remaining title gaps:** only un-probed retail-internal funcs (CRT/MCI/audio
+  — coverage gaps, not divergences). **Immediate next step:** extend the
   structural-1:1 verification to the title scenarios WITH input (`title-down-press`,
   `title-z-press`, `title-options`) — drive the menu and confirm the now-instrumented sim
   state (cursor_pos/select_phase) + render batching stay 1:1 through menu navigation. Capture:
