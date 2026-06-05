@@ -7,6 +7,7 @@
 
 #include "scene1_dialogue.h"
 #include "scene1_dialogue_run.h"
+#include "call_trace.h"
 
 #include <stddef.h>   /* NULL */
 
@@ -35,6 +36,25 @@ static int                g_load_ctr = 0;     /* frames elapsed in D_LOAD */
 static struct ive_program g_prog;   /* reused per script (~160 KiB) */
 static struct ive_runtime g_rt;
 static unsigned           g_script_gen = 0;  /* bumps per loaded script (asset reload key) */
+
+/* Per-frame standee-position probe for the execution-flow trace. Emits the
+ * sliding standee's current+target X/Y at the engine dialogue-tick VA
+ * (FUN_0046c320), read BEFORE this frame's tween runs — the same point retail's
+ * Frida agent reads the standee table (DAT_073a3e70 + idx*0x1c, joined via
+ * tools/flow/retail_fields.json). Settles whether the lines-5/44 standee
+ * slide-in divergence is a frame-1:1 slide caught off-phase by the capture
+ * (benign) or a real tween-cadence skew. Standee 5 = iv1_1's sliding Tear. */
+static void emit_dialogue_calltrace(void)
+{
+    const struct ive_standee *s = &g_rt.scene.standees[5];
+    CALL_TRACE_BEGIN(0x46c320);
+    CALL_TRACE_I32("st5_active", s->field[IVE_ST_ACTIVE]);
+    CALL_TRACE_F32("st5_x",  ive_word_f(s->field[1]));
+    CALL_TRACE_F32("st5_y",  ive_word_f(s->field[2]));
+    CALL_TRACE_F32("st5_tx", ive_word_f(s->field[3]));
+    CALL_TRACE_F32("st5_ty", ive_word_f(s->field[4]));
+    CALL_TRACE_END();
+}
 
 void scene1_intro_dialogue_arm(void)
 {
@@ -79,6 +99,7 @@ void scene1_intro_dialogue_tick(uint16_t held)
             g_state = D_DONE;
             return;
         }
+        emit_dialogue_calltrace();   /* standee snapshot BEFORE the tween */
         ive_runtime_step(&g_rt, held);
         if (g_rt.complete) {       /* end: → ret 3; ive sets active=0 too */
             g_state       = D_LOAD; /* raise the inter-script loading bracket */
@@ -104,6 +125,7 @@ void scene1_intro_dialogue_tick(uint16_t held)
             g_state = D_DONE;
             return;
         }
+        emit_dialogue_calltrace();   /* standee snapshot BEFORE the tween */
         ive_runtime_step(&g_rt, held);
         if (g_rt.complete)
             g_state = D_DONE;
