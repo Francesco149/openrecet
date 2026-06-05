@@ -81,5 +81,5 @@ _none_
 
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
-| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:119 | box_pos_mode/off (DAT_005c7984/80) are |
+| deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
 

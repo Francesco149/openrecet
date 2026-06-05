@@ -463,6 +463,11 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
             child_args += ["--call-trace-frames",
                            ",".join(str(f) for f in ct_only)]
 
+    # Dialogue box-anim probe log (cheap; only emits while the prologue dialogue
+    # is active). Lets the box-scale-phase parity probe read the port's per-frame
+    # box_open/reveal/line_row trajectory aligned to the TEXT_ANIM anchors.
+    child_args += ["--dlg-log", wslpath_w(run_dir / "dlg_log.jsonl")]
+
     if turbo:
         child_args.append("--turbo")
     if silent_audio:

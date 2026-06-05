@@ -344,11 +344,20 @@ int test_dialogue_box_scale_open_and_closing(void)
 {
     float sx, sy; int a;
 
-    /* Fully open (15), not closing: alpha clamps to 255, scale ≈ 1. */
+    /* Fully open (15), not closing: alpha clamps to 255. The wobble uses SIN
+     * (FUN_00503a44), so at n=15 the angle is 3π → sin≈0 → sx=sy≈1.0 (NOT cos's
+     * 0.9875/1.0125 — that was the box-edge-"halo" bug, see engine-quirks §103).*/
     ive_box_scale(15, &sx, &sy, &a, 0);
     T_ASSERT_EQ_I(a, 0xff);
-    T_ASSERT(sx > 0.95f && sx < 1.05f);
-    T_ASSERT(sy > 0.95f && sy < 1.05f);
+    T_ASSERT(sx > 0.999f && sx < 1.001f);
+    T_ASSERT(sy > 0.999f && sy < 1.001f);
+
+    /* Mid-open (4): pins SIN, not cos. angle = 4·9.424778/15 = 2.513 rad = 144°,
+     * sin144°=0.5878, amp(4)=0.8 → sx = 0.5878·0.8·0.125+1 = 1.0588 (cos would
+     * give cos144°=-0.809 → sx=0.9191, the wrong/old value). */
+    ive_box_scale(4, &sx, &sy, &a, 0);
+    T_ASSERT(sx > 1.055f && sx < 1.063f);   /* ≈1.0588 (sin), NOT 0.9191 (cos) */
+    T_ASSERT(sy > 0.937f && sy < 0.945f);   /* ≈0.9412 = 2-sx */
 
     /* Closing path at open 15: sx=1, sy = 1-(15-15)*0.15 = 1, alpha = 15*50-495 = 255. */
     ive_box_scale(15, &sx, &sy, &a, 1);

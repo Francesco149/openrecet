@@ -25,6 +25,7 @@
 #include "input.h"
 #include "anchor_trace.h"
 #include "scene1_intro_dialogue.h"   /* TEXT_ANIM anchor sources */
+#include "scene1_dialogue_run.h"     /* struct ive_runtime (box-anim probe log) */
 #include "scene1_conversation_pose.h"/* CONV_POSE anchor source */
 #include "scene1_dialogue_draw.h"    /* opening-prologue dialogue render pass */
 #include "input_trace.h"
@@ -463,6 +464,11 @@ static FILE                     *g_player_pos_log_fp        = NULL;
  * anchors (scene1_walk_dust.c writes via the extern FILE*). */
 extern FILE                     *g_dust_log_fp;
 static char                     *g_dust_log_path            = NULL;
+
+/* --dlg-log <file>: per-frame JSONL dump of the prologue dialogue box-anim state
+ * (box_open / reveal / line_row …) for the box-scale-phase parity probe. */
+static char                     *g_dlg_log_path             = NULL;
+static FILE                     *g_dlg_log_fp               = NULL;
 
 /* ─── in-engine TAS trace recorder (F2 start/stop, F3 capture-point) ──────────
  * Buffers the per-frame player-1 button mask while recording, plus a list of
@@ -1764,6 +1770,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                 g_dust_log_path);
     }
 
+    if (g_dlg_log_path) {
+        g_dlg_log_fp = fopen(g_dlg_log_path, "w");
+        fprintf(stderr, g_dlg_log_fp ? "openrecet: dialogue box-anim log → %s\n"
+                                     : "openrecet: failed to open dlg log %s\n",
+                g_dlg_log_path);
+    }
+
     /* Input-trace replay: parse the file now (one shot at boot — the
      * file is small and lookups are binary search at runtime). */
     if (g_input_trace_replay_path) {
@@ -2247,6 +2260,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     input_trace_free(&g_replay_trace);
     if (g_anchor_record_fp) { fclose(g_anchor_record_fp); g_anchor_record_fp = NULL; }
     if (g_player_pos_log_fp) { fclose(g_player_pos_log_fp); g_player_pos_log_fp = NULL; }
+    if (g_dlg_log_fp) { fclose(g_dlg_log_fp); g_dlg_log_fp = NULL; }
     sprite_destroy(&g_show_sprite);
     if (g_show_mesh) { mesh_free(g_show_mesh); g_show_mesh = NULL; }
     if (g_house_preview_mesh) {
@@ -2679,6 +2693,27 @@ static void render_dispatch(void)
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);
+    }
+
+    /* Dialogue box-anim probe (opt-in, OPENRECET_DLG_LOG=<path>): one JSONL row
+     * per frame while the prologue dialogue is active, dumping the box-open /
+     * reveal / line-clear state the box-scale animator (FUN_0046c86f) consumes.
+     * Used to pin the box-open-rate vs text-reveal-rate phase vs retail's
+     * DAT_073a3e14/e00/e04/e08 + DAT_073a6a38 (opening-prologue.md "halo"). */
+    {
+        if (g_dlg_log_fp) {
+            const struct ive_runtime *rt = scene1_intro_dialogue_runtime();
+            if (rt) {
+                fprintf(g_dlg_log_fp,
+                    "{\"frame\":%u,\"box_open\":%d,\"line_row\":%d,\"reveal\":%d,"
+                    "\"revealed\":%d,\"dwell\":%d,\"wait\":%d,\"cmd\":%d,"
+                    "\"line_idx\":%d,\"line_rows\":%d}\n",
+                    g_tick.frame_count, rt->box_open, rt->line_row, rt->reveal,
+                    rt->revealed, rt->dwell, rt->wait, rt->cmd,
+                    rt->line_idx, rt->line_rows);
+                fflush(g_dlg_log_fp);
+            }
+        }
     }
 
     /* TAS recorder: capture this frame's player-1 input mask (read here, before
@@ -3454,6 +3489,13 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char dust_buf[MAX_PATH];
                 lstrcpynA(dust_buf, val, (int)sizeof(dust_buf));
                 g_dust_log_path = dust_buf;
+            }
+        } else if (lstrcmpA(tok, "--dlg-log") == 0) {
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char dlg_buf[MAX_PATH];
+                lstrcpynA(dlg_buf, val, (int)sizeof(dlg_buf));
+                g_dlg_log_path = dlg_buf;
             }
         } else if (lstrcmpA(tok, "--capture-at-anchor") == 0) {
             /* NAME[+k|-k] — e.g. HOUSE_FREEROAM+5, LOADING_END, NEW_GAME+0 */

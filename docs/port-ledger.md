@@ -282,7 +282,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46c2cb | FUN_0046c2cb | 85 | ✓ | choice_box.h, scene.h, scene1_intro_dialogue.c (+3) |
 | 0x46c320 | FUN_0046c320 | 1353 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_run.c (+4) |
 | 0x46c869 | FUN_0046c869 | 6 | ✓ | main.c, scene1_intro_dialogue.c, scene1_intro_dialogue.h |
-| 0x46c86f | FUN_0046c86f | 307 | ✓ | scene1_dialogue_run.c, scene1_dialogue_run.h, scene1_top_hud.c |
+| 0x46c86f | FUN_0046c86f | 307 | ✓ | main.c, scene1_dialogue_run.c, scene1_dialogue_run.h (+1) |
 | 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ | main.c, scene1_dialogue.c, scene1_dialogue.h (+5) |
 | 0x46dc45 | FUN_0046dc45 | 61 |  | scene1_dialogue.c |
 | 0x46ddea | FUN_0046ddea | 5119 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c |
@@ -442,8 +442,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x5038b0 | FUN_005038b0 | 19 | ✓ | scene1_dialogue_load.c, scene1_overlay_table.c, scene1_overlay_table.h (+1) |
 | 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, scene1_combat_sm.c, scene1_per_frame_open.c (+5) |
 | 0x503954 | __ftol | 39 | ✓ | scene1_chr_prepass.c, scene1_chr_walker.c, scene1_chr_walker.h (+1) |
-| 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, render_quad.c (+6) |
-| 0x503a44 | FUN_00503a44 | 9 | ✓ | render_quad.c, scene1_maplight.c, scene1_overlay.c (+8) |
+| 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, render_quad.c (+7) |
+| 0x503a44 | FUN_00503a44 | 9 | ✓ | render_quad.c, scene1_dialogue_run.c, scene1_maplight.c (+9) |
 | 0x503c2b | FUN_00503c2b | 77 | ✓ | scene1_dialogue.c |
 | 0x503d03 | FUN_00503d03 | 11 | ✓ | scene1_dialogue.c, scene1_overlay_table.c, tables_item.c |
 | 0x503dd0 | FUN_00503dd0 | 10 | ✓ | scene1_records_b_spawn.c, scene1_records_b_spawn.h |

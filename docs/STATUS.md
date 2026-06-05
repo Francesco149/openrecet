@@ -154,22 +154,28 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `picker-residual-crop` feed push. (Required a tooling fix first: segtrace `{capture:N}`
   now also arms the port d3d emit for that frame — commit fffee2e — else `--d3d-trace`
   over a screenshot-only segtrace emitted 0 events.)
-- **Queued next (in order; #1 was the 2D-UI noise, now split + resolved for the picker):**
-  1. **Dialogue `ive_window` box-edge "halo" — ROOT-CAUSED 2026-06-05: box SCALE /
-     bounce-anim PHASE, NOT a ±1-LSB texel delta.** `--d3d-trace-verts` (intro-dialogue
-     -lines --target both): the box texture/UVs/diffuse/center are **bit-identical**,
-     but the dst *scale* differs because the squash-and-stretch open/bounce animation
-     (`ive_box_scale`=`FUN_0046c86f`) is caught at a different `box_open`/branch on each
-     side at TEXT_ANIM_END (cap_00 port sx0.9875/sy1.0125=open-branch n=15 vs retail
-     1.0/1.0; cap_01 ~opposite bounce phases, user-confirmed squish). Magnified 1.6× →
-     the rim offset traces the bubble = the "halo". The old "TGA-decode/MODULATE ±1"
-     guess is **disproven**. Same family as the deferred bubble-bounce phase drift +
-     db054 class. NEXT: Frida `--watch` `box_open`(`DAT_073a3e14`)+reveal cursor
-     (`DAT_073a6a38`) per-frame retail vs port → find the divergent timing input.
-     • **Skip-prompt `savewindow.tga` banner ~−1 LSB stays a SEPARATE open item** (uniform
+- **Dialogue `ive_window` box-edge "halo" — FIXED 2026-06-05 (user-confirmed 1:1):
+  `ive_box_scale` used `cosf`; retail's `FUN_0046c86f` calls `FUN_00503a44` = `sinf`.**
+  The 2026-06-05 AM "box SCALE / bounce-anim PHASE" call was half-right (it's scale, not
+  a texel delta) but the cause was the wrong trig fn, not a phase offset. Per-frame Frida
+  watch (`runs/dlg-box-watch{,2}`: `DAT_073a3e14`/`e00`/`e04`/`6a38` + `--d3d-trace-verts`)
+  proved `box_open` AND `line_row` are **bit-1:1 port↔retail at every captured line (0/46**
+  at END+2). The divergence was purely cos-vs-sin: at the settled box (n=15, angle 3π)
+  `sin(3π)=0` ⇒ sx=sy=1.0 (full size), `cos(3π)=-1` gave 0.9875/1.0125 — a ~5px-narrower,
+  X-shifted box (box X centres on sx), rippling through frame+nameplate+text → ~116k px/
+  line on the iv1_1 bedroom lines. Decoded retail box-widths match the **sin** table
+  frame-for-frame, no cos value. Fix: `src/scene1_dialogue_run.c` cosf→sinf (engine-quirks
+  §103; port golden re-blessed). cap_00 vs retail **116539px→856px** (residual 856 =
+  benign stale-golden FPS corner). Lines 0–15 pixel-clean; 16–45 keep only the deferred
+  iv1_2 freeroam-anim gaps. New tooling: port `--dlg-log` (per-frame box-anim JSONL) +
+  scenario-test passthrough. **Method:** decode a scale from d3d verts, match vs the
+  *discrete* FUN(integer-n) table — port widths hit it exactly (cos), retail's didn't =
+  signature of a wrong trig fn, not a phase drift.
+- **Queued next:**
+  1. **Skip-prompt `savewindow.tga` banner ~−1 LSB — SEPARATE open item** (uniform
      gold `[237,200,52]` vs `[238,201,52]`) — NOT investigated yet; decode its verts
      FIRST (it may also be scale/phase) before assuming TGA/MODULATE colour precision.
-     Ledger "Dialogue box-edge = box SCALE/bounce-anim PHASE" + "savewindow banner" rows.
+     Ledger "savewindow banner" row.
   2. ~~**BUG: LOAD GAME → X-back locks main-menu input.**~~ **FIXED 2026-06-05**
      (commit 324ddb3, user-flagged). Root cause was NOT submenu_state (the port
      already wound that back) but **`select_phase` left pinned at 0xf** from the

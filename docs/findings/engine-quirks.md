@@ -4086,3 +4086,44 @@ no render/input effect because the render gate is cursor_anim-gated. This fixed 
 "LOAD GAME → X-back soft-locks the main menu" bug: the port had reset
 `submenu_state`/`menu_folding_out` on cancel but left `select_phase` pinned at 0xf,
 so the main-menu gate fell into the no-op countdown branch forever.
+
+## 103. The dialogue box open/close "wobble" (FUN_0046c86f) is a SIN squash-and-stretch, not cos — at the settled box (box_open=15) the scale is exactly 1.0/1.0
+
+`FUN_0046c86f(box_open n, *sx, *sy, *alpha, closing)` computes the dialogue
+box's squash-and-stretch scale as the box-open counter `DAT_073a3e14` ramps
+0→15 (one step/frame while a line is shown). The wobble term calls
+**`FUN_00503a44` = `sinf`** (NOT `FUN_00503994` = cosf — the two FPU trig thunks
+are easy to swap; `FUN_00503a44` is sin throughout the corpus, see
+scene1-char-sprite-render / scene1-table-b-allocators / scene1-particles-tick):
+
+```
+amp   = n<6 ? 0.8 : n<11 ? 0.3 : n<16 ? 0.1 : 0.0
+lim   = min(n*0.2 + 0.4, 1.0)
+s     = sinf(n * 9.424778 / 15)        // 9.424778 = 3π; angle = n·36°
+sx    = s*amp*0.125 + 1.0
+sy    = (1.0 - s*amp*0.125) * lim       // = (2 - sx)·lim   ⇒ sy ≈ 2-sx for n≥3
+alpha = min(n*0x56, 0xff)
+```
+
+The **sin** choice is load-bearing for parity: at the fully-open box (n=15) the
+angle is exactly 3π, so `sin(3π)=0` ⇒ **sx=sy=1.0** — the settled box sits at its
+natural full size. (cos would give `cos(3π)=-1` ⇒ sx=0.9875/sy=1.0125 — a box
+~5px narrower + a few px shifted in X, since the box X is centred via
+`local_20 = (local_c+208) - sx·208`. That offset rippled through the box frame,
+nameplate, AND glyph text, mismatching retail by ~116k px/line on the iv1_1
+bedroom lines — the long-standing dialogue box-edge "halo".) The ramp produces a
+visible overshoot-then-settle: n=2→sx1.0951, n=3→1.0588, n=4→1.0, n=5→0.9779,
+n=6→0.9645 … damping to 1.0 by n=15.
+
+`closing` (= `DAT_073a6a38 < 0`, no current line) is a separate branch that
+overwrites sx=1.0 and `sy = max(1 - (15-n)·0.15, 0)`, `alpha = max(n·0x32-0x1ef,
+0)` — a vertical shutter, independent of the sin wobble.
+
+Measured on retail (`runs/dlg-box-watch2`, Frida watch of `DAT_073a3e14` +
+`--d3d-trace-verts`, box quad width decoded per frame): the box-width sequence
+over a line's open-ramp matches the **sin** table frame-for-frame and matches
+**no** cos value. `box_open` itself is bit-1:1 port↔retail at every captured line
+(0/46 over `intro-dialogue-lines`, END+2 capture), so the only divergence was the
+cos/sin swap; fixing it (`src/scene1_dialogue_run.c ive_box_scale`) makes the box
+scale 1:1 (cap_00 vs retail 116539px → 856px, the 856 being the benign stale-
+golden FPS corner — see benign-divergence-registry).

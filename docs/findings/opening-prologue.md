@@ -610,18 +610,29 @@ slide-in, fade-from-black, effect sprites, and per-line text). See
   `intro-fade` (phase-anchored fade).
 
 **Remaining real deltas (NOT 1:1, tracked — do not handwave):**
-1. **Dialogue box-edge "halo" — ROOT-CAUSED 2026-06-05: box SCALE / bounce-anim
-   PHASE, NOT a filter/decode delta.** The earlier "scaling/texture-filter
-   mismatch (POINT vs LINEAR / box-mip)" guess is **wrong**. `--d3d-trace-verts`
-   shows the box texture/UVs/diffuse/center are **bit-identical** port↔retail; the
-   box *dst scale* differs because the squash-and-stretch open/bounce animation
-   (`ive_box_scale` = `FUN_0046c86f`) is caught at a different `box_open`/branch on
-   each side at TEXT_ANIM_END (cap_00 port sx0.9875/sy1.0125 = open-branch n=15 vs
-   retail 1.0/1.0; cap_01 ~opposite bounce phases, user-confirmed squish). Magnified
-   1.6× → the rim offset traces the bubble outline = the "halo". Same family as
-   note #6 below + the db054 phase class. See confirmed-parity-ledger row "Dialogue
-   box-edge = box SCALE/bounce-anim PHASE". NEXT: per-frame Frida watch of
-   `box_open` (`DAT_073a3e14`) + reveal cursor (`DAT_073a6a38`) on retail vs port.
+1. **Dialogue box-edge "halo" — FIXED 2026-06-05 (user-confirmed 1:1): `ive_box_scale`
+   used `cosf`; retail's `FUN_0046c86f` calls `FUN_00503a44` = `sinf`.** The 2026-06-05
+   AM "box SCALE / bounce-anim PHASE" diagnosis was half-right (it IS box scale, not a
+   texel/filter delta) but the cause was NOT a phase mismatch — `box_open` is bit-1:1
+   port↔retail. The per-frame Frida watch (`runs/dlg-box-watch{,2}`, `DAT_073a3e14`/
+   `e00`/`e04`/`6a38`) showed the port's `box_open` AND `line_row` **match retail at
+   every captured line (0/46** at END+2). What differed was the box-scale *function*:
+   the port computed the wobble with `cosf`, but the engine uses **sin** (`FUN_00503a44`,
+   confirmed across the corpus; `FUN_00503994` is cos). At the settled box (n=15, angle
+   3π) `sin(3π)=0` ⇒ sx=sy=1.0 (full size); `cos(3π)=-1` gave 0.9875/1.0125 — a box ~5px
+   narrower + X-shifted (box X centres on sx via `local_20=(local_c+208)-sx·208`), which
+   rippled through the box frame + nameplate + glyph text → **~116k px/line** on the
+   iv1_1 bedroom lines (the "halo"). Decoding retail's box-width-per-frame from
+   `--d3d-trace-verts` matched the **sin** table frame-for-frame and no cos value. Fix:
+   `src/scene1_dialogue_run.c ive_box_scale` cosf→sinf (engine-quirks §103). Result:
+   cap_00 vs retail **116539px → 856px** (the residual 856 = benign stale-golden FPS
+   corner). Lines 0–15 (pure box-on-bg) now pixel-clean; lines 16–45 retain only the
+   already-deferred iv1_2 freeroam-anim gaps (note #4) + per-line outliers (5/44).
+   Tooling added: port `--dlg-log` (per-frame box-anim JSONL, main.c) + scenario-test
+   passthrough. **Method note:** decoding a scale from d3d verts and matching it against
+   the *discrete* FUN(integer-n) table is what cracked it — the port's widths hit the
+   table exactly (cos) while retail's didn't, which is the signature of a wrong trig fn,
+   not a phase offset.
 2. **FPS overlay** — the bottom-right `Fps` counter (benign environment
    artifact; see `benign-divergence-registry`).
 3. **Absolute prologue timing** — the synthetic load brackets arm the scripts at

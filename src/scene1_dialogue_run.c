@@ -45,9 +45,16 @@ ive_se_play_fn_t g_ive_se_play_fn = NULL;
 enum { IVE_R_STOP = 0, IVE_R_CONTINUE = 1, IVE_R_YIELD = 2, IVE_R_COMPLETE = 3 };
 
 /* FUN_0046c86f — the dialogue box open/close scale + alpha "wobble". Pure math
- * (the engine calls cos twice with the same angle param1·3π/15). `closing` is
- * the engine's `DAT_073a6a38 < 0` (no current line → box shrinking shut).
- *   sx/sy = x/y scale (≈1 at fully-open 15), alpha = box fade 0..255. */
+ * (the engine calls FUN_00503a44 = SIN twice with the same angle param1·3π/15).
+ * `closing` is the engine's `DAT_073a6a38 < 0` (no current line → box shut).
+ *   sx/sy = x/y scale (=1 at fully-open 15 since sin(3π)=0), alpha = fade 0..255.
+ *
+ * NB: FUN_00503a44 is sinf, NOT cosf (FUN_00503994 is cosf) — confirmed across
+ * the corpus (scene1-char-sprite-render §, scene1-table-b-allocators §, etc.).
+ * The original "cos" port produced sin(3π)=0→1.0 vs cos(3π)=-1→0.9875 at the
+ * settled box, i.e. a ~5px-narrower box every line — the dialogue box-edge
+ * "halo" (opening-prologue.md). box_open itself was already bit-1:1 vs retail
+ * (0/46 over intro-dialogue-lines), so swapping cos→sin makes the box scale 1:1. */
 void ive_box_scale(int n, float *sx, float *sy, int *alpha, int closing)
 {
     float lim = (float)n * 0.2f + 0.4f;
@@ -63,7 +70,7 @@ void ive_box_scale(int n, float *sx, float *sy, int *alpha, int closing)
     if (a > 0xff) a = 0xff;
     *alpha = a;
 
-    float c = cosf((float)n * 9.424778f / 15.0f);
+    float c = sinf((float)n * 9.424778f / 15.0f);
     *sx = c * amp * 0.125f + 1.0f;
     *sy = (1.0f - c * amp * 0.125f) * lim;
 

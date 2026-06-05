@@ -5735,6 +5735,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/main.c",
     "src/scene1_dialogue_run.c",
     "src/scene1_dialogue_run.h",
     "src/scene1_top_hud.c"
@@ -22081,6 +22082,7 @@
     "src/audio_fade.c",
     "src/audio_fade.h",
     "src/render_quad.c",
+    "src/scene1_dialogue_run.c",
     "src/scene1_maplight.c",
     "src/scene1_particles_tick.c",
     "src/scene1_player_ctrl.c",
@@ -22116,6 +22118,7 @@
    "status": "ported",
    "src": [
     "src/render_quad.c",
+    "src/scene1_dialogue_run.c",
     "src/scene1_maplight.c",
     "src/scene1_overlay.c",
     "src/scene1_overlay.h",
