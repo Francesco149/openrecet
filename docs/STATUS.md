@@ -190,30 +190,36 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   **Lesson:** flat-colour ≤1-LSB UI diff + bit-identical verts ⇒ suspect COLOROP/blend
   render-state (and the enum-value-vs-name trap), not texture decode.
 - **Queued next:**
-  1. ~~**`intro-dialogue-lines` lines 5 + 44 outliers.**~~ **ROOT-CAUSED 2026-06-05 —
-     standee SLIDE-IN Y-timing (user-confirmed it's a vertical shift of the standee).**
-     NOT bg (bg corners + box + ESC-skip UI all **bit-identical, 0 px**), NOT a pose-cel
-     (the standee graphic is the SAME — a clean rigid shift realigns it), NOT the
-     chr-shake (`y+=-16+rng&0x1f` is random ≤16; the delta is a *clean static* +24, an
-     unbiased masked 2D search gives **dx=0 dy=24 err≈14**, all dx≠0 far worse). It is
-     **standee i5** (Tear's standing sprite, graphic 6) **slide-in**: a `move`/`moveto`
-     diagonal tween from **(350,120)→(250,20)** whose X+Y targets the port sets *together*
-     at line_idx 2 / f3188 and slides at one locked speed. Reconstructing retail's i5
-     position from the goldens (2D-correlate each retail cap vs the port's logged i5 pos)
-     shows retail's **X-slide is in sync every line (dx=0)** but its **Y-descent lags ~one
-     line** — retail holds Y high (≈66) through cap_05 then drops to 20.5 by cap_06, while
-     the port slides Y in lockstep with X (66→43→20). So on the one mid-slide capture the
-     port's Y is ~24px low; start (cap_04) and settled (cap_06) match. Line 44 = same class
-     (port's Y-slide already settled, retail's still descending). Tooling: new standee dump
-     in `--dlg-log` (`src/main.c`; per-frame active-standee `{i,g,x,y,tx,ty}`), port i5
-     trajectory in `runs/.../dlg_log.jsonl`. **Next (to fix):** get retail's i5 x/y
-     trajectory (Frida read of the standee table `DAT_073a3e70`, stride 0x1c, entry 5) OR
-     dump the iv1_1 `chr:5` move/moveto command structure — the question is whether the
-     script authors moveto-X and moveto-Y on *separate* lines (port collapsing them early
-     = the bug) or whether retail tweens X/Y at different rates. Then match the port's
-     command-walk / tween timing. (This supersedes the earlier "char-pose / deferred
-     anim-gap" read — it's standee POSITION/slide-timing, a concrete fixable tween bug,
-     not the conversation-pose layer.)
+  1. ~~**`intro-dialogue-lines` lines 5 + 44 outliers.**~~ **RESOLVED via PHASE-PIN
+     2026-06-05 (user-confirmed "much better").** Root cause was **load-dependent phase**,
+     not logic: the standee/actor slide & per-line deltas rode the free-roam phase origin
+     (§85). Proof: standee-5 slide trajectory is **bit-identical** port↔retail when aligned
+     to slide-start (flow-trace `st5_x/y` at dialogue-tick `0x46c320`, both sides — see
+     `tools/flow/retail_fields.json` + `emit_dialogue_calltrace`). **Fix:** added
+     `{phasepin:2}` before each `{capture:2}` in the trace → zeros db054/player-anim/b154
+     on BOTH sides at every captured frame. **cap_05 122444px→871px (clean)**; 8 more lines
+     dropped to the FPS baseline; user-confirmed across the 46-panel comparison. Tooling
+     landed: standee dump in `--dlg-log`; `flow_diff` field-timeline now **stream-filters
+     by va** so a 2GB whole-engine trace no longer OOMs (`9725b66`). **Remaining (per the
+     46-panel both-run, post-phasepin):**
+     - **cap_44 (iv1_2 "RECETTE!") — NEXT PRIORITY (user).** NOT a dialogue standee (all 4
+       settled, y==ty) — it's the **freeroam actor Recette**, a **clean 6px vertical**
+       residual (was ~25, phasepin halved it). = the **deferred conversation-pose
+       entry-edge phase** (ledger line 57 "iv1_2 Recette look-up + blink"; conversation-
+       pose-driver doc "port enters at the iv1_2-arm edge, not retail's end-of-shatter
+       flag clear"). `player_ctrl_phasepin` already zeros actor-0 FRAME/TIMER/COUNTER, so
+       the residual is the anim-6 cycle ORIGIN diverging from the pose-entry edge, not a
+       missing reset. **Fix arc:** align the conversation-pose entry edge (or pin the
+       anim-6 cycle to the capture) so Recette's pose-phase is bit-1:1. Fresh arc.
+     - **iv1_2 lines 16-45 ~3-6k px = the WINDOW NPCs** (item #2 below) — RNG/logic, not
+       phase (phasepin didn't move them). User-confirmed "the ~6k diff on most frames is
+       the npcs at the window."
+     - **next-line "book" arrow off-phase on a few iv1_2 lines (17/22/29/35) — DEFERRED to
+       next session (user).** Port bug: `scene1_dialogue_draw.c` draws it from a `static
+       int s_blink` that **never resets per-script** + isn't synced to retail's
+       `DAT_073a3e0c` (resets per-script in `FUN_0046c0ae`, ++ in draw). Fix: draw from the
+       per-script-reset `rt->blink` ticked in-draw, and add it to `{phasepin}` (port zero
+       `g_rt.scene.blink`; Frida zero `DAT_073a3e0c`).
   2. ~~**BUG: LOAD GAME → X-back locks main-menu input.**~~ **FIXED 2026-06-05**
      (commit 324ddb3, user-flagged). Root cause was NOT submenu_state (the port
      already wound that back) but **`select_phase` left pinned at 0xf** from the
