@@ -52,11 +52,29 @@ ROOT = Path(__file__).resolve().parent.parent
 # ── load ───────────────────────────────────────────────────────────────────
 
 
-def load_trace(path: Path) -> dict[int, list[dict]]:
-    """frame -> events sorted by seq (execution order)."""
+def load_trace(path: Path,
+               va_filter: set[int] | None = None) -> dict[int, list[dict]]:
+    """frame -> events sorted by seq (execution order).
+
+    `va_filter` (used by --field-timeline, which only needs the field-bearing
+    VAs) keeps ONLY events whose va is in the set. A 22k-frame --call-trace over
+    the whole engine is multi-GB; slurping+parsing all of it OOMs/timeouts (it
+    bit the dialogue standee probe — a 2 GB retail trace). With the filter we
+    (1) cheap substring pre-screen each raw line for one of the target va tokens
+    BEFORE json.loads — so 99% of lines never parse — and (2) never retain the
+    discarded events. Streaming, bounded memory, and ~constant in trace size."""
+    tokens: list[str] | None = None
+    if va_filter is not None:
+        # match both the spaced (retail agent) and unspaced (port) JSON forms,
+        # anchored on the "va" key so a va value can't match inside ret_va/ts.
+        tokens = []
+        for v in va_filter:
+            tokens += [f'"va": {v}', f'"va":{v}', f'"va": {v},', f'"va":{v},']
     by_frame: dict[int, list[dict]] = {}
     with path.open() as f:
         for lineno, raw in enumerate(f, 1):
+            if tokens is not None and not any(t in raw for t in tokens):
+                continue                         # not a wanted va — skip unparsed
             raw = raw.strip()
             if not raw:
                 continue
@@ -66,6 +84,8 @@ def load_trace(path: Path) -> dict[int, list[dict]]:
                 raise SystemExit(f"{path}:{lineno}: malformed JSON: {exc}")
             if "va" not in e or "frame" not in e:
                 raise SystemExit(f"{path}:{lineno}: missing va/frame: {e!r}")
+            if va_filter is not None and int(e["va"]) not in va_filter:
+                continue                         # token false-positive — drop it
             by_frame.setdefault(int(e["frame"]), []).append(e)
     for evts in by_frame.values():
         evts.sort(key=lambda e: e.get("seq", 0))
@@ -472,8 +492,17 @@ def main(argv: list[str] | None = None) -> int:
     reasons = load_field_reasons(spec)
     field_order = load_field_order(spec)
 
-    retail = load_trace(args.retail)
-    port = load_trace(args.port)
+    # --field-timeline only consults the field-bearing VAs (+ an explicit
+    # --timeline-va), so load just those — bounds memory/time on multi-GB
+    # whole-engine traces. The chain modes genuinely walk every call, so they
+    # load in full (and are meant for windowed traces).
+    tl_filter: set[int] | None = None
+    if args.field_timeline:
+        tl_filter = set(field_order.keys())
+        if args.timeline_va is not None:
+            tl_filter.add(int(args.timeline_va, 0))
+    retail = load_trace(args.retail, tl_filter)
+    port = load_trace(args.port, tl_filter)
 
     if args.field_timeline:
         # Timeline mode reads payloads by VA directly; it does not walk the
