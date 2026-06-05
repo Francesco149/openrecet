@@ -189,17 +189,40 @@
        `{phasepin}` zeros the countdowns on BOTH sides so the capture is un-shaken.
        cap_44 standees all 4 at **delta 0.0** px; full-frame 89080px→5596px. The 5.6k
        residual = the **window NPCs** (item #2, top-center `chr10`), not the standees.
-     - **MILESTONE (user-confirmed 2026-06-05, post-shake-fix):** across the 46-panel
-       intro-dialogue-lines both-run, **everything is 1:1 EXCEPT** (a) the window NPCs and
-       (b) faint ambient particle dots. Those two + the book-frame note below are the only
-       remaining intro-dialogue deltas. **NEXT SESSION: investigate the window NPCs (item
-       #2).**
-     - **iv1_2 lines 16-45 ~3-6k px = the WINDOW NPCs** (item #2 below) — RNG/logic, not
-       phase (phasepin didn't move them). User-confirmed "the ~6k diff on most frames is
-       the npcs at the window." **TOP next-session target.**
-     - **faint ambient particle dots** — minor remaining delta (user-flagged 2026-06-05);
-       the sparse drifting dots, likely an RNG/phase or a still-unported ambient emitter.
-       Low priority; chase after the window NPCs.
+     - ~~**iv1_2 window NPCs.**~~ **RESOLVED 2026-06-05 (user-confirmed 1:1, commit
+       e107a2c).** The 6 background-window NPCs ride the shared LCG, so their drift state
+       at a captured line depended on the load-dependent intro RNG history → different
+       drift positions port↔retail despite bit-faithful spawn/drift logic. Fixed by
+       extending **`{phasepin}` to re-run the bg-NPC warmup from a canonical seed (19937)
+       on BOTH sides** (port `scene1_bg_npc_phasepin` + retail `FUN_0046f621` onEnter
+       seed/gate force). Every iv1_2 line's window band **2478px@mean0.76 → 424px@mean0.00**
+       (≤1 LSB), bit-stable across all 30 lines. Doubles as the parity test (each side
+       runs its own spawn code from the same seed) ⇒ bg-NPC logic confirmed 1:1. Dialogue
+       README hero recomposed from the 1:1 run.
+     - ~~**Free-roam bg-NPC RNG desync** (do they STAY 1:1 after the dialogue?).~~
+       **RESOLVED 2026-06-05 (user-confirmed, commit 4fce60b).** `house-idle-npc-drift`
+       (one `{phasepin}` then free-run) showed the NPCs bit-locked through +50 then
+       diverging at +100 — "logic exact, RNG origin thrown off by a call-count diff" (the
+       desync is immediate at the LCG level; the visible jump is the first *respawn* off
+       the desynced stream). Drilled via `rng_callsites`: retail consumes caller
+       **`0x443606` once on EVERY idle frame** (the §95 dev-overlay LCG step), which the
+       port was **wrongly movement-gating** (§95 REVISED 2026-06-04 — a measurement
+       *confounded by the then-un-pinned bg-NPCs*). Decompile (`442cef.c LAB_004435f7`) is
+       unconditional. Reverted to unconditional ⇒ post-fix the NPCs stay bit-locked across
+       a 260-frame idle window (≤69px@mean0.00 at +2…+260). engine-quirks §95 re-corrected.
+     - **Tear (companion) phase — DEFERRED, NEXT free-roam target (user-confirmed
+       2026-06-05).** In free-roam idle the lone remaining sprite delta is the companion:
+       **both the sprite-animation phase AND the wing particles differ** (drift bbox
+       x[522-567] y[370-441] at cap_00, ~2000px@mean0.95, present even +2 post-pin). This
+       is the deferred **Tear-position (spring-follow) + wing-flap/particle phase** item
+       ([[project_confirmed_parity_ledger]] "Tear pos CONFIRMED off"). The `{phasepin}`
+       zeroes the companion anim counters but not this residual ⇒ a genuine companion
+       controller/phase investigation (like the bg-NPC one). **TOP next-session target.**
+     - **faint ambient particle dots** — DEFERRED (user-flagged, with ref crops 2026-06-05:
+       cap_03 box 239,884,253,901 + cap_02 box 241,966,256,984 in the
+       house-idle-npc-drift 190341Z montage). Very tiny/faint drifting dots; a
+       still-unported ambient emitter (the §95-class below-band ~1.6k px residual,
+       unaffected by the bg-NPC/overlay fixes). Low priority; chase after Tear.
      - **next-line "book" arrow = WRONG ANIM FRAME on iv1_2 lines 17/22/29/35/**41**
        — DEFERRED (user, "note it down for later", flagged again 2026-06-05 w/ per-line
        crops cap_17/22/29/35/41).** Port bug: `scene1_dialogue_draw.c` draws it from a

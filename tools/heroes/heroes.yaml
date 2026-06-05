@@ -57,7 +57,9 @@ shots:
   #    frame carrying an EXTRA_SPRITE. run_dir/cap pinned once captured.
   - name: hero-iv1_2-dialogue
     scenario: intro-dialogue-lines
-    run_dir: runs/scenarios/intro-dialogue-lines-both-20260602T235052Z
+    run_dir: runs/scenarios/intro-dialogue-lines-both-20260605T183707Z
     cap: 18              # first-iv1_2 lines (HUD onset, cap16-19 align port=retail);
                          # Recette pointing pose. HUD visible on both (bgset gate fix).
+                         # 1:1 run: the back-window NPCs are now bit-1:1 (bg-npc
+                         # {phasepin}, commit e107a2c) — was the prior visible delta.
     note: "iv1_2 second dialogue, HOUSE top HUD visible (clock/Day/money) over the live map"
