@@ -98,41 +98,52 @@ field of actor 0, which *confirms* the array layout rather than refuting it.)
 
 NPC anim phase is the remaining `{phasepin}` follow-up.
 
-## Lead C — IDLE-only RNG over-consumption — ✅ RESOLVED 2026-06-04 (§95 overlay was movement-gated)
+## Lead C — IDLE RNG desync — ✅ RE-RESOLVED 2026-06-05 (§95 overlay is UNCONDITIONAL; the 2026-06-04 movement-gate was wrong)
 
-`phase_probe house-idle --window 120,80` showed **`rngcalls DESYNC`: the port
-over-consumed +1 LCG/frame** (net +79 over the window; per-frame 4-cycle **retail
-6,0,0,0 vs port 7,1,1,1** — exactly 1 extra LCG every frame). `house-walk-down-dense`
-was ALIGNED, so it was **idle-specific**.
+> **The 2026-06-04 "movement-gated" resolution below was WRONG and is reverted.**
+> Its `house-idle` measurement was **confounded by the un-pinned background-window
+> NPCs** (`FUN_0046f2a3`), which share this LCG and were freely desyncing port↔retail
+> at the time — so the per-frame `rngcalls` delta it read ("retail 6,0,0,0 vs port
+> 7,1,1,1") and the `--drill` consumer list ("no `FUN_00442cef` when idle") were
+> both unreliable. With the bg-NPCs pinned to a shared RNG origin (the 2026-06-05
+> bg-NPC `{phasepin}`), the picture inverts and is unambiguous.
 
-**Root cause:** the **§95 dev-overlay consume** at the `scene1_ingame_default_arm_tick`
-tail was **unconditional**, but retail's overlay LCG step is **movement-gated** —
-ground truth from raw per-render-frame `rngcalls`:
-- **walk:** both targets consume +1 on EVERY render frame (overlay fires).
-- **idle:** retail consumes **0** on every non-sim frame AND no extra step on the
-  sim-tick frames (the burst is pure spawn work); the un-gated port burned +1/frame.
-- idle `--drill` lists retail's consumers as `FUN_00447f4f` + `FUN_0046f2a3` only —
-  **no `FUN_00442cef`**; the walk drill DID list it at 1/frame.
+**Clean ground truth (2026-06-05, bg-NPCs pinned).** Drove `house-idle-npc-drift`
+`--target both` with a single `{phasepin}` (shared LCG+NPC origin), dumped per-frame
+`rngcalls` on both sides (port `--player-pos-log`, retail `--watch`), aligned by
+`db054`, and drilled the retail rng call-sites over 300 confirmed-idle frames
+(player vx=vz=0):
 
-So the overlay step fires every render frame **only while the player is moving**.
-(The decompile tail reads unconditional and the thunk `0x471084` is a real
-`jmp 0x5041f6`, so the precise in-engine gate isn't pinned — but the observed
-retail behaviour is unambiguous. §95 corrected with a CORRECTION banner.)
+- Per-frame call delta: **port `6,0,0,0` vs retail `7,1,1,1`** — i.e. **retail
+  consumes +1 LCG/frame that the port does NOT** (the exact opposite direction of
+  the 2026-06-04 reading).
+- The rng call-site tally names the culprit: caller ret **`0x443606` = 1.000/frame**
+  over all 300 idle frames — the **§95 dev-overlay LCG step** in `FUN_00442cef`.
+  Every other consumer is already ported (wing-sparkle `0x44a7xx` 0.25/frame;
+  bg-NPC respawns `0x46fxxx` sporadic). `0xbc51533` is the Frida thunk-relocation
+  artifact (ignore).
+- Decompile (`442cef.c` L418-421, `LAB_004435f7`) is **unconditional**: every path
+  to the tail hits the step; the gates above only choose whether `FUN_004427f1`
+  runs first. So the step fires every render frame **regardless of movement** —
+  decompile + direct hook agree.
 
-**Fix:** `scene1_sim.c` gates the consume on the player's walk-intent
-(`scene1_debug_overlay_consume_rng()` → `if (player_ctrl_is_moving()) rng_next15();`).
-Regression test `test_scene1_ingame_default_arm_consumes_debug_overlay_rng`
-rewritten to assert idle→0 / moving→1.
+**Why the visible NPC drift surfaced "late" (~+100 frames, not +2).** The LCG
+desyncs immediately (db054=1), but between respawns the bg-NPC drift is continuous,
+so positions only visibly *jump apart* at the first **respawn** drawn from the
+already-desynced stream (`house-idle-npc-drift`: window NPCs bit-locked through +50,
+then 2971 px @ mean 1.42 at +100). This is exactly the "logic is exact, RNG origin
+thrown off by a call-count difference" signature.
 
-**Validated:** post-fix `phase_probe` → `house-walk-down-dense` ALIGNED (the gate
-is a no-op when always-moving); `house-idle` steady +1/frame leak gone (net +79 →
-±5). The residual **±5 single-frame spike is retail run-to-run capture variance**,
-not a port bug: across re-runs it flips sign and frame (+5 @ db054=49 → −5 @
-db054=61; the walk trace likewise showed a one-off +5 that vanished on re-run). It
-is one ~5-LCG spawn (foot-dust jitter) landing one frame inside vs outside the
-window — a non-deterministic-in-retail spawn phase the TAS harness can't pin, and
-the same class as the deferred foot-dust position/phase divergence. NOT chased
-further.
+**Fix:** revert to unconditional — `scene1_sim.c`
+`scene1_debug_overlay_consume_rng()` → `(void)rng_next15();` (no movement gate).
+Regression test re-asserts idle→1 / moving→1 (unconditional).
+
+**Validated end-to-end:** post-fix `house-idle-npc-drift --target both` keeps the
+window NPCs **bit-locked across the full 260-frame idle window** — ≤69 px @ mean
+0.00 at every offset (+2/+20/+50/+100/+200/+260), vs the pre-fix divergence at +100.
+The free-roam bg-NPC RNG-stream divergence is **closed** (walk was already aligned;
+unconditional is a no-op there since every walk frame moved). engine-quirks §95
+re-corrected.
 
 ## Captures/diffs must be phase + RNG aligned
 

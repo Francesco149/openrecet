@@ -1,0 +1,26 @@
+# house-idle — README house hero (the main docs/img/house-comparison.png).
+#
+# Reuses house-walk-tables' proven new-game -> 2x HOUSE_FREEROAM prefix (spam-Z
+# through title / intro / iv1_1 / iv1_2 dialogue), reaching the REAL free-roam
+# anchor (HF#2). Then it IDLES (no movement input) so Recette stays at her
+# bottom spawn, and sweeps captures at HF#2 +60..+1560 (every 60) to find the
+# frame where the back-window NPC is on screen. bg_npc motion is deterministic
+# (seed=1) at a fixed anchor offset, so the chosen cap is reproducible.
+#
+# This is a HERO scenario, not a regression bench — drive it with --show-fps so
+# the FPS overlay is visible on both targets (the README hero wants it shown):
+#
+#   python3 tools/scenario-test.py house-idle --target both --show-fps \
+#     --frida-remote cutestation.soy:27042
+#
+# Then pin the NPC-visible cap index into tools/heroes/heroes.yaml and
+# regen-heroes.py composes docs/img/house-comparison.png.
+
+description: |
+  HOUSE real free-roam, Recette idle at the bottom, back-window NPC on screen.
+  README house hero — drive with --show-fps. Sweeps HF#2 +60..+1560 to locate
+  the NPC-visible cap.
+
+max_frames: 22000  # retail turbo load-stretch: 2nd HOUSE_FREEROAM lands ~15400; capture offset needs headroom
+duration_ceiling_ms: 180000
+n_captures: 6

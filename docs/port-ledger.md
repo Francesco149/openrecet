@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **426** (16.7%) — verified 71, stubbed 15, ported 340
-- unported: **2122**
+- touched: **427** (16.8%) — verified 71, stubbed 15, ported 341
+- unported: **2121**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (71) — runtime-diffed vs retail
@@ -110,7 +110,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (340) — reimplemented, no probe yet
+## ported (341) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -210,6 +210,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x441c3e | FUN_00441c3e | 2217 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4424e7 | FUN_004424e7 | 429 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4426a7 | FUN_004426a7 | 300 | ✓ | scene1_sim.c, scene1_sim.h |
+| 0x4427f1 | FUN_004427f1 | 90 | ✓ | scene1_sim.c |
 | 0x44375e | FUN_0044375e | 12 | ✓ | scene1_records_b_tick.c |
 | 0x44376a | FUN_0044376a | 8538 | ✓ | main.c, scene1_particles_tick.h, scene1_player_ctrl.c (+6) |
 | 0x445a8c | FUN_00445a8c | 8952 | ✓ | scene1_records.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+1) |

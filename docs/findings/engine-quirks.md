@@ -3734,28 +3734,30 @@ phase is offset at free-roam — that port consequence is written up in
 
 ---
 
-## 95. The INGAME sim burns one LCG step per frame (while the player is MOVING) on an invisible dev coordinate readout — a fingerprint on the determinism stream
+## 95. The INGAME sim burns one LCG step EVERY frame on an invisible dev coordinate readout — a fingerprint on the determinism stream
 
-> **CORRECTION 2026-06-04 — the step is MOVEMENT-GATED, not unconditional.**
-> Originally written as "+1 LCG step every INGAME frame, forever." Ground truth
-> from raw per-render-frame `rngcalls` (phase_probe, retail `--watch` of the LCG
-> hook): on `house-walk-down-dense` retail consumes **+1/render-frame on every
-> frame** (the overlay), but on `house-idle` retail consumes **0** on every
-> non-sim frame and **no** extra overlay step on the sim-tick frames either —
-> i.e. the overlay's LCG step fires **every render frame ONLY while the player is
-> moving**, and not at all when idle. (An idle `--drill` confirms `FUN_00442cef`
-> is absent from the RNG-consumer list; the walk drill lists it at 1/frame.) The
-> per-frame fingerprint is therefore *movement-conditional*. The exact in-engine
-> gate is not fully pinned — the decompile tail below reads as unconditional and
-> the thunk at `0x471084` is a real `jmp 0x5041f6` (so the step IS counted) — but
-> the observed retail behaviour is unambiguous. Port consequence + fix:
-> `docs/findings/freeroam-rng-consumption.md` Lead C (the consume is gated on the
-> player's walk-intent so both idle and walk stay RNG-aligned).
+> **RE-CORRECTED 2026-06-05 — the step is UNCONDITIONAL after all (the
+> 2026-06-04 "movement-gated" correction was WRONG).** The original write-up
+> ("+1 LCG step every INGAME frame, forever") was right. The 2026-06-04 revision
+> mis-read a `house-idle rngcalls DESYNC` as "retail consumes 0 when idle" and
+> movement-gated the port — but that idle measurement was **confounded by the
+> un-pinned background-window NPCs**, which share this very LCG and were freely
+> desyncing port↔retail until the 2026-06-05 bg-NPC `{phasepin}` landed. With the
+> NPCs pinned to a shared RNG origin, a clean `house-idle-npc-drift --target both`
+> rng-callsite drill shows retail consuming the overlay step (caller ret
+> **`0x443606`**) **once on EVERY idle frame** (per-frame tally = 1.000/frame over
+> 300 idle frames; the player is confirmed idle, vx=vz=0) — and the decompile tail
+> is unconditional (`LAB_004435f7` is reached on every path; the gates above it
+> only choose whether `FUN_004427f1` runs first). Two independent ground truths —
+> the direct LCG-hook caller tally and the decompile — agree: **unconditional.**
+> The 2026-06-04 doc explicitly noted "the decompile tail reads as unconditional"
+> yet trusted the confounded observation; lesson logged. Port consequence + fix:
+> `docs/findings/freeroam-rng-consumption.md` Lead C.
 
 At the very tail of `FUN_00442cef` (the default-running INGAME arm, decompile
 `442cef.c` L417-429, asm `0x4435f7`-`0x44364b`), after the table-A/B/C ticks,
-the engine runs a **developer coordinate overlay** (its LCG step gated on player
-movement — see the correction above):
+the engine runs a **developer coordinate overlay** (its LCG step UNCONDITIONAL —
+`thunk_FUN_005041f6()` at `LAB_004435f7`, ret `0x443606`, past every gate):
 
 ```c
 FUN_0040fb3a();                 // table-A particle tick (= scene1_particles_tick)
@@ -3785,13 +3787,13 @@ showed a steady −1/frame port deficit (first visible at db054≈37, the frame 
 trace's walk begins). The culprit was this single invisible `%d`/`X:%f` readout.
 
 Port note (not part of the quirk, for cross-ref): `src/scene1_sim.c` consumes the
-step **only while the player is moving** (`scene1_debug_overlay_consume_rng()` →
-`if (player_ctrl_is_moving()) (void)rng_next15();` at the default-arm tail) and
-renders nothing, matching retail. The earlier unconditional consume matched walk
-(every walk frame moves) but over-consumed +1/frame on IDLE; the movement gate
-keeps both `house-walk-down-dense` AND `house-idle` `rngcalls`-ALIGNED. (Residual
-±5 single-frame spikes are retail capture variance — one ~5-LCG spawn landing in
-vs out of the window, sign/frame flips across re-runs.) See
+step **unconditionally every INGAME frame** (`scene1_debug_overlay_consume_rng()`
+→ `(void)rng_next15();` at the default-arm tail) and renders nothing, matching
+retail. Verified end-to-end: with the bg-NPCs pinned to a shared RNG origin, a
+clean `house-idle-npc-drift --target both` keeps the window NPCs **bit-locked
+across a 260-frame idle window** (≤69 px @ mean 0.00 at every offset; before the
+fix they desynced at +100 → 2971 px @ mean 1.42 at the first post-desync respawn).
+Both `house-walk-down-dense` AND `house-idle` stay `rngcalls`-ALIGNED. See
 `docs/findings/freeroam-rng-consumption.md` Lead C.
 
 **Seeing it on retail (confirmed 2026-06-04).** The grid IS drawn by

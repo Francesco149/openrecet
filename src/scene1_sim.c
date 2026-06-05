@@ -113,34 +113,38 @@ void scene1_ingame_default_arm_tick(void)
     /* FUN_00442cef tail, immediately after FUN_0040fb3a (scene1_particles_
      * tick) + FUN_004426a7 (unported, consumes no RNG): the engine's
      * developer coordinate overlay.  It calls the raw LCG once
-     * (thunk_FUN_005041f6 @ 0x471084 → 442cef.c L421) and sprintf()s the
-     * result as "%d", then the player X/Y/Z (DAT_056da1d8/dc/e0) as
-     * "X:%f"/"Y:%f"/"Z:%f", into the debug text grid at DAT_06a47aac rows
-     * 4-6 (FUN_00451874).  That grid is NOT drawn in the retail Steam build,
-     * so we faithfully consume the RNG step but render nothing.
+     * (thunk_FUN_005041f6 @ 0x471084 → 442cef.c L421, ret 0x443606) and
+     * sprintf()s the result as "%d", then the player X/Y/Z (DAT_056da1d8/dc/e0)
+     * as "X:%f"/"Y:%f"/"Z:%f", into the debug text grid at DAT_06a47aac rows
+     * 4-6 (FUN_00451874).  That grid is NOT drawn in the retail Steam build, so
+     * we faithfully consume the RNG step but render nothing.
      *
-     * §95 REVISED 2026-06-04: the step is **movement-gated** — retail consumes
-     * it every render frame ONLY while the player is MOVING, and 0 frames when
-     * idle.  Ground truth (raw per-render-frame rngcalls): on
-     * house-walk-down-dense both targets consume +1/frame; on house-idle retail
-     * consumes 0 on every non-sim frame (and the sim-tick burst carries NO extra
-     * overlay step) while the un-gated port burned +1/frame → a +1/frame idle
-     * over-consumption (phase_probe `rngcalls DESYNC`, retail 6,0,0,0 vs port
-     * 7,1,1,1 per 4-frame cycle).  The earlier "consume unconditionally" matched
-     * walk only because every walk frame moves.  Gate on this frame's player
-     * walk-intent so both idle AND walk stay rngcalls-ALIGNED.  See
+     * The step is **UNCONDITIONAL** — `442cef.c` L418-421 `LAB_004435f7` reaches
+     * the `thunk_FUN_005041f6()` on EVERY path to the function tail (the gates at
+     * L412-416 only decide whether `FUN_004427f1` runs *before* it), so the
+     * overlay LCG step fires once per render frame regardless of player movement.
+     *
+     * §95 REVISED-AGAIN 2026-06-05: a 2026-06-04 pass briefly **movement-gated**
+     * this, mis-reading a `house-idle rngcalls DESYNC` as "retail consumes 0 when
+     * idle".  That measurement was **confounded by the un-pinned background-window
+     * NPCs** (which share this LCG and were freely desyncing port↔retail until the
+     * 2026-06-05 bg-NPC {phasepin}).  With the NPCs pinned, a clean
+     * `house-idle-npc-drift --target both` rng-callsite drill shows retail
+     * consuming `0x443606` **every idle frame** (per-frame caller tally = 1, not
+     * 0) — and the decompile is unconditional.  Reverted to unconditional; both
+     * idle AND walk stay rngcalls-ALIGNED (walk was unaffected — every walk frame
+     * moved, so the gate was open there anyway).  engine-quirks §95;
      * docs/findings/freeroam-rng-consumption.md (Lead C). */
     scene1_debug_overlay_consume_rng();
 }
 
-/* §95 dev-overlay LCG step, movement-gated (see scene1_ingame_default_arm_tick's
- * tail comment).  Extracted so the gate is unit-testable in isolation: it
- * consumes exactly one raw LCG step iff the player is moving this frame, and
- * nothing when idle — matching retail's per-render-frame overlay consumption. */
+/* §95 dev-overlay LCG step (442cef.c L421 / ret 0x443606), UNCONDITIONAL: the
+ * engine consumes exactly one raw LCG step at the FUN_00442cef tail every render
+ * frame, idle or moving (the call sits at LAB_004435f7, past every gate).
+ * Extracted so it is unit-testable in isolation. */
 void scene1_debug_overlay_consume_rng(void)
 {
-    if (player_ctrl_is_moving())
-        (void)rng_next15();
+    (void)rng_next15();
 }
 
 void scene1_ingame_tick(void)

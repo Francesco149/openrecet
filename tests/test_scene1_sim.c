@@ -263,16 +263,18 @@ int test_scene1_ingame_default_arm_ticks_particles_and_c(void)
 
 int test_scene1_ingame_default_arm_consumes_debug_overlay_rng(void)
 {
-    /* engine-quirks §95 (REVISED 2026-06-04): FUN_00442cef's tail dev-overlay
-     * (442cef.c L421) burns one raw LCG step — but **movement-gated**: retail
-     * consumes it every render frame ONLY while the player is moving, and 0
-     * frames when idle (ground truth: phase_probe house-walk-down-dense → +1/
-     * frame on both targets; house-idle → retail 0/frame, the un-gated port
-     * +1/frame = a `rngcalls DESYNC`).  See freeroam-rng-consumption.md Lead C.
+    /* engine-quirks §95 (REVISED-AGAIN 2026-06-05): FUN_00442cef's tail
+     * dev-overlay (442cef.c L421 / ret 0x443606) burns one raw LCG step
+     * **UNCONDITIONALLY** — the call sits at LAB_004435f7, past every gate, so
+     * retail consumes it once per render frame whether the player is idle or
+     * moving.  A 2026-06-04 pass briefly movement-gated this on a confounded
+     * house-idle measurement (the un-pinned bg-NPCs were desyncing the shared
+     * LCG); the clean post-bg-NPC-pin drill shows retail consuming 0x443606
+     * every idle frame.  See freeroam-rng-consumption.md Lead C.
      *
-     * (a) IDLE: with no live/moving player the default arm consumes the SAME as
-     * the transition arm (overlay gate closed). */
-    reset_world();                       /* player not posed → not moving */
+     * (a) the default arm consumes exactly ONE more step than the transition arm
+     * (the overlay step), idle OR moving. */
+    reset_world();                       /* player not posed → idle */
     unsigned long c0 = rng_call_count();
     scene1_ingame_transition_arm_tick();
     unsigned long trans = rng_call_count() - c0;
@@ -281,17 +283,16 @@ int test_scene1_ingame_default_arm_consumes_debug_overlay_rng(void)
     c0 = rng_call_count();
     scene1_ingame_default_arm_tick();
     unsigned long deflt_idle = rng_call_count() - c0;
-    T_ASSERT_EQ_U(deflt_idle, trans);    /* overlay gated OFF when idle */
+    T_ASSERT_EQ_U(deflt_idle, trans + 1u);   /* overlay step fires even when idle */
 
-    /* (b) the gate itself, in isolation: idle → 0 steps; moving → exactly 1. */
+    /* (b) the step itself, in isolation: exactly ONE LCG step, idle... */
     reset_world();
     T_ASSERT_EQ_I(player_ctrl_is_moving(), 0);
     c0 = rng_call_count();
     scene1_debug_overlay_consume_rng();
-    T_ASSERT_EQ_U(rng_call_count() - c0, 0u);
+    T_ASSERT_EQ_U(rng_call_count() - c0, 1u);   /* idle → still 1 step */
 
-    /* Pose the player + hold DOWN (PC_BTN_DOWN=0x0008) so the freeroam arm sets
-     * the moving state, then the overlay consumes exactly one step. */
+    /* ...AND when moving (unconditional — movement is irrelevant). */
     title_save_dialog_reset();           /* clear the FUN_0048670f save-gate so the tick runs */
     player_ctrl_pose_house_standing(0);
     g_input_state[0].buttons = 0x0008u;
@@ -299,15 +300,10 @@ int test_scene1_ingame_default_arm_consumes_debug_overlay_rng(void)
     T_ASSERT_EQ_I(player_ctrl_is_moving(), 1);
     c0 = rng_call_count();
     scene1_debug_overlay_consume_rng();
-    T_ASSERT_EQ_U(rng_call_count() - c0, 1u);   /* gate OPEN → exactly 1 LCG step */
+    T_ASSERT_EQ_U(rng_call_count() - c0, 1u);   /* moving → 1 step */
 
-    /* release the d-pad → gate closes again */
     g_input_state[0].buttons = 0;
     scene1_player_ctrl_tick();
-    T_ASSERT_EQ_I(player_ctrl_is_moving(), 0);
-    c0 = rng_call_count();
-    scene1_debug_overlay_consume_rng();
-    T_ASSERT_EQ_U(rng_call_count() - c0, 0u);
     return 0;
 }
 
