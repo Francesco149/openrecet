@@ -3618,6 +3618,13 @@ function flowReadField(args, f) {
         if (f.src === 'global') {
             return flowReadTyped(rva(f.va | 0), f.type);
         }
+        if (f.src === 'rngcalls') {
+            // cumulative LCG-draw count (the determinism signal flow_diff
+            // --verdict classifies). The LCG hook (installRngCallerHook) keeps
+            // g_rng_count_total; it is installed whenever a call-trace field
+            // declares src:'rngcalls' (see the setup gate).
+            return g_rng_count_total;
+        }
         if (f.src === 'argderef') {
             return flowReadTyped(args[f.index | 0].add(f.off | 0), f.type);
         }
@@ -4726,8 +4733,19 @@ rpc.exports = {
                 installMemoryWatch(g_mem_watch_regions, g_mem_watch_precise);
             }
             // RNG caller histogram / consumption probe — a single Interceptor
-            // on the LCG step, shared by callers / rngcalls-count / call-sites.
-            if (g_rng_callers || g_rng_count || g_rng_cs_len > 0) {
+            // on the LCG step, shared by callers / rngcalls-count / call-sites /
+            // any flow-trace field declaring src:'rngcalls' (so flow_diff
+            // --verdict's per-frame consumption row is populated automatically).
+            let wantRngcallsField = false;
+            for (const va in g_call_trace_fields) {
+                const spec = g_call_trace_fields[va];
+                if (Array.isArray(spec) && spec.some(function (f) {
+                    return f && f.src === 'rngcalls'; })) {
+                    wantRngcallsField = true; break;
+                }
+            }
+            if (g_rng_callers || g_rng_count || g_rng_cs_len > 0 ||
+                wantRngcallsField) {
                 installRngCallerHook();
             }
             // ESC-record hook (recorder) — capture WndProc ESC-skip presses.

@@ -11,6 +11,7 @@
 #include "tick.h"
 
 #include "call_trace.h"
+#include "rng.h"        /* g_rng_seed + rng_call_count() for the per-frame RNG probe */
 
 #ifdef _WIN32
 # define WIN32_LEAN_AND_MEAN
@@ -59,8 +60,18 @@ enum tick_result tick_step_with_now(uint32_t now_ms,
                                     const struct tick_callbacks *cb,
                                     uint32_t *out_sleep_ms)
 {
-    /* E.2 probe — FUN_0047be92 @ 0x47be92. */
-    CALL_TRACE_ENTER(0x47be92u);
+    /* E.2 probe — FUN_0047be92 @ 0x47be92 (the once-per-frame scheduler root).
+     * Carries the per-frame RNG payload (the determinism signal flow_diff
+     * --verdict classifies): `rng` = the engine LCG state word at frame start
+     * (DAT_006023a0), `rngcalls` = cumulative LCG draws since boot.  Read at
+     * onEnter, BEFORE this frame's sim consumes any RNG, mirroring the retail
+     * Frida hook on 0x47be92 (tools/flow/retail_fields.json).  This is the
+     * modern replacement for the old --player-pos-log rng/rngcalls columns +
+     * the retail --watch path that phase_probe.py used. */
+    CALL_TRACE_BEGIN(0x47be92u);
+    CALL_TRACE_I32("rng",      (int32_t)g_rng_seed);
+    CALL_TRACE_I32("rngcalls", (int32_t)rng_call_count());
+    CALL_TRACE_END();
 
     /* 1. latch pending speed. The engine writes through DAT_0438ccdc;
      *    we mirror via g_tick.pending_speed which an F-key handler will

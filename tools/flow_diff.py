@@ -434,6 +434,184 @@ def run_field_timeline(args, retail, port, names, benign, reasons,
     return 1 if any_real else 0
 
 
+# ── phase / RNG verdict (the phase_probe.py replacement) ────────────────────
+#
+# --field-timeline answers "WHEN did a field first diverge?"; --verdict answers
+# the orthogonal classification question phase_probe.py used to own: "is a
+# divergence a load-dependent PHASE/SYNC offset (laws bit-exact, origin differs)
+# or real LOGIC DRIFT?".  For each declared field it computes the per-frame
+# port−retail offset over the aligned window and classifies:
+#   {0}            → ALIGNED (bit-exact)
+#   {one nonzero}  → CONST-OFFSET (pure phase/sync — NOT a logic bug)
+#   many / growing → DRIFT (a real per-frame LOGIC divergence)
+# RNG is reported separately: `rngcalls` (cumulative consumption, rebased to the
+# window start) is the AUTHORITATIVE determinism signal; the raw `rng` LCG state
+# is diagnostic.  Unlike phase_probe (port end-of-sim vs retail frame-boundary
+# sampling, a 1-frame skew), the flow-trace reads BOTH sides at the same hooked
+# onEnter, so the raw state is directly comparable — no skew correction needed.
+#
+# Requires a {phasepin}-ed trace: with db054 pinned to 0 on both sides at the
+# same anchor-relative frame, frame-number alignment IS db054 alignment, so the
+# common-frame pairing the timeline already uses is the shared clock.
+
+
+_RANK = {"ALIGNED": 0, "CONST-OFFSET": 1, "DRIFT": 2}
+
+
+def classify_offsets(samples: list, eps: float) -> tuple[str, str, int | None]:
+    """samples = [(frame, occ, retail_val, port_val)]. Returns
+    (verdict, detail, first_drift_frame)."""
+    if not samples:
+        return ("ALIGNED", "no overlap", None)
+    is_int = all(isinstance(a, int) and isinstance(b, int)
+                 and not isinstance(a, bool) and not isinstance(b, bool)
+                 for _, _, a, b in samples)
+    if is_int:
+        base = samples[0][3] - samples[0][2]
+        offs = sorted({b - a for _, _, a, b in samples})
+        if offs == [0]:
+            return ("ALIGNED", "bit-exact", None)
+        if len(offs) == 1:
+            return ("CONST-OFFSET",
+                    f"{offs[0]:+d} constant (phase/sync, NOT logic)", None)
+        if len(offs) == 2:
+            return ("CONST-OFFSET",
+                    f"offsets {offs} (phase shift mod cycle)", None)
+        first = next((fr for fr, _, a, b in samples if (b - a) != base), None)
+        return ("DRIFT",
+                f"{len(offs)} distinct offsets {offs[:6]}… → LOGIC divergence",
+                first)
+    # float path: a constant offset is still phase/origin; spread = drift.
+    diffs = [float(b) - float(a) for _, _, a, b in samples]
+    if all(abs(d) <= eps for d in diffs):
+        return ("ALIGNED", "within eps", None)
+    spread = max(diffs) - min(diffs)
+    if spread <= max(eps, eps * max(abs(min(diffs)), abs(max(diffs)))):
+        return ("CONST-OFFSET",
+                f"{diffs[0]:+.5g} constant (phase/origin, NOT logic)", None)
+    first = next((fr for fr, _, a, b in samples
+                  if _field_diverges(a, b, eps)), None)
+    return ("DRIFT", f"first @{first} (spread {spread:.5g}) → LOGIC divergence",
+            first)
+
+
+def run_verdict(args, retail, port, names, benign, reasons,
+                field_order: dict[int, list[str]], spec_vas: list[int]) -> int:
+    common = sorted(set(retail) & set(port))
+    if not common:
+        raise SystemExit("no common frames for a verdict")
+    pinned = True  # informational; the caller is expected to pin (see header)
+    print(f"flow_diff --verdict   {len(common)} common frames "
+          f"[{common[0]}..{common[-1]}]")
+    print("  (assumes a {phasepin}-ed trace — frame# == db054 clock)\n")
+    print(f"  {'va/field':<28} {'verdict':<13} detail")
+    print(f"  {'-'*28} {'-'*13} {'-'*40}")
+    worst = "ALIGNED"
+    rng_samples: dict[str, list] = {}
+    for va in spec_vas:
+        if not (any(_va_occurrences(e, va) for e in retail.values())
+                and any(_va_occurrences(e, va) for e in port.values())):
+            continue
+        tracks, _ = build_field_timeline(va, retail, port, common, args.eps,
+                                         benign, reasons, field_order.get(va, []))
+        nm = names.get(va, f"{va:#x}")
+        for t in tracks:
+            if t.field in ("rng", "rngcalls"):
+                rng_samples.setdefault(t.field, []).extend(t.samples)
+                continue
+            if t.benign:
+                continue
+            verdict, detail, _ = classify_offsets(t.samples, args.eps)
+            if _RANK[verdict] > _RANK[worst]:
+                worst = verdict
+            mark = "✓" if verdict == "ALIGNED" else ("⏱" if verdict ==
+                                                     "CONST-OFFSET" else "✗")
+            print(f"  {mark} {nm + '.' + t.field:<26} {verdict:<13} {detail}")
+
+    # ── RNG: consumption (authoritative) + raw state (diagnostic) ──
+    if "rngcalls" in rng_samples:
+        s = sorted(rng_samples["rngcalls"])
+        rbase, pbase = s[0][2], s[0][3]
+        desync = next((fr for fr, _, a, b in s
+                       if (b - pbase) != (a - rbase)), None)
+        if desync is None:
+            print(f"  ✓ {'rngcalls':<26} {'ALIGNED':<13} "
+                  f"per-frame RNG consumption matches retail (authoritative)")
+        else:
+            net = (s[-1][3] - pbase) - (s[-1][2] - rbase)
+            print(f"  ✗ {'rngcalls':<26} {'DESYNC':<13} consumption diverges "
+                  f"@frame {desync}; net port−retail {net:+d} calls")
+            worst = "DRIFT"
+    if "rng" in rng_samples:
+        s = sorted(rng_samples["rng"])
+        same = sum(1 for _, _, a, b in s if (a & 0xFFFFFFFF) == (b & 0xFFFFFFFF))
+        tag = "ALIGNED" if same == len(s) else "DIAGNOSTIC"
+        print(f"  {'✓' if tag=='ALIGNED' else '·'} {'rng (raw state)':<26} "
+              f"{tag:<13} {same}/{len(s)} frames bit-exact")
+
+    print()
+    if worst == "ALIGNED":
+        print("  VERDICT: ✅ PHASE-CLEAN — all counters bit-exact vs retail. "
+              "Any visual diff is RNG (sparkles) or render-side, not phase/logic.")
+    elif worst == "CONST-OFFSET":
+        print("  VERDICT: ⏱  PHASE/SYNC OFFSET — laws bit-exact, only the phase "
+              "ORIGIN differs (load-dependent). Pin earlier/later; NOT a logic bug.")
+    else:
+        print("  VERDICT: ❌ LOGIC DRIFT / RNG DESYNC — a field diverges per-frame "
+              "(see ✗ rows). A real port logic divergence.")
+    return 1 if worst == "DRIFT" else 0
+
+
+# ── RNG-callsite drill (the phase_probe --drill replacement) ────────────────
+
+
+def run_rng_drill(args) -> int:
+    """Aggregate a retail rng_callsites.json (from frida_capture --rng-callsites)
+    by enclosing function — names the RNG consumers (incl. unported ones) over
+    the captured window.  Replaces phase_probe.py --drill."""
+    path = Path(args.rng_drill)
+    if not path.exists():
+        raise SystemExit(f"rng-callsites capture not found: {path}\n"
+                         f"  produce it with: frida_capture.py --input-segtrace "
+                         f"<trace> --rng-callsites N  (N frames after the pin)")
+    blob = json.loads(path.read_text())
+    frames = blob.get("frames", blob)         # {frame: {"0xVA": count}}
+    funcs = load_funcs_csv(args.names_csv)
+    agg: dict[int, int] = {}
+    for _fr, sites in frames.items():
+        for va_s, cnt in sites.items():
+            agg[int(va_s, 0)] = agg.get(int(va_s, 0), 0) + int(cnt)
+    print(f"RNG consumers over {len(frames)} frames "
+          f"(caller VA → enclosing fn → total LCG draws):")
+    for va, tot in sorted(agg.items(), key=lambda kv: -kv[1]):
+        print(f"  {va:#010x}  {enclosing_fn_csv(funcs, va):<28} {tot:>8}")
+    return 0
+
+
+def load_funcs_csv(csv_path: Path) -> list[tuple[int, int, str]]:
+    out: list[tuple[int, int, str]] = []
+    if not csv_path or not csv_path.exists():
+        return out
+    import csv as _csv
+    for r in _csv.DictReader(csv_path.open()):
+        try:
+            out.append((int(r["entry"], 16), int(r["size"]), r["name"]))
+        except (KeyError, ValueError):
+            pass
+    out.sort()
+    return out
+
+
+def enclosing_fn_csv(funcs: list[tuple[int, int, str]], va: int) -> str:
+    import bisect
+    i = bisect.bisect_right([a for a, _, _ in funcs], va) - 1
+    if i >= 0:
+        a, sz, nm = funcs[i]
+        if va < a + sz:
+            return nm
+    return f"{va:#x}"
+
+
 # ── main ───────────────────────────────────────────────────────────────────
 
 
@@ -441,8 +619,10 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--retail", required=True, type=Path)
-    ap.add_argument("--port", required=True, type=Path)
+    ap.add_argument("--retail", type=Path,
+                    help="retail call_trace.jsonl (not needed for --rng-drill)")
+    ap.add_argument("--port", type=Path,
+                    help="port call_trace.jsonl (not needed for --rng-drill)")
     ap.add_argument("--retail-frame", type=int, default=None,
                     help="diff this single retail frame against --port-frame")
     ap.add_argument("--port-frame", type=int, default=None)
@@ -479,8 +659,25 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--timeline-full", action="store_true",
                     help="--field-timeline: dump every frame's values per field, "
                          "not just a window around the first divergence")
+    ap.add_argument("--verdict", action="store_true",
+                    help="phase/RNG VERDICT (the phase_probe.py replacement): per "
+                         "declared field, classify the port−retail offset over the "
+                         "window as ALIGNED / CONST-OFFSET (phase-sync, not logic) / "
+                         "DRIFT (real logic divergence), plus an authoritative "
+                         "rngcalls-consumption row. Requires a {phasepin}-ed trace "
+                         "(frame# == db054 clock). Exit 1 only on DRIFT/DESYNC.")
+    ap.add_argument("--rng-drill", metavar="RNG_CALLSITES_JSON", default=None,
+                    help="aggregate a retail rng_callsites.json (from frida_capture "
+                         "--rng-callsites) by enclosing function — names the RNG "
+                         "consumers (incl. unported ones). Replaces phase_probe "
+                         "--drill. Does not need --retail/--port.")
     args = ap.parse_args(argv)
 
+    if args.rng_drill:
+        return run_rng_drill(args)
+
+    if not args.retail or not args.port:
+        raise SystemExit("--retail and --port are required (except for --rng-drill)")
     for p in (args.retail, args.port):
         if not p.exists():
             raise SystemExit(f"trace not found: {p}")
@@ -497,12 +694,16 @@ def main(argv: list[str] | None = None) -> int:
     # whole-engine traces. The chain modes genuinely walk every call, so they
     # load in full (and are meant for windowed traces).
     tl_filter: set[int] | None = None
-    if args.field_timeline:
+    if args.field_timeline or args.verdict:
         tl_filter = set(field_order.keys())
         if args.timeline_va is not None:
             tl_filter.add(int(args.timeline_va, 0))
     retail = load_trace(args.retail, tl_filter)
     port = load_trace(args.port, tl_filter)
+
+    if args.verdict:
+        return run_verdict(args, retail, port, names, benign, reasons,
+                           field_order, list(field_order.keys()))
 
     if args.field_timeline:
         # Timeline mode reads payloads by VA directly; it does not walk the

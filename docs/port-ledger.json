@@ -4,14 +4,14 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 71,
+  "verified": 70,
   "stubbed": 15,
-  "ported": 342,
+  "ported": 343,
   "unported": 2120,
   "orphan_refs_not_in_function_table": 7,
   "touched": 428,
   "pct_touched": 16.8,
-  "pct_verified": 2.8,
+  "pct_verified": 2.7,
   "port_debt": 11
  },
  "orphan_refs": [
@@ -7238,9 +7238,13 @@
    "size": 289,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "verified",
+   "status": "ported",
    "src": [
-    "src/tick.c"
+    "src/input.c",
+    "src/input.h",
+    "src/main.c",
+    "src/tick.c",
+    "src/tick.h"
    ]
   },
   {

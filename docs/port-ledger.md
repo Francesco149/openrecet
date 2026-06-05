@@ -10,11 +10,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **428** (16.8%) — verified 71, stubbed 15, ported 342
+- touched: **428** (16.8%) — verified 70, stubbed 15, ported 343
 - unported: **2120**
 - orphan refs (in src/, not in function table): 7
 
-## verified (71) — runtime-diffed vs retail
+## verified (70) — runtime-diffed vs retail
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -71,7 +71,6 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47a8c0 | FUN_0047a8c0 | 368 | ✓ | save_bank.c |
 | 0x47b73c | FUN_0047b73c | 1779 | ✓ | input.c |
 | 0x47be2f | FUN_0047be2f | 99 | ✓ | tick.c |
-| 0x47be92 | FUN_0047be92 | 289 | ✓ | tick.c |
 | 0x47c29d | FUN_0047c29d | 215 | ✓ | font.c |
 | 0x48093f | FUN_0048093f | 136 | ✓ | chara_equip.c |
 | 0x48407f | FUN_0048407f | 795 | ✓ | scene1_conversation_pose.c |
@@ -110,7 +109,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (342) — reimplemented, no probe yet
+## ported (343) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -341,6 +340,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47b1f2 | FUN_0047b1f2 | 99 |  | input.c |
 | 0x47b29e | FUN_0047b29e | 73 | ✓ | main.c, prewindow.c, scene.h (+1) |
 | 0x47b2e7 | FUN_0047b2e7 | 1061 |  | esc_dispatch.h, main.c |
+| 0x47be92 | FUN_0047be92 | 289 | ✓ | input.c, input.h, main.c (+2) |
 | 0x47bfb3 | FUN_0047bfb3 | 629 | ✓ | main.c |
 | 0x47c228 | FUN_0047c228 | 61 | ✓ | font.h, main.c |
 | 0x47c3a5 | FUN_0047c3a5 | 207 | ✓ | font.h, font_atlas.c, font_atlas.h (+1) |

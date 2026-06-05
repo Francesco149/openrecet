@@ -1,6 +1,14 @@
 {
-  "_doc": "Retail-side field spec for the execution+dataflow trace (docs/plans/execution-flow-trace.md). Maps each instrumented engine VA -> the declared payload the Frida agent reads at that call, joined to the port's CALL_TRACE_* fields by (va, field-name). VA keys + global VAs accept 0x-hex or decimal. src: global (read DAT at va) | arg (Frida onEnter arg index, 0-BASED: index 0 = first param) | argderef (deref arg[index] + off) | retval (onLeave). type: i32|u32|f32|hex. NB: indices are Frida's standard 0-based InvocationArguments (index 0 = first cdecl param) — validated 2026-06-05 against FUN_00404efc's dst/src/diffuse params.",
+  "_doc": "Retail-side field spec for the execution+dataflow trace (docs/plans/execution-flow-trace.md). Maps each instrumented engine VA -> the declared payload the Frida agent reads at that call, joined to the port's CALL_TRACE_* fields by (va, field-name). VA keys + global VAs accept 0x-hex or decimal. src: global (read DAT at va) | arg (Frida onEnter arg index, 0-BASED: index 0 = first param) | argderef (deref arg[index] + off) | retval (onLeave) | rngcalls (cumulative LCG-draw count = the agent's g_rng_count_total; auto-installs the LCG hook). type: i32|u32|f32|hex. NB: indices are Frida's standard 0-based InvocationArguments (index 0 = first cdecl param) — validated 2026-06-05 against FUN_00404efc's dst/src/diffuse params.",
   "fields": {
+    "0x47be92": {
+      "name": "tick_scheduler",
+      "_note": "FUN_0047be92 — the once-per-frame game-loop scheduler root (also the turbo virtual-clock anchor). Carries the per-frame RNG determinism payload that flow_diff --verdict classifies, read at onEnter BEFORE this frame's sim consumes RNG: rng = engine LCG state DAT_006023a0, rngcalls = cumulative LCG draws (src:rngcalls → the agent's g_rng_count_total; auto-installs the LCG hook). Port mirror: src/tick.c CALL_TRACE_BEGIN(0x47be92). Replaces the old --player-pos-log rng/rngcalls columns + the retail --watch path phase_probe.py used.",
+      "fields": [
+        {"name": "rng",      "src": "global",   "va": "0x6023a0", "type": "i32"},
+        {"name": "rngcalls", "src": "rngcalls",                   "type": "i32"}
+      ]
+    },
     "0x47be2f": {
       "name": "tick_now_ms",
       "chain_benign": true,
