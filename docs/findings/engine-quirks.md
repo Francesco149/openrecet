@@ -4294,3 +4294,36 @@ NONE is left set through the wing/dust draws that follow; the next pass resets
 its own cull (retail toggles CULLMODE 1↔3 ~23×/frame). The sparkle keeps
 ALPHATESTENABLE=1 / ALPHAFUNC=GREATER / ALPHAREF=0 (its effect00.bmp star
 texels are opaque, so alpha>0 passes) and additive ONE/ONE blend.
+
+
+## 109. The free-roam companion (Tear) does NOT update its facing while idle — FUN_0048a4d1 writes the facing octant only on a moving frame, so a stationary fairy HOLDS its entry seed (octant 4 = facing DOWN). The `(comp.x≤player.x)?6:2` side-rule is FUN_0048a833's INTRO-ONLY branch
+
+The fairy companion's per-frame controller in HOUSE free-roam is **FUN_0048a4d1**
+(the spring-follow, called every frame from **FUN_0048a833**; both fire 49/49
+over a loaded-shop capture window). Its facing law (all.c:89083-89121) is gated
+on **movement**:
+
+- **moved ≤ 0.01 (idle):** set the idle anim (`DAT_056dab40 = 0`, or `5` when
+  `DAT_0450f405[slot] != 0`) and **write NO facing** — `DAT_056dab58` is left at
+  whatever it was: the entry seed, or the last walking direction.
+- **moved > 0.01 (walking):** anim 1 + `DAT_056dab58 = DAT_056dab00[target·0xb]`
+  (copy the followed actor's — the player's — facing octant).
+
+So a fairy that is stationary from scene entry (a **CONTINUE-load** straight into
+the shop, player not moving) keeps the octant the scene-entry pose seeded — **4
+(facing down / toward camera)**. Confirmed on retail with the flow-trace:
+`flow_diff --verdict --align-field db054` over `house-loaded-display-pinned`
+reports `coct` retail **4** every frame of the window, with **every other actor
+field (player + companion pos/anim/facing-angle, db054, rng/rngcalls)
+bit-identical** — `coct` was the lone divergence (port was 2).
+
+The `dab58 = (comp.x ≤ player.x) ? 6 : 2` SIDE-rule that *looks* like the idle
+law is actually **FUN_0048a833's branch A**, gated `DAT_0438b928 == 1 &&
+DAT_0438b924 < 200` — the **intro window** (the iv1_1 scene where Recette stands
+looking UP at Tear). It is NOT the free-roam law. A port that applies the 6/2
+side-rule to all idle frames matches new-game WALK scenarios only by luck (Tear
+is *moving* there, so both sides take the copy-player-octant path) and diverges
+exactly when the fairy is idle from entry. Gates observed on retail in the
+loaded shop: `DAT_056da1c8=0` (no early return), `DAT_056db048=0`,
+`DAT_0438be6c=0` (idle-countdown wander state). See [[scene1-wing-glow]],
+[[scene1-tear-visual-diffs]].

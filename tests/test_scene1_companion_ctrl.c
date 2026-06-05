@@ -48,8 +48,12 @@ int test_companion_inside_radius_idle(void)
     T_NEAR(g_scene1_actor_pos[2][0], x0);  /* no XZ move within radius */
     T_NEAR(g_scene1_actor_pos[2][2], z0);
     if (rec[CHR_ACTOR_ANIM] != 0) T_FAIL("still → idle anim 0");
-    /* idle side-rule facing: comp.x(0.6) > player.x(-0.3) → octant 2 (left). */
-    if (rec[CHR_ACTOR_FACING] != 2) T_FAIL("idle facing should be side-rule 2");
+    /* idle → facing is HELD, not rewritten (FUN_0048a4d1 writes no facing on the
+     * moved≤0.01 path).  So it keeps the entry seed octant 4 (facing DOWN) that
+     * player_ctrl_pose_house_standing set — matches retail's loaded-shop fairy
+     * (flow_diff --verdict: coct=4 both sides).  The old 6/2 side-rule was
+     * FUN_0048a833's intro-only branch A, wrong for free-roam. */
+    if (rec[CHR_ACTOR_FACING] != 4) T_FAIL("idle facing should hold seed octant 4");
     return 0;
 }
 
@@ -105,10 +109,10 @@ int test_companion_velocity_clamp(void)
 
 /* Wing-glow sparkle (engine-quirks §73): on the first frame (bob counter 0) the
  * controller emits one type-0x1f particle just off the fairy, along her facing.
- * With the player inside the follow radius the fairy is stationary, so the spawn
- * position is exact: facing octant 2 (idle side-rule, comp.x>player.x), camera
- * yaw 0 → angle = 2·2π/8 = π/2 → spawn at
- *   (0.6 − sin(π/2)·0.6, 3.0 + 1.1, 9.35 − cos(π/2)·0.6) = (0.0, 4.1, 9.35). */
+ * With the player inside the follow radius the fairy is stationary → idle, so
+ * the facing holds its entry seed octant 4 (FUN_0048a4d1 writes no idle facing),
+ * camera yaw 0 → angle = 4·2π/8 = π → spawn at
+ *   (0.6 − sin(π)·0.6, 3.0 + 1.1, 9.35 − cos(π)·0.6) = (0.6, 4.1, 9.95). */
 int test_companion_wing_sparkle_emit(void)
 {
     setup(-0.3f, 9.35f);                    /* player left, inside 1.5 radius → idle */
@@ -123,9 +127,9 @@ int test_companion_wing_sparkle_emit(void)
     if (e.type != 0x1f)        T_FAIL("sparkle type should be 0x1f, got 0x%x", e.type);
     if (e.slot_hint != 0)      T_FAIL("sparkle slot_hint should be 0");
     T_NEAR(e.scale, 0.1f);                  /* recovered reused-push scale */
-    T_NEAR(e.x, 0.0f);
+    T_NEAR(e.x, 0.6f);                       /* facing 4 → sin(π)=0 → x unchanged */
     T_NEAR(e.y, 4.1f);
-    T_NEAR(e.z, 9.35f);
+    T_NEAR(e.z, 9.95f);                      /* cos(π)=−1 → z + 0.6 */
     return 0;
 }
 

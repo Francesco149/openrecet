@@ -208,15 +208,24 @@ void scene1_companion_ctrl_tick(void)
                 + g_scene1_player_ground_y + CO_BOB_OFFSET;
     comp[1] += (bob - comp[1]) * CO_SPRING;
 
-    /* Anim/facing.  If the companion MOVED this frame → walk anim + copy the
-     * PLAYER's facing octant (FUN_0048a4d1: dab58 = dab00[target·0xb]; verified
-     * 621/621 against retail).  Else idle: the engine's standing-pose branch
-     * (FUN_0048a833) faces the companion toward the player's SIDE — dab58 =
-     * (comp.x ≤ player.x) ? 6 : 2 — which is what retail shows for the idle fairy
-     * (95% of idle frames vs the capture; the port collapses the spring + the
-     * standing-pose facing into one free-roam controller since it has no §60
-     * intro window).  This is the fairy's resting orientation (octant 2 = facing
-     * left toward Recette at the spawn offset). */
+    /* Anim/facing — the free-roam spring-follow law FUN_0048a4d1 (all.c:89083-
+     * 89121, the function FUN_0048a833 calls every free-roam frame; both fire
+     * 49/49 over the loaded-shop window).  If the companion MOVED this frame →
+     * walk anim + copy the target's (player's) facing octant (dab58 =
+     * dab00[target·0xb]).  Else IDLE → set the idle anim ONLY and LEAVE THE
+     * FACING UNTOUCHED: FUN_0048a4d1's idle path (moved ≤ 0.01) writes anim 0 but
+     * never touches DAT_056dab58, so the facing holds its entry seed (octant 4 =
+     * facing DOWN/toward-camera, set by player_ctrl_pose_house_standing) or the
+     * last walking direction.  Retail bears this out — the loaded-shop fairy is
+     * octant 4 for the whole window (flow_diff --verdict --align-field db054:
+     * coct retail 4 / port 2, every other actor field bit-1:1).
+     *   The OLD port rule `dab58 = (comp.x≤player.x)?6:2` was WRONG here: that
+     * 6/2 side-facing is FUN_0048a833's INTRO-ONLY branch A (gated
+     * DAT_0438b928==1 && DAT_0438b924<200 — the iv1_1 scene where Recette looks
+     * UP at Tear), not the free-roam law.  It happened to pass new-game WALK
+     * scenarios only because Tear is MOVING there (facing = copied player octant
+     * on both sides); the bug surfaces only when the fairy is stationary from
+     * scene entry (a CONTINUE-load into the shop). */
     /* While the iv1_2 conversation pose is held, FUN_0048407f's branch owns
      * Tear's anim (4 = talk) + facing and the per-actor anim step already ran in
      * scene1_conversation_pose_tick — yield the free-roam selection + the tick
@@ -231,7 +240,8 @@ void scene1_companion_ctrl_tick(void)
     if (!in_conversation) {
         if (moved <= CO_MOVE_EPS) {
             co_set_anim(rec, CO_ANIM_IDLE);
-            rec[CHR_ACTOR_FACING] = (comp[0] <= player[0]) ? 6 : 2;
+            /* idle → anim only; facing holds its seed/last value (FUN_0048a4d1
+             * writes no facing on the moved≤0.01 path). */
         } else {
             co_set_anim(rec, CO_ANIM_MOVING);
             if (prec)
