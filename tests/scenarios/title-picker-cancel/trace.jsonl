@@ -1,0 +1,25 @@
+# Title → open picker (A) → back out (B) → move cursor (DOWN).
+# Same fa7c82 save + seed as title-load-picker so boot→title is deterministic
+# and the title cursor defaults to CONTINUE_ANY (single A opens the picker).
+#   - 45  A (0x0010): open the LOAD GAME picker
+#   - 70  capture: picker slid in + settled
+#   - 100 B (0x0020): cancel / back out to the main menu
+#   - 108 capture: mid fold-out — the picker must be SLIDING off-screen
+#         (engine keeps DAT_09643524 set so it renders sliding, not popping)
+#   - 125 capture: main menu slid back in (cursor_anim 10→0); pre-DOWN
+#   - 140 DOWN (0x0008), held 1 frame: move the main-menu cursor one row
+#   - 165 capture: post-DOWN — cursor_pos must have advanced (input alive)
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 45, "buttons": "0x0010"}
+{"frame": 48, "buttons": "0x0000"}
+{"capture": 70}
+{"frame": 100, "buttons": "0x0020"}
+{"frame": 103, "buttons": "0x0000"}
+{"capture": 108}
+{"capture": 125}
+{"frame": 140, "buttons": "0x0008"}
+{"frame": 141, "buttons": "0x0000"}
+{"capture": 165}
+{"frame": 200, "buttons": "0x0000"}

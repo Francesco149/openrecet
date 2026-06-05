@@ -1,0 +1,22 @@
+# title-picker-cancel — regression for the "LOAD GAME → X-back soft-lock".
+#
+# Repro of the bug: title → A opens the continue/load slot picker (engine
+# DAT_09643524 == 1) → B backs out → the main menu must re-accept input.
+# Before the fix the picker-cancel path left select_phase pinned at 0xf
+# (from the open-countdown), so the L455 main-menu input gate took the
+# countdown `else` branch (a no-op at 0xf) forever — a soft-lock. The fix
+# resets select_phase = 0 on cancel, matching the engine (FUN_0049a59e
+# L101197) and the settings-exit handler.
+#
+#   python3 tools/scenario-test.py title-picker-cancel --target both \
+#     --call-trace --frida-remote cutestation.soy:27042
+#
+# Verification: the DOWN press AFTER the back-out moves cursor_pos. The
+# call-trace sim stub logs cursor_pos every frame, so flow_diff confirms the
+# post-cancel cursor move is bit-1:1 with retail.
+description: |
+  Title → A (open LOAD GAME picker) → B (back out) → DOWN. The post-cancel
+  DOWN must move the main-menu cursor; proves the back-out re-opens input.
+max_frames: 600
+duration_ceiling_ms: 30000
+n_captures: 4

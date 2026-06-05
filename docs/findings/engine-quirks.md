@@ -4041,3 +4041,48 @@ elements (the clock-dial detail panel, the 0.8 stat text, anything magnified/
 minified). So the next-session probe should compare the sampler filter + the
 half-texel/UV-origin handling specifically on SCALED 2D-UI quads (port vs retail)
 rather than the unscaled ones — that is where the rounding diverges.
+
+## 102. Title submenu back-out: the engine never clears the submenu id (DAT_09643524) — it slides the panel off-screen via the cursor_anim render-gate, and resets select_phase to 0 on the cancel
+
+When you back out of a title submenu (the LOAD GAME slot picker `DAT_09643524==1`,
+or the settings panel `==2`), `FUN_0049a59e` does **not** clear the submenu id.
+The picker's B/cancel (`DAT_073dddd4 & 0x20`) jumps to `LAB_0049aaff`, plays the
+cancel SE `0x13d`, and falls out of the `DAT_09643520==10` block to the shared
+fall-through at the end of the function (`L101197`):
+
+```
+DAT_09643544 = 0;   // select_phase  → 0   (was pinned at 0xf from the open-countdown)
+DAT_09643528 = 1;   // slide dir     → fold-out (DAT_09643520 decrements toward 0)
+```
+
+So **two** things happen on a back-out, and a third deliberately does *not*:
+- **`select_phase` (DAT_09643544) is reset to 0.** It was left at 0xf when the
+  A-press countdown dispatched the open. The main-menu input handler only runs in
+  the `DAT_09643544 < 1` branch, so without this reset the menu would never accept
+  input again. (This is the bug the port hit — see below.)
+- **The slide direction flips to fold-out** so `DAT_09643520` (cursor_anim) ramps
+  10→0, sliding the panel back toward x = `640 − cursor_anim·64` = 640 (off the
+  right edge).
+- **The submenu id `DAT_09643524` is left set** (stays 1/2 until the next dispatch
+  overwrites it). It is *not* a state flag the engine bothers to clear: the panel
+  render is gated purely on `DAT_09643520 >= 1` (`FUN_0049c644` L101986/102014), so
+  once cursor_anim hits 0 the panel simply isn't drawn (and at cursor_anim==0 it
+  would draw fully off-screen anyway). Net effect: **submenus SLIDE off-screen on a
+  back-out, they do not pop**, and the main menu re-accepts input on the frame
+  cursor_anim reaches 0.
+
+Settings exits the same way through a different door (`DAT_09643560==2/3` →
+`LAB_0049a5d3`, L100574: same `DAT_09643544=0; DAT_09643528=1`).
+
+Port note (not retail behaviour, recorded here only to explain the parity choice):
+the port's main-menu input gate keys on `submenu_state == 0`, so the port *does*
+clear `submenu_state` — but only once cursor_anim reaches 0 (in the slide tick),
+keeping it set through the fold-out so the panel slides off-screen like retail.
+Verified `title-picker-cancel --target both`: sim state (`select_phase`,
+`cursor_anim`, `cursor_pos`, `submenu_state`) bit-1:1 through the fold-out; the
+post-back-out main menu + a DOWN press are 0-px bit-identical to retail. The only
+residual is the benign steady-state `submenu_state` (port 0 vs retail's stale id) —
+no render/input effect because the render gate is cursor_anim-gated. This fixed the
+"LOAD GAME → X-back soft-locks the main menu" bug: the port had reset
+`submenu_state`/`menu_folding_out` on cancel but left `select_phase` pinned at 0xf,
+so the main-menu gate fell into the no-op countdown branch forever.

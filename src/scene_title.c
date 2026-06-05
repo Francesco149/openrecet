@@ -409,6 +409,23 @@ void scene_title_sim(scene_title_anim_t *anim,
         if (anim->cursor_anim > 0) {
             anim->cursor_anim--;
         }
+        /* Fold-out complete → leave submenu state. Retail (FUN_0049a59e)
+         * never clears DAT_09643524 on a back-out: it leaves the submenu
+         * id set and relies on the render gate (`cursor_anim >= 1`,
+         * FUN_0049c644 L101986/102014) to stop drawing the panel once it
+         * has slid off-screen at cursor_anim == 0. The port keeps
+         * `submenu_state` set through the slide too (so the picker/panel
+         * renders sliding out, not popping) but DOES clear it here at
+         * cursor_anim == 0, because the port's main-menu input gate (below)
+         * keys on `submenu_state == 0`. Net behaviour is retail-identical:
+         * the panel slides off, then main-menu input re-opens on the frame
+         * cursor_anim reaches 0. (Steady-state submenu_state then reads 0
+         * where retail's stale DAT_09643524 reads its last id — a benign
+         * internal-flag difference with no render/input effect, since the
+         * render gate is cursor_anim-gated.) */
+        if (anim->cursor_anim == 0 && anim->submenu_state != 0) {
+            anim->submenu_state = 0;
+        }
     } else {
         if (anim->cursor_anim < 10) {
             anim->cursor_anim++;
@@ -441,9 +458,20 @@ void scene_title_sim(scene_title_anim_t *anim,
             anim->continue_load_bank = load_bank;
             anim->fade_counter       = 1;
         } else if (r == TITLE_PICKER_CANCEL) {
-            /* Back out: slide the main menu back in. */
-            anim->submenu_state    = 0;
+            /* Back out. Engine FUN_0049a59e L101197 (the picker-cancel
+             * 0x20→LAB_0049aaff fall-through): `DAT_09643544 = 0;
+             * DAT_09643528 = 1;` — reset select_phase AND set the slide
+             * direction to fold-out, while LEAVING DAT_09643524 (submenu
+             * id) set. The select_phase reset is load-bearing: opening the
+             * picker leaves it pinned at 0xf from the A-press countdown,
+             * and the main-menu input gate (below) only runs when
+             * select_phase == 0; without it the gate takes the countdown
+             * `else` branch (a no-op at the pinned 0xf) forever — the
+             * input soft-lock. We keep `submenu_state` set so the picker
+             * renders sliding off-screen (the fold-out clause above clears
+             * it once cursor_anim reaches 0). */
             anim->menu_folding_out = 1;
+            anim->select_phase     = 0;
         }
         anim->pulse_phase++;
         return;
