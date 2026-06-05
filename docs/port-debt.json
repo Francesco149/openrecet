@@ -41,7 +41,7 @@
    "engine_fn": "NONE",
    "desc": "active save-slot pinned to bank 0;",
    "file": "src/scene.c",
-   "line": 48,
+   "line": 49,
    "kind_known": true
   },
   {

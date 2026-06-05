@@ -61,6 +61,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/chara_skills.c \
                  ../src/npc_schedule.c \
                  ../src/scene1_hud.c \
+                 ../src/scene1_top_hud.c \
                  ../src/chr_sprite_meta.c \
                  ../src/scene1_chr_sprite.c \
                  ../src/scene1_chr_walker.c \

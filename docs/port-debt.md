@@ -67,7 +67,7 @@ _none_
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| NONE | src/scene.c:48 | active save-slot pinned to bank 0; |
+| NONE | src/scene.c:49 | active save-slot pinned to bank 0; |
 
 ## scaffold (0)
 

@@ -9,6 +9,7 @@
 #include "scene_new_game.h"
 #include "scene_title.h"   /* g_scene_title_anim.continue_mode */
 #include "save_work.h"     /* seed working slot 0 */
+#include "scene1_top_hud.h" /* load DAT_0438b918 money from the working slot */
 #include "stage_post_load.h"
 #include "worker_load.h"
 
@@ -70,6 +71,24 @@ void scene_post_fade_init(void)
          * surface as the in-game scene starts reading the working arena
          * (task D / items-on-display). */
         save_work_set_active_slot(0);
+    }
+
+    /* Engine FUN_0049a59e L100698-100699 (CONTINUE) / L100768-100769 (NEW):
+     * both commit branches load the live money + objective globals from the
+     * active working slot, right before the shared tail. The money global
+     * DAT_0438b918 = working[slot] dword 3 (= SAVE_BANK_FIELD_GOLD, byte
+     * 0xc). Without this the in-game "N,NNNpix" banner kept its static
+     * new-game default (1000) on a CONTINUE load, so a loaded save's gold
+     * (e.g. 440) never reached the HUD. (_DAT_0438b91c, the objective-gold
+     * clock target, is also loaded by the engine here but the port doesn't
+     * render it yet; day rides a working-arena-specific high offset and is 0
+     * for the current save — both deferred until a non-zero-day save needs
+     * them.) */
+    {
+        const uint32_t *work = save_work_dwords_at(save_work_active_slot());
+        if (work) {
+            scene1_top_hud_set_money((int)work[SAVE_BANK_FIELD_GOLD]);
+        }
     }
 
     /* Engine FUN_0049a59e L100757 — FUN_00435c98 fires right after
