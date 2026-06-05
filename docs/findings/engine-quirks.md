@@ -4031,3 +4031,13 @@ box-edge-halo class, cf. §54 POINT-vs-LINEAR / box-mip). Almost certainly ONE
 shared root cause across the 2D-UI quads (the sampler/mip filter on `item_win.tga`
 + the menu textures), worth investigating once as a likely-easy shared fix
 (user-flagged 2026-06-05, next session).
+
+**Sharpened lead (user, 2026-06-05):** the title MENU items (`fuki.tga` tiles) are
+**0-px** bit-identical, while the picker cards carry the noise — and the
+distinguishing factor is **scaling**. Where a 2D quad's dst pixel size equals its
+src region size (texel-to-pixel 1:1), POINT and LINEAR sample the same texel
+centres so there is no ±1 LSB divergence; the noise appears only on the **scaled**
+elements (the clock-dial detail panel, the 0.8 stat text, anything magnified/
+minified). So the next-session probe should compare the sampler filter + the
+half-texel/UV-origin handling specifically on SCALED 2D-UI quads (port vs retail)
+rather than the unscaled ones — that is where the rounding diverges.
