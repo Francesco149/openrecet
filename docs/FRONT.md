@@ -189,13 +189,23 @@
        `{phasepin}` zeros the countdowns on BOTH sides so the capture is un-shaken.
        cap_44 standees all 4 at **delta 0.0** px; full-frame 89080px→5596px. The 5.6k
        residual = the **window NPCs** (item #2, top-center `chr10`), not the standees.
+     - **MILESTONE (user-confirmed 2026-06-05, post-shake-fix):** across the 46-panel
+       intro-dialogue-lines both-run, **everything is 1:1 EXCEPT** (a) the window NPCs and
+       (b) faint ambient particle dots. Those two + the book-frame note below are the only
+       remaining intro-dialogue deltas. **NEXT SESSION: investigate the window NPCs (item
+       #2).**
      - **iv1_2 lines 16-45 ~3-6k px = the WINDOW NPCs** (item #2 below) — RNG/logic, not
        phase (phasepin didn't move them). User-confirmed "the ~6k diff on most frames is
-       the npcs at the window."
-     - **next-line "book" arrow off-phase on a few iv1_2 lines (17/22/29/35) — DEFERRED to
-       next session (user).** Port bug: `scene1_dialogue_draw.c` draws it from a `static
-       int s_blink` that **never resets per-script** + isn't synced to retail's
-       `DAT_073a3e0c` (resets per-script in `FUN_0046c0ae`, ++ in draw). Fix: draw from the
+       the npcs at the window." **TOP next-session target.**
+     - **faint ambient particle dots** — minor remaining delta (user-flagged 2026-06-05);
+       the sparse drifting dots, likely an RNG/phase or a still-unported ambient emitter.
+       Low priority; chase after the window NPCs.
+     - **next-line "book" arrow = WRONG ANIM FRAME on iv1_2 lines 17/22/29/35/**41**
+       — DEFERRED (user, "note it down for later", flagged again 2026-06-05 w/ per-line
+       crops cap_17/22/29/35/41).** Port bug: `scene1_dialogue_draw.c` draws it from a
+       `static int s_blink` that **never resets per-script** + isn't synced to retail's
+       `DAT_073a3e0c` (resets per-script in `FUN_0046c0ae`, ++ in draw) → the book/page-turn
+       advance-prompt sits on a different animation frame than retail. Fix: draw from the
        per-script-reset `rt->blink` ticked in-draw, and add it to `{phasepin}` (port zero
        `g_rt.scene.blink`; Frida zero `DAT_073a3e0c`).
   2. ~~**BUG: LOAD GAME → X-back locks main-menu input.**~~ **FIXED 2026-06-05**
