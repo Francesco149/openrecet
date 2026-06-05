@@ -164,13 +164,23 @@
   **Lesson:** flat-colour ≤1-LSB UI diff + bit-identical verts ⇒ suspect COLOROP/blend
   render-state (and the enum-value-vs-name trap), not texture decode.
 - **Queued next:**
-  1. **`intro-dialogue-lines` per-line BACKGROUND-region outliers (lines 5 + 44).**
-     After the box fix, 44/46 lines are pixel-clean vs retail except the benign 856px
-     FPS corner; lines **5** (iv1_1 #6) and **44** (iv1_2 #29) still differ ~122–128k px
-     across the whole **bg** band (y[175-767], full width) — NOT the box (box_open 0/46
-     1:1) and NOT a regression (sin halved line 5 vs cos). Likely a bg-scroll/transition
-     PHASE at those specific lines (the iv script's `bgset`/`bgscroll`), or a one-frame
-     bg-swap caught off-phase. Lower priority than the iv1_2 freeroam-anim gaps.
+  1. ~~**`intro-dialogue-lines` per-line BACKGROUND-region outliers (lines 5 + 44).**~~
+     **ROOT-CAUSED 2026-06-05 — it is NOT a bg issue; it's the CHARACTER pose.** The
+     ~122–128k-px delta on line **5** (iv1_1 #6, "WAKE UP, PLEASE!") and line **44**
+     (iv1_2 #29) is **entirely the chibi actor sprite**: bg-only corners (top-right window,
+     far-right wall) are **bit-identical, 0 px** port↔retail; the diff localizes to the
+     actor column (line 5 = Tear at x[40-300]; line 44 = central actor x[128-384]). On
+     these *emphasis* lines retail's iv event-script drives a distinct per-line gesture
+     (line 5: Tear **both arms up**; sharpness/variance UP, no shift/scale/blur realigns
+     it → an *added* pose, not a transform), while the port leaves the actor in its
+     default/static pose. Proof: retail's own sequence jumps 04→05 **+24.9** then 05→06
+     **+26.6** (a one-line transient gesture); the port's 04→05/05→06 are **1.7/4.8**
+     (near-static). So both outliers fold into the **deferred event-script actor-anim
+     gap** — the same class the conversation-pose driver (`scene1_conversation_pose.c`,
+     FUN_0048407f) only *partially* covers (it does the iv1_2 auto face-to-face branch;
+     the per-line scripted gestures like Tear's wake-up arm-raise are an unported layer
+     of the iv interpreter). **Not a separate bug; do not chase as a bg bug.** Belongs
+     with the iv1_2 freeroam-anim work, deferred by design.
   2. ~~**BUG: LOAD GAME → X-back locks main-menu input.**~~ **FIXED 2026-06-05**
      (commit 324ddb3, user-flagged). Root cause was NOT submenu_state (the port
      already wound that back) but **`select_phase` left pinned at 0xf** from the
