@@ -45,6 +45,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
 import distill_trace          # noqa: E402  (sibling tool, reused as a module)
+import trace_save             # noqa: E402  (TAS save virtualization, shared with scenario-test)
 from frame_io import frame_glob   # noqa: E402
 
 
@@ -227,6 +228,30 @@ def main(argv=None) -> int:
         "--player-pos-log", str(meta_path),
         "--max-frames", str(args.max_frames),
     ]
+    # TAS save virtualization: resolve the trace's {savefile} ref exactly like
+    # scenario-test, else a trace that wants a fresh boot (@fresh) silently uses
+    # the on-disk save.dat and the replay diverges (e.g. a HOUSE intro scenario
+    # skips the dialogues straight to freeroam, never reaching the capture
+    # window).  Writes always go to a per-run sandbox so a replay can't clobber
+    # the real save.dat.
+    #   @fresh  → --save-fresh   (boot with no save; fresh menu)
+    #   <blob>  → --save-override (decompressed embedded save)
+    #   (none)  → on-disk save.dat (legacy)
+    # NB run-openrecet.sh does NOT path-rewrite the --save-* flags (unlike
+    # --capture-to / --input-segtrace), so hand it the Windows path the exe's
+    # fopen needs directly (wslpath -w is not idempotent — can't let the wrapper
+    # re-convert).
+    def _winpath(p: Path) -> str:
+        return subprocess.run(["wslpath", "-w", str(p)],
+                              capture_output=True, text=True, check=True).stdout.strip()
+    save_ref = trace_save.resolve_save(src)
+    if save_ref == trace_save.FRESH_REF:
+        cmd += ["--save-fresh"]
+    elif save_ref:
+        cmd += ["--save-override", _winpath(Path(save_ref))]
+    save_out_dir = run_dir / "saveout"
+    save_out_dir.mkdir(parents=True, exist_ok=True)
+    cmd += ["--save-write-dir", _winpath(save_out_dir)]
     if args.dust_log:
         cmd += ["--dust-log", str(run_dir / "dustlog.txt")]
     if args.d3d_trace:

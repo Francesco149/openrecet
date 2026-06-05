@@ -135,10 +135,15 @@ def inject_pins(trace: Path, pin_at: int, out: Path, seed: int | None) -> None:
     out.write_text("\n".join(new) + "\n")
 
 
-def run_port(trace: Path, start: int, count: int, run_dir: Path) -> None:
+def run_port(trace: Path, start: int, count: int, run_dir: Path,
+             max_frames: int) -> None:
+    # export_trace defaults to --max-frames 4000; HOUSE_FREEROAM scenarios with a
+    # large anchor-relative capture offset (the port's absolute window can be
+    # ~9k+) need it widened to match the retail leg, else the port is killed
+    # before the window arms ("no frames captured").
     cmd = [sys.executable, str(ROOT / "tools" / "export_trace.py"), str(trace),
            "--caprange", f"{start},{count}", "--run-dir", str(run_dir),
-           "--name", "phase-probe"]
+           "--max-frames", str(max_frames), "--name", "phase-probe"]
     print(f"  port: export_trace --caprange {start},{count} …", flush=True)
     with (run_dir / "drive.log").open("w") as log:
         subprocess.run(cmd, check=True, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
@@ -268,7 +273,7 @@ def main() -> int:
     # phasepin (covers the whole window) IN THE SAME run — load-jitter immune.
     cs_len = (count + 120) if (args.drill and not args.no_pin) else 0
     if not args.reuse:
-        run_port(work, start, count, out / "port")
+        run_port(work, start, count, out / "port", args.max_frames)
         run_retail(work, out / "retail", args.max_frames, args.remote, cs_len)
 
     port = load_port(out / "port")
