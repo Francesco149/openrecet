@@ -205,9 +205,12 @@ save I/O into a per-run dir.
 Drive retail through the Frida agent: `tools/frida_capture.py --input-segtrace …
 --frida-remote cutestation.soy:27042 --hide-window --turbo --silent-audio`
 (agent `tools/frida/openrecet-agent.js` mirrors the segtrace ops + anchor stream;
-`--watch NAME=0xVA:type` for per-frame globals; `tools/kill_retail.py` after;
-restart frida-server if captures degrade). Capture both targets at the same
-resolution and diff via `tools/pixel_diff.py` / `tools/compose_comparison.py`.
+`tools/kill_retail.py` after; restart frida-server if captures degrade). Capture
+both targets at the same resolution and diff via `tools/pixel_diff.py` /
+`tools/compose_comparison.py`. For per-frame STATE (positions/facing/anim/RNG),
+don't watch raw VAs — declare the fields in `tools/flow/retail_fields.json` and
+use `scenario-test --target both --call-trace` + `flow_diff.py`
+(`docs/flow-trace-cheatsheet.md`).
 
 ---
 
@@ -221,3 +224,13 @@ resolution and diff via `tools/pixel_diff.py` / `tools/compose_comparison.py`.
   `tools/render_trace_gate.py` and legacy scenarios. Use `--input-segtrace`.
 - `--auto-z-spam` — still wired into the `dump_*_groundtruth.py` tools; replaced
   by `{"wait":"ANCHOR"}` for new drives.
+
+## Removed (2026-06-06 — replaced by the flow-trace)
+
+The per-frame ad-hoc introspection path was deleted in favour of
+`scenario-test --target both --call-trace` + `tools/flow_diff.py` (annotate the
+function on both sides; see `docs/flow-trace-cheatsheet.md`):
+- port `--player-pos-log` / `--dlg-log` / `--dust-log` (per-frame state JSONL),
+- retail `--watch NAME=0xVA` (arbitrary VA reads → watch.jsonl),
+- `tools/phase_probe.py` (→ `flow_diff.py --verdict --align-field db054`),
+- `tools/{facing_reconstruct,wall_collide_diff,recette_anim_probe}.py`.

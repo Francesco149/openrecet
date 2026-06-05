@@ -36,9 +36,10 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   if output is bit-identical under pinning, the logic is "confirmed 1:1 given same data"
   even when the raw un-pinned output differs.** Record that distinction (data-1:1 vs
   observed-1:1, with which pillars are off-but-accepted) so a known phase/seed-origin offset
-  is never re-suspected as wrong logic. `tools/phase_probe.py` gives the verdict:
-  ALIGNED / CONST-OFFSET (= phase, accept) / DRIFT (= real logic divergence). Playbook:
-  `docs/phase-debugging.md`.
+  is never re-suspected as wrong logic. **`tools/flow_diff.py --verdict --align-field
+  db054`** gives the verdict: ALIGNED / CONST-OFFSET (= phase, accept) / DRIFT (= real
+  logic divergence), over a `scenario-test --target both --call-trace` capture. Playbook:
+  `docs/flow-trace-cheatsheet.md`.
 - **Verify before pruning; archive, don't delete** (`docs/archive/`, `memory/archive/`).
 - **Full port, not MVP.** Tag MVP/synthetic shortcuts with `PORT-DEBT(tag, ...)`
   (registry: `docs/port-debt.md`). Retire them; don't let them silently cap parity.
@@ -88,11 +89,13 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
 - **Is FUN_x ported / coverage:** `docs/STATUS.md` + `docs/port-ledger.{md,json}` (derived).
 - **Changelog:** `docs/PROGRESS.md`. **RE writeups:** `docs/findings/INDEX.md`.
 - **Tracing port↔retail (TAS traces, anchors, d3d-trace, call-trace, save override):**
-  `docs/trace-workflow.md`.
-- **Render/parity debugging tools:** `tools/phase_probe.py` (RNG/phase determinism verdict),
+  `docs/trace-workflow.md`. **Flow-trace cheatsheet (THE state-comparison tool):**
+  `docs/flow-trace-cheatsheet.md`.
+- **Render/parity debugging tools:** `tools/flow_diff.py` (`--verdict` RNG/phase
+  determinism + `--field-timeline` + `--rng-drill`; the modern phase_probe replacement),
   `tools/d3d_state_diff.py` + `tools/render_diff.py` (per-draw command-stream diff),
   `tools/pixel_diff.py` / `tools/compose_comparison.py` (visual). Playbooks:
-  `docs/phase-debugging.md`, `docs/render-depth-debugging.md`.
+  `docs/flow-trace-cheatsheet.md`, `docs/render-depth-debugging.md`.
 - **Orchestration / when to spawn sub-agents:** `docs/AGENT-WORKFLOW.md`.
 - **Active plan:** `docs/plans/`. **Strategic frame / tooling phases:** `docs/PLAN.md`,
   `docs/harness-roadmap.md`.

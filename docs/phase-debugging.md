@@ -1,5 +1,15 @@
 # Debugging port↔retail PHASE / determinism divergences (the playbook)
 
+> **⚠️ TOOLING SUPERSEDED (2026-06-06).** `tools/phase_probe.py` was removed; its
+> verdict (ALIGNED / CONST-OFFSET / DRIFT + the authoritative `rngcalls` row) now
+> lives in **`tools/flow_diff.py --verdict --align-field db054`**, run over a
+> `scenario-test <scn> --target both --call-trace` capture. The METHODOLOGY below
+> (normalize phase + RNG, then classify the offset; CONST-OFFSET = load-dependent
+> origin, not logic) is unchanged and still the playbook — only the command moved.
+> See **`docs/flow-trace-cheatsheet.md`** for the modern invocations. The
+> `phase_probe ...` commands in this file are historical; substitute the flow_diff
+> equivalent (it aligns by db054 the same way once the trace is `{phasepin}`-ed).
+
 When a free-roam **animation / hover-bob / sparkle / spawn phase** looks wrong vs
 retail — Tear's wings flapping at the wrong cell, her eyes/hands a frame off, the
 dust or sparkles out of step — the first question is always the same:
