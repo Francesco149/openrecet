@@ -3731,6 +3731,8 @@ static void segtrace_phasepin_cb(void *user)
     player_ctrl_phasepin();   /* actor-0 anim cycle — normalizes the IDLE origin */
     title_save_dialog_phasepin(); /* shared cursor bob (b154) — normalizes the
                                    * skip-prompt hand-cursor phase origin */
+    scene1_intro_dialogue_phasepin(); /* rmb screen-shake countdowns — un-shake
+                                       * the dialogue standees at a fixed capture */
 }
 
 /* Capture-range sink for input_segtrace `{caprange:[start,count]}` ops: open

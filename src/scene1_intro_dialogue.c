@@ -270,6 +270,19 @@ const struct ive_runtime *scene1_intro_dialogue_runtime(void)
     return scene1_intro_dialogue_active() ? &g_rt : NULL;
 }
 
+/* Trace-harness `{phasepin}` for the dialogue screen-shake (rmb): zero the
+ * bg/chr-shake countdowns so a fixed-offset capture lands on the UN-shaken base
+ * pose on both sides.  The shake jitter is a per-frame RNG/load-phase artifact
+ * (engine-quirks §105 + §85): retail's own value at a frozen frame is
+ * load-dependent, so we normalize it in the TAS harness (the Frida side zeros
+ * DAT_073a6d98/9c the same way) rather than re-seeding the shipped game, which
+ * keeps shaking faithfully.  No-op when no dialogue runtime is live. */
+void scene1_intro_dialogue_phasepin(void)
+{
+    g_rt.scene.shake_bg  = 0;
+    g_rt.scene.shake_chr = 0;
+}
+
 const struct ive_program *scene1_intro_dialogue_program(void)
 {
     return scene1_intro_dialogue_active() ? g_rt.prog : NULL;

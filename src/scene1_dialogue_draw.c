@@ -24,6 +24,7 @@
 #include "scene1_dialogue_run.h"
 #include "skip_event.h"    /* skip_event_open() — gate the choice-box draw  */
 #include "choice_box.h"    /* choice_box_draw() — the ESC skip prompt       */
+#include "rng.h"           /* rng_next15() — chr/bg-shake jitter (rmb)      */
 
 #include <string.h>
 
@@ -110,13 +111,19 @@ static void draw_background(IDirect3DDevice8 *dev,
         const float src[4] = { 0.0f, 0.0f, 640.0f, 480.0f };
         render_quad_add(dst, src, bg->width, bg->height, 0xffffffffu);
     } else {
-        /* Scroll: three 1024-wide tiles offset by bg_scroll/1000 (+ shake jitter
-         * in Layer 4). PORT-DEBT(deferred): the scroll path is untested until a
-         * scrolling prologue bg is exercised; the prologue caps are static. */
+        /* Scroll: three 1024-wide tiles offset by bg_scroll/1000. bg-shake
+         * (rmb:a,_): one RNG draw (NOT per-tile) jitters the shared tile Y by
+         * (rng_next15()&0x1f)-16 while shake_bg is live (engine FUN_0046c9a2
+         * L67507). Only the scroll path shakes — the static bg above does not.
+         * PORT-DEBT(deferred): the scroll path is untested until a scrolling
+         * prologue bg is exercised; the prologue caps are static. */
         int sx = rt->scene.bg_scroll / 1000;
+        float sy = 0.0f;
+        if (rt->scene.shake_bg != 0)
+            sy = (float)((int)(rng_next15() & 0x1f) - 16);
         for (int t = -1; t <= 1; t++) {
             const float x = (float)(sx + t * 0x400);
-            const float dst[4] = { x, 0.0f, 1024.0f, 480.0f };
+            const float dst[4] = { x, sy, 1024.0f, 480.0f };
             const float src[4] = { 0.0f, 0.0f, 1024.0f, 480.0f };
             render_quad_add(dst, src, bg->width, bg->height, 0xffffffffu);
         }
@@ -166,8 +173,13 @@ static void draw_standees(IDirect3DDevice8 *dev,
         IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
             (blend & 1) ? D3DTOP_ADD : D3DTOP_MODULATE);
 
-        /* dst (x = field1, y = field2; chr-shake jitter on y deferred to L4). */
+        /* dst (x = field1, y = field2). chr-shake (rmb:_,b): while the
+         * countdown is live, jitter Y by (rng_next15()&0x1f)-16 — one RNG draw
+         * per DRAWN standee, in draw order (engine FUN_0046c9a2 L67606). X is
+         * NOT jittered. engine-quirks §105. */
         float y = (float)(int)ive_word_f(s->field[2]);
+        if (rt->scene.shake_chr != 0)
+            y += (float)((int)(rng_next15() & 0x1f) - 16);
         const float dst[4] = { ive_word_f(s->field[1]), y, w + 0.5f, h + 0.5f };
         const float src[4] = { 0.0f, 0.0f, w, h };
         if (s->field[IVE_ST_MIRROR] == 1)

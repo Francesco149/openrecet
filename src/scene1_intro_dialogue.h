@@ -91,6 +91,10 @@ struct ive_program;
 const struct ive_runtime *scene1_intro_dialogue_runtime(void);
 const struct ive_program *scene1_intro_dialogue_program(void);
 
+/* Trace-harness `{phasepin}`: zero the dialogue screen-shake (rmb) countdowns so
+ * a fixed-offset capture is un-shaken on both sides (engine-quirks §105 + §85). */
+void scene1_intro_dialogue_phasepin(void);
+
 /* Monotonic counter bumped each time a script loads (iv1_1, then iv1_2). The
  * render pass reloads its bg/chr textures when this changes. */
 unsigned scene1_intro_dialogue_generation(void);

@@ -571,9 +571,11 @@ frame onward. **`DAT_073a6db0` (the skip-disable flag) is only ever *written* 0*
 always true; the "skip disabled" branch is dead in this build. The port reuses
 `g_sysassets.data_win_tga` (already loaded), so no per-script asset load. Tip
 text pixel-matches retail (feed `cap_00` zoom). **User-verifiable: visible
-bottom-right of every prologue line.** Remaining Layer 4: the `rmb` screen-shake
-RNG reads (`DAT_073a6d98/9c`-gated; closes the foot-dust RNG-phase front) and the
-choice/menu fade overlay (`DAT_073a6da4`; no choices in the prologue).
+bottom-right of every prologue line.** Remaining Layer 4: ~~the `rmb` screen-shake
+RNG reads~~ **PORTED 2026-06-05** (`DAT_073a6d98/9c`-gated per-standee + scroll-bg
+Y jitter `(rand()&0x1f)-16`; engine-quirks §105; was the iv1_2 "RECETTE!" cap_44
+standee-Y residual) and the choice/menu fade overlay (`DAT_073a6da4`; no choices
+in the prologue).
 
 **Open follow-up (user-flagged 2026-06-02):** the dialogue **box (bubble) edge**
 has a slight port↔retail difference at its border — text + tip are pixel-perfect,

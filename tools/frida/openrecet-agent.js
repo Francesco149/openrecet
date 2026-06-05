@@ -2552,6 +2552,11 @@ function segtraceTick(fn) {
                 // load; zero it so the skip-prompt hand-cursor bob is phase-clean
                 // (mirrors the port's title_save_dialog_phasepin).
                 rva(0x0438b154).writeS32(0);   // DAT_0438b154 cursor bob counter
+                // dialogue screen-shake (rmb) countdowns — zero them so a
+                // fixed-offset capture lands on the un-shaken standee base pose
+                // (mirrors scene1_intro_dialogue_phasepin; engine-quirks §105).
+                rva(0x073a6d98).writeS32(0);   // DAT_073a6d98 bg-shake countdown
+                rva(0x073a6d9c).writeS32(0);   // DAT_073a6d9c chr-shake countdown
                 pp.fired = true;
                 if (g_rng_cs_len > 0) {           // arm call-site capture from here
                     g_rng_cs_lo = fn; g_rng_cs_hi = fn + g_rng_cs_len;

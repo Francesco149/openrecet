@@ -4167,3 +4167,40 @@ the banner bbox). The residual full-frame delta is the prologue background's §8
 phase only. **Lesson:** for a flat-colour ≤1-LSB UI divergence with bit-identical
 verts, suspect the COLOROP/blend render-state (and the enum-value-vs-name trap)
 before the texture decode.
+
+## 105. The dialogue `rmb:a,b` command is a per-standee + bg screen-shake: while a countdown is live, each DRAWN standee's Y (and the scroll-bg's Y) jitters by `(rand()&0x1f)-16` every frame — a per-frame RNG offset, NOT a uniform screen shake
+
+The `.ivt` `rmb:a,b` command (handler `FUN_0046d926`) arms two independent
+shake countdowns: `DAT_073a6d98` (bg) `= a+1`, `DAT_073a6d9c` (chr) `= b+1` (the
+`+1` is applied by the command parser, so `rmb:0,0` shakes for one frame). The
+per-frame dialogue tick `FUN_0046c320` decrements each (once per internal step,
+while `> 0`). The DRAW `FUN_0046c9a2` applies the jitter:
+
+- **chr-shake** (`L67606`): in the standee draw loop, for each standee that
+  passes the active (`field11 != 0`) + registered-graphic (`chrname[g][0] !=
+  0`) checks, `y = ftol(field2); if (DAT_073a6d9c != 0) y += (rand()&0x1f)-0x10;`
+  — **one `rand()` (`FUN_005041f6`) per drawn standee, per frame**, applied to
+  **Y only** (X = `field1` is untouched). Each standee therefore gets an
+  **independent** ±[−16,+15] vertical jitter — this is why the iv1_2 "RECETTE!"
+  standees (Tear / Recette portraits + the `giku`/`hatena` manga marks) jitter
+  by *different* amounts each frame, not as a rigid screen shake.
+- **bg-shake** (`L67507`): only in the **scroll** bg path (`bg_mode != 0`); one
+  `rand()` computes a shared Y offset `(rand()&0x1f)-16` for all three 1024-tiles.
+  The **static** bg path (`bg_mode == 0`, the prologue caps) does NOT shake and
+  consumes no RNG.
+
+Because the offset is a fresh `rand()` every frame, a standee's Y at any *frozen*
+capture is a per-frame RNG/load-phase artifact (§85): retail's own value at a
+fixed-offset frame is non-reproducible. The port (`scene1_dialogue_draw.c`
+`draw_standees` / `draw_background`, `scene1_dialogue_run.c` `IVE_OP_RMB` +
+the per-step decrement) reproduces the shake faithfully for the shipped game,
+and `{phasepin}` zeros both countdowns on **both** sides (port
+`scene1_intro_dialogue_phasepin`, Frida `DAT_073a6d98/9c ← 0`) so a parity
+capture lands on the **un-shaken base pose** — the port's base standee positions
+are bit-identical to retail's static (pre-shake) ones. **Diagnosis trail:** the
+retail `--d3d-trace` standee top-Y, decoded per frame, is static (`giku=96
+hatena=32 Rec=0`) until the "RECETTE!" line then jitters ±20px every frame; the
+port drew them static at base → the cap_44 residual. The earlier
+"freeroam-actor / not-a-standee" call was wrong — its logic ("standees settled
+`y==ty` → not the standee") only compared port-y to the port *target*, never to
+retail.

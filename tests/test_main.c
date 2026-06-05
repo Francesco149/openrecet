@@ -472,6 +472,7 @@ struct test_case {
     X(dialogue_run_chr_colto_fade) \
     X(dialogue_run_chr_move_tween) \
     X(dialogue_run_natural_reveal_char_budget) \
+    X(dialogue_run_rmb_shake_countdown) \
     X(dialogue_box_scale_open_and_closing) \
     X(dialogue_scene_state_reset_standee_defaults) \
     X(dialogue_scene_state_reset_scalars) \

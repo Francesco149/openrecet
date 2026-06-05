@@ -222,6 +222,16 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
     case IVE_OP_WINDOWSET:      /* windowset (0x46d8c6): top-banner counter */
         rt->scene.window_open_ctr = c->a1;  /* DAT_005c797c */
         return IVE_R_CONTINUE;
+    case IVE_OP_RMB:            /* rmb:a,b (0x46d926) — screen-shake countdowns.
+                                 * Handler stores a1→bg (DAT_073a6d98), a2→chr
+                                 * (DAT_073a6d9c); both are already atoi+1 from
+                                 * parse. While >0 the per-frame tick decrements
+                                 * them and the draw jitters bg/standee Y by
+                                 * (rng_next15()&0x1f)-16 (engine 0x46d926 +
+                                 * FUN_0046c9a2 L67507/L67606). */
+        rt->scene.shake_bg  = c->a1;
+        rt->scene.shake_chr = c->a2;
+        return IVE_R_CONTINUE;
 
     /* ── character-standee setup (settled-state subset; tweens deferred) ──
      * Each writes standees[a1] (the chr index N). The animated paths
@@ -460,6 +470,10 @@ void ive_runtime_step(struct ive_runtime *rt, uint16_t held)
         }
         if (rt->revealed)
             rt->dwell++;
+        /* screen-shake countdowns (engine FUN_0046c320 L67241-67245): tick down
+         * once per internal step while active. The draw consumes the jitter. */
+        if (rt->scene.shake_bg > 0)  rt->scene.shake_bg--;
+        if (rt->scene.shake_chr > 0) rt->scene.shake_chr--;
         ive_run_tween(rt);
     }
 

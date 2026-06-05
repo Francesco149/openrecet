@@ -435,3 +435,41 @@ int test_dialogue_scene_state_reset_scalars(void)
     T_ASSERT_EQ_I(rt.scene.window_open_ctr, -1);
     return 0;
 }
+
+/* rmb:a,b arms the screen-shake countdowns (a→bg, b→chr, both atoi+1), and the
+ * per-frame tick decrements each by one (per internal step) until it clamps at
+ * 0 — the gate the draw reads to jitter standee/bg Y (engine-quirks §105). */
+int test_dialogue_run_rmb_shake_countdown(void)
+{
+    static struct ive_program prog;
+    static struct ive_runtime rt;
+    /* rmb:3,2 → bg=4, chr=3; wait: parks the walk so we can watch the decay. */
+    T_ASSERT(scene1_dialogue_parse(
+        "rmb:3,2\r\nwait:40\r\nmsg:0:1:x<KEY>\r\nend:\r\n", &prog) == 1);
+    ive_runtime_init(&rt, &prog);
+    T_ASSERT_EQ_I(rt.scene.shake_bg,  0);
+    T_ASSERT_EQ_I(rt.scene.shake_chr, 0);
+
+    /* Frame 1: the decrement (step 3, no-op at 0) precedes the command walk
+     * (step 6) that arms the countdowns, so they read their armed value. */
+    ive_runtime_step(&rt, 0);
+    T_ASSERT_EQ_I(rt.scene.shake_bg,  4);   /* 3 + 1 */
+    T_ASSERT_EQ_I(rt.scene.shake_chr, 3);   /* 2 + 1 */
+
+    /* Each subsequent frame ticks both down by one. */
+    ive_runtime_step(&rt, 0);
+    T_ASSERT_EQ_I(rt.scene.shake_bg,  3);
+    T_ASSERT_EQ_I(rt.scene.shake_chr, 2);
+    ive_runtime_step(&rt, 0);
+    T_ASSERT_EQ_I(rt.scene.shake_bg,  2);
+    T_ASSERT_EQ_I(rt.scene.shake_chr, 1);
+    ive_runtime_step(&rt, 0);
+    T_ASSERT_EQ_I(rt.scene.shake_bg,  1);
+    T_ASSERT_EQ_I(rt.scene.shake_chr, 0);   /* chr (started lower) hits 0 first */
+    ive_runtime_step(&rt, 0);
+    T_ASSERT_EQ_I(rt.scene.shake_bg,  0);
+    T_ASSERT_EQ_I(rt.scene.shake_chr, 0);   /* clamps — no underflow */
+    ive_runtime_step(&rt, 0);
+    T_ASSERT_EQ_I(rt.scene.shake_bg,  0);   /* stays 0 */
+    return 0;
+}
