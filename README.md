@@ -11,26 +11,29 @@ project**. It ships **no game assets, no decompiled binary, and no
 copyrighted content** — you bring your own copy of the game. MIT licensed
 (our code only; no rights to the original game are granted).
 
-![OpenRecet (left) vs the original retail engine (right) — the HOUSE shop interior](docs/img/house-comparison.png)
+![OpenRecet (left) vs the original retail engine (right) — an iv1_2 dialogue line over the live HOUSE map](docs/img/hero-iv1_2-dialogue.png)
 
-*OpenRecet (left) next to the original engine (right), free-roaming in the
-shop. The 3D room (geometry, textures, lighting, window god-rays), the
-persistent top HUD (clock / day / money), the "Change Camera" hint, the FPS
-overlay, Recette, and the townsfolk drifting past the back window are all
-reproduced close to 1:1. (The NPCs' exact drift phase isn't pinned yet, so
-they're at slightly different spots in the two windows.)*
+*OpenRecet (left) next to the original engine (right), on an opening-prologue
+iv1_2 dialogue line. The dialogue box, nameplate, character standees, the top
+HUD (clock / day / money) the engine draws over the live map during iv1_2, and
+the townsfolk drifting past the back window are reproduced bit-for-bit.*
 
-A few more side-by-sides from the opening — each is OpenRecet (left) vs the
-retail engine (right), captured from the same deterministic input trace:
+More side-by-sides — each is OpenRecet (left) vs the retail engine (right),
+captured from the same deterministic input trace:
+
+![the HOUSE shop interior, free-roaming](docs/img/house-comparison.png)
+
+*Free-roaming in the shop: the 3D room (geometry, textures, lighting, window
+god-rays), the persistent top HUD (clock / day / money), the "Change Camera"
+hint, Recette, and the townsfolk drifting past the back window are all
+reproduced 1:1.*
 
 ![iv1_1 'sigh' effect sprite](docs/img/hero-iv1_1-sigh.png)
 ![iv1_2 look-up pose, zoomed](docs/img/hero-iv1_2-pose.png)
-![iv1_2 dialogue with the HUD](docs/img/hero-iv1_2-dialogue.png)
 
-*Top to bottom: the iv1_1 "sigh" effect sprite mid-fade (full-screen
-cutscene, no HUD); a zoom on Recette's look-up pose at the iv1_2 opening; and
-an iv1_2 dialogue line — note the top HUD, which the engine draws over the
-live map during iv1_2 but suppresses behind iv1_1's full-screen background.*
+*The iv1_1 "sigh" effect sprite mid-fade (full-screen cutscene, no HUD); and a
+zoom on the iv1_2 opening conversation poses (Recette's look-up, Tear's
+reaction).*
 
 In memory of Andrew Dice / [@SpaceDrakeCF](https://x.com/SpaceDrakeCF)
 and Carpe Fulgur.

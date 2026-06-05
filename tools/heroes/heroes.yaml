@@ -28,11 +28,14 @@ shots:
   #    Needs the house-idle scenario (2nd HOUSE_FREEROAM anchor + offset). The
   #    run_dir is pinned once a good idle+NPC both-run exists.
   - name: house-comparison
-    scenario: house-idle
-    run_dir: runs/scenarios/house-idle-both-20260602T232424Z
-    cap: 2               # +5000: port 3-NPC beat (user-pointed), Recette idle, HUD+hint+FPS
-    show_fps: true       # this hero wants the FPS overlay; --rerun passes --show-fps
-    note: "HOUSE free-roam: Recette idle, back-window NPCs, HUD + camera hint, FPS shown"
+    scenario: house-idle-npc-drift
+    run_dir: runs/scenarios/house-idle-npc-drift-both-20260605T190341Z
+    cap: 0               # +2 after a single {phasepin}: back-window NPCs bit-1:1
+                         # (bg-npc warmup re-seed + §95 overlay fix). Recette idle,
+                         # HUD + "Change Camera" hint. NO fps (it's wall-clock,
+                         # would diverge — dropped for a clean 1:1 shot). Residual:
+                         # only the deferred Tear companion sprite (small, far).
+    note: "HOUSE free-roam: Recette idle, back-window NPCs (now bit-1:1), HUD + camera hint"
 
   # 2. iv1_1 first dialogue + the "sigh" (tameiki, chr:6) extra sprite. NO HUD
   #    (full-bg cutscene). cap 2 = the EXTRA_SPRITE FADED_IN peak.
@@ -47,7 +50,7 @@ shots:
   #    zoom_text crop so the pose reads in a thumbnail.
   - name: hero-iv1_2-pose
     scenario: intro-iv2-gap
-    run_dir: runs/scenarios/intro-iv2-gap-both-20260602T155646Z
+    run_dir: runs/scenarios/intro-iv2-gap-both-20260604T141105Z
     cap: 3
     zoom: {x: 520, y: 578, w: 104, h: 150, factor: 4}
     note: "iv1_2 opening: Recette look-up pose (eyes open), zoomed onto her sprite"
