@@ -3874,3 +3874,27 @@ in `FUN_004518a3`) edit other save fields directly — a PIX/money editor (caps 
 9,999,999, ±100/1000/10000 steps), a chapter/progress counter, and a per-adventurer
 stat editor (it iterates the party records — the `Louie` name string is right
 there in the table).
+
+## 97. Integer colour bytes appear in the decompile as tiny-denormal `float` literals — bit pattern IS the value
+
+In `FUN_0049c644` (title menu render) the unselected menu-item brightness is
+written as the float literal `1.33123e-43` and the selected-item white clamp as
+`3.57331e-43`. These are not real magnitudes — they are **denormalised floats
+whose 32-bit pattern, reinterpreted as an integer, IS the colour byte**:
+
+```
+bits(1.33123e-43) = 0x0000005F = 95   → unselected grey 0x5F
+bits(3.57331e-43) = 0x000000FF = 255  → selected clamp  0xFF
+```
+
+The slot (`local_8`) is a `float` only in Ghidra's type inference; the engine
+stores a small integer there and later truncates it back (`__ftol`) when packing
+`0xff000000 | b<<16 | b<<8 | b`. So when a decompiled colour/byte constant shows
+up as a `e-43`/`e-44`-scale float, **read its hex bit pattern, not its decimal
+value** — `python3 -c "import struct;print(hex(struct.unpack('<I',struct.pack('<f',1.33123e-43))[0]))"`.
+
+This bit it once: the unselected grey was ported as `0x95` (a hex/decimal slip —
+95 decimal is `0x5F`, and `0x95` is 149), which over-brightened every unselected
+title-menu item. Ground truth (`render_quad_add` diffuse = `0xff5f5f5f`) and the
+denormal both say `0x5F`. The same denormal-as-byte idiom recurs across the
+engine's UI colour code, so expect it elsewhere in the menu/HUD render functions.
