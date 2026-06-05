@@ -371,7 +371,7 @@ const int32_t *player_ctrl_render_bank_slot(int sweep, int idx);
 int            player_ctrl_burst_count(void);
 
 /* Debug accessor: post-tick velocity (vx,vz), stored facing db05c, sticky flag.
- * Any out param may be NULL. Used by --player-pos-log (engine-quirks §69). */
+ * Any out param may be NULL (engine-quirks §69). */
 void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky);
 
 /* Set the stored world facing db05c (conversation-pose ±π/2 write). */

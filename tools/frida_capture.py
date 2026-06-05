@@ -236,10 +236,12 @@ class CaptureConfig:
     # F2 recording. Record mode disables all forcing/turbo/hide.
     attach_match: str | None = None
     record_trace_path: Path | None = None
-    # Per-frame global watch: list of {name, va, type:'f32'|'s32'|'u16'}. The
-    # agent reads each address once per frame and emits a `watch` record;
-    # the driver appends to <run_dir>/watch.jsonl. A general state probe for
-    # locating when a value begins changing under a forced input.
+    # DEPRECATED (the --watch CLI flag was removed 2026-06-06). Per-frame port↔
+    # retail state comparison now goes through the flow-trace: declare the field
+    # in tools/flow/retail_fields.json (read at a hooked VA's onEnter) and diff
+    # with tools/flow_diff.py --verdict / --field-timeline. See
+    # docs/flow-trace-cheatsheet.md. This field is left (defaulting None, so the
+    # `if cfg.watch` emit blocks are inert) only for any in-process caller.
     watch: list[dict[str, Any]] | None = None
     # When true, tile captured frames into 3x3 montages and open them with the
     # default Windows image viewer at the end of the run (quick inspection).
@@ -1510,11 +1512,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--force-input", action="store_true",
                     help="overwrite the engine's input mask each frame "
                          "with the trace value (or 0 if no trace given)")
-    ap.add_argument("--watch", action="append", default=None,
-                    metavar="NAME=0xVA[:type]",
-                    help="per-frame global watch (repeatable). type is "
-                         "f32|s32|u16 (default s32). Writes watch.jsonl. "
-                         "e.g. --watch px=0x056da1d8:f32 --watch cc08=0x0438cc08")
     ap.add_argument("--no-montage", action="store_true",
                     help="don't tile captured frames into 3x3 montages / "
                          "auto-open them in the Windows image viewer")
@@ -1769,19 +1766,6 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as e:
             ap.error(str(e))
 
-    watch: list[dict[str, Any]] | None = None
-    if args.watch:
-        watch = []
-        for spec in args.watch:
-            # NAME=0xVA[:type]
-            try:
-                name, rest = spec.split("=", 1)
-                va_str, _, typ = rest.partition(":")
-                watch.append({"name": name, "va": int(va_str, 0),
-                              "type": typ or "s32"})
-            except ValueError:
-                ap.error(f"--watch: expected NAME=0xVA[:type], got {spec!r}")
-
     # --record-trace implies attach (you can't drive a spawned process by hand).
     attach_match = args.attach
     if args.record_trace is not None and attach_match is None:
@@ -1806,7 +1790,6 @@ def main(argv: list[str] | None = None) -> int:
                   if (args.input_segtrace and args.record_trace is None) else None),
         attach_match=attach_match,
         record_trace_path=args.record_trace,
-        watch=watch,
         montage=not args.no_montage,
         force_input=args.force_input or args.input_trace is not None,
         hide_window=args.hide_window,

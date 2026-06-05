@@ -13,11 +13,14 @@ This is the producer side of the frame-by-frame trace viewer
   2. Injects a {caprange:[start,count]} op (anchor-relative, jitter-immune) so
      the port captures the whole window in one shot — bypassing the 32-frame
      CAPTURE_FRAMES_MAX (Phase 1).
-  3. Drives the port via run-openrecet.sh with --capture-to (PNG frames) and
-     --player-pos-log (the per-frame metadata: rng/buttons/px/py/pz/anim/oct/…).
+  3. Drives the port via run-openrecet.sh with --capture-to (PNG frames).
   4. Writes the export dir:
         <run-dir>/frames/frame_NNNNN.png    every frame in the window
-        <run-dir>/meta.jsonl                one {"frame":N,...} per captured frame
+        <run-dir>/meta.jsonl                one {"frame":N,"frame_abs":M} per frame
+                                            (anchor-relative renumber index; the
+                                            old per-frame px/oct/rng columns now
+                                            live in the flow-trace — see
+                                            docs/flow-trace-cheatsheet.md)
         <run-dir>/global.json               {rng_seed_at_start, trace_jsonl, …}
 
 Acceptance: frame count == meta line count == caprange count.
@@ -142,9 +145,6 @@ def main(argv=None) -> int:
     ap.add_argument("--name", default="", help="human label for the trace")
     ap.add_argument("--scenario", default="", help="scenario id (free-form, → global)")
     ap.add_argument("--fps", type=int, default=20, help="playback fps hint (→ global)")
-    ap.add_argument("--dust-log", action="store_true",
-                    help="also dump per-frame walk-dust particle + actor depths "
-                         "to <run-dir>/dustlog.txt (debug)")
     ap.add_argument("--d3d-trace", action="store_true",
                     help="also capture a per-draw d3d_trace.jsonl over the "
                          "caprange window (→ tools/d3d_state_diff.py)")
@@ -225,7 +225,6 @@ def main(argv=None) -> int:
         "--hidden", "--turbo", "--silent-audio",
         "--input-segtrace", str(work_path),
         "--capture-to", str(frames_dir),
-        "--player-pos-log", str(meta_path),
         "--max-frames", str(args.max_frames),
     ]
     # TAS save virtualization: resolve the trace's {savefile} ref exactly like
@@ -252,8 +251,6 @@ def main(argv=None) -> int:
     save_out_dir = run_dir / "saveout"
     save_out_dir.mkdir(parents=True, exist_ok=True)
     cmd += ["--save-write-dir", _winpath(save_out_dir)]
-    if args.dust_log:
-        cmd += ["--dust-log", str(run_dir / "dustlog.txt")]
     if args.d3d_trace:
         # The {caprange} op also arms the d3d-trace window (main.c
         # segtrace_caprange_cb → d3d_trace_set_window), so the trace emits

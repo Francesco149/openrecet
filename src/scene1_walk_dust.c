@@ -52,32 +52,6 @@
 #include "sysassets.h"       /* g_sysassets.effect_bmp (= engine DAT_073cc8c0) */
 #include "tick.h"            /* g_tick.frame_count */
 
-/* ── DEBUG (--dust-log <file>): per-particle vs per-actor projected depth.
- * Dumps NDC-z of every live type-0xe dust slot and of each actor anchor so the
- * dust-occlusion (front/behind) order can be read off the actual numbers and
- * diffed against retail.  main.c opens the file and sets g_dust_log_fp; the log
- * is off (no-op) when the FILE* is NULL. */
-FILE *g_dust_log_fp = NULL;
-static int dust_log_on(void) { return g_dust_log_fp != NULL; }
-/* Project a world point through the device's live VIEW*PROJ (row-vector D3D)
- * and return NDC z (clip.z / clip.w); also outputs the raw view-space z. */
-static float dust_ndc_z(struct IDirect3DDevice8 *dev, float x, float y, float z,
-                        float *out_view_z, float *out_w)
-{
-    D3DMATRIX view, proj;
-    IDirect3DDevice8_GetTransform((IDirect3DDevice8 *)dev, D3DTS_VIEW, &view);
-    IDirect3DDevice8_GetTransform((IDirect3DDevice8 *)dev, D3DTS_PROJECTION, &proj);
-    const float *V = &view._11, *P = &proj._11;
-    float in[4] = { x, y, z, 1.0f }, vv[4], cc[4];
-    for (int j = 0; j < 4; j++)
-        vv[j] = in[0]*V[0*4+j] + in[1]*V[1*4+j] + in[2]*V[2*4+j] + in[3]*V[3*4+j];
-    for (int j = 0; j < 4; j++)
-        cc[j] = vv[0]*P[0*4+j] + vv[1]*P[1*4+j] + vv[2]*P[2*4+j] + vv[3]*P[3*4+j];
-    if (out_view_z) *out_view_z = vv[2];
-    if (out_w) *out_w = cc[3];
-    return cc[3] != 0.0f ? cc[2] / cc[3] : 0.0f;
-}
-
 #define SCENE1_WALK_DUST_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)
 #define WALK_DUST_TYPE 0xe
 
@@ -178,16 +152,6 @@ void scene1_walk_dust_render(struct IDirect3DDevice8 *dev_in)
 
     IDirect3DDevice8_SetVertexShader(dev, SCENE1_WALK_DUST_FVF);
 
-    if (dust_log_on()) {
-        for (int a = 0; a < 3; a++) {
-            float vz, w;
-            float *ap = g_scene1_actor_pos[a];
-            float nz = dust_ndc_z(dev_in, ap[0], ap[1], ap[2], &vz, &w);
-            fprintf(g_dust_log_fp, "DUSTLOG f=%u actor=%d pos=%.4f,%.4f,%.4f ndcz=%.6f vz=%.4f w=%.4f\n",
-                    g_tick.frame_count, a, ap[0], ap[1], ap[2], nz, vz, w);
-        }
-    }
-
     for (int slot = 0; slot < count; slot++) {
         const int32_t *r = &g_scene1_records_a[slot * SCENE1_RECORDS_A_STRIDE];
         if (r[SCENE1_RECORDS_A_OFF_TYPE] != WALK_DUST_TYPE) continue;
@@ -219,14 +183,6 @@ void scene1_walk_dust_render(struct IDirect3DDevice8 *dev_in)
         g_walk_dust_vbuf[2].u = u1;  /* TR */
         g_walk_dust_vbuf[3].u = u1;  /* BR */
         for (int v = 0; v < 4; v++) g_walk_dust_vbuf[v].diffuse = color;
-
-        if (dust_log_on()) {
-            float vz, w;
-            float nz = dust_ndc_z(dev_in, px, py, pz, &vz, &w);
-            fprintf(g_dust_log_fp, "DUSTLOG f=%u slot=%d age=%d pos=%.4f,%.4f,%.4f ndcz=%.6f vz=%.4f w=%.4f\n",
-                    g_tick.frame_count, slot, age, px, py, pz, nz, vz, w);
-            fflush(g_dust_log_fp);
-        }
 
         float world[16];
         walk_dust_compose_world(world, px, py, pz, scale, rot_z);

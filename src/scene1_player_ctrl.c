@@ -555,8 +555,7 @@ int player_ctrl_burst_count(void)
 
 /* Debug accessor for the per-frame controller state (W4.7 facing analysis):
  * the post-tick world velocity (daabc/daac4) and the stored facing db05c.
- * Read by --player-pos-log to reconstruct/compare the impulse heading vs
- * retail (engine-quirks §69). NULL-safe; any out param may be NULL. */
+ * (engine-quirks §69). NULL-safe; any out param may be NULL. */
 void player_ctrl_debug_state(float *vx, float *vz, float *facing, int *sticky)
 {
     if (vx)     *vx     = s_player_vel[0];

@@ -48,6 +48,13 @@ static void emit_dialogue_calltrace(void)
 {
     const struct ive_standee *s = &g_rt.scene.standees[5];
     CALL_TRACE_BEGIN(0x46c320);
+    /* box-anim phase (the old --dlg-log columns, now flow-trace fields): box
+     * open/close anim 0..15 (DAT_073a3e14), the per-line reveal counter
+     * 0..0x800 (DAT_073a3e00), and the current line's first text row
+     * (DAT_073a6a38). Read BEFORE this frame's tween, like the standee snapshot. */
+    CALL_TRACE_I32("box_open", g_rt.box_open);
+    CALL_TRACE_I32("reveal",   g_rt.reveal);
+    CALL_TRACE_I32("line_row", g_rt.line_row);
     CALL_TRACE_I32("st5_active", s->field[IVE_ST_ACTIVE]);
     CALL_TRACE_F32("st5_x",  ive_word_f(s->field[1]));
     CALL_TRACE_F32("st5_y",  ive_word_f(s->field[2]));

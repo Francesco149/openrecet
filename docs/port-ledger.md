@@ -281,7 +281,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x46c2cb | FUN_0046c2cb | 85 | ✓ | choice_box.h, scene.h, scene1_intro_dialogue.c (+3) |
 | 0x46c320 | FUN_0046c320 | 1353 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_run.c (+4) |
 | 0x46c869 | FUN_0046c869 | 6 | ✓ | main.c, scene1_intro_dialogue.c, scene1_intro_dialogue.h |
-| 0x46c86f | FUN_0046c86f | 307 | ✓ | main.c, scene1_dialogue_run.c, scene1_dialogue_run.h (+1) |
+| 0x46c86f | FUN_0046c86f | 307 | ✓ | scene1_dialogue_run.c, scene1_dialogue_run.h, scene1_top_hud.c |
 | 0x46c9a2 | FUN_0046c9a2 | 3800 | ✓ | main.c, scene1_dialogue.c, scene1_dialogue.h (+5) |
 | 0x46dc45 | FUN_0046dc45 | 61 |  | scene1_dialogue.c |
 | 0x46ddea | FUN_0046ddea | 5119 | ✓ | scene1_dialogue.c, scene1_dialogue.h, scene1_dialogue_load.c |
@@ -339,7 +339,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47b1f2 | FUN_0047b1f2 | 99 |  | input.c |
 | 0x47b29e | FUN_0047b29e | 73 | ✓ | main.c, prewindow.c, scene.h (+1) |
 | 0x47b2e7 | FUN_0047b2e7 | 1061 |  | esc_dispatch.h, main.c |
-| 0x47be92 | FUN_0047be92 | 289 | ✓ | input.c, input.h, main.c (+2) |
+| 0x47be92 | FUN_0047be92 | 289 | ✓ | input.c, input.h, main.c (+3) |
 | 0x47bfb3 | FUN_0047bfb3 | 629 | ✓ | main.c |
 | 0x47c228 | FUN_0047c228 | 61 | ✓ | font.h, main.c |
 | 0x47c3a5 | FUN_0047c3a5 | 207 | ✓ | font.h, font_atlas.c, font_atlas.h (+1) |

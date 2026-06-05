@@ -100,6 +100,9 @@
       "name": "dialogue_tick",
       "_note": "FUN_0046c320 — opening-prologue dialogue per-frame update (reveal counter + command walk + standee tween). Read at onEnter, BEFORE this frame's tween runs, mirroring the port's emit_dialogue_calltrace in src/scene1_intro_dialogue.c. Fields = standee table entry 5 (base DAT_073a3e70 + 5*0x1c ints = 0x73a40a0): the iv1_1 sliding Tear sprite. Purpose: settle whether the lines-5/44 standee slide-in divergence is a frame-1:1 slide caught off-phase by the text-anchored capture (benign phase) or a real tween-cadence skew — compare st5_y frame-over-frame port vs retail.",
       "fields": [
+        {"name": "box_open", "src": "global", "va": "0x73a3e14", "type": "i32"},
+        {"name": "reveal",   "src": "global", "va": "0x73a3e00", "type": "i32"},
+        {"name": "line_row", "src": "global", "va": "0x73a6a38", "type": "i32"},
         {"name": "st5_active", "src": "global", "va": "0x73a40cc", "type": "i32"},
         {"name": "st5_x",  "src": "global", "va": "0x73a40a4", "type": "f32"},
         {"name": "st5_y",  "src": "global", "va": "0x73a40a8", "type": "f32"},

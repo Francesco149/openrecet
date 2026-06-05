@@ -449,28 +449,6 @@ static char                     *g_anchor_trace_record_path = NULL;
 static FILE                     *g_anchor_record_fp         = NULL;
 static struct anchor_trace_state g_anchor_state             = {0};
 
-/* --player-pos-log <file>: per-frame JSONL dump of the player world position
- * ({"frame":N,"px":..,"py":..,"pz":..}) while in the INGAME (HOUSE) scene.
- * The port-side equivalent of the retail Frida --watch on 0x056da1d8 — used to
- * verify collision/movement behavior (e.g. wall blocking) from a TAS drive
- * without a debugger.  The actor positions live in scene1_particles_tick.h as
- * the contiguous g_scene1_actor_pos[3][3] (slot 0 = player, slot 2 = companion);
- * g_scene1_player_pos is its slot-0 alias macro. */
-extern float                     g_scene1_actor_pos[3][3];
-#define g_scene1_player_pos      (g_scene1_actor_pos[0])
-static char                     *g_player_pos_log_path      = NULL;
-static FILE                     *g_player_pos_log_fp        = NULL;
-
-/* --dust-log <file>: per-frame depth dump of the walk-dust particles + actor
- * anchors (scene1_walk_dust.c writes via the extern FILE*). */
-extern FILE                     *g_dust_log_fp;
-static char                     *g_dust_log_path            = NULL;
-
-/* --dlg-log <file>: per-frame JSONL dump of the prologue dialogue box-anim state
- * (box_open / reveal / line_row …) for the box-scale-phase parity probe. */
-static char                     *g_dlg_log_path             = NULL;
-static FILE                     *g_dlg_log_fp               = NULL;
-
 /* ─── in-engine TAS trace recorder (F2 start/stop, F3 capture-point) ──────────
  * Buffers the per-frame player-1 button mask while recording, plus a list of
  * capture frames (F3).  On stop, dumps a RAW recording (every frame's mask,
@@ -1751,33 +1729,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         }
     }
 
-    /* Player-pos log: open the per-frame world-position sink.  Non-fatal. */
-    if (g_player_pos_log_path) {
-        g_player_pos_log_fp = fopen(g_player_pos_log_path, "w");
-        if (g_player_pos_log_fp) {
-            fprintf(stderr, "openrecet: player-pos log → %s\n",
-                    g_player_pos_log_path);
-        } else {
-            fprintf(stderr,
-                "openrecet: failed to open player-pos log %s\n",
-                g_player_pos_log_path);
-        }
-    }
-
-    if (g_dust_log_path) {
-        g_dust_log_fp = fopen(g_dust_log_path, "w");
-        fprintf(stderr, g_dust_log_fp ? "openrecet: dust log → %s\n"
-                                      : "openrecet: failed to open dust log %s\n",
-                g_dust_log_path);
-    }
-
-    if (g_dlg_log_path) {
-        g_dlg_log_fp = fopen(g_dlg_log_path, "w");
-        fprintf(stderr, g_dlg_log_fp ? "openrecet: dialogue box-anim log → %s\n"
-                                     : "openrecet: failed to open dlg log %s\n",
-                g_dlg_log_path);
-    }
-
     /* Input-trace replay: parse the file now (one shot at boot — the
      * file is small and lookups are binary search at runtime). */
     if (g_input_trace_replay_path) {
@@ -2260,8 +2211,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     input_trace_record_close();
     input_trace_free(&g_replay_trace);
     if (g_anchor_record_fp) { fclose(g_anchor_record_fp); g_anchor_record_fp = NULL; }
-    if (g_player_pos_log_fp) { fclose(g_player_pos_log_fp); g_player_pos_log_fp = NULL; }
-    if (g_dlg_log_fp) { fclose(g_dlg_log_fp); g_dlg_log_fp = NULL; }
     sprite_destroy(&g_show_sprite);
     if (g_show_mesh) { mesh_free(g_show_mesh); g_show_mesh = NULL; }
     if (g_house_preview_mesh) {
@@ -2696,96 +2645,10 @@ static void render_dispatch(void)
                           anchor_emit_tee, NULL);
     }
 
-    /* Dialogue box-anim probe (opt-in, OPENRECET_DLG_LOG=<path>): one JSONL row
-     * per frame while the prologue dialogue is active, dumping the box-open /
-     * reveal / line-clear state the box-scale animator (FUN_0046c86f) consumes.
-     * Used to pin the box-open-rate vs text-reveal-rate phase vs retail's
-     * DAT_073a3e14/e00/e04/e08 + DAT_073a6a38 (opening-prologue.md "halo"). */
-    {
-        if (g_dlg_log_fp) {
-            const struct ive_runtime *rt = scene1_intro_dialogue_runtime();
-            if (rt) {
-                fprintf(g_dlg_log_fp,
-                    "{\"frame\":%u,\"box_open\":%d,\"line_row\":%d,\"reveal\":%d,"
-                    "\"revealed\":%d,\"dwell\":%d,\"wait\":%d,\"cmd\":%d,"
-                    "\"line_idx\":%d,\"line_rows\":%d,\"speaker\":%d,"
-                    "\"shake_chr\":%d,\"shake_bg\":%d,\"st\":[",
-                    g_tick.frame_count, rt->box_open, rt->line_row, rt->reveal,
-                    rt->revealed, rt->dwell, rt->wait, rt->cmd,
-                    rt->line_idx, rt->line_rows, rt->speaker,
-                    rt->scene.shake_chr, rt->scene.shake_bg);
-                /* dump active standees: index, graphic, x/y (current) + tx/ty (target) */
-                int first = 1;
-                for (int i = 0; i < IVE_STANDEE_COUNT; i++) {
-                    const int32_t *f = rt->scene.standees[i].field;
-                    if (f[IVE_ST_ACTIVE] == 0)
-                        continue;
-                    fprintf(g_dlg_log_fp,
-                        "%s{\"i\":%d,\"g\":%d,\"x\":%.2f,\"y\":%.2f,\"tx\":%.2f,\"ty\":%.2f}",
-                        first ? "" : ",", i, f[IVE_ST_GRAPHIC],
-                        ive_word_f(f[1]), ive_word_f(f[2]),
-                        ive_word_f(f[3]), ive_word_f(f[4]));
-                    first = 0;
-                }
-                fprintf(g_dlg_log_fp, "]}\n");
-                fflush(g_dlg_log_fp);
-            }
-        }
-    }
-
     /* TAS recorder: capture this frame's player-1 input mask (read here, before
      * the engine clears g_input_state at the end of the tick).  Records every
      * ticked frame while active so the recording is complete from the F2 press. */
     trace_rec_tick(g_input_state[0].buttons);
-
-    /* Player-pos log: one JSONL row per frame while in the HOUSE/INGAME scene
-     * (read after sim has committed this frame's player position). */
-    if (g_player_pos_log_fp && g_scene_state == SCENE_STATE_INGAME) {
-        /* W4.7: also dump velocity (daabc/daac4), stored facing (db05c) and the
-         * held d-pad mask, so the facing-slew law can be reconstructed/diffed
-         * against retail (engine-quirks §69). */
-        float vx = 0.0f, vz = 0.0f, facing = 0.0f; int sticky = 0;
-        player_ctrl_debug_state(&vx, &vz, &facing, &sticky);
-        /* W3b: actor-0 walk-cycle state (anim id / counter / cycle-frame) so the
-         * chr_anim_tick timing can be diffed against retail (runs/w3b-anim-watch). */
-        const int32_t *rec = player_ctrl_actor_record(0);
-        int a_anim = rec ? rec[CHR_ACTOR_ANIM]    : -1;
-        int a_cnt  = rec ? rec[CHR_ACTOR_COUNTER] : -1;
-        int a_frm  = rec ? rec[CHR_ACTOR_FRAME]   : -1;
-        int a_oct  = rec ? rec[CHR_ACTOR_FACING]  : -1;
-        /* §71: companion (actor 2 — the fairy) position + facing/anim, so the
-         * hover-follow can be diffed against retail (runs/companion-truth). */
-        const int32_t *crec = player_ctrl_actor_record(2);
-        int c_char = player_ctrl_actor_char(2);
-        int c_anim = crec ? crec[CHR_ACTOR_ANIM]   : -1;
-        int c_oct  = crec ? crec[CHR_ACTOR_FACING] : -1;
-        /* Companion (Tear) anim-PHASE state, for the retail-vs-port determinism
-         * diff (the deferred §81 "chase phase later"): the FRAME cell + its
-         * COUNTER/TIMER drive the wing-flap pose, and db054 drives the hover-bob
-         * + every-4th-frame sparkle.  Engine: FRAME=DAT_056dab50,
-         * COUNTER=DAT_056dab4c, TIMER=DAT_056dab48, db054=DAT_056db054. */
-        int c_frm = crec ? crec[CHR_ACTOR_FRAME]   : -1;
-        int c_cnt = crec ? crec[CHR_ACTOR_COUNTER] : -1;
-        union { int32_t i; float f; } c_tmr = { .i = crec ? crec[CHR_ACTOR_TIMER] : 0 };
-        int db054 = scene1_companion_db054();
-        fprintf(g_player_pos_log_fp,
-                "{\"frame\":%u,\"px\":%.5f,\"py\":%.5f,\"pz\":%.5f,"
-                "\"vx\":%.6f,\"vz\":%.6f,\"facing\":%.6f,\"sticky\":%d,"
-                "\"buttons\":%u,\"anim\":%d,\"counter\":%d,\"aframe\":%d,\"oct\":%d,"
-                "\"cchar\":%d,\"cx\":%.5f,\"cy\":%.5f,\"cz\":%.5f,\"canim\":%d,\"coct\":%d,"
-                "\"cframe\":%d,\"ccnt\":%d,\"ctimer\":%.4f,\"db054\":%d,"
-                "\"rng\":%d,\"rngcalls\":%lu}\n",
-                g_tick.frame_count,
-                g_scene1_player_pos[0], g_scene1_player_pos[1],
-                g_scene1_player_pos[2],
-                vx, vz, facing, sticky, g_input_state[0].buttons,
-                a_anim, a_cnt, a_frm, a_oct,
-                c_char, g_scene1_actor_pos[2][0], g_scene1_actor_pos[2][1],
-                g_scene1_actor_pos[2][2], c_anim, c_oct,
-                c_frm, c_cnt, c_tmr.f, db054,
-                (int32_t)g_rng_seed, rng_call_count());
-        fflush(g_player_pos_log_fp);
-    }
 
     /* E.2 probe — FUN_004547ab @ 0x4547ab (render dispatch root).
      * call_trace_begin_frame ran at the top of this iteration, so this
@@ -3492,27 +3355,6 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char anc_buf[MAX_PATH];
                 lstrcpynA(anc_buf, val, (int)sizeof(anc_buf));
                 g_anchor_trace_record_path = anc_buf;
-            }
-        } else if (lstrcmpA(tok, "--player-pos-log") == 0) {
-            char *val = strtok(NULL, " ");
-            if (val) {
-                static char pos_buf[MAX_PATH];
-                lstrcpynA(pos_buf, val, (int)sizeof(pos_buf));
-                g_player_pos_log_path = pos_buf;
-            }
-        } else if (lstrcmpA(tok, "--dust-log") == 0) {
-            char *val = strtok(NULL, " ");
-            if (val) {
-                static char dust_buf[MAX_PATH];
-                lstrcpynA(dust_buf, val, (int)sizeof(dust_buf));
-                g_dust_log_path = dust_buf;
-            }
-        } else if (lstrcmpA(tok, "--dlg-log") == 0) {
-            char *val = strtok(NULL, " ");
-            if (val) {
-                static char dlg_buf[MAX_PATH];
-                lstrcpynA(dlg_buf, val, (int)sizeof(dlg_buf));
-                g_dlg_log_path = dlg_buf;
             }
         } else if (lstrcmpA(tok, "--capture-at-anchor") == 0) {
             /* NAME[+k|-k] — e.g. HOUSE_FREEROAM+5, LOADING_END, NEW_GAME+0 */

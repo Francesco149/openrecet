@@ -27,8 +27,10 @@
 extern uint32_t g_rng_seed;
 
 /* Cumulative LCG-step (rng_next15) count since boot — RNG-consumption probe
- * (tools/phase_probe.py `rngcalls`).  Mirror of the engine LCG FUN_005041f6,
- * so port↔retail per-frame RNG consumption can be diffed under a shared seed. */
+ * (the flow-trace `rngcalls` field on the scheduler probe FUN_0047be92; see
+ * src/tick.c + tools/flow/retail_fields.json).  Mirror of the engine LCG
+ * FUN_005041f6, so port↔retail per-frame RNG consumption can be diffed under a
+ * shared seed via flow_diff.py --verdict. */
 extern unsigned long g_rng_call_count;
 unsigned long rng_call_count(void);
 
