@@ -141,13 +141,27 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   scale 0.8 vs slot#/NO-DATA 1.0, playtime in frames@60fps — engine-quirks §101).
   New leaf: `font_draw_text_right` (FUN_0047d2db). `title-load-picker --target both`
   (fa7c82 save): slide-in **0/786432** diff px, settled **1 px** > 16 LSB. Driven by
-  the beginning of the save-roundtrip reference trace. **Residual:** 947 px ≤4 LSB
-  = the shared 2D-UI texture-scaling-filter / colour-precision noise (same class as
-  the skip-prompt banner + dialogue box-edge, `ledger #52`/§54) — **next session:
-  investigate the 2D-UI sampler/mip filter as one likely-easy shared fix.**
-- **Queued next (in order, user-set 2026-06-05):**
-  1. **2D-UI scaling-filter noise** — the ±1 LSB residual above (picker + skip-prompt
-     banner + dialogue box-edge); probe the sampler/half-texel on SCALED 2D quads.
+  the beginning of the save-roundtrip reference trace. **Residual ROOT-CAUSED
+  (2026-06-05, user-confirmed "it's the clock hand"):** the 947 px ≤4 LSB is
+  **entirely the rotated gold clock day-hand + hub** (bbox x[138-224] y[171-230]);
+  cards, 0.8 stat text, clock face/ring/pie are all **0 px**. So it is **NOT** a
+  scaling-filter issue — the day-hand quad's verts/UVs/diffuse are **bit-identical**
+  port↔retail (decoded from `--d3d-trace-verts`), so the rotation math is exact; the
+  ±1 LSB is the **rasterizer bilinear-sampling the one ROTATED quad** (diagonal
+  sub-texel blend rounds ≤1 LSB differently across the two capture GPUs). Not a port
+  logic fix. Also surfaced a structural gap: retail draws 3 rotated quads here, port 2
+  (port misses one *off-screen* paged-off needle — no pixel effect). Ledger row +
+  `picker-residual-crop` feed push. (Required a tooling fix first: segtrace `{capture:N}`
+  now also arms the port d3d emit for that frame — commit fffee2e — else `--d3d-trace`
+  over a screenshot-only segtrace emitted 0 events.)
+- **Queued next (in order; #1 was the 2D-UI noise, now split + resolved for the picker):**
+  1. **2D-UI ±1 LSB box-edge halo (STILL OPEN, separate class).** The *picker* case
+     above turned out to be the rotated hand (rasterizer, accepted). The remaining
+     unresolved ±1 LSB is the **axis-aligned UI box border** — skip-prompt
+     `savewindow.tga` banner gold (port `[237,200,52]` vs retail `[238,201,52]`) +
+     dialogue `ive_window.tga` edge. Geometry/UVs proven bit-exact, so suspect
+     **TGA decode/upload or MODULATE rounding** — chase by dumping + diffing the
+     decoded texels port↔retail (NOT the sampler). Ledger "Dialogue box-edge halo" row.
   2. **BUG: LOAD GAME → X-back locks main-menu input.** Repro: title → select LOAD
      GAME (opens picker) → press X to back out → returns to the main menu but it
      **stops accepting input** (soft-lock). Port logic bug, NOT retail behaviour.
