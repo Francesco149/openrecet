@@ -128,8 +128,21 @@ int render_quad_add(const float dst[4], const float src[4],
                     uint32_t tex_w, uint32_t tex_h,
                     uint32_t diffuse)
 {
-    /* E.2 probe — FUN_00404efc @ 0x404efc. */
-    CALL_TRACE_ENTER(0x404efcu);
+    /* E.2 probe — FUN_00404efc @ 0x404efc.  Declares its salient inputs (the
+     * quad's dst rect, src sub-rect, sheet dims, diffuse) so flow_diff.py can
+     * compare the per-quad geometry against retail, not just call presence.
+     * Field names join to tools/flow/retail_fields.json by (va, name); retail
+     * reads dst/src via argderef (param_1/param_2 ptrs), tex dims from param_3
+     * (+4/+8), diffuse from param_4 — all pre-mutation, at the engine's
+     * onEnter.  Emit before the early-outs so BEGIN..END stays balanced. */
+    CALL_TRACE_BEGIN(0x404efcu);
+    CALL_TRACE_F32("dx",  dst[0]); CALL_TRACE_F32("dy", dst[1]);
+    CALL_TRACE_F32("dw",  dst[2]); CALL_TRACE_F32("dh", dst[3]);
+    CALL_TRACE_F32("sl",  src[0]); CALL_TRACE_F32("st", src[1]);
+    CALL_TRACE_F32("sr",  src[2]); CALL_TRACE_F32("sb", src[3]);
+    CALL_TRACE_I32("tw",  tex_w);  CALL_TRACE_I32("th", tex_h);
+    CALL_TRACE_HEX("col", diffuse);
+    CALL_TRACE_END();
 
     if (g_vcount + 6 > RENDER_QUAD_MAX_VERTICES) {
         /* Engine has no bounds check (it would corrupt memory past
@@ -231,8 +244,13 @@ void render_quad_state_setup(IDirect3DDevice8 *dev)
 
 void render_quad_flush(IDirect3DDevice8 *dev)
 {
-    /* E.2 probe — FUN_00405354 @ 0x405354. */
-    CALL_TRACE_ENTER(0x405354u);
+    /* E.2 probe — FUN_00405354 @ 0x405354.  Carries the vertex count being
+     * drawn (retail: global DAT_00647e0c, read at onEnter before the flush
+     * resets it).  The title draws each sprite as its own add→flush pair, so
+     * this is 6 per call — a divergence here means a batch-shape mismatch. */
+    CALL_TRACE_BEGIN(0x405354u);
+    CALL_TRACE_I32("vcount", (int32_t)g_vcount);
+    CALL_TRACE_END();
 
     if (g_vcount == 0) return;
 

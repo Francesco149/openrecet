@@ -3493,8 +3493,10 @@ function installMemoryWatch(regions, precise) {
 }
 
 // Read one declared field (flow-trace payload) per tools/flow/retail_fields.json.
-// `args` is the Frida onEnter args array (args[1] = first stack param). Returns
-// null on any fault so a transiently-bad address never wedges the trace.
+// `args` is the Frida onEnter args array — standard 0-based InvocationArguments,
+// so args[0] is the FIRST cdecl param (spec `index` is 0-based; index 0 = first
+// param).  Returns null on any fault so a transiently-bad address never wedges
+// the trace.
 function flowReadTyped(ptr, type) {
     switch (type) {
         case 'u32': return ptr.readU32();

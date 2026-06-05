@@ -4,14 +4,14 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 72,
+  "verified": 70,
   "stubbed": 17,
-  "ported": 335,
+  "ported": 337,
   "unported": 2124,
   "orphan_refs_not_in_function_table": 7,
   "touched": 424,
   "pct_touched": 16.6,
-  "pct_verified": 2.8,
+  "pct_verified": 2.7,
   "port_debt": 11
  },
  "orphan_refs": [
@@ -654,9 +654,11 @@
    "size": 562,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "verified",
+   "status": "ported",
    "src": [
-    "src/render_quad.c"
+    "src/render_quad.c",
+    "src/render_quad.h",
+    "src/scene1_fps.c"
    ]
   },
   {
@@ -674,9 +676,11 @@
    "size": 76,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "verified",
+   "status": "ported",
    "src": [
-    "src/render_quad.c"
+    "src/font_draw.c",
+    "src/render_quad.c",
+    "src/render_quad.h"
    ]
   },
   {

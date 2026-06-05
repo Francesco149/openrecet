@@ -10,16 +10,14 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **424** (16.6%) — verified 72, stubbed 17, ported 335
+- touched: **424** (16.6%) — verified 70, stubbed 17, ported 337
 - unported: **2124**
 - orphan refs (in src/, not in function table): 7
 
-## verified (72) — runtime-diffed vs retail
+## verified (70) — runtime-diffed vs retail
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
-| 0x404efc | FUN_00404efc | 562 | ✓ | render_quad.c |
-| 0x405354 | FUN_00405354 | 76 | ✓ | render_quad.c |
 | 0x4060ff | FUN_004060ff | 90 | ✓ | scene_new_game.c |
 | 0x406241 | FUN_00406241 | 390 | ✓ | render_quad.c |
 | 0x4063c7 | FUN_004063c7 | 394 | ✓ | render_quad.c |
@@ -113,7 +111,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (335) — reimplemented, no probe yet
+## ported (337) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -132,6 +130,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x404bb8 | FUN_00404bb8 | 84 | ✓ | scene1_camera.c, scene1_camera.h, scene1_overlay.h (+2) |
 | 0x404e44 | FUN_00404e44 | 29 | ✓ | prewindow.c, prewindow.h, render_quad.c (+1) |
 | 0x404e61 | FUN_00404e61 | 55 | ✓ | render_quad.c, render_quad.h |
+| 0x404efc | FUN_00404efc | 562 | ✓ | render_quad.c, render_quad.h, scene1_fps.c |
+| 0x405354 | FUN_00405354 | 76 | ✓ | font_draw.c, render_quad.c, render_quad.h |
 | 0x4054c0 | FUN_004054c0 | 146 | ✓ | font_draw.h |
 | 0x405744 | FUN_00405744 | 373 |  | debug_param_tick.h |
 | 0x405a52 | FUN_00405a52 | 162 | ✓ | scene1_dialogue_draw.c, scene1_dialogue_run.c |

@@ -1,13 +1,42 @@
 {
-  "_doc": "Retail-side field spec for the execution+dataflow trace (docs/plans/execution-flow-trace.md). Maps each instrumented engine VA -> the declared payload the Frida agent reads at that call, joined to the port's CALL_TRACE_* fields by (va, field-name). VA keys + global VAs accept 0x-hex or decimal. src: global (read DAT at va) | arg (stack param index, 1-based) | argderef (deref arg[index] + off) | retval (onLeave). type: i32|u32|f32|hex.",
+  "_doc": "Retail-side field spec for the execution+dataflow trace (docs/plans/execution-flow-trace.md). Maps each instrumented engine VA -> the declared payload the Frida agent reads at that call, joined to the port's CALL_TRACE_* fields by (va, field-name). VA keys + global VAs accept 0x-hex or decimal. src: global (read DAT at va) | arg (Frida onEnter arg index, 0-BASED: index 0 = first param) | argderef (deref arg[index] + off) | retval (onLeave). type: i32|u32|f32|hex. NB: indices are Frida's standard 0-based InvocationArguments (index 0 = first cdecl param) — validated 2026-06-05 against FUN_00404efc's dst/src/diffuse params.",
   "fields": {
+    "0x47be2f": {
+      "name": "tick_now_ms",
+      "chain_benign": true,
+      "_note": "FUN_0047be2f — pure QPC clock read (no game state). The scheduler samples it at a frame position that legitimately differs port↔retail (retail seq1, port seq45) and is doubly irrelevant under turbo's forced virtual clock. Excluded from chain alignment so it can't shadow a real divergence."
+    },
     "0x4526ab": {
       "name": "fade_tick",
       "fields": [
         {"name": "phase",    "src": "global", "va": "0x438bf7c", "type": "i32"},
         {"name": "counter",  "src": "global", "va": "0x438bf78", "type": "i32"},
-        {"name": "duration", "src": "global", "va": "0x5c5934",  "type": "i32"},
+        {"name": "duration", "src": "global", "va": "0x5c5934",  "type": "i32", "benign": true, "_benign_note": "Dormant while phase==0 (fade_tick returns early without reading it; src/fade.c:69). Retail's 170 is leftover from the intro→title fade the port skips; port's is 0. Benign ONLY for fade-idle frames — if debugging an ACTIVE fade (phase!=0), drop this mark and scrutinize."},
         {"name": "mode",     "src": "global", "va": "0x438bf80", "type": "i32"}
+      ]
+    },
+    "0x404efc": {
+      "name": "render_quad_add",
+      "_note": "FUN_00404efc(param_1=dst* {x,y,w,h}, param_2=src* {l,t,r,b}, param_3=tex* (w@+4,h@+8), param_4=diffuse). Read at onEnter, before the body mutates param_1[2]/[3]. Joins to src/render_quad.c render_quad_add CALL_TRACE_*.",
+      "fields": [
+        {"name": "dx",  "src": "argderef", "index": 0, "off": 0,  "type": "f32"},
+        {"name": "dy",  "src": "argderef", "index": 0, "off": 4,  "type": "f32"},
+        {"name": "dw",  "src": "argderef", "index": 0, "off": 8,  "type": "f32"},
+        {"name": "dh",  "src": "argderef", "index": 0, "off": 12, "type": "f32"},
+        {"name": "sl",  "src": "argderef", "index": 1, "off": 0,  "type": "f32"},
+        {"name": "st",  "src": "argderef", "index": 1, "off": 4,  "type": "f32"},
+        {"name": "sr",  "src": "argderef", "index": 1, "off": 8,  "type": "f32"},
+        {"name": "sb",  "src": "argderef", "index": 1, "off": 12, "type": "f32"},
+        {"name": "tw",  "src": "argderef", "index": 2, "off": 4,  "type": "i32"},
+        {"name": "th",  "src": "argderef", "index": 2, "off": 8,  "type": "i32"},
+        {"name": "col", "src": "arg",      "index": 3,            "type": "hex"}
+      ]
+    },
+    "0x405354": {
+      "name": "render_quad_flush",
+      "_note": "FUN_00405354 — 2D quad batch flush. vcount = DAT_00647e0c, read at onEnter before the flush zeroes it.",
+      "fields": [
+        {"name": "vcount", "src": "global", "va": "0x647e0c", "type": "i32"}
       ]
     }
   }

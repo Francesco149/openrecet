@@ -65,13 +65,16 @@ fields). Exit/retval = a second `phase:"exit"` event at the return point (later 
 ```jsonc
 { "4744975": {                       // engine VA (decimal or 0x)
     "fields": [
-      {"name":"col",  "src":"arg", "index":1, "type":"i32"},
+      {"name":"col",  "src":"arg", "index":0, "type":"i32"},     // index 0 = FIRST param
       {"name":"rng0", "src":"global", "va":"0x5ce3c4", "type":"f32"},
-      {"name":"f_idx","src":"argderef", "index":1, "off":0, "type":"i32"}
+      {"name":"f_idx","src":"argderef", "index":0, "off":0, "type":"i32"}
     ] } }
 ```
 `src` ∈ arg | global | argderef | retval (exit). Reuses `diff_test.py`'s register/memory
 readers. Field NAMES must match the port's `CALL_TRACE_*` names — that's the data join key.
+**`index` is Frida's 0-based `InvocationArguments` — index 0 is the first cdecl param**
+(validated 2026-06-05 on `FUN_00404efc`; an earlier draft of this doc said 1-based — it
+was wrong, no spec had exercised `arg`/`argderef` until then).
 
 ### Diff (`tools/flow_diff.py`) — the root-cause verdict
 Walk both frames in `seq` order; align the call chains (by `va` sequence, tolerant of

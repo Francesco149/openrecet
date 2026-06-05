@@ -90,6 +90,18 @@ def load_benign(spec: dict) -> set[tuple[int, str]]:
     return out
 
 
+def load_chain_benign(spec: dict) -> set[int]:
+    """VAs whose *position* in the call chain is benign — excluded from chain
+    alignment so a legitimate floating call (a clock read, an order-irrelevant
+    helper) can't masquerade as a [chain] divergence and hide the real one.
+    Marked `"chain_benign": true` at the entry level in retail_fields.json."""
+    out: set[int] = set()
+    for va_s, entry in spec.get("fields", {}).items():
+        if isinstance(entry, dict) and entry.get("chain_benign"):
+            out.add(int(va_s, 0) if isinstance(va_s, str) else int(va_s))
+    return out
+
+
 # ── compare ────────────────────────────────────────────────────────────────
 
 
@@ -212,6 +224,7 @@ def main(argv: list[str] | None = None) -> int:
     spec = json.loads(args.spec.read_text()) if args.spec.exists() else {}
     names = load_names(spec, args.names_csv)
     benign = load_benign(spec)
+    chain_benign = load_chain_benign(spec)
 
     retail = load_trace(args.retail)
     port = load_trace(args.port)
@@ -221,6 +234,14 @@ def main(argv: list[str] | None = None) -> int:
         retail = {f: [e for e in evts if e["va"] in mapped]
                   for f, evts in retail.items()}
         port = {f: [e for e in evts if e["va"] in mapped]
+                for f, evts in port.items()}
+
+    # Drop position-benign VAs (clock reads etc.) from BOTH sides so a benign
+    # reorder never wins the "first divergence" race over a real one.
+    if chain_benign:
+        retail = {f: [e for e in evts if e["va"] not in chain_benign]
+                  for f, evts in retail.items()}
+        port = {f: [e for e in evts if e["va"] not in chain_benign]
                 for f, evts in port.items()}
 
     if (args.retail_frame is None) != (args.port_frame is None):
