@@ -610,14 +610,19 @@ def run_rng_drill(args) -> int:
     blob = json.loads(path.read_text())
     frames = blob.get("frames", blob)         # {frame: {"0xVA": count}}
     funcs = load_funcs_csv(args.names_csv)
-    agg: dict[int, int] = {}
+    # keys are caller VAs; a "u:" prefix marks the float LCG variant
+    # (FUN_00471089 consumers — dust/sparkle/jitter) vs the bare int LCG.
+    agg: dict[tuple[bool, int], int] = {}
     for _fr, sites in frames.items():
         for va_s, cnt in sites.items():
-            agg[int(va_s, 0)] = agg.get(int(va_s, 0), 0) + int(cnt)
+            is_f = va_s.startswith("u:")
+            va = int(va_s[2:] if is_f else va_s, 0)
+            agg[(is_f, va)] = agg.get((is_f, va), 0) + int(cnt)
     print(f"RNG consumers over {len(frames)} frames "
-          f"(caller VA → enclosing fn → total LCG draws):")
-    for va, tot in sorted(agg.items(), key=lambda kv: -kv[1]):
-        print(f"  {va:#010x}  {enclosing_fn_csv(funcs, va):<28} {tot:>8}")
+          f"(caller VA → enclosing fn → total LCG draws; u: = float variant):")
+    for (is_f, va), tot in sorted(agg.items(), key=lambda kv: -kv[1]):
+        tag = "u:" if is_f else "  "
+        print(f"  {tag}{va:#010x}  {enclosing_fn_csv(funcs, va):<28} {tot:>8}")
     return 0
 
 
