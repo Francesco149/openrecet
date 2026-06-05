@@ -286,8 +286,38 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
      cursor moves 1→2; sim state (select_phase/cursor_anim/cursor_pos/submenu_state)
      1:1 through the fold-out. (Residual: benign steady-state submenu_state 0-vs-stale-id,
      no render/input effect.)
-  3. **In-game load** — continue the save-roundtrip trace past the picker (load the
-     fa7c82 save into HOUSE free-roam), per the "in-game stuff once the menu's 1:1" plan.
+  3. ~~**In-game load** — continue the save-roundtrip trace past the picker (load the
+     fa7c82 save into HOUSE free-roam).~~ **DONE 2026-06-05 (user-confirmed money +
+     confirm-flash 1:1).** New scenario `title-load-confirm` drives title → A (open
+     picker) → A (confirm) → fade → LOADING → HOUSE. The **transition is structurally
+     1:1**: `flow_diff --field-timeline` shows `scene_title_sim` all 10 fields aligned
+     through the confirm; the `fade_tick` raw-frame "divergence" is just the in-game
+     fade-IN landing at a load-stretched absolute frame (retail HOUSE_FREEROAM ≈14643
+     vs port ≈2400). Three real bugs found + fixed, all the same class (**live HUD
+     globals not restored on a CONTINUE load**, the engine loads them in the
+     `FUN_0049a59e` commit; the port had the setters but never called them):
+     - **selected-slot LOAD-FLASH** (commit 608b27d, engine-quirks §106) — the picker
+       render's `param_6` (`sin(p6·π/30)·128` brightening the chosen card during
+       fade-out) read a dead `pulse` field stuck at 0. `param_6` IS the fade counter
+       (`DAT_0964351c`); repointed to `g_scene_title_anim.fade_counter`. cap_01
+       186674px/mean10.15 → 737px (max **4 LSB**). User-confirmed 1:1.
+     - **in-game money** (commit a0efc5e) — `N,NNNpix` banner stuck at the new-game
+       default 1000; engine loads `DAT_0438b918 = working dword 3 (GOLD)`. Now 440
+       (fa7c82 gold), matches retail. User-confirmed.
+     - **day-clock hand** (commit 6e38232, engine-quirks §107) — `DAT_0438b7d4` stuck
+       at 0 → hand ~⅙-turn off. Engine **snaps** it to the saved time-of-day on
+       CONTINUE (`= working dword 0xb0fc`, Frida-confirmed retail live == save == 1;
+       NEW eases up from 0). Render was already faithful. Clock crop 2820px/mean7.04
+       → 96px (1px >4LSB). Also restores day (`working[CARD_DAY]=0xb0fb`).
+       **Method note:** an early "saved phase == 0 ⇒ not a load bug" conclusion came
+       from a **miscomputed hex offset** (0xA0FC vs the correct 0xB0FC); the decisive
+       fix was a Frida `--watch` of the retail live globals, not more decompile-staring.
+     **Remaining HOUSE-arrival diff = the window NPCs + Recette/Tear cluster only** —
+     RNG desync from the not-yet-emitted shop-display sparkle (template 0x3b): the port
+     consumes fewer LCG draws/frame than retail, so the shared-RNG bg-NPC/companion
+     drift origins differ (user-diagnosed). These **self-fix once the sparkle emits its
+     RNG** — the upstream-first reason the sparkle is finished LAST (see the sparkle
+     note below). So: **the next task IS the sparkle** (and the NPCs come free with it).
 - **Sparkle is deferred ON PURPOSE — do not re-attack early.** The shop-display "目玉商品"
   sparkle (template 0x3b) has verified bit-1:1 data (texture/UV/world-matrix) but isn't yet
   visibly 1:1. It is finished **last**, only once the entire command stream UP TO its frame
