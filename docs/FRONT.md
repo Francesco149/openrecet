@@ -52,12 +52,29 @@
   gate read 0 so the bottom-right FPS box baked in; live retail draws no FPS today, the
   function just early-outs. The 2026-05-27 benign-divergence-registry note no longer
   reproduces.) **Remaining title gaps:** only un-probed retail-internal funcs (CRT/MCI/audio
-  — coverage gaps, not divergences). **Immediate next step:** extend the
-  structural-1:1 verification to the title scenarios WITH input (`title-down-press`,
-  `title-z-press`, `title-options`) — drive the menu and confirm the now-instrumented sim
-  state (cursor_pos/select_phase) + render batching stay 1:1 through menu navigation. Capture:
-  `scenario-test <scn> --target both --call-trace`; diff frames with `flow_diff --mapped-only`
-  (frame 0 = boot transient, auto-dropped for call-trace).
+  — coverage gaps, not divergences).
+- **Title scenarios WITH input verified 1:1 (2026-06-05):** drove the three menu-nav
+  scenarios `--target both --call-trace`, diffed every frame with `flow_diff --mapped-only`.
+  • **`title-down-press`** — DOWN steps cursor_pos 0→1 bit-identically on both sides;
+  frames 30/35/50 ✓ chain+data aligned. • **`title-z-press`** — select countdown +
+  dispatch + fade-out all ✓ aligned AFTER fixing a real bug: the selected-item brightness
+  pulse used scale **127** (a guess); the .rdata constant at `0x519468` is **−128.0**
+  (commit a4da502, engine-quirks §99). It diverged by exactly 1 LSB (port 0xf9 / retail 0xfa
+  on the NEW GAME glyph) on the *one* countdown frame where `sin·scale` crossed an integer
+  boundary. Root-caused by Frida-reading retail's render-time pulse counters (identical to
+  the port → ruled out a phase offset) then objdump'ing the constant. Post-dispatch frames
+  (73/90/92+) diverge into the **unported new-game INGAME scene** (port shows a placeholder —
+  expected coverage gap, per scenario.yaml). • **`title-options`** — DOWN×2 nav + the whole
+  settings panel (bg, all six rows, slider values) are 1:1; the **one** remaining gap is the
+  port omitting the **options-panel selection cursor** (a 40×40 animated sprite from a 256×64
+  sheet, drawn in the title-render tail `FUN_0043537e/00435747/00435117`; retail seq 516,
+  hovering at y=148 over the active row with a small x-bob 161.9→166.5). **← NEXT CHIP.**
+- **Method note (worth reusing):** the `flow_diff` render-leg `col` field caught a 1-LSB
+  greyscale divergence that no side-by-side would; the sim stub logs counters at sim-onEnter
+  (pre-increment) while the render consumes them +1 (post-increment) — when reconstructing a
+  render formula from logged sim state, account for that. Re-bless after a confirmed-correct
+  render change: `golden` (port) + `golden-retail` both went stale (port brightness, retail's
+  long-gone FPS overlay) and were re-blessed for down/z scenarios.
 - **Sparkle is deferred ON PURPOSE — do not re-attack early.** The shop-display "目玉商品"
   sparkle (template 0x3b) has verified bit-1:1 data (texture/UV/world-matrix) but isn't yet
   visibly 1:1. It is finished **last**, only once the entire command stream UP TO its frame
