@@ -312,20 +312,27 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
        **Method note:** an early "saved phase == 0 ⇒ not a load bug" conclusion came
        from a **miscomputed hex offset** (0xA0FC vs the correct 0xB0FC); the decisive
        fix was a Frida `--watch` of the retail live globals, not more decompile-staring.
-     **Remaining HOUSE-arrival diff = the window NPCs + Recette/Tear cluster only** —
-     RNG desync from the not-yet-emitted shop-display sparkle (template 0x3b): the port
-     consumes fewer LCG draws/frame than retail, so the shared-RNG bg-NPC/companion
-     drift origins differ (user-diagnosed). These **self-fix once the sparkle emits its
-     RNG** — the upstream-first reason the sparkle is finished LAST (see the sparkle
-     note below). So: **the next task IS the sparkle** (and the NPCs come free with it).
-- **Sparkle is deferred ON PURPOSE — do not re-attack early.** The shop-display "目玉商品"
-  sparkle (template 0x3b) has verified bit-1:1 data (texture/UV/world-matrix) but isn't yet
-  visibly 1:1. It is finished **last**, only once the entire command stream UP TO its frame
-  is structurally 1:1 with retail. Reason: against a path that still diverges upstream, the
-  sparkle's delta is tangled with compounding drift; once everything before it matches, the
-  sparkle is the only thing different and its divergence reads directly. WIP is in the
-  working tree (emitter `scene1_player_ctrl.c`, render `scene1_render.c`); template loader
-  is committed.
+     **Remaining HOUSE-arrival diff (post-sparkle) = the Tear companion cluster only.**
+     The window NPCs + the shop-display sparkle now align — see the sparkle note below.
+- **目玉商品 shop-display sparkle LANDED & validated 1:1 (2026-06-06, user "looks
+  great!").** The per-item twinkle now renders over the display swords. Emitter
+  `player_ctrl_display_sparkle_emit` (FUN_0048670f prologue: every 8th frame, template
+  0x3b over each occupied back-row cell, 3 RNG draws/cell) + records-A overlay render
+  (commit 28aec93). Two root causes, both decoded from the **actual** retail d3d-trace
+  (runs/sr-retail frame 707): (1) the overlay **sticky texture-cache desynced** — foreign
+  renderers (chr walker) bind textures directly without updating the private cache, so the
+  sparkle's `effect00.bmp` rebind was skipped and it sampled `chr02.bmp`; fixed by
+  invalidating on entry (commit ee1e1c2, retail's cache is global). (2) **CULLMODE**: retail
+  sets CULL=NONE at 0x41784d before the dispatch; the quad winding is back-facing under the
+  scene default CULL=CW so it was silently culled (engine-quirks §108). ALPHATEST stays 1
+  (effect00 star texels opaque). **Pinned validation** (`house-loaded-display-pinned`,
+  `{phasepin:80}`+`{rngseed:[80,19937]}`, --target both): full-frame maxdiff is **black
+  except the Tear cluster** — the sparkle AND the window-NPCs are now **bit-aligned with
+  retail** (the RNG self-fix landed as predicted: the emitter's LCG draws realign the shared
+  stream). Docs: `findings/shop-item-display-RE-status.md`. **Next deviation to chase = the
+  Tear companion** (bottom-center; her wing-glow/pose differs even pinned — a companion
+  particle-phase/position issue in the loaded-shop context, unrelated to the sparkle; plus a
+  faint ±1-LSB "440" HUD-money ghost).
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.
