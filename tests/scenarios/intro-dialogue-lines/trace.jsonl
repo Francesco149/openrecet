@@ -215,6 +215,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -375,6 +376,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -535,6 +537,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -695,6 +698,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -855,6 +859,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -1015,6 +1020,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -1175,6 +1181,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -1335,6 +1342,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -1495,6 +1503,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -1655,6 +1664,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -1815,6 +1825,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -1975,6 +1986,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -2135,6 +2147,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -2295,6 +2308,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -2455,6 +2469,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -2615,6 +2630,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -2775,6 +2791,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -2935,6 +2952,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -3095,6 +3113,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -3255,6 +3274,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -3415,6 +3435,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -3575,6 +3596,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -3735,6 +3757,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -3895,6 +3918,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -4055,6 +4079,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -4215,6 +4240,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -4375,6 +4401,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -4535,6 +4562,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -4695,6 +4723,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -4855,6 +4884,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -5015,6 +5045,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -5175,6 +5206,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -5335,6 +5367,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -5495,6 +5528,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -5655,6 +5689,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -5815,6 +5850,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -5975,6 +6011,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -6135,6 +6172,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -6295,6 +6333,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -6455,6 +6494,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -6615,6 +6655,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -6775,6 +6816,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -6935,6 +6977,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -7095,6 +7138,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -7255,6 +7299,7 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"frame": 6, "buttons": "0x0010"}
 {"frame": 8, "buttons": "0x0000"}
@@ -7415,5 +7460,6 @@
 {"frame": 318, "buttons": "0x0010"}
 {"frame": 320, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
+{"phasepin": 2}
 {"capture": 2}
 {"savefile": "@fresh"}
