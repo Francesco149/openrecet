@@ -1029,6 +1029,14 @@ def main(argv: list[str] | None = None) -> int:
             # feedback_capture_autopush.
             _autopush_comparison(scen.name)
 
+            # With --call-trace, auto-run the per-field state-divergence
+            # localizer (flow_diff --field-timeline) on the two aligned
+            # call-traces so the "which state field stopped tracking retail,
+            # and when?" verdict prints inline — no second command. Best-
+            # effort; never fail the run over it.
+            if args.call_trace:
+                _autorun_field_timeline(run_dir)
+
             # Optional zoomed-text companion. Only fires for scenarios
             # whose YAML carries `zoom_text:` — see Scenario.zoom_text.
             if scen.zoom_text is not None:
@@ -1092,6 +1100,30 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"\n{total_pass} passed, {total_fail} failed")
     return 0 if total_fail == 0 else 1
+
+
+def _autorun_field_timeline(run_dir: Path) -> None:
+    """Run flow_diff.py --field-timeline on the both-run's two call_trace.jsonl
+    and print its verdict inline. Best-effort: skip quietly if either trace is
+    missing, never raise."""
+    rt = run_dir / "retail" / "call_trace.jsonl"
+    pt = run_dir / "openrecet" / "call_trace.jsonl"
+    if not (rt.exists() and pt.exists()):
+        return
+    try:
+        out = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "flow_diff.py"),
+             "--retail", str(rt), "--port", str(pt), "--field-timeline"],
+            capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"  field-timeline: skipped ({e})")
+        return
+    body = (out.stdout or "").rstrip()
+    if not body:
+        return
+    print("  field-timeline (flow_diff --field-timeline):")
+    for line in body.splitlines():
+        print(f"    {line}")
 
 
 def _regen_comparison_gallery(scen_paths: list[Path]) -> None:
