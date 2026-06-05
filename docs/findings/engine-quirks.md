@@ -3926,3 +3926,42 @@ same texture before each add inside a batch is a redundant no-op the engine
 relies on (last bind wins for the whole DrawPrimitiveUP window). Pixel-identical
 to per-quad flushing; this is a command-stream structural fact, used as a
 frame-by-frame parity check (`flow_diff` vcount field on FUN_00405354).
+
+## 99. Title selected-item brightness pulse: scale constants are −128.0 / −32.0, sin float32-rounded before the scale-multiply, two independent truncations
+
+The title menu's *selected* item (`FUN_0049c644 @ 0x49c8ce..0x49c95d`) is a
+greyscale quad whose brightness byte pulses every frame. The engine builds it
+from two independent sine terms, each computed in x87 then truncated to int:
+
+```
+        sa   = (float) sin( select_phase        * 3.1415927 / 15.0 )   ; engine sin = x87 fsin
+        term1 = 0x7f - ftol( sa * SCALE1 )        ; SCALE1 @ .rdata 0x519468 = -128.0
+        sb   = (float) sin( (pulse_phase % 45)   * 6.2831855 / 45.0 )
+        term2 = 0x20 - ftol( sb * SCALE2 )        ; SCALE2 @ .rdata 0x519820 =  -32.0
+        v     = min( term1 + term2, 0xff )        ; greyscale: 0xff000000 | v<<16 | v<<8 | v
+```
+
+Three details that matter for bit-exact parity, all confirmed against the binary
+and live retail (Frida) on the `title-z-press` select countdown:
+
+- **The select scale is −128.0, NOT −127.** Easy to misguess as 127 (the byte
+  range max), but the constant in `.rdata` is `0xC3000000` = −128.0. The idle
+  (`pulse_phase`) scale is −32.0 (`0xC2000000`). Because `trunc(-x) == -trunc(x)`,
+  `0x7f - ftol(sin*-128)` is identical to `0x7f + ftol(sin*128)`. The off-by-one
+  in the scale only changes the output on frames where `sin*scale` lands across an
+  integer boundary — e.g. `sin(0.4π)·127 = 120.78` (→120) vs `·128 = 121.74`
+  (→121), a **1-LSB** brightness difference (249 vs 250) visible on at most one
+  frame of a ramp. The rest of the ramp is identical either way, which is exactly
+  what makes the wrong constant survive casual side-by-side inspection.
+- **sin is rounded to float32 BEFORE the scale-multiply.** The asm does
+  `fstp [local]; fld [local]` between the `call sin` and the `fmul SCALE` — i.e.
+  the 80-bit `fsin` result is collapsed to a 32-bit float, then the multiply runs.
+  (`sinf()` in a port already returns float32, so a port matches this for free.)
+- **Two SEPARATE truncations**, with `0x7f` and `0x20` added as *ints* outside
+  each `ftol` — not one `ftol` of a combined float sum. (Contrast the unrelated
+  pulse at `0x49cd00`, which adds its base of 127.0 *inside* the `ftol`.)
+
+The render reads `select_phase`/`pulse_phase` from `DAT_09643544`/`DAT_0964352c`
+AFTER `scene_title_sim` has incremented them for the frame, so the render-time
+values are +1 vs whatever a sim-`onEnter` probe logs (Frida-confirmed: at the
+frame the sim logs `(5,35)`, the render consumes `(6,36)`).

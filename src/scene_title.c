@@ -956,23 +956,37 @@ void scene_title_render(IDirect3DDevice8 *dev,
         if (i == selected_idx) {
             scale = 1.0f;
             /* Two sin pulses modulate brightness. Ghidra hides the
-             * FPU scale factor inside __ftol; the engine writes
-             * `0x7f - iVar1` and `0x20 - iVar1`, but the hidden
-             * scales are NEGATIVE (-127 and -32) — the press pulse is
-             * a half-sine on [0,π] so `0x7f - sin(a)*127` would
-             * darken the text mid-press, whereas the engine clearly
-             * BRIGHTENS (the engine's clamp branch even pegs to
-             * 0xff). So the effective formulas are:
-             *   v  = 0x7f + 127 * sin(select_phase * π / 15)
+             * FPU scale factor inside __ftol; the engine (FUN_0049c644
+             * @ 0x49c8ce..0x49c95d) writes `0x7f - iVar1` and
+             * `0x20 - iVar1`, where iVar1 = ftol(f32(sin) * SCALE) and
+             * the SCALE multiplicands are NEGATIVE float32 constants
+             * read straight from .rdata:
+             *   SCALE1 @ 0x519468 = -128.0   (select pulse)
+             *   SCALE2 @ 0x519820 =  -32.0   (idle pulse)
+             * trunc(-x) == -trunc(x), so `0x7f - ftol(sin*-128)`
+             * collapses to `0x7f + ftol(sin*128)`. The effective
+             * formulas are therefore:
+             *   v  = 0x7f + 128 * sin(select_phase * π / 15)
              *   v += 0x20 +  32 * sin((pulse_phase % 45) * 2π / 45)
+             * (NB the engine fst's sin to float32 BEFORE the *SCALE
+             * fmul — sinf() already returns float32, so this matches.)
              * On a fresh boot (both phases zero) v = 0x9f, slightly
-             * brighter than the unselected 0x95 default — enough for
+             * brighter than the unselected 0x5f default — enough for
              * ADDSIGNED to show the item as "selected". At press
-             * midpoint sin(a)=1 → v peaks near 0xff (clamped). */
+             * midpoint sin(a)=1 → v peaks near 0xff (clamped).
+             *
+             * The select scale was previously misread as 127 (a guess);
+             * objdump'd as -128 on 2026-06-05 after flow_diff surfaced a
+             * 1-LSB select-glyph divergence (port 249 / retail 250) on
+             * the title-z-press frame-35 select countdown. Frida-read the
+             * render-time counters (select=6,pulse=36, identical both
+             * sides) to rule out a phase offset, then read the binary.
+             * -128 reproduces retail bit-exactly across the whole ramp;
+             * 127 missed only that one frame. See engine-quirks. */
             const float a = (float)anim->select_phase * 3.1415927f / 15.0f;
             const float b = (float)(anim->pulse_phase % 0x2d)
                           * 6.2831855f / 45.0f;
-            int v = 0x7f + (int)(sinf(a) * 127.0f);
+            int v = 0x7f + (int)(sinf(a) * 128.0f);
             v +=    0x20 + (int)(sinf(b) *  32.0f);
             if (v > 0xff) v = 0xff;
             if (v < 0)    v = 0;
