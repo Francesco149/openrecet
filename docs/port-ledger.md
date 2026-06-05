@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **427** (16.8%) — verified 71, stubbed 15, ported 341
-- unported: **2121**
+- touched: **428** (16.8%) — verified 71, stubbed 15, ported 342
+- unported: **2120**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (71) — runtime-diffed vs retail
@@ -110,7 +110,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (341) — reimplemented, no probe yet
+## ported (342) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -151,7 +151,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x412a89 | FUN_00412a89 | 490 | ✓ | main.c, scene1_overlay.c, scene1_overlay.h (+2) |
 | 0x4132c1 | FUN_004132c1 | 92 | ✓ | scene1_per_frame_open.h |
 | 0x41331d | FUN_0041331d | 89 | ✓ | scene1_per_frame_open.h, scene1_player_ctrl.h, scene1_records_b_tick.c |
-| 0x414345 | FUN_00414345 | 1057 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_per_frame_open.c |
+| 0x414345 | FUN_00414345 | 1057 | ✓ | scene1_overlay.c, scene1_overlay.h, scene1_per_frame_open.c (+1) |
 | 0x4147d5 | FUN_004147d5 | 62 | ✓ | scene1_combat_sm.h, scene1_player_ctrl.c, scene1_records_b_tick.c |
 | 0x414813 | FUN_00414813 | 239 | ✓ | scene1_overlay.c |
 | 0x414902 | FUN_00414902 | 39 | ✓ | scene1_per_frame_open.c, scene1_per_frame_open.h, scene1_preload.c (+2) |
@@ -370,6 +370,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4856d7 | FUN_004856d7 | 59 | ✓ | scene1_player_ctrl.h |
 | 0x485979 | FUN_00485979 | 731 | ✓ | scene1_records_b_tick.h |
 | 0x485f8c | FUN_00485f8c | 316 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
+| 0x4860c8 | FUN_004860c8 | 215 | ✓ | scene1_player_ctrl.c |
 | 0x486435 | FUN_00486435 | 200 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h |
 | 0x489c79 | FUN_00489c79 | 217 | ✓ | chara_skills.h |
 | 0x489d52 | FUN_00489d52 | 102 | ✓ | chara_skills.h |

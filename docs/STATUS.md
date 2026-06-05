@@ -15,9 +15,9 @@
 |-----------|------:|----------------------------------------------------------|
 | verified  |    71 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    15 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   341 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **427** | verified + stubbed + ported                         |
-| unported  |  2121 | exists in engine, never referenced from src/             |
+| ported    |   342 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **428** | verified + stubbed + ported                         |
+| unported  |  2120 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table

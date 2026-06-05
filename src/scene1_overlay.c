@@ -558,6 +558,24 @@ void scene1_overlay_render(IDirect3DDevice8 *dev, int layer, int mode)
         outer_count = SCENE1_OVERLAY_LAYER_COUNT_MAX;
     }
 
+    /* Invalidate the sticky texture cache on ENTRY.  The engine's cache
+     * (FUN_00415e90 / DAT_0076b95c) is GLOBAL: every SetTexture in the
+     * engine — chr sprites, shop items, dust — routes through it, so when
+     * the overlay dispatcher runs, the cache always reflects the true
+     * device texture.  In the port those other renderers call
+     * IDirect3DDevice8_SetTexture directly without touching this private
+     * cache, so it goes stale between overlay_render calls: a layer
+     * texture bound in a prior frame leaves the cache pinned to that
+     * pointer while the device has since been switched (e.g. to chr02 by
+     * the character walker).  The sticky guard then SKIPS the rebind and
+     * the overlay quad samples whatever texture the last non-overlay pass
+     * left bound — the cause of the 目玉商品 sparkle drawing with the chr
+     * sprite sheet instead of effect00.bmp.  Resetting to an impossible
+     * pointer here forces the first emitting slot of each call to bind its
+     * real layer texture (and NULL layers to bind NULL), exactly as the
+     * engine's global cache does after an intervening foreign SetTexture. */
+    g_overlay_tex_cache_last = (uintptr_t)-1;
+
     for (int outer = 0; outer < outer_count; outer++) {
         for (int slot_idx = 0;
              slot_idx < SCENE1_OVERLAY_SLOT_COUNT;
