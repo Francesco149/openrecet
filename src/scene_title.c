@@ -906,8 +906,15 @@ void scene_title_render(IDirect3DDevice8 *dev,
     for (int i = 0; i < menu->count; i++) {
         const int code  = menu->items[i];
         float scale     = 0.8f;
-        uint32_t bright = 0x95;  /* engine "1.33123e-43" denormal trick — */
-                                 /*   bit pattern 0x95 = 149 */
+        /* Engine stores the unselected brightness as the float literal
+         * 1.33123e-43 (FUN_0049c644 `else` branch) — a denormal whose 32-bit
+         * pattern reinterpreted as an int is 95 (0x5f), the grey byte.  An
+         * earlier port read this as "0x95" (a hex/decimal slip: 95 decimal is
+         * 0x5f, not 0x95=149), which over-brightened every unselected item.
+         * Confirmed 1:1 vs retail via the flow-trace (render_quad_add diffuse
+         * = 0xff5f5f5f); cross-checked by the selected-clamp denormal
+         * 3.57331e-43 = bit pattern 255 = 0xff.  See engine-quirks. */
+        uint32_t bright = 0x5f;  /* 95 = bits of the engine's 1.33123e-43 */
 
         if (i == selected_idx) {
             scale = 1.0f;
