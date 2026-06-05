@@ -76,7 +76,7 @@ doesn't break on pointer identity.
 {"op":"SetTextureStageState",  "args":{"stage":0,"type":4,"value":4},                                                          "ret_va":N,"frame":N}
 {"op":"SetTransform",          "args":{"state":256,"matrix":[16 floats, row-major]},                                           "ret_va":N,"frame":N}
 {"op":"SetMaterial",           "args":{"material":[17 floats — 4×D3DCOLORVALUE Diffuse/Ambient/Specular/Emissive + Power]},    "ret_va":N,"frame":N}
-{"op":"SetTexture",            "args":{"stage":0,"texture":"0xNN"},                                                            "ret_va":N,"frame":N}
+{"op":"SetTexture",            "args":{"stage":0,"texture":"0xNN"[,"tex_name":"bmp/foo.tga"]},                                  "ret_va":N,"frame":N}
 {"op":"SetStreamSource",       "args":{"stream":0,"vb":"0xNN","stride":32},                                                    "ret_va":N,"frame":N}
 {"op":"SetIndices",            "args":{"ib":"0xNN","base_vertex":0},                                                           "ret_va":N,"frame":N}
 {"op":"SetVertexShader",       "args":{"handle":322},                                                                          "ret_va":N,"frame":N}
@@ -112,6 +112,38 @@ byte-for-byte identical hex, validated on the title screen (port + retail decode
 the same `(1024,768,0,1)` screen corner).  Only the UP paths are captured — VB-
 backed `DrawPrimitive`/`DrawIndexedPrimitive` (3D mesh geometry via a locked VB)
 are deferred.
+
+### Stable texture identity (`tex_name`)
+
+`SetTexture`'s `texture` arg is the raw COM pointer — allocation-dependent,
+so it never matches across port↔retail (or between runs).  When the bound
+texture's source asset name is known, an extra **`tex_name`** field carries
+it (e.g. `"bmp/title_fuki.tga"`), giving `tools/render_diff.py` a
+target-independent, human-readable identity to key on (it drops the raw
+pointer from the alignment key whenever `tex_name` is present — see
+`render-diff.md`).  Both sides resolve the name from the engine's texture
+**loaders**, so the strings are identical (forward-slash paths):
+
+- **Port** (`src/d3d_tex_names.c`): a `texture* → name` registry populated
+  at the load chokepoint `sprite.c:sprite_load_impl` (covers 2D UI, chr
+  sheets, dialogue, and mesh textures via `sprite_load_mipped`) and cleared
+  in `sprite_destroy`.  `d3d_trace_SetTexture` looks the bound pointer up.
+- **Retail** (`tools/frida/openrecet-agent.js` `installTexNameHooks`): hooks
+  the two loaders — `FUN_0047193c` (UI, ppTexture = arg1 slot, path = arg2)
+  and `FUN_00471b24` (mesh, ppTexture = arg0 slot, path = arg1).  Both write
+  the created `IDirect3DTexture8*` to the first dword of their output slot
+  (the `FUN_004cd30e` / `D3DXCreateTextureFromFileInMemoryEx` ppTexture arg);
+  the hook reads `*slot` onLeave and maps `ptr → name` into `g_tex_names`.
+
+A bind with no known name (null unbind, or a texture not from these loaders
+— e.g. `font_upload`'s `CreateTexture`d glyph atlas) simply omits `tex_name`;
+render_diff then falls back to the opaque-pointer identity for that bind.
+
+Validated cross-side on `boot-idle`: the four shared title textures
+(`title01.tga` / `title_bg2.bmp` / `title_fuki.tga` / `title_waku.tga`)
+emit identical names on both targets and align under render_diff despite
+disjoint pointer values; retail additionally binds `nowloading.tga`, which
+now surfaces by name as a real structural difference.
 
 ### `ret_va` field
 

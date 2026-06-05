@@ -7,6 +7,39 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-05 — Render-parity diff engine (Phase 1): stable texture identity
+
+Closed the last remaining Phase-1 item. The d3d-trace serialised a bound texture
+as its raw COM pointer — allocation-dependent, so `render_diff` could only match
+texture identity *positionally* (opaque-pointer mode: Nth distinct pointer → `#N`),
+which mis-matches the moment the two sides bind in a different order and can never
+NAME the texture. Now `SetTexture` carries a load-stable **`tex_name`** (source
+asset path) on both targets:
+
+- **Port** (`src/d3d_tex_names.{c,h}`, pure-C, host-tested): a `texture* → name`
+  hash registry populated at the load chokepoint `sprite.c:sprite_load_impl`
+  (covers 2D UI, chr sheets, dialogue, mesh textures via `sprite_load_mipped`) and
+  cleared in `sprite_destroy`; `d3d_trace_SetTexture` looks the bound pointer up.
+- **Retail** (`tools/frida/openrecet-agent.js` `installTexNameHooks`): hooks the
+  two loaders `FUN_0047193c` (UI, ppTexture=arg1 slot, path=arg2) and `FUN_00471b24`
+  (mesh, ppTexture=arg0 slot, path=arg1) — both write the created texture pointer to
+  the first dword of their output slot (the `FUN_004cd30e`/D3DXCreateTexture…
+  ppTexture arg); onLeave reads `*slot` and maps `ptr → name`.
+- **render_diff** (`tools/render_diff.py` `_event_key`): drops the raw `texture`
+  pointer from the alignment key whenever `tex_name` is present, so binds align on
+  the asset NAME (order-/pointer-independent) and a real texture swap surfaces as a
+  diff block with both names; pointer fallback for nameless binds.
+
+Validated cross-side on `boot-idle` (`--target both`): the four shared title
+textures (`title01.tga`/`title_bg2.bmp`/`title_fuki.tga`/`title_waku.tga`) emit
+identical names on both sides and align under render_diff across disjoint pointer
+values; retail's extra `nowloading.tga` bind now surfaces *by name* (a real
+structural lead for the Phase-2 sweep) instead of hiding in pointer noise. Tests:
+7 new host tests for the registry (suite 3177 pass) + 4 new render_diff tests
+(19/19). Also fixed a `scenario-test` footgun — `wslpath_w` left a relative
+`--run-dir-root` output path relative, so `d3d_trace.jsonl`/`audio.jsonl` silently
+landed in the exe's cwd; now resolved to absolute.
+
 ## 2026-06-05 — `boot-idle` title frame is structurally 1:1 (Phase 2)
 
 Walked the flow-trace down the `boot-idle` title chain to a clean verdict:

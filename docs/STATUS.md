@@ -40,9 +40,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   names the first divergent **(vertex, field)** (e.g. `vertex 2 POSITION.z: retail -7.2 port
   -6.5`). Validated: synthetic field/count/structural/color paths + port↔retail decode the
   same screen corner on the title. Schema: `findings/d3d-trace.md`; usage:
-  `findings/render-diff.md §--explain`. **Remaining Phase 1:** stable **texture identity**
-  (content-hash / source-name instead of the raw pointer the opaque-pointer mode
-  approximates).
+  `findings/render-diff.md §--explain`. **Stable texture identity LANDED (2026-06-05):**
+  `SetTexture` now carries a load-stable **`tex_name`** (source asset path) on BOTH sides —
+  port via a `texture*→name` registry (`src/d3d_tex_names.c`, populated at `sprite_load_impl`,
+  host-tested), retail via Frida hooks on the loaders `FUN_0047193c` (UI) / `FUN_00471b24`
+  (mesh). `render_diff._event_key` keys texture identity on the NAME when present (order- and
+  pointer-independent), falling back to the opaque pointer otherwise. Validated on `boot-idle`:
+  the four title textures align by name across disjoint pointer values; retail's extra
+  `nowloading.tga` bind surfaces by name instead of hiding in pointer noise. **Phase 1
+  complete.** (Also fixed a `scenario-test` footgun: `wslpath_w` left a relative `--run-dir-root`
+  output path relative → traces silently landed in the exe's cwd; now resolved to absolute.)
 - **Execution + dataflow trace LANDED (2026-06-05) — the PRIMARY divergence drill-in.**
   d3d `--explain` names the wrong *draw*; this names the *logic cascade* that produced the
   wrong state. The port call-tracer carries declared payloads (`CALL_TRACE_BEGIN/FIELD/END`,

@@ -180,6 +180,24 @@ time), the synthetic-id rewrite hides exactly that bug class.  Run
 without `--opaque-pointers` first to spot mis-binding; turn it on
 once you've confirmed the binding sequence is correct on both sides.
 
+### Texture identity by name (`tex_name`)
+
+The opaque-pointer rewrite is *positional* — it aligns the Nth distinct
+texture pointer on each side, which silently mis-matches the moment the
+two sides bind textures in a different order, and it can never NAME the
+texture.  When a `SetTexture` carries a load-stable **`tex_name`** (the
+source asset name; emitted by both targets — see `d3d-trace.md` §"Stable
+texture identity"), `_event_key` drops the raw `texture` pointer and keys
+on the NAME instead.  Two binds then align iff they reference the same
+asset — order- and pointer-independent — and a genuine texture swap shows
+as a diff block with both names (`retail tex_name=bmp/a.tga` vs `port
+tex_name=bmp/b.tga`).  This works with or without `--opaque-pointers`
+(the name supersedes the pointer either way); the pointer fallback only
+applies to binds with no known name.  Example: on `boot-idle` the title
+textures align by name across disjoint pointer values, and retail's
+extra `nowloading.tga` bind surfaces by name rather than hiding in
+pointer noise.
+
 ## Mapping a divergence to source
 
 Each event carries a `ret_va`: the module-relative offset of the call

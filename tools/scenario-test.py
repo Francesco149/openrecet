@@ -97,9 +97,17 @@ def load_contact_sheet_module():
 
 
 def wslpath_w(p: Path) -> str:
-    """Translate a Linux path to a Windows-form path for the WSLInterop exe."""
+    """Translate a Linux path to a Windows-form path for the WSLInterop exe.
+
+    Resolve to absolute first: `wslpath -w` leaves a *non-existing* relative
+    path relative (it only absolutises paths that exist on disk), so a
+    not-yet-created output file (audio.jsonl / d3d_trace.jsonl) under a
+    relative --run-dir-root would be handed to the exe relative to ITS cwd
+    (the game dir) and silently land in the wrong place / fail to open.
+    Resolving here (parent is real even when the file isn't) makes output
+    paths absolute regardless of run-dir-root form."""
     r = subprocess.run(
-        ["wslpath", "-w", str(p)],
+        ["wslpath", "-w", str(Path(p).resolve())],
         capture_output=True, text=True, check=True,
     )
     return r.stdout.strip()
