@@ -428,6 +428,19 @@ void d3d_trace_set_capture_verts(int on)
     g_capture_verts = on ? 1 : 0;
 }
 
+/* Append a single frame to the explicit emit list (ORed with both the
+ * {caprange} window and the --d3d-trace-frames list in begin_frame).  Used
+ * by the segtrace {capture:N} sink so a screenshot frame also gets d3d-trace
+ * coverage without the trace needing a redundant {caprange} op.  Idempotent;
+ * silently drops once the fixed list is full. */
+void d3d_trace_add_frame(unsigned frame)
+{
+    for (size_t i = 0; i < g_n_frames; i++)
+        if (g_frames[i] == frame) return;
+    if (g_n_frames >= D3D_TRACE_FRAMES_MAX) return;
+    g_frames[g_n_frames++] = frame;
+}
+
 void d3d_trace_install(IDirect3DDevice8 *dev)
 {
     /* Macro-redirect interception happens at every TU's call site.

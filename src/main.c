@@ -3620,6 +3620,13 @@ static void segtrace_capture_cb(uint32_t frame, void *user)
     }
     g_capture_frames[g_capture_frames_count++] = frame;
     fprintf(stderr, "segtrace: scheduled capture at frame %u\n", (unsigned)frame);
+    /* A segtrace arms d3d-trace in windowed mode (set_window(0,0)) and waits
+     * for a {caprange} op to resolve the window.  Traces that only screenshot
+     * (no {caprange}) would otherwise emit no d3d data at all, so also register
+     * each capture frame on the explicit d3d emit list — d3d coverage tracks
+     * the screenshots for free. */
+    if (g_d3d_trace_path)
+        d3d_trace_add_frame(frame);
 }
 
 /* Call-trace window sink for input_segtrace `{calltrace:[start,len]}` ops:

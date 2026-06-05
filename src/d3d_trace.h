@@ -69,6 +69,11 @@ void d3d_trace_begin_frame(unsigned frame);
  * {caprange} segtrace op so --d3d-trace captures the anchor-relative window. */
 void d3d_trace_set_window(unsigned lo, unsigned hi);
 
+/* Add a single frame to the explicit emit list (ORed with the window).  Driven
+ * by the {capture:N} segtrace sink so a screenshot frame gets d3d coverage even
+ * when the trace has no {caprange} op. */
+void d3d_trace_add_frame(unsigned frame);
+
 /* Called once per frame from render_dispatch after Present.  fflush()'s
  * the trace file. */
 void d3d_trace_end_frame(void);
