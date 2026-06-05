@@ -129,13 +129,21 @@
   now also arms the port d3d emit for that frame — commit fffee2e — else `--d3d-trace`
   over a screenshot-only segtrace emitted 0 events.)
 - **Queued next (in order; #1 was the 2D-UI noise, now split + resolved for the picker):**
-  1. **2D-UI ±1 LSB box-edge halo (STILL OPEN, separate class).** The *picker* case
-     above turned out to be the rotated hand (rasterizer, accepted). The remaining
-     unresolved ±1 LSB is the **axis-aligned UI box border** — skip-prompt
-     `savewindow.tga` banner gold (port `[237,200,52]` vs retail `[238,201,52]`) +
-     dialogue `ive_window.tga` edge. Geometry/UVs proven bit-exact, so suspect
-     **TGA decode/upload or MODULATE rounding** — chase by dumping + diffing the
-     decoded texels port↔retail (NOT the sampler). Ledger "Dialogue box-edge halo" row.
+  1. **Dialogue `ive_window` box-edge "halo" — ROOT-CAUSED 2026-06-05: box SCALE /
+     bounce-anim PHASE, NOT a ±1-LSB texel delta.** `--d3d-trace-verts` (intro-dialogue
+     -lines --target both): the box texture/UVs/diffuse/center are **bit-identical**,
+     but the dst *scale* differs because the squash-and-stretch open/bounce animation
+     (`ive_box_scale`=`FUN_0046c86f`) is caught at a different `box_open`/branch on each
+     side at TEXT_ANIM_END (cap_00 port sx0.9875/sy1.0125=open-branch n=15 vs retail
+     1.0/1.0; cap_01 ~opposite bounce phases, user-confirmed squish). Magnified 1.6× →
+     the rim offset traces the bubble = the "halo". The old "TGA-decode/MODULATE ±1"
+     guess is **disproven**. Same family as the deferred bubble-bounce phase drift +
+     db054 class. NEXT: Frida `--watch` `box_open`(`DAT_073a3e14`)+reveal cursor
+     (`DAT_073a6a38`) per-frame retail vs port → find the divergent timing input.
+     • **Skip-prompt `savewindow.tga` banner ~−1 LSB stays a SEPARATE open item** (uniform
+     gold `[237,200,52]` vs `[238,201,52]`) — NOT investigated yet; decode its verts
+     FIRST (it may also be scale/phase) before assuming TGA/MODULATE colour precision.
+     Ledger "Dialogue box-edge = box SCALE/bounce-anim PHASE" + "savewindow banner" rows.
   2. ~~**BUG: LOAD GAME → X-back locks main-menu input.**~~ **FIXED 2026-06-05**
      (commit 324ddb3, user-flagged). Root cause was NOT submenu_state (the port
      already wound that back) but **`select_phase` left pinned at 0xf** from the

@@ -610,10 +610,18 @@ slide-in, fade-from-black, effect sprites, and per-line text). See
   `intro-fade` (phase-anchored fade).
 
 **Remaining real deltas (NOT 1:1, tracked — do not handwave):**
-1. **Dialogue box-edge halo** — a ~1px halo around the `ive_window.tga` bubble
-   border (scaling/texture-filter mismatch; suspect POINT vs LINEAR / box-mip,
-   cf. §54 + the box-edge note above). Everything inside/outside the box is
-   pixel-exact; only the frame edge differs.
+1. **Dialogue box-edge "halo" — ROOT-CAUSED 2026-06-05: box SCALE / bounce-anim
+   PHASE, NOT a filter/decode delta.** The earlier "scaling/texture-filter
+   mismatch (POINT vs LINEAR / box-mip)" guess is **wrong**. `--d3d-trace-verts`
+   shows the box texture/UVs/diffuse/center are **bit-identical** port↔retail; the
+   box *dst scale* differs because the squash-and-stretch open/bounce animation
+   (`ive_box_scale` = `FUN_0046c86f`) is caught at a different `box_open`/branch on
+   each side at TEXT_ANIM_END (cap_00 port sx0.9875/sy1.0125 = open-branch n=15 vs
+   retail 1.0/1.0; cap_01 ~opposite bounce phases, user-confirmed squish). Magnified
+   1.6× → the rim offset traces the bubble outline = the "halo". Same family as
+   note #6 below + the db054 phase class. See confirmed-parity-ledger row "Dialogue
+   box-edge = box SCALE/bounce-anim PHASE". NEXT: per-frame Frida watch of
+   `box_open` (`DAT_073a3e14`) + reveal cursor (`DAT_073a6a38`) on retail vs port.
 2. **FPS overlay** — the bottom-right `Fps` counter (benign environment
    artifact; see `benign-divergence-registry`).
 3. **Absolute prologue timing** — the synthetic load brackets arm the scripts at
