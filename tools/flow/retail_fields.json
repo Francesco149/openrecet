@@ -6,6 +6,11 @@
       "chain_benign": true,
       "_note": "FUN_0047be2f — pure QPC clock read (no game state). The scheduler samples it at a frame position that legitimately differs port↔retail (retail seq1, port seq45) and is doubly irrelevant under turbo's forced virtual clock. Excluded from chain alignment so it can't shadow a real divergence."
     },
+    "0x47b73c": {
+      "name": "input_poll",
+      "chain_benign": true,
+      "_note": "FUN_0047b73c — the engine's DirectInput device poll (GetDeviceState into the 256-byte key buffer). Under the TAS harness the port SUBSTITUTES this entirely: replay_input_poll/segtrace_input_poll write g_input_state[].buttons directly from the recorded trace, so the real input_poll() (with its CALL_TRACE_ENTER(0x47b73c)) never runs on the port (src/main.c). Retail still calls its real poll. A deliberate harness-substitution structural divergence — both sides receive identical synthetic input by construction and the device read consumes no game RNG. Excluded from chain alignment so it can't shadow real sim-leg divergences. Revisit if a scenario ever depends on engine-side input side-effects."
+    },
     "0x4526ab": {
       "name": "fade_tick",
       "fields": [
