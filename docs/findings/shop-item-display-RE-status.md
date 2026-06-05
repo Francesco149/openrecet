@@ -1,9 +1,26 @@
-# Shop "items on display" renderer — PORTED & 1:1
+# Shop "items on display" renderer + 目玉商品 sparkle — PORTED & 1:1
 
-**Date:** 2026-06-04 · **Status:** ✅ **LANDED & human-verified 1:1 vs retail.**
-The merchandise on shop displays now renders (Worn Swords on the back stand of
-the user's loaded save). The user confirmed it is **1:1 with retail; the only
-residual is the item sparkle/glint effect** (deferred — see "Remaining" below).
+**Date:** 2026-06-05 · **Status:** ✅ **LANDED & human-verified vs retail.**
+The merchandise on shop displays renders (Worn Swords on the back stand of the
+user's loaded save), AND **the 目玉商品 sparkle/glint now renders over each
+display item** (user-confirmed "looks great!" 2026-06-05; port↔retail back-stand
+comparison shows the same yellow 4-point twinkles, same density). The emitter +
+records-A render are committed (28aec93); the overlay sticky-cache fix that
+unblocked it is ee1e1c2. Two root causes, both found by decoding the **actual**
+retail d3d-trace (runs/sr-retail frame 707), not by approximation:
+
+1. **Texture desync (port bug, fixed ee1e1c2).** `scene1_overlay_render`'s
+   private sticky texture cache (`g_overlay_tex_cache_last`) went stale across
+   calls — non-overlay renderers (chr walker, items) bind textures directly
+   without updating it, so the sparkle's `effect00.bmp` rebind was SKIPPED and
+   the quad sampled the chr sprite sheet (`chr02.bmp`) left bound by the walker.
+   Retail's cache is global; the port now invalidates on entry. (Layer 0 =
+   `effect00.bmp`; shape[19].tex_group=0 ⇒ the sparkle correctly targets it.)
+2. **CULLMODE (retail ground truth, engine-quirks §108).** Retail's
+   `FUN_004176ff` sets `CULLMODE=NONE` at 0x41784d before the overlay dispatch;
+   the quad's strip winding is back-facing under the scene default CULL=CW, so
+   it was silently culled (drawn, 0 px). Fixed in the records-A inject.
+   ALPHATEST stays 1 (effect00 star texels opaque).
 
 ## What landed
 - `FUN_00415fab` ported as `wf_render_display_item` (per-cell icon billboard) in
