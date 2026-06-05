@@ -54,10 +54,13 @@ def tss(stage: int, t: int, value: int, *, ret_va: int = 0x1000,
             "args": {"stage": stage, "type": t, "value": value},
             "ret_va": ret_va, "frame": frame}
 
-def stex(stage: int, tex: str, *, ret_va: int = 0x1000,
-         frame: int = 0) -> dict:
+def stex(stage: int, tex: str, *, tex_name: str | None = None,
+         ret_va: int = 0x1000, frame: int = 0) -> dict:
+    args: dict = {"stage": stage, "texture": tex}
+    if tex_name is not None:
+        args["tex_name"] = tex_name
     return {"op": "SetTexture",
-            "args": {"stage": stage, "texture": tex},
+            "args": args,
             "ret_va": ret_va, "frame": frame}
 
 def draw(*, ret_va: int = 0x1000, frame: int = 0) -> dict:
@@ -213,6 +216,50 @@ def test_opaque_pointers_preserves_non_pointer_args(rd) -> None:
     # destroy semantic content).
     assert out[0]["args"]["value"] == 1
     assert out[1]["args"]["value"] == 0xdeadbeef
+
+
+def test_tex_name_aligns_across_different_pointers(rd) -> None:
+    # Same asset, different (allocation-dependent) pointers + bind happens
+    # at different stages-of-life → must align on the name, no divergence.
+    r = [stex(0, "0xAAAA", tex_name="bmp/title_fuki.tga"), draw()]
+    p = [stex(0, "0xBBBB", tex_name="bmp/title_fuki.tga"), draw()]
+    fd = rd.diff_frame(0, r, p)
+    assert not fd.diverged, f"name-equal textures diverged: {fd.blocks}"
+
+
+def test_tex_name_mismatch_surfaces_as_diff(rd) -> None:
+    # Different assets bound → a real texture swap → must surface, with both
+    # names present in the block for a human-readable diff.
+    r = [stex(0, "0xAAAA", tex_name="bmp/recette.bmp"), draw()]
+    p = [stex(0, "0xAAAA", tex_name="bmp/mint.bmp"), draw()]
+    fd = rd.diff_frame(0, r, p)
+    assert fd.diverged
+    blk = fd.blocks[0]
+    assert blk["tag"] == "replace"
+    assert blk["retail"][0]["args"]["tex_name"] == "bmp/recette.bmp"
+    assert blk["port"][0]["args"]["tex_name"] == "bmp/mint.bmp"
+
+
+def test_tex_name_beats_opaque_pointer_order(rd) -> None:
+    # Two textures bound in OPPOSITE order on each side.  Opaque-pointer mode
+    # would falsely align (#0==#0, #1==#1); the name key catches that the
+    # first bind differs.
+    r = [stex(0, "0x1", tex_name="a.tga"), stex(0, "0x2", tex_name="b.tga")]
+    p = [stex(0, "0x9", tex_name="b.tga"), stex(0, "0x8", tex_name="a.tga")]
+    fd = rd.diff_frame(0, r, p)
+    assert fd.diverged, "swapped-order binds should diverge on name identity"
+
+
+def test_tex_name_absent_falls_back_to_pointer(rd) -> None:
+    # No tex_name → behaves exactly as before (pointer is the identity).
+    r = [stex(0, "0xAAAA"), draw()]
+    p = [stex(0, "0xAAAA"), draw()]
+    fd = rd.diff_frame(0, r, p)
+    assert not fd.diverged
+    # different pointer, no name → diverges (raw-pointer identity preserved)
+    p2 = [stex(0, "0xBBBB"), draw()]
+    fd2 = rd.diff_frame(0, r, p2)
+    assert fd2.diverged
 
 
 def test_parse_range_hex_and_dec(rd) -> None:

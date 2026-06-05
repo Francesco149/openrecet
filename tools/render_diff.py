@@ -117,9 +117,21 @@ _NONKEY_ARGS = frozenset((
 
 def _event_key(evt: dict) -> tuple[str, tuple]:
     """SequenceMatcher hash key — drops `ret_va`/`frame` (side-metadata) and
-    the vertex-content fields (decoded separately by --explain)."""
+    the vertex-content fields (decoded separately by --explain).
+
+    Stable texture identity: when a SetTexture carries a load-stable
+    `tex_name` (the source asset name, emitted by both the port's
+    src/d3d_tex_names.c registry and the retail Frida loader hooks), the
+    NAME is the texture identity — so the allocation-dependent raw
+    `texture` pointer is dropped from the key.  Two sides then align on
+    "bmp/foo.tga" == "bmp/foo.tga" regardless of pointer value or bind
+    order, and a genuine texture swap (different names) surfaces as a diff
+    block showing both names.  Without a name we fall back to the pointer
+    (raw, or `#N` under --opaque-pointers)."""
     args = {k: v for k, v in evt.get("args", {}).items()
             if k not in _NONKEY_ARGS}
+    if "tex_name" in args:
+        args.pop("texture", None)
     return (evt["op"], _canon_args(args))
 
 
