@@ -4271,3 +4271,26 @@ both read **1** at the loaded `fa7c82` save (day-1 start), and that save's
 dword `0xb0fc` is **1** — i.e. the hand resumes at phase 1, NOT at the
 new-game 0. A port that defaults the hand to 0 on load draws it ~one
 sixth-turn off.
+
+## 108. The records-A particle/overlay dispatch runs 2-sided: FUN_004176ff sets CULLMODE=NONE (at 0x41784d) before the overlay billboards, so the 目玉商品 sparkle, the display-item billboards, and the wing draws are all back-face-visible
+
+In the HOUSE free-roam render, **FUN_004176ff** (the records-A dust/wing/
+overlay pass) sets `D3DRS_CULLMODE = D3DCULL_NONE` (=1) at **ret_va 0x41784d**,
+immediately before its `FUN_00414ee2` overlay dispatch. Verified on the retail
+d3d-trace (`runs/sr-retail/d3d_trace.jsonl`, free-roam frame 707): the
+SetRenderState(CULLMODE,1) at 0x41784d precedes the sparkle `SetTexture
+0x172fcf30` + `DrawPrimitiveUP @ 0x415e61`, and **every** particle/billboard
+draw in that group runs under CULL=NONE —
+
+- the 目玉商品 sparkle (`0x415e61`),
+- the shop-display item billboards (`0x4161c3`),
+- the Tear wing-glow (`0x41e165`).
+
+These overlay quads are emitted as a TRIANGLESTRIP whose winding is
+**back-facing under the scene's default CULL=CW**, so the engine draws them
+two-sided. A port that inherits the scene-default cull (CW) silently culls the
+sparkle quads — they are issued (DrawPrimitiveUP runs) but rasterize 0 pixels.
+NONE is left set through the wing/dust draws that follow; the next pass resets
+its own cull (retail toggles CULLMODE 1↔3 ~23×/frame). The sparkle keeps
+ALPHATESTENABLE=1 / ALPHAFUNC=GREATER / ALPHAREF=0 (its effect00.bmp star
+texels are opaque, so alpha>0 passes) and additive ONE/ONE blend.
