@@ -747,6 +747,7 @@ struct test_case {
     X(choice_box_b_cancels_to_opt1) \
     X(choice_box_b_ignored_when_mode0) \
     X(choice_box_cursor_toggles_both_ways) \
+    X(choice_box_drives_shared_cursor) \
     X(choice_box_default_sel_honoured) \
     X(choice_box_reset_closes) \
     X(choice_box_poll_when_closed_is_inactive) \

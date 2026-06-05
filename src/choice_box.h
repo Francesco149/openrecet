@@ -14,7 +14,10 @@
  *   FUN_00434dd6  choice_box_blocking()— "a box (or msg) is up" query
  *   FUN_00434dbf  choice_box_reset()   — hard reset (scene teardown)
  *   FUN_0043537e  choice_box_draw()    — banner + prompt + options  (Win32)
- *   FUN_00435747  (cursor draw, folded into choice_box_draw)        (Win32)
+ *   FUN_00435747  title_save_dialog_cursor_render() — the SHARED hand cursor
+ *                 (choice_box_open/poll drive its snap/slide/visible state via
+ *                 title_save_dialog_cursor_*, exactly as the engine reuses the
+ *                 one cursor across the options panel + save dialog).  (Win32)
  *
  * The state machine is pure C and host-tested (test_choice_box.c); only the
  * D3D draw is Win32-gated.

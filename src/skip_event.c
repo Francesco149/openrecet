@@ -78,7 +78,11 @@ skip_result_t skip_event_tick(uint16_t held)
     edge        = (uint16_t)(held & ~g_prev_held);
     g_prev_held = held;
 
-    /* FUN_0046c320: poll the choice box, act on a committed option. */
+    /* FUN_0046c320: poll the choice box, act on a committed option. The shared
+     * cursor's per-frame tick (FUN_004356cd: bob + nav-slide step) is run once
+     * per INGAME frame by sim.c (mirroring the engine's FUN_00406584), AFTER
+     * this poll — so a nav this frame arms the 6-frame slide and the tick steps
+     * it, exactly as retail's poll-then-FUN_004356cd ordering. */
     r = choice_box_poll(edge, 1);
     if (r == CB_OPT0) {            /* Yes → skip (FUN_00435612 teardown) */
         skip_event_close();

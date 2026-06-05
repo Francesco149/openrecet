@@ -30,10 +30,6 @@
 #include "call_trace.h"
 
 #include <string.h>
-#ifdef _WIN32
-#include <windows.h>   /* GetEnvironmentVariableA — debug skip-prompt force */
-#include <stdlib.h>    /* atol */
-#endif
 
 #include "debug_param_tick.h" /* engine FUN_00405552 — debug-param tick gate */
 #include "fade.h"         /* fade_tick — engine's per-frame fade counter advance */
@@ -46,6 +42,10 @@
 #include "scene1_particles_tick.h"  /* engine FUN_0040fb3a — LAB_00453bed body */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
+#include "title_save_dialog.h" /* title_save_dialog_anim_tick — the shared
+                                * cursor's FUN_004356cd (bob b154 + shake slide),
+                                * which retail runs every state-1 frame via
+                                * FUN_00406584 (see the INGAME case below). */
 #include "stage_load_pulse.h" /* engine FUN_004693e3 — stage-load animation pulse */
 #include "worker_load.h"  /* worker_load_busy — primary asset-load worker gate */
 
@@ -262,30 +262,12 @@ void sim_step_a(void)
      * armed at new-game; a no-op once the 46 lines complete.
      * See src/scene1_intro_dialogue.h. */
     if (g_scene_state == SCENE_STATE_INGAME) {
-#ifdef _WIN32
-        /* Debug-only: the port harness has no ESC-injection path (ESC is a
-         * WM_KEYDOWN, not a game button), so to capture the skip-prompt golden
-         * we arm it from an env var. OPENRECET_FORCE_SKIP_AT = a g_sim_frame_count
-         * threshold; the prompt arms ONCE on the first fully-revealed dialogue
-         * line at or after that frame (text_revealed → a settled line the choice
-         * box can draw over). Anchor-rebased traces don't know absolute frames,
-         * so set it to 1 to arm on the very first settled line. No-op when
-         * unset. */
-        {
-            static long s_force_skip = -2;   /* -2 unread, -1 disabled/done */
-            if (s_force_skip == -2) {
-                char buf[16];
-                DWORD n = GetEnvironmentVariableA("OPENRECET_FORCE_SKIP_AT",
-                                                  buf, sizeof buf);
-                s_force_skip = (n > 0 && n < sizeof buf) ? atol(buf) : -1;
-            }
-            if (s_force_skip >= 0 && (long)g_sim_frame_count >= s_force_skip &&
-                !skip_event_open() && scene1_intro_dialogue_text_revealed()) {
-                skip_event_arm(1);
-                s_force_skip = -1;           /* arm once */
-            }
-        }
-#endif
+        /* The skip prompt is armed through the real ESC dispatch
+         * (esc_pressed() → skip_event_arm()). In normal play that fires from
+         * WndProc's WM_KEYDOWN; under the TAS harness the segtrace {esc:N} op
+         * replays the same esc_pressed() call (main.c segtrace_esc_cb) — so
+         * tests drive the prompt by adding an {esc} to the trace, not by any
+         * env-var/frame hack. See tests/scenarios/intro-skip-prompt. */
         if (skip_event_open()) {
             /* The skip-event prompt is modal (retail FUN_004536cb routes the
              * frame to LAB_00453cfb, skipping the scene tick, while the prompt
@@ -337,6 +319,16 @@ void sim_step_a(void)
          * path also runs 5 unported siblings (player + NPC + world
          * tick + UI + camera).  See src/scene1_sim.c header. */
         scene1_ingame_tick();
+        /* FUN_00406584 (Cs3) runs right after FUN_004427d3 on every
+         * state-1 frame (engine FUN_004536cb L50556). Its only part we
+         * need here is the FUN_004356cd call it makes — the shared menu
+         * cursor's per-frame bob (DAT_0438b154) + shake-slide step. Retail
+         * advances b154 across the WHOLE prologue this way, so when the
+         * skip-event choice box opens its hand cursor's bob phase is already
+         * accumulated; without this the port's bob would be frozen at the
+         * stale title-scene value (a visible cursor-position divergence on
+         * the skip prompt). The rest of FUN_00406584 stays unported. */
+        title_save_dialog_anim_tick();
         break;
 
     /* Cs2 — LAB_00453bed mass dispatch.  Per-state callees

@@ -59,6 +59,8 @@
 {"frame": 0, "buttons": "0x0000"}
 {"wait": "TEXT_ANIM_END"}
 {"frame": 0, "buttons": "0x0000"}
+{"phasepin": 0}
+{"esc": 2}
 {"capture": 12}
 {"frame": 20, "buttons": "0x0001"}
 {"frame": 22, "buttons": "0x0000"}

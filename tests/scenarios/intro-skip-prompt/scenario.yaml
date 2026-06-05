@@ -1,16 +1,21 @@
 # intro-skip-prompt — the ESC "Do you want to skip this event?" Yes/No choice box
-# over a settled prologue line. The port harness has no ESC-injection, so arm via
-# OPENRECET_FORCE_SKIP_AT=1 (sim.c debug: arms on the first fully-revealed line).
-# cap_00 = prompt on Yes (default); cap_01 = after one Right (No). Verifies the
-# choice-box render (both options full-brightness, hand cursor bob) vs the retail
-# golden runs/skip-golden/arm485/frame_00514.png (faithful ESC capture).
+# over a settled prologue line. The prompt is armed through the REAL esc dispatch:
+# the trace's {esc:2} op replays esc_pressed() (port: segtrace_esc_cb; retail:
+# the Frida agent's synthesizeEscRetail) AFTER the line settles — no env hack.
+# A {phasepin:0} at TEXT_ANIM_END normalizes the load-dependent counters (the
+# companion db054 AND the shared cursor bob b154) so the hand cursor is phase-1:1
+# across the non-deterministic load — the cursor is then bit-identical vs retail
+# (user-confirmed 2026-06-05). cap_00 = prompt on Yes (default); cap_01 = after
+# one Right (No). Both run synced:
 #
-#   OPENRECET_FORCE_SKIP_AT=1 python3 tools/scenario-test.py intro-skip-prompt \
-#     --target openrecet
-# (retail side = the existing skip-golden; no harness ESC arm.)
+#   python3 tools/scenario-test.py intro-skip-prompt --target both \
+#     --frida-remote cutestation.soy:27042
+#
+# Residual box delta = ±1 LSB on the gold banner (2D-UI colour precision, ledger
+# #52 class) + the prologue background's own §85 phase — NOT the cursor/box logic.
 description: |
-  ESC skip Yes/No choice box over a settled line (port, FORCE_SKIP_AT). cap_00
-  Yes / cap_01 No. Diff vs runs/skip-golden/arm485.
+  ESC skip Yes/No choice box over a settled line, armed via the {esc} TAS op +
+  {phasepin} (cursor bob phase-1:1). cap_00 Yes / cap_01 No.
 max_frames: 24000
 duration_ceiling_ms: 240000
 n_captures: 2

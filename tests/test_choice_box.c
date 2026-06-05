@@ -6,6 +6,7 @@
  */
 #include "t.h"
 #include "choice_box.h"
+#include "title_save_dialog.h"   /* the shared cursor the box now drives */
 
 #include <string.h>
 
@@ -13,6 +14,9 @@
 #define B_LEFT  CB_BTN_LEFT
 #define B_A     CB_BTN_A
 #define B_B     CB_BTN_B
+
+/* the only slide-accumulated coord (336) isn't bit-exact in float */
+#define NEAR(a, b) ((a) > (b) - 0.25f && (a) < (b) + 0.25f)
 
 /* Poll with no input until the box becomes interactive (anim caps at 4).
  * Returns the number of polls it took. */
@@ -117,6 +121,39 @@ int test_choice_box_cursor_toggles_both_ways(void)
     /* RIGHT again from Yes works (not a one-shot) */
     choice_box_poll(B_RIGHT, 1);
     T_ASSERT_EQ_I(choice_box_selection(), 1);
+    return 0;
+}
+
+/* The box drives the SHARED hand cursor (title_save_dialog_cursor_*), matching
+ * retail FUN_00434def (snap on open) / FUN_00434ed2 (6-frame slide on nav,
+ * offscreen snap on close). Yes is at x=212, No at x=336 (sel*0x7c+212); a
+ * 1-row prompt sits the cursor at y=244 (b14c=0). */
+int test_choice_box_drives_shared_cursor(void)
+{
+    title_save_dialog_reset();
+    choice_box_reset();
+
+    /* open on Yes (sel 0) → cursor snaps visible to (212, 244). */
+    choice_box_open("Do you want to skip this event?", 1, 0);
+    T_ASSERT_EQ_I(title_save_dialog_cursor_get_visible(), 1);
+    T_ASSERT(NEAR(title_save_dialog_get_shake_pos_x(), 212.0f));
+    T_ASSERT(NEAR(title_save_dialog_get_shake_pos_y(), 244.0f));
+    run_to_interactive();
+
+    /* RIGHT → No: arm a 6-frame ease toward (336, 244); anim_tick walks it. */
+    choice_box_poll(B_RIGHT, 1);
+    T_ASSERT_EQ_I(choice_box_selection(), 1);
+    T_ASSERT_EQ_I(title_save_dialog_get_shake_counter(), 6);
+    for (int i = 0; i < 6; i++)
+        title_save_dialog_anim_tick();        /* FUN_004356cd */
+    T_ASSERT_EQ_I(title_save_dialog_get_shake_counter(), 0);
+    T_ASSERT(NEAR(title_save_dialog_get_shake_pos_x(), 336.0f));
+    T_ASSERT(NEAR(title_save_dialog_get_shake_pos_y(), 244.0f));
+
+    /* commit + close → cursor snaps offscreen to (0, -64). */
+    T_ASSERT_EQ_I(commit_and_drain(B_A), CB_OPT1);
+    T_ASSERT(NEAR(title_save_dialog_get_shake_pos_x(), 0.0f));
+    T_ASSERT(NEAR(title_save_dialog_get_shake_pos_y(), -64.0f));
     return 0;
 }
 

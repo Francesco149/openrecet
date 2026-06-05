@@ -9,6 +9,10 @@
  * same "audio is deferred at the host layer" convention the dialogue uses.
  */
 #include "choice_box.h"
+#include "title_save_dialog.h"   /* the shared hand cursor (FUN_00435747 + the
+                                  * abf4/abf8 pos, ac00/ac04 slide, b150 visible
+                                  * globals) — the choice box drives the SAME
+                                  * cursor the options/save dialog use. */
 
 #include <string.h>
 
@@ -27,7 +31,8 @@ static int   cb_sel    = 0;   /* DAT_0438ac24 — current selection             
 static int   cb_mode   = 0;   /* DAT_0438b144 — param_2 (1 = B cancels)               */
 static int   cb_rows   = 1;   /* DAT_0438ac08 — prompt text row count                 */
 static float cb_b14c   = 0.0f;/* _DAT_0438b14c — 2-row vertical shift (8.0 if 2 rows)  */
-static int   cb_bob    = 0;   /* cursor bob phase (_DAT_0438b154 family)              */
+/* The cursor bob phase + position now live in the shared cursor (DAT_0438b154
+ * for the bob, DAT_0438abf4/abf8 for the position) — title_save_dialog.c. */
 
 /* DAT_0438af3b prompt buffer: the engine lays the text out at &DAT_0438af3b+1
  * (= &DAT_0438af3c), one 0x100-stride row per '<'-delimited line. We keep the
@@ -67,19 +72,19 @@ void choice_box_open(const char *text, int mode, int sel)
     cb_sel   = sel;               /* DAT_0438ac24 = param_3    */
     if (cb_rows == 2)             /* 2 rows → shift options down */
         cb_b14c = 8.0f;
-    cb_bob   = 0;
+
+    /* FUN_00434def tail: snap the shared hand cursor to the initial option
+     * and show it (engine writes DAT_0438ac18=0, DAT_0438b150=1, and both
+     * abf4/abf8 = ac00/ac04 = (sel*0x7c+212, b14c+244)). */
+    title_save_dialog_cursor_snap((float)(cb_sel * 0x7c) + 212.0f,
+                                  cb_b14c + 244.0f);
 }
 
 /* FUN_00434ed2 — per-frame nav / confirm / close. `edge` is DAT_073dddd4. */
 int choice_box_poll(uint16_t edge, int reset_pos)
 {
-    (void)reset_pos;   /* the engine only slides the cursor offscreen on close;
-                          cosmetic, and our cursor snaps — see choice_box_draw. */
-
     if (cb_active < 1)
         return CB_INACTIVE;
-
-    cb_bob++;
 
     /* ── closing animation (DAT_0438ac14 != 0) ── */
     if (cb_close != 0) {
@@ -87,6 +92,10 @@ int choice_box_poll(uint16_t edge, int reset_pos)
             cb_active--;
             if (cb_active != 0)
                 return CB_BUSY;
+            /* FUN_00434ed2: on the final close frame, when param_1 (reset_pos)
+             * is set, slide the shared cursor offscreen — snap to (0,-64). */
+            if (reset_pos)
+                title_save_dialog_cursor_snap(0.0f, -64.0f);
             return CB_OPT1;                /* cancel resolves as option 1 */
         }
         cb_close++;
@@ -95,6 +104,8 @@ int choice_box_poll(uint16_t edge, int reset_pos)
         cb_active--;
         if (cb_active != 0)
             return CB_BUSY;
+        if (reset_pos)                     /* same offscreen snap on a normal close */
+            title_save_dialog_cursor_snap(0.0f, -64.0f);
         return cb_result;                 /* 1 (opt0) or 2 (opt1) */
     }
 
@@ -110,6 +121,10 @@ int choice_box_poll(uint16_t edge, int reset_pos)
             if ((edge & CB_BTN_RIGHT) && cb_sel == 0) {
                 CB_SE(0x146);
                 cb_sel ^= 1;                       /* Yes → No */
+                /* FUN_00434ed2: arm a 6-frame ease toward the new option
+                 * (DAT_0438ac18=6; ac00/ac04 = (target − pos)/6). */
+                title_save_dialog_cursor_slide((float)(cb_sel * 0x7c) + 212.0f,
+                                               cb_b14c + 244.0f);
             }
             if (!(edge & CB_BTN_LEFT))
                 return CB_BUSY;
@@ -117,6 +132,8 @@ int choice_box_poll(uint16_t edge, int reset_pos)
                 return CB_BUSY;
             CB_SE(0x146);
             cb_sel ^= 1;                            /* No → Yes */
+            title_save_dialog_cursor_slide((float)(cb_sel * 0x7c) + 212.0f,
+                                           cb_b14c + 244.0f);
             return CB_BUSY;
         }
         /* A pressed → commit */
@@ -157,13 +174,12 @@ const char *choice_box_text(void)      { return cb_text + 1; }   /* &DAT_0438af3
 #include "render_quad.h"
 #include "font_draw.h"
 #include "sysassets.h"
-#include <math.h>
 
 /* FUN_0043537e + FUN_00435747 — the box render.
- *   bg   = savewindow.tga (DAT_073d8dc0), 512×128, grows from screen centre
- *   text = centred prompt (FUN_0047d14c) + "Yes"/"No" (FUN_0047ca05)
- *   cursor = a 40×40 hand from nowloading.tga (DAT_073cc770) at the selection,
- *            bobbing horizontally (FUN_00435747's sin wobble). */
+ *   bg     = savewindow.tga (DAT_073d8dc0), 512×128, grows from screen centre
+ *   text   = centred prompt (FUN_0047d14c) + "Yes"/"No" (FUN_0047ca05)
+ *   cursor = the shared 40×40 hand, drawn by title_save_dialog_cursor_render
+ *            (FUN_00435747) — NOT an inline copy. */
 void choice_box_draw(struct IDirect3DDevice8 *dev)
 {
     if (cb_active < 1)
@@ -217,25 +233,17 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
          * anim — deferred.) FUN_0047ca05 at x 252/376. */
         font_draw_text(dev, 252.0f, cb_b14c + 232.0f, "Yes", 0xffffffffu, 1.0f);
         font_draw_text(dev, 376.0f, cb_b14c + 232.0f, "No",  0xffffffffu, 1.0f);
-
-        /* hand cursor — nowloading.tga, 40×40 region (192,0)-(232,40), at the
-         * selected option (x = sel*0x7c + 212), bobbing toward it. The engine
-         * (FUN_00435747) takes the ABS of the sin: bob = |sin(phase·0.1)|·8, so
-         * the hand wobbles LEFT-only (0..8 toward the option) at the |sin|
-         * frequency (period π). A plain sin is half that frequency (looked too
-         * slow) and swings +8 to the RIGHT of the option (overshoot) — both the
-         * user-reported symptoms. */
-        sprite_t *cur = &g_sysassets.nowloading_tga;
-        if (cur->tex != NULL) {
-            float bob = fabsf(sinf((float)cb_bob * 0.1f)) * 8.0f;
-            float cx  = (float)(cb_sel * 0x7c) + 212.0f - bob;
-            float cy  = cb_b14c + 244.0f - 20.0f;
-            const float dst[4] = { cx, cy, 40.0f, 40.0f };
-            const float src[4] = { 192.0f, 0.0f, 232.0f, 40.0f };
-            render_quad_bind(dev, cur);
-            render_quad_add(dst, src, cur->width, cur->height, 0xffffffffu);
-            render_quad_flush(dev);
-        }
     }
+
+    /* hand cursor — the SHARED FUN_00435747 draw. The engine call site is
+     * `FUN_0043537e(); FUN_00435747();`, so the cursor is NOT gated on the box
+     * being fully open (FUN_0043537e's af34>0 gate) — it self-gates on the
+     * cursor-visible flag (DAT_0438b150, set by choice_box_open) and draws the
+     * 40×40 hand at (abf4 − |sin(b154·0.1)|·8, abf8 − 20). choice_box_open
+     * snapped (abf4,abf8) to the selected option; nav slides it; close eases it
+     * offscreen. The bob counter (b154) + slide step are advanced once per INGAME
+     * frame by title_save_dialog_anim_tick in sim.c (the FUN_004356cd that retail
+     * runs via FUN_00406584 every state-1 frame). */
+    title_save_dialog_cursor_render(dev);
 }
 #endif /* _WIN32 */

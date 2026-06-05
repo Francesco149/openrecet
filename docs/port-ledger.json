@@ -870,7 +870,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/sim.c"
+    "src/choice_box.c",
+    "src/sim.c",
+    "src/skip_event.c"
    ]
   },
   {
