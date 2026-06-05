@@ -3898,3 +3898,31 @@ This bit it once: the unselected grey was ported as `0x95` (a hex/decimal slip �
 title-menu item. Ground truth (`render_quad_add` diffuse = `0xff5f5f5f`) and the
 denormal both say `0x5F`. The same denormal-as-byte idiom recurs across the
 engine's UI colour code, so expect it elsewhere in the menu/HUD render functions.
+
+## 98. Title 2D render batches same-texture quads into one DrawPrimitiveUP; standalone images flush per-quad
+
+`render_quad_add` (FUN_00404efc) is a **pure vertex appender** — it writes 6
+verts into the shared buffer at `DAT_00647e0c` and bumps the count; it never
+flushes. Batch shape is therefore entirely **caller-driven** by where the code
+calls the flush (FUN_00405354, which `DrawPrimitiveUP`s `vcount/3` tris and
+zeroes the count).
+
+The title scene (FUN_0049c644) is deliberately **inconsistent** about this:
+
+- **Standalone background images** (title03 BG, the gradient, the fuki corner
+  strip, the title01 band) are each a *distinct texture*, drawn `add` → `flush`
+  → one `vcount=6` DrawPrimitiveUP per image.
+- **The menu-item row** (N items from the single `fuki` sheet) is drawn as N
+  `add`s then **one** `flush` → `vcount = N*6` (e.g. 4 items → `24`). This batch
+  runs under `COLOROP = ADDSIGNED`; the flush fires right before COLOROP is
+  restored to `MODULATE`.
+- **The selected-row decoration tiles** (frame + big label glyph + ribbon, 3
+  quads, also all from `fuki`) are likewise one batch → `vcount=18`, under
+  `MODULATE`.
+
+So a stock boot title frame emits flushes `[6, 6, 6, 6, 24, 18]`. The grouping
+is by texture+state continuity, NOT "one draw call per sprite" — binding the
+same texture before each add inside a batch is a redundant no-op the engine
+relies on (last bind wins for the whole DrawPrimitiveUP window). Pixel-identical
+to per-quad flushing; this is a command-stream structural fact, used as a
+frame-by-frame parity check (`flow_diff` vcount field on FUN_00405354).

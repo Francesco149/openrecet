@@ -7,6 +7,35 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-05 — `boot-idle` title frame is structurally 1:1 (Phase 2)
+
+Walked the flow-trace down the `boot-idle` title chain to a clean verdict:
+`flow_diff --mapped-only` now reports **✓ chain + data aligned (40 vs 40 calls)** on
+frames 30 AND 60 — the port's instrumented title call chain and the data through it
+match retail. Three pieces:
+
+- **`input_poll` (0x47b73c) → `chain_benign`.** Under the TAS harness the port
+  substitutes synthetic input (`replay_input_poll`/`segtrace_input_poll` write
+  `g_input_state[].buttons` from the trace), so the engine's real DirectInput poll
+  never runs on the port while retail still calls it. It was shadowing every
+  downstream divergence at seq 2. Same class as the 0x47be2f clock read.
+- **SIM-leg fields for `scene_title_sim` (0x49a59e).** Added `CALL_TRACE_BEGIN_STUB`
+  (field-bearing event + `"stub":true`) and declared the 10 persisted menu-state
+  fields on both sides (port reads `g_scene_title_anim` at entry; retail reads the
+  `DAT_096435xx` globals at onEnter — mapping in `scene_title.h`). Verified bit-1:1
+  (frame_counter==pulse_phase==frame index, menu_folding_out=1, rest 0) — the title
+  menu state machine tracks retail exactly given the same input.
+- **Render BATCHING fixed.** The port flushed per-quad; retail (FUN_0049c644) batches
+  same-texture groups — menu items → one `vcount=24` flush (ADDSIGNED), decoration
+  tiles → one `vcount=18` (MODULATE), standalone bg images per-quad. Split
+  `title_quad`→`title_quad_add`(no flush)+`title_quad`; port flush vcounts are now
+  `[6,6,6,6,24,18]`, bit-identical to retail. Pixel-benign (engine-quirks §98).
+
+Remaining title deltas are all benign/coverage: the FPS overlay (896px, environment
+artifact) and un-probed retail-internal funcs (CRT/MCI/audio). Next: extend the same
+structural-1:1 check to the title scenarios WITH input (`title-down-press`/`-z-press`/
+`-options`) — the menu-state fields now make cursor/select branches diffable.
+
 ## 2026-06-05 — Execution + dataflow trace: the divergence drill-in
 
 User-directed next layer: d3d `--explain` names the wrong *draw* but not the *logic

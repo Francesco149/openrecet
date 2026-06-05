@@ -55,24 +55,31 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   --call-trace --d3d-trace --d3d-trace-verts` = ONE command for a synced port↔retail capture
   (save-virtualized, aligned, **forced 17ms/frame 1:1 timestep** both sides). Flow-trace
   frame attribution is clean (scheduler→sim→render in seq order). See CLAUDE.md "Run/build".
-- **Phase 2 — IN PROGRESS.** Grow flow-trace **field coverage** down the title call chain,
-  then walk frame-0-forward fixing the first real `[data]`/`[chain]` divergence
-  (`flow_diff --mapped-only`), `--explain` to confirm the draw. **The render leg is seeded +
-  validated end-to-end (2026-06-05):** `render_quad_add`/`flush` carry per-quad
-  dst/src/tex/diffuse + vcount on BOTH sides; on `boot-idle` the title's 11 quads are
-  bit-1:1 in geometry/UV/texture. Two tooling fixes this exposed: **Frida arg indexing is
-  0-based** (`args[0]`=first param — the spec/agent/plan said 1-based and no entry had ever
-  exercised it), and `flow_diff` now has **`chain_benign`** to drop position-irrelevant calls
-  (clock reads) from chain alignment. **First real divergence it surfaced → the "menu options
-  too bright" bug, now FIXED** (unselected grey `0x95`→`0x5f`; the engine stores it as the
-  denormal `1.33123e-43` whose bit pattern = 95 = `0x5f` — engine-quirks §97; port was
-  pixel-identical to retail after, 0 px diff). **Immediate next step:** continue down the
-  chain — declare the SIM-leg functions' inputs (the ~24 non-render fns on frame 30: tick/
-  sim/scene_title/music/...) so `flow_diff` compares logic data too; and the title menu
-  **render BATCHING** divergence is now the first `[chain]` hit (retail batches menu quads
-  4+4+3; the port self-flushes each of 11 — pixel-benign but structural). Capture:
-  `scenario-test boot-idle --target both --call-trace`; diff frames 30/60 (frame 0 = boot
-  transient, auto-dropped for call-trace).
+- **Phase 2 — IN PROGRESS. `boot-idle` title frame is now STRUCTURALLY 1:1 (2026-06-05):**
+  `flow_diff --mapped-only` reports **✓ chain + data aligned (40 vs 40 calls)** on frames 30
+  AND 60 — the port's instrumented title call chain + the data through it match retail.
+  Three landings got there: (1) **render leg** — `render_quad_add`/`flush` carry per-quad
+  dst/src/tex/diffuse + vcount both sides; the title's quads are bit-1:1 in geometry/UV/
+  texture; the "menu too bright" bug fixed (denormal `0x95`→`0x5f`, engine-quirks §97).
+  (2) **SIM leg** — `scene_title_sim` (0x49a59e) declares its 10 persisted menu-state fields
+  (frame_counter/cursor_pos/cursor_anim/select_phase/pulse_phase/menu_folding_out/submenu_*/
+  settings_dirty/fade_counter) on both sides via the new **`CALL_TRACE_BEGIN_STUB`** (field-
+  bearing + `"stub":true`); verified bit-1:1 (frame_counter==pulse_phase==frame index,
+  menu_folding_out=1, else 0). (3) **render BATCHING fixed** — the port flushed per-quad;
+  retail batches same-texture groups (FUN_0049c644: menu items → one vcount=24 flush under
+  ADDSIGNED, decoration tiles → one vcount=18 under MODULATE; standalone bg images flush
+  per-quad in retail too). Split `title_quad`→`title_quad_add`(no flush)+`title_quad`; port
+  flush vcounts are now `[6,6,6,6,24,18]`, bit-identical to retail (pixel-benign — engine-
+  quirks §98). Tooling notes: `input_poll` (0x47b73c) marked **`chain_benign`** (the TAS
+  harness substitutes synthetic input, so the port never runs the engine's DirectInput poll);
+  Frida arg indexing is **0-based**. **Remaining title gaps:** only the benign FPS overlay
+  (896px, environment artifact — benign-divergence registry) + un-probed retail-internal
+  funcs (CRT/MCI/audio — coverage gaps, not divergences). **Immediate next step:** extend the
+  structural-1:1 verification to the title scenarios WITH input (`title-down-press`,
+  `title-z-press`, `title-options`) — drive the menu and confirm the now-instrumented sim
+  state (cursor_pos/select_phase) + render batching stay 1:1 through menu navigation. Capture:
+  `scenario-test <scn> --target both --call-trace`; diff frames with `flow_diff --mapped-only`
+  (frame 0 = boot transient, auto-dropped for call-trace).
 - **Sparkle is deferred ON PURPOSE — do not re-attack early.** The shop-display "目玉商品"
   sparkle (template 0x3b) has verified bit-1:1 data (texture/UV/world-matrix) but isn't yet
   visibly 1:1. It is finished **last**, only once the entire command stream UP TO its frame
