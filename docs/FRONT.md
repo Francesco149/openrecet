@@ -65,10 +65,20 @@
   the port → ruled out a phase offset) then objdump'ing the constant. Post-dispatch frames
   (73/90/92+) diverge into the **unported new-game INGAME scene** (port shows a placeholder —
   expected coverage gap, per scenario.yaml). • **`title-options`** — DOWN×2 nav + the whole
-  settings panel (bg, all six rows, slider values) are 1:1; the **one** remaining gap is the
-  port omitting the **options-panel selection cursor** (a 40×40 animated sprite from a 256×64
-  sheet, drawn in the title-render tail `FUN_0043537e/00435747/00435117`; retail seq 516,
-  hovering at y=148 over the active row with a small x-bob 161.9→166.5). **← NEXT CHIP.**
+  settings panel (bg, all six rows, slider values) are 1:1 — **including the hand cursor,
+  now PORTED (2026-06-05).** `FUN_00435747`'s body landed in `title_save_dialog_cursor_render`
+  (40×40 hand from nowloading.tga, src (192,0)-(232,40), dst `(168−|sin(b154·0.1)|·8,
+  row·40+148)`), driven by the shared cursor state (`title_save_dialog_cursor_snap/slide/
+  set_visible` = `FUN_00435693/710/61a/612`): the OPTIONS dispatch snaps it to row 0, settings
+  UP/DOWN slide it (6-frame ease), exit hides it. `flow_diff` frames 39/60 = **✓ 174 vs 174
+  aligned**; the cursor quad is **bit-1:1 incl. the bob position** (port==retail (161.946,148)
+  / (166.543,148)) — the existing `anim_tick` (`FUN_004356cd`) already increments `b154` every
+  title frame so the bob phase lines up for free. boot-idle/down/z unaffected (cursor gated
+  off; visible defaults 0).
+- **TODO when on dialogue-skip:** the Yes/No choice box (`choice_box.c`) still draws its hand
+  via an *inline* copy rather than this shared `FUN_00435747` path. Retail routes BOTH through
+  the one shared cursor — **trace retail on the skip prompt to confirm the path, then unify
+  choice_box onto `title_save_dialog_cursor_*`** so there's a single cursor implementation.
 - **Method note (worth reusing):** the `flow_diff` render-leg `col` field caught a 1-LSB
   greyscale divergence that no side-by-side would; the sim stub logs counters at sim-onEnter
   (pre-increment) while the render consumes them +1 (post-increment) — when reconstructing a

@@ -296,10 +296,15 @@ static void scene_title_settings_step(scene_title_anim_t *anim,
     if (held & TITLE_INPUT_UP) {
         anim->submenu_cursor = (anim->submenu_cursor + 5) % SETTINGS_ROW_COUNT;
         audio_play_se_by_id(TITLE_SE_CURSOR);
+        /* Ease the hand to the new row (FUN_00435710): x=168, y=row·40+168. */
+        title_save_dialog_cursor_slide(168.0f,
+                                       (float)anim->submenu_cursor * 40.0f + 168.0f);
     }
     if (held & TITLE_INPUT_DOWN) {
         anim->submenu_cursor = (anim->submenu_cursor + 7) % SETTINGS_ROW_COUNT;
         audio_play_se_by_id(TITLE_SE_CURSOR);
+        title_save_dialog_cursor_slide(168.0f,
+                                       (float)anim->submenu_cursor * 40.0f + 168.0f);
     }
 
     /* LEFT precedence over RIGHT (engine line 398). */
@@ -336,8 +341,9 @@ static void scene_title_settings_exit_handler(scene_title_anim_t *anim,
     anim->select_phase     = 0;
     anim->menu_folding_out = 1;        /* start slide-OUT */
     /* Engine calls FUN_00435612 (cursor sprite off) + FUN_0049a43d
-     * (rebuild main menu). Our menu is pre-built and reused; cursor
-     * sprite isn't rendered yet. Both are no-ops for the bare slice. */
+     * (rebuild main menu). Our menu is pre-built and reused; turn the
+     * shared hand cursor off so it doesn't bleed onto the main menu. */
+    title_save_dialog_cursor_set_visible(0);
 
     /* Seek main-menu cursor to the OPTIONS row (code 2). Engine
      * mirrors this so the user returns to the row they entered from. */
@@ -532,6 +538,10 @@ void scene_title_sim(scene_title_anim_t *anim,
                         anim->submenu_state    = 2;
                         anim->submenu_cursor   = 0;
                         anim->menu_folding_out = 0;   /* slide submenu in */
+                        /* Snap the shared hand cursor to settings row 0
+                         * and show it (FUN_00435693). Target x is the
+                         * absolute 168; y = row·40 + 168. */
+                        title_save_dialog_cursor_snap(168.0f, 168.0f);
                     } else if (code == SCENE_TITLE_MENU_NEW_GAME
                             || code == SCENE_TITLE_MENU_CONT_HAS_SAVE) {
                         /* Engine FUN_0049a59e L101072: codes {0,5} →
@@ -1110,7 +1120,7 @@ void scene_title_render(IDirect3DDevice8 *dev,
      * themselves are unconditional — the diff tool sees count parity
      * regardless. */
     title_save_dialog_secondary_render();
-    title_save_dialog_cursor_render();
+    title_save_dialog_cursor_render(dev);
     title_save_dialog_render();
 
     /* Smoke-test "openrecet 0.1" font draw removed 2026-05-27:

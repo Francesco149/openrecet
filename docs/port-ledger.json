@@ -4,14 +4,14 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 70,
-  "stubbed": 16,
-  "ported": 338,
-  "unported": 2124,
+  "verified": 71,
+  "stubbed": 15,
+  "ported": 339,
+  "unported": 2123,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 424,
-  "pct_touched": 16.6,
-  "pct_verified": 2.7,
+  "touched": 425,
+  "pct_touched": 16.7,
+  "pct_verified": 2.8,
   "port_debt": 11
  },
  "orphan_refs": [
@@ -658,7 +658,8 @@
    "src": [
     "src/render_quad.c",
     "src/render_quad.h",
-    "src/scene1_fps.c"
+    "src/scene1_fps.c",
+    "src/title_save_dialog.c"
    ]
   },
   {
@@ -2702,6 +2703,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_title.c",
     "src/scene_worldmap.h",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
@@ -2724,8 +2726,12 @@
    "size": 55,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_title.c",
+    "src/title_save_dialog.c",
+    "src/title_save_dialog.h"
+   ]
   },
   {
    "va": "0x435747",
@@ -2733,7 +2739,7 @@
    "size": 300,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "stubbed",
+   "status": "verified",
    "src": [
     "src/title_save_dialog.c"
    ]
@@ -22105,7 +22111,8 @@
     "src/scene1_player_ctrl.h",
     "src/scene1_records_c_spawn.c",
     "src/scene1_spawn.c",
-    "src/scene1_wide_followup_helpers.c"
+    "src/scene1_wide_followup_helpers.c",
+    "src/title_save_dialog.c"
    ]
   },
   {

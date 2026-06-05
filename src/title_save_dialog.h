@@ -97,9 +97,29 @@ void title_save_dialog_render(void);
  * early-return gate `if (DAT_0438af34 == 0) return;` is preserved. */
 void title_save_dialog_secondary_render(void);
 
-/* FUN_00435747 — cursor sprite shake-render.  Stub: only the
- * early-return gate `if (DAT_0438b150 == 0) return;` is preserved. */
-void title_save_dialog_cursor_render(void);
+/* FUN_00435747 — cursor sprite shake-render. Now a real body: draws the
+ * 40×40 hand from nowloading.tga (DAT_073cc770, src (192,0)-(232,40)) at
+ * (shake_pos_x - bob, shake_pos_y - 20), bob = |sin(anim_counter·0.1)|·8,
+ * gated on the cursor-visible flag. D3D draw is _WIN32-only; host build
+ * emits the probe + returns. */
+struct IDirect3DDevice8;
+void title_save_dialog_cursor_render(struct IDirect3DDevice8 *dev);
+
+/* ─── shared menu-cursor control (DAT_0438b150 + the abf4/abf8 pos +
+ * ac00/ac04 slide deltas + ac18 slide countdown). The hand cursor is a
+ * single shared sprite the engine reuses across the options panel, the
+ * save/load dialog, and the Yes/No choice box — see FUN_0043561a/612
+ * (visible on/off), FUN_00435693 (snap), FUN_00435710 (6-frame slide). */
+
+/* FUN_0043561a (on) / FUN_00435612 (off) — DAT_0438b150 visibility. */
+void title_save_dialog_cursor_set_visible(int on);
+int  title_save_dialog_cursor_get_visible(void);
+
+/* FUN_00435693 — snap the cursor to (x,y) and show it. */
+void title_save_dialog_cursor_snap(float x, float y);
+
+/* FUN_00435710 — start a 6-frame ease toward (x,y). Visibility unchanged. */
+void title_save_dialog_cursor_slide(float x, float y);
 
 /* ─── test/host-side accessors ────────────────────────────────────── */
 

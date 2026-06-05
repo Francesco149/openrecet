@@ -27,6 +27,12 @@
 #include "call_trace.h"
 #include "sim.h"          /* g_sim_buttons[0].pressed → DAT_073dddd4 */
 
+#ifdef _WIN32
+#include <math.h>         /* sinf / fabsf — FUN_00503a44 (sin) + abs */
+#include "render_quad.h"  /* render_quad_bind/add/flush — FUN_00404efc/405354 */
+#include "sysassets.h"    /* g_sysassets.nowloading_tga — DAT_073cc770 */
+#endif
+
 /* ─── module state ────────────────────────────────────────────────── */
 
 /* DAT_0438b148 — save/load dialog counter. Engine ramps 0..8 then
@@ -51,6 +57,9 @@ static float g_shake_pos_y    = 0.0f;
 static float g_shake_delta_x  = 0.0f;
 static float g_shake_delta_y  = 0.0f;
 
+/* DAT_0438b150 — cursor-sprite visibility (FUN_0043561a/00435612). */
+static int   g_cursor_visible = 0;
+
 /* ─── lifecycle + accessors ───────────────────────────────────────── */
 
 void title_save_dialog_reset(void)
@@ -63,6 +72,33 @@ void title_save_dialog_reset(void)
     g_shake_pos_y    = 0.0f;
     g_shake_delta_x  = 0.0f;
     g_shake_delta_y  = 0.0f;
+    g_cursor_visible = 0;
+}
+
+/* ─── shared menu-cursor control (FUN_0043561a/612/693/710) ────────── */
+
+void title_save_dialog_cursor_set_visible(int on) { g_cursor_visible = on ? 1 : 0; }
+int  title_save_dialog_cursor_get_visible(void)   { return g_cursor_visible;        }
+
+/* FUN_00435693 — snap to (x,y), zero the slide countdown, show. The
+ * engine also writes the deltas = (x,y) here; harmless with ac18==0. */
+void title_save_dialog_cursor_snap(float x, float y)
+{
+    g_shake_counter  = 0;
+    g_cursor_visible = 1;
+    g_shake_delta_x  = x;
+    g_shake_delta_y  = y;
+    g_shake_pos_x    = x;
+    g_shake_pos_y    = y;
+}
+
+/* FUN_00435710 — arm a 6-frame ease toward (x,y); anim_tick walks
+ * shake_pos there one delta per frame. Does NOT touch visibility. */
+void title_save_dialog_cursor_slide(float x, float y)
+{
+    g_shake_counter = 6;
+    g_shake_delta_x = (x - g_shake_pos_x) / 6.0f;
+    g_shake_delta_y = (y - g_shake_pos_y) / 6.0f;
 }
 
 int   title_save_dialog_get_active_counter(void) { return g_active_counter; }
@@ -235,12 +271,34 @@ void title_save_dialog_secondary_render(void)
  * The visibility gate DAT_0438b150 is BSS-zero in our port — only
  * setters FUN_00435612/1a touch it, both unported.  Same deal as
  * the secondary render. */
-void title_save_dialog_cursor_render(void)
+void title_save_dialog_cursor_render(struct IDirect3DDevice8 *dev)
 {
-    /* E.2 probe — FUN_00435747 @ 0x435747. Body deferred. */
-    CALL_TRACE_ENTER_STUB(0x435747u);
+    /* FUN_00435747 @ 0x435747 — shared menu hand-cursor draw. */
+    CALL_TRACE_ENTER(0x435747u);
 
-    /* Gate global DAT_0438b150 not in this module's storage yet —
-     * see secondary_render note. */
-    return;
+#ifdef _WIN32
+    if (g_cursor_visible == 0) {
+        return;
+    }
+    sprite_t *cur = &g_sysassets.nowloading_tga;
+    if (cur->tex == NULL) {
+        return;
+    }
+
+    /* bob = |sin(anim_counter · 0.1)| · 8 — engine takes the ABS of the
+     * sin so the hand wobbles LEFT-only (0..8 toward the row) at period
+     * π (FUN_00435747 L32955-32965). Same shape choice_box.c uses. */
+    const float bob = fabsf(sinf((float)g_anim_counter * 0.1f)) * 8.0f;
+
+    /* 40×40 hand glyph at src (192,0)-(232,40) of nowloading.tga, drawn
+     * at (shake_pos_x - bob, shake_pos_y - 20). */
+    const float dst[4] = { g_shake_pos_x - bob, g_shake_pos_y - 20.0f,
+                           40.0f, 40.0f };
+    const float src[4] = { 192.0f, 0.0f, 232.0f, 40.0f };
+    render_quad_bind(dev, cur);
+    render_quad_add(dst, src, cur->width, cur->height, 0xffffffffu);
+    render_quad_flush(dev);
+#else
+    (void)dev;
+#endif
 }
