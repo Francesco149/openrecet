@@ -86,6 +86,21 @@ Attribute to a pillar (phase/RNG via the existing `phase_probe` logic; else logi
 stop — that's the cascade root. `call_trace_diff.py` (Counter view) stays for coarse
 coverage; `flow_diff.py` is the ordered+data drill-in.
 
+### `--field-timeline` — the per-field localizer (orthogonal axis)
+The default walk answers "in THIS frame, which call diverged?" — but for a state-machine
+stub logged once per frame (a `CALL_TRACE_BEGIN_STUB` dump of N globals), the question is
+the *other* axis: "across ALL frames, which FIELD first stopped tracking retail, and
+when?". `--field-timeline` scans every common frame per declared field and prints a
+per-field verdict table + the first divergent `(frame, field)` with a ±`--timeline-window`
+context window. One command → the `(frame, field)` to fix. Auto-selects every once-per-
+frame field-bearing spec VA present in both traces; multi-occurrence draw VAs (which can't
+be aligned by occurrence index — that's `render_diff`'s job) are skipped with a pointer.
+Benign-marked fields surface as `⚠ benign-accepted` **with their `reason`** (not dropped),
+so the verdict can still read a clean `✓` while showing the accepted internal-flag delta.
+Built + self-tested (`tools/test_flow_diff.py`) while fixing the LOAD GAME X-back soft-lock
+(2026-06-05): it pins `select_phase` (the bug) as the first ✗ field, and `submenu_state`
+(the engine's stale submenu id, engine-quirks §102) as `⚠ benign-accepted`.
+
 ## Incremental landing (commit as you go)
 1. ✅ **Port C: BEGIN/FIELD/END + `seq`** in `call_trace.c/.h`; seed probe `fade_tick`.
    Validated on a title capture (`seq:45, f:{phase,counter,duration,mode}`). `depth`
@@ -122,4 +137,6 @@ python3 tools/flow_diff.py --mapped-only \
 Benign divergences are declared, not silently tolerated: raw pointers / heap addresses
 (memory layout), phase-origin counters (`db054` etc., per `{phasepin}`), RNG seed origin
 (`{rngseed}`). A field marked benign in the spec is compared structurally (present/shape)
-not by value. Everything else must match — full port, not MVP.
+not by value. **Give a benign field a `"reason"`** alongside `"benign": true` — the chain
+walk skips it; `--field-timeline` shows it as `⚠ benign-accepted (<reason>)` so the cause
+is on the record, not lost. Everything else must match — full port, not MVP.

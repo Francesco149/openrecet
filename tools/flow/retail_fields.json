@@ -54,7 +54,9 @@
         {"name": "select_phase",    "src": "global", "va": "0x9643544", "type": "i32"},
         {"name": "pulse_phase",     "src": "global", "va": "0x964352c", "type": "i32"},
         {"name": "menu_folding_out","src": "global", "va": "0x9643528", "type": "i32"},
-        {"name": "submenu_state",   "src": "global", "va": "0x9643524", "type": "i32"},
+        {"name": "submenu_state",   "src": "global", "va": "0x9643524", "type": "i32",
+         "benign": true,
+         "reason": "engine leaves DAT_09643524 set after a submenu back-out (render is cursor_anim-gated); the port clears it at cursor_anim==0 for its input gate — no render/input effect. engine-quirks §102"},
         {"name": "submenu_cursor",  "src": "global", "va": "0x9643530", "type": "i32"},
         {"name": "settings_dirty",  "src": "global", "va": "0x9643560", "type": "i32"},
         {"name": "fade_counter",    "src": "global", "va": "0x964351c", "type": "i32"}
