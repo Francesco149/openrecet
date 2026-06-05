@@ -4214,3 +4214,33 @@ port drew them static at base → the cap_44 residual. The earlier
 "freeroam-actor / not-a-standee" call was wrong — its logic ("standees settled
 `y==ty` → not the standee") only compared port-y to the port *target*, never to
 retail.
+
+## 106. The LOAD GAME slot-picker's selected-card "load flash" rides the SAME global as the title→in-game fade counter (DAT_0964351c) — confirming a slot brightens the chosen card as the screen fades
+
+The picker render `FUN_0049b556`'s **`param_6`** (which adds
+`sin(param_6·π/30)·128` to the selected card's greyscale, `FUN_0049a59e`
+L101990 → `FUN_0049b556` L101340-101349) is **`DAT_0964351c`** — and that is the
+**identical** global the title scene uses as its commit-to-in-game **fade
+counter**. There is no separate "flash" timer.
+
+Lifecycle of `DAT_0964351c` (`FUN_0049a59e`):
+- `0` while browsing the picker (or the main menu) → `param_6 ≤ 0` → no flash,
+  the selected card only does its idle shimmer `sin(DAT_09643574·0.1)·32+159`.
+- Armed to `1` the frame **A confirms an occupied slot** (L100907; the main-menu
+  NEW/CONTINUE confirm arms it the same way at L101073).
+- Incremented **every subsequent frame** at the top of the tick (L100596-100597:
+  `if (0 < DAT_0964351c) DAT_0964351c++`) up to `0x1e` (30), at which point the
+  fade is fully out and the scene transitions.
+
+So during the ~30-frame fade-out the chosen card visibly **brightens then dims**
+(`sin(param_6·π/30)` peaks at `param_6=15`, back to 0 at `param_6=30`) — the
+"slot lights up when you pick it" the player sees before the screen goes black.
+The card-content TEXT does the inverse (`0x7f − sin(param_6·π/30)·…`, L101438),
+darkening as the card brightens. The picker keeps rendering throughout because
+the confirm path takes the fade branch *before* the `cursor_anim` slide-out, so
+`cursor_anim==10 && submenu==1` (its render gate) holds until the transition.
+
+Implication for any port: this counter must be modeled **once**. (OpenRecet had
+split it into a live `fade_counter` and a dead picker `pulse` field that was
+never incremented, so the flash never played; fixed by reading the one
+`fade_counter` as `param_6`.)

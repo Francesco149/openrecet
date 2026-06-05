@@ -1,0 +1,24 @@
+# Title → open LOAD GAME picker → confirm the highlighted (occupied) slot →
+# load into HOUSE free-roam.  Boot→title→picker is deterministic on both sides
+# (cf. title-load-picker @ 60/120), so the absolute-frame captures around the
+# confirm + fade align port↔retail; the HOUSE arrival is anchored (turbo-immune).
+#
+# Save fa7c82 has a score → the title cursor defaults to CONTINUE_ANY, so the
+# first A (0x0010) opens the picker; a second A (after it settles) confirms the
+# slot under the cursor (last-used slot) and starts the title fade into INGAME.
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 45, "buttons": "0x0010"}
+{"frame": 48, "buttons": "0x0000"}
+{"capture": 130}
+{"frame": 140, "buttons": "0x0010"}
+{"frame": 143, "buttons": "0x0000"}
+{"capture": 150}
+{"capture": 165}
+{"wait": "NEW_GAME"}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "HOUSE_FREEROAM"}
+{"caprange": [10, 12]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 120, "buttons": "0x0000"}

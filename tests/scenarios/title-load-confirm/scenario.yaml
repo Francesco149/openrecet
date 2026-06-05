@@ -1,0 +1,19 @@
+# title-load-confirm — drive PAST the slot picker: confirm the load (A on the
+# occupied slot) → title fade-out → LOADING → HOUSE free-roam with the fa7c82
+# save loaded.  The picker RENDER is already 1:1 (title-load-picker); this
+# scenario verifies the CONTINUE *transition* (fade_counter ramp, scene_post_
+# fade_init CONTINUE branch, worker load) and the in-game arrival are
+# structurally 1:1 vs retail.
+#
+#   python3 tools/scenario-test.py title-load-confirm --target both \
+#     --call-trace --frida-remote cutestation.soy:27042
+#
+# Reads the fa7c82 save (back-table swords; gold/score/day populated).  The
+# continuation of the title-load-picker arc toward the in-game load.
+description: |
+  Title → A (LOAD GAME) → A (confirm slot) → fade → LOADING → HOUSE free-roam;
+  capture the fade-out, the loading bracket, and the first playable HOUSE frames
+  for transition + in-game-arrival parity vs retail.
+max_frames: 22000   # turbo load-stretch headroom (matches save-roundtrip runs)
+duration_ceiling_ms: 180000
+n_captures: 6

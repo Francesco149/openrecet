@@ -906,7 +906,13 @@ static void scene_title_continue_render_panel(IDirect3DDevice8 *dev,
     const int scroll     = p->scroll;         /* param_3 */
     const int page_anim  = p->vscroll_anim;   /* param_4 — X page slide  */
     const int row_anim   = p->hscroll_anim;   /* param_5 — Y row slide    */
-    const int pulse      = p->pulse;          /* param_6 — confirm flash  */
+    /* param_6 — the A-confirm load-flash counter. Engine FUN_0049b556's
+     * caller (FUN_0049a59e L101990) passes DAT_0964351c, the SAME global
+     * the title fade rides: 0 while browsing, armed to 1 at confirm, then
+     * ++ every frame to 0x1e. The port keeps it once as fade_counter; read
+     * it here so the selected card brightens during the fade-out (the
+     * "light up" — was missing while a dead picker `pulse` field stayed 0). */
+    const int pulse      = (int)g_scene_title_anim.fade_counter;
     const int overwrite  = p->overwrite_mode; /* DAT_09643564             */
 
     g_picker_anim_counter++;

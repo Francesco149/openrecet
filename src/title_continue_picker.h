@@ -50,11 +50,13 @@ typedef struct {
     int slot_index[TITLE_PICKER_SLOTS]; /* DAT_09643380 (identity)       */
     int overwrite_mode;  /* DAT_09643564 — new-game/survival (see debt)  */
     int prompt_pending;  /* DAT_0964354c — "choose a file" toast queued  */
-    int pulse;           /* DAT_0964351c — A-confirm countdown (0 while
-                          * browsing; ramps 0→0x1e on confirm, driving the
-                          * selected card's load-flash). The port transitions
-                          * to the fade on confirm so this stays 0 at rest;
-                          * kept for FUN_0049b556's param_6 + future confirm. */
+    /* NB: the engine's A-confirm countdown DAT_0964351c (= FUN_0049b556's
+     * param_6, which drives the selected card's load-flash) is NOT a
+     * separate picker field — it is the very same global the title fade
+     * counter rides. The port models it once as g_scene_title_anim
+     * .fade_counter; the picker render reads that. (A duplicate `pulse`
+     * field used to live here but was never incremented → the confirm
+     * flash never played. Removed 2026-06-05.) */
 } title_continue_picker_t;
 
 extern title_continue_picker_t g_title_continue_picker;
