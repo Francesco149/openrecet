@@ -620,6 +620,15 @@ let g_d3d_trace_hooked  = false;
 let g_d3d_trace_buffer  = [];       // events for current frame, flushed at Present
 let g_d3d_trace_verts   = false;    // capture per-draw vertex/index bytes
 
+// Stable texture identity: map a live IDirect3DTexture8* (toString hex) to the
+// LOAD-STABLE source name it was loaded from, so SetTexture can emit a
+// "tex_name" that compares across port↔retail (mirrors the port's
+// src/d3d_tex_names.c registry).  Populated by hooks on the engine's texture
+// loaders (FUN_0047193c UI / FUN_00471b24 mesh), which write the created
+// texture pointer to the first dword of their output slot.
+let g_tex_names       = {};         // "0x.." → "bmp/foo.tga"
+let g_tex_name_hooked = false;
+
 // Call tracer (Phase E.1). When `call_trace` is true the agent
 // Interceptor.attach()es onEnter on every Ghidra-VA in
 // `g_call_trace_vas` and emits one event per invocation into a
@@ -2041,8 +2050,47 @@ function traceFlush(frameNumber) {
           events: events});
 }
 
+// Hook the engine's texture loaders so a bound texture pointer can be
+// resolved back to its source asset name (the load-stable identity the
+// render diff keys on).  Both loaders are __cdecl free functions that pass
+// their output slot as the FUN_004cd30e (D3DXCreateTextureFromFileInMemoryEx)
+// ppTexture arg; the created IDirect3DTexture8* lands at the first dword of
+// that slot.  These hooks are UNGATED (loads happen on non-captured frames).
+//
+//   FUN_0047193c(blend, slot, path, w, h)   — UI/2D loader, MipLevels=1
+//       esp+8  = slot (ppTexture), esp+12 = path
+//   FUN_00471b24(slot, path)                 — mesh loader, MipLevels=0
+//       esp+4  = slot (ppTexture), esp+8  = path
+function installTexNameHooks() {
+    if (g_tex_name_hooked) return;
+
+    function hookLoader(va, slotOff, pathOff) {
+        Interceptor.attach(rva(va), {
+            onEnter: function (args) {
+                this.slot = this.context.esp.add(slotOff).readPointer();
+                const p   = this.context.esp.add(pathOff).readPointer();
+                try { this.name = p.isNull() ? null : p.readCString(); }
+                catch (e) { this.name = null; }
+            },
+            onLeave: function (retval) {
+                if (!this.name || this.slot.isNull()) return;
+                try {
+                    const tex = this.slot.readPointer();   // *ppTexture
+                    if (!tex.isNull())
+                        g_tex_names['0x' + tex.toString(16)] = this.name;
+                } catch (e) { /* slot not yet populated — skip */ }
+            },
+        });
+    }
+
+    hookLoader(0x0047193c, 8, 12);   // UI loader
+    hookLoader(0x00471b24, 4, 8);    // mesh loader
+    g_tex_name_hooked = true;
+}
+
 function installD3dTraceHooks(devicePtr) {
     if (g_d3d_trace_hooked) return;
+    installTexNameHooks();
 
     // SetRenderState(state, value)
     Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetRenderState), {
@@ -2100,10 +2148,13 @@ function installD3dTraceHooks(devicePtr) {
     Interceptor.attach(vtableSlot(devicePtr, V_Dev_SetTexture), {
         onEnter: function (args) {
             if (!traceShouldEmit()) return;
+            const texHex = '0x' + args[2].toString(16);
+            const a = {stage: args[1].toUInt32(), texture: texHex};
+            const name = g_tex_names[texHex];
+            if (name) a.tex_name = name;
             traceEmit({
                 op: 'SetTexture',
-                args: {stage:   args[1].toUInt32(),
-                       texture: '0x' + args[2].toString(16)},
+                args: a,
                 ret_va: traceRetVa(this.returnAddress),
             });
         },
@@ -4326,6 +4377,7 @@ rpc.exports = {
         g_d3d_trace_verts   = !!config.d3d_trace_verts;
         g_d3d_trace_hooked  = false;
         g_d3d_trace_buffer  = [];
+        g_tex_names         = {};
         if (Array.isArray(config.d3d_trace_frames)) {
             g_d3d_trace_frames = new Set(
                 config.d3d_trace_frames.map(function (f) { return f | 0; }));
