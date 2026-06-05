@@ -22,6 +22,11 @@
 #include "rng.h"                 /* rng_next_unit (FUN_00471089) — dust jitter */
 #include "scene1_bg_npc.h"       /* scene1_bg_npc_tick (FUN_0046f621 NPC pump) */
 #include "scene1_intro_dialogue.h" /* prologue gate — suppress the walk arm */
+#include "scene1_overlay.h"      /* scene1_overlay_spawn (FUN_00414345) — sparkle */
+#include "save_work.h"           /* working-arena display grid (dword 0x4e26) */
+#include "save_bank.h"           /* SAVE_BANK_FIELD_DISPLAY_GRID */
+#include "sim.h"                 /* g_sim_frame_count (DAT_0438b8cc) */
+#include "scene1_combat_sm.h"    /* g_scene1_combat_dat_056da1b8 (sparkle owner) */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -992,6 +997,66 @@ static void player_ctrl_cc08_unported_arm(void)
 {
 }
 
+/* ── FUN_0048670f prologue: shop-display "目玉商品" sparkle emitter ──────────
+ *
+ * (all.c:86579-86598; asm 0x486737-0x4867fa.)  Every 8th frame the engine
+ * drops a sparkle over each occupied BACK-ROW display cell — template 0x3b
+ * ("目玉商品" = featured display item) through the 2D-overlay particle system
+ * (FUN_004147d5 → FUN_00414345 → scene1_overlay_spawn).  Found by a live retail
+ * call-trace on the overlay spawn (caller ret_va 0x4867ee) + the template name;
+ * full RE in docs/findings/shop-item-display-RE-status.md.
+ *
+ * Engine: iterate the 7 fixed back-row columns DAT_005ce3c4 = {1,2,3,4,11,12,13};
+ * for each, if the furniture gate passes AND the display grid (row 0) cell is
+ * occupied, spawn ONE sparkle.  Per emit, 3 rng_next_unit() in order x,y,z:
+ *   x = 2*col - 9 + (r1 - 0.5)    (col 1→-7, 2→-5, 4→-1 = the user-save swords)
+ *   y = r2 + 2.0                  (just above the item)
+ *   z = (r3 - 0.5) - 7.0          (the back stand)
+ * template 0x3b, scale 0.3 (0x3e99999a), color white, override_dur -1 → the
+ * template's fade_out_default (24) → ~3 alive per item.  Owner = &DAT_056da1b8
+ * (stored only; template 0x3b's type_shape 0 + shape_mode 0 never derefs it).
+ *
+ * PORT-DEBT: the engine's furniture-suppression gate FUN_004860c8(col,0) →
+ * DAT_0450fee8[fidx]==0 is omitted.  It only differs from the grid check during
+ * display-EDITING mode (DAT_0438cc08==2 — the not-yet-ported item-placement
+ * menu); in steady free-roam every grid-occupied back-row cell sits on a visible
+ * stand (gate==0 → emit), so grid-only is bit-faithful here, INCLUDING RNG (it
+ * emits over exactly the same cells, the only LCG consumers).  Restore the exact
+ * gate when the display-management UI lands. */
+static const int kSparkleDisplayColumns[7] = { 1, 2, 3, 4, 11, 12, 13 };
+
+static void player_ctrl_display_sparkle_emit(void)
+{
+    if ((g_sim_frame_count % 8) != 3)        /* DAT_0438b8cc % 8 == 3 */
+        return;
+
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return;
+    const int32_t *grid =
+        (const int32_t *)(bank + SAVE_BANK_FIELD_DISPLAY_GRID);
+
+    for (int i = 0; i < 7; i++) {
+        int col = kSparkleDisplayColumns[i];
+        if (grid[col] == -1)                 /* back-row cell empty */
+            continue;
+
+        float r1 = rng_next_unit();          /* x jitter */
+        float x  = (float)(2 * col - 9) + (r1 - 0.5f);
+        float r2 = rng_next_unit();          /* y */
+        float y  = r2 + 2.0f;
+        float r3 = rng_next_unit();          /* z jitter */
+        float z  = (r3 - 0.5f) - 7.0f;
+
+        scene1_overlay_spawn(&g_scene1_combat_dat_056da1b8,
+                             x, y, z,
+                             0x3b,            /* template: 目玉商品 sparkle */
+                             0.3f,            /* scale_base (0x3e99999a) */
+                             -1,              /* dur<1 → template fade_out_default (24) */
+                             0, 0, 0);
+    }
+}
+
 /* ── per-frame player-controller tick (engine FUN_0048670f driver) ─────────
  *
  * Wired into the live HOUSE frame (scene1_ingame_default_arm_tick, before
@@ -1021,6 +1086,11 @@ void scene1_player_ctrl_tick(void)
 
     if (s_actor_char[0] == -1)        /* no live player actor (pre-HOUSE) */
         return;
+
+    /* prologue (all.c:86580, BEFORE the transition arms): drop the periodic
+     * "目玉商品" sparkles over the items on display.  No-op (no RNG) on an empty
+     * display, so it leaves the foot-dust/wing RNG stream untouched there. */
+    player_ctrl_display_sparkle_emit();
 
     /* prologue: per-frame background-window-NPC pump (FUN_0046f621 → the
      * spawn/drift sim FUN_0046f2a3, ported in scene1_bg_npc.c).  The first call

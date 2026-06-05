@@ -866,6 +866,40 @@ void scene1_render_meshes(struct IDirect3DDevice8 *dev_in)
      * type-0xe arm (foot dust, scene1_walk_dust.c) are ported; the rest of the
      * 30 KB function stays in scene1_walk_chr_TODO. */
     scene1_push_projection(dev, 500.0f);
+
+    /* FUN_004176ff also dispatches the 2D-overlay particle layers via its own
+     * FUN_00414ee2 calls (objdump: calls at 0x417885/0x4178b0 early in the
+     * function).  The layer-0 / mode-0 dispatch draws the 目玉商品 shop-display
+     * sparkle (template 0x3b, emitter player_ctrl_display_sparkle_emit).  This
+     * is its faithful home: the 3D scene projection is live (the sparkle uses a
+     * 3D world pos ~(-7, 2, -7)), it runs after the shop items, and the
+     * billboard pre-matrix faces the quads at the camera.  Render state from
+     * the retail d3d-trace of the sparkle draw (runs/sr-retail frame 707):
+     * additive ONE/ONE, COLOROP=MODULATE, COLORARG1=DIFFUSE × COLORARG2=TEXTURE
+     * (vertex colour × the effect00.bmp texel → the yellow star; COLORARG2
+     * defaults to CURRENT, which gave flat white).
+     *
+     * CULLMODE=NONE is REQUIRED and load-bearing: the verified-vs-retail
+     * d3d-trace (runs/sr-retail frame 707) shows FUN_004176ff sets CULLMODE=1
+     * (D3DCULL_NONE) at ret_va 0x41784d immediately before this overlay
+     * dispatch, and every particle/billboard draw in the records-A group
+     * (sparkle 0x415e61, item billboards 0x4161c3, wing 0x41e165) runs under
+     * it.  The overlay quad's triangle-strip winding is back-facing under the
+     * scene's default CULL=CW, so without this the sparkle quads were silently
+     * culled (drawn, but 0 pixels).  Not restored here — retail leaves NONE
+     * set through the wing-glow/dust draws that follow (they're 2-sided too);
+     * the next pass sets its own CULL.  ALPHATESTENABLE stays 1 (retail keeps
+     * it on; effect00.bmp's star texels are opaque so alpha>0 passes). */
+    wf_pass_c_set_pre_matrix(g_scene1_camera_orient);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_ONE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_ONE);
+    IDirect3DDevice8_SetRenderState(dev, D3DRS_CULLMODE,  D3DCULL_NONE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,   D3DTOP_MODULATE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_TEXTURE);
+    scene1_overlay_render(dev, /*layer=*/0, /*mode=*/0);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_CURRENT);
+
     scene1_wing_glow_render((struct IDirect3DDevice8 *)dev);
     /* The records-A type-0xe arm (L4958, after the 0x1f arm in FUN_004176ff):
      * the floor dust puff at the walking player's feet (scene1_walk_dust.c).
