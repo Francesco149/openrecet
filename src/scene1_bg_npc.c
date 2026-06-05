@@ -72,6 +72,12 @@ static int g_bg_npc_spawn_cursor;
 static int g_bg_npc_warmup_done;
 static int g_bg_npc_frame;
 
+/* Trace-harness {phasepin} latch: when set, the NEXT scene1_bg_npc_tick() forces
+ * the shared LCG to SCENE1_BG_NPC_PHASEPIN_SEED right before its (re-armed)
+ * warmup, so the 6-NPC layout is reproduced from a canonical RNG origin
+ * regardless of how the live stream got here.  See scene1_bg_npc_phasepin(). */
+static int g_bg_npc_pin_pending;
+
 void scene1_bg_npc_reset(void)
 {
     for (int i = 0; i < SCENE1_BG_NPC_COUNT; i++) {
@@ -256,6 +262,15 @@ void scene1_bg_npc_tick(void)
 {
     CALL_TRACE_ENTER(0x46f621u);
 
+    /* {phasepin}: force the shared LCG to the canonical seed at the warmup
+     * boundary (see scene1_bg_npc_phasepin).  Doing it HERE — at the exact
+     * instant the re-armed warmup is about to consume RNG — makes the layout
+     * independent of any RNG consumed between the pre-sim pin and this tick. */
+    if (g_bg_npc_pin_pending) {
+        g_bg_npc_pin_pending = 0;
+        rng_seed(SCENE1_BG_NPC_PHASEPIN_SEED);
+    }
+
     int n = 1;
     if (!g_bg_npc_warmup_done) {
         g_bg_npc_warmup_done = 1;
@@ -263,6 +278,31 @@ void scene1_bg_npc_tick(void)
     }
     for (; n != 0; n--)
         scene1_bg_npc_sim_once();
+}
+
+/* Trace-harness `{phasepin}` for the background-window NPCs.  The 6 NPCs ride
+ * the shared global LCG (rng.c); their on-screen positions/identities at any
+ * dialogue line therefore depend on the WHOLE prior RNG-consumption history,
+ * which differs port↔retail by the load-dependent intro phase (the deferred
+ * RNG-stream-completeness problem, findings/scene1-rng-stream-parity.md).  So a
+ * raw port↔retail capture shows the window NPCs at different drift states even
+ * though the spawn/drift LOGIC is bit-faithful.
+ *
+ * This normalizes them the same way db054/b154/rmb are normalized: re-arm the
+ * warmup (clear records + cursor + latch) and latch a pending re-seed so the
+ * next per-frame scene1_bg_npc_tick() re-runs the REAL 180x warmup from the
+ * canonical seed SCENE1_BG_NPC_PHASEPIN_SEED.  Both sides run their own warmup
+ * from the identical seed, so the captured layout is reproducible and 1:1 — and
+ * because each side uses its own spawn/drift code, a post-pin MISMATCH would
+ * expose a genuine logic divergence (this pin doubles as the parity test).
+ *
+ * The retail agent mirrors this (zero the SoA DAT_073a7f80 + cursor DAT_073a8bb4
+ * + latch DAT_073a8bb8, force the spawn-gate DAT_0438b4e0=0, and seed
+ * DAT_006023a0 at the FUN_0046f621 entry). */
+void scene1_bg_npc_phasepin(void)
+{
+    scene1_bg_npc_reset();
+    g_bg_npc_pin_pending = 1;
 }
 
 #ifdef _WIN32

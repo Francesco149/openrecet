@@ -80,6 +80,7 @@
 #include "scene1_render.h"
 #include "scene1_player_ctrl.h"
 #include "scene1_companion_ctrl.h"  /* scene1_companion_db054 — pos-log phase field */
+#include "scene1_bg_npc.h"          /* scene1_bg_npc_phasepin — window-NPC pin */
 #include "scene1_hud.h"
 #include "scene1_fps.h"
 #include "scene1_shop_walker.h"
@@ -3733,6 +3734,9 @@ static void segtrace_phasepin_cb(void *user)
                                    * skip-prompt hand-cursor phase origin */
     scene1_intro_dialogue_phasepin(); /* rmb screen-shake countdowns — un-shake
                                        * the dialogue standees at a fixed capture */
+    scene1_bg_npc_phasepin();         /* background-window NPCs — re-run the warmup
+                                       * from a canonical RNG seed so the drifting
+                                       * townsfolk are reproducible/1:1 at capture */
 }
 
 /* Capture-range sink for input_segtrace `{caprange:[start,count]}` ops: open

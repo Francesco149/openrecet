@@ -96,6 +96,17 @@ void scene1_bg_npc_sim_once(void);
 /* Zero all NPC state + cursors (scene (re)entry). */
 void scene1_bg_npc_reset(void);
 
+/* Canonical RNG origin for the {phasepin} normalization.  The retail Frida
+ * agent MUST seed DAT_006023a0 to the SAME value at the FUN_0046f621 warmup
+ * entry, or the pinned layouts won't match.  Any fixed value works (it only
+ * needs to be shared); chosen to give a good 6-NPC spread. */
+#define SCENE1_BG_NPC_PHASEPIN_SEED 19937u
+
+/* Trace-harness {phasepin}: re-arm the warmup so the next scene1_bg_npc_tick()
+ * re-runs the 180x spawn pass from SCENE1_BG_NPC_PHASEPIN_SEED, giving a
+ * load-phase-independent, port↔retail-reproducible window-NPC layout. */
+void scene1_bg_npc_phasepin(void);
+
 #ifdef _WIN32
 struct IDirect3DDevice8;
 /* FUN_0046f648: draw the NPC contact-shadow blobs.  MUST run with the shadow

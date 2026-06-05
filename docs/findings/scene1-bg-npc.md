@@ -56,6 +56,42 @@ through the window.
   the shared chr-sprite leaf `scene1_chr_sprite_render` (`FUN_0045a56f`).  Wired
   at the shop-walker L457 slot (after `FUN_004705a3`, before `FUN_00470d44`).
 
+## {phasepin} normalization — window NPCs 1:1 in dialogue captures (2026-06-05)
+
+The 6 NPCs ride the **shared global LCG**, so their on-screen positions/identities
+at any captured frame depend on the WHOLE prior RNG-consumption history — which
+differs port↔retail by the load-dependent intro phase (the deferred
+RNG-stream-completeness problem, `scene1-rng-stream-parity.md`).  A raw port↔retail
+`intro-dialogue-lines` capture therefore showed the window NPCs at **different
+drift states** even though the spawn/drift LOGIC is bit-faithful (iv1_2 lines
+16–45, ~2.5k px @ mean 0.76, user-confirmed "the npcs at the window").
+
+Fixed by extending the trace-harness `{phasepin}` to **re-run the warmup from a
+canonical RNG seed on BOTH sides** (the same way db054/b154/rmb are normalized):
+
+- **Port** (`scene1_bg_npc_phasepin`): `scene1_bg_npc_reset()` + latch a pending
+  re-seed; the next per-frame `scene1_bg_npc_tick()` forces the LCG to
+  `SCENE1_BG_NPC_PHASEPIN_SEED` (19937) at the warmup boundary and re-runs the
+  real 180× spawn pass.
+- **Retail** (Frida agent): zero the SoA `DAT_073a7f80` + cursor `DAT_073a8bb4` +
+  latch `DAT_073a8bb8`; an `onEnter` hook on `FUN_0046f621` forces
+  `DAT_006023a0`=19937 + opens the spawn-gate `DAT_0438b4e0`=0 exactly when the
+  re-armed warmup is about to consume RNG.
+
+Because **each side runs its own spawn/drift code from the identical seed**, this
+doubles as the parity test: a post-pin mismatch would expose a real logic bug.
+Result — `intro-dialogue-lines --target both`: every iv1_2 line's window band
+drops from **2478 px @ mean 0.76 → 424 px @ mean 0.00** (≤1 LSB, the accepted
+rasterizer/GPU bilinear class), bit-stable across all 30 lines (both sides
+deterministic).  **⇒ the bg-NPC spawn+warmup logic is confirmed 1:1 given the
+same LCG origin.**  (The separate ~1.6k px below-band ambient-dots residual is
+unchanged by this and tracked elsewhere.)
+
+> The pin re-seeds at the warmup entry, so it is a CAPTURE-time normalization
+> that proves logic parity under a shared RNG origin.  Whether the NPCs *stay*
+> 1:1 in live free-roam (without the pin) is the RNG-stream-completeness question
+> — see `scene1-rng-stream-parity.md` and the `house-idle-npc-drift` scenario.
+
 ## Status / deferred
 
 - Sprites **render + animate**, user-verified on screenshots (2026-06-02, feed).

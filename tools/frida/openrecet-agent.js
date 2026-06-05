@@ -708,6 +708,15 @@ let g_anchor_prev_convstate = 0;     // previous-frame DAT_056daafc (player stat
 let g_anchor_prev_convblink = false; // previous-frame eyes-closed (blink) flag
 let g_anchor_prev_pause     = false; // previous-frame DAT_0438b150 != 0 (pause open)
 
+// {phasepin} background-window-NPC normalizer (mirrors the port's
+// scene1_bg_npc_phasepin).  When a phasepin re-arms the bg-NPC warmup, this is
+// set so the NEXT FUN_0046f621 (warmup pump) entry forces the shared LCG to the
+// canonical seed + opens the spawn gate — making the 6 drifting townsfolk a
+// load-phase-independent, port↔retail-reproducible layout.  Keep BG_NPC_PIN_SEED
+// in lock-step with SCENE1_BG_NPC_PHASEPIN_SEED in src/scene1_bg_npc.h.
+let g_bg_npc_pin_pending   = false;
+const BG_NPC_PIN_SEED      = 19937;
+
 // Extra/effect-sprite standee table (the sigh / zzz / kuro fade etc). Base =
 // &DAT_073a3e70, stride 0x70; field11 (active) at +0x2c, field18 (alpha float)
 // at +0x48. Scan index 2..31 (chr 0/1 are the persistent speakers) — the same
@@ -1387,6 +1396,29 @@ function installAudioHooks() {
     });
 
     log('audio hooks installed');
+}
+
+// ─── background-window-NPC {phasepin} hook ───────────────────────────────
+//
+// FUN_0046f621 (0x46f621) is the per-frame bg-NPC warmup pump.  When a
+// {phasepin} has re-armed the warmup (g_bg_npc_pin_pending), force the shared
+// LCG (DAT_006023a0) to the canonical seed and open the spawn gate
+// (DAT_0438b4e0=0) HERE — at the exact entry where the re-armed 180x warmup is
+// about to consume RNG — so the layout is independent of any RNG drawn between
+// the pre-sim phasepin and this call.  Mirrors the port's pin_pending re-seed
+// inside scene1_bg_npc_tick (src/scene1_bg_npc.c).
+function installBgNpcPinHook() {
+    Interceptor.attach(rva(0x0046f621), {
+        onEnter: function () {
+            if (!g_bg_npc_pin_pending) return;
+            g_bg_npc_pin_pending = false;
+            rva(0x006023a0).writeU32(BG_NPC_PIN_SEED >>> 0); // LCG state
+            rva(0x0438b4e0).writeS32(0);                      // spawn-freeze gate open
+            log('bg-npc phasepin: warmup re-seeded to ' + BG_NPC_PIN_SEED +
+                ' @ frame ' + frameNo());
+        },
+    });
+    log('bg-npc phasepin hook installed');
 }
 
 // ─── input hook ─────────────────────────────────────────────────────────
@@ -2557,6 +2589,19 @@ function segtraceTick(fn) {
                 // (mirrors scene1_intro_dialogue_phasepin; engine-quirks §105).
                 rva(0x073a6d98).writeS32(0);   // DAT_073a6d98 bg-shake countdown
                 rva(0x073a6d9c).writeS32(0);   // DAT_073a6d9c chr-shake countdown
+                // background-window NPCs (scene1_bg_npc): re-arm the warmup so
+                // the next FUN_0046f621 re-runs the 180x spawn pass from a
+                // canonical seed → the drifting townsfolk are reproducible/1:1
+                // (mirrors scene1_bg_npc_phasepin).  Zero the 6-record SoA
+                // (DAT_073a7f80, stride 0x64) + spawn cursor (DAT_073a8bb4) +
+                // warmup latch (DAT_073a8bb8); the seed + spawn-gate force is
+                // done at the FUN_0046f621 entry (installBgNpcPinHook) so it
+                // lands exactly when the warmup is about to consume RNG.
+                for (let b = 0; b < 6 * 0x64; b += 4)
+                    rva(0x073a7f80).add(b).writeS32(0);
+                rva(0x073a8bb4).writeS32(0);   // DAT_073a8bb4 spawn cursor
+                rva(0x073a8bb8).writeS32(0);   // DAT_073a8bb8 warmup latch (re-arm)
+                g_bg_npc_pin_pending = true;
                 pp.fired = true;
                 if (g_rng_cs_len > 0) {           // arm call-site capture from here
                     g_rng_cs_lo = fn; g_rng_cs_hi = fn + g_rng_cs_len;
@@ -4620,6 +4665,7 @@ rpc.exports = {
             installInitHook();
             installAudioHooks();
             installInputHook();
+            installBgNpcPinHook();   // {phasepin} window-NPC warmup re-seed
             // Window-hide hook needs to install BEFORE resume so it can
             // intercept the engine's first ShowWindow call. Same lifetime
             // as the other capture-side hooks.
