@@ -4,9 +4,9 @@
  "counts": {
   "engine_functions_total": 2620,
   "non_thunk_functions": 2548,
-  "verified": 70,
+  "verified": 69,
   "stubbed": 15,
-  "ported": 343,
+  "ported": 344,
   "unported": 2120,
   "orphan_refs_not_in_function_table": 7,
   "touched": 428,
@@ -8190,9 +8190,12 @@
    "size": 11519,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "verified",
+   "status": "ported",
    "src": [
-    "src/scene1_player_ctrl.c"
+    "src/scene1_bg_npc.h",
+    "src/scene1_player_ctrl.c",
+    "src/scene1_player_ctrl.h",
+    "src/scene1_sim.c"
    ]
   },
   {

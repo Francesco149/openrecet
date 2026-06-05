@@ -9,6 +9,32 @@
         {"name": "rngcalls", "src": "rngcalls",                   "type": "i32"}
       ]
     },
+    "0x48670f": {
+      "name": "house_update",
+      "_note": "FUN_0048670f — the once-per-frame HOUSE free-roam update (parent of the player + companion controllers; also the 目玉商品 sparkle emitter's prologue). Per-frame ACTOR STATE read at onEnter (frame start, pre-update), mirrored by src/scene1_player_ctrl.c scene1_player_ctrl_tick CALL_TRACE_BEGIN(0x48670f). Player actor 0 + companion actor 2: facing octant + world angle + pos + anim cell. Replaces the old --player-pos-log px/oct/coct/… columns. Pos arrays: actor i at DAT_056da1d8 + i*0xc (x,y,z); actor records at DAT_056daae8 + i*0x2c (ANIM@+0, COUNTER@+0x10, FRAME@+0x14, FACING@+0x18).",
+      "fields": [
+        {"name": "px",     "src": "global", "va": "0x56da1d8", "type": "f32"},
+        {"name": "py",     "src": "global", "va": "0x56da1dc", "type": "f32"},
+        {"name": "pz",     "src": "global", "va": "0x56da1e0", "type": "f32"},
+        {"name": "poct",   "src": "global", "va": "0x56dab00", "type": "i32"},
+        {"name": "pang",   "src": "global", "va": "0x56db05c", "type": "f32"},
+        {"name": "panim",  "src": "global", "va": "0x56daae8", "type": "i32"},
+        {"name": "pframe", "src": "global", "va": "0x56daaf8", "type": "i32"},
+        {"name": "pcnt",   "src": "global", "va": "0x56daaf4", "type": "i32"},
+        {"name": "cx",     "src": "global", "va": "0x56da1f0", "type": "f32"},
+        {"name": "cz",     "src": "global", "va": "0x56da1f8", "type": "f32"},
+        {"name": "coct",   "src": "global", "va": "0x56dab58", "type": "i32"},
+        {"name": "canim",  "src": "global", "va": "0x56dab40", "type": "i32"},
+        {"name": "cframe", "src": "global", "va": "0x56dab50", "type": "i32"},
+        {"name": "db054",  "src": "global", "va": "0x56db054", "type": "i32"},
+        {"name": "cgate_c8", "src": "global", "va": "0x56da1c8", "type": "i32",
+         "_note": "FUN_0048a833 early-return gate (all.c:89164 `if (DAT_056da1c8 == 1) return;`) — when 1 the companion controller skips ALL state writes incl. facing, so DAT_056dab58 holds its entry seed. Suspect for why retail holds coct=4 (down) in the loaded shop while the port's idle rule overwrites it to 2."},
+        {"name": "cstate",   "src": "global", "va": "0x56db048", "type": "i32",
+         "_note": "DAT_056db048 — companion controller mode (compared ==0xe / ==0xf in FUN_0048a833's branch selection at all.c:89286/89294)."},
+        {"name": "cwander",  "src": "global", "va": "0x438be6c", "type": "i32",
+         "_note": "DAT_0438be6c — idle-wander state machine (0=idle-countdown,1=wander,2/3=return) in FUN_0048a833."}
+      ]
+    },
     "0x47be2f": {
       "name": "tick_now_ms",
       "chain_benign": true,

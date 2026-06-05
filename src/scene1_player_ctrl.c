@@ -1076,7 +1076,38 @@ static void player_ctrl_display_sparkle_emit(void)
  * clamp → integrate → damp), byte-identical per-frame to the retail watch. */
 void scene1_player_ctrl_tick(void)
 {
-    CALL_TRACE_ENTER(0x48670fu);
+    /* Per-frame ACTOR-STATE flow-trace payload (FUN_0048670f = the HOUSE
+     * free-roam update, parent of both the player and companion controllers).
+     * Read at onEnter (frame start, before this frame's update) so it mirrors
+     * the retail Frida hook on 0x48670f reading the same engine globals at the
+     * same point (tools/flow/retail_fields.json).  Player (actor 0) +
+     * companion (actor 2) facing octant / world angle / position / anim cell —
+     * the modern replacement for the old --player-pos-log px/oct/coct/… columns
+     * that phase_probe.py diffed.  poct=DAT_056dab00, pang=DAT_056db05c,
+     * coct=DAT_056dab58, pos arrays DAT_056da1d8[actor*3]. */
+    CALL_TRACE_BEGIN(0x48670fu);
+    {
+        const int32_t *r0 = s_actor_record[0];
+        const int32_t *r2 = s_actor_record[2];
+        CALL_TRACE_F32("px",    g_scene1_player_pos[0]);
+        CALL_TRACE_F32("py",    g_scene1_player_pos[1]);
+        CALL_TRACE_F32("pz",    g_scene1_player_pos[2]);
+        CALL_TRACE_I32("poct",  r0[CHR_ACTOR_FACING]);
+        CALL_TRACE_F32("pang",  s_player_facing);
+        CALL_TRACE_I32("panim", r0[CHR_ACTOR_ANIM]);
+        CALL_TRACE_I32("pframe",r0[CHR_ACTOR_FRAME]);
+        CALL_TRACE_I32("pcnt",  r0[CHR_ACTOR_COUNTER]);
+        CALL_TRACE_F32("cx",    g_scene1_actor_pos[2][0]);
+        CALL_TRACE_F32("cz",    g_scene1_actor_pos[2][2]);
+        CALL_TRACE_I32("coct",  r2[CHR_ACTOR_FACING]);
+        CALL_TRACE_I32("canim", r2[CHR_ACTOR_ANIM]);
+        CALL_TRACE_I32("cframe",r2[CHR_ACTOR_FRAME]);
+        /* db054 = the {phasepin}-zeroed per-scene counter — the shared clock
+         * flow_diff --align-field uses to pair port↔retail frames on a
+         * load-stretched HOUSE capture (port ~475 vs retail ~14285). */
+        CALL_TRACE_I32("db054", scene1_companion_db054());
+    }
+    CALL_TRACE_END();
 
     /* prologue guard FUN_00434d6a (all.c:86575): the save/load dialog gate.
      * Returns -1 only while that dialog pumps (DAT_0438b148 BSS-zero → returns

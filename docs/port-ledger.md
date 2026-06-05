@@ -10,11 +10,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **428** (16.8%) — verified 70, stubbed 15, ported 343
+- touched: **428** (16.8%) — verified 69, stubbed 15, ported 344
 - unported: **2120**
 - orphan refs (in src/, not in function table): 7
 
-## verified (70) — runtime-diffed vs retail
+## verified (69) — runtime-diffed vs retail
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -75,7 +75,6 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x48093f | FUN_0048093f | 136 | ✓ | chara_equip.c |
 | 0x48407f | FUN_0048407f | 795 | ✓ | scene1_conversation_pose.c |
 | 0x4844ef | FUN_004844ef | 310 | ✓ | chara_equip.c |
-| 0x48670f | FUN_0048670f | 11519 | ✓ | scene1_player_ctrl.c |
 | 0x48a331 | FUN_0048a331 | 23 | ✓ | xp_curve.c |
 | 0x48a4d1 | FUN_0048a4d1 | 866 | ✓ | scene1_companion_ctrl.c |
 | 0x48fe43 | FUN_0048fe43 | 315 | ✓ | scene1_dungeon_clear_banner.c |
@@ -109,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (343) — reimplemented, no probe yet
+## ported (344) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -372,6 +371,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x485f8c | FUN_00485f8c | 316 | ✓ | scene1_wide_followup.c, scene1_wide_followup.h |
 | 0x4860c8 | FUN_004860c8 | 215 | ✓ | scene1_player_ctrl.c |
 | 0x486435 | FUN_00486435 | 200 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h |
+| 0x48670f | FUN_0048670f | 11519 | ✓ | scene1_bg_npc.h, scene1_player_ctrl.c, scene1_player_ctrl.h (+1) |
 | 0x489c79 | FUN_00489c79 | 217 | ✓ | chara_skills.h |
 | 0x489d52 | FUN_00489d52 | 102 | ✓ | chara_skills.h |
 | 0x48a348 | FUN_0048a348 | 59 | ✓ | scene1_combat_sm.h |

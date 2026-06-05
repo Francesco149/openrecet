@@ -271,6 +271,32 @@ def _va_occurrences(evts: list[dict], va: int) -> list[dict]:
     return [e for e in evts if e.get("va") == va and e.get("f") is not None]
 
 
+def rekey_by_field(by_frame: dict[int, list[dict]], field: str
+                   ) -> dict[int, list[dict]]:
+    """Re-bucket events by the VALUE of a shared per-frame clock field (e.g.
+    db054) instead of the absolute frame number.  Essential for load-stretched
+    captures: the port reaches the window at absolute frame ~475 while retail
+    (turbo load-stretch) reaches it at ~14285, so frame numbers never intersect
+    — but a {phasepin}-zeroed counter like db054 is identical at the same
+    anchor-relative instant on both sides.  This is what phase_probe.py aligned
+    on.  The field's value per frame is taken from the first field-bearing event
+    that carries it; all of that frame's events inherit that key."""
+    out: dict[int, list[dict]] = {}
+    for evts in by_frame.values():
+        key = None
+        for e in evts:
+            f = e.get("f")
+            if f is not None and field in f:
+                key = f[field]
+                break
+        if key is None:
+            continue                       # frame lacks the clock — drop it
+        out.setdefault(int(key), []).extend(evts)
+    for evts in out.values():
+        evts.sort(key=lambda e: e.get("seq", 0))
+    return out
+
+
 def build_field_timeline(va: int, retail: dict[int, list[dict]],
                          port: dict[int, list[dict]], common: list[int],
                          eps: float, benign: set[tuple[int, str]],
@@ -463,8 +489,15 @@ def classify_offsets(samples: list, eps: float) -> tuple[str, str, int | None]:
     (verdict, detail, first_drift_frame)."""
     if not samples:
         return ("ALIGNED", "no overlap", None)
+    numeric = all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                  for _, _, a, b in samples for v in (a, b))
+    if not numeric:
+        # hex/string fields (e.g. a diffuse colour) — exact equality only.
+        bad = next(((fr, a, b) for fr, _, a, b in samples if a != b), None)
+        if bad is None:
+            return ("ALIGNED", "bit-exact", None)
+        return ("DRIFT", f"first @{bad[0]} retail={bad[1]} port={bad[2]}", bad[0])
     is_int = all(isinstance(a, int) and isinstance(b, int)
-                 and not isinstance(a, bool) and not isinstance(b, bool)
                  for _, _, a, b in samples)
     if is_int:
         base = samples[0][3] - samples[0][2]
@@ -666,6 +699,15 @@ def main(argv: list[str] | None = None) -> int:
                          "DRIFT (real logic divergence), plus an authoritative "
                          "rngcalls-consumption row. Requires a {phasepin}-ed trace "
                          "(frame# == db054 clock). Exit 1 only on DRIFT/DESYNC.")
+    ap.add_argument("--align-field", default=None, metavar="FIELD",
+                    help="align the two traces by the VALUE of this shared "
+                         "per-frame clock field (e.g. db054) instead of by "
+                         "absolute frame number. REQUIRED for load-stretched "
+                         "HOUSE captures where port/retail frame numbers don't "
+                         "intersect (port ~475 vs retail ~14285). The field must "
+                         "be {phasepin}-zeroed so it reads identically at the "
+                         "same anchor-relative instant on both sides — what "
+                         "phase_probe.py aligned on.")
     ap.add_argument("--rng-drill", metavar="RNG_CALLSITES_JSON", default=None,
                     help="aggregate a retail rng_callsites.json (from frida_capture "
                          "--rng-callsites) by enclosing function — names the RNG "
@@ -700,6 +742,15 @@ def main(argv: list[str] | None = None) -> int:
             tl_filter.add(int(args.timeline_va, 0))
     retail = load_trace(args.retail, tl_filter)
     port = load_trace(args.port, tl_filter)
+
+    if args.align_field:
+        retail = rekey_by_field(retail, args.align_field)
+        port = rekey_by_field(port, args.align_field)
+        if not (set(retail) & set(port)):
+            raise SystemExit(
+                f"--align-field {args.align_field}: no shared values "
+                f"(retail {sorted(retail)[:6]}…, port {sorted(port)[:6]}…). "
+                f"Is the field {{phasepin}}-zeroed and present on both sides?")
 
     if args.verdict:
         return run_verdict(args, retail, port, names, benign, reasons,

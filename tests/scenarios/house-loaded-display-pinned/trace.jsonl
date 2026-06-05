@@ -13,5 +13,6 @@
 {"phasepin": 80}
 {"rngseed": [80, 19937]}
 {"caprange": [120, 48]}
+{"calltrace": [120, 48]}
 {"frame": 0, "buttons": "0x0000"}
 {"frame": 360, "buttons": "0x0000"}
