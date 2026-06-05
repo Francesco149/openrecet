@@ -164,23 +164,30 @@
   **Lesson:** flat-colour ≤1-LSB UI diff + bit-identical verts ⇒ suspect COLOROP/blend
   render-state (and the enum-value-vs-name trap), not texture decode.
 - **Queued next:**
-  1. ~~**`intro-dialogue-lines` per-line BACKGROUND-region outliers (lines 5 + 44).**~~
-     **ROOT-CAUSED 2026-06-05 — it is NOT a bg issue; it's the CHARACTER pose.** The
-     ~122–128k-px delta on line **5** (iv1_1 #6, "WAKE UP, PLEASE!") and line **44**
-     (iv1_2 #29) is **entirely the chibi actor sprite**: bg-only corners (top-right window,
-     far-right wall) are **bit-identical, 0 px** port↔retail; the diff localizes to the
-     actor column (line 5 = Tear at x[40-300]; line 44 = central actor x[128-384]). On
-     these *emphasis* lines retail's iv event-script drives a distinct per-line gesture
-     (line 5: Tear **both arms up**; sharpness/variance UP, no shift/scale/blur realigns
-     it → an *added* pose, not a transform), while the port leaves the actor in its
-     default/static pose. Proof: retail's own sequence jumps 04→05 **+24.9** then 05→06
-     **+26.6** (a one-line transient gesture); the port's 04→05/05→06 are **1.7/4.8**
-     (near-static). So both outliers fold into the **deferred event-script actor-anim
-     gap** — the same class the conversation-pose driver (`scene1_conversation_pose.c`,
-     FUN_0048407f) only *partially* covers (it does the iv1_2 auto face-to-face branch;
-     the per-line scripted gestures like Tear's wake-up arm-raise are an unported layer
-     of the iv interpreter). **Not a separate bug; do not chase as a bg bug.** Belongs
-     with the iv1_2 freeroam-anim work, deferred by design.
+  1. ~~**`intro-dialogue-lines` lines 5 + 44 outliers.**~~ **ROOT-CAUSED 2026-06-05 —
+     standee SLIDE-IN Y-timing (user-confirmed it's a vertical shift of the standee).**
+     NOT bg (bg corners + box + ESC-skip UI all **bit-identical, 0 px**), NOT a pose-cel
+     (the standee graphic is the SAME — a clean rigid shift realigns it), NOT the
+     chr-shake (`y+=-16+rng&0x1f` is random ≤16; the delta is a *clean static* +24, an
+     unbiased masked 2D search gives **dx=0 dy=24 err≈14**, all dx≠0 far worse). It is
+     **standee i5** (Tear's standing sprite, graphic 6) **slide-in**: a `move`/`moveto`
+     diagonal tween from **(350,120)→(250,20)** whose X+Y targets the port sets *together*
+     at line_idx 2 / f3188 and slides at one locked speed. Reconstructing retail's i5
+     position from the goldens (2D-correlate each retail cap vs the port's logged i5 pos)
+     shows retail's **X-slide is in sync every line (dx=0)** but its **Y-descent lags ~one
+     line** — retail holds Y high (≈66) through cap_05 then drops to 20.5 by cap_06, while
+     the port slides Y in lockstep with X (66→43→20). So on the one mid-slide capture the
+     port's Y is ~24px low; start (cap_04) and settled (cap_06) match. Line 44 = same class
+     (port's Y-slide already settled, retail's still descending). Tooling: new standee dump
+     in `--dlg-log` (`src/main.c`; per-frame active-standee `{i,g,x,y,tx,ty}`), port i5
+     trajectory in `runs/.../dlg_log.jsonl`. **Next (to fix):** get retail's i5 x/y
+     trajectory (Frida read of the standee table `DAT_073a3e70`, stride 0x1c, entry 5) OR
+     dump the iv1_1 `chr:5` move/moveto command structure — the question is whether the
+     script authors moveto-X and moveto-Y on *separate* lines (port collapsing them early
+     = the bug) or whether retail tweens X/Y at different rates. Then match the port's
+     command-walk / tween timing. (This supersedes the earlier "char-pose / deferred
+     anim-gap" read — it's standee POSITION/slide-timing, a concrete fixable tween bug,
+     not the conversation-pose layer.)
   2. ~~**BUG: LOAD GAME → X-back locks main-menu input.**~~ **FIXED 2026-06-05**
      (commit 324ddb3, user-flagged). Root cause was NOT submenu_state (the port
      already wound that back) but **`select_phase` left pinned at 0xf** from the

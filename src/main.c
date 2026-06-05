@@ -2707,10 +2707,26 @@ static void render_dispatch(void)
                 fprintf(g_dlg_log_fp,
                     "{\"frame\":%u,\"box_open\":%d,\"line_row\":%d,\"reveal\":%d,"
                     "\"revealed\":%d,\"dwell\":%d,\"wait\":%d,\"cmd\":%d,"
-                    "\"line_idx\":%d,\"line_rows\":%d}\n",
+                    "\"line_idx\":%d,\"line_rows\":%d,\"speaker\":%d,"
+                    "\"shake_chr\":%d,\"shake_bg\":%d,\"st\":[",
                     g_tick.frame_count, rt->box_open, rt->line_row, rt->reveal,
                     rt->revealed, rt->dwell, rt->wait, rt->cmd,
-                    rt->line_idx, rt->line_rows);
+                    rt->line_idx, rt->line_rows, rt->speaker,
+                    rt->scene.shake_chr, rt->scene.shake_bg);
+                /* dump active standees: index, graphic, x/y (current) + tx/ty (target) */
+                int first = 1;
+                for (int i = 0; i < IVE_STANDEE_COUNT; i++) {
+                    const int32_t *f = rt->scene.standees[i].field;
+                    if (f[IVE_ST_ACTIVE] == 0)
+                        continue;
+                    fprintf(g_dlg_log_fp,
+                        "%s{\"i\":%d,\"g\":%d,\"x\":%.2f,\"y\":%.2f,\"tx\":%.2f,\"ty\":%.2f}",
+                        first ? "" : ",", i, f[IVE_ST_GRAPHIC],
+                        ive_word_f(f[1]), ive_word_f(f[2]),
+                        ive_word_f(f[3]), ive_word_f(f[4]));
+                    first = 0;
+                }
+                fprintf(g_dlg_log_fp, "]}\n");
                 fflush(g_dlg_log_fp);
             }
         }
