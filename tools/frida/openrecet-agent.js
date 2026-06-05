@@ -2496,6 +2496,11 @@ function segtraceTick(fn) {
                 rva(0x056daaf8).writeS32(0);   // player anim FRAME
                 rva(0x056daaf0).writeS32(0);   // player anim TIMER (float 0.0 == 0)
                 rva(0x056daaf4).writeS32(0);   // player anim COUNTER
+                // shared menu cursor bob counter — free-runs from boot with no
+                // engine reset, so its value diverges with the non-deterministic
+                // load; zero it so the skip-prompt hand-cursor bob is phase-clean
+                // (mirrors the port's title_save_dialog_phasepin).
+                rva(0x0438b154).writeS32(0);   // DAT_0438b154 cursor bob counter
                 pp.fired = true;
                 if (g_rng_cs_len > 0) {           // arm call-site capture from here
                     g_rng_cs_lo = fn; g_rng_cs_hi = fn + g_rng_cs_len;

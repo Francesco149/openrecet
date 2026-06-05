@@ -121,6 +121,11 @@ void title_save_dialog_cursor_snap(float x, float y);
 /* FUN_00435710 — start a 6-frame ease toward (x,y). Visibility unchanged. */
 void title_save_dialog_cursor_slide(float x, float y);
 
+/* TAS {phasepin} — zero the bob counter (DAT_0438b154) so the shared hand
+ * cursor's bob is phase-pinned across the non-deterministic load. Called from
+ * segtrace_phasepin_cb alongside the companion db054 reset. */
+void title_save_dialog_phasepin(void);
+
 /* ─── test/host-side accessors ────────────────────────────────────── */
 
 /* DAT_0438b148 — save/load dialog counter (0..8). */

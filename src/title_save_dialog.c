@@ -80,6 +80,15 @@ void title_save_dialog_reset(void)
 void title_save_dialog_cursor_set_visible(int on) { g_cursor_visible = on ? 1 : 0; }
 int  title_save_dialog_cursor_get_visible(void)   { return g_cursor_visible;        }
 
+/* TAS {phasepin} — zero the shared cursor's bob counter (DAT_0438b154). b154
+ * free-runs from boot with no engine reset (its sole writer is the +1 in
+ * anim_tick), so its value at any frame = total frames-since-boot the save
+ * dialog was closed — which differs between port and retail by the
+ * non-deterministic load/intro frame count. Pinning it to 0 at a deterministic
+ * post-load anchor makes the hand-cursor bob phase identical across runs and
+ * vs retail (engine-quirks §94; mirrors the companion db054 phasepin). */
+void title_save_dialog_phasepin(void) { g_anim_counter = 0; }
+
 /* FUN_00435693 — snap to (x,y), zero the slide countdown, show. The
  * engine also writes the deltas = (x,y) here; harmless with ac18==0. */
 void title_save_dialog_cursor_snap(float x, float y)

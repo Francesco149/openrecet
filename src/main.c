@@ -41,6 +41,7 @@
 #include "esc_dispatch.h"
 #include "scene_ingame.h"
 #include "scene_title.h"
+#include "title_save_dialog.h"   /* title_save_dialog_phasepin — cursor bob pin */
 #include "scene_buy.h"
 #include "scene_floor.h"
 #include "scene_jutan.h"
@@ -3663,6 +3664,8 @@ static void segtrace_phasepin_cb(void *user)
             "(db054 was %d)\n", scene1_companion_db054());
     scene1_companion_ctrl_phasepin();
     player_ctrl_phasepin();   /* actor-0 anim cycle — normalizes the IDLE origin */
+    title_save_dialog_phasepin(); /* shared cursor bob (b154) — normalizes the
+                                   * skip-prompt hand-cursor phase origin */
 }
 
 /* Capture-range sink for input_segtrace `{caprange:[start,count]}` ops: open
