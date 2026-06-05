@@ -577,8 +577,27 @@ void scene_title_sim_default(void)
      * settings-overlay state, FUN_00499519 SE pings on every cursor
      * move, attract-loop timer (DAT_09643518), and the "saving"
      * overlay path.  The call-count parity holds (we still fire
-     * once per title frame), but the body is far from complete. */
-    CALL_TRACE_ENTER_STUB(0x49a59eu);
+     * once per title frame), but the body is far from complete.
+     *
+     * Field-bearing stub (flow_diff): declare the title sim's persisted
+     * menu state at entry — the values retail reads from its DAT_096435xx
+     * globals at FUN_0049a59e's onEnter (mapping in scene_title.h).  These
+     * are read pre-body (this frame's input == last frame's output), so a
+     * [data] divergence here means the port's title-menu state stopped
+     * tracking retail — the canonical signal that a skipped body branch is
+     * load-bearing.  Joined to tools/flow/retail_fields.json by field name. */
+    CALL_TRACE_BEGIN_STUB(0x49a59eu);
+    CALL_TRACE_U32("frame_counter",   g_scene_title_anim.frame_counter);
+    CALL_TRACE_U32("cursor_pos",      g_scene_title_anim.cursor_pos);
+    CALL_TRACE_U32("cursor_anim",     g_scene_title_anim.cursor_anim);
+    CALL_TRACE_U32("select_phase",    g_scene_title_anim.select_phase);
+    CALL_TRACE_U32("pulse_phase",     g_scene_title_anim.pulse_phase);
+    CALL_TRACE_I32("menu_folding_out", g_scene_title_anim.menu_folding_out);
+    CALL_TRACE_I32("submenu_state",   g_scene_title_anim.submenu_state);
+    CALL_TRACE_U32("submenu_cursor",  g_scene_title_anim.submenu_cursor);
+    CALL_TRACE_I32("settings_dirty",  g_scene_title_anim.settings_dirty);
+    CALL_TRACE_U32("fade_counter",    g_scene_title_anim.fade_counter);
+    CALL_TRACE_END();
 
     /* Engine FUN_0049a59e L100567: `if (FUN_00434d6a() == -1) return;` —
      * save/load dialog gate.  Our port ignores the return for now (the

@@ -43,6 +43,22 @@
       "fields": [
         {"name": "vcount", "src": "global", "va": "0x647e0c", "type": "i32"}
       ]
+    },
+    "0x49a59e": {
+      "name": "scene_title_sim",
+      "_note": "FUN_0049a59e — title-screen menu state machine. The salient persisted menu state, read at onEnter from its DAT_096435xx globals (mapping documented in src/scene_title.h). Port-side names + read timing in src/scene_title.c scene_title_sim_default (CALL_TRACE_BEGIN_STUB). The port body is a subset (stub-marked); these INPUT fields must still track retail frame-over-frame — a [data] divergence here flags a skipped engine branch as load-bearing.",
+      "fields": [
+        {"name": "frame_counter",   "src": "global", "va": "0x9643518", "type": "i32"},
+        {"name": "cursor_pos",      "src": "global", "va": "0x9643540", "type": "i32"},
+        {"name": "cursor_anim",     "src": "global", "va": "0x9643520", "type": "i32"},
+        {"name": "select_phase",    "src": "global", "va": "0x9643544", "type": "i32"},
+        {"name": "pulse_phase",     "src": "global", "va": "0x964352c", "type": "i32"},
+        {"name": "menu_folding_out","src": "global", "va": "0x9643528", "type": "i32"},
+        {"name": "submenu_state",   "src": "global", "va": "0x9643524", "type": "i32"},
+        {"name": "submenu_cursor",  "src": "global", "va": "0x9643530", "type": "i32"},
+        {"name": "settings_dirty",  "src": "global", "va": "0x9643560", "type": "i32"},
+        {"name": "fade_counter",    "src": "global", "va": "0x964351c", "type": "i32"}
+      ]
     }
   }
 }

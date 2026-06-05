@@ -37,6 +37,7 @@ static char          g_evt[CT_EVT_CAP];
 static int           g_evt_len         = 0;
 static int           g_in_event        = 0;
 static int           g_evt_nfields     = 0;
+static int           g_evt_stub        = 0;   /* "stub":true on the open event */
 
 static void ct_evt_append(const char *fmt, ...)
 {
@@ -148,7 +149,7 @@ void call_trace_enter(uint32_t ghidra_va, const void *ret_addr, int stub)
  * the function used).  Joined to the retail side by (va, field-name); see
  * docs/plans/execution-flow-trace.md. */
 
-void call_trace_begin(uint32_t ghidra_va, const void *ret_addr)
+static void ct_begin(uint32_t ghidra_va, const void *ret_addr, int stub)
 {
     if (!g_f || !g_emit_this_frame) { g_in_event = 0; return; }
     if (g_in_event) call_trace_end();   /* misuse: finalize the prior event */
@@ -159,9 +160,23 @@ void call_trace_begin(uint32_t ghidra_va, const void *ret_addr)
 
     g_evt_len = 0;
     g_evt_nfields = 0;
+    g_evt_stub = stub;
     g_in_event = 1;
     ct_evt_append("{\"va\":%u,\"ret_va\":%u,\"frame\":%u,\"seq\":%u",
                   (unsigned)ghidra_va, ret_off, g_cur_frame, g_seq++);
+}
+
+void call_trace_begin(uint32_t ghidra_va, const void *ret_addr)
+{
+    ct_begin(ghidra_va, ret_addr, 0);
+}
+
+/* Stub variant: same field-bearing event, plus "stub":true — for a
+ * partially-ported function whose declared INPUTS are still worth diffing
+ * (the entry-state must track retail even when the body is a subset). */
+void call_trace_begin_stub(uint32_t ghidra_va, const void *ret_addr)
+{
+    ct_begin(ghidra_va, ret_addr, 1);
 }
 
 static void ct_field_open(const char *name)
@@ -203,6 +218,7 @@ void call_trace_end(void)
 {
     if (!g_in_event) return;
     if (g_evt_nfields) ct_evt_append("}");   /* close the `f` object */
+    if (g_evt_stub) ct_evt_append(",\"stub\":true");
     ct_evt_append("}\n");
     fwrite(g_evt, 1, (size_t)g_evt_len, g_f);
     g_in_event = 0;

@@ -10,7 +10,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **424** (16.6%) — verified 70, stubbed 17, ported 337
+- touched: **424** (16.6%) — verified 70, stubbed 16, ported 338
 - unported: **2124**
 - orphan refs (in src/, not in function table): 7
 
@@ -89,7 +89,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49b425 | FUN_0049b425 | 207 | ✓ | render_quad.c |
 | 0x49de18 | FUN_0049de18 | 8 | ✓ | scene_new_game.c |
 
-## stubbed (17) — wired, body incomplete
+## stubbed (16) — wired, body incomplete
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -108,10 +108,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x485861 | FUN_00485861 | 280 | ✓ | scene1_player_ctrl.c |
 | 0x48b850 | FUN_0048b850 | 5030 | ✓ | scene1_player_ctrl.c |
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
-| 0x49a59e | FUN_0049a59e | 3719 | ✓ | scene_title.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (337) — reimplemented, no probe yet
+## ported (338) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -404,6 +403,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49a3a3 | FUN_0049a3a3 | 154 | ✓ | main.c, scene_title.c, scene_title.h (+1) |
 | 0x49a43d | FUN_0049a43d | 283 | ✓ | main.c, save_io.c, save_io.h (+2) |
 | 0x49a585 | FUN_0049a585 | 25 | ✓ | esc_dispatch.c, esc_dispatch.h |
+| 0x49a59e | FUN_0049a59e | 3719 | ✓ | audio_fade.h, d3d_pool.h, main.c (+12) |
 | 0x49b4f4 | FUN_0049b4f4 | 67 | ✓ | title_continue_picker.c, title_continue_picker.h |
 | 0x49b537 | FUN_0049b537 | 31 | ✓ | scene_title.c, title_continue_picker.c, title_continue_picker.h |
 | 0x49b556 | FUN_0049b556 | 2810 | ✓ | scene_title.c |

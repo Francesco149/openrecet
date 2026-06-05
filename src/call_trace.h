@@ -118,6 +118,7 @@ void call_trace_enter(uint32_t ghidra_va, const void *ret_addr, int stub);
  * Like the ENTER probes these compile to a cheap gated no-op when --call-trace
  * is off.  CALL_TRACE_ENTER(va) remains the no-payload form. */
 void call_trace_begin(uint32_t ghidra_va, const void *ret_addr);
+void call_trace_begin_stub(uint32_t ghidra_va, const void *ret_addr);
 void call_trace_field_i32(const char *name, int32_t v);
 void call_trace_field_u32(const char *name, uint32_t v);
 void call_trace_field_f32(const char *name, float v);
@@ -126,6 +127,11 @@ void call_trace_end(void);
 
 #define CALL_TRACE_BEGIN(ghidra_va) \
     call_trace_begin((uint32_t)(ghidra_va), __builtin_return_address(0))
+/* Field-bearing BEGIN that also marks the row "stub":true (partially-ported
+ * body; the declared INPUTS are still diffed by flow_diff, the stub mark keeps
+ * call_trace_diff's coverage view honest). Pairs with CALL_TRACE_END(). */
+#define CALL_TRACE_BEGIN_STUB(ghidra_va) \
+    call_trace_begin_stub((uint32_t)(ghidra_va), __builtin_return_address(0))
 #define CALL_TRACE_I32(name, v) call_trace_field_i32((name), (int32_t)(v))
 #define CALL_TRACE_U32(name, v) call_trace_field_u32((name), (uint32_t)(v))
 #define CALL_TRACE_F32(name, v) call_trace_field_f32((name), (float)(v))
