@@ -303,19 +303,28 @@
   `{phasepin:80}`+`{rngseed:[80,19937]}`, --target both): full-frame maxdiff is **black
   except the Tear cluster** — the sparkle AND the window-NPCs are now **bit-aligned with
   retail** (the RNG self-fix landed as predicted: the emitter's LCG draws realign the shared
-  stream). Docs: `findings/shop-item-display-RE-status.md`. **Next deviation to chase = idle FACING on
-  a CONTINUE-load** (user-flagged "tear facing direction mismatch"; bottom-center cluster,
-  the only non-black region in the pinned maxdiff besides a ±1-LSB "440" HUD ghost). Both
-  characters face wrong in the loaded shop: (a) the **player** facing is HARDCODED to octant
-  6 / +π/2 on scene entry (`scene1_player_ctrl.c:443` `s_actor_record[0][CHR_ACTOR_FACING]=6`,
-  `:413` `s_player_facing=1.5708`) — tuned for the new-game intro idle, NOT restored from the
-  save, so a CONTINUE shows Recette facing the wrong way; (b) the **companion** idle facing is
-  the admitted ~95% approximation `rec[FACING]=(comp.x<=player.x)?6:2` at
-  `scene1_companion_ctrl.c:234`, an inline stand-in for the unported **`FUN_0048a833`**
-  standing-pose facing law — retail shows Tear facing down/forward, not the octant-2 the rule
-  picks. The chip: Frida-watch retail's actor-0 + companion `DAT_056dab58` octants in the
-  loaded-shop idle (is the player facing serialized in the save?), restore the player facing
-  on load, and port `FUN_0048a833`. Fresh effort — good `/clear` point.
+  stream). Docs: `findings/shop-item-display-RE-status.md`.
+- **CONTINUE-load idle FACING — RESOLVED 1:1 (2026-06-06, user "basically fully 1:1
+  other than the known dots").** The bottom-center cluster was **Tear's facing only** —
+  the *player* facing was already 1:1 (`poct=6` both sides; the FRONT hypothesis that
+  Recette faced wrong was WRONG, overturned by the flow-trace). Retail's loaded-shop fairy
+  faces **DOWN (octant 4)**; the port forced octant 2. Root cause (commit eb62d3c,
+  engine-quirks §109): the port's companion idle rule `(comp.x<=player.x)?6:2` is
+  `FUN_0048a833`'s **intro-only branch A** (the iv1_1 "Recette looks up at Tear" scene);
+  the real free-roam law `FUN_0048a4d1` writes facing ONLY on a *moving* frame, so an idle
+  fairy HOLDS its entry seed (octant 4). Fix: idle branch sets anim only, leaves facing
+  untouched. `flow_diff --verdict --align-field db054`: `coct` CONST-OFFSET −2 → **ALIGNED**,
+  whole frame **PHASE-CLEAN**.
+- **Tracing modernized — ad-hoc per-frame logs retired for the flow-trace (2026-06-06).**
+  The facing chip was driven entirely by `scenario-test --target both --call-trace` +
+  `tools/flow_diff.py`, now a **superset of phase_probe**: `--verdict` (ALIGNED/CONST-OFFSET/
+  DRIFT + authoritative `rngcalls`), `--align-field db054` (pair load-stretched captures —
+  port f475 vs retail f14285), `--rng-drill`. Per-frame actor state + RNG are flow-trace
+  fields now (`house_update` 0x48670f + `tick_scheduler` 0x47be92 probes, mirrored in
+  `tools/flow/retail_fields.json`). **Removed:** `phase_probe.py`, `facing_reconstruct.py`,
+  `wall_collide_diff.py`, `recette_anim_probe.py`, port `--player-pos-log`/`--dlg-log`/
+  `--dust-log`, retail `--watch`. **Annotate functions on both sides as you go** — that IS
+  the state-comparison tool now. Cheatsheet: `flow-trace-cheatsheet.md`. Good `/clear` point.
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.
