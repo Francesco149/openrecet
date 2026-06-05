@@ -145,6 +145,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   = the shared 2D-UI texture-scaling-filter / colour-precision noise (same class as
   the skip-prompt banner + dialogue box-edge, `ledger #52`/§54) — **next session:
   investigate the 2D-UI sampler/mip filter as one likely-easy shared fix.**
+- **Queued next (in order, user-set 2026-06-05):**
+  1. **2D-UI scaling-filter noise** — the ±1 LSB residual above (picker + skip-prompt
+     banner + dialogue box-edge); probe the sampler/half-texel on SCALED 2D quads.
+  2. **BUG: LOAD GAME → X-back locks main-menu input.** Repro: title → select LOAD
+     GAME (opens picker) → press X to back out → returns to the main menu but it
+     **stops accepting input** (soft-lock). Port logic bug, NOT retail behaviour.
+     Starting hypothesis: the main-menu input gate is `cursor_anim == 0 &&
+     submenu_state == 0` (`scene_title.c` L455); the picker-CANCEL path
+     (`TITLE_PICKER_CANCEL`) likely fails to wind `submenu_state`/`cursor_anim` back
+     to 0 (or leaves `DAT_09643524`/the slide-out anim mid-state), so the gate never
+     re-opens. **Intended as a test of whether the call-trace/`flow_diff` tooling can
+     localise a pure logic error** — drive the cancel with a TAS trace `--target both
+     --call-trace` and diff the title sim chain on the back-out frame.
+  3. **In-game load** — continue the save-roundtrip trace past the picker (load the
+     fa7c82 save into HOUSE free-roam), per the "in-game stuff once the menu's 1:1" plan.
 - **Sparkle is deferred ON PURPOSE — do not re-attack early.** The shop-display "目玉商品"
   sparkle (template 0x3b) has verified bit-1:1 data (texture/UV/world-matrix) but isn't yet
   visibly 1:1. It is finished **last**, only once the entire command stream UP TO its frame
