@@ -176,15 +176,19 @@
      landed: standee dump in `--dlg-log`; `flow_diff` field-timeline now **stream-filters
      by va** so a 2GB whole-engine trace no longer OOMs (`9725b66`). **Remaining (per the
      46-panel both-run, post-phasepin):**
-     - **cap_44 (iv1_2 "RECETTE!") — NEXT PRIORITY (user).** NOT a dialogue standee (all 4
-       settled, y==ty) — it's the **freeroam actor Recette**, a **clean 6px vertical**
-       residual (was ~25, phasepin halved it). = the **deferred conversation-pose
-       entry-edge phase** (ledger line 57 "iv1_2 Recette look-up + blink"; conversation-
-       pose-driver doc "port enters at the iv1_2-arm edge, not retail's end-of-shatter
-       flag clear"). `player_ctrl_phasepin` already zeros actor-0 FRAME/TIMER/COUNTER, so
-       the residual is the anim-6 cycle ORIGIN diverging from the pose-entry edge, not a
-       missing reset. **Fix arc:** align the conversation-pose entry edge (or pin the
-       anim-6 cycle to the capture) so Recette's pose-phase is bit-1:1. Fresh arc.
+     - ~~**cap_44 (iv1_2 "RECETTE!").**~~ **FIXED 2026-06-05 (commit 21b6ab5,
+       user-confirmed shake theory).** It was the **dialogue STANDEES** (Tear/Recette
+       portraits + giku/hatena manga marks), NOT the freeroam actor — the prior
+       "freeroam actor / not-a-standee" call was wrong (its "standees settled y==ty"
+       logic only compared port-y to the port *target*, never to retail). Root cause:
+       retail's un-ported **`rmb` screen-shake** jitters every standee's Y by
+       `(rand()&0x1f)-16` per frame from the line start (per-frame `--d3d-trace` shows
+       ±20px; the port drew them static). **Fix:** ported the shake (engine 0x46d926 +
+       FUN_0046c9a2 L67606; engine-quirks §105) — `IVE_OP_RMB` arms the countdowns, the
+       tick decrements, `draw_standees` jitters Y per drawn standee via `rng_next15()`;
+       `{phasepin}` zeros the countdowns on BOTH sides so the capture is un-shaken.
+       cap_44 standees all 4 at **delta 0.0** px; full-frame 89080px→5596px. The 5.6k
+       residual = the **window NPCs** (item #2, top-center `chr10`), not the standees.
      - **iv1_2 lines 16-45 ~3-6k px = the WINDOW NPCs** (item #2 below) — RNG/logic, not
        phase (phasepin didn't move them). User-confirmed "the ~6k diff on most frames is
        the npcs at the window."
