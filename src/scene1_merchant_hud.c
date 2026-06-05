@@ -63,9 +63,9 @@ static const int   g_levelup_anim = 0;    /* DAT_0438b920 (level-up bounce)   */
  * COLOROP is MODULATE here (set by the caller).  The level-up bounce
  * (g_levelup_anim 1..10) scales the digits 1x..2x and lifts them; dormant
  * at rest (scale 1.0). */
-static void scene1_merchant_hud_draw_level(IDirect3DDevice8 *dev,
-                                           float x, float y,
-                                           int value, uint32_t color)
+void scene1_merchant_hud_draw_level(IDirect3DDevice8 *dev,
+                                    float x, float y,
+                                    int value, uint32_t color)
 {
     /* L: scale = 1.0, bumped to sin(anim*pi/10)+1 during the level-up
      * bounce (anim frames 1..10). */

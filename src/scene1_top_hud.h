@@ -39,6 +39,15 @@ void scene1_top_hud_render(struct IDirect3DDevice8 *dev);
 /* The bottom-right "Button 4: Change Camera" control hint (FUN_00409925's
  * LAB_0040a5fd tail).  Self-gates on no-dialogue-active; drawn in free-roam. */
 void scene1_top_hud_camera_hint(struct IDirect3DDevice8 *dev);
+
+/* FUN_00406a60 — draw an integer as digit-glyph sprites from item_win.tga
+ * (x = right anchor).  `icon` prepends the pix-coin sprite; `comma` inserts
+ * thousands separators.  Shared with the save-slot picker (FUN_0049b556).
+ * Binds item_win.tga and flushes internally. */
+void scene1_top_hud_draw_number(struct IDirect3DDevice8 *dev,
+                                float x, float y,
+                                int value, int icon,
+                                uint32_t color, int comma);
 #endif
 
 #endif /* SCENE1_TOP_HUD_H */

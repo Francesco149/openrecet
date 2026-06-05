@@ -54,10 +54,10 @@ float scene1_top_hud_clock_phase(void)           { return g_hud_clock_phase; }
  * Digits are laid out right-to-left at a 12.8 px pitch; digit `d` samples
  * src (d*24+512,144)-(d*24+536,168) and draws 19.2x19.2.  One flush at the
  * end (all glyphs share item_win.tga).  Verbatim from the engine. */
-static void scene1_top_hud_draw_number(IDirect3DDevice8 *dev,
-                                       float x, float y,
-                                       int value, int icon,
-                                       uint32_t color, int comma)
+void scene1_top_hud_draw_number(IDirect3DDevice8 *dev,
+                                float x, float y,
+                                int value, int icon,
+                                uint32_t color, int comma)
 {
     const sprite_t *tex = &g_sysassets.item_win_tga;
     char buf[256];

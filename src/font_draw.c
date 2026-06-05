@@ -197,4 +197,42 @@ float font_draw_text_centered(struct IDirect3DDevice8 *dev_,
     return width;
 }
 
+float font_draw_text_right(struct IDirect3DDevice8 *dev_,
+                           float right_x, float y,
+                           const char *str,
+                           uint32_t argb,
+                           float scale)
+{
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_;
+    if (!dev || !str) return 0.0f;
+    if (!g_font_atlas.fontidx) return 0.0f;
+
+    const float fVar2 = scale * 0.65f * 0.76f;
+    float width = 0.0f;
+
+    /* Same alloc-and-upload-if-new measure walk as the centered variant
+     * (keeps every glyph's texture non-NULL for the follow-up draw). */
+    const unsigned char *p = (const unsigned char *)str;
+    while (*p) {
+        unsigned char b0 = p[0];
+        if (b0 < 0x20) { p++; continue; }
+        int is_double_byte = (b0 & 0x80) != 0;
+        unsigned char b1 = is_double_byte ? p[1] : 0;
+
+        int rec_id, is_new;
+        int slot = font_slot_alloc(b0, b1, &rec_id, &is_new);
+        if (slot != FONT_SLOT_NONE) {
+            if (is_new) {
+                font_slot_upload(slot, dev);
+            }
+            uint32_t eff = g_font.slots[slot].effective_width;
+            width += ((float)(int)eff - 3.0f) * fVar2;
+        }
+        p += is_double_byte ? 2 : 1;
+    }
+
+    font_draw_text(dev_, right_x - width, y, str, argb, scale);
+    return width;
+}
+
 #endif /* _WIN32 */

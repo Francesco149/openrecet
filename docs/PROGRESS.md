@@ -7,6 +7,46 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-05 — LOAD GAME slot picker rendered 1:1 (FUN_0049b556)
+
+User-directed next front (the title→load-menu→in-game arc): the continue/load
+slot picker was a functional placeholder (a left-aligned text list on a
+`dungeonbord` panel). Ported the faithful **`FUN_0049b556`** (2810 B) so the
+LOAD GAME screen renders pixel-1:1 with retail.
+
+- **What it draws** — a horizontally-paged grid of save cards from `item_win.tga`
+  (= `DAT_073d8748` = `g_sysassets.item_win_tga`; the placeholder used the wrong
+  `dungeonbord` texture): the centre page on-screen + the L/R neighbours off-screen
+  for the page-slide, five vertical rows each (one above + three visible + one below
+  for the row-slide). Occupied card = parchment bg + the HUD gold clock-frame detail
+  panel (src 480,0-768,128) + a rotated day/time hand (`render_quad_draw_rotated_rect`)
+  + big day# and gold digit rows (reused `scene1_top_hud_draw_number`) + a money-banner
+  tile from `pause.tga` (= `DAT_073d86a8`) + the merchant-level badge (reused
+  `scene1_merchant_hud_draw_level`) + right-justified SCORE/LOOP columns + a
+  TIME H:MM:SS line; empty cards show `NO-DATA`. Up/down scroll arrows off the ends.
+- **Slot summary fields** mapped to `save_bank` dword offsets (bank-0 base =
+  arena+0x0b10): PLAYTIME(2, frames@60fps, doubles as the empty test), GOLD(3),
+  SCORE(0xb0f7), LOOP(0xb0f9), CARD_DAY(0xb0fb,+1), PORTRAIT_ROT(0xb0fc),
+  CHAR_LEVEL(0xb100), GAME_MODE(0xb759).
+- **objdump-recovered FPU constants** (Ghidra dropped the scaled-`sin`→`ftol`
+  loads, the §97/§99 class): selected-card bg brightness =
+  `sin(anim·0.1)·32 + 159` (+ confirm-flash `sin(pulse·π/30)·128`), others flat
+  `0x5f`, all under `D3DTOP_ADDSIGNED`; arrows under MODULATE. Card stat text
+  (SCORE/LOOP/TIME) draws at **scale 0.8** (`0x519470`) while the slot# + NO-DATA
+  use 1.0 (`fld1`) — the user spotted the 0.8 text-size gap on the feed.
+- **New leaf helpers**: `font_draw_text_right` (FUN_0047d2db, right-justified
+  text — measure-then-draw-at-`x−w`); exported the previously-static
+  `scene1_top_hud_draw_number` (FUN_00406a60) + `scene1_merchant_hud_draw_level`
+  (FUN_00481ec3) for reuse (both draw from the same `item_win.tga`).
+- **Pixel parity** (`title-load-picker --target both`, fa7c82 save): frame 60
+  (slide-in) **0/786432** diff px; settled frames 120/180/260 **1 px** each
+  (max Δ20 — a sub-pixel rounding on the clock hand / one glyph edge). Goldens
+  blessed (port + retail). Scenario reads the save-roundtrip `fa7c82` save (the
+  beginning of the end-to-end load→move-sword→save→reload reference trace).
+- **PORT-DEBT(modetag)**: the bottom-right game-mode tag (Endless/New Game+/
+  Survival) + the new-game-overwrite grey-out flag (`DAT_096432f4`) are not drawn
+  (the load path never sets them).
+
 ## 2026-06-05 — Render-parity diff engine (Phase 1): stable texture identity
 
 Closed the last remaining Phase-1 item. The d3d-trace serialised a bound texture

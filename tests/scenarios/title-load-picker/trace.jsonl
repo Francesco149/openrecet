@@ -1,0 +1,15 @@
+# Title → open the LOAD GAME slot picker (no confirm; keep it open to view).
+# Save fa7c82 has a score, so the title cursor defaults to CONTINUE_ANY and a
+# single A (0x0010) opens the picker.  Captures: slide-in (60) → settled grid
+# (120) → later pulse phases (180/260).  Raw frames align port↔retail because
+# boot→title is deterministic (cf. title-down-press @30/35/50).
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 45, "buttons": "0x0010"}
+{"frame": 48, "buttons": "0x0000"}
+{"capture": 60}
+{"capture": 120}
+{"capture": 180}
+{"capture": 260}
+{"frame": 300, "buttons": "0x0000"}

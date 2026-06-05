@@ -37,6 +37,7 @@ void title_continue_picker_open(int entry_menu_code, int last_used_slot)
     p->vscroll_anim = 0;
     p->overwrite_mode = 0;
     p->prompt_pending = 0;
+    p->pulse          = 0;
 
     /* Engine FUN_0049a59e L101103: cursor = last-used slot, scroll =
      * last-2 (clamped >= 0). */

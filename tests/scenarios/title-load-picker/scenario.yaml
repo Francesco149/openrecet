@@ -1,0 +1,17 @@
+# title-load-picker — the title-screen "LOAD GAME" / continue slot picker
+# (engine DAT_09643524 == 1, render FUN_0049b556).  With a save present the
+# title cursor defaults to CONTINUE_ANY (LOAD GAME), so a single A opens the
+# picker; we then idle and capture it as it slides in + pulses, so the faithful
+# 3-column slot-grid render can be diffed port↔retail.
+#
+#   python3 tools/scenario-test.py title-load-picker --target both \
+#     --frida-remote cutestation.soy:27042
+#
+# Reads the fa7c82 save (back-table swords; gold/score/day populated) so the
+# slot cards show real summary fields.  Beginning of the save-roundtrip trace.
+description: |
+  Title → A (LOAD GAME) → continue/load slot picker; capture the slide-in +
+  steady picker grid for render parity vs retail.
+max_frames: 4000
+duration_ceiling_ms: 60000
+n_captures: 4

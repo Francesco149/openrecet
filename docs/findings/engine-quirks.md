@@ -3992,3 +3992,42 @@ the companion db054 (§94): a `{phasepin}` op zeroes b154 at a deterministic
 post-load anchor (`title_save_dialog_phasepin` / the Frida agent), after which it
 increments identically on both sides and the hand cursor is bit-1:1 (user-confirmed,
 `intro-skip-prompt`, 2026-06-05).
+
+## 101. The LOAD GAME slot-picker (FUN_0049b556): cards under ADDSIGNED, two text scales, playtime in frames
+
+The continue/load slot picker draws its save cards as a **horizontally-paged**
+grid from `item_win.tga` (`DAT_073d8748`): each visible column is 3 slots tall;
+DOWN/UP step ±1 within a column (a vertical row-slide), LEFT/RIGHT step ±3 between
+columns (a horizontal page-slide). The renderer draws the centre page plus its two
+off-screen neighbours (only once the open-anim `DAT_09643520` is fully ramped, >9)
+so the page-slide has cards to move in.
+
+Retail behaviours worth pinning:
+- **Cards + all card content draw under `D3DTOP_ADDSIGNED`** (COLOROP=8 set once up
+  front); only the scroll arrows switch to MODULATE. So the per-card greyscale
+  diffuse is an *additive* bias on the parchment art: the **selected** card uses
+  brightness `sin(anim·0.1)·32 + 159` (a gentle shimmer, plus a confirm-flash
+  `sin(pulse·π/30)·128` while the A-press countdown `DAT_0964351c` ramps to 0x1e),
+  unselected cards a flat `0x5f` (95) — so the selected card reads brighter than
+  the rest. (New-game-overwrite mode darkens by 0x40 / drops to 0x20.)
+- **Two text scales on one card.** The big slot number (`%03d`) and the empty-slot
+  `NO-DATA` draw at scale **1.0** (`fld1`); the SCORE/LOOP/TIME label+value columns
+  and the game-mode tag draw at scale **0.8** (`.rdata 0x519470`). (The sine/scale
+  brightness constants are Ghidra-dropped FPU loads, the §97/§99 class — recovered
+  from objdump: `0x5193a0`=0.1, `0x519474`=32, `0x519d98`=159, `0x519468`=−128.)
+- **Saved play-time is stored in FRAMES at 60 fps** (bank dword 2, which doubles as
+  the slot's "occupied" test): the card's `TIME %3d:%02d:%02d` is
+  `frames/216000 : (frames/3600)%60 : (frames/60)%60`.
+
+Port `title-load-picker --target both` is pixel-1:1 (0 diff px on the slide-in
+frame; on settled frames 1 px > 16 LSB — a sub-pixel rounding on the rotated
+clock-dial hand). User-confirmed effectively-1:1 with the 1-px notice, 2026-06-05.
+
+**Residual sub-LSB noise (deferred — `[[2d-ui-scaling-filter]]`).** At the LSB
+level the settled picker has 947 px (0.12%) differing by ≤4 LSB (none >4) — the
+same imperceptible 2D-UI texture-scaling / colour-precision noise the user flagged
+on the skip-prompt gold banner and the dialogue box edge (the `ledger #52`
+box-edge-halo class, cf. §54 POINT-vs-LINEAR / box-mip). Almost certainly ONE
+shared root cause across the 2D-UI quads (the sampler/mip filter on `item_win.tga`
++ the menu textures), worth investigating once as a likely-easy shared fix
+(user-flagged 2026-06-05, next session).

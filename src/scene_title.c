@@ -670,6 +670,9 @@ void scene_title_unload_assets(void)
 
 #include "font_draw.h"
 #include "render_quad.h"
+#include "sysassets.h"          /* g_sysassets.item_win_tga (= DAT_073d8748) */
+#include "scene1_top_hud.h"     /* scene1_top_hud_draw_number (FUN_00406a60) */
+#include "scene1_merchant_hud.h"/* scene1_merchant_hud_draw_level (FUN_00481ec3) */
 
 /* Lookup table at PE 0x005d1cd4 — 9 dwords mapping menu-code →
  * "cursor tile index" in fuki.tga. Extracted via
@@ -831,55 +834,255 @@ static void scene_title_settings_render_panel(IDirect3DDevice8 *dev,
 
 /* ── Continue / load slot-picker panel (submenu_state == 1) ──
  *
- * PORT-DEBT(render): the faithful engine picker (FUN_0049b556, 2810 B)
- * draws a 3-column grid of slot cells from the DAT_073d8748 /
- * DAT_073da020 textures with per-cell brightness pulse. This is a
- * functional vertical-list stand-in: navigable (the cursor + scroll
- * come straight from the ported picker state machine) and showing each
- * save's real summary, so the load flow is verifiable. Retire when the
- * faithful grid renderer ports. */
+ * Faithful port of FUN_0049b556 (2810 B): a horizontally-paged grid of
+ * save cards drawn from item_win.tga (= DAT_073d8748 = g_sysassets.
+ * item_win_tga).  Three column-pages (the centre on-screen, the
+ * neighbours off-screen for the L/R page-slide); five vertical rows per
+ * page (one above + three visible + one below, for the U/D row-slide).
+ *
+ * Each occupied card = parchment background + a clock-dial detail panel
+ * (the HUD gold-frame art) + a rotated day/time hand + the big day#
+ * and gold digit rows + a money-banner tile (pause.tga = TEX_PAUSE) +
+ * the merchant-level badge + right-justified SCORE/LOOP columns + a
+ * TIME H:MM:SS line.  Empty cards show "NO-DATA".  Up/down scroll
+ * arrows when off the list ends.
+ *
+ * Brightness (all greyscale, A in the high byte): the SELECTED card
+ * shimmers sin(anim·0.1)·32 + 159 with a confirm-flash sin(pulse·π/30)
+ * ·128 add; other cards are flat 0x5f; new-game-overwrite mode darkens.
+ * The card backgrounds + content draw under D3DTOP_ADDSIGNED (engine
+ * sets COLOROP=8 up front); the scroll arrows under MODULATE.  The sine
+ * scale constants were Ghidra-dropped FPU loads recovered from objdump
+ * (0x5193a0=0.1, 0x519474=32, 0x519d98=159, 0x519468=-128 — the §99
+ * select-pulse constant; 0x519738=92, 0x519694=76 row offsets).
+ *
+ * Args: `param_1` = the open slide X (= 640 - cursor_anim·64); `open`
+ * = cursor_anim (cells outside the centre page draw only when fully
+ * open, >9).  Picker state (cursor/scroll/page+row slide/pulse) comes
+ * from g_title_continue_picker.
+ *
+ * PORT-DEBT(modetag): the bottom-right game-mode tag (Endless/New Game+/
+ * Survival) + the new-game "choose a file" grey-out flag (DAT_096432f4)
+ * are not drawn yet (load path never sets them). */
+static uint32_t g_picker_anim_counter;   /* _DAT_09643574 — selected-card shimmer */
+
 static void scene_title_continue_render_panel(IDirect3DDevice8 *dev,
-                                              float ox, float oy)
+                                              float param_1, int open)
 {
     const title_continue_picker_t *p = &g_title_continue_picker;
+    const sprite_t *iw = &g_sysassets.item_win_tga;
+    if (!iw->tex) return;
 
-    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-    title_quad(dev, SCENE_TITLE_TEX_DUNGEON,
-               ox + 120.0f, oy + 16.0f, 400.0f, 420.0f,
-                 0.0f,   0.0f, 320.0f, 360.0f,
-               0xFFFFFFFFu);
+    const int slot_count = p->slot_count;     /* DAT_005d1bbc */
+    const int cursor     = p->cursor;         /* param_2 */
+    const int scroll     = p->scroll;         /* param_3 */
+    const int page_anim  = p->vscroll_anim;   /* param_4 — X page slide  */
+    const int row_anim   = p->hscroll_anim;   /* param_5 — Y row slide    */
+    const int pulse      = p->pulse;          /* param_6 — confirm flash  */
+    const int overwrite  = p->overwrite_mode; /* DAT_09643564             */
 
-    font_draw_text_centered(dev, ox + 320.0f, oy + 28.0f,
-                            p->overwrite_mode ? "NEW GAME — CHOOSE FILE"
-                                              : "LOAD GAME",
-                            0xFFFFFFFFu, 1.0f);
+    g_picker_anim_counter++;
 
-    const int VISIBLE = 8;
-    int top = p->scroll;
-    if (top > p->slot_count - VISIBLE) top = p->slot_count - VISIBLE;
-    if (top < 0) top = 0;
+    /* ── PASS 1: card backgrounds (ADDSIGNED, one item_win batch) ── */
+    render_quad_bind(dev, iw);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
 
-    const float row_x = ox + 168.0f;
-    const float row_y = oy + 72.0f;
-    char buf[64];
+    for (int col_px = 0; col_px != 0x780; col_px += 0x280) {   /* {0,640,1280} */
+        for (int row = 0; row != 5; row++) {
+            if (row > slot_count) continue;
+            const int slot = row - 1 + scroll;
+            if (!(slot <= slot_count - 1 && slot >= 0)) continue;
+            if (!(col_px == 0x280 || open > 9)) continue;
 
-    for (int r = 0; r < VISIBLE; r++) {
-        const int slot = top + r;
-        if (slot >= p->slot_count) break;
-        const int bank = p->slot_index[slot];
-        const uint32_t *bd = save_bank_dwords_at(bank);
-        const uint32_t color = (slot == p->cursor) ? 0xFFFFFF00u
-                                                   : 0xFF9F9F9Fu;
-        if (bd && bd[SAVE_BANK_FIELD_OCCUPIED] != 0) {
-            snprintf(buf, sizeof buf, "%2d   %u G   Day %u",
-                     bank + 1,
-                     (unsigned)bd[SAVE_BANK_FIELD_GOLD],
-                     (unsigned)bd[SAVE_BANK_FIELD_DAY_INDEX]);
-        } else {
-            snprintf(buf, sizeof buf, "%2d   - empty -", bank + 1);
+            int alpha  = 200;
+            int bright = 0x5f;                 /* 95 */
+
+            if (slot == cursor) {
+                alpha  = 0xff;
+                bright = (int)(sinf((float)g_picker_anim_counter * 0.1f) * 32.0f
+                               + 159.0f);
+                if (overwrite) bright -= 0x40; /* DAT_096432f4 grey-out (modeled as set) */
+                if (pulse > 0) {
+                    bright += (int)(sinf((float)pulse * 3.1415927f / 30.0f) * 128.0f);
+                    if (bright > 0xff) bright = 0xff;
+                }
+            } else if (overwrite) {
+                bright = 0x20;                 /* 32 */
+            }
+
+            /* Row-edge alpha fade during a vertical scroll slide. */
+            if (row == 1) {
+                if (row_anim > 0) alpha = (5 - row_anim) * 0x33;
+            } else if (row == 0) {
+                if (row_anim >= 0) continue;
+                alpha = row_anim * -0x33;
+            }
+
+            const float dst[4] = {
+                (param_1 - (float)(page_anim << 7) - 640.0f) + (float)col_px,
+                ((float)(row * 0x8c) - 92.0f) - (float)(row_anim * 0x1c),
+                640.0f, 160.0f,
+            };
+            const float src[4] = { 0.0f, 320.0f, 640.0f, 480.0f };
+            const uint32_t color =
+                ((uint32_t)alpha << 24) | ((uint32_t)(bright & 0xff) << 16)
+                | ((uint32_t)(bright & 0xff) << 8) | (uint32_t)(bright & 0xff);
+            render_quad_add(dst, src, iw->width, iw->height, color);
         }
-        font_draw_text(dev, row_x, row_y + (float)r * 42.0f, buf, color, 1.0f);
     }
+    render_quad_flush(dev);
+
+    /* ── PASS 2: per-card content (centre page + off-screen neighbours
+     * when fully open).  cols 0/2 re-index to the prev/next page's
+     * slots (off-screen → pixel-invisible, transcribed for fidelity). */
+    char buf[256];
+    for (int col = 0; col != 3; col++) {
+        for (int row = 0; row != 5; row++) {
+            if (row > slot_count) continue;
+            int slot = row - 1 + scroll;
+            if (!(slot <= slot_count - 1 && slot >= 0)) continue;
+            if (!(col == 1 || open > 9)) continue;
+
+            if (col == 0) {
+                int s = (scroll - 4 < 0) ? slot - 3 : slot - 4;
+                slot = s;
+                if (scroll - 3 < 0) slot++;
+                if (scroll - 2 < 0) slot++;
+            } else if (col == 2) {
+                if (slot_count - 1 < slot + 3) continue;
+                const int last = slot_count - 1;
+                slot = (last < scroll - 2) ? slot + 2 : slot + 3;
+                if (last < scroll - 1) slot--;
+                if (last < scroll)     slot--;
+            }
+            if (slot < 0 || slot >= slot_count) continue;
+
+            const int bank = p->slot_index[slot];
+            const uint32_t *bd = save_bank_dwords_at(bank);
+            if (!bd) continue;
+
+            int alpha  = 200;
+            int bright = 0x5f;
+            if (slot == cursor) {
+                alpha  = 0xff;
+                bright = 0x7f - (int)(sinf((float)pulse * 3.1415927f / 30.0f)
+                                      * -128.0f);
+            }
+            if (overwrite) bright = (slot == cursor) ? bright : 0x40;
+            if (row == 1) {
+                if (row_anim > 0) alpha = (5 - row_anim) * 0x33;
+            } else if (row == 0) {
+                if (row_anim >= 0) continue;
+                alpha = row_anim * -0x33;
+            }
+            const uint32_t uc =
+                ((uint32_t)alpha << 24) | ((uint32_t)(bright & 0xff) << 16)
+                | ((uint32_t)(bright & 0xff) << 8) | (uint32_t)(bright & 0xff);
+
+            const float x0 = ((param_1 + 80.0f) - (float)(page_anim << 7)
+                              - 640.0f) + (float)(col * 0x280);
+            const float y0 = ((float)(row * 0x8c) - 76.0f)
+                             - (float)(row_anim * 0x1c);
+
+            /* Slot number "%03d" (always, occupied or not). */
+            snprintf(buf, sizeof buf, "%03d", bank + 1);
+            font_draw_text(dev, x0 - 64.0f, y0 + 48.0f, buf, uc, 1.0f);
+
+            if (bd[SAVE_BANK_FIELD_PLAYTIME] == 0) {
+                /* Empty slot card. */
+                font_draw_text(dev, x0 + 160.0f, y0 + 48.0f, "NO-DATA", uc, 1.0f);
+                continue;
+            }
+
+            /* Detail panel bg — HUD gold-frame art (480,0)-(768,128). */
+            render_quad_bind(dev, iw);
+            {
+                const float dst[4] = { x0, y0, 288.0f, 128.0f };
+                const float src[4] = { 480.0f, 0.0f, 768.0f, 128.0f };
+                render_quad_add(dst, src, iw->width, iw->height, uc);
+            }
+            render_quad_flush(dev);
+
+            /* Game-mode 3: extra survival icon (288,480)-(383,575). */
+            if (bd[SAVE_BANK_FIELD_GAME_MODE] == 3) {
+                const float dst[4] = { x0 + 464.0f, y0 + 16.0f, 96.0f, 96.0f };
+                const float src[4] = { 288.0f, 480.0f, 383.0f, 575.0f };
+                render_quad_add(dst, src, iw->width, iw->height, uc);
+                render_quad_flush(dev);
+            }
+
+            /* Rotated day/time hand on the dial.  angle = π/2 - rot·π/3. */
+            {
+                const float angle = 1.5707964f
+                    - ((float)(int)bd[SAVE_BANK_FIELD_PORTRAIT_ROT] * 3.1415927f) / 3.0f;
+                const float dst[4] = { -16.0f, -54.0f, 16.0f, 10.0f };
+                const float uv[4]  = { 0.45410156f, 0.12597656f,
+                                       0.48339844f, 0.18649903f };
+                render_quad_draw_rotated_rect(dev, x0 + 52.0f, y0 + 72.0f,
+                                              angle, dst, uv, uc);
+            }
+
+            /* Big day number (day+1, clamp 9999), x by digit count. */
+            {
+                int day = (int)bd[SAVE_BANK_FIELD_CARD_DAY] + 1;
+                if (day > 9999) day = 9999;
+                float dx = (day < 10)   ? x0 + 112.0f
+                         : (day < 100)  ? x0 + 116.0f
+                         : (day < 1000) ? x0 + 120.0f
+                                        : x0 + 130.0f;
+                scene1_top_hud_draw_number(dev, dx, y0 + 76.0f, day, 0, uc, 0);
+            }
+            /* Gold (pix icon + thousands comma). */
+            scene1_top_hud_draw_number(dev, x0 + 272.0f, y0 + 28.0f,
+                                       (int)bd[SAVE_BANK_FIELD_GOLD], 1, uc, 1);
+
+            /* Money-banner tile from pause.tga (720,368)-(864,416). */
+            title_quad(dev, SCENE_TITLE_TEX_PAUSE,
+                       x0 + 160.0f, y0 + 60.0f, 144.0f, 48.0f,
+                       720.0f, 368.0f, 864.0f, 416.0f, uc);
+
+            /* Merchant-level badge. */
+            scene1_merchant_hud_draw_level(dev, x0 + 312.0f, y0 + 64.0f,
+                                           (int)bd[SAVE_BANK_FIELD_CHAR_LEVEL], uc);
+
+            /* SCORE / LOOP labels (left) + right-justified values. The
+             * card stat text is drawn at scale 0.8 (.rdata 0x519470);
+             * the slot# + NO-DATA above use 1.0 (engine fld1). */
+            font_draw_text(dev, x0 + 352.0f, y0 + 16.0f, "SCORE", uc, 0.8f);
+            snprintf(buf, sizeof buf, "%8d", (int)bd[SAVE_BANK_FIELD_SCORE]);
+            font_draw_text_right(dev, x0 + 466.0f, y0 + 16.0f, buf, uc, 0.8f);
+
+            font_draw_text(dev, x0 + 352.0f, y0 + 48.0f, "LOOP ", uc, 0.8f);
+            snprintf(buf, sizeof buf, "%3d", (int)bd[SAVE_BANK_FIELD_LOOP] + 1);
+            font_draw_text_right(dev, x0 + 466.0f, y0 + 48.0f, buf, uc, 0.8f);
+
+            /* TIME H:MM:SS — playtime in frames @60fps. */
+            {
+                int pt = (int)bd[SAVE_BANK_FIELD_PLAYTIME];
+                int h = pt / 0x34bc0;          /* /216000 */
+                int m = (pt / 0xe10) % 0x3c;   /* /3600 %60 */
+                int s = (pt / 0x3c) % 0x3c;    /* /60   %60 */
+                if (h > 999) { h = 999; m = 0; s = 0; }
+                snprintf(buf, sizeof buf, "TIME %3d:%02d:%02d", h, m, s);
+                font_draw_text(dev, x0 + 352.0f, y0 + 80.0f, buf, uc, 0.8f);
+            }
+        }
+    }
+
+    /* ── Scroll arrows (MODULATE, item_win) ── */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    render_quad_bind(dev, iw);
+    if (scroll > 0) {
+        const float dst[4] = { param_1, 64.0f, 64.0f, 48.0f };
+        const float src[4] = { 448.0f, 896.0f, 512.0f, 944.0f };
+        render_quad_add(dst, src, iw->width, iw->height, 0xffffffffu);
+    }
+    if (scroll < slot_count - 3) {
+        const float dst[4] = { param_1, 408.0f, 64.0f, 48.0f };
+        const float src[4] = { 512.0f, 896.0f, 576.0f, 944.0f };
+        render_quad_add(dst, src, iw->width, iw->height, 0xffffffffu);
+    }
+    render_quad_flush(dev);
 }
 
 void scene_title_render(IDirect3DDevice8 *dev,
@@ -1104,8 +1307,21 @@ void scene_title_render(IDirect3DDevice8 *dev,
      * in from the right like settings (x = 640 - cursor_anim * 64). */
     if ((int)anim->cursor_anim > 0 && anim->submenu_state == 1) {
         const float ox = 640.0f - (float)(int)anim->cursor_anim * 64.0f;
-        const float oy = 48.0f;
-        scene_title_continue_render_panel(dev, ox, oy);
+        scene_title_continue_render_panel(dev, ox, (int)anim->cursor_anim);
+
+        /* Header banner — engine FUN_0049c644 L101991-102012, drawn after
+         * FUN_0049b556 returns: the item_win gold tab (448,816)-(688,896)
+         * + the fuki "Continue/Load" menu-item tile (code 1, src y 32-64).
+         * Same chrome the settings header uses, at y=0/20 instead of 48/68. */
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+        title_quad(dev, SCENE_TITLE_TEX_ITEM_WIN,
+                   ox + 200.0f, 0.0f, 240.0f, 80.0f,
+                   448.0f, 816.0f, 688.0f, 896.0f,
+                   0xFFFFFFFFu);
+        title_quad(dev, SCENE_TITLE_TEX_FUKI,
+                   ox + 240.0f, 20.0f, 160.0f, 32.0f,
+                   224.0f, 32.0f, 384.0f, 64.0f,
+                   0xFFFFFFFFu);
     }
 
     /* Sub-menu states 3 / 4 (confirm / ranking-fade) intentionally not

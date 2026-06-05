@@ -137,8 +137,22 @@
 
 /* Dword index of the "bank occupied" marker the title slot-picker tests
  * for emptiness (== 0 ⇒ never-played slot). Engine `DAT_056e6288`
- * (= save-bank + 0x8). */
+ * (= save-bank + 0x8). The same field doubles as the total PLAY-TIME in
+ * frames (60 fps) the picker renders as TIME H:MM:SS. */
 #define SAVE_BANK_FIELD_OCCUPIED     2
+#define SAVE_BANK_FIELD_PLAYTIME     2       /* DAT_056e6288 — frames @60fps */
+
+/* ── Save-slot picker summary fields (FUN_0049b556 per-card reads) ──
+ * Engine bases indexed by `slot * 0x2dfc8` bytes; here as dword indices
+ * within a bank (bank-0 base = arena + header 0x0b10 = abs 0x056e6280).
+ * SCORE/LOOP/DAY/PORTRAIT/CHAR cluster sits just past OBJECTIVE_GOLD; the
+ * game-mode tag lives near the bank tail. */
+#define SAVE_BANK_FIELD_SCORE        0xb0f7  /* DAT_0571265c — "SCORE %8d"   */
+#define SAVE_BANK_FIELD_LOOP         0xb0f9  /* DAT_05712664 — "LOOP %3d" +1 */
+#define SAVE_BANK_FIELD_CARD_DAY     0xb0fb  /* DAT_0571266c — big day# (+1) */
+#define SAVE_BANK_FIELD_PORTRAIT_ROT 0xb0fc  /* DAT_05712670 — portrait rot  */
+#define SAVE_BANK_FIELD_CHAR_LEVEL   0xb100  /* DAT_05712680 — char/level    */
+#define SAVE_BANK_FIELD_GAME_MODE    0xb759  /* DAT_05713fe4 — 0 empty,1/2/3 */
 
 /* Shop "items on display" grid — engine `&DAT_044f7030` (working-bank
  * dword 0x4e26): 15 rows × 20 cols = 300 cells, row-major, one item ID

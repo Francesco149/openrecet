@@ -88,6 +88,20 @@ float font_draw_text_centered(struct IDirect3DDevice8 *dev,
                               uint32_t argb,
                               float scale);
 
+/*
+ * FUN_0047d2db — RIGHT-aligned text draw. Same measure walk as
+ * font_draw_text_centered, but lays the string so its right edge lands
+ * at `right_x` (i.e. draws at `right_x - width`). Used for the save-slot
+ * picker's right-justified SCORE/LOOP value columns (FUN_0049b556). The
+ * legacy FUN_004054c0 bitmap-font branch (gated on `DAT_0438b784 & 1`)
+ * is dead in vendor data and not replicated. Returns the measured width.
+ */
+float font_draw_text_right(struct IDirect3DDevice8 *dev,
+                           float right_x, float y,
+                           const char *str,
+                           uint32_t argb,
+                           float scale);
+
 #endif /* _WIN32 */
 
 #endif /* OPENRECET_FONT_DRAW_H */

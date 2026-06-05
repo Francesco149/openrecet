@@ -15,9 +15,9 @@
 |-----------|------:|----------------------------------------------------------|
 | verified  |    71 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    15 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   339 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **425** | verified + stubbed + ported                         |
-| unported  |  2123 | exists in engine, never referenced from src/             |
+| ported    |   340 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **426** | verified + stubbed + ported                         |
+| unported  |  2122 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
@@ -130,6 +130,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   render formula from logged sim state, account for that. Re-bless after a confirmed-correct
   render change: `golden` (port) + `golden-retail` both went stale (port brightness, retail's
   long-gone FPS overlay) and were re-blessed for down/z scenarios.
+- **LOAD GAME / continue slot picker rendered 1:1 (2026-06-05, user-confirmed).**
+  The title→load-menu→in-game arc's first screen: ported the faithful
+  `FUN_0049b556` (2810 B) over the old placeholder text-list — a horizontally-paged
+  save-card grid (parchment cards from `item_win.tga`, clock-dial panel, rotated
+  day hand, day/gold digits via the reused HUD `draw_number`, money banner from
+  `pause.tga`, merchant-level badge, right-justified SCORE/LOOP + TIME, NO-DATA,
+  scroll arrows + the "LOAD GAME" banner). Slot fields mapped to `save_bank` dwords;
+  brightness/scale constants objdump-recovered (cards under ADDSIGNED, stat text
+  scale 0.8 vs slot#/NO-DATA 1.0, playtime in frames@60fps — engine-quirks §101).
+  New leaf: `font_draw_text_right` (FUN_0047d2db). `title-load-picker --target both`
+  (fa7c82 save): slide-in **0/786432** diff px, settled **1 px** > 16 LSB. Driven by
+  the beginning of the save-roundtrip reference trace. **Residual:** 947 px ≤4 LSB
+  = the shared 2D-UI texture-scaling-filter / colour-precision noise (same class as
+  the skip-prompt banner + dialogue box-edge, `ledger #52`/§54) — **next session:
+  investigate the 2D-UI sampler/mip filter as one likely-easy shared fix.**
 - **Sparkle is deferred ON PURPOSE — do not re-attack early.** The shop-display "目玉商品"
   sparkle (template 0x3b) has verified bit-1:1 data (texture/UV/world-matrix) but isn't yet
   visibly 1:1. It is finished **last**, only once the entire command stream UP TO its frame

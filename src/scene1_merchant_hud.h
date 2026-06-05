@@ -58,6 +58,13 @@ struct IDirect3DDevice8;
 /* Render the bottom-left "Merchant Level" badge + experience bar
  * (FUN_00409925 body, L124-L179). */
 void scene1_merchant_hud_render(struct IDirect3DDevice8 *dev);
+
+/* FUN_00481ec3 — draw a 0-based level as large badge digits (drawn as
+ * value+1) from item_win.tga's badge glyph row.  Shared with the save-slot
+ * picker (FUN_0049b556).  Binds item_win.tga and flushes internally. */
+void scene1_merchant_hud_draw_level(struct IDirect3DDevice8 *dev,
+                                    float x, float y,
+                                    int value, uint32_t color);
 #endif
 
 #endif /* SCENE1_MERCHANT_HUD_H */

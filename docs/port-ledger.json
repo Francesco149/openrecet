@@ -6,10 +6,10 @@
   "non_thunk_functions": 2548,
   "verified": 71,
   "stubbed": 15,
-  "ported": 339,
-  "unported": 2123,
+  "ported": 340,
+  "unported": 2122,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 425,
+  "touched": 426,
   "pct_touched": 16.7,
   "pct_verified": 2.8,
   "port_debt": 11
@@ -920,7 +920,8 @@
    "status": "ported",
    "src": [
     "src/scene1_top_hud.c",
-    "src/scene1_top_hud.h"
+    "src/scene1_top_hud.h",
+    "src/scene_title.c"
    ]
   },
   {
@@ -7370,8 +7371,10 @@
    "size": 393,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/font_draw.h"
+   ]
   },
   {
    "va": "0x47d464",
@@ -7671,7 +7674,8 @@
    "status": "ported",
    "src": [
     "src/scene1_merchant_hud.c",
-    "src/scene1_merchant_hud.h"
+    "src/scene1_merchant_hud.h",
+    "src/scene_title.c"
    ]
   },
   {
@@ -9751,7 +9755,12 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene_title.c"
+    "src/font_draw.h",
+    "src/save_bank.h",
+    "src/scene1_merchant_hud.h",
+    "src/scene1_top_hud.h",
+    "src/scene_title.c",
+    "src/title_continue_picker.h"
    ]
   },
   {
