@@ -150,6 +150,13 @@
      gold `[237,200,52]` vs `[238,201,52]`) — NOT investigated yet; decode its verts
      FIRST (it may also be scale/phase) before assuming TGA/MODULATE colour precision.
      Ledger "savewindow banner" row.
+  2. **`intro-dialogue-lines` per-line BACKGROUND-region outliers (lines 5 + 44).**
+     After the box fix, 44/46 lines are pixel-clean vs retail except the benign 856px
+     FPS corner; lines **5** (iv1_1 #6) and **44** (iv1_2 #29) still differ ~122–128k px
+     across the whole **bg** band (y[175-767], full width) — NOT the box (box_open 0/46
+     1:1) and NOT a regression (sin halved line 5 vs cos). Likely a bg-scroll/transition
+     PHASE at those specific lines (the iv script's `bgset`/`bgscroll`), or a one-frame
+     bg-swap caught off-phase. Lower priority than the iv1_2 freeroam-anim gaps.
   2. ~~**BUG: LOAD GAME → X-back locks main-menu input.**~~ **FIXED 2026-06-05**
      (commit 324ddb3, user-flagged). Root cause was NOT submenu_state (the port
      already wound that back) but **`select_phase` left pinned at 0xf** from the
