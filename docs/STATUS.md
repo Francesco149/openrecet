@@ -236,14 +236,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
        *confounded by the then-un-pinned bg-NPCs*). Decompile (`442cef.c LAB_004435f7`) is
        unconditional. Reverted to unconditional ⇒ post-fix the NPCs stay bit-locked across
        a 260-frame idle window (≤69px@mean0.00 at +2…+260). engine-quirks §95 re-corrected.
-     - **Tear (companion) phase — DEFERRED, NEXT free-roam target (user-confirmed
-       2026-06-05).** In free-roam idle the lone remaining sprite delta is the companion:
-       **both the sprite-animation phase AND the wing particles differ** (drift bbox
-       x[522-567] y[370-441] at cap_00, ~2000px@mean0.95, present even +2 post-pin). This
-       is the deferred **Tear-position (spring-follow) + wing-flap/particle phase** item
-       ([[project_confirmed_parity_ledger]] "Tear pos CONFIRMED off"). The `{phasepin}`
-       zeroes the companion anim counters but not this residual ⇒ a genuine companion
-       controller/phase investigation (like the bg-NPC one). **TOP next-session target.**
+     - ~~**Tear (companion) phase.**~~ **RESOLVED → 1:1 2026-06-05 (user-confirmed "yes
+       that is 1:1").** It was **RNG-phase noise, not a Tear bug** — NOT position, NOT
+       anim-phase, NOT render. The `house-idle-npc-drift` scenario trace carries
+       `{phasepin}` but **no `{rngseed}`**, so the type-0x1f wing-sparkle particles
+       (RNG-jittered) spawned at a different LCG origin port↔retail and the whole Tear
+       region (drift bbox x[522-567] y[370-441], ~2000px@mean0.95) lit up. **`phase_probe
+       house-idle-npc-drift`** (auto-adds BOTH `{phasepin}` and `{rngseed}`): **✅
+       PHASE-CLEAN** — companion `cframe/ccnt/coct/canim` AND raw LCG (`rng`/`rngcalls`)
+       all **bit-exact** vs retail at +2…+258. Pinned pixel-diff: Tear crop cap_00
+       14.59%/mean0.77 → **0.55%/mean0.00**; cap_05 (+258) **0.05%**; **FULL frame
+       0.04%/mean0.00 = bit-1:1** (diff black). Body anim + wing-glow + sparkle particles
+       all 1:1; spring-follow position also 1:1. §73 "wing-sparkle renderer invisible
+       today" is **stale** (particles render + match). **Lesson:** "present even +2
+       post-`{phasepin}`" was misleading — `{phasepin}` does NOT pin RNG, and RNG-driven
+       particles dominate the visible companion region; for any free-roam
+       sprite-with-particles delta, pin BOTH phase + RNG (run `phase_probe`) before
+       suspecting logic/position. Tooling: `phase_probe` now reaches the capture window on
+       large-offset HOUSE scenarios (port `--max-frames` passthrough + export_trace
+       `{savefile}`/@fresh resolution).
      - **faint ambient particle dots** — DEFERRED (user-flagged, with ref crops 2026-06-05:
        cap_03 box 239,884,253,901 + cap_02 box 241,966,256,984 in the
        house-idle-npc-drift 190341Z montage). Very tiny/faint drifting dots; a
