@@ -303,10 +303,19 @@
   `{phasepin:80}`+`{rngseed:[80,19937]}`, --target both): full-frame maxdiff is **black
   except the Tear cluster** — the sparkle AND the window-NPCs are now **bit-aligned with
   retail** (the RNG self-fix landed as predicted: the emitter's LCG draws realign the shared
-  stream). Docs: `findings/shop-item-display-RE-status.md`. **Next deviation to chase = the
-  Tear companion** (bottom-center; her wing-glow/pose differs even pinned — a companion
-  particle-phase/position issue in the loaded-shop context, unrelated to the sparkle; plus a
-  faint ±1-LSB "440" HUD-money ghost).
+  stream). Docs: `findings/shop-item-display-RE-status.md`. **Next deviation to chase = idle FACING on
+  a CONTINUE-load** (user-flagged "tear facing direction mismatch"; bottom-center cluster,
+  the only non-black region in the pinned maxdiff besides a ±1-LSB "440" HUD ghost). Both
+  characters face wrong in the loaded shop: (a) the **player** facing is HARDCODED to octant
+  6 / +π/2 on scene entry (`scene1_player_ctrl.c:443` `s_actor_record[0][CHR_ACTOR_FACING]=6`,
+  `:413` `s_player_facing=1.5708`) — tuned for the new-game intro idle, NOT restored from the
+  save, so a CONTINUE shows Recette facing the wrong way; (b) the **companion** idle facing is
+  the admitted ~95% approximation `rec[FACING]=(comp.x<=player.x)?6:2` at
+  `scene1_companion_ctrl.c:234`, an inline stand-in for the unported **`FUN_0048a833`**
+  standing-pose facing law — retail shows Tear facing down/forward, not the octant-2 the rule
+  picks. The chip: Frida-watch retail's actor-0 + companion `DAT_056dab58` octants in the
+  loaded-shop idle (is the player facing serialized in the save?), restore the player facing
+  on load, and port `FUN_0048a833`. Fresh effort — good `/clear` point.
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.
