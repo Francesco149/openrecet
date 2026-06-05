@@ -136,16 +136,24 @@
      dialogue `ive_window.tga` edge. Geometry/UVs proven bit-exact, so suspect
      **TGA decode/upload or MODULATE rounding** — chase by dumping + diffing the
      decoded texels port↔retail (NOT the sampler). Ledger "Dialogue box-edge halo" row.
-  2. **BUG: LOAD GAME → X-back locks main-menu input.** Repro: title → select LOAD
-     GAME (opens picker) → press X to back out → returns to the main menu but it
-     **stops accepting input** (soft-lock). Port logic bug, NOT retail behaviour.
-     Starting hypothesis: the main-menu input gate is `cursor_anim == 0 &&
-     submenu_state == 0` (`scene_title.c` L455); the picker-CANCEL path
-     (`TITLE_PICKER_CANCEL`) likely fails to wind `submenu_state`/`cursor_anim` back
-     to 0 (or leaves `DAT_09643524`/the slide-out anim mid-state), so the gate never
-     re-opens. **Intended as a test of whether the call-trace/`flow_diff` tooling can
-     localise a pure logic error** — drive the cancel with a TAS trace `--target both
-     --call-trace` and diff the title sim chain on the back-out frame.
+  2. ~~**BUG: LOAD GAME → X-back locks main-menu input.**~~ **FIXED 2026-06-05**
+     (commit 324ddb3, user-flagged). Root cause was NOT submenu_state (the port
+     already wound that back) but **`select_phase` left pinned at 0xf** from the
+     A-press open-countdown: the main-menu input gate (`scene_title.c` L455) only
+     runs in the `select_phase == 0` branch, so after backing out it fell into the
+     no-op countdown `else` branch forever. Engine `FUN_0049a59e` resets
+     `DAT_09643544` (select_phase) to 0 on the cancel fall-through (L101197) — the
+     port now mirrors that. Localised exactly as intended via the new
+     `title-picker-cancel --target both --call-trace` scenario: the per-frame title
+     sim stub showed port `select_phase=0xf` / retail `=0` on the back-out frame.
+     **Also made the back-out RENDER faithful**: retail leaves `DAT_09643524`
+     (submenu id) set through the fold-out and lets the `cursor_anim` render-gate
+     stop drawing, so the picker **slides off-screen, it does not pop** (engine-quirks
+     §102). Port keeps `submenu_state` set through the slide, clears it at
+     cursor_anim==0. Verified bit-1:1: post-back-out menu + DOWN are 0-px vs retail,
+     cursor moves 1→2; sim state (select_phase/cursor_anim/cursor_pos/submenu_state)
+     1:1 through the fold-out. (Residual: benign steady-state submenu_state 0-vs-stale-id,
+     no render/input effect.)
   3. **In-game load** — continue the save-roundtrip trace past the picker (load the
      fa7c82 save into HOUSE free-roam), per the "in-game stuff once the menu's 1:1" plan.
 - **Sparkle is deferred ON PURPOSE — do not re-attack early.** The shop-display "目玉商品"
