@@ -671,23 +671,41 @@ static const int title_cursor_glyph_lut[9] = {
     0, 1, 2, 3, 4, 0, 7, 6, 5,
 };
 
-/* Helper — bind one of our 7 textures and forward to render_quad_add. */
-static void title_quad(IDirect3DDevice8 *dev, int slot,
-                       float dx, float dy, float dw, float dh,
-                       float sx0, float sy0, float sx1, float sy1,
-                       uint32_t color)
+/* Helper — bind one of our 7 textures and forward to render_quad_add,
+ * WITHOUT flushing.  The engine accumulates same-texture quads into one
+ * DrawPrimitiveUP batch and flushes only at a texture/state boundary; a
+ * caller that draws several quads from the same sheet (the menu-item loop,
+ * the selected-row decoration tiles) uses this + one trailing
+ * render_quad_flush so the batch shape matches retail (FUN_0049c644 emits
+ * the menu items as a single vcount=24 flush, the decoration tiles as one
+ * vcount=18 flush). */
+static void title_quad_add(IDirect3DDevice8 *dev, int slot,
+                           float dx, float dy, float dw, float dh,
+                           float sx0, float sy0, float sx1, float sy1,
+                           uint32_t color)
 {
     const sprite_t *s = &g_tex[slot];
     if (!s->tex) return;
     /* The engine sets the texture *before* each quad-add — every
      * quad in this scene rebinds. We follow the same pattern so
-     * the flush at the end emits all quads with their last-bound
-     * texture (which the engine relies on too — DrawPrimitiveUP
-     * with a single stage 0 binding per flush window). */
+     * the flush emits all quads with their last-bound texture
+     * (which the engine relies on too — DrawPrimitiveUP with a
+     * single stage 0 binding per flush window). */
     render_quad_bind(dev, s);
     const float dst[4] = { dx, dy, dw, dh };
     const float src[4] = { sx0, sy0, sx1, sy1 };
     render_quad_add(dst, src, s->width, s->height, color);
+}
+
+/* Single-quad draw: add + immediate flush.  Used for the standalone
+ * background images, each of which is a distinct texture and so flushes on
+ * its own in retail too (one vcount=6 per quad). */
+static void title_quad(IDirect3DDevice8 *dev, int slot,
+                       float dx, float dy, float dw, float dh,
+                       float sx0, float sy0, float sx1, float sy1,
+                       uint32_t color)
+{
+    title_quad_add(dev, slot, dx, dy, dw, dh, sx0, sy0, sx1, sy1, color);
     render_quad_flush(dev);
 }
 
@@ -966,12 +984,16 @@ void scene_title_render(IDirect3DDevice8 *dev,
         const float dst_x = slide + 320.0f - scale * 80.0f;
         const float dst_y = (float)i * menu->y_stride + menu->y_origin
                           + 288.0f - scale * 16.0f;
-        title_quad(dev, SCENE_TITLE_TEX_FUKI,
-                   dst_x, dst_y, scale * 160.0f, scale * 32.0f,
-                   224.0f, (float)(code * 32),
-                   384.0f, (float)((code + 1) * 32),
-                   color);
+        title_quad_add(dev, SCENE_TITLE_TEX_FUKI,
+                       dst_x, dst_y, scale * 160.0f, scale * 32.0f,
+                       224.0f, (float)(code * 32),
+                       384.0f, (float)((code + 1) * 32),
+                       color);
     }
+    /* One flush for the whole menu-item batch (retail FUN_0049c644: a
+     * single vcount = count*6 DrawPrimitiveUP under the ADDSIGNED state,
+     * right before COLOROP is restored to MODULATE for the decorations). */
+    render_quad_flush(dev);
 
     /* ── selected-item highlight overlay ──────────────────────────────
      * Restores MODULATE. Then draws three decoration tiles on top of
@@ -990,12 +1012,16 @@ void scene_title_render(IDirect3DDevice8 *dev,
         const int lut = (code >= 0 && code < 9)
                           ? title_cursor_glyph_lut[code] : 0;
 
+        /* Tiles 1-3 are all FUKI sheet quads under MODULATE — retail
+         * (FUN_0049c644) accumulates them into ONE vcount=18 flush. Add
+         * without flushing; one render_quad_flush after tile 3. */
+
         /* Tile 1 — decorative outline frame (224×112) pulled from
          * (0, 0)..(224, 112) of fuki. dst.x = slide + 32. */
-        title_quad(dev, SCENE_TITLE_TEX_FUKI,
-                   slide + 32.0f, sy + 216.0f, 224.0f, 112.0f,
-                    0.0f,  0.0f, 224.0f, 112.0f,
-                   0xFFFFFFFF);
+        title_quad_add(dev, SCENE_TITLE_TEX_FUKI,
+                       slide + 32.0f, sy + 216.0f, 224.0f, 112.0f,
+                        0.0f,  0.0f, 224.0f, 112.0f,
+                       0xFFFFFFFF);
 
         /* Tile 2 — the BIG label glyph (e.g. "New Game") via the
          * 9-entry LUT at PE 0x005d1cd4. fuki has a 4-column grid of
@@ -1005,17 +1031,18 @@ void scene_title_render(IDirect3DDevice8 *dev,
         const float glyph_y0 = (float)((lut % 4) * 0x80 + 0x150);
         const float glyph_x1 = (float)(((lut / 4) + 1) * 0xe0);
         const float glyph_y1 = (float)((lut % 4) * 0x80 + 0x1d0);
-        title_quad(dev, SCENE_TITLE_TEX_FUKI,
-                   slide + 32.0f, sy + 216.0f, 224.0f, 128.0f,
-                   glyph_x0, glyph_y0, glyph_x1, glyph_y1,
-                   0xFFFFFFFF);
+        title_quad_add(dev, SCENE_TITLE_TEX_FUKI,
+                       slide + 32.0f, sy + 216.0f, 224.0f, 128.0f,
+                       glyph_x0, glyph_y0, glyph_x1, glyph_y1,
+                       0xFFFFFFFF);
 
         /* Tile 3 — small 192×16 ribbon below the label at
          * (slide + 224, sy + 296). Source (0, 144)..(192, 160). */
-        title_quad(dev, SCENE_TITLE_TEX_FUKI,
-                   slide + 224.0f, sy + 296.0f, 192.0f, 16.0f,
-                   0.0f, 144.0f, 192.0f, 160.0f,
-                   0xFFFFFFFF);
+        title_quad_add(dev, SCENE_TITLE_TEX_FUKI,
+                       slide + 224.0f, sy + 296.0f, 192.0f, 16.0f,
+                       0.0f, 144.0f, 192.0f, 160.0f,
+                       0xFFFFFFFF);
+        render_quad_flush(dev);   /* one flush for tiles 1-3 (vcount=18) */
     }
 
     /* Settings submenu overlay — engine FUN_0049c644 lines 229-256
