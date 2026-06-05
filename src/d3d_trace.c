@@ -2,6 +2,7 @@
 
 #include "d3d_trace.h"
 #include "d3d_trace_macros.h"
+#include "d3d_tex_names.h"
 
 /* The wrappers below MUST forward to the engine's real D3D methods,
  * not to themselves — so undo the redirects from d3d_trace_macros.h.
@@ -122,6 +123,17 @@ static unsigned d3d_prim_vcount(D3DPRIMITIVETYPE t, unsigned pc)
     }
 }
 
+/* Write a JSON string body (no surrounding quotes), escaping the two
+ * characters that can appear in an asset path and break JSON: `"` and `\`.
+ * Asset names are plain ASCII paths, so no \uXXXX handling is needed. */
+static void d3d_emit_json_str(const char *s)
+{
+    for (; *s; s++) {
+        if (*s == '"' || *s == '\\') fputc('\\', g_f);
+        fputc(*s, g_f);
+    }
+}
+
 /* Write raw bytes as lowercase hex (no `0x`, 2 chars/byte) to the trace. */
 static void d3d_emit_hex(const void *data, unsigned long nbytes)
 {
@@ -221,8 +233,15 @@ HRESULT d3d_trace_SetTexture(IDirect3DDevice8 *p, DWORD stage,
     if (d3d_trace_gate()) {
         fprintf(g_f,
                 "{\"op\":\"SetTexture\","
-                "\"args\":{\"stage\":%u,\"texture\":\"0x%lx\"}",
+                "\"args\":{\"stage\":%u,\"texture\":\"0x%lx\"",
                 (unsigned)stage, (unsigned long)(uintptr_t)texture);
+        const char *name = d3d_tex_name_lookup(texture);
+        if (name) {
+            fputs(",\"tex_name\":\"", g_f);
+            d3d_emit_json_str(name);
+            fputc('"', g_f);
+        }
+        fputc('}', g_f);
         d3d_trace_emit_tail(d3d_trace_ret_va(ret));
     }
     return IDirect3DDevice8_SetTexture(p, stage, texture);

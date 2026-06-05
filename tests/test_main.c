@@ -831,6 +831,14 @@ struct test_case {
     X(d3d_pool_slot_setter_rejects_out_of_range_index) \
     X(d3d_pool_reset_clears_populated_slots) \
     \
+    X(d3d_tex_names_basic) \
+    X(d3d_tex_names_overwrite) \
+    X(d3d_tex_names_forget) \
+    X(d3d_tex_names_probe_past_tombstone) \
+    X(d3d_tex_names_truncate) \
+    X(d3d_tex_names_null_safe) \
+    X(d3d_tex_names_reset) \
+    \
     X(items_find_slot_by_id_empty_db_returns_neg1) \
     X(items_find_slot_by_id_null_state_returns_neg1) \
     X(items_find_slot_by_id_hit_returns_slot_index) \

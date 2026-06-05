@@ -296,8 +296,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x471089 | FUN_00471089 | 34 | ✓ | rng.h, scene1_combat_sm.c, scene1_combat_sm.h (+6) |
 | 0x47183b | FUN_0047183b | 151 | ✓ | d3d_pool.c, d3d_pool.h, scene.c |
 | 0x4718d2 | FUN_004718d2 | 51 | ✓ | d3d_pool.h |
-| 0x47193c | FUN_0047193c | 488 | ✓ | scene1_dungeon_clear_banner.c, scene1_preload.c, scene_buy.c (+12) |
-| 0x471b24 | FUN_00471b24 | 467 | ✓ | mesh_load.c, mesh_load.h, sprite.h |
+| 0x47193c | FUN_0047193c | 488 | ✓ | d3d_tex_names.h, scene1_dungeon_clear_banner.c, scene1_preload.c (+13) |
+| 0x471b24 | FUN_00471b24 | 467 | ✓ | d3d_tex_names.h, mesh_load.c, mesh_load.h (+1) |
 | 0x471d45 | FUN_00471d45 | 2777 | ✓ | collision_mesh.c, collision_mesh.h, scene_map_meshes.h (+2) |
 | 0x472836 | FUN_00472836 | 1609 | ✓ | mesh.h, mesh_load.c, mesh_load.h (+6) |
 | 0x472f5d | FUN_00472f5d | 821 | ✓ | main.c, scene1_preload.c, scene1_preload.h (+3) |

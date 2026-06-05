@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "bmp.h"
+#include "d3d_tex_names.h"
 #include "storage.h"
 #include "tga.h"
 
@@ -186,6 +187,13 @@ static int sprite_load_impl(IDirect3DDevice8 *dev, const char *name,
     }
 
     free(buf);
+
+    /* Register the load-stable source name for the d3d-trace (so the
+     * render diff can key texture identity on the name, target-independent,
+     * instead of the allocation-dependent COM pointer). */
+    if (ok && out->tex)
+        d3d_tex_name_register(out->tex, name);
+
     return ok;
 }
 
@@ -207,7 +215,11 @@ int sprite_load_mipped(IDirect3DDevice8 *dev, const char *name,
 
 void sprite_destroy(sprite_t *s)
 {
-    if (s->tex) { IDirect3DTexture8_Release(s->tex); s->tex = NULL; }
+    if (s->tex) {
+        d3d_tex_name_forget(s->tex);
+        IDirect3DTexture8_Release(s->tex);
+        s->tex = NULL;
+    }
     s->width = s->height = 0;
 }
 

@@ -56,6 +56,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/xp_curve.c \
                  ../src/stage_post_load.c \
                  ../src/d3d_pool.c \
+                 ../src/d3d_tex_names.c \
                  ../src/chara_equip.c \
                  ../src/chara_skills.c \
                  ../src/npc_schedule.c \
@@ -109,6 +110,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_xp_curve.c \
                  test_stage_post_load.c \
                  test_d3d_pool.c \
+                 test_d3d_tex_names.c \
                  test_chara_equip.c \
                  test_chara_skills.c \
                  test_npc_schedule.c \
