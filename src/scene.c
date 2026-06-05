@@ -73,21 +73,28 @@ void scene_post_fade_init(void)
         save_work_set_active_slot(0);
     }
 
-    /* Engine FUN_0049a59e L100698-100699 (CONTINUE) / L100768-100769 (NEW):
-     * both commit branches load the live money + objective globals from the
-     * active working slot, right before the shared tail. The money global
-     * DAT_0438b918 = working[slot] dword 3 (= SAVE_BANK_FIELD_GOLD, byte
-     * 0xc). Without this the in-game "N,NNNpix" banner kept its static
-     * new-game default (1000) on a CONTINUE load, so a loaded save's gold
-     * (e.g. 440) never reached the HUD. (_DAT_0438b91c, the objective-gold
-     * clock target, is also loaded by the engine here but the port doesn't
-     * render it yet; day rides a working-arena-specific high offset and is 0
-     * for the current save — both deferred until a non-zero-day save needs
-     * them.) */
+    /* Engine FUN_0049a59e commit: restore the live top-HUD globals from the
+     * active working slot, right before the shared tail. Without this the
+     * in-game HUD kept its static new-game defaults after a CONTINUE/load:
+     *   - money  DAT_0438b918 = working dword 3  (SAVE_BANK_FIELD_GOLD;
+     *            L100699 NEW / L100698 CONTINUE) — was stuck at 1000.
+     *   - clock  DAT_0438b7d4 = (float)(int) working[CLOCK_TARGET]
+     *            (DAT_0450fb88; L100638 CONTINUE only — the day-hand snaps
+     *            to the saved time-of-day on resume; NEW leaves it 0 and the
+     *            hand eases up from 0, L100611). Was stuck at 0 → hand at the
+     *            wrong angle (verified: retail live phase == saved dword == 1).
+     *   - day    the HUD reads DAT_0450fb84 (= working[CARD_DAY]) at render
+     *            time; the port caches it, so push it here for both branches.
+     * (The objective-gold _DAT_0438b91c is also loaded by the engine but the
+     * port doesn't render it yet — deferred.) */
     {
         const uint32_t *work = save_work_dwords_at(save_work_active_slot());
         if (work) {
             scene1_top_hud_set_money((int)work[SAVE_BANK_FIELD_GOLD]);
+            scene1_top_hud_set_day((int)work[SAVE_BANK_FIELD_CARD_DAY]);
+            scene1_top_hud_set_clock_phase(
+                continue_mode ? (float)(int)work[SAVE_BANK_FIELD_CLOCK_TARGET]
+                              : 0.0f);
         }
     }
 

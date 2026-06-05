@@ -4244,3 +4244,30 @@ Implication for any port: this counter must be modeled **once**. (OpenRecet had
 split it into a live `fade_counter` and a dead picker `pulse` field that was
 never incremented, so the flash never played; fixed by reading the one
 `fade_counter` as `param_6`.)
+
+## 107. CONTINUE-load SNAPS the day-clock hand to the saved time-of-day; NEW-game eases it up from 0 (the day-start sweep). The hand target is the working-arena dword 0xb0fc
+
+The shop's gold clock dial has a rotating day-hand (`FUN_00406241`, angle
+`π/2 − DAT_0438b7d4·π/3`). `DAT_0438b7d4` is the *displayed* hand position; it
+eases at +0.005/frame toward a target `DAT_0450fb88` (`FUN_00453xxx`
+L50643-50655, only ever easing UP, clamped to [target−1, 3.5]).
+
+At the title→in-game commit (`FUN_0049a59e`):
+- **L100611** writes `DAT_0438b7d4 = 0.0` unconditionally.
+- **CONTINUE** branch (L100638) then **snaps** `DAT_0438b7d4 = (float)(int)
+  DAT_0450fb88[slot]` — the hand jumps straight to the saved time-of-day, no
+  sweep (you resume mid-day where you left off).
+- **NEW** branch leaves it at 0, so the hand **eases up** from 0 toward the
+  day's target over the first ~200 frames — the visible day-start hand sweep.
+
+The target `DAT_0450fb88` is the **working-arena dword `0xb0fc`** (the same
+offset the *picker-card* code reads from the disk-bank copy as "portrait rot",
+`DAT_05712670`; in the live arena it is the clock target). The day number the
+HUD prints is `DAT_0450fb84` = working dword `0xb0fb` (= the bank's CARD_DAY).
+Both are part of the serialized save, so a CONTINUE restores the hand exactly.
+
+Verified on retail (Frida watch of `DAT_0438b7d4`/`DAT_0450fb88` over a load):
+both read **1** at the loaded `fa7c82` save (day-1 start), and that save's
+dword `0xb0fc` is **1** — i.e. the hand resumes at phase 1, NOT at the
+new-game 0. A port that defaults the hand to 0 on load draws it ~one
+sixth-turn off.

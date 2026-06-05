@@ -151,6 +151,12 @@
 #define SAVE_BANK_FIELD_LOOP         0xb0f9  /* DAT_05712664 — "LOOP %3d" +1 */
 #define SAVE_BANK_FIELD_CARD_DAY     0xb0fb  /* DAT_0571266c — big day# (+1) */
 #define SAVE_BANK_FIELD_PORTRAIT_ROT 0xb0fc  /* DAT_05712670 — portrait rot  */
+/* Same dword 0xb0fc, read in the WORKING arena as the in-game clock-hand
+ * TARGET (engine DAT_0450fb88, FUN_0049a59e L100638 snaps clock_phase to it
+ * on a CONTINUE load; the day-hand eases toward it). The picker-card code
+ * aliases the disk-bank copy as PORTRAIT_ROT above; in-game it is the clock
+ * target. Verified: retail live DAT_0450fb88 == this save's dword == 1. */
+#define SAVE_BANK_FIELD_CLOCK_TARGET 0xb0fc  /* DAT_0450fb88 (working arena) */
 #define SAVE_BANK_FIELD_CHAR_LEVEL   0xb100  /* DAT_05712680 — char/level    */
 #define SAVE_BANK_FIELD_GAME_MODE    0xb759  /* DAT_05713fe4 — 0 empty,1/2/3 */
 
