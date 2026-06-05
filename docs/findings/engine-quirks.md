@@ -2758,7 +2758,15 @@ tail (pre-`s_bob_counter++`, so it shares the bob's counter value). Calls
 `scene1_spawn(0, …, 0x1f, 0.1f, 0)` and keeps `g_scene1_spawn_scene_counter_dab58`
 (the init body's `DAT_056dab58` model) in step with the facing.
 
-**Faithful but INVISIBLE today.** The spawned type-0x1f particle is integrated
+**[UPDATE 2026-06-05: NO LONGER invisible — the type-0x1f arm IS ported.]** The
+paragraph below was written 2026-05-31 when only `pass_f` (type 0x92) drew. Since
+then the **records-A type-0x1f arm of `FUN_004176ff`** landed as
+`scene1_wing_glow.c` (P0.1), so the wing-sparkle particles now render — and were
+**confirmed bit-1:1 vs retail** in the `house-idle-npc-drift` phase+RNG-pinned
+diff (the full free-roam frame, incl. the sparkles, is 0.04%/mean0.00; see
+confirmed-parity-ledger Tear row, 2026-06-05). The original (now-stale) note:
+
+~~**Faithful but INVISIBLE today.**~~ The spawned type-0x1f particle is integrated
 + killed by `scene1_particles_tick` (`decay_drift_grav_pre`: grav −0.001, damp
 0.97, kill age 0x20 — so no slot leak), but the table-A glow-billboard renderer
 that would *draw* it, `FUN_004176ff` (30 KB), is unported — only `pass_f` (type
