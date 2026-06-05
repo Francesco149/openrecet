@@ -4127,3 +4127,43 @@ over a line's open-ramp matches the **sin** table frame-for-frame and matches
 cos/sin swap; fixing it (`src/scene1_dialogue_run.c ive_box_scale`) makes the box
 scale 1:1 (cap_00 vs retail 116539px → 856px, the 856 being the benign stale-
 golden FPS corner — see benign-divergence-registry).
+
+## 104. The ESC skip-prompt box (FUN_0043537e) draws its banner AND text under D3DTOP_ADDSIGNED (=8), not MODULATE2X — a near-zero signed offset so the 0x7f7f7f vertex colour reads as the TRUE texel, resetting to MODULATE only after the text
+
+`FUN_0043537e` (the "Do you want to skip this event?" Yes/No choice box) sets
+`SetTextureStageState(0, D3DTSS_COLOROP, 8)` once at the top (`0x43537e`+offset,
+right before binding `savewindow.tga`), draws **banner + prompt text + Yes/No**
+all under that COLOROP, then resets `SetTextureStageState(0, COLOROP, 4)`
+(MODULATE) at the very END (L32830) — so the **text is under ADDSIGNED too**. The
+cursor (`FUN_00435747`, a separate call after `FUN_0043537e` returns) therefore
+draws under MODULATE.
+
+`8` is **D3DTOP_ADDSIGNED** (`Arg1 + Arg2 − 0.5`), NOT `D3DTOP_MODULATE2X` (which
+is enum **5**). The two are trivially mis-mapped (a port once read the decompile
+value `8`, labelled it "MODULATE2X", and coded the *name* `MODULATE2X` = 5). They
+are NOT equivalent at the vertex colour the box uses:
+
+```
+vertex diffuse = 0x7f7f7f (per channel 127/255 ≈ 0.498)
+MODULATE2X (5): texel · 0.498 · 2 = texel · 0.996   → texel − ~1 LSB (DARKER)
+ADDSIGNED  (8): texel + 0.498 − 0.5 = texel − 0.002  → ≈ texel  (TRUE brightness)
+```
+
+So the 0x7f7f7f colour is a **near-zero signed bias** under ADDSIGNED (draws the
+texture at its true brightness), but a **0.996 dimmer** under MODULATE2X. The
+MODULATE2X mis-port made the gold banner exactly 1 LSB dark (`[237,200,52]` vs
+retail `[238,201,52]`); drawing the *text* under MODULATE (the port reset COLOROP
+before it) left a matching ≤1-LSB halo on the glyph anti-aliased edges — visible
+*only* here because all other engine text is MODULATE+white on both sides.
+
+Verified on `intro-skip-prompt --target both`: the COLOROP set sits in the trace
+immediately before the `savewindow.tga` bind on BOTH sides — port emitted `5`,
+retail `8` — with the banner verts/UVs/diffuse otherwise **bit-identical** (so it
+was never a scale/phase/TGA-precision issue, just a wrong render-state). Fixing
+both the banner op AND the text path (`src/choice_box.c`: ADDSIGNED for the
+banner, keep it through the text drawn at 0x7f7f7f, reset to MODULATE after)
+makes the entire box+text+cursor region **0 px** vs retail (was 92k ≤1-LSB px in
+the banner bbox). The residual full-frame delta is the prologue background's §85
+phase only. **Lesson:** for a flat-colour ≤1-LSB UI divergence with bit-identical
+verts, suspect the COLOROP/blend render-state (and the enum-value-vs-name trap)
+before the texture decode.

@@ -188,28 +188,43 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
     float s = (float)cb_active / 4.0f;             /* open scale, 0.25 → 1.0 */
 
     /* backdrop banner — savewindow.tga, src (0,0)-(512,128), col 0xff7f7f7f.
-     * The engine (FUN_0043537e L31) sets COLOROP = D3DTOP_MODULATE2X (8) for the
-     * banner+text, so the 0x7f7f7f (~half) vertex colour reads as full
-     * brightness (texel·0.5·2); it resets to MODULATE (4) at L77. Without the
-     * 2X the banner is drawn at ~50% under the inherited MODULATE → the prompt
-     * looks dim. Mirror the engine: 2X for the banner, MODULATE for everything
-     * after (the text/cursor below are full-white, so MODULATE is correct). */
+     * The engine (FUN_0043537e: `SetTextureStageState(0, COLOROP, 8)`) sets
+     * COLOROP = D3DTOP_ADDSIGNED (=8) for the banner+text, then resets to
+     * MODULATE (=4) afterward. ADDSIGNED computes texel + diffuse - 0.5; with
+     * the 0x7f7f7f (~0.498) vertex colour that is texel - ~0.002 ≈ texel, so
+     * the banner draws at its TRUE texel brightness (the 0x7f diffuse is a
+     * near-zero signed offset, NOT a 0.5 multiplier). An earlier port used
+     * D3DTOP_MODULATE2X (=5) here — the decompile value 8 was misread as
+     * "MODULATE2X" — which gives texel·0.498·2 = texel·0.996, exactly 1 LSB
+     * darker on the gold ([237,200,52] vs retail [238,201,52]). engine-quirks
+     * §104. Mirror the engine: ADDSIGNED for the banner, MODULATE for
+     * everything after (the text/cursor below are full-white). */
     sprite_t *bg = &g_sysassets.savewindow_tga;
     if (bg->tex != NULL) {
         const float dst[4] = { 320.0f - s * 256.0f, 224.0f - s * 64.0f,
                                s * 512.0f, s * 128.0f };
         const float src[4] = { 0.0f, 0.0f, 512.0f, 128.0f };
         IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
-                                              D3DTOP_MODULATE2X);
+                                              D3DTOP_ADDSIGNED);
         render_quad_bind(dev, bg);
         render_quad_add(dst, src, bg->width, bg->height, 0xff7f7f7fu);
         render_quad_flush(dev);
-        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
-                                              D3DTOP_MODULATE);
+        /* COLOROP stays ADDSIGNED through the text below — the engine resets
+         * to MODULATE only at the END of FUN_0043537e (L32830), AFTER the
+         * prompt + Yes/No draw, so retail's text is ALSO under ADDSIGNED. The
+         * port previously reset here and drew the text full-white under
+         * MODULATE, leaving a ≤1-LSB halo on the text edges (user-flagged
+         * 2026-06-05) — the SAME class as the banner gold: MODULATE gives
+         * texel·1.0, ADDSIGNED+0x7f gives texel−~0.002, differing where the
+         * glyph anti-aliases. Mirror the engine: draw the text at 0x7f7f7f
+         * under the inherited ADDSIGNED, reset to MODULATE after (engine-quirks
+         * §104). */
     }
 
     /* text + options only once fully open (matches the engine alpha ramp:
-     * the prompt/options fade in over the open anim — drawn at cap). */
+     * the prompt/options fade in over the open anim — drawn at cap). Drawn at
+     * 0x7f7f7f under the banner's ADDSIGNED COLOROP — the ~0.5 signed offset
+     * nets ≈texel, i.e. the glyph's true brightness, identical to retail. */
     if (cb_active >= 4) {
         /* prompt text, centred. FUN_0043537e L62-71: a ONE-row prompt (ac08==1
          * — the skip prompt, which has no '<' delimiters) draws at y=192
@@ -218,12 +233,12 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
          * the 1-row skip prompt sat 8px too high. */
         if (cb_rows == 1) {
             font_draw_text_centered(dev, 320.0f, 192.0f, cb_text + 1,
-                                    0xffffffffu, 1.0f);
+                                    0xff7f7f7fu, 1.0f);
         } else {
             font_draw_text_centered(dev, 320.0f, 184.0f, cb_text + 1,
-                                    0xffffffffu, 1.0f);
+                                    0xff7f7f7fu, 1.0f);
             font_draw_text_centered(dev, 320.0f, 208.0f, cb_text + 1 + 0x100,
-                                    0xffffffffu, 1.0f);
+                                    0xff7f7f7fu, 1.0f);
         }
 
         /* "Yes" / "No" — BOTH full brightness. The engine (FUN_0043537e
@@ -231,9 +246,16 @@ void choice_box_draw(struct IDirect3DDevice8 *dev)
          * selection is shown ONLY by the hand cursor, NOT by dimming the
          * unselected option. (The lone 0x7f fade there is a commit-time close
          * anim — deferred.) FUN_0047ca05 at x 252/376. */
-        font_draw_text(dev, 252.0f, cb_b14c + 232.0f, "Yes", 0xffffffffu, 1.0f);
-        font_draw_text(dev, 376.0f, cb_b14c + 232.0f, "No",  0xffffffffu, 1.0f);
+        font_draw_text(dev, 252.0f, cb_b14c + 232.0f, "Yes", 0xff7f7f7fu, 1.0f);
+        font_draw_text(dev, 376.0f, cb_b14c + 232.0f, "No",  0xff7f7f7fu, 1.0f);
     }
+
+    /* COLOROP reset — MODULATE, mirroring FUN_0043537e L32830 (the engine's
+     * `SetTextureStageState(0, COLOROP, 4)` at the END of the box draw, after
+     * banner+text). The cursor below (a SEPARATE engine call, FUN_00435747)
+     * therefore draws under MODULATE. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,
+                                          D3DTOP_MODULATE);
 
     /* hand cursor — the SHARED FUN_00435747 draw. The engine call site is
      * `FUN_0043537e(); FUN_00435747();`, so the cursor is NOT gated on the box

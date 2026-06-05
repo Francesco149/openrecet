@@ -145,12 +145,26 @@
   scenario-test passthrough. **Method:** decode a scale from d3d verts, match vs the
   *discrete* FUN(integer-n) table — port widths hit it exactly (cos), retail's didn't =
   signature of a wrong trig fn, not a phase drift.
+- **Skip-prompt `savewindow.tga` banner + text — FIXED 2026-06-05 (user-confirmed box
+  1:1).** The ~−1 LSB gold (`[237,200,52]` vs retail `[238,201,52]`) + text-edge halo was
+  a **wrong COLOROP**, not TGA/colour precision. Decoded the banner verts FIRST (per the
+  queued chase): positions/UVs/diffuse **bit-identical** port↔retail → ruled out scale/
+  phase/texture. The trace showed the COLOROP set immediately before the `savewindow.tga`
+  bind differing — port `5` (MODULATE2X) vs retail `8` (ADDSIGNED). `FUN_0043537e` sets
+  COLOROP=`8`=**ADDSIGNED** (`texel+0.498−0.5`≈texel at the 0x7f7f7f vertex colour = TRUE
+  brightness); the port had mis-labelled the decompile value `8` as "MODULATE2X" (enum 5,
+  = `texel·0.996` = 1 LSB darker). Second facet (user-flagged): retail holds ADDSIGNED
+  through the prompt+Yes/No text (reset to MODULATE only at the END, L32830) and draws them
+  at 0x7f7f7f; the port reset early + drew full-white under MODULATE → the ≤1-LSB text-edge
+  halo, visible *only here* (all other text is MODULATE+white both sides). Fix
+  (`src/choice_box.c`): ADDSIGNED for banner, hold through text @0x7f7f7f, reset after.
+  `intro-skip-prompt --target both`: box+text+cursor region **0 px** vs retail (both caps,
+  was 92k ≤1-LSB px in the banner bbox); remaining full-frame delta = prologue bg §85 phase
+  only. engine-quirks §104; ledger "savewindow banner+text" row; port golden re-blessed.
+  **Lesson:** flat-colour ≤1-LSB UI diff + bit-identical verts ⇒ suspect COLOROP/blend
+  render-state (and the enum-value-vs-name trap), not texture decode.
 - **Queued next:**
-  1. **Skip-prompt `savewindow.tga` banner ~−1 LSB — SEPARATE open item** (uniform
-     gold `[237,200,52]` vs `[238,201,52]`) — NOT investigated yet; decode its verts
-     FIRST (it may also be scale/phase) before assuming TGA/MODULATE colour precision.
-     Ledger "savewindow banner" row.
-  2. **`intro-dialogue-lines` per-line BACKGROUND-region outliers (lines 5 + 44).**
+  1. **`intro-dialogue-lines` per-line BACKGROUND-region outliers (lines 5 + 44).**
      After the box fix, 44/46 lines are pixel-clean vs retail except the benign 856px
      FPS corner; lines **5** (iv1_1 #6) and **44** (iv1_2 #29) still differ ~122–128k px
      across the whole **bg** band (y[175-767], full width) — NOT the box (box_open 0/46
