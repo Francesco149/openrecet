@@ -3965,3 +3965,30 @@ The render reads `select_phase`/`pulse_phase` from `DAT_09643544`/`DAT_0964352c`
 AFTER `scene_title_sim` has incremented them for the frame, so the render-time
 values are +1 vs whatever a sim-`onEnter` probe logs (Frida-confirmed: at the
 frame the sim logs `(5,35)`, the render consumes `(6,36)`).
+
+## 100. The shared menu hand-cursor bob counter DAT_0438b154 free-runs from boot with no reset — a load-dependent (§85) phase that must be {phasepin}'d
+
+`DAT_0438b154` is the phase for the shared menu hand cursor's horizontal wobble
+(`FUN_00435747`: `bob = |sin(b154·0.1)|·8`, period ≈ 62.8 frames). It has exactly
+**one writer** in the whole binary — the `+1` in `FUN_004356cd` — and **no reset
+anywhere** (BSS-zero at boot, never zeroed). So its value at any frame equals the
+total number of frames since boot on which the save dialog was closed
+(`DAT_0438b148 == 0`, i.e. almost always).
+
+`FUN_004356cd` is called once per frame by whatever scene is active:
+- **title** — `FUN_0049a59e` (the title sim) every title frame;
+- **INGAME (state 1)** — `FUN_00406584`, which `FUN_004536cb` runs every state-1
+  frame right after `FUN_004427d3` (`Cs3`);
+- the modal/transition path (`DAT_06a49998 != 0`) runs `FUN_0047fa76`/`FUN_0048f931`,
+  which also tick it.
+
+So the cursor bobs continuously across the whole intro/prologue, not just while a
+menu is open. Consequence for parity: because b154 accumulates through the
+non-deterministic load (and the intro video the port skips — §85), its **absolute
+value** at a given anchor differs between port and retail by a non-reproducible
+constant, so the cursor bob position at a fixed-offset capture diverges (~7 virtual
+px) even though the bob *formula* and the slide are bit-1:1. The fix is the same as
+the companion db054 (§94): a `{phasepin}` op zeroes b154 at a deterministic
+post-load anchor (`title_save_dialog_phasepin` / the Frida agent), after which it
+increments identically on both sides and the hand cursor is bit-1:1 (user-confirmed,
+`intro-skip-prompt`, 2026-06-05).

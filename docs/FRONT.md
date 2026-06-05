@@ -75,10 +75,22 @@
   / (166.543,148)) — the existing `anim_tick` (`FUN_004356cd`) already increments `b154` every
   title frame so the bob phase lines up for free. boot-idle/down/z unaffected (cursor gated
   off; visible defaults 0).
-- **TODO when on dialogue-skip:** the Yes/No choice box (`choice_box.c`) still draws its hand
-  via an *inline* copy rather than this shared `FUN_00435747` path. Retail routes BOTH through
-  the one shared cursor — **trace retail on the skip prompt to confirm the path, then unify
-  choice_box onto `title_save_dialog_cursor_*`** so there's a single cursor implementation.
+- **Skip-prompt cursor unified + phase-pinned to bit-1:1 (2026-06-05, user-confirmed).** The
+  Yes/No choice box now drives the ONE shared cursor (`title_save_dialog_cursor_snap/slide` +
+  `title_save_dialog_cursor_render` = `FUN_00434def`/`ed2`/`435747`) instead of an inline copy
+  (commit f9708c7). Confirmed against the decompile: retail's `FUN_0043537e` draws banner+text,
+  a *separate* `FUN_00435747` draws the cursor off the shared `abf4/abf8`+`b150` globals.
+  Three things got it to 1:1: (1) **drive via the real ESC dispatch** — the trace's `{esc:2}`
+  op replays `esc_pressed()` on BOTH sides (port `segtrace_esc_cb`; retail `synthesizeEscRetail`);
+  the `OPENRECET_FORCE_SKIP_AT` env hack is **gutted** (TAS is the universal trigger — add
+  anchors, not hacks). (2) **tick the bob every INGAME frame** — `b154` is advanced in sim.c
+  mirroring retail's `FUN_00406584` (was frozen through the prologue). (3) **{phasepin} now
+  zeroes `b154`** (cb4002c) — `DAT_0438b154` free-runs from boot with no reset (engine-quirks
+  §100), so its absolute value is load-dependent (§85); pinning it at `TEXT_ANIM_END` makes the
+  bob bit-1:1. Two port runs with different absolute frames are now bit-identical. **Residual
+  box delta:** ±1 LSB on the gold banner (port gold ~1 darker — 2D-UI colour/texture precision,
+  the same `ledger #52` box-edge-halo class; geometry/UVs proven bit-exact vs `FUN_00404efc`)
+  + the prologue background's own §85 phase. NOT the cursor/box logic. Top/ceiling bit-identical.
 - **Method note (worth reusing):** the `flow_diff` render-leg `col` field caught a 1-LSB
   greyscale divergence that no side-by-side would; the sim stub logs counters at sim-onEnter
   (pre-increment) while the render consumes them +1 (post-increment) — when reconstructing a
