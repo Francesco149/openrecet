@@ -256,3 +256,94 @@ panel → data_win.tga+nowloading.tga cursor.**
 
 Reverted the white-blob panel attempt (commit kept master clean); the scaffolding
 (wiring point + the item_win pattern) is captured above.
+
+## ⚠ CORRECTION 3 (2026-06-06 PM) — frame-by-frame retrace; the A2/A2.1 "fixed" claims were WRONG
+
+User flagged (again) that the interaction is still badly broken and asked for a
+**frame-by-frame** retrace of retail from just before the Z-press.  New bench
+`tests/scenarios/house-display-remove-opentrace` (contiguous `{caprange}` over the
+open) drove `--target both --call-trace --d3d-trace --d3d-trace-verts`
+(`runs/scenarios/house-display-remove-opentrace-both-20260606T114216Z`, 47
+aligned frames each side; open = index 8 = port f889 / retail f13872).  Findings,
+each corrected against the FRONT's prior claims:
+
+1. **Player pose/facing — actually 1:1 (USER-CONFIRMED visually).**  The FRONT's
+   A2.1 "faces camera was a frame-mismatch artifact" was right in conclusion;
+   user verified the pose is correct.  NOT a bug.  (She is visible top-left
+   because the menu doesn't cover that quadrant — see #4.)
+
+2. **White HUD — NOT fixed by A2's b150 decouple.  Root = `item_win.tga` bind
+   desync (the §108 cache class).**  At PAUSE_OPEN+29 (port f918+) the top HUD
+   (money panel + "Exchange with client" badge) goes flat grey **(157,157,157)**
+   and STAYS grey.  Proven from the port d3d-trace: the HUD `item_win.tga` draws
+   on the grey frame are **byte-identical** to the gold frame — same texture
+   pointer (0x6c82950), same vertex bytes (pos + diffuse 0xff7f7f7f + UVs), same
+   COLOROP(8→4), same MIN/MAG/MIP filter states, same bind order.  The ONLY
+   stream delta is the walk-dust (`effect.bmp`) decaying to 0 draws at exactly
+   f918.  So the texture *content* being sampled is wrong = item_win's bound
+   D3D texture is desynced (flat → samples a constant).  **Retail avoids it
+   because `FUN_0046b00a` rebinds item_win every menu frame.**  ⇒ porting the
+   menu render (#4) is expected to fix this; if not, add a `SetTexture`
+   invalidate on the cc04 path mirroring the §108 ee1e1c2 sparkle fix.
+
+3. **Slot "highlight" = TWO unported renderers (user crops 20260606T120932_bc07):**
+   - **(3a) Orange glow behind the faced sword** = `FUN_0045aa36` **Block G**
+     (decompile L55089-L55108), currently the documented STUB in
+     `src/scene1_chr_shadow.c` ("L347 Block G — cc08==1 ground-decal special").
+     A 3D world quad at the cell (`_DAT_0438cbf4`, 1.9, `_DAT_0438cbf8` =
+     `2*cbfc-9`, `2*cc00-7`), texture `DAT_073d8748`=item_win, pulsing alpha
+     `alpha = ftol(sin(DAT_0438b8cc*0.05))`, color `alpha<<24 | 0xffffff`,
+     DrawPrimitive(TRIANGLESTRIP,2,&DAT_0064c388,stride 0x18).  **TODO:** read the
+     DAT_0064c388 vertex UV + world-size setup (objdump 0x45aa36) for the exact
+     item_win sub-rect + quad size, then add the block to chr_shadow (reuse its
+     existing 3D shadow-quad path).
+   - **(3b) "Worn Sword" parchment name bubble + text** = `FUN_00409925`
+     (decompile L6425-L6505), the free-roam shop-HUD's faced-cell block (the rest
+     of FUN_00409925 — money/day-progress bars — is a different already-rendered
+     HUD).  Gated `b1c0==1 && cc08==1 && cbfc!=-1 && cc00!=-1 && grid[cell]!=-1`.
+     Recipe: project the cell world point `(2*cbfc-9, 1.9, 2*cc00-6.5)` to screen
+     via `FUN_00490c78`→`FUN_00490d29` (transform by view `g_scene1_view`, then
+     `sx = 320 - fx*vx/vz`, `sy = 240 + fy*vy/vz`; `fx = proj[0]*320`,
+     `fy = proj[5]*240` from `g_scene1_proj` per `FUN_00490cc6`).  Then:
+       • bubble quad: item_win src(832,480,959,559) dst((sx-26),(sy-16),164,80)
+         [verify color/arg via objdump 0x409925 — Ghidra dropped the 4th arg].
+       • name: `font_draw_text_centered(sx+52, sy+26, name, color, 0.6)` where
+         name = item DB record `FUN_004681f6(grid[cell]>>6)` (ported in
+         tables_item.c) name field; the count/qty formatting via FUN_005038ff.
+     `font_draw_text_centered` (FUN_0047d14c) is text-only in the port, so the
+     bubble is the item_win quad above (NOT inside the label fn).
+
+4. **Menu UI (FUN_0046b00a render + FUN_00468338 population) — wholly unported.**
+   The port draws NO menu (0 menu textures in the f918 d3d-trace).  Retail slides
+   the panel in from the right over ~5 frames (`DAT_0734b98c<<7` = 128px/step) and
+   it occupies the right + bottom, leaving the top-left scene+HUD visible.
+   - **`DAT_073d8748 = item_win.tga`** (1024², loaded `FUN_0047193c` @ L71643);
+     **`DAT_073d8678 = data_win.tga`** (512², L71644 — the menu cursor base);
+     item icons = `DAT_073d8778[]` table (item00.bmp, FUN_0047193c @ L71706).
+   - **Population `FUN_00468338(0, first)`** (L64137): param_1==0 ⇒ the else path
+     scans the working-bank inventory `DAT_044e37b0` (base+0xb7f2 dwords), for each
+     item finds its DB record (`DAT_095d3804` stride 0xb3, match `id>>6`), builds a
+     sort key into DAT_0730b60c, `FUN_0045526a` sorts, then groups into category
+     tabs (`DAT_07337210[]` counts, `DAT_0731f598[]` stride-2 list, `DAT_0731f404`
+     num tabs).  Replaces the A2 single-"none"-entry stub in
+     `display_menu_open`.  Item DB + names already in `tables_item.c`.
+   - **Render `FUN_0046b00a(0,0)`** (L66457, called from the HOUSE render tail
+     FUN_0045cc85 @ L56226): slide gate `if(DAT_0734b98c==0) return;`
+     `local_18 = (640 - slide*128) + 240`, `local_40 = 80`.  Panels (all
+     `FUN_00404efc(dst{x,y,w,h}, src{l,t,r,b}, item_win, color)` = port
+     `render_quad_add`): main panel src(0,0,400,320) dst(local_18,40,400,320);
+     category tab src(448, 736|813, 688, 813|890) dst(local_18+80,10,240,77);
+     scroll-up src(448,896,512,944) dst(local_18+56,40,64,32) if scroll>0;
+     scroll-down src(512,896,576,944) dst(local_18+56,312,64,32) if more-below;
+     then per-row { item00 icon (src from DB icon idx % / 8 *32) + font name/count
+     via FUN_005038ff+FUN_0047ca05 }, the description window (DAT_0734b990), the
+     selected-row pulse, and the cursor (DAT_073d8678 src(288,320,488,352)
+     dst(440,440,...)).  Build incrementally + validate each group quad-by-quad
+     against `--d3d-trace-verts` (render_diff.py --explain).
+
+### Chip plan (each its own commit, verify vs the opentrace both-run)
+- **B-white**: confirm #4 fixes the white HUD; else add the cc04 SetTexture invalidate.
+- **C3a**: port FUN_0045aa36 Block G (orange cell glow) — needs the 0x45aa36 vert UVs.
+- **C3b**: port FUN_00409925 L6425-6505 (name bubble + text) + the world→screen helper.
+- **C4a**: port FUN_00468338 param_1==0 population (real inventory list).
+- **C4b**: port FUN_0046b00a panels → rows/icons/text → description → cursor.

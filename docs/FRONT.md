@@ -409,14 +409,28 @@
     frame (FUN_004897c6 tail) — pframe 0→1 at pcnt 9, **bit-exact vs retail** (the earlier
     "Recette faces the camera" was a frame-mismatch artifact: I compared the port's menu frame
     to a retail *pre-open* walk frame). +7 host tests.
-  - **A3 menu RENDER — NEXT (ground truth recorded, commit 0b61514).** The retail d3d-trace
-    shows the panel is **multi-texture** (data_win.tga bg + item_win.tga frame + hpmp_base.tga
-    bar + item00.bmp icons + font text + data_win/nowloading cursor) — the decompile's
-    `DAT_073d8748=item_win` label is misleading. A single-item_win panel attempt rendered a
-    white blob; reverted. Recipe + checklist in `findings/shop-display-menu-RE.md` (§A3): port
-    `FUN_00468338` population, then `FUN_0046b00a` quad-by-quad against a **`--d3d-trace-verts`**
-    re-capture, then `FUN_00485f8c` display items + the anim 3→4 confirm pose. Then Phase B
-    (pause menu + save/quit).
+  - **⚠ CORRECTION 3 — frame-by-frame retrace (2026-06-06 PM); the A2 "white HUD fixed" +
+    the implied "interaction looks right" claims were WRONG.** User re-flagged the interaction
+    as badly broken; a contiguous frame-by-frame retrace (new bench
+    `house-display-remove-opentrace`, `--target both --call-trace --d3d-trace-verts`) shows the
+    REMOVAL LOGIC is fine but the WHOLE UI is missing/broken. Full corrected diagnosis + exact
+    chip recipes: **`findings/shop-display-menu-RE.md` CORRECTION 3** (read it). Summary:
+    1. **Pose/facing = 1:1** (user-confirmed) — not a bug.
+    2. **White HUD NOT fixed.** At PAUSE_OPEN+29 the HUD `item_win.tga` panels go flat grey
+       (157) and stay — same draws/verts/tex-ptr/states as the gold frame, so it's an
+       item_win **bind desync** (§108 class), not the b150 thing A2 "fixed". Retail rebinds
+       item_win every frame via the menu render ⇒ porting the menu (below) should fix it.
+    3. **Slot "highlight" = two unported renderers:** (3a) the orange cell glow =
+       `FUN_0045aa36` Block G (the documented STUB in `scene1_chr_shadow.c`); (3b) the
+       "Worn Sword" name bubble+text = `FUN_00409925` L6425-6505 (needs the world→screen
+       proj `FUN_00490c78`).
+    4. **Menu UI wholly unported** — `FUN_00468338` population (param_1==0 inventory scan +
+       item-DB category tabs + sort) + `FUN_0046b00a` render (item_win panels → rows/icons/
+       text → description → cursor). `DAT_073d8748`=item_win, `DAT_073d8678`=data_win (cursor).
+       Item DB + font already ported. Build per the CORRECTION-3 chip plan (C3a/C3b/C4a/C4b),
+       validating each quad group vs `--d3d-trace-verts`. (A2.1's pose-anim tick stands.)
+       The earlier "multi-texture / single-item_win white blob" A3 note conflated the HUD's
+       item_win with the menu's — both are item_win; data_win is the cursor base, not the bg.
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.
