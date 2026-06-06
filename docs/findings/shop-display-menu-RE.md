@@ -129,6 +129,66 @@ back-row col-4 stand = the sparkle's x=−1 sword.
 - `DAT_0438cbe8` — open-once latch (set on first open, arg2 `bVar17` to `FUN_00468338`).
 - `DAT_0450fee8[fidx]` — furniture-suppression flag: ==0 chooses cc04==1, !=0 cc04==2.
 
+## ⚠ A1 PREREQUISITE discovered 2026-06-06 — the open gate needs `cbfc`, which needs furniture placement (UNPORTED for loaded saves)
+
+Tracing the open gate's inputs end-to-end, the planned A1 ("just wire the Z-press
+open") has a deep unported dependency chain:
+
+1. **Open gate** (asm `0x488cce`–`0x488d85`) fires only when `DAT_0438cbfc != -1`
+   — i.e. the player is FACING a highlighted display cell.
+2. **`cbfc`/`cc00`** are set every walk frame by **`FUN_0048619f`** (cell-highlight
+   detector, asm decoded below), which gates on the **furniture-layout grid**
+   `DAT_074b28e8[col + row*0x14] ∈ [2,8]`.
+3. **`DAT_074b28e8`** is rebuilt every frame by **`FUN_0048960d`** (0x48960d) in the
+   `FUN_0048670f` prologue (`if (DAT_0438b924==0) FUN_0048960d()`, all.c:86728): copy
+   the per-stage base template `DAT_005cd104[stagetype*0x4b0]` (300 dwords) into the
+   grid, then STAMP each placed-furniture footprint with 2 (2×2) / 3 (1×4) / 4 (4×1).
+   The base template's row 0 has NO stand cells (cols 1-4/11-13 = 0); the back-row
+   sword STANDS come entirely from the **placed-furniture stamp**.
+4. **Placed furniture** (`DAT_0438bfb4` count, footprint-class `DAT_0438bfcc`,
+   rotation `DAT_0438c01c`, origins `DAT_045105a8/ac` = bank dword 0xb384/5) is written
+   by **`FUN_00436f97` block-21** (= the port's `scene1_postload_walker_phase2_init`).
+   **In the port this writer is GATED OFF in production** (`g_walker_scene_type` default
+   -1 → early-return; only the `--force-walker-phase2` debug flag fires it for new-game).
+   So a CONTINUE/loaded save has **`g_scene1_walker_phase2_count == 0`** → empty layout
+   grid → `cbfc` always -1 → **the open gate can never fire.** This is the same
+   long-deferred W4/Cf.* furniture-placement blocker.
+
+**`FUN_0048619f` (cell detector) — asm-decoded (0x48619f), constants verified:**
+```
+eax = ftol(pang / π * 10.0)            ; facing-octant index (C1=π@0x51943c, C2=10@0x5194f0)
+xoff=0; zoff=0
+if eax==0:            zoff =  2.0
+elif -11<=eax<=-9:    zoff = -2.0
+elif eax==4:          xoff =  2.0       ; (0x519314=2.0, 0x519908=-2.0)
+else:                 xoff = -2.0
+col = ftol((px + xoff + 10.0) * 0.5)   ; (+10@0x5194f0, *0.5@0x51935c)
+row = ftol((pz + zoff +  8.0) * 0.5)   ; (+8@0x519378)
+clamp col>=0, row>=0
+cell = DAT_074b28e8[col + row*0x14]
+if 2 <= cell <= 8:   cbfc=col; cc00=row
+                     _DAT_0438cbf4 = col*2 - 9.0   ; render pos (0x5196b4=9)
+                     _DAT_0438cbf8 = row*2 - 7.0   ; (0x5193f8=7)
+                     if DAT_0450fee8[FUN_004860c8(col,row)] != 0: DAT_0438bf68 = idx+1
+else:                cbfc=-1; cc00=-1
+```
+Validated against the live open frame (pang=-π → eax=-10 → zoff=-2; px=-0.787 →
+col=4; pz=-5.32 → row=0): **cbfc=4, cc00=0** = back-row col-4 sword. ✓
+
+**Revised Phase-A chip order** (A1 now has a furniture prerequisite, A0):
+- **A0 — furniture placement + layout grid (the prerequisite).** Wire
+  `scene1_postload_walker_phase2_init` to fire on the loaded-save HOUSE entry
+  (source its runtime inputs — scene_type / stage_positions — from the loaded bank
+  origins; the new-game count=3 layout is the likely loaded-save layout for the
+  early fa7c82 save). Port `FUN_0048960d` (grid rebuild) into the prologue + the
+  `FUN_004860c8` furniture-index helper. Verify: `DAT_074b28e8` row-0 stand cells +
+  the round-table footprint match a live retail `DAT_074b28e8` dump. Also unblocks W4
+  collision furniture + PII.3b furniture render.
+- **A0b — cell-highlight detector `FUN_0048619f`.** Wire into the walk tail
+  (all.c:87750-87757 — runs when `DAT_0450f3f2 != 0`). Add `cc04/cbfc/cc00` to the
+  port's `0x48670f` flow-trace payload. Verify: `cbfc/cc00` track retail frame-for-
+  frame as the player walks to the stand.
+
 ## Implications for the plan — rewritten Phase-A chips
 - **A1 — open + slide + sim-freeze.** Wire the cc04==1 open gate into the port's
   `FUN_0048670f` Z-press path: furniture-flag==0 stand + `cbfc != -1` + the two

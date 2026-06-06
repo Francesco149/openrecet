@@ -69,6 +69,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_chr_shadow.c \
                  ../src/scene1_bg_npc.c \
                  ../src/scene1_player_ctrl.c \
+                 ../src/scene1_shop_display.c \
                  ../src/scene1_companion_ctrl.c \
                  ../src/scene1_conversation_pose.c \
                  ../src/scene1_intro_dialogue.c \
@@ -99,6 +100,7 @@ SRCS_TESTS    := test_main.c test_bmp.c test_tga.c test_bmp_lzw.c test_lnkdatas_
                  test_scene1_camera.c test_scene1_shop_walker.c \
                  test_scene1_per_frame_open.c \
                  test_scene1_walker_pass_init.c \
+                 test_scene1_shop_display.c \
                  test_scene1_maplight.c \
                  test_scene1_wide_followup_helpers.c \
                  test_scene1_dungeon_clear_banner.c \

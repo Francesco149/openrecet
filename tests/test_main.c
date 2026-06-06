@@ -1664,6 +1664,14 @@ struct test_case {
     X(scene1_postload_walker_phase2_retail_groundtruth_new_game_house) \
     X(scene1_postload_load_house_inputs_from_save_record) \
     \
+    X(shop_display_grid_rebuild_stamps_back_row_stand) \
+    X(shop_display_grid_rebuild_footprint_shapes) \
+    X(shop_display_grid_rebuild_tier_template_base) \
+    X(shop_display_furniture_index_resolves_footprint) \
+    X(shop_display_highlight_open_frame_cbfc4_cc00_0) \
+    X(shop_display_highlight_no_stand_is_none) \
+    X(shop_display_highlight_facing_octants) \
+    \
     X(scene1_camera_init_clears_orient) \
     X(scene1_camera_house_default_snaps_to_oracle_pose) \
     X(scene1_camera_house_groundtruth_matches_retail) \

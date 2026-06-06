@@ -4353,3 +4353,22 @@ menu is a clean source of a *frozen* `db054` — distinct from a phase OFFSET.
 (This corrects an earlier RE that read the menu as `cc04==2` / grid `DAT_0450ff30`
 — that is the furniture-grid mode, a different branch; the stand-remove menu is
 `cc04==1` / grid `DAT_044f7030`. Full RE: [[shop-display-menu-RE]].)
+
+## 111. The player's free-roam facing angle (`DAT_056db05c`) for pure-UP (-z) is stored as **−π, not +π** — the one direction where the engine's facing differs from `atan2(dx, dz)`
+
+The HOUSE walk facing is `atan2(dx, dz)` (vx=sin·, vz=cos·) for every cardinal
+**except pure up**: down (+z) = `0`, right (+x) = `+π/2`, left (-x) = `-π/2`, but
+up (-z) = **`-π`**, whereas `atan2(0, -1)` is `+π` (the branch cut). Verified on
+the save-roundtrip walk to the back stand: the player holds a constant
+`pang = -3.1416` for the whole down-the-room walk (frames 14040-14100, px fixed,
+pz decreasing). Diagonals are unaffected (up-left = `atan2(-1,-1) = -3π/4`,
+up-right = `+3π/4` — no branch-cut ambiguity).
+
+This stays **latent** through movement and the facing octant, because `sin`/`cos`
+and `player_ctrl_facing_octant` (the `(angle + camyaw + π/8)/2π·8 & 7` quantiser)
+are both sign-invariant at ±π (both map to octant 0). It first matters for the
+shop-display **cell-highlight detector `FUN_0048619f`**, which classifies the
+facing via `ftol(pang/π·10)`: `-π → -10` selects the *reach-in-`-z`* arm (the back
+stand, the open frame's cbfc=4/cc00=0), while `+π → +10` falls to the
+*reach-in-`-x`* arm and highlights the wrong cell. Port fix:
+`player_ctrl_dpad_angle` overrides the pure-up case to `-π` (src/scene1_player_ctrl.c).

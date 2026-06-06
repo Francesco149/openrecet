@@ -771,7 +771,8 @@ int test_player_ctrl_idle_animates_and_holds_position(void)
 int test_player_ctrl_dpad_angle_cardinals(void)
 {
     /* vx = sin(angle), vz = cos(angle): RIGHT +x → +π/2, LEFT −x → −π/2,
-     * DOWN +z → 0, UP −z → π. */
+     * DOWN +z → 0, UP −z → −π (the engine stores pure-up as −π, not the atan2
+     * branch-cut +π — retail ground truth, engine-quirks §111). */
     float a;
     if (!player_ctrl_dpad_angle(0x0001u, &a)) T_FAIL("RIGHT should move");
     T_ASSERT_NEAR(a,  1.57079633f);
@@ -780,7 +781,7 @@ int test_player_ctrl_dpad_angle_cardinals(void)
     if (!player_ctrl_dpad_angle(0x0008u, &a)) T_FAIL("DOWN should move");
     T_ASSERT_NEAR(a,  0.0f);
     if (!player_ctrl_dpad_angle(0x0004u, &a)) T_FAIL("UP should move");
-    T_ASSERT_NEAR(a,  3.14159265f);
+    T_ASSERT_NEAR(a, -3.14159265f);
     return 0;
 }
 

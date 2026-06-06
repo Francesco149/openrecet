@@ -23,6 +23,7 @@
 #include "scene1_bg_npc.h"       /* scene1_bg_npc_tick (FUN_0046f621 NPC pump) */
 #include "scene1_intro_dialogue.h" /* prologue gate — suppress the walk arm */
 #include "scene1_overlay.h"      /* scene1_overlay_spawn (FUN_00414345) — sparkle */
+#include "scene1_shop_display.h" /* furniture-layout grid + cell highlight (FUN_0048960d/619f) */
 #include "save_work.h"           /* working-arena display grid (dword 0x4e26) */
 #include "save_bank.h"           /* SAVE_BANK_FIELD_DISPLAY_GRID */
 #include "sim.h"                 /* g_sim_frame_count (DAT_0438b8cc) */
@@ -619,8 +620,21 @@ int player_ctrl_dpad_angle(unsigned held_mask, float *out_angle)
     if (dx == 0 && dz == 0)
         return 0;
     /* vx = sin(angle), vz = cos(angle)  ⇒  angle = atan2(dx, dz). */
+    float angle = atan2f((float)dx, (float)dz);
+    /* Engine convention: the pure-UP facing (-z) is stored as -π, NOT the
+     * atan2 branch-cut +π.  This is the ONE direction where the engine's facing
+     * angle and atan2(dx,dz) differ — verified against the retail save-roundtrip
+     * walk (the player walks toward the back stand at a constant pang=-π, frames
+     * 14040-14100; atan2f(0,-1) returns +π).  It was latent until the
+     * shop-display cell detector (FUN_0048619f), which classifies the facing via
+     * ftol(pang/π·10): -π→-10 reaches in -z (the back stand), +π→+10 reaches in
+     * -x (wrong cell).  Safe for the verified walk: sin/cos and the facing
+     * octant (player_ctrl_facing_octant) are sign-invariant at ±π — both ±π map
+     * to octant 0.  engine-quirks §111. */
+    if (dx == 0 && dz < 0)
+        angle = -3.1415927f;
     if (out_angle)
-        *out_angle = atan2f((float)dx, (float)dz);
+        *out_angle = angle;
     return 1;
 }
 
@@ -913,6 +927,21 @@ static int player_ctrl_cc08_dpad_interact(void)
  * runs/w3-walk-watch — byte-identical per-frame to retail (px, vx post-damp) and
  * through the house-table-corner slide (§69/§75).  The room-bounds clamp is NOT
  * here: the engine runs it in the tail (FUN_00486435 @ LAB_004893ff). */
+/* DAT_0450f3f2 (bank byte +0x2bc5a): the per-shop "display fixtures present"
+ * flag.  Set by the shop-setup path (FUN_0044bd0d) and persisted in the save
+ * record; gates the walk-tail cell-highlight detector (all.c:87750).  Read the
+ * active working bank's byte directly (the sparkle / item-grid render use the
+ * same bank). */
+#define PC_SHOP_DISPLAY_PRESENT_BYTE_OFF 0x2bc5a   /* DAT_0450f3f2 - DAT_044e3798 */
+
+static int player_ctrl_shop_display_present(void)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return 0;
+    return ((const uint8_t *)bank)[PC_SHOP_DISPLAY_PRESENT_BYTE_OFF] != 0;
+}
+
 static void player_ctrl_cc08_freeroam_arm(void)
 {
     /* customer-approach escalation: inert (no customers) → falls through. */
@@ -953,6 +982,18 @@ static void player_ctrl_cc08_freeroam_arm(void)
     /* FUN_0048b850 free-roam body: clamp → octant(→FACING) → integrate+collide
      * → damp (engine-quirks §75). */
     player_ctrl_b850_move();
+
+    /* walk tail (all.c:87749-87757): after the move, resolve which display cell
+     * the player is facing.  Gated on the shop-display-present flag DAT_0450f3f2
+     * (bank byte +0x2bc5a): when the shop has display fixtures, run the
+     * cell-highlight detector FUN_0048619f (sets cbfc/cc00); otherwise force
+     * "none".  This is what arms the cc04==1 open gate (A1). */
+    if (player_ctrl_shop_display_present())
+        shop_display_highlight_update(g_scene1_player_pos[0],
+                                      g_scene1_player_pos[2],
+                                      s_player_facing);
+    else
+        shop_display_highlight_clear();
 
     /* actor record: anim id (0 idle / 1 walk = daae8).  The facing octant (dab00)
      * was set by player_ctrl_b850_move above.  On an idle↔walk transition, restart
@@ -1118,6 +1159,13 @@ void scene1_player_ctrl_tick(void)
              * flow_diff --align-field uses to pair port↔retail frames on a
              * load-stretched HOUSE capture (port ~475 vs retail ~14285). */
             CALL_TRACE_I32("db054", scene1_companion_db054());
+            /* shop-display interaction state (the cc04==1 remove-item menu): the
+             * sub-state gate + the highlighted display cell the open gate fires
+             * off of.  Mirrors the retail 0x48670f hook's cc04/cbfc/cc00 fields
+             * (tools/flow/retail_fields.json). */
+            CALL_TRACE_I32("cc04", s_cc04);
+            CALL_TRACE_I32("cbfc", shop_display_cbfc());
+            CALL_TRACE_I32("cc00", shop_display_cc00());
         }
         CALL_TRACE_END();
     }
@@ -1144,6 +1192,16 @@ void scene1_player_ctrl_tick(void)
      * the foot-dust RNG-stream parity depends on.  (The periodic customer-spawn
      * refresh that also lives in this prologue stays inert — no customers.) */
     scene1_bg_npc_tick();
+
+    /* prologue (all.c:86728, `if (DAT_0438b924==0) FUN_0048960d()`): rebuild the
+     * furniture-LAYOUT grid (DAT_074b28e8) from the active record's shop-tier
+     * template + the live placed-furniture footprints.  Runs every HOUSE frame
+     * (b924==0 in steady free-roam), BEFORE the cc08 dispatch, so the grid is
+     * fresh for the walk tail's cell-highlight detector and the open gate.  This
+     * is the A0 prerequisite: the back-row display stands exist only as the
+     * 1×4 furniture stamp the engine writes here (the base template has no
+     * stand cells). */
+    shop_display_grid_rebuild();
 
     /* scene-transition fade handlers (DAT_0450f470/485/488/495): none fires in
      * steady HOUSE free-roam → fall through to the controller. */
