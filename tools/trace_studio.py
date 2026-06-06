@@ -218,6 +218,7 @@ def _capture_port(trace: Path, port_dir: Path, cr: tuple[int, int],
         "--run-dir", str(port_dir),
         "--max-frames", str(max_frames),
         "--name", "trace-studio",
+        "--anchor-record",        # port anchor stream → port_dir/anchors.jsonl
     ]
     if call_trace:
         argv.append("--call-trace")
@@ -611,6 +612,14 @@ def cmd_capture(args) -> int:
     if want_retail and retail_base is not None:
         manifest["anchors"]["retail"] = read_anchors(
             retail_dir / "anchors.jsonl", retail_base)
+
+    # Copy BOTH sides' raw anchor streams (absolute engine frames) into the session
+    # for the timeline editor's sync-anchor alignment (tools/trace_studio_web/align.mjs).
+    for side, sd in (("port", port_dir), ("retail", retail_dir)):
+        a = sd / "anchors.jsonl"
+        if a.exists():
+            shutil.copy2(a, sess_dir / f"anchors.{side}.jsonl")
+            manifest.setdefault("anchor_files", {})[side] = f"anchors.{side}.jsonl"
 
     # flow-trace state + verdict
     n_window = len(list((port_dir / "frames").glob("frame_*.png")))

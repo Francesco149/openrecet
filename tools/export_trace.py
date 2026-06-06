@@ -157,6 +157,10 @@ def main(argv=None) -> int:
                     help="also capture the flow-trace call_trace.jsonl over the "
                          "{calltrace} window (→ tools/flow_diff.py). The trace's "
                          "{calltrace} op arms the window; this wires the output.")
+    ap.add_argument("--anchor-record", action="store_true",
+                    help="also log EVERY anchor firing (absolute engine frames) to "
+                         "<run-dir>/anchors.jsonl — the port-side anchor stream for "
+                         "the trace-studio timeline.")
     ap.add_argument("--max-frames", type=int, default=4000,
                     help="absolute frame budget (must exceed the window end; "
                          "the window is anchor-relative so allow headroom)")
@@ -266,6 +270,9 @@ def main(argv=None) -> int:
         # The {calltrace} op (already in the trace) arms call_trace_arm_window as
         # the segtrace replays; this flag tells the engine where to write it.
         cmd += ["--call-trace", str(run_dir / "call_trace.jsonl")]
+    if args.anchor_record:
+        # Every anchor firing (absolute g_tick.frame_count) → run_dir/anchors.jsonl.
+        cmd += ["--anchor-trace-record", str(run_dir / "anchors.jsonl")]
     print(f"export_trace: driving port → {run_dir}", file=sys.stderr)
     print("export_trace:   " + " ".join(cmd), file=sys.stderr)
     rc = subprocess.run(cmd, cwd=str(ROOT)).returncode
