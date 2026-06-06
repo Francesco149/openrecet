@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>trace studio</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>trace studio · <span id="ts-title">…</span></h1>
+  <div class="status">
+    <span id="ts-status">loading…</span>
+    <span class="sep">·</span>
+    <select id="ts-session-sel" title="switch session"></select>
+  </div>
+</header>
+
+<main>
+  <div id="ts-note" class="note"></div>
+
+  <div class="layout-bar">
+    <span>panels:</span>
+    <button class="ly on" data-panel="port">port (1)</button>
+    <button class="ly on" data-panel="retail">retail (2)</button>
+    <button class="ly on" data-panel="diff">diff (3)</button>
+    <span class="spacer"></span>
+    <button id="ts-play" title="play/pause (space)">▶ play</button>
+  </div>
+
+  <div id="ts-stage" class="stage"></div>
+
+  <div class="scrub">
+    <button id="ts-first" title="first (Home)">⏮</button>
+    <button id="ts-b10" title="−10 (←)">−10</button>
+    <button id="ts-b1" title="−1 (,)">−1</button>
+    <div class="track-wrap">
+      <input id="ts-track" type="range" min="0" max="0" value="0">
+      <div id="ts-anchors" class="anchors"></div>
+    </div>
+    <button id="ts-f1" title="+1 (.)">+1</button>
+    <button id="ts-f10" title="+10 (→)">+10</button>
+    <button id="ts-last" title="last (End)">⏭</button>
+    <span id="ts-pos" class="pos">0 / 0</span>
+  </div>
+
+  <div class="hint">
+    ←/→ ±10 · ,/. ±1 · Home/End · space play · 1/2/3 toggle panels ·
+    drag a box on a frame → copy a <code>crop</code> ref ·
+    <b>P</b> pin-phase · <b>R</b> pin-RNG · <b>A</b> anchor · <b>F</b> feature
+  </div>
+
+  <div class="panels">
+    <section class="panel">
+      <h3>mark this frame</h3>
+      <div class="mark-row">
+        <button class="mk" data-kind="phasepin" title="P">⟲ pin phase</button>
+        <button class="mk" data-kind="rngpin" title="R">🎲 pin RNG</button>
+        <button class="mk" data-kind="anchor" title="A">⚓ add anchor</button>
+        <button class="mk" data-kind="feature" title="F">✦ feature</button>
+        <button class="mk" data-kind="note">✎ note</button>
+      </div>
+      <input id="ts-mark-note" type="text" placeholder="optional note (applies to the next mark)…">
+      <div class="mark-after">apply: <code id="ts-apply-cmd"></code></div>
+    </section>
+
+    <section class="panel">
+      <h3>per-frame state <span class="dim">(port vs retail · ⚠ = differ)</span></h3>
+      <div id="ts-state" class="state">—</div>
+    </section>
+
+    <section class="panel">
+      <h3>marks <button id="ts-refresh-marks" class="mini">refresh</button></h3>
+      <div id="ts-marks" class="marks">(none)</div>
+    </section>
+
+    <section class="panel">
+      <h3>phase/RNG verdict</h3>
+      <pre id="ts-verdict" class="verdict">—</pre>
+    </section>
+
+    <section class="panel">
+      <h3>diff (this frame)</h3>
+      <div id="ts-diffstat" class="diffstat">—</div>
+    </section>
+  </div>
+</main>
+
+<script src="/studio.js"></script>
+</body>
+</html>

@@ -153,6 +153,10 @@ def main(argv=None) -> int:
                          "draw's FVF-decodable vertex bytes (→ "
                          "tools/render_diff.py --explain). Mirror on the "
                          "retail side with frida_capture.py --d3d-trace-verts.")
+    ap.add_argument("--call-trace", action="store_true",
+                    help="also capture the flow-trace call_trace.jsonl over the "
+                         "{calltrace} window (→ tools/flow_diff.py). The trace's "
+                         "{calltrace} op arms the window; this wires the output.")
     ap.add_argument("--max-frames", type=int, default=4000,
                     help="absolute frame budget (must exceed the window end; "
                          "the window is anchor-relative so allow headroom)")
@@ -258,6 +262,10 @@ def main(argv=None) -> int:
         cmd += ["--d3d-trace", str(run_dir / "d3d_trace.jsonl")]
         if args.d3d_trace_verts:
             cmd += ["--d3d-trace-verts"]
+    if args.call_trace:
+        # The {calltrace} op (already in the trace) arms call_trace_arm_window as
+        # the segtrace replays; this flag tells the engine where to write it.
+        cmd += ["--call-trace", str(run_dir / "call_trace.jsonl")]
     print(f"export_trace: driving port → {run_dir}", file=sys.stderr)
     print("export_trace:   " + " ".join(cmd), file=sys.stderr)
     rc = subprocess.run(cmd, cwd=str(ROOT)).returncode

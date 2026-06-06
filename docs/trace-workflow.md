@@ -12,6 +12,52 @@ anchored, RNG-pinned trace are bit-identical.
 
 ---
 
+## Trace Studio — the iterate-on-a-trace tool (`tools/trace_studio.py`)
+
+The human-facing front end for "record a long trace → tweak it until it plays
+1:1 on BOTH sides → point Claude at a sub-region → repeat." Three subcommands;
+it reuses `export_trace`/`frida_capture`/`flow_diff`/`pixel_diff` underneath.
+
+```sh
+# 1. CAPTURE a window on both sides (turbo, concurrent) → scrub videos + diff +
+#    the phase/RNG verdict. Reads the {caprange}/{calltrace} from the trace.
+nix develop --command python3 tools/trace_studio.py capture <trace|scenario> \
+    --target both --call-trace [--session NAME] [--caprange S,C]
+
+# 2. SERVE the scrubbing editor (port|retail|diff videos in lockstep, per-frame
+#    state overlay that highlights port↔retail divergence, anchor track, verdict
+#    panel, mark buttons). Performant at thousands of 60fps frames — one ranged
+#    video stream per panel, not N×1MB PNGs.
+nix develop --command python3 tools/trace_studio.py serve --session NAME
+#    → http://127.0.0.1:8778/?session=NAME
+#    nav ←/→ ±10 · ,/. ±1 · space play · 1/2/3 toggle panels · drag-box → crop ref
+#    mark: P pin-phase · R pin-RNG · A add-anchor · F feature  (POST → edits.jsonl)
+
+# 3. APPLY the marks: auto-insert {phasepin}/{rngseed} into the trace at the
+#    marked frames + emit worklist.md (frame + db054/rng/crop context) for the
+#    anchor/feature/note marks. --auto-pin also proposes pins from the verdict
+#    (db054 CONST-OFFSET → {phasepin}; rngcalls DESYNC → {rngseed}).
+nix develop --command python3 tools/trace_studio.py apply NAME [--auto-pin] [--dry-run]
+```
+
+**The loop:** capture → serve (spot a divergence; the state overlay + verdict
+panel show whether it's phase/RNG or real logic; pin it or mark a feature) →
+apply (pins land in the trace; worklist for Claude) → implement / re-capture the
+window → diff goes black / verdict goes PHASE-CLEAN. Marks are keyed by the
+0-based window index; a re-capture of the same window keeps them valid.
+
+Outputs land under `runs/trace-studio/<session>/` (`session.json` manifest,
+`{port,retail,diff}.mp4`, `state.jsonl`, `edits.jsonl`, `worklist.md`). The
+scrub videos are all-intra h264 (every frame a keyframe → frame-exact seek);
+bulk PNGs are kept by default (`--prune-frames` to drop them on long traces; an
+exact re-diff of a marked window re-captures just that window). **Retail sizing:**
+turbo load-stretches anchors late (HOUSE_FREEROAM port ~475 vs retail ~14285), so
+`--retail-max-frames` defaults to 22000 for HOUSE windows; the port side reaches
+the window early (`--port-max-frames` 4000). The two sides are renumbered to a
+shared 0-based anchor-relative index so `port/frame_00042 ⟷ retail/frame_00042`.
+
+---
+
 ## The two workflows
 
 ### A) I author a synthetic trace, push it, iterate
