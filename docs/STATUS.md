@@ -421,9 +421,28 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
     origin). The trace's `{rngseed}` (captured retail seeds) doesn't transfer cross-target; the
     fix is the standard `{phasepin}`+canonical `{rngseed:19937}` (bg-NPC warmup re-run) —
     landed as the **`house-display-remove-pinned`** variant.
-  - **Next: A2** (`FUN_00469414` update + `FUN_00469a9f` select-none + grid -1 write +
-    `FUN_00468d22` inventory return + close to cc04=0), then **A3** render
-    (`FUN_0046b00a` + `FUN_00485f8c`). Then Phase B (pause menu + save/quit).
+  - **A2 LANDED 2026-06-06 (commit 2c47bf7) — update + grid-write removal.** The cc04==1
+    menu arm ticks `FUN_00469414` + acts on its 1/2/3 return; the confirm removes the sword
+    (cursor on the index-0 "select none" → `FUN_00469a9f()==-1` → grid cell = -1 +
+    `FUN_00468d22` inventory return), then closes. **Verified 1:1**: db054 freezes 157→158,
+    grid cell 64→-1, cc04/cbfc/cc00 bit-exact vs retail. **User-confirmed the sword is
+    removed.** The PAUSE_OPEN/CLOSE sync anchor now fires off `cc04` (NOT a save-dialog
+    cursor write — the display menu is a *separate* subsystem from the radial-blur pause/save
+    menu). **Fixed a "broken white HUD"**: the open had snapped the shared DAT_0438b150 cursor
+    (faithful to FUN_00435693), but the port's save-dialog window render is gated on b150
+    alone, so it spuriously painted the save window over HOUSE — decoupled (b150/cursor lands
+    with the menu render). **A2.1 (d68557e):** tick the player interact-pose anim each menu
+    frame (FUN_004897c6 tail) — pframe 0→1 at pcnt 9, **bit-exact vs retail** (the earlier
+    "Recette faces the camera" was a frame-mismatch artifact: I compared the port's menu frame
+    to a retail *pre-open* walk frame). +7 host tests.
+  - **A3 menu RENDER — NEXT (ground truth recorded, commit 0b61514).** The retail d3d-trace
+    shows the panel is **multi-texture** (data_win.tga bg + item_win.tga frame + hpmp_base.tga
+    bar + item00.bmp icons + font text + data_win/nowloading cursor) — the decompile's
+    `DAT_073d8748=item_win` label is misleading. A single-item_win panel attempt rendered a
+    white blob; reverted. Recipe + checklist in `findings/shop-display-menu-RE.md` (§A3): port
+    `FUN_00468338` population, then `FUN_0046b00a` quad-by-quad against a **`--d3d-trace-verts`**
+    re-capture, then `FUN_00485f8c` display items + the anim 3→4 confirm pose. Then Phase B
+    (pause menu + save/quit).
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.
