@@ -431,6 +431,33 @@
        validating each quad group vs `--d3d-trace-verts`. (A2.1's pose-anim tick stands.)
        The earlier "multi-texture / single-item_win white blob" A3 note conflated the HUD's
        item_win with the menu's — both are item_win; data_win is the cursor base, not the bg.
+  - **C4a/C4b LANDED 2026-06-06 PM — the menu RENDERS (user-confirmed panels 1:1).**
+    C4a (population): `FUN_00468338(0)` ported — inventory scan + item-DB category tabs +
+    `chr_prepass_sort` co-sort, each tab led by a -1 "Nothing" entry, items deduped w/ counts
+    (`scene1_display_menu.c`). C4b-1 panels (`FUN_0046b00a`: main panel src(0,0,400,320),
+    category frame, scroll arrows; slide-in via the `DAT_0734b98c<<7` ramp) — **user-confirmed
+    1:1**. C4b-2 rows (icon `item_icons[cat]` at xL+72 + name/count text at xL+120, y=row*0x22+92,
+    scale 0.8). C4b-3 "Swords" category header (`FUN_0047d14c`, center_x=xL+204). Text colour
+    white (engine ADDSIGNED+0x7f7f7f ≡ MODULATE+white). Wired in main.c after
+    scene1_render_overlay. **Remaining C4b-4:** hand cursor on the selected row, the bottom
+    item-description panel, per-row type colours + selected-row pulse. Then C3a/C3b (orange cell
+    glow + name tooltip).
+  - **WHITE-UI bug ROOT-CAUSED + FIXED 2026-06-06 PM (the CORRECTION-3 #2 "bind desync"
+    hypothesis was WRONG).** Not a texture/bind issue — a **COLORARG leak**. The d3d device's
+    COLORARG state is persistent across frames; the port's 3D renderers (chr/dust/mesh/
+    alpha_walker/目玉 sparkle) set `COLORARG1=DIFFUSE` / `COLORARG2=CURRENT|TEXTURE` and never
+    restore. **Retail NEVER sets COLORARG** (a whole menu-frame d3d-trace has ZERO COLORARG
+    sets → its UI always sees the D3D defaults TEXTURE/CURRENT). The walk-dust re-paired
+    COLORARG2=TEXTURE every frame, masking it; the cc04 menu freezes the walk → dust stops →
+    the leaked `COLORARG1=DIFFUSE + COLORARG2=CURRENT` reaches the 2D UI, whose MODULATE =
+    diffuse·current = WHITE (texture only in alpha → silhouette/shape preserved). **Fix
+    (commit c4be7d5):** `render_quad_state_setup` restores COLORARG1=TEXTURE, COLORARG2=CURRENT
+    (retail's exact UI state). Verified: HUD+menu stay gold across the whole menu window; title
+    boot-idle still 1:1. **New reliable tool `tools/d3d_state_at_draw.py`** — replays a d3d
+    trace carrying the FULL device state FORWARD (state is persistent across frames) and prints
+    the complete color/alpha/filter/blend pipeline at any draw. Use this for state-at-draw
+    questions; per-frame state tracking misses inherited state (the reason the trace "looked
+    identical" on white vs gold). engine-quirk: retail leaves COLORARG at defaults for all UI.
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.
