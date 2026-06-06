@@ -509,31 +509,46 @@ def cmd_capture(args) -> int:
         _log("--call-trace requested but the working trace has no {calltrace} op "
              "(rebuild with --reset-trace --call-trace)")
 
-    # Clear prior capture artifacts so a re-capture into the same session can't
-    # accumulate stale frames (which corrupt the anchor-relative renumber base).
-    # Preserve the user's marks (edits.jsonl / worklist.md) — same anchor-relative
-    # window ⇒ the indices stay valid across a re-capture.
+    # Per-side recapture (latency): --only port/retail re-runs just that side and
+    # REUSES the other side's frames/video/anchors. The headline case is the
+    # port-fixing loop — fix port code, re-run PORT only, compare to the cached
+    # RETAIL ground truth (retail doesn't change when you fix the port). The skipped
+    # side's base comes from the existing manifest.
     import shutil
-    for sub in ("port", "retail", "diff"):
+    old_manifest = {}
+    if (sess_dir / "session.json").exists():
+        try:
+            old_manifest = json.loads((sess_dir / "session.json").read_text())
+        except Exception:                            # noqa: BLE001
+            old_manifest = {}
+    run_port = args.only in ("both", "port")
+    run_retail = want_retail and args.only in ("both", "retail")
+    keep_retail = want_retail and not run_retail     # reuse existing retail outputs
+
+    # Clear only the side(s) being re-run (+ diff, always rebuilt). Preserve marks.
+    clear = (["port"] if run_port else []) + (["retail"] if run_retail else []) + ["diff"]
+    for sub in clear:
         if (sess_dir / sub).exists():
             shutil.rmtree(sess_dir / sub)
-    for stale in ("port.mp4", "retail.mp4", "diff.mp4", "state.jsonl",
-                  "session.json"):
+    for stale in ((["port.mp4"] if run_port else []) +
+                  (["retail.mp4"] if run_retail else []) +
+                  ["diff.mp4", "state.jsonl", "session.json"]):
         (sess_dir / stale).unlink(missing_ok=True)
 
     _log(f"session {sess}  caprange={cr}  call_trace={call_trace}  "
-         f"target={args.target}")
+         f"target={args.target}  only={args.only}")
 
-    # ── drive: port (always) + retail (concurrent) ──────────────────────────
+    # ── drive: port + retail (concurrent), per --only ───────────────────────
     result: dict = {}
     threads = []
-    tp = threading.Thread(target=_capture_port,
-                          args=(trace, port_dir, cr, args.port_max_frames,
-                                call_trace, ct, result))
-    tp.start(); threads.append(tp)
+    if run_port:
+        tp = threading.Thread(target=_capture_port,
+                              args=(trace, port_dir, cr, args.port_max_frames,
+                                    call_trace, ct, result))
+        tp.start(); threads.append(tp)
 
     # Retail needs the work trace export_trace writes; wait for it to exist.
-    if want_retail:
+    if run_retail:
         work = port_dir / "trace.work.jsonl"
         import time
         for _ in range(600):                     # ≤60s for the port to write it
@@ -570,8 +585,11 @@ def cmd_capture(args) -> int:
     port_anchors = []  # port has no anchors.jsonl; final_anchor only (in global)
 
     retail_base = None
-    if want_retail and "retail_error" not in result:
+    if run_retail and "retail_error" not in result:
         retail_base = renumber_retail(retail_dir)
+    elif keep_retail:                                # reuse the cached retail capture
+        retail_base = (old_manifest.get("retail") or {}).get("base_abs")
+        _log(f"--only port: reusing cached retail (base {retail_base})")
 
     manifest = {
         "schema": "trace-studio-v1",
@@ -593,24 +611,29 @@ def cmd_capture(args) -> int:
         "call_trace": call_trace,
     }
 
-    # diff frames (needs both sides aligned)
-    have_retail_frames = (want_retail and retail_base is not None
+    # diff frames (needs both sides' frames; retail's are reused when --only port)
+    have_retail_frames = ((run_retail or keep_retail) and retail_base is not None
                           and any((retail_dir / "frames").glob("frame_*.png")))
     if have_retail_frames:
         manifest["diff"] = build_diff(port_dir, retail_dir,
                                       sess_dir / "diff" / "frames", args.amp)
 
-    # encode videos
-    if ffmpeg_encode(port_dir / "frames", sess_dir / "port.mp4"):
+    # encode videos: (re)encode the side(s) we ran; keep the cached one otherwise
+    if run_port and ffmpeg_encode(port_dir / "frames", sess_dir / "port.mp4"):
+        manifest["videos"]["port"] = "port.mp4"
+    elif (sess_dir / "port.mp4").exists():
         manifest["videos"]["port"] = "port.mp4"
     if have_retail_frames:
-        if ffmpeg_encode(retail_dir / "frames", sess_dir / "retail.mp4"):
+        if run_retail:
+            if ffmpeg_encode(retail_dir / "frames", sess_dir / "retail.mp4"):
+                manifest["videos"]["retail"] = "retail.mp4"
+        elif (sess_dir / "retail.mp4").exists():     # cached retail video
             manifest["videos"]["retail"] = "retail.mp4"
         if ffmpeg_encode(sess_dir / "diff" / "frames", sess_dir / "diff.mp4"):
             manifest["videos"]["diff"] = "diff.mp4"
 
     # anchor track (retail anchors.jsonl rebased; port from global.final_anchor)
-    if want_retail and retail_base is not None:
+    if (run_retail or keep_retail) and retail_base is not None and (retail_dir / "anchors.jsonl").exists():
         manifest["anchors"]["retail"] = read_anchors(
             retail_dir / "anchors.jsonl", retail_base)
 
@@ -734,6 +757,9 @@ def main(argv=None) -> int:
     c.add_argument("--reset-trace", action="store_true",
                    help="rebuild the session's working trace from the source "
                         "(discards applied pins)")
+    c.add_argument("--only", choices=("both", "port"), default="both",
+                   help="'port' re-runs only the port and REUSES the cached retail "
+                        "capture (the fast port-fixing loop); 'both' is a full capture")
     c.set_defaults(func=cmd_capture)
 
     s = sub.add_parser("serve", help="open the scrubbing editor")

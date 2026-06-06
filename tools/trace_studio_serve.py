@@ -311,7 +311,7 @@ class CaptureController:
         return self.proc is not None and self.proc.poll() is None
 
     def start(self, trace: str, session: str, target: str,
-              call_trace: bool, caprange: str | None) -> dict:
+              call_trace: bool, caprange: str | None, only: str = "both") -> dict:
         with self.lock:
             if self._alive():
                 return {"ok": False, "error": f"a capture is already running "
@@ -325,6 +325,8 @@ class CaptureController:
                 cmd.append("--call-trace")
             if caprange:
                 cmd += ["--caprange", caprange]
+            if only and only != "both":
+                cmd += ["--only", only]
             logf = log.open("w")
             try:
                 self.proc = subprocess.Popen(
@@ -548,7 +550,8 @@ def make_handler(sess_root: Path, web_dir: Path, default_session: str | None,
                 working = man.get("working_trace") or man.get("trace")
                 self._send_json(capturer.start(
                     working, sess, d.get("target", man.get("target", "both")),
-                    bool(d.get("call_trace", man.get("call_trace", True))), None))
+                    bool(d.get("call_trace", man.get("call_trace", True))), None,
+                    only=d.get("only", "both")))
                 return
             m = re.match(r"^/s/([^/]+)/apply$", u.path)
             if m:
@@ -590,6 +593,64 @@ def make_handler(sess_root: Path, web_dir: Path, default_session: str | None,
                 except Exception:                  # noqa: BLE001
                     pass
                 self._send_json({"ok": True, "n": len(ops), "file": fname})
+                return
+            m = re.match(r"^/s/([^/]+)/notes$", u.path)
+            if m:
+                sess = m.group(1)
+                sdir = sess_root / sess
+                if not sdir.is_dir():
+                    self._send_bytes(b"no session", "text/plain", 404)
+                    return
+                d = self._read_body()
+                notes = d.get("notes", [])
+                if not isinstance(notes, list):
+                    self._send_bytes(b"notes must be a list", "text/plain", 400)
+                    return
+                (sdir / "notes.jsonl").write_text("".join(json.dumps(n) + "\n" for n in notes))
+                self._send_json({"ok": True, "n": len(notes)})
+                return
+            m = re.match(r"^/s/([^/]+)/divergent$", u.path)
+            if m:
+                sess = m.group(1)
+                sdir = sess_root / sess
+                mf = sdir / "session.json"
+                if not mf.is_file():
+                    self._send_bytes(b"no session", "text/plain", 404)
+                    return
+                on = bool(self._read_body().get("on"))
+                man = json.loads(mf.read_text())
+                man["divergent"] = on
+                if on:                                  # split the shared trace per side
+                    src = sdir / "edit.trace.jsonl"
+                    for f in ("edit.port.trace.jsonl", "edit.retail.trace.jsonl"):
+                        if src.is_file() and not (sdir / f).is_file():
+                            (sdir / f).write_text(src.read_text())
+                mf.write_text(json.dumps(man, indent=2))
+                self._send_json({"ok": True, "divergent": on})
+                return
+            m = re.match(r"^/s/([^/]+)/clone$", u.path)
+            if m:
+                sess = m.group(1)
+                sdir = sess_root / sess
+                if not sdir.is_dir():
+                    self._send_bytes(b"no session", "text/plain", 404)
+                    return
+                raw = self._read_body().get("name", "")
+                name = re.sub(r"[^\w.-]", "_", raw) or (sess + "-copy")
+                dst = sess_root / name
+                if dst.exists():
+                    self._send_json({"ok": False, "error": f"{name} already exists"})
+                    return
+                import shutil
+                shutil.copytree(sdir, dst)
+                try:
+                    m2 = json.loads((dst / "session.json").read_text())
+                    m2["session"] = name
+                    m2["cloned_from"] = sess
+                    (dst / "session.json").write_text(json.dumps(m2, indent=2))
+                except Exception:                       # noqa: BLE001
+                    pass
+                self._send_json({"ok": True, "name": name})
                 return
             m = re.match(r"^/s/([^/]+)/edits/set$", u.path)
             if m:

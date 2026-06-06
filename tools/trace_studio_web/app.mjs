@@ -211,10 +211,10 @@ function RecordPanel() {
 }
 
 // ─── iterate panel (apply + recapture + stale) ───────────────────────────────
-function IteratePanel({ sess, manifest, reload }) {
+function IteratePanel({ sess, manifest, stale, reload }) {
   const [cap, pollCap] = useStatus("/capture/status");
-  const stale = manifest.stale;
-  const recapture = () => { toast("re-capturing…"); postJSON(`/s/${sess}/recapture`).then(r => {
+  const recapture = (only) => { toast(only === "port" ? "re-capturing port…" : "re-capturing…");
+    postJSON(`/s/${sess}/recapture`, only ? { only } : {}).then(r => {
     if (!r.ok) return toast("re-capture: " + (r.error || "fail"), true);
     const poll = () => fetch("/capture/status").then(x => x.json()).then(s => {
       if (s.running) { pollCap(); setTimeout(poll, 2000); }
@@ -226,12 +226,23 @@ function IteratePanel({ sess, manifest, reload }) {
     toast(`applied ${r.pins_added} pin(s)`); reload();
     if (r.pins_added > 0) recapture();
   }); };
+  const clone = () => { const name = prompt("clone session as:"); if (!name) return;
+    postJSON(`/s/${sess}/clone`, { name }).then(r => r.ok
+      ? (location.search = "?session=" + encodeURIComponent(r.name))
+      : toast("clone: " + (r.error || "fail"), true)); };
+  const toggleDiv = (e) => postJSON(`/s/${sess}/divergent`, { on: e.target.checked })
+    .then(() => { toast(e.target.checked ? "divergent editing on" : "mirror editing"); reload(); });
   return html`<section class="panel"><h3>iterate
       ${stale && html`<span class="stale-dot" title="edits not yet captured">● STALE</span>`}
       ${cap?.running && html`<span class="dim"> · ⟳ ${cap.elapsed_s}s</span>`}</h3>
     <div class="mark-row">
       <button onClick=${apply}>✓ apply pins</button>
-      <button onClick=${recapture}>⟳ re-capture</button>
+      <button onClick=${() => recapture()}>⟳ re-capture</button>
+      <button onClick=${() => recapture("port")} title="re-run only the port vs the cached retail (fast)">⟳ port only</button>
+    </div>
+    <div class="mark-row">
+      <button onClick=${clone}>⎘ clone</button>
+      <label class="ck"><input type="checkbox" checked=${!!manifest.divergent} onChange=${toggleDiv}/> divergent edit</label>
     </div>
     <div class="rec-status">${cap && !cap.running && cap.session ?
       (cap.last_rc === 0 || cap.last_rc === null ? `✓ ${cap.session}` : `✗ rc=${cap.last_rc}`) : "—"}</div>
@@ -260,9 +271,12 @@ function App() {
   const [tlCursor, setTlCursor] = useState(0);
   const [marks, setMarks] = useState([]);
   const [editTrace, setEditTrace] = useState(null);
+  const [notesState, setNotesState] = useState([]);
   const [localStale, setLocalStale] = useState(false);
   const saveTimer = useRef(0);
   useEffect(() => { if (traceOps) setEditTrace(traceOps); }, [traceOps]);
+  useEffect(() => { if (notes) setNotesState(notes); }, [notes]);
+  const onNotes = useCallback((ns) => { setNotesState(ns); postJSON(`/s/${SESS}/notes`, { notes: ns }); }, []);
   const onEdit = useCallback((newOps) => {
     setEditTrace(newOps); setLocalStale(true);
     clearTimeout(saveTimer.current);
@@ -320,11 +334,12 @@ function App() {
       <div class="hint">←/→ ±10 · ,/. ±1 · Home/End · 1/2/3 toggle panels · drag a box on a frame → crop ref</div>
       <${Timeline} editTrace=${editTrace || []} onEdit=${onEdit} capturedOps=${capturedOps || []}
         anchors=${anchors} manifest=${manifest} stale=${manifest.stale || localStale}
+        notes=${notesState} onNotes=${onNotes} pendingBox=${pendingBox} setPendingBox=${setPendingBox}
         cursor=${tlCursor} setCursor=${setTlCursor}
         onSeekWindow=${(idx) => { if (idx >= 0 && idx < N) setCur(idx); }} />
       <div class="panels">
         <${RecordPanel} />
-        <${IteratePanel} sess=${SESS} manifest=${manifest} reload=${reload} />
+        <${IteratePanel} sess=${SESS} manifest=${manifest} stale=${manifest.stale || localStale} reload=${reload} />
         <${MarksPanel} sess=${SESS} marks=${marks} setMarks=${setMarks} cur=${cur} setCur=${setCur}
           pendingBox=${pendingBox} setPendingBox=${setPendingBox} note=${note} setNote=${setNote} />
         <section class="panel"><h3>per-frame state</h3>

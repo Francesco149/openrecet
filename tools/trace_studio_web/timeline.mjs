@@ -11,7 +11,7 @@ import { parseSegments, sideLayout, itemAbs } from "/align.mjs";
 // the button bits we draw a row for (src/input.c input_binding_mask)
 const BTNROWS = [[0x04, "↑"], [0x08, "↓"], [0x02, "←"], [0x01, "→"],
                  [0x10, "Z"], [0x20, "X"], [0x40, "C"], [0x80, "V"]];
-const DEFAULT_BTNS = new Set([0x04, 0x08, 0x02, 0x01, 0x10]);   // arrows + Z always shown
+const DEFAULT_BTNS = new Set([0x04, 0x08, 0x02, 0x01, 0x10, 0x20, 0x40, 0x80]);  // ↑↓←→ Z X C V
 const PRESS_LEN = 3;                                            // default added-press length
 
 function anchorCls(name) {
@@ -32,7 +32,7 @@ const btnNames = (hex) => { const m = parseInt(hex, 16) || 0;
 const RH = 14;                                   // per-button / pin lane height
 const H = { anchors: 22, inputs: 16 };
 
-export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, stale, cursor, setCursor, onSeekWindow }) {
+export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, stale, notes, onNotes, pendingBox, setPendingBox, cursor, setCursor, onSeekWindow }) {
   const [ppf, setPpf] = useState(1.0);
   const [syncSeg, setSyncSeg] = useState(null);
   const [winOnly, setWinOnly] = useState(false);
@@ -125,6 +125,24 @@ export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, st
     if (sg > 0) { let wc = 0; for (let i = 0; i < next.length; i++) { if (next[i] && "wait" in next[i]) { wc++; if (wc === sg) { idx = i + 1; break; } } } }
     next.splice(idx, 0, op); onEdit(next);
   };
+
+  // ── notes (sidecar: {seg, frame, text, box?}) — port-aligned annotations ────
+  const addNote = () => {
+    const text = prompt("note" + (pendingBox ? " (crop attached)" : "") + ":"); if (!text) return;
+    const abs = port.syncFrame + cursor;
+    let sg = 0; for (let k = 0; k < segs.length; k++) if (((port.bases[k] || {}).base ?? 0) <= abs) sg = k;
+    const f = Math.max(0, abs - ((port.bases[sg] || {}).base || 0));
+    const note = { seg: sg, frame: f, text }; if (pendingBox) note.box = pendingBox;
+    onNotes([...(notes || []), note]); if (setPendingBox) setPendingBox(null);
+  };
+  const delNote = (i) => { const n = (notes || []).slice(); n.splice(i, 1); onNotes(n); };
+  const noteMarks = () => (notes || []).map((nt, i) => {
+    const x = sideX(((port.bases[nt.seg] || {}).base || 0) + nt.frame, "port");
+    return html`<div class="pin note" style="left:${x}px"
+      title=${`${nt.text}${nt.box ? " · crop " + nt.box.join(",") : ""} · click=scrub · alt-click=delete`}
+      onClick=${(e) => { e.stopPropagation(); if (e.altKey) delNote(i); else setCursorRel(((port.bases[nt.seg] || {}).base || 0) + nt.frame - port.syncFrame); }}
+      key=${i}>📝</div>`;
+  });
 
   const segInputs = (k) => segs[k].items.filter(i => i.kind === "input").sort((a, b) => a.frame - b.frame);
   const denseOf = (k, maxF) => {
@@ -223,7 +241,8 @@ export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, st
     rows.push(["esc", RH, side, html`<div class="tl-row pinrow" style="height:${RH}px">${pinItems("esc", side)}</div>`]);
     return rows;
   };
-  const rows = [...sideRows("retail"), ...sideRows("port")];
+  const rows = [...sideRows("retail"), ...sideRows("port"),
+    ["📝 notes", RH, "note", html`<div class="tl-row notes" style="height:${RH}px">${noteMarks()}</div>`]];
 
   return html`<div class="timeline">
     <div class="tl-bar">
@@ -236,6 +255,7 @@ export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, st
       <span class="sep">·</span><span class="dim">add@cursor:</span>
       <button class="seg" onClick=${() => addAtCursor("phasepin")} title="add a phasepin at the cursor">+⟲</button>
       <button class="seg" onClick=${() => addAtCursor("rngseed")} title="add an rngseed at the cursor">+🎲</button>
+      <button class="seg" onClick=${addNote} title="add a note at the cursor (attaches a video crop if you box-selected one)">+📝</button>
       <span class="spacer"></span>
       ${stale && html`<span class="stale-dot">● edits not captured</span>`}
       <span class="dim">zoom</span>

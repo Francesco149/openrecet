@@ -159,6 +159,11 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
   border-radius: 2px; pointer-events: none; }
 .tl-grp.s-retail .bar { background: #f0a868cc; }
 .tl-row.pinrow { background: #0d0f13; }
+.tl-row.notes { background: #14110d; cursor: default; }
+.pin.note { font-size: 11px; cursor: pointer; }
+.gut-row.s-note { border-left-color: #c78bff; }
+.gut-row.s-note .side-dot { background: #c78bff; }
+.tl-grp.s-note { border-left: 3px solid color-mix(in srgb, #c78bff 45%, transparent); }
 .tl-content { position: relative; min-width: 100%; }
 .tl-cursor { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent);
   pointer-events: none; z-index: 4; }
