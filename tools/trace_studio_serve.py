@@ -14,12 +14,22 @@ not provide it. Also exposes a tiny JSON API:
 """
 from __future__ import annotations
 
+import atexit
 import json
+import os
 import re
+import signal
 import socketserver
+import subprocess
+import sys
+import threading
+import time
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+
+ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_REMOTE = os.environ.get("OPENRECET_FRIDA_REMOTE", "cutestation.soy:27042")
 
 _CTYPE = {
     ".html": "text/html; charset=utf-8",
@@ -32,7 +42,155 @@ _CTYPE = {
 }
 
 
-def make_handler(sess_root: Path, web_dir: Path, default_session: str | None):
+# ─── trace recorder (frida-attach to the running retail game) ────────────────
+
+class RecordController:
+    """Owns the `frida_capture.py --record-trace` subprocess driven by the studio
+    record panel. Spawns it in its OWN process group so the WHOLE group can be
+    signalled — and is paranoid about never leaving a stray recorder: stop()
+    SIGINTs (frida_capture finalises + writes the trace on SIGINT), escalates to
+    SIGKILL if it hangs, and a process-exit hook force-kills any survivor."""
+
+    PIDFILE = ROOT / "runs" / "recordings" / ".studio_recorder.json"
+
+    def __init__(self, remote: str):
+        self.remote = remote
+        self.lock = threading.Lock()
+        self.proc: subprocess.Popen | None = None
+        self.pgid: int | None = None
+        self.name: str | None = None
+        self.out: Path | None = None
+        self.log: Path | None = None
+        self.started: float = 0.0
+
+    @classmethod
+    def reap_orphan(cls) -> None:
+        """At studio startup, SIGKILL a recorder orphaned by a previously
+        hard-killed server. Scoped to the pgid WE recorded — never touches a
+        recorder started by hand (e.g. tools/record-trace.sh)."""
+        try:
+            info = json.loads(cls.PIDFILE.read_text())
+        except (FileNotFoundError, json.JSONDecodeError):
+            return
+        pgid = info.get("pgid")
+        try:
+            if pgid:
+                os.killpg(pgid, signal.SIGKILL)
+                print(f"trace_studio: reaped orphaned recorder pgid={pgid}",
+                      flush=True)
+        except (ProcessLookupError, PermissionError):
+            pass
+        cls.PIDFILE.unlink(missing_ok=True)
+
+    def _clear_pidfile(self) -> None:
+        self.PIDFILE.unlink(missing_ok=True)
+
+    def _alive(self) -> bool:
+        return self.proc is not None and self.proc.poll() is None
+
+    def start(self, name: str) -> dict:
+        with self.lock:
+            if self._alive():
+                return {"ok": False, "error": f"already recording '{self.name}'"}
+            safe = re.sub(r"[^\w.-]", "_", name) or time.strftime("rec-%Y%m%d-%H%M%S")
+            rec_dir = ROOT / "runs" / "recordings"
+            rec_dir.mkdir(parents=True, exist_ok=True)
+            out = rec_dir / f"{safe}.raw.jsonl"
+            log = rec_dir / f"{safe}.reclog.txt"
+            run_dir = rec_dir / f"_rt_{safe}"
+            cmd = [sys.executable, str(ROOT / "tools" / "frida_capture.py"),
+                   "--remote", self.remote,
+                   "--record-trace", str(out), "--run-dir", str(run_dir)]
+            logf = log.open("w")
+            try:
+                # start_new_session ⇒ own process group; inherit the dev-shell env
+                # (serve runs under `nix develop`, so frida is importable here).
+                self.proc = subprocess.Popen(
+                    cmd, cwd=str(ROOT), stdout=logf, stderr=subprocess.STDOUT,
+                    start_new_session=True)
+            except Exception as e:                       # noqa: BLE001
+                logf.close()
+                return {"ok": False, "error": f"spawn failed: {e!r}"}
+            self.pgid = os.getpgid(self.proc.pid)
+            self.name, self.out, self.log = safe, out, log
+            self.started = time.time()
+            try:
+                self.PIDFILE.write_text(json.dumps(
+                    {"pid": self.proc.pid, "pgid": self.pgid, "name": safe}))
+            except OSError:
+                pass
+            return {"ok": True, "name": safe, "out": str(out), "pid": self.proc.pid}
+
+    def stop(self, grace_s: float = 20.0) -> dict:
+        with self.lock:
+            if self.proc is None:
+                return {"ok": False, "error": "not recording"}
+            name, out = self.name, self.out
+            if self.proc.poll() is None:
+                # SIGINT the whole group → frida_capture finalises + writes.
+                self._signal_group(signal.SIGINT)
+                deadline = time.time() + grace_s
+                while time.time() < deadline and self.proc.poll() is None:
+                    time.sleep(0.2)
+                # Escalate if it didn't finalise in time.
+                if self.proc.poll() is None:
+                    self._signal_group(signal.SIGTERM)
+                    time.sleep(2.0)
+                if self.proc.poll() is None:
+                    self._signal_group(signal.SIGKILL)
+                    time.sleep(0.5)
+            written = bool(out and out.exists())
+            res = {"ok": True, "name": name, "out": str(out) if out else None,
+                   "written": written,
+                   "bytes": (out.stat().st_size if written else 0)}
+            self.proc = None
+            self.pgid = None
+            self._clear_pidfile()
+            return res
+
+    def _signal_group(self, sig) -> None:
+        try:
+            if self.pgid is not None:
+                os.killpg(self.pgid, sig)
+        except ProcessLookupError:
+            pass
+        except Exception:                                # noqa: BLE001
+            try:
+                if self.proc:
+                    self.proc.send_signal(sig)
+            except Exception:                            # noqa: BLE001
+                pass
+
+    def status(self) -> dict:
+        with self.lock:
+            running = self._alive()
+            tail = ""
+            if self.log and self.log.exists():
+                lines = self.log.read_text(errors="replace").splitlines()
+                tail = "\n".join(lines[-8:])
+            return {
+                "running": running,
+                "name": self.name,
+                "elapsed_s": round(time.time() - self.started, 1) if self.started else 0,
+                "out": str(self.out) if self.out else None,
+                "exists": bool(self.out and self.out.exists()),
+                "bytes": (self.out.stat().st_size if (self.out and self.out.exists()) else 0),
+                "remote": self.remote,
+                "log_tail": tail,
+            }
+
+    def force_cleanup(self) -> None:
+        """Last-resort teardown on server shutdown — never leave a recorder."""
+        if self._alive():
+            self._signal_group(signal.SIGINT)
+            time.sleep(1.0)
+            if self._alive():
+                self._signal_group(signal.SIGKILL)
+        self._clear_pidfile()
+
+
+def make_handler(sess_root: Path, web_dir: Path, default_session: str | None,
+                 recorder: "RecordController"):
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -156,6 +314,9 @@ def make_handler(sess_root: Path, web_dir: Path, default_session: str | None):
             if path == "/api/sessions":
                 self._send_json(self._sessions())
                 return
+            if path == "/record/status":
+                self._send_json(recorder.status())
+                return
             m = re.match(r"^/s/([^/]+)/(.+)$", path)
             if m:
                 sess, rel = m.group(1), m.group(2)
@@ -167,8 +328,23 @@ def make_handler(sess_root: Path, web_dir: Path, default_session: str | None):
             self._send_bytes(b"not found", "text/plain", 404)
 
         # ── POST ─────────────────────────────────────────────────────────────
+        def _read_body(self) -> dict:
+            length = int(self.headers.get("Content-Length", "0"))
+            body = self.rfile.read(length) if length else b"{}"
+            try:
+                return json.loads(body or b"{}")
+            except json.JSONDecodeError:
+                return {}
+
         def do_POST(self):
             u = urlparse(self.path)
+            if u.path == "/record/start":
+                d = self._read_body()
+                self._send_json(recorder.start(d.get("name", "")))
+                return
+            if u.path == "/record/stop":
+                self._send_json(recorder.stop())
+                return
             m = re.match(r"^/s/([^/]+)/edits$", u.path)
             if not m:
                 self._send_bytes(b"not found", "text/plain", 404)
@@ -197,8 +373,14 @@ def make_handler(sess_root: Path, web_dir: Path, default_session: str | None):
 
 
 def serve(sess_root: Path, web_dir: Path, host: str = "127.0.0.1",
-          port: int = 8778, default_session: str | None = None) -> None:
-    handler = make_handler(sess_root, web_dir, default_session)
+          port: int = 8778, default_session: str | None = None,
+          remote: str = DEFAULT_REMOTE) -> None:
+    # Reap a recorder orphaned by a previously hard-killed studio before we start.
+    RecordController.reap_orphan()
+    recorder = RecordController(remote)
+    # Never leave a stray recorder if the studio dies any which way.
+    atexit.register(recorder.force_cleanup)
+    handler = make_handler(sess_root, web_dir, default_session, recorder)
 
     class Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
         allow_reuse_address = True
@@ -209,9 +391,12 @@ def serve(sess_root: Path, web_dir: Path, host: str = "127.0.0.1",
     if default_session:
         url += f"?session={default_session}"
     print(f"trace_studio: serving {sess_root} at {url}", flush=True)
+    print(f"trace_studio: record target (frida) = {remote}", flush=True)
     print("trace_studio: Ctrl-C to stop", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\ntrace_studio: stopped", flush=True)
+    finally:
+        recorder.force_cleanup()
         httpd.shutdown()

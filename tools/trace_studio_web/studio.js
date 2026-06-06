@@ -120,6 +120,47 @@ function loadMarks() {
 }
 function esc(s) { return s.replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])); }
 
+// ── record (frida-attach to retail) ──────────────────────────────────────────
+let recTimer = 0;
+function recStatusText(s) {
+  if (s.running) return `● recording "${s.name}" · ${s.elapsed_s}s · ${(s.bytes/1024).toFixed(0)} KB → ${s.out}`;
+  if (s.out && s.exists) return `■ stopped · wrote ${(s.bytes/1024).toFixed(0)} KB → ${s.out}\n  distil: tools/distill_trace.py ${s.out} --anchor-segments`;
+  return `idle · target ${s.remote}`;
+}
+function applyRecStatus(s) {
+  $("ts-rec-status").textContent = recStatusText(s);
+  $("ts-rec-start").disabled = !!s.running;
+  $("ts-rec-stop").disabled = !s.running;
+  if (s.log_tail) $("ts-rec-status").title = s.log_tail;
+}
+function pollRec() {
+  fetch("/record/status", { cache: "no-cache" }).then(r => r.json())
+    .then(s => {
+      applyRecStatus(s);
+      if (s.running && !recTimer) recTimer = setInterval(pollRec, 1500);
+      if (!s.running && recTimer) { clearInterval(recTimer); recTimer = 0; }
+    }).catch(() => {});
+}
+function recStart() {
+  const name = $("ts-rec-name").value.trim();
+  $("ts-rec-start").disabled = true;
+  fetch("/record/start", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }) }).then(r => r.json()).then(res => {
+      if (!res.ok) { toast("record start: " + (res.error || "failed"), true); $("ts-rec-start").disabled = false; return; }
+      toast("recording → " + res.out);
+      pollRec();
+    }).catch(() => { toast("record start failed", true); $("ts-rec-start").disabled = false; });
+}
+function recStop() {
+  $("ts-rec-stop").disabled = true;
+  toast("stopping recorder (finalising trace)…");
+  fetch("/record/stop", { method: "POST" }).then(r => r.json()).then(res => {
+    if (!res.ok) { toast("record stop: " + (res.error || "failed"), true); return; }
+    toast(res.written ? `wrote ${(res.bytes/1024).toFixed(0)} KB → ${res.out}` : "stopped (no trace written — check the log)", !res.written);
+    pollRec();
+  }).catch(() => toast("record stop failed", true));
+}
+
 // ── play ─────────────────────────────────────────────────────────────────────
 function play() {
   if (playing) return stop();
@@ -265,7 +306,14 @@ async function loadSessionList() {
   } catch { sel.innerHTML = `<option>${SESS}</option>`; }
 }
 
+function wireRecord() {
+  $("ts-rec-start").onclick = recStart;
+  $("ts-rec-stop").onclick = recStop;
+  pollRec();
+}
+
 async function load() {
+  wireRecord();                 // record panel works with or without a session
   await loadSessionList();
   if (!SESS) { $("ts-status").textContent = "pick a session"; return; }
   let m;

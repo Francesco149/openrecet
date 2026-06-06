@@ -74,6 +74,14 @@ main { padding: .75rem 1rem 3rem; }
 .panel h3 .dim { text-transform: none; letter-spacing: 0; }
 .mini { font-size: 11px; padding: 0 .4rem; }
 
+.rec-panel { border-color: #3a4150; }
+.rec-row { display: flex; gap: .35rem; margin-bottom: .45rem; }
+.rec-row input { flex: 1; }
+#ts-rec-start { color: var(--bad); border-color: #4a2c2c; }
+#ts-rec-stop { color: var(--warn); }
+.rec-status { font-size: 12px; white-space: pre-wrap; color: var(--fg); margin-bottom: .35rem; }
+.rec-help { font-size: 11px; }
+
 .mark-row { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .45rem; }
 #ts-mark-note { width: 100%; }
 .mark-after { color: var(--dim); font-size: 12px; margin-top: .4rem; }

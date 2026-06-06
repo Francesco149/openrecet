@@ -46,6 +46,16 @@ apply (pins land in the trace; worklist for Claude) → implement / re-capture t
 window → diff goes black / verdict goes PHASE-CLEAN. Marks are keyed by the
 0-based window index; a re-capture of the same window keeps them valid.
 
+**Recording a trace (no incantation to remember):** the studio's **record panel**
+(top-left in `serve`) frida-attaches to the running retail game and records by
+hand — get Recettear to the **title** via Steam first, click *start*, play, *stop*
+writes `runs/recordings/<name>.raw.jsonl`. It owns the subprocess in its own
+process group and tears it down on stop / server exit / orphan-on-next-start, so it
+can't leave a stray capture process. The CLI equivalent is
+`./tools/record-trace.sh [name]` (self-re-execs into the dev shell). Both wrap
+`frida_capture.py --record-trace` (workflow B). Distil the result with
+`tools/distill_trace.py <raw> --anchor-segments` then feed it to `capture`.
+
 Outputs land under `runs/trace-studio/<session>/` (`session.json` manifest,
 `{port,retail,diff}.mp4`, `state.jsonl`, `edits.jsonl`, `worklist.md`). The
 scrub videos are all-intra h264 (every frame a keyframe → frame-exact seek);

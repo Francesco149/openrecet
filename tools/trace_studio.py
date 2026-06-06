@@ -503,7 +503,7 @@ def cmd_serve(args) -> int:
     if sess_dir and not sess_dir.exists():
         raise SystemExit(f"trace_studio: no session {args.session} under {SESS_ROOT}")
     serve(SESS_ROOT, WEB_DIR, host=args.host, port=args.port,
-          default_session=args.session)
+          default_session=args.session, remote=args.remote)
     return 0
 
 
@@ -546,6 +546,8 @@ def main(argv=None) -> int:
     s.add_argument("--session", help="session to open by default")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8778)
+    s.add_argument("--remote", default=DEFAULT_REMOTE,
+                   help="frida host:port the record panel attaches to")
     s.set_defaults(func=cmd_serve)
 
     a = sub.add_parser("apply", help="apply edits.jsonl pins + emit worklist")

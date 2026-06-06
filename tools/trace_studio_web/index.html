@@ -51,6 +51,20 @@
   </div>
 
   <div class="panels">
+    <section class="panel rec-panel">
+      <h3>record a trace <span class="dim">(retail · frida attach)</span></h3>
+      <div class="rec-row">
+        <input id="ts-rec-name" type="text" placeholder="trace name (optional)">
+        <button id="ts-rec-start">● start</button>
+        <button id="ts-rec-stop" disabled>■ stop</button>
+      </div>
+      <div id="ts-rec-status" class="rec-status">idle</div>
+      <div class="rec-help dim">
+        Launch Recettear via Steam &amp; get to the <b>title</b> first, then start.
+        Play by hand; stop writes <code>runs/recordings/&lt;name&gt;.raw.jsonl</code>.
+      </div>
+    </section>
+
     <section class="panel">
       <h3>mark this frame</h3>
       <div class="mark-row">
