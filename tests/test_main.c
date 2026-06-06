@@ -1672,6 +1672,14 @@ struct test_case {
     X(shop_display_highlight_no_stand_is_none) \
     X(shop_display_highlight_facing_octants) \
     \
+    X(display_menu_open_inits_none_entry) \
+    X(display_menu_update_returns_0_while_sliding) \
+    X(display_menu_confirm_countdown_fires_after_6) \
+    X(display_menu_cancel_returns_2) \
+    X(display_menu_idle_returns_0) \
+    X(display_menu_inventory_return_appends_and_counts) \
+    X(display_menu_inventory_remove_shifts_and_counts) \
+    \
     X(scene1_camera_init_clears_orient) \
     X(scene1_camera_house_default_snaps_to_oracle_pose) \
     X(scene1_camera_house_groundtruth_matches_retail) \

@@ -2639,7 +2639,17 @@ static void render_dispatch(void)
             .conv_pose_state  = scene1_conversation_pose_player_state(),
             .conv_pose_blink  = scene1_conversation_pose_player_blink(),
             .intro_done       = scene1_intro_dialogue_done(),
-            .pause_active     = (g_scene_pause_state_b150 != 0),
+            /* PAUSE_OPEN/CLOSE = "a modal interaction menu is up" (the recorder's
+             * DAT_0438b150 cursor-visible signal).  Two engine menus drive it:
+             * the pause menu (scene_pause's b150 mirror) and the in-house
+             * display-stand remove-item menu (cc04 != 0 — the open snaps the
+             * shared cursor → b150=1 on the SAME frame cc04 goes 1, all.c
+             * FUN_00468338→FUN_00435693).  The load-picker / title cursors use
+             * the title_save_dialog b150 mirror and deliberately do NOT count
+             * here, so the house-display-remove trace's single {wait:PAUSE_OPEN}
+             * lands on the display menu, not the earlier load picker. */
+            .pause_active     = (g_scene_pause_state_b150 != 0)
+                                || (player_ctrl_cc04() != 0),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);

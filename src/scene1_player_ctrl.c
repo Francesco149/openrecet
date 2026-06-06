@@ -24,6 +24,7 @@
 #include "scene1_intro_dialogue.h" /* prologue gate — suppress the walk arm */
 #include "scene1_overlay.h"      /* scene1_overlay_spawn (FUN_00414345) — sparkle */
 #include "scene1_shop_display.h" /* furniture-layout grid + cell highlight (FUN_0048960d/619f) */
+#include "scene1_display_menu.h" /* cc04==1 remove-item menu update/removal (A2) */
 #include "save_work.h"           /* working-arena display grid (dword 0x4e26) */
 #include "save_bank.h"           /* SAVE_BANK_FIELD_DISPLAY_GRID */
 #include "sim.h"                 /* g_sim_frame_count (DAT_0438b8cc), g_sim_buttons (edge mask) */
@@ -923,6 +924,9 @@ static void player_ctrl_cc08_proximity_detect(void)
  * grid.  DAT_0450f3f2 = displays present, DAT_0450f400 = displays suppressed. */
 #define PC_SHOP_DISPLAY_PRESENT_BYTE_OFF  0x2bc5a   /* DAT_0450f3f2 - DAT_044e3798 */
 #define PC_SHOP_DISPLAY_SUPPRESS_BYTE_OFF 0x2bc68   /* DAT_0450f400 - DAT_044e3798 */
+/* confirm-path display-state bytes (asm 0x489224 / 0x48933c, rec-relative). */
+#define PC_SHOP_DISPLAY_CHANGED_BYTE_OFF  0x2bc60   /* DAT_0450f3f8 — "display changed" */
+#define PC_SHOP_DISPLAY_BACKROW_BYTE_OFF  0x2bc63   /* DAT_0450f3fb — back-row (cc00==0) dirty */
 
 /* d-pad interaction (all.c:87617-87748, the db048==0 block): the action-button
  * masks (cancel 0x20 → menu/exit, confirm 0x40 → talk-to-customer, 0x10 → object
@@ -986,17 +990,13 @@ static int player_ctrl_cc08_dpad_interact(void)
     if (first_open)
         s_cbe8 = 1;
 
-    /* FUN_00468338(0, first_open): the inventory-window builder + slide init.
-     * A1 ports the SLIDE init only — DAT_0734b9a0=1 (active) + DAT_0734b98c=0
-     * (counter), the ramp the per-frame stage_load_pulse_tick advances 0→5 (the
-     * menu slides in).  The window holds the sim frozen while cc04 != 0 (the
-     * freeroam arm returns early on s_cc04 != 0, so neither the walk nor the
-     * companion db054 clock advance — engine-quirks §110).
-     * PORT-DEBT(A2, FUN_00468338): the inventory item-list population (the
-     * window's contents) lands with the menu-update chip. */
-    stage_load_pulse_reset();          /* g_counter = 0, g_active = 0 */
-    stage_load_pulse_set_active(1);    /* g_active = 1 → ramp 0→5 (FUN_004681ec's
-                                        * DAT_0734b990 flag is the window default 0) */
+    /* FUN_00468338(0, first_open): open the inventory window — the list init +
+     * the slide (DAT_0734b9a0=1 active + DAT_0734b98c=0 counter, ramped 0→5 by
+     * the per-frame stage_load_pulse_tick).  The window holds the sim frozen
+     * while cc04 != 0 (the freeroam arm routes to the cc04 menu arm below
+     * instead of the walk, so neither the walk nor the companion db054 clock
+     * advance — engine-quirks §110). */
+    display_menu_open(0, first_open);
     return 1;   /* menu opened: consume the frame. */
 }
 
@@ -1025,17 +1025,110 @@ static int player_ctrl_shop_display_present(void)
     return ((const uint8_t *)bank)[PC_SHOP_DISPLAY_PRESENT_BYTE_OFF] != 0;
 }
 
+/* cc04==1 display-stand menu arm (FUN_0048670f all.c:87905-88017, the else of
+ * the cc04==0 walk / cc04==2 furniture-grid split).  Runs every frame the
+ * remove-item menu is open: tick the picker update and act on its return —
+ * 1 = confirm (the removal), 2 = cancel, 3 = pick-up arm.  The sim stays frozen
+ * throughout (db054 doesn't advance because the walk arm never runs — §110); on
+ * close, cc04 → 0 and the slide retracts.
+ *
+ * The confirm-1 path is the SAVE-relevant removal: with the cursor on the
+ * index-0 "select none" entry FUN_00469a9f()==-1, so it writes -1 into the
+ * faced display-grid cell (SAVE_BANK_FIELD_DISPLAY_GRID, save dword 0x4e26) and
+ * returns the previously-displayed item to the inventory.  FUN_004681f6(-1)==-1
+ * → the engine reads an out-of-array category that lands on the NORMAL (non-
+ * counter) path; we take that path directly for the -1 "remove" case (retail
+ * ground-truth: the removal writes the grid + returns the item; the counter
+ * variant only fires when PLACING a 0x1451..0x14b3 item — PORT-DEBT below). */
+static void player_ctrl_cc04_menu_arm(void)
+{
+    int r = display_menu_update(1);   /* FUN_00469414(1) */
+
+    if (r == 2) {                     /* CANCEL (all.c:87907) */
+        s_cc04 = 0;                                  /* DAT_0438cc04 = 0 */
+        stage_load_pulse_set_active(0);              /* FUN_004682d0: slide out */
+        /* FUN_00435612 (DAT_0438b150 = 0) is part of the menu CURSOR teardown —
+         * deferred to the menu render chip with the rest of the cursor. */
+        /* FUN_00499519 cancel SE — fixed id, no RNG. */
+        return;
+    }
+
+    if (r == 3) {                     /* pick-up arm (Z edge frame, all.c:87915) */
+        /* PORT-DEBT(A3): the brief carry pose (DAT_056db048 = 0xc) the engine
+         * sets here is visual-only (the player holds the item for the 6-frame
+         * confirm countdown) — it does not touch the grid / inventory / db054 /
+         * RNG, so it is deferred to the pose-render chip.  The countdown was
+         * armed inside display_menu_update; the removal lands on the return-1
+         * frame below. */
+        /* FUN_00499519 pick-up SE — fixed id, no RNG. */
+        return;
+    }
+
+    if (r == 1) {                     /* CONFIRM / REMOVE (all.c:87932) */
+        uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+        int sel = display_menu_selected();            /* FUN_00469a9f → -1 */
+        int col = shop_display_cbfc();
+        int row = shop_display_cc00();
+
+        if (bank != NULL && col >= 0 && row >= 0) {
+            int cell = col + row * SHOP_DISPLAY_GRID_STRIDE;
+            int old  = (int)bank[SAVE_BANK_FIELD_DISPLAY_GRID + cell];
+
+            /* proceed only if placing (sel != -1) OR the cell is occupied
+             * (all.c:87934). */
+            if (sel != -1 || old != -1) {
+                uint8_t *bb = (uint8_t *)bank;
+                bb[PC_SHOP_DISPLAY_CHANGED_BYTE_OFF] = 1;   /* DAT_0450f3f8 = 1 */
+
+                /* confirm SE: rand()&1 picks one of two clips (asm 0x48922b),
+                 * then FUN_0049933c plays it.  Audio is a no-op, but the rand
+                 * draw must be mirrored to keep the shared LCG aligned (the open
+                 * draw is in the open gate). */
+                (void)rng_next15();
+
+                /* NORMAL (sword / non-counter) removal path (all.c:87941-87977,
+                 * the sel==-1 case): blank the cell, return the old item. */
+                bank[SAVE_BANK_FIELD_DISPLAY_GRID + cell] = (uint32_t)sel;   /* = -1 */
+                display_menu_inventory_remove(bank, sel);   /* FUN_00469241(-1): no-op */
+                display_menu_inventory_return(bank, old);   /* FUN_00468d22(sword) */
+                /* FUN_0044bd0b — 1-byte no-op (stripped). */
+                /* PORT-DEBT(A3, FUN_0048439a): the live display-appeal recompute
+                 * (DAT_0438b4b8/b4bc) reads the grid + item DB but touches no
+                 * save/RNG state — deferred with the menu render. */
+                if (row == 0)
+                    bb[PC_SHOP_DISPLAY_BACKROW_BYTE_OFF] = 1;   /* DAT_0450f3fb */
+                /* PORT-DEBT(A3): the DAT_0450f3fd first-stock latch block
+                 * (all.c:87952-87976) is gated on the latch being 0; a loaded,
+                 * already-stocked shop has it set, so it is inert for the
+                 * roundtrip — deferred with the place path. */
+            }
+        }
+
+        s_cc04 = 0;                                  /* DAT_0438cc04 = 0 (close) */
+        stage_load_pulse_set_active(0);              /* FUN_004682d0: slide out */
+        /* FUN_00435612 cursor teardown deferred to the menu render chip. */
+    }
+
+    /* PORT-DEBT(A3): the menu-frame tail FUN_004897c6 (player buff/cooldown
+     * status tick — all timers 0 in HOUSE, no RNG/save effect) + FUN_0048a833
+     * (companion facing — the player is frozen, so it is a no-op here, matching
+     * retail's frozen companion under the §110 db054 freeze) are not run; the
+     * companion controller is gated to the walk arm, which the menu skips. */
+}
+
 static void player_ctrl_cc08_freeroam_arm(void)
 {
     /* customer-approach escalation: inert (no customers) → falls through. */
     if (player_ctrl_cc08_customer_escalate())
         return;
 
-    /* cc04 interaction sub-state: 0 = walking; 1/2 = an object/customer
-     * interaction is active (dialogue/haggle — the all.c:1227+ arms, unported).
-     * cc04 stays 0 in the port, so the interaction branch is dead. */
-    if (s_cc04 != 0)
-        return;                       /* cc04 != 0: unported interaction arm */
+    /* cc04 interaction sub-state: 0 = walking; 1 = the display-stand remove-item
+     * menu is open (A2) → its per-frame arm; 2 = the furniture-grid mode
+     * (unported).  The menu arm holds the sim frozen until it closes (cc04→0). */
+    if (s_cc04 != 0) {
+        player_ctrl_cc04_menu_arm();
+        return;
+    }
 
     /* proximity / approach detection: inert (no customer/item live). */
     player_ctrl_cc08_proximity_detect();
@@ -1249,6 +1342,18 @@ void scene1_player_ctrl_tick(void)
             CALL_TRACE_I32("cc04", s_cc04);
             CALL_TRACE_I32("cbfc", shop_display_cbfc());
             CALL_TRACE_I32("cc00", shop_display_cc00());
+            /* faced display-grid item id (SAVE_BANK_FIELD_DISPLAY_GRID cell):
+             * the A2 removal writes -1 here on the confirm frame.  Port-only
+             * (the retail 0x48670f hook does not yet declare it). */
+            {
+                const uint32_t *gb = save_work_dwords_at(save_work_active_slot());
+                int gcol = shop_display_cbfc(), grow = shop_display_cc00();
+                int gv = -2;   /* no cell faced */
+                if (gb != NULL && gcol >= 0 && grow >= 0)
+                    gv = (int)gb[SAVE_BANK_FIELD_DISPLAY_GRID
+                                 + gcol + grow * SHOP_DISPLAY_GRID_STRIDE];
+                CALL_TRACE_I32("gridc", gv);
+            }
         }
         CALL_TRACE_END();
     }

@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 348,
-  "unported": 2116,
+  "ported": 358,
+  "unported": 2106,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 432,
-  "pct_touched": 17.0,
+  "touched": 442,
+  "pct_touched": 17.3,
   "pct_verified": 2.7,
   "port_debt": 11
  },
@@ -2656,6 +2656,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_player_ctrl.c",
     "src/scene_title.c",
     "src/skip_event.c",
     "src/title_save_dialog.c",
@@ -2707,6 +2708,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/main.c",
+    "src/scene1_display_menu.c",
     "src/scene_title.c",
     "src/scene_worldmap.h",
     "src/title_save_dialog.c",
@@ -3437,8 +3440,10 @@
    "size": 1,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x44bd0d",
@@ -4262,7 +4267,9 @@
    "status": "ported",
    "src": [
     "src/scene1_chr_prepass.c",
-    "src/scene1_chr_prepass.h"
+    "src/scene1_chr_prepass.h",
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h"
    ]
   },
   {
@@ -5204,7 +5211,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_player_ctrl.c"
+    "src/scene1_display_menu.c"
    ]
   },
   {
@@ -5233,8 +5240,11 @@
    "size": 64,
    "is_thunk": false,
    "is_call_target": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h"
+   ]
   },
   {
    "va": "0x468286",
@@ -5333,6 +5343,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/main.c",
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
     "src/stage_load_pulse.c",
     "src/stage_load_pulse.h"
@@ -5380,8 +5393,12 @@
    "size": 73,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h",
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x468d6b",
@@ -5452,8 +5469,12 @@
    "size": 99,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h",
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x4692a4",
@@ -5508,8 +5529,12 @@
    "size": 1516,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h",
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x469a00",
@@ -5535,8 +5560,12 @@
    "size": 28,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h",
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x469abb",
@@ -5580,8 +5609,10 @@
    "size": 3640,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c"
+   ]
   },
   {
    "va": "0x46be53",
@@ -7828,8 +7859,10 @@
    "size": 341,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x4844ef",
@@ -8205,6 +8238,7 @@
    "src": [
     "src/scene1_bg_npc.h",
     "src/scene1_companion_ctrl.c",
+    "src/scene1_display_menu.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
     "src/scene1_shop_display.h",
@@ -8239,8 +8273,10 @@
    "size": 870,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x489b2c",
@@ -8346,6 +8382,7 @@
     "src/scene1_companion_ctrl.c",
     "src/scene1_companion_ctrl.h",
     "src/scene1_particles_tick.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
     "src/scene1_sim.c"
    ]
@@ -8874,8 +8911,10 @@
    "size": 115,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c"
+   ]
   },
   {
    "va": "0x4912de",
@@ -9473,6 +9512,7 @@
     "src/choice_box.c",
     "src/scene1_combat_sm.h",
     "src/scene1_per_frame_open.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_records_b_tick.c",
     "src/scene1_records_b_tick.h",
     "src/scene_title.c",
@@ -10118,6 +10158,7 @@
    "status": "ported",
    "src": [
     "src/save_bank.h",
+    "src/scene1_display_menu.c",
     "src/scene_title.c"
    ]
   },
