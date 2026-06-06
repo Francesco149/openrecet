@@ -103,16 +103,27 @@ void scene1_conversation_pose_tick(void)
      * producer is the intro event timeline FUN_00470a46 (clears the flag at the
      * end of the deferred shatter transition) + FUN_004852fb (sets it on
      * scene-out).  Until that render-entangled path is ported, derive the flag
-     * from the iv1_2 dialogue lifecycle: the conversation pose is the iv1_2
-     * (2nd-script, generation >= 2) window, which is exactly when retail holds
-     * it.  scene1_intro_dialogue tracks both edges (active goes false when the
-     * script finishes → the release). */
-    int iv2 = scene1_intro_dialogue_active()
-              && scene1_intro_dialogue_generation() >= 2u;
+     * from the dialogue lifecycle.
+     *
+     * Retail's DAT_0450f470 is BSS-zero (pose ON) from the intro START, so retail
+     * holds the conversation pose across the WHOLE prologue — iv1_1 AND iv1_2 —
+     * releasing only when the script finishes (it blips off for 1 frame at the
+     * inter-script load).  This was previously gated to iv1_2 (generation >= 2),
+     * which made the port pose only during the 2nd script: it fired NO
+     * CONV_POSE_START during iv1_1 where retail fires one, so a retail-recorded
+     * trace's {wait CONV_POSE_START} chain desynced on the port and the prologue
+     * never replayed 1:1 to free-roam (engine-quirks §113).  scene1_intro_dialogue
+     * tracks both scripts (D_SCRIPT1/D_SCRIPT2), so pose whenever a prologue
+     * script is active.  (Posing on _active() naturally blips the pose OFF during
+     * the inter-script D_LOAD — CONV_POSE_END at the load start, CONV_POSE_START
+     * again after the iv1_2 load — mirroring retail's 1-frame talk-flag blip.  A
+     * continuous _running() gate would instead pose straight through and fire only
+     * ONE CONV_POSE_START, losing that structure.) */
+    int posing = scene1_intro_dialogue_active();
 
     /* Inert outside the pose window (and once released): the freeroam
      * controllers own the actors — don't fight them every frame. */
-    if (!iv2 && !s_pose_active)
+    if (!posing && !s_pose_active)
         return;
 
     if (player_ctrl_actor_char(0) == -1)   /* no live player (pre-HOUSE) */
@@ -125,7 +136,7 @@ void scene1_conversation_pose_tick(void)
     float angle = 0.0f;
     int active = scene1_conversation_pose_apply(player_rec, comp_rec, &angle,
                                                 g_scene1_actor_pos[0][0],
-                                                g_scene1_actor_pos[2][0], iv2);
+                                                g_scene1_actor_pos[2][0], posing);
 
     if (active) {
         /* DAT_056db05c is one engine global the port mirrors as both the player

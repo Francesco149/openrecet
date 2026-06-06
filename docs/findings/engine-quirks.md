@@ -4397,3 +4397,26 @@ In contrast, the `"Exchange with what?"` prompt bubble that floats over the stan
 during the menu is **NOT** an .exe literal (absent from the string-scan) — it is a
 localized message-table string drawn via the world→screen projection
 (`FUN_00490c78`), the same machinery as the deferred C3b name tooltip.
+
+## 113. Retail holds the opening-prologue conversation pose across the WHOLE intro (iv1_1 AND iv1_2), and enters it DURING the load — CONV_POSE_START fires ~49 frames before HOUSE_FREEROAM, while the chibi actors are already spawned/posed under the load overlay
+
+The talk-event flag `DAT_0450f470[save]` is **BSS-zero (= pose ON) from the intro
+start** (it's only ever SET to release the pose, by `FUN_004852fb` on scene-out),
+so retail poses the HOUSE chibi actors (Recette anim-6 look-up+blink, Tear anim-4
+talk) across the **entire** opening — iv1_1 *and* iv1_2 — not just the 2nd script.
+
+Two timing facts from the retail anchor stream (clean auto-complete + a
+hand-recorded run agree): retail's iv1_1 `CONV_POSE_START` fires **between
+`LOADING_START` and `LOADING_END`, ~49 frames before `HOUSE_FREEROAM`**
+(doc table: 2710 vs HF#1 2759), i.e. the actors are spawned and posed *while the
+load overlay is still up*. At the inter-script boundary the pose blips OFF for one
+frame (`CONV_POSE_END` at the load start) then re-enters (`CONV_POSE_START`) again
+**during** the iv1_2 load, before HF#2. So the structural order is
+`LOADING_START → CONV_POSE_START → LOADING_END → HOUSE_FREEROAM` (per script).
+
+Port consequence (engine-quirk is retail-only, but recording the implication):
+the port spawns the player actor at load-END (`HOUSE_FREEROAM`) and arms the
+dialogue's `g_rt.active` post-load, so its `CONV_POSE_START` fires *after* HF, not
+during the load — a one-load-late ordering that desyncs a retail-recorded
+`{wait CONV_POSE_START}`-chain. Fully closing it needs the chibi actors live during
+the HOUSE preload (mid-load spawn), not just the pose-gate change.
