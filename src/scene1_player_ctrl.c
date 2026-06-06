@@ -26,7 +26,8 @@
 #include "scene1_shop_display.h" /* furniture-layout grid + cell highlight (FUN_0048960d/619f) */
 #include "save_work.h"           /* working-arena display grid (dword 0x4e26) */
 #include "save_bank.h"           /* SAVE_BANK_FIELD_DISPLAY_GRID */
-#include "sim.h"                 /* g_sim_frame_count (DAT_0438b8cc) */
+#include "sim.h"                 /* g_sim_frame_count (DAT_0438b8cc), g_sim_buttons (edge mask) */
+#include "stage_load_pulse.h"    /* display-menu open/close slide (FUN_004693e3 ramp) */
 #include "scene1_combat_sm.h"    /* g_scene1_combat_dat_056da1b8 (sparkle owner) */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
@@ -372,6 +373,7 @@ static int   s_player_moving    = 0;              /* last frame's moving state
  * shell) while the off-path arms remain honest stubs. */
 static int   s_cc08             = 1;              /* DAT_0438cc08 */
 static int   s_cc04             = 0;              /* DAT_0438cc04 */
+static int   s_cbe8             = 0;              /* DAT_0438cbe8 — display-menu open-once latch */
 
 /* ── FUN_0048b850 tail render-bank state (Chip 2; engine all.c L90242+) ─────
  * The two after-image banks the chr-sprite walker (FUN_00456f56) draws —
@@ -420,6 +422,8 @@ void player_ctrl_pose_house_standing(int player_char)
      * scene1_player_ctrl_tick reads each frame (§78). */
     player_ctrl_cc08_enter_freeroam();
     s_cc04 = 0;
+    s_cbe8 = 0;
+    stage_load_pulse_reset();   /* display-menu slide dormant at HOUSE entry */
 
     /* Clear the b850-tail render banks + history rings (scene entry empties the
      * after-image state; the rings refill from the live sample each frame). */
@@ -594,6 +598,15 @@ void player_ctrl_cc08_enter_freeroam(void)
 int player_ctrl_cc08(void)
 {
     return s_cc08;
+}
+
+/* Read the cc08==1 free-roam interaction sub-state (DAT_0438cc04): 0 = walking,
+ * 1 = in the display-stand remove menu.  The companion db054 clock + the
+ * free-roam walk arm advance only while this is 0 (the menu freezes the HOUSE
+ * sim, engine-quirks §110). */
+int player_ctrl_cc04(void)
+{
+    return s_cc04;
 }
 
 /* Debug/test hook: force the cc08 state id.  Stands in for the unported
@@ -905,14 +918,86 @@ static void player_ctrl_cc08_proximity_detect(void)
 {
 }
 
-/* d-pad interaction (1086-1214, the db048==0 block): the action-button masks
- * (cancel 0x20 → menu/exit, confirm 0x40 → talk-to-customer, 0x10 → object
- * interaction / door) each require a live target; none is wired in the port, so
- * every branch falls through to the walk → returns 0 ("no interaction
- * consumed"). */
+/* Bank-byte offsets of the shop-display open-gate flags (relative to the working
+ * record base DAT_044e3798), read off the active bank like the sparkle/item
+ * grid.  DAT_0450f3f2 = displays present, DAT_0450f400 = displays suppressed. */
+#define PC_SHOP_DISPLAY_PRESENT_BYTE_OFF  0x2bc5a   /* DAT_0450f3f2 - DAT_044e3798 */
+#define PC_SHOP_DISPLAY_SUPPRESS_BYTE_OFF 0x2bc68   /* DAT_0450f400 - DAT_044e3798 */
+
+/* d-pad interaction (all.c:87617-87748, the db048==0 block): the action-button
+ * masks (cancel 0x20 → menu/exit, confirm 0x40 → talk-to-customer, 0x10 → object
+ * interaction).  The door / counter-menu / talk sub-paths each require a live
+ * target none of which the port spawns yet, so they fall through; the wired one
+ * is the **in-house display-stand open gate** (all.c:87700-87727): a Z-press
+ * while facing a stand cell opens the cc04==1 remove-item menu.  Returns 1 when
+ * the menu opens (consume the frame, skip the walk — engine goto LAB_004893ff). */
 static int player_ctrl_cc08_dpad_interact(void)
 {
-    return 0;
+    /* action button Z (DAT_073dddd4 & 0x10): the per-frame EDGE mask
+     * (g_sim_buttons[0].pressed), NOT the held mask the walk reads. */
+    if ((g_sim_buttons[0].pressed & 0x10u) == 0)
+        return 0;
+
+    int cbfc = shop_display_cbfc();
+    if (cbfc == -1)                          /* no display cell highlighted */
+        return 0;
+    int cc00 = shop_display_cc00();
+
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return 0;
+    const uint8_t *bb = (const uint8_t *)bank;
+
+    /* shop gates (all.c:87703): displays present (DAT_0450f3f2 != 0) AND not
+     * suppressed (DAT_0450f400 == 0). */
+    if (bb[PC_SHOP_DISPLAY_PRESENT_BYTE_OFF] == 0)
+        return 0;
+    if (bb[PC_SHOP_DISPLAY_SUPPRESS_BYTE_OFF] != 0)
+        return 0;
+
+    /* furniture-suppression flag (all.c:87700-87701): DAT_0450fee8[fidx] == 0 is
+     * a visible stand → the cc04==1 remove menu.  != 0 is the cc04==2
+     * furniture-grid mode (deferred — fall through to the walk). */
+    int fidx = shop_display_furniture_index(cbfc, cc00);
+    if (fidx >= 0 && bank[SHOP_DISPLAY_SUPPRESS_FLAGS + (uint32_t)fidx] != 0)
+        return 0;
+
+    /* ===== open the cc04==1 display-stand menu (all.c:87705-87724) ===== */
+
+    /* open SE FUN_0049933c(rand()%3 → 00re_sys04a/b/c.bin): audio-only, but the
+     * variant select consumes one LCG draw — mirror it to keep the shared RNG
+     * stream aligned port↔retail. */
+    (void)(rng_next15() % 3);
+
+    /* interact pose (all.c:87710-87716): actor 0 anim → 3 (the lean-in pose),
+     * frame/counter/timer reset, then one anim tick (FUN_00482a71). */
+    if (s_actor_record[0][CHR_ACTOR_ANIM] != 3) {
+        union { float f; int32_t i; } z = { .f = 0.0f };
+        s_actor_record[0][CHR_ACTOR_ANIM]    = 3;
+        s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
+        s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
+        s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
+    }
+    chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+
+    /* cc04 = 1 + the open-once latch DAT_0438cbe8 (all.c:87718-87722). */
+    int first_open = (s_cbe8 == 0);
+    s_cc04 = 1;
+    if (first_open)
+        s_cbe8 = 1;
+
+    /* FUN_00468338(0, first_open): the inventory-window builder + slide init.
+     * A1 ports the SLIDE init only — DAT_0734b9a0=1 (active) + DAT_0734b98c=0
+     * (counter), the ramp the per-frame stage_load_pulse_tick advances 0→5 (the
+     * menu slides in).  The window holds the sim frozen while cc04 != 0 (the
+     * freeroam arm returns early on s_cc04 != 0, so neither the walk nor the
+     * companion db054 clock advance — engine-quirks §110).
+     * PORT-DEBT(A2, FUN_00468338): the inventory item-list population (the
+     * window's contents) lands with the menu-update chip. */
+    stage_load_pulse_reset();          /* g_counter = 0, g_active = 0 */
+    stage_load_pulse_set_active(1);    /* g_active = 1 → ramp 0→5 (FUN_004681ec's
+                                        * DAT_0734b990 flag is the window default 0) */
+    return 1;   /* menu opened: consume the frame. */
 }
 
 /* The cc08==1 free-roam walk arm (FUN_0048670f all.c:919-1225).  Surrounds the
@@ -931,9 +1016,7 @@ static int player_ctrl_cc08_dpad_interact(void)
  * flag.  Set by the shop-setup path (FUN_0044bd0d) and persisted in the save
  * record; gates the walk-tail cell-highlight detector (all.c:87750).  Read the
  * active working bank's byte directly (the sparkle / item-grid render use the
- * same bank). */
-#define PC_SHOP_DISPLAY_PRESENT_BYTE_OFF 0x2bc5a   /* DAT_0450f3f2 - DAT_044e3798 */
-
+ * same bank).  Offset PC_SHOP_DISPLAY_PRESENT_BYTE_OFF (defined above). */
 static int player_ctrl_shop_display_present(void)
 {
     const uint32_t *bank = save_work_dwords_at(save_work_active_slot());

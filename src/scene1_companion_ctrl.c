@@ -270,5 +270,12 @@ void scene1_companion_ctrl_tick(void)
     if (s_bob_counter % CO_SPARKLE_PERIOD == 0)
         co_emit_wing_sparkle(rec, comp);
 
-    s_bob_counter++;
+    /* db054 (the §85 HOUSE phase clock) advances only on real free-roam frames:
+     * while the in-house display-stand menu is open (cc04 != 0) the engine
+     * freezes it — FUN_0048670f keeps ticking + the companion keeps running, but
+     * the walk arm that advances db054 is routed around (engine-quirks §110).
+     * The port models db054 as this bob counter, so gate its increment the same
+     * way (the bob phase freezes with it, reading the held value). */
+    if (player_ctrl_cc04() == 0)
+        s_bob_counter++;
 }
