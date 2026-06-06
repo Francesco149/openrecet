@@ -149,6 +149,27 @@ need a `save_work_to_save_bank(slot)` (copy + stamp) = the merge.
 ## Verification assets
 - `tests/scenarios/house-loaded-display{,-pinned}` — loads the fa7c82 save into
   HOUSE with 3 swords.
+- `tests/scenarios/house-display-remove` — the full interaction drive (load →
+  walk to stand → Z open → select-none → Z close), anchored
+  LOADING_END→PAUSE_OPEN→PAUSE_CLOSE.  **Use for the cc04/cbfc/cc00 + db054
+  interaction-state timeline** (`--call-trace`).  Its `{rngseed}` carries
+  captured retail seeds that do NOT transfer cross-target.
+- `tests/scenarios/house-display-remove-pinned` — same drive +
+  `{phasepin}`+canonical `{rngseed:19937}`.  **Use for pixel/particle parity**
+  (the RNG-driven sparkle + bg-NPCs are bit-aligned port↔retail; the unpinned
+  bench shows the §85 phase-origin drift, not a bug).
+- `runs/recordings/expanded-shop-remove.raw.jsonl` — user-recorded RETAIL trace
+  of the removal on a **fully-expanded shop** (extra display table); distil with
+  `distill_trace.py --anchor-segments` to exercise the >count-3 furniture path.
 - `tests/traces/save-roundtrip/` — the full reference recording + ground-truth
   post-move save.
 - `runs/sr-retail/` — retail captures (display frames, d3d-trace).
+
+## Progress (2026-06-06)
+- **A0/A0b LANDED** (476871c): furniture layout grid `FUN_0048960d` + cell
+  detector `FUN_0048619f` + `FUN_004860c8` → `src/scene1_shop_display.c`; cbfc=4
+  at the back stand vs retail.  Also the up-facing −π fix (engine-quirks §111).
+- **A1 LANDED** (c017c47): the cc04==1 open gate + slide + db054 freeze (frozen
+  at 157, the exact retail value).  PORT-DEBT(A2): `FUN_00468338` inventory build.
+- **RNG parity** confirmed = §85 phase origin, not logic (pinned bench 1:1).
+- **Next: A2** — `FUN_00469414` update + select-none grid write + inventory return.

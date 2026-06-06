@@ -1,0 +1,20 @@
+# house-display-remove-PINNED — the {phasepin}+canonical-{rngseed} variant of
+# house-display-remove, for a bit-aligned --target both comparison of the
+# RNG-driven free-roam particles (the 目玉商品 sparkle + bg-NPCs).
+#
+# WHY: house-display-remove (unpinned) walks to the stand 1:1 — per-frame RNG
+# CONSUMPTION is bit-identical aligned by db054 — but the LCG VALUES are a rigid
+# constant shift (port[db054=d] == retail[db054=d+4]), the load-dependent §85
+# phase/RNG origin.  Its {rngseed} carries captured RETAIL seeds, which do NOT
+# transfer cross-target (the port's load consumes a different draw count).  This
+# variant adds {phasepin:40}+{rngseed:[40,19937]} after LOADING_END (the bg-NPC
+# warmup re-run + db054 zero on BOTH sides) → the LCG is bit-identical from the
+# pin onward (116/118 db054 steps; the sparkle/NPC region is 1:1, user-confirmed
+# 2026-06-06).  Use the UNPINNED bench for the cc04/cbfc/cc00 interaction-state
+# timeline; use THIS one for the pixel/particle parity.
+description: |
+  PINNED variant of house-display-remove: same drive (load fa7c82 → walk to the
+  back stand → Z opens the cc04==1 remove menu) but with {phasepin}+canonical
+  {rngseed:19937} so the RNG-driven sparkle + bg-NPCs are bit-aligned port↔retail.
+max_frames: 22000   # turbo load-stretch headroom (matches the save-roundtrip runs)
+duration_ceiling_ms: 180000

@@ -389,9 +389,41 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   (frames 14135→14211 on retail), resuming 158 on close, while `FUN_0048670f` keeps ticking
   — engine-quirks §110. Tooling: retail `0x48670f` hook now declares **`cc04`** (the field
   the original RE missed) + corrected `cbfc/cc00` notes. Full RE:
-  **`findings/shop-display-menu-RE.md`** (correction-2 box at top). **Next: port A1 (open
-  gate + slide + sim-freeze gated on `s_cc04`), then A2 (update + grid -1 write + inventory
-  return), A3 (render).**
+  **`findings/shop-display-menu-RE.md`** (correction-2 box at top).
+  - **A0/A0b LANDED 2026-06-06 (commit 476871c) — furniture layout grid + cell highlight.**
+    The open gate needs `cbfc` (a highlighted display cell), which needs the cell detector
+    `FUN_0048619f`, which reads the furniture-layout grid `DAT_074b28e8`, which `FUN_0048960d`
+    rebuilds from the per-shop-tier base template (4 HOUSE tiers extracted from `.data`
+    0x5cd104) + one stamped footprint per placed furniture. The back-row sword stand exists
+    ONLY as furniture[1]'s 1×4 stamp (row 0, cols 1-4) — the base template has no stand cells.
+    The furniture data (count=3 + mesh_type/rot/origins) is **already populated in production**
+    by the walker-phase2 writer (`scene1_preload.c`), so no new wiring/render risk (the
+    "`phase2_count==0`" header comment was stale). New module `src/scene1_shop_display.c`
+    (grid rebuild + `FUN_004860c8` furniture-index + the cell detector); wired into the
+    prologue (rebuild) + walk tail (highlight, gated on `DAT_0450f3f2`). **Also fixed
+    engine-quirks §111:** the pure-UP (-z) facing is stored as **-π**, not the
+    `atan2(0,-1)=+π` branch cut (latent — sin/cos + octant are sign-invariant at ±π — until
+    the cell detector classifies via `ftol(pang/π·10)`: -π reaches the back stand, +π the
+    wrong cell). New `cc04/cbfc/cc00` flow-trace fields. Verified: port resolves **cbfc=4,
+    cc00=0, pang=-π** at the back stand, matching retail.
+  - **A1 LANDED 2026-06-06 (commit c017c47) — open gate + slide + sim-freeze.** Z-press edge
+    (`g_sim_buttons[0].pressed & 0x10`) + cbfc≠-1 + shop gates + visible stand → cc04 0→1,
+    interact pose (anim 3), open SE's 1 LCG draw, the `DAT_0734b9a0/98c` slide
+    (`stage_load_pulse`, ramps 0→5). db054 freezes via the companion-clock gate on cc04==0.
+    Verified on `house-display-remove --target openrecet`: cc04 0→1 on Z, **db054 freezes at
+    157** — the exact retail value (frames 14135-14211). PORT-DEBT(A2, FUN_00468338): the
+    inventory item-list build is deferred to the update chip.
+  - **RNG parity on the both-run = phase origin, NOT a bug (2026-06-06).** A `--target both`
+    of the unpinned `house-display-remove` shows sparkles/bg-NPCs drifting; the cause is the
+    load-dependent §85 origin, not logic: aligned by `db054` the per-frame RNG CONSUMPTION is
+    **bit-identical** through the walk+open, and the LCG VALUES are a rigid constant shift
+    (`port[db054=d]==retail[db054=d+4]` everywhere — same sequence, offset by the phase
+    origin). The trace's `{rngseed}` (captured retail seeds) doesn't transfer cross-target; the
+    fix is the standard `{phasepin}`+canonical `{rngseed:19937}` (bg-NPC warmup re-run) —
+    landed as the **`house-display-remove-pinned`** variant.
+  - **Next: A2** (`FUN_00469414` update + `FUN_00469a9f` select-none + grid -1 write +
+    `FUN_00468d22` inventory return + close to cc04=0), then **A3** render
+    (`FUN_0046b00a` + `FUN_00485f8c`). Then Phase B (pause menu + save/quit).
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.
