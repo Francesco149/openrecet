@@ -259,6 +259,15 @@ function App() {
   const [cur, setCur] = useState(0);
   const [tlCursor, setTlCursor] = useState(0);
   const [marks, setMarks] = useState([]);
+  const [editTrace, setEditTrace] = useState(null);
+  const [localStale, setLocalStale] = useState(false);
+  const saveTimer = useRef(0);
+  useEffect(() => { if (traceOps) setEditTrace(traceOps); }, [traceOps]);
+  const onEdit = useCallback((newOps) => {
+    setEditTrace(newOps); setLocalStale(true);
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => postJSON(`/s/${SESS}/trace`, { ops: newOps }), 500);
+  }, []);
   const [panels, setPanels] = useState({ port: true, retail: true, diff: true });
   const [filter, setFilter] = useState("");
   const [note, setNote] = useState("");
@@ -309,8 +318,8 @@ function App() {
         onBox=${setPendingBox} />
       <${ScrubBar} N=${N} cur=${cur} setCur=${setCur} anchors=${anchors} manifest=${manifest} />
       <div class="hint">←/→ ±10 · ,/. ±1 · Home/End · 1/2/3 toggle panels · drag a box on a frame → crop ref</div>
-      <${Timeline} traceOps=${traceOps || []} capturedOps=${capturedOps || []}
-        anchors=${anchors} manifest=${manifest}
+      <${Timeline} editTrace=${editTrace || []} onEdit=${onEdit} capturedOps=${capturedOps || []}
+        anchors=${anchors} manifest=${manifest} stale=${manifest.stale || localStale}
         cursor=${tlCursor} setCursor=${setTlCursor}
         onSeekWindow=${(idx) => { if (idx >= 0 && idx < N) setCur(idx); }} />
       <div class="panels">

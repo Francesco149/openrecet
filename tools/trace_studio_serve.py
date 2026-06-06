@@ -566,6 +566,31 @@ def make_handler(sess_root: Path, web_dir: Path, default_session: str | None,
                 except Exception as e:                   # noqa: BLE001
                     self._send_json({"ok": False, "error": repr(e)}, 500)
                 return
+            m = re.match(r"^/s/([^/]+)/trace$", u.path)
+            if m:
+                sess = m.group(1)
+                sdir = sess_root / sess
+                if not (sdir / "session.json").is_file():
+                    self._send_bytes(b"no session", "text/plain", 404)
+                    return
+                d = self._read_body()
+                ops = d.get("ops")
+                if not isinstance(ops, list):
+                    self._send_bytes(b"ops must be a list", "text/plain", 400)
+                    return
+                side = d.get("side", "")           # "", "port", "retail" (divergent)
+                fname = {"port": "edit.port.trace.jsonl",
+                         "retail": "edit.retail.trace.jsonl"}.get(side, "edit.trace.jsonl")
+                (sdir / fname).write_text("".join(json.dumps(o) + "\n" for o in ops))
+                # mark the session stale (edits not yet captured)
+                try:
+                    man = json.loads((sdir / "session.json").read_text())
+                    man["stale"] = True
+                    (sdir / "session.json").write_text(json.dumps(man, indent=2))
+                except Exception:                  # noqa: BLE001
+                    pass
+                self._send_json({"ok": True, "n": len(ops), "file": fname})
+                return
             m = re.match(r"^/s/([^/]+)/edits/set$", u.path)
             if m:
                 sess = m.group(1)

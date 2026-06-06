@@ -26,13 +26,13 @@ const shortAnchor = (n) => n.replace(/^EXTRA_SPRITE_/, "FX_").replace(/^CONV_POS
 const GUTTER = 92;               // px — the fixed left label column
 const H = { anchors: 24, inputs: 18, trace: 48 };   // row group heights (gutter + lanes match)
 
-export function Timeline({ traceOps, capturedOps, anchors, manifest, cursor, setCursor, onSeekWindow }) {
+export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, stale, cursor, setCursor, onSeekWindow }) {
   const [ppf, setPpf] = useState(1.0);
   const [syncSeg, setSyncSeg] = useState(null);
   const scrollRef = useRef(null);
 
   const L = useMemo(() => {
-    const segs = parseSegments(traceOps || []);
+    const segs = parseSegments(editTrace || []);
     const capSegs = parseSegments(capturedOps || []);
     const port = sideLayout(segs, anchors.port || [], syncSeg);
     const retail = sideLayout(segs, anchors.retail || [], syncSeg);
@@ -45,7 +45,7 @@ export function Timeline({ traceOps, capturedOps, anchors, manifest, cursor, set
       note(itemAbs(it, k, retail.bases) - retail.syncFrame);
     }));
     return { segs, capSegs, port, retail, lo: lo - 20, hi: hi + 60 };
-  }, [traceOps, capturedOps, anchors, syncSeg]);
+  }, [editTrace, capturedOps, anchors, syncSeg]);
 
   const { segs, capSegs, port, retail, lo, hi } = L;
   const relX = (rel) => (rel - lo) * ppf;                     // rel-frame → x in the lane pane
@@ -68,6 +68,46 @@ export function Timeline({ traceOps, capturedOps, anchors, manifest, cursor, set
     setCursorRel(Math.round(x / ppf) + lo);
   };
 
+  // ── editing ──────────────────────────────────────────────────────────────
+  // drag an editable item horizontally → recompute its segment-relative frame on
+  // the side being dragged → autosave (App debounces the POST /trace).
+  const startDrag = (e, item, segIdx, side) => {
+    e.stopPropagation(); e.preventDefault();
+    const lay = side === "port" ? port : retail;
+    const base = (lay.bases[segIdx] || {}).base || 0, sync = lay.syncFrame;
+    const snap = (editTrace || []).slice();
+    const move = (ev) => {
+      const r = scrollRef.current.getBoundingClientRect();
+      const x = ev.clientX - r.left + scrollRef.current.scrollLeft;
+      const f = Math.max(0, Math.round(x / ppf) + lo + sync - base);   // x→rel→abs→seg-frame
+      const op = { ...snap[item.idx] };
+      if (item.kind === "phasepin") op.phasepin = f;
+      else if (item.kind === "rngseed") op.rngseed = [f, op.rngseed[1]];
+      else if (item.kind === "esc") op.esc = f;
+      else if (item.kind === "input") op.frame = f;
+      const next = snap.slice(); next[item.idx] = op;
+      onEdit(next);
+    };
+    const up = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+  };
+  // insert a new op into the segment the cursor is in
+  const addAtCursor = (kind) => {
+    const abs = port.syncFrame + cursor;
+    let seg = 0; for (let k = 0; k < segs.length; k++) if (((port.bases[k] || {}).base ?? 0) <= abs) seg = k;
+    const f = Math.max(0, abs - ((port.bases[seg] || {}).base || 0));
+    const op = kind === "phasepin" ? { phasepin: f } : kind === "rngseed" ? { rngseed: [f, 19937] } : { esc: f };
+    const next = (editTrace || []).slice();
+    let idx = (next[0] && "savefile" in next[0]) ? 1 : 0;
+    if (seg > 0) { let wc = 0; for (let i = 0; i < next.length; i++) { if (next[i] && "wait" in next[i]) { wc++; if (wc === seg) { idx = i + 1; break; } } } }
+    next.splice(idx, 0, op);
+    onEdit(next);
+  };
+  const delItem = (item) => {
+    const next = (editTrace || []).slice(); next.splice(item.idx, 1); onEdit(next);
+  };
+
   // input held-button spans for a parsed-ops set on one side
   const inputSpans = (theSegs, side, lay, ro) => {
     const out = [];
@@ -78,9 +118,12 @@ export function Timeline({ traceOps, capturedOps, anchors, manifest, cursor, set
         const next = ins[j + 1];
         const x1 = next ? sideX(itemAbs(next, k, lay.bases), side) : x0 + 4 * ppf;
         const lbl = btnNames(it.buttons);
-        if (lbl !== "·") out.push(html`<div class=${"span" + (ro ? " ro" : "")}
+        if (lbl !== "·") out.push(html`<div class=${"span" + (ro ? " ro" : " ed")}
           style="left:${x0}px;width:${Math.max(2, x1 - x0)}px"
-          title=${`${lbl} (seg ${k}+${it.frame})`} key=${`${k}-${j}`}>${lbl}</div>`);
+          title=${`${lbl} (seg ${k}+${it.frame})${ro ? "" : " · drag to move"}`}
+          onPointerDown=${ro ? undefined : (e) => startDrag(e, it, k, side)}
+          onClick=${ro ? undefined : (e) => e.stopPropagation()}
+          key=${`${k}-${j}`}>${lbl}</div>`);
       });
     });
     return out;
@@ -96,11 +139,16 @@ export function Timeline({ traceOps, capturedOps, anchors, manifest, cursor, set
   const traceLanes = (side) => {
     const lay = side === "port" ? port : retail;
     const pins = [], escs = [];
+    const pinProps = (it, k) => ({
+      onPointerDown: (e) => startDrag(e, it, k, side),
+      onClick: (e) => { e.stopPropagation(); if (e.altKey) delItem(it); },
+    });
     segs.forEach((s, k) => s.items.forEach((it, j) => {
       const x = sideX(itemAbs(it, k, lay.bases), side);
-      if (it.kind === "phasepin") pins.push(html`<div class="pin pp" style="left:${x}px" title=${`phasepin seg${k}+${it.frame}`} key=${`p${k}${j}`}>⟲</div>`);
-      if (it.kind === "rngseed") pins.push(html`<div class="pin rp" style="left:${x}px" title=${`rngseed seg${k}+${it.frame}=${it.value}`} key=${`r${k}${j}`}>🎲</div>`);
-      if (it.kind === "esc") escs.push(html`<div class="pin esc" style="left:${x}px" title=${`esc seg${k}+${it.frame}`} key=${`e${k}${j}`}>⎋</div>`);
+      const p = pinProps(it, k);
+      if (it.kind === "phasepin") pins.push(html`<div class="pin pp ed" style="left:${x}px" title=${`phasepin seg${k}+${it.frame} · drag / alt-click delete`} ...${p} key=${`p${k}${j}`}>⟲</div>`);
+      if (it.kind === "rngseed") pins.push(html`<div class="pin rp ed" style="left:${x}px" title=${`rngseed seg${k}+${it.frame}=${it.value} · drag / alt-click delete`} ...${p} key=${`r${k}${j}`}>🎲</div>`);
+      if (it.kind === "esc") escs.push(html`<div class="pin esc ed" style="left:${x}px" title=${`esc seg${k}+${it.frame} · drag / alt-click delete`} ...${p} key=${`e${k}${j}`}>⎋</div>`);
     }));
     return html`<div style="height:${H.trace}px;position:relative">
       <div class="tl-row sub" style="height:16px"><span class="lane-tag">inputs</span>${inputSpans(segs, side, lay, false)}</div>
@@ -125,8 +173,12 @@ export function Timeline({ traceOps, capturedOps, anchors, manifest, cursor, set
       <span class="dim">sync:</span>
       ${segs.map((s, k) => html`<button class=${"seg " + ((syncSeg ?? segs.length - 1) === k ? "on" : "")}
         onClick=${() => setSyncSeg(k)} key=${k}>${k === 0 ? "boot" : shortAnchor(s.waitAnchor)}</button>`)}
+      <span class="sep">·</span><span class="dim">add@cursor:</span>
+      <button class="seg" onClick=${() => addAtCursor("phasepin")} title="add a phasepin at the cursor">+⟲</button>
+      <button class="seg" onClick=${() => addAtCursor("rngseed")} title="add an rngseed at the cursor">+🎲</button>
+      <button class="seg" onClick=${() => addAtCursor("esc")} title="add an esc at the cursor">+⎋</button>
       <span class="spacer"></span>
-      ${manifest?.stale && html`<span class="stale-dot">● edits not captured</span>`}
+      ${stale && html`<span class="stale-dot">● edits not captured</span>`}
       <span class="dim">zoom</span>
       <button onClick=${() => setPpf(p => Math.max(0.03, p / 1.5))}>−</button>
       <span class="dim">${ppf.toFixed(2)}px/f</span>
