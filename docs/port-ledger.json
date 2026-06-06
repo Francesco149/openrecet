@@ -7412,7 +7412,8 @@
    "status": "ported",
    "src": [
     "src/choice_box.c",
-    "src/font_draw.h"
+    "src/font_draw.h",
+    "src/scene1_display_menu.c"
    ]
   },
   {

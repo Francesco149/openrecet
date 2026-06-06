@@ -374,6 +374,25 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
     }
     render_quad_flush(dev);
 
+    /* ── category header text (C4b-3) ──────────────────────────────────────
+     * Centered category name on the green banner (all.c:66587 → FUN_0047d14c):
+     * center_x = xL + const[0x519e54]=204, y = const[0x5194d4]=40, scale 0.8. */
+    {
+        int hcat = -1;
+        int hfirst = s_tab_first_item[tab];     /* DAT_073373a0 (entry after -1) */
+        if (hfirst >= 0) {
+            int hrec = tables_item_find_slot_by_id(&g_item, hfirst >> 6);
+            if (hrec >= 0)
+                hcat = g_item.records[hrec].category;
+        }
+        if (hcat >= 0 && hcat < ITEM_CATEGORY_COUNT) {
+            const char *cname = g_item.categories[hcat].singular;
+            if (cname && cname[0])
+                font_draw_text_centered(dev, xL + 204.0f, 40.0f, cname,
+                                        0xff7f7f7fu, 0.8f);
+        }
+    }
+
     /* ── item rows (C4b-2): per visible row, an icon + name/count text ──────
      * Row geometry (objdump FUN_0046b00a): text at (xL+120, row*0x22+y+12)
      * scale 0.8; icon at (xL+72, row*0x22+y+12-6) 32×32 from item_icons[cat].
