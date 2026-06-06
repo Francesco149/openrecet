@@ -509,7 +509,7 @@ static void display_menu_description_render(IDirect3DDevice8 *dev)
         else
             snprintf(num, sizeof num, "%d,%03d,%03d",
                      price / 1000000, (price / 1000) % 1000, price % 1000);
-        snprintf(line, sizeof line, "Base Price: %s", num);
+        snprintf(line, sizeof line, "Base Price- %s", num);  /* s_…_005c75f0 */
         font_draw_text(dev, 80.0f, 420.0f, line, 0xffffffffu, 0.8f);
     }
 
@@ -519,7 +519,7 @@ static void display_menu_description_render(IDirect3DDevice8 *dev)
         if (n < 0)
             n = 0;
         char line[48];
-        snprintf(line, sizeof line, "Number possessed: %d", n);
+        snprintf(line, sizeof line, "Number possessed- %d", n);  /* s_…_005c7638 */
         font_draw_text(dev, 304.0f, 420.0f, line, 0xffffffffu, 0.8f);
     }
 }
