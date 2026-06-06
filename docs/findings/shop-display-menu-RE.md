@@ -208,3 +208,51 @@ col=4; pz=-5.32 → row=0): **cbfc=4, cc00=0** = back-row col-4 sword. ✓
 
 The `cc08` 0xa / `FUN_0048940e` / `FUN_004850fe` / `DAT_0450ff30` items in the old
 plan are the **counter / customer-sell** menu — a different, later feature.
+
+## A3 — menu RENDER (FUN_0046b00a) ground truth from the d3d-trace (2026-06-06)
+
+The user wanted the **whole** interaction rendered 1:1.  A2 (removal) +
+A2.1 (interact-pose anim tick) landed & verified; the menu RENDER is the next
+chip.  A first single-texture panel attempt (item_win.tga (0,0)-(400,320))
+rendered a **white blob** — the decompile's `DAT_073d8748 = item_win.tga` label
+is misleading.  The retail d3d-trace (`runs/scenarios/house-display-remove-both-*`,
+`--d3d-trace`) of a menu frame shows the panel is **multi-texture**, drawn at the
+END of the HOUSE render (FUN_0045cc85), in this texture order:
+
+```
+item_win.tga ×2          (frame/border pieces)
+data_win.tga             (the parchment PANEL background)
+hpmp_base.tga            (a bar — the item stat/gauge?)
+item_win.tga ×5          (list frame / scroll / decorations)
+<font text ×~30>         (SetTexture None = the bitmap-font glyph draws — item names/counts/Details)
+item/item00.bmp          (the item ICON sheet — per-row item icons)
+item_win.tga
+<font text ×~120>        (the Details panel text + per-row names)
+data_win.tga + nowloading.tga   (the menu CURSOR — nowloading.tga holds the hand)
+```
+
+So the render layers are: **data_win.tga panel bg → item_win.tga frame/scroll →
+hpmp_base.tga bar → per-row { item00.bmp icon + font name/count } → font Details
+panel → data_win.tga+nowloading.tga cursor.**
+
+### Next-chip checklist
+1. **Re-capture with `--d3d-trace-verts`** to get the exact per-quad dst/src/UVs
+   + diffuse for every panel/frame/row quad (the `--d3d-trace` run has no vertex
+   data) — then `render_diff.py --explain` names any divergent vertex once the
+   port draws.
+2. **Port FUN_00468338 param_1=0 population** first (the list the rows iterate).
+   Intricate but deterministic + host-testable: scans inventory DAT_044e37b0,
+   item-DB category grouping (DAT_095d3808 = id/100), stacking duplicates,
+   per-category tabs, FUN_0045526a sort.  Module: `scene1_display_menu.c`.
+3. **Port FUN_0046b00a** quad-by-quad against the verts trace, using
+   `render_quad_bind/_add/_flush` + the correct sysasset textures (data_win,
+   item_win, hpmp_base, item00, nowloading).  Wire after `scene1_render_overlay`
+   in main.c (the engine calls it at the tail of FUN_0045cc85).  Reuse the
+   load-picker render (`title_continue_picker_render` in scene_title.c) as the
+   item_win/data_win quad-draw pattern.
+4. **Port FUN_00485f8c** (the occupied display-cell items + cursor over the stand).
+5. **Pose:** retail also switches the player anim 3→4 at the confirm (the pick-up
+   pose tied to db048=0xc); land it with the cursor/carry chip.
+
+Reverted the white-blob panel attempt (commit kept master clean); the scaffolding
+(wiring point + the item_win pattern) is captured above.

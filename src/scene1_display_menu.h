@@ -71,4 +71,7 @@ int display_menu_inventory_remove(uint32_t *bank, int item);
 /* Reset the picker state to BSS-zero (HOUSE re-entry / test setup). */
 void display_menu_reset(void);
 
+/* Slide counter (DAT_0734b98c, 0..5) for the render gate / tests. */
+int display_menu_slide(void);
+
 #endif /* OPENRECET_SCENE1_DISPLAY_MENU_H */

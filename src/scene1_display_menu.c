@@ -47,6 +47,8 @@ static int s_confirm_ctr = 0;   /* DAT_0734b994 */
 static int s_highlight   = -1;  /* DAT_0734b998 */
 static int s_window_flag = 0;   /* DAT_0734b990 */
 
+int display_menu_slide(void) { return stage_load_pulse_get_counter(); }
+
 void display_menu_reset(void)
 {
     memset(s_list,       0, sizeof s_list);
@@ -199,3 +201,4 @@ int display_menu_inventory_remove(uint32_t *bank, int item)
     }
     return 0;
 }
+
