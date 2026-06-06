@@ -106,6 +106,23 @@ frame-start values.
 `⚠ accepted` with a `reason`, not a false ✗. See existing stanzas
 (`scene_title_sim`, `fade_tick`) for the pattern.
 
+**Gate the port emit to the SAME state the retail hook fires in — or you flood
+the trace with stale rows.** Retail's hooked function only runs in its own state;
+the port mirror often runs more broadly. `0x48670f` (`scene1_player_ctrl_tick`)
+is called every frame through the iv1_1/iv1_2 prologue too, where the actors sit
+at the `pose_house_standing` init state (px −0.30, pcnt 25, coct 4) and the
+free-roam walk arm is gated off. Emitting there as well floods the trace with
+**stale pose rows** (1562 stale vs 270 live on one drift capture) that `flow_diff`
+mis-pairs against retail's clean free-roam rows — it surfaced as a **PHANTOM**
+companion-facing `coct 6/4` "divergence" (the live free-roam rows were bit-
+identical to retail). Fix (`scene1_player_ctrl.c`): gate the `CALL_TRACE_BEGIN`
+on the real-free-roam condition `s_actor_char[0] != -1 && s_cc08 == 1 &&
+!scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading()` — the same
+guard the walk arm uses. After: 271 rows, all ALIGNED. **Lesson:** if a HOUSE
+actor-state field shows a constant offset, first confirm the port isn't emitting
+the row from a non-free-roam frame; a quick `distinct px` histogram (one stale
+value + the live value) is the tell.
+
 ## Standard once-per-frame anchors already wired
 | VA | name | carries |
 |----|------|---------|

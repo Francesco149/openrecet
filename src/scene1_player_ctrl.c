@@ -1083,30 +1083,44 @@ void scene1_player_ctrl_tick(void)
      * companion (actor 2) facing octant / world angle / position / anim cell —
      * the modern replacement for the old --player-pos-log px/oct/coct/… columns
      * that phase_probe.py diffed.  poct=DAT_056dab00, pang=DAT_056db05c,
-     * coct=DAT_056dab58, pos arrays DAT_056da1d8[actor*3]. */
-    CALL_TRACE_BEGIN(0x48670fu);
-    {
-        const int32_t *r0 = s_actor_record[0];
-        const int32_t *r2 = s_actor_record[2];
-        CALL_TRACE_F32("px",    g_scene1_player_pos[0]);
-        CALL_TRACE_F32("py",    g_scene1_player_pos[1]);
-        CALL_TRACE_F32("pz",    g_scene1_player_pos[2]);
-        CALL_TRACE_I32("poct",  r0[CHR_ACTOR_FACING]);
-        CALL_TRACE_F32("pang",  s_player_facing);
-        CALL_TRACE_I32("panim", r0[CHR_ACTOR_ANIM]);
-        CALL_TRACE_I32("pframe",r0[CHR_ACTOR_FRAME]);
-        CALL_TRACE_I32("pcnt",  r0[CHR_ACTOR_COUNTER]);
-        CALL_TRACE_F32("cx",    g_scene1_actor_pos[2][0]);
-        CALL_TRACE_F32("cz",    g_scene1_actor_pos[2][2]);
-        CALL_TRACE_I32("coct",  r2[CHR_ACTOR_FACING]);
-        CALL_TRACE_I32("canim", r2[CHR_ACTOR_ANIM]);
-        CALL_TRACE_I32("cframe",r2[CHR_ACTOR_FRAME]);
-        /* db054 = the {phasepin}-zeroed per-scene counter — the shared clock
-         * flow_diff --align-field uses to pair port↔retail frames on a
-         * load-stretched HOUSE capture (port ~475 vs retail ~14285). */
-        CALL_TRACE_I32("db054", scene1_companion_db054());
+     * coct=DAT_056dab58, pos arrays DAT_056da1d8[actor*3].
+     *
+     * GATE: emit ONLY on real free-roam frames — the SAME condition the
+     * freeroam-walk arm runs under (below).  The retail FUN_0048670f effectively
+     * only feeds the trace in free-roam; the port's tick is also called every
+     * frame through the iv1_1/iv1_2 prologue, where the player sits immobile at
+     * the pose_house_standing init state (px -0.30, pcnt 25, coct 4) and the
+     * walk arm is gated off.  Emitting there too floods the trace with stale
+     * pose rows that flow_diff mis-pairs against retail's clean free-roam rows —
+     * it surfaced as a PHANTOM companion-facing coct 6/4 "divergence" (the live
+     * free-roam rows are bit-identical to retail; the pose rows are not).  See
+     * docs/findings/flow-trace-cheatsheet.md. */
+    if (s_actor_char[0] != -1 && s_cc08 == 1 &&
+        !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading()) {
+        CALL_TRACE_BEGIN(0x48670fu);
+        {
+            const int32_t *r0 = s_actor_record[0];
+            const int32_t *r2 = s_actor_record[2];
+            CALL_TRACE_F32("px",    g_scene1_player_pos[0]);
+            CALL_TRACE_F32("py",    g_scene1_player_pos[1]);
+            CALL_TRACE_F32("pz",    g_scene1_player_pos[2]);
+            CALL_TRACE_I32("poct",  r0[CHR_ACTOR_FACING]);
+            CALL_TRACE_F32("pang",  s_player_facing);
+            CALL_TRACE_I32("panim", r0[CHR_ACTOR_ANIM]);
+            CALL_TRACE_I32("pframe",r0[CHR_ACTOR_FRAME]);
+            CALL_TRACE_I32("pcnt",  r0[CHR_ACTOR_COUNTER]);
+            CALL_TRACE_F32("cx",    g_scene1_actor_pos[2][0]);
+            CALL_TRACE_F32("cz",    g_scene1_actor_pos[2][2]);
+            CALL_TRACE_I32("coct",  r2[CHR_ACTOR_FACING]);
+            CALL_TRACE_I32("canim", r2[CHR_ACTOR_ANIM]);
+            CALL_TRACE_I32("cframe",r2[CHR_ACTOR_FRAME]);
+            /* db054 = the {phasepin}-zeroed per-scene counter — the shared clock
+             * flow_diff --align-field uses to pair port↔retail frames on a
+             * load-stretched HOUSE capture (port ~475 vs retail ~14285). */
+            CALL_TRACE_I32("db054", scene1_companion_db054());
+        }
+        CALL_TRACE_END();
     }
-    CALL_TRACE_END();
 
     /* prologue guard FUN_00434d6a (all.c:86575): the save/load dialog gate.
      * Returns -1 only while that dialog pumps (DAT_0438b148 BSS-zero → returns

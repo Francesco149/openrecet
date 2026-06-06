@@ -1,0 +1,25 @@
+# house-idle-drift-tearpin — HOUSE free-roam FLOW-TRACE bench.
+#
+# Same new-game -> 2x HOUSE_FREEROAM prefix as house-idle-npc-drift (spam-Z
+# through title / intro / iv1_1 / iv1_2 dialogue), Recette idle at her bottom
+# spawn. Adds a {calltrace} op over the capture window so a port↔retail run
+# drops aligned call_trace.jsonl for tools/flow_diff.py --verdict (the HOUSE
+# actor-state comparison: player + companion poct/coct/pos/anim, db054, rng).
+#
+# This is the bench that validated the 0x48670f flow-trace emit gate (the port
+# must emit house_update ONLY in real free-roam, not the prologue pose phase —
+# else stale rows flood flow_diff; see docs/flow-trace-cheatsheet.md).
+#
+#   python3 tools/scenario-test.py house-idle-drift-tearpin --target both \
+#     --call-trace --frida-remote cutestation.soy:27042
+#   # then: flow_diff.py --retail .../retail/call_trace.jsonl \
+#   #         --port .../openrecet/call_trace.jsonl --verdict --align-field db054
+
+description: |
+  HOUSE real free-roam flow-trace bench — Recette idle at the bottom, {calltrace}
+  over the capture window. Drive --target both --call-trace, then flow_diff
+  --verdict to confirm the HOUSE actor-state is phase-clean vs retail.
+
+max_frames: 22000  # retail turbo load-stretch: 2nd HOUSE_FREEROAM lands ~15400; capture offset needs headroom
+duration_ceiling_ms: 180000
+n_captures: 6
