@@ -1,0 +1,14 @@
+# house-display-remove-opentrace — contiguous frame-by-frame capture of the
+# cc04==1 display-stand remove-item menu OPEN transition (just-before-Z through
+# slide-in + settle), for port↔retail frame-for-frame render/state diffing.
+# See trace.jsonl header.  Inputs/save identical to house-display-remove.
+#
+#   python3 tools/scenario-test.py house-display-remove-opentrace --target both \
+#     --call-trace --d3d-trace --d3d-trace-verts --frida-remote cutestation.soy:27042
+description: |
+  Continue/load fa7c82 → HOUSE → walk to the back-stand swords → Z opens the
+  display-stand remove-item menu.  Contiguous {caprange} over the open so the
+  white-HUD leak, the menu panel render (FUN_0046b00a/FUN_00485f8c), and the
+  player interact pose/facing can be matched frame-for-frame vs retail.
+max_frames: 22000
+duration_ceiling_ms: 180000

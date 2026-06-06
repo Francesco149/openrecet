@@ -1,0 +1,43 @@
+# house-display-remove-opentrace — CONTIGUOUS frame-by-frame capture of the
+# display-stand menu OPEN, from just before the Z-press through the slide-in +
+# settle.  Same inputs/save as house-display-remove; the sparse {capture}s are
+# replaced with {caprange} windows so port↔retail can be diffed frame-for-frame
+# across the open transition (the white-HUD leak + the menu render + the player
+# facing/pose all live in this window).  Run --target both --call-trace
+# --d3d-trace --d3d-trace-verts.
+# embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 45, "buttons": "0x0010"}
+{"frame": 48, "buttons": "0x0000"}
+{"frame": 96, "buttons": "0x0010"}
+{"frame": 99, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"caprange": [150, 8]}
+{"calltrace": [150, 162]}
+{"rngseed": [0, 1750336112]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 42, "buttons": "0x0001"}
+{"frame": 48, "buttons": "0x0005"}
+{"frame": 51, "buttons": "0x0004"}
+{"frame": 124, "buttons": "0x0006"}
+{"frame": 125, "buttons": "0x0002"}
+{"frame": 134, "buttons": "0x0006"}
+{"frame": 136, "buttons": "0x0004"}
+{"frame": 142, "buttons": "0x0000"}
+{"frame": 157, "buttons": "0x0010"}
+{"wait": "PAUSE_OPEN"}
+{"caprange": [0, 40]}
+{"calltrace": [0, 40]}
+{"rngseed": [0, 2442882244]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 4, "buttons": "0x0000"}
+{"frame": 59, "buttons": "0x0004"}
+{"frame": 64, "buttons": "0x0000"}
+{"frame": 69, "buttons": "0x0010"}
+{"frame": 74, "buttons": "0x0000"}
+{"wait": "PAUSE_CLOSE"}
