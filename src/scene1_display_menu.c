@@ -666,6 +666,21 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
      * highlighted item's desc/price/possessed (C4b-4a). */
     display_menu_description_render(dev);
 
+    /* "Button 3: Item Details" control hint (FUN_0046b00a tail, all.c:66843):
+     * a baked data_win.tga strip src(288,320,488,352) at fixed dst(440,440,
+     * 200,32), bottom-right of the description panel. */
+    {
+        const sprite_t *dw = &g_sysassets.data_win_tga;   /* DAT_073d8678 */
+        if (dw->tex != NULL) {
+            render_quad_state_setup(dev);
+            IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)dw->tex);
+            const float dst[4] = { 440.0f, 440.0f, 200.0f, 32.0f };
+            const float src[4] = { 288.0f, 320.0f, 488.0f, 352.0f };
+            render_quad_add(dst, src, dw->width, dw->height, 0xffffffffu);
+            render_quad_flush(dev);
+        }
+    }
+
     /* the SHARED hand cursor (FUN_00435747), drawn LAST exactly as the engine's
      * cc04 render wrapper FUN_0048fdaf does (FUN_0046b00a → FUN_00435747).
      * Self-gates on g_cursor_visible: the open snapped it on, the cc04 close
@@ -675,8 +690,9 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
     /* PORT-DEBT(C4b-4c): per-row type-coloured row text (FUN_004361b2) + the
      * selected-row brightness pulse, and the price-status line, all depend on
      * the daily-market price-trend (region pricing tables) — not yet ported.
-     * The data_win "tooltip base" tail quad (all.c:66843, fixed (440,440)) is
-     * also deferred pending a visual check of what it contributes. */
+     * PORT-DEBT(C3b): the "Exchange with what?" world-projected prompt bubble
+     * over the stand is a separate render off a localized message-table string
+     * (not an .exe literal). */
     (void)y;
 }
 
