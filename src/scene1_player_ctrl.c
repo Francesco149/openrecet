@@ -1042,6 +1042,14 @@ static int player_ctrl_shop_display_present(void)
  * variant only fires when PLACING a 0x1451..0x14b3 item — PORT-DEBT below). */
 static void player_ctrl_cc04_menu_arm(void)
 {
+    /* Per-frame player anim tick (all.c:88547-88560, the tail of FUN_004897c6
+     * the cc04 dispatch calls every menu frame): advance the held interact pose
+     * (anim 3, layer 0 = the DAT_056daae8 sprite record the open set).  Retail's
+     * pcnt counts 1→7 across the menu window; without this the port froze it at
+     * 1.  Layers 1/2 are -1 for the HOUSE player (no overlay anim), so only the
+     * body layer ticks.  No RNG. */
+    chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+
     int r = display_menu_update(1);   /* FUN_00469414(1) */
 
     if (r == 2) {                     /* CANCEL (all.c:87907) */
