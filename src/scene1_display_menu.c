@@ -29,23 +29,34 @@
 #include "sim.h"                 /* g_sim_buttons[0].pressed (edge mask = DAT_073dddd4) */
 #include "stage_load_pulse.h"    /* the slide ramp (FUN_004693e3 = DAT_0734b98c/9a0) */
 #include "save_bank.h"           /* SAVE_BANK_ITEM_TABLE_DWORD / _FIELD_ITEM_COUNT */
+#include "save_work.h"           /* save_work_dwords_at / save_work_active_slot */
+#include "tables_item.h"         /* g_item DB (FUN_004681f6 record lookup) */
+#include "scene1_chr_prepass.h"  /* chr_prepass_sort (FUN_0045526a co-sort) */
 
 /* ── picker state (engine globals above) ──────────────────────────────── */
 
-#define DISPLAY_MENU_MAX_TABS  100   /* DAT_07337210[100] etc. */
-#define DISPLAY_MENU_MAX_LIST  200   /* DAT_0731f598 stride-2 entries (100 ids) */
+#define DISPLAY_MENU_MAX_TABS  100    /* DAT_07337210[100] etc. */
+/* DAT_0731f598..DAT_0732341c = (0x3e84/8) ≈ 2000 stride-2 (id,count) entries. */
+#define DISPLAY_MENU_MAX_LIST  4000   /* 2000 (id,count) pairs */
 
-static int s_list[DISPLAY_MENU_MAX_LIST];
-static int s_tab_base[DISPLAY_MENU_MAX_TABS];
-static int s_tab_cursor[DISPLAY_MENU_MAX_TABS];
-static int s_tab_scroll[DISPLAY_MENU_MAX_TABS];
-static int s_tab_count[DISPLAY_MENU_MAX_TABS];
-static int s_cur_tab     = 0;
-static int s_num_tabs    = 0;
-static int s_mode        = 0;
+static int s_list[DISPLAY_MENU_MAX_LIST];               /* DAT_0731f598 (id,count)×N */
+static int s_tab_base[DISPLAY_MENU_MAX_TABS];           /* DAT_0731f408 */
+static int s_tab_cursor[DISPLAY_MENU_MAX_TABS];         /* DAT_07337850 */
+static int s_tab_scroll[DISPLAY_MENU_MAX_TABS];         /* DAT_073376c0 */
+static int s_tab_count[DISPLAY_MENU_MAX_TABS];          /* DAT_07337210 */
+static int s_tab_first_item[DISPLAY_MENU_MAX_TABS];     /* DAT_073373a0 (render tab icon) */
+static int s_cur_tab     = 0;   /* DAT_0734b968 */
+static int s_num_tabs    = 0;   /* DAT_0731f404 */
+static int s_mode        = 0;   /* DAT_0734b9a8 */
 static int s_confirm_ctr = 0;   /* DAT_0734b994 */
 static int s_highlight   = -1;  /* DAT_0734b998 */
 static int s_window_flag = 0;   /* DAT_0734b990 */
+
+/* scratch for the inventory scan + co-sort (DAT_0730b60c keys / DAT_07323418
+ * items / DAT_073379e0 indices — all 20000-wide in the engine). */
+static int s_scan_keys[SAVE_BANK_ITEM_TABLE_COUNT];
+static int s_scan_items[SAVE_BANK_ITEM_TABLE_COUNT];
+static int s_scan_idx[SAVE_BANK_ITEM_TABLE_COUNT];
 
 int display_menu_slide(void) { return stage_load_pulse_get_counter(); }
 
@@ -79,20 +90,100 @@ void display_menu_open(int mode, int first_open)
     stage_load_pulse_reset();          /* DAT_0734b98c = 0, DAT_0734b9a0 = 0 */
     stage_load_pulse_set_active(1);    /* DAT_0734b9a0 = 1 */
 
-    /* PORT-DEBT(A3, FUN_00468338-population): the full inventory list build (the
-     * param_1=0 scan of DAT_044e37b0 + the item-DB category filter + the
-     * FUN_0045526a sort) is deferred to the render chip.  The removal drive only
-     * ever has the cursor on the index-0 "select none" entry, so A2 inits just
-     * that single-tab, single-entry list — enough for FUN_00469a9f()==-1 and the
-     * `tab_count >= 1` confirm gate. */
-    s_list[0]   = -1;              /* DAT_0731f598[0] = none (all.c:64396) */
-    s_num_tabs  = 1;               /* DAT_0731f404 */
-    s_cur_tab   = 0;               /* DAT_0734b968 (clamped to 0) */
-    s_tab_base[0]  = 0;            /* DAT_0731f408[0] */
-    s_tab_count[0] = 1;            /* DAT_07337210[0] = the none entry (uVar4=1) */
-    if (first_open) {              /* param_2 != 0 → zero the per-tab cursor/scroll */
-        s_tab_cursor[0] = 0;       /* DAT_07337850[0] */
-        s_tab_scroll[0] = 0;       /* DAT_073376c0[0] */
+    /* ── FUN_00468338 population (param_1==0 display-stand path) ──────────
+     * Scan the working-bank inventory, group by item-DB category into tabs,
+     * each tab led by a -1 "select none/remove" entry, items deduped with a
+     * running count.  Matches retail's "place an item" list (the sword
+     * category shows the player's held swords). */
+    memset(s_list,          0, sizeof s_list);
+    memset(s_tab_count,     0, sizeof s_tab_count);
+    memset(s_tab_first_item,0, sizeof s_tab_first_item);
+    if (first_open) {                            /* param_2 != 0 */
+        memset(s_tab_cursor, 0, sizeof s_tab_cursor);
+        memset(s_tab_scroll, 0, sizeof s_tab_scroll);
+    }
+
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    int n = 0;
+    if (bank != NULL) {
+        const int32_t *inv = (const int32_t *)(bank + SAVE_BANK_ITEM_TABLE_DWORD);
+        for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++) {
+            int item = inv[i];
+            if (item == -1)
+                continue;
+            /* sort key (all.c:64308-64315): group by category(=id/100), then
+             * rank, with the raw item value in the low bits. */
+            int rec  = tables_item_find_slot_by_id(&g_item, item >> 6);
+            int cat100 = (rec >= 0) ? (g_item.records[rec].item_id / 100) * 100 : 0;
+            int rank   = (rec >= 0) ? g_item.records[rec].rank : 0;
+            uint32_t key = (uint32_t)((cat100 + 10 + rank) * 0xc80) + (uint32_t)item;
+            if (key & 0x10u)
+                key = (((key >> 6) + 0x10u) * 0x40u) | (key % 0x10u);
+            s_scan_keys[n]  = (int)key;
+            s_scan_items[n] = item;
+            s_scan_idx[n]   = n;
+            n++;
+        }
+    }
+    chr_prepass_sort(s_scan_keys, s_scan_idx, n);   /* FUN_0045526a co-sort */
+
+    /* tab grouping (all.c:64405-64591).  Each tab's count starts at 1 (the -1
+     * "none" entry); each unique item appended bumps it. */
+    for (int t = 0; t < DISPLAY_MENU_MAX_TABS; t++)
+        s_tab_count[t] = 1;
+    int cur_tab  = -1;     /* local_420 (becomes 0 on the first item) */
+    int cur_cat  = -1;     /* local_404 */
+    int list_pos = 0;      /* local_40c (stride-2 entry index) */
+    for (int k = 0; k < n; k++) {
+        int item = s_scan_items[s_scan_idx[k]];
+        if (item == -1)
+            continue;
+        int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
+        int cat = (rec >= 0) ? g_item.records[rec].category : -1;   /* DAT_095d3808 */
+        if (cat != cur_cat) {                       /* new category → new tab */
+            cur_tab++;
+            cur_cat = cat;
+            if (cur_tab >= DISPLAY_MENU_MAX_TABS)
+                break;
+            s_tab_base[cur_tab] = list_pos;          /* DAT_0731f408 */
+            /* lead with the -1 "select none/remove" entry (all.c:64448). */
+            if (list_pos * 2 + 1 < DISPLAY_MENU_MAX_LIST) {
+                s_list[list_pos * 2]     = -1;
+                s_list[list_pos * 2 + 1] = 0;
+            }
+            list_pos++;
+        }
+        /* dedup within the list built so far (all.c:64452-64463): same raw item
+         * value → bump its count; else append id with count 1 + tab_count++. */
+        int found = 0;
+        if ((item & 0x10) == 0) {
+            for (int e = 0; e < list_pos; e++) {
+                if (s_list[e * 2] == item) {
+                    s_list[e * 2 + 1]++;
+                    found = 1;
+                    break;
+                }
+            }
+        }
+        if (!found && list_pos * 2 + 1 < DISPLAY_MENU_MAX_LIST) {
+            s_list[list_pos * 2]     = item;
+            s_list[list_pos * 2 + 1] = 1;
+            s_tab_count[cur_tab]++;                   /* DAT_07337210[tab]++ */
+            list_pos++;
+        }
+    }
+    s_num_tabs = cur_tab + 1;                         /* DAT_0731f404 */
+    if (s_num_tabs <= 0)
+        s_num_tabs = 1;
+    if (s_num_tabs <= s_cur_tab)
+        s_cur_tab = -1;
+    if (s_cur_tab < 0)
+        s_cur_tab = 0;
+    /* per-tab "first real item" for the render's category-icon (all.c:64594:
+     * DAT_073373a0[tab] = DAT_0731f5a0[tab_base*2] = the entry AFTER the -1). */
+    for (int t = 0; t < s_num_tabs; t++) {
+        int e = s_tab_base[t] + 1;                    /* skip the -1 none entry */
+        s_tab_first_item[t] = (e * 2 + 0 < DISPLAY_MENU_MAX_LIST) ? s_list[e * 2] : -1;
     }
 
     /* NOTE: the engine's FUN_00468338 tail snaps the SHARED menu cursor
@@ -201,4 +292,92 @@ int display_menu_inventory_remove(uint32_t *bank, int item)
     }
     return 0;
 }
+
+/* ── FUN_0046b00a — menu RENDER (C4b) ─────────────────────────────────────
+ * Win32 only (uses render_quad + g_sysassets textures + font_draw).  Ported
+ * from FUN_0046b00a(0,0) for the cc04==1 display-stand path (DAT_0734b9a8 != 6).
+ * C4b-1: the item_win parchment panels (main + category frame + scroll arrows).
+ * The item rows (icons + names/counts), category-header text, selected-row
+ * pulse and the hand cursor land in C4b-2..4. */
+#ifdef _WIN32
+
+#define COBJMACROS
+#define CINTERFACE
+#include <d3d8.h>
+
+#include "render_quad.h"   /* render_quad_add / _flush / _state_setup */
+#include "sysassets.h"     /* g_sysassets.item_win_tga / item_icons[] */
+#include "font_draw.h"     /* font_draw_text* */
+
+void display_menu_render(struct IDirect3DDevice8 *dev_in)
+{
+    if (dev_in == NULL)
+        return;
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_in;
+
+    /* FUN_0046b00a L20: the window is closed (fully retracted) → draw nothing. */
+    int slide = stage_load_pulse_get_counter();        /* DAT_0734b98c */
+    if (slide == 0)
+        return;
+
+    const sprite_t *win = &g_sysassets.item_win_tga;   /* DAT_073d8748 */
+    if (win->tex == NULL)
+        return;
+
+    /* slide-in: the window starts 640px right of home and slides 128px/step
+     * (DAT_0734b98c << 7).  param_1 = param_2 = 0 (the HOUSE call site). */
+    const float x0  = (0.0f + 640.0f) - (float)(slide << 7);   /* fVar1 */
+    const float xL  = x0 + 240.0f;                             /* local_18 */
+    float       y   = 0.0f + 40.0f;                            /* local_40 */
+
+    int tab     = s_cur_tab;
+    int count   = s_tab_count[tab];
+    int scroll  = s_tab_scroll[tab];
+    int visible = (count < 7) ? count : 7;                     /* local_3c */
+
+    render_quad_state_setup(dev);                              /* MODULATE + alpha blend */
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)win->tex);
+
+    /* main panel — src(0,0,400,320) dst(xL,40,400,320) (all.c:66499-66508). */
+    {
+        const float dst[4] = { xL, y, 400.0f, 320.0f };
+        const float src[4] = { 0.0f, 0.0f, 400.0f, 320.0f };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+    }
+    render_quad_flush(dev);
+
+    y += 40.0f;                                                /* local_40 = 80 */
+
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)win->tex);
+
+    /* category frame (mode != 6) — src y depends on tab count (all.c:66517-66532).
+     * <2 tabs → src(448,813,688,890); else src(448,736,688,813). dst(xL+80,10,240,77). */
+    {
+        const float st = (s_num_tabs < 2) ? 813.0f : 736.0f;
+        const float sb = (s_num_tabs < 2) ? 890.0f : 813.0f;
+        const float dst[4] = { xL + 80.0f, 10.0f, 240.0f, 77.0f };
+        const float src[4] = { 448.0f, st, 688.0f, sb };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+    }
+    /* scroll-up arrow if scrolled (all.c:66534-66544). */
+    if (scroll > 0) {
+        const float dst[4] = { xL + 56.0f, 40.0f, 64.0f, 32.0f };
+        const float src[4] = { 448.0f, 896.0f, 512.0f, 944.0f };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+    }
+    /* scroll-down arrow if more rows below the window (all.c:66545-66555). */
+    if (scroll + visible < count) {
+        const float dst[4] = { xL + 56.0f, 312.0f, 64.0f, 32.0f };
+        const float src[4] = { 512.0f, 896.0f, 576.0f, 944.0f };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+    }
+    render_quad_flush(dev);
+
+    /* PORT-DEBT(C4b-2..4): the description window (DAT_0734b990), the category-
+     * header text, the per-row item icons + name/count text, the selected-row
+     * brightness pulse, and the hand cursor (FUN_00469b3a) are the next chips. */
+    (void)y;
+}
+
+#endif /* _WIN32 */
 

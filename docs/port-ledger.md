@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **442** (17.3%) — verified 69, stubbed 15, ported 358
-- unported: **2106**
+- touched: **444** (17.4%) — verified 69, stubbed 15, ported 360
+- unported: **2104**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (69) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (358) — reimplemented, no probe yet
+## ported (360) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -262,6 +262,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x459847 | FUN_00459847 | 1444 | ✓ | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_chr_shadow.h (+3) |
 | 0x45bdc2 | FUN_0045bdc2 | 546 | ✓ | worker_load.h |
 | 0x45c051 | FUN_0045c051 | 3021 | ✓ | sim.c |
+| 0x45cc85 | FUN_0045cc85 | 4579 | ✓ | main.c |
 | 0x45de68 | FUN_0045de68 | 433 | ✓ | scene_worldmap.h, tables_event.c, tables_event.h |
 | 0x45e053 | FUN_0045e053 | 201 | ✓ | sim.c |
 | 0x45e1a5 | FUN_0045e1a5 | 175 | ✓ | sim.c |
@@ -280,7 +281,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x469241 | FUN_00469241 | 99 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
 | 0x469414 | FUN_00469414 | 1516 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
 | 0x469a9f | FUN_00469a9f | 28 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
-| 0x46b00a | FUN_0046b00a | 3640 | ✓ | scene1_display_menu.c |
+| 0x469b3a | FUN_00469b3a | 2044 | ✓ | scene1_display_menu.c |
+| 0x46b00a | FUN_0046b00a | 3640 | ✓ | main.c, scene1_display_menu.c, scene1_display_menu.h |
 | 0x46bf38 | FUN_0046bf38 | 230 | ✓ | mesh_load.h, scene1_dialogue_draw.c, scene_sc1.c (+2) |
 | 0x46c01e | FUN_0046c01e | 27 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
 | 0x46c039 | FUN_0046c039 | 87 | ✓ | sim.c |

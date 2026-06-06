@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 358,
-  "unported": 2106,
+  "ported": 360,
+  "unported": 2104,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 442,
-  "pct_touched": 17.3,
+  "touched": 444,
+  "pct_touched": 17.4,
   "pct_verified": 2.7,
   "port_debt": 11
  },
@@ -4561,8 +4561,10 @@
    "size": 4579,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/main.c"
+   ]
   },
   {
    "va": "0x45de68",
@@ -5582,8 +5584,10 @@
    "size": 2044,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c"
+   ]
   },
   {
    "va": "0x46a336",
@@ -5611,7 +5615,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_display_menu.c"
+    "src/main.c",
+    "src/scene1_display_menu.c",
+    "src/scene1_display_menu.h"
    ]
   },
   {

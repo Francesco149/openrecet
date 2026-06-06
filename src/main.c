@@ -79,6 +79,7 @@
 #include "scene1_records.h"
 #include "scene1_render.h"
 #include "scene1_player_ctrl.h"
+#include "scene1_display_menu.h"  /* display_menu_render (cc04==1 menu panel) */
 #include "scene1_companion_ctrl.h"  /* scene1_companion_db054 — pos-log phase field */
 #include "scene1_bg_npc.h"          /* scene1_bg_npc_phasepin — window-NPC pin */
 #include "scene1_hud.h"
@@ -2859,6 +2860,12 @@ static void render_dispatch(void)
                     scene1_hud_render(g_dev);
                 }
                 scene1_render_overlay(g_dev);
+                /* cc04==1 display-stand remove-item menu (FUN_0046b00a, called
+                 * at the tail of the engine's FUN_0045cc85 scene render).  Self-
+                 * gates on the slide counter (no-op when closed), so safe to call
+                 * every HOUSE frame; draws the item_win parchment panel over the
+                 * scene while the menu is up. */
+                display_menu_render(g_dev);
                 /* Opening-prologue / iv1_2 dialogue (FUN_0046c090 → FUN_0046c9a2).
                  * Drawn LAST — AFTER the HUD + overlay — per the engine render
                  * root FUN_004547ab, whose dialogue-active path is

@@ -74,4 +74,13 @@ void display_menu_reset(void);
 /* Slide counter (DAT_0734b98c, 0..5) for the render gate / tests. */
 int display_menu_slide(void);
 
+#ifdef _WIN32
+struct IDirect3DDevice8;
+/* FUN_0046b00a(0,0): render the display-stand remove-item menu (the item_win
+ * parchment panel + category frame + scroll arrows + item rows + cursor).
+ * No-op while the slide counter is 0 (closed).  Wired into the HOUSE render
+ * tail after scene1_render_overlay. */
+void display_menu_render(struct IDirect3DDevice8 *dev);
+#endif
+
 #endif /* OPENRECET_SCENE1_DISPLAY_MENU_H */
