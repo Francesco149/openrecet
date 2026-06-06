@@ -49,6 +49,11 @@ export function Timeline({ traceOps, anchors, manifest, cursor, setCursor, onSee
   const relX = (rel) => (rel - lo) * ppf;                       // rel-frame → screen x
   const sideX = (abs, side) => relX(abs - (side === "port" ? port : retail).syncFrame);
 
+  // the captured video window (port frames) in sync-rel coords → a highlighted band
+  const winBase = manifest?.port?.base_abs;
+  const N = (manifest?.frame_range ? manifest.frame_range[1] + 1 : manifest?.n_frames) || 0;
+  const winRel = (winBase != null && N) ? [winBase - port.syncFrame, winBase - port.syncFrame + N] : null;
+
   // cursor (a sync-relative frame) → screen x; click ruler/anchor sets it
   const cursorX = relX(cursor);
   const onRulerClick = (e) => {
@@ -111,9 +116,11 @@ export function Timeline({ traceOps, anchors, manifest, cursor, setCursor, onSee
       <span class="dim">${ppf.toFixed(2)}px/f</span>
       <button onClick=${() => setPpf(p => Math.min(20, p * 1.5))}>+</button>
       <button onClick=${() => setPpf(1)}>1:1</button>
+      ${winRel && html`<button class="seg" onClick=${() => setCursorRel(winRel[0])} title="jump cursor to the captured video window">⊕ window</button>`}
     </div>
     <div class="tl-scroll" ref=${scrollRef} onWheel=${e => { if (e.shiftKey) { e.preventDefault(); scrollRef.current.scrollLeft += e.deltaY; } }}>
       <div class="tl-content" style="width:${contentW}px" onClick=${onRulerClick}>
+        ${winRel && html`<div class="tl-window" style="left:${relX(winRel[0])}px;width:${(winRel[1] - winRel[0]) * ppf}px" title="captured video window"></div>`}
         <div class="tl-cursor" style="left:${cursorX}px"></div>
         <div class="tl-grp"><div class="tl-label">retail<br/>anchors</div>${anchorLane("retail", anchors.retail)}</div>
         <div class="tl-grp"><div class="tl-label">retail<br/>trace</div>${traceLanes("retail")}</div>

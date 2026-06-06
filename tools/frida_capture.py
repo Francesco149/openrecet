@@ -1385,7 +1385,8 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 save_ref: str | None = None,
                 d3d_trace: bool = False,
                 d3d_trace_verts: bool = False,
-                call_trace: bool = False) -> dict:
+                call_trace: bool = False,
+                anchor_trace: bool = False) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
     Returns the meta dict that scenario-test.py writes to run.json.
@@ -1439,6 +1440,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         # is unaffected and kept.
         call_trace_frames=(_drop_frame0(scenario.capture_frames)
                            if call_trace and scenario.capture_frames else None),
+        anchor_trace=anchor_trace,   # → run_dir/anchors.jsonl (studio timeline)
     )
     result = _run_capture_impl(cfg, run_dir)
     meta = {

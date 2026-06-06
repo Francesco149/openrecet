@@ -256,6 +256,7 @@ def _capture_retail(trace_work: Path, orig_trace: Path, retail_dir: Path,
             rng_seed=rng_seed,
             save_ref=trace_save.resolve_save(orig_trace),
             call_trace=call_trace,
+            anchor_trace=True,        # → retail anchors.jsonl for the studio timeline
         )
         result["retail_meta"] = meta
     except Exception as e:                       # noqa: BLE001 — surface, don't crash port
