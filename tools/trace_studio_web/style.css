@@ -145,7 +145,7 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
 .tl-gutter { flex: 0 0 84px; border-right: 1px solid var(--edge); background: #16181d; }
 .gut-row { display: flex; align-items: center; gap: .3rem; padding: 0 .4rem; font-size: 11px;
   color: var(--fg); line-height: 1.15; border-bottom: 1px solid var(--edge);
-  box-sizing: border-box; border-left: 3px solid transparent; }
+  box-sizing: content-box; border-left: 3px solid transparent; overflow: hidden; }
 .gut-row .side-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
 .gut-row.s-retail { border-left-color: var(--retail-c); }
 .gut-row.s-port { border-left-color: var(--port-c); }
@@ -172,7 +172,10 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
 .tl-window { position: absolute; top: 0; bottom: 0; background: #69d0831a;
   border-left: 1px solid #69d08366; border-right: 1px solid #69d08366;
   pointer-events: none; z-index: 1; }
-.tl-grp { position: relative; border-bottom: 1px solid var(--edge); }
+/* gutter rows + lane groups MUST render the same total height per row or they drift.
+   Both: explicit content height (from the rows array) + a 1px bottom border ON TOP
+   (content-box), so row k lines up in both columns. */
+.tl-grp { position: relative; border-bottom: 1px solid var(--edge); box-sizing: content-box; }
 .tl-row { position: relative; box-sizing: border-box; }
 .tl-row.anchors { background: #0e0f13; }
 .tl-row.ro { background: #101319; cursor: pointer; }

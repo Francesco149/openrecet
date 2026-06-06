@@ -34,8 +34,8 @@ const H = { anchors: 22, inputs: 16 };
 
 export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, stale, notes, onNotes, pendingBox, setPendingBox, cursor, setCursor, onSeekWindow }) {
   const [ppf, setPpf] = useState(1.0);
-  const [syncSeg, setSyncSeg] = useState(null);
-  const [winOnly, setWinOnly] = useState(false);
+  const [syncSeg, setSyncSeg] = useState(0);   // default: sync at BOOT so both sides
+  const [winOnly, setWinOnly] = useState(false); // start aligned (no load-stretch gap)
   const scrollRef = useRef(null);
 
   const L = useMemo(() => {
@@ -136,6 +136,19 @@ export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, st
     onNotes([...(notes || []), note]); if (setPendingBox) setPendingBox(null);
   };
   const delNote = (i) => { const n = (notes || []).slice(); n.splice(i, 1); onNotes(n); };
+
+  // extend the captured window so you can synthetically add inputs at the end
+  const extendTrace = () => {
+    const n = parseInt(prompt("extend the captured window by how many frames?", "120"), 10);
+    if (!n || n <= 0) return;
+    const next = (editTrace || []).slice();
+    const ci = next.findIndex(o => o && "caprange" in o);
+    if (ci < 0) { alert("this trace has no {caprange} to extend"); return; }
+    const [s, c] = next[ci].caprange; next[ci] = { caprange: [s, c + n] };
+    const ti = next.findIndex(o => o && "calltrace" in o);
+    if (ti >= 0) { const [cs, cc] = next[ti].calltrace; next[ti] = { calltrace: [cs, cc + n] }; }
+    onEdit(next);
+  };
   const noteMarks = () => (notes || []).map((nt, i) => {
     const x = sideX(((port.bases[nt.seg] || {}).base || 0) + nt.frame, "port");
     return html`<div class="pin note" style="left:${x}px"
@@ -252,6 +265,7 @@ export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, st
       <span class="sep">·</span>
       <button class=${"seg " + (winOnly ? "on" : "")} onClick=${() => setWinOnly(v => !v)}
         title="limit the view to the captured window">⊞ window-only</button>
+      <button class="seg" onClick=${extendTrace} title="extend the captured window to add inputs at the end (then re-capture)">⇥ extend</button>
       <span class="sep">·</span><span class="dim">add@cursor:</span>
       <button class="seg" onClick=${() => addAtCursor("phasepin")} title="add a phasepin at the cursor">+⟲</button>
       <button class="seg" onClick=${() => addAtCursor("rngseed")} title="add an rngseed at the cursor">+🎲</button>
