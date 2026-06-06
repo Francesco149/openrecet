@@ -109,14 +109,15 @@ export function Timeline({ traceOps, capturedOps, anchors, manifest, cursor, set
     </div>`;
   };
 
-  // rows: [label, heightKey, lanesVNode]  (gutter + lanes kept in lock-step)
+  // rows: [label, heightKey, side, lanesVNode]  (gutter + lanes kept in lock-step;
+  // side colour-codes retail vs port so the labels need not repeat the side name)
   const rows = [
-    ["retail · anchors", "anchors", html`<div class="tl-row anchors" style="height:${H.anchors}px">${anchorChips("retail")}</div>`],
-    ["retail · emitted inputs", "inputs", html`<div class="tl-row ro" style="height:${H.inputs}px">${inputSpans(capSegs, "retail", retail, true)}</div>`],
-    ["retail · trace ✎", "trace", traceLanes("retail")],
-    ["port · anchors", "anchors", html`<div class="tl-row anchors" style="height:${H.anchors}px">${anchorChips("port")}</div>`],
-    ["port · emitted inputs", "inputs", html`<div class="tl-row ro" style="height:${H.inputs}px">${inputSpans(capSegs, "port", port, true)}</div>`],
-    ["port · trace ✎", "trace", traceLanes("port")],
+    ["anchors", "anchors", "retail", html`<div class="tl-row anchors" style="height:${H.anchors}px">${anchorChips("retail")}</div>`],
+    ["emitted inputs", "inputs", "retail", html`<div class="tl-row ro" style="height:${H.inputs}px">${inputSpans(capSegs, "retail", retail, true)}</div>`],
+    ["trace ✎", "trace", "retail", traceLanes("retail")],
+    ["anchors", "anchors", "port", html`<div class="tl-row anchors" style="height:${H.anchors}px">${anchorChips("port")}</div>`],
+    ["emitted inputs", "inputs", "port", html`<div class="tl-row ro" style="height:${H.inputs}px">${inputSpans(capSegs, "port", port, true)}</div>`],
+    ["trace ✎", "trace", "port", traceLanes("port")],
   ];
 
   return html`<div class="timeline">
@@ -135,14 +136,15 @@ export function Timeline({ traceOps, capturedOps, anchors, manifest, cursor, set
     </div>
     <div class="tl-body">
       <div class="tl-gutter">
-        ${rows.map(([label, hk], i) => html`<div class="gut-row" style="height:${H[hk]}px" key=${i}>${label}</div>`)}
+        ${rows.map(([label, hk, side], i) => html`<div class=${"gut-row s-" + side} style="height:${H[hk]}px" key=${i}>
+          <span class="side-dot"></span>${label}</div>`)}
       </div>
       <div class="tl-scroll" ref=${scrollRef}
         onWheel=${e => { if (e.shiftKey) { e.preventDefault(); scrollRef.current.scrollLeft += e.deltaY; } }}>
         <div class="tl-content" style="width:${contentW}px" onClick=${onRulerClick}>
           ${winRel && html`<div class="tl-window" style="left:${relX(winRel[0])}px;width:${(winRel[1] - winRel[0]) * ppf}px"></div>`}
           <div class="tl-cursor" style="left:${relX(cursor)}px"></div>
-          ${rows.map(([, , lanes], i) => html`<div class="tl-grp" key=${i}>${lanes}</div>`)}
+          ${rows.map(([, , side, lanes], i) => html`<div class=${"tl-grp s-" + side} key=${i}>${lanes}</div>`)}
         </div>
       </div>
     </div>
