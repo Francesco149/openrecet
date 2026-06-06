@@ -116,3 +116,17 @@ main { padding: .75rem 1rem 3rem; }
 .toast.err { border-color: var(--bad); }
 .box-sel { position: fixed; border: 1.5px solid var(--accent);
   background: #6cb6ff22; pointer-events: none; z-index: 15; }
+
+/* ── Preact-rebuild additions ── */
+.pad { padding: 2rem; }
+.accent { color: var(--accent); }
+.err-box { margin-top: 1rem; color: var(--bad); border: 1px solid var(--bad);
+  border-radius: 6px; padding: .6rem .8rem; }
+.vpanel .tv { width: 100%; display: block; image-rendering: pixelated;
+  background: #000; cursor: crosshair; border-radius: 4px; }
+.stale-dot { color: var(--warn); font-size: 11px; margin-left: .4rem; }
+.filter { width: 100%; margin-bottom: .4rem; }
+.marks .m button.x { font-size: 11px; padding: 0 .3rem; color: var(--bad);
+  border-color: transparent; background: transparent; }
+.marks .m button.x:hover { border-color: var(--bad); }
+header h1 { font-size: 1rem; margin: 0; font-weight: 600; }

@@ -34,6 +34,7 @@ DEFAULT_REMOTE = os.environ.get("OPENRECET_FRIDA_REMOTE", "cutestation.soy:27042
 _CTYPE = {
     ".html": "text/html; charset=utf-8",
     ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
     ".css": "text/css; charset=utf-8",
     ".json": "application/json; charset=utf-8",
     ".jsonl": "application/x-ndjson; charset=utf-8",
@@ -477,9 +478,16 @@ def make_handler(sess_root: Path, web_dir: Path, default_session: str | None,
                     return
                 self._send_file(web_dir / "index.html")
                 return
-            if path in ("/studio.js", "/style.css"):
-                self._send_file(web_dir / path.lstrip("/"))
-                return
+            # Static assets from web_dir (app.mjs, store.mjs, vendor/*.mjs, css …).
+            if path not in ("/", "/index.html") and "/s/" not in path \
+                    and not path.startswith("/api") and not path.startswith("/record") \
+                    and not path.startswith("/capture"):
+                rel = path.lstrip("/")
+                if ".." not in rel:
+                    cand = (web_dir / rel).resolve()
+                    if cand.is_file() and str(cand).startswith(str(web_dir.resolve())):
+                        self._send_file(cand)
+                        return
             if path == "/api/sessions":
                 self._send_json(self._sessions())
                 return
