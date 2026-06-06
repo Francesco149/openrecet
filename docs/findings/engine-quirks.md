@@ -4327,3 +4327,29 @@ exactly when the fairy is idle from entry. Gates observed on retail in the
 loaded shop: `DAT_056da1c8=0` (no early return), `DAT_056db048=0`,
 `DAT_0438be6c=0` (idle-countdown wander state). See [[scene1-wing-glow]],
 [[scene1-tear-visual-diffs]].
+
+## 110. The in-house display-stand "remove item" menu is gated by `DAT_0438cc04` (the cc08==1 free-roam sub-state), NOT cc08 — cc08 stays 1 the whole time. Opening it FREEZES the HOUSE phase clock `DAT_056db054` while `FUN_0048670f` keeps ticking every frame
+
+Pressing Z facing a stocked display STAND opens an item place/remove menu. The
+gating state is **`DAT_0438cc04`** (the `cc08==1` interaction sub-state), which
+goes `0 → 1` on the Z-press and back to `0` on close; **`DAT_0438cc08` stays
+`1`** (free-roam) throughout. The open gate (asm `0x488cce`–`0x488d85` inside
+`FUN_0048670f`) is the Z path with the furniture-suppression flag
+`DAT_0450fee8[fidx] == 0` (a visible stand) — that branch sets `cc04 = 1` and
+calls `FUN_00468338` (ret `0x488d8a`); the `!= 0` branch is a *different* menu
+(`cc04 = 2`, furniture-grid). Per menu frame `FUN_00469414(1)` (ret `0x48915f`)
+updates; "select none" (`FUN_00469a9f()` returns −1) writes −1 into the display
+grid `DAT_044f7030[cbfc + cc00·0x14]` (= save dword 0x4e26) and `FUN_00468d22`
+returns the removed item to inventory.
+
+While the menu is open the HOUSE **sim freezes**: `DAT_056db054` (the §85 phase
+clock that the free-roam walk arm advances) **stops** — observed holding at a
+constant `157` for the full 76-frame menu window on retail, resuming `158` the
+frame after close. `FUN_0048670f` itself is still called every frame (no gap in
+its trace rows); the menu sub-state just routes around the walk arm that ticks
+the clock, and the player holds an interact pose. So an open display/management
+menu is a clean source of a *frozen* `db054` — distinct from a phase OFFSET.
+
+(This corrects an earlier RE that read the menu as `cc04==2` / grid `DAT_0450ff30`
+— that is the furniture-grid mode, a different branch; the stand-remove menu is
+`cc04==1` / grid `DAT_044f7030`. Full RE: [[shop-display-menu-RE]].)

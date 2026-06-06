@@ -35,12 +35,18 @@ grid-swap, `FUN_004850fe` populate, the `DAT_0438cc08` state machine, or the
 functions are never called. The cc08/0xa material below is the **counter /
 customer-sell** menu — a different, later feature.
 
-**The real mechanism = the in-house display menu (`DAT_0734bxxx` subsystem):**
-open `FUN_00468338`, update `FUN_00469414`, render `FUN_0046b00a`, slide
-`DAT_0734b98c`, removal writes `-1` into grid `DAT_0450ff30[ed8+bf64*0x14]` (item
-`FUN_00469a9f()`==-1 = "none") + `FUN_00468d22` inventory return. The HOUSE sim
-freezes (`db054` stops) while the menu is up. **Full corrected RE + the rewritten
-Phase-A chip breakdown: `docs/findings/shop-display-menu-RE.md` — start there.**
+**The real mechanism = the in-house display-stand menu, gated by `DAT_0438cc04
+== 1`** (the cc08==1 free-roam SUB-state; cc08 stays 1). open `FUN_00468338`
+(ret `0x488d8a`, sets cc04=1), update `FUN_00469414(1)` (ret `0x48915f`), render
+`FUN_0046b00a` + `FUN_00485f8c`, slide `DAT_0734b98c` (`FUN_004693e3`). Removal =
+`FUN_00469414` returns 1 → `FUN_00469a9f()`==-1 ("select none") → write `-1` into
+grid **`DAT_044f7030[cbfc + cc00*0x14]`** (= save dword 0x4e26 =
+`SAVE_BANK_FIELD_DISPLAY_GRID`, the grid the sparkle already reads) +
+`FUN_00468d22` inventory return, then cc04=0. The HOUSE sim freezes (`db054` holds
+at 157 for the 76-frame window) while the menu is up. **NOTE: an earlier rewrite
+mis-mapped this to `cc04==2` / `DAT_074b2ed8` / `DAT_0450ff30` — that is the
+separate furniture-grid mode. Full corrected RE + the rewritten Phase-A chip
+breakdown: `docs/findings/shop-display-menu-RE.md` — start there.**
 
 ## (SUPERSEDED for Phase A) Original RE map — confirmed against docs/decompiled/all.c
 

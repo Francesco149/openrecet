@@ -370,25 +370,28 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   final-polish phase):** the faint ambient "dots" — they no longer reproduce as a >4-LSB
   divergence on the current build (drift caps are bit-1:1 within 4 LSB outside the RNG-
   unpinned Tear sparkles); chase in a polish pass.
-- **NEXT ARC — shop-display interaction + save/load roundtrip.** Goal: reproduce
-  `tests/traces/save-roundtrip/` — load save → walk to the sword → **remove it** → **save**
-  (pause) → **quit to title** → reload → 2 swords left. **Phase-A RE RE-DONE FROM RETAIL
-  GROUND TRUTH 2026-06-06 (the old plan RE was the WRONG mechanism).** New bench
-  `tests/scenarios/house-display-remove` (the real roundtrip inputs through the first
-  removal) driven `--target retail --call-trace` proved: the removal is **NOT** the `cc08`
-  state machine / `FUN_0048940e` / `FUN_004850fe` (those never run; `cc08` stays `1` the
-  whole time; user-confirmed the feed montage shows the correct interaction). **Real
-  mechanism = the in-house display menu (`DAT_0734bxxx`):** Z near a stocked display →
-  **`FUN_00468338`** (open, once, from `FUN_0048670f@0x488d8a`) → slide `DAT_0734b98c` 0→5
-  (`PAUSE_OPEN` = the menu's modal flag `b150`, not the START pause) → **`FUN_00469414`**
-  (update/cursor `b968`, returns 1/2/3) every frame from `@0x48915f`, HOUSE sim **frozen**
-  (`db054` stops) → render **`FUN_0046b00a`**. **Removal ("select none")** = `FUN_00469a9f()`
-  returns -1 → write -1 into grid `DAT_0450ff30[ed8+bf64*0x14]` + `FUN_00468d22` inventory
-  return. Full corrected RE + rewritten Phase-A chips: **`findings/shop-display-menu-RE.md`**
-  (the plan's old map is banner-marked SUPERSEDED for Phase A). Tooling landed: retail
-  `0x48670f` hook now declares the interaction-state globals (`cc08/b74c/b754/cc0c/cd0bc/
-  bea4/cbfc/cc00`); `house-display-remove` scenario. **Next: pin the free-roam→`0x488d8a`
-  open gate, then port A1 (open + slide + sim-freeze).**
+- **NEXT ARC — shop-display interaction + save/load roundtrip. Phase-A RE COMPLETE
+  (cc04 correction 2026-06-06).** Goal: reproduce `tests/traces/save-roundtrip/` — load
+  save → walk to the sword → **remove it** → **save** (pause) → **quit to title** → reload
+  → 2 swords left. Pinned the two live-traced call sites (open ret `0x488d8a`, update ret
+  `0x48915f`) in `vendor/unpacked/` asm: they are the **`cc04==1`** in-house display-stand
+  menu — **NOT** `cc04==2` (the earlier rewrite mis-mapped them to the furniture-grid path
+  `DAT_074b2ed8`/`DAT_0450ff30`). cc08 stays `1` throughout; **`DAT_0438cc04`** is the real
+  gate (0→1 on Z, →0 on close). **Open gate** (asm `0x488cce`–`0x488d85`): Z (0x10) + faced
+  stand's furniture-flag `DAT_0450fee8[fidx]==0` + `DAT_0450f3f2≠0 && DAT_0450f400==0 &&
+  cbfc≠-1` → `FUN_00482a71` (interact pose) + `cc04=1` + **`FUN_00468338`** open + slide
+  `DAT_0734b98c` (`FUN_004693e3` every frame). **Update** `FUN_00469414(1)` every menu
+  frame. **Removal** = update returns 1 → `FUN_00469a9f()`==-1 ("select none") → write -1
+  into grid **`DAT_044f7030[cbfc+cc00*0x14]`** (= save dword 0x4e26 =
+  `SAVE_BANK_FIELD_DISPLAY_GRID`, the SAME grid the sparkle reads; cell 4 = the x=-1 sword)
+  + `FUN_00468d22` inventory return → `cc04=0`. **Render** `FUN_0046b00a` + `FUN_00485f8c`.
+  **Sim-freeze CONFIRMED:** `db054` holds at **157** for the whole 76-frame menu window
+  (frames 14135→14211 on retail), resuming 158 on close, while `FUN_0048670f` keeps ticking
+  — engine-quirks §110. Tooling: retail `0x48670f` hook now declares **`cc04`** (the field
+  the original RE missed) + corrected `cbfc/cc00` notes. Full RE:
+  **`findings/shop-display-menu-RE.md`** (correction-2 box at top). **Next: port A1 (open
+  gate + slide + sim-freeze gated on `s_cc04`), then A2 (update + grid -1 write + inventory
+  return), A3 (render).**
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.

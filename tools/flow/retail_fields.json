@@ -34,7 +34,9 @@
         {"name": "cwander",  "src": "global", "va": "0x438be6c", "type": "i32",
          "_note": "DAT_0438be6c — idle-wander state machine (0=idle-countdown,1=wander,2/3=return) in FUN_0048a833."},
         {"name": "cc08",     "src": "global", "va": "0x438cc08", "type": "i32",
-         "_note": "DAT_0438cc08 — the INGAME interaction state machine id inside FUN_0048670f. 1=free-roam walk · 0xa(10)=context-menu commit countdown · 0=open navigable menu · 0xf/0x10=sub-menus · 2=display-management · 0x17=furniture-place · 3=place-confirm · 0x32=counter · 4=customer/scripted. Ground-truth probe for the shop-display-roundtrip chips (port var s_cc08 in scene1_player_ctrl.c)."},
+         "_note": "DAT_0438cc08 — the INGAME interaction state machine id inside FUN_0048670f. 1=free-roam walk · 0xa(10)=context-menu commit countdown · 0=open navigable menu · 0xf/0x10=sub-menus · 2=display-management · 0x17=furniture-place · 3=place-confirm · 0x32=counter · 4=customer/scripted. NOTE: during the in-house display-stand REMOVE interaction cc08 stays 1 the whole time — the menu is gated by cc04 (below), NOT cc08. Port var s_cc08 in scene1_player_ctrl.c."},
+        {"name": "cc04",     "src": "global", "va": "0x438cc04", "type": "i32",
+         "_note": "DAT_0438cc04 — the cc08==1 free-roam INTERACTION sub-state. 0=walking · 1=in-house display-stand menu (the sword-stand remove/place menu; opened at 0x488d85 ret 0x488d8a, updated by FUN_00469414(1) at 0x48915a ret 0x48915f, closes back to 0) · 2=furniture-grid display-management (flag DAT_0450fee8[fidx]!=0, opened at 0x488c6e). THE shop-display-remove menu is cc04==1 — this is the field the original RE missed (it watched cc08 only). Port var s_cc04 in scene1_player_ctrl.c."},
         {"name": "b74c",     "src": "global", "va": "0x438b74c", "type": "i32",
          "_note": "DAT_0438b74c — proximity/affordance counter, ++ (cap 0xc) in menu-ish states {0,0xa,0xf,0x10,0x1e}, -- otherwise. The `9 < DAT_0438b74c` gate guards menu open + nav (all.c:88151)."},
         {"name": "b754",     "src": "global", "va": "0x438b754", "type": "i32",
@@ -46,9 +48,9 @@
         {"name": "bea4",     "src": "global", "va": "0x438bea4", "type": "i32",
          "_note": "DAT_0438bea4 — selected furniture index for display-management mode 2; FUN_0048940e(bea4,dir) loads/saves that furniture's item grid ↔ scratch."},
         {"name": "cbfc",     "src": "global", "va": "0x438cbfc", "type": "i32",
-         "_note": "DAT_0438cbfc — display-management cursor col (FUN_004862e7)."},
+         "_note": "DAT_0438cbfc — the free-roam HIGHLIGHTED display cell COL (the stand cell the player is adjacent to/facing; -1 = none). Also the cc04==1 menu's target-cell col: the removal writes grid[cbfc + cc00*0x14]. (In the cc04==2 furniture-grid mode FUN_004862e7 drives it.) Observed 4 on the remove trace = back-row col 4 = the x=-1 sword."},
         {"name": "cc00",     "src": "global", "va": "0x438cc00", "type": "i32",
-         "_note": "DAT_0438cc00 — display-management cursor row (FUN_004862e7)."}
+         "_note": "DAT_0438cc00 — the free-roam HIGHLIGHTED display cell ROW (0 = back row; -1 = none). The cc04==1 removal cell = cbfc + cc00*0x14 into DAT_044f7030 (= save dword 0x4e26 = SAVE_BANK_FIELD_DISPLAY_GRID)."}
       ]
     },
     "0x47be2f": {
