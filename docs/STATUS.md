@@ -501,6 +501,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
     the complete color/alpha/filter/blend pipeline at any draw. Use this for state-at-draw
     questions; per-frame state tracking misses inherited state (the reason the trace "looked
     identical" on white vs gold). engine-quirk: retail leaves COLORARG at defaults for all UI.
+- **Prologue conversation-pose gap — STEP 1 LANDED 2026-06-06 (commit d97c530).**
+  Investigating why retail-recorded NEW-GAME traces couldn't replay 1:1 to free-roam
+  on the port (the `{wait CONV_POSE_START}` chain desynced). Root cause: the port
+  posed the iv1_1/iv1_2 chibis only during iv1_2 (`generation>=2` proxy) so it fired
+  **no `CONV_POSE_START` during iv1_1**, where retail (BSS-zero talk flag
+  `DAT_0450f470`) fires one. **Fixed** by gating the pose on plain
+  `scene1_intro_dialogue_active()` (both scripts; `active()` is false during the
+  inter-script `D_LOAD` so the pose blips off/on like retail). Port now fires
+  `CONV_POSE_START`/`END` **×2** with the blip (was ×1) — matches retail's count +
+  END positions. engine-quirks §113. **REMAINING (last ordering gap, scoped):** retail
+  enters the pose **~49 frames before `HOUSE_FREEROAM`** (chibi actors spawned+posed
+  mid-load), so retail order is `LOADING_START → CONV_POSE_START → LOADING_END → HF`;
+  the port spawns the player actor at **load-END** (`player_ctrl_pose_house_standing`
+  called from `scene1_postload.c:128`), so its `CONV_POSE_START` is one load late
+  (`… LOADING_END → HF → CONV_POSE_START`). Full {wait}-chain cross-replay of a
+  new-game recording needs a **mid-load actor spawn** (postload→preload move) — a
+  deliberate, visually-verified `scene1_preload` change, not done. (Continue/Load
+  traces skip the prologue, so they already replay 1:1 cross-target.) Doc:
+  `findings/conversation-pose-driver.md` ("(a) DONE").
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.

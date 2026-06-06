@@ -218,6 +218,25 @@ inter-script load START (mirror retail's 1-frame `daafc` blip) rather than after
 the load — both pieces of modelling the real `DAT_0450f470` flag lifecycle
 (the `FUN_00470a46` producer), still gated on the deferred shatter transition.
 
+> **(a) DONE 2026-06-06** (commit d97c530, engine-quirks §113). Gate dropped from
+> `generation>=2` to plain `scene1_intro_dialogue_active()`: the port now poses
+> during iv1_1 too and fires `CONV_POSE_START`/`END` **×2** with the inter-script
+> blip (`active()` is false during `D_LOAD`, so the blip falls out for free — this
+> also covers (b)'s blip structurally). Verified on `intro-prologue`: port anchor
+> stream is now `HF → CONV_POSE_START → [load: CONV_POSE_END] → HF → CONV_POSE_START
+> → CONV_POSE_END → FREEROAM_START`, matching retail's *count + END positions*.
+>
+> **REMAINING (the last ordering gap):** retail's `CONV_POSE_START` fires **during
+> the load, ~49 frames before `HOUSE_FREEROAM`** (the chibi actors are spawned +
+> posed under the load overlay), but the port spawns the player actor only at
+> load-END (HF) so its `CONV_POSE_START` lands one load late — `… LOADING_END → HF
+> → CONV_POSE_START` vs retail `… CONV_POSE_START → LOADING_END → HF`. A
+> retail-recorded new-game trace's `{wait CONV_POSE_START}`-chain therefore still
+> desyncs by a script. Closing it needs the **HOUSE preload to make the player/
+> companion actors live mid-load** (before HF), not the pose gate — a `scene1_preload`
+> spawn-timing change, tracked separately. (Continue/Load traces skip the prologue
+> entirely, so they already replay 1:1 cross-target without this.)
+
 ## Cross-refs
 - `opening-prologue.md` §"Remaining real deltas" #4 (the gap), §"What actually
   drives the prologue" (FUN_0048407f first noted as the actor animator).
