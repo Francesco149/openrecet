@@ -170,43 +170,67 @@ function VerdictPanel({ manifest }) {
 
 // ─── record panel ────────────────────────────────────────────────────────────
 function RecordPanel() {
-  const [rec, pollRec] = useStatus("/record/status");
-  const [cap, pollCap] = useStatus("/capture/status");
+  const [rec, pollRec] = useStatus("/record/status", 1000);
   const [name, setName] = useState("");
   const [target, setTarget] = useState("both");
+  // explicit phase machine so the UI always shows WHERE we are + the live log tail
+  const [phase, setPhase] = useState("idle");   // idle|finalizing|capturing|done|error
+  const [cap, setCap] = useState(null);         // last /capture/status during a view
   const lastOut = rec && !rec.running && rec.exists ? rec.out : null;
-  const start = () => postJSON("/record/start", { name }).then(r =>
-    r.ok ? (toast("recording → " + r.out), pollRec()) : toast("start: " + (r.error || "fail"), true));
-  const stop = () => { toast("stopping (finalising)…"); postJSON("/record/stop").then(r =>
-    r.ok ? (toast(r.written ? `wrote ${(r.bytes/1024|0)}KB${r.recovered ? " (recovered)" : ""} → ${r.out}` : "no trace written — check log", !r.written), pollRec())
-         : toast("stop fail", true)); };
-  const view = () => { if (!lastOut) return toast("no recording yet", true);
+
+  const start = () => { setPhase("idle"); postJSON("/record/start", { name }).then(r =>
+    r.ok ? (toast("recording → " + r.out), pollRec()) : toast("start: " + (r.error || "fail"), true)); };
+  const stop = () => {
+    setPhase("finalizing");                     // the stop POST blocks ~90s while finalising
+    postJSON("/record/stop").then(r => {
+      setPhase("idle"); pollRec();
+      toast(r.ok ? (r.written ? `wrote ${(r.bytes/1024|0)}KB${r.recovered ? " (recovered)" : ""} → ${r.out}` : "no trace written — check log") : "stop fail", !(r.ok && r.written));
+    }).catch(() => { setPhase("error"); toast("stop request failed", true); });
+  };
+  const view = () => {
+    if (!lastOut) return toast("no recording yet — stop a recording first", true);
+    setPhase("capturing"); setCap({ session: "…", elapsed_s: 0, log_tail: "starting capture…" });
     postJSON("/capture", { trace: lastOut, target, call_trace: true }).then(r => {
-      if (!r.ok) return toast("capture: " + (r.error || "fail"), true);
+      if (!r.ok) { setPhase("error"); setCap({ log_tail: r.error || "capture failed to start" }); return; }
+      setCap({ session: r.session, elapsed_s: 0, log_tail: "driving capture…" });
       const poll = () => fetch("/capture/status").then(x => x.json()).then(s => {
-        if (s.running) { pollCap(); setTimeout(poll, 2000); }
-        else if (s.last_rc === 0 || s.last_rc === null) location.search = "?session=" + s.session;
-        else toast("capture rc=" + s.last_rc, true);
-      }); poll();
-    }); };
+        setCap(s);
+        if (s.running) { setTimeout(poll, 1200); return; }
+        if (s.last_rc === 0 || s.last_rc === null) {       // done (even 0-frame: the session banner explains)
+          setPhase("done"); toast("capture done → opening " + s.session);
+          location.search = "?session=" + encodeURIComponent(s.session);
+        } else { setPhase("error"); toast("capture failed rc=" + s.last_rc, true); }
+      }).catch(() => { setPhase("error"); setCap({ log_tail: "lost contact with capture" }); });
+      poll();
+    }).catch(() => { setPhase("error"); setCap({ log_tail: "capture request failed" }); });
+  };
+
+  let status, cls = "";
+  if (phase === "capturing") { status = `⟳ capturing ${cap?.session || ""} · ${cap?.elapsed_s || 0}s\n${cap?.log_tail || ""}`; }
+  else if (phase === "done") { status = `✓ capture done → ${cap?.session}`; }
+  else if (phase === "error") { status = `✗ ${cap?.log_tail || "error — see /tmp"} `; cls = "err"; }
+  else if (phase === "finalizing") { status = `■ finalising trace (detach frida + write)…\n${rec?.log_tail || ""}`; }
+  else if (rec?.running) { status = `● recording "${rec.name}" · ${rec.elapsed_s}s · ${(rec.bytes/1024|0)}KB\n${rec?.log_tail || ""}`; }
+  else if (rec?.exists) { status = `■ stopped → ${rec.out}`; }
+  else { status = `idle · ${rec?.remote || ""}`; }
+
+  const busy = phase === "capturing" || phase === "finalizing";
   return html`<section class="panel rec-panel">
     <h3>record a trace <span class="dim">(retail · frida attach)</span></h3>
     <div class="rec-row">
-      <input type="text" placeholder="trace name…" value=${name} onInput=${e => setName(e.target.value)} />
-      <button onClick=${start} disabled=${rec?.running}>● start</button>
+      <input type="text" placeholder="trace name…" value=${name} onInput=${e => setName(e.target.value)} disabled=${rec?.running || busy} />
+      <button onClick=${start} disabled=${rec?.running || busy}>● start</button>
       <button onClick=${stop} disabled=${!rec?.running}>■ stop</button>
     </div>
-    <div class="rec-status">${rec ? (rec.running
-      ? `● recording "${rec.name}" · ${rec.elapsed_s}s · ${(rec.bytes/1024|0)}KB`
-      : (rec.exists ? `■ stopped → ${rec.out}` : `idle · ${rec.remote || ""}`)) : "…"}</div>
+    <div class=${"rec-status " + cls}>${status}</div>
     <div class="rec-row">
-      <select onChange=${e => setTarget(e.target.value)}>
+      <select onChange=${e => setTarget(e.target.value)} disabled=${busy}>
         <option value="openrecet">port only (fast)</option>
         <option value="both" selected>port + retail + diff</option>
       </select>
-      <button onClick=${view} disabled=${!lastOut || cap?.running}>▶ view in studio</button>
+      <button onClick=${view} disabled=${!lastOut || busy}>${phase === "capturing" ? "⟳ capturing…" : "▶ view in studio"}</button>
     </div>
-    <div class="rec-help dim">Get Recettear to the <b>title</b> via Steam first, then start.</div>
+    <div class="rec-help dim">Get Recettear to the <b>title</b> via Steam first, then start. A new-game recording can't cross-replay (0 frames) — record a Continue/Load trace for video.</div>
   </section>`;
 }
 

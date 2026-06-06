@@ -533,8 +533,18 @@ def make_handler(sess_root: Path, web_dir: Path, default_session: str | None,
                 if not trace:
                     self._send_bytes(b"need trace", "text/plain", 400)
                     return
+                # The SERVER owns the session name (so /capture/status can report it
+                # and the client can open it). Derive from the trace basename + a
+                # timestamp when not given; cmd_capture's --session takes precedence.
+                session = d.get("session")
+                if not session:
+                    base = Path(trace).name
+                    for suf in (".raw.jsonl", ".trace.jsonl", ".jsonl"):
+                        if base.endswith(suf):
+                            base = base[: -len(suf)]; break
+                    session = f"{re.sub(r'[^\w.-]', '_', base)}-{time.strftime('%Y%m%d-%H%M%S')}"
                 self._send_json(capturer.start(
-                    trace, d.get("session", ""), d.get("target", "both"),
+                    trace, session, d.get("target", "both"),
                     bool(d.get("call_trace", True)), d.get("caprange")))
                 return
             m = re.match(r"^/s/([^/]+)/recapture$", u.path)

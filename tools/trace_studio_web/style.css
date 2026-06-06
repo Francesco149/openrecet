@@ -79,7 +79,9 @@ main { padding: .75rem 1rem 3rem; }
 .rec-row input { flex: 1; }
 #ts-rec-start { color: var(--bad); border-color: #4a2c2c; }
 #ts-rec-stop { color: var(--warn); }
-.rec-status { font-size: 12px; white-space: pre-wrap; color: var(--fg); margin-bottom: .35rem; }
+.rec-status { font-size: 12px; white-space: pre-wrap; color: var(--fg); margin-bottom: .35rem;
+  max-height: 5.5em; overflow-y: auto; word-break: break-all; }
+.rec-status.err { color: var(--bad); }
 .rec-help { font-size: 11px; }
 
 .mark-row { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .45rem; }
