@@ -234,10 +234,26 @@ void render_quad_state_setup(IDirect3DDevice8 *dev)
     IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND,        D3DBLEND_INVSRCALPHA);
 
     /* Order matches the engine: ALPHAOP first, then COLOROP, then
-     * MIN/MAGFILTER. Engine does NOT set COLORARG1/2 or ALPHAARG1/2
-     * — it relies on the D3D8 defaults (TEXTURE, CURRENT). */
+     * MIN/MAGFILTER. The engine's FUN_0049b425 does NOT set COLORARG1/2 —
+     * it relies on the D3D8 defaults (COLORARG1=TEXTURE, COLORARG2=CURRENT),
+     * and retail NEVER clobbers them (a whole menu frame's d3d-trace has zero
+     * COLORARG sets — verified via tools/d3d_state_at_draw.py). The PORT,
+     * however, has 3D renderers (chr/dust/mesh/alpha_walker/the 目玉 sparkle)
+     * that DO set COLORARG1=DIFFUSE / COLORARG2=CURRENT|TEXTURE and never
+     * restore them. While the walk-dust runs it happens to re-pair them; but
+     * the cc04 display menu freezes the walk → the dust stops → the leaked
+     * COLORARG1=DIFFUSE + COLORARG2=CURRENT reaches the 2D HUD/menu, whose
+     * MODULATE then computes diffuse·current = WHITE (texture only in the
+     * alpha, so the silhouette survives — the "every UI element goes white,
+     * keeps its shape" bug). Restore the engine-default pair here so the 2D
+     * UI sees retail's exact state (COLORARG1=TEXTURE, COLORARG2=CURRENT)
+     * regardless of which 3D renderer ran last. (Cheaper + safer than
+     * un-clobbering every 3D path; the net UI state matches retail bit-for-
+     * bit.) */
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP,   D3DTOP_MODULATE);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP,   D3DTOP_MODULATE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_CURRENT);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
 }
