@@ -370,25 +370,40 @@ current = white (alpha intact → silhouette survives). Fix: restore COLORARG1=
 TEXTURE, COLORARG2=CURRENT in `render_quad_state_setup`. ENGINE-QUIRK to log:
 retail leaves COLORARG at the D3D defaults for ALL UI.
 
+## SESSION (2026-06-06 PM #2) — C4b-4 cursor + nav + description + tip LANDED, user-confirmed 1:1
+
+Commits: cursor-init+nav+description; dash-string fix; "Button 3: Item Details" tip.
+**User-confirmed the settled menu is 1:1.**  What landed (`scene1_display_menu.c`):
+- **Cursor-init (FUN_00468338 tail, all.c:64637):** first-open starts the cursor on
+  the first REAL item (skip the -1 "Nothing" lead) → retail highlights the displayed
+  sword + its description, not "Nothing".  A cursor-UP selects "Nothing" (the removal).
+- **Nav (faithful FUN_00469414):** cursor up/down + scroll, tab switch, single-tab page
+  jump, the held auto-repeat mask (`g_sim_buttons[0].held`), slide the shared cursor on
+  every move, the "Number possessed" recount (`DAT_005c6ee4`).
+- **Hand cursor:** the SHARED `title_save_dialog` cursor (FUN_00435693/710/747 — same as
+  title/options/skip-prompt), snapped at open (x=280, y=(cursor-scroll)·36+96), hidden on
+  close, drawn at the menu tail as the engine's FUN_0048fdaf does (FUN_0046b00a→FUN_00435747).
+- **Description panel (FUN_00469b3a):** item_win bottom panel bg src(0,320,640,480)
+  dst(0,332,640,160) + desc_line1/2 + **"Base Price- %s"** (comma fmt, FUN_00469abb) +
+  **"Number possessed- %d"** — note the **DASH** (`s_…_005c75f0`/`005c7638`), retail EN
+  shows "Base Price- 200" / "Number possessed- 1".  White text scale 0.8 (price is
+  data-driven from the DB = 200).
+- **"Button 3: Item Details" tip (FUN_0046b00a tail, all.c:66843):** a BAKED data_win.tga
+  strip src(288,320,488,352) at fixed dst(440,440,200,32), bottom-right (the text is in
+  the texture, not font-drawn).
+
+**STILL MISSING (user-flagged 2026-06-06):**
+- **"Exchange with what?" world-projected prompt bubble** over the stand during the menu.
+  Separate render off a **localized message-table** string — NOT an .exe literal (not found
+  by string-scan of vendor/unpacked).  Shares the world→screen projection (FUN_00490c78)
+  with the deferred C3b tooltip.  Needs: locate the drawer (a FUN_00490c78 caller in the
+  cc04 render path — candidates near all.c:6902/6936/6963) + how the port loads the UI
+  message string.
+- **per-row type colours + price-status line (C4b-4c)** — `FUN_004361b2` (item price-trend)
+  reads the daily-market region pricing tables (unported); type-0 items render white, which
+  matches retail for the displayed (no-trend) swords.
+
 **NEXT-SESSION CHIPS (recipes ready — pure execution):**
-- **C4b-4a description panel** = `FUN_00469b3a` (0x469b3a, 2044 B), called from the
-  `FUN_0046b00a` tail (all.c:66845: always `FUN_00469b3a()`, +`FUN_0046a336()` if
-  `DAT_0734b96c!=0`). Draws Base/Purchase/Sell Price + Price-status + "Number
-  possessed: %d" + the item desc lines, all via `FUN_0047ca05` (font_draw_text);
-  text colour `DAT_005c7184`, scales 0.8 (`0x3f4ccccd`) / 0.6 (`0x3f19999a`).
-  Reads the selected item `DAT_0734b998` (s_highlight) + `DAT_005c6ee4` (count).
-  For the removal case the cursor is on -1 ("Nothing"); check what retail's
-  description shows there first (capture house-display-remove-opentrace --target
-  retail and read the bottom panel).
-- **C4b-4b hand cursor** = nowloading.tga (`DAT_073cc770`, loaded 0x100×0x40 @
-  all.c:71640). Retail draws it at the selected row (settled-menu d3d:
-  nowloading at screen ~(550,240)). Find the menu cursor draw (likely the shared
-  `title_save_dialog` hand or a menu-local nowloading draw — grep the FUN_0046b00a
-  region / FUN_0046a336). Add to `display_menu_render`.
-- **C4b-4c per-row text colour + selected-row pulse** — objdump 0x46b77c: row text
-  colour by `esi` (item type): `>=2`→0xff7f0000, `>=1`→0xff7f6464, `-1`→0xff64647f,
-  `<=-2`→0xff00007f, else grey; selected row (cursor-scroll==row && confirm_ctr)
-  pulses `0x7f - ftol(sin(confirm_ctr*π/6))`. Currently all rows are flat white.
 - **C3a orange cell glow** = `FUN_0045aa36` Block G (all.c L55089, the STUB in
   `scene1_chr_shadow.c`). 3D quad at the cell (`_DAT_0438cbf4`,1.9,`_DAT_0438cbf8`),
   item_win, pulsing alpha `ftol(sin(DAT_0438b8cc*0.05))`. **TODO:** objdump 0x45aa36

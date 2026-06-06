@@ -4372,3 +4372,28 @@ facing via `ftol(pang/π·10)`: `-π → -10` selects the *reach-in-`-z`* arm (t
 stand, the open frame's cbfc=4/cc00=0), while `+π → +10` falls to the
 *reach-in-`-x`* arm and highlights the wrong cell. Port fix:
 `player_ctrl_dpad_angle` overrides the pure-up case to `-π` (src/scene1_player_ctrl.c).
+
+## 112. The in-house display-stand "remove item" menu opens with the cursor on the FIRST REAL item (not the "Nothing"/remove entry), and the description + "Number possessed" track the highlighted item
+
+`FUN_00468338`'s tail (all.c:64637, the `param_2 != 0` full-open branch) sets the
+tab-0 cursor to **1** when tab 0 leads with the `-1` "Nothing" entry
+(`DAT_07337210 > 1 && DAT_0731f598[DAT_0731f408*2] == -1`). So a freshly-opened
+display-stand menu highlights the currently-displayed item (e.g. the Worn Sword),
+and the bottom description panel (`FUN_00469b3a`) shows THAT item's desc lines +
+`Base Price- N` + `Number possessed- N` — **not** an empty "Nothing" state.
+To REMOVE the displayed item the player navigates UP onto the `-1` "Nothing" row
+then confirms (writes `-1` into the display grid). Verified on
+house-display-remove-opentrace: the settled open frame highlights the sword + its
+description; the trace's frame-59 cursor-UP moves to "Nothing", frame-69 Z removes.
+
+Two text details on that menu, both **retail-EN literals in the .exe .data**
+(`vendor/unpacked`, NOT a localized .dat — confirmed by string-scan): the price /
+count labels are `"Base Price- %s"` (0x5c75f0) and `"Number possessed- %d"`
+(0x5c7638) — a **dash**, not a colon. The bottom-right `"Button 3: Item Details"`
+control hint is a **baked graphic** in `data_win.tga` at src(288,320,488,352),
+drawn at fixed dst(440,440,200,32) by the `FUN_0046b00a` tail (no font draw).
+
+In contrast, the `"Exchange with what?"` prompt bubble that floats over the stand
+during the menu is **NOT** an .exe literal (absent from the string-scan) — it is a
+localized message-table string drawn via the world→screen projection
+(`FUN_00490c78`), the same machinery as the deferred C3b name tooltip.

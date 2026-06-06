@@ -468,6 +468,23 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
     scene1_render_overlay. **Remaining C4b-4:** hand cursor on the selected row, the bottom
     item-description panel, per-row type colours + selected-row pulse. Then C3a/C3b (orange cell
     glow + name tooltip).
+  - **C4b-4 LANDED 2026-06-06 PM — cursor + nav + description + tip; user-confirmed 1:1.**
+    (1) **Cursor-init** (FUN_00468338 tail) starts the cursor on the first REAL item (skip
+    the -1 "Nothing" lead) — why retail highlights the displayed sword + its description;
+    a cursor-UP selects "Nothing" (the removal). (2) **Nav** (faithful FUN_00469414): cursor
+    up/down + scroll, tab switch, page-jump, the held auto-repeat mask, slide the shared
+    cursor on move, the "Number possessed" recount. (3) **Hand cursor** = the SHARED
+    `title_save_dialog` cursor (FUN_00435693/710/747 — same as title/options/skip-prompt),
+    snapped at open (x=280, y=(cursor-scroll)·36+96), hidden on close, drawn at the menu tail
+    (FUN_0048fdaf order: FUN_0046b00a→FUN_00435747). (4) **Description panel** (FUN_00469b3a):
+    item_win bottom bg + desc lines + **"Base Price- %s"** + **"Number possessed- %d"** (DASH,
+    `s_…_005c75f0/7638`; retail "Base Price- 200" data-driven). (5) **"Button 3: Item Details"
+    tip** = BAKED data_win.tga strip src(288,320,488,352) dst(440,440,200,32). Host tests pass
+    (3192); the removal test rewritten self-contained (synthetic DB+bank). **STILL MISSING
+    (user-flagged):** the **"Exchange with what?"** world-projected prompt bubble (a localized
+    message-table string, NOT an .exe literal; shares FUN_00490c78 projection with the deferred
+    C3b tooltip) + per-row type colours (FUN_004361b2 daily-market price-trend, unported).
+    Full RE: `findings/shop-display-menu-RE.md` (session 2026-06-06 PM #2).
   - **WHITE-UI bug ROOT-CAUSED + FIXED 2026-06-06 PM (the CORRECTION-3 #2 "bind desync"
     hypothesis was WRONG).** Not a texture/bind issue — a **COLORARG leak**. The d3d device's
     COLORARG state is persistent across frames; the port's 3D renderers (chr/dust/mesh/
