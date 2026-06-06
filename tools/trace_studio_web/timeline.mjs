@@ -190,7 +190,7 @@ export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, st
   // ── lane builders ───────────────────────────────────────────────────────────
   const anchorChips = (side) => (anchors[side] || []).map((f, i) =>
     html`<div class=${"chip " + anchorCls(f.anchor)} style="left:${sideX(f.frame, side)}px"
-      title=${`${f.anchor} @${f.frame} — click to scrub`}
+      data-full=${`${f.anchor} @${f.frame}`}
       onClick=${(e) => { e.stopPropagation(); setCursorRel(f.frame - sideSync(side)); }}
       key=${i}>${shortAnchor(f.anchor)}</div>`);
 
@@ -259,6 +259,8 @@ export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, st
 
   return html`<div class="timeline">
     <div class="tl-bar">
+      <span class="legend"><span class="sw s-retail"></span>retail <span class="sw s-port"></span>port</span>
+      <span class="sep">·</span>
       <span class="dim">sync:</span>
       ${segs.map((s, k) => html`<button class=${"seg " + ((syncSeg ?? segs.length - 1) === k ? "on" : "")}
         onClick=${() => setSyncSeg(k)} key=${k}>${k === 0 ? "boot" : shortAnchor(s.waitAnchor)}</button>`)}

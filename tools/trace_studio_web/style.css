@@ -135,7 +135,14 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
 
 /* ── timeline ── */
 .timeline { margin: .6rem 0; border: 1px solid var(--edge); border-radius: 6px;
-  background: var(--panel); }
+  background: var(--panel); --retail-c: #f0a868; --port-c: #6cb6ff; }
+.legend { display: inline-flex; align-items: center; gap: .25rem; font-size: 11px; color: var(--dim); }
+.legend .sw { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+.legend .sw.s-retail { background: var(--retail-c); }
+.legend .sw.s-port { background: var(--port-c); }
+.chip:hover::after { content: attr(data-full); position: absolute; top: 15px; left: 0;
+  background: #000d; color: #fff; padding: 1px 6px; border-radius: 3px; font-size: 11px;
+  white-space: nowrap; z-index: 30; pointer-events: none; border: 1px solid currentColor; }
 .tl-bar { display: flex; align-items: center; gap: .3rem; padding: .35rem .5rem;
   border-bottom: 1px solid var(--edge); flex-wrap: wrap; }
 .tl-bar .spacer { flex: 1; }

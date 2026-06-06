@@ -116,10 +116,11 @@ def raw_header(path: Path) -> dict | None:
         "openrecet-tas-raw") else None
 
 
-def raw_default_window(path: Path) -> tuple[int, int] | None:
-    """Default capture window for a raw recording: from the LAST anchor (the base
-    export_trace's {caprange} resolves against) through the end of the recording
-    + a little margin — i.e. the post-intro free-roam span the user actually played."""
+def raw_default_window(path: Path, anchored: bool = False) -> tuple[int, int] | None:
+    """Default capture window for a raw recording. FLAT (default): the WHOLE recording
+    from boot, [0, last_frame+margin] — the 'capture everything, no anchoring' first run.
+    ANCHORED: from the LAST recorded anchor (the base export_trace's {caprange} resolves
+    against) through the end — the post-intro span only."""
     anchors, frames = [], []
     for ln in path.read_text().splitlines():
         s = ln.strip()
@@ -135,8 +136,8 @@ def raw_default_window(path: Path) -> tuple[int, int] | None:
             frames.append(int(o["frame"]))
     if not frames:
         return None
-    last_anchor = max(anchors) if anchors else 0
-    return (0, max(1, max(frames) - last_anchor + 90))
+    base = (max(anchors) if anchors else 0) if anchored else 0
+    return (0, max(1, max(frames) - base + 90))
 
 
 def extract_calltrace(ops: list[dict]) -> tuple[int, int] | None:
@@ -368,13 +369,15 @@ def run_verdict(port_dir: Path, retail_dir: Path,
             "text": r.stdout + (("\n[stderr]\n" + r.stderr) if r.stderr else "")}
 
 
-def _distill_raw(raw: Path, out: Path) -> None:
-    """Distil a frida/F2 raw recording → an anchor-segmented replayable trace
-    (folds the embedded save into <out_dir>/_saves/ so the session is self-contained)."""
-    r = subprocess.run(
-        [sys.executable, str(ROOT / "tools" / "distill_trace.py"), str(raw),
-         "--anchor-segments", "-o", str(out)],
-        capture_output=True, text=True, cwd=str(ROOT))
+def _distill_raw(raw: Path, out: Path, anchored: bool = False) -> None:
+    """Distil a frida/F2 raw recording into a replayable trace (folds the embedded
+    save into <out_dir>/_saves/ so the session is self-contained). FLAT by default
+    (single boot segment, no {wait}s — the 'no anchoring, sync at boot' first run you
+    iterate on); pass anchored=True for the every-anchor-a-{wait} segmented mode."""
+    args = [sys.executable, str(ROOT / "tools" / "distill_trace.py"), str(raw)]
+    args += (["--anchor-segments"] if anchored else [])
+    args += ["-o", str(out)]
+    r = subprocess.run(args, capture_output=True, text=True, cwd=str(ROOT))
     if r.returncode != 0 or not out.exists():
         raise SystemExit(f"trace_studio: distil failed for {raw}:\n{r.stderr[-800:]}")
 
@@ -449,13 +452,14 @@ def _ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool) -> str:
 
 
 def _build_working_trace(src: Path, sess_dir: Path, working: Path,
-                         cr: tuple[int, int], call_trace: bool) -> None:
+                         cr: tuple[int, int], call_trace: bool,
+                         anchored: bool = False) -> None:
     """Create the session's editable WORKING trace from a source (raw recording or
     a .jsonl): distil if raw, localize its save, and inject the window ops. This is
     the artifact the user's pins land on (via `apply`) and that re-captures reuse."""
     if raw_header(src):
         base = sess_dir / "recording.trace.jsonl"
-        _distill_raw(src, base)
+        _distill_raw(src, base, anchored=anchored)
         text = base.read_text()
     else:
         text = _localize_save(src, src.read_text(), sess_dir)
@@ -491,12 +495,13 @@ def cmd_capture(args) -> int:
         else:
             cr0 = extract_caprange(load_ops(src))
             if not cr0 and hdr:
-                cr0 = raw_default_window(src)
-                _log(f"raw recording → auto window caprange={cr0} "
-                     f"(last anchor → end of recording)")
+                cr0 = raw_default_window(src, anchored=args.anchors)
+                _log(f"raw recording → {'anchor-segmented' if args.anchors else 'FLAT (no anchoring, boot-synced)'} "
+                     f"distil, auto window caprange={cr0}")
         if not cr0:
             raise SystemExit("trace_studio: no --caprange given and none in the trace")
-        _build_working_trace(src, sess_dir, working, cr0, bool(args.call_trace))
+        _build_working_trace(src, sess_dir, working, cr0, bool(args.call_trace),
+                             anchored=args.anchors)
 
     trace = working
     ops = load_ops(trace)
@@ -760,6 +765,10 @@ def main(argv=None) -> int:
     c.add_argument("--only", choices=("both", "port"), default="both",
                    help="'port' re-runs only the port and REUSES the cached retail "
                         "capture (the fast port-fixing loop); 'both' is a full capture")
+    c.add_argument("--anchors", action="store_true",
+                   help="distil a raw recording with every recorded anchor as a {wait} "
+                        "sync point (default: FLAT — no anchoring, boot-synced, both "
+                        "sides captured from frame 0; add anchors yourself + iterate)")
     c.set_defaults(func=cmd_capture)
 
     s = sub.add_parser("serve", help="open the scrubbing editor")
