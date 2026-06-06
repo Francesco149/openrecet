@@ -1,0 +1,51 @@
+# house-display-remove — verbatim save-roundtrip inputs through the FIRST
+# sword removal (walk -> Z -> context menu -> MANAGE DISPLAY -> remove),
+# with {calltrace} armed over each interaction segment so a --target retail
+# (or both) run drops the cc08 interaction-state timeline (retail_fields.json
+# 0x48670f). Inputs copied 1:1 from tests/traces/save-roundtrip/trace.jsonl.
+# anchor-segmented replay: each recorded anchor is a {wait} sync point; inputs/escs after it are relative to it (turbo/jitter-immune).
+# embedded save: fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54 (override via --save-override on replay; see tools/trace_save.py)
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 45, "buttons": "0x0010"}
+{"frame": 48, "buttons": "0x0000"}
+{"frame": 96, "buttons": "0x0010"}
+{"frame": 99, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"rngseed": [0, 577284034]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"capture": 60}
+{"capture": 130}
+{"capture": 156}
+{"calltrace": [40, 140]}
+{"rngseed": [0, 1750336112]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 42, "buttons": "0x0001"}
+{"frame": 48, "buttons": "0x0005"}
+{"frame": 51, "buttons": "0x0004"}
+{"frame": 124, "buttons": "0x0006"}
+{"frame": 125, "buttons": "0x0002"}
+{"frame": 134, "buttons": "0x0006"}
+{"frame": 136, "buttons": "0x0004"}
+{"frame": 142, "buttons": "0x0000"}
+{"frame": 157, "buttons": "0x0010"}
+{"wait": "PAUSE_OPEN"}
+{"capture": 5}
+{"capture": 40}
+{"capture": 68}
+{"capture": 88}
+{"calltrace": [0, 90]}
+{"rngseed": [0, 2442882244]}
+{"frame": 0, "buttons": "0x0010"}
+{"frame": 4, "buttons": "0x0000"}
+{"frame": 59, "buttons": "0x0004"}
+{"frame": 64, "buttons": "0x0000"}
+{"frame": 69, "buttons": "0x0010"}
+{"frame": 74, "buttons": "0x0000"}
+{"wait": "PAUSE_CLOSE"}
+{"capture": 10}
+{"capture": 40}
+{"capture": 68}
+{"calltrace": [0, 70]}

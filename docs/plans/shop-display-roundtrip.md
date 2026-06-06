@@ -25,7 +25,24 @@ retail via `scenario-test --target both` + `flow_diff`/pixel-diff.
   **merge + checksum** (the `FUN_004905a8(slot)` param≠-1 branch) and any
   in-game call site.
 
-## Verified RE map (all VAs/lines confirmed against docs/decompiled/all.c)
+## ⚠ CORRECTION 2026-06-06 — the Phase-A RE map below is the WRONG mechanism
+
+A live retail flow-trace of the **actual** removal interaction
+(`tests/scenarios/house-display-remove`, `--target retail --call-trace`) proved
+the removal does **NOT** use any of: the `cc08` 0xa context-menu, `FUN_0048940e`
+grid-swap, `FUN_004850fe` populate, the `DAT_0438cc08` state machine, or the
+`DAT_044f7030` grid. During the whole interaction **`cc08` stays `1`** and those
+functions are never called. The cc08/0xa material below is the **counter /
+customer-sell** menu — a different, later feature.
+
+**The real mechanism = the in-house display menu (`DAT_0734bxxx` subsystem):**
+open `FUN_00468338`, update `FUN_00469414`, render `FUN_0046b00a`, slide
+`DAT_0734b98c`, removal writes `-1` into grid `DAT_0450ff30[ed8+bf64*0x14]` (item
+`FUN_00469a9f()`==-1 = "none") + `FUN_00468d22` inventory return. The HOUSE sim
+freezes (`db054` stops) while the menu is up. **Full corrected RE + the rewritten
+Phase-A chip breakdown: `docs/findings/shop-display-menu-RE.md` — start there.**
+
+## (SUPERSEDED for Phase A) Original RE map — confirmed against docs/decompiled/all.c
 
 ### Interaction state machine — `DAT_0438cc08` inside `FUN_0048670f` (0x48670f)
 States: 1 free-roam · **0xa(10) context menu** · **2 display-management** · 4

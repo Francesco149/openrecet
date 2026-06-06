@@ -1,0 +1,20 @@
+# house-display-remove — drive the save-roundtrip display-management interaction
+# (load fa7c82 save → walk to the top-right sword → open the context menu →
+# select MANAGE DISPLAY → remove the sword) and flow-trace the cc08 interaction
+# state machine inside FUN_0048670f.
+#
+# Ground-truth bench for the shop-display-roundtrip Phase A chips: retail's
+# per-frame cc08/b74c/b754/cc0c/cd0bc/bea4 sequence (declared on the retail
+# 0x48670f hook in tools/flow/retail_fields.json) is the authoritative state
+# path the port's A1+ chips must reproduce.
+#
+#   python3 tools/scenario-test.py house-display-remove --target retail \
+#     --call-trace --frida-remote cutestation.soy:27042
+#   # then read runs/.../retail/call_trace.jsonl for the cc08 timeline.
+description: |
+  Continue/load the fa7c82 save → HOUSE free-roam → walk to the back-stand
+  swords → action-button opens the display context menu → MANAGE DISPLAY →
+  remove the top-right sword. {calltrace} over the interaction window so a
+  --target retail (or both) run drops the cc08 interaction-state timeline.
+max_frames: 22000   # turbo load-stretch headroom (matches the save-roundtrip runs)
+duration_ceiling_ms: 180000

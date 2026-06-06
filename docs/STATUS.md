@@ -370,17 +370,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   final-polish phase):** the faint ambient "dots" — they no longer reproduce as a >4-LSB
   divergence on the current build (drift caps are bit-1:1 within 4 LSB outside the RNG-
   unpinned Tear sparkles); chase in a polish pass.
-- **NEXT ARC — shop-display interaction + save/load roundtrip (planned 2026-06-06).**
-  Goal: port the port to reproduce `tests/traces/save-roundtrip/` — load save → walk to
-  the top-right sword → **remove it** (display-management mode) → **save** (pause menu) →
-  **quit to title** → reload → 2 swords left. **RE complete + verified, plan + 9 chips in
-  `plans/shop-display-roundtrip.md`** (start there). Key verified VAs: interaction state
-  machine `DAT_0438cc08` in `FUN_0048670f` (1 walk → 0xa context-menu @88155 → 2 mgmt via
-  `FUN_0048940e`); context menu populate `FUN_004850fe`; mgmt cursor `FUN_004862e7` + render
-  `FUN_00485f8c`; pause dispatcher `FUN_0047fa76` (type 3=save `FUN_0047f5bc`, type 2=config,
-  quit-to-title → `DAT_0438b1c0=0`); save-write `FUN_004905a8` (merge+checksum is the
-  port-missing half — `save_io_write_arena` already does the file write). **Next chip: A1**
-  (cc08 0xa context-menu state machine). Port currently stubs ALL non-walk cc08 states.
+- **NEXT ARC — shop-display interaction + save/load roundtrip.** Goal: reproduce
+  `tests/traces/save-roundtrip/` — load save → walk to the sword → **remove it** → **save**
+  (pause) → **quit to title** → reload → 2 swords left. **Phase-A RE RE-DONE FROM RETAIL
+  GROUND TRUTH 2026-06-06 (the old plan RE was the WRONG mechanism).** New bench
+  `tests/scenarios/house-display-remove` (the real roundtrip inputs through the first
+  removal) driven `--target retail --call-trace` proved: the removal is **NOT** the `cc08`
+  state machine / `FUN_0048940e` / `FUN_004850fe` (those never run; `cc08` stays `1` the
+  whole time; user-confirmed the feed montage shows the correct interaction). **Real
+  mechanism = the in-house display menu (`DAT_0734bxxx`):** Z near a stocked display →
+  **`FUN_00468338`** (open, once, from `FUN_0048670f@0x488d8a`) → slide `DAT_0734b98c` 0→5
+  (`PAUSE_OPEN` = the menu's modal flag `b150`, not the START pause) → **`FUN_00469414`**
+  (update/cursor `b968`, returns 1/2/3) every frame from `@0x48915f`, HOUSE sim **frozen**
+  (`db054` stops) → render **`FUN_0046b00a`**. **Removal ("select none")** = `FUN_00469a9f()`
+  returns -1 → write -1 into grid `DAT_0450ff30[ed8+bf64*0x14]` + `FUN_00468d22` inventory
+  return. Full corrected RE + rewritten Phase-A chips: **`findings/shop-display-menu-RE.md`**
+  (the plan's old map is banner-marked SUPERSEDED for Phase A). Tooling landed: retail
+  `0x48670f` hook now declares the interaction-state globals (`cc08/b74c/b754/cc0c/cd0bc/
+  bea4/cbfc/cc00`); `house-display-remove` scenario. **Next: pin the free-roam→`0x488d8a`
+  open gate, then port A1 (open + slide + sim-freeze).**
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.
