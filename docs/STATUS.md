@@ -370,6 +370,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   final-polish phase):** the faint ambient "dots" — they no longer reproduce as a >4-LSB
   divergence on the current build (drift caps are bit-1:1 within 4 LSB outside the RNG-
   unpinned Tear sparkles); chase in a polish pass.
+- **NEXT ARC — shop-display interaction + save/load roundtrip (planned 2026-06-06).**
+  Goal: port the port to reproduce `tests/traces/save-roundtrip/` — load save → walk to
+  the top-right sword → **remove it** (display-management mode) → **save** (pause menu) →
+  **quit to title** → reload → 2 swords left. **RE complete + verified, plan + 9 chips in
+  `plans/shop-display-roundtrip.md`** (start there). Key verified VAs: interaction state
+  machine `DAT_0438cc08` in `FUN_0048670f` (1 walk → 0xa context-menu @88155 → 2 mgmt via
+  `FUN_0048940e`); context menu populate `FUN_004850fe`; mgmt cursor `FUN_004862e7` + render
+  `FUN_00485f8c`; pause dispatcher `FUN_0047fa76` (type 3=save `FUN_0047f5bc`, type 2=config,
+  quit-to-title → `DAT_0438b1c0=0`); save-write `FUN_004905a8` (merge+checksum is the
+  port-missing half — `save_io_write_arena` already does the file write). **Next chip: A1**
+  (cc08 0xa context-menu state machine). Port currently stubs ALL non-walk cc08 states.
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.
