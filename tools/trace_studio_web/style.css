@@ -151,7 +151,14 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
 .gut-row.s-port .side-dot { background: var(--port-c); }
 .tl-grp.s-retail { border-left: 3px solid color-mix(in srgb, var(--retail-c) 45%, transparent); }
 .tl-grp.s-port { border-left: 3px solid color-mix(in srgb, var(--port-c) 45%, transparent); }
+.tl-body { max-height: 62vh; overflow-y: auto; }
 .tl-scroll { flex: 1; overflow-x: auto; overflow-y: hidden; }
+.tl-row.btn { cursor: crosshair; }
+.tl-row.btn:hover { background: #1a1d24; }
+.bar { position: absolute; top: 2px; height: 9px; background: #6cb6ffcc;
+  border-radius: 2px; pointer-events: none; }
+.tl-grp.s-retail .bar { background: #f0a868cc; }
+.tl-row.pinrow { background: #0d0f13; }
 .tl-content { position: relative; min-width: 100%; }
 .tl-cursor { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent);
   pointer-events: none; z-index: 4; }
