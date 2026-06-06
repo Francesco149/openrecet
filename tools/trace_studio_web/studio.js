@@ -7,6 +7,7 @@
 
 const $ = (id) => document.getElementById(id);
 const qs = new URLSearchParams(location.search);
+const BUST = Date.now();          // per-page-load cache-buster for re-captured videos
 
 let M = null;            // session.json manifest
 let SESS = qs.get("session") || "";
@@ -86,52 +87,125 @@ function renderApplyCmd() {
     `python3 tools/trace_studio.py apply ${SESS}`;
 }
 
-// ── marks ────────────────────────────────────────────────────────────────────
+// ── marks (client-side state → POST /edits/set; toggle, delete, clear) ────────
 let pendingBox = null;
-function postMark(kind) {
-  const note = $("ts-mark-note").value.trim();
-  const body = { frame: cur, kind };
-  if (note) body.note = note;
-  if (pendingBox) { body.box = pendingBox; }
-  fetch(`/s/${SESS}/edits`, {
+let marks = [];
+function saveMarks() {
+  return fetch(`/s/${SESS}/edits/set`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  }).then(r => r.json()).then(() => {
-    toast(`marked ${kind} @ frame ${cur}` + (note ? ` — ${note}` : ""));
-    $("ts-mark-note").value = "";
-    pendingBox = null;
-    loadMarks();
-  }).catch(() => toast("mark POST failed", true));
+    body: JSON.stringify({ edits: marks }),
+  });
 }
+function addMark(kind) {
+  const note = $("ts-mark-note").value.trim();
+  // toggle: pressing the same kind at the same frame (no new note/box) removes it
+  if (!note && !pendingBox) {
+    const i = marks.findIndex(m => m.frame === cur && m.kind === kind && !m.note && !m.box);
+    if (i >= 0) { marks.splice(i, 1); saveMarks(); renderMarks(); toast(`removed ${kind} @ ${cur}`); return; }
+  }
+  const m = { frame: cur, kind };
+  if (note) m.note = note;
+  if (pendingBox) m.box = pendingBox;
+  marks.push(m);
+  saveMarks(); renderMarks();
+  toast(`marked ${kind} @ frame ${cur}` + (note ? ` — ${note}` : ""));
+  $("ts-mark-note").value = ""; pendingBox = null;
+}
+function deleteMark(i) { marks.splice(i, 1); saveMarks(); renderMarks(); }
+function clearMarks() { if (!marks.length) return; marks = []; saveMarks(); renderMarks(); toast("cleared all marks"); }
 function loadMarks() {
   fetch(`/s/${SESS}/edits.jsonl`, { cache: "no-cache" })
     .then(r => r.ok ? r.text() : "")
     .then(txt => {
-      const ms = txt.split("\n").map(l => l.trim()).filter(Boolean)
+      marks = txt.split("\n").map(l => l.trim()).filter(Boolean)
         .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-      $("ts-marks").innerHTML = ms.length
-        ? ms.map(m => `<div class="m"><span class="k">${m.kind}</span> `
-            + `@<a href="#" data-f="${m.frame}">${m.frame}</a>`
-            + (m.note ? ` — ${esc(m.note)}` : "") + "</div>").join("")
-        : "(none)";
-      $("ts-marks").querySelectorAll("a[data-f]").forEach(a =>
-        a.onclick = (e) => { e.preventDefault(); seekAll(+a.dataset.f); });
+      renderMarks();
     });
+}
+function renderMarks() {
+  const box = $("ts-marks");
+  if (!marks.length) { box.innerHTML = "(none)"; return; }
+  box.innerHTML = marks.map((m, i) =>
+    `<div class="m"><button class="x" data-i="${i}" title="delete">✕</button> `
+    + `<span class="k">${m.kind}</span> @<a href="#" data-f="${m.frame}">${m.frame}</a>`
+    + (m.note ? ` — ${esc(m.note)}` : "")
+    + (m.box ? ` <span class="dim">[box]</span>` : "") + "</div>").join("");
+  box.querySelectorAll("a[data-f]").forEach(a =>
+    a.onclick = (e) => { e.preventDefault(); seekAll(+a.dataset.f); });
+  box.querySelectorAll("button.x").forEach(b =>
+    b.onclick = () => deleteMark(+b.dataset.i));
 }
 function esc(s) { return s.replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])); }
 
+// ── iterate: apply pins + re-capture (the self-service loop) ──────────────────
+let capPoll = 0;
+function pollCapture(onDone) {
+  fetch("/capture/status", { cache: "no-cache" }).then(r => r.json()).then(s => {
+    if (s.running) {
+      $("ts-cap-status").textContent = `⟳ capturing ${s.session} · ${s.elapsed_s}s · ${s.log_tail || ""}`.slice(0, 200);
+      if (!capPoll) capPoll = setInterval(() => pollCapture(onDone), 2000);
+    } else {
+      if (capPoll) { clearInterval(capPoll); capPoll = 0; }
+      const ok = s.last_rc === 0 || s.last_rc === null;
+      $("ts-cap-status").textContent = s.session
+        ? (ok ? `✓ capture done (${s.session})` : `✗ capture rc=${s.last_rc} — ${s.log_tail || ""}`)
+        : "—";
+      if (onDone) onDone(ok, s);
+    }
+  }).catch(() => {});
+}
+function doApply() {
+  toast("applying pins…");
+  fetch(`/s/${SESS}/apply`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}) }).then(r => r.json()).then(res => {
+    if (!res.ok) { toast("apply failed: " + (res.error || "?"), true); return; }
+    toast(`applied ${res.pins_added} pin(s)` + (res.pins_dupe ? ` (${res.pins_dupe} dup)` : ""));
+    loadMarks();
+    if ($("ts-apply-recap").checked && res.pins_added > 0) doRecapture();
+  }).catch(() => toast("apply failed", true));
+}
+function doRecapture() {
+  toast("re-capturing…");
+  fetch(`/s/${SESS}/recapture`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}) }).then(r => r.json()).then(res => {
+    if (!res.ok) { toast("re-capture: " + (res.error || "failed"), true); return; }
+    pollCapture((ok) => { if (ok) reloadSession(); });
+  }).catch(() => toast("re-capture failed", true));
+}
+function reloadSession() {
+  // reload videos + manifest without losing scroll: simplest is a soft reload
+  const f = cur;
+  toast("capture updated — reloading view");
+  location.reload();
+}
+
 // ── record (frida-attach to retail) ──────────────────────────────────────────
 let recTimer = 0;
+let lastRecOut = null;
 function recStatusText(s) {
-  if (s.running) return `● recording "${s.name}" · ${s.elapsed_s}s · ${(s.bytes/1024).toFixed(0)} KB → ${s.out}`;
-  if (s.out && s.exists) return `■ stopped · wrote ${(s.bytes/1024).toFixed(0)} KB → ${s.out}\n  distil: tools/distill_trace.py ${s.out} --anchor-segments`;
+  if (s.running) return `● recording "${s.name}" · ${s.elapsed_s}s · ${(s.bytes/1024).toFixed(0)} KB`;
+  if (s.out && s.exists) return `■ stopped · wrote ${(s.bytes/1024).toFixed(0)} KB → ${s.out}`;
   return `idle · target ${s.remote}`;
 }
 function applyRecStatus(s) {
   $("ts-rec-status").textContent = recStatusText(s);
   $("ts-rec-start").disabled = !!s.running;
   $("ts-rec-stop").disabled = !s.running;
+  if (s.out && s.exists && !s.running) { lastRecOut = s.out; $("ts-rec-view").disabled = false; }
   if (s.log_tail) $("ts-rec-status").title = s.log_tail;
+}
+function recView() {
+  if (!lastRecOut) { toast("no recording to view yet", true); return; }
+  const target = $("ts-rec-target").value;
+  $("ts-rec-view").disabled = true;
+  toast(`capturing ${lastRecOut} (${target})…`);
+  fetch("/capture", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trace: lastRecOut, target, call_trace: true }) })
+    .then(r => r.json()).then(res => {
+      if (!res.ok) { toast("capture start: " + (res.error || "failed"), true); $("ts-rec-view").disabled = false; return; }
+      const sess = res.session;
+      pollCapture((ok) => { if (ok) location.search = "?session=" + encodeURIComponent(sess); });
+    }).catch(() => { toast("capture start failed", true); $("ts-rec-view").disabled = false; });
 }
 function pollRec() {
   fetch("/record/status", { cache: "no-cache" }).then(r => r.json())
@@ -230,7 +304,7 @@ function buildStage() {
     if (!src) { wrap.classList.add("hidden"); }
     const v = document.createElement("video");
     v.preload = "auto"; v.muted = true; v.playsInline = true;
-    if (src) v.src = `/s/${SESS}/${src}`;
+    if (src) v.src = `/s/${SESS}/${src}?v=${BUST}`;   // bust stale video after re-capture
     const lab = document.createElement("div");
     lab.className = "label"; lab.textContent = panel + (src ? "" : " (none)");
     wrap.appendChild(v); wrap.appendChild(lab);
@@ -258,7 +332,10 @@ function wire() {
   $("ts-play").onclick = play;
   $("ts-track").oninput = (e) => { stop(); seekAll(+e.target.value); };
   $("ts-refresh-marks").onclick = loadMarks;
-  document.querySelectorAll(".mk").forEach(b => b.onclick = () => postMark(b.dataset.kind));
+  $("ts-clear-marks").onclick = clearMarks;
+  $("ts-apply").onclick = doApply;
+  $("ts-recapture").onclick = doRecapture;
+  document.querySelectorAll(".mk").forEach(b => b.onclick = () => addMark(b.dataset.kind));
   document.querySelectorAll(".ly").forEach(b => b.onclick = () => togglePanel(b.dataset.panel));
 
   document.addEventListener("keydown", (e) => {
@@ -274,10 +351,10 @@ function wire() {
     else if (k === "1") togglePanel("port");
     else if (k === "2") togglePanel("retail");
     else if (k === "3") togglePanel("diff");
-    else if (k === "p" || k === "P") postMark("phasepin");
-    else if (k === "r" || k === "R") postMark("rngpin");
-    else if (k === "a" || k === "A") postMark("anchor");
-    else if (k === "f" || k === "F") postMark("feature");
+    else if (k === "p" || k === "P") addMark("phasepin");
+    else if (k === "r" || k === "R") addMark("rngpin");
+    else if (k === "a" || k === "A") addMark("anchor");
+    else if (k === "f" || k === "F") addMark("feature");
     else return;
     e.preventDefault();
   });
@@ -298,19 +375,32 @@ function renderAnchors() {
 
 async function loadSessionList() {
   const sel = $("ts-session-sel");
+  const dl = $("ts-session-list");
+  let names = [];
   try {
     const list = await (await fetch("/api/sessions")).json();
-    sel.innerHTML = list.map(s =>
-      `<option value="${s.name}" ${s.name === SESS ? "selected" : ""}>${s.name}` +
-      `${s.n_frames ? ` (${s.n_frames}f)` : ""}</option>`).join("");
-    sel.onchange = () => { location.search = "?session=" + sel.value; };
-  } catch { sel.innerHTML = `<option>${SESS}</option>`; }
+    names = list.map(s => s.name);
+    dl.innerHTML = list.map(s =>
+      `<option value="${s.name}">${s.n_frames ? `${s.n_frames}f · ${s.target || ""}` : ""}</option>`).join("");
+  } catch { dl.innerHTML = ""; }
+  sel.value = SESS || "";
+  const go = () => {
+    const v = sel.value.trim();
+    if (!v) return;
+    // exact match, else first fuzzy (substring) match
+    const hit = names.includes(v) ? v : names.find(n => n.toLowerCase().includes(v.toLowerCase()));
+    if (hit) location.search = "?session=" + encodeURIComponent(hit);
+  };
+  sel.onchange = go;
+  sel.onkeydown = (e) => { if (e.key === "Enter") go(); };
 }
 
 function wireRecord() {
   $("ts-rec-start").onclick = recStart;
   $("ts-rec-stop").onclick = recStop;
+  $("ts-rec-view").onclick = recView;
   pollRec();
+  pollCapture();          // reflect any in-flight capture
 }
 
 async function load() {

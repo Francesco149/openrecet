@@ -290,8 +290,76 @@ class RecordController:
         self._clear_pidfile()
 
 
+# ─── capture controller (runs `trace_studio.py capture` for the browser loop) ─
+
+class CaptureController:
+    """Runs a capture/re-capture as a background subprocess so the browser can
+    drive the record→view→pin→apply→re-view loop without the CLI. One at a time."""
+
+    def __init__(self, remote: str, sess_root: Path):
+        self.remote = remote
+        self.sess_root = sess_root
+        self.lock = threading.Lock()
+        self.proc: subprocess.Popen | None = None
+        self.session: str | None = None
+        self.log: Path | None = None
+        self.started: float = 0.0
+        self.last_rc: int | None = None
+
+    def _alive(self) -> bool:
+        return self.proc is not None and self.proc.poll() is None
+
+    def start(self, trace: str, session: str, target: str,
+              call_trace: bool, caprange: str | None) -> dict:
+        with self.lock:
+            if self._alive():
+                return {"ok": False, "error": f"a capture is already running "
+                        f"({self.session})"}
+            self.sess_root.mkdir(parents=True, exist_ok=True)
+            log = self.sess_root / f".capture-{re.sub(r'[^\w.-]', '_', session)}.log"
+            cmd = [sys.executable, str(ROOT / "tools" / "trace_studio.py"),
+                   "capture", trace, "--session", session, "--target", target,
+                   "--remote", self.remote]
+            if call_trace:
+                cmd.append("--call-trace")
+            if caprange:
+                cmd += ["--caprange", caprange]
+            logf = log.open("w")
+            try:
+                self.proc = subprocess.Popen(
+                    cmd, cwd=str(ROOT), stdout=logf, stderr=subprocess.STDOUT,
+                    start_new_session=True)
+            except Exception as e:                       # noqa: BLE001
+                logf.close()
+                return {"ok": False, "error": f"spawn failed: {e!r}"}
+            self.session, self.log, self.started = session, log, time.time()
+            self.last_rc = None
+            return {"ok": True, "session": session}
+
+    def status(self) -> dict:
+        with self.lock:
+            running = self._alive()
+            if not running and self.proc is not None:
+                self.last_rc = self.proc.poll()
+            tail = ""
+            if self.log and self.log.exists():
+                lines = [l for l in self.log.read_text(errors="replace").splitlines()
+                         if l.strip()]
+                tail = lines[-1] if lines else ""
+            return {"running": running, "session": self.session,
+                    "elapsed_s": round(time.time() - self.started, 1) if self.started else 0,
+                    "last_rc": self.last_rc, "log_tail": tail}
+
+    def force_cleanup(self) -> None:
+        if self._alive():
+            try:
+                os.killpg(os.getpgid(self.proc.pid), signal.SIGKILL)
+            except Exception:                            # noqa: BLE001
+                pass
+
+
 def make_handler(sess_root: Path, web_dir: Path, default_session: str | None,
-                 recorder: "RecordController"):
+                 recorder: "RecordController", capturer: "CaptureController"):
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -418,6 +486,9 @@ def make_handler(sess_root: Path, web_dir: Path, default_session: str | None,
             if path == "/record/status":
                 self._send_json(recorder.status())
                 return
+            if path == "/capture/status":
+                self._send_json(capturer.status())
+                return
             m = re.match(r"^/s/([^/]+)/(.+)$", path)
             if m:
                 sess, rel = m.group(1), m.group(2)
@@ -445,6 +516,63 @@ def make_handler(sess_root: Path, web_dir: Path, default_session: str | None,
                 return
             if u.path == "/record/stop":
                 self._send_json(recorder.stop())
+                return
+            if u.path == "/capture":
+                d = self._read_body()
+                trace = d.get("trace")
+                if not trace:
+                    self._send_bytes(b"need trace", "text/plain", 400)
+                    return
+                self._send_json(capturer.start(
+                    trace, d.get("session", ""), d.get("target", "both"),
+                    bool(d.get("call_trace", True)), d.get("caprange")))
+                return
+            m = re.match(r"^/s/([^/]+)/recapture$", u.path)
+            if m:
+                sess = m.group(1)
+                sdir = sess_root / sess
+                mf = sdir / "session.json"
+                if not mf.is_file():
+                    self._send_bytes(b"no session", "text/plain", 404)
+                    return
+                man = json.loads(mf.read_text())
+                d = self._read_body()
+                working = man.get("working_trace") or man.get("trace")
+                self._send_json(capturer.start(
+                    working, sess, d.get("target", man.get("target", "both")),
+                    bool(d.get("call_trace", man.get("call_trace", True))), None))
+                return
+            m = re.match(r"^/s/([^/]+)/apply$", u.path)
+            if m:
+                sess = m.group(1)
+                sdir = sess_root / sess
+                if not (sdir / "session.json").is_file():
+                    self._send_bytes(b"no session", "text/plain", 404)
+                    return
+                d = self._read_body()
+                try:
+                    import trace_studio_apply
+                    res = trace_studio_apply.apply(
+                        sdir, auto_pin=bool(d.get("auto_pin", False)))
+                    self._send_json(res)
+                except Exception as e:                   # noqa: BLE001
+                    self._send_json({"ok": False, "error": repr(e)}, 500)
+                return
+            m = re.match(r"^/s/([^/]+)/edits/set$", u.path)
+            if m:
+                sess = m.group(1)
+                sdir = sess_root / sess
+                if not sdir.is_dir():
+                    self._send_bytes(b"no session", "text/plain", 404)
+                    return
+                d = self._read_body()
+                edits = d.get("edits", [])
+                if not isinstance(edits, list):
+                    self._send_bytes(b"edits must be a list", "text/plain", 400)
+                    return
+                (sdir / "edits.jsonl").write_text(
+                    "".join(json.dumps(e) + "\n" for e in edits))
+                self._send_json({"ok": True, "n": len(edits)})
                 return
             m = re.match(r"^/s/([^/]+)/edits$", u.path)
             if not m:
@@ -479,9 +607,11 @@ def serve(sess_root: Path, web_dir: Path, host: str = "127.0.0.1",
     # Reap a recorder orphaned by a previously hard-killed studio before we start.
     RecordController.reap_orphan()
     recorder = RecordController(remote)
-    # Never leave a stray recorder if the studio dies any which way.
+    capturer = CaptureController(remote, sess_root)
+    # Never leave a stray recorder/capture if the studio dies any which way.
     atexit.register(recorder.force_cleanup)
-    handler = make_handler(sess_root, web_dir, default_session, recorder)
+    atexit.register(capturer.force_cleanup)
+    handler = make_handler(sess_root, web_dir, default_session, recorder, capturer)
 
     class Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
         allow_reuse_address = True
@@ -500,4 +630,5 @@ def serve(sess_root: Path, web_dir: Path, host: str = "127.0.0.1",
         print("\ntrace_studio: stopped", flush=True)
     finally:
         recorder.force_cleanup()
+        capturer.force_cleanup()
         httpd.shutdown()

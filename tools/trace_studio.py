@@ -105,6 +105,40 @@ def extract_caprange(ops: list[dict]) -> tuple[int, int] | None:
     return None
 
 
+def raw_header(path: Path) -> dict | None:
+    """If `path` is a frida/F2 raw recording, return its header dict, else None."""
+    try:
+        first = next(l for l in path.read_text().splitlines() if l.strip())
+        o = json.loads(first)
+    except (StopIteration, OSError, json.JSONDecodeError):
+        return None
+    return o if isinstance(o, dict) and str(o.get("_rec", "")).startswith(
+        "openrecet-tas-raw") else None
+
+
+def raw_default_window(path: Path) -> tuple[int, int] | None:
+    """Default capture window for a raw recording: from the LAST anchor (the base
+    export_trace's {caprange} resolves against) through the end of the recording
+    + a little margin — i.e. the post-intro free-roam span the user actually played."""
+    anchors, frames = [], []
+    for ln in path.read_text().splitlines():
+        s = ln.strip()
+        if not s:
+            continue
+        try:
+            o = json.loads(s)
+        except json.JSONDecodeError:
+            continue
+        if "anchor" in o and "frame" in o:
+            anchors.append(int(o["frame"]))
+        elif "frame" in o and "buttons" in o:
+            frames.append(int(o["frame"]))
+    if not frames:
+        return None
+    last_anchor = max(anchors) if anchors else 0
+    return (0, max(1, max(frames) - last_anchor + 90))
+
+
 def extract_calltrace(ops: list[dict]) -> tuple[int, int] | None:
     for o in ops:
         if isinstance(o, dict) and "calltrace" in o:
@@ -332,30 +366,146 @@ def run_verdict(port_dir: Path, retail_dir: Path,
             "text": r.stdout + (("\n[stderr]\n" + r.stderr) if r.stderr else "")}
 
 
-def cmd_capture(args) -> int:
-    trace = resolve_trace(args.trace)
-    ops = load_ops(trace)
-    cr = None
-    if args.caprange:
-        s, c = args.caprange.split(",")
-        cr = (int(s), int(c))
-    else:
-        cr = extract_caprange(ops)
-    if not cr:
-        raise SystemExit("trace_studio: no --caprange given and none in the trace")
-    ct = extract_calltrace(ops)
-    call_trace = bool(args.call_trace and ct)
-    if args.call_trace and not ct:
-        _log("--call-trace requested but the trace has no {calltrace} op; "
-             "skipping flow-trace (add one spanning the caprange window)")
+def _distill_raw(raw: Path, out: Path) -> None:
+    """Distil a frida/F2 raw recording → an anchor-segmented replayable trace
+    (folds the embedded save into <out_dir>/_saves/ so the session is self-contained)."""
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "distill_trace.py"), str(raw),
+         "--anchor-segments", "-o", str(out)],
+        capture_output=True, text=True, cwd=str(ROOT))
+    if r.returncode != 0 or not out.exists():
+        raise SystemExit(f"trace_studio: distil failed for {raw}:\n{r.stderr[-800:]}")
 
-    sess = args.session or f"{trace.parent.name}-{dt.datetime.now():%Y%m%d-%H%M%S}"
+
+def _localize_save(src: Path, text: str, sess_dir: Path) -> str:
+    """Copy a non-raw trace's save blob into the session's _saves/ and rewrite the
+    {savefile} op to point there, so the working trace is self-contained (its save
+    resolves relative to the SESSION dir, not the original scenario dir)."""
+    import trace_save
+    ref = trace_save.read_ref(src)
+    if not ref or ref == trace_save.FRESH_REF:
+        return text
+    blob = (src.resolve().parent / ref).resolve()
+    if not blob.exists():
+        return text
+    dst_dir = sess_dir / "_saves"
+    dst_dir.mkdir(exist_ok=True)
+    dst = dst_dir / blob.name
+    if not dst.exists():
+        import shutil
+        shutil.copy2(blob, dst)
+    new_ref = f"_saves/{blob.name}"
+    out = []
+    for ln in text.splitlines():
+        s = ln.strip()
+        o = None
+        if s and not s.startswith("#"):
+            try:
+                o = json.loads(s)
+            except json.JSONDecodeError:
+                o = None
+        if isinstance(o, dict) and "savefile" in o:
+            o["savefile"] = new_ref
+            out.append(json.dumps(o))
+        else:
+            out.append(ln)
+    return "\n".join(out) + "\n"
+
+
+def _ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool) -> str:
+    """Insert {caprange} (+ {calltrace} if requested) after the final {wait},
+    replacing any pre-existing window ops. Pins (phasepin/rngseed) the user applies
+    sit just after the {wait} too and are preserved."""
+    keep = []
+    for ln in text.splitlines():
+        s = ln.strip()
+        if s and not s.startswith("#"):
+            try:
+                o = json.loads(s)
+            except json.JSONDecodeError:
+                o = None
+            if isinstance(o, dict) and ("caprange" in o or "calltrace" in o):
+                continue
+        keep.append(ln)
+    li = -1
+    for i, ln in enumerate(keep):
+        s = ln.strip()
+        if not s or s.startswith("#"):
+            continue
+        try:
+            o = json.loads(s)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(o, dict) and "wait" in o:
+            li = i
+    ins = [json.dumps({"caprange": [cr[0], cr[1]]})]
+    if call_trace:
+        ins.append(json.dumps({"calltrace": [cr[0], cr[1]]}))
+    at = li + 1 if li >= 0 else len(keep)
+    keep[at:at] = ins
+    return "\n".join(keep) + "\n"
+
+
+def _build_working_trace(src: Path, sess_dir: Path, working: Path,
+                         cr: tuple[int, int], call_trace: bool) -> None:
+    """Create the session's editable WORKING trace from a source (raw recording or
+    a .jsonl): distil if raw, localize its save, and inject the window ops. This is
+    the artifact the user's pins land on (via `apply`) and that re-captures reuse."""
+    if raw_header(src):
+        base = sess_dir / "recording.trace.jsonl"
+        _distill_raw(src, base)
+        text = base.read_text()
+    else:
+        text = _localize_save(src, src.read_text(), sess_dir)
+    working.write_text(_ensure_window_ops(text, cr, call_trace))
+
+
+def cmd_capture(args) -> int:
+    src = resolve_trace(args.trace)
+    hdr = raw_header(src)
+
+    sess = args.session or (
+        (src.name[:-len(".raw.jsonl")] if src.name.endswith(".raw.jsonl")
+         else src.parent.name)
+        + f"-{dt.datetime.now():%Y%m%d-%H%M%S}")
     sess_dir = SESS_ROOT / sess
     port_dir = sess_dir / "port"
     retail_dir = sess_dir / "retail"
     diff_dir = sess_dir / "diff" / "frames"
     sess_dir.mkdir(parents=True, exist_ok=True)
     want_retail = args.target == "both"
+    working = sess_dir / "edit.trace.jsonl"
+
+    # Establish the WORKING trace. On a fresh capture, build it from the source +
+    # window ops; on a re-capture, REUSE it (it carries the user's applied pins) —
+    # unless --reset-trace. This is what makes the in-studio pin→apply→re-capture
+    # loop work: apply edits edit.trace.jsonl, re-capture drives it.
+    if working.exists() and not args.reset_trace:
+        _log(f"re-capture: reusing working trace {working.name} (with applied pins)")
+    else:
+        if args.caprange:
+            s, c = args.caprange.split(",")
+            cr0 = (int(s), int(c))
+        else:
+            cr0 = extract_caprange(load_ops(src))
+            if not cr0 and hdr:
+                cr0 = raw_default_window(src)
+                _log(f"raw recording → auto window caprange={cr0} "
+                     f"(last anchor → end of recording)")
+        if not cr0:
+            raise SystemExit("trace_studio: no --caprange given and none in the trace")
+        _build_working_trace(src, sess_dir, working, cr0, bool(args.call_trace))
+
+    trace = working
+    ops = load_ops(trace)
+    cr = extract_caprange(ops)
+    if not cr:
+        raise SystemExit(f"trace_studio: working trace {working} has no caprange")
+    ct = extract_calltrace(ops)
+    call_trace = bool(args.call_trace and ct)
+    if args.call_trace and not ct:
+        _log("--call-trace requested but the working trace has no {calltrace} op "
+             "(rebuild with --reset-trace --call-trace)")
 
     # Clear prior capture artifacts so a re-capture into the same session can't
     # accumulate stale frames (which corrupt the anchor-relative renumber base).
@@ -424,7 +574,9 @@ def cmd_capture(args) -> int:
     manifest = {
         "schema": "trace-studio-v1",
         "session": sess,
-        "trace": str(trace),
+        "trace": str(working),
+        "working_trace": str(working),
+        "source_trace": str(src),
         "caprange": list(cr),
         "fps": VIDEO_FPS,
         "amp": args.amp,
@@ -514,8 +666,9 @@ def cmd_apply(args) -> int:
     sess_dir = SESS_ROOT / args.session
     if not sess_dir.exists():
         raise SystemExit(f"trace_studio: no session {args.session}")
-    return apply(sess_dir, trace_override=Path(args.trace) if args.trace else None,
-                 auto_pin=args.auto_pin, dry_run=args.dry_run)
+    apply(sess_dir, trace_override=Path(args.trace) if args.trace else None,
+          auto_pin=args.auto_pin, dry_run=args.dry_run)
+    return 0
 
 
 # ─── cli ─────────────────────────────────────────────────────────────────────
@@ -540,6 +693,9 @@ def main(argv=None) -> int:
     c.add_argument("--remote", default=DEFAULT_REMOTE)
     c.add_argument("--prune-frames", action="store_true",
                    help="drop bulk PNGs after encoding (long traces)")
+    c.add_argument("--reset-trace", action="store_true",
+                   help="rebuild the session's working trace from the source "
+                        "(discards applied pins)")
     c.set_defaults(func=cmd_capture)
 
     s = sub.add_parser("serve", help="open the scrubbing editor")

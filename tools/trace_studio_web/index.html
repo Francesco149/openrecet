@@ -12,7 +12,9 @@
   <div class="status">
     <span id="ts-status">loading…</span>
     <span class="sep">·</span>
-    <select id="ts-session-sel" title="switch session"></select>
+    <input id="ts-session-sel" list="ts-session-list" title="switch session — type to filter"
+           placeholder="session…" autocomplete="off">
+    <datalist id="ts-session-list"></datalist>
   </div>
 </header>
 
@@ -59,10 +61,27 @@
         <button id="ts-rec-stop" disabled>■ stop</button>
       </div>
       <div id="ts-rec-status" class="rec-status">idle</div>
+      <div class="rec-row">
+        <select id="ts-rec-target" title="target for view">
+          <option value="openrecet">port only (fast)</option>
+          <option value="both" selected>port + retail + diff</option>
+        </select>
+        <button id="ts-rec-view" disabled title="capture the last recording into a session">▶ view in studio</button>
+      </div>
       <div class="rec-help dim">
         Launch Recettear via Steam &amp; get to the <b>title</b> first, then start.
-        Play by hand; stop writes <code>runs/recordings/&lt;name&gt;.raw.jsonl</code>.
+        Play by hand; stop writes the trace, then “view in studio”.
       </div>
+    </section>
+
+    <section class="panel">
+      <h3>iterate <span class="dim">(pin → apply → re-capture)</span></h3>
+      <div class="mark-row">
+        <button id="ts-apply" title="apply pinned marks to the working trace">✓ apply pins</button>
+        <button id="ts-recapture" title="re-run capture on the working trace">⟳ re-capture</button>
+        <label class="ck"><input type="checkbox" id="ts-apply-recap" checked> auto re-capture after apply</label>
+      </div>
+      <div id="ts-cap-status" class="rec-status">—</div>
     </section>
 
     <section class="panel">
@@ -84,7 +103,10 @@
     </section>
 
     <section class="panel">
-      <h3>marks <button id="ts-refresh-marks" class="mini">refresh</button></h3>
+      <h3>marks
+        <button id="ts-refresh-marks" class="mini">refresh</button>
+        <button id="ts-clear-marks" class="mini">clear all</button>
+      </h3>
       <div id="ts-marks" class="marks">(none)</div>
     </section>
 

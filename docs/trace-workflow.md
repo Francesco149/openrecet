@@ -40,11 +40,25 @@ nix develop --command python3 tools/trace_studio.py serve --session NAME
 nix develop --command python3 tools/trace_studio.py apply NAME [--auto-pin] [--dry-run]
 ```
 
-**The loop:** capture → serve (spot a divergence; the state overlay + verdict
-panel show whether it's phase/RNG or real logic; pin it or mark a feature) →
-apply (pins land in the trace; worklist for Claude) → implement / re-capture the
-window → diff goes black / verdict goes PHASE-CLEAN. Marks are keyed by the
-0-based window index; a re-capture of the same window keeps them valid.
+**The loop (fully in-browser, self-service):** the serve UI closes the whole loop
+so you can iterate without the CLI — **record → ▶ view in studio → mark RNG/phase
+pins (P/R) → ✓ apply pins → ⟳ re-capture (auto after apply) → re-view → repeat**
+until the verdict is PHASE-CLEAN / the diff is black. Each session has its OWN
+editable **working trace** (`<session>/edit.trace.jsonl`) that pins land on (`apply`
+never touches a committed scenario — it refuses to edit anything outside the session
+dir), and re-captures reuse it (`--reset-trace` rebuilds from source). Marks are
+client-side: re-press a kind at the same frame to toggle it off, ✕ to delete, "clear
+all" to reset. When a trace is perfect, hand Claude its `edit.trace.jsonl` path.
+Capture/re-capture run as tracked background subprocesses (status in the iterate
+panel); the session-picker is a fuzzy filter.
+
+**Cross-target caveat:** a recording that includes the **prologue** (NEW_GAME +
+CONV_POSE/TEXT_ANIM dialogue, ESC-skips) can't replay on the port — the port's
+prologue auto-completes with a *different* anchor sequence, so the `{wait}` chain
+desyncs and the window is never reached (0 frames). For port↔retail comparison,
+record a **Continue/Load** trace (load a save → straight to HOUSE free-roam, no
+prologue) — both sides reproduce the load anchors (LOADING_START/END, HOUSE_FREEROAM)
+identically. See [[reference_retail_trace_recorder]] (cross-target replay limits).
 
 **Recording a trace (no incantation to remember):** the studio's **record panel**
 (top-left in `serve`) frida-attaches to the running retail game and records by

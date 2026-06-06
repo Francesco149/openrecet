@@ -58,12 +58,20 @@ def _last_wait_idx(lines: list[str]) -> int:
 
 
 def apply(sess_dir: Path, trace_override: Path | None = None,
-          auto_pin: bool = False, dry_run: bool = False) -> int:
+          auto_pin: bool = False, dry_run: bool = False) -> dict:
     manifest = json.loads((sess_dir / "session.json").read_text())
     cr_start = int(manifest.get("caprange", [0, 0])[0])
-    trace = trace_override or Path(manifest["trace"])
+    trace = trace_override or Path(manifest.get("working_trace")
+                                   or manifest["trace"])
     if not trace.exists():
         raise SystemExit(f"trace_studio apply: trace not found: {trace}")
+    # NEVER edit a trace outside the session dir (e.g. a committed scenario). Pins
+    # belong on the session's own working trace; an old session without one must
+    # be re-captured (which builds edit.trace.jsonl) before pins can be applied.
+    if not dry_run and not trace.resolve().is_relative_to(sess_dir.resolve()):
+        raise SystemExit(
+            f"trace_studio apply: refusing to edit {trace} (outside the session). "
+            f"Re-capture this session to create its working trace, then apply.")
 
     edits = _load_jsonl(sess_dir / "edits.jsonl")
     state = {int(r["frame"]): r for r in _load_jsonl(sess_dir / "state.jsonl")}
@@ -145,6 +153,11 @@ def apply(sess_dir: Path, trace_override: Path | None = None,
     if new_lines and not dry_run:
         trace.write_text("\n".join(lines) + "\n")
         print(f"  wrote {trace}")
+        # Clear the pin marks we just applied (they now live in the trace) so the
+        # self-service loop doesn't re-stack them; keep anchor/feature/note for Claude.
+        kept = [e for e in edits if e.get("kind") not in ("phasepin", "rngpin")]
+        (sess_dir / "edits.jsonl").write_text(
+            "".join(json.dumps(e) + "\n" for e in kept))
     elif new_lines and dry_run:
         print("  (dry-run: trace NOT written)")
 
@@ -158,7 +171,9 @@ def apply(sess_dir: Path, trace_override: Path | None = None,
             out.write_text(body)
         print(f"\n  worklist ({len(worklist)} item(s)) → {out}:")
         print("\n".join("    " + l for l in body.splitlines()))
-    return 0
+    return {"ok": True, "pins_added": len(new_lines), "pins_dupe": n_dupe,
+            "worklist_items": len(worklist), "trace": str(trace),
+            "dry_run": dry_run}
 
 
 def _is_json(ln: str) -> bool:

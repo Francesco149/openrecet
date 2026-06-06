@@ -96,6 +96,13 @@ main { padding: .75rem 1rem 3rem; }
 .marks { font-size: 13px; max-height: 180px; overflow: auto; }
 .marks .m { padding: 2px 0; border-bottom: 1px solid var(--edge); }
 .marks .m .k { color: var(--warn); }
+.marks .m button.x { font-size: 11px; padding: 0 .3rem; color: var(--bad);
+  border-color: transparent; background: transparent; }
+.marks .m button.x:hover { border-color: var(--bad); }
+.ck { font-size: 12px; color: var(--dim); display: inline-flex; align-items: center;
+  gap: .25rem; }
+#ts-session-sel { min-width: 180px; }
+#ts-cap-status { font-size: 12px; white-space: pre-wrap; }
 .verdict { margin: 0; white-space: pre-wrap; font-size: 12px; max-height: 260px;
   overflow: auto; color: var(--fg); }
 .diffstat { font-size: 13px; }
