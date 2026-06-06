@@ -347,3 +347,56 @@ each corrected against the FRONT's prior claims:
 - **C3b**: port FUN_00409925 L6425-6505 (name bubble + text) + the world→screen helper.
 - **C4a**: port FUN_00468338 param_1==0 population (real inventory list).
 - **C4b**: port FUN_0046b00a panels → rows/icons/text → description → cursor.
+
+## SESSION HANDOFF (2026-06-06 PM) — menu renders + white-UI fixed; next-session chips
+
+**Landed this session** (commits f625b36→4013fbc): the contiguous open-trace bench
+`house-display-remove-opentrace`; CORRECTION 3 diagnosis; C4a population
+(`FUN_00468338(0)` — inventory scan + item-DB category tabs + `chr_prepass_sort`,
+each tab led by a -1 "Nothing" entry, deduped counts); C4b-1 panels
+(`FUN_0046b00a` item_win main/frame/scroll, **user-confirmed 1:1**); C4b-2 rows
+(icons `item_icons[cat]` at xL+72,row*0x22+86 + name/count text at xL+120,
+row*0x22+92, scale 0.8); C4b-3 "Swords" header (`FUN_0047d14c`, center_x=xL+204,
+y=40); white menu text; and the **white-UI COLORARG fix** (see below). New tool
+`tools/d3d_state_at_draw.py` (reliable state-accumulating trace inspector).
+
+**WHITE-UI ROOT CAUSE (fixed, commit c4be7d5):** the d3d COLORARG state is
+persistent across frames; the port's 3D renderers clobber COLORARG1=DIFFUSE /
+COLORARG2=CURRENT|TEXTURE and never restore. **Retail NEVER sets COLORARG** (zero
+sets in a whole menu frame — `d3d_state_at_draw.py` proved it). Walk-dust masked
+it (re-paired COLORARG2=TEXTURE); the menu freezes the walk → dust stops → the
+leak (COLORARG1=DIFFUSE+COLORARG2=CURRENT) hits the 2D UI → MODULATE = diffuse·
+current = white (alpha intact → silhouette survives). Fix: restore COLORARG1=
+TEXTURE, COLORARG2=CURRENT in `render_quad_state_setup`. ENGINE-QUIRK to log:
+retail leaves COLORARG at the D3D defaults for ALL UI.
+
+**NEXT-SESSION CHIPS (recipes ready — pure execution):**
+- **C4b-4a description panel** = `FUN_00469b3a` (0x469b3a, 2044 B), called from the
+  `FUN_0046b00a` tail (all.c:66845: always `FUN_00469b3a()`, +`FUN_0046a336()` if
+  `DAT_0734b96c!=0`). Draws Base/Purchase/Sell Price + Price-status + "Number
+  possessed: %d" + the item desc lines, all via `FUN_0047ca05` (font_draw_text);
+  text colour `DAT_005c7184`, scales 0.8 (`0x3f4ccccd`) / 0.6 (`0x3f19999a`).
+  Reads the selected item `DAT_0734b998` (s_highlight) + `DAT_005c6ee4` (count).
+  For the removal case the cursor is on -1 ("Nothing"); check what retail's
+  description shows there first (capture house-display-remove-opentrace --target
+  retail and read the bottom panel).
+- **C4b-4b hand cursor** = nowloading.tga (`DAT_073cc770`, loaded 0x100×0x40 @
+  all.c:71640). Retail draws it at the selected row (settled-menu d3d:
+  nowloading at screen ~(550,240)). Find the menu cursor draw (likely the shared
+  `title_save_dialog` hand or a menu-local nowloading draw — grep the FUN_0046b00a
+  region / FUN_0046a336). Add to `display_menu_render`.
+- **C4b-4c per-row text colour + selected-row pulse** — objdump 0x46b77c: row text
+  colour by `esi` (item type): `>=2`→0xff7f0000, `>=1`→0xff7f6464, `-1`→0xff64647f,
+  `<=-2`→0xff00007f, else grey; selected row (cursor-scroll==row && confirm_ctr)
+  pulses `0x7f - ftol(sin(confirm_ctr*π/6))`. Currently all rows are flat white.
+- **C3a orange cell glow** = `FUN_0045aa36` Block G (all.c L55089, the STUB in
+  `scene1_chr_shadow.c`). 3D quad at the cell (`_DAT_0438cbf4`,1.9,`_DAT_0438cbf8`),
+  item_win, pulsing alpha `ftol(sin(DAT_0438b8cc*0.05))`. **TODO:** objdump 0x45aa36
+  for the `DAT_0064c388` vert UVs + world size.
+- **C3b "Worn Sword" free-roam tooltip** = `FUN_00409925` L6425-6505 (the unported
+  front of scene1_merchant_hud's source fn). Project the cell to screen
+  (`FUN_00490c78`→`FUN_00490d29`: transform `(2*cbfc-9,1.9,2*cc00-6.5)` by
+  `g_scene1_view`, then sx=320-fx·vx/vz, sy=240+fy·vy/vz, fx=proj[0]·320,
+  fy=proj[5]·240 per `FUN_00490cc6`), draw the parchment bubble (item_win
+  src(832,480,959,559) dst((sx-26),(sy-16),164,80)) + name via
+  `font_draw_text_centered(sx+52, sy+26, name, …, 0.6)`.
