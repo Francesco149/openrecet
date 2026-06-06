@@ -622,6 +622,13 @@ def cmd_capture(args) -> int:
             shutil.copy2(a, sess_dir / f"anchors.{side}.jsonl")
             manifest.setdefault("anchor_files", {})[side] = f"anchors.{side}.jsonl"
 
+    # Snapshot the trace that was actually DRIVEN ("emitted" inputs), distinct from the
+    # live editable working trace — the timeline shows it read-only so edits-since-capture
+    # are visible as staleness, and you can click it to scrub to an input's exact frame.
+    if trace.exists():
+        shutil.copy2(trace, sess_dir / "captured.trace.jsonl")
+        manifest["captured_trace"] = "captured.trace.jsonl"
+
     # flow-trace state + verdict
     n_window = len(list((port_dir / "frames").glob("frame_*.png")))
     if call_trace and port_base is not None:

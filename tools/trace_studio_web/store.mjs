@@ -53,8 +53,9 @@ export function useSession(sess) {
       for (const side of ["port", "retail"]) {
         out.anchors[side] = parseJSONL(await getText(`/s/${sess}/anchors.${side}.jsonl`));
       }
-      // the editable working trace (ops) + sidecar notes
+      // the editable working trace (ops) + the captured (driven) trace + notes
       out.traceOps = parseJSONL(await getText(`/s/${sess}/edit.trace.jsonl`));
+      out.capturedOps = parseJSONL(await getText(`/s/${sess}/captured.trace.jsonl`));
       out.notes = parseJSONL(await getText(`/s/${sess}/notes.jsonl`));
       setData(out);
     } catch (e) {

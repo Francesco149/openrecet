@@ -139,18 +139,22 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
 .tl-bar .spacer { flex: 1; }
 .tl-bar .seg { font-size: 11px; padding: 1px 6px; opacity: .6; }
 .tl-bar .seg.on { opacity: 1; border-color: var(--accent); color: var(--accent); }
-.tl-scroll { overflow-x: auto; overflow-y: hidden; }
-.tl-content { position: relative; padding-left: 60px; }
+.tl-body { display: flex; align-items: flex-start; }
+.tl-gutter { flex: 0 0 92px; border-right: 1px solid var(--edge); background: #16181d; }
+.gut-row { display: flex; align-items: center; padding: 0 .4rem; font-size: 11px;
+  color: var(--fg); line-height: 1.15; border-bottom: 1px solid var(--edge);
+  box-sizing: border-box; }
+.tl-scroll { flex: 1; overflow-x: auto; overflow-y: hidden; }
+.tl-content { position: relative; min-width: 100%; }
 .tl-cursor { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent);
   pointer-events: none; z-index: 4; }
 .tl-window { position: absolute; top: 0; bottom: 0; background: #69d0831a;
   border-left: 1px solid #69d08366; border-right: 1px solid #69d08366;
   pointer-events: none; z-index: 1; }
 .tl-grp { position: relative; border-bottom: 1px solid var(--edge); }
-.tl-label { position: absolute; left: 2px; top: 2px; width: 56px; font-size: 9px;
-  color: var(--dim); line-height: 1.05; z-index: 3; pointer-events: none; }
-.tl-row { position: relative; }
+.tl-row { position: relative; box-sizing: border-box; }
 .tl-row.anchors { background: #0e0f13; }
+.tl-row.ro { background: #101319; cursor: pointer; }
 .tl-row.sub { border-top: 1px dotted #23262e; }
 .lane-tag { position: absolute; left: 4px; top: 1px; font-size: 8px; color: #555;
   z-index: 2; pointer-events: none; }
@@ -167,5 +171,6 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
 .span { position: absolute; top: 2px; height: 12px; line-height: 12px; font-size: 8px;
   background: #2a6cc733; border: 1px solid #5aa0ff88; border-radius: 2px; color: #cfe3ff;
   text-align: center; overflow: hidden; }
+.span.ro { background: #6b728033; border-color: #6b7280aa; color: #c2c8d0; }
 .pin { position: absolute; top: 0; font-size: 12px; transform: translateX(-50%); cursor: default; }
 .pin.pp { color: var(--warn); } .pin.esc { color: var(--bad); }
