@@ -298,6 +298,7 @@ function App() {
     </header>
     <main>
       <div class="note">trace: ${manifest.working_trace || manifest.trace} · caprange ${JSON.stringify(manifest.caprange)}</div>
+      ${manifest.capture_error && html`<div class="err-box">⚠ ${manifest.capture_error}</div>`}
       <div class="layout-bar"><span>panels:</span>
         ${["port", "retail", "diff"].map(p =>
           html`<button class=${"ly " + (panels[p] ? "on" : "")} onClick=${() => setPanels(s => ({ ...s, [p]: !s[p] }))}>${p}</button>`)}

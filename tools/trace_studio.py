@@ -638,6 +638,27 @@ def cmd_capture(args) -> int:
                   for p in (port_dir / "frames").glob("frame_*.png"))
     manifest["frame_range"] = [nums[0], nums[-1]] if nums else [0, 0]
 
+    # Surface a clear error when a side captured 0 frames — the window was never
+    # reached (typically a cross-target prologue divergence: the port can't replay
+    # a retail-recorded new-game prologue to the window). The ANCHOR streams are
+    # still captured, so the timeline shows the divergence even with no video — that
+    # is exactly what the tool is for.
+    errs = []
+    if n_port == 0:
+        errs.append("port captured 0 frames")
+    if want_retail and not have_retail_frames and "retail_error" not in result:
+        errs.append("retail captured 0 frames")
+    if result.get("retail_error"):
+        errs.append(f"retail: {result['retail_error']}")
+    if errs:
+        manifest["capture_error"] = (
+            "; ".join(errs) + ". The capture window was never reached — the port "
+            "likely diverged in the prologue before the window's anchor. The anchor "
+            "timelines are still captured (use them to see/work around the "
+            "divergence); for full video+state replay record a Continue/Load trace "
+            "(which skips the prologue) or adjust the window.")
+        _log("CAPTURE ERROR: " + manifest["capture_error"])
+
     if args.prune_frames:
         for d in (port_dir / "frames", retail_dir / "frames",
                   sess_dir / "diff" / "frames"):
