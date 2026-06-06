@@ -130,3 +130,39 @@ main { padding: .75rem 1rem 3rem; }
   border-color: transparent; background: transparent; }
 .marks .m button.x:hover { border-color: var(--bad); }
 header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
+
+/* ── timeline ── */
+.timeline { margin: .6rem 0; border: 1px solid var(--edge); border-radius: 6px;
+  background: var(--panel); }
+.tl-bar { display: flex; align-items: center; gap: .3rem; padding: .35rem .5rem;
+  border-bottom: 1px solid var(--edge); flex-wrap: wrap; }
+.tl-bar .spacer { flex: 1; }
+.tl-bar .seg { font-size: 11px; padding: 1px 6px; opacity: .6; }
+.tl-bar .seg.on { opacity: 1; border-color: var(--accent); color: var(--accent); }
+.tl-scroll { overflow-x: auto; overflow-y: hidden; }
+.tl-content { position: relative; padding-left: 60px; }
+.tl-cursor { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent);
+  pointer-events: none; z-index: 4; }
+.tl-grp { position: relative; border-bottom: 1px solid var(--edge); }
+.tl-label { position: absolute; left: 2px; top: 2px; width: 56px; font-size: 9px;
+  color: var(--dim); line-height: 1.05; z-index: 3; pointer-events: none; }
+.tl-row { position: relative; }
+.tl-row.anchors { background: #0e0f13; }
+.tl-row.sub { border-top: 1px dotted #23262e; }
+.lane-tag { position: absolute; left: 4px; top: 1px; font-size: 8px; color: #555;
+  z-index: 2; pointer-events: none; }
+.chip { position: absolute; top: 3px; height: 15px; line-height: 15px; font-size: 9px;
+  padding: 0 3px; border-radius: 3px; white-space: nowrap; cursor: pointer;
+  transform: translateX(-1px); border-left: 2px solid; background: #1b1e25; }
+.a-load { border-color: #5aa0ff; color: #9cc4ff; }
+.a-free { border-color: #69d083; color: #9ee6ad; }
+.a-conv { border-color: #ffb454; color: #ffd39c; }
+.a-fx { border-color: #c78bff; color: #ddbcff; }
+.a-text { border-color: #6b7280; color: #aab; }
+.a-pause { border-color: #ff6b6b; color: #ffb3b3; }
+.a-misc { border-color: #888; color: #ccc; }
+.span { position: absolute; top: 2px; height: 12px; line-height: 12px; font-size: 8px;
+  background: #2a6cc733; border: 1px solid #5aa0ff88; border-radius: 2px; color: #cfe3ff;
+  text-align: center; overflow: hidden; }
+.pin { position: absolute; top: 0; font-size: 12px; transform: translateX(-50%); cursor: default; }
+.pin.pp { color: var(--warn); } .pin.esc { color: var(--bad); }

@@ -8,6 +8,7 @@ import {
   BUST, qparam, postJSON, getText, parseJSONL,
   useSession, useSessions, useStatus,
 } from "/store.mjs";
+import { Timeline } from "/timeline.mjs";
 
 const SESS = qparam("session");
 
@@ -254,8 +255,9 @@ function SessionPicker() {
 
 // ─── app ─────────────────────────────────────────────────────────────────────
 function App() {
-  const { manifest, state, marks: marks0, anchors, loading, error, reload } = useSession(SESS);
+  const { manifest, state, marks: marks0, anchors, traceOps, notes, loading, error, reload } = useSession(SESS);
   const [cur, setCur] = useState(0);
+  const [tlCursor, setTlCursor] = useState(0);
   const [marks, setMarks] = useState([]);
   const [panels, setPanels] = useState({ port: true, retail: true, diff: true });
   const [filter, setFilter] = useState("");
@@ -307,6 +309,9 @@ function App() {
         onBox=${setPendingBox} />
       <${ScrubBar} N=${N} cur=${cur} setCur=${setCur} anchors=${anchors} manifest=${manifest} />
       <div class="hint">←/→ ±10 · ,/. ±1 · Home/End · 1/2/3 toggle panels · drag a box on a frame → crop ref</div>
+      <${Timeline} traceOps=${traceOps || []} anchors=${anchors} manifest=${manifest}
+        cursor=${tlCursor} setCursor=${setTlCursor}
+        onSeekWindow=${(idx) => { if (idx >= 0 && idx < N) setCur(idx); }} />
       <div class="panels">
         <${RecordPanel} />
         <${IteratePanel} sess=${SESS} manifest=${manifest} reload=${reload} />
