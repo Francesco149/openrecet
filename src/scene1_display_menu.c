@@ -389,7 +389,7 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
             const char *cname = g_item.categories[hcat].singular;
             if (cname && cname[0])
                 font_draw_text_centered(dev, xL + 204.0f, 40.0f, cname,
-                                        0xff7f7f7fu, 0.8f);
+                                        0xffffffffu, 0.8f);
         }
     }
 
@@ -445,7 +445,7 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
             else
                 snprintf(buf, sizeof buf, "%s", nm);
         }
-        font_draw_text(dev, text_x, ty, buf, 0xff7f7f7fu, 0.8f);
+        font_draw_text(dev, text_x, ty, buf, 0xffffffffu, 0.8f);
     }
 
     /* PORT-DEBT(C4b-3..4): the category-header text, the per-row type-coloured
