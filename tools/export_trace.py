@@ -74,8 +74,13 @@ def is_raw_recording(path: Path) -> bool:
 
 
 def resolve_trace(src: Path, house_segtrace: bool,
-                  force_flat: bool = False) -> tuple[str, list[dict]]:
-    """Return (jsonl_text, ops) for the runnable segtrace.
+                  force_flat: bool = False) -> tuple[str, list[dict], dict | None]:
+    """Return (jsonl_text, ops, raw_savefile) for the runnable segtrace.
+
+    raw_savefile is the {path,sha256,size} dict of a RAW recording's boot save
+    (None for an already-distilled trace, whose {savefile} op is resolved from its
+    own dir). main() gzips+embeds it into the work trace so save resolution is
+    uniform across both inputs — mirroring distill_trace.main.
 
     A RAW recording carrying {anchor} rows is ANCHOR-GATED by default
     (emit_anchor_segments): every recorded anchor becomes a {wait} sync point, so
@@ -87,7 +92,8 @@ def resolve_trace(src: Path, house_segtrace: bool,
     wrap; force_flat forces the old flat emit (caprange anchored to boot). An
     already-distilled trace is used verbatim."""
     if is_raw_recording(src):
-        changes, caps, escs, cts, total, rng_seed, anchors = distill_trace.load_raw(str(src))
+        changes, caps, escs, cts, total, rng_seed, anchors, savefile, _save_writes = \
+            distill_trace.load_raw(str(src))
         if not changes:
             raise SystemExit(f"export_trace: no input frames in {src}")
         if house_segtrace:
@@ -110,9 +116,9 @@ def resolve_trace(src: Path, house_segtrace: bool,
                   f"caprange relative to the last anchor "
                   f"({last_anchor or '?'}); frame refs are jitter-immune",
                   file=sys.stderr)
-        return text, ops
-    # already distilled
-    return src.read_text(), load_ops(src)
+        return text, ops, savefile
+    # already distilled (its {savefile} op, if any, is resolved from src's dir)
+    return src.read_text(), load_ops(src), None
 
 
 def extract_rng_seed(ops: list[dict]) -> int | None:
@@ -187,7 +193,7 @@ def main(argv=None) -> int:
     work_path = run_dir / "trace.work.jsonl"
     global_path = run_dir / "global.json"
 
-    text, ops = resolve_trace(src, args.house_segtrace, force_flat=args.flat)
+    text, ops, raw_savefile = resolve_trace(src, args.house_segtrace, force_flat=args.flat)
     rng_seed = extract_rng_seed(ops)
 
     # Strip pre-existing scalar {capture:N} ops. A recording (and the distilled
@@ -225,6 +231,30 @@ def main(argv=None) -> int:
         text = text.rstrip("\n") + "\n" + json.dumps(cap_op) + "\n"
     work_path.write_text(text)
 
+    # A RAW source carries its boot save as a {savefile:{path,sha256,size}} row
+    # (an uncompressed .bin beside the recording), NOT a gzipped content-addressed
+    # blob — so trace_save.resolve_save can't read it directly. Mirror
+    # distill_trace.main: gzip it into the work trace's _saves/ store and embed a
+    # proper {savefile} ref into the work trace, so save resolution is uniform with
+    # the already-distilled path. (Without this, raw→export crashed on the load_raw
+    # unpack, then would have errored trying to gunzip the raw .bin.)
+    save_trace = src                       # where resolve_save reads the ref from
+    if raw_savefile:
+        raw_save = (src.resolve().parent / raw_savefile["path"])
+        if raw_save.exists():
+            store = trace_save.default_store_dir(work_path)
+            sha, blob = trace_save.store_save(raw_save, store,
+                                              sha=raw_savefile.get("sha256"))
+            trace_save.embed_in_trace(
+                work_path, trace_save._rel_ref(work_path, blob), sha=sha)
+            save_trace = work_path
+            print(f"export_trace: embedded raw boot save {sha[:12]}… → "
+                  f"{work_path.name}", file=sys.stderr)
+        else:
+            print(f"export_trace: WARNING raw save {raw_save} missing — running "
+                  "without --save-override (distil from the recording's dir to "
+                  "embed it)", file=sys.stderr)
+
     # Drive the port. run-openrecet.sh rewrites the unix paths to the Windows
     # paths the exe's fopen needs and auto-converts the BMP frames → PNG.
     cmd = [
@@ -251,7 +281,7 @@ def main(argv=None) -> int:
     def _winpath(p: Path) -> str:
         return subprocess.run(["wslpath", "-w", str(p)],
                               capture_output=True, text=True, check=True).stdout.strip()
-    save_ref = trace_save.resolve_save(src)
+    save_ref = trace_save.resolve_save(save_trace)
     if save_ref == trace_save.FRESH_REF:
         cmd += ["--save-fresh"]
     elif save_ref:
