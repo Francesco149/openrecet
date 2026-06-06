@@ -24,6 +24,7 @@
 
 #include "scene1_display_menu.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "sim.h"                 /* g_sim_buttons[0].pressed (edge mask = DAT_073dddd4) */
@@ -373,9 +374,64 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
     }
     render_quad_flush(dev);
 
-    /* PORT-DEBT(C4b-2..4): the description window (DAT_0734b990), the category-
-     * header text, the per-row item icons + name/count text, the selected-row
-     * brightness pulse, and the hand cursor (FUN_00469b3a) are the next chips. */
+    /* ── item rows (C4b-2): per visible row, an icon + name/count text ──────
+     * Row geometry (objdump FUN_0046b00a): text at (xL+120, row*0x22+y+12)
+     * scale 0.8; icon at (xL+72, row*0x22+y+12-6) 32×32 from item_icons[cat].
+     * (y here = local_40 = 80.) */
+    const int   base   = s_tab_base[tab];
+    const float row_h  = 34.0f;          /* 0x22 */
+    const float text_x = xL + 120.0f;    /* const[0x519444] */
+    const float icon_x = xL + 72.0f;
+
+    /* icons first (their own bind per row). */
+    for (int r = 0; r < visible; r++) {
+        int e    = base + scroll + r;
+        int item = s_list[e * 2];
+        if (item < 0)
+            continue;                    /* the -1 "none" row has no icon */
+        int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
+        if (rec < 0)
+            continue;
+        int cat  = g_item.records[rec].category;
+        int idx  = ((item >> 4) & 1) ? 0 : g_item.records[rec].subindex;
+        if (cat < 0 || cat >= SYSASSETS_ITEM_CATEGORIES)
+            continue;
+        const sprite_t *icon = &g_sysassets.item_icons[cat];
+        if (icon->tex == NULL)
+            continue;
+        IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)icon->tex);
+        const float iy = (float)r * row_h + y + 12.0f - 6.0f;
+        const float dst[4] = { icon_x, iy, 32.0f, 32.0f };
+        const float src[4] = { (float)((idx % 8) * 32), (float)((idx / 8) * 32),
+                               (float)((idx % 8) * 32 + 32), (float)((idx / 8) * 32 + 32) };
+        render_quad_add(dst, src, icon->width, icon->height, 0xffffffffu);
+        render_quad_flush(dev);
+    }
+
+    /* row name + count text. */
+    for (int r = 0; r < visible; r++) {
+        int e    = base + scroll + r;
+        int item = s_list[e * 2];
+        int cnt  = s_list[e * 2 + 1];
+        const float ty = (float)r * row_h + y + 12.0f;
+        char buf[96];
+        if (item < 0) {
+            /* the -1 "select none / remove" entry (retail EN: "Nothing"). */
+            snprintf(buf, sizeof buf, "%s", "Nothing");
+        } else {
+            int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
+            const char *nm = (rec >= 0) ? g_item.records[rec].singular : "?";
+            if (cnt > 1)
+                snprintf(buf, sizeof buf, "%s x%d", nm, cnt);
+            else
+                snprintf(buf, sizeof buf, "%s", nm);
+        }
+        font_draw_text(dev, text_x, ty, buf, 0xff7f7f7fu, 0.8f);
+    }
+
+    /* PORT-DEBT(C4b-3..4): the category-header text, the per-row type-coloured
+     * text + selected-row brightness pulse, the description window
+     * (DAT_0734b990), and the hand cursor (FUN_00469b3a) are the next chips. */
     (void)y;
 }
 
