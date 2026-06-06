@@ -36,6 +36,7 @@ export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, st
   const [ppf, setPpf] = useState(1.0);
   const [syncSeg, setSyncSeg] = useState(0);   // default: sync at BOOT so both sides
   const [winOnly, setWinOnly] = useState(false); // start aligned (no load-stretch gap)
+  const [waitName, setWaitName] = useState("LOADING_END");
   const scrollRef = useRef(null);
 
   const L = useMemo(() => {
@@ -115,6 +116,51 @@ export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, st
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
   };
   const delItem = (item) => { const next = (editTrace || []).slice(); next.splice(item.idx, 1); onEdit(next); };
+
+  // ── place a {wait ANCHOR} at the cursor: split that segment, re-base everything
+  // after the cursor (inputs/pins/esc/caprange/calltrace) to the new anchor. This is
+  // how you build determinism incrementally — e.g. a {wait LOADING_END} after the Z
+  // press so both sides resume in lock-step when the load completes. ──
+  const opFrame = (op) => {
+    if ("frame" in op && "buttons" in op) return op.frame;
+    if ("phasepin" in op) return op.phasepin;
+    if ("rngseed" in op) return op.rngseed[0];
+    if ("esc" in op) return op.esc;
+    if ("caprange" in op) return op.caprange[0];
+    if ("calltrace" in op) return op.calltrace[0];
+    return null;
+  };
+  const rebaseOp = (op, d) => {
+    if ("frame" in op && "buttons" in op) return { ...op, frame: op.frame + d };
+    if ("phasepin" in op) return { phasepin: op.phasepin + d };
+    if ("rngseed" in op) return { rngseed: [op.rngseed[0] + d, op.rngseed[1]] };
+    if ("esc" in op) return { esc: op.esc + d };
+    if ("caprange" in op) return { caprange: [Math.max(0, op.caprange[0] + d), op.caprange[1]] };
+    if ("calltrace" in op) return { calltrace: [Math.max(0, op.calltrace[0] + d), op.calltrace[1]] };
+    return op;
+  };
+  const addWaitAnchor = (name) => {
+    if (!name) return;
+    const abs = port.syncFrame + cursor;
+    let seg = 0; for (let k = 0; k < segs.length; k++) if (((port.bases[k] || {}).base ?? 0) <= abs) seg = k;
+    const F = Math.max(0, abs - ((port.bases[seg] || {}).base || 0));
+    const out = []; let curSeg = 0, done = false;
+    for (const op of (editTrace || [])) {
+      if (op && "wait" in op) {
+        if (curSeg === seg && !done) { out.push({ wait: name }); done = true; }
+        curSeg++; out.push(op); continue;
+      }
+      if (curSeg === seg && !done) {
+        const f = opFrame(op);
+        if (f != null && f >= F) { out.push({ wait: name }); done = true; out.push(rebaseOp(op, -F)); continue; }
+      } else if (curSeg === seg && done) {
+        out.push(rebaseOp(op, -F)); continue;
+      }
+      out.push(op);
+    }
+    if (!done) out.push({ wait: name });
+    onEdit(out);
+  };
   const addAtCursor = (kind) => {
     const abs = port.syncFrame + cursor;
     let sg = 0; for (let k = 0; k < segs.length; k++) if (((port.bases[k] || {}).base ?? 0) <= abs) sg = k;
@@ -272,6 +318,14 @@ export function Timeline({ editTrace, onEdit, capturedOps, anchors, manifest, st
       <button class="seg" onClick=${() => addAtCursor("phasepin")} title="add a phasepin at the cursor">+⟲</button>
       <button class="seg" onClick=${() => addAtCursor("rngseed")} title="add an rngseed at the cursor">+🎲</button>
       <button class="seg" onClick=${addNote} title="add a note at the cursor (attaches a video crop if you box-selected one)">+📝</button>
+      <span class="sep">·</span>
+      <select class="seg" value=${waitName} onChange=${e => setWaitName(e.target.value)} title="anchor to wait on">
+        ${["LOADING_END", "HOUSE_FREEROAM", "FREEROAM_START", "NEW_GAME", "LOADING_START",
+           "PAUSE_OPEN", "PAUSE_CLOSE", "TITLE_RETURN", "TEXT_ANIM_END", "CONV_POSE_END"].map(a =>
+          html`<option value=${a}>${a}</option>`)}
+      </select>
+      <button class="seg" onClick=${() => addWaitAnchor(waitName)}
+        title="insert {wait} at the cursor — splits the segment + re-bases what follows to this anchor">⚓ +wait</button>
       <span class="spacer"></span>
       ${stale && html`<span class="stale-dot">● edits not captured</span>`}
       <span class="dim">zoom</span>

@@ -582,6 +582,16 @@ def cmd_capture(args) -> int:
     if result.get("port_rc", 1) != 0:
         _log("port capture reported a non-zero rc; continuing with what landed")
 
+    # The exe writes BMP; run-openrecet usually converts to PNG but can miss a large
+    # capture, leaving the studio (which globs frame_*.png) seeing 0 frames. Convert
+    # here so frame counts / diff / encode are format-robust. Idempotent.
+    from frame_io import convert_dir
+    for sd in (port_dir, retail_dir):
+        if (sd / "frames").is_dir():
+            n_conv = convert_dir(sd / "frames")
+            if n_conv:
+                _log(f"converted {n_conv} BMP→PNG in {sd.name}/frames")
+
     # ── post: bases, renumber retail, diff, encode, state, verdict ──────────
     gp = port_dir / "global.json"
     port_base = None
