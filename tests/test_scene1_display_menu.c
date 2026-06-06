@@ -15,10 +15,11 @@
 #include <string.h>
 
 #include "scene1_display_menu.h"
-#include "sim.h"                /* g_sim_buttons[0].pressed */
+#include "sim.h"                /* g_sim_buttons[0].pressed/held */
 #include "stage_load_pulse.h"   /* the slide ramp gate */
 #include "save_bank.h"
 #include "save_work.h"
+#include "tables_item.h"        /* synthetic g_item for the list-init path */
 
 /* Drive one input frame: set the player-1 edge mask, return its effect via the
  * caller. */
@@ -37,12 +38,50 @@ static void open_settled(void)
     stage_load_pulse_reset_counter_to_5();   /* skip the 5-frame slide-in */
 }
 
+/* Build a one-sword inventory in slot 0 with a matching one-record item DB so
+ * the open's category grouping forms a single tab: [-1 "Nothing", sword]. */
+static void setup_one_sword(int item_value)
+{
+    memset(&g_item, 0, sizeof g_item);
+    g_item.count                  = 1;
+    g_item.records[0].valid       = 1;
+    g_item.records[0].item_id     = item_value >> 6;   /* lookup key = value>>6 */
+    g_item.records[0].category    = 0;
+    g_item.records[0].subindex    = 0;
+    g_item.records[0].rank        = 1;
+    g_item.records[0].price       = 300;
+
+    save_work_set_active_slot(0);
+    uint32_t *bank  = save_work_dwords_at(0);
+    uint32_t *items = bank + SAVE_BANK_ITEM_TABLE_DWORD;
+    for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++)
+        items[i] = 0xFFFFFFFFu;
+    items[0] = (uint32_t)item_value;
+    bank[SAVE_BANK_FIELD_ITEM_COUNT] = 1;
+}
+
+/* FUN_00468338 tail (all.c:64637): when tab 0 leads with the -1 "Nothing"
+ * entry, the open cursor starts on the FIRST REAL item — retail highlights the
+ * displayed item (and its description), not "Nothing".  A cursor-UP then lands
+ * on the -1 entry (the removal selection). */
 int test_display_menu_open_inits_none_entry(void)
 {
+    setup_one_sword(64);                 /* worn sword (id 1) */
     display_menu_reset();
     display_menu_open(0, 1);
 
-    /* the cursor sits on the index-0 "select none" entry */
+    /* cursor on the first real item, not "Nothing" (the corrected behavior). */
+    T_ASSERT_EQ_I(display_menu_selected(), 64);
+
+    /* number-possessed recount picked up the one held sword. */
+    T_ASSERT_EQ_I(display_menu_possessed(), 1);
+
+    /* cursor-UP (held bit 4) walks onto the -1 "Nothing" removal entry. */
+    stage_load_pulse_reset_counter_to_5();
+    set_pressed(0);
+    g_sim_buttons[0].held = 0x4u;
+    display_menu_update(1);
+    g_sim_buttons[0].held = 0;
     T_ASSERT_EQ_I(display_menu_selected(), -1);
     return 0;
 }

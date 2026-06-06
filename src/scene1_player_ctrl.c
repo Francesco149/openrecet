@@ -1055,8 +1055,7 @@ static void player_ctrl_cc04_menu_arm(void)
     if (r == 2) {                     /* CANCEL (all.c:87907) */
         s_cc04 = 0;                                  /* DAT_0438cc04 = 0 */
         stage_load_pulse_set_active(0);              /* FUN_004682d0: slide out */
-        /* FUN_00435612 (DAT_0438b150 = 0) is part of the menu CURSOR teardown —
-         * deferred to the menu render chip with the rest of the cursor. */
+        title_save_dialog_cursor_set_visible(0);     /* FUN_00435612: hide cursor */
         /* FUN_00499519 cancel SE — fixed id, no RNG. */
         return;
     }
@@ -1114,7 +1113,7 @@ static void player_ctrl_cc04_menu_arm(void)
 
         s_cc04 = 0;                                  /* DAT_0438cc04 = 0 (close) */
         stage_load_pulse_set_active(0);              /* FUN_004682d0: slide out */
-        /* FUN_00435612 cursor teardown deferred to the menu render chip. */
+        title_save_dialog_cursor_set_visible(0);     /* FUN_00435612: hide cursor */
     }
 
     /* PORT-DEBT(A3): the menu-frame tail FUN_004897c6 (player buff/cooldown

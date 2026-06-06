@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 360,
-  "unported": 2104,
+  "ported": 364,
+  "unported": 2100,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 444,
-  "pct_touched": 17.4,
+  "touched": 448,
+  "pct_touched": 17.6,
   "pct_verified": 2.7,
   "port_debt": 11
  },
@@ -2735,6 +2735,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_display_menu.c",
     "src/scene_title.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
@@ -2857,8 +2858,10 @@
    "size": 532,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c"
+   ]
   },
   {
    "va": "0x4363c6",
@@ -5244,7 +5247,6 @@
    "is_call_target": false,
    "status": "ported",
    "src": [
-    "src/scene1_display_menu.c",
     "src/scene1_display_menu.h"
    ]
   },
@@ -5502,8 +5504,10 @@
    "size": 73,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c"
+   ]
   },
   {
    "va": "0x4693e3",
@@ -5575,8 +5579,10 @@
    "size": 127,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c"
+   ]
   },
   {
    "va": "0x469b3a",
@@ -8601,8 +8607,10 @@
    "size": 148,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_display_menu.c"
+   ]
   },
   {
    "va": "0x48fe43",

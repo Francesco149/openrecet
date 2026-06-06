@@ -57,6 +57,11 @@ int display_menu_update(int param);
 /* FUN_00469a9f(): the currently-selected list item id, -1 == "select none". */
 int display_menu_selected(void);
 
+/* DAT_005c6ee4: how many of the highlighted item the player holds in inventory
+ * ("Number possessed" in the description panel).  Recomputed inside
+ * display_menu_open / _update; -1 before the first recount. */
+int display_menu_possessed(void);
+
 /* FUN_00468d22(bank, item): return `item` to the first empty inventory slot of
  * `bank` (the working-bank dword array) and bump the live item count.  No-op on
  * item == -1.  Used to give a removed display item back to the player's bag. */

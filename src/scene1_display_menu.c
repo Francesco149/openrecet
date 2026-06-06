@@ -27,12 +27,14 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "sim.h"                 /* g_sim_buttons[0].pressed (edge mask = DAT_073dddd4) */
+#include "sim.h"                 /* g_sim_buttons[0].pressed/held (DAT_073dddd4/d6) */
 #include "stage_load_pulse.h"    /* the slide ramp (FUN_004693e3 = DAT_0734b98c/9a0) */
 #include "save_bank.h"           /* SAVE_BANK_ITEM_TABLE_DWORD / _FIELD_ITEM_COUNT */
 #include "save_work.h"           /* save_work_dwords_at / save_work_active_slot */
 #include "tables_item.h"         /* g_item DB (FUN_004681f6 record lookup) */
 #include "scene1_chr_prepass.h"  /* chr_prepass_sort (FUN_0045526a co-sort) */
+#include "title_save_dialog.h"   /* the SHARED hand cursor (FUN_00435693/710/747) */
+#include "audio.h"               /* audio_play_se_by_id (nav SE, no RNG) */
 
 /* ── picker state (engine globals above) ──────────────────────────────── */
 
@@ -52,6 +54,7 @@ static int s_mode        = 0;   /* DAT_0734b9a8 */
 static int s_confirm_ctr = 0;   /* DAT_0734b994 */
 static int s_highlight   = -1;  /* DAT_0734b998 */
 static int s_window_flag = 0;   /* DAT_0734b990 */
+static int s_possessed   = -1;  /* DAT_005c6ee4 (-1 = recount-needed sentinel) */
 
 /* scratch for the inventory scan + co-sort (DAT_0730b60c keys / DAT_07323418
  * items / DAT_073379e0 indices — all 20000-wide in the engine). */
@@ -74,7 +77,31 @@ void display_menu_reset(void)
     s_confirm_ctr = 0;
     s_highlight   = -1;
     s_window_flag = 0;
+    s_possessed   = -1;
 }
+
+/* "Number possessed" recount (FUN_00469414 LAB_0046999a, all.c:65468-65478):
+ * count the working-bank inventory entries whose item id (value>>6) equals the
+ * highlighted item's.  -1 highlight ("Nothing") counts nothing.  Cached in
+ * s_possessed; recomputed when the cursor moves / a result fires / the sentinel
+ * is -1. */
+static void display_menu_recount(void)
+{
+    s_possessed = 0;
+    if (s_highlight == -1)
+        return;
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return;
+    const uint32_t *inv = bank + SAVE_BANK_ITEM_TABLE_DWORD;
+    for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++) {
+        if (inv[i] != 0xFFFFFFFFu &&
+            ((inv[i] ^ (uint32_t)s_highlight) & 0xFFFFFFC0u) == 0)
+            s_possessed++;
+    }
+}
+
+int display_menu_possessed(void) { return s_possessed; }
 
 /* ── FUN_00468338 — OPEN / list init (A2: minimal) ────────────────────── */
 void display_menu_open(int mode, int first_open)
@@ -187,13 +214,29 @@ void display_menu_open(int mode, int first_open)
         s_tab_first_item[t] = (e * 2 + 0 < DISPLAY_MENU_MAX_LIST) ? s_list[e * 2] : -1;
     }
 
-    /* NOTE: the engine's FUN_00468338 tail snaps the SHARED menu cursor
-     * (FUN_00435693 → DAT_0438b150 = 1).  The port must NOT drive that here: its
-     * save-dialog window render is (incompletely) gated on DAT_0438b150 alone,
-     * so raising it spuriously paints the save/load window panel over HOUSE (the
-     * "broken white HUD").  The display menu has its OWN cursor + panel
-     * (FUN_0046b00a), ported with the menu render below — the shared-cursor snap
-     * lands there, after the save-dialog gate is scene-qualified. */
+    /* open-cursor init (FUN_00468338 tail, all.c:64635-64639, the param_2!=0
+     * full-open branch): reset to tab 0 and, when tab 0 leads with the -1
+     * "Nothing" entry, START the cursor on the first REAL item (index 1).  That
+     * is why retail's freshly-opened menu highlights the displayed item (and its
+     * description), not "Nothing".  (The param_2==0 re-open clamp loop, all.c:
+     * 64597-64633, only matters for re-opens with a saved cursor — PORT-DEBT;
+     * the removal drive is always a first-open.) */
+    if (first_open) {
+        s_cur_tab = 0;
+        if (s_tab_count[0] > 1 && s_list[s_tab_base[0] * 2] == -1)
+            s_tab_cursor[0] = 1;
+    }
+    s_highlight = display_menu_selected();             /* DAT_0734b998 */
+    display_menu_recount();                             /* DAT_005c6ee4 */
+
+    /* snap the SHARED hand cursor to the highlighted row (FUN_00435693, all.c:
+     * 64641): x = 280 (0x438c0000), y = (cursor - scroll)·36 + 96.  Safe in
+     * HOUSE: g_cursor_visible only feeds title_save_dialog_cursor_render, which
+     * HOUSE invokes from display_menu_render — the title/pause save WINDOW is a
+     * separate scene_title render not called here. */
+    title_save_dialog_cursor_snap(
+        280.0f,
+        (float)((s_tab_cursor[s_cur_tab] - s_tab_scroll[s_cur_tab]) * 0x24) + 96.0f);
 }
 
 /* ── FUN_00469a9f — selected list item ────────────────────────────────── */
@@ -205,52 +248,151 @@ int display_menu_selected(void)
     return s_list[idx];
 }
 
-/* ── FUN_00469414 — per-frame update ──────────────────────────────────── */
+/* slide the shared hand cursor to the current row (FUN_0046939a → FUN_00435710,
+ * all.c:65176): x = 280, y = (cursor - scroll)·36 + 96. */
+static void display_menu_cursor_to_row(void)
+{
+    title_save_dialog_cursor_slide(
+        280.0f,
+        (float)((s_tab_cursor[s_cur_tab] - s_tab_scroll[s_cur_tab]) * 0x24) + 96.0f);
+}
+
+/* ── FUN_00469414 — per-frame update ──────────────────────────────────────
+ * Faithful port of the cc04 display-stand menu update.  Returns 0 = idle,
+ * 1 = CONFIRM (after the 6-frame countdown), 2 = CANCEL, 3 = pick-up arm,
+ * 4 = mode-6 auto-sort (counter menu — PORT-DEBT, never reached for mode 0). */
 int display_menu_update(int param)
 {
-    /* slide gate (all.c:65237): no input is accepted until the window has fully
-     * slid in (DAT_0734b98c == 5). */
+    int ret   = 0;
+    int moved = 0;
+    uint16_t pressed, held;
+    int item_under, handled = 0;
+
+    /* slide gate (all.c:65234): no input until the window has fully slid in. */
     if (stage_load_pulse_get_counter() < 5)
         return 0;
 
-    /* confirm countdown (all.c:65240-65247): once armed by a Z-press, count 6
-     * frames then fire CONFIRM (return 1).  The brief delay is the pick-up
-     * animation window. */
+    /* confirm countdown (all.c:65240): once armed by a Z-press, count 6 frames
+     * then fire CONFIRM.  The brief delay is the pick-up animation window. */
     if (s_confirm_ctr != 0) {
         s_confirm_ctr++;
         if (s_confirm_ctr > 6) {
             s_confirm_ctr = 0;
-            return 1;               /* CONFIRM */
+            return 1;               /* CONFIRM (recount not needed — closing) */
         }
-        return 0;
+        handled = 1;                /* skip input; fall to recount */
     }
 
     /* PORT-DEBT(A3): the message-hold countdowns DAT_0734b97c / b988 / b96c
      * (all.c:65248-65263) are only armed by the place-an-item "full inventory"
-     * path, never by the removal — left BSS-zero, so they fall through. */
+     * / "sell?" prompts, never by the removal — left BSS-zero, so they fall
+     * through. */
 
-    uint16_t pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 edge mask */
+    pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 edge mask */
+    held    = g_sim_buttons[0].held;      /* DAT_073dddd6 auto-repeat */
 
-    if (pressed & 0x10u) {          /* Z / confirm (all.c:65264) */
-        /* mode-6 auto-sort path (DAT_0734b9a8==6) is the counter menu, never the
-         * display stand (mode 0) — skip to the else-branch (all.c:65348). */
-        if (s_tab_count[s_cur_tab] < 1)
-            return 0;               /* empty tab: no confirm */
-        if (param != 0)
-            s_confirm_ctr = 1;      /* LAB_004696bf: arm the countdown */
-        return 3;                   /* pick-up arm (iVar14 = 3) */
+    if (!handled && (pressed & 0x10u)) {   /* Z / confirm (all.c:65264) */
+        /* PORT-DEBT(A3): the mode-6 (DAT_0734b9a8==6) counter auto-sort confirm
+         * (all.c:65266-65345) is the shop counter, never the house display
+         * stand — fall to the normal arm (all.c:65348). */
+        if (s_tab_count[s_cur_tab] >= 1) {
+            if (param != 0)
+                s_confirm_ctr = 1;  /* LAB_004696bf: arm the countdown */
+            ret = 3;                /* pick-up arm (iVar14 = 3) */
+        }
+        handled = 1;
     }
 
-    if (pressed & 0x20u)            /* cancel (all.c:65355) */
-        return 2;                   /* CANCEL */
+    if (!handled && (pressed & 0x20u)) {   /* X / cancel (all.c:65355) */
+        ret = 2;
+        handled = 1;
+    }
 
-    /* PORT-DEBT(A3): the in-list navigation (cursor up/down, quantity left/right
-     * via the DAT_073dddd6 auto-repeat mask) + the FUN_00468246 highlight
-     * recount (DAT_005c6ee4) below LAB_0046999a are render-only and unreachable
-     * without nav input during the removal drive — deferred to the render chip
-     * with the full list population. */
-    s_highlight = display_menu_selected();   /* DAT_0734b998 = list[cursor] */
-    return 0;
+    item_under = display_menu_selected();   /* uVar2 = list[cursor] */
+
+    /* PORT-DEBT(A3): the (DAT_073dddd4 & 0x40) "use / sell this item" sub-path
+     * (all.c:65451-65461) — only the use-item / counter-sell menus.  For the
+     * removal the cursor's item is -1, or 0x40 is never pressed, so we always
+     * take the navigation branch (all.c:65316-65450). */
+    if (!handled &&
+        ((pressed & 0x40u) == 0 || item_under == -1 || s_tab_count[s_cur_tab] < 1)) {
+        /* tab switch (all.c:65318): held-left (bit 2) prev, held-right (bit 1)
+         * next, wrapped mod num_tabs. */
+        if (s_num_tabs > 0) {
+            int do_tab = 1, delta = 0;
+            if (held & 0x2u)      delta = s_num_tabs - 1;   /* prev */
+            else if (held & 0x1u) delta = s_num_tabs + 1;   /* next */
+            else                  do_tab = 0;
+            if (do_tab) {
+                moved = 1;
+                s_cur_tab = (delta + s_cur_tab) % s_num_tabs;
+                if (s_num_tabs > 1)
+                    audio_play_se_by_id(0x146);             /* nav SE (no RNG) */
+            }
+        }
+
+        int count   = s_tab_count[s_cur_tab];
+        int visible = (count < 7) ? count : 7;
+
+        /* cursor UP (bit 4, all.c:65383). */
+        if ((held & 0x4u) != 0 && s_tab_cursor[s_cur_tab] > 0) {
+            moved = 1;
+            audio_play_se_by_id(0x146);
+            s_tab_cursor[s_cur_tab]--;
+            if (s_tab_cursor[s_cur_tab] - s_tab_scroll[s_cur_tab] < 0)
+                s_tab_scroll[s_cur_tab]--;
+        }
+        /* cursor DOWN (bit 8, all.c:65395). */
+        if ((held & 0x8u) != 0 && s_tab_cursor[s_cur_tab] < count - 1) {
+            moved = 1;
+            audio_play_se_by_id(0x146);
+            s_tab_cursor[s_cur_tab]++;
+            if (s_tab_cursor[s_cur_tab] - s_tab_scroll[s_cur_tab] > visible - 1)
+                s_tab_scroll[s_cur_tab]++;
+        }
+
+        /* single-tab page jump (all.c:65405): with one tab, held-left/right page
+         * the list by 6. */
+        if (s_num_tabs == 1) {
+            int *cur = &s_tab_cursor[s_cur_tab];
+            int *scr = &s_tab_scroll[s_cur_tab];
+            if ((held & 0x2u) != 0) {              /* page up */
+                int prev = *cur;
+                if (*cur > 0) {
+                    audio_play_se_by_id(0x146);
+                    *cur -= 6;
+                    if (*cur - *scr < 0) *scr -= 6;
+                    prev = *cur;
+                    moved = 1;
+                }
+                if (prev < 0) *cur = 0;
+                if (*scr < 0)  *scr = 0;
+            } else if ((held & 0x1u) != 0) {       /* page down */
+                int last = count - 1;
+                if (*cur < last) {
+                    audio_play_se_by_id(0x146);
+                    *cur += 6;
+                    if (*cur - *scr > visible - 1) *scr += 6;
+                    moved = 1;
+                    if (last <= *cur) *cur = last;
+                } else {
+                    *cur = last;
+                }
+                if (count - visible <= *scr) *scr = count - visible;
+            }
+        }
+    }
+
+    /* highlight = list[cursor] (all.c:65462); slide the cursor if it moved. */
+    if (moved)
+        display_menu_cursor_to_row();
+
+    /* "number possessed" recount (all.c:65468): on a move, a fired result, or
+     * the -1 sentinel. */
+    s_highlight = display_menu_selected();
+    if (s_possessed == -1 || moved || ret != 0)
+        display_menu_recount();
+    return ret;
 }
 
 /* ── FUN_00468d22 — return an item to inventory ───────────────────────── */
@@ -309,6 +451,78 @@ int display_menu_inventory_remove(uint32_t *bank, int item)
 #include "render_quad.h"   /* render_quad_add / _flush / _state_setup */
 #include "sysassets.h"     /* g_sysassets.item_win_tga / item_icons[] */
 #include "font_draw.h"     /* font_draw_text* */
+
+/* ── FUN_00469b3a — the bottom description panel (C4b-4a) ──────────────────
+ * Drawn at the tail of FUN_0046b00a (all.c:66837) with (param_1,param_2)=(0,0).
+ * The parchment bg is always drawn; for a real highlighted item it adds the two
+ * description lines, the base price (comma-formatted) and "Number possessed".
+ * The -1 ("Nothing") highlight draws only the bg (all.c:65617).  All text is
+ * white (DAT_005c7184=0xffffffff) at scale 0.8 (0x3f4ccccd).  PORT-DEBT: the
+ * price-status line (Price Up/Down/…) + the b1c0==6 counter price multipliers
+ * need FUN_004361b2 (item price-trend) — that reads the daily-market region
+ * pricing tables, not yet ported; skipping it == the type-0 (no-trend) path. */
+static void display_menu_description_render(IDirect3DDevice8 *dev)
+{
+    const sprite_t *win = &g_sysassets.item_win_tga;   /* DAT_073d8748 */
+    if (win->tex == NULL)
+        return;
+
+    /* panel bg: item_win src(0,320,640,480) dst(0,332,640,160) (all.c:65592). */
+    render_quad_state_setup(dev);
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)win->tex);
+    {
+        const float dst[4] = { 0.0f, 332.0f, 640.0f, 160.0f };
+        const float src[4] = { 0.0f, 320.0f, 640.0f, 480.0f };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+    }
+    render_quad_flush(dev);
+
+    /* -2 / -6 specials (Equip-optimum / fusion) are counter-menu only; -1
+     * "Nothing" draws nothing more (all.c:65604-65619). */
+    if (s_highlight < 0)
+        return;
+
+    int rec = tables_item_find_slot_by_id(&g_item, s_highlight >> 6);
+    if (rec < 0)
+        return;
+
+    /* PORT-DEBT: the (highlight>>4 & 1) sub-item walk-back (all.c:65635-65641)
+     * resolves a variant glyph to its base record; the displayed swords are
+     * base items, so we render the resolved record directly. */
+    const item_record_t *r = &g_item.records[rec];
+
+    /* description lines (all.c:65660-65661), white scale 0.8. */
+    if (r->desc_line1[0])
+        font_draw_text(dev, 80.0f, 368.0f, r->desc_line1, 0xffffffffu, 0.8f);
+    if (r->desc_line2[0])
+        font_draw_text(dev, 80.0f, 394.0f, r->desc_line2, 0xffffffffu, 0.8f);
+
+    /* base price = DB price · 1.0 (_DAT_005c6ee8) → comma-formatted (FUN_00469abb)
+     * → "Base Price: %s" at (80,420) (all.c:65665-65701). */
+    {
+        int price = r->price;
+        char num[32], line[64];
+        if (price < 1000)
+            snprintf(num, sizeof num, "%d", price);
+        else if (price < 1000000)
+            snprintf(num, sizeof num, "%d,%03d", price / 1000, price % 1000);
+        else
+            snprintf(num, sizeof num, "%d,%03d,%03d",
+                     price / 1000000, (price / 1000) % 1000, price % 1000);
+        snprintf(line, sizeof line, "Base Price: %s", num);
+        font_draw_text(dev, 80.0f, 420.0f, line, 0xffffffffu, 0.8f);
+    }
+
+    /* "Number possessed: %d" at (304,420), max(possessed,0) (all.c:65722-65728). */
+    {
+        int n = display_menu_possessed();
+        if (n < 0)
+            n = 0;
+        char line[48];
+        snprintf(line, sizeof line, "Number possessed: %d", n);
+        font_draw_text(dev, 304.0f, 420.0f, line, 0xffffffffu, 0.8f);
+    }
+}
 
 void display_menu_render(struct IDirect3DDevice8 *dev_in)
 {
@@ -448,9 +662,21 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
         font_draw_text(dev, text_x, ty, buf, 0xffffffffu, 0.8f);
     }
 
-    /* PORT-DEBT(C4b-3..4): the category-header text, the per-row type-coloured
-     * text + selected-row brightness pulse, the description window
-     * (DAT_0734b990), and the hand cursor (FUN_00469b3a) are the next chips. */
+    /* bottom description panel (FUN_00469b3a, all.c:66837) — bg + the
+     * highlighted item's desc/price/possessed (C4b-4a). */
+    display_menu_description_render(dev);
+
+    /* the SHARED hand cursor (FUN_00435747), drawn LAST exactly as the engine's
+     * cc04 render wrapper FUN_0048fdaf does (FUN_0046b00a → FUN_00435747).
+     * Self-gates on g_cursor_visible: the open snapped it on, the cc04 close
+     * hides it (C4b-4b — reuses the title/options/skip-prompt cursor). */
+    title_save_dialog_cursor_render(dev);
+
+    /* PORT-DEBT(C4b-4c): per-row type-coloured row text (FUN_004361b2) + the
+     * selected-row brightness pulse, and the price-status line, all depend on
+     * the daily-market price-trend (region pricing tables) — not yet ported.
+     * The data_win "tooltip base" tail quad (all.c:66843, fixed (440,440)) is
+     * also deferred pending a visual check of what it contributes. */
     (void)y;
 }
 
