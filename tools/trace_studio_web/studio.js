@@ -156,7 +156,8 @@ function recStop() {
   toast("stopping recorder (finalising trace)…");
   fetch("/record/stop", { method: "POST" }).then(r => r.json()).then(res => {
     if (!res.ok) { toast("record stop: " + (res.error || "failed"), true); return; }
-    toast(res.written ? `wrote ${(res.bytes/1024).toFixed(0)} KB → ${res.out}` : "stopped (no trace written — check the log)", !res.written);
+    const how = res.recovered ? " (recovered from stream)" : "";
+    toast(res.written ? `wrote ${(res.bytes/1024).toFixed(0)} KB${how} → ${res.out}` : "stopped (no trace written — check the log)", !res.written);
     pollRec();
   }).catch(() => toast("record stop failed", true));
 }

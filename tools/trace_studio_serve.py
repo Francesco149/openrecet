@@ -44,6 +44,85 @@ _CTYPE = {
 
 # ─── trace recorder (frida-attach to the running retail game) ────────────────
 
+def _recover_raw(out: Path, run_dir: Path) -> bool:
+    """Reconstruct a `.raw.jsonl` from frida_capture's LIVE-STREAMED run-dir when
+    its finalize was interrupted before it could assemble the file. The streamed
+    pieces survive a kill: run_dir/trace.jsonl (sparse input change-points,
+    line-buffered) + run_dir/agent.log ([anchor]/[esc_record]/[save_capture]
+    lines). We rebuild the exact same format finalize writes (header + DENSE
+    sticky-filled inputs + anchors + esc + {savefile}/{save_write}), including the
+    18 MB boot-save blob that was streamed next to the raw. Returns True on write."""
+    import hashlib
+    trace_jsonl = run_dir / "trace.jsonl"
+    agent_log = run_dir / "agent.log"
+    if not trace_jsonl.exists():
+        return False
+    inputs: dict[int, int] = {}
+    for ln in trace_jsonl.read_text().splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            o = json.loads(ln)
+        except json.JSONDecodeError:
+            continue
+        if "frame" in o and "buttons" in o:
+            inputs[int(o["frame"])] = int(str(o["buttons"]), 16)
+    if not inputs:
+        return False
+    anchors: list[dict] = []
+    escs: list[int] = []
+    saves: list[dict] = []
+    maxf = max(inputs)
+    if agent_log.exists():
+        for ln in agent_log.read_text(errors="replace").splitlines():
+            m = re.match(r"\[anchor\] (\S+) @ frame=(\d+) gframe=(\d+) rng=(\d+)", ln)
+            if m:
+                fr = int(m.group(2))
+                anchors.append({"anchor": m.group(1), "frame": fr,
+                                "gframe": int(m.group(3)), "rng": int(m.group(4))})
+                maxf = max(maxf, fr)
+                continue
+            m = re.match(r"\[esc_record\] frame=(\d+)", ln)
+            if m:
+                fr = int(m.group(1)); escs.append(fr); maxf = max(maxf, fr)
+                continue
+            m = re.match(r"\[save_capture\] (boot|write) #(\d+) @frame=(\d+) .*→ (\S+)", ln)
+            if m:
+                saves.append({"which": m.group(1), "index": int(m.group(2)),
+                              "frame": int(m.group(3)), "file": m.group(4)})
+    n = maxf + 1
+    seed = next((a["rng"] for a in sorted(anchors, key=lambda a: a["frame"])), None)
+    lines = [json.dumps({"_rec": "openrecet-tas-raw-v1", "frames": n,
+                         "start_abs": 0, "rng_seed_at_start": seed,
+                         "_recovered": True})]
+    sticky = 0
+    for i in range(n):
+        sticky = inputs.get(i, sticky)
+        lines.append(json.dumps({"frame": i, "buttons": f"0x{sticky:04x}"}))
+    for a in anchors:
+        lines.append(json.dumps({"anchor": a["anchor"], "frame": a["frame"],
+                                 "gframe": a["gframe"], "rng": a["rng"]}))
+    for ef in escs:
+        lines.append(json.dumps({"esc": ef}))
+    # Re-emit save rows (recompute sha/size from the streamed .bin next to the raw).
+    for sv in saves:
+        blob = out.parent / sv["file"]
+        if not blob.exists():
+            continue
+        data = blob.read_bytes()
+        sha = hashlib.sha256(data).hexdigest()
+        if sv["which"] == "boot":
+            lines.append(json.dumps({"savefile": sv["file"], "sha256": sha,
+                                     "size": len(data)}))
+        else:
+            lines.append(json.dumps({"save_write": {
+                "index": sv["index"], "frame": sv["frame"], "file": sv["file"],
+                "sha256": sha, "size": len(data)}}))
+    out.write_text("\n".join(lines) + "\n")
+    return True
+
+
 class RecordController:
     """Owns the `frida_capture.py --record-trace` subprocess driven by the studio
     record panel. Spawns it in its OWN process group so the WHOLE group can be
@@ -61,6 +140,7 @@ class RecordController:
         self.name: str | None = None
         self.out: Path | None = None
         self.log: Path | None = None
+        self.run_dir: Path | None = None
         self.started: float = 0.0
 
     @classmethod
@@ -113,6 +193,7 @@ class RecordController:
                 return {"ok": False, "error": f"spawn failed: {e!r}"}
             self.pgid = os.getpgid(self.proc.pid)
             self.name, self.out, self.log = safe, out, log
+            self.run_dir = run_dir
             self.started = time.time()
             try:
                 self.PIDFILE.write_text(json.dumps(
@@ -121,30 +202,50 @@ class RecordController:
                 pass
             return {"ok": True, "name": safe, "out": str(out), "pid": self.proc.pid}
 
-    def stop(self, grace_s: float = 20.0) -> dict:
+    def stop(self, grace_s: float = 90.0) -> dict:
+        """Stop the recorder. frida_capture writes the .raw.jsonl LAST, after a
+        SIGINT-triggered finalize (script.unload + remote session.detach, which
+        can be slow), so we: SIGINT, then WAIT PATIENTLY for the file to appear
+        (the definitive done signal) — never SIGKILL mid-finalize and lose the
+        trace. If the file never lands (finalize hung), RECOVER it from the live-
+        streamed run_dir/{trace.jsonl,agent.log} before force-killing. Either way
+        the process is dead at the end (no stray)."""
         with self.lock:
             if self.proc is None:
                 return {"ok": False, "error": "not recording"}
-            name, out = self.name, self.out
+            name, out, run_dir = self.name, self.out, self.run_dir
+
+            def _done() -> bool:
+                return bool(out and out.exists() and out.stat().st_size > 0)
+
             if self.proc.poll() is None:
-                # SIGINT the whole group → frida_capture finalises + writes.
                 self._signal_group(signal.SIGINT)
                 deadline = time.time() + grace_s
-                while time.time() < deadline and self.proc.poll() is None:
-                    time.sleep(0.2)
-                # Escalate if it didn't finalise in time.
-                if self.proc.poll() is None:
-                    self._signal_group(signal.SIGTERM)
-                    time.sleep(2.0)
-                if self.proc.poll() is None:
-                    self._signal_group(signal.SIGKILL)
-                    time.sleep(0.5)
-            written = bool(out and out.exists())
+                while time.time() < deadline:
+                    if _done() or self.proc.poll() is not None:
+                        break
+                    time.sleep(0.3)
+
+            written = _done()
+            recovered = False
+            if not written and run_dir:
+                recovered = _recover_raw(out, run_dir)   # salvage a killed finalize
+                written = recovered
+
+            # Make sure nothing is left running — graceful first, then hard.
+            if self.proc.poll() is None:
+                self._signal_group(signal.SIGTERM)
+                time.sleep(2.0)
+            if self.proc.poll() is None:
+                self._signal_group(signal.SIGKILL)
+                time.sleep(0.5)
+
             res = {"ok": True, "name": name, "out": str(out) if out else None,
-                   "written": written,
-                   "bytes": (out.stat().st_size if written else 0)}
+                   "written": written, "recovered": recovered,
+                   "bytes": (out.stat().st_size if (out and out.exists()) else 0)}
             self.proc = None
             self.pgid = None
+            self.run_dir = None
             self._clear_pidfile()
             return res
 
