@@ -94,6 +94,13 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
 - **Render/parity debugging tools:** `tools/flow_diff.py` (`--verdict` RNG/phase
   determinism + `--field-timeline` + `--rng-drill`; the modern phase_probe replacement),
   `tools/d3d_state_diff.py` + `tools/render_diff.py` (per-draw command-stream diff),
+  `tools/d3d_state_at_draw.py` (**the reliable device-state-at-draw inspector** —
+  replays a d3d trace carrying the FULL device state FORWARD across frames, since
+  device state is persistent; prints the complete COLOROP/COLORARG/ALPHA/filter/
+  blend pipeline at any draw. **Use this whenever a draw looks wrong but its
+  per-frame state "looks identical" — per-frame state tracking misses INHERITED
+  state** (it cracked the white-UI COLORARG leak: retail sets zero COLORARG, the
+  port's 3D renderers leak it into the 2D UI)),
   `tools/pixel_diff.py` / `tools/compose_comparison.py` (visual). Playbooks:
   `docs/flow-trace-cheatsheet.md`, `docs/render-depth-debugging.md`.
 - **Orchestration / when to spawn sub-agents:** `docs/AGENT-WORKFLOW.md`.

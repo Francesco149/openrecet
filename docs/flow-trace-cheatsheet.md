@@ -131,5 +131,25 @@ value + the live value) is the tell.
 | `0x49a59e` | `scene_title_sim` | menu state machine (10 fields) |
 | `0x46c320` | `dialogue_tick` | opening-prologue standee + box-anim state |
 
+## Draw looks wrong but its state "looks identical"? → `d3d_state_at_draw.py`
+
+`flow_diff` is for SIM/logic divergence; `render_diff.py --explain` names the wrong
+*draw*. But when a draw renders wrong and the per-frame d3d state looks the SAME on
+the good and bad frames, the culprit is **INHERITED device state** — d3d state
+(COLOROP/COLORARG/blend/filter) is persistent across frames, so a state set once and
+never re-set won't show as a per-frame difference. `tools/d3d_state_at_draw.py`
+replays the trace carrying the FULL device state FORWARD and prints the complete
+pipeline at any matching draw:
+
+```
+nix develop --command python3 tools/d3d_state_at_draw.py <side>/d3d_trace.jsonl \
+    --frames <good>,<bad> --tex item_win [--region X0,Y0,X1,Y1]
+```
+
+Run it on BOTH the port and the matching retail frame and diff the output — that is
+the reliable color-pipeline ground truth. (It cracked the white-UI bug: retail sets
+ZERO COLORARG in a whole menu frame; the port's 3D renderers leak COLORARG1=DIFFUSE/
+COLORARG2=CURRENT into the 2D UI when the walk-dust stops.)
+
 Cross-refs: `docs/plans/execution-flow-trace.md`, `docs/findings/render-diff.md`
 (the draw-side twin `render_diff.py --explain`).
