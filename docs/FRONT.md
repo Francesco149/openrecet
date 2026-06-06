@@ -325,6 +325,25 @@
   `wall_collide_diff.py`, `recette_anim_probe.py`, port `--player-pos-log`/`--dlg-log`/
   `--dust-log`, retail `--watch`. **Annotate functions on both sides as you go** — that IS
   the state-comparison tool now. Cheatsheet: `flow-trace-cheatsheet.md`. Good `/clear` point.
+- **HOUSE free-roam Tear CONFIRMED 1:1 + flow-trace stale-row bug FIXED (2026-06-06,
+  commit 6186bba).** User flagged a Tear sprite diff on `house-idle-npc-drift` cap_00. Run:
+  it's a **`{phasepin}` transient, not logic** — the pin zeros db054 (her bob/phase clock)
+  without snapping her spring-lerped position, so she re-converges over ~48 frames; body
+  diff settles **1831→249→0 px by cap_02** and is bit-perfect after (steady-state 1:1,
+  render-verified). The `flow_diff --verdict` `coct 6/4` that *looked* like a facing bug was
+  a **trace-pollution artifact**: the port emitted `0x48670f` on EVERY `scene1_player_ctrl_tick`
+  incl. the iv1_1/iv1_2 prologue (actors at `pose_house_standing` init: px −0.30, pcnt 25,
+  coct 4) → 1562 stale rows vs 270 live, mis-paired vs retail's 271 clean free-roam rows.
+  **Fix:** gate the emit on the real-free-roam condition (`s_actor_char[0]!=-1 && s_cc08==1 &&
+  !intro_dialogue_active && !loading`, the walk-arm guard). After: 271 rows, `--verdict` =
+  **PHASE-CLEAN, every actor field ALIGNED bit-exact** (coct included) → Tear free-roam is
+  1:1. New bench `house-idle-drift-tearpin` (drift + `{calltrace}`); gotcha documented in
+  `flow-trace-cheatsheet.md` ("gate the emit to the hook's state"). **Method:** when a HOUSE
+  actor field shows a constant offset, FIRST check pixels + a `distinct px` histogram (one
+  stale value + the live value = the tell) before trusting the verdict. **Deferred (user,
+  final-polish phase):** the faint ambient "dots" — they no longer reproduce as a >4-LSB
+  divergence on the current build (drift caps are bit-1:1 within 4 LSB outside the RNG-
+  unpinned Tear sparkles); chase in a polish pass.
 - **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
   regression.
