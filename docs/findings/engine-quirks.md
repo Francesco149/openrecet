@@ -4450,3 +4450,31 @@ non-walk frames). After: all four dust fields ALIGNED, every actor field + db054
 still bit-exact. (The wing-sparkle itself was equally mis-sliced on walk frames —
 this fixes Tear's walk-frame particle parity too; it only looked 1:1 before because
 Tear was validated on IDLE scenarios where the dust never fires.)
+
+## 115. The WORLD/TOWN map (mode 8) reuses the SHARED menu cursor (DAT_0438b150) for its destination pointer — so the "PAUSE_OPEN" anchor (b150 0→1) firing at the shop-exit is the map raising its cursor, NOT a pause/save menu opening
+
+When you leave the shop, the anchor sequence is `LOADING_START` + `PAUSE_OPEN`
+(same frame) → `LOADING_END`. The `PAUSE_OPEN` name is keyed on `DAT_0438b150`
+(the *shared* menu/cursor flag used by the title/options/skip-prompt/display
+menus alike) going 0→1. Here it rises because the world-map scene-init
+`FUN_0049de20` (`all.c:102848`) calls `FUN_0043561a` + `FUN_00435693(...)` to
+**show and snap the destination cursor** to the selected map point — the same
+`title_save_dialog_cursor` system. No pause or save menu is involved in the
+shop→town transition. Tooling that treats a `b150` rise as "a menu opened" will
+mis-attribute the town-map entry; the world map *is* a cursor-driven screen.
+
+## 116. The town/world-map destination availability is a 3-state per-marker array (DAT_09643588[i]: 0=disabled-dim, 1=normal, 2=highlighted-pulse) driven by tutorial-progress flags + time-of-day; selecting a disabled marker plays denied-SE 0x16a with no transition
+
+Each of the 7 world-map destinations carries a state byte in `DAT_09643588[0..6]`,
+set by the init `FUN_0049de20` (`all.c:102868`): with the tutorial-progress flags
+`DAT_0450f3f9`/`DAT_0450f408` clear, **all** markers are state 1 (normal); during
+the tutorial only the directed marker is state 2 and the rest stay 0. The render
+`FUN_0049e3a3` draws state 0 at dim alpha `0x40`, state 2 with a `sinf`-pulsing
+alpha (`FUN_00503a44(DAT_09643628*0.15)`), and the cursor-selected marker bigger +
+`0xff`. The sim `FUN_0049e163` (`all.c:103061`) gates the Z-select on the state:
+`DAT_09643588[sel]==0` → denied SE `0x16a`, no scene change; otherwise it unloads
+slot 10 and loads the destination's mode. A separate `DAT_0964362c[i]` flag draws a
+red **"Closed"** label over a marker. So "some destinations highlighted, some greyed
+out" in the tutorial is purely these data flags — there is no distinct tutorial
+render path. (The door-exit handler sets `DAT_0450f3f9[slot]=1` on the first exit,
+so the first town visit highlights destination 3, the Market — the tutorial target.)

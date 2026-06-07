@@ -34,10 +34,19 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 - **Phase:** Foundation for frame-by-frame 1:1 parity (plan: `plans/` — render-parity
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
-- **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`, 2026-06-07).** Port the
-  shop-exit → town-map transition + the town-map scene (the port stops dead at
-  `HOUSE_FREEROAM`; the exit is an INGAME mode change via the fade manager `FUN_00453384`
-  / scene-loader `FUN_0045281c` — unported). **Ground truth captured:**
+- **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`, 2026-06-07). ✅ PHASE 0 RE
+  COMPLETE → `findings/town-map-RE.md`; NEXT = chip T1 (door exit + fade).** The "town map"
+  is the **WORLD MAP, top-level mode `DAT_0438b1c0==8`** (preload `FUN_004735ad` = texture
+  slot 10 worldmap day/eve/night + mappoint; sim `FUN_0049e163`; cursor-nav `FUN_0049dfc1`
+  = 3×5 grid; render `FUN_0049e3a3`; init `FUN_0049de20` = 7 dests + **tutorial gating**
+  `DAT_09643588[]` 0=disabled/1=normal/2=highlighted). **Exit = the shop DOOR** (user-confirmed:
+  tooltip → Z-on-door): `house_update` `FUN_0048670f` `all.c:87637` → arm `DAT_074b2ec4` +
+  tile-dissolve fade `FUN_004526f5(0,0x11)` + set tutorial flag `DAT_0450f3f9[slot]` → stage-2
+  `DAT_0438b1c0=8` at `all.c:86877`. **Recon corrections:** `FUN_0045281c` arg-2 is a **load-step
+  COUNT, not a map id** (so `0x11` ≠ quit-to-title); the door does **not** use the mode-9 manager
+  `FUN_00453384`; the exit "PAUSE_OPEN" anchor = the world map raising the **shared cursor** for
+  its destination pointer (red herring confirmed). Chip plan **T1–T5** in the findings doc; the
+  port still stops dead at `HOUSE_FREEROAM`. **Ground truth captured:**
   `runs/trace-studio/town-map-anchorfix/` = 130 retail TOWN-MAP frames + `retail/call_trace.jsonl`
   (town map only; the transition frames still need a wider window — Phase 0). Start at the
   plan's Phase 0 (RE the transition + scene). **The free-roam WALK is confirmed 1:1**

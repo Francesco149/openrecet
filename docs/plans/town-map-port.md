@@ -25,6 +25,28 @@ fixed, a both-target capture now yields the retail ground truth:
   call-trace covers the **town map only — NOT the transition frames** (the shop-exit
   fade/load). Phase 0 must widen the window to capture the transition.
 
+## ✅ PHASE 0 RE COMPLETE (2026-06-07) → `docs/findings/town-map-RE.md`
+The transition + the whole mode-8 world-map scene are RE'd from the decompile (cross-checked
+vs the recording's anchors/inputs). Headlines that **correct** the recon below:
+- **The town map = the WORLD MAP, top-level mode `DAT_0438b1c0 == 8`** (confirmed by the
+  preload switch `all.c:51296` + the sim/render dispatchers). Assets = texture slot 10
+  (`worldmap_nomal/yugata/night.bmp` + `mappoint.tga`), preload `FUN_004735ad`.
+- **`FUN_0045281c`'s 2nd arg is a load-step COUNT, not a map id** — so `0x11/0x1e/0x3c/0x78`
+  are durations; `0x11` is NOT "quit-to-title". The destination scene is chosen by the MODE.
+- **Exit trigger = the shop door** (user-confirmed): door tooltip → Z-on-door. Handler in
+  `house_update` `FUN_0048670f` `all.c:87637` → `DAT_074b2ec4=1` + dissolve-fade
+  `FUN_004526f5(0,0x11)` + sets the tutorial flag `DAT_0450f3f9[slot]` → stage-2
+  `DAT_0438b1c0=8` at `all.c:86877`. NOT the mode-9 manager `FUN_00453384` (that's other
+  transitions). The "PAUSE_OPEN" anchor at the exit = the world map raising the SHARED cursor
+  for its destination pointer (red herring confirmed).
+- **Tutorial gating** (user-flagged) = per-dest state array `DAT_09643588[]` (0 disabled /
+  1 normal / 2 highlighted-pulse) set by `FUN_0049de20` from `DAT_0450f3f9`/`DAT_0450f408`.
+  In the recording (first exit) → **dest 3 (Market) highlighted, the rest disabled**.
+- Scene fns: init `FUN_0049de20`, sim `FUN_0049e163`, cursor-nav `FUN_0049dfc1` (3×5 grid),
+  render `FUN_0049e3a3`. Chip plan **T1–T5** in the findings doc (supersedes P1–P5 below).
+
+The original recon (kept for history; some now corrected):
+
 ## Recon findings (2026-06-07) — CONFIRMED vs HYPOTHESIS vs UNKNOWN
 
 ### The transition is an INGAME mode change via the universal fade manager

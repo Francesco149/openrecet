@@ -56,6 +56,12 @@ that subsystem.
 | [scene1-people-table.md](scene1-people-table.md) | `DAT_0076bd54` — 128-entry × 2980 B in-shop "people"/NPC table layout. | 2026-05-23 |
 | [sim-step-a-dispatch.md](sim-step-a-dispatch.md) | `FUN_004536cb` / `sim_step_a` — full survey + chip ladder for the INGAME sim caller. | 2026-05-23 |
 
+## Town / world map (mode 8)
+
+| Doc | Covers | Last touched |
+|-----|--------|--------------|
+| [town-map-RE.md](town-map-RE.md) | **Shop-exit → TOWN/WORLD MAP transition + the mode-8 scene** (Phase 0). Door-Z exit chain in `house_update` (`all.c:87637`) → tile-dissolve fade `FUN_004526f5` → `DAT_0438b1c0=8`. World map: preload `FUN_004735ad` (slot-10 worldmap day/eve/night + mappoint), init `FUN_0049de20` (7 dests + **tutorial state gating `DAT_09643588[]`**), sim `FUN_0049e163`, cursor-nav `FUN_0049dfc1` (3×5 grid), render `FUN_0049e3a3`. Dest→mode table; loader arg-2 = load-step count (not a map id). Chip plan T1–T5. | 2026-06-07 |
+
 ## Input / UI
 
 | Doc | Covers | Last touched |
