@@ -1,0 +1,32 @@
+{
+  "_doc": "Shared alignment fixture for the golden cross-check: run through BOTH align.mjs (via align.dump.mjs) and trace_studio.model.segments (tools/test_trace_studio_segments.py); the normalized projections must be identical. A town-map-style trace whose recorded (retail) order waits CONV_POSE_START BEFORE LOADING_END, with an input + pins in the final segment; the port fired LOADING_END before CONV_POSE_START (the divergence).",
+  "trace": [
+    {"savefile": "x"},
+    {"frame": 0, "buttons": "0x0000"},
+    {"frame": 10, "buttons": "0x0010"},
+    {"wait": "NEW_GAME"},
+    {"frame": 0, "buttons": "0x0000"},
+    {"wait": "CONV_POSE_START"},
+    {"frame": 5, "buttons": "0x0004"},
+    {"wait": "LOADING_END"},
+    {"phasepin": 20},
+    {"rngseed": [20, 19937]},
+    {"caprange": [0, 48]},
+    {"frame": 0, "buttons": "0x0000"}
+  ],
+  "retail": [
+    {"anchor": "BOOT", "frame": 0},
+    {"anchor": "NEW_GAME", "frame": 81},
+    {"anchor": "CONV_POSE_START", "frame": 108},
+    {"anchor": "LOADING_END", "frame": 111},
+    {"anchor": "HOUSE_FREEROAM", "frame": 111}
+  ],
+  "port": [
+    {"anchor": "BOOT", "frame": 0},
+    {"anchor": "NEW_GAME", "frame": 261},
+    {"anchor": "LOADING_END", "frame": 2726},
+    {"anchor": "HOUSE_FREEROAM", "frame": 2726},
+    {"anchor": "CONV_POSE_START", "frame": 2750}
+  ],
+  "sync_seg": 1
+}
