@@ -67,6 +67,21 @@
 .tools-fold > summary .dim { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .tools-fold[open] > summary { margin-bottom: .5rem; }
 
+/* ── S9: TraceEditor fold (the re-homed advanced timeline editor) ──────────────
+   A full-width collapsible under the Filmstrip/DrillBar; the disclosure matches the
+   tools-fold so the "advanced" affordances read the same. Lazy-mounted (the timeline
+   only renders when open). The in-editor ⟳ re-capture button gets the accent so the
+   edit→recapture loop is self-contained in the toolbar. */
+.trace-editor-fold { margin: .2rem 0 .4rem; border-top: 1px solid var(--edge); padding-top: .4rem; }
+.trace-editor-fold > summary { cursor: pointer; color: var(--dim); font-size: 12px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: .04em; user-select: none;
+  padding: .2rem 0; }
+.trace-editor-fold > summary:hover { color: var(--fg); }
+.trace-editor-fold > summary .dim { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.trace-editor-fold[open] > summary { margin-bottom: .35rem; }
+.tl-bar .seg.recap { opacity: 1; border-color: var(--accent); color: var(--accent); }
+.tl-bar .seg.recap:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+
 /* ── S8: DrillBar (densify a strided overview sub-window in-browser) ────────── */
 .drillbar { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem;
   margin: .1rem 0 .4rem; font-size: 12px; }

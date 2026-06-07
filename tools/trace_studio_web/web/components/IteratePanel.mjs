@@ -4,23 +4,12 @@
 // than a private /capture/status poller, and the recapture navigation loop runs over
 // the unified /api/jobs (jobStatus).
 import { html } from "/vendor/htm-preact-standalone.mjs";
-import { postJSON, jobStatus } from "/store.mjs";
+import { postJSON } from "/store.mjs";
 import { toast } from "/web/util.mjs";
+import { recapture as doRecapture } from "/web/actions.mjs";
 
 export function IteratePanel({ sess, manifest, stale, reload, capJob, pollJobs }) {
-  const recapture = (only) => {
-    toast(only === "port" ? "re-capturing port…" : "re-capturing…");
-    postJSON(`/s/${sess}/recapture`, only ? { only } : {}).then((r) => {
-      if (!r.ok) return toast("re-capture: " + (r.error || "fail"), true);
-      pollJobs();
-      const poll = () => jobStatus("capture").then((s) => {
-        if (!s || s.running) { setTimeout(poll, 2000); return; }
-        if (s.rc === 0 || s.rc === null) { toast("capture updated"); location.reload(); }
-        else toast("capture rc=" + s.rc, true);
-      });
-      poll();
-    });
-  };
+  const recapture = (only) => doRecapture(sess, { only, pollJobs });
   const apply = () => {
     toast("applying pins…");
     postJSON(`/s/${sess}/apply`, {}).then((r) => {

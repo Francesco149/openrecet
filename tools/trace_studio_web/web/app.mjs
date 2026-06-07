@@ -4,15 +4,17 @@
 // IteratePanel, the registry-driven MarkBar (GET /api/registries), StatePanel,
 // VerdictPanel. The trace editor (S9) is still the only thing the old monolith has
 // that this doesn't.
-import { html, render, useState, useEffect } from "/vendor/htm-preact-standalone.mjs";
-import { qparam } from "/store.mjs";
+import { html, render, useState, useEffect, useRef, useCallback } from "/vendor/htm-preact-standalone.mjs";
+import { qparam, postJSON } from "/store.mjs";
 import { useStudioModel, useRegistries, useJobs, jobOf } from "/web/model.mjs";
+import { recapture } from "/web/actions.mjs";
 import { SessionPicker } from "/web/components/SessionPicker.mjs";
 import { Filmstrip } from "/web/components/Filmstrip.mjs";
 import { VideoStage } from "/web/components/VideoStage.mjs";
 import { ScrubBar } from "/web/components/ScrubBar.mjs";
 import { DiffRibbon } from "/web/components/DiffRibbon.mjs";
 import { DrillBar } from "/web/components/DrillBar.mjs";
+import { TraceEditor } from "/web/components/TraceEditor.mjs";
 import { JobTray } from "/web/components/JobTray.mjs";
 import { RecordPanel } from "/web/components/RecordPanel.mjs";
 import { IteratePanel } from "/web/components/IteratePanel.mjs";
@@ -84,7 +86,8 @@ function layout(p) {
 }
 
 function App() {
-  const { view, loading, error, manifest, reload, marks: marks0 } = useStudioModel(SESS);
+  const { view, loading, error, manifest, reload, marks: marks0,
+          traceOps, notes } = useStudioModel(SESS);
   const [cur, setCur] = useState(0);
   const [panels, setPanels] = useState({ port: true, retail: true, diff: true });
   const [pendingBox, setPendingBox] = useState(null);
@@ -93,6 +96,34 @@ function App() {
   const [jobsStatus, pollJobs] = useJobs();
   const wide = useWide(1280);
   useEffect(() => { if (marks0) setMarks(marks0); }, [marks0]);
+
+  // ── trace-editor working state (the editable trace ops + notes sidecar) ──
+  // editTrace is the local working copy seeded from the persisted ops; onEdit debounces
+  // a POST /trace (which marks the session stale). The edit→recapture loop flushes any
+  // pending save first so a re-capture never misses the last keystroke.
+  const [editTrace, setEditTrace] = useState(null);
+  const [notesState, setNotesState] = useState([]);
+  const [localStale, setLocalStale] = useState(false);
+  const [edOpen, setEdOpen] = useState(false);
+  const saveTimer = useRef(0);
+  useEffect(() => { if (traceOps) setEditTrace(traceOps); }, [traceOps]);
+  useEffect(() => { if (notes) setNotesState(notes); }, [notes]);
+  const onEdit = useCallback((newOps) => {
+    setEditTrace(newOps); setLocalStale(true);
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => postJSON(`/s/${SESS}/trace`, { ops: newOps }), 500);
+  }, []);
+  const onNotes = useCallback((ns) => {
+    setNotesState(ns); postJSON(`/s/${SESS}/notes`, { notes: ns });
+  }, []);
+  const flushEdit = useCallback(() => {
+    if (!saveTimer.current) return Promise.resolve();
+    clearTimeout(saveTimer.current); saveTimer.current = 0;
+    return editTrace ? postJSON(`/s/${SESS}/trace`, { ops: editTrace }) : Promise.resolve();
+  }, [editTrace]);
+  const onRecapture = useCallback(
+    () => flushEdit().then(() => recapture(SESS, { pollJobs })), [flushEdit, pollJobs]);
+
   const N = view ? view.totalFrames : 1;
 
   // keyboard nav (global ordinal space)
@@ -137,6 +168,16 @@ function App() {
       <${JobTray} status=${jobsStatus} />
       <${Filmstrip} view=${view} cur=${cur} setCur=${setCur} />
       <${DrillBar} sess=${SESS} view=${view} cur=${cur} />
+      <details class="trace-editor-fold" onToggle=${(e) => setEdOpen(e.currentTarget.open)}>
+        <summary>⚙ trace editor <span class="dim">— advanced: edit inputs · pins ·
+          {wait} anchors · extend + recapture</span></summary>
+        ${edOpen && html`<${TraceEditor}
+          editTrace=${editTrace || []} onEdit=${onEdit} capturedOps=${view.capturedOps}
+          anchors=${view.anchors} manifest=${manifest} stale=${manifest.stale || localStale}
+          notes=${notesState} onNotes=${onNotes}
+          pendingBox=${pendingBox} setPendingBox=${setPendingBox}
+          cur=${cur} setCur=${setCur} view=${view} onRecapture=${onRecapture} />`}
+      </details>
       <div class="layout-bar"><span>panels:</span>
         ${["port", "retail", "diff"].map((p) =>
           html`<button class=${"ly " + (panels[p] ? "on" : "")}
