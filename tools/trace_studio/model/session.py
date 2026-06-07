@@ -51,6 +51,7 @@ class Session:
         return {
             "kind": "gameplay", "idx": 0,
             "frames": list(fr), "n_frames": m.get("n_frames", 0),
+            "cadence": int(m.get("stride", 1) or 1),
             "videos": dict(m.get("videos") or {}),
             "verdict": m.get("verdict"),
             "state": m.get("state"),

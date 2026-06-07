@@ -45,6 +45,7 @@ class CaptureConfig:
     anchors: bool = False                # anchor-segmented distil of a raw recording
     suppress_loads: bool = True          # D1: collapse loads to zero-frame seams
     capture_local: bool = True           # D2: local-disk staging (degrades if unsupported)
+    capstride: int = 1                   # D3: capture every Nth frame (OVERVIEW); 1 = dense
 
 
 def run_capture(cfg: CaptureConfig) -> int:
@@ -79,13 +80,17 @@ def run_capture(cfg: CaptureConfig) -> int:
         if not cr0:
             raise SystemExit("trace_studio: no --caprange given and none in the trace")
         trace_build.build_working_trace(src, sess_dir, working, cr0,
-                                        bool(cfg.call_trace), anchored=cfg.anchors)
+                                        bool(cfg.call_trace), anchored=cfg.anchors,
+                                        capstride=cfg.capstride)
 
     trace = working
     op_list = ops.load_ops(trace)
     cr = ops.extract_caprange(op_list)
     if not cr:
         raise SystemExit(f"trace_studio: working trace {working} has no caprange")
+    # Stride is read back from the WORKING trace (source of truth — a reused trace
+    # keeps its own {capstride}; a fresh build just injected --capstride above).
+    stride = ops.extract_capstride(op_list)
     ct = ops.extract_calltrace(op_list)
     call_trace = bool(cfg.call_trace and ct)
     if cfg.call_trace and not ct:
@@ -170,6 +175,7 @@ def run_capture(cfg: CaptureConfig) -> int:
         "working_trace": str(working),
         "source_trace": str(src),
         "caprange": list(cr),
+        "stride": stride,                # D3: 1 = dense; >1 = coarse OVERVIEW cadence
         "fps": encode.VIDEO_FPS,
         "amp": cfg.amp,
         "target": cfg.target,
@@ -236,6 +242,21 @@ def run_capture(cfg: CaptureConfig) -> int:
                   for p in (port_dir / "frames").glob("frame_*.png"))
     manifest["frame_range"] = [nums[0], nums[-1]] if nums else [0, 0]
 
+    # Ordinal-pairing guard (the studio's port↔retail comparator pairs Nth-left vs
+    # Nth-right, not by absolute frame): both sides MUST keep the same kept-count.
+    # D1 suppression + LOADING_END-anchored windows + identical {capstride} give
+    # this for free; a mismatch means the stride/suppression desynced — surface it.
+    n_retail = len(list((retail_dir / "frames").glob("frame_*.png")))
+    manifest["n_frames_retail"] = n_retail
+    if have_retail_frames and n_retail != n_port:
+        manifest["kept_count_mismatch"] = {"port": n_port, "retail": n_retail}
+        _log(f"WARNING kept-count MISMATCH port={n_port} retail={n_retail} — "
+             f"ordinal pairing is unreliable (check the {{capstride}}/load-suppress "
+             f"seam alignment; overview windows must anchor at LOADING_END or later)")
+    elif have_retail_frames:
+        _log(f"kept-count parity OK: port == retail == {n_port}"
+             + (f" (stride {stride})" if stride > 1 else ""))
+
     # Surface a clear error when a side captured 0 frames (window never reached).
     errs: list[str] = []
     if n_port == 0:
@@ -268,13 +289,16 @@ def run_capture(cfg: CaptureConfig) -> int:
         port_firings=port_firings, retail_firings=retail_firings,
         n_frames=manifest["n_frames"], frame_range=manifest["frame_range"],
         videos=manifest["videos"], verdict=manifest.get("verdict"),
-        state=manifest.get("state"), call_trace=manifest["call_trace"])
+        state=manifest.get("state"), call_trace=manifest["call_trace"],
+        stride=stride)
     manifest = sess_mod.make_v2_manifest(manifest, timeline)
 
     sess_mod.write_session(sess_dir, manifest)
     n_seams = sum(1 for e in timeline if e.get("kind") == "load_seam")
     _log(f"session.json written → {sess_dir}")
-    _log(f"DONE: {n_port} frames, {n_seams} load-seam(s), videos={list(manifest['videos'])}"
+    _log(f"DONE: {n_port} frames"
+         + (f" @ stride {stride} (OVERVIEW)" if stride > 1 else "")
+         + f", {n_seams} load-seam(s), videos={list(manifest['videos'])}"
          + (f", verdict exit={manifest['verdict'].get('exit_code')}"
             if manifest.get("verdict") else ""))
     print(f"\nview it:  nix develop --command python3 tools/trace_studio.py "

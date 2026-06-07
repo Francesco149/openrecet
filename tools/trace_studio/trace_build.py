@@ -62,10 +62,13 @@ def localize_save(src: Path, text: str, sess_dir: Path) -> str:
     return "\n".join(out) + "\n"
 
 
-def ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool) -> str:
-    """Insert {caprange} (+ {calltrace} if requested) after the final {wait},
-    replacing any pre-existing window ops. Pins the user applied (phasepin/rngseed)
-    sit after the {wait} too and are preserved."""
+def ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool,
+                      capstride: int = 1) -> str:
+    """Insert {caprange} (+ {calltrace} if requested, + {capstride:N} for an
+    OVERVIEW when N>1) after the final {wait}, replacing any pre-existing window
+    ops. Pins the user applied (phasepin/rngseed) sit after the {wait} too and are
+    preserved. {capstride} is trace-global, so its placement is cosmetic — it's
+    co-located with the window ops it modifies."""
     keep: list[str] = []
     for ln in text.splitlines():
         s = ln.strip()
@@ -74,7 +77,8 @@ def ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool) -> str:
                 o = json.loads(s)
             except json.JSONDecodeError:
                 o = None
-            if isinstance(o, dict) and ("caprange" in o or "calltrace" in o):
+            if isinstance(o, dict) and (
+                    "caprange" in o or "calltrace" in o or "capstride" in o):
                 continue
         keep.append(ln)
     li = -1
@@ -91,6 +95,8 @@ def ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool) -> str:
     ins = [json.dumps({"caprange": [cr[0], cr[1]]})]
     if call_trace:
         ins.append(json.dumps({"calltrace": [cr[0], cr[1]]}))
+    if capstride > 1:
+        ins.append(json.dumps({"capstride": capstride}))
     at = li + 1 if li >= 0 else len(keep)
     keep[at:at] = ins
     return "\n".join(keep) + "\n"
@@ -98,7 +104,7 @@ def ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool) -> str:
 
 def build_working_trace(src: Path, sess_dir: Path, working: Path,
                         cr: tuple[int, int], call_trace: bool,
-                        anchored: bool = False) -> None:
+                        anchored: bool = False, capstride: int = 1) -> None:
     """Distil if raw, localize its save, inject the window ops → write `working`."""
     if raw_header(src):
         base = sess_dir / "recording.trace.jsonl"
@@ -106,4 +112,4 @@ def build_working_trace(src: Path, sess_dir: Path, working: Path,
         text = base.read_text()
     else:
         text = localize_save(src, src.read_text(), sess_dir)
-    working.write_text(ensure_window_ops(text, cr, call_trace))
+    working.write_text(ensure_window_ops(text, cr, call_trace, capstride))

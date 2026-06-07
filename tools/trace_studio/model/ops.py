@@ -40,6 +40,19 @@ def extract_caprange(ops: list[dict]) -> tuple[int, int] | None:
     return None
 
 
+def extract_capstride(ops: list[dict]) -> int:
+    """The trace-global {capstride:N} cadence (D3), or 1 (dense) if absent. >1 means
+    the {caprange} window captures every Nth frame — a coarse OVERVIEW."""
+    for o in ops:
+        if isinstance(o, dict) and "capstride" in o:
+            try:
+                n = int(o["capstride"])
+            except (TypeError, ValueError):
+                return 1
+            return n if n > 1 else 1
+    return 1
+
+
 def extract_calltrace(ops: list[dict]) -> tuple[int, int] | None:
     for o in ops:
         if isinstance(o, dict) and "calltrace" in o:

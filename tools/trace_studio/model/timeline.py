@@ -68,14 +68,22 @@ def find_load_seams(port_firings: list[dict],
 def build_timeline(*, port_firings: list[dict], retail_firings: list[dict],
                    n_frames: int, frame_range: list[int] | None,
                    videos: dict | None, verdict: dict | None,
-                   state: str | None, call_trace: bool) -> list[dict]:
+                   state: str | None, call_trace: bool,
+                   stride: int = 1) -> list[dict]:
     """Build the ordered v2 timeline: the load seam(s) reconstructed from the
-    anchor streams, then one gameplay entry for the captured window."""
+    anchor streams, then one gameplay entry for the captured window.
+
+    `cadence` (= the D3 {capstride}) is the kept-every-Nth-frame stride: 1 for a
+    dense DRILL, >1 for a coarse OVERVIEW. The Phase-4 SPA maps a viewer index v in
+    this entry to the anchor-relative frame `frames[0] + v*cadence` (the same math
+    the CLI drill uses), so the cadence must travel with the segment, not just the
+    manifest."""
     timeline: list[dict] = list(find_load_seams(port_firings, retail_firings))
     fr = list(frame_range) if frame_range else [0, max(0, int(n_frames) - 1)]
     timeline.append({
         "kind": "gameplay", "idx": 0,
         "frames": fr, "n_frames": int(n_frames),
+        "cadence": int(stride) if stride and stride > 1 else 1,
         "videos": dict(videos or {}),
         "verdict": verdict,
         "state": state,

@@ -24,7 +24,8 @@ def cmd_capture(args) -> int:
         port_max_frames=args.port_max_frames, retail_max_frames=args.retail_max_frames,
         remote=args.remote, prune_frames=args.prune_frames,
         reset_trace=args.reset_trace, only=args.only, anchors=args.anchors,
-        suppress_loads=args.suppress_loads, capture_local=args.capture_local))
+        suppress_loads=args.suppress_loads, capture_local=args.capture_local,
+        capstride=args.capstride))
 
 
 def cmd_serve(args) -> int:
@@ -85,8 +86,17 @@ def build_parser() -> argparse.ArgumentParser:
                    help="D1: drop captures during loads so the turbo load span "
                         "collapses to a zero-frame seam (default on; --no-suppress-loads "
                         "to capture load frames). Auto-degrades on a pre-D1 exe.")
-    c.add_argument("--capture-local", action="store_true",
-                   help="D2: exe-side local-disk capture (degrades if the exe lacks it)")
+    c.add_argument("--capture-local", action=argparse.BooleanOptionalAction,
+                   default=True,
+                   help="D2: stage capture on a Windows-LOCAL NTFS dir + parallel "
+                        "BMP→PNG copyback (sub-ms/frame vs ~0.4 s over 9p; default on, "
+                        "--no-capture-local to capture straight over the mount). "
+                        "Auto-degrades to the 9p path when no local root resolves.")
+    c.add_argument("--capstride", type=int, default=1, metavar="N",
+                   help="D3 two-tier cadence: capture every Nth frame of the window "
+                        "(a coarse OVERVIEW for scrubbing a long trace cheaply). "
+                        "1 = dense (default); use a sub-range + N=1 to DRILL. Both "
+                        "targets stride the same anchor-relative kept-set.")
     c.set_defaults(func=cmd_capture)
 
     s = sub.add_parser("serve", help="open the scrubbing editor")
