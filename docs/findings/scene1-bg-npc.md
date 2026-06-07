@@ -105,3 +105,52 @@ unchanged by this and tracked elsewhere.)
   expected to re-emerge later**: the occasional tiny dots seen in port↔retail
   diffs are likely a real (very faint) ambient effect not yet found.  Track it
   when it surfaces; do not re-conflate it with this NPC system.
+
+## Pin robustness + alternatives (2026-06-07)
+
+> Q (user): does the canonical-seed warmup re-run hold up in more complex
+> scenarios, and is it the best way?
+
+**The method.** `scene1_bg_npc_phasepin` re-arms the warmup (clears the 6-record
+SoA + spawn cursor + latch) and latches a re-seed of the shared LCG to canonical
+`SCENE1_BG_NPC_PHASEPIN_SEED = 19937`; the next `scene1_bg_npc_tick()` re-runs the
+real 180× spawn pass from there.  Both sides run their OWN spawn/drift code from
+the identical seed ⇒ **reproducible AND self-validating** (a post-pin mismatch is
+a genuine logic bug, not a phase artifact).
+
+**Where it holds:**
+- **Single free-roam scene — solid.**  The warmup fixes the 6 NPCs'
+  positions/identities deterministically; both sides match at capture.
+
+**Where it needs care:**
+- **It is only as good as the rest of the post-pin stream.**  The NPCs share the
+  ONE global LCG (`scene1-rng-stream-parity.md`) with every other consumer (foot
+  dust, 目玉 sparkle, wing particles).  If ANY co-consumer diverges in count or
+  *within-frame order*, the shared stream desyncs downstream and the NPCs drift
+  again — the warmup pin is **necessary but not sufficient**.  (The 2026-06-07
+  foot-dust divergence was exactly this: a co-consumer's phase shifted the shared
+  stream even with the warmup pinned — engine-quirks §112.)
+- **Multi-scene captures need a pin per scene entry.**  The warmup runs once at
+  scene entry; a shop→town capture needs a `{phasepin}` at each free-roam entry.
+- **Canonical 19937 ≠ the real retail moment.**  The pin yields a
+  reproducible-but-SYNTHETIC layout (great for parity testing — the goal — but not
+  for reproducing a specific gameplay NPC config, e.g. a bug that needs the actual
+  townsfolk arrangement).
+
+**Alternatives, if/when needed:**
+1. **Pin the warmup to retail's LOGGED entry-seed** (the recorder captures the
+   retail LCG at `LOADING_END`) instead of canonical 19937 → reproduces retail's
+   ACTUAL layout and is still 1:1.  More faithful; the cost is threading the
+   logged seed into the warmup re-seed (today it is hardcoded 19937).  Prefer this
+   when faithful reproduction matters, not just parity.
+2. **Snapshot + inject the 6-record SoA** directly (byte-identical start on both
+   sides) → decouples from RNG entirely; the most bulletproof if the warmup ever
+   proves non-deterministic.  More invasive (snapshot/inject on both sides).
+3. **Make the load consume a deterministic RNG count** (root cause) — NOT
+   achievable; loads are genuinely different lengths (the port skips the intro
+   video).  The pin is the pragmatic normalization.
+
+**Verdict:** the warmup-re-run is the right LIGHT, self-validating method for
+PARITY testing within a scene.  Reach for (1) for faithful reproduction, (2) for
+bulletproofing.  Making it one-click from the SPA (an "auto-pin & recapture"
+button over `apply --auto-pin` + `recapture`) is the remaining UX polish.

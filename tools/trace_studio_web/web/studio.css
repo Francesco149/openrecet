@@ -123,3 +123,17 @@
 .diff-bar .spacer { flex: 1; }
 .diff-bar b { color: var(--fg); }
 .diff-bar button { font-size: 11px; padding: 0 .45rem; }
+
+/* RNG/phase-pin cheatsheet (bottom of page) */
+.cheatsheet { margin: 24px 0 40px; border-top: 1px solid #333; padding-top: 8px; }
+.cheatsheet > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.cheat-body { font-size: 13px; line-height: 1.5; max-width: 980px; }
+.cheat-body h4 { margin: 16px 0 4px; color: #9cf; }
+.cheat-body code { background: #1c1c22; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.cheat-body pre { background: #1c1c22; padding: 8px 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+.cheat-body .ok { color: #6c6; font-weight: 600; }
+.cheat-body .warn { color: #db4; font-weight: 600; }
+.cheat-body .bad { color: #e66; font-weight: 600; }
+.cheat-tbl { border-collapse: collapse; width: 100%; margin: 6px 0; }
+.cheat-tbl th, .cheat-tbl td { border: 1px solid #333; padding: 4px 8px; text-align: left; vertical-align: top; }
+.cheat-tbl th { background: #222; }

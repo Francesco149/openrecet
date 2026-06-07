@@ -74,14 +74,16 @@ def cmd_recapture(args) -> int:
 
     from .model import ops as ops_mod
     sess_dir = SESS_ROOT / args.session
-    mf = sess_dir / "session.json"
-    if not mf.exists():
-        raise SystemExit(f"trace_studio: no session {args.session} under {SESS_ROOT}")
-    m = json.loads(mf.read_text())
     working = sess_dir / "edit.trace.jsonl"
     if not working.exists():
         raise SystemExit(f"trace_studio: session {args.session} has no working trace "
                          f"(edit.trace.jsonl) — `capture` it first")
+    # session.json may be MISSING if a prior capture was killed mid-finalize (it is
+    # cleared at capture start and rewritten only at the end). The working trace is
+    # the source of truth for the pins + window, so fall back to defaults rather than
+    # refusing — recapture must survive an interrupted run.
+    mf = sess_dir / "session.json"
+    m = json.loads(mf.read_text()) if mf.exists() else {}
     has_ct = bool(ops_mod.extract_calltrace(ops_mod.load_ops(working)))
     target = args.target or m.get("target", "both")
     print(f"trace_studio: RECAPTURE {args.session} (target={target}, "

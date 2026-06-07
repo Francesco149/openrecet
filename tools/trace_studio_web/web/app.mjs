@@ -16,6 +16,7 @@ import { DiffRibbon } from "/web/components/DiffRibbon.mjs";
 import { DrillBar } from "/web/components/DrillBar.mjs";
 import { TraceEditor } from "/web/components/TraceEditor.mjs";
 import { JobTray } from "/web/components/JobTray.mjs";
+import { CheatSheet } from "/web/components/CheatSheet.mjs";
 import { RecordPanel } from "/web/components/RecordPanel.mjs";
 import { IteratePanel } from "/web/components/IteratePanel.mjs";
 import { MarkBar } from "/web/components/MarkBar.mjs";
@@ -189,6 +190,7 @@ function App() {
         wide, SESS, view, cur, setCur, N, panels, setPendingBox, pendingBox,
         registries, marks, setMarks, manifest, reload, recJob, capJob, pollJobs,
       })}
+      <${CheatSheet} />
     </main>
   </div>`;
 }
