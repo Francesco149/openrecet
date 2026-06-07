@@ -28,6 +28,44 @@ def cmd_capture(args) -> int:
         capstride=args.capstride))
 
 
+def cmd_drill(args) -> int:
+    """DRILL: recapture one sub-window of an OVERVIEW session at DENSE cadence.
+
+    Reads the overview session's working trace + caprange + stride, maps the
+    viewer index `--at` to the anchor-relative frame `caprange.start + at*stride`
+    (the same math the Phase-4 SPA will use), and runs a fresh stride-1 capture of
+    `--span` frames there into a child session. Sourcing from the overview's
+    WORKING trace carries any pins (phasepin/rngseed) the user applied; reset-trace
+    rebuilds a dense working trace (the old caprange/capstride are stripped)."""
+    import json
+
+    sess_dir = SESS_ROOT / args.session
+    mf = sess_dir / "session.json"
+    if not mf.exists():
+        raise SystemExit(f"trace_studio: no session {args.session} under {SESS_ROOT}")
+    m = json.loads(mf.read_text())
+    src = m.get("working_trace") or m.get("source_trace")
+    cr = m.get("caprange")
+    if not src or not cr:
+        raise SystemExit(
+            f"trace_studio: session {args.session} has no working_trace/caprange to drill")
+    stride = int(m.get("stride", 1) or 1)
+    s0, c0 = int(cr[0]), int(cr[1])
+    start = s0 + args.at * stride
+    end = min(start + args.span, s0 + c0)          # clamp to the overview window
+    span = max(1, end - start)
+    child = args.session_out or f"{args.session}-drill-{start}-{span}"
+    print(f"trace_studio: DRILL {args.session} @ viewer idx {args.at} "
+          f"(stride {stride}) → anchor-relative caprange [{start},{span}] dense "
+          f"→ session {child}")
+    return run_capture(CaptureConfig(
+        trace=src, session=child, target=args.target or m.get("target", "both"),
+        call_trace=args.call_trace, caprange=f"{start},{span}", capstride=1,
+        reset_trace=True, remote=args.remote,
+        port_max_frames=args.port_max_frames,
+        retail_max_frames=args.retail_max_frames))
+
+
 def cmd_serve(args) -> int:
     from .server.app import serve
     sess_dir = SESS_ROOT / args.session if args.session else None
@@ -98,6 +136,25 @@ def build_parser() -> argparse.ArgumentParser:
                         "1 = dense (default); use a sub-range + N=1 to DRILL. Both "
                         "targets stride the same anchor-relative kept-set.")
     c.set_defaults(func=cmd_capture)
+
+    d = sub.add_parser("drill", help="recapture one sub-window of an OVERVIEW dense")
+    d.add_argument("session", help="the OVERVIEW session to drill into")
+    d.add_argument("--at", type=int, required=True, metavar="IDX",
+                   help="viewer index in the overview to centre the drill on "
+                        "(→ anchor-relative frame caprange.start + IDX*stride)")
+    d.add_argument("--span", type=int, default=48, metavar="N",
+                   help="dense frames to capture from there (clamped to the "
+                        "overview window end; default 48)")
+    d.add_argument("--session-out", help="child session name "
+                   "(default: <session>-drill-<start>-<span>)")
+    d.add_argument("--target", choices=("both", "openrecet"),
+                   help="default: the overview's target")
+    d.add_argument("--call-trace", action="store_true",
+                   help="capture the flow-trace + verdict (needs a {calltrace} op)")
+    d.add_argument("--remote", default=DEFAULT_REMOTE)
+    d.add_argument("--port-max-frames", type=int, default=4000)
+    d.add_argument("--retail-max-frames", type=int, default=22000)
+    d.set_defaults(func=cmd_drill)
 
     s = sub.add_parser("serve", help="open the scrubbing editor")
     s.add_argument("--session", help="session to open by default")
