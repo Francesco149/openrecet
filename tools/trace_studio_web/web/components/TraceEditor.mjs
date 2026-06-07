@@ -251,14 +251,17 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
       if (f != null) push(s, f);   // input / phasepin / rngseed / esc
     }
     for (const nt of (notes || [])) push(nt.seg, nt.frame);   // 📝 markers
-    const inWin = elFrames.filter(f => f >= start && f <= start + count - 1);
+    const end = start + count - 1;
     return {
-      capIdx, start, count, elFrames,
+      capIdx, start, count,
       lastEl: elFrames.length ? Math.max(...elFrames) : null,
-      // markers OUTSIDE the captured window (replayed but not screenshotted)
-      leaked: elFrames.filter(f => f < start || f > start + count - 1).length,
-      coveredMin: inWin.length ? Math.min(...inWin) : null,
-      coveredMax: inWin.length ? Math.max(...inWin) : null,
+      // markers in the window's FORWARD space [0,∞) but outside [start,end] — i.e.
+      // reachable by growing/sliding. Earlier-segment elements (before the caprange
+      // anchor → negative frames) are excluded: they sit before the window by the
+      // anchor's design, NOT orphaned. This is a WARNING only — never a clamp — so a
+      // divergent/cross-segment trace stays freely editable (the constraint version
+      // mis-pinned the window because a frame-0 input made every slide a no-op).
+      leaked: elFrames.filter(f => f >= 0 && (f < start || f > end)).length,
     };
   })();
 
@@ -268,7 +271,7 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     const next = (editTrace || []).slice();
     const [s, c] = next[capInfo.capIdx].caprange;
     const { ns, nc } = mut(s, c);
-    if (ns === s && nc === c) { toast("clamped — would orphan a covered marker / go invalid", true); return; }
+    if (ns === s && nc === c) { toast("at the edge — start ≥ 0, length ≥ 1", true); return; }
     next[capInfo.capIdx] = { caprange: [ns, nc] };
     const ti = next.findIndex(o => o && "calltrace" in o);
     if (ti >= 0) {
@@ -278,23 +281,12 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     onEdit(next);
   };
 
-  // trace DURATION: move the captured END. GROWING is free (reach the world map);
-  // SHRINKING is min-clamped so it never drops a marker that's currently inside the
-  // window (the "don't silently leak markers when shortening" bound).
-  const bumpDuration = (d) => editCapOp((s, c) => {
-    if (d >= 0) return { ns: s, nc: c + d };
-    const minC = capInfo.coveredMax != null ? Math.max(1, capInfo.coveredMax - s + 1) : 1;
-    return { ns: s, nc: Math.max(minC, c + d) };
-  });
+  // trace DURATION: move the captured END. Validity clamp ONLY (length ≥ 1). Orphaned
+  // markers are the ⚠ warning, never a constraint — a divergent trace must stay editable.
+  const bumpDuration = (d) => editCapOp((s, c) => ({ ns: s, nc: Math.max(1, c + d) }));
 
-  // capture WINDOW: slide the whole window (start+end together, length fixed). Clamped
-  // to start ≥ 0 and so every CURRENTLY-covered marker stays covered:
-  // coveredMax−len+1 ≤ start ≤ coveredMin.
-  const slideWindow = (d) => editCapOp((s, c) => {
-    const loS = capInfo.coveredMax != null ? Math.max(0, capInfo.coveredMax - c + 1) : 0;
-    const hiS = capInfo.coveredMin != null ? Math.max(loS, capInfo.coveredMin) : Number.MAX_SAFE_INTEGER;
-    return { ns: Math.max(loS, Math.min(hiS, Math.max(0, s + d))), nc: c };
-  });
+  // capture WINDOW: slide the whole window (length fixed). Validity clamp ONLY (start ≥ 0).
+  const slideWindow = (d) => editCapOp((s, c) => ({ ns: Math.max(0, s + d), nc: c }));
   const noteMarks = () => (notes || []).map((nt, i) => {
     const x = sideX(((port.bases[nt.seg] || {}).base || 0) + nt.frame, "port");
     return html`<div class="pin note" style="left:${x}px"
