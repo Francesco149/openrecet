@@ -222,47 +222,37 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
   };
   const delNote = (i) => { const n = (notes || []).slice(); n.splice(i, 1); onNotes(n); };
 
-  // ── capture-window editing: trace DURATION (the END/length) + window POSITION
-  // (slide start+end). Bound-checked so shrinking/sliding never orphans an editable
-  // element (input/pin/esc/rngseed/note) outside the captured window. `capInfo`
-  // locates the {caprange} op + the editable-element frame span, all measured in the
-  // caprange anchor's frame space (the segment bases map other segments' frames in,
-  // so a window spanning a load seam is bounded against the world-map inputs too). ──
+  // ── capture-window editing. `capInfo` just locates the {caprange} op; `capEdit`
+  // projects the EDITED window onto the editor timeline + counts forward-leaked markers,
+  // both in editor REL space (port frames from sync — the same space the timeline draws
+  // items + the green captured band `winRel` in), so they stay consistent. The edited
+  // band is anchored to the ACCURATE captured band (winRel) plus the edit deltas, so it
+  // overlays the green band at the captured state and shifts/grows live as you edit. ──
   const capInfo = (() => {
     const ops = editTrace || [];
-    let capIdx = -1, capSeg = 0, seg = 0;
+    let capIdx = -1;
     for (let i = 0; i < ops.length; i++) {
-      const o = ops[i];
-      if (o && "wait" in o) { seg++; continue; }
-      if (o && "caprange" in o && capIdx < 0) { capIdx = i; capSeg = seg; }
+      if (ops[i] && "caprange" in ops[i]) { capIdx = i; break; }
     }
     if (capIdx < 0) return null;
     const [start, count] = ops[capIdx].caprange;
-    const capBase = (port.bases[capSeg] || {}).base || 0;
-    // every editable element's frame in the caprange anchor's space (segment bases
-    // fold later/earlier segments in, so a marker past a load seam is measured too).
-    const elFrames = [];
-    const push = (segIdx, frame) => elFrames.push((((port.bases[segIdx] || {}).base || 0) - capBase) + frame);
-    let s = 0;
-    for (const o of ops) {
-      if (o && "wait" in o) { s++; continue; }
-      if (!o || "caprange" in o || "calltrace" in o || "savefile" in o) continue;
-      const f = opFrame(o);
-      if (f != null) push(s, f);   // input / phasepin / rngseed / esc
-    }
-    for (const nt of (notes || [])) push(nt.seg, nt.frame);   // 📝 markers
-    const end = start + count - 1;
-    return {
-      capIdx, start, count,
-      lastEl: elFrames.length ? Math.max(...elFrames) : null,
-      // markers in the window's FORWARD space [0,∞) but outside [start,end] — i.e.
-      // reachable by growing/sliding. Earlier-segment elements (before the caprange
-      // anchor → negative frames) are excluded: they sit before the window by the
-      // anchor's design, NOT orphaned. This is a WARNING only — never a clamp — so a
-      // divergent/cross-segment trace stays freely editable (the constraint version
-      // mis-pinned the window because a frame-0 input made every slide a no-op).
-      leaked: elFrames.filter(f => f >= 0 && (f < start || f > end)).length,
-    };
+    return { capIdx, start, count };
+  })();
+
+  const capEdit = (() => {
+    if (!capInfo || !winRel) return null;
+    const cap0 = (manifest && manifest.caprange) || [capInfo.start, capInfo.count];
+    const dStart = capInfo.start - cap0[0];
+    const dCount = capInfo.count - cap0[1];
+    const l = winRel[0] + dStart;                 // edited window start edge (rel)
+    const r = winRel[1] + dStart + dCount;        // edited window end edge   (rel)
+    // markers (in rel space) PAST the window END — reachable by growing the duration.
+    // A WARNING only (never a clamp): a divergent/cross-segment trace stays editable.
+    let leaked = 0, lastEl = null;
+    const consider = (rel) => { if (lastEl == null || rel > lastEl) lastEl = rel; if (rel > r) leaked++; };
+    segs.forEach((s, k) => s.items.forEach(it => consider(itemAbs(it, k, port.bases) - port.syncFrame)));
+    (notes || []).forEach(nt => consider((((port.bases[nt.seg] || {}).base || 0) + nt.frame) - port.syncFrame));
+    return { l, r, leaked, lastEl, pending: dStart !== 0 || dCount !== 0 };
   })();
 
   // apply a {caprange} mutation; keep {calltrace} aligned (same start/len deltas).
@@ -406,19 +396,20 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
       <button class=${"seg " + (winOnly ? "on" : "")} onClick=${() => setWinOnly(v => !v)}
         title="limit the view to the captured window">⊞ window-only</button>
       <span class="sep">·</span>
-      ${capInfo ? html`<span class="capctl" title=${`captured-window LENGTH — moves the END; grow to reach the world map (last marker @${capInfo.lastEl ?? "—"}); ⟳ re-capture to apply`}>
+      ${capInfo ? html`<span class="capctl" title="trace DURATION — the captured window's LENGTH (moves the END). The dashed band on the timeline shows it live; ⟳ re-capture to apply.">
           <span class="dim">dur</span>
           ${[-120, -60, -30].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>${d}</button>`)}
           <span class="capnum">${capInfo.count}f</span>
-          ${capInfo.leaked > 0 && html`<span class="capwarn" title=${`${capInfo.leaked} marker(s) outside the window — grow the duration to include them`}>⚠${capInfo.leaked}</span>`}
+          ${capEdit && capEdit.leaked > 0 && html`<span class="capwarn" title=${`${capEdit.leaked} marker(s) past the window END (outside the trace duration) — grow dur to include them`}>⚠${capEdit.leaked}</span>`}
           ${[30, 60, 120].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>+${d}</button>`)}
         </span>
-        <span class="capctl" title="slide the captured window (start+end together); ⟳ re-capture to apply">
+        <span class="capctl" title="capture WINDOW position — slides the whole window (start+end together). The dashed band moves live; ⟳ re-capture to apply.">
           <span class="dim">win</span>
           ${[-30, -10, -1].map(d => html`<button class="seg" onClick=${() => slideWindow(d)} key=${d}>${d}</button>`)}
           <span class="capnum">@${capInfo.start}</span>
           ${[1, 10, 30].map(d => html`<button class="seg" onClick=${() => slideWindow(d)} key=${d}>+${d}</button>`)}
-        </span>`
+        </span>
+        ${capEdit && capEdit.pending && html`<span class="cappend" title="pending window edit — not captured yet">✎ pending</span>`}`
         : html`<span class="dim">no {caprange}</span>`}
       <span class="sep">·</span><span class="dim">add@cursor:</span>
       <button class="seg" onClick=${() => addAtCursor("phasepin")} title="add a phasepin at the cursor">+⟲</button>
@@ -451,6 +442,9 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
         onWheel=${e => { if (e.shiftKey) { e.preventDefault(); scrollRef.current.scrollLeft += e.deltaY; } }}>
         <div class="tl-content" style="width:${contentW}px" onClick=${onRulerClick}>
           ${winRel && html`<div class="tl-window" style="left:${relX(winRel[0])}px;width:${(winRel[1] - winRel[0]) * ppf}px"></div>`}
+          ${capEdit && html`<div class=${"tl-editwin" + (capEdit.pending ? " pending" : "")}
+            style="left:${relX(capEdit.l)}px;width:${Math.max(2, (capEdit.r - capEdit.l) * ppf)}px"
+            title="edited capture window — ⟳ re-capture to apply"></div>`}
           <div class="tl-cursor" style="left:${relX(cursor)}px"></div>
           ${rows.map(([, , side, lanes], i) => html`<div class=${"tl-grp s-" + side} key=${i}>${lanes}</div>`)}
         </div>

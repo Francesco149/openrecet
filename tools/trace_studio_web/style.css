@@ -179,6 +179,12 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
 .tl-window { position: absolute; top: 0; bottom: 0; background: #69d0831a;
   border-left: 1px solid #69d08366; border-right: 1px solid #69d08366;
   pointer-events: none; z-index: 1; }
+/* the EDITED capture window (live preview of the {caprange} edit) — overlays the green
+   captured band; turns amber + dashed once it diverges (a pending, un-captured edit). */
+.tl-editwin { position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 2;
+  border-left: 2px solid #69d083aa; border-right: 2px solid #69d083aa; }
+.tl-editwin.pending { background: #e3b34112;
+  border-left: 2px dashed var(--accent); border-right: 2px dashed var(--accent); }
 /* gutter rows + lane groups MUST render the same total height per row or they drift.
    Both: explicit content height (from the rows array) + a 1px bottom border ON TOP
    (content-box), so row k lines up in both columns. */
