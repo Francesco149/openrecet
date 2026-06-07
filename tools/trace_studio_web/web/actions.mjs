@@ -27,3 +27,17 @@ export function recapture(sess, { only, pollJobs, onDone } = {}) {
     return r;
   });
 }
+
+// Abort the running capture (capture | recapture | drill — the one capture slot).
+// Kills the tracked subprocess AND reaps an orphaned capture a prior server left
+// running (the backend /proc-scan), so a capture stuck across a `serve` restart
+// is still cancellable. Frames already on disk are kept.
+export function cancelCapture({ pollJobs } = {}) {
+  toast("cancelling capture…");
+  return postJSON(`/capture/cancel`, {}).then((r) => {
+    if (!r.ok) { toast("cancel: " + (r.error || "nothing running"), true); return r; }
+    toast("capture cancelled");
+    if (pollJobs) pollJobs();
+    return r;
+  });
+}

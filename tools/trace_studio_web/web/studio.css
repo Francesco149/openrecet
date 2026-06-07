@@ -107,6 +107,11 @@
 .job.bad { color: var(--bad); border-color: #5a1e1e; }
 .job.idle { opacity: .55; }
 .job .dim { color: inherit; opacity: .7; }
+.job-cancel { margin-left: .4rem; padding: 0 .35rem; border-radius: 3px;
+  border: 1px solid currentColor; background: transparent; color: inherit;
+  font: 11px/1.2 ui-monospace, monospace; cursor: pointer; opacity: .8; }
+.job-cancel:hover { background: var(--bad); border-color: var(--bad);
+  color: #fff; opacity: 1; }
 .job-tail { flex: 1 1 100%; font: 11px/1.4 ui-monospace, monospace; opacity: .65;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .spin { display: inline-block; animation: ts-spin 1s linear infinite; }

@@ -166,7 +166,7 @@ function App() {
       <div class="note">trace: ${manifest.working_trace || manifest.trace}
         · caprange ${JSON.stringify(manifest.caprange)}</div>
       ${manifest.capture_error && html`<div class="err-box">⚠ ${manifest.capture_error}</div>`}
-      <${JobTray} status=${jobsStatus} />
+      <${JobTray} status=${jobsStatus} pollJobs=${pollJobs} />
       <${Filmstrip} view=${view} cur=${cur} setCur=${setCur} />
       <${DrillBar} sess=${SESS} view=${view} cur=${cur} />
       <details class="trace-editor-fold" onToggle=${(e) => setEdOpen(e.currentTarget.open)}>

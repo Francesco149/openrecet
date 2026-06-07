@@ -80,6 +80,13 @@ def h_record_stop(h, m, raw):
 
 
 # ── POST: capture / recapture ────────────────────────────────────────────────
+def h_capture_cancel(h, m, raw):
+    # Abort the running capture/recapture/drill (the single capture slot) — the
+    # JobTray ✕. Also reaps an orphaned capture left by a prior server instance.
+    h._send_json(h.server.capturer.cancel())
+
+
+
 def h_capture(h, m, raw):
     d = _json(raw)
     trace = d.get("trace")
@@ -293,6 +300,7 @@ POST_ROUTES = [
     (r"^/record/start$",          h_record_start),
     (r"^/record/stop$",           h_record_stop),
     (r"^/capture$",               h_capture),
+    (r"^/capture/cancel$",        h_capture_cancel),
     (r"^/s/([^/]+)/recapture$",   h_recapture),
     (r"^/s/([^/]+)/drill$",       h_drill),
     (r"^/s/([^/]+)/apply$",       h_apply),

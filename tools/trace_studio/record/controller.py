@@ -22,6 +22,43 @@ from ..paths import ROOT
 from .recover import recover_raw
 
 
+def _argv_is_capture(parts: list[str]) -> bool:
+    """True iff argv is a `trace_studio.py capture …` invocation (the capture
+    subprocess — also covers `recapture`/`drill`, which run as `capture`). The
+    invariant that matters: it must NOT match the `serve` process (whose argv
+    after the script is `serve`), else cancel would kill the studio server."""
+    idx = next((k for k, p in enumerate(parts)
+                if p.endswith("trace_studio.py")), None)
+    return idx is not None and idx + 1 < len(parts) and parts[idx + 1] == "capture"
+
+
+def _orphan_capture_pgids() -> list[int]:
+    """Process groups of `trace_studio.py capture` subprocesses currently alive
+    (Linux /proc scan). Used by CaptureController.cancel() to reap a capture
+    that a PRIOR server instance spawned — its session was started detached
+    (start_new_session=True), so it survives a `serve` restart and the new
+    server holds no handle to it. Returns distinct pgids."""
+    pgids: set[int] = set()
+    proc_root = Path("/proc")
+    if not proc_root.is_dir():
+        return []
+    for pid_dir in proc_root.iterdir():
+        if not pid_dir.name.isdigit():
+            continue
+        try:
+            parts = [p.decode("utf-8", "replace") for p in
+                     (pid_dir / "cmdline").read_bytes().split(b"\0") if p]
+        except (FileNotFoundError, ProcessLookupError, PermissionError, OSError):
+            continue
+        if not _argv_is_capture(parts):
+            continue
+        try:
+            pgids.add(os.getpgid(int(pid_dir.name)))
+        except (ProcessLookupError, PermissionError, ValueError, OSError):
+            pass
+    return sorted(pgids)
+
+
 class RecordController:
     """Owns the `frida_capture.py --record-trace` subprocess driven by the studio
     record panel. Spawns it in its OWN process group so the WHOLE group can be
@@ -254,6 +291,50 @@ class CaptureController:
             return {"running": running, "session": self.session,
                     "elapsed_s": round(time.time() - self.started, 1) if self.started else 0,
                     "last_rc": self.last_rc, "log_tail": tail}
+
+    def cancel(self) -> dict:
+        """User-requested abort of the running capture (the JobTray ✕). Kills the
+        tracked subprocess group, AND reaps any orphaned `trace_studio.py capture`
+        process a prior server instance left running (it's detached, so a `serve`
+        restart can't re-track it — the /proc scan catches it). Graceful SIGTERM
+        first (lets run-openrecet reap the port exe + the Frida agent detach), then
+        SIGKILL survivors. Frames already on disk are kept — only the in-flight
+        drive/analysis stops; re-capture for a clean run.
+
+        Signals OUTSIDE the lock so the /api/jobs poller isn't blocked during the
+        grace window."""
+        with self.lock:
+            pgid = None
+            sess = self.session
+            if self.proc is not None and self.proc.poll() is None:
+                try:
+                    pgid = os.getpgid(self.proc.pid)
+                except (ProcessLookupError, OSError):
+                    pgid = None
+
+        targets = set(_orphan_capture_pgids())
+        if pgid is not None:
+            targets.add(pgid)
+        if not targets:
+            return {"ok": False, "error": "no capture running"}
+
+        def _killpg(pg, sig) -> None:
+            try:
+                os.killpg(pg, sig)
+            except (ProcessLookupError, OSError):
+                pass
+
+        for pg in targets:
+            _killpg(pg, signal.SIGTERM)
+        time.sleep(1.0)                                  # brief grace
+        for pg in targets:
+            _killpg(pg, signal.SIGKILL)
+
+        with self.lock:
+            if self.proc is not None:
+                self.last_rc = self.proc.poll()
+        return {"ok": True, "session": sess,
+                "killed_pgids": sorted(targets)}
 
     def force_cleanup(self) -> None:
         if self._alive():
