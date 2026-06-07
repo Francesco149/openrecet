@@ -62,6 +62,37 @@ def cmd_drill(args) -> int:
         retail_max_frames=args.retail_max_frames))
 
 
+def cmd_recapture(args) -> int:
+    """RECAPTURE: re-drive an EXISTING session from its OWN working trace (carrying
+    any pins you applied), inferring target + call-trace from the session — the
+    tweak→inspect loop. Edit the working trace (or `apply` pins), `recapture
+    <session>`, refresh the SPA. Never rebuilds the working trace (so pins survive);
+    use `capture --reset-trace` to rebuild from the recording. `--only port` re-runs
+    just the port and reuses the cached retail (the fast port-fixing loop); the
+    default re-runs both (a PIN change moves BOTH sides)."""
+    import json
+
+    from .model import ops as ops_mod
+    sess_dir = SESS_ROOT / args.session
+    mf = sess_dir / "session.json"
+    if not mf.exists():
+        raise SystemExit(f"trace_studio: no session {args.session} under {SESS_ROOT}")
+    m = json.loads(mf.read_text())
+    working = sess_dir / "edit.trace.jsonl"
+    if not working.exists():
+        raise SystemExit(f"trace_studio: session {args.session} has no working trace "
+                         f"(edit.trace.jsonl) — `capture` it first")
+    has_ct = bool(ops_mod.extract_calltrace(ops_mod.load_ops(working)))
+    target = args.target or m.get("target", "both")
+    print(f"trace_studio: RECAPTURE {args.session} (target={target}, "
+          f"call_trace={has_ct}, only={args.only}) from {working.name}")
+    return run_capture(CaptureConfig(
+        trace=str(working), session=args.session, target=target,
+        call_trace=has_ct, only=args.only, remote=args.remote,
+        port_max_frames=args.port_max_frames,
+        retail_max_frames=args.retail_max_frames))
+
+
 def cmd_serve(args) -> int:
     from .server.app import serve
     sess_dir = SESS_ROOT / args.session if args.session else None
@@ -154,6 +185,20 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--port-max-frames", type=int, default=4000)
     d.add_argument("--retail-max-frames", type=int, default=22000)
     d.set_defaults(func=cmd_drill)
+
+    r = sub.add_parser("recapture",
+                       help="re-drive an existing session from its working trace (keeps pins)")
+    r.add_argument("session")
+    r.add_argument("--only", choices=("both", "port"), default="both",
+                   help="'port' re-runs only the port + reuses cached retail (fast "
+                        "port-fix loop); 'both' (default) re-runs both (pin changes "
+                        "move BOTH sides)")
+    r.add_argument("--target", choices=("both", "openrecet"),
+                   help="default: the session's stored target")
+    r.add_argument("--remote", default=DEFAULT_REMOTE)
+    r.add_argument("--port-max-frames", type=int, default=4000)
+    r.add_argument("--retail-max-frames", type=int, default=22000)
+    r.set_defaults(func=cmd_recapture)
 
     s = sub.add_parser("serve", help="open the scrubbing editor")
     s.add_argument("--session", help="session to open by default")

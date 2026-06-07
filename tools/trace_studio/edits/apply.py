@@ -42,9 +42,19 @@ def _load_jsonl(p: Path) -> list[dict]:
     return out
 
 
-def _last_wait_idx(lines: list[str]) -> int:
-    """Index of the last `{wait}` op line (the final segment opener), or -1."""
-    last = -1
+def _caprange_seg_wait_idx(lines: list[str]) -> int:
+    """Index of the `{wait}` that OPENS the segment containing the capture window
+    (the first `{caprange}`/`{calltrace}` op) — where the pins belong, since they
+    are numbered relative to THAT segment's anchor (segment_frame = caprange.start
+    + viewer_idx).
+
+    The free-roam-anchored auto-window places `{caprange}` in the first free-roam
+    segment, which is NOT the final segment (a shop-exit trace continues into the
+    town the port can't reach). Inserting after the LAST `{wait}` would number the
+    pins relative to a later scene the capture never reaches → the pin never fires
+    in the window. Falls back to the last `{wait}` when there's no capture op."""
+    last_wait = -1
+    cr_wait = -1
     for i, ln in enumerate(lines):
         s = ln.strip()
         if not s or s.startswith("#"):
@@ -53,9 +63,13 @@ def _last_wait_idx(lines: list[str]) -> int:
             o = json.loads(s)
         except json.JSONDecodeError:
             continue
-        if isinstance(o, dict) and "wait" in o:
-            last = i
-    return last
+        if not isinstance(o, dict):
+            continue
+        if "wait" in o:
+            last_wait = i
+        elif ("caprange" in o or "calltrace" in o) and cr_wait < 0:
+            cr_wait = last_wait      # the most-recent {wait} opens this segment
+    return cr_wait if cr_wait >= 0 else last_wait
 
 
 def apply(sess_dir: Path, trace_override: Path | None = None,
