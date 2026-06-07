@@ -8,9 +8,9 @@ v2 capture, `0a0cf8c` lift record/server/edits). **Phase 3 ✅ landed + verified
 `b8660ca` D2 through export_trace + caps fix, `1ecff91` overview wiring, `a1e2ea1`
 CLI drill, `324debe` retail-harness `{capstride}` forward. Per-segment video split
 + in-browser drill deferred to Phase 4 (the SPA consumes them). **Phase 4 IN PROGRESS
-(S1–S6 ✅ 2026-06-07: the whole server backend + the core scrub viewer, user-confirmed
-UX; S7–S10 remaining — see the Phase 4 block below for the staging table + resume
-notes).** Phase 5 pending. Multi-session rebuild; `/clear` at each phase boundary. This
+(S1–S8 ✅ 2026-06-07: the whole server backend + the core scrub viewer + the side panels
++ in-browser drill, user-confirmed UX & layout; S9–S10 remaining — re-home the trace
+editor, then flip the default + retire the monolith).** Phase 5 pending. Multi-session rebuild; `/clear` at each phase boundary. This
 is the canonical plan — the `~/.claude` plan file is a session-local mirror.
 
 **Phase 3 results (all acceptance criteria met):**
@@ -266,7 +266,7 @@ seams + in-browser click-to-drill (the timeline entry already carries `cadence`,
 the CLI drill localizer `frames[0] + v*cadence` is the canonical math the SPA reuses).
 **`/clear` after.**
 
-### Phase 4 — New SPA  ← IN PROGRESS (S1–S6 landed 2026-06-07)
+### Phase 4 — New SPA  ← IN PROGRESS (S1–S8 landed 2026-06-07)
 Build `web/components/*` on the v2 model (Filmstrip, segment-aware VideoStage, DiffRibbon,
 StatePanel, unified MarkBar, JobTray); serve mark/analyzer registries as JSON; re-home the
 trace editor; retire the `app.mjs`/`timeline.mjs` monolith. **Acceptance**: the full
@@ -307,9 +307,9 @@ the static-asset GET branch serves the new `web/` subtree with no server change.
 | S4 | `model/drill.py` `drill_window()` (CLI + route share it) + `POST /s/<sess>/drill` + `CaptureController.start(extra_args=)` | ✅ `d5bbdf0` |
 | S5 | `studio.html` + `web/model.mjs` (segmented view + `classify` + `useStudioModel`) + composition-only `web/app.mjs` + `SessionPicker` | ✅ `550dfc2` |
 | S6 | `web/components/` Filmstrip + VideoStage (+attachBox box-select) + DiffRibbon + ScrubBar + `web/util.mjs` (toast/copy/fmt) | ✅ `b817f40` — user-confirmed UX (“much better, like the diff scrub”) |
-| **S7** | **StatePanel + unified MarkBar (from `/api/registries`) + JobTray (one poller on `/api/jobs`) + lift Record/Iterate/Verdict** | ⏳ **NEXT** |
-| S8 | in-browser drill UI: Filmstrip “drill segment” (`at=offsetGlobal`, `span=nFrames*cadence`) / “drill at cursor” → `POST /drill` → JobTray → open child | ⏳ |
-| S9 | re-home `timeline.mjs` → `web/components/TraceEditor.mjs` (collapsible advanced panel, wired to the global cursor) + **robustify** the extend/edit/recapture loop; re-run the segments golden | ⏳ |
+| S7 | StatePanel + unified MarkBar (from `/api/registries`) + JobTray (one poller on `/api/jobs`) + lift Record/Iterate/Verdict | ✅ `908c03b` (+ `e8cf44e` polish: fold anchor/feature→note, mark crop-preview thumb, readable link) — user-confirmed |
+| S8 | in-browser drill UI (`DrillBar`) → `POST /drill` (S4 `drill_window`) → JobTray (kind=drill) → open child; **+ responsive panel layout** (1280px matchMedia: wide = videos\|State-sidebar w/ Verdict left-bottom + folded tools; narrow = videos→fold→Verdict\|State) | ✅ `d92fa81` — user-confirmed |
+| S9 | re-home `timeline.mjs` → `web/components/TraceEditor.mjs` (collapsible advanced panel, wired to the global cursor) + **robustify** the extend/edit/recapture loop; re-run the segments golden | ⏳ **NEXT** |
 | S10 | flip the default entry to the SPA; delete legacy `app.mjs`/`timeline.mjs` (+ legacy `/record/status`+`/capture/status` if unreferenced); maintainability check | ⏳ |
 
 **S7 resume notes — lift from the OLD `tools/trace_studio_web/app.mjs`:** `StatePanel`
@@ -322,6 +322,20 @@ the existing `POST /s/<sess>/edits/set` writing the LOCAL ordinal `k` as the mar
 **`JobTray`** polls `GET /api/jobs` through the existing `store.useStatus` hook (it keys its
 interval on `.running`) and replaces the 3 separate pollers; surface a “a capture is already
 running” rejection as a toast. Wire the lifted panels into `web/app.mjs`’s `.panels` grid.
+
+**S8 landed (`d92fa81`) — DrillBar + the responsive layout.** `DrillBar` (under the
+Filmstrip, gated on active-segment `cadence>1`) POSTs `/s/<sess>/drill {at:cur|offsetGlobal,
+span}` — `at` is the 0-based VIEWER INDEX (= the global cursor on a 1-gameplay-segment
+overview); the backend adds `caprange.start + at*stride`. Watches the unified `/api/jobs`
+(jobStatus action-loop) → opens the child on rc 0. **Layout is JS-gated** (`useWide(1280)` /
+`matchMedia`) by a `layout(p)` helper in `app.mjs` that returns an element array: the
+collapsible **`.tools-fold`** ALWAYS holds **mark · record · iterate** (the occasional
+actions); **State + Verdict are the always-on reference**. WIDE = `.workarea` flex row [left
+`.scrub-col` (videos → tools fold → Verdict in `.below-panels`, a flex stack so Verdict fills
+the bottom) | right `.ref-col` 340px, `align-items:stretch` so it's full-height, State `.panel`
+sticky inside]. NARROW = videos → tools fold → `.two-col` (Verdict | State, grid-stretch equal
+height; the `.verdict` 260px cap is lifted in `.two-col` so its body fills). **S9's TraceEditor
+slots into `layout()`** — decide wide (left-column, under the tools fold) vs its own collapsible.
 
 **Dev/test harness (so the next session doesn’t rediscover it):**
 - **Serve:** `nix develop --command python3 tools/trace_studio.py serve --session ov-both
