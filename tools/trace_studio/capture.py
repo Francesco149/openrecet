@@ -65,28 +65,54 @@ def run_capture(cfg: CaptureConfig) -> int:
     want_retail = cfg.target == "both"
     working = sess_dir / "edit.trace.jsonl"
 
+    # The session manifest (loaded once). `source_trace` is the original recording;
+    # on a re-capture `cfg.trace` is the WORKING trace, so the recording — and its
+    # anchors — are found via the manifest, not `src`.
+    old_manifest: dict = {}
+    if (sess_dir / "session.json").exists():
+        try:
+            old_manifest = json.loads((sess_dir / "session.json").read_text())
+        except Exception:                            # noqa: BLE001
+            old_manifest = {}
+
     # ── anchoring (cfg.anchors None = AUTO) ──────────────────────────────────
-    # A raw recording that carries {anchor} rows anchor-segments by default: FLAT
-    # boot-syncing a load-bearing recording lands the {caprange} in the PRE-LOAD
-    # region (e.g. a Continue trace's window stops at the save-picker instead of
-    # reaching the loaded scene). The recorder logged anchors precisely so the
-    # window can target the loaded content; honour them. Explicit --anchors /
-    # --no-anchors override.
-    rec_has_anchors = bool(hdr) and ops.raw_has_anchors(src)
+    # A raw recording that carries {anchor} rows anchor-segments by default. FLAT
+    # boot-syncing a load-bearing recording is wrong two ways: (1) the {caprange}
+    # lands in the PRE-LOAD region (a Continue trace's window stops at the save-
+    # picker), and (2) the INPUTS replay at boot-relative frames, so a walk recorded
+    # at HF+51 fires during the port's (longer, non-deterministic) load and is lost —
+    # the port never reproduces the movement. Anchor-segmenting syncs both the window
+    # and the input replay to the recorded anchors. The recording is `src` on a fresh
+    # capture, else the manifest's source_trace. Explicit --anchors/--no-anchors override.
+    rec = src if hdr else None
+    if rec is None:
+        st = old_manifest.get("source_trace")
+        if st and Path(st).exists() and ops.raw_header(Path(st)):
+            rec = Path(st)
+    rec_has_anchors = rec is not None and ops.raw_has_anchors(rec)
     anchored = cfg.anchors if cfg.anchors is not None else rec_has_anchors
     if cfg.anchors is None and rec_has_anchors:
         _log("auto-anchor: recording carries anchors → anchor-segmented distil "
-             "(FLAT would land the window in the pre-load region; --no-anchors to force)")
+             "(FLAT lands the window in the pre-load region AND desyncs input replay; "
+             "--no-anchors to force)")
 
     # ── working trace: reuse (carries applied pins) unless --reset-trace ──────
     reuse = working.exists() and not cfg.reset_trace
     if reuse and anchored and not any("wait" in o for o in ops.load_ops(working)):
         # A stale FLAT working trace (no {wait}) for an anchored recording has its
-        # window in the wrong place — rebuild rather than silently re-capture the
-        # pre-load. (Re-apply pins if any were set.)
-        _log("re-capture: working trace is FLAT but the recording carries anchors — "
-             "rebuilding anchor-segmented (re-apply pins if needed; --no-anchors to keep FLAT)")
-        reuse = False
+        # window in the wrong place AND replays inputs boot-relative — rebuild it
+        # anchor-segmented FROM THE RECORDING. (Re-apply pins if any were set.) This
+        # is what self-heals a session recorded/distilled before auto-anchor: the SPA
+        # re-capture passes the FLAT working trace, but we rebuild from source_trace.
+        if rec is not None:
+            _log("re-capture: working trace is FLAT but the recording carries anchors "
+                 f"— rebuilding anchor-segmented from {rec.name} "
+                 "(re-apply pins if needed; --no-anchors to keep FLAT)")
+            src, hdr = rec, ops.raw_header(rec)
+            reuse = False
+        else:
+            _log("re-capture: FLAT working trace + no source recording to rebuild from "
+                 "— reusing FLAT (re-capture from the recording to anchor)")
     if reuse:
         _log(f"re-capture: reusing working trace {working.name} (with applied pins)")
     else:
@@ -134,12 +160,7 @@ def run_capture(cfg: CaptureConfig) -> int:
              "cmd.exe) — capturing straight over the 9p mount")
 
     # ── per-side recapture (--only port reuses cached retail) ────────────────
-    old_manifest: dict = {}
-    if (sess_dir / "session.json").exists():
-        try:
-            old_manifest = json.loads((sess_dir / "session.json").read_text())
-        except Exception:                            # noqa: BLE001
-            old_manifest = {}
+    # (old_manifest already loaded above for the anchoring decision)
     run_port = cfg.only in ("both", "port")
     run_retail = want_retail and cfg.only in ("both", "retail")
     keep_retail = want_retail and not run_retail     # reuse existing retail outputs
