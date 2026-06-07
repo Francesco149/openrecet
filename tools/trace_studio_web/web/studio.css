@@ -1,0 +1,17 @@
+/* web/studio.css — styles for the v2 SPA, layered on /style.css.
+   Components added per phase (Filmstrip S6, DiffRibbon S6, JobTray S7, …). */
+
+/* ── S5: model-dump skeleton ───────────────────────────────────────────────── */
+.seg-dump { font: 12px/1.6 ui-monospace, monospace; background: #0d1117;
+  border: 1px solid #30363d; border-radius: 6px; padding: .6rem .8rem; margin: .6rem 0;
+  overflow-x: auto; color: #c9d1d9; }
+.seg-dump > div { white-space: pre-wrap; }
+.seg-dump .k { color: #79c0ff; }
+.seg-dump .seam { color: #d29922; }
+.seg-dump .game { color: #7ee787; }
+.badge { display: inline-block; padding: 0 .4em; border-radius: 4px; font-size: 11px;
+  margin-left: .4em; }
+.badge.green { background: #1a4d2e; color: #7ee787; }
+.badge.amber { background: #5a4500; color: #f0c674; }
+.badge.red   { background: #5a1e1e; color: #ffa198; }
+.badge.gray  { background: #21262d; color: #8b949e; }
