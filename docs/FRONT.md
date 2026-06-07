@@ -8,6 +8,19 @@
 - **Phase:** Foundation for frame-by-frame 1:1 parity (plan: `plans/` — render-parity
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
+- **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`, 2026-06-07).** Port the
+  shop-exit → town-map transition + the town-map scene (the port stops dead at
+  `HOUSE_FREEROAM`; the exit is an INGAME mode change via the fade manager `FUN_00453384`
+  / scene-loader `FUN_0045281c` — unported). **Ground truth captured:**
+  `runs/trace-studio/town-map-anchorfix/` = 130 retail TOWN-MAP frames + `retail/call_trace.jsonl`
+  (town map only; the transition frames still need a wider window — Phase 0). Start at the
+  plan's Phase 0 (RE the transition + scene). **Two trace-capture tooling fixes landed
+  getting here (both verified):** (1) `787cc51` — `trace_save.resolve_save` accepts a raw
+  `.save.bin` ref, not just a `.sav.gz` blob (recorded traces embed the raw save; the retail
+  drive crashed `BadGzipFile`). (2) `f3a70b3` — a recording that carries `{anchor}` rows now
+  **auto-anchor-segments** (`cfg.anchors None`=auto); FLAT boot-syncing a Continue/load trace
+  landed the `{caprange}` in the pre-load region (it "stopped after pressing Z on the save
+  file" / the save-picker) instead of the loaded scene.
 - **Tooling — Trace Studio v2 (plan `plans/trace-studio-v2.md`):** Phase 0/1/2/3 ✅.
   Package `tools/trace_studio/` (model/drive/transport/analysis/edits/record/server +
   cli; `trace_studio.py` thin launcher); captures write a **v2 segmented
