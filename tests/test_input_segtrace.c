@@ -405,3 +405,35 @@ int test_segtrace_no_savefile_clears_flag(void)
     input_segtrace_free(&st);
     return 0;
 }
+
+int test_segtrace_capstride_parses_trace_global(void)
+{
+    /* {capstride:N} (D3) is trace-global like {savefile}: parsed into st.capstride,
+     * not a segment-breaking op, and composes with a {caprange} (the overview
+     * shape). The actual every-Nth-frame thinning lives in main.c's
+     * capture_in_range (not host-reachable); this guards the parse + storage. */
+    const char buf[] =
+        "{\"capstride\":8}\n"
+        "{\"wait\":\"LOADING_END\"}\n"
+        "{\"caprange\":[120,240]}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.has_capstride, 1);
+    T_ASSERT_EQ_U(st.capstride, 8);
+    /* capstride is not a wait → boot seg + post-anchor seg (the caprange's). */
+    T_ASSERT_EQ_U(st.n_segs, 2);
+    T_ASSERT_EQ_U(st.segs[1].n_capranges, 1);
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_no_capstride_clears_flag(void)
+{
+    const char buf[] = "{\"caprange\":[0,48]}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.has_capstride, 0);   /* dense default: treat as stride 1 */
+    input_segtrace_free(&st);
+    return 0;
+}

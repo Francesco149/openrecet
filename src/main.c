@@ -836,10 +836,20 @@ static int             g_capture_frames_count    = 0;
  * "no range".  Multiple ops widen to cover the union (min lo, max hi). */
 static uint32_t        g_capture_range_lo        = 0;
 static uint32_t        g_capture_range_hi        = 0;   /* half-open; hi<=lo = off */
+/* Two-tier capture cadence (Trace Studio v2 D3): a {capstride:N} trace-global op
+ * makes the range capture only every Nth frame from g_capture_range_lo (an
+ * OVERVIEW); 1 = every frame (the dense DRILL default). Set once from the segtrace
+ * after load. Measured anchor-relative so the Frida agent (which strides its own
+ * pending fill) keeps the identical kept-set → port/retail stay ordinal-paired. */
+static uint32_t        g_capture_stride          = 1;
 
 static int capture_range_active(void) { return g_capture_range_hi > g_capture_range_lo; }
 static int capture_in_range(uint32_t f) {
-    return capture_range_active() && f >= g_capture_range_lo && f < g_capture_range_hi;
+    if (!capture_range_active() || f < g_capture_range_lo || f >= g_capture_range_hi)
+        return 0;
+    if (g_capture_stride > 1)
+        return ((f - g_capture_range_lo) % g_capture_stride) == 0;
+    return 1;
 }
 
 /* --capture-at-anchor NAME[+k|-k]: schedule a capture at frame
@@ -1780,6 +1790,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             /* {caprange:[S,C]} ops open a contiguous capture window for the
              * frame-by-frame trace export (export_trace.py). */
             input_segtrace_set_caprange_cb(&g_segtrace, segtrace_caprange_cb, NULL);
+            /* {capstride:N} (trace-global, D3) thins the caprange to every Nth
+             * frame from the window start — a coarse OVERVIEW capture. Known at
+             * load time (no callback needed); capture_in_range applies it. */
+            g_capture_stride = (g_segtrace.has_capstride && g_segtrace.capstride > 1)
+                                   ? g_segtrace.capstride : 1;
+            if (g_capture_stride > 1)
+                fprintf(stderr, "openrecet: capture stride = %u (overview)\n",
+                        (unsigned)g_capture_stride);
             /* Engage d3d-trace windowed mode now (silent until the caprange op
              * resolves the window) so --d3d-trace over a segtrace doesn't dump
              * every frame from boot. */

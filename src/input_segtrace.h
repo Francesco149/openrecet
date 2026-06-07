@@ -29,6 +29,18 @@
  *                        separate caprange callback that drives a lo/hi window
  *                        test in the host (NOT the bounded capture list), so a
  *                        single op can span hundreds of frames.
+ *   {"capstride":N}      two-tier capture cadence (Trace Studio v2 D3): within a
+ *                        {caprange} window, capture only every Nth frame measured
+ *                        from the window start — base+S, base+S+N, base+S+2N, …
+ *                        Lets a LONG trace be scrubbed cheaply at a coarse stride
+ *                        (an OVERVIEW); a dense {caprange} (N=1, the default) stays
+ *                        a superset (the DRILL).  Because the stride is measured
+ *                        anchor-relative on BOTH targets (the Frida agent strides
+ *                        its g_capture_pending fill identically), the port and
+ *                        retail keep the identical kept-set, ordinal-paired.
+ *                        Trace-global (last declaration wins), NOT segment-scoped —
+ *                        it gates ONLY caprange membership; explicit {capture}
+ *                        points always capture.  N<=1 means every frame.
  *   {"esc":N}            synthesise an ESC keypress at frame base+N (fires once,
  *                        before that frame's sim) by routing to the engine's
  *                        real esc_pressed() dispatch — so a recorded
@@ -176,6 +188,16 @@ struct input_segtrace {
      * ref is inspectable/loggable. `has_savefile` is 0 when no op was seen. */
     char     savefile[256];
     int      has_savefile;
+
+    /* Optional two-tier capture cadence, from a `{"capstride":N}` op (Trace
+     * Studio v2 D3). Trace-global (last declaration wins). When >1, a {caprange}
+     * window captures only every Nth frame from its start (base+S, base+S+N, …) —
+     * a coarse OVERVIEW. The host (main.c) applies it to its lo/hi range test; the
+     * Frida agent strides its capture-pending fill the same way, so both targets
+     * keep the identical anchor-relative kept-set. `has_capstride` is 0 when no op
+     * was seen; `capstride` is then unset (treat as 1 = every frame). */
+    uint32_t capstride;
+    int      has_capstride;
 
     /* Runtime state (advanced by input_segtrace_tick). */
     int      started;

@@ -232,12 +232,12 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         int      got_frame = 0, got_mask = 0, got_wait = 0, got_capture = 0;
         int      got_calltrace = 0, got_setrng = 0, got_caprange = 0;
         int      got_esc = 0, got_gframe = 0, got_phasepin = 0;
-        int      got_savefile = 0;
+        int      got_savefile = 0, got_capstride = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
         uint32_t ct_start = 0, ct_len = 0;
         uint32_t cr_start = 0, cr_count = 0;
         uint32_t rng_frame = 0, rng_value = 0, esc_frame = 0;
-        uint32_t gf_frame = 0, gf_value = 0, pp_frame = 0;
+        uint32_t gf_frame = 0, gf_value = 0, pp_frame = 0, capstride_val = 0;
         char     waitname[24] = {0};
         char     savepath[256] = {0};
 
@@ -360,6 +360,12 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                  * the Python harness decompresses + drives --save-override. */
                 if (!parse_string(&p, end, savepath, sizeof savepath)) return 0;
                 got_savefile = 1;
+            } else if (klen == 9 && memcmp(ks, "capstride", 9) == 0) {
+                /* {capstride:N} — trace-global two-tier capture cadence (D3).
+                 * Scalar (like {phasepin}); modifies {caprange} membership to
+                 * every Nth frame from the window start. Last declaration wins. */
+                if (!parse_number(&p, end, &capstride_val)) return 0;
+                got_capstride = 1;
             } else {
                 return 0;  /* unknown key */
             }
@@ -395,6 +401,10 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             /* Trace-global: last declaration wins. Not segment-scoped. */
             memcpy(out->savefile, savepath, sizeof out->savefile);
             out->has_savefile = 1;
+        } else if (got_capstride) {
+            /* Trace-global: last declaration wins. Not segment-scoped. */
+            out->capstride = capstride_val;
+            out->has_capstride = 1;
         } else {
             if (!got_frame || !got_mask || mask > 0xffffu) return 0;
             if (!push_entry(cur, frame, (uint16_t)mask)) return 0;
