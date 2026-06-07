@@ -81,6 +81,14 @@
 .trace-editor-fold[open] > summary { margin-bottom: .35rem; }
 .tl-bar .seg.recap { opacity: 1; border-color: var(--accent); color: var(--accent); }
 .tl-bar .seg.recap:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+/* capture-window controls (trace duration + window position) */
+.capctl { display: inline-flex; align-items: center; gap: .12rem; }
+.capctl .dim { margin-right: .15rem; font-size: 11px; }
+.capctl .seg { padding: .05rem .3rem; min-width: 1.6rem; }
+.capnum { min-width: 2.6rem; text-align: center; font: 12px/1.4 ui-monospace, monospace;
+  color: var(--accent); padding: 0 .2rem; }
+.capwarn { font: 11px/1.4 ui-monospace, monospace; color: var(--bad);
+  cursor: help; margin: 0 .1rem; }
 
 /* ── S8: DrillBar (densify a strided overview sub-window in-browser) ────────── */
 .drillbar { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem;

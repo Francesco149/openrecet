@@ -222,19 +222,79 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
   };
   const delNote = (i) => { const n = (notes || []).slice(); n.splice(i, 1); onNotes(n); };
 
-  // extend the captured window so you can synthetically add inputs at the end
-  const extendTrace = () => {
-    const n = parseInt(prompt("extend the captured window by how many frames?", "120"), 10);
-    if (!n || n <= 0) return;
+  // ── capture-window editing: trace DURATION (the END/length) + window POSITION
+  // (slide start+end). Bound-checked so shrinking/sliding never orphans an editable
+  // element (input/pin/esc/rngseed/note) outside the captured window. `capInfo`
+  // locates the {caprange} op + the editable-element frame span, all measured in the
+  // caprange anchor's frame space (the segment bases map other segments' frames in,
+  // so a window spanning a load seam is bounded against the world-map inputs too). ──
+  const capInfo = (() => {
+    const ops = editTrace || [];
+    let capIdx = -1, capSeg = 0, seg = 0;
+    for (let i = 0; i < ops.length; i++) {
+      const o = ops[i];
+      if (o && "wait" in o) { seg++; continue; }
+      if (o && "caprange" in o && capIdx < 0) { capIdx = i; capSeg = seg; }
+    }
+    if (capIdx < 0) return null;
+    const [start, count] = ops[capIdx].caprange;
+    const capBase = (port.bases[capSeg] || {}).base || 0;
+    // every editable element's frame in the caprange anchor's space (segment bases
+    // fold later/earlier segments in, so a marker past a load seam is measured too).
+    const elFrames = [];
+    const push = (segIdx, frame) => elFrames.push((((port.bases[segIdx] || {}).base || 0) - capBase) + frame);
+    let s = 0;
+    for (const o of ops) {
+      if (o && "wait" in o) { s++; continue; }
+      if (!o || "caprange" in o || "calltrace" in o || "savefile" in o) continue;
+      const f = opFrame(o);
+      if (f != null) push(s, f);   // input / phasepin / rngseed / esc
+    }
+    for (const nt of (notes || [])) push(nt.seg, nt.frame);   // 📝 markers
+    const inWin = elFrames.filter(f => f >= start && f <= start + count - 1);
+    return {
+      capIdx, start, count, elFrames,
+      lastEl: elFrames.length ? Math.max(...elFrames) : null,
+      // markers OUTSIDE the captured window (replayed but not screenshotted)
+      leaked: elFrames.filter(f => f < start || f > start + count - 1).length,
+      coveredMin: inWin.length ? Math.min(...inWin) : null,
+      coveredMax: inWin.length ? Math.max(...inWin) : null,
+    };
+  })();
+
+  // apply a {caprange} mutation; keep {calltrace} aligned (same start/len deltas).
+  const editCapOp = (mut) => {
+    if (!capInfo) { toast("this trace has no {caprange} to edit", true); return; }
     const next = (editTrace || []).slice();
-    const ci = next.findIndex(o => o && "caprange" in o);
-    if (ci < 0) { toast("this trace has no {caprange} to extend", true); return; }
-    const [s, c] = next[ci].caprange; next[ci] = { caprange: [s, c + n] };
+    const [s, c] = next[capInfo.capIdx].caprange;
+    const { ns, nc } = mut(s, c);
+    if (ns === s && nc === c) { toast("clamped — would orphan a covered marker / go invalid", true); return; }
+    next[capInfo.capIdx] = { caprange: [ns, nc] };
     const ti = next.findIndex(o => o && "calltrace" in o);
-    if (ti >= 0) { const [cs, cc] = next[ti].calltrace; next[ti] = { calltrace: [cs, cc + n] }; }
+    if (ti >= 0) {
+      const [cs, cc] = next[ti].calltrace;
+      next[ti] = { calltrace: [Math.max(0, cs + (ns - s)), Math.max(1, cc + (nc - c))] };
+    }
     onEdit(next);
-    toast(`extended window +${n}f — add inputs, then ⟳ re-capture`);
   };
+
+  // trace DURATION: move the captured END. GROWING is free (reach the world map);
+  // SHRINKING is min-clamped so it never drops a marker that's currently inside the
+  // window (the "don't silently leak markers when shortening" bound).
+  const bumpDuration = (d) => editCapOp((s, c) => {
+    if (d >= 0) return { ns: s, nc: c + d };
+    const minC = capInfo.coveredMax != null ? Math.max(1, capInfo.coveredMax - s + 1) : 1;
+    return { ns: s, nc: Math.max(minC, c + d) };
+  });
+
+  // capture WINDOW: slide the whole window (start+end together, length fixed). Clamped
+  // to start ≥ 0 and so every CURRENTLY-covered marker stays covered:
+  // coveredMax−len+1 ≤ start ≤ coveredMin.
+  const slideWindow = (d) => editCapOp((s, c) => {
+    const loS = capInfo.coveredMax != null ? Math.max(0, capInfo.coveredMax - c + 1) : 0;
+    const hiS = capInfo.coveredMin != null ? Math.max(loS, capInfo.coveredMin) : Number.MAX_SAFE_INTEGER;
+    return { ns: Math.max(loS, Math.min(hiS, Math.max(0, s + d))), nc: c };
+  });
   const noteMarks = () => (notes || []).map((nt, i) => {
     const x = sideX(((port.bases[nt.seg] || {}).base || 0) + nt.frame, "port");
     return html`<div class="pin note" style="left:${x}px"
@@ -353,7 +413,21 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
       <span class="sep">·</span>
       <button class=${"seg " + (winOnly ? "on" : "")} onClick=${() => setWinOnly(v => !v)}
         title="limit the view to the captured window">⊞ window-only</button>
-      <button class="seg" onClick=${extendTrace} title="extend the captured window to add inputs at the end (then re-capture)">⇥ extend</button>
+      <span class="sep">·</span>
+      ${capInfo ? html`<span class="capctl" title=${`captured-window LENGTH — moves the END; grow to reach the world map (last marker @${capInfo.lastEl ?? "—"}); ⟳ re-capture to apply`}>
+          <span class="dim">dur</span>
+          ${[-120, -60, -30].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>${d}</button>`)}
+          <span class="capnum">${capInfo.count}f</span>
+          ${capInfo.leaked > 0 && html`<span class="capwarn" title=${`${capInfo.leaked} marker(s) outside the window — grow the duration to include them`}>⚠${capInfo.leaked}</span>`}
+          ${[30, 60, 120].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>+${d}</button>`)}
+        </span>
+        <span class="capctl" title="slide the captured window (start+end together); ⟳ re-capture to apply">
+          <span class="dim">win</span>
+          ${[-30, -10, -1].map(d => html`<button class="seg" onClick=${() => slideWindow(d)} key=${d}>${d}</button>`)}
+          <span class="capnum">@${capInfo.start}</span>
+          ${[1, 10, 30].map(d => html`<button class="seg" onClick=${() => slideWindow(d)} key=${d}>+${d}</button>`)}
+        </span>`
+        : html`<span class="dim">no {caprange}</span>`}
       <span class="sep">·</span><span class="dim">add@cursor:</span>
       <button class="seg" onClick=${() => addAtCursor("phasepin")} title="add a phasepin at the cursor">+⟲</button>
       <button class="seg" onClick=${() => addAtCursor("rngseed")} title="add an rngseed at the cursor">+🎲</button>
