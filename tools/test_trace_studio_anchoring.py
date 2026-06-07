@@ -46,11 +46,13 @@ def main() -> int:
         anchored = cfg_anchors if cfg_anchors is not None else (
             ops.raw_header(rec) is not None and ops.raw_has_anchors(rec))
         assert anchored is True, "auto did not anchor a recording-with-anchors"
-        # the anchored window must base on the FIRST FREE-ROAM entry (HOUSE_FREEROAM=200,
-        # port-reachable) → span 500-200+90=390 — NOT the LAST anchor (town LOADING_END=
-        # 460 → span 130, which the port can't reach → it'd capture 0).
+        # the anchored window bases on the FIRST FREE-ROAM entry (HOUSE_FREEROAM=200,
+        # port-reachable) and spans only the COMPARABLE segment — up to a beat past the
+        # next scene-change (LOADING_START=425 → end 455 → span 455-200=255). NOT the
+        # whole recording (would pile up port stuck-at-door frames) and NOT the LAST
+        # anchor (town, port-unreachable → capture 0).
         w_anch = ops.raw_default_window(rec, anchored=True)
-        assert w_anch == (0, 390), f"anchored window not based on HOUSE_FREEROAM: {w_anch}"
+        assert w_anch == (0, 255), f"anchored window not the HF→scene-change segment: {w_anch}"
         assert ops.raw_default_window(rec, anchored=False) == (0, 590), "flat window wrong"
         # the window is placed after the FIRST LOADING_END {wait} (= the HF entry)
         distilled = "\n".join([

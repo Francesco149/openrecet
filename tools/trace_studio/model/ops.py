@@ -121,10 +121,23 @@ def raw_default_window(path: Path, anchored: bool = False) -> tuple[int, int] | 
     if not frames:
         return None
     base = 0
+    end = max(frames) + 90          # default: through the recording's end
     if anchored and anchor_rows:
         freeroam = [f for n, f in anchor_rows if n in FREEROAM_ANCHORS]
-        base = freeroam[0] if freeroam else max(f for _, f in anchor_rows)
-    return (0, max(1, max(frames) - base + 90))
+        if freeroam:
+            base = freeroam[0]
+            # Span only the COMPARABLE free-roam segment: stop a beat after the NEXT
+            # scene-change (LOADING_START) past the free-roam entry. Beyond it the port
+            # (which can't follow the transition into the next, unported scene yet) and
+            # retail diverge — capturing further just piles up port stuck-at-door frames
+            # (a huge kept-count mismatch + a slow capture). Capture the town separately
+            # once it's ported (it'll have its own free-roam anchor).
+            nxt = [f for n, f in anchor_rows if n == "LOADING_START" and f > base]
+            if nxt:
+                end = nxt[0] + 30
+        else:
+            base = max(f for _, f in anchor_rows)
+    return (0, max(1, end - base))
 
 
 def first_freeroam_wait(text: str) -> str | None:
