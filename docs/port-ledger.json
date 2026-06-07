@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 367,
-  "unported": 2097,
+  "ported": 374,
+  "unported": 2090,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 451,
-  "pct_touched": 17.7,
+  "touched": 458,
+  "pct_touched": 18.0,
   "pct_verified": 2.7,
   "port_debt": 15
  },
@@ -2741,6 +2741,8 @@
    "src": [
     "src/scene1_display_menu.c",
     "src/scene_title.c",
+    "src/scene_worldmap.c",
+    "src/sim.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
    ]
@@ -2938,6 +2940,7 @@
     "src/scene1_spawn.c",
     "src/scene1_spawn.h",
     "src/scene1_walker_pass_init.h",
+    "src/scene_worldmap.c",
     "src/stage_palette.h",
     "src/worker_load.h"
    ]
@@ -3391,8 +3394,10 @@
    "size": 63,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_worldmap.c"
+   ]
   },
   {
    "va": "0x44ba6b",
@@ -3429,8 +3434,10 @@
    "size": 28,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_worldmap.c"
+   ]
   },
   {
    "va": "0x44bd03",
@@ -4593,8 +4600,10 @@
    "size": 15,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_worldmap.c"
+   ]
   },
   {
    "va": "0x45e028",
@@ -4631,8 +4640,10 @@
    "size": 15,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_worldmap.c"
+   ]
   },
   {
    "va": "0x45e1a5",
@@ -4680,8 +4691,10 @@
    "size": 15,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_worldmap.c"
+   ]
   },
   {
    "va": "0x45e3dc",
@@ -5406,7 +5419,8 @@
    "src": [
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
-    "src/scene1_player_ctrl.c"
+    "src/scene1_player_ctrl.c",
+    "src/scene_worldmap.c"
    ]
   },
   {
@@ -6619,8 +6633,10 @@
    "size": 9,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_worldmap.c"
+   ]
   },
   {
    "va": "0x473618",
@@ -8859,7 +8875,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene.h"
+    "src/scene.h",
+    "src/scene_worldmap.c"
    ]
   },
   {
@@ -10046,8 +10063,10 @@
    "size": 409,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_worldmap.c"
+   ]
   },
   {
    "va": "0x49e163",

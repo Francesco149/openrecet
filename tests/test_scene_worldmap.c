@@ -13,6 +13,10 @@
 #include "worker_load.h"
 #include "save_work.h"
 #include "save_bank.h"   /* SAVE_BANK_FIELD_CARD_DAY / _CLOCK_TARGET */
+#include "sim.h"              /* g_sim_buttons — drive the mode-8 sim input */
+#include "fade.h"             /* fade_reset/_tick — wind the exit dissolve */
+#include "scene.h"            /* g_scene_state — observe the dest transition */
+#include "title_save_dialog.h"/* cursor reset + position read-back */
 
 /* Working-arena field locations FUN_0049de20 reads (base DAT_044e3798,
  * working slot 0). Mirror the (static) WM_* offsets in scene_worldmap.c. */
@@ -342,5 +346,115 @@ int test_scene_worldmap_sel_dest_roundtrip(void)
     T_ASSERT_EQ_I(scene_worldmap_sel_dest(), 3);
     scene_worldmap_reset();
     T_ASSERT_EQ_I(scene_worldmap_sel_dest(), 0);   /* reset clears it */
+    return 0;
+}
+
+/* ─── FUN_0049e163 sim — entry timer + 3×5 cursor nav + Z-select ────────── */
+
+/* Build the dest model (flag_a=1 = tutorial gate → dest 3 Market enabled,
+ * rest disabled), select `sel`, clean the shared cursor + fade/worker state,
+ * enter mode 8, and wind the entry timer past 10 so input is accepted. */
+static void wm_sim_ready(int sel)
+{
+    wm_init_with(/*flag_a=*/1, 0, 0, /*day=*/1, /*tod=*/2);
+    scene_worldmap_set_sel_dest(sel);     /* FUN_0049de0e */
+    title_save_dialog_reset();
+    fade_reset();
+    worker_load_reset();
+    g_scene_state = SCENE_STATE_WORLDMAP;  /* mode 8 */
+    g_sim_buttons[0].held    = 0;
+    g_sim_buttons[0].pressed = 0;
+    /* 11 no-input ticks → entry timer 11 (> 10): the 12th tick accepts input. */
+    for (int i = 0; i < 11; i++) scene_worldmap_sim();
+}
+
+/* One input tick: set held/pressed, run the sim once, return the new sel. */
+static int wm_sim_press(uint16_t held, uint16_t pressed)
+{
+    g_sim_buttons[0].held    = held;
+    g_sim_buttons[0].pressed = pressed;
+    scene_worldmap_sim();
+    return scene_worldmap_sel_dest();
+}
+
+/* The 3×5 grid puts dest 2 at (col 1,row 2); its four neighbours are
+ * Up→5, Down→0, Left→1, Right→3 (button bits 0x04/0x08/0x02/0x01). The nav
+ * reads the held mask (DAT_073dddd6). */
+int test_scene_worldmap_nav_up_from_center(void)
+{
+    wm_sim_ready(2);
+    T_ASSERT_EQ_I(wm_sim_press(0x04, 0), 5);   /* Up → center-upper */
+    return 0;
+}
+int test_scene_worldmap_nav_down_from_center(void)
+{
+    wm_sim_ready(2);
+    T_ASSERT_EQ_I(wm_sim_press(0x08, 0), 0);   /* Down → shop/home */
+    return 0;
+}
+int test_scene_worldmap_nav_left_from_center(void)
+{
+    wm_sim_ready(2);
+    T_ASSERT_EQ_I(wm_sim_press(0x02, 0), 1);   /* Left → left node */
+    return 0;
+}
+int test_scene_worldmap_nav_right_from_center(void)
+{
+    wm_sim_ready(2);
+    T_ASSERT_EQ_I(wm_sim_press(0x01, 0), 3);   /* Right → Market */
+    return 0;
+}
+
+/* No direction held → selection holds. */
+int test_scene_worldmap_nav_no_input_holds(void)
+{
+    wm_sim_ready(2);
+    T_ASSERT_EQ_I(wm_sim_press(0, 0), 2);
+    return 0;
+}
+
+/* The entry timer gates input: a direction pressed before timer > 10 is
+ * ignored (the map is still easing in). */
+int test_scene_worldmap_entry_timer_gates_input(void)
+{
+    wm_init_with(1, 0, 0, 1, 2);
+    scene_worldmap_set_sel_dest(2);
+    title_save_dialog_reset();
+    g_scene_state = SCENE_STATE_WORLDMAP;
+    g_sim_buttons[0].held = 0; g_sim_buttons[0].pressed = 0;
+    for (int i = 0; i < 3; i++) scene_worldmap_sim();   /* timer → 3 (< 10) */
+    T_ASSERT_EQ_I(wm_sim_press(0x01, 0), 2);            /* Right ignored */
+    return 0;
+}
+
+/* Z on a DISABLED destination (dest 2 is state 0 in the tutorial gate) plays
+ * the denied SE and does NOT arm the exit — the scene stays mode 8 even after
+ * winding what would be the fade. */
+int test_scene_worldmap_z_disabled_no_exit(void)
+{
+    wm_sim_ready(2);
+    (void)wm_sim_press(0, 0x10);                 /* Z on disabled dest */
+    T_ASSERT_EQ_I(g_scene_state, SCENE_STATE_WORLDMAP);
+    for (int i = 0; i < 25; i++) { fade_tick(); scene_worldmap_sim(); }
+    T_ASSERT_EQ_I(g_scene_state, SCENE_STATE_WORLDMAP);  /* never transitions */
+    return 0;
+}
+
+/* Z on an ENABLED destination (dest 3 Market, state 2) arms the dissolve fade;
+ * the scene holds mode 8 through the fade, then transitions to the dest's mode
+ * (Market → 6). Exercises the exit state machine + the dest→mode table. */
+int test_scene_worldmap_z_enabled_transitions_to_dest_mode(void)
+{
+    wm_sim_ready(3);
+    (void)wm_sim_press(0, 0x10);                 /* Z on Market → arm exit */
+    T_ASSERT_EQ_I(g_scene_state, SCENE_STATE_WORLDMAP);  /* still fading */
+    g_sim_buttons[0].pressed = 0;
+    int transitioned = 0;
+    for (int i = 0; i < 25 && !transitioned; i++) {
+        fade_tick();
+        scene_worldmap_sim();
+        if (g_scene_state != SCENE_STATE_WORLDMAP) transitioned = 1;
+    }
+    T_ASSERT_EQ_I(g_scene_state, 6);   /* Market = mode 6 (FUN_00490e16(0)) */
     return 0;
 }

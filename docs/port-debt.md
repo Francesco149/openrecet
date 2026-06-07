@@ -87,7 +87,7 @@ _none_
 |------|--------|----------|------------------|
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
 | door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:991 | the engine also gates on a |
-| event-probe | FUN_0045de68 | src/scene_worldmap.c:137 | the per-destination "has an event |
+| event-probe | FUN_0045de68 | src/scene_worldmap.c:141 | the per-destination "has an event |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1045 | the engine frees the shop |
-| stage-scratch | FUN_00435c98 | src/scene_worldmap.c:216 | the engine tail re-inits the |
+| stage-scratch | FUN_00435c98 | src/scene_worldmap.c:220 | the engine tail re-inits the |
 

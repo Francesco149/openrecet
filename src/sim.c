@@ -343,12 +343,15 @@ void sim_step_a(void)
      * FUN_0045e3dc) stay stubbed — scene-specific update routines
      * (cutscene / dialog / dungeon / ending) with no consumer wired today. */
     case SCENE_STATE_WORLDMAP:  /* 8 — WORLD / TOWN map */
-        /* Engine LAB_00453bed for mode 8: the shared FUN_0040fb3a body
-         * (scene1_particles_tick) then the per-state callee FUN_0049e163
-         * (world-map sim). T4 ports the sim body; it also adds the
-         * FUN_00406584 cursor bob the engine runs here for the destination
-         * pointer. T2 reaches mode 8 and idles; scene_worldmap_sim is the
-         * home for the FUN_0049e163 nav/exit logic. */
+        /* Engine LAB_00453bed for mode 8 (all.c:50586): FUN_00406584 (the
+         * shared cursor anim/slide step) → FUN_0040fb3a (particles) → the
+         * per-state callee FUN_0049e163 (world-map sim), in that order.
+         * title_save_dialog_anim_tick is the FUN_00406584 subset that eases
+         * the shared cursor toward the destination-pointer slide target the
+         * sim arms via FUN_00435710 — it MUST run before the sim each frame
+         * so the cursor position tracks retail (T4). The bob (b154) it also
+         * advances is consumed by the destination-pointer render. */
+        title_save_dialog_anim_tick();
         scene1_particles_tick();
         scene_worldmap_sim();
         break;

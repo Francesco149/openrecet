@@ -57,7 +57,7 @@
    "engine_fn": "FUN_0045de68",
    "desc": "the per-destination \"has an event",
    "file": "src/scene_worldmap.c",
-   "line": 137,
+   "line": 141,
    "kind_known": false
   },
   {
@@ -121,7 +121,7 @@
    "engine_fn": "FUN_00435c98",
    "desc": "the engine tail re-inits the",
    "file": "src/scene_worldmap.c",
-   "line": 216,
+   "line": 220,
    "kind_known": false
   },
   {

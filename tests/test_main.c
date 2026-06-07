@@ -1191,6 +1191,14 @@ struct test_case {
     X(scene_worldmap_dest_layout_table) \
     X(scene_worldmap_grid_table) \
     X(scene_worldmap_sel_dest_roundtrip) \
+    X(scene_worldmap_nav_up_from_center) \
+    X(scene_worldmap_nav_down_from_center) \
+    X(scene_worldmap_nav_left_from_center) \
+    X(scene_worldmap_nav_right_from_center) \
+    X(scene_worldmap_nav_no_input_holds) \
+    X(scene_worldmap_entry_timer_gates_input) \
+    X(scene_worldmap_z_disabled_no_exit) \
+    X(scene_worldmap_z_enabled_transitions_to_dest_mode) \
     \
     X(xfile_bad_header) \
     X(xfile_empty) \

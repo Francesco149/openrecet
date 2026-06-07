@@ -16,10 +16,14 @@
 #include <stdint.h>
 
 #include "worker_load.h"
-#include "scene.h"              /* SCENE_STATE_WORLDMAP (=8) — primary worker case index */
+#include "scene.h"              /* SCENE_STATE_WORLDMAP (=8) — primary worker case index; g_scene_state */
 #include "save_work.h"          /* live working save arena (tutorial flags + day/tod) */
 #include "save_bank.h"          /* SAVE_BANK_FIELD_CARD_DAY / _CLOCK_TARGET (working dwords) */
-#include "title_save_dialog.h"  /* shared cursor: set_visible (FUN_0043561a) + snap (FUN_00435693) */
+#include "title_save_dialog.h"  /* shared cursor: set_visible (FUN_0043561a) + snap/slide (FUN_00435693/710) */
+#include "sim.h"                /* g_sim_buttons[0].pressed/held — DAT_073dddd4/d6 */
+#include "audio.h"              /* audio_play_se_by_id — move/confirm/denied SE (fixed id, no RNG) */
+#include "fade.h"               /* fade_phase1_start/_is_done/_phase_out_start — FUN_004526f5/4528b3/45281c */
+#include "call_trace.h"         /* CALL_TRACE_* — flow-trace fields for the both-target verify */
 
 /* ─── pre-baked asset table ──────────────────────────────────────────── */
 
@@ -220,13 +224,193 @@ void scene_worldmap_init_state(void)   /* FUN_0049de20 @ 0x49de20 */
      * camera / day-display globals. */
 }
 
-/* Per-frame update — mode-8 dispatch (sim.c case 8). The engine mode-8 update
- * (FUN_004536cb LAB_00453bed) runs the shared FUN_00406584 (cursor bob) +
- * FUN_0040fb3a, then the per-state callee FUN_0049e163 (entry timer + 3×5
- * cursor-nav + Z-select → the destination→mode table). T4 ports that body;
- * for now the map sits idle in mode 8 (T2 only needs to REACH it). */
+/* Cursor navigation — port of FUN_0049dfc1(param) @ 0x49dfc1 (409 B,
+ * all.c:102922). Walks the 3-col × 5-row destination grid
+ * (scene_worldmap_grid) from the currently-selected destination in the
+ * held direction, finds the next PRESENT destination, selects it, eases the
+ * shared cursor to its marker, and plays the move SE. `param` scales the
+ * cursor target (0.7 for the zoomed-out view); the mode-8 sim calls it with 0.
+ *
+ * Direction comes from the held+auto-repeat mask DAT_073dddd6
+ * (g_sim_buttons[0].held) — the SAME global the engine reads here, NOT the
+ * one-shot `pressed`: bit 0x2 → du=-1, 0x1 → du=+1, 0x4 → dv=-1, 0x8 → dv=+1
+ * (priority 0x2>0x1>0x4>0x8). `du` steps the column (mod 3), `dv` the row
+ * (mod 5) — left/right moves within a row, up/down between rows. (Note: the
+ * RE-doc prose "bit2→up" was the inverse; the engine button layout is
+ * 0x01=Right/0x02=Left/0x04=Up/0x08=Down, which makes this intuitive.)
+ *
+ * Faithful to the decompile's goto structure: the outer scan locates the
+ * selected dest's cell, then an inner 5-step walk searches outward; a second
+ * pass (from the next row) retries once when the first finds nothing and the
+ * move had a horizontal (du) component. */
+static void scene_worldmap_cursor_nav(int param)
+{
+    const float scale = (param != 0) ? 0.7f : 1.0f;
+    int du = 0, dv = 0;
+
+    const unsigned held = g_sim_buttons[0].held;   /* DAT_073dddd6 */
+    if      (held & 0x2) du = -1;
+    else if (held & 0x1) du =  1;
+    else if (held & 0x4) dv = -1;
+    else if (held & 0x8) dv =  1;
+    else return;
+
+    for (int row = 0; row < SCENE_WORLDMAP_GRID_ROWS; row++) {
+        for (int col = 0; col < SCENE_WORLDMAP_GRID_COLS; col++) {
+            if (s_sel_dest != scene_worldmap_grid[col + row * 3])
+                continue;
+
+            /* found the selected dest's cell at (col,row) — search outward.
+             * `wr` (engine iVar5) is cumulative across steps AND the retry
+             * pass; `wc` (iVar4) resets each pass. */
+            int wr      = row;
+            int retried = 0;
+            for (;;) {
+                int wc = col;
+                for (int step = 0; step < 5; step++) {
+                    wc = (du + 3 + wc) % 3;
+                    wr = (dv + 5 + wr) % 5;
+                    const int cand = scene_worldmap_grid[wc + wr * 3];
+                    if (cand == -1)
+                        continue;
+                    /* candidate cell holds a dest id — is that dest present? */
+                    for (int k = 0; k < s_dest_count; k++) {
+                        if (s_dest_pos[k] != cand)
+                            continue;
+                        if ((col != wc || row != wr) &&
+                            cand != scene_worldmap_grid[col + row * 3]) {
+                            s_sel_dest = cand;                 /* DAT_09643684 */
+                            const scene_worldmap_dest_t *L =
+                                &scene_worldmap_dest_layout[s_sel_dest];
+                            title_save_dialog_cursor_slide(    /* FUN_00435710 */
+                                (L->x - 16.0f) * scale,
+                                (L->y + 28.0f) * scale);
+                            audio_play_se_by_id(0x146);        /* move SE (no RNG) */
+                            return;
+                        }
+                        break;   /* present but same/current cell — keep stepping */
+                    }
+                }
+                /* 5-step pass exhausted with no move (engine LAB_0049e113). */
+                if (retried || du == 0)
+                    return;
+                wr      = (row + 6) % 5;   /* retry from the next row down */
+                retried = 1;
+            }
+        }
+    }
+}
+
+/* Destination transition tail — port of FUN_0049e163's LAB_0049e304 +
+ * dest→mode table (all.c:103079). Fires once the exit dissolve completes:
+ * picks the selected destination's scene mode, then kicks the fade-in + asset
+ * load — the same machinery the door-exit uses (scene1_player_ctrl.c stage-2).
+ *
+ * PORT-DEBT(worldmap-dest-scenes): the destination scenes themselves
+ * (modes 1/6/0xb/0xd/0xe/0xf) are separate, mostly-unported arcs — selecting a
+ * destination fades out, spawns the load, and switches g_scene_state to the
+ * target mode, which renders blank until that scene ports. main.c's render
+ * `default` + the worker's unconditional thread cleanup (and bounds-checked
+ * dispatch) keep this safe (no hang/crash). The per-destination scene-init
+ * helpers (FUN_0045e019/196/3cd, FUN_00490e16, FUN_004060ff, FUN_0044bce7) +
+ * the worldmap teardown (FUN_0047360f slot-10 unload, FUN_00436f97 furniture)
+ * are deferred no-ops. The tutorial recording never presses Z at the town map,
+ * so this is NOT exercised by T4's verification. Retire with each dest arc. */
+static void scene_worldmap_exit_to_dest(void)
+{
+    int mode;
+    switch (s_sel_dest) {                /* DAT_09643684 → DAT_0438b1c0 */
+    case 0:  mode = 1;    break;         /* your shop / home (INGAME) — FUN_004060ff */
+    case 6:  mode = 0xb;  break;
+    case 5:  mode = 0xd;  break;         /* FUN_0045e3cd */
+    case 4:  mode = 0xf;  break;         /* FUN_0045e196 */
+    case 2:  mode = 0xe;  break;         /* FUN_0045e019 */
+    case 3:  mode = 6;    break;         /* Market — FUN_00490e16(0) */
+    default: mode = 6;    break;         /* dest 1 — FUN_00490e16(1) */
+    }
+
+    g_scene_state = mode;                /* DAT_0438b1c0 = <dest mode> */
+    fade_phase_out_start(0, 0x11);       /* FUN_0045281c(0,0x11) — fade-IN */
+    worker_load_spawn();                 /* FUN_00452cde — load worker */
+}
+
+/* Per-frame update — mode-8 sim. Port of FUN_0049e163 @ 0x49e163 (575 B),
+ * the engine world-map per-state callee (update-dispatch FUN_004536cb case 8,
+ * all.c:50605 → 103024). Runs in sim.c case 8 AFTER the shared cursor-anim
+ * tick (FUN_00406584 → title_save_dialog_anim_tick, which eases the cursor
+ * toward the nav slide target) and the particle tick (FUN_0040fb3a). See
+ * docs/findings/town-map-RE.md §3.
+ *
+ *   Block A — pending-delivery early-out (PORT-DEBT, see below).
+ *   Block B — entry-timer cursor snap (timer < 3): pin the destination
+ *             pointer to the selected marker while the map eases in.
+ *   Block C — input: once timer > 10, Z-up → cursor nav (the 3×5 grid walk);
+ *             Z on a disabled dest → denied SE; Z on an enabled dest → arm the
+ *             exit (dissolve fade + confirm SE).
+ *   Exit state machine — while exiting, wait for the dissolve, then transition
+ *             to the selected destination's scene mode.
+ *   Tail — advance the entry timer (+1/frame). */
 void scene_worldmap_sim(void)
 {
+    CALL_TRACE_BEGIN(0x49e163u);
+    CALL_TRACE_I32("sel",   s_sel_dest);                        /* DAT_09643684 */
+    CALL_TRACE_F32("timer", s_entry_timer);                     /* _DAT_09643628 */
+    CALL_TRACE_I32("exitc", s_exit_counter);                    /* DAT_0964367c */
+    CALL_TRACE_I32("state", scene_worldmap_dest_state(s_sel_dest));
+    CALL_TRACE_F32("curx",  title_save_dialog_get_shake_pos_x());
+    CALL_TRACE_F32("cury",  title_save_dialog_get_shake_pos_y());
+    CALL_TRACE_U32("held",  g_sim_buttons[0].held);             /* DAT_073dddd6 */
+    CALL_TRACE_END();
+
+    /* ── Block A — pending-delivery early-out (all.c:103035) ──────────────
+     * PORT-DEBT(worldmap-delivery-return): when the player returns to the
+     * shop with an undelivered order pending (DAT_0450f49a[slot] != 0), the
+     * engine kicks a delivery-return scene load (FUN_0044ba2c → scene
+     * 0xc/0x14) + inventory return (FUN_00468d22) and early-returns (no
+     * timer++). The delivery/event subsystem is unported; the flag is
+     * BSS-zero on a tutorial Continue (the town-map-load recording), so this
+     * path is never taken there. Deferred — retire with the delivery arc. */
+
+    /* ── Block B — entry-timer cursor snap (all.c:103050) ─────────────────
+     * For the first 3 sim frames after the map loads, keep the shared cursor
+     * snapped to the selected destination's marker (no easing yet). */
+    if (s_entry_timer < 3.0f) {
+        const scene_worldmap_dest_t *L = &scene_worldmap_dest_layout[s_sel_dest];
+        title_save_dialog_cursor_set_visible(1);                   /* FUN_0043561a */
+        title_save_dialog_cursor_snap(L->x - 16.0f, L->y + 28.0f); /* FUN_00435693 */
+    }
+
+    /* DAT_0438bed4 = 0 (all.c:103055): the engine clears the NEW-GAME flag
+     * every world-map frame so a destination loads as a CONTINUE. The port
+     * models that flag as g_scene_title_anim.continue_mode; the world map is
+     * only reached via a Continue (continue_mode already 1 ≡ DAT_0438bed4==0),
+     * so this write is a no-op here. */
+
+    /* ── Block C — input (all.c:103056) ──────────────────────────────────── */
+    if (s_exit_counter == 0) {
+        if (s_entry_timer > 10.0f) {                    /* intro ease finished */
+            if ((g_sim_buttons[0].pressed & 0x10) == 0) {  /* DAT_073dddd4 — Z up */
+                scene_worldmap_cursor_nav(0);              /* FUN_0049dfc1(0) */
+            } else if (scene_worldmap_dest_state(s_sel_dest) == 0) {  /* disabled dest */
+                audio_play_se_by_id(0x16a);                /* denied SE (no RNG) */
+            } else {                                       /* enabled → arm exit */
+                s_exit_counter = 1;                        /* DAT_0964367c = 1 */
+                fade_phase1_start(0, 0x11);                /* FUN_004526f5 dissolve */
+                audio_play_se_by_id(0x143);                /* confirm SE (no RNG) */
+            }
+        }
+    } else {
+        /* exit in progress: wait for the dissolve, then transition. The engine
+         * increments DAT_0964367c each frame here; its redundant `== 1` fade
+         * re-arm is dead (counter is >= 2 after the increment) and omitted. */
+        s_exit_counter++;
+        if (fade_is_done()) {                              /* FUN_004528b3 */
+            scene_worldmap_exit_to_dest();
+            s_exit_counter = 0;                            /* DAT_0964367c = 0 */
+        }
+    }
+
+    s_entry_timer += 1.0f;                                  /* _DAT_09643628++ */
 }
 
 /* ─── Win32 worker_load wiring + sprite storage ──────────────────────── */
