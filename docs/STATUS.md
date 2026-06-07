@@ -51,8 +51,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   bit-identical 0/30, D2 content-neutral 0/30, drill PHASE-CLEAN (verdict exit 0).
   **A new segtrace op needs THREE parsers** (engine `input_segtrace.c`, agent
   `segtraceBuildSegments`, retail harness `frida_capture.py` ~L983 — its `else`
-  KeyErrors on `buttons`). **Next: Phase 4** (the SPA on the v2 model: filmstrip +
-  per-segment video split + in-browser drill), then **Phase 5** (New-Game).
+  KeyErrors on `buttons`). **Phase 4 (the new SPA) IN PROGRESS — S1–S6 landed
+  2026-06-07** (`c492281`→`b817f40`): the whole server backend (dispatch-table
+  `routes.py`, unified `/api/jobs`, mark/analyzer `/api/registries`, `POST /drill` +
+  shared `model/drill.py`) **and the core scrub viewer** (`tools/trace_studio_web/web/`:
+  segmented `model.mjs` + Filmstrip/VideoStage/DiffRibbon/ScrubBar at the PARALLEL entry
+  `studio.html`; old UI untouched). User-confirmed UX. **S7–S10 remain** (StatePanel +
+  MarkBar + JobTray → in-browser drill UI → re-home+robustify the TraceEditor → flip
+  default + retire the monolith). **Resume: the staging table + coordinate contract +
+  dev-harness gotchas are in `plans/trace-studio-v2.md` → Phase 4 block.** Decisions
+  locked: preserve+robustify the trace editor; defer per-segment video (model open).
+  Then **Phase 5** (New-Game).
 - **Active work:** Phase 1 — the render-parity diff engine. **Vertex capture LANDED**
   (2026-06-05): both sides (`src/d3d_trace.c` + Frida agent) capture per-draw vertex bytes
   under `--d3d-trace-verts`; `tools/render_diff.py --explain` FVF-decodes aligned draws and

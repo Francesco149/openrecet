@@ -7,9 +7,11 @@ v2 capture, `0a0cf8c` lift record/server/edits). **Phase 3 ✅ landed + verified
 (Core + CLI drill)** — `5c0de5c` D3 `{capstride}` engine, `a580e8f` D3 agent,
 `b8660ca` D2 through export_trace + caps fix, `1ecff91` overview wiring, `a1e2ea1`
 CLI drill, `324debe` retail-harness `{capstride}` forward. Per-segment video split
-+ in-browser drill deferred to Phase 4 (the SPA consumes them). Phases 4–5 pending.
-Multi-session rebuild; `/clear` at each phase boundary. This is the canonical
-plan — the `~/.claude` plan file is a session-local mirror.
++ in-browser drill deferred to Phase 4 (the SPA consumes them). **Phase 4 IN PROGRESS
+(S1–S6 ✅ 2026-06-07: the whole server backend + the core scrub viewer, user-confirmed
+UX; S7–S10 remaining — see the Phase 4 block below for the staging table + resume
+notes).** Phase 5 pending. Multi-session rebuild; `/clear` at each phase boundary. This
+is the canonical plan — the `~/.claude` plan file is a session-local mirror.
 
 **Phase 3 results (all acceptance criteria met):**
 - **D3 `{capstride:N}`** trace-global two-tier cadence on BOTH targets: thins a
@@ -264,11 +266,81 @@ seams + in-browser click-to-drill (the timeline entry already carries `cadence`,
 the CLI drill localizer `frames[0] + v*cadence` is the canonical math the SPA reuses).
 **`/clear` after.**
 
-### Phase 4 — New SPA
-Build `web/components/*` on the v2 model (Filmstrip, per-segment VideoStage, DiffRibbon,
-StatePanel, unified MarkBar, JobTray); serve mark/analyzer registries as JSON; retire
-`app.mjs`/`timeline.mjs`. **Acceptance**: the full in-browser loop (record → overview →
-drill → mark → apply → recapture-segment → re-view) runs without the CLI. **`/clear`.**
+### Phase 4 — New SPA  ← IN PROGRESS (S1–S6 landed 2026-06-07)
+Build `web/components/*` on the v2 model (Filmstrip, segment-aware VideoStage, DiffRibbon,
+StatePanel, unified MarkBar, JobTray); serve mark/analyzer registries as JSON; re-home the
+trace editor; retire the `app.mjs`/`timeline.mjs` monolith. **Acceptance**: the full
+in-browser loop (record → overview → drill → mark → apply → recapture-segment → re-view)
+runs without the CLI, + the maintainability check (add a throwaway mark kind via a registry
+entry only → it surfaces end-to-end with no JS edit).
+
+**Decisions locked (user, 2026-06-07):** (1) **PRESERVE + robustify the trace editor** —
+re-home `timeline.mjs` → `web/components/TraceEditor.mjs` (keep `align.mjs` as the shared
+pure core) as a collapsible *advanced* panel under the Filmstrip; the **tweak-inputs /
+`extend`-a-trace / recapture** loop is a primary workflow (iterate + extend a trace without
+re-recording a whole gameplay segment). (2) **DEFER per-segment video** (single-segment
+traces + per-area savefiles suffice now) but keep the model open: `VideoStage` reads
+`segment.videos`, falls back to whole-session `manifest.videos`. Option-B recipe (encode
+subranges) noted at the bottom of this doc.
+
+**THE coordinate contract (get this right — `web/model.mjs`):** captured PNGs are named by
+their anchor-relative **strided label** but `transport/encode.py` encodes them positionally
+→ in the mp4 they are dense frames `0..n-1`. Three deliberately-separate spaces: global
+ordinal `g` (the scrub position) → `(seg,k) = view.locate(g)` → label `L = frames[0] +
+k*cadence`. **Video time `(k+0.5)/fps`** (ordinal, same formula every segment); **state** by
+ordinal `state[seg.offsetGlobal+k]`; **diff** by label `diffByLabel.get(L)` (the
+`manifest.diff.per_frame[].frame` is the strided label); **marks** persist the LOCAL ordinal
+`k` and `apply.py` does its own `caprange.start + k` — the SPA NEVER pre-multiplies by cadence
+(apply runs only on dense sessions; drill-before-pin sidesteps the latent `apply.py`
+strided-overview off-by-stride, which we did NOT change). 1-segment ⇒ every formula collapses
+to the old whole-session UI (headless-verified vs ov-both: totalFrames===n_frames).
+
+**Build at a PARALLEL entry** (`studio.html` → `web/`) so the old UI keeps working until S10
+flips the default + deletes the monolith. No build step (Preact+htm via the vendored `.mjs`);
+the static-asset GET branch serves the new `web/` subtree with no server change.
+
+| Stage | What | Status |
+|---|---|---|
+| S1 | `server/routes.py` dispatch table (wire-stable: the do_POST/do_GET ladder → a `ROUTES` table; state on the Server instance) | ✅ `c492281` |
+| S2 | `server/jobs.py` `JobsRegistry` + `GET /api/jobs` (unify record + capture/recapture/drill; `kind` field on `CaptureController`) | ✅ `c08cdb9` |
+| S3 | `edits/marks.py` + `analysis/registry.py` + `GET /api/registries`; `apply.py` imports `APPLY_KINDS`/`WORKLIST_KINDS` | ✅ `0f3d6b8` |
+| S4 | `model/drill.py` `drill_window()` (CLI + route share it) + `POST /s/<sess>/drill` + `CaptureController.start(extra_args=)` | ✅ `d5bbdf0` |
+| S5 | `studio.html` + `web/model.mjs` (segmented view + `classify` + `useStudioModel`) + composition-only `web/app.mjs` + `SessionPicker` | ✅ `550dfc2` |
+| S6 | `web/components/` Filmstrip + VideoStage (+attachBox box-select) + DiffRibbon + ScrubBar + `web/util.mjs` (toast/copy/fmt) | ✅ `b817f40` — user-confirmed UX (“much better, like the diff scrub”) |
+| **S7** | **StatePanel + unified MarkBar (from `/api/registries`) + JobTray (one poller on `/api/jobs`) + lift Record/Iterate/Verdict** | ⏳ **NEXT** |
+| S8 | in-browser drill UI: Filmstrip “drill segment” (`at=offsetGlobal`, `span=nFrames*cadence`) / “drill at cursor” → `POST /drill` → JobTray → open child | ⏳ |
+| S9 | re-home `timeline.mjs` → `web/components/TraceEditor.mjs` (collapsible advanced panel, wired to the global cursor) + **robustify** the extend/edit/recapture loop; re-run the segments golden | ⏳ |
+| S10 | flip the default entry to the SPA; delete legacy `app.mjs`/`timeline.mjs` (+ legacy `/record/status`+`/capture/status` if unreferenced); maintainability check | ⏳ |
+
+**S7 resume notes — lift from the OLD `tools/trace_studio_web/app.mjs`:** `StatePanel`
+(reads `view.state[seg.offsetGlobal+k]` by ordinal; needs a `--call-trace` session for data —
+ov-both has none → shows the empty message), `VerdictPanel` (`view.manifest.verdict.text`),
+`RecordPanel`, `IteratePanel` (apply/recapture/clone/divergent — those POST routes already
+exist), and `MarksPanel` → a registry-driven **`MarkBar`**: a `useRegistries()` hook in
+`model.mjs` fetches `/api/registries` once, render one button per `marks[]` entry; persist via
+the existing `POST /s/<sess>/edits/set` writing the LOCAL ordinal `k` as the mark `frame`.
+**`JobTray`** polls `GET /api/jobs` through the existing `store.useStatus` hook (it keys its
+interval on `.running`) and replaces the 3 separate pollers; surface a “a capture is already
+running” rejection as a toast. Wire the lifted panels into `web/app.mjs`’s `.panels` grid.
+
+**Dev/test harness (so the next session doesn’t rediscover it):**
+- **Serve:** `nix develop --command python3 tools/trace_studio.py serve --session ov-both
+  --port 8779` — background via the Bash tool’s `run_in_background`, NOT an inline `&`
+  (the inline `&` + wrapper-exit reaps the server). New SPA at `/studio.html?session=<name>`;
+  old UI at `/`.
+- **Test sessions:** `runs/trace-studio/ov-both` (both-target overview, 30 strided frames @stride
+  8, 1 load seam, no call-trace → verdict gray + no state) and `ov-both-drill-200-24` (dense
+  stride-1 child → the 1-seg/dense reduction).
+- **ESM check:** `nix develop --command node --check <file.mjs>` via EXIT CODE (catches syntax,
+  NOT htm runtime errors). **No headless browser/jsdom in the devshell ⇒ the USER is the visual
+  oracle**; the strongest headless guard against a white-screen is to curl every `/web/...`
+  import path → 200 (a mistyped import is the usual culprit).
+- **Tools tests:** `nix develop --command python3 tools/test_trace_studio_segments.py` +
+  `test_trace_studio_session.py` + `test_export_trace.py` (run after backend changes).
+- **Bash-tool env gotchas:** foreground `sleep` is BLOCKED (exit 144) — use `curl
+  --retry-connrefused --retry N --retry-delay 1` for readiness; `pkill -f "trace_studio.py
+  serve"` SELF-MATCHES the wrapper shell’s argv (kill by port via `ss -ltnp` → PID, don’t
+  pkill the pattern); `python3`/`node` need the `nix develop --command` prefix.
 
 ### Phase 5 — New-Game support (hardest, last)
 D4 retail intro-video force-skip (flag-gated) so New-Game recordings replay on retail
