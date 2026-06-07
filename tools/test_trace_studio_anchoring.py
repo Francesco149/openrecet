@@ -59,6 +59,18 @@ def main() -> int:
             '{"wait": "LOADING_END"}'])
         assert ops.first_freeroam_wait(distilled) == "LOADING_END", "free-roam wait not found"
 
+        # window_at_freeroam: a re-capture rebuilds the working trace UNLESS the window
+        # already sits in the first free-roam segment. HF-anchored = ok; a window past a
+        # later scene's {wait} (town) or FLAT (no {wait}) = stale → rebuild.
+        hf_win = [{"wait": "NEW_GAME"}, {"wait": "LOADING_END"},
+                  {"caprange": [0, 9]}, {"wait": "LOADING_START"}]
+        town_win = [{"wait": "NEW_GAME"}, {"wait": "LOADING_END"}, {"wait": "LOADING_START"},
+                    {"wait": "LOADING_END"}, {"caprange": [0, 9]}]
+        flat_win = [{"caprange": [0, 9]}]
+        assert ops.window_at_freeroam(hf_win) is True, "HF window flagged stale"
+        assert ops.window_at_freeroam(town_win) is False, "town window not flagged stale"
+        assert ops.window_at_freeroam(flat_win) is False, "FLAT window not flagged stale"
+
         # a recording with NO anchors → stays FLAT (auto leaves it boot-synced)
         rec2 = d / "without.raw.jsonl"
         rec2.write_text("\n".join([

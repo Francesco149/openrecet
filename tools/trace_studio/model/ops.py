@@ -146,6 +146,27 @@ def first_freeroam_wait(text: str) -> str | None:
     return None
 
 
+def window_at_freeroam(ops_list: list[dict]) -> bool:
+    """True if the {caprange} is anchored at the FIRST free-roam entry — i.e. it sits
+    in that segment: after the first LOADING_END / FREEROAM {wait}, with NO later
+    {wait} before it. A window after a LATER scene's {wait} (the town a shop-exit
+    leads to — port-unreachable) or with no {wait} at all (FLAT, pre-load) is STALE:
+    the port captures 0. Used by re-capture to decide whether to rebuild the working
+    trace (a session built before the free-roam-anchored auto-window has a stale one)."""
+    seen_freeroam = False
+    for o in ops_list:
+        if not isinstance(o, dict):
+            continue
+        w = o.get("wait")
+        if w in ("LOADING_END", *FREEROAM_ANCHORS):
+            seen_freeroam = True
+        elif w and seen_freeroam:        # a later scene's {wait} before the window
+            return False
+        elif "caprange" in o:
+            return seen_freeroam
+    return False
+
+
 def read_anchor_stream(path: Path) -> list[dict]:
     """Absolute anchor firings [{anchor, frame, ...}] in file order. This is the
     raw anchors.jsonl both sides emit (frames are ABSOLUTE engine frames). Used by

@@ -98,21 +98,24 @@ def run_capture(cfg: CaptureConfig) -> int:
 
     # ── working trace: reuse (carries applied pins) unless --reset-trace ──────
     reuse = working.exists() and not cfg.reset_trace
-    if reuse and anchored and not any("wait" in o for o in ops.load_ops(working)):
-        # A stale FLAT working trace (no {wait}) for an anchored recording has its
-        # window in the wrong place AND replays inputs boot-relative — rebuild it
-        # anchor-segmented FROM THE RECORDING. (Re-apply pins if any were set.) This
-        # is what self-heals a session recorded/distilled before auto-anchor: the SPA
-        # re-capture passes the FLAT working trace, but we rebuild from source_trace.
-        if rec is not None:
-            _log("re-capture: working trace is FLAT but the recording carries anchors "
-                 f"— rebuilding anchor-segmented from {rec.name} "
-                 "(re-apply pins if needed; --no-anchors to keep FLAT)")
-            src, hdr = rec, ops.raw_header(rec)
-            reuse = False
-        else:
-            _log("re-capture: FLAT working trace + no source recording to rebuild from "
-                 "— reusing FLAT (re-capture from the recording to anchor)")
+    if reuse and anchored and rec is not None \
+            and not ops.window_at_freeroam(ops.load_ops(working)):
+        # The working trace's window is STALE — FLAT (boot-synced; inputs desynced),
+        # or anchored at a LATER scene the port can't reach (e.g. the town a shop-exit
+        # leads to → port captures 0). Either was built before the free-roam-anchored
+        # auto-window. Rebuild it anchor-segmented FROM THE RECORDING so the window
+        # lands at the free-roam entry both targets reach. (Re-apply pins if any were
+        # set; --no-anchors to keep the old placement.) This self-heals a session the
+        # SPA re-capture would otherwise reuse verbatim (it passes the working trace).
+        _log("re-capture: working trace window is STALE (FLAT or anchored past the "
+             f"port-reachable free-roam) — rebuilding from {rec.name} at the free-roam "
+             "entry (re-apply pins if needed; --no-anchors to keep it)")
+        src, hdr = rec, ops.raw_header(rec)
+        reuse = False
+    elif reuse and anchored and rec is None \
+            and not any("wait" in o for o in ops.load_ops(working)):
+        _log("re-capture: FLAT working trace + no source recording to rebuild from "
+             "— reusing FLAT (re-capture from the recording to anchor)")
     if reuse:
         _log(f"re-capture: reusing working trace {working.name} (with applied pins)")
     else:
