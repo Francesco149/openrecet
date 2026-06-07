@@ -436,8 +436,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49d8a4 | FUN_0049d8a4 | 355 | ✓ | sim.c |
 | 0x49db8a | FUN_0049db8a | 487 | ✓ | sim.c |
 | 0x49de08 | FUN_0049de08 | 6 | ✓ | scene_new_game.h |
-| 0x49de0e | FUN_0049de0e | 10 | ✓ | scene_new_game.c, scene_new_game.h |
-| 0x49de20 | FUN_0049de20 | 374 | ✓ | main.c, scene_worldmap.c, scene_worldmap.h (+1) |
+| 0x49de0e | FUN_0049de0e | 10 | ✓ | scene1_player_ctrl.c, scene_new_game.c, scene_new_game.h |
+| 0x49de20 | FUN_0049de20 | 374 | ✓ | main.c, scene1_player_ctrl.c, scene_worldmap.c (+2) |
 | 0x49e163 | FUN_0049e163 | 575 | ✓ | scene1_postload.h, scene1_preload.c, sim.c |
 | 0x49e849 | FUN_0049e849 | 350 | ✓ | tables_item.c, tables_item.h |
 | 0x49e9a7 | FUN_0049e9a7 | 387 | ✓ | tables_item.c, tables_kyaku.c, tables_kyaku.h (+3) |

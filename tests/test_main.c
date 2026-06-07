@@ -3343,6 +3343,12 @@ struct test_case {
     X(player_actor_accessors_out_of_range) \
     X(player_render_bank_accessor_contract) \
     X(player_render_banks_stay_dormant_while_walking) \
+    X(player_door_predicate_position_facing) \
+    X(player_door_predicate_rejects_already_exited) \
+    X(player_door_predicate_rejects_wrong_facing) \
+    X(player_door_predicate_rejects_inside) \
+    X(player_worldmap_exit_arm_sets_flags_and_fade) \
+    X(player_worldmap_exit_stage2_transitions_on_fade_done) \
     \
     X(collision_classify) \
     X(collision_tri_build_flat) \

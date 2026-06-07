@@ -53,9 +53,30 @@ frame 435  LOADING_END                             (world-map assets loaded, mod
 
 **Step by step:**
 
-1. **Door tooltip.** While the player stands in the door zone (`bVar17` in `house_update`,
-   computed upstream), retail shows a "press Z" prompt — the user's "tooltip at the door".
-   *(The exact door-zone test + the tooltip renderer are an unported detail; see Live-check.)*
+1. **Door tooltip.** While the player stands in the door zone (`bVar17` in `house_update`),
+   retail shows a "press Z" prompt — the user's "tooltip at the door".
+
+   **Door-zone predicate `bVar17`** (RE'd, `house_update` `all.c:87491`–`87539`, the
+   `DAT_0438cc04==0` free-roam branch; shop = stage-type 0):
+   ```c
+   if (DAT_0438cc04 == 0) {                 // free-roam (not in the display/remove menu)
+     bVar17 = false;
+     …
+     local_14 = 1.5707964;                  // +π/2 = the door facing for stage-type 0 (shop)
+     if (stagetype in 1..4) local_14 = -π;  //   (other maps face -π instead)
+     if (FUN_005031e4() < 1.8                // a geometry/speed gate (FPU-arg helper; <1.8)
+         && DAT_0450f3f7[slot] == 0          // not already exited
+         && local_14-0.314 < facing < local_14+0.314) {   // facing within ±0.1π of the door dir
+       if (stagetype == 0) { if (2.895 < DAT_056da1d8) bVar17 = true; }   // shop: player X > 2.895
+       else                { if (DAT_056da1e0 < -6.7) bVar17 = true; }    // else: player Z < -6.7
+     }
+   }
+   ```
+   So the **shop door zone = free-roam, player X (`DAT_056da1d8`) > 2.895, facing
+   (`_DAT_056db05c`) ≈ +π/2 (±0.1π), not-already-exited (`DAT_0450f3f7[slot]==0`), and the
+   `FUN_005031e4()<1.8` gate**. `DAT_056da1d8`/`1e0` = player world X/Z; `_DAT_056db05c` =
+   player facing angle (engine-quirks §111). *(The tooltip renderer itself is a follow-up; T1
+   gates the trigger on this same predicate.)*
 
 2. **Door Z-handler** — `house_update` `FUN_0048670f` @ `all.c:87637`:
    ```c
@@ -146,7 +167,7 @@ frame 435  LOADING_END                             (world-map assets loaded, mod
   | 0 | 1 | restore shop map (`DAT_0438b4dc`), `DAT_0438b4e0=0`, `DAT_0438b928=2` | **your Shop / home** |
   | 1 | 6 | `FUN_00490e16(1)` | guild/market ivent (uVar5=1) |
   | 2 | 0xe | `FUN_0045e019()` | — |
-  | 3 | 6 | `FUN_00490e16(0)` | **Market (ichiba)** — tutorial target |
+  | 3 | 6 | `FUN_00490e16(0)` | **Market** (labeled "Merchant's Guild"; `ivent_bg_ichiba`) — tutorial target, user-confirmed highlighted in the recording |
   | 4 | 0xf | `FUN_0045e196()` | — |
   | 5 | 0xd | `FUN_0045e3cd()` | — |
   | 6 | 0xb | — | — |

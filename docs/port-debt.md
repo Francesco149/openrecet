@@ -11,8 +11,8 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **11**
-- distinct retiring engine functions: **9**
+- total open debts: **12**
+- distinct retiring engine functions: **10**
 
 | kind | count | meaning |
 |------|------:|---------|
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **1 tag(s) use an unknown kind**: deferred (1).
+> ⚠️  **2 tag(s) use an unknown kind**: deferred (1), door-proximity (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -39,6 +39,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00454191 | 1 |
 | FUN_0046c9a2 | 1 |
 | FUN_00473c03 | 1 |
+| FUN_005031e4 | 1 |
 
 ## stub (4)
 
@@ -82,4 +83,5 @@ _none_
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
+| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:990 | the engine also gates on a |
 

@@ -388,6 +388,16 @@ int  player_ctrl_companion_ticked(void);    /* did b850_move tick the companion 
 void player_ctrl_debug_set_cc08(int state); /* test hook: force cc08 (stands in for the
                                              * unported state-transition writers) */
 
+/* T1 — shop-door exit → the world map (mode 8).  `player_ctrl_at_shop_door` is the
+ * pure door-zone predicate (the engine bVar17 subset, all.c:87531-87539); the arm
+ * + stage-2 drive the dissolve fade (FUN_004526f5) and the mode-8 load
+ * (FUN_0045281c / FUN_00452cde).  See scene1_player_ctrl.c. */
+int  player_ctrl_at_shop_door(float player_x, float facing, int already_exited);
+void player_ctrl_worldmap_exit_arm(void);
+int  player_ctrl_worldmap_exit_stage2(void);
+int  player_ctrl_worldmap_exit_armed(void);  /* test accessor */
+void player_ctrl_worldmap_exit_reset(void);  /* test reset */
+
 /*
  * ── W1: the per-frame player-controller tick (FUN_0048670f entry) ─────────
  *

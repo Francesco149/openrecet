@@ -22,6 +22,9 @@
 #include "scene1_particles_tick.h" /* g_scene1_player_pos[3] */
 #include "title_save_dialog.h"   /* title_save_dialog_reset — clear the FUN_0048670f
                                   * prologue save-gate (FUN_00434d6a) between tests */
+#include "fade.h"                /* g_fade_phase / fade_tick / fade_is_done — T1 door fade */
+#include "scene.h"               /* g_scene_state — T1 mode-8 transition */
+#include "worker_load.h"         /* worker_load_reset — T1 stage-2 cleanup */
 
 static int near_f(float a, float b)
 {
@@ -1132,5 +1135,113 @@ int test_player_render_banks_stay_dormant_while_walking(void)
 
     g_input_state[0].buttons = 0;
     chr_meta_shutdown();
+    return 0;
+}
+
+/* ── T1: shop-door exit → world map (engine bVar17 + the all.c:86877 stage-2) ── */
+
+int test_player_door_predicate_position_facing(void)
+{
+    /* free-roam, X past the door edge (>2.895), facing ≈ +π/2, not exited → at
+     * the door (engine bVar17, all.c:87531-87539, stage-type 0). */
+    if (!player_ctrl_at_shop_door(3.0f, 1.5707964f, 0))
+        T_FAIL("X=3.0 facing=π/2 not-exited should be AT the door");
+    /* facing inside the ±0.1π band still counts. */
+    if (!player_ctrl_at_shop_door(2.90f, 1.5707964f + 0.30f, 0))
+        T_FAIL("facing within +0.1π of the door dir should count");
+    if (!player_ctrl_at_shop_door(2.90f, 1.5707964f - 0.30f, 0))
+        T_FAIL("facing within -0.1π of the door dir should count");
+    return 0;
+}
+
+int test_player_door_predicate_rejects_already_exited(void)
+{
+    /* the DAT_0450f3f7 "already exited" guard blocks re-triggering. */
+    if (player_ctrl_at_shop_door(3.0f, 1.5707964f, 1))
+        T_FAIL("already-exited guard must block the door");
+    return 0;
+}
+
+int test_player_door_predicate_rejects_wrong_facing(void)
+{
+    /* facing 0 (not toward the door) is outside the ±0.1π band. */
+    if (player_ctrl_at_shop_door(3.0f, 0.0f, 0))
+        T_FAIL("facing 0 (outside ±0.1π of +π/2) must not trigger");
+    /* just past the band edge (0.1π ≈ 0.31416). */
+    if (player_ctrl_at_shop_door(3.0f, 1.5707964f + 0.33f, 0))
+        T_FAIL("facing past the +0.1π band must not trigger");
+    return 0;
+}
+
+int test_player_door_predicate_rejects_inside(void)
+{
+    /* X not past the door edge (2.895) → not at the door, even facing it. */
+    if (player_ctrl_at_shop_door(0.0f, 1.5707964f, 0))
+        T_FAIL("player X=0 (not past 2.895) must not be at the door");
+    if (player_ctrl_at_shop_door(2.895f, 1.5707964f, 0))
+        T_FAIL("player X exactly 2.895 is not strictly past the edge");
+    return 0;
+}
+
+int test_player_worldmap_exit_arm_sets_flags_and_fade(void)
+{
+    /* arm (all.c:87637-87648): sets DAT_074b2ec4 and kicks the phase-1 dissolve
+     * fade (FUN_004526f5 → counter=1, phase=1, duration=0x11). */
+    player_ctrl_worldmap_exit_reset();
+    fade_reset();
+    player_ctrl_worldmap_exit_arm();
+    if (!player_ctrl_worldmap_exit_armed())
+        T_FAIL("arm must set the exit-armed flag (DAT_074b2ec4)");
+    if (g_fade_phase != 1)
+        T_FAIL("arm must kick the phase-1 dissolve fade (g_fade_phase=%d)",
+               g_fade_phase);
+    if (g_fade_duration != 0x11)
+        T_FAIL("door fade duration must be 0x11 (got %d)", g_fade_duration);
+    player_ctrl_worldmap_exit_reset();
+    fade_reset();
+    return 0;
+}
+
+int test_player_worldmap_exit_stage2_transitions_on_fade_done(void)
+{
+    /* stage 2 (all.c:86877-86888): frozen while the dissolve runs; on completion
+     * flips to mode 8 (the world map) + disarms.  The 16-frame fade (counter
+     * 1→0x11) matches the recording's door-Z@409 → LOADING_START@425 gap. */
+    player_ctrl_worldmap_exit_reset();
+    fade_reset();
+    worker_load_reset();
+    g_scene_state = SCENE_STATE_INGAME;   /* in the shop */
+
+    player_ctrl_worldmap_exit_arm();      /* arm + start the dissolve */
+
+    /* mid-dissolve: stage 2 freezes but does NOT transition. */
+    if (!player_ctrl_worldmap_exit_stage2())
+        T_FAIL("stage2 must report frozen while armed");
+    if (g_scene_state != SCENE_STATE_INGAME)
+        T_FAIL("must not leave the shop before the dissolve completes");
+    if (!player_ctrl_worldmap_exit_armed())
+        T_FAIL("must stay armed until the dissolve completes");
+
+    /* drive the dissolve to completion. */
+    int ticks = 0;
+    for (; ticks < 40 && !fade_is_done(); ticks++)
+        fade_tick();
+    if (!fade_is_done())
+        T_FAIL("dissolve did not complete");
+    if (ticks != 0x10)   /* counter 1→0x11 = 16 ticks → the 16-frame gap */
+        T_FAIL("dissolve should take 16 ticks (got %d)", ticks);
+
+    if (!player_ctrl_worldmap_exit_stage2())
+        T_FAIL("stage2 still consumes the transition frame");
+    if (g_scene_state != 8)
+        T_FAIL("dissolve-done must flip to mode 8 / world map (got %d)",
+               g_scene_state);
+    if (player_ctrl_worldmap_exit_armed())
+        T_FAIL("must disarm after the transition");
+
+    /* cleanup the shared scene/fade/worker state for later tests. */
+    g_scene_state = SCENE_STATE_INGAME;
+    fade_reset();
+    worker_load_reset();
     return 0;
 }

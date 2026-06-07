@@ -23,7 +23,7 @@
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 11 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 12 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code the table above calls "ported" (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -35,7 +35,15 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
 - **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`, 2026-06-07). ✅ PHASE 0 RE
-  COMPLETE → `findings/town-map-RE.md`; NEXT = chip T1 (door exit + fade).** The "town map"
+  COMPLETE → `findings/town-map-RE.md`. ✅ T1 LANDED (door exit + fade); NEXT = T2 (world-map
+  load + mode-8 plumbing).** **T1:** `scene1_player_ctrl.c` — the shop-door Z-handler
+  (`player_ctrl_at_shop_door` predicate = facing≈+π/2 ±0.1π & player X>2.895 & not-exited;
+  the engine `bVar17` subset) arms `DAT_074b2ec4` + the dissolve fade `fade_phase1_start`
+  (=`FUN_004526f5`) + the tutorial flag `DAT_0450f3f9`; stage-2 (`player_ctrl_worldmap_exit_stage2`,
+  all.c:86877) freezes the tick through the 16-frame dissolve then flips `g_scene_state=8` +
+  `worker_load_spawn` (LOADING_START). 6 host tests; full suite 3200✓. PORT-DEBT(door-proximity
+  `FUN_005031e4`=sqrt<1.8 gate; door-SE `FUN_0049933c`). Mode 8 renders nothing yet (→T2-T4);
+  the door tooltip render is a follow-up. The "town map"
   is the **WORLD MAP, top-level mode `DAT_0438b1c0==8`** (preload `FUN_004735ad` = texture
   slot 10 worldmap day/eve/night + mappoint; sim `FUN_0049e163`; cursor-nav `FUN_0049dfc1`
   = 3×5 grid; render `FUN_0049e3a3`; init `FUN_0049de20` = 7 dests + **tutorial gating**

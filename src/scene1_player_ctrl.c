@@ -31,6 +31,9 @@
 #include "sim.h"                 /* g_sim_frame_count (DAT_0438b8cc), g_sim_buttons (edge mask) */
 #include "stage_load_pulse.h"    /* display-menu open/close slide (FUN_004693e3 ramp) */
 #include "scene1_combat_sm.h"    /* g_scene1_combat_dat_056da1b8 (sparkle owner) */
+#include "fade.h"                /* FUN_004526f5/0045281c/004528b3 — the door dissolve fade + load */
+#include "scene.h"               /* g_scene_state (DAT_0438b1c0) — mode 8 = world map (T1) */
+#include "worker_load.h"         /* worker_load_spawn (FUN_00452cde) — the scene-load worker */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
  *   0x519900 = 0.03   0x519360 = 2.0 (the -2.0 clamp = fchs of 0x...)   */
@@ -375,6 +378,7 @@ static int   s_player_moving    = 0;              /* last frame's moving state
  * shell) while the off-path arms remain honest stubs. */
 static int   s_cc08             = 1;              /* DAT_0438cc08 */
 static int   s_cc04             = 0;              /* DAT_0438cc04 */
+static int   s_worldmap_exit_armed = 0;           /* DAT_074b2ec4 — world-map exit pending the dissolve fade (T1) */
 static int   s_cbe8             = 0;              /* DAT_0438cbe8 — display-menu open-once latch */
 
 /* Per-frame latch: set when player_ctrl_b850_move() ticks the companion inline
@@ -967,19 +971,111 @@ static void player_ctrl_cc08_proximity_detect(void)
 #define PC_SHOP_DISPLAY_CHANGED_BYTE_OFF  0x2bc60   /* DAT_0450f3f8 — "display changed" */
 #define PC_SHOP_DISPLAY_BACKROW_BYTE_OFF  0x2bc63   /* DAT_0450f3fb — back-row (cc00==0) dirty */
 
+/* world-map door-exit bank flags (T1; all.c:87531/87643, rec-relative like the
+ * display flags above, base DAT_044e3798 → DAT_0450f3f2 == 0x2bc5a):
+ *   DAT_0450f3f7 — door "already exited" guard (part of bVar17)
+ *   DAT_0450f3f9 — world-map tutorial gate (read by the world-map init FUN_0049de20)
+ *   DAT_0450f3fa — "first exit ever" latch. */
+#define PC_DOOR_EXITED_BYTE_OFF       0x2bc5f   /* DAT_0450f3f7 */
+#define PC_WORLDMAP_TUTORIAL_BYTE_OFF 0x2bc61   /* DAT_0450f3f9 */
+#define PC_DOOR_FIRSTEXIT_BYTE_OFF    0x2bc62   /* DAT_0450f3fa */
+
+/* ── T1: shop-door exit → world map (engine FUN_0048670f) ──────────────────
+ *
+ * Door-zone predicate `bVar17` (all.c:87491-87539, the cc04==0 free-roam branch,
+ * stage-type 0 = the shop).  A faithful subset: the player faces the door
+ * (≈ +π/2 ± 0.1π) AND is at the door edge (world X > 2.895) AND has not already
+ * exited (DAT_0450f3f7 == 0).
+ *
+ * PORT-DEBT(door-proximity, FUN_005031e4): the engine also gates on a
+ * sqrt(dist²) < 1.8 proximity radius to the door point (FUN_005031e4 = fsqrt).
+ * Omitted pending the door-point reference RE; the recording's deliberate
+ * approach satisfies the position+facing subset, so anchors reproduce.  Retire
+ * by adding the radius once the door point (the sqrt arg) is decoded. */
+int player_ctrl_at_shop_door(float player_x, float facing, int already_exited)
+{
+    if (already_exited)
+        return 0;
+    /* facing within ±0.1π of +π/2 (the shop door faces +X; all.c:87525/87531). */
+    const float door_face = 1.5707964f;   /* +π/2 */
+    const float band      = 0.31415927f;  /* 0.1π */
+    if (!(facing > door_face - band && facing < door_face + band))
+        return 0;
+    /* at the door edge: player world X (DAT_056da1d8) > 2.895 (all.c:87535). */
+    return player_x > 2.895f;
+}
+
+/* Door-exit arm (all.c:87637-87648): Z at the door zone → arm the world-map
+ * transition (DAT_074b2ec4 = 1) + kick the dissolve fade-out (FUN_004526f5).
+ * First exit ever (DAT_0450f3fa == 0) also raises the tutorial gate
+ * DAT_0450f3f9 the world-map init reads + the exited guard DAT_0450f3f7. */
+void player_ctrl_worldmap_exit_arm(void)
+{
+    s_worldmap_exit_armed = 1;            /* DAT_074b2ec4 = 1 */
+    fade_phase1_start(0, 0x11);           /* FUN_004526f5(0,0x11) — dissolve fade-out */
+
+    uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+    if (bb != NULL && bb[PC_DOOR_FIRSTEXIT_BYTE_OFF] == 0) {
+        bb[PC_DOOR_FIRSTEXIT_BYTE_OFF]    = 1;   /* DAT_0450f3fa = 1 */
+        bb[PC_WORLDMAP_TUTORIAL_BYTE_OFF] = 1;   /* DAT_0450f3f9 = 1 (world-map tutorial gate) */
+        bb[PC_DOOR_EXITED_BYTE_OFF]       = 1;   /* DAT_0450f3f7 = 1 (exited guard) */
+    }
+    /* PORT-DEBT(door-SE, FUN_0049933c): the door effect/SE at all.c:87648 is not
+     * spawned (audio-only); confirm via the T5 both-replay it consumes no shared
+     * LCG draw before the shop tears down, else mirror the draw here. */
+}
+
+/* Stage-2 of the exit (all.c:86877-86888): while armed, the engine freezes the
+ * HOUSE tick (goto LAB_004893ff) each frame; when the dissolve fade completes
+ * (FUN_004528b3), it flips to mode 8 (the world map), kicks the post-load
+ * fade-IN (FUN_0045281c), and spawns the scene-load worker (FUN_00452cde →
+ * the nowloading gate → LOADING_START).  Returns 1 while the tick is frozen
+ * (the caller returns early, mirroring the engine's goto). */
+int player_ctrl_worldmap_exit_stage2(void)
+{
+    if (!s_worldmap_exit_armed)
+        return 0;
+    if (fade_is_done()) {                 /* FUN_004528b3 — dissolve complete */
+        g_scene_state = 8;                /* DAT_0438b1c0 = 8 (world map) */
+        /* FUN_0049de0e(<dest>): the initial destination index is set by the
+         * world-map init (T2); left at its default here. */
+        fade_phase_out_start(0, 0x11);    /* FUN_0045281c(0,0x11) — fade-IN */
+        worker_load_spawn();              /* FUN_00452cde — load worker → LOADING_START */
+        s_worldmap_exit_armed = 0;
+    }
+    return 1;   /* frozen this frame (engine goto LAB_004893ff). */
+}
+
+/* Test accessors. */
+int  player_ctrl_worldmap_exit_armed(void) { return s_worldmap_exit_armed; }
+void player_ctrl_worldmap_exit_reset(void) { s_worldmap_exit_armed = 0; }
+
 /* d-pad interaction (all.c:87617-87748, the db048==0 block): the action-button
  * masks (cancel 0x20 → menu/exit, confirm 0x40 → talk-to-customer, 0x10 → object
- * interaction).  The door / counter-menu / talk sub-paths each require a live
- * target none of which the port spawns yet, so they fall through; the wired one
- * is the **in-house display-stand open gate** (all.c:87700-87727): a Z-press
- * while facing a stand cell opens the cc04==1 remove-item menu.  Returns 1 when
- * the menu opens (consume the frame, skip the walk — engine goto LAB_004893ff). */
+ * interaction).  The wired sub-paths are the **shop-door exit** (the bVar17
+ * branch, all.c:87637-87649 — checked FIRST) and the **in-house display-stand
+ * open gate** (all.c:87700-87727).  Returns 1 when a sub-path consumes the frame
+ * (skip the walk — engine goto LAB_004893ff). */
 static int player_ctrl_cc08_dpad_interact(void)
 {
     /* action button Z (DAT_073dddd4 & 0x10): the per-frame EDGE mask
      * (g_sim_buttons[0].pressed), NOT the held mask the walk reads. */
     if ((g_sim_buttons[0].pressed & 0x10u) == 0)
         return 0;
+
+    /* door exit (the bVar17 branch, all.c:87637-87649) — checked BEFORE the
+     * display-stand open (the engine's `if (bVar17)` precedes the stand gate).
+     * Z while at the shop door zone → arm the world-map transition + the fade. */
+    {
+        const uint32_t *bank0 = save_work_dwords_at(save_work_active_slot());
+        int exited = (bank0 != NULL)
+                   ? ((const uint8_t *)bank0)[PC_DOOR_EXITED_BYTE_OFF] : 0;
+        if (player_ctrl_at_shop_door(g_scene1_player_pos[0], s_player_facing,
+                                     exited)) {
+            player_ctrl_worldmap_exit_arm();
+            return 1;   /* consume the frame (engine goto LAB_004890d1). */
+        }
+    }
 
     int cbfc = shop_display_cbfc();
     if (cbfc == -1)                          /* no display cell highlighted */
@@ -1451,6 +1547,14 @@ void scene1_player_ctrl_tick(void)
         return;
 
     if (s_actor_char[0] == -1)        /* no live player actor (pre-HOUSE) */
+        return;
+
+    /* world-map exit stage 2 (all.c:86877-86888, the DAT_074b2ec4==1 block near
+     * the top of FUN_0048670f): while the door-exit is armed the engine freezes
+     * the HOUSE tick each frame until the dissolve fade completes, then flips to
+     * mode 8 + kicks the world-map load.  Returns 1 while frozen → early-out
+     * (the engine's goto LAB_004893ff). */
+    if (player_ctrl_worldmap_exit_stage2())
         return;
 
     /* prologue (all.c:86580, BEFORE the transition arms): drop the periodic

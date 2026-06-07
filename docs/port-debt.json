@@ -2,7 +2,7 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 11,
+  "total": 12,
   "by_kind": {
    "stub": 4,
    "synthetic-data": 0,
@@ -12,9 +12,10 @@
    "force-flag": 0
   },
   "unknown_kinds": {
-   "deferred": 1
+   "deferred": 1,
+   "door-proximity": 1
   },
-  "retiring_engine_fns": 9,
+  "retiring_engine_fns": 10,
   "by_engine_fn": {
    "FUN_004176ff": 2,
    "FUN_004161c7": 1,
@@ -24,7 +25,8 @@
    "FUN_004536cb": 1,
    "FUN_00454191": 1,
    "FUN_0046c9a2": 1,
-   "FUN_00473c03": 1
+   "FUN_00473c03": 1,
+   "FUN_005031e4": 1
   }
  },
  "tags": [
@@ -34,6 +36,14 @@
    "desc": "box_pos_mode/off (DAT_005c7984/80) are",
    "file": "src/scene1_dialogue_run.c",
    "line": 126,
+   "kind_known": false
+  },
+  {
+   "kind": "door-proximity",
+   "engine_fn": "FUN_005031e4",
+   "desc": "the engine also gates on a",
+   "file": "src/scene1_player_ctrl.c",
+   "line": 990,
    "kind_known": false
   },
   {

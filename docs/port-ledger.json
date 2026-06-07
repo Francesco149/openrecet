@@ -12,7 +12,7 @@
   "touched": 448,
   "pct_touched": 17.6,
   "pct_verified": 2.7,
-  "port_debt": 11
+  "port_debt": 12
  },
  "orphan_refs": [
   "0x40f640",
@@ -9997,6 +9997,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_player_ctrl.c",
     "src/scene_new_game.c",
     "src/scene_new_game.h"
    ]
@@ -10021,6 +10022,7 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/scene1_player_ctrl.c",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
     "src/worker_load.h"
