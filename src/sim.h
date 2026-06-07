@@ -103,6 +103,18 @@ void sim_button_ring_update(uint16_t cur,
  * main.c after window/D3D init. */
 void sim_init(void);
 
+/* Trace-harness {phasepin}: zero `g_sim_frame_count` (DAT_0438b8cc).  It free-runs
+ * from scene load, so at the capture window its value is the load-dependent intro
+ * length — a DIFFERENT origin than the {phasepin}-zeroed db054.  Several effects gate
+ * their RNG draws on `g_sim_frame_count % N` (the 目玉 display sparkle = `%8==3`,
+ * FUN_0048670f L86580); an un-normalized origin makes those fire at a different
+ * db054-phase port↔retail, shifting the LCG offset that LATER same-frame consumers
+ * (the foot dust) draw from — so the dust velocity diverges even with the LCG stream
+ * bit-identical.  Pinning it (like db054/b154/bg-NPC) keeps the sparkle↔dust relative
+ * phase identical on both sides.  Trace/comparison ONLY (the shipped game free-runs;
+ * retail's own origin is equally load-dependent).  Mirrored by the retail agent. */
+void sim_phasepin(void);
+
 /* The tick-scheduler `.sim_a` callback. Reads `g_input_state[i].buttons`,
  * advances the per-player button ring into `g_sim_buttons[i]`, and
  * dispatches by scene state (currently only state==0 / title). Tail:

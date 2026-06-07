@@ -8255,7 +8255,8 @@
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",
     "src/scene1_shop_display.h",
-    "src/scene1_sim.c"
+    "src/scene1_sim.c",
+    "src/sim.h"
    ]
   },
   {

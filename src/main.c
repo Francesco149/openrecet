@@ -3647,6 +3647,12 @@ static void segtrace_phasepin_cb(void *user)
     scene1_bg_npc_phasepin();         /* background-window NPCs — re-run the warmup
                                        * from a canonical RNG seed so the drifting
                                        * townsfolk are reproducible/1:1 at capture */
+    sim_phasepin();                   /* g_sim_frame_count (DAT_0438b8cc) — zero the
+                                       * load-dependent sim-frame origin so g_sim-gated
+                                       * RNG consumers (目玉 sparkle %8==3) fire at the
+                                       * same db054-phase as the foot dust; else the
+                                       * dust draws a shifted LCG slice (engine-quirks
+                                       * §95/§112) */
 }
 
 /* Capture-range sink for input_segtrace `{caprange:[start,count]}` ops: open

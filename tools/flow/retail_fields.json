@@ -1,131 +1,488 @@
 {
-  "_doc": "Retail-side field spec for the execution+dataflow trace (docs/plans/execution-flow-trace.md). Maps each instrumented engine VA -> the declared payload the Frida agent reads at that call, joined to the port's CALL_TRACE_* fields by (va, field-name). VA keys + global VAs accept 0x-hex or decimal. src: global (read DAT at va) | arg (Frida onEnter arg index, 0-BASED: index 0 = first param) | argderef (deref arg[index] + off) | retval (onLeave) | rngcalls (cumulative LCG-draw count = the agent's g_rng_count_total; auto-installs the LCG hook). type: i32|u32|f32|hex. NB: indices are Frida's standard 0-based InvocationArguments (index 0 = first cdecl param) — validated 2026-06-05 against FUN_00404efc's dst/src/diffuse params.",
+  "_doc": "Retail-side field spec for the execution+dataflow trace (docs/plans/execution-flow-trace.md). Maps each instrumented engine VA -> the declared payload the Frida agent reads at that call, joined to the port's CALL_TRACE_* fields by (va, field-name). VA keys + global VAs accept 0x-hex or decimal. src: global (read DAT at va) | arg (Frida onEnter arg index, 0-BASED: index 0 = first param) | argderef (deref arg[index] + off) | retval (onLeave) | rngcalls (cumulative LCG-draw count = the agent's g_rng_count_total; auto-installs the LCG hook). type: i32|u32|f32|hex. NB: indices are Frida's standard 0-based InvocationArguments (index 0 = first cdecl param) \u2014 validated 2026-06-05 against FUN_00404efc's dst/src/diffuse params.",
   "fields": {
     "0x47be92": {
       "name": "tick_scheduler",
-      "_note": "FUN_0047be92 — the once-per-frame game-loop scheduler root (also the turbo virtual-clock anchor). Carries the per-frame RNG determinism payload that flow_diff --verdict classifies, read at onEnter BEFORE this frame's sim consumes RNG: rng = engine LCG state DAT_006023a0, rngcalls = cumulative LCG draws (src:rngcalls → the agent's g_rng_count_total; auto-installs the LCG hook). Port mirror: src/tick.c CALL_TRACE_BEGIN(0x47be92). Replaces the old --player-pos-log rng/rngcalls columns + the retail --watch path phase_probe.py used.",
+      "_note": "FUN_0047be92 \u2014 the once-per-frame game-loop scheduler root (also the turbo virtual-clock anchor). Carries the per-frame RNG determinism payload that flow_diff --verdict classifies, read at onEnter BEFORE this frame's sim consumes RNG: rng = engine LCG state DAT_006023a0, rngcalls = cumulative LCG draws (src:rngcalls \u2192 the agent's g_rng_count_total; auto-installs the LCG hook). Port mirror: src/tick.c CALL_TRACE_BEGIN(0x47be92). Replaces the old --player-pos-log rng/rngcalls columns + the retail --watch path phase_probe.py used.",
       "fields": [
-        {"name": "rng",      "src": "global",   "va": "0x6023a0", "type": "i32"},
-        {"name": "rngcalls", "src": "rngcalls",                   "type": "i32"}
+        {
+          "name": "rng",
+          "src": "global",
+          "va": "0x6023a0",
+          "type": "i32"
+        },
+        {
+          "name": "rngcalls",
+          "src": "rngcalls",
+          "type": "i32"
+        }
       ]
     },
     "0x48670f": {
       "name": "house_update",
-      "_note": "FUN_0048670f — the once-per-frame HOUSE free-roam update (parent of the player + companion controllers; also the 目玉商品 sparkle emitter's prologue). Per-frame ACTOR STATE read at onEnter (frame start, pre-update), mirrored by src/scene1_player_ctrl.c scene1_player_ctrl_tick CALL_TRACE_BEGIN(0x48670f). Player actor 0 + companion actor 2: facing octant + world angle + pos + anim cell. Replaces the old --player-pos-log px/oct/coct/… columns. Pos arrays: actor i at DAT_056da1d8 + i*0xc (x,y,z); actor records at DAT_056daae8 + i*0x2c (ANIM@+0, COUNTER@+0x10, FRAME@+0x14, FACING@+0x18).",
+      "_note": "FUN_0048670f \u2014 the once-per-frame HOUSE free-roam update (parent of the player + companion controllers; also the \u76ee\u7389\u5546\u54c1 sparkle emitter's prologue). Per-frame ACTOR STATE read at onEnter (frame start, pre-update), mirrored by src/scene1_player_ctrl.c scene1_player_ctrl_tick CALL_TRACE_BEGIN(0x48670f). Player actor 0 + companion actor 2: facing octant + world angle + pos + anim cell. Replaces the old --player-pos-log px/oct/coct/\u2026 columns. Pos arrays: actor i at DAT_056da1d8 + i*0xc (x,y,z); actor records at DAT_056daae8 + i*0x2c (ANIM@+0, COUNTER@+0x10, FRAME@+0x14, FACING@+0x18).",
       "fields": [
-        {"name": "px",     "src": "global", "va": "0x56da1d8", "type": "f32"},
-        {"name": "py",     "src": "global", "va": "0x56da1dc", "type": "f32"},
-        {"name": "pz",     "src": "global", "va": "0x56da1e0", "type": "f32"},
-        {"name": "poct",   "src": "global", "va": "0x56dab00", "type": "i32"},
-        {"name": "pang",   "src": "global", "va": "0x56db05c", "type": "f32"},
-        {"name": "panim",  "src": "global", "va": "0x56daae8", "type": "i32"},
-        {"name": "pframe", "src": "global", "va": "0x56daaf8", "type": "i32"},
-        {"name": "pcnt",   "src": "global", "va": "0x56daaf4", "type": "i32"},
-        {"name": "cx",     "src": "global", "va": "0x56da1f0", "type": "f32"},
-        {"name": "cz",     "src": "global", "va": "0x56da1f8", "type": "f32"},
-        {"name": "coct",   "src": "global", "va": "0x56dab58", "type": "i32"},
-        {"name": "canim",  "src": "global", "va": "0x56dab40", "type": "i32"},
-        {"name": "cframe", "src": "global", "va": "0x56dab50", "type": "i32"},
-        {"name": "db054",  "src": "global", "va": "0x56db054", "type": "i32"},
-        {"name": "cgate_c8", "src": "global", "va": "0x56da1c8", "type": "i32",
-         "_note": "FUN_0048a833 early-return gate (all.c:89164 `if (DAT_056da1c8 == 1) return;`) — when 1 the companion controller skips ALL state writes incl. facing, so DAT_056dab58 holds its entry seed. Suspect for why retail holds coct=4 (down) in the loaded shop while the port's idle rule overwrites it to 2."},
-        {"name": "cstate",   "src": "global", "va": "0x56db048", "type": "i32",
-         "_note": "DAT_056db048 — companion controller mode (compared ==0xe / ==0xf in FUN_0048a833's branch selection at all.c:89286/89294)."},
-        {"name": "cwander",  "src": "global", "va": "0x438be6c", "type": "i32",
-         "_note": "DAT_0438be6c — idle-wander state machine (0=idle-countdown,1=wander,2/3=return) in FUN_0048a833."},
-        {"name": "cc08",     "src": "global", "va": "0x438cc08", "type": "i32",
-         "_note": "DAT_0438cc08 — the INGAME interaction state machine id inside FUN_0048670f. 1=free-roam walk · 0xa(10)=context-menu commit countdown · 0=open navigable menu · 0xf/0x10=sub-menus · 2=display-management · 0x17=furniture-place · 3=place-confirm · 0x32=counter · 4=customer/scripted. NOTE: during the in-house display-stand REMOVE interaction cc08 stays 1 the whole time — the menu is gated by cc04 (below), NOT cc08. Port var s_cc08 in scene1_player_ctrl.c."},
-        {"name": "cc04",     "src": "global", "va": "0x438cc04", "type": "i32",
-         "_note": "DAT_0438cc04 — the cc08==1 free-roam INTERACTION sub-state. 0=walking · 1=in-house display-stand menu (the sword-stand remove/place menu; opened at 0x488d85 ret 0x488d8a, updated by FUN_00469414(1) at 0x48915a ret 0x48915f, closes back to 0) · 2=furniture-grid display-management (flag DAT_0450fee8[fidx]!=0, opened at 0x488c6e). THE shop-display-remove menu is cc04==1 — this is the field the original RE missed (it watched cc08 only). Port var s_cc04 in scene1_player_ctrl.c."},
-        {"name": "b74c",     "src": "global", "va": "0x438b74c", "type": "i32",
-         "_note": "DAT_0438b74c — proximity/affordance counter, ++ (cap 0xc) in menu-ish states {0,0xa,0xf,0x10,0x1e}, -- otherwise. The `9 < DAT_0438b74c` gate guards menu open + nav (all.c:88151)."},
-        {"name": "b754",     "src": "global", "va": "0x438b754", "type": "i32",
-         "_note": "DAT_0438b754 — menu commit countdown; ++ each frame in states 0xa/0x10/0x1e, dispatches the selected action at ==0xf (all.c:86892)."},
-        {"name": "cc0c",     "src": "global", "va": "0x438cc0c", "type": "i32",
-         "_note": "DAT_0438cc0c — context-menu cursor index; up/down nav (LAB_004878f1) clamps mod the menu count; indexes the action-type array DAT_074b2d98[] at dispatch."},
-        {"name": "cd0bc",    "src": "global", "va": "0x5cd0bc",  "type": "i32",
-         "_note": "DAT_005cd0bc — context-menu entry count written by FUN_004850fe (populate); the modulus for cc0c nav on the cc08==0/0xa menu."},
-        {"name": "bea4",     "src": "global", "va": "0x438bea4", "type": "i32",
-         "_note": "DAT_0438bea4 — selected furniture index for display-management mode 2; FUN_0048940e(bea4,dir) loads/saves that furniture's item grid ↔ scratch."},
-        {"name": "cbfc",     "src": "global", "va": "0x438cbfc", "type": "i32",
-         "_note": "DAT_0438cbfc — the free-roam HIGHLIGHTED display cell COL (the stand cell the player is adjacent to/facing; -1 = none). Also the cc04==1 menu's target-cell col: the removal writes grid[cbfc + cc00*0x14]. (In the cc04==2 furniture-grid mode FUN_004862e7 drives it.) Observed 4 on the remove trace = back-row col 4 = the x=-1 sword."},
-        {"name": "cc00",     "src": "global", "va": "0x438cc00", "type": "i32",
-         "_note": "DAT_0438cc00 — the free-roam HIGHLIGHTED display cell ROW (0 = back row; -1 = none). The cc04==1 removal cell = cbfc + cc00*0x14 into DAT_044f7030 (= save dword 0x4e26 = SAVE_BANK_FIELD_DISPLAY_GRID)."}
+        {
+          "name": "px",
+          "src": "global",
+          "va": "0x56da1d8",
+          "type": "f32"
+        },
+        {
+          "name": "py",
+          "src": "global",
+          "va": "0x56da1dc",
+          "type": "f32"
+        },
+        {
+          "name": "pz",
+          "src": "global",
+          "va": "0x56da1e0",
+          "type": "f32"
+        },
+        {
+          "name": "poct",
+          "src": "global",
+          "va": "0x56dab00",
+          "type": "i32"
+        },
+        {
+          "name": "pang",
+          "src": "global",
+          "va": "0x56db05c",
+          "type": "f32"
+        },
+        {
+          "name": "panim",
+          "src": "global",
+          "va": "0x56daae8",
+          "type": "i32"
+        },
+        {
+          "name": "pframe",
+          "src": "global",
+          "va": "0x56daaf8",
+          "type": "i32"
+        },
+        {
+          "name": "pcnt",
+          "src": "global",
+          "va": "0x56daaf4",
+          "type": "i32"
+        },
+        {
+          "name": "cx",
+          "src": "global",
+          "va": "0x56da1f0",
+          "type": "f32"
+        },
+        {
+          "name": "cz",
+          "src": "global",
+          "va": "0x56da1f8",
+          "type": "f32"
+        },
+        {
+          "name": "coct",
+          "src": "global",
+          "va": "0x56dab58",
+          "type": "i32"
+        },
+        {
+          "name": "canim",
+          "src": "global",
+          "va": "0x56dab40",
+          "type": "i32"
+        },
+        {
+          "name": "cframe",
+          "src": "global",
+          "va": "0x56dab50",
+          "type": "i32"
+        },
+        {
+          "name": "db054",
+          "src": "global",
+          "va": "0x56db054",
+          "type": "i32"
+        },
+        {
+          "name": "cgate_c8",
+          "src": "global",
+          "va": "0x56da1c8",
+          "type": "i32",
+          "_note": "FUN_0048a833 early-return gate (all.c:89164 `if (DAT_056da1c8 == 1) return;`) \u2014 when 1 the companion controller skips ALL state writes incl. facing, so DAT_056dab58 holds its entry seed. Suspect for why retail holds coct=4 (down) in the loaded shop while the port's idle rule overwrites it to 2."
+        },
+        {
+          "name": "cstate",
+          "src": "global",
+          "va": "0x56db048",
+          "type": "i32",
+          "_note": "DAT_056db048 \u2014 companion controller mode (compared ==0xe / ==0xf in FUN_0048a833's branch selection at all.c:89286/89294)."
+        },
+        {
+          "name": "cwander",
+          "src": "global",
+          "va": "0x438be6c",
+          "type": "i32",
+          "_note": "DAT_0438be6c \u2014 idle-wander state machine (0=idle-countdown,1=wander,2/3=return) in FUN_0048a833."
+        },
+        {
+          "name": "cc08",
+          "src": "global",
+          "va": "0x438cc08",
+          "type": "i32",
+          "_note": "DAT_0438cc08 \u2014 the INGAME interaction state machine id inside FUN_0048670f. 1=free-roam walk \u00b7 0xa(10)=context-menu commit countdown \u00b7 0=open navigable menu \u00b7 0xf/0x10=sub-menus \u00b7 2=display-management \u00b7 0x17=furniture-place \u00b7 3=place-confirm \u00b7 0x32=counter \u00b7 4=customer/scripted. NOTE: during the in-house display-stand REMOVE interaction cc08 stays 1 the whole time \u2014 the menu is gated by cc04 (below), NOT cc08. Port var s_cc08 in scene1_player_ctrl.c."
+        },
+        {
+          "name": "cc04",
+          "src": "global",
+          "va": "0x438cc04",
+          "type": "i32",
+          "_note": "DAT_0438cc04 \u2014 the cc08==1 free-roam INTERACTION sub-state. 0=walking \u00b7 1=in-house display-stand menu (the sword-stand remove/place menu; opened at 0x488d85 ret 0x488d8a, updated by FUN_00469414(1) at 0x48915a ret 0x48915f, closes back to 0) \u00b7 2=furniture-grid display-management (flag DAT_0450fee8[fidx]!=0, opened at 0x488c6e). THE shop-display-remove menu is cc04==1 \u2014 this is the field the original RE missed (it watched cc08 only). Port var s_cc04 in scene1_player_ctrl.c."
+        },
+        {
+          "name": "b74c",
+          "src": "global",
+          "va": "0x438b74c",
+          "type": "i32",
+          "_note": "DAT_0438b74c \u2014 proximity/affordance counter, ++ (cap 0xc) in menu-ish states {0,0xa,0xf,0x10,0x1e}, -- otherwise. The `9 < DAT_0438b74c` gate guards menu open + nav (all.c:88151)."
+        },
+        {
+          "name": "b754",
+          "src": "global",
+          "va": "0x438b754",
+          "type": "i32",
+          "_note": "DAT_0438b754 \u2014 menu commit countdown; ++ each frame in states 0xa/0x10/0x1e, dispatches the selected action at ==0xf (all.c:86892)."
+        },
+        {
+          "name": "cc0c",
+          "src": "global",
+          "va": "0x438cc0c",
+          "type": "i32",
+          "_note": "DAT_0438cc0c \u2014 context-menu cursor index; up/down nav (LAB_004878f1) clamps mod the menu count; indexes the action-type array DAT_074b2d98[] at dispatch."
+        },
+        {
+          "name": "cd0bc",
+          "src": "global",
+          "va": "0x5cd0bc",
+          "type": "i32",
+          "_note": "DAT_005cd0bc \u2014 context-menu entry count written by FUN_004850fe (populate); the modulus for cc0c nav on the cc08==0/0xa menu."
+        },
+        {
+          "name": "bea4",
+          "src": "global",
+          "va": "0x438bea4",
+          "type": "i32",
+          "_note": "DAT_0438bea4 \u2014 selected furniture index for display-management mode 2; FUN_0048940e(bea4,dir) loads/saves that furniture's item grid \u2194 scratch."
+        },
+        {
+          "name": "cbfc",
+          "src": "global",
+          "va": "0x438cbfc",
+          "type": "i32",
+          "_note": "DAT_0438cbfc \u2014 the free-roam HIGHLIGHTED display cell COL (the stand cell the player is adjacent to/facing; -1 = none). Also the cc04==1 menu's target-cell col: the removal writes grid[cbfc + cc00*0x14]. (In the cc04==2 furniture-grid mode FUN_004862e7 drives it.) Observed 4 on the remove trace = back-row col 4 = the x=-1 sword."
+        },
+        {
+          "name": "cc00",
+          "src": "global",
+          "va": "0x438cc00",
+          "type": "i32",
+          "_note": "DAT_0438cc00 \u2014 the free-roam HIGHLIGHTED display cell ROW (0 = back row; -1 = none). The cc04==1 removal cell = cbfc + cc00*0x14 into DAT_044f7030 (= save dword 0x4e26 = SAVE_BANK_FIELD_DISPLAY_GRID)."
+        },
+        {
+          "name": "dustn",
+          "src": "records_a_dust",
+          "agg": "n",
+          "type": "i32"
+        },
+        {
+          "name": "dustage",
+          "src": "records_a_dust",
+          "agg": "age",
+          "type": "i32"
+        },
+        {
+          "name": "dustsx",
+          "src": "records_a_dust",
+          "agg": "sx",
+          "type": "f32"
+        },
+        {
+          "name": "dustsz",
+          "src": "records_a_dust",
+          "agg": "sz",
+          "type": "f32"
+        },
+        {
+          "name": "dustvx",
+          "src": "records_a_dust",
+          "agg": "svx",
+          "type": "f32"
+        },
+        {
+          "name": "dustvz",
+          "src": "records_a_dust",
+          "agg": "svz",
+          "type": "f32"
+        }
       ]
     },
     "0x47be2f": {
       "name": "tick_now_ms",
       "chain_benign": true,
-      "_note": "FUN_0047be2f — pure QPC clock read (no game state). The scheduler samples it at a frame position that legitimately differs port↔retail (retail seq1, port seq45) and is doubly irrelevant under turbo's forced virtual clock. Excluded from chain alignment so it can't shadow a real divergence."
+      "_note": "FUN_0047be2f \u2014 pure QPC clock read (no game state). The scheduler samples it at a frame position that legitimately differs port\u2194retail (retail seq1, port seq45) and is doubly irrelevant under turbo's forced virtual clock. Excluded from chain alignment so it can't shadow a real divergence."
     },
     "0x47b73c": {
       "name": "input_poll",
       "chain_benign": true,
-      "_note": "FUN_0047b73c — the engine's DirectInput device poll (GetDeviceState into the 256-byte key buffer). Under the TAS harness the port SUBSTITUTES this entirely: replay_input_poll/segtrace_input_poll write g_input_state[].buttons directly from the recorded trace, so the real input_poll() (with its CALL_TRACE_ENTER(0x47b73c)) never runs on the port (src/main.c). Retail still calls its real poll. A deliberate harness-substitution structural divergence — both sides receive identical synthetic input by construction and the device read consumes no game RNG. Excluded from chain alignment so it can't shadow real sim-leg divergences. Revisit if a scenario ever depends on engine-side input side-effects."
+      "_note": "FUN_0047b73c \u2014 the engine's DirectInput device poll (GetDeviceState into the 256-byte key buffer). Under the TAS harness the port SUBSTITUTES this entirely: replay_input_poll/segtrace_input_poll write g_input_state[].buttons directly from the recorded trace, so the real input_poll() (with its CALL_TRACE_ENTER(0x47b73c)) never runs on the port (src/main.c). Retail still calls its real poll. A deliberate harness-substitution structural divergence \u2014 both sides receive identical synthetic input by construction and the device read consumes no game RNG. Excluded from chain alignment so it can't shadow real sim-leg divergences. Revisit if a scenario ever depends on engine-side input side-effects."
     },
     "0x4526ab": {
       "name": "fade_tick",
       "fields": [
-        {"name": "phase",    "src": "global", "va": "0x438bf7c", "type": "i32"},
-        {"name": "counter",  "src": "global", "va": "0x438bf78", "type": "i32"},
-        {"name": "duration", "src": "global", "va": "0x5c5934",  "type": "i32", "benign": true, "_benign_note": "Dormant while phase==0 (fade_tick returns early without reading it; src/fade.c:69). Retail's 170 is leftover from the intro→title fade the port skips; port's is 0. Benign ONLY for fade-idle frames — if debugging an ACTIVE fade (phase!=0), drop this mark and scrutinize."},
-        {"name": "mode",     "src": "global", "va": "0x438bf80", "type": "i32"}
+        {
+          "name": "phase",
+          "src": "global",
+          "va": "0x438bf7c",
+          "type": "i32"
+        },
+        {
+          "name": "counter",
+          "src": "global",
+          "va": "0x438bf78",
+          "type": "i32"
+        },
+        {
+          "name": "duration",
+          "src": "global",
+          "va": "0x5c5934",
+          "type": "i32",
+          "benign": true,
+          "_benign_note": "Dormant while phase==0 (fade_tick returns early without reading it; src/fade.c:69). Retail's 170 is leftover from the intro\u2192title fade the port skips; port's is 0. Benign ONLY for fade-idle frames \u2014 if debugging an ACTIVE fade (phase!=0), drop this mark and scrutinize."
+        },
+        {
+          "name": "mode",
+          "src": "global",
+          "va": "0x438bf80",
+          "type": "i32"
+        }
       ]
     },
     "0x404efc": {
       "name": "render_quad_add",
       "_note": "FUN_00404efc(param_1=dst* {x,y,w,h}, param_2=src* {l,t,r,b}, param_3=tex* (w@+4,h@+8), param_4=diffuse). Read at onEnter, before the body mutates param_1[2]/[3]. Joins to src/render_quad.c render_quad_add CALL_TRACE_*.",
       "fields": [
-        {"name": "dx",  "src": "argderef", "index": 0, "off": 0,  "type": "f32"},
-        {"name": "dy",  "src": "argderef", "index": 0, "off": 4,  "type": "f32"},
-        {"name": "dw",  "src": "argderef", "index": 0, "off": 8,  "type": "f32"},
-        {"name": "dh",  "src": "argderef", "index": 0, "off": 12, "type": "f32"},
-        {"name": "sl",  "src": "argderef", "index": 1, "off": 0,  "type": "f32"},
-        {"name": "st",  "src": "argderef", "index": 1, "off": 4,  "type": "f32"},
-        {"name": "sr",  "src": "argderef", "index": 1, "off": 8,  "type": "f32"},
-        {"name": "sb",  "src": "argderef", "index": 1, "off": 12, "type": "f32"},
-        {"name": "tw",  "src": "argderef", "index": 2, "off": 4,  "type": "i32"},
-        {"name": "th",  "src": "argderef", "index": 2, "off": 8,  "type": "i32"},
-        {"name": "col", "src": "arg",      "index": 3,            "type": "hex"}
+        {
+          "name": "dx",
+          "src": "argderef",
+          "index": 0,
+          "off": 0,
+          "type": "f32"
+        },
+        {
+          "name": "dy",
+          "src": "argderef",
+          "index": 0,
+          "off": 4,
+          "type": "f32"
+        },
+        {
+          "name": "dw",
+          "src": "argderef",
+          "index": 0,
+          "off": 8,
+          "type": "f32"
+        },
+        {
+          "name": "dh",
+          "src": "argderef",
+          "index": 0,
+          "off": 12,
+          "type": "f32"
+        },
+        {
+          "name": "sl",
+          "src": "argderef",
+          "index": 1,
+          "off": 0,
+          "type": "f32"
+        },
+        {
+          "name": "st",
+          "src": "argderef",
+          "index": 1,
+          "off": 4,
+          "type": "f32"
+        },
+        {
+          "name": "sr",
+          "src": "argderef",
+          "index": 1,
+          "off": 8,
+          "type": "f32"
+        },
+        {
+          "name": "sb",
+          "src": "argderef",
+          "index": 1,
+          "off": 12,
+          "type": "f32"
+        },
+        {
+          "name": "tw",
+          "src": "argderef",
+          "index": 2,
+          "off": 4,
+          "type": "i32"
+        },
+        {
+          "name": "th",
+          "src": "argderef",
+          "index": 2,
+          "off": 8,
+          "type": "i32"
+        },
+        {
+          "name": "col",
+          "src": "arg",
+          "index": 3,
+          "type": "hex"
+        }
       ]
     },
     "0x405354": {
       "name": "render_quad_flush",
-      "_note": "FUN_00405354 — 2D quad batch flush. vcount = DAT_00647e0c, read at onEnter before the flush zeroes it.",
+      "_note": "FUN_00405354 \u2014 2D quad batch flush. vcount = DAT_00647e0c, read at onEnter before the flush zeroes it.",
       "fields": [
-        {"name": "vcount", "src": "global", "va": "0x647e0c", "type": "i32"}
+        {
+          "name": "vcount",
+          "src": "global",
+          "va": "0x647e0c",
+          "type": "i32"
+        }
       ]
     },
     "0x49a59e": {
       "name": "scene_title_sim",
-      "_note": "FUN_0049a59e — title-screen menu state machine. The salient persisted menu state, read at onEnter from its DAT_096435xx globals (mapping documented in src/scene_title.h). Port-side names + read timing in src/scene_title.c scene_title_sim_default (CALL_TRACE_BEGIN_STUB). The port body is a subset (stub-marked); these INPUT fields must still track retail frame-over-frame — a [data] divergence here flags a skipped engine branch as load-bearing.",
+      "_note": "FUN_0049a59e \u2014 title-screen menu state machine. The salient persisted menu state, read at onEnter from its DAT_096435xx globals (mapping documented in src/scene_title.h). Port-side names + read timing in src/scene_title.c scene_title_sim_default (CALL_TRACE_BEGIN_STUB). The port body is a subset (stub-marked); these INPUT fields must still track retail frame-over-frame \u2014 a [data] divergence here flags a skipped engine branch as load-bearing.",
       "fields": [
-        {"name": "frame_counter",   "src": "global", "va": "0x9643518", "type": "i32"},
-        {"name": "cursor_pos",      "src": "global", "va": "0x9643540", "type": "i32"},
-        {"name": "cursor_anim",     "src": "global", "va": "0x9643520", "type": "i32"},
-        {"name": "select_phase",    "src": "global", "va": "0x9643544", "type": "i32"},
-        {"name": "pulse_phase",     "src": "global", "va": "0x964352c", "type": "i32"},
-        {"name": "menu_folding_out","src": "global", "va": "0x9643528", "type": "i32"},
-        {"name": "submenu_state",   "src": "global", "va": "0x9643524", "type": "i32",
-         "benign": true,
-         "reason": "engine leaves DAT_09643524 set after a submenu back-out (render is cursor_anim-gated); the port clears it at cursor_anim==0 for its input gate — no render/input effect. engine-quirks §102"},
-        {"name": "submenu_cursor",  "src": "global", "va": "0x9643530", "type": "i32"},
-        {"name": "settings_dirty",  "src": "global", "va": "0x9643560", "type": "i32"},
-        {"name": "fade_counter",    "src": "global", "va": "0x964351c", "type": "i32"}
+        {
+          "name": "frame_counter",
+          "src": "global",
+          "va": "0x9643518",
+          "type": "i32"
+        },
+        {
+          "name": "cursor_pos",
+          "src": "global",
+          "va": "0x9643540",
+          "type": "i32"
+        },
+        {
+          "name": "cursor_anim",
+          "src": "global",
+          "va": "0x9643520",
+          "type": "i32"
+        },
+        {
+          "name": "select_phase",
+          "src": "global",
+          "va": "0x9643544",
+          "type": "i32"
+        },
+        {
+          "name": "pulse_phase",
+          "src": "global",
+          "va": "0x964352c",
+          "type": "i32"
+        },
+        {
+          "name": "menu_folding_out",
+          "src": "global",
+          "va": "0x9643528",
+          "type": "i32"
+        },
+        {
+          "name": "submenu_state",
+          "src": "global",
+          "va": "0x9643524",
+          "type": "i32",
+          "benign": true,
+          "reason": "engine leaves DAT_09643524 set after a submenu back-out (render is cursor_anim-gated); the port clears it at cursor_anim==0 for its input gate \u2014 no render/input effect. engine-quirks \u00a7102"
+        },
+        {
+          "name": "submenu_cursor",
+          "src": "global",
+          "va": "0x9643530",
+          "type": "i32"
+        },
+        {
+          "name": "settings_dirty",
+          "src": "global",
+          "va": "0x9643560",
+          "type": "i32"
+        },
+        {
+          "name": "fade_counter",
+          "src": "global",
+          "va": "0x964351c",
+          "type": "i32"
+        }
       ]
     },
     "0x46c320": {
       "name": "dialogue_tick",
-      "_note": "FUN_0046c320 — opening-prologue dialogue per-frame update (reveal counter + command walk + standee tween). Read at onEnter, BEFORE this frame's tween runs, mirroring the port's emit_dialogue_calltrace in src/scene1_intro_dialogue.c. Fields = standee table entry 5 (base DAT_073a3e70 + 5*0x1c ints = 0x73a40a0): the iv1_1 sliding Tear sprite. Purpose: settle whether the lines-5/44 standee slide-in divergence is a frame-1:1 slide caught off-phase by the text-anchored capture (benign phase) or a real tween-cadence skew — compare st5_y frame-over-frame port vs retail.",
+      "_note": "FUN_0046c320 \u2014 opening-prologue dialogue per-frame update (reveal counter + command walk + standee tween). Read at onEnter, BEFORE this frame's tween runs, mirroring the port's emit_dialogue_calltrace in src/scene1_intro_dialogue.c. Fields = standee table entry 5 (base DAT_073a3e70 + 5*0x1c ints = 0x73a40a0): the iv1_1 sliding Tear sprite. Purpose: settle whether the lines-5/44 standee slide-in divergence is a frame-1:1 slide caught off-phase by the text-anchored capture (benign phase) or a real tween-cadence skew \u2014 compare st5_y frame-over-frame port vs retail.",
       "fields": [
-        {"name": "box_open", "src": "global", "va": "0x73a3e14", "type": "i32"},
-        {"name": "reveal",   "src": "global", "va": "0x73a3e00", "type": "i32"},
-        {"name": "line_row", "src": "global", "va": "0x73a6a38", "type": "i32"},
-        {"name": "st5_active", "src": "global", "va": "0x73a40cc", "type": "i32"},
-        {"name": "st5_x",  "src": "global", "va": "0x73a40a4", "type": "f32"},
-        {"name": "st5_y",  "src": "global", "va": "0x73a40a8", "type": "f32"},
-        {"name": "st5_tx", "src": "global", "va": "0x73a40ac", "type": "f32"},
-        {"name": "st5_ty", "src": "global", "va": "0x73a40b0", "type": "f32"}
+        {
+          "name": "box_open",
+          "src": "global",
+          "va": "0x73a3e14",
+          "type": "i32"
+        },
+        {
+          "name": "reveal",
+          "src": "global",
+          "va": "0x73a3e00",
+          "type": "i32"
+        },
+        {
+          "name": "line_row",
+          "src": "global",
+          "va": "0x73a6a38",
+          "type": "i32"
+        },
+        {
+          "name": "st5_active",
+          "src": "global",
+          "va": "0x73a40cc",
+          "type": "i32"
+        },
+        {
+          "name": "st5_x",
+          "src": "global",
+          "va": "0x73a40a4",
+          "type": "f32"
+        },
+        {
+          "name": "st5_y",
+          "src": "global",
+          "va": "0x73a40a8",
+          "type": "f32"
+        },
+        {
+          "name": "st5_tx",
+          "src": "global",
+          "va": "0x73a40ac",
+          "type": "f32"
+        },
+        {
+          "name": "st5_ty",
+          "src": "global",
+          "va": "0x73a40b0",
+          "type": "f32"
+        }
       ]
     }
   }

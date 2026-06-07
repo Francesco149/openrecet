@@ -2639,6 +2639,14 @@ function segtraceTick(fn) {
                     rva(0x073a7f80).add(b).writeS32(0);
                 rva(0x073a8bb4).writeS32(0);   // DAT_073a8bb4 spawn cursor
                 rva(0x073a8bb8).writeS32(0);   // DAT_073a8bb8 warmup latch (re-arm)
+                // g_sim_frame_count (DAT_0438b8cc) — the load-dependent sim-frame
+                // origin that gates the 目玉 display sparkle (%8==3, FUN_0048670f
+                // L86580). Un-normalized it makes the sparkle fire at a different
+                // db054-phase port↔retail, shifting the LCG slice the same-frame foot
+                // dust draws from (the dust velocity then diverges with the stream
+                // bit-identical). Zero it so the sparkle↔dust relative phase matches
+                // (mirrors the port's sim_phasepin; engine-quirks §112).
+                rva(0x0438b8cc).writeS32(0);   // DAT_0438b8cc g_sim_frame_count
                 g_bg_npc_pin_pending = true;
                 pp.fired = true;
                 if (g_rng_cs_len > 0) {           // arm call-site capture from here
@@ -3677,6 +3685,38 @@ function flowReadField(args, f) {
             if (f.type === 'u32') return a.toUInt32();
             if (f.type === 'hex') return '0x' + a.toUInt32().toString(16);
             return a.toInt32();
+        }
+        if (f.src === 'records_a_dust') {
+            // Aggregate over the live records-A table (DAT_069b2f80, stride 0x94,
+            // TYPE@+0x30, AGE@+0x34, POS@+0, VEL@+0xc) for the foot-dust type 0xe.
+            // Mirrors src/scene1_player_ctrl.c's dustn/dustage/dusts*/dustv* probe
+            // so flow_diff names exactly which dust field diverges (vel = spawn
+            // RNG values; pos = emit+drift; age = timing; n = spawn/kill).
+            const base = rva(ADDR.var_records_a_base);
+            let cnt = rva(ADDR.var_records_a_count).readS32();
+            if (cnt > RECORD_A_SLOTS) cnt = RECORD_A_SLOTS;
+            if (cnt < 0) cnt = 0;
+            const STRIDE = RECORD_A_STRIDE_DW * 4;
+            let n = 0, age = 0, sx = 0, sz = 0, svx = 0, svz = 0;
+            for (let s = 0; s < cnt; s++) {
+                const slot = base.add(s * STRIDE);
+                if (slot.add(12 * 4).readS32() !== 0xe) continue;
+                n++;
+                age += slot.add(13 * 4).readS32();
+                sx  += slot.add(0).readFloat();
+                sz  += slot.add(2 * 4).readFloat();
+                svx += slot.add(3 * 4).readFloat();
+                svz += slot.add(5 * 4).readFloat();
+            }
+            switch (f.agg) {
+                case 'n':   return n;
+                case 'age': return age;
+                case 'sx':  return sx;
+                case 'sz':  return sz;
+                case 'svx': return svx;
+                case 'svz': return svz;
+                default:    return 0;
+            }
         }
     } catch (_) {
         return null;

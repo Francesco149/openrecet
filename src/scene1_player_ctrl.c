@@ -12,6 +12,7 @@
 #include "call_trace.h"          /* CALL_TRACE_ENTER / _STUB */
 #include "scene1_chr_sprite.h"   /* CHR_ACTOR_* record-field indices, chr_anim_tick */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos[3] (DAT_056da1d8/dc/e0) */
+#include "scene1_records.h"        /* g_scene1_records_a — foot-dust slot-state probe */
 #include "input.h"               /* g_input_state[].buttons (held d-pad mask) */
 #include "collision_house.h"     /* collision_house_get — live room mesh */
 #include "collision_resolve.h"   /* collision_resolve_player (FUN_00483170) */
@@ -1360,6 +1361,36 @@ void scene1_player_ctrl_tick(void)
                     gv = (int)gb[SAVE_BANK_FIELD_DISPLAY_GRID
                                  + gcol + grow * SHOP_DISPLAY_GRID_STRIDE];
                 CALL_TRACE_I32("gridc", gv);
+            }
+            /* foot-dust (records-A type-0xe) slot-state aggregate — the
+             * RNG-pinned dust parity probe.  With RNG bit-exact + NPCs aligned,
+             * a divergence here is dust LOGIC: dustvx/dustvz isolate the spawn
+             * velocity-init (RNG values), dustsx/dustsz the emit pos + drift,
+             * dustage the emit timing/lifetime, dustn the spawn/kill count.
+             * Mirrored by the retail 0x48670f hook's src:'records_a_dust' fields
+             * (tools/flow/retail_fields.json). */
+            {
+                int dn = 0, dage = 0;
+                float dsx = 0.f, dsz = 0.f, dvx = 0.f, dvz = 0.f;
+                int rcn = g_scene1_records_a_count;
+                if (rcn > SCENE1_RECORDS_A_COUNT) rcn = SCENE1_RECORDS_A_COUNT;
+                for (int s = 0; s < rcn; s++) {
+                    const int32_t *rr =
+                        &g_scene1_records_a[s * SCENE1_RECORDS_A_STRIDE];
+                    if (rr[SCENE1_RECORDS_A_OFF_TYPE] != 0xe) continue;
+                    dn++;
+                    dage += rr[SCENE1_RECORDS_A_OFF_AGE];
+                    dsx  += *(const float *)&rr[SCENE1_RECORDS_A_OFF_POS_X];
+                    dsz  += *(const float *)&rr[SCENE1_RECORDS_A_OFF_POS_Z];
+                    dvx  += *(const float *)&rr[SCENE1_RECORDS_A_OFF_VEL_X];
+                    dvz  += *(const float *)&rr[SCENE1_RECORDS_A_OFF_VEL_Z];
+                }
+                CALL_TRACE_I32("dustn",   dn);
+                CALL_TRACE_I32("dustage", dage);
+                CALL_TRACE_F32("dustsx",  dsx);
+                CALL_TRACE_F32("dustsz",  dsz);
+                CALL_TRACE_F32("dustvx",  dvx);
+                CALL_TRACE_F32("dustvz",  dvz);
             }
         }
         CALL_TRACE_END();

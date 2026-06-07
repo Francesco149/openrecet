@@ -196,6 +196,8 @@ void sim_set_mode_9a0(int32_t v)    { g_sim_mode_9a0    = v; }
 
 /* ─── lifecycle + frame entry ────────────────────────────────────────── */
 
+void sim_phasepin(void) { g_sim_frame_count = 0; }
+
 void sim_init(void)
 {
     memset(g_sim_buttons, 0, sizeof g_sim_buttons);
