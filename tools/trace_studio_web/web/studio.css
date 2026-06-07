@@ -15,3 +15,34 @@
 .badge.amber { background: #5a4500; color: #f0c674; }
 .badge.red   { background: #5a1e1e; color: #ffa198; }
 .badge.gray  { background: #21262d; color: #8b949e; }
+
+/* ── S6: Filmstrip (the segmented scrubber) ────────────────────────────────── */
+.filmstrip { display: flex; align-items: stretch; height: 40px; margin: .5rem 0;
+  border: 1px solid var(--edge); border-radius: 6px; overflow: hidden;
+  background: #0c0d10; user-select: none; }
+.film-seg { position: relative; cursor: pointer; min-width: 28px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; border-right: 1px solid #0007; }
+.film-seg:last-child { border-right: none; }
+.film-seg.green { background: linear-gradient(#205c39, #163f28); }
+.film-seg.amber { background: linear-gradient(#6a5200, #463700); }
+.film-seg.red   { background: linear-gradient(#6a2424, #451818); }
+.film-seg.gray  { background: linear-gradient(#262b33, #1a1d22); }
+.film-seg.active { outline: 2px solid var(--accent); outline-offset: -2px; }
+.film-seg .film-lbl { font-size: 10px; color: #cdd3da; opacity: .75; pointer-events: none; }
+.film-cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent);
+  box-shadow: 0 0 5px var(--accent); pointer-events: none; }
+.seam-chev { flex: 0 0 22px; display: flex; align-items: center; justify-content: center;
+  color: var(--warn); font-size: 13px; cursor: help; border-right: 1px solid #0007;
+  background: repeating-linear-gradient(45deg, #1a1d22, #1a1d22 3px, #262b33 3px, #262b33 6px); }
+
+/* ── S6: DiffRibbon (per-frame diff strip) ─────────────────────────────────── */
+.diff-ribbon-wrap { margin: .35rem 0 .2rem; }
+.diff-ribbon { display: flex; height: 16px; border: 1px solid var(--edge); border-radius: 4px;
+  overflow: hidden; background: #0c0d10; cursor: pointer; }
+.diff-cell { flex: 1 1 0; min-width: 1px; }
+.diff-cell.cur { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 2; }
+.diff-bar { display: flex; align-items: center; gap: .5rem; font-size: 12px; color: var(--dim);
+  margin-top: .25rem; }
+.diff-bar .spacer { flex: 1; }
+.diff-bar b { color: var(--fg); }
+.diff-bar button { font-size: 11px; padding: 0 .45rem; }
