@@ -105,14 +105,19 @@
             export MINGW_AR=i686-w64-mingw32-ar
             export MINGW_STRIP=i686-w64-mingw32-strip
 
-            # Wine prefix lives inside the project so it's disposable.
-            echo "openrecet dev shell ready"
-            echo "  game dir:    $OPENRECET_GAME_DIR"
-            echo "  steamless:   $OPENRECET_STEAMLESS_DIR"
-            echo "  mingw cc:    $(command -v $MINGW_CC || echo '(missing)')"
-            echo "  exe runs via WSLInterop (no wine)"
-            echo ""
-            echo "Bootstrap: ./tools/setup.sh"
+            # Banner only for an interactive shell (stdout is a tty). Under
+            # `nix develop --command <cmd>` stdout is a pipe, so this stays silent
+            # — otherwise the banner pollutes every tool's stdout (broke command
+            # substitution + heredocs in capture scripts).
+            if [ -t 1 ]; then
+              echo "openrecet dev shell ready"
+              echo "  game dir:    $OPENRECET_GAME_DIR"
+              echo "  steamless:   $OPENRECET_STEAMLESS_DIR"
+              echo "  mingw cc:    $(command -v $MINGW_CC || echo '(missing)')"
+              echo "  exe runs via WSLInterop (no wine)"
+              echo ""
+              echo "Bootstrap: ./tools/setup.sh"
+            fi
           '';
         };
 
