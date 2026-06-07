@@ -209,7 +209,8 @@ class CaptureController:
 
     def start(self, trace: str, session: str, target: str,
               call_trace: bool, caprange: str | None, only: str = "both",
-              kind: str = "capture") -> dict:
+              kind: str = "capture",
+              extra_args: list[str] | None = None) -> dict:
         with self.lock:
             if self._alive():
                 return {"ok": False, "error": f"a capture is already running "
@@ -225,6 +226,8 @@ class CaptureController:
                 cmd += ["--caprange", caprange]
             if only and only != "both":
                 cmd += ["--only", only]
+            if extra_args:
+                cmd += list(extra_args)          # e.g. drill: --capstride 1 --reset-trace
             logf = log.open("w")
             try:
                 self.proc = subprocess.Popen(

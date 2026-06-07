@@ -14,6 +14,7 @@ import argparse
 import sys
 
 from .capture import CaptureConfig, run_capture
+from .model.drill import drill_window
 from .paths import DEFAULT_REMOTE, SESS_ROOT, WEB_DIR
 
 
@@ -44,20 +45,15 @@ def cmd_drill(args) -> int:
     if not mf.exists():
         raise SystemExit(f"trace_studio: no session {args.session} under {SESS_ROOT}")
     m = json.loads(mf.read_text())
-    src = m.get("working_trace") or m.get("source_trace")
-    cr = m.get("caprange")
-    if not src or not cr:
-        raise SystemExit(
-            f"trace_studio: session {args.session} has no working_trace/caprange to drill")
-    stride = int(m.get("stride", 1) or 1)
-    s0, c0 = int(cr[0]), int(cr[1])
-    start = s0 + args.at * stride
-    end = min(start + args.span, s0 + c0)          # clamp to the overview window
-    span = max(1, end - start)
-    child = args.session_out or f"{args.session}-drill-{start}-{span}"
+    try:
+        src, start, span, default_child = drill_window(
+            m, args.session, args.at, args.span)
+    except ValueError as e:
+        raise SystemExit(f"trace_studio: session {args.session} {e}")
+    child = args.session_out or default_child
     print(f"trace_studio: DRILL {args.session} @ viewer idx {args.at} "
-          f"(stride {stride}) → anchor-relative caprange [{start},{span}] dense "
-          f"→ session {child}")
+          f"(stride {int(m.get('stride', 1) or 1)}) → anchor-relative caprange "
+          f"[{start},{span}] dense → session {child}")
     return run_capture(CaptureConfig(
         trace=src, session=child, target=args.target or m.get("target", "both"),
         call_trace=args.call_trace, caprange=f"{start},{span}", capstride=1,

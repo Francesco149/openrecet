@@ -126,6 +126,39 @@ def h_recapture(h, m, raw):
         only=d.get("only", "both"), kind="recapture"))
 
 
+def h_drill(h, m, raw):
+    # DRILL: recapture one overview sub-window DENSE. Body: {at, span?=48, target?,
+    # call_trace?, session_out?}. Maps the overview viewer index `at` → the
+    # anchor-relative dense window via model/drill.drill_window (shared with the CLI),
+    # then spawns a stride-1 --reset-trace capture into a child session (async; the
+    # JobTray watches it as kind=drill).
+    from ..model.drill import drill_window
+    sess = m.group(1)
+    sdir = h.server.sess_root / sess
+    mf = sdir / "session.json"
+    if not mf.is_file():
+        h._send_bytes(b"no session", "text/plain", 404)
+        return
+    man = json.loads(mf.read_text())
+    d = _json(raw)
+    try:
+        src, start, span2, default_child = drill_window(
+            man, sess, int(d.get("at", 0)), int(d.get("span", 48)))
+    except (ValueError, TypeError) as e:
+        h._send_bytes(str(e).encode(), "text/plain", 400)
+        return
+    child = d.get("session_out") or default_child
+    res = h.server.capturer.start(
+        src, child, d.get("target", man.get("target", "both")),
+        bool(d.get("call_trace", man.get("call_trace", True))),
+        f"{start},{span2}", kind="drill",
+        extra_args=["--capstride", "1", "--reset-trace"])
+    if res.get("ok"):
+        res = {"ok": True, "session": child, "at": int(d.get("at", 0)),
+               "caprange": [start, span2]}
+    h._send_json(res)
+
+
 # ── POST: apply pins ─────────────────────────────────────────────────────────
 def h_apply(h, m, raw):
     sess = m.group(1)
@@ -269,6 +302,7 @@ POST_ROUTES = [
     (r"^/record/stop$",           h_record_stop),
     (r"^/capture$",               h_capture),
     (r"^/s/([^/]+)/recapture$",   h_recapture),
+    (r"^/s/([^/]+)/drill$",       h_drill),
     (r"^/s/([^/]+)/apply$",       h_apply),
     (r"^/s/([^/]+)/trace$",       h_trace),
     (r"^/s/([^/]+)/notes$",       h_notes),
