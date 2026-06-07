@@ -34,6 +34,14 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 - **Phase:** Foundation for frame-by-frame 1:1 parity (plan: `plans/` — render-parity
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
+- **Tooling — Trace Studio v2 (plan `plans/trace-studio-v2.md`):** Phase 0/1/2 ✅.
+  **Phase 2 landed 2026-06-07** — the 805-line `trace_studio.py` monolith + 2 flat
+  helpers are now the **`tools/trace_studio/` package** (model/drive/transport/analysis/
+  edits/record/server + cli; `trace_studio.py` is a thin launcher). Captures write a
+  **v2 segmented `session.json`** (v1 superset + `schema_version:2` + `timeline` with
+  loads as zero-frame seams); v1 sessions still open; D1 load-suppression wired
+  (default on, EngineCaps-gated). Next: **Phase 3** (two-tier `{capstride}` capture +
+  per-segment media), then **Phase 4** (the SPA on the v2 model), **Phase 5** (New-Game).
 - **Active work:** Phase 1 — the render-parity diff engine. **Vertex capture LANDED**
   (2026-06-05): both sides (`src/d3d_trace.c` + Frida agent) capture per-draw vertex bytes
   under `--d3d-trace-verts`; `tools/render_diff.py --explain` FVF-decodes aligned draws and

@@ -18,6 +18,19 @@ The human-facing front end for "record a long trace → tweak it until it plays
 1:1 on BOTH sides → point Claude at a sub-region → repeat." Three subcommands;
 it reuses `export_trace`/`frida_capture`/`flow_diff`/`pixel_diff` underneath.
 
+**Architecture (v2, `docs/plans/trace-studio-v2.md`).** The logic lives in the
+`tools/trace_studio/` **package** (`model/` ops·segments·timeline·session ·
+`drive/` caps·port·retail·runner · `transport/` convert·encode · `analysis/`
+pixeldiff·verdict·state · `edits/` · `record/` · `server/` · `cli`).
+`tools/trace_studio.py` is a thin **launcher** kept for the documented command + the
+server's capture spawn — the `.py` file and the `trace_studio/` package coexist on
+purpose (a directory shadows a same-named `.py` for imports, so running the file by
+path still works while `import trace_studio` resolves to the package). The alignment
+core (`model/segments.py`) is a Python port of `trace_studio_web/align.mjs`, kept in
+lockstep by a golden cross-check (`tools/test_trace_studio_segments.py` runs a shared
+fixture through both). `EngineCaps` (`drive/caps.py`) probes the built exe for the
+D1/D2 flag tokens and degrades gracefully on an older exe.
+
 ```sh
 # 1. CAPTURE a window on both sides (turbo, concurrent) → scrub videos + diff +
 #    the phase/RNG verdict. Reads the {caprange}/{calltrace} from the trace.
@@ -72,9 +85,17 @@ can't leave a stray capture process. The CLI equivalent is
 
 Outputs land under `runs/trace-studio/<session>/` (`session.json` manifest,
 `{port,retail,diff}.mp4`, `state.jsonl`, `edits.jsonl`, `worklist.md`). The
-scrub videos are all-intra h264 (every frame a keyframe → frame-exact seek);
-bulk PNGs are kept by default (`--prune-frames` to drop them on long traces; an
-exact re-diff of a marked window re-captures just that window). **Retail sizing:**
+**v2 `session.json`** is a v1 superset + `schema_version: 2` + a `timeline` — an
+ordered list of `gameplay` segments and zero-frame `load_seam` entries (each load
+reconstructed from the `LOADING_START/END` anchor span, with per-side tick counts);
+the old web UI keeps reading the same top-level fields (the SPA that consumes
+`timeline` is Phase 4), and v1 sessions still open (migrated in memory to one
+gameplay segment). **`--suppress-loads` is on by default** (D1): the turbo-stretched
+load captures zero frames, collapsing to a seam (auto-degrades on a pre-D1 exe;
+`--no-suppress-loads` to capture load frames). The scrub videos are all-intra h264
+(every frame a keyframe → frame-exact seek); bulk PNGs are kept by default
+(`--prune-frames` to drop them on long traces; an exact re-diff of a marked window
+re-captures just that window). **Retail sizing:**
 turbo load-stretches anchors late (HOUSE_FREEROAM port ~475 vs retail ~14285), so
 `--retail-max-frames` defaults to 22000 for HOUSE windows; the port side reaches
 the window early (`--port-max-frames` 4000). The two sides are renumbered to a

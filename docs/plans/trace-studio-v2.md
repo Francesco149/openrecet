@@ -1,7 +1,9 @@
 # Trace Studio v2 — a maintainable, fast TAS trace workhorse
 
 **Status (2026-06-07):** Phase 0 ✅ (`de3909c`). **Phase 1 ✅ landed + verified**
-(`7d22255` D1, `5d59499` kept-count guard, `3335fca` D2). Phases 2–5 pending.
+(`7d22255` D1, `5d59499` kept-count guard, `3335fca` D2). **Phase 2 ✅ landed +
+verified** (`b2e01c6` model, `ed76707` export_trace D1, `51fa340` decompose +
+v2 capture, `0a0cf8c` lift record/server/edits). Phases 3–5 pending.
 Multi-session rebuild; `/clear` at each phase boundary. This is the canonical
 plan — the `~/.claude` plan file is a session-local mirror.
 
@@ -185,12 +187,35 @@ traces).
   still PHASE-CLEAN (`flow_diff --verdict`). Two replays bit-identical per ordinal idx.
 - **Commit per logical unit. `/clear` after.**
 
-### Phase 2 — Maintainable package foundation
-Create `tools/trace_studio/`; port `align.mjs` → `model/segments.py` (golden-checked);
-versioned segment-centric `session.json` v2 + v1 migration; `EngineCaps`; decompose
-the `cmd_capture` monolith into `drive/transport/analysis/model`; wire the Phase-1
-core; lift `RecordController`/`_recover_raw`/HTTP-Range verbatim. **Acceptance**: a
-capture produces a v2 segmented session (loads as seams); old v1 sessions still open.
+### Phase 2 — Maintainable package foundation ✅ DONE
+Created `tools/trace_studio/` (the 805-line monolith + 2 flat helpers → a package;
+`tools/trace_studio.py` is now a thin launcher that coexists with the package —
+a dir shadows a same-named `.py` for imports, so the documented command + the
+server's capture spawn work verbatim). Landed:
+- **`model/`** — `ops` (trace/anchor parsing), `segments` (Python port of
+  `align.mjs`, **golden cross-checked** via a shared fixture + JS dumper:
+  `test_trace_studio_segments.py`), `timeline` (build load_seams from the
+  anchor spans + a gameplay entry), `session` (**v2 = v1 superset +
+  `schema_version:2` + `timeline`**; v1 sessions migrate in memory → one
+  gameplay segment; `test_trace_studio_session.py`).
+- **`drive/`** — `EngineCaps` (probes the built exe for the D1/D2/D3 flag tokens,
+  side-effect-free; degrades on a pre-D1 exe), `port`/`retail`/`runner`. **Wired
+  the Phase-1 core**: D1 `--capture-suppress-loads` forwarded through `export_trace`
+  (new passthrough) + retail `suppress_loads=`; default on for the studio. (D2
+  exe-side `--capture-local` through `export_trace` is deferred to Phase 3 — caps
+  reports it unsupported and the studio degrades with a one-line log.)
+- **`transport/`** convert·encode, **`analysis/`** pixeldiff·verdict·state,
+  `trace_build`, `capture` (the decomposed `cmd_capture`), `cli`.
+- Lifted **`record/`** (`RecordController`/`CaptureController`/`recover_raw`),
+  **`server/`** (`ranged` HTTP-Range + `app`; the do_POST ladder kept as-is —
+  dispatch-table refactor moved to Phase 4 with the SPA), **`edits/apply`**.
+  Deleted the flat `trace_studio_serve.py`/`trace_studio_apply.py`.
+
+**Acceptance met**: a port-only capture of `house-loaded-display-pinned` writes a
+v2 session (`schema_version 2`, **1 load_seam** port 261→2505 = 2244 turbo ticks
+collapsed to zero frames, 1 gameplay/48 frames); the server lists it alongside the
+old v1 sessions, serves the v2 manifest, HTTP-Range 206 works; all 7 tools tests
+green (5 existing + 2 new). The old web UI is untouched (v2 is a v1 superset).
 **`/clear` after.**
 
 ### Phase 3 — Two-tier capture + per-segment media
