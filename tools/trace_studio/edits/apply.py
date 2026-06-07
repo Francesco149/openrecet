@@ -1,5 +1,6 @@
-"""trace_studio_apply.py — turn viewer marks (edits.jsonl) into trace edits +
-a Claude worklist. The automation of the manual phase/RNG-pin loop.
+"""edits/apply.py — turn viewer marks (edits.jsonl) into trace edits + a Claude
+worklist. The automation of the manual phase/RNG-pin loop. (Lifted verbatim from
+the former tools/trace_studio_apply.py.)
 
 Marks are keyed by the VIEWER frame index (0-based, window start = 0). The
 trace's {phasepin}/{rngseed}/{caprange} ops live in the FINAL segment and are

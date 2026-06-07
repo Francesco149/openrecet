@@ -28,9 +28,7 @@ def cmd_capture(args) -> int:
 
 
 def cmd_serve(args) -> int:
-    # server/edits are lifted into the package in the next step; until then use the
-    # still-present flat modules so `serve`/`apply` keep working at every commit.
-    from trace_studio_serve import serve
+    from .server.app import serve
     sess_dir = SESS_ROOT / args.session if args.session else None
     if sess_dir and not sess_dir.exists():
         raise SystemExit(f"trace_studio: no session {args.session} under {SESS_ROOT}")
@@ -42,7 +40,7 @@ def cmd_serve(args) -> int:
 def cmd_apply(args) -> int:
     from pathlib import Path
 
-    from trace_studio_apply import apply
+    from .edits.apply import apply
     sess_dir = SESS_ROOT / args.session
     if not sess_dir.exists():
         raise SystemExit(f"trace_studio: no session {args.session}")
