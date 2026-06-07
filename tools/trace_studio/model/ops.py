@@ -74,6 +74,25 @@ def raw_header(path: Path) -> dict | None:
         "openrecet-tas-raw") else None
 
 
+def raw_has_anchors(path: Path) -> bool:
+    """True if a raw recording carries {anchor} rows (the recorder logged the
+    BOOT/LOADING/HOUSE_FREEROAM/… stream). When present, the distill should
+    anchor-segment (the FLAT boot-relative window otherwise lands a load-bearing
+    trace's {caprange} in the pre-load region — e.g. a Continue trace stops at the
+    save-picker instead of reaching the loaded scene)."""
+    for ln in Path(path).read_text().splitlines():
+        s = ln.strip()
+        if not s or s.startswith("#"):
+            continue
+        try:
+            o = json.loads(s)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(o, dict) and "anchor" in o and "frame" in o:
+            return True
+    return False
+
+
 def raw_default_window(path: Path, anchored: bool = False) -> tuple[int, int] | None:
     """Default capture window for a raw recording. FLAT (default): the WHOLE
     recording from boot, [0, last_frame+margin]. ANCHORED: from the LAST recorded

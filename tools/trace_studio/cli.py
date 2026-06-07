@@ -112,9 +112,12 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--only", choices=("both", "port"), default="both",
                    help="'port' re-runs only the port and REUSES the cached retail "
                         "capture (the fast port-fixing loop); 'both' is a full capture")
-    c.add_argument("--anchors", action="store_true",
+    c.add_argument("--anchors", action=argparse.BooleanOptionalAction, default=None,
                    help="distil a raw recording with every recorded anchor as a {wait} "
-                        "sync point (default: FLAT — boot-synced, captured from frame 0)")
+                        "sync point. Default AUTO: anchor iff the recording carries "
+                        "anchors (FLAT boot-syncing a load-bearing trace lands the window "
+                        "in the pre-load region — it stops at the save-picker). "
+                        "--no-anchors forces FLAT.")
     c.add_argument("--suppress-loads", action=argparse.BooleanOptionalAction,
                    default=True,
                    help="D1: drop captures during loads so the turbo load span "

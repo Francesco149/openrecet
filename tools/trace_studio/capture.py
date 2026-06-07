@@ -42,7 +42,8 @@ class CaptureConfig:
     prune_frames: bool = False
     reset_trace: bool = False
     only: str = "both"                   # both | port
-    anchors: bool = False                # anchor-segmented distil of a raw recording
+    anchors: bool | None = None          # None=auto (anchor iff the recording carries
+                                         # anchors); True/False force on/off
     suppress_loads: bool = True          # D1: collapse loads to zero-frame seams
     capture_local: bool = True           # D2: local-disk staging (degrades if unsupported)
     capstride: int = 1                   # D3: capture every Nth frame (OVERVIEW); 1 = dense
@@ -64,8 +65,29 @@ def run_capture(cfg: CaptureConfig) -> int:
     want_retail = cfg.target == "both"
     working = sess_dir / "edit.trace.jsonl"
 
+    # ── anchoring (cfg.anchors None = AUTO) ──────────────────────────────────
+    # A raw recording that carries {anchor} rows anchor-segments by default: FLAT
+    # boot-syncing a load-bearing recording lands the {caprange} in the PRE-LOAD
+    # region (e.g. a Continue trace's window stops at the save-picker instead of
+    # reaching the loaded scene). The recorder logged anchors precisely so the
+    # window can target the loaded content; honour them. Explicit --anchors /
+    # --no-anchors override.
+    rec_has_anchors = bool(hdr) and ops.raw_has_anchors(src)
+    anchored = cfg.anchors if cfg.anchors is not None else rec_has_anchors
+    if cfg.anchors is None and rec_has_anchors:
+        _log("auto-anchor: recording carries anchors → anchor-segmented distil "
+             "(FLAT would land the window in the pre-load region; --no-anchors to force)")
+
     # ── working trace: reuse (carries applied pins) unless --reset-trace ──────
-    if working.exists() and not cfg.reset_trace:
+    reuse = working.exists() and not cfg.reset_trace
+    if reuse and anchored and not any("wait" in o for o in ops.load_ops(working)):
+        # A stale FLAT working trace (no {wait}) for an anchored recording has its
+        # window in the wrong place — rebuild rather than silently re-capture the
+        # pre-load. (Re-apply pins if any were set.)
+        _log("re-capture: working trace is FLAT but the recording carries anchors — "
+             "rebuilding anchor-segmented (re-apply pins if needed; --no-anchors to keep FLAT)")
+        reuse = False
+    if reuse:
         _log(f"re-capture: reusing working trace {working.name} (with applied pins)")
     else:
         if cfg.caprange:
@@ -74,13 +96,13 @@ def run_capture(cfg: CaptureConfig) -> int:
         else:
             cr0 = ops.extract_caprange(ops.load_ops(src))
             if not cr0 and hdr:
-                cr0 = ops.raw_default_window(src, anchored=cfg.anchors)
-                _log(f"raw recording → {'anchor-segmented' if cfg.anchors else 'FLAT (no anchoring, boot-synced)'} "
+                cr0 = ops.raw_default_window(src, anchored=anchored)
+                _log(f"raw recording → {'anchor-segmented' if anchored else 'FLAT (no anchoring, boot-synced)'} "
                      f"distil, auto window caprange={cr0}")
         if not cr0:
             raise SystemExit("trace_studio: no --caprange given and none in the trace")
         trace_build.build_working_trace(src, sess_dir, working, cr0,
-                                        bool(cfg.call_trace), anchored=cfg.anchors,
+                                        bool(cfg.call_trace), anchored=anchored,
                                         capstride=cfg.capstride)
 
     trace = working
