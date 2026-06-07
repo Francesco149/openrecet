@@ -24,6 +24,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .marks import APPLY_KINDS, WORKLIST_KINDS
+
 CANON_SEED = 19937          # the bg-NPC-warmup canonical seed convention
 
 
@@ -99,7 +101,7 @@ def apply(sess_dir: Path, trace_override: Path | None = None,
             if val is None:
                 val = CANON_SEED
             pin_ops.append({"rngseed": [seg, int(val)]})
-        elif kind in ("anchor", "feature", "note"):
+        elif kind in WORKLIST_KINDS:
             st = state.get(idx, {})
             ctx = []
             for side in ("retail", "port"):
@@ -156,7 +158,7 @@ def apply(sess_dir: Path, trace_override: Path | None = None,
         print(f"  wrote {trace}")
         # Clear the pin marks we just applied (they now live in the trace) so the
         # self-service loop doesn't re-stack them; keep anchor/feature/note for Claude.
-        kept = [e for e in edits if e.get("kind") not in ("phasepin", "rngpin")]
+        kept = [e for e in edits if e.get("kind") not in APPLY_KINDS]
         (sess_dir / "edits.jsonl").write_text(
             "".join(json.dumps(e) + "\n" for e in kept))
     elif new_lines and dry_run:

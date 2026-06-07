@@ -69,6 +69,14 @@ def h_jobs(h, m, raw):
     h._send_json(h.server.jobs.list())
 
 
+def h_registries(h, m, raw):
+    # Mark-type + analyzer registries, so the SPA renders its MarkBar / analysis
+    # views from data (add a kind in edits/marks.py → it surfaces with no JS edit).
+    from ..analysis import registry as analyzers
+    from ..edits import marks
+    h._send_json({"marks": marks.registry(), "analyzers": analyzers.registry()})
+
+
 # ── POST: record ─────────────────────────────────────────────────────────────
 def h_record_start(h, m, raw):
     d = _json(raw)
@@ -271,8 +279,9 @@ POST_ROUTES = [
 ]
 
 GET_ROUTES = [
-    (r"^/api/sessions$",   h_sessions),
-    (r"^/api/jobs$",       h_jobs),
+    (r"^/api/sessions$",    h_sessions),
+    (r"^/api/jobs$",        h_jobs),
+    (r"^/api/registries$",  h_registries),
     (r"^/record/status$",  h_record_status),
     (r"^/capture/status$", h_capture_status),
 ]
