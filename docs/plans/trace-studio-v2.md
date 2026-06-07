@@ -8,9 +8,9 @@ v2 capture, `0a0cf8c` lift record/server/edits). **Phase 3 ✅ landed + verified
 `b8660ca` D2 through export_trace + caps fix, `1ecff91` overview wiring, `a1e2ea1`
 CLI drill, `324debe` retail-harness `{capstride}` forward. Per-segment video split
 + in-browser drill deferred to Phase 4 (the SPA consumes them). **Phase 4 IN PROGRESS
-(S1–S8 ✅ 2026-06-07: the whole server backend + the core scrub viewer + the side panels
-+ in-browser drill, user-confirmed UX & layout; S9–S10 remaining — re-home the trace
-editor, then flip the default + retire the monolith).** Phase 5 pending. Multi-session rebuild; `/clear` at each phase boundary. This
+(S1–S9 ✅ 2026-06-07: the whole server backend + the core scrub viewer + the side panels
++ in-browser drill + the re-homed trace editor (`7b39d59`), user-confirmed; S10 remaining —
+flip the default + retire the monolith).** Phase 5 pending. Multi-session rebuild; `/clear` at each phase boundary. This
 is the canonical plan — the `~/.claude` plan file is a session-local mirror.
 
 **Phase 3 results (all acceptance criteria met):**
@@ -266,7 +266,7 @@ seams + in-browser click-to-drill (the timeline entry already carries `cadence`,
 the CLI drill localizer `frames[0] + v*cadence` is the canonical math the SPA reuses).
 **`/clear` after.**
 
-### Phase 4 — New SPA  ← IN PROGRESS (S1–S8 landed 2026-06-07)
+### Phase 4 — New SPA  ← IN PROGRESS (S1–S9 landed 2026-06-07)
 Build `web/components/*` on the v2 model (Filmstrip, segment-aware VideoStage, DiffRibbon,
 StatePanel, unified MarkBar, JobTray); serve mark/analyzer registries as JSON; re-home the
 trace editor; retire the `app.mjs`/`timeline.mjs` monolith. **Acceptance**: the full
@@ -309,8 +309,8 @@ the static-asset GET branch serves the new `web/` subtree with no server change.
 | S6 | `web/components/` Filmstrip + VideoStage (+attachBox box-select) + DiffRibbon + ScrubBar + `web/util.mjs` (toast/copy/fmt) | ✅ `b817f40` — user-confirmed UX (“much better, like the diff scrub”) |
 | S7 | StatePanel + unified MarkBar (from `/api/registries`) + JobTray (one poller on `/api/jobs`) + lift Record/Iterate/Verdict | ✅ `908c03b` (+ `e8cf44e` polish: fold anchor/feature→note, mark crop-preview thumb, readable link) — user-confirmed |
 | S8 | in-browser drill UI (`DrillBar`) → `POST /drill` (S4 `drill_window`) → JobTray (kind=drill) → open child; **+ responsive panel layout** (1280px matchMedia: wide = videos\|State-sidebar w/ Verdict left-bottom + folded tools; narrow = videos→fold→Verdict\|State) | ✅ `d92fa81` — user-confirmed |
-| S9 | re-home `timeline.mjs` → `web/components/TraceEditor.mjs` (collapsible advanced panel, wired to the global cursor) + **robustify** the extend/edit/recapture loop; re-run the segments golden | ⏳ **NEXT** |
-| S10 | flip the default entry to the SPA; delete legacy `app.mjs`/`timeline.mjs` (+ legacy `/record/status`+`/capture/status` if unreferenced); maintainability check | ⏳ |
+| S9 | re-home `timeline.mjs` → `web/components/TraceEditor.mjs` (collapsible advanced panel, wired to the global cursor) + **robustify** the extend/edit/recapture loop; re-run the segments golden | ✅ `7b39d59` — user-confirmed |
+| S10 | flip the default entry to the SPA; delete legacy `app.mjs`/`timeline.mjs` (+ legacy `/record/status`+`/capture/status` if unreferenced); maintainability check | ⏳ **NEXT** |
 
 **S7 resume notes — lift from the OLD `tools/trace_studio_web/app.mjs`:** `StatePanel`
 (reads `view.state[seg.offsetGlobal+k]` by ordinal; needs a `--call-trace` session for data —
@@ -336,6 +336,34 @@ the bottom) | right `.ref-col` 340px, `align-items:stretch` so it's full-height,
 sticky inside]. NARROW = videos → tools fold → `.two-col` (Verdict | State, grid-stretch equal
 height; the `.verdict` 260px cap is lifted in `.two-col` so its body fills). **S9's TraceEditor
 slots into `layout()`** — decide wide (left-column, under the tools fold) vs its own collapsible.
+
+**S9 landed (`7b39d59`, user-confirmed) — TraceEditor re-homed + wired to the global cursor.**
+Resolved the S8 open question by NOT putting the editor inside `layout()`: it's its OWN
+full-width lazy-mounted collapsible **`<details class="trace-editor-fold">` directly under the
+Filmstrip/DrillBar** (a horizontally-scrolling timeline wants full width; tucking it in the
+left scrub-column would cramp it). `web/components/TraceEditor.mjs` is the legacy
+`/timeline.mjs` re-homed verbatim in capability; `/align.mjs` stays the shared pure core
+(both UIs import it). **The cursor bridge is the crux:** the editor x-axis is frames-from-sync
+but the SPA scrub position is the global ordinal `cur`, so the editor cursor is now a DERIVED
+projection — `{seg,k}=view.locate(cur)`, `absPort = manifest.port.base_abs + k*seg.cadence`,
+`editorRel = absPort − port.syncFrame` — and `setCursorRel(rel)` maps back
+(`k = round((syncFrame+rel − base_abs)/cadence)`, clamped, `cur = offsetGlobal+k`,
+snap-to-captured-frame). Bidirectional, no second cursor state (the old monolith kept a
+separate `tlCursor` one-way-coupled via `onSeekWindow`). For 1 dense gameplay segment it
+collapses to the legacy `base_abs+k−syncFrame`. **Robustification** (extend/edit/recapture is
+a primary workflow): `web/actions.mjs` holds the ONE shared `recapture(sess,{only,pollJobs,
+onDone})` flow (IteratePanel + the editor's in-toolbar accent `⟳ re-capture` both call it);
+`app.mjs` owns the trace-edit working state (`editTrace`/`notesState`/`localStale` + debounced
+`POST /trace` + `POST /notes` + a **flush-before-recapture** so the last keystroke isn't lost);
+`extend()` toasts instead of `alert()`; the editor **scrolls to the cursor on mount** (the
+captured window sits ~`base_abs` frames right of boot-sync, so a fresh open would otherwise
+land on empty pre-load space). Gutter label `emitted in`→`inputs` (no 2-line wrap).
+**S10 (NEXT):** flip `index.html`'s default entry to the SPA (or redirect `/`→`/studio.html`),
+delete the legacy `app.mjs`/`timeline.mjs` (+ `store.mjs`'s `useStatus` callers / legacy
+`/record/status`+`/capture/status` routes **iff** unreferenced after — the new UI still uses
+`useStatus` via `useJobs`/`useSession`, so audit before deleting), then the maintainability
+check (add a throwaway mark kind via an `edits/marks.py` registry entry only → it surfaces
+end-to-end with no JS edit).
 
 **Dev/test harness (so the next session doesn’t rediscover it):**
 - **Serve:** `nix develop --command python3 tools/trace_studio.py serve --session ov-both
