@@ -25,14 +25,14 @@
   bit-identical 0/30, D2 content-neutral 0/30, drill PHASE-CLEAN (verdict exit 0).
   **A new segtrace op needs THREE parsers** (engine `input_segtrace.c`, agent
   `segtraceBuildSegments`, retail harness `frida_capture.py` ~L983 — its `else`
-  KeyErrors on `buttons`). **Phase 4 (the new SPA) IN PROGRESS — S1–S9 landed
-  2026-06-07** (`c492281`→`7b39d59`): the whole server backend (dispatch-table
+  KeyErrors on `buttons`). **Phase 4 (the new SPA) COMPLETE — S1–S10 landed
+  2026-06-07** (`c492281`→`3f06717`): the whole server backend (dispatch-table
   `routes.py`, unified `/api/jobs`, mark/analyzer `/api/registries`, `POST /drill` +
   shared `model/drill.py`), the core scrub viewer (segmented `model.mjs` +
   Filmstrip/VideoStage/DiffRibbon/ScrubBar), the **side panels** (StatePanel + Verdict +
   registry-driven MarkBar w/ crop-preview thumbs + a ONE-poller JobTray + lifted
   Record/Iterate), and **in-browser drill** (`DrillBar` → `POST /drill` → JobTray → open
-  child) at the PARALLEL entry `studio.html`; old UI untouched. **User-confirmed UX + a
+  child) at the parallel entry `studio.html` (through S9); old UI untouched. **User-confirmed UX + a
   responsive panel layout** (`useWide(1280)` matchMedia: wide = videos | full-height State
   sidebar with Verdict filling the left-bottom + a folded mark/record/iterate "session
   tools"; narrow = videos→fold→Verdict|State side-by-side). **S9 landed (`7b39d59`,
@@ -43,11 +43,21 @@
   filmstrip→the timeline tracks, click the timeline→the video seeks, snap-to-captured-frame),
   with a **robustified self-contained extend/edit/`⟳ re-capture` loop** (`web/actions.mjs`
   shared recapture flush-before-recapture; extend toasts not alerts; scroll-to-cursor on open)
-  as a **lazy-mounted collapsible** under the Filmstrip; old UI untouched. **S10 remains**
-  (flip the default entry to the SPA + retire the `app.mjs`/`timeline.mjs` monolith → the
-  maintainability check). **Resume: staging table + coordinate contract + dev-harness gotchas
-  in `plans/trace-studio-v2.md` → Phase 4 block.** Decisions locked: preserve+robustify the
-  trace editor (done); defer per-segment video (model open). Then **Phase 5** (New-Game).
+  as a **lazy-mounted collapsible** under the Filmstrip; old UI untouched. **S10 landed
+  (`3f06717`):** the SPA is now the DEFAULT entry — `index.html` loads `/web/app.mjs` and `/`
+  serves it directly; the legacy `app.mjs`/`timeline.mjs` monolith + the redundant
+  `studio.html` are **deleted**, and the now-dead `/record/status`+`/capture/status` GET
+  routes pruned (the SPA polls only the unified `/api/jobs`; `align.mjs` stays — the
+  TraceEditor imports it; the `recorder/capturer.status()` methods stay — `JobsRegistry`
+  builds `/api/jobs` from them). **Maintainability check PASSED:** a throwaway kind added to
+  `edits/marks.py` / `analysis/registry.py` ALONE surfaced at `/api/registries` (→ a MarkBar
+  button) with **zero JS/route edits**, then reverted. Also hardened the `/`→`/?session=`
+  redirect with `Content-Length:0` so HTTP/1.1 keep-alive probes don't block on the empty
+  body. Verified headless: tools tests pass; `/` 302→SPA; **all 22 SPA import paths 200**;
+  `studio.html`/`app.mjs`/`timeline.mjs`/`record-status`/`capture-status` all 404. **Phase 4
+  COMPLETE** (decisions locked: preserve+robustify the trace editor — done; defer per-segment
+  video — model open). **NEXT → Phase 5** (New-Game: D4 retail intro-video force-skip + the
+  prologue cross-replay RE — `plans/trace-studio-v2.md` → Phase 5; the hardest, last).
 - **Active work:** Phase 1 — the render-parity diff engine. **Vertex capture LANDED**
   (2026-06-05): both sides (`src/d3d_trace.c` + Frida agent) capture per-draw vertex bytes
   under `--d3d-trace-verts`; `tools/render_diff.py --explain` FVF-decodes aligned draws and

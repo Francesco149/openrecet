@@ -7,10 +7,10 @@ v2 capture, `0a0cf8c` lift record/server/edits). **Phase 3 ✅ landed + verified
 (Core + CLI drill)** — `5c0de5c` D3 `{capstride}` engine, `a580e8f` D3 agent,
 `b8660ca` D2 through export_trace + caps fix, `1ecff91` overview wiring, `a1e2ea1`
 CLI drill, `324debe` retail-harness `{capstride}` forward. Per-segment video split
-+ in-browser drill deferred to Phase 4 (the SPA consumes them). **Phase 4 IN PROGRESS
-(S1–S9 ✅ 2026-06-07: the whole server backend + the core scrub viewer + the side panels
-+ in-browser drill + the re-homed trace editor (`7b39d59`), user-confirmed; S10 remaining —
-flip the default + retire the monolith).** Phase 5 pending. Multi-session rebuild; `/clear` at each phase boundary. This
++ in-browser drill deferred to Phase 4 (the SPA consumes them). **Phase 4 COMPLETE
+(S1–S10 ✅ 2026-06-07: the whole server backend + the core scrub viewer + the side panels
++ in-browser drill + the re-homed trace editor (`7b39d59`) + the default-entry flip /
+monolith retirement / maintainability check (`3f06717`), user-confirmed).** Phase 5 pending. Multi-session rebuild; `/clear` at each phase boundary. This
 is the canonical plan — the `~/.claude` plan file is a session-local mirror.
 
 **Phase 3 results (all acceptance criteria met):**
@@ -310,7 +310,7 @@ the static-asset GET branch serves the new `web/` subtree with no server change.
 | S7 | StatePanel + unified MarkBar (from `/api/registries`) + JobTray (one poller on `/api/jobs`) + lift Record/Iterate/Verdict | ✅ `908c03b` (+ `e8cf44e` polish: fold anchor/feature→note, mark crop-preview thumb, readable link) — user-confirmed |
 | S8 | in-browser drill UI (`DrillBar`) → `POST /drill` (S4 `drill_window`) → JobTray (kind=drill) → open child; **+ responsive panel layout** (1280px matchMedia: wide = videos\|State-sidebar w/ Verdict left-bottom + folded tools; narrow = videos→fold→Verdict\|State) | ✅ `d92fa81` — user-confirmed |
 | S9 | re-home `timeline.mjs` → `web/components/TraceEditor.mjs` (collapsible advanced panel, wired to the global cursor) + **robustify** the extend/edit/recapture loop; re-run the segments golden | ✅ `7b39d59` — user-confirmed |
-| S10 | flip the default entry to the SPA; delete legacy `app.mjs`/`timeline.mjs` (+ legacy `/record/status`+`/capture/status` if unreferenced); maintainability check | ⏳ **NEXT** |
+| S10 | flip the default entry to the SPA; delete legacy `app.mjs`/`timeline.mjs` (+ legacy `/record/status`+`/capture/status` if unreferenced); maintainability check | ✅ `3f06717` — verified headless (3 tools tests + 22 import-path 200s + 5×404 + redirect Content-Length) |
 
 **S7 resume notes — lift from the OLD `tools/trace_studio_web/app.mjs`:** `StatePanel`
 (reads `view.state[seg.offsetGlobal+k]` by ordinal; needs a `--call-trace` session for data —
@@ -358,18 +358,28 @@ onDone})` flow (IteratePanel + the editor's in-toolbar accent `⟳ re-capture` b
 `extend()` toasts instead of `alert()`; the editor **scrolls to the cursor on mount** (the
 captured window sits ~`base_abs` frames right of boot-sync, so a fresh open would otherwise
 land on empty pre-load space). Gutter label `emitted in`→`inputs` (no 2-line wrap).
-**S10 (NEXT):** flip `index.html`'s default entry to the SPA (or redirect `/`→`/studio.html`),
-delete the legacy `app.mjs`/`timeline.mjs` (+ `store.mjs`'s `useStatus` callers / legacy
-`/record/status`+`/capture/status` routes **iff** unreferenced after — the new UI still uses
-`useStatus` via `useJobs`/`useSession`, so audit before deleting), then the maintainability
-check (add a throwaway mark kind via an `edits/marks.py` registry entry only → it surfaces
-end-to-end with no JS edit).
+**S10 landed (`3f06717`).** `index.html` now loads the SPA (`/web/app.mjs`) so `/` serves it
+directly; the legacy `app.mjs`/`timeline.mjs` monolith + the redundant `studio.html` are
+**deleted**, and the now-dead `/record/status`+`/capture/status` GET routes pruned. **Audited
+KEPT (still in use):** `store.mjs`'s `useStatus` (the SPA polls `/api/jobs` through it via
+`useJobs`), `align.mjs` (the SPA's `TraceEditor` imports it), and `recorder/capturer.status()`
+(`JobsRegistry` builds `/api/jobs` from them — only the HTTP routes were dead). Also hardened
+the `/`→`/?session=` redirect with **`Content-Length:0`** — without it an HTTP/1.1 keep-alive
+client (curl, probes) blocks on the empty body (browsers tolerate it; that's why it lay
+latent). **Maintainability check PASSED:** a throwaway mark kind added to `edits/marks.py`
+AND a throwaway analyzer to `analysis/registry.py`, both data-only, surfaced at
+`/api/registries` (→ a MarkBar button, since it `.map`s the registry) with **zero JS/route
+edits**, then reverted. Verified headless (no jsdom oracle): the 3 tools tests pass; `/`
+302→SPA; **all 22 SPA import paths 200**; `studio.html`/`app.mjs`/`timeline.mjs`/`record-status`/
+`capture-status` all 404; `api/sessions|jobs|registries` 200.
 
 **Dev/test harness (so the next session doesn’t rediscover it):**
 - **Serve:** `nix develop --command python3 tools/trace_studio.py serve --session ov-both
   --port 8779` — background via the Bash tool’s `run_in_background`, NOT an inline `&`
-  (the inline `&` + wrapper-exit reaps the server). New SPA at `/studio.html?session=<name>`;
-  old UI at `/`.
+  (the inline `&` + wrapper-exit reaps the server). The SPA is now the DEFAULT entry:
+  open `/?session=<name>` (bare `/` 302-redirects to the `--session` default). The old
+  `/studio.html` is gone (S10). The strongest white-screen guard remains: curl every
+  `/web/...` import path → 200.
 - **Test sessions:** `runs/trace-studio/ov-both` (both-target overview, 30 strided frames @stride
   8, 1 load seam, no call-trace → verdict gray + no state) and `ov-both-drill-200-24` (dense
   stride-1 child → the 1-seg/dense reduction).
