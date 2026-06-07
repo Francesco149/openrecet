@@ -42,8 +42,17 @@ fixed, a both-target capture now yields the retail ground truth:
   excluded: 2.68% px @ mean 0.49/ch). Residual: (1) the top-left clock/money HUD + tutorial
   text box, still unported (the dispatch's trailing `FUN_0040a765` — a separate chip); (2) the
   one highlighted/pulsing marker (Market, state 2) differs only in pulse phase because the
-  entry-timer is frozen until the T4 sim. engine-quirks §117. **NEXT = T4 (world-map SIM
-  `FUN_0049e163` + cursor-nav `FUN_0049dfc1`).**
+  entry-timer is frozen until the T4 sim. engine-quirks §117.
+- **✅ T4 LANDED (2026-06-07, `ba45912`)** — world-map SIM `FUN_0049e163` + cursor-nav
+  `FUN_0049dfc1`. The map is now interactive: the entry timer ramps, the 3×5 grid nav moves the
+  selected destination + eases the shared cursor, and Z arms the dest→mode transition (denied SE
+  on a disabled dest). **Verified port-side (exact-match):** driving the recording's 13 nav
+  inputs, the port's `0x49e163` flow-trace selected-dest sequence is the EXACT grid-nav match
+  (`0→2→5→4→6→3→2→1→3→6→0→2→5→0`); cursor eased to `(dest.x−16,dest.y+28)` bit-exactly; 8 host
+  tests. PORT-DEBT `worldmap-dest-scenes` (destination scenes unported) + `worldmap-delivery-
+  return`. Detail + the both-target retail-mirror VAs in `docs/findings/town-map-RE.md` §5 (T4).
+  **NEXT = T5 (full-trace replay `--target both`, PHASE-CLEAN) — and the follow-up HUD chip
+  `FUN_0040a765` (top clock/Day/money + tutorial text box + the hand-cursor render).**
 
 ## ✅ PHASE 0 RE COMPLETE (2026-06-07) → `docs/findings/town-map-RE.md`
 The transition + the whole mode-8 world-map scene are RE'd from the decompile (cross-checked

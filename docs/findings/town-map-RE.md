@@ -310,10 +310,48 @@ tool) as we go.
   text box) is unported for mode 8 — the top-left blob in the diff; the highlighted marker's
   sin-pulse is frozen until the T4 sim advances `_DAT_09643628`. The engine wrapper's cyan
   `Clear` is covered by the opaque bg, so the port relies on main.c's per-frame clear.
-- **T4 — world-map SIM `FUN_0049e163` + cursor-nav `FUN_0049dfc1`.** Entry timer, grid nav
-  (3×5), Z-select → the destination→mode table, the disabled-denied SE. **Verify:** drive the
-  recording's post-load Up/Left/Down (frames 489–744) `--target both`; `DAT_09643684` +
-  cursor position match retail per frame via `flow_diff`.
+- **T4 — world-map SIM `FUN_0049e163` + cursor-nav `FUN_0049dfc1`. ✅ LANDED 2026-06-07
+  (`ba45912`).** `scene_worldmap_sim()` (the empty T2/T3 stub now filled) + a static
+  `scene_worldmap_cursor_nav`. **Entry timer** `_DAT_09643628` (+1/frame; snap `<3`, accept
+  input `>10`), **3×5 grid nav** `FUN_0049dfc1` (held mask `DAT_073dddd6` → next present dest
+  → slide the shared cursor + move SE `0x146`), **Z-select** (disabled → denied SE `0x16a`;
+  enabled → arm exit: dissolve fade `FUN_004526f5` + confirm SE `0x143` + the exit counter),
+  the **exit state machine** (counter++ → `fade_is_done` → the dest→mode transition), and the
+  per-frame **timer++**. `sim.c` case 8 now prepends `title_save_dialog_anim_tick`
+  (`FUN_00406584` subset) so the cursor eases to the slide target each frame (engine mode-8
+  order `FUN_00406584 → FUN_0040fb3a → FUN_0049e163`).
+  - **⚠ RE-doc correction:** the §3 cursor-nav prose ("bit 2→up −1, 1→down +1, 4→left −1,
+    8→right +1") had the axes **inverted**. The engine button layout is
+    **`0x01`=Right / `0x02`=Left / `0x04`=Up / `0x08`=Down**, so in `FUN_0049dfc1`
+    `local_8`=`du` is the **L/R** delta (bit 0x2→−1, 0x1→+1) stepping the **column** (mod 3),
+    and `local_c`=`dv` is the **U/D** delta (bit 0x4→−1, 0x8→+1) stepping the **row** (mod 5) —
+    i.e. L/R within a row, U/D between rows (intuitive). The decompile's bit-tests are ported
+    verbatim, so the port reads the same global with the same tests regardless.
+  - **PORT-DEBT** (registry): `worldmap-dest-scenes` — selecting a dest fades out + spawns the
+    load + switches `g_scene_state` to the target mode (1/6/0xb/0xd/0xe/0xf); those destination
+    scenes are separate, mostly-unported arcs (render blank, safe: main.c render default +
+    bounds-checked worker dispatch + unconditional thread cleanup). `worldmap-delivery-return`
+    — Block A's pending-order early-out (`FUN_0044ba2c` → scene 0xc/0x14) deferred
+    (delivery/event system unported; flag BSS-zero on a tutorial Continue).
+  - **Verified (port-side flow-trace, exact-match):** drove `town-map-load` `--target
+    openrecet --call-trace` over a wide window (`runs/trace-studio/town-t4-navcheck`). The port
+    `0x49e163` flow-trace (fields `sel/timer/exitc/state/curx/cury/held`) shows the selected
+    dest tracking the recording's 13 nav inputs (U/U/L/L/D/L/L/L/U×5) through
+    **`0→2→5→4→6→3→2→1→3→6→0→2→5→0`** — the **EXACT** grid-nav sequence the decompiled
+    `FUN_0049dfc1` produces for those inputs (every move incl. the row-wraps + Market `state=2`
+    ×2). The entry timer ramps +1/frame, the snap is bit-exact (dest 0 → curx/cury 214/428),
+    and the cursor eases to `(dest.x−16, dest.y+28)` exactly at every selection. 8 host tests
+    (4 directional moves, no-input hold, the entry-timer input gate, Z-disabled no-exit,
+    Z-Market→mode 6). Visual montage pushed to the feed (anchor flow).
+  - **Remaining → both-target `flow_diff` (the rigorous per-frame 1:1, in progress by the
+    user).** The retail mirror for `0x49e163` needs a `retail_fields.json` entry +
+    frida-safe VA. Field VAs: `sel`=`DAT_09643684`, `timer`=`_DAT_09643628`,
+    `exitc`=`DAT_0964367c`, `held`=`DAT_073dddd6`; **cursor pos** = `_DAT_0438abf4` (x) /
+    `_DAT_0438abf8` (y) (the shared cursor `shake_pos`, written by `FUN_00435693`/stepped by
+    `FUN_004356cd`). (`state`=`DAT_09643588[sel]` is an indexed read — skip or compute from
+    `sel`.) The held-mask auto-repeat timing is already 1:1-verified on the title/display
+    menus (shared input pipeline), so the sel SEQUENCE is logic-guaranteed; the diff confirms
+    per-frame timing + the cursor easing.
 - **T5 — full-trace replay** of `town-map-load --target both`: shop → fade → town map; windows
   pair (port==retail kept-count), PHASE-CLEAN under `{phasepin}`+`{rngseed}`.
 
