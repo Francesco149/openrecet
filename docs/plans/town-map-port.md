@@ -136,11 +136,30 @@ Provisional; refine after Phase 0. Likely:
   FLAT working trace by rebuilding anchored from the manifest's `source_trace` — the SPA
   recapture passes the working trace, so the recording's anchors were invisible before).
   **A pre-fix session's working trace is FLAT** until a re-capture rebuilds it.
-- **Verified walk:** `runs/trace-studio/town-walk-debug` (anchored, **HOUSE_FREEROAM**-
-  windowed `{caprange [0,230]}`) captures the free-roam walk on BOTH sides (port 229 /
-  retail 226 frames) — the port walks R→U→R to the door, diverging only at the door-Z
-  (unported). Built by truncating the distilled trace at the shop-exit so the HF segment is
-  LAST (the engine parser only accepts `{caprange}` in the final segment, and `{calltrace}`
-  must be `[start,len]`, NOT a bool — `/tmp/build_walk_debug.py`). The auto-window anchors
-  to the LAST anchor (town, port-unreachable → port=0); for a port↔retail WALK comparison,
-  window on `HOUSE_FREEROAM` (the first anchor both sides reach).
+- **AUTO-WINDOW now targets the comparable free-roam segment (2026-06-07, verified via
+  the real SPA `CaptureController`).** Earlier the anchored auto-window anchored at the
+  LAST anchor — the **town** the shop-exit leads to, which the PORT can't reach → port
+  captured 0 ("window never reached"). Now (`139d6bd`+`7803369`) it anchors at the FIRST
+  **free-roam entry** (`HOUSE_FREEROAM`, reachable on both) and **caps the span a beat past
+  the next scene-change** (`LOADING_START`) — i.e. exactly the walk → the door, the part
+  both targets share. (`ops.raw_default_window` base+cap; `ops.first_freeroam_wait` +
+  `ensure_window_ops(after_wait=)` place `{caprange}` after the first free-roam `{wait}`,
+  MID-trace — that's fine, the parser accepts capranges in any segment; the earlier
+  "final-segment only" belief was a red herring, the real bug was `{calltrace}` written as
+  a bool instead of `[start,len]`.) Verified end-to-end through `POST /capture`: rerecord →
+  **port 270 / retail 240**, caprange `[0,271]` (was port 0 / 1149-vs-383 span-to-end).
+- **RE-CAPTURE self-heals a stale window (`8baf1fe`).** A session built before the above
+  has a working trace whose window is FLAT or town-anchored; the SPA `/recapture` reuses
+  the working trace verbatim, so it kept capturing 0. Now re-capture rebuilds from the
+  recording whenever the window isn't in the first free-roam segment
+  (`ops.window_at_freeroam`). NEEDS `source_trace` pointing at the recording — `139d6bd`
+  stops re-capture clobbering it with the working-trace path; a session clobbered by a
+  PRE-fix re-capture must be repaired (set `source_trace` back to the recording) or
+  re-captured fresh. Verified: `POST /recapture` on a stale town-windowed session →
+  `rebuilding … at the free-roam entry` → **port 270** (was 0).
+- **Verified walk (`town-walk-debug`):** the free-roam walk is **1:1** port↔retail —
+  pixel diff 0.06–0.55 meanabs through the walk, then a hard divergence at the door-Z
+  (the unported transition). The port reproduces R@HF+51, U@HF+60, R@HF+132 → the door.
+- The retail town ground truth is already captured (`town-map-load-fixcheck` retail 130,
+  `town-rerecord-fix`/`-160153` retail ~240-249 + `call_trace.jsonl`) — for porting the
+  town (Phase 0+), window there once it has its own free-roam anchor.

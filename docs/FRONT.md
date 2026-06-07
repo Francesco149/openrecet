@@ -14,13 +14,20 @@
   / scene-loader `FUN_0045281c` — unported). **Ground truth captured:**
   `runs/trace-studio/town-map-anchorfix/` = 130 retail TOWN-MAP frames + `retail/call_trace.jsonl`
   (town map only; the transition frames still need a wider window — Phase 0). Start at the
-  plan's Phase 0 (RE the transition + scene). **Two trace-capture tooling fixes landed
-  getting here (both verified):** (1) `787cc51` — `trace_save.resolve_save` accepts a raw
-  `.save.bin` ref, not just a `.sav.gz` blob (recorded traces embed the raw save; the retail
-  drive crashed `BadGzipFile`). (2) `f3a70b3` — a recording that carries `{anchor}` rows now
-  **auto-anchor-segments** (`cfg.anchors None`=auto); FLAT boot-syncing a Continue/load trace
-  landed the `{caprange}` in the pre-load region (it "stopped after pressing Z on the save
-  file" / the save-picker) instead of the loaded scene.
+  plan's Phase 0 (RE the transition + scene). **The free-roam WALK is confirmed 1:1**
+  (`town-walk-debug`: pixel diff 0.06–0.55 through the walk, hard divergence at the door-Z).
+  **Trace-capture tooling fixes landed getting here (verified end-to-end via the real SPA
+  `CaptureController`):** (1) `787cc51` — `trace_save.resolve_save` accepts a raw `.save.bin`
+  ref, not just a `.sav.gz` blob (recorded traces embed the raw save; the retail drive crashed
+  `BadGzipFile`). (2) `f3a70b3` — a recording with `{anchor}` rows **auto-anchor-segments**
+  (FLAT boot-syncing desynced the input replay + landed the window in the pre-load save-picker).
+  (3) `139d6bd`+`7803369` — the auto-window anchors at the **free-roam entry** (port-reachable)
+  and **caps at the next scene-change** (the comparable walk→door segment), not the LAST anchor
+  (the town the port can't reach yet → it captured 0). (4) `8baf1fe` — `/recapture`
+  **self-heals** a stale (FLAT or town-anchored) working trace by rebuilding from the
+  recording; `139d6bd` also stops re-capture clobbering `source_trace`. Verified via `POST
+  /capture` + `/recapture`: **port 270 / retail 240** (was port 0). A session clobbered by a
+  PRE-fix re-capture needs its `source_trace` repaired or a fresh capture.
 - **Tooling — Trace Studio v2 (plan `plans/trace-studio-v2.md`):** Phase 0/1/2/3 ✅.
   Package `tools/trace_studio/` (model/drive/transport/analysis/edits/record/server +
   cli; `trace_studio.py` thin launcher); captures write a **v2 segmented
