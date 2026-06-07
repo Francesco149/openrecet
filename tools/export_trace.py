@@ -167,6 +167,11 @@ def main(argv=None) -> int:
                     help="also log EVERY anchor firing (absolute engine frames) to "
                          "<run-dir>/anchors.jsonl — the port-side anchor stream for "
                          "the trace-studio timeline.")
+    ap.add_argument("--capture-suppress-loads", action="store_true",
+                    help="D1 (Trace Studio): drop captures while a load is active "
+                         "(loading_active) so the turbo-stretched load span collapses "
+                         "to a zero-frame seam. Parity-safe (the engine still runs the "
+                         "load; only the readback is suppressed).")
     ap.add_argument("--max-frames", type=int, default=4000,
                     help="absolute frame budget (must exceed the window end; "
                          "the window is anchor-relative so allow headroom)")
@@ -265,6 +270,8 @@ def main(argv=None) -> int:
         "--capture-to", str(frames_dir),
         "--max-frames", str(args.max_frames),
     ]
+    if getattr(args, "capture_suppress_loads", False):
+        cmd.append("--capture-suppress-loads")     # D1 load-seam suppression
     # TAS save virtualization: resolve the trace's {savefile} ref exactly like
     # scenario-test, else a trace that wants a fresh boot (@fresh) silently uses
     # the on-disk save.dat and the replay diverges (e.g. a HOUSE intro scenario
