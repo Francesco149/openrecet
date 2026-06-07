@@ -56,14 +56,6 @@ def h_sessions(h, m, raw):
     h._send_json(list_sessions(h.server.sess_root))
 
 
-def h_record_status(h, m, raw):
-    h._send_json(h.server.recorder.status())
-
-
-def h_capture_status(h, m, raw):
-    h._send_json(h.server.capturer.status())
-
-
 def h_jobs(h, m, raw):
     # Unified job list (record + capture/recapture/drill) for the SPA JobTray.
     h._send_json(h.server.jobs.list())
@@ -94,9 +86,9 @@ def h_capture(h, m, raw):
     if not trace:
         h._send_bytes(b"need trace", "text/plain", 400)
         return
-    # The SERVER owns the session name (so /capture/status can report it and the
-    # client can open it). Derive from the trace basename + a timestamp when not
-    # given; cmd_capture's --session takes precedence.
+    # The SERVER owns the session name (so /api/jobs can report it and the client
+    # can open it). Derive from the trace basename + a timestamp when not given;
+    # cmd_capture's --session takes precedence.
     session = d.get("session")
     if not session:
         base = Path(trace).name
@@ -316,6 +308,4 @@ GET_ROUTES = [
     (r"^/api/sessions$",    h_sessions),
     (r"^/api/jobs$",        h_jobs),
     (r"^/api/registries$",  h_registries),
-    (r"^/record/status$",  h_record_status),
-    (r"^/capture/status$", h_capture_status),
 ]

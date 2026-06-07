@@ -81,10 +81,13 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/" or path == "/index.html":
             qs = parse_qs(u.query)
             if "session" not in qs and self.server.default_session:
-                # redirect to the default session for convenience
+                # redirect to the default session for convenience. Content-Length:0
+                # is REQUIRED: without it an HTTP/1.1 keep-alive client (curl, probes)
+                # can't tell the empty body is complete and blocks until timeout.
                 self.send_response(302)
                 self.send_header(
                     "Location", f"/?session={self.server.default_session}")
+                self.send_header("Content-Length", "0")
                 self.end_headers()
                 return
             self._send_file(web_dir / "index.html")
@@ -100,7 +103,7 @@ class Handler(BaseHTTPRequestHandler):
                 if cand.is_file() and str(cand).startswith(str(web_dir.resolve())):
                     self._send_file(cand)
                     return
-        # tabular GET routes (/api/sessions, /record/status, /capture/status, …)
+        # tabular GET routes (/api/sessions, /api/jobs, /api/registries)
         for rx, fn in routes.GET_ROUTES:
             mm = re.match(rx, path)
             if mm:

@@ -1,5 +1,5 @@
 // web/components/SessionPicker.mjs — fuzzy session jump (lifted from app.mjs).
-// Navigates via location.search so it stays on the current entry (studio.html).
+// Navigates via location.search so it stays on the current entry (the SPA index.html).
 import { html } from "/vendor/htm-preact-standalone.mjs";
 import { useSessions } from "/store.mjs";
 

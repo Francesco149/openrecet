@@ -87,7 +87,7 @@ export async function jobStatus(id) {
   }
 }
 
-// ─── a poller for /record/status and /capture/status ─────────────────────────
+// ─── a generic `.running`-keyed poller (the SPA uses it for /api/jobs) ────────
 export function useStatus(url, intervalMs = 1500) {
   const [s, setS] = useState(null);
   const timer = useRef(0);
