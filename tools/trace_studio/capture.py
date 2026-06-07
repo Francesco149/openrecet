@@ -98,6 +98,7 @@ def run_capture(cfg: CaptureConfig) -> int:
 
     # ── working trace: reuse (carries applied pins) unless --reset-trace ──────
     reuse = working.exists() and not cfg.reset_trace
+    window_rebuilt = False
     if reuse and anchored and rec is not None \
             and not ops.window_at_freeroam(ops.load_ops(working)):
         # The working trace's window is STALE — FLAT (boot-synced; inputs desynced),
@@ -112,6 +113,7 @@ def run_capture(cfg: CaptureConfig) -> int:
              "entry (re-apply pins if needed; --no-anchors to keep it)")
         src, hdr = rec, ops.raw_header(rec)
         reuse = False
+        window_rebuilt = True   # the window moved → any cached retail is now misaligned
     elif reuse and anchored and rec is None \
             and not any("wait" in o for o in ops.load_ops(working)):
         _log("re-capture: FLAT working trace + no source recording to rebuild from "
@@ -166,6 +168,14 @@ def run_capture(cfg: CaptureConfig) -> int:
     # (old_manifest already loaded above for the anchoring decision)
     run_port = cfg.only in ("both", "port")
     run_retail = want_retail and cfg.only in ("both", "retail")
+    if window_rebuilt and want_retail and not run_retail:
+        # The window just moved (self-heal): a cached retail capture is from the OLD
+        # window, so reusing it would pair the port's new window against retail's old
+        # one (e.g. port=shop walk vs retail=town). Force a retail re-capture even on a
+        # port-only re-capture — the stale cache can't be trusted.
+        _log("re-capture: window rebuilt → forcing a retail re-capture too (the cached "
+             "retail is from the old window; reusing it would misalign port↔retail)")
+        run_retail = True
     keep_retail = want_retail and not run_retail     # reuse existing retail outputs
 
     # Clear only the side(s) being re-run (+ diff, always rebuilt). Preserve marks.
