@@ -3,9 +3,45 @@
 **Status (2026-06-07):** Phase 0 ✅ (`de3909c`). **Phase 1 ✅ landed + verified**
 (`7d22255` D1, `5d59499` kept-count guard, `3335fca` D2). **Phase 2 ✅ landed +
 verified** (`b2e01c6` model, `ed76707` export_trace D1, `51fa340` decompose +
-v2 capture, `0a0cf8c` lift record/server/edits). Phases 3–5 pending.
+v2 capture, `0a0cf8c` lift record/server/edits). **Phase 3 ✅ landed + verified
+(Core + CLI drill)** — `5c0de5c` D3 `{capstride}` engine, `a580e8f` D3 agent,
+`b8660ca` D2 through export_trace + caps fix, `1ecff91` overview wiring, `a1e2ea1`
+CLI drill, `324debe` retail-harness `{capstride}` forward. Per-segment video split
++ in-browser drill deferred to Phase 4 (the SPA consumes them). Phases 4–5 pending.
 Multi-session rebuild; `/clear` at each phase boundary. This is the canonical
 plan — the `~/.claude` plan file is a session-local mirror.
+
+**Phase 3 results (all acceptance criteria met):**
+- **D3 `{capstride:N}`** trace-global two-tier cadence on BOTH targets: thins a
+  `{caprange}` to every Nth frame from its start (anchor-relative). Port:
+  `g_capture_stride` + stride-aware `capture_in_range`. Retail: the agent strides
+  its `g_capture_pending` fill identically. +2 host tests (3194/0).
+- **Ordinal-pairing invariant HOLDS**: `house-loaded-display-pinned --target both
+  --caprange 120,240 --capstride 8` → **port == retail == 30 kept** (anchor-rel
+  120,128…352), guarded + logged. Each strided frame diffs only ~3820px@mean0.002
+  (the known scene residual) ⇒ retail's strided frames land on the SAME instants.
+- **Determinism**: two port overviews **bit-identical 0/30** per ordinal.
+- **Load seam** collapsed to 0 frames (port 1920t / retail 2346t).
+- **D2 through export_trace**: `--capture-local` (local NTFS staging + parallel
+  copyback, via run-openrecet `--no-frame-convert`) — **content-neutral 0/30** vs
+  the 9p path; default-on in the studio, EngineCaps-gated.
+- **CLI drill**: `trace_studio drill ov-both --at 10 --span 24 --call-trace` →
+  anchor-rel caprange **[200,24]** (= 120+10·8) dense both targets, **port ==
+  retail == 24**, **verdict exit 0 (PHASE-CLEAN)** — dense path no-regression.
+
+### Phase-3 finding — three segtrace-op parsers, not two
+A new segtrace op must be taught to **THREE** parsers, not two: (1) the port engine
+`src/input_segtrace.c`, (2) the Frida agent `tools/frida/openrecet-agent.js`
+(`segtraceBuildSegments`), AND (3) the **retail Python harness**
+`tools/frida_capture.py` (~L983 if/elif chain that lowers ops to the agent — its
+`else` branch assumes an input entry and does `rec["buttons"]`, so an unrecognized
+op `KeyError`s on `--target both`). Also: **D2 `--capture-local` is NOT an exe flag**
+— it's pure Python staging (`--capture-to` a Windows-local dir + `copyback_convert`);
+the capability is "a local stage root resolves" (host/env), now probed correctly in
+`drive/caps.py`. And `{capstride}` is **trace-global** (mirrors retail's existing
+`g_capture_stride`), applied anchor-relative so both sides keep the identical
+kept-set — the overview MUST still obey the Foundation rule (anchor at LOADING_END
+or later) so no load falls inside the strided window.
 
 **Phase 1 results (all acceptance criteria met):**
 - **D1** load-suppression, BOTH targets, opt-in (`capture_suppress_loads`), default
@@ -218,9 +254,15 @@ old v1 sessions, serves the v2 manifest, HTTP-Range 206 works; all 7 tools tests
 green (5 existing + 2 new). The old web UI is untouched (v2 is a v1 superset).
 **`/clear` after.**
 
-### Phase 3 — Two-tier capture + per-segment media
-D3 `{capstride}` (port) + overview/drill wiring; per-segment encode + lazy reload;
-drill recaptures one segment subtree. **`/clear` after.**
+### Phase 3 — Two-tier capture + CLI drill ✅ DONE (Core + CLI drill)
+D3 `{capstride}` (engine + agent + retail harness) + overview wiring + D2 through
+export_trace + the CLI `drill` subcommand. See the "Phase 3 results" block at the
+top. **User-confirmed 1:1** on the overview both-run diff ("basically 1:1 besides a
+few faint dots" — the known deferred ambient-particle gap, not a pairing bug).
+**Deferred to Phase 4 (the SPA consumes them):** per-segment video splitting at
+seams + in-browser click-to-drill (the timeline entry already carries `cadence`, and
+the CLI drill localizer `frames[0] + v*cadence` is the canonical math the SPA reuses).
+**`/clear` after.**
 
 ### Phase 4 — New SPA
 Build `web/components/*` on the v2 model (Filmstrip, per-segment VideoStage, DiffRibbon,

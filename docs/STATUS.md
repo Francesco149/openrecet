@@ -34,14 +34,25 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 - **Phase:** Foundation for frame-by-frame 1:1 parity (plan: `plans/` — render-parity
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
-- **Tooling — Trace Studio v2 (plan `plans/trace-studio-v2.md`):** Phase 0/1/2 ✅.
-  **Phase 2 landed 2026-06-07** — the 805-line `trace_studio.py` monolith + 2 flat
-  helpers are now the **`tools/trace_studio/` package** (model/drive/transport/analysis/
-  edits/record/server + cli; `trace_studio.py` is a thin launcher). Captures write a
-  **v2 segmented `session.json`** (v1 superset + `schema_version:2` + `timeline` with
-  loads as zero-frame seams); v1 sessions still open; D1 load-suppression wired
-  (default on, EngineCaps-gated). Next: **Phase 3** (two-tier `{capstride}` capture +
-  per-segment media), then **Phase 4** (the SPA on the v2 model), **Phase 5** (New-Game).
+- **Tooling — Trace Studio v2 (plan `plans/trace-studio-v2.md`):** Phase 0/1/2/3 ✅.
+  Package `tools/trace_studio/` (model/drive/transport/analysis/edits/record/server +
+  cli; `trace_studio.py` thin launcher); captures write a **v2 segmented
+  `session.json`** (v1 superset + `schema_version:2` + `timeline` with loads as
+  zero-frame seams); D1 load-suppression default-on, EngineCaps-gated. **Phase 3
+  landed 2026-06-07 (Core + CLI drill, user-confirmed 1:1):** D3 **`{capstride:N}`**
+  trace-global two-tier cadence on BOTH targets (thin a `{caprange}` to every Nth
+  frame from its start, anchor-relative → port==retail kept-set, ordinal-paired) —
+  a coarse OVERVIEW for scrubbing a long trace cheaply; `trace_studio drill
+  <session> --at IDX --span N` recaptures a sub-window DENSE (frame = caprange.start
+  + IDX·stride). D2 `--capture-local` now also flows through `export_trace` (local
+  NTFS staging + parallel copyback, run-openrecet `--no-frame-convert`), default-on.
+  Validated: `house-loaded-display-pinned --caprange 120,240 --capstride 8 --target
+  both` → port==retail==30 kept (diff = known faint-dots residual only), 2 port runs
+  bit-identical 0/30, D2 content-neutral 0/30, drill PHASE-CLEAN (verdict exit 0).
+  **A new segtrace op needs THREE parsers** (engine `input_segtrace.c`, agent
+  `segtraceBuildSegments`, retail harness `frida_capture.py` ~L983 — its `else`
+  KeyErrors on `buttons`). **Next: Phase 4** (the SPA on the v2 model: filmstrip +
+  per-segment video split + in-browser drill), then **Phase 5** (New-Game).
 - **Active work:** Phase 1 — the render-parity diff engine. **Vertex capture LANDED**
   (2026-06-05): both sides (`src/d3d_trace.c` + Frida agent) capture per-draw vertex bytes
   under `--d3d-trace-verts`; `tools/render_diff.py --explain` FVF-decodes aligned draws and
