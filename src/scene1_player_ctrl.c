@@ -1343,6 +1343,11 @@ void scene1_player_ctrl_tick(void)
              * flow_diff --align-field uses to pair port↔retail frames on a
              * load-stretched HOUSE capture (port ~475 vs retail ~14285). */
             CALL_TRACE_I32("db054", scene1_companion_db054());
+            /* g_sim_frame_count (DAT_0438b8cc) — the 目玉-sparkle gate counter.
+             * Diff'd vs db054 to see whether the two co-advancing clocks hold the
+             * same relative phase after {phasepin} (the dust↔sparkle RNG-order
+             * question; engine-quirks §112). */
+            CALL_TRACE_I32("gsim", (int32_t)g_sim_frame_count);
             /* shop-display interaction state (the cc04==1 remove-item menu): the
              * sub-state gate + the highlighted display cell the open gate fires
              * off of.  Mirrors the retail 0x48670f hook's cc04/cbfc/cc00 fields

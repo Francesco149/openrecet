@@ -150,3 +150,47 @@ not desync the LCG). Op grammar in `src/input_segtrace.h`.
 Related: `scene1-walk-dust.md` (the dust chip), `scene1-wing-glow.md` (the 0x1f
 sibling), `project_freeroam_smoke_effect` / `openrecet_house_brightness_resolved`
 memories, `docs/plans/freeroam-structural-parity.md` P3.
+
+## 2026-06-07 — foot-dust still diverges (OPEN); new tools + ruled-out leads
+
+On `town-map-load-rerecord` (free-roam walk window), with `{phasepin}` + canonical
+`{rngseed:[0,19937]}` applied, the **window NPCs are 1:1** (black diff) but the
+**foot dust is NOT** — it draws a **6-draw-later slice of the (bit-identical) RNG
+stream** on retail vs the port. This is a real, robust divergence; the dust LOGIC
+(emit jitter, velocity-init `init_type_shared_unit_half`, drift, render) is all
+decompile-faithful, and the stream is bit-exact (`rng` raw + `rngcalls` ALIGNED).
+
+### New tooling (this session)
+- **Foot-dust slot-state probe** — the `0x48670f` flow-trace probe now emits a
+  records-A type-0xe aggregate on BOTH sides: `dustn` (count), `dustage` (Σage),
+  `dustsx/dustsz` (Σpos), `dustvx/dustvz` (Σvel). Port reads `g_scene1_records_a`;
+  retail via the new `records_a_dust` field `src` in the agent + `retail_fields.json`.
+  This localized the divergence: **dustn/dustage ALIGNED, dustvx/dustvz DRIFT** ⇒
+  same count + ages, divergent velocities ⇒ the spawn reads different RNG VALUES.
+- **Forensic LCG reconstruction** — when the stream is bit-exact but a consumer's
+  output differs, the consumer reads a different SLICE. Take the frame-start seed
+  (the `rng` field), generate the LCG sequence, and find which draw-offset
+  reproduces each side's value. Here: **port velocity matches draw-offset 0, retail
+  matches offset 6** (exact) ⇒ retail consumes 6 draws before the dust that the port
+  does not. (`|VEL_xz| = u1·0.5`, so u1 0.05 port vs 0.86 retail = different draw.)
+
+### Ruled out
+- **The 目玉 display sparkle** (gated on `g_sim_frame_count`/`DAT_0438b8cc % 8 == 3`)
+  was the prime suspect, but: (a) it does NOT fire at the dust frame (db054=96,
+  `g_sim%8==0`; it fires at db054=91,99); and (b) `{phasepin}` now zeros
+  `g_sim_frame_count` (`sim_phasepin`, both sides) and a `gsim` probe **VERIFIED
+  gsim==db054 bit-aligned** — yet the dust offset is unchanged. So the sparkle phase
+  is NOT the cause. (`sim_phasepin` is still a correct phasepin-completeness fix —
+  it aligns gsim — just not the dust fix.)
+- **The bg-NPC** (pinned warmup ⇒ identical positions/respawns) and a 2nd dust-emit
+  block (`db034==1`, decompile L90222) are ruled out by `dustn` being ALIGNED.
+
+### OPEN — the 6-draw consumer
+Something fires **6 RNG draws before the foot dust on retail but not the port** at
+db054=96, that is NOT the sparkle / NPC / dust-block-2. **Next step:** the
+**rng-callsite drill** — `frida_capture.py --input-segtrace <work> --rng-callsites N`
+(N must reach the dust frame; retail db054=96 ≈ retail frame 14936, pin ≈ 14068, so
+N≈950) → `flow_diff.py --rng-drill rng_callsites.json` names the per-callsite VAs;
+the VA consuming 6 before the dust that the port lacks (or fires elsewhere) is the
+culprit. Likely a within-frame consumption-ORDER difference between a co-consumer
+and the dust. (engine-quirks note pending once the consumer is named.)

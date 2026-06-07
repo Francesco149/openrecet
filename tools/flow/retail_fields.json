@@ -107,6 +107,12 @@
           "type": "i32"
         },
         {
+          "name": "gsim",
+          "src": "global",
+          "va": "0x438b8cc",
+          "type": "i32"
+        },
+        {
           "name": "cgate_c8",
           "src": "global",
           "va": "0x56da1c8",
