@@ -127,6 +127,23 @@ static unsigned         g_capture_every_ms  = 1000;
 static unsigned         g_capture_last_ms   = 0;     /* timeGetTime() of last capture */
 static unsigned         g_capture_count     = 0;     /* monotonic capture index */
 
+/* TAS / Trace Studio v2 — load-aware capture suppression (plan Phase 1, D1).
+ * Recomputed once per frame in render_dispatch (where the anchor_world snapshot
+ * is built) so the capture gate can drop frames while a load is in flight. The
+ * engine STILL runs the load deterministically (sim_loading_pump etc.); only
+ * the read-only backbuffer readback is skipped — so two replays (and port↔
+ * retail) stay bit-identical, and a from-boot OVERVIEW capture collapses the
+ * ~1750-frame turbo load-stretch to a zero-width seam (6 min → seconds).
+ * g_capture_suppress_cutscene is the New-Game intro-video hook (D4), dormant
+ * (0) on the Continue/Load path.
+ *
+ * OPT-IN (--capture-suppress-loads): default OFF so the ~30 existing validated
+ * scenarios — whose goldens were blessed WITHOUT suppression — are untouched.
+ * Only the Trace Studio overview / benchmark turns it on. */
+static int              g_frame_loading_active      = 0; /* set per-frame */
+static int              g_capture_suppress_loads     = 0; /* --capture-suppress-loads */
+static int              g_capture_suppress_cutscene = 0; /* D4, default off */
+
 /* --show-sprite <name>: load an asset at startup via sprite_load (the
  * engine-style loader — disk first, storage overlay fallback) and draw
  * it as a sprite at (32, 32) every tick. <name> can be a disk path or
@@ -2624,14 +2641,16 @@ static void render_dispatch(void)
      * The snapshot is read here, after sim_a/sim_b have committed this
      * frame's scene_state + loading gate.  Always active (the BOOT
      * anchor + stderr echo cost nothing); the file sink is opt-in. */
+    /* Compute the per-frame load gate ONCE, into file scope, so the capture
+     * gate below (render_dispatch, same frame) can suppress while loading.
+     * Primary worker-load gate (new-game HOUSE scene load = LOADING #1) OR the
+     * dialogue's inter-script bracket (iv1_1→iv1_2 = LOADING #2). */
+    g_frame_loading_active = nowloading_is_active()
+                             || scene1_intro_dialogue_loading();
     {
         struct anchor_world w = {
             .scene_state    = g_scene_state,
-            /* Primary worker-load gate (new-game HOUSE scene load = LOADING #1)
-             * OR the dialogue's inter-script bracket (iv1_1→iv1_2 = LOADING #2,
-             * replacing the retired scene1_intro_events stub). */
-            .loading_active = nowloading_is_active()
-                              || scene1_intro_dialogue_loading(),
+            .loading_active = g_frame_loading_active,
             .dlg_active     = scene1_intro_dialogue_active(),
             .text_reveal    = scene1_intro_dialogue_text_reveal(),
             .text_revealed  = scene1_intro_dialogue_text_revealed(),
@@ -3075,7 +3094,16 @@ static void render_dispatch(void)
                    (now_ms - g_capture_last_ms) >= g_capture_every_ms) {
             should_capture = 1;
         }
-        if (should_capture) {
+        /* D1 load-suppression: drop the capture while a load is in flight
+         * (or the New-Game intro video is up — D4). The engine still ran the
+         * frame; we just skip the read-only readback + DON'T bump the counter,
+         * so the kept span has NO load frames and the post-load gameplay frames
+         * keep their natural absolute indices. The suppressed
+         * [LOADING_START, LOADING_END) seam is reconstructable from the anchor
+         * stream (emitted above, OUTSIDE this gate). */
+        int suppress = (g_capture_suppress_loads && g_frame_loading_active)
+                       || g_capture_suppress_cutscene;
+        if (should_capture && !suppress) {
             capture_backbuffer();
             g_capture_last_ms = now_ms;
             g_capture_count++;
@@ -3493,6 +3521,11 @@ static void parse_cmdline(LPSTR lpCmdLine)
             g_auto_z_spam = 1;
         } else if (lstrcmpA(tok, "--turbo") == 0) {
             g_turbo = 1;
+        } else if (lstrcmpA(tok, "--capture-suppress-loads") == 0) {
+            /* D1: drop overview captures while a load is in flight so a
+             * from-boot span collapses the turbo load-stretch to a seam.
+             * Opt-in — existing scenarios run without it (unchanged goldens). */
+            g_capture_suppress_loads = 1;
         } else if (lstrcmpA(tok, "--silent-audio") == 0) {
             g_silent_audio = 1;
         } else if (lstrcmpA(tok, "--show-fps") == 0) {

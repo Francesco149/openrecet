@@ -443,6 +443,8 @@ let g_present_hooked = false;
 let g_capture_pending = new Set();  // frame numbers to dump on next Present
 let g_capture_all = false;          // if true, dump every Present
 let g_capture_stride = 1;           // with capture_all: capture every Nth frame
+let g_suppress_loads = false;       // D1: drop captures while loading_active (opt-in;
+                                    // mirrors the port's --capture-suppress-loads)
 let g_capture_dir = null;           // Windows dir: write raw frames here (no Frida xfer)
 let g_max_frames = 0;               // 0 = no cap; stop = die after that many sim frames
 
@@ -1280,13 +1282,34 @@ function installPresentHook(devicePtr) {
             // of this onEnter — see the comment on g_manual_frame_counter
             // for why we don't trust engine-side DAT_073dfcfc here.
             const fn = frameNo();
+            // D1 load-suppression (Trace Studio v2, plan Phase 1) — mirror of
+            // the port's g_frame_loading_active gate (src/main.c). Opt-in via
+            // config.suppress_loads (default off), so existing scenarios are
+            // untouched. Read the two nowloading worker-load gates HERE, fresh
+            // for this frame (anchorTick reads the same two below but runs AFTER
+            // this decision, so its value would be one frame stale). While a load
+            // is in flight we skip the ~3 MB readback so a from-boot OVERVIEW
+            // collapses the load-stretch to a zero-width seam, keeping the same
+            // kept-count/order as the port. Suppression is UNIFORM (pending +
+            // stride) to match the port's blanket gate so the two sides keep the
+            // identical frame set. (Continue/Load only needs the worker gates;
+            // the New-Game dialogue inter-script bracket — port
+            // scene1_intro_dialogue_loading — is a Phase-5 concern off this path.)
+            let suppress = false;
+            if (g_suppress_loads) {
+                try {
+                    suppress =
+                        (rva(ADDR.var_nowloading_gate).readS32() !== 0) ||
+                        (rva(ADDR.var_nowloading_gate2).readS32() !== 0);
+                } catch (e) { /* gate unreadable → treat as not-loading */ }
+            }
             // capture_all honours an optional stride (every Nth frame) so a
             // whole-trace replay can be sampled at a transfer-feasible rate over
             // remote Frida (each frame ships ~3 MB of RGBA). stride<=1 = every
             // frame. Explicit g_capture_pending frames always capture.
-            const want = g_capture_pending.has(fn) ||
+            const want = !suppress && (g_capture_pending.has(fn) ||
                 (g_capture_all && (g_capture_stride <= 1 ||
-                                   (fn % g_capture_stride) === 0));
+                                   (fn % g_capture_stride) === 0)));
             if (want) {
                 // Read the watched sim-state HERE (Present onEnter, post-render)
                 // so the screenshot carries its own atomic state label. The
@@ -4316,6 +4339,7 @@ rpc.exports = {
         }
         g_capture_all = !!config.capture_all;
         g_capture_stride = (config.capture_stride | 0) > 0 ? (config.capture_stride | 0) : 1;
+        g_suppress_loads = !!config.suppress_loads;
         g_capture_dir = (typeof config.capture_dir === 'string'
                          && config.capture_dir) ? config.capture_dir : null;
         g_max_frames  = config.max_frames | 0;

@@ -1,0 +1,21 @@
+# bench-load-overview — PHASE-1 SPEED BENCHMARK (Trace Studio v2).
+# A Continue/Load (fa7c82 save) trace whose capture window is a from-NEW_GAME
+# OVERVIEW that SPANS the worker load: caprange [0, 2000] anchored at NEW_GAME
+# covers the ~1750-frame port load-stretch + a short HOUSE gameplay tail.
+#
+# BEFORE D1 load-suppression: ~2000 3 MB BMPs written over the 9p mount
+# (incl. every turbo-stretched load frame) → minutes.
+# AFTER  D1: the [LOADING_START, LOADING_END) span is capture-suppressed →
+# only the handful of pre/post-load gameplay frames are kept → seconds.
+#
+# Not a parity scenario (a single load-spanning caprange can't ordinal-pair the
+# tail cross-target — that's house-loaded-display-pinned's job); this exists to
+# time the capture path. See docs/plans/trace-studio-v2.md Phase 1.
+description: |
+  From-NEW_GAME overview spanning the Continue/Load worker load — the speed
+  benchmark for D1 capture-suppression. Port load-stretch ~1750 frames.
+max_frames: 22000     # high headroom: the suppressed fast-pump load needs many frames to complete (non-deterministic worker race)
+duration_ceiling_ms: 600000
+
+# Trace Studio v2 D1: collapse the load span to a seam on BOTH targets.
+capture_suppress_loads: true

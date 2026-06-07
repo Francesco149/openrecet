@@ -1,8 +1,28 @@
 # Trace Studio v2 — a maintainable, fast TAS trace workhorse
 
-**Status (2026-06-07):** Phase 0 ✅ landed (`de3909c`). Phases 1–5 pending.
+**Status (2026-06-07):** Phase 0 ✅ landed (`de3909c`). Phase 1 D1 (load-
+suppression) ✅ landed + verified port-side; retail agent mirrored (both-run
+verify pending); D2 + harness kept-count guard next. Phases 2–5 pending.
 Multi-session rebuild; `/clear` at each phase boundary. This is the canonical
 plan — the `~/.claude` plan file is a session-local mirror.
+
+### Phase-1 finding — the port load-pump is non-deterministic (and that's OK)
+The port's nowloading load-pump count is **non-deterministic**: it's a wall-clock
+worker-thread race, NOT on the turbo virtual clock. The SAME `fa7c82` Continue/Load
+pumped **2 → 2587** frames depending only on main-loop speed (capture I/O paces the
+loop slow ⇒ short load; suppressed/fast ⇒ long load — can even outrun the worker, so
+give a from-boot overview generous `max_frames`). **This does NOT leak into
+gameplay:** two `--capture-suppress-loads` replays with load lengths 2276 vs 2848
+produced **bit-identical** gameplay (`0/119` differ, ordinal-paired at the
+LOADING_END window) — the load-pump work (NPC RNG warmup etc.) is convergent. So
+**D1 + LOADING_END-relative anchoring = deterministic captures for free**; the load
+variance is purely cosmetic (absolute frame numbers). **Foundation rule (enforce):
+anchor capture windows at LOADING_END or later, NEVER at absolute / NEW_GAME-relative
+frames across a load.** Port↔port determinism needs no engine change; port↔retail
+warmup convergence stays the `{rngseed:19937}`/`{phasepin}` story (→ auto-apply at
+anchors, planned). On the PORT, D1 buys determinism, not speed (its load is short
+when capture-paced); the 6 min→s SPEED win is retail-side (its load is a long,
+deterministic, pure-waste capture span).
 
 ## Why
 

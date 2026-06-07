@@ -1,0 +1,22 @@
+# Continue/load fa7c82 (back-table swords) → exercise D1 capture-suppression.
+# Two capture windows:
+#   {caprange[0,30]}  from NEW_GAME  — arms capture ACROSS the load START, so the
+#                     load frames are actively suppressed (the collapse test).
+#   {caprange[0,120]} from LOADING_END — the deterministic post-load gameplay
+#                     window (the studio's real anchoring pattern; robust to the
+#                     non-deterministic load-pump length — see engine-quirks).
+# With capture_suppress_loads the load span [LOADING_START, LOADING_END) yields
+# ZERO frames; the lowest captured frame index == LOADING_END.
+{"savefile": "../../traces/save-roundtrip/_saves/fa7c820333914d2a045f1003dc78c4b65fb04235e8d37f032c0f1e0aeb761c54.sav.gz"}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 105, "buttons": "0x0010"}
+{"frame": 108, "buttons": "0x0000"}
+{"frame": 216, "buttons": "0x0010"}
+{"frame": 219, "buttons": "0x0000"}
+{"wait": "NEW_GAME"}
+{"caprange": [0, 30]}
+{"frame": 0, "buttons": "0x0000"}
+{"wait": "LOADING_END"}
+{"caprange": [0, 120]}
+{"frame": 0, "buttons": "0x0000"}
+{"frame": 200, "buttons": "0x0000"}

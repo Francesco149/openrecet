@@ -159,6 +159,13 @@ class Scenario:
     # legacy scenarios (which use capture_frames instead).
     n_captures: int = 0
 
+    # Trace Studio v2 (plan Phase 1, D1): when true, BOTH targets drop captures
+    # while a worker load is in flight, so a from-boot OVERVIEW collapses the
+    # turbo load-stretch (~1750 port frames) to a zero-width seam. Opt-in
+    # (scenario.yaml `capture_suppress_loads: true`) so the existing validated
+    # scenarios — blessed without suppression — are byte-for-byte unaffected.
+    suppress_loads: bool = False
+
     @classmethod
     def load(cls, scen_path: Path) -> "Scenario":
         if not scen_path.is_dir():
@@ -201,6 +208,7 @@ class Scenario:
             zoom_text=zoom_text,
             is_segtrace=is_segtrace,
             n_captures=n_captures,
+            suppress_loads=bool(data.get("capture_suppress_loads", False)),
         )
 
 
@@ -342,6 +350,7 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
             save_ref=save_ref,
             d3d_trace=d3d_trace, d3d_trace_verts=d3d_trace_verts,
             call_trace=call_trace,
+            suppress_loads=scen.suppress_loads,
         )
 
     return frida_capture.run_capture(
@@ -359,6 +368,7 @@ def run_scenario_capture_retail(scen: Scenario, run_dir: Path,
         save_ref=save_ref,
         d3d_trace=d3d_trace, d3d_trace_verts=d3d_trace_verts,
         call_trace=call_trace,
+        suppress_loads=scen.suppress_loads,
     )
 
 
@@ -402,6 +412,8 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
             "--max-duration-ms",     str(scen.duration_ceiling_ms),
             "--hidden",
         ]
+        if scen.suppress_loads:
+            child_args.append("--capture-suppress-loads")   # D1 (Trace Studio overview)
     else:
         capture_frames_csv = ",".join(str(f) for f in scen.capture_frames)
         child_args = [

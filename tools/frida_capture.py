@@ -195,6 +195,8 @@ class CaptureConfig:
     capture_frames: list[int] = field(default_factory=list)
     capture_all: bool = False      # capture every (strided) frame — whole-trace view
     capture_stride: int = 1        # with capture_all: every Nth frame
+    suppress_loads: bool = False   # D1: drop captures while loading_active (Trace Studio
+                                   # overview; mirrors port --capture-suppress-loads)
     max_frames:     int = 60
     duration_ms:    int = 30_000   # wall-clock ceiling
     remote:         str = DEFAULT_REMOTE
@@ -1105,6 +1107,7 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         "capture_frames": list(cfg.capture_frames),
         "capture_all":    bool(cfg.capture_all),
         "capture_stride": int(cfg.capture_stride),
+        "suppress_loads": bool(cfg.suppress_loads),
         # Whole-trace capture: the agent writes raw frames straight to the
         # (WSL-accessible) frames dir instead of shipping each over Frida. Only
         # for capture_all (scenario windowed captures keep the message path).
@@ -1386,6 +1389,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 d3d_trace: bool = False,
                 d3d_trace_verts: bool = False,
                 call_trace: bool = False,
+                suppress_loads: bool = False,
                 anchor_trace: bool = False) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
@@ -1426,6 +1430,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         rng_seed=(rng_seed if rng_seed is not None
                   else getattr(scenario, "rng_seed", None)),
         save_ref=save_ref,
+        suppress_loads=suppress_loads,   # D1 load-suppression (Trace Studio overview)
         # Trace the captured frames (aligned port↔retail) when enabled; the
         # call_trace_fields spec auto-loads in the core runner.
         d3d_trace=d3d_trace,
