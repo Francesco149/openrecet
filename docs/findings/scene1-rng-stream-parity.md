@@ -185,12 +185,38 @@ decompile-faithful, and the stream is bit-exact (`rng` raw + `rngcalls` ALIGNED)
 - **The bg-NPC** (pinned warmup ⇒ identical positions/respawns) and a 2nd dust-emit
   block (`db034==1`, decompile L90222) are ruled out by `dustn` being ALIGNED.
 
-### OPEN — the 6-draw consumer
-Something fires **6 RNG draws before the foot dust on retail but not the port** at
-db054=96, that is NOT the sparkle / NPC / dust-block-2. **Next step:** the
-**rng-callsite drill** — `frida_capture.py --input-segtrace <work> --rng-callsites N`
-(N must reach the dust frame; retail db054=96 ≈ retail frame 14936, pin ≈ 14068, so
-N≈950) → `flow_diff.py --rng-drill rng_callsites.json` names the per-callsite VAs;
-the VA consuming 6 before the dust that the port lacks (or fires elsewhere) is the
-culprit. Likely a within-frame consumption-ORDER difference between a co-consumer
-and the dust. (engine-quirks note pending once the consumer is named.)
+### RESOLVED 2026-06-07 — the 6-draw consumer is the COMPANION wing-sparkle (consumption-ORDER bug)
+
+The 6-draw consumer is the **companion (Tear) wing-sparkle** — type 0x1f, which
+`init_type_1f_100` spawns with **6 `rng_next_unit()` draws**, gated `db054 % 4 == 0`.
+The decompile settles it without the Frida drill: in the engine, the companion
+controller **`FUN_0048a833` is nested INSIDE `FUN_0048b850` at L90205 — right
+BEFORE the foot-dust emit at L90215** (and `db054++` is at the b850 tail L90242,
+AFTER both read it). Since the dust fires every 16th frame ⊂ every 4th, the
+wing-sparkle ALWAYS fires on a dust frame and consumes its 6 draws first.
+
+The **port modelled the companion as a separate top-level tick AFTER the whole
+player controller** (`scene1_sim.c`, after `scene1_player_ctrl_tick`), so its 6
+wing-sparkle draws landed AFTER the dust instead of before — the dust read a
+6-draw-shifted LCG slice. This is a pure within-frame consumption-ORDER difference:
+frame-start `rng` + per-frame `rngcalls` stay bit-identical (no draws gained/lost,
+just reordered), which is exactly why `dustn`/`dustage` were ALIGNED while
+`dustsx/sz/vx/vz` DRIFTed.
+
+**Fix (commit pending):** tick the companion inside the player controller before
+the dust, and defer `db054++` to after it —
+- `scene1_player_ctrl.c` `player_ctrl_b850_move`: …damp → `scene1_companion_ctrl_tick()`
+  → `…_foot_dust()` → `scene1_companion_ctrl_advance_phase()` → render tail;
+- the `db054++` is split out of the companion tick into
+  `scene1_companion_ctrl_advance_phase()` (engine L90242) so all intra-frame readers
+  still see this frame's value and the `++` lands last;
+- `scene1_sim.c` runs the companion only on the NON-walk frames (a `player_ctrl_
+  companion_ticked()` latch), preserving its dialogue/menu behaviour.
+
+**Verified** by `recapture --only port` of `town-map-load-rerecord` against the
+cached retail call-trace: `flow_diff --verdict --align-field db054` now reports
+**`dustsx/dustsz/dustvx/dustvz` ALIGNED** (were DRIFT @97), with `rng`/`rngcalls`/
+`dustn`/`dustage` still bit-exact and every player+companion field + `db054` still
+ALIGNED. engine-quirks §114. (As a bonus this fixes Tear's OWN wing-sparkle slice on
+walk frames — it was equally mis-ordered, but only surfaced under dust because Tear
+had been validated on idle scenarios where the dust never fires.)

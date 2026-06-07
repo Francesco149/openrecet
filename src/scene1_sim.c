@@ -89,10 +89,18 @@ void scene1_ingame_default_arm_tick(void)
      * variant.  Both gates open in HOUSE; W1 wires the entry (stub body). */
     scene1_player_ctrl_tick();
 
-    /* FUN_00442cef → FUN_0048670f runs the companion controller FUN_0048a833
-     * right after the player driver — it hover-follows actor 2 (the bobbing
-     * fairy) toward the player.  No-op unless actor 2 is live. */
-    scene1_companion_ctrl_tick();
+    /* Companion controller (FUN_0048a833).  The engine nests it INSIDE the player
+     * driver's FUN_0048b850, right before the foot-dust emit, so the fairy's
+     * wing-sparkle RNG precedes the dust's.  On a free-roam walk frame
+     * player_ctrl_b850_move() already ran it there (and advanced db054 after the
+     * dust); this fallback ticks+advances it on every OTHER frame — the dialogue /
+     * display-menu / pre-move paths the engine reaches through FUN_0048b850's
+     * other callers but the port's stubbed arms do not.  Gated on the latch so the
+     * companion ticks exactly once per frame (engine-quirks §114). */
+    if (!player_ctrl_companion_ticked()) {
+        scene1_companion_ctrl_tick();
+        scene1_companion_ctrl_advance_phase();
+    }
 
     /* FUN_00442cef L40603 — gated on DAT_0438b4b4 == 0 (BSS-zero in
      * HOUSE → gate opens).  C8j-tick.1 ports the SKELETON ONLY (outer

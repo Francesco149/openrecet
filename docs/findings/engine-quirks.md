@@ -4420,3 +4420,33 @@ dialogue's `g_rt.active` post-load, so its `CONV_POSE_START` fires *after* HF, n
 during the load — a one-load-late ordering that desyncs a retail-recorded
 `{wait CONV_POSE_START}`-chain. Fully closing it needs the chibi actors live during
 the HOUSE preload (mid-load spawn), not just the pose-gate change.
+
+## 114. The companion controller (FUN_0048a833) is nested INSIDE the player controller (FUN_0048b850) — it runs right BEFORE the foot-dust emit, so the fairy's wing-sparkle RNG (6 draws/4th frame) is consumed AHEAD of the dust's 2 draws; db054 is bumped at the very tail, AFTER both read it
+
+Within one free-roam frame `FUN_0048b850` runs, in order: player integrate+damp →
+**`FUN_0048a833`** (companion spring-follow + the type-0x1f wing-sparkle, all.c
+L90205) → `FUN_00483e7b` (status particles, no RNG in HOUSE) → **foot dust**
+(all.c L90215, gated `db054 & 0xf == 0`) → … → **`DAT_056db054 + 1`** (all.c
+L90242, the tail). So a single shared `db054` is read by BOTH the wing-sparkle
+(gate `db054 % 4 == 0`, L89481) and the foot dust within the frame, and the `++`
+lands *after* both — they see the same value. Because the dust fires every 16th
+frame (`& 0xf`) ⊂ every 4th frame (`% 4`), the wing-sparkle ALWAYS fires on a dust
+frame, consuming its **6 `rng_next_unit()` draws** (`init_type_1f_100`: fVar1 +
+dead-pos.y + pos.y + vel.xyz) immediately before the dust's 2.
+
+The order matters because both draw from the one global LCG: the dust's z/x jitter
+reads the slice *after* the wing-sparkle's 6 draws. Modelling the companion as a
+separate top-level tick AFTER the whole player controller (a natural port
+structure) puts those 6 draws AFTER the dust, so the dust reads a 6-draw-shifted
+slice — the foot-dust positions/velocities diverge from retail on every walk frame
+while the frame-start LCG state and total per-frame consumption stay bit-identical
+(`flow_diff --verdict`: `rng`/`rngcalls` ALIGNED, `dustn`/`dustage` ALIGNED, only
+`dustsx/sz/vx/vz` DRIFT — the signature of a within-frame consumption-ORDER bug, not
+a logic/seed bug). The fix is structural: tick the companion inside the player
+controller before the dust and defer the `db054++` to after it (port:
+`player_ctrl_b850_move` calls `scene1_companion_ctrl_tick` then `…_foot_dust` then
+`scene1_companion_ctrl_advance_phase`; `scene1_sim.c` runs the companion only on
+non-walk frames). After: all four dust fields ALIGNED, every actor field + db054
+still bit-exact. (The wing-sparkle itself was equally mis-sliced on walk frames —
+this fixes Tear's walk-frame particle parity too; it only looked 1:1 before because
+Tear was validated on IDLE scenarios where the dust never fires.)

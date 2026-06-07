@@ -384,6 +384,7 @@ void player_ctrl_set_facing_angle(float angle);
 void player_ctrl_cc08_enter_freeroam(void); /* FUN_004850ec: set cc08 = 1 (HOUSE entry) */
 int  player_ctrl_cc08(void);                /* read cc08 */
 int  player_ctrl_cc04(void);                /* read cc04 (free-roam interaction sub-state) */
+int  player_ctrl_companion_ticked(void);    /* did b850_move tick the companion inline this frame? */
 void player_ctrl_debug_set_cc08(int state); /* test hook: force cc08 (stands in for the
                                              * unported state-transition writers) */
 

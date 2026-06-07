@@ -377,6 +377,13 @@ static int   s_cc08             = 1;              /* DAT_0438cc08 */
 static int   s_cc04             = 0;              /* DAT_0438cc04 */
 static int   s_cbe8             = 0;              /* DAT_0438cbe8 — display-menu open-once latch */
 
+/* Per-frame latch: set when player_ctrl_b850_move() ticks the companion inline
+ * (the free-roam walk path, mirroring the engine's FUN_0048a833-nested-in-
+ * FUN_0048b850).  scene1_sim.c reads it after scene1_player_ctrl_tick() to run
+ * the companion fallback ONLY on the non-walk frames (dialogue / menu / pre-
+ * move).  Reset at the top of scene1_player_ctrl_tick(). */
+static int   s_companion_ticked_in_b850 = 0;
+
 /* ── FUN_0048b850 tail render-bank state (Chip 2; engine all.c L90242+) ─────
  * The two after-image banks the chr-sprite walker (FUN_00456f56) draws —
  *   s_trail_bank = DAT_056dab6c (walker sweep 0, always read)
@@ -609,6 +616,15 @@ int player_ctrl_cc08(void)
 int player_ctrl_cc04(void)
 {
     return s_cc04;
+}
+
+/* True when player_ctrl_b850_move() ticked the companion inline this frame (the
+ * free-roam walk path).  scene1_sim.c uses it to run the companion fallback only
+ * on the non-walk frames where b850 was not reached (dialogue / menu / pre-move),
+ * so the companion ticks exactly once per frame. */
+int player_ctrl_companion_ticked(void)
+{
+    return s_companion_ticked_in_b850;
 }
 
 /* Debug/test hook: force the cc08 state id.  Stands in for the unported
@@ -844,11 +860,33 @@ static void player_ctrl_b850_move(void)
     s_player_vel[0] *= PC_WALK_DAMP;
     s_player_vel[2] *= PC_WALK_DAMP;
 
-    /* FUN_0048b850 L457-476: foot dust at the feet while grounded + moving. */
+    /* FUN_0048b850 L90205: the companion controller (FUN_0048a833) is nested
+     * HERE — after the player's integrate+damp (so the fairy spring-follows the
+     * POST-move player) and BEFORE the foot-dust emit.  Its wing-sparkle (type
+     * 0x1f, 6 rng_next_unit() draws every 4th frame) therefore consumes the
+     * shared LCG immediately AHEAD of the dust's 2 draws — the exact order the
+     * engine reads them in.  Modelling the companion as a separate top-level tick
+     * AFTER the whole player controller (the old scene1_sim.c position) put those
+     * 6 draws AFTER the dust, so the dust read a 6-draw-shifted RNG slice and its
+     * jitter+velocity diverged from retail on every walk frame where both fire
+     * (db054 % 16 == 0 ⟹ % 4 == 0).  RNG/raw-state stay frame-aligned (same draws,
+     * reordered); only the dust's slice moved.  engine-quirks §114.
+     *   scene1_sim.c runs this on the non-walk frames; the latch tells it we did
+     * it here so it does not double-tick. */
+    scene1_companion_ctrl_tick();
+    s_companion_ticked_in_b850 = 1;
+
+    /* FUN_0048b850 L90215 (L457-476): foot dust at the feet while grounded +
+     * moving — reads this frame's db054 (pre-increment, set by advance below). */
     player_ctrl_b850_foot_dust();
 
-    /* FUN_0048b850 tail: motion-history rings + after-image render-bank fill
-     * (engine-quirks §76).  Runs every frame; dormant in free-roam. */
+    /* FUN_0048b850 L90242: db054++ — bump the companion phase clock AFTER both
+     * the companion tick and the foot dust have read it (deferred out of the
+     * companion tick for exactly this ordering). */
+    scene1_companion_ctrl_advance_phase();
+
+    /* FUN_0048b850 tail (L90243+): motion-history rings + after-image render-bank
+     * fill (engine-quirks §76).  Runs every frame; dormant in free-roam. */
     player_ctrl_b850_render_tail();
 }
 
@@ -1300,6 +1338,11 @@ static void player_ctrl_display_sparkle_emit(void)
  * clamp → integrate → damp), byte-identical per-frame to the retail watch. */
 void scene1_player_ctrl_tick(void)
 {
+    /* Clear the inline-companion latch: set again only if the free-roam walk
+     * path reaches player_ctrl_b850_move() this frame (engine FUN_0048a833 nested
+     * in FUN_0048b850).  scene1_sim.c reads it to decide the non-walk fallback. */
+    s_companion_ticked_in_b850 = 0;
+
     /* Per-frame ACTOR-STATE flow-trace payload (FUN_0048670f = the HOUSE
      * free-roam update, parent of both the player and companion controllers).
      * Read at onEnter (frame start, before this frame's update) so it mirrors

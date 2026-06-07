@@ -87,9 +87,12 @@ int test_companion_hover_bob(void)
     setup(0.6f, 9.35f);
     T_NEAR(g_scene1_actor_pos[2][1], 3.0f);     /* seed = ground_y(0)+3.0 */
     scene1_companion_ctrl_tick();                /* counter 0 → bob target 3.0 */
+    scene1_companion_ctrl_advance_phase();       /* db054++ (now split out of tick) */
     T_NEAR(g_scene1_actor_pos[2][1], 3.0f);
-    for (int i = 0; i < 300; i++)
+    for (int i = 0; i < 300; i++) {
         scene1_companion_ctrl_tick();
+        scene1_companion_ctrl_advance_phase();
+    }
     float y = g_scene1_actor_pos[2][1];
     if (y < 2.8f - 1e-3f || y > 3.2f + 1e-3f) T_FAIL("bob out of [2.8,3.2]: %g", (double)y);
     return 0;
@@ -141,14 +144,22 @@ int test_companion_wing_sparkle_period(void)
     g_scene1_camera_yaw = 0.0f;
     scene1_spawn_trace_reset();
 
+    /* db054 is bumped by advance_phase (split out of the tick to match the engine's
+     * read-then-emit-then-increment order); call it after each tick as production
+     * does (player_ctrl_b850_move / scene1_sim.c). */
     scene1_companion_ctrl_tick();           /* counter 0 → emit (1) */
+    scene1_companion_ctrl_advance_phase();
     if (g_scene1_spawn_trace_count != 1) T_FAIL("frame 0 should emit");
     scene1_companion_ctrl_tick();           /* counter 1 → no */
+    scene1_companion_ctrl_advance_phase();
     scene1_companion_ctrl_tick();           /* counter 2 → no */
+    scene1_companion_ctrl_advance_phase();
     scene1_companion_ctrl_tick();           /* counter 3 → no */
+    scene1_companion_ctrl_advance_phase();
     if (g_scene1_spawn_trace_count != 1) T_FAIL("frames 1-3 should not emit (got %d)",
                                                  g_scene1_spawn_trace_count);
     scene1_companion_ctrl_tick();           /* counter 4 → emit (2) */
+    scene1_companion_ctrl_advance_phase();
     if (g_scene1_spawn_trace_count != 2) T_FAIL("frame 4 should emit (got %d)",
                                                  g_scene1_spawn_trace_count);
     return 0;

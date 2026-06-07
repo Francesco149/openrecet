@@ -124,9 +124,13 @@ void scene1_companion_ctrl_phasepin(void)
 /* The shared per-frame phase counter DAT_056db054.  The engine has ONE db054
  * that several subsystems read within a frame; here it backs the companion bob.
  * The player controller's foot-dust emit (FUN_0048b850, scene1_player_ctrl.c)
- * is another db054 reader — it runs in the player tick, BEFORE this tick
- * increments the counter, so both see this frame's value (matches the engine,
- * where FUN_0048b850 reads db054 and the companion update is nested inside it). */
+ * is another db054 reader.  The engine reads db054 from BOTH the companion update
+ * (FUN_0048a833, wing-sparkle gate) and the foot dust, then increments it ONCE at
+ * the FUN_0048b850 tail (L90242) — AFTER both reads.  The port mirrors that: on a
+ * free-roam walk frame player_ctrl_b850_move() runs the companion tick then the
+ * foot dust (both read this value) then scene1_companion_ctrl_advance_phase()
+ * bumps the counter; on every other frame scene1_sim.c ticks+advances it.  So all
+ * intra-frame readers see this frame's value and the ++ lands last. */
 int scene1_companion_db054(void)
 {
     return s_bob_counter;
@@ -266,16 +270,28 @@ void scene1_companion_ctrl_tick(void)
 
     /* Wing-glow sparkle (FUN_0048a833 tail): emit every 4th frame, off the
      * post-move fairy along her facing.  Uses the PRE-increment counter so it
-     * shares the bob's db054 phase (the engine reads db054 once per frame). */
+     * shares the bob's db054 phase (the engine reads db054 once per frame).
+     * The type-0x1f spawn consumes 6 rng_next_unit() draws; in the engine this
+     * happens INSIDE FUN_0048b850 (FUN_0048a833 @ L90205) just BEFORE the foot
+     * dust's 2 draws (L90215), so the port must tick the companion before the
+     * dust too — see player_ctrl_b850_move() / engine-quirks §114. */
     if (s_bob_counter % CO_SPARKLE_PERIOD == 0)
         co_emit_wing_sparkle(rec, comp);
+}
 
-    /* db054 (the §85 HOUSE phase clock) advances only on real free-roam frames:
-     * while the in-house display-stand menu is open (cc04 != 0) the engine
-     * freezes it — FUN_0048670f keeps ticking + the companion keeps running, but
-     * the walk arm that advances db054 is routed around (engine-quirks §110).
-     * The port models db054 as this bob counter, so gate its increment the same
-     * way (the bob phase freezes with it, reading the held value). */
+/* db054 phase-clock advance — the `DAT_056db054 = DAT_056db054 + 1` at the
+ * FUN_0048b850 tail (all.c:90242), which the engine runs AFTER both the companion
+ * update (FUN_0048a833, L90205) and the foot-dust emit (L90215) have read db054.
+ * Split out of scene1_companion_ctrl_tick so the walk path can tick the companion
+ * (its wing-sparkle RNG) BEFORE the dust yet still bump the counter AFTER it —
+ * preserving the engine's read/emit/increment order (engine-quirks §114).
+ *
+ * db054 advances only on real free-roam frames: while the in-house display-stand
+ * menu is open (cc04 != 0) the engine freezes it (FUN_0048670f keeps running + the
+ * companion keeps ticking, but the walk arm that increments db054 is routed around
+ * — engine-quirks §110), so gate the increment the same way. */
+void scene1_companion_ctrl_advance_phase(void)
+{
     if (player_ctrl_cc04() == 0)
         s_bob_counter++;
 }

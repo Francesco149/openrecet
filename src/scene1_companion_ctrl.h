@@ -41,10 +41,19 @@
 extern "C" {
 #endif
 
-/* Per-frame companion tick.  Wired into scene1_ingame_default_arm_tick right
- * after scene1_player_ctrl_tick (the engine runs FUN_0048a833 after the player
- * controller).  No-op unless actor 2 is live (char != -1). */
+/* Per-frame companion tick (engine FUN_0048a833 spring-follow + wing-sparkle).
+ * The engine nests FUN_0048a833 INSIDE the player controller FUN_0048b850 (just
+ * before the foot dust), so on a free-roam walk frame the port calls this from
+ * player_ctrl_b850_move(); scene1_sim.c ticks it on every other (non-walk) frame.
+ * Does NOT advance the phase counter — call scene1_companion_ctrl_advance_phase()
+ * after the foot dust for that.  No-op unless actor 2 is live (char != -1). */
 void scene1_companion_ctrl_tick(void);
+
+/* Advance the db054 phase counter (engine FUN_0048b850 tail, all.c:90242) — run
+ * AFTER both the companion tick and the foot-dust emit have read db054, so the
+ * wing-sparkle's RNG precedes the dust's yet the counter still ticks once/frame.
+ * Gated cc04==0 (frozen while the display-stand menu is open; engine-quirks §110). */
+void scene1_companion_ctrl_advance_phase(void);
 
 /* Reset the per-scene hover-bob phase counter (engine DAT_056db054).  Called on
  * HOUSE entry from scene1_postload, alongside the actor seed. */
@@ -52,8 +61,8 @@ void scene1_companion_ctrl_reset(void);
 
 /* Read the shared per-frame phase counter DAT_056db054 (the companion bob phase).
  * Other db054 readers (the player foot-dust emit) call this; it returns the
- * current frame's value (this counter is incremented at the end of the companion
- * tick, which runs after the player tick). */
+ * current frame's value (the counter is bumped by scene1_companion_ctrl_advance_
+ * phase() only AFTER all of this frame's readers have run). */
 int scene1_companion_db054(void);
 
 /* Trace-harness ONLY: normalize the companion's load-time-dependent free-roam
