@@ -202,12 +202,14 @@ class CaptureController:
         self.log: Path | None = None
         self.started: float = 0.0
         self.last_rc: int | None = None
+        self.kind: str = "capture"        # capture | recapture | drill (job identity)
 
     def _alive(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
     def start(self, trace: str, session: str, target: str,
-              call_trace: bool, caprange: str | None, only: str = "both") -> dict:
+              call_trace: bool, caprange: str | None, only: str = "both",
+              kind: str = "capture") -> dict:
         with self.lock:
             if self._alive():
                 return {"ok": False, "error": f"a capture is already running "
@@ -233,6 +235,7 @@ class CaptureController:
                 return {"ok": False, "error": f"spawn failed: {e!r}"}
             self.session, self.log, self.started = session, log, time.time()
             self.last_rc = None
+            self.kind = kind
             return {"ok": True, "session": session}
 
     def status(self) -> dict:

@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlparse
 from ..paths import DEFAULT_REMOTE
 from ..record.controller import CaptureController, RecordController
 from . import ranged, routes
+from .jobs import JobsRegistry
 
 _CTYPE = {
     ".html": "text/html; charset=utf-8",
@@ -149,6 +150,7 @@ def serve(sess_root: Path, web_dir: Path, host: str = "127.0.0.1",
     httpd.default_session = default_session
     httpd.recorder = recorder
     httpd.capturer = capturer
+    httpd.jobs = JobsRegistry(recorder, capturer)
 
     url = f"http://{host}:{port}/"
     if default_session:

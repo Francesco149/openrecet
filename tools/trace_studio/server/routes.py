@@ -64,6 +64,11 @@ def h_capture_status(h, m, raw):
     h._send_json(h.server.capturer.status())
 
 
+def h_jobs(h, m, raw):
+    # Unified job list (record + capture/recapture/drill) for the SPA JobTray.
+    h._send_json(h.server.jobs.list())
+
+
 # ── POST: record ─────────────────────────────────────────────────────────────
 def h_record_start(h, m, raw):
     d = _json(raw)
@@ -110,7 +115,7 @@ def h_recapture(h, m, raw):
     h._send_json(h.server.capturer.start(
         working, sess, d.get("target", man.get("target", "both")),
         bool(d.get("call_trace", man.get("call_trace", True))), None,
-        only=d.get("only", "both")))
+        only=d.get("only", "both"), kind="recapture"))
 
 
 # ── POST: apply pins ─────────────────────────────────────────────────────────
@@ -267,6 +272,7 @@ POST_ROUTES = [
 
 GET_ROUTES = [
     (r"^/api/sessions$",   h_sessions),
+    (r"^/api/jobs$",       h_jobs),
     (r"^/record/status$",  h_record_status),
     (r"^/capture/status$", h_capture_status),
 ]
