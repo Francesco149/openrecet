@@ -124,3 +124,23 @@ Provisional; refine after Phase 0. Likely:
   agent `segtraceBuildSegments`, retail harness `frida_capture.py` (~L983 `else`).
 - Adding a town-map mode to the anchor set may want a new anchor (e.g. `TOWN_FREEROAM`)
   in `src/anchor_trace.c` — that's a clean window sync point for the studio.
+- **INPUT REPLAY MUST BE ANCHORED (2026-06-07, verified).** A recorded Continue trace
+  distilled FLAT replays inputs at boot-relative recording frames (walk at R@249/U@258/
+  …Z@409=door), but the port's free-roam starts at a *different, non-deterministic* frame
+  than the recording (port HF≈388-422 vs recording HF=198 — longer load), so the whole
+  walk fires during the port's load and is LOST; the port's first free-roam input is the
+  post-door town arrow → "holds up at ord 224", reproduces nothing. The **anchored**
+  distil rebases inputs to anchor-relative (R@HF+51, U@HF+60, R@HF+132, Z@HF+211=door), so
+  the walk replays correctly relative to free-roam regardless of load timing. **Tooling
+  fixes:** `f3a70b3` (recordings auto-anchor), `b71cadd` (re-capture self-heals a stale
+  FLAT working trace by rebuilding anchored from the manifest's `source_trace` — the SPA
+  recapture passes the working trace, so the recording's anchors were invisible before).
+  **A pre-fix session's working trace is FLAT** until a re-capture rebuilds it.
+- **Verified walk:** `runs/trace-studio/town-walk-debug` (anchored, **HOUSE_FREEROAM**-
+  windowed `{caprange [0,230]}`) captures the free-roam walk on BOTH sides (port 229 /
+  retail 226 frames) — the port walks R→U→R to the door, diverging only at the door-Z
+  (unported). Built by truncating the distilled trace at the shop-exit so the HF segment is
+  LAST (the engine parser only accepts `{caprange}` in the final segment, and `{calltrace}`
+  must be `[start,len]`, NOT a bool — `/tmp/build_walk_debug.py`). The auto-window anchors
+  to the LAST anchor (town, port-unreachable → port=0); for a port↔retail WALK comparison,
+  window on `HOUSE_FREEROAM` (the first anchor both sides reach).
