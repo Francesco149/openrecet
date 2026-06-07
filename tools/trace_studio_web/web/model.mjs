@@ -9,8 +9,8 @@
 //     apply/drill consume (the cli drill's caprange.start + at*stride math)
 // Video time is (k+0.5)/fps for EVERY segment src; state is keyed by ordinal; diff by
 // label. For ONE gameplay segment every formula collapses to the old whole-session UI.
-import { useMemo } from "/vendor/htm-preact-standalone.mjs";
-import { useSession } from "/store.mjs";
+import { useMemo, useState, useEffect } from "/vendor/htm-preact-standalone.mjs";
+import { useSession, useStatus, getJSON } from "/store.mjs";
 
 // verdict → filmstrip fill class. Prefer the verdict TEXT (the specific word) over the
 // exit code; check the worst outcome first (a text may mention several).
@@ -99,3 +99,23 @@ export function useStudioModel(sess) {
   ]);
   return { ...data, view };
 }
+
+// ─── S7 registries + jobs ─────────────────────────────────────────────────────
+// The mark-type + analyzer registries (served at GET /api/registries), fetched once
+// per load. The MarkBar renders one button per `marks[]` entry — adding a kind in
+// edits/marks.py surfaces it here with zero JS edits.
+export function useRegistries() {
+  const [reg, setReg] = useState({ marks: [], analyzers: [] });
+  useEffect(() => { getJSON("/api/registries").then(setReg).catch(() => {}); }, []);
+  return reg;
+}
+
+// THE single jobs poller (replaces the old per-panel /record/status + /capture/status
+// pollers). store.useStatus keys its interval on the top-level `.running` that
+// /api/jobs returns, so this idles when nothing runs and polls while a job is live.
+// Returns [{jobs:[record,capture], running}, poll].
+export function useJobs(intervalMs = 1500) {
+  return useStatus("/api/jobs", intervalMs);
+}
+export const jobOf = (status, id) =>
+  (status && status.jobs ? status.jobs.find((j) => j.id === id) : null) || null;

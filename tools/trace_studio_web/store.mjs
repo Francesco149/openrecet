@@ -74,6 +74,19 @@ export function useSessions() {
   return list;
 }
 
+// ─── one-shot job lookup (for action loops that drive navigation) ─────────────
+// The passive JobTray uses the shared useStatus("/api/jobs") poller; an action that
+// must react to a specific job completing (capture → navigate) fetches the unified
+// list once per tick and picks its slot. Tolerant: returns null on any error.
+export async function jobStatus(id) {
+  try {
+    const d = await getJSON("/api/jobs");
+    return (d.jobs || []).find((j) => j.id === id) || null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── a poller for /record/status and /capture/status ─────────────────────────
 export function useStatus(url, intervalMs = 1500) {
   const [s, setS] = useState(null);

@@ -35,6 +35,21 @@
   color: var(--warn); font-size: 13px; cursor: help; border-right: 1px solid #0007;
   background: repeating-linear-gradient(45deg, #1a1d22, #1a1d22 3px, #262b33 3px, #262b33 6px); }
 
+/* ── S7: JobTray (the one unified job poller's status strip) ────────────────── */
+.jobtray { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+  margin: .4rem 0; font-size: 12px; }
+.job { padding: .1rem .5rem; border-radius: 4px; border: 1px solid var(--edge);
+  background: var(--panel); color: var(--dim); white-space: nowrap; }
+.job.run { color: var(--accent); border-color: var(--accent); }
+.job.ok  { color: var(--good); border-color: #1a4d2e; }
+.job.bad { color: var(--bad); border-color: #5a1e1e; }
+.job.idle { opacity: .55; }
+.job .dim { color: inherit; opacity: .7; }
+.job-tail { flex: 1 1 100%; font: 11px/1.4 ui-monospace, monospace; opacity: .65;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spin { display: inline-block; animation: ts-spin 1s linear infinite; }
+@keyframes ts-spin { to { transform: rotate(360deg); } }
+
 /* ── S6: DiffRibbon (per-frame diff strip) ─────────────────────────────────── */
 .diff-ribbon-wrap { margin: .35rem 0 .2rem; }
 .diff-ribbon { display: flex; height: 16px; border: 1px solid var(--edge); border-radius: 4px;
