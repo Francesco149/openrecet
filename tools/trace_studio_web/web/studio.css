@@ -35,6 +35,45 @@
   color: var(--warn); font-size: 13px; cursor: help; border-right: 1px solid #0007;
   background: repeating-linear-gradient(45deg, #1a1d22, #1a1d22 3px, #262b33 3px, #262b33 6px); }
 
+/* ── S7b: work-area layout — videos left, sticky reference panels right ────────
+   Per-frame state + verdict + marks are reference data you glance at every frame,
+   so they live in a sticky right column that stays on screen while scrubbing; the
+   occasional record/iterate actions fold away at the bottom. Stacks on narrow. */
+/* WIDE (≥1280, JS-gated): left column = videos → folded tools → Verdict (fills the whole
+   left bottom); right = a full-height sidebar dominated by the per-frame State. The
+   sidebar stretches to the column height; State is sticky inside it so it follows the
+   scroll. The left column is a flex stack so the Verdict grows to fill the bottom. */
+.workarea { display: flex; gap: .8rem; align-items: stretch; }
+.scrub-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.scrub-col > .below-panels { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.scrub-col > .below-panels > .panel { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.scrub-col > .below-panels .verdict { flex: 1 1 auto; max-height: none; min-height: 0; }
+.ref-col { flex: 0 0 340px; }
+.ref-col > .panel { position: sticky; top: .5rem;
+  max-height: calc(100vh - 1rem); overflow: auto; }
+.below-panels { margin-top: .6rem; }            /* wide: Verdict fills the left-bottom */
+/* NARROW (<1280): Verdict | State side-by-side at EQUAL height (tools fold above them).
+   The grid stretches both panels to the taller one; the verdict/state bodies flex-fill. */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-top: .6rem; }
+.two-col > .panel { display: flex; flex-direction: column; min-height: 0; }
+.two-col .verdict, .two-col .state { flex: 1 1 auto; min-height: 0; }
+/* the verdict <pre> caps at 260px by default — lift it so its body fills the stretched
+   panel (matching the per-frame State height) instead of stopping short. */
+.two-col .verdict { max-height: none; overflow: auto; }
+.tools-fold { margin-top: .9rem; border-top: 1px solid var(--edge); padding-top: .5rem; }
+.tools-fold > summary { cursor: pointer; color: var(--dim); font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em; user-select: none; padding: .2rem 0; }
+.tools-fold > summary:hover { color: var(--fg); }
+.tools-fold > summary .dim { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.tools-fold[open] > summary { margin-bottom: .5rem; }
+
+/* ── S8: DrillBar (densify a strided overview sub-window in-browser) ────────── */
+.drillbar { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem;
+  margin: .1rem 0 .4rem; font-size: 12px; }
+.drillbar .span-in { color: var(--dim); display: inline-flex; align-items: center; gap: .3rem; }
+.drillbar .span-in input { width: 4rem; }
+.drillbar button { font-size: 12px; }
+
 /* ── S7: MarkBar marks-list polish ─────────────────────────────────────────── */
 /* the frame-number link was raw browser blue (unreadable on the dark panel) */
 .marks .m a { color: var(--accent); text-decoration: none; }

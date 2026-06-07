@@ -12,6 +12,7 @@ import { Filmstrip } from "/web/components/Filmstrip.mjs";
 import { VideoStage } from "/web/components/VideoStage.mjs";
 import { ScrubBar } from "/web/components/ScrubBar.mjs";
 import { DiffRibbon } from "/web/components/DiffRibbon.mjs";
+import { DrillBar } from "/web/components/DrillBar.mjs";
 import { JobTray } from "/web/components/JobTray.mjs";
 import { RecordPanel } from "/web/components/RecordPanel.mjs";
 import { IteratePanel } from "/web/components/IteratePanel.mjs";
@@ -21,6 +22,67 @@ import { VerdictPanel } from "/web/components/VerdictPanel.mjs";
 
 const SESS = qparam("session");
 
+// Viewport branch for the responsive panel layout (S7c). Wide (maximized) keeps the
+// per-frame State alone in a sticky sidebar beside the videos with Verdict+Marks below;
+// narrow (≈half-screen) drops the sidebar, folds Marks into the session-tools
+// disclosure, and sets Verdict+State side-by-side — so frame state stays the focus and
+// the occasional actions tuck away.
+function useWide(minPx) {
+  const [wide, setWide] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width:${minPx}px)`);
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [minPx]);
+  return wide;
+}
+
+// The panel cluster, arranged by viewport. The collapsible "session tools" always holds
+// the occasional actions (mark · record · iterate); State + Verdict are the always-on
+// reference. Wide: a left column (videos → tools fold → Verdict full-width bottom) beside
+// a full-height sticky State sidebar. Narrow: full-width videos → tools fold →
+// Verdict|State side-by-side at equal height.
+function layout(p) {
+  const { wide, SESS, view, cur, setCur, N, panels, setPendingBox, pendingBox,
+          registries, marks, setMarks, manifest, reload, recJob, capJob, pollJobs } = p;
+  const videoBlock = html`<div class="vidblock">
+    <${VideoStage} sess=${SESS} view=${view} cur=${cur} panels=${panels} onBox=${setPendingBox} />
+    <${ScrubBar} N=${N} cur=${cur} setCur=${setCur} />
+    <${DiffRibbon} view=${view} cur=${cur} setCur=${setCur} />
+    <div class="hint">filmstrip = scrubber · ←/→ ±10 · ,/. ±1 · Home/End · 1/2/3 panels ·
+      drag a box on a frame → crop ref${pendingBox ? ` · box ${pendingBox.join(",")}` : ""}</div>
+  </div>`;
+  const statePanel = html`<${StatePanel} view=${view} cur=${cur} />`;
+  const verdictPanel = html`<${VerdictPanel} view=${view} cur=${cur} />`;
+  const tools = html`<details class="tools-fold">
+    <summary>⚙ session tools <span class="dim">— mark · record · iterate</span></summary>
+    <div class="panels">
+      <${MarkBar} sess=${SESS} view=${view} cur=${cur} setCur=${setCur}
+        markTypes=${registries.marks} marks=${marks} setMarks=${setMarks}
+        pendingBox=${pendingBox} setPendingBox=${setPendingBox} />
+      <${RecordPanel} recJob=${recJob} pollJobs=${pollJobs} />
+      <${IteratePanel} sess=${SESS} manifest=${manifest} stale=${manifest.stale}
+        reload=${reload} capJob=${capJob} pollJobs=${pollJobs} />
+    </div>
+  </details>`;
+
+  if (wide) return [html`<div class="workarea">
+    <div class="scrub-col">
+      ${videoBlock}
+      ${tools}
+      <div class="below-panels">${verdictPanel}</div>
+    </div>
+    <aside class="ref-col">${statePanel}</aside>
+  </div>`];
+  return [
+    videoBlock,
+    tools,
+    html`<div class="two-col">${verdictPanel}${statePanel}</div>`,
+  ];
+}
+
 function App() {
   const { view, loading, error, manifest, reload, marks: marks0 } = useStudioModel(SESS);
   const [cur, setCur] = useState(0);
@@ -29,6 +91,7 @@ function App() {
   const [marks, setMarks] = useState([]);
   const registries = useRegistries();
   const [jobsStatus, pollJobs] = useJobs();
+  const wide = useWide(1280);
   useEffect(() => { if (marks0) setMarks(marks0); }, [marks0]);
   const N = view ? view.totalFrames : 1;
 
@@ -73,6 +136,7 @@ function App() {
       ${manifest.capture_error && html`<div class="err-box">⚠ ${manifest.capture_error}</div>`}
       <${JobTray} status=${jobsStatus} />
       <${Filmstrip} view=${view} cur=${cur} setCur=${setCur} />
+      <${DrillBar} sess=${SESS} view=${view} cur=${cur} />
       <div class="layout-bar"><span>panels:</span>
         ${["port", "retail", "diff"].map((p) =>
           html`<button class=${"ly " + (panels[p] ? "on" : "")}
@@ -80,21 +144,10 @@ function App() {
         <span class="spacer"></span>
         <span class="dim">seg#${seg.idx} · frame ${k}/${seg.nFrames - 1} · label ${seg.labelOf(k)}</span>
       </div>
-      <${VideoStage} sess=${SESS} view=${view} cur=${cur} panels=${panels} onBox=${setPendingBox} />
-      <${ScrubBar} N=${N} cur=${cur} setCur=${setCur} />
-      <${DiffRibbon} view=${view} cur=${cur} setCur=${setCur} />
-      <div class="hint">filmstrip = scrubber · ←/→ ±10 · ,/. ±1 · Home/End · 1/2/3 panels ·
-        drag a box on a frame → crop ref${pendingBox ? ` · box ${pendingBox.join(",")}` : ""}</div>
-      <div class="panels">
-        <${RecordPanel} recJob=${recJob} pollJobs=${pollJobs} />
-        <${IteratePanel} sess=${SESS} manifest=${manifest} stale=${manifest.stale}
-          reload=${reload} capJob=${capJob} pollJobs=${pollJobs} />
-        <${MarkBar} sess=${SESS} view=${view} cur=${cur} setCur=${setCur}
-          markTypes=${registries.marks} marks=${marks} setMarks=${setMarks}
-          pendingBox=${pendingBox} setPendingBox=${setPendingBox} />
-        <${StatePanel} view=${view} cur=${cur} />
-        <${VerdictPanel} view=${view} cur=${cur} />
-      </div>
+      ${layout({
+        wide, SESS, view, cur, setCur, N, panels, setPendingBox, pendingBox,
+        registries, marks, setMarks, manifest, reload, recJob, capJob, pollJobs,
+      })}
     </main>
   </div>`;
 }
