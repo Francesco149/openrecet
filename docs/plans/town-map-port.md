@@ -157,6 +157,14 @@ Provisional; refine after Phase 0. Likely:
   PRE-fix re-capture must be repaired (set `source_trace` back to the recording) or
   re-captured fresh. Verified: `POST /recapture` on a stale town-windowed session →
   `rebuilding … at the free-roam entry` → **port 270** (was 0).
+- **RE-CAPTURE forces a retail re-capture when the window is rebuilt (`626949c`).** When
+  the self-heal moves the window, a CACHED retail capture is from the OLD window. A
+  port-only re-capture (`{only:port}`) would reuse it → port=new-window (shop walk) vs
+  retail=old-window (the town) — the "retail starts at the town map" misalignment (it was
+  NOT a 2nd-loading-screen anchor; the agent log shows retail armed at the first
+  `LOADING_END`=`HOUSE_FREEROAM`=frame 14306). Now `window_rebuilt` forces `run_retail`
+  even under `--only port`. Verified by frame: a port-only-recaptured session had retail
+  `frame_00000`=town; a both-target re-capture flipped it to the shop (aligned with port).
 - **Verified walk (`town-walk-debug`):** the free-roam walk is **1:1** port↔retail —
   pixel diff 0.06–0.55 meanabs through the walk, then a hard divergence at the door-Z
   (the unported transition). The port reproduces R@HF+51, U@HF+60, R@HF+132 → the door.

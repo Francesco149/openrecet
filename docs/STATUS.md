@@ -53,7 +53,10 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   **self-heals** a stale (FLAT or town-anchored) working trace by rebuilding from the
   recording; `139d6bd` also stops re-capture clobbering `source_trace`. Verified via `POST
   /capture` + `/recapture`: **port 270 / retail 240** (was port 0). A session clobbered by a
-  PRE-fix re-capture needs its `source_trace` repaired or a fresh capture.
+  PRE-fix re-capture needs its `source_trace` repaired or a fresh capture. (5) `626949c` —
+  a window-rebuild **forces a retail re-capture** even under `--only port` (else a port-only
+  re-capture reuses the OLD-window retail → "retail starts at the town" misalignment; the
+  window itself anchors correctly at the first `LOADING_END`=`HOUSE_FREEROAM`).
 - **Tooling — Trace Studio v2 (plan `plans/trace-studio-v2.md`):** Phase 0/1/2/3 ✅.
   Package `tools/trace_studio/` (model/drive/transport/analysis/edits/record/server +
   cli; `trace_studio.py` thin launcher); captures write a **v2 segmented
