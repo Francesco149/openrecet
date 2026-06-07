@@ -31,7 +31,19 @@ fixed, a both-target capture now yields the retail ground truth:
   fade → WORLD MAP (mode 8) → LOADING_END (live-verified `town-walk-debug --only port`:
   `HOUSE_FREEROAM→LOADING_START(HF+227, matches retail)→LOADING_END`). Primary worker case-8
   (`FUN_0049de20`+`FUN_004735ad`) + the dest-model state machine + .data tables; chip detail
-  in `docs/findings/town-map-RE.md` §5 (T2). **NEXT = T3 (world-map RENDER `FUN_0049e3a3`).**
+  in `docs/findings/town-map-RE.md` §5 (T2).
+- **✅ T3 LANDED (2026-06-07)** — world-map RENDER `FUN_0049e3a3`. `scene_worldmap_render`
+  now draws the bg time-of-day crossfade (2 passes, COLOROP=MODULATE) + the 7 mappoint
+  destination markers (COLOROP=ADDSIGNED, per-state alpha/grey + selected drawn bigger) +
+  centred red "Closed" labels, resetting COLOROP=MODULATE at the tail. **The port renders
+  the town/world map.** Recaptured `town-walk-debug` (port reaches mode 8 @ frame_abs 924);
+  vs the settled retail town frame (`town-map-load-fixcheck/retail/frame_00045`) the **bg +
+  all markers + the selected "Recettear" banner are bit-matching** (map region, HUD corner
+  excluded: 2.68% px @ mean 0.49/ch). Residual: (1) the top-left clock/money HUD + tutorial
+  text box, still unported (the dispatch's trailing `FUN_0040a765` — a separate chip); (2) the
+  one highlighted/pulsing marker (Market, state 2) differs only in pulse phase because the
+  entry-timer is frozen until the T4 sim. engine-quirks §117. **NEXT = T4 (world-map SIM
+  `FUN_0049e163` + cursor-nav `FUN_0049dfc1`).**
 
 ## ✅ PHASE 0 RE COMPLETE (2026-06-07) → `docs/findings/town-map-RE.md`
 The transition + the whole mode-8 world-map scene are RE'd from the decompile (cross-checked

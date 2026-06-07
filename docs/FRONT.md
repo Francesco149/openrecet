@@ -9,8 +9,26 @@
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
 - **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`, 2026-06-07). ✅ PHASE 0 RE
-  COMPLETE → `findings/town-map-RE.md`. ✅ T1 + T2 LANDED; NEXT = T3 (world-map RENDER
-  `FUN_0049e3a3`).** **T2 (mode-8 load + plumbing):** the port now EXITS the shop into the
+  COMPLETE → `findings/town-map-RE.md`. ✅ T1 + T2 + T3 LANDED; NEXT = T4 (world-map SIM
+  `FUN_0049e163` + cursor-nav `FUN_0049dfc1`).** **T3 (world-map RENDER `FUN_0049e3a3`,
+  2026-06-07):** the port now RENDERS the town/world map — `scene_worldmap_render`
+  (`src/scene_worldmap.c`) draws the bg **time-of-day crossfade** (2 passes:
+  `worldmap[max(tod-1,0)]` over `[max(tod-2,0)]`, `tod` used RAW = effectively 1-based, pass-1
+  alpha `0xff-ftol((tod-clock)*255)`, clock=`DAT_0438b7d4`=`scene1_top_hud_clock_phase`;
+  COLOROP=MODULATE) → the 7 **mappoint markers** (COLOROP=**ADDSIGNED**;
+  `ARGB(size_alpha, grey,grey,grey)`, grey=0x40 dim/0x7f normal/`sinf(timer*0.15)*16+143` pulse,
+  size_alpha=200/255-selected; selected drawn 180×56 vs 144×44.8; src row =
+  `dest_layout[pos].sprite_row*56`, dst centred on `(x+90, y+28)`) → centred red **"Closed"**
+  labels (scale 1.2), then COLOROP reset→MODULATE (the dispatch's trailing `FUN_0040a765` HUD
+  needs it). All `.rdata` constants objdump-recovered. **Verified:** recaptured `town-walk-debug`
+  (port reaches mode 8 @ frame_abs 924); vs settled retail
+  `town-map-load-fixcheck/retail/frame_00045` the **bg + all markers + the "Recettear" selected
+  banner are bit-matching** (map region excl. HUD corner: **2.68% px @ mean 0.49/ch**). engine-quirks
+  §117. **Residual = FOLLOW-UPS, not T3:** (1) the trailing HUD aggregator `FUN_0040a765` (top-left
+  clock/Day/money + the tutorial text box) is unported for mode 8 (the diff's top-left blob — a
+  separate chip); (2) the one highlighted/pulsing marker (Market, state 2) differs only in pulse
+  PHASE because the entry-timer `_DAT_09643628` is frozen until the T4 sim. **T2 (mode-8 load +
+  plumbing):** the port now EXITS the shop into the
   WORLD MAP. The live load path is the **PRIMARY worker case 8** (objdump `0x452984` =
   `FUN_0049de20` init → `FUN_004735ad` load), so `scene_worldmap_init` registers
   `worker_load_set_cb(8, …)`; the door-exit spawns it. Ported `FUN_0049de20` →

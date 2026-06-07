@@ -4478,3 +4478,32 @@ red **"Closed"** label over a marker. So "some destinations highlighted, some gr
 out" in the tutorial is purely these data flags — there is no distinct tutorial
 render path. (The door-exit handler sets `DAT_0450f3f9[slot]=1` on the first exit,
 so the first town visit highlights destination 3, the Market — the tutorial target.)
+
+## 117. The world-map (mode 8) bg is a 2-pass time-of-day CROSSFADE that indexes the day/eve/night photo by the RAW tod working-dword (effectively 1-based: tod-1 / tod-2); its markers draw under COLOROP=ADDSIGNED with an ARGB(size_alpha, grey, grey, grey) colour
+
+The render `FUN_0049e3a3` (`all.c:103136`) draws the worldmap photo in **two passes**
+that cross-blend between consecutive time-of-day images as the day-clock float advances:
+
+- `tod = DAT_0450fb88[slot]` (working dword `0xb0fc`) is used **raw** as
+  `worldmap[max(tod-1,0)]` (pass 1, on top) over `worldmap[max(tod-2,0)]` (pass 0,
+  base). With the texture array `[0]=nomal(day) [1]=yugata(eve) [2]=night`, that means
+  `tod` is effectively **1-based**: `tod==1`→day, `2`→evening, `3`→night (NOT the
+  0-based reading the RE doc first assumed — both passes clamp to ≥0, so `tod==1`
+  shows day on both). The same raw value drives the init's day-closure gates
+  (`if (tod==3) …`), confirming the 1-based range.
+- The blend alpha of pass 1 is `0xff - __ftol((tod - DAT_0438b7d4) * 255.0)`, where
+  `DAT_0438b7d4` is the animated day-clock float (engine-quirks §107; snapped to `tod`
+  on a CONTINUE load). When the clock sits exactly on `tod` the term is 0 → pass 1
+  is opaque (just that period's map); as the clock advances toward the next period
+  the previous map bleeds through underneath. Pass 0 uses alpha `0xff`.
+- The **destination markers** (`mappoint.tga`) draw under **`COLOROP=ADDSIGNED`**
+  (set at `0x49e498`, the §104 savewindow-banner op), held through the "Closed" labels,
+  then reset to `MODULATE` at the tail (`all.c:103244`) — necessary because the mode-8
+  render dispatch is `FUN_0049e686(); FUN_0040a765();`, so the HUD aggregator runs
+  immediately after and must see MODULATE. Each marker's diffuse is
+  `ARGB(size_alpha, grey, grey, grey)`: `grey` is the §116 per-state brightness
+  (`0x40`/`0x7f`/pulse) shifted around 0.5 by ADDSIGNED, and `size_alpha` (the alpha
+  channel, MODULATE'd) is `0xc8`=200 normal / `0xff` selected. The selected marker is
+  also drawn larger (180×56 vs 144×44.8) and sourced from `mappoint.tga` row
+  `DAT_005fd598[pos]` (each row 180×56). Marker dst is centred on
+  `(DAT_005fd590[pos]+90, DAT_005fd594[pos]+28)`.

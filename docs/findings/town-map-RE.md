@@ -292,10 +292,24 @@ tool) as we go.
   globals — `g_cursor_visible` (set by the init's cursor raise) ≠ `g_scene_pause_state_b150`
   (what the anchor reads) — so the port doesn't emit it. Pre-existing split (the A2 display-menu
   decouple); not a T2 blocker; the cursor IS raised for T3's render.
-- **T3 — world-map RENDER `FUN_0049e3a3`.** bg time-of-day crossfade → mappoint markers
-  (per-state alpha/size + selected) → "Closed" labels. Pixel-verify vs the retail town frames
-  (`town-map-load-fixcheck/retail/frames`, 92; `town-rerecord-fix` ~240). Reuses the ported
-  `FUN_00404efc` quad + `FUN_0047d14c` centered text.
+- **T3 — world-map RENDER `FUN_0049e3a3`. ✅ LANDED 2026-06-07.** `scene_worldmap_render`
+  (`src/scene_worldmap.c`): bg time-of-day crossfade (2 passes — `worldmap[max(tod-1,0)]`
+  over `worldmap[max(tod-2,0)]`, `tod` raw/1-based, pass-1 alpha `0xff-ftol((tod-clock)*255)`,
+  clock=`scene1_top_hud_clock_phase`=`DAT_0438b7d4`; COLOROP=MODULATE) → mappoint markers
+  (COLOROP=**ADDSIGNED**; `ARGB(size_alpha, grey,grey,grey)`, grey=0x40 dim / 0x7f normal /
+  `sinf(timer*0.15)*16+143` pulse, size_alpha=200/255-selected, selected drawn 180×56 vs
+  144×44.8; src row = `dest_layout[pos].sprite_row*56`, dst centred on `(x+90, y+28)`) →
+  centred red "Closed" labels (`font_draw_text_centered`, 0xffff3737, scale 1.2) → COLOROP
+  reset to MODULATE. All constants objdump-recovered (0x519358..0x51a014). **Verified:**
+  recaptured `town-walk-debug` (port reaches mode 8 @ frame_abs 924); vs settled retail
+  `town-map-load-fixcheck/retail/frame_00045` the **bg + all markers + the "Recettear"
+  selected banner are bit-matching** (map region excl. HUD corner: 2.68% px @ mean 0.49/ch;
+  full frame 7.88% — the extra is the HUD corner). Reuses `render_quad_add` (FUN_00404efc) +
+  `font_draw_text_centered` (FUN_0047d14c). engine-quirks §117. **Remaining gaps (follow-ups,
+  NOT T3):** the trailing HUD aggregator `FUN_0040a765` (top clock/Day/money + the tutorial
+  text box) is unported for mode 8 — the top-left blob in the diff; the highlighted marker's
+  sin-pulse is frozen until the T4 sim advances `_DAT_09643628`. The engine wrapper's cyan
+  `Clear` is covered by the opaque bg, so the port relies on main.c's per-frame clear.
 - **T4 — world-map SIM `FUN_0049e163` + cursor-nav `FUN_0049dfc1`.** Entry timer, grid nav
   (3×5), Z-select → the destination→mode table, the disabled-denied SE. **Verify:** drive the
   recording's post-load Up/Left/Down (frames 489–744) `--target both`; `DAT_09643684` +

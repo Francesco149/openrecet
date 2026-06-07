@@ -127,7 +127,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x404bb8 | FUN_00404bb8 | 84 | ✓ | scene1_camera.c, scene1_camera.h, scene1_overlay.h (+2) |
 | 0x404e44 | FUN_00404e44 | 29 | ✓ | prewindow.c, prewindow.h, render_quad.c (+1) |
 | 0x404e61 | FUN_00404e61 | 55 | ✓ | render_quad.c, render_quad.h |
-| 0x404efc | FUN_00404efc | 562 | ✓ | render_quad.c, render_quad.h, scene1_fps.c (+1) |
+| 0x404efc | FUN_00404efc | 562 | ✓ | render_quad.c, render_quad.h, scene1_fps.c (+2) |
 | 0x405354 | FUN_00405354 | 76 | ✓ | font_draw.c, render_quad.c, render_quad.h |
 | 0x4054c0 | FUN_004054c0 | 146 | ✓ | font_draw.h |
 | 0x405744 | FUN_00405744 | 373 |  | debug_param_tick.h |
@@ -362,7 +362,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47ca05 | FUN_0047ca05 | 454 | ✓ | choice_box.c, font.h, font_draw.c (+1) |
 | 0x47cbcb | FUN_0047cbcb | 855 | ✓ | font.h, font_alloc.c, font_alloc.h (+3) |
 | 0x47cf22 | FUN_0047cf22 | 456 | ✓ | font.h, font_upload.c, font_upload.h |
-| 0x47d14c | FUN_0047d14c | 399 | ✓ | choice_box.c, font_draw.h, scene1_display_menu.c |
+| 0x47d14c | FUN_0047d14c | 399 | ✓ | choice_box.c, font_draw.h, scene1_display_menu.c (+1) |
 | 0x47d2db | FUN_0047d2db | 393 | ✓ | font_draw.h |
 | 0x47d464 | FUN_0047d464 | 445 | ✓ | scene1_dialogue_draw.c |
 | 0x47e711 | FUN_0047e711 | 403 | ✓ | sim.c |
@@ -441,7 +441,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49de20 | FUN_0049de20 | 374 | ✓ | main.c, scene.h, scene1_player_ctrl.c (+3) |
 | 0x49e163 | FUN_0049e163 | 575 | ✓ | scene.h, scene1_postload.h, scene1_preload.c (+3) |
 | 0x49e3a3 | FUN_0049e3a3 | 739 | ✓ | main.c, scene.h, scene_worldmap.c (+1) |
-| 0x49e686 | FUN_0049e686 | 45 | ✓ | main.c |
+| 0x49e686 | FUN_0049e686 | 45 | ✓ | main.c, scene_worldmap.c |
 | 0x49e849 | FUN_0049e849 | 350 | ✓ | tables_item.c, tables_item.h |
 | 0x49e9a7 | FUN_0049e9a7 | 387 | ✓ | tables_item.c, tables_kyaku.c, tables_kyaku.h (+3) |
 | 0x49eb2a | FUN_0049eb2a | 488 | ✓ | tables_item.c, tables_item.h, tables_kyaku.c (+1) |
@@ -466,9 +466,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x5036af | FUN_005036af | 47 | ✓ | storage.c, tables_news.h |
 | 0x5038b0 | FUN_005038b0 | 19 | ✓ | scene1_dialogue_load.c, scene1_overlay_table.c, scene1_overlay_table.h (+1) |
 | 0x5038ff | FUN_005038ff | 82 | ✓ | audio.c, scene1_combat_sm.c, scene1_per_frame_open.c (+5) |
-| 0x503954 | __ftol | 39 | ✓ | scene1_chr_prepass.c, scene1_chr_walker.c, scene1_chr_walker.h (+1) |
+| 0x503954 | __ftol | 39 | ✓ | scene1_chr_prepass.c, scene1_chr_walker.c, scene1_chr_walker.h (+2) |
 | 0x503994 | FUN_00503994 | 9 | ✓ | audio_fade.c, audio_fade.h, render_quad.c (+7) |
-| 0x503a44 | FUN_00503a44 | 9 | ✓ | render_quad.c, scene1_dialogue_run.c, scene1_maplight.c (+9) |
+| 0x503a44 | FUN_00503a44 | 9 | ✓ | render_quad.c, scene1_dialogue_run.c, scene1_maplight.c (+10) |
 | 0x503c2b | FUN_00503c2b | 77 | ✓ | scene1_dialogue.c |
 | 0x503d03 | FUN_00503d03 | 11 | ✓ | scene1_dialogue.c, scene1_overlay_table.c, tables_item.c |
 | 0x503dd0 | FUN_00503dd0 | 10 | ✓ | scene1_records_b_spawn.c, scene1_records_b_spawn.h |

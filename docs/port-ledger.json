@@ -659,6 +659,7 @@
     "src/render_quad.c",
     "src/render_quad.h",
     "src/scene1_fps.c",
+    "src/scene_worldmap.c",
     "src/title_save_dialog.c"
    ]
   },
@@ -7426,7 +7427,8 @@
    "src": [
     "src/choice_box.c",
     "src/font_draw.h",
-    "src/scene1_display_menu.c"
+    "src/scene1_display_menu.c",
+    "src/scene_worldmap.c"
    ]
   },
   {
@@ -10094,7 +10096,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/main.c"
+    "src/main.c",
+    "src/scene_worldmap.c"
    ]
   },
   {
@@ -22168,7 +22171,8 @@
     "src/scene1_chr_prepass.c",
     "src/scene1_chr_walker.c",
     "src/scene1_chr_walker.h",
-    "src/scene1_wide_followup_helpers.c"
+    "src/scene1_wide_followup_helpers.c",
+    "src/scene_worldmap.c"
    ]
   },
   {
@@ -22237,6 +22241,7 @@
     "src/scene1_records_c_spawn.c",
     "src/scene1_spawn.c",
     "src/scene1_wide_followup_helpers.c",
+    "src/scene_worldmap.c",
     "src/title_save_dialog.c"
    ]
   },

@@ -233,8 +233,12 @@ void scene_worldmap_sim(void)
 
 #ifdef _WIN32
 
-#include <d3d8.h>
+#include <math.h>
 
+#include "render_quad.h"      /* FUN_00404efc/405354/49b425 — quad add/flush/state +
+                              * brings in <d3d8.h> with COBJMACROS+CINTERFACE */
+#include "font_draw.h"        /* FUN_0047d14c — centred text ("Closed") */
+#include "scene1_top_hud.h"   /* scene1_top_hud_clock_phase — DAT_0438b7d4 */
 #include "sprite.h"
 
 sprite_t g_scene_worldmap[SCENE_WORLDMAP_COUNT];
@@ -286,11 +290,121 @@ void scene_worldmap_init(struct IDirect3DDevice8 *dev)
 }
 
 /* Per-frame render — mode-8 render dispatch (main.c render switch case 8).
- * T3 ports the body FUN_0049e3a3 (worldmap bg time-of-day crossfade +
- * mappoint destination markers + "Closed" labels). Stub for now. */
+ *
+ * Port of FUN_0049e3a3(scale) @ 0x49e3a3 (the body of the mode-8 render
+ * wrapper FUN_0049e686 → FUN_0049e3a3(1.0)). Three layers (all.c:103136):
+ *   1. the worldmap photo with a time-of-day crossfade (2 passes),
+ *   2. the mappoint.tga destination markers (per-state alpha/size + the
+ *      selected dest drawn bigger), under COLOROP=ADDSIGNED,
+ *   3. centred red "Closed" labels for closed destinations.
+ *
+ * `scale` is always 1.0 (the wrapper hard-codes it), so the bg dst is
+ * 640x480 in 640-relative coords — render_quad_add then scales by
+ * screen_w/640 like the engine's FUN_00404efc. The engine wrapper also
+ * Clears to cyan first; the port relies on main.c's per-frame Clear (the
+ * opaque bg covers the whole framebuffer, so the clear colour is moot).
+ *
+ * NOTE: the engine dispatch is `FUN_0049e686(); FUN_0040a765();` — the
+ * world map also draws the full INGAME HUD aggregator (top clock/Day/money
+ * + the tutorial text box). That is a separate, larger shared function
+ * (FUN_0040a765); wiring it for mode 8 is a follow-up chip. T3 is the
+ * worldmap scene body only. The trailing COLOROP reset below restores
+ * MODULATE precisely so that HUD (when wired) draws under the right op. */
 void scene_worldmap_render(struct IDirect3DDevice8 *dev)
 {
-    (void)dev;
+    /* FUN_0049b425 — 2D render-state preset (alpha blend, COLOROP=MODULATE,
+     * linear filter). The bg crossfade passes draw under MODULATE. */
+    render_quad_state_setup(dev);
+
+    /* ── 1. background: time-of-day crossfade (all.c:103162) ──────────────
+     * tod = working dword 0xb0fc, used RAW (1=day / 2=eve / 3=night → the
+     * texture indices land on worldmap_nomal/yugata/night via tod-1/tod-2).
+     *   pass 0 (base):  worldmap[max(tod-2,0)] @ alpha 0xff
+     *   pass 1 (blend): worldmap[max(tod-1,0)] @ alpha 0xff-ftol((tod-clock)*255)
+     * clock = DAT_0438b7d4 (the animated time-of-day float; on a CONTINUE it
+     * is snapped to tod, so the blend term is ~0 and pass 1 covers pass 0). */
+    const int       slot  = save_work_active_slot();         /* DAT_0438b1e0 */
+    const uint32_t *dw    = save_work_dwords_at(slot);
+    const int       tod   = dw ? (int)dw[WM_DW_TOD] : 0;     /* DAT_0450fb88 */
+    const float     clock = scene1_top_hud_clock_phase();    /* DAT_0438b7d4 */
+
+    const float bg_dst[4] = { 0.0f, 0.0f, 640.0f, 480.0f };  /* scale(=1)*640/480 */
+    const float bg_src[4] = { 0.0f, 0.0f, 640.0f, 480.0f };  /* top-left of the 1024x512 bmp */
+
+    for (int pass = 0; pass < 2; pass++) {
+        int alpha = 0xff;
+        int tex_idx;
+        if (pass == 1) {
+            /* 0x519630 = 255.0; FUN_00503954 = __ftol (truncate toward 0). */
+            alpha   = 0xff - (int)(((float)tod - clock) * 255.0f);
+            tex_idx = tod - 1;
+        } else {
+            tex_idx = tod - 2;
+        }
+        if (tex_idx < 0) tex_idx = 0;
+
+        render_quad_bind(dev, &g_scene_worldmap[tex_idx]);
+        render_quad_add(bg_dst, bg_src,
+                        g_scene_worldmap[tex_idx].width,
+                        g_scene_worldmap[tex_idx].height,
+                        ((uint32_t)alpha << 24) | 0x00ffffffu);
+        render_quad_flush(dev);
+    }
+
+    /* ── 2. destination markers (mappoint.tga, all.c:103193) ──────────────
+     * Engine sets COLOROP=ADDSIGNED (8) before the markers and holds it
+     * through the "Closed" labels, resetting to MODULATE (4) at the end. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+
+    const sprite_t *mp = &g_scene_worldmap[SCENE_WORLDMAP_TEX_MAPPOINT];
+    render_quad_bind(dev, mp);
+
+    const float timer = scene_worldmap_entry_timer();   /* _DAT_09643628 (T4 sim: frozen→0) */
+    const int   sel   = scene_worldmap_sel_dest();      /* DAT_09643684 */
+    const int   n     = scene_worldmap_dest_count();    /* DAT_005fd588 */
+
+    for (int i = 0; i < n; i++) {
+        const int pos   = scene_worldmap_dest_pos(i);     /* DAT_096435d8[i] (map-pos) */
+        const int state = scene_worldmap_dest_state(i);   /* DAT_09643588[i] */
+
+        float w = 144.0f, h = 44.8f;   /* default marker size */
+        int   size_alpha = 200;        /* iVar4 — ARGB alpha channel */
+        int   grey       = 0x7f;       /* uVar1 — RGB (ADDSIGNED brightness) */
+        if (state == 0) grey = 0x40;                                /* disabled: dim */
+        if (state == 2)                                             /* highlighted: sin-pulse */
+            grey = (int)(sinf(timer * 0.15f) * 16.0f + 143.0f);     /* FUN_00503a44 sinf + __ftol */
+        if (pos == sel) { size_alpha = 0xff; w = 180.0f; h = 56.0f; } /* selected: bigger + opaque */
+
+        const scene_worldmap_dest_t *L = &scene_worldmap_dest_layout[pos];
+        const float row_top = (float)(L->sprite_row * 0x38);        /* 56 px tall rows */
+        const float src[4] = { 0.0f, row_top, 180.0f, (float)((L->sprite_row + 1) * 0x38) };
+        const float dst[4] = {
+            (L->x + 90.0f) - w * 0.5f,
+            (L->y + 28.0f) - h * 0.5f,
+            w, h,
+        };
+        /* ARGB(size_alpha, grey, grey, grey) — engine's nested shift-or. */
+        const uint32_t col =
+            ((((uint32_t)size_alpha << 8 | (uint32_t)grey) << 8
+              | (uint32_t)grey) << 8) | (uint32_t)grey;
+        render_quad_add(dst, src, mp->width, mp->height, col);
+    }
+    render_quad_flush(dev);
+
+    /* ── 3. "Closed" labels (all.c:103233) — centred red, scale 1.2 ──────── */
+    for (int i = 0; i < n; i++) {
+        if (scene_worldmap_dest_closed(i)) {
+            const scene_worldmap_dest_t *L =
+                &scene_worldmap_dest_layout[scene_worldmap_dest_pos(i)];
+            font_draw_text_centered(dev, L->x + 94.0f, L->y + 16.0f,
+                                    "Closed", 0xffff3737u, 1.2f);   /* s_Closed_005fd65c */
+        }
+    }
+    render_quad_flush(dev);
+
+    /* COLOROP reset → MODULATE (engine FUN_0049e3a3 tail, all.c:103244) so
+     * the trailing HUD aggregator (and the next frame) draws under MODULATE. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 }
 
 #endif /* _WIN32 */
