@@ -121,6 +121,34 @@ def sha256(p: Path) -> str:
     return h.hexdigest()
 
 
+_LOCAL_STAGE_ROOT_CACHE: list = []   # [Path|None] memo
+
+
+def local_stage_root() -> Path | None:
+    """D2 (Trace Studio v2): a Windows-LOCAL NTFS dir (under %LOCALAPPDATA%,
+    reached from WSL via /mnt/c) where the exe can write capture BMPs in sub-ms
+    instead of ~0.4 s/frame over the 9p \\\\wsl.localhost mount. Returns the unix
+    /mnt/c path (or None if it can't be derived). Cached. Frames are converted
+    back to the run dir as PNG via frame_io.copyback_convert after the run."""
+    if _LOCAL_STAGE_ROOT_CACHE:
+        return _LOCAL_STAGE_ROOT_CACHE[0]
+    root: Path | None = None
+    try:
+        win = subprocess.run(["cmd.exe", "/c", "echo %LOCALAPPDATA%"],
+                             capture_output=True, text=True, timeout=8,
+                             cwd="/mnt/c").stdout.strip()
+        if win and "%" not in win:
+            unix = subprocess.run(["wslpath", "-u", win], capture_output=True,
+                                  text=True, timeout=8).stdout.strip()
+            cand = Path(unix) / "openrecet" / "cap"
+            cand.mkdir(parents=True, exist_ok=True)
+            root = cand
+    except Exception:
+        root = None
+    _LOCAL_STAGE_ROOT_CACHE.append(root)
+    return root
+
+
 # ─── scenario spec ────────────────────────────────────────────────────────
 
 
@@ -378,10 +406,26 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
                          show_fps: bool = False,
                          d3d_trace: bool = False,
                          d3d_trace_verts: bool = False,
-                         call_trace: bool = False) -> dict:
-    """Drive the exe through this scenario; capture frames + audio trace."""
+                         call_trace: bool = False,
+                         capture_local: bool = False) -> dict:
+    """Drive the exe through this scenario; capture frames + audio trace.
+
+    capture_local (D2): write capture BMPs to a Windows-local NTFS staging dir
+    (sub-ms/frame) instead of straight over the 9p mount (~0.4 s/frame, and it
+    stalls the sim loop), then bulk-convert them back to `frames_dir` as PNG.
+    Falls back to the direct path if the local root can't be derived."""
     frames_dir   = run_dir / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
+
+    # D2 staging: redirect --capture-to at a local NTFS dir when requested.
+    stage_dir: Path | None = None
+    cap_dir_for_exe = frames_dir
+    if capture_local:
+        _root = local_stage_root()
+        if _root is not None:
+            stage_dir = _root / run_dir.name
+            stage_dir.mkdir(parents=True, exist_ok=True)
+            cap_dir_for_exe = stage_dir
     audio_jsonl  = run_dir / "audio.jsonl"
     stdout_log   = run_dir / "stdout.log"
     stderr_log   = run_dir / "stderr.log"
@@ -407,7 +451,7 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
             "--anchor-trace-record", wslpath_w(anchors_jsonl),
             "--rng-seed",            str(scen.rng_seed),
             "--max-frames",          str(scen.max_frames),
-            "--capture-to",          wslpath_w(frames_dir),
+            "--capture-to",          wslpath_w(cap_dir_for_exe),
             "--audio-trace",         wslpath_w(audio_jsonl),
             "--max-duration-ms",     str(scen.duration_ceiling_ms),
             "--hidden",
@@ -420,7 +464,7 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
             "--input-trace-replay", wslpath_w(trace_path),
             "--rng-seed",           str(scen.rng_seed),
             "--max-frames",         str(scen.max_frames),
-            "--capture-to",         wslpath_w(frames_dir),
+            "--capture-to",         wslpath_w(cap_dir_for_exe),
             "--capture-frames",     capture_frames_csv,
             "--audio-trace",        wslpath_w(audio_jsonl),
             "--max-duration-ms",    str(scen.duration_ceiling_ms),
@@ -509,6 +553,14 @@ def run_scenario_capture(scen: Scenario, run_dir: Path, *,
             timeout=scen.duration_ceiling_ms / 1000 + 2,
         )
     elapsed_ms = int((dt.datetime.now(dt.timezone.utc) - t0).total_seconds() * 1000)
+
+    # D2 copyback: bulk-convert the locally-staged BMPs into the run dir as PNG
+    # (parallel), then drop the staging dir. (No-op when not staging locally.)
+    if stage_dir is not None:
+        n_back = frame_io.copyback_convert(stage_dir, frames_dir)
+        if n_back:
+            print(f"    capture-local: copied back {n_back} frames "
+                  f"({elapsed_ms} ms capture + copyback)")
 
     captured = frame_io.frame_glob(frames_dir)
     meta = {
@@ -970,6 +1022,14 @@ def main(argv: list[str] | None = None) -> int:
                          "(runs/comparisons/index.html). Default rebuilds it. "
                          "Push it to the llm-feed to view. No effect for "
                          "single-target runs.")
+    ap.add_argument("--capture-local", action="store_true",
+                    help="D2 (Trace Studio v2): write the port's capture BMPs to "
+                         "a Windows-local NTFS staging dir (sub-ms/frame) instead "
+                         "of straight over the 9p mount (~0.4 s/frame + sim-loop "
+                         "stall), then bulk-convert them back as PNG. ~2x faster, "
+                         "~3x smaller. Falls back to the direct path if the local "
+                         "root can't be derived. (Port only; retail ships frames "
+                         "over the Frida message path.)")
     args = ap.parse_args(argv)
 
     if args.target in ("openrecet", "both"):
@@ -1027,7 +1087,8 @@ def main(argv: list[str] | None = None) -> int:
                         show_fps=args.show_fps,
                         d3d_trace=args.d3d_trace,
                         d3d_trace_verts=args.d3d_trace_verts,
-                        call_trace=args.call_trace)
+                        call_trace=args.call_trace,
+                        capture_local=args.capture_local)
                 _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
                 print(f"    exit={m['exit_code']} elapsed_ms={m['elapsed_ms']} "
                       f"captured={len(m['captured_frames'])}/{_exp}")
@@ -1120,7 +1181,8 @@ def main(argv: list[str] | None = None) -> int:
                 show_fps=args.show_fps,
                 d3d_trace=args.d3d_trace,
                 d3d_trace_verts=args.d3d_trace_verts,
-                call_trace=args.call_trace)
+                call_trace=args.call_trace,
+                capture_local=args.capture_local)
         _exp = scen.n_captures if scen.is_segtrace else len(scen.capture_frames)
         print(f"  exit={meta['exit_code']} elapsed_ms={meta['elapsed_ms']} "
               f"captured={len(meta['captured_frames'])}/{_exp}")

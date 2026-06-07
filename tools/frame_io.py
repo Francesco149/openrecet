@@ -73,6 +73,57 @@ def convert_dir(frames_dir: Path, delete_bmp: bool = True) -> int:
     return n
 
 
+def _convert_one(args: tuple[str, str]) -> int:
+    """Worker: read one BMP (typically off a slow /mnt/c drvfs mount) and write a
+    sibling PNG into `dest`. Returns 1 on success, 0 on skip/failure."""
+    src_s, dest_s = args
+    if Image is None:
+        return 0
+    src = Path(src_s)
+    png = Path(dest_s) / (src.stem + ".png")
+    try:
+        if not png.exists():
+            Image.open(src).convert("RGB").save(png, "PNG")
+        return 1
+    except Exception as e:                    # pragma: no cover — best-effort
+        print(f"frame_io: copyback failed on {src}: {e}", file=sys.stderr)
+        return 0
+
+
+def copyback_convert(src_dir: Path, dest_dir: Path, *,
+                     delete_src: bool = True, jobs: int | None = None) -> int:
+    """D2 (Trace Studio v2): bulk-convert frame_*/cap_* BMPs from a fast
+    Windows-LOCAL staging dir (`src_dir`, read here over /mnt/c drvfs) into PNGs
+    in `dest_dir` (the WSL run dir). The exe/agent writes BMP to local NTFS in
+    sub-ms (vs ~0.4 s/frame synchronous over the 9p \\\\wsl.localhost mount, which
+    also stalls the sim loop); this reads them back ONCE, in parallel, and emits
+    ~3x-smaller PNGs. Returns the count converted. Parallel across CPUs (the
+    /mnt/c read is the bottleneck). Best-effort; no-op if PIL missing / no src."""
+    if Image is None or not src_dir.is_dir():
+        return 0
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    bmps = sorted(src_dir.glob("frame_*.bmp")) + sorted(src_dir.glob("cap_*.bmp"))
+    if not bmps:
+        return 0
+    work = [(str(b), str(dest_dir)) for b in bmps]
+    if jobs is None:
+        import os
+        jobs = max(1, min(8, (os.cpu_count() or 2)))
+    if jobs > 1 and len(work) > 4:
+        import multiprocessing as mp
+        try:
+            with mp.Pool(jobs) as pool:
+                n = sum(pool.map(_convert_one, work))
+        except Exception:                     # pragma: no cover — fall back serial
+            n = sum(_convert_one(w) for w in work)
+    else:
+        n = sum(_convert_one(w) for w in work)
+    if delete_src:
+        import shutil
+        shutil.rmtree(src_dir, ignore_errors=True)
+    return n
+
+
 def _main(argv: list[str]) -> int:
     if len(argv) < 2:
         print("usage: frame_io.py <dir> [<dir> ...]", file=sys.stderr)
