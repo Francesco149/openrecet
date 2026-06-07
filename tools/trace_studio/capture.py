@@ -28,6 +28,19 @@ def _log(msg: str) -> None:
     print(f"trace_studio: {msg}")
 
 
+def _cached_retail_base(retail_dir: Path) -> int | None:
+    """Best-effort recover a cached retail capture's rebase base from disk, for when
+    the session manifest didn't record it (an interrupted/partial prior finalize, or
+    a pre-base manifest).  An already-renumbered cache is 0-based (min frame 0); an
+    un-renumbered one yields its min absolute frame number.  Returns None only when
+    there are no cached retail frames at all — so a `--only port` re-capture pairs
+    against existing retail frames instead of falsely reporting 'retail 0 frames'."""
+    nums = [int("".join(c for c in p.stem if c.isdigit()))
+            for p in (retail_dir / "frames").glob("frame_*.png")
+            if any(c.isdigit() for c in p.stem)]
+    return min(nums) if nums else None
+
+
 @dataclass
 class CaptureConfig:
     trace: str
@@ -222,6 +235,8 @@ def run_capture(cfg: CaptureConfig) -> int:
         retail_base = convert.renumber_retail(retail_dir)
     elif keep_retail:                                # reuse the cached retail capture
         retail_base = (old_manifest.get("retail") or {}).get("base_abs")
+        if retail_base is None:                      # manifest lost it → recover from disk
+            retail_base = _cached_retail_base(retail_dir)
         _log(f"--only port: reusing cached retail (base {retail_base})")
 
     manifest: dict = {
@@ -249,7 +264,10 @@ def run_capture(cfg: CaptureConfig) -> int:
         "call_trace": call_trace,
     }
 
-    have_retail_frames = ((run_retail or keep_retail) and retail_base is not None
+    # Frame existence is the real "do we have retail" signal — NOT retail_base, which a
+    # partial prior capture can leave None even with frames on disk (the bug that made
+    # `--only port` falsely report "retail captured 0 frames" + skip the diff/verdict).
+    have_retail_frames = ((run_retail or keep_retail)
                           and any((retail_dir / "frames").glob("frame_*.png")))
     if have_retail_frames:
         manifest["diff"] = pixeldiff.build_diff(
@@ -318,21 +336,30 @@ def run_capture(cfg: CaptureConfig) -> int:
              + (f" (stride {stride})" if stride > 1 else ""))
 
     # Surface a clear error when a side captured 0 frames (window never reached).
+    # `--only port` with no cached retail is a DIFFERENT failure (nothing to reuse) than
+    # a window the port never reached — don't blame the prologue in that case.
     errs: list[str] = []
     if n_port == 0:
         errs.append("port captured 0 frames")
-    if want_retail and not have_retail_frames and "retail_error" not in result:
-        errs.append("retail captured 0 frames")
-    if result.get("retail_error"):
-        errs.append(f"retail: {result['retail_error']}")
-    if errs:
+    if keep_retail and not have_retail_frames:
         manifest["capture_error"] = (
-            "; ".join(errs) + ". The capture window was never reached — the port "
-            "likely diverged in the prologue before the window's anchor. The anchor "
-            "timelines are still captured (use them to see/work around the "
-            "divergence); for full video+state replay record a Continue/Load trace "
-            "(which skips the prologue) or adjust the window.")
+            "--only port: no cached retail capture to reuse (this session has no "
+            "retail/frames). Run a `capture`/`recapture` with --only both first to "
+            "populate the retail side, then port-only re-captures will pair against it.")
         _log("CAPTURE ERROR: " + manifest["capture_error"])
+    else:
+        if want_retail and not have_retail_frames and "retail_error" not in result:
+            errs.append("retail captured 0 frames")
+        if result.get("retail_error"):
+            errs.append(f"retail: {result['retail_error']}")
+        if errs:
+            manifest["capture_error"] = (
+                "; ".join(errs) + ". The capture window was never reached — the port "
+                "likely diverged in the prologue before the window's anchor. The anchor "
+                "timelines are still captured (use them to see/work around the "
+                "divergence); for full video+state replay record a Continue/Load trace "
+                "(which skips the prologue) or adjust the window.")
+            _log("CAPTURE ERROR: " + manifest["capture_error"])
 
     if cfg.prune_frames:
         for d in (port_dir / "frames", retail_dir / "frames",
