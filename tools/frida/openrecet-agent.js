@@ -443,6 +443,10 @@ let g_present_hooked = false;
 let g_capture_pending = new Set();  // frame numbers to dump on next Present
 let g_capture_all = false;          // if true, dump every Present
 let g_capture_stride = 1;           // with capture_all: capture every Nth frame
+let g_segtrace_capstride = 1;       // {capstride:N} (D3): thin a {caprange} to every
+                                    // Nth frame from its start (trace-global OVERVIEW);
+                                    // mirrors the port's g_capture_stride so both
+                                    // targets keep the identical kept-set, ordinal-paired
 let g_suppress_loads = false;       // D1: drop captures while loading_active (opt-in;
                                     // mirrors the port's --capture-suppress-loads)
 let g_capture_dir = null;           // Windows dir: write raw frames here (no Frida xfer)
@@ -821,6 +825,12 @@ function segtraceBuildSegments(ops) {
             // retail (frame-for-frame port↔retail dust/depth comparison).
             segs[segs.length - 1].capranges.push(
                 [op.caprange[0] | 0, op.caprange[1] | 0]);
+        } else if (op && op.capstride !== undefined) {
+            // {capstride:N} (D3) — trace-global two-tier capture cadence: thin
+            // each {caprange} to every Nth frame from its start. Not segment-
+            // scoped (last declaration wins); mirrors the port's g_capture_stride
+            // so both targets keep the identical anchor-relative kept-set.
+            g_segtrace_capstride = (op.capstride | 0) > 1 ? (op.capstride | 0) : 1;
         } else if (op && op.calltrace !== undefined) {
             // Scalar N -> [0, N]; [start, len] -> base-relative window.
             const ct = op.calltrace;
@@ -895,10 +905,15 @@ function segtraceOnSegmentEnter(seg) {
     for (let i = 0; i < seg.capranges.length; i++) {
         const start = seg.capranges[i][0], count = seg.capranges[i][1];
         const lo = g_segtrace_base + start;
-        for (let k = 0; k < count; k++) g_capture_pending.add(lo + k);
+        // {capstride:N} thins the window to every Nth frame from its start (D3
+        // OVERVIEW); stride 1 = dense (the default). Matches the port's
+        // capture_in_range test (f - lo) % stride == 0 → identical kept-set.
+        const stride = g_segtrace_capstride > 1 ? g_segtrace_capstride : 1;
+        let kept = 0;
+        for (let k = 0; k < count; k += stride) { g_capture_pending.add(lo + k); kept++; }
         log('segtrace: caprange scheduled base+' + start + '..base+' +
             (start + count) + ' -> frames ' + lo + '..' + (lo + count) +
-            ' (' + count + ' frames)');
+            ' (' + count + ' frames, stride ' + stride + ' -> ' + kept + ' kept)');
         // Arm anchor-relative d3d-trace on the window edges if enabled (a full
         // contiguous d3d-trace would be huge; the ±2 round each capture in the
         // scalar-capture path covers point reads — for a caprange the consumer
