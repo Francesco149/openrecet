@@ -216,7 +216,11 @@ def run_capture(cfg: CaptureConfig) -> int:
         "session": sess,
         "trace": str(working),
         "working_trace": str(working),
-        "source_trace": str(src),
+        # the ORIGINAL recording (for the re-capture self-heal). NEVER clobber a known
+        # recording with the working-trace path: on a re-capture `src` IS the working
+        # trace, so prefer `rec` (resolved above), then the existing manifest value.
+        "source_trace": str(rec) if rec is not None
+        else (old_manifest.get("source_trace") or str(src)),
         "caprange": list(cr),
         "stride": stride,                # D3: 1 = dense; >1 = coarse OVERVIEW cadence
         "fps": encode.VIDEO_FPS,

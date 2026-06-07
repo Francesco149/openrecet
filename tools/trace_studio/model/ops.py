@@ -93,11 +93,18 @@ def raw_has_anchors(path: Path) -> bool:
     return False
 
 
+FREEROAM_ANCHORS = ("HOUSE_FREEROAM", "TOWN_FREEROAM", "FREEROAM_START")
+
+
 def raw_default_window(path: Path, anchored: bool = False) -> tuple[int, int] | None:
     """Default capture window for a raw recording. FLAT (default): the WHOLE
-    recording from boot, [0, last_frame+margin]. ANCHORED: from the LAST recorded
-    anchor (the post-intro span) through the end."""
-    anchors: list[int] = []
+    recording from boot, [0, last_frame+margin]. ANCHORED: from the FIRST FREE-ROAM
+    entry (HOUSE_FREEROAM etc.) through the end — that's where comparable gameplay
+    begins AND it's reachable on both targets. (Anchoring at the LAST anchor would
+    pick a later scene the PORT may not reach yet — e.g. a town the shop-exit leads
+    to — so the port captures 0 / 'window never reached'.) Falls back to the last
+    anchor if no free-roam anchor was recorded."""
+    anchor_rows: list[tuple[str, int]] = []
     frames: list[int] = []
     for ln in Path(path).read_text().splitlines():
         s = ln.strip()
@@ -108,13 +115,35 @@ def raw_default_window(path: Path, anchored: bool = False) -> tuple[int, int] | 
         except json.JSONDecodeError:
             continue
         if "anchor" in o and "frame" in o:
-            anchors.append(int(o["frame"]))
+            anchor_rows.append((str(o.get("anchor", "")), int(o["frame"])))
         elif "frame" in o and "buttons" in o:
             frames.append(int(o["frame"]))
     if not frames:
         return None
-    base = (max(anchors) if anchors else 0) if anchored else 0
+    base = 0
+    if anchored and anchor_rows:
+        freeroam = [f for n, f in anchor_rows if n in FREEROAM_ANCHORS]
+        base = freeroam[0] if freeroam else max(f for _, f in anchor_rows)
     return (0, max(1, max(frames) - base + 90))
+
+
+def first_freeroam_wait(text: str) -> str | None:
+    """The {wait} op name marking the FIRST free-roam entry in a distilled trace —
+    where the auto-window should anchor (see raw_default_window). The distil emits a
+    {wait LOADING_END} coincident with HOUSE_FREEROAM (they fire the same frame), so
+    the free-roam entry is the FIRST LOADING_END wait. Returns the wait name to place
+    the window after, or None (→ caller falls back to the last wait)."""
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not s or s.startswith("#"):
+            continue
+        try:
+            o = json.loads(s)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(o, dict) and o.get("wait") in ("LOADING_END", *FREEROAM_ANCHORS):
+            return o["wait"]
+    return None
 
 
 def read_anchor_stream(path: Path) -> list[dict]:

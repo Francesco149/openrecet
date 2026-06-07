@@ -63,12 +63,16 @@ def localize_save(src: Path, text: str, sess_dir: Path) -> str:
 
 
 def ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool,
-                      capstride: int = 1) -> str:
+                      capstride: int = 1, after_wait: str | None = None) -> str:
     """Insert {caprange} (+ {calltrace} if requested, + {capstride:N} for an
-    OVERVIEW when N>1) after the final {wait}, replacing any pre-existing window
-    ops. Pins the user applied (phasepin/rngseed) sit after the {wait} too and are
-    preserved. {capstride} is trace-global, so its placement is cosmetic — it's
-    co-located with the window ops it modifies."""
+    OVERVIEW when N>1), replacing any pre-existing window ops. Pins the user applied
+    (phasepin/rngseed) sit after the {wait} too and are preserved.
+
+    Placement: after the FIRST `{wait after_wait}` when given (so the window anchors
+    at the free-roam entry the PORT reaches — `cr` is then relative to THAT anchor,
+    and the replay keeps running through the later segments the port may not reach),
+    else after the final {wait} (the legacy default). {capstride} is trace-global, so
+    its placement is cosmetic — it's co-located with the window ops it modifies."""
     keep: list[str] = []
     for ln in text.splitlines():
         s = ln.strip()
@@ -81,7 +85,8 @@ def ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool,
                     "caprange" in o or "calltrace" in o or "capstride" in o):
                 continue
         keep.append(ln)
-    li = -1
+    li = -1          # last {wait}
+    first = -1       # first {wait after_wait}
     for i, ln in enumerate(keep):
         s = ln.strip()
         if not s or s.startswith("#"):
@@ -92,12 +97,15 @@ def ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool,
             continue
         if isinstance(o, dict) and "wait" in o:
             li = i
+            if after_wait and first < 0 and o.get("wait") == after_wait:
+                first = i
+    target = first if first >= 0 else li
     ins = [json.dumps({"caprange": [cr[0], cr[1]]})]
     if call_trace:
         ins.append(json.dumps({"calltrace": [cr[0], cr[1]]}))
     if capstride > 1:
         ins.append(json.dumps({"capstride": capstride}))
-    at = li + 1 if li >= 0 else len(keep)
+    at = target + 1 if target >= 0 else len(keep)
     keep[at:at] = ins
     return "\n".join(keep) + "\n"
 
@@ -106,10 +114,18 @@ def build_working_trace(src: Path, sess_dir: Path, working: Path,
                         cr: tuple[int, int], call_trace: bool,
                         anchored: bool = False, capstride: int = 1) -> None:
     """Distil if raw, localize its save, inject the window ops → write `working`."""
+    from .model.ops import first_freeroam_wait
+    after: str | None = None
     if raw_header(src):
         base = sess_dir / "recording.trace.jsonl"
         distill_raw(src, base, anchored=anchored)
         text = base.read_text()
+        # Anchor the auto-window at the FIRST free-roam entry (port-reachable), not the
+        # last {wait} — a later scene (e.g. the town a shop-exit leads to) the port may
+        # not reach yet, which would make it capture 0 / 'window never reached'. The
+        # replay still runs through the later segments (retail captures them).
+        if anchored:
+            after = first_freeroam_wait(text)
     else:
         text = localize_save(src, src.read_text(), sess_dir)
-    working.write_text(ensure_window_ops(text, cr, call_trace, capstride))
+    working.write_text(ensure_window_ops(text, cr, call_trace, capstride, after_wait=after))
