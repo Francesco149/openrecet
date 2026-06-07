@@ -51,8 +51,17 @@ fixed, a both-target capture now yields the retail ground truth:
   (`0→2→5→4→6→3→2→1→3→6→0→2→5→0`); cursor eased to `(dest.x−16,dest.y+28)` bit-exactly; 8 host
   tests. PORT-DEBT `worldmap-dest-scenes` (destination scenes unported) + `worldmap-delivery-
   return`. Detail + the both-target retail-mirror VAs in `docs/findings/town-map-RE.md` §5 (T4).
-  **NEXT = T5 (full-trace replay `--target both`, PHASE-CLEAN) — and the follow-up HUD chip
-  `FUN_0040a765` (top clock/Day/money + tutorial text box + the hand-cursor render).**
+- **✅ mode-8 HUD (clock/money + hand cursor) LANDED (2026-06-08, `5f7a79c`)** — the trailing
+  `FUN_0040a765`'s UNCONDITIONAL members for mode 8: `scene1_top_hud_render` (top-left gold
+  clock/Day/money — was blank) + `title_save_dialog_cursor_render` (the destination hand
+  pointer), wired into `main.c` case 8 (its merchant/shop block is `mode==1`-gated, so NOT the
+  full `scene1_hud_render`). User-flagged both as missing; clock/money confirmed rendering.
+  **Remaining HUD piece → PORT-DEBT `worldmap-tutorial-box` (`FUN_0040c4eb`):** the top-left
+  navi/tutorial message panel — **MULTIPLE messages** (travel-time-per-destination, varying with
+  the time-of-day phase; user 2026-06-08), so port the FULL navi message table + selection, not
+  one string. Its own chip (the navi/tutorial message subsystem).
+  **NEXT = T5 (full-trace replay `--target both`, PHASE-CLEAN) + the `worldmap-tutorial-box`
+  chip.**
 
 ## ✅ PHASE 0 RE COMPLETE (2026-06-07) → `docs/findings/town-map-RE.md`
 The transition + the whole mode-8 world-map scene are RE'd from the decompile (cross-checked

@@ -3010,9 +3010,14 @@ static void render_dispatch(void)
              * runs first. */
             render_quad_state_setup(g_dev);          /* FUN_0049b425 */
             /* PORT-DEBT(worldmap-tutorial-box, FUN_0040c4eb): the top-left
-             * tutorial message panel (item_win bg + navi text, gated on
+             * navi/tutorial message panel (item_win bg + text, gated on
              * DAT_00648258) — the tutorial/navi message subsystem is unported.
-             * Deferred to its own chip. */
+             * NB (user 2026-06-08): the world map shows MULTIPLE different
+             * messages here, not one — travel-time info ("how many periods of
+             * time going to certain places takes") that varies with the
+             * time-of-day phase. Port the FULL message set (the navi message
+             * table + the per-destination/per-tod selection), not a single
+             * string. Deferred to its own chip. */
             scene1_top_hud_render(g_dev);            /* FUN_00406d50 — clock/Day/money */
             title_save_dialog_cursor_render(g_dev);  /* FUN_00435747 — destination pointer */
             break;
