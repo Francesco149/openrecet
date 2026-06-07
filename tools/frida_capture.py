@@ -1028,6 +1028,12 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # SAME anchor-relative frames on both targets.
                 cr = rec["caprange"]
                 segtrace_ops.append({"caprange": [int(cr[0]), int(cr[1])]})
+            elif "capstride" in rec:
+                # {capstride:N} (D3) — trace-global two-tier capture cadence:
+                # forward it so the agent thins each {caprange} to every Nth frame
+                # from its start (a coarse OVERVIEW), striding identically to the
+                # port → both targets keep the same anchor-relative kept-set.
+                segtrace_ops.append({"capstride": int(rec["capstride"])})
             elif "esc" in rec:
                 # {esc:N} — synthesise an ESC keypress at base+N (dialogue-skip
                 # replay), mirroring the port's {esc} op.
