@@ -1,10 +1,22 @@
 # Trace Studio v2 — a maintainable, fast TAS trace workhorse
 
-**Status (2026-06-07):** Phase 0 ✅ landed (`de3909c`). Phase 1 D1 (load-
-suppression) ✅ landed + verified port-side; retail agent mirrored (both-run
-verify pending); D2 + harness kept-count guard next. Phases 2–5 pending.
+**Status (2026-06-07):** Phase 0 ✅ (`de3909c`). **Phase 1 ✅ landed + verified**
+(`7d22255` D1, `5d59499` kept-count guard, `3335fca` D2). Phases 2–5 pending.
 Multi-session rebuild; `/clear` at each phase boundary. This is the canonical
 plan — the `~/.claude` plan file is a session-local mirror.
+
+**Phase 1 results (all acceptance criteria met):**
+- **D1** load-suppression, BOTH targets, opt-in (`capture_suppress_loads`), default
+  off so the ~30 validated scenarios are untouched. Verified on `bench-load-overview`
+  (`--target both`): the load span collapses to a zero-frame seam — retail's
+  **~2796-frame** turbo load yields **0** captured frames (lowest kept == LOADING_END).
+- **Kept-count parity** port == retail (119 == 119), guarded in scenario-test.
+- **Determinism**: two suppress replays bit-identical (0/119) DESPITE load lengths
+  2276 vs 2848 — see the finding below.
+- **D2** local-disk capture + parallel copyback (port, `--capture-local`):
+  47.5 s → **22.4 s** (2.1×), PNG out (3× smaller), content-neutral (0/119 px).
+- **Speed**: minutes → ~20 s both sides. Retail's ~2796-frame load (the 6-min waste)
+  → suppressed; the port's 9p write cost → halved by D2.
 
 ### Phase-1 finding — the port load-pump is non-deterministic (and that's OK)
 The port's nowloading load-pump count is **non-deterministic**: it's a wall-clock
