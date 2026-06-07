@@ -163,7 +163,7 @@ Cross-refs: `docs/findings/scene1-wing-glow.md`, `scene1_companion_ctrl.c`,
 [[project_next_char_controller]], [[reference_parity_trace_walk_down_dense]],
 engine-quirks §71 (bob) / §81 (wing flap).
 
-## DEFERRED — Tear sprite ANIM-FRAME desync on the walk (user-flagged 2026-06-07) — but the flow-trace says it may be a PAIRING ARTIFACT, not a real bug
+## DEFERRED — Tear walk visual desync (user-flagged 2026-06-07) — NOT the body sprite frame (that is db054-1:1); a wing-glow render-layer / capture-time tick offset
 
 After the foot-dust RNG-order fix (engine-quirks §114, commit 29e1ee8) the user
 re-captured `town-map-load-rerecord` both-sided and confirmed **the foot dust is now
@@ -173,27 +173,27 @@ FRAME** appearing out of phase with retail, growing over the walk. SPA diff-pane
 - **f=157** — growing: `box=559,331,673,452`.
 - **f=163** — culminates: `box=563,324,652,435`.
 
-**Caveat before chasing this as a logic bug (2026-06-07):** on that very session's
-call-traces, `flow_diff --verdict --align-field db054` reports **`canim` AND `cframe`
-ALIGNED bit-exact** (and `cx/cz/coct` aligned) over the 225 common db054 frames — i.e.
-when paired by db054, Tear's body anim cell is 1:1 with retail. The session ALSO has a
-**kept-count mismatch: port 270 vs retail 240 frames** (`session.json
-kept_count_mismatch`). The Trace-Studio SPA pairs frames **ORDINALLY** (Nth-left vs
-Nth-right), so with unequal kept-counts the pairing DRIFTS as the index grows — and the
-**progressive worsening** the user saw (1 line @150 → worse @157 → culminates @163) is
-the signature of an accumulating pairing offset, not a fixed anim-cell error. Tear's
-fast 4-frame wing-flap is simply the sprite where a 1-frame pairing slip is most visible
-(the slow-moving player/HUD hide it).
+**It is NOT the body sprite frame (2026-06-07):** on that session's call-traces,
+`flow_diff --verdict --align-field db054` reports **`canim` AND `cframe` ALIGNED
+bit-exact** (and `cx/cz/coct` aligned) over the 225 common db054 frames `[0..224]` —
+when paired by db054, Tear's body anim cell is 1:1 with retail.
 
-So the honest status is **UNCONFIRMED**: the db054-aligned ground truth says Tear's
-anim is 1:1. Before treating this as a real bug, **resolve the kept-count mismatch
-first** — why does the port keep 270 walk frames where retail keeps 240 in the same
-`{caprange:[0,271]}`? (Capture-window / load-suppression / capstride seam alignment;
-`capture.py` already WARNS "ordinal pairing is unreliable" on a mismatch.) Then re-diff
-with EQUAL kept-counts (or compare crops at MATCHED db054, not matched ordinal index).
-If a `cframe` divergence survives db054-alignment, only THEN is it a real anim bug — and
-the next suspect is a render-layer the body `cframe` doesn't cover (the wing-glow
-billboard's own anim frame), since the body `cframe` is already proven aligned.
+The session has a **kept-count mismatch: port 270 vs retail 240** — but the user
+explained it and it does NOT confound the f=150-163 crops: the port's ~30 extra frames
+are at the END, **after the door sequence** (~frame 225). The port doesn't implement the
+town map, so the town-map menuing **becomes free-roam movement** in the port → extra
+walk frames retail doesn't have. That mismatch is entirely in the `>224` (door→town)
+region; the common db054 window is exactly `[0..224]`, and the crops (150/157/163) sit
+inside it where the ordinal pairing is still correct. So the desync there is **real**,
+not a pairing artifact — my earlier "pairing artifact" reading was wrong.
+
+So: the **body** anim is 1:1 (`cframe` proven aligned), yet a small visual diff persists
+on Tear in the common region. The remaining suspects are a render-layer the body
+`cframe` does not cover — most likely the **wing-glow billboard's own anim frame**
+(`scene1-wing-glow.md`) — or a capture-time db054 alignment tick-offset on the
+screenshot (align screenshots by `frames_meta.jsonl` capture-time db054, the §"capture-
+time state alignment" footgun, not the call-trace row). Localize by cropping at MATCHED
+db054 and diffing the wing-glow draw specifically.
 
 **DEFERRED by the user until the door tooltip + town-map are implemented** (the NEXT
 ARC). Recorded here so the crops + onset frames + the pairing-artifact caveat aren't
