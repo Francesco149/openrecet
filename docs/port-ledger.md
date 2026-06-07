@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **458** (18.0%) — verified 69, stubbed 15, ported 374
-- unported: **2090**
+- touched: **459** (18.0%) — verified 69, stubbed 15, ported 375
+- unported: **2089**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (69) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (374) — reimplemented, no probe yet
+## ported (375) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -139,6 +139,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x406a60 | FUN_00406a60 | 516 | ✓ | scene1_top_hud.c, scene1_top_hud.h, scene_title.c |
 | 0x4072f5 | FUN_004072f5 | 1983 | ✓ | chara_skills.h |
 | 0x407ab4 | FUN_00407ab4 | 504 | ✓ | scene1_merchant_hud.c |
+| 0x40c4eb | FUN_0040c4eb | 1059 | ✓ | main.c |
 | 0x40c90e | FUN_0040c90e | 20 | ✓ | scene1_spawn.c |
 | 0x40cea6 | FUN_0040cea6 | 226 | ✓ | sim.c |
 | 0x40cf88 | FUN_0040cf88 | 403 | ✓ | music.c |

@@ -83,6 +83,7 @@
 #include "scene1_companion_ctrl.h"  /* scene1_companion_db054 — pos-log phase field */
 #include "scene1_bg_npc.h"          /* scene1_bg_npc_phasepin — window-NPC pin */
 #include "scene1_hud.h"
+#include "scene1_top_hud.h"   /* scene1_top_hud_render (FUN_00406d50) — mode-8 HUD */
 #include "scene1_fps.h"
 #include "scene1_shop_walker.h"
 #include "scene1_chr_sprite.h"
@@ -2996,9 +2997,24 @@ static void render_dispatch(void)
             /* Engine FUN_004547ab L51187: mode-8 render dispatch
              * (FUN_0049e686 → FUN_0049e3a3 + FUN_0040a765).  T3 ports the
              * worldmap bg time-of-day crossfade + mappoint markers + the
-             * "Closed" labels; scene_worldmap_render is the home for it.
-             * Stub today — mode 8 shows the clear color until T3. */
+             * "Closed" labels (scene_worldmap_render = FUN_0049e3a3). */
             scene_worldmap_render(g_dev);
+
+            /* The dispatch's trailing FUN_0040a765 (the HUD aggregator).  For
+             * mode 8 its ENTIRE merchant/shop block is DAT_0438b1c0==1-gated
+             * (skipped); the UNCONDITIONAL members that draw on the world map
+             * are FUN_0040c4eb (the tutorial/navi message box — PORT-DEBT
+             * below), FUN_00406d50 (the top-left clock/Day/money), and
+             * FUN_00435747 (the shared hand cursor, raised by the world-map
+             * init as the destination pointer).  FUN_0049b425 (state preset)
+             * runs first. */
+            render_quad_state_setup(g_dev);          /* FUN_0049b425 */
+            /* PORT-DEBT(worldmap-tutorial-box, FUN_0040c4eb): the top-left
+             * tutorial message panel (item_win bg + navi text, gated on
+             * DAT_00648258) — the tutorial/navi message subsystem is unported.
+             * Deferred to its own chip. */
+            scene1_top_hud_render(g_dev);            /* FUN_00406d50 — clock/Day/money */
+            title_save_dialog_cursor_render(g_dev);  /* FUN_00435747 — destination pointer */
             break;
         default:
             break;
