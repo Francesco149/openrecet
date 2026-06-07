@@ -162,3 +162,39 @@ fold into the deferred `s_bob_counter` → shared `DAT_056db054` phase alignment
 Cross-refs: `docs/findings/scene1-wing-glow.md`, `scene1_companion_ctrl.c`,
 [[project_next_char_controller]], [[reference_parity_trace_walk_down_dense]],
 engine-quirks §71 (bob) / §81 (wing flap).
+
+## DEFERRED — Tear sprite ANIM-FRAME desync on the walk (user-flagged 2026-06-07) — but the flow-trace says it may be a PAIRING ARTIFACT, not a real bug
+
+After the foot-dust RNG-order fix (engine-quirks §114, commit 29e1ee8) the user
+re-captured `town-map-load-rerecord` both-sided and confirmed **the foot dust is now
+1:1**. The remaining companion divergence the user saw is **Tear's sprite animation
+FRAME** appearing out of phase with retail, growing over the walk. SPA diff-panel crops:
+- **f=150** — first divergence, a single row of pixels: `box=597,338,628,452`.
+- **f=157** — growing: `box=559,331,673,452`.
+- **f=163** — culminates: `box=563,324,652,435`.
+
+**Caveat before chasing this as a logic bug (2026-06-07):** on that very session's
+call-traces, `flow_diff --verdict --align-field db054` reports **`canim` AND `cframe`
+ALIGNED bit-exact** (and `cx/cz/coct` aligned) over the 225 common db054 frames — i.e.
+when paired by db054, Tear's body anim cell is 1:1 with retail. The session ALSO has a
+**kept-count mismatch: port 270 vs retail 240 frames** (`session.json
+kept_count_mismatch`). The Trace-Studio SPA pairs frames **ORDINALLY** (Nth-left vs
+Nth-right), so with unequal kept-counts the pairing DRIFTS as the index grows — and the
+**progressive worsening** the user saw (1 line @150 → worse @157 → culminates @163) is
+the signature of an accumulating pairing offset, not a fixed anim-cell error. Tear's
+fast 4-frame wing-flap is simply the sprite where a 1-frame pairing slip is most visible
+(the slow-moving player/HUD hide it).
+
+So the honest status is **UNCONFIRMED**: the db054-aligned ground truth says Tear's
+anim is 1:1. Before treating this as a real bug, **resolve the kept-count mismatch
+first** — why does the port keep 270 walk frames where retail keeps 240 in the same
+`{caprange:[0,271]}`? (Capture-window / load-suppression / capstride seam alignment;
+`capture.py` already WARNS "ordinal pairing is unreliable" on a mismatch.) Then re-diff
+with EQUAL kept-counts (or compare crops at MATCHED db054, not matched ordinal index).
+If a `cframe` divergence survives db054-alignment, only THEN is it a real anim bug — and
+the next suspect is a render-layer the body `cframe` doesn't cover (the wing-glow
+billboard's own anim frame), since the body `cframe` is already proven aligned.
+
+**DEFERRED by the user until the door tooltip + town-map are implemented** (the NEXT
+ARC). Recorded here so the crops + onset frames + the pairing-artifact caveat aren't
+lost.
