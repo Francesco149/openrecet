@@ -991,7 +991,13 @@ def main(argv: list[str] | None = None) -> int:
     total_pass = total_fail = 0
     for sp in scenarios:
         scen = Scenario.load(sp)
-        run_dir = args.run_dir_root / f"{scen.name}-{args.target}-{rid}"
+        # Absolutize the run-dir-root (it may be passed relative, e.g.
+        # `runs/bench`); downstream `Path.relative_to(ROOT)` on the
+        # side-by-side path needs run_dir under ROOT, not a bare relative path.
+        run_root = args.run_dir_root
+        if not run_root.is_absolute():
+            run_root = (ROOT / run_root)
+        run_dir = run_root / f"{scen.name}-{args.target}-{rid}"
         print(f"\n# scenario: {scen.name} [target: {args.target}]")
         if scen.description:
             print(f"  desc: {scen.description}")
@@ -1027,6 +1033,24 @@ def main(argv: list[str] | None = None) -> int:
                       f"captured={len(m['captured_frames'])}/{_exp}")
                 sub_meta[sub] = m
 
+            # Ordinal kept-count invariant (Trace Studio v2): the comparator
+            # pairs Nth-port vs Nth-retail, so BOTH sides must keep the same
+            # number of frames in the same order. Load-suppression gives this
+            # for free (deterministic loading_active edges collapse the load to
+            # a zero-frame seam on both sides); assert it so a desync surfaces
+            # loudly rather than as a silently misaligned side-by-side. (Phase 1:
+            # overall count; per-inter-anchor-segment bucketing lands with the
+            # segment model in Phase 2.)
+            _np = len(frame_io.frame_glob(run_dir / "openrecet" / "frames"))
+            _nr = len(frame_io.frame_glob(run_dir / "retail" / "frames"))
+            if _np and _nr and _np != _nr:
+                print(f"  ⚠ KEPT-COUNT MISMATCH: port kept {_np} frames, retail "
+                      f"kept {_nr} — ordinal pairing is INVALID (suppression "
+                      f"desync or load-edge skew). Investigate before trusting "
+                      f"the side-by-side.")
+            elif _np and _nr:
+                print(f"  kept-count parity: {_np} == {_nr} ✓ (ordinal pairing valid)")
+
             sbs = render_sidebyside(
                 left_frames=run_dir / "openrecet" / "frames",
                 right_frames=run_dir / "retail"    / "frames",
@@ -1034,7 +1058,11 @@ def main(argv: list[str] | None = None) -> int:
                 pair_by_index=scen.is_segtrace,
             )
             if sbs is not None:
-                print(f"  side-by-side: {sbs.relative_to(ROOT)}")
+                try:
+                    _sbs_disp = sbs.relative_to(ROOT)
+                except ValueError:
+                    _sbs_disp = sbs   # run-dir outside the repo; show absolute
+                print(f"  side-by-side: {_sbs_disp}")
             else:
                 print(f"  side-by-side: SKIPPED (no frames captured on at least one side)")
 
