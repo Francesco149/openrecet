@@ -2,9 +2,11 @@
 """tools/trace_save.py — shared helpers for the TAS save-interception layer.
 
 A trace can carry the exact save it ran against via a single-key segtrace op
-``{"savefile":"<relpath>"}`` (see src/input_segtrace.h). The blob it points at is
-**gzip-compressed and content-addressed**: ``<sha256>.sav.gz``, where the sha256 is
-over the RAW (uncompressed) 18 MB save arena. Content-addressing dedupes the same
+``{"savefile":"<relpath>"}`` (see src/input_segtrace.h). In the distilled/canonical
+form the blob it points at is **gzip-compressed and content-addressed**:
+``<sha256>.sav.gz``, where the sha256 is over the RAW (uncompressed) 18 MB save arena
+(a fresh recording's ref instead points at the raw ``.save.bin`` until distilled).
+Content-addressing dedupes the same
 save across every scenario that embeds it (the "embed current save into all traces"
 test → one shared blob), and gzip shrinks the ~99 %-constant arena to a few hundred
 KB so it's git-friendly.
@@ -14,8 +16,10 @@ scenario-test.py / frida_capture.py:
 
   * ``store_save``    — gzip a raw save into the content store, return its sha + ref
   * ``embed_in_trace`` — insert/replace the ``{savefile}`` ref line in a trace file
-  * ``resolve_save``  — given a trace + its ref, decompress to a raw temp file the
-                        port loads via ``--save-override`` (and retail redirects to)
+  * ``resolve_save``  — given a trace + its ref, return a raw save path the port loads
+                        via ``--save-override`` (and retail seeds its sandbox from):
+                        decompress a ``.sav.gz`` blob, or pass a raw ``.save.bin``
+                        straight through (a fresh recording's ref is uncompressed)
 
 The C port never reads the compressed blob (it can't gunzip); the Python harness
 always resolves it and passes the decompressed path. Keeping this single source of
@@ -179,6 +183,23 @@ def resolve_save(trace_path: str | os.PathLike, ref: str | None = None) -> str |
         raise FileNotFoundError(
             f"trace {trace_path} references save blob {ref} → {blob} (missing). "
             f"Re-embed with tools/trace_embed_save.py.")
+    # A {savefile} ref points at EITHER a gzip blob (<sha>.sav.gz — the distilled,
+    # content-addressed form) OR a RAW uncompressed save: a fresh recording embeds
+    # {savefile:"<name>.save.bin", sha256, size} BEFORE distillation, and the retail
+    # drive resolves the save against that original recording (drive/retail.py), so it
+    # sees the raw ref. Distinguish by the gzip magic (1f 8b), not the filename, and
+    # pass a raw save straight through — the port (--save-override) and retail (sandbox
+    # seed) both consume a raw save, so no temp copy is needed.
+    with open(blob, "rb") as f:
+        magic = f.read(2)
+    if magic != b"\x1f\x8b":
+        sz = blob.stat().st_size
+        if sz != SAVE_ARENA_BYTES:
+            raise ValueError(
+                f"trace {trace_path} savefile {ref} → {blob}: not a gzip blob "
+                f"(starts {magic!r}) and not a {SAVE_ARENA_BYTES}-byte raw save "
+                f"(got {sz} bytes).")
+        return str(blob)
     # sha is the blob's stem (content-addressed: <sha>.sav.gz)
     name = blob.name
     sha = name[:-len(SAVE_SUFFIX)] if name.endswith(SAVE_SUFFIX) else blob.stem
