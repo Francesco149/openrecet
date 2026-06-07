@@ -25,6 +25,14 @@ fixed, a both-target capture now yields the retail ground truth:
   call-trace covers the **town map only — NOT the transition frames** (the shop-exit
   fade/load). Phase 0 must widen the window to capture the transition.
 
+## Progress
+- **✅ T1 LANDED (2026-06-07, `78c78e2`)** — door exit trigger + dissolve fade.
+- **✅ T2 LANDED (2026-06-07)** — mode-8 load + plumbing. The port now follows shop → door →
+  fade → WORLD MAP (mode 8) → LOADING_END (live-verified `town-walk-debug --only port`:
+  `HOUSE_FREEROAM→LOADING_START(HF+227, matches retail)→LOADING_END`). Primary worker case-8
+  (`FUN_0049de20`+`FUN_004735ad`) + the dest-model state machine + .data tables; chip detail
+  in `docs/findings/town-map-RE.md` §5 (T2). **NEXT = T3 (world-map RENDER `FUN_0049e3a3`).**
+
 ## ✅ PHASE 0 RE COMPLETE (2026-06-07) → `docs/findings/town-map-RE.md`
 The transition + the whole mode-8 world-map scene are RE'd from the decompile (cross-checked
 vs the recording's anchors/inputs). Headlines that **correct** the recon below:

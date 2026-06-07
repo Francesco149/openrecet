@@ -40,6 +40,7 @@
 #include "scene1_intro_dialogue.h" /* opening-prologue dialogue (TEXT_ANIM + inter-script load) */
 #include "skip_event.h"            /* ESC "skip this event?" prompt */
 #include "scene1_particles_tick.h"  /* engine FUN_0040fb3a — LAB_00453bed body */
+#include "scene_worldmap.h" /* scene_worldmap_sim — mode-8 per-state callee (FUN_0049e163) */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
 #include "title_save_dialog.h" /* title_save_dialog_anim_tick — the shared
@@ -301,10 +302,12 @@ void sim_step_a(void)
      * Wired today (see docs/findings/sim-step-a-dispatch.md):
      *   - state 0  (title)  → scene_title_sim_default
      *   - state 1  (INGAME) → scene1_ingame_tick   (Cs1)
-     *   - states 2, 3, 6, 7, 8, 0xb, 0xd-0x10 → engine LAB_00453bed,
+     *   - state 8  (WORLD MAP) → scene1_particles_tick + scene_worldmap_sim
+     *     (the per-state callee FUN_0049e163; body is the T4 chip).
+     *   - states 2, 3, 6, 7, 0xb, 0xd-0x10 → engine LAB_00453bed,
      *     ported as a bare scene1_particles_tick call.  The engine
      *     also runs FUN_00406584 (Cs3) and a per-state callee here;
-     *     both stay stubbed.
+     *     both stay stubbed for these.
      *
      * States 4, 5, 0xa, 0xc, plus any state >= 0x11, explicitly do
      * NOT hit the particle tick in the engine (block 21 of the
@@ -333,17 +336,27 @@ void sim_step_a(void)
         title_save_dialog_anim_tick();
         break;
 
-    /* Cs2 — LAB_00453bed mass dispatch.  Per-state callees
+    /* Cs2 — LAB_00453bed mass dispatch.  The mode-8 per-state callee
+     * FUN_0049e163 is wired (scene_worldmap_sim, above).  The rest
      * (FUN_0049d8a4 / FUN_0041ee24 / FUN_00490e24 / FUN_0049db8a /
-     * FUN_0049e163 / FUN_0045c051 / FUN_0045e053 / FUN_0045e1a5 /
-     * FUN_0045e2dd / FUN_0045e3dc) stay stubbed — they're scene-
-     * specific update routines (cutscene / dialog / dungeon / ending)
-     * with no consumer wired today. */
+     * FUN_0045c051 / FUN_0045e053 / FUN_0045e1a5 / FUN_0045e2dd /
+     * FUN_0045e3dc) stay stubbed — scene-specific update routines
+     * (cutscene / dialog / dungeon / ending) with no consumer wired today. */
+    case SCENE_STATE_WORLDMAP:  /* 8 — WORLD / TOWN map */
+        /* Engine LAB_00453bed for mode 8: the shared FUN_0040fb3a body
+         * (scene1_particles_tick) then the per-state callee FUN_0049e163
+         * (world-map sim). T4 ports the sim body; it also adds the
+         * FUN_00406584 cursor bob the engine runs here for the destination
+         * pointer. T2 reaches mode 8 and idles; scene_worldmap_sim is the
+         * home for the FUN_0049e163 nav/exit logic. */
+        scene1_particles_tick();
+        scene_worldmap_sim();
+        break;
+
     case 2:    /* cutscene  (engine FUN_0049d8a4) */
     case 3:    /* dialog    (engine FUN_0041ee24) */
     case 6:    /* (engine FUN_00490e24, 17 B trivial) */
     case 7:    /* dungeon idle  (engine FUN_0049db8a) */
-    case 8:    /* dungeon combat (engine FUN_0049e163) */
     case 0xb:  /* (engine FUN_0045c051, 3021 B — biggest scene callee) */
     case 0xd:  /* ending arm A (engine FUN_0045e3dc) */
     case 0xe:  /* ending arm B (engine FUN_0045e053) */

@@ -33,10 +33,14 @@
  *   1  — in-game world (town / dungeon, dispatched further by DAT_0438b1c8)
  *   2..5 — other state machines reached via fade-out from title
  *   6  — entry to NEW-GAME post-fade init (set by FUN_00490e16)
- *   8  — transient "scene-loading" placeholder
+ *   8  — the WORLD / TOWN map (overworld destination picker). Reached from
+ *        the shop via the door-exit (T1); preload FUN_004735ad, init
+ *        FUN_0049de20, sim FUN_0049e163, render FUN_0049e3a3. (The NEW-GAME
+ *        init also briefly flips here — DAT_0438b1c0=8 then =1 — purely to
+ *        reset the world-map cursor via FUN_0049de18 before INGAME.)
  *
- * Only state == 0 has a producer + consumer wired today; all other
- * values are documented for future ports. */
+ * States 0, 1 and 8 have producers + consumers wired today; the rest are
+ * documented for future ports. */
 extern int32_t g_scene_state;
 
 /* Engine scene sub-state. Engine global DAT_0438b1c8. Used by
@@ -59,10 +63,10 @@ extern int32_t g_scene_substate;
  * raw integers. Add more as scenes port; for now only TITLE has a
  * real producer. */
 enum {
-    SCENE_STATE_TITLE   = 0,
-    SCENE_STATE_INGAME  = 1,
+    SCENE_STATE_TITLE    = 0,
+    SCENE_STATE_INGAME   = 1,
     /* 2..7 reserved — see engine FUN_004547ab line 60 onward. */
-    SCENE_STATE_LOADING = 8,
+    SCENE_STATE_WORLDMAP = 8,  /* the WORLD / TOWN map (overworld picker) */
 };
 
 /* Mirror of FUN_0047b29e first two writes:
@@ -81,8 +85,8 @@ void scene_state_set_title(void);
  *
  * Engine writes (in order):
  *   _DAT_0438b1e4 = 0;
- *   DAT_0438b1c0  = 8;            // LOADING
- *   FUN_0049de18();                // DAT_09643684 = 0 (worker-thread gate)
+ *   DAT_0438b1c0  = 8;            // WORLD MAP (transient — only to reset its cursor)
+ *   FUN_0049de18();                // DAT_09643684 = 0 (world-map selected-dest reset)
  *   DAT_0438b1c0  = 1;            // INGAME
  *   DAT_0438b4e0  = 0;
  *   _DAT_0438b7d4 = 0.0;

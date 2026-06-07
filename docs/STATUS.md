@@ -8,22 +8,22 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-████░░░░░░░░░░░░░░░░  17.6% touched   (2.7% runtime-verified)
+████░░░░░░░░░░░░░░░░  17.7% touched   (2.7% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
 | verified  |    69 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    15 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   364 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **448** | verified + stubbed + ported                         |
-| unported  |  2100 | exists in engine, never referenced from src/             |
+| ported    |   367 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **451** | verified + stubbed + ported                         |
+| unported  |  2097 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 12 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 15 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code the table above calls "ported" (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -35,8 +35,23 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
 - **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`, 2026-06-07). ✅ PHASE 0 RE
-  COMPLETE → `findings/town-map-RE.md`. ✅ T1 LANDED (door exit + fade); NEXT = T2 (world-map
-  load + mode-8 plumbing).** **T1:** `scene1_player_ctrl.c` — the shop-door Z-handler
+  COMPLETE → `findings/town-map-RE.md`. ✅ T1 + T2 LANDED; NEXT = T3 (world-map RENDER
+  `FUN_0049e3a3`).** **T2 (mode-8 load + plumbing):** the port now EXITS the shop into the
+  WORLD MAP. The live load path is the **PRIMARY worker case 8** (objdump `0x452984` =
+  `FUN_0049de20` init → `FUN_004735ad` load), so `scene_worldmap_init` registers
+  `worker_load_set_cb(8, …)`; the door-exit spawns it. Ported `FUN_0049de20` →
+  `scene_worldmap_init_state()` (dest model + tutorial state array + shared-cursor snap; PORT-DEBT
+  the `FUN_0045de68` event-probe + `FUN_00435c98` scratch + `FUN_00474d92` teardown); extracted
+  `DAT_005fd590` (per-dest x/y/sprite[7]) + `DAT_005fd620` (3×5 grid). Added the stage-2
+  `FUN_0049de0e(0)` (initial dest=0). Mode-8 dispatch wired (sim.c case 8 → `scene_worldmap_sim`
+  T4 stub; main.c render case 8 → `scene_worldmap_render` T3 stub). Renamed `SCENE_STATE_LOADING`
+  →`SCENE_STATE_WORLDMAP`. **Verified `town-walk-debug --only port`:** port anchors
+  `HOUSE_FREEROAM(386)→LOADING_START(613=HF+227, bit-matches retail HF+227)→LOADING_END(678)`
+  (was stopped dead at HOUSE_FREEROAM); mode 8 renders the placeholder clear (render=T3). 8 host
+  tests prove state array `[0,0,0,2,0,0,0]` (dest3 Market). **Gap:** `PAUSE_OPEN` not emitted at
+  the load — the port splits engine `DAT_0438b150` into `g_cursor_visible` (raised) vs
+  `g_scene_pause_state_b150` (the anchor's read); red-herring anchor, pre-existing split. **T1:**
+  `scene1_player_ctrl.c` — the shop-door Z-handler
   (`player_ctrl_at_shop_door` predicate = facing≈+π/2 ±0.1π & player X>2.895 & not-exited;
   the engine `bVar17` subset) arms `DAT_074b2ec4` + the dissolve fade `fade_phase1_start`
   (=`FUN_004526f5`) + the tutorial flag `DAT_0450f3f9`; stage-2 (`player_ctrl_worldmap_exit_stage2`,

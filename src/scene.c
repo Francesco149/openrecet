@@ -24,11 +24,12 @@ void scene_state_set_title(void)
 
 void scene_post_fade_init(void)
 {
-    /* Engine's LOADING marker. The engine writes 8 then 1 in adjacent
-     * statements within a single sim tick, so no observer ever sees 8
+    /* Engine's transient WORLD-MAP flip. The engine writes 8 then 1 in
+     * adjacent statements within a single sim tick (purely to reset the
+     * world-map cursor via FUN_0049de18), so no observer ever sees 8
      * mid-flight; we preserve the write for symmetry but the same-tick
      * INGAME write below immediately replaces it. */
-    g_scene_state    = SCENE_STATE_LOADING;
+    g_scene_state    = SCENE_STATE_WORLDMAP;
 
     /* NEW-vs-CONTINUE flag (engine DAT_0438bed4): the title dispatch /
      * slot-picker stored it on the anim. 1 = continue (the picker has

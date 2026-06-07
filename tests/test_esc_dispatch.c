@@ -22,7 +22,7 @@ int test_esc_swallow_in_game(void)
     g_esc_disabled = 0;
     g_scene_state  = SCENE_STATE_INGAME;
     T_ASSERT_EQ_I((int)esc_pressed(), (int)ESC_RESULT_SWALLOW);
-    g_scene_state  = SCENE_STATE_LOADING;
+    g_scene_state  = SCENE_STATE_WORLDMAP;
     T_ASSERT_EQ_I((int)esc_pressed(), (int)ESC_RESULT_SWALLOW);
     g_scene_state  = SCENE_STATE_TITLE;   /* restore */
     return 0;

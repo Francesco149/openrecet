@@ -33,6 +33,7 @@
 #include "scene1_combat_sm.h"    /* g_scene1_combat_dat_056da1b8 (sparkle owner) */
 #include "fade.h"                /* FUN_004526f5/0045281c/004528b3 — the door dissolve fade + load */
 #include "scene.h"               /* g_scene_state (DAT_0438b1c0) — mode 8 = world map (T1) */
+#include "scene_worldmap.h"      /* scene_worldmap_set_sel_dest (FUN_0049de0e) — initial dest */
 #include "worker_load.h"         /* worker_load_spawn (FUN_00452cde) — the scene-load worker */
 
 /* ── engine float constants (FUN_0048b850 .rdata, decoded 2026-05-30) ──
@@ -1036,9 +1037,16 @@ int player_ctrl_worldmap_exit_stage2(void)
     if (!s_worldmap_exit_armed)
         return 0;
     if (fade_is_done()) {                 /* FUN_004528b3 — dissolve complete */
-        g_scene_state = 8;                /* DAT_0438b1c0 = 8 (world map) */
-        /* FUN_0049de0e(<dest>): the initial destination index is set by the
-         * world-map init (T2); left at its default here. */
+        g_scene_state = SCENE_STATE_WORLDMAP;  /* DAT_0438b1c0 = 8 (world map) */
+        /* FUN_0049de0e(0) (all.c:487090): initial selected dest = 0 (your
+         * shop / home).  The world-map init (FUN_0049de20, run on the worker
+         * spawned below) reads this to snap the destination cursor. */
+        scene_worldmap_set_sel_dest(0);
+        /* PORT-DEBT(house-teardown, FUN_00474d92): the engine frees the shop
+         * textures/meshes here (all.c:487095) before the world-map load; the
+         * port's per-scene sprite ownership makes this a no-op for now — the
+         * world-map worker (case 8) loads its own slot-10 textures.  Revisit
+         * if the shop assets need explicit teardown to match retail VRAM. */
         fade_phase_out_start(0, 0x11);    /* FUN_0045281c(0,0x11) — fade-IN */
         worker_load_spawn();              /* FUN_00452cde — load worker → LOADING_START */
         s_worldmap_exit_armed = 0;

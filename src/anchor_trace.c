@@ -13,9 +13,11 @@
 
 #define ANCHOR_SCENE_TITLE   0
 #define ANCHOR_SCENE_INGAME  1
-/* SCENE_STATE_LOADING (8) is written then overwritten with INGAME inside
- * a single sim tick (scene.c scene_post_fade_init), so no observer ever
- * sees it between frames — we don't anchor on it directly. */
+/* SCENE_STATE_WORLDMAP (8) is written then overwritten with INGAME inside
+ * a single sim tick during NEW-GAME init (scene.c scene_post_fade_init), so
+ * no observer ever sees that transient flip between frames — we don't anchor
+ * on it. (The real, persistent mode-8 world map is reached via the door-exit
+ * and IS a distinct rendered scene; it just isn't an anchor today.) */
 
 /* A "playable HOUSE" frame: in-game AND the loading overlay has dropped. */
 static int is_house_freeroam(const struct anchor_world *w)

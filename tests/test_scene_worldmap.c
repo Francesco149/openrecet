@@ -11,6 +11,16 @@
 
 #include "scene_worldmap.h"
 #include "worker_load.h"
+#include "save_work.h"
+#include "save_bank.h"   /* SAVE_BANK_FIELD_CARD_DAY / _CLOCK_TARGET */
+
+/* Working-arena field locations FUN_0049de20 reads (base DAT_044e3798,
+ * working slot 0). Mirror the (static) WM_* offsets in scene_worldmap.c. */
+#define WM_T_OFF_TUTORIAL_A  0x2bc61   /* DAT_0450f3f9 (byte) */
+#define WM_T_OFF_TUTORIAL_B  0x2bc70   /* DAT_0450f408 (byte) */
+#define WM_T_OFF_EVENT_FLAG  0x2bc7c   /* DAT_0450f414 (byte) */
+#define WM_T_DW_DAY          SAVE_BANK_FIELD_CARD_DAY     /* 0xb0fb (dword) */
+#define WM_T_DW_TOD          SAVE_BANK_FIELD_CLOCK_TARGET /* 0xb0fc (dword) */
 
 /* Recording scratchpad for the injected load_fn. */
 #define MAX_RECORDED 8
@@ -208,5 +218,129 @@ int test_scene_worldmap_mappoint_is_tall_unique(void)
         (void)scene_worldmap_dims(i, &bw, &bh);
         T_ASSERT(bw > bh);  /* the 3 BG textures are wide-landscape */
     }
+    return 0;
+}
+
+/* ─── FUN_0049de20 scene-init (destination model + tutorial gating) ─────── */
+
+/* Set up the working arena (slot 0) with the tutorial flags + day/tod the
+ * world-map init reads, then run scene_worldmap_init_state(). */
+static void wm_init_with(int flag_a, int flag_b, int event_flag,
+                         uint32_t day, uint32_t tod)
+{
+    scene_worldmap_reset();
+    save_work_clear();                 /* zero arena + active slot 0 */
+    uint8_t  *bb = (uint8_t  *)save_work_dwords_at(0);
+    uint32_t *dw = (uint32_t *)bb;
+    bb[WM_T_OFF_TUTORIAL_A] = (uint8_t)flag_a;
+    bb[WM_T_OFF_TUTORIAL_B] = (uint8_t)flag_b;
+    bb[WM_T_OFF_EVENT_FLAG] = (uint8_t)event_flag;
+    dw[WM_T_DW_DAY]         = day;
+    dw[WM_T_DW_TOD]         = tod;
+    scene_worldmap_init_state();
+}
+
+/* The recording's first-exit case: the door sets tutorial flag A, so the
+ * init's `else` branch highlights dest 3 (Market) and leaves the rest
+ * disabled. tod=2 (night) + day=1 so no time-of-day closure perturbs it. */
+int test_scene_worldmap_init_tutorial_market(void)
+{
+    wm_init_with(/*flag_a=*/1, 0, 0, /*day=*/1, /*tod=*/2);
+
+    T_ASSERT_EQ_I(scene_worldmap_dest_count(), 7);
+    int want[7] = { 0, 0, 0, 2, 0, 0, 0 };
+    for (int i = 0; i < 7; i++)
+        T_ASSERT_EQ_I(scene_worldmap_dest_state(i), want[i]);
+    /* dest→map-pos is the identity. */
+    for (int i = 0; i < 7; i++)
+        T_ASSERT_EQ_I(scene_worldmap_dest_pos(i), i);
+    /* entry timer reset. */
+    T_ASSERT(scene_worldmap_entry_timer() == 0.0f);
+    return 0;
+}
+
+/* Tutorial complete (flag A clear, flag B clear) → every destination NORMAL
+ * (state 1). tod=2 (night) avoids the tod<2 dest-4 closure + the tod==3
+ * dest-1/5 closures; day=1 avoids the day%7==3 dest-6 closure. */
+int test_scene_worldmap_init_all_normal(void)
+{
+    wm_init_with(0, 0, 0, 1, 2);
+    for (int i = 0; i < 7; i++)
+        T_ASSERT_EQ_I(scene_worldmap_dest_state(i), 1);
+    for (int i = 0; i < 7; i++)
+        T_ASSERT_EQ_I(scene_worldmap_dest_closed(i), 0);
+    return 0;
+}
+
+/* Flag A clear, flag B SET → only dest 0 highlighted, the rest disabled. */
+int test_scene_worldmap_init_flag_b_only_dest0(void)
+{
+    wm_init_with(0, /*flag_b=*/1, 0, 1, 2);
+    int want[7] = { 2, 0, 0, 0, 0, 0, 0 };
+    for (int i = 0; i < 7; i++)
+        T_ASSERT_EQ_I(scene_worldmap_dest_state(i), want[i]);
+    return 0;
+}
+
+/* day % 7 == 3 closes dest 6 ("Closed" label + state forced 0). The tutorial
+ * highlight on dest 3 is unaffected. */
+int test_scene_worldmap_init_day_closure_dest6(void)
+{
+    wm_init_with(/*flag_a=*/1, 0, 0, /*day=*/3, /*tod=*/2);
+    T_ASSERT_EQ_I(scene_worldmap_dest_closed(6), 1);
+    T_ASSERT_EQ_I(scene_worldmap_dest_state(6), 0);
+    T_ASSERT_EQ_I(scene_worldmap_dest_state(3), 2);  /* Market still highlighted */
+    return 0;
+}
+
+/* tod < 2 (day/evening) closes dest 4; tod==2 (night) leaves it open. Drive
+ * the all-normal base so the closure is the only thing zeroing dest 4. */
+int test_scene_worldmap_init_tod_closes_dest4(void)
+{
+    wm_init_with(0, 0, 0, 1, /*tod=*/0);   /* day */
+    T_ASSERT_EQ_I(scene_worldmap_dest_state(4), 0);  /* closed at tod<2 */
+    /* other dests unaffected by the tod<2 rule (dest 1/5 need tod==3, which
+     * never occurs in normal play — tod is 0/1/2). */
+    T_ASSERT_EQ_I(scene_worldmap_dest_state(1), 1);
+    T_ASSERT_EQ_I(scene_worldmap_dest_state(5), 1);
+    return 0;
+}
+
+/* The extracted .data layout table (DAT_005fd590) — spot-check the two
+ * anchor destinations. */
+int test_scene_worldmap_dest_layout_table(void)
+{
+    T_ASSERT(scene_worldmap_dest_layout[0].x == 230.0f);
+    T_ASSERT(scene_worldmap_dest_layout[0].y == 400.0f);
+    T_ASSERT_EQ_I(scene_worldmap_dest_layout[0].sprite_row, 0);
+
+    T_ASSERT(scene_worldmap_dest_layout[3].x == 440.0f);   /* Market */
+    T_ASSERT(scene_worldmap_dest_layout[3].y == 276.0f);
+    T_ASSERT_EQ_I(scene_worldmap_dest_layout[3].sprite_row, 5);
+    return 0;
+}
+
+/* The extracted .data cursor grid (DAT_005fd620, 3×5). */
+int test_scene_worldmap_grid_table(void)
+{
+    /* row 0 empty, row 1 = {4,5,6}, row 2 = {1,2,3}. */
+    T_ASSERT_EQ_I(scene_worldmap_grid[0], -1);
+    T_ASSERT_EQ_I(scene_worldmap_grid[3],  4);
+    T_ASSERT_EQ_I(scene_worldmap_grid[4],  5);
+    T_ASSERT_EQ_I(scene_worldmap_grid[5],  6);
+    T_ASSERT_EQ_I(scene_worldmap_grid[6],  1);
+    T_ASSERT_EQ_I(scene_worldmap_grid[8],  3);
+    return 0;
+}
+
+/* FUN_0049de0e / read-back of the selected destination. */
+int test_scene_worldmap_sel_dest_roundtrip(void)
+{
+    scene_worldmap_reset();
+    T_ASSERT_EQ_I(scene_worldmap_sel_dest(), 0);   /* reset default */
+    scene_worldmap_set_sel_dest(3);
+    T_ASSERT_EQ_I(scene_worldmap_sel_dest(), 3);
+    scene_worldmap_reset();
+    T_ASSERT_EQ_I(scene_worldmap_sel_dest(), 0);   /* reset clears it */
     return 0;
 }

@@ -1,14 +1,25 @@
 /*
  * scene_worldmap.c — see scene_worldmap.h.
  *
- * Engine source: FUN_004735ad @ 0x4735ad (98 bytes). Four fixed
- * sprite_load calls — no loop, no selector. Strings extracted via
- *   tools/analyze/pe.py str 0x005c87f4 0x005c880c 0x005c8824 0x005c883c
+ * Engine sources:
+ *   FUN_004735ad @ 0x4735ad (98 bytes)  — the 4 fixed BMP/TGA loads.
+ *   FUN_0049de20 @ 0x49de20 (374 bytes) — the mode-8 scene-init state
+ *     machine (destination model + tutorial gating). Ported here as
+ *     scene_worldmap_init_state. Strings extracted via
+ *       tools/analyze/pe.py str 0x005c87f4 0x005c880c 0x005c8824 0x005c883c
+ *   .data tables extracted from vendor/unpacked @ 0x5fd590 (per-dest
+ *     layout) + 0x5fd620 (3×5 cursor grid).
  */
 
 #include "scene_worldmap.h"
 
+#include <stdint.h>
+
 #include "worker_load.h"
+#include "scene.h"              /* SCENE_STATE_WORLDMAP (=8) — primary worker case index */
+#include "save_work.h"          /* live working save arena (tutorial flags + day/tod) */
+#include "save_bank.h"          /* SAVE_BANK_FIELD_CARD_DAY / _CLOCK_TARGET (working dwords) */
+#include "title_save_dialog.h"  /* shared cursor: set_visible (FUN_0043561a) + snap (FUN_00435693) */
 
 /* ─── pre-baked asset table ──────────────────────────────────────────── */
 
@@ -56,6 +67,168 @@ int scene_worldmap_load_with(scene_worldmap_load_fn load_fn,
     return loads;
 }
 
+/* ─── world-map destination model + scene-init (FUN_0049de20) ─────────────
+ *
+ * The mode-8 (WORLD MAP) scene globals + the .data layout tables. Pure-C —
+ * the init runs on the worker thread for mode 8 (before the texture load).
+ * See docs/findings/town-map-RE.md §3-4. */
+
+/* DAT_005fd590 (per-dest {x,y,sprite_row}, stride 0xc, 7 entries). */
+const scene_worldmap_dest_t
+    scene_worldmap_dest_layout[SCENE_WORLDMAP_DEST_COUNT] = {
+    /*   x       y     row */
+    { 230.0f, 400.0f, 0 },  /* dest 0 — Shop / home (your shop) */
+    {  43.0f, 294.0f, 3 },  /* dest 1 */
+    { 230.0f, 276.0f, 1 },  /* dest 2 */
+    { 440.0f, 276.0f, 5 },  /* dest 3 — Market (tutorial-forced target) */
+    {  30.0f, 196.0f, 4 },  /* dest 4 */
+    { 160.0f, 136.0f, 2 },  /* dest 5 */
+    { 448.0f,  88.0f, 6 },  /* dest 6 */
+};
+
+/* DAT_005fd620 — 3 col × 5 row cursor grid (col + row*3 → dest-id, -1 = empty). */
+const int scene_worldmap_grid[SCENE_WORLDMAP_GRID_COLS *
+                              SCENE_WORLDMAP_GRID_ROWS] = {
+    -1, -1, -1,
+     4,  5,  6,
+     1,  2,  3,
+     1,  0,  3,
+     0, -1,  0,
+};
+
+/* Engine world-map scene globals (DAT_096435xx / DAT_005fd588). */
+static int   s_dest_count    = SCENE_WORLDMAP_DEST_COUNT; /* DAT_005fd588 */
+static int   s_sel_dest      = 0;     /* DAT_09643684 — selected dest (cursor) */
+static float s_entry_timer   = 0.0f;  /* _DAT_09643628 — intro timer */
+static int   s_exit_counter  = 0;     /* DAT_0964367c  — exit-in-progress */
+static int   s_misc_680      = 0;     /* _DAT_09643680 */
+static int   s_dest_pos[SCENE_WORLDMAP_DEST_COUNT]    = { 0 }; /* DAT_096435d8 */
+static int   s_dest_state[SCENE_WORLDMAP_DEST_COUNT]  = { 0 }; /* DAT_09643588 */
+static int   s_dest_closed[SCENE_WORLDMAP_DEST_COUNT] = { 0 }; /* DAT_0964362c */
+
+void  scene_worldmap_set_sel_dest(int dest) { s_sel_dest = dest; }  /* FUN_0049de0e */
+int   scene_worldmap_sel_dest(void)         { return s_sel_dest; }
+int   scene_worldmap_dest_count(void)       { return s_dest_count; }
+float scene_worldmap_entry_timer(void)      { return s_entry_timer; }
+
+int scene_worldmap_dest_state(int i)
+{
+    return (i >= 0 && i < SCENE_WORLDMAP_DEST_COUNT) ? s_dest_state[i] : 0;
+}
+int scene_worldmap_dest_closed(int i)
+{
+    return (i >= 0 && i < SCENE_WORLDMAP_DEST_COUNT) ? s_dest_closed[i] : 0;
+}
+int scene_worldmap_dest_pos(int i)
+{
+    return (i >= 0 && i < SCENE_WORLDMAP_DEST_COUNT) ? s_dest_pos[i] : 0;
+}
+
+/* Working-arena field locations (base DAT_044e3798, per-slot; see
+ * docs/findings/save-working-arena.md). Byte offsets for the BYTE tutorial
+ * flags; dword indices for the INT day/tod state. */
+#define WM_OFF_TUTORIAL_A  0x2bc61      /* DAT_0450f3f9 — set by the door's first exit */
+#define WM_OFF_TUTORIAL_B  0x2bc70      /* DAT_0450f408 */
+#define WM_OFF_EVENT_FLAG  0x2bc7c      /* DAT_0450f414 */
+#define WM_DW_DAY          SAVE_BANK_FIELD_CARD_DAY    /* 0xb0fb — DAT_0450fb84 (day#) */
+#define WM_DW_TOD          SAVE_BANK_FIELD_CLOCK_TARGET/* 0xb0fc — DAT_0450fb88 (0 day/1 eve/2 night) */
+#define WM_DW_05A0         0xb3a2u                     /* DAT_045105a0 */
+
+/* PORT-DEBT(event-probe, FUN_0045de68): the per-destination "has an event
+ * today" probe reads the event-table arena (DAT_06a49c44, 5000-int strides)
+ * + the day/tod gates — the event system is unported. Returns 0 (no event).
+ * Only affects ENABLED destinations (state != 0); in the tutorial gate (the
+ * town-map-load recording) only dest 3 is enabled and already at state 2, so
+ * this is a no-op there. Retire when the event tables port. */
+static int scene_worldmap_dest_has_event(int dest)
+{
+    (void)dest;
+    return 0;
+}
+
+void scene_worldmap_init_state(void)   /* FUN_0049de20 @ 0x49de20 */
+{
+    const int slot = save_work_active_slot();           /* DAT_0438b1e0 */
+    const uint32_t *dw = save_work_dwords_at(slot);
+    const uint8_t  *bb = (const uint8_t *)dw;            /* same per-slot block, byte view */
+    int i;
+
+    s_entry_timer  = 0.0f;   /* _DAT_09643628 = 0 */
+    s_exit_counter = 0;      /* DAT_0964367c  = 0 */
+    s_misc_680     = 0;      /* _DAT_09643680 = 0 */
+
+    /* FUN_0043561a + FUN_00435693: raise the SHARED cursor + snap it to the
+     * selected dest's marker (x-16, y+28). This raise is the engine's
+     * "PAUSE_OPEN" anchor at the world-map load — the shared b150 cursor for
+     * the destination pointer (red herring, town-map-RE.md §1). */
+    title_save_dialog_cursor_set_visible(1);
+    title_save_dialog_cursor_snap(
+        scene_worldmap_dest_layout[s_sel_dest].x - 16.0f,
+        scene_worldmap_dest_layout[s_sel_dest].y + 28.0f);
+
+    s_dest_count = SCENE_WORLDMAP_DEST_COUNT;   /* DAT_005fd588 = 7 */
+    for (i = 0; i < SCENE_WORLDMAP_DEST_COUNT; i++) s_dest_closed[i] = 0;
+    for (i = 0; i < SCENE_WORLDMAP_DEST_COUNT; i++) s_dest_state[i]  = 0;
+    for (i = 0; i < SCENE_WORLDMAP_DEST_COUNT; i++) s_dest_pos[i]    = i; /* DAT_096435d8[i]=i */
+
+    if (bb == NULL) return;   /* defensive: no working arena bound */
+
+    /* Tutorial gating (all.c:102868). The door-exit sets flag A on the first
+     * exit → the `else` branch → dest 3 (Market) highlighted, the rest
+     * disabled. Flag-A-clear + flag-B-clear = all unlocked (NORMAL); flag-B
+     * set = only dest 0 highlighted. */
+    if (bb[WM_OFF_TUTORIAL_A] == 0) {
+        if (bb[WM_OFF_TUTORIAL_B] == 0) {
+            for (i = 0; i < SCENE_WORLDMAP_DEST_COUNT; i++) s_dest_state[i] = 1;
+        } else {
+            s_dest_state[0] = 2;
+        }
+    } else {
+        s_dest_state[3] = 2;   /* _DAT_09643594 = 2 — Market highlighted */
+    }
+
+    {
+        const int day = (int)dw[WM_DW_DAY];   /* DAT_0450fb84 */
+        const int tod = (int)dw[WM_DW_TOD];   /* DAT_0450fb88 */
+
+        /* Time-of-day / day closures (all.c:102883). */
+        if (day % 7 == 3) {
+            s_dest_closed[6] = 1;   /* _DAT_09643644 = 1 */
+            s_dest_state[6]  = 0;   /* _DAT_096435a0 = 0 */
+        }
+        if (tod < 3 && (tod < 2 || (int)dw[WM_DW_05A0] == 0)) {
+            if (bb[WM_OFF_EVENT_FLAG] != 0) s_dest_state[6] = 2; /* _DAT_096435a0 = 2 */
+        } else {
+            s_dest_state[6] = 0;
+        }
+        if (tod == 3) s_dest_state[1] = 0;   /* DAT_0964358c  = 0 */
+        if (tod <  2) s_dest_state[4] = 0;   /* _DAT_09643598 = 0 */
+        if (tod == 3) s_dest_state[5] = 0;   /* _DAT_0964359c = 0 */
+    }
+
+    /* Event upgrade (all.c:102905): dest 1..5 — an enabled dest with an event
+     * today becomes highlighted. PORT-DEBT event probe → no-op for now. */
+    for (i = 1; i < 6; i++) {
+        if (scene_worldmap_dest_has_event(i) && s_dest_state[i] != 0)
+            s_dest_state[i] = 2;
+    }
+
+    /* PORT-DEBT(stage-scratch, FUN_00435c98): the engine tail re-inits the
+     * INGAME stage/camera scratch + the day-display float (_DAT_0438b91c).
+     * Deferred — it runs AFTER the destination state array is set, so it has
+     * no effect on the model; revisit if the world-map render (T3) needs the
+     * camera / day-display globals. */
+}
+
+/* Per-frame update — mode-8 dispatch (sim.c case 8). The engine mode-8 update
+ * (FUN_004536cb LAB_00453bed) runs the shared FUN_00406584 (cursor bob) +
+ * FUN_0040fb3a, then the per-state callee FUN_0049e163 (entry timer + 3×5
+ * cursor-nav + Z-select → the destination→mode table). T4 ports that body;
+ * for now the map sits idle in mode 8 (T2 only needs to REACH it). */
+void scene_worldmap_sim(void)
+{
+}
+
 /* ─── Win32 worker_load wiring + sprite storage ──────────────────────── */
 
 #ifdef _WIN32
@@ -86,20 +259,58 @@ static void scene_worldmap_body(void)
      *     call 0x49de20    ; FUN_0049de20  — world-map state machine
      *     call 0x4735ad    ; FUN_004735ad  — world-map BMP loader  (THIS)
      *
-     * The state-machine half is deferred — see header banner. This
-     * body runs only the BMP loader; when the state machine ports,
-     * the body becomes a sequential 2-call wrapper. */
+     * This is the SECONDARY C96 body, which has no port-side spawner caller
+     * (dormant). The live world-map path is the PRIMARY worker case-8 body
+     * below; keep this BMP-only (the dormant half-port). */
+    scene_worldmap_load_with(win32_load_fn, g_scene_worldmap_dev);
+}
+
+/* PRIMARY worker case-8 body — engine primary jump-table @ 0x452984:
+ *     call 0x49de20    ; FUN_0049de20  — world-map scene init
+ *     call 0x4735ad    ; FUN_004735ad  — world-map BMP loader
+ * The door-exit stage-2 (scene1_player_ctrl.c) sets g_scene_state = 8 +
+ * spawns the primary worker; worker_load_thread_proc dispatches it here. */
+static void scene_worldmap_primary_cb(void)
+{
+    scene_worldmap_init_state();
     scene_worldmap_load_with(win32_load_fn, g_scene_worldmap_dev);
 }
 
 void scene_worldmap_init(struct IDirect3DDevice8 *dev)
 {
     g_scene_worldmap_dev = (IDirect3DDevice8 *)dev;
+    /* Secondary C96 body (BMP-only, dormant — no spawner caller yet). */
     worker_load_set_sec_body(WORKER_LOAD_SEC_BODY_C96, scene_worldmap_body);
+    /* PRIMARY case-8 body (init + load) — the live door→world-map path. */
+    worker_load_set_cb(SCENE_STATE_WORLDMAP, scene_worldmap_primary_cb);
 }
+
+/* Per-frame render — mode-8 render dispatch (main.c render switch case 8).
+ * T3 ports the body FUN_0049e3a3 (worldmap bg time-of-day crossfade +
+ * mappoint destination markers + "Closed" labels). Stub for now. */
+void scene_worldmap_render(struct IDirect3DDevice8 *dev)
+{
+    (void)dev;
+}
+
+#endif /* _WIN32 */
+
+/* ─── reset (pure-C model + Win32 sprites) ───────────────────────────── */
 
 void scene_worldmap_reset(void)
 {
+    /* Pure-C destination model. */
+    s_dest_count   = SCENE_WORLDMAP_DEST_COUNT;
+    s_sel_dest     = 0;
+    s_entry_timer  = 0.0f;
+    s_exit_counter = 0;
+    s_misc_680     = 0;
+    for (int i = 0; i < SCENE_WORLDMAP_DEST_COUNT; i++) {
+        s_dest_pos[i]    = 0;
+        s_dest_state[i]  = 0;
+        s_dest_closed[i] = 0;
+    }
+#ifdef _WIN32
     for (int i = 0; i < SCENE_WORLDMAP_COUNT; i++) {
         /* Same lazy-reset shape as scene_floor/jutan — leaves the
          * IDirect3D resource leaked, which is fine because tests on
@@ -109,13 +320,5 @@ void scene_worldmap_reset(void)
         g_scene_worldmap[i].width  = 0;
         g_scene_worldmap[i].height = 0;
     }
+#endif
 }
-
-#else  /* !_WIN32 — Linux test build */
-
-void scene_worldmap_reset(void)
-{
-    /* Nothing to reset on the test build — no sprite_t storage. */
-}
-
-#endif /* _WIN32 */

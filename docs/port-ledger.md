@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **448** (17.6%) — verified 69, stubbed 15, ported 364
-- unported: **2100**
+- touched: **451** (17.7%) — verified 69, stubbed 15, ported 367
+- unported: **2097**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (69) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (364) — reimplemented, no probe yet
+## ported (367) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -135,7 +135,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x405b1a | FUN_00405b1a | 598 | ✓ | scene1_render.c, scene1_render.h |
 | 0x405d70 | FUN_00405d70 | 911 | ✓ | scene1_render.c, scene1_render.h, stage_palette.h |
 | 0x40656e | FUN_0040656e | 22 | ✓ | scene1_per_frame_open.c, scene1_per_frame_open.h |
-| 0x406584 | FUN_00406584 | 1017 | ✓ | choice_box.c, sim.c, skip_event.c |
+| 0x406584 | FUN_00406584 | 1017 | ✓ | choice_box.c, scene_worldmap.c, sim.c (+1) |
 | 0x406a60 | FUN_00406a60 | 516 | ✓ | scene1_top_hud.c, scene1_top_hud.h, scene_title.c |
 | 0x4072f5 | FUN_004072f5 | 1983 | ✓ | chara_skills.h |
 | 0x407ab4 | FUN_00407ab4 | 504 | ✓ | scene1_merchant_hud.c |
@@ -189,10 +189,10 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x434def | FUN_00434def | 227 | ✓ | choice_box.c, choice_box.h, scene.h (+3) |
 | 0x434ed2 | FUN_00434ed2 | 581 | ✓ | choice_box.c, choice_box.h, skip_event.c (+1) |
 | 0x435612 | FUN_00435612 | 8 | ✓ | scene1_player_ctrl.c, scene_title.c, skip_event.c (+2) |
-| 0x43561a | FUN_0043561a | 11 | ✓ | scene_worldmap.h, title_save_dialog.c, title_save_dialog.h |
+| 0x43561a | FUN_0043561a | 11 | ✓ | scene_worldmap.c, scene_worldmap.h, title_save_dialog.c (+1) |
 | 0x435625 | FUN_00435625 | 6 | ✓ | skip_event.c, title_save_dialog.c, title_save_dialog.h |
 | 0x435644 | FUN_00435644 | 79 | ✓ | title_save_dialog.c |
-| 0x435693 | FUN_00435693 | 58 | ✓ | main.c, scene1_display_menu.c, scene_title.c (+3) |
+| 0x435693 | FUN_00435693 | 58 | ✓ | main.c, scene1_display_menu.c, scene_title.c (+4) |
 | 0x435710 | FUN_00435710 | 55 | ✓ | scene1_display_menu.c, scene_title.c, title_save_dialog.c (+1) |
 | 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
 | 0x4361b2 | FUN_004361b2 | 532 | ✓ | scene1_display_menu.c |
@@ -264,7 +264,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45bdc2 | FUN_0045bdc2 | 546 | ✓ | worker_load.h |
 | 0x45c051 | FUN_0045c051 | 3021 | ✓ | sim.c |
 | 0x45cc85 | FUN_0045cc85 | 4579 | ✓ | main.c |
-| 0x45de68 | FUN_0045de68 | 433 | ✓ | scene_worldmap.h, tables_event.c, tables_event.h |
+| 0x45de68 | FUN_0045de68 | 433 | ✓ | scene_worldmap.c, scene_worldmap.h, tables_event.c (+1) |
 | 0x45e053 | FUN_0045e053 | 201 | ✓ | sim.c |
 | 0x45e1a5 | FUN_0045e1a5 | 175 | ✓ | sim.c |
 | 0x45e2dd | FUN_0045e2dd | 118 | ✓ | sim.c |
@@ -320,7 +320,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47347d | FUN_0047347d | 215 | ✓ | worker_load.h |
 | 0x47355d | FUN_0047355d | 31 | ✓ | worker_load.h |
 | 0x473585 | FUN_00473585 | 31 | ✓ | worker_load.h |
-| 0x4735ad | FUN_004735ad | 98 | ✓ | main.c, scene_worldmap.c, scene_worldmap.h (+1) |
+| 0x4735ad | FUN_004735ad | 98 | ✓ | main.c, scene.h, scene_worldmap.c (+2) |
 | 0x4736bd | FUN_004736bd | 163 | ✓ | worker_load.h |
 | 0x473769 | FUN_00473769 | 258 | ✓ | worker_load.h |
 | 0x473874 | FUN_00473874 | 245 | ✓ | worker_load.h |
@@ -337,6 +337,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4747dc | FUN_004747dc | 142 | ✓ | main.c, scene1_preload.c, scene_floor.c (+3) |
 | 0x47486a | FUN_0047486a | 142 | ✓ | main.c, scene1_preload.c, scene_jutan.c (+2) |
 | 0x4748f8 | FUN_004748f8 | 169 | ✓ | mesh_load.h, scene1_preload.c, scene_table.c (+2) |
+| 0x474d92 | FUN_00474d92 | 232 | ✓ | scene1_player_ctrl.c |
 | 0x474e7a | FUN_00474e7a | 153 | ✓ | main.c |
 | 0x474f14 | FUN_00474f14 | 58 | ✓ | lnkdatas_hash.c, lnkdatas_hash.h, storage.c |
 | 0x474f4f | FUN_00474f4f | 801 | ✓ | main.c, scene1_overlay.h, scene1_overlay_table.c (+3) |
@@ -436,9 +437,11 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49d8a4 | FUN_0049d8a4 | 355 | ✓ | sim.c |
 | 0x49db8a | FUN_0049db8a | 487 | ✓ | sim.c |
 | 0x49de08 | FUN_0049de08 | 6 | ✓ | scene_new_game.h |
-| 0x49de0e | FUN_0049de0e | 10 | ✓ | scene1_player_ctrl.c, scene_new_game.c, scene_new_game.h |
-| 0x49de20 | FUN_0049de20 | 374 | ✓ | main.c, scene1_player_ctrl.c, scene_worldmap.c (+2) |
-| 0x49e163 | FUN_0049e163 | 575 | ✓ | scene1_postload.h, scene1_preload.c, sim.c |
+| 0x49de0e | FUN_0049de0e | 10 | ✓ | scene1_player_ctrl.c, scene_new_game.c, scene_new_game.h (+2) |
+| 0x49de20 | FUN_0049de20 | 374 | ✓ | main.c, scene.h, scene1_player_ctrl.c (+3) |
+| 0x49e163 | FUN_0049e163 | 575 | ✓ | scene.h, scene1_postload.h, scene1_preload.c (+3) |
+| 0x49e3a3 | FUN_0049e3a3 | 739 | ✓ | main.c, scene.h, scene_worldmap.c (+1) |
+| 0x49e686 | FUN_0049e686 | 45 | ✓ | main.c |
 | 0x49e849 | FUN_0049e849 | 350 | ✓ | tables_item.c, tables_item.h |
 | 0x49e9a7 | FUN_0049e9a7 | 387 | ✓ | tables_item.c, tables_kyaku.c, tables_kyaku.h (+3) |
 | 0x49eb2a | FUN_0049eb2a | 488 | ✓ | tables_item.c, tables_item.h, tables_kyaku.c (+1) |

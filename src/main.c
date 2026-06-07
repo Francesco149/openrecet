@@ -2992,6 +2992,14 @@ static void render_dispatch(void)
                                          g_fps_tex_w, g_fps_tex_h);
             }
             break;
+        case SCENE_STATE_WORLDMAP:
+            /* Engine FUN_004547ab L51187: mode-8 render dispatch
+             * (FUN_0049e686 → FUN_0049e3a3 + FUN_0040a765).  T3 ports the
+             * worldmap bg time-of-day crossfade + mappoint markers + the
+             * "Closed" labels; scene_worldmap_render is the home for it.
+             * Stub today — mode 8 shows the clear color until T3. */
+            scene_worldmap_render(g_dev);
+            break;
         default:
             break;
         }

@@ -6,13 +6,13 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 364,
-  "unported": 2100,
+  "ported": 367,
+  "unported": 2097,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 448,
-  "pct_touched": 17.6,
+  "touched": 451,
+  "pct_touched": 17.7,
   "pct_verified": 2.7,
-  "port_debt": 12
+  "port_debt": 15
  },
  "orphan_refs": [
   "0x40f640",
@@ -871,6 +871,7 @@
    "status": "ported",
    "src": [
     "src/choice_box.c",
+    "src/scene_worldmap.c",
     "src/sim.c",
     "src/skip_event.c"
    ]
@@ -2671,6 +2672,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_worldmap.c",
     "src/scene_worldmap.h",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
@@ -2711,6 +2713,7 @@
     "src/main.c",
     "src/scene1_display_menu.c",
     "src/scene_title.c",
+    "src/scene_worldmap.c",
     "src/scene_worldmap.h",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
@@ -4577,6 +4580,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_worldmap.c",
     "src/scene_worldmap.h",
     "src/tables_event.c",
     "src/tables_event.h"
@@ -6602,6 +6606,7 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/scene.h",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
     "src/worker_load.h"
@@ -6954,8 +6959,10 @@
    "size": 232,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x474e7a",
@@ -9999,7 +10006,9 @@
    "src": [
     "src/scene1_player_ctrl.c",
     "src/scene_new_game.c",
-    "src/scene_new_game.h"
+    "src/scene_new_game.h",
+    "src/scene_worldmap.c",
+    "src/scene_worldmap.h"
    ]
   },
   {
@@ -10022,6 +10031,7 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/scene.h",
     "src/scene1_player_ctrl.c",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
@@ -10045,8 +10055,11 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene.h",
     "src/scene1_postload.h",
     "src/scene1_preload.c",
+    "src/scene_worldmap.c",
+    "src/scene_worldmap.h",
     "src/sim.c"
    ]
   },
@@ -10065,8 +10078,13 @@
    "size": 739,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/main.c",
+    "src/scene.h",
+    "src/scene_worldmap.c",
+    "src/scene_worldmap.h"
+   ]
   },
   {
    "va": "0x49e686",
@@ -10074,8 +10092,10 @@
    "size": 45,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/main.c"
+   ]
   },
   {
    "va": "0x49e6b3",

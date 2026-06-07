@@ -1183,6 +1183,14 @@ struct test_case {
     X(scene_worldmap_load_without_load_fn_returns_count) \
     X(scene_worldmap_body_slot_starts_null) \
     X(scene_worldmap_mappoint_is_tall_unique) \
+    X(scene_worldmap_init_tutorial_market) \
+    X(scene_worldmap_init_all_normal) \
+    X(scene_worldmap_init_flag_b_only_dest0) \
+    X(scene_worldmap_init_day_closure_dest6) \
+    X(scene_worldmap_init_tod_closes_dest4) \
+    X(scene_worldmap_dest_layout_table) \
+    X(scene_worldmap_grid_table) \
+    X(scene_worldmap_sel_dest_roundtrip) \
     \
     X(xfile_bad_header) \
     X(xfile_empty) \

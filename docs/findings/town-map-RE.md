@@ -269,12 +269,29 @@ tool) as we go.
   `LOADING_START`(+`PAUSE_OPEN`) ~16 frames after the door Z, like retail (anchors match the
   recording's 409→425→435). *(The door tooltip render can be a follow-up; gate the trigger on
   the same `bVar17` door-zone.)*
-- **T2 — world-map load + mode-8 plumbing.** Port `FUN_004735ad` preload (slot-10 textures)
-  + the scene-init `FUN_0049de20` (destination tables + state array + tutorial branch) +
-  hook mode 8 into the port's update + render dispatch. **Extract the .data tables**
-  `DAT_005fd620` (3×5 grid), `DAT_005fd590/594/598` (per-dest x/y/sprite) like the furniture
-  base-template extraction. **Verify:** the port reaches `LOADING_END` in mode 8 (no longer 0
-  frames); `DAT_005fd588=7`, the tutorial state array matches retail (dest 3 = 2, rest 0).
+- **T2 — world-map load + mode-8 plumbing. ✅ LANDED 2026-06-07.** The load path is the
+  **PRIMARY** worker, not the dormant secondary C96 body: the engine's primary jump-table
+  **case 8** (objdump @ `0x452984`) is `FUN_0049de20` (init) → `FUN_004735ad` (texture load),
+  dispatched on `g_scene_state == 8`. So `scene_worldmap_init` now also registers
+  `worker_load_set_cb(8, scene_worldmap_primary_cb)` (init + load); the door-exit (T1) spawns
+  it via `worker_load_spawn()`. Ported `FUN_0049de20` → `scene_worldmap_init_state()` (dest
+  model + tutorial state array + shared-cursor snap); extracted `DAT_005fd590` (per-dest
+  `{x,y,sprite_row}[7]`) + `DAT_005fd620` (3×5 grid) into `scene_worldmap.c`. Added the missing
+  stage-2 call **`FUN_0049de0e(0)`** (objdump @ `0x487084`: `push 0` → initial selected dest =
+  0, the shop) before the worker spawn. Mode 8 wired into the update (sim.c case 8 →
+  `scene_worldmap_sim`, a T4 stub) + render (main.c case 8 → `scene_worldmap_render`, a T3 stub)
+  dispatch. Renamed the misnomer `SCENE_STATE_LOADING`→`SCENE_STATE_WORLDMAP` (=8). **Verified
+  live** (`town-walk-debug --only port`): the port now follows shop → door → fade → mode 8 —
+  anchors `HOUSE_FREEROAM(386) → LOADING_START(613 = HF+227, bit-matching retail's HF+227) →
+  LOADING_END(678)` (was: stopped dead at HOUSE_FREEROAM). 8 host tests prove the state array =
+  `[0,0,0,2,0,0,0]` (dest 3 Market highlighted) for the tutorial gate; count=7; dest→pos
+  identity. **PORT-DEBT:** the event-probe `FUN_0045de68` (no-op, event tables unported) +
+  the stage-scratch tail `FUN_00435c98` + the HOUSE-teardown `FUN_00474d92` (per-scene sprite
+  ownership) are deferred. **Known gap:** the engine fires `PAUSE_OPEN` at the load (the shared
+  cursor raise = red herring), but the port models the engine's single `DAT_0438b150` as TWO
+  globals — `g_cursor_visible` (set by the init's cursor raise) ≠ `g_scene_pause_state_b150`
+  (what the anchor reads) — so the port doesn't emit it. Pre-existing split (the A2 display-menu
+  decouple); not a T2 blocker; the cursor IS raised for T3's render.
 - **T3 — world-map RENDER `FUN_0049e3a3`.** bg time-of-day crossfade → mappoint markers
   (per-state alpha/size + selected) → "Closed" labels. Pixel-verify vs the retail town frames
   (`town-map-load-fixcheck/retail/frames`, 92; `town-rerecord-fix` ~240). Reuses the ported
