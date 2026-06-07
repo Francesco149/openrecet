@@ -35,6 +35,14 @@
   color: var(--warn); font-size: 13px; cursor: help; border-right: 1px solid #0007;
   background: repeating-linear-gradient(45deg, #1a1d22, #1a1d22 3px, #262b33 3px, #262b33 6px); }
 
+/* ── S7: MarkBar marks-list polish ─────────────────────────────────────────── */
+/* the frame-number link was raw browser blue (unreadable on the dark panel) */
+.marks .m a { color: var(--accent); text-decoration: none; }
+.marks .m a:hover { text-decoration: underline; }
+.marks .m { padding: .25rem 0; }
+.crop-thumb { position: relative; overflow: hidden; margin: .25rem 0 .1rem 1.2rem;
+  border: 1px solid var(--edge); border-radius: 3px; background: #0c0d10; }
+
 /* ── S7: JobTray (the one unified job poller's status strip) ────────────────── */
 .jobtray { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
   margin: .4rem 0; font-size: 12px; }

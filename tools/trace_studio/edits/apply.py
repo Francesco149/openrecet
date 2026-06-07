@@ -12,12 +12,10 @@ numbered relative to that segment's anchor, so:
 segment frame `caprange.start`.) state.jsonl is keyed by the viewer index, so a
 mark's retail RNG / db054 is a direct lookup.
 
-Mark kinds:
+Mark kinds (the registry, edits/marks.py):
   phasepin   → insert {"phasepin": F}                       (auto-applied)
   rngpin     → insert {"rngseed": [F, value]}               (auto-applied)
-  anchor     → worklist note: add a g_anchors[] entry near here (code task)
-  feature    → worklist note: implement the missing path in this region
-  note       → worklist note: free text
+  note       → worklist note: free text (anchor / feature reminders go here too)
 """
 from __future__ import annotations
 

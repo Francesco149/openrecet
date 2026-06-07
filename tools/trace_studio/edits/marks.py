@@ -14,12 +14,8 @@ MARK_TYPES = [
      "hint": "insert {phasepin: F} — zero db054 / anim / b154 at this frame"},
     {"kind": "rngpin", "label": "🎲 pin RNG", "applies": True,
      "hint": "insert {rngseed: [F, value]} — re-seed the LCG at this frame"},
-    {"kind": "anchor", "label": "⚓ anchor", "applies": False,
-     "hint": "worklist: add a g_anchors[] entry near here (code task)"},
-    {"kind": "feature", "label": "✦ feature", "applies": False,
-     "hint": "worklist: implement the missing path in this region"},
     {"kind": "note", "label": "✎ note", "applies": False,
-     "hint": "worklist: free text"},
+     "hint": "worklist: free text (anchor/feature reminders — say so in the note)"},
 ]
 
 # kinds apply.py auto-inserts as trace ops vs routes to the worklist.
