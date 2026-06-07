@@ -44,7 +44,7 @@ class CaptureConfig:
     only: str = "both"                   # both | port
     anchors: bool = False                # anchor-segmented distil of a raw recording
     suppress_loads: bool = True          # D1: collapse loads to zero-frame seams
-    capture_local: bool = False          # D2 (exe-side; degrades if unsupported)
+    capture_local: bool = True           # D2: local-disk staging (degrades if unsupported)
 
 
 def run_capture(cfg: CaptureConfig) -> int:
@@ -97,13 +97,14 @@ def run_capture(cfg: CaptureConfig) -> int:
     _log(caps.summary())
     port_suppress = bool(cfg.suppress_loads and caps.supports_suppress_loads)
     retail_suppress = bool(cfg.suppress_loads and caps.retail_supports_suppress_loads)
+    port_capture_local = bool(cfg.capture_local and caps.supports_capture_local)
     if cfg.suppress_loads and not caps.supports_suppress_loads:
         _log("suppress-loads requested but the exe lacks --capture-suppress-loads "
              "(pre-D1 build) — loads will capture frames; seams still reconstruct "
              "from anchors")
     if cfg.capture_local and not caps.supports_capture_local:
-        _log("--capture-local requested but unsupported on the export_trace path "
-             "(D2 exe-side not built) — ignoring; see drive/caps.py (Phase 3)")
+        _log("capture-local requested but no local stage root resolved (non-WSL / no "
+             "cmd.exe) — capturing straight over the 9p mount")
 
     # ── per-side recapture (--only port reuses cached retail) ────────────────
     old_manifest: dict = {}
@@ -127,7 +128,8 @@ def run_capture(cfg: CaptureConfig) -> int:
         (sess_dir / stale).unlink(missing_ok=True)
 
     _log(f"session {sess}  caprange={cr}  call_trace={call_trace}  "
-         f"target={cfg.target}  only={cfg.only}  suppress_loads={port_suppress}")
+         f"target={cfg.target}  only={cfg.only}  suppress_loads={port_suppress}  "
+         f"capture_local={port_capture_local}")
 
     # ── drive port + retail (concurrent, per --only) ─────────────────────────
     result = runner.drive_both(
@@ -135,7 +137,8 @@ def run_capture(cfg: CaptureConfig) -> int:
         port_dir=port_dir, retail_dir=retail_dir, cr=cr, call_trace=call_trace,
         run_port=run_port, run_retail=run_retail,
         port_max_frames=cfg.port_max_frames, retail_max_frames=cfg.retail_max_frames,
-        remote=cfg.remote, port_suppress=port_suppress, retail_suppress=retail_suppress)
+        remote=cfg.remote, port_suppress=port_suppress, retail_suppress=retail_suppress,
+        port_capture_local=port_capture_local)
     if result.get("retail_skipped"):
         want_retail = False
     if result.get("port_rc", 1) != 0:

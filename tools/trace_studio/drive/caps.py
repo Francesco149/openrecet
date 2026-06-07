@@ -9,6 +9,11 @@ and a pre-D1 exe correctly reports unsupported.
 
 Retail-side suppression is a Python capability (frida_capture.run_capture's
 `suppress_loads` param), so it's reported from the function signature, not the exe.
+
+D2 capture-local is NOT an exe flag — it's pure Python staging (point --capture-to
+at a Windows-LOCAL NTFS dir, then frame_io.copyback_convert). So its capability is
+"a local stage root resolves" (a host/env property), probed via
+frame_io.local_stage_root(), not an exe-token search.
 """
 from __future__ import annotations
 
@@ -20,9 +25,9 @@ from pathlib import Path
 @dataclass(frozen=True)
 class EngineCaps:
     exe: Path | None
-    supports_suppress_loads: bool      # D1 port: --capture-suppress-loads
-    supports_capture_local: bool       # D2 port: --capture-local (exe-side)
-    supports_capstride: bool           # D3 port: {capstride} segtrace op
+    supports_suppress_loads: bool      # D1 port: --capture-suppress-loads (exe flag)
+    supports_capture_local: bool       # D2: local stage root resolves (host/env, not exe)
+    supports_capstride: bool           # D3 port: {capstride} segtrace op (exe token)
     retail_supports_suppress_loads: bool
 
     def summary(self) -> str:
@@ -56,13 +61,24 @@ def _retail_supports_suppress() -> bool:
         return False
 
 
+def _local_stage_available() -> bool:
+    """D2 capture-local is a host/env capability: can we derive a Windows-local
+    NTFS staging dir under %LOCALAPPDATA% (reached via /mnt/c)? frame_io caches
+    the cmd.exe probe, so this also warms it for the later export_trace call."""
+    try:
+        import frame_io
+        return frame_io.local_stage_root() is not None
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
 def probe(root: Path) -> EngineCaps:
     exe = _find_exe(root)
     data = exe.read_bytes() if exe else b""
     return EngineCaps(
         exe=exe,
         supports_suppress_loads=_exe_has(data, "--capture-suppress-loads"),
-        supports_capture_local=_exe_has(data, "--capture-local"),
+        supports_capture_local=_local_stage_available(),
         supports_capstride=_exe_has(data, "capstride"),
         retail_supports_suppress_loads=_retail_supports_suppress(),
     )

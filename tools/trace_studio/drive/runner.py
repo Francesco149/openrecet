@@ -19,7 +19,8 @@ def drive_both(*, working_trace: Path, orig_trace: Path, ops: list[dict],
                port_dir: Path, retail_dir: Path, cr: tuple[int, int],
                call_trace: bool, run_port: bool, run_retail: bool,
                port_max_frames: int, retail_max_frames: int, remote: str,
-               port_suppress: bool, retail_suppress: bool) -> dict:
+               port_suppress: bool, retail_suppress: bool,
+               port_capture_local: bool = False) -> dict:
     result: dict = {}
     threads: list[threading.Thread] = []
 
@@ -27,7 +28,8 @@ def drive_both(*, working_trace: Path, orig_trace: Path, ops: list[dict],
         tp = threading.Thread(target=port_drive.capture_port, kwargs=dict(
             trace=working_trace, port_dir=port_dir, cr=cr,
             max_frames=port_max_frames, call_trace=call_trace,
-            suppress_loads=port_suppress, result=result))
+            suppress_loads=port_suppress, capture_local=port_capture_local,
+            result=result))
         tp.start()
         threads.append(tp)
 

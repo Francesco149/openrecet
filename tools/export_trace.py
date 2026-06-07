@@ -49,7 +49,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import distill_trace          # noqa: E402  (sibling tool, reused as a module)
 import trace_save             # noqa: E402  (TAS save virtualization, shared with scenario-test)
-from frame_io import frame_glob   # noqa: E402
+from frame_io import frame_glob, local_stage_root, copyback_convert   # noqa: E402
 
 
 def load_ops(path: Path) -> list[dict]:
@@ -172,6 +172,12 @@ def main(argv=None) -> int:
                          "(loading_active) so the turbo-stretched load span collapses "
                          "to a zero-frame seam. Parity-safe (the engine still runs the "
                          "load; only the readback is suppressed).")
+    ap.add_argument("--capture-local", action="store_true",
+                    help="D2 (Trace Studio): write capture BMPs to a Windows-LOCAL "
+                         "NTFS staging dir (sub-ms/frame) instead of straight over the "
+                         "9p mount (~0.4 s/frame, which also stalls the sim loop), then "
+                         "parallel BMP→PNG copyback into the run dir. Falls back to the "
+                         "direct path if the local root can't be derived.")
     ap.add_argument("--max-frames", type=int, default=4000,
                     help="absolute frame budget (must exceed the window end; "
                          "the window is anchor-relative so allow headroom)")
@@ -260,6 +266,23 @@ def main(argv=None) -> int:
                   "without --save-override (distil from the recording's dir to "
                   "embed it)", file=sys.stderr)
 
+    # D2 (Trace Studio): stage capture BMPs on a Windows-LOCAL NTFS dir (sub-ms/
+    # frame) instead of straight over the 9p mount (~0.4 s/frame, which also stalls
+    # the sim loop), then parallel BMP→PNG copyback into frames_dir. We pass
+    # --no-frame-convert so run-openrecet skips its serial in-place convert (the
+    # copyback below does it in parallel). Falls back to the direct path otherwise.
+    stage_dir = None
+    cap_dir_for_exe = frames_dir
+    if getattr(args, "capture_local", False):
+        _root = local_stage_root()
+        if _root is not None:
+            stage_dir = _root / run_dir.name
+            stage_dir.mkdir(parents=True, exist_ok=True)
+            cap_dir_for_exe = stage_dir
+        else:
+            print("export_trace: --capture-local requested but no local stage root "
+                  "(falling back to the 9p mount)", file=sys.stderr)
+
     # Drive the port. run-openrecet.sh rewrites the unix paths to the Windows
     # paths the exe's fopen needs and auto-converts the BMP frames → PNG.
     cmd = [
@@ -267,9 +290,11 @@ def main(argv=None) -> int:
         "--timeout-ms", str(args.timeout_ms),
         "--hidden", "--turbo", "--silent-audio",
         "--input-segtrace", str(work_path),
-        "--capture-to", str(frames_dir),
+        "--capture-to", str(cap_dir_for_exe),
         "--max-frames", str(args.max_frames),
     ]
+    if stage_dir is not None:
+        cmd.append("--no-frame-convert")           # D2: copyback converts in parallel
     if getattr(args, "capture_suppress_loads", False):
         cmd.append("--capture-suppress-loads")     # D1 load-seam suppression
     # TAS save virtualization: resolve the trace's {savefile} ref exactly like
@@ -315,6 +340,13 @@ def main(argv=None) -> int:
     rc = subprocess.run(cmd, cwd=str(ROOT)).returncode
     if rc != 0:
         print(f"export_trace: WARNING run-openrecet exited {rc}", file=sys.stderr)
+
+    # D2 copyback: bulk-convert the locally-staged BMPs into frames_dir as PNG
+    # (parallel; the /mnt/c read is the bottleneck), then drop the staging dir.
+    if stage_dir is not None:
+        n_back = copyback_convert(stage_dir, frames_dir)
+        print(f"export_trace: capture-local copied back {n_back} frames "
+              f"(local staging → {frames_dir.name})", file=sys.stderr)
 
     # Collect the captured frames (PNG, frame-indexed by ABSOLUTE engine frame).
     frames = frame_glob(frames_dir)

@@ -200,11 +200,18 @@ rewrite_path() {  # $1=kind (dir-out|file-out|file-in)  $2=path  → echoes win 
 # Unix path of --capture-to, remembered so we can compress its BMP frames →
 # lossless PNG after the run (the exe writes BMP; everything downstream is PIL).
 capture_dir_unix=""
+# --no-frame-convert: leave the captured BMPs as-is (don't run frame_io.py).
+# Used by the Trace Studio D2 local-staging path (export_trace --capture-local),
+# which stages capture to a Windows-LOCAL dir and does its OWN parallel BMP→PNG
+# copyback into the run dir afterward — so the serial in-place convert here would
+# be wasted work over /mnt/c. Consumed here, never forwarded to the exe.
+no_frame_convert=0
 norm_unix() { local p="$1"; [[ "$p" = /* ]] || p="$ROOT/$p"; echo "$p"; }
 
 args=()
 while (( $# )); do
     case "$1" in
+        --no-frame-convert) no_frame_convert=1; shift ;;
         --capture-to)
             capture_dir_unix="$(norm_unix "$2")"
             args+=( "$1" "$(rewrite_path dir-out "$2")" ); shift 2 ;;
@@ -236,7 +243,9 @@ cd "$ASSET_CWD"
 # into lossless PNG afterwards (saves ~20× disk; readers handle png-or-bmp).
 if [[ -n "$capture_dir_unix" ]]; then
     "$SUPERVISOR" "$timeout_ms" "$EXE_WIN" "$@"; rc=$?
-    python3 "$ROOT/tools/frame_io.py" "$capture_dir_unix" >/dev/null 2>&1 || true
+    if (( ! no_frame_convert )); then
+        python3 "$ROOT/tools/frame_io.py" "$capture_dir_unix" >/dev/null 2>&1 || true
+    fi
     exit $rc
 fi
 exec "$SUPERVISOR" "$timeout_ms" "$EXE_WIN" "$@"

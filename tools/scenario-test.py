@@ -121,32 +121,9 @@ def sha256(p: Path) -> str:
     return h.hexdigest()
 
 
-_LOCAL_STAGE_ROOT_CACHE: list = []   # [Path|None] memo
-
-
-def local_stage_root() -> Path | None:
-    """D2 (Trace Studio v2): a Windows-LOCAL NTFS dir (under %LOCALAPPDATA%,
-    reached from WSL via /mnt/c) where the exe can write capture BMPs in sub-ms
-    instead of ~0.4 s/frame over the 9p \\\\wsl.localhost mount. Returns the unix
-    /mnt/c path (or None if it can't be derived). Cached. Frames are converted
-    back to the run dir as PNG via frame_io.copyback_convert after the run."""
-    if _LOCAL_STAGE_ROOT_CACHE:
-        return _LOCAL_STAGE_ROOT_CACHE[0]
-    root: Path | None = None
-    try:
-        win = subprocess.run(["cmd.exe", "/c", "echo %LOCALAPPDATA%"],
-                             capture_output=True, text=True, timeout=8,
-                             cwd="/mnt/c").stdout.strip()
-        if win and "%" not in win:
-            unix = subprocess.run(["wslpath", "-u", win], capture_output=True,
-                                  text=True, timeout=8).stdout.strip()
-            cand = Path(unix) / "openrecet" / "cap"
-            cand.mkdir(parents=True, exist_ok=True)
-            root = cand
-    except Exception:
-        root = None
-    _LOCAL_STAGE_ROOT_CACHE.append(root)
-    return root
+# D2 local-disk capture staging lives in frame_io (shared with export_trace's
+# --capture-local, the Trace Studio port drive). Re-exported here for callers.
+local_stage_root = frame_io.local_stage_root
 
 
 # ─── scenario spec ────────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ from pathlib import Path
 
 def capture_port(*, trace: Path, port_dir: Path, cr: tuple[int, int],
                  max_frames: int, call_trace: bool, suppress_loads: bool,
-                 result: dict) -> None:
+                 capture_local: bool, result: dict) -> None:
     import export_trace
     argv = [
         str(trace),
@@ -26,6 +26,8 @@ def capture_port(*, trace: Path, port_dir: Path, cr: tuple[int, int],
         argv.append("--call-trace")
     if suppress_loads:
         argv.append("--capture-suppress-loads")     # D1 load-seam suppression
+    if capture_local:
+        argv.append("--capture-local")              # D2 local-disk fast path
     # export_trace still drops its final_anchor into global.json; the port anchor
     # ticks on the timeline come from anchors.jsonl, retail carries its own.
     result["port_rc"] = export_trace.main(argv)

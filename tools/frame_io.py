@@ -124,6 +124,38 @@ def copyback_convert(src_dir: Path, dest_dir: Path, *,
     return n
 
 
+_LOCAL_STAGE_ROOT_CACHE: list = []   # [Path|None] memo (cmd.exe probe is slow)
+
+
+def local_stage_root() -> "Path | None":
+    """D2 (Trace Studio v2): a Windows-LOCAL NTFS dir (under %LOCALAPPDATA%,
+    reached from WSL via /mnt/c) where the exe can write capture BMPs in sub-ms
+    instead of ~0.4 s/frame over the 9p \\\\wsl.localhost mount. Returns the unix
+    /mnt/c path (or None if it can't be derived — non-WSL, no cmd.exe, etc.).
+    Cached. Pair with copyback_convert(stage_dir, run_frames_dir) after the run.
+
+    Shared by scenario-test (--capture-local) and export_trace (--capture-local,
+    the Trace Studio port drive)."""
+    if _LOCAL_STAGE_ROOT_CACHE:
+        return _LOCAL_STAGE_ROOT_CACHE[0]
+    import subprocess
+    root: "Path | None" = None
+    try:
+        win = subprocess.run(["cmd.exe", "/c", "echo %LOCALAPPDATA%"],
+                             capture_output=True, text=True, timeout=8,
+                             cwd="/mnt/c").stdout.strip()
+        if win and "%" not in win:
+            unix = subprocess.run(["wslpath", "-u", win], capture_output=True,
+                                  text=True, timeout=8).stdout.strip()
+            cand = Path(unix) / "openrecet" / "cap"
+            cand.mkdir(parents=True, exist_ok=True)
+            root = cand
+    except Exception:
+        root = None
+    _LOCAL_STAGE_ROOT_CACHE.append(root)
+    return root
+
+
 def _main(argv: list[str]) -> int:
     if len(argv) < 2:
         print("usage: frame_io.py <dir> [<dir> ...]", file=sys.stderr)
