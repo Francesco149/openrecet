@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import {
   parseSegments, resolveBases, sideLayout, absToX, xToAbs, itemAbs, divergenceReport,
+  refFrame,
 } from "./align.mjs";
 
 const fx = JSON.parse(readFileSync(new URL("./align.fixture.json", import.meta.url)));
@@ -24,5 +25,12 @@ const proj = {
   divergence: rep.map(d => [d.seg, d.anchor, d.portRel, d.retailRel]),
   item_abs: { retail: itemAbs(segs[3].items[0], 3, rb), port: itemAbs(segs[3].items[0], 3, pb) },
   roundtrip: { absToX: absToX(111, sf, 2), xToAbs: xToAbs(60, sf, 2) },
+  // piecewise re-base of retail onto the port axis: each segment base collapses onto the
+  // port's, a within-segment offset is preserved, the reference through itself is identity.
+  ref_frame: {
+    seg_bases: rb.map(b => refFrame(b.base, rb, pb)),
+    within: refFrame(rb[1].base + 9, rb, pb),
+    identity: refFrame(pb[2].base, pb, pb),
+  },
 };
 process.stdout.write(JSON.stringify(proj));

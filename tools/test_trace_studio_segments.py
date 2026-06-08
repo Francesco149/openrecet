@@ -49,6 +49,9 @@ def py_projection(fx: dict) -> dict:
                      "port": S.item_abs(segs[3]["items"][0], 3, pb)},
         "roundtrip": {"absToX": S.abs_to_x(111, sf, 2),
                       "xToAbs": S.x_to_abs(60, sf, 2)},
+        "ref_frame": {"seg_bases": [S.ref_frame(b["base"], rb, pb) for b in rb],
+                      "within": S.ref_frame(rb[1]["base"] + 9, rb, pb),
+                      "identity": S.ref_frame(pb[2]["base"], pb, pb)},
     }
 
 
@@ -82,6 +85,11 @@ def main() -> int:
          f"item_abs wrong: {proj['item_abs']}")
     want(proj["roundtrip"] == {"absToX": 60, "xToAbs": 111},
          f"roundtrip wrong: {proj['roundtrip']}")
+    # piecewise re-base onto the port axis: retail's [0,81,108,111] bases collapse onto
+    # the port's [0,261,2750,2750]; a within-segment +9 is preserved (261+9); identity.
+    want(proj["ref_frame"] == {"seg_bases": [0, 261, 2750, 2750], "within": 270,
+                               "identity": 2750},
+         f"ref_frame projection wrong: {proj['ref_frame']}")
 
     # ── 2) JS twin cross-check (node) ────────────────────────────────────────
     node = shutil.which("node")

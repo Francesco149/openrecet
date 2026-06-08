@@ -4,9 +4,18 @@
 // Layout: a fixed readable LABEL GUTTER + a horizontally-scrolling lane pane (rows
 // height-matched). Per side: emitted ANCHORS + emitted INPUTS (read-only) + the
 // editable TRACE — one row PER BUTTON (held intervals; click to add a press, alt-click
-// to remove) + a row each for phasepin / rngseed / esc. Sync-anchor aligned so a
-// divergent anchor shows as a horizontal gap. Zoom centers on the cursor; a toggle
-// limits the view to the captured window. Clicking read-only rows / anchors scrubs.
+// to remove) + a row each for phasepin / rngseed / esc. Zoom centers on the cursor; a
+// toggle limits the view to the captured window. Clicking read-only rows / anchors scrubs.
+//
+// PIECEWISE ALIGNMENT (the fix for "retail's events appear way off to the right"): both
+// sides are drawn on ONE axis — the port's, the truthful reference. Each side's frames are
+// re-based segment-by-segment onto the port's bases (align.refFrame), so EVERY shared
+// anchor / {wait}-mirrored op coincides and a side's per-segment load-stretch (retail's
+// LOADING_END can be frame 11806 where the port's is 363) collapses onto the port's
+// positions instead of scrolling off-screen. A genuine WITHIN-segment offset still shows as
+// a horizontal gap — only the declared sync boundaries' base shift is absorbed. Because the
+// axis is the port's, the editable rows + click math (hitSeg/startDrag) resolve against the
+// PORT bases regardless of which side's row was clicked.
 //
 // CURSOR BRIDGE (the v2 wiring): the editor x-axis is "frames relative to a chosen SYNC
 // anchor"; the SPA's scrub position is the GLOBAL ordinal `cur`. We DERIVE the editor
@@ -20,7 +29,7 @@
 // THE extend/edit/recapture loop is a primary workflow: tweak inputs/pins, ⇥ extend the
 // captured window, then ⟳ re-capture — all without leaving the editor or re-recording.
 import { html, useMemo, useRef, useState, useEffect } from "/vendor/htm-preact-standalone.mjs";
-import { parseSegments, sideLayout, itemAbs } from "/align.mjs";
+import { parseSegments, sideLayout, itemAbs, refFrame } from "/align.mjs";
 import { toast } from "/web/util.mjs";
 
 // the button bits we draw a row for (src/input.c input_binding_mask)
@@ -51,8 +60,8 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
                              notes, onNotes, pendingBox, setPendingBox,
                              cur, setCur, view, onRecapture }) {
   const [ppf, setPpf] = useState(1.0);
-  const [syncSeg, setSyncSeg] = useState(0);   // default: sync at BOOT so both sides
-  const [winOnly, setWinOnly] = useState(false); // start aligned (no load-stretch gap)
+  const [syncSeg, setSyncSeg] = useState(0);   // origin anchor for the "Nf from sync" readout
+  const [winOnly, setWinOnly] = useState(false); // (layout is piecewise-aligned regardless)
   const [waitName, setWaitName] = useState("LOADING_END");
   const scrollRef = useRef(null);
 
@@ -66,11 +75,15 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     const winRel = (winBase != null && N) ? [winBase - port.syncFrame, winBase - port.syncFrame + N] : null;
     let lo = 0, hi = 0;
     const note = (rel) => { if (rel < lo) lo = rel; if (rel > hi) hi = rel; };
-    for (const f of (anchors.port || [])) note(f.frame - port.syncFrame);
-    for (const f of (anchors.retail || [])) note(f.frame - retail.syncFrame);
+    // EVERYTHING is laid out on the port (truthful reference) axis: a side's frames are
+    // piecewise re-based segment-by-segment onto the port's bases, so retail's load-stretch
+    // (LOADING_END @11806 vs port's 363) collapses instead of blowing the extent out to 11k.
+    const toRef = (abs, side) => refFrame(abs, (side === "port" ? port : retail).bases, port.bases);
+    for (const f of (anchors.port || [])) note(toRef(f.frame, "port") - port.syncFrame);
+    for (const f of (anchors.retail || [])) note(toRef(f.frame, "retail") - port.syncFrame);
     segs.forEach((s, k) => s.items.forEach(it => {
-      note(itemAbs(it, k, port.bases) - port.syncFrame);
-      note(itemAbs(it, k, retail.bases) - retail.syncFrame);
+      note(toRef(itemAbs(it, k, port.bases), "port") - port.syncFrame);
+      note(toRef(itemAbs(it, k, retail.bases), "retail") - port.syncFrame);
     }));
     lo -= 20; hi += 60;
     if (winOnly && winRel) { lo = winRel[0] - 10; hi = winRel[1] + 10; }
@@ -104,9 +117,12 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     if (el) el.scrollLeft = Math.max(0, (cursor - lo) * ppf - el.clientWidth / 2);
   }, []);  // once, on mount
 
-  const sideSync = (side) => (side === "port" ? port : retail).syncFrame;
   const sideLay = (side) => (side === "port" ? port : retail);
-  const sideX = (abs, side) => relX(abs - sideSync(side));
+  // a side's absolute frame → screen x, ON THE PORT AXIS: piecewise re-base onto the port's
+  // segment bases (refFrame), then offset by the port sync origin. Shared anchors + mirrored
+  // ops coincide on both sides; only a genuine within-segment offset shows as a gap. The
+  // editable rows + click math (hitSeg/startDrag) therefore resolve against the PORT bases.
+  const sideX = (abs, side) => relX(refFrame(abs, sideLay(side).bases, port.bases) - port.syncFrame);
 
   // scrub the editor → write the GLOBAL cursor (snap rel to the nearest captured frame)
   const setCursorRel = (rel) => {
@@ -129,18 +145,21 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     return np;
   });
 
-  // ── click x on a side → {seg, frame} ────────────────────────────────────────
-  const hitSeg = (clientX, side) => {
-    const abs = xToRel(clientX) + sideSync(side);
-    const bases = sideLay(side).bases;
+  // ── click x → {seg, frame} on the PORT axis (the shared visual axis; the editable
+  // bars for BOTH sides are drawn at portBase[seg]+frame, so a click resolves the same
+  // segment-relative frame whichever side's row was clicked). ──────────────────────────
+  const hitSeg = (clientX) => {
+    const abs = xToRel(clientX) + port.syncFrame;        // absolute port frame
+    const bases = port.bases;
     let seg = 0; for (let k = 0; k < segs.length; k++) if (((bases[k] || {}).base ?? 0) <= abs) seg = k;
     return { seg, frame: Math.max(0, abs - ((bases[seg] || {}).base || 0)) };
   };
 
   // ── editing: pins/esc drag, + input button add/remove via dense recompress ──
-  const startDrag = (e, item, segIdx, side) => {
+  const startDrag = (e, item, segIdx) => {
     e.stopPropagation(); e.preventDefault();
-    const base = (sideLay(side).bases[segIdx] || {}).base || 0, sync = sideSync(side);
+    // resolve on the PORT axis (where every pin is drawn) → a segment-relative frame.
+    const base = (port.bases[segIdx] || {}).base || 0, sync = port.syncFrame;
     const snap = (editTrace || []).slice();
     const move = (ev) => {
       const r = scrollRef.current.getBoundingClientRect();
@@ -300,9 +319,9 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     if (k > 0) { let wc = 0; for (let i = 0; i < kept.length; i++) { if (kept[i] && "wait" in kept[i]) { wc++; if (wc === k) { at = i + 1; break; } } } }
     kept.splice(at, 0, ...ops); onEdit(kept);
   };
-  const onBtnRow = (e, button, side) => {
+  const onBtnRow = (e, button) => {
     e.stopPropagation();
-    const { seg, frame } = hitSeg(e.clientX, side);
+    const { seg, frame } = hitSeg(e.clientX);
     const ins = segInputs(seg); const maxF = Math.max(frame + PRESS_LEN, ...ins.map(i => i.frame), 0) + 1;
     const arr = denseOf(seg, maxF);
     if (e.altKey && (arr[frame] & button)) {          // remove the held interval around frame
@@ -319,7 +338,7 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
   const anchorChips = (side) => (anchors[side] || []).map((f, i) =>
     html`<div class=${"chip " + anchorCls(f.anchor)} style="left:${sideX(f.frame, side)}px"
       data-full=${`${f.anchor} @${f.frame}`}
-      onClick=${(e) => { e.stopPropagation(); setCursorRel(f.frame - sideSync(side)); }}
+      onClick=${(e) => { e.stopPropagation(); setCursorRel(refFrame(f.frame, sideLay(side).bases, port.bases) - port.syncFrame); }}
       key=${i}>${shortAnchor(f.anchor)}</div>`);
 
   // emitted (read-only) combined input spans
@@ -362,7 +381,7 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
       const glyph = kind === "phasepin" ? "⟲" : kind === "rngseed" ? "🎲" : "⎋";
       out.push(html`<div class=${"pin ed " + cls} style="left:${x}px"
         title=${`${kind} seg${k}+${it.frame}${it.value != null ? "=" + it.value : ""} · drag / alt-click delete`}
-        onPointerDown=${(e) => startDrag(e, it, k, side)}
+        onPointerDown=${(e) => startDrag(e, it, k)}
         onClick=${(e) => { e.stopPropagation(); if (e.altKey) delItem(it); }}
         key=${`${k}${j}`}>${glyph}</div>`);
     }));
@@ -376,7 +395,7 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
       ["inputs", H.inputs, side, html`<div class="tl-row ro" style="height:${H.inputs}px">${emittedSpans(side)}</div>`],
     ];
     for (const [b, name] of btns)
-      rows.push([name, RH, side, html`<div class="tl-row btn" style="height:${RH}px" onClick=${(e) => onBtnRow(e, b, side)} title="click to add a press · alt-click to remove">${btnBars(b, side)}</div>`]);
+      rows.push([name, RH, side, html`<div class="tl-row btn" style="height:${RH}px" onClick=${(e) => onBtnRow(e, b)} title="click to add a press · alt-click to remove">${btnBars(b, side)}</div>`]);
     rows.push(["phasepin", RH, side, html`<div class="tl-row pinrow" style="height:${RH}px">${pinItems("phasepin", side)}</div>`]);
     rows.push(["rngseed", RH, side, html`<div class="tl-row pinrow" style="height:${RH}px">${pinItems("rngseed", side)}</div>`]);
     rows.push(["esc", RH, side, html`<div class="tl-row pinrow" style="height:${RH}px">${pinItems("esc", side)}</div>`]);

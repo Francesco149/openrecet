@@ -2,6 +2,7 @@
 //   nix develop --command node tools/trace_studio_web/align.test.mjs
 import {
   parseSegments, resolveBases, sideLayout, absToX, xToAbs, itemAbs, divergenceReport,
+  refFrame,
 } from "./align.mjs";
 
 let pass = 0, fail = 0;
@@ -67,6 +68,31 @@ eq(itemAbs(pinItem, 3, pb), 2770, "port: phasepin seg3+20 = unresolved-base(curs
 const sf = sideLayout(segs, retail, 1).syncFrame; // = 81
 eq(absToX(111, sf, 2), 60, "absToX: (111-81)*2 = 60");
 eq(xToAbs(60, sf, 2), 111, "xToAbs round-trips");
+
+// ── refFrame: piecewise re-base a side onto the reference (port) axis ─────────
+// Real town-map-load numbers: the port skips retail's load, so retail's LOADING_END
+// lands at frame 11806 where the port's is 363. Piecewise re-basing must collapse
+// retail's seg-2 content onto the port's truthful frames (the editor-alignment bug).
+const tmSegs = parseSegments([
+  { frame: 0, buttons: "0x0000" }, { wait: "NEW_GAME" }, { frame: 0, buttons: "0x0000" },
+  { wait: "LOADING_END" }, { frame: 0, buttons: "0x0000" }, { frame: 50, buttons: "0x0001" },
+]);
+const tmPort = [{ anchor: "BOOT", frame: 0 }, { anchor: "NEW_GAME", frame: 157 }, { anchor: "LOADING_END", frame: 363 }];
+const tmRetail = [{ anchor: "BOOT", frame: 0 }, { anchor: "NEW_GAME", frame: 157 }, { anchor: "LOADING_END", frame: 11806 }];
+const tmPB = resolveBases(tmSegs, tmPort), tmRB = resolveBases(tmSegs, tmRetail);
+eq(tmPB.map(b => b.base), [0, 157, 363], "town-map port bases");
+eq(tmRB.map(b => b.base), [0, 157, 11806], "town-map retail bases (load-stretched)");
+eq(refFrame(11806, tmRB, tmPB), 363, "refFrame: retail LOADING_END 11806 → port 363 (collapsed)");
+eq(refFrame(11856, tmRB, tmPB), 413, "refFrame: retail seg-2 +50 (11856) → port 413");
+eq(refFrame(363, tmPB, tmPB), 363, "refFrame: reference (port) through itself is identity");
+eq(refFrame(157, tmRB, tmPB), 157, "refFrame: shared NEW_GAME base is unchanged");
+eq(refFrame(100, tmRB, tmPB), 100, "refFrame: pre-load seg-0 frame is unchanged");
+
+// A WITHIN-segment divergence must SURVIVE (only the declared {wait} base shift is
+// absorbed): an anchor 24f into the segment on port but 10f in on retail stays a gap.
+ok(refFrame(363 + 24, tmPB, tmPB) !== refFrame(11806 + 10, tmRB, tmPB),
+  "refFrame: a within-segment offset (port +24 vs retail +10) survives as a gap");
+eq(refFrame(11806 + 10, tmRB, tmPB), 373, "refFrame: retail seg-2 +10 → port 373 (not 387)");
 
 console.log(`\nalign.test: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

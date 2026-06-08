@@ -74,6 +74,27 @@ export function itemAbs(item, segIdx, bases) {
   return (b ? b.base : 0) + item.frame;
 }
 
+// ─── piecewise re-base ONE side's absolute frame onto a REFERENCE side's axis ──
+// The editor draws every side on ONE axis (the port = the truthful reference). Within an
+// anchor segment both sides advance at the same rate, but their segment BASES differ — a
+// load the reference skips stretches the other side's frame count (retail's LOADING_END
+// can land at frame 11806 where the port's is 363). Mapping abs → refBase[k] +
+// (abs − sideBase[k]), where k is the segment abs falls in ON THAT SIDE, pins each
+// segment to the reference's base: shared anchors + {wait}-mirrored ops COINCIDE and the
+// per-segment load-stretch collapses onto the reference's truthful positions. A genuine
+// WITHIN-segment offset (an anchor/input at a different segment-relative frame) survives
+// as a gap — only the declared sync boundaries' base shift is absorbed. `sideBases` /
+// `refBases` are resolveBases() outputs; passing the reference's own bases as `sideBases`
+// is the identity (the reference is unmoved).
+export function refFrame(abs, sideBases, refBases) {
+  let k = 0;
+  for (let i = 0; i < sideBases.length; i++)
+    if ((sideBases[i] ? sideBases[i].base : 0) <= abs) k = i;
+  const sb = sideBases[k] ? sideBases[k].base : 0;
+  const rb = refBases[k] ? refBases[k].base : 0;
+  return rb + (abs - sb);
+}
+
 // ─── distinct anchor names present, for the sync-anchor picker ───────────────
 export function anchorNames(...firingLists) {
   const s = new Set();

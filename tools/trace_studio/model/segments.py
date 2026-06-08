@@ -108,6 +108,29 @@ def item_abs(item: dict, seg_idx: int, bases: list[dict]) -> int:
     return (b["base"] if b else 0) + item["frame"]
 
 
+def ref_frame(abs_frame: int, side_bases: list[dict],
+              ref_bases: list[dict]) -> int:
+    """Piecewise re-base ONE side's absolute frame onto a REFERENCE side's axis.
+
+    The editor draws every side on ONE axis (the port = the truthful reference). Within
+    an anchor segment both sides advance at the same rate, but their segment BASES differ
+    — a load the reference skips stretches the other side's frame count (retail's
+    LOADING_END can land at frame 11806 where the port's is 363). Mapping
+    abs → ref_base[k] + (abs − side_base[k]), where k is the segment abs falls in ON THAT
+    SIDE, pins each segment to the reference's base: shared anchors + {wait}-mirrored ops
+    COINCIDE and the per-segment load-stretch collapses onto the reference's truthful
+    positions. A genuine WITHIN-segment offset survives as a gap. Passing the reference's
+    own bases as `side_bases` is the identity. Mirrors align.mjs:refFrame.
+    """
+    k = 0
+    for i in range(len(side_bases)):
+        if (side_bases[i]["base"] if side_bases[i] else 0) <= abs_frame:
+            k = i
+    sb = side_bases[k]["base"] if side_bases[k] else 0
+    rb = ref_bases[k]["base"] if ref_bases[k] else 0
+    return rb + (abs_frame - sb)
+
+
 def anchor_names(*firing_lists: list[dict]) -> list[str]:
     """Distinct anchor names present, for the sync-anchor picker (insertion order)."""
     seen: dict[str, None] = {}
