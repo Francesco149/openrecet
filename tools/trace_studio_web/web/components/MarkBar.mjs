@@ -72,6 +72,7 @@ function CropModal({ sess, label, box, onClose }) {
     return Math.max(0.25, Math.min(2, fitW, fitH));        // 2×, or fit-to-window if too big
   });
   const rootRef = useRef(null);
+  const pan = useRef({ active: false });
   useEffect(() => {
     const el = rootRef.current; if (!el) return;
     const onWheel = (e) => { e.preventDefault(); setScale((s) => Math.max(0.2, Math.min(16, s * (e.deltaY < 0 ? 1.15 : 1 / 1.15)))); };
@@ -81,10 +82,30 @@ function CropModal({ sess, label, box, onClose }) {
     return () => { el.removeEventListener("wheel", onWheel); window.removeEventListener("keydown", onKey); };
   }, [onClose]);
   const w = Math.round(bw * scale);
-  return html`<div class="lightbox" ref=${rootRef} onClick=${(e) => { e.stopPropagation(); onClose(); }}>
+  // left OR middle drag pans (scrolls the overflowing lightbox); a non-dragged left click on
+  // the backdrop closes (the ✕ + Esc always close).
+  const onDown = (e) => {
+    if (e.button !== 0 && e.button !== 1) return;
+    const el = rootRef.current;
+    pan.current = { active: true, btn: e.button, x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop, moved: false };
+    if (e.button === 1) e.preventDefault();
+  };
+  const onMove = (e) => {
+    if (!pan.current.active) return;
+    const el = rootRef.current, dx = e.clientX - pan.current.x, dy = e.clientY - pan.current.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) pan.current.moved = true;
+    el.scrollLeft = pan.current.sl - dx; el.scrollTop = pan.current.st - dy;
+  };
+  const onUp = (e) => {
+    if (!pan.current.active) return;
+    const { btn, moved } = pan.current; pan.current.active = false;
+    if (btn === 0 && !moved && e.target === rootRef.current) onClose();
+  };
+  return html`<div class="lightbox" ref=${rootRef}
+      onPointerDown=${onDown} onPointerMove=${onMove} onPointerUp=${onUp}>
     <button class="lb-close" onClick=${(e) => { e.stopPropagation(); onClose(); }} title="close (Esc)">✕</button>
-    <div class="lb-info">retail | port | white-diff · frame ${label} · ${Math.round(scale * 100)}% <span class="dim">(wheel = zoom)</span></div>
-    <div class="lb-stage" onClick=${(e) => e.stopPropagation()}>
+    <div class="lb-info">retail | port | white-diff · frame ${label} · ${Math.round(scale * 100)}% <span class="dim">(wheel zoom · drag pan)</span></div>
+    <div class="lb-stage">
       <${CropCell} sess=${sess} side="retail" label=${label} box=${box} w=${w} />
       <${CropCell} sess=${sess} side="port" label=${label} box=${box} w=${w} />
       <${DiffCell} sess=${sess} label=${label} box=${box} w=${w} />

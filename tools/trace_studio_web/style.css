@@ -117,9 +117,9 @@ main { padding: .75rem 1rem 3rem; }
 /* crop lightbox: full-screen, wheel-zoom, ✕/Esc/backdrop to close. */
 .lightbox { position: fixed; inset: 0; z-index: 200; background: #000000dc;
   display: flex; align-items: safe center; justify-content: safe center; overflow: auto;
-  cursor: zoom-out; }
-.lb-stage { display: inline-flex; gap: 8px; align-items: flex-start; padding: 24px;
-  cursor: default; }
+  cursor: grab; touch-action: none; }
+.lightbox:active { cursor: grabbing; }
+.lb-stage { display: inline-flex; gap: 8px; align-items: flex-start; padding: 24px; }
 .lb-stage .crop-cell { border-width: 2px; }
 .lightbox .crop-cell img, .lightbox .crop-cell canvas { image-rendering: pixelated; }
 .lightbox .crop-lbl { font-size: 12px; line-height: 16px; padding: 1px 5px; }
