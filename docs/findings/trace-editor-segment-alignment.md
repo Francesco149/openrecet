@@ -1,155 +1,94 @@
-# Trace-editor segment alignment (the band model)
+# Trace-editor alignment — the captured-frame-index model
 
 How the Trace Studio editor (`tools/trace_studio_web/web/components/TraceEditor.mjs`) lays
-port + retail out on one axis so a trace can be inspected and edited frame-by-frame. The
-pure core is `tools/trace_studio_web/align.mjs` (JS, used by the browser) mirrored by
-`tools/trace_studio/model/segments.py` (Python source-of-truth), pinned together by the
-golden cross-check `tools/test_trace_studio_segments.py`. This doc is the **semantics**;
-the tests are the executable spec.
+port + retail out on one timeline. The pure core is `tools/trace_studio_web/align.mjs` (JS,
+the browser) mirrored by `tools/trace_studio/model/segments.py` (Python source-of-truth),
+pinned together by the golden cross-check `tools/test_trace_studio_segments.py`. This doc is
+the **semantics**; the tests are the executable spec.
 
-## The problem it solves
+## The principle: the capture is already 1:1 — don't reconstruct alignment, use it
 
-A trace is **anchor-segmented**: ops before the first `{wait}` are segment 0; each
-`{wait ANCHOR}` opens a new segment whose **base** is the absolute frame that anchor
-resolves to *on a given side* (the first firing strictly after the previous segment's
-base — mirroring the replay resolver). A trace op's frame is segment-relative.
+The harness drives both sides with the **same** input trace under turbo + a pinned RNG seed +
+a pinned phase, so the capture runs **1:1**: the n-th captured frame on the port is the same
+logical moment as the n-th captured frame on retail. So the timeline x-axis is simply the
+**dense captured-frame index** — one tick per real frame of the trace running on that side.
+Place each side's anchors + inputs at their captured index and a 1:1 capture aligns with
+**zero forcing logic**; where the traces diverge (different per-side frame counts) the two
+rows just drift apart — that *is* the divergence, and you iterate edits until they reconverge.
 
-Under turbo both sides tick deterministically, but a **load the port skips runs for
-thousands of ticks on retail** (it plays the intro / map-load video the port fast-forwards):
-on `town-map-load-rerecord` the first `LOADING_END` lands at frame **389** on the port and
-**14548** on retail. So a side's per-segment *base* can differ by ~14k frames even though
-the content inside each segment ticks in lockstep.
+(This replaced two failed approaches that tried to *reconstruct* alignment from the trace's
+`{wait}` segments + anchor offsets — a single-sync-anchor model and a sequential-band model.
+Both broke on real traces because segment-relative positions diverge across a load, and a
+mid-capture divergence put corresponding 1:1 frames at different x. The captured index has
+none of that complexity: the alignment is inherent in the capture.)
 
-Two earlier models both failed:
+## Loads (the one subtlety) — suppressed, so the index re-syncs at every boundary
 
-1. **Single global sync anchor** (subtract one anchor's frame from both sides): only that
-   one boundary lines up; everything past the load is thrown ~14k px to the right.
-2. **Piecewise re-base onto the port's absolute frames** (`refFrame`, since removed): aligns
-   shared anchors *when every segment resolves monotonically*, but a side with an
-   **incomplete anchor stream** (retail crashed / never reached the 2nd load) has several
-   segments **fall back to the same base** — they *stack*. "Last base ≤ frame" then assigns a
-   firing to the **highest** stacked segment, drawing retail's capture-window content onto a
-   later band (the observed overlay). It also overlaps a segment whose recorded inputs run
-   *past* the next segment's base.
+Loads are captured with **zero frames** (the load-screen-suppression optimisation: the engine
+runs the load but no frames are recorded). So crossing a load advances the captured index by
+0 on **both** sides — the index re-syncs at every load boundary **regardless of how stretched
+the load is** (turbo retail's load can run 14k ticks where the port's runs 200; both record 0
+captured frames). The requirement is only that both sides capture the **same** frames at the
+boundary, which holds in a 1:1 region. No load-matching logic is needed; the suppression does
+it.
 
-## The model: sequential, non-overlapping bands
+In the captured PNGs a suppressed load shows as a **gap in the frame numbers** (e.g. frame 161
+is missing — it was the load tick), so scrubbing the video "skips" across it. The editor draws
+a faint `tl-loadmark` tick at each load boundary so that jump is legible.
 
-Lay the segments out as **bands** on one shared axis. Band `k` occupies
-`[X[k], X[k] + W[k])`; an entity in segment `k` at segment-relative frame `f` draws at
-`X[k] + f` — **the same on both sides**. This is the one invariant everything else follows:
+## The map: absolute engine frame ↔ dense captured index
 
-- **Shared anchors + `{wait}`-mirrored ops coincide** — both sides put segment-`k` content at
-  `X[k] + f`.
-- **A per-segment load-stretch collapses** to the fixed inter-band `gap` (retail's 14k-frame
-  base is never used as a screen coordinate; only its *segment-relative* offsets are).
-- **A genuine within-segment offset stays a gap** — an anchor that fires at `f=5` on one side
-  and `f=40` on the other lands 35 frames apart inside the band.
-- **Segments never overlap** — each gets its own band whether or not its wait resolved on a
-  side, so a divergent/incomplete trace is fully inspectable and editable, never "frozen"
-  onto one frame.
-
-### Band origins and widths
+Per side, from the manifest `base_abs` (the absolute engine frame of captured frame 0) and the
+`LOADING_START→LOADING_END` pairs (`loadSpans`):
 
 ```
-X[0] = 0
-X[k] = X[k-1] + W[k-1] + gap
-W[k] = max(minBand, pad + max segment-relative frame any content reaches in band k,
-                         taken across BOTH sides)
+capIndexOfAbs(abs, baseAbs, loads) = (abs − baseAbs) − (suppressed load frames strictly before abs)
+absOfCapIndex(g,  baseAbs, loads)  = walk g captured frames from baseAbs, skipping each load
 ```
 
-Content that sizes a band: editable items (inputs/pins), emitted (read-only) inputs, notes,
-the **placed anchor chips** (per side — see placement), and, for the captured segment, the
-capture-window end `capStart + capCount`. Defaults: `gap = 16`, `minBand = 8`, `pad = 4`
-(layout-frames). A band is at least `minBand` wide so an empty segment stays clickable.
+Only loads **at/after `baseAbs`** count (a load before the window produced no captured frames
+in it). A frame before `baseAbs` maps to a negative index (off the left of the captured axis).
 
-Widths take the **max across both sides** so each side's content fits. For a well-formed
-trace the within-segment offsets match across sides, so the band is naturally sized; for a
-degenerate trace it is merely wider, never wrong.
+- **Anchors** (per side): a firing at absolute frame `F` → `capIndexOfAbs(F)`. Shown if it
+  lands within the captured axis; pre-window firings (BOOT, the load that produced `base_abs`)
+  fall left of 0.
+- **Inputs / pins** (the trace): an op at `(segment, frame)` → absolute `segBase[seg] + frame`
+  (segment bases from `resolveBases` on that side's anchors) → `capIndexOfAbs`. Drawn per side,
+  so the same shared trace op lands at the same index in a 1:1 region and drifts on divergence.
+- **Cursor**: at the global scrub ordinal `cur` (already the dense captured index). A
+  scrub-click sets `cur` to the clicked index.
+- **Editing**: a click index `g` → `absOfCapIndex(g)` on the edit-reference side → the segment
+  it falls in → segment-relative frame → the trace op. (The edit side is the one with a
+  non-null `base_abs`, port preferred.)
 
-## Anchor placement (the subtle part)
+Worked example — `merchants-guild` (port enters the guild and **diverges to cyan**, so its
+anchor stream stops at the guild load; retail plays the dialogue):
 
-Each recorded firing must display in **the band of the segment it belongs to**, found by
-**walking the resolved bases**, *not* by "last base ≤ frame" (which mis-assigns when
-unresolved bases stack). `resolveSide(segments, firings)` returns:
+| event | port `g` | retail `g` | |
+|---|---|---|---|
+| guild `LOADING_END` (= each side's `base_abs`) | 0 | 0 | aligned ✓ |
+| next load (`LOADING_START`/`PAUSE_CLOSE`/`LOADING_END`) | 161 | 161 | aligned ✓ (1:1) |
+| dialogue (`TEXT_ANIM…`, frames 162–933) | — | 162… | one-sided (the divergence) |
 
-- `bases[k] = {base, ok}` — identical to `resolveBases` (mirrors the replay resolver: the
-  first firing of segment `k`'s wait-anchor strictly after the previous base; unresolved ⇒
-  `ok:false`, `base` = the unchanged cursor).
-- `placements[i] = {seg, rel}` for each firing `i`:
-  - a firing that **resolves** segment `k`'s wait sits at `{k, 0}`;
-  - any other firing sits in the **latest segment whose resolved base ≤ its frame**, at
-    `rel = frame − base[seg]`. Only *resolved* bases are candidates, so a firing is never
-    assigned to a stacked/unresolved later segment.
-
-Worked example — divergent `town-map-load` (retail never reached the 2nd load, so retail
-segs 2/3/4 all fall back to base 11806):
-
-| firing (retail)      | old "last base ≤ frame" | band model (`resolveSide`) |
-|----------------------|-------------------------|----------------------------|
-| `LOADING_END @11806` | seg 4 (wrong band)      | **seg 2** (the resolver)   |
-| `HOUSE_FREEROAM @11806` | seg 4 (wrong band)   | **seg 2** (within seg 2)   |
-
-Retail segs 3/4 then carry **no anchor chips** (retail never fired them) — the divergence is
-shown honestly as empty retail lanes, while the editable inputs for those future segments
-still sit in their own bands aligned with the port's.
-
-Well-formed `town-map-load-rerecord`: both sides place every anchor in the **same** band at
-the **same** rel (BOOT→0, NEW_GAME→1, LOADING_START→1, LOADING_END→2, HOUSE_FREEROAM→2,
-LOADING_START→3, PAUSE_OPEN→3, LOADING_END→5), so the ~14k-frame load-stretch collapses and
-the two sides align band-for-band. Note `{wait PAUSE_OPEN}` (seg 4) is **unresolved on both
-sides** because PAUSE_OPEN fires the same frame as LOADING_START (not *strictly* after) — its
-band is empty of anchors, which is faithful to the resolver; its inputs still get a band.
-
-## Cursor + capture window (positioned by the ACTUAL captured frames)
-
-The captured window is **NOT** drawn at the `{caprange}` op's trace position. `caprange
-[start, count]` counts forward through the replay *including loads*, so the captured frames
-can land many segments after the op: in `merchants-guild` the op is in seg 2 (the freeroam
-where you walk to the door), but `base_abs` shows the first captured frame is the guild's
-`LOADING_END` — which the same-frame-PAUSE_OPEN quirk swallows into seg 3 — and the 940
-frames span through to seg 41 (the dialogue). Drawing the window at the op's segment (sized
-`start+count`) gave one huge **empty** band with the real content in the bands after it.
-
-Instead the window is an **absolute frame span** on a chosen reference side:
-`[base_abs, base_abs + (n−1)·cadence]` (manifest `port`/`retail` `base_abs` + the captured
-frame count). `editorLayout` maps it across every band it covers (`absToBand` on the
-reference side's resolved bases), widens each covered band to fit its slice, and returns the
-window's band endpoints `{startSeg, startRel, endSeg, endRel}` — so the green band spans
-exactly the captured content.
-
-**Reference side** = the side with non-null `base_abs` whose anchor stream resolves the most
-segments. A side that **diverges mid-capture** (the port renders cyan on entering the guild,
-so it never fires the dialogue anchors and its stream stops at the guild load) records far
-fewer anchors, so its bases can't map the captured tail — the other side (retail, complete)
-is used. For a side whose capture failed entirely (`base_abs: null`), the other side is used;
-if both are null there is no window.
-
-**Cursor.** The SPA's global ordinal `cur` → local ordinal `k` (via `view.locate`); the
-cursor sits at `absToBand(base_abs + k·cadence)` on the reference side. A scrub-click picks
-the captured ordinal whose band position is closest to the click (a direct scan — robust
-across loads, unresolved bands, and divergence, with no special-casing). The `{caprange}`
-len/pos controls still edit the op (a `✎ pending` flag shows until the next ⟳ re-capture
-realises the new span; the precise new span can't be previewed without re-running).
+The 1:1 region (frames 0–161: guild entry + world-map menuing) aligns automatically; at frame
+~162 the port diverges and retail's dialogue is shown alone — no forcing, no overlay.
 
 ## Independence from capture health
 
-The editor lanes are built **only** from the anchor files (`anchors.{port,retail}.jsonl`) +
-the trace + notes — never from captured frames or `base_abs`. A side whose capture failed
-(no video, `base_abs: null`) still aligns and edits correctly; only its video pane is empty.
-The retail-capture truncation (Frida `connection-terminated` after a long load) is a separate
-capture-harness issue, tracked apart from alignment.
+The editor maps from `base_abs` + the anchor/trace files — never from band reconstruction. A
+side whose capture failed (`base_abs: null`) simply has no captured axis (its lanes are empty);
+the other side still works. The `{caprange}` len/pos controls still edit the capture **size**
+(a `✎ pending` flag until the next ⟳ re-capture realises it).
 
 ## API (pure, golden-tested)
 
 `align.mjs` / `segments.py` (mirrored):
 - `parseSegments(ops)` → `[{waitAnchor, items:[{kind,frame,...}]}]`
-- `resolveBases(segments, firings)` → `[{base, ok, anchor}]`
-- `resolveSide(segments, firings)` → `{bases, placements:[{seg,rel}]}`
-- `absToBand(abs, bases)` → `{seg, rel}` (an absolute frame → its band, resolved bases only)
-- `editorLayout(segments, portFirings, retailFirings, {emitted, notes, windowSide, windowStartAbs, windowEndAbs, gap, minBand, pad})`
-  → `{port, retail, X, W, ext, gap, window}` — the whole layout in one pure call; `window` is
-  `{startSeg, startRel, endSeg, endRel}` or `null`
-- `bandAt(X, pos)` → `{seg, rel}` (screen → segment inverse)
+- `resolveBases(segments, firings)` → `[{base, ok, anchor}]` (segment bases on a side)
+- `loadSpans(firings)` → `[{start, end}]` (completed LOADING pairs; dangling START dropped)
+- `capIndexOfAbs(abs, baseAbs, loads)` → dense captured-frame index
+- `absOfCapIndex(g, baseAbs, loads)` → absolute engine frame (the inverse)
+- `itemAbs(item, segIdx, bases)` → a trace op's absolute frame on a side
 
-`absToX`/`xToAbs`/`itemAbs`/`divergenceReport` remain for the legacy single-anchor math +
-the divergence report; the editor itself runs entirely on the band model above.
+`sideLayout`/`absToX`/`xToAbs`/`divergenceReport` remain as the legacy single-sync helpers
+behind the textual divergence report + the golden cross-check.

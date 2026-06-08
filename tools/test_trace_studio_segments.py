@@ -37,10 +37,7 @@ def py_projection(fx: dict) -> dict:
     pb = S.resolve_bases(segs, fx["port"])
     rep = S.divergence_report(segs, fx["port"], fx["retail"], fx["sync_seg"])
     sf = S.side_layout(segs, fx["retail"], fx["sync_seg"])["sync_frame"]
-    rs_r = S.resolve_side(segs, fx["retail"])
-    rs_p = S.resolve_side(segs, fx["port"])
-    elay = S.editor_layout(segs, fx["port"], fx["retail"],
-                           window_side="retail", window_start_abs=85, window_end_abs=140)
+    syn = [{"start": 150, "end": 170}]                      # a synthetic 20-frame load
     return {
         "segments": [{"wait": s["wait_anchor"],
                       "items": [[i["kind"], i["frame"]] for i in s["items"]]}
@@ -53,18 +50,13 @@ def py_projection(fx: dict) -> dict:
                      "port": S.item_abs(segs[3]["items"][0], 3, pb)},
         "roundtrip": {"absToX": S.abs_to_x(111, sf, 2),
                       "xToAbs": S.x_to_abs(60, sf, 2)},
-        "resolve_side": {
-            "retail": {"bases": [[b["base"], b["ok"]] for b in rs_r["bases"]],
-                       "placements": [[p["seg"], p["rel"]] for p in rs_r["placements"]]},
-            "port": {"bases": [[b["base"], b["ok"]] for b in rs_p["bases"]],
-                     "placements": [[p["seg"], p["rel"]] for p in rs_p["placements"]]},
+        "cap_index": {
+            "load_spans_retail": [[s["start"], s["end"]] for s in S.load_spans(fx["retail"])],
+            "ci": [S.cap_index_of_abs(120, 100, []), S.cap_index_of_abs(200, 100, syn),
+                   S.cap_index_of_abs(160, 100, syn)],
+            "abs": [S.abs_of_cap_index(20, 100, []), S.abs_of_cap_index(60, 100, syn),
+                    S.abs_of_cap_index(50, 100, syn)],
         },
-        "editor_layout": {"X": elay["X"], "W": elay["W"], "ext": elay["ext"],
-                          "window": elay["window"]},
-        "band_at": [[pos, S.band_at(elay["X"], pos)["seg"], S.band_at(elay["X"], pos)["rel"]]
-                    for pos in (35, 2515, 3000, -3)],
-        "abs_to_band": [[a, S.abs_to_band(a, rs_r["bases"])["seg"],
-                         S.abs_to_band(a, rs_r["bases"])["rel"]] for a in (85, 140, 200)],
     }
 
 
@@ -98,28 +90,12 @@ def main() -> int:
          f"item_abs wrong: {proj['item_abs']}")
     want(proj["roundtrip"] == {"absToX": 60, "xToAbs": 111},
          f"roundtrip wrong: {proj['roundtrip']}")
-    # band model: retail places every anchor on a band edge [0,1,2,3,3]; the port fired
-    # LOADING_END@2726 BEFORE CONV_POSE_START@2750, so its chips land WITHIN seg 1 far to the
-    # right (rel 2465) — the divergence shown as a wide band, not frozen onto one frame.
-    want(proj["resolve_side"]["retail"]["placements"] == [[0, 0], [1, 0], [2, 0], [3, 0], [3, 0]],
-         f"retail placements wrong: {proj['resolve_side']['retail']['placements']}")
-    want(proj["resolve_side"]["port"]["placements"] == [[0, 0], [1, 0], [1, 2465], [1, 2465], [2, 0]],
-         f"port placements wrong: {proj['resolve_side']['port']['placements']}")
-    # bands never overlap: X[k] ≥ X[k-1]+W[k-1]; the captured window (abs 85→140 on retail)
-    # spans seg1→seg3 and widens seg3 from its content (20) to cover its slice (29 → ext 30).
-    xs, ws = proj["editor_layout"]["X"], proj["editor_layout"]["W"]
-    want(all(xs[k] >= xs[k - 1] + ws[k - 1] for k in range(1, len(xs))),
-         f"bands overlap: X={xs} W={ws}")
-    want(proj["editor_layout"] == {
-        "X": [0, 30, 2515, 2540], "W": [14, 2469, 9, 34], "ext": [10, 2465, 5, 30],
-        "window": {"startSeg": 1, "startRel": 4, "endSeg": 3, "endRel": 29}},
-         f"editor_layout wrong: {proj['editor_layout']}")
-    want(proj["band_at"] == [[35, 1, 5], [2515, 2, 0], [3000, 3, 460], [-3, 0, -3]],
-         f"band_at wrong: {proj['band_at']}")
-    # abs_to_band: 85→seg1+4, 140→seg3+29; 200 is past the last base (111) so it stays in
-    # seg3 (skips nothing here — all resolved) at rel 89.
-    want(proj["abs_to_band"] == [[85, 1, 4], [140, 3, 29], [200, 3, 89]],
-         f"abs_to_band wrong: {proj['abs_to_band']}")
+    # captured-index model: the fixture retail has no LOADING_START, so no completed loads.
+    # capIndexOfAbs(120,100,[])=20; with a 20-frame load at 150→170, abs 200 → 80 (−20), and
+    # abs 160 (mid-load) → 50 (−10). absOfCapIndex inverts: 20→120; 60→180 (skips the load).
+    want(proj["cap_index"] == {"load_spans_retail": [], "ci": [20, 80, 50],
+                               "abs": [120, 180, 170]},
+         f"cap_index wrong: {proj['cap_index']}")
 
     # ── 2) JS twin cross-check (node) ────────────────────────────────────────
     node = shutil.which("node")

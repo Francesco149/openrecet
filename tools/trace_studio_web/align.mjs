@@ -6,9 +6,19 @@
 // RESOLVES to on a given side (next firing strictly after the previous segment's base —
 // mirroring the replay resolver). A trace op's frame is relative to its segment base.
 //
-// The timeline x-axis is "frames relative to a chosen SYNC anchor": both sides count
-// from the sync anchor's firing, so shared anchors + mirrored ops line up and a divergent
-// anchor (fired at a different offset, or not at all) shows as a horizontal gap.
+// THE TIMELINE MODEL (the workhorse) is the CAPTURED-FRAME INDEX: the editor x-axis is the
+// dense captured-frame ordinal (the MP4 / scrub position), per side. Because the capture is
+// phase-synced + RNG-pinned and runs 1:1 on both sides, the n-th captured frame is the SAME
+// logical moment on each side — so placing each side's anchors + inputs at their captured
+// index makes a 1:1 capture align with NO forcing; where the traces diverge (different frame
+// counts) the two sides simply drift apart. Loads are suppressed (0 captured frames) so the
+// index re-syncs across every load boundary regardless of how stretched the load is. The
+// abs↔index map is `capIndexOfAbs` / `absOfCapIndex` (below); segment bases (`resolveBases`)
+// map a trace op's (segment, frame) to an absolute frame. See
+// docs/findings/trace-editor-segment-alignment.md.
+//
+// (sideLayout/absToX/xToAbs/divergenceReport are the older single-sync-anchor helpers, kept
+// for the divergence report + the golden cross-check.)
 
 // ─── parse a trace (array of op objects, in file order) into segments ─────────
 // Returns [{ waitAnchor: string|null, items: [{kind, frame, idx, op}] }].
@@ -50,9 +60,7 @@ export function resolveBases(segments, firings) {
   return out;
 }
 
-// ─── per-side layout for a chosen sync anchor ────────────────────────────────
-// syncSeg = the segment index to anchor the view on (default: last segment). The sync
-// frame for a side = that segment's resolved base. Returns { bases, syncFrame }.
+// ─── per-side layout for a chosen sync anchor (legacy single-sync helper) ─────
 export function sideLayout(segments, firings, syncSeg) {
   const bases = resolveBases(segments, firings);
   const k = (syncSeg == null) ? bases.length - 1 : syncSeg;
@@ -74,117 +82,53 @@ export function itemAbs(item, segIdx, bases) {
   return (b ? b.base : 0) + item.frame;
 }
 
-// ─── resolve ONE side: segment bases AND a display PLACEMENT for every firing ──
-// resolveBases gives each segment's base; this ALSO returns, per firing, the (seg, rel) its
-// chip should DISPLAY at — the segment it BELONGS to, found by walking the RESOLVED bases,
-// NOT by "last base ≤ frame" (which mis-assigns a firing to the highest of several
-// segments that fall back to the SAME base when a side's anchor stream is incomplete). A
-// firing that resolves segment k's wait sits at {seg:k, rel:0}; any other firing sits in the
-// latest segment whose RESOLVED base ≤ its frame, at rel = frame − that base. So a divergent
-// trace still places every chip in a sensible band instead of piling them onto one frame.
-// The single walk produces bases identical to resolveBases (asserted in the tests).
-export function resolveSide(segments, firings) {
-  const bases = [];
-  const resolverSeg = new Map();        // firing index → the segment it resolved
-  let cursor = 0;
-  for (let k = 0; k < segments.length; k++) {
-    if (k === 0) { bases.push({ base: 0, ok: true, anchor: null }); continue; }
-    const name = segments[k].waitAnchor;
-    const i = firings.findIndex(f => f.anchor === name && f.frame > cursor);
-    if (i >= 0) {
-      bases.push({ base: firings[i].frame, ok: true, anchor: name });
-      cursor = firings[i].frame;
-      resolverSeg.set(i, k);
-    } else {
-      bases.push({ base: cursor, ok: false, anchor: name });
-    }
+// ─── load spans: LOADING_START→LOADING_END pairs (absolute frames) ────────────
+// One side's firings → [{start, end}] for each completed load. A load captures ZERO frames
+// (suppressed), so its [start,end) is subtracted when mapping abs→captured-index. A dangling
+// LOADING_START (no END) is dropped (no completed span).
+export function loadSpans(firings) {
+  const spans = [];
+  let start = null;
+  for (const f of firings) {
+    if (f.anchor === "LOADING_START") start = f.frame;
+    else if (f.anchor === "LOADING_END" && start != null) { spans.push({ start, end: f.frame }); start = null; }
   }
-  // resolved bases in segment order (monotonic) — the candidates for non-resolver firings.
-  const resolved = [];
-  for (let k = 0; k < bases.length; k++) if (bases[k].ok) resolved.push({ seg: k, base: bases[k].base });
-  const placements = firings.map((f, i) => {
-    if (resolverSeg.has(i)) return { seg: resolverSeg.get(i), rel: 0 };
-    let seg = 0;
-    for (const r of resolved) if (r.base <= f.frame) seg = r.seg;
-    return { seg, rel: f.frame - bases[seg].base };
-  });
-  return { bases, placements };
+  return spans;
 }
 
-// ─── absolute frame → the BAND it falls in, on one side ───────────────────────
-// The captured window + cursor are positioned by an ABSOLUTE frame (manifest base_abs +
-// ordinal), which must be mapped to a (segment, segment-relative) on the band axis. Use the
-// largest RESOLVED base ≤ abs (an unresolved segment has no real base, so it is skipped —
-// the frame belongs to the last segment that actually fired). `bases` is a resolveSide /
-// resolveBases output.
-export function absToBand(abs, bases) {
-  let seg = 0;
-  for (let k = 0; k < bases.length; k++) if (bases[k] && bases[k].ok && bases[k].base <= abs) seg = k;
-  return { seg, rel: abs - (bases[seg] ? bases[seg].base : 0) };
-}
-
-// ─── THE alignment system: lay segments out as sequential, NON-OVERLAPPING bands ──
-// Band k occupies [X[k], X[k]+W[k]); an entity in segment k at seg-relative frame f draws at
-// X[k]+f on BOTH sides ⇒ shared anchors + {wait}-mirrored ops coincide, a per-segment
-// load-stretch collapses to the fixed inter-band `gap` (a side's huge base is NEVER a screen
-// coord — only its seg-relative offsets are), a within-segment offset stays a gap, and every
-// segment gets its own band whether or not its wait resolved on a side (so a divergent /
-// incomplete trace is inspectable, never frozen onto one frame). Width fits the widest
-// content in the band across BOTH sides.
-//
-// The CAPTURED WINDOW is given as an ABSOLUTE frame span on `windowSide` (manifest base_abs
-// … base_abs+(n−1)·cadence) — NOT by the {caprange} op's trace position, because caprange
-// counts forward THROUGH loads, so the captured frames can live many segments after the op
-// (entering a building: the op is in the freeroam segment, the frames are in the interior +
-// dialogue segments). The window is mapped across the bands it actually covers (each covered
-// band is widened to fit its slice) and its band endpoints returned, so the editor draws the
-// green band exactly over the captured content. All inputs explicit + side-effect-free
-// (golden-tested). See docs/findings/trace-editor-segment-alignment.md.
-export function editorLayout(segments, portFirings, retailFirings, opts = {}) {
-  const { emitted = [], notes = [], gap = 16, minBand = 8, pad = 4,
-          windowSide = null, windowStartAbs = null, windowEndAbs = null } = opts;
-  const port = resolveSide(segments, portFirings);
-  const retail = resolveSide(segments, retailFirings);
-  const n = segments.length;
-  const ext = new Array(n).fill(0);
-  const bump = (seg, rel) => { if (seg >= 0 && seg < n && rel > ext[seg]) ext[seg] = rel; };
-  segments.forEach((s, k) => s.items.forEach(it => bump(k, it.frame)));
-  emitted.forEach(e => bump(e.seg, e.frame));
-  notes.forEach(nt => bump(nt.seg, nt.frame));
-  port.placements.forEach(p => bump(p.seg, p.rel));
-  retail.placements.forEach(p => bump(p.seg, p.rel));
-
-  // captured-window coverage: the window crosses segment bands; widen each covered band to
-  // fit its slice + record the window's band endpoints (so the editor's green band spans
-  // exactly the covered bands instead of one inflated, empty band).
-  let window = null;
-  if (windowSide && windowStartAbs != null && windowEndAbs != null) {
-    const wb = (windowSide === "port" ? port : retail).bases;
-    const resolved = [];
-    for (let k = 0; k < wb.length; k++) if (wb[k].ok) resolved.push({ seg: k, base: wb[k].base });
-    for (let i = 0; i < resolved.length; i++) {
-      const b = resolved[i].base;
-      const nb = (i + 1 < resolved.length) ? resolved[i + 1].base : Infinity;
-      const lo = Math.max(windowStartAbs, b), hi = Math.min(windowEndAbs, nb - 1);
-      if (hi >= lo) bump(resolved[i].seg, hi - b + 1);     // band fits the covered slice
-    }
-    const s = absToBand(windowStartAbs, wb), e = absToBand(windowEndAbs, wb);
-    window = { startSeg: s.seg, startRel: s.rel, endSeg: e.seg, endRel: e.rel };
+// ─── absolute engine frame → DENSE captured-frame index (THE timeline axis) ───
+// The capture began at `baseAbs`; each load in `loads` is suppressed (0 captured frames) so
+// its frames are subtracted. capIndex = (abs − baseAbs) − (suppressed load frames strictly
+// before abs). Frames before baseAbs come out negative (off the captured axis). THE alignment
+// property: in a 1:1 region both sides' corresponding frames get the SAME index (identical
+// gameplay ⇒ identical per-side counts, and suppressed loads re-sync the index at every load
+// boundary regardless of load stretch) ⇒ they align with no forcing; on divergence they
+// drift. Only loads at/after baseAbs count (a load BEFORE the window produced no captured
+// frames in it).
+export function capIndexOfAbs(abs, baseAbs, loads) {
+  let suppressed = 0;
+  for (const ld of loads) {
+    if (ld.start < baseAbs) continue;
+    if (abs >= ld.end) suppressed += ld.end - ld.start;
+    else if (abs > ld.start) suppressed += abs - ld.start;
   }
-
-  const W = ext.map(e => Math.max(minBand, e + pad));
-  const X = [];
-  let x = 0;
-  for (let k = 0; k < n; k++) { X.push(x); x += W[k] + gap; }
-  return { port, retail, X, W, ext, gap, window };
+  return abs - baseAbs - suppressed;
 }
 
-// layout position → {seg, rel}: the band whose origin is the largest ≤ pos (screen→segment
-// inverse, for click-to-edit / click-to-scrub). Positions left of band 0 clamp to seg 0.
-export function bandAt(X, pos) {
-  let seg = 0;
-  for (let k = 0; k < X.length; k++) if (X[k] <= pos) seg = k;
-  return { seg, rel: pos - (X[seg] ?? 0) };
+// ─── inverse: a dense captured index → the absolute engine frame ──────────────
+// Walk the captured frames from baseAbs, skipping each suppressed load — for click-to-edit
+// (timeline index → the trace's absolute frame → segment+frame). A negative index returns a
+// frame before baseAbs (caller clamps).
+export function absOfCapIndex(g, baseAbs, loads) {
+  const within = loads.filter(ld => ld.start >= baseAbs).slice().sort((a, b) => a.start - b.start);
+  let abs = baseAbs, remaining = g;
+  for (const ld of within) {
+    const until = ld.start - abs;                 // captured frames from abs to the load start
+    if (remaining < until) return abs + remaining;
+    remaining -= until;
+    abs = ld.end;                                 // skip the load (0 captured frames)
+  }
+  return abs + remaining;
 }
 
 // ─── distinct anchor names present, for the sync-anchor picker ───────────────

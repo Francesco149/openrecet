@@ -7,53 +7,40 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
-## 2026-06-08 — Trace-studio editor: the segment-band alignment model
+## 2026-06-08 — Trace-studio editor: the captured-frame-index timeline
 
-The trace editor's port/retail alignment, redesigned to be **robust** — the workhorse for
-inspecting any trace, well-formed or divergent. Semantics:
+The trace editor's port/retail timeline, redesigned around the right primitive. Semantics:
 `docs/findings/trace-editor-segment-alignment.md`.
 
-The bug: turbo retail runs the intro/map-load the port skips, so a side's per-segment
-**base** can differ by ~14k frames (`town-map-load-rerecord`: 1st `LOADING_END` is frame
-**389** on the port, **14548** on retail). A first fix (`refFrame`, piecewise re-base onto
-the port's *absolute* frames) aligned well-formed traces but **broke on incomplete ones**:
-when retail never reached the 2nd load, its segs 2/3/4 all fall back to the same base, and
-"last base ≤ frame" assigned retail's capture-window anchors to the **highest** stacked
-segment — drawing them onto a later band (the overlay the user hit). It also overlapped a
-segment whose inputs ran past the next segment's base.
+The insight (the user's): the capture is phase-synced + RNG-pinned and runs **1:1** on both
+sides, so alignment should not be *reconstructed* from the trace's `{wait}` segments + anchor
+offsets — it is already inherent. The x-axis is just the **dense captured-frame index** (one
+tick per real frame on that side); place each side's anchors + inputs at their captured index
+and a 1:1 capture aligns with **zero forcing**. Where the traces diverge (different per-side
+frame counts) the two rows drift apart — that *is* the divergence; you iterate edits until
+they reconverge. Loads are suppressed (0 captured frames) so the index re-syncs at every load
+boundary regardless of how stretched a load is.
 
-The model: **sequential, non-overlapping bands.** Segment `k` occupies `[X[k], X[k]+W[k])`;
-an entity at segment-relative frame `f` draws at `X[k]+f` on **both** sides ⇒ shared anchors
-+ `{wait}`-mirrored ops coincide, a per-segment load-stretch collapses to the fixed
-inter-band gap, a within-segment offset stays a gap, and **every segment gets its own band
-whether or not its wait resolved on a side** — so a divergent/incomplete trace lays out
-cleanly (the missing side's anchor lanes are simply empty), never frozen onto one frame.
-Anchor chips are placed by `resolveSide` (the segment a firing *belongs* to, walking the
-resolved bases — not base-comparison). New pure API in `align.mjs`: `resolveSide`,
-`editorLayout`, `bandAt` (`refFrame` removed); `TraceEditor.mjs` runs entirely on it
-(`bandPos`/`bandAt`), with visible band dividers + a segment-jump nav. Verified on both real
-sessions: well-formed → all 8 anchors in identical bands both sides; divergent → retail's
-`LOADING_END`/`HOUSE_FREEROAM` place in **seg 2** (not the stacked seg 4), future segs get
-their own bands. Mirrored in `model/segments.py` (`resolve_side`/`editor_layout`/`band_at`)
-and pinned byte-for-byte in the JS↔Python golden cross-check.
+(Two earlier same-day iterations — a piecewise port-axis re-base, then a sequential-band
+layout — both tried to reconstruct alignment from segments and broke on real traces: segment-
+relative positions diverge across a load, and a mid-capture divergence put corresponding 1:1
+frames at different x. They are replaced wholesale.)
 
-**Captured-window positioning (follow-up).** The green window must sit on the *actual
-captured frames*, not the `{caprange}` op's trace position — `caprange` counts forward
-through loads, so on `merchants-guild` the op is in seg 2 (walk to the door) but the 940
-captured frames start at the guild's `LOADING_END` (`base_abs`) and run to seg 41 (dialogue);
-drawing it at seg 2 gave one huge **empty** band with the content after it. Now the window is
-an absolute span `[base_abs, base_abs+(n−1)·cadence]` on a **reference side** (the one whose
-anchors resolve furthest — a side that diverges mid-capture, e.g. the port → cyan in a
-building, records fewer anchors), mapped across every band it covers via `absToBand` (each
-widened to fit its slice). Cursor + scrub use the same mapping (scrub = nearest captured
-ordinal by a direct scan — robust across loads/divergence). New pure `absToBand`;
-`editorLayout` takes `windowSide`/`windowStartAbs`/`windowEndAbs` and returns the window's
-band endpoints. Swept clean over all 14 sessions; `align.test.mjs` 42/42, golden mirrored.
+Pure core in `align.mjs` (mirrored in `model/segments.py`, pinned in the JS↔Python golden):
+`loadSpans` (LOADING_START→END pairs), `capIndexOfAbs(abs, base_abs, loads)` = `(abs −
+base_abs) − suppressed-load-frames-before-abs` (the dense captured index), and `absOfCapIndex`
+(the inverse, for click-to-edit). The band functions (`resolveSide`/`editorLayout`/`bandAt`/
+`absToBand`) are gone. `TraceEditor.mjs` runs entirely on `capIndexOfAbs`: anchors at their
+captured index per side, inputs via `segBase + frame → capIndexOfAbs`, cursor at `cur`, a
+`tl-loadmark` tick at each suppressed-load boundary. Verified on `merchants-guild`: the 1:1
+region (frames 0–161, guild entry + world-map menuing) has port `g` = retail `g` exactly;
+at frame 162 the port diverges to cyan (no more anchors) and retail's dialogue (162–933) shows
+alone. Swept clean over all 14 sessions; `align.test.mjs` 41/41.
 
-Note: the retail side of that session also captured no frames — a **separate** capture-
-harness issue (Frida `connection-terminated` right after `HOUSE_FREEROAM`, after the long
-load), tracked apart from alignment; the editor aligns fine regardless (lanes come from the
-anchor/trace files, not captured frames).
+The retail-no-frames symptom (Frida `connection-terminated` after a long load) remains a
+separate capture-harness issue; the editor aligns fine regardless (it maps from `base_abs` +
+the anchor/trace files, never captured frames).
+
 
 ## 2026-06-05 — LOAD GAME slot picker rendered 1:1 (FUN_0049b556)
 

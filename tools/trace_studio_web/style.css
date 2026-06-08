@@ -174,6 +174,9 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
 .gut-row.s-note .side-dot { background: #c78bff; }
 .tl-grp.s-note { border-left: 3px solid color-mix(in srgb, #c78bff 45%, transparent); }
 .tl-content { position: relative; min-width: 100%; }
+/* a suppressed-load boundary on a side's captured axis (where the frame counter jumps). */
+.tl-loadmark { position: absolute; top: 0; bottom: 0; width: 0; z-index: 1;
+  border-left: 1px dotted #5aa0ff88; pointer-events: none; }
 .tl-cursor { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent);
   pointer-events: none; z-index: 4; }
 .tl-window { position: absolute; top: 0; bottom: 0; background: #69d0831a;

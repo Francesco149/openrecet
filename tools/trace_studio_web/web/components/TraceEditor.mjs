@@ -1,38 +1,26 @@
-// web/components/TraceEditor.mjs — the segment-band trace editor (S9: re-homed from the
-// legacy /timeline.mjs into the v2 SPA, wired to the GLOBAL cursor).
+// web/components/TraceEditor.mjs — the captured-frame-index trace editor (wired to the v2
+// SPA + the GLOBAL cursor).
 //
-// Layout: a fixed readable LABEL GUTTER + a horizontally-scrolling lane pane (rows
-// height-matched). Per side: emitted ANCHORS + emitted INPUTS (read-only) + the
-// editable TRACE — one row PER BUTTON (held intervals; click to add a press, alt-click
-// to remove) + a row each for phasepin / rngseed / esc. Zoom centers on the cursor; a
-// toggle limits the view to the captured window. Clicking read-only rows / anchors scrubs.
+// THE MODEL (see docs/findings/trace-editor-segment-alignment.md): the x-axis is the DENSE
+// captured-frame index — one tick per real frame of the trace running on that side. Because
+// the capture is phase-synced + RNG-pinned and runs 1:1 on both sides, the n-th captured
+// frame is the SAME logical moment on each side, so placing each side's anchors + inputs at
+// their captured index makes a 1:1 capture align with ZERO forcing logic. Where the traces
+// diverge (different per-side frame counts) the two rows simply drift apart — that IS the
+// divergence; you iterate edits until they re-converge. Loads are suppressed (0 captured
+// frames) so the index re-syncs at every load boundary regardless of how stretched a load is.
 //
-// THE BAND MODEL (align.editorLayout — see docs/findings/trace-editor-segment-alignment.md):
-// the trace's anchor segments are laid out as sequential, NON-OVERLAPPING bands on one
-// shared axis. Band k occupies [X[k], X[k]+W[k]); an entity in segment k at segment-relative
-// frame f draws at X[k]+f on BOTH sides ⇒ shared anchors + {wait}-mirrored ops coincide, a
-// per-segment load-stretch (retail's LOADING_END can be frame 11806 where the port's is 363)
-// collapses to the fixed inter-band GAP, a genuine within-segment offset stays a gap, and
-// every segment gets its OWN band whether or not its wait resolved on a side — so a divergent
-// / incomplete trace is fully inspectable + editable, never piled onto one frame. Anchor
-// chips are placed by `resolveSide` (the segment a firing BELONGS to, not "last base ≤
-// frame"). The whole positioning is `bandPos(seg, rel) = relX(X[seg] + rel)`; the inverse is
-// `bandAt(X, pos)`. Everything (items/pins/emitted/notes/cursor/capture-window) is segment-
-// relative, so it is side-agnostic except the per-side anchor chips.
+// Mapping: a side's absolute engine frame → captured index = align.capIndexOfAbs(abs,
+// base_abs, loads); a trace op's (segment, frame) → absolute via the segment base
+// (resolveBases). The inverse (click index → trace frame) is absOfCapIndex. NO segment bands,
+// NO forced alignment — the alignment is inherent in the 1:1 capture.
 //
-// CURSOR + CAPTURED WINDOW (the v2 wiring): the SPA's scrub position is the GLOBAL ordinal
-// `cur`. We DERIVE the editor cursor from `cur` via view.locate and map scrub-clicks back to
-// `cur` (bidirectional). The cursor + green window are positioned by the ACTUAL captured
-// ABSOLUTE frame (manifest base_abs + ordinal·cadence), mapped onto the bands via absToBand —
-// NOT the {caprange} op's trace position, which counts forward through loads so the captured
-// frames can live many segments later (the op is in the freeroam segment, the frames in the
-// building interior + dialogue). The window REFERENCE side is the one whose anchor stream
-// resolves furthest (a side that diverged mid-capture records fewer anchors).
-//
-// THE extend/edit/recapture loop is a primary workflow: tweak inputs/pins, ⇥ extend the
-// captured window, then ⟳ re-capture — all without leaving the editor or re-recording.
+// Layout: a fixed LABEL GUTTER + a horizontally-scrolling lane pane. Per side: emitted
+// ANCHORS + emitted INPUTS (read-only) + the editable TRACE (one row per button, held
+// intervals; click to add a press, alt-click to remove) + phasepin / rngseed / esc rows.
+// Clicking a read-only row / anchor / ruler scrubs the shared cursor.
 import { html, useMemo, useRef, useState, useEffect } from "/vendor/htm-preact-standalone.mjs";
-import { parseSegments, editorLayout, bandAt, resolveSide, absToBand } from "/align.mjs";
+import { parseSegments, resolveBases, loadSpans, capIndexOfAbs, absOfCapIndex, itemAbs } from "/align.mjs";
 import { toast } from "/web/util.mjs";
 
 // the button bits we draw a row for (src/input.c input_binding_mask)
@@ -40,7 +28,6 @@ const BTNROWS = [[0x04, "↑"], [0x08, "↓"], [0x02, "←"], [0x01, "→"],
                  [0x10, "Z"], [0x20, "X"], [0x40, "C"], [0x80, "V"]];
 const DEFAULT_BTNS = new Set([0x04, 0x08, 0x02, 0x01, 0x10, 0x20, 0x40, 0x80]);  // ↑↓←→ Z X C V
 const PRESS_LEN = 3;                                            // default added-press length
-const GAP = 16, MINBAND = 8, PAD = 4;                          // band layout (match align.mjs)
 
 function anchorCls(name) {
   if (/^LOADING/.test(name)) return "a-load";
@@ -63,13 +50,11 @@ const H = { anchors: 22, inputs: 16 };
 export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest, stale,
                              notes, onNotes, pendingBox, setPendingBox,
                              cur, setCur, view, onRecapture }) {
-  const [ppf, setPpf] = useState(1.0);
-  const [winOnly, setWinOnly] = useState(false);
+  const [ppf, setPpf] = useState(2.0);
   const [waitName, setWaitName] = useState("LOADING_END");
   const scrollRef = useRef(null);
 
-  // locate the {caprange} op: its segment index + [start,count] (segment-relative). The
-  // captured window — and the cursor — live in this segment.
+  // locate the {caprange} op (its segment + [start,count]) — drives the len/pos edit controls.
   const capInfo = useMemo(() => {
     const ops = editTrace || [];
     let seg = 0;
@@ -84,114 +69,78 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
   const L = useMemo(() => {
     const segs = parseSegments(editTrace || []);
     const capSegs = parseSegments(capturedOps || []);
-    // content that sizes each band: emitted (read-only) inputs + notes (items/anchors/window
-    // are added inside editorLayout).
-    const emitted = [];
-    capSegs.forEach((s, k) => s.items.forEach(it => { if (it.kind === "input") emitted.push({ seg: k, frame: it.frame }); }));
-    const noteExt = (notes || []).map(nt => ({ seg: nt.seg, frame: nt.frame }));
-    // WINDOW reference side: the captured window is positioned by the actual captured
-    // absolute frames (manifest base_abs … +n·cadence), NOT the {caprange} op's trace
-    // position (caprange counts forward through loads, so the frames can live many segments
-    // later). Pick the side with non-null base_abs whose anchor stream resolves furthest — a
-    // side that diverged mid-capture (e.g. port → cyan in a building) records fewer anchors,
-    // so its bases can't map the captured tail.
-    const cadence = (manifest && manifest.stride > 1) ? manifest.stride : 1;
-    const cand = [];
-    const pBase = manifest?.port?.base_abs, rBase = manifest?.retail?.base_abs;
-    if (pBase != null) cand.push({ side: "port", base: pBase, res: resolveSide(segs, anchors.port || []).bases.filter(b => b.ok).length, frames: manifest?.n_frames || 0 });
-    if (rBase != null) cand.push({ side: "retail", base: rBase, res: resolveSide(segs, anchors.retail || []).bases.filter(b => b.ok).length, frames: manifest?.n_frames_retail || 0 });
-    cand.sort((a, b) => b.res - a.res);
-    const win = cand[0] || null;
-    const windowSide = win ? win.side : null;
-    const windowStartAbs = win ? win.base : null;
-    const windowFrames = win ? win.frames : 0;
-    const windowEndAbs = win ? win.base + Math.max(0, windowFrames - 1) * cadence : null;
-    const lay = editorLayout(segs, anchors.port || [], anchors.retail || [], {
-      emitted, notes: noteExt, gap: GAP, minBand: MINBAND, pad: PAD,
-      windowSide, windowStartAbs, windowEndAbs,
-    });
-    const n = Math.max(1, segs.length);
-    let lo = -PAD - 6;
-    let hi = (lay.X[n - 1] ?? 0) + (lay.W[n - 1] ?? MINBAND) + PAD + 6;
-    if (winOnly && lay.window) {
-      lo = (lay.X[lay.window.startSeg] ?? 0) + lay.window.startRel - 10;
-      hi = (lay.X[lay.window.endSeg] ?? 0) + lay.window.endRel + 10;
-    }
-    // which button rows to show: defaults + any present in the trace
+    // per side: base_abs + loads + segment bases (for the trace) + captured-input bases.
+    const mkSide = (firings, baseAbs, nFrames) => {
+      const f = firings || [];
+      const loads = loadSpans(f);
+      return {
+        firings: f, baseAbs, nFrames, loads,
+        bases: resolveBases(segs, f),
+        capBases: resolveBases(capSegs, f),
+        ci: (abs) => (baseAbs == null ? null : capIndexOfAbs(abs, baseAbs, loads)),
+      };
+    };
+    const port = mkSide(anchors.port, manifest?.port?.base_abs, manifest?.n_frames || 0);
+    const retail = mkSide(anchors.retail, manifest?.retail?.base_abs, manifest?.n_frames_retail || 0);
+    const maxN = Math.max(port.nFrames, retail.nFrames, 1);
+    // edit reference: the side that maps a clicked index back to a trace (seg, frame).
+    const editSide = port.baseAbs != null ? port : (retail.baseAbs != null ? retail : null);
+    // button rows: defaults + any present in the trace
     const present = new Set(DEFAULT_BTNS);
     (editTrace || []).forEach(o => { if (o && "buttons" in o) { const m = parseInt(o.buttons, 16) || 0; BTNROWS.forEach(([b]) => { if (m & b) present.add(b); }); } });
     const btns = BTNROWS.filter(([b]) => present.has(b));
-    return { segs, capSegs, lay, lo, hi, btns, windowSide, windowStartAbs, windowFrames, cadence };
-  }, [editTrace, capturedOps, anchors, notes, winOnly, manifest]);
+    return { segs, capSegs, port, retail, maxN, editSide, btns };
+  }, [editTrace, capturedOps, anchors, manifest]);
 
-  const { segs, capSegs, lay, lo, hi, btns, windowSide, windowStartAbs, windowFrames, cadence } = L;
-  const wbBases = windowSide ? lay[windowSide].bases : null;
-  const X = lay.X;
-  const sideLay = (side) => (side === "port" ? lay.port : lay.retail);
+  const { segs, capSegs, port, retail, maxN, editSide, btns } = L;
+  const sideOf = (s) => (s === "port" ? port : retail);
 
-  // ── project the GLOBAL ordinal `cur` onto the editor's band axis ──────────────
-  // view.locate gives the active gameplay segment + its local ordinal k. The cursor sits at
-  // the captured ABSOLUTE frame (windowStartAbs + k·cadence), mapped onto the band axis via
-  // the window side's bases — so it tracks the captured content across loads/segments, not
-  // the {caprange} op's trace position.
-  const { seg: gseg, k: segK } = (view && view.locate) ? view.locate(cur) : { seg: null, k: 0 };
-  const offG = gseg ? gseg.offsetGlobal : 0;
-  const segN = gseg ? gseg.nFrames : Math.max(1, windowFrames || 1);
-  const cursorAbs = (windowStartAbs != null) ? windowStartAbs + Math.max(0, Math.min((windowFrames || 1) - 1, segK)) * cadence : null;
-  const cpos = (cursorAbs != null && wbBases) ? absToBand(cursorAbs, wbBases) : { seg: 0, rel: segK };
-  const cursorSeg = cpos.seg, cursorFrame = cpos.rel;
-  const cursorPos = (X[cursorSeg] ?? 0) + cursorFrame;
-
-  const relX = (pos) => (pos - lo) * ppf;
+  // the captured frame count of the scrub axis (the cursor's range).
+  const segN = (view && view.totalFrames) || manifest?.n_frames || maxN || 1;
+  const lo = -8, hi = maxN + 8;
+  const relX = (g) => (g - lo) * ppf;
   const contentW = Math.max(400, (hi - lo) * ppf);
-  const bandPos = (seg, rel) => relX((X[seg] ?? 0) + rel);
 
-  // On open (lazy-mounted with the fold), bring the cursor (captured window) into view.
+  // bring the cursor into view on open.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollLeft = Math.max(0, relX(cursorPos) - el.clientWidth / 2);
+    if (el) el.scrollLeft = Math.max(0, relX(cur) - el.clientWidth / 2);
   }, []);  // once, on mount
 
-  // screen x → layout position (sub-pixel; callers round as needed)
-  const xToPos = (clientX) => {
+  // screen x → captured index (rounded).
+  const xToG = (clientX) => {
     const r = scrollRef.current.getBoundingClientRect();
-    return (clientX - r.left + scrollRef.current.scrollLeft) / ppf + lo;
+    return Math.round((clientX - r.left + scrollRef.current.scrollLeft) / ppf) + lo;
   };
-  // layout position → {seg, frame} for EDITING (clamped ≥ 0) — which band the click landed in
-  const hitAt = (clientX) => { const { seg, rel } = bandAt(X, xToPos(clientX)); return { seg, frame: Math.max(0, Math.round(rel)) }; };
-
-  // scrub: a layout position → set the global cursor = the captured ordinal whose band
-  // position is closest to `pos`. A direct scan (robust across loads, unresolved bands, and
-  // divergence — no special-casing); clicks outside the captured bands snap to the nearest end.
-  const scrubTo = (pos) => {
-    if (windowStartAbs == null || !wbBases) { setCur(offG + Math.max(0, Math.min(segN - 1, Math.round(pos)))); return; }
-    let best = 0, bestD = Infinity;
-    for (let g = 0; g < segN; g++) {
-      const ab = windowStartAbs + Math.min((windowFrames || 1) - 1, g) * cadence;
-      const b = absToBand(ab, wbBases);
-      const d = Math.abs((X[b.seg] ?? 0) + b.rel - pos);
-      if (d < bestD) { bestD = d; best = g; }
-    }
-    setCur(offG + best);
+  // a captured index → a trace (seg, frame) on the edit side (inverse of input placement).
+  const gToTrace = (g) => {
+    if (!editSide) return { seg: 0, frame: Math.max(0, g) };
+    const abs = absOfCapIndex(g, editSide.baseAbs, editSide.loads);
+    let seg = 0; for (let k = 0; k < editSide.bases.length; k++) if (editSide.bases[k].ok && editSide.bases[k].base <= abs) seg = k;
+    return { seg, frame: Math.max(0, abs - editSide.bases[seg].base) };
   };
-  const onRulerClick = (e) => scrubTo(xToPos(e.clientX));
+  const scrubTo = (g) => setCur(Math.max(0, Math.min(segN - 1, g)));
+  const onRulerClick = (e) => scrubTo(xToG(e.clientX));
 
-  // zoom keeping the cursor centered in the viewport
+  // zoom keeping the cursor centered.
   const zoom = (factor) => setPpf(p => {
-    const np = Math.max(0.02, Math.min(20, p * factor));
+    const np = Math.max(0.05, Math.min(40, p * factor));
     const el = scrollRef.current;
-    if (el) requestAnimationFrame(() => { el.scrollLeft = (cursorPos - lo) * np - el.clientWidth / 2; });
+    if (el) requestAnimationFrame(() => { el.scrollLeft = (cur - lo) * np - el.clientWidth / 2; });
     return np;
   });
-  const scrollToBand = (k) => { const el = scrollRef.current; if (el) el.scrollLeft = Math.max(0, relX(X[k] ?? 0) - 40); };
 
-  // ── editing: pins/esc drag, + input button add/remove via dense recompress ──
+  // ── editing: pins drag, + input button add/remove via dense recompress ──
+  const delItem = (item) => { const next = (editTrace || []).slice(); next.splice(item.idx, 1); onEdit(next); };
   const startDrag = (e, item, segIdx) => {
     e.stopPropagation(); e.preventDefault();
-    // drag within the band → a new segment-relative frame (subtract the band origin).
     const snap = (editTrace || []).slice();
+    const base = editSide ? ((editSide.bases[segIdx] || {}).base || 0) : 0;
     const move = (ev) => {
-      const f = Math.max(0, Math.round(xToPos(ev.clientX) - (X[segIdx] ?? 0)));
+      // clicked index → abs → this segment's relative frame.
+      const g = xToG(ev.clientX);
+      const abs = editSide ? absOfCapIndex(g, editSide.baseAbs, editSide.loads) : (base + g);
+      const f = Math.max(0, abs - base);
       const op = { ...snap[item.idx] };
       if (item.kind === "phasepin") op.phasepin = f;
       else if (item.kind === "rngseed") op.rngseed = [f, op.rngseed[1]];
@@ -201,12 +150,8 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     const up = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); };
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
   };
-  const delItem = (item) => { const next = (editTrace || []).slice(); next.splice(item.idx, 1); onEdit(next); };
 
-  // ── place a {wait ANCHOR} at the cursor: split that segment, re-base everything
-  // after the cursor (inputs/pins/esc/caprange/calltrace) to the new anchor. This is
-  // how you build determinism incrementally — e.g. a {wait LOADING_END} after the Z
-  // press so both sides resume in lock-step when the load completes. ──
+  // ── place a {wait ANCHOR} at the cursor: split that segment, re-base what follows. ──
   const opFrame = (op) => {
     if ("frame" in op && "buttons" in op) return op.frame;
     if ("phasepin" in op) return op.phasepin;
@@ -227,7 +172,7 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
   };
   const addWaitAnchor = (name) => {
     if (!name) return;
-    const seg = cursorSeg, F = cursorFrame;
+    const { seg, frame: F } = gToTrace(cur);
     const out = []; let curSeg = 0, done = false;
     for (const op of (editTrace || [])) {
       if (op && "wait" in op) {
@@ -246,7 +191,7 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     onEdit(out);
   };
   const addAtCursor = (kind) => {
-    const sg = cursorSeg, f = cursorFrame;
+    const { seg: sg, frame: f } = gToTrace(cur);
     const op = kind === "phasepin" ? { phasepin: f } : { rngseed: [f, 19937] };
     const next = (editTrace || []).slice();
     let idx = (next[0] && "savefile" in next[0]) ? 1 : 0;
@@ -254,27 +199,18 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     next.splice(idx, 0, op); onEdit(next);
   };
 
-  // ── notes (sidecar: {seg, frame, text, box?}) — band-aligned annotations ─────
+  // ── notes (sidecar {seg, frame, text, box?}) ─────────────────────────────────
   const addNote = () => {
     const text = prompt("note" + (pendingBox ? " (crop attached)" : "") + ":"); if (!text) return;
-    const note = { seg: cursorSeg, frame: cursorFrame, text }; if (pendingBox) note.box = pendingBox;
+    const { seg, frame } = gToTrace(cur);
+    const note = { seg, frame, text }; if (pendingBox) note.box = pendingBox;
     onNotes([...(notes || []), note]); if (setPendingBox) setPendingBox(null);
   };
   const delNote = (i) => { const n = (notes || []).slice(); n.splice(i, 1); onNotes(n); };
 
-  // ── the GREEN captured-window band spans exactly the bands the captured frames cover
-  // (lay.window, positioned by the actual captured absolute frames — NOT the {caprange} op's
-  // trace position, which can sit segments earlier). The {caprange} op (capInfo) still drives
-  // the len/pos EDIT controls; a pending edit (op ≠ manifest.caprange) shows ✎ until the next
-  // capture realises it (its precise new span can't be previewed without re-running). ──
-  const winBand = lay.window
-    ? { l: (X[lay.window.startSeg] ?? 0) + lay.window.startRel,
-        r: (X[lay.window.endSeg] ?? 0) + lay.window.endRel }
-    : null;
+  // ── {caprange} len/pos edit controls (the capture window SIZE; ✎ until re-captured) ──
   const capPending = !!(capInfo && manifest && manifest.caprange &&
     (capInfo.start !== manifest.caprange[0] || capInfo.count !== manifest.caprange[1]));
-
-  // apply a {caprange} mutation; keep {calltrace} aligned (same start/len deltas).
   const editCapOp = (mut) => {
     if (!capInfo) { toast("this trace has no {caprange} to edit", true); return; }
     const next = (editTrace || []).slice();
@@ -283,18 +219,13 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     if (ns === s && nc === c) { toast("at the edge — start ≥ 0, length ≥ 1", true); return; }
     next[capInfo.capIdx] = { caprange: [ns, nc] };
     const ti = next.findIndex(o => o && "calltrace" in o);
-    if (ti >= 0) {
-      const [cs, cc] = next[ti].calltrace;
-      next[ti] = { calltrace: [Math.max(0, cs + (ns - s)), Math.max(1, cc + (nc - c))] };
-    }
+    if (ti >= 0) { const [cs, cc] = next[ti].calltrace; next[ti] = { calltrace: [Math.max(0, cs + (ns - s)), Math.max(1, cc + (nc - c))] }; }
     onEdit(next);
   };
-  // trace DURATION: move the captured END (length ≥ 1). Orphaned markers are the ⚠ warning.
   const bumpDuration = (d) => editCapOp((s, c) => ({ ns: s, nc: Math.max(1, c + d) }));
-  // capture WINDOW: slide the whole window (length fixed; start ≥ 0).
   const slideWindow = (d) => editCapOp((s, c) => ({ ns: Math.max(0, s + d), nc: c }));
 
-  // ── lane builders (everything via bandPos) ───────────────────────────────────
+  // ── lane builders (everything via the captured index) ─────────────────────────
   const segInputs = (k) => (segs[k] ? segs[k].items : []).filter(i => i.kind === "input").sort((a, b) => a.frame - b.frame);
   const denseOf = (k, maxF) => {
     const ins = segInputs(k); const arr = new Array(maxF + 1).fill(0); let st = 0, p = 0;
@@ -312,7 +243,7 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
   };
   const onBtnRow = (e, button) => {
     e.stopPropagation();
-    const { seg, frame } = hitAt(e.clientX);
+    const { seg, frame } = gToTrace(xToG(e.clientX));
     const ins = segInputs(seg); const maxF = Math.max(frame + PRESS_LEN, ...ins.map(i => i.frame), 0) + 1;
     const arr = denseOf(seg, maxF);
     if (e.altKey && (arr[frame] & button)) {          // remove the held interval around frame
@@ -325,60 +256,64 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     writeDense(seg, arr);
   };
 
-  // segment-band dividers + the wait anchor that opens each band (legibility: the GAP after a
-  // band is where a load-stretch / cross-side base shift is collapsed).
-  const segMarks = () => segs.map((s, k) => k === 0 ? null : html`
-    <div class="tl-segdiv" style="left:${relX(X[k] ?? 0)}px"></div>
-    <div class="tl-seglbl" style="left:${relX(X[k] ?? 0)}px" key=${k}>${shortAnchor(s.waitAnchor)}</div>`);
+  // captured index → screen x for a side's content (null if that side has no captured axis).
+  const gx = (side, abs) => { const g = side.ci(abs); return g == null ? null : relX(g); };
+  const inWin = (g) => g != null && g >= lo && g <= hi;
 
-  // emitted anchor chips, placed by resolveSide (the band a firing BELONGS to).
-  const anchorChips = (side) => {
-    const place = sideLay(side).placements;
-    return (anchors[side] || []).map((f, i) => {
-      const p = place[i] || { seg: 0, rel: 0 };
-      return html`<div class=${"chip " + anchorCls(f.anchor)} style="left:${bandPos(p.seg, p.rel)}px"
-        data-full=${`${f.anchor} @${f.frame} · seg${p.seg}+${p.rel}`}
-        onClick=${(e) => { e.stopPropagation(); scrubTo((X[p.seg] ?? 0) + p.rel); }}
+  // emitted anchor chips, placed at the captured index they fired on (per side).
+  const anchorChips = (sideName) => {
+    const side = sideOf(sideName);
+    return (anchors[sideName] || []).map((f, i) => {
+      const g = side.ci(f.frame);
+      if (!inWin(g)) return null;                     // outside the captured window → hidden
+      return html`<div class=${"chip " + anchorCls(f.anchor)} style="left:${relX(g)}px"
+        data-full=${`${f.anchor} @${f.frame} · frame ${g}`}
+        onClick=${(e) => { e.stopPropagation(); scrubTo(g); }}
         key=${i}>${shortAnchor(f.anchor)}</div>`;
     });
   };
 
-  // emitted (read-only) combined input spans — segment-relative (same on both sides).
-  const emittedSpans = () => {
-    const out = [];
+  // emitted (read-only) input spans, per side (mapped via that side's captured-input bases).
+  const emittedSpans = (sideName) => {
+    const side = sideOf(sideName), out = [];
     capSegs.forEach((s, k) => {
       const ins = s.items.filter(i => i.kind === "input").sort((a, b) => a.frame - b.frame);
       ins.forEach((it, j) => {
-        const x0 = bandPos(k, it.frame);
-        const nx = ins[j + 1]; const x1 = nx ? bandPos(k, nx.frame) : x0 + 4 * ppf;
+        const x0 = gx(side, itemAbs(it, k, side.capBases));
+        const nx = ins[j + 1];
+        const x1 = nx ? gx(side, itemAbs(nx, k, side.capBases)) : (x0 == null ? null : x0 + 4 * ppf);
         const lbl = btnNames(it.buttons);
-        if (lbl !== "·") out.push(html`<div class="span ro" style="left:${x0}px;width:${Math.max(2, x1 - x0)}px" title=${lbl} key=${`${k}-${j}`}>${lbl}</div>`);
+        if (x0 != null && x1 != null && lbl !== "·")
+          out.push(html`<div class="span ro" style="left:${x0}px;width:${Math.max(2, x1 - x0)}px" title=${lbl} key=${`${k}-${j}`}>${lbl}</div>`);
       });
     });
     return out;
   };
 
-  // editable per-button held-interval bars (segment-relative).
-  const btnBars = (button) => {
-    const out = [];
+  // editable per-button held-interval bars, per side (so divergence shows as drift).
+  const btnBars = (button, sideName) => {
+    const side = sideOf(sideName), out = [];
     segs.forEach((s, k) => {
+      const base = (side.bases[k] || {}).base ?? 0;
       const arr = denseOf(k, Math.max(0, ...segInputs(k).map(i => i.frame)) + 1);
       let f = 0;
       while (f < arr.length) {
         if (arr[f] & button) { let e = f; while (e < arr.length && (arr[e] & button)) e++;
-          const x0 = bandPos(k, f), x1 = bandPos(k, e);
-          out.push(html`<div class="bar" style="left:${x0}px;width:${Math.max(2, x1 - x0)}px" key=${`${k}-${f}`}></div>`); f = e; }
+          const x0 = gx(side, base + f), x1 = gx(side, base + e);
+          if (x0 != null && x1 != null) out.push(html`<div class="bar" style="left:${x0}px;width:${Math.max(2, x1 - x0)}px" key=${`${k}-${f}`}></div>`);
+          f = e; }
         else f++;
       }
     });
     return out;
   };
 
-  const pinItems = (kind) => {
-    const out = [];
+  const pinItems = (kind, sideName) => {
+    const side = sideOf(sideName), out = [];
     segs.forEach((s, k) => s.items.forEach((it, j) => {
       if (it.kind !== kind) return;
-      const x = bandPos(k, it.frame);
+      const x = gx(side, itemAbs(it, k, side.bases));
+      if (x == null) return;
       const cls = kind === "phasepin" ? "pp" : kind === "rngseed" ? "rp" : "esc";
       const glyph = kind === "phasepin" ? "⟲" : kind === "rngseed" ? "🎲" : "⎋";
       out.push(html`<div class=${"pin ed " + cls} style="left:${x}px"
@@ -390,25 +325,38 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     return out;
   };
 
+  // load markers: where this side's captured frames skip (a suppressed load) — a thin tick so
+  // the "frame counter jumps" is legible. Placed at the captured index of the load boundary.
+  const loadMarks = (sideName) => {
+    const side = sideOf(sideName);
+    return side.loads.filter(ld => ld.start >= (side.baseAbs ?? 0)).map((ld, i) => {
+      const g = side.ci(ld.end);
+      if (!inWin(g)) return null;
+      return html`<div class="tl-loadmark" style="left:${relX(g)}px" title=${`load (${ld.end - ld.start} frames suppressed)`} key=${i}></div>`;
+    });
+  };
+
   const noteMarks = () => (notes || []).map((nt, i) => {
-    const x = bandPos(nt.seg, nt.frame);
+    const side = editSide || port;
+    const x = gx(side, ((side.bases[nt.seg] || {}).base ?? 0) + nt.frame);
+    if (x == null) return null;
     return html`<div class="pin note" style="left:${x}px"
       title=${`${nt.text}${nt.box ? " · crop " + nt.box.join(",") : ""} · seg${nt.seg}+${nt.frame} · click=scrub · alt-click=delete`}
-      onClick=${(e) => { e.stopPropagation(); if (e.altKey) delNote(i); else scrubTo((X[nt.seg] ?? 0) + nt.frame); }}
+      onClick=${(e) => { e.stopPropagation(); if (e.altKey) delNote(i); else { const g = side.ci(((side.bases[nt.seg] || {}).base ?? 0) + nt.frame); if (g != null) scrubTo(g); } }}
       key=${i}>📝</div>`;
   });
 
-  // ── build the flat row list: [label, heightPx, side, vnode] ───────────────────
-  const sideRows = (side) => {
+  // ── flat row list: [label, heightPx, side, vnode] ─────────────────────────────
+  const sideRows = (sideName) => {
     const rows = [
-      ["anchors", H.anchors, side, html`<div class="tl-row anchors" style="height:${H.anchors}px">${anchorChips(side)}</div>`],
-      ["inputs", H.inputs, side, html`<div class="tl-row ro" style="height:${H.inputs}px">${emittedSpans()}</div>`],
+      ["anchors", H.anchors, sideName, html`<div class="tl-row anchors" style="height:${H.anchors}px">${loadMarks(sideName)}${anchorChips(sideName)}</div>`],
+      ["inputs", H.inputs, sideName, html`<div class="tl-row ro" style="height:${H.inputs}px">${emittedSpans(sideName)}</div>`],
     ];
     for (const [b, name] of btns)
-      rows.push([name, RH, side, html`<div class="tl-row btn" style="height:${RH}px" onClick=${(e) => onBtnRow(e, b)} title="click to add a press · alt-click to remove">${btnBars(b)}</div>`]);
-    rows.push(["phasepin", RH, side, html`<div class="tl-row pinrow" style="height:${RH}px">${pinItems("phasepin")}</div>`]);
-    rows.push(["rngseed", RH, side, html`<div class="tl-row pinrow" style="height:${RH}px">${pinItems("rngseed")}</div>`]);
-    rows.push(["esc", RH, side, html`<div class="tl-row pinrow" style="height:${RH}px">${pinItems("esc")}</div>`]);
+      rows.push([name, RH, sideName, html`<div class="tl-row btn" style="height:${RH}px" onClick=${(e) => onBtnRow(e, b)} title="click to add a press · alt-click to remove">${btnBars(b, sideName)}</div>`]);
+    rows.push(["phasepin", RH, sideName, html`<div class="tl-row pinrow" style="height:${RH}px">${pinItems("phasepin", sideName)}</div>`]);
+    rows.push(["rngseed", RH, sideName, html`<div class="tl-row pinrow" style="height:${RH}px">${pinItems("rngseed", sideName)}</div>`]);
+    rows.push(["esc", RH, sideName, html`<div class="tl-row pinrow" style="height:${RH}px">${pinItems("esc", sideName)}</div>`]);
     return rows;
   };
   const rows = [...sideRows("retail"), ...sideRows("port"),
@@ -418,21 +366,16 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     <div class="tl-bar">
       <span class="legend"><span class="sw s-retail"></span>retail <span class="sw s-port"></span>port</span>
       <span class="sep">·</span>
-      <span class="dim">jump:</span>
-      ${segs.map((s, k) => html`<button class=${"seg " + (cursorSeg === k ? "on" : "")}
-        onClick=${() => scrollToBand(k)} title="scroll to this segment's band" key=${k}>${k === 0 ? "boot" : shortAnchor(s.waitAnchor)}</button>`)}
-      <span class="sep">·</span>
-      <button class=${"seg " + (winOnly ? "on" : "")} onClick=${() => setWinOnly(v => !v)}
-        title="limit the view to the captured window">⊞ window-only</button>
+      <span class="dim">captured frames: retail ${retail.nFrames} · port ${port.nFrames}</span>
       <span class="sep">·</span>
       ${capInfo ? html`<span class="dim">window</span>
-        <span class="capctl" title="capture-window DURATION — its LENGTH (moves the END). Fine ±1/±10, coarse to ±120. ⟳ re-capture to apply.">
+        <span class="capctl" title="capture-window DURATION (length). ⟳ re-capture to apply.">
           <span class="dim">len</span>
-          ${[-120, -60, -30, -10, -1].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>${d}</button>`)}
+          ${[-120, -30, -10, -1].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>${d}</button>`)}
           <span class="capnum">${capInfo.count}f</span>
-          ${[1, 10, 30, 60, 120].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>+${d}</button>`)}
+          ${[1, 10, 30, 120].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>+${d}</button>`)}
         </span>
-        <span class="capctl" title="capture-window POSITION — slides the whole window (start+end together, length fixed). ⟳ re-capture to apply.">
+        <span class="capctl" title="capture-window POSITION (start). ⟳ re-capture to apply.">
           <span class="dim">pos</span>
           ${[-30, -10, -1].map(d => html`<button class="seg" onClick=${() => slideWindow(d)} key=${d}>${d}</button>`)}
           <span class="capnum">@${capInfo.start}</span>
@@ -443,7 +386,7 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
       <span class="sep">·</span><span class="dim">add@cursor:</span>
       <button class="seg" onClick=${() => addAtCursor("phasepin")} title="add a phasepin at the cursor">+⟲</button>
       <button class="seg" onClick=${() => addAtCursor("rngseed")} title="add an rngseed at the cursor">+🎲</button>
-      <button class="seg" onClick=${addNote} title="add a note at the cursor (attaches a video crop if you box-selected one)">+📝</button>
+      <button class="seg" onClick=${addNote} title="add a note at the cursor">+📝</button>
       <span class="sep">·</span>
       <select class="seg" value=${waitName} onChange=${e => setWaitName(e.target.value)} title="anchor to wait on">
         ${["LOADING_END", "HOUSE_FREEROAM", "FREEROAM_START", "NEW_GAME", "LOADING_START",
@@ -451,16 +394,16 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
           html`<option value=${a}>${a}</option>`)}
       </select>
       <button class="seg" onClick=${() => addWaitAnchor(waitName)}
-        title="insert {wait} at the cursor — splits the segment + re-bases what follows to this anchor">⚓ +wait</button>
+        title="insert {wait} at the cursor — splits the segment + re-bases what follows">⚓ +wait</button>
       <span class="spacer"></span>
       ${stale && html`<span class="stale-dot">● edits not captured</span>`}
       ${onRecapture && html`<button class="seg recap" onClick=${onRecapture}
         title="re-capture the working trace with the current edits, then reload">⟳ re-capture</button>`}
       <span class="dim">zoom</span>
       <button onClick=${() => zoom(1 / 1.6)}>−</button>
-      <span class="dim">${ppf.toFixed(2)}px/f</span>
+      <span class="dim">${ppf.toFixed(1)}px/f</span>
       <button onClick=${() => zoom(1.6)}>+</button>
-      <button onClick=${() => setPpf(1)}>1:1</button>
+      <button onClick=${() => setPpf(2)}>1:1</button>
     </div>
     <div class="tl-body">
       <div class="tl-gutter">
@@ -470,15 +413,11 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
       <div class="tl-scroll" ref=${scrollRef}
         onWheel=${e => { if (e.shiftKey) { e.preventDefault(); scrollRef.current.scrollLeft += e.deltaY; } }}>
         <div class="tl-content" style="width:${contentW}px" onClick=${onRulerClick}>
-          ${segMarks()}
-          ${winBand && html`<div class=${"tl-window" + (capPending ? " pending" : "")}
-            style="left:${relX(winBand.l)}px;width:${Math.max(2, (winBand.r - winBand.l) * ppf)}px"
-            title="captured window (the frames the capture actually recorded)"></div>`}
-          <div class="tl-cursor" style="left:${relX(cursorPos)}px"></div>
+          <div class="tl-cursor" style="left:${relX(cur)}px"></div>
           ${rows.map(([, , side, lanes], i) => html`<div class=${"tl-grp s-" + side} key=${i}>${lanes}</div>`)}
         </div>
       </div>
     </div>
-    <div class="hint">click an anchor / read-only row / ruler to scrub · click a button row to add a press, alt-click to remove · drag pins · shift+wheel pan · cursor = seg${cursorSeg}+${cursorFrame} · ordinal f${cur}${cadence > 1 ? ` (k${segK}×${cadence})` : ""}</div>
+    <div class="hint">click an anchor / read-only row / ruler to scrub · click a button row to add a press, alt-click to remove · drag pins · shift+wheel pan · captured frame ${cur} / ${segN}</div>
   </div>`;
 }
