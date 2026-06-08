@@ -19,10 +19,17 @@
   PAUSE_OPEN}`-gated nav-input segment blocked forever (`held=0`/`sel=0` every frame). Fix
   (`main.c`): `pause_active` also counts `scene_state==SCENE_STATE_WORLDMAP`; port anchors now
   `LOADING_START 616/PAUSE_OPEN 616/LOADING_END 644` (matches retail pattern) and the cursor walks
-  the grid `0→5→4→6→…→3(Market)→1`. **NEXT on this trace:** re-anchor the `{caprange}` at the 2nd
-  `LOADING_END` (world-map entry — port↔retail counts mismatch 873 vs 308 from turbo load-stretch)
-  + declare retail `0x49e163` fields, then `--target both` to confirm the now-replaying nav is
-  pixel-1:1 and re-check #1–3 under that alignment; #5 = the
+  the grid `0→5→4→6→…→3(Market)→1`. **✅ NAV CONFIRMED 1:1 END-TO-END (2026-06-08):** re-windowed
+  the session (`{caprange}`→ the 2nd `LOADING_END` = world-map entry, both sides aligned by frame#)
+  and the full ~20-step nav is pixel-1:1 vs retail (black diff on bg/markers/selected-marker/cursor
+  across wm-frames 70→580; only #5 tooltip differs). **⚠ BLOCKER FOUND → next-session task: CAPTURE
+  RELIABILITY.** Dense retail captures truncate non-deterministically (≈69–193 frames) — an
+  **access violation inside `frida-agent.dll`** (Event Viewer 0xc0000005 @ off `0x00be5f4e`,
+  recurring; NOT degradation, NOT the 128MiB cap, NOT call-trace/deadline). Mitigated the agent's
+  per-frame alloc churn (commit `7b9907d`) but the AV persists (frida-internal). **Workaround:
+  `{capstride:10}` → port==retail==63, no crash** (how the full nav was verified). Full evidence +
+  next-session plan: **`findings/frida-capture-crash.md`**. Remaining town-map backlog: #1–3
+  (load-fade/marker-pulse/cursor-bob **PHASE**, re-check on the aligned window) + #5 =
   `worldmap-tutorial-box` travel-time tooltips (PORT-DEBT, multi-message). **Trace-studio tooling
   landed this session:** the capture-window editor (live dashed band; `len`/`pos` controls with
   bound-checked validity-only clamps + a forward-leaked ⚠ warning; `findings`/commits
