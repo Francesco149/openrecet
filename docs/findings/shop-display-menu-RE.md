@@ -416,6 +416,33 @@ Commits: cursor-init+nav+description; dash-string fix; "Button 3: Item Details" 
   src(832,480,959,559) dst((sx-26),(sy-16),164,80)) + name via
   `font_draw_text_centered(sx+52, sy+26, name, …, 0.6)`.
 
+#### C3b SCOPE — verified from the decompile/grep 2026-06-09 (NOT a quick port like C3a)
+A multi-part chip with **two unported prerequisites** + objdump-still-needed colors:
+- **(P1) world→screen projection `FUN_00490c78`→`FUN_00490d29` is UNPORTED.** The port has
+  the `g_scene1_view` / `g_scene1_proj` matrices (`scene1_render.c`) but **no** project-point
+  helper. Need a `scene1_project_world` (host-testable): transform the world point by
+  `g_scene1_view` → (vx,vy,vz), then `sx = 320 - (proj[0]·320)·vx/vz`,
+  `sy = 240 + (proj[5]·240)·vy/vz` (`FUN_00490cc6` derives fx/fy from proj). Reusable —
+  other world-anchored HUD wants it. **Confirm the exact view/proj indices + the vx/vz sign
+  via objdump 0x490c78/0x490d29/0x490cc6.**
+- **(P2) name-text COLOR `local_20` = `FUN_004361b2(itemid)` is UNPORTED** (an existing
+  PORT-DEBT, `scene1_display_menu.c:462/690` — "item price-trend, reads the daily-market
+  region"). The classifier returns a level → one of 4–5 packed color dwords (the decompile
+  shows them as reinterpreted floats `-3.39e38`/`-NAN`/`-1.70e38`/`-2.72e38`; **objdump
+  0x409925 for the real dword immediates**). A faithful tooltip needs the right color, so
+  either port `FUN_004361b2` or PORT-DEBT a default and expect the user to flag the colour.
+- **Gate is RICHER than the one-liner above:** `b1c0==1 && *DAT_068dd2f0==0 &&
+  (cc08==1 || cc08==0x32) && cbfc!=-1 && cc00!=-1`, then **`grid[cell]!=-1 || bf68!=0`**,
+  splitting into an **item branch** (`bf68==0`: name text, COLOROP **ADDSIGNED**=8) and a
+  **furniture branch** (`bf68!=0`: name + "%d/%d" slot count). `grid[cell]` =
+  `*(DAT_044f7030 + (cbfc+cc00·20)·4 + slot·0x2dfc8)`. Bubble drawn by `FUN_00404efc`
+  (=`render_quad_add`) then `FUN_00405354` (flush); **the bubble's 4th color arg was dropped
+  by Ghidra → objdump 0x409925.** Name string built by `FUN_005038ff` (ported, scene_floor.c)
+  from the item DB record `FUN_004681f6(id>>6)` (ported, tables_item.c); text via
+  `FUN_0047d14c`=`font_draw_text_centered` (ported, font_draw.c), scale 0x3f19999a=0.6.
+  For the `item-display-2` bench the player faces a back-row sword cell (cc08==1, bf68==0) →
+  the **item branch** is what to port + verify first.
+
 ## SESSION 2026-06-09 — item-display-2 bench (pinned + call-traced) + 4-gap board + C3a FULLY spec'd
 
 **Bench:** trace-studio session **`item-display-2`** (`http://localhost:8778/?session=item-display-2`)
