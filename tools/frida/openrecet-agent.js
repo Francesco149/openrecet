@@ -1206,16 +1206,31 @@ let g_written_buf = null;   // DWORD out for WriteFile
 
 function ensureWinFileFns() {
     if (g_winfile_fns) return;
+    // Frida 17.x removed the legacy global Module.getExportByName(name, export);
+    // resolve the kernel32 module instance once, then look up the exports off it
+    // (same migration as installShowWindowHook / installSaveRedirectHook above).
+    // This was MISSED in the 17.x migration, so the whole capture-local
+    // writeRawFile fast-path silently threw "not a function" and captured zero
+    // frames — forcing every capture onto the 3 MB/frame readByteArray+send
+    // path that backpressures the remote channel and AVs frida-agent's memcpy.
+    const k32 = Process.findModuleByName('kernel32.dll');
+    if (!k32) { err('ensureWinFileFns', 'kernel32.dll module not loaded'); return; }
+    const expCreateFileA = k32.findExportByName('CreateFileA');
+    const expWriteFile   = k32.findExportByName('WriteFile');
+    const expCloseHandle = k32.findExportByName('CloseHandle');
+    if (!expCreateFileA || !expWriteFile || !expCloseHandle) {
+        err('ensureWinFileFns', 'kernel32 file exports not found'); return;
+    }
     g_winfile_fns = {
         createFile: new NativeFunction(
-            Module.getExportByName('kernel32.dll', 'CreateFileA'), 'pointer',
+            expCreateFileA, 'pointer',
             ['pointer', 'uint32', 'uint32', 'pointer', 'uint32', 'uint32', 'pointer'],
             'stdcall'),
         writeFile: new NativeFunction(
-            Module.getExportByName('kernel32.dll', 'WriteFile'), 'int',
+            expWriteFile, 'int',
             ['pointer', 'pointer', 'uint32', 'pointer', 'pointer'], 'stdcall'),
         closeHandle: new NativeFunction(
-            Module.getExportByName('kernel32.dll', 'CloseHandle'), 'int',
+            expCloseHandle, 'int',
             ['pointer'], 'stdcall'),
     };
     g_fname_buf   = Memory.alloc(2048);
