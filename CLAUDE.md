@@ -67,6 +67,31 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   time); a window/caprange change forces a retail re-capture even under `--only port`
   (`626949c`); back up `edit.trace.jsonl` before re-windowing. Memory pointer:
   `recapture-shared-session`.
+- **ALWAYS phase+RNG-pin AND keep a call-trace on every trace we work on (whenever the
+  scene supports it) — pin up front so the diff shows REAL gaps (not bg-NPC / sparkle / anim
+  phase noise), and keep the flow-trace so we can always probe retail ground truth** (user
+  policy 2026-06-09). **How (so it's automatic):** in the session's working trace
+  (`edit.trace.jsonl`), in the segment that OPENS the `{caprange}` (right after the FIRST
+  free-roam `{wait LOADING_END}`/HOUSE_FREEROAM — NOT the last wait), insert
+  `{"phasepin": F}` then `{"rngseed": [F, 19937]}` immediately before `{"caprange": [F,…]}`.
+  Use `F` = the caprange start (pin a few frames earlier if you can spare a settle margin —
+  the companion spring-lerp re-converges over ~48f; bg-NPCs/sparkle snap immediately). One
+  `{phasepin}` (`segtrace_phasepin_cb`, `main.c`) zeros db054 + player/companion anim +
+  cursor-bob b154 + rmb screen-shake + the **bg-window-NPC 180× warmup** (re-seeds to the
+  canonical **19937** = `SCENE1_BG_NPC_PHASEPIN_SEED`) + the sim-frame (目玉 sparkle %8
+  phase); the `{rngseed:[F,19937]}` sets the shared LCG to that same seed so post-warmup RNG
+  (sparkle/dust) is 1:1. Replace any RECORDED `{rngseed:[F,…]}` at that anchor with the
+  canonical 19937 (don't stack two at one frame). Then **`recapture` BOTH sides** (a pin
+  moves both). `apply --auto-pin` only auto-inserts off a STORED verdict (CONST-OFFSET→
+  phasepin, DESYNC→rngseed) and inserts after the LAST wait — so for a no-verdict or
+  multi-segment trace, hand-edit as above. Template: `tests/scenarios/house-loaded-display-
+  pinned/trace.jsonl`. Verify: `flow_diff --verdict --align-field db054` = ALIGNED, or the
+  NPCs/sparkle visibly stop drifting in the diff. **Call-trace: always add
+  `{"calltrace": [F, count]}` spanning the `{caprange}`** (then `recapture` auto-detects it /
+  `capture --call-trace`) — we need the flow-trace to probe retail ground truth and to compute
+  the `--verdict`. A long-window retail call-trace is heavy + slow to analyze, so for DEEP
+  dives `drill` specific moments at dense cadence; but the base capture KEEPS the call-trace —
+  don't drop it to save time (user policy 2026-06-09).
 - **Commits:** **commit in logical units as you go, without waiting to be asked** (user
   policy 2026-06-05); co-author trailer is auto-injected (don't type it); the pre-commit
   hook regenerates the port ledger + runs host tests on C changes. **Push** only when asked.
