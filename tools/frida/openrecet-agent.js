@@ -1123,6 +1123,23 @@ function engineFrameNo() {
 
 let g_dev_fns = null;  // {get_backbuffer, create_image_surface, copy_rects}
 
+// Surface-level vtable fns + scratch buffers + the readback staging blob, all
+// cached/reused ACROSS captured frames. These USED to be re-created every
+// frame — `new NativeFunction` ×5-6 (each allocates an executable trampoline) +
+// `Memory.alloc(~3 MB)` (blob) + 4 small `Memory.alloc`s — which churned
+// frida-agent's OWN heap and AV'd it (0xc0000005 inside frida-agent.dll, fault
+// offset ~0xbe5f4e) after ~70-130 captured frames; slower capture rates merely
+// survived longer (GC kept up). All IDirect3DSurface8s share one vtable, so the
+// slot fns resolve ONCE from the first backbuffer surface. See
+// docs/findings/town-map-RE.md §5b / engine-quirks. (capture-local also writes
+// the reused blob straight to disk via Win32 — see writeRawFile — so the
+// 3 MB/frame `readByteArray` is gone too on that path; only the remote
+// pixel-shipping path still allocates it, where transfer is the bottleneck.)
+let g_surf_fns = null;     // {get_desc, lock_rect, unlock_rect, release}
+let g_cap_scratch = null;  // {ppBB, descBuf, ppSys, lrBuf} — reused per frame
+let g_cap_blob = null;     // reused readback staging buffer (grows on demand)
+let g_cap_blob_size = 0;
+
 function ensureSurfaceFns(devicePtr) {
     if (g_dev_fns) return;
     g_dev_fns = {
@@ -1144,17 +1161,92 @@ function ensureSurfaceFns(devicePtr) {
     };
 }
 
+// Resolve the surface-method NativeFunctions once (all surfaces share a vtable).
+function ensureSurfFns(surf) {
+    if (g_surf_fns) return;
+    g_surf_fns = {
+        get_desc: new NativeFunction(
+            vtableSlot(surf, V_Surf_GetDesc), 'uint32',
+            ['pointer', 'pointer'], 'stdcall'),
+        lock_rect: new NativeFunction(
+            vtableSlot(surf, V_Surf_LockRect), 'uint32',
+            ['pointer', 'pointer', 'pointer', 'uint32'], 'stdcall'),
+        unlock_rect: new NativeFunction(
+            vtableSlot(surf, V_Surf_UnlockRect), 'uint32',
+            ['pointer'], 'stdcall'),
+        release: new NativeFunction(
+            vtableSlot(surf, V_Release), 'uint32', ['pointer'], 'stdcall'),
+    };
+}
+
+// One-time tiny scratch buffers (out-pointers + desc/locked-rect structs).
+function ensureCapScratch() {
+    if (g_cap_scratch) return;
+    g_cap_scratch = {
+        ppBB:    Memory.alloc(Process.pointerSize),
+        descBuf: Memory.alloc(D3DSURFACE_DESC_SIZE),
+        ppSys:   Memory.alloc(Process.pointerSize),
+        lrBuf:   Memory.alloc(D3DLOCKED_RECT_SIZE),
+    };
+}
+
 function releaseSurface(surf) {
-    const release = new NativeFunction(
-        vtableSlot(surf, V_Release), 'uint32', ['pointer'], 'stdcall');
-    release(surf);
+    g_surf_fns.release(surf);   // cached; g_surf_fns set before any release path
+}
+
+// Win32 raw-file writer (kernel32 — always loaded, no CRT dependency), used by
+// the capture-local fast path to dump the reused BGRX blob STRAIGHT to disk.
+// This replaces `blob.readByteArray()` + `new File()` per frame, the last big
+// per-captured-frame native-backed allocation (a fresh ~3 MB ArrayBuffer) that
+// churned frida's heap into the 0xbe5f4e AV. All buffers are reused; only the
+// three cached NativeFunctions run per frame.
+let g_winfile_fns = null;   // {createFile, writeFile, closeHandle}
+let g_fname_buf   = null;   // reused ANSI path buffer
+let g_written_buf = null;   // DWORD out for WriteFile
+
+function ensureWinFileFns() {
+    if (g_winfile_fns) return;
+    g_winfile_fns = {
+        createFile: new NativeFunction(
+            Module.getExportByName('kernel32.dll', 'CreateFileA'), 'pointer',
+            ['pointer', 'uint32', 'uint32', 'pointer', 'uint32', 'uint32', 'pointer'],
+            'stdcall'),
+        writeFile: new NativeFunction(
+            Module.getExportByName('kernel32.dll', 'WriteFile'), 'int',
+            ['pointer', 'pointer', 'uint32', 'pointer', 'pointer'], 'stdcall'),
+        closeHandle: new NativeFunction(
+            Module.getExportByName('kernel32.dll', 'CloseHandle'), 'int',
+            ['pointer'], 'stdcall'),
+    };
+    g_fname_buf   = Memory.alloc(2048);
+    g_written_buf = Memory.alloc(4);
+}
+
+// CreateFileA(CREATE_ALWAYS) → WriteFile(len) → CloseHandle. Path is ANSI; the
+// blob is raw native memory (the reused staging buffer). Returns true on write.
+function writeRawFile(path, dataPtr, len) {
+    g_fname_buf.writeAnsiString(path);     // reuse (paths are < 2 KB)
+    // GENERIC_WRITE=0x40000000, CREATE_ALWAYS=2, FILE_ATTRIBUTE_NORMAL=0x80
+    const h = g_winfile_fns.createFile(
+        g_fname_buf, 0x40000000, 0, NULL, 2, 0x80, NULL);
+    if (h.isNull() || h.toInt32() === -1) {   // INVALID_HANDLE_VALUE
+        err('writeRawFile/CreateFileA', path);
+        return false;
+    }
+    try {
+        g_winfile_fns.writeFile(h, dataPtr, len, g_written_buf, NULL);
+        return true;
+    } finally {
+        g_winfile_fns.closeHandle(h);
+    }
 }
 
 function captureBackbuffer(devicePtr, frameNumber, captureVals) {
     ensureSurfaceFns(devicePtr);
+    ensureCapScratch();
 
     // ── 1. GetBackBuffer → bbSurf (video memory, not lockable) ──
-    const ppBB = Memory.alloc(Process.pointerSize);
+    const ppBB = g_cap_scratch.ppBB;
     ppBB.writePointer(NULL);
     let hr = g_dev_fns.get_backbuffer(devicePtr, 0, D3DBACKBUFFER_TYPE_MONO, ppBB);
     if (hr !== 0) {
@@ -1163,15 +1255,13 @@ function captureBackbuffer(devicePtr, frameNumber, captureVals) {
     }
     const bbSurf = ppBB.readPointer();
     if (bbSurf.isNull()) { err('captureBackbuffer', 'GetBackBuffer returned NULL surface'); return; }
+    ensureSurfFns(bbSurf);   // resolve surface vtable fns once (before any release path)
 
     let sysSurf = NULL;
     try {
         // ── 2. GetDesc(bbSurf) to learn w, h, format ──
-        const descBuf = Memory.alloc(D3DSURFACE_DESC_SIZE);
-        const getDesc = new NativeFunction(
-            vtableSlot(bbSurf, V_Surf_GetDesc),
-            'uint32', ['pointer', 'pointer'], 'stdcall');
-        hr = getDesc(bbSurf, descBuf);
+        const descBuf = g_cap_scratch.descBuf;
+        hr = g_surf_fns.get_desc(bbSurf, descBuf);
         if (hr !== 0) {
             err('captureBackbuffer/GetDesc', 'HRESULT 0x' + (hr >>> 0).toString(16));
             return;
@@ -1187,7 +1277,7 @@ function captureBackbuffer(devicePtr, frameNumber, captureVals) {
         // GetDesc.Format is whatever D3DFMT_X8R8G8B8 / A8R8G8B8 the
         // engine asked for, which is always 32-bit BGRX-style — no
         // conversion needed.
-        const ppSys = Memory.alloc(Process.pointerSize);
+        const ppSys = g_cap_scratch.ppSys;
         ppSys.writePointer(NULL);
         hr = g_dev_fns.create_image_surface(devicePtr, w, h, fmt, ppSys);
         if (hr !== 0) {
@@ -1210,11 +1300,8 @@ function captureBackbuffer(devicePtr, frameNumber, captureVals) {
         }
 
         // ── 5. LockRect on sysSurf + send pixels ──
-        const lrBuf = Memory.alloc(D3DLOCKED_RECT_SIZE);
-        const lockRect = new NativeFunction(
-            vtableSlot(sysSurf, V_Surf_LockRect),
-            'uint32', ['pointer', 'pointer', 'pointer', 'uint32'], 'stdcall');
-        hr = lockRect(sysSurf, lrBuf, NULL, D3DLOCK_READONLY);
+        const lrBuf = g_cap_scratch.lrBuf;
+        hr = g_surf_fns.lock_rect(sysSurf, lrBuf, NULL, D3DLOCK_READONLY);
         if (hr !== 0) {
             err('captureBackbuffer/LockRect(sys)',
                 'HRESULT 0x' + (hr >>> 0).toString(16));
@@ -1226,34 +1313,39 @@ function captureBackbuffer(devicePtr, frameNumber, captureVals) {
 
             const rowBytes = w * 4;
             const total    = rowBytes * h;
-            const blob     = Memory.alloc(total);
+            if (g_cap_blob === null || g_cap_blob_size < total) {
+                g_cap_blob = Memory.alloc(total);   // reused across frames; grows on demand
+                g_cap_blob_size = total;
+            }
+            const blob = g_cap_blob;
             for (let y = 0; y < h; y++) {
                 Memory.copy(blob.add(y * rowBytes),
                             pBits.add(y * pitch),
                             rowBytes);
             }
-            const ab = blob.readByteArray(total);
-
             // Same-machine fast path: when a capture dir is set, write the raw
             // BGRX blob straight to a WSL-accessible file (the agent runs on the
             // same host as WSL) instead of shipping ~3 MB/frame over the Frida
             // channel. Python reads the .raw files afterwards. Filename carries
             // w×h so the reader needs no sidecar. Enables whole-trace capture.
+            // Win32 direct-write from the reused blob — NO per-frame ArrayBuffer
+            // (readByteArray) or `new File`, the last churn that AV'd frida.
             if (g_capture_dir) {
-                try {
-                    const name = 'frame_' + ('00000' + frameNumber).slice(-5) +
-                                 '_' + w + 'x' + h + '.raw';
-                    const f = new File(g_capture_dir + '\\' + name, 'wb');
-                    f.write(ab);
-                    f.close();
-                    // Lightweight notify (no pixel payload) so Python records the
-                    // frame + its capture-time watch vals without the transfer.
-                    send({kind: 'frame_file', frame: frameNumber, w: w, h: h,
-                          file: name, t_ms: nowMs(), vals: captureVals || null});
-                } catch (e) { err('captureBackbuffer/file', e.message); }
+                ensureWinFileFns();
+                const name = 'frame_' + ('00000' + frameNumber).slice(-5) +
+                             '_' + w + 'x' + h + '.raw';
+                writeRawFile(g_capture_dir + '\\' + name, blob, total);
+                // Lightweight notify (no pixel payload) so Python records the
+                // frame + its capture-time watch vals without the transfer.
+                send({kind: 'frame_file', frame: frameNumber, w: w, h: h,
+                      file: name, t_ms: nowMs(), vals: captureVals || null});
                 return;
             }
 
+            // Remote / non-local path: ship pixels over the Frida channel (this
+            // readByteArray is the ~3 MB/frame churn, but transfer is the
+            // bottleneck there anyway; capture-local above avoids it entirely).
+            const ab = blob.readByteArray(total);
             send({
                 kind:  'frame',
                 frame: frameNumber,
@@ -1271,10 +1363,7 @@ function captureBackbuffer(devicePtr, frameNumber, captureVals) {
                 vals:  captureVals || null,
             }, ab);
         } finally {
-            const unlockRect = new NativeFunction(
-                vtableSlot(sysSurf, V_Surf_UnlockRect),
-                'uint32', ['pointer'], 'stdcall');
-            unlockRect(sysSurf);
+            g_surf_fns.unlock_rect(sysSurf);
         }
     } finally {
         if (!sysSurf.isNull()) releaseSurface(sysSurf);
