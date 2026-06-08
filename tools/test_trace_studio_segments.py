@@ -39,7 +39,8 @@ def py_projection(fx: dict) -> dict:
     sf = S.side_layout(segs, fx["retail"], fx["sync_seg"])["sync_frame"]
     rs_r = S.resolve_side(segs, fx["retail"])
     rs_p = S.resolve_side(segs, fx["port"])
-    elay = S.editor_layout(segs, fx["port"], fx["retail"], cap_seg=3, cap_start=0, cap_count=48)
+    elay = S.editor_layout(segs, fx["port"], fx["retail"],
+                           window_side="retail", window_start_abs=85, window_end_abs=140)
     return {
         "segments": [{"wait": s["wait_anchor"],
                       "items": [[i["kind"], i["frame"]] for i in s["items"]]}
@@ -58,9 +59,12 @@ def py_projection(fx: dict) -> dict:
             "port": {"bases": [[b["base"], b["ok"]] for b in rs_p["bases"]],
                      "placements": [[p["seg"], p["rel"]] for p in rs_p["placements"]]},
         },
-        "editor_layout": {"X": elay["X"], "W": elay["W"], "ext": elay["ext"]},
+        "editor_layout": {"X": elay["X"], "W": elay["W"], "ext": elay["ext"],
+                          "window": elay["window"]},
         "band_at": [[pos, S.band_at(elay["X"], pos)["seg"], S.band_at(elay["X"], pos)["rel"]]
                     for pos in (35, 2515, 3000, -3)],
+        "abs_to_band": [[a, S.abs_to_band(a, rs_r["bases"])["seg"],
+                         S.abs_to_band(a, rs_r["bases"])["rel"]] for a in (85, 140, 200)],
     }
 
 
@@ -101,15 +105,21 @@ def main() -> int:
          f"retail placements wrong: {proj['resolve_side']['retail']['placements']}")
     want(proj["resolve_side"]["port"]["placements"] == [[0, 0], [1, 0], [1, 2465], [1, 2465], [2, 0]],
          f"port placements wrong: {proj['resolve_side']['port']['placements']}")
-    # bands never overlap: X[k] ≥ X[k-1]+W[k-1]; the captured seg-3 band fits the 48f window.
+    # bands never overlap: X[k] ≥ X[k-1]+W[k-1]; the captured window (abs 85→140 on retail)
+    # spans seg1→seg3 and widens seg3 from its content (20) to cover its slice (29 → ext 30).
     xs, ws = proj["editor_layout"]["X"], proj["editor_layout"]["W"]
     want(all(xs[k] >= xs[k - 1] + ws[k - 1] for k in range(1, len(xs))),
          f"bands overlap: X={xs} W={ws}")
-    want(proj["editor_layout"] == {"X": [0, 30, 2515, 2540], "W": [14, 2469, 9, 52],
-                                   "ext": [10, 2465, 5, 48]},
+    want(proj["editor_layout"] == {
+        "X": [0, 30, 2515, 2540], "W": [14, 2469, 9, 34], "ext": [10, 2465, 5, 30],
+        "window": {"startSeg": 1, "startRel": 4, "endSeg": 3, "endRel": 29}},
          f"editor_layout wrong: {proj['editor_layout']}")
     want(proj["band_at"] == [[35, 1, 5], [2515, 2, 0], [3000, 3, 460], [-3, 0, -3]],
          f"band_at wrong: {proj['band_at']}")
+    # abs_to_band: 85→seg1+4, 140→seg3+29; 200 is past the last base (111) so it stays in
+    # seg3 (skips nothing here — all resolved) at rel 89.
+    want(proj["abs_to_band"] == [[85, 1, 4], [140, 3, 29], [200, 3, 89]],
+         f"abs_to_band wrong: {proj['abs_to_band']}")
 
     # ── 2) JS twin cross-check (node) ────────────────────────────────────────
     node = shutil.which("node")

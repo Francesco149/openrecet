@@ -100,15 +100,36 @@ the two sides align band-for-band. Note `{wait PAUSE_OPEN}` (seg 4) is **unresol
 sides** because PAUSE_OPEN fires the same frame as LOADING_START (not *strictly* after) — its
 band is empty of anchors, which is faithful to the resolver; its inputs still get a band.
 
-## Cursor + capture window
+## Cursor + capture window (positioned by the ACTUAL captured frames)
 
-The captured segment `capSeg` is the segment holding the `{caprange}` op; the window is
-`[capStart, capStart+capCount)` in that segment's relative frames. The SPA's global scrub
-ordinal `cur` maps (via `view.locate`) to a local ordinal `k`; the editor cursor sits at
-`X[capSeg] + capStart + k·cadence` (no `base_abs` needed — that is a capture detail, and is
-`null` on a side whose capture failed). A click maps back: `bandAt(X, pos)` → `{seg, rel}`;
-inside `capSeg` it snaps to the nearest captured frame `k = round((rel − capStart)/cadence)`,
-elsewhere it clamps to the captured band (the video only exists there).
+The captured window is **NOT** drawn at the `{caprange}` op's trace position. `caprange
+[start, count]` counts forward through the replay *including loads*, so the captured frames
+can land many segments after the op: in `merchants-guild` the op is in seg 2 (the freeroam
+where you walk to the door), but `base_abs` shows the first captured frame is the guild's
+`LOADING_END` — which the same-frame-PAUSE_OPEN quirk swallows into seg 3 — and the 940
+frames span through to seg 41 (the dialogue). Drawing the window at the op's segment (sized
+`start+count`) gave one huge **empty** band with the real content in the bands after it.
+
+Instead the window is an **absolute frame span** on a chosen reference side:
+`[base_abs, base_abs + (n−1)·cadence]` (manifest `port`/`retail` `base_abs` + the captured
+frame count). `editorLayout` maps it across every band it covers (`absToBand` on the
+reference side's resolved bases), widens each covered band to fit its slice, and returns the
+window's band endpoints `{startSeg, startRel, endSeg, endRel}` — so the green band spans
+exactly the captured content.
+
+**Reference side** = the side with non-null `base_abs` whose anchor stream resolves the most
+segments. A side that **diverges mid-capture** (the port renders cyan on entering the guild,
+so it never fires the dialogue anchors and its stream stops at the guild load) records far
+fewer anchors, so its bases can't map the captured tail — the other side (retail, complete)
+is used. For a side whose capture failed entirely (`base_abs: null`), the other side is used;
+if both are null there is no window.
+
+**Cursor.** The SPA's global ordinal `cur` → local ordinal `k` (via `view.locate`); the
+cursor sits at `absToBand(base_abs + k·cadence)` on the reference side. A scrub-click picks
+the captured ordinal whose band position is closest to the click (a direct scan — robust
+across loads, unresolved bands, and divergence, with no special-casing). The `{caprange}`
+len/pos controls still edit the op (a `✎ pending` flag shows until the next ⟳ re-capture
+realises the new span; the precise new span can't be previewed without re-running).
 
 ## Independence from capture health
 
@@ -124,8 +145,10 @@ capture-harness issue, tracked apart from alignment.
 - `parseSegments(ops)` → `[{waitAnchor, items:[{kind,frame,...}]}]`
 - `resolveBases(segments, firings)` → `[{base, ok, anchor}]`
 - `resolveSide(segments, firings)` → `{bases, placements:[{seg,rel}]}`
-- `editorLayout(segments, portFirings, retailFirings, {emitted, notes, capSeg, capStart, capCount, gap, minBand, pad})`
-  → `{port, retail, X, W, ext, gap}` — the whole layout in one pure call
+- `absToBand(abs, bases)` → `{seg, rel}` (an absolute frame → its band, resolved bases only)
+- `editorLayout(segments, portFirings, retailFirings, {emitted, notes, windowSide, windowStartAbs, windowEndAbs, gap, minBand, pad})`
+  → `{port, retail, X, W, ext, gap, window}` — the whole layout in one pure call; `window` is
+  `{startSeg, startRel, endSeg, endRel}` or `null`
 - `bandAt(X, pos)` → `{seg, rel}` (screen → segment inverse)
 
 `absToX`/`xToAbs`/`itemAbs`/`divergenceReport` remain for the legacy single-anchor math +

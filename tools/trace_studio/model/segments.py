@@ -145,16 +145,28 @@ def resolve_side(segments: list[dict], firings: list[dict]) -> dict:
     return {"bases": bases, "placements": placements}
 
 
+def abs_to_band(abs_frame: int, bases: list[dict]) -> dict:
+    """Absolute frame → the band it falls in (largest RESOLVED base ≤ abs; unresolved
+    segments are skipped). Mirrors align.mjs:absToBand."""
+    seg = 0
+    for k in range(len(bases)):
+        if bases[k] and bases[k]["ok"] and bases[k]["base"] <= abs_frame:
+            seg = k
+    return {"seg": seg, "rel": abs_frame - (bases[seg]["base"] if seg < len(bases) else 0)}
+
+
 def editor_layout(segments: list[dict], port_firings: list[dict],
                   retail_firings: list[dict], *, emitted: list[dict] | None = None,
-                  notes: list[dict] | None = None, cap_seg: int = -1, cap_start: int = 0,
-                  cap_count: int = 0, gap: int = 16, min_band: int = 8,
-                  pad: int = 4) -> dict:
+                  notes: list[dict] | None = None, window_side: str | None = None,
+                  window_start_abs: int | None = None, window_end_abs: int | None = None,
+                  gap: int = 16, min_band: int = 8, pad: int = 4) -> dict:
     """Lay segments out as sequential, NON-OVERLAPPING bands (mirrors align.mjs:editorLayout
     — THE alignment workhorse). Band k = [X[k], X[k]+W[k]); width fits the widest content in
     the band across BOTH sides; origins X[k]=X[k-1]+W[k-1]+gap. A per-segment load-stretch
     collapses to the inter-band gap; a divergent/incomplete trace still gets one band per
-    segment. See docs/findings/trace-editor-segment-alignment.md."""
+    segment. The captured window is an ABSOLUTE span on `window_side` (NOT the {caprange} op's
+    trace position) — mapped across the bands it covers (each widened to fit) with its band
+    endpoints returned. See docs/findings/trace-editor-segment-alignment.md."""
     emitted = emitted or []
     notes = notes or []
     port = resolve_side(segments, port_firings)
@@ -177,15 +189,31 @@ def editor_layout(segments: list[dict], port_firings: list[dict],
         bump(p["seg"], p["rel"])
     for p in retail["placements"]:
         bump(p["seg"], p["rel"])
-    if cap_seg >= 0:
-        bump(cap_seg, cap_start + cap_count)
+
+    window = None
+    if window_side and window_start_abs is not None and window_end_abs is not None:
+        wb = (port if window_side == "port" else retail)["bases"]
+        resolved = [{"seg": k, "base": wb[k]["base"]} for k in range(len(wb)) if wb[k]["ok"]]
+        for i, r in enumerate(resolved):
+            b = r["base"]
+            nb = resolved[i + 1]["base"] if i + 1 < len(resolved) else float("inf")
+            lo = max(window_start_abs, b)
+            hi = min(window_end_abs, nb - 1)
+            if hi >= lo:
+                bump(r["seg"], hi - b + 1)
+        s = abs_to_band(window_start_abs, wb)
+        e = abs_to_band(window_end_abs, wb)
+        window = {"startSeg": s["seg"], "startRel": s["rel"],
+                  "endSeg": e["seg"], "endRel": e["rel"]}
+
     w = [max(min_band, e + pad) for e in ext]
     x_origins: list[int] = []
     x = 0
     for k in range(n):
         x_origins.append(x)
         x += w[k] + gap
-    return {"port": port, "retail": retail, "X": x_origins, "W": w, "ext": ext, "gap": gap}
+    return {"port": port, "retail": retail, "X": x_origins, "W": w, "ext": ext,
+            "gap": gap, "window": window}
 
 
 def band_at(x_origins: list[int], pos: int) -> dict:

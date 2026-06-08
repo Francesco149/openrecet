@@ -2,7 +2,7 @@
 //   nix develop --command node tools/trace_studio_web/align.test.mjs
 import {
   parseSegments, resolveBases, sideLayout, absToX, xToAbs, itemAbs, divergenceReport,
-  resolveSide, editorLayout, bandAt,
+  resolveSide, editorLayout, bandAt, absToBand,
 } from "./align.mjs";
 
 let pass = 0, fail = 0;
@@ -132,25 +132,41 @@ eq(dvR.bases.map(b => [b.base, b.ok]), [[0, true], [157, true], [11806, true], [
 eq(dvR.placements.map(p => p.seg), [0, 1, 1, 2, 2], "divergent: retail anchors → seg 2, NOT the stacked seg 4");
 eq(dvP.placements.map(p => p.seg), [0, 1, 1, 2, 2, 3, 3, 4], "divergent: port anchors fill all 5 bands");
 
-// ── editorLayout: sequential, non-overlapping bands; capture window sizes its band ──
-const dvL = editorLayout(dvTrace, dvPort, dvRetail, { capSeg: 2, capStart: 0, capCount: 868 });
+// ── editorLayout: sequential, non-overlapping bands sized by CONTENT (no window) ──
+const dvL = editorLayout(dvTrace, dvPort, dvRetail);
 ok(dvL.X.every((x, k) => k === 0 || x > dvL.X[k - 1]), "layout: band origins strictly increasing");
 ok(dvL.X.every((x, k) => k === 0 || x >= dvL.X[k - 1] + dvL.W[k - 1]), "layout: bands never overlap (X[k] ≥ X[k-1]+W[k-1])");
-eq(dvL.W[2], 872, "layout: captured seg-2 band sized to the 868f window (+pad)");
-ok(dvL.W[3] < dvL.W[2] && dvL.W[4] < dvL.W[2], "layout: future segs 3/4 are their OWN small bands (no overlay)");
+eq(dvL.W[2], 54, "layout: seg-2 band sized to its content (inputs to frame 50, +pad)");
+ok(dvL.window === null, "layout: no window params → window is null");
 // retail's seg-2 content sits at the SAME band origin as the port's ⇒ aligned
 eq(dvL.X[2] + dvR.placements[3].rel, dvL.X[2] + dvP.placements[3].rel, "layout: retail vs port LOADING_END coincide in band 2");
 
+// ── absToBand: an absolute frame → the band it falls in (resolved bases only) ──
+eq(absToBand(416, dvP.bases), { seg: 2, rel: 0 }, "absToBand: port 416 = seg-2 base");
+eq(absToBand(500, dvP.bases), { seg: 2, rel: 84 }, "absToBand: port 500 → seg 2 + 84");
+// retail's unresolved segs 3/4 are SKIPPED — a frame past 11806 stays in seg 2 (the last
+// segment retail actually fired), never a stacked/unresolved later band.
+eq(absToBand(99999, dvR.bases).seg, 2, "absToBand: retail frame past its last anchor stays in seg 2 (skips unresolved)");
+
+// ── the CAPTURED WINDOW spans multiple bands (the merchants-guild bug): the window is an
+// absolute span on a side, mapped across every band it covers — each widened to fit. ──
+const dvW = editorLayout(dvTrace, dvPort, dvRetail, { windowSide: "port", windowStartAbs: 416, windowEndAbs: 700 });
+eq(dvW.window, { startSeg: 2, startRel: 0, endSeg: 4, endRel: 24 }, "window: spans seg2→seg4 (caprange counted through 2 segments)");
+ok(dvW.W[2] >= 227 && dvW.W[3] >= 33 && dvW.W[4] >= 25, "window: each COVERED band widened to fit its slice (227/33/25)");
+ok(dvW.X.every((x, k) => k === 0 || x >= dvW.X[k - 1] + dvW.W[k - 1]), "window: bands still never overlap");
+
 // ── bandAt: screen→segment inverse ───────────────────────────────────────────
-eq(bandAt(dvL.X, dvL.X[2] + 52), { seg: 2, rel: 52 }, "bandAt: a point in band 2 → {seg2, rel}");
+eq(bandAt(dvL.X, dvL.X[2] + 40), { seg: 2, rel: 40 }, "bandAt: a point in band 2 → {seg2, rel}");
 eq(bandAt(dvL.X, dvL.X[4] + 3).seg, 4, "bandAt: a point in band 4 → seg 4 (not stacked into 2)");
 eq(bandAt(dvL.X, -5).seg, 0, "bandAt: left of band 0 clamps to seg 0");
 
 // ── edge cases: a single-segment dense session + a no-anchors trace ───────────
 const oneSeg = parseSegments([{ frame: 0, buttons: "0x0000" }, { frame: 10, buttons: "0x0010" }]);
-const oneL = editorLayout(oneSeg, [{ anchor: "BOOT", frame: 0 }], [{ anchor: "BOOT", frame: 0 }], { capSeg: 0, capStart: 0, capCount: 48 });
+const oneL = editorLayout(oneSeg, [{ anchor: "BOOT", frame: 0 }], [{ anchor: "BOOT", frame: 0 }],
+  { windowSide: "port", windowStartAbs: 0, windowEndAbs: 47 });
 eq(oneL.X, [0], "edge: single segment → one band at origin 0");
-eq(oneL.W, [52], "edge: single-segment band fits the 48f window (+pad)");
+eq(oneL.W, [52], "edge: single-segment band fits the 48f window (0..47, +pad)");
+eq(oneL.window, { startSeg: 0, startRel: 0, endSeg: 0, endRel: 47 }, "edge: single-segment window stays in band 0");
 const noAnchors = editorLayout(dvTrace, [], []);
 eq(noAnchors.port.placements, [], "edge: no firings → no placements (no crash)");
 ok(noAnchors.X.length === 5, "edge: bands still laid out from items alone when anchors absent");

@@ -20,16 +20,19 @@
 // `bandAt(X, pos)`. Everything (items/pins/emitted/notes/cursor/capture-window) is segment-
 // relative, so it is side-agnostic except the per-side anchor chips.
 //
-// CURSOR BRIDGE (the v2 wiring): the SPA's scrub position is the GLOBAL ordinal `cur`. We
-// DERIVE the editor cursor from `cur` via view.locate (so scrubbing the filmstrip/video moves
-// the timeline line) and map scrub-clicks back to `cur` (so the timeline drives the video).
-// The cursor lives in the CAPTURED band: pos = X[capSeg] + capStart + k·cadence (no base_abs
-// — that is a capture detail, and is null on a side whose capture failed).
+// CURSOR + CAPTURED WINDOW (the v2 wiring): the SPA's scrub position is the GLOBAL ordinal
+// `cur`. We DERIVE the editor cursor from `cur` via view.locate and map scrub-clicks back to
+// `cur` (bidirectional). The cursor + green window are positioned by the ACTUAL captured
+// ABSOLUTE frame (manifest base_abs + ordinal·cadence), mapped onto the bands via absToBand —
+// NOT the {caprange} op's trace position, which counts forward through loads so the captured
+// frames can live many segments later (the op is in the freeroam segment, the frames in the
+// building interior + dialogue). The window REFERENCE side is the one whose anchor stream
+// resolves furthest (a side that diverged mid-capture records fewer anchors).
 //
 // THE extend/edit/recapture loop is a primary workflow: tweak inputs/pins, ⇥ extend the
 // captured window, then ⟳ re-capture — all without leaving the editor or re-recording.
 import { html, useMemo, useRef, useState, useEffect } from "/vendor/htm-preact-standalone.mjs";
-import { parseSegments, editorLayout, bandAt } from "/align.mjs";
+import { parseSegments, editorLayout, bandAt, resolveSide, absToBand } from "/align.mjs";
 import { toast } from "/web/util.mjs";
 
 // the button bits we draw a row for (src/input.c input_binding_mask)
@@ -82,43 +85,61 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
     const segs = parseSegments(editTrace || []);
     const capSegs = parseSegments(capturedOps || []);
     // content that sizes each band: emitted (read-only) inputs + notes (items/anchors/window
-    // are added inside editorLayout from segs/firings/caprange).
+    // are added inside editorLayout).
     const emitted = [];
     capSegs.forEach((s, k) => s.items.forEach(it => { if (it.kind === "input") emitted.push({ seg: k, frame: it.frame }); }));
     const noteExt = (notes || []).map(nt => ({ seg: nt.seg, frame: nt.frame }));
-    const capSeg = capInfo ? capInfo.seg : -1;
+    // WINDOW reference side: the captured window is positioned by the actual captured
+    // absolute frames (manifest base_abs … +n·cadence), NOT the {caprange} op's trace
+    // position (caprange counts forward through loads, so the frames can live many segments
+    // later). Pick the side with non-null base_abs whose anchor stream resolves furthest — a
+    // side that diverged mid-capture (e.g. port → cyan in a building) records fewer anchors,
+    // so its bases can't map the captured tail.
+    const cadence = (manifest && manifest.stride > 1) ? manifest.stride : 1;
+    const cand = [];
+    const pBase = manifest?.port?.base_abs, rBase = manifest?.retail?.base_abs;
+    if (pBase != null) cand.push({ side: "port", base: pBase, res: resolveSide(segs, anchors.port || []).bases.filter(b => b.ok).length, frames: manifest?.n_frames || 0 });
+    if (rBase != null) cand.push({ side: "retail", base: rBase, res: resolveSide(segs, anchors.retail || []).bases.filter(b => b.ok).length, frames: manifest?.n_frames_retail || 0 });
+    cand.sort((a, b) => b.res - a.res);
+    const win = cand[0] || null;
+    const windowSide = win ? win.side : null;
+    const windowStartAbs = win ? win.base : null;
+    const windowFrames = win ? win.frames : 0;
+    const windowEndAbs = win ? win.base + Math.max(0, windowFrames - 1) * cadence : null;
     const lay = editorLayout(segs, anchors.port || [], anchors.retail || [], {
-      emitted, notes: noteExt, capSeg,
-      capStart: capInfo ? capInfo.start : 0, capCount: capInfo ? capInfo.count : 0,
-      gap: GAP, minBand: MINBAND, pad: PAD,
+      emitted, notes: noteExt, gap: GAP, minBand: MINBAND, pad: PAD,
+      windowSide, windowStartAbs, windowEndAbs,
     });
     const n = Math.max(1, segs.length);
     let lo = -PAD - 6;
     let hi = (lay.X[n - 1] ?? 0) + (lay.W[n - 1] ?? MINBAND) + PAD + 6;
-    if (winOnly && capSeg >= 0) {
-      lo = (lay.X[capSeg] ?? 0) + capInfo.start - 10;
-      hi = (lay.X[capSeg] ?? 0) + capInfo.start + capInfo.count + 10;
+    if (winOnly && lay.window) {
+      lo = (lay.X[lay.window.startSeg] ?? 0) + lay.window.startRel - 10;
+      hi = (lay.X[lay.window.endSeg] ?? 0) + lay.window.endRel + 10;
     }
     // which button rows to show: defaults + any present in the trace
     const present = new Set(DEFAULT_BTNS);
     (editTrace || []).forEach(o => { if (o && "buttons" in o) { const m = parseInt(o.buttons, 16) || 0; BTNROWS.forEach(([b]) => { if (m & b) present.add(b); }); } });
     const btns = BTNROWS.filter(([b]) => present.has(b));
-    return { segs, capSegs, lay, lo, hi, btns, capSeg };
-  }, [editTrace, capturedOps, anchors, notes, winOnly, capInfo]);
+    return { segs, capSegs, lay, lo, hi, btns, windowSide, windowStartAbs, windowFrames, cadence };
+  }, [editTrace, capturedOps, anchors, notes, winOnly, manifest]);
 
-  const { segs, capSegs, lay, lo, hi, btns, capSeg } = L;
+  const { segs, capSegs, lay, lo, hi, btns, windowSide, windowStartAbs, windowFrames, cadence } = L;
+  const wbBases = windowSide ? lay[windowSide].bases : null;
   const X = lay.X;
   const sideLay = (side) => (side === "port" ? lay.port : lay.retail);
 
   // ── project the GLOBAL ordinal `cur` onto the editor's band axis ──────────────
-  // view.locate gives the active gameplay segment + its local ordinal k; the editor cursor
-  // sits in the CAPTURED trace band at X[capSeg] + capStart + k·cadence.
+  // view.locate gives the active gameplay segment + its local ordinal k. The cursor sits at
+  // the captured ABSOLUTE frame (windowStartAbs + k·cadence), mapped onto the band axis via
+  // the window side's bases — so it tracks the captured content across loads/segments, not
+  // the {caprange} op's trace position.
   const { seg: gseg, k: segK } = (view && view.locate) ? view.locate(cur) : { seg: null, k: 0 };
-  const cadence = gseg ? gseg.cadence : 1;
   const offG = gseg ? gseg.offsetGlobal : 0;
-  const segN = gseg ? gseg.nFrames : 1;
-  const cursorSeg = capSeg >= 0 ? capSeg : 0;
-  const cursorFrame = capSeg >= 0 ? ((capInfo ? capInfo.start : 0) + segK * cadence) : segK;
+  const segN = gseg ? gseg.nFrames : Math.max(1, windowFrames || 1);
+  const cursorAbs = (windowStartAbs != null) ? windowStartAbs + Math.max(0, Math.min((windowFrames || 1) - 1, segK)) * cadence : null;
+  const cpos = (cursorAbs != null && wbBases) ? absToBand(cursorAbs, wbBases) : { seg: 0, rel: segK };
+  const cursorSeg = cpos.seg, cursorFrame = cpos.rel;
   const cursorPos = (X[cursorSeg] ?? 0) + cursorFrame;
 
   const relX = (pos) => (pos - lo) * ppf;
@@ -139,16 +160,19 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
   // layout position → {seg, frame} for EDITING (clamped ≥ 0) — which band the click landed in
   const hitAt = (clientX) => { const { seg, rel } = bandAt(X, xToPos(clientX)); return { seg, frame: Math.max(0, Math.round(rel)) }; };
 
-  // scrub: a layout position → set the global cursor, snapping INTO the captured window
-  // (the video only exists there; clicks in other bands clamp to the window's near edge).
+  // scrub: a layout position → set the global cursor = the captured ordinal whose band
+  // position is closest to `pos`. A direct scan (robust across loads, unresolved bands, and
+  // divergence — no special-casing); clicks outside the captured bands snap to the nearest end.
   const scrubTo = (pos) => {
-    const { seg, rel } = bandAt(X, pos);
-    let k;
-    if (capSeg < 0) k = Math.max(0, Math.round(rel));
-    else if (seg < capSeg) k = 0;
-    else if (seg > capSeg) k = segN - 1;
-    else k = Math.round((rel - (capInfo ? capInfo.start : 0)) / cadence);
-    setCur(offG + Math.max(0, Math.min(segN - 1, k)));
+    if (windowStartAbs == null || !wbBases) { setCur(offG + Math.max(0, Math.min(segN - 1, Math.round(pos)))); return; }
+    let best = 0, bestD = Infinity;
+    for (let g = 0; g < segN; g++) {
+      const ab = windowStartAbs + Math.min((windowFrames || 1) - 1, g) * cadence;
+      const b = absToBand(ab, wbBases);
+      const d = Math.abs((X[b.seg] ?? 0) + b.rel - pos);
+      if (d < bestD) { bestD = d; best = g; }
+    }
+    setCur(offG + best);
   };
   const onRulerClick = (e) => scrubTo(xToPos(e.clientX));
 
@@ -238,23 +262,17 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
   };
   const delNote = (i) => { const n = (notes || []).slice(); n.splice(i, 1); onNotes(n); };
 
-  // ── capture-window bands. The GREEN band is the ACTUALLY-captured window (manifest
-  // caprange) in the captured segment; the DASHED band is the live-edited {caprange} from
-  // editTrace. Both in band-layout space (X[capSeg] + rel). `leaked` warns about markers in
-  // the captured segment past the edited window END — reachable by growing the duration (a
-  // warning only, never a clamp; future segments are separate captures, not leaks). ──
-  const capEdit = (() => {
-    if (!capInfo || capSeg < 0) return null;
-    const base = X[capSeg] ?? 0;
-    const m = (manifest && manifest.caprange) || [capInfo.start, capInfo.count];
-    const winL = base + m[0], winR = base + m[0] + m[1];                 // captured (green)
-    const editL = base + capInfo.start, editR = base + capInfo.start + capInfo.count;  // edited (dashed)
-    const end = capInfo.start + capInfo.count;
-    let leaked = 0;
-    (segs[capSeg] ? segs[capSeg].items : []).forEach(it => { if (it.frame > end) leaked++; });
-    (notes || []).forEach(nt => { if (nt.seg === capSeg && nt.frame > end) leaked++; });
-    return { winL, winR, editL, editR, leaked, pending: capInfo.start !== m[0] || capInfo.count !== m[1] };
-  })();
+  // ── the GREEN captured-window band spans exactly the bands the captured frames cover
+  // (lay.window, positioned by the actual captured absolute frames — NOT the {caprange} op's
+  // trace position, which can sit segments earlier). The {caprange} op (capInfo) still drives
+  // the len/pos EDIT controls; a pending edit (op ≠ manifest.caprange) shows ✎ until the next
+  // capture realises it (its precise new span can't be previewed without re-running). ──
+  const winBand = lay.window
+    ? { l: (X[lay.window.startSeg] ?? 0) + lay.window.startRel,
+        r: (X[lay.window.endSeg] ?? 0) + lay.window.endRel }
+    : null;
+  const capPending = !!(capInfo && manifest && manifest.caprange &&
+    (capInfo.start !== manifest.caprange[0] || capInfo.count !== manifest.caprange[1]));
 
   // apply a {caprange} mutation; keep {calltrace} aligned (same start/len deltas).
   const editCapOp = (mut) => {
@@ -408,20 +426,19 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
         title="limit the view to the captured window">⊞ window-only</button>
       <span class="sep">·</span>
       ${capInfo ? html`<span class="dim">window</span>
-        <span class="capctl" title="capture-window DURATION — its LENGTH (moves the END). Fine ±1/±10, coarse to ±120. The dashed band shows it live; ⟳ re-capture to apply.">
+        <span class="capctl" title="capture-window DURATION — its LENGTH (moves the END). Fine ±1/±10, coarse to ±120. ⟳ re-capture to apply.">
           <span class="dim">len</span>
           ${[-120, -60, -30, -10, -1].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>${d}</button>`)}
           <span class="capnum">${capInfo.count}f</span>
-          ${capEdit && capEdit.leaked > 0 && html`<span class="capwarn" title=${`${capEdit.leaked} marker(s) past the window END — extend the duration to include them`}>⚠${capEdit.leaked}</span>`}
           ${[1, 10, 30, 60, 120].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>+${d}</button>`)}
         </span>
-        <span class="capctl" title="capture-window POSITION — slides the whole window (start+end together, length fixed). The dashed band moves live; ⟳ re-capture to apply.">
+        <span class="capctl" title="capture-window POSITION — slides the whole window (start+end together, length fixed). ⟳ re-capture to apply.">
           <span class="dim">pos</span>
           ${[-30, -10, -1].map(d => html`<button class="seg" onClick=${() => slideWindow(d)} key=${d}>${d}</button>`)}
           <span class="capnum">@${capInfo.start}</span>
           ${[1, 10, 30].map(d => html`<button class="seg" onClick=${() => slideWindow(d)} key=${d}>+${d}</button>`)}
         </span>
-        ${capEdit && capEdit.pending && html`<span class="cappend" title="pending window edit — not captured yet">✎ pending</span>`}`
+        ${capPending && html`<span class="cappend" title="pending window edit — ⟳ re-capture to realise it">✎ pending</span>`}`
         : html`<span class="dim">no {caprange}</span>`}
       <span class="sep">·</span><span class="dim">add@cursor:</span>
       <button class="seg" onClick=${() => addAtCursor("phasepin")} title="add a phasepin at the cursor">+⟲</button>
@@ -454,10 +471,9 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
         onWheel=${e => { if (e.shiftKey) { e.preventDefault(); scrollRef.current.scrollLeft += e.deltaY; } }}>
         <div class="tl-content" style="width:${contentW}px" onClick=${onRulerClick}>
           ${segMarks()}
-          ${capEdit && html`<div class="tl-window" style="left:${relX(capEdit.winL)}px;width:${Math.max(2, (capEdit.winR - capEdit.winL) * ppf)}px"></div>`}
-          ${capEdit && html`<div class=${"tl-editwin" + (capEdit.pending ? " pending" : "")}
-            style="left:${relX(capEdit.editL)}px;width:${Math.max(2, (capEdit.editR - capEdit.editL) * ppf)}px"
-            title="edited capture window — ⟳ re-capture to apply"></div>`}
+          ${winBand && html`<div class=${"tl-window" + (capPending ? " pending" : "")}
+            style="left:${relX(winBand.l)}px;width:${Math.max(2, (winBand.r - winBand.l) * ppf)}px"
+            title="captured window (the frames the capture actually recorded)"></div>`}
           <div class="tl-cursor" style="left:${relX(cursorPos)}px"></div>
           ${rows.map(([, , side, lanes], i) => html`<div class=${"tl-grp s-" + side} key=${i}>${lanes}</div>`)}
         </div>

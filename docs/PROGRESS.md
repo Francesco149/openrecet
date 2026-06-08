@@ -35,7 +35,20 @@ resolved bases — not base-comparison). New pure API in `align.mjs`: `resolveSi
 sessions: well-formed → all 8 anchors in identical bands both sides; divergent → retail's
 `LOADING_END`/`HOUSE_FREEROAM` place in **seg 2** (not the stacked seg 4), future segs get
 their own bands. Mirrored in `model/segments.py` (`resolve_side`/`editor_layout`/`band_at`)
-and pinned byte-for-byte in the JS↔Python golden cross-check; `align.test.mjs` 35/35.
+and pinned byte-for-byte in the JS↔Python golden cross-check.
+
+**Captured-window positioning (follow-up).** The green window must sit on the *actual
+captured frames*, not the `{caprange}` op's trace position — `caprange` counts forward
+through loads, so on `merchants-guild` the op is in seg 2 (walk to the door) but the 940
+captured frames start at the guild's `LOADING_END` (`base_abs`) and run to seg 41 (dialogue);
+drawing it at seg 2 gave one huge **empty** band with the content after it. Now the window is
+an absolute span `[base_abs, base_abs+(n−1)·cadence]` on a **reference side** (the one whose
+anchors resolve furthest — a side that diverges mid-capture, e.g. the port → cyan in a
+building, records fewer anchors), mapped across every band it covers via `absToBand` (each
+widened to fit its slice). Cursor + scrub use the same mapping (scrub = nearest captured
+ordinal by a direct scan — robust across loads/divergence). New pure `absToBand`;
+`editorLayout` takes `windowSide`/`windowStartAbs`/`windowEndAbs` and returns the window's
+band endpoints. Swept clean over all 14 sessions; `align.test.mjs` 42/42, golden mirrored.
 
 Note: the retail side of that session also captured no frames — a **separate** capture-
 harness issue (Frida `connection-terminated` right after `HOUSE_FREEROAM`, after the long

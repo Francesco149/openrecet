@@ -111,6 +111,18 @@ export function resolveSide(segments, firings) {
   return { bases, placements };
 }
 
+// ─── absolute frame → the BAND it falls in, on one side ───────────────────────
+// The captured window + cursor are positioned by an ABSOLUTE frame (manifest base_abs +
+// ordinal), which must be mapped to a (segment, segment-relative) on the band axis. Use the
+// largest RESOLVED base ≤ abs (an unresolved segment has no real base, so it is skipped —
+// the frame belongs to the last segment that actually fired). `bases` is a resolveSide /
+// resolveBases output.
+export function absToBand(abs, bases) {
+  let seg = 0;
+  for (let k = 0; k < bases.length; k++) if (bases[k] && bases[k].ok && bases[k].base <= abs) seg = k;
+  return { seg, rel: abs - (bases[seg] ? bases[seg].base : 0) };
+}
+
 // ─── THE alignment system: lay segments out as sequential, NON-OVERLAPPING bands ──
 // Band k occupies [X[k], X[k]+W[k]); an entity in segment k at seg-relative frame f draws at
 // X[k]+f on BOTH sides ⇒ shared anchors + {wait}-mirrored ops coincide, a per-segment
@@ -118,11 +130,19 @@ export function resolveSide(segments, firings) {
 // coord — only its seg-relative offsets are), a within-segment offset stays a gap, and every
 // segment gets its own band whether or not its wait resolved on a side (so a divergent /
 // incomplete trace is inspectable, never frozen onto one frame). Width fits the widest
-// content in the band across BOTH sides. All inputs explicit + side-effect-free (golden-
-// tested). See docs/findings/trace-editor-segment-alignment.md.
+// content in the band across BOTH sides.
+//
+// The CAPTURED WINDOW is given as an ABSOLUTE frame span on `windowSide` (manifest base_abs
+// … base_abs+(n−1)·cadence) — NOT by the {caprange} op's trace position, because caprange
+// counts forward THROUGH loads, so the captured frames can live many segments after the op
+// (entering a building: the op is in the freeroam segment, the frames are in the interior +
+// dialogue segments). The window is mapped across the bands it actually covers (each covered
+// band is widened to fit its slice) and its band endpoints returned, so the editor draws the
+// green band exactly over the captured content. All inputs explicit + side-effect-free
+// (golden-tested). See docs/findings/trace-editor-segment-alignment.md.
 export function editorLayout(segments, portFirings, retailFirings, opts = {}) {
-  const { emitted = [], notes = [], capSeg = -1, capStart = 0, capCount = 0,
-          gap = 16, minBand = 8, pad = 4 } = opts;
+  const { emitted = [], notes = [], gap = 16, minBand = 8, pad = 4,
+          windowSide = null, windowStartAbs = null, windowEndAbs = null } = opts;
   const port = resolveSide(segments, portFirings);
   const retail = resolveSide(segments, retailFirings);
   const n = segments.length;
@@ -133,12 +153,30 @@ export function editorLayout(segments, portFirings, retailFirings, opts = {}) {
   notes.forEach(nt => bump(nt.seg, nt.frame));
   port.placements.forEach(p => bump(p.seg, p.rel));
   retail.placements.forEach(p => bump(p.seg, p.rel));
-  if (capSeg >= 0) bump(capSeg, capStart + capCount);
+
+  // captured-window coverage: the window crosses segment bands; widen each covered band to
+  // fit its slice + record the window's band endpoints (so the editor's green band spans
+  // exactly the covered bands instead of one inflated, empty band).
+  let window = null;
+  if (windowSide && windowStartAbs != null && windowEndAbs != null) {
+    const wb = (windowSide === "port" ? port : retail).bases;
+    const resolved = [];
+    for (let k = 0; k < wb.length; k++) if (wb[k].ok) resolved.push({ seg: k, base: wb[k].base });
+    for (let i = 0; i < resolved.length; i++) {
+      const b = resolved[i].base;
+      const nb = (i + 1 < resolved.length) ? resolved[i + 1].base : Infinity;
+      const lo = Math.max(windowStartAbs, b), hi = Math.min(windowEndAbs, nb - 1);
+      if (hi >= lo) bump(resolved[i].seg, hi - b + 1);     // band fits the covered slice
+    }
+    const s = absToBand(windowStartAbs, wb), e = absToBand(windowEndAbs, wb);
+    window = { startSeg: s.seg, startRel: s.rel, endSeg: e.seg, endRel: e.rel };
+  }
+
   const W = ext.map(e => Math.max(minBand, e + pad));
   const X = [];
   let x = 0;
   for (let k = 0; k < n; k++) { X.push(x); x += W[k] + gap; }
-  return { port, retail, X, W, ext, gap };
+  return { port, retail, X, W, ext, gap, window };
 }
 
 // layout position → {seg, rel}: the band whose origin is the largest ≤ pos (screen→segment
