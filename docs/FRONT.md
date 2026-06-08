@@ -13,8 +13,16 @@
   NEXT = the WORLD-MAP PARITY BACKLOG** (5 user-flagged both-target divergences on
   `town-map-load-rerecord-…152235`, **`findings/town-map-RE.md` §5b**): #1–3 load-fade / marker-
   pulse / cursor-bob **PHASE** offsets (run `flow_diff --verdict` first — likely §85 load-origin,
-  not logic); **#4 = the real bug: port nav inputs not handled → cursor stuck on "Recettear"**
-  (chase input replay/timing, not the T4 nav logic which is 1:1 on `town-map-load`); #5 = the
+  not logic); **✅ #4 FIXED 2026-06-08 — port nav inputs now replay (cursor was stuck on
+  "Recettear")**: root cause was the port NOT emitting the `PAUSE_OPEN` anchor at the world-map
+  load (retail raises shared cursor `DAT_0438b150=1` → PAUSE_OPEN, §115), so the trace's `{wait
+  PAUSE_OPEN}`-gated nav-input segment blocked forever (`held=0`/`sel=0` every frame). Fix
+  (`main.c`): `pause_active` also counts `scene_state==SCENE_STATE_WORLDMAP`; port anchors now
+  `LOADING_START 616/PAUSE_OPEN 616/LOADING_END 644` (matches retail pattern) and the cursor walks
+  the grid `0→5→4→6→…→3(Market)→1`. **NEXT on this trace:** re-anchor the `{caprange}` at the 2nd
+  `LOADING_END` (world-map entry — port↔retail counts mismatch 873 vs 308 from turbo load-stretch)
+  + declare retail `0x49e163` fields, then `--target both` to confirm the now-replaying nav is
+  pixel-1:1 and re-check #1–3 under that alignment; #5 = the
   `worldmap-tutorial-box` travel-time tooltips (PORT-DEBT, multi-message). **Trace-studio tooling
   landed this session:** the capture-window editor (live dashed band; `len`/`pos` controls with
   bound-checked validity-only clamps + a forward-leaked ⚠ warning; `findings`/commits

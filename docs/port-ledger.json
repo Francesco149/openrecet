@@ -2675,6 +2675,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/main.c",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
     "src/title_save_dialog.c",

@@ -91,5 +91,5 @@ _none_
 | event-probe | FUN_0045de68 | src/scene_worldmap.c:141 | the per-destination "has an event |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1045 | the engine frees the shop |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:220 | the engine tail re-inits the |
-| worldmap-tutorial-box | FUN_0040c4eb | src/main.c:3012 | the top-left |
+| worldmap-tutorial-box | FUN_0040c4eb | src/main.c:3021 | the top-left |
 

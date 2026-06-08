@@ -2679,16 +2679,25 @@ static void render_dispatch(void)
             .conv_pose_blink  = scene1_conversation_pose_player_blink(),
             .intro_done       = scene1_intro_dialogue_done(),
             /* PAUSE_OPEN/CLOSE = "a modal interaction menu is up" (the recorder's
-             * DAT_0438b150 cursor-visible signal).  Two engine menus drive it:
-             * the pause menu (scene_pause's b150 mirror) and the in-house
+             * DAT_0438b150 cursor-visible signal).  Three engine menus drive it:
+             * the pause menu (scene_pause's b150 mirror), the in-house
              * display-stand remove-item menu (cc04 != 0 — the open snaps the
              * shared cursor → b150=1 on the SAME frame cc04 goes 1, all.c
-             * FUN_00468338→FUN_00435693).  The load-picker / title cursors use
-             * the title_save_dialog b150 mirror and deliberately do NOT count
-             * here, so the house-display-remove trace's single {wait:PAUSE_OPEN}
-             * lands on the display menu, not the earlier load picker. */
+             * FUN_00468338→FUN_00435693), and the WORLD MAP (scene_state == 8),
+             * whose init (FUN_0049de20) raises the shared destination cursor
+             * (FUN_0043561a → DAT_0438b150=1) for the whole scene — so retail
+             * fires PAUSE_OPEN at the world-map load (same frame as LOADING_START)
+             * and PAUSE_CLOSE when a destination is selected.  The world map
+             * always shows that cursor, so scene_state==8 is an exact proxy for
+             * its b150; gating on the scene (not the shared title_save_dialog
+             * mirror) keeps the title/options/load-picker cursors from counting
+             * — those deliberately do NOT fire PAUSE_OPEN (the house-display
+             * trace's single {wait:PAUSE_OPEN} must land on its own menu, and the
+             * town-map trace's must land on the world map, not an earlier title
+             * cursor). town-map-RE.md §5b #4 / engine-quirks. */
             .pause_active     = (g_scene_pause_state_b150 != 0)
-                                || (player_ctrl_cc04() != 0),
+                                || (player_ctrl_cc04() != 0)
+                                || (g_scene_state == SCENE_STATE_WORLDMAP),
         };
         anchor_trace_tick(&g_anchor_state, g_tick.frame_count, w,
                           anchor_emit_tee, NULL);
