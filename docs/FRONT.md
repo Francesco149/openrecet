@@ -8,6 +8,21 @@
 - **Phase:** Foundation for frame-by-frame 1:1 parity (plan: `plans/` — render-parity
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
+- **ACTIVE ARC → ITEM-DISPLAY GAPS + tutorial-dialogue (2026-06-09).** Bench: trace-studio
+  session **`item-display-2`** (`http://localhost:8778/?session=item-display-2`) — user
+  recording (load slot 2 → place 3 items → 2 back-to-back Tear tutorial dialogues), now
+  **phase+RNG-pinned + call-traced** (free-roam diff is black except the real gaps; bg-NPCs/
+  sparkle 1:1; trigger CONFIRMED: dialogue #1 fires the instant the 3rd item is placed). Full
+  RE + the **4-gap board** in `findings/shop-display-menu-RE.md` (SESSION 2026-06-09): **(1)
+  C3a slot-highlight glow @f107 — FULLY spec'd & ready to port** (`FUN_0045aa36` Block G →
+  `scene1_chr_shadow.c` stub; flat item_win decal at the cell, alpha `ftol(sin(g_sim_frame·
+  0.05)·32+159)`=127↔191, verts/UVs/xform all decoded); (2) "What will you place?"
+  world-projected menu prompt @f147 (drawer + UI-string RE pending); (3) C3b item name tooltip
+  @f257 (recipe ready); (4) hands-up Recette reaction pose @f441 (anim-trigger RE pending;
+  likely == the `house_update` pos-drift the verdict flags from f122). Order: C3a → C3b → #4 →
+  f147. **NOTE (policy, CLAUDE.md):** every trace we work on is phase+RNG-pinned AND
+  call-traced up front now. Tooling fix still owed: the recorder's `save_capture` overwrites
+  `<name>.save.bin` unconditionally (clobbered item-display-2's boot save across two takes).
 - **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`). ✅ PHASE 0 RE COMPLETE →
   `findings/town-map-RE.md`. ✅ T1+T2+T3+T4 LANDED + mode-8 HUD (clock/Day/money + hand cursor).
   NEXT = the WORLD-MAP PARITY BACKLOG** (5 user-flagged both-target divergences on

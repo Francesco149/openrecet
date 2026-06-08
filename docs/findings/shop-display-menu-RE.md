@@ -415,3 +415,46 @@ Commits: cursor-init+nav+description; dash-string fix; "Button 3: Item Details" 
   fy=proj[5]·240 per `FUN_00490cc6`), draw the parchment bubble (item_win
   src(832,480,959,559) dst((sx-26),(sy-16),164,80)) + name via
   `font_draw_text_centered(sx+52, sy+26, name, …, 0.6)`.
+
+## SESSION 2026-06-09 — item-display-2 bench (pinned + call-traced) + 4-gap board + C3a FULLY spec'd
+
+**Bench:** trace-studio session **`item-display-2`** (`http://localhost:8778/?session=item-display-2`)
+— a user recording (load slot 2 → place 3 items → 2 back-to-back Tear tutorial dialogues).
+Now **phase+RNG-pinned** (`{phasepin:0}`+`{rngseed:[0,19937]}` at the free-roam entry) and
+**call-traced** (`{calltrace:[0,1850]}`); both sides cover the full window (port 1849 / retail
+1842). With the pin the free-roam diff is **black except the real gaps** (bg-NPCs/sparkle 1:1).
+Trigger CONFIRMED: tutorial dialogue #1 fires the instant the 3rd item is placed (3rd
+`PAUSE_CLOSE`→`CONV_POSE_START` consecutive). The window inputs put the 3 display-stand
+interactions at caprange frames ~121/381/587 on BOTH sides.
+
+**User-flagged gap board (free-roam region, all confirmed from the clean diff):**
+| # | gap | frame | chip / status |
+|---|-----|-------|---------------|
+| 1 | slot-highlight glow | f107 | **C3a** — FULLY spec'd below |
+| 2 | "What will you place?" prompt (top-left) | f147 | world-projected menu prompt — drawer + UI-string RE pending (see "STILL MISSING" above) |
+| 3 | item name tooltip ("Dark Sword") | f257 | **C3b** (recipe above) |
+| 4 | hands-up Recette anim | f441 | placement-reaction pose — anim-trigger RE pending |
+
+**Verdict finding (NEW):** `house_update.px/py/pz` DRIFT from f122 (the 1st interaction).
+db054 freezes during the menu so part may be a pairing artifact, but it most likely IS gap #4
+(the un-ported hands-up / interact reaction pose moving the actor). Confirm via the captured
+call-trace before treating as a separate logic bug.
+
+### C3a (slot-highlight orange glow) — FULLY RESOLVED, ready to port (resolves the TODO above)
+`FUN_0045aa36` Block G @ asm 0x45b8e0–0x45b94f (decompile L55089). A flat alpha-blended
+`item_win` decal on the display surface over the faced cell. Port into the
+`scene1_chr_shadow.c` Block-G stub (L347/L234), reusing its 3D-quad path.
+- **Gate:** `cc08==1 && bf68==0 && cbfc!=-1 && cc00!=-1`.
+- **Verts** (runtime-init all.c:9086–9105; .bss, stride 0x18 = pos[12]+diffuse[4]+uv[8],
+  TRIANGLESTRIP 4 verts): XZ-plane y=0, local corners (±256). UV in item_win(1024²):
+  V0(-256,0,+256)=(225,480.5) V1(-256,0,-256)=(225,543.5) V2(+256,0,+256)=(288,480.5)
+  V3(+256,0,-256)=(288,543.5) — i.e. src rect (225,480.5)–(288,543.5), a 63² patch.
+- **WORLD xform:** scale(**-0.003685, 0.003685, 0.003685**) then translate to
+  (`_DAT_0438cbf4`, **1.9**, `_DAT_0438cbf8`) (the pre-computed cell render X/Z). 512·0.003685
+  ≈ 1.887 world units; X is mirrored.
+- **Texture** `DAT_073d8748`=item_win; **blend** SRCBLEND=SRCALPHA(5)/DESTBLEND=INVSRCALPHA(6).
+- **Alpha (exact, objdump 0x45b902–0x45b94a):** `alpha = ftol( sinf(g_sim_frame·0.05)·32.0
+  + 159.0 )`; diffuse = `(alpha<<24) | 0xffffff`. Pulses alpha **127↔191**. (The earlier doc's
+  bare `ftol(sin(b8cc·0.05))` was missing the `·32+159`.) `g_sim_frame` = `DAT_0438b8cc` (the
+  `sim_phasepin`-pinned counter — so the pulse phase is 1:1 on the pinned bench).
+- **Draw:** `DrawPrimitiveUP(TRIANGLESTRIP, 2 prims, verts, stride 0x18)`.
