@@ -357,6 +357,29 @@ tool) as we go.
 
 ---
 
+## 5b. World-map parity backlog — both-target divergences (user-flagged 2026-06-08)
+
+From the recapture of `town-map-load-rerecord-20260607-152235` (a **Continue/load** recording:
+load → walk to door → world map; window `caprange [60,901]`, ~872 frames). Frame labels below
+are the trace-studio viewer ordinals. **Attribute each to a pillar before assuming logic**
+(`{phasepin}`/`{rngseed}` + `flow_diff --verdict --align-field db054` first — see CLAUDE.md
+multi-pillar parity). Tackle over the next few sessions.
+
+| # | divergence | frames | likely pillar | hypothesis / next step |
+|---|---|---|---|---|
+| 1 | **load fade-in** phase mismatch (begins resolving f181, **resolves f196**) | 181→196 | **PHASE** | the world-map load fade (`FUN_004526f5`/`fade_tick` counter `DAT_0438bf78`) starts at a load-stretched origin port↔retail; transient during the fade, converges after. Confirm CONST-OFFSET via `flow_diff --align-field db054`; pin the fade phase or accept as §85 load-origin offset (NOT a logic bug if it resolves on settle). |
+| 2 | **marker highlight** pulse phase mismatch (Market, state 2) | 196 | **PHASE** | the sin-pulse grey = `sinf(_DAT_09643628·0.15)·16+143`; the **entry timer `_DAT_09643628`** origin is load-dependent (starts when the port enters mode 8). Pin it in `{phasepin}` (add `scene_worldmap` entry-timer to the pin) or accept the §85 offset. |
+| 3 | **hand cursor** bob phase mismatch | 196 | **PHASE** | the shared cursor bob `DAT_0438b154` free-runs from boot (§94/§100); load-dependent absolute value. `{phasepin}` already zeroes b154 via `title_save_dialog_phasepin` — confirm the world-map capture applies it. |
+| 4 | **port nav inputs NOT handled — cursor stays on "Recettear" (dest 0)** | (whole screen) | **LOGIC / replay — PRIORITY** | the port's world-map cursor doesn't move on this trace, though T4 verified `FUN_0049dfc1` nav is 1:1 on `town-map-load`. So suspect **input REPLAY/timing**, not the nav logic: (a) are the seg-5 world-map inputs inside the captured window + replaying? (b) is the entry-timer gate (`_DAT_09643628 > 10`) passed when they arrive? (c) does the port reach mode 8 in the right state? **Investigate first:** drive `--target both --call-trace`, read the port `0x49e163` flow-trace (`held`/`sel`/`timer`) — does the held mask arrive + does `sel` change? |
+| 5 | **travel-time tooltip(s)** | — | unported | the multi-message navi/tutorial box = `PORT-DEBT(worldmap-tutorial-box, FUN_0040c4eb)`; port the FULL message set (per-dest/per-tod travel-time strings), already flagged. |
+
+**Read of the set:** #1–#3 are almost certainly the standard load-origin **PHASE** offsets
+(normalized by `{phasepin}`+`{rngseed}` — run `flow_diff --verdict` to confirm CONST-OFFSET vs
+DRIFT before touching logic). **#4 is the one real functional bug to chase** (nav-input
+handling/replay on this trace). #5 is the known tutorial-box PORT-DEBT.
+
+---
+
 ## 6. Live-check residue (Frida/capture confirmations — not blockers)
 
 The static RE is internally consistent; these would *confirm* details and are cheap to fold

@@ -34,9 +34,20 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 - **Phase:** Foundation for frame-by-frame 1:1 parity (plan: `plans/` — render-parity
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
-- **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`, 2026-06-07). ✅ PHASE 0 RE
-  COMPLETE → `findings/town-map-RE.md`. ✅ T1 + T2 + T3 LANDED; NEXT = T4 (world-map SIM
-  `FUN_0049e163` + cursor-nav `FUN_0049dfc1`).** **T3 (world-map RENDER `FUN_0049e3a3`,
+- **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`). ✅ PHASE 0 RE COMPLETE →
+  `findings/town-map-RE.md`. ✅ T1+T2+T3+T4 LANDED + mode-8 HUD (clock/Day/money + hand cursor).
+  NEXT = the WORLD-MAP PARITY BACKLOG** (5 user-flagged both-target divergences on
+  `town-map-load-rerecord-…152235`, **`findings/town-map-RE.md` §5b**): #1–3 load-fade / marker-
+  pulse / cursor-bob **PHASE** offsets (run `flow_diff --verdict` first — likely §85 load-origin,
+  not logic); **#4 = the real bug: port nav inputs not handled → cursor stuck on "Recettear"**
+  (chase input replay/timing, not the T4 nav logic which is 1:1 on `town-map-load`); #5 = the
+  `worldmap-tutorial-box` travel-time tooltips (PORT-DEBT, multi-message). **Trace-studio tooling
+  landed this session:** the capture-window editor (live dashed band; `len`/`pos` controls with
+  bound-checked validity-only clamps + a forward-leaked ⚠ warning; `findings`/commits
+  `1aee811`→`2e5b0a1`) + a JobTray **cancel button** for stuck captures (`111b4f3`).
+  **T4 (world-map SIM `FUN_0049e163` + cursor-nav `FUN_0049dfc1`, `ba45912`):** entry timer + 3×5
+  grid nav + Z-select; nav path exact-match port-side (`0→2→5→4→6→3→2→1→3→6→0→2→5→0`).
+  **T3 (world-map RENDER `FUN_0049e3a3`,
   2026-06-07):** the port now RENDERS the town/world map — `scene_worldmap_render`
   (`src/scene_worldmap.c`) draws the bg **time-of-day crossfade** (2 passes:
   `worldmap[max(tod-1,0)]` over `[max(tod-2,0)]`, `tod` used RAW = effectively 1-based, pass-1
