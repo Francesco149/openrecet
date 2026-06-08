@@ -22,13 +22,16 @@
   the grid `0→5→4→6→…→3(Market)→1`. **✅ NAV CONFIRMED 1:1 END-TO-END (2026-06-08):** re-windowed
   the session (`{caprange}`→ the 2nd `LOADING_END` = world-map entry, both sides aligned by frame#)
   and the full ~20-step nav is pixel-1:1 vs retail (black diff on bg/markers/selected-marker/cursor
-  across wm-frames 70→580; only #5 tooltip differs). **⚠ BLOCKER FOUND → next-session task: CAPTURE
-  RELIABILITY.** Dense retail captures truncate non-deterministically (≈69–193 frames) — an
-  **access violation inside `frida-agent.dll`** (Event Viewer 0xc0000005 @ off `0x00be5f4e`,
-  recurring; NOT degradation, NOT the 128MiB cap, NOT call-trace/deadline). Mitigated the agent's
-  per-frame alloc churn (commit `7b9907d`) but the AV persists (frida-internal). **Workaround:
-  `{capstride:10}` → port==retail==63, no crash** (how the full nav was verified). Full evidence +
-  next-session plan: **`findings/frida-capture-crash.md`**. Remaining town-map backlog: #1–3
+  across wm-frames 70→580; only #5 tooltip differs). **✅ CAPTURE RELIABILITY FIXED 2026-06-08
+  (`020dfca`+`3df8d28`):** the dense-capture `frida-agent.dll` AV (0xc0000005 @ `0xbe5f4e`/`64bc`)
+  symbolizes to CRT **memcpy/memset** — it was OUR ~3 MB/frame in-band `readByteArray`+`send`
+  backpressuring the remote channel, NOT frida-internal. The capture-local `writeRawFile` fix had
+  been **dead** since the frida-17 upgrade (`ensureWinFileFns` used the removed global
+  `Module.getExportByName`). Revived it + routed ALL captures through capture-local (`capture_local`
+  default-on). Proof (isolated title repro, same cmd): in-band → process-terminated @ frame 38;
+  capture-local → all 251 frames, clean, 0 errors, ~8× faster. **`{capstride}` is no longer needed
+  for reliability** — dense both-target captures now work. Record: **`findings/frida-capture-crash.md`**.
+  Remaining town-map backlog: #1–3
   (load-fade/marker-pulse/cursor-bob **PHASE**, re-check on the aligned window) + #5 =
   `worldmap-tutorial-box` travel-time tooltips (PORT-DEBT, multi-message). **Trace-studio tooling
   landed this session:** the capture-window editor (live dashed band; `len`/`pos` controls with
