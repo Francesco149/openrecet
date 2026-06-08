@@ -40,9 +40,12 @@
   (selector) from `sim.c` case 8; slide-in via the shared `FUN_0046c86f` (`ive_box_scale`),
   reset at world-map init. 3 flagged frames **bit-perfect vs retail (mean 0.00)**; f0–12
   residual = the #1 load-fade (whole-frame), not the tooltip. engine-quirks §118; town-map-RE.md
-  §5b #5. Remaining town-map backlog: **#1–3 (load-fade/marker-pulse/cursor-bob PHASE,
-  re-check on the aligned window with `flow_diff --verdict` — likely §85 load-origin).
-  Next arcs: the remaining item-display gaps, then the merchant's guild screen.** **Trace-studio editor redesign (2026-06-08, `5f818e3`→`3636762`):** now a
+  §5b #5. **WHOLE WORLD-MAP BACKLOG NOW CLOSED:** on the entry-aligned + `{phasepin}` capture the
+  full frame is **bit-identical f16→f638 (mean 0.00, 0 px >8/ch)**, only a sub-8/ch load-fade tail
+  f0–12 (#1, §85, resolves f16) — so #2 marker-pulse + #3 cursor-bob are **1:1** (old divergences
+  were unaligned-frame/unpinned artifacts), #4 nav FIXED, #5 tooltip DONE. The town/world map
+  renders 1:1 vs retail across the captured nav. **Next arcs: the remaining item-display gaps,
+  then the merchant's guild screen.** **Trace-studio editor redesign (2026-06-08, `5f818e3`→`3636762`):** now a
   **captured-frame-index read-only VIEWER** — x-axis = the dense captured-frame ordinal per side,
   so a phase/RNG-pinned 1:1 capture aligns with NO forcing logic and a divergence just drifts apart
   (anchors per-side by true abs frame; emitted inputs/pins mapped once via the reference side;
