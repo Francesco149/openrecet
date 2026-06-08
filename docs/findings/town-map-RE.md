@@ -385,13 +385,31 @@ entry) as `[0,640]`, + a `{phasepin}` at entry. Now port `frame_000XX.png` == re
 0/89/109, sel 0→5→4): white-diff is BLACK across bg + markers + selected-marker + cursor — the
 nav is 1:1** — except the top-left travel-time tooltip box (#5 PORT-DEBT, unported). So the
 now-replaying nav IS pixel-1:1 vs retail over the captured window. **CAVEAT — retail capture
-truncates ~118 wm-frames in:** the retail process `process-terminate`s ~118 frames into the
-world map (`agent.log` `reason='process-terminated'`; max_frames=22000 + the full 640-frame
-caprange were scheduled, so it's NOT a capture bound — it's frida-server degradation, cf.
-[[feedback_frida_server_leak]] "restart frida-server"). So only the first ~2 nav steps land on
-retail; the **full ~20-step nav both-capture needs a frida-server restart** (then re-run
-`recapture --target both`; the port already replays the full nav). #1–#3 (load-fade/marker-pulse/
-cursor-bob PHASE) can be re-checked on the aligned window once the full nav captures.
+truncates ~120 wm-frames in (REAL CAUSE UNDER INVESTIGATION, NOT frida):** the retail process
+`process-terminate`s ~120 frames into the world map, **deterministically** — NEW capture frame
+15528 (wm 118), OLD capture 14492 (wm 126), at *different* engine speeds (443 vs 198 fps) so
+it's **not** a wall-clock timeout (the trace-studio retail `duration_ceiling_ms` is 600 s;
+only 35 s/73 s elapsed), and **not** frida degradation (there is no such thing —
+[[feedback_frida_server_leak]]; user-guaranteed). `agent.log`: all anchors fire, caprange
+`15410..16050` + call-trace armed, then `[detached] reason='process-terminated' crash=None`
+with **no `done`/`max_frames_reached`/DBus message** → the retail process itself ends in the
+world-map replay. **The death point VARIES run-to-run: wm-frame 70 / 117 / 126 / 132** across
+captures → **non-deterministic**, so it's NOT a deterministic logic event. **Ruled OUT
+(2026-06-08 investigation):** (a) frida degradation — no such thing ([[feedback_frida_server_leak]],
+user-guaranteed); (b) the call-trace hooks — recapturing WITHOUT `--call-trace` died EARLIER
+(wm-70), and call-trace overhead also balloons the turbo load-stretch (boot→HOUSE 14852 frames
+WITH ct vs 2909 WITHOUT, since the load is real-time-bound), so it's a confound, not the cause;
+(c) the wall-clock deadline — trace-studio retail `duration_ceiling_ms`=600 s, only 16–73 s
+elapsed; (d) the 128 MiB DBus per-message cap — that emits a GLib/DBus warning on frida
+(user-flagged), and the agent.log shows NONE. **`crash=None` + no error logged ⇒ likely a CLEAN
+`ExitProcess`, not an access-violation crash.** The original *recording* ran the world map ~780
+frames fine, so it's specific to the **replay** (forced `{rngseed}` + save-virt + async
+worker/audio threads, whose real-time timing is the obvious non-determinism source). **Next
+debug:** bisect the forced replay-state (drop the segment-6 `{rngseed}`, then save-virt) to see
+which removes the exit; capture retail's process exit code / any Windows-side crash log; or
+attach a debugger to the world-map replay. So only the first ~2–4 nav steps land on retail
+today; the full ~20-step nav both-capture is blocked on this exit. #1–#3 (load-fade/marker-
+pulse/cursor-bob PHASE) re-check once the full nav captures.
 
 ---
 
