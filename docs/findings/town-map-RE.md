@@ -377,10 +377,21 @@ multi-pillar parity). Tackle over the next few sessions.
 (normalized by `{phasepin}`+`{rngseed}` — run `flow_diff --verdict` to confirm CONST-OFFSET vs
 DRIFT before touching logic). ~~**#4 is the one real functional bug to chase**~~ **#4 FIXED
 2026-06-08** (it was an anchor/replay gap — the missing `PAUSE_OPEN` — not the nav logic; see
-the table). #5 is the known tutorial-box PORT-DEBT. **Next on this trace:** re-anchor the
-`{caprange}` at the 2nd `LOADING_END` (world-map entry) so the world-map frames align
-port↔retail, then re-run `--target both` to confirm the now-replaying nav is pixel-1:1 and
-re-check #1–#3 under that alignment.
+the table). #5 is the known tutorial-box PORT-DEBT. **DONE 2026-06-08 — re-windowed +
+re-captured** the `town-map-load-rerecord-…152235` session: the `{caprange}`/`{calltrace}`
+were moved out of segment 2 (HOUSE) into segment 6 (after the 2nd `LOADING_END`, the world-map
+entry) as `[0,640]`, + a `{phasepin}` at entry. Now port `frame_000XX.png` == retail
+`frame_000XX.png` == world-map frame XX (both anchored at entry). **Aligned pixel diff (wm-frame
+0/89/109, sel 0→5→4): white-diff is BLACK across bg + markers + selected-marker + cursor — the
+nav is 1:1** — except the top-left travel-time tooltip box (#5 PORT-DEBT, unported). So the
+now-replaying nav IS pixel-1:1 vs retail over the captured window. **CAVEAT — retail capture
+truncates ~118 wm-frames in:** the retail process `process-terminate`s ~118 frames into the
+world map (`agent.log` `reason='process-terminated'`; max_frames=22000 + the full 640-frame
+caprange were scheduled, so it's NOT a capture bound — it's frida-server degradation, cf.
+[[feedback_frida_server_leak]] "restart frida-server"). So only the first ~2 nav steps land on
+retail; the **full ~20-step nav both-capture needs a frida-server restart** (then re-run
+`recapture --target both`; the port already replays the full nav). #1–#3 (load-fade/marker-pulse/
+cursor-bob PHASE) can be re-checked on the aligned window once the full nav captures.
 
 ---
 
