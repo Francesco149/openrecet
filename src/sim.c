@@ -41,6 +41,7 @@
 #include "skip_event.h"            /* ESC "skip this event?" prompt */
 #include "scene1_particles_tick.h"  /* engine FUN_0040fb3a — LAB_00453bed body */
 #include "scene_worldmap.h" /* scene_worldmap_sim — mode-8 per-state callee (FUN_0049e163) */
+#include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
 #include "title_save_dialog.h" /* title_save_dialog_anim_tick — the shared
@@ -352,6 +353,12 @@ void sim_step_a(void)
          * so the cursor position tracks retail (T4). The bob (b154) it also
          * advances is consumed by the destination-pointer render. */
         title_save_dialog_anim_tick();
+        /* FUN_00406584 mode-8 selector (all.c:4776): set the travel-time tooltip
+         * band from the destination under the cursor + ramp its slide-in.  Runs
+         * BEFORE the nav (scene_worldmap_sim) so the box lags a cursor move by
+         * one frame, matching the engine's pre-sim FUN_00406584. */
+        scene1_top_hud_worldmap_tooltip_tick(scene_worldmap_sel_dest(),
+                                             scene_worldmap_return_pending());
         scene1_particles_tick();
         scene_worldmap_sim();
         break;

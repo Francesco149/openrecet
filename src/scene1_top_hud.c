@@ -21,6 +21,45 @@ int   scene1_top_hud_day(void)                   { return g_hud_day; }
 int   scene1_top_hud_money(void)                 { return g_hud_money; }
 float scene1_top_hud_clock_phase(void)           { return g_hud_clock_phase; }
 
+/* ─── world-map travel-time tooltip (FUN_00406d50 Draw-2 + the FUN_00406584
+ *     mode-8 band selector) ───────────────────────────────────────────────
+ * The world map shows a baked help box in the top-left whose text depends on
+ * the destination under the cursor:
+ *   band 0  "Going to a dungeon will take 2 periods of time"   (dest 6)
+ *   band 1  "Returning to the shop will take 1 period of time" (dest 0, DAT_045105a0!=0)
+ *   band 3  "If you return now no time will pass"              (dest 0, DAT_045105a0==0)
+ *   band 4  "This action will not take any time"               (any other dest)
+ * (band 2 is the mode-1 "Opening the shop will take 1 period of time" counter
+ * hint — a separate, still-unported path.)  All five bands are baked 120x80
+ * into item_win.tga stacked from (832,0); the render lives in
+ * scene1_top_hud_render.  DAT_00529708 = band id (-1 = hidden); DAT_00529704 =
+ * the 0->15 slide-in counter consumed by the FUN_0046c86f scale animator. */
+static int g_tooltip_msg = -1;   /* DAT_00529708 */
+static int g_tooltip_ctr =  0;   /* DAT_00529704 */
+
+/* FUN_00406584 mode-8 block (all.c:4776-4790): pick the band from the selected
+ * destination, then ramp the slide-in counter toward 15.  Called once per
+ * world-map sim frame BEFORE the nav updates the cursor, so the box lags a
+ * cursor move by one frame exactly as the engine's pre-sim FUN_00406584 does.
+ * return_pending = DAT_045105a0[slot] != 0 (the dest-0 variant selector). */
+void scene1_top_hud_worldmap_tooltip_tick(int sel_dest, int return_pending)
+{
+    if (sel_dest == 6)      g_tooltip_msg = 0;                      /* dungeon  */
+    else if (sel_dest == 0) g_tooltip_msg = return_pending ? 1 : 3; /* the shop */
+    else                    g_tooltip_msg = 4;                      /* other    */
+    if (g_tooltip_ctr < 0xf) g_tooltip_ctr++;
+}
+
+/* FUN_004060ff resets DAT_00529704/8.  The port calls this at world-map init so
+ * the box slides in fresh on every entry (retail carries a ~0 counter in from
+ * the house's pre-load ramp-down; starting at 0 reproduces the same first-frame
+ * slide-in and avoids a stale box lingering on re-entry). */
+void scene1_top_hud_tooltip_reset(void)
+{
+    g_tooltip_msg = -1;
+    g_tooltip_ctr =  0;
+}
+
 /* ─── Win32 render body ────────────────────────────────────────────────── */
 
 #ifdef _WIN32
@@ -35,11 +74,17 @@ float scene1_top_hud_clock_phase(void)           { return g_hud_clock_phase; }
 #include "render_quad.h"
 #include "sysassets.h"
 #include "scene1_intro_dialogue.h"   /* dialogue-active gate for the camera hint */
+#include "scene.h"                   /* g_scene_state / SCENE_STATE_WORLDMAP — tooltip gate */
 #include "call_trace.h"
 
 #ifndef M_PI_F
 #define M_PI_F 3.1415927f
 #endif
+
+/* FUN_0046c86f — the shared UI box open/close scale+alpha animator (ported in
+ * scene1_dialogue_run.c).  Reused for the world-map tooltip slide-in; declared
+ * locally to avoid pulling the whole dialogue-run header into the HUD. */
+extern void ive_box_scale(int n, float *sx, float *sy, int *alpha, int closing);
 
 /* FUN_00406a60 — draw a number as digit-glyph sprites from item_win.tga.
  *
@@ -131,9 +176,26 @@ void scene1_top_hud_render(struct IDirect3DDevice8 *dev_in)
         render_quad_add(dst, src, tex->width, tex->height, 0xffffffffu);
     }
 
-    /* Draw 2 — the new-event notification icon (gated on DAT_00529704>0 +
-     * the FUN_0046c86f scale/alpha animator).  Both unported / BSS-zero,
-     * so dormant; deferred. */
+    /* ── Draw 2: the world-map travel-time tooltip (FUN_00406d50 L5148). ──
+     * A baked help band from item_win.tga — src (832, msg*80)-(952, msg*80+80),
+     * 120x80 — chosen by the destination under the cursor, slid in via the
+     * FUN_0046c86f scale animator on the 0->15 counter.  Same texture as the
+     * gold frame above, so it batches into the SAME flush below.  Gated to the
+     * world map (g_scene_state==8): only the mode-8 sim ramps the counter, and
+     * the house (mode 1) shares this render path. */
+    if (g_scene_state == SCENE_STATE_WORLDMAP &&
+        g_tooltip_ctr > 0 && g_tooltip_msg >= 0) {
+        float sx = 1.0f, sy = 1.0f;
+        int   alpha = 0xff;
+        ive_box_scale(g_tooltip_ctr, &sx, &sy, &alpha, 0);   /* FUN_0046c86f */
+        (void)alpha;                                          /* engine draws @0xffffffff */
+        const float dst[4] = { 88.0f - sx * 60.0f,
+                               (yoff + 128.0f) - sy * 48.0f,
+                               sx * 120.0f, sy * 80.0f };
+        const float src[4] = { 832.0f, (float)(g_tooltip_msg * 80),
+                               952.0f, (float)((g_tooltip_msg * 5 + 5) * 16) };
+        render_quad_add(dst, src, tex->width, tex->height, 0xffffffffu);
+    }
 
     render_quad_flush(dev);
 

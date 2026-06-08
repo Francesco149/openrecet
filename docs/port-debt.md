@@ -11,8 +11,8 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **16**
-- distinct retiring engine functions: **14**
+- total open debts: **15**
+- distinct retiring engine functions: **13**
 
 | kind | count | meaning |
 |------|------:|---------|
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **6 tag(s) use an unknown kind**: deferred (1), door-proximity (1), event-probe (1), house-teardown (1), stage-scratch (1), worldmap-tutorial-box (1).
+> ⚠️  **5 tag(s) use an unknown kind**: deferred (1), door-proximity (1), event-probe (1), house-teardown (1), stage-scratch (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -31,7 +31,6 @@ the answer to *"what's still faked in code that looks done?"*
 | engine fn | open debts |
 |-----------|-----------:|
 | FUN_004176ff | 2 |
-| FUN_0040c4eb | 1 |
 | FUN_004161c7 | 1 |
 | FUN_004176ff L3876 | 1 |
 | FUN_004176ff L4958 | 1 |
@@ -65,7 +64,7 @@ _none_
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
-| FUN_004536cb | src/sim.c:280 | retail freezes the *entire |
+| FUN_004536cb | src/sim.c:281 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:164 | the engine teardown also restores the |
 
 ## hardcode (1)
@@ -88,8 +87,7 @@ _none_
 |------|--------|----------|------------------|
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
 | door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:991 | the engine also gates on a |
-| event-probe | FUN_0045de68 | src/scene_worldmap.c:141 | the per-destination "has an event |
+| event-probe | FUN_0045de68 | src/scene_worldmap.c:142 | the per-destination "has an event |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1045 | the engine frees the shop |
-| stage-scratch | FUN_00435c98 | src/scene_worldmap.c:220 | the engine tail re-inits the |
-| worldmap-tutorial-box | FUN_0040c4eb | src/main.c:3021 | the top-left |
+| stage-scratch | FUN_00435c98 | src/scene_worldmap.c:240 | the engine tail re-inits the |
 

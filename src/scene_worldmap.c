@@ -20,6 +20,7 @@
 #include "save_work.h"          /* live working save arena (tutorial flags + day/tod) */
 #include "save_bank.h"          /* SAVE_BANK_FIELD_CARD_DAY / _CLOCK_TARGET (working dwords) */
 #include "title_save_dialog.h"  /* shared cursor: set_visible (FUN_0043561a) + snap/slide (FUN_00435693/710) */
+#include "scene1_top_hud.h"     /* scene1_top_hud_tooltip_reset (FUN_004060ff) — host-side decl */
 #include "sim.h"                /* g_sim_buttons[0].pressed/held — DAT_073dddd4/d6 */
 #include "audio.h"              /* audio_play_se_by_id — move/confirm/denied SE (fixed id, no RNG) */
 #include "fade.h"               /* fade_phase1_start/_is_done/_phase_out_start — FUN_004526f5/4528b3/45281c */
@@ -150,6 +151,20 @@ static int scene_worldmap_dest_has_event(int dest)
     return 0;
 }
 
+/* DAT_045105a0[slot] != 0 — the dest-0 ("your shop") tooltip variant selector
+ * read by FUN_00406584's mode-8 block (all.c:4782).  Non-zero ⇒ band 1
+ * ("Returning to the shop will take 1 period of time"); zero ⇒ band 3 ("If you
+ * return now no time will pass").  This live working-arena flag marks an active
+ * shop session (set by the shop open/sale paths, cleared via the display-stand
+ * interaction); it is 0 on a tutorial Continue, matching the user's flagged
+ * "no time will pass" frame. */
+int scene_worldmap_return_pending(void)
+{
+    const int slot = save_work_active_slot();           /* DAT_0438b1e0 */
+    const uint32_t *dw = save_work_dwords_at(slot);
+    return (dw && dw[WM_DW_05A0] != 0) ? 1 : 0;
+}
+
 void scene_worldmap_init_state(void)   /* FUN_0049de20 @ 0x49de20 */
 {
     const int slot = save_work_active_slot();           /* DAT_0438b1e0 */
@@ -160,6 +175,11 @@ void scene_worldmap_init_state(void)   /* FUN_0049de20 @ 0x49de20 */
     s_entry_timer  = 0.0f;   /* _DAT_09643628 = 0 */
     s_exit_counter = 0;      /* DAT_0964367c  = 0 */
     s_misc_680     = 0;      /* _DAT_09643680 = 0 */
+
+    /* Restart the travel-time tooltip's slide-in (the FUN_004060ff reset the
+     * engine applies on the way out of the world map; doing it on entry gives a
+     * fresh slide-in on every visit — see scene1_top_hud_tooltip_reset). */
+    scene1_top_hud_tooltip_reset();
 
     /* FUN_0043561a + FUN_00435693: raise the SHARED cursor + snap it to the
      * selected dest's marker (x-16, y+28). This raise is the engine's

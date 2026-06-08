@@ -3012,22 +3012,22 @@ static void render_dispatch(void)
             /* The dispatch's trailing FUN_0040a765 (the HUD aggregator).  For
              * mode 8 its ENTIRE merchant/shop block is DAT_0438b1c0==1-gated
              * (skipped); the UNCONDITIONAL members that draw on the world map
-             * are FUN_0040c4eb (the tutorial/navi message box — PORT-DEBT
-             * below), FUN_00406d50 (the top-left clock/Day/money), and
-             * FUN_00435747 (the shared hand cursor, raised by the world-map
-             * init as the destination pointer).  FUN_0049b425 (state preset)
-             * runs first. */
+             * are FUN_0040c4eb (the in-house NPC navi bubble — dormant here, its
+             * DAT_00648258 gate is only raised by the in-shop talk path),
+             * FUN_00406d50 (the top-left clock/Day/money + the travel-time
+             * tooltip), and FUN_00435747 (the shared hand cursor, raised by the
+             * world-map init as the destination pointer).  FUN_0049b425 (state
+             * preset) runs first. */
             render_quad_state_setup(g_dev);          /* FUN_0049b425 */
-            /* PORT-DEBT(worldmap-tutorial-box, FUN_0040c4eb): the top-left
-             * navi/tutorial message panel (item_win bg + text, gated on
-             * DAT_00648258) — the tutorial/navi message subsystem is unported.
-             * NB (user 2026-06-08): the world map shows MULTIPLE different
-             * messages here, not one — travel-time info ("how many periods of
-             * time going to certain places takes") that varies with the
-             * time-of-day phase. Port the FULL message set (the navi message
-             * table + the per-destination/per-tod selection), not a single
-             * string. Deferred to its own chip. */
-            scene1_top_hud_render(g_dev);            /* FUN_00406d50 — clock/Day/money */
+            /* The top-left travel-time tooltip ("Going to a dungeon will take 2
+             * periods of time", etc.) is FUN_00406d50's Draw-2, NOT the
+             * FUN_0040c4eb navi box — it is a baked item_win.tga band selected
+             * by the destination under the cursor (FUN_00406584 mode-8), ported
+             * inside scene1_top_hud_render + driven from sim.c case 8.  (The
+             * earlier port-debt note that blamed FUN_0040c4eb and a time-of-day
+             * selection was a mis-attribution: the box varies with the
+             * destination, and lives in FUN_00406d50.) */
+            scene1_top_hud_render(g_dev);            /* FUN_00406d50 — clock/Day/money + tooltip */
             title_save_dialog_cursor_render(g_dev);  /* FUN_00435747 — destination pointer */
             break;
         default:

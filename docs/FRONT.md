@@ -31,11 +31,18 @@
   default-on). Proof (isolated title repro, same cmd): in-band → process-terminated @ frame 38;
   capture-local → all 251 frames, clean, 0 errors, ~8× faster. **`{capstride}` is no longer needed
   for reliability** — dense both-target captures now work. Record: **`findings/frida-capture-crash.md`**.
-  Remaining town-map backlog: #1–3
-  (load-fade/marker-pulse/cursor-bob **PHASE**, re-check on the aligned window) + #5 =
-  `worldmap-tutorial-box` travel-time tooltips (PORT-DEBT, multi-message) — **the next-session
-  start: world-map tooltip (top-left), then the remaining item-display gaps, then the merchant's
-  guild screen.** **Trace-studio editor redesign (2026-06-08, `5f818e3`→`3636762`):** now a
+  **✅ #5 WORLD-MAP TOOLTIP DONE 2026-06-08 (user-confirmed 1:1 in the trace viewer):** the
+  top-left travel-time box was NOT the `FUN_0040c4eb` navi box / tod-driven (the old PORT-DEBT
+  guess was wrong) — it is `FUN_00406d50`'s **Draw-2**, a baked **120×80 band of `item_win.tga`**
+  (stacked from `(832,0)`) **selected by the destination** under the cursor (`FUN_00406584`
+  mode-8: dest 6→"dungeon 2 periods", dest 0→"1 period"/"no time" by `DAT_045105a0`, else→"no
+  time"). Ported in `scene1_top_hud_render` Draw-2 + `scene1_top_hud_worldmap_tooltip_tick`
+  (selector) from `sim.c` case 8; slide-in via the shared `FUN_0046c86f` (`ive_box_scale`),
+  reset at world-map init. 3 flagged frames **bit-perfect vs retail (mean 0.00)**; f0–12
+  residual = the #1 load-fade (whole-frame), not the tooltip. engine-quirks §118; town-map-RE.md
+  §5b #5. Remaining town-map backlog: **#1–3 (load-fade/marker-pulse/cursor-bob PHASE,
+  re-check on the aligned window with `flow_diff --verdict` — likely §85 load-origin).
+  Next arcs: the remaining item-display gaps, then the merchant's guild screen.** **Trace-studio editor redesign (2026-06-08, `5f818e3`→`3636762`):** now a
   **captured-frame-index read-only VIEWER** — x-axis = the dense captured-frame ordinal per side,
   so a phase/RNG-pinned 1:1 capture aligns with NO forcing logic and a divergence just drifts apart
   (anchors per-side by true abs frame; emitted inputs/pins mapped once via the reference side;

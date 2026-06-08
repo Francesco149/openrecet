@@ -12,7 +12,7 @@
   "touched": 459,
   "pct_touched": 18.0,
   "pct_verified": 2.7,
-  "port_debt": 16
+  "port_debt": 15
  },
  "orphan_refs": [
   "0x40f640",
@@ -872,7 +872,11 @@
    "status": "ported",
    "src": [
     "src/choice_box.c",
+    "src/main.c",
+    "src/scene1_top_hud.c",
+    "src/scene1_top_hud.h",
     "src/scene_worldmap.c",
+    "src/scene_worldmap.h",
     "src/sim.c",
     "src/skip_event.c"
    ]

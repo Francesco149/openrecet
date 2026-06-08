@@ -142,6 +142,10 @@ extern const int
 void scene_worldmap_set_sel_dest(int dest);
 int  scene_worldmap_sel_dest(void);
 
+/* DAT_045105a0[slot] != 0 — the dest-0 travel-time tooltip variant selector
+ * (FUN_00406584 mode-8); 1 = an active shop session, 0 on a tutorial Continue. */
+int  scene_worldmap_return_pending(void);
+
 /* Port of FUN_0049de20 — world-map scene-init. Run on the worker thread
  * for mode 8 (before the texture load). Populates the destination set +
  * the per-dest state array (tutorial gating) + snaps the shared cursor.

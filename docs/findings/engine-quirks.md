@@ -4507,3 +4507,33 @@ that cross-blend between consecutive time-of-day images as the day-clock float a
   also drawn larger (180×56 vs 144×44.8) and sourced from `mappoint.tga` row
   `DAT_005fd598[pos]` (each row 180×56). Marker dst is centred on
   `(DAT_005fd590[pos]+90, DAT_005fd594[pos]+28)`.
+
+## 118. The world-map travel-time "tooltip" is NOT rendered text — it's a baked 120×80 band of item_win.tga, picked by the destination under the cursor; it lives in the top-left HUD (FUN_00406d50), not the navi/message box (FUN_0040c4eb)
+
+The top-left help box on the world map ("Going to a dungeon will take 2 periods of
+time", etc.) is a **pre-rendered texture strip**, which is why its strings are
+localized (the JP/EN builds ship different `item_win.tga`) yet never appear as
+`.exe` literals. Five message bands are baked **120×80 each, stacked from
+`(832,0)`** in `item_win.tga` (`DAT_073d8748`):
+
+| band | src y | message | shown when |
+|------|-------|---------|-----------|
+| 0 | 0   | "Going to a dungeon will take 2 periods of time"   | dest **6** (Adventurer's guild → dungeon) |
+| 1 | 80  | "Returning to the shop will take 1 period of time" | dest **0** & `DAT_045105a0[slot] != 0` (active shop session) |
+| 2 | 160 | "Opening the shop will take 1 period of time"      | mode **1** in-shop counter hint (separate path) |
+| 3 | 240 | "If you return now no time will pass"              | dest **0** & `DAT_045105a0[slot] == 0` (e.g. tutorial Continue) |
+| 4 | 320 | "This action will not take any time"               | any **other** dest (1,2,3,4,5) |
+
+- **Renderer** = `FUN_00406d50` Draw-2 (`all.c:5148`), *inside* the persistent
+  top-left clock/Day/money HUD — drawn after the gold frame, before the clock hand,
+  batched into the same `item_win` flush. NB this is a different function from the
+  `FUN_0040c4eb` navi/message box (`DAT_00648258`-gated, used only by the in-house
+  NPC speech bubble, dormant on the world map).
+- **Band selector** `DAT_00529708` is set by `FUN_00406584`'s mode-8 block
+  (`all.c:4776`) from the current dest `DAT_09643684` (the `(field?1:3)` for dest 0 is
+  `(-(uint)(field!=0) & 0xfffffffe) + 3`). `-1` = hidden.
+- **Slide-in**: `DAT_00529704` ramps 0→15 (`+1`/frame in mode 8, capped) and feeds the
+  shared `FUN_0046c86f` scale/alpha animator (the same one the dialogue box uses); dst
+  `(88 - sx·60, 128 - sy·48, sx·120, sy·80)`. The box visibly grows in from the
+  world-map entry frame (retail's counter is ≈0 at entry — the house's pre-load
+  ramp-down zeroes it). Ported & user-confirmed 1:1 (2026-06-08).

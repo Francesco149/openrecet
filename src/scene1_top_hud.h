@@ -31,6 +31,13 @@ int   scene1_top_hud_day(void);
 int   scene1_top_hud_money(void);
 float scene1_top_hud_clock_phase(void);
 
+/* World-map travel-time tooltip (FUN_00406d50 Draw-2 + the FUN_00406584 mode-8
+ * band selector).  `_tick` is called per world-map sim frame with the selected
+ * destination (DAT_09643684) and the dest-0 variant flag (DAT_045105a0!=0);
+ * `_reset` (FUN_004060ff) restarts the slide-in at world-map init. */
+void scene1_top_hud_worldmap_tooltip_tick(int sel_dest, int return_pending);
+void scene1_top_hud_tooltip_reset(void);
+
 #ifdef _WIN32
 struct IDirect3DDevice8;
 /* Render the persistent top HUD (FUN_00406d50). */
