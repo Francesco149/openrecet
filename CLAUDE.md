@@ -48,6 +48,20 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
 - **Show visuals on the llm-feed** (`/opt/src/llm-feed/feed.py`, localhost:8777) — push
   images/montages/comparisons with the diff, never eog/explorer. Healthz-check + start it
   if down at session start.
+- **Iterate ON the user's open Trace Studio session — recapture IT, don't spawn a parallel
+  capture (standing workflow, automatic like the llm-feed).** The core parity loop runs on
+  **studio traces**: the user keeps a `trace_studio.py serve --session <name>` open (check
+  `ps`/the serve logs for the live session + port) and watches it. When you tweak a trace
+  (edit its `edit.trace.jsonl` — caprange/pins/inputs) or land a port fix, **re-capture THAT
+  SAME session** (`trace_studio.py recapture <name>` / `capture --only port` for the fast
+  port-fix loop) so the user can refresh and immediately check the result frame-by-frame as
+  you iterate — you both inspect the *same* frames. Do **not** run your own one-off
+  `--session <other>` capture for trace work, and don't pixel-diff in `/tmp` as a substitute
+  for updating the session the user is looking at (a feed montage is a supplement, not the
+  deliverable). Caveats: the port-exe singleton mutex stalls *parallel* captures (one at a
+  time); a window/caprange change forces a retail re-capture even under `--only port`
+  (`626949c`); back up `edit.trace.jsonl` before re-windowing. Memory pointer:
+  `recapture-shared-session`.
 - **Commits:** **commit in logical units as you go, without waiting to be asked** (user
   policy 2026-06-05); co-author trailer is auto-injected (don't type it); the pre-commit
   hook regenerates the port ledger + runs host tests on C changes. **Push** only when asked.
