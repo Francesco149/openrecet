@@ -104,7 +104,6 @@ main { padding: .75rem 1rem 3rem; }
 /* note/mark crop preview: retail | port | white-diff of the marked box; click to zoom. */
 .crop-row { display: inline-flex; gap: 3px; margin: 3px 0 2px; cursor: zoom-in;
   align-items: flex-start; flex-wrap: wrap; }
-.crop-row.zoom { cursor: zoom-out; }
 .crop-cell { position: relative; overflow: hidden; background: #0a0b0e;
   border: 1px solid var(--edge); border-radius: 3px; }
 .crop-cell.s-retail { border-color: color-mix(in srgb, var(--retail-c) 55%, var(--edge)); }
@@ -115,6 +114,19 @@ main { padding: .75rem 1rem 3rem; }
   padding: 0 3px; color: #cdd3dc; background: #0b0c10cc; border-radius: 0 3px 0 0;
   pointer-events: none; }
 .crop-oow { font-size: 11px; color: var(--warn); padding: 2px 0; }
+/* crop lightbox: full-screen, wheel-zoom, ✕/Esc/backdrop to close. */
+.lightbox { position: fixed; inset: 0; z-index: 200; background: #000000dc;
+  display: flex; align-items: safe center; justify-content: safe center; overflow: auto;
+  cursor: zoom-out; }
+.lb-stage { display: inline-flex; gap: 8px; align-items: flex-start; padding: 24px;
+  cursor: default; }
+.lb-stage .crop-cell { border-width: 2px; }
+.lightbox .crop-cell img, .lightbox .crop-cell canvas { image-rendering: pixelated; }
+.lightbox .crop-lbl { font-size: 12px; line-height: 16px; padding: 1px 5px; }
+.lb-close { position: fixed; top: 10px; right: 14px; z-index: 201; font-size: 17px; line-height: 1;
+  width: 30px; height: 30px; border-radius: 4px; background: #1b1e25; color: #ddd; cursor: pointer; }
+.lb-close:hover { background: #2a2e38; }
+.lb-info { position: fixed; top: 15px; left: 16px; z-index: 201; font-size: 12px; color: #aeb6c2; }
 .ck { font-size: 12px; color: var(--dim); display: inline-flex; align-items: center;
   gap: .25rem; }
 #ts-session-sel { min-width: 180px; }

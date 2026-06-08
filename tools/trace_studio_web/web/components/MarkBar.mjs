@@ -54,22 +54,53 @@ function DiffCell({ sess, label, box, w }) {
       g.putImageData(out, 0, 0);
     }).catch(() => { if (!dead) setOk(false); });
     return () => { dead = true; };
-  }, [sess, label, w]);
+  }, [sess, label]);                                       // canvas is native-res; `w` is CSS only
   if (!ok) return html`<div class="crop-cell missing" style=${`width:${w}px;height:${h}px`}><span class="crop-lbl">diff —</span></div>`;
   return html`<div class="crop-cell" style=${`width:${w}px;height:${h}px`}>
     <canvas ref=${ref} style=${`width:${w}px;height:${h}px;image-rendering:pixelated`}></canvas>
     <span class="crop-lbl">white-diff</span></div>`;
 }
 
-// retail | port | white-diff crop of a marked box. Click to zoom (toggles a larger size).
+// full-screen lightbox: retail | port | white-diff at a zoomable scale. Starts at 2× (or
+// shrunk to fit the window), mouse-wheel to zoom, ✕ / Esc / backdrop-click to close.
+function CropModal({ sess, label, box, onClose }) {
+  const [x0, y0, x1, y1] = box;
+  const bw = Math.max(1, x1 - x0), bh = Math.max(1, y1 - y0);
+  const [scale, setScale] = useState(() => {
+    const fitW = (window.innerWidth * 0.92) / (3 * bw + 32);
+    const fitH = (window.innerHeight * 0.82) / (bh + 24);
+    return Math.max(0.25, Math.min(2, fitW, fitH));        // 2×, or fit-to-window if too big
+  });
+  const rootRef = useRef(null);
+  useEffect(() => {
+    const el = rootRef.current; if (!el) return;
+    const onWheel = (e) => { e.preventDefault(); setScale((s) => Math.max(0.2, Math.min(16, s * (e.deltaY < 0 ? 1.15 : 1 / 1.15)))); };
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKey);
+    return () => { el.removeEventListener("wheel", onWheel); window.removeEventListener("keydown", onKey); };
+  }, [onClose]);
+  const w = Math.round(bw * scale);
+  return html`<div class="lightbox" ref=${rootRef} onClick=${(e) => { e.stopPropagation(); onClose(); }}>
+    <button class="lb-close" onClick=${(e) => { e.stopPropagation(); onClose(); }} title="close (Esc)">✕</button>
+    <div class="lb-info">retail | port | white-diff · frame ${label} · ${Math.round(scale * 100)}% <span class="dim">(wheel = zoom)</span></div>
+    <div class="lb-stage" onClick=${(e) => e.stopPropagation()}>
+      <${CropCell} sess=${sess} side="retail" label=${label} box=${box} w=${w} />
+      <${CropCell} sess=${sess} side="port" label=${label} box=${box} w=${w} />
+      <${DiffCell} sess=${sess} label=${label} box=${box} w=${w} />
+    </div>
+  </div>`;
+}
+
+// retail | port | white-diff thumbnail of a marked box. Click opens the lightbox.
 function CropThumb({ sess, label, box, thumbW = 116 }) {
-  const [zoom, setZoom] = useState(false);
-  const w = zoom ? thumbW * 2.7 : thumbW;
-  return html`<div class=${"crop-row" + (zoom ? " zoom" : "")} onClick=${() => setZoom((z) => !z)}
-      title=${`retail | port | white-diff · frame ${label} · box ${box.join(",")} · click to ${zoom ? "shrink" : "zoom"}`}>
-    <${CropCell} sess=${sess} side="retail" label=${label} box=${box} w=${w} />
-    <${CropCell} sess=${sess} side="port" label=${label} box=${box} w=${w} />
-    <${DiffCell} sess=${sess} label=${label} box=${box} w=${w} />
+  const [open, setOpen] = useState(false);
+  return html`<div class="crop-row" onClick=${() => setOpen(true)}
+      title=${`retail | port | white-diff · frame ${label} · box ${box.join(",")} · click to open`}>
+    <${CropCell} sess=${sess} side="retail" label=${label} box=${box} w=${thumbW} />
+    <${CropCell} sess=${sess} side="port" label=${label} box=${box} w=${thumbW} />
+    <${DiffCell} sess=${sess} label=${label} box=${box} w=${thumbW} />
+    ${open && html`<${CropModal} sess=${sess} label=${label} box=${box} onClose=${() => setOpen(false)} />`}
   </div>`;
 }
 
