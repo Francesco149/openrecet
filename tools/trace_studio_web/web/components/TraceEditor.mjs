@@ -396,15 +396,16 @@ export function TraceEditor({ editTrace, onEdit, capturedOps, anchors, manifest,
       <button class=${"seg " + (winOnly ? "on" : "")} onClick=${() => setWinOnly(v => !v)}
         title="limit the view to the captured window">⊞ window-only</button>
       <span class="sep">·</span>
-      ${capInfo ? html`<span class="capctl" title="trace DURATION — the captured window's LENGTH (moves the END). The dashed band on the timeline shows it live; ⟳ re-capture to apply.">
-          <span class="dim">dur</span>
-          ${[-120, -60, -30].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>${d}</button>`)}
+      ${capInfo ? html`<span class="dim">window</span>
+        <span class="capctl" title="capture-window DURATION — its LENGTH (moves the END). Fine ±1/±10, coarse to ±120. The dashed band shows it live; ⟳ re-capture to apply.">
+          <span class="dim">len</span>
+          ${[-120, -60, -30, -10, -1].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>${d}</button>`)}
           <span class="capnum">${capInfo.count}f</span>
-          ${capEdit && capEdit.leaked > 0 && html`<span class="capwarn" title=${`${capEdit.leaked} marker(s) past the window END (outside the trace duration) — grow dur to include them`}>⚠${capEdit.leaked}</span>`}
-          ${[30, 60, 120].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>+${d}</button>`)}
+          ${capEdit && capEdit.leaked > 0 && html`<span class="capwarn" title=${`${capEdit.leaked} marker(s) past the window END — extend the duration to include them`}>⚠${capEdit.leaked}</span>`}
+          ${[1, 10, 30, 60, 120].map(d => html`<button class="seg" onClick=${() => bumpDuration(d)} key=${d}>+${d}</button>`)}
         </span>
-        <span class="capctl" title="capture WINDOW position — slides the whole window (start+end together). The dashed band moves live; ⟳ re-capture to apply.">
-          <span class="dim">win</span>
+        <span class="capctl" title="capture-window POSITION — slides the whole window (start+end together, length fixed). The dashed band moves live; ⟳ re-capture to apply.">
+          <span class="dim">pos</span>
           ${[-30, -10, -1].map(d => html`<button class="seg" onClick=${() => slideWindow(d)} key=${d}>${d}</button>`)}
           <span class="capnum">@${capInfo.start}</span>
           ${[1, 10, 30].map(d => html`<button class="seg" onClick=${() => slideWindow(d)} key=${d}>+${d}</button>`)}
