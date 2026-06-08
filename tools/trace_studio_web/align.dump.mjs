@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import {
   parseSegments, resolveBases, sideLayout, absToX, xToAbs, itemAbs, divergenceReport,
-  refFrame,
+  resolveSide, editorLayout, bandAt,
 } from "./align.mjs";
 
 const fx = JSON.parse(readFileSync(new URL("./align.fixture.json", import.meta.url)));
@@ -16,6 +16,9 @@ const rb = resolveBases(segs, fx.retail);
 const pb = resolveBases(segs, fx.port);
 const rep = divergenceReport(segs, fx.port, fx.retail, fx.sync_seg);
 const sf = sideLayout(segs, fx.retail, fx.sync_seg).syncFrame;
+const rsR = resolveSide(segs, fx.retail);
+const rsP = resolveSide(segs, fx.port);
+const elay = editorLayout(segs, fx.port, fx.retail, { capSeg: 3, capStart: 0, capCount: 48 });
 
 // A normalized, key-name-agnostic projection (the semantic content both impls share).
 const proj = {
@@ -25,12 +28,13 @@ const proj = {
   divergence: rep.map(d => [d.seg, d.anchor, d.portRel, d.retailRel]),
   item_abs: { retail: itemAbs(segs[3].items[0], 3, rb), port: itemAbs(segs[3].items[0], 3, pb) },
   roundtrip: { absToX: absToX(111, sf, 2), xToAbs: xToAbs(60, sf, 2) },
-  // piecewise re-base of retail onto the port axis: each segment base collapses onto the
-  // port's, a within-segment offset is preserved, the reference through itself is identity.
-  ref_frame: {
-    seg_bases: rb.map(b => refFrame(b.base, rb, pb)),
-    within: refFrame(rb[1].base + 9, rb, pb),
-    identity: refFrame(pb[2].base, pb, pb),
+  // the BAND MODEL: per-side firing placement (segment a firing belongs to) + the sequential
+  // non-overlapping band layout + the screen→segment inverse.
+  resolve_side: {
+    retail: { bases: rsR.bases.map(b => [b.base, b.ok]), placements: rsR.placements.map(p => [p.seg, p.rel]) },
+    port: { bases: rsP.bases.map(b => [b.base, b.ok]), placements: rsP.placements.map(p => [p.seg, p.rel]) },
   },
+  editor_layout: { X: elay.X, W: elay.W, ext: elay.ext },
+  band_at: [35, 2515, 3000, -3].map(pos => { const b = bandAt(elay.X, pos); return [pos, b.seg, b.rel]; }),
 };
 process.stdout.write(JSON.stringify(proj));

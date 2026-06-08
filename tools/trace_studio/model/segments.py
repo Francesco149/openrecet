@@ -108,27 +108,94 @@ def item_abs(item: dict, seg_idx: int, bases: list[dict]) -> int:
     return (b["base"] if b else 0) + item["frame"]
 
 
-def ref_frame(abs_frame: int, side_bases: list[dict],
-              ref_bases: list[dict]) -> int:
-    """Piecewise re-base ONE side's absolute frame onto a REFERENCE side's axis.
-
-    The editor draws every side on ONE axis (the port = the truthful reference). Within
-    an anchor segment both sides advance at the same rate, but their segment BASES differ
-    — a load the reference skips stretches the other side's frame count (retail's
-    LOADING_END can land at frame 11806 where the port's is 363). Mapping
-    abs → ref_base[k] + (abs − side_base[k]), where k is the segment abs falls in ON THAT
-    SIDE, pins each segment to the reference's base: shared anchors + {wait}-mirrored ops
-    COINCIDE and the per-segment load-stretch collapses onto the reference's truthful
-    positions. A genuine WITHIN-segment offset survives as a gap. Passing the reference's
-    own bases as `side_bases` is the identity. Mirrors align.mjs:refFrame.
+def resolve_side(segments: list[dict], firings: list[dict]) -> dict:
+    """Resolve ONE side: segment bases AND a display PLACEMENT for every firing. Mirrors
+    align.mjs:resolveSide — bases identical to resolve_bases; placements give the (seg, rel)
+    each firing's chip displays at, the segment it BELONGS to (walking the RESOLVED bases,
+    not "last base ≤ frame" which mis-assigns when unresolved bases stack). See
+    docs/findings/trace-editor-segment-alignment.md.
     """
-    k = 0
-    for i in range(len(side_bases)):
-        if (side_bases[i]["base"] if side_bases[i] else 0) <= abs_frame:
-            k = i
-    sb = side_bases[k]["base"] if side_bases[k] else 0
-    rb = ref_bases[k]["base"] if ref_bases[k] else 0
-    return rb + (abs_frame - sb)
+    bases: list[dict] = []
+    resolver_seg: dict[int, int] = {}     # firing index → the segment it resolved
+    cursor = 0
+    for k in range(len(segments)):
+        if k == 0:
+            bases.append({"base": 0, "ok": True, "anchor": None})
+            continue
+        name = segments[k]["wait_anchor"]
+        i = next((idx for idx, f in enumerate(firings)
+                  if f["anchor"] == name and f["frame"] > cursor), -1)
+        if i >= 0:
+            bases.append({"base": firings[i]["frame"], "ok": True, "anchor": name})
+            cursor = firings[i]["frame"]
+            resolver_seg[i] = k
+        else:
+            bases.append({"base": cursor, "ok": False, "anchor": name})
+    resolved = [{"seg": k, "base": b["base"]} for k, b in enumerate(bases) if b["ok"]]
+    placements: list[dict] = []
+    for i, f in enumerate(firings):
+        if i in resolver_seg:
+            placements.append({"seg": resolver_seg[i], "rel": 0})
+            continue
+        seg = 0
+        for r in resolved:
+            if r["base"] <= f["frame"]:
+                seg = r["seg"]
+        placements.append({"seg": seg, "rel": f["frame"] - bases[seg]["base"]})
+    return {"bases": bases, "placements": placements}
+
+
+def editor_layout(segments: list[dict], port_firings: list[dict],
+                  retail_firings: list[dict], *, emitted: list[dict] | None = None,
+                  notes: list[dict] | None = None, cap_seg: int = -1, cap_start: int = 0,
+                  cap_count: int = 0, gap: int = 16, min_band: int = 8,
+                  pad: int = 4) -> dict:
+    """Lay segments out as sequential, NON-OVERLAPPING bands (mirrors align.mjs:editorLayout
+    — THE alignment workhorse). Band k = [X[k], X[k]+W[k]); width fits the widest content in
+    the band across BOTH sides; origins X[k]=X[k-1]+W[k-1]+gap. A per-segment load-stretch
+    collapses to the inter-band gap; a divergent/incomplete trace still gets one band per
+    segment. See docs/findings/trace-editor-segment-alignment.md."""
+    emitted = emitted or []
+    notes = notes or []
+    port = resolve_side(segments, port_firings)
+    retail = resolve_side(segments, retail_firings)
+    n = len(segments)
+    ext = [0] * n
+
+    def bump(seg: int, rel: int) -> None:
+        if 0 <= seg < n and rel > ext[seg]:
+            ext[seg] = rel
+
+    for k, s in enumerate(segments):
+        for it in s["items"]:
+            bump(k, it["frame"])
+    for e in emitted:
+        bump(e["seg"], e["frame"])
+    for nt in notes:
+        bump(nt["seg"], nt["frame"])
+    for p in port["placements"]:
+        bump(p["seg"], p["rel"])
+    for p in retail["placements"]:
+        bump(p["seg"], p["rel"])
+    if cap_seg >= 0:
+        bump(cap_seg, cap_start + cap_count)
+    w = [max(min_band, e + pad) for e in ext]
+    x_origins: list[int] = []
+    x = 0
+    for k in range(n):
+        x_origins.append(x)
+        x += w[k] + gap
+    return {"port": port, "retail": retail, "X": x_origins, "W": w, "ext": ext, "gap": gap}
+
+
+def band_at(x_origins: list[int], pos: int) -> dict:
+    """Layout position → {seg, rel}: the band whose origin is the largest ≤ pos (screen→
+    segment inverse). Positions left of band 0 clamp to seg 0. Mirrors align.mjs:bandAt."""
+    seg = 0
+    for k in range(len(x_origins)):
+        if x_origins[k] <= pos:
+            seg = k
+    return {"seg": seg, "rel": pos - (x_origins[seg] if seg < len(x_origins) else 0)}
 
 
 def anchor_names(*firing_lists: list[dict]) -> list[str]:

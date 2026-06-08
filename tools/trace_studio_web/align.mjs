@@ -74,25 +74,79 @@ export function itemAbs(item, segIdx, bases) {
   return (b ? b.base : 0) + item.frame;
 }
 
-// ─── piecewise re-base ONE side's absolute frame onto a REFERENCE side's axis ──
-// The editor draws every side on ONE axis (the port = the truthful reference). Within an
-// anchor segment both sides advance at the same rate, but their segment BASES differ — a
-// load the reference skips stretches the other side's frame count (retail's LOADING_END
-// can land at frame 11806 where the port's is 363). Mapping abs → refBase[k] +
-// (abs − sideBase[k]), where k is the segment abs falls in ON THAT SIDE, pins each
-// segment to the reference's base: shared anchors + {wait}-mirrored ops COINCIDE and the
-// per-segment load-stretch collapses onto the reference's truthful positions. A genuine
-// WITHIN-segment offset (an anchor/input at a different segment-relative frame) survives
-// as a gap — only the declared sync boundaries' base shift is absorbed. `sideBases` /
-// `refBases` are resolveBases() outputs; passing the reference's own bases as `sideBases`
-// is the identity (the reference is unmoved).
-export function refFrame(abs, sideBases, refBases) {
-  let k = 0;
-  for (let i = 0; i < sideBases.length; i++)
-    if ((sideBases[i] ? sideBases[i].base : 0) <= abs) k = i;
-  const sb = sideBases[k] ? sideBases[k].base : 0;
-  const rb = refBases[k] ? refBases[k].base : 0;
-  return rb + (abs - sb);
+// ─── resolve ONE side: segment bases AND a display PLACEMENT for every firing ──
+// resolveBases gives each segment's base; this ALSO returns, per firing, the (seg, rel) its
+// chip should DISPLAY at — the segment it BELONGS to, found by walking the RESOLVED bases,
+// NOT by "last base ≤ frame" (which mis-assigns a firing to the highest of several
+// segments that fall back to the SAME base when a side's anchor stream is incomplete). A
+// firing that resolves segment k's wait sits at {seg:k, rel:0}; any other firing sits in the
+// latest segment whose RESOLVED base ≤ its frame, at rel = frame − that base. So a divergent
+// trace still places every chip in a sensible band instead of piling them onto one frame.
+// The single walk produces bases identical to resolveBases (asserted in the tests).
+export function resolveSide(segments, firings) {
+  const bases = [];
+  const resolverSeg = new Map();        // firing index → the segment it resolved
+  let cursor = 0;
+  for (let k = 0; k < segments.length; k++) {
+    if (k === 0) { bases.push({ base: 0, ok: true, anchor: null }); continue; }
+    const name = segments[k].waitAnchor;
+    const i = firings.findIndex(f => f.anchor === name && f.frame > cursor);
+    if (i >= 0) {
+      bases.push({ base: firings[i].frame, ok: true, anchor: name });
+      cursor = firings[i].frame;
+      resolverSeg.set(i, k);
+    } else {
+      bases.push({ base: cursor, ok: false, anchor: name });
+    }
+  }
+  // resolved bases in segment order (monotonic) — the candidates for non-resolver firings.
+  const resolved = [];
+  for (let k = 0; k < bases.length; k++) if (bases[k].ok) resolved.push({ seg: k, base: bases[k].base });
+  const placements = firings.map((f, i) => {
+    if (resolverSeg.has(i)) return { seg: resolverSeg.get(i), rel: 0 };
+    let seg = 0;
+    for (const r of resolved) if (r.base <= f.frame) seg = r.seg;
+    return { seg, rel: f.frame - bases[seg].base };
+  });
+  return { bases, placements };
+}
+
+// ─── THE alignment system: lay segments out as sequential, NON-OVERLAPPING bands ──
+// Band k occupies [X[k], X[k]+W[k]); an entity in segment k at seg-relative frame f draws at
+// X[k]+f on BOTH sides ⇒ shared anchors + {wait}-mirrored ops coincide, a per-segment
+// load-stretch collapses to the fixed inter-band `gap` (a side's huge base is NEVER a screen
+// coord — only its seg-relative offsets are), a within-segment offset stays a gap, and every
+// segment gets its own band whether or not its wait resolved on a side (so a divergent /
+// incomplete trace is inspectable, never frozen onto one frame). Width fits the widest
+// content in the band across BOTH sides. All inputs explicit + side-effect-free (golden-
+// tested). See docs/findings/trace-editor-segment-alignment.md.
+export function editorLayout(segments, portFirings, retailFirings, opts = {}) {
+  const { emitted = [], notes = [], capSeg = -1, capStart = 0, capCount = 0,
+          gap = 16, minBand = 8, pad = 4 } = opts;
+  const port = resolveSide(segments, portFirings);
+  const retail = resolveSide(segments, retailFirings);
+  const n = segments.length;
+  const ext = new Array(n).fill(0);
+  const bump = (seg, rel) => { if (seg >= 0 && seg < n && rel > ext[seg]) ext[seg] = rel; };
+  segments.forEach((s, k) => s.items.forEach(it => bump(k, it.frame)));
+  emitted.forEach(e => bump(e.seg, e.frame));
+  notes.forEach(nt => bump(nt.seg, nt.frame));
+  port.placements.forEach(p => bump(p.seg, p.rel));
+  retail.placements.forEach(p => bump(p.seg, p.rel));
+  if (capSeg >= 0) bump(capSeg, capStart + capCount);
+  const W = ext.map(e => Math.max(minBand, e + pad));
+  const X = [];
+  let x = 0;
+  for (let k = 0; k < n; k++) { X.push(x); x += W[k] + gap; }
+  return { port, retail, X, W, ext, gap };
+}
+
+// layout position → {seg, rel}: the band whose origin is the largest ≤ pos (screen→segment
+// inverse, for click-to-edit / click-to-scrub). Positions left of band 0 clamp to seg 0.
+export function bandAt(X, pos) {
+  let seg = 0;
+  for (let k = 0; k < X.length; k++) if (X[k] <= pos) seg = k;
+  return { seg, rel: pos - (X[seg] ?? 0) };
 }
 
 // ─── distinct anchor names present, for the sync-anchor picker ───────────────

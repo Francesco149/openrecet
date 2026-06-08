@@ -7,28 +7,40 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
-## 2026-06-08 — Trace-studio editor: piecewise port-axis alignment
+## 2026-06-08 — Trace-studio editor: the segment-band alignment model
 
-User-reported bug: in the trace editor, retail's anchors + button presses **after BOOT /
-LOADING_START appeared way off to the right** (you had to scroll thousands of frames to
-find them), while the port's sat where they should. Cause: the editor aligned both sides on
-a **single** sync anchor (default BOOT), so only that one boundary lined up — the retail
-load-stretch (turbo retail's `LOADING_END` lands at frame **11806** where the port's is
-**363**, an ~11.4k-frame skip of the intro the port doesn't run) threw every later retail
-event ~11k px right and ballooned the lane width to match.
+The trace editor's port/retail alignment, redesigned to be **robust** — the workhorse for
+inspecting any trace, well-formed or divergent. Semantics:
+`docs/findings/trace-editor-segment-alignment.md`.
 
-Fix: **piecewise alignment** onto the port (truthful reference) axis. New pure
-`align.refFrame(abs, sideBases, refBases)` re-bases a side's absolute frame segment-by-
-segment onto the port's bases (`refBase[k] + (abs − sideBase[k])`), so every shared anchor /
-`{wait}`-mirrored op **coincides** and each side's per-segment load-stretch **collapses**
-onto the port's positions. A genuine *within-segment* offset still shows as a horizontal gap
-— only the declared sync-boundary base shift is absorbed. `TraceEditor.mjs` routes `sideX`
-(and the click math `hitSeg`/`startDrag`/anchor-scrub) through it; the editable rows now
-resolve against the PORT bases regardless of which side's row was clicked. On the real
-`town-map-load` session: retail `LOADING_END`/`HOUSE_FREEROAM` move **11806 → 363** (aligned
-✓) and content width shrinks **11806 → 363 px**. Single-segment dense sessions are unchanged
-(refFrame is the identity there). Mirrored in the Python twin (`model/segments.py:ref_frame`)
-and pinned in the JS↔Python golden cross-check.
+The bug: turbo retail runs the intro/map-load the port skips, so a side's per-segment
+**base** can differ by ~14k frames (`town-map-load-rerecord`: 1st `LOADING_END` is frame
+**389** on the port, **14548** on retail). A first fix (`refFrame`, piecewise re-base onto
+the port's *absolute* frames) aligned well-formed traces but **broke on incomplete ones**:
+when retail never reached the 2nd load, its segs 2/3/4 all fall back to the same base, and
+"last base ≤ frame" assigned retail's capture-window anchors to the **highest** stacked
+segment — drawing them onto a later band (the overlay the user hit). It also overlapped a
+segment whose inputs ran past the next segment's base.
+
+The model: **sequential, non-overlapping bands.** Segment `k` occupies `[X[k], X[k]+W[k])`;
+an entity at segment-relative frame `f` draws at `X[k]+f` on **both** sides ⇒ shared anchors
++ `{wait}`-mirrored ops coincide, a per-segment load-stretch collapses to the fixed
+inter-band gap, a within-segment offset stays a gap, and **every segment gets its own band
+whether or not its wait resolved on a side** — so a divergent/incomplete trace lays out
+cleanly (the missing side's anchor lanes are simply empty), never frozen onto one frame.
+Anchor chips are placed by `resolveSide` (the segment a firing *belongs* to, walking the
+resolved bases — not base-comparison). New pure API in `align.mjs`: `resolveSide`,
+`editorLayout`, `bandAt` (`refFrame` removed); `TraceEditor.mjs` runs entirely on it
+(`bandPos`/`bandAt`), with visible band dividers + a segment-jump nav. Verified on both real
+sessions: well-formed → all 8 anchors in identical bands both sides; divergent → retail's
+`LOADING_END`/`HOUSE_FREEROAM` place in **seg 2** (not the stacked seg 4), future segs get
+their own bands. Mirrored in `model/segments.py` (`resolve_side`/`editor_layout`/`band_at`)
+and pinned byte-for-byte in the JS↔Python golden cross-check; `align.test.mjs` 35/35.
+
+Note: the retail side of that session also captured no frames — a **separate** capture-
+harness issue (Frida `connection-terminated` right after `HOUSE_FREEROAM`, after the long
+load), tracked apart from alignment; the editor aligns fine regardless (lanes come from the
+anchor/trace files, not captured frames).
 
 ## 2026-06-05 — LOAD GAME slot picker rendered 1:1 (FUN_0049b556)
 

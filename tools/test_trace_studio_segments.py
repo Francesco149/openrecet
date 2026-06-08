@@ -37,6 +37,9 @@ def py_projection(fx: dict) -> dict:
     pb = S.resolve_bases(segs, fx["port"])
     rep = S.divergence_report(segs, fx["port"], fx["retail"], fx["sync_seg"])
     sf = S.side_layout(segs, fx["retail"], fx["sync_seg"])["sync_frame"]
+    rs_r = S.resolve_side(segs, fx["retail"])
+    rs_p = S.resolve_side(segs, fx["port"])
+    elay = S.editor_layout(segs, fx["port"], fx["retail"], cap_seg=3, cap_start=0, cap_count=48)
     return {
         "segments": [{"wait": s["wait_anchor"],
                       "items": [[i["kind"], i["frame"]] for i in s["items"]]}
@@ -49,9 +52,15 @@ def py_projection(fx: dict) -> dict:
                      "port": S.item_abs(segs[3]["items"][0], 3, pb)},
         "roundtrip": {"absToX": S.abs_to_x(111, sf, 2),
                       "xToAbs": S.x_to_abs(60, sf, 2)},
-        "ref_frame": {"seg_bases": [S.ref_frame(b["base"], rb, pb) for b in rb],
-                      "within": S.ref_frame(rb[1]["base"] + 9, rb, pb),
-                      "identity": S.ref_frame(pb[2]["base"], pb, pb)},
+        "resolve_side": {
+            "retail": {"bases": [[b["base"], b["ok"]] for b in rs_r["bases"]],
+                       "placements": [[p["seg"], p["rel"]] for p in rs_r["placements"]]},
+            "port": {"bases": [[b["base"], b["ok"]] for b in rs_p["bases"]],
+                     "placements": [[p["seg"], p["rel"]] for p in rs_p["placements"]]},
+        },
+        "editor_layout": {"X": elay["X"], "W": elay["W"], "ext": elay["ext"]},
+        "band_at": [[pos, S.band_at(elay["X"], pos)["seg"], S.band_at(elay["X"], pos)["rel"]]
+                    for pos in (35, 2515, 3000, -3)],
     }
 
 
@@ -85,11 +94,22 @@ def main() -> int:
          f"item_abs wrong: {proj['item_abs']}")
     want(proj["roundtrip"] == {"absToX": 60, "xToAbs": 111},
          f"roundtrip wrong: {proj['roundtrip']}")
-    # piecewise re-base onto the port axis: retail's [0,81,108,111] bases collapse onto
-    # the port's [0,261,2750,2750]; a within-segment +9 is preserved (261+9); identity.
-    want(proj["ref_frame"] == {"seg_bases": [0, 261, 2750, 2750], "within": 270,
-                               "identity": 2750},
-         f"ref_frame projection wrong: {proj['ref_frame']}")
+    # band model: retail places every anchor on a band edge [0,1,2,3,3]; the port fired
+    # LOADING_END@2726 BEFORE CONV_POSE_START@2750, so its chips land WITHIN seg 1 far to the
+    # right (rel 2465) — the divergence shown as a wide band, not frozen onto one frame.
+    want(proj["resolve_side"]["retail"]["placements"] == [[0, 0], [1, 0], [2, 0], [3, 0], [3, 0]],
+         f"retail placements wrong: {proj['resolve_side']['retail']['placements']}")
+    want(proj["resolve_side"]["port"]["placements"] == [[0, 0], [1, 0], [1, 2465], [1, 2465], [2, 0]],
+         f"port placements wrong: {proj['resolve_side']['port']['placements']}")
+    # bands never overlap: X[k] ≥ X[k-1]+W[k-1]; the captured seg-3 band fits the 48f window.
+    xs, ws = proj["editor_layout"]["X"], proj["editor_layout"]["W"]
+    want(all(xs[k] >= xs[k - 1] + ws[k - 1] for k in range(1, len(xs))),
+         f"bands overlap: X={xs} W={ws}")
+    want(proj["editor_layout"] == {"X": [0, 30, 2515, 2540], "W": [14, 2469, 9, 52],
+                                   "ext": [10, 2465, 5, 48]},
+         f"editor_layout wrong: {proj['editor_layout']}")
+    want(proj["band_at"] == [[35, 1, 5], [2515, 2, 0], [3000, 3, 460], [-3, 0, -3]],
+         f"band_at wrong: {proj['band_at']}")
 
     # ── 2) JS twin cross-check (node) ────────────────────────────────────────
     node = shutil.which("node")

@@ -2,7 +2,7 @@
 //   nix develop --command node tools/trace_studio_web/align.test.mjs
 import {
   parseSegments, resolveBases, sideLayout, absToX, xToAbs, itemAbs, divergenceReport,
-  refFrame,
+  resolveSide, editorLayout, bandAt,
 } from "./align.mjs";
 
 let pass = 0, fail = 0;
@@ -69,30 +69,91 @@ const sf = sideLayout(segs, retail, 1).syncFrame; // = 81
 eq(absToX(111, sf, 2), 60, "absToX: (111-81)*2 = 60");
 eq(xToAbs(60, sf, 2), 111, "xToAbs round-trips");
 
-// ── refFrame: piecewise re-base a side onto the reference (port) axis ─────────
-// Real town-map-load numbers: the port skips retail's load, so retail's LOADING_END
-// lands at frame 11806 where the port's is 363. Piecewise re-basing must collapse
-// retail's seg-2 content onto the port's truthful frames (the editor-alignment bug).
-const tmSegs = parseSegments([
-  { frame: 0, buttons: "0x0000" }, { wait: "NEW_GAME" }, { frame: 0, buttons: "0x0000" },
-  { wait: "LOADING_END" }, { frame: 0, buttons: "0x0000" }, { frame: 50, buttons: "0x0001" },
-]);
-const tmPort = [{ anchor: "BOOT", frame: 0 }, { anchor: "NEW_GAME", frame: 157 }, { anchor: "LOADING_END", frame: 363 }];
-const tmRetail = [{ anchor: "BOOT", frame: 0 }, { anchor: "NEW_GAME", frame: 157 }, { anchor: "LOADING_END", frame: 11806 }];
-const tmPB = resolveBases(tmSegs, tmPort), tmRB = resolveBases(tmSegs, tmRetail);
-eq(tmPB.map(b => b.base), [0, 157, 363], "town-map port bases");
-eq(tmRB.map(b => b.base), [0, 157, 11806], "town-map retail bases (load-stretched)");
-eq(refFrame(11806, tmRB, tmPB), 363, "refFrame: retail LOADING_END 11806 → port 363 (collapsed)");
-eq(refFrame(11856, tmRB, tmPB), 413, "refFrame: retail seg-2 +50 (11856) → port 413");
-eq(refFrame(363, tmPB, tmPB), 363, "refFrame: reference (port) through itself is identity");
-eq(refFrame(157, tmRB, tmPB), 157, "refFrame: shared NEW_GAME base is unchanged");
-eq(refFrame(100, tmRB, tmPB), 100, "refFrame: pre-load seg-0 frame is unchanged");
+// ════════════════════════════════════════════════════════════════════════════
+// The BAND MODEL (the segment-alignment workhorse). See
+// docs/findings/trace-editor-segment-alignment.md for the semantics.
+// ════════════════════════════════════════════════════════════════════════════
 
-// A WITHIN-segment divergence must SURVIVE (only the declared {wait} base shift is
-// absorbed): an anchor 24f into the segment on port but 10f in on retail stays a gap.
-ok(refFrame(363 + 24, tmPB, tmPB) !== refFrame(11806 + 10, tmRB, tmPB),
-  "refFrame: a within-segment offset (port +24 vs retail +10) survives as a gap");
-eq(refFrame(11806 + 10, tmRB, tmPB), 373, "refFrame: retail seg-2 +10 → port 373 (not 387)");
+// ── resolveSide: bases match resolveBases + every firing gets a PLACEMENT ─────
+// WELL-FORMED town-map-load-rerecord: port loads fast, retail's 1st load runs ~14k
+// ticks; both still place every anchor in the SAME band ⇒ they align band-for-band.
+const wfTrace = parseSegments([
+  { frame: 0, buttons: "0x0000" },
+  { wait: "NEW_GAME" }, { frame: 0, buttons: "0x0000" },
+  { wait: "LOADING_END" }, { frame: 0, buttons: "0x0000" }, { frame: 50, buttons: "0x0001" },
+  { wait: "LOADING_START" }, { frame: 0, buttons: "0x0000" },
+  { wait: "PAUSE_OPEN" }, { frame: 0, buttons: "0x0000" },
+  { wait: "LOADING_END" }, { caprange: [0, 640] }, { frame: 0, buttons: "0x0000" }, { frame: 30, buttons: "0x0004" },
+]);
+const wfPort = [
+  { anchor: "BOOT", frame: 0 }, { anchor: "NEW_GAME", frame: 168 }, { anchor: "LOADING_START", frame: 168 },
+  { anchor: "LOADING_END", frame: 389 }, { anchor: "HOUSE_FREEROAM", frame: 389 },
+  { anchor: "LOADING_START", frame: 630 }, { anchor: "PAUSE_OPEN", frame: 630 }, { anchor: "LOADING_END", frame: 659 },
+];
+const wfRetail = [
+  { anchor: "BOOT", frame: 0 }, { anchor: "NEW_GAME", frame: 168 }, { anchor: "LOADING_START", frame: 168 },
+  { anchor: "LOADING_END", frame: 14548 }, { anchor: "HOUSE_FREEROAM", frame: 14548 },
+  { anchor: "LOADING_START", frame: 14789 }, { anchor: "PAUSE_OPEN", frame: 14789 }, { anchor: "LOADING_END", frame: 15105 },
+];
+const wfP = resolveSide(wfTrace, wfPort), wfR = resolveSide(wfTrace, wfRetail);
+// bases are byte-identical to resolveBases (the single walk can't drift from the resolver)
+eq(wfP.bases, resolveBases(wfTrace, wfPort), "resolveSide port bases == resolveBases");
+eq(wfR.bases, resolveBases(wfTrace, wfRetail), "resolveSide retail bases == resolveBases");
+// {wait PAUSE_OPEN} (seg 4) is UNRESOLVED on BOTH sides: PAUSE_OPEN fires the same frame as
+// LOADING_START (not strictly after) — faithful to the resolver, band stays empty of anchors.
+ok(wfP.bases[4].ok === false && wfR.bases[4].ok === false, "seg4 PAUSE_OPEN unresolved both sides (same-frame)");
+// the headline: both sides place anchors in IDENTICAL bands ⇒ the ~14k load-stretch collapses
+eq(wfP.placements.map(p => p.seg), [0, 1, 1, 2, 2, 3, 3, 5], "well-formed: port anchor bands");
+eq(wfR.placements.map(p => p.seg), [0, 1, 1, 2, 2, 3, 3, 5], "well-formed: retail anchor bands (== port)");
+eq(wfP.placements.map(p => p.rel), [0, 0, 0, 0, 0, 0, 0, 0], "well-formed: all rels 0 (anchors on band edges)");
+
+// ── DIVERGENT town-map-load: retail never reached the 2nd load, so retail segs 2/3/4
+// all fall back to base 11806. The firing must still land in the band it BELONGS to. ──
+const dvTrace = parseSegments([
+  { frame: 0, buttons: "0x0000" },
+  { wait: "NEW_GAME" }, { frame: 0, buttons: "0x0000" },
+  { wait: "LOADING_END" }, { caprange: [0, 868] }, { frame: 0, buttons: "0x0000" }, { frame: 50, buttons: "0x0001" },
+  { wait: "LOADING_START" }, { frame: 0, buttons: "0x0000" },
+  { wait: "LOADING_END" }, { frame: 0, buttons: "0x0000" }, { frame: 40, buttons: "0x0004" },
+]);
+const dvPort = [
+  { anchor: "BOOT", frame: 0 }, { anchor: "NEW_GAME", frame: 157 }, { anchor: "LOADING_START", frame: 157 },
+  { anchor: "LOADING_END", frame: 416 }, { anchor: "HOUSE_FREEROAM", frame: 416 },
+  { anchor: "LOADING_START", frame: 643 }, { anchor: "PAUSE_OPEN", frame: 643 }, { anchor: "LOADING_END", frame: 676 },
+];
+const dvRetail = [
+  { anchor: "BOOT", frame: 0 }, { anchor: "NEW_GAME", frame: 157 }, { anchor: "LOADING_START", frame: 157 },
+  { anchor: "LOADING_END", frame: 11806 }, { anchor: "HOUSE_FREEROAM", frame: 11806 },
+];
+const dvP = resolveSide(dvTrace, dvPort), dvR = resolveSide(dvTrace, dvRetail);
+eq(dvR.bases.map(b => [b.base, b.ok]), [[0, true], [157, true], [11806, true], [11806, false], [11806, false]],
+  "divergent: retail segs 3/4 fall back to base 11806 (unresolved)");
+// THE bug fix: retail LOADING_END@11806 + HOUSE_FREEROAM@11806 place in seg 2 (NOT seg 4)
+eq(dvR.placements.map(p => p.seg), [0, 1, 1, 2, 2], "divergent: retail anchors → seg 2, NOT the stacked seg 4");
+eq(dvP.placements.map(p => p.seg), [0, 1, 1, 2, 2, 3, 3, 4], "divergent: port anchors fill all 5 bands");
+
+// ── editorLayout: sequential, non-overlapping bands; capture window sizes its band ──
+const dvL = editorLayout(dvTrace, dvPort, dvRetail, { capSeg: 2, capStart: 0, capCount: 868 });
+ok(dvL.X.every((x, k) => k === 0 || x > dvL.X[k - 1]), "layout: band origins strictly increasing");
+ok(dvL.X.every((x, k) => k === 0 || x >= dvL.X[k - 1] + dvL.W[k - 1]), "layout: bands never overlap (X[k] ≥ X[k-1]+W[k-1])");
+eq(dvL.W[2], 872, "layout: captured seg-2 band sized to the 868f window (+pad)");
+ok(dvL.W[3] < dvL.W[2] && dvL.W[4] < dvL.W[2], "layout: future segs 3/4 are their OWN small bands (no overlay)");
+// retail's seg-2 content sits at the SAME band origin as the port's ⇒ aligned
+eq(dvL.X[2] + dvR.placements[3].rel, dvL.X[2] + dvP.placements[3].rel, "layout: retail vs port LOADING_END coincide in band 2");
+
+// ── bandAt: screen→segment inverse ───────────────────────────────────────────
+eq(bandAt(dvL.X, dvL.X[2] + 52), { seg: 2, rel: 52 }, "bandAt: a point in band 2 → {seg2, rel}");
+eq(bandAt(dvL.X, dvL.X[4] + 3).seg, 4, "bandAt: a point in band 4 → seg 4 (not stacked into 2)");
+eq(bandAt(dvL.X, -5).seg, 0, "bandAt: left of band 0 clamps to seg 0");
+
+// ── edge cases: a single-segment dense session + a no-anchors trace ───────────
+const oneSeg = parseSegments([{ frame: 0, buttons: "0x0000" }, { frame: 10, buttons: "0x0010" }]);
+const oneL = editorLayout(oneSeg, [{ anchor: "BOOT", frame: 0 }], [{ anchor: "BOOT", frame: 0 }], { capSeg: 0, capStart: 0, capCount: 48 });
+eq(oneL.X, [0], "edge: single segment → one band at origin 0");
+eq(oneL.W, [52], "edge: single-segment band fits the 48f window (+pad)");
+const noAnchors = editorLayout(dvTrace, [], []);
+eq(noAnchors.port.placements, [], "edge: no firings → no placements (no crash)");
+ok(noAnchors.X.length === 5, "edge: bands still laid out from items alone when anchors absent");
 
 console.log(`\nalign.test: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

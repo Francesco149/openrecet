@@ -185,6 +185,14 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
   border-left: 2px solid #69d083aa; border-right: 2px solid #69d083aa; }
 .tl-editwin.pending { background: #e3b34112;
   border-left: 2px dashed var(--accent); border-right: 2px dashed var(--accent); }
+/* segment-band boundaries: a faint full-height divider at each band's start + the wait
+   anchor that opens it. Makes the sequential-band layout legible — the GAP between bands
+   is where a load-stretch (or any cross-side base shift) is collapsed. */
+.tl-segdiv { position: absolute; top: 0; bottom: 0; width: 0; z-index: 1;
+  border-left: 1px dashed #3a3f4a; pointer-events: none; }
+.tl-seglbl { position: absolute; top: 0; font-size: 8px; line-height: 10px; color: #6b7280;
+  padding: 0 2px; white-space: nowrap; pointer-events: none; z-index: 3;
+  transform: translateX(1px); background: #0b0c10cc; border-radius: 0 0 3px 0; }
 /* gutter rows + lane groups MUST render the same total height per row or they drift.
    Both: explicit content height (from the rows array) + a 1px bottom border ON TOP
    (content-box), so row k lines up in both columns. */
