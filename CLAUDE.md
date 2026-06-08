@@ -58,7 +58,17 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   port-fix loop) so the user can refresh and immediately check the result frame-by-frame as
   you iterate — you both inspect the *same* frames. Do **not** run your own one-off
   `--session <other>` capture for trace work, and don't pixel-diff in `/tmp` as a substitute
-  for updating the session the user is looking at. **For anything inspectable IN the session,
+  for updating the session the user is looking at. **To VERIFY a fix, recapture the session and
+  inspect the studio's OWN aligned output** — the served session at the URL, or its
+  `diff/frames/frame_<ordinal>.png` (already retail−port, studio-aligned) — **never a
+  hand-rolled `/tmp` diff that pairs frames yourself.** Pitfall that burned us (2026-06-09,
+  C3a): `port/frames/` is named by **absolute** frame (`base_abs + ordinal`, e.g. ord 107 =
+  `frame_00537.png` at base_abs 430) while `retail/frames/` is named by **ordinal**
+  (`frame_00107.png`); naively diffing `port/frame_00537` vs `retail/frame_00107` LOOKS
+  aligned but the load-stretch means they're different sim moments → a huge false divergence.
+  The studio's alignment maps the two; trust `diff/frames/` (or the served session), not your
+  own pairing. (Zooming a single studio frame to eyeball it is fine; pairing two yourself is not.)
+  **For anything inspectable IN the session,
   just remind the user of the session URL — `http://localhost:8778/?session=<name>` (default
   serve port 8778; confirm the live port via `ps`/serve logs) — rather than composing+pushing
   a feed montage of it: the studio already shows retail|port|diff + frame scrub, so a push only

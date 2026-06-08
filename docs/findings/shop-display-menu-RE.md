@@ -430,9 +430,9 @@ interactions at caprange frames ~121/381/587 on BOTH sides.
 **User-flagged gap board (free-roam region, all confirmed from the clean diff):**
 | # | gap | frame | chip / status |
 |---|-----|-------|---------------|
-| 1 | slot-highlight glow | f107 | **C3a** — FULLY spec'd below |
+| 1 | slot-highlight glow | f107 | **C3a — ✅ DONE 2026-06-09** (commit e25587c; verified below) |
 | 2 | "What will you place?" prompt (top-left) | f147 | world-projected menu prompt — drawer + UI-string RE pending (see "STILL MISSING" above) |
-| 3 | item name tooltip ("Dark Sword") | f257 | **C3b** (recipe above) |
+| 3 | item name tooltip ("Dark Sword") | f257 | **C3b** (recipe above) — NEXT |
 | 4 | hands-up Recette anim | f441 | placement-reaction pose — anim-trigger RE pending |
 
 **Verdict finding (NEW):** `house_update.px/py/pz` DRIFT from f122 (the 1st interaction).
@@ -440,7 +440,20 @@ db054 freezes during the menu so part may be a pairing artifact, but it most lik
 (the un-ported hands-up / interact reaction pose moving the actor). Confirm via the captured
 call-trace before treating as a separate logic bug.
 
-### C3a (slot-highlight orange glow) — FULLY RESOLVED, ready to port (resolves the TODO above)
+### C3a (slot-highlight orange glow) — ✅ PORTED & VERIFIED 2026-06-09 (commit e25587c)
+Ported as `chr_shadow_build_display_glow` (pure, host-tested) + the Block-G draw in
+`scene1_chr_shadow_render` (after the bg-NPC shadows, before the teardown). New accessors
+`shop_display_render_x/render_z/bf68`. **Verified on `item-display-2` (port recapture --only
+port):** the faced cell (4,4, holding the armor) now shows the orange glow; the studio diff
+@ord107 glow-region (y380:475,x455:560) is **max 6/ch, mean 0.00, 0 px >8/ch** = bit-clean
+vs retail (whole-frame residual 958 px>8 = pre-existing player/HUD, not the glow).
+**Two constant corrections vs the original spec below (both verified by round-trip + the
+asm immediates):** (1) the scale is **0.0036799998** (`0x3b712c27`), NOT 0.003685 — that
+literal rounds to `0x3b712c28` AND `0.003685f`→`0x3b7180ca` (wrong); (2) the U texels are
+**224.5 / 287.5** (centres), NOT 225 / 288 — `0x3e608000`=224.5/1024, `0x3e8fc000`=287.5/1024
+(the V texels 480.5/543.5 were already right). Alpha consts 0.05/32.0/159.0 are all **float**
+(`fmul/fadd DWORD PTR` @ 0x45b910/92a/930). The original spec follows (kept for the asm refs):
+
 `FUN_0045aa36` Block G @ asm 0x45b8e0–0x45b94f (decompile L55089). A flat alpha-blended
 `item_win` decal on the display surface over the faced cell. Port into the
 `scene1_chr_shadow.c` Block-G stub (L347/L234), reusing its 3D-quad path.
