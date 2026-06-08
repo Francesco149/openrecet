@@ -1,8 +1,54 @@
-# Frida capture crash — long captures truncate (frida-agent AV) — OPEN
+# Frida capture crash — long captures truncate (frida-agent AV) — ✅ RESOLVED 2026-06-08
 
-**Status: root identified, partial mitigation landed, NOT solved. Next-session task
-(user, 2026-06-08): make these captures reliable — either fix frida or find an
-alternative capture mechanism.**
+**Status: SOLVED. The AV was NOT frida-internal — it was OUR ~3 MB-per-frame
+`readByteArray`+`send` shipping each screenshot over the remote Frida channel. The
+intended fix (the `7b9907d` capture-local `writeRawFile` path) had silently been DEAD
+since the frida-17 upgrade because `ensureWinFileFns` still called the removed global
+`Module.getExportByName` and threw on the first captured frame — so EVERY capture fell
+back to the heavy in-band path. Fix = (1) revive `writeRawFile` (frida-17 module API),
+(2) route ALL captures (windowed caprange/pending/anchor, not just `capture_all`)
+through it via `capture_local` (default on). Dense captures are now reliable AND ~8×
+faster. The `{capstride}` workaround is no longer needed for reliability.**
+
+## The fix (commits this session)
+- `tools/frida/openrecet-agent.js` `ensureWinFileFns`: `Module.getExportByName('kernel32.dll',
+  …)` → `Process.findModuleByName('kernel32.dll').findExportByName(…)` (the same frida-17
+  migration already applied to `installShowWindowHook` / `installSaveRedirectHook`; this one
+  was missed). Without it the whole capture-local fast path threw `TypeError: not a function`
+  at `captureBackbuffer`→`ensureWinFileFns` on frame 1 and captured ZERO frames.
+- `tools/frida_capture.py`: new `capture_local` (default True) — sets `capture_dir` for ALL
+  capture paths, not just `capture_all`. `--no-capture-local` escape hatch for a true remote
+  host. Also fixed an unrelated `f_log` "I/O operation on closed file" at the raw→png step
+  (the log was closed one block too early).
+
+## Proof (isolated title repro — both paths, same scenario)
+A dense title capture is a fast faithful repro (the capture path is scene-independent; the
+title produces Present every frame, so it stresses the transport in seconds without the long
+boot-to-HOUSE nav). All `--turbo --silent-audio --hide-window --force-resolution 1024x768`:
+- **In-band path** (`--no-capture-local`, `--capture-frames 0..250` = `readByteArray`+`send`):
+  **`process-terminated` at frame 38**, 39 frames captured; Event Viewer logged a fresh
+  `frida-agent.dll 0xc0000005 @ 0x00be64bc`. ⇒ the AV reproduces on the in-band path.
+- **Capture-local path** (default, same command): **all 251 frames, clean
+  `application-requested` detach, 0 agent errors.** A 400-frame `--capture-all` run likewise
+  survived to frame 401 cleanly. 10×+ past the in-band death point.
+- **Speed:** capture-local ~33 fps vs the in-band path's ~4 fps (which also crashed) — the
+  3 MB/frame network ship was both the crash AND the bottleneck.
+- Integration: `scenario-test boot-idle --target retail` 3/3 frames pass golden through the
+  real `run_capture` path; the 7 trace_studio/export/save tests pass.
+
+## Why the old framing was wrong (corrected)
+The "ruled OUT: not our per-frame allocations / dominant cause is frida-internal" conclusion
+below was a **false lead** — it assumed the `7b9907d` mitigation was in effect. It wasn't
+(the API throw made it dead code), so the real captures kept running the exact 3 MB-churn
+path the mitigation was meant to remove. The symbolization is the tell: the fault instruction
+is the CRT **`memcpy`** (`rep movsb` @ `0xbe5f4e`) / **`memset`** (`rep stosb` @ `0xbe64bc`),
+i.e. a bulk-copy walking off a heap made bad by sustained 3 MB alloc+send backpressure on the
+remote channel — not V8 GC / Stalker / the interceptor pool. (This also explains the old
+puzzles: WITHOUT call-trace died *earlier* because retail reaches the capture window faster
+and floods the channel sooner; `{capstride:10}` survived because it ships ⅒ the bytes.)
+
+---
+_Historical diagnosis below (kept for the RE record; superseded by the resolution above)._
 
 ## Symptom
 A long both-target trace-studio capture truncates on the **retail** leg: the retail

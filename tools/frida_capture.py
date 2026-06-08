@@ -195,6 +195,13 @@ class CaptureConfig:
     capture_frames: list[int] = field(default_factory=list)
     capture_all: bool = False      # capture every (strided) frame — whole-trace view
     capture_stride: int = 1        # with capture_all: every Nth frame
+    capture_local: bool = True     # write raw frames straight to the (WSL-accessible)
+                                   # frames dir via Win32 instead of shipping each ~3 MB
+                                   # blob over the Frida channel. Required for reliability:
+                                   # the per-frame readByteArray+send path backpressures
+                                   # the remote channel and AVs frida-agent's memcpy/memset
+                                   # on DENSE captures (frida-capture-crash.md). Same-machine
+                                   # only; flip off (--no-capture-local) for a true remote host.
     suppress_loads: bool = False   # D1: drop captures while loading_active (Trace Studio
                                    # overview; mirrors port --capture-suppress-loads)
     max_frames:     int = 60
@@ -1114,10 +1121,15 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         "capture_all":    bool(cfg.capture_all),
         "capture_stride": int(cfg.capture_stride),
         "suppress_loads": bool(cfg.suppress_loads),
-        # Whole-trace capture: the agent writes raw frames straight to the
-        # (WSL-accessible) frames dir instead of shipping each over Frida. Only
-        # for capture_all (scenario windowed captures keep the message path).
-        "capture_dir":    (wslpath_w(frames_dir) if cfg.capture_all else ""),
+        # Capture-local: the agent writes raw frames straight to the
+        # (WSL-accessible) frames dir via Win32 WriteFile instead of shipping each
+        # ~3 MB blob over the Frida channel. Applies to ALL capture paths now
+        # (capture_all AND windowed caprange/pending/anchor) — the per-frame
+        # readByteArray+send path backpressures the remote channel and AVs
+        # frida-agent's memcpy/memset on dense captures (see
+        # docs/findings/frida-capture-crash.md). Frames + their capture-time
+        # watch vals reach Python identically via the 'frame_file' message.
+        "capture_dir":    (wslpath_w(frames_dir) if cfg.capture_local else ""),
         "max_frames":     cfg.max_frames,
         "input_trace":    trace_entries,
         "force_input":    bool(cfg.force_input),
@@ -1307,7 +1319,9 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         print(f"frida_capture: recorded {n} frames + {len(rec_anchors)} anchors + "
               f"{len(rec_escs)} esc + {n_saves} save(s) → {out}", file=sys.stderr)
 
-    f_audio.close(); f_trace.close(); f_log.close()
+    f_audio.close(); f_trace.close()
+    # NB: f_log stays open here — the raw->png conversion below still logs to it
+    # (it was being closed too early, raising "I/O operation on closed file").
     if f_d3d is not None:
         f_d3d.close()
     if f_call is not None:
@@ -1349,6 +1363,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             rp.unlink()
             n_conv += 1
         f_log.write(f"[raw->png] converted {n_conv} raw frame(s) → PNG\n")
+
+    f_log.close()
 
     # Tile captured frames into 3x3 montage PNG(s) under run_dir. (Auto-open in
     # the Windows viewer was removed — push the montage to the llm-feed to view.)
@@ -1396,6 +1412,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 d3d_trace_verts: bool = False,
                 call_trace: bool = False,
                 suppress_loads: bool = False,
+                capture_local: bool = True,
                 anchor_trace: bool = False) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
@@ -1436,6 +1453,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         rng_seed=(rng_seed if rng_seed is not None
                   else getattr(scenario, "rng_seed", None)),
         save_ref=save_ref,
+        capture_local=capture_local,     # write frames to disk, not over the channel
         suppress_loads=suppress_loads,   # D1 load-suppression (Trace Studio overview)
         # Trace the captured frames (aligned port↔retail) when enabled; the
         # call_trace_fields spec auto-loads in the core runner.
@@ -1490,6 +1508,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--capture-stride", type=int, default=1,
                     help="with --capture-all, capture every Nth frame (keeps the "
                          "~3 MB/frame transfer feasible over remote Frida)")
+    ap.add_argument("--no-capture-local", dest="capture_local", action="store_false",
+                    help="ship each frame's pixels over the Frida channel instead of "
+                         "writing them to the (WSL-accessible) frames dir via Win32. "
+                         "The in-band path AVs frida-agent on dense captures "
+                         "(frida-capture-crash.md); only use for a true remote host "
+                         "where the agent can't see the WSL frames dir.")
+    ap.set_defaults(capture_local=True)
     ap.add_argument("--max-frames", type=int, default=60)
     ap.add_argument("--duration-ms", type=int, default=30_000)
     ap.add_argument("--no-auto-start", action="store_true",
@@ -1788,6 +1813,7 @@ def main(argv: list[str] | None = None) -> int:
         capture_frames=capture_frames,
         capture_all=args.capture_all,
         capture_stride=args.capture_stride,
+        capture_local=args.capture_local,
         max_frames=args.max_frames,
         duration_ms=(600_000 if (args.record_trace is not None
                                   and args.duration_ms == 30_000)
