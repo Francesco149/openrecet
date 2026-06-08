@@ -47,7 +47,8 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   ground-truth behavior ONLY (not port/tooling notes).
 - **Show visuals on the llm-feed** (`/opt/src/llm-feed/feed.py`, localhost:8777) — push
   images/montages/comparisons with the diff, never eog/explorer. Healthz-check + start it
-  if down at session start.
+  if down at session start. **But if it's inspectable in a live Trace Studio session, point
+  the user at the session URL instead of pushing it to the feed (see the Trace Studio bullet).**
 - **Iterate ON the user's open Trace Studio session — recapture IT, don't spawn a parallel
   capture (standing workflow, automatic like the llm-feed).** The core parity loop runs on
   **studio traces**: the user keeps a `trace_studio.py serve --session <name>` open (check
@@ -57,8 +58,12 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   port-fix loop) so the user can refresh and immediately check the result frame-by-frame as
   you iterate — you both inspect the *same* frames. Do **not** run your own one-off
   `--session <other>` capture for trace work, and don't pixel-diff in `/tmp` as a substitute
-  for updating the session the user is looking at (a feed montage is a supplement, not the
-  deliverable). Caveats: the port-exe singleton mutex stalls *parallel* captures (one at a
+  for updating the session the user is looking at. **For anything inspectable IN the session,
+  just remind the user of the session URL — `http://localhost:8778/?session=<name>` (default
+  serve port 8778; confirm the live port via `ps`/serve logs) — rather than composing+pushing
+  a feed montage of it: the studio already shows retail|port|diff + frame scrub, so a push only
+  duplicates what they can already open. Reserve the llm-feed for visuals that are NOT in a
+  studio session** (one-off crops, montages of non-session frames, external images). Caveats: the port-exe singleton mutex stalls *parallel* captures (one at a
   time); a window/caprange change forces a retail re-capture even under `--only port`
   (`626949c`); back up `edit.trace.jsonl` before re-windowing. Memory pointer:
   `recapture-shared-session`.
