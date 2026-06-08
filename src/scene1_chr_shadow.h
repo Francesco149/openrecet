@@ -65,6 +65,25 @@ void chr_shadow_build_actor(int i, const float pos[3],
                             const float floor_normal[3],
                             chr_shadow_params *out);
 
+/*
+ * Build the C3a faced-display-cell orange glow decal (FUN_0045aa36 Block G,
+ * asm 0x45b8e0-0x45b94f).  A flat item_win patch laid on the display surface
+ * over the cell the player faces, with a pulsing alpha.  `render_x`/`render_z`
+ * are the cell's pre-computed world position (_DAT_0438cbf4 / _DAT_0438cbf8),
+ * `sim_frame` the pinned sim counter (DAT_0438b8cc) that drives the pulse.
+ *
+ *   world  = Scaling(-0.0036799998, +s, +s) · Translation(render_x, 1.9, render_z)
+ *   alpha  = (int)(sinf(sim_frame*0.05)*32 + 159)   (pulses 127..191)
+ *   colour = (alpha<<24) | 0xffffff                 (white, pulsing alpha)
+ *
+ * Pure: no globals, no D3D — exercised by the host unit tests.  The gate
+ * (cc08==1 && bf68==0 && cbfc!=-1 && cc00!=-1), texture bind and draw live in
+ * scene1_chr_shadow_render.
+ */
+void chr_shadow_build_display_glow(float render_x, float render_z,
+                                   uint32_t sim_frame,
+                                   float out_world[16], uint32_t *out_color);
+
 #ifdef _WIN32
 struct IDirect3DDevice8;
 /*

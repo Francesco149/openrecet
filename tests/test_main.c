@@ -3254,6 +3254,8 @@ struct test_case {
     X(chr_shadow_alpha_clamps) \
     X(chr_shadow_gates) \
     X(chr_shadow_normal_abs_threshold) \
+    X(chr_shadow_glow_placement) \
+    X(chr_shadow_glow_alpha) \
     X(bg_npc_spawn_rng_count) \
     X(bg_npc_warmup_spawns_all) \
     X(bg_npc_leftward_crossing_pauses) \

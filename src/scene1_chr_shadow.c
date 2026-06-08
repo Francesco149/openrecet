@@ -5,7 +5,13 @@
 
 #include "scene1_chr_shadow.h"
 
+#include <math.h>
+
 #include "math3d.h"
+
+/* C3a glow scale — engine immediate 0x3b712c27 (= 0.0036799998, the spec's
+ * "0.003685" was a lossy rounding); X mirrored (-) like the shadow scale. */
+#define DISPLAY_GLOW_SCALE 0.0036799998f
 
 /* ── pure per-actor shadow builder (host-tested) ───────────────────────────
  * Engine FUN_0045aa36 Block A, L66-119 / objdump @ 0x45ab90-0x45ae44.
@@ -81,6 +87,23 @@ void chr_shadow_build_actor(int i, const float pos[3],
     out->draw = 1;
 }
 
+/* ── C3a faced-display-cell glow builder (FUN_0045aa36 Block G) ──────────────
+ * The world xform + pulsing diffuse for the orange cell decal.  Matrix order
+ * matches Block A / the engine: world = Scaling · Translation (D3DXMatrixMultiply
+ * = a·b).  Alpha + the 0.05/32/159 constants are float (objdump 0x45b902-94a). */
+void chr_shadow_build_display_glow(float render_x, float render_z,
+                                   uint32_t sim_frame,
+                                   float out_world[16], uint32_t *out_color)
+{
+    float trans[16], scale[16];
+    mat4_translation(trans, render_x, 1.9f, render_z);
+    mat4_scaling(scale, -DISPLAY_GLOW_SCALE, DISPLAY_GLOW_SCALE, DISPLAY_GLOW_SCALE);
+    mat4_mul(out_world, scale, trans);
+
+    int alpha = (int)(sinf((float)sim_frame * 0.05f) * 32.0f + 159.0f);
+    *out_color = ((uint32_t)alpha << 24) | 0x00ffffffu;
+}
+
 #ifdef _WIN32
 
 #define COBJMACROS
@@ -97,6 +120,8 @@ void chr_shadow_build_actor(int i, const float pos[3],
 #include "collision_house.h"        /* collision_house_get */
 #include "collision_query.h"        /* collision_query_ground (FUN_00432e50) */
 #include "scene1_bg_npc.h"          /* scene1_bg_npc_shadow_render (FUN_0046f648) */
+#include "scene1_shop_display.h"    /* shop_display_cbfc/cc00/render_x/render_z/bf68 — Block G gate */
+#include "sim.h"                    /* g_sim_frame_count (DAT_0438b8cc) — glow pulse phase */
 
 #define SHADOW_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1)   /* 0x142 */
 
@@ -114,6 +139,23 @@ static const shadow_vertex SHADOW_QUAD[4] = {
     { -256.0f, 0.0f, -256.0f, 0xffffffffu, SH_UV_LO, SH_UV_HI },
     {  256.0f, 0.0f,  256.0f, 0xffffffffu, SH_UV_HI, SH_UV_LO },
     {  256.0f, 0.0f, -256.0f, 0xffffffffu, SH_UV_HI, SH_UV_HI },
+};
+
+/* C3a glow quad — engine DAT_0064c388 (init all.c:9087-9105).  Same ±256 XZ
+ * template as the shadow quad, but sampling item_win.tga's 63² orange-glow
+ * patch at texel centres (224.5,480.5)-(287.5,543.5).  TRIANGLESTRIP, 2 prims;
+ * only the diffuse is patched per draw (FUN_0040d11b).  UV hex verified vs the
+ * .bss init (the spec's "225/288" were integer roundings of 224.5/287.5). */
+#define GLOW_U_LO  (224.5f / 1024.0f)   /* 0x3e608000 */
+#define GLOW_U_HI  (287.5f / 1024.0f)   /* 0x3e8fc000 */
+#define GLOW_V_LO  (480.5f / 1024.0f)   /* 0x3ef04000 */
+#define GLOW_V_HI  (543.5f / 1024.0f)   /* 0x3f07e000 */
+
+static const shadow_vertex GLOW_QUAD[4] = {
+    { -256.0f, 0.0f,  256.0f, 0xffffffffu, GLOW_U_LO, GLOW_V_LO },
+    { -256.0f, 0.0f, -256.0f, 0xffffffffu, GLOW_U_LO, GLOW_V_HI },
+    {  256.0f, 0.0f,  256.0f, 0xffffffffu, GLOW_U_HI, GLOW_V_LO },
+    {  256.0f, 0.0f, -256.0f, 0xffffffffu, GLOW_U_HI, GLOW_V_HI },
 };
 
 /* Number of actor slots Block A iterates: engine local_10, default 3 (the
@@ -220,8 +262,8 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
      * DAT_073a6e84 table modelled → deferred follow-up chip. */
     scene1_bg_npc_shadow_render(dev);
 
-    /* ── remaining dormant blocks (engine L123-365), HOUSE free-roam ledger ─
-     * Every remaining shadow consumer walks a table HOUSE free-roam leaves
+    /* ── dormant blocks (engine L123-346), HOUSE free-roam ledger ───────────
+     * Every one of these shadow consumers walks a table HOUSE free-roam leaves
      * empty, so none draw.  Kept as documented stubs (the scene1_shop_walker
      * count-stub convention) until their tables are modelled:
      *   L123 Block B       — customer / people shadows (DAT_0076c374 stride
@@ -231,8 +273,40 @@ void scene1_chr_shadow_render(struct IDirect3DDevice8 *dev_in)
      *   L266 Block E       — combat projectile shadows (DAT_0695f004); gated
      *                        DAT_0438b17c, no projectiles in HOUSE.
      *   L297 Block F       — DAT_06956cb4 (count DAT_0076b968 == 0).
-     *   L347 Block G       — DAT_0438cc08==1 ground-decal special (DAT_073d8748).
      */
+
+    /* ── Block G: cc08==1 faced-display-cell orange glow (engine L347-364,
+     * objdump 0x45b8c2-0x45b952) — C3a.  A flat item_win decal laid over the
+     * display cell the player faces, pulsing alpha, drawn with a standard
+     * SRCALPHA/INVSRCALPHA blend + MODULATE (overriding Block A's multiplicative
+     * darkening for this one quad).  Gate: free-roam (cc08==1), the faced cell
+     * is a stand (cbfc/cc00 != -1) and unobstructed (bf68==0).  The teardown
+     * below restores the blend; item_win is the always-loaded boot UI atlas. */
+    if (player_ctrl_cc08() == 1 && shop_display_bf68() == 0 &&
+        shop_display_cbfc() != -1 && shop_display_cc00() != -1 &&
+        g_sysassets.item_win_tga.tex != NULL) {
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+        IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,  D3DBLEND_SRCALPHA);
+        IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+        IDirect3DDevice8_SetTexture(dev, 0,
+            (IDirect3DBaseTexture8 *)g_sysassets.item_win_tga.tex);
+
+        float world[16];
+        uint32_t color;
+        chr_shadow_build_display_glow(shop_display_render_x(),
+                                      shop_display_render_z(),
+                                      g_sim_frame_count, world, &color);
+
+        shadow_vertex quad[4];
+        for (int v = 0; v < 4; v++) {
+            quad[v] = GLOW_QUAD[v];
+            quad[v].color = color;       /* engine FUN_0040d11b colour patch */
+        }
+
+        IDirect3DDevice8_SetTransform(dev, D3DTS_WORLD, (const D3DMATRIX *)world);
+        IDirect3DDevice8_DrawPrimitiveUP(dev, D3DPT_TRIANGLESTRIP, 2,
+                                         quad, sizeof(shadow_vertex));
+    }
 
     /* ── render-state teardown (engine L366-373) ─────────────────────────── */
     IDirect3DDevice8_SetRenderState(dev, D3DRS_SRCBLEND,     D3DBLEND_ONE);

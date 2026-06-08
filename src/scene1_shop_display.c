@@ -117,6 +117,10 @@ void shop_display_reset(void)
 int     shop_display_cbfc(void) { return s_cbfc; }
 int     shop_display_cc00(void) { return s_cc00; }
 
+float   shop_display_render_x(void) { return s_render_x; }
+float   shop_display_render_z(void) { return s_render_z; }
+int     shop_display_bf68(void)     { return s_bf68; }
+
 int32_t shop_display_grid_cell(int col, int row)
 {
     if (col < 0 || row < 0)

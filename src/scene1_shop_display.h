@@ -66,6 +66,13 @@ void shop_display_highlight_clear(void);
 int shop_display_cbfc(void);
 int shop_display_cc00(void);
 
+/* Highlighted-cell render position (_DAT_0438cbf4 X / _DAT_0438cbf8 Z =
+ * col*2-9 / row*2-7) and the occupancy indicator (DAT_0438bf68 = furniture+1,
+ * 0 = none).  Consumed by the C3a faced-cell glow decal (chr_shadow Block G). */
+float shop_display_render_x(void);
+float shop_display_render_z(void);
+int   shop_display_bf68(void);
+
 /* Read one layout-grid cell (for tests / the open gate's stand check). */
 int32_t shop_display_grid_cell(int col, int row);
 

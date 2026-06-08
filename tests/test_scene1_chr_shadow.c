@@ -103,3 +103,48 @@ int test_chr_shadow_normal_abs_threshold(void)
     if (!p.draw) T_FAIL("|n.y|==0.7 should draw");
     return 0;
 }
+
+/* C3a faced-cell glow (Block G): the object origin maps to (render_x, 1.9,
+ * render_z); the local +X corner mirrors to render_x − 256·scale (scale.x is
+ * negative) and +Z extends to render_z + 256·scale. */
+int test_chr_shadow_glow_placement(void)
+{
+    float w[16];
+    uint32_t color;
+    chr_shadow_build_display_glow(1.0f, 2.0f, /*sim_frame*/0, w, &color);
+
+    float o[4] = { 0, 0, 0, 1 }, wo[4];
+    xform(w, o, wo);
+    NEAR(wo[0], 1.0f, 1e-4f);
+    NEAR(wo[1], 1.9f, 1e-4f);
+    NEAR(wo[2], 2.0f, 1e-4f);
+
+    /* 256 · 0.0036799998 = 0.94208 */
+    float c[4] = { 256, 0, 256, 1 }, wc[4];
+    xform(w, c, wc);
+    NEAR(wc[0], 1.0f - 0.94208f, 1e-3f);       /* mirrored (−X scale) */
+    NEAR(wc[1], 1.9f, 1e-4f);
+    NEAR(wc[2], 2.0f + 0.94208f, 1e-3f);
+    return 0;
+}
+
+/* Glow alpha pulses 127..191 around 159; RGB stays white; frame 0 → 0x9f. */
+int test_chr_shadow_glow_alpha(void)
+{
+    float w[16];
+    uint32_t color;
+
+    chr_shadow_build_display_glow(0.0f, 0.0f, 0, w, &color);
+    if (color != 0x9fffffffu)
+        T_FAIL("frame-0 glow colour = %08x, want 9fffffff", color);
+
+    for (uint32_t f = 0; f < 400; f++) {
+        chr_shadow_build_display_glow(0.0f, 0.0f, f, w, &color);
+        if ((color & 0x00ffffffu) != 0x00ffffffu)
+            T_FAIL("glow RGB must be white, got %08x at f=%u", color, f);
+        uint32_t a = color >> 24;
+        if (a < 127u || a > 191u)
+            T_FAIL("glow alpha %u out of [127,191] at f=%u", a, f);
+    }
+    return 0;
+}
