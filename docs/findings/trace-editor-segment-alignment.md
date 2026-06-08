@@ -49,17 +49,28 @@ absOfCapIndex(g,  baseAbs, loads)  = walk g captured frames from baseAbs, skippi
 Only loads **at/after `baseAbs`** count (a load before the window produced no captured frames
 in it). A frame before `baseAbs` maps to a negative index (off the left of the captured axis).
 
-- **Anchors** (per side): a firing at absolute frame `F` → `capIndexOfAbs(F)`. Shown if it
-  lands within the captured axis; pre-window firings (BOOT, the load that produced `base_abs`)
-  fall left of 0.
-- **Inputs / pins** (the trace): an op at `(segment, frame)` → absolute `segBase[seg] + frame`
-  (segment bases from `resolveBases` on that side's anchors) → `capIndexOfAbs`. Drawn per side,
-  so the same shared trace op lands at the same index in a 1:1 region and drifts on divergence.
+- **Anchors** (per side): a firing at absolute frame `F` → `capIndexOfAbs(F)` on **that
+  side**, so they diverge honestly. Shown if it lands within the captured axis; pre-window
+  firings (BOOT, the load that produced `base_abs`) fall left of 0.
+- **Inputs / pins**: the **same 1:1 driving signal** on both sides, so they are mapped **once**
+  via the **reference side** (the one with a valid `base_abs`, port preferred) — an op at
+  `(segment, frame)` → absolute `segBase[seg] + frame` → `capIndexOfAbs` — and shown on a
+  single shared lane. They are emphatically **not** mapped per-side: the resolver's
+  strictly-after rule lets a `{wait PAUSE_OPEN}` whose anchor coincides with `LOADING_START`
+  grab a *later* (dialogue) PAUSE_OPEN, so the same input's segment base resolves ~160 frames
+  apart on the two sides (`merchants-guild`: the right-arrow is captured frame 82, but retail's
+  segment base put it at 244). Mapping via one reliable side sidesteps that.
 - **Cursor**: at the global scrub ordinal `cur` (already the dense captured index). A
   scrub-click sets `cur` to the clicked index.
-- **Editing**: a click index `g` → `absOfCapIndex(g)` on the edit-reference side → the segment
-  it falls in → segment-relative frame → the trace op. (The edit side is the one with a
-  non-null `base_abs`, port preferred.)
+
+## Read-only (for now)
+
+The trace lanes are **read-only** — the editor is a viewer while the model is battle-tested
+(the captures are usually driven by edits to the trace files directly). The **only** editable
+thing is the `{caprange}` capture window (len/pos controls + a visible band over `[0, n_frames)`
+on the axis; `✎ pending` until the next ⟳ re-capture). Input/pin/anchor editing — and the
+inverse `absOfCapIndex` it needs (a click index → trace frame) — will be reintroduced once the
+display is trusted.
 
 Worked example — `merchants-guild` (port enters the guild and **diverges to cyan**, so its
 anchor stream stops at the guild load; retail plays the dialogue):

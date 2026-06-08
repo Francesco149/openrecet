@@ -160,6 +160,11 @@ header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
 .gut-row.s-port .side-dot { background: var(--port-c); }
 .tl-grp.s-retail { border-left: 3px solid color-mix(in srgb, var(--retail-c) 45%, transparent); }
 .tl-grp.s-port { border-left: 3px solid color-mix(in srgb, var(--port-c) 45%, transparent); }
+/* shared input/pin lanes (the 1:1 driving signal, read-only — neutral, not per-side). */
+.gut-row.s-in { border-left-color: #5b6472; color: #aeb6c2; }
+.gut-row.s-in .side-dot { background: #5b6472; }
+.tl-grp.s-in { border-left: 3px solid #5b647266; }
+.ro-badge { color: #8a93a3; border: 1px solid #2c313b; border-radius: 3px; padding: 0 4px; }
 .tl-body { max-height: 62vh; overflow-y: auto; }
 .tl-scroll { flex: 1; overflow-x: auto; overflow-y: hidden; }
 .tl-row.btn { cursor: crosshair; }
