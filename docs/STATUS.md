@@ -59,10 +59,15 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   for reliability** — dense both-target captures now work. Record: **`findings/frida-capture-crash.md`**.
   Remaining town-map backlog: #1–3
   (load-fade/marker-pulse/cursor-bob **PHASE**, re-check on the aligned window) + #5 =
-  `worldmap-tutorial-box` travel-time tooltips (PORT-DEBT, multi-message). **Trace-studio tooling
-  landed this session:** the capture-window editor (live dashed band; `len`/`pos` controls with
-  bound-checked validity-only clamps + a forward-leaked ⚠ warning; `findings`/commits
-  `1aee811`→`2e5b0a1`) + a JobTray **cancel button** for stuck captures (`111b4f3`).
+  `worldmap-tutorial-box` travel-time tooltips (PORT-DEBT, multi-message) — **the next-session
+  start: world-map tooltip (top-left), then the remaining item-display gaps, then the merchant's
+  guild screen.** **Trace-studio editor redesign (2026-06-08, `5f818e3`→`3636762`):** now a
+  **captured-frame-index read-only VIEWER** — x-axis = the dense captured-frame ordinal per side,
+  so a phase/RNG-pinned 1:1 capture aligns with NO forcing logic and a divergence just drifts apart
+  (anchors per-side by true abs frame; emitted inputs/pins mapped once via the reference side;
+  `align.capIndexOfAbs`; semantics **`findings/trace-editor-segment-alignment.md`**). Only the
+  `{caprange}` window stays editable; input/pin + multi-segment-capture editing deferred until the
+  viewer is battle-tested. (Earlier in the arc: capture-window editor + JobTray cancel `111b4f3`.)
   **T4 (world-map SIM `FUN_0049e163` + cursor-nav `FUN_0049dfc1`, `ba45912`):** entry timer + 3×5
   grid nav + Z-select; nav path exact-match port-side (`0→2→5→4→6→3→2→1→3→6→0→2→5→0`).
   **T3 (world-map RENDER `FUN_0049e3a3`,
