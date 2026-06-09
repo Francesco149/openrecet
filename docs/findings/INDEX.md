@@ -92,6 +92,7 @@ that subsystem.
 | [pure-function-diff.md](pure-function-diff.md) | Phase D.1 — pure-function differential testing port-vs-retail via Frida + ctypes. | 2026-05-26 |
 | [d3d-trace.md](d3d-trace.md) | Phase D.4 — Frida-side `IDirect3DDevice8` vtable state-trace → JSONL. | 2026-05-26 |
 | [render-diff.md](render-diff.md) | Phase D.6 — render-diff orchestrator; surfaces per-frame state-trace divergences. | 2026-05-26 |
+| [phase-state-census.md](phase-state-census.md) | Audit T3 — `phase_census.py` enumerates ALL load-timing-dependent state ({memsnap} two timing-shifted runs); HOUSE result + the pin-completeness gate. | 2026-06-09 |
 
 ## Misc / reference
 

@@ -74,12 +74,21 @@ KNOWN_RETAIL = [
     (0x09643628, 4,      "world-map entry timer",              "known-unpinned"),
 ]
 
-# Port symbols that are HARNESS/clock state — expected to differ by exactly the
-# input-shift construction; tagged so the report ranks engine state first.
+# Port symbols that are HARNESS/clock/process state — differ by construction
+# (the input shift, the per-process mutex, the absolute clock), not phase.
 PORT_HARNESS_PAT = re.compile(
-    r"^_?(g_tick|g_segtrace|g_capture|g_input|g_anchor|g_d3d_trace|"
-    r"g_call_trace|g_paused|g_turbo|g_frame|g_audio_log|g_dlg_log|"
-    r"s_anchor|g_memsnap)")
+    r"^_?(g_tick|g_segtrace|g_capture|g_input|g_sim_buttons|g_anchor|"
+    r"g_d3d_trace|g_call_trace|g_paused|g_turbo|g_frame|g_audio_log|"
+    r"g_dlg_log|s_anchor|g_memsnap|g_singleton_mutex)")
+
+# Port symbols TRIAGED benign-load-dependent (docs/findings/phase-state-census.md):
+# load-ORDER layout or inactive-scene residue that does not affect the captured
+# frames. Seeded from the 2026-06-09 HOUSE triage; extend as scenes are censused.
+# Anything NOT here, harness, ptr-layout, or volatile is the real signal.
+PORT_BENIGN_PAT = re.compile(
+    r"^_?(g_tab"                 # lnkdatas/asset hash table — keyed deref, layout
+    r"|g_scene_title_anim"       # title menu anim — inactive in HOUSE; boot residue
+    r")")
 
 
 # ─── variant generation (pure) ──────────────────────────────────────────────
@@ -172,15 +181,23 @@ def retail_regions() -> list[tuple[int, int]]:
 
 
 def find_dumps(run_dir: Path, side: str) -> list[dict]:
-    """[{file, va, size, name}] per dumped region, in stable order."""
+    """[{file, va, size, name}] per dumped region, in stable order.
+
+    Port VAs are the LINK-TIME addresses nm/objdump report (IMAGE_BASE + RVA):
+    the dump's `link_base` is the per-process ASLR load base (dynamicbase), but
+    section RVAs are load-invariant, and the port is always LINKED at
+    IMAGE_BASE — so attribution uses the fixed base, not the runtime one."""
     frames = Path(run_dir) / "frames"
     if side == "port":
         idx = sorted(frames.glob("memsnap_*.json"))
         if not idx:
             return []
+        if len(idx) > 1:
+            print(f"phase_census: WARNING {len(idx)} memsnap dumps in "
+                  f"{frames} — using {idx[0].name} (clean the dir to be sure)",
+                  file=sys.stderr)
         m = json.loads(idx[0].read_text())
-        base = int(m["link_base"])
-        return [{"file": frames / s["file"], "va": base + int(s["rva"]),
+        return [{"file": frames / s["file"], "va": IMAGE_BASE + int(s["rva"]),
                  "size": int(s["vsize"]), "name": s["name"]}
                 for s in m["sections"]]
     regs = retail_regions()
@@ -255,43 +272,100 @@ def u32_at(buf: bytes, off: int) -> int:
     return int.from_bytes(buf[off:off + 4], "little")
 
 
+def _ptrish(v: int) -> bool:
+    """True if v is null or a plausible pointer (≥ the image base). Phase
+    counters (db054, anim frames/timers, cursor bob) are small integers
+    (< 0x10000); RNG/heap/code addresses are large. A range whose A and B
+    words are BOTH ptrish is load-ORDER-dependent layout (a relocated arena/
+    hash-table pointer), which doesn't affect frame output — distinct from a
+    small-int/float phase counter that does."""
+    return v == 0 or v >= IMAGE_BASE
+
+
+def _ptr_layout(a: bytes, b: bytes, off: int, length: int) -> bool:
+    """Every aligned word across the range is ptrish on BOTH sides, and at
+    least one side has an actual pointer (not all-zero↔small noise)."""
+    saw_ptr = False
+    o = off & ~3
+    end = off + length
+    while o < end:
+        av, bv = u32_at(a, o), u32_at(b, o)
+        if not (_ptrish(av) and _ptrish(bv)):
+            return False
+        if av >= IMAGE_BASE or bv >= IMAGE_BASE:
+            saw_ptr = True
+        o += 4
+    return saw_ptr
+
+
+def _overlaps(ranges: list[tuple[int, int]], off: int, length: int) -> bool:
+    """ranges sorted by offset; True if [off, off+length) intersects any."""
+    import bisect
+    if not ranges:
+        return False
+    i = bisect.bisect_right([r[0] for r in ranges], off + length - 1) - 1
+    for j in (i, i + 1):
+        if 0 <= j < len(ranges):
+            s, l = ranges[j]
+            if s < off + length and off < s + l:
+                return True
+    return False
+
+
 def build_report(dumps_a: list[dict], dumps_b: list[dict], side: str,
-                 nm_exe: Path | None) -> dict:
+                 nm_exe: Path | None,
+                 dumps_ctl: list[dict] | None = None) -> dict:
+    """Diff A vs B; ranges that ALSO differ between A and the same-timing
+    control A' are classed `volatile` (heap pointers / per-process noise that
+    differs between ANY two runs) — the census signal is what differs ONLY
+    under the timing shift."""
     syms = load_nm(nm_exe) if (side == "port" and nm_exe) else []
     regions = []
     total_ranges = 0
     by_cls: dict[str, int] = {}
-    for da, db in zip(dumps_a, dumps_b):
+    for ri, (da, db) in enumerate(zip(dumps_a, dumps_b)):
         a = Path(da["file"]).read_bytes()
         b = Path(db["file"]).read_bytes()
         if len(a) != len(b):
             return {"error": f"dump size mismatch in {da['name']}: "
                              f"{len(a)} vs {len(b)}"}
+        baseline: list[tuple[int, int]] = []
+        if dumps_ctl and ri < len(dumps_ctl):
+            c = Path(dumps_ctl[ri]["file"]).read_bytes()
+            if len(c) == len(a):
+                baseline = diff_ranges(a, c)
         rows = []
         for off, length in diff_ranges(a, b):
             va = da["va"] + off
             row: dict = {"va": f"0x{va:08x}", "off": off, "len": length,
                          "a_u32": u32_at(a, off), "b_u32": u32_at(b, off)}
+            volatile = _overlaps(baseline, off, length)
+            layout = _ptr_layout(a, b, off, length)
             if side == "port":
                 name, soff = nearest_sym(syms, va)
                 row["sym"] = f"{name}+0x{soff:x}" if name != "?" else "?"
-                row["cls"] = ("harness" if PORT_HARNESS_PAT.match(name)
+                row["cls"] = ("volatile" if volatile
+                              else "harness" if PORT_HARNESS_PAT.match(name)
+                              else "known-benign" if PORT_BENIGN_PAT.match(name)
+                              else "ptr-layout" if layout
                               else "engine")
             else:
                 row["sym"] = f"DAT_{va:08x}"
                 k = known_retail_cls(va, length)
                 if k:
-                    row["known"], row["cls"] = k
+                    row["known"] = k[0]
+                    row["cls"] = "volatile" if volatile else k[1]
                 else:
-                    row["cls"] = "UNKNOWN"
+                    row["cls"] = ("volatile" if volatile
+                                  else "ptr-layout" if layout else "UNKNOWN")
             by_cls[row["cls"]] = by_cls.get(row["cls"], 0) + 1
             rows.append(row)
         total_ranges += len(rows)
         regions.append({"name": da["name"], "va": f"0x{da['va']:08x}",
                         "size": da["size"], "n_ranges": len(rows),
-                        "ranges": rows})
+                        "n_baseline": len(baseline), "ranges": rows})
     return {"side": side, "n_ranges": total_ranges, "by_cls": by_cls,
-            "regions": regions}
+            "control": bool(dumps_ctl), "regions": regions}
 
 
 def print_report(rep: dict, mode: str, top: int = 40) -> int:
@@ -300,10 +374,14 @@ def print_report(rep: dict, mode: str, top: int = 40) -> int:
         return 2
     print(f"phase_census [{rep['side']}/{mode}]: {rep['n_ranges']} differing "
           f"range(s)  by class: {rep['by_cls']}")
+    cls_rank = {"UNKNOWN": 0, "engine": 0, "known-unpinned": 1, "pinned": 2,
+                "clock": 3, "ptr-layout": 4, "known-benign": 5, "harness": 6,
+                "volatile": 7}
     interesting = []
     for reg in rep["regions"]:
         for r in reg["ranges"]:
-            interesting.append((r["cls"] == "harness", -r["len"], reg["name"], r))
+            interesting.append((cls_rank.get(r["cls"], 0), -r["len"],
+                                reg["name"], r))
     interesting.sort(key=lambda t: (t[0], t[1]))
     for _, _, rname, r in interesting[:top]:
         extra = f"  [{r.get('known')}]" if r.get("known") else ""
@@ -314,7 +392,8 @@ def print_report(rep: dict, mode: str, top: int = 40) -> int:
         print(f"  … +{rep['n_ranges'] - top} more (see report.json)")
     if mode == "pinned":
         bad = sum(n for c, n in rep["by_cls"].items()
-                  if c not in ("harness", "pinned", "clock"))
+                  if c not in ("harness", "pinned", "clock", "volatile",
+                               "ptr-layout", "known-benign"))
         if bad:
             print(f"phase_census: PINNED census NOT clean — {bad} unexplained "
                   f"range(s) = missing pin or true non-determinism")
@@ -328,6 +407,11 @@ def print_report(rep: dict, mode: str, top: int = 40) -> int:
 def drive(side: str, variant: Path, run_dir: Path, cr: tuple[int, int],
           max_frames_port: int, max_frames_retail: int) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
+    # Clear stale memsnap dumps from a prior run into the same dir — they carry
+    # a different process's ASLR base + absolute frame and would corrupt the
+    # diff (find_dumps takes the first json).
+    for f in (run_dir / "frames").glob("memsnap_*"):
+        f.unlink()
     if side == "port":
         cmd = [sys.executable, str(ROOT / "tools" / "export_trace.py"),
                str(variant), "--caprange", f"{cr[0]},{cr[1]}",
@@ -365,6 +449,17 @@ def cmd_run(args) -> int:
 
     drive(args.side, pa, out / "a", cr, args.port_max_frames, args.retail_max_frames)
     drive(args.side, pb, out / "b", cr, args.port_max_frames, args.retail_max_frames)
+    dc: list[dict] = []
+    if args.control:
+        # same-timing control: what differs between A and A' differs between
+        # ANY two runs (heap pointers, per-process noise) → classed `volatile`,
+        # leaving only the timing-shift signal as engine/UNKNOWN.
+        drive(args.side, pa, out / "ctl", cr,
+              args.port_max_frames, args.retail_max_frames)
+        dc = find_dumps(out / "ctl", args.side)
+        if not dc:
+            print("phase_census: WARNING control run produced no dump — "
+                  "volatile classification disabled", file=sys.stderr)
 
     da, db = find_dumps(out / "a", args.side), find_dumps(out / "b", args.side)
     if not da or not db or len(da) != len(db):
@@ -372,7 +467,7 @@ def cmd_run(args) -> int:
               f"check the run logs under {out}", file=sys.stderr)
         return 2
     rep = build_report(da, db, args.side,
-                       ROOT / "build" / "openrecet.exe")
+                       ROOT / "build" / "openrecet.exe", dumps_ctl=dc or None)
     rep["mode"] = args.mode
     rep["snap_frame"] = snap
     rep["delta"] = args.delta
@@ -381,9 +476,10 @@ def cmd_run(args) -> int:
     rc = print_report(rep, args.mode, top=args.top)
     print(f"phase_census: report → {out / 'report.json'}")
     if not args.keep_dumps and "error" not in rep:
-        for d in (out / "a", out / "b"):
-            for f in (d / "frames").glob("memsnap_*"):
-                f.unlink()
+        for d in (out / "a", out / "b", out / "ctl"):
+            if d.exists():
+                for f in (d / "frames").glob("memsnap_*"):
+                    f.unlink()
         print("phase_census: dumps pruned (--keep-dumps to retain)")
     return rc
 
@@ -395,7 +491,9 @@ def cmd_diff(args) -> int:
         print(f"phase_census: missing dumps (a={len(da)} b={len(db)})",
               file=sys.stderr)
         return 2
-    rep = build_report(da, db, args.side, ROOT / "build" / "openrecet.exe")
+    dc = find_dumps(Path(args.control), args.side) if args.control else None
+    rep = build_report(da, db, args.side, ROOT / "build" / "openrecet.exe",
+                       dumps_ctl=dc)
     if args.json:
         Path(args.json).write_text(json.dumps(rep, indent=2) + "\n")
     return print_report(rep, args.mode, top=args.top)
@@ -417,6 +515,11 @@ def main(argv=None) -> int:
     r.add_argument("--top", type=int, default=40)
     r.add_argument("--keep-dumps", action="store_true",
                    help="retain the raw section dumps (50-150 MB each)")
+    r.add_argument("--control", action=argparse.BooleanOptionalAction,
+                   default=True,
+                   help="run a same-timing control (A vs A') to class per-run "
+                        "noise (heap pointers) as `volatile` (default on; "
+                        "--no-control saves one run at the cost of noise)")
     r.add_argument("--port-max-frames", type=int, default=4000)
     r.add_argument("--retail-max-frames", type=int, default=22000)
     r.set_defaults(func=cmd_run)
@@ -425,6 +528,7 @@ def main(argv=None) -> int:
     d.add_argument("a"); d.add_argument("b")
     d.add_argument("--side", choices=("port", "retail"), required=True)
     d.add_argument("--mode", choices=("discovery", "pinned"), default="discovery")
+    d.add_argument("--control", help="same-timing control run dir (volatile classing)")
     d.add_argument("--json", help="write report JSON here")
     d.add_argument("--top", type=int, default=40)
     d.set_defaults(func=cmd_diff)

@@ -7,6 +7,14 @@
 > as decision records: do not reopen without *new evidence*, and if you do, update this
 > file. The ranked tooling roadmap is §3; the pinning upgrades §4; the Opus working
 > agreement §6. Facts snapshot (dated) in §8.
+>
+> **LANDED since authoring (2026-06-09 cleanup pass):** T1 `trace_studio triage`,
+> T2 trace lint + capture-time auto-pin, T8 unified session coordinate contract,
+> T11 x87 FP-model guard (`tools/ci/no_sse_math.py`), and **T3 the phase-state census**
+> (`tools/phase_census.py` + the `{memsnap}` op both sides) — first HOUSE run done,
+> `findings/phase-state-census.md` (one real lead: the sparkle overlay-slot residue).
+> Remaining headline items: T4 state-checksum/save-equality, T5 executed-but-unported
+> census, T6 random-walk traces, T7 `--json` everywhere, T9 vivisection, T10 audio diff.
 
 ## 0. TL;DR verdicts
 

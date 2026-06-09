@@ -44,15 +44,22 @@
 - **Deferred (polish pass):** faint ambient particle dots (user ref-crops
   2026-06-05); next-line "book" arrow anim frame (draw from per-script-reset
   `rt->blink`, add to `{phasepin}`).
-- **Tooling (2026-06-09 cleanup, audit T1/T2/T8/T11 — all landed):**
+- **Tooling (2026-06-09 cleanup, audit T1/T2/T3/T8/T11 — all landed):**
   `trace_studio triage <session>` = one-command divergence report (diff curve
   gt8 metric → first/worst ordinal → state row → verdict → field-timeline);
   working-trace **lint + canonical auto-pin** at capture (pins are now mechanism,
   not prose — `--no-auto-pin` for deliberate unpinned studies); session
   **coordinate contract unified** (frames on BOTH sides label-named, diff
   label-keyed, state ordinal-keyed — the C3a abs-vs-ordinal trap is dead); CI
-  **x87 FP guard** (`tools/ci/no_sse_math.py`). Sessions captured before today
-  lack the `gt8` diff stat until recaptured.
+  **x87 FP guard** (`tools/ci/no_sse_math.py`); **phase-state census**
+  (`tools/phase_census.py` + the `{memsnap}` op) — the pin-completeness gate.
+  Sessions captured before today lack the `gt8` diff stat until recaptured.
+  **Census's first lead:** the 目玉 sparkle overlay-slot array
+  (`g_scene1_overlay_slots`) carries load-dependent particle residue even under
+  the canonical pin (`{phasepin}` re-seeds RNG + zeroes sim_frame but doesn't
+  clear pre-pin particles) — sub-visible, accepted-known; fold into `{phasepin}`
+  in a sparkle-parity pass if it's shown to matter. `findings/phase-state-census.md`.
+  TODO: run the pinned RETAIL census (Frida host) + census other scenes.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.

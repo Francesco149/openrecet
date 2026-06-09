@@ -94,6 +94,56 @@ def test_diff_ranges_groups_and_merges():
     assert diff_ranges(bytes(a), bytes(a)) == []
 
 
+def test_control_classifies_volatile():
+    import phase_census as pc
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        a = bytearray(4096); b = bytearray(4096); c = bytearray(4096)
+        b[0x100] = 1                   # timing signal (A==C, differs in B)
+        b[0x800] = 2; c[0x800] = 3     # volatile (differs in B AND in control)
+        for name, buf in (("a", a), ("b", b), ("ctl", c)):
+            d = td / name / "frames"; d.mkdir(parents=True)
+            (d / "memsnap_00120_x.bin").write_bytes(bytes(buf))
+            (d / "memsnap_00120.json").write_text(json.dumps(
+                {"frame": 120, "link_base": 0x400000, "sections": [
+                    {"name": "x", "rva": 0x1000, "vsize": 4096,
+                     "file": "memsnap_00120_x.bin"}]}))
+        da = pc.find_dumps(td / "a", "port")
+        db = pc.find_dumps(td / "b", "port")
+        dc = pc.find_dumps(td / "ctl", "port")
+        rep = pc.build_report(da, db, "port", None, dumps_ctl=dc)
+        cls = {r["off"]: r["cls"] for r in rep["regions"][0]["ranges"]}
+        assert cls[0x100] == "engine", cls
+        assert cls[0x800] == "volatile", cls
+
+
+def test_ptr_layout_vs_phase_counter():
+    import phase_census as pc
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        a = bytearray(4096); b = bytearray(4096)
+        # phase counter: small ints differ → engine (frame-affecting)
+        a[0x40:0x44] = (64).to_bytes(4, "little")
+        b[0x40:0x44] = (40).to_bytes(4, "little")
+        # arena pointer relocated: null↔heapptr → ptr-layout (benign)
+        b[0x80:0x84] = (0x12557ef0).to_bytes(4, "little")
+        for name, buf in (("a", a), ("b", b)):
+            d = td / name / "frames"; d.mkdir(parents=True)
+            (d / "memsnap_00120_x.bin").write_bytes(bytes(buf))
+            (d / "memsnap_00120.json").write_text(json.dumps(
+                {"frame": 120, "link_base": 0x3a0000, "sections": [
+                    {"name": "x", "rva": 0x90000, "vsize": 4096,
+                     "file": "memsnap_00120_x.bin"}]}))
+        rep = pc.build_report(pc.find_dumps(td / "a", "port"),
+                              pc.find_dumps(td / "b", "port"), "port", None)
+        cls = {r["off"]: r["cls"] for r in rep["regions"][0]["ranges"]}
+        assert cls[0x40] == "engine", cls            # small-int phase
+        assert cls[0x80] == "ptr-layout", cls         # relocated pointer
+        # va uses the fixed image base, NOT the ASLR link_base in the json
+        va40 = next(r["va"] for r in rep["regions"][0]["ranges"] if r["off"] == 0x40)
+        assert va40 == f"0x{pc.IMAGE_BASE + 0x90000 + 0x40:08x}", va40
+
+
 def test_nearest_sym_and_known_table():
     syms = [(0x1000, "g_alpha"), (0x2000, "g_beta")]
     assert nearest_sym(syms, 0x1004) == ("g_alpha", 4)
