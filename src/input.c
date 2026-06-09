@@ -251,9 +251,27 @@ static BOOL CALLBACK enum_joy_cb(LPCDIDEVICEINSTANCEA lpddi, LPVOID pvRef)
     return (g_joy_count < INPUT_MAX_JOYS) ? DIENUM_CONTINUE : DIENUM_STOP;
 }
 
+/* Keyboard/joystick cooperative level.  Retail (FUN_0047af52) uses
+ * DISCL_FOREGROUND — input arrives only while the game window is the FOREGROUND
+ * window.  The port is launched from WSL (tools/run-openrecet.sh starts the
+ * Windows exe from the Linux side): the window appears but never becomes the
+ * foreground window and cannot be focused even by clicking, so a FOREGROUND
+ * device delivers NOTHING — interactive input is dead, while TAS traces (which
+ * bypass DirectInput and write g_input_state directly) work fine.  Use
+ * DISCL_BACKGROUND so input arrives regardless of focus.  Harness/dev divergence
+ * only — it does NOT affect parity (traces never touch DirectInput); revisit if
+ * the port ever ships as a native foreground app.
+ *
+ * Regression guard (interactive input has died from this being FOREGROUND twice):
+ * the _Static_assert below fails the build if the BACKGROUND bit is ever dropped. */
+#define INPUT_COOP_LEVEL (DISCL_BACKGROUND | DISCL_NONEXCLUSIVE)
+_Static_assert((INPUT_COOP_LEVEL & DISCL_BACKGROUND) != 0,
+               "interactive input needs DISCL_BACKGROUND: a WSL-launched window "
+               "never gets foreground focus, so DISCL_FOREGROUND => dead input");
+
 int input_init(HINSTANCE hInst, HWND hwnd)
 {
-    const DWORD coop = DISCL_FOREGROUND | DISCL_NONEXCLUSIVE;
+    const DWORD coop = INPUT_COOP_LEVEL;
 
     HRESULT hr = DirectInput8Create(
         hInst, DIRECTINPUT_VERSION, &IID_IDirectInput8A, (LPVOID *)&g_di, NULL);
