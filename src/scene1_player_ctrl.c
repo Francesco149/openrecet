@@ -971,6 +971,7 @@ static void player_ctrl_cc08_proximity_detect(void)
 /* confirm-path display-state bytes (asm 0x489224 / 0x48933c, rec-relative). */
 #define PC_SHOP_DISPLAY_CHANGED_BYTE_OFF  0x2bc60   /* DAT_0450f3f8 — "display changed" */
 #define PC_SHOP_DISPLAY_BACKROW_BYTE_OFF  0x2bc63   /* DAT_0450f3fb — back-row (cc00==0) dirty */
+#define PC_SHOP_DISPLAY_ALLFILLED_BYTE_OFF 0x2bc65  /* DAT_0450f3fd — all stands stocked (iv1_6) */
 
 /* world-map door-exit bank flags (T1; all.c:87531/87643, rec-relative like the
  * display flags above, base DAT_044e3798 → DAT_0450f3f2 == 0x2bc5a):
@@ -1247,10 +1248,42 @@ static void player_ctrl_cc04_menu_arm(void)
                  * save/RNG state — deferred with the menu render. */
                 if (row == 0)
                     bb[PC_SHOP_DISPLAY_BACKROW_BYTE_OFF] = 1;   /* DAT_0450f3fb */
-                /* PORT-DEBT(A3): the DAT_0450f3fd first-stock latch block
-                 * (all.c:87952-87976) is gated on the latch being 0; a loaded,
-                 * already-stocked shop has it set, so it is inert for the
-                 * roundtrip — deferred with the place path. */
+
+                /* iv1_6 "all wares displayed" first-stock latch (all.c:87952-
+                 * 87976), D1: once, the frame every display stand is occupied.
+                 * Gated on the latch (DAT_0450f3fd) still clear — a loaded,
+                 * already-stocked shop already has it set, and a removal makes
+                 * occupied < stands, so the remove roundtrip never trips it (which
+                 * is why this block was A3 PORT-DEBT until the place path).  Arms
+                 * the dispatcher's iv1_6 branch (scene1_tutorial_dispatch, D2). */
+                if (bb[PC_SHOP_DISPLAY_ALLFILLED_BYTE_OFF] == 0) {
+                    /* engine count (87954-87972): stands = layout-grid cells with
+                     * a furniture stamp {2,3,4} (shop_display_grid_cell), occupied
+                     * = item-grid cells != -1.  All filled ⇔ stands == occupied
+                     * (the engine compares as float local_18 vs (float)iVar6; the
+                     * counts are < 300 so the int compare is identical).  Gated on
+                     * a non-empty inventory (DAT_0450f2b0 read AFTER the place
+                     * decremented it): an empty inventory trivially counts done —
+                     * which is what fires iv1_6 on item-display-2 (the player places
+                     * their last item, itemcnt hits 0). */
+                    int all_filled = 1;
+                    if (bank[SAVE_BANK_FIELD_ITEM_COUNT] != 0) {
+                        int stands = 0, occupied = 0;
+                        for (int c = 0; c < SAVE_BANK_DISPLAY_GRID_CELLS; c++) {
+                            int lay = shop_display_grid_cell(
+                                          c % SAVE_BANK_DISPLAY_GRID_COLS,
+                                          c / SAVE_BANK_DISPLAY_GRID_COLS);
+                            if (lay > 1 && lay < 5)   stands++;
+                            if ((int)bank[SAVE_BANK_FIELD_DISPLAY_GRID + c] != -1)
+                                occupied++;
+                        }
+                        all_filled = (stands == occupied);
+                    }
+                    if (all_filled) {
+                        bb[PC_SHOP_DISPLAY_ALLFILLED_BYTE_OFF] = 1; /* DAT_0450f3fd */
+                        bb[PC_SHOP_DISPLAY_PRESENT_BYTE_OFF]   = 0; /* DAT_0450f3f2 */
+                    }
+                }
             }
         }
 

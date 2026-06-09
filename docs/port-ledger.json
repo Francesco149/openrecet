@@ -12,7 +12,7 @@
   "touched": 462,
   "pct_touched": 18.1,
   "pct_verified": 2.7,
-  "port_debt": 17
+  "port_debt": 18
  },
  "orphan_refs": [
   "0x40f640",
@@ -3122,7 +3122,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_sim.c"
+    "src/scene1_sim.c",
+    "src/scene1_tutorial_dispatch.h"
    ]
   },
   {
@@ -3475,7 +3476,12 @@
    "is_call_target": false,
    "status": "ported",
    "src": [
-    "src/scene1_player_ctrl.c"
+    "src/scene1_intro_dialogue.c",
+    "src/scene1_intro_dialogue.h",
+    "src/scene1_player_ctrl.c",
+    "src/scene1_sim.c",
+    "src/scene1_tutorial_dispatch.c",
+    "src/scene1_tutorial_dispatch.h"
    ]
   },
   {
@@ -3916,6 +3922,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene1_intro_dialogue.c",
+    "src/scene1_tutorial_dispatch.h",
     "src/scene_sc1.h",
     "src/worker_load.c",
     "src/worker_load.h"
@@ -8290,6 +8298,7 @@
     "src/scene1_player_ctrl.h",
     "src/scene1_shop_display.h",
     "src/scene1_sim.c",
+    "src/scene1_tutorial_dispatch.h",
     "src/sim.h"
    ]
   },

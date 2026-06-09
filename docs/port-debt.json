@@ -2,7 +2,7 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 17,
+  "total": 18,
   "by_kind": {
    "stub": 5,
    "synthetic-data": 0,
@@ -15,10 +15,11 @@
    "deferred": 1,
    "door-proximity": 1,
    "event-probe": 1,
+   "focused": 1,
    "house-teardown": 1,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 15,
+  "retiring_engine_fns": 16,
   "by_engine_fn": {
    "FUN_004176ff": 2,
    "FUN_00409925": 1,
@@ -28,6 +29,7 @@
    "FUN_00435c98": 1,
    "FUN_004361b2": 1,
    "FUN_00436f97": 1,
+   "FUN_0044bd0d": 1,
    "FUN_004536cb": 1,
    "FUN_00454191": 1,
    "FUN_0045de68": 1,
@@ -51,7 +53,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 991,
+   "line": 992,
    "kind_known": false
   },
   {
@@ -60,6 +62,14 @@
    "desc": "the per-destination \"has an event",
    "file": "src/scene_worldmap.c",
    "line": 142,
+   "kind_known": false
+  },
+  {
+   "kind": "focused",
+   "engine_fn": "FUN_0044bd0d",
+   "desc": "the outer DAT_0450f454 \"all early tutorials",
+   "file": "src/scene1_tutorial_dispatch.h",
+   "line": 20,
    "kind_known": false
   },
   {
@@ -75,7 +85,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1045,
+   "line": 1046,
    "kind_known": false
   },
   {
@@ -123,7 +133,7 @@
    "engine_fn": "FUN_00473c03",
    "desc": "the engine teardown also restores the",
    "file": "src/scene1_intro_dialogue.c",
-   "line": 164,
+   "line": 249,
    "kind_known": true
   },
   {

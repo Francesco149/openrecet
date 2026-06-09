@@ -11,8 +11,8 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **17**
-- distinct retiring engine functions: **15**
+- total open debts: **18**
+- distinct retiring engine functions: **16**
 
 | kind | count | meaning |
 |------|------:|---------|
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **5 tag(s) use an unknown kind**: deferred (1), door-proximity (1), event-probe (1), house-teardown (1), stage-scratch (1).
+> ⚠️  **6 tag(s) use an unknown kind**: deferred (1), door-proximity (1), event-probe (1), focused (1), house-teardown (1), stage-scratch (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -38,6 +38,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00435c98 | 1 |
 | FUN_004361b2 | 1 |
 | FUN_00436f97 | 1 |
+| FUN_0044bd0d | 1 |
 | FUN_004536cb | 1 |
 | FUN_00454191 | 1 |
 | FUN_0045de68 | 1 |
@@ -69,7 +70,7 @@ _none_
 | FUN_004361b2 | src/scene1_merchant_hud.c:201 | C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
 | FUN_004536cb | src/sim.c:281 | retail freezes the *entire |
-| FUN_00473c03 | src/scene1_intro_dialogue.c:164 | the engine teardown also restores the |
+| FUN_00473c03 | src/scene1_intro_dialogue.c:249 | the engine teardown also restores the |
 
 ## hardcode (1)
 
@@ -90,8 +91,9 @@ _none_
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
-| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:991 | the engine also gates on a |
+| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:992 | the engine also gates on a |
 | event-probe | FUN_0045de68 | src/scene_worldmap.c:142 | the per-destination "has an event |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1045 | the engine frees the shop |
+| focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:20 | the outer DAT_0450f454 "all early tutorials |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1046 | the engine frees the shop |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:240 | the engine tail re-inits the |
 

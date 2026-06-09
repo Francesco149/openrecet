@@ -75,6 +75,7 @@ SRCS_DECODERS := ../src/bmp.c ../src/tga.c ../src/bmp_lzw.c ../src/lnkdatas_hash
                  ../src/scene1_companion_ctrl.c \
                  ../src/scene1_conversation_pose.c \
                  ../src/scene1_intro_dialogue.c \
+                 ../src/scene1_tutorial_dispatch.c \
                  ../src/skip_event.c \
                  ../src/choice_box.c \
                  ../src/scene1_dialogue.c \

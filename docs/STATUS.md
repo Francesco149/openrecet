@@ -23,7 +23,7 @@
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 17 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 18 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code the table above calls "ported" (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -63,20 +63,30 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   "Expanded interaction-flow board".** Priority order: **(A) the 2 Tear tutorial dialogues** →
   (B) "What will you place?" placement-MENU prompt @f391 (≠ C3b, gap #2) → (C) menu panel slide-in
   anim @f122 → (D) selected-row flash @f172 → (E) placement-dust desync @f272 → (F) carry-pose/held-item
-  (gap #4, the verdict's px/py/pz drift; held item red-vs-gold). **(A) RE COMPLETE 2026-06-09 PM
-  (`findings/shop-display-menu-RE.md` "Tear tutorial dialogues"), PORT PENDING:** both dialogues run
-  through the **already-ported interpreter** (`FUN_0046c320`→`scene1_dialogue_run`; on retail fires
-  ord 649→1830, two script-starts). **#1 = `iv1_5.ivt`** (scene 1,sub 5; *"items you place there are
-  visible to anyone passing by"*) fires on placing in **row 0** (`cc00==0`→`DAT_0450f3fb`); **#2 =
-  `iv1_6.ivt`** (1,6; *"that should do for displaying our wares"*) fires when **all display cells
-  filled** (→`DAT_0450f3fd`). Dispatcher `FUN_0044bd0d` checks the flags → activates (scene/sub +
-  `DAT_0438b1c8=2`); loader builds `iv/iv1_5.ivt` like the prologue's `iv1_1`. Scripts extracted via
-  `tools/extract/data-bin.py vendor/original/` (grep `-a`). **Chips: D1** set `f3fb`/`f3fd` at the
-  port's placement confirm (`house_update` place path, mirror all.c:87949-87975) → **D2** focused
-  dispatcher (iv1_5/iv1_6 branches + per-slot done-flags `f3fc`/`f3fe`) → **D3** generalize
-  `scene1_intro_dialogue` (a single shared `g_rt`, matching retail's one `DAT_0438b1c8`) to load+run
-  `(1,5)`/`(1,6)`, not just `(1,1)`/`(1,2)`. Verify on `item-display-2`: box+Tear/Recette at ord ~770
-  (iv1_5) + ~1483 (iv1_6) vs retail. **NEXT: D1.** **NOTE (policy, CLAUDE.md):** every trace we work on is
+  (gap #4, the verdict's px/py/pz drift; held item red-vs-gold). **(A) ✅ PORTED & VERIFIED
+  2026-06-09 (D1–D3 landed) — both Tear tutorial dialogues now fire AND render on `item-display-2`,
+  with a dialogue-anchor structure IDENTICAL to retail** (`CONV_POSE_START` 2=2, `LOADING_START`
+  3=3, `TEXT_ANIM_START` 18=18 [iv1_5 12 lines + iv1_6 6], `DLG_LINE_CLEAR` 8=8); iv1_5's first
+  line @ **port ord 769 vs retail 770** (1:1 trigger); studio frame shows the box + Tear/Recette +
+  nameplate + ESC-skip rendering. Full writeup `findings/shop-display-menu-RE.md` "PORTED & VERIFIED
+  2026-06-09". **#1 `iv1_5.ivt`** (1,5) fires on placing in row 0 (`DAT_0450f3fb`); **#2 `iv1_6.ivt`**
+  (1,6) fires when the all-displayed latch `DAT_0450f3fd` sets — on the bench via the engine's
+  **`item_count==0` gate** (player places their last item → inventory empty → trivially "done"; NOT
+  the stands==occupied count — retail's gate is identical). **D1** (`scene1_player_ctrl` confirm
+  path): the f3fd latch (all.c:87952-87976). **D3** (`scene1_intro_dialogue`):
+  `scene1_intro_dialogue_start_single` runs one (scene,sub) through the shared `g_rt` via `D_TUT`,
+  with a `D_TUT_LOAD` bracket (retail `FUN_00452d07` spawns the `LAB_00452aab` worker →
+  LOADING_START/CONV_POSE_START/LOADING_END; **the bracket is REQUIRED** — the trace's line-advance
+  Z inputs are gated after `{wait LOADING_END}`, so without it the replay desyncs and the dialogue
+  stalls on line 0); `_done()` now a sticky `g_freeroam_started` latch; new `_busy()`/`_posing()`
+  cover the lazy-load seam. **D2** (`scene1_tutorial_dispatch`, new): focused FUN_0044bd0d iv1_5/iv1_6
+  branches (RNG-neutral, pumped at retail 0x40849), **gated on `_busy()`** (the `_active()||_loading()`
+  gate had a 1-frame seam hole through which iv1_6 clobbered iv1_5). **Open follow-ups (not the gap):**
+  (1) per-line TIMING phase under held-Z fast-forward (port a few lines ahead at a given ord — count
+  is 1:1, frame-phase isn't); (2) **placed-item ids wrong on the place path** (`FUN_00469a9f` returns
+  64/64064/256512 — the cc04 confirm was written for `sel==-1` removal; placement selection isn't
+  fully ported); (3) box/portrait pixel-parity pass. **NEXT: pick a follow-up, or move to the next
+  interaction-flow gap (B–F).** **NOTE (policy, CLAUDE.md):** every trace we work on is
   phase+RNG-pinned AND call-traced up front now. Tooling fix still owed: the recorder's `save_capture`
   overwrites `<name>.save.bin` unconditionally (clobbered item-display-2's boot save across two takes).
 - **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`). ✅ PHASE 0 RE COMPLETE →

@@ -210,7 +210,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x441c3e | FUN_00441c3e | 2217 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4424e7 | FUN_004424e7 | 429 | ✓ | scene1_camera.c, scene1_camera.h, scene1_render.c (+1) |
 | 0x4426a7 | FUN_004426a7 | 300 | ✓ | scene1_sim.c, scene1_sim.h |
-| 0x4427f1 | FUN_004427f1 | 90 | ✓ | scene1_sim.c |
+| 0x4427f1 | FUN_004427f1 | 90 | ✓ | scene1_sim.c, scene1_tutorial_dispatch.h |
 | 0x44375e | FUN_0044375e | 12 | ✓ | scene1_records_b_tick.c |
 | 0x44376a | FUN_0044376a | 8538 | ✓ | main.c, scene1_particles_tick.h, scene1_player_ctrl.c (+6) |
 | 0x445a8c | FUN_00445a8c | 8952 | ✓ | scene1_records.h, scene1_records_b_spawn.c, scene1_records_b_spawn.h (+1) |
@@ -226,7 +226,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x44baad | FUN_0044baad | 109 | ✓ | scene1_intro_dialogue.c |
 | 0x44bce7 | FUN_0044bce7 | 28 | ✓ | scene_worldmap.c |
 | 0x44bd0b | FUN_0044bd0b | 1 | ✓ | scene1_player_ctrl.c |
-| 0x44bd0d | FUN_0044bd0d | 2723 |  | scene1_player_ctrl.c |
+| 0x44bd0d | FUN_0044bd0d | 2723 |  | scene1_intro_dialogue.c, scene1_intro_dialogue.h, scene1_player_ctrl.c (+3) |
 | 0x44c88f | FUN_0044c88f | 299 | ✓ | stage_palette.h |
 | 0x44f13d | FUN_0044f13d | 4870 | ✓ | scene1_postload.h |
 | 0x451790 | FUN_00451790 | 211 | ✓ | main.c, prewindow.h, rng.h (+2) |
@@ -235,7 +235,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x452569 | FUN_00452569 | 312 | ✓ | prewindow.c, prewindow.h |
 | 0x4526ab | FUN_004526ab | 74 | ✓ | fade.c, fade.h, sim.c |
 | 0x452911 | FUN_00452911 | 6 | ✓ | esc_dispatch.c, esc_dispatch.h, music.c (+2) |
-| 0x452d07 | FUN_00452d07 | 55 | ✓ | scene_sc1.h, worker_load.c, worker_load.h |
+| 0x452d07 | FUN_00452d07 | 55 | ✓ | scene1_intro_dialogue.c, scene1_tutorial_dispatch.h, scene_sc1.h (+2) |
 | 0x452d3e | FUN_00452d3e | 71 | ✓ | scene_buy.h, worker_load.c |
 | 0x452d85 | FUN_00452d85 | 60 | ✓ | scene1_preload.h, scene_walls.h, worker_load.c |
 | 0x452dc1 | FUN_00452dc1 | 60 | ✓ | scene_floor.h, worker_load.c |
@@ -395,7 +395,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4860c8 | FUN_004860c8 | 215 | ✓ | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
 | 0x48619f | FUN_0048619f | 328 | ✓ | scene1_player_ctrl.c, scene1_shop_display.h |
 | 0x486435 | FUN_00486435 | 200 | ✓ | scene1_player_ctrl.c, scene1_player_ctrl.h |
-| 0x48670f | FUN_0048670f | 11519 | ✓ | scene1_bg_npc.h, scene1_companion_ctrl.c, scene1_display_menu.c (+5) |
+| 0x48670f | FUN_0048670f | 11519 | ✓ | scene1_bg_npc.h, scene1_companion_ctrl.c, scene1_display_menu.c (+6) |
 | 0x48960d | FUN_0048960d | 441 | ✓ | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
 | 0x4897c6 | FUN_004897c6 | 870 | ✓ | scene1_player_ctrl.c |
 | 0x489c79 | FUN_00489c79 | 217 | ✓ | chara_skills.h |

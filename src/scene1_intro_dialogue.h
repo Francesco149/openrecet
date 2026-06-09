@@ -43,6 +43,15 @@ void scene1_intro_dialogue_skip_to_end(void);
  * held button mask (g_input_state[0].buttons). No-op while dormant/done. */
 void scene1_intro_dialogue_tick(uint16_t held);
 
+/* Arm a single arbitrary (scene,sub) dialogue script through the SAME shared
+ * runtime the prologue uses (retail's one dialogue runtime + DAT_0438b1c8 gate),
+ * so the existing freeze/conversation-pose/draw path drives it.  Called by the
+ * focused tutorial dispatcher (scene1_tutorial_dispatch) when iv1_5/iv1_6 trips
+ * — the FUN_0044bd0d activation (DAT_005c7a2c/30 + DAT_0438b1c8=2).  Loads lazily
+ * on the next _tick; on completion returns to dormant without touching the
+ * FREEROAM_START latch.  Only meaningful when no dialogue is already active. */
+void scene1_intro_dialogue_start_single(int scene, int sub);
+
 /* Anchor sources (feed anchor_world). Report zero/inactive while dormant. */
 int     scene1_intro_dialogue_active(void);        /* DAT_0438b1c8 == 1     */
 
@@ -67,6 +76,17 @@ int32_t scene1_intro_dialogue_fx_alpha(void);
 /* 1 while a dialogue line is shown (DAT_073a6a38 >= 0), 0 when none / outside
  * dialogue. Feeds anchor_world.dlg_line_present → DLG_LINE_CLEAR/SHOW. */
 int scene1_intro_dialogue_line_present(void);
+
+/* Retail DAT_0438b1c8 != 0 — a dialogue is armed/loading/active and not yet
+ * finished (the whole lifecycle, incl. the lazy-load seam _active() misses).  The
+ * tutorial dispatcher gates on this so it never fires a second dialogue into the
+ * first one's startup seam. */
+int     scene1_intro_dialogue_busy(void);
+
+/* The conversation-pose gate (scene1_conversation_pose).  Equals _active() for the
+ * prologue, PLUS the tutorial dialogue's load bracket (D_TUT_LOAD) — retail fires
+ * CONV_POSE_START during that bracket, before the box renders. */
+int     scene1_intro_dialogue_posing(void);
 
 /* Nonzero during the iv1_1→iv1_2 loading bracket (gate==2 in the engine).
  * OR this into anchor_world.loading_active so the 2nd LOADING/HOUSE_FREEROAM

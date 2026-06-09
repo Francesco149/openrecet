@@ -576,3 +576,51 @@ branches of `FUN_0044bd0d` + done-flags, persisted per-slot) that activates the 
 extend `scene1_intro_dialogue` (or a sibling tutorial-dialogue driver) to load+run `(1,5)`/`(1,6)`
 on activation — it already does `(1,1)`/`(1,2)`. Verify on `item-display-2`: the dialogue box +
 Tear/Recette should appear at ord ~770 (iv1_5) and ~1483 (iv1_6), matching retail.
+
+### PORTED & VERIFIED 2026-06-09 (D1–D3 landed)
+
+Both Tear dialogues now fire AND render on `item-display-2` — the port's dialogue-anchor
+structure is **identical to retail**: `CONV_POSE_START` 2=2, `LOADING_START` 3=3 (initial +
+iv1_5 + iv1_6), `TEXT_ANIM_START` 18=18 (iv1_5 12 lines + iv1_6 6), `DLG_LINE_CLEAR` 8=8.
+iv1_5's first text line is at **port ord 769 vs retail 770** (1:1 trigger). The studio frame
+shows the box + Tear/Recette portraits + "Tear" nameplate + ESC-skip prompt rendering.
+
+- **D1** (`scene1_player_ctrl.c`, `player_ctrl_cc04_menu_arm` confirm path): the
+  `DAT_0450f3fd` all-displayed latch (all.c:87952-87976) — count layout-grid stands {2,3,4}
+  (`shop_display_grid_cell`) vs occupied item cells; gated on a non-empty inventory
+  (`SAVE_BANK_FIELD_ITEM_COUNT`=`DAT_0450f2b0`), clears `f3f2`. `f3fb` (row 0) was already set.
+  **Engine-quirk:** on the bench `f3fd` fires via the **`item_count==0` gate** (the player
+  places their *last* item → inventory empty → the count is skipped and the latch set
+  trivially), NOT the all-filled stands==occupied count (the shop has 12 stand cells, only 3
+  items). Retail's gate is identical, so this matches.
+- **D3** (`scene1_intro_dialogue.c/.h`): `scene1_intro_dialogue_start_single(scene,sub)` runs a
+  single arbitrary script through the **shared `g_rt`** (retail's one dialogue runtime) via a new
+  `D_TUT` state, preceded by a `D_TUT_LOAD` **load bracket**. The bracket is REQUIRED:
+  retail's `FUN_00452d07` spawns the `LAB_00452aab` worker → `LOADING_START`/`CONV_POSE_START`/
+  `LOADING_END` (iv1_5 abs 15213→15215), and the trace's per-line-advance Z inputs are gated
+  *after* `{wait LOADING_END}` — without the bracket those waits never match, the Z inputs
+  starve, and the dialogue stalls on line 0. `_done()` is now a sticky `g_freeroam_started`
+  latch (post-prologue tutorials must not re-fire `FREEROAM_START`). New `_busy()` (retail
+  `DAT_0438b1c8 != 0`) and `_posing()` accessors cover the `D_TUT_LOAD`→`D_TUT` lazy-load seam.
+- **D2** (`scene1_tutorial_dispatch.c/.h`): focused port of `FUN_0044bd0d`'s iv1_5/iv1_6 branches
+  (all.c:45664-45688) — **RNG-neutral** (the scheduler consumes zero shared LCG; `FUN_00452d07`
+  only sets the gate + spawns the worker). Pumped after the player ctrl in the INGAME default
+  arm (`scene1_ingame_default_arm_tick`, retail 0x40849). **Gated on `_busy()`** — the obvious
+  `_active()||_loading()` gate has a 1-frame hole at the lazy-load seam (loading already false,
+  active not yet true) through which iv1_6 fired and **clobbered iv1_5** (only one dialogue
+  played, both done-flags set). `PORT-DEBT(focused, FUN_0044bd0d)`: the outer
+  `f454`/`f455`/`fb88` gates + every other scenario branch are not ported.
+
+**Open follow-ups (NOT the dialogue gap, which is closed):**
+1. **Per-line timing phase under fast-forward.** The trace holds Z (0x20 = 2× FF); the port's
+   reveal/advance cadence differs slightly from retail, so at a given ordinal the port is a few
+   lines *ahead* (ord 800: port "So choose what to place…" vs retail "Recette. May I speak…").
+   The line *count*/structure is 1:1; the per-line frame phase is not. A pixel diff at the
+   dialogue won't be clean for this reason. (Same class as the other reveal-cadence phase notes.)
+2. **Placed-item ids look wrong on the place path.** `display_menu_selected()` (`FUN_00469a9f`)
+   returned 64 / 64064 / 256512 on the 3 placements — the cc04 confirm path was written/tested
+   for the `sel==-1` *removal* roundtrip; the *placement* selection isn't fully ported, so the
+   newly-placed display items render wrong. Doesn't affect the dialogue triggers (f3fb=row,
+   f3fd=item_count gate). Separate chip.
+3. **Dialogue box/portrait pixel-parity** vs retail (filtering/colour) — a visual pass once the
+   timing phase is settled.

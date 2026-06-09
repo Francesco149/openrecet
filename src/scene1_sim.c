@@ -46,6 +46,7 @@
 #include "scene1_player_ctrl.h"
 #include "scene1_records_b_tick.h"
 #include "scene1_records_c_tick.h"
+#include "scene1_tutorial_dispatch.h"
 #include "rng.h"
 #include "call_trace.h"
 
@@ -112,6 +113,14 @@ void scene1_ingame_default_arm_tick(void)
     /* FUN_00442cef L40611 — unconditional inside the default-running
      * nested block. */
     scene1_records_c_tick();
+
+    /* FUN_00442cef L40849 — the FUN_004427f1 → FUN_0044bd0d story-event
+     * scheduler, just before the particles tail.  Focused port: only the
+     * shop-display tutorial branches (iv1_5/iv1_6).  Runs AFTER the player
+     * controller so a placement's condition flags (D1) are seen the same frame;
+     * RNG-neutral (FUN_0044bd0d consumes no shared LCG), so its position relative
+     * to the particles/overlay tail does not affect parity. */
+    scene1_tutorial_dispatch_tick();
 
     /* FUN_00442cef L40851 (LAB_004435f7) — unconditional tail; reaches
      * every code path of the function including the early-return pause

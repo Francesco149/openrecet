@@ -119,7 +119,7 @@ void scene1_conversation_pose_tick(void)
      * again after the iv1_2 load — mirroring retail's 1-frame talk-flag blip.  A
      * continuous _running() gate would instead pose straight through and fire only
      * ONE CONV_POSE_START, losing that structure.) */
-    int posing = scene1_intro_dialogue_active();
+    int posing = scene1_intro_dialogue_posing();
 
     /* Inert outside the pose window (and once released): the freeroam
      * controllers own the actors — don't fight them every frame. */

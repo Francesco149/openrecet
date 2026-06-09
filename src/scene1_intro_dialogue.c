@@ -29,13 +29,41 @@
  * (FUN_0045281c/004526f5), which is render and lands with the visual pass. */
 #define IVE_INTERSCRIPT_LOAD_FRAMES 68
 
-enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE };
+/* D_TUT = a post-prologue tutorial dialogue (iv1_5/iv1_6), armed by the focused
+ * event dispatcher (scene1_tutorial_dispatch, the FUN_0044bd0d iv1_5/iv1_6
+ * branches) via scene1_intro_dialogue_start_single().  One arbitrary (scene,sub)
+ * script through the SAME shared g_rt the prologue uses — matching retail's single
+ * dialogue runtime + gate (DAT_0438b1c8) — so the existing freeze/pose/render path
+ * (which reads this module's g_rt via the accessors) drives it for free. */
+/* D_TUT_LOAD = the tutorial dialogue's load bracket (retail FUN_00452d07 spawns
+ * the LAB_00452aab worker thread → a brief DAT_0438b1c8=1 LOADING window before
+ * the script runs).  On the item-display-2 recording retail emits LOADING_START →
+ * CONV_POSE_START → LOADING_END across ~2 frames at the activation; the user's Z
+ * inputs that advance the lines are gated AFTER that {wait LOADING_END}, so the
+ * port must reproduce the bracket or the replay desyncs and the dialogue stalls
+ * on line 0.  The conversation pose starts DURING the bracket (scene1_intro_
+ * dialogue_posing), the box/text render only once the script is loaded (D_TUT). */
+enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE, D_TUT_LOAD, D_TUT };
+
+/* Tutorial load-bracket length (frames _loading() reports true).  Retail's is
+ * ~2 frames (item-display-2: LOADING_START 15213 → LOADING_END 15215). */
+#define IVE_TUT_LOAD_FRAMES 2
 
 static int                g_state    = D_IDLE;
 static int                g_load_ctr = 0;     /* frames elapsed in D_LOAD */
 static struct ive_program g_prog;   /* reused per script (~160 KiB) */
 static struct ive_runtime g_rt;
 static unsigned           g_script_gen = 0;  /* bumps per loaded script (asset reload key) */
+static int                g_tut_scene = 0;    /* D_TUT pending script (scene,sub) */
+static int                g_tut_sub   = 0;
+
+/* Sticky "the player has free control" latch — the FREEROAM_START anchor source.
+ * Set the frame the opening PROLOGUE first completes (D_SCRIPT2 end or skip), never
+ * cleared by the post-prologue tutorial dialogues (D_TUT) so FREEROAM_START fires
+ * exactly once per prologue; cleared only by _arm/_reset (a fresh prologue).  On a
+ * CONTINUE load the prologue never runs, so this stays 0 and the load path owns
+ * FREEROAM_START — identical to the pre-D_TUT `g_state == D_DONE` behaviour. */
+static int                g_freeroam_started = 0;
 
 /* Per-frame standee-position probe for the execution-flow trace. Emits the
  * sliding standee's current+target X/Y at the engine dialogue-tick VA
@@ -65,35 +93,38 @@ static void emit_dialogue_calltrace(void)
 
 void scene1_intro_dialogue_arm(void)
 {
-    g_state       = D_SCRIPT1;
-    g_load_ctr    = 0;
-    g_rt.active   = 0;     /* lazy-load iv1_1 on the first tick */
-    g_rt.complete = 0;
+    g_state            = D_SCRIPT1;
+    g_load_ctr         = 0;
+    g_rt.active        = 0;     /* lazy-load iv1_1 on the first tick */
+    g_rt.complete      = 0;
+    g_freeroam_started = 0;     /* fresh prologue → FREEROAM_START not yet reached */
 }
 
 void scene1_intro_dialogue_reset(void)
 {
-    g_state       = D_IDLE;
-    g_load_ctr    = 0;
-    g_rt.active   = 0;
-    g_rt.complete = 0;
+    g_state            = D_IDLE;
+    g_load_ctr         = 0;
+    g_rt.active        = 0;
+    g_rt.complete      = 0;
+    g_freeroam_started = 0;
 }
 
-/* Load script `sub` of the opening scene and arm the interpreter on it.
- * Returns 1 on success; 0 (and the caller gives up) if the script is missing. */
-static int start_script(int sub)
+/* Load script (scene, sub) and arm the interpreter on it.  Returns 1 on success;
+ * 0 (and the caller gives up) if the script is missing.  The opening prologue
+ * passes IVE_OPENING_SCENE; the tutorial dispatcher passes its own (scene, sub). */
+static int start_script(int scene, int sub)
 {
 #ifdef _WIN32
     /* scene1_dialogue_load pulls the .ivt from the storage layer (Win32-only).
      * In the host test build there is no storage, so the driver stays dormant;
      * the interpreter itself is exercised directly in test_scene1_dialogue_run. */
-    if (!scene1_dialogue_load(IVE_OPENING_SCENE, sub, &g_prog))
+    if (!scene1_dialogue_load(scene, sub, &g_prog))
         return 0;
     ive_runtime_init(&g_rt, &g_prog);
     g_script_gen++;   /* the render pass reloads bg/chr assets on a new gen */
     return 1;
 #else
-    (void)sub;
+    (void)scene; (void)sub;
     return 0;
 #endif
 }
@@ -102,8 +133,10 @@ void scene1_intro_dialogue_tick(uint16_t held)
 {
     switch (g_state) {
     case D_SCRIPT1:
-        if (!g_rt.active && !g_rt.complete && !start_script(IVE_OPENING_SUB1)) {
+        if (!g_rt.active && !g_rt.complete &&
+            !start_script(IVE_OPENING_SCENE, IVE_OPENING_SUB1)) {
             g_state = D_DONE;
+            g_freeroam_started = 1;
             return;
         }
         emit_dialogue_calltrace();   /* standee snapshot BEFORE the tween */
@@ -128,14 +161,49 @@ void scene1_intro_dialogue_tick(uint16_t held)
         break;
 
     case D_SCRIPT2:
-        if (!g_rt.active && !g_rt.complete && !start_script(IVE_OPENING_SUB2)) {
+        if (!g_rt.active && !g_rt.complete &&
+            !start_script(IVE_OPENING_SCENE, IVE_OPENING_SUB2)) {
             g_state = D_DONE;
+            g_freeroam_started = 1;
             return;
         }
         emit_dialogue_calltrace();   /* standee snapshot BEFORE the tween */
         ive_runtime_step(&g_rt, held);
-        if (g_rt.complete)
+        if (g_rt.complete) {
             g_state = D_DONE;
+            g_freeroam_started = 1;   /* prologue complete → FREEROAM_START fires */
+        }
+        break;
+
+    case D_TUT_LOAD:
+        /* The tutorial dialogue's load bracket (retail's FUN_00452d07 worker).
+         * _loading() reports true here → LOADING_START/END (+ HOUSE_FREEROAM,
+         * matching retail's re-fire at the bracket), and the conversation pose
+         * starts (_posing()) so CONV_POSE_START lands between START and END.  The
+         * script is NOT loaded yet, so the box/text do not render this window. */
+        (void)held;
+        if (++g_load_ctr >= IVE_TUT_LOAD_FRAMES)
+            g_state = D_TUT;   /* next tick lazy-loads the script */
+        break;
+
+    case D_TUT:
+        /* A post-prologue tutorial dialogue (iv1_5/iv1_6).  Lazily loads its
+         * (scene,sub) on the first tick (like the prologue scripts), runs ONE
+         * script, then drops back to dormant free-roam — the latch keeps _done()
+         * set so FREEROAM_START does not re-fire.  Gated/serialised by the
+         * dispatcher (one dialogue active at a time, retail DAT_0438b1c8). */
+        if (!g_rt.active && !g_rt.complete &&
+            !start_script(g_tut_scene, g_tut_sub)) {
+            g_state = D_IDLE;   /* host build / missing script → dormant */
+            return;
+        }
+        emit_dialogue_calltrace();
+        ive_runtime_step(&g_rt, held);
+        if (g_rt.complete) {
+            g_state       = D_IDLE;
+            g_rt.active   = 0;
+            g_rt.complete = 0;
+        }
         break;
 
     case D_IDLE:
@@ -143,6 +211,23 @@ void scene1_intro_dialogue_tick(uint16_t held)
     default:
         break;
     }
+}
+
+/* Arm a single arbitrary (scene,sub) dialogue script through the shared runtime —
+ * the focused FUN_0044bd0d activation (set DAT_005c7a2c/30 + DAT_0438b1c8=2): the
+ * tutorial dispatcher (scene1_tutorial_dispatch) calls this when iv1_5/iv1_6 trips.
+ * The script loads lazily on the next _tick (the same point the prologue loads),
+ * so _active() reports false until then.  Only meaningful post-prologue (the
+ * dispatcher gates on no-dialogue-active); does not touch the FREEROAM_START
+ * latch. */
+void scene1_intro_dialogue_start_single(int scene, int sub)
+{
+    g_tut_scene   = scene;
+    g_tut_sub     = sub;
+    g_state       = D_TUT_LOAD;   /* the load bracket first (LOADING_START) */
+    g_load_ctr    = 0;
+    g_rt.active   = 0;     /* lazy-load when the bracket ends (D_TUT) */
+    g_rt.complete = 0;
 }
 
 void scene1_intro_dialogue_skip_to_end(void)
@@ -178,28 +263,43 @@ void scene1_intro_dialogue_skip_to_end(void)
         g_state    = D_SCRIPT2;
         g_load_ctr = 0;
         break;
-    case D_SCRIPT2:
-    default:
-        /* End iv1_2 (the last script) → free-roam. */
-        g_state       = D_DONE;
+    case D_TUT_LOAD:
+    case D_TUT:
+        /* Skipping a post-prologue tutorial dialogue (iv1_5/iv1_6) just ends it →
+         * back to dormant free-roam; the FREEROAM_START latch is unchanged (it was
+         * already set by the prologue, or 0 on a load — a tutorial never owns it). */
+        g_state       = D_IDLE;
         g_load_ctr    = 0;
         g_rt.active   = 0;
         g_rt.complete = 0;
+        break;
+    case D_SCRIPT2:
+    default:
+        /* End iv1_2 (the last script) → free-roam. */
+        g_state            = D_DONE;
+        g_load_ctr         = 0;
+        g_rt.active        = 0;
+        g_rt.complete      = 0;
+        g_freeroam_started = 1;
         break;
     }
 }
 
 int scene1_intro_dialogue_active(void)
 {
-    return ((g_state == D_SCRIPT1 || g_state == D_SCRIPT2) && g_rt.active) ? 1 : 0;
+    return ((g_state == D_SCRIPT1 || g_state == D_SCRIPT2 || g_state == D_TUT)
+            && g_rt.active) ? 1 : 0;
 }
 
 int scene1_intro_dialogue_done(void)
 {
-    /* D_DONE is reached only when the last script (iv1_2) ends or is skipped —
-     * the moment free control begins. D_IDLE (dormant, pre-arm) is NOT done, so
-     * the FREEROAM_START rising edge fires once per prologue, after the skip. */
-    return (g_state == D_DONE) ? 1 : 0;
+    /* Sticky: set the frame the opening prologue first completes/skips (the moment
+     * free control begins), so the FREEROAM_START rising edge fires once per
+     * prologue.  Post-prologue tutorial dialogues (D_TUT) deliberately do NOT
+     * clear it — they bounce g_state to D_IDLE on completion, which (pre-D_TUT)
+     * would have read "not done" and re-fired the edge.  0 while dormant pre-arm
+     * and on a CONTINUE load (no prologue → the load path owns FREEROAM_START). */
+    return g_freeroam_started;
 }
 
 int scene1_intro_dialogue_covers_screen(void)
@@ -228,7 +328,37 @@ int scene1_intro_dialogue_skippable(void)
 
 int scene1_intro_dialogue_loading(void)
 {
-    return (g_state == D_LOAD) ? 1 : 0;
+    /* D_LOAD = the prologue iv1_1→iv1_2 bracket; D_TUT_LOAD = a tutorial
+     * dialogue's activation bracket (retail FUN_00452d07 worker).  Both fold into
+     * anchor_world.loading_active → LOADING_START/END (+ HOUSE_FREEROAM). */
+    return (g_state == D_LOAD || g_state == D_TUT_LOAD) ? 1 : 0;
+}
+
+int scene1_intro_dialogue_busy(void)
+{
+    /* Retail's DAT_0438b1c8 != 0: a dialogue is armed/loading/active and NOT yet
+     * finished — the whole lifecycle from activation to completion.  Unlike
+     * _active() (which needs g_rt.active and so reads FALSE during the 1-frame
+     * lazy-load gap at D_TUT_LOAD→D_TUT) this stays true across that gap, so the
+     * tutorial dispatcher won't fire the next dialogue into the seam and clobber
+     * the running one.  False only when dormant (D_IDLE) or the prologue is done
+     * (D_DONE) — exactly the free-roam frames a tutorial may be activated. */
+    return (g_state != D_IDLE && g_state != D_DONE) ? 1 : 0;
+}
+
+int scene1_intro_dialogue_posing(void)
+{
+    /* The conversation-pose gate.  Equals _active() for the prologue (so that
+     * behaviour is unchanged), PLUS the WHOLE tutorial (D_TUT_LOAD + D_TUT): retail
+     * fires CONV_POSE_START during the load bracket, before the box/text render, and
+     * holds the pose continuously until the script ends.  Covering D_TUT explicitly
+     * (not via _active()) also bridges the 1-frame lazy-load seam where g_rt.active
+     * is still 0 — without it the pose blips off there and fires a spurious
+     * CONV_POSE_END/START pair.  (D_LOAD stays excluded — the prologue's inter-script
+     * load deliberately blips the pose off.) */
+    if (g_state == D_TUT_LOAD || g_state == D_TUT)
+        return 1;
+    return scene1_intro_dialogue_active();
 }
 
 int32_t scene1_intro_dialogue_text_reveal(void)
