@@ -101,6 +101,10 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   auto-memory, put it in this file instead and leave only a pointer in memory.
 
 ## Run / build (host tools need `nix develop --command` prefix)
+- **There is NO bare `python3`/`pip` on this NixOS box.** Every Python/host-tool
+  invocation needs the prefix: `nix develop --command python3 tools/<tool>.py …`
+  (run from the repo; first call may take seconds to evaluate the devshell). Outside
+  the repo (e.g. llm-feed) use `nix run nixpkgs#python3 -- <script>` instead.
 - **Build:** `nix develop --command make -C src` (mingw32; **don't** override `CC`) →
   `build/openrecet.exe` (+ `-debug.exe`, console). **Tests:** `make -C tests run` (~3000,
   ASan/UBSan; run before committing C).
