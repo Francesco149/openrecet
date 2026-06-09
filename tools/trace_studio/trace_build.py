@@ -112,8 +112,12 @@ def ensure_window_ops(text: str, cr: tuple[int, int], call_trace: bool,
 
 def build_working_trace(src: Path, sess_dir: Path, working: Path,
                         cr: tuple[int, int], call_trace: bool,
-                        anchored: bool = False, capstride: int = 1) -> None:
-    """Distil if raw, localize its save, inject the window ops → write `working`."""
+                        anchored: bool = False, capstride: int = 1,
+                        auto_pin: bool = False) -> list[str]:
+    """Distil if raw, localize its save, inject the window ops (+ the canonical
+    phase/RNG pin block when `auto_pin` and the caprange segment has none — the
+    standing pin-every-trace policy as mechanism) → write `working`. Returns the
+    auto-pin actions taken (empty when none)."""
     from .model.ops import first_freeroam_wait
     after: str | None = None
     if raw_header(src):
@@ -128,4 +132,10 @@ def build_working_trace(src: Path, sess_dir: Path, working: Path,
             after = first_freeroam_wait(text)
     else:
         text = localize_save(src, src.read_text(), sess_dir)
-    working.write_text(ensure_window_ops(text, cr, call_trace, capstride, after_wait=after))
+    text = ensure_window_ops(text, cr, call_trace, capstride, after_wait=after)
+    actions: list[str] = []
+    if auto_pin:
+        from .edits.lint import auto_pin_text
+        text, actions = auto_pin_text(text, cr)
+    working.write_text(text)
+    return actions

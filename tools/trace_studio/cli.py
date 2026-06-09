@@ -26,7 +26,7 @@ def cmd_capture(args) -> int:
         remote=args.remote, prune_frames=args.prune_frames,
         reset_trace=args.reset_trace, only=args.only, anchors=args.anchors,
         suppress_loads=args.suppress_loads, capture_local=args.capture_local,
-        capstride=args.capstride))
+        capstride=args.capstride, auto_pin=args.auto_pin, lint=args.lint))
 
 
 def cmd_drill(args) -> int:
@@ -59,7 +59,7 @@ def cmd_drill(args) -> int:
         call_trace=args.call_trace, caprange=f"{start},{span}", capstride=1,
         reset_trace=True, remote=args.remote,
         port_max_frames=args.port_max_frames,
-        retail_max_frames=args.retail_max_frames))
+        retail_max_frames=args.retail_max_frames, lint=args.lint))
 
 
 def cmd_recapture(args) -> int:
@@ -92,7 +92,7 @@ def cmd_recapture(args) -> int:
         trace=str(working), session=args.session, target=target,
         call_trace=has_ct, only=args.only, remote=args.remote,
         port_max_frames=args.port_max_frames,
-        retail_max_frames=args.retail_max_frames))
+        retail_max_frames=args.retail_max_frames, lint=args.lint))
 
 
 def cmd_serve(args) -> int:
@@ -167,6 +167,16 @@ def build_parser() -> argparse.ArgumentParser:
                         "(a coarse OVERVIEW for scrubbing a long trace cheaply). "
                         "1 = dense (default); use a sub-range + N=1 to DRILL. Both "
                         "targets stride the same anchor-relative kept-set.")
+    c.add_argument("--auto-pin", action=argparse.BooleanOptionalAction, default=True,
+                   help="insert the canonical {phasepin}+{rngseed 19937} block when a "
+                        "FRESHLY-BUILT working trace's caprange segment has none "
+                        "(standing pin-every-trace policy; --no-auto-pin for a "
+                        "deliberate unpinned phase study). Reused working traces are "
+                        "never mutated — the lint warns instead.")
+    c.add_argument("--lint", action=argparse.BooleanOptionalAction, default=True,
+                   help="preflight the working trace (pin placement, stacked rngseed, "
+                        "calltrace span, savefile ref); errors abort the capture "
+                        "(--no-lint to bypass)")
     c.set_defaults(func=cmd_capture)
 
     d = sub.add_parser("drill", help="recapture one sub-window of an OVERVIEW dense")
@@ -186,6 +196,8 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--remote", default=DEFAULT_REMOTE)
     d.add_argument("--port-max-frames", type=int, default=4000)
     d.add_argument("--retail-max-frames", type=int, default=22000)
+    d.add_argument("--lint", action=argparse.BooleanOptionalAction, default=True,
+                   help="preflight the child working trace (--no-lint to bypass)")
     d.set_defaults(func=cmd_drill)
 
     r = sub.add_parser("recapture",
@@ -200,6 +212,9 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--remote", default=DEFAULT_REMOTE)
     r.add_argument("--port-max-frames", type=int, default=4000)
     r.add_argument("--retail-max-frames", type=int, default=22000)
+    r.add_argument("--lint", action=argparse.BooleanOptionalAction, default=True,
+                   help="preflight the working trace before re-driving "
+                        "(--no-lint to bypass)")
     r.set_defaults(func=cmd_recapture)
 
     s = sub.add_parser("serve", help="open the scrubbing editor")

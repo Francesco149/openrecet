@@ -79,6 +79,14 @@ class CaptureConfig:
     suppress_loads: bool = True          # D1: collapse loads to zero-frame seams
     capture_local: bool = True           # D2: local-disk staging (degrades if unsupported)
     capstride: int = 1                   # D3: capture every Nth frame (OVERVIEW); 1 = dense
+    auto_pin: bool = True                # insert the canonical phase/RNG pin block when a
+                                         # FRESH working trace's caprange segment has none
+                                         # (standing policy; --no-auto-pin for deliberate
+                                         # unpinned phase studies). Reused traces are never
+                                         # mutated — lint warns instead.
+    lint: bool = True                    # preflight the working trace (pin placement,
+                                         # stacked seeds, calltrace span, savefile ref);
+                                         # errors abort (--no-lint to bypass)
 
 
 def run_capture(cfg: CaptureConfig) -> int:
@@ -176,12 +184,27 @@ def run_capture(cfg: CaptureConfig) -> int:
                      f"distil, auto window caprange={cr0}")
         if not cr0:
             raise SystemExit("trace_studio: no --caprange given and none in the trace")
-        trace_build.build_working_trace(src, sess_dir, working, cr0,
-                                        bool(cfg.call_trace), anchored=anchored,
-                                        capstride=cfg.capstride)
+        pin_actions = trace_build.build_working_trace(
+            src, sess_dir, working, cr0, bool(cfg.call_trace), anchored=anchored,
+            capstride=cfg.capstride, auto_pin=cfg.auto_pin)
+        for a in pin_actions:
+            _log(f"auto-pin: {a}")
 
     trace = working
     op_list = ops.load_ops(trace)
+
+    # ── preflight lint (policy → mechanism; docs/audits/2026-06-09 T2) ───────
+    if cfg.lint:
+        from .edits import lint as lint_mod
+        findings = lint_mod.lint(trace.read_text(), trace.parent)
+        for fi in findings:
+            _log(f"lint {fi['level'].upper()} [{fi['code']}] {fi['msg']}")
+        fatal = [fi for fi in findings if fi["level"] == "error"]
+        if fatal:
+            raise SystemExit(
+                "trace_studio: working-trace lint failed ("
+                + ", ".join(fi["code"] for fi in fatal)
+                + ") — fix the trace, or --no-lint to bypass")
     cr = ops.extract_caprange(op_list)
     if not cr:
         raise SystemExit(f"trace_studio: working trace {working} has no caprange")
