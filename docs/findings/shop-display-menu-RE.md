@@ -640,12 +640,33 @@ recapture; the dialogues "play out correctly… huge progress"):**
      Δ=0** vs retail on item-display-2. Recette now plays the look-up blink, not her idle loop. No
      prologue/free-roam regression (`_posing()` is already covered by `!_active()` there; the walk
      gate is unchanged outside a pose). Host suite 3222✓.
-2. **bg-window NPCs desync after the dialogue starts** (pinned 1:1 *before* it). The dialogue
-   consumes the shared LCG at a rate the bg-NPC respawns ride; most likely the **standee
-   screen-shake jitter** (`draw_standees` `rng_next15` per standee, §105) — iv1_5/iv1_6 may have
-   a different standee count / RMB cadence than the iv1_2 it was tuned on, OR the cadence drift
-   (#1) shifts the per-frame RNG. Run `flow_diff --verdict` over the dialogue window. Likely
-   shares a root with #1.
+2. **bg-window NPCs desync after the dialogue starts — ✅ FIXED 2026-06-09 (commit 843b6f1),
+   rngcalls net +1375 → +31.** NOT the standee shake. Root: **the port ran the DEFAULT arm
+   (FUN_00442cef) during dialogues; retail dispatches every `DAT_0438b1c8`-busy frame to the
+   EVENT arm (FUN_004427d3)** — verified on the retail call-trace (0x4427d3 + 0x48407f + 0x46f621
+   once per dialogue frame, zero 0x442cef/0x48670f rows). The default arm's dev-overlay LCG step
+   (+1/frame, §95) and the 目玉-sparkle emitter (+6 per 8 frames over the 6 occupied cells) were
+   shared-LCG consumption retail doesn't have during a dialogue ⇒ +3245 over the two dialogue
+   windows, net +1375 after the retail-lead from its real D_TUT load. Fix: `scene1_ingame_tick`
+   ORs `scene1_intro_dialogue_busy()` into the paused-arm condition (the port had modeled b1c8
+   TWICE — a never-written `g_scene1_ingame_paused_flag` + the dialogue lifecycle); the event arm
+   is now pose tick + `scene1_event_actor_tail_tick` (bg-NPC pump + companion spring/wing +
+   **unconditional db054++**, retail ground truth db054=1205 at the inter-dialogue gap) +
+   records-B + particles. Port dialogue-window consumption now **+6 every 4th frame (wing), else
+   0 = 1.52/frame ≡ retail's 1.51**. Same chip fixed the **db054 menu-close off-by-one** (the
+   companion fallback re-read cc04 AFTER the menu arm cleared it mid-frame → +1 db054 per pause;
+   retail only advances when the frame *dispatched* outside the menu) — that skew was the entire
+   phantom `house_update.px/py DRIFT @202` (gap F's sim half: px bit-identical under 1-frame
+   shift) AND the dust-field DRIFT @209 (gap E): post-fix px/py/dust/db054/cbfc all
+   ALIGNED/bit-exact. **Residual ±31:** boundary-frame artifacts at menu open/close + the load
+   brackets — +6 per pause whose freeze lands on db054%4==0 (one extra wing emit on a boundary
+   frame; both sides fire the wing EVERY menu frame when frozen at %4==0 — retail's `0xcf05d33`
+   LCG attribution during pause2 = its wing through the hooked thunk) and +25 across the
+   D_TUT-load/dialogue seams (inter-dialogue default frames + pause-3 boundary). Chase with a
+   dense per-frame drill over one menu open/close if it ever matters. Companion
+   `cx/cz (spread ~0.003)/canim/cframe/pcnt` micro-DRIFT around menu boundaries is the same
+   boundary-frame family (who ticks the companion/interact-pose anim on the open/close frame) —
+   menu-arm chip scope.
 3. **Text reveal GRADIENT-to-transparent — ✅ PORTED 2026-06-09** (user: "long overdue").
    Mechanism: `FUN_0047d464` (the glyph-row drawer, port `dialogue_draw_row`) fades EACH ROW's
    glyph alpha by `input_alpha * clamp(param_6 * DAT_5198d8, DAT_519364)` where `param_6` = that

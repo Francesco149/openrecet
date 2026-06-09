@@ -21,21 +21,31 @@
   **`item-display-2`** (`http://localhost:8778/?session=item-display-2`; load slot 2
   → place 3 items → 2 Tear tutorial dialogues; pinned + call-traced). Landed so far:
   C3a slot-glow, C3b item tooltip, both tutorial dialogues frame-exact (anchors Δ=0
-  incl. the CONV_POSE_BLINK cadence fix `a8269f6`), text-reveal gradient. Full RE +
-  history: `findings/shop-display-menu-RE.md`. **Open follow-ups** (mechanisms in
-  that doc's "Open follow-ups"):
-  1. **bg-NPC desync after dialogue start** (shared-LCG / standee-shake — re-check
-     now that the cadence fix no longer shifts per-frame RNG).
-  2. **placed-item ids wrong on the place path** (`FUN_00469a9f` returns
-     64/64064/256512 — the cc04 confirm was written for `sel==-1` removal only).
+  incl. the CONV_POSE_BLINK cadence fix `a8269f6`), text-reveal gradient, **the
+  event-arm routing chip `843b6f1` (2026-06-09): busy frames now dispatch to
+  FUN_004427d3 like retail — killed the dialogue-window rngcalls desync (+1375 →
+  +31), the db054 menu-close off-by-one, and with them the phantom px/py DRIFT @202
+  (gap F sim half) + the placement-dust desync (gap E); px/py/dust/db054/cbfc now
+  ALIGNED/bit-exact on the verdict.** Full RE + history (incl. the ±31 residual
+  boundary-frame breakdown): `findings/shop-display-menu-RE.md` "Open follow-ups".
+  **Remaining — the cc04 MENU-ARM cluster (one chip: render + logic + boundary):**
+  1. **placed-item ids wrong on the place path** (`FUN_00469a9f` returns
+     64/64064/256512 — the cc04 confirm was written for `sel==-1` removal only);
+     likely also gap F's held-item red-vs-gold.
+  2. **menu RENDER fidelity** — worst gt8 frame (label 181): retail draws the
+     item-LIST window + narrow right description panel; port draws a wide bottom
+     description and no list. Covers (B) "What will you place?" prompt @f391,
+     (C) panel slide-in @f122, (D) selected-row flash @f172.
   3. **missing bread tooltip** during dialogue (retail ord 854).
-  4. **dialogue box/portrait pixel-parity** polish.
-  **Interaction-flow gaps (B–F):** (B) "What will you place?" placement-MENU prompt
-  @f391 · (C) menu panel slide-in anim @f122 · (D) selected-row flash @f172 ·
-  (E) placement-dust desync @f272 · (F) carry-pose/held-item — the verdict's
-  px/py/pz DRIFT (triage names it: `house_update.px` DRIFT @202); held item
-  red-vs-gold. **Tooling fix owed:** the recorder's `save_capture` overwrites
-  `<name>.save.bin` unconditionally (clobbered this session's boot save twice).
+  4. **menu-boundary residuals:** rngcalls ±31 (one wing emit per %4==0-frozen
+     pause boundary + load-bracket seams) · companion cx/cz/canim/cframe + pcnt
+     micro-DRIFT around open/close frames · retail menu-window consumption is the
+     WING through the hooked thunk (`0xcf05d33`), NOT an unknown menu consumer.
+  5. **dialogue box/portrait pixel-parity** polish.
+  **Tooling fix owed:** the recorder's `save_capture` overwrites `<name>.save.bin`
+  unconditionally (clobbered this session's boot save twice). Also: session
+  kept-count mismatch (port 1845 vs retail 1842) still flagged by triage — seam
+  alignment, predates the chip.
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild screen** → town
   scenes off the world map (world-map backlog itself CLOSED 2026-06-08, bit-clean
   f16→638). Trace-studio v2 **Phase 5** (New-Game cross-replay: retail intro-video
