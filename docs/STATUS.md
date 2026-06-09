@@ -81,12 +81,16 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   stalls on line 0); `_done()` now a sticky `g_freeroam_started` latch; new `_busy()`/`_posing()`
   cover the lazy-load seam. **D2** (`scene1_tutorial_dispatch`, new): focused FUN_0044bd0d iv1_5/iv1_6
   branches (RNG-neutral, pumped at retail 0x40849), **gated on `_busy()`** (the `_active()||_loading()`
-  gate had a 1-frame seam hole through which iv1_6 clobbered iv1_5). **Open follow-ups (not the gap):**
-  (1) per-line TIMING phase under held-Z fast-forward (port a few lines ahead at a given ord — count
-  is 1:1, frame-phase isn't); (2) **placed-item ids wrong on the place path** (`FUN_00469a9f` returns
-  64/64064/256512 — the cc04 confirm was written for `sel==-1` removal; placement selection isn't
-  fully ported); (3) box/portrait pixel-parity pass. **NEXT: pick a follow-up, or move to the next
-  interaction-flow gap (B–F).** **NOTE (policy, CLAUDE.md):** every trace we work on is
+  gate had a 1-frame seam hole through which iv1_6 clobbered iv1_5). **Open follow-ups from the
+  user's recapture review (full list + mechanisms in `findings/shop-display-menu-RE.md` "Open
+  follow-ups"):** **✅ text reveal GRADIENT-to-transparent PORTED** (`FUN_0047d464` per-row fade
+  `alpha=input·clamp(rowbudget·0.2,1.0)`; a278101; dim@line-start/full@settled). STILL OPEN:
+  (1) **advance cadence** — port clears lines ~40f early (held-Z FF too fast); step count matches
+  retail (2), drift is dwell/box/anchor-timing; (2) **bg-NPC desync after dialogue start**
+  (shared-LCG / standee-shake); (3) **placed-item ids wrong on the place path** (`FUN_00469a9f`
+  returns 64/64064/256512 — cc04 confirm was written for `sel==-1` removal); (4) **missing bread
+  tooltip** during the dialogue (retail ord 854); (5) box/portrait pixel-parity. **NEXT: pick a
+  follow-up, or move to the next interaction-flow gap (B–F).** **NOTE (policy, CLAUDE.md):** every trace we work on is
   phase+RNG-pinned AND call-traced up front now. Tooling fix still owed: the recorder's `save_capture`
   overwrites `<name>.save.bin` unconditionally (clobbered item-display-2's boot save across two takes).
 - **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`). ✅ PHASE 0 RE COMPLETE →
