@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-CLAUDE_MODEL="Claude Opus 4.8 (1M context)"
+CLAUDE_MODEL="Claude Fable 5"
 TRAILER="Co-Authored-By: ${CLAUDE_MODEL} <noreply@anthropic.com>"
 
 msg_file="$1"
@@ -25,10 +25,11 @@ if [[ "${SKIP_CLAUDE_TRAILER:-0}" == "1" ]]; then
     exit 0
 fi
 
-# 1. Normalise any existing Claude co-author line to the current model.
-if grep -qiE '^Co-Authored-By: Claude Opus' "$msg_file"; then
+# 1. Normalise any existing Claude co-author line (any model name — Opus,
+#    Fable, Sonnet…) to the current model.
+if grep -qiE '^Co-Authored-By: Claude ' "$msg_file"; then
     # Replace the whole line in place.
-    sed -i -E "s|^Co-Authored-By: Claude Opus .*<noreply@anthropic.com>.*$|${TRAILER}|I" "$msg_file"
+    sed -i -E "s|^Co-Authored-By: Claude .*<noreply@anthropic.com>.*$|${TRAILER}|I" "$msg_file"
     exit 0
 fi
 
