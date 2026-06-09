@@ -450,6 +450,7 @@ let g_segtrace_capstride = 1;       // {capstride:N} (D3): thin a {caprange} to 
 let g_suppress_loads = false;       // D1: drop captures while loading_active (opt-in;
                                     // mirrors the port's --capture-suppress-loads)
 let g_capture_dir = null;           // Windows dir: write raw frames here (no Frida xfer)
+let g_memsnap_regions = [];         // {memsnap} census: [[abs_va, size], ...] to dump
 let g_max_frames = 0;               // 0 = no cap; stop = die after that many sim frames
 
 // TAS save virtualization. When set (Windows path to a per-run sandbox dir),
@@ -799,6 +800,7 @@ let g_ct_window_mode    = false; // segtrace declares calltrace ops -> windows a
 function segtraceBuildSegments(ops) {
     const seg0 = () => ({entries: [], captures: [], capranges: [], calltraces: [],
                          setrngs: [], escs: [], phasepins: [], pokes: [],
+                         memsnaps: [],
                          wait: null, wait_until: null});
     const segs = [seg0()];
     for (let i = 0; i < ops.length; i++) {
@@ -864,6 +866,13 @@ function segtraceBuildSegments(ops) {
             // port's {phasepin} so a port<->retail trace comparison is phase-clean
             // (engine-quirks 94, scene1-tear-visual-diffs.md).
             segs[segs.length - 1].phasepins.push({frame: op.phasepin | 0, fired: false});
+        } else if (op && op.memsnap !== undefined) {
+            // {memsnap:N} — at the base-relative frame N, dump the configured
+            // writable-section regions (config.memsnap_regions, from the exe's
+            // section table) straight to capture_dir via Win32 writes — the
+            // phase-state census input (tools/phase_census.py). Mirrors the
+            // port's {memsnap}; fires once, pre-sim, AFTER same-frame pins.
+            segs[segs.length - 1].memsnaps.push({frame: op.memsnap | 0, fired: false});
         } else if (op && op.savefile !== undefined) {
             // {savefile:"<relpath>"} — trace-global embedded-save ref. The save
             // override is harness-driven (tools/trace_save.py decompresses the blob;
@@ -2763,6 +2772,40 @@ function segtraceTick(fn) {
                        + g_rng_cs_hi + ']' : ''));
             }
         }
+        // {memsnap} fires in the same pre-sim window, AFTER the pins above, so
+        // a pinned-census snapshot sees its own frame's post-pin state. Dumps
+        // each configured region [va, size] straight from game memory to disk
+        // via Win32 (writeRawFile) — never over the Frida channel (the .data
+        // VirtualSize span is ~145 MB; the one-time write stalls the frame for
+        // a moment, which --turbo's virtual clock makes sim-neutral).
+        for (let i = 0; i < seg.memsnaps.length; i++) {
+            const ms = seg.memsnaps[i];
+            if (!ms.fired && g_segtrace_base + ms.frame <= fn) {
+                ms.fired = true;
+                const resolved = g_segtrace_base + ms.frame;
+                const tag = ('00000' + resolved).slice(-5);
+                if (!g_capture_dir) {
+                    err('segtrace-memsnap',
+                        'no capture_dir (memsnap needs capture_local)');
+                } else if (!g_memsnap_regions.length) {
+                    err('segtrace-memsnap', 'no memsnap_regions configured');
+                } else {
+                    ensureWinFileFns();
+                    let wrote = 0;
+                    for (let r = 0; r < g_memsnap_regions.length; r++) {
+                        const va = g_memsnap_regions[r][0] >>> 0;
+                        const sz = g_memsnap_regions[r][1] >>> 0;
+                        try {
+                            writeRawFile(g_capture_dir + '\\memsnap_' + tag +
+                                         '_r' + r + '.bin', rva(va), sz);
+                            wrote++;
+                        } catch (ex) { err('segtrace-memsnap', ex.message); }
+                    }
+                    log('segtrace: memsnap @' + resolved + ' -> ' + wrote + '/' +
+                        g_memsnap_regions.length + ' region(s) in ' + g_capture_dir);
+                }
+            }
+        }
         break;
     }
     return g_segtrace_sticky;
@@ -4501,6 +4544,8 @@ rpc.exports = {
         g_suppress_loads = !!config.suppress_loads;
         g_capture_dir = (typeof config.capture_dir === 'string'
                          && config.capture_dir) ? config.capture_dir : null;
+        g_memsnap_regions = Array.isArray(config.memsnap_regions)
+                            ? config.memsnap_regions : [];
         g_max_frames  = config.max_frames | 0;
         g_save_sandbox = (typeof config.save_sandbox === 'string'
                           && config.save_sandbox) ? config.save_sandbox : null;

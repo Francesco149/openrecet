@@ -1059,6 +1059,13 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # comparison is phase-clean (engine-quirks §94). Mirrors the
                 # port's {phasepin} op.
                 segtrace_ops.append({"phasepin": int(rec["phasepin"])})
+            elif "memsnap" in rec:
+                # {memsnap:N} — at base+N, dump the retail exe's writable
+                # sections (.data/.data1, VirtualSize) to the capture dir —
+                # the phase-state census input (tools/phase_census.py).
+                # Mirrors the port's {memsnap} op; the regions are computed
+                # below from the unpacked exe's section table → init_cfg.
+                segtrace_ops.append({"memsnap": int(rec["memsnap"])})
             elif "savefile" in rec:
                 # {savefile:"<relpath>"} — trace-global embedded-save ref. The save
                 # override is harness-driven (the port gets --save-override; a retail
@@ -1177,6 +1184,25 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         # poll for its `wait` ops; the agent forces anchor_trace on too.
         init_cfg["input_segtrace"] = segtrace_ops
         init_cfg["anchor_trace"] = True
+        if any("memsnap" in o for o in segtrace_ops):
+            # Phase-census {memsnap}: the agent dumps these absolute-VA regions
+            # (the exe's WRITABLE sections — .data/.data1 by name; VirtualSize,
+            # so the BSS zero-fill arrays where the DAT_ globals live are
+            # included) straight to capture_dir via Win32 writes — never over
+            # the Frida channel. Requires capture_local.
+            sys.path.insert(0, str(ROOT / "tools" / "analyze"))
+            from pe import PE                                    # noqa: E402
+            secs = [s for s in PE().sections if s.name in (".data", ".data1")]
+            if not secs:
+                raise SystemExit("frida_capture: {memsnap} op but no writable "
+                                 "sections found in the unpacked exe")
+            init_cfg["memsnap_regions"] = [[0x400000 + s.vaddr, s.vsize]
+                                           for s in secs]
+            if not init_cfg.get("capture_dir"):
+                raise SystemExit("frida_capture: {memsnap} needs capture_local "
+                                 "(the dump writes via Win32, not the channel)")
+            f_log.write(f"[memsnap] regions: "
+                        f"{[(s.name, hex(0x400000 + s.vaddr), s.vsize) for s in secs]}\n")
     if cfg.watch:
         init_cfg["watch"] = [
             {"name": str(w["name"]), "va": int(w["va"]),
