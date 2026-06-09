@@ -8,6 +8,12 @@
 - **Phase:** Foundation for frame-by-frame 1:1 parity (plan: `plans/` — render-parity
   diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
   frame 0 of the main menu.
+- **STRATEGY AUDIT (2026-06-09): `docs/audits/2026-06-09-methodology-audit.md`** — settled
+  verdicts (behavioral-vs-byte-exact CLOSED; pinning design affirmed + upgrade path; FP/x87
+  invariants) + the ranked tooling roadmap **T1–T12** (next up: T1 `triage` one-command
+  divergence report, T2 trace lint + capture-time auto-pin, T3 phase-state census) + the
+  milestone replay ladder / first-divergent-frame KPI. Read before re-litigating strategy
+  or building new parity tooling.
 - **ACTIVE ARC → ITEM-DISPLAY GAPS + tutorial-dialogue (2026-06-09).** Bench: trace-studio
   session **`item-display-2`** (`http://localhost:8778/?session=item-display-2`) — user
   recording (load slot 2 → place 3 items → 2 back-to-back Tear tutorial dialogues), now

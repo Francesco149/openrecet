@@ -159,4 +159,5 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   `docs/flow-trace-cheatsheet.md`, `docs/render-depth-debugging.md`.
 - **Orchestration / when to spawn sub-agents:** `docs/AGENT-WORKFLOW.md`.
 - **Active plan:** `docs/plans/`. **Strategic frame / tooling phases:** `docs/PLAN.md`,
-  `docs/harness-roadmap.md`.
+  `docs/harness-roadmap.md`. **Methodology/tooling audit (settled strategy verdicts +
+  ranked tooling roadmap T1–T12):** `docs/audits/2026-06-09-methodology-audit.md`.
