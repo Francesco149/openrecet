@@ -1501,7 +1501,8 @@ void scene1_player_ctrl_tick(void)
      * free-roam rows are bit-identical to retail; the pose rows are not).  See
      * docs/findings/flow-trace-cheatsheet.md. */
     if (s_actor_char[0] != -1 && s_cc08 == 1 &&
-        !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading()) {
+        !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading() &&
+        !scene1_intro_dialogue_posing()) {
         CALL_TRACE_BEGIN(0x48670fu);
         {
             const int32_t *r0 = s_actor_record[0];
@@ -1642,8 +1643,20 @@ void scene1_player_ctrl_tick(void)
      * the whole controller broke the load — it skipped the NPC/RNG pump).
      * PORT-DEBT: the faithful fix is cc08 timing — it should flip to 1 only at
      * the real free-roam boundary (FUN_004850ec), after the prologue. */
+    /* ALSO suppress while the conversation pose owns the player (_posing()).  The
+     * D_TUT_LOAD->D_TUT lazy-load seam has a 1-frame window where _loading() just
+     * dropped and _active() hasn't risen yet (only _posing() spans it).  Without
+     * this the walk arm runs on that seam frame and resets the player's pose anim
+     * (FUN_0048407f anim 6, the look-up-at-Tear blink) back to idle (anim 0); since
+     * conv_pose_enter keys its restore on STATE (still 6) the anim never recovers,
+     * so Recette plays her idle breathing loop (40-tick cycle) instead of the blink
+     * (64) for the whole tutorial dialogue.  Retail has no such seam (its walk gate
+     * tracks the cc08 event state = the talk flag), so suppressing the walk whenever
+     * the pose holds the actor is the faithful fix (symptom: the iv1_5/iv1_6
+     * shop-display tutorial CONV_POSE_BLINK cadence was port 40 vs retail 64). */
     if (s_cc08 == 1 &&
-        !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading())
+        !scene1_intro_dialogue_active() && !scene1_intro_dialogue_loading() &&
+        !scene1_intro_dialogue_posing())
         player_ctrl_cc08_freeroam_arm();
     else
         player_ctrl_cc08_unported_arm();
