@@ -437,3 +437,47 @@ int test_segtrace_no_capstride_clears_flag(void)
     input_segtrace_free(&st);
     return 0;
 }
+
+static uint32_t s_memsnap_fired_frame;
+static int      s_memsnap_fired_count;
+static void memsnap_test_cb(uint32_t frame, void *user)
+{
+    (void)user;
+    s_memsnap_fired_frame = frame;
+    s_memsnap_fired_count++;
+}
+
+int test_segtrace_memsnap_parses_and_fires_resolved(void)
+{
+    /* {memsnap:N} is segment-scoped + pre-sim like {phasepin}; the callback
+     * receives the RESOLVED frame base+N (stable dump filenames across runs).
+     * Fires exactly once even when ticked past it repeatedly. */
+    const char buf[] =
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n"
+        "{\"wait\":\"LOADING_END\"}\n"
+        "{\"memsnap\":80}\n"
+        "{\"caprange\":[120,48]}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.n_segs, 2);
+    T_ASSERT_EQ_U(st.segs[1].n_memsnaps, 1);
+    T_ASSERT_EQ_U(st.segs[1].memsnaps[0].frame, 80);
+
+    s_memsnap_fired_frame = 0; s_memsnap_fired_count = 0;
+    input_segtrace_set_memsnap_cb(&st, memsnap_test_cb, NULL);
+    input_segtrace_tick(&st, 0, NULL, NULL);          /* boot segment */
+    T_ASSERT_EQ_U(s_memsnap_fired_count, 0);
+    input_segtrace_on_anchor(&st, "LOADING_END", 500);  /* base = 500 */
+    input_segtrace_tick(&st, 500, NULL, NULL);
+    T_ASSERT_EQ_U(s_memsnap_fired_count, 0);          /* 500+80 not reached */
+    input_segtrace_tick(&st, 579, NULL, NULL);
+    T_ASSERT_EQ_U(s_memsnap_fired_count, 0);
+    input_segtrace_tick(&st, 580, NULL, NULL);        /* base+80 */
+    T_ASSERT_EQ_U(s_memsnap_fired_count, 1);
+    T_ASSERT_EQ_U(s_memsnap_fired_frame, 580);        /* RESOLVED frame */
+    input_segtrace_tick(&st, 581, NULL, NULL);        /* no re-fire */
+    T_ASSERT_EQ_U(s_memsnap_fired_count, 1);
+    input_segtrace_free(&st);
+    return 0;
+}

@@ -418,6 +418,7 @@ struct test_case {
     X(input_trace_record_when_closed_is_noop) \
     X(input_trace_record_open_rejects_null) \
     \
+    X(segtrace_memsnap_parses_and_fires_resolved) \
     X(segtrace_no_wait_is_absolute) \
     X(segtrace_wait_rebases_on_anchor) \
     X(segtrace_double_anchor_resolves_successively) \

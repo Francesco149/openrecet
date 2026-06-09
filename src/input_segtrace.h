@@ -62,6 +62,15 @@
  *                        same frame, so both targets share one LCG stream from
  *                        the anchor (cross-target RNG parity).
  *
+ *   {"memsnap":N}        dump the process's writable PE sections (.data/.bss)
+ *                        to the capture dir at the deterministic frame base+N
+ *                        (fires once, pre-sim, like {phasepin}) — the raw input
+ *                        of the phase-state census (tools/phase_census.py): two
+ *                        same-side runs with different pre-anchor timing diff
+ *                        their dumps to enumerate ALL load-timing-dependent
+ *                        state. The retail Frida agent mirrors it by dumping
+ *                        the retail exe's writable sections at the same frame.
+ *
  *   {"savefile":"<relpath>"} declare the save the trace booted with — a path
  *                        (relative to the trace file's directory) to a
  *                        content-addressed, gzip-compressed save blob (usually
@@ -148,6 +157,14 @@ struct seg_phasepin {
     int      fired;   /* runtime: cleared on segment activation, set on fire */
 };
 
+/* One base-relative memory snapshot: dump the writable PE sections when
+ * absolute frame base+frame is reached (fires once; see {memsnap} in the doc).
+ * Phase-census input — see tools/phase_census.py. */
+struct seg_memsnap {
+    uint32_t frame;   /* relative to the segment base */
+    int      fired;   /* runtime: cleared on segment activation, set on fire */
+};
+
 /* A maximal run of entries terminated by a `wait` (or the trace end). */
 struct seg_segment {
     struct seg_entry *entries;
@@ -166,6 +183,8 @@ struct seg_segment {
     size_t            n_gframes, cap_gframes;
     struct seg_phasepin *phasepins; /* base-relative companion-phase normalizers */
     size_t            n_phasepins, cap_phasepins;
+    struct seg_memsnap *memsnaps;   /* base-relative writable-section dumps */
+    size_t            n_memsnaps, cap_memsnaps;
     char              wait[24];     /* terminating anchor name; "" if none */
     int               has_wait;
 };
@@ -247,6 +266,13 @@ struct input_segtrace {
      * callback so this module stays free of the companion controller. */
     void (*pp_cb)(void *user);
     void  *pp_user;
+
+    /* Memory-snapshot callback (set once via input_segtrace_set_memsnap_cb);
+     * fired per {memsnap} op at frame base+N with the RESOLVED frame base+N
+     * (stable dump filenames across runs).  Kept a callback so this module
+     * stays free of memsnap.h/Win32. */
+    void (*ms_cb)(uint32_t frame, void *user);
+    void  *ms_user;
 };
 
 /* Capture callback: invoked once per scheduled `{capture:N}` with the resolved
@@ -297,6 +323,15 @@ typedef void (*segtrace_phasepin_fn)(void *user);
  * op when its frame is reached during input_segtrace_tick. */
 void input_segtrace_set_phasepin_cb(struct input_segtrace *st,
                                     segtrace_phasepin_fn cb, void *user);
+
+/* Memory-snapshot callback: invoked once per `{memsnap:N}` op with the
+ * RESOLVED frame base+N (pre-sim, same window as {phasepin}). */
+typedef void (*segtrace_memsnap_fn)(uint32_t frame, void *user);
+
+/* Set the memory-snapshot callback (and its user ptr).  Fires per {memsnap}
+ * op when its frame is reached during input_segtrace_tick. */
+void input_segtrace_set_memsnap_cb(struct input_segtrace *st,
+                                   segtrace_memsnap_fn cb, void *user);
 
 /* Set the capture-range callback (and its user ptr).  Resolved windows fire
  * through it as their segments become active, same timing as captures. */

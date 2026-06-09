@@ -193,6 +193,20 @@ static int push_phasepin(struct seg_segment *s, uint32_t frame)
     return 1;
 }
 
+static int push_memsnap(struct seg_segment *s, uint32_t frame)
+{
+    if (s->n_memsnaps >= s->cap_memsnaps) {
+        size_t ncap = s->cap_memsnaps ? s->cap_memsnaps * 2 : 4;
+        struct seg_memsnap *nm = realloc(s->memsnaps, ncap * sizeof *nm);
+        if (!nm) return 0;
+        s->memsnaps = nm; s->cap_memsnaps = ncap;
+    }
+    s->memsnaps[s->n_memsnaps].frame = frame;
+    s->memsnaps[s->n_memsnaps].fired = 0;
+    s->n_memsnaps++;
+    return 1;
+}
+
 void input_segtrace_free(struct input_segtrace *st)
 {
     if (!st) return;
@@ -205,6 +219,7 @@ void input_segtrace_free(struct input_segtrace *st)
         free(st->segs[i].escs);
         free(st->segs[i].gframes);
         free(st->segs[i].phasepins);
+        free(st->segs[i].memsnaps);
     }
     free(st->segs);
     memset(st, 0, sizeof *st);
@@ -232,12 +247,13 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         int      got_frame = 0, got_mask = 0, got_wait = 0, got_capture = 0;
         int      got_calltrace = 0, got_setrng = 0, got_caprange = 0;
         int      got_esc = 0, got_gframe = 0, got_phasepin = 0;
-        int      got_savefile = 0, got_capstride = 0;
+        int      got_savefile = 0, got_capstride = 0, got_memsnap = 0;
         uint32_t frame = 0, mask = 0, capture = 0;
         uint32_t ct_start = 0, ct_len = 0;
         uint32_t cr_start = 0, cr_count = 0;
         uint32_t rng_frame = 0, rng_value = 0, esc_frame = 0;
         uint32_t gf_frame = 0, gf_value = 0, pp_frame = 0, capstride_val = 0;
+        uint32_t ms_frame = 0;
         char     waitname[24] = {0};
         char     savepath[256] = {0};
 
@@ -353,6 +369,12 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                  * Scalar (like {esc}); trace-comparison normalization only. */
                 if (!parse_number(&p, end, &pp_frame)) return 0;
                 got_phasepin = 1;
+            } else if (klen == 7 && memcmp(ks, "memsnap", 7) == 0) {
+                /* {memsnap:N} — dump the writable PE sections at base+N
+                 * (phase-census input; fires once, pre-sim, like {phasepin}).
+                 * Scalar. */
+                if (!parse_number(&p, end, &ms_frame)) return 0;
+                got_memsnap = 1;
             } else if (klen == 8 && memcmp(ks, "savefile", 8) == 0) {
                 /* {savefile:"<relpath>"} — trace-global embedded-save ref.
                  * String value (path to a content-addressed .sav.gz blob,
@@ -397,6 +419,8 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             if (!push_gframe(cur, gf_frame, gf_value)) return 0;
         } else if (got_phasepin) {
             if (!push_phasepin(cur, pp_frame)) return 0;
+        } else if (got_memsnap) {
+            if (!push_memsnap(cur, ms_frame)) return 0;
         } else if (got_savefile) {
             /* Trace-global: last declaration wins. Not segment-scoped. */
             memcpy(out->savefile, savepath, sizeof out->savefile);
@@ -549,6 +573,13 @@ void input_segtrace_set_phasepin_cb(struct input_segtrace *st,
     st->pp_cb = cb; st->pp_user = user;
 }
 
+void input_segtrace_set_memsnap_cb(struct input_segtrace *st,
+                                   segtrace_memsnap_fn cb, void *user)
+{
+    if (!st) return;
+    st->ms_cb = cb; st->ms_user = user;
+}
+
 /* Clear a segment's {rngseed} fire flags so they re-arm on segment activation. */
 static void rearm_setrngs(struct input_segtrace *st, size_t seg_idx)
 {
@@ -579,6 +610,14 @@ static void rearm_phasepins(struct input_segtrace *st, size_t seg_idx)
     if (seg_idx >= st->n_segs) return;
     struct seg_segment *s = &st->segs[seg_idx];
     for (size_t i = 0; i < s->n_phasepins; i++) s->phasepins[i].fired = 0;
+}
+
+/* Clear a segment's {memsnap} fire flags so they re-arm on segment activation. */
+static void rearm_memsnaps(struct input_segtrace *st, size_t seg_idx)
+{
+    if (seg_idx >= st->n_segs) return;
+    struct seg_segment *s = &st->segs[seg_idx];
+    for (size_t i = 0; i < s->n_memsnaps; i++) s->memsnaps[i].fired = 0;
 }
 
 /* Fire any of the active segment's {rngseed} ops whose frame base+frame has been
@@ -637,6 +676,21 @@ static void fire_phasepins(struct input_segtrace *st, struct seg_segment *s,
     }
 }
 
+/* Fire any of the active segment's {memsnap} ops whose frame base+frame has been
+ * reached, once each, via the registered callback (NULL-safe). The callback gets
+ * the RESOLVED frame base+N — stable dump filenames across runs. */
+static void fire_memsnaps(struct input_segtrace *st, struct seg_segment *s,
+                          uint32_t frame)
+{
+    for (size_t i = 0; i < s->n_memsnaps; i++) {
+        struct seg_memsnap *ms = &s->memsnaps[i];
+        if (!ms->fired && st->base + ms->frame <= frame) {
+            if (st->ms_cb) st->ms_cb(st->base + ms->frame, st->ms_user);
+            ms->fired = 1;
+        }
+    }
+}
+
 int input_segtrace_has_calltrace(const struct input_segtrace *st)
 {
     if (!st) return 0;
@@ -658,6 +712,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         rearm_escs(st, 0);
         rearm_gframes(st, 0);
         rearm_phasepins(st, 0);
+        rearm_memsnaps(st, 0);
         schedule_captures(st, 0, capture_cb, user);
         schedule_calltraces(st, 0);
         schedule_capranges(st, 0);
@@ -684,6 +739,7 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
                 rearm_escs(st, st->cur_seg);
                 rearm_gframes(st, st->cur_seg);
                 rearm_phasepins(st, st->cur_seg);
+                rearm_memsnaps(st, st->cur_seg);
                 schedule_captures(st, st->cur_seg, capture_cb, user);
                 schedule_calltraces(st, st->cur_seg);
                 schedule_capranges(st, st->cur_seg);
@@ -709,6 +765,9 @@ uint16_t input_segtrace_tick(struct input_segtrace *st, uint32_t frame,
         /* {phasepin} fires in the same pre-sim window — normalize the companion's
          * load-dependent free-roam phase before that frame's bob/anim consumers. */
         fire_phasepins(st, s, frame);
+        /* {memsnap} fires in the same pre-sim window, AFTER the pins above, so a
+         * pinned-census snapshot sees the post-pin state of its own frame. */
+        fire_memsnaps(st, s, frame);
         break;
     }
     return st->sticky;

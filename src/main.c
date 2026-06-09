@@ -30,6 +30,7 @@
 #include "scene1_dialogue_draw.h"    /* opening-prologue dialogue render pass */
 #include "input_trace.h"
 #include "input_segtrace.h"
+#include "memsnap.h"
 #include "layers.h"
 #include "tables.h"
 #include "recet_ini.h"
@@ -994,6 +995,7 @@ static void  segtrace_ct_cb(uint32_t lo, uint32_t hi, void *user);
 static void  segtrace_rng_cb(uint32_t value, void *user);
 static void  segtrace_caprange_cb(uint32_t lo, uint32_t hi, void *user);
 static void  segtrace_esc_cb(void *user);
+static void  segtrace_memsnap_cb(uint32_t frame, void *user);
 static void  segtrace_gframe_cb(uint32_t value, void *user);
 static void  segtrace_phasepin_cb(void *user);
 static int   capture_frame_is_listed(uint32_t frame);
@@ -1813,6 +1815,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
             /* {phasepin:N} ops normalize the companion's load-dependent free-roam
              * phase for clean trace comparison — see segtrace_phasepin_cb. */
             input_segtrace_set_phasepin_cb(&g_segtrace, segtrace_phasepin_cb, NULL);
+            /* {memsnap:N} ops dump the writable PE sections at base+N — the
+             * phase-census input (tools/phase_census.py). */
+            input_segtrace_set_memsnap_cb(&g_segtrace, segtrace_memsnap_cb, NULL);
             if (input_segtrace_has_calltrace(&g_segtrace) &&
                 !call_trace_is_open()) {
                 static char ctpath[256];
@@ -3691,6 +3696,24 @@ static void segtrace_phasepin_cb(void *user)
                                        * same db054-phase as the foot dust; else the
                                        * dust draws a shifted LCG slice (engine-quirks
                                        * §95/§112) */
+}
+
+/* Memory-snapshot sink for input_segtrace `{memsnap:N}` ops: dump the port's
+ * writable PE sections (.data/.bss) into the capture dir — the raw input of
+ * the phase-state census (tools/phase_census.py). The big .bss write stalls
+ * the frame for a moment; under --turbo the virtual clock makes that
+ * sim-neutral. */
+static void segtrace_memsnap_cb(uint32_t frame, void *user)
+{
+    (void)user;
+    if (!g_capture_dir) {
+        fprintf(stderr, "segtrace: memsnap@%u ignored (no --capture-to dir)\n",
+                (unsigned)frame);
+        return;
+    }
+    int n = memsnap_dump(g_capture_dir, frame);
+    fprintf(stderr, "segtrace: memsnap@%u → %d writable section(s) in %s\n",
+            (unsigned)frame, n, g_capture_dir);
 }
 
 /* Capture-range sink for input_segtrace `{caprange:[start,count]}` ops: open
