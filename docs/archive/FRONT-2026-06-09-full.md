@@ -1,0 +1,743 @@
+<!--
+  The ONE hand-edited status block.  tools/gen_port_ledger.py injects everything
+  below the marker line verbatim into docs/STATUS.md's "Current front" section, so
+  STATUS can never drift from reality.  Update THIS when the active front moves;
+  keep it short (a 60-second read).  Everything else in STATUS is derived from code.
+-->
+<!-- FRONT:BEGIN -->
+- **Phase:** Foundation for frame-by-frame 1:1 parity (plan: `plans/` — render-parity
+  diff engine + knowledge reorg + durable proof ledger), then resume the 1:1 sweep from
+  frame 0 of the main menu.
+- **STRATEGY AUDIT (2026-06-09): `docs/audits/2026-06-09-methodology-audit.md`** — settled
+  verdicts (behavioral-vs-byte-exact CLOSED; pinning design affirmed + upgrade path; FP/x87
+  invariants) + the ranked tooling roadmap **T1–T12** (next up: T1 `triage` one-command
+  divergence report, T2 trace lint + capture-time auto-pin, T3 phase-state census) + the
+  milestone replay ladder / first-divergent-frame KPI. Read before re-litigating strategy
+  or building new parity tooling.
+- **ACTIVE ARC → ITEM-DISPLAY GAPS + tutorial-dialogue (2026-06-09).** Bench: trace-studio
+  session **`item-display-2`** (`http://localhost:8778/?session=item-display-2`) — user
+  recording (load slot 2 → place 3 items → 2 back-to-back Tear tutorial dialogues), now
+  **phase+RNG-pinned + call-traced** (free-roam diff is black except the real gaps; bg-NPCs/
+  sparkle 1:1; trigger CONFIRMED: dialogue #1 fires the instant the 3rd item is placed). Full
+  RE + the **4-gap board** in `findings/shop-display-menu-RE.md` (SESSION 2026-06-09): **(1)
+  ✅ C3a slot-highlight glow @f107 — PORTED & VERIFIED 2026-06-09 (commit e25587c):**
+  `FUN_0045aa36` Block G → `chr_shadow_build_display_glow` (pure, host-tested) + the Block-G
+  draw in `scene1_chr_shadow_render`; flat item_win decal over the faced cell, alpha
+  `ftol(sin(g_sim_frame·0.05)·32+159)`=127↔191, SRCALPHA/INVSRCALPHA + MODULATE. On the
+  `item-display-2` recapture the faced cell (4,4) shows the glow; studio diff @ord107
+  glow-region is **bit-clean (max 6/ch, 0 px >8/ch)** vs retail. **Constant fixes vs the spec:**
+  scale = 0.0036799998 (`0x3b712c27`, NOT 0.003685); U texels 224.5/287.5 (centres, NOT
+  225/288); alpha consts all float. **(3) ✅ C3b item-name tooltip ("Worn Sword") @f183/f257 —
+  PORTED & USER-CONFIRMED 1:1 2026-06-09:** ported `FUN_00409925`'s FRONT (asm 0x409925-0x409cf0)
+  as `merchant_hud_item_tooltip` at the top of `scene1_merchant_hud_render`. New reusable
+  host-tested **`scene1_project_world[_mat]`** (`scene1_render.c`, port of FUN_00490c78→490d29:
+  `fx=proj[0]·320, fy=proj[5]·240`; `sx=320−fx·vx/vz`, `sy=240+fy·vy/vz`; affine view-point) +
+  4 projection host-tests. Parchment bubble item_win src(832,480)-(959,559) dst(sx-26,sy-16,
+  164,80) diffuse 0xffffffff; name `font_draw_text_centered(sx+52,sy+26,name,col,0.6)` under
+  COLOROP ADDSIGNED→MODULATE. **Tooltip band bit-clean (max 1/ch, 0 px>8) vs retail.** GOTCHA: the
+  itemid is the **save-bank DISPLAY grid** (`save_work_dwords_at(slot)[SAVE_BANK_FIELD_DISPLAY_GRID
+  + cbfc+cc00·20]` — the sparkle/A2 grid), NOT `shop_display_grid_cell` (furniture-LAYOUT grid →
+  rendered a bogus "Sword+2"). PORT-DEBT(simplified, FUN_004361b2) trend-colour=level-0; PORT-DEBT(stub,
+  FUN_00409925) furniture-branch. **→ EXPANDED SCOPE (user, 2026-06-09 PM): the item-display
+  INTERACTION FLOW has more open gaps than the 4-gap board — see `findings/shop-display-menu-RE.md`
+  "Expanded interaction-flow board".** Priority order: **(A) the 2 Tear tutorial dialogues** →
+  (B) "What will you place?" placement-MENU prompt @f391 (≠ C3b, gap #2) → (C) menu panel slide-in
+  anim @f122 → (D) selected-row flash @f172 → (E) placement-dust desync @f272 → (F) carry-pose/held-item
+  (gap #4, the verdict's px/py/pz drift; held item red-vs-gold). **(A) ✅ PORTED & VERIFIED
+  2026-06-09 (D1–D3 landed) — both Tear tutorial dialogues now fire AND render on `item-display-2`,
+  with a dialogue-anchor structure IDENTICAL to retail** (`CONV_POSE_START` 2=2, `LOADING_START`
+  3=3, `TEXT_ANIM_START` 18=18 [iv1_5 12 lines + iv1_6 6], `DLG_LINE_CLEAR` 8=8); iv1_5's first
+  line @ **port ord 769 vs retail 770** (1:1 trigger); studio frame shows the box + Tear/Recette +
+  nameplate + ESC-skip rendering. Full writeup `findings/shop-display-menu-RE.md` "PORTED & VERIFIED
+  2026-06-09". **#1 `iv1_5.ivt`** (1,5) fires on placing in row 0 (`DAT_0450f3fb`); **#2 `iv1_6.ivt`**
+  (1,6) fires when the all-displayed latch `DAT_0450f3fd` sets — on the bench via the engine's
+  **`item_count==0` gate** (player places their last item → inventory empty → trivially "done"; NOT
+  the stands==occupied count — retail's gate is identical). **D1** (`scene1_player_ctrl` confirm
+  path): the f3fd latch (all.c:87952-87976). **D3** (`scene1_intro_dialogue`):
+  `scene1_intro_dialogue_start_single` runs one (scene,sub) through the shared `g_rt` via `D_TUT`,
+  with a `D_TUT_LOAD` bracket (retail `FUN_00452d07` spawns the `LAB_00452aab` worker →
+  LOADING_START/CONV_POSE_START/LOADING_END; **the bracket is REQUIRED** — the trace's line-advance
+  Z inputs are gated after `{wait LOADING_END}`, so without it the replay desyncs and the dialogue
+  stalls on line 0); `_done()` now a sticky `g_freeroam_started` latch; new `_busy()`/`_posing()`
+  cover the lazy-load seam. **D2** (`scene1_tutorial_dispatch`, new): focused FUN_0044bd0d iv1_5/iv1_6
+  branches (RNG-neutral, pumped at retail 0x40849), **gated on `_busy()`** (the `_active()||_loading()`
+  gate had a 1-frame seam hole through which iv1_6 clobbered iv1_5). **Open follow-ups from the
+  user's recapture review (full list + mechanisms in `findings/shop-display-menu-RE.md` "Open
+  follow-ups"):** **✅ text reveal GRADIENT-to-transparent PORTED** (`FUN_0047d464` per-row fade
+  `alpha=input·clamp(rowbudget·0.2,1.0)`; a278101; dim@line-start/full@settled). **(1) ✅ advance
+  cadence FIXED 2026-06-09 (commit a8269f6) — now frame-EXACT 1:1 vs retail.** The ~40f/line drift
+  was NOT the dwell gate / reveal cadence (all faithful — waitkey `0x46d93c` = dwell≥15 AND (held
+  0x60 OR edge 0x10), bit-matched) but the **conversation-pose blink**: the port blinked every 40f,
+  retail every 64. The blink rides the player's anim 6 (look-up-at-Tear, `FUN_0048407f`; cycle
+  `38·d20 39·d6 38·d32 39·d6` = 64). A call-trace probe showed the player was instead animating
+  **anim 0 (idle, 4×10 = 40)**: on the single `D_TUT_LOAD→D_TUT` seam frame (`_loading()` just
+  dropped, `_active()` not yet up, only `_posing()` spans it) the free-roam **walk arm ran and reset
+  anim 6→0**; `conv_pose_enter` keys its restore on STATE (still 6) so the anim never recovered
+  (panim==6 survived in 2 of 1084 pose frames). Fix: gate the walk arm + its emit on `!_posing()`
+  too (retail has no such seam — its walk gate tracks the cc08 event state). After: port blink period
+  64, blink times bit-identical, **all 44 per-line anchor pairs (TEXT_ANIM_START/END/DLG_LINE_CLEAR)
+  Δ=0 vs retail**; Recette plays the look-up blink, not her idle loop. STILL OPEN:
+  (2) **bg-NPC desync after dialogue start**
+  (shared-LCG / standee-shake — re-check now that #1 no longer shifts per-frame RNG); (3) **placed-item ids wrong on the place path** (`FUN_00469a9f`
+  returns 64/64064/256512 — cc04 confirm was written for `sel==-1` removal); (4) **missing bread
+  tooltip** during the dialogue (retail ord 854); (5) box/portrait pixel-parity. **NEXT: pick a
+  follow-up, or move to the next interaction-flow gap (B–F).** **NOTE (policy, CLAUDE.md):** every trace we work on is
+  phase+RNG-pinned AND call-traced up front now. Tooling fix still owed: the recorder's `save_capture`
+  overwrites `<name>.save.bin` unconditionally (clobbered item-display-2's boot save across two takes).
+- **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`). ✅ PHASE 0 RE COMPLETE →
+  `findings/town-map-RE.md`. ✅ T1+T2+T3+T4 LANDED + mode-8 HUD (clock/Day/money + hand cursor).
+  NEXT = the WORLD-MAP PARITY BACKLOG** (5 user-flagged both-target divergences on
+  `town-map-load-rerecord-…152235`, **`findings/town-map-RE.md` §5b**): #1–3 load-fade / marker-
+  pulse / cursor-bob **PHASE** offsets (run `flow_diff --verdict` first — likely §85 load-origin,
+  not logic); **✅ #4 FIXED 2026-06-08 — port nav inputs now replay (cursor was stuck on
+  "Recettear")**: root cause was the port NOT emitting the `PAUSE_OPEN` anchor at the world-map
+  load (retail raises shared cursor `DAT_0438b150=1` → PAUSE_OPEN, §115), so the trace's `{wait
+  PAUSE_OPEN}`-gated nav-input segment blocked forever (`held=0`/`sel=0` every frame). Fix
+  (`main.c`): `pause_active` also counts `scene_state==SCENE_STATE_WORLDMAP`; port anchors now
+  `LOADING_START 616/PAUSE_OPEN 616/LOADING_END 644` (matches retail pattern) and the cursor walks
+  the grid `0→5→4→6→…→3(Market)→1`. **✅ NAV CONFIRMED 1:1 END-TO-END (2026-06-08):** re-windowed
+  the session (`{caprange}`→ the 2nd `LOADING_END` = world-map entry, both sides aligned by frame#)
+  and the full ~20-step nav is pixel-1:1 vs retail (black diff on bg/markers/selected-marker/cursor
+  across wm-frames 70→580; only #5 tooltip differs). **✅ CAPTURE RELIABILITY FIXED 2026-06-08
+  (`020dfca`+`3df8d28`):** the dense-capture `frida-agent.dll` AV (0xc0000005 @ `0xbe5f4e`/`64bc`)
+  symbolizes to CRT **memcpy/memset** — it was OUR ~3 MB/frame in-band `readByteArray`+`send`
+  backpressuring the remote channel, NOT frida-internal. The capture-local `writeRawFile` fix had
+  been **dead** since the frida-17 upgrade (`ensureWinFileFns` used the removed global
+  `Module.getExportByName`). Revived it + routed ALL captures through capture-local (`capture_local`
+  default-on). Proof (isolated title repro, same cmd): in-band → process-terminated @ frame 38;
+  capture-local → all 251 frames, clean, 0 errors, ~8× faster. **`{capstride}` is no longer needed
+  for reliability** — dense both-target captures now work. Record: **`findings/frida-capture-crash.md`**.
+  **✅ #5 WORLD-MAP TOOLTIP DONE 2026-06-08 (user-confirmed 1:1 in the trace viewer):** the
+  top-left travel-time box was NOT the `FUN_0040c4eb` navi box / tod-driven (the old PORT-DEBT
+  guess was wrong) — it is `FUN_00406d50`'s **Draw-2**, a baked **120×80 band of `item_win.tga`**
+  (stacked from `(832,0)`) **selected by the destination** under the cursor (`FUN_00406584`
+  mode-8: dest 6→"dungeon 2 periods", dest 0→"1 period"/"no time" by `DAT_045105a0`, else→"no
+  time"). Ported in `scene1_top_hud_render` Draw-2 + `scene1_top_hud_worldmap_tooltip_tick`
+  (selector) from `sim.c` case 8; slide-in via the shared `FUN_0046c86f` (`ive_box_scale`),
+  reset at world-map init. 3 flagged frames **bit-perfect vs retail (mean 0.00)**; f0–12
+  residual = the #1 load-fade (whole-frame), not the tooltip. engine-quirks §118; town-map-RE.md
+  §5b #5. **WHOLE WORLD-MAP BACKLOG NOW CLOSED:** on the entry-aligned + `{phasepin}` capture the
+  full frame is **bit-identical f16→f638 (mean 0.00, 0 px >8/ch)**, only a sub-8/ch load-fade tail
+  f0–12 (#1, §85, resolves f16) — so #2 marker-pulse + #3 cursor-bob are **1:1** (old divergences
+  were unaligned-frame/unpinned artifacts), #4 nav FIXED, #5 tooltip DONE. The town/world map
+  renders 1:1 vs retail across the captured nav. **Next arcs: the remaining item-display gaps,
+  then the merchant's guild screen.** **Trace-studio editor redesign (2026-06-08, `5f818e3`→`3636762`):** now a
+  **captured-frame-index read-only VIEWER** — x-axis = the dense captured-frame ordinal per side,
+  so a phase/RNG-pinned 1:1 capture aligns with NO forcing logic and a divergence just drifts apart
+  (anchors per-side by true abs frame; emitted inputs/pins mapped once via the reference side;
+  `align.capIndexOfAbs`; semantics **`findings/trace-editor-segment-alignment.md`**). Only the
+  `{caprange}` window stays editable; input/pin + multi-segment-capture editing deferred until the
+  viewer is battle-tested. (Earlier in the arc: capture-window editor + JobTray cancel `111b4f3`.)
+  **T4 (world-map SIM `FUN_0049e163` + cursor-nav `FUN_0049dfc1`, `ba45912`):** entry timer + 3×5
+  grid nav + Z-select; nav path exact-match port-side (`0→2→5→4→6→3→2→1→3→6→0→2→5→0`).
+  **T3 (world-map RENDER `FUN_0049e3a3`,
+  2026-06-07):** the port now RENDERS the town/world map — `scene_worldmap_render`
+  (`src/scene_worldmap.c`) draws the bg **time-of-day crossfade** (2 passes:
+  `worldmap[max(tod-1,0)]` over `[max(tod-2,0)]`, `tod` used RAW = effectively 1-based, pass-1
+  alpha `0xff-ftol((tod-clock)*255)`, clock=`DAT_0438b7d4`=`scene1_top_hud_clock_phase`;
+  COLOROP=MODULATE) → the 7 **mappoint markers** (COLOROP=**ADDSIGNED**;
+  `ARGB(size_alpha, grey,grey,grey)`, grey=0x40 dim/0x7f normal/`sinf(timer*0.15)*16+143` pulse,
+  size_alpha=200/255-selected; selected drawn 180×56 vs 144×44.8; src row =
+  `dest_layout[pos].sprite_row*56`, dst centred on `(x+90, y+28)`) → centred red **"Closed"**
+  labels (scale 1.2), then COLOROP reset→MODULATE (the dispatch's trailing `FUN_0040a765` HUD
+  needs it). All `.rdata` constants objdump-recovered. **Verified:** recaptured `town-walk-debug`
+  (port reaches mode 8 @ frame_abs 924); vs settled retail
+  `town-map-load-fixcheck/retail/frame_00045` the **bg + all markers + the "Recettear" selected
+  banner are bit-matching** (map region excl. HUD corner: **2.68% px @ mean 0.49/ch**). engine-quirks
+  §117. **Residual = FOLLOW-UPS, not T3:** (1) the trailing HUD aggregator `FUN_0040a765` (top-left
+  clock/Day/money + the tutorial text box) is unported for mode 8 (the diff's top-left blob — a
+  separate chip); (2) the one highlighted/pulsing marker (Market, state 2) differs only in pulse
+  PHASE because the entry-timer `_DAT_09643628` is frozen until the T4 sim. **T2 (mode-8 load +
+  plumbing):** the port now EXITS the shop into the
+  WORLD MAP. The live load path is the **PRIMARY worker case 8** (objdump `0x452984` =
+  `FUN_0049de20` init → `FUN_004735ad` load), so `scene_worldmap_init` registers
+  `worker_load_set_cb(8, …)`; the door-exit spawns it. Ported `FUN_0049de20` →
+  `scene_worldmap_init_state()` (dest model + tutorial state array + shared-cursor snap; PORT-DEBT
+  the `FUN_0045de68` event-probe + `FUN_00435c98` scratch + `FUN_00474d92` teardown); extracted
+  `DAT_005fd590` (per-dest x/y/sprite[7]) + `DAT_005fd620` (3×5 grid). Added the stage-2
+  `FUN_0049de0e(0)` (initial dest=0). Mode-8 dispatch wired (sim.c case 8 → `scene_worldmap_sim`
+  T4 stub; main.c render case 8 → `scene_worldmap_render` T3 stub). Renamed `SCENE_STATE_LOADING`
+  →`SCENE_STATE_WORLDMAP`. **Verified `town-walk-debug --only port`:** port anchors
+  `HOUSE_FREEROAM(386)→LOADING_START(613=HF+227, bit-matches retail HF+227)→LOADING_END(678)`
+  (was stopped dead at HOUSE_FREEROAM); mode 8 renders the placeholder clear (render=T3). 8 host
+  tests prove state array `[0,0,0,2,0,0,0]` (dest3 Market). **Gap:** `PAUSE_OPEN` not emitted at
+  the load — the port splits engine `DAT_0438b150` into `g_cursor_visible` (raised) vs
+  `g_scene_pause_state_b150` (the anchor's read); red-herring anchor, pre-existing split. **T1:**
+  `scene1_player_ctrl.c` — the shop-door Z-handler
+  (`player_ctrl_at_shop_door` predicate = facing≈+π/2 ±0.1π & player X>2.895 & not-exited;
+  the engine `bVar17` subset) arms `DAT_074b2ec4` + the dissolve fade `fade_phase1_start`
+  (=`FUN_004526f5`) + the tutorial flag `DAT_0450f3f9`; stage-2 (`player_ctrl_worldmap_exit_stage2`,
+  all.c:86877) freezes the tick through the 16-frame dissolve then flips `g_scene_state=8` +
+  `worker_load_spawn` (LOADING_START). 6 host tests; full suite 3200✓. PORT-DEBT(door-proximity
+  `FUN_005031e4`=sqrt<1.8 gate; door-SE `FUN_0049933c`). Mode 8 renders nothing yet (→T2-T4);
+  the door tooltip render is a follow-up. The "town map"
+  is the **WORLD MAP, top-level mode `DAT_0438b1c0==8`** (preload `FUN_004735ad` = texture
+  slot 10 worldmap day/eve/night + mappoint; sim `FUN_0049e163`; cursor-nav `FUN_0049dfc1`
+  = 3×5 grid; render `FUN_0049e3a3`; init `FUN_0049de20` = 7 dests + **tutorial gating**
+  `DAT_09643588[]` 0=disabled/1=normal/2=highlighted). **Exit = the shop DOOR** (user-confirmed:
+  tooltip → Z-on-door): `house_update` `FUN_0048670f` `all.c:87637` → arm `DAT_074b2ec4` +
+  tile-dissolve fade `FUN_004526f5(0,0x11)` + set tutorial flag `DAT_0450f3f9[slot]` → stage-2
+  `DAT_0438b1c0=8` at `all.c:86877`. **Recon corrections:** `FUN_0045281c` arg-2 is a **load-step
+  COUNT, not a map id** (so `0x11` ≠ quit-to-title); the door does **not** use the mode-9 manager
+  `FUN_00453384`; the exit "PAUSE_OPEN" anchor = the world map raising the **shared cursor** for
+  its destination pointer (red herring confirmed). Chip plan **T1–T5** in the findings doc; the
+  port still stops dead at `HOUSE_FREEROAM`. **Ground truth captured:**
+  `runs/trace-studio/town-map-anchorfix/` = 130 retail TOWN-MAP frames + `retail/call_trace.jsonl`
+  (town map only; the transition frames still need a wider window — Phase 0). Start at the
+  plan's Phase 0 (RE the transition + scene). **The free-roam WALK is confirmed 1:1**
+  (`town-walk-debug`: pixel diff 0.06–0.55 through the walk, hard divergence at the door-Z).
+  **Trace-capture tooling fixes landed getting here (verified end-to-end via the real SPA
+  `CaptureController`):** (1) `787cc51` — `trace_save.resolve_save` accepts a raw `.save.bin`
+  ref, not just a `.sav.gz` blob (recorded traces embed the raw save; the retail drive crashed
+  `BadGzipFile`). (2) `f3a70b3` — a recording with `{anchor}` rows **auto-anchor-segments**
+  (FLAT boot-syncing desynced the input replay + landed the window in the pre-load save-picker).
+  (3) `139d6bd`+`7803369` — the auto-window anchors at the **free-roam entry** (port-reachable)
+  and **caps at the next scene-change** (the comparable walk→door segment), not the LAST anchor
+  (the town the port can't reach yet → it captured 0). (4) `8baf1fe` — `/recapture`
+  **self-heals** a stale (FLAT or town-anchored) working trace by rebuilding from the
+  recording; `139d6bd` also stops re-capture clobbering `source_trace`. Verified via `POST
+  /capture` + `/recapture`: **port 270 / retail 240** (was port 0). A session clobbered by a
+  PRE-fix re-capture needs its `source_trace` repaired or a fresh capture. (5) `626949c` —
+  a window-rebuild **forces a retail re-capture** even under `--only port` (else a port-only
+  re-capture reuses the OLD-window retail → "retail starts at the town" misalignment; the
+  window itself anchors correctly at the first `LOADING_END`=`HOUSE_FREEROAM`).
+- **Tooling — Trace Studio v2 (plan `plans/trace-studio-v2.md`):** Phase 0/1/2/3 ✅.
+  Package `tools/trace_studio/` (model/drive/transport/analysis/edits/record/server +
+  cli; `trace_studio.py` thin launcher); captures write a **v2 segmented
+  `session.json`** (v1 superset + `schema_version:2` + `timeline` with loads as
+  zero-frame seams); D1 load-suppression default-on, EngineCaps-gated. **Phase 3
+  landed 2026-06-07 (Core + CLI drill, user-confirmed 1:1):** D3 **`{capstride:N}`**
+  trace-global two-tier cadence on BOTH targets (thin a `{caprange}` to every Nth
+  frame from its start, anchor-relative → port==retail kept-set, ordinal-paired) —
+  a coarse OVERVIEW for scrubbing a long trace cheaply; `trace_studio drill
+  <session> --at IDX --span N` recaptures a sub-window DENSE (frame = caprange.start
+  + IDX·stride). D2 `--capture-local` now also flows through `export_trace` (local
+  NTFS staging + parallel copyback, run-openrecet `--no-frame-convert`), default-on.
+  Validated: `house-loaded-display-pinned --caprange 120,240 --capstride 8 --target
+  both` → port==retail==30 kept (diff = known faint-dots residual only), 2 port runs
+  bit-identical 0/30, D2 content-neutral 0/30, drill PHASE-CLEAN (verdict exit 0).
+  **A new segtrace op needs THREE parsers** (engine `input_segtrace.c`, agent
+  `segtraceBuildSegments`, retail harness `frida_capture.py` ~L983 — its `else`
+  KeyErrors on `buttons`). **Phase 4 (the new SPA) COMPLETE — S1–S10 landed
+  2026-06-07** (`c492281`→`3f06717`): the whole server backend (dispatch-table
+  `routes.py`, unified `/api/jobs`, mark/analyzer `/api/registries`, `POST /drill` +
+  shared `model/drill.py`), the core scrub viewer (segmented `model.mjs` +
+  Filmstrip/VideoStage/DiffRibbon/ScrubBar), the **side panels** (StatePanel + Verdict +
+  registry-driven MarkBar w/ crop-preview thumbs + a ONE-poller JobTray + lifted
+  Record/Iterate), and **in-browser drill** (`DrillBar` → `POST /drill` → JobTray → open
+  child) at the parallel entry `studio.html` (through S9); old UI untouched. **User-confirmed UX + a
+  responsive panel layout** (`useWide(1280)` matchMedia: wide = videos | full-height State
+  sidebar with Verdict filling the left-bottom + a folded mark/record/iterate "session
+  tools"; narrow = videos→fold→Verdict|State side-by-side). **S9 landed (`7b39d59`,
+  user-confirmed):** the legacy `timeline.mjs` re-homed into `web/components/TraceEditor.mjs`
+  (keeps `align.mjs` as the shared pure core), wired **bidirectionally to the global cursor**
+  (editor cursor derived from `cur` via `view.locate` + the active segment's
+  cadence/`offsetGlobal` + `manifest.port.base_abs` ⇒ absPort = base_abs+k·cadence; scrub the
+  filmstrip→the timeline tracks, click the timeline→the video seeks, snap-to-captured-frame),
+  with a **robustified self-contained extend/edit/`⟳ re-capture` loop** (`web/actions.mjs`
+  shared recapture flush-before-recapture; extend toasts not alerts; scroll-to-cursor on open)
+  as a **lazy-mounted collapsible** under the Filmstrip; old UI untouched. **S10 landed
+  (`3f06717`):** the SPA is now the DEFAULT entry — `index.html` loads `/web/app.mjs` and `/`
+  serves it directly; the legacy `app.mjs`/`timeline.mjs` monolith + the redundant
+  `studio.html` are **deleted**, and the now-dead `/record/status`+`/capture/status` GET
+  routes pruned (the SPA polls only the unified `/api/jobs`; `align.mjs` stays — the
+  TraceEditor imports it; the `recorder/capturer.status()` methods stay — `JobsRegistry`
+  builds `/api/jobs` from them). **Maintainability check PASSED:** a throwaway kind added to
+  `edits/marks.py` / `analysis/registry.py` ALONE surfaced at `/api/registries` (→ a MarkBar
+  button) with **zero JS/route edits**, then reverted. Also hardened the `/`→`/?session=`
+  redirect with `Content-Length:0` so HTTP/1.1 keep-alive probes don't block on the empty
+  body. Verified headless: tools tests pass; `/` 302→SPA; **all 22 SPA import paths 200**;
+  `studio.html`/`app.mjs`/`timeline.mjs`/`record-status`/`capture-status` all 404. **Phase 4
+  COMPLETE** (decisions locked: preserve+robustify the trace editor — done; defer per-segment
+  video — model open). **NEXT → Phase 5** (New-Game: D4 retail intro-video force-skip + the
+  prologue cross-replay RE — `plans/trace-studio-v2.md` → Phase 5; the hardest, last).
+- **Active work:** Phase 1 — the render-parity diff engine. **Vertex capture LANDED**
+  (2026-06-05): both sides (`src/d3d_trace.c` + Frida agent) capture per-draw vertex bytes
+  under `--d3d-trace-verts`; `tools/render_diff.py --explain` FVF-decodes aligned draws and
+  names the first divergent **(vertex, field)** (e.g. `vertex 2 POSITION.z: retail -7.2 port
+  -6.5`). Validated: synthetic field/count/structural/color paths + port↔retail decode the
+  same screen corner on the title. Schema: `findings/d3d-trace.md`; usage:
+  `findings/render-diff.md §--explain`. **Stable texture identity LANDED (2026-06-05):**
+  `SetTexture` now carries a load-stable **`tex_name`** (source asset path) on BOTH sides —
+  port via a `texture*→name` registry (`src/d3d_tex_names.c`, populated at `sprite_load_impl`,
+  host-tested), retail via Frida hooks on the loaders `FUN_0047193c` (UI) / `FUN_00471b24`
+  (mesh). `render_diff._event_key` keys texture identity on the NAME when present (order- and
+  pointer-independent), falling back to the opaque pointer otherwise. Validated on `boot-idle`:
+  the four title textures align by name across disjoint pointer values; retail's extra
+  `nowloading.tga` bind surfaces by name instead of hiding in pointer noise. **Phase 1
+  complete.** (Also fixed a `scenario-test` footgun: `wslpath_w` left a relative `--run-dir-root`
+  output path relative → traces silently landed in the exe's cwd; now resolved to absolute.)
+- **Execution + dataflow trace LANDED (2026-06-05) — the PRIMARY divergence drill-in.**
+  d3d `--explain` names the wrong *draw*; this names the *logic cascade* that produced the
+  wrong state. The port call-tracer carries declared payloads (`CALL_TRACE_BEGIN/FIELD/END`,
+  per-frame `seq`); the Frida agent reads the same-named fields from retail per
+  `tools/flow/retail_fields.json`; `tools/flow_diff.py` aligns the per-frame call CHAIN by
+  `seq` and names the first call whose inputs matched but output/state diverged
+  ([chain]/[data]). Plan + workflow: `plans/execution-flow-trace.md`. Coverage grows with
+  the sweep — each touched function declares its fields on both sides.
+- **Unified harness LANDED (2026-06-05):** `tools/scenario-test.py <scn> --target both
+  --call-trace --d3d-trace --d3d-trace-verts` = ONE command for a synced port↔retail capture
+  (save-virtualized, aligned, **forced 17ms/frame 1:1 timestep** both sides). Flow-trace
+  frame attribution is clean (scheduler→sim→render in seq order). See CLAUDE.md "Run/build".
+- **Phase 2 — IN PROGRESS. `boot-idle` title frame is now STRUCTURALLY 1:1 (2026-06-05):**
+  `flow_diff --mapped-only` reports **✓ chain + data aligned (40 vs 40 calls)** on frames 30
+  AND 60 — the port's instrumented title call chain + the data through it match retail.
+  Three landings got there: (1) **render leg** — `render_quad_add`/`flush` carry per-quad
+  dst/src/tex/diffuse + vcount both sides; the title's quads are bit-1:1 in geometry/UV/
+  texture; the "menu too bright" bug fixed (denormal `0x95`→`0x5f`, engine-quirks §97).
+  (2) **SIM leg** — `scene_title_sim` (0x49a59e) declares its 10 persisted menu-state fields
+  (frame_counter/cursor_pos/cursor_anim/select_phase/pulse_phase/menu_folding_out/submenu_*/
+  settings_dirty/fade_counter) on both sides via the new **`CALL_TRACE_BEGIN_STUB`** (field-
+  bearing + `"stub":true`); verified bit-1:1 (frame_counter==pulse_phase==frame index,
+  menu_folding_out=1, else 0). (3) **render BATCHING fixed** — the port flushed per-quad;
+  retail batches same-texture groups (FUN_0049c644: menu items → one vcount=24 flush under
+  ADDSIGNED, decoration tiles → one vcount=18 under MODULATE; standalone bg images flush
+  per-quad in retail too). Split `title_quad`→`title_quad_add`(no flush)+`title_quad`; port
+  flush vcounts are now `[6,6,6,6,24,18]`, bit-identical to retail (pixel-benign — engine-
+  quirks §98). Tooling notes: `input_poll` (0x47b73c) marked **`chain_benign`** (the TAS
+  harness substitutes synthetic input, so the port never runs the engine's DirectInput poll);
+  Frida arg indexing is **0-based**. **Pixel parity:** `boot-idle` frames 0/30/60 are **0-px
+  port-vs-LIVE-retail** (bit-identical); `golden-retail` was re-blessed 2026-06-05. (The old
+  "benign 896px FPS overlay" was a STALE golden — captured on a day retail's runtime `dispfps`
+  gate read 0 so the bottom-right FPS box baked in; live retail draws no FPS today, the
+  function just early-outs. The 2026-05-27 benign-divergence-registry note no longer
+  reproduces.) **Remaining title gaps:** only un-probed retail-internal funcs (CRT/MCI/audio
+  — coverage gaps, not divergences).
+- **Title scenarios WITH input verified 1:1 (2026-06-05):** drove the three menu-nav
+  scenarios `--target both --call-trace`, diffed every frame with `flow_diff --mapped-only`.
+  • **`title-down-press`** — DOWN steps cursor_pos 0→1 bit-identically on both sides;
+  frames 30/35/50 ✓ chain+data aligned. • **`title-z-press`** — select countdown +
+  dispatch + fade-out all ✓ aligned AFTER fixing a real bug: the selected-item brightness
+  pulse used scale **127** (a guess); the .rdata constant at `0x519468` is **−128.0**
+  (commit a4da502, engine-quirks §99). It diverged by exactly 1 LSB (port 0xf9 / retail 0xfa
+  on the NEW GAME glyph) on the *one* countdown frame where `sin·scale` crossed an integer
+  boundary. Root-caused by Frida-reading retail's render-time pulse counters (identical to
+  the port → ruled out a phase offset) then objdump'ing the constant. Post-dispatch frames
+  (73/90/92+) diverge into the **unported new-game INGAME scene** (port shows a placeholder —
+  expected coverage gap, per scenario.yaml). • **`title-options`** — DOWN×2 nav + the whole
+  settings panel (bg, all six rows, slider values) are 1:1 — **including the hand cursor,
+  now PORTED (2026-06-05).** `FUN_00435747`'s body landed in `title_save_dialog_cursor_render`
+  (40×40 hand from nowloading.tga, src (192,0)-(232,40), dst `(168−|sin(b154·0.1)|·8,
+  row·40+148)`), driven by the shared cursor state (`title_save_dialog_cursor_snap/slide/
+  set_visible` = `FUN_00435693/710/61a/612`): the OPTIONS dispatch snaps it to row 0, settings
+  UP/DOWN slide it (6-frame ease), exit hides it. `flow_diff` frames 39/60 = **✓ 174 vs 174
+  aligned**; the cursor quad is **bit-1:1 incl. the bob position** (port==retail (161.946,148)
+  / (166.543,148)) — the existing `anim_tick` (`FUN_004356cd`) already increments `b154` every
+  title frame so the bob phase lines up for free. boot-idle/down/z unaffected (cursor gated
+  off; visible defaults 0).
+- **Skip-prompt cursor unified + phase-pinned to bit-1:1 (2026-06-05, user-confirmed).** The
+  Yes/No choice box now drives the ONE shared cursor (`title_save_dialog_cursor_snap/slide` +
+  `title_save_dialog_cursor_render` = `FUN_00434def`/`ed2`/`435747`) instead of an inline copy
+  (commit f9708c7). Confirmed against the decompile: retail's `FUN_0043537e` draws banner+text,
+  a *separate* `FUN_00435747` draws the cursor off the shared `abf4/abf8`+`b150` globals.
+  Three things got it to 1:1: (1) **drive via the real ESC dispatch** — the trace's `{esc:2}`
+  op replays `esc_pressed()` on BOTH sides (port `segtrace_esc_cb`; retail `synthesizeEscRetail`);
+  the `OPENRECET_FORCE_SKIP_AT` env hack is **gutted** (TAS is the universal trigger — add
+  anchors, not hacks). (2) **tick the bob every INGAME frame** — `b154` is advanced in sim.c
+  mirroring retail's `FUN_00406584` (was frozen through the prologue). (3) **{phasepin} now
+  zeroes `b154`** (cb4002c) — `DAT_0438b154` free-runs from boot with no reset (engine-quirks
+  §100), so its absolute value is load-dependent (§85); pinning it at `TEXT_ANIM_END` makes the
+  bob bit-1:1. Two port runs with different absolute frames are now bit-identical. **Residual
+  box delta:** ±1 LSB on the gold banner (port gold ~1 darker — 2D-UI colour/texture precision,
+  the same `ledger #52` box-edge-halo class; geometry/UVs proven bit-exact vs `FUN_00404efc`)
+  + the prologue background's own §85 phase. NOT the cursor/box logic. Top/ceiling bit-identical.
+- **Method note (worth reusing):** the `flow_diff` render-leg `col` field caught a 1-LSB
+  greyscale divergence that no side-by-side would; the sim stub logs counters at sim-onEnter
+  (pre-increment) while the render consumes them +1 (post-increment) — when reconstructing a
+  render formula from logged sim state, account for that. Re-bless after a confirmed-correct
+  render change: `golden` (port) + `golden-retail` both went stale (port brightness, retail's
+  long-gone FPS overlay) and were re-blessed for down/z scenarios.
+- **LOAD GAME / continue slot picker rendered 1:1 (2026-06-05, user-confirmed).**
+  The title→load-menu→in-game arc's first screen: ported the faithful
+  `FUN_0049b556` (2810 B) over the old placeholder text-list — a horizontally-paged
+  save-card grid (parchment cards from `item_win.tga`, clock-dial panel, rotated
+  day hand, day/gold digits via the reused HUD `draw_number`, money banner from
+  `pause.tga`, merchant-level badge, right-justified SCORE/LOOP + TIME, NO-DATA,
+  scroll arrows + the "LOAD GAME" banner). Slot fields mapped to `save_bank` dwords;
+  brightness/scale constants objdump-recovered (cards under ADDSIGNED, stat text
+  scale 0.8 vs slot#/NO-DATA 1.0, playtime in frames@60fps — engine-quirks §101).
+  New leaf: `font_draw_text_right` (FUN_0047d2db). `title-load-picker --target both`
+  (fa7c82 save): slide-in **0/786432** diff px, settled **1 px** > 16 LSB. Driven by
+  the beginning of the save-roundtrip reference trace. **Residual ROOT-CAUSED
+  (2026-06-05, user-confirmed "it's the clock hand"):** the 947 px ≤4 LSB is
+  **entirely the rotated gold clock day-hand + hub** (bbox x[138-224] y[171-230]);
+  cards, 0.8 stat text, clock face/ring/pie are all **0 px**. So it is **NOT** a
+  scaling-filter issue — the day-hand quad's verts/UVs/diffuse are **bit-identical**
+  port↔retail (decoded from `--d3d-trace-verts`), so the rotation math is exact; the
+  ±1 LSB is the **rasterizer bilinear-sampling the one ROTATED quad** (diagonal
+  sub-texel blend rounds ≤1 LSB differently across the two capture GPUs). Not a port
+  logic fix. Also surfaced a structural gap: retail draws 3 rotated quads here, port 2
+  (port misses one *off-screen* paged-off needle — no pixel effect). Ledger row +
+  `picker-residual-crop` feed push. (Required a tooling fix first: segtrace `{capture:N}`
+  now also arms the port d3d emit for that frame — commit fffee2e — else `--d3d-trace`
+  over a screenshot-only segtrace emitted 0 events.)
+- **Dialogue `ive_window` box-edge "halo" — FIXED 2026-06-05 (user-confirmed 1:1):
+  `ive_box_scale` used `cosf`; retail's `FUN_0046c86f` calls `FUN_00503a44` = `sinf`.**
+  The 2026-06-05 AM "box SCALE / bounce-anim PHASE" call was half-right (it's scale, not
+  a texel delta) but the cause was the wrong trig fn, not a phase offset. Per-frame Frida
+  watch (`runs/dlg-box-watch{,2}`: `DAT_073a3e14`/`e00`/`e04`/`6a38` + `--d3d-trace-verts`)
+  proved `box_open` AND `line_row` are **bit-1:1 port↔retail at every captured line (0/46**
+  at END+2). The divergence was purely cos-vs-sin: at the settled box (n=15, angle 3π)
+  `sin(3π)=0` ⇒ sx=sy=1.0 (full size), `cos(3π)=-1` gave 0.9875/1.0125 — a ~5px-narrower,
+  X-shifted box (box X centres on sx), rippling through frame+nameplate+text → ~116k px/
+  line on the iv1_1 bedroom lines. Decoded retail box-widths match the **sin** table
+  frame-for-frame, no cos value. Fix: `src/scene1_dialogue_run.c` cosf→sinf (engine-quirks
+  §103; port golden re-blessed). cap_00 vs retail **116539px→856px** (residual 856 =
+  benign stale-golden FPS corner). Lines 0–15 pixel-clean; 16–45 keep only the deferred
+  iv1_2 freeroam-anim gaps. New tooling: port `--dlg-log` (per-frame box-anim JSONL) +
+  scenario-test passthrough. **Method:** decode a scale from d3d verts, match vs the
+  *discrete* FUN(integer-n) table — port widths hit it exactly (cos), retail's didn't =
+  signature of a wrong trig fn, not a phase drift.
+- **Skip-prompt `savewindow.tga` banner + text — FIXED 2026-06-05 (user-confirmed box
+  1:1).** The ~−1 LSB gold (`[237,200,52]` vs retail `[238,201,52]`) + text-edge halo was
+  a **wrong COLOROP**, not TGA/colour precision. Decoded the banner verts FIRST (per the
+  queued chase): positions/UVs/diffuse **bit-identical** port↔retail → ruled out scale/
+  phase/texture. The trace showed the COLOROP set immediately before the `savewindow.tga`
+  bind differing — port `5` (MODULATE2X) vs retail `8` (ADDSIGNED). `FUN_0043537e` sets
+  COLOROP=`8`=**ADDSIGNED** (`texel+0.498−0.5`≈texel at the 0x7f7f7f vertex colour = TRUE
+  brightness); the port had mis-labelled the decompile value `8` as "MODULATE2X" (enum 5,
+  = `texel·0.996` = 1 LSB darker). Second facet (user-flagged): retail holds ADDSIGNED
+  through the prompt+Yes/No text (reset to MODULATE only at the END, L32830) and draws them
+  at 0x7f7f7f; the port reset early + drew full-white under MODULATE → the ≤1-LSB text-edge
+  halo, visible *only here* (all other text is MODULATE+white both sides). Fix
+  (`src/choice_box.c`): ADDSIGNED for banner, hold through text @0x7f7f7f, reset after.
+  `intro-skip-prompt --target both`: box+text+cursor region **0 px** vs retail (both caps,
+  was 92k ≤1-LSB px in the banner bbox); remaining full-frame delta = prologue bg §85 phase
+  only. engine-quirks §104; ledger "savewindow banner+text" row; port golden re-blessed.
+  **Lesson:** flat-colour ≤1-LSB UI diff + bit-identical verts ⇒ suspect COLOROP/blend
+  render-state (and the enum-value-vs-name trap), not texture decode.
+- **Queued next:**
+  1. ~~**`intro-dialogue-lines` lines 5 + 44 outliers.**~~ **RESOLVED via PHASE-PIN
+     2026-06-05 (user-confirmed "much better").** Root cause was **load-dependent phase**,
+     not logic: the standee/actor slide & per-line deltas rode the free-roam phase origin
+     (§85). Proof: standee-5 slide trajectory is **bit-identical** port↔retail when aligned
+     to slide-start (flow-trace `st5_x/y` at dialogue-tick `0x46c320`, both sides — see
+     `tools/flow/retail_fields.json` + `emit_dialogue_calltrace`). **Fix:** added
+     `{phasepin:2}` before each `{capture:2}` in the trace → zeros db054/player-anim/b154
+     on BOTH sides at every captured frame. **cap_05 122444px→871px (clean)**; 8 more lines
+     dropped to the FPS baseline; user-confirmed across the 46-panel comparison. Tooling
+     landed: standee dump in `--dlg-log`; `flow_diff` field-timeline now **stream-filters
+     by va** so a 2GB whole-engine trace no longer OOMs (`9725b66`). **Remaining (per the
+     46-panel both-run, post-phasepin):**
+     - ~~**cap_44 (iv1_2 "RECETTE!").**~~ **FIXED 2026-06-05 (commit 21b6ab5,
+       user-confirmed shake theory).** It was the **dialogue STANDEES** (Tear/Recette
+       portraits + giku/hatena manga marks), NOT the freeroam actor — the prior
+       "freeroam actor / not-a-standee" call was wrong (its "standees settled y==ty"
+       logic only compared port-y to the port *target*, never to retail). Root cause:
+       retail's un-ported **`rmb` screen-shake** jitters every standee's Y by
+       `(rand()&0x1f)-16` per frame from the line start (per-frame `--d3d-trace` shows
+       ±20px; the port drew them static). **Fix:** ported the shake (engine 0x46d926 +
+       FUN_0046c9a2 L67606; engine-quirks §105) — `IVE_OP_RMB` arms the countdowns, the
+       tick decrements, `draw_standees` jitters Y per drawn standee via `rng_next15()`;
+       `{phasepin}` zeros the countdowns on BOTH sides so the capture is un-shaken.
+       cap_44 standees all 4 at **delta 0.0** px; full-frame 89080px→5596px. The 5.6k
+       residual = the **window NPCs** (item #2, top-center `chr10`), not the standees.
+     - ~~**iv1_2 window NPCs.**~~ **RESOLVED 2026-06-05 (user-confirmed 1:1, commit
+       e107a2c).** The 6 background-window NPCs ride the shared LCG, so their drift state
+       at a captured line depended on the load-dependent intro RNG history → different
+       drift positions port↔retail despite bit-faithful spawn/drift logic. Fixed by
+       extending **`{phasepin}` to re-run the bg-NPC warmup from a canonical seed (19937)
+       on BOTH sides** (port `scene1_bg_npc_phasepin` + retail `FUN_0046f621` onEnter
+       seed/gate force). Every iv1_2 line's window band **2478px@mean0.76 → 424px@mean0.00**
+       (≤1 LSB), bit-stable across all 30 lines. Doubles as the parity test (each side
+       runs its own spawn code from the same seed) ⇒ bg-NPC logic confirmed 1:1. Dialogue
+       README hero recomposed from the 1:1 run.
+     - ~~**Free-roam bg-NPC RNG desync** (do they STAY 1:1 after the dialogue?).~~
+       **RESOLVED 2026-06-05 (user-confirmed, commit 4fce60b).** `house-idle-npc-drift`
+       (one `{phasepin}` then free-run) showed the NPCs bit-locked through +50 then
+       diverging at +100 — "logic exact, RNG origin thrown off by a call-count diff" (the
+       desync is immediate at the LCG level; the visible jump is the first *respawn* off
+       the desynced stream). Drilled via `rng_callsites`: retail consumes caller
+       **`0x443606` once on EVERY idle frame** (the §95 dev-overlay LCG step), which the
+       port was **wrongly movement-gating** (§95 REVISED 2026-06-04 — a measurement
+       *confounded by the then-un-pinned bg-NPCs*). Decompile (`442cef.c LAB_004435f7`) is
+       unconditional. Reverted to unconditional ⇒ post-fix the NPCs stay bit-locked across
+       a 260-frame idle window (≤69px@mean0.00 at +2…+260). engine-quirks §95 re-corrected.
+     - ~~**Tear (companion) phase.**~~ **RESOLVED → 1:1 2026-06-05 (user-confirmed "yes
+       that is 1:1").** It was **RNG-phase noise, not a Tear bug** — NOT position, NOT
+       anim-phase, NOT render. The `house-idle-npc-drift` scenario trace carries
+       `{phasepin}` but **no `{rngseed}`**, so the type-0x1f wing-sparkle particles
+       (RNG-jittered) spawned at a different LCG origin port↔retail and the whole Tear
+       region (drift bbox x[522-567] y[370-441], ~2000px@mean0.95) lit up. **`phase_probe
+       house-idle-npc-drift`** (auto-adds BOTH `{phasepin}` and `{rngseed}`): **✅
+       PHASE-CLEAN** — companion `cframe/ccnt/coct/canim` AND raw LCG (`rng`/`rngcalls`)
+       all **bit-exact** vs retail at +2…+258. Pinned pixel-diff: Tear crop cap_00
+       14.59%/mean0.77 → **0.55%/mean0.00**; cap_05 (+258) **0.05%**; **FULL frame
+       0.04%/mean0.00 = bit-1:1** (diff black). Body anim + wing-glow + sparkle particles
+       all 1:1; spring-follow position also 1:1. §73 "wing-sparkle renderer invisible
+       today" is **stale** (particles render + match). **Lesson:** "present even +2
+       post-`{phasepin}`" was misleading — `{phasepin}` does NOT pin RNG, and RNG-driven
+       particles dominate the visible companion region; for any free-roam
+       sprite-with-particles delta, pin BOTH phase + RNG (run `phase_probe`) before
+       suspecting logic/position. Tooling: `phase_probe` now reaches the capture window on
+       large-offset HOUSE scenarios (port `--max-frames` passthrough + export_trace
+       `{savefile}`/@fresh resolution).
+     - **faint ambient particle dots** — DEFERRED (user-flagged, with ref crops 2026-06-05:
+       cap_03 box 239,884,253,901 + cap_02 box 241,966,256,984 in the
+       house-idle-npc-drift 190341Z montage). Very tiny/faint drifting dots; a
+       still-unported ambient emitter (the §95-class below-band ~1.6k px residual,
+       unaffected by the bg-NPC/overlay fixes). Low priority; chase after Tear.
+     - **next-line "book" arrow = WRONG ANIM FRAME on iv1_2 lines 17/22/29/35/**41**
+       — DEFERRED (user, "note it down for later", flagged again 2026-06-05 w/ per-line
+       crops cap_17/22/29/35/41).** Port bug: `scene1_dialogue_draw.c` draws it from a
+       `static int s_blink` that **never resets per-script** + isn't synced to retail's
+       `DAT_073a3e0c` (resets per-script in `FUN_0046c0ae`, ++ in draw) → the book/page-turn
+       advance-prompt sits on a different animation frame than retail. Fix: draw from the
+       per-script-reset `rt->blink` ticked in-draw, and add it to `{phasepin}` (port zero
+       `g_rt.scene.blink`; Frida zero `DAT_073a3e0c`).
+  2. ~~**BUG: LOAD GAME → X-back locks main-menu input.**~~ **FIXED 2026-06-05**
+     (commit 324ddb3, user-flagged). Root cause was NOT submenu_state (the port
+     already wound that back) but **`select_phase` left pinned at 0xf** from the
+     A-press open-countdown: the main-menu input gate (`scene_title.c` L455) only
+     runs in the `select_phase == 0` branch, so after backing out it fell into the
+     no-op countdown `else` branch forever. Engine `FUN_0049a59e` resets
+     `DAT_09643544` (select_phase) to 0 on the cancel fall-through (L101197) — the
+     port now mirrors that. Localised exactly as intended via the new
+     `title-picker-cancel --target both --call-trace` scenario: the per-frame title
+     sim stub showed port `select_phase=0xf` / retail `=0` on the back-out frame.
+     **Also made the back-out RENDER faithful**: retail leaves `DAT_09643524`
+     (submenu id) set through the fold-out and lets the `cursor_anim` render-gate
+     stop drawing, so the picker **slides off-screen, it does not pop** (engine-quirks
+     §102). Port keeps `submenu_state` set through the slide, clears it at
+     cursor_anim==0. Verified bit-1:1: post-back-out menu + DOWN are 0-px vs retail,
+     cursor moves 1→2; sim state (select_phase/cursor_anim/cursor_pos/submenu_state)
+     1:1 through the fold-out. (Residual: benign steady-state submenu_state 0-vs-stale-id,
+     no render/input effect.)
+  3. ~~**In-game load** — continue the save-roundtrip trace past the picker (load the
+     fa7c82 save into HOUSE free-roam).~~ **DONE 2026-06-05 (user-confirmed money +
+     confirm-flash 1:1).** New scenario `title-load-confirm` drives title → A (open
+     picker) → A (confirm) → fade → LOADING → HOUSE. The **transition is structurally
+     1:1**: `flow_diff --field-timeline` shows `scene_title_sim` all 10 fields aligned
+     through the confirm; the `fade_tick` raw-frame "divergence" is just the in-game
+     fade-IN landing at a load-stretched absolute frame (retail HOUSE_FREEROAM ≈14643
+     vs port ≈2400). Three real bugs found + fixed, all the same class (**live HUD
+     globals not restored on a CONTINUE load**, the engine loads them in the
+     `FUN_0049a59e` commit; the port had the setters but never called them):
+     - **selected-slot LOAD-FLASH** (commit 608b27d, engine-quirks §106) — the picker
+       render's `param_6` (`sin(p6·π/30)·128` brightening the chosen card during
+       fade-out) read a dead `pulse` field stuck at 0. `param_6` IS the fade counter
+       (`DAT_0964351c`); repointed to `g_scene_title_anim.fade_counter`. cap_01
+       186674px/mean10.15 → 737px (max **4 LSB**). User-confirmed 1:1.
+     - **in-game money** (commit a0efc5e) — `N,NNNpix` banner stuck at the new-game
+       default 1000; engine loads `DAT_0438b918 = working dword 3 (GOLD)`. Now 440
+       (fa7c82 gold), matches retail. User-confirmed.
+     - **day-clock hand** (commit 6e38232, engine-quirks §107) — `DAT_0438b7d4` stuck
+       at 0 → hand ~⅙-turn off. Engine **snaps** it to the saved time-of-day on
+       CONTINUE (`= working dword 0xb0fc`, Frida-confirmed retail live == save == 1;
+       NEW eases up from 0). Render was already faithful. Clock crop 2820px/mean7.04
+       → 96px (1px >4LSB). Also restores day (`working[CARD_DAY]=0xb0fb`).
+       **Method note:** an early "saved phase == 0 ⇒ not a load bug" conclusion came
+       from a **miscomputed hex offset** (0xA0FC vs the correct 0xB0FC); the decisive
+       fix was a Frida `--watch` of the retail live globals, not more decompile-staring.
+     **Remaining HOUSE-arrival diff (post-sparkle) = the Tear companion cluster only.**
+     The window NPCs + the shop-display sparkle now align — see the sparkle note below.
+- **目玉商品 shop-display sparkle LANDED & validated 1:1 (2026-06-06, user "looks
+  great!").** The per-item twinkle now renders over the display swords. Emitter
+  `player_ctrl_display_sparkle_emit` (FUN_0048670f prologue: every 8th frame, template
+  0x3b over each occupied back-row cell, 3 RNG draws/cell) + records-A overlay render
+  (commit 28aec93). Two root causes, both decoded from the **actual** retail d3d-trace
+  (runs/sr-retail frame 707): (1) the overlay **sticky texture-cache desynced** — foreign
+  renderers (chr walker) bind textures directly without updating the private cache, so the
+  sparkle's `effect00.bmp` rebind was skipped and it sampled `chr02.bmp`; fixed by
+  invalidating on entry (commit ee1e1c2, retail's cache is global). (2) **CULLMODE**: retail
+  sets CULL=NONE at 0x41784d before the dispatch; the quad winding is back-facing under the
+  scene default CULL=CW so it was silently culled (engine-quirks §108). ALPHATEST stays 1
+  (effect00 star texels opaque). **Pinned validation** (`house-loaded-display-pinned`,
+  `{phasepin:80}`+`{rngseed:[80,19937]}`, --target both): full-frame maxdiff is **black
+  except the Tear cluster** — the sparkle AND the window-NPCs are now **bit-aligned with
+  retail** (the RNG self-fix landed as predicted: the emitter's LCG draws realign the shared
+  stream). Docs: `findings/shop-item-display-RE-status.md`.
+- **CONTINUE-load idle FACING — RESOLVED 1:1 (2026-06-06, user "basically fully 1:1
+  other than the known dots").** The bottom-center cluster was **Tear's facing only** —
+  the *player* facing was already 1:1 (`poct=6` both sides; the FRONT hypothesis that
+  Recette faced wrong was WRONG, overturned by the flow-trace). Retail's loaded-shop fairy
+  faces **DOWN (octant 4)**; the port forced octant 2. Root cause (commit eb62d3c,
+  engine-quirks §109): the port's companion idle rule `(comp.x<=player.x)?6:2` is
+  `FUN_0048a833`'s **intro-only branch A** (the iv1_1 "Recette looks up at Tear" scene);
+  the real free-roam law `FUN_0048a4d1` writes facing ONLY on a *moving* frame, so an idle
+  fairy HOLDS its entry seed (octant 4). Fix: idle branch sets anim only, leaves facing
+  untouched. `flow_diff --verdict --align-field db054`: `coct` CONST-OFFSET −2 → **ALIGNED**,
+  whole frame **PHASE-CLEAN**.
+- **Tracing modernized — ad-hoc per-frame logs retired for the flow-trace (2026-06-06).**
+  The facing chip was driven entirely by `scenario-test --target both --call-trace` +
+  `tools/flow_diff.py`, now a **superset of phase_probe**: `--verdict` (ALIGNED/CONST-OFFSET/
+  DRIFT + authoritative `rngcalls`), `--align-field db054` (pair load-stretched captures —
+  port f475 vs retail f14285), `--rng-drill`. Per-frame actor state + RNG are flow-trace
+  fields now (`house_update` 0x48670f + `tick_scheduler` 0x47be92 probes, mirrored in
+  `tools/flow/retail_fields.json`). **Removed:** `phase_probe.py`, `facing_reconstruct.py`,
+  `wall_collide_diff.py`, `recette_anim_probe.py`, port `--player-pos-log`/`--dlg-log`/
+  `--dust-log`, retail `--watch`. **Annotate functions on both sides as you go** — that IS
+  the state-comparison tool now. Cheatsheet: `flow-trace-cheatsheet.md`. Good `/clear` point.
+- **HOUSE free-roam Tear CONFIRMED 1:1 + flow-trace stale-row bug FIXED (2026-06-06,
+  commit 6186bba).** User flagged a Tear sprite diff on `house-idle-npc-drift` cap_00. Run:
+  it's a **`{phasepin}` transient, not logic** — the pin zeros db054 (her bob/phase clock)
+  without snapping her spring-lerped position, so she re-converges over ~48 frames; body
+  diff settles **1831→249→0 px by cap_02** and is bit-perfect after (steady-state 1:1,
+  render-verified). The `flow_diff --verdict` `coct 6/4` that *looked* like a facing bug was
+  a **trace-pollution artifact**: the port emitted `0x48670f` on EVERY `scene1_player_ctrl_tick`
+  incl. the iv1_1/iv1_2 prologue (actors at `pose_house_standing` init: px −0.30, pcnt 25,
+  coct 4) → 1562 stale rows vs 270 live, mis-paired vs retail's 271 clean free-roam rows.
+  **Fix:** gate the emit on the real-free-roam condition (`s_actor_char[0]!=-1 && s_cc08==1 &&
+  !intro_dialogue_active && !loading`, the walk-arm guard). After: 271 rows, `--verdict` =
+  **PHASE-CLEAN, every actor field ALIGNED bit-exact** (coct included) → Tear free-roam is
+  1:1. New bench `house-idle-drift-tearpin` (drift + `{calltrace}`); gotcha documented in
+  `flow-trace-cheatsheet.md` ("gate the emit to the hook's state"). **Method:** when a HOUSE
+  actor field shows a constant offset, FIRST check pixels + a `distinct px` histogram (one
+  stale value + the live value = the tell) before trusting the verdict. **Deferred (user,
+  final-polish phase):** the faint ambient "dots" — they no longer reproduce as a >4-LSB
+  divergence on the current build (drift caps are bit-1:1 within 4 LSB outside the RNG-
+  unpinned Tear sparkles); chase in a polish pass.
+- **NEXT ARC — shop-display interaction + save/load roundtrip. Phase-A RE COMPLETE
+  (cc04 correction 2026-06-06).** Goal: reproduce `tests/traces/save-roundtrip/` — load
+  save → walk to the sword → **remove it** → **save** (pause) → **quit to title** → reload
+  → 2 swords left. Pinned the two live-traced call sites (open ret `0x488d8a`, update ret
+  `0x48915f`) in `vendor/unpacked/` asm: they are the **`cc04==1`** in-house display-stand
+  menu — **NOT** `cc04==2` (the earlier rewrite mis-mapped them to the furniture-grid path
+  `DAT_074b2ed8`/`DAT_0450ff30`). cc08 stays `1` throughout; **`DAT_0438cc04`** is the real
+  gate (0→1 on Z, →0 on close). **Open gate** (asm `0x488cce`–`0x488d85`): Z (0x10) + faced
+  stand's furniture-flag `DAT_0450fee8[fidx]==0` + `DAT_0450f3f2≠0 && DAT_0450f400==0 &&
+  cbfc≠-1` → `FUN_00482a71` (interact pose) + `cc04=1` + **`FUN_00468338`** open + slide
+  `DAT_0734b98c` (`FUN_004693e3` every frame). **Update** `FUN_00469414(1)` every menu
+  frame. **Removal** = update returns 1 → `FUN_00469a9f()`==-1 ("select none") → write -1
+  into grid **`DAT_044f7030[cbfc+cc00*0x14]`** (= save dword 0x4e26 =
+  `SAVE_BANK_FIELD_DISPLAY_GRID`, the SAME grid the sparkle reads; cell 4 = the x=-1 sword)
+  + `FUN_00468d22` inventory return → `cc04=0`. **Render** `FUN_0046b00a` + `FUN_00485f8c`.
+  **Sim-freeze CONFIRMED:** `db054` holds at **157** for the whole 76-frame menu window
+  (frames 14135→14211 on retail), resuming 158 on close, while `FUN_0048670f` keeps ticking
+  — engine-quirks §110. Tooling: retail `0x48670f` hook now declares **`cc04`** (the field
+  the original RE missed) + corrected `cbfc/cc00` notes. Full RE:
+  **`findings/shop-display-menu-RE.md`** (correction-2 box at top).
+  - **A0/A0b LANDED 2026-06-06 (commit 476871c) — furniture layout grid + cell highlight.**
+    The open gate needs `cbfc` (a highlighted display cell), which needs the cell detector
+    `FUN_0048619f`, which reads the furniture-layout grid `DAT_074b28e8`, which `FUN_0048960d`
+    rebuilds from the per-shop-tier base template (4 HOUSE tiers extracted from `.data`
+    0x5cd104) + one stamped footprint per placed furniture. The back-row sword stand exists
+    ONLY as furniture[1]'s 1×4 stamp (row 0, cols 1-4) — the base template has no stand cells.
+    The furniture data (count=3 + mesh_type/rot/origins) is **already populated in production**
+    by the walker-phase2 writer (`scene1_preload.c`), so no new wiring/render risk (the
+    "`phase2_count==0`" header comment was stale). New module `src/scene1_shop_display.c`
+    (grid rebuild + `FUN_004860c8` furniture-index + the cell detector); wired into the
+    prologue (rebuild) + walk tail (highlight, gated on `DAT_0450f3f2`). **Also fixed
+    engine-quirks §111:** the pure-UP (-z) facing is stored as **-π**, not the
+    `atan2(0,-1)=+π` branch cut (latent — sin/cos + octant are sign-invariant at ±π — until
+    the cell detector classifies via `ftol(pang/π·10)`: -π reaches the back stand, +π the
+    wrong cell). New `cc04/cbfc/cc00` flow-trace fields. Verified: port resolves **cbfc=4,
+    cc00=0, pang=-π** at the back stand, matching retail.
+  - **A1 LANDED 2026-06-06 (commit c017c47) — open gate + slide + sim-freeze.** Z-press edge
+    (`g_sim_buttons[0].pressed & 0x10`) + cbfc≠-1 + shop gates + visible stand → cc04 0→1,
+    interact pose (anim 3), open SE's 1 LCG draw, the `DAT_0734b9a0/98c` slide
+    (`stage_load_pulse`, ramps 0→5). db054 freezes via the companion-clock gate on cc04==0.
+    Verified on `house-display-remove --target openrecet`: cc04 0→1 on Z, **db054 freezes at
+    157** — the exact retail value (frames 14135-14211). PORT-DEBT(A2, FUN_00468338): the
+    inventory item-list build is deferred to the update chip.
+  - **RNG parity on the both-run = phase origin, NOT a bug (2026-06-06).** A `--target both`
+    of the unpinned `house-display-remove` shows sparkles/bg-NPCs drifting; the cause is the
+    load-dependent §85 origin, not logic: aligned by `db054` the per-frame RNG CONSUMPTION is
+    **bit-identical** through the walk+open, and the LCG VALUES are a rigid constant shift
+    (`port[db054=d]==retail[db054=d+4]` everywhere — same sequence, offset by the phase
+    origin). The trace's `{rngseed}` (captured retail seeds) doesn't transfer cross-target; the
+    fix is the standard `{phasepin}`+canonical `{rngseed:19937}` (bg-NPC warmup re-run) —
+    landed as the **`house-display-remove-pinned`** variant.
+  - **A2 LANDED 2026-06-06 (commit 2c47bf7) — update + grid-write removal.** The cc04==1
+    menu arm ticks `FUN_00469414` + acts on its 1/2/3 return; the confirm removes the sword
+    (cursor on the index-0 "select none" → `FUN_00469a9f()==-1` → grid cell = -1 +
+    `FUN_00468d22` inventory return), then closes. **Verified 1:1**: db054 freezes 157→158,
+    grid cell 64→-1, cc04/cbfc/cc00 bit-exact vs retail. **User-confirmed the sword is
+    removed.** The PAUSE_OPEN/CLOSE sync anchor now fires off `cc04` (NOT a save-dialog
+    cursor write — the display menu is a *separate* subsystem from the radial-blur pause/save
+    menu). **Fixed a "broken white HUD"**: the open had snapped the shared DAT_0438b150 cursor
+    (faithful to FUN_00435693), but the port's save-dialog window render is gated on b150
+    alone, so it spuriously painted the save window over HOUSE — decoupled (b150/cursor lands
+    with the menu render). **A2.1 (d68557e):** tick the player interact-pose anim each menu
+    frame (FUN_004897c6 tail) — pframe 0→1 at pcnt 9, **bit-exact vs retail** (the earlier
+    "Recette faces the camera" was a frame-mismatch artifact: I compared the port's menu frame
+    to a retail *pre-open* walk frame). +7 host tests.
+  - **⚠ CORRECTION 3 — frame-by-frame retrace (2026-06-06 PM); the A2 "white HUD fixed" +
+    the implied "interaction looks right" claims were WRONG.** User re-flagged the interaction
+    as badly broken; a contiguous frame-by-frame retrace (new bench
+    `house-display-remove-opentrace`, `--target both --call-trace --d3d-trace-verts`) shows the
+    REMOVAL LOGIC is fine but the WHOLE UI is missing/broken. Full corrected diagnosis + exact
+    chip recipes: **`findings/shop-display-menu-RE.md` CORRECTION 3** (read it). Summary:
+    1. **Pose/facing = 1:1** (user-confirmed) — not a bug.
+    2. **White HUD NOT fixed.** At PAUSE_OPEN+29 the HUD `item_win.tga` panels go flat grey
+       (157) and stay — same draws/verts/tex-ptr/states as the gold frame, so it's an
+       item_win **bind desync** (§108 class), not the b150 thing A2 "fixed". Retail rebinds
+       item_win every frame via the menu render ⇒ porting the menu (below) should fix it.
+    3. **Slot "highlight" = two unported renderers:** (3a) the orange cell glow =
+       `FUN_0045aa36` Block G (the documented STUB in `scene1_chr_shadow.c`); (3b) the
+       "Worn Sword" name bubble+text = `FUN_00409925` L6425-6505 (needs the world→screen
+       proj `FUN_00490c78`).
+    4. **Menu UI wholly unported** — `FUN_00468338` population (param_1==0 inventory scan +
+       item-DB category tabs + sort) + `FUN_0046b00a` render (item_win panels → rows/icons/
+       text → description → cursor). `DAT_073d8748`=item_win, `DAT_073d8678`=data_win (cursor).
+       Item DB + font already ported. Build per the CORRECTION-3 chip plan (C3a/C3b/C4a/C4b),
+       validating each quad group vs `--d3d-trace-verts`. (A2.1's pose-anim tick stands.)
+       The earlier "multi-texture / single-item_win white blob" A3 note conflated the HUD's
+       item_win with the menu's — both are item_win; data_win is the cursor base, not the bg.
+  - **C4a/C4b LANDED 2026-06-06 PM — the menu RENDERS (user-confirmed panels 1:1).**
+    C4a (population): `FUN_00468338(0)` ported — inventory scan + item-DB category tabs +
+    `chr_prepass_sort` co-sort, each tab led by a -1 "Nothing" entry, items deduped w/ counts
+    (`scene1_display_menu.c`). C4b-1 panels (`FUN_0046b00a`: main panel src(0,0,400,320),
+    category frame, scroll arrows; slide-in via the `DAT_0734b98c<<7` ramp) — **user-confirmed
+    1:1**. C4b-2 rows (icon `item_icons[cat]` at xL+72 + name/count text at xL+120, y=row*0x22+92,
+    scale 0.8). C4b-3 "Swords" category header (`FUN_0047d14c`, center_x=xL+204). Text colour
+    white (engine ADDSIGNED+0x7f7f7f ≡ MODULATE+white). Wired in main.c after
+    scene1_render_overlay. **Remaining C4b-4:** hand cursor on the selected row, the bottom
+    item-description panel, per-row type colours + selected-row pulse. Then C3a/C3b (orange cell
+    glow + name tooltip).
+  - **C4b-4 LANDED 2026-06-06 PM — cursor + nav + description + tip; user-confirmed 1:1.**
+    (1) **Cursor-init** (FUN_00468338 tail) starts the cursor on the first REAL item (skip
+    the -1 "Nothing" lead) — why retail highlights the displayed sword + its description;
+    a cursor-UP selects "Nothing" (the removal). (2) **Nav** (faithful FUN_00469414): cursor
+    up/down + scroll, tab switch, page-jump, the held auto-repeat mask, slide the shared
+    cursor on move, the "Number possessed" recount. (3) **Hand cursor** = the SHARED
+    `title_save_dialog` cursor (FUN_00435693/710/747 — same as title/options/skip-prompt),
+    snapped at open (x=280, y=(cursor-scroll)·36+96), hidden on close, drawn at the menu tail
+    (FUN_0048fdaf order: FUN_0046b00a→FUN_00435747). (4) **Description panel** (FUN_00469b3a):
+    item_win bottom bg + desc lines + **"Base Price- %s"** + **"Number possessed- %d"** (DASH,
+    `s_…_005c75f0/7638`; retail "Base Price- 200" data-driven). (5) **"Button 3: Item Details"
+    tip** = BAKED data_win.tga strip src(288,320,488,352) dst(440,440,200,32). Host tests pass
+    (3192); the removal test rewritten self-contained (synthetic DB+bank). **STILL MISSING
+    (user-flagged):** the **"Exchange with what?"** world-projected prompt bubble (a localized
+    message-table string, NOT an .exe literal; shares FUN_00490c78 projection with the deferred
+    C3b tooltip) + per-row type colours (FUN_004361b2 daily-market price-trend, unported).
+    Full RE: `findings/shop-display-menu-RE.md` (session 2026-06-06 PM #2).
+  - **WHITE-UI bug ROOT-CAUSED + FIXED 2026-06-06 PM (the CORRECTION-3 #2 "bind desync"
+    hypothesis was WRONG).** Not a texture/bind issue — a **COLORARG leak**. The d3d device's
+    COLORARG state is persistent across frames; the port's 3D renderers (chr/dust/mesh/
+    alpha_walker/目玉 sparkle) set `COLORARG1=DIFFUSE` / `COLORARG2=CURRENT|TEXTURE` and never
+    restore. **Retail NEVER sets COLORARG** (a whole menu-frame d3d-trace has ZERO COLORARG
+    sets → its UI always sees the D3D defaults TEXTURE/CURRENT). The walk-dust re-paired
+    COLORARG2=TEXTURE every frame, masking it; the cc04 menu freezes the walk → dust stops →
+    the leaked `COLORARG1=DIFFUSE + COLORARG2=CURRENT` reaches the 2D UI, whose MODULATE =
+    diffuse·current = WHITE (texture only in alpha → silhouette/shape preserved). **Fix
+    (commit c4be7d5):** `render_quad_state_setup` restores COLORARG1=TEXTURE, COLORARG2=CURRENT
+    (retail's exact UI state). Verified: HUD+menu stay gold across the whole menu window; title
+    boot-idle still 1:1. **New reliable tool `tools/d3d_state_at_draw.py`** — replays a d3d
+    trace carrying the FULL device state FORWARD (state is persistent across frames) and prints
+    the complete color/alpha/filter/blend pipeline at any draw. Use this for state-at-draw
+    questions; per-frame state tracking misses inherited state (the reason the trace "looked
+    identical" on white vs gold). engine-quirk: retail leaves COLORARG at defaults for all UI.
+- **Prologue conversation-pose gap — STEP 1 LANDED 2026-06-06 (commit d97c530).**
+  Investigating why retail-recorded NEW-GAME traces couldn't replay 1:1 to free-roam
+  on the port (the `{wait CONV_POSE_START}` chain desynced). Root cause: the port
+  posed the iv1_1/iv1_2 chibis only during iv1_2 (`generation>=2` proxy) so it fired
+  **no `CONV_POSE_START` during iv1_1**, where retail (BSS-zero talk flag
+  `DAT_0450f470`) fires one. **Fixed** by gating the pose on plain
+  `scene1_intro_dialogue_active()` (both scripts; `active()` is false during the
+  inter-script `D_LOAD` so the pose blips off/on like retail). Port now fires
+  `CONV_POSE_START`/`END` **×2** with the blip (was ×1) — matches retail's count +
+  END positions. engine-quirks §113. **REMAINING (last ordering gap, scoped):** retail
+  enters the pose **~49 frames before `HOUSE_FREEROAM`** (chibi actors spawned+posed
+  mid-load), so retail order is `LOADING_START → CONV_POSE_START → LOADING_END → HF`;
+  the port spawns the player actor at **load-END** (`player_ctrl_pose_house_standing`
+  called from `scene1_postload.c:128`), so its `CONV_POSE_START` is one load late
+  (`… LOADING_END → HF → CONV_POSE_START`). Full {wait}-chain cross-replay of a
+  new-game recording needs a **mid-load actor spawn** (postload→preload move) — a
+  deliberate, visually-verified `scene1_preload` change, not done. (Continue/Load
+  traces skip the prologue, so they already replay 1:1 cross-target.) Doc:
+  `findings/conversation-pose-driver.md` ("(a) DONE").
+- **Authoritative parity facts:** see `findings/confirmed-parity-ledger.md`. A tooling
+  "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an assumed
+  regression.
+<!-- FRONT:END -->
