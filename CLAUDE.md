@@ -143,6 +143,9 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   port's 3D renderers leak it into the 2D UI)),
   `tools/pixel_diff.py` / `tools/compose_comparison.py` (visual). Playbooks:
   `docs/flow-trace-cheatsheet.md`, `docs/render-depth-debugging.md`.
+- **Decompile/probe traps (read before porting a chip):**
+  `docs/reference/decompile-gotchas.md` — the 17 burned-us-once gotchas (Ghidra FPU drops,
+  enum value-vs-name, bit-pattern literals, probe timing, diff-before-theories).
 - **Orchestration / when to spawn sub-agents:** `docs/AGENT-WORKFLOW.md`.
 - **Active plan:** `docs/plans/`. **Strategic frame / tooling phases:** `docs/PLAN.md`,
   `docs/harness-roadmap.md`. **Methodology/tooling audit (settled strategy verdicts +
