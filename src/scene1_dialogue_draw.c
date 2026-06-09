@@ -359,8 +359,18 @@ static void draw_box_and_text(IDirect3DDevice8 *dev, const struct ive_runtime *r
         int gi = rt->line_row + r;
         if (gi < 0 || gi >= IVE_MAX_ROWS) break;
         int max_chars = (int)budget;
+        /* Per-row reveal fade-in (FUN_0047d464: glyph alpha = input_alpha *
+         * clamp(param_6 * DAT_5198d8, 1.0), DAT_5198d8 = 0.2, ceil DAT_519364 =
+         * 1.0; param_6 = this row's char budget).  A newly-revealing row ramps
+         * from transparent to opaque over its first 5 revealed chars — the
+         * dialogue "gradient to transparent".  A settled row's budget is large
+         * (reveal climbs to 0x800) so it sits at full alpha. */
+        float fade = (float)max_chars * 0.2f;
+        if (fade > 1.0f) fade = 1.0f;
+        uint32_t a = (uint32_t)((float)(color >> 24) * fade);   /* input alpha · fade */
+        uint32_t rcol = (a << 24) | (color & 0xffffffu);
         int consumed = dialogue_draw_row(dev, text_x, row_y + base_y + 8.0f,
-                                         prog->glyph[gi], color, max_chars);
+                                         prog->glyph[gi], rcol, max_chars);
         budget -= (float)consumed;
         if (budget <= 0.0f) break;
         row_y += 30.0f;                           /* 0x1e */

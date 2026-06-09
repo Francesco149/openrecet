@@ -628,15 +628,17 @@ recapture; the dialogues "play out correctly… huge progress"):**
    a different standee count / RMB cadence than the iv1_2 it was tuned on, OR the cadence drift
    (#1) shifts the per-frame RNG. Run `flow_diff --verdict` over the dialogue window. Likely
    shares a root with #1.
-3. **Text typewriter GRADIENT-to-transparent is unported** (user: "long overdue"). Retail fades
-   the reveal-EDGE char: `FUN_0046c9a2` computes `(float)((reveal-4)*speed)` (speed=`DAT_005c78dc`
-   =32, i.e. **1/32-char sub-precision**), and the partial edge char draws with
-   `alpha = __ftol(FUN_00503a44(frac)) << 0x18 | 0xffffff` (`FUN_00503a44`=**sinf**). The port
-   (`scene1_dialogue_draw.c:351`) collapses the budget — `(reveal-4)*speed/32` → integer
-   `max_chars=(int)budget` — and draws every revealed glyph at full `0xffffffff`, so the edge is a
-   hard cutoff with no fade. Fix: keep the fractional budget + draw the edge glyph(s) at the
-   sin-based alpha. (Does NOT affect the reveal-completion frame — the /32 cancels there — so it's
-   independent of #1.)
+3. **Text reveal GRADIENT-to-transparent — ✅ PORTED 2026-06-09** (user: "long overdue").
+   Mechanism: `FUN_0047d464` (the glyph-row drawer, port `dialogue_draw_row`) fades EACH ROW's
+   glyph alpha by `input_alpha * clamp(param_6 * DAT_5198d8, DAT_519364)` where `param_6` = that
+   row's char budget, `DAT_5198d8` = **0.2** (`0x3e4ccccd`), `DAT_519364` = **1.0** (clamp ceiling)
+   — verified by objdump (`0x47d528 fildl -0xc` = `param_6`, set once at `0x47d4d4`, so it's
+   **per-row, not per-char**). So a newly-revealing row ramps transparent→opaque over its first
+   ~5 revealed chars; a settled row's budget is large (reveal climbs to 0x800) ⇒ full alpha.
+   The "edge sinf" path I first guessed (`FUN_0046c9a2` `FUN_00503a44`) is a *full-screen* fade
+   effect (`DAT_073a3df4`-gated), NOT the text. Ported into the `scene1_dialogue_draw.c` row loop
+   (`fade = min((int)budget·0.2, 1.0)`, alpha = `(color>>24)·fade`). Verified on item-display-2:
+   port f1196 line-start text dim, f1260 settled text full alpha.
 4. **Placed-item ids wrong on the place path.** `display_menu_selected()` (`FUN_00469a9f`)
    returned 64 / 64064 / 256512 on the 3 placements — the cc04 confirm path was written/tested for
    the `sel==-1` *removal* roundtrip; the *placement* selection isn't fully ported, so the
