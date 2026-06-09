@@ -1,7 +1,10 @@
-"""analysis/pixeldiff.py — per anchor-relative index, the retail-vs-port white-diff.
+"""analysis/pixeldiff.py — per anchor-relative LABEL, the retail-vs-port white-diff.
 
-retail = ground truth (A/left), port = B. Writes frame_NNNNN.png diffs + returns a
+retail = ground truth (A/left), port = B. Writes frame_<label>.png diffs + returns a
 summary {n, per_frame:[{frame, differ, meanabs}]} the viewer's diff ribbon reads.
+`per_frame[].frame` is the LABEL (anchor-relative index, = the port file number) —
+the key web/model.mjs diffAt() looks up (labelOf(k) = frames[0] + k*cadence) — so
+the ribbon stays correct for caprange.start > 0 and capstride > 1 windows.
 """
 from __future__ import annotations
 
@@ -35,7 +38,9 @@ def build_diff(port_dir: Path, retail_dir: Path, diff_dir: Path, amp: float) -> 
     # side's load gaps) — both desync the diff ribbon from the dense cursor (the "red area lands
     # ~N frames late, with a blank hole" bug). Sorting by number then taking the i-th gives the
     # dense order the videos are built in.
-    pf = [p for _, p in sorted(_by_index(Path(port_dir) / "frames").items())]
+    port_by = sorted(_by_index(Path(port_dir) / "frames").items())
+    pf = [p for _, p in port_by]
+    labels = [n for n, _ in port_by]         # port file numbers ARE the labels
     rf = [p for _, p in sorted(_by_index(Path(retail_dir) / "frames").items())]
     per: list[dict] = []
     for i in range(min(len(pf), len(rf))):
@@ -44,6 +49,7 @@ def build_diff(port_dir: Path, retail_dir: Path, diff_dir: Path, amp: float) -> 
         if a.shape != b.shape:
             continue
         d, differ, meanabs = amplified_diff(a, b, amp)
-        save_png(d, diff_dir / f"frame_{i:05d}.png")
-        per.append({"frame": i, "differ": differ, "meanabs": round(meanabs, 4)})
+        save_png(d, diff_dir / f"frame_{labels[i]:05d}.png")
+        per.append({"frame": labels[i], "differ": differ,
+                    "meanabs": round(meanabs, 4)})
     return {"n": len(per), "per_frame": per}

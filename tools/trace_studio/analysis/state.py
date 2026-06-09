@@ -1,8 +1,13 @@
 """analysis/state.py — merge the once-per-frame flow-trace fields (both sides) into
-anchor-relative rows the viewer's state overlay highlights when port≠retail.
+VIEWER-ORDINAL rows the state overlay highlights when port≠retail.
 
-The lightweight once-per-frame probes emit from boot regardless of the {calltrace}
-window, so rows are clipped to the captured span [0, nframes).
+Rows are keyed by the viewer ordinal k (the i-th captured frame, the index the SPA
+cursor / apply.py's marks use): k = (anchor_relative - window_start) / stride. The
+lightweight once-per-frame probes emit from boot regardless of the {calltrace}
+window, so rows outside the captured window (and, under a stride, between kept
+frames) are dropped. Keying by k — not by the raw anchor-relative frame — keeps the
+overlay correct for caprange.start > 0 and capstride > 1 windows (previously those
+rows mis-keyed/clipped: the start=0-only assumption family).
 """
 from __future__ import annotations
 
@@ -18,21 +23,30 @@ STATE_VAS = {
 }
 
 
-def build_state(port_dir: Path, retail_dir: Path, port_base: int,
-                retail_base: int, nframes: int) -> list[dict]:
-    """[{frame, port:{...}, retail:{...}}] over [0, nframes), keyed anchor-relative."""
+def build_state(port_dir: Path, retail_dir: Path, port_anchor: int,
+                retail_anchor: int, nframes: int, window_start: int = 0,
+                stride: int = 1) -> list[dict]:
+    """[{frame, port:{...}, retail:{...}}] keyed by viewer ordinal k ∈ [0, nframes).
+
+    `*_anchor` is each side's ABSOLUTE frame of anchor-relative 0 (port: global.json
+    frame_base_abs; retail: first-kept-frame abs − window_start). A trace row at
+    absolute frame F maps to k = (F − anchor − window_start) / stride."""
     from flow_diff import load_trace
     vaset = set(STATE_VAS)
+    stride = max(1, int(stride))
 
-    def collect(path: Path, base: int) -> dict[int, dict]:
+    def collect(path: Path, anchor: int) -> dict[int, dict]:
         path = Path(path)
         if not path.exists():
             return {}
         by_frame = load_trace(path, va_filter=vaset)
         out: dict[int, dict] = {}
         for fr, evts in by_frame.items():
-            rel = fr - base
-            if rel < 0 or rel >= nframes:
+            off = fr - anchor - window_start
+            if off < 0 or off % stride:
+                continue
+            k = off // stride
+            if k >= nframes:
                 continue
             merged: dict = {}
             for e in evts:
@@ -40,11 +54,11 @@ def build_state(port_dir: Path, retail_dir: Path, port_base: int,
                 if isinstance(f, dict):
                     merged.update(f)
             if merged:
-                out[rel] = merged
+                out[k] = merged
         return out
 
-    p = collect(Path(port_dir) / "call_trace.jsonl", port_base)
-    r = collect(Path(retail_dir) / "call_trace.jsonl", retail_base)
+    p = collect(Path(port_dir) / "call_trace.jsonl", port_anchor)
+    r = collect(Path(retail_dir) / "call_trace.jsonl", retail_anchor)
     frames = sorted(set(p) | set(r))
     return [{"frame": n, "port": p.get(n, {}), "retail": r.get(n, {})}
             for n in frames]

@@ -31,10 +31,11 @@ def _log(msg: str) -> None:
 def _cached_retail_base(retail_dir: Path) -> int | None:
     """Best-effort recover a cached retail capture's rebase base from disk, for when
     the session manifest didn't record it (an interrupted/partial prior finalize, or
-    a pre-base manifest).  An already-renumbered cache is 0-based (min frame 0); an
-    un-renumbered one yields its min absolute frame number.  Returns None only when
-    there are no cached retail frames at all — so a `--only port` re-capture pairs
-    against existing retail frames instead of falsely reporting 'retail 0 frames'."""
+    a pre-base manifest).  An already-renumbered cache is label-named (min frame ==
+    the window start — 0 for the common anchored window); an un-renumbered one yields
+    its min absolute frame number.  Returns None only when there are no cached retail
+    frames at all — so a `--only port` re-capture pairs against existing retail
+    frames instead of falsely reporting 'retail 0 frames'."""
     nums = [int("".join(c for c in p.stem if c.isdigit()))
             for p in (retail_dir / "frames").glob("frame_*.png")
             if any(c.isdigit() for c in p.stem)]
@@ -262,7 +263,7 @@ def run_capture(cfg: CaptureConfig) -> int:
 
     retail_base = None
     if run_retail and "retail_error" not in result:
-        retail_base = convert.renumber_retail(retail_dir)
+        retail_base = convert.renumber_retail(retail_dir, window_start=cr[0])
     elif keep_retail:                                # reuse the cached retail capture
         retail_base = (old_manifest.get("retail") or {}).get("base_abs")
         if retail_base is None:                      # manifest lost it → recover from disk
@@ -287,6 +288,11 @@ def run_capture(cfg: CaptureConfig) -> int:
         "suppress_loads": port_suppress,
         "port": {"base_abs": port_base},
         "retail": {"base_abs": retail_base, "error": result.get("retail_error")},
+        # The coordinate contract (web/model.mjs): frame FILES on BOTH sides + the
+        # diff are named by the anchor-relative LABEL (= window_start + k*stride for
+        # viewer ordinal k); diff.per_frame[].frame and state.jsonl rows key as noted.
+        "coords": {"naming": "label", "window_start": cr[0], "stride": stride,
+                   "diff_keyed_by": "label", "state_keyed_by": "ordinal"},
         "videos": {},
         "anchors": {},
         "diff": None,
@@ -336,8 +342,12 @@ def run_capture(cfg: CaptureConfig) -> int:
     # flow-trace state + verdict
     n_window = len(list((port_dir / "frames").glob("frame_*.png")))
     if call_trace and port_base is not None:
-        rb = retail_base if retail_base is not None else 0
-        state = state_mod.build_state(port_dir, retail_dir, port_base, rb, n_window)
+        # retail anchor = abs of anchor-relative 0 (first kept frame is the window
+        # start). port_base (global.json frame_base_abs) is already the anchor.
+        retail_anchor = (retail_base - cr[0]) if retail_base is not None else 0
+        state = state_mod.build_state(port_dir, retail_dir, port_base,
+                                      retail_anchor, n_window,
+                                      window_start=cr[0], stride=stride)
         (sess_dir / "state.jsonl").write_text(
             "".join(json.dumps(r) + "\n" for r in state))
         manifest["state"] = "state.jsonl"
