@@ -48,6 +48,12 @@ jobs:
       - name: Gate — no embedded proprietary bytes
         run: nix develop .#ci --command python3 tools/ci/no_proprietary_bytes.py build/openrecet.exe
 
+      # Frame parity depends on BOTH sides computing float math on x87 (retail
+      # is VC6/x87 — audit §1.3). A toolchain bump that flips mingw to SSE math
+      # would change rounding across every validated function — fail loud.
+      - name: Gate — float math stays on x87
+        run: nix develop .#ci --command python3 tools/ci/no_sse_math.py build/openrecet.exe
+
       - name: Compose release notes
         run: |
           {

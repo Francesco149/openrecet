@@ -49,6 +49,21 @@ if echo "$staged" | grep -qE '^(src/|tests/).*\.(c|h)$'; then
     echo "pre-commit: $(grep -oE '[0-9]+ passed' /tmp/oc_tests.log | tail -1)"
 fi
 
+# --- 2.5 FP-model guard when the toolchain/build flags changed -----------
+# The x87 invariant (audit §1.3): float math must NOT move to SSE — retail is
+# VC6/x87 and every validated function's rounding depends on it. Only the
+# Makefile / flake can change the FP model, so gate on those (the exe on disk
+# may be stale otherwise). Nightly CI re-checks on a fresh build regardless.
+if echo "$staged" | grep -qE '^(src/Makefile|flake\.nix|flake\.lock)$' \
+        && [ -f build/openrecet.exe ]; then
+    echo "pre-commit: toolchain/build flags changed → checking x87 invariant..."
+    if ! run python3 tools/ci/no_sse_math.py build/openrecet.exe; then
+        echo "pre-commit: SSE float math detected — commit aborted (rebuild" >&2
+        echo "            with the x87 toolchain or fix the flags)" >&2
+        exit 1
+    fi
+fi
+
 # --- 3. Remind to regen visual comparisons after render/logic edits ------
 if echo "$staged" | grep -qE '^src/(scene1_|render|d3d|font_|sprite|layers|tables).*\.(c|h)$'; then
     echo "pre-commit: render/logic files changed — remember to run" >&2
