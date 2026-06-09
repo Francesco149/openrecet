@@ -10,8 +10,11 @@ is no longer the operational plan. The project now executes a leaf-first parity
 methodology driven by the live harness phases (Phase D.*/E.*) — porting and
 diffing individual functions against the retail exe rather than building whole
 subsystems top-down. For current state see: `docs/STATUS.md` (live coverage
-numbers), `harness-roadmap.md` §E (the active phase), and `PROGRESS.md` (the
-narrative).
+numbers), `FRONT.md` (the live front), and `PROGRESS.md` (the narrative).
+**Settled strategy verdicts + the CURRENT tooling roadmap (T1–T12) live in
+`audits/2026-06-09-methodology-audit.md`** — read that before this file for
+any strategy/methodology question; this file is kept for the founding decisions
+(tech stack, constraints, risk register) it still owns.
 
 ## 1. Goal
 

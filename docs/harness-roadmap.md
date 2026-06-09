@@ -1,6 +1,13 @@
 # Harness roadmap — graphics & audio smoke tooling
 
 > Living document. Sub-plan of `PLAN.md`; cross-linked from its §6.
+>
+> **2026-06-09: phases A–E below are LANDED or superseded as their inline
+> audit notes say; this file is now the harness HISTORY.** The current
+> tooling roadmap (T1–T12, ranked) lives in
+> `audits/2026-06-09-methodology-audit.md` §3 — start there for "what
+> tooling should exist next"; come here for why the existing harness has
+> the shape it does.
 
 The Linux-side unit suite (`tests/`) covers portable decoders (494 tests
 under ASan/UBSan as of 2026-05-21). What it can't reach: render-path

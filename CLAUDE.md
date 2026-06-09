@@ -59,16 +59,12 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   you iterate — you both inspect the *same* frames. Do **not** run your own one-off
   `--session <other>` capture for trace work, and don't pixel-diff in `/tmp` as a substitute
   for updating the session the user is looking at. **To VERIFY a fix, recapture the session and
-  inspect the studio's OWN aligned output** — the served session at the URL, or its
-  `diff/frames/frame_<ordinal>.png` (already retail−port, studio-aligned) — **never a
-  hand-rolled `/tmp` diff that pairs frames yourself.** Pitfall that burned us (2026-06-09,
-  C3a): `port/frames/` is named by **absolute** frame (`base_abs + ordinal`, e.g. ord 107 =
-  `frame_00537.png` at base_abs 430) while `retail/frames/` is named by **ordinal**
-  (`frame_00107.png`); naively diffing `port/frame_00537` vs `retail/frame_00107` LOOKS
-  aligned but the load-stretch means they're different sim moments → a huge false divergence.
-  The studio's alignment maps the two; trust `diff/frames/` (or the served session), not your
-  own pairing. (Zooming a single studio frame to eyeball it is fine; pairing two yourself is not.)
-  **For anything inspectable IN the session,
+  inspect the studio's OWN aligned output** — `trace_studio triage <session>` (the FIRST stop:
+  first/worst divergent frame + verdict + state in one report), the served session at the URL,
+  or its `diff/frames/` — **never a hand-rolled `/tmp` diff that pairs frames yourself.**
+  (Session frame naming is UNIFIED since 2026-06-09 — both sides + diff are label-named, same
+  name = same moment — but the studio outputs are still the verification surface, not ad-hoc
+  pairing.) **For anything inspectable IN the session,
   just remind the user of the session URL — `http://localhost:8778/?session=<name>` (default
   serve port 8778; confirm the live port via `ps`/serve logs) — rather than composing+pushing
   a feed montage of it: the studio already shows retail|port|diff + frame scrub, so a push only
@@ -77,31 +73,19 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   time); a window/caprange change forces a retail re-capture even under `--only port`
   (`626949c`); back up `edit.trace.jsonl` before re-windowing. Memory pointer:
   `recapture-shared-session`.
-- **ALWAYS phase+RNG-pin AND keep a call-trace on every trace we work on (whenever the
-  scene supports it) — pin up front so the diff shows REAL gaps (not bg-NPC / sparkle / anim
-  phase noise), and keep the flow-trace so we can always probe retail ground truth** (user
-  policy 2026-06-09). **How (so it's automatic):** in the session's working trace
-  (`edit.trace.jsonl`), in the segment that OPENS the `{caprange}` (right after the FIRST
-  free-roam `{wait LOADING_END}`/HOUSE_FREEROAM — NOT the last wait), insert
-  `{"phasepin": F}` then `{"rngseed": [F, 19937]}` immediately before `{"caprange": [F,…]}`.
-  Use `F` = the caprange start (pin a few frames earlier if you can spare a settle margin —
-  the companion spring-lerp re-converges over ~48f; bg-NPCs/sparkle snap immediately). One
-  `{phasepin}` (`segtrace_phasepin_cb`, `main.c`) zeros db054 + player/companion anim +
-  cursor-bob b154 + rmb screen-shake + the **bg-window-NPC 180× warmup** (re-seeds to the
-  canonical **19937** = `SCENE1_BG_NPC_PHASEPIN_SEED`) + the sim-frame (目玉 sparkle %8
-  phase); the `{rngseed:[F,19937]}` sets the shared LCG to that same seed so post-warmup RNG
-  (sparkle/dust) is 1:1. Replace any RECORDED `{rngseed:[F,…]}` at that anchor with the
-  canonical 19937 (don't stack two at one frame). Then **`recapture` BOTH sides** (a pin
-  moves both). `apply --auto-pin` only auto-inserts off a STORED verdict (CONST-OFFSET→
-  phasepin, DESYNC→rngseed) and inserts after the LAST wait — so for a no-verdict or
-  multi-segment trace, hand-edit as above. Template: `tests/scenarios/house-loaded-display-
-  pinned/trace.jsonl`. Verify: `flow_diff --verdict --align-field db054` = ALIGNED, or the
-  NPCs/sparkle visibly stop drifting in the diff. **Call-trace: always add
-  `{"calltrace": [F, count]}` spanning the `{caprange}`** (then `recapture` auto-detects it /
-  `capture --call-trace`) — we need the flow-trace to probe retail ground truth and to compute
-  the `--verdict`. A long-window retail call-trace is heavy + slow to analyze, so for DEEP
-  dives `drill` specific moments at dense cadence; but the base capture KEEPS the call-trace —
-  don't drop it to save time (user policy 2026-06-09).
+- **ALWAYS phase+RNG-pin AND keep a call-trace on every trace we work on** (user policy
+  2026-06-09) — pin up front so the diff shows REAL gaps, keep the flow-trace so retail
+  ground truth stays probeable. **This is now MECHANISM, not a recipe:** `trace_studio
+  capture` lint-checks every working trace (pin placement, stacked seeds, calltrace span,
+  savefile ref — errors abort, `--no-lint` bypasses) and AUTO-INSERTS the canonical
+  `{phasepin}`+`{rngseed 19937}` block on fresh builds (`--no-auto-pin` for deliberate
+  unpinned phase studies; reused traces are never mutated — the lint tells you what to add).
+  One `{phasepin}` zeros db054 + anim + b154 + rmb shake + the bg-NPC warmup (re-seeded
+  19937) + the sparkle %8 phase; rules + template: `tools/trace_studio/edits/lint.py`
+  docstring + `tests/scenarios/house-loaded-display-pinned/trace.jsonl`. A pin moves BOTH
+  sides → recapture both. Verify via `trace_studio triage <session>` (or `flow_diff
+  --verdict --align-field db054` = ALIGNED). Long retail call-traces are heavy — `drill`
+  dense sub-windows for deep dives — but the base capture KEEPS its call-trace.
 - **Commits:** **commit in logical units as you go, without waiting to be asked** (user
   policy 2026-06-05); co-author trailer is auto-injected (don't type it); the pre-commit
   hook regenerates the port ledger + runs host tests on C changes. **Push** only when asked.
@@ -145,7 +129,9 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
 - **Tracing port↔retail (TAS traces, anchors, d3d-trace, call-trace, save override):**
   `docs/trace-workflow.md`. **Flow-trace cheatsheet (THE state-comparison tool):**
   `docs/flow-trace-cheatsheet.md`.
-- **Render/parity debugging tools:** `tools/flow_diff.py` (`--verdict` RNG/phase
+- **Render/parity debugging tools:** `trace_studio triage <session>` (START HERE for any
+  session divergence — diff curve → first/worst frame → verdict → field-timeline in one
+  JSON+summary), `tools/flow_diff.py` (`--verdict` RNG/phase
   determinism + `--field-timeline` + `--rng-drill`; the modern phase_probe replacement),
   `tools/d3d_state_diff.py` + `tools/render_diff.py` (per-draw command-stream diff),
   `tools/d3d_state_at_draw.py` (**the reliable device-state-at-draw inspector** —
