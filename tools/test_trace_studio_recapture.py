@@ -21,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
-from trace_studio.capture import _cached_retail_base  # noqa: E402
+from trace_studio.capture import _cached_retail_base, _resolve_want_retail  # noqa: E402
 
 
 def _mk_frames(retail_dir: Path, nums: list[int]) -> None:
@@ -58,8 +58,26 @@ def main() -> int:
         rN.mkdir()
         assert _cached_retail_base(rN) is None, "no frames dir → None"
 
+    # ── _resolve_want_retail: the fast port-fix loop must PRESERVE cached retail ──
+    # (regression: `--target openrecet --only port` used to drop the cached retail
+    # from the session — videos/diff/anchors/base lost — because want_retail keyed on
+    # --target alone. Re-running only the port must never break the retail comparison.)
+    assert _resolve_want_retail("both", "both", False) is True, "target=both → retail"
+    assert _resolve_want_retail("both", "port", False) is True, "target=both → retail"
+    # THE FIX: port-only re-run of a session that has cached retail keeps it, even
+    # when --target isn't both.
+    assert _resolve_want_retail("openrecet", "port", True) is True, \
+        "--only port + cached retail → preserve it (the fix)"
+    # a genuinely port-only session (no cached retail) stays port-only.
+    assert _resolve_want_retail("openrecet", "port", False) is False, \
+        "--only port + no cached retail → still none"
+    # a deliberate both→port-only FULL recapture (--only both) drops retail as asked.
+    assert _resolve_want_retail("openrecet", "both", True) is False, \
+        "--only both + target openrecet → port-only (deliberate)"
+
     print("OK: trace_studio recapture (--only port recovers cached retail base from "
-          "disk when the manifest lost it; empty → None)")
+          "disk when the manifest lost it; empty → None; want_retail preserves cached "
+          "retail on a port-only re-run regardless of --target)")
     return 0
 
 

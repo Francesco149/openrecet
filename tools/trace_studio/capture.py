@@ -41,6 +41,24 @@ def _cached_retail_base(retail_dir: Path) -> int | None:
     return min(nums) if nums else None
 
 
+def _resolve_want_retail(target: str, only: str, has_cached_retail: bool) -> bool:
+    """Whether the session should carry a retail side.
+
+    `target == "both"` always wants retail.  The fast port-fix loop (`--only port`)
+    re-runs ONLY the port and reuses the cached retail — the core studio loop (tweak
+    the port, recapture, refresh the SAME session).  That loop must ALSO preserve a
+    session's cached retail even when --target isn't "both": re-running only the port
+    must never DROP the retail comparison the user is watching (the bug behind
+    `--target openrecet --only port` silently losing videos/diff/anchors/base).  A
+    genuinely port-only session has no cached retail → still no retail; a deliberate
+    both→port-only conversion uses a full recapture (`--only both`), not the fast loop."""
+    if target == "both":
+        return True
+    if only == "port" and has_cached_retail:
+        return True
+    return False
+
+
 @dataclass
 class CaptureConfig:
     trace: str
@@ -75,8 +93,7 @@ def run_capture(cfg: CaptureConfig) -> int:
     port_dir = sess_dir / "port"
     retail_dir = sess_dir / "retail"
     sess_dir.mkdir(parents=True, exist_ok=True)
-    want_retail = cfg.target == "both"
-    working = sess_dir / "edit.trace.jsonl"
+    working = sess_dir / "edit.trace.jsonl"  # want_retail resolved below (needs old_manifest)
 
     # The session manifest (loaded once). `source_trace` is the original recording;
     # on a re-capture `cfg.trace` is the WORKING trace, so the recording — and its
@@ -87,6 +104,19 @@ def run_capture(cfg: CaptureConfig) -> int:
             old_manifest = json.loads((sess_dir / "session.json").read_text())
         except Exception:                            # noqa: BLE001
             old_manifest = {}
+
+    # Whether the session carries a retail side. `want_retail` was set above to
+    # `target == "both"`, but the fast port-fix loop (`--only port`) must ALSO preserve
+    # a session's cached retail even when --target isn't "both" — see
+    # _resolve_want_retail. Without this, `--target openrecet --only port` (or any
+    # port-only re-run of a both-session) dropped the cached retail (videos/diff/
+    # anchors/base lost), silently breaking the comparison the user is watching.
+    has_cached_retail = bool((old_manifest.get("videos") or {}).get("retail")) \
+        or any((retail_dir / "frames").glob("frame_*.png"))
+    want_retail = _resolve_want_retail(cfg.target, cfg.only, has_cached_retail)
+    if want_retail and cfg.target != "both":
+        _log("--only port: preserving the session's cached retail "
+             "(re-running the port must not drop the retail comparison)")
 
     # ── anchoring (cfg.anchors None = AUTO) ──────────────────────────────────
     # A raw recording that carries {anchor} rows anchor-segments by default. FLAT
