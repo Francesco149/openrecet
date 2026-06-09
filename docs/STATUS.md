@@ -47,20 +47,26 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   (gap F sim half) + the placement-dust desync (gap E); px/py/dust/db054/cbfc now
   ALIGNED/bit-exact on the verdict.** Full RE + history (incl. the ±31 residual
   boundary-frame breakdown): `findings/shop-display-menu-RE.md` "Open follow-ups".
-  **Remaining — the cc04 MENU-ARM cluster (one chip: render + logic + boundary):**
-  1. **placed-item ids wrong on the place path** (`FUN_00469a9f` returns
-     64/64064/256512 — the cc04 confirm was written for `sel==-1` removal only);
-     likely also gap F's held-item red-vs-gold.
-  2. **menu RENDER fidelity** — worst gt8 frame (label 181): retail draws the
-     item-LIST window + narrow right description panel; port draws a wide bottom
-     description and no list. Covers (B) "What will you place?" prompt @f391,
-     (C) panel slide-in @f122, (D) selected-row flash @f172.
-  3. **missing bread tooltip** during dialogue (retail ord 854).
+  **2026-06-09 PM triage of the recapture also CLOSED two follow-ups without code:**
+  placed-item ids (#4) were never wrong — correct raw `id<<6` dwords, placements
+  pixel-identical at all 3 confirms; the bread tooltip (#5) is present on both
+  sides through the dialogue (old "ord 854" pointer was dead pre-unification
+  numbering). Evidence + frame refs: the RE doc's follow-ups #4/#5.
+  **Remaining — the cc04 MENU-RENDER cluster (one chip):**
+  1. **"What will you place?" prompt bubble** — retail draws it while the
+     placement menu is open; port never does (plain at label 439). Gap B.
+  2. **Item-Details sub-view** (`pressed & 0x40` path, all.c:65451, PORT-DEBT) —
+     the session's worst gt8 frame (label 181): retail shows narrow-right detail
+     panel, port the plain wide-bottom description.
+  3. **description-panel line layout** (price / "Number possessed" at different X)
+     · (C) panel slide-in check @f122 · (D) selected-row flash @f172.
   4. **menu-boundary residuals:** rngcalls ±31 (one wing emit per %4==0-frozen
      pause boundary + load-bracket seams) · companion cx/cz/canim/cframe + pcnt
      micro-DRIFT around open/close frames · retail menu-window consumption is the
      WING through the hooked thunk (`0xcf05d33`), NOT an unknown menu consumer.
-  5. **dialogue box/portrait pixel-parity** polish.
+  5. **dialogue box/portrait pixel-parity** polish — recapture ground truth: the
+     worst dialogue-window diffs (labels ~1453-64) are the Tear PORTRAIT
+     whole-outline edge diff (sub-pixel pos or filtering).
   **Tooling fix owed:** the recorder's `save_capture` overwrites `<name>.save.bin`
   unconditionally (clobbered this session's boot save twice). Also: session
   kept-count mismatch (port 1845 vs retail 1842) still flagged by triage — seam

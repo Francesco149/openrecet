@@ -678,13 +678,32 @@ recapture; the dialogues "play out correctly… huge progress"):**
    effect (`DAT_073a3df4`-gated), NOT the text. Ported into the `scene1_dialogue_draw.c` row loop
    (`fade = min((int)budget·0.2, 1.0)`, alpha = `(color>>24)·fade`). Verified on item-display-2:
    port f1196 line-start text dim, f1260 settled text full alpha.
-4. **Placed-item ids wrong on the place path.** `display_menu_selected()` (`FUN_00469a9f`)
-   returned 64 / 64064 / 256512 on the 3 placements — the cc04 confirm path was written/tested for
-   the `sel==-1` *removal* roundtrip; the *placement* selection isn't fully ported, so the
-   newly-placed display items render wrong. Doesn't affect the dialogue triggers.
-5. **Missing "bread" item tooltip during the dialogue** (user, retail ord 854 box
-   467,276,726,448). Likely the C3b `merchant_hud_item_tooltip` (faced-cell item name) — either
-   suppressed while a dialogue is active, or showing the wrong/garbage placed item (#4). Compare
-   the port vs retail frame.
-6. **Dialogue box/portrait pixel-parity** vs retail (filtering/colour) — a visual pass once the
-   cadence (#1) is settled.
+4. **Placed-item ids on the place path — ✅ STALE / NOT A BUG (verified 2026-06-09 recapture).**
+   The 64 / 64064 / 256512 from `display_menu_selected()` (`FUN_00469a9f`) are CORRECT raw
+   inventory dwords (`id<<6 | low6` → ids 1 = Walnut Bread, 1001, 4008) — the note misread them
+   as junk because the confirm was written/tested for the `sel==-1` removal only. The retail
+   confirm (all.c:87932+) writes the SAME raw `sel` into the grid cell; the port matches, the
+   inventory remove demonstrably decrements (iv1_6's empty-inventory gate fired — both tutorial
+   dialogues played), and the placed-item billboard (`wf_render_display_item` =
+   `FUN_00415fab`, resolves `item>>6` → category/subindex icon) renders **pixel-identical to
+   retail at all 3 placement confirms** (zoom-verified frames 596/855/1063). The remaining
+   counter-item branch (`0x1451..0x14b3` id range → `FUN_004860c8`-gated counter path) stays
+   PORT-DEBT in the confirm — no counter items in this flow.
+5. **Missing "bread" item tooltip during the dialogue — ✅ RESOLVED (already-fixed; verified
+   2026-06-09 recapture).** The faced-cell Walnut-Bread tooltip is PRESENT on both sides through
+   the dialogue (e.g. label 854: identical frames incl. tooltip + dialogue box). The original
+   "retail ord 854" pointer was pre-unification ordinal numbering (dead coordinate system); the
+   C3b tooltip chip covers it.
+6. **Dialogue box/portrait pixel-parity** vs retail (filtering/colour) — a visual pass, still
+   open. Current ground truth (2026-06-09 recapture): the WORST dialogue-window gt8 frames
+   (labels ~1453-1464) are dominated by the **Tear PORTRAIT sprite** (whole-outline edge diff →
+   sub-pixel position or filtering difference), plus the expected post-load bg-NPC offsets.
+7. **Menu RENDER cluster (the next chip).** From the recapture's worst frames: (a) the
+   **"What will you place?" prompt bubble** — retail draws it top-centre while the placement
+   menu is open, the port never does (gap B; visible plainly at label 439); (b) the
+   **description-panel line layout** — price / "Number possessed" land at different X (diff
+   shows doubled text); (c) the **Item-Details sub-view** (the `pressed & 0x40` path, all.c:
+   65451 — PORT-DEBT) — the session's worst overall gt8 frame (label 181, pre-load segment) is
+   retail showing the details view (narrow right panel + list) where the port shows the plain
+   wide-bottom description; (d) selected-row flash (gap D) + slide-in check (gap C); (e) the
+   menu-BOUNDARY residuals folded from #2's fix (rngcalls ±31, companion/pcnt micro-DRIFT).
