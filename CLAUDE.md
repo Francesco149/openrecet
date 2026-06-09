@@ -72,7 +72,9 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   studio session** (one-off crops, montages of non-session frames, external images). Caveats: the port-exe singleton mutex stalls *parallel* captures (one at a
   time); a window/caprange change forces a retail re-capture even under `--only port`
   (`626949c`); back up `edit.trace.jsonl` before re-windowing. Memory pointer:
-  `recapture-shared-session`.
+  `recapture-shared-session`. If no serve is up and you start one yourself, launch it
+  via `setsid`/`nohup` — a plain backgrounded serve dies with the tool-call shell
+  (bit us 2026-06-10: the user found the studio down).
 - **ALWAYS phase+RNG-pin AND keep a call-trace on every trace we work on** (user policy
   2026-06-09) — pin up front so the diff shows REAL gaps, keep the flow-trace so retail
   ground truth stays probeable. **This is now MECHANISM, not a recipe:** `trace_studio

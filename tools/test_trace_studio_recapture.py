@@ -58,26 +58,35 @@ def main() -> int:
         rN.mkdir()
         assert _cached_retail_base(rN) is None, "no frames dir → None"
 
-    # ── _resolve_want_retail: the fast port-fix loop must PRESERVE cached retail ──
-    # (regression: `--target openrecet --only port` used to drop the cached retail
+    # ── _resolve_want_retail: a session WITH cached retail always keeps it ──
+    # (regression 1: `--target openrecet --only port` used to drop the cached retail
     # from the session — videos/diff/anchors/base lost — because want_retail keyed on
-    # --target alone. Re-running only the port must never break the retail comparison.)
+    # --target alone.  regression 2, 2026-06-10 item-display-2: a session whose STORED
+    # target had been poisoned to "openrecet" by an earlier port-only iteration made a
+    # plain `recapture` (only=both) skip the retail leg with no error and write a
+    # port-only manifest — the studio showed "no retail frames" while 1842 cached
+    # retail frames sat intact on disk.  Rule now: target=="both" OR cached retail ⇒
+    # the session is two-sided; the manifest also stores sidedness (not the transient
+    # flag) so the poison cannot recur.)
     assert _resolve_want_retail("both", "both", False) is True, "target=both → retail"
     assert _resolve_want_retail("both", "port", False) is True, "target=both → retail"
-    # THE FIX: port-only re-run of a session that has cached retail keeps it, even
-    # when --target isn't both.
+    # port-only re-run of a session that has cached retail keeps (reuses) it.
     assert _resolve_want_retail("openrecet", "port", True) is True, \
-        "--only port + cached retail → preserve it (the fix)"
+        "--only port + cached retail → preserve it"
     # a genuinely port-only session (no cached retail) stays port-only.
     assert _resolve_want_retail("openrecet", "port", False) is False, \
         "--only port + no cached retail → still none"
-    # a deliberate both→port-only FULL recapture (--only both) drops retail as asked.
-    assert _resolve_want_retail("openrecet", "both", True) is False, \
-        "--only both + target openrecet → port-only (deliberate)"
+    assert _resolve_want_retail("openrecet", "both", False) is False, \
+        "full re-run of a genuinely port-only session → still none"
+    # a FULL re-run of a session with cached retail RE-CAPTURES retail even under a
+    # stale port-only stored target (the 2026-06-10 fix).  Dropping a session's
+    # retail side is now an explicit act (delete retail/), not a flag side-effect.
+    assert _resolve_want_retail("openrecet", "both", True) is True, \
+        "--only both + cached retail → two-sided (re-capture retail)"
 
     print("OK: trace_studio recapture (--only port recovers cached retail base from "
-          "disk when the manifest lost it; empty → None; want_retail preserves cached "
-          "retail on a port-only re-run regardless of --target)")
+          "disk when the manifest lost it; empty → None; want_retail keeps a session "
+          "two-sided whenever cached retail exists, whatever the stored target)")
     return 0
 
 
