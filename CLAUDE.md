@@ -108,8 +108,13 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   are forbidden (Job-Object reap + singleton mutex). Defaults to `--turbo --silent-audio`.
 - **Disassembly/hex:** use `vendor/unpacked/` (not `vendor/original/`, still SteamStub-
   encrypted). Decompiled C (gitignored): `docs/decompiled/all.c` + `functions.csv`.
-- **Retail introspection (Frida):** `--remote cutestation.soy:27042` (assume the host is up;
-  don't gate progress on it).
+- **Retail introspection (Frida):** `--remote cutestation.soy:27042`. **NEVER ask the user
+  whether the Frida host / frida-server is up and NEVER gate progress on it — assume it's
+  available and just run the capture.** If frida-server isn't reachable the harness
+  (`frida_capture.py` `ensure_frida_server`) auto-spawns it via an **elevated Start-Process,
+  and the UAC prompt is auto-approved on this host** — you can launch it yourself, no human
+  step. A `process-terminated`/launch failure has a REAL cause (investigate per
+  `feedback_frida_server_leak`), it is never "the host is down".
 - **THE unified harness — one command for driving port/retail tests.**
   `tools/scenario-test.py <scenario> --target {openrecet|retail|both}` is the single
   standard entry point. It owns the whole TAS stack — input replay / anchor segtraces,
