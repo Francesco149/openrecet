@@ -23,6 +23,8 @@
 
 #include "input.h"
 #include "scene.h"
+#include "scene1_companion_ctrl.h"
+#include "scene1_conversation_pose.h"
 #include "scene1_particles_tick.h"
 #include "scene1_records.h"
 #include "scene1_records_c_tick.h"
@@ -380,6 +382,81 @@ int test_scene1_ingame_default_arm_tick_direct(void)
 
     T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_AGE), 1);
     T_ASSERT_EQ_I(c_slot_get_i(0, SCENE1_RECORDS_C_OFF_AGE), 11);
+    return 0;
+}
+
+int test_scene1_ingame_dialogue_busy_routes_to_event_arm(void)
+{
+    /* Retail dispatches every dialogue frame to the EVENT arm (FUN_004536cb:
+     * DAT_0438b1c8 != 0 → FUN_004427d3, never FUN_00442cef — verified on the
+     * item-display-2 retail call-trace).  The port's live b1c8 writer is the
+     * dialogue runtime: armed/loading/active ⇒ busy ⇒ event arm.  Observable:
+     * table C (a default-arm-only tick) freezes while a dialogue is armed, and
+     * resumes the frame it ends. */
+    reset_world();
+    scene1_records_inject_test_type92(0.0f, 0.0f, 0.0f);
+    stage_c_pickup(0, 2, 10);
+
+    scene1_intro_dialogue_start_single(1, 5);     /* D_TUT_LOAD → busy() */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_busy(), 1);
+
+    scene1_ingame_tick();
+
+    /* Event arm ran: particles ticked, table C did NOT. */
+    T_ASSERT_EQ_I(slot_read_i(0, SCENE1_RECORDS_A_OFF_AGE), 1);
+    T_ASSERT_EQ_I(c_slot_get_i(0, SCENE1_RECORDS_C_OFF_AGE), 10);
+
+    /* Dialogue ends → busy drops → the default arm resumes. */
+    scene1_intro_dialogue_skip_to_end();
+    T_ASSERT_EQ_I(scene1_intro_dialogue_busy(), 0);
+
+    scene1_ingame_tick();
+    T_ASSERT_EQ_I(c_slot_get_i(0, SCENE1_RECORDS_C_OFF_AGE), 11);
+
+    /* Teardown: the event-arm pose tick latched the conversation pose on the
+     * (suite-inherited) live actor; release it so later tests' companion anim
+     * law isn't gated off. */
+    scene1_conversation_pose_reset();
+    return 0;
+}
+
+int test_scene1_event_arm_advances_db054_with_live_actor(void)
+{
+    /* The FUN_0048407f tail increments db054 UNCONDITIONALLY (all.c:84658) —
+     * retail's db054 advanced through every item-display-2 dialogue frame while
+     * house_update never ran.  With a live player actor and a busy dialogue,
+     * each ingame tick must advance the db054 clock by exactly 1. */
+    reset_world();
+    title_save_dialog_reset();
+    player_ctrl_pose_house_standing(0);           /* live actor 0 */
+    scene1_intro_dialogue_start_single(1, 5);     /* busy → event arm */
+
+    int d0 = scene1_companion_db054();
+    scene1_ingame_tick();
+    scene1_ingame_tick();
+    T_ASSERT_EQ_I(scene1_companion_db054(), d0 + 2);
+
+    scene1_intro_dialogue_skip_to_end();
+    scene1_conversation_pose_reset();   /* release the latched pose (teardown) */
+    return 0;
+}
+
+int test_scene1_event_actor_tail_inert_without_actor(void)
+{
+    /* The tail is guarded on a live player actor (the engine's event driver is
+     * gated on the scene's actor context): a bare transition/paused frame with
+     * no actors must neither warm the bg-NPC pump (RNG!) nor tick db054.
+     * pose_house_standing(-1) clears every actor slot (char[0] = -1) — earlier
+     * tests in this file leave actor 0 live, and reset_world does not despawn. */
+    reset_world();
+    player_ctrl_pose_house_standing(-1);
+    int d0 = scene1_companion_db054();
+    unsigned long c0 = rng_call_count();
+
+    scene1_ingame_transition_arm_tick();
+
+    T_ASSERT_EQ_I(scene1_companion_db054(), d0);
+    T_ASSERT_EQ_U(rng_call_count() - c0, 0u);
     return 0;
 }
 

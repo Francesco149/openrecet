@@ -55,6 +55,14 @@ void scene1_companion_ctrl_tick(void);
  * Gated cc04==0 (frozen while the display-stand menu is open; engine-quirks §110). */
 void scene1_companion_ctrl_advance_phase(void);
 
+/* db054 advance, EVENT-ARM variant — the unconditional `DAT_056db054++` at the
+ * FUN_0048407f tail (all.c:84658).  No cc04 gate: the event arm owns the whole
+ * frame (no menu path can have cleared cc04 mid-frame), and retail demonstrably
+ * ticks db054 through every dialogue frame (item-display-2: db054 1205 at the
+ * inter-dialogue gap while house_update never ran).  Called only from
+ * scene1_event_actor_tail_tick(). */
+void scene1_companion_ctrl_advance_phase_event(void);
+
 /* Reset the per-scene hover-bob phase counter (engine DAT_056db054).  Called on
  * HOUSE entry from scene1_postload, alongside the actor seed. */
 void scene1_companion_ctrl_reset(void);

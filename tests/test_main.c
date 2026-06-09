@@ -1626,6 +1626,9 @@ struct test_case {
     X(scene1_ingame_paused_flag_picks_transition_arm) \
     X(scene1_ingame_transition_arm_tick_direct) \
     X(scene1_ingame_default_arm_tick_direct) \
+    X(scene1_ingame_dialogue_busy_routes_to_event_arm) \
+    X(scene1_event_arm_advances_db054_with_live_actor) \
+    X(scene1_event_actor_tail_inert_without_actor) \
     X(scene1_ingame_transition_flag_takes_precedence_over_skip) \
     X(sim_step_a_state_ingame_default_arm_also_ticks_c) \
     \

@@ -295,3 +295,12 @@ void scene1_companion_ctrl_advance_phase(void)
     if (player_ctrl_cc04() == 0)
         s_bob_counter++;
 }
+
+/* EVENT-ARM advance — the unconditional `DAT_056db054++` at the FUN_0048407f
+ * tail (all.c:84658; see scene1_companion_ctrl.h).  Distinct from the cc04-
+ * gated free-roam advance above: the event arm replaces the whole default arm
+ * for the frame, so the menu freeze can never apply. */
+void scene1_companion_ctrl_advance_phase_event(void)
+{
+    s_bob_counter++;
+}

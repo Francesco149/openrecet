@@ -6,13 +6,13 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 378,
-  "unported": 2086,
+  "ported": 382,
+  "unported": 2082,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 462,
-  "pct_touched": 18.1,
+  "touched": 466,
+  "pct_touched": 18.3,
   "pct_verified": 2.7,
-  "port_debt": 18
+  "port_debt": 22
  },
  "orphan_refs": [
   "0x40f640",
@@ -2162,8 +2162,10 @@
    "size": 2135,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_sim.c"
+   ]
   },
   {
    "va": "0x42f28c",
@@ -3248,6 +3250,7 @@
     "src/main.c",
     "src/scene1_combat_sm.h",
     "src/scene1_companion_ctrl.c",
+    "src/scene1_conversation_pose.c",
     "src/scene1_particles_tick.c",
     "src/scene1_pass_f.h",
     "src/scene1_player_ctrl.c",
@@ -3672,8 +3675,10 @@
    "size": 197,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_conversation_pose.c"
+   ]
   },
   {
    "va": "0x44f13d",
@@ -6035,8 +6040,10 @@
    "size": 486,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_conversation_pose.c"
+   ]
   },
   {
    "va": "0x470385",
@@ -6091,8 +6098,10 @@
    "size": 121,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_conversation_pose.c"
+   ]
   },
   {
    "va": "0x470970",
@@ -7894,7 +7903,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_companion_ctrl.c"
+    "src/scene1_companion_ctrl.c",
+    "src/scene1_conversation_pose.c"
    ]
   },
   {
@@ -8293,6 +8303,7 @@
    "src": [
     "src/scene1_bg_npc.h",
     "src/scene1_companion_ctrl.c",
+    "src/scene1_conversation_pose.c",
     "src/scene1_display_menu.c",
     "src/scene1_player_ctrl.c",
     "src/scene1_player_ctrl.h",

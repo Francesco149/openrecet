@@ -10,6 +10,8 @@
 #include "scene1_player_ctrl.h"     /* actor record (mut/read) + facing setter */
 #include "scene1_particles_tick.h"  /* g_scene1_actor_pos + g_scene1_camera_yaw_alt */
 #include "scene1_intro_dialogue.h"  /* iv1_2 lifecycle → the talk-event flag */
+#include "scene1_bg_npc.h"          /* scene1_bg_npc_tick — the 48407f bg pump */
+#include "scene1_companion_ctrl.h"  /* spring-follow + wing emit + db054 advance */
 #include "call_trace.h"             /* CALL_TRACE_ENTER */
 
 /* Enter / hold one actor's pose state (engine FUN_0048407f's
@@ -155,4 +157,51 @@ void scene1_conversation_pose_tick(void)
     }
 
     s_pose_active = active;
+}
+
+/* The FUN_0048407f tail the lean pose tick above does NOT run — called only
+ * from the EVENT arm (scene1_ingame_transition_arm_tick), which retail
+ * dispatches every dialogue/event frame INSTEAD of the default arm.  The
+ * engine's event frame also:
+ *
+ *   - pumps the bg-window NPCs (FUN_0046f621, all.c:84605 — the same pump the
+ *     default arm reaches through FUN_0048670f; that's why the street walkers
+ *     keep strolling behind the shop window during a dialogue);
+ *   - runs the companion spring-follow + the wing-sparkle emit (the
+ *     FUN_0048a4d1 call at all.c:84646 + the gated FUN_00447f4f at 84649-84656;
+ *     the port's scene1_companion_ctrl_tick is exactly that pair — its anim/
+ *     facing law self-gates off while the pose holds, mirroring a4d1's
+ *     param_2==0 event call, and its wing fires on the same db054%4 gate);
+ *   - increments db054 UNCONDITIONALLY (all.c:84658) — ground truth: retail
+ *     db054 = 1205 at the item-display-2 inter-dialogue gap, i.e. it advanced
+ *     through every dialogue frame while house_update never ran.
+ *
+ * Engine order is pose-set → bg pump → anim loop → a4d1 → wing → db054++; the
+ * port runs the anim loop inside the lean tick (before the bg pump).  The swap
+ * is parity-neutral: the anim step consumes no RNG, and the RNG order that
+ * matters (bg-NPC rolls BEFORE the wing's 6 draws) is preserved.
+ *
+ * Unported tail pieces (all inert in the HOUSE event windows, no RNG when
+ * inert):  FUN_00483e7b (status-aura emitter — fires only with a status up),
+ * FUN_0047019f (cc08==4 customer pump), FUN_0044f078 (scene-4/99 cutscene
+ * helper), FUN_004708f7 (event-window aux anim pair, chars 0x2f/0x30 — anim
+ * only).  PORT-DEBT(focused, FUN_0048407f).
+ *
+ * Guarded on a live player actor — the engine's own driver is gated on the
+ * scene's actor context (*DAT_068dd2f0 < 1), and the transition arm also runs
+ * for non-event paused/transition frames where no chibi actors exist. */
+void scene1_event_actor_tail_tick(void)
+{
+    if (player_ctrl_actor_char(0) == -1)
+        return;
+
+    scene1_bg_npc_tick();                        /* FUN_0046f621 */
+
+    /* Direct call (no player_ctrl_companion_ticked() latch check): the event
+     * arm never runs FUN_0048b850, and the latch is only cleared by the player
+     * controller — which does not run on event frames — so it may hold a stale
+     * 1 from the last free-roam walk frame. */
+    scene1_companion_ctrl_tick();                /* FUN_0048a4d1 + wing emit */
+
+    scene1_companion_ctrl_advance_phase_event(); /* DAT_056db054++ (84658) */
 }

@@ -2,7 +2,7 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 18,
+  "total": 20,
   "by_kind": {
    "stub": 5,
    "synthetic-data": 0,
@@ -15,20 +15,22 @@
    "deferred": 1,
    "door-proximity": 1,
    "event-probe": 1,
-   "focused": 1,
+   "focused": 3,
    "house-teardown": 1,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 16,
+  "retiring_engine_fns": 18,
   "by_engine_fn": {
    "FUN_004176ff": 2,
    "FUN_00409925": 1,
    "FUN_004161c7": 1,
    "FUN_004176ff L3876": 1,
    "FUN_004176ff L4958": 1,
+   "FUN_00430c00": 1,
    "FUN_00435c98": 1,
    "FUN_004361b2": 1,
    "FUN_00436f97": 1,
+   "FUN_0043a5d9": 1,
    "FUN_0044bd0d": 1,
    "FUN_004536cb": 1,
    "FUN_00454191": 1,
@@ -62,6 +64,22 @@
    "desc": "the per-destination \"has an event",
    "file": "src/scene_worldmap.c",
    "line": 142,
+   "kind_known": false
+  },
+  {
+   "kind": "focused",
+   "engine_fn": "FUN_00430c00",
+   "desc": "no town NPCs exist in",
+   "file": "src/scene1_sim.c",
+   "line": 97,
+   "kind_known": false
+  },
+  {
+   "kind": "focused",
+   "engine_fn": "FUN_0043a5d9",
+   "desc": "no consumer wired; no RNG.",
+   "file": "src/scene1_sim.c",
+   "line": 107,
    "kind_known": false
   },
   {

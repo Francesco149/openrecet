@@ -74,6 +74,13 @@ int scene1_conversation_pose_apply(int32_t *player_rec, int32_t *comp_rec,
  */
 void scene1_conversation_pose_tick(void);
 
+/* The FUN_0048407f tail the lean tick above does not run (bg-NPC pump +
+ * companion spring-follow/wing emit + the unconditional db054++) — EVENT-ARM
+ * ONLY (scene1_ingame_transition_arm_tick); on default-arm frames the player
+ * controller owns those.  See the .c comment for the engine mapping + the
+ * item-display-2 ground truth. */
+void scene1_event_actor_tail_tick(void);
+
 /* 1 while the pose tick is holding the conversation pose this frame.  The
  * companion controller reads this to suppress its own anim/facing selection
  * (the pose owns them); 0 in free-roam. */
