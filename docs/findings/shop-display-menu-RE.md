@@ -611,16 +611,39 @@ shows the box + Tear/Recette portraits + "Tear" nameplate + ESC-skip prompt rend
   played, both done-flags set). `PORT-DEBT(focused, FUN_0044bd0d)`: the outer
   `f454`/`f455`/`fb88` gates + every other scenario branch are not ported.
 
-**Open follow-ups (NOT the dialogue gap, which is closed):**
-1. **Per-line timing phase under fast-forward.** The trace holds Z (0x20 = 2× FF); the port's
-   reveal/advance cadence differs slightly from retail, so at a given ordinal the port is a few
-   lines *ahead* (ord 800: port "So choose what to place…" vs retail "Recette. May I speak…").
-   The line *count*/structure is 1:1; the per-line frame phase is not. A pixel diff at the
-   dialogue won't be clean for this reason. (Same class as the other reveal-cadence phase notes.)
-2. **Placed-item ids look wrong on the place path.** `display_menu_selected()` (`FUN_00469a9f`)
-   returned 64 / 64064 / 256512 on the 3 placements — the cc04 confirm path was written/tested
-   for the `sel==-1` *removal* roundtrip; the *placement* selection isn't fully ported, so the
-   newly-placed display items render wrong. Doesn't affect the dialogue triggers (f3fb=row,
-   f3fd=item_count gate). Separate chip.
-3. **Dialogue box/portrait pixel-parity** vs retail (filtering/colour) — a visual pass once the
-   timing phase is settled.
+**Open follow-ups (NOT the dialogue gap, which is closed — user-flagged 2026-06-09 PM on the
+recapture; the dialogues "play out correctly… huge progress"):**
+1. **Per-line advance cadence — port is "a bit too fast".** User: the port clears a line early
+   (ord 834 vs retail 874, ~40f over the first line), desyncing the subsequent lines under the
+   held-Z fast-forward. **Ruled out:** the internal-step count matches (retail `DAT_005c78ec=2`
+   for held 0x20, all.c:67192 = the port's `steps=2`), and the per-step reveal++/dwell++ and the
+   slam conditions (0x10 edge / 0x40 turbo only) match. So the drift is in the **dwell gate**
+   (port `IVE_DWELL_GATE=15` — check retail's `DAT_073a3e08` accept threshold), the box
+   open/close timing, or the **anchor-relative input timing** (the {wait}-gated Z engages at a
+   different point of the dialogue on port vs retail). Needs a frame-by-frame port-vs-retail
+   dwell/reveal/box trace over one line.
+2. **bg-window NPCs desync after the dialogue starts** (pinned 1:1 *before* it). The dialogue
+   consumes the shared LCG at a rate the bg-NPC respawns ride; most likely the **standee
+   screen-shake jitter** (`draw_standees` `rng_next15` per standee, §105) — iv1_5/iv1_6 may have
+   a different standee count / RMB cadence than the iv1_2 it was tuned on, OR the cadence drift
+   (#1) shifts the per-frame RNG. Run `flow_diff --verdict` over the dialogue window. Likely
+   shares a root with #1.
+3. **Text typewriter GRADIENT-to-transparent is unported** (user: "long overdue"). Retail fades
+   the reveal-EDGE char: `FUN_0046c9a2` computes `(float)((reveal-4)*speed)` (speed=`DAT_005c78dc`
+   =32, i.e. **1/32-char sub-precision**), and the partial edge char draws with
+   `alpha = __ftol(FUN_00503a44(frac)) << 0x18 | 0xffffff` (`FUN_00503a44`=**sinf**). The port
+   (`scene1_dialogue_draw.c:351`) collapses the budget — `(reveal-4)*speed/32` → integer
+   `max_chars=(int)budget` — and draws every revealed glyph at full `0xffffffff`, so the edge is a
+   hard cutoff with no fade. Fix: keep the fractional budget + draw the edge glyph(s) at the
+   sin-based alpha. (Does NOT affect the reveal-completion frame — the /32 cancels there — so it's
+   independent of #1.)
+4. **Placed-item ids wrong on the place path.** `display_menu_selected()` (`FUN_00469a9f`)
+   returned 64 / 64064 / 256512 on the 3 placements — the cc04 confirm path was written/tested for
+   the `sel==-1` *removal* roundtrip; the *placement* selection isn't fully ported, so the
+   newly-placed display items render wrong. Doesn't affect the dialogue triggers.
+5. **Missing "bread" item tooltip during the dialogue** (user, retail ord 854 box
+   467,276,726,448). Likely the C3b `merchant_hud_item_tooltip` (faced-cell item name) — either
+   suppressed while a dialogue is active, or showing the wrong/garbage placed item (#4). Compare
+   the port vs retail frame.
+6. **Dialogue box/portrait pixel-parity** vs retail (filtering/colour) — a visual pass once the
+   cadence (#1) is settled.
