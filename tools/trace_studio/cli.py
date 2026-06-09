@@ -105,6 +105,28 @@ def cmd_serve(args) -> int:
     return 0
 
 
+def cmd_triage(args) -> int:
+    """TRIAGE: session → ranked divergence report (audit T1). One command instead
+    of hand-chaining diff-curve reading, flow_diff --verdict/--field-timeline and
+    state lookup; writes <session>/triage.json + prints a short summary. Exit 0
+    clean / 1 divergence / 2 unusable."""
+    import json
+
+    from .analysis.triage import print_summary, run_triage
+    sess_dir = SESS_ROOT / args.session
+    if not (sess_dir / "session.json").exists():
+        raise SystemExit(f"trace_studio: no session {args.session} under {SESS_ROOT}")
+    t, rc = run_triage(sess_dir, differ_px=args.differ_px, meanabs=args.meanabs,
+                       gt8_px=args.gt8_px, skip=args.skip,
+                       field_timeline=args.field_timeline)
+    (sess_dir / "triage.json").write_text(json.dumps(t, indent=2) + "\n")
+    if args.json:
+        print(json.dumps(t, indent=2))
+    else:
+        print_summary(t, rc)
+    return rc
+
+
 def cmd_apply(args) -> int:
     from pathlib import Path
 
@@ -224,6 +246,29 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--remote", default=DEFAULT_REMOTE,
                    help="frida host:port the record panel attaches to")
     s.set_defaults(func=cmd_serve)
+
+    t = sub.add_parser("triage",
+                       help="session → ranked divergence report (triage.json + summary)")
+    t.add_argument("session")
+    t.add_argument("--gt8-px", type=int, default=16,
+                   help="frame is divergent when >this many px have a channel "
+                        "|Δ|>8 — the bit-clean criterion (default 16; primary "
+                        "metric when the diff curve carries gt8)")
+    t.add_argument("--differ-px", type=int, default=64,
+                   help="fallback for pre-gt8 sessions: any-1-LSB px count "
+                        "threshold (default 64)")
+    t.add_argument("--meanabs", type=float, default=0.02,
+                   help="…or mean |Δ|/channel exceeds this (default 0.02)")
+    t.add_argument("--skip", type=int, default=0,
+                   help="ignore the first N frames (pin settle margin)")
+    t.add_argument("--field-timeline", action=argparse.BooleanOptionalAction,
+                   default=True,
+                   help="run flow_diff --field-timeline when call traces exist "
+                        "(names the first divergent state field; --no-field-timeline "
+                        "to skip the heavy leg)")
+    t.add_argument("--json", action="store_true",
+                   help="print the full triage.json instead of the summary")
+    t.set_defaults(func=cmd_triage)
 
     a = sub.add_parser("apply", help="apply edits.jsonl pins + emit worklist")
     a.add_argument("session")

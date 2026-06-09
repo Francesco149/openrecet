@@ -42,6 +42,7 @@ def build_diff(port_dir: Path, retail_dir: Path, diff_dir: Path, amp: float) -> 
     pf = [p for _, p in port_by]
     labels = [n for n, _ in port_by]         # port file numbers ARE the labels
     rf = [p for _, p in sorted(_by_index(Path(retail_dir) / "frames").items())]
+    import numpy as np
     per: list[dict] = []
     for i in range(min(len(pf), len(rf))):
         a = load_png_rgb(rf[i])              # retail = ground truth (left/A)
@@ -50,6 +51,10 @@ def build_diff(port_dir: Path, retail_dir: Path, diff_dir: Path, amp: float) -> 
             continue
         d, differ, meanabs = amplified_diff(a, b, amp)
         save_png(d, diff_dir / f"frame_{labels[i]:05d}.png")
+        # gt8 = pixels with any channel |Δ| > 8 — the project's bit-clean
+        # criterion ("0 px >8/ch"); `differ` counts ANY 1-LSB pixel and is
+        # noise-dominated on real captures, so triage thresholds on gt8.
+        gt8 = int((np.abs(a.astype(int) - b.astype(int)).max(axis=2) > 8).sum())
         per.append({"frame": labels[i], "differ": differ,
-                    "meanabs": round(meanabs, 4)})
+                    "meanabs": round(meanabs, 4), "gt8": gt8})
     return {"n": len(per), "per_frame": per}
