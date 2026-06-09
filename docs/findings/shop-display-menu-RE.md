@@ -526,3 +526,53 @@ literal rounds to `0x3b712c28` AND `0.003685f`→`0x3b7180ca` (wrong); (2) the U
   bare `ftol(sin(b8cc·0.05))` was missing the `·32+159`.) `g_sim_frame` = `DAT_0438b8cc` (the
   `sim_phasepin`-pinned counter — so the pulse phase is 1:1 on the pinned bench).
 - **Draw:** `DrawPrimitiveUP(TRIANGLESTRIP, 2 prims, verts, stride 0x18)`.
+
+## SESSION 2026-06-09 PM — Tear tutorial dialogues (RE COMPLETE, port pending)
+
+The two back-to-back Tear dialogues the `item-display-2` bench was recorded for — **the
+headline gap (user priority).** Probed entirely from the **retail call-trace** + the
+**already-ported prologue dialogue** (per user steer: "probe retail with our tracing tools +
+use what you already ported of previous dialogue"). The dialogue text was extracted from the
+real game archive via `tools/extract/data-bin.py vendor/original/ <out>` (grep needs `-a` —
+the `.ivt` are binary).
+
+**Both dialogues run through the SAME interpreter the port already has** — `FUN_0046c320`
+(dialogue_tick, ported as `scene1_dialogue_run` / driven by `scene1_intro_dialogue`). On the
+retail trace `0x46c320` fires abs **15216→16397** (ord 649→1830), carrying box_open/reveal/
+line_row; **two** line-row-0 starts (ord **770** + ord **1483**) = the two scripts.
+
+**The two scripts (loaded `iv/iv%d_%d.ivt` by `(DAT_005c7a2c, DAT_005c7a30)` = scene/sub, the
+exact path `scene1_dialogue_load` already builds):**
+- **#1 = `iv1_5.ivt`** (scene 1, sub 5): *"Recette. May I speak with you a moment? … Those
+  counters by the window… Items you place there are visible to anyone passing by on the street."*
+- **#2 = `iv1_6.ivt`** (scene 1, sub 6): *"Alright. That should do for displaying our wares. …
+  Are you sure it doesn't look dumb?"*
+- (Related, already-fired-earlier: `iv1_4.ivt` (1,4) = the "crash course… put items on display"
+  instruction.)
+
+**The trigger chain (all unported):**
+1. **Condition flags set at item PLACEMENT** — `house_update` `FUN_0048670f`, the display-menu
+   confirm path `FUN_00469414()==1` (all.c:87932-87976, the place-item branch; the port already
+   populates the grid so placement works, but does NOT set these flags):
+   - **`DAT_0450f3fb = 1`** iff the placed cell is **row 0** (`DAT_0438cc00 == 0`, the window
+     counters) → arms **iv1_5**.
+   - **`DAT_0450f3fd = 1`** iff **all display cells are filled** — the 0x14-stride double-loop at
+     87954-87972 counts stand cells (`DAT_074b28e8` value in (1,5)) vs occupied item-grid cells
+     (`DAT_044f7030 != -1`); equal ⇒ every counter full → arms **iv1_6** (+ clears `DAT_0450f3f2`).
+2. **Story-event dispatcher `FUN_0044bd0d`** (all.c:45406, 2723 B — the master tutorial/scenario
+   scheduler; the port currently only realises the prologue (1,1)/(1,2) via `scene1_intro_dialogue`).
+   Per-slot, when a condition flag is set and its done-flag is clear and `DAT_0438b1c8==0`
+   (no dialogue active), it sets scene/sub + `DAT_0438b1c8=2` + `FUN_00452d07` and marks done:
+   - **iv1_5**: `DAT_0450f3fb==1 && DAT_0450f3fc==0` (45666) → `(1,5)`, done `DAT_0450f3fc`.
+   - **iv1_6**: `DAT_0450f3fd==1 && DAT_0450f3fe==0` (45677) → `(1,6)`, done `DAT_0450f3fe`(+`f3ff`).
+3. **Activation** sets `DAT_005c7a2c/30` (scene/sub) + `DAT_0438b1c8=2`; the interpreter
+   (ported) loads `iv/iv1_5.ivt` / `iv/iv1_6.ivt` and runs. The conversation also poses the
+   chibis via the already-RE'd `FUN_0048407f` conversation-pose driver (talk flag `DAT_0450f470`,
+   beat-driver `FUN_00470a46`).
+
+**Port plan (chips):** (D1) set `DAT_0450f3fb`/`f3fd` at the port's placement confirm (mirror
+87949-87975 incl. the all-cells-filled count); (D2) a focused event-dispatcher (the iv1_5/iv1_6
+branches of `FUN_0044bd0d` + done-flags, persisted per-slot) that activates the dialogue; (D3)
+extend `scene1_intro_dialogue` (or a sibling tutorial-dialogue driver) to load+run `(1,5)`/`(1,6)`
+on activation — it already does `(1,1)`/`(1,2)`. Verify on `item-display-2`: the dialogue box +
+Tear/Recette should appear at ord ~770 (iv1_5) and ~1483 (iv1_6), matching retail.

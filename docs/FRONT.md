@@ -34,12 +34,23 @@
   rendered a bogus "Sword+2"). PORT-DEBT(simplified, FUN_004361b2) trend-colour=level-0; PORT-DEBT(stub,
   FUN_00409925) furniture-branch. **→ EXPANDED SCOPE (user, 2026-06-09 PM): the item-display
   INTERACTION FLOW has more open gaps than the 4-gap board — see `findings/shop-display-menu-RE.md`
-  "Expanded interaction-flow board".** Priority order: **(A) the 2 Tear tutorial dialogues — MISSING
-  (headline; #1 fires when the 3rd item is displayed, #2 when ALL items in possession are displayed —
-  RE from retail to make faithful)** → (B) "What will you place?" placement-MENU prompt @f391 (≠ C3b,
-  gap #2) → (C) menu panel slide-in anim @f122 → (D) selected-row flash @f172 → (E) placement-dust
-  desync @f272 → (F) carry-pose/held-item (gap #4, the verdict's px/py/pz drift; held item red-vs-gold).
-  **NEXT: (A) Tear dialogues.** **NOTE (policy, CLAUDE.md):** every trace we work on is
+  "Expanded interaction-flow board".** Priority order: **(A) the 2 Tear tutorial dialogues** →
+  (B) "What will you place?" placement-MENU prompt @f391 (≠ C3b, gap #2) → (C) menu panel slide-in
+  anim @f122 → (D) selected-row flash @f172 → (E) placement-dust desync @f272 → (F) carry-pose/held-item
+  (gap #4, the verdict's px/py/pz drift; held item red-vs-gold). **(A) RE COMPLETE 2026-06-09 PM
+  (`findings/shop-display-menu-RE.md` "Tear tutorial dialogues"), PORT PENDING:** both dialogues run
+  through the **already-ported interpreter** (`FUN_0046c320`→`scene1_dialogue_run`; on retail fires
+  ord 649→1830, two script-starts). **#1 = `iv1_5.ivt`** (scene 1,sub 5; *"items you place there are
+  visible to anyone passing by"*) fires on placing in **row 0** (`cc00==0`→`DAT_0450f3fb`); **#2 =
+  `iv1_6.ivt`** (1,6; *"that should do for displaying our wares"*) fires when **all display cells
+  filled** (→`DAT_0450f3fd`). Dispatcher `FUN_0044bd0d` checks the flags → activates (scene/sub +
+  `DAT_0438b1c8=2`); loader builds `iv/iv1_5.ivt` like the prologue's `iv1_1`. Scripts extracted via
+  `tools/extract/data-bin.py vendor/original/` (grep `-a`). **Chips: D1** set `f3fb`/`f3fd` at the
+  port's placement confirm (`house_update` place path, mirror all.c:87949-87975) → **D2** focused
+  dispatcher (iv1_5/iv1_6 branches + per-slot done-flags `f3fc`/`f3fe`) → **D3** generalize
+  `scene1_intro_dialogue` (a single shared `g_rt`, matching retail's one `DAT_0438b1c8`) to load+run
+  `(1,5)`/`(1,6)`, not just `(1,1)`/`(1,2)`. Verify on `item-display-2`: box+Tear/Recette at ord ~770
+  (iv1_5) + ~1483 (iv1_6) vs retail. **NEXT: D1.** **NOTE (policy, CLAUDE.md):** every trace we work on is
   phase+RNG-pinned AND call-traced up front now. Tooling fix still owed: the recorder's `save_capture`
   overwrites `<name>.save.bin` unconditionally (clobbered item-display-2's boot save across two takes).
 - **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`). ✅ PHASE 0 RE COMPLETE →
