@@ -142,7 +142,8 @@ def apply(sess_dir: Path, trace_override: Path | None = None,
             worklist.append(f"- **auto-pin** rngcalls DESYNC → added "
                             f"{{rngseed: [{cr_start}, {CANON_SEED}]}}")
 
-    # ── insert pins into the trace (final segment, after the last {wait}) ───
+    # ── insert pins into the trace (the segment that OPENS the capture window,
+    # right after its {wait} — pins are numbered relative to THAT anchor) ───
     lines = trace.read_text().splitlines()
     existing = set(json.dumps(json.loads(ln)) for ln in lines
                    if ln.strip() and not ln.strip().startswith("#")
@@ -152,7 +153,7 @@ def apply(sess_dir: Path, trace_override: Path | None = None,
     n_dupe = len(pin_ops) - len(new_lines)
 
     if new_lines:
-        wi = _last_wait_idx(lines)
+        wi = _caprange_seg_wait_idx(lines)
         at = wi + 1 if wi >= 0 else 0
         lines = lines[:at] + new_lines + lines[at:]
 
