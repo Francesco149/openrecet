@@ -66,9 +66,35 @@ triage→record→decide discipline. It is the census's first actionable lead; d
 sparkle-parity pass if/when the residue is shown to matter, or to make the sparkle fully
 load-deterministic.
 
+## Result — RETAIL, HOUSE (pinned, 2026-06-09) — cross-validates the port
+
+Ran `--side retail --mode pinned` (3 retail intro→HOUSE captures: a, b, control;
+`{memsnap}` of `.data`/`.data1`, 152 MB, written straight to disk by the agent). The
+retail `{memsnap}` path is now **proven end-to-end**. The pinned gate reduced 271 diffing
+ranges → exactly the SAME finding as the port plus one open byte:
+
+| retail addr | class | note |
+|---|---|---|
+| `DAT_0064e800`–`0064f220` | known-unpinned | the SAME 目玉 sparkle overlay-slot residue as the port's `g_scene1_overlay_slots` — identical values (floats `0x3f7d70a4`/`0x3f000000`, count `0x18`, lifetimes `5/0xd/0x15`, negative-float positions `0xc0……`). Cross-confirms the lead on retail. |
+| `DAT_073dd000`–`073e1400` | harness | DirectInput input mask + device-state ring — differs because variant B holds different input at the snapshot (the +Δ shift), exactly like the port's `g_sim_buttons`. |
+| `DAT_09643518`,`0964352c` | clock | title-scene frame counters; differ by **exactly +37** (= Δ) → frame-coupled, inactive in HOUSE. |
+| **`DAT_0438b430`** | **UNKNOWN — OPEN** | one byte, `A=2 / B=3`, in the scene/sim global block (near the cursor/mode globals `0438b1xx`). Load-coupled (diff 1, not Δ). The one genuinely-unexplained retail byte; sub-visible (a single byte, not a render input). Candidate to identify + pin or accept in a follow-up — left UNKNOWN so the gate keeps flagging it. |
+
+These addresses are tabled in `phase_census.py` `KNOWN_RETAIL` (pinned/known-unpinned/
+harness/clock) so the gate is a **regression detector**: it alarms only on NEW
+engine/UNKNOWN ranges (here: just `DAT_0438b430`), listing the documented moles without
+re-failing on them. Same on the port via `PORT_KNOWN_UNPINNED_PAT` (the overlay slots).
+
+**Conclusion:** the canonical `{phasepin}` holds on BOTH targets except the sparkle
+overlay-slot residue (same root cause both sides) and the single retail byte
+`DAT_0438b430`. The census + the two-target cross-check is the standing pin-completeness
+gate; re-run after a pin change or per new scene.
+
 ## Not yet run
 
-- **Pinned RETAIL census** (same bench, `--side retail`) — needs the Frida host; the
-  `{memsnap}` retail path is built + wired (agent + `frida_capture` regions) but unrun
-  here. The KNOWN_RETAIL table in `phase_census.py` pre-annotates the pinned DAT_ set.
-- **Other scenes** (world map, dungeon when it lands) — one discovery+triage pass each.
+- **Other scenes** (world map, dungeon when it lands) — one discovery+triage pass each,
+  port then retail.
+- **Retiring the sparkle residue:** fold `g_scene1_overlay_slots` / `DAT_0064e8xx` into
+  `{phasepin}` (zero the records-A overlay slot array at the pin, both sides) in a
+  sparkle-parity pass — then both gates read fully clean bar `DAT_0438b430`.
+- **Identify `DAT_0438b430`** (the one open retail byte) when convenient.

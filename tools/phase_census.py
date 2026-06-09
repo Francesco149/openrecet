@@ -72,6 +72,11 @@ KNOWN_RETAIL = [
     (0x0438b8cc, 4,      "g_sim_frame_count (sparkle %8)",     "pinned"),
     (0x073a3e0c, 4,      "dialogue advance-arrow blink",       "known-unpinned"),
     (0x09643628, 4,      "world-map entry timer",              "known-unpinned"),
+    # 2026-06-09 HOUSE retail census triage (findings/phase-state-census.md):
+    (0x0064e800, 0xb00,  "records-A 目玉 sparkle overlay slots",  "known-unpinned"),
+    (0x073dd000, 0x3000, "DirectInput input mask/state",       "harness"),
+    (0x073e0000, 0x1400, "DirectInput device state ring",      "harness"),
+    (0x09643500, 0x40,   "title-scene frame counters",         "clock"),
 ]
 
 # Port symbols that are HARNESS/clock/process state — differ by construction
@@ -89,6 +94,14 @@ PORT_BENIGN_PAT = re.compile(
     r"^_?(g_tab"                 # lnkdatas/asset hash table — keyed deref, layout
     r"|g_scene_title_anim"       # title menu anim — inactive in HOUSE; boot residue
     r")")
+
+# Port symbols that are DOCUMENTED-but-unpinned moles (findings/phase-state-census.md):
+# real load-dependent phase we know about and have decided to accept/defer, NOT
+# pinned yet. Listed by the report but excluded from the gate alarm (the gate fires
+# on NEW engine/UNKNOWN ranges, not the standing known set — fold these into
+# {phasepin} to retire them).
+PORT_KNOWN_UNPINNED_PAT = re.compile(
+    r"^_?g_scene1_overlay_slots")  # 目玉 sparkle particle residue (see findings)
 
 
 # ─── variant generation (pure) ──────────────────────────────────────────────
@@ -346,6 +359,8 @@ def build_report(dumps_a: list[dict], dumps_b: list[dict], side: str,
                 row["sym"] = f"{name}+0x{soff:x}" if name != "?" else "?"
                 row["cls"] = ("volatile" if volatile
                               else "harness" if PORT_HARNESS_PAT.match(name)
+                              else "known-unpinned"
+                              if PORT_KNOWN_UNPINNED_PAT.match(name)
                               else "known-benign" if PORT_BENIGN_PAT.match(name)
                               else "ptr-layout" if layout
                               else "engine")
@@ -377,6 +392,8 @@ def print_report(rep: dict, mode: str, top: int = 40) -> int:
     cls_rank = {"UNKNOWN": 0, "engine": 0, "known-unpinned": 1, "pinned": 2,
                 "clock": 3, "ptr-layout": 4, "known-benign": 5, "harness": 6,
                 "volatile": 7}
+    GATE_OK = ("harness", "pinned", "clock", "volatile", "ptr-layout",
+               "known-benign", "known-unpinned")  # excluded from the gate alarm
     interesting = []
     for reg in rep["regions"]:
         for r in reg["ranges"]:
@@ -391,14 +408,17 @@ def print_report(rep: dict, mode: str, top: int = 40) -> int:
     if rep["n_ranges"] > top:
         print(f"  … +{rep['n_ranges'] - top} more (see report.json)")
     if mode == "pinned":
-        bad = sum(n for c, n in rep["by_cls"].items()
-                  if c not in ("harness", "pinned", "clock", "volatile",
-                               "ptr-layout", "known-benign"))
+        bad = sum(n for c, n in rep["by_cls"].items() if c not in GATE_OK)
+        known = rep["by_cls"].get("known-unpinned", 0)
         if bad:
-            print(f"phase_census: PINNED census NOT clean — {bad} unexplained "
-                  f"range(s) = missing pin or true non-determinism")
+            print(f"phase_census: PINNED census NOT clean — {bad} NEW unexplained "
+                  f"range(s) (engine/UNKNOWN) = missing pin or true non-determinism")
             return 1
-        print("phase_census: PINNED census clean — pin coverage holds")
+        msg = "phase_census: PINNED census clean — no new unexplained state"
+        if known:
+            msg += (f" ({known} documented known-unpinned mole range(s) still "
+                    f"present — fold into {{phasepin}} to retire)")
+        print(msg + "; pin coverage holds vs the known set")
     return 0
 
 

@@ -117,6 +117,22 @@ def test_control_classifies_volatile():
         assert cls[0x800] == "volatile", cls
 
 
+def test_classification_patterns_and_known_retail():
+    # the triage patterns + the retail KNOWN table seeded from the HOUSE census.
+    import phase_census as pc
+    assert pc.PORT_KNOWN_UNPINNED_PAT.match("g_scene1_overlay_slots")  # the mole
+    assert not pc.PORT_KNOWN_UNPINNED_PAT.match("g_mystery")           # new → engine
+    assert pc.PORT_HARNESS_PAT.match("g_sim_buttons")                  # input shift
+    assert pc.PORT_HARNESS_PAT.match("g_singleton_mutex")
+    assert pc.PORT_BENIGN_PAT.match("g_tab")                           # asset hash
+    # retail: the sparkle slot region is known-unpinned; the DI region harness;
+    # the one open byte is NOT covered (stays UNKNOWN → the gate flags it).
+    assert pc.known_retail_cls(0x0064e91c, 24)[1] == "known-unpinned"
+    assert pc.known_retail_cls(0x073dfd3c, 1)[1] == "harness"
+    assert pc.known_retail_cls(0x09643518, 1)[1] == "clock"
+    assert pc.known_retail_cls(0x0438b430, 1) is None                  # OPEN byte
+
+
 def test_ptr_layout_vs_phase_counter():
     import phase_census as pc
     with tempfile.TemporaryDirectory() as td:
