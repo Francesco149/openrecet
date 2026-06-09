@@ -186,6 +186,20 @@ pin/benign set), record in `findings/phase-state-census.md`, extend `{phasepin}`
 accordingly. Repeat per major scene (HOUSE, world map, dungeon when it lands). Same
 trick on the port (two runs with different artificial pre-delays) catches port-side
 free-runners. This converts the #1 recurring time sink into a one-time sweep per scene.
+**Pinned mode = pin-completeness regression test (the decisive feature, 2026-06-09):**
+apply the canonical pin block at the anchor, snapshot one frame later on both
+differently-stretched runs — a complete pin yields an EMPTY diff; any surviving byte
+is a missing pin (or true non-determinism), named by address BEFORE it costs a
+debugging session. Re-run after each arc / per new scene as the standing gate.
+Discovery mode (unpinned) finds the set; pinned mode proves it stays closed. A
+decompile sweep was considered for discovery and rejected: static candidate lists
+are huge (reachability/indirection-lossy, scene-unreached counters, no visible-
+consumer filter) while the census answers the actual runtime property directly;
+decompile reading is the TRIAGE step for census hits (writers/readers of the few
+differing addresses), not the discovery mechanism. Known limitation: heap/arena
+state outside .data/.bss (rare so far; the save arena is covered by T4's hashes) and
+state that only starts free-running after the anchor — mitigate by snapshotting at
+several anchors along the milestone traces.
 
 **T4 — State-checksum anchors + save-equality oracle.** (S–M effort, L payoff vs R2.)
 (a) At every `{wait}` anchor frame, both sides emit `sha256(working save arena)` (+ a
