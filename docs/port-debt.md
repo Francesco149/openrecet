@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **15**
-- distinct retiring engine functions: **13**
+- total open debts: **17**
+- distinct retiring engine functions: **15**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 4 | wired call boundary, body incomplete |
+| stub | 5 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 5 | reduced control flow / state machine vs retail |
+| simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -31,10 +31,12 @@ the answer to *"what's still faked in code that looks done?"*
 | engine fn | open debts |
 |-----------|-----------:|
 | FUN_004176ff | 2 |
+| FUN_00409925 | 1 |
 | FUN_004161c7 | 1 |
 | FUN_004176ff L3876 | 1 |
 | FUN_004176ff L4958 | 1 |
 | FUN_00435c98 | 1 |
+| FUN_004361b2 | 1 |
 | FUN_00436f97 | 1 |
 | FUN_004536cb | 1 |
 | FUN_00454191 | 1 |
@@ -44,10 +46,11 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00474d92 | 1 |
 | FUN_005031e4 | 1 |
 
-## stub (4)
+## stub (5)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
+| FUN_00409925 | src/scene1_merchant_hud.c:184 | C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. |
 | FUN_004176ff | src/scene1_wing_glow.c:29 | only the records-A type-0x1f arm is |
 | FUN_004176ff | src/scene1_wing_glow.h:19 | only the records-A 0x1f arm is ported; |
 | FUN_004176ff L4958 | src/scene1_walk_dust.c:29 | this arm in the engine is SHARED by |
@@ -57,12 +60,13 @@ the answer to *"what's still faked in code that looks done?"*
 
 _none_
 
-## simplified (5)
+## simplified (6)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004176ff L3876 | src/scene1_wing_glow.c:34 | the engine's boosted-glow |
+| FUN_004361b2 | src/scene1_merchant_hud.c:201 | C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
 | FUN_004536cb | src/sim.c:281 | retail freezes the *entire |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:164 | the engine teardown also restores the |

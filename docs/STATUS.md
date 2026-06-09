@@ -8,22 +8,22 @@
 ## Port coverage (non-thunk engine functions)
 
 ```
-████░░░░░░░░░░░░░░░░  18.0% touched   (2.7% runtime-verified)
+████░░░░░░░░░░░░░░░░  18.1% touched   (2.7% runtime-verified)
 ```
 
 | status    | count | what it means                                            |
 |-----------|------:|----------------------------------------------------------|
 | verified  |    69 | CALL_TRACE_ENTER probe, runtime-diffed vs retail         |
 | stubbed   |    15 | CALL_TRACE_ENTER_STUB — wired but body incomplete        |
-| ported    |   375 | reimplemented in src/, no runtime probe yet              |
-| **touched** | **459** | verified + stubbed + ported                         |
-| unported  |  2089 | exists in engine, never referenced from src/             |
+| ported    |   378 | reimplemented in src/, no runtime probe yet              |
+| **touched** | **462** | verified + stubbed + ported                         |
+| unported  |  2086 | exists in engine, never referenced from src/             |
 | **total** | **2548** | non-thunk engine functions (of 2620 incl. thunks) |
 
 7 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 15 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 17 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code the table above calls "ported" (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -47,13 +47,27 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `item-display-2` recapture the faced cell (4,4) shows the glow; studio diff @ord107
   glow-region is **bit-clean (max 6/ch, 0 px >8/ch)** vs retail. **Constant fixes vs the spec:**
   scale = 0.0036799998 (`0x3b712c27`, NOT 0.003685); U texels 224.5/287.5 (centres, NOT
-  225/288); alpha consts all float. (2) "What will you place?"
-  world-projected menu prompt @f147 (drawer + UI-string RE pending); (3) C3b item name tooltip
-  @f257 (recipe ready); (4) hands-up Recette reaction pose @f441 (anim-trigger RE pending;
-  likely == the `house_update` pos-drift the verdict flags from f122). **NEXT: C3b → #4 → f147**
-  (C3a done). **NOTE (policy, CLAUDE.md):** every trace we work on is phase+RNG-pinned AND
-  call-traced up front now. Tooling fix still owed: the recorder's `save_capture` overwrites
-  `<name>.save.bin` unconditionally (clobbered item-display-2's boot save across two takes).
+  225/288); alpha consts all float. **(3) ✅ C3b item-name tooltip ("Worn Sword") @f183/f257 —
+  PORTED & USER-CONFIRMED 1:1 2026-06-09:** ported `FUN_00409925`'s FRONT (asm 0x409925-0x409cf0)
+  as `merchant_hud_item_tooltip` at the top of `scene1_merchant_hud_render`. New reusable
+  host-tested **`scene1_project_world[_mat]`** (`scene1_render.c`, port of FUN_00490c78→490d29:
+  `fx=proj[0]·320, fy=proj[5]·240`; `sx=320−fx·vx/vz`, `sy=240+fy·vy/vz`; affine view-point) +
+  4 projection host-tests. Parchment bubble item_win src(832,480)-(959,559) dst(sx-26,sy-16,
+  164,80) diffuse 0xffffffff; name `font_draw_text_centered(sx+52,sy+26,name,col,0.6)` under
+  COLOROP ADDSIGNED→MODULATE. **Tooltip band bit-clean (max 1/ch, 0 px>8) vs retail.** GOTCHA: the
+  itemid is the **save-bank DISPLAY grid** (`save_work_dwords_at(slot)[SAVE_BANK_FIELD_DISPLAY_GRID
+  + cbfc+cc00·20]` — the sparkle/A2 grid), NOT `shop_display_grid_cell` (furniture-LAYOUT grid →
+  rendered a bogus "Sword+2"). PORT-DEBT(simplified, FUN_004361b2) trend-colour=level-0; PORT-DEBT(stub,
+  FUN_00409925) furniture-branch. **→ EXPANDED SCOPE (user, 2026-06-09 PM): the item-display
+  INTERACTION FLOW has more open gaps than the 4-gap board — see `findings/shop-display-menu-RE.md`
+  "Expanded interaction-flow board".** Priority order: **(A) the 2 Tear tutorial dialogues — MISSING
+  (headline; #1 fires when the 3rd item is displayed, #2 when ALL items in possession are displayed —
+  RE from retail to make faithful)** → (B) "What will you place?" placement-MENU prompt @f391 (≠ C3b,
+  gap #2) → (C) menu panel slide-in anim @f122 → (D) selected-row flash @f172 → (E) placement-dust
+  desync @f272 → (F) carry-pose/held-item (gap #4, the verdict's px/py/pz drift; held item red-vs-gold).
+  **NEXT: (A) Tear dialogues.** **NOTE (policy, CLAUDE.md):** every trace we work on is
+  phase+RNG-pinned AND call-traced up front now. Tooling fix still owed: the recorder's `save_capture`
+  overwrites `<name>.save.bin` unconditionally (clobbered item-display-2's boot save across two takes).
 - **NEXT ARC → TOWN-MAP PORT (plan `plans/town-map-port.md`). ✅ PHASE 0 RE COMPLETE →
   `findings/town-map-RE.md`. ✅ T1+T2+T3+T4 LANDED + mode-8 HUD (clock/Day/money + hand cursor).
   NEXT = the WORLD-MAP PARITY BACKLOG** (5 user-flagged both-target divergences on

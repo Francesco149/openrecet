@@ -38,6 +38,15 @@ int scene1_merchant_hud_level(void) { return g_level; }
 #include "render_quad.h"
 #include "sysassets.h"
 #include "call_trace.h"
+#include "font_draw.h"           /* font_draw_text_centered (FUN_0047d14c)   */
+#include "scene1_render.h"       /* scene1_project_world (FUN_00490c78)      */
+#include "scene1_shop_display.h" /* cbfc / cc00 / bf68 + grid stride          */
+#include "scene1_player_ctrl.h"  /* player_ctrl_cc08 (DAT_0438cc08)          */
+#include "save_work.h"           /* working-bank dwords (the live item grid) */
+#include "save_bank.h"           /* SAVE_BANK_FIELD_DISPLAY_GRID (DAT_044f7030) */
+#include "scene1_maplight.h"     /* scene1_current_stage_record (*068dd2f0)  */
+#include "scene.h"               /* g_scene_state (DAT_0438b1c0)             */
+#include "tables_item.h"         /* g_item DB record + name lookup           */
 
 #ifndef M_PI_F
 #define M_PI_F 3.1415927f
@@ -108,6 +117,103 @@ void scene1_merchant_hud_draw_level(IDirect3DDevice8 *dev,
     render_quad_flush(dev);
 }
 
+/* ── FUN_00409925 front (asm 0x409925-0x409cf0) — C3b ──────────────────────
+ * The world-anchored item tooltip over the faced display stand.  Runs BEFORE
+ * the level-badge body, matching the engine's intra-function order.
+ *
+ * Gate (asm 0x40994a-0x4099dd): scene_state==1 (HOUSE/INGAME) && stage
+ * maptype==0 (*DAT_068dd2f0) && (cc08==1 || 0x32) && cbfc!=-1 && cc00!=-1 &&
+ * (grid[cell]!=-1 || bf68!=0).  Item branch (bf68==0): the name tooltip.
+ * Furniture branch (bf68!=0): name + "%d/%d" slot count — deferred (the bench
+ * faces a sword cell, bf68==0).
+ *
+ * The faced cell is projected to screen at world (2·cbfc-9, 1.9, 2·cc00-6.5)
+ * — note Z = the cell render_z + 0.5 (asm 0x4099e3-0x409a27).  Parchment
+ * bubble = item_win src(832,480)-(959,559) dst(sx-26, sy-16, 164, 80), diffuse
+ * 0xffffffff (the arg Ghidra dropped, asm 0x409a32). */
+static void merchant_hud_item_tooltip(IDirect3DDevice8 *dev)
+{
+    /* ── gate ──────────────────────────────────────────────────────────── */
+    if (g_scene_state != SCENE_STATE_INGAME)             /* DAT_0438b1c0==1  */
+        return;
+    const stage_record_t *stage = scene1_current_stage_record();
+    if (stage && stage->maptype != 0)                    /* *DAT_068dd2f0==0 */
+        return;
+    int cc08 = player_ctrl_cc08();
+    if (cc08 != 1 && cc08 != 0x32)
+        return;
+    int cbfc = shop_display_cbfc();
+    int cc00 = shop_display_cc00();
+    if (cbfc == -1 || cc00 == -1)
+        return;
+    int bf68 = shop_display_bf68();
+    /* Faced cell's item id (engine *(DAT_044f7030 + (cbfc+cc00·20)·4 + slot·…)):
+     * the working save-bank DISPLAY grid — the SAME grid the sparkle and the A2
+     * removal read — NOT the furniture-layout grid (shop_display_grid_cell). */
+    int32_t itemid = -1;
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank)
+        itemid = (int32_t)bank[SAVE_BANK_FIELD_DISPLAY_GRID
+                               + cbfc + cc00 * SHOP_DISPLAY_GRID_STRIDE];
+    if (itemid == -1 && bf68 == 0)                  /* grid[cell]!=-1 || bf68 */
+        return;
+
+    const sprite_t *win = &g_sysassets.item_win_tga; /* DAT_073d8748          */
+    if (!win->tex)
+        return;
+
+    /* ── project the cell to screen (FUN_00490c78) ─────────────────────── */
+    float sx, sy;
+    scene1_project_world(2.0f * (float)cbfc - 9.0f, 1.9f,
+                         2.0f * (float)cc00 - 6.5f, &sx, &sy, NULL);
+
+    /* ── parchment bubble (asm 0x409a2c-0x409a99); native brightness ───── */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)win->tex);
+    {
+        const float dst[4] = { sx - 26.0f, sy - 16.0f, 164.0f, 80.0f };
+        const float src[4] = { 832.0f, 480.0f, 959.0f, 559.0f };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+        render_quad_flush(dev);
+    }
+
+    if (bf68 != 0) {
+        /* The bf68≠0 furniture-stand tooltip branch (name + "%d/%d" slot count,
+         * asm 0x409a9e-0x409bd6) is deferred — the item-display bench faces item
+         * cells (bf68==0).  Retire on a furniture bench.
+         * PORT-DEBT(stub, FUN_00409925): C3b furniture-stand tooltip branch (name + "%d/%d" slot count) not rendered; item branch only. */
+        return;
+    }
+    if (itemid == -1)
+        return;
+
+    /* ── item name (item branch, asm 0x409bdc-0x409cea) ────────────────── */
+    int rec = tables_item_find_slot_by_id(&g_item, itemid >> 6);
+    if (rec < 0)
+        return;
+    const item_record_t *r = &g_item.records[rec];
+
+    /* Name colour = market price-trend level (FUN_004361b2): ≥2 red /
+     * 1 light-red / 0 neutral / -1 light-blue / ≤-2 blue.  The classifier reads
+     * the daily-market region pricing tables (unported — same debt the menu rows
+     * carry, scene1_display_menu.c); default to level-0 neutral (white under
+     * ADDSIGNED).  Retire with the daily market.
+     * PORT-DEBT(simplified, FUN_004361b2): C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). */
+    const uint32_t color = 0xff7f7f7fu;
+
+    char buf[256];
+    if ((itemid & 0xf) == 0)
+        snprintf(buf, sizeof buf, "%s", r->singular);                 /* 0x529968 */
+    else
+        snprintf(buf, sizeof buf, "%s+%d", r->singular, itemid & 0xf);/* 0x529960 */
+
+    /* COLOROP=ADDSIGNED around the name (asm 0x409c44 / 0x409ce3), then back to
+     * MODULATE for the trailing level badge the body draws next. */
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+    font_draw_text_centered(dev, sx + 52.0f, sy + 26.0f, buf, color, 0.6f);
+    IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+}
+
 void scene1_merchant_hud_render(struct IDirect3DDevice8 *dev_in)
 {
     if (!dev_in) return;
@@ -115,6 +221,10 @@ void scene1_merchant_hud_render(struct IDirect3DDevice8 *dev_in)
 
     /* E.2 probe — FUN_00409925 @ 0x409925 (this is its body, L124+). */
     CALL_TRACE_ENTER(0x409925u);
+
+    /* FUN_00409925 front (asm 0x409925-0x409cf0): the item tooltip over the
+     * faced display stand — drawn first, then the level badge below. */
+    merchant_hud_item_tooltip(dev);
 
     const sprite_t *tex = &g_sysassets.item_win_tga;
     if (!tex->tex) return;

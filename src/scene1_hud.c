@@ -227,13 +227,17 @@ void scene1_hud_render(struct IDirect3DDevice8 *dev_in)
      * point. */
 
     /* FUN_00409925 (the HOUSE-town HUD), in engine order:
+     *   - front (asm 0x409925-0x409cf0): the world-anchored item tooltip over
+     *     the faced display stand (C3b) — gated on facing an occupied cell, so
+     *     active in free-roam once items are placed; drawn first inside
+     *     scene1_merchant_hud_render.
      *   - body L124-L179: the bottom-left "Merchant Level" badge + XP bar
      *     (scene1_merchant_hud_render); always drawn here.
      *   - tail LAB_0040a5fd: the bottom-right "Button 4: Change Camera" hint
      *     (scene1_top_hud_camera_hint); self-gates on no-dialogue-active.
-     * The leading item-tooltip block and the trailing shop/stocking UI are
-     * event/shop-state gated and dormant in free-roam.  FUN_00406d50 (the top
-     * HUD) is emitted later by the aggregator, so it draws last. */
+     * The trailing shop/stocking UI is shop-state gated and dormant in
+     * free-roam.  FUN_00406d50 (the top HUD) is emitted later by the
+     * aggregator, so it draws last. */
     scene1_merchant_hud_render(dev_in);
     scene1_top_hud_camera_hint(dev_in);
 

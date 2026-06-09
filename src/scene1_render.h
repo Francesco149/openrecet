@@ -75,6 +75,28 @@
 
 #include "mesh.h"
 
+/* ── world→screen projection — port of FUN_00490c78 → FUN_00490d29 ──────
+ * (Host-visible — pure math, no D3D — so it sits ABOVE the _WIN32 guard.)
+ *
+ * Project a world-space point through the HOUSE view+projection to the
+ * engine's 640×480 virtual screen.  The engine chain (asm
+ * 0x490c78/490d29/490cc6):
+ *   fx = TransformNormal((1,1,1), proj).x · 640/2   (≡ proj[0]·320)
+ *   fy = TransformNormal((1,1,1), proj).y · 480/2   (≡ proj[5]·240)
+ *   (vx,vy,vz) = TransformCoord(point, view)         (affine, translated)
+ *   sx = 320 − fx·vx/vz ;  sy = 240 + fy·vy/vz ;  depth = vz
+ * D3D row-vector convention (v' = v·M, M row-major, translation in row 3).
+ *
+ * `_mat` takes explicit 16-float matrices (host-testable); the wrapper
+ * reads the live g_scene1_view / g_scene1_proj (Win32-only — its definition
+ * is under the guard below).  Out pointers may be NULL.  Used by the
+ * merchant-stand item tooltip (C3b) and any other world-anchored 2D HUD. */
+void scene1_project_world_mat(const float *view, const float *proj,
+                              float wx, float wy, float wz,
+                              float *out_sx, float *out_sy, float *out_vz);
+void scene1_project_world(float wx, float wy, float wz,
+                          float *out_sx, float *out_sy, float *out_vz);
+
 #ifdef _WIN32
 
 struct IDirect3DDevice8;

@@ -3256,6 +3256,10 @@ struct test_case {
     X(chr_shadow_normal_abs_threshold) \
     X(chr_shadow_glow_placement) \
     X(chr_shadow_glow_alpha) \
+    X(project_world_centered_point) \
+    X(project_world_offcenter_signs) \
+    X(project_world_view_translation) \
+    X(project_world_null_outputs) \
     X(bg_npc_spawn_rng_count) \
     X(bg_npc_warmup_spawns_all) \
     X(bg_npc_leftward_crossing_pauses) \

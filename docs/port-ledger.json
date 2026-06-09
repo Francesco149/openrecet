@@ -6,13 +6,13 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 375,
-  "unported": 2089,
+  "ported": 378,
+  "unported": 2086,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 459,
-  "pct_touched": 18.0,
+  "touched": 462,
+  "pct_touched": 18.1,
   "pct_verified": 2.7,
-  "port_debt": 15
+  "port_debt": 17
  },
  "orphan_refs": [
   "0x40f640",
@@ -2873,7 +2873,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/scene1_display_menu.c"
+    "src/scene1_display_menu.c",
+    "src/scene1_merchant_hud.c"
    ]
   },
   {
@@ -7451,6 +7452,7 @@
     "src/choice_box.c",
     "src/font_draw.h",
     "src/scene1_display_menu.c",
+    "src/scene1_merchant_hud.c",
     "src/scene_worldmap.c"
    ]
   },
@@ -8835,8 +8837,12 @@
    "size": 77,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_merchant_hud.c",
+    "src/scene1_render.c",
+    "src/scene1_render.h"
+   ]
   },
   {
    "va": "0x490cc6",
@@ -8844,8 +8850,10 @@
    "size": 99,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_render.c"
+   ]
   },
   {
    "va": "0x490d29",
@@ -8853,8 +8861,11 @@
    "size": 84,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_render.c",
+    "src/scene1_render.h"
+   ]
   },
   {
    "va": "0x490d7d",

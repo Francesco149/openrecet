@@ -458,14 +458,42 @@ interactions at caprange frames ~121/381/587 on BOTH sides.
 | # | gap | frame | chip / status |
 |---|-----|-------|---------------|
 | 1 | slot-highlight glow | f107 | **C3a — ✅ DONE 2026-06-09** (commit e25587c; verified below) |
-| 2 | "What will you place?" prompt (top-left) | f147 | world-projected menu prompt — drawer + UI-string RE pending (see "STILL MISSING" above) |
-| 3 | item name tooltip ("Dark Sword") | f257 | **C3b** (recipe above) — NEXT |
-| 4 | hands-up Recette anim | f441 | placement-reaction pose — anim-trigger RE pending |
+| 2 | "What will you place?" prompt | f147/f391 | placement-MENU prompt bubble — **OPEN** (≠ C3b; the menu's own world-projected prompt, drawer + localized UI-string RE pending) |
+| 3 | item name tooltip ("Worn Sword") | f183/f257 | **C3b — ✅ DONE + user-confirmed 1:1 2026-06-09** (tooltip band max 1/ch, 0 px>8; see below) |
+| 4 | hands-up Recette anim / carry pose | f183+/f441 | placement-reaction + carried-item sprite — **OPEN** (the verdict's px/py/pz drift; held item red-vs-gold + pose) |
 
-**Verdict finding (NEW):** `house_update.px/py/pz` DRIFT from f122 (the 1st interaction).
-db054 freezes during the menu so part may be a pairing artifact, but it most likely IS gap #4
-(the un-ported hands-up / interact reaction pose moving the actor). Confirm via the captured
-call-trace before treating as a separate logic bug.
+**Expanded interaction-flow board (user, 2026-06-09 PM — recapture of `item-display-2`):**
+the C3b name-tooltip was only one slice; the full placement→tutorial flow has these OPEN gaps:
+| gap | frame | what / panel | status |
+|-----|-------|------|--------|
+| **Tear tutorial dialogue ×2** | post-3rd-place + … | the headline — **PRIORITY**. #1 fires when the 3rd item is displayed; #2 fires when ALL items in possession are displayed (user "possibly — check retail to make it faithful"). Port shows NEITHER. | RE-from-retail next |
+| "What will you place?" prompt | f391 (retail) | the placement-menu prompt speech-bubble (tail down-right); ≠ C3b | OPEN (gap #2) |
+| menu panel slide-in anim | f122 (retail) | the placement menu slides up from the bottom; port pops/positions it without the slide | OPEN |
+| selection flash | f172 (diff) | the menu's selected-row highlight bar diverges (a flash on select) | OPEN |
+| placement dust desync | f272 (diff) | foot/placement dust particles desync after an item is placed | OPEN |
+| carry pose / held item | f183+ (diff) | gap #4 above — carried-item sprite (red vs gold) + reaction pose | OPEN |
+
+**Verdict finding:** `house_update.px/py/pz` DRIFT from f122 (the 1st interaction). db054 freezes
+during the menu so part may be a pairing artifact, but it most likely IS the carry/reaction pose
+(gap #4) moving the actor. Confirm via the captured call-trace before treating as a logic bug.
+
+### C3b (item-name tooltip) — ✅ PORTED & USER-CONFIRMED 1:1 2026-06-09
+Ported FUN_00409925's front (asm 0x409925-0x409cf0) as `merchant_hud_item_tooltip` at the top of
+`scene1_merchant_hud_render` (it IS the front of that fn; the body = the level badge). New reusable
+host-tested helper **`scene1_project_world[_mat]`** (`scene1_render.c`, port of FUN_00490c78→490d29:
+`fx=proj[0]·320, fy=proj[5]·240` via TransformNormal((1,1,1),proj); `sx=320−fx·vx/vz, sy=240+fy·vy/vz`,
+view-point via affine TransformCoord). Bubble = item_win src(832,480)-(959,559) dst(sx-26,sy-16,164,80)
+diffuse 0xffffffff (the dropped 4th arg, objdump 0x409a32); name via `font_draw_text_centered(sx+52,
+sy+26, name, color, 0.6)` under COLOROP ADDSIGNED→MODULATE; "%s" when `itemid&0xf==0` else "%s+%d".
+**Verified** on `item-display-2` (port recapture): the "Worn Sword" tooltip band is **max 1/ch, mean
+0.000, 0 px>8/ch** vs retail at f183 AND f257 — bit-clean; the only frame divergence is the carry-pose
+(gap #4). **The key gotcha:** the faced cell's itemid is the **working save-bank DISPLAY grid**
+(`save_work_dwords_at(slot)[SAVE_BANK_FIELD_DISPLAY_GRID + cbfc + cc00·20]` — what the sparkle/A2-removal
+read), **NOT** `shop_display_grid_cell` (that's the FURNITURE-LAYOUT grid — reading it rendered a bogus
+"Sword+2"). **PORT-DEBT(C3b-colour, FUN_004361b2):** the name colour (market price-trend level) is the
+unported daily-market classifier (same debt the menu rows carry) → defaulted to level-0 neutral
+0x7f7f7f. **PORT-DEBT(C3b-furn, FUN_00409925):** the bf68≠0 furniture-stand tooltip branch (name +
+"%d/%d" slot count) is deferred — the bench faces item cells (bf68==0).
 
 ### C3a (slot-highlight orange glow) — ✅ PORTED & VERIFIED 2026-06-09 (commit e25587c)
 Ported as `chr_shadow_build_display_glow` (pure, host-tested) + the Block-G draw in

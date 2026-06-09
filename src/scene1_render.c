@@ -8,6 +8,31 @@
 
 #include "scene1_render.h"
 
+/* ── world→screen projection — port of FUN_00490c78 → FUN_00490d29 ──────
+ * Pure math (no D3D), so it lives ABOVE the _WIN32 guard and is host-tested
+ * (test_scene1_render.c).  The live-matrix wrapper scene1_project_world is
+ * inside the guard (it reads the guarded g_scene1_view / g_scene1_proj). */
+void scene1_project_world_mat(const float *view, const float *proj,
+                              float wx, float wy, float wz,
+                              float *out_sx, float *out_sy, float *out_vz)
+{
+    /* TransformCoord(point, view): affine, includes the translation in
+     * row 3 (view[12..14]).  The view matrix is affine so w' ≡ 1. */
+    float vx = wx * view[0] + wy * view[4] + wz * view[8]  + view[12];
+    float vy = wx * view[1] + wy * view[5] + wz * view[9]  + view[13];
+    float vz = wx * view[2] + wy * view[6] + wz * view[10] + view[14];
+
+    /* TransformNormal((1,1,1), proj): column sums of the upper 3×3 (no
+     * w-divide), scaled by 640/2 and 480/2.  For the standard perspective
+     * proj this reduces to proj[0]·320 and proj[5]·240 (FUN_00490cc6). */
+    float fx = (proj[0] + proj[4] + proj[8]) * 320.0f;
+    float fy = (proj[1] + proj[5] + proj[9]) * 240.0f;
+
+    if (out_sx) *out_sx = 320.0f - fx * vx / vz;
+    if (out_sy) *out_sy = 240.0f + fy * vy / vz;
+    if (out_vz) *out_vz = vz;
+}
+
 #ifdef _WIN32
 
 #define COBJMACROS
@@ -79,6 +104,15 @@ void scene1_render_reset_view(void)
         0, 0, 0, 1,
     };
     for (int i = 0; i < 16; i++) g_scene1_view[i] = ident[i];
+}
+
+/* scene1_project_world — wrapper reading the live matrices (the pure
+ * scene1_project_world_mat lives above the _WIN32 guard, host-tested). */
+void scene1_project_world(float wx, float wy, float wz,
+                          float *out_sx, float *out_sy, float *out_vz)
+{
+    scene1_project_world_mat(g_scene1_view, g_scene1_proj,
+                             wx, wy, wz, out_sx, out_sy, out_vz);
 }
 
 /* ─── deferred sub-call stubs ───────────────────────────────────────── */
