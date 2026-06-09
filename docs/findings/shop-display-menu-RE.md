@@ -613,15 +613,33 @@ shows the box + Tear/Recette portraits + "Tear" nameplate + ESC-skip prompt rend
 
 **Open follow-ups (NOT the dialogue gap, which is closed — user-flagged 2026-06-09 PM on the
 recapture; the dialogues "play out correctly… huge progress"):**
-1. **Per-line advance cadence — port is "a bit too fast".** User: the port clears a line early
-   (ord 834 vs retail 874, ~40f over the first line), desyncing the subsequent lines under the
-   held-Z fast-forward. **Ruled out:** the internal-step count matches (retail `DAT_005c78ec=2`
-   for held 0x20, all.c:67192 = the port's `steps=2`), and the per-step reveal++/dwell++ and the
-   slam conditions (0x10 edge / 0x40 turbo only) match. So the drift is in the **dwell gate**
-   (port `IVE_DWELL_GATE=15` — check retail's `DAT_073a3e08` accept threshold), the box
-   open/close timing, or the **anchor-relative input timing** (the {wait}-gated Z engages at a
-   different point of the dialogue on port vs retail). Needs a frame-by-frame port-vs-retail
-   dwell/reveal/box trace over one line.
+1. **Per-line advance cadence — ✅ FIXED 2026-06-09 (commit a8269f6), now frame-EXACT 1:1.** The
+   port cleared a line early (ord 834 vs retail 874, ~40f over the first line), desyncing the
+   subsequent lines under the held-Z (0x20) fast-forward. **The dialogue cadence itself was never
+   the bug** — all of it is faithful: the internal-step count (`DAT_005c78ec=2` for held 0x20),
+   the per-step reveal++/dwell++, the slam conditions, AND the **waitkey gate** `0x46d93c`
+   (disassembled: `dwell≥0xf` AND (`held&0x60` → ret 2, OR `edge&0x10` → SE 0x144 + ret 2); the
+   port's `op_msg_waitkey` matches exactly — the opening-prologue.md note that omitted the
+   held-0x60 path was just incomplete). The ~40f came from the **CONV_POSE_BLINK anchor that gates
+   the trace's advance input**: the port blinked every **40** frames, retail every **64**, so the
+   `{wait CONV_POSE_BLINK}`-gated held-Z engaged ~40f early.
+   - **Root cause (call-trace probe at the pose tick, VA 0x484080).** The blink rides the player
+     actor's **anim 6** (look-up-at-Tear, `FUN_0048407f`; cycle `38·d20 39·d6 38·d32 39·d6` =
+     **64**). The LUT durations were correct (probe: d0=20 d1=6 d2=32 d3=6, marker −1). But the
+     player was animating **anim 0 (idle, 4 frames × 10 ticks = 40)** — `panim==6` survived in only
+     **2 of 1084** pose frames. Those 2 frames are the `D_TUT_LOAD→D_TUT` **lazy-load seam**
+     (`_loading()` just dropped, `_active()` not yet up — only `_posing()` spans it): the free-roam
+     **walk arm ran on that seam frame** (gated `!_active() && !_loading()`, both false) and reset
+     `anim 6→0` (its idle↔walk transition branch); `conv_pose_enter` keys its restore on **STATE**
+     (still 6), so the anim never recovered → idle loop for the whole dialogue.
+   - **Fix:** gate the walk arm (and its 0x48670f flow-trace emit) on `!scene1_intro_dialogue_posing()`
+     too, so the walk never runs while the conversation pose owns the player. Retail has no such
+     seam — its walk gate tracks the cc08 event state (= the talk flag), which transitions with the
+     pose. **Verified:** port blink period → 64, blink times bit-identical to retail
+     (`-102,-38,26,90,154,…`), **all 44 per-line anchor pairs (TEXT_ANIM_START/END/DLG_LINE_CLEAR)
+     Δ=0** vs retail on item-display-2. Recette now plays the look-up blink, not her idle loop. No
+     prologue/free-roam regression (`_posing()` is already covered by `!_active()` there; the walk
+     gate is unchanged outside a pose). Host suite 3222✓.
 2. **bg-window NPCs desync after the dialogue starts** (pinned 1:1 *before* it). The dialogue
    consumes the shared LCG at a rate the bg-NPC respawns ride; most likely the **standee
    screen-shake jitter** (`draw_standees` `rng_next15` per standee, §105) — iv1_5/iv1_6 may have

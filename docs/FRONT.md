@@ -58,10 +58,21 @@
   gate had a 1-frame seam hole through which iv1_6 clobbered iv1_5). **Open follow-ups from the
   user's recapture review (full list + mechanisms in `findings/shop-display-menu-RE.md` "Open
   follow-ups"):** **✅ text reveal GRADIENT-to-transparent PORTED** (`FUN_0047d464` per-row fade
-  `alpha=input·clamp(rowbudget·0.2,1.0)`; a278101; dim@line-start/full@settled). STILL OPEN:
-  (1) **advance cadence** — port clears lines ~40f early (held-Z FF too fast); step count matches
-  retail (2), drift is dwell/box/anchor-timing; (2) **bg-NPC desync after dialogue start**
-  (shared-LCG / standee-shake); (3) **placed-item ids wrong on the place path** (`FUN_00469a9f`
+  `alpha=input·clamp(rowbudget·0.2,1.0)`; a278101; dim@line-start/full@settled). **(1) ✅ advance
+  cadence FIXED 2026-06-09 (commit a8269f6) — now frame-EXACT 1:1 vs retail.** The ~40f/line drift
+  was NOT the dwell gate / reveal cadence (all faithful — waitkey `0x46d93c` = dwell≥15 AND (held
+  0x60 OR edge 0x10), bit-matched) but the **conversation-pose blink**: the port blinked every 40f,
+  retail every 64. The blink rides the player's anim 6 (look-up-at-Tear, `FUN_0048407f`; cycle
+  `38·d20 39·d6 38·d32 39·d6` = 64). A call-trace probe showed the player was instead animating
+  **anim 0 (idle, 4×10 = 40)**: on the single `D_TUT_LOAD→D_TUT` seam frame (`_loading()` just
+  dropped, `_active()` not yet up, only `_posing()` spans it) the free-roam **walk arm ran and reset
+  anim 6→0**; `conv_pose_enter` keys its restore on STATE (still 6) so the anim never recovered
+  (panim==6 survived in 2 of 1084 pose frames). Fix: gate the walk arm + its emit on `!_posing()`
+  too (retail has no such seam — its walk gate tracks the cc08 event state). After: port blink period
+  64, blink times bit-identical, **all 44 per-line anchor pairs (TEXT_ANIM_START/END/DLG_LINE_CLEAR)
+  Δ=0 vs retail**; Recette plays the look-up blink, not her idle loop. STILL OPEN:
+  (2) **bg-NPC desync after dialogue start**
+  (shared-LCG / standee-shake — re-check now that #1 no longer shifts per-frame RNG); (3) **placed-item ids wrong on the place path** (`FUN_00469a9f`
   returns 64/64064/256512 — cc04 confirm was written for `sel==-1` removal); (4) **missing bread
   tooltip** during the dialogue (retail ord 854); (5) box/portrait pixel-parity. **NEXT: pick a
   follow-up, or move to the next interaction-flow gap (B–F).** **NOTE (policy, CLAUDE.md):** every trace we work on is
