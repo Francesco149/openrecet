@@ -52,25 +52,47 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   pixel-identical at all 3 confirms; the bread tooltip (#5) is present on both
   sides through the dialogue (old "ord 854" pointer was dead pre-unification
   numbering). Evidence + frame refs: the RE doc's follow-ups #4/#5.
-  **Remaining — the cc04 MENU-RENDER cluster (one chip):**
-  1. **"What will you place?" prompt bubble** — retail draws it while the
-     placement menu is open; port never does (plain at label 439). Gap B.
-  2. **Item-Details sub-view** (`pressed & 0x40` path, all.c:65451, PORT-DEBT) —
-     the session's worst gt8 frame (label 181): retail shows narrow-right detail
-     panel, port the plain wide-bottom description.
-  3. **description-panel line layout** (price / "Number possessed" at different X)
-     · (C) panel slide-in check @f122 · (D) selected-row flash @f172.
-  4. **menu-boundary residuals:** rngcalls ±31 (one wing emit per %4==0-frozen
+  **NPC desync through the dialogues: user-confirmed GONE 2026-06-10** (parity
+  ledger entry; the scare was a stale ordinal-paired diff — fixed, see Tooling).
+  **Remaining (user-listed 2026-06-10 + triage), the next-session queue:**
+  1. **"What will you place?" prompt bubble missing** — retail draws it while
+     the placement menu is open; port never does (plain at label 439). Gap B.
+  2. **Hands-up carry pose** — the engine's brief hold-item-overhead pose on the
+     placement confirm (`DAT_056db048 = 0xc`, the r==3 pick-up arm PORT-DEBT(A3)
+     in `player_ctrl_cc04_menu_arm`) is unported (visual-only, no grid/RNG).
+  3. **Standee horizontal position offset** — the dialogue standees sit WIDER
+     apart in the port than retail; now also the session's worst gt8 frame
+     (label 1792, dialogue-2 seam: port Tear further left / Recette further
+     right than retail).
+  4. **Dialogue text gradient-to-transparent STILL not visible** (user re-flag).
+     Commit `a278101` is the right RE (per-row alpha = clamp(budget·0.2, 1.0),
+     objdump-verified) and the alpha provably flows into the glyph quad diffuse
+     (`font_draw_text` → `render_quad_add(…, argb)`), so do NOT blind-revert —
+     the prime suspect is the texture-stage ALPHA pipeline at the glyph draw
+     eating vertex alpha (ALPHAOP/ALPHAARG inherited state — the same class as
+     the white-UI COLORARG leak). Drill with `d3d_state_at_draw.py` on a
+     reveal-window glyph draw, both sides; check ALPHABLENDENABLE/SRCBLEND too.
+     If retail shows a per-CHAR edge gradient (not a flat row fade), re-read
+     FUN_0047d464's inner loop before trusting the per-row conclusion.
+  5. **Item-Details sub-view** (`pressed & 0x40` path, all.c:65451, PORT-DEBT) —
+     label 181: retail shows the narrow-right detail panel, port the plain
+     wide-bottom description. Plus **description-panel line layout** (price /
+     "Number possessed" X positions) · (C) slide-in check · (D) row flash.
+  6. **menu-boundary residuals:** rngcalls ±31 (one wing emit per %4==0-frozen
      pause boundary + load-bracket seams) · companion cx/cz/canim/cframe + pcnt
      micro-DRIFT around open/close frames · retail menu-window consumption is the
      WING through the hooked thunk (`0xcf05d33`), NOT an unknown menu consumer.
-  5. **dialogue box/portrait pixel-parity** polish — recapture ground truth: the
-     worst dialogue-window diffs (labels ~1453-64) are the Tear PORTRAIT
-     whole-outline edge diff (sub-pixel pos or filtering).
+  7. **dialogue box/portrait pixel-parity** polish — the Tear PORTRAIT
+     whole-outline edge diff (labels ~1453-64; sub-pixel pos or filtering).
   **Tooling fix owed:** the recorder's `save_capture` overwrites `<name>.save.bin`
   unconditionally (clobbered this session's boot save twice). Also: session
   kept-count mismatch (port 1845 vs retail 1842) still flagged by triage — seam
-  alignment, predates the chip.
+  alignment, predates the chip; the label-paired diff (2026-06-10) localizes the
+  slack to labels **1379-1384 mid-dialogue-1** (port-only 1381-84, retail-only
+  1379), NOT the load brackets — start there. (`build_diff` ordinal-pairing bug
+  fixed 2026-06-10: it ghosted the bg-NPC movers on every post-seam diff frame
+  while the same-label sides were 1:1 — diffs now pair by label with honest
+  unmatched-label holes; pre-unification sessions fall back to ordinal.)
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild screen** → town
   scenes off the world map (world-map backlog itself CLOSED 2026-06-08, bit-clean
   f16→638). Trace-studio v2 **Phase 5** (New-Game cross-replay: retail intro-video

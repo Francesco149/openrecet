@@ -351,6 +351,15 @@ def run_capture(cfg: CaptureConfig) -> int:
     if have_retail_frames:
         manifest["diff"] = pixeldiff.build_diff(
             port_dir, retail_dir, sess_dir / "diff" / "frames", cfg.amp)
+        unm = manifest["diff"].get("unmatched") or {}
+        if unm.get("ordinal_fallback"):
+            _log("diff: pre-unification retail naming (no common labels) — "
+                 "paired by ordinal; recapture to get label-true diffs")
+        elif unm.get("port") or unm.get("retail"):
+            _log(f"diff: paired by label; UNMATCHED labels (no diff frame): "
+                 f"port-only {unm.get('port')}  retail-only {unm.get('retail')} "
+                 f"— the kept-count seam extras; the diff is label-true, these "
+                 f"labels just have no partner")
 
     # encode videos: (re)encode the side(s) we ran; keep the cached one otherwise
     if run_port and encode.ffmpeg_encode(port_dir / "frames", sess_dir / "port.mp4"):
