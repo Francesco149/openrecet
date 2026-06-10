@@ -141,14 +141,38 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   mismatch — both CLOSED 2026-06-10: `9a7bf63` stops the save clobber, and
   `{tutloadpin}` equalized the brackets so the kept-count PROBLEM is gone
   (`problems: []`). Story → PROGRESS; label-pairing fix folded into Tooling below.)*
-- **NEXT ARCS:** finish item-display gaps → **merchant's guild screen** → town
-  scenes off the world map (world-map backlog itself CLOSED 2026-06-08, bit-clean
-  f16→638). Trace-studio v2 **Phase 5** (New-Game cross-replay: retail intro-video
-  force-skip D4 + the prologue mid-load actor-spawn gap,
+- **ACTIVE ARC → MERCHANT'S GUILD scene** (mode 6 / Market), trace-studio session
+  **`merchants-guild-20260608-151902`** (served 8782 during RE; re-serve as needed).
+  **Scoped 2026-06-10, port NOT started — full RE + incremental plan in
+  `findings/merchant-guild-RE.md`.** The world-map "Merchant's Guild" (dest 3) is
+  engine **mode 6**, FULLY STUBBED in the port (no `sim.c` update, `main.c` `default:`
+  render, no worker-load ⇒ the cyan/blank the user saw). First-visit cutscene = the
+  per-location event tick `FUN_004922c0` → **`FUN_0044ba2c(1,3,1)`** → `iv/iv1_3.ivt`
+  (run as-is via `scene1_intro_dialogue_start_single(1,3)`), gated by first-visit flag
+  `DAT_0450f3f4` (working-arena `0x2bc5c`). Render `FUN_00490e35`→`FUN_00494a73` (561 B
+  2D bg, reuses ported `FUN_0046b00a`). **Plan (next session):** scene shell (sim/main
+  case 6 + worker-load) → cutscene trigger → wire dialogue draw/tick into mode 6 →
+  verify 1:1; THEN guild main menu (conditional "new" badge) → buy flow → tail. **First
+  add the canonical pin** — the trace is unpinned + crosses 1 load bracket (lint wants
+  `{phasepin}`+`{rngseed 19937}`+`{tutloadpin 8}`; that load-bracket skew is why the
+  port/retail label axes drift after label 490). Follow-on traces queued by the user:
+  leaving the guild (bread cutscene) + returning to Recettear (Tear cutscene) — same
+  `FUN_004922c0` machinery.
+- **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
+  above) → town scenes off the world map (world-map backlog itself CLOSED 2026-06-08,
+  bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game cross-replay: retail
+  intro-video force-skip D4 + the prologue mid-load actor-spawn gap,
   `findings/conversation-pose-driver.md`) stays queued — hardest, last.
 - **Deferred (polish pass):** faint ambient particle dots (user ref-crops
   2026-06-05); next-line "book" arrow anim frame (draw from per-script-reset
   `rt->blink`, add to `{phasepin}`).
+- **Tooling fix (2026-06-10): the caprange.start>0 full-white diff.** A `window_start>0`
+  session (`merchants-guild`) showed a fully-white diff over a 1:1 world map — only the
+  RETAIL frames were renumbered into label space, the PORT stayed 0-based, so the
+  label-keyed diff mispaired by `window_start` (the ordinal video scrub was fine, hiding
+  it). `convert.renumber_retail`→side-agnostic `renumber_to_label`, now run on BOTH
+  sides; `test_trace_studio_renumber.py` guards it (broken→fixed contrast). `7a7e280`.
+  Any session captured at `caprange.start>0` BEFORE this needs a recapture for a true diff.
 - **Tooling (2026-06-09 cleanup, audit T1/T2/T3/T8/T11 — all landed):**
   `trace_studio triage <session>` = one-command divergence report (diff curve
   gt8 metric → first/worst ordinal → state row → verdict → field-timeline);

@@ -7,6 +7,38 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — trace-studio: fix the caprange.start>0 full-white diff (port label renumber)
+
+A freshly re-captured `merchants-guild-20260608-151902` (caprange `[330,1098]`,
+`window_start=330`) showed a **permanently full-white diff over a world map that was
+clearly 1:1** in the side-by-side scrub. Root cause: trace-studio renumbers only the
+**retail** frames into label space (`convert.renumber_retail`); the **port** kept its
+0-based `frame_<k>` names. When `window_start==0` (the common window) a 0-based name
+already IS the label, so the gap rode along uncaught — but at `window_start=330` the
+label-keyed `build_diff` paired port frame N against retail's 330-later frame N (port
+`frame_00400` = world map; the diff compared it to retail `frame_00400` = a frame 330
+ticks later). The ordinal-keyed video scrub was unaffected (both sides sorted), which
+is why the scrub looked fine while the diff was white. Fix: `renumber_retail` →
+side-agnostic `renumber_to_label`; `capture.py` renumbers the port too (`run_port`,
+idempotent, return discarded — `port_base` stays global.json's `frame_base_abs`);
+`frame_range` now reports the label range so the viewer's `labelOf`/`diffAt` land on
+real data. New `test_trace_studio_renumber.py` (port 0-based + retail abs both rebase;
+idempotent; `window_start=0` no-op; explicit broken→fixed contrast). Verified on the
+session: diff @ label 400 (world map) is now bit-black; first real divergence is now
+**label 580** — the guild first-visit cutscene the port doesn't have. `7a7e280`.
+
+## 2026-06-10 — RE: merchant's guild = engine mode 6 (Market), cutscene = iv1_3.ivt
+
+Scoped the next arc. The world-map "Merchant's Guild" (dest 3) is internally the
+**Market scene, mode 6** — fully stubbed in the port (no `sim.c` update, `main.c`
+`default:` render, no worker-load ⇒ the cyan/blank). The first-visit cutscene is fired
+by the per-location event tick `FUN_004922c0` → `FUN_0044ba2c(1,3,1)` → spawn (NOT the
+iv1_5/iv1_6 dispatcher), gated by the per-location first-visit flag `DAT_0450f3f4`
+(working-arena byte `0x2bc5c`). Dialogue script (group 1, index 3) = `iv/iv1_3.ivt`,
+runnable as-is via `scene1_intro_dialogue_start_single(1,3)`. Render chain to port:
+`FUN_00490e35`→`FUN_00494a73` (561 B 2D bg blit, reuses the ported `FUN_0046b00a`).
+Full RE + incremental port plan: `findings/merchant-guild-RE.md`.
+
 ## 2026-06-10 — dialogue: mute voice/SE lines while fast-forwarding (engine-quirk §120)
 
 User-flagged long-standing divergence: retail mutes the dialogue's spoken lines

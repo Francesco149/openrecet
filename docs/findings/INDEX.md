@@ -61,6 +61,7 @@ that subsystem.
 | Doc | Covers | Last touched |
 |-----|--------|--------------|
 | [town-map-RE.md](town-map-RE.md) | **Shop-exit → TOWN/WORLD MAP transition + the mode-8 scene** (Phase 0). Door-Z exit chain in `house_update` (`all.c:87637`) → tile-dissolve fade `FUN_004526f5` → `DAT_0438b1c0=8`. World map: preload `FUN_004735ad` (slot-10 worldmap day/eve/night + mappoint), init `FUN_0049de20` (7 dests + **tutorial state gating `DAT_09643588[]`**), sim `FUN_0049e163`, cursor-nav `FUN_0049dfc1` (3×5 grid), render `FUN_0049e3a3`. Dest→mode table; loader arg-2 = load-step count (not a map id). Chip plan T1–T5. | 2026-06-07 |
+| [merchant-guild-RE.md](merchant-guild-RE.md) | **Merchant's Guild = engine mode 6 (Market), fully stubbed in the port** (cyan/blank). World-map dest 3 → `FUN_00490e16(0)` → mode 6. First-visit cutscene = per-location event tick `FUN_004922c0` → `FUN_0044ba2c(1,3,1)` → `iv/iv1_3.ivt` (run via `scene1_intro_dialogue_start_single(1,3)`), gated by first-visit flag `DAT_0450f3f4` (working-arena `0x2bc5c`). Render chain `FUN_00490e35`→`FUN_00494a73` (561 B 2D bg). Incremental port plan + the planned bread/Tear follow-on cutscenes. | 2026-06-10 |
 
 ## Input / UI
 
