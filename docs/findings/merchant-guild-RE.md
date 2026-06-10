@@ -134,25 +134,44 @@ Landed `src/scene_guild.{c,h}` + wiring (`sim.c` case 6, `main.c` render case 6 
   label 1030 ↔ retail label 901), the **scene composition is pixel-identical** (bg + the
   guildmaster/Tear/Recette standees in the same positions). The dialogue *lines* are the
   same script in the same order (iv1_3.ivt through the unchanged shared runtime).
-- **Automated pixel-diff verdict BLOCKED — load-suppression seam (phase pillar, accept).**
-  `triage` shows `kept_count_mismatch` port=1048 / retail=946 with ~93 contiguous
-  port-only labels [510-603]: the port loads the guild FASTER than retail (3 sprite_loads
-  vs retail's heavier scene init), so the port goes "active" + renders the early cutscene
-  lines ("Guild Master: Sol…") during what is retail's load-SUPPRESSED bracket. Retail's
-  first *captured* line is therefore a later one (a capture-boundary artifact, NOT a port
-  bug). `{tutloadpin: 8}` (added) only pins tutorial-dialogue brackets, not the guild
-  scene-load. **Phasepin pass DONE 2026-06-10** (`{phasepin: 282}` + `{rngseed [282,
-  19937]}` in the caprange-opening segment, ~48f before the window): it correctly zeroes
-  the PORT db054 (port db054=[0,1]) — but `--align-field db054` still can't run because
-  **retail's flow-trace for mode 6 probes ONLY `rng`/`rngcalls`** (db054 count = 0 in
-  `retail/call_trace.jsonl`; the pose/px/py/db054 fields the port emits are NOT probed on
-  the retail side here). That is the FRONT's open **"run the pinned RETAIL census"** TODO —
-  retail rich-field probing isn't set up for mode 6, so the gold-standard db054 verdict is
-  blocked by capture-TOOLING, not by the port. Unblocking it needs the retail census /
-  agent probe-set extended to mode 6 (RE the retail db054 + pose addresses, add to the
-  `{calltrace}` `f` set, recapture) — a separate roadmap task. The phasepin is KEPT (the
-  canonical pin the policy wants; the verdict will work once retail mode-6 census exists).
-  `edit.trace.jsonl.bak-preguild` backs up the pre-pin trace.
+- **CENSUS DONE 2026-06-10 — cutscene is frame-by-frame 1:1 (machine-verified, 3 ways);
+  the "db054 verdict BLOCKED" was a MISFRAMING.** The earlier note (that retail "probes
+  only rng/rngcalls" and we must "RE the retail db054 + pose addresses, extend the probe
+  set to mode 6") was WRONG. Reality, from analysing the captured traces:
+  - **The cutscene IS richly probed on BOTH sides** — `dialogue_tick` (retail `FUN_0046c320`
+    @0x46c320, the shared iv*.ivt updater) emits `box_open/reveal/line_row/st5_x/y/tx/ty/
+    st5_active` on **774 retail frames** (port 895; the +121 is the load-seam tail). No probe
+    extension was needed; the dialogue runtime is the same code the prologue uses, already
+    in `retail_fields.json`.
+  - **db054 is the WRONG clock for a cutscene, on BOTH sides** (not "missing on retail"):
+    `house_update` (`FUN_0048670f`, the *only* db054 source) fires **0× in retail / 2× in
+    port** over the window — db054 is a HOUSE free-roam bob/sparkle counter that simply does
+    not advance during a dialogue cutscene. So `--align-field db054` correctly reports "no
+    shared values"; it's a knob mismatch, not a capture gap.
+  - **Verdict NOW RUNS via `flow_diff --verdict --align-anchor TEXT_ANIM_START --frame-from
+    <first-text-anim-frame>`** (new tooling, 2026-06-10): align by a CONSTANT frame offset
+    from a shared dialogue anchor, clip the pre-text fade-in. Over the 714-frame cutscene
+    [15115..15828] → **✅ PHASE-CLEAN**: `dialogue_tick.*` ALIGNED bit-exact, `fade_tick.*`
+    ALIGNED, `rngcalls` ALIGNED (per-frame consumption matches), raw `rng` 714/714 bit-exact.
+  - **Three independent frame-by-frame proofs** (single −14100 offset, anchor-rebased):
+    (1) **75/75 cutscene anchors** frame-exact (TEXT_ANIM_START/END ×22, DLG_LINE_SHOW/CLEAR
+    ×14, EXTRA_SPRITE start/fade/end); (2) **all 8 dialogue fields × 774 common frames = ZERO
+    mismatches** (text reveal + line progression + standee tween bit-identical); (3) **rngcalls
+    0 per-frame desyncs** across the cutscene.
+  - **`triage` auto-handles it now:** `verdict.py` falls back to `--align-anchor
+    TEXT_ANIM_START` when db054 yields no shared values → `merchants-guild` triage verdict
+    is **exit 0 / PHASE-CLEAN** (session.json refreshed). The render_quad_add/flush DRIFT
+    that polluted the raw verdict was a per-draw-pairing artifact (vcount batching differs
+    [0,6]); the verdict now defers >1×/frame draw VAs to `render_diff.py` (fixed for ALL
+    scenes — the item-display-2 house verdict showed the same false-positive). Recipe:
+    `docs/flow-trace-cheatsheet.md` "Cutscene verdict".
+  - **Residue = load-suppression seam only** (phase pillar, accept): `kept_count_mismatch`
+    port 1058 / retail 936 + 121 port-only dialogue_tick tail frames [15829..15949]; the port
+    loads the guild faster (3 sprite_loads vs retail's heavier init) and renders ~121 early
+    cutscene frames during retail's load-SUPPRESSED bracket (the triage's first-divergent
+    @ordinal 161 fully-white frame). NOT a port bug. `{phasepin: 282}`+`{rngseed [282,19937]}`
+    +`{tutloadpin: 8}` are KEPT (canonical pin). `edit.trace.jsonl.bak-preguild` backs up the
+    pre-pin trace.
 - **Audio:** `audio_diff` flags 2 missing sounds — `se_019_id0150` + `00re_sys09.bin`,
   both at retail abs 14358 = **label ~348** (on the WORLDMAP, ~260 labels BEFORE the
   cutscene). A pre-existing worldmap/records-B-portion gap, NOT the guild cutscene (whose

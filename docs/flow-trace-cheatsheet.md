@@ -53,6 +53,30 @@ nix develop --command python3 tools/flow_diff.py --retail $R --port $P \
     --retail-frame F --port-frame F       # or --mapped-only over common frames
 ```
 
+## Cutscene / mode-6 verdict — when `--align-field db054` says "no shared values"
+
+db054 is a HOUSE free-roam bob/sparkle counter — it does **not** advance during a
+dialogue cutscene (mode 6 guild/town events, prologue iv*.ivt), so it's absent on
+**both** sides and can't be the clock. Don't "extend the probe set" — the cutscene
+is already richly probed via `dialogue_tick` (`FUN_0046c320`: box_open/reveal/
+line_row/st5_*). Align by a CONSTANT frame offset from a shared dialogue anchor:
+
+```sh
+# offset taken from the first occurrence of the anchor; clip the pre-text fade-in
+# (its origin rides the load-suppression seam) by starting at that anchor's frame.
+nix develop --command python3 tools/flow_diff.py --retail $R --port $P --verdict \
+    --align-anchor TEXT_ANIM_START --frame-from <retail TEXT_ANIM_START frame>
+#   anchors default to anchors.jsonl beside each call_trace; override with
+#   --retail-anchors/--port-anchors. --frame-to clips a trailing load-seam tail.
+```
+
+`trace_studio triage <session>` does this **automatically**: if db054 yields no
+shared values it re-aligns by `TEXT_ANIM_START` and reports the cutscene verdict
+(`merchants-guild` → ✅ PHASE-CLEAN: dialogue+fade+rngcalls ALIGNED, raw rng bit-
+exact). render_quad_add/flush are deferred to `render_diff.py` (per-draw geometry
+can't be classified by the verdict's per-frame occurrence pairing). Worked example +
+the 3-way frame-exact proof: `findings/merchant-guild-RE.md` "CENSUS DONE".
+
 ## RNG drill — which functions consume the LCG (incl. unported ones)?
 
 ```sh

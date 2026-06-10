@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — guild-cutscene CENSUS: frame-by-frame 1:1 + cutscene-capable verdict (`--align-anchor`)
+
+The "Merchant's Guild cutscene db054-verdict BLOCKED — run the retail census" item turned
+out to be a **misframing**, dispelled by analysing the already-captured traces. The cutscene
+is richly probed on BOTH sides via `dialogue_tick` (`FUN_0046c320`: box_open/reveal/line_row/
+st5_*) — 774 retail / 895 port frames. db054 is the **wrong clock** for a cutscene (its only
+source `house_update` `FUN_0048670f` fires 0× retail / 2× port — a HOUSE free-roam counter
+that doesn't advance in mode 6), so `--align-field db054` correctly reports "no shared values".
+No probe-set extension was needed.
+
+Census result (single −14100 anchor-rebased offset): **frame-by-frame 1:1, three ways** —
+75/75 cutscene anchors frame-exact; all 8 dialogue fields × 774 common frames ZERO mismatches
+(text reveal + line progression + standee tween bit-identical); rngcalls 0 per-frame desyncs;
+raw rng 714/714 bit-exact over [15115..15828]. Residue = the load-suppression seam only (port
+loads faster, renders ~121 early cutscene frames in retail's load bracket; phase pillar, accept).
+Machine-confirmed; awaiting a user eyeball to upgrade to CONFIRMED-1:1 (parity ledger).
+
+Tooling (`flow_diff.py`): new **`--align-anchor ANCHOR`** (align by a constant frame offset
+from a shared anchor — the cutscene/mode-6 complement to `--align-field` when db054 is absent)
++ **`--frame-from/--frame-to`** (clip a pre/post-cutscene load seam out of a verdict). Fixed a
+verdict false-positive that hit ALL scenes: per-draw geometry VAs (render_quad_add/flush) were
+classified by the per-frame i-th-occurrence pairing → spurious DRIFT under any vcount-batching
+difference (item-display-2's house verdict showed it too); now deferred to `render_diff.py`,
+with the draw-VA detection computed on RAW frames (`_max_occ_any`) so an `--align-field` rekey
+can't misclassify a once-per-frame state VA. `trace_studio` triage auto-falls-back to
+`--align-anchor TEXT_ANIM_START` when db054 yields no shared values → `merchants-guild` verdict
+is now **exit 0 / ✅ PHASE-CLEAN** (session.json refreshed). `+2` flow_diff tests (10 total);
+test harness `run_main` now mirrors CPython string-`SystemExit`. Recipe:
+`flow-trace-cheatsheet.md` "Cutscene verdict"; full breakdown: `findings/merchant-guild-RE.md`
+"CENSUS DONE".
+
 ## 2026-06-10 — trace-studio: fix the caprange.start>0 full-white diff (port label renumber)
 
 A freshly re-captured `merchants-guild-20260608-151902` (caprange `[330,1098]`,

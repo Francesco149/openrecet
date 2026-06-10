@@ -84,6 +84,22 @@
 
 ## Still UNVERIFIED (don't assert either way)
 
+- **Merchant's Guild first-visit cutscene (iv1_3) — MACHINE-frame-exact (3 ways),
+  awaiting user eyeball.** Census of session `merchants-guild-20260608-151902`
+  (2026-06-10): under a single constant frame offset (anchor-rebased), the cutscene
+  is bit-identical port↔retail across its full span — **(1)** 75/75 cutscene anchors
+  frame-exact (TEXT_ANIM_START/END ×22, DLG_LINE_SHOW/CLEAR ×14, EXTRA_SPRITE start/
+  fade/end); **(2)** all 8 `dialogue_tick` fields (box_open/reveal/line_row/st5_x/y/
+  tx/ty/active) × 774 common frames = ZERO mismatches (text reveal + line progression
+  + standee tween bit-identical); **(3)** `rngcalls` 0 per-frame desyncs + raw `rng`
+  714/714 bit-exact over the [15115..15828] window. `flow_diff --verdict --align-anchor
+  TEXT_ANIM_START` = ✅ PHASE-CLEAN; `triage` auto-uses it. STRONG, but it is an
+  automated state+RNG+anchor diff, not a user-eyeballed render (the standee/text PIXELS
+  weren't independently pixel-confirmed by a human this session). Residue = load-seam
+  only (port renders ~121 early cutscene frames in retail's load bracket; phase pillar).
+  See `findings/merchant-guild-RE.md` "CENSUS DONE". → ping the user to eyeball the
+  served session (`http://localhost:8778/?session=merchants-guild-20260608-151902`,
+  port 8782) to upgrade to CONFIRMED 1:1.
 - **Opening-prologue dialogue cadence — MACHINE-frame-exact, awaiting user
   eyeball.** A `scenario-test intro-dialogue-lines` port↔retail diff (2026-06-01)
   found **44/45 inter-line TEXT_ANIM_END gaps identical to the frame**; the lone
