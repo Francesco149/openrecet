@@ -60,6 +60,28 @@ def _field_timeline(port_dir: Path, retail_dir: Path) -> dict:
             "text": r.stdout + (("\n[stderr]\n" + r.stderr) if r.stderr else "")}
 
 
+def _audio_diff(sess_dir: Path) -> dict:
+    """Sound-trigger divergence (tools/audio_diff.py) over the session's two
+    audio.jsonl. Identity+count, so it's immune to the port↔retail frame/load
+    skew. Returns {"available": False} when a side's trace is absent (port-only
+    session, or one captured before audio.jsonl landed on both sides)."""
+    rp, pp = sess_dir / "retail" / "audio.jsonl", sess_dir / "port" / "audio.jsonl"
+    if not (rp.exists() and pp.exists()):
+        return {"available": False}
+    tools = str(ROOT / "tools")
+    if tools not in sys.path:
+        sys.path.insert(0, tools)
+    try:
+        import audio_diff
+        res = audio_diff.diff_events(audio_diff.load_events(rp, False),
+                                     audio_diff.load_events(pp, False))
+        out = audio_diff.summary_obj(res)
+    except (SystemExit, Exception) as e:        # malformed/old trace → skip, don't crash triage
+        return {"available": False, "error": str(e)}
+    out["available"] = True
+    return out
+
+
 def run_triage(sess_dir: Path, differ_px: int = DEFAULT_DIFFER_PX,
                meanabs: float = DEFAULT_MEANABS, gt8_px: int = DEFAULT_GT8_PX,
                skip: int = 0, field_timeline: bool = True) -> tuple[dict, int]:
@@ -154,8 +176,13 @@ def run_triage(sess_dir: Path, differ_px: int = DEFAULT_DIFFER_PX,
             ft["tail"] = ft.pop("text")[-2000:]
         t["field_timeline"] = ft
 
+    # ── audio: sound-trigger divergence (port vs retail) ─────────────────────
+    t["audio"] = _audio_diff(sess_dir)
+    audio_div = t["audio"].get("verdict") == "DIVERGE"
+
     rc = 0 if (first is None and not t["problems"]
-               and (not v or v.get("exit_code") in (0, None))) else 1
+               and (not v or v.get("exit_code") in (0, None))
+               and not audio_div) else 1
     return t, rc
 
 
@@ -218,5 +245,21 @@ def print_summary(t: dict, rc: int) -> None:
               f"flow_diff --field-timeline by hand, filtered by --timeline-va)")
         elif ft.get("available") is False:
             p("  field-timeline: no call traces on disk")
+    a = t.get("audio") or {}
+    if a.get("available"):
+        if a.get("verdict") == "ALIGNED":
+            p(f"  audio: ALIGNED — {a.get('n_matched_sounds', 0)} sound(s) "
+              f"match on trigger count")
+        else:
+            p(f"  audio: DIVERGENCE — port missing {a.get('total_missing', 0)} "
+              f"trigger(s) over {a.get('n_missing_sounds', 0)} sound(s), "
+              f"{a.get('total_extra', 0)} extra (audio_diff --session "
+              f"{t.get('session')})")
+            for d in (a.get("missing") or [])[:5]:
+                p(f"    missing: {d['label']}  retail ×{d['retail_count']} "
+                  f"port ×{d['port_count']}")
+    elif a.get("available") is False and not a.get("error"):
+        p("  audio: no port+retail audio.jsonl on this session "
+          "(re-capture for the sound diff)")
     p(f"  → {'CLEAN' if rc == 0 else 'DIVERGENCE' if rc == 1 else 'UNUSABLE'}"
       f" (exit {rc}); triage.json written")
