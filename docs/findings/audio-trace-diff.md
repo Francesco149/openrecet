@@ -82,11 +82,18 @@ This is immune to phase/load skew and answers the real question directly
 ("which sounds is the port missing, and how many times"). Frames are reported
 as per-side context only.
 
-**Limitation (known):** count-matching can't catch a sound that plays the right
-number of times but at the *wrong moment* (a timing drift). That needs
-label-space alignment and is a future layer — fold the trace-studio abs→label
-transform into the diff, then per-event timing becomes meaningful. For the
-current front (a *silent* interaction) count is exactly right.
+**Limitations (known):**
+- Count-matching can't catch a sound that plays the right number of times but
+  at the *wrong moment* (a timing drift). That needs label-space alignment and
+  is a future layer — fold the trace-studio abs→label transform into the diff,
+  then per-event timing becomes meaningful. For the current front (a *silent*
+  interaction) count is exactly right.
+- **Window-edge extras/missing:** the two captures don't always cover the same
+  absolute tail (the port may replay a few frames past where retail's capture
+  stopped). A sound near the very end can then show as a spurious extra/missing.
+  Cross-check the reported per-side frames against the caprange before treating
+  a tail event as a real divergence (mid-window divergences are unaffected).
+  A future label-space clip to the common window removes this.
 
 ## Running it
 
