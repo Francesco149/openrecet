@@ -8,13 +8,13 @@ and reports where the port's SOUND TRIGGERS diverge from retail's — so a sound
 gap (the item-display interaction is silent in the port today) shows up from
 the traces alone, no need to boot the port and listen.
 
-What it surfaces:
+What it surfaces, per distinct sound:
 
-  MISSING-IN-PORT  retail plays a sound the port never does  ← the common gap
-  EXTRA-IN-PORT    port plays a sound retail doesn't
-  TIMING           a matched sound fires >--frame-tol frames apart
+  MISSING-IN-PORT  retail triggers a sound the port triggers fewer/zero times
+  EXTRA-IN-PORT    port triggers a sound retail triggers fewer/zero times
+  MATCHED          same trigger count on both sides
 
-Each side is the ordered sequence of sound triggers the engine fired:
+A "sound" is identified by WHAT plays, not when:
 
   bgm_swap  → BGM track change            identity = ("bgm", track)
   se_play   → resource SE (slot index)    identity = ("se", slot)
@@ -23,25 +23,29 @@ Each side is the ordered sequence of sound triggers the engine fired:
 `fade_start` events are volume-apply side effects (port-only) and are ignored
 unless --include-fades.
 
-Both sides carry the engine `frame` index — the SAME counter the d3d/frame
-capture aligns on (port: g_tick.frame_count via audio_trace_set_frame; retail:
-the agent's manual frame counter). So a sound's (identity, frame) locates it
-exactly. Sounds are matched PER IDENTITY by nearest frame within --frame-tol,
-which keeps a recurring SE (cursor tick, page-advance) and a small constant
-phase offset from manufacturing false divergences.
+WHY identity+count, not frame alignment: both sides stamp the engine `frame`,
+but the absolute frame ORIGINS differ and the offset is NOT constant across a
+trace that spans a load — retail plays an intro/load the port skips, so the
+post-load offset (~thousands of frames) differs from the pre-load one. Matching
+on identity+count is immune to that phase/load skew and answers the real
+question ("which sounds is the port missing, and how many times") exactly.
+Frames are reported only as context (raw, per-side). Precise per-event timing
+alignment is a separate, label-space concern (the trace-studio coordinate
+transform); see docs/findings/audio-trace-diff.md.
 
 CLI:
     nix develop --command tools/audio_diff.py \\
-        --retail tests/scenarios/<s>/out/retail/audio.jsonl \\
-        --port   tests/scenarios/<s>/out/port/audio.jsonl
+        --retail runs/trace-studio/<s>/retail/audio.jsonl \\
+        --port   runs/trace-studio/<s>/port/audio.jsonl
 
-    # tighter timing window + machine-readable summary for trace_studio:
-    tools/audio_diff.py --retail R --port P --frame-tol 1 --summary-json out.json
+    # convenience: resolve both sides from a trace-studio session by name
+    tools/audio_diff.py --session item-display-2
 
-Exit code: 0 if aligned, 1 on any divergence, 2 on a structural error
-(missing/unparseable input).
+    # machine-readable summary (e.g. for trace_studio triage):
+    tools/audio_diff.py --session item-display-2 --summary-json out.json
 
-Schema + design notes: docs/findings/audio-trace-diff.md.
+Exit code: 0 if aligned (no missing/extra), 1 on any divergence, 2 on a
+structural error (missing/unparseable input).
 """
 
 from __future__ import annotations
@@ -53,9 +57,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+ROOT = Path(__file__).resolve().parent.parent
+SESSIONS_ROOT = ROOT / "runs" / "trace-studio"
+
+
 # 21 BGM filenames (src/audio.c audio_bgm_filenames[]) — display labels only,
-# so a retail-only bgm_swap reads as "town.wav" not a bare track index. These
-# are filenames, not assets; safe to carry here.
+# so a bgm_swap reads as "town.wav" not a bare track index. Filenames, not
+# assets; safe to carry here.
 BGM_NAMES = [
     "retitle2010.wav", "town.wav", "sougen.wav", "cave.wav", "forest.wav",
     "ruins.wav", "boss.wav", "over.wav", "open.wav", "close.wav",
@@ -105,11 +113,7 @@ def load_events(path: Path, include_fades: bool) -> list[SoundEvent]:
                 continue
             if kind not in _TRIGGER_KINDS:
                 continue
-            if "frame" not in evt:
-                raise SystemExit(
-                    f"{path}:{lineno}: audio event missing `frame` "
-                    f"(re-capture after the frame-stamp change): {evt!r}")
-            frame = int(evt["frame"])
+            frame = int(evt.get("frame", -1))
             t_ms  = int(evt.get("t_ms", 0))
             if kind == "bgm_swap":
                 track = int(evt["track"])
@@ -128,220 +132,233 @@ def load_events(path: Path, include_fades: bool) -> list[SoundEvent]:
     return out
 
 
-# ── per-identity frame alignment ───────────────────────────────────────────
+# ── identity + count diff ───────────────────────────────────────────────
 
 
 @dataclass
-class Pair:
-    ident:   tuple
-    label:   str
-    r_frame: int
-    p_frame: int
-    delta:   int          # p_frame - r_frame
+class IdentDiff:
+    ident:    tuple
+    label:    str
+    r_frames: list[int] = field(default_factory=list)   # retail trigger frames
+    p_frames: list[int] = field(default_factory=list)   # port trigger frames
 
+    @property
+    def r_count(self) -> int: return len(self.r_frames)
 
-@dataclass
-class Unmatched:
-    ident: tuple
-    label: str
-    frame: int
+    @property
+    def p_count(self) -> int: return len(self.p_frames)
+
+    @property
+    def missing(self) -> int: return max(0, self.r_count - self.p_count)
+
+    @property
+    def extra(self) -> int: return max(0, self.p_count - self.r_count)
+
+    @property
+    def status(self) -> str:
+        if self.missing: return "missing"
+        if self.extra:   return "extra"
+        return "matched"
 
 
 @dataclass
 class DiffResult:
-    pairs:   list[Pair]      = field(default_factory=list)  # matched within tol
-    missing: list[Unmatched] = field(default_factory=list)  # retail-only
-    extra:   list[Unmatched] = field(default_factory=list)  # port-only
+    idents:   list[IdentDiff] = field(default_factory=list)
     n_retail: int = 0
     n_port:   int = 0
 
     @property
-    def timing(self) -> list[Pair]:
-        return [p for p in self.pairs if p.delta != 0]
+    def missing_idents(self) -> list[IdentDiff]:
+        return [d for d in self.idents if d.status == "missing"]
+
+    @property
+    def extra_idents(self) -> list[IdentDiff]:
+        return [d for d in self.idents if d.status == "extra"]
+
+    @property
+    def matched_idents(self) -> list[IdentDiff]:
+        return [d for d in self.idents if d.status == "matched"]
+
+    @property
+    def total_missing(self) -> int:
+        return sum(d.missing for d in self.idents)
+
+    @property
+    def total_extra(self) -> int:
+        return sum(d.extra for d in self.idents)
 
     @property
     def diverged(self) -> bool:
-        return bool(self.missing or self.extra)
+        return self.total_missing > 0 or self.total_extra > 0
 
 
-def _ident_label(ident: tuple, r: list[SoundEvent],
-                 p: list[SoundEvent]) -> str:
-    """Prefer a retail-side label; fall back to the port's. Both carry the
-    same `se_NNN_idXXXX` / path name now, so either works — retail first keeps
-    output stable when only one side has the event."""
-    if r:
-        return r[0].label
-    if p:
-        return p[0].label
-    if ident[0] == "bgm":
-        return bgm_label(int(ident[1]))
-    return str(ident)
-
-
-def diff_events(retail: list[SoundEvent], port: list[SoundEvent],
-                tol: int) -> DiffResult:
-    """Align retail vs port per sound identity. Within an identity, sorted
-    frame lists are merged: two occurrences match when |Δframe| <= tol,
-    otherwise the earlier one is unmatched (missing if retail, extra if
-    port). Robust to recurring SEs and a small constant phase offset."""
+def diff_events(retail: list[SoundEvent],
+                port: list[SoundEvent]) -> DiffResult:
+    """Group both sides by sound identity and compare trigger COUNTS. Frame
+    origins / load skew don't matter — a missing sound is a count deficit on
+    the port side. Idents are ordered by earliest retail frame, then port."""
     res = DiffResult(n_retail=len(retail), n_port=len(port))
 
-    r_by: dict[tuple, list[SoundEvent]] = {}
-    p_by: dict[tuple, list[SoundEvent]] = {}
+    by: dict[tuple, IdentDiff] = {}
+
+    def get(ident: tuple, label: str) -> IdentDiff:
+        d = by.get(ident)
+        if d is None:
+            d = IdentDiff(ident, label)
+            by[ident] = d
+        return d
+
     for e in retail:
-        r_by.setdefault(e.ident, []).append(e)
+        get(e.ident, e.label).r_frames.append(e.frame)
     for e in port:
-        p_by.setdefault(e.ident, []).append(e)
+        get(e.ident, e.label).p_frames.append(e.frame)
 
-    # Stable identity order: by earliest frame seen on either side, then ident.
-    idents = set(r_by) | set(p_by)
+    for d in by.values():
+        d.r_frames.sort()
+        d.p_frames.sort()
 
-    def first_frame(ident: tuple) -> int:
-        fs = [e.frame for e in r_by.get(ident, [])] + \
-             [e.frame for e in p_by.get(ident, [])]
-        return min(fs) if fs else 0
+    def first(d: IdentDiff) -> int:
+        fs = d.r_frames or d.p_frames
+        return fs[0] if fs else 0
 
-    for ident in sorted(idents, key=lambda i: (first_frame(i), str(i))):
-        R = sorted(r_by.get(ident, []), key=lambda e: e.frame)
-        P = sorted(p_by.get(ident, []), key=lambda e: e.frame)
-        label = _ident_label(ident, R, P)
-        i = j = 0
-        while i < len(R) and j < len(P):
-            d = P[j].frame - R[i].frame
-            if abs(d) <= tol:
-                res.pairs.append(Pair(ident, label, R[i].frame,
-                                      P[j].frame, d))
-                i += 1
-                j += 1
-            elif R[i].frame < P[j].frame:
-                res.missing.append(Unmatched(ident, label, R[i].frame))
-                i += 1
-            else:
-                res.extra.append(Unmatched(ident, label, P[j].frame))
-                j += 1
-        while i < len(R):
-            res.missing.append(Unmatched(ident, label, R[i].frame))
-            i += 1
-        while j < len(P):
-            res.extra.append(Unmatched(ident, label, P[j].frame))
-            j += 1
-
-    res.missing.sort(key=lambda u: u.frame)
-    res.extra.sort(key=lambda u: u.frame)
+    res.idents = sorted(by.values(), key=lambda d: (first(d), str(d.ident)))
     return res
 
 
 # ── report ──────────────────────────────────────────────────────────────
 
 
-def verdict_str(res: DiffResult, tol: int) -> str:
+def _frames_str(frames: list[int], cap: int) -> str:
+    if not frames:
+        return "—"
+    shown = ",".join(str(f) for f in frames[:cap])
+    if len(frames) > cap:
+        shown += f",+{len(frames) - cap}"
+    return shown
+
+
+def verdict_str(res: DiffResult) -> str:
     if not res.diverged:
-        n = len(res.pairs)
-        off = len(res.timing)
-        tail = (f" ({n - off} frame-exact, {off} within ±{tol}f)"
-                if off else " (frame-exact)")
-        return f"ALIGNED — all {n} sound(s) present{tail}"
-    return (f"DIVERGE — {len(res.missing)} missing-in-port, "
-            f"{len(res.extra)} extra-in-port, {len(res.timing)} timing")
+        return (f"ALIGNED — every sound retail triggers, the port triggers "
+                f"the same number of times ({len(res.matched_idents)} sound(s))")
+    return (f"DIVERGE — port is missing {res.total_missing} trigger(s) across "
+            f"{len(res.missing_idents)} sound(s); "
+            f"{res.total_extra} extra across {len(res.extra_idents)} sound(s)")
 
 
-def print_report(res: DiffResult, tol: int, label: str | None,
-                 max_list: int) -> None:
+def print_report(res: DiffResult, label: str | None, show_frames: int) -> None:
     if label:
-        print(f"═══ audio divergence: {label} ═══")
-    print(f"retail: {res.n_retail} sound event(s)   "
-          f"port: {res.n_port} sound event(s)   (frame-tol=±{tol})")
-    print(f"  ✓ matched {len(res.pairs)}   ⚠ timing {len(res.timing)}   "
-          f"✗ missing-in-port {len(res.missing)}   "
-          f"✗ extra-in-port {len(res.extra)}")
+        print(f"═══ sound-trigger divergence: {label} ═══")
+    print(f"retail: {res.n_retail} trigger(s)   port: {res.n_port} trigger(s)")
+    print(f"  ✗ missing-in-port {res.total_missing} (over "
+          f"{len(res.missing_idents)} sound(s))   "
+          f"✗ extra-in-port {res.total_extra} (over "
+          f"{len(res.extra_idents)} sound(s))   "
+          f"✓ matched {len(res.matched_idents)}")
 
-    def _list(title: str, rows: list[str]) -> None:
+    def _section(title: str, rows: list[IdentDiff], who: str) -> None:
         if not rows:
             return
         print()
         print(title)
-        for s in rows[:max_list]:
-            print(f"  {s}")
-        if len(rows) > max_list:
-            print(f"  … +{len(rows) - max_list} more")
+        for d in rows:
+            delta = d.missing if who == "missing" else d.extra
+            print(f"  {d.label:<34} retail ×{d.r_count}  port ×{d.p_count}"
+                  f"   → {delta} {who}")
+            print(f"      retail frames: {_frames_str(d.r_frames, show_frames)}")
+            print(f"      port   frames: {_frames_str(d.p_frames, show_frames)}")
 
-    _list("MISSING IN PORT — retail plays these, port is silent:",
-          [f"frame {u.frame:>6}  {u.label}" for u in res.missing])
-    _list("EXTRA IN PORT — port plays these, retail does not:",
-          [f"frame {u.frame:>6}  {u.label}" for u in res.extra])
-    _list(f"TIMING — matched (within ±{tol}f) but not frame-exact:",
-          [f"retail f{p.r_frame} / port f{p.p_frame}  (Δ{p.delta:+d})  {p.label}"
-           for p in sorted(res.timing, key=lambda p: abs(p.delta),
-                           reverse=True)])
+    _section("MISSING IN PORT — retail triggers these, the port triggers fewer:",
+             res.missing_idents, "missing")
+    _section("EXTRA IN PORT — port triggers these, retail triggers fewer:",
+             res.extra_idents, "extra")
+
+    if res.matched_idents:
+        print()
+        print("MATCHED — same trigger count on both sides:")
+        for d in res.matched_idents:
+            print(f"  {d.label:<34} ×{d.r_count}")
 
     print()
-    print(f"VERDICT: {verdict_str(res, tol)}")
+    print(f"VERDICT: {verdict_str(res)}")
 
 
-def summary_obj(res: DiffResult, tol: int) -> dict:
+def summary_obj(res: DiffResult) -> dict:
+    def row(d: IdentDiff) -> dict:
+        return {"ident": list(d.ident), "label": d.label,
+                "retail_count": d.r_count, "port_count": d.p_count,
+                "missing": d.missing, "extra": d.extra,
+                "retail_frames": d.r_frames, "port_frames": d.p_frames}
     return {
-        "retail_events": res.n_retail,
-        "port_events":   res.n_port,
-        "frame_tol":     tol,
-        "n_matched":     len(res.pairs),
-        "n_timing":      len(res.timing),
-        "n_missing":     len(res.missing),
-        "n_extra":       len(res.extra),
-        "verdict":       "ALIGNED" if not res.diverged else "DIVERGE",
-        "missing": [{"frame": u.frame, "ident": list(u.ident),
-                     "label": u.label} for u in res.missing],
-        "extra":   [{"frame": u.frame, "ident": list(u.ident),
-                     "label": u.label} for u in res.extra],
-        "timing":  [{"ident": list(p.ident), "label": p.label,
-                     "r_frame": p.r_frame, "p_frame": p.p_frame,
-                     "delta": p.delta} for p in res.timing],
+        "retail_events":   res.n_retail,
+        "port_events":     res.n_port,
+        "total_missing":   res.total_missing,
+        "total_extra":     res.total_extra,
+        "n_missing_sounds": len(res.missing_idents),
+        "n_extra_sounds":   len(res.extra_idents),
+        "n_matched_sounds": len(res.matched_idents),
+        "verdict":         "ALIGNED" if not res.diverged else "DIVERGE",
+        "missing": [row(d) for d in res.missing_idents],
+        "extra":   [row(d) for d in res.extra_idents],
+        "matched": [row(d) for d in res.matched_idents],
     }
 
 
 # ── main ──────────────────────────────────────────────────────────────────
 
 
+def _resolve_paths(args) -> tuple[Path, Path]:
+    if args.session:
+        sess = SESSIONS_ROOT / args.session
+        return sess / "retail" / "audio.jsonl", sess / "port" / "audio.jsonl"
+    if not (args.retail and args.port):
+        raise SystemExit("audio_diff: give --session NAME, or both "
+                         "--retail and --port")
+    return args.retail, args.port
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--retail", required=True, type=Path,
+    ap.add_argument("--session", default=None,
+                    help="trace-studio session name; resolves retail/ + port/ "
+                         "audio.jsonl under runs/trace-studio/<name>/")
+    ap.add_argument("--retail", type=Path, default=None,
                     help="retail-side audio.jsonl (frida_capture audio hooks)")
-    ap.add_argument("--port", required=True, type=Path,
+    ap.add_argument("--port", type=Path, default=None,
                     help="port-side audio.jsonl (--audio-trace / src/audio.c)")
-    ap.add_argument("--frame-tol", type=int, default=2,
-                    help="max |Δframe| for a matched sound before it counts "
-                         "as a TIMING divergence (default %(default)d)")
     ap.add_argument("--include-fades", action="store_true",
-                    help="also diff fade_start (volume-apply) events; off by "
+                    help="also count fade_start (volume-apply) events; off by "
                          "default — they're port-only side effects.")
     ap.add_argument("--label", default=None,
-                    help="header label (e.g. the session/scenario name)")
-    ap.add_argument("--max-list", type=int, default=80,
-                    help="cap rows printed per section (default %(default)d)")
+                    help="header label (defaults to the session name)")
+    ap.add_argument("--show-frames", type=int, default=12,
+                    help="cap trigger frames listed per sound (default %(default)d)")
     ap.add_argument("--summary-json", type=Path, default=None,
                     help="also write the machine-readable summary here")
     ap.add_argument("--quiet", action="store_true",
                     help="print only the VERDICT line")
     args = ap.parse_args(argv)
 
-    for side, p in (("retail", args.retail), ("port", args.port)):
+    retail_path, port_path = _resolve_paths(args)
+    for side, p in (("retail", retail_path), ("port", port_path)):
         if not p.exists():
             print(f"audio_diff: {side} trace not found: {p}", file=sys.stderr)
             return 2
 
-    retail = load_events(args.retail, args.include_fades)
-    port   = load_events(args.port,   args.include_fades)
-    res = diff_events(retail, port, args.frame_tol)
+    retail = load_events(retail_path, args.include_fades)
+    port   = load_events(port_path,   args.include_fades)
+    res = diff_events(retail, port)
 
     if args.summary_json:
-        args.summary_json.write_text(json.dumps(summary_obj(res, args.frame_tol),
-                                                indent=2))
+        args.summary_json.write_text(json.dumps(summary_obj(res), indent=2))
 
+    label = args.label or args.session
     if args.quiet:
-        print(f"VERDICT: {verdict_str(res, args.frame_tol)}")
+        print(f"VERDICT: {verdict_str(res)}")
     else:
-        print_report(res, args.frame_tol, args.label, args.max_list)
+        print_report(res, label, args.show_frames)
 
     return 1 if res.diverged else 0
 
