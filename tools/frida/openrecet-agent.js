@@ -217,7 +217,15 @@ const ADDR = {
     // reveal counter DAT_073a3e00 resets to 1 on each new line (START), and
     // the "fully revealed / awaiting input" flag DAT_073a3e04 rises 0->1 when
     // a line finishes scrolling (END). Both recur per line.
-    var_dlg_active:        0x0438b1c8, // i32 — dialogue active gate (==1).
+    var_dlg_active:        0x0438b1c8, // i32 — dialogue active gate (==1;
+                                       // ==2 armed/loading — the tutloadpin
+                                       // bracket state).
+    fn_dlg_load_worker_tail: 0x00452ac2, // LAB_00452aab worker tail: the mov
+                                       // run AFTER its CloseHandle — from here
+                                       // it clears DAT_06a49950/5c/60 and sets
+                                       // DAT_0438b1c8=1 (the WHOLE bracket-end
+                                       // handoff, on the worker thread). The
+                                       // {tutloadpin} CModule blocks HERE.
     var_dlg_reveal_ctr:    0x073a3e00, // i32 — per-char reveal counter
                                        // (1..0x800); resets to 1 per new line.
     var_dlg_revealed_flag: 0x073a3e04, // i32 — line fully-revealed flag (0->1).
@@ -450,13 +458,14 @@ let g_segtrace_capstride = 1;       // {capstride:N} (D3): thin a {caprange} to 
 let g_suppress_loads = false;       // D1: drop captures while loading_active (opt-in;
                                     // mirrors the port's --capture-suppress-loads)
 let g_segtrace_tutloadpin = 0;      // {tutloadpin:N}: extend every tutorial-dialogue
-                                    // load bracket to N frames by holding the load
-                                    // gate (engine-quirks §119); 0 = off. Mirrors
-                                    // the port's IVE_TUT_LOAD_FRAMES override.
+                                    // load bracket to N frames (engine-quirks §119);
+                                    // 0 = off. Mirrors the port's
+                                    // IVE_TUT_LOAD_FRAMES override.
 let g_tlp_armed = false;            // tutloadpin: inside a pinned bracket
-let g_tlp_ticks = 0;                // tutloadpin: pre-sim ticks since arm detection
-let g_tlp_worker_done = false;      // tutloadpin: worker observed done (gate low)
+let g_tlp_release_frame = 0;        // tutloadpin: frame the bracket must end on
 let g_tlp_prev_b1c8 = 0;            // tutloadpin: previous tick's DAT_0438b1c8
+let g_tlp_flags = null;             // tutloadpin: CModule-shared [release, waiting]
+let g_tlp_hook_installed = false;   // tutloadpin: worker-tail CModule attached
 let g_capture_dir = null;           // Windows dir: write raw frames here (no Frida xfer)
 let g_memsnap_regions = [];         // {memsnap} census: [[abs_va, size], ...] to dump
 let g_max_frames = 0;               // 0 = no cap; stop = die after that many sim frames
@@ -844,15 +853,16 @@ function segtraceBuildSegments(ops) {
         } else if (op && op.tutloadpin !== undefined) {
             // {tutloadpin:N} — trace-global: extend every tutorial-dialogue
             // load bracket (the DAT_0438b1c8==2 window over the FUN_00452d07
-            // worker) to N frames by holding DAT_06a49960 high until N frames
-            // past the arm. EXTEND-only: a real load LONGER than N is left
-            // alone (a worker thread can't be shortened), so the trace should
-            // pick N ≥ any plausible real bracket. The held frames run the
-            // engine's own loading path (overlay, db054++, wing emits) exactly
-            // like a slow disk. Mirrors the port's IVE_TUT_LOAD_FRAMES
-            // override so both sides idle EQUAL-length brackets — equal
-            // db054/wing-emit consumption inside the bracket and an aligned
-            // post-bracket label axis (engine-quirks §119).
+            // worker) to N frames by BLOCKING the LAB_00452aab worker at its
+            // tail until N frames past the arm (see tutloadpinTick /
+            // installTutLoadPinWorkerHook). EXTEND-only: a real load LONGER
+            // than N is left alone (a thread can't be shortened), so the
+            // trace should pick N ≥ any plausible real bracket. The blocked
+            // frames run the engine's own loading path (overlay, db054++,
+            // wing emits) exactly like a slow disk. Mirrors the port's
+            // IVE_TUT_LOAD_FRAMES override so both sides idle EQUAL-length
+            // brackets — equal db054/wing-emit consumption inside the bracket
+            // and an aligned post-bracket label axis (engine-quirks §119).
             g_segtrace_tutloadpin = (op.tutloadpin | 0) > 0 ? (op.tutloadpin | 0) : 0;
         } else if (op && op.calltrace !== undefined) {
             // Scalar N -> [0, N]; [start, len] -> base-relative window.
@@ -1511,6 +1521,16 @@ function installPresentHook(devicePtr) {
                 g_draw_count_max = Math.max(g_draw_count_max,
                                             g_draw_count_this_frame);
                 g_draw_count_this_frame = 0;
+            }
+            // {tutloadpin} release — BEFORE anchorTick, so the release
+            // frame's anchor sample reads the post-handoff state and
+            // LOADING_END fires exactly at release_frame.
+            if (g_segtrace_tutloadpin > 0) {
+                try {
+                    tutloadpinPresentRelease(fn);
+                } catch (e) {
+                    err('Present.onEnter.tutloadpin', e.message);
+                }
             }
             // TAS anchor emit. Sample scene/loading state for THIS frame
             // (frameNo() == fn) and emit any rising-edge anchors before the
@@ -2644,71 +2664,128 @@ function synthesizeEscRetail() {
     g_esc_post(hwnd, 0x100, 0x1b, ptr(0));   // WndProc(WM_KEYDOWN, VK_ESCAPE)
 }
 
-// {tutloadpin:N} pre-sim tick — the retail half of the tutorial-load-bracket
-// pin (the port half overrides IVE_TUT_LOAD_FRAMES; engine-quirks §119).
+// {tutloadpin:N} — the retail half of the tutorial-load-bracket pin (the port
+// half overrides IVE_TUT_LOAD_FRAMES; engine-quirks §119).
 //
-// Mechanism: the tutorial activation (FUN_0044bd0d) sets DAT_0438b1c8=2 and
-// calls FUN_00452d07, which raises the load gate (DAT_06a49960=1) and spawns
-// the LAB_00452aab worker; the WORKER clears the gate when done — so the
-// bracket length is thread wall-time, non-deterministic per run. We EXTEND it
-// to exactly N frames: once the worker is seen done (gate low at a pre-sim
-// tick), re-write the gate high each tick until the bracket has spanned N
-// frames, then write it low. The engine's own per-frame loading path (overlay
-// draw, db054++, wing-particle emits, event-arm guard) runs through the held
-// frames exactly as on a slow disk — that's the point: equal lengths ⇒ equal
-// consumption inside the bracket on both targets.
+// Mechanism (v2 — the gate-write hold was unimplementable): the tutorial
+// activation (FUN_0044bd0d) sets DAT_0438b1c8=2 and calls FUN_00452d07, which
+// raises the load gates and spawns the LAB_00452aab worker. The worker's TAIL
+// (0x452ac2, after its CloseHandle) performs the WHOLE bracket-end transition
+// itself, mid-frame, on the worker thread: handle=0, DAT_06a4995c=0,
+// DAT_06a49960=0, DAT_0438b1c8=1. The main loop never polls anything — so a
+// once-per-frame gate re-write can't extend the bracket (v1 raced and lost
+// systematically). Instead we BLOCK the worker thread at its tail until the
+// release frame: the load then genuinely lasts N frames — the engine idles
+// exactly as for a slow disk (overlay, db054++, wing emits), and the handoff
+// (gates→0, b1c8→1) is the engine's own code, just deferred.
 //
-// Fence-post: the arm frame g (the sim that set b1c8=2) is bracket frame #1
-// and Present(g) fires LOADING_START; our first tick lands at pre-sim(g+1).
-// Holding through ticks 0..N-2 and releasing at tick N-1 makes frame g+N the
-// first non-loading frame → LOADING_END at g+N, END−START == N — matching the
-// port's D_TUT_LOAD counter exactly.
+// The block lives in a CModule (C callback — Frida JS callbacks serialize on
+// the JS lock, so a JS-side sleep loop on the worker thread would deadlock
+// the per-frame hooks). Shared flags: tlp_flags[0]=release granted,
+// tlp_flags[1]=worker waiting. Block-by-default while a {tutloadpin} trace is
+// live (flags[0]=0) so even a sub-frame load that reaches the tail before the
+// pre-sim arm tick still blocks; every 452aab tail belongs to a b1c8==2
+// dialogue-script bracket, whose arm always follows within a frame.
 //
-// EXTEND-only: if the real worker is still running at the release tick
-// (bracket ≥ N real frames), disarm without writes — never shorten a real
-// load (the script would start on half-loaded assets).
-function tutloadpinTick(fn) {
-    const N = g_segtrace_tutloadpin;
-    const b1c8 = rva(ADDR.var_dlg_active).readS32();
-    const loading = (rva(ADDR.var_nowloading_gate).readS32() !== 0) ||
-                    (rva(ADDR.var_nowloading_gate2).readS32() !== 0);
-    if (!g_tlp_armed && b1c8 === 2 && g_tlp_prev_b1c8 !== 2) {
-        // A dialogue-script load was armed during the previous frame's sim.
-        // (Map/slot loads keep b1c8==0 and never arm; the prologue's real
-        // ~68f inter-script bracket arms but worker_done stays false through
-        // the release tick when N is small → disarmed without writes.)
-        g_tlp_armed = true;
-        g_tlp_ticks = 0;
-        g_tlp_worker_done = false;
-        log('tutloadpin: bracket armed at frame ' + fn + ' (extend to ' +
-            N + 'f)');
+// Fence-posts: the arm sim-frame g fires LOADING_START@g (Present g reads the
+// gates up); the pre-sim arm tick lands at g+1 → release_frame = g+N. The
+// Present hook of frame g+N grants release BEFORE anchorTick and spins until
+// the worker's tail completes (b1c8 leaves 2, ~µs after the 1ms sleep wakes),
+// so THAT Present samples gates==0 → LOADING_END@g+N, END−START == N — and
+// the script's first tick lands at g+N+1, both matching the port's
+// D_TUT_LOAD counter exactly.
+//
+// EXTEND-only: a real load ≥ N frames reaches the tail after the release
+// frame, finds flags[0] already granted, and sails through at its natural
+// length (the prologue's ~68f inter-script bracket does exactly this).
+function installTutLoadPinWorkerHook() {
+    if (g_tlp_hook_installed) return;
+    try {
+        const k32 = Process.findModuleByName('kernel32.dll');
+        const sleepAddr = k32 ? k32.findExportByName('Sleep') : null;
+        if (!sleepAddr) { err('tutloadpin', 'kernel32 Sleep not found'); return; }
+        g_tlp_flags = Memory.alloc(8);
+        g_tlp_flags.writeS32(1);            // pass-through until a trace pins
+        g_tlp_flags.add(4).writeS32(0);
+        const sleepCell = Memory.alloc(Process.pointerSize);
+        sleepCell.writePointer(sleepAddr);
+        const cm = new CModule(`
+#include <gum/guminterceptor.h>
+extern volatile int tlp_flags[2];
+typedef void (__stdcall *SleepFn)(unsigned long ms);
+extern SleepFn tlp_sleep;
+void
+onEnter (GumInvocationContext *ic)
+{
+  int guard = 0;
+  (void)ic;
+  if (tlp_flags[0] != 0)
+    return;
+  tlp_flags[1] = 1;
+  while (tlp_flags[0] == 0 && guard < 20000) {   /* fail-open after ~20 s */
+    tlp_sleep (1);
+    guard++;
+  }
+  tlp_flags[1] = 0;
+}
+`, {tlp_flags: g_tlp_flags, tlp_sleep: sleepCell});
+        Interceptor.attach(rva(ADDR.fn_dlg_load_worker_tail), cm);
+        g_tlp_cmodule = cm;                 // keep alive (GC'd CModule = crash)
+        g_tlp_hook_installed = true;
+        log('tutloadpin: worker-tail hook installed @0x' +
+            (ADDR.fn_dlg_load_worker_tail >>> 0).toString(16));
+    } catch (ex) {
+        err('tutloadpin', 'worker hook install failed: ' + ex.message);
+        if (g_tlp_flags) g_tlp_flags.writeS32(1);   // stay fail-open
     }
-    if (g_tlp_armed) {
-        if (b1c8 !== 2) {
-            // Script already started / dialogue torn down — bracket over.
-            // (The normal release lands here one tick after writing the gate
-            // low: that frame's sim starts the script → b1c8 leaves 2.)
-            g_tlp_armed = false;
-        } else {
-            if (!loading) g_tlp_worker_done = true;
-            if (g_tlp_ticks < N - 1) {
-                if (g_tlp_worker_done)
-                    rva(ADDR.var_nowloading_gate2).writeS32(1);   // hold
-            } else {
-                if (g_tlp_worker_done) {
-                    rva(ADDR.var_nowloading_gate2).writeS32(0);   // release
-                    log('tutloadpin: bracket released at frame ' + fn +
-                        ' (held to ' + N + 'f)');
-                } else {
-                    log('tutloadpin: real load >= ' + N +
-                        'f at frame ' + fn + ' - left alone (extend-only)');
-                }
-                g_tlp_armed = false;
-            }
-            g_tlp_ticks++;
-        }
+}
+let g_tlp_cmodule = null;
+
+// Pre-sim arm detection (input_poll). The b1c8 2-rising edge is visible here
+// one frame after the arming sim — the worker can't advance b1c8 itself while
+// blocked, so the edge is never missed.
+function tutloadpinTick(fn) {
+    if (!g_tlp_flags) return;
+    const b1c8 = rva(ADDR.var_dlg_active).readS32();
+    if (!g_tlp_armed && b1c8 === 2 && g_tlp_prev_b1c8 !== 2) {
+        g_tlp_armed = true;
+        g_tlp_release_frame = fn - 1 + g_segtrace_tutloadpin;
+        g_tlp_flags.writeS32(0);            // (re-)block the worker tail
+        log('tutloadpin: bracket armed at frame ' + fn + ' (release at ' +
+            g_tlp_release_frame + ')');
+    } else if (g_tlp_armed && b1c8 !== 2) {
+        // Dialogue torn down mid-bracket (skip/teardown) — fail open.
+        g_tlp_flags.writeS32(1);
+        g_tlp_armed = false;
+        log('tutloadpin: bracket disarmed (b1c8 left 2) at frame ' + fn);
     }
     g_tlp_prev_b1c8 = b1c8;
+}
+
+// Present-hook release — runs BEFORE anchorTick so the release frame's own
+// anchor sample reads the post-handoff state (LOADING_END fires at exactly
+// release_frame).
+function tutloadpinPresentRelease(fn) {
+    if (!g_tlp_armed || !g_tlp_flags || fn < g_tlp_release_frame) return;
+    const waiting = g_tlp_flags.add(4).readS32() !== 0;
+    g_tlp_flags.writeS32(1);                // grant release
+    if (waiting) {
+        // The worker wakes within ~1ms and finishes its tail in µs; spin so
+        // this Present's anchorTick sees gates==0 / b1c8==1.
+        const t0 = nowMs();
+        while (rva(ADDR.var_dlg_active).readS32() === 2) {
+            if (nowMs() - t0 > 500) {
+                err('tutloadpin', 'release spin timeout at frame ' + fn);
+                break;
+            }
+            Thread.sleep(0.0005);
+        }
+        log('tutloadpin: bracket released at frame ' + fn);
+    } else {
+        log('tutloadpin: real load >= pin at frame ' + fn +
+            ' - left alone (extend-only)');
+    }
+    g_tlp_armed = false;
 }
 
 function segtraceTick(fn) {
@@ -4691,6 +4768,15 @@ rpc.exports = {
             // tracer emits ONLY inside armed anchor-relative windows.
             g_ct_window_mode = g_segtrace_segments.some(
                 function (s) { return s.calltraces.length > 0; });
+            // {tutloadpin:N} present in the ops → attach the worker-tail
+            // blocker and block-by-default (a sub-frame load could reach the
+            // tail before the first pre-sim arm tick; every 452aab tail is a
+            // dialogue bracket, so an arm + release always follows).
+            if (g_segtrace_tutloadpin > 0) {
+                installTutLoadPinWorkerHook();
+                if (g_tlp_flags) g_tlp_flags.writeS32(0);
+                log('tutloadpin: active, N=' + g_segtrace_tutloadpin);
+            }
             // Segment 0 has base 0 from boot; arm its captures/call-trace now.
             segtraceOnSegmentEnter(g_segtrace_segments[0]);
         }
