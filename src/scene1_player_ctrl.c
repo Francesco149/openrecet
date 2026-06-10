@@ -1141,6 +1141,17 @@ static int player_ctrl_cc08_dpad_interact(void)
      * instead of the walk, so neither the walk nor the companion db054 clock
      * advance — engine-quirks §110). */
     display_menu_open(0, first_open);
+
+    /* FUN_004681ec (0x488d9d-0x488dac, right after the FUN_00468338 call):
+     * pick the prompt bubble from the FACED display-grid cell — occupied
+     * (dword != -1) → 2 "Exchange with what?", empty → 1 "What will you
+     * place?".  Same cell read as the menu confirm (bank dword 0x4e26 +
+     * cbfc + 20*cc00). */
+    {
+        int32_t cur = (int32_t)bank[SAVE_BANK_FIELD_DISPLAY_GRID
+                                    + (uint32_t)(cbfc + cc00 * SHOP_DISPLAY_GRID_STRIDE)];
+        display_menu_set_window_flag(cur != -1 ? 2 : 1);
+    }
     return 1;   /* menu opened: consume the frame. */
 }
 

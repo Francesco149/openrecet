@@ -64,7 +64,12 @@ point-in-time memory snapshots (archived under `memory/archive/`) for current st
   or its `diff/frames/` — **never a hand-rolled `/tmp` diff that pairs frames yourself.**
   (Session frame naming is UNIFIED since 2026-06-09 — both sides + diff are label-named, same
   name = same moment — but the studio outputs are still the verification surface, not ad-hoc
-  pairing.) **For anything inspectable IN the session,
+  pairing.) **The user flags divergences as NOTES on the working trace (`edits.jsonl`
+  `{"kind":"note","frame":N,"box":[x0,y0,x1,y1]}` — box in capture px): ALWAYS read the
+  session's notes+crops FIRST before composing your own crops or hunting for divergent
+  frames yourself** (user policy 2026-06-10) — they are the authoritative per-session gap
+  list, often sharper than the docs (e.g. they pinned the prompt-bubble slide-in frames).
+  **For anything inspectable IN the session,
   just remind the user of the session URL — `http://localhost:8778/?session=<name>` (default
   serve port 8778; confirm the live port via `ps`/serve logs) — rather than composing+pushing
   a feed montage of it: the studio already shows retail|port|diff + frame scrub, so a push only

@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **466** (18.3%) — verified 69, stubbed 15, ported 382
-- unported: **2082**
+- touched: **467** (18.3%) — verified 69, stubbed 15, ported 383
+- unported: **2081**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (69) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (382) — reimplemented, no probe yet
+## ported (383) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -280,7 +280,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x45e7b7 | FUN_0045e7b7 | 6 | ✓ | music.h |
 | 0x45edaa | FUN_0045edaa | 4455 | ✓ | npc_schedule.h |
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ | tables_tuto.h |
-| 0x4681ec | FUN_004681ec | 10 | ✓ | scene1_display_menu.c |
+| 0x4681ec | FUN_004681ec | 10 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
 | 0x468246 | FUN_00468246 | 64 |  | scene1_display_menu.h |
 | 0x4682bf | FUN_004682bf | 6 | ✓ | stage_load_pulse.h |
 | 0x4682c5 | FUN_004682c5 | 11 | ✓ | stage_load_pulse.h |
@@ -461,6 +461,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49e9a7 | FUN_0049e9a7 | 387 | ✓ | tables_item.c, tables_kyaku.c, tables_kyaku.h (+3) |
 | 0x49eb2a | FUN_0049eb2a | 488 | ✓ | tables_item.c, tables_item.h, tables_kyaku.c (+1) |
 | 0x49ed75 | FUN_0049ed75 | 515 | ✓ | tables_item.c, tables_item.h |
+| 0x49ef78 | FUN_0049ef78 | 64 | ✓ | scene1_display_menu.c |
 | 0x49f012 | FUN_0049f012 | 851 | ✓ | save_bank.h, scene1_display_menu.c, scene_title.c |
 | 0x4a2a03 | FUN_004a2a03 | 13 |  | math3d.h, scene1_pass_f.c, scene1_records_b_spawn.c (+3) |
 | 0x4a2f35 | FUN_004a2f35 | 13 |  | math3d.h |

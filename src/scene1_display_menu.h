@@ -45,6 +45,14 @@
  * index-0 "select none" list entry. */
 void display_menu_open(int mode, int first_open);
 
+/* FUN_004681ec: set the window-type flag (DAT_0734b990) — selects the baked
+ * prompt bubble the render slides in with the panel.  The cc04 arm sets it
+ * right after display_menu_open(): 1 = "What will you place?" (faced cell
+ * empty), 2 = "Exchange with what?" (faced cell occupied); a highlighted
+ * Vender-category item overrides either to "Place Vending Machine".
+ * display_menu_open() resets it to 0 (no bubble). */
+void display_menu_set_window_flag(int flag);
+
 /* FUN_00469414(param): one frame of the menu update.  Returns:
  *   0 — idle / still sliding in / mid-countdown
  *   1 — CONFIRM (the selected entry was committed: place or, for -1, remove)

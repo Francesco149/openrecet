@@ -103,6 +103,9 @@ static void display_menu_recount(void)
 
 int display_menu_possessed(void) { return s_possessed; }
 
+/* FUN_004681ec — the prompt-bubble window-type flag (DAT_0734b990). */
+void display_menu_set_window_flag(int flag) { s_window_flag = flag; }
+
 /* ── FUN_00468338 — OPEN / list init (A2: minimal) ────────────────────── */
 void display_menu_open(int mode, int first_open)
 {
@@ -584,6 +587,39 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
     if (scroll + visible < count) {
         const float dst[4] = { xL + 56.0f, 312.0f, 64.0f, 32.0f };
         const float src[4] = { 512.0f, 896.0f, 576.0f, 944.0f };
+        render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
+    }
+
+    /* ── prompt bubble (all.c:66556-66585, 0x46b2a9-0x46b37d) ───────────────
+     * While the window-type flag is set, a BAKED speech-bubble strip from
+     * item_win slides in with the panel at dst(xL-128, 48, 191, 63):
+     *   flag 1 → "What will you place?"   src(832,560,1023,623)
+     *   flag 2 → "Exchange with what?"    src(256,768,447,831)
+     *   highlighted Vender-category item → "Place Vending Machine"
+     *                                      src(256,704,447,767)
+     * The Vender override is FUN_0049ef78: the HIGHLIGHTED item's category
+     * name vs "Venders", first 4 chars only — and it also catches any flag
+     * outside {1,2} (the engine's goto LAB_0046b31f fallthrough). */
+    if (s_window_flag != 0) {
+        int vender = 0;
+        if (s_highlight >= 0) {
+            int rec = tables_item_find_slot_by_id(&g_item, s_highlight >> 6);
+            if (rec >= 0) {
+                int cat = g_item.records[rec].category;
+                if (cat >= 0 && cat < ITEM_CATEGORY_COUNT &&
+                    strncmp(g_item.categories[cat].singular, "Venders", 4) == 0)
+                    vender = 1;
+            }
+        }
+        float src[4];
+        if (!vender && s_window_flag == 1) {
+            src[0] = 832.0f; src[1] = 560.0f; src[2] = 1023.0f; src[3] = 623.0f;
+        } else if (!vender && s_window_flag == 2) {
+            src[0] = 256.0f; src[1] = 768.0f; src[2] = 447.0f;  src[3] = 831.0f;
+        } else {
+            src[0] = 256.0f; src[1] = 704.0f; src[2] = 447.0f;  src[3] = 767.0f;
+        }
+        const float dst[4] = { xL - 128.0f, 48.0f, 191.0f, 63.0f };
         render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
     }
     render_quad_flush(dev);
