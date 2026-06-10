@@ -1313,21 +1313,42 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
     exit_code = 0
 
     # ── shut the target down ──
-    try:
-        script.unload()
-    except Exception as e:
-        f_log.write(f"[shutdown] script unload: {e}\n")
-    try:
-        session.detach()
-    except Exception as e:
-        f_log.write(f"[shutdown] session detach: {e}\n")
+    # Every frida teardown call is BOUNDED: session.detach() (and potentially
+    # script.unload()) can block forever when the remote session is in a bad
+    # state — seen 2026-06-10 on Interceptor/CModule-hooked captures, where the
+    # hang wedged the whole studio pipeline in a silent join. By this point all
+    # capture data is on disk, so an abandoned teardown step (leaked session /
+    # stray process; tools/kill_retail.py reaps those) beats a hung pipeline.
+    def _bounded(tag: str, fn, timeout_s: float = 15.0) -> None:
+        def _run() -> None:
+            try:
+                fn()
+            except Exception as e:                      # noqa: BLE001
+                f_log.write(f"[shutdown] {tag}: {e}\n")
+        th = threading.Thread(target=_run, daemon=True, name=f"shutdown-{tag}")
+        th.start()
+        th.join(timeout_s)
+        if th.is_alive():
+            f_log.write(f"[shutdown] {tag}: still blocked after {timeout_s}s "
+                        f"— abandoned (daemon)\n")
+
+    # Spawn mode: kill the engine FIRST — teardown against a dead process is
+    # trivially fast, while unload/detach against a live hooked process is
+    # where the hangs live. Attach mode (user's own game) never kills; it
+    # relies on the bounded steps alone.
     if not is_attach:
-        try:
+        kill_ok = threading.Event()
+        def _kill() -> None:
             device.kill(pid)
-        except Exception as e:
-            f_log.write(f"[shutdown] kill pid={pid}: {e}\n")
+            kill_ok.set()
+        _bounded("kill", _kill)
+        if not kill_ok.is_set():
+            # A live stray retail holds the singleton mutex and stalls the
+            # NEXT capture — keep the old nonzero-rc signal for that case.
             exit_code = 1
-    else:
+    _bounded("script unload", script.unload)
+    _bounded("session detach", session.detach)
+    if is_attach:
         f_log.write(f"[shutdown] attach mode — leaving pid={pid} alive\n")
 
     # ── write the recorded raw trace (port-format .raw.jsonl) ──
