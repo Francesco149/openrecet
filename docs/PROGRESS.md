@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — display-menu + footstep SEs: un-stub the silent menuing (FRONT #7)
+
+The audio-trace diff's debut find — the item-display interaction is silent in the
+port (14 missing triggers over 6 sounds, user-confirmed by ear) — is fixed. The
+cc04 interaction (`scene1_player_ctrl.c`) already mirrored the SE-variant *RNG
+draws* for stream alignment but stubbed every actual play. Un-stubbed, sourcing
+exact paths/ids from the decompile + the retail audio capture (Ghidra dropped the
+SE-id args, so the footstep gate came from objdump 0x48c824):
+
+- **open SE** (all.c:87705-87708): `rand()%3` → `00re_sys04a/b/c.bin`.
+- **confirm clip** (all.c:87938): `rand()&1` → `00re_sys05b/05a.bin` (05b at
+  index 0 — recapture showed the exercised placements all draw 0 and retail plays
+  05b; my first guess `[05a,05b]` was flipped, caught by the audio_diff "extra
+  05a / missing 05b" and swapped).
+- **confirm/pickup/cancel beep** (LAB_0048917a): `FUN_00499519(0x143)` on the
+  Z-edge arm (r==3) + cancel (r==2).
+- **walk footstep** (asm 0x48c824, `FUN_00499519(0x166)`): a sibling of the
+  foot-dust emit — fires every walk frame where `STATE==1 && (COUNTER&0xf)==0xa`,
+  *independent* of the `(db054&0xf)==0` dust cadence. `player_ctrl_b850_foot_dust`'s
+  early-return was restructured into a nested gate so the step still runs on the
+  off-cadence frames. (id0166 is NOT the menu cursor — the 5 ticks all fire in
+  free-roam *before* each open; it's the walk footstep tied to the dust.)
+
+All plays are RNG-neutral (the variant-select draws were already mirrored), so no
+stream shift: triage worst-frame/px/py/dust unchanged, host suite 3229✓. Verified
+on `item-display-2` (recapture `--only port` + `audio_diff`): **missing 14→0, all
+6 sounds matched** (open ×3, confirm-beep ×5, confirm-clip ×3, footstep ×5).
+**Remaining audio delta:** 3 EXTRA dialogue voice grunts (`re_wakata_b`/
+`tea_sodesu`/`re_un_a`) the port plays that retail doesn't — pre-existing,
+separate from the menu SFX, a dialogue voice-selection follow-up.
+
 ## 2026-06-10 — display-menu: slide the bottom description panel with the menu (`d4899bc`)
 
 The `item-display-2` session's WORST frame (label 181, gt8≈185441, mean 17.7)

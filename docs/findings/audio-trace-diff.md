@@ -9,6 +9,21 @@ This is how we catch gaps like "the whole item-display interaction is silent in
 the port": retail's trace shows the SE/voice triggers, the port's shows none →
 the diff lists exactly what's missing.
 
+**First catch — RESOLVED 2026-06-10.** The pillar's debut find (item-display
+menuing silent: 14 missing triggers over 6 sounds) is fixed. The cc04
+interaction (`scene1_player_ctrl.c`) already mirrored the SE-variant *RNG draws*
+for stream alignment but stubbed every actual play; un-stubbing them
+(open `00re_sys04a/b/c` rand%3, confirm clip `00re_sys05b/a` rand&1, the
+`0x143` confirm/cancel beep, and the walk `0x166` footstep) drove the diff to
+**missing 14→0, all 6 sounds matched** on the `item-display-2` recapture. The
+fixes were RNG-neutral so the pixel/flow triage was unchanged — exactly the
+"detect + fix sound without re-listening" loop this pillar was built for. The
+asm gate for the footstep (`STATE==1 && (COUNTER&0xf)==0xa`, sibling of the
+foot-dust emit) came from objdump 0x48c824, since Ghidra dropped the SE-id args
+at the call sites. **Residual:** 3 EXTRA dialogue voice grunts the port plays
+that retail doesn't (`re_wakata_b`/`tea_sodesu`/`re_un_a`) — a separate
+dialogue voice-selection delta, not the menu SFX.
+
 Related: `audio-backend.md` (the DirectMusic backend itself, port + retail),
 `engine-quirks.md` §45/§46/§88 (SE table quirks).
 

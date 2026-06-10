@@ -119,15 +119,21 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
      ~109px, found verifying gap B) · **menu-close camera pan-out whole-frame
      offset** (label 441, ~160k px>8 — pre-exists the carry chip, attributed by
      stash-rebuild-recapture; the scene shifts ⇒ camera, not UI).
-  7. **Item-display SOUND — the menuing SFX are missing** (audio-trace diff,
-     **USER-CONFIRMED 2026-06-10**: voices play, menu SFX don't). `audio_diff
-     --session item-display-2` (now in `triage`): port misses **14 triggers over
-     6 sounds** — cursor tick `se_039_id0166` ×5 (ALL), confirm `se_007_id0143`
-     ×3 (in-house placement), + 6 `00re_sys*` system menu SEs; dialogue voices
-     match. So the item-placement menu drives no `audio_play_se` /
-     `audio_play_se_file` — find + port the SE-trigger call sites in the
-     display-menu interaction (around `FUN_0046b00a` / display_menu).
-     Tooling/RE: `findings/audio-trace-diff.md`.
+  7. **Item-display SOUND — ✅ DONE 2026-06-10 (`2f… player_ctrl SE chip`).** The
+     cc04 interaction consumed the SE-variant RNG draws but STUBBED every play, so
+     the menuing was silent (audio-trace diff: 14 missing over 6 sounds,
+     user-confirmed by ear). Un-stubbed all of it: open `00re_sys04a/b/c` (rand%3),
+     confirm clip `00re_sys05b/a` (rand&1, b@index0), confirm/pickup/cancel beep
+     `FUN_00499519(0x143)`, and the walk **footstep** `FUN_00499519(0x166)` (asm
+     0x48c824 — sibling of the foot-dust emit, gate `STATE==1 && (COUNTER&0xf)==0xa`,
+     independent of the dust cadence; foot_dust's early-return restructured to a
+     nested gate). All RNG-neutral (no stream shift; triage/px/py/dust unchanged,
+     host 3229). Recapture+audio_diff: **missing 14→0, all 6 sounds matched.**
+     RE/tooling: `findings/audio-trace-diff.md`. **Remaining audio delta (separate,
+     pre-existing):** 3 EXTRA dialogue voice grunts — port plays `re_wakata_b`
+     @1759 / `tea_sodesu` @2083 / `re_un_a` @2199, retail plays none there (the
+     dialogues are user-confirmed VISUALLY 1:1; this is a voice-selection delta in
+     the Tear tutorial lines, not the menu SFX). Chase as a dialogue-voice follow-up.
   *(Tooling owed here — recorder `save_capture` clobber + the session kept-count
   mismatch — both CLOSED 2026-06-10: `9a7bf63` stops the save clobber, and
   `{tutloadpin}` equalized the brackets so the kept-count PROBLEM is gone
