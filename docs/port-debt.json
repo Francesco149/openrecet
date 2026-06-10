@@ -55,7 +55,7 @@
    "engine_fn": "FUN_005031e4",
    "desc": "the engine also gates on a",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1002,
+   "line": 1015,
    "kind_known": false
   },
   {
@@ -103,7 +103,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1056,
+   "line": 1069,
    "kind_known": false
   },
   {

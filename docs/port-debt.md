@@ -93,11 +93,11 @@ _none_
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:126 | box_pos_mode/off (DAT_005c7984/80) are |
-| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1002 | the engine also gates on a |
+| door-proximity | FUN_005031e4 | src/scene1_player_ctrl.c:1015 | the engine also gates on a |
 | event-probe | FUN_0045de68 | src/scene_worldmap.c:142 | the per-destination "has an event |
 | focused | FUN_00430c00 | src/scene1_sim.c:97 | no town NPCs exist in |
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:20 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1056 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1069 | the engine frees the shop |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:240 | the engine tail re-inits the |
 

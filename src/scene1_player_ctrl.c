@@ -21,6 +21,7 @@
 #include "scene1_spawn.h"        /* scene1_spawn (FUN_00447f4f) — foot-dust emit */
 #include "scene1_companion_ctrl.h" /* scene1_companion_db054 (shared DAT_056db054) */
 #include "rng.h"                 /* rng_next_unit (FUN_00471089) — dust jitter */
+#include "audio.h"               /* display-menu SE (FUN_0049933c file / FUN_00499519 id) */
 #include "scene1_bg_npc.h"       /* scene1_bg_npc_tick (FUN_0046f621 NPC pump) */
 #include "scene1_intro_dialogue.h" /* prologue gate — suppress the walk arm */
 #include "scene1_overlay.h"      /* scene1_overlay_spawn (FUN_00414345) — sparkle */
@@ -815,18 +816,30 @@ static void player_ctrl_b850_render_tail(void)
 static void player_ctrl_b850_foot_dust(void)
 {
     float vx = s_player_vel[0], vz = s_player_vel[2];
-    if (vx * vx + vz * vz <= 0.1f * 0.1f)   /* |v| <= 0.1 → not moving enough */
-        return;
-    if ((scene1_companion_db054() & 0xf) != 0)
+    if (vx * vx + vz * vz <= 0.1f * 0.1f)   /* |v| <= 0.1 → not moving enough
+                                             * (asm 0x48c746 — wraps dust AND step) */
         return;
 
-    float zj = (rng_next_unit() - 0.5f) * 0.5f;   /* rng #1 → z jitter */
-    float xj = (rng_next_unit() - 0.5f) * 0.5f;   /* rng #2 → x jitter */
-    scene1_spawn(0,
-                 g_scene1_player_pos[0] + xj,
-                 g_scene1_player_pos[1] + 0.5f,
-                 g_scene1_player_pos[2] + zj,
-                 0xe, 0.125f, 1);
+    /* foot dust — ONLY on the (db054&0xf)==0 cadence (asm 0x48c758).  Previously
+     * an early-return; made a nested gate so the footstep below still runs on the
+     * other frames. */
+    if ((scene1_companion_db054() & 0xf) == 0) {
+        float zj = (rng_next_unit() - 0.5f) * 0.5f;   /* rng #1 → z jitter */
+        float xj = (rng_next_unit() - 0.5f) * 0.5f;   /* rng #2 → x jitter */
+        scene1_spawn(0,
+                     g_scene1_player_pos[0] + xj,
+                     g_scene1_player_pos[1] + 0.5f,
+                     g_scene1_player_pos[2] + zj,
+                     0xe, 0.125f, 1);
+    }
+
+    /* footstep SE (asm 0x48c824-0x48c843, FUN_00499519(0x166)): independent of
+     * the dust cadence — fires every walk frame where the walk anim STATE==1 and
+     * the int frame-counter low-nibble hits 0xa (~once per 16 frames = the step
+     * cadence).  RNG-neutral.  (The pause gate DAT_0438b1a0 is inert in free-roam.) */
+    if (s_actor_record[0][CHR_ACTOR_STATE] == 1 &&
+        (s_actor_record[0][CHR_ACTOR_COUNTER] & 0xf) == 0xa)
+        audio_play_se_by_id(0x166);
 }
 
 static void player_ctrl_b850_move(void)
@@ -1122,10 +1135,18 @@ static int player_ctrl_cc08_dpad_interact(void)
 
     /* ===== open the cc04==1 display-stand menu (all.c:87705-87724) ===== */
 
-    /* open SE FUN_0049933c(rand()%3 → 00re_sys04a/b/c.bin): audio-only, but the
-     * variant select consumes one LCG draw — mirror it to keep the shared RNG
-     * stream aligned port↔retail. */
-    (void)(rng_next15() % 3);
+    /* open SE (all.c:87705-87708): rand()%3 selects one of three baked system
+     * clips, FUN_0049933c plays it.  The variant select consumes one LCG draw
+     * (mirror it to keep the shared RNG stream aligned port↔retail); the play
+     * itself is RNG-neutral. */
+    {
+        static const char *const k_open_se[3] = {
+            "bin/se/00re/system/00re_sys04a.bin",
+            "bin/se/00re/system/00re_sys04b.bin",
+            "bin/se/00re/system/00re_sys04c.bin",
+        };
+        audio_play_se_file(k_open_se[rng_next15() % 3]);
+    }
 
     /* interact pose (all.c:87710-87716): actor 0 anim → 3 (the lean-in pose),
      * frame/counter/timer reset, then one anim tick (FUN_00482a71). */
@@ -1221,7 +1242,7 @@ static void player_ctrl_cc04_menu_arm(void)
         s_cc04 = 0;                                  /* DAT_0438cc04 = 0 */
         stage_load_pulse_set_active(0);              /* FUN_004682d0: slide out */
         title_save_dialog_cursor_set_visible(0);     /* FUN_00435612: hide cursor */
-        /* FUN_00499519 cancel SE — fixed id, no RNG. */
+        audio_play_se_by_id(0x143);  /* FUN_00499519(0x143), LAB_0048917a — fixed id, no RNG */
         return;
     }
 
@@ -1254,7 +1275,7 @@ static void player_ctrl_cc04_menu_arm(void)
                 s_actor_record[0][CHR_ACTOR_STATE]   = 4;  /* DAT_056daafc */
             }
         }
-        /* FUN_00499519 pick-up SE — fixed id, no RNG. */
+        audio_play_se_by_id(0x143);  /* FUN_00499519(0x143), LAB_0048917a — fixed id, no RNG */
         return;
     }
 
@@ -1274,11 +1295,19 @@ static void player_ctrl_cc04_menu_arm(void)
                 uint8_t *bb = (uint8_t *)bank;
                 bb[PC_SHOP_DISPLAY_CHANGED_BYTE_OFF] = 1;   /* DAT_0450f3f8 = 1 */
 
-                /* confirm SE: rand()&1 picks one of two clips (asm 0x48922b),
-                 * then FUN_0049933c plays it.  Audio is a no-op, but the rand
-                 * draw must be mirrored to keep the shared LCG aligned (the open
-                 * draw is in the open gate). */
-                (void)rng_next15();
+                /* confirm SE (all.c:87938-87939): rand()&1 picks one of two
+                 * baked clips (asm 0x48922b), then FUN_0049933c plays it.  The
+                 * rand draw must be mirrored to keep the shared LCG aligned (the
+                 * open draw is in the open gate); the play is RNG-neutral. */
+                {
+                    /* rand&1: 0 → 05b, 1 → 05a (verified by recapture — the
+                     * exercised placements all draw 0 and retail plays 05b). */
+                    static const char *const k_confirm_se[2] = {
+                        "bin/se/00re/system/00re_sys05b.bin",
+                        "bin/se/00re/system/00re_sys05a.bin",
+                    };
+                    audio_play_se_file(k_confirm_se[rng_next15() & 1]);
+                }
 
                 /* NORMAL (sword / non-counter) removal path (all.c:87941-87977,
                  * the sel==-1 case): blank the cell, return the old item. */
