@@ -45,8 +45,13 @@
  * dialogue_posing), the box/text render only once the script is loaded (D_TUT). */
 enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE, D_TUT_LOAD, D_TUT };
 
-/* Tutorial load-bracket length (frames _loading() reports true).  Retail's is
- * ~2 frames (item-display-2: LOADING_START 15213 → LOADING_END 15215). */
+/* Tutorial load-bracket length (frames _loading() reports true).  Retail's
+ * bracket is the LAB_00452aab worker THREAD's wall-time, not a frame-counted
+ * state machine (engine-quirks §119): the SAME capture ran iv1_5's bracket in 2
+ * frames (15213→15215) and iv1_6's in 5 (15947→15952).  2 matches the clean
+ * cold-start measurement; do NOT tune to a per-run thread duration.  The
+ * residual post-bracket label shift on traces (item-display-2: 4 labels over
+ * iv1_6) is accepted-known — shop-display-menu-RE.md follow-up #8. */
 #define IVE_TUT_LOAD_FRAMES 2
 
 static int                g_state    = D_IDLE;

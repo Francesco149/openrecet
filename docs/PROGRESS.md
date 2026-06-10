@@ -7,6 +7,23 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — Standee offset + portrait outline + NPC note: ONE cause, the iv1_6 load bracket (diagnosed, no code change)
+
+Queue #3 (standees "wider apart", worst frame 1792), queue #7 (Tear portrait
+whole-outline diff ~1453-64), user notes @1448 + @1844 all collapse into the
+inter-dialogue LOAD-BRACKET length. Template-matched standee trajectories: both
+sides slide the identical path at the identical speed (entry 8px/f@640 =
+`chr:0:speed:8`; exit 16px/f = 2 internal steps/frame, retail too), and relative
+to each side's own LOADING_END the schedule matches ±1 frame — the visible 4-label
+lead is retail's iv1_6 bracket (5f) vs the port's `IVE_TUT_LOAD_FRAMES` (2f,
+calibrated on iv1_5's 2f bracket) + a 1-frame iv1_5-tail slip. Retail's bracket is
+`FUN_00452d07` → CreateThread worker = wall-time (quirk #119) — 2f and 5f within
+the SAME capture — so the port constant is NOT tuned to 5. Also corrected the
+kept-count-mismatch localization (labels 1379-84 = the load bracket itself; label
+= port_abs − 445, the old "mid-dialogue-1" reading used a wrong mapping) and
+dissolved #7 entirely (settled frames gt8≈2 ⇒ no filtering residue). Docs:
+RE-doc follow-up #8, engine-quirks §119, FRONT.
+
 ## 2026-06-10 — Hands-up carry pose (db048==0xc) ported
 
 `4bc8a0b`. The placement-confirm carry: the r==3 pick-up arm sets the player-ctrl

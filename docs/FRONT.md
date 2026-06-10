@@ -43,11 +43,17 @@
   **Carry pose (queue #2) ✅ DONE 2026-06-10** (`4bc8a0b`): db048==0xc state ported
   (r==3 arm + 26-frame free-roam hold + interaction/impulse gates); carry-window
   frames drop ~2,290→2-65 px each, pose pixel-exact, residue = sparkle phase.
+  **Standee horizontal offset (#3) + portrait-outline polish (#7) + NPC note @1844
+  ✅ DIAGNOSED 2026-06-10 — all ONE cause, the iv1_6 LOAD-BRACKET length; no logic
+  gap.** Slide logic measured 1:1 (template-matched trajectories: same path, speed
+  8px/f entry / 16px/f exit, ±1 frame vs script start on both sides); the 4-label
+  lead = retail's inter-dialogue bracket 5f (async CreateThread worker = wall-time,
+  quirk #119) vs port's 2f + a 1-frame iv1_5-tail slip. Worst frame 1792, the
+  1735-81 bursts, note @1448, note @1844 walker offset: all this seam. Settled
+  frames are gt8≈2 ⇒ no filtering/sub-pixel residue (#7 dissolved). Don't tune
+  `IVE_TUT_LOAD_FRAMES` to 5 (one-run wall-time). Full measurement + corrected
+  label↔frame mapping: `findings/shop-display-menu-RE.md` follow-up #8.
   **Remaining (user-listed 2026-06-10 + triage), the next-session queue:**
-  3. **Standee horizontal position offset** — the dialogue standees sit WIDER
-     apart in the port than retail; now also the session's worst gt8 frame
-     (label 1792, dialogue-2 seam: port Tear further left / Recette further
-     right than retail).
   4. **Dialogue text gradient-to-transparent STILL not visible** (user re-flag).
      Commit `a278101` is the right RE (per-row alpha = clamp(budget·0.2, 1.0),
      objdump-verified) and the alpha provably flows into the glyph quad diffuse
@@ -70,14 +76,14 @@
      ~109px, found verifying gap B) · **menu-close camera pan-out whole-frame
      offset** (label 441, ~160k px>8 — pre-exists the carry chip, attributed by
      stash-rebuild-recapture; the scene shifts ⇒ camera, not UI).
-  7. **dialogue box/portrait pixel-parity** polish — the Tear PORTRAIT
-     whole-outline edge diff (labels ~1453-64; sub-pixel pos or filtering).
   **Tooling fix owed:** the recorder's `save_capture` overwrites `<name>.save.bin`
   unconditionally (clobbered this session's boot save twice). Also: session
-  kept-count mismatch (port 1845 vs retail 1842) still flagged by triage — seam
-  alignment, predates the chip; the label-paired diff (2026-06-10) localizes the
-  slack to labels **1379-1384 mid-dialogue-1** (port-only 1381-84, retail-only
-  1379), NOT the load brackets — start there. (`build_diff` ordinal-pairing bug
+  kept-count mismatch (port 1845 vs retail 1842) — **RESOLVED 2026-06-10 as the
+  inter-dialogue load bracket** (labels 1379-84 = port abs 1824-26 bracket vs
+  retail's 5f bracket; the earlier "mid-dialogue-1, NOT the load brackets" reading
+  used a wrong label↔frame mapping — truth: label = port_abs − 445). Expected-
+  benign on any tutorial-load crossing; triage's kept_count_mismatch PROBLEM on
+  this session is accepted-known. (`build_diff` ordinal-pairing bug
   fixed 2026-06-10: it ghosted the bg-NPC movers on every post-seam diff frame
   while the same-label sides were 1:1 — diffs now pair by label with honest
   unmatched-label holes; pre-unification sessions fall back to ordinal.)

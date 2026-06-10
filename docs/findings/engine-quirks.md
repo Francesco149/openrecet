@@ -4537,3 +4537,24 @@ localized (the JP/EN builds ship different `item_win.tga`) yet never appear as
   `(88 - sx·60, 128 - sy·48, sx·120, sy·80)`. The box visibly grows in from the
   world-map entry frame (retail's counter is ≈0 at entry — the house's pre-load
   ramp-down zeroes it). Ported & user-confirmed 1:1 (2026-06-08).
+
+## 119. The tutorial-dialogue LOADING bracket is a real worker THREAD — its frame length is wall-time, not engine logic (2f and 5f for the two activations of the SAME capture)
+
+`FUN_0044bd0d`'s tutorial activation calls `FUN_00452d07`, which sets the load
+gates (`DAT_06a4995c=1; DAT_06a49960=1`), tears down the previous dialogue
+runtime synchronously (`FUN_0046c01e`), then `CreateThread(LAB_00452aab)` — the
+worker reads the `.ivt` + loads the standee TGAs and clears the gate when done.
+The LOADING overlay (and the `LOADING_START/END` anchors, which read
+`DAT_06a49958||DAT_06a49960`) therefore spans **however many frames the thread
+happens to take**: on item-display-2 (turbo) the iv1_5 activation took **2
+frames** (abs 15213→15215) and the iv1_6 activation — same capture, same work
+modulo tearing down a live dialogue — took **5 frames** (15947→15952). There is
+no frame-counted state machine to port; any fixed port bracket length
+(`IVE_TUT_LOAD_FRAMES`) is a normalization choice, and per-run variance on the
+retail side is EXPECTED (pillar-3/4 class — align traces at the LOADING anchors,
+don't chase the bracket delta as a logic bug). Consequence for sessions: every
+tutorial-load crossing shifts the post-seam label axis by the bracket-length
+difference (item-display-2: 3+1 = 4 labels), which shows up as standee slides /
+line transitions / bg-walker positions leading by that many frames at equal
+labels while everything stays 1:1 relative to script start. Full measurement:
+`shop-display-menu-RE.md` follow-up #8.

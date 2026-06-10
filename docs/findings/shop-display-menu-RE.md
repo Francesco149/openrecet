@@ -708,11 +708,47 @@ recapture; the dialogues "play out correctly… huge progress"):**
    the dialogue (e.g. label 854: identical frames incl. tooltip + dialogue box). The original
    "retail ord 854" pointer was pre-unification ordinal numbering (dead coordinate system); the
    C3b tooltip chip covers it.
-6. **Dialogue box/portrait pixel-parity** vs retail (filtering/colour) — a visual pass, still
-   open. Current ground truth (2026-06-09 recapture): the WORST dialogue-window gt8 frames
-   (labels ~1453-1464) are dominated by the **Tear PORTRAIT sprite** (whole-outline edge diff →
-   sub-pixel position or filtering difference), plus the expected post-load bg-NPC offsets.
-7. **Menu RENDER cluster (the next chip).** From the recapture's worst frames: (a) the
+6. **Dialogue box/portrait pixel-parity — ✅ SUPERSEDED by #8 (2026-06-10).** The
+   "Tear PORTRAIT whole-outline edge diff" at labels ~1453-1464 was the iv1_6 standee
+   slide-in observed across the load-bracket label shift (port ~51px@1024 ahead mid-slide
+   → whole-outline diff), NOT filtering: settled dialogue frames (1472-79) are gt8=2.
+   No sub-pixel/filtering residue exists. See #8.
+8. **Standee horizontal offset + post-seam NPC/worst-frame divergence — ✅ DIAGNOSED
+   2026-06-10: ALL one cause, the iv1_6 LOAD-BRACKET length (data-1:1, pillar-3/4
+   accepted-known; no standee/NPC logic gap).** User note @1448 ("standee horizontal pos
+   mismatch"), FRONT queue #3 ("standees wider apart", worst gt8 frame label 1792), the
+   portrait-outline item (#6 above), AND user note @1844 ("NPCs still diverge") are one
+   root cause. Method: template-matched Tear's face per frame on both sides (label =
+   port_abs − 445, uniform; retail mapped via the BLINK/LOADING anchor brackets).
+   - **The slide logic is 1:1.** iv1_6 Tear entry: IDENTICAL path and speed both sides
+     (8px/frame@640 = script `chr:0:speed:8`, entry −390→−100), settle endpoints equal;
+     exit identical at 16px/frame@640 both sides (2 internal steps/frame in the close
+     state — retail does the same). Relative to each side's OWN script start
+     (LOADING_END): slide face-visible port +60 vs retail +61, settle +83 vs +84, first
+     TEXT_ANIM_START +98 vs +97 — **±1 frame**. iv1_5's exit slide (pre-seam, aligned
+     labels) is bit-clean (gt8≈2 through labels 1336-1376).
+   - **The 4-label offset is the inter-dialogue load bracket**: retail iv1_6 bracket
+     LOADING_START@15947→LOADING_END@15952 = **5 frames**; port abs 1824→1826 = **2**
+     (`IVE_TUT_LOAD_FRAMES=2`, calibrated on the iv1_5 bracket which retail ran in 2:
+     15213→15215). Plus a 1-frame slip in iv1_5's tail (last BLINK→CONV_POSE_END: port
+     8, retail 9 frames) = the 4. Retail's bracket is `FUN_00452d07` → `CreateThread
+     (LAB_00452aab)` clearing `DAT_06a49960` when done — **thread wall-time, not a
+     frame-counted state machine** (engine-quirks entry). Same capture gave 2f and 5f
+     for the two activations; do NOT tune the port constant to 5 (overfit to one run).
+   - **Downstream artifacts of the same seam:** the 1735-81 line-transition bursts
+     (~135k gt8, exactly at the post-seam DLG_LINE_CLEAR/TEXT anchors, 2-3 frame lead
+     incl. the `chr:1:grp` Recette pose swap), the worst frame 1790-1810 (exit slide +
+     box close, port 3 frames early), the bg-window walker offset at note @1844
+     (retail@1844 ≈ port@1840 — same path, 4-frame lead; the NPC-desync-GONE ledger
+     entry stands), and ~3 frames of bg-NPC RNG inside the ±31 rngcalls residual (#2).
+   - **Kept-count localization CORRECTED:** the session's port-1845/retail-1842 slack
+     at labels 1379-1384 IS the inter-dialogue load bracket (label 1379 = port abs 1824
+     = CONV_POSE_END/LOADING_START; port labels 1379-80 dropped, retail's longer bracket
+     re-labeled) — the earlier "mid-dialogue-1, NOT the load brackets" reading used the
+     wrong label↔frame mapping (it assumed label ≈ port anchor frame; truth: label =
+     port_abs − 445). Expected-benign for any session crossing a tutorial load; the
+     anchor aligner re-syncs at the next anchor.
+9. **Menu RENDER cluster (the next chip).** From the recapture's worst frames: (a) the
    **"What will you place?" prompt bubble** — **✅ DONE 2026-06-10** (`36a8ab2`; gap B —
    baked item_win sprite, slides with the panel, 0-1px verified at labels 439/588-594.
    NEW residual found while verifying: retail draws the menu HAND CURSOR one frame
