@@ -32,8 +32,8 @@ def build_diff(port_dir: Path, retail_dir: Path, diff_dir: Path, amp: float) -> 
     diff_dir = Path(diff_dir)
     diff_dir.mkdir(parents=True, exist_ok=True)
     # Pair by LABEL (the anchor-relative frame number both sides' PNGs are named
-    # by since the 2026-06-09 coordinate unification — retail files go through
-    # convert.renumber_retail, so same name == same moment BY CONSTRUCTION).
+    # by since the 2026-06-09 coordinate unification — BOTH sides go through
+    # convert.renumber_to_label, so same name == same moment BY CONSTRUCTION).
     #
     # This used to pair by dense ordinal ("the i-th file on each side"), a
     # workaround from the era when retail frames kept their RAW abs numbers (a

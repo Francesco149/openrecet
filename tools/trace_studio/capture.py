@@ -294,15 +294,24 @@ def run_capture(cfg: CaptureConfig) -> int:
         if n_conv:
             _log(f"converted {n_conv} BMP→PNG in {sd.name}/frames")
 
-    # ── post: bases, renumber retail ─────────────────────────────────────────
+    # ── post: bases, renumber BOTH sides into label space ────────────────────
     gp = port_dir / "global.json"
     port_base = None
     if gp.exists():
         port_base = json.loads(gp.read_text()).get("frame_base_abs")
 
+    # The port writes 0-based frame_<k> (anchor-relative index); rebase it into label
+    # space (window_start + k) so frame_NNNNN means the same moment as retail's. A no-op
+    # when window_start == 0; for caprange.start > 0 this is what keeps the label-keyed
+    # diff from comparing port frame N against retail's window_start-later frame N. The
+    # return value (always 0 for the port) is discarded — port_base is global.json's
+    # frame_base_abs, not a filename. Idempotent, so a --only port recapture re-fixes it.
+    if run_port:
+        convert.renumber_to_label(port_dir, window_start=cr[0])
+
     retail_base = None
     if run_retail and "retail_error" not in result:
-        retail_base = convert.renumber_retail(retail_dir, window_start=cr[0])
+        retail_base = convert.renumber_to_label(retail_dir, window_start=cr[0])
     elif keep_retail:                                # reuse the cached retail capture
         retail_base = (old_manifest.get("retail") or {}).get("base_abs")
         if retail_base is None:                      # manifest lost it → recover from disk
