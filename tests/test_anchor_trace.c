@@ -74,6 +74,36 @@ int test_anchor_boot_loading_end(void)
     return 0;
 }
 
+/* MARKET_ENTER fires on the rising edge of scene mode 6 (the Merchant's Guild /
+ * Market scene becoming active after its worldmap→guild load) — the distinct
+ * sync anchor for that non-deterministic-length load. An edge, not a one-shot:
+ * staying in mode 6 doesn't re-fire. LOADING_END precedes it on the same frame. */
+int test_anchor_market_enter(void)
+{
+    struct anchor_trace_state st = {0};
+    struct rec r = {0};
+
+    anchor_trace_tick(&st, 0, W(1, 0), rec_sink, &r);   /* BOOT, baseline INGAME */
+    anchor_trace_tick(&st, 5, W(8, 1), rec_sink, &r);   /* worldmap + load: LOADING_START */
+    anchor_trace_tick(&st, 9, W(6, 0), rec_sink, &r);   /* mode 6 up: LOADING_END + MARKET_ENTER@9 */
+
+    int market_idx = -1, loadend_idx = -1;
+    for (int i = 0; i < r.n; i++) {
+        if (strcmp(r.name[i], "MARKET_ENTER") == 0) market_idx = i;
+        if (strcmp(r.name[i], "LOADING_END") == 0) loadend_idx = i;
+    }
+    T_ASSERT(market_idx >= 0);
+    T_ASSERT_EQ_U(r.frame[market_idx], 9);
+    T_ASSERT(loadend_idx >= 0 && loadend_idx < market_idx);   /* causal order */
+
+    /* edge: still in mode 6 next frame → no re-fire */
+    int before = r.n;
+    anchor_trace_tick(&st, 12, W(6, 0), rec_sink, &r);
+    for (int i = before; i < r.n; i++)
+        T_ASSERT(strcmp(r.name[i], "MARKET_ENTER") != 0);
+    return 0;
+}
+
 /* The new-game → house flow: TITLE→INGAME, then the load overlay raises
  * and drops. NEW_GAME and HOUSE_FREEROAM bracket the load. */
 int test_anchor_new_game_to_house(void)

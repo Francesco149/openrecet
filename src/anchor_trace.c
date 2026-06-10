@@ -57,6 +57,22 @@ static int ev_house_freeroam(const struct anchor_world *p, const struct anchor_w
     return !is_house_freeroam(p) && is_house_freeroam(c);
 }
 
+/* The MARKET scene (engine mode 6 — the Merchant's Guild + its ichiba variant)
+ * became active, i.e. the worldmap→guild transition's (non-deterministic-length)
+ * scene LOAD just finished and mode 6 is up. The generic LOADING_END can't sync
+ * this: 4+ of them fire (intro / worldmap / guild loads) and the guild one's
+ * length differs run-to-run (port ~8f vs retail ~88f), so a window rebased on
+ * "LOADING_END" picks the wrong/seamed one. MARKET_ENTER is the SPECIFIC,
+ * unambiguous "guild scene up after its load" sync point a market-menu trace
+ * {wait}s on so the post-load cutscene + menu frames line up. Fires once per
+ * mode-6 entry (scene_state is the raw g_scene_state; 6 == the Market scene). */
+#define ANCHOR_SCENE_MARKET 6
+static int ev_market_enter(const struct anchor_world *p, const struct anchor_world *c)
+{
+    return p->scene_state != ANCHOR_SCENE_MARKET
+        && c->scene_state == ANCHOR_SCENE_MARKET;
+}
+
 static int ev_text_anim_start(const struct anchor_world *p, const struct anchor_world *c)
 {
     /* A new dialogue line begins its typewriter reveal. The engine forces
@@ -179,6 +195,7 @@ static const struct anchor_def g_anchors[] = {
     { "LOADING_START",   ev_loading_start   },
     { "LOADING_END",     ev_loading_end     },
     { "HOUSE_FREEROAM",  ev_house_freeroam  },
+    { "MARKET_ENTER",    ev_market_enter    },
     { "TEXT_ANIM_START", ev_text_anim_start },
     { "TEXT_ANIM_END",   ev_text_anim_end   },
     { "EXTRA_SPRITE_START",    ev_fx_start    },

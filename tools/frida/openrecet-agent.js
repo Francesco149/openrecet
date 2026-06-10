@@ -2655,6 +2655,7 @@ function callTraceFlush(frameNumber) {
 // differ (that divergence is the whole point — see the plan).
 const ANCHOR_SCENE_TITLE  = 0;
 const ANCHOR_SCENE_INGAME = 1;
+const ANCHOR_SCENE_MARKET = 6;   // mode 6 — the Market scene (Merchant's Guild + ichiba)
 
 function anchorIsHouseFreeroam(scene, loading) {
     return scene === ANCHOR_SCENE_INGAME && !loading;
@@ -3157,6 +3158,16 @@ function anchorTick(frame, devicePtr) {
         anchorIsHouseFreeroam(scene, loading)) {
         sendAnchor('HOUSE_FREEROAM', frame);
         anchorCaptureSchedule('HOUSE_FREEROAM', frame, devicePtr);
+    }
+    // MARKET_ENTER — the Market scene (mode 6: Merchant's Guild + ichiba variant)
+    // became active, i.e. the worldmap->guild scene LOAD just finished. A SPECIFIC
+    // sync point for that non-deterministic-length load (the generic LOADING_END
+    // fires 4+ times and the guild one's length differs port~8f/retail~88f, so it
+    // can't unambiguously rebase the post-load menu). Mirrors anchor_trace.c
+    // ev_market_enter. (scene is the raw DAT_0438b1c0; 6 == Market.)
+    if (ps !== ANCHOR_SCENE_MARKET && scene === ANCHOR_SCENE_MARKET) {
+        sendAnchor('MARKET_ENTER', frame);
+        anchorCaptureSchedule('MARKET_ENTER', frame, devicePtr);
     }
     // TEXT_ANIM_START — a new dialogue line begins its typewriter reveal: the
     // reveal counter is forced to 1 (DAT_073a3e00, 0x46c9a2). It only equals 1
