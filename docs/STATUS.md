@@ -129,11 +129,14 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
      independent of the dust cadence; foot_dust's early-return restructured to a
      nested gate). All RNG-neutral (no stream shift; triage/px/py/dust unchanged,
      host 3229). Recapture+audio_diff: **missing 14→0, all 6 sounds matched.**
-     RE/tooling: `findings/audio-trace-diff.md`. **Remaining audio delta (separate,
-     pre-existing):** 3 EXTRA dialogue voice grunts — port plays `re_wakata_b`
-     @1759 / `tea_sodesu` @2083 / `re_un_a` @2199, retail plays none there (the
-     dialogues are user-confirmed VISUALLY 1:1; this is a voice-selection delta in
-     the Tear tutorial lines, not the menu SFX). Chase as a dialogue-voice follow-up.
+     RE/tooling: `findings/audio-trace-diff.md`. **Then the 3 EXTRA dialogue voice
+     grunts (`re_wakata_b`/`tea_sodesu`/`re_un_a`) — ✅ DONE 2026-06-10 (dialogue
+     voice-mute chip):** user-flagged that retail MUTES voice lines while holding X
+     to skip; RE'd the exact gate (the `se:` opcode plays only when the internal
+     step count `DAT_005c78ec == 1` — any fast-forward, X→2 / turbo→0x50 steps,
+     skips it; quirk §120). Gated `IVE_OP_SE` on `(held & IVE_BTN_FF)==0`. **The
+     whole item-display-2 audio track is now `audio_diff` VERDICT ALIGNED** (0
+     missing, 0 extra, 9 sounds matched).
   *(Tooling owed here — recorder `save_capture` clobber + the session kept-count
   mismatch — both CLOSED 2026-06-10: `9a7bf63` stops the save clobber, and
   `{tutloadpin}` equalized the brackets so the kept-count PROBLEM is gone

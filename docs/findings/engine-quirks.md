@@ -4576,3 +4576,23 @@ equal consumption inside the bracket and an aligned post-seam label axis.
 Verified: both item-display-2 brackets now span exactly 8f on both targets.
 The lint flags capture windows that cross LOADING brackets without the op
 (`loads-without-tutloadpin`).
+
+## 120. Dialogue voice/SE lines are MUTED while fast-forwarding (the `se:` opcode plays only when the internal step count `DAT_005c78ec == 1`)
+
+The conversation interpreter's `se:` opcode — the per-line voice/SE clip
+(`FUN_0046c320`, asm `0x46d885`) — fires `FUN_0049933c` **only when the
+per-frame internal step count `DAT_005c78ec == 1`**, i.e. at normal speed. The
+asm is literally `cmpl $0x1,0x5c78ec; jne <skip>` immediately before the play.
+Holding the fast-forward button raises the step count above 1 — **X (`0x20`) →
+2 steps, button-3 turbo (`0x40`) → `0x50` steps** — so the voice is **skipped**.
+So holding X to skip a dialogue faster **mutes the spoken lines**, which keeps
+the rapid line-advance from stacking/garbling overlapping voice clips. (The step
+count is itself gated on the scene permitting fast-forward, `local_104`; the
+prologue/tutorial dialogues permit it. `DAT_005c78ec` also drives the
+reveal++/dwell++/standee-tween loop count — the typewriter cadence.) The
+single-slot voice backend means a new line's clip stops the previous one
+regardless. Ported as the `(held & IVE_BTN_FF)==0` gate on `IVE_OP_SE`
+(`scene1_dialogue_run.c`); verified on item-display-2 — the 3 voice grunts the
+port fired during the held-X tutorial skip (`re_wakata_b`/`tea_sodesu`/`re_un_a`)
+are now muted, audio_diff VERDICT ALIGNED. `tea_chot`, spoken at normal speed,
+still fires on both sides.

@@ -7,6 +7,22 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — dialogue: mute voice/SE lines while fast-forwarding (engine-quirk §120)
+
+User-flagged long-standing divergence: retail mutes the dialogue's spoken lines
+when you hold X to skip faster; the port played them all (the 3 EXTRA voice
+grunts the menu-SFX recapture surfaced — `re_wakata_b`/`tea_sodesu`/`re_un_a`).
+RE'd the exact gate from the `se:` opcode handler (asm 0x46d885): `cmpl
+$0x1,DAT_005c78ec; jne <skip>` — the voice fires ONLY when the per-frame internal
+step count == 1 (normal speed). Holding X (0x20 → 2 steps) or button-3 turbo
+(0x40 → 0x50 steps) raises the count, so the play is skipped — keeping a fast
+skip from garbling overlapping clips. Ported as `(held & IVE_BTN_FF)==0` on
+`IVE_OP_SE` (≡ steps==1 in the port's model; tutorial scenes permit FF so
+local_104≡1). Recapture+audio_diff on item-display-2: **VERDICT ALIGNED** — 0
+missing, 0 extra, all 9 sounds matched (`tea_chot`, spoken at normal speed, still
+fires both sides). Host suite 3229✓. Engine-quirk §120; closes the FRONT #7
+audio residual — the whole session's audio is now 1:1.
+
 ## 2026-06-10 — display-menu + footstep SEs: un-stub the silent menuing (FRONT #7)
 
 The audio-trace diff's debut find — the item-display interaction is silent in the
