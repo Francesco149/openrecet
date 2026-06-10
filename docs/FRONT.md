@@ -100,7 +100,7 @@
      ~109px, found verifying gap B) · **menu-close camera pan-out whole-frame
      offset** (label 441, ~160k px>8 — pre-exists the carry chip, attributed by
      stash-rebuild-recapture; the scene shifts ⇒ camera, not UI).
-  7. **Item-display SOUND — ✅ DONE 2026-06-10 (`2f… player_ctrl SE chip`).** The
+  7. **Item-display SOUND — ✅ DONE 2026-06-10 (`af47e08`).** The
      cc04 interaction consumed the SE-variant RNG draws but STUBBED every play, so
      the menuing was silent (audio-trace diff: 14 missing over 6 sounds,
      user-confirmed by ear). Un-stubbed all of it: open `00re_sys04a/b/c` (rand%3),
