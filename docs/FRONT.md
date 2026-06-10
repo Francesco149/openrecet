@@ -53,15 +53,23 @@
   frames are gt8≈2 ⇒ no filtering/sub-pixel residue (#7 dissolved). Don't tune
   `IVE_TUT_LOAD_FRAMES` to 5 (one-run wall-time). Full measurement + corrected
   label↔frame mapping: `findings/shop-display-menu-RE.md` follow-up #8.
-  **Text reveal gradient (#4) ✅ DONE 2026-06-10:** retail fades PER CHARACTER,
-  not per row — a278101 misread `0x47d4d4` (the budget INIT) as the only load;
-  the budget is reloaded per glyph (`fildl` 0x47d528) and decremented per char
-  (`decl` 0x47d60e), so char i draws at alpha·clamp((budget−i)·0.2, ≤1.0) — a
-  5-char trailing ramp riding the reveal head. The ALPHA-pipeline suspicion was
-  moot (the old row fade visibly dimmed ⇒ vertex alpha flows). Ported as
-  `font_draw_text_fade`; text strip gt8=0 across the whole reveal, session
-  over-threshold 1212→916. RE-doc follow-up #3 corrected.
+  **Text reveal gradient (#4) ✅ DONE + USER-CONFIRMED 1:1 2026-06-10** (ledger):
+  per-CHAR law `alpha·clamp((budget−i)·0.2, ≤1.0)` (a278101's per-row read was a
+  loop-counter misread, gotcha #18); `font_draw_text_fade`, text strip gt8=0
+  across the reveal, session over-threshold 1212→916.
   **Remaining (user-listed 2026-06-10 + triage), the next-session queue:**
+  1. **`{tutloadpin}` — pin the tutorial-dialogue LOAD-BRACKET length (user-asked
+     2026-06-10), killing the 4-label iv1_6 seam (quirk §119) the harness way.**
+     Sketch: a trace op pinning the bracket to N frames on BOTH sides (N ≥ any
+     observed real load, e.g. 8). Port: override `IVE_TUT_LOAD_FRAMES` from the
+     working trace (same channel {phasepin} uses). Retail (Frida): can only
+     EXTEND a real thread load — hold the gate (`DAT_06a49960` high / OR the
+     agent's loading read) until N frames past LOADING_START so the engine
+     idles the extra frames exactly like a slow load. Equal lengths ⇒ equal
+     db054++/wing-emit consumption inside the bracket (that's the point — it
+     also eats part of the ±31 rngcalls residual). Lint: INFO when a trace
+     crosses a D_TUT load without the pin. Then recapture item-display-2 BOTH
+     sides and the kept-count PROBLEM + post-seam label lead should vanish.
   5. **Item-Details sub-view** (`pressed & 0x40` path, all.c:65451, PORT-DEBT) —
      label 181: retail shows the narrow-right detail panel, port the plain
      wide-bottom description. Plus **description-panel line layout** (price /
