@@ -77,18 +77,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   loop-counter misread, gotcha #18); `font_draw_text_fade`, text strip gt8=0
   across the reveal, session over-threshold 1212→916.
   **Remaining (user-listed 2026-06-10 + triage), the next-session queue:**
-  1. **`{tutloadpin}` — pin the tutorial-dialogue LOAD-BRACKET length (user-asked
-     2026-06-10), killing the 4-label iv1_6 seam (quirk §119) the harness way.**
-     Sketch: a trace op pinning the bracket to N frames on BOTH sides (N ≥ any
-     observed real load, e.g. 8). Port: override `IVE_TUT_LOAD_FRAMES` from the
-     working trace (same channel {phasepin} uses). Retail (Frida): can only
-     EXTEND a real thread load — hold the gate (`DAT_06a49960` high / OR the
-     agent's loading read) until N frames past LOADING_START so the engine
-     idles the extra frames exactly like a slow load. Equal lengths ⇒ equal
-     db054++/wing-emit consumption inside the bracket (that's the point — it
-     also eats part of the ±31 rngcalls residual). Lint: INFO when a trace
-     crosses a D_TUT load without the pin. Then recapture item-display-2 BOTH
-     sides and the kept-count PROBLEM + post-seam label lead should vanish.
+  1. **iv1_5-tail pose-release slip — the last cross-seam residual** (promoted
+     from `{tutloadpin}` ✅ DONE 2026-06-10 → PROGRESS; that op pinned the load
+     bracket to **8f/8f both sides** via a port `IVE_TUT_LOAD_FRAMES` override +
+     a retail worker-tail CModule block (quirk §119), killing the 4-label seam
+     class — recapture #6 triage `problems: []`, 1848/1848, over-thr 916→861 —
+     so the ONLY remaining cross-seam gap is this slip). The port's LAST
+     `CONV_POSE_BLINK`→`CONV_POSE_END` transition in iv1_5's tail runs **8f vs
+     retail's 9f** → a constant **d=−1** on every iv1_6-internal anchor (and
+     **d=−2** after iv1_6's own tail). Pure pose-driver timing (1 frame; not
+     load/RNG/phase). RE: `findings/conversation-pose-driver.md`,
+     `findings/shop-display-menu-RE.md` follow-up #8.
   5. **Item-Details sub-view** (`pressed & 0x40` path, all.c:65451, PORT-DEBT) —
      label 181: retail shows the narrow-right detail panel, port the plain
      wide-bottom description. Plus **description-panel line layout** (price /
@@ -101,17 +100,10 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
      ~109px, found verifying gap B) · **menu-close camera pan-out whole-frame
      offset** (label 441, ~160k px>8 — pre-exists the carry chip, attributed by
      stash-rebuild-recapture; the scene shifts ⇒ camera, not UI).
-  **Tooling fix owed:** the recorder's `save_capture` overwrites `<name>.save.bin`
-  unconditionally (clobbered this session's boot save twice). Also: session
-  kept-count mismatch (port 1845 vs retail 1842) — **RESOLVED 2026-06-10 as the
-  inter-dialogue load bracket** (labels 1379-84 = port abs 1824-26 bracket vs
-  retail's 5f bracket; the earlier "mid-dialogue-1, NOT the load brackets" reading
-  used a wrong label↔frame mapping — truth: label = port_abs − 445). Expected-
-  benign on any tutorial-load crossing; triage's kept_count_mismatch PROBLEM on
-  this session is accepted-known. (`build_diff` ordinal-pairing bug
-  fixed 2026-06-10: it ghosted the bg-NPC movers on every post-seam diff frame
-  while the same-label sides were 1:1 — diffs now pair by label with honest
-  unmatched-label holes; pre-unification sessions fall back to ordinal.)
+  *(Tooling owed here — recorder `save_capture` clobber + the session kept-count
+  mismatch — both CLOSED 2026-06-10: `9a7bf63` stops the save clobber, and
+  `{tutloadpin}` equalized the brackets so the kept-count PROBLEM is gone
+  (`problems: []`). Story → PROGRESS; label-pairing fix folded into Tooling below.)*
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild screen** → town
   scenes off the world map (world-map backlog itself CLOSED 2026-06-08, bit-clean
   f16→638). Trace-studio v2 **Phase 5** (New-Game cross-replay: retail intro-video

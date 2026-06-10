@@ -7,6 +7,37 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — {tutloadpin}: the tutorial load bracket pinned on BOTH sides (queue #1, user-asked)
+
+The 4-label post-seam axis shift (quirk #119: the bracket is worker-thread
+wall-time — 2f/5f on one capture) is now normalized by mechanism. New trace-global
+op `{"tutloadpin": 8}`: the port overrides `IVE_TUT_LOAD_FRAMES`; retail BLOCKS the
+`LAB_00452aab` worker at its tail via a CModule until 8 frames past the
+`DAT_0438b1c8==2` arm. Key ground truth (hand-decoded — the LAB isn't in the
+decompile): the worker tail performs the WHOLE bracket-end handoff itself
+(CloseHandle → zero `DAT_06a49950/5c/60` → `b1c8=1`) mid-frame on its own thread,
+so v1's per-frame gate re-write lost the race systematically; blocking the worker
+IS a slow disk. Three more landings to get there: TinyCC rejects `__stdcall` (use
+0-arg kernel32 fns — stdcall==cdecl at zero args; regression test compiles the
+CModule via local frida), hooks must install post-`ensureBase()`, and the release
+must run before the Present hook's suppress_loads check (else the bracket-END
+frame drops retail-only). Plus a latent harness bug exposed twice: `session.
+detach()` hangs forever on CModule-hooked captures and the old teardown killed the
+target only AFTER detach → wedged pipeline + 3 leaked retails; teardown steps are
+now daemon-bounded with spawn-kill FIRST. **Verified on item-display-2 (recapture
+#6):** brackets 8f/8f on BOTH sides (anchor-identical at window-relative +647→+655
+and +1380/+1381→+1388/+1389), kept counts EQUAL 1848/1848 (triage `problems: []` —
+the kept_count_mismatch is dead), iv1_5 + dialogue-1 anchors aligned offset-exact,
+over-threshold 916→861, worst seam frame 329.8k→246k px, and the rngcalls delta is
+a FLAT 580 with six attributable step points (2 pause-boundary wing emits + the ±1
+seams; span 26). **Remaining cross-seam residual = the pre-existing 1-frame
+iv1_5-tail pose-release slip** (port's last BLINK→CONV_POSE_END = 8f vs retail 9f),
+now exposed as a constant d=−1 on every iv1_6-internal anchor (and d=−2 after
+iv1_6's own tail) — promoted to its own FRONT item. Lint INFO
+`loads-without-tutloadpin` flags unpinned crossings from the session's previous
+anchors. Recorder save-clobber fixed on the way (`<name>.save.bin` now never
+overwritten by different content).
+
 ## 2026-06-10 — Dialogue typewriter fade fixed for real: per-CHAR law (gap #4)
 
 The reveal gradient the user kept flagging as missing. The 06-09 port (a278101)
