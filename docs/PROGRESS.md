@@ -7,6 +7,19 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — Hands-up carry pose (db048==0xc) ported
+
+`4bc8a0b`. The placement-confirm carry: the r==3 pick-up arm sets the player-ctrl
+state to 0xc + anim 4 (latch-gated, all.c:87916-87929); the free-roam arm then runs
+FUN_0048cdcc's 0xc branch — re-assert anim 4, hold 26 frames, release. While held,
+d-pad interactions and the whole walk-impulse region (facing/moving decode included)
+are gated off, exactly the engine's 87617/87524 gates; the b850 move/damp keeps
+running. Pose-only: retail draws NO overhead item sprite during the carry (the old
+"held item red-vs-gold" note was sparkle-phase residue). Carry-window frames drop
+from ~2,290 px>8 each to 2-65. Attribution note: the label-441 whole-frame diff
+(~160k px) was proven PRE-existing via stash→rebuild→recapture (162.6k without the
+chip) — filed as the menu-close camera pan-out residual under FRONT #6.
+
 ## 2026-06-10 — Placement-prompt speech bubble (gap B) ported
 
 `36a8ab2`. The "What will you place?" bubble over the placement menu — and the hunt

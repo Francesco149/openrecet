@@ -474,7 +474,7 @@ interactions at caprange frames ~121/381/587 on BOTH sides.
 | 1 | slot-highlight glow | f107 | **C3a — ✅ DONE 2026-06-09** (commit e25587c; verified below) |
 | 2 | "What will you place?" prompt | f147/f391 | **✅ DONE 2026-06-10** (`36a8ab2`) — baked item_win sprite drawn by FUN_0046b00a, slides with the panel; full RE in "STILL MISSING" above |
 | 3 | item name tooltip ("Worn Sword") | f183/f257 | **C3b — ✅ DONE + user-confirmed 1:1 2026-06-09** (tooltip band max 1/ch, 0 px>8; see below) |
-| 4 | hands-up Recette anim / carry pose | f183+/f441 | placement-reaction + carried-item sprite — **OPEN** (the verdict's px/py/pz drift; held item red-vs-gold + pose) |
+| 4 | hands-up Recette anim / carry pose | f183+/f441 | **✅ DONE 2026-06-10** (`4bc8a0b`) — db048==0xc: r==3 sets state+anim 4 (latch-gated), free-roam arm holds 26 frames w/ interaction+impulse gates, then releases. POSE-ONLY (no overhead item sprite in retail frames — the "held item" guess was sparkle-phase residue). Carry window ~2,290→2-65 px/frame |
 
 **Expanded interaction-flow board (user, 2026-06-09 PM — recapture of `item-display-2`):**
 the C3b name-tooltip was only one slice; the full placement→tutorial flow has these OPEN gaps:
@@ -485,7 +485,7 @@ the C3b name-tooltip was only one slice; the full placement→tutorial flow has 
 | menu panel slide-in anim | f122 (retail) | the placement menu slides up from the bottom; port pops/positions it without the slide | OPEN |
 | selection flash | f172 (diff) | the menu's selected-row highlight bar diverges (a flash on select) | OPEN |
 | placement dust desync | f272 (diff) | foot/placement dust particles desync after an item is placed | OPEN |
-| carry pose / held item | f183+ (diff) | gap #4 above — carried-item sprite (red vs gold) + reaction pose | OPEN |
+| carry pose / held item | f183+ (diff) | gap #4 above — carried-item sprite (red vs gold) + reaction pose | **✅ DONE 2026-06-10** (pose-only; see gap #4) |
 
 **Verdict finding:** `house_update.px/py/pz` DRIFT from f122 (the 1st interaction). db054 freezes
 during the menu so part may be a pairing artifact, but it most likely IS the carry/reaction pose

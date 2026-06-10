@@ -40,10 +40,10 @@
   dst(menu_x-128,48,191,63), sliding with the panel; flag DAT_0734b990 set by the
   arm (occupied cell → "Exchange with what?", Vender highlight → "Place Vending
   Machine"). 0-1px at labels 439/588-594. RE: `findings/shop-display-menu-RE.md`.
+  **Carry pose (queue #2) ✅ DONE 2026-06-10** (`4bc8a0b`): db048==0xc state ported
+  (r==3 arm + 26-frame free-roam hold + interaction/impulse gates); carry-window
+  frames drop ~2,290→2-65 px each, pose pixel-exact, residue = sparkle phase.
   **Remaining (user-listed 2026-06-10 + triage), the next-session queue:**
-  2. **Hands-up carry pose** — the engine's brief hold-item-overhead pose on the
-     placement confirm (`DAT_056db048 = 0xc`, the r==3 pick-up arm PORT-DEBT(A3)
-     in `player_ctrl_cc04_menu_arm`) is unported (visual-only, no grid/RNG).
   3. **Standee horizontal position offset** — the dialogue standees sit WIDER
      apart in the port than retail; now also the session's worst gt8 frame
      (label 1792, dialogue-2 seam: port Tear further left / Recette further
@@ -67,7 +67,9 @@
      micro-DRIFT around open/close frames · retail menu-window consumption is the
      WING through the hooked thunk (`0xcf05d33`), NOT an unknown menu consumer ·
      hand-cursor snap drawn 1 frame EARLIER by retail at menu open (label 587,
-     ~109px, found verifying gap B).
+     ~109px, found verifying gap B) · **menu-close camera pan-out whole-frame
+     offset** (label 441, ~160k px>8 — pre-exists the carry chip, attributed by
+     stash-rebuild-recapture; the scene shifts ⇒ camera, not UI).
   7. **dialogue box/portrait pixel-parity** polish — the Tear PORTRAIT
      whole-outline edge diff (labels ~1453-64; sub-pixel pos or filtering).
   **Tooling fix owed:** the recorder's `save_capture` overwrites `<name>.save.bin`
