@@ -76,22 +76,23 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   per-CHAR law `alpha·clamp((budget−i)·0.2, ≤1.0)` (a278101's per-row read was a
   loop-counter misread, gotcha #18); `font_draw_text_fade`, text strip gt8=0
   across the reveal, session over-threshold 1212→916.
+  **iv1_5-tail pose-release slip (was queue #1) ✅ DONE 2026-06-10** (`c8a40df` →
+  PROGRESS): the port armed iv1_6 the SAME frame iv1_5 completed (last
+  `CONV_POSE_BLINK`→`CONV_POSE_END` 8f vs retail 9f, d=−1/−2 across iv1_6). Retail
+  defers the re-arm 1 frame — its gate `DAT_0438b1c8` clears 1→0 in `FUN_004536cb`'s
+  tail AFTER `FUN_0044bd0d` ran (call-trace: done@f15933, load-spawn@f15934). Fixed
+  with a 1-frame `D_TUT_DONE` settle latch; recapture #7 (`--only port`): iv1_5-tail
+  8f→9f, iv1_6 anchors bit-aligned (+733/+734/+1166), `problems: []`, **over-thr
+  861→529**, rngcalls +26→+12. **Data-1:1; pending human visual confirm in studio.**
   **Remaining (user-listed 2026-06-10 + triage), the next-session queue:**
-  1. **iv1_5-tail pose-release slip — the last cross-seam residual** (promoted
-     from `{tutloadpin}` ✅ DONE 2026-06-10 → PROGRESS; that op pinned the load
-     bracket to **8f/8f both sides** via a port `IVE_TUT_LOAD_FRAMES` override +
-     a retail worker-tail CModule block (quirk §119), killing the 4-label seam
-     class — recapture #6 triage `problems: []`, 1848/1848, over-thr 916→861 —
-     so the ONLY remaining cross-seam gap is this slip). The port's LAST
-     `CONV_POSE_BLINK`→`CONV_POSE_END` transition in iv1_5's tail runs **8f vs
-     retail's 9f** → a constant **d=−1** on every iv1_6-internal anchor (and
-     **d=−2** after iv1_6's own tail). Pure pose-driver timing (1 frame; not
-     load/RNG/phase). RE: `findings/conversation-pose-driver.md`,
-     `findings/shop-display-menu-RE.md` follow-up #8.
-  5. **Item-Details sub-view** (`pressed & 0x40` path, all.c:65451, PORT-DEBT) —
-     label 181: retail shows the narrow-right detail panel, port the plain
-     wide-bottom description. Plus **description-panel line layout** (price /
-     "Number possessed" X positions) · (C) slide-in check · (D) row flash.
+  5. **Item-Details sub-view (now the session's WORST frame — label 181, gt8≈185k)**
+     (`pressed & 0x40` path, all.c:65451, PORT-DEBT) — retail shows the narrow-right
+     detail panel, port the plain wide-bottom description. **Full RE map ready in
+     `findings/shop-display-menu-RE.md` #8b** (state `DAT_0734b96c` via FUN_004681d3/
+     db/e6; render `FUN_0046b00a` tail layers `FUN_0046a336` over the bottom panel;
+     port `FUN_0046a336` — 0x46a336, 2722 B — next to display_menu_render). No Frida
+     needed. Plus **description-panel line layout** (price / "Number possessed" X
+     positions) · (C) slide-in check · (D) row flash.
   6. **menu-boundary residuals:** rngcalls ±31 (one wing emit per %4==0-frozen
      pause boundary + load-bracket seams) · companion cx/cz/canim/cframe + pcnt
      micro-DRIFT around open/close frames · retail menu-window consumption is the

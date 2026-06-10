@@ -237,6 +237,28 @@ the load — both pieces of modelling the real `DAT_0450f470` flag lifecycle
 > spawn-timing change, tracked separately. (Continue/Load traces skip the prologue
 > entirely, so they already replay 1:1 cross-target without this.)
 
+## Tutorial-dialogue tail: the re-arm must lag the script-end by 1 frame (2026-06-10)
+
+A pose-release timing gap in the SHOP-DISPLAY tutorials (iv1_5/iv1_6), distinct
+from the prologue work above. The conversation pose is released (`CONV_POSE_END`)
+when the next dialogue's load begins, so the pose-release timing == the next-load
+arm timing. The port armed iv1_6's `LOADING_START` the **same** frame iv1_5's
+script completed (last `CONV_POSE_BLINK`→`CONV_POSE_END` = 8f port vs **9f**
+retail → a constant d=−1 on every iv1_6 anchor, d=−2 after iv1_6's tail). **Retail
+defers the re-arm by 1 frame:** its gate `DAT_0438b1c8` clears 1→0 in
+`FUN_004536cb`'s outer-loop tail (`b1c8==1 && FUN_0046c320()`, all.c:50515/50631)
+*after* that frame's `FUN_0044bd0d` dispatch already ran and saw it still busy
+(item-display-2 call-trace: iv1_5 `FUN_0046c320`-done @f15933 → iv1_6
+`FUN_00452d07` load-spawn @f15934). The port's `scene1_tutorial_dispatch_tick`
+runs after `scene1_intro_dialogue_tick`, but the port cleared its gate-equivalent
+(`D_TUT`→`D_IDLE`) the completion frame, so the dispatch armed same-frame. **Fix
+(`c8a40df`):** a one-frame `D_TUT_DONE` settle latch in `scene1_intro_dialogue.c`
+(`_busy()` stays true so the dispatch skips; `_posing()` keeps the pose on for
+that frame — retail's blip-off lands at the next `LOADING_START`, not at
+completion; next tick → `D_IDLE` → arm). Closes the iv1_5-tail AND iv1_6-tail
+slips. Verified: iv1_6 anchors bit-aligned to retail (+733/+734/+1166 from iv1_5
+`CONV_POSE_START`), over-threshold 861→529. Full RE: `shop-display-menu-RE.md` #8.
+
 ## Cross-refs
 - `opening-prologue.md` §"Remaining real deltas" #4 (the gap), §"What actually
   drives the prologue" (FUN_0048407f first noted as the actor animator).

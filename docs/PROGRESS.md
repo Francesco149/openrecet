@@ -7,6 +7,41 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — iv1_5-tail pose-release slip CLOSED: tutorial re-arm deferred 1 frame (the last cross-seam residual)
+
+The d=−1 the `{tutloadpin}` landing left behind. After tutloadpin equalized the
+load **bracket** to 8f/8f, the only remaining cross-seam gap was the port firing
+iv1_6's `LOADING_START` **one frame early** after iv1_5 completed (last
+`CONV_POSE_BLINK`→`CONV_POSE_END` = 8f port vs 9f retail) — a constant d=−1 on
+every iv1_6-internal anchor, d=−2 after iv1_6's own tail. **Root cause (retail
+ground truth from the captured call-trace, NOT theory):** retail's dialogue gate
+`DAT_0438b1c8` clears 1→0 in `FUN_004536cb`'s outer-loop tail, *after* that
+frame's `FUN_0044bd0d` dispatch already ran and saw it still busy — so the
+scheduler arms the next tutorial only the **following** frame (item-display-2
+retail trace: iv1_5 `FUN_0046c320`-done @f15933, iv1_6 `FUN_00452d07` load-spawn
+@f15934 — a 1-frame gap). The port's `scene1_tutorial_dispatch_tick` runs *after*
+`scene1_intro_dialogue_tick` in the sim, but the port cleared its gate-equivalent
+(`D_TUT`→`D_IDLE`) the **same** frame the script completed, so the dispatch saw
+not-busy and armed iv1_6 same-frame. **Fix** (`c8a40df`): a one-frame `D_TUT_DONE`
+settle state — a naturally-completing tutorial goes `D_TUT`→`D_TUT_DONE` (not
+`D_IDLE`); `_busy()` auto-covers it (dispatch skips, like retail's stale gate),
+`_posing()` keeps the pose on (retail's blip-off lands at the next
+`LOADING_START`, not at completion), and the next tick drops to `D_IDLE` →
+dispatch arms iv1_6 (+9 from the blink). The same latch on iv1_6's own completion
+closes the iv1_6-tail d=−2. A skip (`skip_to_end`) still drops straight to
+`D_IDLE` (retail's skip teardown clears the gate same-frame, unlike a natural
+end); prologue `D_SCRIPT1`/`D_SCRIPT2` untouched. **Verified (recapture #7,
+`--only port`):** iv1_5-tail interval 8f→9f, every iv1_6 anchor bit-aligned to
+retail (+733/+734/+1166 from iv1_5 `CONV_POSE_START`), triage `problems: []` with
+1848/1848, **over-threshold 861→529** (the whole iv1_6 seam — ~332 frames —
+collapsed), rngcalls desync +26→+12 (the seam's in-bracket consumption), `panim`
+DRIFT→CONST-OFFSET. (Boot save-load is wall-time like §119, so absolute frames
+shift run-to-run by the boot delta — alignment is anchor-relative, unaffected.)
+**Pending human visual confirm** in the studio; the d=−1/−2 is gone at the data
+level. Remaining on this session: the Item-Details sub-view (now the worst frame,
+label 181) + the companion micro-DRIFT (FRONT #5/#6). RE: `findings/shop-display-
+menu-RE.md` #8 + `findings/conversation-pose-driver.md`.
+
 ## 2026-06-10 — {tutloadpin}: the tutorial load bracket pinned on BOTH sides (queue #1, user-asked)
 
 The 4-label post-seam axis shift (quirk #119: the bracket is worker-thread

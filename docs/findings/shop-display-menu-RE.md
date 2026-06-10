@@ -768,6 +768,28 @@ recapture; the dialogues "play out correctly… huge progress"):**
      [0,1850]→[0,1865] to keep the noted moments in-frame); both brackets verified
      8f on both targets in the recapture anchors. Mechanism + the worker-tail
      ground truth: quirk §119.
+   - **The remaining 1-frame iv1_5-tail slip — ✅ FIXED 2026-06-10 (`c8a40df`).**
+     Once `{tutloadpin}` removed the bracket-length part of the 4-label offset, the
+     residual was the `+1` this bullet decomposed out: the port armed iv1_6's
+     `LOADING_START` the **same** frame iv1_5's script completed, vs retail's
+     **next** frame (last `CONV_POSE_BLINK`→`CONV_POSE_END` = 8f port / 9f retail;
+     d=−1 across every iv1_6 anchor, d=−2 after iv1_6's tail). Retail ground truth
+     from THIS session's call-trace: retail's gate `DAT_0438b1c8` clears 1→0 in
+     `FUN_004536cb`'s outer-loop tail (the `b1c8==1 && FUN_0046c320()` check at
+     all.c:50515/50631), **after** that frame's `FUN_0044bd0d` dispatch already ran
+     and saw it still busy — so the scheduler arms the next tutorial only the
+     following frame (iv1_5 `FUN_0046c320`-done @f15933 → iv1_6 `FUN_00452d07`
+     load-spawn @f15934). The port's `scene1_tutorial_dispatch_tick` runs AFTER
+     `scene1_intro_dialogue_tick`, but the port cleared its gate-equivalent
+     (`D_TUT`→`D_IDLE`) the completion frame, so the dispatch armed same-frame. Fix:
+     a one-frame `D_TUT_DONE` settle state (`_busy()` stays true → dispatch skips;
+     `_posing()` keeps the pose on; next tick → `D_IDLE` → arm). Recapture #7
+     (`--only port`): iv1_5-tail 8f→9f, iv1_6 anchors bit-aligned to retail
+     (+733/+734/+1166 from iv1_5 `CONV_POSE_START`), triage `problems: []`,
+     over-threshold **861→529** (the iv1_6 seam — ~332 frames — collapsed), rngcalls
+     desync +26→+12. The 4-label offset class (bracket + slip) is now fully
+     normalized/fixed; the standee/NPC/worst-frame seam artifacts this #8 attributed
+     to it should track 1:1 across the seam (pending human visual confirm).
 8b. **Item-Details sub-view — RE map (2026-06-10, pre-port orientation).** The
    `pressed & 0x40` path is a MODAL FLAG + an overlay draw:
    - **State:** `DAT_0734b96c` (accessors FUN_004681d3 clear / FUN_004681db set
