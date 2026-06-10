@@ -43,7 +43,12 @@
  * port must reproduce the bracket or the replay desyncs and the dialogue stalls
  * on line 0.  The conversation pose starts DURING the bracket (scene1_intro_
  * dialogue_posing), the box/text render only once the script is loaded (D_TUT). */
-enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE, D_TUT_LOAD, D_TUT };
+/* D_TUT_DONE = a one-frame settle latch after a tutorial script NATURALLY
+ * completes (not a skip).  Models retail's gate-clear lag: DAT_0438b1c8 drops
+ * 1→0 in FUN_004536cb's outer-loop tail, AFTER that frame's FUN_0044bd0d
+ * dispatch has already run and seen it still busy, so the scheduler arms the
+ * NEXT tutorial only the following frame.  See the D_TUT_DONE case + §119. */
+enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE, D_TUT_LOAD, D_TUT, D_TUT_DONE };
 
 /* Tutorial load-bracket length (frames _loading() reports true).  Retail's
  * bracket is the LAB_00452aab worker THREAD's wall-time, not a frame-counted
@@ -211,10 +216,28 @@ void scene1_intro_dialogue_tick(uint16_t held)
         emit_dialogue_calltrace();
         ive_runtime_step(&g_rt, held);
         if (g_rt.complete) {
-            g_state       = D_IDLE;
+            g_state       = D_TUT_DONE;   /* one settle frame (retail gate lag) */
             g_rt.active   = 0;
             g_rt.complete = 0;
         }
+        break;
+
+    case D_TUT_DONE:
+        /* The settle frame: iv1_5's script has completed but, like retail's gate
+         * (DAT_0438b1c8) which clears 1→0 only AFTER FUN_0044bd0d ran that frame,
+         * we keep _busy() true (and the pose on via _posing()) for ONE frame so
+         * scene1_tutorial_dispatch_tick — which runs AFTER this tick in the sim —
+         * sees "still busy" and defers the iv1_6 arm to the next frame.  Without
+         * it the port arms iv1_6 the SAME frame iv1_5 completes, firing
+         * LOADING_START 1 frame early (the iv1_5-tail slip: last CONV_POSE_BLINK→
+         * CONV_POSE_END = 8f port vs 9f retail).  Retail ground truth from the
+         * item-display-2 call-trace: iv1_5 FUN_0046c320-done @f15933, iv1_6
+         * FUN_00452d07 load-spawn @f15934 — a 1-frame gap.  Dropping to D_IDLE
+         * here lets the dispatch arm next frame (+9 from the blink, aligned), and
+         * the same latch on iv1_6's own completion closes the matching iv1_6-tail
+         * d=−2.  shop-display-menu-RE.md follow-up #8 / conversation-pose-driver.md. */
+        (void)held;
+        g_state = D_IDLE;
         break;
 
     case D_IDLE:
@@ -276,9 +299,13 @@ void scene1_intro_dialogue_skip_to_end(void)
         break;
     case D_TUT_LOAD:
     case D_TUT:
+    case D_TUT_DONE:
         /* Skipping a post-prologue tutorial dialogue (iv1_5/iv1_6) just ends it →
          * back to dormant free-roam; the FREEROAM_START latch is unchanged (it was
-         * already set by the prologue, or 0 on a load — a tutorial never owns it). */
+         * already set by the prologue, or 0 on a load — a tutorial never owns it).
+         * (D_TUT_DONE can't actually be skipped — _skippable() needs _active(),
+         * which is false on the settle frame — but handle it as a tutorial-end so
+         * it never falls through to the D_SCRIPT2 default's D_DONE/FREEROAM.) */
         g_state       = D_IDLE;
         g_load_ctr    = 0;
         g_rt.active   = 0;
@@ -366,8 +393,11 @@ int scene1_intro_dialogue_posing(void)
      * (not via _active()) also bridges the 1-frame lazy-load seam where g_rt.active
      * is still 0 — without it the pose blips off there and fires a spurious
      * CONV_POSE_END/START pair.  (D_LOAD stays excluded — the prologue's inter-script
-     * load deliberately blips the pose off.) */
-    if (g_state == D_TUT_LOAD || g_state == D_TUT)
+     * load deliberately blips the pose off.)  D_TUT_DONE (the one-frame post-script
+     * settle latch) keeps the pose on for the completion frame too: retail still
+     * poses on that frame (the blip-off lands at the NEXT dialogue's LOADING_START,
+     * not at script-completion), so without it the pose would blip a frame early. */
+    if (g_state == D_TUT_LOAD || g_state == D_TUT || g_state == D_TUT_DONE)
         return 1;
     return scene1_intro_dialogue_active();
 }
