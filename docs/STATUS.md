@@ -87,17 +87,33 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   dialogue is 1:1 aligned now") — parity ledger; closed the standee@~1448 +
   NPC@~1844 seam artifacts (RE #8).
   **Remaining (user-listed 2026-06-10 + triage), the next-session queue:**
-  5. **Item-Details sub-view (now the session's WORST frame — label 181, gt8≈185k)**
-     (`pressed & 0x40` path, all.c:65451, PORT-DEBT) — retail shows the narrow-right
-     detail panel, port the plain wide-bottom description. **Full RE map ready in
-     `findings/shop-display-menu-RE.md` #8b** (state `DAT_0734b96c` via FUN_004681d3/
-     db/e6; render `FUN_0046b00a` tail layers `FUN_0046a336` over the bottom panel;
-     port `FUN_0046a336` — 0x46a336, 2722 B — next to display_menu_render). No Frida
-     needed. Plus **description-panel line layout** (price / "Number possessed" X
-     positions) · (C) slide-in check · (D) row flash.
-  6. **menu-boundary residuals:** rngcalls ±31 (one wing emit per %4==0-frozen
-     pause boundary + load-bracket seams) · companion cx/cz/canim/cframe + pcnt
-     micro-DRIFT around open/close frames · retail menu-window consumption is the
+  5. **Description-panel CLOSE/open SLIDE — ✅ DONE 2026-06-10 (`d4899bc`).** The
+     session's WORST frame (label 181, gt8≈185k) was NOT the Item-Details sub-view
+     (RE #8b mis-attributed it): trace shows `cc04` 1→0 at f176→178 (menu
+     *closing*), and retail's bottom description panel SLIDES out with the menu
+     while the port drew it fixed at x=0. Ghidra arg-drop — `FUN_0046b00a`'s tail
+     prints `FUN_00469b3a()` with no args but its `param_1` is the slide x-offset
+     `640−(b98c<<7)`. Threaded x0 into the description render; recapture: 181
+     185441→near-black, close-slide bit-exact (R[f]=0). **The real `pressed&0x40`
+     Item-Details overlay (`FUN_0046a336`) is never exercised by this bench (no
+     Button-3 press) — still unported, deferred to a bench that drives it.** RE map
+     for the eventual port: `findings/shop-display-menu-RE.md` #8b. Remaining menu
+     polish: **description-panel line layout** (price / "Number possessed" X) · (C)
+     slide-in check · (D) row flash.
+  6. **menu-boundary residuals:** **NOW the session's worst frame — menu-OPEN
+     slide-in (label 125, gt8≈29k)**: after the #5 close-slide fix, the open
+     ramp-up still diverges ~4 frames (the whole menu — rows + description, ~9
+     mean abs) before settling, then is bit-exact. ASYMMETRIC: the CLOSE slide is
+     R[f]=0 bit-exact but the OPEN is not, and it best-aligns SAME-frame (not a
+     clean 1-frame offset) — a menu-OPEN ramp-phase residual in `DAT_0734b98c`.
+     The port order is already tick-before-arm (sim.c:299 `stage_load_pulse_tick`
+     → 327 `scene1_ingame_tick`→cc04 open gate), matching retail's
+     `FUN_004693e3`@50471-before-`FUN_0048670f`, so the cause is subtle; pin it by
+     instrumenting the port counter vs the (untraced) retail counter. · rngcalls
+     ±31 (one wing emit per %4==0-frozen pause boundary + load-bracket seams) ·
+     companion cx/cz/canim/cframe + pcnt micro-DRIFT around open/close frames
+     (pcnt ALIGNED at open f122 P1=R1, port-1-behind by close f176 P4/R5 — gains 1
+     on retail across the menu window) · retail menu-window consumption is the
      WING through the hooked thunk (`0xcf05d33`), NOT an unknown menu consumer ·
      hand-cursor snap drawn 1 frame EARLIER by retail at menu open (label 587,
      ~109px, found verifying gap B) · **menu-close camera pan-out whole-frame

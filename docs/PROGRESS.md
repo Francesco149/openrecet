@@ -7,6 +7,34 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — display-menu: slide the bottom description panel with the menu (`d4899bc`)
+
+The `item-display-2` session's WORST frame (label 181, gt8≈185441, mean 17.7)
+was mis-RE'd in `shop-display-menu-RE.md` #8b as the `pressed&0x40` Item-Details
+sub-view. It is not. The trace settles it: `cc04` goes 1→0 at frames 176→178 on
+BOTH sides (the menu is *closing*, db054 unfreezes 121→123), and the frame
+sequence shows retail's bottom **description panel sliding out to the right**
+while the port drew it FIXED at x=0 — the "narrow-right detail panel" was just
+the 640-wide parchment quad translated off-screen.
+
+- **Root cause = Ghidra arg-drop.** `FUN_0046b00a`'s tail prints the call as
+  `FUN_00469b3a()` (no args — the FPU/stack floats were dropped), but the panel's
+  internal `local_30 = param_1` is the slide x-offset `fVar1 = 640 −
+  (DAT_0734b98c<<7)`, the same offset the main panel rides. At settled-open
+  slide==5 ⇒ fVar1==0 ⇒ x=0, which is exactly why the fixed-x port matched the
+  open/close ENDPOINTS but diverged across every slide frame (worst = mid-close).
+- **Fix:** thread x0 (already computed in `display_menu_render`) into
+  `display_menu_description_render` and offset the bg + all four text lines by it
+  (retail's `param_1+80` / `param_1+304`).
+- **Verified** (recapture `--only port`, studio's own triage): label 181
+  185441→near-black; the CLOSE slide is now bit-exact (`R[f]=0.00` every frame).
+  Worst frame moved to label 125 gt8≈29182 = the menu-OPEN slide-in, a *separate*
+  asymmetric ramp-phase residual (open ~4 frames off, close perfect — FRONT #6;
+  the whole menu rows+desc are ~9 mean off, best-aligned same-frame so NOT a clean
+  1-frame offset). Host suite 3229✓.
+- The actual Item-Details overlay `FUN_0046a336` is **never exercised by this
+  bench** (no Button-3 press; no triage frame shows it) → still unported, deferred.
+
 ## 2026-06-10 — audio-trace diff: detect sound divergences from traces (no booting the port)
 
 New parity pillar alongside d3d-trace: compare the port's vs retail's SOUND

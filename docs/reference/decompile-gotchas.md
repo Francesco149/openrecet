@@ -11,9 +11,18 @@ from auto-memory per the audit's R7; the memories are archived.)
    `FUN_00503a44`/`00503994` (sin/cos thunks). Check the asm
    (`objdump`/`r2`) for the `fld`/`fmul` feeding the call before concluding
    anything about the argument.
-2. **FPU-stack args get dropped wholesale.** A function that "takes no float"
-   in the decompile may consume st(0)/st(1). Landed ports with Ghidra-dropped
-   FPU args are queued for Frida validation (memory `pending-human-checks`).
+2. **FPU-stack args get dropped wholesale — at the CALL SITE too, not just the
+   callee.** A function that "takes no float" in the decompile may consume
+   st(0)/st(1); equally, a CALL printed as `foo()` with no args may be passing
+   floats Ghidra dropped. Landed ports with Ghidra-dropped FPU args are queued for
+   Frida validation (memory `pending-human-checks`). *Worked example, `d4899bc`:*
+   `FUN_0046b00a`'s tail prints `FUN_00469b3a()` (the display-menu description
+   panel) with no args, so the port drew it at the callee's default `param_1=0`
+   (fixed x=0). The dropped `param_1` is actually the menu slide x-offset
+   `640−(b98c<<7)` — the panel SLIDES with the menu. It matched only because at
+   the settled state the offset is 0; the bug showed as a 185k-px divergence
+   across every slide frame. Lesson: when a fixed-position UI element matches at
+   rest but diverges while something animates, suspect a dropped slide/offset arg.
 3. **Mis-typed params.** The `flds/fadds/fstps` path has been mis-typed as
    `int*` (e.g. the chr-sprite chip). When float math reads "integer", look at
    the asm.

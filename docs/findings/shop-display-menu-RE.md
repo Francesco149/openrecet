@@ -815,8 +815,22 @@ recapture; the dialogues "play out correctly… huge progress"):**
      gated DAT_0741bed8) + stat lines. Port next to display_menu_render in
      scene1_display_menu.c; needs ~300 more decompile lines read
      (66000-66200) for the stat-text rows.
-   - Session evidence: label 181 (pre-load segment) = the worst overall gt8
-     frame — retail shows this panel, port doesn't (FRONT queue #5).
+   - **⚠ CORRECTION 2026-06-10 — label 181 was MIS-ATTRIBUTED to this overlay;
+     it is the description-panel CLOSE-SLIDE, fixed in `d4899bc`.** The trace
+     proves it: `cc04` goes 1→0 at frames 176→178 on BOTH sides (the menu is
+     *closing*, db054 unfreezes 121→123), and the frame sequence shows retail's
+     bottom description panel SLIDING OUT to the right while the port drew it
+     fixed at x=0 (the "narrow-right panel" was the 640-wide parchment translated
+     off-screen, not the b96c overlay). Root cause: a Ghidra arg-drop — the
+     `FUN_0046b00a` tail prints `FUN_00469b3a()` with no args, but the panel's
+     `local_30 = param_1` is the slide x-offset `fVar1 = 640 − (DAT_0734b98c<<7)`
+     (the same offset the main panel rides). Fixed by threading x0 into the
+     description render (bg + all 4 text lines). Recapture: label 181
+     185441→near-black; worst frame moved to label 125 gt8≈29k (the menu-OPEN
+     slide-in, a separate ramp-phase residual — see #9c). **The b96c details
+     overlay (FUN_0046a336) is NOT exercised by this bench at all** (the player
+     never presses Button 3; no triage frame shows it) — it remains genuinely
+     unported, deferred until a bench drives it.
 9. **Menu RENDER cluster (the next chip).** From the recapture's worst frames: (a) the
    **"What will you place?" prompt bubble** — **✅ DONE 2026-06-10** (`36a8ab2`; gap B —
    baked item_win sprite, slides with the panel, 0-1px verified at labels 439/588-594.
@@ -824,8 +838,17 @@ recapture; the dialogues "play out correctly… huge progress"):**
    earlier at menu open — label 587, ~109px — the cursor-snap edge of the
    menu-boundary cluster (e)); (b) the
    **description-panel line layout** — price / "Number possessed" land at different X (diff
-   shows doubled text); (c) the **Item-Details sub-view** (the `pressed & 0x40` path, all.c:
-   65451 — PORT-DEBT) — the session's worst overall gt8 frame (label 181, pre-load segment) is
-   retail showing the details view (narrow right panel + list) where the port shows the plain
-   wide-bottom description; (d) selected-row flash (gap D) + slide-in check (gap C); (e) the
-   menu-BOUNDARY residuals folded from #2's fix (rngcalls ±31, companion/pcnt micro-DRIFT).
+   shows doubled text); (c) **description-panel CLOSE/open SLIDE — ✅ DONE 2026-06-10
+   (`d4899bc`)** — was the session's worst frame (label 181 gt8≈185k), the description panel
+   drawn fixed at x=0 while retail slid it with the menu (Ghidra dropped the slide x-offset
+   `param_1` from the `FUN_00469b3a()` call; threaded x0 in). Verified: 181 185441→near-black,
+   close-slide R[f] bit-exact (0.00). NOT the b96c `pressed & 0x40` Item-Details overlay — that
+   is never exercised by this bench; (d) **menu-OPEN slide-in residual (the NEW worst frame,
+   label 125 gt8≈29k)** — after (c), the open ramp-up still diverges ~4 frames (the whole menu,
+   rows + description, ~9 mean abs) before settling; best-aligned SAME-frame (not a clean
+   1-frame offset), and the CLOSE is bit-exact, so it is an asymmetric menu-OPEN ramp-phase
+   residual (FRONT #6 family, needs the port DAT_0734b98c counter instrumented vs an untraced
+   retail counter to pin); (e) selected-row flash (gap D); (f) the menu-BOUNDARY residuals
+   folded from #2's fix (rngcalls ±31, companion/pcnt micro-DRIFT — note pcnt is ALIGNED at the
+   open f122 P1=R1 but port-1-behind by the close f176 P4/R5, i.e. pcnt gains 1 on retail across
+   the menu window).
