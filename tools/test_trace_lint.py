@@ -157,6 +157,54 @@ def test_auto_pin_seed_lands_at_existing_pin_frame():
     assert '{"rngseed": [80, 19937]}' in out
 
 
+# Anchor stream for the tutloadpin rule: window base resolves via NEW_GAME(100)
+# → LOADING_END(200); caprange [120,48] ⇒ abs [320,368). One LOADING_START at
+# 340 falls strictly inside; the 100/199 ones don't.
+TLP_ANCHORS = """\
+{"anchor":"BOOT","frame":0}
+{"anchor":"NEW_GAME","frame":100}
+{"anchor":"LOADING_START","frame":100}
+{"anchor":"LOADING_END","frame":200}
+{"anchor":"LOADING_START","frame":340}
+{"anchor":"LOADING_END","frame":342}
+"""
+
+
+def test_loads_without_tutloadpin_info():
+    with tempfile.TemporaryDirectory() as td:
+        (Path(td) / "anchors.port.jsonl").write_text(TLP_ANCHORS)
+        f = lint(PINNED, Path(td))
+        hits = by_code(f, "loads-without-tutloadpin")
+        assert hits and hits[0]["level"] == "info", f
+        assert "340" in hits[0]["msg"], hits[0]["msg"]
+        # with the pin present the finding clears
+        t = PINNED.replace('{"phasepin": 80}',
+                           '{"tutloadpin": 8}\n{"phasepin": 80}')
+        f = lint(t, Path(td))
+        assert not by_code(f, "loads-without-tutloadpin"), f
+
+
+def test_tutloadpin_rule_silent_without_anchors():
+    with tempfile.TemporaryDirectory() as td:
+        f = lint(PINNED, Path(td))               # fresh build: no anchor files
+        assert not by_code(f, "loads-without-tutloadpin"), f
+    f = lint(PINNED)                             # no trace_dir at all
+    assert not by_code(f, "loads-without-tutloadpin"), f
+
+
+def test_tutloadpin_rule_ignores_outside_loads():
+    # only the window-opening load exists (no crossing) → silent
+    a = (
+        '{"anchor":"NEW_GAME","frame":100}\n'
+        '{"anchor":"LOADING_START","frame":100}\n'
+        '{"anchor":"LOADING_END","frame":200}\n'
+    )
+    with tempfile.TemporaryDirectory() as td:
+        (Path(td) / "anchors.port.jsonl").write_text(a)
+        f = lint(PINNED, Path(td))
+        assert not by_code(f, "loads-without-tutloadpin"), f
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

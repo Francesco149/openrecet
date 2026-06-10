@@ -449,6 +449,14 @@ let g_segtrace_capstride = 1;       // {capstride:N} (D3): thin a {caprange} to 
                                     // targets keep the identical kept-set, ordinal-paired
 let g_suppress_loads = false;       // D1: drop captures while loading_active (opt-in;
                                     // mirrors the port's --capture-suppress-loads)
+let g_segtrace_tutloadpin = 0;      // {tutloadpin:N}: extend every tutorial-dialogue
+                                    // load bracket to N frames by holding the load
+                                    // gate (engine-quirks §119); 0 = off. Mirrors
+                                    // the port's IVE_TUT_LOAD_FRAMES override.
+let g_tlp_armed = false;            // tutloadpin: inside a pinned bracket
+let g_tlp_ticks = 0;                // tutloadpin: pre-sim ticks since arm detection
+let g_tlp_worker_done = false;      // tutloadpin: worker observed done (gate low)
+let g_tlp_prev_b1c8 = 0;            // tutloadpin: previous tick's DAT_0438b1c8
 let g_capture_dir = null;           // Windows dir: write raw frames here (no Frida xfer)
 let g_memsnap_regions = [];         // {memsnap} census: [[abs_va, size], ...] to dump
 let g_max_frames = 0;               // 0 = no cap; stop = die after that many sim frames
@@ -833,6 +841,19 @@ function segtraceBuildSegments(ops) {
             // scoped (last declaration wins); mirrors the port's g_capture_stride
             // so both targets keep the identical anchor-relative kept-set.
             g_segtrace_capstride = (op.capstride | 0) > 1 ? (op.capstride | 0) : 1;
+        } else if (op && op.tutloadpin !== undefined) {
+            // {tutloadpin:N} — trace-global: extend every tutorial-dialogue
+            // load bracket (the DAT_0438b1c8==2 window over the FUN_00452d07
+            // worker) to N frames by holding DAT_06a49960 high until N frames
+            // past the arm. EXTEND-only: a real load LONGER than N is left
+            // alone (a worker thread can't be shortened), so the trace should
+            // pick N ≥ any plausible real bracket. The held frames run the
+            // engine's own loading path (overlay, db054++, wing emits) exactly
+            // like a slow disk. Mirrors the port's IVE_TUT_LOAD_FRAMES
+            // override so both sides idle EQUAL-length brackets — equal
+            // db054/wing-emit consumption inside the bracket and an aligned
+            // post-bracket label axis (engine-quirks §119).
+            g_segtrace_tutloadpin = (op.tutloadpin | 0) > 0 ? (op.tutloadpin | 0) : 0;
         } else if (op && op.calltrace !== undefined) {
             // Scalar N -> [0, N]; [start, len] -> base-relative window.
             const ct = op.calltrace;
@@ -2623,7 +2644,80 @@ function synthesizeEscRetail() {
     g_esc_post(hwnd, 0x100, 0x1b, ptr(0));   // WndProc(WM_KEYDOWN, VK_ESCAPE)
 }
 
+// {tutloadpin:N} pre-sim tick — the retail half of the tutorial-load-bracket
+// pin (the port half overrides IVE_TUT_LOAD_FRAMES; engine-quirks §119).
+//
+// Mechanism: the tutorial activation (FUN_0044bd0d) sets DAT_0438b1c8=2 and
+// calls FUN_00452d07, which raises the load gate (DAT_06a49960=1) and spawns
+// the LAB_00452aab worker; the WORKER clears the gate when done — so the
+// bracket length is thread wall-time, non-deterministic per run. We EXTEND it
+// to exactly N frames: once the worker is seen done (gate low at a pre-sim
+// tick), re-write the gate high each tick until the bracket has spanned N
+// frames, then write it low. The engine's own per-frame loading path (overlay
+// draw, db054++, wing-particle emits, event-arm guard) runs through the held
+// frames exactly as on a slow disk — that's the point: equal lengths ⇒ equal
+// consumption inside the bracket on both targets.
+//
+// Fence-post: the arm frame g (the sim that set b1c8=2) is bracket frame #1
+// and Present(g) fires LOADING_START; our first tick lands at pre-sim(g+1).
+// Holding through ticks 0..N-2 and releasing at tick N-1 makes frame g+N the
+// first non-loading frame → LOADING_END at g+N, END−START == N — matching the
+// port's D_TUT_LOAD counter exactly.
+//
+// EXTEND-only: if the real worker is still running at the release tick
+// (bracket ≥ N real frames), disarm without writes — never shorten a real
+// load (the script would start on half-loaded assets).
+function tutloadpinTick(fn) {
+    const N = g_segtrace_tutloadpin;
+    const b1c8 = rva(ADDR.var_dlg_active).readS32();
+    const loading = (rva(ADDR.var_nowloading_gate).readS32() !== 0) ||
+                    (rva(ADDR.var_nowloading_gate2).readS32() !== 0);
+    if (!g_tlp_armed && b1c8 === 2 && g_tlp_prev_b1c8 !== 2) {
+        // A dialogue-script load was armed during the previous frame's sim.
+        // (Map/slot loads keep b1c8==0 and never arm; the prologue's real
+        // ~68f inter-script bracket arms but worker_done stays false through
+        // the release tick when N is small → disarmed without writes.)
+        g_tlp_armed = true;
+        g_tlp_ticks = 0;
+        g_tlp_worker_done = false;
+        log('tutloadpin: bracket armed at frame ' + fn + ' (extend to ' +
+            N + 'f)');
+    }
+    if (g_tlp_armed) {
+        if (b1c8 !== 2) {
+            // Script already started / dialogue torn down — bracket over.
+            // (The normal release lands here one tick after writing the gate
+            // low: that frame's sim starts the script → b1c8 leaves 2.)
+            g_tlp_armed = false;
+        } else {
+            if (!loading) g_tlp_worker_done = true;
+            if (g_tlp_ticks < N - 1) {
+                if (g_tlp_worker_done)
+                    rva(ADDR.var_nowloading_gate2).writeS32(1);   // hold
+            } else {
+                if (g_tlp_worker_done) {
+                    rva(ADDR.var_nowloading_gate2).writeS32(0);   // release
+                    log('tutloadpin: bracket released at frame ' + fn +
+                        ' (held to ' + N + 'f)');
+                } else {
+                    log('tutloadpin: real load >= ' + N +
+                        'f at frame ' + fn + ' - left alone (extend-only)');
+                }
+                g_tlp_armed = false;
+            }
+            g_tlp_ticks++;
+        }
+    }
+    g_tlp_prev_b1c8 = b1c8;
+}
+
 function segtraceTick(fn) {
+    // Trace-global tutorial-load-bracket pin — runs every pre-sim tick,
+    // independent of the segment cursor (brackets arm mid-segment).
+    if (g_segtrace_tutloadpin > 0) {
+        try { tutloadpinTick(fn); }
+        catch (ex) { err('tutloadpin', ex.message); }
+    }
     for (;;) {
         const seg = g_segtrace_segments[g_segtrace_seg];
         if (!seg) break;
@@ -4586,6 +4680,9 @@ rpc.exports = {
         g_segtrace_fired    = {};
         g_ct_windows        = [];
         g_ct_window_mode    = false;
+        g_segtrace_tutloadpin = 0;   // re-set by a {tutloadpin} op below
+        g_tlp_armed         = false;
+        g_tlp_prev_b1c8     = 0;
         if (Array.isArray(config.input_segtrace) &&
             config.input_segtrace.length > 0) {
             g_segtrace_segments = segtraceBuildSegments(config.input_segtrace);

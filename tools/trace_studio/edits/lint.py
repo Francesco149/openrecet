@@ -15,6 +15,15 @@ tests/scenarios/house-loaded-display-pinned/trace.jsonl —
 inserts/canonicalizes the pin block when the caprange segment lacks it — the
 capture-time default that turns the policy into mechanism. Both are pure
 text/op-level functions (host-testable, no engine/driver deps).
+
+One rule reaches outside the text: `loads-without-tutloadpin` (INFO) replays
+the {wait} chain against the session's PREVIOUS anchors (anchors.port.jsonl
+next to the trace, when present) to resolve the capture window to absolute
+frames, then flags LOADING_START firings strictly inside it when the trace
+has no {tutloadpin} — a tutorial-dialogue bracket's length is worker-thread
+wall-time (engine-quirks §119), so an unpinned crossing shifts the post-seam
+label axis by the run-dependent bracket-length difference. Canonical fix:
+{"tutloadpin": 8} (trace-global, next to {capstride}-style ops).
 """
 from __future__ import annotations
 
@@ -24,6 +33,7 @@ from pathlib import Path
 CANON_SEED = 19937          # the bg-NPC-warmup canonical seed convention
 SETTLE_HINT = 48            # companion spring-lerp re-converges over ~48 frames
 FAR_PIN = 600               # a pin this far before the window smells mis-numbered
+CANON_TUTLOADPIN = 8        # ≥ any plausible real tutorial bracket (observed 2-5f)
 
 
 def _parse(lines: list[str]) -> list[tuple[int, dict | None]]:
@@ -77,6 +87,45 @@ def caprange_segment(lines: list[str]) -> dict | None:
                 (i, (int(ct[0]), int(ct[1])) if isinstance(ct, list)
                  else (int(ct), 0)))
     return seg
+
+
+def _window_loads_from_anchors(lines: list[str], seg: dict,
+                               anchors_path: Path) -> list[int] | None:
+    """LOADING_START fire-frames strictly inside the caprange window, resolved
+    to ABSOLUTE frames by replaying the trace's {wait} chain over a previous
+    capture's anchor stream (input_segtrace semantics: a wait resolves at the
+    first stream firing with frame >= segment entry, strictly > for a repeated
+    same-name anchor). None when the stream can't resolve the chain (stale
+    anchors / renamed waits) — the caller stays silent then."""
+    try:
+        anchors = []
+        for raw in anchors_path.read_text().splitlines():
+            s = raw.strip()
+            if not s:
+                continue
+            o = json.loads(s)
+            anchors.append((str(o["anchor"]), int(o["frame"])))
+    except (OSError, ValueError, KeyError):
+        return None
+    parsed = _parse(lines)
+    waits = [str(o["wait"]) for i, o in parsed
+             if o and "wait" in o and i <= seg["wait_idx"]]
+    base, base_anchor = 0, None
+    for w in waits:
+        nxt = None
+        for name, frame in anchors:
+            if name != w:
+                continue
+            if (frame > base) if w == base_anchor else (frame >= base):
+                nxt = frame
+                break
+        if nxt is None:
+            return None
+        base, base_anchor = nxt, w
+    cr_start, cr_count = seg["cr"]
+    lo, hi = base + cr_start, base + cr_start + cr_count
+    return [f for name, f in anchors
+            if name == "LOADING_START" and lo < f < hi]
 
 
 def lint(text: str, trace_dir: Path | None = None) -> list[dict]:
@@ -179,6 +228,26 @@ def lint(text: str, trace_dir: Path | None = None) -> list[dict]:
                 add("warn", "calltrace-span",
                     f"{{calltrace: [{cs},{cc}]}} does not span the caprange "
                     f"[{cr_start},{cr_count}]")
+
+    # ── tutorial-load-bracket pin ──────────────────────────────────────────
+    # Needs a previous capture's anchors next to the trace (a session being
+    # re-captured); silent on a fresh build — the crossing only becomes
+    # knowable once anchors exist.
+    if (trace_dir is not None
+            and not any("tutloadpin" in o for o in ops)):
+        apath = Path(trace_dir) / "anchors.port.jsonl"
+        if not apath.exists():
+            apath = Path(trace_dir) / "anchors.retail.jsonl"
+        if apath.exists():
+            crossing = _window_loads_from_anchors(lines, seg, apath)
+            if crossing:
+                add("info", "loads-without-tutloadpin",
+                    f"capture window crosses {len(crossing)} LOADING bracket(s) "
+                    f"(at abs {crossing} per {apath.name}) with no "
+                    f"{{tutloadpin}} — a tutorial-dialogue bracket's length is "
+                    f"worker-thread wall-time (quirk §119), shifting the post-"
+                    f"seam label axis run-to-run; add {{\"tutloadpin\": "
+                    f"{CANON_TUTLOADPIN}}} (trace-global) to pin BOTH sides")
     return f
 
 

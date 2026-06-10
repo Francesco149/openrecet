@@ -1041,6 +1041,13 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
                 # from its start (a coarse OVERVIEW), striding identically to the
                 # port → both targets keep the same anchor-relative kept-set.
                 segtrace_ops.append({"capstride": int(rec["capstride"])})
+            elif "tutloadpin" in rec:
+                # {tutloadpin:N} — trace-global: extend every tutorial-dialogue
+                # load bracket to N frames (the agent holds the load gate
+                # DAT_06a49960 high until N frames past the arm; EXTEND-only).
+                # Mirrors the port's IVE_TUT_LOAD_FRAMES override so both sides
+                # idle equal-length brackets (engine-quirks §119).
+                segtrace_ops.append({"tutloadpin": int(rec["tutloadpin"])})
             elif "esc" in rec:
                 # {esc:N} — synthesise an ESC keypress at base+N (dialogue-skip
                 # replay), mirroring the port's {esc} op.
