@@ -104,6 +104,7 @@ const char *audio_bgm_filename(int track)
 
 static FILE    *g_audio_trace_fp      = NULL;
 static uint32_t g_audio_trace_boot_ms = 0;
+static int      g_audio_trace_frame   = -1;   /* set per-tick by main loop */
 
 /* timeGetTime is in winmm; declared in the _WIN32 backend block below. */
 #ifdef _WIN32
@@ -144,6 +145,11 @@ void audio_trace_close(void)
 int audio_trace_is_open(void)
 {
     return g_audio_trace_fp != NULL;
+}
+
+void audio_trace_set_frame(int frame)
+{
+    g_audio_trace_frame = frame;
 }
 
 size_t audio_trace_json_escape(const char *src, char *dst, size_t cap)
@@ -195,8 +201,8 @@ void audio_trace_emit_bgm_swap(int track, const char *name)
     char esc[512];
     audio_trace_json_escape(name ? name : "", esc, sizeof esc);
     fprintf(g_audio_trace_fp,
-            "{\"t_ms\":%u,\"kind\":\"bgm_swap\",\"track\":%d,\"name\":\"%s\"}\n",
-            (unsigned)audio_trace_now_ms(), track, esc);
+            "{\"t_ms\":%u,\"frame\":%d,\"kind\":\"bgm_swap\",\"track\":%d,\"name\":\"%s\"}\n",
+            (unsigned)audio_trace_now_ms(), g_audio_trace_frame, track, esc);
     fflush(g_audio_trace_fp);
 }
 
@@ -206,8 +212,8 @@ void audio_trace_emit_se_play(int slot, const char *name)
     char esc[512];
     audio_trace_json_escape(name ? name : "", esc, sizeof esc);
     fprintf(g_audio_trace_fp,
-            "{\"t_ms\":%u,\"kind\":\"se_play\",\"slot\":%d,\"name\":\"%s\"}\n",
-            (unsigned)audio_trace_now_ms(), slot, esc);
+            "{\"t_ms\":%u,\"frame\":%d,\"kind\":\"se_play\",\"slot\":%d,\"name\":\"%s\"}\n",
+            (unsigned)audio_trace_now_ms(), g_audio_trace_frame, slot, esc);
     fflush(g_audio_trace_fp);
 }
 
@@ -215,9 +221,10 @@ void audio_trace_emit_fade_start(int channel, int slider, int32_t centibel)
 {
     if (!g_audio_trace_fp) return;
     fprintf(g_audio_trace_fp,
-            "{\"t_ms\":%u,\"kind\":\"fade_start\",\"channel\":%d,"
+            "{\"t_ms\":%u,\"frame\":%d,\"kind\":\"fade_start\",\"channel\":%d,"
             "\"slider\":%d,\"centibel\":%d}\n",
-            (unsigned)audio_trace_now_ms(), channel, slider, (int)centibel);
+            (unsigned)audio_trace_now_ms(), g_audio_trace_frame,
+            channel, slider, (int)centibel);
     fflush(g_audio_trace_fp);
 }
 

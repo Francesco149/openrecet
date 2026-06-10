@@ -2144,6 +2144,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                  * seq is monotonic (scheduler → sim → render). */
                 d3d_trace_begin_frame(g_tick.frame_count);
                 call_trace_begin_frame(g_tick.frame_count);
+                audio_trace_set_frame((int)g_tick.frame_count);
 
                 /* Under --input-trace-replay, drive virtual time so
                  * the tick scheduler never returns DELAYED — we want

@@ -65,12 +65,19 @@ const char *audio_bgm_filename(int track);
  * BGM swap (and later SE trigger + fade event) emits one JSON line.
  * Schema:
  *
- *   {"t_ms":<uint>, "kind":"bgm_swap",   "track":<int>,   "name":<str>}
- *   {"t_ms":<uint>, "kind":"se_play",    "slot":<int>,    "name":<str>}
- *   {"t_ms":<uint>, "kind":"fade_start", "channel":<int>, "slider":<int>,
- *                                        "centibel":<int>}
+ *   {"t_ms":<uint>,"frame":<int>,"kind":"bgm_swap",   "track":<int>,  "name":<str>}
+ *   {"t_ms":<uint>,"frame":<int>,"kind":"se_play",    "slot":<int>,   "name":<str>}
+ *   {"t_ms":<uint>,"frame":<int>,"kind":"fade_start", "channel":<int>,"slider":<int>,
+ *                                                     "centibel":<int>}
  *
  * t_ms is timeGetTime()-since-boot (matches the engine's clock).
+ *
+ * frame is the engine frame index (g_tick.frame_count) the event fired
+ * on, stamped by audio_trace_set_frame() once per tick from the main
+ * loop — the SAME counter d3d_trace/call-trace and the retail Frida
+ * capture key on, so tools/audio_diff.py can align port↔retail sound
+ * triggers frame-for-frame. -1 until the first audio_trace_set_frame()
+ * (e.g. the test build, where no main loop drives it).
  * name is JSON-escaped per audio_trace_json_escape() — \", \\, \n,
  * \r, \t mapped explicitly; other non-printable / non-ASCII bytes
  * become \uXXXX. Filenames in our table are pure ASCII so the
@@ -88,6 +95,11 @@ int  audio_trace_open(const char *path);
 /* Flushes + closes the trace file. Safe to call when no trace is
  * open. */
 void audio_trace_close(void);
+
+/* Stamp the engine frame index carried by every subsequent trace event.
+ * Called once per tick from the main loop (next to d3d_trace_begin_frame)
+ * with g_tick.frame_count. Until first called, events carry frame=-1. */
+void audio_trace_set_frame(int frame);
 
 /* Emits one JSONL line if a trace is open. No-op otherwise. */
 void audio_trace_emit_bgm_swap(int track, const char *name);
