@@ -297,6 +297,37 @@ def rekey_by_field(by_frame: dict[int, list[dict]], field: str
     return out
 
 
+def first_anchor_frame(path: Path, name: str) -> int | None:
+    """First frame at which the anchor stream records `name` (an event's
+    semantic sync point).  Anchor files are JSONL {"anchor": str, "frame": int}
+    (trace-studio sessions' anchors.jsonl)."""
+    if not path.exists():
+        return None
+    for line in path.open():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            a = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if a.get("anchor") == name:
+            return int(a["frame"])
+    return None
+
+
+def rekey_by_offset(by_frame: dict[int, list[dict]], offset: int
+                    ) -> dict[int, list[dict]]:
+    """Shift every frame key by a CONSTANT offset (derived from a shared
+    anchor).  The phase-pillar complement to rekey_by_field: aligns a
+    load-stretched side onto the other's absolute-frame clock when no
+    {phasepin}-zeroed counter field is available — e.g. a CUTSCENE, where db054
+    (a HOUSE free-roam bob/sparkle counter) never advances and so cannot serve
+    as the clock.  A constant frame offset is a pure phase ORIGIN; the shift is
+    a bijection on frame numbers, so no two frames ever merge."""
+    return {f - offset: evts for f, evts in by_frame.items()}
+
+
 def build_field_timeline(va: int, retail: dict[int, list[dict]],
                          port: dict[int, list[dict]], common: list[int],
                          eps: float, benign: set[tuple[int, str]],
@@ -395,6 +426,22 @@ def _max_occ_per_frame(va: int, retail: dict[int, list[dict]],
     for fr in common:
         m = max(m, len(_va_occurrences(retail.get(fr, []), va)),
                 len(_va_occurrences(port.get(fr, []), va)))
+    return m
+
+
+def _max_occ_any(va: int, retail: dict[int, list[dict]],
+                 port: dict[int, list[dict]]) -> int:
+    """Max occurrences of `va` in ANY single frame, each side counted on its
+    OWN frame numbering.  Unlike _max_occ_per_frame this needs no shared frames
+    and must be computed on RAW traces BEFORE an --align-field/--align-anchor
+    rekey: rekeying can collapse several frames onto one clock-value key and so
+    falsely inflate a once-per-frame state VA's per-key count.  Identifies the
+    genuine per-draw geometry VAs (render_quad_add/flush)."""
+    m = 0
+    for evts in retail.values():
+        m = max(m, len(_va_occurrences(evts, va)))
+    for evts in port.values():
+        m = max(m, len(_va_occurrences(evts, va)))
     return m
 
 
@@ -529,21 +576,46 @@ def classify_offsets(samples: list, eps: float) -> tuple[str, str, int | None]:
 
 
 def run_verdict(args, retail, port, names, benign, reasons,
-                field_order: dict[int, list[str]], spec_vas: list[int]) -> int:
+                field_order: dict[int, list[str]], spec_vas: list[int],
+                draw_vas: set[int] | None = None) -> int:
     common = sorted(set(retail) & set(port))
     if not common:
         raise SystemExit("no common frames for a verdict")
     pinned = True  # informational; the caller is expected to pin (see header)
     print(f"flow_diff --verdict   {len(common)} common frames "
           f"[{common[0]}..{common[-1]}]")
-    print("  (assumes a {phasepin}-ed trace — frame# == db054 clock)\n")
+    if args.align_anchor:
+        print(f"  (aligned by anchor {args.align_anchor} — constant frame "
+              f"offset; for CUTSCENES where db054 is absent)\n")
+    elif args.align_field:
+        print(f"  (aligned by --align-field {args.align_field} — frame# == that "
+              f"{{phasepin}}-zeroed clock)\n")
+    else:
+        print("  (raw frame-number alignment — pass --align-field/--align-anchor "
+              "if port/retail frames don't intersect)\n")
     print(f"  {'va/field':<28} {'verdict':<13} detail")
     print(f"  {'-'*28} {'-'*13} {'-'*40}")
     worst = "ALIGNED"
     rng_samples: dict[str, list] = {}
-    for va in spec_vas:
-        if not (any(_va_occurrences(e, va) for e in retail.values())
-                and any(_va_occurrences(e, va) for e in port.values())):
+    # Per-draw geometry VAs (render_quad_add/flush, >1×/frame) can't be
+    # classified by the per-frame i-th-occurrence pairing build_field_timeline
+    # uses: a small per-frame draw-count/batching difference (vcount CONST-
+    # OFFSET) mis-pairs every later draw in the frame → spurious DRIFT even on
+    # human-confirmed-1:1 scenes (item-display-2's house verdict showed it too).
+    # Geometry is render_diff.py's domain — defer to it, mirroring the
+    # --field-timeline path. draw_vas is computed on RAW frames in main() (see
+    # _max_occ_any) so an --align-field rekey can't misclassify a once-per-frame
+    # state VA as a draw VA.  The once-per-frame rng/state VAs are unaffected.
+    draw_vas = draw_vas or set()
+    present = [va for va in spec_vas
+               if any(_va_occurrences(e, va) for e in retail.values())
+               and any(_va_occurrences(e, va) for e in port.values())]
+    skipped = [va for va in present if va in draw_vas]
+    if skipped:
+        print("  (skipped >1×/frame draw VAs — geometry, use render_diff.py: "
+              + ", ".join(fmt_va(v, names) for v in skipped) + ")")
+    for va in present:
+        if va in draw_vas:
             continue
         tracks, _ = build_field_timeline(va, retail, port, common, args.eps,
                                          benign, reasons, field_order.get(va, []))
@@ -713,6 +785,29 @@ def main(argv: list[str] | None = None) -> int:
                          "be {phasepin}-zeroed so it reads identically at the "
                          "same anchor-relative instant on both sides — what "
                          "phase_probe.py aligned on.")
+    ap.add_argument("--align-anchor", default=None, metavar="ANCHOR",
+                    help="align the two traces by a CONSTANT frame offset taken "
+                         "from the first occurrence of this shared anchor (e.g. "
+                         "TEXT_ANIM_START). Use for CUTSCENES / mode-6 scenes "
+                         "where --align-field db054 fails because db054 (a HOUSE "
+                         "free-roam counter) never advances. Reads the anchor "
+                         "stream from --retail-anchors/--port-anchors (default: "
+                         "anchors.jsonl beside each call_trace). Mutually "
+                         "exclusive with --align-field.")
+    ap.add_argument("--retail-anchors", type=Path, default=None,
+                    help="retail anchors.jsonl for --align-anchor "
+                         "(default: <retail call_trace dir>/anchors.jsonl)")
+    ap.add_argument("--port-anchors", type=Path, default=None,
+                    help="port anchors.jsonl for --align-anchor "
+                         "(default: <port call_trace dir>/anchors.jsonl)")
+    ap.add_argument("--frame-from", type=int, default=None, metavar="N",
+                    help="restrict the comparison to frames >= N (in the shared "
+                         "clock AFTER --align-field/--align-anchor remap). Use to "
+                         "clip a pre-cutscene worldmap/load SEAM out of a verdict "
+                         "so it reports the cutscene proper, not the transition.")
+    ap.add_argument("--frame-to", type=int, default=None, metavar="N",
+                    help="restrict the comparison to frames <= N (shared clock; "
+                         "see --frame-from). Clips a trailing load-seam tail.")
     ap.add_argument("--rng-drill", metavar="RNG_CALLSITES_JSON", default=None,
                     help="aggregate a retail rng_callsites.json (from frida_capture "
                          "--rng-callsites) by enclosing function — names the RNG "
@@ -748,6 +843,17 @@ def main(argv: list[str] | None = None) -> int:
     retail = load_trace(args.retail, tl_filter)
     port = load_trace(args.port, tl_filter)
 
+    # Identify per-draw geometry VAs (render_quad_add/flush, >1×/frame) on the
+    # RAW frames, BEFORE any rekey — a rekey can collapse frames onto one key
+    # and falsely inflate a once-per-frame state VA's count.  The verdict defers
+    # these to render_diff.py (their per-draw stream can't be classified by the
+    # per-frame i-th-occurrence pairing).
+    draw_vas = ({va for va in field_order if _max_occ_any(va, retail, port) > 1}
+                if (args.verdict or args.field_timeline) else set())
+
+    if args.align_field and args.align_anchor:
+        raise SystemExit("--align-field and --align-anchor are mutually exclusive")
+
     if args.align_field:
         retail = rekey_by_field(retail, args.align_field)
         port = rekey_by_field(port, args.align_field)
@@ -757,9 +863,32 @@ def main(argv: list[str] | None = None) -> int:
                 f"(retail {sorted(retail)[:6]}…, port {sorted(port)[:6]}…). "
                 f"Is the field {{phasepin}}-zeroed and present on both sides?")
 
+    if args.align_anchor:
+        ra = args.retail_anchors or (args.retail.parent / "anchors.jsonl")
+        pa = args.port_anchors or (args.port.parent / "anchors.jsonl")
+        rf = first_anchor_frame(ra, args.align_anchor)
+        pf = first_anchor_frame(pa, args.align_anchor)
+        if rf is None or pf is None:
+            raise SystemExit(
+                f"--align-anchor {args.align_anchor}: anchor not found "
+                f"(retail {ra}: {rf}, port {pa}: {pf})")
+        offset = pf - rf            # port frame == retail frame + offset
+        port = rekey_by_offset(port, offset)
+        if not (set(retail) & set(port)):
+            raise SystemExit(
+                f"--align-anchor {args.align_anchor}: no shared frames after "
+                f"offset {offset:+d} (retail {sorted(retail)[:6]}…, "
+                f"port {sorted(port)[:6]}…)")
+
+    if args.frame_from is not None or args.frame_to is not None:
+        lo = args.frame_from if args.frame_from is not None else -(1 << 62)
+        hi = args.frame_to if args.frame_to is not None else (1 << 62)
+        retail = {f: e for f, e in retail.items() if lo <= f <= hi}
+        port = {f: e for f, e in port.items() if lo <= f <= hi}
+
     if args.verdict:
         return run_verdict(args, retail, port, names, benign, reasons,
-                           field_order, list(field_order.keys()))
+                           field_order, list(field_order.keys()), draw_vas)
 
     if args.field_timeline:
         # Timeline mode reads payloads by VA directly; it does not walk the

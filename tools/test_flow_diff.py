@@ -15,6 +15,10 @@ Covers:
   6. CLI --field-timeline: only a benign divergence → exit 0, clean verdict.
   7. CLI --field-timeline: auto mode skips >1×/frame draw VAs (points to render_diff).
   8. float fields compare within --eps (no spurious LSB divergence).
+  9. --align-anchor: constant-offset alignment from a shared anchor (cutscene
+     verdict where db054 is absent); + --align-field/--align-anchor exclusivity.
+ 10. verdict draw-VA skip stays correct under an --align-field rekey that
+     collapses several raw frames onto one clock key (the _max_occ_any fix).
 """
 
 from __future__ import annotations
@@ -64,7 +68,15 @@ def run_main(mod, argv: list[str]) -> tuple[int, str, str]:
         try:
             rc = mod.main(argv)
         except SystemExit as e:
-            rc = int(e.code) if e.code is not None else 0
+            # Mirror CPython: None → 0, int → that code, str → message to
+            # stderr + exit 1 (the SystemExit("msg") error paths).
+            if e.code is None:
+                rc = 0
+            elif isinstance(e.code, int):
+                rc = e.code
+            else:
+                buf_err.write(str(e.code))
+                rc = 1
     return rc, buf_out.getvalue(), buf_err.getvalue()
 
 
@@ -186,7 +198,59 @@ def main() -> int:
     xt = {t.field: t for t in tr}["x"]
     chk(xt.first is None, f"float within eps should not diverge: {xt.first}")
 
-    for p in (spc, spc_b, spc2, pr, pp, pr2, pp2):
+    # ── 9. --align-anchor: constant-offset alignment from a shared anchor ──
+    # retail SIM at frames 100..105; port identical SIM at 0..5 (offset -100,
+    # the load-stretch shape). A shared anchor SYNC (retail@102, port@2) gives
+    # the offset; --frame-from clips a leading frame.
+    def sv(fr):
+        return {"cursor_pos": fr % 3, "select_phase": 0}
+    r9 = write_trace([stub(SIM, 100 + fr, 1, sv(fr)) for fr in range(6)])
+    p9 = write_trace([stub(SIM, fr, 1, sv(fr)) for fr in range(6)])
+    ra9 = write_trace([{"anchor": "BOOT", "frame": 0}, {"anchor": "SYNC", "frame": 102}])
+    pa9 = write_trace([{"anchor": "BOOT", "frame": 0}, {"anchor": "SYNC", "frame": 2}])
+    # unaligned: raw frames (100.. vs 0..) don't intersect → no verdict.
+    rc, out, err = run_main(mod, ["--retail", str(r9), "--port", str(p9),
+                                  "--verdict", "--spec", str(spc)])
+    chk(rc != 0 and "no common" in (out + err).lower(),
+        f"unaligned offset traces should not share frames:\n{out}{err}")
+    # aligned by SYNC: offset 100 → identical SIM lines up → PHASE-CLEAN, exit 0.
+    rc, out, err = run_main(mod, ["--retail", str(r9), "--port", str(p9),
+                                  "--verdict", "--align-anchor", "SYNC",
+                                  "--retail-anchors", str(ra9),
+                                  "--port-anchors", str(pa9), "--spec", str(spc)])
+    chk(rc == 0 and "PHASE-CLEAN" in out,
+        f"--align-anchor SYNC should align identical SIM → exit 0:\n{out}{err}")
+    chk("--align-field and --align-anchor are mutually exclusive" in
+        run_main(mod, ["--retail", str(r9), "--port", str(p9), "--verdict",
+                       "--align-field", "x", "--align-anchor", "SYNC"])[2],
+        "align-field + align-anchor should be rejected")
+
+    # ── 10. verdict draw-VA skip is robust under --align-field rekey ───────
+    # The collapse regression: a clock that REPEATS every 2 frames makes rekey
+    # bucket 2 raw frames per key, so a once/frame state VA shows 2 occurrences
+    # PER KEY. The draw-VA test must run on RAW frames (_max_occ_any) so the
+    # state VA is NOT misclassified as a >1×/frame draw VA and dropped.
+    rows10 = ([stub(SIM, fr, 1, {"cursor_pos": 1, "ck": fr // 2}) for fr in range(4)]
+              + [stub(DRAW, fr, 10 + i, {"dx": i}) for fr in range(4) for i in range(3)])
+    r10, p10 = write_trace(rows10), write_trace(rows10)
+    spc10 = write_spec({"fields": {
+        hex(SIM): {"name": "scene_title_sim", "fields": [
+            {"name": "cursor_pos", "src": "global", "va": "0x1", "type": "i32"},
+            {"name": "ck", "src": "global", "va": "0x2", "type": "i32"}]},
+        hex(DRAW): {"name": "render_quad_add", "fields": [
+            {"name": "dx", "src": "arg", "va": "0", "type": "f32"}]}}})
+    rc, out, err = run_main(mod, ["--retail", str(r10), "--port", str(p10),
+                                  "--verdict", "--align-field", "ck",
+                                  "--spec", str(spc10)])
+    chk("render_quad_add" in out and "skipped >1" in out,
+        f"draw VA must still be skipped under rekey:\n{out}")
+    chk("scene_title_sim" in out and "cursor_pos" in out,
+        f"once/frame state VA must NOT be dropped under rekey collapse:\n{out}{err}")
+    chk(mod._max_occ_any(DRAW, {0: rows10[4:7]}, {0: []}) == 3,
+        "_max_occ_any counts a side's busiest frame")
+
+    for p in (spc, spc_b, spc2, pr, pp, pr2, pp2,
+              r9, p9, ra9, pa9, r10, p10, spc10):
         p.unlink()
 
     if failures:
@@ -194,7 +258,7 @@ def main() -> int:
         for f in failures:
             print(f"  - {f}")
         return 1
-    print("OK (8 tests)")
+    print("OK (10 tests)")
     return 0
 
 

@@ -148,17 +148,23 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `13syounin_01.tga` at dst −64,32,448,448), and plays the iv1_3 first-visit cutscene
   (`scene_guild_sim` = `FUN_00490e24`→`FUN_004922c0` first-visit subset → entry-tick
   counter + flag `DAT_0450f3f4` @ `0x2bc5c` → `scene1_intro_dialogue_start_single(1,3)`;
-  dialogue tick/draw wired into mode 6). Build clean, host 3229. **Verified VISUALLY 1:1**
-  (anchor-aligned: port TEXT_ANIM_START label 1030 ↔ retail 901 — bg + guildmaster/Tear/
-  Recette standees pixel-identical; same iv1_3 script through the unchanged runtime).
-  **Gold-standard auto db054-verdict BLOCKED — not by the port:** the port loads the guild
-  faster than retail ⇒ a load-suppression SEAM (kept-count port 1058/retail 936, port-only
-  labels 510-603 = the port rendering early cutscene lines during retail's load bracket;
-  phase pillar, accept). Canonical pin DONE (`{phasepin 282}`+`{rngseed [282,19937]}`+
-  `{tutloadpin 8}`) — zeroes PORT db054, but `--align-field db054` can't run because
-  **retail's flow-trace for mode 6 probes only `rng`/`rngcalls`** (the open "run the pinned
-  RETAIL census" TODO — retail rich-probing not set up for mode 6). RE + full breakdown:
-  `findings/merchant-guild-RE.md` "Port progress". **NEXT (needs user re-window):** guild
+  dialogue tick/draw wired into mode 6). Build clean, host 3229.
+  **CENSUS DONE 2026-06-10 → cutscene is frame-by-frame 1:1 (machine-verified 3 ways);
+  awaiting USER eyeball to upgrade to confirmed-1:1.** The earlier "db054-verdict BLOCKED /
+  run the RETAIL census" was a MISFRAMING: the cutscene IS richly probed on BOTH sides
+  (`dialogue_tick` `FUN_0046c320` emits box_open/reveal/line_row/st5_* — 774 retail / 895
+  port frames). db054 is the wrong clock for a cutscene (its only source `house_update`
+  `FUN_0048670f` fires 0× retail / 2× port — a HOUSE counter that doesn't advance in mode 6),
+  so `--align-field db054` correctly finds no shared values; NO probe extension was needed.
+  Verdict now runs via the new **`flow_diff --align-anchor TEXT_ANIM_START --frame-from N`**
+  (constant-offset anchor align; `triage` auto-falls-back to it) → **✅ PHASE-CLEAN** over
+  714 cutscene frames (dialogue+fade+rngcalls ALIGNED, raw rng 714/714 bit-exact). Proofs
+  (single −14100 offset): 75/75 anchors frame-exact · 8 dialogue fields × 774 frames ZERO
+  mismatches · rngcalls 0 desyncs. Residue = load-seam only (port loads faster, renders ~121
+  early cutscene frames in retail's load bracket; kept-count 1058/936; phase pillar, accept).
+  Canonical pin KEPT (`{phasepin 282}`+`{rngseed [282,19937]}`+`{tutloadpin 8}`). RE + full
+  breakdown: `findings/merchant-guild-RE.md` "CENSUS DONE"; recipe: `flow-trace-cheatsheet.md`
+  "Cutscene verdict". **NEXT (needs user re-window):** guild
   main menu (conditional "new" badge) → buy flow → tail. **PORT-DEBT:** the `FUN_004922c0`
   tail (guildmaster idle-anim, daily-event probe, group-6 cutscenes), the `FUN_00494a73` UI
   tail (menu frame / cursor / top-HUD), the mid-transition bg path, the variant-1 (ichiba,
