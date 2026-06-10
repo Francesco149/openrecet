@@ -222,9 +222,9 @@ while (( $# )); do
             args+=( "$1" "$(rewrite_path dir-out "$2")" ); shift 2 ;;
         --house-preview-dump=*)
             args+=( "${1%%=*}" "$(rewrite_path dir-out "${1#*=}")" ); shift ;;
-        --input-trace-record|--anchor-trace-record|--player-pos-log|--dust-log|--dlg-log|--d3d-trace|--call-trace)
+        --input-trace-record|--anchor-trace-record|--player-pos-log|--dust-log|--dlg-log|--d3d-trace|--call-trace|--audio-trace)
             args+=( "$1" "$(rewrite_path file-out "$2")" ); shift 2 ;;
-        --input-trace-record=*|--anchor-trace-record=*|--player-pos-log=*|--dust-log=*|--dlg-log=*|--d3d-trace=*|--call-trace=*)
+        --input-trace-record=*|--anchor-trace-record=*|--player-pos-log=*|--dust-log=*|--dlg-log=*|--d3d-trace=*|--call-trace=*|--audio-trace=*)
             args+=( "${1%%=*}" "$(rewrite_path file-out "${1#*=}")" ); shift ;;
         --input-trace-replay|--input-segtrace)
             args+=( "$1" "$(rewrite_path file-in "$2")" ); shift 2 ;;

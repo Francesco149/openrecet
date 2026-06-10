@@ -321,6 +321,11 @@ def main(argv=None) -> int:
     save_out_dir = run_dir / "saveout"
     save_out_dir.mkdir(parents=True, exist_ok=True)
     cmd += ["--save-write-dir", _winpath(save_out_dir)]
+    # Always capture the port's sound triggers (bgm_swap / se_play, frame-
+    # stamped) so the studio session carries port/audio.jsonl alongside the
+    # retail side for tools/audio_diff.py. run-openrecet.sh path-rewrites
+    # --audio-trace (file-out), same as --d3d-trace.
+    cmd += ["--audio-trace", str(run_dir / "audio.jsonl")]
     if args.d3d_trace:
         # The {caprange} op also arms the d3d-trace window (main.c
         # segtrace_caprange_cb → d3d_trace_set_window), so the trace emits
