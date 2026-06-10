@@ -142,22 +142,29 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   `{tutloadpin}` equalized the brackets so the kept-count PROBLEM is gone
   (`problems: []`). Story → PROGRESS; label-pairing fix folded into Tooling below.)*
 - **ACTIVE ARC → MERCHANT'S GUILD scene** (mode 6 / Market), trace-studio session
-  **`merchants-guild-20260608-151902`** (served 8782 during RE; re-serve as needed).
-  **Scoped 2026-06-10, port NOT started — full RE + incremental plan in
-  `findings/merchant-guild-RE.md`.** The world-map "Merchant's Guild" (dest 3) is
-  engine **mode 6**, FULLY STUBBED in the port (no `sim.c` update, `main.c` `default:`
-  render, no worker-load ⇒ the cyan/blank the user saw). First-visit cutscene = the
-  per-location event tick `FUN_004922c0` → **`FUN_0044ba2c(1,3,1)`** → `iv/iv1_3.ivt`
-  (run as-is via `scene1_intro_dialogue_start_single(1,3)`), gated by first-visit flag
-  `DAT_0450f3f4` (working-arena `0x2bc5c`). Render `FUN_00490e35`→`FUN_00494a73` (561 B
-  2D bg, reuses ported `FUN_0046b00a`). **Plan (next session):** scene shell (sim/main
-  case 6 + worker-load) → cutscene trigger → wire dialogue draw/tick into mode 6 →
-  verify 1:1; THEN guild main menu (conditional "new" badge) → buy flow → tail. **First
-  add the canonical pin** — the trace is unpinned + crosses 1 load bracket (lint wants
-  `{phasepin}`+`{rngseed 19937}`+`{tutloadpin 8}`; that load-bracket skew is why the
-  port/retail label axes drift after label 490). Follow-on traces queued by the user:
-  leaving the guild (bread cutscene) + returning to Recettear (Tear cutscene) — same
-  `FUN_004922c0` machinery.
+  **`merchants-guild-20260608-151902`** (served 8782). **Scene shell + first-visit
+  cutscene LANDED 2026-06-10** (`a998fb4` chip, `cb1212c` docs) — `src/scene_guild.{c,h}`:
+  mode-6 enters, renders the guild bg (`bmp/ivent/bg_guild.bmp` + the mirrored guildmaster
+  `13syounin_01.tga` at dst −64,32,448,448), and plays the iv1_3 first-visit cutscene
+  (`scene_guild_sim` = `FUN_00490e24`→`FUN_004922c0` first-visit subset → entry-tick
+  counter + flag `DAT_0450f3f4` @ `0x2bc5c` → `scene1_intro_dialogue_start_single(1,3)`;
+  dialogue tick/draw wired into mode 6). Build clean, host 3229. **Verified VISUALLY 1:1**
+  (anchor-aligned: port TEXT_ANIM_START label 1030 ↔ retail 901 — bg + guildmaster/Tear/
+  Recette standees pixel-identical; same iv1_3 script through the unchanged runtime).
+  **Gold-standard auto db054-verdict BLOCKED — not by the port:** the port loads the guild
+  faster than retail ⇒ a load-suppression SEAM (kept-count port 1058/retail 936, port-only
+  labels 510-603 = the port rendering early cutscene lines during retail's load bracket;
+  phase pillar, accept). Canonical pin DONE (`{phasepin 282}`+`{rngseed [282,19937]}`+
+  `{tutloadpin 8}`) — zeroes PORT db054, but `--align-field db054` can't run because
+  **retail's flow-trace for mode 6 probes only `rng`/`rngcalls`** (the open "run the pinned
+  RETAIL census" TODO — retail rich-probing not set up for mode 6). RE + full breakdown:
+  `findings/merchant-guild-RE.md` "Port progress". **NEXT (needs user re-window):** guild
+  main menu (conditional "new" badge) → buy flow → tail. **PORT-DEBT:** the `FUN_004922c0`
+  tail (guildmaster idle-anim, daily-event probe, group-6 cutscenes), the `FUN_00494a73` UI
+  tail (menu frame / cursor / top-HUD), the mid-transition bg path, the variant-1 (ichiba,
+  dest 1) set. Follow-on traces queued: leaving the guild (bread cutscene) + returning to
+  Recettear (Tear cutscene) — same `FUN_004922c0` machinery. **Separate gap:** 2 worldmap
+  sounds (`se_019_id0150`+`00re_sys09` @ label ~348, pre-cutscene) the port doesn't play.
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
   above) → town scenes off the world map (world-map backlog itself CLOSED 2026-06-08,
   bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game cross-replay: retail

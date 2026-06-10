@@ -141,11 +141,18 @@ Landed `src/scene_guild.{c,h}` + wiring (`sim.c` case 6, `main.c` render case 6 
   lines ("Guild Master: Sol…") during what is retail's load-SUPPRESSED bracket. Retail's
   first *captured* line is therefore a later one (a capture-boundary artifact, NOT a port
   bug). `{tutloadpin: 8}` (added) only pins tutorial-dialogue brackets, not the guild
-  scene-load; the verdict needs db054-alignment (`--align-field db054`), which needs a
-  `{phasepin}` (retail db054 absent/unzeroed without it). Phasepin placement on this
-  hand-built MULTI-SEGMENT trace (caprange spans segment bases; base+330 is past where the
-  opening segment's input replay ends at base+156) is non-obvious — left for a deliberate
-  pin pass with the user. `edit.trace.jsonl.bak-preguild` backs up the pre-tutloadpin trace.
+  scene-load. **Phasepin pass DONE 2026-06-10** (`{phasepin: 282}` + `{rngseed [282,
+  19937]}` in the caprange-opening segment, ~48f before the window): it correctly zeroes
+  the PORT db054 (port db054=[0,1]) — but `--align-field db054` still can't run because
+  **retail's flow-trace for mode 6 probes ONLY `rng`/`rngcalls`** (db054 count = 0 in
+  `retail/call_trace.jsonl`; the pose/px/py/db054 fields the port emits are NOT probed on
+  the retail side here). That is the FRONT's open **"run the pinned RETAIL census"** TODO —
+  retail rich-field probing isn't set up for mode 6, so the gold-standard db054 verdict is
+  blocked by capture-TOOLING, not by the port. Unblocking it needs the retail census /
+  agent probe-set extended to mode 6 (RE the retail db054 + pose addresses, add to the
+  `{calltrace}` `f` set, recapture) — a separate roadmap task. The phasepin is KEPT (the
+  canonical pin the policy wants; the verdict will work once retail mode-6 census exists).
+  `edit.trace.jsonl.bak-preguild` backs up the pre-pin trace.
 - **Audio:** `audio_diff` flags 2 missing sounds — `se_019_id0150` + `00re_sys09.bin`,
   both at retail abs 14358 = **label ~348** (on the WORLDMAP, ~260 labels BEFORE the
   cutscene). A pre-existing worldmap/records-B-portion gap, NOT the guild cutscene (whose
