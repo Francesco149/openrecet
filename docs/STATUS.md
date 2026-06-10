@@ -54,9 +54,12 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   numbering). Evidence + frame refs: the RE doc's follow-ups #4/#5.
   **NPC desync through the dialogues: user-confirmed GONE 2026-06-10** (parity
   ledger entry; the scare was a stale ordinal-paired diff — fixed, see Tooling).
+  **Gap B ("What will you place?" bubble) ✅ DONE 2026-06-10** (`36a8ab2`): NOT a
+  string — all 3 prompts are BAKED item_win sprites drawn by FUN_0046b00a at
+  dst(menu_x-128,48,191,63), sliding with the panel; flag DAT_0734b990 set by the
+  arm (occupied cell → "Exchange with what?", Vender highlight → "Place Vending
+  Machine"). 0-1px at labels 439/588-594. RE: `findings/shop-display-menu-RE.md`.
   **Remaining (user-listed 2026-06-10 + triage), the next-session queue:**
-  1. **"What will you place?" prompt bubble missing** — retail draws it while
-     the placement menu is open; port never does (plain at label 439). Gap B.
   2. **Hands-up carry pose** — the engine's brief hold-item-overhead pose on the
      placement confirm (`DAT_056db048 = 0xc`, the r==3 pick-up arm PORT-DEBT(A3)
      in `player_ctrl_cc04_menu_arm`) is unported (visual-only, no grid/RNG).
@@ -81,7 +84,9 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   6. **menu-boundary residuals:** rngcalls ±31 (one wing emit per %4==0-frozen
      pause boundary + load-bracket seams) · companion cx/cz/canim/cframe + pcnt
      micro-DRIFT around open/close frames · retail menu-window consumption is the
-     WING through the hooked thunk (`0xcf05d33`), NOT an unknown menu consumer.
+     WING through the hooked thunk (`0xcf05d33`), NOT an unknown menu consumer ·
+     hand-cursor snap drawn 1 frame EARLIER by retail at menu open (label 587,
+     ~109px, found verifying gap B).
   7. **dialogue box/portrait pixel-parity** polish — the Tear PORTRAIT
      whole-outline edge diff (labels ~1453-64; sub-pixel pos or filtering).
   **Tooling fix owed:** the recorder's `save_capture` overwrites `<name>.save.bin`

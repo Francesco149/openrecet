@@ -393,12 +393,26 @@ Commits: cursor-init+nav+description; dash-string fix; "Button 3: Item Details" 
   the texture, not font-drawn).
 
 **STILL MISSING (user-flagged 2026-06-06):**
-- **"Exchange with what?" world-projected prompt bubble** over the stand during the menu.
-  Separate render off a **localized message-table** string — NOT an .exe literal (not found
-  by string-scan of vendor/unpacked).  Shares the world→screen projection (FUN_00490c78)
-  with the deferred C3b tooltip.  Needs: locate the drawer (a FUN_00490c78 caller in the
-  cc04 render path — candidates near all.c:6902/6936/6963) + how the port loads the UI
-  message string.
+- ~~**"Exchange with what?" world-projected prompt bubble**~~ — **✅ PORTED 2026-06-10
+  (`36a8ab2`), and the old guess here was wrong on every count**: it is NOT
+  world-projected, NOT a message-table string, and NOT a FUN_00490c78 caller.  All three
+  prompts are **BAKED item_win.tga sprites** (Carpe Fulgur localized the TEXTURE — same
+  class as the "Button 3" tip above; that's why no string-scan ever found them) drawn by
+  FUN_0046b00a itself (0x46b2a9-0x46b37d, all.c:66556-66585) in screen space at
+  dst(menu_x-128, 48, 191, 63) — menu_x slides, so the bubble rides in with the panel:
+  | flag (DAT_0734b990) | bubble | item_win src |
+  |---|---|---|
+  | 1 | "What will you place?" | (832,560,1023,623) |
+  | 2 | "Exchange with what?" | (256,768,447,831) |
+  | any other / Vender-category highlight | "Place Vending Machine" | (256,704,447,767) |
+  The Vender override is `FUN_0049ef78(DAT_0734b998, "Venders")` — the **highlighted**
+  item's category name, first 4 chars, re-checked live every frame as the cursor moves.
+  The flag is set at ONE call site (0x488d9d-dac, the cc04 arm, right after
+  FUN_00468338): faced display-grid cell (bank dword 0x4e26 + cbfc + 20*cc00) occupied →
+  2, empty → 1; FUN_00468338 resets it to 0 on open.  Port:
+  `display_menu_set_window_flag` + the render block in `scene1_display_menu.c`.
+  Verified on the item-display-2 recapture: settled bubble (label 439) and the slide
+  frames (588-594) are 0-1px vs retail.
 - **per-row type colours + price-status line (C4b-4c)** — `FUN_004361b2` (item price-trend)
   reads the daily-market region pricing tables (unported); type-0 items render white, which
   matches retail for the displayed (no-trend) swords.
@@ -458,7 +472,7 @@ interactions at caprange frames ~121/381/587 on BOTH sides.
 | # | gap | frame | chip / status |
 |---|-----|-------|---------------|
 | 1 | slot-highlight glow | f107 | **C3a — ✅ DONE 2026-06-09** (commit e25587c; verified below) |
-| 2 | "What will you place?" prompt | f147/f391 | placement-MENU prompt bubble — **OPEN** (≠ C3b; the menu's own world-projected prompt, drawer + localized UI-string RE pending) |
+| 2 | "What will you place?" prompt | f147/f391 | **✅ DONE 2026-06-10** (`36a8ab2`) — baked item_win sprite drawn by FUN_0046b00a, slides with the panel; full RE in "STILL MISSING" above |
 | 3 | item name tooltip ("Worn Sword") | f183/f257 | **C3b — ✅ DONE + user-confirmed 1:1 2026-06-09** (tooltip band max 1/ch, 0 px>8; see below) |
 | 4 | hands-up Recette anim / carry pose | f183+/f441 | placement-reaction + carried-item sprite — **OPEN** (the verdict's px/py/pz drift; held item red-vs-gold + pose) |
 
@@ -467,7 +481,7 @@ the C3b name-tooltip was only one slice; the full placement→tutorial flow has 
 | gap | frame | what / panel | status |
 |-----|-------|------|--------|
 | **Tear tutorial dialogue ×2** | post-3rd-place + … | the headline — **PRIORITY**. #1 fires when the 3rd item is displayed; #2 fires when ALL items in possession are displayed (user "possibly — check retail to make it faithful"). Port shows NEITHER. | RE-from-retail next |
-| "What will you place?" prompt | f391 (retail) | the placement-menu prompt speech-bubble (tail down-right); ≠ C3b | OPEN (gap #2) |
+| "What will you place?" prompt | f391 (retail) | the placement-menu prompt speech-bubble (tail down-right); ≠ C3b | **✅ DONE 2026-06-10** (gap #2, `36a8ab2`) |
 | menu panel slide-in anim | f122 (retail) | the placement menu slides up from the bottom; port pops/positions it without the slide | OPEN |
 | selection flash | f172 (diff) | the menu's selected-row highlight bar diverges (a flash on select) | OPEN |
 | placement dust desync | f272 (diff) | foot/placement dust particles desync after an item is placed | OPEN |
@@ -699,8 +713,11 @@ recapture; the dialogues "play out correctly… huge progress"):**
    (labels ~1453-1464) are dominated by the **Tear PORTRAIT sprite** (whole-outline edge diff →
    sub-pixel position or filtering difference), plus the expected post-load bg-NPC offsets.
 7. **Menu RENDER cluster (the next chip).** From the recapture's worst frames: (a) the
-   **"What will you place?" prompt bubble** — retail draws it top-centre while the placement
-   menu is open, the port never does (gap B; visible plainly at label 439); (b) the
+   **"What will you place?" prompt bubble** — **✅ DONE 2026-06-10** (`36a8ab2`; gap B —
+   baked item_win sprite, slides with the panel, 0-1px verified at labels 439/588-594.
+   NEW residual found while verifying: retail draws the menu HAND CURSOR one frame
+   earlier at menu open — label 587, ~109px — the cursor-snap edge of the
+   menu-boundary cluster (e)); (b) the
    **description-panel line layout** — price / "Number possessed" land at different X (diff
    shows doubled text); (c) the **Item-Details sub-view** (the `pressed & 0x40` path, all.c:
    65451 — PORT-DEBT) — the session's worst overall gt8 frame (label 181, pre-load segment) is

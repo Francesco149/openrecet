@@ -7,6 +7,25 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — Placement-prompt speech bubble (gap B) ported
+
+`36a8ab2`. The "What will you place?" bubble over the placement menu — and the hunt
+killed two wrong theories from the RE doc: it is not a localized *string* (no encoding
+of it exists in the exe or any data file) and not world-projected. All three prompts
+are **baked, Carpe-Fulgur-localized item_win.tga sprites** drawn by FUN_0046b00a
+itself in screen space at dst(menu_x−128, 48, 191, 63), so they ride the panel's
+slide-in (the motion the session notes pinned at labels 589/592). Variant select:
+window flag 1 → "What will you place?" src(832,560,1023,623); 2 → "Exchange with
+what?" src(256,768,447,831); Vender-category highlight (live 4-char category-name
+compare, FUN_0049ef78) or any other flag → "Place Vending Machine"
+src(256,704,447,767). The flag (DAT_0734b990 / FUN_004681ec, single call site
+0x488dac) is set by the cc04 arm right after menu open: faced grid cell occupied → 2,
+empty → 1. Found by diffing per-frame **quad-emission ret_va sets** from the session's
+existing call trace (menu frame vs roam frame) — no new capture needed. Verified on
+the item-display-2 recapture: 0-1px at the settled frame and across the slide.
+Bonus residual surfaced: retail draws the menu hand cursor 1 frame earlier at open
+(label 587) — filed under the menu-boundary cluster.
+
 ## 2026-06-08 — Trace-studio editor: the captured-frame-index timeline
 
 The trace editor's port/retail timeline, redesigned around the right primitive. Semantics:
