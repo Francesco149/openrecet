@@ -24,11 +24,12 @@
 #include "font_upload.h"
 #include "render_quad.h"
 
-float font_draw_text(struct IDirect3DDevice8 *dev_,
-                     float x, float y,
-                     const char *str,
-                     uint32_t argb,
-                     float scale)
+float font_draw_text_fade(struct IDirect3DDevice8 *dev_,
+                          float x, float y,
+                          const char *str,
+                          uint32_t argb,
+                          float scale,
+                          int fade_budget)
 {
     IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_;
     if (!dev || !str) return 0.0f;
@@ -36,6 +37,10 @@ float font_draw_text(struct IDirect3DDevice8 *dev_,
 
     const float start_x = x;
     const float fVar2 = scale * 0.65f * 0.76f;   /* engine constant chain */
+    int ci = 0;   /* logical char index — the engine's decremented budget
+                   * (0x47d4d4 init / 0x47d60e decl) expressed as i: char i
+                   * fades by clamp((fade_budget - i)·0.2, ..1.0]. Counts
+                   * EVERY walked char (spaces + skips), like the engine. */
 
     /* Engine sets LINEAR filter on texture stage 0 before drawing
      * text — D3DTSS_MAGFILTER=0x10 and D3DTSS_MINFILTER=0x11 both = 2. */
@@ -54,9 +59,11 @@ float font_draw_text(struct IDirect3DDevice8 *dev_,
         unsigned char b0 = p[0];
 
         /* Skip ASCII control bytes (< 0x20) but allow high-bit chars
-         * (SJIS lead bytes). */
+         * (SJIS lead bytes). Still consumes a fade index — the engine
+         * iterates (and decrements its budget for) every char. */
         if (b0 < 0x20) {
             p++;
+            ci++;
             continue;
         }
 
@@ -87,6 +94,18 @@ float font_draw_text(struct IDirect3DDevice8 *dev_,
             uint8_t skip = 0;
             if (b0 == 0x20)                          skip = 1;
             if (b0 == 0x81 && b1 == 0x40)            skip = 1;
+
+            /* Per-char reveal fade (FUN_0047d464 0x47d528-0x47d551):
+             * factor = (budget − i) · 0.2, clamped to ≤ 1.0 (no lower
+             * clamp — callers truncate the string to the budget, keeping
+             * it positive); alpha byte = ftol(input_alpha · factor). */
+            uint32_t col = argb;
+            if (fade_budget >= 0) {
+                float f = (float)(fade_budget - ci) * 0.2f;
+                if (f > 1.0f) f = 1.0f;
+                uint32_t a = (uint32_t)((float)(argb >> 24) * f);
+                col = (a << 24) | (argb & 0xffffffu);
+            }
 
             void *tex = g_font.textures[slot];
             if (!skip && tex) {
@@ -127,7 +146,7 @@ float font_draw_text(struct IDirect3DDevice8 *dev_,
 
                     IDirect3DDevice8_SetTexture(
                         dev, 0, (IDirect3DBaseTexture8 *)tex);
-                    render_quad_add(dst, src, 42u, 42u, argb);
+                    render_quad_add(dst, src, 42u, 42u, col);
                     /* Flush per-glyph: each glyph uses a different
                      * texture, and render_quad batches assume a single
                      * texture binding per flush. Engine's FUN_00405354
@@ -146,9 +165,19 @@ float font_draw_text(struct IDirect3DDevice8 *dev_,
 
         /* Advance past the codepoint bytes in the input string. */
         p += is_double_byte ? 2 : 1;
+        ci++;
     }
 
     return x - start_x;
+}
+
+float font_draw_text(struct IDirect3DDevice8 *dev_,
+                     float x, float y,
+                     const char *str,
+                     uint32_t argb,
+                     float scale)
+{
+    return font_draw_text_fade(dev_, x, y, str, argb, scale, -1);
 }
 
 float font_draw_text_centered(struct IDirect3DDevice8 *dev_,

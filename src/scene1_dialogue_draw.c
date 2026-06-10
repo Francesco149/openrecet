@@ -197,9 +197,12 @@ static void draw_standees(IDirect3DDevice8 *dev,
 
 /* FUN_00405a52 — draw one text row truncated to `max_chars` logical (SJIS-aware)
  * characters; returns the engine's char count (iVar3: chars before the final).
- * The truncated row is rendered via font_draw_text at scale 1.0 — which equals
- * FUN_0047d464's 0.65·(76/100) glyph scale (the font-size global _DAT_0052912c
- * defaults to 76, the same 0.76 baked into font_draw_text). */
+ * The truncated row is rendered via font_draw_text_fade at scale 1.0 — which
+ * equals FUN_0047d464's 0.65·(76/100) glyph scale (the font-size global
+ * _DAT_0052912c defaults to 76, the same 0.76 baked into font_draw_text) —
+ * with max_chars as the per-CHAR reveal-fade budget (FUN_0047d464's param_6):
+ * char i draws at alpha·clamp((max_chars−i)·0.2, ..1.0], so the trailing ~5
+ * revealed chars ramp 0.2/0.4/0.6/0.8/1.0 — the typewriter fade-in. */
 static int dialogue_draw_row(IDirect3DDevice8 *dev, float x, float y,
                              const char *row, uint32_t color, int max_chars)
 {
@@ -220,7 +223,7 @@ static int dialogue_draw_row(IDirect3DDevice8 *dev, float x, float y,
         }
     }
     buf[i2] = '\0';
-    font_draw_text(dev, x, y, buf, color, 1.0f);
+    font_draw_text_fade(dev, x, y, buf, color, 1.0f, max_chars);
     return i3;
 }
 
@@ -359,18 +362,13 @@ static void draw_box_and_text(IDirect3DDevice8 *dev, const struct ive_runtime *r
         int gi = rt->line_row + r;
         if (gi < 0 || gi >= IVE_MAX_ROWS) break;
         int max_chars = (int)budget;
-        /* Per-row reveal fade-in (FUN_0047d464: glyph alpha = input_alpha *
-         * clamp(param_6 * DAT_5198d8, 1.0), DAT_5198d8 = 0.2, ceil DAT_519364 =
-         * 1.0; param_6 = this row's char budget).  A newly-revealing row ramps
-         * from transparent to opaque over its first 5 revealed chars — the
-         * dialogue "gradient to transparent".  A settled row's budget is large
-         * (reveal climbs to 0x800) so it sits at full alpha. */
-        float fade = (float)max_chars * 0.2f;
-        if (fade > 1.0f) fade = 1.0f;
-        uint32_t a = (uint32_t)((float)(color >> 24) * fade);   /* input alpha · fade */
-        uint32_t rcol = (a << 24) | (color & 0xffffffu);
+        /* Reveal fade is PER CHARACTER, inside the row drawer (FUN_0047d464:
+         * the budget is reloaded per glyph at 0x47d528 and decremented at
+         * 0x47d60e — the earlier per-ROW reading of a278101 misread the init
+         * at 0x47d4d4 as the only load).  dialogue_draw_row passes max_chars
+         * as the fade budget; the row's color goes through untouched. */
         int consumed = dialogue_draw_row(dev, text_x, row_y + base_y + 8.0f,
-                                         prog->glyph[gi], rcol, max_chars);
+                                         prog->glyph[gi], color, max_chars);
         budget -= (float)consumed;
         if (budget <= 0.0f) break;
         row_y += 30.0f;                           /* 0x1e */

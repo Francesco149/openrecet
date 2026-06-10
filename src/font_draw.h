@@ -63,6 +63,29 @@ float font_draw_text(struct IDirect3DDevice8 *dev,
                      float scale);
 
 /*
+ * FUN_0047d464 — the dialogue ROW drawer's per-character reveal fade.
+ * Identical walk to font_draw_text, but glyph i (0-based logical index,
+ * spaces and skipped bytes included) gets its diffuse alpha scaled by
+ *
+ *     clamp((fade_budget - i) * 0.2, ..1.0]      (DAT_005198d8 = 0.2,
+ *                                                 ceil DAT_00519364 = 1.0)
+ *
+ * — the engine keeps the budget in a per-iteration counter (init
+ * 0x47d4d4, per-char load `fildl` 0x47d528, `decl` 0x47d60e), so the
+ * trailing ~5 characters of a revealing line ramp 0.2/0.4/0.6/0.8/1.0:
+ * the typewriter "fade-in" gradient. Callers pass the row's char budget
+ * (the same max_chars the row was truncated to), which keeps the factor
+ * strictly positive — there is no lower clamp in the engine. A negative
+ * fade_budget disables the fade (plain font_draw_text behaviour).
+ */
+float font_draw_text_fade(struct IDirect3DDevice8 *dev,
+                          float x, float y,
+                          const char *str,
+                          uint32_t argb,
+                          float scale,
+                          int fade_budget);
+
+/*
  * FUN_0047d14c — centered-text draw. Walks `str` once with
  * `font_slot_alloc` to measure total advance width using each slot's
  * `effective_width` (the same value `font_draw_text` consumes for

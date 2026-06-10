@@ -681,17 +681,26 @@ recapture; the dialogues "play out correctly… huge progress"):**
    `cx/cz (spread ~0.003)/canim/cframe/pcnt` micro-DRIFT around menu boundaries is the same
    boundary-frame family (who ticks the companion/interact-pose anim on the open/close frame) —
    menu-arm chip scope.
-3. **Text reveal GRADIENT-to-transparent — ✅ PORTED 2026-06-09** (user: "long overdue").
-   Mechanism: `FUN_0047d464` (the glyph-row drawer, port `dialogue_draw_row`) fades EACH ROW's
-   glyph alpha by `input_alpha * clamp(param_6 * DAT_5198d8, DAT_519364)` where `param_6` = that
-   row's char budget, `DAT_5198d8` = **0.2** (`0x3e4ccccd`), `DAT_519364` = **1.0** (clamp ceiling)
-   — verified by objdump (`0x47d528 fildl -0xc` = `param_6`, set once at `0x47d4d4`, so it's
-   **per-row, not per-char**). So a newly-revealing row ramps transparent→opaque over its first
-   ~5 revealed chars; a settled row's budget is large (reveal climbs to 0x800) ⇒ full alpha.
-   The "edge sinf" path I first guessed (`FUN_0046c9a2` `FUN_00503a44`) is a *full-screen* fade
-   effect (`DAT_073a3df4`-gated), NOT the text. Ported into the `scene1_dialogue_draw.c` row loop
-   (`fade = min((int)budget·0.2, 1.0)`, alpha = `(color>>24)·fade`). Verified on item-display-2:
-   port f1196 line-start text dim, f1260 settled text full alpha.
+3. **Text reveal GRADIENT-to-transparent — ✅ FIXED FOR REAL 2026-06-10 (per-CHAR law;
+   the 2026-06-09 per-row port was a misread).** The user re-flagged the fade as still
+   missing (note @777: retail "Rece" + ghost "t", port hard-opaque). Re-disassembly of
+   `FUN_0047d464`: `0x47d4d4` only INITIALIZES the budget local (`-0xc(%ebp)` = param_6);
+   the fade factor is recomputed **per glyph** (`fildl -0xc` at `0x47d528`, `fmuls 0.2`,
+   clamp ≤1.0 vs `DAT_519364`) and the budget is **decremented once per logical char**
+   (`decl -0xc` at `0x47d60e`, after the end-of-string check; SJIS pairs = one char;
+   spaces/0x8140 skip the quad but still consume a slot). Law: char i (0-based) draws at
+   `alpha · clamp((param_6 − i)·0.2, ≤1.0)` ⇒ the trailing ~5 revealed chars ramp
+   0.2/0.4/0.6/0.8/1.0 — a per-char typewriter fade riding the reveal head, NOT a row
+   fade (a row fade saturates at budget≥5 and is invisible except the line's first 5
+   frames — exactly the user's symptom). FRONT's alternative suspect (ALPHAOP/ALPHAARG
+   inherited state eating vertex alpha) was disproven first: the old row fade visibly
+   dimmed early-budget frames on the port ⇒ the diffuse alpha path is fine. Ported as
+   `font_draw_text_fade(…, fade_budget)` (font_draw.c — the same walk; `font_draw_text`
+   = budget −1 wrapper), `dialogue_draw_row` passes its `max_chars`. **Verified on the
+   recapture: text-strip gt8 = 0 for every sampled reveal frame (773-790), the ghost
+   trailing char matches retail pixel-exactly; session over-threshold frames 1212→916.**
+   (Still true from the 06-09 RE: 0.2 = `DAT_5198d8`, ceiling = `DAT_519364`; the
+   "edge sinf" path `FUN_00503a44` is a full-screen fade, unrelated.)
 4. **Placed-item ids on the place path — ✅ STALE / NOT A BUG (verified 2026-06-09 recapture).**
    The 64 / 64064 / 256512 from `display_menu_selected()` (`FUN_00469a9f`) are CORRECT raw
    inventory dwords (`id<<6 | low6` → ids 1 = Walnut Bread, 1001, 4008) — the note misread them

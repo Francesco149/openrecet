@@ -67,3 +67,11 @@ from auto-memory per the audit's R7; the memories are archived.)
 17. **Capture retail ground truth with every chip**: args/retval + state-write
     delta via the flow-trace probes (annotate both sides as you port — that IS
     the state tool now).
+18. **A loop-local loaded by `fildl` may be a per-iteration COUNTER — check the
+    loop tail for `decl/incl` of the same slot before calling a factor
+    "per-row/per-call".** The dialogue reveal fade (`FUN_0047d464`) was ported
+    per-ROW because `0x47d4d4 mov %eax,-0xc(%ebp)` (the budget INIT from
+    param_6) was read as the only write; the real law re-loads `-0xc` per glyph
+    (`fildl` 0x47d528) with a `decl -0xc` at 0x47d60e ⇒ per-CHAR trailing ramp.
+    One screenshot of retail mid-reveal (ghost trailing char) falsified the
+    per-row theory instantly — see gotcha 12.

@@ -375,7 +375,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47cf22 | FUN_0047cf22 | 456 | ✓ | font.h, font_upload.c, font_upload.h |
 | 0x47d14c | FUN_0047d14c | 399 | ✓ | choice_box.c, font_draw.h, scene1_display_menu.c (+2) |
 | 0x47d2db | FUN_0047d2db | 393 | ✓ | font_draw.h |
-| 0x47d464 | FUN_0047d464 | 445 | ✓ | scene1_dialogue_draw.c |
+| 0x47d464 | FUN_0047d464 | 445 | ✓ | font_draw.c, font_draw.h, scene1_dialogue_draw.c |
 | 0x47e711 | FUN_0047e711 | 403 | ✓ | sim.c |
 | 0x47fc44 | FUN_0047fc44 | 596 | ✓ | audio_fade.h |
 | 0x480b65 | FUN_00480b65 | 1919 | ✓ | chara_skills.h |

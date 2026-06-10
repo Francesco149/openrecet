@@ -7494,6 +7494,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/font_draw.c",
+    "src/font_draw.h",
     "src/scene1_dialogue_draw.c"
    ]
   },

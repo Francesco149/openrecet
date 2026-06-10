@@ -53,17 +53,15 @@
   frames are gt8≈2 ⇒ no filtering/sub-pixel residue (#7 dissolved). Don't tune
   `IVE_TUT_LOAD_FRAMES` to 5 (one-run wall-time). Full measurement + corrected
   label↔frame mapping: `findings/shop-display-menu-RE.md` follow-up #8.
+  **Text reveal gradient (#4) ✅ DONE 2026-06-10:** retail fades PER CHARACTER,
+  not per row — a278101 misread `0x47d4d4` (the budget INIT) as the only load;
+  the budget is reloaded per glyph (`fildl` 0x47d528) and decremented per char
+  (`decl` 0x47d60e), so char i draws at alpha·clamp((budget−i)·0.2, ≤1.0) — a
+  5-char trailing ramp riding the reveal head. The ALPHA-pipeline suspicion was
+  moot (the old row fade visibly dimmed ⇒ vertex alpha flows). Ported as
+  `font_draw_text_fade`; text strip gt8=0 across the whole reveal, session
+  over-threshold 1212→916. RE-doc follow-up #3 corrected.
   **Remaining (user-listed 2026-06-10 + triage), the next-session queue:**
-  4. **Dialogue text gradient-to-transparent STILL not visible** (user re-flag).
-     Commit `a278101` is the right RE (per-row alpha = clamp(budget·0.2, 1.0),
-     objdump-verified) and the alpha provably flows into the glyph quad diffuse
-     (`font_draw_text` → `render_quad_add(…, argb)`), so do NOT blind-revert —
-     the prime suspect is the texture-stage ALPHA pipeline at the glyph draw
-     eating vertex alpha (ALPHAOP/ALPHAARG inherited state — the same class as
-     the white-UI COLORARG leak). Drill with `d3d_state_at_draw.py` on a
-     reveal-window glyph draw, both sides; check ALPHABLENDENABLE/SRCBLEND too.
-     If retail shows a per-CHAR edge gradient (not a flat row fade), re-read
-     FUN_0047d464's inner loop before trusting the per-row conclusion.
   5. **Item-Details sub-view** (`pressed & 0x40` path, all.c:65451, PORT-DEBT) —
      label 181: retail shows the narrow-right detail panel, port the plain
      wide-bottom description. Plus **description-panel line layout** (price /

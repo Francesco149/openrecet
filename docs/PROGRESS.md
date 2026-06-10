@@ -7,6 +7,20 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — Dialogue typewriter fade fixed for real: per-CHAR law (gap #4)
+
+The reveal gradient the user kept flagging as missing. The 06-09 port (a278101)
+faded per ROW — a misread of FUN_0047d464: 0x47d4d4 only INITIALIZES the budget
+local; the factor is recomputed per glyph (fildl 0x47d528) and the budget
+decremented per logical char (decl 0x47d60e). Real law: char i at
+alpha·clamp((budget−i)·0.2, ≤1.0) — the trailing ~5 chars ramp 0.2..1.0 riding
+the reveal head (retail's ghost trailing char). The FRONT's ALPHA-pipeline
+suspect was disproven by the port's own row fade visibly dimming (vertex alpha
+flows). New `font_draw_text_fade` (shared walk, font_draw_text = budget −1
+wrapper); dialogue_draw_row passes max_chars. Recapture: text-strip gt8=0 on
+every sampled reveal frame, session over-threshold 1212→916. Gotcha #18 added
+(loop-counter init misread). RE-doc follow-up #3 corrected.
+
 ## 2026-06-10 — Standee offset + portrait outline + NPC note: ONE cause, the iv1_6 load bracket (diagnosed, no code change)
 
 Queue #3 (standees "wider apart", worst frame 1792), queue #7 (Tear portrait
