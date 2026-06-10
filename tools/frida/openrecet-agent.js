@@ -2702,33 +2702,46 @@ function installTutLoadPinWorkerHook() {
     if (g_tlp_hook_installed) return;
     try {
         const k32 = Process.findModuleByName('kernel32.dll');
-        const sleepAddr = k32 ? k32.findExportByName('Sleep') : null;
-        if (!sleepAddr) { err('tutloadpin', 'kernel32 Sleep not found'); return; }
+        const yieldAddr = k32 ? k32.findExportByName('SwitchToThread') : null;
+        const tickAddr  = k32 ? k32.findExportByName('GetTickCount')  : null;
+        if (!yieldAddr || !tickAddr) {
+            err('tutloadpin', 'kernel32 exports not found'); return;
+        }
         g_tlp_flags = Memory.alloc(8);
         g_tlp_flags.writeS32(1);            // pass-through until a trace pins
         g_tlp_flags.add(4).writeS32(0);
-        const sleepCell = Memory.alloc(Process.pointerSize);
-        sleepCell.writePointer(sleepAddr);
+        // 0-ARG kernel32 functions only: for zero args, stdcall and cdecl
+        // generate the identical call sequence, so TinyCC's missing __stdcall
+        // (it rejected the typedef — first attempt failed to compile) costs
+        // nothing. Each cell holds the export's address; the C side casts and
+        // calls through it.
+        const yieldCell = Memory.alloc(Process.pointerSize);
+        yieldCell.writePointer(yieldAddr);
+        const tickCell = Memory.alloc(Process.pointerSize);
+        tickCell.writePointer(tickAddr);
         const cm = new CModule(`
 #include <gum/guminterceptor.h>
 extern volatile int tlp_flags[2];
-typedef void (__stdcall *SleepFn)(unsigned long ms);
-extern SleepFn tlp_sleep;
+extern void *tlp_yield;   /* cell holding kernel32!SwitchToThread */
+extern void *tlp_tick;    /* cell holding kernel32!GetTickCount   */
+typedef unsigned int (*fn0) (void);
 void
 onEnter (GumInvocationContext *ic)
 {
-  int guard = 0;
-  (void)ic;
+  unsigned int t0;
+  (void) ic;
   if (tlp_flags[0] != 0)
     return;
   tlp_flags[1] = 1;
-  while (tlp_flags[0] == 0 && guard < 20000) {   /* fail-open after ~20 s */
-    tlp_sleep (1);
-    guard++;
+  t0 = ((fn0) tlp_tick) ();
+  while (tlp_flags[0] == 0) {
+    ((fn0) tlp_yield) ();
+    if (((fn0) tlp_tick) () - t0 > 20000)   /* fail-open after ~20 s */
+      break;
   }
   tlp_flags[1] = 0;
 }
-`, {tlp_flags: g_tlp_flags, tlp_sleep: sleepCell});
+`, {tlp_flags: g_tlp_flags, tlp_yield: yieldCell, tlp_tick: tickCell});
         Interceptor.attach(rva(ADDR.fn_dlg_load_worker_tail), cm);
         g_tlp_cmodule = cm;                 // keep alive (GC'd CModule = crash)
         g_tlp_hook_installed = true;
@@ -4774,8 +4787,17 @@ rpc.exports = {
             // dialogue bracket, so an arm + release always follows).
             if (g_segtrace_tutloadpin > 0) {
                 installTutLoadPinWorkerHook();
-                if (g_tlp_flags) g_tlp_flags.writeS32(0);
-                log('tutloadpin: active, N=' + g_segtrace_tutloadpin);
+                if (g_tlp_hook_installed && g_tlp_flags) {
+                    g_tlp_flags.writeS32(0);
+                    log('tutloadpin: active, N=' + g_segtrace_tutloadpin);
+                } else {
+                    // The trace pins the PORT side unconditionally — a run
+                    // with the retail hook missing would be silently
+                    // half-pinned (worse than unpinned; cost a full recapture
+                    // cycle to spot on 2026-06-10). Die loudly instead.
+                    throw new Error('tutloadpin: worker hook unavailable - ' +
+                                    'aborting capture (would be half-pinned)');
+                }
             }
             // Segment 0 has base 0 from boot; arm its captures/call-trace now.
             segtraceOnSegmentEnter(g_segtrace_segments[0]);
