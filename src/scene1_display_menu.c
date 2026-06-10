@@ -456,25 +456,33 @@ int display_menu_inventory_remove(uint32_t *bank, int item)
 #include "font_draw.h"     /* font_draw_text* */
 
 /* ── FUN_00469b3a — the bottom description panel (C4b-4a) ──────────────────
- * Drawn at the tail of FUN_0046b00a (all.c:66837) with (param_1,param_2)=(0,0).
- * The parchment bg is always drawn; for a real highlighted item it adds the two
- * description lines, the base price (comma-formatted) and "Number possessed".
- * The -1 ("Nothing") highlight draws only the bg (all.c:65617).  All text is
- * white (DAT_005c7184=0xffffffff) at scale 0.8 (0x3f4ccccd).  PORT-DEBT: the
- * price-status line (Price Up/Down/…) + the b1c0==6 counter price multipliers
- * need FUN_004361b2 (item price-trend) — that reads the daily-market region
- * pricing tables, not yet ported; skipping it == the type-0 (no-trend) path. */
-static void display_menu_description_render(IDirect3DDevice8 *dev)
+ * Drawn at the tail of FUN_0046b00a (all.c:66837).  Ghidra prints the call as
+ * `FUN_00469b3a()` (no args — it DROPPED the FPU/stack floats, a decompile
+ * gotcha), but the panel's internal `local_30 = param_1` is the SLIDE x-offset
+ * fVar1 = (640 - (DAT_0734b98c<<7)), the same one the main panel rides — so the
+ * description panel SLIDES horizontally with the menu, NOT fixed at x=0.  At the
+ * settled-open state slide==5 ⇒ fVar1==0 ⇒ x=0 (full-width, left-aligned), which
+ * is why a fixed-x port matched the open frames yet diverged through the whole
+ * open/close slide (the bg + every text line march right as the menu retracts;
+ * worst frame = mid-close-slide, item-display-2 label 181, gt8≈185k).  param_2
+ * stays 0 (no vertical slide).  All text is white (DAT_005c7184=0xffffffff) at
+ * scale 0.8 (0x3f4ccccd).  PORT-DEBT: the price-status line (Price Up/Down/…) +
+ * the b1c0==6 counter price multipliers need FUN_004361b2 (item price-trend) —
+ * that reads the daily-market region pricing tables, not yet ported; skipping it
+ * == the type-0 (no-trend) path. */
+static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
 {
     const sprite_t *win = &g_sysassets.item_win_tga;   /* DAT_073d8748 */
     if (win->tex == NULL)
         return;
 
-    /* panel bg: item_win src(0,320,640,480) dst(0,332,640,160) (all.c:65592). */
+    /* panel bg: item_win src(0,320,640,480) dst(param_1,332,640,160) (all.c:
+     * 65592-65600) — the 640-wide quad rides x0, so off-screen-right while
+     * sliding and full-width once settled. */
     render_quad_state_setup(dev);
     IDirect3DDevice8_SetTexture(dev, 0, (IDirect3DBaseTexture8 *)win->tex);
     {
-        const float dst[4] = { 0.0f, 332.0f, 640.0f, 160.0f };
+        const float dst[4] = { x0, 332.0f, 640.0f, 160.0f };
         const float src[4] = { 0.0f, 320.0f, 640.0f, 480.0f };
         render_quad_add(dst, src, win->width, win->height, 0xffffffffu);
     }
@@ -494,11 +502,12 @@ static void display_menu_description_render(IDirect3DDevice8 *dev)
      * base items, so we render the resolved record directly. */
     const item_record_t *r = &g_item.records[rec];
 
-    /* description lines (all.c:65660-65661), white scale 0.8. */
+    /* description lines (all.c:65659-65661): local_c = param_1+80, lines at
+     * +368 / +394, white scale 0.8. */
     if (r->desc_line1[0])
-        font_draw_text(dev, 80.0f, 368.0f, r->desc_line1, 0xffffffffu, 0.8f);
+        font_draw_text(dev, x0 + 80.0f, 368.0f, r->desc_line1, 0xffffffffu, 0.8f);
     if (r->desc_line2[0])
-        font_draw_text(dev, 80.0f, 394.0f, r->desc_line2, 0xffffffffu, 0.8f);
+        font_draw_text(dev, x0 + 80.0f, 394.0f, r->desc_line2, 0xffffffffu, 0.8f);
 
     /* base price = DB price · 1.0 (_DAT_005c6ee8) → comma-formatted (FUN_00469abb)
      * → "Base Price: %s" at (80,420) (all.c:65665-65701). */
@@ -513,17 +522,18 @@ static void display_menu_description_render(IDirect3DDevice8 *dev)
             snprintf(num, sizeof num, "%d,%03d,%03d",
                      price / 1000000, (price / 1000) % 1000, price % 1000);
         snprintf(line, sizeof line, "Base Price- %s", num);  /* s_…_005c75f0 */
-        font_draw_text(dev, 80.0f, 420.0f, line, 0xffffffffu, 0.8f);
+        font_draw_text(dev, x0 + 80.0f, 420.0f, line, 0xffffffffu, 0.8f);  /* local_c */
     }
 
-    /* "Number possessed: %d" at (304,420), max(possessed,0) (all.c:65722-65728). */
+    /* "Number possessed: %d" at (param_1+304,420), max(possessed,0) (all.c:
+     * 65722-65728). */
     {
         int n = display_menu_possessed();
         if (n < 0)
             n = 0;
         char line[48];
         snprintf(line, sizeof line, "Number possessed- %d", n);  /* s_…_005c7638 */
-        font_draw_text(dev, 304.0f, 420.0f, line, 0xffffffffu, 0.8f);
+        font_draw_text(dev, x0 + 304.0f, 420.0f, line, 0xffffffffu, 0.8f);
     }
 }
 
@@ -699,8 +709,9 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
     }
 
     /* bottom description panel (FUN_00469b3a, all.c:66837) — bg + the
-     * highlighted item's desc/price/possessed (C4b-4a). */
-    display_menu_description_render(dev);
+     * highlighted item's desc/price/possessed (C4b-4a).  Rides x0 (= retail's
+     * dropped param_1) so it slides with the menu on open/close. */
+    display_menu_description_render(dev, x0);
 
     /* "Button 3: Item Details" control hint (FUN_0046b00a tail, all.c:66843):
      * a baked data_win.tga strip src(288,320,488,352) at fixed dst(440,440,
