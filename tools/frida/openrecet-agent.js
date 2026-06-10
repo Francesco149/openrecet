@@ -1441,6 +1441,18 @@ function installPresentHook(devicePtr) {
             // of this onEnter — see the comment on g_manual_frame_counter
             // for why we don't trust engine-side DAT_073dfcfc here.
             const fn = frameNo();
+            // {tutloadpin} release — FIRST, before the suppress decision AND
+            // anchorTick: the release frame must read gates==0 for BOTH (the
+            // port captures its bracket-END frame, so suppressing it here
+            // would drop one frame per bracket retail-only — seen as a 2-frame
+            // kept-count skew on the first pinned recapture).
+            if (g_segtrace_tutloadpin > 0) {
+                try {
+                    tutloadpinPresentRelease(fn);
+                } catch (e) {
+                    err('Present.onEnter.tutloadpin', e.message);
+                }
+            }
             // D1 load-suppression (Trace Studio v2, plan Phase 1) — mirror of
             // the port's g_frame_loading_active gate (src/main.c). Opt-in via
             // config.suppress_loads (default off), so existing scenarios are
@@ -1521,16 +1533,6 @@ function installPresentHook(devicePtr) {
                 g_draw_count_max = Math.max(g_draw_count_max,
                                             g_draw_count_this_frame);
                 g_draw_count_this_frame = 0;
-            }
-            // {tutloadpin} release — BEFORE anchorTick, so the release
-            // frame's anchor sample reads the post-handoff state and
-            // LOADING_END fires exactly at release_frame.
-            if (g_segtrace_tutloadpin > 0) {
-                try {
-                    tutloadpinPresentRelease(fn);
-                } catch (e) {
-                    err('Present.onEnter.tutloadpin', e.message);
-                }
             }
             // TAS anchor emit. Sample scene/loading state for THIS frame
             // (frameNo() == fn) and emit any rising-edge anchors before the

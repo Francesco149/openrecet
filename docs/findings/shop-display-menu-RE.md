@@ -757,6 +757,44 @@ recapture; the dialogues "play out correctly… huge progress"):**
      wrong label↔frame mapping (it assumed label ≈ port anchor frame; truth: label =
      port_abs − 445). Expected-benign for any session crossing a tutorial load; the
      anchor aligner re-syncs at the next anchor.
+   - **NORMALIZED 2026-06-10 — the `{tutloadpin:8}` op** (FRONT queue #1; port
+     `aaa81a2`, retail `66dcc0e`+`4cca0a3`+`655cdd3`+`80450b9`): pins the bracket to
+     8f on both sides (port = `IVE_TUT_LOAD_FRAMES` override; retail = a CModule
+     BLOCKS the worker at its tail — the tail performs the whole bracket-end handoff
+     itself, so gate re-writes can't extend it; extend-only). Kills this whole seam
+     class at the harness level: equal brackets ⇒ aligned post-seam labels + equal
+     in-bracket db054/wing consumption (eats the bracket part of the ±31 rngcalls
+     residual). item-display-2's working trace carries the op (window widened
+     [0,1850]→[0,1865] to keep the noted moments in-frame); both brackets verified
+     8f on both targets in the recapture anchors. Mechanism + the worker-tail
+     ground truth: quirk §119.
+8b. **Item-Details sub-view — RE map (2026-06-10, pre-port orientation).** The
+   `pressed & 0x40` path is a MODAL FLAG + an overlay draw:
+   - **State:** `DAT_0734b96c` (accessors FUN_004681d3 clear / FUN_004681db set
+     param+1 / FUN_004681e6 get). The item-list input handler FUN_00469414 arms
+     it at all.c:65451-61: `0x40` pressed + item under cursor != -1 + tab count
+     ≥1 → if `(item & 0x10) == 0` (raw list dword flag — check semantics when
+     porting) → `b96c = 1` + hide cursor (FUN_00435612) + SE 0x2c6; else SE
+     0x16a (buzz). While `b96c != 0`, ANY `& 0x70` press closes: `b96c = 0` +
+     FUN_0043561a (cursor back) + SE 0x2c6 (all.c:65256-61) — this check runs
+     EARLY, before normal input (exactly where the port's PORT-DEBT(A3)
+     comment sits in scene1_display_menu.c display_menu_update).
+   - **Render:** FUN_0046b00a's tail (all.c:66836-42): `b96c == 0 →
+     FUN_00469b3a()` (the already-ported bottom description panel); `!= 0 →
+     FUN_00469b3a(); FUN_0046a336();` — the details panel LAYERS OVER it.
+   - **FUN_0046a336 (0x46a336, 2722 B, unported)** = the details overlay:
+     anchor pos via FUN_00435644(&48,&128); `b96c==2` → (256,120), `==3/4` →
+     (256,160) variants (the use/equip menu contexts — set via
+     FUN_004681db(1/2/3) from the town/equip menus; the display stand only
+     uses ==1); >200/>220 fold-back; a 0x90-wide window sprite
+     (FUN_00404efc/...e61) + for `!= 4` an item-category icon GRID on the
+     right half (col = n%4 * 64 + 320, row = n/4 * 72 + 176, icons from
+     DAT_073cc920, category test FUN_00468d6b against the DAT_07477e74 list,
+     gated DAT_0741bed8) + stat lines. Port next to display_menu_render in
+     scene1_display_menu.c; needs ~300 more decompile lines read
+     (66000-66200) for the stat-text rows.
+   - Session evidence: label 181 (pre-load segment) = the worst overall gt8
+     frame — retail shows this panel, port doesn't (FRONT queue #5).
 9. **Menu RENDER cluster (the next chip).** From the recapture's worst frames: (a) the
    **"What will you place?" prompt bubble** — **✅ DONE 2026-06-10** (`36a8ab2`; gap B —
    baked item_win sprite, slides with the panel, 0-1px verified at labels 439/588-594.

@@ -4558,3 +4558,21 @@ difference (item-display-2: 3+1 = 4 labels), which shows up as standee slides /
 line transitions / bg-walker positions leading by that many frames at equal
 labels while everything stays 1:1 relative to script start. Full measurement:
 `shop-display-menu-RE.md` follow-up #8.
+
+**Harness normalization (2026-06-10): the `{tutloadpin:N}` trace op** pins the
+bracket to N frames on BOTH sides — port overrides `IVE_TUT_LOAD_FRAMES`; the
+Frida agent BLOCKS the worker thread at its tail (CModule at 0x452ac2) until N
+frames past the `DAT_0438b1c8==2` arm, then lets the engine's own handoff run.
+**Ground truth that forced this design: the worker's tail performs the WHOLE
+bracket-end transition itself, mid-frame, on the worker thread** — after its
+CloseHandle it zeroes `DAT_06a49950`/`5c`/`60` and sets `DAT_0438b1c8=1`
+(hand-decoded from the unpacked exe; the LAB isn't in the decompile). The main
+loop polls nothing — so a per-frame gate re-write can never extend the bracket
+(the v1 attempt raced and lost systematically), while blocking the worker is
+exactly a slow disk: gates and `4995c` stay up, db054++/wing-emit/overlay run
+the engine's own loading path. EXTEND-only (a real load ≥ N passes through at
+natural length; N must exceed any real bracket — canonical 8). Equal lengths ⇒
+equal consumption inside the bracket and an aligned post-seam label axis.
+Verified: both item-display-2 brackets now span exactly 8f on both targets.
+The lint flags capture windows that cross LOADING brackets without the op
+(`loads-without-tutloadpin`).

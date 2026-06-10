@@ -80,12 +80,13 @@
  *                        post-seam label axis by the bracket-length difference.
  *                        Port: overrides IVE_TUT_LOAD_FRAMES (the synthetic
  *                        D_TUT_LOAD length).  Retail (Frida agent): EXTEND-only —
- *                        holds the load gate (DAT_06a49960) high until N frames
- *                        past the bracket start, so the engine idles the extra
- *                        frames exactly like a slow load (same db054++/wing-emit
- *                        consumption); a real load LONGER than N is left alone
- *                        (can't shorten a thread), so pick N ≥ any plausible real
- *                        bracket (≥ 8 recommended).
+ *                        BLOCKS the load worker at its tail until N frames past
+ *                        the bracket start (the tail itself performs the whole
+ *                        bracket-end handoff, quirk §119), so the engine idles
+ *                        the extra frames exactly like a slow load (same
+ *                        db054++/wing-emit consumption); a real load LONGER
+ *                        than N is left alone (can't shorten a thread), so pick
+ *                        N ≥ any plausible real bracket (≥ 8 recommended).
  *
  *   {"savefile":"<relpath>"} declare the save the trace booted with — a path
  *                        (relative to the trace file's directory) to a
