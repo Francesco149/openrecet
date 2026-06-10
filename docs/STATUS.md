@@ -83,7 +83,9 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   tail AFTER `FUN_0044bd0d` ran (call-trace: done@f15933, load-spawn@f15934). Fixed
   with a 1-frame `D_TUT_DONE` settle latch; recapture #7 (`--only port`): iv1_5-tail
   8f→9f, iv1_6 anchors bit-aligned (+733/+734/+1166), `problems: []`, **over-thr
-  861→529**, rngcalls +26→+12. **Data-1:1; pending human visual confirm in studio.**
+  861→529**, rngcalls +26→+12. **✅ USER-CONFIRMED 1:1 2026-06-10** ("the 2nd
+  dialogue is 1:1 aligned now") — parity ledger; closed the standee@~1448 +
+  NPC@~1844 seam artifacts (RE #8).
   **Remaining (user-listed 2026-06-10 + triage), the next-session queue:**
   5. **Item-Details sub-view (now the session's WORST frame — label 181, gt8≈185k)**
      (`pressed & 0x40` path, all.c:65451, PORT-DEBT) — retail shows the narrow-right
