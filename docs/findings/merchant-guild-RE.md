@@ -1,9 +1,11 @@
 # Merchant's Guild scene (engine mode 6 / Market) — RE + port plan
 
-Status: **investigation complete, port NOT started.** Trace-studio session
-`merchants-guild-20260608-151902` (served 8782 during the RE session). The world-map
-→ guild path is 1:1 up to entry (labels 330–490); from label ~490 retail loads + plays
-the first-visit cutscene while the port shows a blank/cyan placeholder.
+Status: **scene shell + first-visit cutscene LANDED** (`a998fb4`, 2026-06-10) — the
+port now enters mode 6, renders the guild bg, and plays the iv1_3 first-visit cutscene
+(visually confirmed on the trace session: bg + guildmaster/Recette standees + text box
++ Esc-skip prompt, matching the user's notes @138 enter / @179 fade-in / @229 standees).
+Trace-studio session `merchants-guild-20260608-151902`. The world-map → guild path is
+1:1 up to entry (labels 330–490). See `## Port progress` below for what's done + open.
 
 ## What the guild IS
 The world-map "Merchant's Guild" (dest 3) is **internally the Market scene, engine
@@ -78,8 +80,15 @@ pack). The path is built by `FUN_0046ddea` = port `scene1_dialogue_load(scene,su
   `FUN_0049404b`, **`FUN_0046b00a(0,0)`** (the item_win drawer — ALREADY ported, see
   shop-display-menu-RE), `FUN_0043537e`, `FUN_00491de0`, `FUN_00435747`, `FUN_00435117`.
   Else (`!=0`, mid-transition): bg blit with alpha `0xff000000`.
-- The bg textures are loaded by scene-init `FUN_0049174e` (the worker-load piece — the
-  main new asset path). `ivent_bg_ichiba`.
+- The bg textures are loaded by `FUN_00473769` (texture-group 7, dispatched by the
+  worker via `FUN_00471905(7)`). **CORRECTION to the earlier "ivent_bg_ichiba" note:**
+  that is the *variant-1* (dest-1) bg. The dest-3 **guild** (variant 0, `DAT_0963c5f0==0`)
+  loads (exact paths confirmed in `lnkdatas.bin`):
+  - `DAT_073da000` ← **`bmp/ivent/bg_guild.bmp`** (1024×512) — the room bg
+  - `DAT_073da010` ← **`bmp/ivent/13syounin_01.tga`** (512×512) — the guildmaster sprite
+  - `DAT_073da020` ← `bmp/result/bord01.tga` (512×256) — unused in the variant-0 render
+  (`FUN_004918b0`, called by `FUN_0049174e`, is NOT a texture loader — it builds the
+  guildmaster idle-anim sequence table `_DAT_09640624` + `DAT_005cfab4`.)
 
 ## Port plan (next session) — incremental, recapture-verify each step
 Trace: `merchants-guild-20260608-151902` (re-window via `edit.trace.jsonl`; recapture
@@ -103,6 +112,54 @@ which is why the port/retail label axes drift after label 490 — `kept_count_mi
 Then the user re-windows past the dialogue for the **guild main menu** (note: a "new"
 badge appears top-left of Talk when there's unseen dialogue), then the **buy flow**
 (Z buy → Z sword → up qty 2 → Z confirm), then the tail (tab-switch + single buys).
+
+## Port progress (2026-06-10, `a998fb4`)
+Landed `src/scene_guild.{c,h}` + wiring (`sim.c` case 6, `main.c` render case 6 + init,
+`scene_worldmap.c` variant set). **Done (steps 1–3 of the plan):**
+- **Scene shell:** `worker_load_set_cb(6, …)` loads the variant-0 texture set;
+  `scene_guild_render` = `FUN_00490e35`/`FUN_00494a73` guild path — full-screen bg
+  (`bg_guild.bmp`, dst 0,0,640,480 / src 0,0,640,480) + the H-**mirrored** guildmaster
+  (`render_quad_add_mirrored`, dst **−64,32,448,448** / src 0,0,512,512 — `FUN_00404e61`).
+- **Cutscene trigger:** `scene_guild_sim` = `FUN_00490e24`→`FUN_004922c0` first-visit
+  subset — entry-tick counter (`DAT_09642c38`, reset in the load cb per `FUN_0049174e`)
+  fires on the **2nd tick**; first-visit flag `DAT_0450f3f4` at working-arena byte
+  **0x2bc5c** (fires once, persists). The loc-type `!=2` guard is structurally
+  always-true for mode 6 (never a dungeon) — not read literally (loc→slot pinning makes
+  the 0xb7f2-stride read unreliable; PORT-DEBT(loc-routing)).
+- **Dialogue wiring:** `sim.c`'s dialogue-tick gate extended to mode 6 (loads/advances/
+  fast-forwards like the INGAME tutorials); `main.c` draws `scene1_dialogue_draw` on top.
+- **Verified (visual, anchor-aligned):** the port emits the iv1_3 anchors it never
+  produced pre-fix (TEXT_ANIM_START/END, DLG_LINE_SHOW/CLEAR, EXTRA_SPRITE_END) + renders
+  the cutscene. Comparing port↔retail at the SAME dialogue anchor (port TEXT_ANIM_START
+  label 1030 ↔ retail label 901), the **scene composition is pixel-identical** (bg + the
+  guildmaster/Tear/Recette standees in the same positions). The dialogue *lines* are the
+  same script in the same order (iv1_3.ivt through the unchanged shared runtime).
+- **Automated pixel-diff verdict BLOCKED — load-suppression seam (phase pillar, accept).**
+  `triage` shows `kept_count_mismatch` port=1048 / retail=946 with ~93 contiguous
+  port-only labels [510-603]: the port loads the guild FASTER than retail (3 sprite_loads
+  vs retail's heavier scene init), so the port goes "active" + renders the early cutscene
+  lines ("Guild Master: Sol…") during what is retail's load-SUPPRESSED bracket. Retail's
+  first *captured* line is therefore a later one (a capture-boundary artifact, NOT a port
+  bug). `{tutloadpin: 8}` (added) only pins tutorial-dialogue brackets, not the guild
+  scene-load; the verdict needs db054-alignment (`--align-field db054`), which needs a
+  `{phasepin}` (retail db054 absent/unzeroed without it). Phasepin placement on this
+  hand-built MULTI-SEGMENT trace (caprange spans segment bases; base+330 is past where the
+  opening segment's input replay ends at base+156) is non-obvious — left for a deliberate
+  pin pass with the user. `edit.trace.jsonl.bak-preguild` backs up the pre-tutloadpin trace.
+- **Audio:** `audio_diff` flags 2 missing sounds — `se_019_id0150` + `00re_sys09.bin`,
+  both at retail abs 14358 = **label ~348** (on the WORLDMAP, ~260 labels BEFORE the
+  cutscene). A pre-existing worldmap/records-B-portion gap, NOT the guild cutscene (whose
+  voice is correctly muted under fast-forward — 0 extra). Separate arc.
+
+**Open (PORT-DEBT, step 4 + beyond):**
+- `FUN_004922c0` tail: guildmaster idle-anim counters (`DAT_09642c40`…), the daily-event
+  probe (`FUN_0045de68`, event system unported), the group-6 follow-on cutscenes.
+- `FUN_00494a73` UI tail (`FUN_0049404b` fx, `FUN_0046b00a` guild menu frame,
+  `FUN_0043537e`/`FUN_00491de0`/cursor/`FUN_00435117`) + the `FUN_00490e35` trailing
+  `FUN_00406d50` top-HUD — verify against the diff whether visible behind the cutscene.
+- The mid-transition bg path (`DAT_09642c3c!=0`, alpha 0xff000000) + the variant-1
+  (ichiba, dest 1) texture set + render.
+- Then: guild main menu → buy flow → tail (the post-cutscene re-window).
 
 ### Planned follow-on traces (user, for context)
 - Leaving the guild triggers a tutorial cutscene (the man gives you bread).
