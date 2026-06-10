@@ -150,8 +150,13 @@
   tail (guildmaster idle-anim, daily-event probe, group-6 cutscenes), the `FUN_00494a73` UI
   tail (menu frame / cursor / top-HUD), the mid-transition bg path, the variant-1 (ichiba,
   dest 1) set. Follow-on traces queued: leaving the guild (bread cutscene) + returning to
-  Recettear (Tear cutscene) — same `FUN_004922c0` machinery. **Separate gap:** 2 worldmap
-  sounds (`se_019_id0150`+`00re_sys09` @ label ~348, pre-cutscene) the port doesn't play.
+  Recettear (Tear cutscene) — same `FUN_004922c0` machinery. **The 2 "worldmap" sounds
+  (`se_019_id0150`+`00re_sys09`) ✅ DONE 2026-06-10** (`172ecc9`): a retail audio-hook
+  `ret_va` backtrace named the caller `FUN_0048670f` (the HOUSE/shop update, NOT the
+  worldmap) — they're the **first-shop-door-exit** SE (the tutorial trip out), played with
+  the dissolve fade. The port armed the fade+flags but stubbed the SE (`PORT-DEBT(door-SE)`);
+  un-stubbed (RNG-neutral). `audio_diff` merchants-guild: **missing 2→0, track ALIGNED (9
+  sounds)**. Tooling: audio se_play hooks now record `ret_va` (names a SE's caller).
 - **NEXT ARCS:** finish item-display gaps → **merchant's guild scene** (now active,
   above) → town scenes off the world map (world-map backlog itself CLOSED 2026-06-08,
   bit-clean f16→638). Trace-studio v2 **Phase 5** (New-Game cross-replay: retail

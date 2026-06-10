@@ -59,11 +59,20 @@ functions the port ports, so the comparison is apples-to-apples:
 
 ```
 {"t_ms":U,"frame":N,"kind":"bgm_swap","track":N,"name":"bgm/town.wav"}
-{"t_ms":U,"frame":N,"kind":"se_play","slot":N,"name":"se_012_id0148"}
-{"t_ms":U,"frame":N,"kind":"se_play","slot":-1,"name":"bin/se/.../tea.bin"}
+{"t_ms":U,"frame":N,"kind":"se_play","slot":N,"name":"se_012_id0148","ret_va":N}
+{"t_ms":U,"frame":N,"kind":"se_play","slot":-1,"name":"bin/se/.../tea.bin","ret_va":N}
 {"t_ms":U,"frame":N,"kind":"fade_start","channel":C,"slider":S,"centibel":V}  (port-only)
 ```
 
+- `ret_va` (retail se_play, added 2026-06-10) — the immediate caller of the SE
+  function, **module-relative** (caller VA − 0x400000); map to a function with
+  `functions.csv` (`enclosing_fn`). Names WHICH engine function fires a given SE
+  — how the "2 missing worldmap sounds" were traced to `FUN_0048670f` (the HOUSE
+  update, the first-shop-door-exit SE), NOT the world-map sim. CAVEAT: resource
+  SEs (`FUN_00499519`) route through a wrapper, so their `ret_va` is the SE
+  subsystem (uninformative); FILE SEs (`FUN_0049933c`) are called directly by
+  scene code, so their `ret_va` is the real caller. For a resource SE, use the
+  same-frame file-SE caller / objdump the wrapper's caller.
 - `frame` — engine frame index. Port: `g_tick.frame_count` via
   `audio_trace_set_frame()`, called per-tick from the main loop next to
   `d3d_trace_begin_frame` (`src/main.c`). Retail: the agent's manual frame

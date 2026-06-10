@@ -7,6 +7,27 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — audio: the 2 "missing worldmap sounds" = the first-shop-door-exit SE
+
+`audio_diff` had flagged 2 missing sounds on the merchants-guild trace
+(`se_019_id0150` + `bin/se/00re/system/00re_sys09.bin`), pre-cutscene. They were
+mislabelled "worldmap sounds". Added a `ret_va` (immediate caller, module-relative) to
+the retail audio se_play hooks — the file-SE caller resolved to `FUN_0048670f` (the
+HOUSE/shop free-roam update), NOT the world-map sim. They're the **first-shop-door-exit**
+SE (the tutorial trip out to the Guild): asm 0x488a95 gates on the first-exit flag
+(`save[0x2bc5f]==0`), starts the dissolve `FUN_004526f5(0,0x11)`, sets the first-exit flags
+(0x2bc5f/61/62), then plays `00re_sys09.bin` (file, string@0x5cefb8 — Ghidra dropped both
+call args, confirmed via objdump) + `0x150` (id).
+
+The port already ported that arm (`player_ctrl_worldmap_exit_arm`: fade + flags) but
+stubbed the two sounds (standing `PORT-DEBT(door-SE)`). Un-stubbed (file then id, matching
+the asm order). Both fixed (no RNG variant) ⇒ RNG-neutral like the existing `0x143` plays —
+no LCG draw to mirror, debt resolved. `audio_diff` merchants-guild: **missing 2→0, whole
+track ALIGNED (9 sounds)**; cutscene verdict still PHASE-CLEAN, host 3229. Noted a separate
+`PORT-DEBT(door-exit-reset)` for the `DAT_056db000` zero the asm also does (untested,
+world-map render already 1:1). `172ecc9`. Finding: `findings/audio-trace-diff.md` (the
+`ret_va` caller-naming) + `findings/merchant-guild-RE.md` "Audio".
+
 ## 2026-06-10 — guild-cutscene CENSUS: frame-by-frame 1:1 + cutscene-capable verdict (`--align-anchor`)
 
 The "Merchant's Guild cutscene db054-verdict BLOCKED — run the retail census" item turned

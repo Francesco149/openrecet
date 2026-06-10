@@ -172,10 +172,19 @@ Landed `src/scene_guild.{c,h}` + wiring (`sim.c` case 6, `main.c` render case 6 
     @ordinal 161 fully-white frame). NOT a port bug. `{phasepin: 282}`+`{rngseed [282,19937]}`
     +`{tutloadpin: 8}` are KEPT (canonical pin). `edit.trace.jsonl.bak-preguild` backs up the
     pre-pin trace.
-- **Audio:** `audio_diff` flags 2 missing sounds — `se_019_id0150` + `00re_sys09.bin`,
-  both at retail abs 14358 = **label ~348** (on the WORLDMAP, ~260 labels BEFORE the
-  cutscene). A pre-existing worldmap/records-B-portion gap, NOT the guild cutscene (whose
-  voice is correctly muted under fast-forward — 0 extra). Separate arc.
+- **Audio: ✅ ALIGNED 2026-06-10** (`172ecc9`). `audio_diff` flagged 2 missing sounds —
+  `se_019_id0150` + `00re_sys09.bin` (pre-cutscene, NOT the guild dialogue, whose voice is
+  correctly muted under fast-forward — 0 extra). They were mislabelled "worldmap sounds":
+  a retail audio-hook **`ret_va` backtrace** (added to the se_play hooks this session) named
+  the caller **`FUN_0048670f`** (the HOUSE/shop free-roam update), not the world-map sim.
+  They're the **first-shop-door-exit** SE — asm 0x488a95: gated on the first-exit flag
+  (`save[0x2bc5f]==0`), starts the dissolve `FUN_004526f5(0,0x11)`, sets the first-exit flags
+  (0x2bc5f/61/62), then plays `00re_sys09.bin` (file, string@0x5cefb8 — Ghidra dropped both
+  call args, RE'd via objdump) + `0x150` (id). The port's `player_ctrl_worldmap_exit_arm`
+  already had the fade+flags but stubbed the SE (`PORT-DEBT(door-SE)`); un-stubbed (file then
+  id, RNG-neutral). `audio_diff` merchants-guild: **missing 2→0, track ALIGNED (9 sounds)**.
+  (Separately noted PORT-DEBT(door-exit-reset): the asm also zeroes `DAT_056db000` here —
+  untested, world-map render already 1:1; mirror if a later door-exit scenario needs it.)
 
 **Open (PORT-DEBT, step 4 + beyond):**
 - `FUN_004922c0` tail: guildmaster idle-anim counters (`DAT_09642c40`…), the daily-event
