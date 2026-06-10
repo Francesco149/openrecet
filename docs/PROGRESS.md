@@ -7,6 +7,39 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-10 — audio-trace diff: detect sound divergences from traces (no booting the port)
+
+New parity pillar alongside d3d-trace: compare the port's vs retail's SOUND
+TRIGGERS from the captured traces. Built the three layers (mirroring d3d-trace):
+
+- **Port** (`src/audio.c`): the `--audio-trace` JSONL already logged `bgm_swap`/
+  `se_play`/`fade_start`, but only with `t_ms`. Added a `frame` field stamped
+  per-tick by `audio_trace_set_frame(g_tick.frame_count)` from the main loop
+  (next to `d3d_trace_begin_frame`) — the same counter d3d/call-trace + the
+  retail capture key on. (`2bf5efb`)
+- **Retail** (`tools/frida/openrecet-agent.js`): the audio hooks now also hook
+  `FUN_0049933c` (filename/voice SE — previously invisible), reconstruct the
+  port's `se_NNN_idXXXX` label from `DAT_005d1584[slot]`, and dedup `bgm_swap`
+  against `DAT_005d1960` so retail emits only on an actual track change like the
+  port. `frida_capture` threads the name through. (`4c7846e`)
+- **`tools/audio_diff.py`**: aligns by sound IDENTITY + trigger COUNT, not frame
+  — a trace spanning a load has no constant port↔retail frame offset (retail
+  plays an intro/load the port skips), so count-matching is the robust signal.
+  Reports MISSING-IN-PORT / EXTRA / matched, `--session` resolver, exit code,
+  `--summary-json`. (`573b…`, refined `52bbec3`)
+- **Wired into the loop**: `export_trace` always passes `--audio-trace` so studio
+  sessions carry `port/audio.jsonl` (`run-openrecet.sh` path-rewrites it like
+  `--d3d-trace`); `trace_studio triage` runs the audio diff and surfaces it in
+  the first-stop report + exit code (`fb8b224`, `0228fa2`). Doc:
+  `findings/audio-trace-diff.md`.
+
+**First catch, USER-CONFIRMED:** the item-display interaction is silent in the
+port — `audio_diff --session item-display-2` pinpoints 14 missing triggers over
+6 sounds: the cursor tick `se_039_id0166` ×5 (all), confirm `se_007_id0143` ×3
+(in-house), and 6 `00re_sys*` system menu SEs — while the dialogue VOICE lines
+play correctly (`tea_chot.bin` matched). The "3 extra" are tail-window voices
+(port replays a few frames past where retail's capture stopped), not real extras.
+
 ## 2026-06-10 — iv1_5-tail pose-release slip CLOSED: tutorial re-arm deferred 1 frame (the last cross-seam residual)
 
 The d=−1 the `{tutloadpin}` landing left behind. After tutloadpin equalized the

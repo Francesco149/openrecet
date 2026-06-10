@@ -84,6 +84,15 @@
      ~109px, found verifying gap B) · **menu-close camera pan-out whole-frame
      offset** (label 441, ~160k px>8 — pre-exists the carry chip, attributed by
      stash-rebuild-recapture; the scene shifts ⇒ camera, not UI).
+  7. **Item-display SOUND — the menuing SFX are missing** (audio-trace diff,
+     **USER-CONFIRMED 2026-06-10**: voices play, menu SFX don't). `audio_diff
+     --session item-display-2` (now in `triage`): port misses **14 triggers over
+     6 sounds** — cursor tick `se_039_id0166` ×5 (ALL), confirm `se_007_id0143`
+     ×3 (in-house placement), + 6 `00re_sys*` system menu SEs; dialogue voices
+     match. So the item-placement menu drives no `audio_play_se` /
+     `audio_play_se_file` — find + port the SE-trigger call sites in the
+     display-menu interaction (around `FUN_0046b00a` / display_menu).
+     Tooling/RE: `findings/audio-trace-diff.md`.
   *(Tooling owed here — recorder `save_capture` clobber + the session kept-count
   mismatch — both CLOSED 2026-06-10: `9a7bf63` stops the save clobber, and
   `{tutloadpin}` equalized the brackets so the kept-count PROBLEM is gone
@@ -112,6 +121,12 @@
   clear pre-pin particles) — sub-visible, accepted-known; fold into `{phasepin}`
   in a sparkle-parity pass if it's shown to matter. `findings/phase-state-census.md`.
   TODO: run the pinned RETAIL census (Frida host) + census other scenes.
+- **Audio-trace diff (new parity pillar, 2026-06-10):** detect sound divergences
+  from traces alone, no booting the port — `tools/audio_diff.py` compares port↔
+  retail sound triggers by identity+count (phase/load-skew-immune). Foundation:
+  frame-stamped port `audio.jsonl`, retail voice/file-SE hook + `se_NNN_idXXXX`
+  names, studio sessions now carry `port/audio.jsonl`, folded into `trace_studio
+  triage`. First catch = item-display queue #7. `findings/audio-trace-diff.md`.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.
