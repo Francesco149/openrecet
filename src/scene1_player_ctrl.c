@@ -382,6 +382,14 @@ static int   s_cc04             = 0;              /* DAT_0438cc04 */
 static int   s_worldmap_exit_armed = 0;           /* DAT_074b2ec4 — world-map exit pending the dissolve fade (T1) */
 static int   s_cbe8             = 0;              /* DAT_0438cbe8 — display-menu open-once latch */
 
+/* DAT_056db048 / DAT_056db04c — the player-ctrl state machine (FUN_0048cdcc)
+ * slice the HOUSE flow exercises: 0 = free-roam, 0xc = the placement-confirm
+ * hands-up carry pose (26 free-roam frames after the menu closes).  While
+ * non-zero: d-pad interactions (all.c:87617) and the walk impulse (all.c:
+ * 87524) are gated off; the b850 move/damp still runs. */
+static int   s_db048            = 0;              /* DAT_056db048 */
+static int   s_db04c            = 0;              /* DAT_056db04c */
+
 /* Per-frame latch: set when player_ctrl_b850_move() ticks the companion inline
  * (the free-roam walk path, mirroring the engine's FUN_0048a833-nested-in-
  * FUN_0048b850).  scene1_sim.c reads it after scene1_player_ctrl_tick() to run
@@ -437,6 +445,8 @@ void player_ctrl_pose_house_standing(int player_char)
     player_ctrl_cc08_enter_freeroam();
     s_cc04 = 0;
     s_cbe8 = 0;
+    s_db048 = 0;                /* retail zeroes the ctrl state on scene loads */
+    s_db04c = 0;
     stage_load_pulse_reset();   /* display-menu slide dormant at HOUSE entry */
 
     /* Clear the b850-tail render banks + history rings (scene entry empties the
@@ -1216,12 +1226,34 @@ static void player_ctrl_cc04_menu_arm(void)
     }
 
     if (r == 3) {                     /* pick-up arm (Z edge frame, all.c:87915) */
-        /* PORT-DEBT(A3): the brief carry pose (DAT_056db048 = 0xc) the engine
-         * sets here is visual-only (the player holds the item for the 6-frame
-         * confirm countdown) — it does not touch the grid / inventory / db054 /
-         * RNG, so it is deferred to the pose-render chip.  The countdown was
-         * armed inside display_menu_update; the removal lands on the return-1
-         * frame below. */
+        /* The hands-up carry pose (all.c:87916-87929, was PORT-DEBT(A3)):
+         * gated like the confirm — only when the arm is a real action (an item
+         * selected OR the faced cell occupied).  db048 ← 0xc (the carry state,
+         * ticked by the free-roam arm once the menu closes), counter ← 0, and
+         * the player anim record → 4 (the hold-item-overhead pose), latch-gated
+         * exactly like retail (DAT_056daafc != 4).  No grid / RNG / db054
+         * effect; the menu arm's per-frame chr_anim_tick advances the pose
+         * through the 6-frame confirm countdown. */
+        int sel = display_menu_selected();            /* FUN_00469a9f */
+        uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+        int col = shop_display_cbfc();
+        int row = shop_display_cc00();
+        int old = (bank != NULL && col >= 0 && row >= 0)
+                ? (int)bank[SAVE_BANK_FIELD_DISPLAY_GRID
+                            + col + row * SHOP_DISPLAY_GRID_STRIDE]
+                : -1;
+        if (sel != -1 || old != -1) {
+            s_db048 = 0xc;                            /* DAT_056db048 */
+            s_db04c = 0;                              /* DAT_056db04c */
+            if (s_actor_record[0][CHR_ACTOR_STATE] != 4) {
+                union { float f; int32_t i; } z = { .f = 0.0f };
+                s_actor_record[0][CHR_ACTOR_ANIM]    = 4;  /* DAT_056daae8 */
+                s_actor_record[0][CHR_ACTOR_FRAME]   = 0;  /* _DAT_056daaf8 */
+                s_actor_record[0][CHR_ACTOR_COUNTER] = 0;  /* _DAT_056daaf0 */
+                s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;/* DAT_056daaf4 */
+                s_actor_record[0][CHR_ACTOR_STATE]   = 4;  /* DAT_056daafc */
+            }
+        }
         /* FUN_00499519 pick-up SE — fixed id, no RNG. */
         return;
     }
@@ -1327,26 +1359,32 @@ static void player_ctrl_cc08_freeroam_arm(void)
     /* proximity / approach detection: inert (no customer/item live). */
     player_ctrl_cc08_proximity_detect();
 
-    /* d-pad interaction (door/talk/pickup): inert (no target) → falls through. */
-    if (player_ctrl_cc08_dpad_interact())
+    /* d-pad interaction (door/talk/pickup): the whole block sits under the
+     * engine's `if (DAT_056db048 == 0)` (all.c:87617) — a held carry pose
+     * swallows interactions. */
+    if (s_db048 == 0 && player_ctrl_cc08_dpad_interact())
         return;
 
     /* ===== the validated free-roam walk (all.c:1216 + the controllable impulse) ===== */
 
     /* Decode the d-pad → (facing, moving), applying the engine's opposing-pair
      * rejection: a conflicting L+R / U+D frame holds the stored facing + the
-     * previous moving state instead of snapping to the net axis (§69). */
-    int moving = player_ctrl_dpad_intent(g_input_state[0].buttons,
-                                         &s_player_facing, s_player_moving);
-    s_player_moving = moving;
+     * previous moving state instead of snapping to the net axis (§69).
+     * db048 != 0 skips the whole impulse region (all.c:87524) — facing, the
+     * moving latch and the velocity kick all freeze while the pose holds. */
+    if (s_db048 == 0) {
+        int moving = player_ctrl_dpad_intent(g_input_state[0].buttons,
+                                             &s_player_facing, s_player_moving);
+        s_player_moving = moving;
 
-    /* step 1: walk impulse.  daabc/daac4 += sin/cos(db05c)·0.1 — FUN_0048670f's
-     * cc08==1 controllable code, written through *(player+0x904) so it never
-     * shows as a DAT_056daabc= literal (§61).  Stays in the controller; the
-     * clamp/octant/integrate/damp are FUN_0048b850 (player_ctrl_b850_move). */
-    if (moving) {
-        s_player_vel[0] += sinf(s_player_facing) * PC_WALK_ACCEL; /* daabc += sin·0.1 */
-        s_player_vel[2] += cosf(s_player_facing) * PC_WALK_ACCEL; /* daac4 += cos·0.1 */
+        /* step 1: walk impulse.  daabc/daac4 += sin/cos(db05c)·0.1 — FUN_0048670f's
+         * cc08==1 controllable code, written through *(player+0x904) so it never
+         * shows as a DAT_056daabc= literal (§61).  Stays in the controller; the
+         * clamp/octant/integrate/damp are FUN_0048b850 (player_ctrl_b850_move). */
+        if (moving) {
+            s_player_vel[0] += sinf(s_player_facing) * PC_WALK_ACCEL; /* daabc += sin·0.1 */
+            s_player_vel[2] += cosf(s_player_facing) * PC_WALK_ACCEL; /* daac4 += cos·0.1 */
+        }
     }
 
     /* FUN_0048b850 free-roam body: clamp → octant(→FACING) → integrate+collide
@@ -1365,13 +1403,41 @@ static void player_ctrl_cc08_freeroam_arm(void)
     else
         shop_display_highlight_clear();
 
+    /* ── FUN_0048cdcc db048==0xc — the carry-pose hold (all.c:90640-90652 +
+     * the shared release tail 90793-90794) ──────────────────────────────────
+     * Runs in the b850 tail every free-roam frame while the state holds:
+     * re-assert the anim-4 record if anything stole it (latch-gated, exactly
+     * retail's `DAT_056daafc != 4`), otherwise advance the pose; count
+     * db04c++ and release to free-roam (db048=0) once it reaches 0x1a — the
+     * release frame still shows the pose, the NEXT frame's db048==0 path
+     * re-selects idle/walk (FUN_00489e66).  The 0xc branch skips the normal
+     * anim select (engine goto LAB_0048d55a). */
+    if (s_db048 == 0xc) {
+        if (s_actor_record[0][CHR_ACTOR_STATE] != 4) {
+            union { float f; int32_t i; } z = { .f = 0.0f };
+            s_actor_record[0][CHR_ACTOR_ANIM]    = 4;
+            s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
+            s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
+            s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
+            s_actor_record[0][CHR_ACTOR_STATE]   = 4;
+        } else {
+            chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
+        }
+        s_db04c++;
+        if (s_db04c >= 0x1a) {
+            s_db04c = 0;
+            s_db048 = 0;
+        }
+        return;
+    }
+
     /* actor record: anim id (0 idle / 1 walk = daae8).  The facing octant (dab00)
      * was set by player_ctrl_b850_move above.  On an idle↔walk transition, restart
      * the new animation at frame 0; otherwise let it continue so the idle's
      * breathing loop keeps the phase it was seeded with.  chr_anim_tick advances
      * the cycle EVERY frame — retail's idle animates too (a 4-frame breathing
      * loop, ~10 ticks/frame; validated runs/w3b-anim-watch), not just the walk. */
-    int target_anim = moving ? 1 : 0;
+    int target_anim = s_player_moving ? 1 : 0;
     if (s_actor_record[0][CHR_ACTOR_ANIM] != target_anim) {
         /* idle↔walk transition: seed the new anim at frame 0 / counter 0 and do
          * NOT advance it this frame.  Retail observes counter==0 on the
@@ -1391,6 +1457,10 @@ static void player_ctrl_cc08_freeroam_arm(void)
         s_actor_record[0][CHR_ACTOR_FRAME]   = 0;
         s_actor_record[0][CHR_ACTOR_COUNTER] = 0;
         s_actor_record[0][CHR_ACTOR_TIMER]   = z.i;
+        /* the latch too (FUN_00489e66 writes DAT_056daafc with the anim) — a
+         * stale carry latch (4) would otherwise skip the next carry's
+         * re-assert. */
+        s_actor_record[0][CHR_ACTOR_STATE]   = target_anim;
     } else {
         chr_anim_tick(s_actor_record[0], s_actor_char[0], 1.0f);
     }

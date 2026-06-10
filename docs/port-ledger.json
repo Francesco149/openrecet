@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 383,
-  "unported": 2081,
+  "ported": 385,
+  "unported": 2079,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 467,
-  "pct_touched": 18.3,
+  "touched": 469,
+  "pct_touched": 18.4,
   "pct_verified": 2.7,
   "port_debt": 22
  },
@@ -8394,8 +8394,10 @@
    "size": 1227,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x48a331",
@@ -8516,8 +8518,10 @@
    "size": 2058,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene1_player_ctrl.c"
+   ]
   },
   {
    "va": "0x48d5d6",
