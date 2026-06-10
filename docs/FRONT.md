@@ -130,8 +130,8 @@
   (`scene_guild_sim` = `FUN_00490e24`→`FUN_004922c0` first-visit subset → entry-tick
   counter + flag `DAT_0450f3f4` @ `0x2bc5c` → `scene1_intro_dialogue_start_single(1,3)`;
   dialogue tick/draw wired into mode 6). Build clean, host 3229.
-  **CENSUS DONE 2026-06-10 → cutscene is frame-by-frame 1:1 (machine-verified 3 ways);
-  awaiting USER eyeball to upgrade to confirmed-1:1.** The earlier "db054-verdict BLOCKED /
+  **CENSUS DONE → cutscene is frame-by-frame 1:1, USER-CONFIRMED 2026-06-10** (parity ledger;
+  the user eyeballed the anchor-matched montage: "that looks correct").** The earlier "db054-verdict BLOCKED /
   run the RETAIL census" was a MISFRAMING: the cutscene IS richly probed on BOTH sides
   (`dialogue_tick` `FUN_0046c320` emits box_open/reveal/line_row/st5_* — 774 retail / 895
   port frames). db054 is the wrong clock for a cutscene (its only source `house_update`
@@ -145,11 +145,26 @@
   early cutscene frames in retail's load bracket; kept-count 1058/936; phase pillar, accept).
   Canonical pin KEPT (`{phasepin 282}`+`{rngseed [282,19937]}`+`{tutloadpin 8}`). RE + full
   breakdown: `findings/merchant-guild-RE.md` "CENSUS DONE"; recipe: `flow-trace-cheatsheet.md`
-  "Cutscene verdict". **NEXT (needs user re-window):** guild
-  main menu (conditional "new" badge) → buy flow → tail. **PORT-DEBT:** the `FUN_004922c0`
-  tail (guildmaster idle-anim, daily-event probe, group-6 cutscenes), the `FUN_00494a73` UI
-  tail (menu frame / cursor / top-HUD), the mid-transition bg path, the variant-1 (ichiba,
-  dest 1) set. Follow-on traces queued: leaving the guild (bread cutscene) + returning to
+  "Cutscene verdict".
+  **WORLDMAP door-exit SE ✅ DONE 2026-06-10** (`172ecc9`): the 2 "missing worldmap sounds"
+  were the first-shop-door-exit SE (`FUN_0048670f`, RE'd via a retail audio-hook `ret_va`),
+  not worldmap — un-stubbed; `audio_diff` ALIGNED (9 sounds). See `audio-trace-diff.md`.
+  **MENU WINDOW SET UP + SYNCED 2026-06-11 → NOW PORTING `FUN_00494a73` (the guild main
+  menu UI).** Re-windowed `[330,2000]` to reach the post-cutscene menu (labels ~1696–2180);
+  synced port↔retail via the new **`MARKET_ENTER`** anchor (`12f53d2`, the distinct sync
+  point for the non-deterministic guild load: port ~8f / retail ~88f) + the **anchor-rebase**
+  (`6b1d714`, `rebase_retail_to_port_anchor` re-aligns retail at the latest shared captured
+  anchor — EXTRA_SPRITE_END here — on a kept-count seam). At a matched label the guildmaster
+  pose is identical; the diff is the REAL menu-UI gap: retail draws Buy/Sell/Talk/Leave panel
+  + gold HUD + guildmaster bubble ("Time to stock up…"), the port draws only the guild bg
+  (+ a stray blue bar). (Rebase trade-off: the pre-cutscene worldmap labels 330–~510 read
+  offset; the worldmap is confirmed 1:1 separately.) **THE PORT TARGET:** `FUN_00494a73` tail
+  (`FUN_0049404b` fx · `FUN_0046b00a` menu frame [ALREADY ported, shop-display] · cursor
+  `FUN_0043537e`/`FUN_00491de0`/`FUN_00435747`/`FUN_00435117`) + the `FUN_00490e35` trailing
+  `FUN_00406d50` top-HUD + the guildmaster speech bubble; RE map in `merchant-guild-RE.md`.
+  **Other PORT-DEBT:** the `FUN_004922c0`
+  tail (guildmaster idle-anim, daily-event probe, group-6 cutscenes), the mid-transition bg
+  path, the variant-1 (ichiba, dest 1) set. Follow-on traces queued: leaving the guild (bread cutscene) + returning to
   Recettear (Tear cutscene) — same `FUN_004922c0` machinery. **The 2 "worldmap" sounds
   (`se_019_id0150`+`00re_sys09`) ✅ DONE 2026-06-10** (`172ecc9`): a retail audio-hook
   `ret_va` backtrace named the caller `FUN_0048670f` (the HOUSE/shop update, NOT the
