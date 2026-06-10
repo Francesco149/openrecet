@@ -318,6 +318,26 @@ def run_capture(cfg: CaptureConfig) -> int:
             retail_base = _cached_retail_base(retail_dir)
         _log(f"--only port: reusing cached retail (base {retail_base})")
 
+    # Anchor-rebase: the per-side window_start+k renumber assumes kept-frame i is the
+    # same MOMENT both sides — false across a non-deterministic LOAD (the guild scene
+    # loads ~8f port / ~88f retail), which leaves the post-load frames label-offset
+    # (the kept-count seam: a menu after a cutscene wouldn't diff synced). When the
+    # kept counts differ, re-align retail to the port at the latest shared CAPTURED
+    # anchor so everything downstream of it (the menu) lines up. No-op when the counts
+    # match (the common, seam-free case → zero blast radius). Both-fresh only — a
+    # cached --only-port retail is already aligned.
+    if run_port and run_retail and "retail_error" not in result:
+        from frame_io import frame_glob
+        n_port = len(frame_glob(port_dir / "frames"))
+        n_retail = len(frame_glob(retail_dir / "frames"))
+        if n_port != n_retail:
+            sh = convert.rebase_retail_to_port_anchor(
+                port_dir, retail_dir, window_start=cr[0], retail_base=retail_base)
+            if sh:
+                _log(f"rebase: retail re-aligned to port at the latest shared anchor "
+                     f"(label shift {sh:+d}); kept-count seam port={n_port} "
+                     f"retail={n_retail} — post-anchor content now diffs synced")
+
     manifest: dict = {
         "schema": "trace-studio-v2",
         "session": sess,

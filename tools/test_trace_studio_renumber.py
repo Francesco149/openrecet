@@ -23,7 +23,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
-from trace_studio.transport.convert import renumber_to_label, renumber_retail  # noqa: E402
+from trace_studio.transport.convert import (renumber_to_label, renumber_retail,  # noqa: E402
+                                            rebase_retail_to_port_anchor)
 from trace_studio.analysis.pixeldiff import build_diff  # noqa: E402
 
 
@@ -108,6 +109,38 @@ def main() -> int:
         fixed = build_diff(bp, br, d / "f" / "diff" / "frames", amp=1.0)
         assert all(e["differ"] == 0 for e in fixed["per_frame"]) and \
             sorted(e["frame"] for e in fixed["per_frame"]) == [2, 3, 4, 5, 6], fixed
+
+        # ── (6) anchor-rebase across a kept-count LOAD seam ──
+        # A shared anchor SYNC fires at the same MOMENT both sides, but a longer load
+        # before it on one side leaves more pre-SYNC kept frames there: the per-side
+        # window_start+k renumber then puts SYNC at DIFFERENT labels (port 5, retail 3),
+        # mispairing post-SYNC content (a menu after a cutscene). rebase_retail_to_port_
+        # anchor re-shifts retail so SYNC matches the port's label → post-SYNC diffs zero.
+        import json as _json
+        gp, gr = d / "g" / "port", d / "g" / "retail"
+        sync_rgb = {0: (9, 9, 9), 1: (8, 7, 6), 2: (5, 4, 3)}      # by SYNC offset
+        pcol = {k: (k + 1, k + 1, k + 1) for k in range(5)}        # pre-SYNC k=0..4
+        pcol.update({5 + o: sync_rgb[o] for o in range(3)})       # SYNC..+2 at k=5..7
+        _mk(gp, list(range(8)), pcol)                             # 0-based, 8 frames
+        (gp / "meta.jsonl").write_text("\n".join(
+            _json.dumps({"frame": k, "frame_abs": 100 + k}) for k in range(8)) + "\n")
+        (gp / "anchors.jsonl").write_text(
+            _json.dumps({"anchor": "SYNC", "frame": 105}) + "\n")   # SYNC = port k=5
+        rcol = {200 + i: (50 + i, 0, 0) for i in range(3)}        # pre-SYNC (≠ port)
+        rcol.update({203 + o: sync_rgb[o] for o in range(3)})     # SYNC..+2 MATCH port
+        _mk(gr, [200 + i for i in range(6)], rcol)                # abs, 6 frames (seam)
+        (gr / "anchors.jsonl").write_text(
+            _json.dumps({"anchor": "SYNC", "frame": 203}) + "\n")  # SYNC = retail abs 203
+        renumber_to_label(gp, window_start=0)
+        rb = renumber_to_label(gr, window_start=0)
+        assert _labels(gp) == [0, 1, 2, 3, 4, 5, 6, 7] and _labels(gr) == [0, 1, 2, 3, 4, 5]
+        sh = rebase_retail_to_port_anchor(gp, gr, window_start=0, retail_base=rb)
+        assert sh == -2, f"retail SYNC label 3 → port 5 is shift -2, got {sh}"
+        assert _labels(gr) == [2, 3, 4, 5, 6, 7], _labels(gr)      # retail +2; SYNC→5
+        g_out = build_diff(gp, gr, d / "g" / "diff" / "frames", amp=1.0)
+        gbad = {e["frame"]: e for e in g_out["per_frame"]}
+        for L in (5, 6, 7):                                       # post-SYNC: synced now
+            assert L in gbad and gbad[L]["differ"] == 0, (L, gbad.get(L))
 
     print("OK: trace_studio renumber (port 0-based + retail abs BOTH rebase to label "
           "space for window_start>0; idempotent; window_start=0 no-op; end-to-end "
