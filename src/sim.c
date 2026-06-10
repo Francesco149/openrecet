@@ -41,6 +41,7 @@
 #include "skip_event.h"            /* ESC "skip this event?" prompt */
 #include "scene1_particles_tick.h"  /* engine FUN_0040fb3a — LAB_00453bed body */
 #include "scene_worldmap.h" /* scene_worldmap_sim — mode-8 per-state callee (FUN_0049e163) */
+#include "scene_guild.h"    /* scene_guild_sim — mode-6 per-state callee (FUN_00490e24) */
 #include "scene1_top_hud.h" /* scene1_top_hud_worldmap_tooltip_tick — FUN_00406584 mode-8 selector */
 #include "scene1_sim.h"   /* scene1_ingame_tick — engine FUN_004427d3 wrapper */
 #include "scene_title.h"  /* scene_title_sim_default + g_scene_title_* */
@@ -286,6 +287,14 @@ void sim_step_a(void)
         } else {
             scene1_intro_dialogue_tick(g_input_state[0].buttons);
         }
+    } else if (g_scene_state == 6) {
+        /* Merchant's Guild (mode 6) first-visit cutscene (iv1_3), armed by
+         * scene_guild_sim's first-visit branch.  Tick the shared dialogue
+         * runtime so it loads + advances + fast-forwards (X-hold), exactly as
+         * the INGAME tutorial dialogues do.  No ESC skip-prompt modal here —
+         * that flow is prologue-only (skip_event is armed by the title/HOUSE
+         * path).  No-op until armed; a no-op once the script completes. */
+        scene1_intro_dialogue_tick(g_input_state[0].buttons);
     }
 
     /* Engine FUN_004536cb L50470-50471: two unconditional per-frame
@@ -363,9 +372,18 @@ void sim_step_a(void)
         scene_worldmap_sim();
         break;
 
+    case 6:    /* Merchant's Guild / Market (engine FUN_00490e24 → FUN_004922c0) */
+        /* LAB_00453bed for mode 6: FUN_00406584 (shared cursor anim) →
+         * FUN_0040fb3a (particles) → the per-state callee FUN_00490e24, in that
+         * order.  The cursor-anim sibling stays stubbed (no guild consumer wired
+         * yet); scene_guild_sim is the per-state event tick (entry-tick counter
+         * + first-visit iv1_3 cutscene trigger). */
+        scene1_particles_tick();
+        scene_guild_sim();
+        break;
+
     case 2:    /* cutscene  (engine FUN_0049d8a4) */
     case 3:    /* dialog    (engine FUN_0041ee24) */
-    case 6:    /* (engine FUN_00490e24, 17 B trivial) */
     case 7:    /* dungeon idle  (engine FUN_0049db8a) */
     case 0xb:  /* (engine FUN_0045c051, 3021 B — biggest scene callee) */
     case 0xd:  /* ending arm A (engine FUN_0045e3dc) */

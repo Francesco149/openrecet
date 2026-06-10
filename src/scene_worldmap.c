@@ -25,6 +25,7 @@
 #include "audio.h"              /* audio_play_se_by_id — move/confirm/denied SE (fixed id, no RNG) */
 #include "fade.h"               /* fade_phase1_start/_is_done/_phase_out_start — FUN_004526f5/4528b3/45281c */
 #include "call_trace.h"         /* CALL_TRACE_* — flow-trace fields for the both-target verify */
+#include "scene_guild.h"        /* scene_guild_set_variant — mode-6 variant on dest 3/1 */
 
 /* ─── pre-baked asset table ──────────────────────────────────────────── */
 
@@ -348,6 +349,13 @@ static void scene_worldmap_exit_to_dest(void)
     case 3:  mode = 6;    break;         /* Market — FUN_00490e16(0) */
     default: mode = 6;    break;         /* dest 1 — FUN_00490e16(1) */
     }
+
+    /* Mode 6 (Market) variant flag — engine FUN_00490e16(v): dest 3 enters the
+     * Merchant's Guild (variant 0, the tutorial-forced target), the default
+     * dest-1 enters variant 1.  Set before the load worker so scene_guild's
+     * case-6 cb picks the right texture set. */
+    if (mode == 6)
+        scene_guild_set_variant(s_sel_dest == 3 ? 0 : 1);
 
     g_scene_state = mode;                /* DAT_0438b1c0 = <dest mode> */
     fade_phase_out_start(0, 0x11);       /* FUN_0045281c(0,0x11) — fade-IN */

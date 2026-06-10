@@ -52,6 +52,7 @@
 #include "scene_table.h"
 #include "scene_walls.h"
 #include "scene_worldmap.h"
+#include "scene_guild.h"
 #include "sysassets.h"
 #include "sim.h"
 #include "music.h"
@@ -1604,6 +1605,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     scene_jutan_init(g_dev);
     scene_pause_init(g_dev);
     scene_worldmap_init(g_dev);
+    scene_guild_init(g_dev);   /* mode-6 Merchant's Guild — worker_load case 6 */
     scene_table_init(g_dev);
     scene_sc1_init(g_dev);
 
@@ -3046,6 +3048,15 @@ static void render_dispatch(void)
              * destination, and lives in FUN_00406d50.) */
             scene1_top_hud_render(g_dev);            /* FUN_00406d50 — clock/Day/money + tooltip */
             title_save_dialog_cursor_render(g_dev);  /* FUN_00435747 — destination pointer */
+            break;
+        case 6:
+            /* Merchant's Guild / Market — engine FUN_00490e35 → FUN_00494a73
+             * (the 2D guild bg + the mirrored guildmaster). */
+            scene_guild_render(g_dev);
+            /* The first-visit cutscene (iv1_3) draws ON TOP: conversation-pose
+             * standees + the text box, via the shared dialogue draw (no-op
+             * unless a script is active) — same call as the INGAME branch. */
+            scene1_dialogue_draw(g_dev);
             break;
         default:
             break;

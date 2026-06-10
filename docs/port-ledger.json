@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 385,
-  "unported": 2079,
+  "ported": 392,
+  "unported": 2072,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 469,
-  "pct_touched": 18.4,
+  "touched": 476,
+  "pct_touched": 18.7,
   "pct_verified": 2.7,
   "port_debt": 22
  },
@@ -636,7 +636,8 @@
    "status": "ported",
    "src": [
     "src/render_quad.c",
-    "src/render_quad.h"
+    "src/render_quad.h",
+    "src/scene_guild.c"
    ]
   },
   {
@@ -3408,6 +3409,7 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_guild.c",
     "src/scene_worldmap.c"
    ]
   },
@@ -3493,8 +3495,10 @@
    "size": 3,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_guild.c"
+   ]
   },
   {
    "va": "0x44c7bb",
@@ -3929,6 +3933,7 @@
    "src": [
     "src/scene1_intro_dialogue.c",
     "src/scene1_tutorial_dispatch.h",
+    "src/scene_guild.c",
     "src/scene_sc1.h",
     "src/worker_load.c",
     "src/worker_load.h"
@@ -4609,6 +4614,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_guild.c",
+    "src/scene_guild.h",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
     "src/tables_event.c",
@@ -5665,7 +5672,8 @@
    "src": [
     "src/main.c",
     "src/scene1_display_menu.c",
-    "src/scene1_display_menu.h"
+    "src/scene1_display_menu.h",
+    "src/scene_guild.c"
    ]
   },
   {
@@ -6729,6 +6737,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_guild.c",
+    "src/scene_guild.h",
     "src/worker_load.h"
    ]
   },
@@ -8922,6 +8932,7 @@
    "status": "ported",
    "src": [
     "src/scene.h",
+    "src/scene_guild.h",
     "src/scene_worldmap.c"
    ]
   },
@@ -8933,6 +8944,8 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
+    "src/scene_guild.c",
+    "src/scene_guild.h",
     "src/sim.c"
    ]
   },
@@ -8942,8 +8955,12 @@
    "size": 15,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/main.c",
+    "src/scene_guild.c",
+    "src/scene_guild.h"
+   ]
   },
   {
    "va": "0x490e56",
@@ -9059,8 +9076,11 @@
    "size": 354,
    "is_thunk": false,
    "is_call_target": false,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_guild.c",
+    "src/scene_guild.h"
+   ]
   },
   {
    "va": "0x4918b0",
@@ -9124,8 +9144,10 @@
    "size": 1248,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_guild.c"
+   ]
   },
   {
    "va": "0x4922c0",
@@ -9133,8 +9155,12 @@
    "size": 4950,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_guild.c",
+    "src/scene_guild.h",
+    "src/sim.c"
+   ]
   },
   {
    "va": "0x493616",
@@ -9151,8 +9177,10 @@
    "size": 2600,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_guild.c"
+   ]
   },
   {
    "va": "0x494a73",
@@ -9160,8 +9188,12 @@
    "size": 561,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/main.c",
+    "src/scene_guild.c",
+    "src/scene_guild.h"
+   ]
   },
   {
    "va": "0x494ca4",
