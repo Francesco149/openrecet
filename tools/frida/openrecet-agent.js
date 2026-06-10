@@ -4781,24 +4781,9 @@ rpc.exports = {
             // tracer emits ONLY inside armed anchor-relative windows.
             g_ct_window_mode = g_segtrace_segments.some(
                 function (s) { return s.calltraces.length > 0; });
-            // {tutloadpin:N} present in the ops → attach the worker-tail
-            // blocker and block-by-default (a sub-frame load could reach the
-            // tail before the first pre-sim arm tick; every 452aab tail is a
-            // dialogue bracket, so an arm + release always follows).
-            if (g_segtrace_tutloadpin > 0) {
-                installTutLoadPinWorkerHook();
-                if (g_tlp_hook_installed && g_tlp_flags) {
-                    g_tlp_flags.writeS32(0);
-                    log('tutloadpin: active, N=' + g_segtrace_tutloadpin);
-                } else {
-                    // The trace pins the PORT side unconditionally — a run
-                    // with the retail hook missing would be silently
-                    // half-pinned (worse than unpinned; cost a full recapture
-                    // cycle to spot on 2026-06-10). Die loudly instead.
-                    throw new Error('tutloadpin: worker hook unavailable - ' +
-                                    'aborting capture (would be half-pinned)');
-                }
-            }
+            // ({tutloadpin:N} in the ops attaches its worker-tail blocker in
+            // the install-hooks block below — it needs rva()/the resolved
+            // module base, which isn't available at parse time.)
             // Segment 0 has base 0 from boot; arm its captures/call-trace now.
             segtraceOnSegmentEnter(g_segtrace_segments[0]);
         }
@@ -5106,6 +5091,23 @@ rpc.exports = {
             installAudioHooks();
             installInputHook();
             installBgNpcPinHook();   // {phasepin} window-NPC warmup re-seed
+            // {tutloadpin}: block-by-default from install (a sub-frame load
+            // could reach the worker tail before the first pre-sim arm tick;
+            // every 452aab tail is a dialogue bracket, so an arm + release
+            // always follows). Abort loudly if the hook can't attach — the
+            // trace pins the PORT unconditionally, so proceeding would
+            // produce a silently half-pinned session (cost a recapture
+            // cycle to spot, 2026-06-10).
+            if (g_segtrace_tutloadpin > 0) {
+                installTutLoadPinWorkerHook();
+                if (g_tlp_hook_installed && g_tlp_flags) {
+                    g_tlp_flags.writeS32(0);
+                    log('tutloadpin: active, N=' + g_segtrace_tutloadpin);
+                } else {
+                    throw new Error('tutloadpin: worker hook unavailable - ' +
+                                    'aborting capture (would be half-pinned)');
+                }
+            }
             // Window-hide hook needs to install BEFORE resume so it can
             // intercept the engine's first ShowWindow call. Same lifetime
             // as the other capture-side hooks.
