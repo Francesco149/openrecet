@@ -661,7 +661,24 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             base = cfg.record_trace_path.stem.replace(".raw", "")
             fname = (f"{base}.save.bin" if which == "boot"
                      else f"{base}-recsave-{idx}.bin")
-            (cfg.record_trace_path.parent / fname).write_bytes(data)
+            # NEVER clobber a different save under the same name (a re-record
+            # with the same session name overwrote the previous boot save —
+            # bit us twice on item-display-2): identical content reuses the
+            # file; different content gets a `-N` suffixed name.
+            target = cfg.record_trace_path.parent / fname
+            n = 1
+            reuse = False
+            while target.exists():
+                if hashlib.sha256(target.read_bytes()).hexdigest() == sha:
+                    reuse = True                # same content — reuse as-is
+                    break
+                n += 1
+                target = target.with_name(
+                    f"{base}.save-{n}.bin" if which == "boot"
+                    else f"{base}-recsave-{idx}-{n}.bin")
+            if not reuse:
+                target.write_bytes(data)
+            fname = target.name
             rec_saves.append({"which": which, "index": idx,
                               "frame": int(p.get("frame", 0)),
                               "file": fname, "sha256": sha, "size": size})
