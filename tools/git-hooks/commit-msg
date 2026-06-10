@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-CLAUDE_MODEL="Claude Fable 5"
+CLAUDE_MODEL="Claude Opus 4.8 (1M context)"
 TRAILER="Co-Authored-By: ${CLAUDE_MODEL} <noreply@anthropic.com>"
 
 msg_file="$1"
