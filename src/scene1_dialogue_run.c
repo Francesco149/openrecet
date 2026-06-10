@@ -340,8 +340,16 @@ static int ive_exec(struct ive_runtime *rt, const struct ive_cmd *c,
          * instant the walk reaches the command (ret 1, same frame), so the
          * voice lands as the following msg line shows. The backend is
          * single-slot, so a new line's voice stops the previous one. NULL
-         * bridge (test build / pre-audio_init) = silent no-op. */
-        if (g_ive_se_play_fn && rt->prog &&
+         * bridge (test build / pre-audio_init) = silent no-op.
+         *
+         * MUTE WHILE FAST-FORWARDING (asm 0x46d885: `cmpl $0x1,DAT_005c78ec; jne
+         * skip`): the voice plays ONLY when the internal step count == 1, i.e. at
+         * normal speed.  Holding X (0x20 → 2 steps) or button-3 (0x40 → 0x50
+         * steps) to skip mutes the line so the skip doesn't garble overlapping
+         * voices.  steps==1 ⟺ no FF button held ⟺ (held & IVE_BTN_FF)==0 (the port
+         * models DAT_005c78ec as `steps`, prologue/tutorial local_104≡1). */
+        if ((held & IVE_BTN_FF) == 0 &&
+            g_ive_se_play_fn && rt->prog &&
             c->a1 >= 0 && c->a1 < IVE_MAX_NAMES) {
             g_ive_se_play_fn(rt->prog->se[c->a1]);
         }
