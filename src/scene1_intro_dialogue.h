@@ -115,6 +115,11 @@ const struct ive_program *scene1_intro_dialogue_program(void);
  * a fixed-offset capture is un-shaken on both sides (engine-quirks §105 + §85). */
 void scene1_intro_dialogue_phasepin(void);
 
+/* Trace-harness `{tutloadpin:N}`: pin the tutorial-dialogue load bracket
+ * (D_TUT_LOAD) to N frames, matching the Frida agent's extension of retail's
+ * worker-thread bracket to the same N (engine-quirks §119).  N <= 0 clears. */
+void scene1_intro_dialogue_set_tut_load_frames(int n);
+
 /* Monotonic counter bumped each time a script loads (iv1_1, then iv1_2). The
  * render pass reloads its bg/chr textures when this changes. */
 unsigned scene1_intro_dialogue_generation(void);

@@ -72,7 +72,7 @@ _none_
 | FUN_004361b2 | src/scene1_merchant_hud.c:201 | C3b item-name tooltip price-trend colour defaulted to level-0 neutral 0x7f7f7f (daily-market classifier unported). |
 | FUN_00436f97 | src/scene1_postload.c:9 | of the 710-line state-entry init this |
 | FUN_004536cb | src/sim.c:281 | retail freezes the *entire |
-| FUN_00473c03 | src/scene1_intro_dialogue.c:254 | the engine teardown also restores the |
+| FUN_00473c03 | src/scene1_intro_dialogue.c:260 | the engine teardown also restores the |
 
 ## hardcode (1)
 

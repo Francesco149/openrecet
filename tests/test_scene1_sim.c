@@ -420,6 +420,38 @@ int test_scene1_ingame_dialogue_busy_routes_to_event_arm(void)
     return 0;
 }
 
+int test_scene1_tutloadpin_pins_bracket_length(void)
+{
+    /* {tutloadpin:N} overrides the synthetic tutorial load-bracket length
+     * (IVE_TUT_LOAD_FRAMES=2): _loading() must hold for exactly N ticks after
+     * the activation, then drop.  Mirrors the Frida agent's extension of
+     * retail's worker-thread bracket to the same N (engine-quirks §119). */
+    reset_world();
+    scene1_intro_dialogue_reset();
+
+    scene1_intro_dialogue_set_tut_load_frames(5);
+    scene1_intro_dialogue_start_single(1, 5);
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);   /* bracket armed */
+    for (int i = 0; i < 4; i++) {                        /* ticks 1..4: held */
+        scene1_intro_dialogue_tick(0);
+        T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);
+    }
+    scene1_intro_dialogue_tick(0);                       /* tick 5: bracket ends */
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 0);
+
+    /* Pin cleared → back to the synthetic default (2 ticks). */
+    scene1_intro_dialogue_set_tut_load_frames(0);
+    scene1_intro_dialogue_start_single(1, 5);
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);
+    scene1_intro_dialogue_tick(0);
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 1);
+    scene1_intro_dialogue_tick(0);
+    T_ASSERT_EQ_I(scene1_intro_dialogue_loading(), 0);
+
+    scene1_intro_dialogue_reset();   /* teardown: drop the armed dialogue */
+    return 0;
+}
+
 int test_scene1_event_arm_advances_db054_with_live_actor(void)
 {
     /* The FUN_0048407f tail increments db054 UNCONDITIONALLY (all.c:84658) —

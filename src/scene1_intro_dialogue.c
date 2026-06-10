@@ -49,10 +49,15 @@ enum { D_IDLE = 0, D_SCRIPT1, D_LOAD, D_SCRIPT2, D_DONE, D_TUT_LOAD, D_TUT };
  * bracket is the LAB_00452aab worker THREAD's wall-time, not a frame-counted
  * state machine (engine-quirks §119): the SAME capture ran iv1_5's bracket in 2
  * frames (15213→15215) and iv1_6's in 5 (15947→15952).  2 matches the clean
- * cold-start measurement; do NOT tune to a per-run thread duration.  The
- * residual post-bracket label shift on traces (item-display-2: 4 labels over
- * iv1_6) is accepted-known — shop-display-menu-RE.md follow-up #8. */
+ * cold-start measurement; do NOT tune to a per-run thread duration.  For trace
+ * comparison the `{tutloadpin:N}` op overrides this on BOTH sides (the Frida
+ * agent extends retail's real bracket to the same N), killing the post-bracket
+ * label shift — shop-display-menu-RE.md follow-up #8. */
 #define IVE_TUT_LOAD_FRAMES 2
+
+/* {tutloadpin:N} override (0 = unset → IVE_TUT_LOAD_FRAMES).  Set once at
+ * segtrace load (main.c); harness-only, never written by game logic. */
+static int g_tut_load_frames_pin = 0;
 
 static int                g_state    = D_IDLE;
 static int                g_load_ctr = 0;     /* frames elapsed in D_LOAD */
@@ -187,7 +192,8 @@ void scene1_intro_dialogue_tick(uint16_t held)
          * starts (_posing()) so CONV_POSE_START lands between START and END.  The
          * script is NOT loaded yet, so the box/text do not render this window. */
         (void)held;
-        if (++g_load_ctr >= IVE_TUT_LOAD_FRAMES)
+        if (++g_load_ctr >= (g_tut_load_frames_pin > 0 ? g_tut_load_frames_pin
+                                                       : IVE_TUT_LOAD_FRAMES))
             g_state = D_TUT;   /* next tick lazy-loads the script */
         break;
 
@@ -423,6 +429,17 @@ void scene1_intro_dialogue_phasepin(void)
 {
     g_rt.scene.shake_bg  = 0;
     g_rt.scene.shake_chr = 0;
+}
+
+/* Trace-harness `{tutloadpin:N}`: pin the tutorial load-bracket (D_TUT_LOAD)
+ * length to N frames so it matches the retail bracket the Frida agent extends
+ * to the same N (engine-quirks §119: retail's length is worker-thread wall-
+ * time, so only a pinned EQUAL length makes the post-bracket label axes — and
+ * the db054/wing-emit consumption inside the bracket — comparable).  N <= 0
+ * clears the pin (back to IVE_TUT_LOAD_FRAMES). */
+void scene1_intro_dialogue_set_tut_load_frames(int n)
+{
+    g_tut_load_frames_pin = (n > 0) ? n : 0;
 }
 
 const struct ive_program *scene1_intro_dialogue_program(void)

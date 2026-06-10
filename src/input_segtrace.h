@@ -71,6 +71,22 @@
  *                        state. The retail Frida agent mirrors it by dumping
  *                        the retail exe's writable sections at the same frame.
  *
+ *   {"tutloadpin":N}     pin the tutorial-dialogue LOAD-BRACKET length to N
+ *                        frames on BOTH targets (trace-global, last declaration
+ *                        wins; comparison normalization, like {phasepin}).  The
+ *                        retail bracket is a worker THREAD's wall-time (engine-
+ *                        quirks §119: 2f and 5f for two activations on the SAME
+ *                        capture), so every tutorial-load crossing shifts the
+ *                        post-seam label axis by the bracket-length difference.
+ *                        Port: overrides IVE_TUT_LOAD_FRAMES (the synthetic
+ *                        D_TUT_LOAD length).  Retail (Frida agent): EXTEND-only —
+ *                        holds the load gate (DAT_06a49960) high until N frames
+ *                        past the bracket start, so the engine idles the extra
+ *                        frames exactly like a slow load (same db054++/wing-emit
+ *                        consumption); a real load LONGER than N is left alone
+ *                        (can't shorten a thread), so pick N ≥ any plausible real
+ *                        bracket (≥ 8 recommended).
+ *
  *   {"savefile":"<relpath>"} declare the save the trace booted with — a path
  *                        (relative to the trace file's directory) to a
  *                        content-addressed, gzip-compressed save blob (usually
@@ -217,6 +233,14 @@ struct input_segtrace {
      * was seen; `capstride` is then unset (treat as 1 = every frame). */
     uint32_t capstride;
     int      has_capstride;
+
+    /* Optional tutorial-load-bracket pin, from a `{"tutloadpin":N}` op (trace-
+     * global, last declaration wins).  When set, the host overrides the
+     * tutorial dialogue's synthetic load-bracket length (IVE_TUT_LOAD_FRAMES)
+     * with N; the Frida agent mirrors it by holding the retail load gate to N
+     * frames (extend-only).  `has_tutloadpin` is 0 when no op was seen. */
+    uint32_t tutloadpin;
+    int      has_tutloadpin;
 
     /* Runtime state (advanced by input_segtrace_tick). */
     int      started;

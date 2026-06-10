@@ -438,6 +438,37 @@ int test_segtrace_no_capstride_clears_flag(void)
     return 0;
 }
 
+int test_segtrace_tutloadpin_parses_trace_global(void)
+{
+    /* {tutloadpin:N} is trace-global like {capstride}: parsed into
+     * st.tutloadpin, not a segment-breaking op. Last declaration wins. The
+     * actual bracket override lives in scene1_intro_dialogue (see
+     * test_scene1_tutloadpin_pins_bracket_length); this guards parse+storage. */
+    const char buf[] =
+        "{\"tutloadpin\":8}\n"
+        "{\"wait\":\"LOADING_END\"}\n"
+        "{\"phasepin\":0}\n"
+        "{\"caprange\":[0,240]}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.has_tutloadpin, 1);
+    T_ASSERT_EQ_U(st.tutloadpin, 8);
+    T_ASSERT_EQ_U(st.n_segs, 2);   /* not a wait → boot seg + post-anchor seg */
+    input_segtrace_free(&st);
+    return 0;
+}
+
+int test_segtrace_no_tutloadpin_clears_flag(void)
+{
+    const char buf[] = "{\"caprange\":[0,48]}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.has_tutloadpin, 0);  /* unset → synthetic default length */
+    input_segtrace_free(&st);
+    return 0;
+}
+
 static uint32_t s_memsnap_fired_frame;
 static int      s_memsnap_fired_count;
 static void memsnap_test_cb(uint32_t frame, void *user)

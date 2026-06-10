@@ -1806,6 +1806,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
              * every frame from boot. */
             if (g_d3d_trace_path)
                 d3d_trace_set_window(0, 0);
+            /* {tutloadpin:N} (trace-global) pins the tutorial-dialogue load
+             * bracket to N frames so it matches the retail bracket the Frida
+             * agent extends to the same N (engine-quirks §119). Known at load
+             * time (no callback needed). */
+            if (g_segtrace.has_tutloadpin) {
+                scene1_intro_dialogue_set_tut_load_frames(
+                    (int)g_segtrace.tutloadpin);
+                fprintf(stderr, "openrecet: tutorial load bracket pinned to "
+                        "%u frames (tutloadpin)\n",
+                        (unsigned)g_segtrace.tutloadpin);
+            }
             /* {esc:N} ops synthesise the engine ESC dispatch (dialogue-skip
              * replay) — see segtrace_esc_cb. */
             input_segtrace_set_esc_cb(&g_segtrace, segtrace_esc_cb, NULL);
