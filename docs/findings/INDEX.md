@@ -73,6 +73,7 @@ that subsystem.
 | Doc | Covers | Last touched |
 |-----|--------|--------------|
 | [audio-backend.md](audio-backend.md) | DirectMusic 8 backend — init, BGM track-swap, sin-curve volume fade, per-tick fade animation. | 2026-05-21 |
+| [audio-trace-diff.md](audio-trace-diff.md) | Detecting sound divergences from traces — port/retail audio.jsonl schema, the three sound-trigger hooks, `tools/audio_diff.py` (identity+count, phase/load-skew-immune). | 2026-06-10 |
 
 ## Loaders / formats
 
