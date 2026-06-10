@@ -614,12 +614,16 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             return
 
         if kind == "se_play":
-            f_audio.write(json.dumps({
+            rec = {
                 "t_ms":  int(p["t_ms"]),
                 "kind":  "se_play",
                 "frame": int(p["frame"]),
                 "slot":  int(p["slot"]),
-            }) + "\n")
+            }
+            nm = p.get("name")          # se_NNN_idXXXX (resource) or path (file SE)
+            if nm is not None:
+                rec["name"] = nm
+            f_audio.write(json.dumps(rec) + "\n")
             return
 
         if kind == "input_state":

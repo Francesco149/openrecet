@@ -8,9 +8,10 @@
 // Hooks installed on first Present:
 //   IDirect3DDevice8::Present (vtable[15])
 //       → GetBackBuffer + LockRect → raw BGRA pixels via send(json, buf)
-//   FUN_00499200  audio_play_track  → {kind:"bgm_swap", track}
-//   FUN_00499c63  audio_play_se     → {kind:"se_play",  slot}
-//   FUN_0047b73c  input_poll exit   → {kind:"input_state", buttons:0xNNNN}
+//   FUN_00499200  audio_play_track   → {kind:"bgm_swap", track}  (dedup on change)
+//   FUN_00499c63  audio_play_se      → {kind:"se_play",  slot, name}
+//   FUN_0049933c  audio_play_se_file → {kind:"se_play",  slot:-1, name:path}
+//   FUN_0047b73c  input_poll exit    → {kind:"input_state", buttons:0xNNNN}
 //
 // Address convention: the unpacked retail exe was built in 2007, predates
 // /DYNAMICBASE, and Windows loads it at its preferred ImageBase 0x00400000.
@@ -21,8 +22,8 @@
 // Message protocol (all stringified JSON via send()):
 //   {kind:"ready",      module:"...", base:"0xNNNNNNNN"}
 //   {kind:"frame",      frame:N, w:W, h:H, pitch:P}        // + binary payload
-//   {kind:"bgm_swap",   t_ms:T, track:N}
-//   {kind:"se_play",    t_ms:T, slot:N}
+//   {kind:"bgm_swap",   t_ms:T, frame:N, track:N}
+//   {kind:"se_play",    t_ms:T, frame:N, slot:N, name:"se_NNN_idXXXX"|path}
 //   {kind:"input_state",t_ms:T, frame:N, buttons:0xNNNN}
 //   {kind:"log",        msg:"..."}                          // diagnostics
 //   {kind:"error",      where:"...", msg:"..."}
@@ -54,8 +55,16 @@ const ADDR = {
     fn_fps_draw:         0x004523e6,
 
     // audio entry points (see docs/findings/audio-backend.md table).
-    fn_audio_play_track: 0x00499200,  // BGM swap
-    fn_audio_play_se:    0x00499c63,  // SE start/stop
+    fn_audio_play_track: 0x00499200,  // BGM swap            (port audio_play_track)
+    fn_audio_play_se:    0x00499c63,  // SE start/stop (slot) (port audio_play_se)
+    fn_audio_play_se_file: 0x0049933c,// filename/voice SE   (port audio_play_se_file)
+    // SE resource-id table (DAT_005d1584): 110 entries, 8-byte stride, id at
+    // +0 / channel-flag at +4. Lets the agent rebuild the port's
+    // `se_NNN_idXXXX` SE name so audio_diff output reads identically on both
+    // sides. Current BGM track (DAT_005d1960) drives the bgm_swap dedup so
+    // retail emits only on an actual track change, like the port.
+    var_se_id_table:     0x005d1584,
+    var_bgm_cur_track:   0x005d1960,
 
     // input poll (see docs/findings/winmain-and-bootstrap.md §"Input poll").
     fn_input_poll:       0x0047b73c,
@@ -1570,6 +1579,19 @@ function installPresentHook(devicePtr) {
 
 // ─── audio hooks ────────────────────────────────────────────────────────
 
+// Rebuild the port's `se_%03d_id%04x` SE label (src/audio.c audio_play_se) so
+// audio_diff output reads identically on both sides — read the resource id
+// from DAT_005d1584[slot] (8-byte stride, id at +0). null for an out-of-range
+// slot (the file/voice SE path uses slot=-1 + name=path instead).
+function seName(slot) {
+    if (slot < 0 || slot >= 110) return null;
+    let id = 0;
+    try { id = rva(ADDR.var_se_id_table + slot * 8).readU16(); } catch (_) { return null; }
+    const s3 = ('00'  + slot).slice(-3);
+    const h4 = ('000' + (id >>> 0).toString(16)).slice(-4);
+    return 'se_' + s3 + '_id' + h4;
+}
+
 function installAudioHooks() {
     Interceptor.attach(rva(ADDR.fn_audio_play_track), {
         onEnter: function (args) {
@@ -1578,6 +1600,15 @@ function installAudioHooks() {
             // `args` array reflects the ABI. For stdcall on x86, args[0]
             // is the first parameter.
             const track = this.context.esp.add(4).readS32();
+            // Match the port (audio_play_track): a swap event fires only on
+            // an ACTUAL change to a valid BGM index. FUN_00499200 no-ops when
+            // DAT_005d1960 (current track) already equals the request, and the
+            // selector passes -2/-1 to STOP (no swap event on the port side),
+            // so dedup against the live current-track global here.
+            if (track < 0 || track >= 21) return;
+            let cur = -1;
+            try { cur = rva(ADDR.var_bgm_cur_track).readS32(); } catch (_) {}
+            if (track === cur) return;
             send({kind: 'bgm_swap', t_ms: nowMs(), track: track, frame: frameNo()});
         },
     });
@@ -1585,7 +1616,22 @@ function installAudioHooks() {
     Interceptor.attach(rva(ADDR.fn_audio_play_se), {
         onEnter: function (args) {
             const slot = this.context.esp.add(4).readS32();
-            send({kind: 'se_play', t_ms: nowMs(), slot: slot, frame: frameNo()});
+            send({kind: 'se_play', t_ms: nowMs(), slot: slot, frame: frameNo(),
+                  name: seName(slot)});
+        },
+    });
+
+    // Filename/voice SE — FUN_0049933c(char *path). The opening/tutorial
+    // dialogues drive voice lines + one-off SEs by path through this (port
+    // audio_play_se_file); without the hook a whole class of SE is invisible
+    // on the retail side. Mirror the port: slot=-1, name=path (ANSI string).
+    Interceptor.attach(rva(ADDR.fn_audio_play_se_file), {
+        onEnter: function (args) {
+            const p = this.context.esp.add(4).readPointer();
+            let path = '';
+            try { path = p.isNull() ? '' : p.readCString(); } catch (_) {}
+            send({kind: 'se_play', t_ms: nowMs(), slot: -1, frame: frameNo(),
+                  name: path});
         },
     });
 
