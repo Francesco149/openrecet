@@ -1616,8 +1616,11 @@ function installAudioHooks() {
     Interceptor.attach(rva(ADDR.fn_audio_play_se), {
         onEnter: function (args) {
             const slot = this.context.esp.add(4).readS32();
+            // ret_va = the immediate caller (module-relative), so audio_diff /
+            // a quick grep can name WHICH function fires a given SE — e.g. the
+            // worldmap-confirm 0x150. Free (this.returnAddress already on stack).
             send({kind: 'se_play', t_ms: nowMs(), slot: slot, frame: frameNo(),
-                  name: seName(slot)});
+                  name: seName(slot), ret_va: traceRetVa(this.returnAddress)});
         },
     });
 
@@ -1631,7 +1634,7 @@ function installAudioHooks() {
             let path = '';
             try { path = p.isNull() ? '' : p.readCString(); } catch (_) {}
             send({kind: 'se_play', t_ms: nowMs(), slot: -1, frame: frameNo(),
-                  name: path});
+                  name: path, ret_va: traceRetVa(this.returnAddress)});
         },
     });
 

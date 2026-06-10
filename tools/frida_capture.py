@@ -623,6 +623,8 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
             nm = p.get("name")          # se_NNN_idXXXX (resource) or path (file SE)
             if nm is not None:
                 rec["name"] = nm
+            if p.get("ret_va") is not None:   # immediate caller (module-rel VA)
+                rec["ret_va"] = int(p["ret_va"])
             f_audio.write(json.dumps(rec) + "\n")
             return
 

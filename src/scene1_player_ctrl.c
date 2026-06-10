@@ -1045,9 +1045,21 @@ void player_ctrl_worldmap_exit_arm(void)
         bb[PC_WORLDMAP_TUTORIAL_BYTE_OFF] = 1;   /* DAT_0450f3f9 = 1 (world-map tutorial gate) */
         bb[PC_DOOR_EXITED_BYTE_OFF]       = 1;   /* DAT_0450f3f7 = 1 (exited guard) */
     }
-    /* PORT-DEBT(door-SE, FUN_0049933c): the door effect/SE at all.c:87648 is not
-     * spawned (audio-only); confirm via the T5 both-replay it consumes no shared
-     * LCG draw before the shop tears down, else mirror the draw here. */
+    /* Door-transition SE (asm 0x488ad1 / 0x488adb — Ghidra dropped both args, so
+     * RE'd from objdump + a retail audio-hook ret_va backtrace: the caller is
+     * FUN_0048670f, NOT the world-map sim).  Played UNCONDITIONALLY within this
+     * first-exit arm (after the optional flag-set), in this order: the system
+     * "whoosh" file-SE then the 0x150 click.  Both fixed (no RNG variant) ⇒
+     * RNG-neutral, like the 0x143 plays — resolves the old PORT-DEBT(door-SE)
+     * LCG concern (no draw to mirror).  Diagnosed via audio_diff on the
+     * merchants-guild trace (was: missing se_019_id0150 + 00re_sys09). */
+    audio_play_se_file("bin/se/00re/system/00re_sys09.bin");  /* FUN_0049933c(0x5cefb8) */
+    audio_play_se_by_id(0x150);                               /* FUN_00499519(0x150) */
+    /* PORT-DEBT(door-exit-reset, DAT_056db000): the engine also zeroes
+     * DAT_056db000 here (asm 0x488aa8 `andl $0x0,0x56db000`) — a player-state
+     * counter near db054, untested by the current (pre-window) trace and
+     * irrelevant to the already-1:1 world-map render; mirror it if a later
+     * door-exit scenario shows it load-bearing. */
 }
 
 /* Stage-2 of the exit (all.c:86877-86888): while armed, the engine freezes the

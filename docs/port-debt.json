@@ -2,7 +2,7 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 20,
+  "total": 21,
   "by_kind": {
    "stub": 5,
    "synthetic-data": 0,
@@ -13,15 +13,17 @@
   },
   "unknown_kinds": {
    "deferred": 1,
+   "door-exit-reset": 1,
    "door-proximity": 1,
    "event-probe": 1,
    "focused": 3,
    "house-teardown": 1,
    "stage-scratch": 1
   },
-  "retiring_engine_fns": 18,
+  "retiring_engine_fns": 19,
   "by_engine_fn": {
    "FUN_004176ff": 2,
+   "DAT_056db000": 1,
    "FUN_00409925": 1,
    "FUN_004161c7": 1,
    "FUN_004176ff L3876": 1,
@@ -48,6 +50,14 @@
    "desc": "box_pos_mode/off (DAT_005c7984/80) are",
    "file": "src/scene1_dialogue_run.c",
    "line": 126,
+   "kind_known": false
+  },
+  {
+   "kind": "door-exit-reset",
+   "engine_fn": "DAT_056db000",
+   "desc": "the engine also zeroes",
+   "file": "src/scene1_player_ctrl.c",
+   "line": 1058,
    "kind_known": false
   },
   {
@@ -103,7 +113,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1069,
+   "line": 1081,
    "kind_known": false
   },
   {
