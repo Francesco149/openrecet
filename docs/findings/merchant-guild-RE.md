@@ -314,14 +314,20 @@ anim toward `c60*c5c`) + price; up/down arrows (`c64/c68` bob, drawn only if `c5
 mode-8 at all.c:95536 → ret 1=confirm (purchase), 2=cancel (→mode0).
 
 ### Incremental port plan (recapture-verify each; `--only port` loop on :8783)
-1. **Main-menu nav (mode 1, 95058-95170):** cursor U/D (`c04=(±1+c04)%count`, SE 0x146, slide
-   `FUN_00435710`), A-dispatch by option type → set slide-in (`c24=1,c20=1`) / talk / leave /
-   expansion. Builds on the resting menu; keeps it 1:1. (Trace skips main-cursor move — verify
-   via build + resting-menu non-regression + the confirm SE on the A-press.)
-2. **Buy slide-in + item-window POPULATION (mode 1→0):** the `c20/c24` ramp + at 0xf open the
-   buy window. Extend `display_menu_open` with the mode-7 guild-stock population (scan the
-   guild's sellable list, category tabs) — the deferred `PORT-DEBT(A3)`. + `FUN_004682c5/2d8`.
-   First VISIBLE milestone (Buy opens the sword list); pixel-verify the list.
+1. **Main-menu cursor nav (mode 1, 95074-95084) — ✅ DONE `c4075dd`:** cursor U/D
+   (`c04=(±1+c04)%count`, SE 0x146, slide `FUN_00435710`). **COUPLING FINDING:** the A-press
+   Buy/Sell dispatch (`c24=1,c20=1` slide-in) slides the main panel OUT, and the render
+   blanks the menu without the item window sliding IN (measured parity dip 381k→429k gt8) — so
+   the A-dispatch is NOT separable; it moves into step 2. Step 1 shipped JUST the cursor nav
+   (no-op on this trace = non-regressive; the trace holds no main-menu direction).
+2. **A-dispatch + Buy slide-in + item-window POPULATION + RENDER (mode 1→0) — THE milestone:**
+   the mode-1 A-press (95086-95105: Buy/Sell→`c24=1,c20=1`, reset `c10/c0c`, SE 0x143) + the
+   slide-in ramp (95132-95167, at 0xf `FUN_004682c5`+`FUN_00468338(7,1)`+`FUN_004682d8`, at
+   0x19 →mode0) + extend `display_menu_open` with the **mode-7 guild-stock population** (RE
+   FUN_00468338's mode-7 branch — the buy list + category tabs; the deferred `PORT-DEBT(A3)`)
+   + the guild buy-window RENDER. Land together so the menu never blanks. First VISIBLE
+   milestone (Buy opens the sword list); pixel-verify. Talk(2)/Leave(4,5)/Expansion(6)
+   dispatches stay PORT-DEBT.
 3. **Item-list nav (mode 0):** extend `FUN_00469414` cursor nav (the other half of
    `PORT-DEBT(A3)`); A on sword → mode 8 (`c50=1`, snap qty cursor). + helpers `FUN_00469a83`/
    `FUN_00491b16`.
