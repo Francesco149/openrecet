@@ -367,9 +367,53 @@ int display_menu_selected(void)
     return s_list[idx];
 }
 
+/* FUN_00469a83 — the highlighted row's count slot (guild buy: the stock cap). */
+int display_menu_stock_cap(void)
+{
+    int e = s_tab_cursor[s_cur_tab] + s_tab_base[s_cur_tab];
+    if (e < 0 || e * 2 + 1 >= DISPLAY_MENU_MAX_LIST)
+        return 0;
+    return s_list[e * 2 + 1];
+}
+
+/* FUN_00491b16 — total items held (non-empty working-bank inventory slots). */
+int display_menu_owned_count(const uint32_t *bank)
+{
+    if (bank == NULL)
+        return 0;
+    const uint32_t *inv = bank + SAVE_BANK_ITEM_TABLE_DWORD;
+    int n = 0;
+    for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++)
+        if (inv[i] != 0xFFFFFFFFu)
+            n++;
+    return n;
+}
+
+/* FUN_00469a00 — post-buy: drop the highlighted row's stock cap (the rendered
+ * "N Left") while it is in (0,100), and decrement the matching per-save daily
+ * buy limit (GUILD_DAILY_LIMIT_OFF i16, indexed by item-DB record). */
+void display_menu_buy_post_add(uint32_t *bank)
+{
+    int e   = s_tab_cursor[s_cur_tab] + s_tab_base[s_cur_tab];
+    if (e < 0 || e * 2 + 1 >= DISPLAY_MENU_MAX_LIST)
+        return;
+    int cnt = s_list[e * 2 + 1];
+    if (cnt > 0 && cnt < 100) {
+        s_list[e * 2 + 1] = cnt - 1;
+        if (bank != NULL) {
+            int id  = s_list[e * 2];
+            int rec = tables_item_find_slot_by_id(&g_item, id >> 6);
+            if (rec >= 0) {
+                int16_t *daily = (int16_t *)((uint8_t *)bank + GUILD_DAILY_LIMIT_OFF);
+                daily[rec * 2] = (int16_t)(daily[rec * 2] - 1);
+            }
+        }
+    }
+}
+
 /* slide the shared hand cursor to the current row (FUN_0046939a → FUN_00435710,
  * all.c:65176): x = 280, y = (cursor - scroll)·36 + 96. */
-static void display_menu_cursor_to_row(void)
+void display_menu_cursor_to_row(void)
 {
     title_save_dialog_cursor_slide(
         280.0f,

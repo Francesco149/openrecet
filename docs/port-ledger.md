@@ -10,8 +10,8 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- touched: **481** (18.9%) — verified 69, stubbed 15, ported 397
-- unported: **2067**
+- touched: **486** (19.1%) — verified 69, stubbed 15, ported 402
+- unported: **2062**
 - orphan refs (in src/, not in function table): 7
 
 ## verified (69) — runtime-diffed vs retail
@@ -108,7 +108,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49065b | FUN_0049065b | 314 | ✓ | scene1_hud.c |
 | 0x49c644 | FUN_0049c644 | 3233 | ✓ | scene_title.c |
 
-## ported (397) — reimplemented, no probe yet
+## ported (402) — reimplemented, no probe yet
 
 | VA | name | size | call-target | src |
 |----|------|-----:|:-----------:|-----|
@@ -197,7 +197,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x435693 | FUN_00435693 | 58 | ✓ | main.c, scene1_display_menu.c, scene_guild.c (+5) |
 | 0x435710 | FUN_00435710 | 55 | ✓ | scene1_display_menu.c, scene_guild.c, scene_title.c (+4) |
 | 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
-| 0x4361b2 | FUN_004361b2 | 532 | ✓ | scene1_display_menu.c, scene1_merchant_hud.c |
+| 0x4361b2 | FUN_004361b2 | 532 | ✓ | scene1_display_menu.c, scene1_merchant_hud.c, scene_guild.c |
 | 0x43647f | FUN_0043647f | 61 | ✓ | scene1_combat_sm.h, scene1_hud.c, scene1_hud.h (+1) |
 | 0x4364bc | FUN_004364bc | 359 | ✓ | tables_snews.h |
 | 0x436f97 | FUN_00436f97 | 4788 | ✓ | collision_house.c, collision_house.h, main.c (+20) |
@@ -289,10 +289,12 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x4682d8 | FUN_004682d8 | 11 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
 | 0x4682e3 | FUN_004682e3 | 11 | ✓ | stage_load_pulse.h |
 | 0x468338 | FUN_00468338 | 2490 | ✓ | main.c, scene1_display_menu.c, scene1_display_menu.h (+4) |
-| 0x468d22 | FUN_00468d22 | 73 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c (+1) |
+| 0x468d22 | FUN_00468d22 | 73 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c (+2) |
 | 0x469241 | FUN_00469241 | 99 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
-| 0x46939a | FUN_0046939a | 73 | ✓ | scene1_display_menu.c |
-| 0x469414 | FUN_00469414 | 1516 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
+| 0x46939a | FUN_0046939a | 73 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
+| 0x469414 | FUN_00469414 | 1516 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c (+1) |
+| 0x469a00 | FUN_00469a00 | 131 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
+| 0x469a83 | FUN_00469a83 | 28 | ✓ | scene1_display_menu.c, scene1_display_menu.h |
 | 0x469a9f | FUN_00469a9f | 28 | ✓ | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c |
 | 0x469abb | FUN_00469abb | 127 | ✓ | scene1_display_menu.c |
 | 0x469b3a | FUN_00469b3a | 2044 | ✓ | scene1_display_menu.c |
@@ -376,6 +378,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x47ca05 | FUN_0047ca05 | 454 | ✓ | choice_box.c, font.h, font_draw.c (+1) |
 | 0x47cbcb | FUN_0047cbcb | 855 | ✓ | font.h, font_alloc.c, font_alloc.h (+3) |
 | 0x47cf22 | FUN_0047cf22 | 456 | ✓ | font.h, font_upload.c, font_upload.h |
+| 0x47d0ea | FUN_0047d0ea | 98 | ✓ | font_draw.c, font_draw.h |
 | 0x47d14c | FUN_0047d14c | 399 | ✓ | choice_box.c, font_draw.h, scene1_display_menu.c (+2) |
 | 0x47d2db | FUN_0047d2db | 393 | ✓ | font_draw.h |
 | 0x47d464 | FUN_0047d464 | 445 | ✓ | font_draw.c, font_draw.h, scene1_dialogue_draw.c |
@@ -437,7 +440,9 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x49174e | FUN_0049174e | 354 |  | scene_guild.c, scene_guild.h |
 | 0x4918b0 | FUN_004918b0 | 191 | ✓ | scene_guild.c |
 | 0x49196f | FUN_0049196f | 423 | ✓ | scene1_display_menu.c |
+| 0x491b16 | FUN_00491b16 | 41 | ✓ | scene1_display_menu.c, scene1_display_menu.h |
 | 0x491b3f | FUN_00491b3f | 23 | ✓ | main.c |
+| 0x491bc0 | FUN_00491bc0 | 544 | ✓ | scene_guild.c |
 | 0x491de0 | FUN_00491de0 | 1248 | ✓ | scene_guild.c |
 | 0x4922c0 | FUN_004922c0 | 4950 | ✓ | scene_guild.c, scene_guild.h, sim.c |
 | 0x493616 | FUN_00493616 | 2613 | ✓ | scene_guild.c |

@@ -44,6 +44,8 @@
 #include "audio.h"                    /* audio_play_se_by_id (FUN_00499519, no RNG) */
 #include "scene1_display_menu.h"      /* the shared item window (Buy slide-in/list) */
 #include "stage_load_pulse.h"         /* the item-window slide ramp (FUN_004693e3) */
+#include "tables_item.h"              /* g_item DB (price / name for the qty overlay) */
+#include "save_bank.h"                /* SAVE_BANK_FIELD_GOLD / _ITEM_TABLE_DWORD     */
 
 /* ─── working-arena field offsets (base DAT_044e3798, per-slot) ──────────────
  * The port pins the engine's per-location stage index (DAT_0438b1e0) to the
@@ -55,6 +57,11 @@
  * fall inside slot 0's 0x2dfc8-byte bank — PORT-DEBT(loc-routing), slot 0 only). */
 #define GUILD_STORE_LEVEL_DWORD  0xb100   /* DAT_0450fb98 — store/merchant level */
 #define GUILD_PERIOD_DWORD       0xb378   /* DAT_04510578 — time-of-day period   */
+#define GUILD_RESTRICTED_OFF     0x2bc49  /* DAT_0450f3e1 — early-game fixed-stock
+                                           * flag; while set, gold is force-pinned
+                                           * to 10,000,000 (tutorial infinite money,
+                                           * engine FUN_004922c0 all.c:94756-94758). */
+#define GUILD_TUTORIAL_GOLD      10000000u /* DAT_00989680 (the pinned value)        */
 
 /* Market variant flag (engine DAT_0963c5f0). */
 static int s_variant = 0;
@@ -76,9 +83,23 @@ static struct {
     int item_cursor;  /* DAT_09642c10 — talk/item cursor (reset on dispatch)*/
     int item_scroll;  /* DAT_09642c0c — talk/item scroll (reset on dispatch)*/
     int c14;          /* DAT_09642c14 — confirm-transition flag            */
+    int c18;          /* DAT_09642c18 — item-list→menu slide-OUT flag      */
     int transition;   /* DAT_09642c3c — 1 = mid daily-event transition     */
     int entries[8];   /* _DAT_09640624 — per-row option type codes         */
     int count;        /* DAT_005cfab4  — option count                      */
+
+    /* ── buy/sell qty-confirm overlay (mode 8; FUN_00491bc0 / FUN_00491de0) ── */
+    int ov_slide;     /* DAT_09642c50 — overlay open/close slide (0..4)     */
+    int yn_cursor;    /* DAT_09640600 — Yes(0)/No(1) selector               */
+    int flash_ctr;    /* DAT_096405fc — confirm/cancel flash counter (0..8) */
+    int flash_kind;   /* DAT_096405f8 — 1 buy / 2 No-cancel / 3 B-cancel    */
+    int price_anim;   /* _DAT_09642c54 — price-number wobble phase          */
+    int up_bob;       /* DAT_09642c64 — up-arrow press bob (0..4)           */
+    int dn_bob;       /* DAT_09642c68 — down-arrow press bob (0..4)         */
+    int qty;          /* DAT_09642c5c — chosen quantity                     */
+    int max_qty;      /* DAT_005cfae4 — quantity cap                        */
+    int unit_price;   /* DAT_09642c60 — per-unit price                      */
+    int item_rec;     /* DAT_09642c58 — item-DB record (name lookup)        */
 } s_menu;
 
 void scene_guild_set_variant(int v) { s_variant = v; }
@@ -142,7 +163,18 @@ void scene_guild_enter_reset(void)
     s_menu.item_cursor = 0;          /* DAT_09642c10 = 0 */
     s_menu.item_scroll = 0;          /* DAT_09642c0c = 0 */
     s_menu.c14         = 0;          /* DAT_09642c14 = 0 */
+    s_menu.c18         = 0;          /* DAT_09642c18 = 0 */
     s_menu.transition  = 0;          /* DAT_09642c3c = 0 */
+    s_menu.ov_slide    = 0;          /* DAT_09642c50 = 0 — overlay closed */
+    s_menu.yn_cursor   = 0;
+    s_menu.flash_ctr   = 0;
+    s_menu.price_anim  = 0;
+    s_menu.up_bob      = 0;
+    s_menu.dn_bob      = 0;
+    s_menu.qty         = 0;
+    s_menu.max_qty     = 0;
+    s_menu.unit_price  = 0;
+    s_menu.item_rec    = 0;
 
     scene_guild_build_table();       /* FUN_004918b0 */
 
@@ -155,6 +187,203 @@ void scene_guild_enter_reset(void)
      * snap the shared hand cursor onto the top option (328, 84). */
     title_save_dialog_cursor_set_visible(1);
     title_save_dialog_cursor_snap(328.0f, (float)(s_menu.cursor * 0x22) + 84.0f);
+}
+
+/* ─── buy-flow helpers (item list mode 0 → qty overlay mode 8) ─────────────── */
+
+/* working-bank gold (engine (&DAT_044e37a4)[loc*0xb7f2] = dword 3). */
+static int guild_gold(void)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    return bank ? (int)bank[SAVE_BANK_FIELD_GOLD] : 0;
+}
+
+/* FUN_00491bc0(0) — one frame of the qty-confirm overlay (mode 8).  Returns
+ * -1 (animating / still open), 1 (buy confirmed), 2 (cancelled).  param_1 is 0
+ * at the mode-8 call site, so the close-frame cursor snap (FUN_00435693) is the
+ * caller's job (FUN_0043561a on return). */
+static int guild_qty_overlay_input(void)
+{
+    const uint16_t pressed = g_sim_buttons[0].pressed;   /* DAT_073dddd4 lo */
+    const uint16_t held    = g_sim_buttons[0].held;      /* DAT_073dddd6    */
+
+    s_menu.price_anim++;                          /* _DAT_09642c54++ */
+    if (s_menu.up_bob > 0) s_menu.up_bob--;       /* DAT_09642c64 */
+    if (s_menu.dn_bob > 0) s_menu.dn_bob--;       /* DAT_09642c68 */
+    if (s_menu.ov_slide < 1)
+        return 0;
+
+    /* a confirm/cancel is flashing then sliding the box out (94513-94537). */
+    if (s_menu.flash_ctr != 0) {
+        if (s_menu.flash_kind == 3) {             /* B-cancel: straight slide out */
+            s_menu.ov_slide--;
+            if (s_menu.ov_slide != 0) return -1;
+            return 2;
+        }
+        s_menu.flash_ctr++;                        /* flash ~7 frames */
+        if (s_menu.flash_ctr < 8) return -1;
+        s_menu.ov_slide--;
+        if (s_menu.ov_slide != 0) return -1;
+        return s_menu.flash_kind;                  /* 1 buy / 2 No-cancel */
+    }
+
+    s_menu.ov_slide++;                             /* slide IN (1..4) */
+    if (s_menu.ov_slide < 5)
+        return -1;
+    s_menu.ov_slide = 4;                           /* clamp fully open */
+
+    if ((pressed & 0x20u) == 0) {                  /* B not pressed */
+        if ((pressed & 0x10u) == 0) {              /* A not pressed → nav */
+            /* Right toggles Yes→No, Left toggles No→Yes (pressed edge), with a
+             * 6-frame cursor ease to (340 + yn*96, 252). */
+            if ((pressed & 0x01u) && s_menu.yn_cursor == 0) {
+                audio_play_se_by_id(0x146);
+                s_menu.yn_cursor ^= 1;
+                title_save_dialog_cursor_slide((float)(s_menu.yn_cursor * 0x60) + 340.0f,
+                                               252.0f);
+                return -1;
+            }
+            if ((pressed & 0x02u) && s_menu.yn_cursor == 1) {
+                audio_play_se_by_id(0x146);
+                s_menu.yn_cursor ^= 1;
+                title_save_dialog_cursor_slide((float)(s_menu.yn_cursor * 0x60) + 340.0f,
+                                               252.0f);
+                return -1;
+            }
+            /* Up/Down (held, auto-repeat) adjust the quantity. */
+            if ((held & 0x04u) == 0) {             /* up not held */
+                if ((held & 0x08u) == 0)           /* down not held → idle */
+                    return -1;
+                if (s_menu.qty < 2) {              /* already 1 → error beep */
+                    audio_play_se_by_id(0x16a);
+                    return -1;
+                }
+                s_menu.qty--;
+                s_menu.dn_bob = 4;
+            } else {                               /* up held */
+                if (s_menu.max_qty <= s_menu.qty) {/* at cap → error beep */
+                    audio_play_se_by_id(0x16a);
+                    return -1;
+                }
+                s_menu.qty++;
+                s_menu.up_bob = 4;
+            }
+            audio_play_se_by_id(0x146);
+            return -1;
+        }
+        /* A pressed. */
+        if (s_menu.yn_cursor == 0) {               /* Yes → confirm buy */
+            s_menu.flash_ctr  = 1;
+            s_menu.flash_kind = 1;
+            audio_play_se_by_id(0x143);
+            return -1;
+        }
+        s_menu.flash_kind = 2;                      /* No → cancel */
+    } else {
+        s_menu.flash_kind = 3;                      /* B → cancel */
+    }
+    s_menu.flash_ctr = 1;
+    audio_play_se_by_id(0x13d);
+    return -1;
+}
+
+/* FUN_004922c0 return-3 (A-edge, all.c:95258-95320): set the highlighted item's
+ * preview unit price (DAT_09642c60) + confirm/error SE.  Buy = base·0.7,
+ * Sell = base·0.3 (PORT-DEBT(price-trend FUN_004361b2): market factor = 1.0). */
+static void guild_buy_price_preview(int sel)
+{
+    int id = display_menu_selected();
+    if (id == -1)
+        return;
+    int rec = tables_item_find_slot_by_id(&g_item, id >> 6);
+    if (rec < 0)
+        return;
+    const float mult = (sel == 0) ? 0.7f : 0.3f;
+    if (sel == 0) {                                /* Buy */
+        const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+        if (display_menu_owned_count(bank) < 15000) {
+            s_menu.unit_price = (int)((float)g_item.records[rec].price * mult);
+            if (display_menu_stock_cap() != 0 && s_menu.unit_price <= guild_gold()) {
+                audio_play_se_by_id(0x143);
+                return;
+            }
+        }
+        audio_play_se_by_id(0x16a);
+    } else {                                       /* Sell */
+        s_menu.unit_price = (int)((float)g_item.records[rec].price * mult);
+        s_menu.max_qty    = display_menu_stock_cap();
+        audio_play_se_by_id(0x143);
+    }
+}
+
+/* FUN_004922c0 return-1 (countdown done, all.c:95322-95389): cap the quantity
+ * and open the mode-8 qty overlay.  Buy path only (Sell qty-cap is the simpler
+ * stock cap, set in the preview). */
+static void guild_buy_open_qty_overlay(int sel)
+{
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    int owned = display_menu_owned_count(bank);
+    if (owned > 14999 && sel == 0)                 /* PORT-DEBT(item-limit msg) */
+        return;
+    /* PORT-DEBT(first-buy tutorial FUN_0044ba2c(1,0xf,0)): owns>9 & flag unset →
+     * a tutorial dialogue; not reached by this early-visit trace. */
+    int id = display_menu_selected();
+    if (id == -1)
+        return;
+    int rec = tables_item_find_slot_by_id(&g_item, id >> 6);
+    if (rec < 0)
+        return;
+    if (sel == 0) {                                /* Buy: clamp the qty cap */
+        int gold = guild_gold();
+        int max  = (s_menu.unit_price > 0) ? gold / s_menu.unit_price : 99;
+        if (max > 99) max = 99;
+        if (owned + max > 14999) max = 15000 - owned;
+        int stock = display_menu_stock_cap();
+        if (stock < max) max = stock;
+        if (max > 99) max = 99;
+        /* PORT-DEBT(first-sale 0xb-level cap, all.c:95354): skipped — the trace
+         * qty (≤2) is well under it. */
+        s_menu.max_qty = max;
+        if (display_menu_stock_cap() == 0)         /* out of stock */
+            return;
+        if (gold < s_menu.unit_price)              /* can't afford one */
+            return;
+    }
+    s_menu.qty        = 1;                          /* DAT_09642c5c */
+    s_menu.item_rec   = rec;                        /* DAT_09642c58 */
+    s_menu.mode       = 8;                          /* DAT_09642c00 = 8 */
+    s_menu.ov_slide   = 1;                          /* DAT_09642c50 = 1 */
+    s_menu.yn_cursor  = 0;                          /* DAT_09640600 = 0 (Yes) */
+    s_menu.flash_ctr  = 0;                          /* DAT_096405fc */
+    s_menu.price_anim = 0;                          /* _DAT_09642c54 */
+    s_menu.up_bob     = 0;                          /* DAT_09642c64 */
+    s_menu.dn_bob     = 0;                          /* DAT_09642c68 */
+    title_save_dialog_cursor_snap(340.0f, 252.0f); /* FUN_00435693 — Yes position */
+}
+
+/* mode-8 confirm tail (all.c:95543-95566): add `qty` of the item to inventory,
+ * deduct the cost, decrement the row stock + daily limit, play the purchase SE. */
+static void guild_buy_commit(void)
+{
+    int sel = s_menu.entries[s_menu.cursor];
+    if (sel != 0)                                   /* Sell path is PORT-DEBT */
+        return;
+    int id = display_menu_selected();
+    if (id == -1)
+        return;
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return;
+    int total = s_menu.qty * s_menu.unit_price;
+    if (total > guild_gold())                       /* can't afford the batch */
+        return;
+    for (int i = 0; i < s_menu.qty; i++) {
+        display_menu_inventory_return(bank, id);    /* FUN_00468d22 */
+        display_menu_buy_post_add(bank);            /* FUN_00469a00 */
+    }
+    bank[SAVE_BANK_FIELD_GOLD] = (uint32_t)(guild_gold() - total);  /* gold -= cost */
+    audio_play_se_by_id(0x14d);                     /* purchase SE */
+    /* PORT-DEBT(first-buy save flags 0450f3f5/3f9): tutorial bookkeeping. */
 }
 
 /* ─── pure-C event tick (FUN_00490e24 → FUN_004922c0) ──────────────────────── */
@@ -172,6 +401,19 @@ void scene_guild_sim(void)
 
     /* FUN_004922c0 top (all.c:94752): the entry-tick counter. */
     s_menu.entry_tick++;
+
+    /* Tutorial infinite money (all.c:94756-94758): while the early-game
+     * restricted-stock flag is set, gold is force-pinned to 10,000,000 every
+     * frame.  So the buy flow's qty cap comes from the per-item stock ("N
+     * Left"), NOT affordability, and the displayed gold never drops.  (The HUD
+     * mirror was synced from this bank dword at scene entry, so leaving it is
+     * correct — it stays at the pinned value, matching retail.) */
+    {
+        uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+        if (bank != NULL &&
+            ((const uint8_t *)bank)[GUILD_RESTRICTED_OFF] != 0)
+            bank[SAVE_BANK_FIELD_GOLD] = GUILD_TUTORIAL_GOLD;
+    }
 
     /* First-visit branch (all.c:94764-94775), gated on the 2nd entry tick. */
     if (s_menu.entry_tick == 2) {
@@ -244,7 +486,18 @@ void scene_guild_sim(void)
     int cursor_moved = 0;
 
     if (s_menu.mode == 1 && s_menu.entry_tick > 0xe) {
-        if (s_menu.c24 < 1) {
+        if (s_menu.c18 == 1) {
+            /* ── slide-OUT (item list backed out → main menu, 95060-95067) ──────
+             * c20/c24 ramp back down from ~0x19; below 0x10 the panel is home and
+             * the slide-out flag clears. */
+            s_menu.scroll_anim = s_menu.c24 - 1;         /* c20 = c24 - 1 */
+            s_menu.c24 = s_menu.scroll_anim;             /* c24 = c20 */
+            if (s_menu.scroll_anim < 0x10) {
+                s_menu.c24 = 0;
+                s_menu.c18 = 0;
+                s_menu.scroll_anim = 0;
+            }
+        } else if (s_menu.c24 < 1) {
             /* ── resting main menu (DAT_09642c24 == 0) ── cursor nav + A-dispatch.
              * Gated on no sub-anim + no B (95070-95073). */
             if (s_menu.sub_anim < 1 && (pressed & 0x20u) == 0) {
@@ -301,6 +554,38 @@ void scene_guild_sim(void)
             if (sel != 6 && s_menu.c24 == 0x19)
                 s_menu.mode = 0;                         /* → item list (DAT_09642c00=0) */
         }
+    } else if (s_menu.mode == 0) {
+        /* ── item list (FUN_004922c0 mode 0, all.c:95242-95389) ────────────────
+         * Buy/Sell drive the SHARED item window; the main cursor still points at
+         * the Buy/Sell option (sel) so we know the price multiplier and direction.
+         * display_menu_update returns 3 on the A-edge (and arms its own 6-frame
+         * confirm countdown), then 1 when it elapses, 2 on B, 0 while navigating. */
+        int sel = s_menu.entries[s_menu.cursor];
+        display_menu_set_price_mult(sel == 0 ? 0.7f : 0.3f);    /* FUN_004682d8 */
+        int r = display_menu_update(1);                          /* FUN_00469414(1) */
+        if (r == 2) {
+            /* B → back to the main menu (95251-95256): arm the panel slide-out
+             * and let the item-window slide retract. */
+            s_menu.mode = 1;
+            s_menu.c18  = 1;
+            stage_load_pulse_set_active(0);                      /* FUN_004682d0 */
+            audio_play_se_by_id(0x13d);
+        } else if (r == 3) {
+            guild_buy_price_preview(sel);                        /* A-edge: preview price */
+        } else if (r == 1) {
+            guild_buy_open_qty_overlay(sel);                     /* open the qty overlay */
+        }
+    } else if (s_menu.mode == 8) {
+        /* ── qty-confirm overlay (FUN_004922c0 mode 8, all.c:95536-95589) ──────── */
+        int r = guild_qty_overlay_input();                       /* FUN_00491bc0(0) */
+        if (r == 1 || r == 2) {
+            if (r == 1)
+                guild_buy_commit();                              /* purchase */
+            display_menu_cursor_to_row();                        /* FUN_0046939a */
+            s_menu.mode = 0;                                     /* → item list */
+            title_save_dialog_cursor_set_visible(1);            /* FUN_0043561a */
+        }
+        /* r == -1: still animating — stay in mode 8. */
     }
 
     /* cursor visible (FUN_0043561a at LAB_0049282c — every mode-1 frame, incl.
@@ -324,6 +609,7 @@ void scene_guild_sim(void)
 #include <d3d8.h>
 
 #include <math.h>          /* sinf — the "New" badge sparkle */
+#include <stdio.h>         /* snprintf — the qty-overlay title / price strings */
 
 #include "render_quad.h"   /* render_quad_state_setup/bind/add/add_mirrored/flush */
 #include "sprite.h"        /* sprite_t, sprite_load */
@@ -500,6 +786,114 @@ static void scene_guild_menu_render(IDirect3DDevice8 *d)
     }
 }
 
+/* ─── the buy/sell qty-confirm overlay (FUN_00491de0) ────────────────────────
+ * Drawn on top of the item window when the overlay is open (DAT_09642c50 > 0).
+ * Everything renders under COLOROP=ADDSIGNED with grey-127 modulation (the same
+ * neutral-pass the menu option list uses), reset to MODULATE at the end.
+ *   - confirm box   savewindow.tga, src(0,0,512,128), centred-grow by slide/4.
+ *   - title         " Buying     %s. Are you sure?" centred (320,200) scale 0.8
+ *                   (the qty number tucks into the title's space gap).
+ *   - qty "%2d"     right-aligned at (292 - nameWidth/2, 196) scale 1.0.
+ *   - price line    "Stock Price…%spix" (buy) at (112,240), total = qty·price.
+ *   - Yes / No      (380,240) / (472,240) scale 1.0.
+ *   - up/down arrows item_win.tga, stacked at x = 272 - nameWidth/2, only while
+ *                   qty < max (up) / qty > 1 (down), with the press-bob offset. */
+static void scene_guild_qty_overlay_render(IDirect3DDevice8 *d)
+{
+    if (s_menu.ov_slide <= 0)
+        return;
+
+    const float frac  = (float)s_menu.ov_slide / 4.0f;        /* open 0.25..1.0 */
+    int alpha = (s_menu.ov_slide * 255) / 4;                  /* text fade-in    */
+    if (alpha > 255) alpha = 255;
+    const uint32_t tcol = ((uint32_t)alpha << 24) | 0x7f7f7fu; /* text grey       */
+
+    IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+
+    /* confirm box (savewindow.tga) — grows from screen centre with the slide. */
+    {
+        const sprite_t *box = &g_sysassets.savewindow_tga;
+        if (box->tex) {
+            IDirect3DDevice8_SetTexture(d, 0, (IDirect3DBaseTexture8 *)box->tex);
+            const float dst[4] = { 320.0f - frac * 256.0f, 224.0f - frac * 64.0f,
+                                   frac * 512.0f, frac * 128.0f };
+            const float src[4] = { 0.0f, 0.0f, 512.0f, 128.0f };
+            render_quad_add(dst, src, box->width, box->height, 0xff7f7f7fu);
+            render_quad_flush(d);
+        }
+    }
+
+    /* item name (for the title + the qty-number placement). */
+    const char *name = "";
+    if (s_menu.item_rec >= 0 && s_menu.item_rec < g_item.count)
+        name = g_item.records[s_menu.item_rec].singular;
+    const int sel = s_menu.entries[s_menu.cursor];   /* 0 Buy / 1 Sell */
+
+    /* title — " Buying     %s. Are you sure?" centred at (320,200). */
+    {
+        char title[160];
+        snprintf(title, sizeof title,
+                 sel == 0 ? " Buying     %s. Are you sure?"
+                          : "Selling     %s. Are you sure?",
+                 name);
+        font_draw_text_centered(d, 320.0f, 200.0f, title, tcol, 0.8f);
+    }
+
+    /* quantity "%2d" — right-aligned in the title's space gap (292 - nameW/2). */
+    const float half_name = font_measure_text(d, name, 0.8f) * 0.5f;
+    {
+        char q[8];
+        snprintf(q, sizeof q, "%2d", s_menu.qty);
+        font_draw_text_right(d, 292.0f - half_name, 196.0f, q, tcol, 1.0f);
+    }
+
+    /* price line — "Stock Price…%spix" (buy) with the comma-formatted total. */
+    {
+        int total = s_menu.qty * s_menu.unit_price;
+        char num[32], line[80];
+        if (total < 1000)
+            snprintf(num, sizeof num, "%d", total);
+        else if (total < 1000000)
+            snprintf(num, sizeof num, "%d,%03d", total / 1000, total % 1000);
+        else
+            snprintf(num, sizeof num, "%d,%03d,%03d",
+                     total / 1000000, (total / 1000) % 1000, total % 1000);
+        /* full-width spaces (SJIS 0x81 0x40) between the label and the number. */
+        snprintf(line, sizeof line,
+                 sel == 0 ? "Stock Price\x81@\x81@\x81@\x81@\x81@%spix"
+                          : "Purchase Price\x81@\x81@\x81@\x81@\x81@%spix",
+                 num);
+        font_draw_text(d, 112.0f, 240.0f, line, tcol, 0.8f);
+    }
+
+    /* Yes / No labels (the engine's per-confirm flash dim is a sub-1/127 sine
+     * step — imperceptible — so both stay grey-127). */
+    font_draw_text(d, 380.0f, 240.0f, "Yes", tcol, 1.0f);
+    font_draw_text(d, 472.0f, 240.0f, "No",  tcol, 1.0f);
+
+    /* up / down quantity arrows (item_win.tga) — only when adjustable. */
+    {
+        const sprite_t *win = &g_sysassets.item_win_tga;
+        if (win->tex) {
+            IDirect3DDevice8_SetTexture(d, 0, (IDirect3DBaseTexture8 *)win->tex);
+            const float ax = 272.0f - half_name;
+            if (s_menu.qty < s_menu.max_qty) {            /* up arrow */
+                const float dst[4] = { ax, 178.0f - (float)s_menu.up_bob, 24.0f, 16.0f };
+                const float src[4] = { 768.0f, 176.0f, 792.0f, 192.0f };
+                render_quad_add(dst, src, win->width, win->height, 0xff7f7f7fu);
+            }
+            if (s_menu.qty > 1) {                          /* down arrow */
+                const float dst[4] = { ax, 220.0f + (float)s_menu.dn_bob, 24.0f, 16.0f };
+                const float src[4] = { 768.0f, 192.0f, 792.0f, 208.0f };
+                render_quad_add(dst, src, win->width, win->height, 0xff7f7f7fu);
+            }
+            render_quad_flush(d);
+        }
+    }
+
+    IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+}
+
 /* worker_load case-6 body — port of the scene-init FUN_0049174e's relevant
  * effects (reset the menu state + build the option table + snap the cursor) +
  * the FUN_00473769 texture load.  Runs on the load worker; serialized before
@@ -576,9 +970,9 @@ void scene_guild_render(struct IDirect3DDevice8 *dev)
         display_menu_render(d);                    /* FUN_0046b00a — item window
                                                     * (Buy/Sell list; no-op while
                                                     * the slide counter is 0).     */
-        /* FUN_0043537e (secondary banner) + FUN_00491de0 (buy/sell confirm) +
-         * FUN_00435117 (dialog frame): stubbed/no-op at rest (the port's
-         * title_save_dialog_secondary/render are no-op gates). */
+        /* FUN_0043537e (secondary banner) is a no-op at rest. */
+        scene_guild_qty_overlay_render(d);         /* FUN_00491de0 — buy/sell confirm */
+        /* FUN_00435117 (dialog frame): no-op gate. */
         title_save_dialog_cursor_render(d);        /* FUN_00435747 — hand cursor */
     }
 }

@@ -69,6 +69,23 @@ int display_menu_update(int param);
 /* FUN_00469a9f(): the currently-selected list item id, -1 == "select none". */
 int display_menu_selected(void);
 
+/* FUN_00469a83(): the highlighted row's count slot — for a guild buy list this
+ * is the per-item stock cap (the "N Left" number); 0 == out of stock. */
+int display_menu_stock_cap(void);
+
+/* FUN_00491b16(): how many items the player holds total (non-empty inventory
+ * slots in `bank`).  The buy flow's "Item limit reached" / max-qty gate. */
+int display_menu_owned_count(const uint32_t *bank);
+
+/* FUN_00469a00(): post-buy bookkeeping for the highlighted row — decrement its
+ * stock cap (the "N Left", while in (0,100)) and the matching per-save daily
+ * buy limit in `bank`.  Call once per unit purchased. */
+void display_menu_buy_post_add(uint32_t *bank);
+
+/* FUN_0046939a(): slide the shared hand cursor back onto the current list row
+ * (used when the qty overlay closes and the item list regains focus). */
+void display_menu_cursor_to_row(void);
+
 /* DAT_005c6ee4: how many of the highlighted item the player holds in inventory
  * ("Number possessed" in the description panel).  Recomputed inside
  * display_menu_open / _update; -1 before the first recount. */

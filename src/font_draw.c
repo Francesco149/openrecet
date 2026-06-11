@@ -226,6 +226,41 @@ float font_draw_text_centered(struct IDirect3DDevice8 *dev_,
     return width;
 }
 
+float font_measure_text(struct IDirect3DDevice8 *dev_,
+                        const char *str,
+                        float scale)
+{
+    IDirect3DDevice8 *dev = (IDirect3DDevice8 *)dev_;
+    if (!dev || !str) return 0.0f;
+    if (!g_font_atlas.fontidx) return 0.0f;
+
+    const float fVar2 = scale * 0.65f * 0.76f;
+    float width = 0.0f;
+
+    /* Same alloc-and-upload-if-new measure walk as the centered/right variants
+     * (FUN_0047d0ea), but no draw — keeps glyphs cached so a follow-up draw of
+     * the same string lays out against identical effective widths. */
+    const unsigned char *p = (const unsigned char *)str;
+    while (*p) {
+        unsigned char b0 = p[0];
+        if (b0 < 0x20) { p++; continue; }
+        int is_double_byte = (b0 & 0x80) != 0;
+        unsigned char b1 = is_double_byte ? p[1] : 0;
+
+        int rec_id, is_new;
+        int slot = font_slot_alloc(b0, b1, &rec_id, &is_new);
+        if (slot != FONT_SLOT_NONE) {
+            if (is_new) {
+                font_slot_upload(slot, dev);
+            }
+            uint32_t eff = g_font.slots[slot].effective_width;
+            width += ((float)(int)eff - 3.0f) * fVar2;
+        }
+        p += is_double_byte ? 2 : 1;
+    }
+    return width;
+}
+
 float font_draw_text_right(struct IDirect3DDevice8 *dev_,
                            float right_x, float y,
                            const char *str,

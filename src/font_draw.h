@@ -126,6 +126,17 @@ float font_draw_text_right(struct IDirect3DDevice8 *dev,
                            float scale);
 
 /*
+ * FUN_0047d0ea — measure-only: the total advance width of `str` at `scale`,
+ * WITHOUT drawing (same per-glyph `(effective_width-3)*scale*0.494` walk the
+ * draw/centre/right helpers use).  The qty-confirm box positions its quantity
+ * number relative to the item-name width via this.  Glyphs are alloc+uploaded
+ * so a first-seen string measures consistently with its later draw.
+ */
+float font_measure_text(struct IDirect3DDevice8 *dev,
+                        const char *str,
+                        float scale);
+
+/*
  * FUN_00465db4 — the bubble / help-box multi-line text renderer.  Expands
  * the engine's variable macros (stubbed — see the .c), splits on <BR>, and
  * draws each line via font_draw_text_fade (FUN_0047d464) with `char_budget`
