@@ -159,8 +159,19 @@ int font_slot_alloc(uint8_t cp_byte0, uint8_t cp_byte1,
      * to 24 so the advance comes out positive (~10 in 640-space).
      *
      * Other zero-effective-width slots (unknown glyphs, blanks the
-     * upload can't measure) get whatever the upload writes. */
-    s->effective_width = (cp_byte0 == ' ') ? 0x18u : 0u;
+     * upload can't measure) get whatever the upload writes.
+     *
+     * The FULL-WIDTH space (SJIS 81 40) is the same kind of blank-glyph
+     * slot — its bitmap has no body+edge pixels, so the upload measures 0
+     * and the advance goes negative, collapsing the spacing.  The engine
+     * (FUN_0047cbcb) only force-pins the ASCII ' ', so retail's full-width
+     * space width comes from its glyph cell; here we pin it to 0x0d (≈4px
+     * advance at scale 0.8), matching retail's "Stock Price␣␣␣␣␣140pix"
+     * spacing in the buy/sell qty box.  font_upload preserves this (it no
+     * longer overwrites a pin with a 0 measure). */
+    s->effective_width = (cp_byte0 == ' ')                     ? 0x18u
+                       : (cp_byte0 == 0x81 && cp_byte1 == 0x40) ? 0x0du
+                                                                : 0u;
 
     if (out_record_id) *out_record_id = record_id;
     if (out_is_new)    *out_is_new    = 1;

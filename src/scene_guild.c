@@ -46,6 +46,7 @@
 #include "stage_load_pulse.h"         /* the item-window slide ramp (FUN_004693e3) */
 #include "tables_item.h"              /* g_item DB (price / name for the qty overlay) */
 #include "save_bank.h"                /* SAVE_BANK_FIELD_GOLD / _ITEM_TABLE_DWORD     */
+#include "scene1_top_hud.h"           /* the money rolling-counter (FUN_00406584)     */
 
 /* ─── working-arena field offsets (base DAT_044e3798, per-slot) ──────────────
  * The port pins the engine's per-location stage index (DAT_0438b1e0) to the
@@ -410,9 +411,15 @@ void scene_guild_sim(void)
      * correct — it stays at the pinned value, matching retail.) */
     {
         uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-        if (bank != NULL &&
-            ((const uint8_t *)bank)[GUILD_RESTRICTED_OFF] != 0)
-            bank[SAVE_BANK_FIELD_GOLD] = GUILD_TUTORIAL_GOLD;
+        if (bank != NULL) {
+            if (((const uint8_t *)bank)[GUILD_RESTRICTED_OFF] != 0)
+                bank[SAVE_BANK_FIELD_GOLD] = GUILD_TUTORIAL_GOLD;
+            /* money rolling-counter (FUN_00406584, pre-sim, all.c:4849): ease the
+             * displayed gold toward the bank value so a purchase rolls the digits
+             * down (one frame after the deduct, matching the engine's pre-sim
+             * ordering).  No-op + no RNG at rest. */
+            scene1_top_hud_money_tick((int)bank[SAVE_BANK_FIELD_GOLD]);
+        }
     }
 
     /* First-visit branch (all.c:94764-94775), gated on the 2nd entry tick. */
@@ -839,12 +846,16 @@ static void scene_guild_qty_overlay_render(IDirect3DDevice8 *d)
         font_draw_text_centered(d, 320.0f, 200.0f, title, tcol, 0.8f);
     }
 
-    /* quantity "%2d" — right-aligned in the title's space gap (292 - nameW/2). */
+    /* quantity "%2d" — right-aligned in the title's space gap (292 - nameW/2).
+     * Distinct GREEN diffuse (engine 94679-94680: R=0x8f, G=0xce, B=0x8f, ± a
+     * sub-1 sine wobble we drop): under COLOROP=ADDSIGNED the glyph body stays
+     * white but its anti-aliased edge tints green → the green-outlined number. */
     const float half_name = font_measure_text(d, name, 0.8f) * 0.5f;
     {
         char q[8];
         snprintf(q, sizeof q, "%2d", s_menu.qty);
-        font_draw_text_right(d, 292.0f - half_name, 196.0f, q, tcol, 1.0f);
+        const uint32_t qcol = ((uint32_t)alpha << 24) | 0x8fce8fu;
+        font_draw_text_right(d, 292.0f - half_name, 196.0f, q, qcol, 1.0f);
     }
 
     /* price line — "Stock Price…%spix" (buy) with the comma-formatted total. */

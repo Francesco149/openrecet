@@ -8,6 +8,9 @@
 
 #include "scene1_top_hud.h"
 
+#include <stdint.h>
+#include "rng.h"       /* rng_next15 — the money-roll step (FUN_005041f6 / rand) */
+
 /* ─── game-state inputs (see header) ───────────────────────────────────── */
 
 static int   g_hud_day         = 0;       /* DAT_0450fb84[slot]; shown as +1 */
@@ -20,6 +23,35 @@ void  scene1_top_hud_set_clock_phase(float p)    { g_hud_clock_phase = p; }
 int   scene1_top_hud_day(void)                   { return g_hud_day; }
 int   scene1_top_hud_money(void)                 { return g_hud_money; }
 float scene1_top_hud_clock_phase(void)           { return g_hud_clock_phase; }
+
+/* ─── money rolling-counter (FUN_00406584 @ all.c:4849-4870) ─────────────────
+ * The displayed money (DAT_0438b918) eases toward the working-bank gold by a
+ * per-frame step `rand() % max(|Δ|/25, 10) + |Δ|/100` — the digits roll down
+ * after a purchase / up after a sale, rather than snapping.  Consumes one
+ * rng_next15 (the LCG `rand`, FUN_005041f6) per rolling frame, exactly as the
+ * engine; at rest (displayed == bank) it is a no-op and burns no RNG.  Called
+ * each frame a scene shows the HUD (the engine runs it for every scene_state>5
+ * via the FUN_00453xxx scene dispatch). */
+void scene1_top_hud_money_tick(int bank_gold)
+{
+    int delta = bank_gold - g_hud_money;
+    if (delta == 0)
+        return;
+    int ad = (delta < 0) ? -delta : delta;
+    int step_mod = ad / 0x19;                 /* |Δ| / 25 */
+    if (step_mod < 10)
+        step_mod = 10;
+    int step = (int)((uint32_t)rng_next15() % (uint32_t)step_mod) + ad / 100;
+    if (delta < 0) {                          /* bank < displayed → roll down */
+        g_hud_money -= step;
+        if (g_hud_money < bank_gold)
+            g_hud_money = bank_gold;
+    } else {                                  /* bank > displayed → roll up   */
+        g_hud_money += step;
+        if (g_hud_money > bank_gold)
+            g_hud_money = bank_gold;
+    }
+}
 
 /* ─── world-map travel-time tooltip (FUN_00406d50 Draw-2 + the FUN_00406584
  *     mode-8 band selector) ───────────────────────────────────────────────

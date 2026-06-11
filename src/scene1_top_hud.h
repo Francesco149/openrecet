@@ -31,6 +31,12 @@ int   scene1_top_hud_day(void);
 int   scene1_top_hud_money(void);
 float scene1_top_hud_clock_phase(void);
 
+/* FUN_00406584 (all.c:4849): ease the displayed money toward `bank_gold` by one
+ * rolling step (rand-based, consumes one rng_next15 per rolling frame; a no-op
+ * at rest).  Call each frame a scene shows the HUD so a purchase/sale rolls the
+ * digits instead of snapping. */
+void  scene1_top_hud_money_tick(int bank_gold);
+
 /* World-map travel-time tooltip (FUN_00406d50 Draw-2 + the FUN_00406584 mode-8
  * band selector).  `_tick` is called per world-map sim frame with the selected
  * destination (DAT_09643684) and the dest-0 variant flag (DAT_045105a0!=0);

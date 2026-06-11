@@ -231,7 +231,11 @@ int font_slot_upload(int slot_id, struct IDirect3DDevice8 *dev_)
     IDirect3DTexture8_UnlockRect(tex, 0);
 #endif
 
-    g_font.slots[slot_id].effective_width = effective_width;
+    /* Preserve an alloc-time pin (the ASCII ' ' = 0x18 / full-width space =
+     * 0x0d) when the glyph is blank: a 0 measure must not clobber it (else the
+     * advance goes negative and the spacing collapses). */
+    if (effective_width != 0)
+        g_font.slots[slot_id].effective_width = effective_width;
     g_font.textures[slot_id] = tex;
     return 1;
 }
