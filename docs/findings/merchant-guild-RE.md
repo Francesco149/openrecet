@@ -282,7 +282,21 @@ f475 A=buy1 · f527 A f569 Up f634 A=buy2.
   `scene_guild_sim`). 95058-95170 = cursor nav + A-dispatch (UNPORTED).
 - **0 = Buy/Sell item list** (the shared item-window grid). 95242-95389 handler. A on item →
   mode 8 (buy: 95368-95377) or sell-confirm.
-- **2 = Talk submenu** (94885-95030) — the 6 topics, seen-flags `save[0x2bc98+i]` (window 3).
+- **2 = Talk submenu** (94885-95030) — **PORTED 2026-06-11 (`88b666a`), studio-verified 1:1**
+  (residue = cursor-bob/New-sparkle phase, accept). **7 rows = 6 topics + "Never mind"**
+  (strings @ exe `0x5cfb0c`: "What is the guild?"/"What can I do here?"/"About merchant
+  levels"/"About the town"/"About unknown items"/"About fusion"/"Never mind"); no-wrap U/D nav
+  over `c10` 0..6 (the render draws 6 visible rows, scroll `c0c` ∈ {0,1}). Entry: mode-1 A on
+  Talk sets `c1c=1`, ramps to 0xf → mode 2, slides to `c1c==0x19`. A on a topic → `c20=1`
+  confirm-slide; at `c20==0x10` fires `FUN_0044ba2c(1,script,0)` (script = {0a,0b,0c,0e,18,19}
+  by `c10`) + sets `save[0x2bc98+c10]=1` (clears that topic's New badge). B / A-on-"Never mind"
+  (`c10==6`) → `c14=1` close (c1c slides back <0x10 → mode 1). Render: main list c1c slide/cull
+  (selected Talk row slides up-left to head the submenu, others cull at c1c>12); submenu rows
+  `rx=panel_x+280−(c1c−0xf)·0x10`, alpha `(c1c−0xf)·0x34`; per-topic New sparkle (topics 0..5);
+  up/down scroll arrow (item_win.tga src (448,896,512,944)/(512,896,576,944)). param_3 (0 talk /
+  1 first-visit) only gates BGM fades the port omits. **PORT-DEBT(talk-confirm-flash):** the c20
+  selected-row brightness pulse (Ghidra-dropped FPU amplitude). Verify trace:
+  `guild-skip-dialogue-talk-leave-20260611-204101` `caprange [250,1250]`.
 - **3** = sell item-pick (FUN_00469a9f adds gold). **4** = Expansion confirm. **5** = Fusion
   confirm. **6** = post-purchase result anim (`DAT_09642bfc` 0→0x4b). **8 = qty overlay**.
 - Transitions: mode1 --A on Buy/Sell--> slide-in (`c24=1,c20=1`; at `c20==0xf`

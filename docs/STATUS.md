@@ -246,8 +246,24 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   INGAME skip-modal block + tick the cursor when `skip_event_open()`. Box geometry/text/Yes-No,
   cursor slide Yes→No→Yes, and confirm Yes→skip→guild menu all match retail (direct frame compare
   at the box; the studio diff is kept-count-seam-shifted — accept). esc-skip-event.md "Guild".
-  **→ NEXT gaps (this trace): Talk submenu** (no-wrap nav + first dialogue clears the flashing
-  New badge + persistence), the **try-leave tutorial** (nothing-bought gate), then the
+  **GAP 2 — Talk submenu (`FUN_004922c0` mode 2) ✅ DONE + studio-verified 1:1 2026-06-11**
+  (`88b666a`): A on Talk now opens the submenu (was stalled — mode 1 armed c1c=1 but the nav
+  gate blocked the ramp, so the submenu never opened). Ported the mode-1 c1c-ramp→mode-2 flip,
+  the mode-2 state machine (c1c slide in/out, no-wrap U/D nav over 7 rows = 6 topics + "Never
+  mind"; A→topic dialogue iv1_0a/0b/0c/0e/18/19 fired via `scene1_intro_dialogue_start_single`
+  + per-topic seen-flag `save[0x2bc98+i]`; B / A-on-"Never-mind" close), the main option-list
+  c1c slide/cull (the rows collapse + the Talk row heads the submenu as it opens), and the
+  submenu render (6 sliding topic rows + per-topic New sparkle + the up/down scroll arrow).
+  Re-windowed the composite to `caprange [250,1250]` (labels ~903-1140 = the submenu) +
+  recaptured both sides: the studio diff is **bit-identical** at the open (label 1015, cursor
+  "What is the guild?") AND the scrolled state (1140, cursor "Never mind", no-wrap held, "Never
+  mind" correctly badge-less) — the ONLY residual is the cursor-bob + New-sparkle PHASE (the
+  load-seam phase pillar, same as the main menu; accept). The 17 audio "misses" are all
+  POST-window (retail 15984-18750 = the buy/leave/bread the port stalls at — the Leave handler
+  is the NEXT gap); every within-window nav/select SE fires. PORT-DEBT(talk-confirm-flash): the
+  c20 selected-row brightness pulse (Ghidra-dropped FPU amplitude), settled to grey-127 like
+  the main-menu pulse. **Pending user eyeball** (served :8778; backup `edit.trace.jsonl.gap1-escskip.bak`).
+  **→ NEXT gaps (this trace): the try-leave tutorial** (nothing-bought gate) + the
   **leave-guild BREAD CUTSCENE = `scene1_intro_dialogue_start_single(1, 9)` (iv1_9), RE'd
   `cadf75f`** — `FUN_004922c0`'s Leave dispatch `LAB_00492ad7` fires it on the per-location
   first-leave flag (`DAT_0450f3f5[loc]==0`); dialogue machinery already ported, so port = the
