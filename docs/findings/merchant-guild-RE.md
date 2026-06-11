@@ -1,6 +1,8 @@
 # Merchant's Guild scene (engine mode 6 / Market) — RE + port plan
 
-Status: **scene shell + first-visit cutscene LANDED** (`a998fb4`, 2026-06-10) — the
+Status: **scene shell + first-visit cutscene + post-cutscene MAIN MENU LANDED**
+(`a998fb4` 2026-06-10, `06e9fdf`+`6ea5a3a` 2026-06-11) — the menu (panel/options/HUD/
+bubble/cursor) renders pixel-identical to retail at rest (see "Main menu UI" below). The
 port now enters mode 6, renders the guild bg, and plays the iv1_3 first-visit cutscene
 (visually confirmed on the trace session: bg + guildmaster/Recette standees + text box
 + Esc-skip prompt, matching the user's notes @138 enter / @179 fade-in / @229 standees).
@@ -186,15 +188,66 @@ Landed `src/scene_guild.{c,h}` + wiring (`sim.c` case 6, `main.c` render case 6 
   (Separately noted PORT-DEBT(door-exit-reset): the asm also zeroes `DAT_056db000` here —
   untested, world-map render already 1:1; mirror if a later door-exit scenario needs it.)
 
+## Main menu UI (FUN_0049404b) — LANDED 2026-06-11 (`06e9fdf` + `6ea5a3a`)
+The post-cutscene guild main menu now renders at parity (`src/scene_guild.c` menu
+state + update + render, `src/font_draw.c` `font_draw_text_box`).  Verified on the
+merchants-guild trace at label 02191 (resting menu): **panel, the 4 options, gold HUD,
+the speech bubble + its body text, the chrname nametag, and the guildmaster are all
+pixel-identical to retail** (diff ~99.9% black); the only residuals are the hand-cursor
+bob phase (~3px) + the "New" sparkle phase (sub-pixel) — both the load-seam phase pillar
+(the menu resumes a few frames apart on port/retail; accept).  Cutscene verdict
+unchanged (CONST-OFFSET, audio ALIGNED) — the menu changes have zero sim/RNG effect
+during the cutscene (only a static counter + the render gate move).
+
+**Gating (the key structural fact, from the retail call-trace):** `FUN_004922c0`
+(menu update) + `FUN_0049404b`/`FUN_00494a73`/`FUN_00406d50` (menu render + HUD) fire
+**only on the 2 pre-cutscene entry ticks [14963,14964] and post-cutscene [16167+] —
+NEVER during the cutscene [14992..16165]**.  The mode-6 dispatch is skipped while the
+first-visit dialogue is busy (the dialogue takes over update+render).  Ported by gating
+the whole `scene_guild_sim` + the menu render + cursor + HUD on
+`!scene1_intro_dialogue_busy()`, so the counters freeze through the cutscene and the
+bubble pops in (+ text reveals) after it ends, frame-for-frame as retail.  bg +
+guildmaster still draw through the cutscene (they coincide with retail's cutscene-path
+bg + guildmaster standee — confirmed 1:1).
+
+**What FUN_0049404b draws (resting main menu):**
+- **Panel frame:** `DAT_073d8748` = `bmp/item_win.tga` (a GLOBAL sysasset, not the
+  group-7 set), dst (panel_x=256, −8, 400, 320), src (0,0,400,320), MODULATE.
+- **Option list** (gated `DAT_09642c00 != 0`): 4 rows drawn bottom→top, each label
+  `(&PTR_PTR_005cfaf0)[type]` at x = panel_x+120 (376), y = idx*0x22 + 64 (+2 if not
+  selected); **selected scale 1.0769231, others 0.8615385**; color (alpha<<24)|**0x7f7f7f**
+  (grey-127 RGB) under **COLOROP = ADDSIGNED** (engine `SetTextureStageState(0,COLOROP,8)`
+  at all.c:95943, reset to MODULATE at 96092; vtable 0xfc = SetTextureStageState,
+  0xf4 = SetTexture).
+- **"New" badge** on Talk (type 2) when any of the 6 talk-dialogue-seen flags (save bank
+  byte `0x2bc98+i`) is 0: scale **0.5** (const@0x51935c), pos (row_x−12, row_y+8), sparkle
+  color R=`sin(c38·0.1)·64+191`, G=`·32+159`, B=0x7f (all.c:95997-96005).
+- **Speech bubble** (gated `DAT_09642c40 > 0`): `DAT_073a9580` = `bmp/shopmode.tga`,
+  **H-mirrored** (`FUN_00404e61`), dst from `ive_box_scale`(FUN_0046c86f) — (160,288,416,176)
+  fully open — src (0,176,416,352); the chrname (`bmp/ivent/chrname.tga`) **"Guild Master"
+  nametag** cell 0xb (col 1, row 4 → src 128,128,256,160) at dst (308,300,128,32); the body
+  text via `font_draw_text_box` @ (250,348), variant by `DAT_09642c4c` (<0x78 "Before you
+  stock up…" / ≥0x78 "Time to stock up a bit, eh?").  The continue-arrow (`DAT_09642c44`) is
+  init-0 / never set ⇒ never drawn.
+- **`FUN_0046b00a(0,0)` is a no-op in the guild** — it early-returns when `DAT_0734b98c==0`
+  (the shop item-window slide, always 0 here).  Don't port it for the guild.
+- **`FUN_00491de0`** (buy/sell qty-confirm) is gated `DAT_09642c50 > 0` — a no-op on the
+  plain menu (PORT-DEBT(guild-menu-nav)).
+- **Font scale gotcha** (gotcha-worthy): `font_draw_text_box` (FUN_00465db4) passes the BOX
+  scale (param_5 = 1.0), NOT param_5*0.76, to the row drawer — the decompile's *0.76 on the
+  scale arg is Ghidra FPU mis-grouping (belongs to the line-spacing y).  The bubble text was
+  1.317× (=1/0.76) too small until the extra factor was dropped (recapture-confirmed).
+
 **Open (PORT-DEBT, step 4 + beyond):**
-- `FUN_004922c0` tail: guildmaster idle-anim counters (`DAT_09642c40`…), the daily-event
-  probe (`FUN_0045de68`, event system unported), the group-6 follow-on cutscenes.
-- `FUN_00494a73` UI tail (`FUN_0049404b` fx, `FUN_0046b00a` guild menu frame,
-  `FUN_0043537e`/`FUN_00491de0`/cursor/`FUN_00435117`) + the `FUN_00490e35` trailing
-  `FUN_00406d50` top-HUD — verify against the diff whether visible behind the cutscene.
+- **PORT-DEBT(guild-menu-nav):** the full interactive state machine (`FUN_004922c0`
+  94834+: cursor nav/slide `FUN_00435710`, the Talk submenu `DAT_09642c00==2`, the
+  Fusion sub-screen `FUN_00493616`, the store-Expansion cost flow, the buy/sell qty-confirm
+  `FUN_00491de0`) — deferred to the buy-flow trace (no menu input on this trace).
+- `FUN_004922c0` tail: the daily-event probe (`FUN_0045de68`, event system unported), the
+  group-6 follow-on cutscenes.
 - The mid-transition bg path (`DAT_09642c3c!=0`, alpha 0xff000000) + the variant-1
   (ichiba, dest 1) texture set + render.
-- Then: guild main menu → buy flow → tail (the post-cutscene re-window).
+- Then: buy flow (Z buy → Z sword → up qty 2 → Z confirm) → tail (tab-switch + single buys).
 
 ### Planned follow-on traces (user, for context)
 - Leaving the guild triggers a tutorial cutscene (the man gives you bread).

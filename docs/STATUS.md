@@ -168,23 +168,27 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   **WORLDMAP door-exit SE ✅ DONE 2026-06-10** (`172ecc9`): the 2 "missing worldmap sounds"
   were the first-shop-door-exit SE (`FUN_0048670f`, RE'd via a retail audio-hook `ret_va`),
   not worldmap — un-stubbed; `audio_diff` ALIGNED (9 sounds). See `audio-trace-diff.md`.
-  **MENU WINDOW SET UP + SYNCED 2026-06-11 → NOW PORTING `FUN_00494a73` (the guild main
-  menu UI).** Re-windowed `[330,2000]` to reach the post-cutscene menu (labels ~1696–2180);
-  synced port↔retail via the new **`MARKET_ENTER`** anchor (`12f53d2`, the distinct sync
-  point for the non-deterministic guild load: port ~8f / retail ~88f) + the **anchor-rebase**
-  (`6b1d714`, `rebase_retail_to_port_anchor` re-aligns retail at the latest shared captured
-  anchor — EXTRA_SPRITE_END here — on a kept-count seam). At a matched label the guildmaster
-  pose is identical; the diff is the REAL menu-UI gap: retail draws Buy/Sell/Talk/Leave panel
-  + gold HUD + guildmaster bubble ("Time to stock up…"), the port draws only the guild bg
-  (+ a stray blue bar). (Rebase trade-off: the pre-cutscene worldmap labels 330–~510 read
-  offset; the worldmap is confirmed 1:1 separately.) **THE PORT TARGET:** `FUN_00494a73` tail
-  (`FUN_0049404b` fx · `FUN_0046b00a` menu frame [ALREADY ported, shop-display] · cursor
-  `FUN_0043537e`/`FUN_00491de0`/`FUN_00435747`/`FUN_00435117`) + the `FUN_00490e35` trailing
-  `FUN_00406d50` top-HUD + the guildmaster speech bubble; RE map in `merchant-guild-RE.md`.
-  **Other PORT-DEBT:** the `FUN_004922c0`
-  tail (guildmaster idle-anim, daily-event probe, group-6 cutscenes), the mid-transition bg
-  path, the variant-1 (ichiba, dest 1) set. Follow-on traces queued: leaving the guild (bread cutscene) + returning to
-  Recettear (Tear cutscene) — same `FUN_004922c0` machinery. **The 2 "worldmap" sounds
+  **MAIN MENU UI ✅ LANDED 2026-06-11** (`06e9fdf` font helper + `6ea5a3a` menu) — the
+  post-cutscene guild menu now renders **pixel-identical to retail** at rest (session label
+  02191): panel + Buy/Sell/Talk/Leave options + gold HUD + the "Guild Master" speech bubble
+  ("Time to stock up a bit, eh?") + the hand cursor + the "New" sparkle badge on Talk all
+  match (diff ~99.9% black). Residuals = cursor bob phase (~3px) + New sparkle phase
+  (sub-pixel), both the load-seam phase pillar (the menu resumes a few frames apart;
+  accept). The stray blue bar is gone. Key structural find: the menu update+render fire
+  ONLY pre/post-cutscene, NEVER during it (retail call-trace) → gated on
+  `!scene1_intro_dialogue_busy()` so the bubble freezes through the cutscene + pops in
+  after. Cutscene verdict unchanged (CONST-OFFSET, audio ALIGNED). Bubble-text scale gotcha:
+  FUN_00465db4 passes the box scale (1.0), not ×0.76 (Ghidra FPU mis-group). Full RE +
+  per-draw geometry: `merchant-guild-RE.md` "Main menu UI". (Window/sync infra `12f53d2`
+  MARKET_ENTER + `6b1d714` anchor-rebase at EXTRA_SPRITE_END; rebase trade-off — pre-cutscene
+  worldmap labels 330–~510 read offset, worldmap 1:1 separately.) **NEXT → the BUY FLOW**
+  (Z buy → Z sword → up qty 2 → Z confirm): port the `FUN_004922c0` nav/buy/sell state
+  machine (`PORT-DEBT(guild-menu-nav)`) + the `FUN_00491de0` qty-confirm overlay; re-window
+  past the menu. **Other PORT-DEBT:** the Talk submenu / Fusion (`FUN_00493616`) / Expansion
+  flows, the `FUN_004922c0` daily-event probe + group-6 cutscenes, the mid-transition bg
+  path, the variant-1 (ichiba, dest 1) set. Follow-on traces queued: leaving the guild
+  (bread cutscene) + returning to Recettear (Tear cutscene) — same `FUN_004922c0` machinery.
+  **The 2 "worldmap" sounds
   (`se_019_id0150`+`00re_sys09`) ✅ DONE 2026-06-10** (`172ecc9`): a retail audio-hook
   `ret_va` backtrace named the caller `FUN_0048670f` (the HOUSE/shop update, NOT the
   worldmap) — they're the **first-shop-door-exit** SE (the tutorial trip out), played with
