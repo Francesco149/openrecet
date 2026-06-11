@@ -1105,12 +1105,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  side-by-side: SKIPPED (no frames captured on at least one side)")
 
             # Auto-push the amplified port|retail diff (the feed `comparison`
-            # type — click-to-reveal pixel diff) to the live feed. This is the
-            # "diff when applicable" auto-push: it only fires for --target both
-            # (a deterministic retail-vs-port pair). Best-effort — needs the
-            # feed up + PIL/numpy; never fail the run over it. See memory
-            # feedback_capture_autopush.
-            _autopush_comparison(scen.name)
+            # type — click-to-reveal pixel diff) to the live feed.  DISABLED by
+            # default (2026-06-11): the parity loop runs on Trace Studio now, so
+            # scenario runs no longer spam the feed (and regen-comparisons over
+            # all scenarios doesn't push 35 items).  Opt back in per-run with
+            # OPENRECET_FEED_AUTOPUSH=1; push_comparison.py stays callable by
+            # hand.  See memory feedback_capture_autopush.
+            if os.environ.get("OPENRECET_FEED_AUTOPUSH"):
+                _autopush_comparison(scen.name)
 
             # With --call-trace, auto-run the per-field state-divergence
             # localizer (flow_diff --field-timeline) on the two aligned
