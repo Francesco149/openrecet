@@ -275,8 +275,8 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   first-visit-cutscene skip is now closed too: **direct frame compare label 800 (menu
   resting after the skip, pre-nav) = port == retail, cursor on Buy** — where the old
   offscreen-snap diverged (the seam had hidden it from GAP-1's at-the-box diff). **The
-  actual Talk-dialogue ESC-skip is NOT in this recording (user found it by playing) →
-  PENDING LIVE VERIFY** (play → Talk → topic → ESC-skip → cursor stays on row).
+  actual Talk-dialogue ESC-skip is NOT in this recording (user found it by playing) but
+  ✅ USER-CONFIRMED 1:1 2026-06-11** ("can confirm the bug is fixed") — parity ledger.
   esc-skip-event.md "Guild (mode 6)" gap 3.
   **→ NEXT gaps (this trace): the try-leave tutorial** (nothing-bought gate) + the
   **leave-guild BREAD CUTSCENE = `scene1_intro_dialogue_start_single(1, 9)` (iv1_9), RE'd

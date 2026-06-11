@@ -470,8 +470,8 @@ skips → guild menu).
    menu resting after the skip, pre-nav): **port == retail, cursor on Buy** — exactly
    the window where the old offscreen-snap diverged (the seam had hidden it from the
    label-paired GAP-1 diff, verified "at the box" only). The actual Talk-dialogue
-   skip is NOT in this recording (the user found it by playing) → pending live
-   verification.
+   skip is NOT in this recording (the user found it by playing) → **✅ USER-CONFIRMED
+   1:1 2026-06-11** ("can confirm the bug is fixed").
 
 Tooling note (windowing a guild scene): anchor the `{caprange}` right after the
 FIRST `LOADING_END` (house freeroam) — `window_at_freeroam`=True so `recapture`
