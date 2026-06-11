@@ -303,6 +303,17 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
 - **Deferred (polish pass):** faint ambient particle dots (user ref-crops
   2026-06-05); next-line "book" arrow anim frame (draw from per-script-reset
   `rt->blink`, add to `{phasepin}`).
+- **Deferred (polish pass) — LOADING-SCREEN FIDELITY (user direction 2026-06-11):**
+  replicate the way retail loads things in — its fades + load screens — for an
+  authentic loading feel, instead of the port's fast-load/suppress. First concrete
+  instance (user-flagged, NOT yet RE'd): ESC-skipping the guild first-visit cutscene
+  (→Yes) plays a brief fade-to-black in retail (likely a load screen) the port skips
+  straight past; likely lead = the stubbed skip-teardown `FUN_00473c03` (the
+  camera/player reseat the port marks `PORT-DEBT(simplified)` in
+  `scene1_intro_dialogue_skip_to_end`) and/or a real post-skip asset reload. Keep
+  this in mind whenever touching scene transitions / dialogue-skip teardowns /
+  `{caprange}` load seams — it's the same class as the kept-count seam these traces
+  fight. (Confirm + RE it before it graduates to a finding/quirk.)
 - **Tooling fix (2026-06-10): the caprange.start>0 full-white diff.** A `window_start>0`
   session (`merchants-guild`) showed a fully-white diff over a 1:1 world map — only the
   RETAIL frames were renumbered into label space, the PORT stayed 0-based, so the
