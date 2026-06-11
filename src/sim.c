@@ -266,7 +266,18 @@ void sim_step_a(void)
      * TEXT_ANIM_START/END anchors off player 1's held buttons. Dormant unless
      * armed at new-game; a no-op once the 46 lines complete.
      * See src/scene1_intro_dialogue.h. */
-    if (g_scene_state == SCENE_STATE_INGAME) {
+    /* INGAME (prologue iv1_1/iv1_2) AND Merchant's Guild mode 6 (the iv1_3
+     * first-visit cutscene, the leave-bread iv1_9, the Talk dialogues) share the
+     * SAME dialogue runtime AND the SAME ESC skip modal.  esc_pressed() arms
+     * skip_event in ANY non-title scene (DAT_0438b1c0 != 0 → FUN_0045337b), and
+     * retail's FUN_004536cb routes the frame to the skip prompt whenever it is
+     * open regardless of sub-mode — so the guild cutscene is skippable exactly
+     * like the prologue (user-confirmed: ESC during the guild cutscene → the
+     * yes/no skip box → Yes drops to the menu).  Earlier this branch ran the
+     * guild dialogue tick WITHOUT the modal ("prologue-only"); that left the
+     * armed choice box un-ticked, so its grow anim never reached cb_active==4 —
+     * the box rendered half-expanded with no text (cb_active<4 gates the text). */
+    if (g_scene_state == SCENE_STATE_INGAME || g_scene_state == 6) {
         /* The skip prompt is armed through the real ESC dispatch
          * (esc_pressed() → skip_event_arm()). In normal play that fires from
          * WndProc's WM_KEYDOWN; under the TAS harness the segtrace {esc:N} op
@@ -277,24 +288,18 @@ void sim_step_a(void)
             /* The skip-event prompt is modal (retail FUN_004536cb routes the
              * frame to LAB_00453cfb, skipping the scene tick, while the prompt
              * is up): freeze the dialogue and run the prompt. On "Yes" tear the
-             * event down to free-roam; "No"/cancel resumes the dialogue next
-             * frame (the runtime is left untouched). See src/skip_event.h.
+             * current script down (skip_to_end: D_SCRIPT/D_TUT → end → next or
+             * free-roam); "No"/cancel resumes the dialogue next frame (the
+             * runtime is left untouched). See src/skip_event.h.
              * PORT-DEBT(simplified, FUN_004536cb): retail freezes the *entire*
              * in-game sim here (LAB_00453cfb); the port freezes the dialogue —
-             * the only prologue consumer — and lets the (stubbed) siblings run. */
+             * the only consumer in both the prologue and the guild cutscene —
+             * and lets the (stubbed) siblings run. */
             if (skip_event_tick(g_input_state[0].buttons) == SKIP_EVENT_CONFIRMED)
                 scene1_intro_dialogue_skip_to_end();
         } else {
             scene1_intro_dialogue_tick(g_input_state[0].buttons);
         }
-    } else if (g_scene_state == 6) {
-        /* Merchant's Guild (mode 6) first-visit cutscene (iv1_3), armed by
-         * scene_guild_sim's first-visit branch.  Tick the shared dialogue
-         * runtime so it loads + advances + fast-forwards (X-hold), exactly as
-         * the INGAME tutorial dialogues do.  No ESC skip-prompt modal here —
-         * that flow is prologue-only (skip_event is armed by the title/HOUSE
-         * path).  No-op until armed; a no-op once the script completes. */
-        scene1_intro_dialogue_tick(g_input_state[0].buttons);
     }
 
     /* Engine FUN_004536cb L50470-50471: two unconditional per-frame
@@ -381,8 +386,15 @@ void sim_step_a(void)
          * is skipped while the first-visit cutscene runs, so the cursor bob
          * freezes through it and resumes at the menu reveal).  scene_guild_sim
          * is the per-state event tick (entry-tick + first-visit trigger + the
-         * resting menu-state counters); it self-gates on busy too. */
-        if (!scene1_intro_dialogue_busy())
+         * resting menu-state counters); it self-gates on busy too.
+         * EXCEPTION: the ESC skip box (skip_event_open()) uses the SAME shared
+         * cursor and is up DURING the (now-frozen-but-still-busy) cutscene, so
+         * its Yes/No nav slide + bob must be stepped here too — without this the
+         * box's hand cursor freezes on Yes and never eases to No on a nav (the
+         * box logic toggles cb_sel, but the cursor sprite is title_save_dialog's
+         * and only this tick advances its 6-frame ease).  Mirrors the prologue,
+         * where INGAME runs this tick unconditionally so the box cursor slides. */
+        if (!scene1_intro_dialogue_busy() || skip_event_open())
             title_save_dialog_anim_tick();
         scene1_particles_tick();
         scene_guild_sim();

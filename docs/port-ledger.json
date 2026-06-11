@@ -4117,6 +4117,7 @@
    "src": [
     "src/esc_dispatch.c",
     "src/esc_dispatch.h",
+    "src/sim.c",
     "src/skip_event.c"
    ]
   },
