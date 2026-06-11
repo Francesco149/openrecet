@@ -253,6 +253,19 @@ bg + guildmaster standee — confirmed 1:1).
 - Leaving the guild triggers a tutorial cutscene (the man gives you bread).
 - Returning to Recettear triggers a Tear cutscene.
 
+**RE lead (2026-06-11, static — needs a verify trace):** the Leave menu option dispatches
+to `LAB_00492ad7` (all.c:95108) inside `FUN_004922c0`'s main-menu A-handler. On a per-location
+**first-leave flag** (`(&DAT_0450f3f5)[iVar7] == 0`) it fires
+**`FUN_0044ba2c(1,9,0)` = `scene1_intro_dialogue_start_single(1, 9)`** — the bread cutscene is
+**dialogue group 1 / script 9 (iv1_9)**; the dialogue machinery is already ported (same path as
+the first-visit `(1,3)`), so the port is the Leave-option handler + the first-leave gate, not new
+dialogue code. Else (flag set) it runs the leave-transition anim (`c2c`/`c28` = s_menu `c2c/c28`,
+the leave/transition counters). Option-type for Leave is the denormal-float-encoded int in
+`DAT_09640624[c04]` (type 5 `7.00649e-45` jumps here; type 4 `5.60519e-45` falls through — pin
+which the guild menu uses from the verify trace's `c04`/option array). **Sibling already noted at
+`scene_guild.c:329` — the first-BUY tutorial `FUN_0044ba2c(1,0xf,0)` = iv1_15, gated owns>9 &
+flag unset.** The Tear (return-to-Recettear) cutscene is in the shop/house scene, not here.
+
 ## BUY FLOW — RE + incremental port plan (2026-06-11)
 Trace **`merchants-guild-ui-flow-20260611-052747`** (served :8783), windowed `caprange
 [330,2600]` / `phasepin 282` / `rngseed 19937` / `tutloadpin 8` (mirrors the previous guild
