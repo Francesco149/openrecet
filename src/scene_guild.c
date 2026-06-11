@@ -53,6 +53,10 @@
  * active save slot (save_work_active_slot) — see docs/findings/merchant-guild-RE.md
  * and the worldmap/tutorial siblings that share this base+scheme. */
 #define GUILD_FIRSTVISIT_OFF  0x2bc5c   /* DAT_0450f3f4 — guild first-visit seen flag */
+#define GUILD_FIRSTLEAVE_OFF  0x2bc5d   /* DAT_0450f3f5 — first-leave/first-buy gate: while
+                                         * clear, Leave fires the iv1_9 "bread" tutorial; a
+                                         * purchase sets it (then Leave transitions out).  One
+                                         * byte after first-visit (DAT_0450f3f4 + 1). */
 #define GUILD_TALKSEEN_OFF    0x2bc98   /* 6 talk-dialogue-seen bytes (the "New" badge) */
 /* Slot-0-pinned dword indices into the working bank (DAT_0450fb98 / DAT_04510578
  * fall inside slot 0's 0x2dfc8-byte bank — PORT-DEBT(loc-routing), slot 0 only). */
@@ -540,13 +544,29 @@ void scene_guild_sim(void)
                             s_menu.item_cursor = 0;      /* DAT_09642c10 = 0 */
                             s_menu.item_scroll = 0;      /* DAT_09642c0c = 0 */
                             audio_play_se_by_id(0x143);
+                        } else if (sel == 4 || sel == 5) {
+                            /* Leave (LAB_00492ad7).  First-leave gate: if the per-
+                             * location first-leave flag (save[0x2bc5d], DAT_0450f3f5)
+                             * is clear — the player tries to leave before their first
+                             * purchase — the guildmaster stops them with the iv1_9
+                             * "here's some bread" tutorial cutscene (FUN_0044ba2c(1,9,0)).
+                             * The dialogue overlay freezes the guild tick (the busy gate
+                             * at the top of scene_guild_sim) and resumes the menu when it
+                             * ends; the flag is NOT set here (a purchase sets it).  Once
+                             * set, Leave instead runs the c2c/c28 leave-transition out to
+                             * the world map (its iv1_16 fade + scene-mode swap, then the
+                             * return-to-Recettear Tear cutscene) — PORT-DEBT(guild-leave-
+                             * transition), the follow-on gap.  SE 0x13d (the back beep,
+                             * LAB_00492821) plays either way. */
+                            uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+                            if (bank != NULL &&
+                                ((const uint8_t *)bank)[GUILD_FIRSTLEAVE_OFF] == 0)
+                                scene1_intro_dialogue_start_single(1, 9);  /* iv1_9 */
+                            audio_play_se_by_id(0x13d);
                         }
-                        /* Fusion(3)/Expansion(6) dispatch — PORT-DEBT(guild-menu-nav).
-                         * Leave (the bread cutscene, LAB_00492ad7) — the next gap. */
+                        /* Fusion(3)/Expansion(6) dispatch — PORT-DEBT(guild-menu-nav). */
                     }
                 }
-                /* B-press / Leave (LAB_00492ad7, the bread cutscene gate) is
-                 * PORT-DEBT(guild-menu-nav) — the next composite-trace gap. */
             } else {
                 /* ── Talk submenu slide-in ramp (95126-95130) ── c1c counts to 0xf,
                  * then hands off to mode 2 (the submenu state machine below). */
