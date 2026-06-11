@@ -245,6 +245,20 @@
   c20 selected-row brightness pulse (Ghidra-dropped FPU amplitude), settled to grey-127 like
   the main-menu pulse. **✅ USER-CONFIRMED 1:1 2026-06-11** ("can confirm the talk menu looks
   correct") — parity ledger (served :8778; backup `edit.trace.jsonl.gap1-escskip.bak`).
+  **GAP 3 — hand cursor vanished after an ESC-skip ✅ FIXED 2026-06-11** (`a7209a2`,
+  user-flagged: "skip a Talk dialogue with ESC → the cursor disappears until I press
+  arrow/go back; retail doesn't"). The choice box's close snaps the SHARED cursor
+  offscreen to (0,-64); Phase C had dropped the engine's resume-state snapshot/restore
+  as PORT-DEBT (harmless for the prologue, wrong for the Talk submenu where the cursor
+  sits on a row). Ported `FUN_0046c2cb` arm-snapshot + `FUN_0046c320` close-restore
+  (snap back if visible, else hide) + `FUN_00435644` capture helper; host-tested
+  (`test_skip_event` ×3). Recapture (`--only port`) shows the SAME latent gap on the
+  first-visit-cutscene skip is now closed too: **direct frame compare label 800 (menu
+  resting after the skip, pre-nav) = port == retail, cursor on Buy** — where the old
+  offscreen-snap diverged (the seam had hidden it from GAP-1's at-the-box diff). **The
+  actual Talk-dialogue ESC-skip is NOT in this recording (user found it by playing) →
+  PENDING LIVE VERIFY** (play → Talk → topic → ESC-skip → cursor stays on row).
+  esc-skip-event.md "Guild (mode 6)" gap 3.
   **→ NEXT gaps (this trace): the try-leave tutorial** (nothing-bought gate) + the
   **leave-guild BREAD CUTSCENE = `scene1_intro_dialogue_start_single(1, 9)` (iv1_9), RE'd
   `cadf75f`** — `FUN_004922c0`'s Leave dispatch `LAB_00492ad7` fires it on the per-location

@@ -442,6 +442,37 @@ skips → guild menu).
    only by this tick). **Fix:** also tick when `skip_event_open()` —
    `if (!scene1_intro_dialogue_busy() || skip_event_open())`.
 
+3. **The cursor vanished AFTER the skip (`a7209a2`, user-flagged 2026-06-11: "skip a
+   Talk dialogue with ESC → the hand cursor disappears until I press arrow/go back;
+   retail does not").** The choice box's close (`FUN_00434ed2` with `reset_pos`)
+   snaps the shared cursor OFFSCREEN to `(0,-64)` (`title_save_dialog_cursor_snap`)
+   — visible but off the top of the screen. Phase C had dropped the engine's
+   resume-state snapshot/restore as PORT-DEBT (the line-27 `FUN_00435625/44` →
+   `DAT_073a3e2c/30/34`): harmless for the prologue (no menu cursor up), but in the
+   Talk submenu (mode 2) the cursor sits on a topic row when ESC opens the box, so
+   after a skip it stayed parked offscreen — `scene_guild_sim`'s mode-2 resume only
+   re-shows the cursor (`FUN_0043561a`), it never re-positions (the engine's
+   `LAB_0049282c` slides ONLY on a `local_14`/`local_18` move) — until a nav re-armed
+   a `FUN_00435710` slide. **Cause = the missing snapshot/restore.** `FUN_0046c2cb`
+   snapshots `e2c = FUN_00435625()` (visible) + `FUN_00435644(&e30,&e34)`
+   (slide-target pos) BEFORE `FUN_00434def` re-snaps the cursor to Yes/No; on close
+   `FUN_0046c320` restores it — `e2c ? FUN_00435693(e30,e34) : FUN_00435612()` (snap
+   back if visible, else hide; the Yes and No branches collapse to the same rule).
+   **Fix:** port `FUN_00435644` as `title_save_dialog_cursor_capture_target` (it
+   captures the slide DESTINATION when an ease is still in flight: `pos + ac18·delta`)
+   + `g_saved_visible/x/y` in `skip_event_arm` + `skip_event_restore_cursor()` on the
+   Yes/No close. The Talk cursor lands back on its row; the prologue cursor (hidden
+   at arm) stays hidden — no regression. Host-tested (`test_skip_event`:
+   restore-on-skip / restore-on-cancel / hidden-stays-hidden). **Also closed the
+   SAME latent gap on the first-visit-cutscene skip** — the cursor was visible at
+   the top option `(328,84)` from `scene_guild_enter_reset` when ESC armed the box,
+   so it now restores there. Direct frame compare (session above, **label 800** =
+   menu resting after the skip, pre-nav): **port == retail, cursor on Buy** — exactly
+   the window where the old offscreen-snap diverged (the seam had hidden it from the
+   label-paired GAP-1 diff, verified "at the box" only). The actual Talk-dialogue
+   skip is NOT in this recording (the user found it by playing) → pending live
+   verification.
+
 Tooling note (windowing a guild scene): anchor the `{caprange}` right after the
 FIRST `LOADING_END` (house freeroam) — `window_at_freeroam`=True so `recapture`
 won't self-heal it to the house — with a count that spans forward through the
