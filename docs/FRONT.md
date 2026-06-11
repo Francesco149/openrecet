@@ -175,11 +175,27 @@
   retail's pre-overlay frame (items Worn Sword/Longsword, order, icons, caps 3/1 Left, desc,
   price 140, possessed 0). The port correctly freezes at the fresh open (steps 3-4 unported).
   Host 3230. PORT-DEBT: price-trend factor (`FUN_004361b2`) + the Out-Of-Stock/Not-For-Sale/
-  Adventurer's-Possession post-buy status texts. **NEXT (user-flagged) → the qty "Yes/No" buy
-  prompt:** the only remaining gap the user sees. Reaching it = step 3 (item-list nav, mode 0:
-  extend `FUN_00469414` cursor nav + A-on-item→mode-8) → step 4 (the qty/confirm overlay
-  `FUN_00491bc0` input + `FUN_00491de0` render = the "Buying N X. Are you sure? Yes/No" box +
-  purchase). Full plan: `merchant-guild-RE.md` "BUY FLOW". **Other PORT-DEBT:** the Talk submenu / Fusion (`FUN_00493616`) / Expansion
+  Adventurer's-Possession post-buy status texts.
+  **BUY FLOW steps 3+4 (the qty "Yes/No" prompt — the user-flagged milestone) ✅ LANDED 2026-06-11**
+  (`45f5bca`): A on a buy-list item now opens the "Buying N <item>. Are you sure? Yes/No" qty
+  overlay, navigable + purchasing. `scene_guild_sim` mode-0 (item list: `display_menu_update`
+  → r3 price-preview / r1 open / r2 back) + mode-8 (`FUN_00491bc0` qty input: U/D qty, L/R
+  Yes/No, A/B confirm/cancel + the slide/flash) + the purchase (`FUN_00468d22`×qty +
+  `FUN_00469a00` stock/daily decrement + gold deduct + SE 0x14d) + `FUN_00491de0` render
+  (savewindow.tga box + title + qty + "Stock Price…pix" + Yes/No + arrows, ADDSIGNED grey-127).
+  **Tutorial infinite-money** (`FUN_004922c0`:94756 — gold pinned to 10,000,000 while the
+  restricted-stock flag is set) ported, so the qty cap = per-item stock (3 Left), not gold, and
+  the HUD gold never drops. Recapture (`--only port`): the full flow executes (A=Buy→select→qty
+  wiggle→buy1 q1→buy2 q2, 2 purchases, stock 3→0); **audio_diff 51→14 missing**; the qty box
+  matches retail STRUCTURALLY (diff black on box/title/"Are you sure?"/Yes/No). **PENDING USER
+  1:1 CONFIRM** (qty-overlay labels ~1717–2176). **Known remaining gap → the price line's
+  full-width spaces (SJIS 81 40) collapse:** port advances them ~0 (blank-glyph
+  `effective_width`) vs retail's ~4px each (measured labels 1750: retail "140pix" @ logical
+  x228, port overlaps "Price" @ x209), so "140" overlaps "Price". A `font_alloc` advance pin
+  for `0x8140` — but it's GLOBAL (touches the confirmed-1:1 dialogue render), so verify no
+  dialogue regression before landing. Residual audio (14 SE: 7 nav/3 select/3 cancel/1 buy) +
+  qty-number x (font measure) + cursor bob phase (accept). Plan: `merchant-guild-RE.md` "BUY
+  FLOW". **Other PORT-DEBT:** Sell (mode 3), first-buy tutorial/limit gates, the Talk submenu / Fusion (`FUN_00493616`) / Expansion
   flows, the `FUN_004922c0` daily-event probe + group-6 cutscenes, the mid-transition bg
   path, the variant-1 (ichiba, dest 1) set. Follow-on traces queued: leaving the guild
   (bread cutscene) + returning to Recettear (Tear cutscene) — same `FUN_004922c0` machinery.

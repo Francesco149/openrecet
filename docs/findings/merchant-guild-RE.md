@@ -339,13 +339,36 @@ mode-8 at all.c:95536 → ret 1=confirm (purchase), 2=cancel (→mode0).
    status texts (cap-0/special, all post-buy) are deferred. Talk(2)/Leave(4,5)/Expansion(6)/
    Fusion(3) dispatches stay PORT-DEBT. Strings: `%s - %d Left` @0x5c785c, `Out Of Stock`
    @0x5c78a0, `Not For Sale` @0x5c7890, `Adventurer's Possession` @0x5c78b0.
-3. **Item-list nav (mode 0):** extend `FUN_00469414` cursor nav (the other half of
-   `PORT-DEBT(A3)`); A on sword → mode 8 (`c50=1`, snap qty cursor). + helpers `FUN_00469a83`/
-   `FUN_00491b16`.
-4. **Qty overlay (mode 8):** port `FUN_00491bc0` (U/D ±1, L/R ±10? qty; A confirm/B cancel;
-   the `c50` slide + `c54` price anim) + the `FUN_00491de0` render + purchase (mode-8 tail
-   95536-95589: `FUN_00468d22`×qty, gold deduct, SE 0x14d, `FUN_00469a00`). Buy-1/buy-2 verify.
-5. **Verify** full buy flow: audio_diff 51→~0, pixel diff menu→buy aligned, `triage`.
+3. **Item-list nav (mode 0) — ✅ DONE 2026-06-11 (`45f5bca`).** The in-list cursor nav was
+   already in `display_menu_update` (the header's PORT-DEBT(A3) note was stale); the new
+   `scene_guild_sim` mode-0 block dispatches its return: **r==3** (A-edge) → `guild_buy_price_preview`
+   (unit price = base·mult, SE 0x143/0x16a), **r==1** (6-frame countdown done) →
+   `guild_buy_open_qty_overlay`, **r==2** (B) → mode 1 + the `c18` panel slide-OUT (`FUN_004682d0`).
+   Helpers exposed from `scene1_display_menu`: `display_menu_stock_cap` (FUN_00469a83),
+   `display_menu_owned_count` (FUN_00491b16), `display_menu_cursor_to_row` (FUN_0046939a).
+4. **Qty overlay (mode 8) — ✅ DONE 2026-06-11 (`45f5bca`).** `guild_qty_overlay_input` =
+   `FUN_00491bc0(0)`: U/D qty ±1 (held, capped at `max_qty`/floored at 1, error SE 0x16a),
+   L/R Yes↔No toggle (pressed edge, cursor ease to 340+yn·96,252), A confirm (Yes→buy flash) /
+   B cancel, the `c50` slide-in (1→4) + flash-out, `_c54` price-anim + `c64/c68` arrow bob.
+   `guild_buy_open_qty_overlay` caps qty = min(gold/price, 99, stock); `guild_buy_commit` =
+   the mode-8 tail (FUN_00468d22×qty + FUN_00469a00 + gold deduct + SE 0x14d). Render
+   `scene_guild_qty_overlay_render` = `FUN_00491de0` (savewindow.tga box grow-by-`slide/4` +
+   centred title + right-aligned qty "%2d" in the title gap + "Stock Price…%spix" total +
+   Yes/No + up/down arrows, all COLOROP=ADDSIGNED grey-127). **Tutorial infinite money**
+   (`FUN_004922c0`:94756): gold force-pinned to 10,000,000 while the restricted flag
+   (`DAT_0450f3e1`/0x2bc49) is set → qty cap is stock, not affordability; HUD gold never drops.
+   Helper `font_measure_text` (`FUN_0047d0ea`) for the qty-number placement.
+5. **Verify** full buy flow: ✅ recapture executes A=Buy→select→qty-wiggle→buy1(q1)→buy2(q2),
+   2 purchases, stock 3→0; **audio_diff 51→14 missing**; the qty box matches retail STRUCTURALLY
+   (diff black on box/title/"Are you sure?"/Yes/No). PENDING user 1:1 confirm.
+   **Open gap — full-width-space (SJIS 81 40) advance:** the price line "Stock Price\x81@…%spix"
+   collapses in the port — `font_alloc` pins ONLY the ASCII space to eff-width 0x18; the
+   full-width space gets the blank-glyph upload value (≈0) → advance `(eff-3)·fVar2 < 0`, so
+   "140" overlaps "Price". Retail advances each ~4px (measured: retail "140pix"@x228 vs port
+   overlap@x209, label 1750). The engine `FUN_0047cbcb` ALSO special-cases only ' ' (94732) —
+   so retail's full-width space gets its width from the glyph/metric, NOT a special-case; the
+   port's blank atlas cell measures 0. A `0x8140` advance pin is GLOBAL (touches the
+   confirmed-1:1 cutscene text render) → verify no dialogue regression before landing.
 Defer (later traces): Sell (mode 3), Fusion (mode 5 / `FUN_00493616`), Expansion (mode 4),
 Talk submenu (mode 2 = window 3), tab-switch (window 2).
 Both are almost certainly more `FUN_004922c0`/event-tick branches (same machinery).
