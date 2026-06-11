@@ -252,4 +252,83 @@ bg + guildmaster standee — confirmed 1:1).
 ### Planned follow-on traces (user, for context)
 - Leaving the guild triggers a tutorial cutscene (the man gives you bread).
 - Returning to Recettear triggers a Tear cutscene.
+
+## BUY FLOW — RE + incremental port plan (2026-06-11)
+Trace **`merchants-guild-ui-flow-20260611-052747`** (served :8783), windowed `caprange
+[330,2600]` / `phasepin 282` / `rngseed 19937` / `tutloadpin 8` (mirrors the previous guild
+trace; free-roam-based because the recapture self-heal rebuilds any non-free-roam window —
+the auto-rebase syncs the menu at EXTRA_SPRITE_END). Menu appears ~label 1562; resting menu
+1:1 (gt8 ≤ ~1340 = cursor-bob/sparkle phase residue); divergence begins ~label 1630 (first Z
+on Buy). Audio diff baseline = **51 missing nav/buy SE** (cursor `se_010_id0146` retail×34,
+select `se_007_id0143`, purchase `se_000_id013d`/`se_016_id014d`). Trace actions (menu-seg
+frames): f99 A=Buy · f179 A=sword · f257 Up f322 Down f376 Right f403 Left (qty wiggle) ·
+f475 A=buy1 · f527 A f569 Up f634 A=buy2.
+
+### `FUN_004922c0` mode map (`DAT_09642c00`)
+- **1 = main menu** (resting + cursor nav). 94811-94833 = resting counters (PORTED:
+  `scene_guild_sim`). 95058-95170 = cursor nav + A-dispatch (UNPORTED).
+- **0 = Buy/Sell item list** (the shared item-window grid). 95242-95389 handler. A on item →
+  mode 8 (buy: 95368-95377) or sell-confirm.
+- **2 = Talk submenu** (94885-95030) — the 6 topics, seen-flags `save[0x2bc98+i]` (window 3).
+- **3** = sell item-pick (FUN_00469a9f adds gold). **4** = Expansion confirm. **5** = Fusion
+  confirm. **6** = post-purchase result anim (`DAT_09642bfc` 0→0x4b). **8 = qty overlay**.
+- Transitions: mode1 --A on Buy/Sell--> slide-in (`c24=1,c20=1`; at `c20==0xf`
+  `FUN_004682c5`+`FUN_00468338(7=buy/5=sell,1)`+`FUN_004682d8(price-mult)`; at `c24==0x19`)
+  --> mode0 --A on item--> `c00=8,c50=1` mode8 --FUN_00491bc0 confirm--> purchase loop
+  (`FUN_00468d22`×qty, gold-=qty*price, SE 0x14d) --> mode0.
+
+### Input encoding (CRITICAL gotcha)
+`_DAT_073dddd4` is the **32-bit overlap** of `pressed`(low16)|`held`(high16) — `_` warning at
+all.c:94729. In the port (`g_sim_buttons[0]`): **actions** A/B/C = `pressed & 0x10/0x20/0x40`
+(edge); **directions** R/L/U/D = `held & 0x01/0x02/0x04/0x08` (auto-repeat), i.e.
+`_DAT_073dddd4 & 0x10000/0x20000/0x40000/0x80000`. Matches worldmap (dirs←held) + display_menu
+(actions←pressed). Option types in `DAT_09640624[c04]` are **denormal-float-encoded ints**
+(`type*1.401e-45`; read `*(int*)` = type 0 Buy…6 Expansion) — Ghidra renders the int compares
+as float bit-patterns.
+
+### Key globals
+Guild menu state (`scene_guild.c` s_menu): `c00`=mode `c04`=main-cursor `c08`=scroll
+`c10`=item/talk-cursor `c0c`=item-scroll `c1c`=talk-slide `c20/c24`=submenu slide-in/out
+`c30/c34`=fusion-grid cursor/scroll `c50`=qty-overlay-open `c54`=anim-price `c58`=item-id
+`c5c`=qty `c60`=unit-price `c64/c68`=qty arrow bob `c2c/c28`=leave/transition anim
+`bfc`=result anim. `DAT_005cfae4`=max-qty. `DAT_09640624`=option-type array,
+`DAT_005cfab4`=option count. Shared item-window state = `DAT_0734b9xx` (scene1_display_menu's
+s_tab_*, s_list).
+
+### Call graph + ported status (verified vs src/ 2026-06-11)
+PORTED & reusable: cursor `FUN_00435710/693/61a/612` (title_save_dialog), input gate
+`FUN_00434d6a`, item-window `FUN_00468338`/`FUN_00469414`/`FUN_00469a9f`/`FUN_00469abb`/
+`FUN_00468d22`/`FUN_004681f6` (scene1_display_menu.c / tables_item.c — but the item-window is
+the **shop-display removal subset**; `PORT-DEBT(A3)` defers the inventory-scan POPULATION + the
+in-list cursor NAV — exactly what guild buy needs). UNPORTED gaps: **`FUN_00491bc0`** (544B,
+qty-overlay input — the bottleneck), `FUN_00491de0` (render — referenced as no-op stub in
+scene_guild.c), `FUN_00469a83` (max-buyable 28B), `FUN_00491b16` (owned count 41B),
+`FUN_00469a00` (post-add 131B), `FUN_004682d8` (price-mult 11B), `FUN_004682c5` (slide-activate
+11B).
+
+### `FUN_00491de0` (qty overlay RENDER, read in full)
+Gated `c50>0`. Draws: confirm box (item_win.tga `DAT_073d8748` / `DAT_073d8dc0`) with a
+`c50/4` open-scale; "Buying %s, Are you sure?" (DAT_09642c58 item name); qty (`_DAT_09642c54`
+anim toward `c60*c5c`) + price; up/down arrows (`c64/c68` bob, drawn only if `c5c<c5cmax` /
+`c5c>1`); flash anim `DAT_096405fc/f8`. Logic (qty adjust/confirm) is `FUN_00491bc0(0)` from
+mode-8 at all.c:95536 → ret 1=confirm (purchase), 2=cancel (→mode0).
+
+### Incremental port plan (recapture-verify each; `--only port` loop on :8783)
+1. **Main-menu nav (mode 1, 95058-95170):** cursor U/D (`c04=(±1+c04)%count`, SE 0x146, slide
+   `FUN_00435710`), A-dispatch by option type → set slide-in (`c24=1,c20=1`) / talk / leave /
+   expansion. Builds on the resting menu; keeps it 1:1. (Trace skips main-cursor move — verify
+   via build + resting-menu non-regression + the confirm SE on the A-press.)
+2. **Buy slide-in + item-window POPULATION (mode 1→0):** the `c20/c24` ramp + at 0xf open the
+   buy window. Extend `display_menu_open` with the mode-7 guild-stock population (scan the
+   guild's sellable list, category tabs) — the deferred `PORT-DEBT(A3)`. + `FUN_004682c5/2d8`.
+   First VISIBLE milestone (Buy opens the sword list); pixel-verify the list.
+3. **Item-list nav (mode 0):** extend `FUN_00469414` cursor nav (the other half of
+   `PORT-DEBT(A3)`); A on sword → mode 8 (`c50=1`, snap qty cursor). + helpers `FUN_00469a83`/
+   `FUN_00491b16`.
+4. **Qty overlay (mode 8):** port `FUN_00491bc0` (U/D ±1, L/R ±10? qty; A confirm/B cancel;
+   the `c50` slide + `c54` price anim) + the `FUN_00491de0` render + purchase (mode-8 tail
+   95536-95589: `FUN_00468d22`×qty, gold deduct, SE 0x14d, `FUN_00469a00`). Buy-1/buy-2 verify.
+5. **Verify** full buy flow: audio_diff 51→~0, pixel diff menu→buy aligned, `triage`.
+Defer (later traces): Sell (mode 3), Fusion (mode 5 / `FUN_00493616`), Expansion (mode 4),
+Talk submenu (mode 2 = window 3), tab-switch (window 2).
 Both are almost certainly more `FUN_004922c0`/event-tick branches (same machinery).
