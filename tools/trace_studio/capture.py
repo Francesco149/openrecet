@@ -441,6 +441,21 @@ def run_capture(cfg: CaptureConfig) -> int:
                   for p in (port_dir / "frames").glob("frame_*.png"))
     manifest["frame_range"] = [nums[0], nums[-1]] if nums else [0, 0]
 
+    # Per-side captured LABEL lists: each side's video frame i shows its i-th label, and
+    # a kept-count seam gives the three sides DIFFERENT label sets (holes + ranges). The
+    # viewer seeks each panel to ITS frame for the cursor's label (web align.mjs
+    # videoFrameOfLabel) instead of a shared ordinal — else port/retail can read 1:1
+    # while the diff lands on a different frame. The scrub ordinal still indexes the port
+    # (n_frames / state are port-keyed); label = port_labels[ordinal].
+    def _labels(fdir):
+        return sorted(int("".join(c for c in p.stem if c.isdigit()))
+                      for p in Path(fdir).glob("frame_*.png"))
+    frame_labels = {"port": nums}
+    if have_retail_frames:
+        frame_labels["retail"] = _labels(retail_dir / "frames")
+        frame_labels["diff"] = _labels(sess_dir / "diff" / "frames")
+    manifest["frame_labels"] = frame_labels
+
     # Ordinal-pairing guard (the studio's port↔retail comparator pairs Nth-left vs
     # Nth-right, not by absolute frame): both sides MUST keep the same kept-count.
     # D1 suppression + LOADING_END-anchored windows + identical {capstride} give

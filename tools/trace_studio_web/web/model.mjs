@@ -11,6 +11,7 @@
 // label. For ONE gameplay segment every formula collapses to the old whole-session UI.
 import { useMemo, useState, useEffect } from "/vendor/htm-preact-standalone.mjs";
 import { useSession, useStatus, getJSON } from "/store.mjs";
+import { videoFrameOfLabel } from "/align.mjs";
 
 // verdict → filmstrip fill class. Prefer the verdict TEXT (the specific word) over the
 // exit code; check the worst outcome first (a text may mention several).
@@ -55,15 +56,33 @@ export function buildView(data) {
     const nFrames = e.n_frames || (frames[1] - frames[0] + 1);
     const videos = (e.videos && Object.keys(e.videos).length)
       ? e.videos : (m.videos || {});
+    // Per-side captured LABEL lists (manifest.frame_labels, side→ascending labels).
+    // The scrub ordinal k indexes the PORT side (n_frames = the port count, state is
+    // port-keyed); the label at k is the port's k-th captured label — NOT frames[0]+k
+    // once a kept-count seam drops frames (then port has holes). retail/diff are seeked
+    // to THEIR frame for that label so all three panels show the same moment.
+    const fl = (e.frame_labels && Object.keys(e.frame_labels).length)
+      ? e.frame_labels : (m.frame_labels || null);
+    const portLabels = fl && fl.port && fl.port.length ? fl.port : null;
+    const labelOf = portLabels
+      ? (k) => portLabels[Math.min(Math.max(k, 0), portLabels.length - 1)]
+      : (k) => frames[0] + k * cadence;
+    const videoTime = (k) => (Math.min(Math.max(k, 0), nFrames - 1) + 0.5) / fps;
+    const videoTimeFor = (panel, k) => {
+      const labs = fl && fl[panel];
+      if (!labs || !labs.length) return videoTime(k);   // old session / no map → ordinal
+      return (videoFrameOfLabel(labs, labelOf(k)) + 0.5) / fps;
+    };
     const offsetGlobal = off;
     segments.push({
       idx: e.idx ?? segments.length, nFrames, cadence, frames, videos,
       verdict: e.verdict ?? null,
       verdictClass: classify(e.verdict ?? m.verdict),
       offsetGlobal,
-      labelOf: (k) => frames[0] + k * cadence,
-      videoTime: (k) => (Math.min(Math.max(k, 0), nFrames - 1) + 0.5) / fps,
-      diffAt: (k) => diffByLabel.get(frames[0] + k * cadence) || null,
+      labelOf,
+      videoTime,
+      videoTimeFor,
+      diffAt: (k) => diffByLabel.get(labelOf(k)) || null,
     });
     off += nFrames;
   }

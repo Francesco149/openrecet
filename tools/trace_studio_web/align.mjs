@@ -131,6 +131,27 @@ export function absOfCapIndex(g, baseAbs, loads) {
   return abs + remaining;
 }
 
+// ─── label → a side's video frame index ──────────────────────────────────────
+// Each side's video is encoded from its captured frames sorted by LABEL, so video
+// frame i shows that side's i-th label. With a kept-count seam the three sides
+// (port/retail/diff) have DIFFERENT label sets (different holes + ranges), so seeking
+// all three videos to the same ordinal lands on a different label per side — the
+// "port/retail 1:1 but the diff is a different frame" bug. Given a side's sorted
+// label list, return the video frame index for a target label: the frame whose label
+// is the greatest ≤ target (a hole holds the previous frame; a target before the first
+// label clamps to 0). O(log n). `labels` is the side's ascending captured-label array.
+export function videoFrameOfLabel(labels, target) {
+  if (!labels || labels.length === 0) return 0;
+  if (target <= labels[0]) return 0;
+  if (target >= labels[labels.length - 1]) return labels.length - 1;
+  let lo = 0, hi = labels.length - 1, ans = 0;   // rightmost index with labels[i] ≤ target
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (labels[mid] <= target) { ans = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  return ans;
+}
+
 // ─── distinct anchor names present, for the sync-anchor picker ───────────────
 export function anchorNames(...firingLists) {
   const s = new Set();

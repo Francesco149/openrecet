@@ -63,12 +63,17 @@ export function VideoStage({ sess, view, cur, panels, onBox }) {
     }
   }, [sess, seg]);
 
-  // lockstep seek to (k+0.5)/fps on cursor / segment change
+  // lockstep seek on cursor / segment change. Each panel seeks to ITS OWN frame for
+  // the cursor's LABEL (seg.videoTimeFor) — the port/retail/diff videos have different
+  // label↔ordinal maps across a kept-count seam, so a shared (k+0.5)/fps lands on a
+  // different moment per side. Falls back to the shared ordinal for pre-frame_labels
+  // sessions.
   useEffect(() => {
-    const t = seg.videoTime(k);
     for (const panel of ORDER) {
       const el = refs.current[panel];
-      if (el && Math.abs(el.currentTime - t) > 1e-4) el.currentTime = t;
+      if (!el) continue;
+      const t = seg.videoTimeFor ? seg.videoTimeFor(panel, k) : seg.videoTime(k);
+      if (Math.abs(el.currentTime - t) > 1e-4) el.currentTime = t;
     }
   }, [cur, seg, k]);
 
@@ -85,7 +90,9 @@ export function VideoStage({ sess, view, cur, panels, onBox }) {
                 el.src = `/s/${sess}/${fn}?v=${BUST}`;
                 attachBox(el, () => ({ ...ctxRef.current, panel }), onBox);
                 el.addEventListener("loadeddata", () => {
-                  el.currentTime = ctxRef.current.seg.videoTime(ctxRef.current.k); });
+                  const s = ctxRef.current.seg, kk = ctxRef.current.k;
+                  el.currentTime = s.videoTimeFor ? s.videoTimeFor(panel, kk)
+                                                  : s.videoTime(kk); });
               }
             }
           }}></video>

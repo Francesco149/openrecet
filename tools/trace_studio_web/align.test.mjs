@@ -2,7 +2,7 @@
 //   nix develop --command node tools/trace_studio_web/align.test.mjs
 import {
   parseSegments, resolveBases, sideLayout, absToX, xToAbs, itemAbs, divergenceReport,
-  loadSpans, capIndexOfAbs, absOfCapIndex,
+  loadSpans, capIndexOfAbs, absOfCapIndex, videoFrameOfLabel,
 } from "./align.mjs";
 
 let pass = 0, fail = 0;
@@ -127,6 +127,24 @@ const inFirings = [
 const inBases = resolveBases(inSegs, inFirings);
 const inItem = inSegs[2].items[0];                          // input @ seg2 +30
 eq(capIndexOfAbs(itemAbs(inItem, 2, inBases), 766, []), 30, "input seg2+30 → captured index 30 (abs 796 − base 766)");
+
+// ── videoFrameOfLabel: label → a side's video frame index (the seam-diff alignment) ──
+// Dense (no-seam) side: ordinal == label-base, so frame i shows label base+i.
+const dense = [330, 331, 332, 333, 334];
+eq(dense.map((_, i) => videoFrameOfLabel(dense, 330 + i)), [0, 1, 2, 3, 4], "dense: frame i ↔ label base+i");
+eq(videoFrameOfLabel(dense, 320), 0, "before-first label clamps to frame 0");
+eq(videoFrameOfLabel(dense, 999), 4, "after-last label clamps to last frame");
+// Holed side (a kept-count seam dropped 339..341): the held-previous rule.
+const holed = [336, 337, 338, 342, 343];   // labels 339,340,341 absent
+eq(videoFrameOfLabel(holed, 338), 2, "exact label → its index");
+eq(videoFrameOfLabel(holed, 340), 2, "hole label → previous frame (held)");
+eq(videoFrameOfLabel(holed, 342), 3, "first label past the hole → its index");
+// The cross-side property: port (dense) label L and the OTHER side's frame for L agree
+// on the moment even though the ordinals differ — the bug this fixes.
+const portL = [330, 331, 332, 333, 334, 335];
+const retL  = [330, 331,      333, 334, 335];   // retail dropped label 332 (seam)
+eq(videoFrameOfLabel(retL, portL[4]), 3, "port ordinal 4 (label 334) → retail frame 3 (its 334), not ordinal 4");
+eq(videoFrameOfLabel([], 5), 0, "empty side → frame 0");
 
 console.log(`\nalign.test: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

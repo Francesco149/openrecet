@@ -7,6 +7,32 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-11 — trace-studio: per-panel video seek (fix the diff diffing a different frame)
+
+The studio's three video panels (port|retail|diff) were seeked to the SAME ordinal
+`(k+0.5)/fps` (`VideoStage.mjs`), but across a kept-count LOAD seam the three sides have
+**different label↔ordinal maps** (different holes + ranges: e.g. the merchants-guild buy
+session is port 2562 / retail 2404 / diff 2307 frames). So the same scrub position landed
+on a *different label per panel* — the user's symptom: "port vs retail show a 1:1 frame but
+the diff is diffing against a completely different frame." (Measured on the buy session at
+ordinal 2053: port→label 2400, retail→2400, **diff→2497**.)
+
+The diff *data* was already correct (label-keyed; the cutscene is gt8=0). The bug was purely
+the video **seeking**. Fix: each panel now seeks to ITS OWN frame for the cursor's label.
+- `align.mjs` `videoFrameOfLabel(labels, target)` — pure binary search: a side's video frame
+  index for a target label (holes hold the previous frame). Tested (`align.test.mjs`).
+- `manifest.frame_labels = {port, retail, diff}` — each side's ascending captured-label list
+  (`capture.py`). The scrub ordinal still indexes the port (n_frames / state stay port-keyed);
+  `labelOf(k) = port_labels[k]` (no longer `frames[0]+k`, which a port hole made wrong).
+- `model.mjs` `videoTimeFor(panel, k)` + `VideoStage.mjs` seeks each panel by it. Falls back
+  to the shared ordinal for pre-`frame_labels` sessions (no behavior change for the common
+  seam-free case — dense labels make `videoFrameOfLabel` the identity).
+
+Now all three panels show the same moment at every cursor (verified: buy session ordinal
+2053 → all three label 2400). The diff-magnitude ribbon (`diffAt`) is also label-true now.
+Existing sessions get the alignment on next recapture (or a manifest `frame_labels` patch).
+49 JS tests + the trace_studio python suite pass.
+
 ## 2026-06-11 — guild BUY FLOW step 2 (the milestone): Buy opens the populated item window
 
 Pressing Z on **Buy** in the merchant's-guild menu now slides the main panel out and slides
