@@ -320,14 +320,25 @@ mode-8 at all.c:95536 → ret 1=confirm (purchase), 2=cancel (→mode0).
    blanks the menu without the item window sliding IN (measured parity dip 381k→429k gt8) — so
    the A-dispatch is NOT separable; it moves into step 2. Step 1 shipped JUST the cursor nav
    (no-op on this trace = non-regressive; the trace holds no main-menu direction).
-2. **A-dispatch + Buy slide-in + item-window POPULATION + RENDER (mode 1→0) — THE milestone:**
-   the mode-1 A-press (95086-95105: Buy/Sell→`c24=1,c20=1`, reset `c10/c0c`, SE 0x143) + the
-   slide-in ramp (95132-95167, at 0xf `FUN_004682c5`+`FUN_00468338(7,1)`+`FUN_004682d8`, at
-   0x19 →mode0) + extend `display_menu_open` with the **mode-7 guild-stock population** (RE
-   FUN_00468338's mode-7 branch — the buy list + category tabs; the deferred `PORT-DEBT(A3)`)
-   + the guild buy-window RENDER. Land together so the menu never blanks. First VISIBLE
-   milestone (Buy opens the sword list); pixel-verify. Talk(2)/Leave(4,5)/Expansion(6)
-   dispatches stay PORT-DEBT.
+2. **A-dispatch + Buy slide-in + item-window POPULATION + RENDER (mode 1→0) — THE milestone
+   ✅ DONE 2026-06-11.** Landed together (the coupling): the mode-1 A-press (95086-95105:
+   Buy/Sell→`c24=1,c20=1`, reset `c10/c0c`, SE 0x143) + the slide-in ramp (95132-95167, at 0xf
+   `display_menu_open(7/5,1)`+price-mult, at 0x19 →mode0) in `scene_guild_sim`; the **mode-7
+   guild-stock population** in `display_menu_open` (port of `FUN_0049196f` — scan the item DB,
+   not inventory: valid·price>0·gi-byte>0·two id-window gates·`k_guild_stock_tier[gi]≤store_lvl`;
+   tables `DAT_005cfabc`/`DAT_005c6ef0` extracted from the unpacked .data; mode-aware tabs = NO
+   `-1` "Nothing" entry for shop modes; per-item qty-cap → the "N Left" number); the buy-row
+   render `"%s - %d Left"` (cap∈(0,100), else just the name); the "Purchase Price-"/"Sell Price-"
+   description label (scene-6 mode); `display_menu_render` wired into `scene_guild_render`.
+   **VERIFIED 1:1 at the fresh open** (port frozen open vs retail's pre-overlay frame): items
+   (Worn Sword/Longsword), order, icons, caps (3 Left/1 Left), description, price (140),
+   possessed (0) all match; only the price LABEL needed fixing (was "Base Price-"). The
+   port FREEZES at the fresh open (no item-nav/qty yet = steps 3-4), so it correctly never
+   shows the post-buy states. **PORT-DEBT(price-trend `FUN_004361b2`):** the buy price's
+   daily-market trend factor + the `Out Of Stock`/`Not For Sale`/`Adventurer's Possession`
+   status texts (cap-0/special, all post-buy) are deferred. Talk(2)/Leave(4,5)/Expansion(6)/
+   Fusion(3) dispatches stay PORT-DEBT. Strings: `%s - %d Left` @0x5c785c, `Out Of Stock`
+   @0x5c78a0, `Not For Sale` @0x5c7890, `Adventurer's Possession` @0x5c78b0.
 3. **Item-list nav (mode 0):** extend `FUN_00469414` cursor nav (the other half of
    `PORT-DEBT(A3)`); A on sword → mode 8 (`c50=1`, snap qty cursor). + helpers `FUN_00469a83`/
    `FUN_00491b16`.

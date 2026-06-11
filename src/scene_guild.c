@@ -42,6 +42,8 @@
 #include "title_save_dialog.h"       /* shared hand cursor (FUN_0043561a/00435693) */
 #include "sim.h"                      /* g_sim_buttons[0] — _DAT_073dddd4/d6       */
 #include "audio.h"                    /* audio_play_se_by_id (FUN_00499519, no RNG) */
+#include "scene1_display_menu.h"      /* the shared item window (Buy slide-in/list) */
+#include "stage_load_pulse.h"         /* the item-window slide ramp (FUN_004693e3) */
 
 /* ─── working-arena field offsets (base DAT_044e3798, per-slot) ──────────────
  * The port pins the engine's per-location stage index (DAT_0438b1e0) to the
@@ -71,6 +73,8 @@ static struct {
     int sub_anim;     /* DAT_09642c1c — talk-submenu open anim             */
     int scroll_anim;  /* DAT_09642c20 — submenu slide-in counter           */
     int c24;          /* DAT_09642c24 — submenu slide-in sibling           */
+    int item_cursor;  /* DAT_09642c10 — talk/item cursor (reset on dispatch)*/
+    int item_scroll;  /* DAT_09642c0c — talk/item scroll (reset on dispatch)*/
     int c14;          /* DAT_09642c14 — confirm-transition flag            */
     int transition;   /* DAT_09642c3c — 1 = mid daily-event transition     */
     int entries[8];   /* _DAT_09640624 — per-row option type codes         */
@@ -135,10 +139,17 @@ void scene_guild_enter_reset(void)
     s_menu.sub_anim    = 0;          /* DAT_09642c1c = 0 */
     s_menu.scroll_anim = 0;          /* DAT_09642c20 = 0 */
     s_menu.c24         = 0;          /* DAT_09642c24 = 0 */
+    s_menu.item_cursor = 0;          /* DAT_09642c10 = 0 */
+    s_menu.item_scroll = 0;          /* DAT_09642c0c = 0 */
     s_menu.c14         = 0;          /* DAT_09642c14 = 0 */
     s_menu.transition  = 0;          /* DAT_09642c3c = 0 */
 
     scene_guild_build_table();       /* FUN_004918b0 */
+
+    /* the shared item window starts closed: zero the slide counter so
+     * display_menu_render is a no-op until a Buy/Sell opens it (a stale house
+     * display-stand slide must not bleed into the resting guild menu). */
+    stage_load_pulse_reset();
 
     /* FUN_0043561a + FUN_00435693(0x43a40000, cursor*0x22 + 84.0): raise +
      * snap the shared hand cursor onto the top option (328, 84). */
@@ -232,20 +243,72 @@ void scene_guild_sim(void)
     const uint16_t held    = g_sim_buttons[0].held;
     int cursor_moved = 0;
 
-    if (s_menu.mode == 1 && s_menu.entry_tick > 0xe &&
-        s_menu.c24 == 0 && s_menu.sub_anim == 0 &&
-        (pressed & 0x30u) == 0) {                  /* resting, no A/B (95071-95073) */
-        int dir = (held & 0x04u) ? -1 : (held & 0x08u) ? 1 : 0;   /* Up / Down */
-        if (dir != 0 && s_menu.count > 0) {
-            s_menu.cursor = (s_menu.count + dir + s_menu.cursor) % s_menu.count;
-            audio_play_se_by_id(0x146);            /* FUN_00499519(0x146) nav SE */
-            cursor_moved = 1;
+    if (s_menu.mode == 1 && s_menu.entry_tick > 0xe) {
+        if (s_menu.c24 < 1) {
+            /* ── resting main menu (DAT_09642c24 == 0) ── cursor nav + A-dispatch.
+             * Gated on no sub-anim + no B (95070-95073). */
+            if (s_menu.sub_anim < 1 && (pressed & 0x20u) == 0) {
+                if ((pressed & 0x10u) == 0) {
+                    /* A not pressed → Up/Down option-cursor nav (95074-95084). */
+                    int dir = (held & 0x04u) ? -1 : (held & 0x08u) ? 1 : 0;
+                    if (dir != 0 && s_menu.count > 0) {
+                        s_menu.cursor = (s_menu.count + dir + s_menu.cursor) % s_menu.count;
+                        audio_play_se_by_id(0x146);      /* FUN_00499519(0x146) nav SE */
+                        cursor_moved = 1;
+                    }
+                } else {
+                    /* A pressed → dispatch the selected option (95086-95105). */
+                    int sel = s_menu.entries[s_menu.cursor];
+                    if (sel == 0 || sel == 1) {
+                        /* Buy / Sell → start the item-window submenu slide-in. */
+                        s_menu.c24 = 1;                  /* DAT_09642c24 = 1 */
+                        s_menu.scroll_anim = 1;          /* DAT_09642c20 = 1 */
+                        s_menu.item_cursor = 0;          /* DAT_09642c10 = 0 */
+                        s_menu.item_scroll = 0;          /* DAT_09642c0c = 0 */
+                        audio_play_se_by_id(0x143);      /* SE 0x143 (select) */
+                    } else if (sel == 2) {
+                        /* Talk → DAT_09642c1c = 1 (the submenu open anim).  The
+                         * Talk submenu itself is PORT-DEBT(guild-menu-nav). */
+                        s_menu.sub_anim = 1;
+                        s_menu.item_cursor = 0;
+                        s_menu.item_scroll = 0;
+                        audio_play_se_by_id(0x143);
+                    }
+                    /* Fusion(3) / Leave(4) / Expansion(6) dispatch — still
+                     * PORT-DEBT(guild-menu-nav); not exercised by the buy trace. */
+                }
+            }
+            /* B-press "leave" (95108+) — PORT-DEBT(guild-menu-nav). */
+        } else {
+            /* ── submenu slide-in ramp (DAT_09642c24 >= 1, 95132-95167) ──────────
+             * c20/c24 count up to 0x19; at 0xf arm + populate the item window; at
+             * 0x19 hand off to the mode-0 item list. */
+            s_menu.scroll_anim = s_menu.c24 + 1;         /* c20 = c24 + 1 */
+            s_menu.c24 = s_menu.scroll_anim;             /* c24 = c20 */
+            int sel = s_menu.entries[s_menu.cursor];
+            if (s_menu.scroll_anim == 0xf && sel != 6 && sel != 3) {
+                /* FUN_004682c5 (slide-activate) + FUN_00468338(7=buy/5=sell,1)
+                 * (population) + FUN_004682d8 (price multiplier).
+                 * display_menu_open arms the stage_load_pulse slide itself. */
+                if (sel == 0) {                          /* Buy */
+                    display_menu_open(7, 1);
+                    display_menu_set_price_mult(0.7f);   /* 0x3f333333 */
+                } else if (sel == 1) {                   /* Sell */
+                    display_menu_open(5, 1);
+                    display_menu_set_price_mult(0.3f);   /* 0x3e99999a */
+                }
+            }
+            if (sel != 6 && s_menu.c24 == 0x19)
+                s_menu.mode = 0;                         /* → item list (DAT_09642c00=0) */
         }
     }
 
-    /* cursor visible + slide-to-row on a move (LAB_0049282c / LAB_00493563:
-     * FUN_0043561a + FUN_00435710(328, (cursor−scroll)·0x22 + 84)). */
-    title_save_dialog_cursor_set_visible(1);
+    /* cursor visible (FUN_0043561a at LAB_0049282c — every mode-1 frame, incl.
+     * the slide-in) + slide-to-row on an option move (LAB_00493563:
+     * FUN_00435710(328, (cursor−scroll)·0x22 + 84)).  display_menu_open snaps the
+     * cursor onto the item row at slide frame 0xf. */
+    if (s_menu.mode == 1)
+        title_save_dialog_cursor_set_visible(1);
     if (cursor_moved) {
         float cy = (float)((s_menu.cursor - s_menu.scroll) * 0x22) + 84.0f;
         title_save_dialog_cursor_slide(328.0f, cy);
@@ -509,7 +572,10 @@ void scene_guild_render(struct IDirect3DDevice8 *dev)
      * above DO draw through the cutscene (they coincide with retail's
      * cutscene-path bg + guildmaster standee — confirmed 1:1). */
     if (!scene1_intro_dialogue_busy()) {
-        scene_guild_menu_render(d);                /* FUN_0049404b */
+        scene_guild_menu_render(d);                /* FUN_0049404b — menu panel    */
+        display_menu_render(d);                    /* FUN_0046b00a — item window
+                                                    * (Buy/Sell list; no-op while
+                                                    * the slide counter is 0).     */
         /* FUN_0043537e (secondary banner) + FUN_00491de0 (buy/sell confirm) +
          * FUN_00435117 (dialog frame): stubbed/no-op at rest (the port's
          * title_save_dialog_secondary/render are no-op gates). */

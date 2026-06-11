@@ -35,6 +35,7 @@
 #include "scene1_chr_prepass.h"  /* chr_prepass_sort (FUN_0045526a co-sort) */
 #include "title_save_dialog.h"   /* the SHARED hand cursor (FUN_00435693/710/747) */
 #include "audio.h"               /* audio_play_se_by_id (nav SE, no RNG) */
+#include "scene_guild.h"         /* scene_guild_variant (DAT_0963c5f0) for mode-7 buy */
 
 /* ── picker state (engine globals above) ──────────────────────────────── */
 
@@ -61,6 +62,107 @@ static int s_possessed   = -1;  /* DAT_005c6ee4 (-1 = recount-needed sentinel) *
 static int s_scan_keys[SAVE_BANK_ITEM_TABLE_COUNT];
 static int s_scan_items[SAVE_BANK_ITEM_TABLE_COUNT];
 static int s_scan_idx[SAVE_BANK_ITEM_TABLE_COUNT];
+
+/* ── guild "Buy" list population (mode 7 = FUN_00468338(7,1)) ──────────────────
+ * The shared item window also drives the merchant's-guild buy list.  Unlike the
+ * house display stand (mode 0, which scans the player's INVENTORY), the buy list
+ * scans the item DB for everything the guild SELLS at the current store level.
+ *
+ * Bank byte-offsets (base DAT_044e3798; same convention as scene_guild.c's
+ * GUILD_*_OFF — store level is the GUILD_STORE_LEVEL_DWORD already in scene_guild). */
+#define GUILD_RESTRICTED_OFF   0x2bc49   /* DAT_0450f3e1 — early-game fixed-stock flag */
+#define GUILD_EP1_OFF          0x2bc52   /* DAT_0450f3ea — id[600..0x2b1] episode unlock */
+#define GUILD_EP1B_OFF         0x2bd1e   /* DAT_0450f4b6 — (alt unlock) */
+#define GUILD_EP2_OFF          0x2bc53   /* DAT_0450f3eb — id[700..0x315] episode unlock */
+#define GUILD_EP2B_OFF         0x2bd1f   /* DAT_0450f4b7 — (alt unlock) */
+#define GUILD_DAILY_LIMIT_OFF  0x295f8   /* DAT_0450cd90 — per-record daily-buy limit (i16) */
+#define GUILD_STORE_LVL_DWORD  0xb100    /* DAT_0450fb98 — store/merchant level */
+
+/* DAT_005cfabc[10] (unpacked .data): min store-level to STOCK a gi-tier item —
+ * the buy-list MEMBERSHIP gate.  Indexed by the item's guild-stock byte (gi). */
+static const int k_guild_stock_tier[10] =
+    { 0, 0, 3, 10, 17, 22, 10000, 30000, 100000, 500000 };
+/* DAT_005c6ef0[..] (unpacked .data): min store-level for the flat 100 buy-cap
+ * (below it / for special stock the cap is the per-save daily limit). */
+static const int k_guild_qtycap_tier[12] =
+    { 0, 3, 10, 17, 22, 1, 9, 11, 12, 14, 13, 15 };
+
+/* _DAT_005c6ee8 — the buy/sell price multiplier (FUN_004682d8): 1.0 default,
+ * 0.7 guild buy, 0.3 guild sell.  Scales the description-panel "Base Price". */
+static float s_price_mult = 1.0f;
+void display_menu_set_price_mult(float m) { s_price_mult = m; }
+
+/* FUN_0049196f (all.c:94367) — the guild buy-list stock scan.  Walks the item DB
+ * (NOT the inventory) and emits id<<6 for every item the guild sells the player's
+ * store level has unlocked.  Returns the count; keys[] gets the sort key. */
+static int scan_guild_buy_stock(int *keys, int *items)
+{
+    const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank == NULL)
+        return 0;
+    const uint8_t *bb = (const uint8_t *)bank;
+    const int store_lvl = (int)bank[GUILD_STORE_LVL_DWORD];
+    const int variant   = scene_guild_variant();         /* DAT_0963c5f0 (0 = guild) */
+    int n = 0;
+
+    if (bb[GUILD_RESTRICTED_OFF] == 0) {                 /* full catalogue (normal) */
+        for (int r = 0; r < g_item.count; r++) {
+            const item_record_t *R = &g_item.records[r];
+            if (R->valid != 1 || R->price <= 0)
+                continue;
+            int gi = (int)(int8_t)R->stock_info[1 + variant];   /* +0x41 guild byte (signed) */
+            if (gi <= 0)                                  /* not stocked by the guild */
+                continue;
+            int id = R->item_id;
+            if (id >= 600 && id <= 0x2b1 &&               /* episode-1 id window */
+                bb[GUILD_EP1_OFF] == 0 && bb[GUILD_EP1B_OFF] == 0)
+                continue;
+            if (id >= 700 && id <= 0x315 &&               /* episode-2 id window */
+                bb[GUILD_EP2_OFF] == 0 && bb[GUILD_EP2B_OFF] == 0)
+                continue;
+            int tier = (gi < (int)(sizeof k_guild_stock_tier / sizeof *k_guild_stock_tier))
+                       ? k_guild_stock_tier[gi] : 1000000;
+            if (tier > store_lvl)                         /* store level not high enough */
+                continue;
+            items[n] = id << 6;
+            keys[n]  = ((id / 100) * 500 + 10 + R->rank) * 0x280 + (id << 6);
+            n++;
+        }
+    } else {                                             /* early-game fixed stock */
+        for (int r = 0; r < g_item.count; r++) {
+            const item_record_t *R = &g_item.records[r];
+            if (R->valid != 1 || R->price <= 0)
+                continue;
+            int id = R->item_id;
+            items[n] = id << 6;
+            keys[n]  = ((id / 100) * 100 + 10 + R->rank) * 0xc80 + (id << 6);
+            n++;
+        }
+    }
+    return n;
+}
+
+/* FUN_00468338 mode-7 per-item buy qty-cap (all.c:64468-64560): the "%s - %d
+ * Left" number.  100 for the common (store-level-unlocked) case; a per-save daily
+ * limit for type-4 / gi==5 / under-level stock.  The render only prints "N Left"
+ * when the cap is in (0,100) — the common 100 shows just the name.
+ * PORT-DEBT(price-trend, FUN_004361b2): the trend<-1 ⇒ cap 0 branch is deferred
+ * (the daily-market sim is unported) — assumes no price crash. */
+static int guild_buy_qty_cap(const uint32_t *bank, int rec)
+{
+    const uint8_t *bb = (const uint8_t *)bank;
+    if (bb[GUILD_RESTRICTED_OFF] != 0)
+        return 100;
+    const item_record_t *R = &g_item.records[rec];
+    int gi  = (int)(int8_t)R->stock_info[1 + scene_guild_variant()];
+    int lvl = (int)bank[GUILD_STORE_LVL_DWORD];
+    if (R->stock_info[0] != 4 && gi != 5 &&
+        gi >= 0 && gi < (int)(sizeof k_guild_qtycap_tier / sizeof *k_guild_qtycap_tier) &&
+        k_guild_qtycap_tier[gi] <= lvl)
+        return 100;
+    const int16_t *daily = (const int16_t *)((const uint8_t *)bank + GUILD_DAILY_LIMIT_OFF);
+    return (int)daily[rec * 2];                           /* rec*4 bytes = rec*2 i16 */
+}
 
 int display_menu_slide(void) { return stage_load_pulse_get_counter(); }
 
@@ -136,7 +238,13 @@ void display_menu_open(int mode, int first_open)
 
     const uint32_t *bank = save_work_dwords_at(save_work_active_slot());
     int n = 0;
-    if (bank != NULL) {
+    if (mode == 7) {
+        /* guild Buy (FUN_00468338(7,1)): scan the item DB, identity-fill the
+         * index array (the engine's mode-7 branch fills DAT_073379e0[i]=i). */
+        n = scan_guild_buy_stock(s_scan_keys, s_scan_items);
+        for (int i = 0; i < n; i++)
+            s_scan_idx[i] = i;
+    } else if (bank != NULL) {
         const int32_t *inv = (const int32_t *)(bank + SAVE_BANK_ITEM_TABLE_DWORD);
         for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++) {
             int item = inv[i];
@@ -158,10 +266,12 @@ void display_menu_open(int mode, int first_open)
     }
     chr_prepass_sort(s_scan_keys, s_scan_idx, n);   /* FUN_0045526a co-sort */
 
-    /* tab grouping (all.c:64405-64591).  Each tab's count starts at 1 (the -1
-     * "none" entry); each unique item appended bumps it. */
+    /* tab grouping (all.c:64405-64591).  SHOP lists (modes 2,3,4,5,7,8 — uVar4==0
+     * at all.c:64395) have NO leading "-1 Nothing" entry and seed tab_count 0; the
+     * house display stand (mode 0) leads each tab with -1 and seeds 1. */
+    const int has_none = (mode < 2) || (mode > 5 && (mode < 7 || mode > 8));
     for (int t = 0; t < DISPLAY_MENU_MAX_TABS; t++)
-        s_tab_count[t] = 1;
+        s_tab_count[t] = has_none ? 1 : 0;
     int cur_tab  = -1;     /* local_420 (becomes 0 on the first item) */
     int cur_cat  = -1;     /* local_404 */
     int list_pos = 0;      /* local_40c (stride-2 entry index) */
@@ -177,12 +287,13 @@ void display_menu_open(int mode, int first_open)
             if (cur_tab >= DISPLAY_MENU_MAX_TABS)
                 break;
             s_tab_base[cur_tab] = list_pos;          /* DAT_0731f408 */
-            /* lead with the -1 "select none/remove" entry (all.c:64448). */
-            if (list_pos * 2 + 1 < DISPLAY_MENU_MAX_LIST) {
+            /* lead with the -1 "select none/remove" entry (all.c:64448) — house
+             * stand only; shop lists start with the first real item. */
+            if (has_none && list_pos * 2 + 1 < DISPLAY_MENU_MAX_LIST) {
                 s_list[list_pos * 2]     = -1;
                 s_list[list_pos * 2 + 1] = 0;
+                list_pos++;
             }
-            list_pos++;
         }
         /* dedup within the list built so far (all.c:64452-64463): same raw item
          * value → bump its count; else append id with count 1 + tab_count++. */
@@ -199,6 +310,10 @@ void display_menu_open(int mode, int first_open)
         if (!found && list_pos * 2 + 1 < DISPLAY_MENU_MAX_LIST) {
             s_list[list_pos * 2]     = item;
             s_list[list_pos * 2 + 1] = 1;
+            /* buy: overwrite the count slot with the per-item qty-cap (the "N
+             * Left" number; all.c:64468-64560). */
+            if (mode == 7 && rec >= 0 && bank != NULL)
+                s_list[list_pos * 2 + 1] = guild_buy_qty_cap(bank, rec);
             s_tab_count[cur_tab]++;                   /* DAT_07337210[tab]++ */
             list_pos++;
         }
@@ -210,10 +325,11 @@ void display_menu_open(int mode, int first_open)
         s_cur_tab = -1;
     if (s_cur_tab < 0)
         s_cur_tab = 0;
-    /* per-tab "first real item" for the render's category-icon (all.c:64594:
-     * DAT_073373a0[tab] = DAT_0731f5a0[tab_base*2] = the entry AFTER the -1). */
+    /* per-tab "first real item" for the render's category-icon (all.c:64585-64594):
+     * shop lists (DAT_0731f598[base*2]) take the tab's first entry; the house stand
+     * (DAT_0731f5a0[base*2]) skips its leading -1. */
     for (int t = 0; t < s_num_tabs; t++) {
-        int e = s_tab_base[t] + 1;                    /* skip the -1 none entry */
+        int e = s_tab_base[t] + (has_none ? 1 : 0);
         s_tab_first_item[t] = (e * 2 + 0 < DISPLAY_MENU_MAX_LIST) ? s_list[e * 2] : -1;
     }
 
@@ -509,10 +625,11 @@ static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
     if (r->desc_line2[0])
         font_draw_text(dev, x0 + 80.0f, 394.0f, r->desc_line2, 0xffffffffu, 0.8f);
 
-    /* base price = DB price · 1.0 (_DAT_005c6ee8) → comma-formatted (FUN_00469abb)
-     * → "Base Price: %s" at (80,420) (all.c:65665-65701). */
+    /* base price = floor(DB price · _DAT_005c6ee8) → comma-formatted (FUN_00469abb)
+     * → "Base Price- %s" at (80,420) (all.c:65665-65701).  The multiplier is 1.0
+     * for the house stand, 0.7 for guild buy, 0.3 for guild sell. */
     {
-        int price = r->price;
+        int price = (int)((float)r->price * s_price_mult);
         char num[32], line[64];
         if (price < 1000)
             snprintf(num, sizeof num, "%d", price);
@@ -521,7 +638,12 @@ static void display_menu_description_render(IDirect3DDevice8 *dev, float x0)
         else
             snprintf(num, sizeof num, "%d,%03d,%03d",
                      price / 1000000, (price / 1000) % 1000, price % 1000);
-        snprintf(line, sizeof line, "Base Price- %s", num);  /* s_…_005c75f0 */
+        /* label by mode (all.c:65687-65697): in the guild (scene 6) buy/sell uses
+         * "Purchase Price-"/"Sell Price-"; the house stand uses "Base Price-". */
+        const char *plabel = (s_mode == 7) ? "Purchase Price- %s"
+                           : (s_mode == 5) ? "Sell Price- %s"
+                           : "Base Price- %s";
+        snprintf(line, sizeof line, plabel, num);  /* s_…_005c75cc/75e0/75f0 */
         font_draw_text(dev, x0 + 80.0f, 420.0f, line, 0xffffffffu, 0.8f);  /* local_c */
     }
 
@@ -700,10 +822,19 @@ void display_menu_render(struct IDirect3DDevice8 *dev_in)
         } else {
             int rec = tables_item_find_slot_by_id(&g_item, item >> 6);
             const char *nm = (rec >= 0) ? g_item.records[rec].singular : "?";
-            if (cnt > 1)
+            if (s_mode == 7) {
+                /* guild buy row (all.c:66668-66677): "Name - N Left" only while
+                 * the qty-cap is in (0,100); the common 100 (and a 0) show just
+                 * the name. */
+                if (cnt > 0 && cnt < 100)
+                    snprintf(buf, sizeof buf, "%s - %d Left", nm, cnt);
+                else
+                    snprintf(buf, sizeof buf, "%s", nm);
+            } else if (cnt > 1) {
                 snprintf(buf, sizeof buf, "%s x%d", nm, cnt);
-            else
+            } else {
                 snprintf(buf, sizeof buf, "%s", nm);
+            }
         }
         font_draw_text(dev, text_x, ty, buf, 0xffffffffu, 0.8f);
     }

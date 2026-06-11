@@ -162,10 +162,22 @@
   FUN_00465db4 passes the box scale (1.0), not ×0.76 (Ghidra FPU mis-group). Full RE +
   per-draw geometry: `merchant-guild-RE.md` "Main menu UI". (Window/sync infra `12f53d2`
   MARKET_ENTER + `6b1d714` anchor-rebase at EXTRA_SPRITE_END; rebase trade-off — pre-cutscene
-  worldmap labels 330–~510 read offset, worldmap 1:1 separately.) **NEXT → the BUY FLOW**
-  (Z buy → Z sword → up qty 2 → Z confirm): port the `FUN_004922c0` nav/buy/sell state
-  machine (`PORT-DEBT(guild-menu-nav)`) + the `FUN_00491de0` qty-confirm overlay; re-window
-  past the menu. **Other PORT-DEBT:** the Talk submenu / Fusion (`FUN_00493616`) / Expansion
+  worldmap labels 330–~510 read offset, worldmap 1:1 separately.)
+  **BUY FLOW step 2 (the milestone) ✅ LANDED 2026-06-11** on session
+  **`merchants-guild-ui-flow-20260611-052747`** (served :8778): Z on Buy now slides the main
+  panel out + slides the item window IN with the guild-stock buy list populated + rendered.
+  The mode-1 A-dispatch + slide-in ramp (`scene_guild_sim`), the **mode-7 guild-stock
+  population** (`display_menu_open`, port of `FUN_0049196f` — scans the item DB w/ the
+  gi-tier/store-level filter, tables `DAT_005cfabc`/`DAT_005c6ef0` from .data; mode-aware tabs;
+  per-item qty-cap), the buy-row `"%s - %d Left"` format, the "Purchase Price-" label, and the
+  `display_menu_render` wiring all landed together (the coupling — the menu never blanks).
+  **VERIFIED 1:1 at the fresh open** vs retail's pre-overlay frame (items Worn Sword/Longsword,
+  order, icons, caps 3/1 Left, desc, price 140, possessed 0 — all match). The port correctly
+  freezes at the fresh open (steps 3-4 unported). Host 3230. PORT-DEBT: price-trend factor
+  (`FUN_004361b2`) + the Out-Of-Stock/Not-For-Sale/Adventurer's-Possession post-buy status
+  texts. **NEXT → step 3 (item-list nav, mode 0):** extend `FUN_00469414` cursor nav + A-on-
+  item→mode-8; then **step 4 (qty overlay)** `FUN_00491bc0`/`FUN_00491de0` + purchase. Full
+  plan + verification: `merchant-guild-RE.md` "BUY FLOW". **Other PORT-DEBT:** the Talk submenu / Fusion (`FUN_00493616`) / Expansion
   flows, the `FUN_004922c0` daily-event probe + group-6 cutscenes, the mid-transition bg
   path, the variant-1 (ichiba, dest 1) set. Follow-on traces queued: leaving the guild
   (bread cutscene) + returning to Recettear (Tear cutscene) — same `FUN_004922c0` machinery.

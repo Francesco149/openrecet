@@ -7,6 +7,41 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-11 — guild BUY FLOW step 2 (the milestone): Buy opens the populated item window
+
+Pressing Z on **Buy** in the merchant's-guild menu now slides the main panel out and slides
+the shared item window IN, populated with the guild's buy list and rendered 1:1. This is the
+"milestone" step of the buy-flow plan (`merchant-guild-RE.md` "BUY FLOW") — the A-dispatch +
+slide-in + population + render had to land **together** (the documented coupling: shipping the
+dispatch alone blanks the menu).
+
+What landed:
+- **`scene_guild_sim`** — the mode-1 A-press dispatch (Buy/Sell → `c24=1,c20=1`, reset item
+  cursor/scroll, SE 0x143) + the slide-in ramp (`c20/c24` count to 0x19; at 0xf arm+populate
+  `display_menu_open(7=buy/5=sell,1)` + price-mult 0.7/0.3; at 0x19 → mode 0 = item list).
+- **`display_menu_open` mode-7 branch** — port of `FUN_0049196f`, the guild buy-stock scan:
+  walks the **item DB** (not the inventory) emitting `id<<6` for every item the guild sells the
+  store level has unlocked (filter: valid·price>0·guild-stock-byte>0·two id-window episode
+  gates·`tier[gi]≤store_level`). Tier tables `DAT_005cfabc` (membership) + `DAT_005c6ef0`
+  (qty-cap) extracted from the unpacked `.data`. Shop modes get **no leading "-1 Nothing"
+  entry** (the engine's `uVar4==0` predicate); per-item qty-cap → the "N Left" number.
+- **Render** — the buy-row format `"%s - %d Left"` (only when the cap is in (0,100); the common
+  100 / a 0 show just the name), the "Purchase Price-"/"Sell Price-" description label (the
+  guild scene-6 path; the house keeps "Base Price-"), and the description price × the buy/sell
+  multiplier. `display_menu_render` wired into `scene_guild_render` (it self-gates on the slide
+  counter, so it's a no-op at rest).
+
+**Verified 1:1 at the fresh open** on the studio session `merchants-guild-ui-flow-20260611-052747`:
+the port (frozen at the open — item-nav/qty are steps 3-4) shows the identical Swords list to
+retail's pre-overlay frame — items (Worn Sword, Longsword), order, icons, daily caps (3 Left,
+1 Left), description, price (140), Number possessed (0). The only render fix needed was the
+price label. Build clean, host 3230.
+
+PORT-DEBT carried forward: the buy-price **daily-market trend factor** (`FUN_004361b2`,
+unported — neutral here so prices match) + the `Out Of Stock`/`Not For Sale`/`Adventurer's
+Possession` post-buy status texts. Next: step 3 (item-list nav) → step 4 (qty overlay +
+purchase).
+
 ## 2026-06-10 — audio: the 2 "missing worldmap sounds" = the first-shop-door-exit SE
 
 `audio_diff` had flagged 2 missing sounds on the merchants-guild trace

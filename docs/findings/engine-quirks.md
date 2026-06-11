@@ -4596,3 +4596,27 @@ regardless. Ported as the `(held & IVE_BTN_FF)==0` gate on `IVE_OP_SE`
 port fired during the held-X tutorial skip (`re_wakata_b`/`tea_sodesu`/`re_un_a`)
 are now muted, audio_diff VERDICT ALIGNED. `tea_chot`, spoken at normal speed,
 still fires on both sides.
+
+## 121. The guild BUY list row shows a per-item DAILY-BUY CAP ("N Left"), and that displayed count DECREMENTS by the quantity pending in the qty overlay
+
+In the merchant's-guild buy list (the shared item window opened with mode 7,
+`FUN_00468338(7,1)` → `FUN_0046b00a` rows under `DAT_0734b9a4==7`), each row's
+right-hand number is the item's **remaining daily-buy cap**, not a possession
+count. The row format (asm `0x46b680`+): cap **in (0,100)** → `"%s - %d Left"`
+(`%s @0x5c785c`); cap **≥100 or ==0** → just the name (`"%s" @0x5c786c`); and a
+**cap of 0 additionally draws "Out Of Stock"** (`@0x5c78a0`, dark-red
+`0xff9b0000`) as a separate overlay (sell mode has the sibling **"Not For Sale"**
+`@0x5c7890` red, and **"Adventurer's Possession"** `@0x5c78b0`). The cap itself
+(`FUN_00468338` mode-7 tail, `0x46893d`): **100** for the common
+store-level-unlocked stock (`DAT_005c6ef0[gi] ≤ store_level`), else a per-save
+daily limit short at `DAT_0450cd90[rec]` (and `0` if the daily-market price-trend
+`FUN_004361b2` < -1). **Quirk:** while the qty-confirm overlay is open the list's
+"N Left" shows `cap − pending_qty` live — a fresh "Worn Sword - 3 Left" reads
+"2 Left" once you arm a buy-1 in the overlay, "1 Left" at buy-2 — so the row count
+is the *post-purchase* remainder preview, not the static cap. Also: the buy
+**price** shown is `floor(DB_price × buy_mult × daily-trend-factor)` where the
+trend factor (`FUN_004361b2` → ×0.7/0.8/1.0/1.2/1.5) is the same daily-market sim
+that gates the cap; label is "Purchase Price-" (buy) / "Sell Price-" (sell) in the
+guild (scene 6), "Base Price-" in the house stand. Relevant to buy-flow steps 3-4
+(the live decrement + Out-Of-Stock + trend are all PORT-DEBT(price-trend) for now;
+the fresh-open list is 1:1). RE: `findings/merchant-guild-RE.md` "BUY FLOW".

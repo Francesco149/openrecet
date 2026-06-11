@@ -53,6 +53,10 @@ void display_menu_open(int mode, int first_open);
  * display_menu_open() resets it to 0 (no bubble). */
 void display_menu_set_window_flag(int flag);
 
+/* FUN_004682d8: set the buy/sell price multiplier (_DAT_005c6ee8) that scales
+ * the description-panel "Base Price".  1.0 house, 0.7 guild buy, 0.3 guild sell. */
+void display_menu_set_price_mult(float m);
+
 /* FUN_00469414(param): one frame of the menu update.  Returns:
  *   0 — idle / still sliding in / mid-countdown
  *   1 — CONFIRM (the selected entry was committed: place or, for -1, remove)

@@ -11,7 +11,7 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **21**
+- total open debts: **22**
 - distinct retiring engine functions: **19**
 
 | kind | count | meaning |
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **9 tag(s) use an unknown kind**: deferred (1), door-exit-reset (1), door-proximity (1), event-probe (1), focused (3), house-teardown (1), stage-scratch (1).
+> ⚠️  **10 tag(s) use an unknown kind**: deferred (1), door-exit-reset (1), door-proximity (1), event-probe (1), focused (3), house-teardown (1), price-trend (1), stage-scratch (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -31,6 +31,7 @@ the answer to *"what's still faked in code that looks done?"*
 | engine fn | open debts |
 |-----------|-----------:|
 | FUN_004176ff | 2 |
+| FUN_004361b2 | 2 |
 | DAT_056db000 | 1 |
 | FUN_00409925 | 1 |
 | FUN_004161c7 | 1 |
@@ -38,7 +39,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004176ff L4958 | 1 |
 | FUN_00430c00 | 1 |
 | FUN_00435c98 | 1 |
-| FUN_004361b2 | 1 |
 | FUN_00436f97 | 1 |
 | FUN_0043a5d9 | 1 |
 | FUN_0044bd0d | 1 |
@@ -101,5 +101,6 @@ _none_
 | focused | FUN_0043a5d9 | src/scene1_sim.c:107 | no consumer wired; no RNG. |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:20 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:1081 | the engine frees the shop |
+| price-trend | FUN_004361b2 | src/scene1_display_menu.c:149 | the trend<-1 ⇒ cap 0 branch is deferred |
 | stage-scratch | FUN_00435c98 | src/scene_worldmap.c:241 | the engine tail re-inits the |
 
