@@ -40,6 +40,8 @@
 #include "save_work.h"               /* save_work_dwords_at / _active_slot */
 #include "scene1_intro_dialogue.h"   /* scene1_intro_dialogue_start_single/_busy */
 #include "title_save_dialog.h"       /* shared hand cursor (FUN_0043561a/00435693) */
+#include "sim.h"                      /* g_sim_buttons[0] — _DAT_073dddd4/d6       */
+#include "audio.h"                    /* audio_play_se_by_id (FUN_00499519, no RNG) */
 
 /* ─── working-arena field offsets (base DAT_044e3798, per-slot) ──────────────
  * The port pins the engine's per-location stage index (DAT_0438b1e0) to the
@@ -67,8 +69,8 @@ static struct {
     int bob;          /* DAT_09642c48 — bubble bob / text reveal budget    */
     int text_timer;   /* DAT_09642c4c — bubble-text-variant timer (≥0x78→B) */
     int sub_anim;     /* DAT_09642c1c — talk-submenu open anim             */
-    int scroll_anim;  /* DAT_09642c20 — list-scroll anim                   */
-    int c24;          /* DAT_09642c24 — list-scroll anim sibling           */
+    int scroll_anim;  /* DAT_09642c20 — submenu slide-in counter           */
+    int c24;          /* DAT_09642c24 — submenu slide-in sibling           */
     int c14;          /* DAT_09642c14 — confirm-transition flag            */
     int transition;   /* DAT_09642c3c — 1 = mid daily-event transition     */
     int entries[8];   /* _DAT_09640624 — per-row option type codes         */
@@ -207,12 +209,47 @@ void scene_guild_sim(void)
      * "Time to stock up a bit, eh?".  (Engine also force-sets 0x78 on menu
      * input via _DAT_073dddd4 & 0xc0000 — no input modeled at rest.) */
     s_menu.text_timer++;
+    /* Holding a direction snaps the bubble text to variant B (94830:
+     * _DAT_073dddd4 & 0xc0000 = held up|down). */
+    if ((g_sim_buttons[0].held & 0x0cu) != 0)
+        s_menu.text_timer = 0x78;
 
     s_menu.transition = 0;           /* DAT_09642c3c = 0 */
 
-    /* Idle main-menu path keeps the cursor visible (FUN_0043561a, LAB_0049282c).
-     * Cursor slide on nav (FUN_00435710) is PORT-DEBT(guild-menu-nav). */
+    /* ── main-menu cursor navigation (FUN_004922c0 95074-95084) ───────────────
+     * Step 1 of the buy-flow nav: Up/Down move the option cursor (wrap + nav SE
+     * + the 6-frame cursor slide).  Deliberately NOT the A-press dispatch: a Buy/
+     * Sell A-press starts the submenu slide-in that slides the main panel OUT,
+     * and without the item-window render sliding IN behind it the menu blanks
+     * (a parity dip vs retail's list) — so the slide-in + mode-0 item list + the
+     * qty overlay land together as step 2 (with FUN_00468338's guild-stock
+     * population + render).  See merchant-guild-RE.md "BUY FLOW".
+     *
+     * Input = engine _DAT_073dddd4 = pressed(low16) | held(high16): actions A/B
+     * are pressed & 0x10/0x20 (edge), directions Up/Down are held & 0x04/0x08
+     * (auto-repeat — the engine's high-word 0x40000/0x80000 bits). */
+    const uint16_t pressed = g_sim_buttons[0].pressed;
+    const uint16_t held    = g_sim_buttons[0].held;
+    int cursor_moved = 0;
+
+    if (s_menu.mode == 1 && s_menu.entry_tick > 0xe &&
+        s_menu.c24 == 0 && s_menu.sub_anim == 0 &&
+        (pressed & 0x30u) == 0) {                  /* resting, no A/B (95071-95073) */
+        int dir = (held & 0x04u) ? -1 : (held & 0x08u) ? 1 : 0;   /* Up / Down */
+        if (dir != 0 && s_menu.count > 0) {
+            s_menu.cursor = (s_menu.count + dir + s_menu.cursor) % s_menu.count;
+            audio_play_se_by_id(0x146);            /* FUN_00499519(0x146) nav SE */
+            cursor_moved = 1;
+        }
+    }
+
+    /* cursor visible + slide-to-row on a move (LAB_0049282c / LAB_00493563:
+     * FUN_0043561a + FUN_00435710(328, (cursor−scroll)·0x22 + 84)). */
     title_save_dialog_cursor_set_visible(1);
+    if (cursor_moved) {
+        float cy = (float)((s_menu.cursor - s_menu.scroll) * 0x22) + 84.0f;
+        title_save_dialog_cursor_slide(328.0f, cy);
+    }
 }
 
 /* ─── Win32 worker_load wiring + render ─────────────────────────────────────── */
