@@ -846,15 +846,22 @@ static void scene_guild_qty_overlay_render(IDirect3DDevice8 *d)
         font_draw_text_centered(d, 320.0f, 200.0f, title, tcol, 0.8f);
     }
 
-    /* quantity "%2d" — right-aligned in the title's space gap (292 - nameW/2).
-     * Distinct GREEN diffuse (engine 94679-94680: R=0x8f, G=0xce, B=0x8f, ± a
-     * sub-1 sine wobble we drop): under COLOROP=ADDSIGNED the glyph body stays
-     * white but its anti-aliased edge tints green → the green-outlined number. */
+    /* quantity "%2d" — right-aligned in the title's space gap (292 - nameW/2),
+     * in a PULSING green (engine asm 0x492008-0x49207f, the FPU amplitude Ghidra
+     * dropped): wob = (int)(sin(c54·0.1)·-16); R=0x8f-wob, G=0xce-wob, B=0x8f-wob.
+     * Under COLOROP=ADDSIGNED the glyph body stays white but its anti-aliased
+     * edge throbs green ±16/channel (~±6% brightness, ~63-frame period).  c54
+     * (price_anim) resets to 0 on overlay open + ticks each frame, so the pulse
+     * phase aligns with retail (like the gold roll). */
     const float half_name = font_measure_text(d, name, 0.8f) * 0.5f;
     {
         char q[8];
         snprintf(q, sizeof q, "%2d", s_menu.qty);
-        const uint32_t qcol = ((uint32_t)alpha << 24) | 0x8fce8fu;
+        int wob = (int)(sinf((float)s_menu.price_anim * 0.1f) * -16.0f);
+        const uint32_t qcol = ((uint32_t)alpha << 24)
+                            | (uint32_t)((0x8f - wob) & 0xff) << 16
+                            | (uint32_t)((0xce - wob) & 0xff) << 8
+                            | (uint32_t)((0x8f - wob) & 0xff);
         font_draw_text_right(d, 292.0f - half_name, 196.0f, q, qcol, 1.0f);
     }
 

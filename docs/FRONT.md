@@ -190,9 +190,11 @@
   matches retail. **✅ USER-CONFIRMED 1:1 2026-06-11** ("the panel looks correct other than the
   slight phase desync that was already there") — parity ledger.
   **3 user-flagged polish gaps then ✅ FIXED + verified 2026-06-11** (`922b5be`):
-  (1) **green qty outline** — the "%2d" uses a distinct GREEN diffuse RGB(8f,ce,8f) (FUN_00491de0
-  94679), white body + green edge under ADDSIGNED; was grey (port 205 green px @label2012 vs
-  retail 221). (2) **full-width-space (SJIS 81 40) price spacing** — `font_alloc` now pins it to
+  (1) **green qty outline + PULSE** — the "%2d" uses a green diffuse that THROBS:
+  `wob=(int)(sin(c54·0.1)·-16)`, R=`8f-wob` G=`ce-wob` B=`8f-wob` (engine asm 0x492008-7f; the
+  -16 amplitude was a Ghidra FPU drop), white body + pulsing-green edge under ADDSIGNED. First
+  shipped as the flat midpoint (no pulse — user caught it); now the green-mean tracks retail within
+  ±1 across the cycle (trough~130 @1761, peak~145 @1791), phase-aligned via the c54 reset-on-open. (2) **full-width-space (SJIS 81 40) price spacing** — `font_alloc` now pins it to
   0x0d (like the engine's ASCII-space 0x18) + `font_upload` no longer clobbers an alloc pin with
   a blank-glyph 0; "140pix" @x230 vs retail x228 (was overlapping "Price"). **Cutscene
   bit-identical** (diff 0px>8 @labels 900/1100) — the global font change doesn't touch the

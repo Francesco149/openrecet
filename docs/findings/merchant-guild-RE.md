@@ -362,10 +362,16 @@ mode-8 at all.c:95536 → ret 1=confirm (purchase), 2=cancel (→mode0).
    2 purchases, stock 3→0; **audio_diff 51→14 missing**; ✅ **USER-CONFIRMED 1:1 2026-06-11**
    ("the panel looks correct other than the slight phase desync that was already there").
    **3 user-flagged polish gaps then ✅ FIXED + verified (`922b5be`):**
-   - **Green qty outline:** the "%2d" uses a GREEN diffuse RGB(0x8f,0xce,0x8f) (all.c:94679-94680,
-     `(0x8f-iVar1)<<16 | (0xce-iVar1)<<8 | (0x8f-iVar1)`, ±sub-1 sine wobble dropped); under
-     COLOROP=ADDSIGNED the glyph body stays white but the anti-aliased edge tints green. Was grey
-     (invisible). Port 205 green px @label2012 vs retail 221.
+   - **Green qty outline + PULSE:** the "%2d" uses a green diffuse `(0x8f-iVar1)<<16 |
+     (0xce-iVar1)<<8 | (0x8f-iVar1)` where **`iVar1 = (int)(sin(c54·0.1)·-16.0)`** — the -16.0
+     amplitude (const @0x519818) and the 0.1 freq (@0x5193a0) are the FPU multiply Ghidra dropped
+     from the decompile (verified in asm 0x492008-0x49207f: `fild c54; fmul 0.1; call sin; fmul
+     -16.0; call __ftol`).  So the green THROBS ±16/channel (~±6%, ~63-frame period); under
+     COLOROP=ADDSIGNED the body stays white + the anti-aliased edge pulses green.  First shipped
+     as the flat midpoint (iVar1=0 → 0x8fce8f, no pulse — the user caught it: "the quantity
+     actually seems to pulsate"); the faithful sine now tracks retail's green-mean within ±1
+     across the cycle (trough~130 @label1761, peak~145 @1791), phase-aligned because c54
+     (`price_anim`) resets to 0 on overlay open + ticks each frame on both sides.
    - **Full-width-space (SJIS 81 40) advance:** the price line collapsed (blank-glyph upload
      `effective_width`=0 → negative advance, "140" overlapping "Price"). `font_alloc` now pins the
      full-width space to 0x0d (the engine pins only ' '→0x18 @FUN_0047cbcb:94732; retail's
