@@ -202,9 +202,21 @@
   @4849) eases the HUD gold toward bank by `rand()%max(|Δ|/25,10)+|Δ|/100` (1 rng_next15/rolling
   frame, no-op at rest), wired pre-sim into `scene_guild_sim`; gold rolls 1000→860→580 across the
   2 buys **matching retail at the same labels** (roll RNG in sync). Restricted flag is 0 here so
-  the tutorial gold-pin stays inert (qty cap = stock "3 Left"). **Remaining:** residual audio
-  (14 SE: 7 nav/3 select/3 cancel/1 buy — qty auto-repeat cadence + retail-only-region) + cursor
-  bob phase (accept). Plan: `merchant-guild-RE.md` "BUY FLOW". **Other PORT-DEBT:** Sell (mode 3), first-buy tutorial/limit gates, the Talk submenu / Fusion (`FUN_00493616`) / Expansion
+  the tutorial gold-pin stays inert (qty cap = stock "3 Left").
+  **BUY-FLOW ARC ✅ CLOSED 2026-06-11** — all steps + polish USER-CONFIRMED 1:1; the residual
+  audio (14 SE) was VERIFIED accept this session (the dense qty-wiggle cluster is near-identical
+  retail~20/port~19 = a 1-beep auto-repeat rounding; the rest are retail triggers PAST the port
+  TAS replay end ~f3979 → retail frames 18101-19888 have no port counterpart) — the port fires
+  every sound TYPE; post-buy item list 1:1 modulo cursor-bob phase (only bright diff = the cursor
+  bbox; "Out Of Stock" text simply isn't exercised, sold-out shows "0 Left" both sides).
+  **→ NEXT (active): the leave-guild BREAD CUTSCENE = `scene1_intro_dialogue_start_single(1, 9)`
+  (iv1_9), RE'd `cadf75f`** — `FUN_004922c0`'s Leave-option dispatch `LAB_00492ad7` fires it on
+  the per-location first-leave flag (`DAT_0450f3f5[loc]==0`); the dialogue machinery is already
+  ported, so the port = the Leave handler + gate, no new dialogue code. **NEEDS A FRESH RECORDING**
+  (the current trace ends in the buy menu): record enter-guild → main menu → Leave so the bread
+  cutscene plays, then empirical RE + port + recapture-verify; then returning to Recettear (Tear
+  cutscene). RE: `merchant-guild-RE.md` "Planned follow-on traces".
+  **Other PORT-DEBT:** Sell (mode 3), first-buy tutorial/limit gates, the Talk submenu / Fusion (`FUN_00493616`) / Expansion
   flows, the `FUN_004922c0` daily-event probe + group-6 cutscenes, the mid-transition bg
   path, the variant-1 (ichiba, dest 1) set. Follow-on traces queued: leaving the guild
   (bread cutscene) + returning to Recettear (Tear cutscene) — same `FUN_004922c0` machinery.
