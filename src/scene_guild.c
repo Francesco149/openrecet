@@ -1199,12 +1199,19 @@ void scene_guild_render(struct IDirect3DDevice8 *dev)
         render_quad_flush(d);
     }
 
-    /* The menu UI draws only when the first-visit cutscene is NOT active:
-     * retail skips FUN_00494a73's menu tail (FUN_0049404b/cursor) entirely
-     * while the dialogue runs (the menu is hidden behind it).  bg + guildmaster
-     * above DO draw through the cutscene (they coincide with retail's
-     * cutscene-path bg + guildmaster standee — confirmed 1:1). */
-    if (!scene1_intro_dialogue_busy()) {
+    /* The menu UI keeps drawing whenever the menu is actually UP, even while a
+     * dialogue overlays it — retail renders the frozen menu behind the iv1_9
+     * "you haven't purchased anything" reminder (the try-leave-without-buying
+     * dialogue fires FROM the main menu, which stays visible behind the Tear
+     * box; verified vs retail).  The first-visit cutscene is the exception: it
+     * fires at entry_tick==2 before the menu is up, so retail shows no menu —
+     * gate that out with `entry_tick > 0xe` (the same "menu settled" threshold
+     * the nav uses).  So: draw when NOT busy (normal), OR when busy but the main
+     * menu was up (mode 1 + settled).  mode-2 Talk-topic dialogues stay hidden
+     * (unchanged — that path was confirmed 1:1).  bg + guildmaster above always
+     * draw (they coincide with retail's cutscene-path bg + standee). */
+    if (!scene1_intro_dialogue_busy() ||
+        (s_menu.mode == 1 && s_menu.entry_tick > 0xe)) {
         scene_guild_menu_render(d);                /* FUN_0049404b — menu panel    */
         display_menu_render(d);                    /* FUN_0046b00a — item window
                                                     * (Buy/Sell list; no-op while
