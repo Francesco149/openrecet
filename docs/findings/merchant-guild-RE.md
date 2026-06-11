@@ -359,16 +359,31 @@ mode-8 at all.c:95536 → ret 1=confirm (purchase), 2=cancel (→mode0).
    (`DAT_0450f3e1`/0x2bc49) is set → qty cap is stock, not affordability; HUD gold never drops.
    Helper `font_measure_text` (`FUN_0047d0ea`) for the qty-number placement.
 5. **Verify** full buy flow: ✅ recapture executes A=Buy→select→qty-wiggle→buy1(q1)→buy2(q2),
-   2 purchases, stock 3→0; **audio_diff 51→14 missing**; the qty box matches retail STRUCTURALLY
-   (diff black on box/title/"Are you sure?"/Yes/No). PENDING user 1:1 confirm.
-   **Open gap — full-width-space (SJIS 81 40) advance:** the price line "Stock Price\x81@…%spix"
-   collapses in the port — `font_alloc` pins ONLY the ASCII space to eff-width 0x18; the
-   full-width space gets the blank-glyph upload value (≈0) → advance `(eff-3)·fVar2 < 0`, so
-   "140" overlaps "Price". Retail advances each ~4px (measured: retail "140pix"@x228 vs port
-   overlap@x209, label 1750). The engine `FUN_0047cbcb` ALSO special-cases only ' ' (94732) —
-   so retail's full-width space gets its width from the glyph/metric, NOT a special-case; the
-   port's blank atlas cell measures 0. A `0x8140` advance pin is GLOBAL (touches the
-   confirmed-1:1 cutscene text render) → verify no dialogue regression before landing.
+   2 purchases, stock 3→0; **audio_diff 51→14 missing**; ✅ **USER-CONFIRMED 1:1 2026-06-11**
+   ("the panel looks correct other than the slight phase desync that was already there").
+   **3 user-flagged polish gaps then ✅ FIXED + verified (`922b5be`):**
+   - **Green qty outline:** the "%2d" uses a GREEN diffuse RGB(0x8f,0xce,0x8f) (all.c:94679-94680,
+     `(0x8f-iVar1)<<16 | (0xce-iVar1)<<8 | (0x8f-iVar1)`, ±sub-1 sine wobble dropped); under
+     COLOROP=ADDSIGNED the glyph body stays white but the anti-aliased edge tints green. Was grey
+     (invisible). Port 205 green px @label2012 vs retail 221.
+   - **Full-width-space (SJIS 81 40) advance:** the price line collapsed (blank-glyph upload
+     `effective_width`=0 → negative advance, "140" overlapping "Price"). `font_alloc` now pins the
+     full-width space to 0x0d (the engine pins only ' '→0x18 @FUN_0047cbcb:94732; retail's
+     full-width width comes from the glyph cell, the port's blank atlas cell measures 0), and
+     `font_upload` no longer clobbers an alloc pin with a 0 measure. Port "140pix"@x230 vs retail
+     x228 (label 1750). **GLOBAL but SAFE:** cutscene bit-identical (diff 0px>8 @labels 900/1100)
+     — the iv1_3 dialogue uses no full-width spaces.
+   - **Gold rolling-counter** (`FUN_00406584` @all.c:4849, ported as `scene1_top_hud_money_tick`):
+     the HUD money eases toward bank gold by `rand()%max(|Δ|/25,10)+|Δ|/100` per frame (one
+     rng_next15/rolling frame, no-op at rest), wired pre-sim into `scene_guild_sim`. The port
+     deducted bank gold but never rolled the displayed mirror. Gold rolls 1000→860→580 across
+     buy1(140)/buy2(280) **matching retail at the same labels** (the roll RNG is in sync). The
+     restricted-stock flag (`DAT_0450f3e1`/0x2bc49) is **0** for this save — proven by the qty
+     caps "3 Left"/"1 Left" (the restricted path returns cap 100 = no "N Left") — so the tutorial
+     gold-pin (FUN_004922c0:94756, gold→10M) stays inert and gold decreases normally, as retail.
+   **Residual (refinement):** 14 missing SE (7 nav 0146 = qty auto-repeat cadence, 3 select 0143,
+   3 cancel 013d, 1 buy 014d — several land in retail-only post-flow regions) + cursor bob phase
+   (accept, the pre-existing load-seam residual).
 Defer (later traces): Sell (mode 3), Fusion (mode 5 / `FUN_00493616`), Expansion (mode 4),
 Talk submenu (mode 2 = window 3), tab-switch (window 2).
 Both are almost certainly more `FUN_004922c0`/event-tick branches (same machinery).

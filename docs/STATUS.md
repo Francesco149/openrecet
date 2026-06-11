@@ -206,15 +206,22 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   restricted-stock flag is set) ported, so the qty cap = per-item stock (3 Left), not gold, and
   the HUD gold never drops. Recapture (`--only port`): the full flow executes (A=Buy→select→qty
   wiggle→buy1 q1→buy2 q2, 2 purchases, stock 3→0); **audio_diff 51→14 missing**; the qty box
-  matches retail STRUCTURALLY (diff black on box/title/"Are you sure?"/Yes/No). **PENDING USER
-  1:1 CONFIRM** (qty-overlay labels ~1717–2176). **Known remaining gap → the price line's
-  full-width spaces (SJIS 81 40) collapse:** port advances them ~0 (blank-glyph
-  `effective_width`) vs retail's ~4px each (measured labels 1750: retail "140pix" @ logical
-  x228, port overlaps "Price" @ x209), so "140" overlaps "Price". A `font_alloc` advance pin
-  for `0x8140` — but it's GLOBAL (touches the confirmed-1:1 dialogue render), so verify no
-  dialogue regression before landing. Residual audio (14 SE: 7 nav/3 select/3 cancel/1 buy) +
-  qty-number x (font measure) + cursor bob phase (accept). Plan: `merchant-guild-RE.md` "BUY
-  FLOW". **Other PORT-DEBT:** Sell (mode 3), first-buy tutorial/limit gates, the Talk submenu / Fusion (`FUN_00493616`) / Expansion
+  matches retail. **✅ USER-CONFIRMED 1:1 2026-06-11** ("the panel looks correct other than the
+  slight phase desync that was already there") — parity ledger.
+  **3 user-flagged polish gaps then ✅ FIXED + verified 2026-06-11** (`922b5be`):
+  (1) **green qty outline** — the "%2d" uses a distinct GREEN diffuse RGB(8f,ce,8f) (FUN_00491de0
+  94679), white body + green edge under ADDSIGNED; was grey (port 205 green px @label2012 vs
+  retail 221). (2) **full-width-space (SJIS 81 40) price spacing** — `font_alloc` now pins it to
+  0x0d (like the engine's ASCII-space 0x18) + `font_upload` no longer clobbers an alloc pin with
+  a blank-glyph 0; "140pix" @x230 vs retail x228 (was overlapping "Price"). **Cutscene
+  bit-identical** (diff 0px>8 @labels 900/1100) — the global font change doesn't touch the
+  confirmed-1:1 dialogue. (3) **gold rolling-counter** — `scene1_top_hud_money_tick` (FUN_00406584
+  @4849) eases the HUD gold toward bank by `rand()%max(|Δ|/25,10)+|Δ|/100` (1 rng_next15/rolling
+  frame, no-op at rest), wired pre-sim into `scene_guild_sim`; gold rolls 1000→860→580 across the
+  2 buys **matching retail at the same labels** (roll RNG in sync). Restricted flag is 0 here so
+  the tutorial gold-pin stays inert (qty cap = stock "3 Left"). **Remaining:** residual audio
+  (14 SE: 7 nav/3 select/3 cancel/1 buy — qty auto-repeat cadence + retail-only-region) + cursor
+  bob phase (accept). Plan: `merchant-guild-RE.md` "BUY FLOW". **Other PORT-DEBT:** Sell (mode 3), first-buy tutorial/limit gates, the Talk submenu / Fusion (`FUN_00493616`) / Expansion
   flows, the `FUN_004922c0` daily-event probe + group-6 cutscenes, the mid-transition bg
   path, the variant-1 (ichiba, dest 1) set. Follow-on traces queued: leaving the guild
   (bread cutscene) + returning to Recettear (Tear cutscene) — same `FUN_004922c0` machinery.
