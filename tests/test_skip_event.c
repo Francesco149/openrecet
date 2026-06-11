@@ -8,6 +8,7 @@
 #include "t.h"
 #include "skip_event.h"
 #include "scene1_intro_dialogue.h"
+#include "title_save_dialog.h"   /* shared hand cursor — the snapshot/restore */
 
 /* Button bits (mirror src/input.c input_binding_mask[]). */
 #define B_RIGHT 0x0001
@@ -128,6 +129,56 @@ int test_skip_event_tick_closed_is_noop(void)
 {
     skip_event_close();
     T_ASSERT_EQ_I((int)skip_event_tick(B_A), (int)SKIP_EVENT_PENDING);
+    return 0;
+}
+
+int test_skip_event_restores_cursor_on_skip(void)
+{
+    /* Guild Talk-submenu repro (user-flagged 2026-06-11): the hand cursor sits on
+     * a topic row (visible) when ESC opens the skip box; confirming Yes must snap
+     * it BACK to that row — NOT leave it parked offscreen by the choice box's
+     * close snap to (0,-64).  Without the FUN_0046c2cb/c320 snapshot+restore the
+     * cursor vanishes until an arrow/B re-arms a slide. */
+    reset_enabled();
+    title_save_dialog_reset();
+    title_save_dialog_cursor_snap(328.0f, 84.0f);        /* on Talk row 0 (visible) */
+
+    skip_event_arm(1);                                   /* snapshots (visible,328,84) */
+    warmup();
+    T_ASSERT_EQ_I((int)commit(B_A), (int)SKIP_EVENT_CONFIRMED);
+
+    T_ASSERT_EQ_I(title_save_dialog_cursor_get_visible(), 1);
+    T_ASSERT(title_save_dialog_get_shake_pos_x() == 328.0f);
+    T_ASSERT(title_save_dialog_get_shake_pos_y() == 84.0f);
+    return 0;
+}
+
+int test_skip_event_cancel_restores_cursor(void)
+{
+    /* The No / B-cancel path restores the cursor identically (engine: e2c!=0 →
+     * FUN_00435693).  Resuming the dialogue must not drop the row cursor either. */
+    reset_enabled();
+    title_save_dialog_reset();
+    title_save_dialog_cursor_snap(328.0f, 150.0f);
+    skip_event_arm(1);
+    warmup();
+    T_ASSERT_EQ_I((int)commit(B_B), (int)SKIP_EVENT_CANCELLED);   /* B → cancel */
+    T_ASSERT_EQ_I(title_save_dialog_cursor_get_visible(), 1);
+    T_ASSERT(title_save_dialog_get_shake_pos_x() == 328.0f);
+    T_ASSERT(title_save_dialog_get_shake_pos_y() == 150.0f);
+    return 0;
+}
+
+int test_skip_event_hidden_cursor_stays_hidden(void)
+{
+    /* Prologue case: no menu cursor up at arm (hidden) → a skip leaves it hidden
+     * (the engine's e2c==0 → FUN_00435612 branch).  No regression from the snap. */
+    reset_enabled();
+    title_save_dialog_reset();                           /* cursor hidden by default */
+    skip_event_arm(1);
+    warmup();
+    T_ASSERT_EQ_I((int)commit(B_A), (int)SKIP_EVENT_CONFIRMED);
+    T_ASSERT_EQ_I(title_save_dialog_cursor_get_visible(), 0);
     return 0;
 }
 

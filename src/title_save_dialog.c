@@ -110,6 +110,22 @@ void title_save_dialog_cursor_slide(float x, float y)
     g_shake_delta_y = (y - g_shake_pos_y) / 6.0f;
 }
 
+/* FUN_00435644 — capture the cursor's resting target: the slide DESTINATION if a
+ * 6-frame ease is still in flight (ac18 > 0 → pos + ac18·delta), else the current
+ * pos (abf4/abf8).  skip_event snapshots this at arm-time (the engine's
+ * DAT_073a3e30/34) so a Yes/No close can restore the cursor to exactly where it
+ * was headed — the guild Talk-submenu row — instead of leaving it parked
+ * offscreen by the choice box's close snap. */
+void title_save_dialog_cursor_capture_target(float *x, float *y)
+{
+    *x = g_shake_pos_x;
+    *y = g_shake_pos_y;
+    if (g_shake_counter > 0) {
+        *x = (float)g_shake_counter * g_shake_delta_x + g_shake_pos_x;
+        *y = (float)g_shake_counter * g_shake_delta_y + g_shake_pos_y;
+    }
+}
+
 int   title_save_dialog_get_active_counter(void) { return g_active_counter; }
 void  title_save_dialog_set_active_counter(int v){ g_active_counter = v;    }
 

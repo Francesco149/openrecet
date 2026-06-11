@@ -745,6 +745,9 @@ struct test_case {
     X(skip_event_no_then_a_cancels) \
     X(skip_event_b_cancels) \
     X(skip_event_tick_closed_is_noop) \
+    X(skip_event_restores_cursor_on_skip) \
+    X(skip_event_cancel_restores_cursor) \
+    X(skip_event_hidden_cursor_stays_hidden) \
     X(skip_to_end_forces_dormant) \
     \
     X(choice_box_open_lays_state) \

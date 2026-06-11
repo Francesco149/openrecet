@@ -2712,7 +2712,9 @@
    "is_call_target": true,
    "status": "ported",
    "src": [
-    "src/title_save_dialog.c"
+    "src/skip_event.c",
+    "src/title_save_dialog.c",
+    "src/title_save_dialog.h"
    ]
   },
   {
@@ -2729,6 +2731,7 @@
     "src/scene_title.c",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
+    "src/skip_event.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
    ]
