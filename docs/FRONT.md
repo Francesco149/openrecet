@@ -243,7 +243,8 @@
   POST-window (retail 15984-18750 = the buy/leave/bread the port stalls at — the Leave handler
   is the NEXT gap); every within-window nav/select SE fires. PORT-DEBT(talk-confirm-flash): the
   c20 selected-row brightness pulse (Ghidra-dropped FPU amplitude), settled to grey-127 like
-  the main-menu pulse. **Pending user eyeball** (served :8778; backup `edit.trace.jsonl.gap1-escskip.bak`).
+  the main-menu pulse. **✅ USER-CONFIRMED 1:1 2026-06-11** ("can confirm the talk menu looks
+  correct") — parity ledger (served :8778; backup `edit.trace.jsonl.gap1-escskip.bak`).
   **→ NEXT gaps (this trace): the try-leave tutorial** (nothing-bought gate) + the
   **leave-guild BREAD CUTSCENE = `scene1_intro_dialogue_start_single(1, 9)` (iv1_9), RE'd
   `cadf75f`** — `FUN_004922c0`'s Leave dispatch `LAB_00492ad7` fires it on the per-location
