@@ -387,6 +387,10 @@ static void guild_buy_commit(void)
     /* PORT-DEBT(first-buy save flags 0450f3f5/3f9): tutorial bookkeeping. */
 }
 
+/* item_cursor 0..5 → talk-dialogue script (FUN_004922c0 94937-94955).  Shared by
+ * the sim (mode-2 dispatch) so it lives outside the Win32 render block. */
+static const int k_talk_scripts[6] = { 0x0a, 0x0b, 0x0c, 0x0e, 0x18, 0x19 };
+
 /* ─── pure-C event tick (FUN_00490e24 → FUN_004922c0) ──────────────────────── */
 
 void scene_guild_sim(void)
@@ -490,7 +494,8 @@ void scene_guild_sim(void)
      * (auto-repeat — the engine's high-word 0x40000/0x80000 bits). */
     const uint16_t pressed = g_sim_buttons[0].pressed;
     const uint16_t held    = g_sim_buttons[0].held;
-    int cursor_moved = 0;
+    int cursor_moved = 0;       /* local_14 — main-menu cursor slide       */
+    int sub_cursor_moved = 0;   /* local_18 — talk-submenu row cursor slide */
 
     if (s_menu.mode == 1 && s_menu.entry_tick > 0xe) {
         if (s_menu.c18 == 1) {
@@ -505,40 +510,52 @@ void scene_guild_sim(void)
                 s_menu.scroll_anim = 0;
             }
         } else if (s_menu.c24 < 1) {
-            /* ── resting main menu (DAT_09642c24 == 0) ── cursor nav + A-dispatch.
-             * Gated on no sub-anim + no B (95070-95073). */
-            if (s_menu.sub_anim < 1 && (pressed & 0x20u) == 0) {
-                if ((pressed & 0x10u) == 0) {
-                    /* A not pressed → Up/Down option-cursor nav (95074-95084). */
-                    int dir = (held & 0x04u) ? -1 : (held & 0x08u) ? 1 : 0;
-                    if (dir != 0 && s_menu.count > 0) {
-                        s_menu.cursor = (s_menu.count + dir + s_menu.cursor) % s_menu.count;
-                        audio_play_se_by_id(0x146);      /* FUN_00499519(0x146) nav SE */
-                        cursor_moved = 1;
+            /* ── resting main menu (DAT_09642c24 == 0, all.c:95069-95130) ─────────
+             * c1c < 1: cursor nav + A-dispatch (+ B/Leave, PORT-DEBT).
+             * c1c >= 1: the Talk submenu slide-in ramp → mode 2 at c1c == 0xf. */
+            if (s_menu.sub_anim < 1) {
+                if ((pressed & 0x20u) == 0) {            /* B not pressed (95071) */
+                    if ((pressed & 0x10u) == 0) {
+                        /* A not pressed → Up/Down option-cursor nav (95074-95084). */
+                        int dir = (held & 0x04u) ? -1 : (held & 0x08u) ? 1 : 0;
+                        if (dir != 0 && s_menu.count > 0) {
+                            s_menu.cursor = (s_menu.count + dir + s_menu.cursor) % s_menu.count;
+                            audio_play_se_by_id(0x146);  /* FUN_00499519(0x146) nav SE */
+                            cursor_moved = 1;
+                        }
+                    } else {
+                        /* A pressed → dispatch the selected option (95086-95105). */
+                        int sel = s_menu.entries[s_menu.cursor];
+                        if (sel == 0 || sel == 1) {
+                            /* Buy / Sell → start the item-window submenu slide-in. */
+                            s_menu.c24 = 1;              /* DAT_09642c24 = 1 */
+                            s_menu.scroll_anim = 1;      /* DAT_09642c20 = 1 */
+                            s_menu.item_cursor = 0;      /* DAT_09642c10 = 0 */
+                            s_menu.item_scroll = 0;      /* DAT_09642c0c = 0 */
+                            audio_play_se_by_id(0x143);  /* SE 0x143 (select) */
+                        } else if (sel == 2) {
+                            /* Talk → start the submenu open anim (c1c = 1); the ramp
+                             * below flips to mode 2 (the submenu) at c1c == 0xf. */
+                            s_menu.sub_anim    = 1;      /* DAT_09642c1c = 1 */
+                            s_menu.item_cursor = 0;      /* DAT_09642c10 = 0 */
+                            s_menu.item_scroll = 0;      /* DAT_09642c0c = 0 */
+                            audio_play_se_by_id(0x143);
+                        }
+                        /* Fusion(3)/Expansion(6) dispatch — PORT-DEBT(guild-menu-nav).
+                         * Leave (the bread cutscene, LAB_00492ad7) — the next gap. */
                     }
-                } else {
-                    /* A pressed → dispatch the selected option (95086-95105). */
-                    int sel = s_menu.entries[s_menu.cursor];
-                    if (sel == 0 || sel == 1) {
-                        /* Buy / Sell → start the item-window submenu slide-in. */
-                        s_menu.c24 = 1;                  /* DAT_09642c24 = 1 */
-                        s_menu.scroll_anim = 1;          /* DAT_09642c20 = 1 */
-                        s_menu.item_cursor = 0;          /* DAT_09642c10 = 0 */
-                        s_menu.item_scroll = 0;          /* DAT_09642c0c = 0 */
-                        audio_play_se_by_id(0x143);      /* SE 0x143 (select) */
-                    } else if (sel == 2) {
-                        /* Talk → DAT_09642c1c = 1 (the submenu open anim).  The
-                         * Talk submenu itself is PORT-DEBT(guild-menu-nav). */
-                        s_menu.sub_anim = 1;
-                        s_menu.item_cursor = 0;
-                        s_menu.item_scroll = 0;
-                        audio_play_se_by_id(0x143);
-                    }
-                    /* Fusion(3) / Leave(4) / Expansion(6) dispatch — still
-                     * PORT-DEBT(guild-menu-nav); not exercised by the buy trace. */
+                }
+                /* B-press / Leave (LAB_00492ad7, the bread cutscene gate) is
+                 * PORT-DEBT(guild-menu-nav) — the next composite-trace gap. */
+            } else {
+                /* ── Talk submenu slide-in ramp (95126-95130) ── c1c counts to 0xf,
+                 * then hands off to mode 2 (the submenu state machine below). */
+                s_menu.sub_anim++;
+                if (s_menu.sub_anim == 0xf) {
+                    s_menu.mode      = 2;               /* DAT_09642c00 = 2 */
+                    sub_cursor_moved = 1;               /* local_18 → snap cursor row 0 */
                 }
             }
-            /* B-press "leave" (95108+) — PORT-DEBT(guild-menu-nav). */
         } else {
             /* ── submenu slide-in ramp (DAT_09642c24 >= 1, 95132-95167) ──────────
              * c20/c24 count up to 0x19; at 0xf arm + populate the item window; at
@@ -593,16 +610,96 @@ void scene_guild_sim(void)
             title_save_dialog_cursor_set_visible(1);            /* FUN_0043561a */
         }
         /* r == -1: still animating — stay in mode 8. */
+    } else if (s_menu.mode == 2) {
+        /* ── Talk submenu (FUN_004922c0 mode 2, all.c:94885-95029) ───────────────
+         * 6 topics ("What is the guild?" … "About fusion") + a 7th "Never mind"
+         * close row → 7 cursor positions (item_cursor 0..6), no-wrap U/D nav.
+         * Selecting a topic (0..5) plays its dialogue (iv1_0a/0b/0c/0e/18/19) and
+         * sets that topic's seen flag (save[0x2bc98+i]), clearing its "New" badge.
+         * B or A-on-"Never mind" closes back to the main menu.  The dialogue runs
+         * through the shared runtime, so scene_guild_sim freezes while it's busy
+         * (the early-return at the top), then resumes here in mode 2. */
+
+        /* slide anim (c1c): in to 0x19; out (then → mode 1) while closing (c14). */
+        if (s_menu.c14 == 0) {
+            if (s_menu.sub_anim < 0x19)
+                s_menu.sub_anim++;
+        } else if (s_menu.sub_anim < 0x10) {
+            s_menu.sub_anim = 0;
+            s_menu.mode     = 1;             /* back to the main menu */
+            s_menu.c14      = 0;
+        } else {
+            s_menu.sub_anim--;
+        }
+
+        /* dialogue-select sub-slide (c20): A on a topic ramps c20 1→0x10 (a brief
+         * confirm flash on the row), then fires the dialogue + sets the seen flag. */
+        if (s_menu.mode == 2 && s_menu.scroll_anim > 0) {
+            s_menu.scroll_anim++;            /* DAT_09642c20++ (94911) */
+            if (s_menu.scroll_anim != 0x10) {
+                s_menu.transition = 0;
+                return;                      /* still flashing — skip the cursor tick */
+            }
+            /* c20 == 0x10: fire the topic's dialogue + set its seen flag (94937). */
+            if (s_menu.item_cursor >= 0 && s_menu.item_cursor < 6) {
+                scene1_intro_dialogue_start_single(1, k_talk_scripts[s_menu.item_cursor]);
+                uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+                if (bank != NULL)              /* save[0x2bc98 + i] = 1 (94959) */
+                    ((uint8_t *)bank)[GUILD_TALKSEEN_OFF + s_menu.item_cursor] = 1;
+            }
+            s_menu.scroll_anim = 0;          /* DAT_09642c20 = 0 (LAB_00492697) */
+            return;                          /* dialogue armed — skip the cursor tick */
+        }
+
+        /* idle nav (only once fully slid in, c1c == 0x19; all.c:94962-95009). */
+        if (s_menu.mode == 2 && s_menu.sub_anim == 0x19) {
+            const int n = 7;                 /* 6 topics + "Never mind" (iVar4, 94965) */
+            if ((pressed & 0x20u) == 0 &&    /* B not pressed AND not (A on last row) */
+                ((pressed & 0x10u) == 0 || s_menu.item_cursor != n - 1)) {
+                if ((pressed & 0x10u) == 0) {
+                    /* A not pressed → Up/Down nav, no-wrap (94969-94988). */
+                    if ((held & 0x04u) == 0) {                    /* Up not held */
+                        if ((held & 0x08u) && s_menu.item_cursor < n - 1) {  /* Down */
+                            audio_play_se_by_id(0x146);
+                            s_menu.item_cursor++;
+                            sub_cursor_moved = 1;
+                            if (s_menu.item_cursor - s_menu.item_scroll > 5)
+                                s_menu.item_scroll++;
+                        }
+                    } else if (s_menu.item_cursor > 0) {          /* Up */
+                        audio_play_se_by_id(0x146);
+                        s_menu.item_cursor--;
+                        sub_cursor_moved = 1;
+                        if (s_menu.item_cursor - s_menu.item_scroll < 0)
+                            s_menu.item_scroll--;
+                    }
+                } else {
+                    /* A on a topic (0..5) → start the dialogue confirm slide. */
+                    s_menu.scroll_anim = 1;                       /* DAT_09642c20 = 1 */
+                    audio_play_se_by_id(0x143);
+                }
+            } else {
+                /* B, or A on "Never mind" → close the submenu (94994-94997). */
+                s_menu.c14   = 1;                                 /* DAT_09642c14 = 1 */
+                cursor_moved = 1;                                 /* local_14 → main cursor */
+                audio_play_se_by_id(0x13d);
+            }
+        }
     }
 
-    /* cursor visible (FUN_0043561a at LAB_0049282c — every mode-1 frame, incl.
-     * the slide-in) + slide-to-row on an option move (LAB_00493563:
-     * FUN_00435710(328, (cursor−scroll)·0x22 + 84)).  display_menu_open snaps the
-     * cursor onto the item row at slide frame 0xf. */
-    if (s_menu.mode == 1)
+    /* LAB_0049282c: cursor visible (FUN_0043561a) — mode-1 nav AND mode-2 talk-nav
+     * (incl. the slide-in) — then the eased cursor slide on a move: the main-menu
+     * cursor (local_14) or the talk-row cursor (local_18), both x=328,
+     * y=(idx−scroll)·0x22 + 84 (LAB_00493563 / LAB_004935d6).  display_menu_open
+     * snaps the cursor onto the item row at buy/sell slide frame 0xf. */
+    if (s_menu.mode == 1 || s_menu.mode == 2)
         title_save_dialog_cursor_set_visible(1);
     if (cursor_moved) {
         float cy = (float)((s_menu.cursor - s_menu.scroll) * 0x22) + 84.0f;
+        title_save_dialog_cursor_slide(328.0f, cy);
+    }
+    if (sub_cursor_moved) {
+        float cy = (float)((s_menu.item_cursor - s_menu.item_scroll) * 0x22) + 84.0f;
         title_save_dialog_cursor_slide(328.0f, cy);
     }
 }
@@ -661,6 +758,19 @@ static const char *const k_bubble_b_guild[] = {
 static const char *const k_bubble_a_guild =
     "Before you stock up,<BR>make sure to read up on<BR>everything you can!";
 
+/* Talk-submenu topics (engine PTR_s_What_is_the_guild_005cfb0c, 7 entries): the
+ * 6 questions (cursor 0..5, each → a dialogue iv1_0a/0b/0c/0e/18/19 + a "New"
+ * badge while unseen) + the "Never mind" close row (cursor 6). */
+static const char *const k_talk_topics[] = {
+    "What is the guild?",       /* 0 → iv1_10 (0x0a) */
+    "What can I do here?",       /* 1 → iv1_11 (0x0b) */
+    "About merchant levels",     /* 2 → iv1_12 (0x0c) */
+    "About the town",            /* 3 → iv1_14 (0x0e) */
+    "About unknown items",       /* 4 → iv1_24 (0x18) */
+    "About fusion",              /* 5 → iv1_25 (0x19) */
+    "Never mind",                /* 6 → close (no dialogue) */
+};
+
 static void scene_guild_bind_add(IDirect3DDevice8 *d, const sprite_t *s,
                                  const float dst[4], const float src[4],
                                  uint32_t color, int mirrored)
@@ -695,26 +805,51 @@ static void scene_guild_menu_render(IDirect3DDevice8 *d)
     }
 
     /* Option list (DAT_09642c00 != 0).  Engine sets COLOROP=ADDSIGNED for the
-     * row text (all.c:95943 SetTextureStageState(0,COLOROP,8)). */
+     * row text (all.c:95943 SetTextureStageState(0,COLOROP,8)).  As the Talk
+     * submenu opens (c1c = sub_anim grows 0→0x19) the main rows collapse: the
+     * non-selected rows slide up + cull, the selected row slides up-left to head
+     * the submenu (all.c:95944-96030). */
     if (s_menu.mode != 0 && s_menu.count > 0) {
         IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
 
         const float label_x = panel_x + 120.0f;            /* 376 at rest */
+        const int   c1c      = s_menu.sub_anim;            /* Talk submenu open anim */
         for (int idx = s_menu.count - 1; idx >= 0; idx--) {
             int type = s_menu.entries[s_menu.scroll + idx];
-            float y = (float)(idx * 0x22) + 64.0f;
-            float scale;
+            float rx = label_x;
+            float ry = (float)(idx * 0x22) + 64.0f;
+            float scale = 1.0769231f;                      /* selected, larger */
+            int   draw  = 1;
             if (idx == s_menu.cursor) {
-                scale = 1.0769231f;                        /* selected, larger */
+                /* selected row slides up-left once the submenu opens past 0x14
+                 * (all.c:95971-95983); the brightness pulse is PORT-DEBT. */
+                if (c1c > 0x14) {
+                    int s = c1c - 0x14;
+                    rx -= (float)(s * 0xc);
+                    if (s_menu.cursor == 0)
+                        ry -= (float)(s * 7);
+                    else
+                        ry -= (float)(((idx * 0x22 + 0x22) / 5) * s);
+                }
             } else {
+                /* non-selected rows slide up + cull as the submenu opens
+                 * (all.c:96011-96022). */
                 scale = 0.8615385f;                        /* others, smaller */
-                y += 2.0f;
+                if (c1c > 0 && c1c < 0x19 && s_menu.c14 == 0) {
+                    ry -= (float)((c1c * idx * 0x22) / 0xf);
+                    if (ry < 64.0f) ry = 64.0f;
+                }
+                ry += 2.0f;
+                draw = (s_menu.c14 != 0) || (c1c < 6) || ((c1c * -0x20 + 0x19f) >= 0);
             }
+            if (!draw)
+                continue;
+
             /* Color = (alpha<<24)|0x7f7f7f (grey-127 RGB modulating the dark
              * font under ADDSIGNED; the selected-row brightness pulse is
              * PORT-DEBT — settled to full at rest). */
             if (type >= 0 && type < (int)(sizeof k_menu_labels / sizeof *k_menu_labels))
-                font_draw_text(d, label_x, y + 12.0f, k_menu_labels[type],
+                font_draw_text(d, rx, ry + 12.0f, k_menu_labels[type],
                                0xff7f7f7fu, scale);
 
             /* "New" badge next to Talk (type 2) when any of the 6 talk
@@ -735,8 +870,74 @@ static void scene_guild_menu_render(IDirect3DDevice8 *d)
                     int g = (int)(sp * 32.0f + 159.0f);
                     uint32_t ncol = 0xff000000u | ((uint32_t)(r & 0xff) << 16) |
                                     ((uint32_t)(g & 0xff) << 8) | 0x7fu;
-                    font_draw_text(d, label_x - 12.0f, y + 8.0f, "New", ncol, 0.5f);
+                    font_draw_text(d, rx - 12.0f, ry + 8.0f, "New", ncol, 0.5f);
                 }
+            }
+        }
+
+        IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    }
+
+    /* ── Talk submenu rows (DAT_09642c00 == 2, all.c:96034-96090) ───────────────
+     * 6 visible topic rows sliding in from the right (rx = panel_x+280 − slide,
+     * fading in by alpha=(c1c−0xf)·0x34), the cursor row larger, a per-topic "New"
+     * badge on unseen topics, and a single up/down scroll arrow (item_win.tga). */
+    if (s_menu.mode == 2) {
+        IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+
+        const int c1c = s_menu.sub_anim;
+        uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+        const uint8_t *bb = bank ? (const uint8_t *)bank : NULL;
+
+        if (c1c > 0xf) {
+            int alpha = (c1c - 0xf) * 0x34;                /* fade-in (96044) */
+            if (alpha > 0xff) alpha = 0xff;
+            const float slide = (float)((c1c - 0xf) * 0x10);
+            for (int row = 0; row < 6; row++) {
+                int topic = s_menu.item_scroll + row;      /* c0c + row */
+                float rx = (panel_x + 280.0f) - slide;     /* 376 at full open */
+                float ry = (float)(row * 0x22) + 64.0f;
+                float scale = 1.0769231f;
+                if (s_menu.item_cursor - s_menu.item_scroll != row) {
+                    scale = 0.8615385f;                    /* non-cursor row */
+                    ry += 2.0f;
+                }
+                /* row text: grey-127 (the cursor-row confirm-slide pulse is
+                 * PORT-DEBT(talk-confirm-flash) — settled to 0x7f). */
+                const char *label = (topic >= 0 && topic < 7) ? k_talk_topics[topic] : "";
+                uint32_t col = ((uint32_t)alpha << 24) | 0x7f7f7fu;
+                font_draw_text(d, rx, ry + 12.0f, label, col, scale);
+
+                /* per-topic "New" badge (96068): unseen topic 0..5. */
+                if (topic >= 0 && topic < 6 && bb && bb[GUILD_TALKSEEN_OFF + topic] == 0) {
+                    float sp = sinf((float)s_menu.entry_tick * 0.1f);
+                    int rr = (int)(sp * 64.0f + 191.0f);
+                    int gg = (int)(sp * 32.0f + 159.0f);
+                    uint32_t ncol = ((uint32_t)alpha << 24) |
+                                    ((uint32_t)(rr & 0xff) << 16) |
+                                    ((uint32_t)(gg & 0xff) << 8) | 0x7fu;
+                    font_draw_text(d, rx - 12.0f, ry + 8.0f, "New", ncol, 0.5f);
+                }
+            }
+        }
+
+        /* scroll arrows (item_win.tga cells), all.c:96085-96090.  Up shown when
+         * scrolled (c0c>0), down when at the top (c0c<1); 1 of 2 (7 topics / 6
+         * rows ⇒ c0c ∈ {0,1}).  dst (panel_x+16, 40|248, 64, 48), grey-127. */
+        {
+            const sprite_t *win = &g_sysassets.item_win_tga;
+            if (win->tex) {
+                IDirect3DDevice8_SetTexture(d, 0, (IDirect3DBaseTexture8 *)win->tex);
+                if (s_menu.item_scroll > 0) {              /* up arrow */
+                    const float dst[4] = { panel_x + 16.0f, 40.0f, 64.0f, 48.0f };
+                    const float src[4] = { 448.0f, 896.0f, 512.0f, 944.0f };
+                    render_quad_add(dst, src, win->width, win->height, 0xff7f7f7fu);
+                } else {                                   /* down arrow */
+                    const float dst[4] = { panel_x + 16.0f, 248.0f, 64.0f, 48.0f };
+                    const float src[4] = { 512.0f, 896.0f, 576.0f, 944.0f };
+                    render_quad_add(dst, src, win->width, win->height, 0xff7f7f7fu);
+                }
+                render_quad_flush(d);
             }
         }
 

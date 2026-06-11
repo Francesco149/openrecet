@@ -195,7 +195,7 @@ in `src/` (ported). This is the answer to *"is FUN_x done?"* at a glance.
 | 0x435625 | FUN_00435625 | 6 | ✓ | skip_event.c, title_save_dialog.c, title_save_dialog.h |
 | 0x435644 | FUN_00435644 | 79 | ✓ | title_save_dialog.c |
 | 0x435693 | FUN_00435693 | 58 | ✓ | main.c, scene1_display_menu.c, scene_guild.c (+5) |
-| 0x435710 | FUN_00435710 | 55 | ✓ | scene1_display_menu.c, scene_guild.c, scene_title.c (+4) |
+| 0x435710 | FUN_00435710 | 55 | ✓ | scene1_display_menu.c, scene_title.c, scene_worldmap.c (+3) |
 | 0x43609b | FUN_0043609b | 27 | ✓ | main.c |
 | 0x4361b2 | FUN_004361b2 | 532 | ✓ | scene1_display_menu.c, scene1_merchant_hud.c, scene_guild.c |
 | 0x43647f | FUN_0043647f | 61 | ✓ | scene1_combat_sm.h, scene1_hud.c, scene1_hud.h (+1) |

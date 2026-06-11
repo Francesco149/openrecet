@@ -2753,7 +2753,6 @@
    "status": "ported",
    "src": [
     "src/scene1_display_menu.c",
-    "src/scene_guild.c",
     "src/scene_title.c",
     "src/scene_worldmap.c",
     "src/sim.c",
