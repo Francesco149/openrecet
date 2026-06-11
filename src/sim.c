@@ -375,9 +375,15 @@ void sim_step_a(void)
     case 6:    /* Merchant's Guild / Market (engine FUN_00490e24 → FUN_004922c0) */
         /* LAB_00453bed for mode 6: FUN_00406584 (shared cursor anim) →
          * FUN_0040fb3a (particles) → the per-state callee FUN_00490e24, in that
-         * order.  The cursor-anim sibling stays stubbed (no guild consumer wired
-         * yet); scene_guild_sim is the per-state event tick (entry-tick counter
-         * + first-visit iv1_3 cutscene trigger). */
+         * order.  FUN_00406584 eases + bobs the shared hand cursor the guild
+         * menu raises; gate it on !dialogue-busy like the rest of the dispatch
+         * (retail's call-trace shows the whole mode-6 dispatch — cursor + sim —
+         * is skipped while the first-visit cutscene runs, so the cursor bob
+         * freezes through it and resumes at the menu reveal).  scene_guild_sim
+         * is the per-state event tick (entry-tick + first-visit trigger + the
+         * resting menu-state counters); it self-gates on busy too. */
+        if (!scene1_intro_dialogue_busy())
+            title_save_dialog_anim_tick();
         scene1_particles_tick();
         scene_guild_sim();
         break;

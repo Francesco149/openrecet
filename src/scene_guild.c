@@ -2,13 +2,30 @@
  * scene_guild.c — see scene_guild.h.
  *
  * Engine sources:
- *   FUN_004922c0 @ 0x4922c0  — per-location event tick.  Ported MINIMALLY here:
- *     the entry-tick counter (DAT_09642c38) + the first-visit cutscene branch
- *     (all.c:94764-94775).  The fade gate (FUN_00434d6a), the daily-event probe
- *     (FUN_0045de68), the group-6 follow-on cutscenes, and the guildmaster
- *     idle-anim counter tail (DAT_09642c40 et al., all.c:94811+) are PORT-DEBT.
- *   FUN_00494a73 @ 0x494a73  — the 2D bg blit (guild variant 0).
+ *   FUN_004922c0 @ 0x4922c0  — per-location event tick.  Ported here: the
+ *     entry-tick counter (DAT_09642c38) + the first-visit cutscene branch
+ *     (all.c:94764-94775) + the RESTING menu-state counter update
+ *     (all.c:94811-94833: the guildmaster-bubble ramp DAT_09642c40, the
+ *     bob/text-budget DAT_09642c48, the bubble-text-variant timer
+ *     DAT_09642c4c).  The full interactive state machine (cursor nav, the
+ *     buy/sell/talk submenus, store expansion — all.c:94885+) is
+ *     PORT-DEBT(guild-menu-nav), deferred to the buy-flow trace; the
+ *     fade gate (FUN_00434d6a), daily-event probe (FUN_0045de68) and the
+ *     group-6 follow-on cutscenes remain PORT-DEBT too.
+ *   FUN_0049174e @ 0x49174e  — scene-init: resets the menu state, builds
+ *     the option table (FUN_004918b0) and snaps the hand cursor.
+ *   FUN_004918b0 @ 0x4918b0  — builds the option-type table _DAT_09640624
+ *     + count DAT_005cfab4 (guild fresh-visit → {Buy,Sell,Talk,Leave}).
+ *   FUN_00494a73 @ 0x494a73  — the 2D bg blit (guild variant 0) + menu UI.
+ *   FUN_0049404b @ 0x49404b  — the menu panel + option list + guildmaster
+ *     speech bubble (the FUN_00494a73 tail).
  *   FUN_00473769 @ 0x473769  — the texture-group-7 load (guild variant 0).
+ *
+ * The menu is gated on `!scene1_intro_dialogue_busy()`: retail's call-trace
+ * shows FUN_004922c0 + FUN_0049404b run only BEFORE the first-visit cutscene
+ * arms and AFTER it completes — never during (the dialogue takes over the
+ * mode-6 update/render).  So the counters freeze through the cutscene and the
+ * menu pops in once it ends, exactly as retail.
  *
  * The first-visit cutscene is iv1_3.ivt, armed through the shared dialogue
  * runtime (scene1_intro_dialogue_start_single(1,3) = port of FUN_0044ba2c(1,3,1)
@@ -21,90 +38,375 @@
 #include <stddef.h>   /* NULL */
 
 #include "save_work.h"               /* save_work_dwords_at / _active_slot */
-#include "scene1_intro_dialogue.h"   /* scene1_intro_dialogue_start_single */
+#include "scene1_intro_dialogue.h"   /* scene1_intro_dialogue_start_single/_busy */
+#include "title_save_dialog.h"       /* shared hand cursor (FUN_0043561a/00435693) */
 
 /* ─── working-arena field offsets (base DAT_044e3798, per-slot) ──────────────
  * The port pins the engine's per-location stage index (DAT_0438b1e0) to the
  * active save slot (save_work_active_slot) — see docs/findings/merchant-guild-RE.md
  * and the worldmap/tutorial siblings that share this base+scheme. */
 #define GUILD_FIRSTVISIT_OFF  0x2bc5c   /* DAT_0450f3f4 — guild first-visit seen flag */
+#define GUILD_TALKSEEN_OFF    0x2bc98   /* 6 talk-dialogue-seen bytes (the "New" badge) */
+/* Slot-0-pinned dword indices into the working bank (DAT_0450fb98 / DAT_04510578
+ * fall inside slot 0's 0x2dfc8-byte bank — PORT-DEBT(loc-routing), slot 0 only). */
+#define GUILD_STORE_LEVEL_DWORD  0xb100   /* DAT_0450fb98 — store/merchant level */
+#define GUILD_PERIOD_DWORD       0xb378   /* DAT_04510578 — time-of-day period   */
 
 /* Market variant flag (engine DAT_0963c5f0). */
 static int s_variant = 0;
 
-/* Per-entry event-tick counter (engine DAT_09642c38). */
-static int s_entry_tick = 0;
+/* ─── menu state (engine DAT_09642cXX block + the option table) ──────────────
+ * Only the fields the RESTING render reads / the resting update writes.  The
+ * navigation-only fields (scroll/submenu/confirm) stay 0 until the nav port. */
+static struct {
+    int entry_tick;   /* DAT_09642c38 — per-entry frame counter            */
+    int mode;         /* DAT_09642c00 — 1 = main menu (0 closed, 2 talk…)  */
+    int cursor;       /* DAT_09642c04 — selected option index              */
+    int scroll;       /* DAT_09642c08 — option-list scroll origin          */
+    int bubble;       /* DAT_09642c40 — guildmaster-bubble pop-in 0..0xf    */
+    int bob;          /* DAT_09642c48 — bubble bob / text reveal budget    */
+    int text_timer;   /* DAT_09642c4c — bubble-text-variant timer (≥0x78→B) */
+    int sub_anim;     /* DAT_09642c1c — talk-submenu open anim             */
+    int scroll_anim;  /* DAT_09642c20 — list-scroll anim                   */
+    int c24;          /* DAT_09642c24 — list-scroll anim sibling           */
+    int c14;          /* DAT_09642c14 — confirm-transition flag            */
+    int transition;   /* DAT_09642c3c — 1 = mid daily-event transition     */
+    int entries[8];   /* _DAT_09640624 — per-row option type codes         */
+    int count;        /* DAT_005cfab4  — option count                      */
+} s_menu;
 
 void scene_guild_set_variant(int v) { s_variant = v; }
 int  scene_guild_variant(void)      { return s_variant; }
 
-void scene_guild_enter_reset(void)  { s_entry_tick = 0; }
+/* ─── option-type table builder (FUN_004918b0) ──────────────────────────────
+ * Type codes index the label table (0 Buy, 1 Sell, 2 Talk, 3 Fusion, 4 Leave,
+ * 5 Leave, 6 Expansion).  Fresh first-visit guild (store level 0, period 0)
+ * → {0,1,2,4} = Buy/Sell/Talk/Leave. */
+static void scene_guild_build_table(void)
+{
+    if (s_variant == 1) {            /* ichiba (dest 1) — not exercised */
+        s_menu.entries[0] = 0;
+        s_menu.entries[1] = 1;
+        s_menu.entries[2] = 5;
+        s_menu.count = 3;
+        return;
+    }
 
-/* ─── pure-C event tick (FUN_00490e24 → FUN_004922c0, first-visit subset) ──── */
+    int store_level = 0, period = 0;
+    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+    if (bank != NULL) {
+        store_level = (int)bank[GUILD_STORE_LEVEL_DWORD];   /* DAT_0450fb98 */
+        period      = (int)bank[GUILD_PERIOD_DWORD];        /* DAT_04510578 */
+    }
+
+    s_menu.entries[0] = 0;           /* Buy  */
+    s_menu.entries[1] = 1;           /* Sell */
+    int i = 2;
+    if (store_level > 3) {           /* Fusion appears at store level 4+ */
+        s_menu.entries[2] = 3;
+        i = 3;
+    }
+    int expand = (period == 0 && store_level > 10) ||
+                 (period == 1 && store_level > 18) ||
+                 (period == 2 && store_level > 24);
+    if (expand) {                    /* store-Expansion option */
+        s_menu.entries[i] = 6;
+        i++;
+    }
+    s_menu.entries[i]     = 2;       /* Talk  */
+    s_menu.entries[i + 1] = 4;       /* Leave */
+    s_menu.count = i + 2;
+}
+
+/* ─── scene-init menu reset (FUN_0049174e relevant subset) ──────────────────
+ * Called by the worker-load cb on scene entry.  Resets the menu to its open
+ * resting state + snaps the hand cursor onto the top option. */
+void scene_guild_enter_reset(void)
+{
+    s_menu.entry_tick  = 0;          /* DAT_09642c38 = 0 */
+    s_menu.mode        = 1;          /* DAT_09642c00 = 1 (menu open) */
+    s_menu.cursor      = 0;          /* DAT_09642c04 = 0 */
+    s_menu.scroll      = 0;          /* DAT_09642c08 = 0 */
+    s_menu.bubble      = 0;          /* DAT_09642c40 = 0 */
+    s_menu.bob         = 0;          /* DAT_09642c48 = 0 */
+    s_menu.text_timer  = 0;          /* DAT_09642c4c = 0 */
+    s_menu.sub_anim    = 0;          /* DAT_09642c1c = 0 */
+    s_menu.scroll_anim = 0;          /* DAT_09642c20 = 0 */
+    s_menu.c24         = 0;          /* DAT_09642c24 = 0 */
+    s_menu.c14         = 0;          /* DAT_09642c14 = 0 */
+    s_menu.transition  = 0;          /* DAT_09642c3c = 0 */
+
+    scene_guild_build_table();       /* FUN_004918b0 */
+
+    /* FUN_0043561a + FUN_00435693(0x43a40000, cursor*0x22 + 84.0): raise +
+     * snap the shared hand cursor onto the top option (328, 84). */
+    title_save_dialog_cursor_set_visible(1);
+    title_save_dialog_cursor_snap(328.0f, (float)(s_menu.cursor * 0x22) + 84.0f);
+}
+
+/* ─── pure-C event tick (FUN_00490e24 → FUN_004922c0) ──────────────────────── */
 
 void scene_guild_sim(void)
 {
     /* FUN_00490e24: the gate FUN_0044c7b8() is a `return 0` stub, so the event
-     * tick FUN_004922c0 always runs. */
+     * tick FUN_004922c0 always runs — EXCEPT the engine's mode-6 dispatch does
+     * not call it while the first-visit dialogue is active (retail call-trace:
+     * FUN_004922c0 fires only on the 2 pre-cutscene ticks + post-cutscene,
+     * never during).  Model that by freezing the whole tick while busy, so the
+     * menu counters resume from their pre-cutscene values when it ends. */
+    if (scene1_intro_dialogue_busy())
+        return;
 
-    /* FUN_004922c0 top (all.c:94752): the entry-tick counter increments every
-     * frame.  Retail also early-outs here via the press-to-continue fade gate
-     * FUN_00434d6a (DAT_0438b148) — settled (0) on a fresh guild entry, so it
-     * returns 0/proceed; its ramp path (the result-screen flow) is PORT-DEBT. */
-    s_entry_tick++;
+    /* FUN_004922c0 top (all.c:94752): the entry-tick counter. */
+    s_menu.entry_tick++;
 
     /* First-visit branch (all.c:94764-94775), gated on the 2nd entry tick. */
-    if (s_entry_tick != 2)
-        return;
-
-    /* Guard (&DAT_045114fc)[loc] != 2 — location-type is not "dungeon".  Mode 6
-     * is the market/guild, NEVER a dungeon, so this guard is structurally
-     * always-true here.  We do NOT read the byte: under the port's loc→slot
-     * pinning DAT_045114fc's 0xb7f2 stride does not match the working bank's
-     * 0x2dfc8 stride for non-zero slots, so a literal read is unreliable —
-     * whereas the mode-6 invariant is exact.  PORT-DEBT(loc-routing). */
-
-    uint32_t *bank = save_work_dwords_at(save_work_active_slot());
-    if (bank == NULL)
-        return;
-    uint8_t *bb = (uint8_t *)bank;
-
-    /* (&DAT_0450f3f4)[loc] == 0 — guild first-visit unseen.  Mark seen (fires
-     * once, persists in the save bank) + arm the iv1_3 cutscene. */
-    if (bb[GUILD_FIRSTVISIT_OFF] == 0) {
-        bb[GUILD_FIRSTVISIT_OFF] = 1;
-        scene1_intro_dialogue_start_single(1, 3);   /* FUN_0044ba2c(1,3,1) → iv1_3.ivt */
+    if (s_menu.entry_tick == 2) {
+        /* Guard (&DAT_045114fc)[loc] != 2 (not a dungeon) is structurally
+         * always-true for mode 6 — not read literally (PORT-DEBT(loc-routing),
+         * the 0xb7f2 stride is unreliable under slot pinning). */
+        uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+        if (bank != NULL) {
+            uint8_t *bb = (uint8_t *)bank;
+            /* (&DAT_0450f3f4)[loc] == 0 — first-visit unseen: mark seen (once,
+             * persists) + arm the iv1_3 cutscene, then return (busy next tick). */
+            if (bb[GUILD_FIRSTVISIT_OFF] == 0) {
+                bb[GUILD_FIRSTVISIT_OFF] = 1;
+                scene1_intro_dialogue_start_single(1, 3);  /* FUN_0044ba2c(1,3,1) */
+                return;
+            }
+        }
+        /* PORT-DEBT(guild-events): the daily-event probe (FUN_0045de68) and the
+         * group-6 follow-on cutscenes (all.c:94776-94808) are not ported. */
     }
+
+    /* ── RESTING menu-state counter update (FUN_004922c0 94811-94833) ──────────
+     * The full input/navigation state machine (all.c:94834+) is
+     * PORT-DEBT(guild-menu-nav) — this trace drives no menu input, so only the
+     * idle counters matter. */
+    int sel_type = s_menu.entries[s_menu.cursor];
+
+    /* Guildmaster bubble ramp: pop in while the menu is settled (or the
+     * Expansion option is selected); pop out otherwise. */
+    if (sel_type == 6 ||
+        (s_menu.mode != 0 && s_menu.scroll_anim == 0 &&
+         s_menu.entry_tick > 0xe && s_menu.c24 == 0)) {
+        if (s_menu.bubble < 0xf)
+            s_menu.bubble++;
+    } else if (s_menu.bubble > 0) {
+        s_menu.bubble--;
+    }
+
+    /* Bob / text-reveal budget runs only while the bubble is fully open. */
+    if (s_menu.bubble == 0xf)
+        s_menu.bob++;
+    else
+        s_menu.bob = 0;
+
+    /* Bubble-text-variant timer: ≥0x78 switches "Before you stock up…" →
+     * "Time to stock up a bit, eh?".  (Engine also force-sets 0x78 on menu
+     * input via _DAT_073dddd4 & 0xc0000 — no input modeled at rest.) */
+    s_menu.text_timer++;
+
+    s_menu.transition = 0;           /* DAT_09642c3c = 0 */
+
+    /* Idle main-menu path keeps the cursor visible (FUN_0043561a, LAB_0049282c).
+     * Cursor slide on nav (FUN_00435710) is PORT-DEBT(guild-menu-nav). */
+    title_save_dialog_cursor_set_visible(1);
 }
 
 /* ─── Win32 worker_load wiring + render ─────────────────────────────────────── */
 
 #ifdef _WIN32
 
+#define COBJMACROS
+#define CINTERFACE
+#include <d3d8.h>
+
+#include <math.h>          /* sinf — the "New" badge sparkle */
+
 #include "render_quad.h"   /* render_quad_state_setup/bind/add/add_mirrored/flush */
 #include "sprite.h"        /* sprite_t, sprite_load */
 #include "worker_load.h"   /* worker_load_set_cb */
+#include "sysassets.h"     /* g_sysassets.item_win_tga (the menu panel frame) */
+#include "font_draw.h"     /* font_draw_text / font_draw_text_box */
+#include "scene1_dialogue_run.h"  /* ive_box_scale (FUN_0046c86f bubble pop math) */
 
 sprite_t g_scene_guild[SCENE_GUILD_TEX_COUNT];
 
 static IDirect3DDevice8 *g_scene_guild_dev = NULL;
 
 /* Guild variant (DAT_0963c5f0 == 0) texture set — FUN_00473769 group-7 loads
- * (all.c:72012-72014).  Engine kind=7 dropped by sprite_load, as elsewhere. */
+ * (all.c:72012-72029).  Engine kind=7 dropped by sprite_load, as elsewhere. */
 static const struct { const char *path; uint32_t w, h; }
 g_scene_guild_assets[SCENE_GUILD_TEX_COUNT] = {
-    [SCENE_GUILD_TEX_BG]     = { "bmp/ivent/bg_guild.bmp",     0x400, 0x200 },
-    [SCENE_GUILD_TEX_KEEPER] = { "bmp/ivent/13syounin_01.tga", 0x200, 0x200 },
-    [SCENE_GUILD_TEX_BORD]   = { "bmp/result/bord01.tga",      0x200, 0x100 },
+    [SCENE_GUILD_TEX_BG]      = { "bmp/ivent/bg_guild.bmp",     0x400, 0x200 },
+    [SCENE_GUILD_TEX_KEEPER]  = { "bmp/ivent/13syounin_01.tga", 0x200, 0x200 },
+    [SCENE_GUILD_TEX_BORD]    = { "bmp/result/bord01.tga",      0x200, 0x100 },
+    [SCENE_GUILD_TEX_CHRNAME] = { "bmp/ivent/chrname.tga",      0x200, 0x200 },
+    [SCENE_GUILD_TEX_LEVEWIN] = { "bmp/leve_win.tga",           0x200, 0x100 },
+    [SCENE_GUILD_TEX_SHOPMODE] = { "bmp/shopmode.tga",          0x400, 0x200 },
 };
 
+/* ─── menu option / bubble strings (engine PTR_PTR_005cfaf0 + bubble tables) ── */
+static const char *const k_menu_labels[] = {
+    "Buy", "Sell", "Talk", "Fusion", "Leave", "Leave", "Expansion",
+};
+/* Bubble B (DAT_09642c4c >= 0x78), guild variant, indexed by the selected
+ * option type code (engine PTR_s_Time_to_stock_up… @0x5cfb30). */
+static const char *const k_bubble_b_guild[] = {
+    "Time to stock up a bit,<BR>eh? Step on up!",          /* 0 Buy   */
+    "Selling off excess stock?",                            /* 1 Sell  */
+    "If there's anything you<BR>don't know, just ask.",     /* 2 Talk  */
+    "Remember, you need<BR>ingredients if you want<BR>to fuse things!", /* 3 Fusion */
+    "Well, come back any time!",                            /* 4 Leave */
+    "Well, come back any time!",                            /* 5       */
+    "",                                                     /* 6 Expansion → cost string */
+};
+/* Bubble A (DAT_09642c4c < 0x78), guild variant (engine
+ * PTR_s_Before_you_stock_up… @0x5cfb28). */
+static const char *const k_bubble_a_guild =
+    "Before you stock up,<BR>make sure to read up on<BR>everything you can!";
+
+static void scene_guild_bind_add(IDirect3DDevice8 *d, const sprite_t *s,
+                                 const float dst[4], const float src[4],
+                                 uint32_t color, int mirrored)
+{
+    if (!s->tex) return;
+    render_quad_bind(d, s);
+    if (mirrored)
+        render_quad_add_mirrored(dst, src, s->width, s->height, color);
+    else
+        render_quad_add(dst, src, s->width, s->height, color);
+    render_quad_flush(d);
+}
+
+/* ─── the menu UI (FUN_0049404b) ────────────────────────────────────────────
+ * Panel frame + option list + guildmaster speech bubble.  The buy/sell-confirm
+ * overlay (FUN_00491de0, gated DAT_09642c50>0), the Talk submenu (mode 2) and
+ * the Fusion sub-screen (FUN_00493616) are PORT-DEBT(guild-menu-nav). */
+static void scene_guild_menu_render(IDirect3DDevice8 *d)
+{
+    /* slot: the panel-frame width origin (DAT_0734b98c-style slide); at rest
+     * DAT_09642c20 == 0 ⇒ x origin 256. */
+    float panel_x = 256.0f;
+    if (s_menu.scroll_anim > 0xf)
+        panel_x = 256.0f + (float)((s_menu.scroll_anim * 5 - 0x4b) * 8);
+
+    /* Panel frame: item_win.tga (DAT_073d8748), dst (panel_x,-8,400,320),
+     * src (0,0,400,320).  MODULATE (inherited from render_quad_state_setup). */
+    {
+        const float dst[4] = { panel_x, -8.0f, 400.0f, 320.0f };
+        const float src[4] = { 0.0f, 0.0f, 400.0f, 320.0f };
+        scene_guild_bind_add(d, &g_sysassets.item_win_tga, dst, src, 0xffffffffu, 0);
+    }
+
+    /* Option list (DAT_09642c00 != 0).  Engine sets COLOROP=ADDSIGNED for the
+     * row text (all.c:95943 SetTextureStageState(0,COLOROP,8)). */
+    if (s_menu.mode != 0 && s_menu.count > 0) {
+        IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_ADDSIGNED);
+
+        const float label_x = panel_x + 120.0f;            /* 376 at rest */
+        for (int idx = s_menu.count - 1; idx >= 0; idx--) {
+            int type = s_menu.entries[s_menu.scroll + idx];
+            float y = (float)(idx * 0x22) + 64.0f;
+            float scale;
+            if (idx == s_menu.cursor) {
+                scale = 1.0769231f;                        /* selected, larger */
+            } else {
+                scale = 0.8615385f;                        /* others, smaller */
+                y += 2.0f;
+            }
+            /* Color = (alpha<<24)|0x7f7f7f (grey-127 RGB modulating the dark
+             * font under ADDSIGNED; the selected-row brightness pulse is
+             * PORT-DEBT — settled to full at rest). */
+            if (type >= 0 && type < (int)(sizeof k_menu_labels / sizeof *k_menu_labels))
+                font_draw_text(d, label_x, y + 12.0f, k_menu_labels[type],
+                               0xff7f7f7fu, scale);
+
+            /* "New" badge next to Talk (type 2) when any of the 6 talk
+             * dialogues is unseen (all.c:95987-96008). */
+            if (s_variant == 0 && type == 2) {
+                uint32_t *bank = save_work_dwords_at(save_work_active_slot());
+                int unseen = 0;
+                if (bank != NULL) {
+                    const uint8_t *bb = (const uint8_t *)bank;
+                    for (int t = 0; t < 6; t++)
+                        if (bb[GUILD_TALKSEEN_OFF + t] == 0) unseen = 1;
+                }
+                if (unseen) {
+                    /* Sparkle (all.c:95997-96004): R = sin(c38·0.1)·64+191,
+                     * G = ·32+159, B = 0x7f; small 0.5 scale (superscript). */
+                    float sp = sinf((float)s_menu.entry_tick * 0.1f);
+                    int r = (int)(sp * 64.0f + 191.0f);
+                    int g = (int)(sp * 32.0f + 159.0f);
+                    uint32_t ncol = 0xff000000u | ((uint32_t)(r & 0xff) << 16) |
+                                    ((uint32_t)(g & 0xff) << 8) | 0x7fu;
+                    font_draw_text(d, label_x - 12.0f, y + 8.0f, "New", ncol, 0.5f);
+                }
+            }
+        }
+
+        IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    }
+
+    /* Guildmaster speech bubble (DAT_09642c40 > 0).  COLOROP=MODULATE
+     * (all.c:96092). */
+    IDirect3DDevice8_SetTextureStageState(d, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    if (s_menu.bubble > 0) {
+        int tag_alpha = s_menu.bubble * 0x20 - 0xe1;       /* 255 at full open */
+
+        /* Bubble body (shopmode.tga, H-mirrored).  ive_box_scale gives the
+         * pop-in scale/alpha from DAT_09642c40 (closing = DAT_005cfab8==0 = 0). */
+        float sx = 1.0f, sy = 1.0f; int alpha = 0xff;
+        ive_box_scale(s_menu.bubble, &sx, &sy, &alpha, 0);
+        {
+            const float dst[4] = { 368.0f - sx * 208.0f, 376.0f - sy * 88.0f,
+                                   sx * 416.0f, sy * 176.0f };
+            const float src[4] = { 0.0f, 176.0f, 416.0f, 352.0f };
+            scene_guild_bind_add(d, &g_scene_guild[SCENE_GUILD_TEX_SHOPMODE], dst, src,
+                                 ((uint32_t)alpha << 24) | 0xffffffu, 1);
+        }
+
+        /* DAT_005cfab8 is init-1 / never cleared ⇒ the name tag + body text
+         * always draw. */
+        if (tag_alpha > 0) {
+            /* "Guild Master" name tag: chrname.tga cell 0xb (col 1, row 4) =
+             * src (128,128,256,160), dst (308,300,128,32). */
+            const float dst[4] = { 308.0f, 300.0f, 128.0f, 32.0f };
+            const float src[4] = { 128.0f, 128.0f, 256.0f, 160.0f };
+            scene_guild_bind_add(d, &g_scene_guild[SCENE_GUILD_TEX_CHRNAME], dst, src,
+                                 ((uint32_t)tag_alpha << 24) | 0xffffffu, 0);
+        }
+
+        /* Bubble body text — FUN_00465db4 @ (250,348), scale 1.0, typewriter
+         * budget DAT_09642c48*2. */
+        int sel_type = s_menu.entries[s_menu.cursor];
+        const char *text;
+        if (sel_type == 6) {
+            /* Expansion cost string — not reachable on the fresh menu
+             * (PORT-DEBT(guild-menu-nav): the cost-table lookup is unported). */
+            text = "";
+        } else if (s_menu.text_timer < 0x78) {
+            text = k_bubble_a_guild;
+        } else if (sel_type >= 0 &&
+                   sel_type < (int)(sizeof k_bubble_b_guild / sizeof *k_bubble_b_guild)) {
+            text = k_bubble_b_guild[sel_type];
+        } else {
+            text = "";
+        }
+        uint32_t text_color = ((uint32_t)(tag_alpha > 0 ? tag_alpha : 0) << 24) | 0xffffffu;
+        font_draw_text_box(d, 250.0f, 348.0f, text, text_color, 1.0f, s_menu.bob * 2);
+    }
+}
+
 /* worker_load case-6 body — port of the scene-init FUN_0049174e's relevant
- * effects (reset the entry-tick counter) + the FUN_00473769 texture load.
- * Runs on the load worker; serialized before the first mode-6 sim tick by the
- * worker_load_busy() gate in sim_step_a. */
+ * effects (reset the menu state + build the option table + snap the cursor) +
+ * the FUN_00473769 texture load.  Runs on the load worker; serialized before
+ * the first mode-6 sim tick by the worker_load_busy() gate in sim_step_a. */
 static void scene_guild_load_cb(void)
 {
-    scene_guild_enter_reset();   /* DAT_09642c38 = 0 (FUN_0049174e) */
+    scene_guild_enter_reset();   /* FUN_0049174e: menu reset + table + cursor */
 
     /* PORT-DEBT(variant-1 ichiba): only the guild variant (DAT_0963c5f0 == 0,
      * world-map dest 3) loads its texture set; the variant-1 (ichiba) set
@@ -164,12 +466,18 @@ void scene_guild_render(struct IDirect3DDevice8 *dev)
         render_quad_flush(d);
     }
 
-    /* PORT-DEBT(guild-ui): the FUN_00494a73 tail (FUN_0049404b fx,
-     * FUN_0046b00a guild menu frame, FUN_0043537e, FUN_00491de0,
-     * FUN_00435747 cursor, FUN_00435117) + the FUN_00490e35 trailing
-     * FUN_00406d50 top-HUD (clock/Day/money) are not yet ported.  Verify
-     * against the merchants-guild trace whether they're visible behind the
-     * first-visit cutscene before adding them. */
+    /* The menu UI draws only when the first-visit cutscene is NOT active:
+     * retail skips FUN_00494a73's menu tail (FUN_0049404b/cursor) entirely
+     * while the dialogue runs (the menu is hidden behind it).  bg + guildmaster
+     * above DO draw through the cutscene (they coincide with retail's
+     * cutscene-path bg + guildmaster standee — confirmed 1:1). */
+    if (!scene1_intro_dialogue_busy()) {
+        scene_guild_menu_render(d);                /* FUN_0049404b */
+        /* FUN_0043537e (secondary banner) + FUN_00491de0 (buy/sell confirm) +
+         * FUN_00435117 (dialog frame): stubbed/no-op at rest (the port's
+         * title_save_dialog_secondary/render are no-op gates). */
+        title_save_dialog_cursor_render(d);        /* FUN_00435747 — hand cursor */
+    }
 }
 
 #endif /* _WIN32 */

@@ -3050,13 +3050,23 @@ static void render_dispatch(void)
             title_save_dialog_cursor_render(g_dev);  /* FUN_00435747 — destination pointer */
             break;
         case 6:
-            /* Merchant's Guild / Market — engine FUN_00490e35 → FUN_00494a73
-             * (the 2D guild bg + the mirrored guildmaster). */
+            /* Merchant's Guild / Market — engine FUN_00490e35 → FUN_0049b425 +
+             * FUN_00494a73 (the 2D guild bg + the mirrored guildmaster + the
+             * menu panel/options/bubble + hand cursor) + FUN_00406d50 (the
+             * top-left clock/Day/money HUD).  scene_guild_render draws bg +
+             * guildmaster always (they coincide with retail's cutscene path),
+             * and the menu UI + cursor only when the first-visit cutscene is
+             * not active. */
             scene_guild_render(g_dev);
             /* The first-visit cutscene (iv1_3) draws ON TOP: conversation-pose
              * standees + the text box, via the shared dialogue draw (no-op
              * unless a script is active) — same call as the INGAME branch. */
             scene1_dialogue_draw(g_dev);
+            /* FUN_00406d50 — the gold/clock/Day HUD, last (after FUN_00494a73 in
+             * FUN_00490e35).  Gated with the menu: retail does not draw it while
+             * the cutscene runs (call-trace: FUN_00406d50 fires only pre/post). */
+            if (!scene1_intro_dialogue_busy())
+                scene1_top_hud_render(g_dev);
             break;
         default:
             break;

@@ -30,11 +30,15 @@
 
 struct IDirect3DDevice8;
 
-/* Texture slots (engine DAT_073da000/010/020 — the shared mode-6 bg bank). */
+/* Texture slots — the FUN_00473769 group-7 load (all.c:72012-72029): the
+ * mode-6 bg bank (DAT_073da000/010/020) plus the shared menu sprites. */
 enum {
     SCENE_GUILD_TEX_BG = 0,    /* DAT_073da000 — bmp/ivent/bg_guild.bmp     (1024x512) */
     SCENE_GUILD_TEX_KEEPER,    /* DAT_073da010 — bmp/ivent/13syounin_01.tga ( 512x512) */
     SCENE_GUILD_TEX_BORD,      /* DAT_073da020 — bmp/result/bord01.tga      ( 512x256) */
+    SCENE_GUILD_TEX_CHRNAME,   /* DAT_073cc8d0 — bmp/ivent/chrname.tga      ( 512x512) name tags */
+    SCENE_GUILD_TEX_LEVEWIN,   /* DAT_073d9ff0 — bmp/leve_win.tga           ( 512x256) (level-up win) */
+    SCENE_GUILD_TEX_SHOPMODE,  /* DAT_073a9580 — bmp/shopmode.tga           (1024x512) bubble/arrows */
     SCENE_GUILD_TEX_COUNT
 };
 
