@@ -406,3 +406,51 @@ resume-vs-restart branch (prologue Yes always skips). SE side effects
 | `FUN_004532df` confirm counter | observable A-confirm (PORT-DEBT: counter choreography) |
 | skip teardown (`FUN_00473c03` …) | `scene1_intro_dialogue_skip_to_end()` |
 | `FUN_00454191` (render) | pending (Phase C) |
+
+## Guild (mode 6) — the skip box generalized beyond the prologue (2026-06-11, `f26eb40`)
+
+Phase C built + verified the skip box against the **prologue only**. The first
+real exercise elsewhere — ESC during the Merchant's Guild first-visit cutscene
+(iv1_3, `scene1_intro_dialogue_start_single(1,3)`) — surfaced two mode-6 gaps
+(user-flagged: "half expanded panel with no text"). Both are now fixed; the box
+is **1:1 vs retail** (session `guild-skip-dialogue-talk-leave-20260611-204101`:
+geometry/text/Yes-No identical, cursor slides Yes→No→Yes, confirm Yes → cutscene
+skips → guild menu).
+
+1. **The modal didn't run in mode 6.** `sim.c` ran the skip modal
+   (`skip_event_open()` → `skip_event_tick` → `choice_box_poll`) only under
+   `SCENE_STATE_INGAME`; the mode-6 branch called `scene1_intro_dialogue_tick`
+   directly with a "prologue-only" comment. But `esc_pressed()` arms
+   `skip_event` in ANY non-title scene (the (B) `DAT_0438b1c0 != 0` branch), and
+   retail's `FUN_004536cb` routes to the prompt regardless of sub-mode — so the
+   guild cutscene is skippable exactly like the prologue. With the box armed but
+   never polled, `cb_active` stayed at its open value (< 4): the `savewindow.tga`
+   banner froze half-grown and the prompt text (gated on `cb_active >= 4`) never
+   drew. **Fix:** merge mode 6 into the INGAME skip-modal block (they share the
+   same `scene1_intro_dialogue` runtime AND the same modal). "Yes" tears the
+   current script down via `scene1_intro_dialogue_skip_to_end()` — for the guild
+   that's the `D_TUT*` → `D_IDLE` case, so the cutscene ends and `scene_guild_sim`
+   resumes at the menu (matches the user flow: skip → guild menu → Talk).
+
+2. **The box cursor didn't slide.** The shared hand cursor's per-frame bob+slide
+   step (`title_save_dialog_anim_tick`, the engine's `FUN_00406584`→`FUN_004356cd`)
+   is run UNCONDITIONALLY every INGAME frame (so the prologue box cursor eases),
+   but the mode-6 dispatch gated it on `!scene1_intro_dialogue_busy()` (freeze the
+   menu cursor through the cutscene). The skip box is up DURING the frozen-but-
+   still-busy cutscene, so the gate held the box's cursor frozen on Yes: a nav
+   toggled `cb_sel` but the sprite never eased to No (the 6-frame ease is stepped
+   only by this tick). **Fix:** also tick when `skip_event_open()` —
+   `if (!scene1_intro_dialogue_busy() || skip_event_open())`.
+
+Tooling note (windowing a guild scene): anchor the `{caprange}` right after the
+FIRST `LOADING_END` (house freeroam) — `window_at_freeroam`=True so `recapture`
+won't self-heal it to the house — with a count that spans forward through the
+suppressed loads to the guild (mirror the buy-flow trace). Capturing from a
+*distilled* `recording.trace.jsonl` mis-places the caprange in the final segment
+(0 frames); hand-place it. Retail load-stretches the prologue (the house load
+alone ran past 14.5k frames once) — use `--retail-max-frames ≥ 40000` to reach a
+guild window. The kept-count seam (port loads faster → 518 vs 359 frames)
+compresses retail's label axis and over-runs its window into later dialogue, so
+the studio's label-paired diff/triage and `audio_diff` are seam-shifted here
+(retail's window covers the later Talk-menu nav SE) — verify the box by DIRECT
+frame compare, accept the seam (phase pillar).

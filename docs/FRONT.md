@@ -209,13 +209,31 @@
   TAS replay end ~f3979 → retail frames 18101-19888 have no port counterpart) — the port fires
   every sound TYPE; post-buy item list 1:1 modulo cursor-bob phase (only bright diff = the cursor
   bbox; "Out Of Stock" text simply isn't exercised, sold-out shows "0 Left" both sides).
-  **→ NEXT (active): the leave-guild BREAD CUTSCENE = `scene1_intro_dialogue_start_single(1, 9)`
-  (iv1_9), RE'd `cadf75f`** — `FUN_004922c0`'s Leave-option dispatch `LAB_00492ad7` fires it on
-  the per-location first-leave flag (`DAT_0450f3f5[loc]==0`); the dialogue machinery is already
-  ported, so the port = the Leave handler + gate, no new dialogue code. **NEEDS A FRESH RECORDING**
-  (the current trace ends in the buy menu): record enter-guild → main menu → Leave so the bread
-  cutscene plays, then empirical RE + port + recapture-verify; then returning to Recettear (Tear
-  cutscene). RE: `merchant-guild-RE.md` "Planned follow-on traces".
+  **→ ACTIVE ARC (2026-06-11 PM): the COMPOSITE guild trace
+  `guild-skip-dialogue-talk-leave-20260611-204101`** (served :8778; the fresh recording the
+  bread cutscene needed + much more). Walks: door→leave→guild→ESC-skip the first-visit cutscene
+  →Talk submenu (no-wrap nav, first dialogue clears the New badge, re-enter shows it persists)
+  →try-leave tutorial (nothing bought)→buy 1 sword→leave→BREAD cutscene (iv1_9)→return to
+  Recettear (Tear cutscene)→walk. Working it gap-by-gap; **re-window per gap** — anchor the
+  `{caprange}` right after the FIRST `LOADING_END` (house freeroam, `window_at_freeroam`=True so
+  recapture won't self-heal), count spans forward through suppressed loads; pin `{phasepin N}`+
+  `{rngseed [N,19937]}`+`{tutloadpin 8}` (mirror the buy-flow trace). Caveat: capturing from a
+  *distilled* recording places the caprange in the FINAL segment (0 frames) — hand-place it; and
+  retail load-stretches the prologue (≥40000 `--retail-max-frames` to reach a guild window).
+  **GAP 1 — ESC skip-confirm box ✅ DONE + verified 1:1 2026-06-11** (`f26eb40`): port showed a
+  half-expanded textless panel, cursor stuck on Yes. Cause = mode-6 ran the dialogue tick WITHOUT
+  the skip modal ("prologue-only") so the choice box never ticked to cb_active==4, AND gated the
+  shared-cursor anim tick on !busy() so the box cursor never slid. Fix = merge mode 6 into the
+  INGAME skip-modal block + tick the cursor when `skip_event_open()`. Box geometry/text/Yes-No,
+  cursor slide Yes→No→Yes, and confirm Yes→skip→guild menu all match retail (direct frame compare
+  at the box; the studio diff is kept-count-seam-shifted — accept). esc-skip-event.md "Guild".
+  **→ NEXT gaps (this trace): Talk submenu** (no-wrap nav + first dialogue clears the flashing
+  New badge + persistence), the **try-leave tutorial** (nothing-bought gate), then the
+  **leave-guild BREAD CUTSCENE = `scene1_intro_dialogue_start_single(1, 9)` (iv1_9), RE'd
+  `cadf75f`** — `FUN_004922c0`'s Leave dispatch `LAB_00492ad7` fires it on the per-location
+  first-leave flag (`DAT_0450f3f5[loc]==0`); dialogue machinery already ported, so port = the
+  Leave handler + gate. Then returning to Recettear (Tear cutscene) + walk.
+  RE: `merchant-guild-RE.md` "Planned follow-on traces".
   **Other PORT-DEBT:** Sell (mode 3), first-buy tutorial/limit gates, the Talk submenu / Fusion (`FUN_00493616`) / Expansion
   flows, the `FUN_004922c0` daily-event probe + group-6 cutscenes, the mid-transition bg
   path, the variant-1 (ichiba, dest 1) set. Follow-on traces queued: leaving the guild
