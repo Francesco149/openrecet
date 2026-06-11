@@ -264,4 +264,97 @@ float font_draw_text_right(struct IDirect3DDevice8 *dev_,
     return width;
 }
 
+/*
+ * font_draw_text_box — FUN_00465db4 (0x465db4): the bubble / help-box
+ * multi-line text renderer.  The engine first expands its
+ * <S>/<I>/<Y>/<D…>/<T> variable macros into a working buffer, then splits
+ * the result on <BR> and draws each line through the per-character reveal
+ * row drawer (FUN_0047d464 = font_draw_text_fade).
+ *
+ * PORT-DEBT(box-text-macros): the macro substitution buffers (engine
+ * DAT_0730xxxx) are unported; the engine's own `DAT_0730b300==0` etc.
+ * guards make an unset buffer expand to nothing, which is exactly the
+ * state we model — every <S>/<I>/<Y>/<D…>/<T> tag is dropped.  The
+ * Merchant's Guild bubbles use none of these macros (literal text + <BR>
+ * only; the store-expansion %d is pre-substituted via FUN_005038ff before
+ * this call), so for the guild this pass is a verbatim copy.  Wire in the
+ * real substitution if a future caller needs it.
+ *
+ * `char_budget` (engine param_6 = DAT_09642c48*2) is the typewriter
+ * reveal: consumed across ALL lines (one per visible char; an SJIS lead
+ * byte does not decrement on its own), truncating the text mid-reveal.
+ * Each line's fade gradient uses the budget remaining at that line's
+ * start.  Line spacing is param_3(0,0x28,0x50,…) * scale * 0.76 (the
+ * engine's 40-unit step at the box scale); rows stop at param_3 == 400.
+ */
+void font_draw_text_box(struct IDirect3DDevice8 *dev,
+                        float x, float y,
+                        const char *str,
+                        uint32_t argb,
+                        float scale,
+                        int char_budget)
+{
+    if (!dev || !str) return;
+    if (char_budget <= 0) return;   /* engine: if (0 < param_6) */
+
+    /* Pass 1 (FUN_00465db4 0x465dde-0x465f2c): macro expansion into a
+     * 256-byte working buffer.  <BR> is NOT one of the expanded tags (its
+     * '<' falls through as a literal), so it survives for pass 2. */
+    char buf[256];
+    {
+        int dst = 0, src = 0;
+        for (int n = 0; n < 256 && dst < 255; n++) {
+            char c = str[src];
+            buf[dst] = c;
+            if (c == '\0') break;
+            if (c == '<') {
+                char t = str[src + 1];
+                if (t == 'S' || t == 'I' || t == 'Y' || t == 'T') { src += 2; continue; }
+                if (t == 'D') { src += 3; continue; }   /* <D1>/<D…> — stubbed */
+                /* else (e.g. <BR>): keep the literal '<' for pass 2. */
+            }
+            dst++; src++;
+        }
+        buf[dst] = '\0';
+    }
+
+    /* Pass 2 (FUN_00465db4 0x465f2d-0x465fa2): split on <BR>, apply the
+     * typewriter budget, draw each line. */
+    int budget  = char_budget;     /* param_6 — runs across lines */
+    int src_idx = 0;
+    int line_p3 = 0;               /* param_3 — y-step accumulator */
+    int done    = 0;              /* local_c */
+    do {
+        const int line_start_budget = budget;   /* iVar6 */
+        char line[260];
+        int j = 0, k = src_idx, lead = 0;        /* iVar2, iVar8, local_10 */
+        for (int cnt = 0; cnt < 0x100; cnt++) {
+            char c = buf[k];
+            line[j] = c;
+            if (c == '\0') { done = 1; src_idx = k; break; }
+            if (c == '<' && buf[k + 1] == 'B' && buf[k + 2] == 'R') {
+                line[j] = '\0'; src_idx = k + 4; break;   /* skip "<BR>" */
+            }
+            /* Budget: an SJIS lead byte (high bit set) does not decrement
+             * on its own; the trailing byte does.  ASCII decrements every
+             * char. */
+            if ((signed char)buf[k] < 0 && lead == 0) {
+                lead = 1;
+            } else {
+                budget--;
+                lead = 0;
+                if (budget < 1) { line[j + 1] = '\0'; done = 1; break; }
+            }
+            j++; k++;
+        }
+        const float ly = (float)line_p3 * scale * 0.76f + y;
+        /* Glyph scale is the box scale (param_5) — the engine passes param_5,
+         * NOT param_5*0.76, to FUN_0047d464 (the *0.76 the decompile shows on
+         * the scale arg is Ghidra FPU mis-grouping; it belongs to the line-
+         * spacing y above).  font_draw_text_fade folds in the 0.65*0.76 chain. */
+        font_draw_text_fade(dev, x, ly, line, argb, scale, line_start_budget);
+        line_p3 += 0x28;
+    } while (!done && line_p3 != 400);
+}
+
 #endif /* _WIN32 */

@@ -125,6 +125,21 @@ float font_draw_text_right(struct IDirect3DDevice8 *dev,
                            uint32_t argb,
                            float scale);
 
+/*
+ * FUN_00465db4 — the bubble / help-box multi-line text renderer.  Expands
+ * the engine's variable macros (stubbed — see the .c), splits on <BR>, and
+ * draws each line via font_draw_text_fade (FUN_0047d464) with `char_budget`
+ * (DAT_09642c48*2) as a typewriter reveal consumed across all lines.
+ * `scale` is the box scale (the guild bubble passes 1.0); the per-glyph
+ * size folds in an extra *0.76 (engine param_5*0.76).
+ */
+void font_draw_text_box(struct IDirect3DDevice8 *dev,
+                        float x, float y,
+                        const char *str,
+                        uint32_t argb,
+                        float scale,
+                        int char_budget);
+
 #endif /* _WIN32 */
 
 #endif /* OPENRECET_FONT_DRAW_H */

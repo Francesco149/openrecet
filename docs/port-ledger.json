@@ -6,11 +6,11 @@
   "non_thunk_functions": 2548,
   "verified": 69,
   "stubbed": 15,
-  "ported": 392,
-  "unported": 2072,
+  "ported": 395,
+  "unported": 2069,
   "orphan_refs_not_in_function_table": 7,
-  "touched": 476,
-  "pct_touched": 18.7,
+  "touched": 479,
+  "pct_touched": 18.8,
   "pct_verified": 2.7,
   "port_debt": 23
  },
@@ -2683,6 +2683,7 @@
    "status": "ported",
    "src": [
     "src/main.c",
+    "src/scene_guild.c",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
     "src/title_save_dialog.c",
@@ -2723,6 +2724,7 @@
    "src": [
     "src/main.c",
     "src/scene1_display_menu.c",
+    "src/scene_guild.c",
     "src/scene_title.c",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
@@ -2750,6 +2752,7 @@
    "status": "ported",
    "src": [
     "src/scene1_display_menu.c",
+    "src/scene_guild.c",
     "src/scene_title.c",
     "src/scene_worldmap.c",
     "src/sim.c",
@@ -5170,8 +5173,12 @@
    "size": 634,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/font_draw.c",
+    "src/font_draw.h",
+    "src/scene_guild.c"
+   ]
   },
   {
    "va": "0x46602e",
@@ -5672,8 +5679,7 @@
    "src": [
     "src/main.c",
     "src/scene1_display_menu.c",
-    "src/scene1_display_menu.h",
-    "src/scene_guild.c"
+    "src/scene1_display_menu.h"
    ]
   },
   {
@@ -5838,7 +5844,8 @@
    "src": [
     "src/scene1_dialogue_run.c",
     "src/scene1_dialogue_run.h",
-    "src/scene1_top_hud.c"
+    "src/scene1_top_hud.c",
+    "src/scene_guild.c"
    ]
   },
   {
@@ -9088,8 +9095,10 @@
    "size": 191,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_guild.c"
+   ]
   },
   {
    "va": "0x49196f",
@@ -9168,8 +9177,10 @@
    "size": 2613,
    "is_thunk": false,
    "is_call_target": true,
-   "status": "unported",
-   "src": []
+   "status": "ported",
+   "src": [
+    "src/scene_guild.c"
+   ]
   },
   {
    "va": "0x49404b",
@@ -22250,6 +22261,7 @@
    "status": "ported",
    "src": [
     "src/audio.c",
+    "src/font_draw.c",
     "src/scene1_combat_sm.c",
     "src/scene1_per_frame_open.c",
     "src/scene1_per_frame_open.h",
