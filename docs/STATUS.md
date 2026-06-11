@@ -278,12 +278,22 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   actual Talk-dialogue ESC-skip is NOT in this recording (user found it by playing) but
   ✅ USER-CONFIRMED 1:1 2026-06-11** ("can confirm the bug is fixed") — parity ledger.
   esc-skip-event.md "Guild (mode 6)" gap 3.
-  **→ NEXT gaps (this trace): the try-leave tutorial** (nothing-bought gate) + the
-  **leave-guild BREAD CUTSCENE = `scene1_intro_dialogue_start_single(1, 9)` (iv1_9), RE'd
-  `cadf75f`** — `FUN_004922c0`'s Leave dispatch `LAB_00492ad7` fires it on the per-location
-  first-leave flag (`DAT_0450f3f5[loc]==0`); dialogue machinery already ported, so port = the
-  Leave handler + gate. Then returning to Recettear (Tear cutscene) + walk.
-  RE: `merchant-guild-RE.md` "Planned follow-on traces".
+  **GAP 4 — leave-guild BREAD CUTSCENE (the try-leave tutorial) ✅ DONE + PHASE-CLEAN 2026-06-12**
+  (`b5ba796`): `A` on **Leave** now fires the iv1_9 "here's some bread" cutscene
+  (`scene1_intro_dialogue_start_single(1,9)` = `FUN_0044ba2c(1,9,0)`, `LAB_00492ad7`) when the
+  first-leave flag (`save[0x2bc5d]`/`DAT_0450f3f5`) is clear — i.e. trying to leave before buying;
+  + SE 0x13d. Same dialogue machinery as the confirmed-1:1 first-visit/Talk cutscenes; just the
+  dispatch + gate. Re-windowed the composite to `caprange [250,4300]` to capture the full cutscene;
+  **focused `flow_diff --align-anchor TEXT_ANIM_START --frame-from 17150 --frame-to 17430` (281
+  frames) = ✅ PHASE-CLEAN — fade/dialogue(box_open/reveal/line_row/st5)/rngcalls/raw-rng all
+  bit-exact** vs retail (retail arms it @frame17181, the exact narrative order after first-visit
+  @14695 + Talk-topic @15858). **The studio PIXEL diff is seam-unusable here** (wide window crosses
+  8 load-seams ⇒ kept-count port=3864/retail=3740 ⇒ port a few frames ahead at each label; verify
+  via the anchor-aligned flow_diff, not the pixel curve). **Pending user eyeball** (served :8778,
+  restarted on the new capture). RE: `merchant-guild-RE.md` "Leave dispatch RE". **PORT-DEBT(guild-
+  leave-transition):** the flag==1 (post-purchase) Leave path = the c2c/c28 transition → iv1_16 fade
+  + world-map swap + the return-to-Recettear Tear cutscene (the port re-fires bread on the post-buy
+  leave since the buy-commit flag-set `save[0x2bc5d]=1` is also PORT-DEBT) — the follow-on gap.
   **Other PORT-DEBT:** Sell (mode 3), first-buy tutorial/limit gates, the Talk submenu / Fusion (`FUN_00493616`) / Expansion
   flows, the `FUN_004922c0` daily-event probe + group-6 cutscenes, the mid-transition bg
   path, the variant-1 (ichiba, dest 1) set. Follow-on traces queued: leaving the guild

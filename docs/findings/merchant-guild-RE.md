@@ -253,18 +253,47 @@ bg + guildmaster standee — confirmed 1:1).
 - Leaving the guild triggers a tutorial cutscene (the man gives you bread).
 - Returning to Recettear triggers a Tear cutscene.
 
-**RE lead (2026-06-11, static — needs a verify trace):** the Leave menu option dispatches
-to `LAB_00492ad7` (all.c:95108) inside `FUN_004922c0`'s main-menu A-handler. On a per-location
-**first-leave flag** (`(&DAT_0450f3f5)[iVar7] == 0`) it fires
+**Leave dispatch RE — bread-cutscene half DONE 2026-06-12 (`b5ba796`):** the Leave menu option
+dispatches to `LAB_00492ad7` (all.c:95108) inside `FUN_004922c0`'s main-menu A-handler. On a
+per-location **first-leave flag** (`(&DAT_0450f3f5)[iVar7] == 0`) it fires
 **`FUN_0044ba2c(1,9,0)` = `scene1_intro_dialogue_start_single(1, 9)`** — the bread cutscene is
 **dialogue group 1 / script 9 (iv1_9)**; the dialogue machinery is already ported (same path as
 the first-visit `(1,3)`), so the port is the Leave-option handler + the first-leave gate, not new
-dialogue code. Else (flag set) it runs the leave-transition anim (`c2c`/`c28` = s_menu `c2c/c28`,
-the leave/transition counters). Option-type for Leave is the denormal-float-encoded int in
-`DAT_09640624[c04]` (type 5 `7.00649e-45` jumps here; type 4 `5.60519e-45` falls through — pin
-which the guild menu uses from the verify trace's `c04`/option array). **Sibling already noted at
-`scene_guild.c:329` — the first-BUY tutorial `FUN_0044ba2c(1,0xf,0)` = iv1_15, gated owns>9 &
-flag unset.** The Tear (return-to-Recettear) cutscene is in the shop/house scene, not here.
+dialogue code. **Ported** (`scene_guild.c` mode-1 A-dispatch, `sel==4||sel==5`): read
+`save[GUILD_FIRSTLEAVE_OFF=0x2bc5d]` (=`DAT_0450f3f4`+1), iv1_9 if clear, + SE 0x13d
+(LAB_00492821, the back beep — plays in BOTH the bread + transition branches). The overlay
+freezes the guild tick (the busy gate at `scene_guild_sim` top) and resumes the menu when it ends.
+- **The flag is set by the first PURCHASE, not by Leave** (all.c:95560-95564, mode-8 buy-commit):
+  `if (DAT_045114fc[loc]!=2 && DAT_0450fb84[loc]==0) { DAT_0450f3f5=1; DAT_0450f3f9=0; }`. So
+  *try-leave before buying ⇒ bread cutscene*; after a purchase ⇒ the flag is set ⇒ the else branch.
+  (`DAT_0450fb84` is the 0xb7f2-strided guard, like `DAT_045114fc` — the port treats it
+  always-true under slot pinning; the buy-commit flag-set is still `PORT-DEBT(first-buy save
+  flags)` at `scene_guild.c` `guild_buy_commit`.)
+- **Else branch (flag set ⇒ leave-transition):** bumps `c2c` (if `DAT_0450f42a[loc]==0`) or `c28`,
+  which the function TOP (all.c:94833-94876) ramps → at `c2c==3` fires a SECOND cutscene
+  **`FUN_0044ba2c(1,0x10,4)` = iv1_16** + sets `c28=3`; the `c28` ramp then `DAT_0438b1c0=8` +
+  `FUN_0049de0e()` = the world-map scene swap (with a `FUN_004526f5(0,0x11)` fade @ counter==2).
+  This is **`PORT-DEBT(guild-leave-transition)`**, the follow-on gap (the actual world-map exit +
+  the return-to-Recettear Tear cutscene).
+- Option-type for Leave: the guild fresh-visit menu uses **type 4** (`5.60519e-45`, the port's
+  `entries[]=4`); type 5 (`7.00649e-45`) also reaches `LAB_00492ad7`. Port handles both (`sel==4||5`).
+- **✅ PHASE-CLEAN (data-1:1) 2026-06-12** on `guild-skip-dialogue-talk-leave` (recapture w/
+  `caprange [250,4300]`, calltrace `[2600,4300]`): retail arms the bread `FUN_0044ba2c` @ **frame
+  17181** (`ret_va 0x4929ec`, the LAB_00492ad7 call), after first-visit @14695 (`0x492353`) + the
+  Talk-topic @15858 (`0x492694`) — the exact narrative order. The bread dialogue box runs retail
+  17190→17397 (`dialogue_tick` box_open 0→15 @17301, closes @17390; ~89-frame fast-forwarded box).
+  **Focused `flow_diff --verdict --align-anchor TEXT_ANIM_START --frame-from 17150 --frame-to
+  17430` (281 common frames) = ✅ PHASE-CLEAN — every field bit-exact**: `fade_tick`
+  (phase/counter/mode), `dialogue_tick` (box_open/reveal/line_row/st5_*), `rngcalls`, raw `rng`
+  (281/281). Same standard the first-visit cutscene was confirmed to. The studio PIXEL diff is
+  unusable here (the wide window crosses 8 load-seams ⇒ kept-count seam port=3864/retail=3740 ⇒
+  port runs a few frames ahead of retail at each label; label-paired diff mispairs — verify via the
+  anchor-aligned flow_diff, NOT the pixel curve). The whole-window verdict (auto-anchored at the
+  first-visit's @14890) shows DRIFT because it spans the POST-bread divergence (the port re-fires
+  bread on the post-buy leave since the buy-commit flag-set is PORT-DEBT, while retail does the
+  iv1_16 transition @A7 retail[18382]) — focus the range on the bread cutscene to see it clean.
+**Sibling at `scene_guild.c:329` — the first-BUY tutorial `FUN_0044ba2c(1,0xf,0)` = iv1_15, gated
+owns>9 & flag unset.** The Tear (return-to-Recettear) cutscene is in the shop/house scene, not here.
 
 ## BUY FLOW — RE + incremental port plan (2026-06-11)
 Trace **`merchants-guild-ui-flow-20260611-052747`** (served :8783), windowed `caprange
