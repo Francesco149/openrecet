@@ -190,13 +190,15 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   gi-tier/store-level filter, tables `DAT_005cfabc`/`DAT_005c6ef0` from .data; mode-aware tabs;
   per-item qty-cap), the buy-row `"%s - %d Left"` format, the "Purchase Price-" label, and the
   `display_menu_render` wiring all landed together (the coupling — the menu never blanks).
-  **VERIFIED 1:1 at the fresh open** vs retail's pre-overlay frame (items Worn Sword/Longsword,
-  order, icons, caps 3/1 Left, desc, price 140, possessed 0 — all match). The port correctly
-  freezes at the fresh open (steps 3-4 unported). Host 3230. PORT-DEBT: price-trend factor
-  (`FUN_004361b2`) + the Out-Of-Stock/Not-For-Sale/Adventurer's-Possession post-buy status
-  texts. **NEXT → step 3 (item-list nav, mode 0):** extend `FUN_00469414` cursor nav + A-on-
-  item→mode-8; then **step 4 (qty overlay)** `FUN_00491bc0`/`FUN_00491de0` + purchase. Full
-  plan + verification: `merchant-guild-RE.md` "BUY FLOW". **Other PORT-DEBT:** the Talk submenu / Fusion (`FUN_00493616`) / Expansion
+  **✅ USER-CONFIRMED 1:1 2026-06-11** ("the swords menu indeed matches") — parity ledger; vs
+  retail's pre-overlay frame (items Worn Sword/Longsword, order, icons, caps 3/1 Left, desc,
+  price 140, possessed 0). The port correctly freezes at the fresh open (steps 3-4 unported).
+  Host 3230. PORT-DEBT: price-trend factor (`FUN_004361b2`) + the Out-Of-Stock/Not-For-Sale/
+  Adventurer's-Possession post-buy status texts. **NEXT (user-flagged) → the qty "Yes/No" buy
+  prompt:** the only remaining gap the user sees. Reaching it = step 3 (item-list nav, mode 0:
+  extend `FUN_00469414` cursor nav + A-on-item→mode-8) → step 4 (the qty/confirm overlay
+  `FUN_00491bc0` input + `FUN_00491de0` render = the "Buying N X. Are you sure? Yes/No" box +
+  purchase). Full plan: `merchant-guild-RE.md` "BUY FLOW". **Other PORT-DEBT:** the Talk submenu / Fusion (`FUN_00493616`) / Expansion
   flows, the `FUN_004922c0` daily-event probe + group-6 cutscenes, the mid-transition bg
   path, the variant-1 (ichiba, dest 1) set. Follow-on traces queued: leaving the guild
   (bread cutscene) + returning to Recettear (Tear cutscene) — same `FUN_004922c0` machinery.
@@ -222,6 +224,13 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   it). `convert.renumber_retail`→side-agnostic `renumber_to_label`, now run on BOTH
   sides; `test_trace_studio_renumber.py` guards it (broken→fixed contrast). `7a7e280`.
   Any session captured at `caprange.start>0` BEFORE this needs a recapture for a true diff.
+- **Tooling fix (2026-06-11): the seam-misaligned diff VIDEO.** Across a kept-count load
+  seam the port|retail|diff videos have different label↔ordinal maps, so seeking all three
+  to a shared scrub ordinal landed each on a different LABEL (the diff "diffing a different
+  frame" while port/retail read 1:1). Fixed by seeking each panel to ITS frame for the
+  cursor's label (`align.videoFrameOfLabel` + `manifest.frame_labels`); `dbd83eb`,
+  user-confirmed. Sessions captured BEFORE this lack `frame_labels` → recapture (or patch the
+  manifest) for the per-panel-aligned scrub; the diff DATA/ribbon were already label-true.
 - **Tooling (2026-06-09 cleanup, audit T1/T2/T3/T8/T11 — all landed):**
   `trace_studio triage <session>` = one-command divergence report (diff curve
   gt8 metric → first/worst ordinal → state row → verdict → field-timeline);
