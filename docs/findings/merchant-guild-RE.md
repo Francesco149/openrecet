@@ -292,6 +292,19 @@ freezes the guild tick (the busy gate at `scene_guild_sim` top) and resumes the 
   first-visit's @14890) shows DRIFT because it spans the POST-bread divergence (the port re-fires
   bread on the post-buy leave since the buy-commit flag-set is PORT-DEBT, while retail does the
   iv1_16 transition @A7 retail[18382]) — focus the range on the bread cutscene to see it clean.
+- **Menu-backdrop fix (`aa773d0`, caught by VISUAL not flow_diff):** retail keeps the guild main
+  menu (Buy/Sell/Talk/Leave + the "come back any time!" option bubble + hand cursor) rendered
+  BEHIND the iv1_9 reminder — it's the try-leave-FROM-the-menu dialogue, so the menu stays up
+  (frozen) behind the Tear box (retail label 3010). The port hid it: `scene_guild_render` gated the
+  whole menu-UI draw on `!scene1_intro_dialogue_busy()` (correct for the first-visit cutscene, which
+  fires at entry_tick==2 before the menu is up, but wrong here). Fixed: draw when `!busy() ||
+  (s_menu.mode==1 && entry_tick>0xe)` — the first-visit cutscene (mode 1 but entry_tick==2) and the
+  mode-2 Talk-topic dialogues stay hidden (both confirmed 1:1). **Lesson: flow_diff PHASE-CLEAN
+  proves the dialogue_tick STATE is 1:1 but says nothing about the surrounding scene's RENDER —
+  always also content-match a frame.** The port's per-option bubble text was already correct
+  ("Well, come back any time!" for Leave types 4/5, variant B @ text_timer≥0x78, snapped on a dir
+  press). User-clarified structure: iv1_9 = the try-leave-no-buy *reminder*; the proper *bread
+  cutscene* is iv1_16 on the actual leave-after-buy (PORT-DEBT, the follow-on).
 **Sibling at `scene_guild.c:329` — the first-BUY tutorial `FUN_0044ba2c(1,0xf,0)` = iv1_15, gated
 owns>9 & flag unset.** The Tear (return-to-Recettear) cutscene is in the shop/house scene, not here.
 
