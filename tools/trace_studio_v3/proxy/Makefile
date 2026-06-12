@@ -2,7 +2,7 @@
 CC        := i686-w64-mingw32-gcc
 # Device methods we intercept (everything else auto-forwards). Grows as P0b
 # adds capture; keep QI/AddRef/Release/Present (lifetime + frame boundary).
-DEVCUSTOM := ["QueryInterface","AddRef","Release","Present"]
+DEVCUSTOM := ["QueryInterface","AddRef","Release","Present","BeginScene","EndScene","Clear","SetRenderState","SetTextureStageState","SetTransform","SetMaterial","SetTexture","SetStreamSource","SetIndices","SetVertexShader","DrawPrimitive","DrawIndexedPrimitive","DrawPrimitiveUP","DrawIndexedPrimitiveUP","SetLight","LightEnable"]
 
 CFLAGS    := -O2 -g -std=c11 -Wall -Wno-unused-function \
              -DWINVER=0x0500 -D_WIN32_WINNT=0x0500 -DDIRECT3D_VERSION=0x0800
