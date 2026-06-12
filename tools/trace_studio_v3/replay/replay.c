@@ -1,12 +1,19 @@
 /* OpenRecet Trace Studio v3 — replayer (P0c go/no-go).
  *
  * Reads an orv3 capture container, creates a real D3D8 device with the captured
- * params, recreates every resource, replays the recorded call stream, reads back
- * the backbuffer, and compares it BYTE-FOR-BYTE to the proxy's reference frame.
- * Bit-exact == the v3 replay bet holds.
+ * params, recreates every resource, replays ONE kept frame's recorded call
+ * stream, reads back the backbuffer, and compares it BYTE-FOR-BYTE to that
+ * frame's proxy reference. Bit-exact == the v3 replay bet holds.
+ *
+ * MULTI-FRAME: a container holds a window of kept frames (delimited by Present
+ * records). Pick which one with the optional 0-based <frame-index>. Single pass:
+ * every RES is created as seen (so the target's resources — possibly introduced
+ * in an earlier frame and dedup'd — always exist), but only the TARGET section's
+ * preamble+calls are ISSUED; non-target sections are parsed-and-skipped. The
+ * target's preamble supplies its inherited device state ⇒ it renders standalone.
  *
  * Build: i686-w64-mingw32-gcc (links the REAL d3d8). Run from a dir WITHOUT the
- * proxy d3d8.dll. argv: <cap.bin> <ref.raw> [out.raw]
+ * proxy d3d8.dll. argv: <cap.bin> <ref.raw> [frame-index] [out.raw]
  */
 #define CINTERFACE
 #define COBJMACROS
@@ -31,9 +38,10 @@ static void *rbytes(FILE *f, uint32_t *lenout)
 
 int main(int argc, char **argv)
 {
-    if (argc < 3) { fprintf(stderr, "usage: replay <cap.bin> <ref.raw> [out.raw]\n"); return 2; }
+    if (argc < 3) { fprintf(stderr, "usage: replay <cap.bin> <ref.raw> [frame-index] [out.raw]\n"); return 2; }
     const char *cappath = argv[1], *refpath = argv[2];
-    const char *outpath = argc > 3 ? argv[3] : "v3replay.raw";
+    int target = argc > 3 ? atoi(argv[3]) : 0;   /* 0-based kept-frame index to render */
+    const char *outpath = argc > 4 ? argv[4] : "v3replay.raw";
 
     FILE *f = fopen(cappath, "rb");
     if (!f) { fprintf(stderr, "cannot open %s\n", cappath); return 2; }
@@ -65,11 +73,16 @@ int main(int argc, char **argv)
     IDirect3DDevice8 *dev = NULL;
     CK(IDirect3D8_CreateDevice(d3d, adapter, (D3DDEVTYPE)devtype, hwnd, behavior, &pp, &dev), "CreateDevice");
 
-    /* replay loop */
-    unsigned ncalls = 0, ndraws = 0, nres = 0;
+    /* replay loop — single pass. Resources are created as seen (regardless of
+     * section, so the target's dedup'd resources always exist); state/draw calls
+     * are ISSUED only while in the target section (sect == target). Sections are
+     * delimited by Present records; we stop at the target's Present. */
+    unsigned ncalls = 0, ndraws = 0, nres = 0, sect = 0;
+    int did_target = 0;
     for (;;) {
         uint32_t op = ru(f);
         if (op == 0xffffffffu || op == ORV3_EOF) break;
+        int exec = (sect == (unsigned)target);   /* issue this record's call? */
         switch (op) {
         case ORV3_RES_TEX: {
             uint32_t id = ru(f), levels = ru(f);
@@ -112,30 +125,34 @@ int main(int argc, char **argv)
             BYTE *p = NULL; if (SUCCEEDED(IDirect3DIndexBuffer8_Lock(ib, 0, 0, &p, 0)) && p) { if (data) memcpy(p, data, dl); IDirect3DIndexBuffer8_Unlock(ib); }
             free(data); if (id < MAXRES) g_ib[id] = ib; nres++;
             break; }
-        case ORV3_SetRenderState: { uint32_t s=ru(f),v=ru(f); IDirect3DDevice8_SetRenderState(dev,(D3DRENDERSTATETYPE)s,v); ncalls++; break; }
-        case ORV3_SetTextureStageState: { uint32_t st=ru(f),t=ru(f),v=ru(f); IDirect3DDevice8_SetTextureStageState(dev,st,(D3DTEXTURESTAGESTATETYPE)t,v); ncalls++; break; }
-        case ORV3_SetTransform: { uint32_t s=ru(f); D3DMATRIX mx; fread(&mx,sizeof(float),16,f); IDirect3DDevice8_SetTransform(dev,(D3DTRANSFORMSTATETYPE)s,&mx); ncalls++; break; }
-        case ORV3_SetMaterial: { D3DMATERIAL8 mt; fread(&mt,sizeof(float),17,f); IDirect3DDevice8_SetMaterial(dev,&mt); ncalls++; break; }
-        case ORV3_SetTexture: { uint32_t stage=ru(f); int32_t id=(int32_t)ru(f); IDirect3DDevice8_SetTexture(dev,stage,(id>=0&&id<MAXRES)?(IDirect3DBaseTexture8*)g_tex[id]:NULL); ncalls++; break; }
-        case ORV3_SetStreamSource: { uint32_t stream=ru(f); int32_t id=(int32_t)ru(f); uint32_t stride=ru(f); IDirect3DDevice8_SetStreamSource(dev,stream,(id>=0&&id<MAXRES)?g_vb[id]:NULL,stride); ncalls++; break; }
-        case ORV3_SetIndices: { int32_t id=(int32_t)ru(f); uint32_t base=ru(f); IDirect3DDevice8_SetIndices(dev,(id>=0&&id<MAXRES)?g_ib[id]:NULL,base); ncalls++; break; }
-        case ORV3_SetVertexShader: { uint32_t h=ru(f); IDirect3DDevice8_SetVertexShader(dev,h); ncalls++; break; }
-        case ORV3_DrawPrimitive: { uint32_t pt=ru(f),sv=ru(f),pc=ru(f); IDirect3DDevice8_DrawPrimitive(dev,(D3DPRIMITIVETYPE)pt,sv,pc); ncalls++; ndraws++; break; }
-        case ORV3_DrawIndexedPrimitive: { uint32_t pt=ru(f),mi=ru(f),nv=ru(f),si=ru(f),pc=ru(f); IDirect3DDevice8_DrawIndexedPrimitive(dev,(D3DPRIMITIVETYPE)pt,mi,nv,si,pc); ncalls++; ndraws++; break; }
-        case ORV3_DrawPrimitiveUP: { uint32_t pt=ru(f),pc=ru(f),stride=ru(f),dl; void*v=rbytes(f,&dl); IDirect3DDevice8_DrawPrimitiveUP(dev,(D3DPRIMITIVETYPE)pt,pc,v,stride); free(v); ncalls++; ndraws++; break; }
+        case ORV3_SetRenderState: { uint32_t s=ru(f),v=ru(f); if(exec){IDirect3DDevice8_SetRenderState(dev,(D3DRENDERSTATETYPE)s,v); ncalls++;} break; }
+        case ORV3_SetTextureStageState: { uint32_t st=ru(f),t=ru(f),v=ru(f); if(exec){IDirect3DDevice8_SetTextureStageState(dev,st,(D3DTEXTURESTAGESTATETYPE)t,v); ncalls++;} break; }
+        case ORV3_SetTransform: { uint32_t s=ru(f); D3DMATRIX mx; fread(&mx,sizeof(float),16,f); if(exec){IDirect3DDevice8_SetTransform(dev,(D3DTRANSFORMSTATETYPE)s,&mx); ncalls++;} break; }
+        case ORV3_SetMaterial: { D3DMATERIAL8 mt; fread(&mt,sizeof(float),17,f); if(exec){IDirect3DDevice8_SetMaterial(dev,&mt); ncalls++;} break; }
+        case ORV3_SetTexture: { uint32_t stage=ru(f); int32_t id=(int32_t)ru(f); if(exec){IDirect3DDevice8_SetTexture(dev,stage,(id>=0&&id<MAXRES)?(IDirect3DBaseTexture8*)g_tex[id]:NULL); ncalls++;} break; }
+        case ORV3_SetStreamSource: { uint32_t stream=ru(f); int32_t id=(int32_t)ru(f); uint32_t stride=ru(f); if(exec){IDirect3DDevice8_SetStreamSource(dev,stream,(id>=0&&id<MAXRES)?g_vb[id]:NULL,stride); ncalls++;} break; }
+        case ORV3_SetIndices: { int32_t id=(int32_t)ru(f); uint32_t base=ru(f); if(exec){IDirect3DDevice8_SetIndices(dev,(id>=0&&id<MAXRES)?g_ib[id]:NULL,base); ncalls++;} break; }
+        case ORV3_SetVertexShader: { uint32_t h=ru(f); if(exec){IDirect3DDevice8_SetVertexShader(dev,h); ncalls++;} break; }
+        case ORV3_DrawPrimitive: { uint32_t pt=ru(f),sv=ru(f),pc=ru(f); if(exec){IDirect3DDevice8_DrawPrimitive(dev,(D3DPRIMITIVETYPE)pt,sv,pc); ncalls++; ndraws++;} break; }
+        case ORV3_DrawIndexedPrimitive: { uint32_t pt=ru(f),mi=ru(f),nv=ru(f),si=ru(f),pc=ru(f); if(exec){IDirect3DDevice8_DrawIndexedPrimitive(dev,(D3DPRIMITIVETYPE)pt,mi,nv,si,pc); ncalls++; ndraws++;} break; }
+        case ORV3_DrawPrimitiveUP: { uint32_t pt=ru(f),pc=ru(f),stride=ru(f),dl; void*v=rbytes(f,&dl); if(exec){IDirect3DDevice8_DrawPrimitiveUP(dev,(D3DPRIMITIVETYPE)pt,pc,v,stride); ncalls++; ndraws++;} free(v); break; }
         case ORV3_DrawIndexedPrimitiveUP: { uint32_t pt=ru(f),mvi=ru(f),nvi=ru(f),pc=ru(f),ifmt=ru(f),il; void*idx=rbytes(f,&il); uint32_t stride=ru(f),vl; void*v=rbytes(f,&vl);
-            IDirect3DDevice8_DrawIndexedPrimitiveUP(dev,(D3DPRIMITIVETYPE)pt,mvi,nvi,pc,idx,(D3DFORMAT)ifmt,v,stride); free(idx); free(v); ncalls++; ndraws++; break; }
-        case ORV3_Clear: { uint32_t count=ru(f); D3DRECT *rects=NULL; if(count){rects=malloc(count*sizeof(D3DRECT)); fread(rects,sizeof(D3DRECT),count,f);} uint32_t flags=ru(f),color=ru(f),zb=ru(f),stencil=ru(f); float z; memcpy(&z,&zb,4); IDirect3DDevice8_Clear(dev,count,rects,flags,color,z,stencil); free(rects); ncalls++; break; }
-        case ORV3_SetLight: { uint32_t index=ru(f),dl; void*L=rbytes(f,&dl); if(L)IDirect3DDevice8_SetLight(dev,index,(D3DLIGHT8*)L); free(L); ncalls++; break; }
-        case ORV3_LightEnable: { uint32_t index=ru(f),en=ru(f); IDirect3DDevice8_LightEnable(dev,index,en); ncalls++; break; }
-        case ORV3_BeginScene: IDirect3DDevice8_BeginScene(dev); ncalls++; break;
-        case ORV3_EndScene: IDirect3DDevice8_EndScene(dev); ncalls++; break;
-        case ORV3_Present: ru(f); /* frame idx — do NOT flip; keep backbuffer for readback */ break;
+            if(exec){IDirect3DDevice8_DrawIndexedPrimitiveUP(dev,(D3DPRIMITIVETYPE)pt,mvi,nvi,pc,idx,(D3DFORMAT)ifmt,v,stride); ncalls++; ndraws++;} free(idx); free(v); break; }
+        case ORV3_Clear: { uint32_t count=ru(f); D3DRECT *rects=NULL; if(count){rects=malloc(count*sizeof(D3DRECT)); fread(rects,sizeof(D3DRECT),count,f);} uint32_t flags=ru(f),color=ru(f),zb=ru(f),stencil=ru(f); float z; memcpy(&z,&zb,4); if(exec){IDirect3DDevice8_Clear(dev,count,rects,flags,color,z,stencil); ncalls++;} free(rects); break; }
+        case ORV3_SetLight: { uint32_t index=ru(f),dl; void*L=rbytes(f,&dl); if(exec&&L){IDirect3DDevice8_SetLight(dev,index,(D3DLIGHT8*)L); ncalls++;} free(L); break; }
+        case ORV3_LightEnable: { uint32_t index=ru(f),en=ru(f); if(exec){IDirect3DDevice8_LightEnable(dev,index,en); ncalls++;} break; }
+        case ORV3_BeginScene: if(exec){IDirect3DDevice8_BeginScene(dev); ncalls++;} break;
+        case ORV3_EndScene: if(exec){IDirect3DDevice8_EndScene(dev); ncalls++;} break;
+        case ORV3_Present: { ru(f); /* present-count payload (info) — do NOT flip; keep backbuffer for readback */
+            if (sect == (unsigned)target) { did_target = 1; goto done_replay; }
+            sect++; break; }
         default: fprintf(stderr, "unknown op %u @ %ld\n", op, ftell(f)); return 2;
         }
     }
+done_replay:
     fclose(f);
-    fprintf(stderr, "replayed: %u resources, %u calls (%u draws)\n", nres, ncalls, ndraws);
+    if (!did_target) { fprintf(stderr, "frame index %d not found (container has %u kept frame(s))\n", target, sect); return 2; }
+    fprintf(stderr, "replayed frame index %d: %u resources created, %u calls (%u draws) issued\n", target, nres, ncalls, ndraws);
 
     /* read back the backbuffer via the SAME shared helper the proxy used for the
      * reference (CopyRects through a lockable sysmem surface) — so both frames are

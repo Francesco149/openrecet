@@ -143,23 +143,61 @@ static unsigned  g_capframe = 0xFFFFFFFFu; /* present-count target; default = ne
 static unsigned  g_frame;          /* present-counted frame index */
 static int       g_capturing;
 static unsigned  g_present_count;
-/* resource dedup: ptr -> id (reset per finalize — one frame's id space) */
+/* resource dedup: CONTENT-HASH -> id, persisted across the WHOLE session (NOT
+ * reset per frame). A resource's bytes are hashed (fnv1a-64 over type+body); an
+ * already-seen hash reuses its id and writes NOTHING, so a texture/mesh bound in
+ * every frame of a window is stored ONCE (the full-extent dedup win — storage
+ * stays ≈ one frame regardless of window length). Content-hash (not pointer) is
+ * correct for BOTH a re-locked dynamic buffer (new bytes -> new hash -> new id)
+ * AND a freed pointer reused across a scene transition (pointer-dedup would
+ * alias them; content-hash cannot). g_next_resid is the session-wide allocator. */
 #define ORV3_MAXRES 32768
-static void     *g_res_ptr[ORV3_MAXRES];
-static int       g_res_id [ORV3_MAXRES];
+static uint64_t  g_res_hash[ORV3_MAXRES];
+static int       g_res_id  [ORV3_MAXRES];
 static int       g_n_res;
 static int       g_next_resid;
+static unsigned  g_kept;            /* kept-frame counter (0-based; names per-frame refs) */
+static int       g_frame_kept;      /* this present was already written by the GetBackBuffer trigger */
 
-/* In-memory CALL buffer for the current frame. Calls are NOT written to the
- * container as they happen — they accumulate here and are dropped every Present
- * (single-frame capture: keep only the trigger frame). Resource snapshots are
- * DEFERRED to finalize: only the TARGET frame's bound resources are ever read
- * back, so the multi-thousand-frame prologue/load costs ZERO snapshot work (the
- * throttle + 963 MB balloon are gone). At finalize we snapshot that frame's
- * bound resources (current contents, current pointers — no stale data, no
- * pointer-reuse-across-transition bug), patch their ids into the buffered calls,
- * then write [resources][calls] — resources first, so the streaming replayer
- * still sees every id defined before it is used. */
+#define ORV3_FNV_SEED 0xcbf29ce484222325ull
+static uint64_t fnv1a(const void *p, size_t n, uint64_t h)
+{ const uint8_t *b = (const uint8_t*)p; for (size_t i = 0; i < n; i++) { h ^= b[i]; h *= 0x100000001b3ull; } return h; }
+
+/* reusable blob buffer: a snapshot's RES body is built here (so each resource is
+ * locked only ONCE per snapshot), then hashed + dedup'd + written. */
+static uint8_t  *g_bl; static size_t g_bl_len, g_bl_cap;
+static void bl_reset(void) { g_bl_len = 0; }
+static void bl_ensure(size_t n) { if (g_bl_len + n <= g_bl_cap) return; size_t nc = g_bl_cap ? g_bl_cap : (1u<<16); while (nc < g_bl_len + n) nc <<= 1; g_bl = (uint8_t*)realloc(g_bl, nc); g_bl_cap = nc; }
+static void bl_u(uint32_t v) { bl_ensure(4); memcpy(g_bl + g_bl_len, &v, 4); g_bl_len += 4; }
+static void bl_data(const void *p, size_t n) { bl_ensure(n); if (n) memcpy(g_bl + g_bl_len, p, n); g_bl_len += n; }
+static void bl_bytes(const void *p, uint32_t n) { bl_u(n); bl_data(p, n); }  /* length-prefixed (mirrors orv3_wbytes) */
+
+/* dedup a RES body (the bytes AFTER [type][id]) by content hash: return an
+ * existing id if these exact bytes were already stored this session, else assign
+ * a new id, write [type][id][body] to the container, and remember the hash.
+ * 64-bit fnv over type+body — collision odds for a few thousand resources are
+ * ~1e-13, far below the project's tolerance, so no byte-compare-on-match. */
+static int dedup_or_write(uint32_t type, const uint8_t *body, size_t bodylen)
+{
+    uint64_t h = fnv1a(body, bodylen, fnv1a(&type, 4, ORV3_FNV_SEED));
+    for (int i = 0; i < g_n_res; i++) if (g_res_hash[i] == h) return g_res_id[i];
+    int id = g_next_resid++;
+    orv3_wu(g_cap, type); orv3_wu(g_cap, (uint32_t)id);
+    fwrite(body, 1, bodylen, g_cap);
+    if (g_n_res < ORV3_MAXRES) { g_res_hash[g_n_res] = h; g_res_id[g_n_res] = id; g_n_res++; }
+    return id;
+}
+
+/* In-memory CALL buffer for the CURRENT frame only. Calls accumulate here as
+ * they happen; at a frame boundary they are either WRITTEN (a kept window frame,
+ * via write_frame) or DROPPED (cb_reset on a load/non-capture frame). Resource
+ * snapshots are DEFERRED to write_frame: only a KEPT frame's bound resources are
+ * ever read back, so the multi-thousand-frame prologue/load costs ZERO snapshot
+ * work (no throttle, no 963 MB balloon). write_frame snapshots that frame's bound
+ * resources (current contents/pointers — no stale data, no pointer-reuse bug),
+ * content-hash dedup'd across the whole window, patches their ids into these
+ * calls, and writes [new RES][preamble][calls][Present] — resources first, so
+ * the streaming replayer always sees an id defined before it is used. */
 static uint8_t  *g_cb; static size_t g_cb_len, g_cb_cap;
 static void cb_ensure(size_t n)
 {
@@ -173,7 +211,7 @@ static void cb_data(const void *p, size_t n) { cb_ensure(n); if (n) memcpy(g_cb 
 static void cb_bytes(const void *p, uint32_t n) { cb_u(n); cb_data(p, n); }  /* length-prefixed (mirrors orv3_wbytes) */
 static void cb_patch_u(size_t off, uint32_t v) { memcpy(g_cb + off, &v, 4); }
 
-/* deferred resource binds: remember (kind,ptr,id-field-offset); snapshot + patch at finalize */
+/* deferred resource binds: remember (kind,ptr,id-field-offset); snapshot + patch at write_frame */
 enum { PEND_TEX = 1, PEND_VB = 2, PEND_IB = 3 };
 typedef struct { int kind; void *ptr; size_t off; } Pending;
 static Pending  *g_pending; static int g_pending_n, g_pending_cap;
@@ -185,7 +223,7 @@ static void pend_push(int kind, void *ptr, size_t off)
     }
     g_pending[g_pending_n].kind = kind; g_pending[g_pending_n].ptr = ptr; g_pending[g_pending_n].off = off; g_pending_n++;
 }
-/* emit a deferred resource-ref id field into g_cb (placeholder now; snapshot at finalize) */
+/* emit a deferred resource-ref id field into g_cb (placeholder now; snapshot at write_frame) */
 static void cb_resref(int kind, void *ptr)
 {
     size_t off = g_cb_len; cb_u(0xffffffffu);     /* placeholder; patched to the snapshot id (or -1) */
@@ -218,17 +256,20 @@ static void shadow_tss(DWORD st, DWORD t, DWORD v)  { if (st < 8 && t < ORV3_NTS
 static void shadow_xform(DWORD s, const void *m)    { if (s < ORV3_NXFORM) { memcpy(g_sh_xform[s], m, 64); g_sh_xform_set[s] = 1; } }
 static void shadow_mat(const void *m)               { memcpy(g_sh_mat, m, 68); g_sh_mat_set = 1; }
 static void shadow_fvf(DWORD h)                     { g_sh_fvf = h; g_sh_fvf_set = 1; }
-/* emit the shadow as a scalar-state preamble into the (just-reset) call buffer */
-static void emit_shadow_preamble(void)
+/* write the shadow as a scalar-state preamble straight to the container, at the
+ * START of a kept frame's section (NOT into the call buffer): only kept frames
+ * pay for it, so the multi-thousand-frame load never churns it. Each kept frame
+ * begins at its exact inherited state ⇒ replayable standalone. */
+static void write_shadow_preamble(void)
 {
     for (int s = 0; s < ORV3_NRS; s++)
-        if (g_sh_rs_set[s]) { cb_u(ORV3_SetRenderState); cb_u((uint32_t)s); cb_u(g_sh_rs[s]); }
+        if (g_sh_rs_set[s]) { orv3_wu(g_cap, ORV3_SetRenderState); orv3_wu(g_cap, (uint32_t)s); orv3_wu(g_cap, g_sh_rs[s]); }
     for (int st = 0; st < 8; st++) for (int t = 0; t < ORV3_NTSS; t++)
-        if (g_sh_tss_set[st][t]) { cb_u(ORV3_SetTextureStageState); cb_u((uint32_t)st); cb_u((uint32_t)t); cb_u(g_sh_tss[st][t]); }
+        if (g_sh_tss_set[st][t]) { orv3_wu(g_cap, ORV3_SetTextureStageState); orv3_wu(g_cap, (uint32_t)st); orv3_wu(g_cap, (uint32_t)t); orv3_wu(g_cap, g_sh_tss[st][t]); }
     for (int x = 0; x < ORV3_NXFORM; x++)
-        if (g_sh_xform_set[x]) { cb_u(ORV3_SetTransform); cb_u((uint32_t)x); cb_data(g_sh_xform[x], 64); }
-    if (g_sh_mat_set) { cb_u(ORV3_SetMaterial); cb_data(g_sh_mat, 68); }
-    if (g_sh_fvf_set) { cb_u(ORV3_SetVertexShader); cb_u(g_sh_fvf); }
+        if (g_sh_xform_set[x]) { orv3_wu(g_cap, ORV3_SetTransform); orv3_wu(g_cap, (uint32_t)x); fwrite(g_sh_xform[x], sizeof(float), 16, g_cap); }
+    if (g_sh_mat_set) { orv3_wu(g_cap, ORV3_SetMaterial); fwrite(g_sh_mat, 1, 68, g_cap); }
+    if (g_sh_fvf_set) { orv3_wu(g_cap, ORV3_SetVertexShader); orv3_wu(g_cap, g_sh_fvf); }
 }
 
 static unsigned prim_vcount(D3DPRIMITIVETYPE t, unsigned pc)
@@ -242,79 +283,60 @@ static unsigned prim_vcount(D3DPRIMITIVETYPE t, unsigned pc)
     default: return 0u;
     }
 }
-static int res_lookup(void *p)
-{
-    for (int i = 0; i < g_n_res; i++) if (g_res_ptr[i] == p) return g_res_id[i];
-    return -1;
-}
-static void res_remember(void *p, int id)
-{
-    if (g_n_res < ORV3_MAXRES) { g_res_ptr[g_n_res] = p; g_res_id[g_n_res] = id; g_n_res++; }
-}
-
-/* snapshot a 2D texture's managed sysmem copy (all mip levels) into the container */
+/* snapshot a 2D texture's managed sysmem copy (all mip levels), content-hash
+ * dedup'd. Builds the RES_TEX body in the blob buffer (locks each level once),
+ * then dedup_or_write returns the existing id if these exact bytes were already
+ * stored. Body layout (mirrors the replayer's read): [levels] then per level
+ * [w][h][fmt][rowbytes][datalen][raw rows]. */
 static int snap_tex(IDirect3DBaseTexture8 *bt)
 {
     if (!bt) return -1;
-    int id = res_lookup(bt); if (id >= 0) return id;
     if (IDirect3DBaseTexture8_GetType(bt) != D3DRTYPE_TEXTURE) return -1;  /* P0: 2D only */
     IDirect3DTexture8 *tex = (IDirect3DTexture8*)bt;
-    id = g_next_resid++;
     DWORD levels = IDirect3DTexture8_GetLevelCount(tex);
-    orv3_wu(g_cap, ORV3_RES_TEX); orv3_wu(g_cap, (uint32_t)id); orv3_wu(g_cap, levels);
+    bl_reset(); bl_u(levels);
     for (DWORD l = 0; l < levels; l++) {
         D3DSURFACE_DESC d = {0}; IDirect3DTexture8_GetLevelDesc(tex, l, &d);
         D3DLOCKED_RECT lr = {0};
         int bpp = orv3_fmt_bpp((int)d.Format);
         if (FAILED(IDirect3DTexture8_LockRect(tex, l, &lr, NULL, D3DLOCK_READONLY)) || !bpp) {
-            orv3_wu(g_cap, d.Width); orv3_wu(g_cap, d.Height); orv3_wu(g_cap, d.Format);
-            orv3_wu(g_cap, 0); orv3_wu(g_cap, 0);                 /* rowbytes=0, datalen=0 */
+            bl_u(d.Width); bl_u(d.Height); bl_u(d.Format);
+            bl_u(0); bl_u(0);                 /* rowbytes=0, datalen=0 */
             if (lr.pBits) IDirect3DTexture8_UnlockRect(tex, l);
             continue;
         }
         uint32_t rowbytes = d.Width * (uint32_t)bpp;
-        orv3_wu(g_cap, d.Width); orv3_wu(g_cap, d.Height); orv3_wu(g_cap, d.Format);
-        orv3_wu(g_cap, rowbytes); orv3_wu(g_cap, rowbytes * d.Height);
+        bl_u(d.Width); bl_u(d.Height); bl_u(d.Format);
+        bl_u(rowbytes); bl_u(rowbytes * d.Height);
         for (DWORD r = 0; r < d.Height; r++)
-            fwrite((const uint8_t*)lr.pBits + (size_t)r * lr.Pitch, 1, rowbytes, g_cap);
+            bl_data((const uint8_t*)lr.pBits + (size_t)r * lr.Pitch, rowbytes);
         IDirect3DTexture8_UnlockRect(tex, l);
     }
-    res_remember(bt, id);
-    return id;
+    return dedup_or_write(ORV3_RES_TEX, g_bl, g_bl_len);
 }
 static int snap_vb(IDirect3DVertexBuffer8 *vb)
 {
     if (!vb) return -1;
-    int id = res_lookup(vb); if (id >= 0) return id;
     D3DVERTEXBUFFER_DESC d = {0}; IDirect3DVertexBuffer8_GetDesc(vb, &d);
     BYTE *p = NULL;
     if (FAILED(IDirect3DVertexBuffer8_Lock(vb, 0, 0, &p, D3DLOCK_READONLY)) || !p) {
         if (FAILED(IDirect3DVertexBuffer8_Lock(vb, 0, 0, &p, 0)) || !p) return -1;
     }
-    id = g_next_resid++;
-    orv3_wu(g_cap, ORV3_RES_VB); orv3_wu(g_cap, (uint32_t)id);
-    orv3_wu(g_cap, d.Size); orv3_wu(g_cap, d.FVF);
-    orv3_wbytes(g_cap, p, d.Size);
+    bl_reset(); bl_u(d.Size); bl_u(d.FVF); bl_bytes(p, d.Size);  /* [size][fvf][datalen][data] */
     IDirect3DVertexBuffer8_Unlock(vb);
-    res_remember(vb, id);
-    return id;
+    return dedup_or_write(ORV3_RES_VB, g_bl, g_bl_len);
 }
 static int snap_ib(IDirect3DIndexBuffer8 *ib)
 {
     if (!ib) return -1;
-    int id = res_lookup(ib); if (id >= 0) return id;
     D3DINDEXBUFFER_DESC d = {0}; IDirect3DIndexBuffer8_GetDesc(ib, &d);
     BYTE *p = NULL;
     if (FAILED(IDirect3DIndexBuffer8_Lock(ib, 0, 0, &p, D3DLOCK_READONLY)) || !p) {
         if (FAILED(IDirect3DIndexBuffer8_Lock(ib, 0, 0, &p, 0)) || !p) return -1;
     }
-    id = g_next_resid++;
-    orv3_wu(g_cap, ORV3_RES_IB); orv3_wu(g_cap, (uint32_t)id);
-    orv3_wu(g_cap, d.Size); orv3_wu(g_cap, d.Format);
-    orv3_wbytes(g_cap, p, d.Size);
+    bl_reset(); bl_u(d.Size); bl_u(d.Format); bl_bytes(p, d.Size);  /* [size][fmt][datalen][data] */
     IDirect3DIndexBuffer8_Unlock(ib);
-    res_remember(ib, id);
-    return id;
+    return dedup_or_write(ORV3_RES_IB, g_bl, g_bl_len);
 }
 
 /* read back the device backbuffer -> {u32 w,h, w*h*4 BGRA} via the shared
@@ -336,16 +358,18 @@ static int readback_raw(IDirect3DDevice8 *dev, const char *path)
 
 #define CAP (g_capturing && g_cap)
 
-/* finalize the capture: snapshot the TARGET frame's bound resources (read back
- * NOW — correct contents, correct pointers, no load-time work), patch their ids
- * into the buffered calls, write [resources][calls][Present], read back the
- * reference backbuffer, close. Called at a present-count target (Present) or when
- * the app reads back the backbuffer for its own screenshot (GetBackBuffer
- * trigger — aligns capture to the harness's --capture-frames in sim-frame space). */
-static void finalize_capture(IDirect3DDevice8 *real_dev)
+/* write ONE kept frame's section to the container (does NOT close — multi-frame
+ * keeps appending). Snapshot this frame's bound resources NOW (read back current
+ * contents/pointers, no load-time work; content-hash dedup'd so a resource bound
+ * every frame is stored once), patch their ids into the buffered calls, then
+ * write [new RES][scalar preamble][this frame's calls][Present]. Read a per-frame
+ * reference (v3ref_NNN.raw, NNN = kept-frame index) for the replayer to compare,
+ * and fflush so a hard device.kill leaves every COMPLETED frame intact on disk
+ * (the replayer tolerates a missing trailing EOF). Called per GetBackBuffer
+ * readback (the harness's caprange frames) or at a present-count target. */
+static void write_frame(IDirect3DDevice8 *real_dev)
 {
     if (!CAP) return;
-    g_n_res = 0; g_next_resid = 0;                 /* fresh id space for this single frame */
     for (int i = 0; i < g_pending_n; i++) {
         int id = -1;
         switch (g_pending[i].kind) {
@@ -355,13 +379,16 @@ static void finalize_capture(IDirect3DDevice8 *real_dev)
         }
         cb_patch_u(g_pending[i].off, (uint32_t)id);
     }
-    fwrite(g_cb, 1, g_cb_len, g_cap);              /* calls (resources already written by snap_* above) */
+    write_shadow_preamble();                       /* inherited scalar state (RES already written above) */
+    fwrite(g_cb, 1, g_cb_len, g_cap);              /* this frame's own calls */
     orv3_wu(g_cap, ORV3_Present); orv3_wu(g_cap, g_frame);
-    char ref[MAX_PATH+32]; proxy_out_path(ref, sizeof ref, "v3ref.raw");
+    char leaf[32]; snprintf(leaf, sizeof leaf, "v3ref_%03u.raw", g_kept);
+    char ref[MAX_PATH+32]; proxy_out_path(ref, sizeof ref, leaf);
     readback_raw(real_dev, ref);
-    orv3_wu(g_cap, ORV3_EOF); fclose(g_cap); g_cap = NULL; g_capturing = 0;
-    proxy_log("FINALIZE: frame %u (%u call-bytes, %d resources) + reference\n",
-              g_frame, (unsigned)g_cb_len, g_next_resid);
+    fflush(g_cap);
+    proxy_log("KEEP present-frame %u (kept#%u, %u call-bytes, %d res total)\n",
+              g_frame, g_kept, (unsigned)g_cb_len, g_next_resid);
+    g_kept++;
 }
 
 /* ── real d3d8 resolution ── */
@@ -459,16 +486,22 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_Present(
 {
     WrapDev *w = (WrapDev*)This;
     if (CAP) {
-        if (g_frame == g_capframe) finalize_capture(w->real);  /* present-count target */
-        else {
-            /* not the target (GetBackBuffer trigger picks it): drop this frame's
-             * calls + re-arm (no file I/O), then seed the next frame's buffer with
-             * the inherited device-state preamble (shadow = end of this frame =
-             * start of the next), so whichever frame becomes the target replays
-             * the state it inherited rather than D3D defaults. */
+        if (g_capframe != 0xFFFFFFFFu) {
+            /* SINGLE-FRAME (retail/cfg present-count target): write the one frame
+             * and close, exactly the P1/R2 behaviour. */
+            if (g_frame == g_capframe) {
+                write_frame(w->real);
+                orv3_wu(g_cap, ORV3_EOF); fclose(g_cap); g_cap = NULL; g_capturing = 0;
+                proxy_log("FINALIZE single frame %u (1 kept) + reference\n", g_frame);
+            }
+        } else if (!g_frame_kept) {
+            /* MULTI-FRAME (port GetBackBuffer trigger): this present was NOT a
+             * kept (caprange) frame — drop its calls + pending. The shadow keeps
+             * accumulating in the Set hooks, so the next kept frame's preamble is
+             * still complete. ZERO snapshot/file work on load/non-capture frames. */
             cb_reset();
-            emit_shadow_preamble();
         }
+        g_frame_kept = 0;
     }
     g_present_count++;
     HRESULT hr = w->real->lpVtbl->Present(w->real, s, d, wnd, dr);
@@ -543,12 +576,18 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_LightEnable(IDirect3DDevice
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_GetBackBuffer(IDirect3DDevice8 *This, UINT bb, D3DBACKBUFFER_TYPE type, IDirect3DSurface8 **pp)
 { WrapDev *w = (WrapDev*)This;
   HRESULT hr = w->real->lpVtbl->GetBackBuffer(w->real, bb, type, pp);
-  /* The GetBackBuffer trigger is the FALLBACK target (the port's path: capture
-   * the frame the app reads back for its own screenshot). When a capframe is set
-   * (the retail/cfg path) it is authoritative — don't let retail's own internal
-   * GetBackBuffer calls finalize early. */
+  /* MULTI-FRAME trigger (the port's path): the app reads back the backbuffer for
+   * its OWN screenshot once per harness caprange frame (capture_backbuffer()),
+   * and the only other GetBackBuffer is at device-init (pre-Present, gated out by
+   * present_count>=1). So every readback here = one window frame to KEEP: write
+   * it and re-arm (the readback is the frame's last GPU op before Present, so the
+   * shadow + calls are complete). When a capframe is set (the retail/cfg path) it
+   * is authoritative — don't let retail's own internal GetBackBuffer finalize. */
   if (CAP && g_capframe == 0xFFFFFFFFu && g_present_count >= 1) {
-      proxy_log("GetBackBuffer trigger @ frame %u\n", g_frame); finalize_capture(w->real); }
+      write_frame(w->real);
+      cb_reset();            /* start the next frame's call buffer fresh */
+      g_frame_kept = 1;      /* tell Present this frame is already written */
+  }
   return hr; }
 
 BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID reserved)

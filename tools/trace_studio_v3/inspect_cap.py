@@ -47,6 +47,7 @@ def main():
     xforms=set(); rstates={}; clears=[]; tss=set()
     draws={"DrawPrimitive":0,"DrawIndexedPrimitive":0,"DrawPrimitiveUP":0,"DrawIndexedPrimitiveUP":0}
     stream_binds=[]; tex_binds=0; idx_binds=0
+    presents=[]; fdraws=0; per_frame_draws=[]   # multi-frame: Present delimits kept frames
     while p < len(data):
         t=u(); hist[NAMES.get(t,t)]=hist.get(NAMES.get(t,t),0)+1
         if t==DEV_PARAMS:
@@ -75,23 +76,27 @@ def main():
         elif t==SetStreamSource: u(); rid=u(); stride=u(); stream_binds.append(rid)
         elif t==SetIndices: u(); u(); idx_binds+=1
         elif t==SetVertexShader: u()
-        elif t==DrawPrimitive: u();u();u(); draws["DrawPrimitive"]+=1
-        elif t==DrawIndexedPrimitive: u();u();u();u();u(); draws["DrawIndexedPrimitive"]+=1
+        elif t==DrawPrimitive: u();u();u(); draws["DrawPrimitive"]+=1; fdraws+=1
+        elif t==DrawIndexedPrimitive: u();u();u();u();u(); draws["DrawIndexedPrimitive"]+=1; fdraws+=1
         elif t==DrawPrimitiveUP:
-            u();u();u(); dl=u(); skip(dl); draws["DrawPrimitiveUP"]+=1
+            u();u();u(); dl=u(); skip(dl); draws["DrawPrimitiveUP"]+=1; fdraws+=1
         elif t==DrawIndexedPrimitiveUP:
-            u();u();u();u();u(); il=u(); skip(il); u(); vl=u(); skip(vl); draws["DrawIndexedPrimitiveUP"]+=1
+            u();u();u();u();u(); il=u(); skip(il); u(); vl=u(); skip(vl); draws["DrawIndexedPrimitiveUP"]+=1; fdraws+=1
         elif t==Clear:
             cnt=u(); skip(cnt*16); flags=u(); color=u(); z=u(); stencil=u()
             clears.append({"flags":flags,"clears_target":bool(flags&1),"clears_zbuffer":bool(flags&2),"clears_stencil":bool(flags&4),"color":hex(color)})
         elif t==SetLight: u(); dl=u(); skip(dl)
         elif t==LightEnable: u(); u()
         elif t in (BeginScene,EndScene): pass
-        elif t==Present: u()
+        elif t==Present: presents.append(u()); per_frame_draws.append(fdraws); fdraws=0
         elif t==EOF: break
         else:
             out["PARSE_ERROR"]=f"unknown op {t} at {p-4}"; break
     out["resources"]=res
+    out["n_frames"]=len(presents)
+    out["frame_present_idx"]=presents
+    out["per_frame_draws"]=per_frame_draws
+    out["NOTE_aggregate"]="call_hist/draws are summed ACROSS all kept frames; resources are dedup'd (unique only)"
     out["call_hist"]=hist
     out["draws"]=draws
     out["transforms_set"]=sorted(xforms)

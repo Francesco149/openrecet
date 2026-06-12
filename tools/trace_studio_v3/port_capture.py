@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""Trace Studio v3 — port full-extent capture + replay verification (P1 tail).
+
+The companion to r2_retail_probe.py (retail side): drive the PORT through a
+scenario's caprange WINDOW with the shared proxy d3d8.dll staged, capturing the
+whole window into ONE multi-frame container, then replay EVERY kept frame and
+assert each is bit-exact vs its proxy reference.
+
+What it proves (and measures): multi-frame windowed capture + content-hash
+resource dedup. A resource bound in every frame of the window is stored ONCE, so
+the container stays ≈ one frame's resources + per-frame call deltas regardless of
+window length — and each frame still re-renders bit-exactly from its own state
+preamble. This is the "retail captured once, sliced forever" storage model on the
+cheap-to-re-drive PORT side.
+
+Mechanism (no Frida — the port is a local Windows exe):
+  1. stage tools/trace_studio_v3/proxy/d3d8.dll next to build/openrecet.exe (the
+     app-dir DLL search loads it before System32);
+  2. run `scenario-test.py <scenario> --target openrecet`, which drives the port
+     through the load + the scenario's {caprange} window with save-virtualization
+     + phase/RNG pins. The port reads back each window frame (capture_backbuffer →
+     GetBackBuffer), which the proxy uses as its per-frame keep trigger (MULTI
+     mode: no v3proxy.cfg ⇒ capframe unset);
+  3. the proxy writes %LOCALAPPDATA%\\openrecet\\v3\\{v3cap.bin, v3ref_NNN.raw};
+  4. replay.exe renders each kept frame index and byte-compares to v3ref_NNN.raw.
+
+The proxy is UNSTAGED on exit (a staged proxy adds per-call overhead to every
+port run, incl. v2 scenario-test) unless --keep-proxy.
+
+Usage (host tools need the nix prefix):
+  nix develop --command python3 tools/trace_studio_v3/port_capture.py \
+      [scenario] [--no-verify] [--keep-proxy]
+"""
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT       = Path(__file__).resolve().parent.parent.parent
+PROXY_DLL  = ROOT / "tools" / "trace_studio_v3" / "proxy" / "d3d8.dll"
+REPLAY_EXE = ROOT / "tools" / "trace_studio_v3" / "replay" / "replay.exe"
+PORT_EXE   = ROOT / "build" / "openrecet.exe"
+STAGED_DLL = ROOT / "build" / "d3d8.dll"
+SCENARIO_TEST = ROOT / "tools" / "scenario-test.py"
+DEFAULT_SCENARIO = "house-loaded-display-pinned"
+
+
+def localappdata_v3() -> Path:
+    """%LOCALAPPDATA%\\openrecet\\v3 as a WSL path (where the proxy writes)."""
+    out = subprocess.run(["cmd.exe", "/c", "echo %LOCALAPPDATA%"],
+                         capture_output=True, text=True, cwd="/mnt/c").stdout.strip()
+    wsl = subprocess.run(["wslpath", "-u", out], capture_output=True, text=True,
+                         check=True).stdout.strip()
+    return Path(wsl) / "openrecet" / "v3"
+
+
+def wslpath_w(p: Path) -> str:
+    return subprocess.run(["wslpath", "-w", str(p)], capture_output=True, text=True,
+                          check=True).stdout.strip()
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="v3 port full-extent capture + replay verify.")
+    ap.add_argument("scenario", nargs="?", default=DEFAULT_SCENARIO,
+                    help=f"scenario with a {{caprange}} window (default {DEFAULT_SCENARIO})")
+    ap.add_argument("--no-verify", action="store_true",
+                    help="capture only; skip the per-frame bit-exact replay check.")
+    ap.add_argument("--keep-proxy", action="store_true",
+                    help="leave build/d3d8.dll staged (default: unstage on exit).")
+    args = ap.parse_args()
+
+    if not PROXY_DLL.exists():
+        raise SystemExit(f"proxy not built: {PROXY_DLL} — `nix develop --command make` in proxy/")
+    if not PORT_EXE.exists():
+        raise SystemExit(f"port not built: {PORT_EXE} — `nix develop --command make -C src`")
+    if not args.no_verify and not REPLAY_EXE.exists():
+        raise SystemExit(f"replayer not built: {REPLAY_EXE} — `nix develop --command make` in replay/")
+
+    v3 = localappdata_v3()
+    v3.mkdir(parents=True, exist_ok=True)
+    cap = v3 / "v3cap.bin"
+    log = v3 / "v3proxy.log"
+
+    # stage proxy + clear stale capture (a v3proxy.cfg would force single-frame —
+    # ensure none so the port runs in GetBackBuffer MULTI mode).
+    shutil.copy2(PROXY_DLL, STAGED_DLL)
+    (STAGED_DLL.parent / "v3proxy.cfg").unlink(missing_ok=True)
+    for f in [cap, log, *v3.glob("v3ref_*.raw"), v3 / "v3replay_chk.raw"]:
+        f.unlink(missing_ok=True)
+    print(f"[stage] {PROXY_DLL.name} → {STAGED_DLL}  (MULTI mode, out={v3})")
+
+    try:
+        print(f"[run]   scenario-test {args.scenario} --target openrecet …")
+        # ignore scenario-test's pass/fail (golden compare is irrelevant to v3 —
+        # we only need the port to run the caprange window so the proxy captures).
+        subprocess.run([sys.executable, str(SCENARIO_TEST), args.scenario,
+                        "--target", "openrecet"], cwd=ROOT)
+    finally:
+        if not args.keep_proxy:
+            STAGED_DLL.unlink(missing_ok=True)
+            print(f"[stage] unstaged {STAGED_DLL.name}")
+
+    if not cap.exists() or not log.exists():
+        raise SystemExit(f"[fail] no capture produced at {v3} — check the run above")
+
+    keeps = [ln for ln in log.read_text(errors="replace").splitlines() if ln.startswith("KEEP")]
+    n = len(keeps)
+    cap_mb = cap.stat().st_size / 1048576
+    refs = sorted(v3.glob("v3ref_*.raw"))
+    print(f"\n[cap]   {n} frame(s) kept · container {cap_mb:.1f} MB · {len(refs)} references")
+    if refs:
+        ref_mb = refs[0].stat().st_size / 1048576
+        print(f"[cap]   dedup: {n} frames in {cap_mb:.1f} MB; {n}× raw pixels alone "
+              f"would be {n*ref_mb:.0f} MB (resources stored once, frames ≈ free)")
+    if n == 0:
+        raise SystemExit("[fail] proxy loaded but kept 0 frames — does the scenario have a {caprange}?")
+
+    if args.no_verify:
+        print("[skip] --no-verify: not replaying")
+        return 0
+
+    cap_w = wslpath_w(cap)
+    chk_w = wslpath_w(v3 / "v3replay_chk.raw")
+    npass = nfail = 0
+    first_fail = None
+    print(f"[verify] replaying all {n} kept frames …")
+    for i in range(n):
+        ref = v3 / f"v3ref_{i:03d}.raw"
+        r = subprocess.run([str(REPLAY_EXE), cap_w, wslpath_w(ref), str(i), chk_w],
+                           capture_output=True, text=True)
+        db = None
+        for ln in (r.stdout + r.stderr).splitlines():
+            if "differing bytes" in ln:
+                db = ln.split(":", 1)[1].split("(")[0].strip()
+        if db == "0":
+            npass += 1
+        else:
+            nfail += 1
+            if first_fail is None:
+                first_fail = f"frame {i}: differing bytes={db!r} (exit {r.returncode})"
+
+    print("=" * 48)
+    print(f"  BIT-EXACT: {npass} / {n}   |   FAILED: {nfail}")
+    if first_fail:
+        print(f"  first failure: {first_fail}")
+    print(f"  VERDICT: {'ALL FRAMES BIT-EXACT *** GO ***' if nfail == 0 else 'DIVERGENT'}")
+    print("=" * 48)
+    return 0 if nfail == 0 else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

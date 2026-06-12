@@ -2,8 +2,17 @@
  *
  * A flat, streaming, self-describing record sequence. The proxy WRITES records
  * as calls happen; the replayer READS them sequentially and re-issues. A
- * resource (texture/VB/IB) is written the first time it is referenced (assigned
- * an id); later references cite the id. Calls cite resources by id.
+ * resource (texture/VB/IB) is written the first time its CONTENT is seen
+ * (assigned an id, content-hash dedup'd); later references cite the id. Calls
+ * cite resources by id.
+ *
+ * MULTI-FRAME (v2): a container holds a WINDOW of frames, not just one. Each
+ * kept frame is a section [new RES…][scalar-state preamble][this frame's calls]
+ * [Present]; resources are dedup'd across the WHOLE window by content hash, so a
+ * mesh/texture bound every frame is stored ONCE — the window's storage stays
+ * ≈ one frame's resources + per-frame call deltas. Present records delimit
+ * sections; the replayer renders any kept-frame INDEX (0-based) standalone (its
+ * preamble supplies the inherited device state).
  *
  * Streaming (no seeking, no global tables) keeps both producer and consumer
  * trivial. Endianness = native (both ends are i686). Each record: [u32 type]
@@ -17,7 +26,7 @@
 #include <string.h>
 
 #define ORV3_MAGIC   0x33565241u   /* "ARV3" */
-#define ORV3_VERSION 1u
+#define ORV3_VERSION 2u            /* v2: multi-frame window + content-hash dedup */
 
 enum {
     ORV3_DEV_PARAMS = 1,   /* w,h,bbfmt,depthfmt,windowed,bbcount,presentflags,behavior,interval,adapter,devtype */
