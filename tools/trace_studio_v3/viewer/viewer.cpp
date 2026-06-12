@@ -60,8 +60,12 @@ static bool g_step_on = false;
 static bool g_solo = false;          // step mode: solo a single draw [J,J+1) vs prefix [0,K)
 static int  g_draw_step = 0;
 static Col  g_stepmetric;            // scratch diff metric while stepping (don't clobber the column)
+// pixel→draw pick (N3e): click a panel pixel → the draw that last painted it
+static std::string g_pick_side;
+static int g_pick_x = -1, g_pick_y = -1, g_pick_draw = -2;   // -2 none, -1 never-painted, ≥0 draw idx
 
 static void destroy_device();
+static void show_column(int i);
 
 static bool create_device(HWND hwnd, UINT W, UINT H)
 {
@@ -147,6 +151,35 @@ static const uint8_t *render_side(OrV3Replay *rep, int idx, int ndraws)
     return orv3_replay_render_upto(rep, idx, g_draw_step < ndraws ? g_draw_step : ndraws);
 }
 
+// pixel→draw pick: which draw LAST changed pixel (px,py) of `rep`'s frame `idx`?
+// Linear scan of the prefixes (render_upto K=0..ndraws); the largest K whose pixel
+// differs from K-1 means draw K-1 owns it. -1 = never painted (stayed the clear). One
+// click = ndraws+1 resident renders (~150-250 ms for the HOUSE) — fine for a click.
+static int pick_draw(OrV3Replay *rep, int idx, int ndraws, int px, int py)
+{
+    if (!rep || idx < 0 || px < 0 || py < 0 || px >= g_w || py >= g_h) return -2;
+    size_t off = ((size_t)py * g_w + px) * 4;
+    uint32_t prev = 0; int owner = -1;
+    for (int k = 0; k <= ndraws; k++) {
+        const uint8_t *buf = orv3_replay_render_upto(rep, idx, k);
+        if (!buf) return -2;
+        uint32_t v; memcpy(&v, buf + off, 4);
+        if (k > 0 && v != prev) owner = k - 1;
+        prev = v;
+    }
+    return owner;
+}
+
+// run a pick on `side`, then SOLO the owning draw (click a pixel → see the draw that
+// painted it, isolated). owner -1 (background) just reports + restores the view.
+static void do_pick(const char *side, OrV3Replay *rep, int idx, int ndraws, int px, int py)
+{
+    g_pick_side = side; g_pick_x = px; g_pick_y = py;
+    g_pick_draw = pick_draw(rep, idx, ndraws, px, py);
+    if (g_pick_draw >= 0) { g_step_on = true; g_solo = true; g_draw_step = g_pick_draw; }
+    show_column(g_cur);   // re-render (pick_draw left rep->buf at the full frame)
+}
+
 // render column `i` into the three panel textures (+ refresh its diff image/metric).
 // When stepping, each side renders a draw PREFIX (build-up) or a SOLO draw (isolation);
 // the diff is the STEPPED diff, and the precomputed full-frame column metric is preserved
@@ -229,15 +262,25 @@ static ImU32 heat(double meanabs)
 
 static void seek(int i) { if (i < 0) i = 0; if (i >= (int)g_cols.size()) i = (int)g_cols.size() - 1; if (i != g_cur) show_column(i); }
 
-// one panel: a labelled image (or a gap placeholder), scaled to `panel_w`.
-static void panel(const char *label, LPDIRECT3DTEXTURE9 tex, bool present, float panel_w)
+// one panel: a labelled image (or a gap placeholder), scaled to `panel_w`. If `rep` is
+// non-null, a left-click runs a pixel→draw pick on that side (maps the click to a frame
+// pixel, finds + solos the owning draw).
+static void panel(const char *label, LPDIRECT3DTEXTURE9 tex, bool present, float panel_w,
+                  OrV3Replay *rep = nullptr, int frame_idx = -1, int ndraws = 0, const char *sidename = "")
 {
     ImGui::BeginGroup();
     ImGui::TextColored(ImVec4(0.55f, 0.72f, 0.92f, 1.0f), "%s", label);
     float h = panel_w * g_h / g_w;
-    if (present)
+    if (present) {
         ImGui::Image((ImTextureID)(intptr_t)tex, ImVec2(panel_w, h));
-    else {
+        if (rep && ImGui::IsItemClicked()) {
+            ImVec2 mn = ImGui::GetItemRectMin(), mx = ImGui::GetItemRectMax();
+            ImVec2 mp = ImGui::GetIO().MousePos;
+            int px = (int)((mp.x - mn.x) / (mx.x - mn.x) * g_w);
+            int py = (int)((mp.y - mn.y) / (mx.y - mn.y) * g_h);
+            do_pick(sidename, rep, frame_idx, ndraws, px, py);
+        }
+    } else {
         ImVec2 p = ImGui::GetCursorScreenPos();
         ImGui::GetWindowDrawList()->AddRectFilled(p, ImVec2(p.x + panel_w, p.y + h), IM_COL32(28, 24, 24, 255));
         ImGui::GetWindowDrawList()->AddText(ImVec2(p.x + panel_w/2 - 30, p.y + h/2), IM_COL32(255, 180, 84, 255), "(gap)");
@@ -300,8 +343,8 @@ static void draw_ui()
     float avail = ImGui::GetContentRegionAvail().x;
     float pw = (avail - (nshow - 1) * 8.0f) / nshow;
     bool first = true;
-    if (g_show[0]) { panel("port", g_tport, c.port_idx >= 0, pw); first = false; }
-    if (g_show[1]) { if (!first) ImGui::SameLine(); panel("retail", g_tretail, c.retail_idx >= 0, pw); first = false; }
+    if (g_show[0]) { panel("port (click=pick draw)", g_tport, c.port_idx >= 0, pw, g_port, c.port_idx, c.port_draws, "port"); first = false; }
+    if (g_show[1]) { if (!first) ImGui::SameLine(); panel("retail (click=pick draw)", g_tretail, c.retail_idx >= 0, pw, g_retail, c.retail_idx, c.retail_draws, "retail"); first = false; }
     if (g_show[2]) { if (!first) ImGui::SameLine(); panel("diff", g_tdiff, c.port_idx >= 0 && c.retail_idx >= 0, pw); }
 
     // diff ribbon (one cell per column, heat = meanabs, click to seek)
@@ -368,7 +411,17 @@ static void draw_ui()
         }
     }
 
-    ImGui::TextDisabled("keys: ,/. ±1 · arrows ±10 · Home/End · 1/2/3 panels · [ ] draw± · s solo · w worst · n next");
+    // pixel→draw pick readout
+    if (g_pick_draw != -2) {
+        if (g_pick_draw >= 0)
+            ImGui::TextColored(ImVec4(0.42f, 0.71f, 1, 1), "pick: %s pixel (%d,%d) <- draw #%d  (solo'd; toggle solo off for context)",
+                               g_pick_side.c_str(), g_pick_x, g_pick_y, g_pick_draw);
+        else
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1), "pick: %s pixel (%d,%d) : background (no draw painted it)",
+                               g_pick_side.c_str(), g_pick_x, g_pick_y);
+    }
+
+    ImGui::TextDisabled("keys: ,/. ±1 · arrows ±10 · Home/End · 1/2/3 panels · [ ] draw± · s solo · click=pick · w worst · n next");
     ImGui::End();
 }
 
@@ -423,7 +476,7 @@ static void destroy_device()
     if (g_d3d) { g_d3d->Release(); g_d3d = nullptr; }
 }
 
-static int do_shot(const char *out, const char *view, int W, int H, int col, int draw_step)
+static int do_shot(const char *out, const char *view, int W, int H, int col, int draw_step, int pick_x, int pick_y)
 {
     WNDCLASSEXA wc = {sizeof(wc)};
     wc.lpfnWndProc = DefWindowProcA; wc.hInstance = GetModuleHandleA(nullptr);
@@ -434,6 +487,11 @@ static int do_shot(const char *out, const char *view, int W, int H, int col, int
     if (view && !load_view(view)) return 2;
     if (draw_step >= 0) { g_step_on = true; g_draw_step = draw_step; }   // headless draw-step verify
     if (col > 0) seek(col); else if (g_step_on) show_column(g_cur);      // apply col/step before the shot (g_solo may be preset)
+    if (pick_x >= 0 && pick_y >= 0) {                                    // headless pixel→draw pick verify (port side)
+        Col &c = g_cols[g_cur];
+        do_pick("port", g_port, c.port_idx, c.port_draws, pick_x, pick_y);
+        fprintf(stderr, "pick port (%d,%d) -> draw #%d\n", pick_x, pick_y, g_pick_draw);
+    }
     begin_frame(); draw_ui(); end_frame();
 
     IDirect3DSurface9 *bb = nullptr, *sys = nullptr; int rc = 2;
@@ -514,14 +572,15 @@ static int do_interactive(const char *view)
 int main(int argc, char **argv)
 {
     const char *shot = nullptr, *view = nullptr;
-    int col = 0, draw_step = -1;
+    int col = 0, draw_step = -1, pick_x = -1, pick_y = -1;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--shot") == 0 && i + 1 < argc) shot = argv[++i];
         else if (strcmp(argv[i], "--col") == 0 && i + 1 < argc) col = atoi(argv[++i]);
         else if (strcmp(argv[i], "--draw-step") == 0 && i + 1 < argc) draw_step = atoi(argv[++i]);
         else if (strcmp(argv[i], "--solo") == 0) g_solo = true;
+        else if (strcmp(argv[i], "--pick") == 0 && i + 2 < argc) { pick_x = atoi(argv[++i]); pick_y = atoi(argv[++i]); }
         else view = argv[i];
     }
-    if (shot) return do_shot(shot, view, 1400, 900, col, draw_step);
+    if (shot) return do_shot(shot, view, 1400, 900, col, draw_step, pick_x, pick_y);
     return do_interactive(view);
 }
