@@ -262,6 +262,9 @@ static ImU32 heat(double meanabs)
 
 static void seek(int i) { if (i < 0) i = 0; if (i >= (int)g_cols.size()) i = (int)g_cols.size() - 1; if (i != g_cur) show_column(i); }
 
+// exit draw-stepping AND clear any pixel-pick → back to the full frame (the "un-pick").
+static void clear_view() { g_step_on = false; g_solo = false; g_pick_draw = -2; show_column(g_cur); }
+
 // one panel: a labelled image (or a gap placeholder), scaled to `panel_w`. If `rep` is
 // non-null, a left-click runs a pixel→draw pick on that side (maps the click to a frame
 // pixel, finds + solos the owning draw).
@@ -323,15 +326,19 @@ static void draw_ui()
     // frame build up (prefix) or ISOLATE one draw (solo) — each side independently.
     int maxd = col_maxdraws(c);
     int slmax = g_solo ? (maxd > 0 ? maxd - 1 : 0) : maxd;     // solo: draw INDEX; prefix: LENGTH
-    if (ImGui::Checkbox("draw step", &g_step_on)) { if (g_draw_step > slmax) g_draw_step = slmax; show_column(g_cur); }
+    if (ImGui::Checkbox("draw step", &g_step_on)) { if (!g_step_on) g_pick_draw = -2; if (g_draw_step > slmax) g_draw_step = slmax; show_column(g_cur); }
     ImGui::SameLine(); ImGui::BeginDisabled(!g_step_on);
     if (ImGui::Checkbox("solo", &g_solo)) { if (g_draw_step > slmax) g_draw_step = slmax; show_column(g_cur); }
-    ImGui::SameLine(); ImGui::SetNextItemWidth(-440);
+    ImGui::SameLine(); ImGui::SetNextItemWidth(-510);
     if (ImGui::SliderInt("##drawstep", &g_draw_step, 0, slmax, g_solo ? "draw #%d (solo)" : "first %d draws")) {
         if (g_draw_step < 0) g_draw_step = 0; show_column(g_cur);
     }
     ImGui::SameLine(); if (ImGui::Button("-")) { if (g_draw_step > 0) g_draw_step--; show_column(g_cur); }
     ImGui::SameLine(); if (ImGui::Button("+")) { if (g_draw_step < slmax) g_draw_step++; show_column(g_cur); }
+    ImGui::EndDisabled();
+    // back to the whole frame (un-step / un-pick) — always enabled, the clear way out
+    ImGui::SameLine(); ImGui::BeginDisabled(!g_step_on);
+    if (ImGui::Button("full frame (f)")) clear_view();
     ImGui::EndDisabled();
     ImGui::SameLine();
     ImGui::Text("issuing  port %d/%d · retail %d/%d", issued(c.port_draws), c.port_draws,
@@ -411,17 +418,18 @@ static void draw_ui()
         }
     }
 
-    // pixel→draw pick readout
+    // pixel→draw pick readout (+ the un-pick button right where the eye is)
     if (g_pick_draw != -2) {
         if (g_pick_draw >= 0)
-            ImGui::TextColored(ImVec4(0.42f, 0.71f, 1, 1), "pick: %s pixel (%d,%d) <- draw #%d  (solo'd; toggle solo off for context)",
+            ImGui::TextColored(ImVec4(0.42f, 0.71f, 1, 1), "pick: %s pixel (%d,%d) <- draw #%d  (solo'd; 'solo' off = draws before it, 'full frame'/f = whole frame)",
                                g_pick_side.c_str(), g_pick_x, g_pick_y, g_pick_draw);
         else
             ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1), "pick: %s pixel (%d,%d) : background (no draw painted it)",
                                g_pick_side.c_str(), g_pick_x, g_pick_y);
+        ImGui::SameLine(); if (ImGui::SmallButton("un-pick")) clear_view();
     }
 
-    ImGui::TextDisabled("keys: ,/. ±1 · arrows ±10 · Home/End · 1/2/3 panels · [ ] draw± · s solo · click=pick · w worst · n next");
+    ImGui::TextDisabled("keys: ,/. ±1 · arrows ±10 · Home/End · 1/2/3 panels · [ ] draw± · s solo · click=pick · f full frame · w worst · n next");
     ImGui::End();
 }
 
@@ -540,6 +548,7 @@ static void handle_keys()
     if (ImGui::IsKeyPressed(ImGuiKey_LeftBracket))  { g_step_on = true; if (g_draw_step > 0)     g_draw_step--; show_column(g_cur); }
     if (ImGui::IsKeyPressed(ImGuiKey_RightBracket)) { g_step_on = true; if (g_draw_step < slmax) g_draw_step++; show_column(g_cur); }
     if (ImGui::IsKeyPressed(ImGuiKey_S)) { g_solo = !g_solo; g_step_on = true; if (g_draw_step > slmax) g_draw_step = slmax; show_column(g_cur); }
+    if (ImGui::IsKeyPressed(ImGuiKey_F)) clear_view();   // full frame — un-step / un-pick
 }
 
 static int do_interactive(const char *view)
