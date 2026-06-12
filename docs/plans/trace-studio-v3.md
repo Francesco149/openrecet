@@ -101,30 +101,35 @@ delivery paths, both proven bit-exact:
   starts. `retail_capture.py --arm-anchor BOOT+120:48` → the agent armed `BOOT@frame 0 ->
   [120,168)` → 48/48 BIT-EXACT. The agent edit is gated on `config.v3_arm` (null default) ⇒ a
   silent no-op for every v2 capture (node-syntax-checked; this run exercised it end-to-end).
-**Next (P1 TAIL final — the HOUSE-drive integration):** drive retail to the HOUSE (save-virt +
-input) and arm at `HOUSE_FREEROAM+120` for a real post-load 3D window — the full retail
-full-extent deliverable. Concrete plan (the pieces are scoped; the mechanism is done):
-1. **`frida_capture` plumbing (small, gated):** add a `v3_arm` field to `CaptureConfig` +
-   `if cfg.v3_arm: init_cfg["v3_arm"] = cfg.v3_arm` at `frida_capture.py:~1210` (next to
-   `anchor_trace`). None default ⇒ no-op for v2.
-2. **Proxy robustness — `armwait` (small):** during the long pre-`HOUSE_FREEROAM` load,
-   `g_capframe` is unset, so the **GetBackBuffer MULTI trigger is still ACTIVE** — any stray
-   readback (retail's own, or a leftover agent capture) would mis-keep a load frame. Add a cfg
-   key `armwait=1` that suppresses the GetBackBuffer trigger so the proxy IDLES until
-   `OrV3ArmWindowAt` fires. (The title `--arm-anchor BOOT+120` was safe only because BOOT arms at
-   frame ~0; `HOUSE_FREEROAM` arms thousands of frames in, leaving a long active-trigger window.)
-   The retail house driver writes `armwait=1`; also DISABLE the agent's own frame capture
-   (`capture_frames=[]`, no `d3d_trace`) so only the armed window keeps.
-3. **House driver:** resolve the scenario's `save_ref` (`trace_save.resolve_save`) +
-   `input_segtrace_path` (mirror `scenario-test.run_scenario_capture_retail`), stage the proxy +
-   `armwait` cfg, call `frida_capture.run_capture(..., v3_arm={anchor:'HOUSE_FREEROAM',offset:120,
-   count:N}, save_ref=…, input_segtrace_path=…, force_resolution=…, turbo=True, rng_seed=…,
-   suppress_loads=…)`, then pull + replay every frame + assert bit-exact (the scenario is
-   `house-loaded-display-pinned`; a HOUSE 3D window with VB/IB draws — the port already proved
-   3D multi-frame bit-exact, R2 proved retail single-frame, so this combines two proven paths).
-   Watch: a full house drive is a multi-minute retail run (slow verify).
-**Then the content-addressed slice cache** (capture retail's window ONCE, key by trace-hash,
-slice sub-windows with zero re-drives) → P2 sync-by-identity.
+**P1 TAIL — HOUSE-DRIVE retail full-extent capture ✅ DONE (2026-06-12, `b034849`). P1 IS
+COMPLETE.** Drove the REAL retail exe to the HOUSE (save-virtualized + input-segtrace) and armed
+the proxy at `HOUSE_FREEROAM+120` for a real post-load 3D free-roam window — combining the two
+proven paths (port 3D multi-frame `da5f601` + retail single-frame R2 `fe3722a`) into one. Result:
+**HOUSE_FREEROAM fired at retail present 13912** (the ~13k-frame load-stretch E3 predicted, vs the
+port's 824), the agent armed `[14032,14080)` IN-PROCESS 120 frames ahead, and **all 48 frames
+replay 0 px / 0 byte — 48/48 BIT-EXACT**, 29.3 MB container. Three scoped pieces, all landed:
+1. **`frida_capture` `v3_arm` plumbing (gated):** a `v3_arm` field on `CaptureConfig` + `run_capture`,
+   emitted into `init_cfg` (implies `anchor_trace`). None default ⇒ a silent no-op for every v2
+   capture. Lets the FULL scenario machinery (save-virt, segtrace, turbo, resolution/RNG pins) carry
+   the anchor-relative proxy arm the agent already supports (`config.v3_arm` → `OrV3ArmWindowAt`).
+2. **Proxy `armwait=1` cfg key:** through the long pre-anchor load `g_capframe` is unset, so the
+   GetBackBuffer MULTI keep-trigger would mis-keep a stray readback as a bogus load frame. `armwait`
+   SUPPRESSES that trigger entirely ⇒ the proxy keeps NOTHING until the in-process arm sets the
+   present-window; only the armed window survives. Port MULTI path unaffected (gated on `!armwait`;
+   `port_capture.py` regression re-ran **48/48 bit-exact**). The segtrace's own `{caprange}` v2
+   readbacks (if any) become harmless non-keeping reads ⇒ no trace stripping needed.
+3. **`house_capture.py` driver:** load the segtrace scenario, resolve `{savefile}` → sandboxed
+   `save_ref`, stage proxy + `armwait` cfg, `run_capture(... v3_arm={anchor:'HOUSE_FREEROAM',
+   offset:120, count:48} ...)`, pull from `%LOCALAPPDATA%` + replay every frame + assert bit-exact.
+   Reuses the `retail_capture` helpers (replay verify, localappdata, resolution). HOUSE_FREEROAM is
+   the robust anchor: it fires ONCE, on the same frame as the final LOADING_END (proven: port
+   anchors LOADING_END@824 == HOUSE_FREEROAM@824), so `HOUSE_FREEROAM+120` == the port's
+   `LOADING_END+120..168` window. (A multi-minute retail run — the load-stretch + post-window
+   over-run; the latter is killable by P2's window-aware early-exit.)
+**Next — P2: the content-addressed slice cache → sync-by-identity** (capture retail's window ONCE,
+key by trace-hash, slice sub-windows with zero re-drives; + window-aware early-exit to kill the
+post-window over-run). Then the E3 stored-`(anchor,offset)` pairing becomes the real alignment
+authority. See P2 below.
 
 **3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
 (not a flaw in the bet).** Tried capturing a 3D HOUSE frame via `scenario-test`. Two
@@ -405,12 +410,20 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   - **P1 TAIL — full-extent MULTI-FRAME capture + content-hash dedup ✅ DONE (PORT,
     `da5f601`):** a 48-frame HOUSE 3D window → ONE 27.6 MB container, 48/48 BIT-EXACT,
     `48 res total` constant across all frames (resources stored once; frames ≈ free).
-    Driver `port_capture.py`. **Still TODO in P1:** RETAIL full-extent capture (a
-    present-WINDOW keep mode — retail doesn't GetBackBuffer per frame, so it can't use the
-    port's per-readback trigger; it needs an anchor-relative present window) + the
-    content-addressed slice cache (the slice-don't-re-drive cache that unblocks P2).
+    Driver `port_capture.py`.
+  - **P1 TAIL — RETAIL full-extent capture ✅ DONE — P1 COMPLETE.** Present-WINDOW keep mode
+    (`retail_capture.py --window/--arm/--arm-anchor`, title 48/48) → anchor-relative arming via
+    `OrV3ArmWindowAt` + the agent in-process arm → and finally the **HOUSE-DRIVE** (`b034849`):
+    `house_capture.py` drove retail through the save-load to the house and armed at
+    `HOUSE_FREEROAM+120` (fired @ retail present 13912) for a real post-load 3D window —
+    **48/48 BIT-EXACT**, via `frida_capture`'s gated `v3_arm` + the proxy `armwait=1` idle-until-arm
+    cfg. The retail full-extent capture mechanism is proven end-to-end on a real 3D scene. The
+    content-addressed slice cache (slice-don't-re-drive) moves to P2 below.
 - **P2 — Sync-by-identity + the slice/cache loop + window-aware early-exit.** Port the
-  E3 prototype into the real pairing authority.
+  E3 prototype into the real pairing authority. Includes the **content-addressed retail slice
+  cache** (capture retail's window once, key by trace-hash, slice sub-windows with zero re-drives)
+  + a **window-aware early-exit** (stop the retail drive at the last in-window frame — kills E4's
+  ~100 s post-window over-run the house drive currently pays).
 - **P3 — Viewer**: replay-served panels + preserved UX + the semantic diff/pick layer.
 - **P4 — Parity-loop parity check**: reproduce a known confirmed-1:1 session in v3, verdict
   matches v2. **Then** archive v2.

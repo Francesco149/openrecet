@@ -7,6 +7,38 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-06-12 — studio-v3: HOUSE-drive retail full-extent capture (P1 COMPLETE, 48/48 bit-exact)
+
+The Trace Studio v3 P1 (capture-at-scale) is now fully proven on both sides through a real
+post-load 3D scene. `house_capture.py` drives the REAL retail exe through the fa7c82 save-load
+to the HOUSE (save-virtualized + input-segtrace) and arms the capture proxy at
+`HOUSE_FREEROAM+120` for a 48-frame free-roam present-window. **HOUSE_FREEROAM fired at retail
+present 13912** (the ~13k-frame load-stretch E3 predicted, vs the port's 824); the agent armed
+`[14032,14080)` in-process 120 frames ahead; **all 48 frames replay 0 px / 0 byte — 48/48
+BIT-EXACT**, 29.3 MB container. This combined two already-proven paths (the port's 3D multi-frame
+window `da5f601` + R2's retail single-frame `fe3722a`) into one. Three gated pieces (`b034849`):
+
+- **`frida_capture` `v3_arm` plumbing** — a `v3_arm` field on `CaptureConfig` + `run_capture`,
+  emitted into `init_cfg` (implies `anchor_trace`). None default ⇒ a silent no-op for every v2
+  capture. Lets the FULL scenario machinery (save-virt, segtrace, turbo, resolution/RNG pins)
+  carry the anchor-relative proxy arm the agent already supported (`config.v3_arm` →
+  `OrV3ArmWindowAt(anchor_frame+offset, count)` on its anchor).
+- **proxy `armwait=1` cfg key** — through the long pre-anchor load `g_capframe` is unset, so the
+  GetBackBuffer MULTI keep-trigger would mis-keep a stray readback as a bogus load frame. `armwait`
+  suppresses that trigger entirely ⇒ the proxy keeps NOTHING until the in-process arm sets the
+  present-window. Port MULTI path unaffected (gated on `!armwait`; `port_capture` re-ran 48/48
+  bit-exact). The segtrace's own `{caprange}` v2 readbacks become harmless non-keeping reads.
+- **`house_capture.py` driver** — load the segtrace scenario → resolve `{savefile}` → stage proxy
+  + armwait → `run_capture(... v3_arm ...)` → pull from `%LOCALAPPDATA%` + replay every frame +
+  assert bit-exact. Reuses the `retail_capture` helpers. HOUSE_FREEROAM is the robust anchor: it
+  fires ONCE, on the same frame as the final LOADING_END, so `HOUSE_FREEROAM+120` == the port's
+  `LOADING_END+120..168` window.
+
+Next → P2: the content-addressed retail slice cache (capture retail once, slice sub-windows with
+zero re-drives) + window-aware early-exit (kill the post-window over-run the house drive currently
+pays) → sync-by-identity (the E3 `(anchor,offset)` join as the real alignment authority). Plan:
+`docs/plans/trace-studio-v3.md` (P2 section).
+
 ## 2026-06-11 — trace-studio: per-panel video seek (fix the diff diffing a different frame)
 
 The studio's three video panels (port|retail|diff) were seeked to the SAME ordinal

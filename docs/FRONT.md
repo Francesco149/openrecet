@@ -403,12 +403,24 @@
   (`config.v3_arm={anchor,offset,count}`; `sendAnchor`→`v3ArmOnAnchor` calls the export the first
   time the anchor fires — gated/no-op for v2; `--arm-anchor BOOT+120:48` → "armed BOOT@frame 0 →
   [120,168)" → 48/48). Drivers: `retail_capture.py` (`--window`/`--arm`/`--arm-anchor`) +
-  `port_capture.py --window`. **Next (P1 tail final):** the HOUSE-drive integration — `v3_arm`
-  through `frida_capture` + an `armwait` cfg (suppress the GetBackBuffer trigger through the long
-  pre-`HOUSE_FREEROAM` load, else a stray readback mis-keeps a load frame) + a house driver
-  (save-virt/input → `run_capture` → arm at `HOUSE_FREEROAM+120` → replay bit-exact). **Then** the
-  content-addressed slice cache → P2 sync-by-identity. Plan + the step-by-step HOUSE-drive recipe:
-  **`plans/trace-studio-v3.md`**.
+  `port_capture.py --window`.
+  **HOUSE-DRIVE retail full-extent capture ✅ DONE — P1 COMPLETE (2026-06-12, `b034849`):** drove
+  the REAL retail exe through the save-load to the HOUSE (save-virt + input-segtrace) and armed the
+  proxy at `HOUSE_FREEROAM+120` for a real post-load 3D free-roam window — **48/48 BIT-EXACT**,
+  29.3 MB. **HOUSE_FREEROAM fired at retail present 13912** (the ~13k-frame load-stretch E3 predicted
+  vs the port's 824), the agent armed `[14032,14080)` IN-PROCESS 120 frames ahead. Three gated
+  pieces: (1) `frida_capture` `v3_arm` field on `CaptureConfig`/`run_capture` → `init_cfg` (implies
+  `anchor_trace`; None ⇒ v2 no-op) so the FULL scenario machinery carries the anchor-arm; (2) the
+  proxy **`armwait=1`** cfg — suppresses the GetBackBuffer MULTI keep-trigger through the long
+  pre-anchor load so a stray readback can't mis-keep a load frame (proxy idles until the in-process
+  arm; port MULTI path unaffected — `port_capture` re-ran 48/48); (3) `house_capture.py` (load
+  segtrace scenario → resolve `{savefile}` → stage proxy+armwait → `run_capture(... v3_arm ...)` →
+  pull + replay every frame bit-exact). HOUSE_FREEROAM is the robust anchor (fires ONCE, same frame
+  as the final LOADING_END ⇒ `HOUSE_FREEROAM+120` == the port's `LOADING_END+120..168`). **The
+  retail full-extent capture mechanism is proven end-to-end on a real 3D scene. Next → P2:** the
+  content-addressed slice cache (capture retail once, slice sub-windows zero-re-drive) +
+  window-aware early-exit (kill the post-window over-run) → sync-by-identity (E3 `(anchor,offset)`
+  join as the real alignment authority). Plan: **`plans/trace-studio-v3.md`** (P2 section).
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.
