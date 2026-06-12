@@ -42,6 +42,13 @@ int orv3_replay_calls(const OrV3Replay *r, int idx);
  * call section is issued. */
 const uint8_t *orv3_replay_render(OrV3Replay *r, int idx);
 
+/* Like orv3_replay_render but issue only the FIRST `max_draws` draw calls of the
+ * frame (every state/clear/scene call is still issued, so the partial frame is
+ * well-formed). max_draws < 0 ⇒ all draws (== orv3_replay_render). This is the
+ * draw-isolation primitive: render the prefix [0,max_draws) to watch a frame build
+ * up draw-by-draw, find overdraw, or (binary-searched) pick the draw under a pixel. */
+const uint8_t *orv3_replay_render_upto(OrV3Replay *r, int idx, int max_draws);
+
 void orv3_replay_close(OrV3Replay *r);
 
 #ifdef __cplusplus

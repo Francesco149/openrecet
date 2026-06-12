@@ -50,13 +50,21 @@ static int op_is_call(uint32_t op)
 }
 
 /* Walk ONE record at the cursor; advance past it; create the resource iff do_res;
- * issue the call iff do_calls. Returns the op (ORV3_Present / ORV3_EOF terminate a
- * walk); the caller classifies it (op_is_draw/op_is_call) to count. */
-static uint32_t step(Cur *c, OrV3Replay *R, int do_res, int do_calls)
+ * issue the call iff do_calls. Draw calls are additionally gated on the budget:
+ * `*ndrawn` counts draws ENCOUNTERED, and a draw is only ISSUED while `*ndrawn <
+ * max_draws` (max_draws < 0 ⇒ unbounded). The cursor always advances past the full
+ * payload regardless, so a skipped draw still parses correctly. Returns the op
+ * (ORV3_Present / ORV3_EOF terminate a walk); the caller classifies it
+ * (op_is_draw/op_is_call) to count. */
+static uint32_t step(Cur *c, OrV3Replay *R, int do_res, int do_calls,
+                     int max_draws, int *ndrawn)
 {
     uint32_t op = cu(c);
     if (op == 0xffffffffu || op == ORV3_EOF) return ORV3_EOF;
     IDirect3DDevice8 *dev = R->dev;
+    /* a draw is issued only if calls are on, this is a draw op, and budget remains */
+    int draw_ok = do_calls && (max_draws < 0 || *ndrawn < max_draws);
+    if (op_is_draw(op)) { (*ndrawn)++; if (!draw_ok) do_calls = 0; }
     switch (op) {
     case ORV3_RES_TEX: {
         uint32_t id = cu(c), levels = cu(c);
@@ -189,8 +197,9 @@ OrV3Replay *orv3_replay_open(const char *cap_path, char *err, int errlen)
     /* pass 1: create every resource + index each kept frame's [start,end) + counts */
     int cap = 16; R->frames = (FrameRec *)malloc(cap * sizeof(FrameRec)); R->nframes = 0;
     uint32_t sect_start = (uint32_t)(c.p - R->data), ndraws = 0, ncalls = 0;
+    int dummy = 0;
     for (;;) {
-        uint32_t op = step(&c, R, /*do_res*/1, /*do_calls*/0);
+        uint32_t op = step(&c, R, /*do_res*/1, /*do_calls*/0, /*max_draws*/-1, &dummy);
         if (op == ORV3_EOF) break;
         if (op == 0xfffffffeu) FAIL("unknown op in container");
         if (op_is_draw(op)) ndraws++;
@@ -218,12 +227,13 @@ int orv3_replay_height(const OrV3Replay *r) { return r ? (int)r->H : 0; }
 int orv3_replay_draws(const OrV3Replay *r, int i) { return (r && i >= 0 && i < r->nframes) ? (int)r->frames[i].draws : -1; }
 int orv3_replay_calls(const OrV3Replay *r, int i) { return (r && i >= 0 && i < r->nframes) ? (int)r->frames[i].calls : -1; }
 
-const uint8_t *orv3_replay_render(OrV3Replay *r, int idx)
+const uint8_t *orv3_replay_render_upto(OrV3Replay *r, int idx, int max_draws)
 {
     if (!r || idx < 0 || idx >= r->nframes) return NULL;
     Cur c = { r->data + r->frames[idx].start, r->data + r->frames[idx].end };
+    int ndrawn = 0;
     for (;;) {
-        uint32_t op = step(&c, r, /*do_res*/0, /*do_calls*/1);
+        uint32_t op = step(&c, r, /*do_res*/0, /*do_calls*/1, max_draws, &ndrawn);
         if (op == ORV3_EOF || op == ORV3_Present) break;
         if (op == 0xfffffffeu) return NULL;
     }
@@ -232,6 +242,11 @@ const uint8_t *orv3_replay_render(OrV3Replay *r, int idx)
     r->buf = orv3_readback_bgra(r->dev, &gw, &gh);
     if (!r->buf || gw != r->W || gh != r->H) return NULL;
     return r->buf;
+}
+
+const uint8_t *orv3_replay_render(OrV3Replay *r, int idx)
+{
+    return orv3_replay_render_upto(r, idx, -1);
 }
 
 void orv3_replay_close(OrV3Replay *r)

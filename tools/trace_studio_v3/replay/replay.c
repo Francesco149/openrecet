@@ -61,6 +61,23 @@ int main(int argc, char **argv)
         return rc;
     }
 
+    /* draw isolation: render frame idx issuing only its first max_draws draws.
+     *   replay <cap.bin> --upto <idx> <max_draws> [out.raw] */
+    if (strcmp(argv[2], "--upto") == 0) {
+        int idx = argc > 3 ? atoi(argv[3]) : 0;
+        int maxd = argc > 4 ? atoi(argv[4]) : -1;
+        const char *out = argc > 5 ? argv[5] : "v3upto.raw";
+        uint32_t W = orv3_replay_width(r), H = orv3_replay_height(r);
+        const uint8_t *buf = orv3_replay_render_upto(r, idx, maxd);
+        if (!buf) { fprintf(stderr, "render_upto frame %d failed\n", idx); orv3_replay_close(r); return 2; }
+        FILE *of = fopen(out, "wb");
+        if (of) { fwrite(&W, 4, 1, of); fwrite(&H, 4, 1, of); fwrite(buf, 1, (size_t)W * 4 * H, of); fclose(of); }
+        fprintf(stderr, "frame %d: rendered first %d of %d draws -> %s\n",
+                idx, maxd, orv3_replay_draws(r, idx), out);
+        orv3_replay_close(r);
+        return 0;
+    }
+
     const char *refpath = argv[2];
     int target = argc > 3 ? atoi(argv[3]) : 0;
     const char *outpath = argc > 4 ? argv[4] : "v3replay.raw";
