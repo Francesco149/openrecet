@@ -44,7 +44,30 @@ the v2 agent uses). Config now via a `v3proxy.cfg` next to the dll (capframe/out
 don't cross to the Frida-spawned exe); proxy log made unbuffered (kill-safe). Driver:
 `tools/trace_studio_v3/r2_retail_probe.py` (`--hook-ini` = the GetPrivateProfileIntA probe
 that found the UNC read failure).
-**Next: retail FULL-EXTENT capture + content-addressed cache (P1 tail) → P2 sync-by-identity.**
+
+**P1 TAIL — full-extent MULTI-FRAME capture + content-hash dedup ✅ DONE (PORT, 2026-06-12,
+`da5f601`).** The single-frame proxy is generalized to a windowed multi-frame container —
+the storage model the retail-once-cached/sliced loop (P2) needs. A real HOUSE 3D free-roam
+**WINDOW of 48 consecutive frames** (caprange LOADING_END+120..168, past an ~8800-frame load)
+captures into **ONE 27.6 MB container** and **EVERY frame replays 0 px / 0 byte** vs its
+proxy reference — **48/48 BIT-EXACT**. The dedup win is PROVEN (the "full-extent is cheap"
+claim): content-hash (fnv1a-64) resource dedup keeps the resource store at ONE frame's worth
+— `48 res total` stays CONSTANT across all 48 KEEP lines, so 48 frames cost 27.6 MB where the
+unique resources ALONE are 26.6 MB (adding 47 frames is +1 MB of call deltas; a 480-frame
+window would be ~the same resources + ~10 MB). Mechanism: `write_frame` per kept frame
+snapshots its bound resources (dedup'd) + writes `[new RES][scalar preamble][calls][Present]`,
+doesn't close (keeps appending), fflush per frame (kill-safe; replayer tolerates a missing
+EOF); session-wide content-hash id space (dropped the ptr-dedup cache + per-frame reset);
+preamble written straight to the container only for kept frames (load frames cost nothing).
+GetBackBuffer keeps EVERY caprange frame (port MULTI mode); the retail capframe present-count
+path stays single-frame (R2 regression BIT-EXACT). Replayer renders any kept-frame INDEX
+(one pass: create all RES, issue only the target section). Committed driver
+`tools/trace_studio_v3/port_capture.py` (stage proxy → scenario-test → pull from LOCALAPPDATA
+→ replay every frame + assert bit-exact + report dedup); `inspect_cap.py` multi-frame aware.
+**Next: RETAIL full-extent capture (present-window keep — retail doesn't read back per frame,
+so it needs an anchor-relative present window, NOT the port's GetBackBuffer trigger) + the
+content-addressed slice cache (capture retail's window ONCE, key by trace-hash, slice
+sub-windows with zero re-drives) → P2 sync-by-identity.**
 
 **3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
 (not a flaw in the bet).** Tried capturing a 3D HOUSE frame via `scenario-test`. Two
@@ -321,8 +344,14 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   - Container analyzer: `tools/trace_studio_v3/inspect_cap.py` (structured JSON: dev params,
     resource store, call-op histogram, self-contained-vs-inherited state signals).
   - **R2 ✅ DONE (`fe3722a`):** retail-side proxy loadability + a retail title frame
-    captured/replayed bit-exact. **Still TODO in P1:** retail FULL-EXTENT capture +
-    content-addressed cache (the slice-don't-re-drive cache that unblocks P2).
+    captured/replayed bit-exact.
+  - **P1 TAIL — full-extent MULTI-FRAME capture + content-hash dedup ✅ DONE (PORT,
+    `da5f601`):** a 48-frame HOUSE 3D window → ONE 27.6 MB container, 48/48 BIT-EXACT,
+    `48 res total` constant across all frames (resources stored once; frames ≈ free).
+    Driver `port_capture.py`. **Still TODO in P1:** RETAIL full-extent capture (a
+    present-WINDOW keep mode — retail doesn't GetBackBuffer per frame, so it can't use the
+    port's per-readback trigger; it needs an anchor-relative present window) + the
+    content-addressed slice cache (the slice-don't-re-drive cache that unblocks P2).
 - **P2 — Sync-by-identity + the slice/cache loop + window-aware early-exit.** Port the
   E3 prototype into the real pairing authority.
 - **P3 — Viewer**: replay-served panels + preserved UX + the semantic diff/pick layer.

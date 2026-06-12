@@ -395,9 +395,22 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   scenario-test uses) — both sides now 1024×768 + bit-exact; retail's **backbuffer is
   non-lockable** (flags=0x0; port 0x1) ⇒ CopyRects-via-sysmem readback (shared proxy+replayer
   helper). Config via `v3proxy.cfg` next to the dll (env vars don't cross to the Frida-spawned
-  exe); kill-safe unbuffered log; driver `r2_retail_probe.py`. **Next:**
-  retail FULL-EXTENT capture + content-addressed cache (P1 tail) → P2 sync-by-identity. Plan +
-  experiment data: **`plans/trace-studio-v3.md`**.
+  exe); kill-safe unbuffered log; driver `r2_retail_probe.py`.
+  **P1 TAIL — full-extent MULTI-FRAME capture + content-hash dedup ✅ DONE (PORT, 2026-06-12,
+  `da5f601`):** the single-frame proxy is generalized to a windowed multi-frame container (the
+  storage model the P2 retail-once-cached/sliced loop needs). A real HOUSE 3D free-roam WINDOW
+  of **48 consecutive frames** (caprange LOADING_END+120..168, past an ~8800-frame load)
+  captures into **ONE 27.6 MB container** and **every frame replays 0 px / 0 byte — 48/48
+  BIT-EXACT**. Dedup win PROVEN: content-hash (fnv1a-64) resource dedup keeps the store at one
+  frame's worth (`48 res total` CONSTANT across all 48 KEEP lines — 48 frames = 27.6 MB where
+  the unique resources alone are 26.6 MB; adding 47 frames is +1 MB of call deltas). `write_frame`
+  per kept frame writes `[new RES][preamble][calls][Present]`, fflush per frame (kill-safe);
+  GetBackBuffer keeps every caprange frame (port MULTI mode); retail capframe path stays
+  single-frame (R2 regression bit-exact); replayer renders any kept-frame INDEX. Committed
+  driver `port_capture.py`; `inspect_cap.py` multi-frame aware. **Next:** RETAIL full-extent
+  (a present-WINDOW keep mode — retail doesn't read back per frame, needs an anchor-relative
+  present window, not the port's GetBackBuffer trigger) + the content-addressed slice cache →
+  P2 sync-by-identity. Plan + experiment data: **`plans/trace-studio-v3.md`**.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.
