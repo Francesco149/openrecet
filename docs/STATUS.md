@@ -298,7 +298,7 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   caught it**; port label 3010 now matches retail (feed: "iv1_9 menu backdrop fix"). **The studio
   PIXEL diff is seam-unusable here** (8 load-seams ⇒ kept-count port≈3860/retail=3740 ⇒ port a few
   frames ahead at each label; verify via the anchor-aligned flow_diff + content-matched frames, not
-  the pixel curve). **Pending user eyeball** (served :8778 on the new capture). RE:
+  the pixel curve). **✅ USER-CONFIRMED 1:1 2026-06-12** ("looks correct to me") — parity ledger. RE:
   `merchant-guild-RE.md` "Leave dispatch RE". **PORT-DEBT(guild-leave-transition):** the proper
   iv1_16 bread cutscene = the flag==1 (post-purchase) Leave path = the c2c/c28 transition → iv1_16
   fade + world-map swap + the return-to-Recettear Tear cutscene (+ the buy-commit flag-set
