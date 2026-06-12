@@ -173,14 +173,53 @@ def test_merge_offsets() -> None:
     print("  OK merge_offsets: union/sorted columns, honest gap named by the MISSING side")
 
 
+def test_draws() -> None:
+    """The semantic layer (orv3_draws): enumerate a frame's draws with the device
+    state in effect, and the material diff that abstracts batching to a verdict."""
+    import orv3_draws
+
+    # enumerate_draws on the synthetic container: frame 0 binds tex0 + vb1, draws 2 prims
+    c = orv3.Container(build_container())
+    d0 = orv3_draws.enumerate_draws(c, 0)
+    assert len(d0) == 1 and d0[0].op == orv3.DrawPrimitive, d0
+    assert d0[0].tex_id == 0 and d0[0].vb_id == 1, (d0[0].tex_id, d0[0].vb_id)
+    assert d0[0].prim_type == 4 and d0[0].prim_count == 2, d0[0]
+    assert d0[0].rs.get("ZENABLE") == 1, d0[0].rs            # the scalar preamble is tracked
+    assert d0[0].tex_hash != 0 and d0[0].geo_hash != 0       # content hashed (cross-side key)
+    d2 = orv3_draws.enumerate_draws(c, 2)
+    assert d2[0].tex_id == 2 and d2[0].vb_id == -1, d2[0]    # frame 2: tex2, no stream
+
+    def D(tex, pc, idx=0):
+        return orv3_draws.Draw(idx, orv3.DrawIndexedPrimitive, 4, pc, pc * 3, 0, 0, tex_hash=tex)
+
+    # BATCHING: same texture A + same triangle total (108), port 1 draw vs retail 2
+    port = [D(0xAAAA, 108)]
+    retail = [D(0xAAAA, 50), D(0xAAAA, 58, 1)]
+    md = orv3_draws.material_diff(port, retail)
+    assert md["verdict"] == "BATCHING", md
+    assert md["n_batched"] == 1 and not md["divergent"], md
+    assert md["port_tris"] == 108 and md["retail_tris"] == 108
+
+    # DIVERGENT: retail draws an extra one-sided texture B (the ea99 shape)
+    md2 = orv3_draws.material_diff(port, retail + [D(0xBBBB, 80, 2)])
+    assert md2["verdict"] == "DIVERGENT", md2
+    assert len(md2["divergent"]) == 1 and md2["divergent"][0]["tex"].endswith("bbbb"), md2["divergent"]
+    assert md2["divergent"][0]["port_tris"] == 0 and md2["divergent"][0]["retail_tris"] == 80
+
+    # ALIGNED: identical draw lists (same tex, tris AND draw counts)
+    assert orv3_draws.material_diff(port, port)["verdict"] == "ALIGNED"
+    print("  OK draws: enumerate (tex/vb/state tracked), material_diff BATCHING/DIVERGENT/ALIGNED")
+
+
 def main() -> int:
     test_parse()
     test_slice()
     test_join()
     test_extent_lookup()
     test_merge_offsets()
+    test_draws()
     print("OK: orv3 container parse + slice pull-forward + sync-by-identity join + cache lookup "
-          "+ view timeline merge")
+          "+ view timeline merge + draw semantics")
     return 0
 
 

@@ -70,13 +70,14 @@ def merge_offsets(port_offsets: set[int], retail_offsets: set[int]) -> list[dict
 
 
 def _side_index(entry: Path):
-    """(meta, {offset: orv3.Frame}, [w,h]) for a cache entry, keyed by identity offset.
-    The Frame carries index/present/draws/calls/res for the state panel; dims come from
-    the container's DEV_PARAMS."""
+    """(meta, {offset: orv3.Frame}, [w,h], Container) for a cache entry, keyed by
+    identity offset. The Frame carries index/present/draws/calls/res for the state
+    panel; dims come from DEV_PARAMS; the Container is kept for the per-draw/material
+    semantic diff (orv3_draws)."""
     meta = v3cache.load_meta(entry)
     c = orv3.Container.load(entry / "v3cap.bin")
     dims = [c.dev.get("w"), c.dev.get("h")]
-    return meta, {meta.offset_of(f.index): f for f in c.frames}, dims
+    return meta, {meta.offset_of(f.index): f for f in c.frames}, dims, c
 
 
 def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
@@ -89,8 +90,8 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    pmeta, pidx, _ = _side_index(port_entry)
-    rmeta, ridx, _ = _side_index(retail_entry)
+    pmeta, pidx, _, _ = _side_index(port_entry)
+    rmeta, ridx, _, _ = _side_index(retail_entry)
     join = orv3_sync.sync_entries(port_entry, retail_entry, quiet=True)
 
     rows = merge_offsets(set(pidx), set(ridx))
@@ -178,21 +179,26 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
     the containers (the container is the only artifact). Each column carries both
     sides' kept-frame INDEX (what the viewer renders) or an honest gap, plus the
     per-side draw/call counts + presents for the state panel."""
-    pmeta, pidx, pdims = _side_index(port_entry)
-    rmeta, ridx, _ = _side_index(retail_entry)
+    import orv3_draws   # local import: the semantic-diff layer (P3 N3)
+
+    pmeta, pidx, pdims, pc = _side_index(port_entry)
+    rmeta, ridx, _, rc = _side_index(retail_entry)
     join = orv3_sync.sync_entries(port_entry, retail_entry, quiet=True)
     rows = merge_offsets(set(pidx), set(ridx))
     frames = []
     for row in rows:
         off = row["offset"]
         pf, rf = pidx.get(off), ridx.get(off)
-        frames.append({
+        fr = {
             "offset": off, "gap": row["gap"],
             "port_idx": pf.index if pf else None, "retail_idx": rf.index if rf else None,
             "port_present": pf.present if pf else None, "retail_present": rf.present if rf else None,
             "port_draws": pf.n_draws if pf else None, "retail_draws": rf.n_draws if rf else None,
             "port_calls": pf.n_calls if pf else None, "retail_calls": rf.n_calls if rf else None,
-        })
+        }
+        if pf and rf:   # both sides present → the material/draw-program semantic diff
+            fr.update(orv3_draws.frame_draw_report(pc, pf.index, rc, rf.index))
+        frames.append(fr)
     manifest = {
         "scenario": pmeta.scenario, "anchor": pmeta.anchor, "anchor_occ": pmeta.anchor_occ,
         "verdict": join["verdict"], "load_stretch": join["load_stretch"], "dims": pdims,
