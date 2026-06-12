@@ -15,6 +15,18 @@ command stream + resources IS sufficient to re-render frames exactly as the game
 Frida spawn); the VB/IB-backed 3D path (P0c was 2D UP draws only); cross-frame
 content-hash dedup at session scale; then the P1–P4 build.
 
+**P1 ✅ DONE (2026-06-12) — capture-at-scale works; a 3D frame past a long load replays
+BIT-EXACT.** A real HOUSE 3D free-roam frame captured **8797 prologue/load frames deep**
+(55 VB/IB indexed + 31 UP draws, 46 resources, ~26 MB) replays **0 px / 0 byte** vs the
+proxy reference. Two fixes got there: (1) **deferred-snapshot two-section container** —
+per-frame calls buffer in memory + drop every Present; resources snapshot ONLY at finalize
+(target frame) ⇒ the load costs zero snapshot work (963 MB balloon + throttle gone) with no
+stale/pointer-reuse bug; (2) **device-state-shadow preamble** — R4 (inherited state) was
+real for 3D after all (the frame inherits lighting/blend state ⇒ replayed overbright +
+black-blended), fixed by shadowing every scalar Set and emitting it at each frame boundary.
+Title regression still bit-exact. Details in the P1 phase entry below. **Next: R2 retail-side
+proxy + retail full-extent capture/cache (P1 tail) → P2 sync-by-identity.**
+
 **3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
 (not a flaw in the bet).** Tried capturing a 3D HOUSE frame via `scenario-test`. Two
 learnings: (1) **present-count can't target a post-load frame** (turbo load-stretch is
@@ -241,26 +253,52 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   local d3d8.dll? does SteamStub/the unpack interfere?). Validate in phase 1.
 - **R3: resource-capture overhead** (hashing every lock). Measure; expected cheap given
   dedup, but Lock-heavy frames need a fast hash + a "dirty range" shortcut.
-- **R4: capturing inherited state at a sliced window start** (device state is persistent;
-  a window must replay the accumulated state). Snapshot full device state at window open.
+- **R4 ✅ SOLVED (2026-06-12): inherited state at a sliced window start.** Title was
+  self-contained so P0/P1 downgraded this — but 3D scenes inherit lighting/ambient/blend
+  state, so a sliced single frame replayed overbright + black-blended. The **state-shadow
+  preamble** (track every scalar Set; emit at each frame boundary) supplies the inherited
+  state; proven bit-exact on the HOUSE 3D frame. Resource *bindings* are NOT
+  inherited-relevant (every draw re-binds), so the shadow is scalar-only + cheap.
 
 ## Phased build (de-risk first; commit in logical units; `/clear` at boundaries)
 - **P0 — Replay-fidelity spike (riskiest first).** Minimal proxy d3d8.dll that logs the
   full call+resource stream for the PORT only, for a few frames, + a replayer + a
   screenshot-equality check. **Acceptance: one real frame replays bit-exact.** Go/no-go on
   the whole replay bet. *(Also answers R2 if extended to retail.)*
-- **P1 — Capture-at-scale (the 3D-test learnings).** LANDED: local-disk writes,
-  `GetBackBuffer`-aligned frame targeting, **single-frame capture** (rewind per frame; keep
-  only the trigger frame). **Verified bit-exact on the title with NO 0→N history (44 calls,
-  fresh device) → frames are self-contained, so a device-state snapshot is likely
-  UNNEEDED** (R4 downgraded). The remaining blocker for capturing a frame *past a long
-  load*: per-frame **resource snapshotting** throttles the engine through the
-  multi-thousand-frame load. **Fix = two-section container** — capture each frame's calls
-  cheaply (rewinding), snapshot each resource ONCE into a persistent cache (not per frame,
-  not rewound), and at finalize write `[resources][calls]` so the streaming replayer still
-  sees resources first. THEN re-run the 3D HOUSE + multi-scene tests to bit-exact (proves
-  the VB/IB path + scene transitions). Measure real resource volume (closes E1). Retail
-  full-extent capture + cache.
+- **P1 — Capture-at-scale ✅ DONE (2026-06-12, `f0147a8` + the two-section/shadow chip).**
+  Landed: local-disk writes, `GetBackBuffer`-aligned frame targeting, **single-frame
+  capture**, the **two-section container**, and the **device-state-shadow preamble**.
+  - **Two-section = a DEFERRED-snapshot variant (better than snapshot-once-persistent).**
+    Per-frame calls accumulate in an in-memory buffer dropped every Present; resource
+    snapshots are DEFERRED to finalize, so ONLY the target frame's bound resources are ever
+    read back. The multi-thousand-frame load costs **ZERO snapshot work** (the 963 MB
+    balloon + throttle are gone), AND there's no stale-data / pointer-reuse-across-transition
+    bug — snapshotting at finalize reads the target frame's *current* pointers + contents, so
+    the content-hash concern the plan flagged simply dissolves for single-frame capture.
+    Finalize writes `[resources][preamble][calls]` (resources first → streaming replayer
+    still sees every id defined before use).
+  - **R4 RE-UPGRADED then SOLVED.** The title is self-contained (re-sets its own state) so
+    P0/P1 thought a device-state snapshot was unneeded — but a 3D scene is NOT: it inherits
+    lighting/ambient/blend state set in an *earlier* frame, so a sliced single frame replayed
+    **overbright + with black-blended quads** (user-confirmed: "everything 3d is overbright
+    and washed out … black rectangle around the tapestry"). Fix = a **state shadow**: track
+    every scalar Set the game makes (render states / TSS / transforms / material / FVF) and
+    emit it as a preamble at each frame boundary, so the kept frame begins at its exact
+    inherited state. Only states ACTUALLY set are emitted (no GetRenderState-all, no
+    invalid-enum risk — "track the state, cheap + bullet-proof", user). Resource *bindings*
+    are NOT shadowed (every draw re-binds its own texture/stream/indices ⇒ frame-start
+    bindings never matter, and shadowing them would resurrect the load-time snapshot cost).
+  - **PROVEN bit-exact** on a real HOUSE 3D free-roam frame captured **past 8797
+    prologue/load frames** (55 VB/IB `DrawIndexedPrimitive` + 31 UP draws, 46 resources →
+    **0 px / 0 byte / max-delta-0** vs the proxy reference) — closes the VB/IB path +
+    scene-transition + R4 questions together. Title regression (self-contained, 56 calls)
+    still bit-exact. Capture run 23 s, no throttle.
+  - **Resource volume (closes E1):** ~**26 MB** for a full HOUSE frame's 46 unique resources
+    (38 tex / 4 VB / 4 IB, all D3DPOOL_MANAGED ⇒ lockable, 0 empty), dumped once.
+  - Container analyzer: `tools/trace_studio_v3/inspect_cap.py` (structured JSON: dev params,
+    resource store, call-op histogram, self-contained-vs-inherited state signals).
+  - **Still TODO in P1:** retail-side proxy loadability (R2) + retail full-extent capture +
+    content-addressed cache.
 - **P2 — Sync-by-identity + the slice/cache loop + window-aware early-exit.** Port the
   E3 prototype into the real pairing authority.
 - **P3 — Viewer**: replay-served panels + preserved UX + the semantic diff/pick layer.

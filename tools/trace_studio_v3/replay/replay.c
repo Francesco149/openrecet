@@ -18,7 +18,7 @@
 #include <string.h>
 #include "../format/orv3_format.h"
 
-#define MAXRES 8192
+#define MAXRES 32768   /* matches the proxy's ORV3_MAXRES — a busy HOUSE frame can bind many unique resources */
 static IDirect3DTexture8      *g_tex[MAXRES];
 static IDirect3DVertexBuffer8 *g_vb [MAXRES];
 static IDirect3DIndexBuffer8  *g_ib [MAXRES];

@@ -2,14 +2,22 @@
  *
  * Drop-in d3d8.dll used by BOTH the port and retail (app-dir loads before
  * System32). Wraps the factory + device and records the exact D3D8 command
- * stream + every referenced resource (textures/VB/IB, dedup by pointer) into a
- * flat container (orv3_format.h), sufficient to RE-RENDER each frame. Only the
- * device + factory are wrapped; resources are returned UNWRAPPED and snapshotted
- * lazily by read-only Lock (port allocates them D3DPOOL_MANAGED -> lockable).
+ * stream + the referenced resources (textures/VB/IB) into a flat container
+ * (orv3_format.h), sufficient to RE-RENDER the frame. Only the device + factory
+ * are wrapped; resources are returned UNWRAPPED and snapshotted by read-only Lock
+ * (port allocates them D3DPOOL_MANAGED -> lockable).
  *
- * Capture spans frames [0, OPENRECET_V3_CAPFRAME] and the proxy reads back the
- * reference backbuffer at the target frame, so the replayer reconstructs the
- * full inherited device state and compares against the exact same frame.
+ * SINGLE-FRAME, DEFERRED-SNAPSHOT capture (P1 two-section): each frame's calls
+ * accumulate in an in-memory buffer that is dropped every Present; only the
+ * TARGET frame survives. Resource snapshots are DEFERRED to finalize, so the
+ * multi-thousand-frame prologue/load costs ZERO snapshot work — only the target
+ * frame's bound resources are ever read back (current contents, current pointers
+ * ⇒ no stale data, no pointer-reuse-across-transition bug). The target frame is
+ * picked by the app's own backbuffer readback (GetBackBuffer trigger, aligned to
+ * the harness's --capture-frames) or a present-count target. At finalize the
+ * proxy snapshots that frame's resources, patches their ids into the buffered
+ * calls, writes [resources][calls], and reads back the reference backbuffer, so
+ * the replayer re-renders + compares the exact same frame.
  */
 #define CINTERFACE
 #define COBJMACROS
@@ -88,18 +96,98 @@ static void proxy_log(const char *fmt, ...)
 }
 
 /* ── capture state ── */
-static FILE     *g_cap;            /* container file */
+static FILE     *g_cap;            /* container: [header][DEV_PARAMS] during the run; [resources][calls] appended at finalize */
 static unsigned  g_capframe = 0xFFFFFFFFu; /* present-count target; default = never (use the GetBackBuffer trigger) */
 static unsigned  g_frame;          /* present-counted frame index */
 static int       g_capturing;
 static unsigned  g_present_count;
-static long      g_frame_start_pos; /* container offset after DEV_PARAMS; single-frame mode rewinds here each frame */
-/* resource dedup: ptr -> id */
-#define ORV3_MAXRES 4096
+/* resource dedup: ptr -> id (reset per finalize — one frame's id space) */
+#define ORV3_MAXRES 32768
 static void     *g_res_ptr[ORV3_MAXRES];
 static int       g_res_id [ORV3_MAXRES];
 static int       g_n_res;
 static int       g_next_resid;
+
+/* In-memory CALL buffer for the current frame. Calls are NOT written to the
+ * container as they happen — they accumulate here and are dropped every Present
+ * (single-frame capture: keep only the trigger frame). Resource snapshots are
+ * DEFERRED to finalize: only the TARGET frame's bound resources are ever read
+ * back, so the multi-thousand-frame prologue/load costs ZERO snapshot work (the
+ * throttle + 963 MB balloon are gone). At finalize we snapshot that frame's
+ * bound resources (current contents, current pointers — no stale data, no
+ * pointer-reuse-across-transition bug), patch their ids into the buffered calls,
+ * then write [resources][calls] — resources first, so the streaming replayer
+ * still sees every id defined before it is used. */
+static uint8_t  *g_cb; static size_t g_cb_len, g_cb_cap;
+static void cb_ensure(size_t n)
+{
+    if (g_cb_len + n <= g_cb_cap) return;
+    size_t nc = g_cb_cap ? g_cb_cap : (1u << 20);
+    while (nc < g_cb_len + n) nc <<= 1;
+    g_cb = (uint8_t*)realloc(g_cb, nc); g_cb_cap = nc;
+}
+static void cb_u(uint32_t v) { cb_ensure(4); memcpy(g_cb + g_cb_len, &v, 4); g_cb_len += 4; }
+static void cb_data(const void *p, size_t n) { cb_ensure(n); if (n) memcpy(g_cb + g_cb_len, p, n); g_cb_len += n; }
+static void cb_bytes(const void *p, uint32_t n) { cb_u(n); cb_data(p, n); }  /* length-prefixed (mirrors orv3_wbytes) */
+static void cb_patch_u(size_t off, uint32_t v) { memcpy(g_cb + off, &v, 4); }
+
+/* deferred resource binds: remember (kind,ptr,id-field-offset); snapshot + patch at finalize */
+enum { PEND_TEX = 1, PEND_VB = 2, PEND_IB = 3 };
+typedef struct { int kind; void *ptr; size_t off; } Pending;
+static Pending  *g_pending; static int g_pending_n, g_pending_cap;
+static void pend_push(int kind, void *ptr, size_t off)
+{
+    if (g_pending_n >= g_pending_cap) {
+        g_pending_cap = g_pending_cap ? g_pending_cap * 2 : 8192;
+        g_pending = (Pending*)realloc(g_pending, (size_t)g_pending_cap * sizeof *g_pending);
+    }
+    g_pending[g_pending_n].kind = kind; g_pending[g_pending_n].ptr = ptr; g_pending[g_pending_n].off = off; g_pending_n++;
+}
+/* emit a deferred resource-ref id field into g_cb (placeholder now; snapshot at finalize) */
+static void cb_resref(int kind, void *ptr)
+{
+    size_t off = g_cb_len; cb_u(0xffffffffu);     /* placeholder; patched to the snapshot id (or -1) */
+    if (ptr) pend_push(kind, ptr, off);
+}
+static void cb_reset(void) { g_cb_len = 0; g_pending_n = 0; }
+
+/* ── device-state shadow (inherited-state preamble) ──
+ * A single frame is SLICED out of a long run, so any scalar state the game set in
+ * an EARLIER frame and did not re-set inside the kept frame is INHERITED and must
+ * be replayed first — else a 3D scene comes out wrong (overbright from a missing
+ * lighting/ambient state; opaque-black quads from a missing alpha-blend state).
+ * We shadow every scalar Set the game makes (render states, texture-stage states,
+ * transforms, material, FVF) and emit the shadow as a preamble at each frame
+ * boundary, so the kept frame's buffer begins at the exact inherited state. Only
+ * states the game ACTUALLY set are emitted (no GetRenderState-all, no invalid-enum
+ * risk — cheaper and more bullet-proof). Resource BINDINGS are NOT shadowed: every
+ * draw re-binds its own texture/stream/indices, so frame-start bindings never
+ * matter, and shadowing them would resurrect the load-time snapshot cost. */
+#define ORV3_NRS    256
+#define ORV3_NTSS   32
+#define ORV3_NXFORM 260   /* D3DTS_WORLD(256)..WORLD3(259) is the max index */
+static DWORD   g_sh_rs[ORV3_NRS];          static uint8_t g_sh_rs_set[ORV3_NRS];
+static DWORD   g_sh_tss[8][ORV3_NTSS];     static uint8_t g_sh_tss_set[8][ORV3_NTSS];
+static float   g_sh_xform[ORV3_NXFORM][16];static uint8_t g_sh_xform_set[ORV3_NXFORM];
+static uint8_t g_sh_mat[68];               static uint8_t g_sh_mat_set;
+static DWORD   g_sh_fvf;                    static uint8_t g_sh_fvf_set;
+static void shadow_rs(DWORD s, DWORD v)             { if (s < ORV3_NRS) { g_sh_rs[s] = v; g_sh_rs_set[s] = 1; } }
+static void shadow_tss(DWORD st, DWORD t, DWORD v)  { if (st < 8 && t < ORV3_NTSS) { g_sh_tss[st][t] = v; g_sh_tss_set[st][t] = 1; } }
+static void shadow_xform(DWORD s, const void *m)    { if (s < ORV3_NXFORM) { memcpy(g_sh_xform[s], m, 64); g_sh_xform_set[s] = 1; } }
+static void shadow_mat(const void *m)               { memcpy(g_sh_mat, m, 68); g_sh_mat_set = 1; }
+static void shadow_fvf(DWORD h)                     { g_sh_fvf = h; g_sh_fvf_set = 1; }
+/* emit the shadow as a scalar-state preamble into the (just-reset) call buffer */
+static void emit_shadow_preamble(void)
+{
+    for (int s = 0; s < ORV3_NRS; s++)
+        if (g_sh_rs_set[s]) { cb_u(ORV3_SetRenderState); cb_u((uint32_t)s); cb_u(g_sh_rs[s]); }
+    for (int st = 0; st < 8; st++) for (int t = 0; t < ORV3_NTSS; t++)
+        if (g_sh_tss_set[st][t]) { cb_u(ORV3_SetTextureStageState); cb_u((uint32_t)st); cb_u((uint32_t)t); cb_u(g_sh_tss[st][t]); }
+    for (int x = 0; x < ORV3_NXFORM; x++)
+        if (g_sh_xform_set[x]) { cb_u(ORV3_SetTransform); cb_u((uint32_t)x); cb_data(g_sh_xform[x], 64); }
+    if (g_sh_mat_set) { cb_u(ORV3_SetMaterial); cb_data(g_sh_mat, 68); }
+    if (g_sh_fvf_set) { cb_u(ORV3_SetVertexShader); cb_u(g_sh_fvf); }
+}
 
 static unsigned prim_vcount(D3DPRIMITIVETYPE t, unsigned pc)
 {
@@ -209,17 +297,32 @@ static int readback_raw(IDirect3DDevice8 *dev, const char *path)
 
 #define CAP (g_capturing && g_cap)
 
-/* finalize the capture: snapshot the reference backbuffer + close the container.
- * Called either at a present-count target (Present) or when the app reads back
- * the backbuffer for its own screenshot (GetBackBuffer trigger — aligns capture
- * to the harness's --capture-frames in sim-frame space). */
+/* finalize the capture: snapshot the TARGET frame's bound resources (read back
+ * NOW — correct contents, correct pointers, no load-time work), patch their ids
+ * into the buffered calls, write [resources][calls][Present], read back the
+ * reference backbuffer, close. Called at a present-count target (Present) or when
+ * the app reads back the backbuffer for its own screenshot (GetBackBuffer
+ * trigger — aligns capture to the harness's --capture-frames in sim-frame space). */
 static void finalize_capture(IDirect3DDevice8 *real_dev)
 {
     if (!CAP) return;
+    g_n_res = 0; g_next_resid = 0;                 /* fresh id space for this single frame */
+    for (int i = 0; i < g_pending_n; i++) {
+        int id = -1;
+        switch (g_pending[i].kind) {
+        case PEND_TEX: id = snap_tex((IDirect3DBaseTexture8*)g_pending[i].ptr); break;
+        case PEND_VB:  id = snap_vb ((IDirect3DVertexBuffer8*)g_pending[i].ptr); break;
+        case PEND_IB:  id = snap_ib ((IDirect3DIndexBuffer8*)g_pending[i].ptr); break;
+        }
+        cb_patch_u(g_pending[i].off, (uint32_t)id);
+    }
+    fwrite(g_cb, 1, g_cb_len, g_cap);              /* calls (resources already written by snap_* above) */
+    orv3_wu(g_cap, ORV3_Present); orv3_wu(g_cap, g_frame);
     char ref[MAX_PATH+32]; proxy_out_path(ref, sizeof ref, "v3ref.raw");
     readback_raw(real_dev, ref);
     orv3_wu(g_cap, ORV3_EOF); fclose(g_cap); g_cap = NULL; g_capturing = 0;
-    proxy_log("FINALIZE: frames 0..%u (%d resources) + reference\n", g_frame, g_next_resid);
+    proxy_log("FINALIZE: frame %u (%u call-bytes, %d resources) + reference\n",
+              g_frame, (unsigned)g_cb_len, g_next_resid);
 }
 
 /* ── real d3d8 resolution ── */
@@ -286,7 +389,9 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3D8_CreateDevice(
         orv3_wu(g_cap, pp->FullScreen_PresentationInterval);
         orv3_wu(g_cap, Adapter); orv3_wu(g_cap, (uint32_t)DeviceType);
         orv3_wu(g_cap, (uint32_t)pp->EnableAutoDepthStencil);
-        g_frame_start_pos = ftell(g_cap);   /* single-frame mode rewinds here */
+        /* g_cap now holds only [header][DEV_PARAMS]; nothing more is written to it
+         * until finalize (calls live in the in-memory g_cb buffer, resources are
+         * deferred). No per-frame file I/O ⇒ the load-stretch costs nothing. */
         g_capturing = 1;
         proxy_log("capture begin: %ux%u bbfmt=%u depth=%u flags=0x%x capframe=%u\n",
                   pp->BackBufferWidth, pp->BackBufferHeight, pp->BackBufferFormat,
@@ -313,13 +418,15 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_Present(
 {
     WrapDev *w = (WrapDev*)This;
     if (CAP) {
-        if (g_frame == g_capframe) { orv3_wu(g_cap, ORV3_Present); orv3_wu(g_cap, g_frame); finalize_capture(w->real); }
+        if (g_frame == g_capframe) finalize_capture(w->real);  /* present-count target */
         else {
-            /* single-frame mode: this frame wasn't the target (the GetBackBuffer
-             * trigger picks the target); rewind + re-arm for the next frame so the
-             * container only ever holds ONE frame (no load-stretch volume). */
-            fseek(g_cap, g_frame_start_pos, SEEK_SET);
-            g_n_res = 0; g_next_resid = 0;
+            /* not the target (GetBackBuffer trigger picks it): drop this frame's
+             * calls + re-arm (no file I/O), then seed the next frame's buffer with
+             * the inherited device-state preamble (shadow = end of this frame =
+             * start of the next), so whichever frame becomes the target replays
+             * the state it inherited rather than D3D defaults. */
+            cb_reset();
+            emit_shadow_preamble();
         }
     }
     g_present_count++;
@@ -328,69 +435,69 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_Present(
     return hr;
 }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_BeginScene(IDirect3DDevice8 *This)
-{ if (CAP) orv3_wu(g_cap, ORV3_BeginScene); return ((WrapDev*)This)->real->lpVtbl->BeginScene(((WrapDev*)This)->real); }
+{ if (CAP) cb_u(ORV3_BeginScene); return ((WrapDev*)This)->real->lpVtbl->BeginScene(((WrapDev*)This)->real); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_EndScene(IDirect3DDevice8 *This)
-{ if (CAP) orv3_wu(g_cap, ORV3_EndScene); return ((WrapDev*)This)->real->lpVtbl->EndScene(((WrapDev*)This)->real); }
+{ if (CAP) cb_u(ORV3_EndScene); return ((WrapDev*)This)->real->lpVtbl->EndScene(((WrapDev*)This)->real); }
 
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_Clear(
     IDirect3DDevice8 *This, DWORD count, const D3DRECT *rects, DWORD flags, D3DCOLOR color, float z, DWORD stencil)
 {
     if (CAP) {
-        orv3_wu(g_cap, ORV3_Clear); orv3_wu(g_cap, count);
-        if (count && rects) fwrite(rects, sizeof(D3DRECT), count, g_cap);
-        orv3_wu(g_cap, flags); orv3_wu(g_cap, color);
-        uint32_t zb; memcpy(&zb, &z, 4); orv3_wu(g_cap, zb); orv3_wu(g_cap, stencil);
+        cb_u(ORV3_Clear); cb_u(count);
+        if (count && rects) cb_data(rects, (size_t)count * sizeof(D3DRECT));
+        cb_u(flags); cb_u(color);
+        uint32_t zb; memcpy(&zb, &z, 4); cb_u(zb); cb_u(stencil);
     }
     return ((WrapDev*)This)->real->lpVtbl->Clear(((WrapDev*)This)->real, count, rects, flags, color, z, stencil);
 }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetRenderState(IDirect3DDevice8 *This, D3DRENDERSTATETYPE s, DWORD v)
-{ if (CAP) { orv3_wu(g_cap, ORV3_SetRenderState); orv3_wu(g_cap, s); orv3_wu(g_cap, v); }
+{ if (CAP) { cb_u(ORV3_SetRenderState); cb_u(s); cb_u(v); shadow_rs(s, v); }
   return ((WrapDev*)This)->real->lpVtbl->SetRenderState(((WrapDev*)This)->real, s, v); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetTextureStageState(IDirect3DDevice8 *This, DWORD st, D3DTEXTURESTAGESTATETYPE t, DWORD v)
-{ if (CAP) { orv3_wu(g_cap, ORV3_SetTextureStageState); orv3_wu(g_cap, st); orv3_wu(g_cap, t); orv3_wu(g_cap, v); }
+{ if (CAP) { cb_u(ORV3_SetTextureStageState); cb_u(st); cb_u(t); cb_u(v); shadow_tss(st, t, v); }
   return ((WrapDev*)This)->real->lpVtbl->SetTextureStageState(((WrapDev*)This)->real, st, t, v); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetTransform(IDirect3DDevice8 *This, D3DTRANSFORMSTATETYPE s, const D3DMATRIX *m)
-{ if (CAP) { orv3_wu(g_cap, ORV3_SetTransform); orv3_wu(g_cap, s); fwrite(m, sizeof(float), 16, g_cap); }
+{ if (CAP) { cb_u(ORV3_SetTransform); cb_u(s); cb_data(m, 16 * sizeof(float)); shadow_xform(s, m); }
   return ((WrapDev*)This)->real->lpVtbl->SetTransform(((WrapDev*)This)->real, s, m); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetMaterial(IDirect3DDevice8 *This, const D3DMATERIAL8 *m)
-{ if (CAP) { orv3_wu(g_cap, ORV3_SetMaterial); fwrite(m, sizeof(float), 17, g_cap); }
+{ if (CAP) { cb_u(ORV3_SetMaterial); cb_data(m, 17 * sizeof(float)); shadow_mat(m); }
   return ((WrapDev*)This)->real->lpVtbl->SetMaterial(((WrapDev*)This)->real, m); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetTexture(IDirect3DDevice8 *This, DWORD stage, IDirect3DBaseTexture8 *tex)
-{ if (CAP) { int id = snap_tex(tex); orv3_wu(g_cap, ORV3_SetTexture); orv3_wu(g_cap, stage); orv3_wu(g_cap, (uint32_t)id); }
+{ if (CAP) { cb_u(ORV3_SetTexture); cb_u(stage); cb_resref(PEND_TEX, tex); }
   return ((WrapDev*)This)->real->lpVtbl->SetTexture(((WrapDev*)This)->real, stage, tex); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetStreamSource(IDirect3DDevice8 *This, UINT stream, IDirect3DVertexBuffer8 *vb, UINT stride)
-{ if (CAP) { int id = snap_vb(vb); orv3_wu(g_cap, ORV3_SetStreamSource); orv3_wu(g_cap, stream); orv3_wu(g_cap, (uint32_t)id); orv3_wu(g_cap, stride); }
+{ if (CAP) { cb_u(ORV3_SetStreamSource); cb_u(stream); cb_resref(PEND_VB, vb); cb_u(stride); }
   return ((WrapDev*)This)->real->lpVtbl->SetStreamSource(((WrapDev*)This)->real, stream, vb, stride); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetIndices(IDirect3DDevice8 *This, IDirect3DIndexBuffer8 *ib, UINT base)
-{ if (CAP) { int id = snap_ib(ib); orv3_wu(g_cap, ORV3_SetIndices); orv3_wu(g_cap, (uint32_t)id); orv3_wu(g_cap, base); }
+{ if (CAP) { cb_u(ORV3_SetIndices); cb_resref(PEND_IB, ib); cb_u(base); }
   return ((WrapDev*)This)->real->lpVtbl->SetIndices(((WrapDev*)This)->real, ib, base); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetVertexShader(IDirect3DDevice8 *This, DWORD h)
-{ if (CAP) { orv3_wu(g_cap, ORV3_SetVertexShader); orv3_wu(g_cap, h); }
+{ if (CAP) { cb_u(ORV3_SetVertexShader); cb_u(h); shadow_fvf(h); }
   return ((WrapDev*)This)->real->lpVtbl->SetVertexShader(((WrapDev*)This)->real, h); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_DrawPrimitive(IDirect3DDevice8 *This, D3DPRIMITIVETYPE pt, UINT sv, UINT pc)
-{ if (CAP) { orv3_wu(g_cap, ORV3_DrawPrimitive); orv3_wu(g_cap, pt); orv3_wu(g_cap, sv); orv3_wu(g_cap, pc); }
+{ if (CAP) { cb_u(ORV3_DrawPrimitive); cb_u(pt); cb_u(sv); cb_u(pc); }
   return ((WrapDev*)This)->real->lpVtbl->DrawPrimitive(((WrapDev*)This)->real, pt, sv, pc); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_DrawIndexedPrimitive(IDirect3DDevice8 *This, D3DPRIMITIVETYPE pt, UINT mi, UINT nv, UINT si, UINT pc)
-{ if (CAP) { orv3_wu(g_cap, ORV3_DrawIndexedPrimitive); orv3_wu(g_cap, pt); orv3_wu(g_cap, mi); orv3_wu(g_cap, nv); orv3_wu(g_cap, si); orv3_wu(g_cap, pc); }
+{ if (CAP) { cb_u(ORV3_DrawIndexedPrimitive); cb_u(pt); cb_u(mi); cb_u(nv); cb_u(si); cb_u(pc); }
   return ((WrapDev*)This)->real->lpVtbl->DrawIndexedPrimitive(((WrapDev*)This)->real, pt, mi, nv, si, pc); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_DrawPrimitiveUP(IDirect3DDevice8 *This, D3DPRIMITIVETYPE pt, UINT pc, const void *data, UINT stride)
-{ if (CAP) { orv3_wu(g_cap, ORV3_DrawPrimitiveUP); orv3_wu(g_cap, pt); orv3_wu(g_cap, pc); orv3_wu(g_cap, stride);
-      uint32_t n = prim_vcount(pt, pc) * stride; orv3_wbytes(g_cap, data, n); }
+{ if (CAP) { cb_u(ORV3_DrawPrimitiveUP); cb_u(pt); cb_u(pc); cb_u(stride);
+      cb_bytes(data, prim_vcount(pt, pc) * stride); }
   return ((WrapDev*)This)->real->lpVtbl->DrawPrimitiveUP(((WrapDev*)This)->real, pt, pc, data, stride); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_DrawIndexedPrimitiveUP(
     IDirect3DDevice8 *This, D3DPRIMITIVETYPE pt, UINT mvi, UINT nvi, UINT pc,
     const void *idx, D3DFORMAT ifmt, const void *vdata, UINT stride)
-{ if (CAP) { orv3_wu(g_cap, ORV3_DrawIndexedPrimitiveUP); orv3_wu(g_cap, pt); orv3_wu(g_cap, mvi); orv3_wu(g_cap, nvi); orv3_wu(g_cap, pc); orv3_wu(g_cap, ifmt);
+{ if (CAP) { cb_u(ORV3_DrawIndexedPrimitiveUP); cb_u(pt); cb_u(mvi); cb_u(nvi); cb_u(pc); cb_u(ifmt);
       uint32_t isz = (ifmt == D3DFMT_INDEX16) ? 2u : 4u;
-      orv3_wbytes(g_cap, idx, prim_vcount(pt, pc) * isz);
-      orv3_wu(g_cap, stride);
-      orv3_wbytes(g_cap, vdata, (mvi + nvi) * stride); }
+      cb_bytes(idx, prim_vcount(pt, pc) * isz);
+      cb_u(stride);
+      cb_bytes(vdata, (mvi + nvi) * stride); }
   return ((WrapDev*)This)->real->lpVtbl->DrawIndexedPrimitiveUP(((WrapDev*)This)->real, pt, mvi, nvi, pc, idx, ifmt, vdata, stride); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_SetLight(IDirect3DDevice8 *This, DWORD index, const D3DLIGHT8 *L)
-{ if (CAP) { orv3_wu(g_cap, ORV3_SetLight); orv3_wu(g_cap, index); orv3_wbytes(g_cap, L, sizeof(D3DLIGHT8)); }
+{ if (CAP) { cb_u(ORV3_SetLight); cb_u(index); cb_bytes(L, sizeof(D3DLIGHT8)); }
   return ((WrapDev*)This)->real->lpVtbl->SetLight(((WrapDev*)This)->real, index, L); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_LightEnable(IDirect3DDevice8 *This, DWORD index, WINBOOL en)
-{ if (CAP) { orv3_wu(g_cap, ORV3_LightEnable); orv3_wu(g_cap, index); orv3_wu(g_cap, (uint32_t)en); }
+{ if (CAP) { cb_u(ORV3_LightEnable); cb_u(index); cb_u((uint32_t)en); }
   return ((WrapDev*)This)->real->lpVtbl->LightEnable(((WrapDev*)This)->real, index, en); }
 static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_GetBackBuffer(IDirect3DDevice8 *This, UINT bb, D3DBACKBUFFER_TYPE type, IDirect3DSurface8 **pp)
 { WrapDev *w = (WrapDev*)This;

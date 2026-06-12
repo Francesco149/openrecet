@@ -356,11 +356,18 @@
   whack-a-mole, fragile diffs) at the root: a shared **proxy `d3d8.dll`** captures the
   exact D3D8 command stream + dedup'd resources (both sides) → **replay re-renders each
   frame bit-exactly** (display + oracle) → **sync by stored `(anchor,offset)` identity**
-  → integrated **semantic diff** (which draw/state/texture). **P0 ✅ GO (`65bcdd7`):**
-  bit-exact capture→replay proven on a real port frame (0 px diff). Built in isolation
-  under `tools/trace_studio_v3/`; **v2 stays the working tool until v3 is proven +
-  archived.** Plan + experiment data + P1 next steps (windowed capture, content-hash
-  dedup, retail-side proxy, 3D/multi-scene tests): **`plans/trace-studio-v3.md`**.
+  → integrated **semantic diff** (which draw/state/texture). **P0 ✅ GO (`65bcdd7`)** +
+  **P1 ✅ DONE (2026-06-12):** a real HOUSE **3D** frame captured **8797 load frames deep**
+  replays **BIT-EXACT** (0 px; 55 VB/IB indexed + 31 UP draws, 46 res, ~26 MB). Got there via
+  the **deferred-snapshot two-section container** (per-frame calls buffer in RAM + drop every
+  Present; resources snapshot only at finalize ⇒ the load costs zero snapshot work, 963 MB
+  balloon + throttle gone, no stale/pointer-reuse bug) + the **device-state-shadow preamble**
+  (R4 inherited-state was real for 3D — overbright/black-blended without it; fixed by
+  shadowing every scalar Set + emitting at each frame boundary). Title regression still
+  bit-exact. Built in isolation under `tools/trace_studio_v3/` (`inspect_cap.py` = container
+  analyzer); **v2 stays the working tool until v3 is proven + archived.** **Next:** R2
+  retail-side proxy + retail full-extent capture/cache → P2 sync-by-identity. Plan +
+  experiment data: **`plans/trace-studio-v3.md`**.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.
