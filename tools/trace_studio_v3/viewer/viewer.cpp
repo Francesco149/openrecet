@@ -57,6 +57,7 @@ static const int AMP = 6;
 // draw-stepping (N3): render only the first g_draw_step draws of each side (render_upto)
 // so a frame can be watched building up draw-by-draw / a divergent draw isolated.
 static bool g_step_on = false;
+static bool g_solo = false;          // step mode: solo a single draw [J,J+1) vs prefix [0,K)
 static int  g_draw_step = 0;
 static Col  g_stepmetric;            // scratch diff metric while stepping (don't clobber the column)
 
@@ -126,21 +127,37 @@ static void precompute_metrics()
     }
 }
 
-// the draw budget for one side at the current step (clamped to its draw count; -1 = all)
-static int step_budget(int ndraws) { return (g_step_on && ndraws >= 0 && g_draw_step < ndraws) ? g_draw_step : -1; }
 static int col_maxdraws(const Col &c) { int m = c.port_draws > c.retail_draws ? c.port_draws : c.retail_draws; return m > 0 ? m : 0; }
+// draws ACTUALLY issued for a side at the current step/solo setting (for the readout)
+static int issued(int ndraws)
+{
+    if (!g_step_on || ndraws < 0) return ndraws;
+    if (g_solo) return ndraws > 0 ? 1 : 0;
+    return g_draw_step < ndraws ? g_draw_step : ndraws;   // prefix length
+}
+// render one side at the current setting: full / prefix [0,K) / solo [J,J+1) (one draw).
+static const uint8_t *render_side(OrV3Replay *rep, int idx, int ndraws)
+{
+    if (idx < 0 || !rep) return nullptr;
+    if (!g_step_on) return orv3_replay_render(rep, idx);
+    if (g_solo) {
+        int j = g_draw_step < 0 ? 0 : (g_draw_step > ndraws - 1 ? ndraws - 1 : g_draw_step);
+        return orv3_replay_render_range(rep, idx, j, j + 1);
+    }
+    return orv3_replay_render_upto(rep, idx, g_draw_step < ndraws ? g_draw_step : ndraws);
+}
 
 // render column `i` into the three panel textures (+ refresh its diff image/metric).
-// When stepping, each side renders only its first g_draw_step draws (render_upto), the
-// diff is the STEPPED diff, and the precomputed full-frame column metric is preserved
+// When stepping, each side renders a draw PREFIX (build-up) or a SOLO draw (isolation);
+// the diff is the STEPPED diff, and the precomputed full-frame column metric is preserved
 // (a scratch Col absorbs the stepped metric so the ribbon heat never gets corrupted).
 static void show_column(int i)
 {
     if (i < 0 || i >= (int)g_cols.size()) return;
     g_cur = i;
     Col &c = g_cols[i];
-    const uint8_t *p = c.port_idx   >= 0 ? orv3_replay_render_upto(g_port,   c.port_idx,   step_budget(c.port_draws))   : nullptr;
-    const uint8_t *r = c.retail_idx >= 0 ? orv3_replay_render_upto(g_retail, c.retail_idx, step_budget(c.retail_draws)) : nullptr;
+    const uint8_t *p = render_side(g_port,   c.port_idx,   c.port_draws);
+    const uint8_t *r = render_side(g_retail, c.retail_idx, c.retail_draws);
     if (p) upload(g_tport, p);
     if (r) upload(g_tretail, r);
     if (p && r) { Col &m = g_step_on ? g_stepmetric : c; diff_into(p, r, g_diffbuf, m); upload(g_tdiff, g_diffbuf); }
@@ -259,20 +276,23 @@ static void draw_ui()
     ImGui::SameLine(); if (ImGui::Button(">|")) seek((int)g_cols.size() - 1);
     ImGui::SameLine(); ImGui::Text("col %d/%d · offset %d", g_cur, (int)g_cols.size() - 1, c.offset);
 
-    // draw-step row (N3): step through draws (render_upto) to watch a frame build up
-    // or isolate a divergent draw. Each side renders its first g_draw_step draws.
+    // draw-step row (N3): step through draws (render_upto / render_range) to watch a
+    // frame build up (prefix) or ISOLATE one draw (solo) — each side independently.
     int maxd = col_maxdraws(c);
-    if (ImGui::Checkbox("draw step", &g_step_on)) { if (g_draw_step > maxd) g_draw_step = maxd; show_column(g_cur); }
+    int slmax = g_solo ? (maxd > 0 ? maxd - 1 : 0) : maxd;     // solo: draw INDEX; prefix: LENGTH
+    if (ImGui::Checkbox("draw step", &g_step_on)) { if (g_draw_step > slmax) g_draw_step = slmax; show_column(g_cur); }
     ImGui::SameLine(); ImGui::BeginDisabled(!g_step_on);
-    ImGui::SetNextItemWidth(-420);
-    if (ImGui::SliderInt("##drawstep", &g_draw_step, 0, maxd, "first %d draws")) { if (g_draw_step < 0) g_draw_step = 0; show_column(g_cur); }
-    ImGui::SameLine(); if (ImGui::Button("draw -")) { if (g_draw_step > 0) g_draw_step--; show_column(g_cur); }
-    ImGui::SameLine(); if (ImGui::Button("draw +")) { if (g_draw_step < maxd) g_draw_step++; show_column(g_cur); }
+    if (ImGui::Checkbox("solo", &g_solo)) { if (g_draw_step > slmax) g_draw_step = slmax; show_column(g_cur); }
+    ImGui::SameLine(); ImGui::SetNextItemWidth(-440);
+    if (ImGui::SliderInt("##drawstep", &g_draw_step, 0, slmax, g_solo ? "draw #%d (solo)" : "first %d draws")) {
+        if (g_draw_step < 0) g_draw_step = 0; show_column(g_cur);
+    }
+    ImGui::SameLine(); if (ImGui::Button("-")) { if (g_draw_step > 0) g_draw_step--; show_column(g_cur); }
+    ImGui::SameLine(); if (ImGui::Button("+")) { if (g_draw_step < slmax) g_draw_step++; show_column(g_cur); }
     ImGui::EndDisabled();
     ImGui::SameLine();
-    int pe = step_budget(c.port_draws) < 0 ? c.port_draws : step_budget(c.port_draws);
-    int re = step_budget(c.retail_draws) < 0 ? c.retail_draws : step_budget(c.retail_draws);
-    ImGui::Text("issuing  port %d/%d · retail %d/%d", pe, c.port_draws, re, c.retail_draws);
+    ImGui::Text("issuing  port %d/%d · retail %d/%d", issued(c.port_draws), c.port_draws,
+                issued(c.retail_draws), c.retail_draws);
 
     // 3-panel row
     int nshow = (g_show[0] ? 1 : 0) + (g_show[1] ? 1 : 0) + (g_show[2] ? 1 : 0);
@@ -348,7 +368,7 @@ static void draw_ui()
         }
     }
 
-    ImGui::TextDisabled("keys: ,/. ±1 · arrows ±10 · Home/End · 1/2/3 panels · [ ] draw± · w worst · n next");
+    ImGui::TextDisabled("keys: ,/. ±1 · arrows ±10 · Home/End · 1/2/3 panels · [ ] draw± · s solo · w worst · n next");
     ImGui::End();
 }
 
@@ -413,7 +433,7 @@ static int do_shot(const char *out, const char *view, int W, int H, int col, int
     imgui_init(hwnd);
     if (view && !load_view(view)) return 2;
     if (draw_step >= 0) { g_step_on = true; g_draw_step = draw_step; }   // headless draw-step verify
-    if (col > 0) seek(col); else if (g_step_on) show_column(g_cur);      // apply col/step before the shot
+    if (col > 0) seek(col); else if (g_step_on) show_column(g_cur);      // apply col/step before the shot (g_solo may be preset)
     begin_frame(); draw_ui(); end_frame();
 
     IDirect3DSurface9 *bb = nullptr, *sys = nullptr; int rc = 2;
@@ -456,10 +476,12 @@ static void handle_keys()
     if (ImGui::IsKeyPressed(ImGuiKey_3)) g_show[2] = !g_show[2];
     if (ImGui::IsKeyPressed(ImGuiKey_W)) { int wbest = 0; for (size_t i = 0; i < g_cols.size(); i++) if (g_cols[i].gt8 > g_cols[wbest].gt8) wbest = (int)i; seek(wbest); }
     if (ImGui::IsKeyPressed(ImGuiKey_N)) { for (size_t i = g_cur + 1; i < g_cols.size(); i++) if (g_cols[i].gt8 > 0) { seek((int)i); break; } }
-    // [ ] step draws (engages draw-stepping); clamp to this column's max
+    // [ ] step draws (engages draw-stepping); s toggles solo; clamp to this column's max
     int maxd = col_maxdraws(g_cols[g_cur]);
-    if (ImGui::IsKeyPressed(ImGuiKey_LeftBracket))  { g_step_on = true; if (g_draw_step > 0)    g_draw_step--; show_column(g_cur); }
-    if (ImGui::IsKeyPressed(ImGuiKey_RightBracket)) { g_step_on = true; if (g_draw_step < maxd) g_draw_step++; show_column(g_cur); }
+    int slmax = g_solo ? (maxd > 0 ? maxd - 1 : 0) : maxd;
+    if (ImGui::IsKeyPressed(ImGuiKey_LeftBracket))  { g_step_on = true; if (g_draw_step > 0)     g_draw_step--; show_column(g_cur); }
+    if (ImGui::IsKeyPressed(ImGuiKey_RightBracket)) { g_step_on = true; if (g_draw_step < slmax) g_draw_step++; show_column(g_cur); }
+    if (ImGui::IsKeyPressed(ImGuiKey_S)) { g_solo = !g_solo; g_step_on = true; if (g_draw_step > slmax) g_draw_step = slmax; show_column(g_cur); }
 }
 
 static int do_interactive(const char *view)
@@ -497,6 +519,7 @@ int main(int argc, char **argv)
         if (strcmp(argv[i], "--shot") == 0 && i + 1 < argc) shot = argv[++i];
         else if (strcmp(argv[i], "--col") == 0 && i + 1 < argc) col = atoi(argv[++i]);
         else if (strcmp(argv[i], "--draw-step") == 0 && i + 1 < argc) draw_step = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--solo") == 0) g_solo = true;
         else view = argv[i];
     }
     if (shot) return do_shot(shot, view, 1400, 900, col, draw_step);

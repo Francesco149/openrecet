@@ -49,6 +49,13 @@ const uint8_t *orv3_replay_render(OrV3Replay *r, int idx);
  * up draw-by-draw, find overdraw, or (binary-searched) pick the draw under a pixel. */
 const uint8_t *orv3_replay_render_upto(OrV3Replay *r, int idx, int max_draws);
 
+/* Render frame `idx` issuing only the draws with index in [lo, hi) (hi < 0 ⇒ to the
+ * end), every state/clear/scene call still issued. [0,K) is the prefix (== _upto K);
+ * [J,J+1) is a SINGLE draw in ISOLATION over the clear with its correct device state
+ * — the solo-draw view that shows exactly what one draw paints (e.g. a divergent draw
+ * the other side omits). Reads back as orv3_replay_render. */
+const uint8_t *orv3_replay_render_range(OrV3Replay *r, int idx, int lo, int hi);
+
 void orv3_replay_close(OrV3Replay *r);
 
 #ifdef __cplusplus
