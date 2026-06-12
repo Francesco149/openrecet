@@ -22,6 +22,7 @@ viewer) and as a CLI for ad-hoc "explain this frame" probes.
 from __future__ import annotations
 
 import difflib
+import hashlib
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -81,39 +82,52 @@ class Draw:
         return orv3.OPNAME.get(self.op, f"op{self.op}")
 
 
-class _ResHash:
-    """Lazily content-hash a container's resources by id (matches the proxy dedup)."""
+class ResHash:
+    """Content-hash a container's resources by id, memoized. Create ONCE per container
+    and reuse across all its frames — a resource bound in many frames is hashed once
+    (a HOUSE container is ~26 MB; re-hashing per frame is the bake's dominant cost).
+
+    The hash is a fast C-speed blake2b over a ZERO-COPY memoryview of the resource
+    body (type-keyed, so a tex and a VB with identical bytes don't collide). It need
+    only be deterministic + identical for identical CONTENT across the two containers
+    (cross-side comparable) — that holds for any content hash, so blake2b replaces the
+    pure-Python fnv1a byte loop that made the bake pathologically slow."""
 
     def __init__(self, c: orv3.Container):
         self.c = c
+        self._mv = memoryview(c.data)
         self._cache: dict[int, int] = {}
 
     def of(self, rid: int) -> int:
         if rid < 0:
             return 0
-        if rid in self._cache:
-            return self._cache[rid]
+        h = self._cache.get(rid)
+        if h is not None:
+            return h
         entry = self.c.resources.get(rid)
         if not entry:
             return 0
         typ, start, end = entry
-        body = self.c.data[start + 8:end]          # skip [type][id]
-        h = fnv1a(body, fnv1a(struct.pack("<I", typ), _FNV_SEED))
+        d = hashlib.blake2b(digest_size=8)
+        d.update(struct.pack("<I", typ))
+        d.update(self._mv[start + 8:end])          # body after [type][id], zero-copy
+        h = int.from_bytes(d.digest(), "little")
         self._cache[rid] = h
         return h
 
 
-def enumerate_draws(c: orv3.Container, frame_index: int) -> list[Draw]:
+def enumerate_draws(c: orv3.Container, frame_index: int, reshash: ResHash | None = None) -> list[Draw]:
     """Walk kept frame `frame_index`'s call section and return its draws in order,
     each carrying the bound texture/VB/IB/FVF + the tracked render/stage states. The
     section's preamble re-establishes inherited state, so state is correct from the
-    section start (no need to replay earlier frames)."""
+    section start (no need to replay earlier frames). Pass a shared `reshash` (one per
+    container) when enumerating many frames so resources are hashed once, not per call."""
     if not (0 <= frame_index < c.n_frames):
         raise IndexError(f"frame {frame_index} out of range (0..{c.n_frames})")
     f = c.frames[frame_index]
     d = c.data
     p, end = f.byte_start, f.byte_end
-    reshash = _ResHash(c)
+    reshash = reshash or ResHash(c)
 
     def u(off: int) -> int:
         return struct.unpack_from("<I", d, off)[0]
@@ -311,13 +325,14 @@ def material_diff(port: list[Draw], retail: list[Draw]) -> dict:
     }
 
 
-def frame_draw_report(pc: orv3.Container, pidx: int,
-                      rc: orv3.Container, ridx: int) -> dict:
+def frame_draw_report(pc: orv3.Container, pidx: int, rc: orv3.Container, ridx: int,
+                      preshash: ResHash | None = None, rreshash: ResHash | None = None) -> dict:
     """The per-column draw semantics baked into view.json: the material verdict +
     the genuinely-divergent textures (with their port/retail triangle+draw counts),
     so the viewer can flag a frame whose pixels match but whose render program does
-    not. Lean by design (no full per-draw list — that's the on-demand draws sidecar)."""
-    md = material_diff(enumerate_draws(pc, pidx), enumerate_draws(rc, ridx))
+    not. Lean by design (no full per-draw list — that's the on-demand draws sidecar).
+    Pass shared per-container ResHash instances when baking many columns."""
+    md = material_diff(enumerate_draws(pc, pidx, preshash), enumerate_draws(rc, ridx, rreshash))
     return {
         "draw_verdict": md["verdict"],
         "port_tris": md["port_tris"], "retail_tris": md["retail_tris"],

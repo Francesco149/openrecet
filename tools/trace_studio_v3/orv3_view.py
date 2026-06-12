@@ -185,6 +185,9 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
     rmeta, ridx, _, rc = _side_index(retail_entry)
     join = orv3_sync.sync_entries(port_entry, retail_entry, quiet=True)
     rows = merge_offsets(set(pidx), set(ridx))
+    # one ResHash per container, reused across every column (a resource is hashed once,
+    # not per frame) — the difference between a fast bake and a pathological one at scale.
+    preshash, rreshash = orv3_draws.ResHash(pc), orv3_draws.ResHash(rc)
     frames = []
     for row in rows:
         off = row["offset"]
@@ -197,7 +200,7 @@ def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dic
             "port_calls": pf.n_calls if pf else None, "retail_calls": rf.n_calls if rf else None,
         }
         if pf and rf:   # both sides present → the material/draw-program semantic diff
-            fr.update(orv3_draws.frame_draw_report(pc, pf.index, rc, rf.index))
+            fr.update(orv3_draws.frame_draw_report(pc, pf.index, rc, rf.index, preshash, rreshash))
         frames.append(fr)
     manifest = {
         "scenario": pmeta.scenario, "anchor": pmeta.anchor, "anchor_occ": pmeta.anchor_occ,
