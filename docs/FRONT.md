@@ -369,11 +369,14 @@
   (2026-06-12, `fe3722a`) — the SAME proxy d3d8.dll captures BOTH sides.** The Windows loader
   picks up the app-local proxy for the SteamStub-unpacked retail exe (even from a
   `\\wsl.localhost` UNC path under Frida spawn — unpack doesn't interfere), and the retail
-  **title** frame (640×480, 5 res, 52 calls) replays **0 px / 0 byte** vs the proxy reference
-  (port regression still bit-exact). Findings now in DEV_PARAMS: **retail is 640×480** (port
-  1024×768) + **non-lockable backbuffer** (flags=0x0) ⇒ CopyRects-via-sysmem readback (shared
-  proxy+replayer helper). Config via `v3proxy.cfg` next to the dll (env vars don't cross to
-  the Frida-spawned exe); kill-safe unbuffered log; driver `r2_retail_probe.py`. **Next:**
+  **title** frame replays **0 px / 0 byte** vs the proxy reference (port regression still
+  bit-exact). Findings: retail's OWN `recet.ini` read **fails over the `\\wsl.localhost` UNC
+  path** (`GetPrivateProfileIntA` can't read it ⇒ `screen` defaults to 0 ⇒ 640×480), so retail
+  is **pinned to 1024×768 via the agent's `force_resolution` hook** (the same mechanism v2
+  scenario-test uses) — both sides now 1024×768 + bit-exact; retail's **backbuffer is
+  non-lockable** (flags=0x0; port 0x1) ⇒ CopyRects-via-sysmem readback (shared proxy+replayer
+  helper). Config via `v3proxy.cfg` next to the dll (env vars don't cross to the Frida-spawned
+  exe); kill-safe unbuffered log; driver `r2_retail_probe.py`. **Next:**
   retail FULL-EXTENT capture + content-addressed cache (P1 tail) → P2 sync-by-identity. Plan +
   experiment data: **`plans/trace-studio-v3.md`**.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling

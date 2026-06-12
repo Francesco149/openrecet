@@ -47,6 +47,27 @@ def wslpath_w(p: Path) -> str:
     return r.stdout.strip()
 
 
+# screen=N → (w,h), mirroring the engine (FUN_0047a474 DAT_005cbc04/08) + scenario-test.
+_SCREEN_SIZES = {0: (640, 480), 1: (800, 600), 2: (1024, 768), 3: (1280, 960)}
+
+
+def openrecet_screen_dims() -> tuple[int, int]:
+    """Resolution openrecet renders at, from vendor/original/recet.ini's `screen=`
+    (default 1024×768). Retail's OWN recet.ini read fails over the \\\\wsl.localhost
+    UNC path (GetPrivateProfileIntA can't read it ⇒ screen defaults to 0 ⇒ 640×480),
+    so we pin retail to these dims via the agent's force_resolution hook — the same
+    thing scenario-test does for the v2 retail captures."""
+    ini = ASSET_CWD / "recet.ini"
+    try:
+        for raw in ini.read_text().splitlines():
+            line = raw.strip()
+            if line.startswith("screen") and "=" in line:
+                return _SCREEN_SIZES.get(int(line.split("=", 1)[1].strip()), (1024, 768))
+    except (OSError, ValueError):
+        pass
+    return (1024, 768)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="R2: proxy-d3d8 loadability into retail.")
     ap.add_argument("--capframe", type=int, default=None,
@@ -60,6 +81,9 @@ def main() -> int:
     ap.add_argument("--max-frames", type=int, default=8000,
                     help="engine-side frame budget handed to the agent.")
     ap.add_argument("--frida-remote", default=DEFAULT_REMOTE)
+    ap.add_argument("--hook-ini", action="store_true",
+                    help="diagnostic: Interceptor on GetPrivateProfileIntA — log the "
+                         "ini path retail builds + the [setup]screen value it resolves.")
     args = ap.parse_args()
 
     if not PROXY_DLL.exists():
@@ -121,16 +145,52 @@ def main() -> int:
     script.on("message", on_message)
     script.load()
 
+    if args.hook_ini:
+        hook_src = r"""
+        var k32 = Process.findModuleByName('kernel32.dll');
+        var fn = k32 && k32.findExportByName('GetPrivateProfileIntA');
+        if (!fn) { send({kind:'ini', what:'err', msg:'GetPrivateProfileIntA not found'}); }
+        var seen = {};
+        Interceptor.attach(fn, {
+            onEnter: function (a) {
+                this.sec = a[0].readAnsiString();
+                this.key = a[1].readAnsiString();
+                this.def = a[2].toInt32();
+                this.file = a[3].readAnsiString();
+            },
+            onLeave: function (r) {
+                var k = this.sec + '/' + this.key;
+                // report the ini path ONCE, and every screen/winmode read
+                if (!seen['__path']) { seen['__path'] = 1;
+                    send({kind:'ini', what:'path', file:this.file}); }
+                if (this.key === 'screen' || this.key === 'winmode') {
+                    send({kind:'ini', what:'read', sec:this.sec, key:this.key,
+                          def:this.def, ret:r.toInt32(), file:this.file});
+                }
+            }
+        });
+        send({kind:'ini', what:'hooked'});
+        """
+        hook = session.create_script(hook_src)
+        hook.on("message", lambda m, d: (
+            print(f"[ini] {m.get('payload')}") if m.get("type") == "send" else
+            print(f"[ini-err] {m.get('description','')}")))
+        hook.load()
+
+    res_w, res_h = openrecet_screen_dims()
     init_cfg = {
-        "max_frames":    args.max_frames,
-        "input_trace":   [],
-        "force_input":   False,
-        "hide_window":   True,
-        "turbo":         True,
-        "turbo_step_ms": 17,
-        "silent_audio":  True,
+        "max_frames":       args.max_frames,
+        "input_trace":      [],
+        "force_input":      False,
+        "hide_window":      True,
+        "turbo":            True,
+        "turbo_step_ms":    17,
+        "silent_audio":     True,
+        # pin retail's resolution to the port's (retail's UNC recet.ini read fails →
+        # would default to 640×480); patches DAT_005cbc04/08 on FUN_0047a474 exit.
+        "force_resolution": [res_w, res_h],
     }
-    print(f"[init]  {json.dumps(init_cfg)}")
+    print(f"[init]  force_resolution={res_w}x{res_h}; {json.dumps({k:v for k,v in init_cfg.items() if k!='force_resolution'})}")
     script.exports_sync.init(init_cfg)
 
     dev.resume(pid)

@@ -31,13 +31,19 @@ proxy d3d8.dll captures BOTH sides.** R2a (loadability): the Windows loader pick
 app-local proxy d3d8.dll for `vendor/unpacked/recettear.unpacked.exe` — even loaded from a
 `\\wsl.localhost` UNC path under Frida spawn — and wraps `Direct3DCreate8`+`CreateDevice`;
 **SteamStub/the unpack does NOT interfere**. R2b: the retail **title screen** (frame 120,
-640×480, 5 res, 52 calls, 6 draws) replays **0 px / 0 byte** vs the proxy reference (port
-regression still bit-exact). Two findings now in DEV_PARAMS (matter for P2 diff align):
-**retail renders 640×480** (port 1024×768) and **ships its backbuffer NON-lockable**
-(flags=0x0; port 0x1) ⇒ readback must bounce through a sysmem surface via CopyRects (now a
-shared helper used by proxy + replayer, the same path the v2 agent uses). Config now via a
-`v3proxy.cfg` next to the dll (capframe/out — env vars don't cross to the Frida-spawned exe);
-proxy log made unbuffered (kill-safe). Driver: `tools/trace_studio_v3/r2_retail_probe.py`.
+1024×768, 5 res, 52 calls, 6 draws) replays **0 px / 0 byte** vs the proxy reference (port
+regression still bit-exact). Two findings (matter for P2 diff align): (1) retail's OWN
+`recet.ini` read **fails over the `\\wsl.localhost` UNC path** — `GetPrivateProfileIntA` can't
+read it (plain `fopen` can; that's why the proxy's `v3proxy.cfg` over UNC works), so `screen`
+falls to its default 0 ⇒ 640×480. Retail is **pinned to 1024×768 to match the port via the
+agent's `force_resolution` hook** (patches `DAT_005cbc04/08` on `FUN_0047a474` exit — the same
+mechanism scenario-test uses for v2 retail; my first R2 probe just hadn't enabled it). (2)
+retail **ships its backbuffer NON-lockable** (flags=0x0; port 0x1) ⇒ readback bounces through
+a sysmem surface via CopyRects (now a shared helper used by proxy + replayer, the same path
+the v2 agent uses). Config now via a `v3proxy.cfg` next to the dll (capframe/out — env vars
+don't cross to the Frida-spawned exe); proxy log made unbuffered (kill-safe). Driver:
+`tools/trace_studio_v3/r2_retail_probe.py` (`--hook-ini` = the GetPrivateProfileIntA probe
+that found the UNC read failure).
 **Next: retail FULL-EXTENT capture + content-addressed cache (P1 tail) → P2 sync-by-identity.**
 
 **3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
@@ -265,8 +271,9 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
 - **R2 ✅ SOLVED (2026-06-12, `fe3722a`): proxy-DLL loadability + capture for retail.**
   The loader picks up the app-local proxy d3d8.dll for the unpacked exe (even from a
   `\\wsl.localhost` UNC path under Frida spawn); SteamStub/the unpack does NOT interfere.
-  A retail title frame captures + replays bit-exact. Surfaced: retail is 640×480 with a
-  NON-lockable backbuffer (CopyRects-via-sysmem readback, now shared by proxy + replayer).
+  A retail title frame captures + replays bit-exact. Surfaced: retail's UNC recet.ini read
+  fails (defaults to 640×480) ⇒ pinned to 1024×768 via force_resolution to match the port; and
+  a NON-lockable backbuffer (CopyRects-via-sysmem readback, now shared by proxy + replayer).
 - **R3: resource-capture overhead** (hashing every lock). Measure; expected cheap given
   dedup, but Lock-heavy frames need a fast hash + a "dirty range" shortcut.
 - **R4 ✅ SOLVED (2026-06-12): inherited state at a sliced window start.** Title was
