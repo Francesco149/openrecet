@@ -388,10 +388,27 @@
   per kept frame writes `[new RES][preamble][calls][Present]`, fflush per frame (kill-safe);
   GetBackBuffer keeps every caprange frame (port MULTI mode); retail capframe path stays
   single-frame (R2 regression bit-exact); replayer renders any kept-frame INDEX. Committed
-  driver `port_capture.py`; `inspect_cap.py` multi-frame aware. **Next:** RETAIL full-extent
-  (a present-WINDOW keep mode — retail doesn't read back per frame, needs an anchor-relative
-  present window, not the port's GetBackBuffer trigger) + the content-addressed slice cache →
-  P2 sync-by-identity. Plan + experiment data: **`plans/trace-studio-v3.md`**.
+  driver `port_capture.py`; `inspect_cap.py` multi-frame aware.
+  **RETAIL present-WINDOW keep mode + ANCHOR-RELATIVE arming ✅ DONE (2026-06-12):** the retail
+  full-extent CAPTURE MECHANISM is proven end-to-end (4 commits). Retail has no per-frame readback,
+  so the window is addressed by PRESENT-COUNT (`capframe`/`capcount`) — keep every present in
+  `[start,start+count)`, the retail counterpart of the port's GetBackBuffer trigger. Proven
+  bit-exact: **PORT** `--window 944:44` (re-captures the HOUSE 3D caprange via present-count →
+  44/44; per-frame call-bytes CONSTANT ⇒ the new per-present `cb_reset` fixes a latent frame-0..N
+  call-accumulation); **RETAIL** `--window 120:48` (48-frame TITLE → ONE 8.7 MB container, 48/48,
+  48 DISTINCT frames ⇒ a real multi-frame test, not 48 copies). Anchor-relative arming (so a
+  post-load window lands despite the nondeterministic load-stretch): the `OrV3ArmWindowAt(start,
+  count)` proxy export (WINAPI/`--kill-at` undecorated; `--arm 120:48` via Frida NativeFunction →
+  48/48, proving the ABI + that d3d8 is a static import) + the **agent IN-PROCESS arm**
+  (`config.v3_arm={anchor,offset,count}`; `sendAnchor`→`v3ArmOnAnchor` calls the export the first
+  time the anchor fires — gated/no-op for v2; `--arm-anchor BOOT+120:48` → "armed BOOT@frame 0 →
+  [120,168)" → 48/48). Drivers: `retail_capture.py` (`--window`/`--arm`/`--arm-anchor`) +
+  `port_capture.py --window`. **Next (P1 tail final):** the HOUSE-drive integration — `v3_arm`
+  through `frida_capture` + an `armwait` cfg (suppress the GetBackBuffer trigger through the long
+  pre-`HOUSE_FREEROAM` load, else a stray readback mis-keeps a load frame) + a house driver
+  (save-virt/input → `run_capture` → arm at `HOUSE_FREEROAM+120` → replay bit-exact). **Then** the
+  content-addressed slice cache → P2 sync-by-identity. Plan + the step-by-step HOUSE-drive recipe:
+  **`plans/trace-studio-v3.md`**.
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.

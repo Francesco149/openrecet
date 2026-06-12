@@ -101,11 +101,30 @@ delivery paths, both proven bit-exact:
   starts. `retail_capture.py --arm-anchor BOOT+120:48` → the agent armed `BOOT@frame 0 ->
   [120,168)` → 48/48 BIT-EXACT. The agent edit is gated on `config.v3_arm` (null default) ⇒ a
   silent no-op for every v2 capture (node-syntax-checked; this run exercised it end-to-end).
-**Next: drive retail to the HOUSE** (save-virt + input via the v2 `frida_capture`/scenario-test
-machinery — orthogonal, already proven) **and arm at `HOUSE_FREEROAM+120`** for a real post-load
-3D window → the full retail full-extent deliverable. **Then the content-addressed slice cache**
-(capture retail's window ONCE, key by trace-hash, slice sub-windows with zero re-drives) →
-P2 sync-by-identity.
+**Next (P1 TAIL final — the HOUSE-drive integration):** drive retail to the HOUSE (save-virt +
+input) and arm at `HOUSE_FREEROAM+120` for a real post-load 3D window — the full retail
+full-extent deliverable. Concrete plan (the pieces are scoped; the mechanism is done):
+1. **`frida_capture` plumbing (small, gated):** add a `v3_arm` field to `CaptureConfig` +
+   `if cfg.v3_arm: init_cfg["v3_arm"] = cfg.v3_arm` at `frida_capture.py:~1210` (next to
+   `anchor_trace`). None default ⇒ no-op for v2.
+2. **Proxy robustness — `armwait` (small):** during the long pre-`HOUSE_FREEROAM` load,
+   `g_capframe` is unset, so the **GetBackBuffer MULTI trigger is still ACTIVE** — any stray
+   readback (retail's own, or a leftover agent capture) would mis-keep a load frame. Add a cfg
+   key `armwait=1` that suppresses the GetBackBuffer trigger so the proxy IDLES until
+   `OrV3ArmWindowAt` fires. (The title `--arm-anchor BOOT+120` was safe only because BOOT arms at
+   frame ~0; `HOUSE_FREEROAM` arms thousands of frames in, leaving a long active-trigger window.)
+   The retail house driver writes `armwait=1`; also DISABLE the agent's own frame capture
+   (`capture_frames=[]`, no `d3d_trace`) so only the armed window keeps.
+3. **House driver:** resolve the scenario's `save_ref` (`trace_save.resolve_save`) +
+   `input_segtrace_path` (mirror `scenario-test.run_scenario_capture_retail`), stage the proxy +
+   `armwait` cfg, call `frida_capture.run_capture(..., v3_arm={anchor:'HOUSE_FREEROAM',offset:120,
+   count:N}, save_ref=…, input_segtrace_path=…, force_resolution=…, turbo=True, rng_seed=…,
+   suppress_loads=…)`, then pull + replay every frame + assert bit-exact (the scenario is
+   `house-loaded-display-pinned`; a HOUSE 3D window with VB/IB draws — the port already proved
+   3D multi-frame bit-exact, R2 proved retail single-frame, so this combines two proven paths).
+   Watch: a full house drive is a multi-minute retail run (slow verify).
+**Then the content-addressed slice cache** (capture retail's window ONCE, key by trace-hash,
+slice sub-windows with zero re-drives) → P2 sync-by-identity.
 
 **3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
 (not a flaw in the bet).** Tried capturing a 3D HOUSE frame via `scenario-test`. Two
