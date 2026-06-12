@@ -74,6 +74,67 @@ def naive_absolute_pairs(port_rows, retail_rows):
     return sum(1 for p in port_rows if p["present"] in rpres)
 
 
+def sync_entries(port_entry: Path, retail_entry: Path, *, write_pairs: bool = False,
+                 pairs_path: Path | None = None, quiet: bool = False) -> dict:
+    """JOIN two cache entries (port + retail) by stored identity, print the report
+    (unless quiet), optionally write pairs.json, and RETURN the join result
+    {verdict, pairs, port_only, retail_only, naive, load_stretch}. The orv3_window
+    orchestrator calls this on the two sub-window slices; main() is a thin CLI wrap."""
+    def say(*a):
+        if not quiet:
+            print(*a)
+
+    pmeta, prows = identities(port_entry)
+    rmeta, rrows = identities(retail_entry)
+
+    say(f"port   : {pmeta.scenario}  {pmeta.anchor}#{pmeta.anchor_occ}  "
+        f"offsets {pmeta.offset0}..{pmeta.offset0 + pmeta.count - 1}  "
+        f"present {prows[0]['present']}..{prows[-1]['present']}  ({len(prows)} frames)")
+    say(f"retail : {rmeta.scenario}  {rmeta.anchor}#{rmeta.anchor_occ}  "
+        f"offsets {rmeta.offset0}..{rmeta.offset0 + rmeta.count - 1}  "
+        f"present {rrows[0]['present']}..{rrows[-1]['present']}  ({len(rrows)} frames)")
+    load_stretch = rmeta.anchor_frame - pmeta.anchor_frame
+    say(f"load stretch (retail anchor − port anchor present-count): {load_stretch:+d} frames")
+
+    pairs, port_only, retail_only = join(prows, rrows)
+    naive = naive_absolute_pairs(prows, rrows)
+
+    say(f"\nv3 identity-join (anchor#occ, offset-since-anchor):")
+    say(f"  paired           : {len(pairs)} / {min(len(prows), len(rrows))}")
+    say(f"  port-only  (gaps): {len(port_only)}"
+        + (f"  e.g. {[p['key'] for p in port_only[:3]]}" if port_only else ""))
+    say(f"  retail-only(gaps): {len(retail_only)}"
+        + (f"  e.g. {[r['key'] for r in retail_only[:3]]}" if retail_only else ""))
+    if pairs:
+        e = pairs[0]
+        say(f"  e.g. {tuple(e['key'])}: port#{e['port']}(present {e['port_present']}) "
+            f"== retail#{e['retail']}(present {e['retail_present']})  "
+            f"— {e['retail_present'] - e['port_present']:+d} absolute, SAME moment")
+
+    naive_msg = ("load stretch ⇒ zero shared presents — frame-number pairing is hopeless"
+                 if naive == 0 else "windows happen to overlap in present space")
+    say(f"\ncontrast — naive absolute-present pairing (same present-count):")
+    say(f"  paired           : {naive} / {min(len(prows), len(rrows))}   ({naive_msg})")
+
+    verdict = "ALIGNED" if (not port_only and not retail_only) else \
+              f"PARTIAL ({len(pairs)} paired, {len(port_only)}+{len(retail_only)} honest gaps)"
+    say(f"\nVERDICT: {verdict}")
+
+    result = {"verdict": verdict, "pairs": pairs, "port_only": port_only,
+              "retail_only": retail_only, "naive": naive, "load_stretch": load_stretch,
+              "anchor": pmeta.anchor}
+    if write_pairs:
+        out = pairs_path or (port_entry / "pairs.json")
+        out.write_text(json.dumps({
+            "port_entry": str(port_entry), "retail_entry": str(retail_entry),
+            "anchor": pmeta.anchor, "verdict": verdict,
+            "pairs": pairs, "port_only": port_only, "retail_only": retail_only,
+        }, indent=1))
+        say(f"wrote {out} ({len(pairs)} pairs)")
+        result["pairs_path"] = str(out)
+    return result
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="v3 sync-by-identity join (port vs retail).")
     ap.add_argument("port_entry", type=Path, help="port cache entry dir (v3cap.bin + v3meta.json)")
@@ -82,50 +143,7 @@ def main() -> int:
                     help="write pairs.json (the stored join) next to the port entry")
     args = ap.parse_args()
 
-    pmeta, prows = identities(args.port_entry)
-    rmeta, rrows = identities(args.retail_entry)
-
-    print(f"port   : {pmeta.scenario}  {pmeta.anchor}#{pmeta.anchor_occ}  "
-          f"offsets {pmeta.offset0}..{pmeta.offset0 + pmeta.count - 1}  "
-          f"present {prows[0]['present']}..{prows[-1]['present']}  ({len(prows)} frames)")
-    print(f"retail : {rmeta.scenario}  {rmeta.anchor}#{rmeta.anchor_occ}  "
-          f"offsets {rmeta.offset0}..{rmeta.offset0 + rmeta.count - 1}  "
-          f"present {rrows[0]['present']}..{rrows[-1]['present']}  ({len(rrows)} frames)")
-    load_stretch = rmeta.anchor_frame - pmeta.anchor_frame
-    print(f"load stretch (retail anchor − port anchor present-count): {load_stretch:+d} frames")
-
-    pairs, port_only, retail_only = join(prows, rrows)
-    naive = naive_absolute_pairs(prows, rrows)
-
-    print(f"\nv3 identity-join (anchor#occ, offset-since-anchor):")
-    print(f"  paired           : {len(pairs)} / {min(len(prows), len(rrows))}")
-    print(f"  port-only  (gaps): {len(port_only)}"
-          + (f"  e.g. {[p['key'] for p in port_only[:3]]}" if port_only else ""))
-    print(f"  retail-only(gaps): {len(retail_only)}"
-          + (f"  e.g. {[r['key'] for r in retail_only[:3]]}" if retail_only else ""))
-    if pairs:
-        e = pairs[0]
-        print(f"  e.g. {tuple(e['key'])}: port#{e['port']}(present {e['port_present']}) "
-              f"== retail#{e['retail']}(present {e['retail_present']})  "
-              f"— {e['retail_present'] - e['port_present']:+d} absolute, SAME moment")
-
-    naive_msg = ("load stretch ⇒ zero shared presents — frame-number pairing is hopeless"
-                 if naive == 0 else "windows happen to overlap in present space")
-    print(f"\ncontrast — naive absolute-present pairing (same present-count):")
-    print(f"  paired           : {naive} / {min(len(prows), len(rrows))}   ({naive_msg})")
-
-    verdict = "ALIGNED" if (not port_only and not retail_only) else \
-              f"PARTIAL ({len(pairs)} paired, {len(port_only)}+{len(retail_only)} honest gaps)"
-    print(f"\nVERDICT: {verdict}")
-
-    if args.write_pairs:
-        out = args.port_entry / "pairs.json"
-        out.write_text(json.dumps({
-            "port_entry": str(args.port_entry), "retail_entry": str(args.retail_entry),
-            "anchor": pmeta.anchor, "verdict": verdict,
-            "pairs": pairs, "port_only": port_only, "retail_only": retail_only,
-        }, indent=1))
-        print(f"wrote {out} ({len(pairs)} pairs)")
+    sync_entries(args.port_entry, args.retail_entry, write_pairs=args.write_pairs)
 
     # A report tool: honest gaps are a real structural fact (one side genuinely has a
     # frame the other doesn't), not a tool failure — so always exit 0. The VERDICT

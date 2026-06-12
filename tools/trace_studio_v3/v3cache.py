@@ -105,6 +105,65 @@ def load_meta(entry: Path) -> FrameIdentity:
     return FrameIdentity(**json.loads((entry / "v3meta.json").read_text()))
 
 
+# ── cache LOOKUP: find a cached full-extent that a sub-window can be sliced from ──
+# The auto-drive loop (orv3_window.py) asks "is the requested window already in a
+# cached full-extent?" — if so it SLICES (zero re-drive), else it drives. Lookup is a
+# scan of CACHE_ROOT (a full-extent per scenario isn't keyed by the per-window
+# offset/count, so the loop can't reconstruct the dir name), guarded so it can never
+# serve a STALE entry: the dir name encodes hash(trace+arm), and arm is reconstructible
+# from the stored meta (anchor/offset0/count), so re-hashing the CURRENT trace and
+# checking it still equals the dir's key proves the entry was captured from THIS trace.
+
+def extent_contains(meta: FrameIdentity, off: int, n: int) -> bool:
+    """Does the cached entry's identity-offset extent [offset0, offset0+count)
+    fully contain the requested sub-window [off, off+n)?"""
+    return meta.offset0 <= off and off + n <= meta.offset0 + meta.count
+
+
+def dir_key(scenario: str, entry_parent_name: str) -> str | None:
+    """Extract the content key from a cache dir name `{scenario}-{key}` (the scenario
+    itself may contain hyphens, so strip the known prefix rather than rsplit)."""
+    prefix = f"{scenario}-"
+    return entry_parent_name[len(prefix):] if entry_parent_name.startswith(prefix) else None
+
+
+def pick_extent(candidates: list[dict], anchor: str, off: int, n: int) -> dict | None:
+    """Pure selection: among candidate {dir, meta, key_ok} entries, keep those whose
+    anchor matches, whose stored trace-key still verifies (key_ok), and whose extent
+    contains [off, off+n); return the WIDEST (largest count) — a wider full-extent
+    serves more re-windows. None if nothing qualifies. Filesystem-free ⇒ unit-tested."""
+    ok = [c for c in candidates
+          if c["meta"].anchor == anchor and c["key_ok"]
+          and extent_contains(c["meta"], off, n)]
+    if not ok:
+        return None
+    return max(ok, key=lambda c: c["meta"].count)
+
+
+def find_extent(scenario: str, side: str, anchor: str, off: int, n: int,
+                trace_path: Path) -> Path | None:
+    """Scan CACHE_ROOT for a cached `side` full-extent of `scenario` that contains the
+    sub-window [off, off+n) under `anchor` AND was captured from the CURRENT trace
+    (the dir-key re-hash guard). Returns the entry dir to slice, or None (drive it)."""
+    candidates = []
+    for meta_json in sorted(CACHE_ROOT.glob(f"{scenario}-*/{side}/v3meta.json")):
+        entry = meta_json.parent
+        try:
+            meta = load_meta(entry)
+        except (OSError, ValueError, TypeError):
+            continue
+        if meta.side != side:
+            continue
+        key = dir_key(scenario, entry.parent.name)
+        # arm is reconstructible from the stored extent — re-hash the current trace and
+        # require it still equals the dir's key ⇒ the entry is for THIS trace, not stale.
+        arm = {"anchor": meta.anchor, "offset": meta.offset0, "count": meta.count}
+        key_ok = key is not None and cache_key(trace_path, arm) == key
+        candidates.append({"dir": entry, "meta": meta, "key_ok": key_ok})
+    best = pick_extent(candidates, anchor, off, n)
+    return best["dir"] if best else None
+
+
 def preserve_live(scenario: str, side: str, anchor: str, offset0: int,
                   trace_path: Path, arm: dict, *, anchor_occ: int = 1,
                   src: Path | None = None) -> tuple[Path, FrameIdentity]:

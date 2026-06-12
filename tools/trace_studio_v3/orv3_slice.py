@@ -45,6 +45,82 @@ def wslpath_w(p: Path) -> str:
                           check=True).stdout.strip()
 
 
+def slice_entry(entry: Path, off_a: int, n: int, out: Path | None = None,
+                verify: bool = True, *, quiet: bool = False) -> tuple[Path, int, int]:
+    """Re-emit a cached entry's sub-window [off_a, off_a+n) (identity-offset space)
+    as a STANDALONE container at `out` (default <entry>/slice-OFFSET-COUNT/), and —
+    unless verify=False — replay every sliced frame and byte-compare to its original
+    reference. Returns (out_dir, npass, nfail); nfail<0 means "not verified".
+
+    This is the pure mechanism the CLI main() and the orv3_window orchestrator both
+    call: a re-window that cost a multi-minute retail drive in v2 is now instant.
+    """
+    def say(*a):
+        if not quiet:
+            print(*a)
+
+    meta = v3cache.load_meta(entry)
+    cont = orv3.Container.load(entry / "v3cap.bin")
+    ext_lo, ext_hi = meta.offset0, meta.offset0 + meta.count          # cached extent [lo, hi)
+    if not (ext_lo <= off_a and off_a + n <= ext_hi):
+        raise ValueError(f"sub-window offsets [{off_a},{off_a + n}) outside the cached extent "
+                         f"[{ext_lo},{ext_hi}) — capture a wider full-extent or narrow the window")
+
+    a = off_a - meta.offset0                                          # kept-index range
+    b = a + n
+    out = out or (entry / f"slice-{off_a}-{n}")
+    out.mkdir(parents=True, exist_ok=True)
+    for f in [out / "v3cap.bin", *out.glob("v3ref_*.raw"), out / "v3meta.json"]:
+        f.unlink(missing_ok=True)
+
+    # re-emit the sub-window as a standalone container + copy its references 0-based
+    (out / "v3cap.bin").write_bytes(cont.slice_window(a, b))
+    for i in range(n):
+        shutil.copy2(entry / f"v3ref_{a + i:03d}.raw", out / f"v3ref_{i:03d}.raw")
+    sub = v3cache.FrameIdentity(
+        side=meta.side, scenario=meta.scenario, anchor=meta.anchor,
+        anchor_occ=meta.anchor_occ, anchor_frame=meta.anchor_frame,
+        offset0=off_a, count=n, present_first=cont.frames[a].present)
+    (out / "v3meta.json").write_text(json.dumps(asdict(sub), indent=1))
+
+    cap_mb = (out / "v3cap.bin").stat().st_size / 1048576
+    say(f"[slice] {meta.side} {meta.anchor}#{meta.anchor_occ}  offsets {off_a}..{off_a + n - 1} "
+        f"(kept idx {a}..{b - 1} of {meta.count}) → {out}")
+    say(f"[slice] {n} frames · container {cap_mb:.1f} MB · ZERO retail re-drive "
+        f"(sliced from the cached full-extent)")
+
+    if not verify:
+        return out, -1, -1
+
+    if not REPLAY_EXE.exists():
+        raise SystemExit(f"replayer not built: {REPLAY_EXE} — `make` in replay/")
+    cap_w = wslpath_w(out / "v3cap.bin")
+    chk_w = wslpath_w(out / "v3slice_chk.raw")
+    npass = nfail = 0
+    first_fail = None
+    say(f"[verify] replaying all {n} sliced frames …")
+    for i in range(n):
+        r = subprocess.run([str(REPLAY_EXE), cap_w, wslpath_w(out / f"v3ref_{i:03d}.raw"),
+                            str(i), chk_w], capture_output=True, text=True)
+        db = None
+        for ln in (r.stdout + r.stderr).splitlines():
+            if "differing bytes" in ln:
+                db = ln.split(":", 1)[1].split("(")[0].strip()
+        if db == "0":
+            npass += 1
+        else:
+            nfail += 1
+            if first_fail is None:
+                first_fail = f"slice frame {i} (offset {off_a + i}): differing bytes={db!r}"
+    say("=" * 48)
+    say(f"  SLICE BIT-EXACT: {npass} / {n}   |   FAILED: {nfail}")
+    if first_fail:
+        say(f"  first failure: {first_fail}")
+    say(f"  VERDICT: {'ALL SLICED FRAMES BIT-EXACT — cache slice is sound' if nfail == 0 else 'DIVERGENT'}")
+    say("=" * 48)
+    return out, npass, nfail
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="slice a cached v3 capture to a sub-window (zero re-drive).")
     ap.add_argument("entry", type=Path, help="cache entry dir (v3cap.bin + v3ref_*.raw + v3meta.json)")
@@ -61,66 +137,12 @@ def main() -> int:
     except ValueError:
         raise SystemExit(f"--window wants OFFSET:COUNT (got {args.window!r})")
 
-    meta = v3cache.load_meta(args.entry)
-    cont = orv3.Container.load(args.entry / "v3cap.bin")
-    ext_lo, ext_hi = meta.offset0, meta.offset0 + meta.count          # cached extent [lo, hi)
-    if not (ext_lo <= off_a and off_a + n <= ext_hi):
-        raise SystemExit(f"sub-window offsets [{off_a},{off_a + n}) outside the cached extent "
-                         f"[{ext_lo},{ext_hi}) — capture a wider full-extent or narrow the window")
-
-    a = off_a - meta.offset0                                          # kept-index range
-    b = a + n
-    out = args.out or (args.entry / f"slice-{off_a}-{n}")
-    out.mkdir(parents=True, exist_ok=True)
-    for f in [out / "v3cap.bin", *out.glob("v3ref_*.raw"), out / "v3meta.json"]:
-        f.unlink(missing_ok=True)
-
-    # re-emit the sub-window as a standalone container + copy its references 0-based
-    (out / "v3cap.bin").write_bytes(cont.slice_window(a, b))
-    for i in range(n):
-        shutil.copy2(args.entry / f"v3ref_{a + i:03d}.raw", out / f"v3ref_{i:03d}.raw")
-    sub = v3cache.FrameIdentity(
-        side=meta.side, scenario=meta.scenario, anchor=meta.anchor,
-        anchor_occ=meta.anchor_occ, anchor_frame=meta.anchor_frame,
-        offset0=off_a, count=n, present_first=cont.frames[a].present)
-    (out / "v3meta.json").write_text(json.dumps(asdict(sub), indent=1))
-
-    cap_mb = (out / "v3cap.bin").stat().st_size / 1048576
-    print(f"[slice] {meta.side} {meta.anchor}#{meta.anchor_occ}  offsets {off_a}..{off_a + n - 1} "
-          f"(kept idx {a}..{b - 1} of {meta.count}) → {out}")
-    print(f"[slice] {n} frames · container {cap_mb:.1f} MB · ZERO retail re-drive "
-          f"(sliced from the cached full-extent)")
-
-    if args.no_verify:
-        return 0
-
-    if not REPLAY_EXE.exists():
-        raise SystemExit(f"replayer not built: {REPLAY_EXE} — `make` in replay/")
-    cap_w = wslpath_w(out / "v3cap.bin")
-    chk_w = wslpath_w(out / "v3slice_chk.raw")
-    npass = nfail = 0
-    first_fail = None
-    print(f"[verify] replaying all {n} sliced frames …")
-    for i in range(n):
-        r = subprocess.run([str(REPLAY_EXE), cap_w, wslpath_w(out / f"v3ref_{i:03d}.raw"),
-                            str(i), chk_w], capture_output=True, text=True)
-        db = None
-        for ln in (r.stdout + r.stderr).splitlines():
-            if "differing bytes" in ln:
-                db = ln.split(":", 1)[1].split("(")[0].strip()
-        if db == "0":
-            npass += 1
-        else:
-            nfail += 1
-            if first_fail is None:
-                first_fail = f"slice frame {i} (offset {off_a + i}): differing bytes={db!r}"
-    print("=" * 48)
-    print(f"  SLICE BIT-EXACT: {npass} / {n}   |   FAILED: {nfail}")
-    if first_fail:
-        print(f"  first failure: {first_fail}")
-    print(f"  VERDICT: {'ALL SLICED FRAMES BIT-EXACT — cache slice is sound' if nfail == 0 else 'DIVERGENT'}")
-    print("=" * 48)
-    return 0 if nfail == 0 else 1
+    try:
+        _out, _npass, nfail = slice_entry(args.entry, off_a, n, out=args.out,
+                                          verify=not args.no_verify)
+    except ValueError as e:
+        raise SystemExit(str(e))
+    return 0 if nfail <= 0 else 1
 
 
 if __name__ == "__main__":

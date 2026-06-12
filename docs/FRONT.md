@@ -442,8 +442,20 @@
   (5) **`orv3_slice.py`** slice-serve a cached sub-window with **ZERO re-drive** (the cache win):
   re-window to offsets 130..149 → slice BOTH cached sides (instant) → join → **20/20 ALIGNED**
   (retail slice 20/20 bit-exact); a re-window that cost a multi-minute retail drive in v2 is now
-  instant. **REMAINING in P2 (polish):** auto-drive the loop (a driver flag that slices a cached
-  full-extent instead of re-capturing when the requested window is in-extent).
+  instant. (6) **`orv3_window.py` the auto-drive WINDOW LOOP — P2 ✅ COMPLETE (2026-06-12).** One
+  command (`orv3_window.py <scen> --window OFF:COUNT`) ties it together: per side, `find_extent`
+  asks "is the window already in a cached full-extent for (scenario, anchor), from the CURRENT
+  trace?" — HIT ⇒ slice (instant, zero re-drive), MISS ⇒ drive the full caprange extent then slice;
+  then `sync_entries` JOINs → pairs.json + verdict. Two guards keep it honest (kill the v2
+  "filenames silently lie" class): a **dir-key re-hash** (reconstruct the arm from the stored meta,
+  require `cache_key(current_trace,arm)`==the dir key ⇒ an edited trace can't match a stale entry) +
+  a **port-exe-mtime freshness** check (a rebuilt `openrecet.exe` ⇒ cached PORT pixels stale ⇒
+  re-drive port, retail untouched). Proven on the real HOUSE cache: re-window `130:20` = **pure
+  slice, nothing re-driven, 20/20 ALIGNED**; `120:48` = "full-extent (no slice)" 48/48; `110:20` =
+  clean out-of-extent error; `--force-port` = **"drove only: port"** (port re-driven 48/48, retail
+  sliced 20/20, joined 20/20) — v2's `--only port` loop, now immune to window changes. Lookup logic
+  hermetic-unit-tested; `slice_entry`/`sync_entries` factored out of the CLIs (behavior-preserving).
+  **Next → P3 (the viewer: replay-served panels + preserved v2 UX + the semantic diff/pick layer).**
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.

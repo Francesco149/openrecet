@@ -166,12 +166,32 @@ proven on real port+retail HOUSE captures.** Four pieces landed:
    (retail slice **20/20 bit-exact**), with **zero re-drive of either side**. A re-window that cost
    a multi-minute retail drive in v2 is now instant (+ an optional verify). This is v2's
    `--only port` generalized so a *window change* no longer forces a retail re-drive.
-**P2 capture-once/slice-many + sync-by-identity + early-exit are PROVEN end-to-end.** The remaining
-polish: auto-drive the loop (a driver flag that checks the cache + slices instead of re-capturing
-when the requested window is within a cached full-extent) and capturing a *generous* full-extent
-(here the 48-frame window already serves a 20-frame sub-window; a wider extent serves more). The
-storage win is scene-dependent — the HOUSE binds every resource each frame so a slice keeps the
-full resource set; a scene-transition session would drop out-of-window resources.
+6. **`orv3_window.py` — the capture-once/slice-many WINDOW LOOP (auto-drive). ✅ DONE (2026-06-12).**
+   The single command that ties 1–5 into the loop a human runs while iterating: `orv3_window.py
+   <scenario> --window OFFSET:COUNT`. Per side, INDEPENDENTLY: ask `v3cache.find_extent` "is the
+   window already in a cached full-extent for (scenario, anchor), captured from the CURRENT trace?"
+   — HIT ⇒ `orv3_slice.slice_entry` (instant, zero re-drive); MISS ⇒ drive the full caprange extent
+   (`house_capture.py` retail / `port_capture.py` port) then slice. Then `orv3_sync.sync_entries`
+   JOINs the two sub-window slices → `pairs.json` + verdict. Two correctness guards make it
+   trustworthy (kill the v2 "filenames silently lie" class): (a) **dir-key re-hash** — `find_extent`
+   reconstructs the arm from the stored meta (anchor/offset0/count) and requires
+   `cache_key(current_trace, arm)` to still equal the dir's key, so an edited trace can NEVER match a
+   stale entry; (b) **port freshness** — a rebuilt `build/openrecet.exe` (mtime newer than the cached
+   container) marks the cached PORT pixels stale ⇒ re-drive the port (retail untouched). **Proven on
+   the real HOUSE cache, all paths:** re-window `130:20` → **pure cache slice, nothing re-driven,
+   20/20 ALIGNED**; full-extent `120:48` → "full-extent (no slice)", 48/48; out-of-extent `110:20` →
+   clean error at the caprange; `--force-port` → **"drove only: port"** (port re-driven 48/48,
+   retail sliced 20/20 from cache, joined 20/20) — the v2 `--only port` loop, now immune to window
+   changes too. `find_extent`/`pick_extent`/`extent_contains`/`dir_key` are hermetic-unit-tested
+   (`test_orv3.py::test_extent_lookup`: containment, widest-pick, stale-key + wrong-anchor filtered).
+   `slice_entry`/`sync_entries` were factored out of the CLIs (behavior-preserving) for the loop to
+   reuse.
+**P2 ✅ COMPLETE (2026-06-12).** Capture-once/slice-many + sync-by-identity + window-aware early-exit
++ the auto-drive loop are all PROVEN end-to-end on real port+retail HOUSE captures. Usage note:
+capture a *generous* full-extent (the loop's extent = the scenario's `{caprange}`; here 48 frames
+already serves a 20-frame sub-window — a wider caprange serves more re-windows). The storage win is
+scene-dependent — the HOUSE binds every resource each frame so a slice keeps the full resource set;
+a scene-transition session would drop out-of-window resources. **Next → P3 (the viewer).**
 
 **3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
 (not a flaw in the bet).** Tried capturing a 3D HOUSE frame via `scenario-test`. Two
@@ -466,13 +486,16 @@ the **storage format**, the **alignment authority**, and **adds replay + semanti
   cache** (capture retail's window once, key by trace-hash, slice sub-windows with zero re-drives)
   + a **window-aware early-exit** (stop the retail drive at the last in-window frame — kills E4's
   ~100 s post-window over-run the house drive currently pays).
-  **PARTIAL (2026-06-12) — see the "P2 IN PROGRESS" block above.** Landed + proven on real port+
+  **✅ COMPLETE (2026-06-12) — see the "P2 IN PROGRESS" block above.** Landed + proven on real port+
   retail HOUSE captures: the **window-aware early-exit** (`1f54dd8`, 48/48 in 53 s), the
   **`orv3.py`** reader + bit-exact slicer, the **`v3cache.py`** content-addressed cache + stored
   identity, the **`orv3_sync.py`** identity JOIN (**48/48 ALIGNED vs 0/48 naive** across a
-  +13489-frame load stretch), and **`orv3_slice.py`** slice-serve (re-window → slice both cached
-  sides → join **20/20 ALIGNED**, ZERO re-drive). REMAINING (polish): auto-drive the loop (a driver
-  flag that slices a cached full-extent instead of re-capturing when the window is in-extent).
+  +13489-frame load stretch), **`orv3_slice.py`** slice-serve (re-window → slice both cached sides →
+  join **20/20 ALIGNED**, ZERO re-drive), and finally the **`orv3_window.py`** auto-drive loop — one
+  command that slices a cached full-extent when the window is in-extent (pure-slice re-window:
+  nothing re-driven, 20/20 ALIGNED) and drives ONLY what's missing/stale (`--force-port` → "drove
+  only: port", retail sliced from cache), guarded by a dir-key re-hash (never serve a stale-trace
+  entry) + a port-exe-mtime freshness check (auto-detect a rebuild). **Next → P3 (the viewer).**
 - **P3 — Viewer**: replay-served panels + preserved UX + the semantic diff/pick layer.
 - **P4 — Parity-loop parity check**: reproduce a known confirmed-1:1 session in v3, verdict
   matches v2. **Then** archive v2.

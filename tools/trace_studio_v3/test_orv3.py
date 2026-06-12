@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import orv3        # noqa: E402
 import orv3_sync   # noqa: E402
+import v3cache     # noqa: E402
 
 
 def _u(v: int) -> bytes:
@@ -117,11 +118,48 @@ def test_join() -> None:
           "occurrences don't cross-pair")
 
 
+def _ident(offset0: int, count: int, anchor: str = "HOUSE_FREEROAM") -> v3cache.FrameIdentity:
+    return v3cache.FrameIdentity(side="retail", scenario="s", anchor=anchor, anchor_occ=1,
+                                 anchor_frame=14000, offset0=offset0, count=count,
+                                 present_first=14000 + offset0)
+
+
+def test_extent_lookup() -> None:
+    """The auto-drive loop's cache lookup (orv3_window): containment + widest-pick +
+    the anchor / stale-key filters that keep it from ever serving a wrong entry."""
+    # containment of the requested sub-window in the cached extent [offset0, +count)
+    m = _ident(120, 48)                                   # extent [120,168)
+    assert v3cache.extent_contains(m, 120, 48)           # exact
+    assert v3cache.extent_contains(m, 130, 20)           # interior
+    assert not v3cache.extent_contains(m, 110, 20)       # starts before
+    assert not v3cache.extent_contains(m, 160, 20)       # 160+20=180 > 168, runs past
+    assert v3cache.extent_contains(m, 167, 1)            # last frame
+
+    # dir_key strips the known scenario prefix (scenario itself has hyphens)
+    assert v3cache.dir_key("house-loaded-display-pinned",
+                           "house-loaded-display-pinned-26e5aec3") == "26e5aec3"
+    assert v3cache.dir_key("house-loaded-display-pinned", "other-deadbeef") is None
+
+    A = {"dir": "A", "meta": _ident(120, 48), "key_ok": True}          # [120,168)
+    B = {"dir": "B", "meta": _ident(100, 100), "key_ok": True}         # [100,200) wider
+    stale = {"dir": "C", "meta": _ident(120, 48), "key_ok": False}     # trace changed
+    wrong = {"dir": "D", "meta": _ident(120, 48, "OTHER"), "key_ok": True}
+    pick = v3cache.pick_extent
+    assert pick([A], "HOUSE_FREEROAM", 130, 20)["dir"] == "A"          # contains
+    assert pick([A, B], "HOUSE_FREEROAM", 130, 20)["dir"] == "B"       # both contain ⇒ widest
+    assert pick([A], "HOUSE_FREEROAM", 110, 20) is None               # not contained
+    assert pick([stale], "HOUSE_FREEROAM", 130, 20) is None           # stale key excluded
+    assert pick([wrong], "HOUSE_FREEROAM", 130, 20) is None           # wrong anchor excluded
+    assert pick([stale, wrong, A], "HOUSE_FREEROAM", 130, 20)["dir"] == "A"  # picks the one valid
+    print("  OK extent lookup: containment, widest-pick, stale-key + wrong-anchor filtered out")
+
+
 def main() -> int:
     test_parse()
     test_slice()
     test_join()
-    print("OK: orv3 container parse + slice pull-forward + sync-by-identity join")
+    test_extent_lookup()
+    print("OK: orv3 container parse + slice pull-forward + sync-by-identity join + cache lookup")
     return 0
 
 

@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""Trace Studio v3 — the capture-once / slice-many WINDOW LOOP (P2 final).
+
+ONE command to get an aligned port|retail pair for any sub-window of a scenario,
+driving ONLY what's missing or stale. This is the auto-drive loop the P2 plan ends
+on: "a driver flag that slices a cached full-extent instead of re-capturing when the
+window is in-extent." It composes the proven P2 pieces —
+
+    house_capture.py / port_capture.py   (drive + cache a full-extent, once)
+    v3cache.find_extent                  (is the window already cached? — guarded)
+    orv3_slice.slice_entry               (re-emit a sub-window, zero re-drive)
+    orv3_sync.sync_entries               (the identity JOIN → pairs.json)
+
+— into the loop a human actually runs while iterating. The full-extent is the
+scenario's {caprange}; any sub-window inside it is served by SLICING the cache.
+
+What each call does, per side (port, retail), independently:
+  • RETAIL — find a cached full-extent for (scenario, anchor) that CONTAINS the
+    requested window and was captured from the CURRENT trace (the dir-key re-hash
+    guard in find_extent). HIT ⇒ slice it (instant, zero re-drive). MISS ⇒ drive the
+    full caprange extent via house_capture.py (the slow load-stretch — paid ONCE),
+    then slice. A port-side code change NEVER invalidates this (retail's key is
+    trace+arm only) ⇒ the v2 "--only port" loop, now also immune to window changes.
+  • PORT — same, plus a freshness check: a rebuilt build/openrecet.exe (mtime newer
+    than the cached port container) means the cached PORT pixels are stale ⇒ re-drive
+    the port (fast — no load-stretch). --reuse-port forces the cache; --force-port the
+    drive.
+Then JOIN the two sub-window slices by stored identity → pairs.json + an ALIGNED
+verdict. A re-window or a port-fix loop that cost a full retail re-drive in v2 is now
+a slice (+ at most a fast port drive).
+
+Usage (host tools need the nix prefix):
+  nix develop --command python3 tools/trace_studio_v3/orv3_window.py \
+      house-loaded-display-pinned --window 130:20 \
+      [--anchor HOUSE_FREEROAM] [--force-retail] [--force-port] [--reuse-port] \
+      [--no-verify] [--max-frames N]
+"""
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import orv3            # noqa: E402
+import orv3_slice      # noqa: E402
+import orv3_sync       # noqa: E402
+import v3cache         # noqa: E402
+
+ROOT       = Path(__file__).resolve().parent.parent.parent
+SCEN_DIR   = ROOT / "tests" / "scenarios"
+PORT_EXE   = ROOT / "build" / "openrecet.exe"
+HOUSE_DRV  = Path(__file__).resolve().parent / "house_capture.py"
+PORT_DRV   = Path(__file__).resolve().parent / "port_capture.py"
+WIN_ROOT   = ROOT / "runs" / "studio-v3-windows"
+
+
+def caprange_of(scenario: str) -> tuple[int, int]:
+    """(start, count) of the scenario's {caprange} — the full-extent the sub-window
+    slices from. A scenario without one can't drive a v3 full-extent window."""
+    import json
+    trace = SCEN_DIR / scenario / "trace.jsonl"
+    for raw in trace.read_text().splitlines():
+        line = raw.strip()
+        if line.startswith("{") and '"caprange"' in line:
+            try:
+                d = json.loads(line)
+                if "caprange" in d:
+                    return int(d["caprange"][0]), int(d["caprange"][1])
+            except (ValueError, KeyError, IndexError):
+                pass
+    raise SystemExit(f"{scenario!r} has no {{caprange}} — the v3 full-extent window needs one")
+
+
+def port_stale(entry: Path) -> bool:
+    """A rebuilt port exe (mtime newer than the cached container) means the cached
+    PORT pixels predate the fix ⇒ stale, re-drive. Retail never goes stale this way."""
+    if not PORT_EXE.exists():
+        return False                       # can't tell — trust the cache
+    return PORT_EXE.stat().st_mtime > (entry / "v3cap.bin").stat().st_mtime
+
+
+def drive_retail(scenario: str, anchor: str, cr_start: int, cr_n: int,
+                 max_frames: int | None, verify: bool) -> None:
+    cmd = [sys.executable, str(HOUSE_DRV), "--scenario", scenario, "--anchor", anchor,
+           "--offset", str(cr_start), "--count", str(cr_n)]
+    if max_frames is not None:
+        cmd += ["--max-frames", str(max_frames)]
+    if not verify:
+        cmd += ["--no-verify"]
+    print(f"[loop]  RETAIL miss → driving full caprange extent [{cr_start},{cr_start + cr_n}) "
+          f"(the load-stretch, paid ONCE): {' '.join(cmd[2:])}")
+    r = subprocess.run(cmd, cwd=ROOT)
+    if r.returncode != 0:
+        raise SystemExit(f"[fail] retail drive (house_capture.py) exited {r.returncode}")
+
+
+def drive_port(scenario: str, anchor: str, verify: bool) -> None:
+    cmd = [sys.executable, str(PORT_DRV), scenario, "--anchor", anchor]
+    if not verify:
+        cmd += ["--no-verify"]
+    print(f"[loop]  PORT drive (fast — no load-stretch): {' '.join(cmd[2:])}")
+    r = subprocess.run(cmd, cwd=ROOT)
+    if r.returncode != 0:
+        raise SystemExit(f"[fail] port drive (port_capture.py) exited {r.returncode}")
+
+
+def ensure_side(side: str, scenario: str, anchor: str, req_off: int, req_n: int,
+                cr_start: int, cr_n: int, trace_path: Path, *, force: bool,
+                reuse: bool, max_frames: int | None, verify: bool) -> tuple[Path, str]:
+    """Return (full_extent_entry_dir, action) for `side`, driving only on a real miss
+    (or, for the port, a rebuild). action describes what happened, for the report."""
+    entry = None if force else v3cache.find_extent(scenario, side, anchor, req_off, req_n, trace_path)
+    action = "slice-cached"
+    if entry and side == "port" and not reuse and port_stale(entry):
+        print(f"[loop]  PORT cache is STALE (build/openrecet.exe rebuilt since capture) → re-drive")
+        entry = None
+    if entry is None:
+        if side == "retail":
+            drive_retail(scenario, anchor, cr_start, cr_n, max_frames, verify)
+        else:
+            drive_port(scenario, anchor, verify)
+        entry = v3cache.find_extent(scenario, side, anchor, req_off, req_n, trace_path)
+        if entry is None:
+            raise SystemExit(f"[fail] {side} drove but produced no extent containing "
+                             f"[{req_off},{req_off + req_n}) — check the driver output above")
+        action = "drove"
+    return entry, action
+
+
+def materialize_window(entry: Path, req_off: int, req_n: int, out: Path,
+                       verify: bool) -> tuple[Path, str]:
+    """Get a standalone container for exactly [req_off, req_off+req_n). If the cached
+    extent IS that window, use it directly (already verified at capture); else slice
+    + (optionally) re-verify bit-exact. Returns (window_dir, note)."""
+    meta = v3cache.load_meta(entry)
+    if (meta.offset0, meta.count) == (req_off, req_n):
+        return entry, "full-extent (no slice)"
+    _out, npass, nfail = orv3_slice.slice_entry(entry, req_off, req_n, out=out,
+                                                verify=verify, quiet=True)
+    if not verify:
+        return out, f"sliced (unverified)"
+    if nfail:
+        raise SystemExit(f"[fail] slice {req_off}:{req_n} from {entry} NOT bit-exact "
+                         f"({npass} ok / {nfail} bad) — the cached container is corrupt")
+    return out, f"sliced, {npass}/{req_n} bit-exact"
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="v3 capture-once/slice-many window loop: slice a cached full-extent "
+                    "(zero re-drive) when the requested window is in-extent, drive only "
+                    "what's missing or stale, then JOIN port↔retail by identity.")
+    ap.add_argument("scenario", help="scenario with a {caprange} full-extent")
+    ap.add_argument("--window", metavar="OFFSET:COUNT", required=True,
+                    help="requested sub-window in anchor-relative offset space (e.g. 130:20). "
+                         "Must lie within the scenario's {caprange}.")
+    ap.add_argument("--anchor", default="HOUSE_FREEROAM",
+                    help="join anchor (default %(default)s; the caprange base — "
+                         "HOUSE_FREEROAM == LOADING_END for the house scenario).")
+    ap.add_argument("--force-retail", action="store_true", help="re-drive retail even if cached.")
+    ap.add_argument("--force-port", action="store_true", help="re-drive the port even if cached/fresh.")
+    ap.add_argument("--reuse-port", action="store_true",
+                    help="slice the cached port even if the exe was rebuilt (skip the freshness check).")
+    ap.add_argument("--no-verify", action="store_true",
+                    help="skip the per-frame bit-exact replay checks (drive + slice).")
+    ap.add_argument("--max-frames", type=int, default=None,
+                    help="engine frame budget for a retail drive (must exceed anchor+offset+count).")
+    args = ap.parse_args()
+
+    try:
+        req_off, req_n = (int(x) for x in args.window.split(":"))
+    except ValueError:
+        raise SystemExit(f"--window wants OFFSET:COUNT (got {args.window!r})")
+    if req_n <= 0:
+        raise SystemExit("--window COUNT must be > 0")
+
+    trace_path = SCEN_DIR / args.scenario / "trace.jsonl"
+    if not trace_path.exists():
+        raise SystemExit(f"no scenario trace: {trace_path}")
+    cr_start, cr_n = caprange_of(args.scenario)
+    if not (cr_start <= req_off and req_off + req_n <= cr_start + cr_n):
+        raise SystemExit(f"window [{req_off},{req_off + req_n}) is outside the scenario's full-extent "
+                         f"(caprange [{cr_start},{cr_start + cr_n})) — widen the caprange to capture more.")
+
+    verify = not args.no_verify
+    print(f"=== v3 window loop: {args.scenario}  {args.anchor}+{req_off}:{req_n}  "
+          f"(full-extent caprange [{cr_start},{cr_start + cr_n})) ===")
+
+    # Per side: cache-hit ⇒ slice; miss/stale ⇒ drive (only what's needed), then slice.
+    retail_entry, r_act = ensure_side(
+        "retail", args.scenario, args.anchor, req_off, req_n, cr_start, cr_n, trace_path,
+        force=args.force_retail, reuse=False, max_frames=args.max_frames, verify=verify)
+    port_entry, p_act = ensure_side(
+        "port", args.scenario, args.anchor, req_off, req_n, cr_start, cr_n, trace_path,
+        force=args.force_port, reuse=args.reuse_port, max_frames=args.max_frames, verify=verify)
+
+    win_dir = WIN_ROOT / args.scenario / f"win-{req_off}-{req_n}"
+    retail_win, r_note = materialize_window(retail_entry, req_off, req_n, win_dir / "retail", verify)
+    port_win, p_note = materialize_window(port_entry, req_off, req_n, win_dir / "port", verify)
+
+    print(f"\n--- materialized window {args.anchor}+{req_off}:{req_n} ---")
+    print(f"  retail : {r_act:12s} → {r_note}")
+    print(f"  port   : {p_act:12s} → {p_note}")
+
+    # JOIN the two sub-window slices by stored identity → pairs.json.
+    print(f"\n--- sync-by-identity ---")
+    win_dir.mkdir(parents=True, exist_ok=True)
+    res = orv3_sync.sync_entries(port_win, retail_win, write_pairs=True,
+                                 pairs_path=win_dir / "pairs.json")
+
+    drove = [s for s, a in (("retail", r_act), ("port", p_act)) if a == "drove"]
+    saved = "nothing re-driven (pure cache slice)" if not drove else f"drove only: {', '.join(drove)}"
+    print(f"\n=== LOOP DONE — {res['verdict']} · {saved} ===")
+    print(f"    window dir: {win_dir}  (port/ retail/ pairs.json)")
+    return 0 if res["verdict"] == "ALIGNED" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
