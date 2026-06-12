@@ -458,8 +458,11 @@ Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-pa
   offset 120..167)`; **naive absolute-present pairing = 0/48** (the v2-class frame-number scheme is
   hopeless across the load stretch). Writes `pairs.json` (computed once, for the future diff/seek/
   state/marks). Both drivers (`house_capture`/`port_capture`) now auto-cache with identity.
-  **REMAINING in P2:** the cache-HIT reuse path (slice a cached full-extent retail window without
-  re-driving — reader/slicer extraction done, drivers need the cache check + slice-serve).
+  (5) **`orv3_slice.py`** slice-serve a cached sub-window with **ZERO re-drive** (the cache win):
+  re-window to offsets 130..149 → slice BOTH cached sides (instant) → join → **20/20 ALIGNED**
+  (retail slice 20/20 bit-exact); a re-window that cost a multi-minute retail drive in v2 is now
+  instant. **REMAINING in P2 (polish):** auto-drive the loop (a driver flag that slices a cached
+  full-extent instead of re-capturing when the requested window is in-extent).
 - **Authoritative parity facts:** `findings/confirmed-parity-ledger.md`. A tooling
   "divergence" on a human-confirmed-1:1 item is a lead to investigate, NOT an
   assumed regression.
