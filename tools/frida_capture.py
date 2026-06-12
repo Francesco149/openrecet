@@ -368,6 +368,17 @@ class CaptureConfig:
     # below). The agent shuts itself down via `capture_at_anchor_done` once
     # every requested anchor has fired and every resolved target is captured.
     capture_at_anchor:      list[dict] | None = None
+    # Trace Studio v3 — anchor-relative capture-proxy arm. When set to
+    # {"anchor": str, "offset": int, "count": int}, the agent calls the staged
+    # proxy d3d8.dll's OrV3ArmWindowAt(anchor_frame + offset, count) the FIRST
+    # time the named anchor fires (config.v3_arm), so a post-load present-window
+    # lands relative to a semantic event despite the nondeterministic load-stretch
+    # (no fixed present-count can target a post-load frame). The retail v3 house
+    # driver pairs this with the proxy's `armwait=1` cfg so nothing is kept until
+    # the arm fires. Implies anchor_trace. None default ⇒ a silent no-op for every
+    # v2 capture (the agent gates the export call on config.v3_arm). See
+    # docs/plans/trace-studio-v3.md "HOUSE-drive integration".
+    v3_arm:                 dict | None = None
     # Memory-access watch (Phase D.7). When `mem_watch` is true the agent
     # arms Frida's MemoryAccessMonitor over `mem_watch_regions` and emits
     # one record per trapped access (faulting instruction VA + accessed
@@ -1209,6 +1220,11 @@ def _run_capture_impl(cfg: CaptureConfig, run_dir: Path) -> CaptureResult:
         init_cfg["pre_3d_trace"] = True
     if cfg.anchor_trace:
         init_cfg["anchor_trace"] = True
+    if cfg.v3_arm:
+        # Studio v3: the agent arms the staged proxy's OrV3ArmWindowAt on this
+        # anchor (anchor-relative present-window). Implies the anchor poll.
+        init_cfg["v3_arm"] = cfg.v3_arm
+        init_cfg["anchor_trace"] = True
     if segtrace_ops:
         # Anchor-segmented forcing owns the input mask and needs the anchor
         # poll for its `wait` ops; the agent forces anchor_trace on too.
@@ -1490,7 +1506,8 @@ def run_capture(scenario: "Any", run_dir: Path, *,
                 call_trace: bool = False,
                 suppress_loads: bool = False,
                 capture_local: bool = True,
-                anchor_trace: bool = False) -> dict:
+                anchor_trace: bool = False,
+                v3_arm: dict | None = None) -> dict:
     """Phase A-compatible entry point. `scenario` is a tools/scenario-test.Scenario
     (duck-typed: needs .capture_frames, .max_frames, .duration_ceiling_ms).
     Returns the meta dict that scenario-test.py writes to run.json.
@@ -1547,6 +1564,7 @@ def run_capture(scenario: "Any", run_dir: Path, *,
         call_trace_frames=(_drop_frame0(scenario.capture_frames)
                            if call_trace and scenario.capture_frames else None),
         anchor_trace=anchor_trace,   # → run_dir/anchors.jsonl (studio timeline)
+        v3_arm=v3_arm,               # studio-v3 anchor-relative proxy arm (None = no-op)
     )
     result = _run_capture_impl(cfg, run_dir)
     meta = {

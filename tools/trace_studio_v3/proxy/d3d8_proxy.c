@@ -79,11 +79,19 @@ static HINSTANCE g_self;
  * staged in, before spawn). Recognized keys:
  *   capframe=N   present-count WINDOW start (default: GetBackBuffer trigger)
  *   capcount=M   present-count WINDOW length (default 1 = single frame)
+ *   armwait=1    IDLE until OrV3ArmWindowAt fires — suppress the GetBackBuffer
+ *                MULTI keep-trigger entirely. For anchor-relative retail capture:
+ *                through the long pre-anchor load g_capframe is unset, so the
+ *                MULTI trigger would otherwise keep ANY stray readback (retail's
+ *                own, or a leftover agent capture) as a bogus load frame. With
+ *                armwait the proxy keeps NOTHING until the runtime arm sets the
+ *                present-window, then the WINDOW branch alone decides keeps.
  *   out=PATH     Windows dir for the container/log/reference (default LOCALAPPDATA)
  * getenv stays honored as a fallback (harmless for the port, which uses neither). */
 static char     g_cfg_out[MAX_PATH];
 static unsigned g_cfg_capframe = 0xFFFFFFFFu;
 static unsigned g_cfg_capcount = 1u;
+static int      g_cfg_armwait;             /* idle until OrV3ArmWindowAt (no MULTI keep) */
 static int      g_cfg_loaded;
 static void load_cfg(void)
 {
@@ -104,6 +112,7 @@ static void load_cfg(void)
         while (vl && (val[vl-1]=='\n' || val[vl-1]=='\r' || val[vl-1]==' ' || val[vl-1]=='\t')) val[--vl] = 0;
         if      (!strcmp(key, "capframe")) g_cfg_capframe = (unsigned)strtoul(val, NULL, 0);
         else if (!strcmp(key, "capcount")) { g_cfg_capcount = (unsigned)strtoul(val, NULL, 0); if (!g_cfg_capcount) g_cfg_capcount = 1u; }
+        else if (!strcmp(key, "armwait"))  g_cfg_armwait = (int)strtoul(val, NULL, 0);
         else if (!strcmp(key, "out") && *val) { snprintf(g_cfg_out, sizeof g_cfg_out, "%s", val); CreateDirectoryA(g_cfg_out, NULL); }
     }
     fclose(f);
@@ -619,8 +628,12 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_GetBackBuffer(IDirect3DDevi
    * present_count>=1). So every readback here = one window frame to KEEP: write
    * it and re-arm (the readback is the frame's last GPU op before Present, so the
    * shadow + calls are complete). When a capframe is set (the retail/cfg path) it
-   * is authoritative — don't let retail's own internal GetBackBuffer finalize. */
-  if (CAP && g_capframe == 0xFFFFFFFFu && g_present_count >= 1) {
+   * is authoritative — don't let retail's own internal GetBackBuffer finalize.
+   * armwait (anchor-relative retail capture): SUPPRESS this trigger entirely so a
+   * stray readback during the long pre-arm load can't keep a bogus load frame —
+   * the proxy idles until OrV3ArmWindowAt sets the present-window, then the WINDOW
+   * branch in Present is the sole keep authority. */
+  if (CAP && g_capframe == 0xFFFFFFFFu && g_present_count >= 1 && !g_cfg_armwait) {
       write_frame(w->real);
       cb_reset();            /* start the next frame's call buffer fresh */
       g_frame_kept = 1;      /* tell Present this frame is already written */
