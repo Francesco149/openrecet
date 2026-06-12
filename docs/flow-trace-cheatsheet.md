@@ -77,6 +77,16 @@ exact). render_quad_add/flush are deferred to `render_diff.py` (per-draw geometr
 can't be classified by the verdict's per-frame occurrence pairing). Worked example +
 the 3-way frame-exact proof: `findings/merchant-guild-RE.md` "CENSUS DONE".
 
+**⚠️ PHASE-CLEAN proves the PROBED STATE is 1:1, NOT the full visual render.** The
+verdict only compares the fields the stubs emit (dialogue_tick box_open/reveal/…,
+fade, rng). The *surrounding scene's* draw (menus, HUD, backdrops) is invisible to
+it. A cutscene can be PHASE-CLEAN yet still differ on-screen — e.g. the guild iv1_9
+reminder came back PHASE-CLEAN but the port was hiding the main menu that retail
+keeps rendered behind it (caught only by a content-matched frame compare; `aa773d0`).
+**So after a PHASE-CLEAN verdict, ALWAYS also eyeball one content-matched port|retail
+frame** (anchor-offset, not the seam-broken label-paired studio diff) before claiming
+visual 1:1.
+
 ## RNG drill — which functions consume the LCG (incl. unported ones)?
 
 ```sh
