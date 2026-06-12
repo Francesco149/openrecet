@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import orv3            # noqa: E402
 import orv3_slice      # noqa: E402
 import orv3_sync       # noqa: E402
+import orv3_view       # noqa: E402
 import v3cache         # noqa: E402
 
 ROOT       = Path(__file__).resolve().parent.parent.parent
@@ -53,7 +54,24 @@ SCEN_DIR   = ROOT / "tests" / "scenarios"
 PORT_EXE   = ROOT / "build" / "openrecet.exe"
 HOUSE_DRV  = Path(__file__).resolve().parent / "house_capture.py"
 PORT_DRV   = Path(__file__).resolve().parent / "port_capture.py"
+VIEWER_EXE = Path(__file__).resolve().parent / "viewer" / "viewer.exe"
 WIN_ROOT   = ROOT / "runs" / "studio-v3-windows"
+
+
+def wslpath_w(p: Path) -> str:
+    return subprocess.run(["wslpath", "-w", str(Path(p).resolve())],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def launch_viewer(view_path: Path) -> None:
+    """Open the native viewer on a view.json, DETACHED (own session) so it outlives the
+    loop process — the v3 equivalent of `trace_studio serve` opening the browser."""
+    if not VIEWER_EXE.exists():
+        print(f"[view]  viewer.exe not built ({VIEWER_EXE}) — "
+              f"`nix develop --command make -C tools/trace_studio_v3/viewer`")
+        return
+    print(f"[view]  launching viewer: {VIEWER_EXE.name} {view_path.name}")
+    subprocess.Popen([str(VIEWER_EXE), wslpath_w(view_path)], start_new_session=True)
 
 
 def caprange_of(scenario: str) -> tuple[int, int]:
@@ -167,6 +185,11 @@ def main() -> int:
                     help="skip the per-frame bit-exact replay checks (drive + slice).")
     ap.add_argument("--max-frames", type=int, default=None,
                     help="engine frame budget for a retail drive (must exceed anchor+offset+count).")
+    ap.add_argument("--view", action="store_true",
+                    help="after the join, emit view.json (the native viewer's manifest) into the window dir.")
+    ap.add_argument("--launch", action="store_true",
+                    help="emit view.json AND open the native viewer on it (implies --view). "
+                         "The one-command loop: drive/slice/sync → view → viewer.")
     args = ap.parse_args()
 
     try:
@@ -210,10 +233,22 @@ def main() -> int:
     res = orv3_sync.sync_entries(port_win, retail_win, write_pairs=True,
                                  pairs_path=win_dir / "pairs.json")
 
+    # one-command tail: emit the native viewer's view.json (+ optionally open it).
+    if args.view or args.launch:
+        view_path = win_dir / "view.json"
+        vm = orv3_view.write_view_json(port_win, retail_win, view_path)
+        nd = sum(1 for f in vm["frames"] if f.get("draw_verdict") and f["draw_verdict"] != "ALIGNED")
+        print(f"\n--- view ---")
+        print(f"  wrote {view_path}  ({vm['count']} columns, {vm['n_gaps']} gaps, "
+              f"{nd} draw-divergent)")
+        if args.launch:
+            launch_viewer(view_path)
+
     drove = [s for s, a in (("retail", r_act), ("port", p_act)) if a == "drove"]
     saved = "nothing re-driven (pure cache slice)" if not drove else f"drove only: {', '.join(drove)}"
     print(f"\n=== LOOP DONE — {res['verdict']} · {saved} ===")
-    print(f"    window dir: {win_dir}  (port/ retail/ pairs.json)")
+    print(f"    window dir: {win_dir}  (port/ retail/ pairs.json"
+          f"{', view.json' if (args.view or args.launch) else ''})")
     return 0 if res["verdict"] == "ALIGNED" else 1
 
 
