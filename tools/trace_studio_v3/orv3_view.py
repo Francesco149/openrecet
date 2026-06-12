@@ -70,11 +70,13 @@ def merge_offsets(port_offsets: set[int], retail_offsets: set[int]) -> list[dict
 
 
 def _side_index(entry: Path):
-    """offset -> orv3.Frame for a cache entry, keyed by identity offset (meta +
-    container). The Frame carries index/present/draws/calls/res for the state panel."""
+    """(meta, {offset: orv3.Frame}, [w,h]) for a cache entry, keyed by identity offset.
+    The Frame carries index/present/draws/calls/res for the state panel; dims come from
+    the container's DEV_PARAMS."""
     meta = v3cache.load_meta(entry)
     c = orv3.Container.load(entry / "v3cap.bin")
-    return meta, {meta.offset_of(f.index): f for f in c.frames}
+    dims = [c.dev.get("w"), c.dev.get("h")]
+    return meta, {meta.offset_of(f.index): f for f in c.frames}, dims
 
 
 def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
@@ -87,8 +89,8 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    pmeta, pidx = _side_index(port_entry)
-    rmeta, ridx = _side_index(retail_entry)
+    pmeta, pidx, _ = _side_index(port_entry)
+    rmeta, ridx, _ = _side_index(retail_entry)
     join = orv3_sync.sync_entries(port_entry, retail_entry, quiet=True)
 
     rows = merge_offsets(set(pidx), set(ridx))
@@ -162,14 +164,63 @@ def build_view(port_entry: Path, retail_entry: Path, out_dir: Path,
     return manifest
 
 
+def _winpath(p: Path) -> str:
+    """WSL path -> Windows path (the native viewer is a Windows process; fopen needs a
+    Windows path for the container, like replay.exe gets)."""
+    import subprocess
+    return subprocess.run(["wslpath", "-w", str(Path(p).resolve())],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def write_view_json(port_entry: Path, retail_entry: Path, out_path: Path) -> dict:
+    """Emit the NATIVE viewer's lean manifest: the identity-join timeline + the two
+    container paths (Windows), NO baked images — the viewer replays frames live from
+    the containers (the container is the only artifact). Each column carries both
+    sides' kept-frame INDEX (what the viewer renders) or an honest gap, plus the
+    per-side draw/call counts + presents for the state panel."""
+    pmeta, pidx, pdims = _side_index(port_entry)
+    rmeta, ridx, _ = _side_index(retail_entry)
+    join = orv3_sync.sync_entries(port_entry, retail_entry, quiet=True)
+    rows = merge_offsets(set(pidx), set(ridx))
+    frames = []
+    for row in rows:
+        off = row["offset"]
+        pf, rf = pidx.get(off), ridx.get(off)
+        frames.append({
+            "offset": off, "gap": row["gap"],
+            "port_idx": pf.index if pf else None, "retail_idx": rf.index if rf else None,
+            "port_present": pf.present if pf else None, "retail_present": rf.present if rf else None,
+            "port_draws": pf.n_draws if pf else None, "retail_draws": rf.n_draws if rf else None,
+            "port_calls": pf.n_calls if pf else None, "retail_calls": rf.n_calls if rf else None,
+        })
+    manifest = {
+        "scenario": pmeta.scenario, "anchor": pmeta.anchor, "anchor_occ": pmeta.anchor_occ,
+        "verdict": join["verdict"], "load_stretch": join["load_stretch"], "dims": pdims,
+        "port_container": _winpath(port_entry / "v3cap.bin"),
+        "retail_container": _winpath(retail_entry / "v3cap.bin"),
+        "offset0": rows[0]["offset"] if rows else None, "count": len(rows),
+        "n_gaps": sum(1 for r in rows if r["gap"]), "frames": frames,
+    }
+    Path(out_path).write_text(json.dumps(manifest, indent=1))
+    return manifest
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="v3 view bake (port+retail cache pair -> PNG panels + manifest)")
     ap.add_argument("port_entry", type=Path, help="port cache entry dir (v3cap.bin + v3ref_*.raw + v3meta.json)")
     ap.add_argument("retail_entry", type=Path, help="retail cache entry dir")
     ap.add_argument("--out", type=Path, default=None,
-                    help="output view dir (default: <port_entry>/view)")
+                    help="output view dir (PNG bake), or view.json path with --native")
     ap.add_argument("--amp", type=float, default=6.0, help="diff amplification (default 6)")
+    ap.add_argument("--native", action="store_true",
+                    help="emit the native viewer's view.json (no PNG bake) instead")
     args = ap.parse_args()
+    if args.native:
+        out = args.out or (args.port_entry / "view.json")
+        m = write_view_json(args.port_entry, args.retail_entry, out)
+        print(f"wrote {out} — {m['count']} columns ({m['n_gaps']} gaps), {m['verdict']}, "
+              f"dims {m['dims']}")
+        return 0
     out = args.out or (args.port_entry / "view")
     build_view(args.port_entry, args.retail_entry, out, amp=args.amp)
     return 0

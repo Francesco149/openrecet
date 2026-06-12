@@ -113,6 +113,8 @@
 
             # Dear ImGui source for the Trace Studio v3 native viewer (tools/trace_studio_v3/viewer).
             export IMGUI_SRC=${imguiSrc}
+            # nlohmann/json (header-only) — the viewer parses the Python-emitted view.json.
+            export NLOHMANN_JSON_INC=${pkgs.nlohmann_json}/include
 
             # Banner only for an interactive shell (stdout is a tty). Under
             # `nix develop --command <cmd>` stdout is a pipe, so this stays silent

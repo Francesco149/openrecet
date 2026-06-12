@@ -6,7 +6,7 @@ CC     := i686-w64-mingw32-gcc
 IMGUI  ?= $(IMGUI_SRC)
 
 CXXFLAGS := -O2 -g -std=c++17 -Wall -Wno-unused-variable \
-            -I. -I$(IMGUI) -I$(IMGUI)/backends \
+            -I. -I$(IMGUI) -I$(IMGUI)/backends -I$(NLOHMANN_JSON_INC) \
             -DWINVER=0x0601 -D_WIN32_WINNT=0x0601
 # d3d9 hosts the UI; d3d8 is the replay core's device. static libstdc++/libgcc so the
 # exe runs without the mingw runtime DLLs on PATH.
