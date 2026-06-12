@@ -64,10 +64,34 @@ path stays single-frame (R2 regression BIT-EXACT). Replayer renders any kept-fra
 (one pass: create all RES, issue only the target section). Committed driver
 `tools/trace_studio_v3/port_capture.py` (stage proxy → scenario-test → pull from LOCALAPPDATA
 → replay every frame + assert bit-exact + report dedup); `inspect_cap.py` multi-frame aware.
-**Next: RETAIL full-extent capture (present-window keep — retail doesn't read back per frame,
-so it needs an anchor-relative present window, NOT the port's GetBackBuffer trigger) + the
-content-addressed slice cache (capture retail's window ONCE, key by trace-hash, slice
-sub-windows with zero re-drives) → P2 sync-by-identity.**
+
+**P1 TAIL — RETAIL present-WINDOW keep mode ✅ DONE (2026-06-12).** The single-frame retail
+present-count path is generalized to a **WINDOW** `[capframe, capframe+capcount)`: the proxy
+keeps EVERY present in the window into the SAME multi-frame container the port uses, drops the
+rest, finalizes (EOF) after the last. This is the retail counterpart of the port's GetBackBuffer
+MULTI trigger — retail does **not** read back per frame, so the window is addressed by
+**present-count**, not by the app's own readback. Proven bit-exact on BOTH sides:
+- **PORT (local, no Frida):** `port_capture.py --window 944:44` re-captures the SAME HOUSE 3D
+  caprange frames via the present-count window (instead of GetBackBuffer) → **44/44 BIT-EXACT**,
+  per-frame call-bytes CONSTANT (~42 KB — the new per-frame `cb_reset` fixes the old
+  single-frame path's silent frame-0..N call accumulation), `48 res` dedup constant.
+- **RETAIL (Frida spawn):** `retail_capture.py --window 120:48` captures a **48-frame TITLE
+  window** into ONE **8.7 MB** container → **48/48 BIT-EXACT**, and the 48 references are **48
+  DISTINCT frames** (the title animates — a real multi-frame test, not 48 static copies),
+  6 UP-draws/frame CONSTANT (288 total, no accumulation), 5 textures dedup'd, backbuffer
+  flags=0x0 (retail non-lockable, CopyRects readback). Finalized in **1.69 s** under turbo.
+
+Mechanism: `capframe`/`capcount` via `v3proxy.cfg` (or env / a future runtime arm); one
+`cb_reset` per present (after a kept `write_frame`, or to drop a non-window frame) keeps `g_cb`
+to the CURRENT frame only. Committed: the proxy WINDOW branch (`d3d8_proxy.c`), `port_capture.py
+--window`, and the retail driver `tools/trace_studio_v3/retail_capture.py` (stage proxy + cfg →
+Frida spawn turbo → poll for FINALIZE → pull → replay every frame + assert bit-exact). **The
+capture mechanism for retail full-extent is now PROVEN.**
+**Next: anchor-relative arming** (the proxy's `OrV3ArmWindowAt` export + the agent's anchor
+resolver, so a post-load gameplay window lands despite the nondeterministic load-stretch — a
+fixed present-count only reaches the deterministic-early title) **+ the content-addressed slice
+cache** (capture retail's window ONCE, key by trace-hash, slice sub-windows with zero re-drives)
+→ P2 sync-by-identity.
 
 **3D/multi-scene stress test (2026-06-12) — surfaced the P1 capture-at-scale work
 (not a flaw in the bet).** Tried capturing a 3D HOUSE frame via `scenario-test`. Two

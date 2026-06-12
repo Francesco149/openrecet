@@ -69,7 +69,20 @@ def main() -> int:
                     help="capture only; skip the per-frame bit-exact replay check.")
     ap.add_argument("--keep-proxy", action="store_true",
                     help="leave build/d3d8.dll staged (default: unstage on exit).")
+    ap.add_argument("--window", metavar="START:COUNT", default=None,
+                    help="capture a present-count WINDOW [START, START+COUNT) via "
+                         "v3proxy.cfg instead of the GetBackBuffer MULTI trigger — "
+                         "the SAME present-window keep mode retail uses. Proves WINDOW "
+                         "mode bit-exact on the local (fast) port. e.g. --window 944:44")
     args = ap.parse_args()
+
+    win_start = win_count = None
+    if args.window:
+        try:
+            s, c = args.window.split(":")
+            win_start, win_count = int(s), int(c)
+        except ValueError:
+            raise SystemExit(f"--window wants START:COUNT (got {args.window!r})")
 
     if not PROXY_DLL.exists():
         raise SystemExit(f"proxy not built: {PROXY_DLL} — `nix develop --command make` in proxy/")
@@ -83,13 +96,20 @@ def main() -> int:
     cap = v3 / "v3cap.bin"
     log = v3 / "v3proxy.log"
 
-    # stage proxy + clear stale capture (a v3proxy.cfg would force single-frame —
-    # ensure none so the port runs in GetBackBuffer MULTI mode).
+    # stage proxy + clear stale capture. A v3proxy.cfg selects WINDOW mode (present-
+    # count keep, like retail); without it the port runs the GetBackBuffer MULTI
+    # trigger. --window writes the cfg, else ensure none lingers from a prior run.
     shutil.copy2(PROXY_DLL, STAGED_DLL)
-    (STAGED_DLL.parent / "v3proxy.cfg").unlink(missing_ok=True)
+    cfg = STAGED_DLL.parent / "v3proxy.cfg"
+    if win_start is not None:
+        cfg.write_text(f"capframe={win_start}\ncapcount={win_count}\n")
+        mode = f"WINDOW [{win_start},{win_start + win_count})"
+    else:
+        cfg.unlink(missing_ok=True)
+        mode = "MULTI (GetBackBuffer)"
     for f in [cap, log, *v3.glob("v3ref_*.raw"), v3 / "v3replay_chk.raw"]:
         f.unlink(missing_ok=True)
-    print(f"[stage] {PROXY_DLL.name} → {STAGED_DLL}  (MULTI mode, out={v3})")
+    print(f"[stage] {PROXY_DLL.name} → {STAGED_DLL}  ({mode}, out={v3})")
 
     try:
         print(f"[run]   scenario-test {args.scenario} --target openrecet …")
@@ -100,6 +120,7 @@ def main() -> int:
     finally:
         if not args.keep_proxy:
             STAGED_DLL.unlink(missing_ok=True)
+            cfg.unlink(missing_ok=True)
             print(f"[stage] unstaged {STAGED_DLL.name}")
 
     if not cap.exists() or not log.exists():

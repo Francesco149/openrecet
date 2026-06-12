@@ -7,17 +7,21 @@
  * are wrapped; resources are returned UNWRAPPED and snapshotted by read-only Lock
  * (port allocates them D3DPOOL_MANAGED -> lockable).
  *
- * SINGLE-FRAME, DEFERRED-SNAPSHOT capture (P1 two-section): each frame's calls
- * accumulate in an in-memory buffer that is dropped every Present; only the
- * TARGET frame survives. Resource snapshots are DEFERRED to finalize, so the
- * multi-thousand-frame prologue/load costs ZERO snapshot work — only the target
- * frame's bound resources are ever read back (current contents, current pointers
- * ⇒ no stale data, no pointer-reuse-across-transition bug). The target frame is
- * picked by the app's own backbuffer readback (GetBackBuffer trigger, aligned to
- * the harness's --capture-frames) or a present-count target. At finalize the
- * proxy snapshots that frame's resources, patches their ids into the buffered
- * calls, writes [resources][calls], and reads back the reference backbuffer, so
- * the replayer re-renders + compares the exact same frame.
+ * DEFERRED-SNAPSHOT capture (P1 two-section): each frame's calls accumulate in an
+ * in-memory buffer that is dropped every Present; only KEPT frames survive.
+ * Resource snapshots are DEFERRED to write_frame, so the multi-thousand-frame
+ * prologue/load costs ZERO snapshot work — only a kept frame's bound resources are
+ * ever read back (current contents, current pointers ⇒ no stale data, no
+ * pointer-reuse-across-transition bug), content-hash dedup'd across the whole
+ * window. Two keep-triggers, one container format:
+ *   • GetBackBuffer MULTI (the PORT): the app reads back each caprange frame for
+ *     its own screenshot; the proxy piggybacks on that readback to keep the frame.
+ *   • present-WINDOW (RETAIL / cfg / runtime-armed): retail does NOT read back per
+ *     frame, so the window is addressed by present-count — keep every present in
+ *     [capframe, capframe+capcount). capcount==1 is the P1/R2 single frame.
+ * write_frame snapshots a kept frame's resources, patches their ids into the
+ * buffered calls, writes [new RES][preamble][calls][Present], and reads back the
+ * reference backbuffer, so the replayer re-renders + compares the exact frame.
  */
 #define CINTERFACE
 #define COBJMACROS
@@ -73,11 +77,13 @@ static HINSTANCE g_self;
  * can't configure the proxy for retail. Instead it reads `v3proxy.cfg` from the
  * dll's OWN directory (the driver writes it into the same app dir the proxy is
  * staged in, before spawn). Recognized keys:
- *   capframe=N   present-count frame to finalize (default: GetBackBuffer trigger)
+ *   capframe=N   present-count WINDOW start (default: GetBackBuffer trigger)
+ *   capcount=M   present-count WINDOW length (default 1 = single frame)
  *   out=PATH     Windows dir for the container/log/reference (default LOCALAPPDATA)
  * getenv stays honored as a fallback (harmless for the port, which uses neither). */
 static char     g_cfg_out[MAX_PATH];
 static unsigned g_cfg_capframe = 0xFFFFFFFFu;
+static unsigned g_cfg_capcount = 1u;
 static int      g_cfg_loaded;
 static void load_cfg(void)
 {
@@ -97,6 +103,7 @@ static void load_cfg(void)
         size_t vl = strlen(val);
         while (vl && (val[vl-1]=='\n' || val[vl-1]=='\r' || val[vl-1]==' ' || val[vl-1]=='\t')) val[--vl] = 0;
         if      (!strcmp(key, "capframe")) g_cfg_capframe = (unsigned)strtoul(val, NULL, 0);
+        else if (!strcmp(key, "capcount")) { g_cfg_capcount = (unsigned)strtoul(val, NULL, 0); if (!g_cfg_capcount) g_cfg_capcount = 1u; }
         else if (!strcmp(key, "out") && *val) { snprintf(g_cfg_out, sizeof g_cfg_out, "%s", val); CreateDirectoryA(g_cfg_out, NULL); }
     }
     fclose(f);
@@ -139,7 +146,8 @@ static void proxy_log(const char *fmt, ...)
 
 /* ── capture state ── */
 static FILE     *g_cap;            /* container: [header][DEV_PARAMS] during the run; [resources][calls] appended at finalize */
-static unsigned  g_capframe = 0xFFFFFFFFu; /* present-count target; default = never (use the GetBackBuffer trigger) */
+static unsigned  g_capframe = 0xFFFFFFFFu; /* WINDOW start (present-count); 0xFFFFFFFF = unset → GetBackBuffer MULTI (port) */
+static unsigned  g_capcount = 1u;          /* WINDOW length in presents (retail present-window keep mode); 1 = single frame */
 static unsigned  g_frame;          /* present-counted frame index */
 static int       g_capturing;
 static unsigned  g_present_count;
@@ -409,8 +417,9 @@ __declspec(dllexport) IDirect3D8 * WINAPI Direct3DCreate8(UINT SDKVersion)
     load_real_d3d8(); if (!g_realCreate) return NULL;
     IDirect3D8 *real = g_realCreate(SDKVersion); if (!real) return NULL;
     load_cfg();
-    if (g_cfg_capframe != 0xFFFFFFFFu) g_capframe = g_cfg_capframe;     /* cfg (retail path) */
+    if (g_cfg_capframe != 0xFFFFFFFFu) { g_capframe = g_cfg_capframe; g_capcount = g_cfg_capcount; }  /* cfg present-window (retail/port) */
     const char *cf = getenv("OPENRECET_V3_CAPFRAME"); if (cf && *cf) g_capframe = (unsigned)atoi(cf);  /* env override */
+    const char *cc = getenv("OPENRECET_V3_CAPCOUNT"); if (cc && *cc) { int n = atoi(cc); if (n > 0) g_capcount = (unsigned)n; }
     WrapD3D *w = (WrapD3D*)calloc(1, sizeof *w);
     w->lpVtbl = &g_IDirect3D8_vt; w->real = real; w->refs = 1;
     proxy_log("Direct3DCreate8 wrapped (capframe=%u)\n", g_capframe);
@@ -487,13 +496,24 @@ static HRESULT STDMETHODCALLTYPE my_IDirect3DDevice8_Present(
     WrapDev *w = (WrapDev*)This;
     if (CAP) {
         if (g_capframe != 0xFFFFFFFFu) {
-            /* SINGLE-FRAME (retail/cfg present-count target): write the one frame
-             * and close, exactly the P1/R2 behaviour. */
-            if (g_frame == g_capframe) {
-                write_frame(w->real);
-                orv3_wu(g_cap, ORV3_EOF); fclose(g_cap); g_cap = NULL; g_capturing = 0;
-                proxy_log("FINALIZE single frame %u (1 kept) + reference\n", g_frame);
+            /* WINDOW mode (retail / cfg / runtime-armed present-count window): keep
+             * every present in [g_capframe, g_capframe+g_capcount), drop the rest,
+             * finalize after the last. The retail counterpart of the port's
+             * GetBackBuffer MULTI trigger — retail does NOT read back per frame, so
+             * the window is addressed by present-count. capcount==1 reproduces the
+             * P1/R2 single-frame capture. Resetting on EVERY present (after a kept
+             * write_frame, or to drop a non-window frame) keeps g_cb to the CURRENT
+             * frame only — the old single-frame path let it accumulate from frame 0
+             * (harmless only because each frame re-Clears, but wasteful + wrong-count). */
+            if (g_frame >= g_capframe && g_frame < g_capframe + g_capcount) {
+                write_frame(w->real);                            /* keep: snapshot+preamble+calls+ref */
+                if (g_frame + 1u == g_capframe + g_capcount) {   /* last frame in the window */
+                    orv3_wu(g_cap, ORV3_EOF); fclose(g_cap); g_cap = NULL; g_capturing = 0;
+                    proxy_log("FINALIZE window [%u,%u) (%u kept) + references\n",
+                              g_capframe, g_capframe + g_capcount, g_kept);
+                }
             }
+            cb_reset();   /* next frame fresh (kept: after write_frame; dropped: no carry-over) */
         } else if (!g_frame_kept) {
             /* MULTI-FRAME (port GetBackBuffer trigger): this present was NOT a
              * kept (caprange) frame — drop its calls + pending. The shadow keeps
